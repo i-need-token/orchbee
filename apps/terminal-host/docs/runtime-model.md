@@ -89,20 +89,20 @@ Every mutable fact has one authoritative owner. Derived indexes and scheduler qu
 only when they can be validated against, rebuilt from, or discarded without changing the owned
 fact.
 
-| Owner                        | Authoritative facts                                                                                                                                                                                                                                                                         |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `HostState`                  | Host epoch and process defaults                                                                                                                                                                                                                                                             |
-| `TerminalRegistry`           | Terminal membership, creation-identity binding index, inventory generation, and the stable reference to each retained session                                                                                                                                                               |
-| `RetainedTerminal`           | The allocation and one-to-one binding of exactly one `TerminalSession` to either one deferred `RuntimePreparation` or one started `TerminalEngine`; stable retained state never owns neither or both                                                                                        |
-| Local IPC connection         | `awaiting_hello`/`active`/`closing`, negotiated protocol limits, transport lifetime, and the physical connection                                                                                                                                                                            |
-| `BrokerSession`              | The active connection identifier, diagnostic `ClientId`, and attachment membership                                                                                                                                                                                                          |
-| `TerminalSession`            | Terminal identity, lifecycle, committed effective configuration and its revision, immutable initial start geometry after start, and the rebuildable last-synchronized engine observation                                                                                                    |
-| `TerminalEngine`             | PTY/process resources, Ghostty canonical state, content revision, generation, geometry, bell sequence, current progress, one bounded pending clipboard-write intent, physical configuration application, input queue, attachment-scoped held-input cleanup ledgers, and failure observation |
-| `AttachmentSession`          | Terminal binding, capabilities, demand, delivery flights, bell delivery cursor, history anchor, selection, and export progress                                                                                                                                                              |
-| Local IPC                    | Endpoint security, accept/read/write/timeout behavior, and record framing                                                                                                                                                                                                                   |
-| Native protocol adapter      | Lossless conversion between transport records and typed Host commands, replies, and events                                                                                                                                                                                                  |
-| `@orchbee/terminal-protocol` | Wire schemas, codecs, message kinds, format versions, and protocol safety limits                                                                                                                                                                                                            |
-| Desktop                      | Product binding, recovery decisions, escalation timing, platform effects, presentation, and updates                                                                                                                                                                                         |
+| Owner                        | Authoritative facts                                                                                                                                                                                                                                                                                                                                 |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `HostState`                  | Host epoch and process defaults                                                                                                                                                                                                                                                                                                                     |
+| `TerminalRegistry`           | Terminal membership, creation-identity binding index, inventory generation, and the stable reference to each retained session                                                                                                                                                                                                                       |
+| `RetainedTerminal`           | The allocation and one-to-one binding of exactly one `TerminalSession` to either one deferred `RuntimePreparation` or one started `TerminalEngine`; stable retained state never owns neither or both                                                                                                                                                |
+| Local IPC connection         | `awaiting_hello`/`active`/`closing`, negotiated protocol limits, transport lifetime, and the physical connection                                                                                                                                                                                                                                    |
+| `BrokerSession`              | The active connection identifier, diagnostic `ClientId`, and attachment membership                                                                                                                                                                                                                                                                  |
+| `TerminalSession`            | Terminal identity, lifecycle, committed effective configuration and its revision, committed complete runtime theme with operation/revision identity, immutable initial start geometry after start, and the rebuildable last-synchronized engine observation                                                                                         |
+| `TerminalEngine`             | PTY/process resources, Ghostty canonical state, content revision, generation, geometry, current and default dynamic colors, color scheme, bell sequence, current progress, one bounded pending clipboard-write intent, physical configuration/theme application, input queue, attachment-scoped held-input cleanup ledgers, and failure observation |
+| `AttachmentSession`          | Terminal binding, capabilities, demand, delivery flights, bell delivery cursor, history anchor, selection, and export progress                                                                                                                                                                                                                      |
+| Local IPC                    | Endpoint security, accept/read/write/timeout behavior, and record framing                                                                                                                                                                                                                                                                           |
+| Native protocol adapter      | Lossless conversion between transport records and typed Host commands, replies, and events                                                                                                                                                                                                                                                          |
+| `@orchbee/terminal-protocol` | Wire schemas, codecs, message kinds, format versions, and protocol safety limits                                                                                                                                                                                                                                                                    |
+| Desktop                      | Product binding, recovery decisions, escalation timing, platform effects, presentation, and updates                                                                                                                                                                                                                                                 |
 
 `TerminalEngine` remains one semantic owner, but it is not one implementation file. Its runtime
 source is a directory of review units: one private state record, one narrow public handle, and
@@ -117,8 +117,8 @@ The same rule applies to the Host-side owners. `state/` keeps one concrete
 `HostCore` while connection, terminal-lifecycle, attachment, and projection
 transactions live in separate owner-local files. `runtime_aggregate/` keeps one concrete
 `HostRuntimeAggregate` while retained ownership, creation, attachment lifecycle, input admission,
-configuration, geometry, terminal control, interaction access, projection, termination, and
-maintenance orchestration are separate review units.
+configuration, runtime theme, geometry, terminal control, interaction access, projection,
+termination, and maintenance orchestration are separate review units.
 `runtime_maintenance/` separates scheduling from immutable runtime-observation conversion.
 Their roots preserve the existing namespaces; none of these directories introduces another
 registry, broker, retained-terminal map, or cleanup owner.
@@ -145,7 +145,12 @@ coherent inventory summary without reaching through an untyped runtime map. It m
 the engine and must never advance beyond the engine fact it records. The committed configuration is
 different: `TerminalSession` owns its protocol-visible value and revision. A native update prepares
 all Core preconditions, applies the value to the engine, and then performs an infallible session
-commit; failed physical application leaves the committed configuration unchanged.
+commit; failed physical application leaves the committed configuration unchanged. Runtime theme
+uses the same ownership direction: `TerminalSession` owns the complete protocol-visible theme
+state, while a started engine or deferred `RuntimePreparation` owns its physical application. The
+aggregate verifies owner agreement, applies the complete terminal theme, and only then commits the
+next operation ID and theme revision infallibly. A rejected or failed effect leaves both owners at
+the prior complete state.
 
 The fair background synchronizer may process a bounded subset of retained terminals per poll. A
 `ListTerminals` request therefore synchronizes the exact bounded page it will serialize after cursor
@@ -162,12 +167,12 @@ domain state and cannot authorize or commit an operation.
 
 The composition oracle first runs the Core and Engine owner-local invariant oracles, then checks
 cross-owner relationships. Retained runtime membership is one-to-one with Core terminal membership;
-the active connection agrees with the Core broker; committed configuration agrees exactly; Core's
-observed revision never leads the Engine, geometry agrees whenever the revisions are equal, and a
-settled terminal has an exact revision match. Attachment capability membership agrees with the
-Engine input and history ledgers, and projection cursors never lead the Engine generation or
-revision. Explicit model-only fixtures may omit a native runtime, but cannot own or imitate runtime
-facts.
+the active connection agrees with the Core broker; committed configuration and terminal theme
+agree exactly; Core's observed revision never leads the Engine, geometry agrees whenever the
+revisions are equal, and a settled terminal has an exact revision match. Attachment capability
+membership agrees with the Engine input and history ledgers, and projection cursors never lead the
+Engine generation or revision. Explicit model-only fixtures may omit a native runtime, but cannot
+own or imitate runtime facts.
 
 Service tests invoke this oracle after shared successful request and poll boundaries. Stateful,
 generated, replayed, and fault-injected traces must also invoke it after every stable action or
@@ -213,6 +218,7 @@ const TerminalSession = struct {
     id: TerminalId,
     lifecycle: TerminalLifecycle,
     configuration: CommittedTerminalConfiguration,
+    theme: TerminalThemeState,
     start_geometry: ?TerminalGeometry,
     observed_engine: ?EngineObservation, // derived, rebuildable after start
 };
@@ -232,19 +238,21 @@ const AttachmentSession = struct {
 };
 ```
 
-Identifiers for hosts, brokers, terminals, creations, attachments, requests, revisions, and
-delivery sequences are distinct types. Conversion at a wire boundary is explicit. Zero or a
-missing value is not silently reinterpreted as another state.
+Identifiers for hosts, brokers, terminals, creations, attachments, theme operations, requests,
+revisions, and delivery sequences are distinct types. Conversion at a wire boundary is explicit.
+Zero or a missing value is not silently reinterpreted as another state.
 
 The production `RetainedTerminal` has no unowned or empty runtime variant. An immediate creation
 constructs its native engine before committing the embedded session. A deferred creation instead
 deep-copies and owns its complete prepared launch without constructing a child, PTY, Ghostty state,
-or geometry, then commits the embedded `awaiting_start` session and both identity indexes in one
-allocation-free step. `StartTerminal` constructs the engine from that owned preparation at the
-request's exact geometry, releases the preparation, and commits `running` plus the same initial
-geometry. A failed start retains the preparation and the unchanged `awaiting_start` session for a
-safe retry. Disposal or Host shutdown removes the stable session reference before destroying the
-preparation or engine and the complete retained record. Deterministic Core tests allocate pure
+or geometry, then commits the embedded `awaiting_start` session, launch-baseline theme state, and
+both identity indexes in one allocation-free step. A theme transaction admitted before start
+updates that owned preparation and the adjacent session together. `StartTerminal` constructs the
+engine from the latest owned preparation at the request's exact geometry, releases the preparation,
+and commits `running` plus the same initial geometry. A failed start retains the preparation and the
+unchanged `awaiting_start` session for a safe retry. Disposal or Host shutdown removes the stable
+session reference before destroying the preparation or engine and the complete retained record.
+Deterministic Core tests allocate pure
 standalone sessions through a test-build-only storage harness; they do not add a model runtime
 variant to `TerminalSession`, production code, or wire-visible state.
 
@@ -381,8 +389,9 @@ linearizes first remains a valid normal-completion fact.
 
 Settlement is the terminal-owned mutation barrier. Once `settled.exited` or `settled.failed` is
 committed, canonical content, generation, geometry, effective configuration, configuration
-revision, and observed content revision are frozen at the captured final revision. Input, resize,
-and configuration updates are rejected. Projection, history, selection, export, inventory, and
+revision, complete runtime theme and theme revision, and observed content revision are frozen at
+the captured final revision. Input, resize, configuration, and theme updates are rejected.
+Projection, history, selection, export, inventory, and
 outcome publication may continue only as reads of that frozen terminal state; broker-scoped
 attachment and delivery state may still advance independently. The pending outcome becomes
 published exactly once and is never recreated by a later read or acknowledgement. Explicit
@@ -805,6 +814,33 @@ Every fallible operation has an explicit `prepare -> effect -> commit` boundary:
 4. **Transport handoff** may still fail. That produces an unknown result for terminal-scoped
    effects and closes the broker session; it does not pretend that the domain commit rolled back.
 
+A runtime-theme request names one `TerminalThemeOperationId`, one expected theme revision, and the
+complete terminal color state: color scheme, default foreground/background, nullable cursor color,
+and exactly 256 palette entries. The Host reserves the complete result record before applying the
+theme. Under serialized admission it checks exact replay before compare-and-set: the current
+operation with identical theme returns `already-applied`, reuse of that operation identity with a
+different theme is a non-retryable conflict, and a different operation based on an old revision
+returns `stale` together with the complete current theme state. None of those paths mutates Core,
+the deferred preparation, or the engine.
+
+An admitted operation applies every terminal theme field to the one deferred preparation or
+started engine before Core advances the operation identity and theme revision once. Deferred start
+therefore constructs its later engine from the latest committed theme. A started engine replaces
+both dynamic-color defaults and their current active values atomically under the canonical Ghostty
+mutation lock, clears earlier OSC 4/10/11/12 overrides, and marks palette projection dirty. If that
+changes active terminal colors, content revision advances once while generation remains unchanged;
+if the complete defaults and active values already match, content revision need not advance even
+though the independent Host theme revision commits the new operation. All attachments project the
+same resulting content revision and color state.
+
+After replacement, later OSC 4/10/11/12 actions may override the new runtime theme normally. Their
+reset forms, terminal RIS, and Host-owned application reset restore the latest runtime theme rather
+than the launch-time colors or an earlier OSC value. Cursor shape and blinking remain separate
+retained profile defaults. Any validation, lifecycle, revision-overflow, runtime-coherence, or
+physical preflight failure occurs before the semantic theme commit and preserves the complete prior
+state. Recovery inventory always includes the current operation ID, theme revision, and complete
+terminal theme, including the revision-zero launch baseline with a null operation ID.
+
 A platform resize error is retryable only after the engine has restored the last committed PTY
 geometry. If that compensation cannot be confirmed, the engine is fenced and enters typed resize
 failure containment; Host state never assumes that a failed platform call was side-effect free.
@@ -853,8 +889,9 @@ hold a partial child sequence. `clear` invokes Ghostty's complete active-screen 
 cursor while preserving the active screen, terminal modes, title, current directory, geometry, and
 cell pixels. `reset` invokes Ghostty's full reset: it returns to the primary screen, discards the
 alternate screen, clears screen and retained history, and restores modes, title, current directory,
-cursor shape and blinking to their retained profile defaults, tab stops, palette-related terminal
-state, and interaction ownership to their reset values; geometry and cell pixels remain unchanged.
+cursor shape and blinking to their retained profile defaults, dynamic colors to the latest runtime
+theme, tab stops, palette-related terminal state, and interaction ownership to their reset values;
+geometry and cell pixels remain unchanged.
 
 Each accepted operation advances terminal generation and revision exactly once, refreshes the
 history model, invalidates projection bases and generation-pinned row or export work, and releases
@@ -970,27 +1007,31 @@ would invent a product state that never existed.
 
 ### Terminal session
 
-| Current state              | Input                                                  | Next state                                  | Required effect                                                                                                                                                         |
-| -------------------------- | ------------------------------------------------------ | ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| absent                     | valid create with explicit geometry                    | `running`                                   | Prepare capacity, allocate one retained record, spawn exactly one runtime at that geometry, then atomically admit its embedded session and both indexes before replying |
-| absent                     | valid create with deferred geometry                    | `awaiting_start`                            | Prepare capacity, allocate one retained record, retain the complete prepared launch, and atomically admit its embedded session and both indexes without spawning        |
-| `awaiting_start`           | start with valid geometry; spawn succeeds              | `running`                                   | Spawn the only runtime and atomically commit the same initial geometry to lifecycle and engine observation before replying                                              |
-| `awaiting_start`           | start spawn fails                                      | unchanged                                   | Return a typed retryable failure; retain identity and prepared launch and expose no geometry, child, PTY, attachment, or frame                                          |
-| `running` or later         | exact repeated start geometry                          | unchanged                                   | Return `already-started` without another process effect; conflicting geometry returns non-retryable `start-conflict`                                                    |
-| `running`                  | child exits or output closes normally                  | `finishing(first)`                          | Retain exactly the first completion fact and reject new client input                                                                                                    |
-| `finishing`                | complementary completion fact after writer quiescence  | `settled.exited`                            | Commit one immutable normal outcome                                                                                                                                     |
-| `running` or `finishing`   | unrecoverable runtime failure                          | `containing_failure.stopping`               | Fence I/O, record failure, and initiate force containment once; do not publish a settled outcome yet                                                                    |
-| `containing_failure`       | process tree and runtime resources confirmed contained | `settled.failed`                            | Retain the typed failure and observed or explicitly unavailable process result                                                                                          |
-| `containing_failure`       | owner cleanup phase fails                              | `containing_failure.blocked`                | Retain the exact cleanup failure and schedule a broker-independent retry                                                                                                |
-| `settled`                  | fatal teardown cannot confirm retained cleanup         | same outcome + `retained_cleanup.blocked`   | Retain the cleanup independently and schedule a broker-independent retry; never rewrite the outcome                                                                     |
-| settled + retained cleanup | cleanup retry succeeds                                 | same outcome + `retained_cleanup.complete`  | Confirm cleanup while preserving the settled outcome and final revision                                                                                                 |
-| settled + retained cleanup | bounded retry budget is exhausted                      | same outcome + `retained_cleanup.exhausted` | Keep ownership and the exact cleanup failure; reject disposal and never report clean release                                                                            |
-| `running` or `finishing`   | graceful or force request                              | same lifecycle with updated intent          | Perform each intent at most once; never dispose implicitly                                                                                                              |
-| `settled`                  | input, resize, configuration, or revision advancement  | unchanged                                   | Reject the mutation; the captured final revision and terminal-owned visible state remain immutable                                                                      |
-| `settled`                  | dispose while outcome publication is pending           | unchanged                                   | Reject retryably before runtime shutdown or any removal side effect                                                                                                     |
-| `settled`                  | dispose after outcome publication                      | absent                                      | Complete resource cleanup, remove the session reference and indexes, then destroy the retained record                                                                   |
-| `awaiting_start`           | dispose                                                | absent                                      | Remove the session reference and indexes, release the prepared launch, and destroy the retained record without termination                                              |
-| any retained state         | broker disconnect                                      | unchanged                                   | Remove attachment capabilities only                                                                                                                                     |
+| Current state              | Input                                                        | Next state                                  | Required effect                                                                                                                                                         |
+| -------------------------- | ------------------------------------------------------------ | ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| absent                     | valid create with explicit geometry                          | `running`                                   | Prepare capacity, allocate one retained record, spawn exactly one runtime at that geometry, then atomically admit its embedded session and both indexes before replying |
+| absent                     | valid create with deferred geometry                          | `awaiting_start`                            | Prepare capacity, allocate one retained record, retain the complete prepared launch, and atomically admit its embedded session and both indexes without spawning        |
+| `awaiting_start`           | start with valid geometry; spawn succeeds                    | `running`                                   | Spawn the only runtime and atomically commit the same initial geometry to lifecycle and engine observation before replying                                              |
+| `awaiting_start`           | start spawn fails                                            | unchanged                                   | Return a typed retryable failure; retain identity and prepared launch and expose no geometry, child, PTY, attachment, or frame                                          |
+| `running` or later         | exact repeated start geometry                                | unchanged                                   | Return `already-started` without another process effect; conflicting geometry returns non-retryable `start-conflict`                                                    |
+| `awaiting_start`           | valid runtime-theme compare-and-set                          | unchanged lifecycle                         | Replace the complete owned preparation theme, then commit its operation ID and next theme revision to the adjacent session                                              |
+| `running` or `finishing`   | valid runtime-theme compare-and-set                          | unchanged lifecycle                         | Apply the complete engine defaults/current colors under one Ghostty mutation boundary, then infallibly commit the same complete semantic theme state                    |
+| any retained state         | exact replay of the current theme operation and data         | unchanged                                   | Return `already-applied`; the replay check precedes lifecycle and stale checks and performs no physical or semantic mutation                                            |
+| theme-mutable state        | stale theme revision                                         | unchanged                                   | Return `stale` plus the complete current theme state; conflicting current operation identity or any failed preflight also preserves both owners                         |
+| `running`                  | child exits or output closes normally                        | `finishing(first)`                          | Retain exactly the first completion fact and reject new client input                                                                                                    |
+| `finishing`                | complementary completion fact after writer quiescence        | `settled.exited`                            | Commit one immutable normal outcome                                                                                                                                     |
+| `running` or `finishing`   | unrecoverable runtime failure                                | `containing_failure.stopping`               | Fence I/O, record failure, and initiate force containment once; do not publish a settled outcome yet                                                                    |
+| `containing_failure`       | process tree and runtime resources confirmed contained       | `settled.failed`                            | Retain the typed failure and observed or explicitly unavailable process result                                                                                          |
+| `containing_failure`       | owner cleanup phase fails                                    | `containing_failure.blocked`                | Retain the exact cleanup failure and schedule a broker-independent retry                                                                                                |
+| `settled`                  | fatal teardown cannot confirm retained cleanup               | same outcome + `retained_cleanup.blocked`   | Retain the cleanup independently and schedule a broker-independent retry; never rewrite the outcome                                                                     |
+| settled + retained cleanup | cleanup retry succeeds                                       | same outcome + `retained_cleanup.complete`  | Confirm cleanup while preserving the settled outcome and final revision                                                                                                 |
+| settled + retained cleanup | bounded retry budget is exhausted                            | same outcome + `retained_cleanup.exhausted` | Keep ownership and the exact cleanup failure; reject disposal and never report clean release                                                                            |
+| `running` or `finishing`   | graceful or force request                                    | same lifecycle with updated intent          | Perform each intent at most once; never dispose implicitly                                                                                                              |
+| `settled`                  | input, resize, configuration, theme, or revision advancement | unchanged                                   | Reject the mutation; the captured final revision and terminal-owned visible state remain immutable                                                                      |
+| `settled`                  | dispose while outcome publication is pending                 | unchanged                                   | Reject retryably before runtime shutdown or any removal side effect                                                                                                     |
+| `settled`                  | dispose after outcome publication                            | absent                                      | Complete resource cleanup, remove the session reference and indexes, then destroy the retained record                                                                   |
+| `awaiting_start`           | dispose                                                      | absent                                      | Remove the session reference and indexes, release the prepared launch, and destroy the retained record without termination                                              |
+| any retained state         | broker disconnect                                            | unchanged                                   | Remove attachment capabilities only                                                                                                                                     |
 
 ### Attachment session
 
@@ -1037,46 +1078,49 @@ Stable claim identifiers are used by tests, models, and review findings.
 | `TH-015` | Each Ghostty bell advances one terminal-owned sequence exactly once. A read-capable attachment receives each later sequence at most once, advances only with exact outgoing-batch append, and never replays a sequence that predates its admission or survives its destruction.                                                                                                                                                                                                                                                                                                                                                      |
 | `TH-016` | An input-authorized application clear or reset mutates only the Host-owned Ghostty state, advances generation and revision exactly once, invalidates dependent projection and interaction state coherently across attachments, never enters PTY input/reply queues, and is never automatically replayed after an unknown result.                                                                                                                                                                                                                                                                                                     |
 | `TH-017` | OSC 52 can publish only one bounded plain-text write intent for selection kind `c`; it never reads platform clipboard data. Reader-batch rollback publishes nothing, outgoing-batch rollback preserves the same request for retry, one successful handoff consumes it across all attachments, and reconnect does not replay it. Terminal progress is a bounded current projection sample and never becomes lifecycle or notification authority.                                                                                                                                                                                      |
+| `TH-018` | One accepted runtime-theme operation atomically replaces color scheme, default foreground/background, nullable cursor color, and all 256 palette entries at one independent Host theme revision. Replay, stale, conflict, validation, overflow, lifecycle, and runtime-coherence failures preserve the complete prior Core and physical state. Recovery publishes the complete current state; all attachments observe one coherent content revision, and OSC/reset/RIS resolve against the latest committed runtime theme.                                                                                                           |
 
 ## Scenario decisions
 
-| Scenario                                          | Contract decision                                                                                                                                 |
-| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Desktop restarts while terminals run              | Host retains terminals; the new broker handshakes, inventories, and creates new attachments.                                                      |
-| A same-user process knows the endpoint            | It is inside the current trust boundary; application-level isolation is not promised.                                                             |
-| A second broker connects while one is active      | It cannot become active concurrently.                                                                                                             |
-| Protocol negotiation fails                        | Close that broker transport; retained terminals remain.                                                                                           |
-| A response is lost after input admission          | Outcome is unknown; Desktop must not automatically replay the input.                                                                              |
-| Deferred terminal start fails to spawn            | Keep the retained identity and prepared launch in `awaiting_start`; publish no geometry or start event, and permit an explicit retry or disposal. |
-| A scheduler batch fills                           | Return the prepared prefix normally and defer the next record.                                                                                    |
-| A client observes a repeated frame sequence       | The already committed immutable frame is acknowledged idempotently from fixed-header metadata; it is not decoded or committed again.              |
-| PTY read, write, reply, or resize integrity fails | Record a typed failure, fence I/O, confirm process-tree containment, then publish and retain the failed terminal for observation and disposal.    |
-| One runtime fails during Host shutdown            | Continue shutdown for all other runtimes, then report the aggregate failure.                                                                      |
-| Host or operating system crashes                  | PTY continuity and recovery are not promised. Platform cleanup mechanisms still apply where the OS provides them.                                 |
+| Scenario                                          | Contract decision                                                                                                                                  |
+| ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Desktop restarts while terminals run              | Host retains terminals; the new broker handshakes, inventories, and creates new attachments.                                                       |
+| A same-user process knows the endpoint            | It is inside the current trust boundary; application-level isolation is not promised.                                                              |
+| A second broker connects while one is active      | It cannot become active concurrently.                                                                                                              |
+| Protocol negotiation fails                        | Close that broker transport; retained terminals remain.                                                                                            |
+| A response is lost after input admission          | Outcome is unknown; Desktop must not automatically replay the input.                                                                               |
+| A theme response is stale, lost, or replayed      | Return or recover the complete authoritative theme state; exact replay is idempotent, while an unknown outcome must be reconciled before rebasing. |
+| Deferred terminal start fails to spawn            | Keep the retained identity and prepared launch in `awaiting_start`; publish no geometry or start event, and permit an explicit retry or disposal.  |
+| A scheduler batch fills                           | Return the prepared prefix normally and defer the next record.                                                                                     |
+| A client observes a repeated frame sequence       | The already committed immutable frame is acknowledged idempotently from fixed-header metadata; it is not decoded or committed again.               |
+| PTY read, write, reply, or resize integrity fails | Record a typed failure, fence I/O, confirm process-tree containment, then publish and retain the failed terminal for observation and disposal.     |
+| One runtime fails during Host shutdown            | Continue shutdown for all other runtimes, then report the aggregate failure.                                                                       |
+| Host or operating system crashes                  | PTY continuity and recovery are not promised. Platform cleanup mechanisms still apply where the OS provides them.                                  |
 
 ## Required correctness evidence
 
 The implementation is not considered conformant until claims map to executable evidence. File
 coverage alone is insufficient.
 
-| Evidence                                                                       | Required coverage                                                                                                                                                                                                                                                                                                                                                                          |
-| ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| [Host registry TLA+ model](../formal/tla/TerminalHostRegistry.tla)             | `TH-001`, `TH-004`, `TH-005`, two-terminal identity uniqueness, atomic creation failure, broker-independent retention, settlement-gated disposal, and identity reuse after disposal; checked bounds live in its adjacent `.cfg`                                                                                                                                                            |
-| [Terminal lifecycle TLA+ model](../formal/tla/TerminalHostLifecycle.tla)       | `TH-005`, `TH-008`, `TH-009`, geometry-gated start, failed-start stutter, writer quiescence, both normal-completion orders, failure containment, cleanup retry, exact settled revision, mutation freeze, and disposal from awaiting-start or settlement; checked bounds live in its adjacent `.cfg`                                                                                        |
-| [Host shutdown TLA+ model](../formal/tla/TerminalHostShutdown.tla)             | `TH-013`, two-runtime teardown, failed-attempt retention, no short-circuit after one failure, and completion only after every retained runtime has been attempted; checked bounds live in its adjacent `.cfg`                                                                                                                                                                              |
-| [Delivery TLA+ model](../formal/tla/TerminalHostDelivery.tla)                  | `TH-003`, `TH-010`, `TH-011`, batch prefixes, acknowledgement races, pause/detach, reconnect, and transport failure; checked bounds live in its adjacent `.cfg`                                                                                                                                                                                                                            |
-| [Request-outcome TLA+ model](../formal/tla/TerminalHostRequestOutcome.tla)     | `TH-005`, `TH-007`, `TH-010`, `TH-016`, prepare/commit/handoff, retryable rejection, delivered reply, unknown result, idempotent replay, and forbidden non-replayable retry, including application clear/reset                                                                                                                                                                             |
-| [Inventory TLA+ model](../formal/tla/TerminalInventoryPagination.tla)          | `TH-002`, `TH-012`, generation-scoped pagination, exact membership, duplicate prevention, and stale-cursor rejection                                                                                                                                                                                                                                                                       |
-| [Frame-delivery TLA+ model](../formal/tla/TerminalFrameBackpressure.tla)       | `TH-006`, `TH-009`, `TH-010`, `TH-011`, `TH-012`, `TH-016`, two-attachment projection mutation/capture separation, generation-changing clear/reset, exact failed revisions, provisional frame commit, failure publication and containment confirmation, no unconfirmed-failure handoff, one flight per attachment, acknowledgement bases, pause/abandonment, and blocked snapshot recovery |
-| [Input-backpressure TLA+ model](../formal/tla/TerminalInputBackpressure.tla)   | `TH-003`, `TH-004`, `TH-007`, `TH-012`, two-attachment held-input ownership, precharged detach repair without cross-release, independent client/reply admission budgets, client FIFO ownership, post-exit client closure, writer shutdown cleanup, terminal-reply priority within a bounded reply burst, and bounded client progress; checked bounds live in its adjacent `.cfg`           |
-| [Process-identity TLA+ model](../formal/tla/TerminalHostProcessIdentity.tla)   | `TH-008`, `TH-009`, `TH-013`, completion sampling, containment confirmation, reap, SID rebinding, and request dispatch; every emitted process signal targets the retained launch identity and a rebound session never receives a signal; checked bounds live in its adjacent `.cfg`                                                                                                        |
-| [History-interaction TLA+ model](../formal/tla/TerminalHistoryInteraction.tla) | `TH-002`, `TH-006`, `TH-010`, `TH-011`, `TH-012`, `TH-016`, row flights and anchors, generation-changing clear/reset invalidation, history observation, selection eviction, acknowledged export chunks, stale search pages, and detach cleanup                                                                                                                                             |
-| Composition invariant oracle                                                   | `TH-001` through `TH-013` and `TH-016` across owner boundaries: retained-runtime membership, broker identity, lifecycle and containment, configuration, geometry and revision agreement, capability-ledger agreement, and bounded projection observations after every stable Service step                                                                                                  |
-| Stateful property tests                                                        | `TH-001` through `TH-016` as applicable to each owner: registry/index coherence, lifecycle and terminal-control command sequences, attachment capability sequences, projection sequences, history/export sequences, and invariant checks after every action                                                                                                                                |
-| Deterministic fault-injection tests                                            | Allocation, encoding, immediate-create and deferred-start spawn, queue admission, resize, PTY I/O, process observation, reply handoff, partial batch, and multi-runtime shutdown failures at every commit seam                                                                                                                                                                             |
-| Native integration tests                                                       | POSIX session/process behavior, Windows Job/ConPTY behavior, endpoint ownership, peer identity, descriptor/handle cleanup, worker joining, and a real executable/Local IPC/PTY trace on every natively claimed platform                                                                                                                                                                    |
-| Cross-language protocol conformance                                            | Every kind's role, encoding, and successful response; every native command, reply, event, identifier type, and declared union or error variant; every transport and binary format; both sides of every negotiated or hard bound; and each declared malformed-record rejection class                                                                                                        |
-| Focused performance evidence                                                   | Bounded memory, no-demand behavior, fairness, large input backpressure, projection cadence, and history/export bounds without weakening semantic invariants                                                                                                                                                                                                                                |
+| Evidence                                                                                     | Required coverage                                                                                                                                                                                                                                                                                                                                                                          |
+| -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [Host registry TLA+ model](../formal/tla/TerminalHostRegistry.tla)                           | `TH-001`, `TH-004`, `TH-005`, two-terminal identity uniqueness, atomic creation failure, broker-independent retention, settlement-gated disposal, and identity reuse after disposal; checked bounds live in its adjacent `.cfg`                                                                                                                                                            |
+| [Terminal lifecycle TLA+ model](../formal/tla/TerminalHostLifecycle.tla)                     | `TH-005`, `TH-008`, `TH-009`, geometry-gated start, failed-start stutter, writer quiescence, both normal-completion orders, failure containment, cleanup retry, exact settled revision, mutation freeze, and disposal from awaiting-start or settlement; checked bounds live in its adjacent `.cfg`                                                                                        |
+| [Host shutdown TLA+ model](../formal/tla/TerminalHostShutdown.tla)                           | `TH-013`, two-runtime teardown, failed-attempt retention, no short-circuit after one failure, and completion only after every retained runtime has been attempted; checked bounds live in its adjacent `.cfg`                                                                                                                                                                              |
+| [Delivery TLA+ model](../formal/tla/TerminalHostDelivery.tla)                                | `TH-003`, `TH-010`, `TH-011`, batch prefixes, acknowledgement races, pause/detach, reconnect, and transport failure; checked bounds live in its adjacent `.cfg`                                                                                                                                                                                                                            |
+| [Request-outcome TLA+ model](../formal/tla/TerminalHostRequestOutcome.tla)                   | `TH-005`, `TH-007`, `TH-010`, `TH-016`, prepare/commit/handoff, retryable rejection, delivered reply, unknown result, idempotent replay, and forbidden non-replayable retry, including application clear/reset                                                                                                                                                                             |
+| [Runtime-theme TLA+ model](../../../packages/workbench/formal/tla/TerminalThemeRevision.tla) | `TH-018`, two-operation Host compare-and-set, atomic defaults/palette/cursor publication, exact replay, conflict, stale and failed no-mutation paths, unknown-outcome reconciliation, and the later client presentation barrier                                                                                                                                                            |
+| [Inventory TLA+ model](../formal/tla/TerminalInventoryPagination.tla)                        | `TH-002`, `TH-012`, generation-scoped pagination, exact membership, duplicate prevention, and stale-cursor rejection                                                                                                                                                                                                                                                                       |
+| [Frame-delivery TLA+ model](../formal/tla/TerminalFrameBackpressure.tla)                     | `TH-006`, `TH-009`, `TH-010`, `TH-011`, `TH-012`, `TH-016`, two-attachment projection mutation/capture separation, generation-changing clear/reset, exact failed revisions, provisional frame commit, failure publication and containment confirmation, no unconfirmed-failure handoff, one flight per attachment, acknowledgement bases, pause/abandonment, and blocked snapshot recovery |
+| [Input-backpressure TLA+ model](../formal/tla/TerminalInputBackpressure.tla)                 | `TH-003`, `TH-004`, `TH-007`, `TH-012`, two-attachment held-input ownership, precharged detach repair without cross-release, independent client/reply admission budgets, client FIFO ownership, post-exit client closure, writer shutdown cleanup, terminal-reply priority within a bounded reply burst, and bounded client progress; checked bounds live in its adjacent `.cfg`           |
+| [Process-identity TLA+ model](../formal/tla/TerminalHostProcessIdentity.tla)                 | `TH-008`, `TH-009`, `TH-013`, completion sampling, containment confirmation, reap, SID rebinding, and request dispatch; every emitted process signal targets the retained launch identity and a rebound session never receives a signal; checked bounds live in its adjacent `.cfg`                                                                                                        |
+| [History-interaction TLA+ model](../formal/tla/TerminalHistoryInteraction.tla)               | `TH-002`, `TH-006`, `TH-010`, `TH-011`, `TH-012`, `TH-016`, row flights and anchors, generation-changing clear/reset invalidation, history observation, selection eviction, acknowledged export chunks, stale search pages, and detach cleanup                                                                                                                                             |
+| Composition invariant oracle                                                                 | `TH-001` through `TH-013`, `TH-016`, and `TH-018` across owner boundaries: retained-runtime membership, broker identity, lifecycle and containment, configuration, terminal-theme, geometry and revision agreement, capability-ledger agreement, and bounded projection observations after every stable Service step                                                                       |
+| Stateful property tests                                                                      | `TH-001` through `TH-018` as applicable to each owner: registry/index coherence, lifecycle, terminal-control and runtime-theme command sequences, attachment capability sequences, projection sequences, history/export sequences, and invariant checks after every action                                                                                                                 |
+| Deterministic fault-injection tests                                                          | Allocation, encoding, immediate-create and deferred-start spawn, queue admission, runtime-theme preflight, resize, PTY I/O, process observation, reply handoff, partial batch, and multi-runtime shutdown failures at every commit seam                                                                                                                                                    |
+| Native integration tests                                                                     | POSIX session/process behavior, Windows Job/ConPTY behavior, endpoint ownership, peer identity, descriptor/handle cleanup, worker joining, and a real executable/Local IPC/PTY trace on every natively claimed platform                                                                                                                                                                    |
+| Cross-language protocol conformance                                                          | Every kind's role, encoding, and successful response; every native command, reply, event, identifier type, and declared union or error variant; every transport and binary format; both sides of every negotiated or hard bound; and each declared malformed-record rejection class                                                                                                        |
+| Focused performance evidence                                                                 | Bounded memory, no-demand behavior, fairness, large input backpressure, projection cadence, and history/export bounds without weakening semantic invariants                                                                                                                                                                                                                                |
 
 Every TLA+ module header and stateful property-test suite must identify the transition vocabulary it
 refines and the stable claim IDs it covers. Trace action names must use the transition vocabulary in
@@ -1135,6 +1179,7 @@ but does not promote that compile result to PTY, IPC, or ABI runtime evidence.
 | `TH-015`           | `src/engine/__tests__/runtime_state_test.zig`: Ghostty BEL effect counting; `src/service/__tests__/interaction_delivery_test.zig`: per-attachment baseline, ordered delivery, batch-full retry, and destruction behavior; Desktop and Web projected-terminal tests: exact scoped forwarding and client deduplication                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | `TH-016`           | `src/engine/__tests__/runtime_state_test.zig`: application clear/reset semantics and counter-exhaustion rejection; `src/service/__tests__/runtime_aggregate_lifecycle_test.zig`: input-capability authorization and exact Core observation synchronization; `src/__tests__/protocol_conformance_test.zig`: both control operations and exact accepted replies                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | `TH-017`           | `src/engine/__tests__/runtime_state_test.zig`: OSC 52 read/selection/base64/UTF-8/control rejection, exact 16 KiB boundary, first-pending ownership, retry identity, and progress set/remove projection; `src/service/__tests__/interaction_delivery_test.zig`: outgoing-full rollback, one-recipient routing across two readable attachments, consumption, and reconnect non-replay; protocol, Desktop broker, projected-terminal, and Web renderer/dialog tests cover the bounded event and explicit application decision                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `TH-018`           | `src/model/__tests__/theme_test.zig` and `src/core/__tests__/theme_revision_test.zig`: complete state validity, compare-and-set, exact replay, stale/conflict, overflow, and no-mutation rejection; `src/engine/__tests__/runtime_theme_test.zig`: atomic physical replacement, OSC override/reset, RIS/application-reset priority, failure preservation, and two-attachment revision agreement; `src/service/__tests__/runtime_aggregate_theme_test.zig` and `connection_request_test.zig`: deferred/running cross-owner commit, reply preallocation, recovery inventory, replay/stale/conflict/failure results; `src/__tests__/protocol_conformance_test.zig`: exact TypeScript/native theme request, result, state, and registry agreement                                                                                                                                                                                                                        |
 
 The deterministic commit-seam set is: creation preparation/spawn/admission; deferred-start spawn;
 control-reply
@@ -1143,7 +1188,8 @@ detach-repair materialization/publication/failure containment; application termi
 validation and canonical mutation; resize effect and unsafe rollback;
 projection capture/encoding, provisional payload adoption, and serialized read commit; row,
 history, selection, and export provisional mutation; batch prefix/full behavior; lifecycle outcome
-handoff; Local IPC partial write; process observation and containment; and multi-runtime shutdown.
+handoff; Local IPC partial write; process observation and containment; multi-runtime shutdown; and
+runtime-theme physical application before semantic commit.
 A new fallible seam must be added to this set and receive a
 named failure test before the implementation may rely on `catch unreachable` after that seam.
 
@@ -1183,6 +1229,7 @@ transport adapter, and single-owner schedules exercise an ordered local transact
 | `CS-022` | `ProcessObservationContainment`  | contain and retain           | native boundary            |
 | `CS-023` | `MultiRuntimeShutdown`           | contain and retain           | deterministic interleaving |
 | `CS-024` | `DeferredStartSpawn`             | contain and retain           | native boundary            |
+| `CS-025` | `RuntimeThemeCommit`             | reject without commit        | single owner               |
 
 `src/service/__tests__/commit_seam_matrix_test.zig` is the executable catalog. It requires a
 one-to-one enum/table entry for every row above and locates the exact named test that supplies its

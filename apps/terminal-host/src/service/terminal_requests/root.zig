@@ -11,6 +11,7 @@ const configuration_requests = @import("configuration.zig");
 const creation_requests = @import("creation.zig");
 const inventory_requests = @import("inventory.zig");
 const lifecycle_requests = @import("lifecycle.zig");
+const theme_requests = @import("theme.zig");
 
 const Context = host_request_context.Context;
 const MessageKind = protocol.MessageKind;
@@ -45,6 +46,12 @@ pub fn dispatch(
             correlation_id,
             outgoing,
         ),
+        .apply_terminal_theme => try handler.handleApplyTerminalTheme(
+            connection_id,
+            envelope,
+            correlation_id,
+            outgoing,
+        ),
         else => unreachable,
     }
 }
@@ -64,4 +71,5 @@ const Handler = struct {
     const handleDispose = lifecycle_requests.handleDispose;
     const handleAttach = attachment_requests.handleAttach;
     const handleDetach = attachment_requests.handleDetach;
+    const handleApplyTerminalTheme = theme_requests.handleApplyTerminalTheme;
 };

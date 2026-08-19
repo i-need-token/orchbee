@@ -286,6 +286,21 @@ pub const UpdateTerminalConfiguration = struct {
     terminalId: []const u8,
 };
 
+pub const TerminalTheme = struct {
+    colorScheme: []const u8,
+    defaultBackgroundRgb: u32,
+    defaultCursorRgb: ?u32,
+    defaultForegroundRgb: u32,
+    palette: []const u32,
+};
+
+pub const ApplyTerminalTheme = struct {
+    expectedThemeRevision: []const u8,
+    operationId: []const u8,
+    terminal: TerminalTheme,
+    terminalId: []const u8,
+};
+
 pub const FrameApplied = struct {
     attachmentId: []const u8,
     generation: []const u8,

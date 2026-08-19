@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 import {
+	TerminalThemeResultSchema,
 	AttachmentAcknowledgedSchema,
 	AttachmentCapabilitiesSchema,
 	CURRENT_PROTOCOL_VERSION,
@@ -439,6 +440,8 @@ function protocolLimitsFixture() {
 function createControlConformanceFixture() {
 	const attachmentId = '22'.repeat(16);
 	const creationId = '33'.repeat(16);
+	const themeOperationId = '66'.repeat(16);
+	const otherThemeOperationId = '77'.repeat(16);
 	const terminalId = '44'.repeat(16);
 	const hostEpoch = '11'.repeat(16);
 	const clientId = '55'.repeat(16);
@@ -462,6 +465,14 @@ function createControlConformanceFixture() {
 		palette: Array.from({ length: 256 }, (_, index) => index * 0x01_01_01),
 		versionResponse: '\u001b[>1;2;3c',
 	};
+	const terminalTheme = {
+		colorScheme: terminalProfile.colorScheme,
+		defaultBackgroundRgb: terminalProfile.defaultBackgroundRgb,
+		defaultCursorRgb: terminalProfile.defaultCursorRgb,
+		defaultForegroundRgb: terminalProfile.defaultForegroundRgb,
+		palette: terminalProfile.palette,
+	};
+	const baselineTheme = { operationId: null, revision: '0', terminal: terminalTheme };
 	const launch = {
 		arguments: ['--login', '项目'],
 		cellPixelHeight: 16,
@@ -511,6 +522,7 @@ function createControlConformanceFixture() {
 		identity,
 		revision: '42',
 		rows: 40,
+		theme: baselineTheme,
 	};
 	const failurePairs = [
 		['process-control', 'dispatch-termination'],
@@ -543,6 +555,16 @@ function createControlConformanceFixture() {
 	});
 
 	const commands = {
+		apply_terminal_theme: controlRequestText(
+			MessageKind.applyTerminalTheme,
+			{
+				expectedThemeRevision: '0',
+				operationId: themeOperationId,
+				terminal: terminalTheme,
+				terminalId,
+			},
+			'ApplyTerminalTheme',
+		),
 		attach_terminal: controlRequestText(
 			MessageKind.attachTerminal,
 			{
@@ -1028,6 +1050,34 @@ function createControlConformanceFixture() {
 			'TerminalStartAccepted',
 		),
 		terminal_started: controlText(TerminalStartedSchema, identity, 'TerminalStarted'),
+		terminal_theme_result: controlTexts(
+			TerminalThemeResultSchema,
+			[
+				{
+					current: { operationId: themeOperationId, revision: '1', terminal: terminalTheme },
+					operationId: themeOperationId,
+					terminalId,
+					transition: 'applied',
+				},
+				{
+					current: { operationId: themeOperationId, revision: '1', terminal: terminalTheme },
+					operationId: themeOperationId,
+					terminalId,
+					transition: 'already-applied',
+				},
+				{
+					current: {
+						operationId: otherThemeOperationId,
+						revision: '2',
+						terminal: terminalTheme,
+					},
+					operationId: themeOperationId,
+					terminalId,
+					transition: 'stale',
+				},
+			],
+			'TerminalThemeResult',
+		),
 		typed_failure: controlTexts(
 			TypedFailureSchema,
 			[

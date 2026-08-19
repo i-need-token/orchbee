@@ -22,7 +22,8 @@ Terminal Host owns:
   preparation or one started native engine per `TerminalId`;
 - PTY and process-tree creation, observation, termination, containment, and cleanup;
 - the single canonical Ghostty state used by input encoding, projection, history, and selection;
-- effective terminal configuration, ordered bounded input, revisions, and generations;
+- effective terminal configuration, complete revisioned runtime themes, ordered bounded input,
+  revisions, and generations;
 - broker-scoped attachments, demand, delivery flights, bell cursors, history anchors, selections, and exports;
 - bounded OSC 52 plain-text write intent, current terminal progress, and latest semantic command
   completion facts derived from Ghostty output;
@@ -45,6 +46,17 @@ The accepted contract requires these externally visible properties:
   replay is idempotent, conflicting geometry is rejected, and failed spawn remains retryable.
 - Immediate, headless, and test launches provide complete explicit geometry at creation. The Host
   never substitutes a visual startup timeout or an 80x24 fallback.
+- Each terminal retains one complete runtime-theme state: operation identity, independent theme
+  revision, color scheme, default foreground/background, nullable cursor color, and exactly 256
+  palette entries. Apply uses expected-revision compare-and-set and changes the deferred launch
+  preparation or started engine before one semantic commit. Exact replay is idempotent; stale,
+  conflicting, invalid, exhausted, or failed operations preserve the prior complete state and
+  recovery inventory returns that state without requiring a live attachment.
+- A started runtime-theme replacement updates defaults and active colors under one Ghostty mutation
+  boundary, clearing prior OSC dynamic-color overrides. Later OSC 4/10/11/12 changes may override
+  it; OSC reset forms, RIS, and Host reset return to the latest runtime theme. A physical color
+  change advances content revision once without changing generation, so every attachment projects
+  the same coherent revision.
 - Terminal output becomes a normal exit only after child completion, normal PTY drain, and complete quiescence of the PTY writer.
 - Unrecoverable PTY read, PTY write, terminal-reply, resize, or worker-integrity failures become an explicit typed failed outcome. The Host fences unsafe I/O, contains the owned process tree, and continues bounded cleanup retries even while no broker is connected.
 - Graceful termination, force termination, and disposal are distinct. Desktop owns escalation timing; disposal is explicit.
@@ -62,8 +74,9 @@ The accepted contract requires these externally visible properties:
   owner.
 - Application clear and reset requests execute directly against the Host-owned Ghostty state for
   an input-capable attachment. Clear erases and homes the active screen without changing its modes;
-  reset returns to a fresh primary-screen state and restores the retained profile's explicit cursor
-  shape and blinking defaults. Terminal escapes may override those cursor values until RIS or reset.
+  reset returns to a fresh primary-screen state, restores the latest runtime theme colors, and
+  restores the retained profile's explicit cursor shape and blinking defaults. Terminal escapes may
+  override those values until their reset form, RIS, or Host reset.
   Neither operation writes escape bytes to the child or asks a projected client to emulate VT
   behavior.
 - A semantic key event may mark one macOS Option chord as terminal Alt. The Host applies that intent

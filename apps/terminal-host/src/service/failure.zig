@@ -75,6 +75,7 @@ pub fn fromCore(err: CoreFailure) Details {
         error.InvalidFrameAcknowledgement => .{ .code = "invalid-frame-acknowledgement", .message = "frame acknowledgement does not match the in-flight projection", .retryable = false },
         error.InvalidPhase => .{ .code = "invalid-phase", .message = "operation is invalid in the terminal phase", .retryable = false },
         error.InvalidProcessObservation => .{ .code = "internal-error", .message = "Host observed an invalid process result", .retryable = false },
+        error.InvalidTheme => .{ .code = "invalid-field", .message = "terminal theme is invalid", .retryable = false },
         error.InventoryGenerationOverflow => .{ .code = "resource-exhausted", .message = "terminal inventory generation space is exhausted", .retryable = false },
         error.MissingConnection => .{ .code = "missing-connection", .message = "client connection is not active", .retryable = false },
         error.MissingResource => .{ .code = "missing-resource", .message = "terminal or attachment is missing", .retryable = false },
@@ -84,6 +85,7 @@ pub fn fromCore(err: CoreFailure) Details {
         error.SequenceOverflow => .{ .code = "resource-exhausted", .message = "attachment frame sequence space is exhausted", .retryable = false },
         error.StartConflict => .{ .code = "start-conflict", .message = "terminal was already started with different geometry", .retryable = false },
         error.TerminalConflict => .{ .code = "terminal-conflict", .message = "TerminalId conflicts with retained state", .retryable = true },
+        error.ThemeOperationConflict => .{ .code = "theme-operation-conflict", .message = "theme operation identifier conflicts with retained state", .retryable = false },
         error.OutOfMemory => .{ .code = "resource-exhausted", .message = "Host could not retain bounded state", .retryable = true },
     };
 }

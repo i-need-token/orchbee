@@ -63,6 +63,7 @@ pub const Dispatcher = struct {
             .detach_terminal,
             .set_terminal_defaults,
             .update_terminal_configuration,
+            .apply_terminal_theme,
             => try host_terminal_requests.dispatch(
                 &self.context,
                 request_contract.operation,

@@ -3,6 +3,7 @@ const builtin = @import("builtin");
 const terminal_input_encoding = @import("../input_encoding.zig");
 const terminal_configuration = @import("terminal-host-model").configuration;
 const terminal_geometry = @import("terminal-host-model").geometry;
+const terminal_theme = @import("terminal-host-model").theme;
 const contracts = @import("contracts.zig");
 const state = @import("state.zig");
 const handle = @import("handle.zig");
@@ -45,6 +46,7 @@ pub const testing = if (builtin.is_test) struct {
         projection_resident: bool,
         resize_fenced: bool,
         threads_joined: bool,
+        theme: terminal_theme.Theme,
         writer_stop: bool,
     };
 
@@ -60,6 +62,7 @@ pub const testing = if (builtin.is_test) struct {
         InputQueueEntryCountMismatch,
         InvalidRuntimeConfiguration,
         InvalidRuntimeGeometry,
+        InvalidRuntimeTheme,
         NormalCompletionIncomplete,
         RepairChargeEntryOverflow,
         RepairChargeOverflow,
@@ -235,6 +238,7 @@ pub const testing = if (builtin.is_test) struct {
         if (!terminal_geometry.isValid(observation.geometry)) {
             return error.InvalidRuntimeGeometry;
         }
+        if (!terminal_theme.valid(observation.theme)) return error.InvalidRuntimeTheme;
         if (observation.input.client_charge.bytes > contracts.pending_input_capacity_bytes) {
             return error.ClientInputChargeOverflow;
         }
@@ -382,6 +386,7 @@ pub const testing = if (builtin.is_test) struct {
             .projection_resident = runtime_state.projection.isResident(),
             .resize_fenced = runtime_state.resize_fenced.load(.acquire),
             .threads_joined = runtime_state.threads_joined,
+            .theme = runtime_state.profile.themeDefaults(&runtime_state.terminal),
             .writer_stop = runtime_state.writer_stop,
         };
     }

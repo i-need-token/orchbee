@@ -53,6 +53,19 @@ pub const TerminalControl = struct {
     terminal_id: core_module.TerminalId,
 };
 
+pub const TerminalThemeTransition = enum {
+    applied,
+    already_applied,
+    stale,
+};
+
+pub const TerminalThemeResult = struct {
+    current: model.theme.State,
+    operation_id: identifiers.TerminalThemeOperationId,
+    terminal_id: core_module.TerminalId,
+    transition: TerminalThemeTransition,
+};
+
 /// A request-scoped, read-only view of the terminal inventory. The aggregate
 /// retains every mutable Core owner; callers may serialize this view but cannot
 /// use it to perform a Core transition.
@@ -263,6 +276,13 @@ pub const ResizeError = core_module.CoreError || error{
 pub const TerminalControlError = core_module.CoreError || error{
     RuntimeStateDiverged,
     TerminalRuntimeMissing,
+};
+
+pub const TerminalThemeError = core_module.CoreError || error{
+    RuntimeStateDiverged,
+    TerminalRevisionOverflow,
+    TerminalRuntimeMissing,
+    TerminalRuntimeUnavailable,
 };
 
 /// THDD-001 retained-cleanup observability status. While a fatal-teardown pass

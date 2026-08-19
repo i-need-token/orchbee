@@ -30,7 +30,7 @@ import {
 import type { BrowserWindow, BrowserWindowConstructorOptions, MessagePortMain } from 'electron';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { HostConnection } from '../../host';
+import { createDefaultTerminalProfile, type HostConnection } from '../../host';
 import type { DesktopApplicationLifetimeBrokerDependencies } from '../../application-lifetime';
 import {
 	DesktopClientSessionBroker,
@@ -2169,6 +2169,22 @@ function terminalSummary(event: TerminalExited): TerminalSummary {
 		revision: event.finalRevision,
 		rows: 24,
 		terminateRequested: false,
+		theme: createInitialTheme(),
+	};
+}
+
+function createInitialTheme(): TerminalSummary['theme'] {
+	const profile = createDefaultTerminalProfile();
+	return {
+		operationId: null,
+		revision: CanonicalUint64TextSchema.parse('0'),
+		terminal: {
+			colorScheme: profile.colorScheme,
+			defaultBackgroundRgb: profile.defaultBackgroundRgb,
+			defaultCursorRgb: profile.defaultCursorRgb,
+			defaultForegroundRgb: profile.defaultForegroundRgb,
+			palette: profile.palette,
+		},
 	};
 }
 

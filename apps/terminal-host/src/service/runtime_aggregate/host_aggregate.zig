@@ -19,6 +19,7 @@ const ownership = @import("ownership.zig");
 const projection = @import("projection.zig");
 const start = @import("start.zig");
 const terminal_control = @import("terminal_control.zig");
+const theme = @import("theme.zig");
 const termination = @import("termination.zig");
 
 pub const HostRuntimeAggregateTestingState = if (target_builtin.is_test) struct {
@@ -86,6 +87,9 @@ pub const HostRuntimeAggregate = struct {
 
     // terminal-control boundary.
     pub const applyTerminalControl = terminal_control.applyTerminalControl;
+
+    // terminal-theme boundary.
+    pub const applyTerminalTheme = theme.applyTerminalTheme;
 
     // projection boundary.
     pub const frameApplied = projection.frameApplied;

@@ -362,6 +362,10 @@ test "inventory encoder paginates before the control JSON byte limit" {
         pub fn terminateRequested(_: @This()) bool {
             return true;
         }
+
+        pub fn themeState(_: @This()) model.theme.State {
+            return .{ .terminal = model.theme.default };
+        }
     };
     var terminals: [protocol.Limits.inventory_page_terminals]FailedTerminal = undefined;
     for (&terminals, 0..) |*terminal, index| {

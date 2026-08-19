@@ -104,6 +104,7 @@ pub fn commitPreparedTerminal(
                     geometry.cell_pixel_width,
                     geometry.cell_pixel_height,
                     pending.runtime_preparation.configuration,
+                    pending.runtime_preparation.themeDefaults(),
                     &retained.session,
                 );
                 pending.runtime_preparation.deinit(self.allocator);
@@ -119,6 +120,7 @@ pub fn commitPreparedTerminal(
                     pending.terminal_id,
                     pending.launch_digest,
                     retained.start_preparation.?.configuration,
+                    retained.start_preparation.?.themeDefaults(),
                     &retained.session,
                 );
             }
@@ -160,6 +162,7 @@ pub fn adoptRunningTerminalForTesting(
         cell_pixel_width,
         cell_pixel_height,
         configuration,
+        runtime.themeDefaults(),
         &retained.session,
     );
 }

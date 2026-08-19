@@ -16,5 +16,6 @@ comptime {
     _ = @import("runtime_aggregate_attachment_test.zig");
     _ = @import("runtime_aggregate_cleanup_test.zig");
     _ = @import("runtime_aggregate_lifecycle_test.zig");
+    _ = @import("runtime_aggregate_theme_test.zig");
     _ = @import("terminal_integration_test.zig");
 }

@@ -7,6 +7,7 @@ const terminal_configuration = model.configuration;
 const terminal_geometry = model.geometry;
 const terminal_launch = model.launch;
 const terminal_profile = model.profile;
+const terminal_theme = model.theme;
 
 pub const Digest = terminal_launch.Digest;
 pub const EnvironmentEntry = terminal_launch.EnvironmentEntry;
@@ -59,6 +60,23 @@ pub const RuntimePreparation = struct {
             .profile = self.profile,
             .scrollback_bytes = self.configuration.scrollback_bytes,
         };
+    }
+
+    pub fn themeDefaults(self: *const RuntimePreparation) terminal_theme.Theme {
+        return terminal_profile.theme(self.profile);
+    }
+
+    pub fn applyTheme(
+        self: *RuntimePreparation,
+        next_theme: terminal_theme.Theme,
+    ) error{InvalidTheme}!void {
+        if (!terminal_theme.valid(next_theme)) return error.InvalidTheme;
+        std.debug.assert(self.profile.palette.len == next_theme.palette.len);
+        self.profile.color_scheme = next_theme.color_scheme;
+        self.profile.default_background_rgb = next_theme.default_background_rgb;
+        self.profile.default_cursor_rgb = next_theme.default_cursor_rgb;
+        self.profile.default_foreground_rgb = next_theme.default_foreground_rgb;
+        @memcpy(@constCast(self.profile.palette), &next_theme.palette);
     }
 };
 

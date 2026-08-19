@@ -6,3 +6,4 @@ pub const interaction = @import("interaction.zig");
 pub const launch = @import("launch.zig");
 pub const lifecycle = @import("lifecycle/root.zig");
 pub const profile = @import("profile.zig");
+pub const theme = @import("theme.zig");

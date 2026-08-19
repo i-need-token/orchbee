@@ -16,6 +16,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { TerminalPresentationCommand } from '@orchbee/workbench/terminal-presentation';
 import { resolveDesktopRuntimeConfiguration } from '../../composition';
+import { createDefaultTerminalProfile } from '../../host';
 import { TerminalBindingIdSchema, type TerminalBinding } from '../../recovery';
 import { DesktopTerminalBindingRegistry } from '../../terminal-binding-registry';
 import type {
@@ -1296,6 +1297,7 @@ function createExitedSummary(): TerminalSummary {
 		revision: CanonicalUint64TextSchema.parse('4'),
 		rows: 24,
 		terminateRequested: false,
+		theme: createInitialTheme(),
 	};
 }
 
@@ -1316,6 +1318,7 @@ function createAwaitingStartSummary(): Extract<
 		revision: CanonicalUint64TextSchema.parse('0'),
 		rows: null,
 		terminateRequested: false,
+		theme: createInitialTheme(),
 	};
 }
 
@@ -1336,6 +1339,22 @@ function createFailedSummary(): Extract<
 		revision: CanonicalUint64TextSchema.parse('7'),
 		rows: 24,
 		terminateRequested: true,
+		theme: createInitialTheme(),
+	};
+}
+
+function createInitialTheme(): TerminalSummary['theme'] {
+	const profile = createDefaultTerminalProfile();
+	return {
+		operationId: null,
+		revision: CanonicalUint64TextSchema.parse('0'),
+		terminal: {
+			colorScheme: profile.colorScheme,
+			defaultBackgroundRgb: profile.defaultBackgroundRgb,
+			defaultCursorRgb: profile.defaultCursorRgb,
+			defaultForegroundRgb: profile.defaultForegroundRgb,
+			palette: profile.palette,
+		},
 	};
 }
 

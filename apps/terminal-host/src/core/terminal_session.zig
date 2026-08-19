@@ -3,6 +3,7 @@ const identifiers = model.identifiers;
 const terminal_configuration = model.configuration;
 const terminal_geometry = model.geometry;
 const terminal_lifecycle = model.lifecycle;
+const terminal_theme = model.theme;
 
 pub const CreationId = identifiers.CreationId;
 pub const TerminalId = identifiers.TerminalId;
@@ -62,6 +63,7 @@ pub const Session = struct {
     retained_cleanup: terminal_lifecycle.RetainedCleanup = .inactive,
     start_geometry: ?terminal_geometry.Geometry,
     terminal_id: TerminalId,
+    theme_state: terminal_theme.State,
 
     pub fn phase(self: Session) terminal_lifecycle.Phase {
         return self.lifecycle.phase();
@@ -73,6 +75,10 @@ pub const Session = struct {
 
     pub fn configurationRevision(self: Session) u64 {
         return self.configuration_state.revision;
+    }
+
+    pub fn themeState(self: Session) terminal_theme.State {
+        return self.theme_state;
     }
 
     pub fn observedGeometry(self: Session) terminal_geometry.Geometry {
@@ -185,6 +191,13 @@ pub const Session = struct {
 
     pub fn acceptsConfigurationUpdate(self: Session) bool {
         return self.lifecycle.acceptsConfigurationUpdate();
+    }
+
+    pub fn acceptsThemeUpdate(self: Session) bool {
+        return switch (self.phase()) {
+            .awaiting_start, .running, .finishing => true,
+            .containing_failure, .exited, .failed => false,
+        };
     }
 
     pub fn hasReadableRuntimeState(self: Session) bool {

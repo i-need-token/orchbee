@@ -26,6 +26,21 @@ describe('control request encoding', () => {
 				expect.objectContaining({ ok: true }),
 			);
 		}
+		const palette = Array.from({ length: 256 }, (_value, index) => index);
+		expect(
+			encodeControlRequest(MessageKind.applyTerminalTheme, {
+				expectedThemeRevision: '0',
+				operationId: '55'.repeat(16),
+				terminal: {
+					colorScheme: 'light',
+					defaultBackgroundRgb: 0xff_ff_ff,
+					defaultCursorRgb: null,
+					defaultForegroundRgb: 0,
+					palette,
+				},
+				terminalId: '44'.repeat(16),
+			}),
+		).toEqual(expect.objectContaining({ ok: true }));
 	});
 
 	it('rejects response, event, and packed-input kinds', () => {

@@ -1,11 +1,9 @@
 const std = @import("std");
 
 const protocol = @import("terminal-protocol");
+const terminal_theme = @import("theme.zig");
 
-pub const ColorScheme = enum {
-    dark,
-    light,
-};
+pub const ColorScheme = terminal_theme.ColorScheme;
 
 pub const CursorShape = enum {
     block,
@@ -49,6 +47,19 @@ pub fn valid(profile: Profile) bool {
         }
     }
     return true;
+}
+
+pub fn theme(profile: Profile) terminal_theme.Theme {
+    std.debug.assert(valid(profile));
+    var result: terminal_theme.Theme = .{
+        .color_scheme = profile.color_scheme,
+        .default_background_rgb = profile.default_background_rgb,
+        .default_cursor_rgb = profile.default_cursor_rgb,
+        .default_foreground_rgb = profile.default_foreground_rgb,
+        .palette = undefined,
+    };
+    @memcpy(&result.palette, profile.palette);
+    return result;
 }
 
 fn validResponse(value: []const u8) bool {

@@ -4,4 +4,5 @@ comptime {
     _ = @import("identifiers_test.zig");
     _ = @import("launch_test.zig");
     _ = @import("lifecycle_test.zig");
+    _ = @import("theme_test.zig");
 }

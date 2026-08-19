@@ -410,6 +410,7 @@ function createSummary(overrides: Partial<RunningTerminalSummary> = {}): Running
 		revision: CanonicalUint64TextSchema.parse('4'),
 		rows: 24,
 		terminateRequested: false,
+		theme: createInitialTheme(),
 		...overrides,
 	};
 }
@@ -442,6 +443,22 @@ function createAwaitingStartSummary(): Extract<
 		revision: CanonicalUint64TextSchema.parse('0'),
 		rows: null,
 		terminateRequested: false,
+		theme: createInitialTheme(),
+	};
+}
+
+function createInitialTheme(): TerminalSummary['theme'] {
+	const profile = createDefaultTerminalProfile();
+	return {
+		operationId: null,
+		revision: CanonicalUint64TextSchema.parse('0'),
+		terminal: {
+			colorScheme: profile.colorScheme,
+			defaultBackgroundRgb: profile.defaultBackgroundRgb,
+			defaultCursorRgb: profile.defaultCursorRgb,
+			defaultForegroundRgb: profile.defaultForegroundRgb,
+			palette: profile.palette,
+		},
 	};
 }
 

@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { identifierBytes, identifierText, parseAttachmentId, parseHostEpoch } from '../identifiers';
+import {
+	identifierBytes,
+	identifierText,
+	parseAttachmentId,
+	parseHostEpoch,
+	parseTerminalThemeOperationId,
+} from '../identifiers';
 import { ProtocolErrorCode } from '../protocol-result';
 
 describe('protocol identifiers', () => {
@@ -9,6 +15,7 @@ describe('protocol identifiers', () => {
 		expect(identifierText(identifierBytes(value))).toEqual({ ok: true, value });
 		expect(parseHostEpoch(value)).toEqual({ ok: true, value });
 		expect(parseAttachmentId(value)).toEqual({ ok: true, value });
+		expect(parseTerminalThemeOperationId(value)).toEqual({ ok: true, value });
 	});
 
 	it('rejects zero, uppercase, and incorrectly sized values', () => {

@@ -70,6 +70,18 @@ pub const TerminalId = struct {
     }
 };
 
+pub const TerminalThemeOperationId = struct {
+    bytes: IdentifierBytes,
+
+    pub fn fromBytes(bytes: IdentifierBytes) @This() {
+        return .{ .bytes = bytes };
+    }
+
+    pub fn eql(self: @This(), other: @This()) bool {
+        return equalBytes(self.bytes, other.bytes);
+    }
+};
+
 pub fn formatLowerHex(identifier: anytype, buffer: *[32]u8) []const u8 {
     const digits = "0123456789abcdef";
     for (identifier.bytes, 0..) |byte, index| {

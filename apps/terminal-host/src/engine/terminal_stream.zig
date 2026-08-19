@@ -153,6 +153,11 @@ pub const Handler = struct {
             .semantic_prompt => {
                 if (self.semantic_prompt) |apply| apply(self, value);
             },
+            .full_reset => {
+                self.terminal_handler.vt(action, value);
+                restoreColorDefaults(self.terminal_handler.terminal);
+                return;
+            },
             else => {},
         }
         self.terminal_handler.vt(action, value);
@@ -280,5 +285,15 @@ pub const Handler = struct {
         write_pty(&self.terminal_handler, response[0..stream.pos :0]);
     }
 };
+
+/// RIS and Host-owned application reset both return dynamic colors to the
+/// latest runtime theme, not to the launch-time profile or prior OSC values.
+pub fn restoreColorDefaults(terminal: *ghostty_vt.Terminal) void {
+    terminal.colors.background.override = null;
+    terminal.colors.foreground.override = null;
+    terminal.colors.cursor.override = null;
+    terminal.colors.palette.resetAll();
+    terminal.flags.dirty.palette = true;
+}
 
 pub const Stream = ghostty_vt.Stream(Handler);

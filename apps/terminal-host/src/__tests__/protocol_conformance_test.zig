@@ -148,6 +148,7 @@ fn buildTextRowWindow(
 }
 
 const ControlCommandsFixture = struct {
+    apply_terminal_theme: []const u8,
     attach_terminal: []const u8,
     clear_terminal: []const u8,
     create_terminal: []const u8,
@@ -209,6 +210,7 @@ const ControlOutputsFixture = struct {
     terminal_list: []const u8,
     terminal_start_accepted: []const []const u8,
     terminal_started: []const u8,
+    terminal_theme_result: []const []const u8,
     typed_failure: []const []const u8,
 };
 
@@ -375,6 +377,26 @@ const TestFailureContainment = union(enum) {
 const TestTerminalConfiguration = struct { scrollback_bytes: usize };
 const TestTerminalGeometry = struct { columns: u16, rows: u16 };
 
+const test_theme_palette = palette: {
+    var palette: [256]u32 = undefined;
+    for (&palette, 0..) |*color, index| color.* = @intCast(index * 0x01_01_01);
+    break :palette palette;
+};
+
+const TestTerminalTheme = struct {
+    color_scheme: enum { dark, light } = .dark,
+    default_background_rgb: u32 = 0x10_10_10,
+    default_cursor_rgb: ?u32 = null,
+    default_foreground_rgb: u32 = 0xf0_f0_f0,
+    palette: [256]u32 = test_theme_palette,
+};
+
+const TestTerminalThemeState = struct {
+    operation_id: ?TestIdentifier = null,
+    revision: u64 = 0,
+    terminal: TestTerminalTheme = .{},
+};
+
 const TestStartTransition = enum { started, already_started };
 
 const TestStartOutcome = struct {
@@ -405,6 +427,7 @@ const TestTerminal = struct {
     containment: ?TestFailureContainment = null,
     process: ?TestProcessObservation = null,
     terminate_requested: bool = false,
+    theme_state: TestTerminalThemeState = .{},
 
     pub fn phase(self: @This()) TestTerminalPhase {
         return self.phase_value;
@@ -447,6 +470,10 @@ const TestTerminal = struct {
 
     pub fn terminateRequested(self: @This()) bool {
         return self.terminate_requested;
+    }
+
+    pub fn themeState(self: @This()) TestTerminalThemeState {
+        return self.theme_state;
     }
 };
 
@@ -849,6 +876,16 @@ test "every TypeScript control command fixture crosses the native typed decoder"
     const commands = fixture.value.commands;
 
     {
+        var decoded = try control_decode.decodeApplyTerminalTheme(
+            allocator,
+            commands.apply_terminal_theme,
+        );
+        defer decoded.deinit();
+        try std.testing.expectEqual(@as(u64, 0), decoded.value.expected_theme_revision);
+        try std.testing.expectEqual(@as(u32, 0x10_10_10), decoded.value.terminal.default_background_rgb);
+        try std.testing.expectEqual(@as(u32, 0xff_ff_ff), decoded.value.terminal.palette[255]);
+    }
+    {
         var decoded = try control_decode.decodeEmpty(allocator, commands.empty);
         defer decoded.deinit();
     }
@@ -1047,6 +1084,8 @@ test "native control replies and events conform to TypeScript schemas" {
     const attachment_id = TestIdentifier{ .bytes = [_]u8{0x22} ** 16 };
     const creation_id = TestIdentifier{ .bytes = [_]u8{0x33} ** 16 };
     const terminal_id = TestIdentifier{ .bytes = [_]u8{0x44} ** 16 };
+    const theme_operation_id = TestIdentifier{ .bytes = [_]u8{0x66} ** 16 };
+    const other_theme_operation_id = TestIdentifier{ .bytes = [_]u8{0x77} ** 16 };
 
     try expectJsonEquivalent(allocator, outputs.empty, control_encode.empty_control);
     try expectOwnedJson(allocator, outputs.protocol_rejected, try control_encode.protocolRejected(
@@ -1147,6 +1186,39 @@ test "native control replies and events conform to TypeScript schemas" {
             .terminal_id = terminal_id,
         }),
     );
+    const theme_results = [_]struct {
+        current: TestTerminalThemeState,
+        operation_id: TestIdentifier,
+        terminal_id: TestIdentifier,
+        transition: enum { applied, already_applied, stale },
+    }{
+        .{
+            .current = .{ .operation_id = theme_operation_id, .revision = 1 },
+            .operation_id = theme_operation_id,
+            .terminal_id = terminal_id,
+            .transition = .applied,
+        },
+        .{
+            .current = .{ .operation_id = theme_operation_id, .revision = 1 },
+            .operation_id = theme_operation_id,
+            .terminal_id = terminal_id,
+            .transition = .already_applied,
+        },
+        .{
+            .current = .{ .operation_id = other_theme_operation_id, .revision = 2 },
+            .operation_id = theme_operation_id,
+            .terminal_id = terminal_id,
+            .transition = .stale,
+        },
+    };
+    try std.testing.expectEqual(theme_results.len, outputs.terminal_theme_result.len);
+    for (theme_results, outputs.terminal_theme_result) |result, expected| {
+        try expectOwnedJson(
+            allocator,
+            expected,
+            try control_encode.terminalThemeResult(allocator, result),
+        );
+    }
     try expectOwnedJson(
         allocator,
         outputs.attachment_capabilities,

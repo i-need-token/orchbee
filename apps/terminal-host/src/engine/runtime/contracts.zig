@@ -14,6 +14,7 @@ const terminal_input_ownership = @import("../input_ownership.zig");
 const terminal_input_queue = @import("../input_queue.zig");
 const terminal_input_encoding = @import("../input_encoding.zig");
 const terminal_profile = @import("../profile.zig");
+const terminal_theme = model.theme;
 const terminal_projection = @import("../projection/root.zig");
 const terminal_runtime_completion = @import("../runtime_completion.zig");
 const terminal_runtime_containment = @import("../runtime_containment.zig");
@@ -189,6 +190,13 @@ pub const Geometry = struct {
 pub const ConfigurationUpdate = struct {
     generation: u64,
     history_rows_evicted: u64,
+    revision: u64,
+};
+
+pub const TerminalTheme = terminal_theme.Theme;
+
+pub const ThemeUpdate = struct {
+    generation: u64,
     revision: u64,
 };
 

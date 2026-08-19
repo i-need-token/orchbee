@@ -1,6 +1,7 @@
 const std = @import("std");
 
 const common = @import("encode_common.zig");
+const theme_encode = @import("encode_theme.zig");
 const protocol = @import("terminal-protocol");
 
 const identifierText = common.identifierText;
@@ -285,9 +286,11 @@ pub fn terminalSummary(
     defer allocator.free(columns_json);
     const rows_json = try terminalDimensionJson(allocator, terminal, "rows");
     defer allocator.free(rows_json);
+    const theme_json = try theme_encode.terminalThemeState(allocator, terminal.themeState());
+    defer allocator.free(theme_json);
     return std.fmt.allocPrint(
         allocator,
-        "{{\"columns\":{s},\"configuration\":{{\"scrollbackBytes\":{d}}},\"configurationRevision\":\"{d}\",\"exit\":{s},\"failure\":{s},\"failureContainment\":{s},\"identity\":{{\"creationId\":\"{s}\",\"hostEpoch\":\"{s}\",\"terminalId\":\"{s}\"}},\"phase\":\"{s}\",\"process\":{s},\"revision\":\"{d}\",\"rows\":{s},\"terminateRequested\":{}}}",
+        "{{\"columns\":{s},\"configuration\":{{\"scrollbackBytes\":{d}}},\"configurationRevision\":\"{d}\",\"exit\":{s},\"failure\":{s},\"failureContainment\":{s},\"identity\":{{\"creationId\":\"{s}\",\"hostEpoch\":\"{s}\",\"terminalId\":\"{s}\"}},\"phase\":\"{s}\",\"process\":{s},\"revision\":\"{d}\",\"rows\":{s},\"terminateRequested\":{},\"theme\":{s}}}",
         .{
             columns_json,
             configuration.scrollback_bytes,
@@ -303,6 +306,7 @@ pub fn terminalSummary(
             terminal.observedRevision(),
             rows_json,
             terminal.terminateRequested(),
+            theme_json,
         },
     );
 }

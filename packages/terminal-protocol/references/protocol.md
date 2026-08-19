@@ -5,7 +5,7 @@
 | Status          | Current wire-contract and codec authority; this package implements no lifecycle state machine, PTY, IPC listener, renderer, Electron, recovery, or network behavior |
 | Wire owner      | `@orchbee/terminal-protocol`                                                                                                                                        |
 | Native consumer | `apps/terminal-host` consumes declared schemas and fixture exports for bounded native dispatch and Zig conformance                                                  |
-| Reference scope | Exact protocol `0.0.12`; OBTF format `0.0.2`; OBKG, OBPB, and OBRW format `0.0.1`; input/selection codecs; failure vocabulary; bounds; and pinned fixtures          |
+| Reference scope | Exact protocol `0.0.13`; OBTF format `0.0.2`; OBKG, OBPB, and OBRW format `0.0.1`; input/selection codecs; failure vocabulary; bounds; and pinned fixtures          |
 | Change rule     | A changed field, message meaning, wire byte, bound, or fixture updates this record, both language implementations, every producer/consumer, and evidence            |
 
 ## Modeling record
@@ -30,16 +30,17 @@ Every protocol identity is exactly 16 non-zero bytes. JSON renders it as exactly
 hexadecimal characters without separators. All-zero bytes are reserved for an absent envelope
 identity and are rejected where an identity is required.
 
-| Identity        | Owner and lifetime                                                                                                               |
-| --------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `HostEpoch`     | Random per Host process; scopes every Host-owned reference                                                                       |
-| `CreationId`    | Application-created durable identity; an idempotency key while its terminal remains retained by one Host epoch                   |
-| `TerminalId`    | Random Host identity retained until explicit disposal                                                                            |
-| `ClientId`      | Wire-supplied diagnostic broker identity; it does not grant authority independently of the active physical session               |
-| `AttachmentId`  | One physical-connection-owned attachment carrying negotiated capabilities                                                        |
-| `CorrelationId` | Required on every request and response after `Hello`; all-zero envelope bytes mean absence only for handshake messages or events |
+| Identity                   | Owner and lifetime                                                                                                               |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `HostEpoch`                | Random per Host process; scopes every Host-owned reference                                                                       |
+| `CreationId`               | Application-created durable identity; an idempotency key while its terminal remains retained by one Host epoch                   |
+| `TerminalId`               | Random Host identity retained until explicit disposal                                                                            |
+| `ClientId`                 | Wire-supplied diagnostic broker identity; it does not grant authority independently of the active physical session               |
+| `AttachmentId`             | One physical-connection-owned attachment carrying negotiated capabilities                                                        |
+| `TerminalThemeOperationId` | Application-created idempotency identity for one terminal-theme compare-and-set operation                                        |
+| `CorrelationId`            | Required on every request and response after `Hello`; all-zero envelope bytes mean absence only for handshake messages or events |
 
-The current protocol version is exactly `0.0.12`. `Hello`, `HelloAccepted`, and every transport
+The current protocol version is exactly `0.0.13`. `Hello`, `HelloAccepted`, and every transport
 envelope carry that exact version. A different major, minor, or patch is rejected; this pre-release
 contract contains no negotiated range, compatibility mode, or historical message shape. Packed
 OBTF frame format is exactly `0.0.2`; OBKG graphics-extension, OBPB projection-buffer, and OBRW
@@ -66,6 +67,14 @@ the same payload into typed Host commands before dispatch.
 decoding an older persisted profile shape; current encoders materialize them. These are launch
 defaults, not immutable cursor state: terminal escape sequences may override both until RIS or an
 application reset restores the profile values.
+
+`TerminalTheme` is a complete runtime color value containing `colorScheme`, unsigned 24-bit
+`defaultForegroundRgb` and `defaultBackgroundRgb`, nullable unsigned 24-bit `defaultCursorRgb`,
+and exactly 256 unsigned 24-bit `palette` entries. `TerminalThemeState` adds canonical decimal-text
+uint64 `revision` and a nullable `operationId`. Revision `0` is the launch baseline and is the only
+legal state with a null operation identity; every positive revision carries the identity that
+committed it. Runtime theme does not include cursor shape/blink, overlays, application tokens,
+content revision, or generation.
 
 The message registry also owns whether each kind may be a request, response, event, or a declared
 combination; its payload encoding in each legal role; and the successful response kind for every
@@ -112,7 +121,8 @@ Host's current terminal default at first creation. The unresolved launch value p
 retained terminal. Increasing the scrollback budget preserves history; decreasing it evicts the
 oldest rows needed to satisfy the bound. When rows are evicted, the Host advances content revision
 and generation and invalidates history anchors, selection/export state, and projection bases.
-Inventory summaries report the effective configuration and its independent configuration revision.
+Inventory summaries report the effective configuration and its independent configuration revision,
+plus the complete current runtime-theme state and its independent theme revision.
 
 Canonical unsigned 64-bit integers inside JSON use decimal text with no sign, whitespace, exponent,
 or leading zero except the value `0`. Packed binary uses little-endian unsigned integers.
@@ -128,8 +138,9 @@ without state mutation.
 Named response kinds are authoritative: `HelloAccepted`, `ProtocolRejected`,
 `TerminalStartAccepted`, `AttachmentCapabilities`, `InputAccepted`, `ResizeAccepted`,
 `ProjectionDemandAccepted`, `TerminalDefaultsAccepted`, `TerminalConfigurationAccepted`, and
-`TerminalControlAccepted` answer their corresponding request kinds. Other successful operations
-respond with their request kind. `TypedFailure` may answer any request and preserves its correlation.
+`TerminalControlAccepted` and `TerminalThemeResult` answer their corresponding request kinds.
+Other successful operations respond with their request kind. `TypedFailure` may answer any request
+and preserves its correlation.
 
 | Operation                         | Successful payload                                                                                                                                                                                                                                                                                   |
 | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -138,6 +149,7 @@ respond with their request kind. `TypedFailure` may answer any request and prese
 | `StartTerminal`                   | Exact terminal identity, accepted complete geometry, and `started` or `already-started` transition                                                                                                                                                                                                   |
 | `SetTerminalDefaults`             | Effective default configuration and default revision                                                                                                                                                                                                                                                 |
 | `UpdateTerminalConfiguration`     | Terminal identity, effective configuration and revision, content revision/generation, and evicted-row count                                                                                                                                                                                          |
+| `ApplyTerminalTheme`              | Terminal and request-operation identities, `applied`, `already-applied`, or `stale` transition, and the complete current operation/revision/theme state                                                                                                                                              |
 | `TerminateTerminal`               | Target `TerminalId`                                                                                                                                                                                                                                                                                  |
 | `ForceTerminateTerminal`          | Target `TerminalId`                                                                                                                                                                                                                                                                                  |
 | `DisposeTerminal`                 | Target `TerminalId`                                                                                                                                                                                                                                                                                  |
@@ -202,6 +214,23 @@ an existing observer, the Host commits that observer's event before the successf
 Consumers validate both identities against their attachment scope before changing who may issue
 `ResizeTerminal`; presentation measurement itself remains client-local and does not require a lease.
 
+`ApplyTerminalTheme` is terminal-scoped and requires no attachment. It carries `terminalId`,
+`operationId`, `expectedThemeRevision`, and one complete `terminal` theme. The Host checks an exact
+current-operation replay before lifecycle and compare-and-set: the same operation ID and theme
+returns `already-applied` without mutation, while the same ID with different theme data returns
+non-retryable `theme-operation-conflict`. A different operation whose expected revision is not
+current returns `stale` without mutation. An accepted operation applies the complete deferred or
+started runtime state and then advances the independent theme revision once; its result transition
+is `applied`.
+
+Every `TerminalThemeResult` echoes the request operation and terminal identities and includes the
+complete authoritative `current` state. For `applied` and `already-applied`, `current.operationId`
+equals the echoed request operation; for `stale`, it differs. Runtime application replaces the
+Host-owned dynamic-color defaults and clears prior OSC color overrides; later terminal OSC actions
+may override those defaults, while their reset forms, RIS, and application reset return to the
+latest runtime theme. A lost result is unknown outcome: the client first reconciles through
+inventory before it rebases and never infers authority from a client-local override.
+
 `ClearTerminal` and `ResetTerminal` each carry only the input-capable `AttachmentId`; they are
 semantic Host requests, not terminal input payloads. Clear erases and homes the active Ghostty
 screen without resetting modes. Reset performs Ghostty's full reset and returns to the primary
@@ -248,22 +277,22 @@ bytes to the ordered ingress budget.
 
 ## Message registry
 
-| Range   | Group                              | Kinds                                                                                                                                                                                                                                                                                                                                                               |
-| ------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `1-5`   | Connection                         | `Hello=1`, `HelloAccepted=2`, `ProtocolRejected=3`, `Ping=4`, `TypedFailure=5`                                                                                                                                                                                                                                                                                      |
-| `10-19` | Inventory and lifecycle            | `ListTerminals=10`, `CreateTerminal=11`, `TerminateTerminal=12`, `DisposeTerminal=13`, `TerminalStarted=14`, `TerminalExited=15`, `StartTerminal=16`, `TerminalStartAccepted=17`, `ForceTerminateTerminal=18`, `TerminalFailed=19`                                                                                                                                  |
-| `20-23` | Attachment                         | `AttachTerminal=20`, `DetachTerminal=21`, `AttachmentCapabilities=22`, `ResizeLeaseChanged=23`                                                                                                                                                                                                                                                                      |
-| `30-38` | Input and size                     | `WriteInput=30`, `InputAccepted=31`, `ResizeTerminal=32`, `ResizeAccepted=33`, `KeyInput=34`, `TextInput=35`, `MouseInput=36`, `FocusInput=37`, `PasteInput=38`                                                                                                                                                                                                     |
-| `41-56` | Projection and effects             | `SnapshotFrame=41`, `DeltaFrame=42`, `FrameApplied=43`, `NeedSnapshot=44`, `ReadRows=45`, `RowsSnapshot=46`, `SetProjectionDemand=47`, `ProjectionDemandAccepted=48`, `ProjectionBlocked=49`, `RowsApplied=50`, `SetHistoryDemand=51`, `HistoryDemandAccepted=52`, `HistoryChanged=53`, `HistoryObserved=54`, `TerminalBell=55`, `TerminalClipboardWriteRequest=56` |
-| `60-68` | Selection and export               | `SelectionGesture=60`, `SelectionCommand=61`, `SelectionChanged=62`, `SelectionExport=63`, `SelectionExportStarted=64`, `SelectionExportChunk=65`, `SelectionExportChunkApplied=66`, `SelectionExportFinished=67`, `SelectionExportCancel=68`                                                                                                                       |
-| `70-76` | Terminal configuration and control | `SetTerminalDefaults=70`, `TerminalDefaultsAccepted=71`, `UpdateTerminalConfiguration=72`, `TerminalConfigurationAccepted=73`, `ClearTerminal=74`, `ResetTerminal=75`, `TerminalControlAccepted=76`                                                                                                                                                                 |
+| Range   | Group                                      | Kinds                                                                                                                                                                                                                                                                                                                                                               |
+| ------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `1-5`   | Connection                                 | `Hello=1`, `HelloAccepted=2`, `ProtocolRejected=3`, `Ping=4`, `TypedFailure=5`                                                                                                                                                                                                                                                                                      |
+| `10-19` | Inventory and lifecycle                    | `ListTerminals=10`, `CreateTerminal=11`, `TerminateTerminal=12`, `DisposeTerminal=13`, `TerminalStarted=14`, `TerminalExited=15`, `StartTerminal=16`, `TerminalStartAccepted=17`, `ForceTerminateTerminal=18`, `TerminalFailed=19`                                                                                                                                  |
+| `20-23` | Attachment                                 | `AttachTerminal=20`, `DetachTerminal=21`, `AttachmentCapabilities=22`, `ResizeLeaseChanged=23`                                                                                                                                                                                                                                                                      |
+| `30-38` | Input and size                             | `WriteInput=30`, `InputAccepted=31`, `ResizeTerminal=32`, `ResizeAccepted=33`, `KeyInput=34`, `TextInput=35`, `MouseInput=36`, `FocusInput=37`, `PasteInput=38`                                                                                                                                                                                                     |
+| `41-56` | Projection and effects                     | `SnapshotFrame=41`, `DeltaFrame=42`, `FrameApplied=43`, `NeedSnapshot=44`, `ReadRows=45`, `RowsSnapshot=46`, `SetProjectionDemand=47`, `ProjectionDemandAccepted=48`, `ProjectionBlocked=49`, `RowsApplied=50`, `SetHistoryDemand=51`, `HistoryDemandAccepted=52`, `HistoryChanged=53`, `HistoryObserved=54`, `TerminalBell=55`, `TerminalClipboardWriteRequest=56` |
+| `60-68` | Selection and export                       | `SelectionGesture=60`, `SelectionCommand=61`, `SelectionChanged=62`, `SelectionExport=63`, `SelectionExportStarted=64`, `SelectionExportChunk=65`, `SelectionExportChunkApplied=66`, `SelectionExportFinished=67`, `SelectionExportCancel=68`                                                                                                                       |
+| `70-78` | Terminal configuration, control, and theme | `SetTerminalDefaults=70`, `TerminalDefaultsAccepted=71`, `UpdateTerminalConfiguration=72`, `TerminalConfigurationAccepted=73`, `ClearTerminal=74`, `ResetTerminal=75`, `TerminalControlAccepted=76`, `ApplyTerminalTheme=77`, `TerminalThemeResult=78`                                                                                                              |
 
 Unlisted numbers are unassigned. Title and current-directory changes travel in terminal frames.
 Initial resize-lease authority is returned by attachment admission; later ownership changes use the
 attachment-scoped event.
 
 `MESSAGE_CONTRACTS` is the executable TypeScript registry behind this table. Its native mirror is
-checked field-for-field through `control-conformance-v0.0.12.json`. Adding or changing a kind therefore
+checked field-for-field through `control-conformance-v0.0.13.json`. Adding or changing a kind therefore
 requires one atomic protocol change to the registry, native mirror, codecs, fixture, and consumers.
 
 `TerminalBell` is an event-only control record containing `attachmentId` and a positive canonical

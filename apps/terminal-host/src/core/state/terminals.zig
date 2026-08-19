@@ -3,6 +3,7 @@ const target_builtin = @import("builtin");
 const model = @import("terminal-host-model");
 const terminal_configuration = model.configuration;
 const terminal_geometry = model.geometry;
+const terminal_theme = model.theme;
 const contracts = @import("contracts.zig");
 const storage = @import("storage.zig");
 
@@ -17,11 +18,13 @@ const RuntimeCleanupFailure = contracts.RuntimeCleanupFailure;
 const RuntimeFailure = contracts.RuntimeFailure;
 const TerminalDisposalAdmission = contracts.TerminalDisposalAdmission;
 const TerminalId = contracts.TerminalId;
+const TerminalThemeOperationId = contracts.TerminalThemeOperationId;
 const TerminalSession = contracts.TerminalSession;
 const StartAdmission = contracts.StartAdmission;
 const TerminationAdmission = contracts.TerminationAdmission;
 const TerminationRequest = contracts.TerminationRequest;
 const TransitionOutcome = contracts.TransitionOutcome;
+const ThemeAdmission = contracts.ThemeAdmission;
 
 pub fn resolveCreation(
     self: anytype,
@@ -54,6 +57,7 @@ pub fn commitRunningTerminal(
     cell_pixel_width: u16,
     cell_pixel_height: u16,
     configuration: terminal_configuration.Configuration,
+    initial_theme: terminal_theme.Theme,
     session: *TerminalSession,
 ) void {
     self.commitAwaitingStartTerminal(
@@ -62,6 +66,7 @@ pub fn commitRunningTerminal(
         terminal_id,
         launch_digest,
         configuration,
+        initial_theme,
         session,
     );
     self.commitTerminalStart(terminal_id, .{
@@ -79,9 +84,11 @@ pub fn commitAwaitingStartTerminal(
     terminal_id: TerminalId,
     launch_digest: LaunchDigest,
     configuration: terminal_configuration.Configuration,
+    initial_theme: terminal_theme.Theme,
     session: *TerminalSession,
 ) void {
     std.debug.assert(terminal_configuration.valid(configuration));
+    std.debug.assert(terminal_theme.valid(initial_theme));
     std.debug.assert(storage.connected(self, connection_id));
     self.terminal_registry.validateAdmission(creation_id, terminal_id) catch unreachable;
     session.* = .{
@@ -92,8 +99,50 @@ pub fn commitAwaitingStartTerminal(
         .lifecycle = .{ .awaiting_start = .{} },
         .start_geometry = null,
         .terminal_id = terminal_id,
+        .theme_state = .{ .terminal = initial_theme },
     };
     self.terminal_registry.commitAssumeCapacity(session);
+}
+
+pub fn prepareTerminalTheme(
+    self: anytype,
+    connection_id: ConnectionId,
+    terminal_id: TerminalId,
+    operation_id: TerminalThemeOperationId,
+    expected_revision: u64,
+    next_theme: terminal_theme.Theme,
+) CoreError!ThemeAdmission {
+    if (!terminal_theme.valid(next_theme)) return error.InvalidTheme;
+    if (!storage.connected(self, connection_id)) return error.MissingConnection;
+    const terminal = try storage.requireTerminal(self, terminal_id);
+    const current = terminal.themeState();
+    if (current.operation_id) |current_operation_id| {
+        if (current_operation_id.eql(operation_id)) {
+            if (terminal_theme.eql(current.terminal, next_theme)) return .already_applied;
+            return error.ThemeOperationConflict;
+        }
+    }
+    if (!terminal.acceptsThemeUpdate()) return error.InvalidPhase;
+    if (current.revision != expected_revision) return .stale;
+    if (current.revision == std.math.maxInt(u64)) return error.RevisionOverflow;
+    return .apply;
+}
+
+pub fn commitTerminalTheme(
+    self: anytype,
+    terminal_id: TerminalId,
+    operation_id: TerminalThemeOperationId,
+    next_theme: terminal_theme.Theme,
+) void {
+    std.debug.assert(terminal_theme.valid(next_theme));
+    const terminal = self.terminal_registry.find(terminal_id) orelse unreachable;
+    std.debug.assert(terminal.acceptsThemeUpdate());
+    std.debug.assert(terminal.theme_state.revision < std.math.maxInt(u64));
+    terminal.theme_state = .{
+        .operation_id = operation_id,
+        .revision = terminal.theme_state.revision + 1,
+        .terminal = next_theme,
+    };
 }
 
 pub fn prepareTerminalStart(

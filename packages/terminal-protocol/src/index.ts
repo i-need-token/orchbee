@@ -1,4 +1,5 @@
 export {
+	ApplyTerminalThemeSchema,
 	AttachTerminalSchema,
 	AttachmentAcknowledgedSchema,
 	AttachmentCapabilitiesSchema,
@@ -75,10 +76,14 @@ export {
 	TerminalStartAcceptedSchema,
 	TerminalSummarySchema,
 	TerminalTargetSchema,
+	TerminalThemeResultSchema,
+	TerminalThemeSchema,
+	TerminalThemeStateSchema,
 	TypedFailureSchema,
 	UpdateTerminalConfigurationSchema,
 } from './control';
 export type {
+	ApplyTerminalTheme,
 	AttachTerminal,
 	AttachmentAcknowledged,
 	AttachmentCapabilities,
@@ -148,6 +153,9 @@ export type {
 	TerminalStartAccepted,
 	TerminalSummary,
 	TerminalTarget,
+	TerminalTheme,
+	TerminalThemeResult,
+	TerminalThemeState,
 	TypedFailure,
 	UpdateTerminalConfiguration,
 } from './control';
@@ -246,13 +254,17 @@ export {
 	HostEpochSchema,
 	IDENTIFIER_BYTE_LENGTH,
 	IDENTIFIER_TEXT_LENGTH,
+	identifierBytes,
+	identifierText,
 	parseAttachmentId,
 	parseClientId,
 	parseCorrelationId,
 	parseCreationId,
 	parseHostEpoch,
 	parseTerminalId,
+	parseTerminalThemeOperationId,
 	TerminalIdSchema,
+	TerminalThemeOperationIdSchema,
 } from './identifiers';
 export type {
 	AttachmentId,
@@ -261,6 +273,7 @@ export type {
 	CreationId,
 	HostEpoch,
 	TerminalId,
+	TerminalThemeOperationId,
 } from './identifiers';
 export {
 	decodeFocusInput,

@@ -1,4 +1,7 @@
 ------------------------ MODULE TerminalThemeRevision ------------------------
+\* Refines the runtime-theme request/host-commit/host-replay/host-stale/
+\* host-failed/host-outcome-unknown/host-reconcile/client-prepare/present
+\* vocabulary in docs/terminal-theme-revision.md and Terminal Host claim TH-018.
 EXTENDS FiniteSets, Naturals, TLC
 
 Operations == {1, 2}

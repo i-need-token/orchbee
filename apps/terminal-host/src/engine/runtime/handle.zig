@@ -15,6 +15,7 @@ const input_handle = @import("input_handle.zig");
 const terminal_control_ops = @import("terminal_control.zig");
 const process_io_ops = @import("process_io.zig");
 const resize_ops = @import("resize.zig");
+const theme_ops = @import("theme.zig");
 const attachment_ops = @import("attachment.zig");
 const interaction_ops = @import("interaction.zig");
 const prepared_input = @import("prepared_input.zig");
@@ -166,6 +167,17 @@ pub const TerminalRuntime = opaque {
         next_configuration: terminal_configuration.Configuration,
     ) !contracts.ConfigurationUpdate {
         return terminal_control_ops.updateConfiguration(stateFrom(self), next_configuration);
+    }
+
+    pub fn themeDefaults(self: *TerminalRuntime) contracts.TerminalTheme {
+        return theme_ops.themeDefaults(stateFrom(self));
+    }
+
+    pub fn applyTheme(
+        self: *TerminalRuntime,
+        next_theme: contracts.TerminalTheme,
+    ) !contracts.ThemeUpdate {
+        return theme_ops.applyTheme(stateFrom(self), next_theme);
     }
 
     pub fn terminate(self: *TerminalRuntime) !void {

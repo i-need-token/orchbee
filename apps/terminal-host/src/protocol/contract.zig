@@ -33,7 +33,7 @@ pub const terminal_row_window_format_patch: u8 = 1;
 pub const transport_envelope_header_bytes = 64;
 pub const current_protocol_major: u16 = 0;
 pub const current_protocol_minor: u16 = 0;
-pub const current_protocol_patch: u16 = 12;
+pub const current_protocol_patch: u16 = 13;
 
 pub const Limits = struct {
     pub const cell_pixel_dimension = 4096;
@@ -81,68 +81,7 @@ pub const Limits = struct {
     pub const write_input_payload_bytes: usize = 16 + input_bytes;
 };
 
-pub const MessageKind = struct {
-    pub const hello: u16 = 1;
-    pub const hello_accepted: u16 = 2;
-    pub const protocol_rejected: u16 = 3;
-    pub const ping: u16 = 4;
-    pub const typed_failure: u16 = 5;
-    pub const list_terminals: u16 = 10;
-    pub const create_terminal: u16 = 11;
-    pub const terminate_terminal: u16 = 12;
-    pub const dispose_terminal: u16 = 13;
-    pub const terminal_started: u16 = 14;
-    pub const terminal_exited: u16 = 15;
-    pub const start_terminal: u16 = 16;
-    pub const terminal_start_accepted: u16 = 17;
-    pub const force_terminate_terminal: u16 = 18;
-    pub const terminal_failed: u16 = 19;
-    pub const attach_terminal: u16 = 20;
-    pub const detach_terminal: u16 = 21;
-    pub const attachment_capabilities: u16 = 22;
-    pub const resize_lease_changed: u16 = 23;
-    pub const write_input: u16 = 30;
-    pub const input_accepted: u16 = 31;
-    pub const resize_terminal: u16 = 32;
-    pub const resize_accepted: u16 = 33;
-    pub const key_input: u16 = 34;
-    pub const text_input: u16 = 35;
-    pub const mouse_input: u16 = 36;
-    pub const focus_input: u16 = 37;
-    pub const paste_input: u16 = 38;
-    pub const snapshot_frame: u16 = 41;
-    pub const delta_frame: u16 = 42;
-    pub const frame_applied: u16 = 43;
-    pub const need_snapshot: u16 = 44;
-    pub const read_rows: u16 = 45;
-    pub const rows_snapshot: u16 = 46;
-    pub const set_projection_demand: u16 = 47;
-    pub const projection_demand_accepted: u16 = 48;
-    pub const projection_blocked: u16 = 49;
-    pub const rows_applied: u16 = 50;
-    pub const set_history_demand: u16 = 51;
-    pub const history_demand_accepted: u16 = 52;
-    pub const history_changed: u16 = 53;
-    pub const history_observed: u16 = 54;
-    pub const terminal_bell: u16 = 55;
-    pub const terminal_clipboard_write_request: u16 = 56;
-    pub const selection_gesture: u16 = 60;
-    pub const selection_command: u16 = 61;
-    pub const selection_changed: u16 = 62;
-    pub const selection_export: u16 = 63;
-    pub const selection_export_started: u16 = 64;
-    pub const selection_export_chunk: u16 = 65;
-    pub const selection_export_chunk_applied: u16 = 66;
-    pub const selection_export_finished: u16 = 67;
-    pub const selection_export_cancel: u16 = 68;
-    pub const set_terminal_defaults: u16 = 70;
-    pub const terminal_defaults_accepted: u16 = 71;
-    pub const update_terminal_configuration: u16 = 72;
-    pub const terminal_configuration_accepted: u16 = 73;
-    pub const clear_terminal: u16 = 74;
-    pub const reset_terminal: u16 = 75;
-    pub const terminal_control_accepted: u16 = 76;
-};
+pub const MessageKind = @import("message_kind.zig").MessageKind;
 
 pub const ProtocolError = error{
     InvalidField,
@@ -167,6 +106,7 @@ pub const PayloadEncoding = enum(u8) {
 /// Native dispatch operation owned by the protocol adapter. It is not a wire
 /// field; it makes Host request coverage exhaustive when the registry grows.
 pub const RequestOperation = enum {
+    apply_terminal_theme,
     attach_terminal,
     clear_terminal,
     create_terminal,
@@ -463,6 +403,13 @@ pub fn messageContract(kind: u16) ?MessageContract {
             "TerminalConfigurationAccepted",
             .control_json,
         ),
+        M.apply_terminal_theme => requestOnly(
+            "ApplyTerminalTheme",
+            .apply_terminal_theme,
+            .control_json,
+            M.terminal_theme_result,
+        ),
+        M.terminal_theme_result => responseOnly("TerminalThemeResult", .control_json),
         else => null,
     };
 }

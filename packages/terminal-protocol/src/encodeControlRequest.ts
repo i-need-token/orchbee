@@ -1,4 +1,5 @@
 import {
+	ApplyTerminalThemeSchema,
 	AttachTerminalSchema,
 	ClearTerminalSchema,
 	CreateTerminalSchema,
@@ -47,6 +48,8 @@ export function encodeControlRequest(
 		);
 	}
 	switch (kind) {
+		case MessageKind.applyTerminalTheme:
+			return encodeControlJson(value, ApplyTerminalThemeSchema);
 		case MessageKind.hello:
 			return encodeControlJson(value, HelloSchema);
 		case MessageKind.ping:

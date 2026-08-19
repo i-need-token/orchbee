@@ -4,6 +4,7 @@ const core_module = @import("terminal-host-core").state;
 const terminal_runtime = @import("terminal-host-engine").runtime;
 const terminal_configuration = @import("terminal-host-model").configuration;
 const terminal_geometry = @import("terminal-host-model").geometry;
+const terminal_theme = @import("terminal-host-model").theme;
 const service_boundary = @import("terminal-host-service");
 const host_runtime_aggregate = service_boundary.testing.runtime_aggregate;
 const host_service = service_boundary.service;
@@ -44,6 +45,7 @@ pub const TerminalObservation = struct {
     settled_final_revision: ?u64,
     terminal_id: core_module.TerminalId,
     termination_request: core_module.TerminationRequest,
+    theme: terminal_theme.State,
 };
 
 pub const AttachmentObservation = struct {
@@ -129,6 +131,9 @@ pub const Observation = struct {
             }
             if (!std.meta.eql(terminal.configuration, runtime.configuration)) {
                 return error.ConfigurationStateDiverged;
+            }
+            if (!terminal_theme.eql(terminal.theme.terminal, runtime.theme)) {
+                return error.ThemeStateDiverged;
             }
             if (terminal.revision == runtime.completion.final_revision and
                 !std.meta.eql(terminal.geometry.?, runtime.geometry))
@@ -224,6 +229,7 @@ pub const CompositionInvariantError = error{
     RuntimeCountMismatch,
     RunningTerminalHasJoinedRuntime,
     SettledRevisionDiverged,
+    ThemeStateDiverged,
 };
 
 pub const InvariantError = core_module.testing.InvariantError ||
@@ -265,6 +271,7 @@ pub fn capture(
             .settled_final_revision = terminal.settledFinalRevision(),
             .terminal_id = terminal.terminal_id,
             .termination_request = terminal.terminationRequest(),
+            .theme = terminal.themeState(),
         };
     }
 

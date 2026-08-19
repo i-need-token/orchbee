@@ -19,6 +19,8 @@ export const CorrelationIdSchema = canonicalIdentifierSchema.brand<'CorrelationI
 export const CreationIdSchema = canonicalIdentifierSchema.brand<'CreationId'>();
 export const HostEpochSchema = canonicalIdentifierSchema.brand<'HostEpoch'>();
 export const TerminalIdSchema = canonicalIdentifierSchema.brand<'TerminalId'>();
+export const TerminalThemeOperationIdSchema =
+	canonicalIdentifierSchema.brand<'TerminalThemeOperationId'>();
 
 export type AttachmentId = z.infer<typeof AttachmentIdSchema>;
 export type ClientId = z.infer<typeof ClientIdSchema>;
@@ -26,6 +28,7 @@ export type CorrelationId = z.infer<typeof CorrelationIdSchema>;
 export type CreationId = z.infer<typeof CreationIdSchema>;
 export type HostEpoch = z.infer<typeof HostEpochSchema>;
 export type TerminalId = z.infer<typeof TerminalIdSchema>;
+export type TerminalThemeOperationId = z.infer<typeof TerminalThemeOperationIdSchema>;
 
 export function identifierBytes(value: string): Uint8Array {
 	const bytes = new Uint8Array(IDENTIFIER_BYTE_LENGTH);
@@ -91,4 +94,10 @@ export function parseHostEpoch(value: unknown): ProtocolResult<HostEpoch> {
 
 export function parseTerminalId(value: unknown): ProtocolResult<TerminalId> {
 	return parseIdentifier(TerminalIdSchema, value, 'TerminalId');
+}
+
+export function parseTerminalThemeOperationId(
+	value: unknown,
+): ProtocolResult<TerminalThemeOperationId> {
+	return parseIdentifier(TerminalThemeOperationIdSchema, value, 'TerminalThemeOperationId');
 }

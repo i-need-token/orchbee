@@ -1,4 +1,5 @@
 export const MessageKind = {
+	applyTerminalTheme: 77,
 	attachTerminal: 20,
 	attachmentCapabilities: 22,
 	resizeLeaseChanged: 23,
@@ -48,6 +49,7 @@ export const MessageKind = {
 	updateTerminalConfiguration: 72,
 	terminalConfigurationAccepted: 73,
 	terminalControlAccepted: 76,
+	terminalThemeResult: 78,
 	setProjectionDemand: 47,
 	snapshotFrame: 41,
 	terminalExited: 15,
@@ -460,6 +462,18 @@ export const MESSAGE_CONTRACTS = {
 	[MessageKind.terminalConfigurationAccepted]: {
 		eventEncoding: null,
 		name: 'TerminalConfigurationAccepted',
+		request: null,
+		responseEncoding: control,
+	},
+	[MessageKind.applyTerminalTheme]: {
+		eventEncoding: null,
+		name: 'ApplyTerminalTheme',
+		request: { payloadEncoding: control, successKind: MessageKind.terminalThemeResult },
+		responseEncoding: null,
+	},
+	[MessageKind.terminalThemeResult]: {
+		eventEncoding: null,
+		name: 'TerminalThemeResult',
 		request: null,
 		responseEncoding: control,
 	},

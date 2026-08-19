@@ -426,7 +426,23 @@ function createSummary(overrides: Partial<RunningTerminalSummary> = {}): Running
 		revision: firstRevision,
 		rows: 24,
 		terminateRequested: false,
+		theme: createInitialTheme(),
 		...overrides,
+	};
+}
+
+function createInitialTheme(): TerminalSummary['theme'] {
+	const profile = createDefaultTerminalProfile();
+	return {
+		operationId: null,
+		revision: CanonicalUint64TextSchema.parse('0'),
+		terminal: {
+			colorScheme: profile.colorScheme,
+			defaultBackgroundRgb: profile.defaultBackgroundRgb,
+			defaultCursorRgb: profile.defaultCursorRgb,
+			defaultForegroundRgb: profile.defaultForegroundRgb,
+			palette: profile.palette,
+		},
 	};
 }
 

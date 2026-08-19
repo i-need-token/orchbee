@@ -1,6 +1,7 @@
 const std = @import("std");
 const ghostty_vt = @import("ghostty-vt");
 const terminal_configuration = @import("terminal-host-model").configuration;
+const terminal_stream = @import("../terminal_stream.zig");
 const contracts = @import("contracts.zig");
 const state = @import("state.zig");
 const completion_ops = @import("completion.zig");
@@ -34,6 +35,7 @@ pub fn applyTerminalControl(
         },
         .reset => {
             self.terminal.fullReset();
+            terminal_stream.restoreColorDefaults(&self.terminal);
             self.profile.applyCursorDefaults(&self.terminal);
             self.stream.handler.terminal_handler.default_cursor = true;
         },

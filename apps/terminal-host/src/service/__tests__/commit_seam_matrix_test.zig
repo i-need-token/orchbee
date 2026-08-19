@@ -26,6 +26,7 @@ const Seam = enum(u8) {
     process_observation_containment,
     multi_runtime_shutdown,
     deferred_start_spawn,
+    runtime_theme_commit,
 };
 
 const Disposition = enum {
@@ -82,6 +83,7 @@ const matrix = [_]Entry{
     entry(.process_observation_containment, "CS-022", "ProcessObservationContainment", .contain_and_retain, .native_boundary, "src/service/__tests__/runtime_aggregate_lifecycle_test.zig", "process observation failure maps to a distinct runtime failure"),
     entry(.multi_runtime_shutdown, "CS-023", "MultiRuntimeShutdown", .contain_and_retain, .deterministic_interleaving, "src/service/__tests__/runtime_aggregate_cleanup_test.zig", "runtime destruction starts only after every shutdown succeeds"),
     entry(.deferred_start_spawn, "CS-024", "DeferredStartSpawn", .contain_and_retain, .native_boundary, "src/service/__tests__/runtime_aggregate_lifecycle_test.zig", "deferred creation retains launch ownership and failed start stays retryable"),
+    entry(.runtime_theme_commit, "CS-025", "RuntimeThemeCommit", .reject_without_commit, .single_owner, "src/service/__tests__/runtime_aggregate_theme_test.zig", "runtime theme failure never commits the semantic theme revision"),
 };
 
 test "commit seam matrix is exhaustive unique documented and backed by named tests" {

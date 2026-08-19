@@ -76,6 +76,7 @@ const testCreatePayload = harness.testCreatePayload;
 const testCreatePayloadWithConfiguration = harness.testCreatePayloadWithConfiguration;
 const testAttachPayload = harness.testAttachPayload;
 const testRawInputPayload = harness.testRawInputPayload;
+const testTerminalThemePayload = harness.testTerminalThemePayload;
 const SkippedNativeTarget = harness.SkippedNativeTarget;
 const createSkippedNativeTarget = harness.createSkippedNativeTarget;
 const testTerminalTargetPayload = harness.testTerminalTargetPayload;
@@ -300,6 +301,144 @@ test "terminal acknowledgement honors a schema-compatible success reassociation"
         identifierText(terminal_id, &terminal_buffer),
         acknowledgement.value.terminalId,
     );
+}
+test "theme request returns a complete recoverable snapshot with replay and stale outcomes" {
+    const windows_executable: ?[]u8 = if (target_builtin.os.tag == .windows)
+        try std.process.getEnvVarOwned(std.testing.allocator, "ComSpec")
+    else
+        null;
+    defer if (windows_executable) |value| std.testing.allocator.free(value);
+    const executable = if (windows_executable) |value| value else "/bin/sh";
+    const posix_arguments = [_][]const u8{ "-c", "sleep 30" };
+    const windows_arguments = [_][]const u8{ "/D", "/Q", "/C", "ping -n 31 127.0.0.1 >nul" };
+    const arguments: []const []const u8 = if (target_builtin.os.tag == .windows)
+        &windows_arguments
+    else
+        &posix_arguments;
+    const create_payload = try testCreatePayload(
+        "34343434343434343434343434343434",
+        executable,
+        arguments,
+    );
+    defer std.testing.allocator.free(create_payload);
+
+    var service = HostService.init(std.testing.allocator);
+    var connection: ConnectionState = .awaiting_hello;
+    defer {
+        service.disconnect(&connection);
+        service.deinit();
+    }
+    try testHandshake(&service, &connection, "33333333333333333333333333333333");
+    var created = try testRequest(
+        &service,
+        &connection,
+        MessageKind.create_terminal,
+        .control_json,
+        create_payload,
+        [_]u8{0x34} ** 16,
+    );
+    defer created.deinit();
+    const terminal_id = serviceCore(&service).terminalKeys()[0];
+    const operation_id = model_boundary.identifiers.TerminalThemeOperationId.fromBytes(
+        [_]u8{0x35} ** 16,
+    );
+    const palette = [_]u32{0x22_33_44} ** 256;
+    const theme: model_boundary.theme.Theme = .{
+        .color_scheme = .light,
+        .default_background_rgb = 0xee_ee_ee,
+        .default_cursor_rgb = 0x12_34_56,
+        .default_foreground_rgb = 0x11_11_11,
+        .palette = palette,
+    };
+    const applied_payload = try testTerminalThemePayload(operation_id, terminal_id, 0, theme);
+    defer std.testing.allocator.free(applied_payload);
+
+    var applied_response = try testRequest(
+        &service,
+        &connection,
+        MessageKind.apply_terminal_theme,
+        .control_json,
+        applied_payload,
+        [_]u8{0x36} ** 16,
+    );
+    defer applied_response.deinit();
+    const applied_envelope = try protocol.validateTransportEnvelope(applied_response.records()[0]);
+    try std.testing.expectEqual(MessageKind.terminal_theme_result, applied_envelope.kind);
+    const ThemeResult = struct {
+        current: struct {
+            operationId: ?[]const u8,
+            revision: []const u8,
+            terminal: struct {
+                colorScheme: []const u8,
+                defaultBackgroundRgb: u32,
+                defaultCursorRgb: ?u32,
+                defaultForegroundRgb: u32,
+                palette: []const u32,
+            },
+        },
+        operationId: []const u8,
+        terminalId: []const u8,
+        transition: []const u8,
+    };
+    const applied = try control_wire.decode(
+        ThemeResult,
+        std.testing.allocator,
+        applied_envelope.payload,
+    );
+    defer applied.deinit();
+    try std.testing.expectEqualStrings("applied", applied.value.transition);
+    try std.testing.expectEqualStrings("1", applied.value.current.revision);
+    try std.testing.expectEqualStrings("light", applied.value.current.terminal.colorScheme);
+    try std.testing.expectEqual(theme.default_background_rgb, applied.value.current.terminal.defaultBackgroundRgb);
+    try std.testing.expectEqual(theme.default_cursor_rgb, applied.value.current.terminal.defaultCursorRgb);
+    try std.testing.expectEqual(theme.default_foreground_rgb, applied.value.current.terminal.defaultForegroundRgb);
+    try std.testing.expectEqualSlices(u32, &theme.palette, applied.value.current.terminal.palette);
+
+    const after_apply = findRuntime(&service, terminal_id).?.geometry();
+    var replay_response = try testRequest(
+        &service,
+        &connection,
+        MessageKind.apply_terminal_theme,
+        .control_json,
+        applied_payload,
+        [_]u8{0x37} ** 16,
+    );
+    defer replay_response.deinit();
+    const replay_envelope = try protocol.validateTransportEnvelope(replay_response.records()[0]);
+    try std.testing.expect(std.mem.indexOf(u8, replay_envelope.payload, "\"transition\":\"already-applied\"") != null);
+    try std.testing.expectEqualDeep(after_apply, findRuntime(&service, terminal_id).?.geometry());
+
+    const stale_payload = try testTerminalThemePayload(
+        model_boundary.identifiers.TerminalThemeOperationId.fromBytes([_]u8{0x38} ** 16),
+        terminal_id,
+        0,
+        model_boundary.theme.default,
+    );
+    defer std.testing.allocator.free(stale_payload);
+    var stale_response = try testRequest(
+        &service,
+        &connection,
+        MessageKind.apply_terminal_theme,
+        .control_json,
+        stale_payload,
+        [_]u8{0x39} ** 16,
+    );
+    defer stale_response.deinit();
+    const stale_envelope = try protocol.validateTransportEnvelope(stale_response.records()[0]);
+    try std.testing.expect(std.mem.indexOf(u8, stale_envelope.payload, "\"transition\":\"stale\"") != null);
+
+    var inventory = try testRequest(
+        &service,
+        &connection,
+        MessageKind.list_terminals,
+        .control_json,
+        "{\"cursor\":null,\"maximumTerminals\":1}",
+        [_]u8{0x3a} ** 16,
+    );
+    defer inventory.deinit();
+    const inventory_envelope = try protocol.validateTransportEnvelope(inventory.records()[0]);
+    try std.testing.expect(std.mem.indexOf(u8, inventory_envelope.payload, "\"theme\":{\"operationId\":\"35353535353535353535353535353535\",\"revision\":\"1\"") != null);
+    try std.testing.expect(std.mem.indexOf(u8, inventory_envelope.payload, "\"defaultCursorRgb\":1193046") != null);
 }
 test "active control decode failures retain distinct public codes" {
     const invalid_utf8 = [_]u8{0xff};
@@ -966,9 +1105,13 @@ test "current protocol rejects a cursor made stale by disposal and freshly pages
         .{ .ignore_unknown_fields = true },
     );
     defer first_page.deinit();
-    try std.testing.expectEqual(@as(usize, 128), first_page.value.terminals.len);
+    try std.testing.expect(first_page.value.terminals.len > 0);
+    try std.testing.expect(first_page.value.terminals.len < 128);
     try std.testing.expect(first_page.value.nextCursor != null);
-    try std.testing.expectEqualStrings("128", first_page.value.nextCursor.?.offset);
+    try std.testing.expectEqual(
+        first_page.value.terminals.len,
+        try std.fmt.parseUnsigned(usize, first_page.value.nextCursor.?.offset, 10),
+    );
 
     const second_payload = try std.fmt.allocPrint(
         std.testing.allocator,

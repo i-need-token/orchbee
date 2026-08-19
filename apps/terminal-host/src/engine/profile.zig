@@ -4,6 +4,7 @@ const ghostty_vt = @import("ghostty-vt");
 const model = @import("terminal-host-model");
 const protocol = @import("terminal-protocol");
 const terminal_profile = model.profile;
+const terminal_theme = model.theme;
 
 pub const ColorScheme = terminal_profile.ColorScheme;
 pub const CursorShape = terminal_profile.CursorShape;
@@ -93,6 +94,51 @@ pub const Owned = struct {
         terminal.screens.active.cursor.cursor_style = self.cursorStyle();
     }
 
+    pub fn themeDefaults(
+        self: *const Owned,
+        terminal: *const ghostty_vt.Terminal,
+    ) terminal_theme.Theme {
+        var result: terminal_theme.Theme = .{
+            .color_scheme = self.color_scheme,
+            .default_background_rgb = if (terminal.colors.background.default) |value|
+                rgbCode(value)
+            else
+                0,
+            .default_cursor_rgb = if (terminal.colors.cursor.default) |value|
+                rgbCode(value)
+            else
+                null,
+            .default_foreground_rgb = if (terminal.colors.foreground.default) |value|
+                rgbCode(value)
+            else
+                0xff_ff_ff,
+            .palette = undefined,
+        };
+        for (&result.palette, terminal.colors.palette.original) |*target, color| {
+            target.* = rgbCode(color);
+        }
+        return result;
+    }
+
+    pub fn applyTheme(
+        self: *Owned,
+        terminal: *ghostty_vt.Terminal,
+        theme: terminal_theme.Theme,
+    ) void {
+        std.debug.assert(terminal_theme.valid(theme));
+        self.color_scheme = theme.color_scheme;
+        terminal.colors.background = .init(rgb(theme.default_background_rgb));
+        terminal.colors.foreground = .init(rgb(theme.default_foreground_rgb));
+        terminal.colors.cursor = if (theme.default_cursor_rgb) |value|
+            .init(rgb(value))
+        else
+            .unset;
+        var palette: ghostty_vt.color.Palette = undefined;
+        for (&palette, theme.palette) |*target, value| target.* = rgb(value);
+        terminal.colors.palette = .init(palette);
+        terminal.flags.dirty.palette = true;
+    }
+
     pub fn deviceAttributes(self: *const Owned) DeviceAttributes {
         return .{
             .primary = .{
@@ -146,4 +192,8 @@ fn rgb(value: u32) ghostty_vt.color.RGB {
         .g = @truncate(value >> 8),
         .b = @truncate(value),
     };
+}
+
+fn rgbCode(value: ghostty_vt.color.RGB) u32 {
+    return (@as(u32, value.r) << 16) | (@as(u32, value.g) << 8) | value.b;
 }

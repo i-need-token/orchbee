@@ -80,27 +80,30 @@ independently ordered operations, Host/client preparation, Host compare-and-set,
 operation conflict, known and unknown failures, reconciliation, retry, supersession, and
 hidden/suspended presentation.
 
-| SU-09 claim                                                | TLA+ property                                                                     | Deterministic refinement                                                                                                     |
-| ---------------------------------------------------------- | --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| Host defaults, palette, and cursor commit together         | `HostCommitIsAtomic`, `HostChangesOnlyOnCommit`                                   | The Host transaction introduced in the next implementation slice must prepare every fallible resource before its one commit. |
-| Pixels, overlays, cursor, and app surface publish together | `PresentationIsAtomic`, `PresentationChangesOnlyOnPresent`                        | `transitionTerminalThemeRevision` returns one complete committed snapshot only after exact Host and client results agree.    |
-| Superseded/stale/failed paths preserve presentation        | `NonPresentationActionsPreservePresentation`, `SupersessionPreservesPresentation` | Operation-correlated events that are not the latest matching success return no publication command.                          |
-| Unknown outcomes are not blindly replayed                  | `UnknownOutcomeRequiresReconciliation`                                            | Retry of an unknown Host outcome emits reconciliation rather than another apply command.                                     |
-| A ready current revision makes progress while visible      | `EligibleReadyEventuallyResolves`                                                 | The composition must execute the emitted atomic publication command or report its typed failure.                             |
+| SU-09 claim                                                | TLA+ property                                                                     | Deterministic refinement                                                                                                                                              |
+| ---------------------------------------------------------- | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Host defaults, palette, and cursor commit together         | `HostCommitIsAtomic`, `HostChangesOnlyOnCommit`                                   | Terminal Host reserves the reply, preflights the complete physical update, then commits one operation/revision; its claim-mapped native tests reject partial failure. |
+| Pixels, overlays, cursor, and app surface publish together | `PresentationIsAtomic`, `PresentationChangesOnlyOnPresent`                        | `transitionTerminalThemeRevision` returns one complete committed snapshot only after exact Host and client results agree.                                             |
+| Superseded/stale/failed paths preserve presentation        | `NonPresentationActionsPreservePresentation`, `SupersessionPreservesPresentation` | Operation-correlated events that are not the latest matching success return no publication command.                                                                   |
+| Unknown outcomes are not blindly replayed                  | `UnknownOutcomeRequiresReconciliation`                                            | Retry of an unknown Host outcome emits reconciliation rather than another apply command.                                                                              |
+| A ready current revision makes progress while visible      | `EligibleReadyEventuallyResolves`                                                 | The composition must execute the emitted atomic publication command or report its typed failure.                                                                      |
 
 The TLA+ `Present` action abstracts the successful `publish-theme` command followed by its exact
 `presentation-committed` result; the deterministic reducer keeps those two adapter steps explicit.
 
 The checked bound is two operations and two Host revisions. RGB values and the 256 palette entries
 are abstracted to their owning operation/revision because schema and deterministic contract tests
-own their concrete validation. The model does not prove a future Host or renderer refinement until
-their claim-mapped tests and system trace exist.
+own their concrete validation. The Host refinement is implemented and mapped to `TH-018` in the
+[Terminal Host runtime contract](../../../apps/terminal-host/docs/runtime-model.md#correctness-invariants).
+The model does not prove the later projected-client refinement until its claim-mapped tests and
+system trace exist.
 
-## Protocol staging
+## Implementation staging
 
-This model slice does not register an unexecutable wire request. The Terminal Host protocol remains
-at its current exact version until the Host implementation slice. That slice must first add the
-request/result schemas, limits, message registry entries, TypeScript and Zig codecs, versioned
-conformance fixtures, and recovery snapshot shape; only then may it add Host mutation. The client
-slice must carry the committed presentation revision in projection metadata before presenting the
-new transaction.
+The Host implementation slice registers `ApplyTerminalTheme` and `TerminalThemeResult` in the
+current exact terminal protocol, with strict schemas, TypeScript/Zig codecs, versioned conformance
+fixtures, and the complete current Host state in recovery inventory. It atomically updates either a
+deferred launch preparation or a started runtime before committing the Host theme revision. The
+projected-client adapter remains intentionally staged: it must carry the committed presentation
+revision through its projection/application boundary before publishing the complete client-owned
+snapshot. Until that slice lands, this contract is not a claim of end-to-end atomic presentation.

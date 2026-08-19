@@ -21,6 +21,8 @@ describe('message contract registry', () => {
 		}
 		expect(MessageKind.startTerminal).toBe(16);
 		expect(MessageKind.terminalStartAccepted).toBe(17);
+		expect(MessageKind.applyTerminalTheme).toBe(77);
+		expect(MessageKind.terminalThemeResult).toBe(78);
 	});
 
 	it('makes every request encoding and successful response explicit', () => {
@@ -74,6 +76,12 @@ describe('message contract registry', () => {
 			MessageKind.terminalControlAccepted,
 		);
 		expect(messagePayloadEncoding(MessageKind.terminalControlAccepted, 'response')).toBe(
+			PayloadEncoding.controlJson,
+		);
+		expect(MESSAGE_CONTRACTS[MessageKind.applyTerminalTheme].request?.successKind).toBe(
+			MessageKind.terminalThemeResult,
+		);
+		expect(messagePayloadEncoding(MessageKind.terminalThemeResult, 'response')).toBe(
 			PayloadEncoding.controlJson,
 		);
 	});

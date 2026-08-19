@@ -12,6 +12,7 @@ pub const ClientId = identifiers.ClientId;
 pub const CreationId = identifiers.CreationId;
 pub const HostEpoch = identifiers.HostEpoch;
 pub const TerminalId = identifiers.TerminalId;
+pub const TerminalThemeOperationId = identifiers.TerminalThemeOperationId;
 pub const LaunchDigest = terminal_session.LaunchDigest;
 pub const ConnectionId = broker_session.ConnectionId;
 
@@ -22,6 +23,12 @@ pub const TerminationAdmission = terminal_lifecycle.TerminationAdmission;
 pub const StartAdmission = enum {
     replay,
     start,
+};
+
+pub const ThemeAdmission = enum {
+    apply,
+    already_applied,
+    stale,
 };
 
 /// Disposal admission across the Core boundary: an absent terminal is an
@@ -47,6 +54,8 @@ pub const OutcomeKind = terminal_lifecycle.OutcomeKind;
 pub const OutcomePublicationToken = terminal_session.OutcomePublicationToken;
 pub const PendingOutcome = terminal_session.PendingOutcome;
 pub const TerminalConfigurationState = terminal_session.ConfigurationState;
+pub const TerminalTheme = model.theme.Theme;
+pub const TerminalThemeState = model.theme.State;
 pub const EngineObservation = terminal_session.EngineObservation;
 pub const TerminalLifecycle = terminal_lifecycle.Lifecycle;
 pub const TerminalSession = terminal_session.Session;
@@ -96,6 +105,7 @@ pub const CoreError = error{
     InvalidFrameAcknowledgement,
     InvalidPhase,
     InvalidProcessObservation,
+    InvalidTheme,
     InventoryGenerationOverflow,
     MissingConnection,
     MissingResource,
@@ -105,6 +115,7 @@ pub const CoreError = error{
     SequenceOverflow,
     StartConflict,
     TerminalConflict,
+    ThemeOperationConflict,
 };
 
 pub const RequiredCapability = enum {

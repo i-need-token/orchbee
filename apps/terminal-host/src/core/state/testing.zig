@@ -47,6 +47,7 @@ pub const testing = if (@import("builtin").is_test) struct {
         InvalidRunningLifecycle,
         InvalidTerminalConfiguration,
         InvalidTerminalGeometry,
+        InvalidTerminalThemeState,
         MissingCreationBinding,
         MissingCreationTerminal,
         MissingStartGeometry,
@@ -90,6 +91,7 @@ pub const testing = if (@import("builtin").is_test) struct {
             1,
             1,
             .{},
+            model.theme.default,
             &storage.session,
         );
         storage.next = core.testing_state.terminal_storage;
@@ -148,6 +150,18 @@ pub const testing = if (@import("builtin").is_test) struct {
         revision: u64,
     ) void {
         core.terminal_registry.find(terminal_id).?.configuration_state.revision = revision;
+    }
+
+    pub fn setThemeRevision(core: *HostCore, terminal_id: TerminalId, revision: u64) void {
+        core.terminal_registry.find(terminal_id).?.theme_state.revision = revision;
+    }
+
+    pub fn setThemeOperationId(
+        core: *HostCore,
+        terminal_id: TerminalId,
+        operation_id: model.identifiers.TerminalThemeOperationId,
+    ) void {
+        core.terminal_registry.find(terminal_id).?.theme_state.operation_id = operation_id;
     }
 
     pub fn setProjectionState(
@@ -219,6 +233,9 @@ pub const testing = if (@import("builtin").is_test) struct {
             }
             if (terminal.configurationRevision() == 0) {
                 return error.InvalidConfigurationRevision;
+            }
+            if (!model.theme.validState(terminal.themeState())) {
+                return error.InvalidTerminalThemeState;
             }
             if (terminal.maybeObservedGeometry()) |observed_geometry| {
                 if (!terminal_geometry.isValid(observed_geometry)) {

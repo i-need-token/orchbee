@@ -144,6 +144,8 @@ keeps Host-owned terminal defaults/palette/cursor and client-owned pixels, overl
 application surface on one matching complete revision. Its model, retry rules, bounded evidence,
 and explicitly staged Host/client adapters are maintained in
 [`docs/terminal-theme-revision.md`](docs/terminal-theme-revision.md).
+The Host-side compare-and-set and complete recovery state are implemented; projected-client atomic
+publication remains a separate staged adapter and is not implied by the coordination API alone.
 
 ### Shared document and Client View boundary
 

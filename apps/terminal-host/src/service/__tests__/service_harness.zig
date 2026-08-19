@@ -735,6 +735,33 @@ pub fn testAttachPayload(
     );
 }
 
+pub fn testTerminalThemePayload(
+    operation_id: model_boundary.identifiers.TerminalThemeOperationId,
+    terminal_id: core_module.TerminalId,
+    expected_revision: u64,
+    theme: model_boundary.theme.Theme,
+) ![]u8 {
+    var operation_buffer: [32]u8 = undefined;
+    var terminal_buffer: [32]u8 = undefined;
+    var revision_buffer: [20]u8 = undefined;
+    const revision = try std.fmt.bufPrint(&revision_buffer, "{d}", .{expected_revision});
+    var writer: std.Io.Writer.Allocating = .init(std.testing.allocator);
+    defer writer.deinit();
+    try std.json.Stringify.value(.{
+        .expectedThemeRevision = revision,
+        .operationId = identifierText(operation_id, &operation_buffer),
+        .terminal = .{
+            .colorScheme = @tagName(theme.color_scheme),
+            .defaultBackgroundRgb = theme.default_background_rgb,
+            .defaultCursorRgb = theme.default_cursor_rgb,
+            .defaultForegroundRgb = theme.default_foreground_rgb,
+            .palette = &theme.palette,
+        },
+        .terminalId = identifierText(terminal_id, &terminal_buffer),
+    }, .{}, &writer.writer);
+    return writer.toOwnedSlice();
+}
+
 pub fn testRawInputPayload(
     attachment_id: core_module.AttachmentId,
     input: []const u8,

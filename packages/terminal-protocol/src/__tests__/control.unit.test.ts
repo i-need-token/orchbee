@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
 import {
+	ApplyTerminalThemeSchema,
 	AttachmentCapabilitiesSchema,
 	AttachTerminalSchema,
 	canonicalEnvironmentName,
@@ -45,6 +46,9 @@ import {
 	TerminalStartAcceptedSchema,
 	TerminalProfileSchema,
 	TerminalSummarySchema,
+	TerminalThemeResultSchema,
+	TerminalThemeSchema,
+	TerminalThemeStateSchema,
 	TypedFailureSchema,
 } from '../control';
 import { ProtocolErrorCode } from '../protocol-result';
@@ -71,6 +75,14 @@ const explicitProfile = {
 	...profile,
 	defaultCursorBlinking: false,
 	defaultCursorShape: 'block',
+} as const;
+
+const terminalTheme = {
+	colorScheme: profile.colorScheme,
+	defaultBackgroundRgb: profile.defaultBackgroundRgb,
+	defaultCursorRgb: profile.defaultCursorRgb,
+	defaultForegroundRgb: profile.defaultForegroundRgb,
+	palette: profile.palette,
 } as const;
 
 const launch = {
@@ -113,6 +125,63 @@ describe('control schemas', () => {
 			defaultCursorBlinking: true,
 			defaultCursorShape: 'bar',
 		});
+	});
+
+	it('models one atomic terminal theme compare-and-set and complete recovery state', () => {
+		const terminalId = '22'.repeat(16);
+		const operationId = '33'.repeat(16);
+		const otherOperationId = '44'.repeat(16);
+		const baseline = { operationId: null, revision: '0', terminal: terminalTheme } as const;
+		const current = { operationId, revision: '1', terminal: terminalTheme } as const;
+
+		expect(TerminalThemeSchema.parse(terminalTheme)).toEqual(terminalTheme);
+		expect(TerminalThemeStateSchema.parse(baseline)).toEqual(baseline);
+		expect(
+			ApplyTerminalThemeSchema.parse({
+				expectedThemeRevision: '0',
+				operationId,
+				terminal: terminalTheme,
+				terminalId,
+			}),
+		).toEqual({
+			expectedThemeRevision: '0',
+			operationId,
+			terminal: terminalTheme,
+			terminalId,
+		});
+		expect(
+			TerminalThemeResultSchema.parse({
+				current,
+				operationId,
+				terminalId,
+				transition: 'applied',
+			}),
+		).toEqual({ current, operationId, terminalId, transition: 'applied' });
+		expect(
+			TerminalThemeResultSchema.parse({
+				current,
+				operationId: otherOperationId,
+				terminalId,
+				transition: 'stale',
+			}),
+		).toEqual({ current, operationId: otherOperationId, terminalId, transition: 'stale' });
+
+		expect(TerminalThemeStateSchema.safeParse({ ...baseline, operationId }).success).toBe(false);
+		expect(TerminalThemeStateSchema.safeParse({ ...current, operationId: null }).success).toBe(
+			false,
+		);
+		expect(
+			TerminalThemeResultSchema.safeParse({
+				current,
+				operationId: otherOperationId,
+				terminalId,
+				transition: 'already-applied',
+			}).success,
+		).toBe(false);
+		expect(
+			TerminalThemeSchema.safeParse({ ...terminalTheme, palette: terminalTheme.palette.slice(1) })
+				.success,
+		).toBe(false);
 	});
 
 	it('scopes clear and reset to one attachment and acknowledges the exact operation', () => {
@@ -822,6 +891,7 @@ describe('control schemas', () => {
 	});
 
 	it('makes normal, containing, and failed terminal states mutually exclusive', () => {
+		const theme = { operationId: null, revision: '0', terminal: terminalTheme } as const;
 		const common = {
 			columns: 80,
 			configuration: DEFAULT_TERMINAL_CONFIGURATION,
@@ -833,6 +903,7 @@ describe('control schemas', () => {
 			},
 			revision: '7',
 			rows: 24,
+			theme,
 		};
 		const failure = {
 			kind: 'pty-read',

@@ -1,0 +1,174 @@
+const harness = @import("runtime_harness.zig");
+const std = harness.std;
+const protocol = harness.protocol;
+const terminal_theme = harness.model_boundary.theme;
+const AttachmentId = harness.AttachmentId;
+const HostEpoch = harness.HostEpoch;
+const ReaderBatchOutcome = harness.ReaderBatchOutcome;
+const commitReaderBatch = harness.commitReaderBatch;
+const createIdleRuntime = harness.createIdleRuntime;
+const requireProjectionFrame = harness.requireProjectionFrame;
+const runtimeState = harness.runtimeState;
+
+const initial_palette = [_]u32{0} ** 256;
+const replacement_palette = palette: {
+    var palette: [256]u32 = undefined;
+    for (&palette, 0..) |*color, index| color.* = @intCast(index * 0x01_01_01);
+    break :palette palette;
+};
+const replacement: terminal_theme.Theme = .{
+    .color_scheme = .light,
+    .default_background_rgb = 0xee_ee_ee,
+    .default_cursor_rgb = 0x12_34_56,
+    .default_foreground_rgb = 0x11_11_11,
+    .palette = replacement_palette,
+};
+
+test "runtime theme replacement is atomic and establishes the next dynamic-color defaults" {
+    const runtime = try createIdleRuntime(.{ .profile = .{
+        .color_scheme = .dark,
+        .default_background_rgb = 0,
+        .default_cursor_rgb = null,
+        .default_foreground_rgb = 0xff_ff_ff,
+        .device_primary_conformance_level = 62,
+        .device_primary_features = &.{22},
+        .device_secondary_type = 1,
+        .device_secondary_firmware_version = 0,
+        .device_secondary_rom_cartridge = 0,
+        .device_tertiary_unit_id = 0,
+        .enquiry_response = "",
+        .palette = &initial_palette,
+        .version_response = "Orchbee",
+    } });
+    defer runtime.destroy();
+
+    try std.testing.expectEqual(
+        ReaderBatchOutcome.committed,
+        commitReaderBatch(
+            runtime,
+            "\x1b]10;#010203\x1b\\\x1b]11;#040506\x1b\\" ++
+                "\x1b]12;#070809\x1b\\\x1b]4;42;#0a0b0c\x1b\\",
+        ),
+    );
+    const before = runtime.geometry();
+    const update = try runtime.applyTheme(replacement);
+
+    try std.testing.expectEqual(before.generation, update.generation);
+    try std.testing.expectEqual(before.revision + 1, update.revision);
+    try std.testing.expect(terminal_theme.eql(replacement, runtime.themeDefaults()));
+    try expectRuntimeColors(runtime, replacement, true);
+
+    try std.testing.expectEqual(
+        ReaderBatchOutcome.committed,
+        commitReaderBatch(
+            runtime,
+            "\x1b]10;#a1a2a3\x1b\\\x1b]11;#b1b2b3\x1b\\" ++
+                "\x1b]12;#c1c2c3\x1b\\\x1b]4;42;#d1d2d3\x1b\\",
+        ),
+    );
+    try expectRuntimeColors(runtime, replacement, false);
+
+    try std.testing.expectEqual(
+        ReaderBatchOutcome.committed,
+        commitReaderBatch(runtime, "\x1b]110\x1b\\\x1b]111\x1b\\\x1b]112\x1b\\\x1b]104\x1b\\"),
+    );
+    try expectRuntimeColors(runtime, replacement, true);
+
+    try std.testing.expectEqual(
+        ReaderBatchOutcome.committed,
+        commitReaderBatch(runtime, "\x1b]10;#010101\x1b\\\x1b]4;42;#020202\x1b\\"),
+    );
+    try std.testing.expectEqual(
+        ReaderBatchOutcome.committed,
+        commitReaderBatch(runtime, "\x1bc"),
+    );
+    try expectRuntimeColors(runtime, replacement, true);
+
+    try std.testing.expectEqual(
+        ReaderBatchOutcome.committed,
+        commitReaderBatch(runtime, "\x1b]10;#030303\x1b\\\x1b]4;42;#040404\x1b\\"),
+    );
+    _ = try runtime.applyTerminalControl(.reset);
+    try expectRuntimeColors(runtime, replacement, true);
+}
+
+test "failed runtime theme preflight preserves every prior default" {
+    const runtime = try createIdleRuntime(.{});
+    defer runtime.destroy();
+    const initial = runtime.themeDefaults();
+    const state = runtimeState(runtime);
+    state.revision.store(std.math.maxInt(u64), .release);
+
+    try std.testing.expectError(error.RevisionOverflow, runtime.applyTheme(replacement));
+    try std.testing.expect(terminal_theme.eql(initial, runtime.themeDefaults()));
+}
+
+test "one theme mutation is projected at the same revision to two attachments" {
+    const runtime = try createIdleRuntime(.{});
+    defer runtime.destroy();
+    const update = try runtime.applyTheme(replacement);
+
+    const first = try projection(runtime, 0x11, 1);
+    defer std.testing.allocator.free(first.allocation);
+    const second = try projection(runtime, 0x22, 1);
+    defer std.testing.allocator.free(second.allocation);
+
+    try std.testing.expectEqual(update.revision, first.revision);
+    try std.testing.expectEqual(first.revision, second.revision);
+    try std.testing.expectEqual(first.generation, second.generation);
+    try std.testing.expectEqual(replacement.default_foreground_rgb, readU32(first.bytes, 104));
+    try std.testing.expectEqual(replacement.default_background_rgb, readU32(first.bytes, 108));
+    try std.testing.expectEqual(replacement.default_cursor_rgb.?, readU32(first.bytes, 112));
+    try std.testing.expectEqualSlices(u8, first.bytes[104..116], second.bytes[104..116]);
+}
+
+fn expectRuntimeColors(
+    runtime: anytype,
+    expected: terminal_theme.Theme,
+    expect_defaults_active: bool,
+) !void {
+    const state = runtimeState(runtime);
+    state.terminal_mutex.lock();
+    defer state.terminal_mutex.unlock();
+    try std.testing.expectEqual(expected.color_scheme, state.profile.color_scheme);
+    try std.testing.expectEqual(expected.default_background_rgb, rgbCode(state.terminal.colors.background.default.?));
+    try std.testing.expectEqual(expected.default_foreground_rgb, rgbCode(state.terminal.colors.foreground.default.?));
+    try std.testing.expectEqual(expected.default_cursor_rgb.?, rgbCode(state.terminal.colors.cursor.default.?));
+    try std.testing.expectEqual(expected.palette[42], rgbCode(state.terminal.colors.palette.original[42]));
+    if (expect_defaults_active) {
+        try std.testing.expectEqual(expected.default_background_rgb, rgbCode(state.terminal.colors.background.get().?));
+        try std.testing.expectEqual(expected.default_foreground_rgb, rgbCode(state.terminal.colors.foreground.get().?));
+        try std.testing.expectEqual(expected.default_cursor_rgb.?, rgbCode(state.terminal.colors.cursor.get().?));
+        try std.testing.expectEqual(@as(usize, 0), state.terminal.colors.palette.mask.count());
+        try std.testing.expectEqual(expected.palette[42], rgbCode(state.terminal.colors.palette.current[42]));
+    } else {
+        try std.testing.expect(state.terminal.colors.background.override != null);
+        try std.testing.expect(state.terminal.colors.foreground.override != null);
+        try std.testing.expect(state.terminal.colors.cursor.override != null);
+        try std.testing.expect(state.terminal.colors.palette.mask.isSet(42));
+    }
+}
+
+fn projection(runtime: anytype, attachment_byte: u8, sequence: u64) !harness.subject.ProjectionFrame {
+    return requireProjectionFrame(try runtime.encodeProjectionFrameOwned(
+        std.testing.allocator,
+        0,
+        .{
+            .attachment_id = AttachmentId.fromBytes([_]u8{attachment_byte} ** 16),
+            .base_generation = null,
+            .base_revision = null,
+            .force_snapshot = true,
+            .host_epoch = HostEpoch.fromBytes([_]u8{0xaa} ** 16),
+            .maximum_bytes = protocol.Limits.frame_bytes,
+            .sequence = sequence,
+        },
+    ));
+}
+
+fn rgbCode(color: anytype) u32 {
+    return (@as(u32, color.r) << 16) | (@as(u32, color.g) << 8) | color.b;
+}
+
+fn readU32(bytes: []const u8, offset: usize) u32 {
+    return std.mem.readInt(u32, bytes[offset..][0..4], .little);
+}

@@ -3,6 +3,7 @@ const host = @import("decode_host.zig");
 const interaction = @import("decode_interaction.zig");
 const projection = @import("decode_projection.zig");
 const terminal = @import("decode_terminal.zig");
+const theme = @import("decode_theme.zig");
 
 pub const DecodeError = common.Error;
 pub const Decoded = common.Decoded;
@@ -31,6 +32,9 @@ pub const decodeAttachTerminal = terminal.decodeAttachTerminal;
 pub const decodeDetachTerminal = terminal.decodeDetachTerminal;
 pub const decodeTerminalControl = terminal.decodeTerminalControl;
 pub const decodeResizeTerminal = terminal.decodeResizeTerminal;
+
+pub const ApplyTerminalTheme = theme.ApplyTerminalTheme;
+pub const decodeApplyTerminalTheme = theme.decodeApplyTerminalTheme;
 
 pub const FrameApplied = projection.FrameApplied;
 pub const SnapshotReason = projection.SnapshotReason;

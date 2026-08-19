@@ -11,6 +11,7 @@ import {
 import { describe, expect, it, vi } from 'vitest';
 
 import type { HostConnection } from '../HostConnection';
+import { createDefaultTerminalProfile } from '../createDefaultTerminalProfile';
 import { readTerminalInventory } from '../readTerminalInventory';
 
 const hostEpoch = HostEpochSchema.parse('11'.repeat(16));
@@ -94,5 +95,21 @@ function createSummary(index: number): TerminalSummary {
 		revision: CanonicalUint64TextSchema.parse('1'),
 		rows: 24,
 		terminateRequested: false,
+		theme: createInitialTheme(),
+	};
+}
+
+function createInitialTheme(): TerminalSummary['theme'] {
+	const profile = createDefaultTerminalProfile();
+	return {
+		operationId: null,
+		revision: CanonicalUint64TextSchema.parse('0'),
+		terminal: {
+			colorScheme: profile.colorScheme,
+			defaultBackgroundRgb: profile.defaultBackgroundRgb,
+			defaultCursorRgb: profile.defaultCursorRgb,
+			defaultForegroundRgb: profile.defaultForegroundRgb,
+			palette: profile.palette,
+		},
 	};
 }

@@ -6,6 +6,7 @@ import {
 	CreationIdSchema,
 	HostEpochSchema,
 	TerminalIdSchema,
+	TerminalThemeOperationIdSchema,
 } from './identifiers';
 import { PROTOCOL_LIMITS } from './limits';
 import { TerminalPhase } from './terminal-phase';
@@ -245,6 +246,58 @@ export const TerminalProfileSchema = z.strictObject({
 	palette: z.array(rgbSchema).length(PROTOCOL_LIMITS.terminalProfilePaletteEntries),
 	versionResponse: responseTextSchema,
 });
+
+export const TerminalThemeSchema = z.strictObject({
+	colorScheme: z.enum(['dark', 'light']),
+	defaultBackgroundRgb: rgbSchema,
+	defaultCursorRgb: rgbSchema.nullable(),
+	defaultForegroundRgb: rgbSchema,
+	palette: z.array(rgbSchema).length(PROTOCOL_LIMITS.terminalProfilePaletteEntries),
+});
+
+export const TerminalThemeStateSchema = z
+	.strictObject({
+		operationId: TerminalThemeOperationIdSchema.nullable(),
+		revision: CanonicalUint64TextSchema,
+		terminal: TerminalThemeSchema,
+	})
+	.superRefine((state, context) => {
+		if ((state.revision === '0') !== (state.operationId === null)) {
+			context.addIssue({
+				code: 'custom',
+				message: 'Theme revision zero is the only state without an operation ID',
+				path: ['operationId'],
+			});
+		}
+	});
+
+export const ApplyTerminalThemeSchema = z.strictObject({
+	expectedThemeRevision: CanonicalUint64TextSchema,
+	operationId: TerminalThemeOperationIdSchema,
+	terminal: TerminalThemeSchema,
+	terminalId: TerminalIdSchema,
+});
+
+export const TerminalThemeResultSchema = z
+	.strictObject({
+		current: TerminalThemeStateSchema,
+		operationId: TerminalThemeOperationIdSchema,
+		terminalId: TerminalIdSchema,
+		transition: z.enum(['already-applied', 'applied', 'stale']),
+	})
+	.superRefine((result, context) => {
+		const matchesCurrent = result.current.operationId === result.operationId;
+		if (result.transition === 'stale' ? matchesCurrent : !matchesCurrent) {
+			context.addIssue({
+				code: 'custom',
+				message:
+					result.transition === 'stale'
+						? 'A stale result must identify a different current operation'
+						: 'An applied result must identify the current operation',
+				path: ['current', 'operationId'],
+			});
+		}
+	});
 
 export const TerminalGeometrySchema = z
 	.strictObject({
@@ -708,6 +761,7 @@ const terminalSummaryShape = {
 	configurationRevision: CanonicalUint64TextSchema,
 	identity: TerminalIdentitySchema,
 	revision: CanonicalUint64TextSchema,
+	theme: TerminalThemeStateSchema,
 } as const;
 
 const terminalSummaryWithGeometryShape = {
@@ -961,6 +1015,7 @@ export const HelloAcceptedSchema = z.strictObject({
 
 export type Hello = z.infer<typeof HelloSchema>;
 export type HelloAccepted = z.infer<typeof HelloAcceptedSchema>;
+export type ApplyTerminalTheme = z.infer<typeof ApplyTerminalThemeSchema>;
 export type AttachmentAcknowledged = z.infer<typeof AttachmentAcknowledgedSchema>;
 export type AttachmentCapabilities = z.infer<typeof AttachmentCapabilitiesSchema>;
 export type AttachTerminal = z.infer<typeof AttachTerminalSchema>;
@@ -1024,6 +1079,9 @@ export type TerminalStarted = z.infer<typeof TerminalStartedSchema>;
 export type TerminalStartAccepted = z.infer<typeof TerminalStartAcceptedSchema>;
 export type TerminalSummary = z.infer<typeof TerminalSummarySchema>;
 export type TerminalTarget = z.infer<typeof TerminalTargetSchema>;
+export type TerminalTheme = z.infer<typeof TerminalThemeSchema>;
+export type TerminalThemeResult = z.infer<typeof TerminalThemeResultSchema>;
+export type TerminalThemeState = z.infer<typeof TerminalThemeStateSchema>;
 export type TypedFailure = z.infer<typeof TypedFailureSchema>;
 export type ProcessObservation = z.infer<typeof ProcessObservationSchema>;
 export type RuntimeFailure = z.infer<typeof RuntimeFailureSchema>;
