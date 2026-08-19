@@ -61,6 +61,7 @@ const identity = {
 	terminalId: TerminalIdSchema.parse('33'.repeat(16)),
 };
 const presentationId = terminalPresentationId('presentation-recovered');
+const mountedGeometry = { cellPixelHeight: 18, cellPixelWidth: 9, columns: 96, rows: 32 } as const;
 
 class TestMainPort extends EventEmitter {
 	readonly close = vi.fn<() => void>();
@@ -460,8 +461,8 @@ describe('DesktopApplication', () => {
 		expect(gatewayClient.bootstrap.clientSessionId).not.toBe(
 			desktopBootstrap?.clientSession?.clientSessionId,
 		);
-		await harness.projectionServices[1]?.open(presentationId);
-		expect(harness.terminalRuntime.open).toHaveBeenCalledWith(presentationId, {
+		await harness.projectionServices[1]?.open(presentationId, mountedGeometry);
+		expect(harness.terminalRuntime.open).toHaveBeenCalledWith(presentationId, mountedGeometry, {
 			brokerEffectTarget: 'client',
 		});
 

@@ -315,12 +315,15 @@ fn createHookedRuntime(
     );
     var preparation = try terminal_launch.prepareRuntime(validated, std.testing.allocator, .{});
     defer preparation.deinit(std.testing.allocator);
+    const geometry = validated.launch.geometry.?;
+    const process_launch = preparation.processLaunch(geometry);
+    const runtime_options = preparation.runtimeOptions(geometry);
     try aggregate.core().reserveTerminal();
     var spawner: HookedThreadSpawner = .{ .hooks = hooks };
     const runtime = try createWithOptionsUsingSpawner(
         std.testing.allocator,
-        preparation.process_launch,
-        preparation.runtime_options,
+        process_launch,
+        runtime_options,
         &spawner,
     );
     const terminal_id = testId(core_module.TerminalId, 0x43, index);
@@ -330,10 +333,10 @@ fn createHookedRuntime(
         testId(core_module.CreationId, 0x42, index),
         terminal_id,
         validated.launch_digest,
-        preparation.process_launch.columns,
-        preparation.process_launch.rows,
-        preparation.process_launch.cell_pixel_width,
-        preparation.process_launch.cell_pixel_height,
+        process_launch.columns,
+        process_launch.rows,
+        process_launch.cell_pixel_width,
+        process_launch.cell_pixel_height,
         preparation.configuration,
         runtime,
     );

@@ -22,6 +22,7 @@ import {
 	SetHistoryDemandSchema,
 	SetProjectionDemandSchema,
 	SetTerminalDefaultsSchema,
+	StartTerminalSchema,
 	TerminalTargetSchema,
 	UpdateTerminalConfigurationSchema,
 } from './control';
@@ -54,6 +55,8 @@ export function encodeControlRequest(
 			return encodeControlJson(value, ListTerminalsSchema);
 		case MessageKind.createTerminal:
 			return encodeControlJson(value, CreateTerminalSchema);
+		case MessageKind.startTerminal:
+			return encodeControlJson(value, StartTerminalSchema);
 		case MessageKind.terminateTerminal:
 		case MessageKind.forceTerminateTerminal:
 		case MessageKind.disposeTerminal:

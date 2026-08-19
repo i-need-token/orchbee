@@ -55,7 +55,7 @@ test "semantic trace refines a native HostService composition" {
         .configuration = validated.launch.configuration orelse
             service.runtime_aggregate.core().terminalDefaults(),
         .creation_id = creation_id,
-        .geometry = validated.launch.geometry,
+        .geometry = validated.launch.geometry.?,
         .launch_digest = validated.launch_digest,
         .terminal_id = terminal_id,
     };

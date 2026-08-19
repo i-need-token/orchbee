@@ -11,7 +11,7 @@ import { z } from 'zod';
 
 import { GATEWAY_ATTACHMENT_MAX_FRAME_OVERHEAD_BYTES } from './gateway-attachment-wire-contract';
 
-export const GATEWAY_PROTOCOL_VERSION = '1.1';
+export const GATEWAY_PROTOCOL_VERSION = '1.2';
 export const GATEWAY_CONTROL_PATH = '/v1/control';
 export const GATEWAY_ATTACHMENT_PATH = '/v1/attachment';
 

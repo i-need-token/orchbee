@@ -148,6 +148,20 @@ describe('TerminalCloseOrchestrator', () => {
 		expect(store.document?.bindings).toHaveLength(0);
 	});
 
+	it('disposes an awaiting-start terminal without sending process termination', async () => {
+		const trace: string[] = [];
+		const store = new MemoryStore(
+			createDocument([createBinding({ identity, kind: 'retained' })]),
+			trace,
+		);
+		const host = new HostHarness(hostEpoch, [createAwaitingStartSummary()], trace);
+		const orchestrator = new TerminalCloseOrchestrator(host.value, store, bindingId);
+
+		expect(await orchestrator.requestClose(() => Promise.resolve())).toEqual({ kind: 'closed' });
+		expect(host.lifecycleKinds).toEqual([MessageKind.disposeTerminal]);
+		expect(trace).toEqual(['store:put:closing', 'host:list', 'host:dispose', 'store:remove']);
+	});
+
 	it('keeps durable close intent when the Host transport closes during grace', async () => {
 		const store = new MemoryStore(createDocument([createBinding({ identity, kind: 'retained' })]));
 		const host = new HostHarness(hostEpoch, [createSummary()]);
@@ -408,6 +422,26 @@ function createFinishingSummary(): Extract<
 		...createSummary(),
 		exit: null,
 		phase: TerminalPhase.finishing,
+	};
+}
+
+function createAwaitingStartSummary(): Extract<
+	TerminalSummary,
+	{ readonly phase: typeof TerminalPhase.awaitingStart }
+> {
+	return {
+		columns: null,
+		configuration: { scrollbackBytes: 10_000_000 },
+		configurationRevision: CanonicalUint64TextSchema.parse('1'),
+		exit: null,
+		failure: null,
+		failureContainment: null,
+		identity,
+		phase: TerminalPhase.awaitingStart,
+		process: null,
+		revision: CanonicalUint64TextSchema.parse('0'),
+		rows: null,
+		terminateRequested: false,
 	};
 }
 

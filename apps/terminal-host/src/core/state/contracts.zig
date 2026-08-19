@@ -19,6 +19,11 @@ pub const TerminalPhase = terminal_lifecycle.Phase;
 pub const TransitionOutcome = terminal_lifecycle.TransitionOutcome;
 pub const TerminationAdmission = terminal_lifecycle.TerminationAdmission;
 
+pub const StartAdmission = enum {
+    replay,
+    start,
+};
+
 /// Disposal admission across the Core boundary: an absent terminal is an
 /// idempotent no-op; a settled published terminal is disposable; stopping
 /// containment has no retained failing phase; blocked containment carries the
@@ -98,6 +103,7 @@ pub const CoreError = error{
     RevisionOverflow,
     ResizeLeaseDenied,
     SequenceOverflow,
+    StartConflict,
     TerminalConflict,
 };
 

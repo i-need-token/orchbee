@@ -23,6 +23,8 @@ pub const terminalFailed = host.terminalFailed;
 
 pub const terminalAcknowledged = terminal.terminalAcknowledged;
 pub const writeTerminalAcknowledged = terminal.writeTerminalAcknowledged;
+pub const terminalStartAccepted = terminal.terminalStartAccepted;
+pub const writeTerminalStartAccepted = terminal.writeTerminalStartAccepted;
 pub const attachmentCapabilities = terminal.attachmentCapabilities;
 pub const writeAttachmentCapabilities = terminal.writeAttachmentCapabilities;
 pub const resizeLeaseChanged = terminal.resizeLeaseChanged;

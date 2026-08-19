@@ -56,10 +56,11 @@ pub const EngineObservation = struct {
 pub const Session = struct {
     configuration_state: ConfigurationState = .{},
     creation_id: CreationId,
-    engine_observation: EngineObservation,
+    engine_observation: ?EngineObservation,
     launch_digest: LaunchDigest,
     lifecycle: terminal_lifecycle.Lifecycle,
     retained_cleanup: terminal_lifecycle.RetainedCleanup = .inactive,
+    start_geometry: ?terminal_geometry.Geometry,
     terminal_id: TerminalId,
 
     pub fn phase(self: Session) terminal_lifecycle.Phase {
@@ -75,15 +76,26 @@ pub const Session = struct {
     }
 
     pub fn observedGeometry(self: Session) terminal_geometry.Geometry {
-        return self.engine_observation.geometry;
+        return self.engine_observation.?.geometry;
+    }
+
+    pub fn maybeObservedGeometry(self: Session) ?terminal_geometry.Geometry {
+        return if (self.engine_observation) |observation| observation.geometry else null;
+    }
+
+    pub fn startGeometry(self: Session) ?terminal_geometry.Geometry {
+        return self.start_geometry;
     }
 
     pub fn observedGeometryRevision(self: Session) u64 {
-        return self.engine_observation.geometry_changed_at_revision;
+        return if (self.engine_observation) |observation|
+            observation.geometry_changed_at_revision
+        else
+            0;
     }
 
     pub fn observedRevision(self: Session) u64 {
-        return self.engine_observation.revision;
+        return if (self.engine_observation) |observation| observation.revision else 0;
     }
 
     pub fn childExited(self: Session) bool {

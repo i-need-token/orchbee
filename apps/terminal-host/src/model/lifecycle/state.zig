@@ -1,4 +1,5 @@
 const std = @import("std");
+const termination = @import("termination.zig");
 const types = @import("types.zig");
 
 const Phase = types.Phase;
@@ -19,6 +20,7 @@ const RetainedCleanupBlock = types.RetainedCleanupBlock;
 const RetainedCleanup = types.RetainedCleanup;
 const OutcomePublication = types.OutcomePublication;
 const RunningState = types.RunningState;
+const AwaitingStartState = types.AwaitingStartState;
 const FinishingState = types.FinishingState;
 const ContainingFailureState = types.ContainingFailureState;
 const ExitedState = types.ExitedState;
@@ -28,6 +30,7 @@ const PendingOutcome = types.PendingOutcome;
 const Error = types.Error;
 
 pub const Lifecycle = union(enum) {
+    awaiting_start: AwaitingStartState,
     running: RunningState,
     finishing: FinishingState,
     containing_failure: ContainingFailureState,
@@ -36,6 +39,7 @@ pub const Lifecycle = union(enum) {
 
     pub fn phase(self: Lifecycle) Phase {
         return switch (self) {
+            .awaiting_start => .awaiting_start,
             .running => .running,
             .finishing => .finishing,
             .containing_failure => .containing_failure,
@@ -46,6 +50,7 @@ pub const Lifecycle = union(enum) {
 
     pub fn childExited(self: Lifecycle) bool {
         return switch (self) {
+            .awaiting_start => false,
             .running => false,
             .finishing => |state| switch (state.first) {
                 .child_exited => true,
@@ -62,7 +67,7 @@ pub const Lifecycle = union(enum) {
 
     pub fn ptyDrained(self: Lifecycle) bool {
         return switch (self) {
-            .running, .containing_failure, .failed => false,
+            .awaiting_start, .running, .containing_failure, .failed => false,
             .finishing => |state| switch (state.first) {
                 .child_exited => false,
                 .pty_drained => true,
@@ -78,7 +83,7 @@ pub const Lifecycle = union(enum) {
                 .pty_drained => null,
             },
             .exited => |state| state.result,
-            .running, .containing_failure, .failed => null,
+            .awaiting_start, .running, .containing_failure, .failed => null,
         };
     }
 
@@ -86,6 +91,7 @@ pub const Lifecycle = union(enum) {
         return switch (self) {
             .running => |state| state.termination,
             .finishing => |state| state.termination,
+            .awaiting_start => .none,
             .containing_failure, .failed => .force,
             .exited => |state| state.termination,
         };
@@ -95,21 +101,21 @@ pub const Lifecycle = union(enum) {
         return switch (self) {
             .containing_failure => |state| state.failure,
             .failed => |state| state.failure,
-            .running, .finishing, .exited => null,
+            .awaiting_start, .running, .finishing, .exited => null,
         };
     }
 
     pub fn failureContainment(self: Lifecycle) ?FailureContainment {
         return switch (self) {
             .containing_failure => |state| state.containment,
-            .running, .finishing, .exited, .failed => null,
+            .awaiting_start, .running, .finishing, .exited, .failed => null,
         };
     }
 
     pub fn failedProcess(self: Lifecycle) ?ProcessObservation {
         return switch (self) {
             .failed => |state| state.process,
-            .running, .finishing, .containing_failure, .exited => null,
+            .awaiting_start, .running, .finishing, .containing_failure, .exited => null,
         };
     }
 
@@ -130,7 +136,7 @@ pub const Lifecycle = union(enum) {
                 } }
             else
                 null,
-            .running, .finishing, .containing_failure => null,
+            .awaiting_start, .running, .finishing, .containing_failure => null,
         };
     }
 
@@ -138,7 +144,7 @@ pub const Lifecycle = union(enum) {
         return switch (self) {
             .exited => |state| state.final_revision,
             .failed => |state| state.final_revision,
-            .running, .finishing, .containing_failure => null,
+            .awaiting_start, .running, .finishing, .containing_failure => null,
         };
     }
 
@@ -149,12 +155,13 @@ pub const Lifecycle = union(enum) {
     pub fn acceptsConfigurationUpdate(self: Lifecycle) bool {
         return switch (self.phase()) {
             .running, .finishing => true,
-            .containing_failure, .exited, .failed => false,
+            .awaiting_start, .containing_failure, .exited, .failed => false,
         };
     }
 
     pub fn hasReadableRuntimeState(self: Lifecycle) bool {
         return switch (self) {
+            .awaiting_start => false,
             .running, .finishing, .exited => true,
             .failed => |state| state.failure.kind() != .resize,
             .containing_failure => false,
@@ -166,8 +173,9 @@ pub const Lifecycle = union(enum) {
         request: TerminationRequest,
     ) TerminationAdmission {
         return switch (self) {
-            .running => |state| terminationAdmission(state.termination, request),
-            .finishing => |state| terminationAdmission(state.termination, request),
+            .awaiting_start => .replay,
+            .running => |state| termination.admission(state.termination, request),
+            .finishing => |state| termination.admission(state.termination, request),
             .containing_failure => |state| switch (request) {
                 .none => unreachable,
                 .graceful => .replay,
@@ -186,8 +194,9 @@ pub const Lifecycle = union(enum) {
     ) void {
         std.debug.assert(request != .none);
         switch (self.*) {
-            .running => |*state| commitTermination(&state.termination, request),
-            .finishing => |*state| commitTermination(&state.termination, request),
+            .awaiting_start => unreachable,
+            .running => |*state| termination.commit(&state.termination, request),
+            .finishing => |*state| termination.commit(&state.termination, request),
             .containing_failure, .exited, .failed => unreachable,
         }
     }
@@ -200,8 +209,17 @@ pub const Lifecycle = union(enum) {
                 },
                 .stopping => unreachable,
             },
-            .running, .finishing, .exited, .failed => unreachable,
+            .awaiting_start, .running, .finishing, .exited, .failed => unreachable,
         }
+    }
+
+    pub fn start(self: *Lifecycle) Error!TransitionOutcome {
+        switch (self.*) {
+            .awaiting_start => self.* = .{ .running = .{} },
+            .running => return .idempotent,
+            .finishing, .containing_failure, .exited, .failed => return error.InvalidPhase,
+        }
+        return .applied;
     }
 
     pub fn childExit(
@@ -211,6 +229,7 @@ pub const Lifecycle = union(enum) {
     ) Error!TransitionOutcome {
         if (!validExitResult(result)) return error.InvalidProcessObservation;
         switch (self.*) {
+            .awaiting_start => return error.InvalidPhase,
             .running => |state| self.* = .{
                 .finishing = .{
                     .first = .{ .child_exited = result },
@@ -249,6 +268,7 @@ pub const Lifecycle = union(enum) {
 
     pub fn ptyDrain(self: *Lifecycle, final_revision: u64) TransitionOutcome {
         switch (self.*) {
+            .awaiting_start => return .idempotent,
             .running => |state| self.* = .{
                 .finishing = .{
                     .first = .pty_drained,
@@ -273,6 +293,7 @@ pub const Lifecycle = union(enum) {
         failure: RuntimeFailure,
     ) TransitionOutcome {
         const process: ?ProcessObservation = switch (self.*) {
+            .awaiting_start => return .idempotent,
             .running => null,
             .finishing => |state| switch (state.first) {
                 .child_exited => |result| .{ .observed = result },
@@ -309,7 +330,7 @@ pub const Lifecycle = union(enum) {
                 },
             },
             .failed => return .idempotent,
-            .running, .finishing, .exited => return error.InvalidPhase,
+            .awaiting_start, .running, .finishing, .exited => return error.InvalidPhase,
         }
     }
 
@@ -333,12 +354,13 @@ pub const Lifecycle = union(enum) {
                 return .applied;
             },
             .failed => return .idempotent,
-            .running, .finishing, .exited => return error.InvalidPhase,
+            .awaiting_start, .running, .finishing, .exited => return error.InvalidPhase,
         }
     }
 
     pub fn requireDisposable(self: Lifecycle) Error!DisposableAdmission {
         return switch (self) {
+            .awaiting_start => .dispose,
             .containing_failure => |state| switch (state.containment) {
                 .stopping => .containment_stopping,
                 .blocked => |blocked| .{ .cleanup_blocked = blocked.cleanup_failure },
@@ -361,7 +383,7 @@ pub const Lifecycle = union(enum) {
                 .blocked => |blocked| blocked.retry_at_ns,
                 .stopping => null,
             },
-            .running, .finishing, .exited, .failed => null,
+            .awaiting_start, .running, .finishing, .exited, .failed => null,
         };
     }
 
@@ -371,7 +393,7 @@ pub const Lifecycle = union(enum) {
                 .stopping => true,
                 .blocked => false,
             },
-            .running, .finishing, .exited, .failed => false,
+            .awaiting_start, .running, .finishing, .exited, .failed => false,
         };
     }
 
@@ -399,26 +421,6 @@ pub const Lifecycle = union(enum) {
         }
     }
 };
-
-fn terminationAdmission(
-    current: TerminationRequest,
-    request: TerminationRequest,
-) TerminationAdmission {
-    return switch (request) {
-        .none => unreachable,
-        .graceful => if (current == .none) .dispatch else .replay,
-        .force => if (current == .force) .replay else .dispatch,
-    };
-}
-
-fn commitTermination(current: *TerminationRequest, request: TerminationRequest) void {
-    switch (request) {
-        .none => unreachable,
-        .graceful => std.debug.assert(current.* == .none),
-        .force => std.debug.assert(current.* != .force),
-    }
-    current.* = request;
-}
 
 fn recordContainedChildExit(
     containment: anytype,

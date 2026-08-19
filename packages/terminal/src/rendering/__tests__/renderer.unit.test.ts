@@ -78,6 +78,9 @@ function createCanvas(
 	return {
 		width: 0,
 		height: 0,
+		get ownerDocument() {
+			return globalThis.document;
+		},
 		style: {},
 		getContext: () => context,
 		remove: () => {},
@@ -282,7 +285,6 @@ describe('projected terminal renderer', () => {
 					});
 				}
 				Object.assign(created, {
-					ownerDocument,
 					remove: () => removed.push(created),
 				});
 				return created;

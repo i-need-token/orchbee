@@ -73,6 +73,9 @@ export type {
 export type { IDisposable, IEvent } from './EventEmitter';
 export type { TerminalOpenTarget } from './terminal-contracts';
 
+export { measureMountedTerminalGeometry } from './measureMountedTerminalGeometry';
+export type { MountedTerminalGeometryOptions } from './measureMountedTerminalGeometry';
+
 export {
 	DEFAULT_TERMINAL_INPUT_CONFIGURATION,
 	isTerminalOptionAsAltMode,

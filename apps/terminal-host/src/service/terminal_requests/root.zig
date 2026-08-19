@@ -32,6 +32,7 @@ pub fn dispatch(
         .ping => try handler.handlePing(envelope, correlation_id, outgoing),
         .list_terminals => try handler.handleList(envelope, correlation_id, outgoing),
         .create_terminal => try handler.handleCreate(connection_id, envelope, correlation_id, outgoing),
+        .start_terminal => try handler.handleStart(connection_id, envelope, correlation_id, outgoing),
         .terminate_terminal => try handler.handleTerminate(connection_id, envelope, correlation_id, outgoing),
         .force_terminate_terminal => try handler.handleForceTerminate(connection_id, envelope, correlation_id, outgoing),
         .dispose_terminal => try handler.handleDispose(connection_id, envelope, correlation_id, outgoing),
@@ -55,6 +56,7 @@ const Handler = struct {
     const handlePing = inventory_requests.handlePing;
     const handleList = inventory_requests.handleList;
     const handleCreate = creation_requests.handleCreate;
+    const handleStart = creation_requests.handleStart;
     const handleSetTerminalDefaults = configuration_requests.handleSetTerminalDefaults;
     const handleUpdateTerminalConfiguration = configuration_requests.handleUpdateTerminalConfiguration;
     const handleTerminate = lifecycle_requests.handleTerminate;

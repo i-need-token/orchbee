@@ -118,18 +118,28 @@ pub fn disposeTerminal(
         .containment_stopping => return error.FailureContainmentIncomplete,
         .dispose => {},
     }
-    const runtime = self.runtimeFor(terminal_id) orelse return error.TerminalRuntimeMissing;
+    const awaiting_start = self.core_state.findTerminal(terminal_id).?.phase() == .awaiting_start;
+    const runtime = self.runtimeFor(terminal_id);
+
+    if (runtime == null) {
+        if (!awaiting_start) return error.TerminalRuntimeMissing;
+        const session = self.core_state.commitTerminalRemoval(terminal_id);
+        const retained = RetainedTerminal.fromMutableSession(session);
+        retained.deinitStartPreparation(self.allocator);
+        self.allocator.destroy(retained);
+        return .{ .transition = .applied };
+    }
 
     // Dispose is the final owner handoff. Join the engine while the
     // RetainedTerminal still binds it to this session; a failed shutdown
     // leaves the complete retained record intact for a safe retry.
-    runtime.shutdown() catch |err| {
+    runtime.?.shutdown() catch |err| {
         return .{ .cleanup_blocked = host_runtime_maintenance.cleanupFailure(err) };
     };
     const session = self.core_state.commitTerminalRemoval(terminal_id);
     const retained = RetainedTerminal.fromMutableSession(session);
-    std.debug.assert(retained.runtime == runtime);
-    runtime.destroyAfterShutdown();
+    std.debug.assert(retained.runtime == runtime.?);
+    runtime.?.destroyAfterShutdown();
     self.allocator.destroy(retained);
     return .{ .transition = .applied };
 }

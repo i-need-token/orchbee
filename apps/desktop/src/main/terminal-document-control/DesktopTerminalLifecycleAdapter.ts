@@ -131,6 +131,7 @@ interface BindingEntry {
 	restorable: boolean;
 	retired: boolean;
 	ready: boolean;
+	startRequired: boolean;
 	summary: TerminalSummary | null;
 	terminalExit: TerminalExited | null;
 	terminalFailure: TerminalFailed | null;
@@ -162,6 +163,7 @@ export type DesktopTerminalLifecycleAdapterInitialization =
 export interface DesktopTerminalProjectionTarget {
 	readonly identity: TerminalIdentity;
 	readonly readOnly: boolean;
+	readonly startRequired: boolean;
 	readonly terminalOutcome:
 		| { readonly event: TerminalExited; readonly kind: 'exited' }
 		| { readonly event: TerminalFailed; readonly kind: 'failed' }
@@ -309,8 +311,23 @@ export class DesktopTerminalLifecycleAdapter implements DesktopTerminalLifecycle
 				entry.summary?.phase === TerminalPhase.containingFailure ||
 				entry.summary?.phase === TerminalPhase.exited ||
 				entry.summary?.phase === TerminalPhase.failed,
+			startRequired: entry.startRequired,
 			terminalOutcome,
 		};
+	}
+
+	markTerminalStarted(presentationId: TerminalPresentationId, identity: TerminalIdentity): boolean {
+		const entry = this.#entries.get(presentationId);
+		if (
+			entry?.ready !== true ||
+			entry.retired ||
+			entry.identity === null ||
+			!identitiesEqual(entry.identity, identity)
+		) {
+			return false;
+		}
+		entry.startRequired = false;
+		return true;
 	}
 
 	getDurableTerminalExit(presentationId: TerminalPresentationId): TerminalExited | null {
@@ -584,6 +601,7 @@ export class DesktopTerminalLifecycleAdapter implements DesktopTerminalLifecycle
 				restorable: false,
 				retired: false,
 				ready: false,
+				startRequired: launch.columns === null,
 				summary: null,
 				terminalExit: null,
 				terminalFailure: null,
@@ -1106,6 +1124,7 @@ function entryFromBinding(
 		publishedExitRevision: null,
 		exitRecordingRetryPending: false,
 		ready: false,
+		startRequired: binding.launch.columns === null,
 		restorable: binding.state.kind === 'retained' || binding.state.kind === 'exited',
 		retired: false,
 		summary: null,
@@ -1148,6 +1167,10 @@ function applyReconciledSummary(entry: BindingEntry, summary: TerminalSummary | 
 	}
 
 	entry.summary = summary;
+	entry.startRequired =
+		entry.startRequired &&
+		(summary?.phase === TerminalPhase.awaitingStart ||
+			(summary === null && entry.launch.columns === null));
 	if (summaryFailure !== null && entry.terminalFailure === null) {
 		entry.terminalFailure = summaryFailure;
 	}

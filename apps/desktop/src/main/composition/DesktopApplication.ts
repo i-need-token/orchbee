@@ -21,6 +21,7 @@ import {
 	type DecodedProtocolEnvelope,
 	type TerminalExited,
 	type TerminalFailed,
+	type TerminalGeometry,
 	type TerminalIdentity,
 	type TerminalLaunch,
 } from '@orchbee/terminal-protocol';
@@ -231,6 +232,7 @@ export interface DesktopApplicationDependencies {
 		service: {
 			open(
 				presentationId: Parameters<DesktopTerminalRuntime['open']>[0],
+				geometry: TerminalGeometry,
 			): Promise<DesktopTerminalProjectionLease>;
 		},
 	) => DesktopProjectionControlBrokerHandle;
@@ -1230,8 +1232,8 @@ export class DesktopApplication {
 			clientSessionChannel = this.#dependencies.createMessageChannel();
 			projectionChannel = this.#dependencies.createMessageChannel();
 			projectionBroker = this.#dependencies.createProjectionControlBroker(projectionChannel.port2, {
-				open: async (presentationId) =>
-					terminalRuntime.open(presentationId, { brokerEffectTarget: 'client' }),
+				open: async (presentationId, geometry) =>
+					terminalRuntime.open(presentationId, geometry, { brokerEffectTarget: 'client' }),
 			});
 			clientSessionBroker = this.#dependencies.createClientSessionBroker(
 				clientSessionChannel.port2,

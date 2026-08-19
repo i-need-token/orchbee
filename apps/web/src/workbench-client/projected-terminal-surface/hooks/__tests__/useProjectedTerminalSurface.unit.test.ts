@@ -8,11 +8,15 @@ import {
 	HostEpochSchema,
 	TerminalIdSchema,
 } from '@orchbee/terminal-protocol';
-import type { ProjectedPasteReview, ProjectedTerminalMetadata } from '@orchbee/terminal';
+import type {
+	measureMountedTerminalGeometry,
+	ProjectedPasteReview,
+	ProjectedTerminalMetadata,
+} from '@orchbee/terminal';
 import { terminalPresentationId, type WorkbenchTerminalPresentation } from '@orchbee/workbench';
 import { act, createElement, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type {
 	ProjectedTerminalTransport,
@@ -32,6 +36,16 @@ import { useProjectedTerminalSurface } from '../useProjectedTerminalSurface';
 
 const renderer = vi.hoisted(() => ({
 	start: vi.fn<typeof startProjectedTerminalRenderer>(),
+}));
+const geometryMeasurement = vi.hoisted(() => ({
+	measure: vi.fn<typeof measureMountedTerminalGeometry>(),
+}));
+
+const mountedGeometry = { cellPixelHeight: 18, cellPixelWidth: 9, columns: 96, rows: 32 } as const;
+
+vi.mock(import('@orchbee/terminal'), async (importOriginal) => ({
+	...(await importOriginal()),
+	measureMountedTerminalGeometry: geometryMeasurement.measure,
 }));
 
 vi.mock('../../../projected-terminal-renderer', async (importOriginal) => ({
@@ -53,8 +67,14 @@ afterAll(() => {
 	});
 });
 
+beforeEach(() => {
+	geometryMeasurement.measure.mockResolvedValue(mountedGeometry);
+});
+
 afterEach(() => {
 	vi.useRealTimers();
+	vi.unstubAllGlobals();
+	geometryMeasurement.measure.mockReset();
 	renderer.start.mockReset();
 });
 
@@ -219,13 +239,79 @@ describe('useProjectedTerminalSurface', () => {
 				);
 			});
 
-			expect(open).toHaveBeenCalledWith(presentation.presentationId);
+			expect(open).toHaveBeenCalledWith(presentation.presentationId, mountedGeometry);
 			expect(container.firstElementChild?.getAttribute('data-projection-state')).toBe('requested');
 			await act(async () => root.unmount());
 			expect(release).toHaveBeenCalledOnce();
 			container.remove();
 		},
 	);
+
+	it('waits for positive mounted geometry before opening the projection', async () => {
+		let notifyResize = (): void => undefined;
+		class TestResizeObserver {
+			constructor(callback: ResizeObserverCallback) {
+				notifyResize = () => callback([], this as unknown as ResizeObserver);
+			}
+
+			disconnect(): void {}
+			observe(): void {}
+			unobserve(): void {}
+		}
+		vi.stubGlobal('ResizeObserver', TestResizeObserver);
+		geometryMeasurement.measure
+			.mockResolvedValueOnce(undefined)
+			.mockResolvedValueOnce(mountedGeometry);
+		const open = vi.fn<TerminalProjectionClient['open']>(() => ({
+			release: vi.fn<() => void>(),
+			result: new Promise(() => undefined),
+		}));
+		const presentation: WorkbenchTerminalPresentation = {
+			closeActivity: 'unknown',
+			currentCwd: '/workspace',
+			launchCwd: '/workspace',
+			lifecycle: { kind: 'running' },
+			naturalTitle: null,
+			presentationId: terminalPresentationId('presentation-awaiting-geometry'),
+			title: 'Terminal Awaiting Geometry',
+		};
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		const root = createRoot(container);
+
+		await act(async () => {
+			root.render(
+				createElement(
+					ProjectedTerminalSurfaceCapabilityContext.Provider,
+					{
+						value: {
+							documentElement: document.documentElement,
+							observeTerminalMetadata: () => undefined,
+							platformEffects: {},
+							preferredLocales: ['en-US'],
+							presentationConfigurationSource: DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION_SOURCE,
+							projectionClient: { open },
+							shortcutPlatform: 'apple',
+							startStoppedTerminalSession: () => ({ kind: 'unchanged' as const }),
+						},
+					},
+					createElement(
+						OrchbeeI18nProvider,
+						{ locale: 'en-US' },
+						createElement(TestHarness, { presentation }),
+					),
+				),
+			);
+		});
+		expect(open).not.toHaveBeenCalled();
+
+		await act(async () => notifyResize());
+		await vi.waitFor(() =>
+			expect(open).toHaveBeenCalledWith(presentation.presentationId, mountedGeometry),
+		);
+		await act(async () => root.unmount());
+		container.remove();
+	});
 
 	it('disposes a candidate renderer that unmounts before its first presented frame', async () => {
 		const sessionDispose = vi.fn<() => void>();

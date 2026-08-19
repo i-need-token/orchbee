@@ -8,6 +8,8 @@ import {
 	AttachmentCapabilitiesSchema,
 	AttachmentIdSchema,
 	MessageKind,
+	StartTerminalSchema,
+	TerminalStartAcceptedSchema,
 	type AttachmentId,
 	type ExitResult,
 	type ProcessObservation,
@@ -15,6 +17,7 @@ import {
 	type TerminalExited,
 	type TerminalFailed,
 	type TerminalIdentity,
+	type TerminalGeometry,
 } from '@orchbee/terminal-protocol';
 import type {
 	TerminalPresentationFailure,
@@ -62,6 +65,10 @@ export interface DesktopTerminalProjectionServiceDependencies {
 		presentationId: TerminalPresentationId,
 	) => DesktopTerminalProjectionTarget | null;
 	readonly host: HostConnection;
+	readonly markTerminalStarted: (
+		presentationId: TerminalPresentationId,
+		identity: TerminalIdentity,
+	) => boolean;
 	readonly randomAttachmentId: () => string;
 }
 
@@ -101,6 +108,7 @@ export class DesktopTerminalProjectionService {
 
 	async open(
 		presentationId: TerminalPresentationId,
+		geometry: TerminalGeometry,
 		options: DesktopTerminalProjectionOpenOptions = { brokerEffectTarget: 'desktop' },
 	): Promise<DesktopTerminalProjectionLease> {
 		if (this.#disposed) throw projectionError('terminal-projection-unavailable', true);
@@ -108,7 +116,7 @@ export class DesktopTerminalProjectionService {
 			throw projectionError('terminal-projection-retired', false);
 		}
 		return this.#enqueueOperation(presentationId, async () =>
-			this.#openSerialized(presentationId, options),
+			this.#openSerialized(presentationId, geometry, options),
 		);
 	}
 
@@ -133,6 +141,7 @@ export class DesktopTerminalProjectionService {
 
 	async #openSerialized(
 		presentationId: TerminalPresentationId,
+		geometry: TerminalGeometry,
 		options: DesktopTerminalProjectionOpenOptions,
 	): Promise<DesktopTerminalProjectionLease> {
 		if (this.#disposed) throw projectionError('terminal-projection-unavailable', true);
@@ -144,9 +153,27 @@ export class DesktopTerminalProjectionService {
 		if (this.#retiredPresentations.has(presentationId)) {
 			throw projectionError('terminal-projection-retired', false);
 		}
-		const target = this.#dependencies.getProjectionTarget(presentationId);
+		let target = this.#dependencies.getProjectionTarget(presentationId);
 		if (target === null) throw projectionError('terminal-presentation-not-ready', true);
 		const retirementGeneration = this.#retirementGenerations.get(presentationId) ?? 0;
+		if (target.startRequired) {
+			const accepted = await this.#dependencies.host.requestControl(
+				MessageKind.startTerminal,
+				StartTerminalSchema.parse({ geometry, terminalId: target.identity.terminalId }),
+				TerminalStartAcceptedSchema,
+			);
+			if (
+				!identitiesMatch(accepted.identity, target.identity) ||
+				!geometriesMatch(accepted.geometry, geometry) ||
+				!this.#dependencies.markTerminalStarted(presentationId, accepted.identity)
+			) {
+				throw projectionError('terminal-projection-unavailable', true);
+			}
+			target = this.#dependencies.getProjectionTarget(presentationId);
+			if (target === null || target.startRequired) {
+				throw projectionError('terminal-projection-unavailable', true);
+			}
+		}
 		const attachmentId = AttachmentIdSchema.parse(this.#dependencies.randomAttachmentId());
 		const requestResizeLease =
 			!target.readOnly &&
@@ -529,7 +556,17 @@ function projectionTargetsMatch(
 	return (
 		identitiesMatch(left.identity, right.identity) &&
 		left.readOnly === right.readOnly &&
+		left.startRequired === right.startRequired &&
 		terminalOutcomesMatch(left.terminalOutcome, right.terminalOutcome)
+	);
+}
+
+function geometriesMatch(left: TerminalGeometry, right: TerminalGeometry): boolean {
+	return (
+		left.cellPixelHeight === right.cellPixelHeight &&
+		left.cellPixelWidth === right.cellPixelWidth &&
+		left.columns === right.columns &&
+		left.rows === right.rows
 	);
 }
 

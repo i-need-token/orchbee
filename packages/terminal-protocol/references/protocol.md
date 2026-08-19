@@ -5,7 +5,7 @@
 | Status          | Current wire-contract and codec authority; this package implements no lifecycle state machine, PTY, IPC listener, renderer, Electron, recovery, or network behavior |
 | Wire owner      | `@orchbee/terminal-protocol`                                                                                                                                        |
 | Native consumer | `apps/terminal-host` consumes declared schemas and fixture exports for bounded native dispatch and Zig conformance                                                  |
-| Reference scope | Exact protocol `0.0.11`; OBTF format `0.0.2`; OBKG, OBPB, and OBRW format `0.0.1`; input/selection codecs; failure vocabulary; bounds; and pinned fixtures          |
+| Reference scope | Exact protocol `0.0.12`; OBTF format `0.0.2`; OBKG, OBPB, and OBRW format `0.0.1`; input/selection codecs; failure vocabulary; bounds; and pinned fixtures          |
 | Change rule     | A changed field, message meaning, wire byte, bound, or fixture updates this record, both language implementations, every producer/consumer, and evidence            |
 
 ## Modeling record
@@ -39,7 +39,7 @@ identity and are rejected where an identity is required.
 | `AttachmentId`  | One physical-connection-owned attachment carrying negotiated capabilities                                                        |
 | `CorrelationId` | Required on every request and response after `Hello`; all-zero envelope bytes mean absence only for handshake messages or events |
 
-The current protocol version is exactly `0.0.11`. `Hello`, `HelloAccepted`, and every transport
+The current protocol version is exactly `0.0.12`. `Hello`, `HelloAccepted`, and every transport
 envelope carry that exact version. A different major, minor, or patch is rejected; this pre-release
 contract contains no negotiated range, compatibility mode, or historical message shape. Packed
 OBTF frame format is exactly `0.0.2`; OBKG graphics-extension, OBPB projection-buffer, and OBRW
@@ -86,6 +86,13 @@ U+0000 because executable, argument, directory, name, and value fields cross an 
 process boundary. Product secrets and values remain payload data and are excluded from normal
 diagnostics.
 
+The four launch geometry fields form one closed choice. `columns`, `rows`, `cellPixelWidth`, and
+`cellPixelHeight` are either all valid positive integers or all `null`; mixed geometry is malformed.
+Numeric geometry requests immediate startup and is required for headless and test callers. Null
+geometry reserves a deferred terminal identity and prepared launch without supplying an implicit
+grid. A later `StartTerminal` carries one complete `TerminalGeometry`; the wire contract defines no
+timeout or 80x24 visual fallback.
+
 Environment names are unique on the wire exactly as written: two entries whose names are identical
 as written are rejected, while names that differ only by case (for example `Path` and `PATH`) remain
 distinct wire names. Environment names are then target-operating-system environment identifiers, and
@@ -119,30 +126,31 @@ Events carry no correlation. Stale epochs, a repeated `Hello`, and pre-handshake
 without state mutation.
 
 Named response kinds are authoritative: `HelloAccepted`, `ProtocolRejected`,
-`AttachmentCapabilities`, `InputAccepted`, `ResizeAccepted`, `ProjectionDemandAccepted`,
-`TerminalDefaultsAccepted`, `TerminalConfigurationAccepted`, and `TerminalControlAccepted` answer
-their corresponding request kinds. Other successful operations respond with their request kind.
-`TypedFailure` may answer any request and preserves its correlation.
+`TerminalStartAccepted`, `AttachmentCapabilities`, `InputAccepted`, `ResizeAccepted`,
+`ProjectionDemandAccepted`, `TerminalDefaultsAccepted`, `TerminalConfigurationAccepted`, and
+`TerminalControlAccepted` answer their corresponding request kinds. Other successful operations
+respond with their request kind. `TypedFailure` may answer any request and preserves its correlation.
 
-| Operation                         | Successful payload                                                                                                                                                                                                                                                |
-| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ListTerminals`                   | Generation-scoped page of effective terminal summaries                                                                                                                                                                                                            |
-| `CreateTerminal`                  | `TerminalIdentity`                                                                                                                                                                                                                                                |
-| `SetTerminalDefaults`             | Effective default configuration and default revision                                                                                                                                                                                                              |
-| `UpdateTerminalConfiguration`     | Terminal identity, effective configuration and revision, content revision/generation, and evicted-row count                                                                                                                                                       |
-| `TerminateTerminal`               | Target `TerminalId`                                                                                                                                                                                                                                               |
-| `ForceTerminateTerminal`          | Target `TerminalId`                                                                                                                                                                                                                                               |
-| `DisposeTerminal`                 | Target `TerminalId`                                                                                                                                                                                                                                               |
-| `AttachTerminal`                  | Attachment and terminal identities, granted input/read/resize capabilities, and resize-lease fact                                                                                                                                                                 |
-| `DetachTerminal`                  | Target `AttachmentId`                                                                                                                                                                                                                                             |
-| raw or semantic input             | Attachment identity and encoded terminal-byte count committed to ordered ingress                                                                                                                                                                                  |
-| `ResizeTerminal`                  | Attachment identity, accepted canonical cell/pixel geometry, and resulting revision                                                                                                                                                                               |
-| `ClearTerminal` / `ResetTerminal` | Attachment and terminal identities, exact operation, and resulting revision/generation                                                                                                                                                                            |
-| projection demand                 | Attachment identity plus accepted `active` or `paused` demand                                                                                                                                                                                                     |
-| frame/recovery                    | OBTF format `0.0.2` snapshot/delta event, exact `FrameApplied`, typed `NeedSnapshot`, or typed `ProjectionBlocked`                                                                                                                                                |
-| history/read rows                 | Accepted history demand, bounded render/text `RowsSnapshot`, exact `RowsApplied`, `HistoryChanged`, and `HistoryObserved`                                                                                                                                         |
-| selection/export                  | Current selection state plus bounded started/chunk/acknowledgment/finished or cancellation flow                                                                                                                                                                   |
-| terminal start / outcome          | Start carries terminal identity. Normal exit carries final revision and an exit-code, signal, or unknown result. Runtime failure carries final revision, typed failure, and process observation. Inventory uses mutually exclusive phase-specific summary fields. |
+| Operation                         | Successful payload                                                                                                                                                                                                                                                                                   |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ListTerminals`                   | Generation-scoped page of effective terminal summaries                                                                                                                                                                                                                                               |
+| `CreateTerminal`                  | `TerminalIdentity`                                                                                                                                                                                                                                                                                   |
+| `StartTerminal`                   | Exact terminal identity, accepted complete geometry, and `started` or `already-started` transition                                                                                                                                                                                                   |
+| `SetTerminalDefaults`             | Effective default configuration and default revision                                                                                                                                                                                                                                                 |
+| `UpdateTerminalConfiguration`     | Terminal identity, effective configuration and revision, content revision/generation, and evicted-row count                                                                                                                                                                                          |
+| `TerminateTerminal`               | Target `TerminalId`                                                                                                                                                                                                                                                                                  |
+| `ForceTerminateTerminal`          | Target `TerminalId`                                                                                                                                                                                                                                                                                  |
+| `DisposeTerminal`                 | Target `TerminalId`                                                                                                                                                                                                                                                                                  |
+| `AttachTerminal`                  | Attachment and terminal identities, granted input/read/resize capabilities, and resize-lease fact                                                                                                                                                                                                    |
+| `DetachTerminal`                  | Target `AttachmentId`                                                                                                                                                                                                                                                                                |
+| raw or semantic input             | Attachment identity and encoded terminal-byte count committed to ordered ingress                                                                                                                                                                                                                     |
+| `ResizeTerminal`                  | Attachment identity, accepted canonical cell/pixel geometry, and resulting revision                                                                                                                                                                                                                  |
+| `ClearTerminal` / `ResetTerminal` | Attachment and terminal identities, exact operation, and resulting revision/generation                                                                                                                                                                                                               |
+| projection demand                 | Attachment identity plus accepted `active` or `paused` demand                                                                                                                                                                                                                                        |
+| frame/recovery                    | OBTF format `0.0.2` snapshot/delta event, exact `FrameApplied`, typed `NeedSnapshot`, or typed `ProjectionBlocked`                                                                                                                                                                                   |
+| history/read rows                 | Accepted history demand, bounded render/text `RowsSnapshot`, exact `RowsApplied`, `HistoryChanged`, and `HistoryObserved`                                                                                                                                                                            |
+| selection/export                  | Current selection state plus bounded started/chunk/acknowledgment/finished or cancellation flow                                                                                                                                                                                                      |
+| terminal start / outcome          | `TerminalStarted` carries terminal identity after the child exists. Normal exit carries final revision and an exit-code, signal, or unknown result. Runtime failure carries final revision, typed failure, and process observation. Inventory uses mutually exclusive phase-specific summary fields. |
 
 `RuntimeFailure.stage` is the discriminant for a primary terminal failure; `kind` is its required
 coarser category, not an independent field. Its legal pairs are
@@ -164,6 +172,14 @@ the requested number of summaries, and supplies either the next generation-scope
 changes do not. A generation mismatch returns `stale-inventory-cursor`, so one traversal never
 combines two memberships. Every page remains within the 64 KiB control bound, and the protocol sets
 no total terminal count limit.
+
+An `awaiting-start` inventory summary carries null `columns` and `rows`, no exit, failure,
+containment, or process observation, and `terminateRequested: false`. Started phases carry positive
+grid geometry. An exact `StartTerminal` replay after startup returns the original identity and
+geometry with `transition: already-started`; a different geometry is a non-retryable typed
+`start-conflict`. Spawn failure is a typed retryable failure and publishes neither successful start
+response nor `TerminalStarted` event; lifecycle ownership of those effects remains with Terminal
+Host.
 
 `TerminateTerminal` and `ForceTerminateTerminal` are distinct request kinds. The wire permits
 Desktop to send force directly; the Host-owned lifecycle decides whether the current phase accepts
@@ -235,19 +251,19 @@ bytes to the ordered ingress budget.
 | Range   | Group                              | Kinds                                                                                                                                                                                                                                                                                                                                                               |
 | ------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `1-5`   | Connection                         | `Hello=1`, `HelloAccepted=2`, `ProtocolRejected=3`, `Ping=4`, `TypedFailure=5`                                                                                                                                                                                                                                                                                      |
-| `10-19` | Inventory and lifecycle            | `ListTerminals=10`, `CreateTerminal=11`, `TerminateTerminal=12`, `DisposeTerminal=13`, `TerminalStarted=14`, `TerminalExited=15`, `ForceTerminateTerminal=18`, `TerminalFailed=19`                                                                                                                                                                                  |
+| `10-19` | Inventory and lifecycle            | `ListTerminals=10`, `CreateTerminal=11`, `TerminateTerminal=12`, `DisposeTerminal=13`, `TerminalStarted=14`, `TerminalExited=15`, `StartTerminal=16`, `TerminalStartAccepted=17`, `ForceTerminateTerminal=18`, `TerminalFailed=19`                                                                                                                                  |
 | `20-23` | Attachment                         | `AttachTerminal=20`, `DetachTerminal=21`, `AttachmentCapabilities=22`, `ResizeLeaseChanged=23`                                                                                                                                                                                                                                                                      |
 | `30-38` | Input and size                     | `WriteInput=30`, `InputAccepted=31`, `ResizeTerminal=32`, `ResizeAccepted=33`, `KeyInput=34`, `TextInput=35`, `MouseInput=36`, `FocusInput=37`, `PasteInput=38`                                                                                                                                                                                                     |
 | `41-56` | Projection and effects             | `SnapshotFrame=41`, `DeltaFrame=42`, `FrameApplied=43`, `NeedSnapshot=44`, `ReadRows=45`, `RowsSnapshot=46`, `SetProjectionDemand=47`, `ProjectionDemandAccepted=48`, `ProjectionBlocked=49`, `RowsApplied=50`, `SetHistoryDemand=51`, `HistoryDemandAccepted=52`, `HistoryChanged=53`, `HistoryObserved=54`, `TerminalBell=55`, `TerminalClipboardWriteRequest=56` |
 | `60-68` | Selection and export               | `SelectionGesture=60`, `SelectionCommand=61`, `SelectionChanged=62`, `SelectionExport=63`, `SelectionExportStarted=64`, `SelectionExportChunk=65`, `SelectionExportChunkApplied=66`, `SelectionExportFinished=67`, `SelectionExportCancel=68`                                                                                                                       |
 | `70-76` | Terminal configuration and control | `SetTerminalDefaults=70`, `TerminalDefaultsAccepted=71`, `UpdateTerminalConfiguration=72`, `TerminalConfigurationAccepted=73`, `ClearTerminal=74`, `ResetTerminal=75`, `TerminalControlAccepted=76`                                                                                                                                                                 |
 
-Unlisted numbers are unassigned, including `16` and `17`. Title and current-directory changes
-travel in terminal frames. Initial resize-lease authority is returned by attachment admission;
-later ownership changes use the attachment-scoped event.
+Unlisted numbers are unassigned. Title and current-directory changes travel in terminal frames.
+Initial resize-lease authority is returned by attachment admission; later ownership changes use the
+attachment-scoped event.
 
 `MESSAGE_CONTRACTS` is the executable TypeScript registry behind this table. Its native mirror is
-checked field-for-field through `control-conformance-v0.0.11.json`. Adding or changing a kind therefore
+checked field-for-field through `control-conformance-v0.0.12.json`. Adding or changing a kind therefore
 requires one atomic protocol change to the registry, native mirror, codecs, fixture, and consumers.
 
 `TerminalBell` is an event-only control record containing `attachmentId` and a positive canonical

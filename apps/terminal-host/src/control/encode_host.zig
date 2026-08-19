@@ -281,12 +281,15 @@ pub fn terminalSummary(
         try allocator.dupe(u8, "null");
     defer allocator.free(process_json);
     const configuration = terminal.effectiveConfiguration();
-    const geometry = terminal.observedGeometry();
+    const columns_json = try terminalDimensionJson(allocator, terminal, "columns");
+    defer allocator.free(columns_json);
+    const rows_json = try terminalDimensionJson(allocator, terminal, "rows");
+    defer allocator.free(rows_json);
     return std.fmt.allocPrint(
         allocator,
-        "{{\"columns\":{d},\"configuration\":{{\"scrollbackBytes\":{d}}},\"configurationRevision\":\"{d}\",\"exit\":{s},\"failure\":{s},\"failureContainment\":{s},\"identity\":{{\"creationId\":\"{s}\",\"hostEpoch\":\"{s}\",\"terminalId\":\"{s}\"}},\"phase\":\"{s}\",\"process\":{s},\"revision\":\"{d}\",\"rows\":{d},\"terminateRequested\":{}}}",
+        "{{\"columns\":{s},\"configuration\":{{\"scrollbackBytes\":{d}}},\"configurationRevision\":\"{d}\",\"exit\":{s},\"failure\":{s},\"failureContainment\":{s},\"identity\":{{\"creationId\":\"{s}\",\"hostEpoch\":\"{s}\",\"terminalId\":\"{s}\"}},\"phase\":\"{s}\",\"process\":{s},\"revision\":\"{d}\",\"rows\":{s},\"terminateRequested\":{}}}",
         .{
-            geometry.columns,
+            columns_json,
             configuration.scrollback_bytes,
             terminal.configurationRevision(),
             exit_json,
@@ -298,10 +301,28 @@ pub fn terminalSummary(
             terminalPhaseText(terminal.phase()),
             process_json,
             terminal.observedRevision(),
-            geometry.rows,
+            rows_json,
             terminal.terminateRequested(),
         },
     );
+}
+
+fn terminalDimensionJson(
+    allocator: std.mem.Allocator,
+    terminal: anytype,
+    comptime field: []const u8,
+) ![]u8 {
+    const Value = switch (@typeInfo(@TypeOf(terminal))) {
+        .pointer => |pointer| pointer.child,
+        else => @TypeOf(terminal),
+    };
+    if (comptime @hasDecl(Value, "maybeObservedGeometry")) {
+        const geometry = terminal.maybeObservedGeometry() orelse
+            return allocator.dupe(u8, "null");
+        return std.fmt.allocPrint(allocator, "{d}", .{@field(geometry, field)});
+    }
+    const geometry = terminal.observedGeometry();
+    return std.fmt.allocPrint(allocator, "{d}", .{@field(geometry, field)});
 }
 
 pub fn terminalExited(
@@ -371,6 +392,7 @@ fn exitResultJson(allocator: std.mem.Allocator, result: anytype) ![]u8 {
 
 fn terminalPhaseText(phase: anytype) []const u8 {
     return switch (phase) {
+        .awaiting_start => "awaiting-start",
         .running => "running",
         .finishing => "finishing",
         .containing_failure => "containing-failure",

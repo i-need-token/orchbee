@@ -2,6 +2,7 @@ const std = @import("std");
 const target_builtin = @import("builtin");
 const model = @import("terminal-host-model");
 const terminal_configuration = model.configuration;
+const terminal_geometry = model.geometry;
 const contracts = @import("contracts.zig");
 const storage = @import("storage.zig");
 
@@ -17,6 +18,7 @@ const RuntimeFailure = contracts.RuntimeFailure;
 const TerminalDisposalAdmission = contracts.TerminalDisposalAdmission;
 const TerminalId = contracts.TerminalId;
 const TerminalSession = contracts.TerminalSession;
+const StartAdmission = contracts.StartAdmission;
 const TerminationAdmission = contracts.TerminationAdmission;
 const TerminationRequest = contracts.TerminationRequest;
 const TransitionOutcome = contracts.TransitionOutcome;
@@ -54,23 +56,74 @@ pub fn commitRunningTerminal(
     configuration: terminal_configuration.Configuration,
     session: *TerminalSession,
 ) void {
+    self.commitAwaitingStartTerminal(
+        connection_id,
+        creation_id,
+        terminal_id,
+        launch_digest,
+        configuration,
+        session,
+    );
+    self.commitTerminalStart(terminal_id, .{
+        .cell_pixel_height = cell_pixel_height,
+        .cell_pixel_width = cell_pixel_width,
+        .columns = columns,
+        .rows = rows,
+    });
+}
+
+pub fn commitAwaitingStartTerminal(
+    self: anytype,
+    connection_id: ConnectionId,
+    creation_id: CreationId,
+    terminal_id: TerminalId,
+    launch_digest: LaunchDigest,
+    configuration: terminal_configuration.Configuration,
+    session: *TerminalSession,
+) void {
     std.debug.assert(terminal_configuration.valid(configuration));
     std.debug.assert(storage.connected(self, connection_id));
     self.terminal_registry.validateAdmission(creation_id, terminal_id) catch unreachable;
     session.* = .{
         .configuration_state = .{ .effective = configuration },
         .creation_id = creation_id,
-        .engine_observation = .{ .geometry = .{
-            .cell_pixel_height = cell_pixel_height,
-            .cell_pixel_width = cell_pixel_width,
-            .columns = columns,
-            .rows = rows,
-        } },
+        .engine_observation = null,
         .launch_digest = launch_digest,
-        .lifecycle = .{ .running = .{} },
+        .lifecycle = .{ .awaiting_start = .{} },
+        .start_geometry = null,
         .terminal_id = terminal_id,
     };
     self.terminal_registry.commitAssumeCapacity(session);
+}
+
+pub fn prepareTerminalStart(
+    self: anytype,
+    connection_id: ConnectionId,
+    terminal_id: TerminalId,
+    geometry: terminal_geometry.Geometry,
+) CoreError!StartAdmission {
+    if (!terminal_geometry.isValid(geometry)) return error.InvalidPhase;
+    if (!storage.connected(self, connection_id)) return error.MissingConnection;
+    const terminal = try storage.requireTerminal(self, terminal_id);
+    if (terminal.phase() == .awaiting_start) return .start;
+    const initial_geometry = terminal.startGeometry() orelse return error.InvalidPhase;
+    return if (terminal_geometry.eql(initial_geometry, geometry))
+        .replay
+    else
+        error.StartConflict;
+}
+
+pub fn commitTerminalStart(
+    self: anytype,
+    terminal_id: TerminalId,
+    geometry: terminal_geometry.Geometry,
+) void {
+    std.debug.assert(terminal_geometry.isValid(geometry));
+    const terminal = self.terminal_registry.find(terminal_id) orelse unreachable;
+    const transition = terminal.lifecycle.start() catch unreachable;
+    std.debug.assert(transition == .applied);
+    terminal.engine_observation = .{ .geometry = geometry };
+    terminal.start_geometry = geometry;
 }
 
 pub fn updateTerminalConfiguration(
@@ -136,6 +189,7 @@ pub fn prepareTermination(
 ) CoreError!TerminationAdmission {
     if (!storage.connected(self, connection_id)) return error.MissingConnection;
     const terminal = try storage.requireTerminal(self, terminal_id);
+    if (terminal.phase() == .awaiting_start) return error.InvalidPhase;
     std.debug.assert(request != .none);
     return terminal.lifecycle.prepareTermination(request);
 }
@@ -197,7 +251,8 @@ pub fn disposeTerminal(
 
 pub fn commitTerminalRemoval(self: anytype, terminal_id: TerminalId) *TerminalSession {
     const terminal = self.terminal_registry.get(terminal_id).?;
-    std.debug.assert(terminal.phase() == .exited or terminal.phase() == .failed);
+    std.debug.assert(terminal.phase() == .awaiting_start or
+        terminal.phase() == .exited or terminal.phase() == .failed);
     std.debug.assert(terminal.pendingOutcome() == null);
     std.debug.assert(!terminal.retainedCleanupPending());
     storage.removeTerminalAttachments(self, terminal_id);
@@ -293,6 +348,7 @@ pub fn synchronizeRevision(self: anytype, terminal_id: TerminalId, revision: u64
     const terminal = try storage.requireTerminal(self, terminal_id);
     switch (terminal.phase()) {
         .running, .finishing, .containing_failure => {},
+        .awaiting_start => return error.InvalidPhase,
         .exited, .failed => {
             // Settled engines may still serve retained read-only state,
             // but their final revision is immutable. Accepting the exact
@@ -303,7 +359,7 @@ pub fn synchronizeRevision(self: anytype, terminal_id: TerminalId, revision: u64
     }
     if (revision < terminal.observedRevision()) return error.InvalidPhase;
     if (revision == terminal.observedRevision()) return .idempotent;
-    terminal.engine_observation.revision = revision;
+    terminal.engine_observation.?.revision = revision;
     return .applied;
 }
 
@@ -325,6 +381,7 @@ pub fn synchronizeGeometry(
     const revision_changed = terminal.observedRevision() != revision;
     switch (terminal.phase()) {
         .running, .finishing, .containing_failure => {},
+        .awaiting_start => return error.InvalidPhase,
         .exited, .failed => {
             if (!geometry_changed and !revision_changed) return;
             return error.InvalidPhase;
@@ -333,15 +390,15 @@ pub fn synchronizeGeometry(
     if (revision < terminal.observedRevision()) return error.InvalidPhase;
     if (geometry_changed and !revision_changed) return error.InvalidPhase;
     if (!geometry_changed and !revision_changed) return;
-    terminal.engine_observation.geometry = .{
+    terminal.engine_observation.?.geometry = .{
         .cell_pixel_height = cell_pixel_height,
         .cell_pixel_width = cell_pixel_width,
         .columns = columns,
         .rows = rows,
     };
-    terminal.engine_observation.revision = revision;
+    terminal.engine_observation.?.revision = revision;
     if (geometry_changed) {
-        terminal.engine_observation.geometry_changed_at_revision = revision;
+        terminal.engine_observation.?.geometry_changed_at_revision = revision;
     }
 }
 

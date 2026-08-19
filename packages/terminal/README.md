@@ -246,6 +246,14 @@ hostConnection.onRows((rowBuffer) => terminal.applyRows(rowBuffer));
 hostConnection.onTerminalExited((event) => terminal.notifyExited(event));
 ```
 
+Applications that must start a visual terminal before creating its attachment can call
+`measureMountedTerminalGeometry(root, configuration)`. The helper waits for the configured faces
+and uses the same font metrics, padding, complete-cell grid, owner-document DPR, protocol bounds,
+and PTY pixel limits as the first projected surface. It returns `undefined` while the element has no
+positive mounted content box or padding consumes the grid; callers observe the surface again rather
+than substituting a timeout or default geometry. The configuration used for this measurement must
+remain the initial configuration used to open the projected renderer.
+
 Opening waits for the configured face with representative Latin, CJK, emoji, and Nerd Font glyphs, then installs frame, renderer, input, resize, and accessibility handling before activating projection demand. Each open attempt transactionally owns its canvas, input, accessibility nodes, renderer, observers, and listeners: setup failure removes only those resources and returns the same instance to `constructed` for retry; duplicate opens reject without changing the current surface, and disposal remains terminal. The package default remains browser-generic `monospace`; an application may provide a provisioned product face, and Orchbee's shared Web/Desktop application registers its pinned Ghostty-aligned primary and symbol fallback before opening a surface instead of depending on a machine-installed font. Surface sizing subtracts computed padding from the available grid, retains the mature two-column minimum, and proposes no PTY geometry when padding consumes either content dimension. Padding balance remains opt-in. A measured resize is sent before active projection demand and is deduplicated only while it agrees with the latest Host-committed geometry or remains inside the short observer re-entry window. A Host geometry change, broker rejection, transport failure, or later unchanged observation makes the proposal eligible for retry. The hidden IME control uses the same font and follows the projected cursor so the native candidate window stays aligned. Device-pixel-ratio changes rebuild renderer geometry and terminal pixel dimensions instead of leaving a stale atlas. A frame commits into a bounded row-partitioned structure-of-arrays store and is acknowledged only after draw scheduling. `FrameApplied` acknowledges the client commit, not completed painting. Exact duplicates are re-acknowledged; invalid identity, sequence, generation, dimension, or delta-base input requests a complete snapshot without mutating the committed grid.
 
 A valid frame that arrives while font or GPU initialization is still pending remains the single

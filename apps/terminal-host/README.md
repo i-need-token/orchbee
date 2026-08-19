@@ -18,7 +18,8 @@ The runtime contract is accepted, but acceptance does not claim that every curre
 
 Terminal Host owns:
 
-- one retained terminal record that binds one semantic session to one native engine per `TerminalId`;
+- one retained terminal record that binds one semantic session to either one deferred launch
+  preparation or one started native engine per `TerminalId`;
 - PTY and process-tree creation, observation, termination, containment, and cleanup;
 - the single canonical Ghostty state used by input encoding, projection, history, and selection;
 - effective terminal configuration, ordered bounded input, revisions, and generations;
@@ -38,6 +39,12 @@ The accepted contract requires these externally visible properties:
 - A Desktop disconnect destroys that broker's attachments but does not terminate or dispose retained terminals.
 - A Host with retained terminals remains available for reconnect. A Host with no broker and no retained terminal may exit.
 - Terminal creation is atomic and idempotent by creation identity and launch fingerprint while the terminal remains retained in one Host epoch. Explicit disposal releases that identity.
+- A launch with null geometry reserves identity, configuration, and prepared launch ownership in
+  `awaiting-start` without spawning a child or PTY. `StartTerminal` requires one complete geometry;
+  success uses it for the child, PTY, canonical state, Core observation, and first frame. Exact
+  replay is idempotent, conflicting geometry is rejected, and failed spawn remains retryable.
+- Immediate, headless, and test launches provide complete explicit geometry at creation. The Host
+  never substitutes a visual startup timeout or an 80x24 fallback.
 - Terminal output becomes a normal exit only after child completion, normal PTY drain, and complete quiescence of the PTY writer.
 - Unrecoverable PTY read, PTY write, terminal-reply, resize, or worker-integrity failures become an explicit typed failed outcome. The Host fences unsafe I/O, contains the owned process tree, and continues bounded cleanup retries even while no broker is connected.
 - Graceful termination, force termination, and disposal are distinct. Desktop owns escalation timing; disposal is explicit.
@@ -221,7 +228,7 @@ facade used by that executable. Each domain test graph imports its owning named 
 facade does not re-export internals for tests. The build graph is the visibility authority: no other
 workspace imports these Zig source files.
 
-Source modules should follow the semantic owners in the runtime contract: local IPC transports records, the native protocol adapter translates records, the Host registry owns terminal membership, each retained terminal record binds one semantic session to one engine, each session owns its lifecycle, and each broker session owns its attachments. A file split is useful only when it makes one of those ownership boundaries clearer.
+Source modules should follow the semantic owners in the runtime contract: local IPC transports records, the native protocol adapter translates records, the Host registry owns terminal membership, each retained terminal record binds one semantic session to its deferred launch preparation or started engine, each session owns its lifecycle, and each broker session owns its attachments. A file split is useful only when it makes one of those ownership boundaries clearer.
 
 The package-local [module boundary contract](docs/module-boundaries.md) maps those owners to source
 directories, named Zig modules, allowed imports, and test placement.

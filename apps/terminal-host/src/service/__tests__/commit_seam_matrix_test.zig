@@ -25,6 +25,7 @@ const Seam = enum(u8) {
     local_ipc_partial_write,
     process_observation_containment,
     multi_runtime_shutdown,
+    deferred_start_spawn,
 };
 
 const Disposition = enum {
@@ -80,6 +81,7 @@ const matrix = [_]Entry{
     entry(.local_ipc_partial_write, "CS-021", "LocalIpcPartialWrite", .preserve_for_retry, .native_boundary, "src/transport/__tests__/local_endpoint_test.zig", "multi-record handoff stops at the first write failure"),
     entry(.process_observation_containment, "CS-022", "ProcessObservationContainment", .contain_and_retain, .native_boundary, "src/service/__tests__/runtime_aggregate_lifecycle_test.zig", "process observation failure maps to a distinct runtime failure"),
     entry(.multi_runtime_shutdown, "CS-023", "MultiRuntimeShutdown", .contain_and_retain, .deterministic_interleaving, "src/service/__tests__/runtime_aggregate_cleanup_test.zig", "runtime destruction starts only after every shutdown succeeds"),
+    entry(.deferred_start_spawn, "CS-024", "DeferredStartSpawn", .contain_and_retain, .native_boundary, "src/service/__tests__/runtime_aggregate_lifecycle_test.zig", "deferred creation retains launch ownership and failed start stays retryable"),
 };
 
 test "commit seam matrix is exhaustive unique documented and backed by named tests" {

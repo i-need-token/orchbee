@@ -51,6 +51,8 @@ export const MessageKind = {
 	setProjectionDemand: 47,
 	snapshotFrame: 41,
 	terminalExited: 15,
+	startTerminal: 16,
+	terminalStartAccepted: 17,
 	terminalFailed: 19,
 	terminalStarted: 14,
 	terminateTerminal: 12,
@@ -157,6 +159,18 @@ export const MESSAGE_CONTRACTS = {
 		name: 'TerminalExited',
 		request: null,
 		responseEncoding: null,
+	},
+	[MessageKind.startTerminal]: {
+		eventEncoding: null,
+		name: 'StartTerminal',
+		request: { payloadEncoding: control, successKind: MessageKind.terminalStartAccepted },
+		responseEncoding: null,
+	},
+	[MessageKind.terminalStartAccepted]: {
+		eventEncoding: null,
+		name: 'TerminalStartAccepted',
+		request: null,
+		responseEncoding: control,
 	},
 	[MessageKind.forceTerminateTerminal]: {
 		eventEncoding: null,

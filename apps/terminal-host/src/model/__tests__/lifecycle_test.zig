@@ -1,6 +1,26 @@
 const std = @import("std");
 const lifecycle_model = @import("terminal-host-model").lifecycle;
 
+test "awaiting-start owns no child lifecycle and starts exactly once" {
+    var lifecycle: lifecycle_model.Lifecycle = .{ .awaiting_start = .{} };
+
+    try std.testing.expectEqual(lifecycle_model.Phase.awaiting_start, lifecycle.phase());
+    try std.testing.expect(!lifecycle.acceptsRuntimeWork());
+    try std.testing.expectEqual(
+        lifecycle_model.DisposableAdmission.dispose,
+        try lifecycle.requireDisposable(),
+    );
+    try std.testing.expectEqual(
+        lifecycle_model.TransitionOutcome.applied,
+        try lifecycle.start(),
+    );
+    try std.testing.expectEqual(lifecycle_model.Phase.running, lifecycle.phase());
+    try std.testing.expectEqual(
+        lifecycle_model.TransitionOutcome.idempotent,
+        try lifecycle.start(),
+    );
+}
+
 test "exited and failed outcomes require matching publication before disposal" {
     const cases = [_]lifecycle_model.Lifecycle{
         .{ .exited = .{

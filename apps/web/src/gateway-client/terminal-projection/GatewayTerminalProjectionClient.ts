@@ -13,6 +13,7 @@ import type {
 	TerminalPresentationFailure,
 	TerminalPresentationId,
 } from '@orchbee/workbench/terminal-presentation';
+import type { TerminalGeometry } from '@orchbee/terminal-protocol';
 import {
 	TerminalProjectionRequestIdSchema,
 	type ProjectedTerminalCommand,
@@ -82,7 +83,10 @@ export class GatewayTerminalProjectionClient implements TerminalProjectionClient
 		);
 	}
 
-	open(presentationId: TerminalPresentationId): TerminalProjectionRequest {
+	open(
+		presentationId: TerminalPresentationId,
+		geometry: TerminalGeometry,
+	): TerminalProjectionRequest {
 		const requestId = this.#createRequestId();
 		let resolve = (_projection: TerminalProjection): void => undefined;
 		let reject = (_error: Error): void => undefined;
@@ -104,6 +108,7 @@ export class GatewayTerminalProjectionClient implements TerminalProjectionClient
 		this.#pending.set(requestId, pending);
 		try {
 			this.#control.sendProjection({
+				geometry,
 				presentationId,
 				requestId,
 				type: 'terminal-projection-open-requested',

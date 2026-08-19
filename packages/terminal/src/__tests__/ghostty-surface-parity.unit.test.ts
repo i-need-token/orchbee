@@ -75,6 +75,9 @@ function createCanvas(
 	return {
 		getContext: () => context,
 		height: 0,
+		get ownerDocument() {
+			return globalThis.document;
+		},
 		style: {},
 		width: 0,
 	} as unknown as HTMLCanvasElement;
@@ -193,6 +196,9 @@ function createStyleRecordingCanvas(): {
 		canvas: {
 			getContext: () => context,
 			height: 0,
+			get ownerDocument() {
+				return globalThis.document;
+			},
 			style: {},
 			width: 0,
 		} as unknown as HTMLCanvasElement,

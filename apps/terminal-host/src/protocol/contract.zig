@@ -33,7 +33,7 @@ pub const terminal_row_window_format_patch: u8 = 1;
 pub const transport_envelope_header_bytes = 64;
 pub const current_protocol_major: u16 = 0;
 pub const current_protocol_minor: u16 = 0;
-pub const current_protocol_patch: u16 = 11;
+pub const current_protocol_patch: u16 = 12;
 
 pub const Limits = struct {
     pub const cell_pixel_dimension = 4096;
@@ -93,6 +93,8 @@ pub const MessageKind = struct {
     pub const dispose_terminal: u16 = 13;
     pub const terminal_started: u16 = 14;
     pub const terminal_exited: u16 = 15;
+    pub const start_terminal: u16 = 16;
+    pub const terminal_start_accepted: u16 = 17;
     pub const force_terminate_terminal: u16 = 18;
     pub const terminal_failed: u16 = 19;
     pub const attach_terminal: u16 = 20;
@@ -190,6 +192,7 @@ pub const RequestOperation = enum {
     set_history_demand,
     set_projection_demand,
     set_terminal_defaults,
+    start_terminal,
     terminate_terminal,
     update_terminal_configuration,
     write_input,
@@ -292,6 +295,13 @@ pub fn messageContract(kind: u16) ?MessageContract {
         ),
         M.terminal_started => eventOnly("TerminalStarted", .control_json),
         M.terminal_exited => eventOnly("TerminalExited", .control_json),
+        M.start_terminal => requestOnly(
+            "StartTerminal",
+            .start_terminal,
+            .control_json,
+            M.terminal_start_accepted,
+        ),
+        M.terminal_start_accepted => responseOnly("TerminalStartAccepted", .control_json),
         M.force_terminate_terminal => requestAndResponse(
             "ForceTerminateTerminal",
             .force_terminate_terminal,

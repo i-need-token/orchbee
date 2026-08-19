@@ -33,6 +33,7 @@ pub const testing = if (@import("builtin").is_test) struct {
         DuplicateAttachmentAdmissionSequence,
         GeometryRevisionAheadOfObservation,
         InvalidAttachmentAdmissionSequence,
+        InvalidAwaitingStartLifecycle,
         InvalidBlockedProjectionBase,
         InvalidConfigurationRevision,
         InvalidContainingFailureLifecycle,
@@ -48,6 +49,8 @@ pub const testing = if (@import("builtin").is_test) struct {
         InvalidTerminalGeometry,
         MissingCreationBinding,
         MissingCreationTerminal,
+        MissingStartGeometry,
+        MissingTerminalGeometry,
         MissingTerminalAttachmentIndex,
         MultipleConnections,
         MultipleResizeLeases,
@@ -217,13 +220,35 @@ pub const testing = if (@import("builtin").is_test) struct {
             if (terminal.configurationRevision() == 0) {
                 return error.InvalidConfigurationRevision;
             }
-            if (!terminal_geometry.isValid(terminal.observedGeometry())) {
-                return error.InvalidTerminalGeometry;
+            if (terminal.maybeObservedGeometry()) |observed_geometry| {
+                if (!terminal_geometry.isValid(observed_geometry)) {
+                    return error.InvalidTerminalGeometry;
+                }
+                if (terminal.observedGeometryRevision() > terminal.observedRevision()) {
+                    return error.GeometryRevisionAheadOfObservation;
+                }
+            } else if (terminal.phase() != .awaiting_start or
+                terminal.observedRevision() != 0 or
+                terminal.observedGeometryRevision() != 0)
+            {
+                return error.MissingTerminalGeometry;
             }
-            if (terminal.observedGeometryRevision() > terminal.observedRevision()) {
-                return error.GeometryRevisionAheadOfObservation;
+            if (terminal.phase() != .awaiting_start) {
+                const start_geometry = terminal.startGeometry() orelse
+                    return error.MissingStartGeometry;
+                if (!terminal_geometry.isValid(start_geometry)) {
+                    return error.InvalidTerminalGeometry;
+                }
             }
             switch (terminal.lifecycle) {
+                .awaiting_start => if (terminal.childExited() or
+                    terminal.ptyDrained() or
+                    terminal.startGeometry() != null or
+                    terminal.pendingOutcome() != null or
+                    terminal.settledFinalRevision() != null)
+                {
+                    return error.InvalidAwaitingStartLifecycle;
+                },
                 .running => if (terminal.childExited() or
                     terminal.ptyDrained() or
                     terminal.exitResult() != null or

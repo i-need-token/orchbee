@@ -19,7 +19,8 @@ describe('message contract registry', () => {
 			expect(isKnownMessageKind(kind)).toBe(true);
 			expect(MESSAGE_CONTRACTS[kind].name).not.toBe('');
 		}
-		expect(isKnownMessageKind(16)).toBe(false);
+		expect(MessageKind.startTerminal).toBe(16);
+		expect(MessageKind.terminalStartAccepted).toBe(17);
 	});
 
 	it('makes every request encoding and successful response explicit', () => {
@@ -38,6 +39,12 @@ describe('message contract registry', () => {
 			PayloadEncoding.rawBytes,
 		);
 		expect(messagePayloadEncoding(MessageKind.terminalStarted, 'request')).toBeNull();
+		expect(MESSAGE_CONTRACTS[MessageKind.startTerminal].request?.successKind).toBe(
+			MessageKind.terminalStartAccepted,
+		);
+		expect(messagePayloadEncoding(MessageKind.terminalStartAccepted, 'response')).toBe(
+			PayloadEncoding.controlJson,
+		);
 		expect(MessageKind.resizeLeaseChanged).toBe(23);
 		expect(messagePayloadEncoding(MessageKind.resizeLeaseChanged, 'event')).toBe(
 			PayloadEncoding.controlJson,

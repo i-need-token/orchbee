@@ -11,12 +11,18 @@ import { TerminalProjectionControlBroker } from '../TerminalProjectionControlBro
 type TerminalProjectionControlCommand = ReturnType<
 	typeof TerminalProjectionControlCommandSchema.parse
 >;
+type TerminalProjectionOpenCommand = Extract<
+	TerminalProjectionControlCommand,
+	{ readonly type: 'terminal-projection-open-requested' }
+>;
 type CloseListener = () => void;
 type MessageListener = (event: MessageEvent) => void;
 type PortListenerOperation = (
 	event: 'close' | 'message',
 	listener: CloseListener | MessageListener,
 ) => void;
+
+const mountedGeometry = { cellPixelHeight: 18, cellPixelWidth: 9, columns: 96, rows: 32 } as const;
 
 function createTestPort() {
 	let closeListener: CloseListener | undefined;
@@ -53,8 +59,10 @@ function createTestPort() {
 function openCommand(
 	requestId = 'projection-1',
 	presentationId = 'presentation-1',
+	geometry: TerminalProjectionOpenCommand['geometry'] = mountedGeometry,
 ): TerminalProjectionControlCommand {
 	return {
+		geometry,
 		presentationId: presentationId as TerminalProjectionControlCommand['presentationId'],
 		requestId: requestId as TerminalProjectionControlCommand['requestId'],
 		type: 'terminal-projection-open-requested',
@@ -110,6 +118,8 @@ describe('TerminalProjectionControlBroker', () => {
 		testPort.emitMessage(openCommand());
 		testPort.emitMessage(openCommand('projection-2', 'presentation-2'));
 		await vi.waitFor(() => expect(testPort.posted).toHaveLength(2));
+		expect(open).toHaveBeenNthCalledWith(1, 'presentation-1', mountedGeometry);
+		expect(open).toHaveBeenNthCalledWith(2, 'presentation-2', mountedGeometry);
 		expect(testPort.posted[0]?.ports).toEqual([first.rendererPort]);
 		expect(testPort.posted[1]?.ports).toEqual([second.rendererPort]);
 
@@ -254,6 +264,24 @@ describe('TerminalProjectionControlBroker', () => {
 		testPort.emitMessage(releaseCommand('projection-1', 'presentation-foreign'));
 
 		expect(testPort.close).toHaveBeenCalledOnce();
+		await vi.waitFor(() => expect(lease.dispose).toHaveBeenCalledOnce());
+	});
+
+	it('revokes the document scope when a request identity is reused with new geometry', async () => {
+		const testPort = createTestPort();
+		const lease = createLease();
+		const broker = new TerminalProjectionControlBroker(testPort.port, {
+			open: vi.fn<DesktopTerminalProjectionService['open']>().mockResolvedValue(lease),
+		});
+		broker.start();
+		testPort.emitMessage(openCommand());
+		await vi.waitFor(() => expect(testPort.posted).toHaveLength(1));
+
+		testPort.emitMessage(
+			openCommand('projection-1', 'presentation-1', { ...mountedGeometry, columns: 97 }),
+		);
+
+		await vi.waitFor(() => expect(testPort.close).toHaveBeenCalledOnce());
 		await vi.waitFor(() => expect(lease.dispose).toHaveBeenCalledOnce());
 	});
 

@@ -125,7 +125,6 @@ export const DEFAULT_TERMINAL_CONFIGURATION = Object.freeze(
 
 const terminalLaunchShape = {
 	arguments: z.array(boundedTextSchema).max(PROTOCOL_LIMITS.maxLaunchArguments),
-	columns: gridDimensionSchema,
 	configuration: TerminalConfigurationSchema.nullable(),
 	currentDirectory: boundedTextSchema.nullable(),
 	environment: z
@@ -150,7 +149,6 @@ const terminalLaunchShape = {
 		)
 		.max(PROTOCOL_LIMITS.maxLaunchEnvironmentEntries),
 	executable: boundedTextSchema.min(1),
-	rows: gridDimensionSchema,
 } as const;
 
 function validateLaunchEnvironment(
@@ -248,16 +246,38 @@ export const TerminalProfileSchema = z.strictObject({
 	versionResponse: responseTextSchema,
 });
 
-export const TerminalLaunchSchema = z
+export const TerminalGeometrySchema = z
 	.strictObject({
-		...terminalLaunchShape,
 		cellPixelHeight: cellPixelDimensionSchema,
 		cellPixelWidth: cellPixelDimensionSchema,
-		terminalProfile: TerminalProfileSchema,
+		columns: gridDimensionSchema,
+		rows: gridDimensionSchema,
 	})
+	.superRefine(validatePixelGeometry);
+
+const immediateTerminalLaunchSchema = z.strictObject({
+	...terminalLaunchShape,
+	cellPixelHeight: cellPixelDimensionSchema,
+	cellPixelWidth: cellPixelDimensionSchema,
+	columns: gridDimensionSchema,
+	rows: gridDimensionSchema,
+	terminalProfile: TerminalProfileSchema,
+});
+
+const deferredTerminalLaunchSchema = z.strictObject({
+	...terminalLaunchShape,
+	cellPixelHeight: z.null(),
+	cellPixelWidth: z.null(),
+	columns: z.null(),
+	rows: z.null(),
+	terminalProfile: TerminalProfileSchema,
+});
+
+export const TerminalLaunchSchema = z
+	.union([immediateTerminalLaunchSchema, deferredTerminalLaunchSchema])
 	.superRefine((launch, context) => {
 		validateLaunchEnvironment(launch, context);
-		validatePixelGeometry(launch, context);
+		if (launch.columns !== null) validatePixelGeometry(launch, context);
 		const features = launch.terminalProfile.deviceAttributes.primaryFeatures;
 		if (new Set(features).size !== features.length) {
 			context.addIssue({
@@ -271,6 +291,11 @@ export const TerminalLaunchSchema = z
 export const CreateTerminalSchema = z.strictObject({
 	creationId: CreationIdSchema,
 	launch: TerminalLaunchSchema,
+});
+
+export const StartTerminalSchema = z.strictObject({
+	geometry: TerminalGeometrySchema,
+	terminalId: TerminalIdSchema,
 });
 
 export const TerminalIdentitySchema = z.strictObject({
@@ -679,22 +704,37 @@ export const FailureContainmentSchema = z.discriminatedUnion('kind', [
 ]);
 
 const terminalSummaryShape = {
-	columns: gridDimensionSchema,
 	configuration: TerminalConfigurationSchema,
 	configurationRevision: CanonicalUint64TextSchema,
 	identity: TerminalIdentitySchema,
 	revision: CanonicalUint64TextSchema,
+} as const;
+
+const terminalSummaryWithGeometryShape = {
+	...terminalSummaryShape,
+	columns: gridDimensionSchema,
 	rows: gridDimensionSchema,
 } as const;
 
 const terminalSummaryWithoutFailureShape = {
-	...terminalSummaryShape,
+	...terminalSummaryWithGeometryShape,
 	failure: z.null(),
 	failureContainment: z.null(),
 	process: z.null(),
 } as const;
 
 export const TerminalSummarySchema = z.discriminatedUnion('phase', [
+	z.strictObject({
+		...terminalSummaryShape,
+		columns: z.null(),
+		exit: z.null(),
+		failure: z.null(),
+		failureContainment: z.null(),
+		phase: z.literal(TerminalPhase.awaitingStart),
+		process: z.null(),
+		rows: z.null(),
+		terminateRequested: z.literal(false),
+	}),
 	z.strictObject({
 		...terminalSummaryWithoutFailureShape,
 		exit: z.null(),
@@ -708,7 +748,7 @@ export const TerminalSummarySchema = z.discriminatedUnion('phase', [
 		terminateRequested: z.boolean(),
 	}),
 	z.strictObject({
-		...terminalSummaryShape,
+		...terminalSummaryWithGeometryShape,
 		exit: z.null(),
 		failure: RuntimeFailureSchema,
 		failureContainment: FailureContainmentSchema,
@@ -723,7 +763,7 @@ export const TerminalSummarySchema = z.discriminatedUnion('phase', [
 		terminateRequested: z.boolean(),
 	}),
 	z.strictObject({
-		...terminalSummaryShape,
+		...terminalSummaryWithGeometryShape,
 		exit: z.null(),
 		failure: RuntimeFailureSchema,
 		failureContainment: z.null(),
@@ -811,6 +851,12 @@ export const TerminalStartedSchema = z.strictObject({
 	creationId: CreationIdSchema,
 	hostEpoch: HostEpochSchema,
 	terminalId: TerminalIdSchema,
+});
+
+export const TerminalStartAcceptedSchema = z.strictObject({
+	geometry: TerminalGeometrySchema,
+	identity: TerminalIdentitySchema,
+	transition: z.enum(['already-started', 'started']),
 });
 
 export const TerminalExitedSchema = z.strictObject({
@@ -939,6 +985,7 @@ export type ResizeLeaseChanged = z.infer<typeof ResizeLeaseChangedSchema>;
 export type ResetTerminal = z.infer<typeof ResetTerminalSchema>;
 export type SetProjectionDemand = z.infer<typeof SetProjectionDemandSchema>;
 export type SetTerminalDefaults = z.infer<typeof SetTerminalDefaultsSchema>;
+export type StartTerminal = z.infer<typeof StartTerminalSchema>;
 export type HistoryChanged = z.infer<typeof HistoryChangedSchema>;
 export type HistoryDemand = z.infer<typeof HistoryDemandSchema>;
 export type HistoryDemandAccepted = z.infer<typeof HistoryDemandAcceptedSchema>;
@@ -962,6 +1009,7 @@ export type SetHistoryDemand = z.infer<typeof SetHistoryDemandSchema>;
 export type TerminalAcknowledged = z.infer<typeof TerminalAcknowledgedSchema>;
 export type TerminalExited = z.infer<typeof TerminalExitedSchema>;
 export type TerminalFailed = z.infer<typeof TerminalFailedSchema>;
+export type TerminalGeometry = z.infer<typeof TerminalGeometrySchema>;
 export type TerminalIdentity = z.infer<typeof TerminalIdentitySchema>;
 export type TerminalLaunch = z.infer<typeof TerminalLaunchSchema>;
 export type TerminalConfiguration = z.infer<typeof TerminalConfigurationSchema>;
@@ -973,6 +1021,7 @@ export type TerminalProfile = z.infer<typeof TerminalProfileSchema>;
 export type TerminalList = z.infer<typeof TerminalListSchema>;
 export type TerminalInventoryCursor = z.infer<typeof TerminalInventoryCursorSchema>;
 export type TerminalStarted = z.infer<typeof TerminalStartedSchema>;
+export type TerminalStartAccepted = z.infer<typeof TerminalStartAcceptedSchema>;
 export type TerminalSummary = z.infer<typeof TerminalSummarySchema>;
 export type TerminalTarget = z.infer<typeof TerminalTargetSchema>;
 export type TypedFailure = z.infer<typeof TypedFailureSchema>;

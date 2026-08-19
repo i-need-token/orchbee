@@ -17,7 +17,7 @@ The package owns the protocol version, loopback WebSocket paths, lifetime capabi
 | Browser attachment WebSocket    | One authenticated binary connection per visible projected-terminal attachment carrying only that attachment's commands and events. |
 | Browser location                | Gateway port, protocol version, and lifetime capability encoded only in the URL fragment.                                          |
 
-The control endpoint is `/v1/control`; the attachment endpoint is `/v1/attachment`. Both require protocol `1.1`. The Gateway accepts only the exact loopback HTTP Origin supplied by Desktop Main.
+The control endpoint is `/v1/control`; the attachment endpoint is `/v1/attachment`. Both require protocol `1.2`. The Gateway accepts only the exact loopback HTTP Origin supplied by Desktop Main.
 
 ## Model and invariants
 
@@ -34,9 +34,14 @@ The control endpoint is `/v1/control`; the attachment endpoint is `/v1/attachmen
 | Backpressure   | A bounded attachment queue admits one maximum-size valid frame when empty and retires only the exact attachment on overflow. Reopening projection creates a fresh attachment and full snapshot. |
 | Cardinality    | No product count ceiling exists for pages, terminals, or attachments. Byte and buffered-transport limits reject the affected message or connection instead of evicting another client.          |
 
-Protocol `1.1` retains a projection request mapping after release until Desktop returns its correlated
+Protocol `1.2` retains a projection request mapping after release until Desktop returns its correlated
 release acknowledgement or cleanup failure. This lets the Gateway forward delayed cleanup results
 without treating them as foreign control traffic or retiring another attachment.
+
+The nested Workbench projection-open command carries the visual surface's complete measured
+`TerminalGeometry`. A duplicate Gateway request ID is valid only when both its presentation identity
+and geometry match the retained request; changed geometry is conflicting control traffic. Gateway
+forwards the value unchanged and never supplies a startup default.
 
 The page lifecycle is `awaiting-authentication -> opening-client -> active -> closed`. Authentication is the only transition that may request Desktop page ports. A late port bundle for a closed page is disposed. Attachment registration follows `registered -> authenticated -> retired`; it cannot be resumed or rebound. Gateway shutdown terminates sockets that are still awaiting attachment authentication.
 

@@ -10,6 +10,7 @@ pub const ConnectionId = contracts.ConnectionId;
 pub const TerminalPhase = contracts.TerminalPhase;
 pub const TransitionOutcome = contracts.TransitionOutcome;
 pub const TerminationAdmission = contracts.TerminationAdmission;
+pub const StartAdmission = contracts.StartAdmission;
 pub const TerminalDisposalAdmission = contracts.TerminalDisposalAdmission;
 pub const ExitResult = contracts.ExitResult;
 pub const TerminationRequest = contracts.TerminationRequest;

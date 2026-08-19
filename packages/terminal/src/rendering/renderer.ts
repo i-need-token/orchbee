@@ -24,7 +24,7 @@ import {
 	type TerminalGraphicsPlacement,
 } from '@orchbee/terminal-protocol';
 
-import { applyFontMetricModifiers, type DetailedFontMetrics } from '../font-metrics';
+import { measureTerminalFont, type DetailedFontMetrics } from '../font-metrics';
 import {
 	cellConstraintWidthFromReader,
 	constrainGlyph,
@@ -190,9 +190,6 @@ export const DEFAULT_THEME: Required<ITheme> = {
 	brightCyan: '#29b8db',
 	brightWhite: '#ffffff',
 };
-
-const FONT_METRIC_SAMPLE_SIZE = 1_000;
-const PRINTABLE_ASCII = Array.from({ length: 95 }, (_, index) => String.fromCodePoint(index + 32));
 
 export type PreeditCell = PreeditCellData;
 
@@ -877,88 +874,7 @@ export class WebGPURenderer {
 	// ==========================================================================
 
 	private measureFont(configuration = this.presentationConfiguration): DetailedFontMetrics {
-		const canvas = document.createElement('canvas');
-		const ctx = canvas.getContext('2d');
-		if (!ctx) throw new Error('Failed to create font measurement context');
-		configureGhosttyTextRasterization(ctx);
-		ctx.direction = 'ltr';
-		ctx.font = canvasFont(
-			'normal',
-			configuration.fontWeight,
-			configuration.fontSize,
-			configuration.fontFamily,
-		);
-
-		const nominalMetrics = ctx.measureText('M');
-		ctx.font = canvasFont(
-			'normal',
-			configuration.fontWeight,
-			FONT_METRIC_SAMPLE_SIZE,
-			configuration.fontFamily,
-		);
-		const sampledMetrics = ctx.measureText('M');
-		const sampledScale = configuration.fontSize / FONT_METRIC_SAMPLE_SIZE;
-		const sampledWidth = sampledMetrics.width * sampledScale;
-		const nominalAscent =
-			nominalMetrics.fontBoundingBoxAscent ||
-			nominalMetrics.actualBoundingBoxAscent ||
-			configuration.fontSize * 0.8;
-		const nominalDescent =
-			nominalMetrics.fontBoundingBoxDescent ||
-			nominalMetrics.actualBoundingBoxDescent ||
-			configuration.fontSize * 0.2;
-		const sampledAscent = sampledMetrics.fontBoundingBoxAscent * sampledScale;
-		const sampledDescent = sampledMetrics.fontBoundingBoxDescent * sampledScale;
-		const sampledFaceHeight = sampledAscent + sampledDescent;
-		const nominalFaceHeight = nominalAscent + nominalDescent;
-		const sampledMetricsCoherent =
-			positiveFiniteMetric(sampledWidth) &&
-			positiveFiniteMetric(sampledAscent) &&
-			positiveFiniteMetric(sampledDescent) &&
-			Math.abs(sampledWidth - nominalMetrics.width) <= 1 &&
-			Math.abs(sampledFaceHeight - nominalFaceHeight) <= 1;
-		const faceWidth = sampledMetricsCoherent
-			? Math.max(...PRINTABLE_ASCII.map((character) => ctx.measureText(character).width)) *
-				sampledScale
-			: nominalMetrics.width;
-		const width = Math.max(1, Math.round(faceWidth));
-		const ascent = sampledMetricsCoherent ? sampledAscent : nominalAscent;
-		const descent = sampledMetricsCoherent ? sampledDescent : nominalDescent;
-		const faceHeight = Math.max(1, ascent + descent);
-		const height = Math.max(1, Math.round(faceHeight));
-		const baselineFromBottom =
-			Math.round((descent - (height - faceHeight) / 2) * this.devicePixelRatio) /
-			this.devicePixelRatio;
-		const baseline = Math.min(height, Math.max(0, height - baselineFromBottom));
-
-		const underlineThickness = 1;
-		const sampledCapHeight = ctx.measureText('H').actualBoundingBoxAscent * sampledScale;
-		const capHeight =
-			sampledMetricsCoherent && positiveFiniteMetric(sampledCapHeight)
-				? sampledCapHeight
-				: 0.75 * ascent;
-		return applyFontMetricModifiers(
-			{
-				cellWidth: width,
-				cellHeight: height,
-				cellBaseline: baselineFromBottom,
-				underlinePosition: Math.max(0, Math.round(baseline + underlineThickness)),
-				underlineThickness,
-				strikethroughPosition: Math.max(0, Math.round(height / 2)),
-				strikethroughThickness: 1,
-				overlinePosition: 0,
-				overlineThickness: 1,
-				boxThickness: 1,
-				cursorThickness: 1 / this.devicePixelRatio,
-				cursorHeight: height,
-				iconHeight: faceHeight,
-				iconHeightSingle: (2 * capHeight + faceHeight) / 3,
-				faceWidth: Math.max(1, faceWidth),
-				faceHeight,
-				faceY: baselineFromBottom - descent,
-			},
-			configuration.fontMetricModifiers,
-		);
+		return measureTerminalFont(this.canvas.ownerDocument, configuration, this.devicePixelRatio);
 	}
 
 	private remeasureFont(): void {
@@ -3238,10 +3154,6 @@ function rendererNow(): number {
 	return typeof performance !== 'undefined' && typeof performance.now === 'function'
 		? performance.now()
 		: Date.now();
-}
-
-function positiveFiniteMetric(value: number): boolean {
-	return Number.isFinite(value) && value > 0;
 }
 
 function isCellInRange(

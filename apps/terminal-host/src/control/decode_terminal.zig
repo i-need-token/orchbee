@@ -15,6 +15,11 @@ pub const CreateTerminal = struct {
     launch: terminal_launch.Validated,
 };
 
+pub const StartTerminal = struct {
+    geometry: terminal_geometry.Geometry,
+    terminal_id: identifiers.TerminalId,
+};
+
 pub const UpdateTerminalConfiguration = struct {
     configuration: terminal_configuration.Configuration,
     terminal_id: identifiers.TerminalId,
@@ -56,12 +61,7 @@ pub fn decodeCreateTerminal(
         .current_directory = wire_launch.currentDirectory,
         .environment = environment,
         .executable = wire_launch.executable,
-        .geometry = .{
-            .cell_pixel_height = wire_launch.cellPixelHeight,
-            .cell_pixel_width = wire_launch.cellPixelWidth,
-            .columns = wire_launch.columns,
-            .rows = wire_launch.rows,
-        },
+        .geometry = try optionalLaunchGeometry(wire_launch),
         .profile = profile,
     };
     // The canonical launch inspector applies the target-OS environment-name
@@ -79,6 +79,49 @@ pub fn decodeCreateTerminal(
             },
         },
     };
+}
+
+pub fn decodeStartTerminal(
+    allocator: std.mem.Allocator,
+    payload: []const u8,
+) decode_common.Error!decode_common.Decoded(control_wire.Start, StartTerminal) {
+    const parsed = try control_wire.decode(control_wire.Start, allocator, payload);
+    errdefer parsed.deinit();
+    const geometry: terminal_geometry.Geometry = .{
+        .cell_pixel_height = parsed.value.geometry.cellPixelHeight,
+        .cell_pixel_width = parsed.value.geometry.cellPixelWidth,
+        .columns = parsed.value.geometry.columns,
+        .rows = parsed.value.geometry.rows,
+    };
+    if (!terminal_geometry.isValid(geometry)) return error.InvalidField;
+    return .{
+        .parsed = parsed,
+        .value = .{
+            .geometry = geometry,
+            .terminal_id = try identifiers.parseLowerHex(
+                identifiers.TerminalId,
+                parsed.value.terminalId,
+            ),
+        },
+    };
+}
+
+fn optionalLaunchGeometry(
+    launch: control_wire.Launch,
+) decode_common.Error!?terminal_geometry.Geometry {
+    if (launch.columns == null and launch.rows == null and
+        launch.cellPixelWidth == null and launch.cellPixelHeight == null)
+    {
+        return null;
+    }
+    const geometry: terminal_geometry.Geometry = .{
+        .cell_pixel_height = launch.cellPixelHeight orelse return error.InvalidField,
+        .cell_pixel_width = launch.cellPixelWidth orelse return error.InvalidField,
+        .columns = launch.columns orelse return error.InvalidField,
+        .rows = launch.rows orelse return error.InvalidField,
+    };
+    if (!terminal_geometry.isValid(geometry)) return error.InvalidField;
+    return geometry;
 }
 
 fn translateEnvironment(

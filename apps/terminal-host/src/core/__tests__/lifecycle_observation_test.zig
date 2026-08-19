@@ -410,6 +410,7 @@ test "lifecycle command sequences preserve invariants after every transition" {
         while (core.findTerminal(terminal_id) != null and step < 32) : (step += 1) {
             const terminal = core.findTerminal(terminal_id).?;
             switch (terminal.lifecycle) {
+                .awaiting_start => return error.UnexpectedAwaitingStart,
                 .running => {
                     switch ((step + cycle) % 5) {
                         0, 1 => {

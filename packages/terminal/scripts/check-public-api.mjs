@@ -11,6 +11,7 @@ const expectedRuntimeExports = [
 	'TerminalBufferRowDetail',
 	'TerminalOptionAsAltMode',
 	'isTerminalOptionAsAltMode',
+	'measureMountedTerminalGeometry',
 	'normalizeTerminalPresentationConfiguration',
 ];
 

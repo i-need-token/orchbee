@@ -49,9 +49,13 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 			path.resolve('/users/orchbee/library/orchbee/window-state-v1.json'),
 		);
 		expect(first.terminalLaunch).toMatchObject({
+			cellPixelHeight: null,
+			cellPixelWidth: null,
+			columns: null,
 			configuration: null,
 			currentDirectory: path.resolve('/users/orchbee'),
 			executable: '/bin/zsh',
+			rows: null,
 		});
 		expect(first.terminalConfiguration).toEqual({ scrollbackBytes: 10_000_000 });
 		expect(first.terminalHostName).toBe('orchbee-host');

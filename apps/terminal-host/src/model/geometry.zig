@@ -19,3 +19,9 @@ pub fn isValid(geometry: Geometry) bool {
         @as(u32, geometry.columns) * geometry.cell_pixel_width <= std.math.maxInt(u16) and
         @as(u32, geometry.rows) * geometry.cell_pixel_height <= std.math.maxInt(u16);
 }
+
+pub fn eql(left: Geometry, right: Geometry) bool {
+    return left.columns == right.columns and left.rows == right.rows and
+        left.cell_pixel_width == right.cell_pixel_width and
+        left.cell_pixel_height == right.cell_pixel_height;
+}

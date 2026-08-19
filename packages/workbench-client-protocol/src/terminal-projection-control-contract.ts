@@ -2,6 +2,7 @@ import {
 	TerminalPresentationFailureSchema,
 	TerminalPresentationIdSchema,
 } from '@orchbee/workbench/terminal-presentation';
+import { TerminalGeometrySchema } from '@orchbee/terminal-protocol';
 import { z } from 'zod';
 
 import { ProjectedAttachmentBootstrapSchema } from './projected-terminal-contract';
@@ -21,6 +22,7 @@ const projectionIdentitySchema = {
 export const TerminalProjectionControlCommandSchema = z.discriminatedUnion('type', [
 	z.strictObject({
 		...projectionIdentitySchema,
+		geometry: TerminalGeometrySchema,
 		type: z.literal('terminal-projection-open-requested'),
 	}),
 	z.strictObject({

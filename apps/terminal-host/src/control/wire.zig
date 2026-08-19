@@ -186,14 +186,14 @@ pub const Environment = struct {
 
 pub const Launch = struct {
     arguments: []const []const u8,
-    cellPixelHeight: u16,
-    cellPixelWidth: u16,
-    columns: u16,
+    cellPixelHeight: ?u16,
+    cellPixelWidth: ?u16,
+    columns: ?u16,
     configuration: ?TerminalConfiguration,
     currentDirectory: ?[]const u8,
     environment: []const Environment,
     executable: []const u8,
-    rows: u16,
+    rows: ?u16,
     terminalProfile: TerminalProfile,
 };
 
@@ -226,6 +226,18 @@ pub const TerminalProfile = struct {
 pub const Create = struct {
     creationId: []const u8,
     launch: Launch,
+};
+
+pub const Geometry = struct {
+    cellPixelHeight: u16,
+    cellPixelWidth: u16,
+    columns: u16,
+    rows: u16,
+};
+
+pub const Start = struct {
+    geometry: Geometry,
+    terminalId: []const u8,
 };
 
 pub const InventoryCursor = struct {

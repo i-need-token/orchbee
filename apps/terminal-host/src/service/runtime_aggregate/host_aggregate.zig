@@ -17,6 +17,7 @@ const inventory = @import("inventory.zig");
 const maintenance_api = @import("maintenance_api.zig");
 const ownership = @import("ownership.zig");
 const projection = @import("projection.zig");
+const start = @import("start.zig");
 const terminal_control = @import("terminal_control.zig");
 const termination = @import("termination.zig");
 
@@ -103,6 +104,10 @@ pub const HostRuntimeAggregate = struct {
     // creation boundary.
     pub const prepareCreateTerminal = creation.prepareCreateTerminal;
     pub const commitPreparedTerminal = creation.commitPreparedTerminal;
+
+    // start boundary.
+    pub const prepareStartTerminal = start.prepareStartTerminal;
+    pub const commitPreparedTerminalStart = start.commitPreparedTerminalStart;
 
     // termination boundary.
     pub const requestTermination = termination.requestTermination;

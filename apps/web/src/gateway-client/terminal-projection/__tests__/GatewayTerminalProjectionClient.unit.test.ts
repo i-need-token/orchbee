@@ -22,6 +22,8 @@ import { describe, expect, it, vi } from 'vitest';
 import type { GatewayControlConnection } from '../../connection';
 import { GatewayTerminalProjectionClient } from '../GatewayTerminalProjectionClient';
 
+const mountedGeometry = { cellPixelHeight: 18, cellPixelWidth: 9, columns: 96, rows: 32 } as const;
+
 describe('GatewayTerminalProjectionClient', () => {
 	it('opens one dedicated attachment socket and propagates its exact retirement', async () => {
 		const control = new FakeControlConnection();
@@ -29,7 +31,7 @@ describe('GatewayTerminalProjectionClient', () => {
 		const connection = GatewayBrowserConnectionSchema.parse({
 			capability: 'a'.repeat(43),
 			port: 42_000,
-			protocolVersion: '1.1',
+			protocolVersion: '1.2',
 		});
 		const presentationId = terminalPresentationId('presentation-1');
 		const requestId = TerminalProjectionRequestIdSchema.parse('gateway:projection:1');
@@ -43,9 +45,14 @@ describe('GatewayTerminalProjectionClient', () => {
 			},
 			() => requestId,
 		);
-		const request = client.open(presentationId);
+		const request = client.open(presentationId, mountedGeometry);
 		expect(control.commands).toEqual([
-			{ presentationId, requestId, type: 'terminal-projection-open-requested' },
+			{
+				geometry: mountedGeometry,
+				presentationId,
+				requestId,
+				type: 'terminal-projection-open-requested',
+			},
 		]);
 		const bootstrap = {
 			attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
@@ -116,7 +123,7 @@ describe('GatewayTerminalProjectionClient', () => {
 		const connection = GatewayBrowserConnectionSchema.parse({
 			capability: 'a'.repeat(43),
 			port: 42_000,
-			protocolVersion: '1.1',
+			protocolVersion: '1.2',
 		});
 		const firstPresentationId = terminalPresentationId('presentation-bootstrap-failure');
 		const secondPresentationId = terminalPresentationId('presentation-still-live');
@@ -147,7 +154,7 @@ describe('GatewayTerminalProjectionClient', () => {
 			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
 			terminalOutcome: null,
 		};
-		const first = client.open(firstPresentationId);
+		const first = client.open(firstPresentationId, mountedGeometry);
 		control.emit(
 			GatewayControlServerMessageSchema.parse({
 				attachmentCapability: 'b'.repeat(43),
@@ -171,7 +178,7 @@ describe('GatewayTerminalProjectionClient', () => {
 			type: 'terminal-projection-release-requested',
 		});
 
-		const second = client.open(secondPresentationId);
+		const second = client.open(secondPresentationId, mountedGeometry);
 		control.emit(
 			GatewayControlServerMessageSchema.parse({
 				event: {
@@ -217,7 +224,7 @@ describe('GatewayTerminalProjectionClient', () => {
 		const connection = GatewayBrowserConnectionSchema.parse({
 			capability: 'a'.repeat(43),
 			port: 42_000,
-			protocolVersion: '1.1',
+			protocolVersion: '1.2',
 		});
 		const presentationId = terminalPresentationId('presentation-socket-construction-failure');
 		const requestId = TerminalProjectionRequestIdSchema.parse(
@@ -232,7 +239,7 @@ describe('GatewayTerminalProjectionClient', () => {
 			},
 			() => requestId,
 		);
-		const request = client.open(presentationId);
+		const request = client.open(presentationId, mountedGeometry);
 		control.emit(
 			GatewayControlServerMessageSchema.parse({
 				attachmentCapability: 'b'.repeat(43),
@@ -280,7 +287,7 @@ describe('GatewayTerminalProjectionClient', () => {
 		const connection = GatewayBrowserConnectionSchema.parse({
 			capability: 'a'.repeat(43),
 			port: 42_000,
-			protocolVersion: '1.1',
+			protocolVersion: '1.2',
 		});
 		const presentationId = terminalPresentationId('presentation-authentication-send-failure');
 		const requestId = TerminalProjectionRequestIdSchema.parse(
@@ -293,7 +300,7 @@ describe('GatewayTerminalProjectionClient', () => {
 			() => socket.asWebSocket(),
 			() => requestId,
 		);
-		const request = client.open(presentationId);
+		const request = client.open(presentationId, mountedGeometry);
 		control.emit(
 			GatewayControlServerMessageSchema.parse({
 				attachmentCapability: 'b'.repeat(43),
@@ -342,7 +349,7 @@ describe('GatewayTerminalProjectionClient', () => {
 		const connection = GatewayBrowserConnectionSchema.parse({
 			capability: 'a'.repeat(43),
 			port: 42_000,
-			protocolVersion: '1.1',
+			protocolVersion: '1.2',
 		});
 		const presentationId = terminalPresentationId('presentation-release-before-ready');
 		const requestId = TerminalProjectionRequestIdSchema.parse('gateway:projection:early-release');
@@ -353,7 +360,7 @@ describe('GatewayTerminalProjectionClient', () => {
 			() => socket.asWebSocket(),
 			() => requestId,
 		);
-		const request = client.open(presentationId);
+		const request = client.open(presentationId, mountedGeometry);
 		control.emit(
 			GatewayControlServerMessageSchema.parse({
 				attachmentCapability: 'b'.repeat(43),
@@ -403,7 +410,7 @@ describe('GatewayTerminalProjectionClient', () => {
 		const connection = GatewayBrowserConnectionSchema.parse({
 			capability: 'a'.repeat(43),
 			port: 42_000,
-			protocolVersion: '1.1',
+			protocolVersion: '1.2',
 		});
 		const presentationId = terminalPresentationId('presentation-buffered-disconnect');
 		const requestId = TerminalProjectionRequestIdSchema.parse(
@@ -416,7 +423,7 @@ describe('GatewayTerminalProjectionClient', () => {
 			() => socket.asWebSocket(),
 			() => requestId,
 		);
-		const request = client.open(presentationId);
+		const request = client.open(presentationId, mountedGeometry);
 		control.emit(
 			GatewayControlServerMessageSchema.parse({
 				attachmentCapability: 'b'.repeat(43),

@@ -31,7 +31,7 @@ pub const TerminalObservation = struct {
     configuration_revision: u64,
     child_exited: bool,
     creation_id: core_module.CreationId,
-    geometry: terminal_geometry.Geometry,
+    geometry: ?terminal_geometry.Geometry,
     geometry_revision: u64,
     launch_digest: core_module.LaunchDigest,
     model_only: bool,
@@ -108,6 +108,14 @@ pub const Observation = struct {
         }
 
         for (self.terminals) |terminal| {
+            if (terminal.phase == .awaiting_start) {
+                if (terminal.runtime != null or terminal.geometry != null or
+                    terminal.revision != 0 or terminal.geometry_revision != 0)
+                {
+                    return error.AwaitingStartOwnsRuntimeState;
+                }
+                continue;
+            }
             const runtime = terminal.runtime orelse {
                 if (!terminal.model_only) return error.NativeTerminalMissingRuntime;
                 continue;
@@ -123,7 +131,7 @@ pub const Observation = struct {
                 return error.ConfigurationStateDiverged;
             }
             if (terminal.revision == runtime.completion.final_revision and
-                !std.meta.eql(terminal.geometry, runtime.geometry))
+                !std.meta.eql(terminal.geometry.?, runtime.geometry))
             {
                 return error.GeometryStateDiverged;
             }
@@ -135,6 +143,7 @@ pub const Observation = struct {
                 }
             }
             switch (terminal.phase) {
+                .awaiting_start => unreachable,
                 .running, .finishing => {},
                 .containing_failure => if (!runtime.failure_fenced) {
                     return error.FailureLifecycleWithoutRuntimeFence;
@@ -193,6 +202,7 @@ pub const Observation = struct {
 pub const CompositionInvariantError = error{
     ActiveConnectionIdentityMismatch,
     ActiveConnectionMissingCoreBroker,
+    AwaitingStartOwnsRuntimeState,
     AttachmentMissingRetainedTerminal,
     ConfigurationStateDiverged,
     CoreConnectionObservationMismatch,
@@ -242,7 +252,7 @@ pub fn capture(
             .configuration_revision = terminal.configurationRevision(),
             .child_exited = terminal.childExited(),
             .creation_id = terminal.creation_id,
-            .geometry = terminal.observedGeometry(),
+            .geometry = terminal.maybeObservedGeometry(),
             .geometry_revision = terminal.observedGeometryRevision(),
             .launch_digest = terminal.launch_digest,
             .model_only = model_only,
@@ -335,7 +345,7 @@ fn observeConnection(
 
 fn nativeTerminalCount(terminals: []const TerminalObservation) usize {
     var count: usize = 0;
-    for (terminals) |terminal| count += @intFromBool(!terminal.model_only);
+    for (terminals) |terminal| count += @intFromBool(terminal.runtime != null);
     return count;
 }
 

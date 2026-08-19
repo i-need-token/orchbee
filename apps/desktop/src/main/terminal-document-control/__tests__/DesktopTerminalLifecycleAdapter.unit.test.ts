@@ -301,8 +301,55 @@ describe('DesktopTerminalLifecycleAdapter', () => {
 		expect(adapter.getProjectionTarget(terminalPresentationId('presentation-1'))).toEqual({
 			identity,
 			readOnly: true,
+			startRequired: false,
 			terminalOutcome: { event: failure, kind: 'failed' },
 		});
+	});
+
+	it('keeps accepted startup monotonic across a stale awaiting-start reconciliation', async () => {
+		const awaitingStartSummary = createAwaitingStartSummary();
+		const retainedLifecycle = createLifecycle(async () => ({
+			identity,
+			kind: 'recovered',
+			summary: awaitingStartSummary,
+		}));
+		const retainedBinding: TerminalBinding = {
+			bindingId: TerminalBindingIdSchema.parse('binding-awaiting-start'),
+			creationId: identity.creationId,
+			launch: { ...createTerminalLaunch(), currentDirectory: '/workspace/orchbee' },
+			presentationId: terminalPresentationId('presentation-1'),
+			state: { identity, kind: 'retained' },
+		};
+		const adapter = new DesktopTerminalLifecycleAdapter({
+			allocateFreshBindingId: () => 'binding-fresh',
+			createBindingLifecycle: () => retainedLifecycle,
+			loadBindings: async () => ({
+				document: { bindings: [retainedBinding], version: 3 },
+				kind: 'available',
+			}),
+			registry: new DesktopTerminalBindingRegistry(),
+			retireProjection: async () => undefined,
+			terminalLaunch: createTerminalLaunch(),
+		});
+		const presentationId = terminalPresentationId('presentation-1');
+
+		await expect(adapter.execute(restoreCommand())).resolves.toMatchObject({
+			type: 'terminal-restore-completed',
+		});
+		expect(adapter.getProjectionTarget(presentationId)).toMatchObject({ startRequired: true });
+		expect(
+			adapter.markTerminalStarted(presentationId, {
+				...identity,
+				terminalId: TerminalIdSchema.parse('44'.repeat(16)),
+			}),
+		).toBe(false);
+		expect(adapter.markTerminalStarted(presentationId, identity)).toBe(true);
+		expect(adapter.getProjectionTarget(presentationId)).toMatchObject({ startRequired: false });
+
+		await expect(
+			adapter.execute(restoreCommand('presentation-1', 'restore-2')),
+		).resolves.toMatchObject({ type: 'terminal-restore-completed' });
+		expect(adapter.getProjectionTarget(presentationId)).toMatchObject({ startRequired: false });
 	});
 
 	it('rejects restore for a planned binding instead of turning it into provision', async () => {
@@ -1248,6 +1295,26 @@ function createExitedSummary(): TerminalSummary {
 		process: null,
 		revision: CanonicalUint64TextSchema.parse('4'),
 		rows: 24,
+		terminateRequested: false,
+	};
+}
+
+function createAwaitingStartSummary(): Extract<
+	TerminalSummary,
+	{ readonly phase: typeof TerminalPhase.awaitingStart }
+> {
+	return {
+		columns: null,
+		configuration: { scrollbackBytes: 10_000_000 },
+		configurationRevision: CanonicalUint64TextSchema.parse('1'),
+		exit: null,
+		failure: null,
+		failureContainment: null,
+		identity,
+		phase: TerminalPhase.awaitingStart,
+		process: null,
+		revision: CanonicalUint64TextSchema.parse('0'),
+		rows: null,
 		terminateRequested: false,
 	};
 }

@@ -86,7 +86,8 @@ pub fn destroyLastOwnedTerminal(self: anytype) void {
         }
     }
     const retained = RetainedTerminal.fromMutableSession(session);
-    retained.runtime.destroyAfterShutdown();
+    if (retained.runtime) |runtime| runtime.destroyAfterShutdown();
+    retained.deinitStartPreparation(self.allocator);
     self.allocator.destroy(retained);
 }
 

@@ -356,7 +356,7 @@ test "POSIX PTY child reads TIOCGWINSZ matching the canonical launch geometry" {
     const validated = try terminal_launch.inspect(std.testing.allocator, canonical_launch);
     var prepared = try terminal_launch.prepareRuntime(validated, std.testing.allocator, .{});
     defer prepared.deinit(std.testing.allocator);
-    const plan = prepared.process_launch;
+    const plan = prepared.processLaunch(validated.launch.geometry.?);
 
     const posix = std.posix;
     var pty = try platform_boundary.testing.pty.Pty.open(.{

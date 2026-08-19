@@ -8,6 +8,7 @@ import {
 	type ProjectedTerminalCommand,
 	type TerminalProjectionRequestId,
 } from '@orchbee/workbench-client-protocol';
+import type { TerminalGeometry } from '@orchbee/terminal-protocol';
 
 import { createBrowserRandomIdentifier } from '../../browser-random-identifier';
 import type {
@@ -55,7 +56,10 @@ export class DesktopTerminalProjectionClient implements TerminalProjectionClient
 		port.start();
 	}
 
-	open(presentationId: TerminalPresentationId): TerminalProjectionRequest {
+	open(
+		presentationId: TerminalPresentationId,
+		geometry: TerminalGeometry,
+	): TerminalProjectionRequest {
 		const requestId = this.#createRequestId();
 		let resolve = (_projection: TerminalProjection): void => undefined;
 		let reject = (_error: Error): void => undefined;
@@ -77,6 +81,7 @@ export class DesktopTerminalProjectionClient implements TerminalProjectionClient
 		this.#pending.set(requestId, pending);
 		try {
 			this.#port.postMessage({
+				geometry,
 				presentationId,
 				requestId,
 				type: 'terminal-projection-open-requested',

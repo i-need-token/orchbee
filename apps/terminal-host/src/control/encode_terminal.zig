@@ -17,6 +17,44 @@ pub fn writeTerminalAcknowledged(writer: *std.Io.Writer, terminal_id: anytype) !
     );
 }
 
+pub fn terminalStartAccepted(
+    allocator: std.mem.Allocator,
+    host_epoch: anytype,
+    outcome: anytype,
+) ![]u8 {
+    var writer: std.Io.Writer.Allocating = .init(allocator);
+    defer writer.deinit();
+    try writeTerminalStartAccepted(&writer.writer, host_epoch, outcome);
+    return writer.toOwnedSlice();
+}
+
+pub fn writeTerminalStartAccepted(
+    writer: *std.Io.Writer,
+    host_epoch: anytype,
+    outcome: anytype,
+) !void {
+    var creation_buffer: [32]u8 = undefined;
+    var epoch_buffer: [32]u8 = undefined;
+    var terminal_buffer: [32]u8 = undefined;
+    const transition = switch (outcome.transition) {
+        .already_started => "already-started",
+        .started => "started",
+    };
+    try writer.print(
+        "{{\"geometry\":{{\"cellPixelHeight\":{d},\"cellPixelWidth\":{d},\"columns\":{d},\"rows\":{d}}},\"identity\":{{\"creationId\":\"{s}\",\"hostEpoch\":\"{s}\",\"terminalId\":\"{s}\"}},\"transition\":\"{s}\"}}",
+        .{
+            outcome.geometry.cell_pixel_height,
+            outcome.geometry.cell_pixel_width,
+            outcome.geometry.columns,
+            outcome.geometry.rows,
+            common.identifierText(outcome.identity.creation_id, &creation_buffer),
+            common.identifierText(host_epoch, &epoch_buffer),
+            common.identifierText(outcome.identity.terminal_id, &terminal_buffer),
+            transition,
+        },
+    );
+}
+
 pub fn attachmentCapabilities(allocator: std.mem.Allocator, attachment: anytype) ![]u8 {
     var writer: std.Io.Writer.Allocating = .init(allocator);
     defer writer.deinit();

@@ -48,6 +48,7 @@ import {
 	TerminalListSchema,
 	TERMINAL_PROJECTION_BUFFER_FORMAT,
 	TERMINAL_ROW_WINDOW_FORMAT,
+	TerminalStartAcceptedSchema,
 	TerminalStartedSchema,
 	TerminalTargetSchema,
 	TypedFailureSchema,
@@ -476,6 +477,13 @@ function createControlConformanceFixture() {
 		rows: 40,
 		terminalProfile,
 	};
+	const deferredLaunch = {
+		...launch,
+		cellPixelHeight: null,
+		cellPixelWidth: null,
+		columns: null,
+		rows: null,
+	};
 	const attachment = { attachmentId, generation: '3', revision: '42' };
 	const point = { column: 4, row: '100' };
 	const failure = (kind, stage) => ({ kind, stage });
@@ -553,6 +561,11 @@ function createControlConformanceFixture() {
 		create_terminal: controlRequestText(
 			MessageKind.createTerminal,
 			{ creationId, launch },
+			'CreateTerminal',
+		),
+		create_terminal_deferred: controlRequestText(
+			MessageKind.createTerminal,
+			{ creationId, launch: deferredLaunch },
 			'CreateTerminal',
 		),
 		detach_terminal: controlRequestText(
@@ -719,6 +732,14 @@ function createControlConformanceFixture() {
 			{ configuration: { scrollbackBytes: 25_000_000 } },
 			'SetTerminalDefaults',
 		),
+		start_terminal: controlRequestText(
+			MessageKind.startTerminal,
+			{
+				geometry: { cellPixelHeight: 18, cellPixelWidth: 9, columns: 96, rows: 32 },
+				terminalId,
+			},
+			'StartTerminal',
+		),
 		terminal_target: controlRequestText(
 			MessageKind.terminateTerminal,
 			{ terminalId },
@@ -732,6 +753,18 @@ function createControlConformanceFixture() {
 	};
 
 	const terminalSummaries = [
+		{
+			...summary,
+			columns: null,
+			exit: null,
+			failure: null,
+			failureContainment: null,
+			phase: 'awaiting-start',
+			process: null,
+			revision: '0',
+			rows: null,
+			terminateRequested: false,
+		},
 		{
 			...summary,
 			exit: null,
@@ -984,6 +1017,15 @@ function createControlConformanceFixture() {
 			TerminalListSchema,
 			{ inventoryGeneration: '9', nextCursor: null, terminals: terminalSummaries },
 			'TerminalList',
+		),
+		terminal_start_accepted: controlTexts(
+			TerminalStartAcceptedSchema,
+			['started', 'already-started'].map((transition) => ({
+				geometry: { cellPixelHeight: 18, cellPixelWidth: 9, columns: 96, rows: 32 },
+				identity,
+				transition,
+			})),
+			'TerminalStartAccepted',
 		),
 		terminal_started: controlText(TerminalStartedSchema, identity, 'TerminalStarted'),
 		typed_failure: controlTexts(

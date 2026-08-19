@@ -97,6 +97,7 @@ pub const PendingCreate = struct {
     allocator: std.mem.Allocator,
     connection_id: core_module.ConnectionId,
     creation_id: core_module.CreationId,
+    initial_geometry: ?terminal_geometry.Geometry,
     launch_digest: terminal_launch.Digest,
     runtime_preparation: terminal_launch.RuntimePreparation,
     terminal_id: core_module.TerminalId,
@@ -133,6 +134,57 @@ pub const CreatePreparation = union(enum) {
             .consumed => unreachable,
         };
     }
+
+    pub fn startsImmediately(self: *const CreatePreparation) bool {
+        return switch (self.*) {
+            .pending => |pending| pending.initial_geometry != null,
+            .replayed => false,
+            .consumed => unreachable,
+        };
+    }
+};
+
+pub const StartTransition = enum {
+    started,
+    already_started,
+};
+
+pub const StartOutcome = struct {
+    geometry: terminal_geometry.Geometry,
+    identity: TerminalIdentity,
+    transition: StartTransition,
+};
+
+pub const PendingStart = struct {
+    connection_id: core_module.ConnectionId,
+    geometry: terminal_geometry.Geometry,
+    identity: TerminalIdentity,
+};
+
+pub const StartPreparation = union(enum) {
+    replayed: StartOutcome,
+    pending: PendingStart,
+    consumed,
+
+    pub fn outcome(self: *const StartPreparation) StartOutcome {
+        return switch (self.*) {
+            .replayed => |value| value,
+            .pending => |pending| .{
+                .geometry = pending.geometry,
+                .identity = pending.identity,
+                .transition = .started,
+            },
+            .consumed => unreachable,
+        };
+    }
+
+    pub fn requiresEffect(self: *const StartPreparation) bool {
+        return switch (self.*) {
+            .pending => true,
+            .replayed => false,
+            .consumed => unreachable,
+        };
+    }
 };
 
 pub const AttachmentBinding = struct {
@@ -159,6 +211,14 @@ pub const CreatePrepareError = core_module.CoreError || std.mem.Allocator.Error 
 pub const CreateCommitError = error{
     RuntimeAllocationOutOfMemory,
     RuntimeSpawnFailed,
+};
+
+pub const StartPrepareError = core_module.CoreError;
+
+pub const StartCommitError = error{
+    RuntimeAllocationOutOfMemory,
+    RuntimeSpawnFailed,
+    TerminalRuntimeMissing,
 };
 
 pub const AttachError = core_module.CoreError || std.mem.Allocator.Error || error{

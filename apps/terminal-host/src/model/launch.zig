@@ -21,7 +21,8 @@ pub const Launch = struct {
     current_directory: ?[]const u8,
     environment: []const EnvironmentEntry,
     executable: []const u8,
-    geometry: terminal_geometry.Geometry,
+    /// Null reserves identity and launch ownership for a later geometry-pinned start.
+    geometry: ?terminal_geometry.Geometry,
     profile: terminal_profile.Profile,
 };
 
@@ -50,7 +51,10 @@ fn isValid(launch: Launch) bool {
     {
         return false;
     }
-    if (!terminal_geometry.isValid(launch.geometry) or !terminal_profile.valid(launch.profile)) return false;
+    if (launch.geometry) |geometry| {
+        if (!terminal_geometry.isValid(geometry)) return false;
+    }
+    if (!terminal_profile.valid(launch.profile)) return false;
     if (launch.configuration) |configuration| {
         if (!terminal_configuration.valid(configuration)) return false;
     }
@@ -103,7 +107,7 @@ fn containsNul(value: []const u8) bool {
 
 fn launchDigest(allocator: std.mem.Allocator, launch: Launch) std.mem.Allocator.Error!Digest {
     var hash = std.crypto.hash.sha2.Sha256.init(.{});
-    hash.update("orchbee-terminal-launch-v3");
+    hash.update("orchbee-terminal-launch-v4");
     hashField(&hash, launch.executable);
     hashCount(&hash, launch.arguments.len);
     for (launch.arguments) |argument| hashField(&hash, argument);
@@ -111,12 +115,15 @@ fn launchDigest(allocator: std.mem.Allocator, launch: Launch) std.mem.Allocator.
         hash.update(&.{1});
         hashField(&hash, directory);
     } else hash.update(&.{0});
-    var dimensions: [4]u8 = undefined;
-    std.mem.writeInt(u16, dimensions[0..2], launch.geometry.columns, .little);
-    std.mem.writeInt(u16, dimensions[2..4], launch.geometry.rows, .little);
-    hash.update(&dimensions);
-    hashInt(&hash, u16, launch.geometry.cell_pixel_width);
-    hashInt(&hash, u16, launch.geometry.cell_pixel_height);
+    if (launch.geometry) |geometry| {
+        hash.update(&.{1});
+        var dimensions: [4]u8 = undefined;
+        std.mem.writeInt(u16, dimensions[0..2], geometry.columns, .little);
+        std.mem.writeInt(u16, dimensions[2..4], geometry.rows, .little);
+        hash.update(&dimensions);
+        hashInt(&hash, u16, geometry.cell_pixel_width);
+        hashInt(&hash, u16, geometry.cell_pixel_height);
+    } else hash.update(&.{0});
     if (launch.configuration) |configuration| {
         hash.update(&.{1});
         hashInt(&hash, u64, @intCast(configuration.scrollback_bytes));

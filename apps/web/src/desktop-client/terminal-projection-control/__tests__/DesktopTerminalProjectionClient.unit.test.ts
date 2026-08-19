@@ -4,6 +4,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { TerminalProjectionRequestIdSchema } from '@orchbee/workbench-client-protocol';
 import { DesktopTerminalProjectionClient } from '../DesktopTerminalProjectionClient';
 
+const mountedGeometry = { cellPixelHeight: 18, cellPixelWidth: 9, columns: 96, rows: 32 } as const;
+
 const bootstrap = {
 	attachmentId: '11'.repeat(16),
 	canInput: true,
@@ -25,8 +27,14 @@ describe('DesktopTerminalProjectionClient', () => {
 		control.port2.addEventListener('message', (event) => commands.push(event.data));
 		control.port2.start();
 
-		const request = client.open(presentationId);
+		const request = client.open(presentationId, mountedGeometry);
 		await vi.waitFor(() => expect(commands).toHaveLength(1));
+		expect(commands[0]).toEqual({
+			geometry: mountedGeometry,
+			presentationId,
+			requestId,
+			type: 'terminal-projection-open-requested',
+		});
 		control.port2.postMessage(
 			{
 				bootstrap,
@@ -62,7 +70,7 @@ describe('DesktopTerminalProjectionClient', () => {
 		const commands: unknown[] = [];
 		control.port2.addEventListener('message', (event) => commands.push(event.data));
 		control.port2.start();
-		const request = client.open(terminalPresentationId('presentation-2'));
+		const request = client.open(terminalPresentationId('presentation-2'), mountedGeometry);
 
 		request.release();
 
@@ -91,8 +99,8 @@ describe('DesktopTerminalProjectionClient', () => {
 		);
 		const firstPresentation = terminalPresentationId('presentation-3');
 		const secondPresentation = terminalPresentationId('presentation-4');
-		const first = client.open(firstPresentation);
-		const second = client.open(secondPresentation);
+		const first = client.open(firstPresentation, mountedGeometry);
+		const second = client.open(secondPresentation, mountedGeometry);
 		const firstTerminal = new MessageChannel();
 		const secondTerminal = new MessageChannel();
 		control.port2.postMessage(
@@ -143,8 +151,8 @@ describe('DesktopTerminalProjectionClient', () => {
 		const commands: unknown[] = [];
 		control.port2.addEventListener('message', (event) => commands.push(event.data));
 		control.port2.start();
-		const released = client.open(releasedPresentation);
-		const pending = client.open(pendingPresentation);
+		const released = client.open(releasedPresentation, mountedGeometry);
+		const pending = client.open(pendingPresentation, mountedGeometry);
 		control.port2.postMessage(
 			{
 				bootstrap,
@@ -191,8 +199,8 @@ describe('DesktopTerminalProjectionClient', () => {
 		const client = new DesktopTerminalProjectionClient(control.port1, () => requestId);
 		const firstPresentation = terminalPresentationId('presentation-original');
 		const secondPresentation = terminalPresentationId('presentation-collision');
-		const first = client.open(firstPresentation);
-		const second = client.open(secondPresentation);
+		const first = client.open(firstPresentation, mountedGeometry);
+		const second = client.open(secondPresentation, mountedGeometry);
 
 		await expect(second.result).rejects.toMatchObject({
 			failure: { code: 'terminal-projection-unavailable', retryable: true },

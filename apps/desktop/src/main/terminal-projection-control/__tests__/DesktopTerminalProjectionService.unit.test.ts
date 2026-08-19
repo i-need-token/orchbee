@@ -35,7 +35,19 @@ const EMPTY_METRICS: ProjectedTerminalBrokerMetrics = {
 	selectionExportChunksForwarded: 0,
 };
 
-function createHarness(readOnly = false) {
+const mountedGeometry = { cellPixelHeight: 18, cellPixelWidth: 9, columns: 96, rows: 32 } as const;
+
+class TestDesktopTerminalProjectionService extends DesktopTerminalProjectionService {
+	override open(
+		presentationId: Parameters<DesktopTerminalProjectionService['open']>[0],
+		geometry: Parameters<DesktopTerminalProjectionService['open']>[1] = mountedGeometry,
+		options?: Parameters<DesktopTerminalProjectionService['open']>[2],
+	): ReturnType<DesktopTerminalProjectionService['open']> {
+		return super.open(presentationId, geometry, options);
+	}
+}
+
+function createHarness(readOnly = false, startRequired = false) {
 	const identity = {
 		creationId: CreationIdSchema.parse('22'.repeat(16)),
 		hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
@@ -44,6 +56,7 @@ function createHarness(readOnly = false) {
 	let target: {
 		identity: typeof identity;
 		readOnly: boolean;
+		startRequired: boolean;
 		terminalOutcome:
 			| { event: TerminalExited; kind: 'exited' }
 			| { event: TerminalFailed; kind: 'failed' }
@@ -51,9 +64,18 @@ function createHarness(readOnly = false) {
 	} = {
 		identity,
 		readOnly,
+		startRequired,
 		terminalOutcome: null,
 	};
 	const requestControl = vi.fn<HostConnection['requestControl']>(async (kind, value) => {
+		if (kind === MessageKind.startTerminal) {
+			const request = value as { readonly geometry: typeof mountedGeometry };
+			return {
+				geometry: request.geometry,
+				identity,
+				transition: 'started',
+			} as never;
+		}
 		if (kind !== MessageKind.attachTerminal) return value as never;
 		const request = value as {
 			readonly attachmentId: AttachmentId;
@@ -104,11 +126,19 @@ function createHarness(readOnly = false) {
 			return broker;
 		},
 	);
-	const service = new DesktopTerminalProjectionService({
+	const markTerminalStarted = vi.fn<
+		DesktopTerminalProjectionServiceDependencies['markTerminalStarted']
+	>((_presentationId, startedIdentity) => {
+		if (startedIdentity.terminalId !== target.identity.terminalId) return false;
+		target = { ...target, startRequired: false };
+		return true;
+	});
+	const service = new TestDesktopTerminalProjectionService({
 		createBroker,
 		createMessageChannel,
 		getProjectionTarget: () => target,
 		host,
+		markTerminalStarted,
 		randomAttachmentId: () => (nextAttachment++).toString(16).padStart(32, '0'),
 	});
 	return {
@@ -116,6 +146,7 @@ function createHarness(readOnly = false) {
 		cleanupCallbacks,
 		createBroker,
 		createMessageChannel,
+		markTerminalStarted,
 		requestControl,
 		resizeLeaseCallbacks,
 		service,
@@ -143,6 +174,44 @@ describe('DesktopTerminalProjectionService', () => {
 		await second.dispose();
 		await first.dispose();
 		expect(harness.brokers[0]?.dispose).toHaveBeenCalledOnce();
+	});
+
+	it('starts a pending terminal with exact mounted geometry before attaching it once', async () => {
+		const harness = createHarness(false, true);
+		const presentation = terminalPresentationId('presentation-awaiting-start');
+
+		const first = await harness.service.open(presentation, mountedGeometry);
+		const second = await harness.service.open(presentation, mountedGeometry);
+
+		expect(harness.requestControl).toHaveBeenNthCalledWith(
+			1,
+			MessageKind.startTerminal,
+			{ geometry: mountedGeometry, terminalId: '44'.repeat(16) },
+			expect.anything(),
+		);
+		expect(harness.requestControl).toHaveBeenNthCalledWith(
+			2,
+			MessageKind.attachTerminal,
+			expect.objectContaining({ terminalId: '44'.repeat(16) }),
+			expect.anything(),
+		);
+		expect(harness.markTerminalStarted).toHaveBeenCalledOnce();
+		expect(
+			harness.requestControl.mock.calls.filter(([kind]) => kind === MessageKind.startTerminal),
+		).toHaveLength(1);
+		await second.dispose();
+		await first.dispose();
+	});
+
+	it('does not attach when starting a pending terminal fails', async () => {
+		const harness = createHarness(false, true);
+		harness.requestControl.mockRejectedValueOnce(new Error('start unavailable'));
+
+		await expect(
+			harness.service.open(terminalPresentationId('presentation-start-rejected'), mountedGeometry),
+		).rejects.toThrow('start unavailable');
+		expect(harness.requestControl).toHaveBeenCalledOnce();
+		expect(harness.createBroker).not.toHaveBeenCalled();
 	});
 
 	it('requests read-only capabilities for an exited presentation', async () => {
@@ -212,6 +281,7 @@ describe('DesktopTerminalProjectionService', () => {
 				terminalId: TerminalIdSchema.parse('44'.repeat(16)),
 			},
 			readOnly: true,
+			startRequired: false,
 			terminalOutcome: {
 				event: {
 					exit: { code: 1, kind: 'exit-code' },
@@ -354,6 +424,7 @@ describe('DesktopTerminalProjectionService', () => {
 		harness.setTarget({
 			identity: terminalExit.identity,
 			readOnly: true,
+			startRequired: false,
 			terminalOutcome: { event: terminalExit, kind: 'exited' },
 		});
 		attachResponse.resolve();
@@ -587,11 +658,12 @@ describe('DesktopTerminalProjectionService', () => {
 				vi.fn<DesktopTerminalProjectionServiceDependencies['createMessageChannel']>(),
 			getProjectionTarget: () => null,
 			host: { requestControl: harness.requestControl } as unknown as HostConnection,
+			markTerminalStarted: () => false,
 			randomAttachmentId: () => '11'.repeat(16),
 		});
 
 		await expect(
-			service.open(terminalPresentationId('presentation-missing')),
+			service.open(terminalPresentationId('presentation-missing'), mountedGeometry),
 		).rejects.toMatchObject({
 			failure: { code: 'terminal-presentation-not-ready', retryable: true },
 		});

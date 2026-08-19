@@ -58,7 +58,7 @@ describe('connectGatewayControlConnection', () => {
 		const connection = GatewayBrowserConnectionSchema.parse({
 			capability: 'a'.repeat(43),
 			port: 42_000,
-			protocolVersion: '1.1',
+			protocolVersion: '1.2',
 		});
 		const connecting = connectGatewayControlConnection(connection, '192.168.1.14', (url) => {
 			expect(url).toBe('ws://192.168.1.14:42000/v1/control');
@@ -104,7 +104,7 @@ describe('connectGatewayControlConnection', () => {
 		const connection = GatewayBrowserConnectionSchema.parse({
 			capability: 'a'.repeat(43),
 			port: 42_000,
-			protocolVersion: '1.1',
+			protocolVersion: '1.2',
 		});
 		const connecting = connectGatewayControlConnection(connection, '192.168.1.14', () =>
 			socket.asWebSocket(),

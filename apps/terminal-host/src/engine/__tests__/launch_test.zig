@@ -53,17 +53,19 @@ test "validated launch prepares short-lived runtime input only after inspection"
     const validated = try subject.inspect(std.testing.allocator, launch);
     var prepared = try subject.prepareRuntime(validated, std.testing.allocator, .{ .scrollback_bytes = 12_345 });
     defer prepared.deinit(std.testing.allocator);
+    const process_launch = prepared.processLaunch(validated.launch.geometry.?);
+    const runtime_options = prepared.runtimeOptions(validated.launch.geometry.?);
 
     try std.testing.expectEqual(@as(usize, 12_345), prepared.configuration.scrollback_bytes);
-    try std.testing.expectEqualStrings("shell", prepared.process_launch.executable);
-    try std.testing.expectEqualStrings("/tmp", prepared.process_launch.current_directory.?);
-    try std.testing.expectEqual(@as(usize, 2), prepared.process_launch.arguments.len);
-    try std.testing.expectEqual(@as(usize, 1), prepared.process_launch.environment.len);
-    try std.testing.expectEqualStrings("ORCHBEE_TEST", prepared.process_launch.environment[0].name);
-    try std.testing.expectEqualStrings("enabled", prepared.process_launch.environment[0].value.?);
-    try std.testing.expectEqual(@as(u16, 8), prepared.runtime_options.cell_pixel_width);
-    try std.testing.expectEqual(@as(u16, 16), prepared.runtime_options.cell_pixel_height);
-    const runtime_profile = prepared.runtime_options.profile.?;
+    try std.testing.expectEqualStrings("shell", process_launch.executable);
+    try std.testing.expectEqualStrings("/tmp", process_launch.current_directory.?);
+    try std.testing.expectEqual(@as(usize, 2), process_launch.arguments.len);
+    try std.testing.expectEqual(@as(usize, 1), process_launch.environment.len);
+    try std.testing.expectEqualStrings("ORCHBEE_TEST", process_launch.environment[0].name);
+    try std.testing.expectEqualStrings("enabled", process_launch.environment[0].value.?);
+    try std.testing.expectEqual(@as(u16, 8), runtime_options.cell_pixel_width);
+    try std.testing.expectEqual(@as(u16, 16), runtime_options.cell_pixel_height);
+    const runtime_profile = runtime_options.profile.?;
     try std.testing.expectEqual(.dark, runtime_profile.color_scheme);
     try std.testing.expectEqual(@as(u32, 0xffffff), runtime_profile.default_foreground_rgb);
     try std.testing.expectEqual(@as(usize, 256), runtime_profile.palette.len);
@@ -74,5 +76,8 @@ test "validated launch prepares short-lived runtime input only after inspection"
     var configured_runtime = try subject.prepareRuntime(configured, std.testing.allocator, .{ .scrollback_bytes = 12_345 });
     defer configured_runtime.deinit(std.testing.allocator);
     try std.testing.expectEqual(@as(usize, 54_321), configured_runtime.configuration.scrollback_bytes);
-    try std.testing.expectEqual(@as(usize, 54_321), configured_runtime.runtime_options.scrollback_bytes);
+    try std.testing.expectEqual(
+        @as(usize, 54_321),
+        configured_runtime.runtimeOptions(configured.launch.geometry.?).scrollback_bytes,
+    );
 }

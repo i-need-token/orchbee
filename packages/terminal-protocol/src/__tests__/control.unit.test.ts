@@ -32,6 +32,7 @@ import {
 	SelectionExportSchema,
 	SelectionGestureSchema,
 	SetTerminalDefaultsSchema,
+	StartTerminalSchema,
 	SetProjectionDemandSchema,
 	TerminalConfigurationSchema,
 	TerminalControlAcceptedSchema,
@@ -41,6 +42,7 @@ import {
 	UpdateTerminalConfigurationSchema,
 	TerminalLaunchSchema,
 	TerminalListSchema,
+	TerminalStartAcceptedSchema,
 	TerminalProfileSchema,
 	TerminalSummarySchema,
 	TypedFailureSchema,
@@ -317,6 +319,47 @@ describe('control schemas', () => {
 				retryable: false,
 			}).success,
 		).toBe(false);
+	});
+
+	it('separates visual creation from a geometry-pinned terminal start', () => {
+		const terminalId = '22'.repeat(16);
+		const identity = {
+			creationId: '11'.repeat(16),
+			hostEpoch: '33'.repeat(16),
+			terminalId,
+		};
+		const geometry = {
+			cellPixelHeight: 18,
+			cellPixelWidth: 9,
+			columns: 117,
+			rows: 38,
+		};
+		const deferredLaunch = {
+			...launch,
+			cellPixelHeight: null,
+			cellPixelWidth: null,
+			columns: null,
+			rows: null,
+		};
+
+		expect(TerminalLaunchSchema.parse(deferredLaunch)).toEqual(deferredLaunch);
+		expect(
+			TerminalLaunchSchema.safeParse({ ...deferredLaunch, columns: geometry.columns }).success,
+		).toBe(false);
+		expect(StartTerminalSchema.parse({ geometry, terminalId })).toEqual({ geometry, terminalId });
+		expect(
+			TerminalStartAcceptedSchema.parse({ geometry, identity, transition: 'started' }),
+		).toEqual({ geometry, identity, transition: 'started' });
+		expect(
+			TerminalStartAcceptedSchema.parse({ geometry, identity, transition: 'already-started' }),
+		).toEqual({ geometry, identity, transition: 'already-started' });
+		expect(
+			TerminalStartAcceptedSchema.safeParse({
+				geometry: { ...geometry, columns: geometry.columns + 1 },
+				identity,
+				transition: 'already-started',
+			}).success,
+		).toBe(true);
 	});
 
 	it('treats environment names as target-operating-system identifiers', () => {
@@ -808,7 +851,20 @@ describe('control schemas', () => {
 			process,
 			terminateRequested: true,
 		};
+		const awaitingStart = {
+			...common,
+			columns: null,
+			exit: null,
+			failure: null,
+			failureContainment: null,
+			phase: 'awaiting-start',
+			process: null,
+			revision: '0',
+			rows: null,
+			terminateRequested: false,
+		};
 
+		expect(TerminalSummarySchema.parse(awaitingStart)).toEqual(awaitingStart);
 		expect(TerminalSummarySchema.parse(failed)).toEqual(failed);
 		expect(RuntimeFailureSchema.safeParse(failure).success).toBe(true);
 		expect(

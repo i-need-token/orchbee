@@ -6,6 +6,12 @@ Strict, runtime-neutral data contracts for one Orchbee Workbench page client.
 
 The package owns validated messages for a shared Workbench client session, terminal projection control, and the projected attachment stream opened for one visible terminal viewport. Electron, ordinary Browser pages, and future mobile clients may carry these messages through different transports without changing their Workbench-client meaning.
 
+Every `terminal-projection-open-requested` command carries one complete positive
+`TerminalGeometry`. It is the caller's measured mounted geometry for a visual surface, not an
+optional resize hint or fallback. Request identity therefore includes presentation identity and
+geometry: an exact duplicate may replay, while reuse with different geometry is conflicting control
+traffic. The transport contract supplies no timeout or 80x24 default.
+
 The projected attachment stream carries semantic bell events without choosing a sound, visual
 flash, or notification policy. Each event retains the Host attachment identity and terminal-owned
 sequence so the projected terminal can suppress stale or duplicate delivery.

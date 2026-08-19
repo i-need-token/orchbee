@@ -28,6 +28,13 @@ import {
 } from '@orchbee/desktop-client-protocol';
 import { startDesktopWorkbenchRenderer } from '../startDesktopWorkbenchRenderer';
 
+const mountedGeometry = { cellPixelHeight: 18, cellPixelWidth: 9, columns: 96, rows: 32 } as const;
+
+vi.mock(import('@orchbee/terminal'), async (importOriginal) => ({
+	...(await importOriginal()),
+	measureMountedTerminalGeometry: async () => mountedGeometry,
+}));
+
 const originalResizeObserver = globalThis.ResizeObserver;
 const originalScrollTo = window.scrollTo;
 type WorkbenchClientSessionCommand = ReturnType<typeof WorkbenchClientSessionCommandSchema.parse>;

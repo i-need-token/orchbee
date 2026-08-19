@@ -48,7 +48,7 @@ describe('LocalDevelopmentBrowserGateway', () => {
 			encodeGatewayControlClientMessage(
 				GatewayControlClientMessageSchema.parse({
 					capability: 'b'.repeat(43),
-					protocolVersion: '1.1',
+					protocolVersion: '1.2',
 					type: 'gateway-control-authenticate',
 				}),
 			),
@@ -63,7 +63,7 @@ describe('LocalDevelopmentBrowserGateway', () => {
 			encodeGatewayControlClientMessage(
 				GatewayControlClientMessageSchema.parse({
 					capability,
-					protocolVersion: '1.1',
+					protocolVersion: '1.2',
 					type: 'gateway-control-authenticate',
 				}),
 			),

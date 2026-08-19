@@ -30,6 +30,7 @@ import {
 	ProjectedTerminalEventSchema,
 	TerminalProjectionControlEventSchema,
 	WorkbenchClientSessionEventSchema,
+	type TerminalProjectionControlCommandSchema,
 	type ProjectedAttachmentBootstrap,
 	type ProjectedTerminalCommand,
 	type TerminalProjectionRequestId,
@@ -94,6 +95,10 @@ interface GatewayPageConnectionDependencies {
 }
 
 interface PendingProjection {
+	readonly geometry: Extract<
+		ReturnType<typeof TerminalProjectionControlCommandSchema.parse>,
+		{ readonly type: 'terminal-projection-open-requested' }
+	>['geometry'];
 	readonly presentationId: TerminalPresentationId;
 	releaseRequested: boolean;
 	readonly requestId: TerminalProjectionRequestId;
@@ -441,10 +446,16 @@ class GatewayPageConnection {
 		const existing = this.#pendingProjections.get(command.requestId);
 		if (command.type === 'terminal-projection-open-requested') {
 			if (existing !== undefined) {
-				if (existing.presentationId !== command.presentationId) this.#rejectProtocol();
+				if (
+					existing.presentationId !== command.presentationId ||
+					!geometriesEqual(existing.geometry, command.geometry)
+				) {
+					this.#rejectProtocol();
+				}
 				return;
 			}
 			this.#pendingProjections.set(command.requestId, {
+				geometry: command.geometry,
 				presentationId: command.presentationId,
 				releaseRequested: false,
 				requestId: command.requestId,
@@ -940,6 +951,18 @@ function closeServer(server: Server): Promise<void> {
 
 function closePorts(ports: readonly GatewayMessagePort[]): void {
 	for (const port of ports) port.close();
+}
+
+function geometriesEqual(
+	left: PendingProjection['geometry'],
+	right: PendingProjection['geometry'],
+): boolean {
+	return (
+		left.cellPixelHeight === right.cellPixelHeight &&
+		left.cellPixelWidth === right.cellPixelWidth &&
+		left.columns === right.columns &&
+		left.rows === right.rows
+	);
 }
 
 function rawDataToText(data: RawData): string | null {

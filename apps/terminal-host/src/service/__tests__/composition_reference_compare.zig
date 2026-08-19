@@ -100,7 +100,7 @@ fn sameTerminal(expected: Terminal, actual: composition.TerminalObservation) boo
     return expected.child_exited == actual.child_exited and
         std.meta.eql(expected.configuration, actual.configuration) and
         expected.creation_id.eql(actual.creation_id) and
-        std.meta.eql(expected.geometry, actual.geometry) and
+        actual.geometry != null and std.meta.eql(expected.geometry, actual.geometry.?) and
         std.mem.eql(u8, &expected.launch_digest, &actual.launch_digest) and
         expected.model_only == actual.model_only and
         expected.pending_outcome == actual.pending_outcome and

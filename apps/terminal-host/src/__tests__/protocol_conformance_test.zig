@@ -151,6 +151,7 @@ const ControlCommandsFixture = struct {
     attach_terminal: []const u8,
     clear_terminal: []const u8,
     create_terminal: []const u8,
+    create_terminal_deferred: []const u8,
     detach_terminal: []const u8,
     empty: []const u8,
     frame_applied: []const u8,
@@ -170,6 +171,7 @@ const ControlCommandsFixture = struct {
     selection_export_chunk_applied: []const u8,
     selection_gesture: []const []const u8,
     set_terminal_defaults: []const u8,
+    start_terminal: []const u8,
     terminal_target: []const u8,
     update_terminal_configuration: []const u8,
 };
@@ -205,6 +207,7 @@ const ControlOutputsFixture = struct {
     terminal_failed: []const []const u8,
     terminal_identity: []const u8,
     terminal_list: []const u8,
+    terminal_start_accepted: []const []const u8,
     terminal_started: []const u8,
     typed_failure: []const []const u8,
 };
@@ -353,6 +356,7 @@ const TestExitNotice = struct {
 };
 
 const TestTerminalPhase = enum {
+    awaiting_start,
     running,
     finishing,
     containing_failure,
@@ -371,11 +375,27 @@ const TestFailureContainment = union(enum) {
 const TestTerminalConfiguration = struct { scrollback_bytes: usize };
 const TestTerminalGeometry = struct { columns: u16, rows: u16 };
 
+const TestStartTransition = enum { started, already_started };
+
+const TestStartOutcome = struct {
+    geometry: struct {
+        cell_pixel_height: u16,
+        cell_pixel_width: u16,
+        columns: u16,
+        rows: u16,
+    },
+    identity: struct {
+        creation_id: TestIdentifier,
+        terminal_id: TestIdentifier,
+    },
+    transition: TestStartTransition,
+};
+
 const TestTerminal = struct {
     creation_id: TestIdentifier,
     terminal_id: TestIdentifier,
-    columns: u16 = 120,
-    rows: u16 = 40,
+    columns: ?u16 = 120,
+    rows: ?u16 = 40,
     configuration: TestTerminalConfiguration = .{ .scrollback_bytes = 10_000_000 },
     configuration_revision: u64 = 2,
     revision: u64 = 42,
@@ -398,8 +418,11 @@ const TestTerminal = struct {
         return self.configuration_revision;
     }
 
-    pub fn observedGeometry(self: @This()) TestTerminalGeometry {
-        return .{ .columns = self.columns, .rows = self.rows };
+    pub fn maybeObservedGeometry(self: @This()) ?TestTerminalGeometry {
+        return .{
+            .columns = self.columns orelse return null,
+            .rows = self.rows orelse return null,
+        };
     }
 
     pub fn observedRevision(self: @This()) u64 {
@@ -840,11 +863,26 @@ test "every TypeScript control command fixture crosses the native typed decoder"
     {
         var decoded = try control_decode.decodeCreateTerminal(allocator, commands.create_terminal);
         defer decoded.deinit();
+        try std.testing.expect(decoded.value.launch.launch.geometry != null);
         try std.testing.expect(decoded.value.launch.launch.profile.default_cursor_blinking);
         try std.testing.expectEqual(
             @as(@TypeOf(decoded.value.launch.launch.profile.default_cursor_shape), .underline),
             decoded.value.launch.launch.profile.default_cursor_shape,
         );
+    }
+    {
+        var decoded = try control_decode.decodeCreateTerminal(
+            allocator,
+            commands.create_terminal_deferred,
+        );
+        defer decoded.deinit();
+        try std.testing.expect(decoded.value.launch.launch.geometry == null);
+    }
+    {
+        var decoded = try control_decode.decodeStartTerminal(allocator, commands.start_terminal);
+        defer decoded.deinit();
+        try std.testing.expectEqual(@as(u16, 96), decoded.value.geometry.columns);
+        try std.testing.expectEqual(@as(u16, 32), decoded.value.geometry.rows);
     }
     {
         var decoded = try control_decode.decodeSetTerminalDefaults(
@@ -1057,6 +1095,36 @@ test "native control replies and events conform to TypeScript schemas" {
     defer allocator.free(identity_json);
     try expectJsonEquivalent(allocator, outputs.terminal_identity, identity_json);
     try expectJsonEquivalent(allocator, outputs.terminal_started, identity_json);
+    const start_outcomes = [_]TestStartOutcome{
+        .{
+            .geometry = .{
+                .cell_pixel_height = 18,
+                .cell_pixel_width = 9,
+                .columns = 96,
+                .rows = 32,
+            },
+            .identity = .{ .creation_id = creation_id, .terminal_id = terminal_id },
+            .transition = .started,
+        },
+        .{
+            .geometry = .{
+                .cell_pixel_height = 18,
+                .cell_pixel_width = 9,
+                .columns = 96,
+                .rows = 32,
+            },
+            .identity = .{ .creation_id = creation_id, .terminal_id = terminal_id },
+            .transition = .already_started,
+        },
+    };
+    try std.testing.expectEqual(start_outcomes.len, outputs.terminal_start_accepted.len);
+    for (start_outcomes, outputs.terminal_start_accepted) |outcome, expected| {
+        try expectOwnedJson(
+            allocator,
+            expected,
+            try control_encode.terminalStartAccepted(allocator, host_epoch, outcome),
+        );
+    }
     try expectOwnedJson(
         allocator,
         outputs.terminal_acknowledged,
@@ -1333,6 +1401,14 @@ test "native lifecycle variants conform to TypeScript discriminated unions" {
         .stage = .observe_process,
     };
     const terminals = [_]TestTerminal{
+        .{
+            .creation_id = creation_id,
+            .terminal_id = terminal_id,
+            .columns = null,
+            .rows = null,
+            .revision = 0,
+            .phase_value = .awaiting_start,
+        },
         .{
             .creation_id = creation_id,
             .terminal_id = terminal_id,

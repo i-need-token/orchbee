@@ -151,7 +151,7 @@ test "launch inspection rejects invalid geometry profile configuration and envir
     const base = validLaunch(&environment);
 
     var invalid_geometry = base;
-    invalid_geometry.geometry.cell_pixel_width = 0;
+    invalid_geometry.geometry.?.cell_pixel_width = 0;
     try std.testing.expectError(
         error.InvalidLaunch,
         subject.inspect(std.testing.allocator, invalid_geometry),

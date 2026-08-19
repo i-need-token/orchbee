@@ -157,6 +157,9 @@ export class TerminalCloseOrchestrator {
 		closure: HostCloseObservation,
 		refreshCount = 0,
 	): Promise<TerminalCloseOutcome> {
+		if (plan.summary.phase === TerminalPhase.awaitingStart) {
+			return this.#disposeTerminal(plan.identity, closure);
+		}
 		if (
 			outcomes.has(plan.identity) ||
 			plan.summary.phase === TerminalPhase.exited ||

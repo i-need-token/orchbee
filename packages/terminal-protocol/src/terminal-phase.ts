@@ -4,6 +4,7 @@ import { z } from 'zod';
 // owned by apps/terminal-host; protocol consumers use this schema solely to
 // validate the phase carried by a terminal inventory summary.
 export const TerminalPhase = {
+	awaitingStart: 'awaiting-start',
 	containingFailure: 'containing-failure',
 	exited: 'exited',
 	failed: 'failed',

@@ -212,9 +212,9 @@ export function resolveDesktopRuntimeConfiguration(
 		terminalHostLaunchMode: supervisedHostFlag === '1' ? 'connect-only' : 'connect-or-launch',
 		terminalLaunch: TerminalLaunchSchema.parse({
 			arguments: [],
-			cellPixelHeight: 16,
-			cellPixelWidth: 8,
-			columns: 80,
+			cellPixelHeight: null,
+			cellPixelWidth: null,
+			columns: null,
 			configuration: null,
 			currentDirectory: input.homeDirectory,
 			environment: [
@@ -230,7 +230,7 @@ export function resolveDesktopRuntimeConfiguration(
 				...terminalLocaleEnvironment,
 			],
 			executable,
-			rows: 24,
+			rows: null,
 			terminalProfile: createDefaultTerminalProfile(),
 		}),
 		terminalLaunchProfileStorePath: path.join(

@@ -18,10 +18,12 @@ pub const decodeListTerminals = host.decodeListTerminals;
 pub const validHello = host.validHello;
 
 pub const CreateTerminal = terminal.CreateTerminal;
+pub const StartTerminal = terminal.StartTerminal;
 pub const UpdateTerminalConfiguration = terminal.UpdateTerminalConfiguration;
 pub const AttachTerminal = terminal.AttachTerminal;
 pub const ResizeTerminal = terminal.ResizeTerminal;
 pub const decodeCreateTerminal = terminal.decodeCreateTerminal;
+pub const decodeStartTerminal = terminal.decodeStartTerminal;
 pub const decodeSetTerminalDefaults = terminal.decodeSetTerminalDefaults;
 pub const decodeUpdateTerminalConfiguration = terminal.decodeUpdateTerminalConfiguration;
 pub const decodeTerminalTarget = terminal.decodeTerminalTarget;

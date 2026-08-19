@@ -12,6 +12,7 @@ import {
 } from '../../../terminal-file-drop';
 import { startProjectedTerminalRenderer } from '../../projected-terminal-renderer';
 import { ProjectedTerminalSurfaceCapabilityContext } from '../contexts/projected-terminal-surface-capability';
+import { MountedTerminalProjectionRequest } from '../model/MountedTerminalProjectionRequest';
 import {
 	ProjectedTerminalRecoveryController,
 	type ProjectedTerminalRecoveryState,
@@ -209,6 +210,7 @@ export function useProjectedTerminalSurface(
 	React.useEffect(() => {
 		if (!projectable) return;
 		let cancelled = false;
+		let preparedProjectionRequest: MountedTerminalProjectionRequest | undefined;
 		const controller = new ProjectedTerminalRecoveryController({
 			onStateChange: (state) => {
 				if (!cancelled) {
@@ -218,9 +220,22 @@ export function useProjectedTerminalSurface(
 					});
 				}
 			},
-			open: () => capability.projectionClient.open(presentation.presentationId),
-			startRenderer: (attachment) =>
-				startProjectedTerminalRenderer(
+			open: () => {
+				const request = new MountedTerminalProjectionRequest(
+					root.current,
+					presentation.presentationId,
+					capability.projectionClient,
+					capability.presentationConfigurationSource,
+				);
+				preparedProjectionRequest = request;
+				return request;
+			},
+			startRenderer: (attachment) => {
+				const presentationConfigurationSource =
+					preparedProjectionRequest?.takePresentationConfigurationSource() ??
+					capability.presentationConfigurationSource;
+				preparedProjectionRequest = undefined;
+				return startProjectedTerminalRenderer(
 					root.current,
 					capability.documentElement,
 					capability.preferredLocales,
@@ -229,14 +244,15 @@ export function useProjectedTerminalSurface(
 					attachment.transport,
 					undefined,
 					capability.platformEffects,
-					capability.presentationConfigurationSource,
+					presentationConfigurationSource,
 					reviewPaste,
 					(metadata) => capability.observeTerminalMetadata(presentation.presentationId, metadata),
 					capability.shortcutBindingSource,
 					reviewClipboardWrite,
 					capability.terminalCompletionReminderObserver,
 					capability.inputConfigurationSource,
-				),
+				);
+			},
 		});
 		recoveryController.current = { controller, presentationId: presentation.presentationId };
 		controller.start();

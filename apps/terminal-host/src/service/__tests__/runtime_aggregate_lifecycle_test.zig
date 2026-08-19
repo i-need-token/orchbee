@@ -98,6 +98,116 @@ test "failed runtime creation leaves no retained terminal commit" {
         aggregate.core().inventoryGeneration(),
     );
 }
+test "deferred creation retains launch ownership and failed start stays retryable" {
+    var aggregate = subject.HostRuntimeAggregate.init(std.testing.allocator);
+    defer aggregate.deinitChecked(false) catch unreachable;
+    const connection_id: core_module.ConnectionId = 1;
+    _ = try aggregate.core().connect(
+        connection_id,
+        testId(core_module.ClientId, 0x14),
+    );
+    var launch = validMissingExecutableLaunch();
+    launch.geometry = null;
+    const validated = try terminal_launch.inspect(std.testing.allocator, launch);
+    var creation = try aggregate.prepareCreateTerminal(
+        connection_id,
+        testId(core_module.CreationId, 0x15),
+        validated,
+    );
+    defer creation.deinit();
+    try std.testing.expect(!creation.startsImmediately());
+    const terminal_id = switch (try aggregate.commitPreparedTerminal(&creation)) {
+        .created => |identity| identity.terminal_id,
+        .replayed => return error.ExpectedCreatedTerminal,
+    };
+    const pending = aggregate.core().findTerminal(terminal_id).?;
+    try std.testing.expectEqual(core_module.TerminalPhase.awaiting_start, pending.phase());
+    try std.testing.expect(pending.maybeObservedGeometry() == null);
+    try std.testing.expectEqual(@as(usize, 0), aggregate.runtimeCount());
+
+    const geometry = @import("terminal-host-model").geometry.Geometry{
+        .cell_pixel_height = 19,
+        .cell_pixel_width = 11,
+        .columns = 101,
+        .rows = 37,
+    };
+    var start = try aggregate.prepareStartTerminal(connection_id, terminal_id, geometry);
+    try std.testing.expect(start.requiresEffect());
+    try std.testing.expectError(
+        error.RuntimeSpawnFailed,
+        aggregate.commitPreparedTerminalStart(&start),
+    );
+    try std.testing.expectEqual(
+        core_module.TerminalPhase.awaiting_start,
+        aggregate.core().findTerminal(terminal_id).?.phase(),
+    );
+    try std.testing.expectEqual(@as(usize, 0), aggregate.runtimeCount());
+
+    var retry = try aggregate.prepareStartTerminal(connection_id, terminal_id, geometry);
+    try std.testing.expect(retry.requiresEffect());
+    try std.testing.expectError(
+        error.RuntimeSpawnFailed,
+        aggregate.commitPreparedTerminalStart(&retry),
+    );
+    _ = try aggregate.disposeTerminal(connection_id, terminal_id);
+}
+test "deferred terminal starts at the exact supplied geometry and replays only that geometry" {
+    var aggregate = subject.HostRuntimeAggregate.init(std.testing.allocator);
+    defer aggregate.deinitChecked(true) catch unreachable;
+    const connection_id: core_module.ConnectionId = 1;
+    _ = try aggregate.core().connect(
+        connection_id,
+        testId(core_module.ClientId, 0x16),
+    );
+    var validated = try validatedLongRunningLaunch();
+    validated.launch.geometry = null;
+    validated.launch_digest = (try terminal_launch.inspect(
+        std.testing.allocator,
+        validated.launch,
+    )).launch_digest;
+    var creation = try aggregate.prepareCreateTerminal(
+        connection_id,
+        testId(core_module.CreationId, 0x17),
+        validated,
+    );
+    defer creation.deinit();
+    const terminal_id = switch (try aggregate.commitPreparedTerminal(&creation)) {
+        .created => |identity| identity.terminal_id,
+        .replayed => return error.ExpectedCreatedTerminal,
+    };
+    const geometry = @import("terminal-host-model").geometry.Geometry{
+        .cell_pixel_height = 21,
+        .cell_pixel_width = 12,
+        .columns = 113,
+        .rows = 41,
+    };
+    var start = try aggregate.prepareStartTerminal(connection_id, terminal_id, geometry);
+    const started = try aggregate.commitPreparedTerminalStart(&start);
+    try std.testing.expectEqual(subject.StartTransition.started, started.transition);
+    try std.testing.expectEqualDeep(geometry, started.geometry);
+    const runtime_geometry = aggregate.runtimeFor(terminal_id).?.geometry();
+    try std.testing.expectEqual(geometry.columns, runtime_geometry.columns);
+    try std.testing.expectEqual(geometry.rows, runtime_geometry.rows);
+    try std.testing.expectEqual(geometry.cell_pixel_width, runtime_geometry.cell_pixel_width);
+    try std.testing.expectEqual(geometry.cell_pixel_height, runtime_geometry.cell_pixel_height);
+    try std.testing.expectEqualDeep(
+        geometry,
+        aggregate.core().findTerminal(terminal_id).?.observedGeometry(),
+    );
+
+    var replay = try aggregate.prepareStartTerminal(connection_id, terminal_id, geometry);
+    try std.testing.expect(!replay.requiresEffect());
+    try std.testing.expectEqual(
+        subject.StartTransition.already_started,
+        (try aggregate.commitPreparedTerminalStart(&replay)).transition,
+    );
+    var conflict_geometry = geometry;
+    conflict_geometry.columns += 1;
+    try std.testing.expectError(
+        error.StartConflict,
+        aggregate.prepareStartTerminal(connection_id, terminal_id, conflict_geometry),
+    );
+}
 test "creation replay returns retained identity without preparing a new runtime" {
     var aggregate = subject.HostRuntimeAggregate.init(std.testing.allocator);
     defer aggregate.deinitChecked(false) catch unreachable;

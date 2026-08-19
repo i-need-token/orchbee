@@ -1,6 +1,7 @@
 import type {
 	TerminalExited,
 	TerminalFailed,
+	TerminalGeometry,
 	TerminalIdentity,
 	TerminalLaunch,
 } from '@orchbee/terminal-protocol';
@@ -50,6 +51,7 @@ export interface DesktopTerminalRuntime extends DesktopTerminalLifecycleOperatio
 	inspectUnknownHostTerminalCount(): Promise<number>;
 	open(
 		presentationId: TerminalPresentationId,
+		geometry: TerminalGeometry,
 		options?: DesktopTerminalProjectionOpenOptions,
 	): Promise<DesktopTerminalProjectionLease>;
 	recordExit(event: TerminalExited): Promise<TerminalPresentationId | null>;
@@ -99,6 +101,8 @@ export function composeDesktopTerminalRuntime(
 		createMessageChannel: composition.createMessageChannel,
 		getProjectionTarget: (presentationId) => adapter.getProjectionTarget(presentationId),
 		host: composition.host,
+		markTerminalStarted: (presentationId, identity) =>
+			adapter.markTerminalStarted(presentationId, identity),
 		randomAttachmentId: composition.randomIdentifier,
 	});
 	const projectionService = projections;
@@ -126,7 +130,8 @@ export function composeDesktopTerminalRuntime(
 			}
 			return (await readTerminalInventory(composition.host)).length;
 		},
-		open: async (presentationId, options) => projectionService.open(presentationId, options),
+		open: async (presentationId, geometry, options) =>
+			projectionService.open(presentationId, geometry, options),
 		recordExit: async (event) => adapter.recordExit(event),
 		recordExitOutcome: async (event) => adapter.recordExitOutcome(event),
 		recordFailure: async (event) => adapter.recordFailure(event),

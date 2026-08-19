@@ -13,9 +13,9 @@ describe('Gateway control contract', () => {
 			GatewayBrowserConnectionSchema.parse({
 				capability: 'a'.repeat(43),
 				port: 42_000,
-				protocolVersion: '1.1',
+				protocolVersion: '1.2',
 			}),
-		).toMatchObject({ port: 42_000, protocolVersion: '1.1' });
+		).toMatchObject({ port: 42_000, protocolVersion: '1.2' });
 	});
 
 	it('bounds the trusted Desktop listener and Origin configuration', () => {

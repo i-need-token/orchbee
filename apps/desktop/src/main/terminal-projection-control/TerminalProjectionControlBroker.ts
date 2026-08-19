@@ -9,6 +9,7 @@ import {
 	TerminalPresentationFailureSchema,
 	type TerminalPresentationId,
 } from '@orchbee/workbench/terminal-presentation';
+import type { TerminalGeometry } from '@orchbee/terminal-protocol';
 
 import type {
 	DesktopTerminalProjectionLease,
@@ -18,6 +19,7 @@ import type {
 interface ProjectionRequest {
 	disposalPromise: Promise<void> | undefined;
 	lease: DesktopTerminalProjectionLease | null;
+	readonly geometry: TerminalGeometry;
 	readonly presentationId: TerminalPresentationId;
 	releaseRequested: boolean;
 }
@@ -75,19 +77,23 @@ export class TerminalProjectionControlBroker {
 		const existing = this.#requests.get(command.requestId);
 		if (command.type === 'terminal-projection-open-requested') {
 			if (existing !== undefined) {
-				if (existing.presentationId !== command.presentationId) {
+				if (
+					existing.presentationId !== command.presentationId ||
+					!geometriesEqual(existing.geometry, command.geometry)
+				) {
 					void this.#startRetire(true).catch(() => undefined);
 				}
 				return;
 			}
 			const request: ProjectionRequest = {
 				disposalPromise: undefined,
+				geometry: command.geometry,
 				lease: null,
 				presentationId: command.presentationId,
 				releaseRequested: false,
 			};
 			this.#requests.set(command.requestId, request);
-			const task = this.#open(command.requestId, command.presentationId, request);
+			const task = this.#open(command.requestId, command.presentationId, command.geometry, request);
 			this.#openTasks.add(task);
 			void task.then(
 				() => this.#openTasks.delete(task),
@@ -138,10 +144,11 @@ export class TerminalProjectionControlBroker {
 	async #open(
 		requestId: TerminalProjectionRequestId,
 		presentationId: Parameters<DesktopTerminalProjectionService['open']>[0],
+		geometry: TerminalGeometry,
 		request: ProjectionRequest,
 	): Promise<void> {
 		try {
-			const lease = await this.#service.open(presentationId);
+			const lease = await this.#service.open(presentationId, geometry);
 			request.lease = lease;
 			if (this.#disposed || request.releaseRequested) {
 				try {
@@ -238,4 +245,13 @@ export class TerminalProjectionControlBroker {
 		if (failed) throw firstFailure;
 		this.#requests.clear();
 	}
+}
+
+function geometriesEqual(left: TerminalGeometry, right: TerminalGeometry): boolean {
+	return (
+		left.cellPixelHeight === right.cellPixelHeight &&
+		left.cellPixelWidth === right.cellPixelWidth &&
+		left.columns === right.columns &&
+		left.rows === right.rows
+	);
 }

@@ -1,8 +1,8 @@
 ------------------------ MODULE TerminalHostLifecycle ------------------------
 EXTENDS TLC
 
-\* Refines runtime-model claims TH-008 and TH-009 through ChildExited,
-\* PtyDrained, WriterQuiesced, ClassifyNormalCompletion, EnterFailure,
+\* Refines runtime-model claims TH-008 and TH-009 through Start,
+\* ChildExited, PtyDrained, WriterQuiesced, ClassifyNormalCompletion, EnterFailure,
 \* ContainmentBlocked, CleanupRetryDue, RetryContainment,
 \* ConfirmContainment, RequestOutputAbort, RetainSettledCleanup,
 \* RetryRetainedCleanup,
@@ -11,6 +11,10 @@ EXTENDS TLC
 \* broker retention, and multi-runtime shutdown are intentionally owned by
 \* TerminalHostRegistry and TerminalHostShutdown so their independent state
 \* dimensions do not multiply this per-terminal lifecycle proof.
+\* Awaiting start retains identity and launch ownership without a child, PTY,
+\* Core geometry, or visible frame. Start receives the mounted geometry; its
+\* abstract version becomes the first runtime-visible version only after spawn
+\* succeeds. A failed start is a stutter that retains the same startable owner.
 \* visibleVersion abstracts content, generation, geometry, configuration, and
 \* revision. resizeEffectInFlight exposes the production interval in which a
 \* platform resize has started but its canonical commit or compensation has
@@ -27,7 +31,7 @@ NormalPhases == {"running", "finishing_child", "finishing_output"}
 FailurePhases == {"containing_failure", "containment_blocked", "failed"}
 SettledPhases == {"exited", "failed"}
 TerminalPhases ==
-  NormalPhases \cup FailurePhases \cup SettledPhases \cup {"disposed"}
+  NormalPhases \cup FailurePhases \cup SettledPhases \cup {"awaiting_start", "disposed"}
 TerminationIntents == {None, "graceful", "force"}
 CleanupFailures == {
   "contain_process",
@@ -64,7 +68,7 @@ vars ==
 
 Init ==
   /\ InitialVersion \in Versions
-  /\ phase = "running"
+  /\ phase = "awaiting_start"
   /\ terminationIntent = None
   /\ writerQuiesced = FALSE
   /\ normalCompletionReady = FALSE
@@ -77,8 +81,25 @@ Init ==
   /\ processResolution = "pending"
   /\ resizeEffectInFlight = FALSE
   /\ resizeTargetVersion = None
-  /\ visibleVersion = InitialVersion
+  /\ visibleVersion = None
   /\ settledVersion = None
+
+Start(initialVersion, succeeds) ==
+  /\ phase = "awaiting_start"
+  /\ initialVersion \in Versions
+  /\ succeeds \in BOOLEAN
+  /\ IF succeeds
+     THEN
+       /\ phase' = "running"
+       /\ visibleVersion' = initialVersion
+       /\ UNCHANGED <<terminationIntent, writerQuiesced,
+                       normalCompletionReady, cleanupFailure, cleanupRetryDue,
+                       outputAbortRequested,
+                       retainedCleanupState, retainedCleanupFailure,
+                       retainedCleanupRetryDue, processResolution,
+                       resizeEffectInFlight, resizeTargetVersion,
+                       settledVersion>>
+     ELSE UNCHANGED vars
 
 ChildExited ==
   /\ \/ phase = "running"
@@ -252,7 +273,7 @@ ConfirmContainment(observation) ==
                   resizeTargetVersion, visibleVersion>>
 
 RequestOutputAbort ==
-  /\ phase # "disposed"
+  /\ phase \in NormalPhases \cup FailurePhases \cup SettledPhases
   /\ ~outputAbortRequested
   /\ outputAbortRequested' = TRUE
   /\ UNCHANGED <<phase, terminationIntent, writerQuiesced,
@@ -369,7 +390,7 @@ MutateVisibleState(nextVersion) ==
                   resizeTargetVersion, settledVersion>>
 
 Dispose ==
-  /\ phase \in SettledPhases
+  /\ phase \in SettledPhases \cup {"awaiting_start"}
   /\ retainedCleanupState \in {"inactive", "complete"}
   /\ ~resizeEffectInFlight
   /\ phase' = "disposed"
@@ -381,6 +402,8 @@ Dispose ==
                   resizeTargetVersion, visibleVersion, settledVersion>>
 
 Next ==
+  \/ \E initialVersion \in Versions, succeeds \in BOOLEAN:
+       Start(initialVersion, succeeds)
   \/ ChildExited
   \/ PtyDrained
   \/ WriterQuiesced
@@ -426,7 +449,7 @@ TypeOK ==
   /\ processResolution \in ProcessResolutions
   /\ resizeEffectInFlight \in BOOLEAN
   /\ resizeTargetVersion \in Versions \cup {None}
-  /\ visibleVersion \in Versions
+  /\ visibleVersion \in Versions \cup {None}
   /\ settledVersion \in Versions \cup {None}
 
 LifecycleIntegrity ==
@@ -434,7 +457,23 @@ LifecycleIntegrity ==
   /\ resizeEffectInFlight => ~normalCompletionReady
   /\ (phase # "disposed" /\ normalCompletionReady) =>
        phase \in {"finishing_child", "finishing_output", "exited"}
+  /\ phase = "awaiting_start" =>
+       /\ visibleVersion = None
+       /\ settledVersion = None
+       /\ terminationIntent = None
+       /\ ~writerQuiesced
+       /\ ~normalCompletionReady
+       /\ cleanupFailure = None
+       /\ ~cleanupRetryDue
+       /\ ~outputAbortRequested
+       /\ retainedCleanupState = "inactive"
+       /\ retainedCleanupFailure = None
+       /\ ~retainedCleanupRetryDue
+       /\ processResolution = "pending"
+       /\ ~resizeEffectInFlight
+       /\ resizeTargetVersion = None
   /\ phase = "running" =>
+       /\ visibleVersion \in Versions
        /\ ~normalCompletionReady
        /\ cleanupFailure = None
        /\ ~cleanupRetryDue
@@ -472,7 +511,11 @@ LifecycleIntegrity ==
        /\ ~cleanupRetryDue
        /\ processResolution \in CompletedProcessResolutions
        /\ settledVersion = visibleVersion
-  /\ phase = "disposed" => settledVersion = visibleVersion
+  /\ phase = "disposed" =>
+       \/ /\ visibleVersion = None
+          /\ settledVersion = None
+       \/ /\ visibleVersion \in Versions
+          /\ settledVersion = visibleVersion
   /\ phase \in FailurePhases => outputAbortRequested
   /\ retainedCleanupState \in {"blocked", "exhausted"} =>
        phase \in SettledPhases
@@ -502,6 +545,15 @@ CleanupRetryIsAlwaysAvailable ==
        ENABLED CleanupRetryAttempt
   /\ retainedCleanupState = "blocked" /\ retainedCleanupRetryDue =>
        ENABLED RetainedCleanupRetryAttempt
+
+AwaitingStartHasNoVisibleVersion ==
+  phase = "awaiting_start" => visibleVersion = None
+
+StartPublishesOnlyItsMountedVersion ==
+  [][(/\ phase = "awaiting_start"
+      /\ phase' = "running") =>
+       /\ visibleVersion = None
+       /\ visibleVersion' \in Versions]_vars
 
 FailureCannotBecomeNormalExit ==
   [][(phase \in FailurePhases) => (phase' # "exited")]_vars

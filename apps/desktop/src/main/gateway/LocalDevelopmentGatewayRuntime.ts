@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto';
 
 import {
 	encodeGatewayBrowserFragment,
+	GATEWAY_PROTOCOL_VERSION,
 	GatewayBrowserConnectionSchema,
 	type GatewayBindHost,
 	GatewayCapabilitySchema,
@@ -163,7 +164,7 @@ export class LocalDevelopmentGatewayRuntime {
 				const connection = GatewayBrowserConnectionSchema.parse({
 					capability: this.#capability,
 					port: event.port,
-					protocolVersion: '1.1',
+					protocolVersion: GATEWAY_PROTOCOL_VERSION,
 				});
 				const browserUrls = this.#browserBaseUrls.map((baseUrl) => {
 					const browserUrl = new URL(baseUrl.href);

@@ -250,7 +250,7 @@ fn terminalFromObservation(observation: composition.TerminalObservation) Termina
         .configuration = observation.configuration,
         .creation_id = observation.creation_id,
         .first_completion = first_completion,
-        .geometry = observation.geometry,
+        .geometry = observation.geometry.?,
         .launch_digest = observation.launch_digest,
         .model_only = observation.model_only,
         .pending_outcome = observation.pending_outcome,

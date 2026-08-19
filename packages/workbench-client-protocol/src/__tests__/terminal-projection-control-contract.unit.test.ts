@@ -7,13 +7,15 @@ import {
 
 describe('terminal projection control contract', () => {
 	it('admits only presentation-scoped open and release commands', () => {
+		const geometry = { cellPixelHeight: 18, cellPixelWidth: 9, columns: 96, rows: 32 };
 		expect(
 			TerminalProjectionControlCommandSchema.parse({
+				geometry,
 				presentationId: 'presentation-1',
 				requestId: 'projection-1',
 				type: 'terminal-projection-open-requested',
 			}),
-		).toMatchObject({ presentationId: 'presentation-1', requestId: 'projection-1' });
+		).toMatchObject({ geometry, presentationId: 'presentation-1', requestId: 'projection-1' });
 		expect(
 			TerminalProjectionControlCommandSchema.safeParse({
 				presentationId: 'presentation-1',

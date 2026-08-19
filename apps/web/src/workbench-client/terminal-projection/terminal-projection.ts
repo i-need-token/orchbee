@@ -1,4 +1,5 @@
 import type { TerminalPresentationId } from '@orchbee/workbench/terminal-presentation';
+import type { TerminalGeometry } from '@orchbee/terminal-protocol';
 import type {
 	ProjectedAttachmentBootstrap,
 	ProjectedTerminalCommand,
@@ -24,5 +25,8 @@ export interface TerminalProjectionRequest {
 
 export interface TerminalProjectionClient {
 	dispose(): void;
-	open(presentationId: TerminalPresentationId): TerminalProjectionRequest;
+	open(
+		presentationId: TerminalPresentationId,
+		geometry: TerminalGeometry,
+	): TerminalProjectionRequest;
 }

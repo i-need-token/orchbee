@@ -1,6 +1,7 @@
 const std = @import("std");
 
 pub const Phase = enum {
+    awaiting_start,
     running,
     finishing,
     containing_failure,
@@ -231,6 +232,8 @@ pub const OutcomePublication = enum {
 pub const RunningState = struct {
     termination: TerminationRequest = .none,
 };
+
+pub const AwaitingStartState = struct {};
 
 pub const FinishingState = struct {
     first: CompletionSignal,
