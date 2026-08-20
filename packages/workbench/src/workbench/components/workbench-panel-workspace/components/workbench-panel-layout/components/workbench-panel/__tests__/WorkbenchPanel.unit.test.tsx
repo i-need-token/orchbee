@@ -1,3 +1,5 @@
+import { ActionRuntime } from '@orchbee/actions';
+import { OrchbeeI18nProvider } from '@orchbee/i18n';
 import { TooltipProvider } from '@orchbee/ui/components';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -83,7 +85,11 @@ function renderPanel(
 		root,
 		tabId: 'tab-a',
 	} as const;
+	const actionRuntime = new ActionRuntime();
 	const view: WorkbenchPanelWorkspaceView = {
+		actionRuntime,
+		actionScope: actionRuntime.createScope('test.workbench'),
+		admitTerminalBellEffect: () => true,
 		activateChildTerminal: () => undefined,
 		activeTab: tab,
 		cancelClose: () => undefined,
@@ -133,7 +139,11 @@ function renderPanel(
 		togglePanelMaximization: () => undefined,
 	};
 	return renderToStaticMarkup(
-		createElement(TooltipProvider, null, createElement(WorkbenchPanel, { panel, view })),
+		createElement(
+			OrchbeeI18nProvider,
+			{ locale: 'en-US' },
+			createElement(TooltipProvider, null, createElement(WorkbenchPanel, { panel, view })),
+		),
 	);
 }
 

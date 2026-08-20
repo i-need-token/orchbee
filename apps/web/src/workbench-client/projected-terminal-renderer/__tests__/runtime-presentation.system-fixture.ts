@@ -1,7 +1,5 @@
 import {
-	DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION,
 	ProjectedTerminal,
-	type ProjectedTerminalCommand,
 	type ProjectedTerminalOptions,
 	type TerminalPresentationConfiguration,
 } from '@orchbee/terminal';
@@ -37,7 +35,11 @@ import {
 	startProjectedTerminalRenderer,
 	type ProjectedTerminalRendererDependencies,
 } from '../startProjectedTerminalRenderer';
-import type { TerminalPresentationConfigurationSource } from '../../../terminal-presentation';
+import { registerTerminalProductFonts } from '../registerTerminalProductFonts';
+import {
+	DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION_SOURCE,
+	type TerminalPresentationConfigurationSource,
+} from '../../../terminal-presentation';
 import {
 	TerminalSettingsController,
 	type TerminalThemePresentationParticipant,
@@ -67,6 +69,8 @@ const rowText = [
 	'preedit anchor',
 ] as const;
 
+registerTerminalProductFonts(document);
+
 const runtimeConfiguration: TerminalPresentationConfiguration = {
 	allowTransparency: true,
 	backgroundOpacity: 0.75,
@@ -83,7 +87,7 @@ const runtimeConfiguration: TerminalPresentationConfiguration = {
 class MutablePresentationConfigurationSource implements TerminalPresentationConfigurationSource {
 	readonly #listeners = new Set<(configuration: TerminalPresentationConfiguration) => void>();
 	readonly #settings: TerminalSettingsController;
-	#value = DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION;
+	#value = DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION_SOURCE.current();
 
 	constructor(settings: TerminalSettingsController) {
 		this.#settings = settings;
@@ -302,6 +306,7 @@ async function startWitness(): Promise<void> {
 				attachmentId,
 				canInput: true,
 				canResize: true,
+				capabilityRevision: CanonicalUint64TextSchema.parse('1'),
 				creationId,
 				hostEpoch,
 				terminalId,
@@ -367,7 +372,7 @@ async function prepareSearch(currentTerminal: ProjectedTerminal): Promise<void> 
 	});
 }
 
-function observeCommand(command: ProjectedTerminalCommand): void {
+function observeCommand(command: ClientProjectedTerminalCommand): void {
 	if (command.kind === 'resize-terminal') {
 		incrementDataset(root, 'witnessResizeCount');
 		root.dataset['witnessResizeCellHeight'] = String(command.payload.cellPixelHeight);
@@ -386,7 +391,7 @@ function observeCommand(command: ProjectedTerminalCommand): void {
 }
 
 function textRows(
-	command: Extract<ProjectedTerminalCommand, { readonly kind: 'read-rows' }>,
+	command: Extract<ClientProjectedTerminalCommand, { readonly kind: 'read-rows' }>,
 ): Uint8Array {
 	if (command.payload.origin.kind !== 'absolute') {
 		throw new Error('Witness search requested a non-absolute row window.');

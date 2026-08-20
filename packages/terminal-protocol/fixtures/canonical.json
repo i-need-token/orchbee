@@ -239,11 +239,13 @@
 	},
 	"focusInput": {
 		"attachmentId": "22222222222222222222222222222222",
+		"capabilityRevision": "7",
 		"focused": true
 	},
 	"keyInput": {
 		"action": "press",
 		"attachmentId": "22222222222222222222222222222222",
+		"capabilityRevision": "7",
 		"composing": false,
 		"consumedModifiers": {
 			"alt": false,
@@ -277,6 +279,7 @@
 	"mouseInput": {
 		"action": "motion",
 		"attachmentId": "22222222222222222222222222222222",
+		"capabilityRevision": "7",
 		"button": 1,
 		"modifiers": {
 			"alt": true,
@@ -297,10 +300,12 @@
 	"pasteInput": {
 		"attachmentId": "22222222222222222222222222222222",
 		"bracketed": true,
+		"capabilityRevision": "7",
 		"text": "line 1\nline 2"
 	},
 	"textInput": {
 		"attachmentId": "22222222222222222222222222222222",
+		"capabilityRevision": "7",
 		"text": "中文"
 	},
 	"terminalFailed": {
@@ -321,6 +326,7 @@
 	},
 	"writeInput": {
 		"attachmentId": "22222222222222222222222222222222",
-		"bytesBase64": "ABvwn5CN"
+		"bytesBase64": "ABvwn5CN",
+		"capabilityRevision": "7"
 	}
 }

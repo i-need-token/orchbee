@@ -38,6 +38,7 @@ const gatewayMain = path.join(repositoryRoot, 'apps', 'gateway', 'dist', 'main',
 const serverMain = path.join(repositoryRoot, 'apps', 'server', 'dist', 'main', 'server.cjs');
 const webRoot = path.join(repositoryRoot, 'apps', 'web');
 const webDist = path.join(repositoryRoot, 'apps', 'web', 'dist');
+const startupGeometryWitnessTitle = 'terminal-parity/SU-16-startup-geometry';
 
 const applicationOutput = new WeakMap<ElectronApplication, string[]>();
 
@@ -79,9 +80,22 @@ test.afterAll(async () => {
 	rendererUrl = undefined;
 });
 
-test.beforeEach(async () => {
+test.beforeEach(async ({ browserName }, testInfo) => {
+	if (browserName !== 'chromium') throw new Error('Desktop system tests require Chromium.');
 	const temporaryRoot = process.platform === 'win32' ? tmpdir() : '/tmp';
 	runtimeDirectory = await mkdtemp(path.join(temporaryRoot, 'orchbee-desktop-system-'));
+	let shell = '/bin/sh';
+	if (testInfo.title === startupGeometryWitnessTitle && process.platform !== 'win32') {
+		const witnessPath = path.join(runtimeDirectory, 'startup-geometry.txt');
+		const witnessShell = path.join(runtimeDirectory, 'startup-geometry-shell.sh');
+		await writeFile(
+			witnessShell,
+			`#!/bin/sh\nstty size > ${quotePosixShellWord(witnessPath)}\nexec /bin/sh\n`,
+			{ mode: 0o700 },
+		);
+		await chmod(witnessShell, 0o700);
+		shell = witnessShell;
+	}
 	const endpointId = randomBytes(16).toString('hex');
 	hostProcess = await startHost(runtimeDirectory, endpointId);
 
@@ -104,7 +118,7 @@ test.beforeEach(async () => {
 		ORCHBEE_GATEWAY_ENTRY_PATH: gatewayMain,
 		ORCHBEE_SERVER_ENTRY_PATH: serverMain,
 		ORCHBEE_WEB_RENDERER_ROOT: webDist,
-		SHELL: process.platform === 'win32' ? (environment['ComSpec'] ?? 'cmd.exe') : '/bin/sh',
+		SHELL: process.platform === 'win32' ? (environment['ComSpec'] ?? 'cmd.exe') : shell,
 	};
 	electronApplication = await launchDesktop();
 });
@@ -276,6 +290,97 @@ test('terminal-parity/SU-09-theme', async () => {
 	} finally {
 		await browser.close();
 	}
+});
+
+test('terminal-parity/SU-13-cursor-defaults', async () => {
+	const application = electronApplication;
+	if (application === undefined) throw new Error('Electron application did not start.');
+	const page = await application.firstWindow();
+	const root = projectedTerminal(page);
+	await expect(root).toHaveAttribute('data-projected-terminal-state', 'open');
+	await expect(root).toHaveAttribute('data-projected-terminal-cursor-shape', 'block');
+	await expect(root).toHaveAttribute('data-projected-terminal-cursor-blinking', 'false');
+
+	const input = page.getByRole('textbox');
+	await input.pressSequentially(`printf '\\033[5 q'`, { delay: 1 });
+	await input.press('Enter');
+	await expect(root).toHaveAttribute('data-projected-terminal-cursor-shape', 'bar');
+	await expect(root).toHaveAttribute('data-projected-terminal-cursor-blinking', 'true');
+
+	await input.pressSequentially(`printf '\\033c'`, { delay: 1 });
+	await input.press('Enter');
+	await expect(root).toHaveAttribute('data-projected-terminal-cursor-shape', 'block');
+	await expect(root).toHaveAttribute('data-projected-terminal-cursor-blinking', 'false');
+});
+
+test(startupGeometryWitnessTitle, async () => {
+	test.skip(process.platform === 'win32', 'The exact startup witness uses POSIX stty.');
+	const application = electronApplication;
+	const currentRuntimeDirectory = runtimeDirectory;
+	if (application === undefined) throw new Error('Electron application did not start.');
+	if (currentRuntimeDirectory === undefined) {
+		throw new Error('Desktop runtime directory is unavailable.');
+	}
+	const page = await application.firstWindow();
+	const root = projectedTerminal(page);
+	await expect(root).toHaveAttribute('data-projected-terminal-state', 'open');
+	await expect(root).toHaveAttribute('data-projected-terminal-rendered-frames', '1');
+
+	const firstClientGeometry = await root.evaluate((element) => {
+		if (!(element instanceof HTMLElement)) throw new Error('Terminal root is unavailable.');
+		const canvas = element.querySelector('canvas');
+		if (!(canvas instanceof HTMLCanvasElement)) throw new Error('Terminal canvas is unavailable.');
+		const numberAttribute = (name: string): number =>
+			Number(element.getAttribute(name) ?? Number.NaN);
+		const columns = numberAttribute('data-projected-terminal-columns');
+		const rows = numberAttribute('data-projected-terminal-rows');
+		const canvasWidth = Number.parseFloat(canvas.style.width);
+		const canvasHeight = Number.parseFloat(canvas.style.height);
+		const style = getComputedStyle(element);
+		const horizontalPadding =
+			Number.parseFloat(style.paddingLeft) + Number.parseFloat(style.paddingRight);
+		const verticalPadding =
+			Number.parseFloat(style.paddingTop) + Number.parseFloat(style.paddingBottom);
+		const cellCssWidth = canvasWidth / columns;
+		const cellCssHeight = canvasHeight / rows;
+		return {
+			cellPixelHeight: numberAttribute('data-projected-terminal-cell-pixel-height'),
+			cellPixelWidth: numberAttribute('data-projected-terminal-cell-pixel-width'),
+			columns,
+			expectedCellPixelHeight: Math.round(cellCssHeight * window.devicePixelRatio),
+			expectedCellPixelWidth: Math.round(cellCssWidth * window.devicePixelRatio),
+			expectedColumns: Math.floor((element.clientWidth - horizontalPadding) / cellCssWidth),
+			expectedRows: Math.floor((element.clientHeight - verticalPadding) / cellCssHeight),
+			rows,
+		};
+	});
+	expect(firstClientGeometry).toMatchObject({
+		cellPixelHeight: firstClientGeometry.expectedCellPixelHeight,
+		cellPixelWidth: firstClientGeometry.expectedCellPixelWidth,
+		columns: firstClientGeometry.expectedColumns,
+		rows: firstClientGeometry.expectedRows,
+	});
+	expect({ columns: firstClientGeometry.columns, rows: firstClientGeometry.rows }).not.toEqual({
+		columns: 80,
+		rows: 24,
+	});
+
+	const witnessPath = path.join(currentRuntimeDirectory, 'startup-geometry.txt');
+	await expect
+		.poll(() =>
+			readFile(witnessPath, 'utf8')
+				.then((value) => value.trim())
+				.catch(() => ''),
+		)
+		.toMatch(/^\d+ \d+$/u);
+	const [initialPtyRows, initialPtyColumns] = (await readFile(witnessPath, 'utf8'))
+		.trim()
+		.split(/\s+/u)
+		.map(Number);
+	expect({ columns: initialPtyColumns, rows: initialPtyRows }).toEqual({
+		columns: firstClientGeometry.columns,
+		rows: firstClientGeometry.rows,
+	});
 });
 
 test('terminal-parity/SU-15-visibility', async () => {
@@ -474,6 +579,70 @@ test('terminal-parity/SU-08-dpr', async () => {
 	}
 });
 
+test('terminal-parity/CF-03-visual-environment', async () => {
+	test.setTimeout(45_000);
+	const currentDevelopmentRendererUrl = developmentRendererUrl;
+	if (currentDevelopmentRendererUrl === undefined) {
+		throw new Error('Web development renderer server is unavailable.');
+	}
+	const browser = await chromium.launch({ headless: false });
+	try {
+		const context = await browser.newContext({
+			colorScheme: 'light',
+			deviceScaleFactor: 1,
+			locale: 'en-US',
+			reducedMotion: 'reduce',
+			timezoneId: 'UTC',
+			viewport: { height: 500, width: 900 },
+		});
+		const page = await context.newPage();
+		await page.goto(
+			new URL('terminal-presentation-fixture.html', currentDevelopmentRendererUrl).href,
+		);
+		const root = page.locator('#terminal-presentation-witness');
+		await expect(root).toHaveAttribute('data-witness-ready', 'true');
+		await expect(root).not.toHaveAttribute('data-witness-failure', /.+/u);
+		await expect(root).toHaveAttribute('data-witness-forced-canvas', 'true');
+		await expect(root).toHaveAttribute('data-projected-terminal-renderer', 'canvas2d');
+		const environment = await page.evaluate(async () => {
+			await document.fonts.ready;
+			const fontFaces = await document.fonts.load('400 14px "Orchbee JetBrains Mono"', 'MW');
+			const input = document.querySelector('textarea');
+			return {
+				colorScheme: matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'other',
+				devicePixelRatio: window.devicePixelRatio,
+				direction: document.documentElement.dir,
+				fontFaces: fontFaces.map((face) => ({ family: face.family, status: face.status })),
+				inputFontFamily: input instanceof HTMLTextAreaElement ? input.style.fontFamily : '',
+				language: document.documentElement.lang,
+				locale: navigator.language,
+				reducedMotion: matchMedia('(prefers-reduced-motion: reduce)').matches,
+				timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+				viewport: { height: window.innerHeight, width: window.innerWidth },
+			};
+		});
+		expect(environment).toMatchObject({
+			colorScheme: 'light',
+			devicePixelRatio: 1,
+			direction: 'ltr',
+			language: 'en-US',
+			locale: 'en-US',
+			reducedMotion: true,
+			timezone: 'UTC',
+			viewport: { height: 500, width: 900 },
+		});
+		expect(environment.fontFaces).toEqual([
+			expect.objectContaining({
+				family: expect.stringContaining('Orchbee JetBrains Mono'),
+				status: 'loaded',
+			}),
+		]);
+		expect(environment.inputFontFamily).toContain('Orchbee JetBrains Mono');
+	} finally {
+		await browser.close();
+	}
+});
+
 test('terminal-parity/IN-02-composition', async () => {
 	test.setTimeout(45_000);
 	const currentDevelopmentRendererUrl = developmentRendererUrl;
@@ -510,6 +679,322 @@ test('terminal-parity/IN-02-composition', async () => {
 		await expect(root).toHaveAttribute('data-witness-dom-child-count-after-dispose', '0');
 		const attachment = await root.getAttribute('data-witness-attachment-id');
 		expect(attachment).toMatch(/^[0-9a-f]{32}$/u);
+	} finally {
+		await browser.close();
+	}
+});
+
+test('terminal-parity/PR-11-bell', async () => {
+	test.setTimeout(45_000);
+	const currentDevelopmentRendererUrl = developmentRendererUrl;
+	if (currentDevelopmentRendererUrl === undefined) {
+		throw new Error('Web development renderer server is unavailable.');
+	}
+	const browser = await chromium.launch();
+	try {
+		const page = await browser.newPage({ viewport: { height: 500, width: 1000 } });
+		await page.goto(
+			new URL('terminal-bell-effects-fixture.html', currentDevelopmentRendererUrl).href,
+		);
+		const root = page.locator('#terminal-bell-effects-witness');
+		await expect(root).toHaveAttribute('data-witness-ready', 'true');
+		await expect(root).not.toHaveAttribute('data-witness-failure', /.+/u);
+		await expect(root).toHaveAttribute('data-witness-forced-canvas', 'true');
+		await expect(root).toHaveAttribute('data-witness-same-terminal', 'true');
+		await expect(root).toHaveAttribute('data-witness-duplicate-surface-inactive', 'true');
+		await expect(root).toHaveAttribute('data-witness-reconnect-replay-inactive', 'true');
+		await expect(root).toHaveAttribute('data-witness-effect-sequences', '6,7,8');
+		await expect(root).toHaveAttribute('data-witness-sound-effects', '5,7,6,8');
+		await expect(root).toHaveAttribute('data-witness-notification-effects', '5,7,6,8');
+		await expect(root).toHaveAttribute('data-witness-sound-failure-isolated', 'true');
+		await expect(root).toHaveAttribute('data-witness-visual-phases', 'a,b');
+	} finally {
+		await browser.close();
+	}
+});
+
+test('terminal-parity/IN-10-read-only', async () => {
+	test.setTimeout(45_000);
+	const currentDevelopmentRendererUrl = developmentRendererUrl;
+	if (currentDevelopmentRendererUrl === undefined) {
+		throw new Error('Web development renderer server is unavailable.');
+	}
+	const browser = await chromium.launch();
+	try {
+		const page = await browser.newPage({ viewport: { height: 500, width: 900 } });
+		await page.goto(
+			new URL('terminal-input-capability-fixture.html', currentDevelopmentRendererUrl).href,
+		);
+		const root = page.locator('#terminal-input-capability-witness');
+		await expect(root).toHaveAttribute('data-witness-step', 'fresh-input-observed');
+		await expect(root).toHaveAttribute('data-witness-ready', 'true');
+		await expect(root).not.toHaveAttribute('data-witness-failure', /.+/u);
+		await expect(root).toHaveAttribute('data-witness-forced-canvas', 'true');
+		await expect(root).toHaveAttribute('data-witness-read-only-observed', 'true');
+		await expect(root).toHaveAttribute('data-witness-upgrade-observed', 'true');
+		await expect(root).toHaveAttribute('data-witness-paste-review-aborted', 'true');
+		await expect(root).toHaveAttribute('data-witness-textarea-cleared', 'true');
+		await expect(root).toHaveAttribute('data-witness-search-available', 'true');
+		await expect(root).toHaveAttribute(
+			'data-witness-local-operations',
+			'copy,history,search,selection',
+		);
+		await expect(root).toHaveAttribute('data-witness-downgrade-input-command-delta', '0');
+		await expect(root).toHaveAttribute('data-witness-stale-paste-count', '0');
+		await expect(root).toHaveAttribute('data-witness-stale-text-count', '0');
+		await expect(root).toHaveAttribute('data-witness-fresh-input-revisions', '3,3');
+		await expect(root).toHaveAttribute('data-projected-terminal-capability-revision', '3');
+		await expect(root).toHaveAttribute('data-projected-terminal-input-capability', 'read-write');
+	} finally {
+		await browser.close();
+	}
+});
+
+test('terminal-parity/IN-09-action-scope', async () => {
+	test.setTimeout(45_000);
+	const page = await openTerminalActionsWitness();
+	try {
+		const root = page.locator('#terminal-actions-witness');
+		await expect(root).toHaveAttribute('data-witness-ready', 'true');
+		await expect(root).not.toHaveAttribute('data-witness-failure', /.+/u);
+		await expect(root).toHaveAttribute('data-witness-forced-canvas', 'true');
+		await expect(root).toHaveAttribute('data-witness-workbench-scope', 'true');
+		await expect(root).toHaveAttribute(
+			'data-witness-apple-commands',
+			'unbound-native:true,unavailable-native:true,available-claimed:true',
+		);
+		await expect(root).toHaveAttribute('data-witness-confirmation-count', '0');
+	} finally {
+		await page.context().browser()?.close();
+	}
+});
+
+test('terminal-parity/IN-11-context', async () => {
+	test.setTimeout(45_000);
+	const page = await openTerminalActionsWitness();
+	try {
+		const root = page.locator('#terminal-actions-witness');
+		await expect(root).toHaveAttribute('data-witness-ready', 'true');
+		await expect(root).not.toHaveAttribute('data-witness-failure', /.+/u);
+		await expect(root).toHaveAttribute('data-witness-application-mouse-owned', 'true');
+		await expect(root).toHaveAttribute('data-witness-pinned-context', 'true');
+		await expect(root).toHaveAttribute('data-witness-action-inputs', 'terminal.link.open');
+		await expect(root).toHaveAttribute('data-witness-external-open-count', '0');
+		await expect(root).toHaveAttribute(
+			'data-witness-typed-results',
+			'paste:completed,scroll:unchanged,clear:completed,stale-link:blocked:stale-terminal-link-context',
+		);
+	} finally {
+		await page.context().browser()?.close();
+	}
+});
+
+test('terminal-parity/IN-12-actions', async () => {
+	test.setTimeout(45_000);
+	const page = await openTerminalActionsWitness();
+	try {
+		const root = page.locator('#terminal-actions-witness');
+		await expect(root).toHaveAttribute('data-witness-ready', 'true');
+		await expect(root).not.toHaveAttribute('data-witness-failure', /.+/u);
+		await expect(root).toHaveAttribute(
+			'data-witness-catalog',
+			[
+				'terminal.selection.copy',
+				'terminal.clipboard.paste',
+				'terminal.selection.select-all',
+				'terminal.search.open',
+				'terminal.search.next',
+				'terminal.search.previous',
+				'terminal.history.scroll-bottom',
+				'terminal.clear',
+				'terminal.reset',
+			].join(','),
+		);
+		await expect(root).toHaveAttribute(
+			'data-witness-availability',
+			[
+				'terminal.selection.copy:disabled',
+				'terminal.clipboard.paste:enabled',
+				'terminal.selection.select-all:enabled',
+				'terminal.search.open:enabled',
+				'terminal.search.next:disabled',
+				'terminal.search.previous:disabled',
+				'terminal.history.scroll-bottom:enabled',
+				'terminal.clear:enabled',
+				'terminal.reset:enabled',
+			].join(','),
+		);
+		await expect(root).toHaveAttribute(
+			'data-witness-feedback',
+			'已将剪贴板文本粘贴到终端。|已清除终端输出。|终端链接已发生变化，无法打开。',
+		);
+		await expect(root).toHaveAttribute('data-witness-confirmation-count', '0');
+	} finally {
+		await page.context().browser()?.close();
+	}
+});
+
+test('terminal-parity/FS-05-file-links', async () => {
+	test.setTimeout(45_000);
+	const page = await openTerminalUrlPolicyWitness();
+	try {
+		const root = page.locator('#terminal-url-policy-witness');
+		await expect(root).toHaveAttribute('data-witness-ready', 'true');
+		await expect(root).not.toHaveAttribute('data-witness-failure', /.+/u);
+		await expect(root).toHaveAttribute('data-witness-forced-canvas', 'true');
+		await expect(root).toHaveAttribute(
+			'data-witness-direct-file-effect',
+			'failed:link-policy-blocked',
+		);
+		for (const attribute of [
+			'data-witness-blocked-hover',
+			'data-witness-blocked-context',
+			'data-witness-blocked-activation',
+		]) {
+			await expect(root).toHaveAttribute(
+				attribute,
+				'auto-ftp,explicit-ftp,explicit-file,detected-path',
+			);
+		}
+	} finally {
+		await page.context().browser()?.close();
+	}
+});
+
+test('terminal-parity/FS-06-url-policy', async () => {
+	test.setTimeout(45_000);
+	const page = await openTerminalUrlPolicyWitness();
+	try {
+		const root = page.locator('#terminal-url-policy-witness');
+		await expect(root).toHaveAttribute('data-witness-ready', 'true');
+		await expect(root).not.toHaveAttribute('data-witness-failure', /.+/u);
+		for (const attribute of [
+			'data-witness-allowed-hover',
+			'data-witness-allowed-context',
+			'data-witness-allowed-activation',
+		]) {
+			await expect(root).toHaveAttribute(attribute, 'http,https,mailto');
+		}
+		await expect(root).toHaveAttribute(
+			'data-witness-opened-targets',
+			[
+				'http://orchbee.dev/http',
+				'http://orchbee.dev/http',
+				'https://orchbee.dev/secure',
+				'https://orchbee.dev/secure',
+				'mailto:terminal@orchbee.dev',
+				'mailto:terminal@orchbee.dev',
+			].join('|'),
+		);
+	} finally {
+		await page.context().browser()?.close();
+	}
+});
+
+test('terminal-parity/LC-05-lan-capability', async () => {
+	test.setTimeout(45_000);
+	const page = await openTerminalClipboardCapabilityWitness();
+	try {
+		const root = page.locator('#terminal-clipboard-capability-witness');
+		await expect(root).toHaveAttribute('data-witness-setup-ready', 'true');
+		await expect(root).not.toHaveAttribute('data-witness-failure', /.+/u);
+		await expect(root).toHaveAttribute('data-witness-forced-canvas', 'true');
+		await expect(root).toHaveAttribute('data-witness-actual-secure-context', 'true');
+		await expect(root).toHaveAttribute('data-witness-initial-user-activation', 'false');
+		await expect(root).toHaveAttribute('data-witness-initial-availability', 'disabled');
+		await expect(root).toHaveAttribute('data-witness-initial-result', 'blocked:action-unavailable');
+		await expect(root).toHaveAttribute(
+			'data-witness-initial-feedback',
+			'This terminal action is unavailable.',
+		);
+		await expect(root).toHaveAttribute('data-witness-initial-selection-commands', '0');
+		await expect(root).toHaveAttribute('data-witness-initial-writes', '0');
+		await expect(root).toHaveAttribute('data-witness-read-capability', 'false');
+
+		await page.locator('#terminal-clipboard-capability-activation').click();
+		await expect(root).toHaveAttribute('data-witness-ready', 'true');
+		await expect(root).not.toHaveAttribute('data-witness-failure', /.+/u);
+		await expect(root).toHaveAttribute('data-witness-click-user-activation', 'true');
+		await expect(root).toHaveAttribute('data-witness-activated-availability', 'enabled');
+		await expect(root).toHaveAttribute('data-witness-activated-result', 'completed');
+		await expect(root).toHaveAttribute('data-witness-activated-feedback', 'Copied 21 bytes.');
+		await expect(root).toHaveAttribute('data-witness-activated-selection-commands', '1');
+		await expect(root).toHaveAttribute('data-witness-activated-writes', '1');
+		await expect(root).toHaveAttribute(
+			'data-witness-rejected-result',
+			'failed:browser-clipboard-write-failed',
+		);
+		await expect(root).toHaveAttribute(
+			'data-witness-rejected-feedback',
+			'The terminal selection could not be copied.',
+		);
+		await expect(root).toHaveAttribute('data-witness-rejected-command-delta', '1');
+		await expect(root).toHaveAttribute('data-witness-rejected-write-delta', '1');
+		await expect(root).toHaveAttribute('data-witness-missing-availability', 'disabled');
+		await expect(root).toHaveAttribute('data-witness-missing-result', 'blocked:action-unavailable');
+		await expect(root).toHaveAttribute(
+			'data-witness-missing-feedback',
+			'This terminal action is unavailable.',
+		);
+		await expect(root).toHaveAttribute('data-witness-missing-command-delta', '0');
+		await expect(root).toHaveAttribute('data-witness-missing-write-delta', '0');
+		await expect(root).toHaveAttribute('data-witness-insecure-availability', 'disabled');
+		await expect(root).toHaveAttribute(
+			'data-witness-insecure-action-result',
+			'blocked:action-unavailable',
+		);
+		await expect(root).toHaveAttribute(
+			'data-witness-insecure-effect-result',
+			'failed:browser-clipboard-insecure-context',
+		);
+		await expect(root).toHaveAttribute(
+			'data-witness-insecure-feedback',
+			'This terminal action is unavailable.',
+		);
+		await expect(root).toHaveAttribute('data-witness-insecure-command-delta', '0');
+		await expect(root).toHaveAttribute('data-witness-insecure-write-delta', '0');
+		await expect(root).toHaveAttribute(
+			'data-witness-writes',
+			'LAN Browser selection|LAN Browser selection',
+		);
+	} finally {
+		await page.context().browser()?.close();
+	}
+});
+
+test('terminal-parity/IN-14-shared-focus', async () => {
+	test.setTimeout(45_000);
+	const currentDevelopmentRendererUrl = developmentRendererUrl;
+	if (currentDevelopmentRendererUrl === undefined) {
+		throw new Error('Web development renderer server is unavailable.');
+	}
+	const browser = await chromium.launch();
+	try {
+		const page = await browser.newPage({ viewport: { height: 500, width: 900 } });
+		await page.goto(
+			new URL('terminal-shared-focus-fixture.html', currentDevelopmentRendererUrl).href,
+		);
+		const root = page.locator('#terminal-shared-focus-witness');
+		await expect(root).toHaveAttribute('data-witness-ready', 'true');
+		await expect(root).not.toHaveAttribute('data-witness-failure', /.+/u);
+		await expect(root).toHaveAttribute('data-witness-forced-canvas', 'true');
+		await expect(root).toHaveAttribute('data-witness-same-terminal', 'true');
+		await expect(root).toHaveAttribute(
+			'data-witness-synthetic-event-scope',
+			'application-layer-only',
+		);
+		await expect(root).toHaveAttribute('data-witness-aggregate-transitions', 'in,out');
+		await expect(root).toHaveAttribute('data-witness-claims-after-first-release', '1');
+		await expect(root).toHaveAttribute('data-witness-claims-after-pause', '0');
+		await expect(root).toHaveAttribute('data-witness-activation-replay-delta', '0');
+		await expect(root).toHaveAttribute(
+			'data-witness-demand-commands',
+			'first:active,second:active,second:paused,second:active',
+		);
+		await expect(root).toHaveAttribute(
+			'data-witness-focus-commands',
+			'first:true,second:true,first:false',
+		);
 	} finally {
 		await browser.close();
 	}
@@ -711,6 +1196,38 @@ test('terminal-parity/HS-04-multi-click-selection', async () => {
 	await expect
 		.poll(async () => application.evaluate(({ clipboard }) => clipboard.readText()))
 		.toContain('hs04-triple entire row marker');
+});
+
+test('terminal-parity/HS-07-selection-export', async () => {
+	const application = electronApplication;
+	if (application === undefined) throw new Error('Electron application did not start.');
+	const page = await application.firstWindow();
+	const root = projectedTerminal(page);
+	await expect(root).toHaveAttribute('data-projected-terminal-state', 'open');
+	const input = page.getByRole('textbox');
+	await application.evaluate(({ clipboard }) => clipboard.writeText('hs07 clipboard sentinel'));
+	await input.pressSequentially(
+		`printf '\\033[2J\\033[Hhs07-prefix \\033[31;3mHS07StyledPlain\\033[0m suffix\\n'`,
+		{ delay: 1 },
+	);
+	await input.press('Enter');
+	const accessibility = root.locator('[role="list"]');
+	const visibleText = 'hs07-prefix HS07StyledPlain suffix';
+	await expect(accessibility).toContainText(visibleText);
+	await waitForTerminalPresentationStability(root);
+	const styledWord = await terminalCellPoint(
+		root,
+		root.locator('canvas'),
+		accessibility.locator(':scope > div'),
+		visibleText,
+		15,
+	);
+
+	await page.mouse.click(styledWord.x, styledWord.y, { clickCount: 2 });
+	await expect(root).toHaveAttribute('data-projected-terminal-selection-state', 'active');
+	await expect
+		.poll(async () => application.evaluate(({ clipboard }) => clipboard.readText()))
+		.toBe('HS07StyledPlain');
 });
 
 test('terminal-parity/SU-02-product-font-fallback', async () => {
@@ -1271,7 +1788,7 @@ test('launches only future terminals with the committed local shell profile', as
 	);
 });
 
-test('reviews and safely quotes a real Desktop file drop without pressing Enter', async () => {
+test('terminal-parity/IN-08-drop', async () => {
 	test.skip(process.platform === 'win32', 'The accepted first slice supports POSIX shells only.');
 	const application = electronApplication;
 	const directory = runtimeDirectory;
@@ -2715,6 +3232,58 @@ async function stopChildProcess(process_: ChildProcessWithoutNullStreams): Promi
 	]);
 }
 
+async function openTerminalActionsWitness(): Promise<Page> {
+	const currentDevelopmentRendererUrl = developmentRendererUrl;
+	if (currentDevelopmentRendererUrl === undefined) {
+		throw new Error('Web development renderer server is unavailable.');
+	}
+	const browser = await chromium.launch();
+	try {
+		const page = await browser.newPage({ viewport: { height: 500, width: 900 } });
+		await page.goto(new URL('terminal-actions-fixture.html', currentDevelopmentRendererUrl).href);
+		return page;
+	} catch (error) {
+		await browser.close();
+		throw error;
+	}
+}
+
+async function openTerminalUrlPolicyWitness(): Promise<Page> {
+	const currentDevelopmentRendererUrl = developmentRendererUrl;
+	if (currentDevelopmentRendererUrl === undefined) {
+		throw new Error('Web development renderer server is unavailable.');
+	}
+	const browser = await chromium.launch();
+	try {
+		const page = await browser.newPage({ viewport: { height: 500, width: 900 } });
+		await page.goto(
+			new URL('terminal-url-policy-fixture.html', currentDevelopmentRendererUrl).href,
+		);
+		return page;
+	} catch (error) {
+		await browser.close();
+		throw error;
+	}
+}
+
+async function openTerminalClipboardCapabilityWitness(): Promise<Page> {
+	const currentDevelopmentRendererUrl = developmentRendererUrl;
+	if (currentDevelopmentRendererUrl === undefined) {
+		throw new Error('Web development renderer server is unavailable.');
+	}
+	const browser = await chromium.launch();
+	try {
+		const page = await browser.newPage({ viewport: { height: 500, width: 900 } });
+		await page.goto(
+			new URL('terminal-clipboard-capability-fixture.html', currentDevelopmentRendererUrl).href,
+		);
+		return page;
+	} catch (error) {
+		await browser.close();
+		throw error;
+	}
+}
+
 function quotePosixShellWord(value: string): string {
 	return `'${value.replaceAll("'", "'\\''")}'`;
 }
@@ -2752,10 +3321,22 @@ async function startWebRendererDevelopmentServer(): Promise<{
 		source: {
 			entry: {
 				index: './src/composition/entry.ts',
+				'terminal-bell-effects-fixture':
+					'./src/workbench-client/projected-terminal-renderer/__tests__/bell-effects.system-fixture.ts',
 				'terminal-dpr-fixture':
 					'./src/workbench-client/projected-terminal-renderer/__tests__/dpr.system-fixture.ts',
 				'terminal-input-repair-fixture':
 					'./src/workbench-client/projected-terminal-renderer/__tests__/input-repair.system-fixture.ts',
+				'terminal-input-capability-fixture':
+					'./src/workbench-client/projected-terminal-renderer/__tests__/input-capability.system-fixture.ts',
+				'terminal-actions-fixture':
+					'./src/workbench-client/projected-terminal-renderer/__tests__/terminal-actions.system-fixture.ts',
+				'terminal-shared-focus-fixture':
+					'./src/workbench-client/projected-terminal-renderer/__tests__/shared-focus.system-fixture.ts',
+				'terminal-url-policy-fixture':
+					'./src/workbench-client/projected-terminal-renderer/__tests__/url-policy.system-fixture.ts',
+				'terminal-clipboard-capability-fixture':
+					'./src/workbench-client/projected-terminal-renderer/__tests__/clipboard-capability.system-fixture.ts',
 				'terminal-presentation-fixture':
 					'./src/workbench-client/projected-terminal-renderer/__tests__/runtime-presentation.system-fixture.ts',
 				'terminal-visibility-fixture':

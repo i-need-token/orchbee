@@ -261,6 +261,31 @@ test "control acknowledgements are encoded from typed values" {
     );
 }
 
+test "selection export encoder cannot expose non-plain product formats" {
+    const attachment_id = core_module.AttachmentId.fromBytes([_]u8{0x11} ** 16);
+    const plain = try encode.selectionExportStarted(
+        std.testing.allocator,
+        attachment_id,
+        .{ .byte_length = 12, .export_sequence = 1, .format = terminal_history.ExportFormat.plain },
+    );
+    defer std.testing.allocator.free(plain);
+    try std.testing.expectEqualStrings(
+        "{\"attachmentId\":\"11111111111111111111111111111111\",\"byteLength\":12,\"exportSequence\":\"1\",\"format\":\"plain\"}",
+        plain,
+    );
+
+    inline for (.{ terminal_history.ExportFormat.html, terminal_history.ExportFormat.vt }) |format| {
+        try std.testing.expectError(
+            error.UnsupportedSelectionExportFormat,
+            encode.selectionExportStarted(
+                std.testing.allocator,
+                attachment_id,
+                .{ .byte_length = 12, .export_sequence = 1, .format = format },
+            ),
+        );
+    }
+}
+
 test "control encoder escapes typed failure text inside its owned wire shape" {
     const encoded = try encode.typedFailure(
         std.testing.allocator,

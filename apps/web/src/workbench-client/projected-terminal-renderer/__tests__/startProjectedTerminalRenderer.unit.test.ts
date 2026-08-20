@@ -1,3 +1,8 @@
+import { ActionRuntime } from '@orchbee/actions';
+import type {
+	WorkbenchTerminalActionContextProvider,
+	WorkbenchTerminalBellEffect,
+} from '@orchbee/workbench';
 import {
 	AttachmentIdSchema,
 	CanonicalUint64TextSchema,
@@ -91,7 +96,15 @@ describe('startProjectedTerminalRenderer', () => {
 		} as unknown as HTMLElement;
 		const documentElement = { dir: '', lang: '' };
 		const applyFrame = vi.fn<ProjectedTerminal['applyFrame']>(() => 'committed');
+		const applyInputCapability = vi
+			.fn<ProjectedTerminal['applyInputCapability']>()
+			.mockReturnValue({ kind: 'applied' });
 		const applyRows = vi.fn<ProjectedTerminal['applyRows']>(() => 'committed');
+		const captureActionContext = vi.fn<ProjectedTerminal['captureActionContext']>(() => ({
+			kind: 'product',
+			link: null,
+		}));
+		const clearTerminal = vi.fn<ProjectedTerminal['clear']>(() => true);
 		const notifyLinkOpened = vi.fn<ProjectedTerminal['notifyLinkOpened']>();
 		let emitBell: Parameters<ProjectedTerminal['onBell']>[0] = () => undefined;
 		const notifyBell = vi.fn<ProjectedTerminal['notifyBell']>((event) => emitBell(event));
@@ -124,7 +137,12 @@ describe('startProjectedTerminalRenderer', () => {
 		const writeClipboardText = vi.fn<
 			NonNullable<ProjectedTerminalPlatformEffects['writeClipboardText']>
 		>(async () => ({ kind: 'completed' as const }));
-		const ringBell = vi.fn<NonNullable<ProjectedTerminalPlatformEffects['ringBell']>>();
+		const isClipboardWriteAvailable = vi.fn<
+			NonNullable<ProjectedTerminalPlatformEffects['isClipboardWriteAvailable']>
+		>(() => false);
+		const playBellSound = vi.fn<NonNullable<ProjectedTerminalPlatformEffects['playBellSound']>>();
+		const showBellNotification =
+			vi.fn<NonNullable<ProjectedTerminalPlatformEffects['showBellNotification']>>();
 		let resolveClipboardReview: ((approved: boolean) => void) | undefined;
 		const reviewClipboardWrite = vi.fn<
 			NonNullable<Parameters<typeof startProjectedTerminalRenderer>[12]>
@@ -151,8 +169,11 @@ describe('startProjectedTerminalRenderer', () => {
 					options = nextOptions;
 					return {
 						applyFrame,
+						applyInputCapability,
 						applyRows,
 						canControlTerminal: true,
+						captureActionContext,
+						clear: clearTerminal,
 						clearSearch: vi.fn<ProjectedTerminal['clearSearch']>(),
 						copySelectionAsync: vi
 							.fn<ProjectedTerminal['copySelectionAsync']>()
@@ -167,6 +188,9 @@ describe('startProjectedTerminalRenderer', () => {
 							revision: 0n,
 							totalRows: 0n,
 						})),
+						linkOpenRequestIsCurrent: vi.fn<ProjectedTerminal['linkOpenRequestIsCurrent']>(
+							() => true,
+						),
 						notifyExited,
 						notifyFailed,
 						notifyBell,
@@ -231,8 +255,16 @@ describe('startProjectedTerminalRenderer', () => {
 						open: openTerminal,
 						paste: pasteTerminal,
 						reset: vi.fn<ProjectedTerminal['reset']>(),
+						scrollToBottom: vi.fn<ProjectedTerminal['scrollToBottom']>(() => true),
 						selectAll: vi.fn<ProjectedTerminal['selectAll']>(),
-						selection: { attachmentId: bootstrap.attachmentId, state: 'none' },
+						selection: {
+							attachmentId: bootstrap.attachmentId,
+							end: { column: 1, row: CanonicalUint64TextSchema.parse('0') },
+							preview: 'selected',
+							rectangle: false,
+							start: { column: 0, row: CanonicalUint64TextSchema.parse('0') },
+							state: 'active',
+						},
 						setResizeOwnership,
 						setOptionAsAltMode,
 						updatePresentationConfiguration,
@@ -263,6 +295,7 @@ describe('startProjectedTerminalRenderer', () => {
 			attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
 			canInput: false,
 			canResize: false,
+			capabilityRevision: CanonicalUint64TextSchema.parse('1'),
 			creationId: CreationIdSchema.parse('22'.repeat(16)),
 			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
 			terminalOutcome: {
@@ -307,6 +340,17 @@ describe('startProjectedTerminalRenderer', () => {
 			},
 		};
 		const observeMetadata = vi.fn<(metadata: ProjectedTerminalMetadata) => void>();
+		const actionRuntime = new ActionRuntime();
+		const actionScope = actionRuntime.createScope('test.workbench.terminal');
+		const admitBellEffect = vi.fn<(event: WorkbenchTerminalBellEffect) => boolean>(() => true);
+		let contextProvider: WorkbenchTerminalActionContextProvider | undefined;
+		const disposeContextProvider = vi.fn<() => void>();
+		const bindContextProvider = vi.fn<
+			(provider: WorkbenchTerminalActionContextProvider) => { readonly dispose: () => void }
+		>((provider) => {
+			contextProvider = provider;
+			return { dispose: disposeContextProvider };
+		});
 		const observeCompletion = vi.fn<TerminalCompletionReminderObserver['observeCompletion']>(
 			() => ({
 				kind: 'remind' as const,
@@ -327,7 +371,13 @@ describe('startProjectedTerminalRenderer', () => {
 				bootstrap,
 				transport,
 				dependencies,
-				{ openExternal, ringBell, writeClipboardText },
+				{
+					isClipboardWriteAvailable,
+					openExternal,
+					playBellSound,
+					showBellNotification,
+					writeClipboardText,
+				},
 				presentationConfigurationSource,
 				undefined,
 				observeMetadata,
@@ -335,10 +385,43 @@ describe('startProjectedTerminalRenderer', () => {
 				reviewClipboardWrite,
 				{ observeCompletion },
 				inputConfigurationSource,
+				{ admitBellEffect, bindContextProvider, runtime: actionRuntime, scope: actionScope },
 			);
 			expect(dependencies.createTerminal).toHaveBeenCalledWith(
 				expect.objectContaining({ projectionBufferTrust: 'local-host' }),
 			);
+			expect(contextProvider).toBeDefined();
+			expect(
+				contextProvider?.capture({
+					altKey: false,
+					clientX: 12,
+					clientY: 24,
+					ctrlKey: false,
+					metaKey: false,
+					shiftKey: true,
+				}),
+			).toMatchObject({ kind: 'product' });
+			expect(captureActionContext).toHaveBeenCalledWith({
+				clientX: 12,
+				clientY: 24,
+				shiftKey: true,
+			});
+			const copyAction = actionRuntime
+				.discover({ scope: actionScope, source: 'context-menu' })
+				.find(
+					(result) => result.kind === 'ready' && result.descriptor.id === 'terminal.selection.copy',
+				);
+			if (copyAction?.kind !== 'ready') throw new Error('Expected the terminal Copy action.');
+			expect(copyAction.availability).toMatchObject({ kind: 'disabled' });
+			await contextProvider?.executePrepared(copyAction.invocation).completion;
+			await vi.waitFor(() => expect(status.textContent).toBe('此终端操作当前不可用。'));
+			const clearAction = actionRuntime
+				.discover({ scope: actionScope, source: 'context-menu' })
+				.find((result) => result.kind === 'ready' && result.descriptor.id === 'terminal.clear');
+			if (clearAction?.kind !== 'ready') throw new Error('Expected the terminal Clear action.');
+			await contextProvider?.executePrepared(clearAction.invocation).completion;
+			expect(clearTerminal).toHaveBeenCalledOnce();
+			await vi.waitFor(() => expect(status.textContent).toBe('已清除终端输出。'));
 			emitTransportMessage({ frame: new Uint8Array([1, 2, 3]).buffer, kind: 'frame' });
 			emitTransportMessage({
 				event: { attachmentId: bootstrap.attachmentId, sequence: '5' },
@@ -355,11 +438,38 @@ describe('startProjectedTerminalRenderer', () => {
 				attachmentId: bootstrap.attachmentId,
 				sequence: '5',
 			});
-			expect(ringBell).toHaveBeenCalledWith({
-				attachmentId: bootstrap.attachmentId,
+			expect(admitBellEffect).toHaveBeenCalledWith({
 				sequence: '5',
+				terminalId: bootstrap.terminalId,
+			});
+			expect(playBellSound).toHaveBeenCalledWith({
+				sequence: '5',
+				terminalId: bootstrap.terminalId,
+			});
+			expect(showBellNotification).toHaveBeenCalledWith({
+				sequence: '5',
+				terminalId: bootstrap.terminalId,
 			});
 			expect(dataset['projectedTerminalBellActive']).toBe('true');
+			expect(dataset['projectedTerminalBellPhase']).toBe('a');
+			expect(dataset['projectedTerminalBellSequence']).toBe('5');
+			admitBellEffect.mockReturnValueOnce(false);
+			emitTransportMessage({
+				event: { attachmentId: bootstrap.attachmentId, sequence: '6' },
+				kind: 'bell',
+			});
+			expect(playBellSound).toHaveBeenCalledOnce();
+			expect(showBellNotification).toHaveBeenCalledOnce();
+			expect(dataset['projectedTerminalBellPhase']).toBe('a');
+			expect(dataset['projectedTerminalBellSequence']).toBe('5');
+			emitTransportMessage({
+				event: { attachmentId: bootstrap.attachmentId, sequence: '7' },
+				kind: 'bell',
+			});
+			expect(playBellSound).toHaveBeenCalledTimes(2);
+			expect(showBellNotification).toHaveBeenCalledTimes(2);
+			expect(dataset['projectedTerminalBellPhase']).toBe('b');
+			expect(dataset['projectedTerminalBellSequence']).toBe('7');
 			emitTransportMessage({
 				event: {
 					attachmentId: bootstrap.attachmentId,
@@ -392,6 +502,13 @@ describe('startProjectedTerminalRenderer', () => {
 				},
 			});
 			emitLinkOpenRequest({
+				context: {
+					column: 0,
+					generation: '1',
+					linkEpoch: '1',
+					revision: '1',
+					row: '1',
+				},
 				target: { kind: 'url', url: 'https://example.com/from-osc-8' },
 			});
 			await vi.waitFor(() =>
@@ -519,6 +636,14 @@ describe('startProjectedTerminalRenderer', () => {
 				cellPixelHeight: 18,
 				cellPixelWidth: 9,
 				columns: 80,
+				cursor: {
+					blinking: false,
+					column: 4,
+					row: 2,
+					shape: 'block',
+					visible: true,
+					wideTail: false,
+				},
 				defaultColors: {
 					backgroundRgb: 0x12_34_56,
 					cursorRgb: null,
@@ -537,6 +662,8 @@ describe('startProjectedTerminalRenderer', () => {
 					rows: 24,
 				}),
 			);
+			expect(dataset['projectedTerminalCursorBlinking']).toBe('false');
+			expect(dataset['projectedTerminalCursorShape']).toBe('block');
 			expect(progress.hidden).toBe(false);
 			expect(progress.dataset).toMatchObject({ state: 'set' });
 			expect(progress.setAttribute).toHaveBeenCalledWith('aria-valuenow', '42');
@@ -669,6 +796,8 @@ describe('startProjectedTerminalRenderer', () => {
 			expect(freezeTerminal).toHaveBeenCalledOnce();
 			expect(disposeTerminal).not.toHaveBeenCalled();
 			session.dispose();
+			expect(disposeContextProvider).toHaveBeenCalledOnce();
+			actionRuntime.dispose();
 			session.dispose();
 			expect(unsubscribePresentationConfiguration).toHaveBeenCalledOnce();
 			expect(unsubscribeInputConfiguration).toHaveBeenCalledOnce();
@@ -752,6 +881,7 @@ describe('startProjectedTerminalRenderer', () => {
 				attachmentId: bootstrap.attachmentId,
 				canInput: bootstrap.canInput,
 				canResize: bootstrap.canResize,
+				capabilityRevision: bootstrap.capabilityRevision,
 				creationId: bootstrap.creationId,
 				hostEpoch: bootstrap.hostEpoch,
 				terminalOutcome: null,
@@ -804,6 +934,10 @@ describe('startProjectedTerminalRenderer', () => {
 			);
 			expect(liveSession.isTransportAvailable()).toBe(true);
 			expect(liveElements.additionalRoot.dataset['projectedTerminalState']).toBe('open');
+			expect(liveElements.additionalRoot.dataset['projectedTerminalInputCapability']).toBe(
+				'read-only',
+			);
+			expect(liveElements.additionalRoot.dataset['projectedTerminalCapabilityRevision']).toBe('1');
 			liveTransport.emitMessage({
 				event: {
 					attachmentId: liveBootstrap.attachmentId,
@@ -822,6 +956,26 @@ describe('startProjectedTerminalRenderer', () => {
 				kind: 'resize-lease-changed',
 			});
 			expect(setResizeOwnership).toHaveBeenCalledWith(true);
+			liveTransport.emitMessage({
+				capabilities: {
+					attachmentId: liveBootstrap.attachmentId,
+					capabilities: { input: true, read: true, resize: false },
+					capabilityRevision: '2',
+					resizeLease: false,
+					terminalId: liveBootstrap.terminalId,
+				},
+				kind: 'attachment-input-capability-changed',
+			});
+			expect(applyInputCapability).toHaveBeenCalledWith({
+				attachmentId: liveBootstrap.attachmentId,
+				capabilityRevision: '2',
+				input: true,
+				terminalId: liveBootstrap.terminalId,
+			});
+			expect(liveElements.additionalRoot.dataset['projectedTerminalInputCapability']).toBe(
+				'read-write',
+			);
+			expect(liveElements.additionalRoot.dataset['projectedTerminalCapabilityRevision']).toBe('2');
 			updatePresentationConfiguration.mockRejectedValueOnce(new Error('injected update rejection'));
 			emitLivePresentationConfiguration({
 				...DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION,

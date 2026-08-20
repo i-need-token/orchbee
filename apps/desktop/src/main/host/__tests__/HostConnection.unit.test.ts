@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import {
 	ClientIdSchema,
 	AttachmentIdSchema,
+	CanonicalUint64TextSchema,
 	CURRENT_PROTOCOL_VERSION,
 	decodeControlJson,
 	decodeProtocolEnvelope,
@@ -20,6 +21,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { HostConnection, type HostEnvelopeListener } from '../HostConnection';
 
 const currentProtocol = CURRENT_PROTOCOL_VERSION;
+const capabilityRevision = CanonicalUint64TextSchema.parse('1');
 
 function createControlledHostStream(highWaterMark: number) {
 	const blockedWriteCallbacks: Array<(error?: Error | null) => void> = [];
@@ -550,13 +552,18 @@ describe('HostConnection', () => {
 		const submitLargeInput = () =>
 			connection.requestInput(MessageKind.textInput, {
 				attachmentId,
+				capabilityRevision,
 				text: 'x'.repeat(PROTOCOL_LIMITS.maxInputBytes),
 			});
 		const submitControl = () => connection.requestControlEnvelope(MessageKind.ping, {});
 		const requests = [
 			submitLargeInput(),
 			submitControl(),
-			connection.requestInput(MessageKind.focusInput, { attachmentId, focused: true }),
+			connection.requestInput(MessageKind.focusInput, {
+				attachmentId,
+				capabilityRevision,
+				focused: true,
+			}),
 		];
 
 		try {
@@ -613,12 +620,14 @@ describe('HostConnection', () => {
 		const submitFromFirstCaller = () =>
 			byteControlled.connection.requestInput(MessageKind.textInput, {
 				attachmentId,
+				capabilityRevision,
 				text: maximumText,
 			});
 		const submitFromSecondCaller = () =>
 			byteControlled.connection.requestInput(MessageKind.pasteInput, {
 				attachmentId,
 				bracketed: false,
+				capabilityRevision,
 				text: maximumText,
 			});
 		const byteRequests = [
@@ -655,6 +664,7 @@ describe('HostConnection', () => {
 					? recordControlled.connection.requestControlEnvelope(MessageKind.ping, {})
 					: recordControlled.connection.requestInput(MessageKind.focusInput, {
 							attachmentId,
+							capabilityRevision,
 							focused: true,
 						}),
 		);
@@ -690,6 +700,7 @@ describe('HostConnection', () => {
 				controlled.connection.requestControlEnvelope(MessageKind.ping, {}),
 				controlled.connection.requestInput(MessageKind.textInput, {
 					attachmentId,
+					capabilityRevision,
 					text: 'x'.repeat(PROTOCOL_LIMITS.maxInputBytes),
 				}),
 			];
@@ -789,6 +800,7 @@ describe('HostConnection', () => {
 			const write = vi.spyOn(controlled.stream, 'write');
 			const handedOff = controlled.connection.requestInput(MessageKind.textInput, {
 				attachmentId,
+				capabilityRevision,
 				text: 'x'.repeat(PROTOCOL_LIMITS.maxInputBytes),
 			});
 			const handedOffOutcome = handedOff.catch((error: unknown) => error);
@@ -801,6 +813,7 @@ describe('HostConnection', () => {
 							? controlled.connection.requestControlEnvelope(MessageKind.ping, {})
 							: controlled.connection.requestInput(MessageKind.focusInput, {
 									attachmentId,
+									capabilityRevision,
 									focused: true,
 								}),
 					),

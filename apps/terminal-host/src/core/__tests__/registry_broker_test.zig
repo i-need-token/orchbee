@@ -745,3 +745,80 @@ test "exact attachment replay survives phase change but new runtime authority do
     try std.testing.expectEqual(@as(usize, 1), core.attachmentCount());
     try expectCoreInvariants(&core);
 }
+
+test "attachment input capability revisions reject stale replay and preserve attach identity" {
+    var core = HostCore.init(std.testing.allocator, testId(HostEpoch, 1));
+    defer core.deinit();
+    const connection: ConnectionId = 2;
+    const terminal_id = testId(TerminalId, 3);
+    const attachment_id = testId(AttachmentId, 4);
+    const capabilities: Capabilities = .{
+        .input = true,
+        .read = true,
+        .resize = false,
+    };
+    _ = try core.connect(connection, testId(ClientId, 5));
+    _ = try createModel(
+        &core,
+        connection,
+        testId(CreationId, 6),
+        terminal_id,
+        [_]u8{7} ** 32,
+        80,
+        24,
+    );
+    _ = try core.attach(connection, attachment_id, terminal_id, capabilities, false);
+    try std.testing.expectEqual(@as(u64, 1), core.findAttachment(attachment_id).?.capability_revision);
+
+    try std.testing.expectEqual(
+        subject.CapabilityUpdateAdmission.apply,
+        try core.validateAttachmentInputCapabilityUpdate(connection, attachment_id, 2, false),
+    );
+    core.commitAttachmentInputCapabilityUpdate(attachment_id, 2, false);
+    const downgraded = core.findAttachment(attachment_id).?;
+    try std.testing.expect(!downgraded.capabilities.input);
+    try std.testing.expectEqual(@as(u64, 2), downgraded.capability_revision);
+    try std.testing.expectError(
+        error.StaleCapabilityRevision,
+        core.authorizeInput(connection, attachment_id, 1),
+    );
+    try std.testing.expectError(
+        error.CapabilityUnavailable,
+        core.authorizeInput(connection, attachment_id, 2),
+    );
+
+    try std.testing.expectEqual(
+        subject.CapabilityUpdateAdmission.replay,
+        try core.validateAttachmentInputCapabilityUpdate(connection, attachment_id, 2, false),
+    );
+    try std.testing.expectError(
+        error.CapabilityRevisionConflict,
+        core.validateAttachmentInputCapabilityUpdate(connection, attachment_id, 2, true),
+    );
+    try std.testing.expectError(
+        error.StaleCapabilityRevision,
+        core.validateAttachmentInputCapabilityUpdate(connection, attachment_id, 1, true),
+    );
+    try std.testing.expectError(
+        error.StaleCapabilityRevision,
+        core.validateAttachmentInputCapabilityUpdate(connection, attachment_id, 4, true),
+    );
+
+    try std.testing.expectEqual(
+        subject.CapabilityUpdateAdmission.apply,
+        try core.validateAttachmentInputCapabilityUpdate(connection, attachment_id, 3, true),
+    );
+    core.commitAttachmentInputCapabilityUpdate(attachment_id, 3, true);
+    _ = try core.authorizeInput(connection, attachment_id, 3);
+    try std.testing.expectError(
+        error.StaleCapabilityRevision,
+        core.validateAttachmentInputCapabilityUpdate(connection, attachment_id, 2, false),
+    );
+    try std.testing.expectEqual(
+        .idempotent,
+        try core.attach(connection, attachment_id, terminal_id, capabilities, false),
+    );
+    try std.testing.expect(core.findAttachment(attachment_id).?.capabilities.input);
+    try std.testing.expectEqual(@as(u64, 3), core.findAttachment(attachment_id).?.capability_revision);
+    try expectCoreInvariants(&core);
+}

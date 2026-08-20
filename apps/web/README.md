@@ -54,6 +54,9 @@ Mounting a projected renderer never moves DOM focus. Workbench retains the activ
 pointer activation, an explicit terminal focus request, and find-surface close are the only adapter
 paths that move focus into the hidden terminal input. The projected root contains both that input and
 its find surface, so moving between them does not publish a terminal focus transition.
+Each attachment publishes only its own focus claim and projection demand. Terminal Host combines
+eligible claims for a shared terminal, so one attachment losing focus or visibility cannot emit a
+terminal-wide `FocusOut` while another eligible claim remains; reactivation requires a fresh claim.
 Opening that find surface seeds an empty or retained query from the bounded preview of an active
 Host selection when one is available; search-owned active ranges remain authoritative Host
 selections rather than a second application selection model.
@@ -73,6 +76,39 @@ multiline input, controls that will be replaced, and an embedded bracketed-paste
 publishes nothing; approval sends the sanitized text together with the mode that was reviewed, while
 Terminal Host rejects a mode change before encoding or queue admission.
 
+Each projected surface registers the Workbench-owned minimal terminal Action catalog into the
+viewport's application runtime and scope: Copy, Paste, Select All, Find, Find Next, Find Previous,
+Scroll to Bottom, Clear, and Reset. Availability is synchronous and remains authoritative when a
+prepared invocation executes. Paste reads text only through an injected client capability and then
+reuses the same terminal paste sanitation and review path. Every execution settles with a typed
+Action result; completed, unchanged, blocked, and failed outcomes that need perceivable feedback
+use the shared localized terminal status surface. These immediate terminal Actions add no
+confirmation step. An unavailable or unbound Apple Command shortcut remains native instead of
+being suppressed.
+
+The stable headed Canvas 2D witnesses `terminal-parity/IN-09-action-scope`,
+`terminal-parity/IN-11-context`, and `terminal-parity/IN-12-actions` compose the production
+projected surface with its real containing Workbench runtime. They assert claimed/unclaimed and
+available/unavailable shortcut handling, application-mouse ownership, exact pinned context and
+stale-link rejection, the complete minimal catalog, synchronous availability, typed outcomes, no
+new confirmation, and both `en-US` and `zh-CN` feedback. Their clipboard and external-open effects
+are captured; they do not claim an operating-system menu, clipboard, or URL handler.
+
+The projected attachment stream can replace input authority live only after its environment owner
+commits an exact next capability revision in Terminal Host. The shared renderer immediately makes
+the existing textarea read-only, invalidates composition, native settlement, paste review, held
+key/mouse/focus state, and recalculates terminal Action availability from the live terminal. Find,
+history, selection, copy, retained output, and approved links remain available. A later upgrade
+admits only future input carrying the new revision; it does not replay pre-downgrade DOM or queued
+work. Electron and Gateway use the same renderer contract, and no renderer command can request its
+own upgrade.
+
+The stable headed Canvas 2D `terminal-parity/IN-10-read-only` witness controls exact attachment
+capability revisions and observes immediate local repair, retained search/selection/history/copy,
+zero stale input commands, and only fresh upgraded input. Terminal Host's owner-local tests prove
+the authoritative rejection and repair ordering; this Browser fixture does not grant a renderer
+capability mutation or claim native permission behavior.
+
 Desktop file drop is an optional capability of that same surface, not a browser filesystem API.
 The Desktop adapter may resolve only user-supplied disk `File` objects to backing paths. The
 deterministic file-drop policy accepts at most 32 absolute POSIX paths, preserves their order, quotes
@@ -85,6 +121,15 @@ unavailable active attachment publish nothing; approval publishes only the revie
 an Enter key. Browser and Gateway clients receive no backing-path capability, and Windows remains
 unsupported until the active shell dialect has an equally bounded quoting contract.
 
+The stable headed `terminal-parity/IN-08-drop` witness uses a real Electron `File` and backing-path
+bridge on the current POSIX Desktop platform. It observes exact single-word quoting in mandatory
+Paste Review, cancellation without terminal input, approval without command execution, and
+execution only after a separate explicit Enter. Owner-local tests cover the 32-file and
+4,096-code-point bounds, order, quotes, Unicode, paste-unsafe controls, missing or malformed bridge
+values, unsupported platforms, stale preparation, and Gateway capability absence. The witness does
+not claim Windows support, Browser/LAN path access, directory enumeration, file-content reads,
+uploads, or filesystem-link activation.
+
 The packaged `orchbee:` origin and Electron User-Agent token select Desktop mode. The User-Agent is adapter discovery for loopback development, never authentication; Desktop authority still arrives only through the validated sandboxed bootstrap. The explicit `?orchbee-runtime=gateway` marker selects an authenticated process-lifetime Gateway client on loopback or an explicitly enabled trusted LAN. An ordinary HTTP(S) browser origin selects Browser Preview. Gateway port, version, and lifetime capability must appear exactly once in the fragment. Invalid, duplicate, or incomplete values fail closed without falling back.
 
 ## Navigation
@@ -95,13 +140,19 @@ All three compositions use one TanStack Browser Router and the same path contrac
 
 The common Settings action opens an application-owned full-window overlay rather than navigating to another route. The Workbench subtree becomes inert, but its React tree and every projected terminal attachment remain mounted. Client-local application theme, terminal font, effective default terminal colors, and default-background opacity apply immediately and persist as one strict versioned record for the current browser origin. On macOS Desktop, a separate strict local record selects whether neither, left, right, or both Option keys act as terminal Alt; the default is off and accepted changes update every mounted projected terminal without replacing its attachment. Eight frequent Workbench and focused-terminal shortcuts use a separate strict local override record; accepted changes update the mounted Workbench and every projected terminal without replacing an attachment or connection. Standard defaults reserve unshifted terminal control sequences, while runtime Action availability remains authoritative before any key is consumed. Application theme remains separate from terminal display theme, and terminal overrides never mutate Host metadata, palette, cursor, VT, or OSC state. Local Desktop additionally injects a semantic shell-profile control. Its explicit editor can create, rename, select a system or custom executable, preserve literal argument order, select the default, delete, and confirm reset; every accepted change affects only terminals created after the Main-owned catalog commits. Gateway and Browser compositions receive no profile capability. Shell integration is manual-only: Settings shows exact shipped Zsh, Bash, and Fish source commands, never edits startup files, and owns a separate default-off device-local completion-reminder policy whose notifications never include command text. A paste-only Ghostty migration dry-run reports lossless current targets, manual-review cases, ignored keys, and invalid lines without reading files, applying values, or persisting source text. The Remote development category is another read-only projection: it explains the `xterm-256color` baseline, exposes one constant shell diagnostic, distinguishes observed environment and terminfo outcomes, and states that Orchbee does not silently forward extra environment variables or modify the remote host. Opening, searching, or switching to this category starts no process, writes no terminal input, and persists no remote data. Desktop also injects a semantic Browser-access entry without exposing Electron ports or controllers to the generic Settings module. See [`docs/terminal-settings.md`](docs/terminal-settings.md) and [`docs/keyboard-shortcuts.md`](docs/keyboard-shortcuts.md).
 
+The exact headed `terminal-parity/SU-09-theme` witness holds a prepared Host result and its
+revision-tagged frame before one release, then observes the terminal defaults, palette, cursor,
+overlays, pixels, and application surface publish one matching revision. It uses the controlled
+runtime-presentation Canvas fixture and does not claim a persisted settings migration, a native
+operating-system theme event, or a renderer-owned terminal palette.
+
 ## Local development preview
 
 `pnpm web` renders the Workbench shell with its localized sidebar, standalone terminal context, Project and Workspace navigation, and per-tab Panel workspace. The browser composition creates one `ActionRuntime` and one in-memory `WorkbenchProjectWorkspaceRuntime`. It starts with only the standalone Terminal context. A person can create an in-memory Project by entering a folder path; the Project add control first preserves the common creation menu, then `Select Folder…` opens the browser-only path entry in place of a native picker. The browser uses that path as the initial Project Folder and terminal CWD without claiming that the path exists. `New Folder…` remains visible but disabled because the composition performs no filesystem, Git, PTY, or durable-storage effect.
 
 The composition also owns locale and shortcut-platform setup. Electron Desktop injects its native existing-Folder acquisition capability into this same application; `Select Folder…` therefore opens the operating-system picker and the Project manager's `Add Folder` uses the same capability without rendering a manual path field. Ordinary Browser Preview and authenticated Gateway pages receive no native port and retain manual path entry. New Folder and Git worktree management remain absent until an environment adapter owns their effects. An ordinary HTTP(S) URL without the Gateway marker remains the in-memory Preview and does not connect to Desktop Main. A capability-bearing URL opened or copied by Desktop Main creates a fresh page session and Client View over the same canonical Workbench document and terminal presentations as Electron and every other authenticated page. Closing that page releases only its attachments; reopening the URL creates a fresh session and full projection snapshots.
 
-Gateway selection copy obtains bounded UTF-8 selection bytes from Terminal Host and commits them with the Browser Clipboard API. Automatic and manual copy attempts share one localized surface-level completion or failure announcement after the owning clipboard effect resolves; copy feedback does not depend on the find surface being open. Gateway links use a local Browser effect restricted to `http`, `https`, and `mailto`; the page receives no Electron Main effect capability. Electron continues to use its Main-owned clipboard and external-link effects.
+Gateway selection copy obtains bounded UTF-8 selection bytes from Terminal Host and may commit them with the Browser Clipboard API. Every write dynamically resolves the current API and requires both `window.isSecureContext` and active transient `navigator.userActivation`; Copy Action availability consumes the same live check, and the final effect repeats it after the Host round trip. A missing API, expired activation, insecure context, capability-probe failure, or rejected write fails closed with one bounded localized surface result. The Browser path performs no retry, `execCommand`, server relay, hidden downgrade, clipboard read, or image-byte read. The current insecure-LAN composition installs no manual-copy presentation, so it exposes no privileged copy path and keeps Copy unavailable; a future reviewed manual-copy presentation must remain an explicit non-Clipboard interaction. Automatic and manual admitted copy attempts share one localized surface-level completion or failure announcement after the owning clipboard effect resolves; copy feedback does not depend on the find surface being open. Gateway links use a local Browser effect restricted to `http`, `https`, and `mailto`; automatic detection, projected hover/context, Workbench Action availability, and this final effect all consume the terminal package's one normalization policy. The page receives no Electron Main effect capability. Electron continues to use its Main-owned clipboard and independently revalidates the same narrow schemes at its privileged boundary.
 
 An OSC 52 write never shares the selection-copy fast path. The active projected surface shows a
 localized modal with the complete bounded UTF-8 text and byte count, and performs exactly one
@@ -111,16 +162,42 @@ while a Gateway Browser acknowledges Main only after its own local Clipboard API
 Escape, attachment
 replacement, terminal retirement, and renderer disposal reject it. Paste review and clipboard-write
 review are serialized so two security dialogs cannot stack; request text and decisions never enter
-browser storage or the shared Workbench document. A Bell produces only a short tokenized visual
-surface cue, while the current OBTF progress sample produces a quiet bottom-edge determinate or
-indeterminate indicator. Both respect reduced motion and neither requests focus, audio, or a system
-notification.
+browser storage or the shared Workbench document. Each attachment Bell reports the opaque terminal
+identity and Host sequence to the Workbench-lifetime coordinator. Only the first admitted delivery
+for that terminal sequence produces the short tokenized visual surface cue; duplicate, stale,
+reconnected, and replayed deliveries produce no effect, including when distinct attachment streams
+interleave. Optional sound and operating-system notification callbacks are separate explicit
+application opt-ins, are absent by default, and fail independently after admission. Neither effect
+requests focus. The current OBTF progress sample remains a quiet bottom-edge determinate or
+indeterminate indicator, and both visual presentations respect reduced motion.
 
-Terminal link hover reads only generation/revision-pinned Host rows. A modifier-assisted click is
-accepted only after the projected terminal revalidates the exact OSC 8 or detected URL cell, then
-the shared Workbench Action applies the `http`/`https`/`mailto` allowlist before selecting the
-Browser-local or Electron Main-owned effect. The Host-projected hyperlink is data, never an effect
-capability.
+Terminal link hover reads only generation/revision-pinned Host rows. When application mouse
+tracking owns the surface, ordinary context intent stays terminal-owned; Shift explicitly returns
+that intent to the product. The projected surface captures only the link target and its exact
+generation, revision, link epoch, row, and column when the Workbench menu opens. The prepared
+Workbench Action applies the `http`/`https`/`mailto` allowlist and revalidates that complete context
+immediately before selecting the Browser-local or Electron Main-owned effect. A changed context
+settles as a localized blocked result without opening the stale target. Modifier-assisted direct
+click uses the same request and revalidation path. The Host-projected hyperlink is data, never an
+effect capability.
+
+The headed Canvas 2D witnesses `terminal-parity/FS-05-file-links` and
+`terminal-parity/FS-06-url-policy` compose the production projected surface, Workbench Action, and
+Browser effect. They prove that `http`, `https`, and `mailto` alone expose hover, context, and direct
+activation, while automatic FTP text, unsupported explicit metadata, explicit file metadata,
+detected paths, and a direct file-effect request remain inactive. The controlled fixture uses
+synthetic generation-pinned Host row windows and a captured Browser opener; it does not exercise an
+operating-system URL handler or claim filesystem existence.
+
+The headed Canvas 2D witness `terminal-parity/LC-05-lan-capability` composes the production
+projected surface, Workbench Copy Action, Host-selection-content path, and Browser effect. On the
+loopback test origin it observes the real Chromium secure-context and transient-user-activation
+signals: no activation disables Copy without a Host request, while a trusted click admits one Host
+request and one captured plain-text writer call. It then proves that one rejected writer receives no
+retry, and that dynamically missing and controlled insecure capabilities disable the Action, invoke
+neither Host export nor writer, and retain localized feedback. The fixture captures rather than
+mutates the operating-system clipboard and controls the capability-loss and insecure-context probes;
+it does not claim browser permission-UI behavior or LAN transport security.
 
 Browser-owned request and presentation identifiers use `crypto.getRandomValues`, which remains available on the explicitly accepted HTTP LAN-preview origin. Runtime code does not depend on the secure-context-only `crypto.randomUUID` API.
 

@@ -35,6 +35,7 @@ pub const CreateCommitError = contracts.CreateCommitError;
 pub const StartPrepareError = contracts.StartPrepareError;
 pub const StartCommitError = contracts.StartCommitError;
 pub const AttachError = contracts.AttachError;
+pub const CapabilityUpdateError = contracts.CapabilityUpdateError;
 pub const DisposeError = contracts.DisposeError;
 pub const DisposeResult = contracts.DisposeResult;
 pub const TerminationError = contracts.TerminationError;

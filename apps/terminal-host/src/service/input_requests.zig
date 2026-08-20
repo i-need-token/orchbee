@@ -79,6 +79,7 @@ const Handler = struct {
         var preparation = self.context.runtime_aggregate.prepareRawInput(
             connection_id,
             attachment_id,
+            input.capability_revision,
             input.bytes,
         );
         defer preparation.deinit();
@@ -96,6 +97,7 @@ const Handler = struct {
             .accepted => |committed| {
                 std.debug.assert(committed.attachment_id.eql(accepted.attachment_id));
                 std.debug.assert(committed.byte_count == accepted.byte_count);
+                std.debug.assert(committed.capability_revision == accepted.capability_revision);
                 _ = response.commitControlSuccess(self.success, &output);
             },
             .runtime_rejected => |err| {
@@ -106,7 +108,8 @@ const Handler = struct {
                     .retryable = failure.retryable,
                 });
             },
-            .core_rejected, .runtime_missing => unreachable,
+            .core_rejected => |err| response.commitFailure(host_failure.fromCore(err)),
+            .runtime_missing => unreachable,
         }
     }
 
@@ -136,6 +139,7 @@ const Handler = struct {
         var preparation = self.context.runtime_aggregate.prepareSemanticInput(
             connection_id,
             attachment_id,
+            decoded.capability_revision,
             decoded.input,
             negotiated_bytes,
         );
@@ -154,6 +158,7 @@ const Handler = struct {
             .accepted => |committed| {
                 std.debug.assert(committed.attachment_id.eql(accepted.attachment_id));
                 std.debug.assert(committed.byte_count == accepted.byte_count);
+                std.debug.assert(committed.capability_revision == accepted.capability_revision);
                 _ = response.commitControlSuccess(self.success, &output);
             },
             .runtime_rejected => |err| {
@@ -164,7 +169,8 @@ const Handler = struct {
                     .retryable = failure.retryable,
                 });
             },
-            .core_rejected, .runtime_missing => unreachable,
+            .core_rejected => |err| response.commitFailure(host_failure.fromCore(err)),
+            .runtime_missing => unreachable,
         }
     }
 };

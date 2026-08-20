@@ -112,8 +112,10 @@ fn sameTerminal(expected: Terminal, actual: composition.TerminalObservation) boo
 
 fn sameAttachment(expected: Attachment, actual: composition.AttachmentObservation) bool {
     return expected.admission_sequence == actual.admission_sequence and
+        expected.admitted_capabilities == actual.admitted_capabilities and
         expected.attachment_id.eql(actual.attachment_id) and
         expected.capabilities == actual.capabilities and
+        expected.capability_revision == actual.capability_revision and
         expected.demand == actual.projection.demand() and
         expected.request_resize_lease == actual.requested_resize_lease and
         expected.resize_lease == actual.resize_lease and

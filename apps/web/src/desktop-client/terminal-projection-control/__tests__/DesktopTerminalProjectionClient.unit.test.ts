@@ -10,6 +10,7 @@ const bootstrap = {
 	attachmentId: '11'.repeat(16),
 	canInput: true,
 	canResize: true,
+	capabilityRevision: '1',
 	creationId: '22'.repeat(16),
 	hostEpoch: '33'.repeat(16),
 	terminalId: '44'.repeat(16),

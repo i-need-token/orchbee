@@ -292,20 +292,21 @@ test "input admission identifies its failing owner without retaining Core credit
         false,
     );
 
-    switch (aggregate.acceptRawInput(connection_id, attachment_id, "x")) {
+    switch (aggregate.acceptRawInput(connection_id, attachment_id, 1, "x")) {
         .runtime_missing => {},
         else => return error.ExpectedMissingRuntime,
     }
     switch (aggregate.acceptSemanticInput(
         connection_id,
         attachment_id,
+        1,
         .{ .text = .{ .text = "x" } },
         1024,
     )) {
         .runtime_missing => {},
         else => return error.ExpectedMissingRuntime,
     }
-    switch (aggregate.acceptRawInput(connection_id + 1, attachment_id, "x")) {
+    switch (aggregate.acceptRawInput(connection_id + 1, attachment_id, 1, "x")) {
         .core_rejected => |err| try std.testing.expectEqual(error.MissingConnection, err),
         else => return error.ExpectedCoreRejection,
     }
@@ -364,6 +365,7 @@ test "discarding prepared input releases the engine-owned queue reservation" {
     var input_preparation = aggregate.prepareRawInput(
         connection_id,
         attachment_id,
+        1,
         "abc",
     );
     try std.testing.expect(input_preparation.accepted() != null);
@@ -384,6 +386,102 @@ test "discarding prepared input releases the engine-owned queue reservation" {
         runtime.setHistoryDemand(attachment_id, .viewing_history),
     );
     _ = aggregate.disconnect(connection_id);
+}
+test "prepared input rejects a replacement attachment incarnation" {
+    var aggregate = subject.HostRuntimeAggregate.init(std.testing.allocator);
+    defer aggregate.deinitChecked(true) catch unreachable;
+    const connection_id: core_module.ConnectionId = 1;
+    const attachment_id = testId(core_module.AttachmentId, 0xa3);
+    _ = try aggregate.core().connect(
+        connection_id,
+        testId(core_module.ClientId, 0xa4),
+    );
+
+    const first_validated = try validatedLongRunningLaunch();
+    var first_preparation = try aggregate.prepareCreateTerminal(
+        connection_id,
+        testId(core_module.CreationId, 0xa5),
+        first_validated,
+    );
+    defer first_preparation.deinit();
+    const first_terminal_id = switch (try aggregate.commitPreparedTerminal(&first_preparation)) {
+        .created => |identity| identity.terminal_id,
+        .replayed => return error.ExpectedCreatedTerminal,
+    };
+
+    const second_validated = try validatedLongRunningLaunch();
+    var second_preparation = try aggregate.prepareCreateTerminal(
+        connection_id,
+        testId(core_module.CreationId, 0xa6),
+        second_validated,
+    );
+    defer second_preparation.deinit();
+    const second_terminal_id = switch (try aggregate.commitPreparedTerminal(&second_preparation)) {
+        .created => |identity| identity.terminal_id,
+        .replayed => return error.ExpectedCreatedTerminal,
+    };
+
+    _ = try aggregate.attach(
+        connection_id,
+        attachment_id,
+        first_terminal_id,
+        .{ .input = true, .read = false, .resize = false },
+        false,
+    );
+    const first_runtime = aggregate.runtimeFor(first_terminal_id).?;
+    const second_runtime = aggregate.runtimeFor(second_terminal_id).?;
+
+    var semantic_preparation = aggregate.prepareSemanticInput(
+        connection_id,
+        attachment_id,
+        1,
+        .{ .text = .{ .text = "same" } },
+        std.math.maxInt(usize),
+    );
+    defer semantic_preparation.deinit();
+    try std.testing.expect(semantic_preparation.accepted() != null);
+    try std.testing.expectEqual(@as(usize, 4), first_runtime.pendingInputBytes());
+    _ = try aggregate.detach(connection_id, attachment_id);
+    _ = try aggregate.attach(
+        connection_id,
+        attachment_id,
+        first_terminal_id,
+        .{ .input = true, .read = false, .resize = false },
+        false,
+    );
+    switch (semantic_preparation.commit()) {
+        .core_rejected => |err| try std.testing.expectEqual(error.MissingResource, err),
+        .accepted, .runtime_missing, .runtime_rejected => return error.ExpectedCoreRejection,
+    }
+    try std.testing.expectEqual(@as(usize, 0), first_runtime.pendingInputBytes());
+
+    var input_preparation = aggregate.prepareRawInput(
+        connection_id,
+        attachment_id,
+        1,
+        "stale",
+    );
+    defer input_preparation.deinit();
+    try std.testing.expect(input_preparation.accepted() != null);
+    try std.testing.expectEqual(@as(usize, 5), first_runtime.pendingInputBytes());
+
+    _ = try aggregate.detach(connection_id, attachment_id);
+    _ = try aggregate.attach(
+        connection_id,
+        attachment_id,
+        second_terminal_id,
+        .{ .input = true, .read = false, .resize = false },
+        false,
+    );
+    switch (input_preparation.commit()) {
+        .core_rejected => |err| try std.testing.expectEqual(error.MissingResource, err),
+        .accepted, .runtime_missing, .runtime_rejected => return error.ExpectedCoreRejection,
+    }
+    try std.testing.expectEqual(@as(usize, 0), first_runtime.pendingInputBytes());
+    try std.testing.expectEqual(@as(usize, 0), second_runtime.pendingInputBytes());
+    try std.testing.expect(
+        aggregate.core().findAttachment(attachment_id).?.terminal_id.eql(second_terminal_id),
+    );
 }
 test "unsafe resize failure is retained as an observable disposable terminal" {
     const builtin = @import("builtin");

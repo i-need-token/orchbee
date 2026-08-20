@@ -5,7 +5,7 @@
 | Status          | Current wire-contract and codec authority; this package implements no lifecycle state machine, PTY, IPC listener, renderer, Electron, recovery, or network behavior      |
 | Wire owner      | `@orchbee/terminal-protocol`                                                                                                                                             |
 | Native consumer | `apps/terminal-host` consumes declared schemas and fixture exports for bounded native dispatch and Zig conformance                                                       |
-| Reference scope | Exact protocol `0.0.14`; OBTF format `0.0.3`; OBPB and OBRW format `0.0.2`; OBKG format `0.0.1`; input/selection codecs; failure vocabulary; bounds; and pinned fixtures |
+| Reference scope | Exact protocol `0.0.16`; OBTF format `0.0.3`; OBPB and OBRW format `0.0.2`; OBKG format `0.0.1`; input/selection codecs; failure vocabulary; bounds; and pinned fixtures |
 | Change rule     | A changed field, message meaning, wire byte, bound, or fixture updates this record, both language implementations, every producer/consumer, and evidence                 |
 
 ## Modeling record
@@ -40,7 +40,7 @@ identity and are rejected where an identity is required.
 | `TerminalThemeOperationId` | Application-created idempotency identity for one terminal-theme compare-and-set operation                                        |
 | `CorrelationId`            | Required on every request and response after `Hello`; all-zero envelope bytes mean absence only for handshake messages or events |
 
-The current protocol version is exactly `0.0.14`. `Hello`, `HelloAccepted`, and every transport
+The current protocol version is exactly `0.0.16`. `Hello`, `HelloAccepted`, and every transport
 envelope carry that exact version. A different major, minor, or patch is rejected; this pre-release
 contract contains no negotiated range, compatibility mode, or historical message shape. Packed
 OBTF frame format is exactly `0.0.3`; OBPB projection-buffer and OBRW row-window formats are exactly
@@ -153,9 +153,10 @@ and preserves its correlation.
 | `TerminateTerminal`               | Target `TerminalId`                                                                                                                                                                                                                                                                                  |
 | `ForceTerminateTerminal`          | Target `TerminalId`                                                                                                                                                                                                                                                                                  |
 | `DisposeTerminal`                 | Target `TerminalId`                                                                                                                                                                                                                                                                                  |
-| `AttachTerminal`                  | Attachment and terminal identities, granted input/read/resize capabilities, and resize-lease fact                                                                                                                                                                                                    |
+| `AttachTerminal`                  | Attachment and terminal identities, granted input/read/resize capabilities, initial capability revision `1`, and resize-lease fact                                                                                                                                                                   |
 | `DetachTerminal`                  | Target `AttachmentId`                                                                                                                                                                                                                                                                                |
-| raw or semantic input             | Attachment identity and encoded terminal-byte count committed to ordered ingress                                                                                                                                                                                                                     |
+| `UpdateAttachmentInputCapability` | Attachment and terminal identities, complete current capabilities, current positive capability revision, and resize-lease fact                                                                                                                                                                       |
+| raw or semantic input             | Attachment identity, exact capability revision, and encoded terminal-byte count committed to ordered ingress                                                                                                                                                                                         |
 | `ResizeTerminal`                  | Attachment identity, accepted canonical cell/pixel geometry, and resulting revision                                                                                                                                                                                                                  |
 | `ClearTerminal` / `ResetTerminal` | Attachment and terminal identities, exact operation, and resulting revision/generation                                                                                                                                                                                                               |
 | projection demand                 | Attachment identity plus accepted `active` or `paused` demand                                                                                                                                                                                                                                        |
@@ -237,29 +238,39 @@ screen without resetting modes. Reset performs Ghostty's full reset and returns 
 screen. `TerminalControlAccepted` returns the attachment, resolved terminal, exact operation, and
 resulting generation/revision. A lost response is an unknown result and does not authorize replay.
 
-`WriteInput` is a raw-byte payload containing exactly 16 non-zero `AttachmentId` bytes followed by
-one to the negotiated `inputBytes` terminal bytes. The hard terminal-byte maximum is 1 MiB, so the
-largest raw payload is 1 MiB plus 16 bytes. The attachment resolves the terminal and input
-capability; `TerminalId` never appears in this payload. `InputAccepted` means the complete terminal
-byte suffix was committed once to the ordered bounded Host queue. It is queue-admission-only and
-does not promise the bytes have reached the terminal writer, so terminal-generated replies may be
+Every attachment starts with capability revision `1`. `AttachmentCapabilities` reports that
+positive canonical uint64 revision beside the complete current capability value.
+`UpdateAttachmentInputCapability` kind `24` carries the attachment, a positive revision, and the
+next input bit. The Host applies only an exact `current + 1` revision that changes the input bit;
+the exact current revision and value is an idempotent replay. A same-revision different value or a
+next-revision unchanged value is `capability-revision-conflict`; an older revision or gap is
+`stale-capability-revision`. Read and resize capability remain the immutable admitted values in
+this protocol version.
+
+`WriteInput` is a raw-byte payload containing exactly 16 non-zero `AttachmentId` bytes, one
+positive little-endian uint64 capability revision, and then one to the negotiated `inputBytes`
+terminal bytes. The hard terminal-byte maximum is 1 MiB, so the largest raw payload is 1 MiB plus
+24 bytes. The attachment and exact revision resolve current input authority; `TerminalId` never
+appears in this payload. `InputAccepted` echoes the revision and means the complete terminal byte
+suffix was committed once to the ordered bounded Host queue. It is queue-admission-only and does
+not promise the bytes have reached the terminal writer, so terminal-generated replies may be
 delivered ahead of accepted client bytes under the Host's bounded reply-priority policy. A broken
-connection before that
-response leaves the outcome unknown and never authorizes replay.
+connection before that response leaves the outcome unknown and never authorizes replay.
 
 TypeScript producers use `encodeInputRequest`; the message kind selects the raw or semantic binary
 codec. Native consumers route the same registered kinds through one semantic-input decoder, so
 neither side maintains a business-layer kind-to-format table.
 
 `KeyInput`, `TextInput`, `MouseInput`, `FocusInput`, and `PasteInput` are bounded packed payloads
-prefixed by the same attachment identity. They carry browser-normalized semantic intent, not DOM
-objects or preselected escape sequences. `KeyInput` byte `16` carries the key action, while byte
-`17` carries composing in bit `0` and the per-event Option-as-Alt intent in bit `1`. The client
+prefixed by the same 24-byte authority header: the attachment identity followed by its positive
+little-endian uint64 capability revision. They carry browser-normalized semantic intent, not DOM
+objects or preselected escape sequences. `KeyInput` byte `24` carries the key action, while byte
+`25` carries composing in bit `0` and the per-event Option-as-Alt intent in bit `1`. The client
 resolves any left/right macOS preference before publication; Terminal Host applies the intent to
 the authoritative Ghostty encoder modes instead of accepting a client-selected escape sequence.
-`PasteInput` uses a 24-byte header: the first 16 bytes are
-the attachment, byte `16` carries the reviewed bracketed-paste expectation in bit `0`, bytes
-`17-19` are reserved zero, and bytes `20-23` carry the little-endian text byte length. Unknown flag
+`PasteInput` uses a 32-byte header: byte `24` carries the reviewed bracketed-paste expectation in
+bit `0`, bytes `25-27` are reserved zero, and bytes `28-31` carry the little-endian text byte
+length. Unknown flag
 bits or nonzero reserved bytes are rejected. A mouse press or release always identifies its button.
 Mouse motion with no pressed buttons carries a null button; motion with pressed buttons identifies
 one active button that is present in `pressedButtons`, whose bit set describes the complete current
@@ -281,7 +292,7 @@ bytes to the ordered ingress budget.
 | ------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `1-5`   | Connection                                 | `Hello=1`, `HelloAccepted=2`, `ProtocolRejected=3`, `Ping=4`, `TypedFailure=5`                                                                                                                                                                                                                                                                                      |
 | `10-19` | Inventory and lifecycle                    | `ListTerminals=10`, `CreateTerminal=11`, `TerminateTerminal=12`, `DisposeTerminal=13`, `TerminalStarted=14`, `TerminalExited=15`, `StartTerminal=16`, `TerminalStartAccepted=17`, `ForceTerminateTerminal=18`, `TerminalFailed=19`                                                                                                                                  |
-| `20-23` | Attachment                                 | `AttachTerminal=20`, `DetachTerminal=21`, `AttachmentCapabilities=22`, `ResizeLeaseChanged=23`                                                                                                                                                                                                                                                                      |
+| `20-24` | Attachment                                 | `AttachTerminal=20`, `DetachTerminal=21`, `AttachmentCapabilities=22`, `ResizeLeaseChanged=23`, `UpdateAttachmentInputCapability=24`                                                                                                                                                                                                                                |
 | `30-38` | Input and size                             | `WriteInput=30`, `InputAccepted=31`, `ResizeTerminal=32`, `ResizeAccepted=33`, `KeyInput=34`, `TextInput=35`, `MouseInput=36`, `FocusInput=37`, `PasteInput=38`                                                                                                                                                                                                     |
 | `41-56` | Projection and effects                     | `SnapshotFrame=41`, `DeltaFrame=42`, `FrameApplied=43`, `NeedSnapshot=44`, `ReadRows=45`, `RowsSnapshot=46`, `SetProjectionDemand=47`, `ProjectionDemandAccepted=48`, `ProjectionBlocked=49`, `RowsApplied=50`, `SetHistoryDemand=51`, `HistoryDemandAccepted=52`, `HistoryChanged=53`, `HistoryObserved=54`, `TerminalBell=55`, `TerminalClipboardWriteRequest=56` |
 | `60-68` | Selection and export                       | `SelectionGesture=60`, `SelectionCommand=61`, `SelectionChanged=62`, `SelectionExport=63`, `SelectionExportStarted=64`, `SelectionExportChunk=65`, `SelectionExportChunkApplied=66`, `SelectionExportFinished=67`, `SelectionExportCancel=68`                                                                                                                       |
@@ -292,7 +303,7 @@ Initial resize-lease authority is returned by attachment admission; later owners
 attachment-scoped event.
 
 `MESSAGE_CONTRACTS` is the executable TypeScript registry behind this table. Its native mirror is
-checked field-for-field through `control-conformance-v0.0.14.json`. Adding or changing a kind therefore
+checked field-for-field through `control-conformance-v0.0.16.json`. Adding or changing a kind therefore
 requires one atomic protocol change to the registry, native mirror, codecs, fixture, and consumers.
 
 `TerminalBell` is an event-only control record containing `attachmentId` and a positive canonical
@@ -671,10 +682,10 @@ change.
 rectangle mode. It is the non-pointer path for assistive technology and other programmatic
 selection; it does not synthesize click counts, drag thresholds, or pointer gesture state.
 
-`SelectionExport` selects plain, HTML, or VT output and an attachment-local export sequence that
-strictly increases for the attachment lifetime; an export that fails before installation does not
-consume its sequence. The Host first returns `SelectionExportStarted`, then emits at most one raw
-`SelectionExportChunk` in flight. Each
+`SelectionExport` carries the literal `plain` format and an attachment-local export sequence that
+strictly increases for the attachment lifetime; HTML and raw VT are not admitted request or response
+values. An export that fails before installation does not consume its sequence. The Host first
+returns `SelectionExportStarted`, then emits at most one raw `SelectionExportChunk` in flight. Each
 chunk contains the attachment identity, export sequence, monotonic `u32` chunk sequence, final bit,
 and at most 1 MiB of bytes. `SelectionExportChunkApplied` advances only the matching export, so a
 delayed acknowledgement from an earlier export cannot advance a later stream. Completion or explicit
@@ -693,7 +704,7 @@ The handshake may select smaller transport payload bounds. It never raises these
 | Terminals in one inventory page        |                128 |
 | One raw, text, or paste input body     |              1 MiB |
 | One key text                           |              4 KiB |
-| `WriteInput` raw payload               |       1 MiB + 16 B |
+| `WriteInput` raw payload               |       1 MiB + 24 B |
 | Largest semantic input payload         |       1 MiB + 32 B |
 | Pending ordered input per terminal     |              4 MiB |
 | Scrollback configuration per terminal  |    1,000,000,000 B |

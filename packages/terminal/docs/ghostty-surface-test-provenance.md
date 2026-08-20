@@ -43,9 +43,28 @@ Declaration counts are provenance metrics, not user-visible feature percentages.
 | `E-IME`    | `src/input/__tests__/preedit.unit.test.ts` and projected-terminal tests                                                                   |
 | `E-SELECT` | `src/projected/__tests__/projected-terminal.unit.test.ts` and projected renderer tests                                                    |
 | `E-FONT`   | font metrics, glyph constraints, complete Ghostty sprite routing, generated raster/constraint data, shaping, and projected renderer tests |
+| `E-ENV`    | exact headed `terminal-parity/CF-03-visual-environment` system witness and each named visual witness's asserted controls and limits       |
 
 Each declaration below has exactly one disposition. `<unnamed@line>` identifies an unnamed
 upstream test at the pinned commit.
+
+## Controlled visual system environment
+
+The stable headed `terminal-parity/CF-03-visual-environment` witness owns the common synthetic
+Canvas evidence baseline. It registers the repository's product JetBrains Mono and Symbols Nerd
+Font assets through the production application loader, forces Canvas 2D at the renderer capability
+boundary, and asserts an exact `900x500` Chromium viewport, DPR `1`, `en-US` document and browser
+locale, UTC time zone, light color scheme, and reduced-motion preference. The witness waits for the
+font set and requires the selected product text face to be loaded before accepting the rendered
+surface.
+
+Evidence with a deliberate domain difference states and asserts that difference at its named
+witness: the DPR trace changes only device metrics, visibility and smooth-scroll traces control
+their own animation time, real Electron/PTY traces use the mounted native window, and WebGPU tests
+use deterministic owner-local adapters. Assertions compare exact semantic state, geometry,
+ordering, colors, or bytes; there is no screenshot threshold or normalization that may erase a
+semantic difference. This baseline does not claim identical operating-system antialiasing,
+native-monitor transfer, WebGPU driver behavior, another browser engine, or native OS effects.
 
 ## Provisioned product fonts
 
@@ -230,6 +249,15 @@ allowlisted external-link Action and environment-owned effect.
 Explicit OSC 8 ranges retain precedence over detected URL or path text. Application policy still
 limits activation to `http`, `https`, and `mailto`; Host metadata never grants filesystem or generic
 scheme authority.
+
+The headed Canvas 2D witnesses `terminal-parity/FS-05-file-links` and
+`terminal-parity/FS-06-url-policy` feed generation-pinned synthetic Host row windows through the
+production projected surface, Workbench Action, and Browser effect. They observe ordinary
+allowlisted detection plus hover, context, and direct activation; automatic FTP text; unsupported
+explicit OSC 8 metadata; explicit file metadata; and a detected path. File and unsupported targets
+produce no external effect. These witnesses control Browser composition and policy behavior; they
+do not invoke an operating-system URL handler, parse OSC bytes, claim filesystem existence, or add
+file-opening authority.
 
 ## Packed metadata transition
 

@@ -541,9 +541,10 @@ test "real PTY lifecycle survives disconnect and an idempotent create retry" {
     );
 
     const input_text: []const u8 = if (builtin.os.tag == .windows) "orchbee\r\n" else "orchbee\n";
-    var input_payload: [16 + input_text.len]u8 = undefined;
+    var input_payload: [24 + input_text.len]u8 = undefined;
     @memset(input_payload[0..16], 0x44);
-    @memcpy(input_payload[16..], input_text);
+    std.mem.writeInt(u64, input_payload[16..24], 1, .little);
+    @memcpy(input_payload[24..], input_text);
     var input = try testRequest(
         &service,
         &second_connection,

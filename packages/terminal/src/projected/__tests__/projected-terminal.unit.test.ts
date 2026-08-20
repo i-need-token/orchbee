@@ -64,6 +64,7 @@ interface FakeElement {
 	dispatch(type: string, event: Event): void;
 	getAttribute(name: string): string | null;
 	releasePointerCapture(pointerId: number): void;
+	removeAttribute(name: string): void;
 	remove(): void;
 	setPointerCapture(pointerId: number): void;
 }
@@ -127,6 +128,7 @@ function canonicalText(value: string): CanonicalUint64Text {
 
 const hostEpoch = identifier(parseHostEpoch('11111111111111111111111111111111'));
 const attachmentId = identifier(parseAttachmentId('22222222222222222222222222222222'));
+const capabilityRevision = canonicalText('1');
 const creationId = identifier(parseCreationId('33333333333333333333333333333333'));
 const otherCreationId = identifier(parseCreationId('55555555555555555555555555555555'));
 const terminalId = identifier(parseTerminalId('44444444444444444444444444444444'));
@@ -631,6 +633,7 @@ function createFakeBrowser(): FakeBrowser {
 				if (parent) parent.children.splice(parent.children.indexOf(element), 1);
 				element.parentElement = null;
 			},
+			removeAttribute: (name: string) => element.attributes.delete(name),
 			releasePointerCapture: (pointerId: number) => element.capturedPointers.delete(pointerId),
 			removeEventListener: (type: string, listener: EventListener) => {
 				listeners.get(type)?.delete(listener);
@@ -802,7 +805,12 @@ function dispatchComposition(
 	type: 'compositionend' | 'compositionstart' | 'compositionupdate',
 	data: string,
 ): void {
-	input.dispatch(type, { data, type } as unknown as CompositionEvent);
+	input.dispatch(type, {
+		data,
+		preventDefault: () => undefined,
+		stopPropagation: () => undefined,
+		type,
+	} as unknown as CompositionEvent);
 }
 
 function dispatchBeforeInput(
@@ -1064,10 +1072,8 @@ describe('ProjectedTerminal', () => {
 		await vi.advanceTimersByTimeAsync(30);
 
 		expect(
-			commands
-				.filter((command) => command.kind === 'text-input')
-				.map((command) => command.payload.text),
-		).toEqual(['。']);
+			commands.filter((command) => command.kind === 'text-input').map((command) => command.payload),
+		).toEqual([{ attachmentId, capabilityRevision, text: '。' }]);
 		expect(commands.filter((command) => command.kind === 'key-input')).toEqual([]);
 		expect(input.value).toBe('');
 		terminal.dispose();
@@ -5509,7 +5515,7 @@ describe('ProjectedTerminal', () => {
 		);
 		expect(commands.at(-1)).toEqual({
 			kind: 'paste-input',
-			payload: { attachmentId, bracketed: false, text: 'safe' },
+			payload: { attachmentId, bracketed: false, capabilityRevision, text: 'safe' },
 		});
 		await expect(terminal.paste('one\ntwo')).resolves.toEqual(
 			expect.objectContaining({ kind: 'blocked' }),
@@ -5554,7 +5560,7 @@ describe('ProjectedTerminal', () => {
 		]);
 		expect(commands.at(-1)).toEqual({
 			kind: 'paste-input',
-			payload: { attachmentId, bracketed: false, text },
+			payload: { attachmentId, bracketed: false, capabilityRevision, text },
 		});
 		terminal.dispose();
 	});
@@ -5678,7 +5684,7 @@ describe('ProjectedTerminal', () => {
 		});
 		await terminal.open(browser.root);
 		terminal.applyFrame(
-			terminalFrame('snapshot', 1n, 1n, ['a', 'b'], null, [0, 1], 0n, {
+			terminalFrame('snapshot', 1n, 1n, ['a', 'b'], null, [0, 1], 10n, {
 				...interaction,
 				bracketedPaste: true,
 			}),
@@ -5702,6 +5708,7 @@ describe('ProjectedTerminal', () => {
 			payload: {
 				attachmentId,
 				bracketed: true,
+				capabilityRevision,
 				text: 'prefix [201~suffix',
 			},
 		});
@@ -5755,7 +5762,7 @@ describe('ProjectedTerminal', () => {
 		await vi.waitFor(() =>
 			expect(commands.at(-1)).toEqual({
 				kind: 'paste-input',
-				payload: { attachmentId, bracketed: false, text: 'dropped text' },
+				payload: { attachmentId, bracketed: false, capabilityRevision, text: 'dropped text' },
 			}),
 		);
 		expect(preventDropDefault).toHaveBeenCalledOnce();
@@ -5900,7 +5907,7 @@ describe('ProjectedTerminal', () => {
 		});
 		await terminal.open(browser.root);
 		terminal.applyFrame(
-			terminalFrame('snapshot', 1n, 1n, ['a', 'b'], null, [0, 1], 0n, {
+			terminalFrame('snapshot', 1n, 1n, ['a', 'b'], null, [0, 1], 10n, {
 				...interaction,
 				mouseAny: true,
 			}),
@@ -7320,7 +7327,7 @@ describe('ProjectedTerminal', () => {
 		).toEqual([]);
 		expect(
 			accepted.filter((command) => command.kind === 'text-input').map((command) => command.payload),
-		).toEqual([{ attachmentId, text: 'a' }]);
+		).toEqual([{ attachmentId, capabilityRevision, text: 'a' }]);
 		terminal.dispose();
 	});
 
@@ -7941,7 +7948,7 @@ describe('ProjectedTerminal', () => {
 				commands
 					.filter((command) => command.kind === 'focus-input')
 					.map((command) => command.payload),
-			).toEqual([{ attachmentId, focused: true }]);
+			).toEqual([{ attachmentId, capabilityRevision, focused: true }]);
 			input.dispatch('keydown', keyboardEvent('keydown', 'KeyA', 'a', 65));
 
 			const inputCommands = commands.filter(
@@ -7950,7 +7957,7 @@ describe('ProjectedTerminal', () => {
 			expect(inputCommands.map((command) => command.kind)).toEqual(['focus-input', 'key-input']);
 			expect(inputCommands[0]).toEqual({
 				kind: 'focus-input',
-				payload: { attachmentId, focused: true },
+				payload: { attachmentId, capabilityRevision, focused: true },
 			});
 			if (reviewCase === 'rejects after invalidation') {
 				rejectReview?.(new Error('late review failure'));
@@ -8145,6 +8152,262 @@ describe('ProjectedTerminal', () => {
 		readOnly.reset();
 		expect(readOnlyCommands).toHaveLength(0);
 		readOnly.dispose();
+	});
+
+	it('repairs live input ownership on downgrade and admits only fresh revision input after upgrade', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		let reviewSignal: AbortSignal | undefined;
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			capabilityRevision,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			reviewPaste: (_review, signal) => {
+				reviewSignal = signal;
+				return new Promise<boolean>(() => undefined);
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(
+			terminalFrame('snapshot', 1n, 1n, ['a', 'b'], null, [0, 1], 10n, {
+				...interaction,
+				mouseAny: true,
+			}),
+		);
+		const input = terminal.textarea as unknown as FakeElement;
+		const canvas = terminal.canvas as unknown as FakeElement;
+		input.dispatch('focus', { type: 'focus' } as FocusEvent);
+		input.dispatch('keydown', keyboardEvent('keydown', 'KeyA', 'a', 65));
+		canvas.dispatch('pointerdown', pointerEvent('pointerdown', 0, 1, 2, 2, { pointerId: 7 }));
+		input.value = '候选';
+		dispatchComposition(input, 'compositionstart', '候');
+		dispatchComposition(input, 'compositionupdate', '候选');
+		const pendingPaste = terminal.paste('one\ntwo');
+		await vi.waitFor(() => expect(reviewSignal).toBeDefined());
+		expect(canvas.capturedPointers.has(7)).toBe(true);
+		expect(
+			commands.some(
+				(command) => command.kind === 'key-input' && command.payload.action === KeyAction.press,
+			),
+		).toBe(true);
+		expect(
+			commands.some(
+				(command) => command.kind === 'mouse-input' && command.payload.action === MouseAction.press,
+			),
+		).toBe(true);
+
+		expect(
+			terminal.applyInputCapability({
+				attachmentId,
+				capabilityRevision: canonicalText('2'),
+				input: false,
+				terminalId,
+			}),
+		).toEqual({ kind: 'applied' });
+		expect(terminal.canControlTerminal).toBe(false);
+		expect(input.getAttribute('readonly')).toBe('');
+		expect(input.value).toBe('');
+		expect(canvas.capturedPointers.has(7)).toBe(false);
+		expect(reviewSignal?.aborted).toBe(true);
+		await expect(pendingPaste).resolves.toMatchObject({ kind: 'blocked' });
+		const inputCommandCountAfterDowngrade = commands.filter((command) =>
+			['focus-input', 'key-input', 'mouse-input', 'paste-input', 'text-input'].includes(
+				command.kind,
+			),
+		).length;
+
+		input.dispatch('keyup', keyboardEvent('keyup', 'KeyA', 'a', 65));
+		canvas.dispatch('pointerup', pointerEvent('pointerup', 0, 0, 2, 2, { pointerId: 7 }));
+		dispatchComposition(input, 'compositionend', '候选');
+		dispatchBeforeInput(input, '候选', false, 'insertFromComposition');
+		terminal.selectAll();
+		terminal.scrollLines(-1);
+		expect(
+			commands.filter((command) =>
+				['focus-input', 'key-input', 'mouse-input', 'paste-input', 'text-input'].includes(
+					command.kind,
+				),
+			),
+		).toHaveLength(inputCommandCountAfterDowngrade);
+		expect(commands.some((command) => command.kind === 'selection-command')).toBe(true);
+		expect(commands.some((command) => command.kind === 'read-rows')).toBe(true);
+
+		expect(
+			terminal.applyInputCapability({
+				attachmentId,
+				capabilityRevision: canonicalText('3'),
+				input: true,
+				terminalId,
+			}),
+		).toEqual({ kind: 'applied' });
+		expect(terminal.canControlTerminal).toBe(true);
+		expect(input.getAttribute('readonly')).toBeNull();
+		input.dispatch('keydown', keyboardEvent('keydown', 'KeyB', 'b', 66));
+		input.dispatch('keyup', keyboardEvent('keyup', 'KeyB', 'b', 66));
+		expect(
+			commands
+				.filter(
+					(command): command is Extract<ProjectedTerminalCommand, { kind: 'key-input' }> =>
+						command.kind === 'key-input' && command.payload.key === 'KeyB',
+				)
+				.map((command) => command.payload.capabilityRevision),
+		).toEqual(['3', '3']);
+		expect(commands.some((command) => command.kind === 'paste-input')).toBe(false);
+		expect(commands.some((command) => command.kind === 'text-input')).toBe(false);
+		terminal.dispose();
+	});
+
+	it('keeps committed capability history distinct from fail-closed local admission', () => {
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			capabilityRevision,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: { send: () => undefined },
+			terminalId,
+		});
+		const update = (revision: string, input: boolean, updateAttachmentId = attachmentId) =>
+			terminal.applyInputCapability({
+				attachmentId: updateAttachmentId,
+				capabilityRevision: canonicalText(revision),
+				input,
+				terminalId,
+			});
+
+		expect(update('1', true)).toEqual({ kind: 'replayed' });
+		expect(update('2', false)).toEqual({ kind: 'applied' });
+		expect(update('1', true)).toEqual({ kind: 'stale' });
+		expect(update('2', false)).toEqual({ kind: 'replayed' });
+		expect(update('2', true)).toEqual({ kind: 'rejected', reason: 'revision-conflict' });
+		expect(update('3', true)).toEqual({ kind: 'applied' });
+		expect(terminal.canControlTerminal).toBe(true);
+
+		expect(update('5', false)).toEqual({ kind: 'rejected', reason: 'revision-gap' });
+		expect(terminal.canControlTerminal).toBe(false);
+		expect(update('3', true)).toEqual({ kind: 'replayed' });
+		expect(terminal.canControlTerminal).toBe(false);
+		expect(update('4', false)).toEqual({ kind: 'applied' });
+		expect(update('5', true)).toEqual({ kind: 'applied' });
+		expect(terminal.canControlTerminal).toBe(true);
+
+		expect(update('6', false, otherAttachmentId)).toEqual({
+			kind: 'rejected',
+			reason: 'identity-mismatch',
+		});
+		expect(terminal.canControlTerminal).toBe(false);
+		expect(update('5', true)).toEqual({ kind: 'replayed' });
+		expect(terminal.canControlTerminal).toBe(false);
+		expect(update('6', false)).toEqual({ kind: 'applied' });
+		expect(update('7', false)).toEqual({
+			kind: 'rejected',
+			reason: 'revision-conflict',
+		});
+		expect(update('7', true)).toEqual({ kind: 'applied' });
+		expect(terminal.canControlTerminal).toBe(true);
+		expect(update('0', false)).toEqual({ kind: 'rejected', reason: 'invalid-revision' });
+		expect(terminal.canControlTerminal).toBe(false);
+
+		terminal.dispose();
+	});
+
+	it('cancels pending native text settlement at the capability revision boundary', async () => {
+		vi.useFakeTimers();
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		const input = terminal.textarea as unknown as FakeElement;
+		input.dispatch('keydown', keyboardEvent('keydown', 'Digit1', '1', 49));
+		input.value = '1';
+
+		terminal.applyInputCapability({
+			attachmentId,
+			capabilityRevision: canonicalText('2'),
+			input: false,
+			terminalId,
+		});
+		await vi.advanceTimersByTimeAsync(31);
+
+		expect(commands.some((command) => command.kind === 'text-input')).toBe(false);
+		expect(input.value).toBe('');
+		terminal.dispose();
+	});
+
+	it('installs drop admission for an initially read-only attachment that is later upgraded', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			inputEnabled: false,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+
+		terminal.applyInputCapability({
+			attachmentId,
+			capabilityRevision: canonicalText('2'),
+			input: true,
+			terminalId,
+		});
+		(browser.root as unknown as FakeElement).dispatch('drop', {
+			dataTransfer: {
+				files: [],
+				getData: () => 'fresh drop',
+				types: ['text/plain'],
+			},
+			preventDefault: () => undefined,
+			stopPropagation: () => undefined,
+			type: 'drop',
+		} as unknown as DragEvent);
+		await vi.waitFor(() =>
+			expect(commands).toContainEqual({
+				kind: 'paste-input',
+				payload: {
+					attachmentId,
+					bracketed: false,
+					capabilityRevision: '2',
+					text: 'fresh drop',
+				},
+			}),
+		);
+		terminal.dispose();
 	});
 
 	it('makes a natural exit read-only while preserving local output interaction', async () => {
@@ -9767,9 +10030,47 @@ describe('ProjectedTerminal', () => {
 		} as unknown as MouseEvent);
 
 		expect(linkRequests).toHaveBeenCalledWith({
+			context: {
+				column: 0,
+				generation: '1',
+				linkEpoch: '1',
+				revision: '1',
+				row: '0',
+			},
 			target: { kind: 'url', url: 'https://example.com/from-osc-8' },
 		});
 		expect(preventDefault).toHaveBeenCalledOnce();
+		expect(terminal.captureActionContext({ clientX: 2, clientY: 2, shiftKey: false })).toEqual({
+			kind: 'terminal-owned',
+		});
+		const capturedContext = terminal.captureActionContext({
+			clientX: 2,
+			clientY: 2,
+			shiftKey: true,
+		});
+		expect(capturedContext).toEqual({
+			kind: 'product',
+			link: {
+				context: {
+					column: 0,
+					generation: '1',
+					linkEpoch: '1',
+					revision: '1',
+					row: '0',
+				},
+				target: { kind: 'url', url: 'https://example.com/from-osc-8' },
+			},
+		});
+		if (capturedContext.kind !== 'product' || capturedContext.link === null) {
+			throw new Error('Expected a revision-pinned terminal link context.');
+		}
+		expect(terminal.linkOpenRequestIsCurrent(capturedContext.link)).toBe(true);
+		expect(
+			terminal.linkOpenRequestIsCurrent({
+				...capturedContext.link,
+				context: { ...capturedContext.link.context, revision: '2' },
+			}),
+		).toBe(false);
 
 		canvas.dispatch('pointerdown', {
 			...pointerEvent('pointerdown', 0, 1, 2, 2),

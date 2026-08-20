@@ -122,6 +122,29 @@ test "typed decoder rejects zero generation and attachment-local flight sequence
     );
 }
 
+test "selection export decoder admits only the plain product format" {
+    const plain_payload = std.fmt.comptimePrint(
+        "{{\"attachmentId\":\"{s}\",\"exportSequence\":\"1\",\"format\":\"plain\"}}",
+        .{attachment_id},
+    );
+    var plain = try subject.decodeSelectionExport(std.testing.allocator, plain_payload);
+    defer plain.deinit();
+    try std.testing.expectEqual(.plain, plain.value.format);
+
+    inline for (.{ "html", "vt" }) |format| {
+        const unsupported_payload = try std.fmt.allocPrint(
+            std.testing.allocator,
+            "{{\"attachmentId\":\"{s}\",\"exportSequence\":\"1\",\"format\":\"{s}\"}}",
+            .{ attachment_id, format },
+        );
+        defer std.testing.allocator.free(unsupported_payload);
+        try std.testing.expectError(
+            error.InvalidField,
+            subject.decodeSelectionExport(std.testing.allocator, unsupported_payload),
+        );
+    }
+}
+
 test "typed decoder enforces discriminated row origins" {
     const valid_payload = std.fmt.comptimePrint(
         "{{\"attachmentId\":\"{s}\",\"detail\":\"text\",\"generation\":\"1\",\"maximumBytes\":1024,\"origin\":{{\"kind\":\"tail\",\"rowsBefore\":4}},\"purpose\":\"viewport\",\"requestSequence\":\"2\",\"revision\":\"3\",\"rowCount\":12}}",

@@ -1,4 +1,5 @@
 import type {
+	AttachmentCapabilities,
 	TerminalExited,
 	TerminalFailed,
 	TerminalGeometry,
@@ -69,6 +70,7 @@ export interface DesktopTerminalRuntimeComposition {
 		bootstrap: ProjectedAttachmentBootstrap,
 		effectTarget: ProjectedTerminalBrokerEffectTarget,
 		lifecycle?: ProjectedTerminalBrokerLifecycle,
+		initialCapabilities?: AttachmentCapabilities,
 	) => DesktopProjectionBrokerHandle;
 	readonly createMessageChannel: () => {
 		readonly port1: MessagePortMain;

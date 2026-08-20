@@ -4,6 +4,10 @@ import { useMemoizedFn } from '@orchbee/foundation/react';
 import * as React from 'react';
 
 import type { TerminalPresentationId } from '../../../../terminal-presentation';
+import {
+	WorkbenchTerminalBellEffectCoordinator,
+	type WorkbenchTerminalBellEffect,
+} from '../../../model/WorkbenchTerminalBellEffectCoordinator';
 import type { PanelWorkspaceStore } from '../model/PanelWorkspaceStore';
 import {
 	PANEL_ACTION_IDS,
@@ -73,6 +77,9 @@ export function useWorkbenchPanelWorkspace({
 	parentActionScope,
 }: UseWorkbenchPanelWorkspaceOptions): WorkbenchPanelWorkspaceView {
 	const intl = useOrchbeeIntl();
+	const [terminalBellEffectCoordinator] = React.useState(
+		() => new WorkbenchTerminalBellEffectCoordinator(),
+	);
 	const store = panelWorkspaceStore;
 	const state = React.useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
 	const activeTabId = React.useSyncExternalStore(
@@ -89,6 +96,9 @@ export function useWorkbenchPanelWorkspace({
 		ghost: null,
 		previewRoot: null,
 	});
+	const admitTerminalBellEffect = useMemoizedFn((event: WorkbenchTerminalBellEffect): boolean =>
+		terminalBellEffectCoordinator.admit(event),
+	);
 	const activeTab = state.tabs.find((tab) => tab.tabId === activeTabId) ?? null;
 	const panelCount = activeTab === null ? 0 : collectPanelLeaves(activeTab.root).length;
 	const canonicalDisplayedRoot =
@@ -459,6 +469,9 @@ export function useWorkbenchPanelWorkspace({
 	}, [movePanel, panelDragSession]);
 
 	return {
+		actionRuntime,
+		actionScope: panelActions.scope,
+		admitTerminalBellEffect,
 		activateChildTerminal: (
 			panelId,
 			childPresentationId,

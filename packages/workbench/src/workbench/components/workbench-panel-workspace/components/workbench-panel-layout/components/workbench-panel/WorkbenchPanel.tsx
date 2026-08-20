@@ -48,7 +48,9 @@ export function WorkbenchPanel({
 			data-panel-id={panel.id}
 			data-slot='workbench-panel'
 			onFocusCapture={() => view.focusPanel(panel.id, 'programmatic')}
-			onPointerDown={() => view.focusPanel(panel.id, 'pointer')}
+			onPointerDown={(event) => {
+				if (event.button === 0) view.focusPanel(panel.id, 'pointer');
+			}}
 		>
 			{showHeader && <WorkbenchPanelHeader panel={panel} view={view} />}
 			<WorkbenchTerminalViewport

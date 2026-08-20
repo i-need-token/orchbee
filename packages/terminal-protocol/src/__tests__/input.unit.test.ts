@@ -19,13 +19,14 @@ import {
 	KeyAction,
 	MouseAction,
 	MouseButton,
-	WRITE_INPUT_ATTACHMENT_BYTES,
+	WRITE_INPUT_HEADER_BYTES,
 } from '../input';
 import { MessageKind } from '../envelope';
 import { PROTOCOL_LIMITS } from '../limits';
 import { ProtocolErrorCode } from '../protocol-result';
 
 const attachmentId = '22222222222222222222222222222222';
+const capabilityRevision = '7';
 
 const noModifiers = {
 	alt: false,
@@ -42,9 +43,13 @@ const noModifiers = {
 
 describe('input request encoding', () => {
 	it('selects the binary codec from the message kind', () => {
-		expect(encodeInputRequest(MessageKind.focusInput, { attachmentId, focused: true })).toEqual(
-			expect.objectContaining({ ok: true }),
-		);
+		expect(
+			encodeInputRequest(MessageKind.focusInput, {
+				attachmentId,
+				capabilityRevision,
+				focused: true,
+			}),
+		).toEqual(expect.objectContaining({ ok: true }));
 		expect(encodeInputRequest(MessageKind.keyInput, { attachmentId, focused: true })).toEqual(
 			expect.objectContaining({ code: ProtocolErrorCode.invalidField, ok: false }),
 		);
@@ -52,6 +57,7 @@ describe('input request encoding', () => {
 			encodeInputRequest(MessageKind.writeInput, {
 				attachmentId,
 				bytes: new Uint8Array([0x61]),
+				capabilityRevision,
 			}),
 		).toEqual(expect.objectContaining({ ok: true }));
 	});
@@ -66,21 +72,22 @@ describe('input request encoding', () => {
 describe('WriteInput binary payload', () => {
 	it('round-trips an attachment-scoped byte sequence without copying the decoded input', () => {
 		const input = new Uint8Array([0, 0x1b, 0xf0, 0x9f, 0x90, 0x9d]);
-		const encoded = encodeWriteInput({ attachmentId, bytes: input });
+		const encoded = encodeWriteInput({ attachmentId, bytes: input, capabilityRevision });
 		if (!encoded.ok) throw new Error(encoded.detail);
-		expect(encoded.value).toHaveLength(WRITE_INPUT_ATTACHMENT_BYTES + input.byteLength);
+		expect(encoded.value).toHaveLength(WRITE_INPUT_HEADER_BYTES + input.byteLength);
 
 		const decoded = decodeWriteInput(encoded.value);
 		if (!decoded.ok) throw new Error(decoded.detail);
-		expect(decoded.value).toEqual({ attachmentId, bytes: input });
+		expect(decoded.value).toEqual({ attachmentId, bytes: input, capabilityRevision });
+		expect(new DataView(encoded.value.buffer).getBigUint64(16, true)).toBe(7n);
 		expect(decoded.value.bytes.buffer).toBe(encoded.value.buffer);
 	});
 
 	it('rejects missing, zero, and oversized attachment-scoped input', () => {
-		expect(decodeWriteInput(new Uint8Array(WRITE_INPUT_ATTACHMENT_BYTES))).toEqual(
+		expect(decodeWriteInput(new Uint8Array(WRITE_INPUT_HEADER_BYTES))).toEqual(
 			expect.objectContaining({ code: ProtocolErrorCode.truncated, ok: false }),
 		);
-		expect(decodeWriteInput(new Uint8Array(WRITE_INPUT_ATTACHMENT_BYTES + 1))).toEqual(
+		expect(decodeWriteInput(new Uint8Array(WRITE_INPUT_HEADER_BYTES + 1))).toEqual(
 			expect.objectContaining({ code: ProtocolErrorCode.invalidIdentifier, ok: false }),
 		);
 		expect(decodeWriteInput(new Uint8Array(PROTOCOL_LIMITS.maxWriteInputPayloadBytes + 1))).toEqual(
@@ -92,6 +99,7 @@ describe('WriteInput binary payload', () => {
 		const encoded = encodeWriteInput({
 			attachmentId,
 			bytes: new Uint8Array(PROTOCOL_LIMITS.maxInputBytes),
+			capabilityRevision,
 		});
 		if (!encoded.ok) throw new Error(encoded.detail);
 		expect(encoded.value.byteLength).toBe(PROTOCOL_LIMITS.maxWriteInputPayloadBytes);
@@ -103,6 +111,7 @@ describe('semantic terminal input payloads', () => {
 		const input = {
 			action: KeyAction.press,
 			attachmentId,
+			capabilityRevision,
 			composing: false,
 			consumedModifiers: { ...noModifiers, shift: true },
 			key: 'KeyA',
@@ -120,6 +129,7 @@ describe('semantic terminal input payloads', () => {
 		const base = {
 			action: KeyAction.press,
 			attachmentId,
+			capabilityRevision,
 			composing: false,
 			consumedModifiers: noModifiers,
 			key: 'KeyA',
@@ -144,12 +154,12 @@ describe('semantic terminal input payloads', () => {
 		const encoded = encodeKeyInput(base);
 		if (!encoded.ok) throw new Error(encoded.detail);
 		const nonCanonical = encoded.value.slice();
-		new DataView(nonCanonical.buffer).setUint16(18, 1 << 6, true);
+		new DataView(nonCanonical.buffer).setUint16(26, 1 << 6, true);
 		expect(decodeKeyInput(nonCanonical)).toEqual(
 			expect.objectContaining({ code: ProtocolErrorCode.invalidField, ok: false }),
 		);
 		const unknownFlag = encoded.value.slice();
-		unknownFlag[17] = 1 << 2;
+		unknownFlag[25] = 1 << 2;
 		expect(decodeKeyInput(unknownFlag)).toEqual(
 			expect.objectContaining({ code: ProtocolErrorCode.unknownRequiredFlag, ok: false }),
 		);
@@ -159,6 +169,7 @@ describe('semantic terminal input payloads', () => {
 		const encoded = encodeKeyInput({
 			action: KeyAction.press,
 			attachmentId,
+			capabilityRevision,
 			composing: false,
 			consumedModifiers: noModifiers,
 			key: 'KeyA',
@@ -169,7 +180,7 @@ describe('semantic terminal input payloads', () => {
 		});
 		if (!encoded.ok) throw new Error(encoded.detail);
 		const malformed = encoded.value.slice();
-		malformed[32] = 0xff;
+		malformed[40] = 0xff;
 		expect(decodeKeyInput(malformed)).toEqual(
 			expect.objectContaining({ code: ProtocolErrorCode.invalidUtf8, ok: false }),
 		);
@@ -179,6 +190,7 @@ describe('semantic terminal input payloads', () => {
 		const encoded = encodeKeyInput({
 			action: KeyAction.press,
 			attachmentId,
+			capabilityRevision,
 			composing: false,
 			consumedModifiers: noModifiers,
 			key: 'F1',
@@ -190,7 +202,7 @@ describe('semantic terminal input payloads', () => {
 		if (!encoded.ok) throw new Error(encoded.detail);
 		const payload = new Uint8Array(encoded.value.byteLength + 3);
 		payload.set(encoded.value.subarray(0, KEY_INPUT_HEADER_BYTES));
-		new DataView(payload.buffer).setUint16(22, 5, true);
+		new DataView(payload.buffer).setUint16(30, 5, true);
 		payload.set([0xef, 0xbb, 0xbf, 0x46, 0x31], KEY_INPUT_HEADER_BYTES);
 
 		expect(payload.subarray(KEY_INPUT_HEADER_BYTES)).toEqual(
@@ -202,27 +214,33 @@ describe('semantic terminal input payloads', () => {
 	});
 
 	it('keeps committed text separate from approved paste intent', () => {
-		const committed = { attachmentId, text: '中文' };
+		const committed = { attachmentId, capabilityRevision, text: '中文' };
 		const text = encodeTextInput(committed);
-		const pasteValue = { attachmentId, bracketed: true, text: 'line 1\nline 2' };
+		const pasteValue = {
+			attachmentId,
+			bracketed: true,
+			capabilityRevision,
+			text: 'line 1\nline 2',
+		};
 		const paste = encodePasteInput(pasteValue);
 		if (!text.ok) throw new Error(text.detail);
 		if (!paste.ok) throw new Error(paste.detail);
 		expect(decodeTextInput(text.value)).toEqual({ ok: true, value: committed });
-		expect(paste.value.subarray(16, 20)).toEqual(new Uint8Array([1, 0, 0, 0]));
+		expect(paste.value.subarray(24, 28)).toEqual(new Uint8Array([1, 0, 0, 0]));
 		expect(decodePasteInput(paste.value)).toEqual({ ok: true, value: pasteValue });
 		const unknownFlag = paste.value.slice();
-		unknownFlag[16] = 2;
+		unknownFlag[24] = 2;
 		expect(decodePasteInput(unknownFlag)).toEqual(
 			expect.objectContaining({ code: ProtocolErrorCode.unknownRequiredFlag, ok: false }),
 		);
-		expect(encodeTextInput({ attachmentId, text: '\ud800' })).toEqual(
+		expect(encodeTextInput({ attachmentId, capabilityRevision, text: '\ud800' })).toEqual(
 			expect.objectContaining({ code: ProtocolErrorCode.invalidField, ok: false }),
 		);
 		expect(
 			encodeKeyInput({
 				action: KeyAction.press,
 				attachmentId,
+				capabilityRevision,
 				composing: false,
 				consumedModifiers: noModifiers,
 				key: 'KeyA',
@@ -235,7 +253,7 @@ describe('semantic terminal input payloads', () => {
 	});
 
 	it('round-trips an exact leading U+FEFF through text and paste payloads', () => {
-		const value = { attachmentId, text: '\ufeff' };
+		const value = { attachmentId, capabilityRevision, text: '\ufeff' };
 		const pasteValue = { ...value, bracketed: false };
 		const text = encodeTextInput(value);
 		const paste = encodePasteInput(pasteValue);
@@ -252,6 +270,7 @@ describe('semantic terminal input payloads', () => {
 		const input = {
 			action: MouseAction.motion,
 			attachmentId,
+			capabilityRevision,
 			button: MouseButton.left,
 			modifiers: { ...noModifiers, alt: true },
 			pressedButtons: 1,
@@ -268,6 +287,7 @@ describe('semantic terminal input payloads', () => {
 		const input = {
 			action: MouseAction.release,
 			attachmentId,
+			capabilityRevision,
 			button: MouseButton.left,
 			modifiers: noModifiers,
 			pressedButtons: 0,
@@ -283,6 +303,7 @@ describe('semantic terminal input payloads', () => {
 		const encoded = encodeMouseInput({
 			action: MouseAction.motion,
 			attachmentId,
+			capabilityRevision,
 			button: null,
 			modifiers: noModifiers,
 			pressedButtons: 0,
@@ -296,6 +317,7 @@ describe('semantic terminal input payloads', () => {
 		const press = encodeMouseInput({
 			action: MouseAction.press,
 			attachmentId,
+			capabilityRevision,
 			button: null,
 			modifiers: noModifiers,
 			pressedButtons: 0,
@@ -309,6 +331,7 @@ describe('semantic terminal input payloads', () => {
 		const motion = encodeMouseInput({
 			action: MouseAction.motion,
 			attachmentId,
+			capabilityRevision,
 			button: null,
 			modifiers: noModifiers,
 			pressedButtons: 0,
@@ -316,7 +339,7 @@ describe('semantic terminal input payloads', () => {
 			y: 0,
 		});
 		if (!motion.ok) throw new Error(motion.detail);
-		motion.value[16] = 0;
+		motion.value[24] = 0;
 		expect(decodeMouseInput(motion.value)).toEqual(
 			expect.objectContaining({ code: ProtocolErrorCode.invalidField, ok: false }),
 		);
@@ -327,6 +350,7 @@ describe('semantic terminal input payloads', () => {
 			{
 				action: MouseAction.motion,
 				attachmentId,
+				capabilityRevision,
 				button: null,
 				modifiers: noModifiers,
 				pressedButtons: 1,
@@ -336,6 +360,7 @@ describe('semantic terminal input payloads', () => {
 			{
 				action: MouseAction.motion,
 				attachmentId,
+				capabilityRevision,
 				button: MouseButton.left,
 				modifiers: noModifiers,
 				pressedButtons: 0,
@@ -345,6 +370,7 @@ describe('semantic terminal input payloads', () => {
 			{
 				action: MouseAction.motion,
 				attachmentId,
+				capabilityRevision,
 				button: MouseButton.right,
 				modifiers: noModifiers,
 				pressedButtons: 1,
@@ -358,6 +384,7 @@ describe('semantic terminal input payloads', () => {
 		const wheel = encodeMouseInput({
 			action: MouseAction.press,
 			attachmentId,
+			capabilityRevision,
 			button: MouseButton.four,
 			modifiers: noModifiers,
 			pressedButtons: 0,
@@ -368,26 +395,28 @@ describe('semantic terminal input payloads', () => {
 	});
 
 	it('round-trips focus and rejects reserved focus flags', () => {
-		const encoded = encodeFocusInput({ attachmentId, focused: true });
+		const encoded = encodeFocusInput({ attachmentId, capabilityRevision, focused: true });
 		if (!encoded.ok) throw new Error(encoded.detail);
 		expect(decodeFocusInput(encoded.value)).toEqual({
 			ok: true,
-			value: { attachmentId, focused: true },
+			value: { attachmentId, capabilityRevision, focused: true },
 		});
 		const malformed = encoded.value.slice();
-		malformed[17] = 1;
+		malformed[25] = 1;
 		expect(decodeFocusInput(malformed)).toEqual(
 			expect.objectContaining({ code: ProtocolErrorCode.unknownRequiredFlag, ok: false }),
 		);
-		expect(FocusInputSchema.safeParse({ attachmentId, focused: true }).success).toBe(true);
+		expect(
+			FocusInputSchema.safeParse({ attachmentId, capabilityRevision, focused: true }).success,
+		).toBe(true);
 	});
 });
 
 describe('semantic-input rejection parity with the native mirror', () => {
 	const fPlusOneKeyPayload = new Uint8Array([
 		0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
-		0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-		0x46, 0x2b, 0x31,
+		0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46, 0x2b, 0x31,
 	]);
 
 	it('rejects the non-contract F+1 key code as invalid-field', () => {
@@ -397,31 +426,37 @@ describe('semantic-input rejection parity with the native mirror', () => {
 	});
 
 	it('reports length-mismatch for a zero-declared text length with a body', () => {
-		const encoded = encodeTextInput({ attachmentId, text: 'abc' });
+		const encoded = encodeTextInput({ attachmentId, capabilityRevision, text: 'abc' });
 		if (!encoded.ok) throw new Error(encoded.detail);
 		const zeroLength = encoded.value.slice();
-		zeroLength[16] = 0;
-		zeroLength[17] = 0;
-		zeroLength[18] = 0;
-		zeroLength[19] = 0;
+		zeroLength[24] = 0;
+		zeroLength[25] = 0;
+		zeroLength[26] = 0;
+		zeroLength[27] = 0;
 		expect(decodeTextInput(zeroLength)).toEqual(
 			expect.objectContaining({ code: ProtocolErrorCode.lengthMismatch, ok: false }),
 		);
-		const encodedPaste = encodePasteInput({ attachmentId, bracketed: false, text: 'abc' });
+		const encodedPaste = encodePasteInput({
+			attachmentId,
+			bracketed: false,
+			capabilityRevision,
+			text: 'abc',
+		});
 		if (!encodedPaste.ok) throw new Error(encodedPaste.detail);
 		const zeroLengthPaste = encodedPaste.value.slice();
-		zeroLengthPaste[20] = 0;
-		zeroLengthPaste[21] = 0;
-		zeroLengthPaste[22] = 0;
-		zeroLengthPaste[23] = 0;
+		zeroLengthPaste[28] = 0;
+		zeroLengthPaste[29] = 0;
+		zeroLengthPaste[30] = 0;
+		zeroLengthPaste[31] = 0;
 		expect(decodePasteInput(zeroLengthPaste)).toEqual(
 			expect.objectContaining({ code: ProtocolErrorCode.lengthMismatch, ok: false }),
 		);
 	});
 
 	it('rejects a header-only text payload as invalid-field', () => {
-		const headerOnly = new Uint8Array(20);
+		const headerOnly = new Uint8Array(28);
 		headerOnly.set(new Uint8Array(Array.from({ length: 16 }, () => 0x22)));
+		new DataView(headerOnly.buffer).setBigUint64(16, 1n, true);
 		expect(decodeTextInput(headerOnly)).toEqual(
 			expect.objectContaining({ code: ProtocolErrorCode.invalidField, ok: false }),
 		);
@@ -431,6 +466,7 @@ describe('semantic-input rejection parity with the native mirror', () => {
 		const encoded = encodeMouseInput({
 			action: MouseAction.motion,
 			attachmentId,
+			capabilityRevision,
 			button: MouseButton.left,
 			modifiers: { ...noModifiers, alt: true },
 			pressedButtons: 1,
@@ -439,7 +475,7 @@ describe('semantic-input rejection parity with the native mirror', () => {
 		});
 		if (!encoded.ok) throw new Error(encoded.detail);
 		const bit11 = encoded.value.slice();
-		bit11[29] = (bit11[29] ?? 0) | 0x08; // pressed-buttons bit 11 (0x0800)
+		bit11[37] = (bit11[37] ?? 0) | 0x08; // pressed-buttons bit 11 (0x0800)
 		expect(decodeMouseInput(bit11)).toEqual(
 			expect.objectContaining({ code: ProtocolErrorCode.invalidField, ok: false }),
 		);
@@ -449,6 +485,7 @@ describe('semantic-input rejection parity with the native mirror', () => {
 		const encoded = encodeMouseInput({
 			action: MouseAction.motion,
 			attachmentId,
+			capabilityRevision,
 			button: MouseButton.left,
 			modifiers: { ...noModifiers, alt: true },
 			pressedButtons: 1,
@@ -457,13 +494,13 @@ describe('semantic-input rejection parity with the native mirror', () => {
 		});
 		if (!encoded.ok) throw new Error(encoded.detail);
 		const reserved = encoded.value.slice();
-		reserved[30] = 1;
+		reserved[38] = 1;
 		expect(decodeMouseInput(reserved)).toEqual(
 			expect.objectContaining({ code: ProtocolErrorCode.unknownRequiredFlag, ok: false }),
 		);
 		const unknownModifier = encoded.value.slice();
-		unknownModifier[18] = 0x00;
-		unknownModifier[19] = 0x10; // modifier bit 12
+		unknownModifier[26] = 0x00;
+		unknownModifier[27] = 0x10; // modifier bit 12
 		expect(decodeMouseInput(unknownModifier)).toEqual(
 			expect.objectContaining({ code: ProtocolErrorCode.unknownRequiredFlag, ok: false }),
 		);

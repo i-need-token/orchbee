@@ -9,6 +9,8 @@ import {
 	parseAttachmentId,
 } from './identifiers';
 import type { AttachmentId } from './identifiers';
+import { CanonicalUint64TextSchema } from './control';
+import type { CanonicalUint64Text } from './control';
 import { isInputRequestKind, MessageKind } from './envelope';
 import type { MessageKind as MessageKindValue } from './envelope';
 import { PROTOCOL_LIMITS } from './limits';
@@ -16,12 +18,13 @@ import { ProtocolErrorCode, protocolFailure, protocolSuccess } from './protocol-
 import type { ProtocolResult } from './protocol-result';
 import { containsUnpairedSurrogate } from './containsUnpairedSurrogate';
 
-export const WRITE_INPUT_ATTACHMENT_BYTES = IDENTIFIER_BYTE_LENGTH;
-export const KEY_INPUT_HEADER_BYTES = 32;
-export const TEXT_INPUT_HEADER_BYTES = 20;
-export const PASTE_INPUT_HEADER_BYTES = 24;
-export const MOUSE_INPUT_BYTES = 32;
-export const FOCUS_INPUT_BYTES = 20;
+const INPUT_AUTHORITY_HEADER_BYTES = IDENTIFIER_BYTE_LENGTH + 8;
+export const WRITE_INPUT_HEADER_BYTES = INPUT_AUTHORITY_HEADER_BYTES;
+export const KEY_INPUT_HEADER_BYTES = 40;
+export const TEXT_INPUT_HEADER_BYTES = 28;
+export const PASTE_INPUT_HEADER_BYTES = 32;
+export const MOUSE_INPUT_BYTES = 40;
+export const FOCUS_INPUT_BYTES = 28;
 
 const MAX_UNICODE_CODEPOINT = 0x10_ffff;
 const MAX_FLOAT32 = 3.4028234663852886e38;
@@ -31,6 +34,10 @@ const MODIFIER_FLAGS_MASK = 0x03ff;
 const MOUSE_BUTTON_FLAGS_MASK = 0x07ff;
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
+const capabilityRevisionSchema = CanonicalUint64TextSchema.refine(
+	(value) => value !== '0',
+	'Capability revision must be greater than zero',
+);
 
 export const TerminalKeyCode = [
 	'Unidentified',
@@ -341,12 +348,14 @@ export const WriteInputSchema = z.strictObject({
 			(value) => value.byteLength >= 1 && value.byteLength <= PROTOCOL_LIMITS.maxInputBytes,
 			`Input must contain 1 to ${PROTOCOL_LIMITS.maxInputBytes} bytes`,
 		),
+	capabilityRevision: capabilityRevisionSchema,
 });
 
 export const KeyInputSchema = z
 	.strictObject({
 		action: keyActionSchema,
 		attachmentId: AttachmentIdSchema,
+		capabilityRevision: capabilityRevisionSchema,
 		composing: z.boolean(),
 		consumedModifiers: TerminalModifiersSchema,
 		key: keyCodeSchema,
@@ -369,6 +378,7 @@ export const KeyInputSchema = z
 
 const attachmentTextShape = {
 	attachmentId: AttachmentIdSchema,
+	capabilityRevision: capabilityRevisionSchema,
 	text: boundedInputTextSchema,
 } as const;
 
@@ -383,6 +393,7 @@ export const MouseInputSchema = z
 	.strictObject({
 		action: mouseActionSchema,
 		attachmentId: AttachmentIdSchema,
+		capabilityRevision: capabilityRevisionSchema,
 		button: mouseButtonSchema.nullable(),
 		modifiers: TerminalModifiersSchema,
 		pressedButtons: z.number().int().min(0).max(MOUSE_BUTTON_FLAGS_MASK),
@@ -419,6 +430,7 @@ export const MouseInputSchema = z
 
 export const FocusInputSchema = z.strictObject({
 	attachmentId: AttachmentIdSchema,
+	capabilityRevision: capabilityRevisionSchema,
 	focused: z.boolean(),
 });
 
@@ -437,6 +449,7 @@ export type WriteInput = z.infer<typeof WriteInputSchema>;
 export interface DecodedWriteInput {
 	readonly attachmentId: AttachmentId;
 	readonly bytes: Uint8Array;
+	readonly capabilityRevision: CanonicalUint64Text;
 }
 
 function validationFailure(
@@ -453,6 +466,14 @@ function decodeAttachmentId(bytes: Uint8Array): ProtocolResult<AttachmentId> {
 	const identifier = identifierText(bytes);
 	if (!identifier.ok) return identifier;
 	return parseAttachmentId(identifier.value);
+}
+
+function decodeCapabilityRevision(reader: BinaryReader): ProtocolResult<CanonicalUint64Text> {
+	const value = reader.readUint64();
+	if (reader.failure) return reader.failure;
+	const parsed = capabilityRevisionSchema.safeParse(value.toString());
+	if (!parsed.success) return validationFailure('Capability revision', parsed.error.issues);
+	return protocolSuccess(parsed.data);
 }
 
 function keyActionCode(action: KeyAction): number {
@@ -553,10 +574,11 @@ export function encodeWriteInput(value: unknown): ProtocolResult<Uint8Array> {
 	const parsed = WriteInputSchema.safeParse(value);
 	if (!parsed.success) return validationFailure('WriteInput', parsed.error.issues);
 
-	const payload = new Uint8Array(WRITE_INPUT_ATTACHMENT_BYTES + parsed.data.bytes.byteLength);
-	payload.set(identifierBytes(parsed.data.attachmentId));
-	payload.set(parsed.data.bytes, WRITE_INPUT_ATTACHMENT_BYTES);
-	return protocolSuccess(payload);
+	const writer = new BinaryWriter(WRITE_INPUT_HEADER_BYTES + parsed.data.bytes.byteLength);
+	writer.writeBytes(identifierBytes(parsed.data.attachmentId));
+	writer.writeUint64(BigInt(parsed.data.capabilityRevision));
+	writer.writeBytes(parsed.data.bytes);
+	return protocolSuccess(writer.bytes());
 }
 
 /**
@@ -598,7 +620,7 @@ function missingInputRequestCodec(kind: never): ProtocolResult<Uint8Array> {
 }
 
 export function decodeWriteInput(payload: Uint8Array): ProtocolResult<DecodedWriteInput> {
-	if (payload.byteLength <= WRITE_INPUT_ATTACHMENT_BYTES) {
+	if (payload.byteLength <= WRITE_INPUT_HEADER_BYTES) {
 		return protocolFailure(
 			ProtocolErrorCode.truncated,
 			'WriteInput requires an AttachmentId and at least one input byte',
@@ -611,11 +633,15 @@ export function decodeWriteInput(payload: Uint8Array): ProtocolResult<DecodedWri
 		);
 	}
 
-	const attachmentId = decodeAttachmentId(payload.subarray(0, WRITE_INPUT_ATTACHMENT_BYTES));
+	const reader = new BinaryReader(payload);
+	const attachmentId = decodeAttachmentId(reader.readBytes(IDENTIFIER_BYTE_LENGTH));
 	if (!attachmentId.ok) return attachmentId;
+	const capabilityRevision = decodeCapabilityRevision(reader);
+	if (!capabilityRevision.ok) return capabilityRevision;
 	return protocolSuccess({
 		attachmentId: attachmentId.value,
-		bytes: payload.subarray(WRITE_INPUT_ATTACHMENT_BYTES),
+		bytes: payload.subarray(WRITE_INPUT_HEADER_BYTES),
+		capabilityRevision: capabilityRevision.value,
 	});
 }
 
@@ -632,6 +658,7 @@ export function encodeKeyInput(value: unknown): ProtocolResult<Uint8Array> {
 
 	const writer = new BinaryWriter(totalLength.value);
 	writer.writeBytes(identifierBytes(parsed.data.attachmentId));
+	writer.writeUint64(BigInt(parsed.data.capabilityRevision));
 	writer.writeUint8(keyActionCode(parsed.data.action));
 	writer.writeUint8((parsed.data.composing ? 1 : 0) | (parsed.data.optionAsAlt ? 1 << 1 : 0));
 	writer.writeUint16(encodeModifiers(parsed.data.modifiers));
@@ -654,6 +681,8 @@ export function decodeKeyInput(payload: Uint8Array): ProtocolResult<KeyInput> {
 	const reader = new BinaryReader(payload);
 	const attachmentId = decodeAttachmentId(reader.readBytes(IDENTIFIER_BYTE_LENGTH));
 	if (!attachmentId.ok) return attachmentId;
+	const capabilityRevision = decodeCapabilityRevision(reader);
+	if (!capabilityRevision.ok) return capabilityRevision;
 	const action = keyActionFromCode(reader.readUint8());
 	if (!action.ok) return action;
 	const flags = reader.readUint8();
@@ -686,6 +715,7 @@ export function decodeKeyInput(payload: Uint8Array): ProtocolResult<KeyInput> {
 	const parsed = KeyInputSchema.safeParse({
 		action: action.value,
 		attachmentId: attachmentId.value,
+		capabilityRevision: capabilityRevision.value,
 		composing: (flags & 1) !== 0,
 		consumedModifiers: consumedModifiers.value,
 		key: key.data,
@@ -708,6 +738,7 @@ function encodeTextPayload(
 	const textBytes = textEncoder.encode(parsed.data.text);
 	const writer = new BinaryWriter(TEXT_INPUT_HEADER_BYTES + textBytes.byteLength);
 	writer.writeBytes(identifierBytes(parsed.data.attachmentId));
+	writer.writeUint64(BigInt(parsed.data.capabilityRevision));
 	writer.writeUint32(textBytes.byteLength);
 	writer.writeBytes(textBytes);
 	return protocolSuccess(writer.bytes());
@@ -727,6 +758,8 @@ function decodeTextPayload(
 	const reader = new BinaryReader(payload);
 	const attachmentId = decodeAttachmentId(reader.readBytes(IDENTIFIER_BYTE_LENGTH));
 	if (!attachmentId.ok) return attachmentId;
+	const capabilityRevision = decodeCapabilityRevision(reader);
+	if (!capabilityRevision.ok) return capabilityRevision;
 	const textLength = reader.readUint32();
 	if (reader.failure) return reader.failure;
 	if (textLength !== payload.byteLength - TEXT_INPUT_HEADER_BYTES) {
@@ -737,7 +770,11 @@ function decodeTextPayload(
 	}
 	const text = decodeUtf8(reader.readBytes(textLength), `${name} text`);
 	if (!text.ok) return text;
-	const parsed = schema.safeParse({ attachmentId: attachmentId.value, text: text.value });
+	const parsed = schema.safeParse({
+		attachmentId: attachmentId.value,
+		capabilityRevision: capabilityRevision.value,
+		text: text.value,
+	});
 	if (!parsed.success) return validationFailure(name, parsed.error.issues);
 	return protocolSuccess(parsed.data);
 }
@@ -756,6 +793,7 @@ export function encodePasteInput(value: unknown): ProtocolResult<Uint8Array> {
 	const textBytes = textEncoder.encode(parsed.data.text);
 	const writer = new BinaryWriter(PASTE_INPUT_HEADER_BYTES + textBytes.byteLength);
 	writer.writeBytes(identifierBytes(parsed.data.attachmentId));
+	writer.writeUint64(BigInt(parsed.data.capabilityRevision));
 	writer.writeUint8(parsed.data.bracketed ? 1 : 0);
 	writer.writeUint8(0);
 	writer.writeUint16(0);
@@ -774,6 +812,8 @@ export function decodePasteInput(payload: Uint8Array): ProtocolResult<PasteInput
 	const reader = new BinaryReader(payload);
 	const attachmentId = decodeAttachmentId(reader.readBytes(IDENTIFIER_BYTE_LENGTH));
 	if (!attachmentId.ok) return attachmentId;
+	const capabilityRevision = decodeCapabilityRevision(reader);
+	if (!capabilityRevision.ok) return capabilityRevision;
 	const flags = reader.readUint8();
 	const reservedByte = reader.readUint8();
 	const reservedWord = reader.readUint16();
@@ -793,6 +833,7 @@ export function decodePasteInput(payload: Uint8Array): ProtocolResult<PasteInput
 	const parsed = PasteInputSchema.safeParse({
 		attachmentId: attachmentId.value,
 		bracketed: (flags & 1) !== 0,
+		capabilityRevision: capabilityRevision.value,
 		text: text.value,
 	});
 	if (!parsed.success) return validationFailure('PasteInput', parsed.error.issues);
@@ -804,6 +845,7 @@ export function encodeMouseInput(value: unknown): ProtocolResult<Uint8Array> {
 	if (!parsed.success) return validationFailure('MouseInput', parsed.error.issues);
 	const writer = new BinaryWriter(MOUSE_INPUT_BYTES);
 	writer.writeBytes(identifierBytes(parsed.data.attachmentId));
+	writer.writeUint64(BigInt(parsed.data.capabilityRevision));
 	writer.writeUint8(mouseActionCode(parsed.data.action));
 	writer.writeUint8(parsed.data.button ?? 0);
 	writer.writeUint16(encodeModifiers(parsed.data.modifiers));
@@ -826,6 +868,8 @@ export function decodeMouseInput(payload: Uint8Array): ProtocolResult<MouseInput
 	const reader = new BinaryReader(payload);
 	const attachmentId = decodeAttachmentId(reader.readBytes(IDENTIFIER_BYTE_LENGTH));
 	if (!attachmentId.ok) return attachmentId;
+	const capabilityRevision = decodeCapabilityRevision(reader);
+	if (!capabilityRevision.ok) return capabilityRevision;
 	const action = mouseActionFromCode(reader.readUint8());
 	if (!action.ok) return action;
 	const buttonCode = reader.readUint8();
@@ -843,6 +887,7 @@ export function decodeMouseInput(payload: Uint8Array): ProtocolResult<MouseInput
 		action: action.value,
 		attachmentId: attachmentId.value,
 		button: buttonCode === 0 ? null : buttonCode,
+		capabilityRevision: capabilityRevision.value,
 		modifiers: modifiers.value,
 		pressedButtons,
 		x,
@@ -857,6 +902,7 @@ export function encodeFocusInput(value: unknown): ProtocolResult<Uint8Array> {
 	if (!parsed.success) return validationFailure('FocusInput', parsed.error.issues);
 	const writer = new BinaryWriter(FOCUS_INPUT_BYTES);
 	writer.writeBytes(identifierBytes(parsed.data.attachmentId));
+	writer.writeUint64(BigInt(parsed.data.capabilityRevision));
 	writer.writeUint8(parsed.data.focused ? 1 : 0);
 	writer.writeBytes(new Uint8Array(3));
 	return protocolSuccess(writer.bytes());
@@ -871,16 +917,25 @@ export function decodeFocusInput(payload: Uint8Array): ProtocolResult<FocusInput
 			`FocusInput must be exactly ${FOCUS_INPUT_BYTES} bytes`,
 		);
 	}
-	const attachmentId = decodeAttachmentId(payload.subarray(0, IDENTIFIER_BYTE_LENGTH));
+	const reader = new BinaryReader(payload);
+	const attachmentId = decodeAttachmentId(reader.readBytes(IDENTIFIER_BYTE_LENGTH));
 	if (!attachmentId.ok) return attachmentId;
-	const focused = payload[IDENTIFIER_BYTE_LENGTH];
+	const capabilityRevision = decodeCapabilityRevision(reader);
+	if (!capabilityRevision.ok) return capabilityRevision;
+	const focused = reader.readUint8();
+	const reserved = reader.readBytes(3);
+	if (reader.failure) return reader.failure;
 	if (
 		(focused !== 0 && focused !== 1) ||
-		payload[IDENTIFIER_BYTE_LENGTH + 1] !== 0 ||
-		payload[IDENTIFIER_BYTE_LENGTH + 2] !== 0 ||
-		payload[IDENTIFIER_BYTE_LENGTH + 3] !== 0
+		reserved[0] !== 0 ||
+		reserved[1] !== 0 ||
+		reserved[2] !== 0
 	) {
 		return protocolFailure(ProtocolErrorCode.unknownRequiredFlag, 'FocusInput has invalid flags');
 	}
-	return protocolSuccess({ attachmentId: attachmentId.value, focused: focused === 1 });
+	return protocolSuccess({
+		attachmentId: attachmentId.value,
+		capabilityRevision: capabilityRevision.value,
+		focused: focused === 1,
+	});
 }

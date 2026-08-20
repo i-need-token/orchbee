@@ -8,6 +8,7 @@ const AttachmentDetach = contracts.AttachmentDetach;
 const AttachmentId = contracts.AttachmentId;
 const BellDeliveryToken = contracts.BellDeliveryToken;
 const Capabilities = contracts.Capabilities;
+const CapabilityUpdateAdmission = contracts.CapabilityUpdateAdmission;
 const ConnectionId = contracts.ConnectionId;
 const CoreError = contracts.CoreError;
 const RequiredCapability = contracts.RequiredCapability;
@@ -153,11 +154,75 @@ pub fn authorizeInput(
     self: anytype,
     connection_id: ConnectionId,
     attachment_id: AttachmentId,
+    capability_revision: u64,
+) CoreError!*const Attachment {
+    if (!storage.connected(self, connection_id)) return error.MissingConnection;
+    const attachment = storage.mutableAttachment(self, attachment_id) orelse
+        return error.MissingResource;
+    if (attachment.capability_revision != capability_revision) {
+        return error.StaleCapabilityRevision;
+    }
+    if (!attachment.capabilities.input) return error.CapabilityUnavailable;
+    const terminal = try storage.requireTerminal(self, attachment.terminal_id);
+    if (!terminal.acceptsRuntimeWork()) return error.InvalidPhase;
+    return attachment;
+}
+
+/// Authorizes an attachment-scoped terminal control against the current
+/// capability state. Raw and semantic PTY input must instead carry and prove
+/// the exact capability revision through `authorizeInput`.
+pub fn authorizeCurrentInput(
+    self: anytype,
+    connection_id: ConnectionId,
+    attachment_id: AttachmentId,
 ) CoreError!*const Attachment {
     const attachment = try self.resolveAttachment(connection_id, attachment_id, .input);
     const terminal = try storage.requireTerminal(self, attachment.terminal_id);
     if (!terminal.acceptsRuntimeWork()) return error.InvalidPhase;
     return attachment;
+}
+
+pub fn validateAttachmentInputCapabilityUpdate(
+    self: anytype,
+    connection_id: ConnectionId,
+    attachment_id: AttachmentId,
+    capability_revision: u64,
+    input: bool,
+) CoreError!CapabilityUpdateAdmission {
+    if (!storage.connected(self, connection_id)) return error.MissingConnection;
+    const attachment = storage.mutableAttachment(self, attachment_id) orelse
+        return error.MissingResource;
+    if (capability_revision == attachment.capability_revision) {
+        return if (input == attachment.capabilities.input)
+            .replay
+        else
+            error.CapabilityRevisionConflict;
+    }
+    if (attachment.capability_revision == std.math.maxInt(u64) or
+        capability_revision != attachment.capability_revision + 1)
+    {
+        return error.StaleCapabilityRevision;
+    }
+    if (input == attachment.capabilities.input) return error.CapabilityRevisionConflict;
+    if (input) {
+        const terminal = try storage.requireTerminal(self, attachment.terminal_id);
+        if (!terminal.acceptsRuntimeWork()) return error.InvalidPhase;
+    }
+    return .apply;
+}
+
+pub fn commitAttachmentInputCapabilityUpdate(
+    self: anytype,
+    attachment_id: AttachmentId,
+    capability_revision: u64,
+    input: bool,
+) void {
+    const attachment = storage.rawAttachment(self, attachment_id) orelse unreachable;
+    std.debug.assert(attachment.capability_revision < std.math.maxInt(u64));
+    std.debug.assert(capability_revision == attachment.capability_revision + 1);
+    std.debug.assert(input != attachment.capabilities.input);
+    attachment.capabilities.input = input;
+    attachment.capability_revision = capability_revision;
 }
 
 pub fn resize(

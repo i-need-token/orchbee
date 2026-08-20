@@ -19,6 +19,7 @@ import {
 	TerminalExitedSchema,
 	TerminalFailedSchema,
 	type DecodedProtocolEnvelope,
+	type AttachmentCapabilities,
 	type TerminalExited,
 	type TerminalFailed,
 	type TerminalGeometry,
@@ -117,6 +118,7 @@ import { startsDesktopRendererDocument } from './startsDesktopRendererDocument';
 interface DesktopBrokerHandle {
 	readonly metrics: ProjectedTerminalBrokerMetrics;
 	dispose(): Promise<void>;
+	setInputCapability(input: boolean): Promise<void>;
 	start(): void;
 }
 
@@ -202,6 +204,7 @@ export interface DesktopApplicationDependencies {
 		bootstrap: ProjectedAttachmentBootstrap,
 		effectTarget: ProjectedTerminalBrokerEffectTarget,
 		lifecycle?: ProjectedTerminalBrokerLifecycle,
+		initialCapabilities?: AttachmentCapabilities,
 	) => DesktopBrokerHandle;
 	readonly createApplicationLifetimeBroker: (
 		port: MessagePortMain,
@@ -284,8 +287,16 @@ const defaultDependencies: DesktopApplicationDependencies = {
 			runtimeDirectory: configuration.runtimeDirectory,
 			terminalDefaults: configuration.terminalConfiguration,
 		}).connect(),
-	createBroker: (host, port, bootstrap, effectTarget, lifecycle) =>
-		new ProjectedTerminalBroker(host, port, bootstrap, undefined, effectTarget, lifecycle),
+	createBroker: (host, port, bootstrap, effectTarget, lifecycle, initialCapabilities) =>
+		new ProjectedTerminalBroker(
+			host,
+			port,
+			bootstrap,
+			undefined,
+			effectTarget,
+			lifecycle,
+			initialCapabilities,
+		),
 	createApplicationLifetimeBroker: (port, dependencies) =>
 		new DesktopApplicationLifetimeBroker(port, dependencies),
 	createBrowserAccessBroker: (port, runtime) => new DesktopBrowserAccessBroker(port, runtime),

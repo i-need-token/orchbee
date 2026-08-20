@@ -11,6 +11,7 @@ import {
 	StartTerminalSchema,
 	TerminalStartAcceptedSchema,
 	type AttachmentId,
+	type AttachmentCapabilities,
 	type ExitResult,
 	type ProcessObservation,
 	type RuntimeFailure,
@@ -36,6 +37,7 @@ import type { DesktopTerminalProjectionTarget } from '../terminal-document-contr
 export interface DesktopProjectionBrokerHandle {
 	readonly metrics: ProjectedTerminalBrokerMetrics;
 	dispose(): Promise<void>;
+	setInputCapability(input: boolean): Promise<void>;
 	start(): void;
 }
 
@@ -44,6 +46,7 @@ export interface DesktopTerminalProjectionLease {
 	readonly metrics: ProjectedTerminalBrokerMetrics;
 	readonly rendererPort: MessagePortMain;
 	dispose(): Promise<void>;
+	setInputCapability(input: boolean): Promise<void>;
 }
 
 export interface DesktopTerminalProjectionOpenOptions {
@@ -57,6 +60,7 @@ export interface DesktopTerminalProjectionServiceDependencies {
 		bootstrap: ProjectedAttachmentBootstrap,
 		effectTarget: ProjectedTerminalBrokerEffectTarget,
 		lifecycle?: ProjectedTerminalBrokerLifecycle,
+		initialCapabilities?: AttachmentCapabilities,
 	) => DesktopProjectionBrokerHandle;
 	readonly createMessageChannel: () => {
 		readonly port1: MessagePortMain;
@@ -91,6 +95,7 @@ interface ActiveLease {
 	readonly dispose: () => Promise<void>;
 	readonly metrics: ProjectedTerminalBrokerMetrics;
 	readonly performDispose: () => Promise<void>;
+	readonly setInputCapability: (input: boolean) => Promise<void>;
 	ownsResize: boolean;
 }
 
@@ -241,6 +246,7 @@ export class DesktopTerminalProjectionService {
 				attachmentId,
 				canInput: capabilities.capabilities.input,
 				canResize: capabilities.resizeLease,
+				capabilityRevision: capabilities.capabilityRevision,
 				creationId: target.identity.creationId,
 				hostEpoch: target.identity.hostEpoch,
 				terminalId: target.identity.terminalId,
@@ -271,6 +277,7 @@ export class DesktopTerminalProjectionService {
 						}
 					},
 				},
+				capabilities,
 			);
 			broker = createdBroker;
 			let disposalCompleted = false;
@@ -306,6 +313,16 @@ export class DesktopTerminalProjectionService {
 				},
 				ownsResize: bootstrap.canResize,
 				performDispose,
+				setInputCapability: (input) =>
+					this.#enqueueOperation(presentationId, async () => {
+						if (
+							disposalCompleted ||
+							this.#isGenerationStale(presentationId, retirementGeneration)
+						) {
+							throw projectionError('terminal-projection-unavailable', true);
+						}
+						await createdBroker.setInputCapability(input);
+					}),
 			};
 			const leases = this.#activeLeases.get(presentationId) ?? new Set<ActiveLease>();
 			leases.add(activeLease);
@@ -331,6 +348,7 @@ export class DesktopTerminalProjectionService {
 					return createdBroker.metrics;
 				},
 				rendererPort: channel.port1,
+				setInputCapability: activeLease.setInputCapability,
 			};
 		} catch (error: unknown) {
 			let finalError = error;

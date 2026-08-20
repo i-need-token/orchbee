@@ -6,6 +6,7 @@ const terminal_runtime = @import("terminal-host-engine").runtime;
 pub const AcceptedInput = struct {
     attachment_id: core_module.AttachmentId,
     byte_count: usize,
+    capability_revision: u64,
 };
 
 /// Closed semantic reasons why the engine can reject an input reservation or
@@ -46,7 +47,11 @@ pub const Admission = union(enum) {
 
 const Pending = struct {
     accepted: AcceptedInput,
+    attachment_admission_sequence: u64,
+    connection_id: core_module.ConnectionId,
+    core_state: *core_module.HostCore,
     runtime_input: terminal_runtime.PreparedInput,
+    terminal_id: core_module.TerminalId,
 };
 
 /// Owns one provisional engine queue reservation until its exact success reply
@@ -60,15 +65,25 @@ pub const Preparation = union(enum) {
     consumed,
 
     pub fn initPrepared(
+        core_state: *core_module.HostCore,
+        connection_id: core_module.ConnectionId,
         attachment_id: core_module.AttachmentId,
+        capability_revision: u64,
+        attachment_admission_sequence: u64,
+        terminal_id: core_module.TerminalId,
         runtime_input: terminal_runtime.PreparedInput,
     ) Preparation {
         return .{ .prepared = .{
             .accepted = .{
                 .attachment_id = attachment_id,
                 .byte_count = runtime_input.byteCount(),
+                .capability_revision = capability_revision,
             },
+            .attachment_admission_sequence = attachment_admission_sequence,
+            .connection_id = connection_id,
+            .core_state = core_state,
             .runtime_input = runtime_input,
+            .terminal_id = terminal_id,
         } };
     }
 
@@ -95,6 +110,22 @@ pub const Preparation = union(enum) {
         return switch (self.*) {
             .prepared => |*pending| blk: {
                 const accepted_input = pending.accepted;
+                const attachment = pending.core_state.authorizeInput(
+                    pending.connection_id,
+                    accepted_input.attachment_id,
+                    accepted_input.capability_revision,
+                ) catch |err| {
+                    pending.runtime_input.deinit();
+                    self.* = .consumed;
+                    break :blk .{ .core_rejected = err };
+                };
+                if (attachment.admission_sequence != pending.attachment_admission_sequence or
+                    !attachment.terminal_id.eql(pending.terminal_id))
+                {
+                    pending.runtime_input.deinit();
+                    self.* = .consumed;
+                    break :blk .{ .core_rejected = error.MissingResource };
+                }
                 const byte_count = pending.runtime_input.commit() catch |err| {
                     self.* = .consumed;
                     break :blk .{ .runtime_rejected = fromRuntimeError(err) };

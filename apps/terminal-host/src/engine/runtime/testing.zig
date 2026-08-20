@@ -7,6 +7,7 @@ const terminal_theme = @import("terminal-host-model").theme;
 const contracts = @import("contracts.zig");
 const state = @import("state.zig");
 const handle = @import("handle.zig");
+const attachment_input_admission_ops = @import("attachment_input_admission.zig");
 const creation_ops = @import("creation.zig");
 const lifecycle_ops = @import("lifecycle.zig");
 const completion_ops = @import("completion.zig");
@@ -23,6 +24,7 @@ pub const testing = if (builtin.is_test) struct {
     pub const InputQueueSnapshot = struct {
         client_charge: contracts.InputCharge,
         entry_count: usize,
+        focused_attachment_count: usize,
         input_attachment_count: usize,
         published_client_entries: usize,
         repair_charge: contracts.InputCharge,
@@ -55,6 +57,7 @@ pub const testing = if (builtin.is_test) struct {
         DuplicateHistoryAttachment,
         FailedCompletionWithoutFence,
         FailureFenceWithoutWriterStop,
+        FocusOwnershipMismatch,
         HistoryFlightAttachmentMismatch,
         HistoryFlightSequenceInvalid,
         HistorySelectionCountMismatch,
@@ -185,10 +188,20 @@ pub const testing = if (builtin.is_test) struct {
         runtime: *handle.TerminalRuntime,
         attachment_id: contracts.AttachmentId,
     ) bool {
-        return input_admission_ops.hasAttachmentInputOwnership(
+        return attachment_input_admission_ops.hasOwnership(
             handle.stateFrom(runtime),
             attachment_id,
         );
+    }
+
+    pub fn attachmentFocusClaim(
+        runtime: *handle.TerminalRuntime,
+        attachment_id: contracts.AttachmentId,
+    ) bool {
+        const runtime_state = handle.stateFrom(runtime);
+        runtime_state.input_mutex.lock();
+        defer runtime_state.input_mutex.unlock();
+        return runtime_state.input_ownership.attachmentFocused(attachment_id);
     }
 
     pub fn inputQueueSnapshot(runtime: *handle.TerminalRuntime) InputQueueSnapshot {
@@ -198,6 +211,7 @@ pub const testing = if (builtin.is_test) struct {
         return .{
             .client_charge = runtime_state.input_queue.charge(.client),
             .entry_count = runtime_state.input_queue.entryCount(),
+            .focused_attachment_count = runtime_state.input_ownership.focusedCount(),
             .input_attachment_count = runtime_state.input_ownership.attachments.count(),
             .published_client_entries = runtime_state.input_queue.publishedCount(.client),
             .repair_charge = runtime_state.input_ownership.repairCharge(),
@@ -267,6 +281,12 @@ pub const testing = if (builtin.is_test) struct {
             contracts.max_pending_client_input_entries -| observation.input.client_charge.entries)
         {
             return error.RepairChargeEntryOverflow;
+        }
+        if (!runtime_state.input_ownership.invariantHolds() or
+            observation.input.focused_attachment_count >
+                observation.input.input_attachment_count)
+        {
+            return error.FocusOwnershipMismatch;
         }
         if (observation.failure_fenced and !observation.writer_stop) {
             return error.FailureFenceWithoutWriterStop;
@@ -376,6 +396,7 @@ pub const testing = if (builtin.is_test) struct {
             .input = .{
                 .client_charge = client_charge,
                 .entry_count = runtime_state.input_queue.entryCount(),
+                .focused_attachment_count = runtime_state.input_ownership.focusedCount(),
                 .input_attachment_count = runtime_state.input_ownership.attachments.count(),
                 .published_client_entries = runtime_state.input_queue.publishedCount(.client),
                 .repair_charge = runtime_state.input_ownership.repairCharge(),

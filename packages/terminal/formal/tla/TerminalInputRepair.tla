@@ -1,7 +1,7 @@
 --------------------------- MODULE TerminalInputRepair ---------------------------
 EXTENDS Naturals, FiniteSets
 
-CONSTANT Scenario
+CONSTANTS Scenario, MaxCapabilityRevision
 
 CompositionPhases == {"idle", "eligible", "cancelled-awaiting-end"}
 SettlementStates == {"none", "awaiting-native-end", "beforeinput-observed", "awaiting-beforeinput"}
@@ -82,7 +82,27 @@ InputActions == {
     "end-cancelled-composition"
 }
 
+HostInputAttemptActions == {
+    "stage-input-continuation",
+    "publish-beforeinput-eligible",
+    "publish-beforeinput-idle",
+    "publish-composition-end",
+    "begin-key-press-send",
+    "begin-key-release-send",
+    "begin-mouse-press-send",
+    "begin-mouse-release-send",
+    "begin-focus-send",
+    "begin-focus-reconciliation",
+    "begin-stateless-send",
+    "begin-queued-send",
+    "begin-repair-key-send",
+    "begin-repair-mouse-send",
+    "begin-repair-focus-send"
+}
+
 VARIABLES
+    inputEnabled,
+    capabilityRevision,
     phase,
     settlement,
     preeditPublished,
@@ -111,6 +131,7 @@ VARIABLES
     sendState,
     sendFromRepair,
     lastAction,
+    lastAttemptedCapabilityRevision,
     priorPhase,
     priorSettlement,
     priorCompositionPublicationCount,
@@ -131,7 +152,10 @@ VARIABLES
     priorSendFromRepair,
     priorPreeditPublished,
     priorTextareaDirty,
-    priorRepairStage
+    priorRepairStage,
+    priorInputEnabled,
+    priorCapabilityRevision,
+    priorAttemptedCapabilityRevision
 
 coreRuntimeVars == <<
     phase,
@@ -163,12 +187,21 @@ dispatcherOwnershipVars == <<
     queuedOwnershipInput
         >>
 
+capabilityVars == <<inputEnabled, capabilityRevision>>
+
 sendTransactionVars == <<sendState, sendFromRepair>>
 
-runtimeVars == <<coreRuntimeVars, stagedContinuation, dispatcherOwnershipVars, sendTransactionVars>>
+runtimeVars == <<
+    coreRuntimeVars,
+    capabilityVars,
+    stagedContinuation,
+    dispatcherOwnershipVars,
+    sendTransactionVars
+        >>
 
 historyVars == <<
     lastAction,
+    lastAttemptedCapabilityRevision,
     priorPhase,
     priorSettlement,
     priorCompositionPublicationCount,
@@ -189,7 +222,10 @@ historyVars == <<
     priorSendFromRepair,
     priorPreeditPublished,
     priorTextareaDirty,
-    priorRepairStage
+    priorRepairStage,
+    priorInputEnabled,
+    priorCapabilityRevision,
+    priorAttemptedCapabilityRevision
         >>
 
 vars == <<runtimeVars, historyVars>>
@@ -197,7 +233,8 @@ vars == <<runtimeVars, historyVars>>
 InputReady == admission = "accepting" /\ repairStage = "none" /\ ~disposed
 
 DispatcherReady ==
-    InputReady /\ ~reviewStalled /\ queuedOwnershipInput = "none" /\ sendState = "none"
+    InputReady /\ inputEnabled /\ ~reviewStalled /\
+    queuedOwnershipInput = "none" /\ sendState = "none"
 
 FocusConverged == ~localFocused \/ focused
 
@@ -214,8 +251,12 @@ TargetedSendSuccessAllowed ==
       sendState = "focus-in" /\
       lastAction = "repair-reopen-admission")
 
-RecordHistory(action) ==
+RecordHistoryFields(action) ==
     /\ lastAction' = action
+    /\ lastAttemptedCapabilityRevision' =
+          IF action \in HostInputAttemptActions
+          THEN capabilityRevision
+          ELSE lastAttemptedCapabilityRevision
     /\ priorPhase' = phase
     /\ priorSettlement' = settlement
     /\ priorCompositionPublicationCount' = compositionPublicationCount
@@ -237,9 +278,19 @@ RecordHistory(action) ==
     /\ priorPreeditPublished' = preeditPublished
     /\ priorTextareaDirty' = textareaDirty
     /\ priorRepairStage' = repairStage
+    /\ priorInputEnabled' = inputEnabled
+    /\ priorCapabilityRevision' = capabilityRevision
+    /\ priorAttemptedCapabilityRevision' = lastAttemptedCapabilityRevision
+
+RecordHistory(action) ==
+    /\ RecordHistoryFields(action)
+    /\ UNCHANGED capabilityVars
 
 TypeOK ==
     /\ Scenario \in Modes
+    /\ MaxCapabilityRevision \in (Nat \ {0})
+    /\ inputEnabled \in BOOLEAN
+    /\ capabilityRevision \in 1..MaxCapabilityRevision
     /\ phase \in CompositionPhases
     /\ settlement \in SettlementStates
     /\ preeditPublished \in BOOLEAN
@@ -296,8 +347,11 @@ TypeOK ==
           "repair-focus-send-failure",
           "repair-reopen-admission",
           "resolve-cancelled-review",
-          "dispose-complete"
+          "dispose-complete",
+          "capability-downgrade",
+          "capability-upgrade"
         }
+    /\ lastAttemptedCapabilityRevision \in 0..MaxCapabilityRevision
     /\ priorPhase \in CompositionPhases
     /\ priorSettlement \in SettlementStates
     /\ priorCompositionPublicationCount \in 0..2
@@ -319,8 +373,13 @@ TypeOK ==
     /\ priorPreeditPublished \in BOOLEAN
     /\ priorTextareaDirty \in BOOLEAN
     /\ priorRepairStage \in RepairStages
+    /\ priorInputEnabled \in BOOLEAN
+    /\ priorCapabilityRevision \in 1..MaxCapabilityRevision
+    /\ priorAttemptedCapabilityRevision \in 0..MaxCapabilityRevision
 
 Init ==
+    /\ inputEnabled = TRUE
+    /\ capabilityRevision = 1
     /\ phase = "idle"
     /\ settlement = "none"
     /\ preeditPublished = FALSE
@@ -349,6 +408,7 @@ Init ==
     /\ sendState = "none"
     /\ sendFromRepair = FALSE
     /\ lastAction = "init"
+    /\ lastAttemptedCapabilityRevision = 0
     /\ priorPhase = phase
     /\ priorSettlement = settlement
     /\ priorCompositionPublicationCount = compositionPublicationCount
@@ -370,6 +430,60 @@ Init ==
     /\ priorPreeditPublished = preeditPublished
     /\ priorTextareaDirty = textareaDirty
     /\ priorRepairStage = repairStage
+    /\ priorInputEnabled = inputEnabled
+    /\ priorCapabilityRevision = capabilityRevision
+    /\ priorAttemptedCapabilityRevision = lastAttemptedCapabilityRevision
+
+ApplyCapabilityDowngrade ==
+    /\ InputReady
+    /\ inputEnabled
+    /\ capabilityRevision < MaxCapabilityRevision
+    /\ sendState = "none"
+    /\ inputEnabled' = FALSE
+    /\ capabilityRevision' = capabilityRevision + 1
+    /\ phase' = IF phase = "eligible" THEN "cancelled-awaiting-end" ELSE phase
+    /\ settlement' =
+          IF phase = "eligible" THEN "awaiting-native-end" ELSE settlement
+    /\ preeditPublished' = FALSE
+    /\ textareaDirty' = FALSE
+    /\ availableCorrelations' = {}
+    /\ lastConsumedCorrelation' = "none"
+    /\ keyPressed' = FALSE
+    /\ mousePressed' = FALSE
+    /\ focused' = FALSE
+    /\ localKeyPressed' = FALSE
+    /\ localMousePressed' = FALSE
+    /\ localFocused' = FALSE
+    /\ reviewStalled' = FALSE
+    /\ cancelledReviewPending' =
+          IF reviewStalled THEN TRUE ELSE cancelledReviewPending
+    /\ queuedOwnershipInput' = "none"
+    /\ needsFocusOut' = FALSE
+    /\ focusOutPublished' = FALSE
+    /\ stagedContinuation' =
+          IF stagedContinuation = "current" THEN "stale" ELSE stagedContinuation
+    /\ sendState' = "none"
+    /\ sendFromRepair' = FALSE
+    /\ RecordHistoryFields("capability-downgrade")
+    /\ UNCHANGED <<
+        compositionPublicationCount,
+        totalTextPublicationCount,
+        admission,
+        repairStage,
+        repairReason,
+        disposePending,
+        disposed
+        >>
+
+ApplyCapabilityUpgrade ==
+    /\ InputReady
+    /\ ~inputEnabled
+    /\ capabilityRevision < MaxCapabilityRevision
+    /\ sendState = "none"
+    /\ inputEnabled' = TRUE
+    /\ capabilityRevision' = capabilityRevision + 1
+    /\ RecordHistoryFields("capability-upgrade")
+    /\ UNCHANGED <<coreRuntimeVars, stagedContinuation, dispatcherOwnershipVars, sendTransactionVars>>
 
 GainFocus ==
     /\ InputReady
@@ -2104,6 +2218,8 @@ DiscardStaleInputContinuation ==
     /\ UNCHANGED coreRuntimeVars
 
 ModeStep ==
+    \/ ApplyCapabilityDowngrade
+    \/ ApplyCapabilityUpgrade
     \/ /\ Scenario \in {"composition", "review-composition"}
        /\ PublishInputAction(StageInputContinuation)
     \/ /\ Scenario \in {"composition", "review-composition"}
@@ -2246,6 +2362,51 @@ AtMostOneCompositionPublication == compositionPublicationCount <= 1
 
 AllPublicationsAreAccounted == compositionPublicationCount <= totalTextPublicationCount
 
+HostInputAttemptUsesCurrentCapabilityRevision ==
+    lastAction \in HostInputAttemptActions =>
+        lastAttemptedCapabilityRevision = capabilityRevision
+
+CapabilityRevisionStampChangesOnlyOnInputAttempt ==
+    lastAction \notin HostInputAttemptActions =>
+        lastAttemptedCapabilityRevision = priorAttemptedCapabilityRevision
+
+CapabilityRevisionChangesOnlyOnReplacement ==
+    /\ capabilityRevision >= priorCapabilityRevision
+    /\ (capabilityRevision # priorCapabilityRevision =>
+          capabilityRevision = priorCapabilityRevision + 1 /\
+          lastAction \in {"capability-downgrade", "capability-upgrade"})
+
+CapabilityReplacementAlternatesAuthority ==
+    /\ (lastAction = "capability-downgrade" => priorInputEnabled /\ ~inputEnabled)
+    /\ (lastAction = "capability-upgrade" => ~priorInputEnabled /\ inputEnabled)
+
+CapabilityDowngradeRepairsImmediately ==
+    lastAction = "capability-downgrade" =>
+        ~inputEnabled /\ ~preeditPublished /\ ~textareaDirty /\
+        availableCorrelations = {} /\ ~keyPressed /\ ~mousePressed /\ ~focused /\
+        ~localKeyPressed /\ ~localMousePressed /\ ~localFocused /\
+        ~reviewStalled /\ queuedOwnershipInput = "none" /\
+        ~needsFocusOut /\ stagedContinuation # "current"
+
+ReadOnlyHasNoInputOwnership ==
+    ~inputEnabled =>
+        ~preeditPublished /\ ~textareaDirty /\ availableCorrelations = {} /\
+        ~keyPressed /\ ~mousePressed /\ ~focused /\
+        ~localKeyPressed /\ ~localMousePressed /\ ~localFocused /\
+        ~reviewStalled /\ queuedOwnershipInput = "none" /\
+        stagedContinuation # "current"
+
+ReadOnlyRejectsHostInputAttempts ==
+    ~priorInputEnabled => lastAction \notin HostInputAttemptActions
+
+CapabilityUpgradeDoesNotReplayInput ==
+    lastAction = "capability-upgrade" =>
+        ~keyPressed /\ ~mousePressed /\ ~focused /\
+        ~localKeyPressed /\ ~localMousePressed /\ ~localFocused /\
+        ~reviewStalled /\ queuedOwnershipInput = "none" /\
+        totalTextPublicationCount = priorTotalTextPublicationCount /\
+        lastAttemptedCapabilityRevision = priorAttemptedCapabilityRevision
+
 CompositionPublicationRequiresEligibleAuthority ==
     compositionPublicationCount > priorCompositionPublicationCount =>
         priorPhase = "eligible" /\
@@ -2292,11 +2453,11 @@ QueuedOwnershipIsNotPublished ==
 
 HostOwnershipChangesOnlyAtPublication ==
     /\ keyPressed # priorKeyPressed =>
-          lastAction \in {"send-success", "repair-release-keys"}
+          lastAction \in {"send-success", "repair-release-keys", "capability-downgrade"}
     /\ mousePressed # priorMousePressed =>
-          lastAction \in {"send-success", "repair-release-mouse"}
+          lastAction \in {"send-success", "repair-release-mouse", "capability-downgrade"}
     /\ focused # priorFocused =>
-          lastAction \in {"send-success", "repair-publish-focusout"}
+          lastAction \in {"send-success", "repair-publish-focusout", "capability-downgrade"}
 
 StatelessPublicationDoesNotChangeHeldOwnership ==
     (priorSendState = "stateless" /\ lastAction \in {"send-success", "send-failure"}) =>
@@ -2368,7 +2529,7 @@ CancelledReviewResolutionIsInert ==
         queuedOwnershipInput = priorQueuedOwnershipInput
 
 CancelledReviewDoesNotBlockCurrentGeneration ==
-    (cancelledReviewPending /\ InputReady /\ ~reviewStalled /\
+    (cancelledReviewPending /\ inputEnabled /\ InputReady /\ ~reviewStalled /\
         queuedOwnershipInput = "none" /\ sendState = "none") => DispatcherReady
 
 DedupCorrelationIsSingleUse ==
@@ -2398,6 +2559,9 @@ UnfocusedDisposeRequiresNoFocusOut ==
 
 InputEventsRequireOpenAdmission ==
     lastAction \in InputActions => priorAdmission = "accepting"
+
+InputEventsRequireCurrentCapability ==
+    lastAction \in InputActions => priorInputEnabled
 
 RepairAndDisposeCloseAdmissionFirst ==
     lastAction \in {

@@ -72,6 +72,15 @@ The accepted contract requires these externally visible properties:
   promotes the earliest admitted remaining resize-capable attachment and publishes that scoped
   ownership change before the detach acknowledgement; an observer never has to reopen to become
   owner.
+- Every attachment starts at capability revision `1`. A live input-capability update is accepted
+  only at the exact next revision and is idempotent only for the exact current value. Raw and
+  semantic PTY input must carry that current revision at preparation and final queue commit. A
+  downgrade repairs only the target attachment's held key, mouse, and focus ownership before revoking
+  input; an upgrade creates a fresh empty ownership ledger and never replays input.
+- Focus is one terminal-wide OR aggregate over claims from attached, input-capable attachments with
+  active projection demand. Only the first claim emits `FocusIn` and only the final release emits
+  `FocusOut`; demand pause, detach, broker loss, and capability downgrade repair the target's key
+  and mouse ownership before clearing its claim, while activation and upgrade require fresh input.
 - Application clear and reset requests execute directly against the Host-owned Ghostty state for
   an input-capable attachment. Clear erases and homes the active screen without changing its modes;
   reset returns to a fresh primary-screen state, restores the latest runtime theme colors, and
@@ -94,6 +103,9 @@ The accepted contract requires these externally visible properties:
   retains or projects command text, arguments, directory, environment, or output for reminders;
   freshness, focus, permission, rate limiting, and notification effects remain client policy.
 - A successful grid reflow preserves a tracked selection and committed history anchor when Ghostty's pins remain valid, while cancelling stale row flights and already encoded export bytes. Screen replacement and retained-row eviction remain explicit selection eviction boundaries.
+- The public selection-export request and response admit only the literal `plain` format. Ghostty's
+  internal formatter support for HTML and raw VT is not a Host protocol capability and cannot be
+  selected by a client.
 
 The complete state model, retry classes, commit boundaries, invariants, and evidence matrix live in the [runtime contract](docs/runtime-model.md).
 
@@ -174,6 +186,9 @@ pnpm verify
 
 `test` runs the current platform's native tests, the real-process Local IPC/PTY black-box trace,
 cross-language protocol conformance, and the pinned-Ghostty surface-fixture comparison.
+The generated cross-language selection cases admit only `plain` and require HTML/raw VT requests to
+fail strict decoding; `terminal-parity/HS-07-selection-export` adds the real-PTY/Electron clipboard
+consequence from the owning application system suite.
 `test:black-box` runs only that external trace: it starts the built Host, creates and attaches a
 real terminal through Local IPC, disconnects, reconnects and replays the creation identity,
 reattaches the same attachment identity, drives the child through PTY input, observes drained PTY

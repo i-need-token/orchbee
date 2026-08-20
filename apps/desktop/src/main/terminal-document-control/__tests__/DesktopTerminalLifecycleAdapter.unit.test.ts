@@ -330,8 +330,8 @@ describe('DesktopTerminalLifecycleAdapter', () => {
 				kind: 'available',
 			}),
 			registry: new DesktopTerminalBindingRegistry(),
+			resolveTerminalLaunch: () => createTerminalLaunch(),
 			retireProjection: async () => undefined,
-			terminalLaunch: createTerminalLaunch(),
 		});
 		const presentationId = terminalPresentationId('presentation-1');
 

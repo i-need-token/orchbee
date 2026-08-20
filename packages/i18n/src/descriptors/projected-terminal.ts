@@ -61,6 +61,14 @@ export const projectedTerminalMessages = defineMessages({
 		defaultMessage: 'The terminal selection could not be copied.',
 		id: 'terminal.projected.copy.failed',
 	},
+	clearAction: {
+		defaultMessage: 'Clear terminal',
+		id: 'terminal.projected.action.clear',
+	},
+	clearCompleted: {
+		defaultMessage: 'Terminal output cleared.',
+		id: 'terminal.projected.clear.completed',
+	},
 	clipboardReviewBytes: {
 		defaultMessage: '{byteLength, number} UTF-8 bytes',
 		id: 'terminal.projected.clipboard.review.bytes',
@@ -194,7 +202,7 @@ export const projectedTerminalMessages = defineMessages({
 		id: 'terminal.projected.fileDrop.failure.tooMany',
 	},
 	fileDropFailureUnsupported: {
-		defaultMessage: 'File drop is not supported for this Desktop shell.',
+		defaultMessage: 'File drop is unavailable in this client.',
 		id: 'terminal.projected.fileDrop.failure.unsupported',
 	},
 	fileDropReviewConfirm: {
@@ -231,6 +239,10 @@ export const projectedTerminalMessages = defineMessages({
 		defaultMessage: 'The terminal link could not be opened.',
 		id: 'terminal.projected.link.failed',
 	},
+	linkStale: {
+		defaultMessage: 'The terminal link changed before it could be opened.',
+		id: 'terminal.projected.link.stale',
+	},
 	matchCase: {
 		defaultMessage: 'Match case',
 		id: 'terminal.projected.find.matchCase',
@@ -242,6 +254,22 @@ export const projectedTerminalMessages = defineMessages({
 	openLinkAction: {
 		defaultMessage: 'Open terminal link',
 		id: 'terminal.projected.action.openLink',
+	},
+	openLinkCompleted: {
+		defaultMessage: 'Terminal link opened.',
+		id: 'terminal.projected.link.completed',
+	},
+	pasteAction: {
+		defaultMessage: 'Paste',
+		id: 'terminal.projected.action.paste',
+	},
+	pasteCompleted: {
+		defaultMessage: 'Clipboard text pasted into the terminal.',
+		id: 'terminal.projected.paste.completed',
+	},
+	pasteFailed: {
+		defaultMessage: 'Clipboard text could not be pasted into the terminal.',
+		id: 'terminal.projected.paste.failed',
 	},
 	pasteReviewCancel: {
 		defaultMessage: 'Cancel',
@@ -296,6 +324,10 @@ export const projectedTerminalMessages = defineMessages({
 		defaultMessage: 'Reset terminal',
 		id: 'terminal.projected.action.reset',
 	},
+	resetCompleted: {
+		defaultMessage: 'Terminal reset.',
+		id: 'terminal.projected.reset.completed',
+	},
 	retryConnection: {
 		defaultMessage: 'Retry',
 		id: 'terminal.projected.connectionRetry',
@@ -307,6 +339,22 @@ export const projectedTerminalMessages = defineMessages({
 	selectAllAction: {
 		defaultMessage: 'Select all retained terminal output',
 		id: 'terminal.projected.action.selectAll',
+	},
+	selectAllCompleted: {
+		defaultMessage: 'Selected all retained terminal output.',
+		id: 'terminal.projected.selectAll.completed',
+	},
+	scrollToBottomAction: {
+		defaultMessage: 'Scroll to bottom',
+		id: 'terminal.projected.action.scrollToBottom',
+	},
+	scrollToBottomCompleted: {
+		defaultMessage: 'Scrolled to the latest terminal output.',
+		id: 'terminal.projected.scrollToBottom.completed',
+	},
+	scrollToBottomUnchanged: {
+		defaultMessage: 'Already showing the latest terminal output.',
+		id: 'terminal.projected.scrollToBottom.unchanged',
 	},
 	selectionFailure: {
 		defaultMessage: 'The terminal selection could not be updated.',

@@ -115,6 +115,39 @@ describe('useWorkbenchPanelWorkspace', () => {
 		expect(view.startPanelDrag).toBe(startPanelDrag);
 	});
 
+	it('shares one terminal bell admission ledger across the panel workspace lifetime', () => {
+		const runtime = new ActionRuntime();
+		const parentScope = runtime.createScope('workbench');
+		const model = new TabModel({
+			activeTabId: 'tab-a',
+			tabs: [{ group: null, id: 'tab-a', pinned: false, title: 'Terminal A' }],
+		});
+		let view: WorkbenchPanelWorkspaceView | undefined;
+		render(
+			createElement(
+				OrchbeeI18nProvider,
+				{ locale: 'en-US' },
+				createElement(InteractiveHarness, {
+					actionRuntime: runtime,
+					capture: (candidate) => {
+						view = candidate;
+					},
+					parentActionScope: parentScope,
+					panelWorkspaceStore: new PanelWorkspaceStore(model, {
+						composition: createPreviewComposition('bell-effects'),
+					}),
+				}),
+			),
+		);
+		if (view === undefined) throw new Error('Expected the panel workspace view to be captured');
+
+		expect(view.admitTerminalBellEffect({ sequence: '5', terminalId: 'terminal-a' })).toBe(true);
+		expect(view.admitTerminalBellEffect({ sequence: '5', terminalId: 'terminal-a' })).toBe(false);
+		expect(view.admitTerminalBellEffect({ sequence: '7', terminalId: 'terminal-a' })).toBe(true);
+		expect(view.admitTerminalBellEffect({ sequence: '6', terminalId: 'terminal-a' })).toBe(true);
+		expect(view.admitTerminalBellEffect({ sequence: '5', terminalId: 'terminal-b' })).toBe(true);
+	});
+
 	it('does not close a different child terminal after confirmation changes the active target', async () => {
 		const runtime = new ActionRuntime();
 		const parentScope = runtime.createScope('workbench');

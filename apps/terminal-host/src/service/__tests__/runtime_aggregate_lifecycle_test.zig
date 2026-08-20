@@ -390,7 +390,7 @@ test "termination dispatch failure fences input before Core publication and clea
                     terminal.phase() == .containing_failure and
                     terminal.runtimeFailure().?.stage() == .dispatch_termination;
                 self.prepared_input_rejected = switch (self.preparation.commit()) {
-                    .runtime_rejected => |rejection| rejection == .terminal_runtime_unavailable,
+                    .core_rejected => |err| err == error.InvalidPhase,
                     else => false,
                 };
                 _ = core.failureContainmentBlocked(
@@ -462,6 +462,7 @@ test "termination dispatch failure fences input before Core publication and clea
     var input_preparation = aggregate.prepareRawInput(
         connection_id,
         attachment_id,
+        1,
         "prepared-before-dispatch",
     );
     defer input_preparation.deinit();

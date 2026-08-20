@@ -5,21 +5,21 @@
 			"expected_code": "invalid-field",
 			"expected_text_base64": null,
 			"name": "bom-prefixed-f1-key",
-			"payload_base64": "IiIiIiIiIiIiIiIiIiIiIgEAAAAAAAUAAAAAAAAAAADvu79GMQ=="
+			"payload_base64": "IiIiIiIiIiIiIiIiIiIiIgcAAAAAAAAAAQAAAAAABQAAAAAAAAAAAO+7v0Yx"
 		},
 		{
 			"decoder": "text-input",
 			"expected_code": null,
 			"expected_text_base64": "77u/",
 			"name": "leading-ufeff-text",
-			"payload_base64": "IiIiIiIiIiIiIiIiIiIiIgMAAADvu78="
+			"payload_base64": "IiIiIiIiIiIiIiIiIiIiIgcAAAAAAAAAAwAAAO+7vw=="
 		},
 		{
 			"decoder": "paste-input",
 			"expected_code": null,
 			"expected_text_base64": "77u/",
 			"name": "leading-ufeff-paste",
-			"payload_base64": "IiIiIiIiIiIiIiIiIiIiIgAAAAADAAAA77u/"
+			"payload_base64": "IiIiIiIiIiIiIiIiIiIiIgcAAAAAAAAAAAAAAAMAAADvu78="
 		}
 	]
 }

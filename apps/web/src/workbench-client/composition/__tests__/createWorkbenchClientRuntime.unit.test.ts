@@ -129,6 +129,7 @@ describe('createWorkbenchClientRuntime', () => {
 		expect(runtime.terminalSurfaceCapability.presentationConfigurationSource).toBe(
 			presentationConfigurationSource,
 		);
+		expect(runtime.terminalSurfaceCapability.platformEffects).toEqual({});
 		expect(runtime.terminalSurfaceCapability.observeTerminalMetadata).toBeTypeOf('function');
 		runtime.terminalSurfaceCapability.observeTerminalMetadata(initialPresentationId, {
 			closeActivity: 'idle',

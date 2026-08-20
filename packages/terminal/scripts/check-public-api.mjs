@@ -12,6 +12,7 @@ const expectedRuntimeExports = [
 	'TerminalOptionAsAltMode',
 	'isTerminalOptionAsAltMode',
 	'measureMountedTerminalGeometry',
+	'normalizePermittedExternalTerminalUrl',
 	'normalizeTerminalPresentationConfiguration',
 ];
 

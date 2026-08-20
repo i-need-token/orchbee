@@ -19,24 +19,30 @@ const max_key_text_bytes = contract.Limits.key_text_bytes;
 pub const WriteInputSummary = struct {
     attachment_id: [16]u8,
     bytes: []const u8,
+    capability_revision: u64,
 };
 
 pub const DecodedSemanticInput = struct {
     attachment_id: [16]u8,
+    capability_revision: u64,
     input: terminal_input.SemanticInput,
 };
 
 const AttachmentTextSummary = struct {
     attachment_id: [16]u8,
+    capability_revision: u64,
     text: []const u8,
 };
 
 pub fn validateWriteInput(bytes: []const u8) ProtocolError!WriteInputSummary {
-    if (bytes.len <= 16) return error.Truncated;
+    if (bytes.len <= 24) return error.Truncated;
     if (bytes.len > max_write_input_payload_bytes) return error.LimitExceeded;
+    const capability_revision = std.mem.readInt(u64, bytes[16..24], .little);
+    if (capability_revision == 0) return error.InvalidField;
     return .{
         .attachment_id = try copyIdentifier(bytes[0..16]),
-        .bytes = bytes[16..],
+        .bytes = bytes[24..],
+        .capability_revision = capability_revision,
     };
 }
 
@@ -114,10 +120,12 @@ fn validKeyCode(key: []const u8) bool {
 }
 
 pub fn validateKeyInput(bytes: []const u8) ProtocolError!DecodedSemanticInput {
-    if (bytes.len < 32) return error.Truncated;
+    if (bytes.len < 40) return error.Truncated;
     if (bytes.len > max_semantic_input_payload_bytes) return error.LimitExceeded;
     var reader = Reader.init(bytes, 0);
     const attachment_id = try copyIdentifier(try reader.readBytes(16));
+    const capability_revision = try reader.readInt(u64);
+    if (capability_revision == 0) return error.InvalidField;
     const action_code = try reader.readInt(u8);
     const flags = try reader.readInt(u8);
     const modifiers = try reader.readInt(u16);
@@ -138,7 +146,7 @@ pub fn validateKeyInput(bytes: []const u8) ProtocolError!DecodedSemanticInput {
     }
     if (text_length > max_key_text_bytes) return error.LimitExceeded;
     const body_length = std.math.add(usize, key_length, text_length) catch return error.LimitExceeded;
-    if (body_length != bytes.len - 32) return error.LengthMismatch;
+    if (body_length != bytes.len - 40) return error.LengthMismatch;
     if (unshifted_codepoint > 0x10ffff or
         (unshifted_codepoint >= 0xd800 and unshifted_codepoint <= 0xdfff))
     {
@@ -152,6 +160,7 @@ pub fn validateKeyInput(bytes: []const u8) ProtocolError!DecodedSemanticInput {
     if (!validKeyCode(key)) return error.InvalidField;
     return .{
         .attachment_id = attachment_id,
+        .capability_revision = capability_revision,
         .input = .{ .key = .{
             .action = switch (action_code) {
                 0 => .release,
@@ -171,31 +180,40 @@ pub fn validateKeyInput(bytes: []const u8) ProtocolError!DecodedSemanticInput {
 }
 
 fn validateTextInput(bytes: []const u8) ProtocolError!AttachmentTextSummary {
-    if (bytes.len < 20) return error.Truncated;
-    if (bytes.len > 20 + max_input_bytes) return error.LimitExceeded;
+    if (bytes.len < 28) return error.Truncated;
+    if (bytes.len > 28 + max_input_bytes) return error.LimitExceeded;
     var reader = Reader.init(bytes, 0);
     const attachment_id = try copyIdentifier(try reader.readBytes(16));
+    const capability_revision = try reader.readInt(u64);
+    if (capability_revision == 0) return error.InvalidField;
     const text_length = try reader.readInt(u32);
-    if (text_length != bytes.len - 20) return error.LengthMismatch;
+    if (text_length != bytes.len - 28) return error.LengthMismatch;
     if (text_length == 0) return error.InvalidField;
     const text = try reader.readBytes(text_length);
     if (!std.unicode.utf8ValidateSlice(text)) return error.InvalidUtf8;
-    return .{ .attachment_id = attachment_id, .text = text };
+    return .{
+        .attachment_id = attachment_id,
+        .capability_revision = capability_revision,
+        .text = text,
+    };
 }
 
 pub fn validateCommittedTextInput(bytes: []const u8) ProtocolError!DecodedSemanticInput {
     const summary = try validateTextInput(bytes);
     return .{
         .attachment_id = summary.attachment_id,
+        .capability_revision = summary.capability_revision,
         .input = .{ .text = .{ .text = summary.text } },
     };
 }
 
 pub fn validatePasteInput(bytes: []const u8) ProtocolError!DecodedSemanticInput {
-    if (bytes.len < 24) return error.Truncated;
-    if (bytes.len > 24 + max_input_bytes) return error.LimitExceeded;
+    if (bytes.len < 32) return error.Truncated;
+    if (bytes.len > 32 + max_input_bytes) return error.LimitExceeded;
     var reader = Reader.init(bytes, 0);
     const attachment_id = try copyIdentifier(try reader.readBytes(16));
+    const capability_revision = try reader.readInt(u64);
+    if (capability_revision == 0) return error.InvalidField;
     const flags = try reader.readInt(u8);
     const reserved_byte = try reader.readInt(u8);
     const reserved_word = try reader.readInt(u16);
@@ -203,12 +221,13 @@ pub fn validatePasteInput(bytes: []const u8) ProtocolError!DecodedSemanticInput 
     if (flags & ~@as(u8, 1) != 0 or reserved_byte != 0 or reserved_word != 0) {
         return error.UnknownRequiredFlag;
     }
-    if (text_length != bytes.len - 24) return error.LengthMismatch;
+    if (text_length != bytes.len - 32) return error.LengthMismatch;
     if (text_length == 0) return error.InvalidField;
     const text = try reader.readBytes(text_length);
     if (!std.unicode.utf8ValidateSlice(text)) return error.InvalidUtf8;
     return .{
         .attachment_id = attachment_id,
+        .capability_revision = capability_revision,
         .input = .{ .paste = .{
             .bracketed = flags & 1 != 0,
             .text = text,
@@ -217,10 +236,12 @@ pub fn validatePasteInput(bytes: []const u8) ProtocolError!DecodedSemanticInput 
 }
 
 pub fn validateMouseInput(bytes: []const u8) ProtocolError!DecodedSemanticInput {
-    if (bytes.len < 32) return error.Truncated;
-    if (bytes.len != 32) return error.LengthMismatch;
+    if (bytes.len < 40) return error.Truncated;
+    if (bytes.len != 40) return error.LengthMismatch;
     var reader = Reader.init(bytes, 0);
     const attachment_id = try copyIdentifier(try reader.readBytes(16));
+    const capability_revision = try reader.readInt(u64);
+    if (capability_revision == 0) return error.InvalidField;
     const action_code = try reader.readInt(u8);
     const button_code = try reader.readInt(u8);
     const modifiers = try reader.readInt(u16);
@@ -265,6 +286,7 @@ pub fn validateMouseInput(bytes: []const u8) ProtocolError!DecodedSemanticInput 
     };
     return .{
         .attachment_id = attachment_id,
+        .capability_revision = capability_revision,
         .input = .{ .mouse = .{
             .action = switch (action_code) {
                 0 => .{ .press = button.? },
@@ -284,15 +306,21 @@ pub fn validateMouseInput(bytes: []const u8) ProtocolError!DecodedSemanticInput 
 }
 
 pub fn validateFocusInput(bytes: []const u8) ProtocolError!DecodedSemanticInput {
-    if (bytes.len < 20) return error.Truncated;
-    if (bytes.len != 20) return error.LengthMismatch;
-    const attachment_id = try copyIdentifier(bytes[0..16]);
-    if ((bytes[16] != 0 and bytes[16] != 1) or bytes[17] != 0 or bytes[18] != 0 or bytes[19] != 0) {
+    if (bytes.len < 28) return error.Truncated;
+    if (bytes.len != 28) return error.LengthMismatch;
+    var reader = Reader.init(bytes, 0);
+    const attachment_id = try copyIdentifier(try reader.readBytes(16));
+    const capability_revision = try reader.readInt(u64);
+    if (capability_revision == 0) return error.InvalidField;
+    const focused = try reader.readInt(u8);
+    const reserved = try reader.readBytes(3);
+    if ((focused != 0 and focused != 1) or reserved[0] != 0 or reserved[1] != 0 or reserved[2] != 0) {
         return error.UnknownRequiredFlag;
     }
     return .{
         .attachment_id = attachment_id,
-        .input = .{ .focus = .{ .focused = bytes[16] == 1 } },
+        .capability_revision = capability_revision,
+        .input = .{ .focus = .{ .focused = focused == 1 } },
     };
 }
 

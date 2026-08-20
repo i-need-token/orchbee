@@ -8,6 +8,7 @@ import {
 } from '@orchbee/gateway-protocol';
 import {
 	AttachmentIdSchema,
+	CanonicalUint64TextSchema,
 	CreationIdSchema,
 	HostEpochSchema,
 	TerminalIdSchema,
@@ -24,6 +25,7 @@ import type { GatewayControlConnection } from '../../connection';
 import { GatewayTerminalProjectionClient } from '../GatewayTerminalProjectionClient';
 
 const mountedGeometry = { cellPixelHeight: 18, cellPixelWidth: 9, columns: 96, rows: 32 } as const;
+const capabilityRevision = CanonicalUint64TextSchema.parse('1');
 const theme = TerminalThemeStateSchema.parse({
 	operationId: null,
 	revision: '0',
@@ -70,6 +72,7 @@ describe('GatewayTerminalProjectionClient', () => {
 			attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
 			canInput: true,
 			canResize: false,
+			capabilityRevision,
 			creationId: CreationIdSchema.parse('22'.repeat(16)),
 			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
 			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
@@ -162,6 +165,7 @@ describe('GatewayTerminalProjectionClient', () => {
 			attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
 			canInput: true,
 			canResize: false,
+			capabilityRevision,
 			creationId: CreationIdSchema.parse('22'.repeat(16)),
 			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
 			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
@@ -263,6 +267,7 @@ describe('GatewayTerminalProjectionClient', () => {
 						attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
 						canInput: true,
 						canResize: false,
+						capabilityRevision,
 						creationId: CreationIdSchema.parse('22'.repeat(16)),
 						hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
 						terminalId: TerminalIdSchema.parse('44'.repeat(16)),
@@ -325,6 +330,7 @@ describe('GatewayTerminalProjectionClient', () => {
 						attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
 						canInput: true,
 						canResize: false,
+						capabilityRevision,
 						creationId: CreationIdSchema.parse('22'.repeat(16)),
 						hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
 						terminalId: TerminalIdSchema.parse('44'.repeat(16)),
@@ -386,6 +392,7 @@ describe('GatewayTerminalProjectionClient', () => {
 						attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
 						canInput: true,
 						canResize: false,
+						capabilityRevision,
 						creationId: CreationIdSchema.parse('22'.repeat(16)),
 						hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
 						terminalId: TerminalIdSchema.parse('44'.repeat(16)),
@@ -450,6 +457,7 @@ describe('GatewayTerminalProjectionClient', () => {
 						attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
 						canInput: true,
 						canResize: false,
+						capabilityRevision,
 						creationId: CreationIdSchema.parse('22'.repeat(16)),
 						hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
 						terminalId: TerminalIdSchema.parse('44'.repeat(16)),

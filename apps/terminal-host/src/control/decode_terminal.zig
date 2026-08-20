@@ -32,6 +32,12 @@ pub const AttachTerminal = struct {
     terminal_id: identifiers.TerminalId,
 };
 
+pub const UpdateAttachmentInputCapability = struct {
+    attachment_id: identifiers.AttachmentId,
+    capability_revision: u64,
+    input: bool,
+};
+
 pub const ResizeTerminal = struct {
     attachment_id: identifiers.AttachmentId,
     geometry: terminal_geometry.Geometry,
@@ -278,6 +284,34 @@ pub fn decodeDetachTerminal(
             identifiers.AttachmentId,
             parsed.value.attachmentId,
         ),
+    };
+}
+
+pub fn decodeUpdateAttachmentInputCapability(
+    allocator: std.mem.Allocator,
+    payload: []const u8,
+) decode_common.Error!decode_common.Decoded(
+    control_wire.UpdateAttachmentInputCapability,
+    UpdateAttachmentInputCapability,
+) {
+    const parsed = try control_wire.decode(
+        control_wire.UpdateAttachmentInputCapability,
+        allocator,
+        payload,
+    );
+    errdefer parsed.deinit();
+    return .{
+        .parsed = parsed,
+        .value = .{
+            .attachment_id = try identifiers.parseLowerHex(
+                identifiers.AttachmentId,
+                parsed.value.attachmentId,
+            ),
+            .capability_revision = try decode_common.parsePositiveCanonicalU64(
+                parsed.value.capabilityRevision,
+            ),
+            .input = parsed.value.input,
+        },
     };
 }
 

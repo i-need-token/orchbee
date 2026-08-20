@@ -151,15 +151,15 @@ pub fn selectionExportStarted(
     attachment_id: anytype,
     started: anytype,
 ) ![]u8 {
+    if (started.format != .plain) return error.UnsupportedSelectionExportFormat;
     var attachment_buffer: [32]u8 = undefined;
     return std.fmt.allocPrint(
         allocator,
-        "{{\"attachmentId\":\"{s}\",\"byteLength\":{d},\"exportSequence\":\"{d}\",\"format\":\"{s}\"}}",
+        "{{\"attachmentId\":\"{s}\",\"byteLength\":{d},\"exportSequence\":\"{d}\",\"format\":\"plain\"}}",
         .{
             common.identifierText(attachment_id, &attachment_buffer),
             started.byte_length,
             started.export_sequence,
-            @tagName(started.format),
         },
     );
 }

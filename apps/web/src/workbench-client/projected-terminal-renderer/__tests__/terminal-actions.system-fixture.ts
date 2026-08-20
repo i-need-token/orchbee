@@ -1,0 +1,455 @@
+import { ActionRuntime, type ActionDiscoveryResult } from '@orchbee/actions';
+import { ProjectedTerminal, type ProjectedTerminalOptions } from '@orchbee/terminal';
+import type { WorkbenchTerminalActionContextProvider } from '@orchbee/workbench';
+import type { ProjectedTerminalCommand } from '@orchbee/workbench-client-protocol';
+import {
+	ActiveScreen,
+	AttachmentIdSchema,
+	CanonicalUint64TextSchema,
+	CellWidth,
+	CreationIdSchema,
+	CursorShape,
+	encodeTerminalFrame,
+	encodeTerminalRowWindow,
+	HostEpochSchema,
+	RowPromptClass,
+	SemanticContent,
+	TerminalColorKind,
+	TerminalFrameKind,
+	TerminalIdSchema,
+	TerminalRowWindowDetail,
+	TerminalThemeStateSchema,
+	UnderlineKind,
+	type TerminalFrame,
+} from '@orchbee/terminal-protocol';
+
+import {
+	mountTerminalFindSurface,
+	type MountTerminalFindSurfaceOptions,
+} from '../../terminal-find-surface';
+import {
+	installProjectedTerminalShortcuts,
+	PROJECTED_TERMINAL_ACTION_IDS,
+} from '../../projected-terminal-actions';
+import type { ProjectedTerminalTransport } from '../../terminal-projection';
+import {
+	startProjectedTerminalRenderer,
+	type ProjectedTerminalRendererDependencies,
+} from '../startProjectedTerminalRenderer';
+
+const attachmentId = AttachmentIdSchema.parse('55'.repeat(16));
+const creationId = CreationIdSchema.parse('66'.repeat(16));
+const hostEpoch = HostEpochSchema.parse('77'.repeat(16));
+const terminalId = TerminalIdSchema.parse('88'.repeat(16));
+const capabilityRevision = CanonicalUint64TextSchema.parse('1');
+const linkUrl = 'https://orchbee.dev/pinned-context';
+const rowText = ['linked context', 'terminal actions', 'localized feedback', 'native command'];
+const theme = TerminalThemeStateSchema.parse({
+	operationId: null,
+	revision: '0',
+	terminal: {
+		colorScheme: 'dark',
+		defaultBackgroundRgb: 0x10_20_30,
+		defaultCursorRgb: null,
+		defaultForegroundRgb: 0xf4_f4_f4,
+		palette: Array.from({ length: 256 }, (_, index) => index),
+	},
+});
+const minimalActionIds = [
+	PROJECTED_TERMINAL_ACTION_IDS.copySelection,
+	PROJECTED_TERMINAL_ACTION_IDS.paste,
+	PROJECTED_TERMINAL_ACTION_IDS.selectAll,
+	PROJECTED_TERMINAL_ACTION_IDS.findOpen,
+	PROJECTED_TERMINAL_ACTION_IDS.findNext,
+	PROJECTED_TERMINAL_ACTION_IDS.findPrevious,
+	PROJECTED_TERMINAL_ACTION_IDS.scrollToBottom,
+	PROJECTED_TERMINAL_ACTION_IDS.clear,
+	PROJECTED_TERMINAL_ACTION_IDS.reset,
+] as const;
+
+const root = document.createElement('main');
+root.id = 'terminal-actions-witness';
+root.style.boxSizing = 'border-box';
+root.style.height = '240px';
+root.style.overflow = 'hidden';
+root.style.position = 'relative';
+root.style.width = '720px';
+document.body.replaceChildren(root);
+document.body.style.margin = '0';
+
+Object.defineProperty(navigator, 'gpu', { configurable: true, value: undefined });
+Object.defineProperty(navigator, 'platform', { configurable: true, value: 'MacIntel' });
+root.dataset['witnessForcedCanvas'] = 'true';
+
+const actionRuntime = new ActionRuntime();
+const workbenchScope = actionRuntime.createScope('workbench.fixture.terminal');
+const commands: ProjectedTerminalCommand[] = [];
+let contextProvider: WorkbenchTerminalActionContextProvider | undefined;
+let externalOpenCount = 0;
+let terminal: ProjectedTerminal | undefined;
+let transportListener: (value: unknown) => void = () => undefined;
+const dependencies: ProjectedTerminalRendererDependencies = {
+	createTerminal: (options: ProjectedTerminalOptions) => {
+		terminal = new ProjectedTerminal(options);
+		return terminal;
+	},
+	installShortcuts: installProjectedTerminalShortcuts,
+	mountFindSurface: (options: MountTerminalFindSurfaceOptions) => mountTerminalFindSurface(options),
+};
+const transport: ProjectedTerminalTransport = {
+	close: () => undefined,
+	projectionBufferTrust: 'local-host',
+	send: (command) => {
+		commands.push(command);
+		if (command.kind !== 'read-rows') return;
+		queueMicrotask(() => {
+			transportListener({ kind: 'rows', rows: terminalRows(command) });
+		});
+	},
+	subscribe: (listener) => {
+		transportListener = listener;
+		return () => undefined;
+	},
+};
+
+void runWitness();
+
+async function runWitness(): Promise<void> {
+	try {
+		const session = await startProjectedTerminalRenderer(
+			root,
+			document.documentElement,
+			['zh-CN'],
+			'apple',
+			{
+				attachmentId,
+				canInput: true,
+				canResize: false,
+				capabilityRevision,
+				creationId,
+				hostEpoch,
+				terminalId,
+				terminalOutcome: null,
+				theme,
+			},
+			transport,
+			dependencies,
+			{
+				openExternal: () => {
+					externalOpenCount += 1;
+					return { kind: 'completed' };
+				},
+				readClipboardText: () => ({ kind: 'completed', text: 'fixture clipboard text' }),
+			},
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			{
+				admitBellEffect: () => true,
+				bindContextProvider: (provider) => {
+					contextProvider = provider;
+					return {
+						dispose: () => {
+							if (contextProvider === provider) contextProvider = undefined;
+						},
+					};
+				},
+				runtime: actionRuntime,
+				scope: workbenchScope,
+			},
+		);
+		const activeTerminal = terminal;
+		const activeProvider = contextProvider;
+		if (activeTerminal === undefined || activeProvider === undefined) {
+			throw new Error('Terminal Action composition did not bind to its Workbench scope.');
+		}
+		transportListener({ frame: terminalSnapshot(1n, 1n), kind: 'frame' });
+		await nextPaint();
+		const canvas = activeTerminal.canvas;
+		const input = activeTerminal.textarea;
+		if (canvas === undefined || input === undefined) {
+			throw new Error('Terminal Action witness surface was not created.');
+		}
+
+		const catalog = actionRuntime.discover({ scope: workbenchScope, source: 'context-menu' });
+		const catalogById = new Map(catalog.map((result) => [result.descriptor.id, result] as const));
+		for (const actionId of minimalActionIds) {
+			if (catalogById.get(actionId)?.kind !== 'ready') {
+				throw new Error(`Minimal terminal Action ${actionId} was not synchronously discoverable.`);
+			}
+		}
+		root.dataset['witnessCatalog'] = minimalActionIds.join(',');
+		root.dataset['witnessAvailability'] = minimalActionIds
+			.map((actionId) => `${actionId}:${catalogById.get(actionId)?.availability.kind}`)
+			.join(',');
+		root.dataset['witnessWorkbenchScope'] = String(
+			minimalActionIds.every((actionId) => catalogById.get(actionId)?.scope === workbenchScope),
+		);
+
+		input.focus();
+		const unboundCommand = appleCommand('KeyX', 'x');
+		input.dispatchEvent(unboundCommand);
+		const unavailableCommand = appleCommand('KeyC', 'c');
+		input.dispatchEvent(unavailableCommand);
+		const claimedCommand = appleCommand('KeyF', 'f');
+		input.dispatchEvent(claimedCommand);
+		root.dataset['witnessAppleCommands'] = [
+			`unbound-native:${!unboundCommand.defaultPrevented}`,
+			`unavailable-native:${!unavailableCommand.defaultPrevented}`,
+			`available-claimed:${claimedCommand.defaultPrevented}`,
+		].join(',');
+
+		const pasteResult = await executeReady(
+			activeProvider,
+			catalogById.get(PROJECTED_TERMINAL_ACTION_IDS.paste),
+		);
+		await until(() => terminalStatusText() === '已将剪贴板文本粘贴到终端。');
+		const pasteFeedback = terminalStatusText();
+		const scrollResult = await executeReady(
+			activeProvider,
+			catalogById.get(PROJECTED_TERMINAL_ACTION_IDS.scrollToBottom),
+		);
+		const clearResult = await executeReady(
+			activeProvider,
+			catalogById.get(PROJECTED_TERMINAL_ACTION_IDS.clear),
+		);
+		await until(() => terminalStatusText() === '已清除终端输出。');
+		const clearFeedback = terminalStatusText();
+
+		canvas.dispatchEvent(
+			new PointerEvent('pointermove', {
+				bubbles: true,
+				buttons: 0,
+				clientX: 4,
+				clientY: 4,
+				metaKey: true,
+				pointerType: 'mouse',
+				shiftKey: true,
+			}),
+		);
+		await until(() => canvas.style.cursor === 'pointer');
+		const applicationContext = activeProvider.capture(contextRequest(false));
+		const productContext = activeProvider.capture(contextRequest(true));
+		if (productContext.kind !== 'product') {
+			throw new Error('Shift did not return terminal pointer ownership to the product.');
+		}
+		const linkCatalog = actionRuntime.discover(
+			{
+				...(productContext.focus === undefined ? {} : { focus: productContext.focus }),
+				scope: workbenchScope,
+				source: 'context-menu',
+				...(productContext.target === undefined ? {} : { target: productContext.target }),
+			},
+			{ inputByActionId: productContext.actionInputs ?? {} },
+		);
+		const linkAction = linkCatalog.find(
+			(result) =>
+				result.kind === 'ready' && result.descriptor.id === PROJECTED_TERMINAL_ACTION_IDS.openLink,
+		);
+		if (linkAction?.kind !== 'ready' || linkAction.availability.kind !== 'enabled') {
+			throw new Error('Pinned terminal link context was not discoverable.');
+		}
+		transportListener({ frame: terminalSnapshot(2n, 2n), kind: 'frame' });
+		await nextPaint();
+		const staleLinkResult = await activeProvider.executePrepared(linkAction.invocation).completion;
+		await until(() => terminalStatusText() === '终端链接已发生变化，无法打开。');
+		const staleFeedback = terminalStatusText();
+
+		root.dataset['witnessActionInputs'] = Object.keys(productContext.actionInputs ?? {}).join(',');
+		root.dataset['witnessApplicationMouseOwned'] = String(
+			applicationContext.kind === 'terminal-owned',
+		);
+		root.dataset['witnessConfirmationCount'] = String(
+			root.querySelectorAll('[role="dialog"]').length,
+		);
+		root.dataset['witnessExternalOpenCount'] = String(externalOpenCount);
+		root.dataset['witnessFeedback'] = [pasteFeedback, clearFeedback, staleFeedback].join('|');
+		root.dataset['witnessPinnedContext'] = String(
+			productContext.actionInputs?.[PROJECTED_TERMINAL_ACTION_IDS.openLink] !== undefined,
+		);
+		root.dataset['witnessTypedResults'] = [
+			`paste:${pasteResult.kind}`,
+			`scroll:${scrollResult.kind}`,
+			`clear:${clearResult.kind}`,
+			`stale-link:${staleLinkResult.kind}:${
+				staleLinkResult.kind === 'blocked' ? staleLinkResult.code : 'unexpected'
+			}`,
+		].join(',');
+		root.dataset['witnessReady'] = 'true';
+		session.dispose();
+		actionRuntime.dispose();
+	} catch (error) {
+		root.dataset['witnessFailure'] = error instanceof Error ? error.message : String(error);
+	}
+}
+
+function appleCommand(code: string, key: string): KeyboardEvent {
+	return new KeyboardEvent('keydown', {
+		bubbles: true,
+		cancelable: true,
+		code,
+		key,
+		metaKey: true,
+	});
+}
+
+function contextRequest(shiftKey: boolean) {
+	return {
+		altKey: false,
+		clientX: 4,
+		clientY: 4,
+		ctrlKey: false,
+		metaKey: true,
+		shiftKey,
+	};
+}
+
+async function executeReady(
+	provider: WorkbenchTerminalActionContextProvider,
+	result: ActionDiscoveryResult | undefined,
+) {
+	if (result?.kind !== 'ready' || result.availability.kind !== 'enabled') {
+		throw new Error('Expected an enabled prepared terminal Action.');
+	}
+	return await provider.executePrepared(result.invocation).completion;
+}
+
+function terminalStatusText(): string | null {
+	return (
+		root.querySelector<HTMLElement>('[data-projected-terminal-status="true"]')?.textContent ?? null
+	);
+}
+
+function terminalRows(
+	command: Extract<ProjectedTerminalCommand, { readonly kind: 'read-rows' }>,
+): Uint8Array {
+	if (command.payload.origin.kind !== 'absolute') {
+		throw new Error('Terminal link witness requested a non-absolute row window.');
+	}
+	const startRow = BigInt(command.payload.origin.row);
+	const selectedRows = rowText.slice(Number(startRow), Number(startRow) + command.payload.rowCount);
+	const frame = terminalFrame(1n, BigInt(command.payload.requestSequence), true);
+	const encoded = encodeTerminalRowWindow({
+		attachmentId,
+		columns: frame.columns,
+		detail: TerminalRowWindowDetail.render,
+		frame: {
+			...frame,
+			rowData: frame.rowData.slice(Number(startRow), Number(startRow) + selectedRows.length),
+			rows: selectedRows.length,
+			scrollbackRows: startRow,
+		},
+		generation: 1n,
+		hostEpoch,
+		revision: 1n,
+		sequence: BigInt(command.payload.requestSequence),
+		startRow,
+		totalRows: BigInt(rowText.length),
+	});
+	if (!encoded.ok) throw new Error(encoded.detail);
+	return encoded.value;
+}
+
+function terminalSnapshot(revision: bigint, sequence: bigint): Uint8Array {
+	const encoded = encodeTerminalFrame(terminalFrame(revision, sequence, false));
+	if (!encoded.ok) throw new Error(encoded.detail);
+	return encoded.value;
+}
+
+function terminalFrame(revision: bigint, sequence: bigint, link: boolean): TerminalFrame {
+	const regularStyle: TerminalFrame['styles'][number] = {
+		background: { kind: TerminalColorKind.default },
+		blink: false,
+		bold: false,
+		faint: false,
+		foreground: { kind: TerminalColorKind.default },
+		hyperlink: null,
+		inverse: false,
+		invisible: false,
+		italic: false,
+		overline: false,
+		strikethrough: false,
+		underline: { kind: TerminalColorKind.none },
+		underlineKind: UnderlineKind.none,
+	};
+	return {
+		activeScreen: ActiveScreen.primary,
+		attachmentId,
+		baseRevision: null,
+		cellPixelHeight: 18,
+		cellPixelWidth: 9,
+		columns: 24,
+		cursor: {
+			blinking: false,
+			column: 3,
+			row: 2,
+			shape: CursorShape.bar,
+			visible: true,
+			wideTail: false,
+		},
+		currentDirectory: '/fixture',
+		defaultColors: { backgroundRgb: 0x10_20_30, cursorRgb: null, foregroundRgb: 0xf4_f4_f4 },
+		extensions: [],
+		generation: 1n,
+		hostEpoch,
+		interaction: {
+			applicationCursorKeys: false,
+			applicationKeypad: false,
+			bracketedPaste: false,
+			focusReporting: false,
+			kittyDisambiguateEscapeCodes: false,
+			kittyReportAllKeysAsEscapeCodes: false,
+			kittyReportAlternateKeys: false,
+			kittyReportAssociatedText: false,
+			kittyReportEventTypes: false,
+			modifyOtherKeys2: false,
+			mouseAny: true,
+			mouseButton: false,
+			mouseNormal: false,
+			mouseSgr: true,
+			mouseSgrPixels: false,
+			mouseUtf8: false,
+			mouseUrxvt: false,
+			mouseX10: false,
+		},
+		kind: TerminalFrameKind.snapshot,
+		revision,
+		rowData: rowText.map((text, row) => ({
+			cells: Array.from({ length: 24 }, (_, column) => ({
+				grapheme: text[column] ?? '',
+				protected: false,
+				semanticContent: SemanticContent.output,
+				style: link && row === 0 && column < text.length ? 1 : 0,
+				width: CellWidth.narrow,
+			})),
+			index: row,
+			promptClass: RowPromptClass.none,
+			wrap: false,
+			wrapContinuation: false,
+		})),
+		rows: rowText.length,
+		scrollbackRows: 0n,
+		sequence,
+		styles: [regularStyle, { ...regularStyle, hyperlink: linkUrl }],
+		themeRevision: 0n,
+		title: 'IN-09 IN-11 IN-12 terminal Actions witness',
+	};
+}
+
+async function nextPaint(): Promise<void> {
+	await new Promise<void>((resolve) => {
+		requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+	});
+}
+
+async function until(predicate: () => boolean): Promise<void> {
+	for (let attempt = 0; attempt < 40; attempt += 1) {
+		if (predicate()) return;
+		await new Promise<void>((resolve) => setTimeout(resolve, 10));
+	}
+	throw new Error('Terminal Action witness condition did not become observable.');
+}

@@ -1,6 +1,7 @@
-import type { ActionInvocationSource } from '@orchbee/actions';
+import type { ActionInvocationSource, ActionRuntime, ActionScope } from '@orchbee/actions';
 
 import type { TerminalPresentationId } from '../../../../terminal-presentation';
+import type { WorkbenchTerminalBellEffect } from '../../../model/WorkbenchTerminalBellEffectCoordinator';
 import type {
 	PanelLayoutNode,
 	PanelSplitDirection,
@@ -49,6 +50,9 @@ export interface PendingPanelClose {
 }
 
 export interface WorkbenchPanelWorkspaceView {
+	readonly actionRuntime: ActionRuntime;
+	readonly actionScope: ActionScope;
+	readonly admitTerminalBellEffect: (event: WorkbenchTerminalBellEffect) => boolean;
 	readonly activateChildTerminal: (
 		panelId: string,
 		childPresentationId: TerminalPresentationId,

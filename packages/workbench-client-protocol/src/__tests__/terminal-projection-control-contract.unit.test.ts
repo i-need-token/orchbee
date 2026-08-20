@@ -31,6 +31,7 @@ describe('terminal projection control contract', () => {
 			TerminalProjectionControlEventSchema.safeParse({
 				bootstrap: {
 					attachmentId: '11'.repeat(16),
+					capabilityRevision: '1',
 					canInput: true,
 					canResize: true,
 					creationId: '22'.repeat(16),

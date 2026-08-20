@@ -434,10 +434,11 @@ fn runTrace(allocator: std.mem.Allocator, host_executable: []const u8) !void {
         "orchbee-black-box\r\n"
     else
         "orchbee-black-box\n";
-    const input_payload = try allocator.alloc(u8, attachment_id.len + input_text.len);
+    const input_payload = try allocator.alloc(u8, attachment_id.len + 8 + input_text.len);
     defer allocator.free(input_payload);
     @memcpy(input_payload[0..attachment_id.len], &attachment_id);
-    @memcpy(input_payload[attachment_id.len..], input_text);
+    std.mem.writeInt(u64, input_payload[attachment_id.len..][0..8], 1, .little);
+    @memcpy(input_payload[attachment_id.len + 8 ..], input_text);
     {
         var accepted = try session.request(
             protocol.MessageKind.write_input,

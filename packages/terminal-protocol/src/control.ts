@@ -380,6 +380,12 @@ export const AttachTerminalSchema = z
 		}
 	});
 
+export const UpdateAttachmentInputCapabilitySchema = z.strictObject({
+	attachmentId: AttachmentIdSchema,
+	capabilityRevision: positiveCanonicalUint64TextSchema,
+	input: z.boolean(),
+});
+
 export const ResizeTerminalSchema = z
 	.strictObject({
 		attachmentId: AttachmentIdSchema,
@@ -609,7 +615,7 @@ export const SelectionChangedSchema = z.discriminatedUnion('state', [
 	}),
 ]);
 
-export const SelectionExportFormatSchema = z.enum(['html', 'plain', 'vt']);
+export const SelectionExportFormatSchema = z.literal('plain');
 
 export const SelectionExportSchema = z.strictObject({
 	attachmentId: AttachmentIdSchema,
@@ -859,6 +865,7 @@ export const TerminalListSchema = z
 export const AttachmentCapabilitiesSchema = z
 	.strictObject({
 		attachmentId: AttachmentIdSchema,
+		capabilityRevision: positiveCanonicalUint64TextSchema,
 		capabilities: attachmentCapabilitiesSchema,
 		resizeLease: z.boolean(),
 		terminalId: TerminalIdSchema,
@@ -882,6 +889,7 @@ export const ResizeLeaseChangedSchema = z.strictObject({
 export const InputAcceptedSchema = z.strictObject({
 	acceptedBytes: z.number().int().min(0).max(PROTOCOL_LIMITS.maxInputAcceptedBytes),
 	attachmentId: AttachmentIdSchema,
+	capabilityRevision: positiveCanonicalUint64TextSchema,
 });
 
 export const ResizeAcceptedSchema = z.strictObject({
@@ -1028,6 +1036,8 @@ export type FailureContainment = z.infer<typeof FailureContainmentSchema>;
 export type FrameApplied = z.infer<typeof FrameAppliedSchema>;
 export type NeedSnapshot = z.infer<typeof NeedSnapshotSchema>;
 export type InputAccepted = z.infer<typeof InputAcceptedSchema>;
+
+export type UpdateAttachmentInputCapability = z.infer<typeof UpdateAttachmentInputCapabilitySchema>;
 export type ListTerminals = z.infer<typeof ListTerminalsSchema>;
 export type ProtocolRejected = z.infer<typeof ProtocolRejectedSchema>;
 export type ProjectionBlocked = z.infer<typeof ProjectionBlockedSchema>;

@@ -25,7 +25,7 @@ Main loads and validates the shared document once before admitting clients. An a
 
 The coordinator is transport-neutral and supports independent page sessions without a product count ceiling. Electron uses a direct `MessagePort` adapter. Explicit Browser access starts `apps/server` and `apps/gateway` as on-demand Utility Processes; Desktop owns both lifetimes and allocates exactly one client-session/projection port pair per authenticated page. Server owns static renderer delivery, while Gateway owns exact-Origin admission, capability authentication, framing, and transport backpressure on loopback or an explicitly selected trusted LAN. Gateway never receives an application-lifetime port or a Host connection. `apps/web` owns the platform-neutral Workbench client runtime and the single renderer application used in an ordinary browser, a Gateway Browser client, and Electron. Development Electron is discovered from its User-Agent on the loopback Web origin. Packaged Desktop registers the standard secure `orchbee:` scheme before Electron becomes ready, serves the Web build from `orchbee://app`, and falls back to `index.html` for Browser Router document requests. Desktop owns renderer resource delivery, not another renderer source tree. See [`docs/multi-client-session-coordinator.md`](docs/multi-client-session-coordinator.md) and [`../web/docs/navigation-routing.md`](../web/docs/navigation-routing.md).
 
-Desktop requires the single current Host protocol `0.0.14` exactly; pre-release builds do not negotiate or document historical protocol variants. Electron uses `42.8.0`, the final release in the major immediately preceding the current Electron major selected for this repository.
+Desktop requires the single current Host protocol `0.0.16` exactly; pre-release builds do not negotiate or document historical protocol variants. Electron uses `42.8.0`, the final release in the major immediately preceding the current Electron major selected for this repository.
 
 `HostConnection` owns one connection-global outbound window across every broker caller: at most 64 unanswered request records and 4 MiB of encoded request bytes. It retains that admission until the correlated response or connection failure. A full window or a Node writable that has returned `false` rejects work before handoff with retryable `host-transport-backpressure`; no request write resumes before `drain`. If a handed-off request reaches its deadline, Desktop retires the connection and rejects all pending and future requests with non-retryable `host-request-outcome-unknown`, so input is never replayed after an ambiguous result. The broker's 64-command per-attachment window remains an additional capability-local guard.
 
@@ -263,7 +263,7 @@ and applies the Workbench-owned Warp-scoped policy. Renderer input, Browser loca
 peer names cannot replace this hostname. Natural title and current CWD remain per-page transient
 observations; only fallback and explicit custom Tab titles enter the shared-document coordinator.
 
-Each successful request receives a fresh AttachmentId, capability bootstrap, and private `MessagePort`. For one running presentation, every writable attachment receives read/input/resize capability, while serialized opens request the resize lease only when no active lease owner exists. Later attachments remain observers until the owner detaches. The Host then promotes the earliest admitted live resize-capable observer, publishes its attachment-scoped ownership change before acknowledging the detach, and Desktop forwards the change without reopening that surface. Open, release, and retirement operations are serialized per presentation, so a concurrent release/open cannot bypass an existing observer or create two owners. Main returns a correlated release acknowledgement only after detach completes; a cleanup failure retains the same request for an exact later retry and cannot invalidate another projection request. Exited and failed terminals attach read-only with their retained final revision and typed outcome. Multiple visible split panels and page clients may hold independent attachments, with no global attachment threshold.
+Each successful request receives a fresh AttachmentId, complete capability bootstrap, positive capability revision, and private `MessagePort`. Desktop forwards that revision through the Workbench bootstrap, and every projected raw or semantic input command returns it to Host. For one running presentation, every writable attachment receives read/input/resize capability, while serialized opens request the resize lease only when no active lease owner exists. Later attachments remain observers until the owner detaches. The Host then promotes the earliest admitted live resize-capable observer, publishes its attachment-scoped ownership change before acknowledging the detach, and Desktop forwards the change without reopening that surface. Open, input-capability mutation, release, and retirement operations are serialized per presentation. Only the Main-owned projection lease can request a live input change; the broker submits the exact next revision to Host, validates the complete returned attachment identity, immutable read/resize state, resize lease, new input value, and revision, and only then publishes the state downstream. Repeated desired state is a no-op. A renderer command cannot escalate its own capability, and an invalid or unpublishable Host result retires the attachment rather than granting client authority. Main returns a correlated release acknowledgement only after pending capability work and detach complete; a cleanup failure retains the same request for an exact later retry and cannot invalidate another projection request. Exited and failed terminals attach read-only with their retained final revision and typed outcome. Multiple visible split panels and page clients may hold independent attachments, with no global attachment threshold.
 
 `HostConnection` reads and validates the fixed terminal-frame header once, then routes the binary record directly by AttachmentId. Main performs no VT parsing, row reconstruction, Kitty image loading, JSON/base64 conversion, or per-cell pass. At the Electron capability boundary, the broker copies only the routed payload into an exact-size `ArrayBuffer` before structured clone, so envelope headers and coalesced neighboring records never cross the renderer port. The renderer strictly decodes bounded OBKG raw pixels inside OBTF and never receives a path, URL, temporary-file handle, or shared-memory capability. OBPB format `0.0.2` local history render buffers then use the structural-view boundary; Gateway delivery remains externally validated. History, selection, copy, link, and accessibility behavior remains attachment-scoped. Normal bottom-following use creates no history cache or search Worker; these resources are activated only by their existing interaction contracts.
 
@@ -274,7 +274,13 @@ renderer request sequence so only that history flight can settle. Client-owned c
 use their request sequence instead. Electron and Gateway forward the same bounded failure contract,
 and neither broker retries user effects from that diagnostic identity.
 
-Electron attachments commit selection export through Main's clipboard and open allowlisted links through Electron. Gateway attachments receive bounded selection bytes, commit them through the Browser Clipboard API, and open `http`, `https`, or `mailto` targets through a local Browser gesture. The Browser never receives a generic Electron effect port. Attachment transport backpressure retires only that attachment; the visible surface requests a fresh projection and full snapshot.
+Electron attachments request only the protocol's literal `plain` selection export and commit the
+decoded UTF-8 text through Main's clipboard. Gateway attachments receive the same bounded plain-text
+selection bytes and commit them through the Browser Clipboard API. Neither projection command nor
+platform effect exposes an HTML or raw VT format selector. Links open only allowlisted `http`,
+`https`, or `mailto` targets through Electron or a local Browser gesture. The Browser never receives
+a generic Electron effect port. Attachment transport backpressure retires only that attachment; the
+visible surface requests a fresh projection and full snapshot.
 
 An unexpected shared Host-connection close publishes one retryable `host-connection-unavailable`
 failure to every still-live attachment before requesting its cleanup. Each visible surface freezes only
@@ -287,8 +293,11 @@ exact-text review and calls the already scoped platform clipboard effect only af
 Cancel, Escape, attachment retirement, renderer replacement, or an unavailable effect writes
 nothing. Neither Main nor the renderer persists request text or a trust decision; Host delivery to
 one attachment means another Desktop or Gateway page cannot receive the same request after handoff.
-Bell remains a local visual surface cue, and OBTF progress remains quiet presentation metadata;
-neither requests window focus or a system notification. Semantic command completion is separate:
+Bell delivery is deduplicated by opaque terminal identity and Host sequence in the shared Workbench
+lifetime before one local visual surface cue is admitted. Desktop currently registers neither the
+separate opt-in sound effect nor the separate opt-in operating-system notification effect, so Bell
+requests neither window focus, audio, nor a system notification by default. OBTF progress remains
+quiet presentation metadata. Semantic command completion is separate:
 after the user enables the default-off device-local policy, the renderer may present a localized
 terminal status and use its page-local notification capability. PTY output cannot request
 notification permission, and the completion payload contains no command text.
@@ -307,12 +316,45 @@ Focused traces cover:
 - fresh provisioning, multi-binding store preservation, recovery, exited recovery, orphan and conflict handling, durable close, and presentation-registry reconstruction;
 - unrelated terminal concurrency, exact close targeting, Tab-close result ordering, and stale result rejection;
 - two recovered Workbench tabs where both lifecycle records reconcile but only the active visible Tab has an attachment, followed by exact release/open behavior on Tab switch;
-- deferred visual creation with no child before mounted geometry, exact start-before-attach ordering,
-  duplicate and conflicting start behavior, start failure without attachment, pending direct
-  disposal, and matching first renderer/Host geometry;
+- exact `terminal-parity/SU-16-startup-geometry` real Electron/Host evidence: a controlled POSIX
+  shell records its PTY size before handing control to `/bin/sh`, and that first-child geometry
+  matches the independently derived mounted grid and the sole first client frame without an
+  intermediate `80x24` frame; owner-local traces cover no-child deferred creation,
+  start-before-attach ordering, duplicate/conflicting start, failed start, and pending disposal.
+  The system witness is POSIX-only and does not claim Windows ConPTY startup or a later resize;
+- exact `terminal-parity/SU-13-cursor-defaults` real-PTY projection evidence for the explicit
+  block/non-blinking profile default, a blinking-bar DECSCUSR override, and RIS restoration. Host
+  runtime tests additionally cover application Reset and non-default profiles; the system witness
+  observes canonical projected metadata rather than treating a platform screenshot as cursor
+  authority;
 - concurrent viewers with exactly one resize owner, earliest-observer promotion, dynamic renderer ownership, and serialized release/open ordering;
+- exact headed `terminal-parity/IN-10-read-only` capability evidence for Host-committed live
+  downgrade/upgrade, immediate client repair, read-only local output interaction, no stale replay,
+  and serialized mutation-before-detach ordering;
+- exact headed `terminal-parity/IN-14-shared-focus` evidence for two projected attachments'
+  independent focus claims, one shared-terminal aggregate focus interval, target-only visibility
+  repair, and activation without claim replay. The fixture controls application-layer focus and
+  does not claim operating-system multi-window focus;
+- exact headed `terminal-parity/PR-11-bell`, `terminal-parity/IN-09-action-scope`,
+  `terminal-parity/IN-11-context`, and `terminal-parity/IN-12-actions` Canvas evidence for the
+  shared bell coordinator, containing-Workbench Action scope, pinned/revalidated semantic context,
+  synchronous availability, typed execution, and localized feedback. Captured effects do not
+  claim native audio, notification, URL-handler, or clipboard delivery;
+- exact `terminal-parity/IN-08-drop` Desktop backing-path resolution, bounded POSIX quoting, mandatory review, cancellation, and no implicit Enter;
+- exact headed `terminal-parity/FS-05-file-links` and `terminal-parity/FS-06-url-policy` Browser-composition witnesses for disabled filesystem activation and the shared `http`/`https`/`mailto` detection, hover, context, and activation boundary;
+- exact headed `terminal-parity/LC-05-lan-capability` Browser-composition evidence for per-operation secure-context, transient-user-activation, and API checks; synchronous Copy availability; one admitted writer call; rejection without retry; localized failure; and no privileged insecure-LAN path;
+- exact `terminal-parity/HS-07-selection-export` real-PTY/Electron evidence that styled terminal
+  selection reaches the platform clipboard as the exact visible plain text, paired with protocol,
+  Host, and projected-command regressions that expose no HTML or raw VT format;
 - fixed-header frame routing to only the matching AttachmentId, with exact-size structured-clone payload isolation;
-- complete theme bootstrap, identity-scoped apply/reconcile forwarding, lifecycle refresh, unknown-outcome preservation, and headed SU-09 hold/release evidence that exposes no mixed app/terminal revision;
+- complete theme bootstrap, identity-scoped apply/reconcile forwarding, lifecycle refresh,
+  unknown-outcome preservation, and exact headed `terminal-parity/SU-09-theme` hold/release
+  evidence that exposes no mixed app/terminal revision;
+- exact headed `terminal-parity/CF-03-visual-environment` evidence with repository product fonts,
+  Canvas 2D forced through the production renderer boundary, a `900x500` viewport, DPR `1`,
+  `en-US`, UTC, light color scheme, and reduced motion. It asserts exact semantic state and performs
+  no pixel-tolerance normalization; it is not a WebGPU, cross-browser, native-DPI, or
+  operating-system font-rasterization golden;
 - sandboxed end-to-end input, output, history, search, selection, copy, links, exit, renderer reload, and Electron Main restart;
 - development and packaged Shell-resource resolution, resource presence and privacy checks, real Zsh
   OSC 133 output, and one macOS Electron path from manual Settings policy through a long-command

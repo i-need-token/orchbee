@@ -80,6 +80,7 @@ export {
 	TerminalThemeSchema,
 	TerminalThemeStateSchema,
 	TypedFailureSchema,
+	UpdateAttachmentInputCapabilitySchema,
 	UpdateTerminalConfigurationSchema,
 } from './control';
 export type {
@@ -157,6 +158,7 @@ export type {
 	TerminalThemeResult,
 	TerminalThemeState,
 	TypedFailure,
+	UpdateAttachmentInputCapability,
 	UpdateTerminalConfiguration,
 } from './control';
 export { encodeControlRequest } from './encodeControlRequest';
@@ -304,7 +306,7 @@ export {
 	TerminalModifiersSchema,
 	TEXT_INPUT_HEADER_BYTES,
 	TextInputSchema,
-	WRITE_INPUT_ATTACHMENT_BYTES,
+	WRITE_INPUT_HEADER_BYTES,
 	WriteInputSchema,
 } from './input';
 export type {

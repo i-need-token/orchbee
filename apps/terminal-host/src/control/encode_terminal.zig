@@ -66,12 +66,13 @@ pub fn writeAttachmentCapabilities(writer: *std.Io.Writer, attachment: anytype) 
     var attachment_buffer: [32]u8 = undefined;
     var terminal_buffer: [32]u8 = undefined;
     try writer.print(
-        "{{\"attachmentId\":\"{s}\",\"capabilities\":{{\"input\":{},\"read\":{},\"resize\":{}}},\"resizeLease\":{},\"terminalId\":\"{s}\"}}",
+        "{{\"attachmentId\":\"{s}\",\"capabilities\":{{\"input\":{},\"read\":{},\"resize\":{}}},\"capabilityRevision\":\"{d}\",\"resizeLease\":{},\"terminalId\":\"{s}\"}}",
         .{
             common.identifierText(attachment.attachment_id, &attachment_buffer),
             attachment.capabilities.input,
             attachment.capabilities.read,
             attachment.capabilities.resize,
+            attachment.capability_revision,
             attachment.resize_lease,
             common.identifierText(attachment.terminal_id, &terminal_buffer),
         },
@@ -123,8 +124,12 @@ pub fn inputAccepted(allocator: std.mem.Allocator, accepted: anytype) ![]u8 {
 pub fn writeInputAccepted(writer: *std.Io.Writer, accepted: anytype) !void {
     var attachment_buffer: [32]u8 = undefined;
     try writer.print(
-        "{{\"acceptedBytes\":{d},\"attachmentId\":\"{s}\"}}",
-        .{ accepted.byte_count, common.identifierText(accepted.attachment_id, &attachment_buffer) },
+        "{{\"acceptedBytes\":{d},\"attachmentId\":\"{s}\",\"capabilityRevision\":\"{d}\"}}",
+        .{
+            accepted.byte_count,
+            common.identifierText(accepted.attachment_id, &attachment_buffer),
+            accepted.capability_revision,
+        },
     );
 }
 

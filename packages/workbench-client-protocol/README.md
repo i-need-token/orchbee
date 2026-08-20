@@ -20,6 +20,14 @@ The same stream carries a complete attachment-scoped resize-lease ownership chan
 validates both attachment and terminal identities before dynamically enabling or disabling Host
 resize requests; the immutable attachment bootstrap is not rewritten when ownership changes.
 
+Live input authority uses a separate `attachment-input-capability-changed` event containing the
+complete Host-committed attachment capability state and positive revision. The transport cannot
+request or synthesize this mutation. A client validates the attachment and terminal identities and
+applies only an exact replay or exact-next changed input value; stale delivery is inert and a
+conflict or revision gap fails closed. Downgrade makes PTY Actions unavailable synchronously while
+history, search, selection, and copy remain local output interactions. Upgrade carries no queued
+input and grants only future input stamped with the new revision.
+
 Feature failures retain their semantic operation and retryability across both Electron and Gateway
 transports. A Host response additionally retains its exact correlation ID, while client-owned copy
 and link effects retain their request sequence. These values identify consequences and diagnostics;
@@ -43,7 +51,11 @@ persistence, or URI trust policy; `@orchbee/workbench` owns those decisions.
 
 Projected frame and row-window events accept either an exact `ArrayBuffer` or a bounded `Uint8Array` view so in-process adapters can preserve a validated payload view. Before structured-cloning a view into a less-trusted capability, the transport owner must copy its visible bytes into an exact-size `ArrayBuffer`; structured clone carries the complete backing buffer, including bytes outside the view. Receivers still honor the declared byte offset and length, while transport trust and terminal-protocol validation remain separate responsibilities.
 
-Selection export remains attachment-scoped. A Desktop-effect attachment receives `selection-copied` after Main commits the clipboard effect; a client-effect attachment receives `selection-copy-content` with bounded UTF-8 bytes and commits those bytes through its own platform clipboard before reporting local completion. Neither event grants a generic clipboard capability.
+Selection export remains attachment-scoped and plain-text-only. The projected command has no format
+selector. A Desktop-effect attachment receives `selection-copied` after Main commits the clipboard
+effect; a client-effect attachment receives `selection-copy-content` with bounded UTF-8 bytes and
+commits those bytes through its own platform clipboard before reporting local completion. Neither
+event grants HTML, raw VT, or a generic clipboard capability.
 
 Host-originated clipboard-write review is a separate, request-bound flow. Main forwards at most one pending bounded request per attachment, and the renderer can return only an exact `clipboard-write-decision` containing the original attachment, sequence, and text plus the user's boolean decision. Desktop Main rejects mismatched and duplicate decisions and performs the privileged write only for an approved Desktop-effect attachment. A client-effect attachment performs its local Browser write first and uses the same exact decision only to consume Main's pending request, so Main cannot duplicate the effect.
 

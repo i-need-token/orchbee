@@ -121,8 +121,15 @@ export function startGatewayWebApplication(
 			},
 			nextControl.bootstrap,
 		);
-		const clipboard = targetWindow.navigator.clipboard;
 		const platformEffects = createBrowserTerminalPlatformEffects({
+			getClipboardTextWriter: () => {
+				const clipboard = targetWindow.navigator.clipboard;
+				return clipboard === undefined
+					? undefined
+					: async (text: string) => clipboard.writeText(text);
+			},
+			hasTransientUserActivation: () => targetWindow.navigator.userActivation?.isActive === true,
+			isSecureContext: () => targetWindow.isSecureContext,
 			openExternal: (target) => {
 				const anchor = targetWindow.document.createElement('a');
 				anchor.href = target;
@@ -130,9 +137,6 @@ export function startGatewayWebApplication(
 				anchor.target = '_blank';
 				anchor.click();
 			},
-			...(clipboard === undefined
-				? {}
-				: { writeClipboardText: async (text: string) => clipboard.writeText(text) }),
 		});
 		const nextRuntime = dependencies.createRuntime({
 			clientSession,

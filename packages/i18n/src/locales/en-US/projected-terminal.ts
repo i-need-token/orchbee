@@ -1,11 +1,14 @@
 export const enUSProjectedTerminalMessages = {
 	'terminal.projected.action.category': 'Terminal',
+	'terminal.projected.action.clear': 'Clear terminal',
 	'terminal.projected.action.copy': 'Copy selection',
 	'terminal.projected.action.findNext': 'Find next match',
 	'terminal.projected.action.findOpen': 'Find in terminal',
 	'terminal.projected.action.findPrevious': 'Find previous match',
 	'terminal.projected.action.openLink': 'Open terminal link',
+	'terminal.projected.action.paste': 'Paste',
 	'terminal.projected.action.reset': 'Reset terminal',
+	'terminal.projected.action.scrollToBottom': 'Scroll to bottom',
 	'terminal.projected.action.selectAll': 'Select all retained terminal output',
 	'terminal.projected.action.unavailable': 'This terminal action is unavailable.',
 	'terminal.projected.accessibility.deleted': 'Deleted: {text}',
@@ -26,6 +29,7 @@ export const enUSProjectedTerminalMessages = {
 	'terminal.projected.runtimeFailure': 'The terminal session stopped after a runtime failure.',
 	'terminal.projected.copy.completed': 'Copied {byteLength, number} bytes.',
 	'terminal.projected.copy.failed': 'The terminal selection could not be copied.',
+	'terminal.projected.clear.completed': 'Terminal output cleared.',
 	'terminal.projected.clipboard.review.bytes': '{byteLength, number} UTF-8 bytes',
 	'terminal.projected.clipboard.review.cancel': 'Keep current clipboard',
 	'terminal.projected.clipboard.review.confirm': 'Copy to clipboard',
@@ -66,8 +70,7 @@ export const enUSProjectedTerminalMessages = {
 		'The active terminal is not ready to receive dropped paths.',
 	'terminal.projected.fileDrop.failure.tooMany':
 		'{count, plural, one {One file was} other {# files were}} dropped. Select no more than {maximum, number}.',
-	'terminal.projected.fileDrop.failure.unsupported':
-		'File drop is not supported for this Desktop shell.',
+	'terminal.projected.fileDrop.failure.unsupported': 'File drop is unavailable in this client.',
 	'terminal.projected.fileDrop.review.confirm': 'Paste paths',
 	'terminal.projected.fileDrop.review.description':
 		'Review the exact shell input generated from the dropped local paths.',
@@ -81,6 +84,10 @@ export const enUSProjectedTerminalMessages = {
 	'terminal.projected.progress.label': 'Terminal task progress',
 	'terminal.projected.link.blocked': 'This terminal link is blocked by the desktop link policy.',
 	'terminal.projected.link.failed': 'The terminal link could not be opened.',
+	'terminal.projected.link.stale': 'The terminal link changed before it could be opened.',
+	'terminal.projected.link.completed': 'Terminal link opened.',
+	'terminal.projected.paste.completed': 'Clipboard text pasted into the terminal.',
+	'terminal.projected.paste.failed': 'Clipboard text could not be pasted into the terminal.',
 	'terminal.projected.pasteReview.cancel': 'Cancel',
 	'terminal.projected.pasteReview.confirm': 'Paste',
 	'terminal.projected.pasteReview.controls':
@@ -94,6 +101,10 @@ export const enUSProjectedTerminalMessages = {
 	'terminal.projected.pasteReview.title': 'Review terminal paste',
 	'terminal.projected.pasteReview.truncated': 'Preview truncated.',
 	'terminal.projected.screen': 'Terminal screen',
+	'terminal.projected.reset.completed': 'Terminal reset.',
+	'terminal.projected.scrollToBottom.completed': 'Scrolled to the latest terminal output.',
+	'terminal.projected.scrollToBottom.unchanged': 'Already showing the latest terminal output.',
+	'terminal.projected.selectAll.completed': 'Selected all retained terminal output.',
 	'terminal.projected.selection.evicted':
 		'The terminal selection was evicted from retained history.',
 	'terminal.projected.session.startNew': 'Start New Session',

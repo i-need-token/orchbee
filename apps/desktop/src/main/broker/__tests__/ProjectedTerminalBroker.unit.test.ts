@@ -2,6 +2,7 @@ import { EventEmitter } from 'node:events';
 
 import {
 	AttachmentIdSchema,
+	AttachmentCapabilitiesSchema,
 	CanonicalUint64TextSchema,
 	CorrelationIdSchema,
 	CreationIdSchema,
@@ -10,6 +11,7 @@ import {
 	HostEpochSchema,
 	MessageKind,
 	PayloadEncoding,
+	SelectionExportStartedSchema,
 	TerminalIdSchema,
 	TerminalThemeStateSchema,
 	type DecodedProtocolEnvelope,
@@ -78,6 +80,7 @@ describe('ProjectedTerminalBroker', () => {
 			attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
 			canInput: true,
 			canResize: true,
+			capabilityRevision: CanonicalUint64TextSchema.parse('1'),
 			creationId: CreationIdSchema.parse('22'.repeat(16)),
 			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
 			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
@@ -129,6 +132,7 @@ describe('ProjectedTerminalBroker', () => {
 			attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
 			canInput: true,
 			canResize: false,
+			capabilityRevision: CanonicalUint64TextSchema.parse('1'),
 			creationId: CreationIdSchema.parse('22'.repeat(16)),
 			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
 			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
@@ -178,6 +182,179 @@ describe('ProjectedTerminalBroker', () => {
 		});
 	});
 
+	it('publishes live input capability only after an exact Host revision commit', async () => {
+		const bootstrap = {
+			attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
+			canInput: true,
+			canResize: false,
+			capabilityRevision: CanonicalUint64TextSchema.parse('1'),
+			creationId: CreationIdSchema.parse('22'.repeat(16)),
+			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
+			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
+			terminalOutcome: null,
+			theme,
+		};
+		const initialCapabilities = AttachmentCapabilitiesSchema.parse({
+			attachmentId: bootstrap.attachmentId,
+			capabilities: { input: true, read: true, resize: true },
+			capabilityRevision: '1',
+			resizeLease: false,
+			terminalId: bootstrap.terminalId,
+		});
+		const requestControl = vi.fn<HostConnection['requestControl']>(async (kind, value) => {
+			if (kind === MessageKind.detachTerminal) return value as never;
+			if (kind !== MessageKind.updateAttachmentInputCapability) {
+				throw new Error('Unexpected Host request.');
+			}
+			const request = value as {
+				readonly capabilityRevision: ReturnType<typeof CanonicalUint64TextSchema.parse>;
+				readonly input: boolean;
+			};
+			return {
+				...initialCapabilities,
+				capabilities: { ...initialCapabilities.capabilities, input: request.input },
+				capabilityRevision: request.capabilityRevision,
+			} as never;
+		});
+		const host = {
+			onAttachmentEnvelope: vi.fn<HostConnection['onAttachmentEnvelope']>(() =>
+				vi.fn<() => void>(),
+			),
+			onClosed: vi.fn<HostConnection['onClosed']>(() => vi.fn<() => void>()),
+			onEnvelope: vi.fn<HostConnection['onEnvelope']>(() => vi.fn<() => void>()),
+			requestControl,
+		} as unknown as HostConnection;
+		const emitter = new EventEmitter();
+		const postMessage = vi.fn<(...arguments_: unknown[]) => void>();
+		const port = Object.assign(emitter, {
+			close: vi.fn<() => void>(),
+			postMessage,
+			start: vi.fn<() => void>(),
+		}) as unknown as MessagePortMain;
+		const broker = new ProjectedTerminalBroker(
+			host,
+			port,
+			bootstrap,
+			undefined,
+			'desktop',
+			{ onCleanupRequested: vi.fn<(error: unknown) => void>() },
+			initialCapabilities,
+		);
+		broker.start();
+
+		await broker.setInputCapability(false);
+		await broker.setInputCapability(false);
+		await broker.setInputCapability(true);
+
+		expect(
+			requestControl.mock.calls.filter(
+				([kind]) => kind === MessageKind.updateAttachmentInputCapability,
+			),
+		).toEqual([
+			[
+				MessageKind.updateAttachmentInputCapability,
+				{
+					attachmentId: bootstrap.attachmentId,
+					capabilityRevision: '2',
+					input: false,
+				},
+				expect.anything(),
+			],
+			[
+				MessageKind.updateAttachmentInputCapability,
+				{
+					attachmentId: bootstrap.attachmentId,
+					capabilityRevision: '3',
+					input: true,
+				},
+				expect.anything(),
+			],
+		]);
+		expect(postMessage.mock.calls.map(([message]) => message)).toEqual([
+			{
+				capabilities: {
+					...initialCapabilities,
+					capabilities: { ...initialCapabilities.capabilities, input: false },
+					capabilityRevision: '2',
+				},
+				kind: 'attachment-input-capability-changed',
+			},
+			{
+				capabilities: {
+					...initialCapabilities,
+					capabilities: { ...initialCapabilities.capabilities, input: true },
+					capabilityRevision: '3',
+				},
+				kind: 'attachment-input-capability-changed',
+			},
+		]);
+	});
+
+	it('fails closed without renderer publication when the Host commits a different revision', async () => {
+		const bootstrap = {
+			attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
+			canInput: true,
+			canResize: false,
+			capabilityRevision: CanonicalUint64TextSchema.parse('1'),
+			creationId: CreationIdSchema.parse('22'.repeat(16)),
+			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
+			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
+			terminalOutcome: null,
+			theme,
+		};
+		const initialCapabilities = AttachmentCapabilitiesSchema.parse({
+			attachmentId: bootstrap.attachmentId,
+			capabilities: { input: true, read: true, resize: true },
+			capabilityRevision: '1',
+			resizeLease: false,
+			terminalId: bootstrap.terminalId,
+		});
+		const requestControl = vi.fn<HostConnection['requestControl']>(async (kind) => {
+			if (kind !== MessageKind.updateAttachmentInputCapability) {
+				throw new Error('Unexpected Host request.');
+			}
+			return {
+				...initialCapabilities,
+				capabilities: { ...initialCapabilities.capabilities, input: false },
+				capabilityRevision: CanonicalUint64TextSchema.parse('3'),
+			} as never;
+		});
+		const host = {
+			onAttachmentEnvelope: vi.fn<HostConnection['onAttachmentEnvelope']>(() =>
+				vi.fn<() => void>(),
+			),
+			onClosed: vi.fn<HostConnection['onClosed']>(() => vi.fn<() => void>()),
+			onEnvelope: vi.fn<HostConnection['onEnvelope']>(() => vi.fn<() => void>()),
+			requestControl,
+		} as unknown as HostConnection;
+		const emitter = new EventEmitter();
+		const postMessage = vi.fn<(...arguments_: unknown[]) => void>();
+		const port = Object.assign(emitter, {
+			close: vi.fn<() => void>(),
+			postMessage,
+			start: vi.fn<() => void>(),
+		}) as unknown as MessagePortMain;
+		const onCleanupRequested = vi.fn<(error: unknown) => void>();
+		const broker = new ProjectedTerminalBroker(
+			host,
+			port,
+			bootstrap,
+			undefined,
+			'desktop',
+			{ onCleanupRequested },
+			initialCapabilities,
+		);
+
+		await expect(broker.setInputCapability(false)).rejects.toMatchObject({
+			code: 'invalid-attachment-capability-response',
+		});
+		expect(onCleanupRequested).toHaveBeenCalledOnce();
+		expect(postMessage).not.toHaveBeenCalled();
+		await expect(broker.setInputCapability(false)).rejects.toMatchObject({
+			code: 'attachment-unavailable',
+		});
+	});
+
 	it('copies exact frame bytes once and never interprets terminal cells in Main', () => {
 		let hostListener: ((envelope: DecodedProtocolEnvelope) => void) | undefined;
 		let controlListener: ((envelope: DecodedProtocolEnvelope) => void) | undefined;
@@ -205,6 +382,7 @@ describe('ProjectedTerminalBroker', () => {
 			attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
 			canInput: true,
 			canResize: true,
+			capabilityRevision: CanonicalUint64TextSchema.parse('1'),
 			creationId: CreationIdSchema.parse('22'.repeat(16)),
 			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
 			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
@@ -340,6 +518,7 @@ describe('ProjectedTerminalBroker', () => {
 			attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
 			canInput: true,
 			canResize: true,
+			capabilityRevision: CanonicalUint64TextSchema.parse('1'),
 			creationId: CreationIdSchema.parse('22'.repeat(16)),
 			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
 			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
@@ -437,6 +616,7 @@ describe('ProjectedTerminalBroker', () => {
 			attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
 			canInput: true,
 			canResize: true,
+			capabilityRevision: CanonicalUint64TextSchema.parse('1'),
 			creationId: CreationIdSchema.parse('22'.repeat(16)),
 			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
 			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
@@ -515,6 +695,7 @@ describe('ProjectedTerminalBroker', () => {
 			attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
 			canInput: true,
 			canResize: true,
+			capabilityRevision: CanonicalUint64TextSchema.parse('1'),
 			creationId: CreationIdSchema.parse('22'.repeat(16)),
 			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
 			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
@@ -530,7 +711,11 @@ describe('ProjectedTerminalBroker', () => {
 			emitter.emit('message', {
 				data: {
 					kind: 'text-input',
-					payload: { attachmentId: bootstrap.attachmentId, text: String(index) },
+					payload: {
+						attachmentId: bootstrap.attachmentId,
+						capabilityRevision: bootstrap.capabilityRevision,
+						text: String(index),
+					},
 				},
 			});
 		}
@@ -584,6 +769,7 @@ describe('ProjectedTerminalBroker', () => {
 			attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
 			canInput: true,
 			canResize: true,
+			capabilityRevision: CanonicalUint64TextSchema.parse('1'),
 			creationId: CreationIdSchema.parse('22'.repeat(16)),
 			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
 			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
@@ -667,6 +853,7 @@ describe('ProjectedTerminalBroker', () => {
 			attachmentId: AttachmentIdSchema.parse('55'.repeat(16)),
 			canInput: true,
 			canResize: true,
+			capabilityRevision: CanonicalUint64TextSchema.parse('1'),
 			creationId: CreationIdSchema.parse('66'.repeat(16)),
 			hostEpoch: HostEpochSchema.parse('77'.repeat(16)),
 			terminalId: TerminalIdSchema.parse('88'.repeat(16)),
@@ -679,6 +866,7 @@ describe('ProjectedTerminalBroker', () => {
 				kind: 'text-input',
 				payload: {
 					attachmentId: AttachmentIdSchema.parse('99'.repeat(16)),
+					capabilityRevision: CanonicalUint64TextSchema.parse('1'),
 					text: 'blocked',
 				},
 			},
@@ -697,6 +885,7 @@ describe('ProjectedTerminalBroker', () => {
 			attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
 			canInput: true,
 			canResize: true,
+			capabilityRevision: CanonicalUint64TextSchema.parse('1'),
 			creationId: CreationIdSchema.parse('22'.repeat(16)),
 			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
 			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
@@ -812,6 +1001,7 @@ describe('ProjectedTerminalBroker', () => {
 			attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
 			canInput: true,
 			canResize: true,
+			capabilityRevision: CanonicalUint64TextSchema.parse('1'),
 			creationId: CreationIdSchema.parse('22'.repeat(16)),
 			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
 			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
@@ -875,6 +1065,7 @@ describe('ProjectedTerminalBroker', () => {
 			attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
 			canInput: true,
 			canResize: true,
+			capabilityRevision: CanonicalUint64TextSchema.parse('1'),
 			creationId: CreationIdSchema.parse('22'.repeat(16)),
 			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
 			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
@@ -979,6 +1170,7 @@ describe('ProjectedTerminalBroker', () => {
 			attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
 			canInput: true,
 			canResize: true,
+			capabilityRevision: CanonicalUint64TextSchema.parse('1'),
 			creationId: CreationIdSchema.parse('22'.repeat(16)),
 			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
 			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
@@ -1057,6 +1249,7 @@ describe('ProjectedTerminalBroker', () => {
 			attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
 			canInput: true,
 			canResize: true,
+			capabilityRevision: CanonicalUint64TextSchema.parse('1'),
 			creationId: CreationIdSchema.parse('22'.repeat(16)),
 			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
 			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
@@ -1131,6 +1324,7 @@ describe('ProjectedTerminalBroker', () => {
 			attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
 			canInput: true,
 			canResize: true,
+			capabilityRevision: CanonicalUint64TextSchema.parse('1'),
 			creationId: CreationIdSchema.parse('22'.repeat(16)),
 			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
 			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
@@ -1183,6 +1377,15 @@ describe('ProjectedTerminalBroker', () => {
 			},
 		});
 		await vi.waitFor(() => expect(requestControl).toHaveBeenCalled());
+		expect(requestControl).toHaveBeenCalledWith(
+			MessageKind.selectionExport,
+			{
+				attachmentId: bootstrap.attachmentId,
+				exportSequence: '1',
+				format: 'plain',
+			},
+			SelectionExportStartedSchema,
+		);
 		const chunk = encodeSelectionExportChunk({
 			attachmentId: bootstrap.attachmentId,
 			bytes: textEncoder.encode('selected'),
@@ -1250,6 +1453,7 @@ describe('ProjectedTerminalBroker', () => {
 			attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
 			canInput: true,
 			canResize: true,
+			capabilityRevision: CanonicalUint64TextSchema.parse('1'),
 			creationId: CreationIdSchema.parse('22'.repeat(16)),
 			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
 			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
@@ -1443,6 +1647,7 @@ describe('ProjectedTerminalBroker', () => {
 			attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
 			canInput: true,
 			canResize: true,
+			capabilityRevision: CanonicalUint64TextSchema.parse('1'),
 			creationId: CreationIdSchema.parse('22'.repeat(16)),
 			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
 			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
@@ -1574,6 +1779,7 @@ describe('ProjectedTerminalBroker', () => {
 			attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
 			canInput: true,
 			canResize: true,
+			capabilityRevision: CanonicalUint64TextSchema.parse('1'),
 			creationId: CreationIdSchema.parse('22'.repeat(16)),
 			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
 			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
@@ -1601,8 +1807,13 @@ describe('ProjectedTerminalBroker', () => {
 		});
 		broker.start();
 		for (const [requestSequence, target] of [
-			['1', 'https://orchbee.dev/终端'],
-			['2', 'file:///tmp/secret'],
+			['1', 'http://orchbee.dev/path'],
+			['2', 'https://orchbee.dev/终端'],
+			['3', 'mailto:terminal@orchbee.dev'],
+			['4', 'file:///tmp/secret'],
+			['5', 'ftp://orchbee.dev'],
+			['6', 'ssh://orchbee.dev'],
+			['7', 'tel:+15551234567'],
 		] as const) {
 			emitter.emit('message', {
 				data: {
@@ -1612,21 +1823,29 @@ describe('ProjectedTerminalBroker', () => {
 			});
 		}
 
-		await vi.waitFor(() => expect(openExternal).toHaveBeenCalledTimes(1));
-		expect(openExternal).toHaveBeenCalledWith('https://orchbee.dev/%E7%BB%88%E7%AB%AF');
-		await vi.waitFor(() => {
-			expect(postMessage).toHaveBeenCalledWith({
-				kind: 'link-opened',
-				requestSequence: CanonicalUint64TextSchema.parse('1'),
+		await vi.waitFor(() => expect(openExternal).toHaveBeenCalledTimes(3));
+		expect(openExternal.mock.calls.map(([target]) => target)).toEqual([
+			'http://orchbee.dev/path',
+			'https://orchbee.dev/%E7%BB%88%E7%AB%AF',
+			'mailto:terminal@orchbee.dev',
+		]);
+		for (const requestSequence of ['1', '2', '3'] as const) {
+			await vi.waitFor(() => {
+				expect(postMessage).toHaveBeenCalledWith({
+					kind: 'link-opened',
+					requestSequence: CanonicalUint64TextSchema.parse(requestSequence),
+				});
 			});
-		});
+		}
 		await vi.waitFor(() => {
-			expect(postMessage).toHaveBeenCalledWith({
-				failure: expect.objectContaining({ code: 'link-policy-blocked' }),
-				kind: 'failure',
-			});
+			expect(
+				postMessage.mock.calls.filter(
+					([message]) =>
+						(message as { failure?: { code?: string } }).failure?.code === 'link-policy-blocked',
+				),
+			).toHaveLength(4);
 		});
-		expect(broker.metrics.externalTargetsOpened).toBe(1);
+		expect(broker.metrics.externalTargetsOpened).toBe(3);
 	});
 
 	it('hands renderer postMessage failure to the cleanup owner before detaching', async () => {
@@ -1634,6 +1853,7 @@ describe('ProjectedTerminalBroker', () => {
 			attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
 			canInput: true,
 			canResize: true,
+			capabilityRevision: CanonicalUint64TextSchema.parse('1'),
 			creationId: CreationIdSchema.parse('22'.repeat(16)),
 			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
 			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
@@ -1685,6 +1905,7 @@ describe('ProjectedTerminalBroker', () => {
 			attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
 			canInput: true,
 			canResize: true,
+			capabilityRevision: CanonicalUint64TextSchema.parse('1'),
 			creationId: CreationIdSchema.parse('22'.repeat(16)),
 			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
 			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
@@ -1740,6 +1961,7 @@ describe('ProjectedTerminalBroker', () => {
 			attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
 			canInput: true,
 			canResize: true,
+			capabilityRevision: CanonicalUint64TextSchema.parse('1'),
 			creationId: CreationIdSchema.parse('22'.repeat(16)),
 			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
 			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
@@ -1783,6 +2005,7 @@ describe('ProjectedTerminalBroker', () => {
 			attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
 			canInput: true,
 			canResize: true,
+			capabilityRevision: CanonicalUint64TextSchema.parse('1'),
 			creationId: CreationIdSchema.parse('22'.repeat(16)),
 			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
 			terminalId: TerminalIdSchema.parse('44'.repeat(16)),

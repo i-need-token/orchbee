@@ -1,4 +1,5 @@
 import type { TerminalBufferRow } from './buffer-rows';
+import { normalizePermittedExternalTerminalUrl } from './normalizePermittedExternalTerminalUrl';
 import type { ILink, ILinkRange } from './types';
 
 const PATH_COMPONENT = String.raw`[\p{L}\p{N}\p{M}_.@%+,-]+`;
@@ -28,6 +29,7 @@ export function detectTerminalRowLinks(
 	const logicalLines = buildLogicalTexts(rows);
 	const urls = logicalLines
 		.flatMap(detectUrlLinks)
+		.filter(isPermittedExternalTerminalTarget)
 		.filter((link) => !overlapsAny(link.range, explicit));
 	const paths = logicalLines
 		.flatMap((logical) => detectPathLinks(logical, currentDirectory))
@@ -46,13 +48,7 @@ export function terminalLinkContains(link: ILink, column: number, row: number): 
 
 export function isPermittedExternalTerminalTarget(link: ILink): boolean {
 	const target = link.target;
-	if (target?.kind !== 'url') return false;
-	try {
-		const protocol = new URL(target.url).protocol;
-		return protocol === 'http:' || protocol === 'https:' || protocol === 'mailto:';
-	} catch {
-		return false;
-	}
+	return target?.kind === 'url' && normalizePermittedExternalTerminalUrl(target.url) !== null;
 }
 
 function buildLogicalTexts(rows: readonly TerminalBufferRow[]): readonly LogicalTerminalText[] {

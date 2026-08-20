@@ -915,6 +915,7 @@ test "broker loss revokes authority immediately and a replacement broker stays s
     _ = try serviceCore(&service).authorizeInput(
         replacement_active.connection_id,
         new_attachment,
+        1,
     );
     try std.testing.expect(serviceCore(&service).findAttachment(new_attachment) != null);
     try std.testing.expect(serviceCore(&service).findTerminal(terminal_id) != null);

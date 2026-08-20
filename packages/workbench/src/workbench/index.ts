@@ -3,6 +3,8 @@ export type { WorkbenchProps } from './Workbench';
 export { WorkbenchProjectWorkspaceRuntime } from './model/WorkbenchProjectWorkspaceRuntime';
 export { createWorkbenchPreviewTerminalPresentationComposition } from './model/createWorkbenchPreviewTerminalPresentationComposition';
 export { resolveTerminalMetadataObservation } from './model/resolveTerminalMetadataObservation';
+export { WorkbenchTerminalBellEffectCoordinator } from './model/WorkbenchTerminalBellEffectCoordinator';
+export type { WorkbenchTerminalBellEffect } from './model/WorkbenchTerminalBellEffectCoordinator';
 export type {
 	WorkbenchProjectFolderAcquisition,
 	WorkbenchProjectFolderAcquisitionFailureCode,
@@ -43,6 +45,11 @@ export type {
 	WorkbenchWorkspaceInput,
 	WorkbenchWorkspaceUpdateInput,
 } from './actions/workbench-action-ids';
+export { TERMINAL_ACTION_IDS } from './actions/terminal-action-contracts';
+export type {
+	WorkbenchTerminalActionCatalog,
+	WorkbenchTerminalLinkActionInput,
+} from './actions/terminal-action-contracts';
 export type {
 	WorkbenchHostActionCallback,
 	WorkbenchHostActionResult,
@@ -57,6 +64,9 @@ export type {
 	WorkbenchShortcutId,
 } from './utils/workbench-shortcuts';
 export type {
+	WorkbenchTerminalActionContextCapture,
+	WorkbenchTerminalActionContextCaptureRequest,
+	WorkbenchTerminalActionContextProvider,
 	WorkbenchTerminalPresentation,
 	WorkbenchTerminalSurface,
 	WorkbenchTerminalSurfaceProps,

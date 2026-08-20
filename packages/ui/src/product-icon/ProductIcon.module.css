@@ -15,6 +15,10 @@
 	composes: codicon-robot from global;
 }
 
+.arrowDown {
+	composes: codicon-arrow-down from global;
+}
+
 .arrowLeft {
 	composes: codicon-arrow-left from global;
 }

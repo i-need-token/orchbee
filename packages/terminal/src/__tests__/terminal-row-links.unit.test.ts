@@ -28,6 +28,42 @@ describe('source-neutral terminal row links', () => {
 		]);
 	});
 
+	it('auto-detects only the approved external URL schemes', () => {
+		const links = detectTerminalRowLinks([
+			row(
+				10n,
+				[
+					'http://http.example',
+					'https://https.example',
+					'mailto:terminal@orchbee.dev',
+					'ftp://ftp.example',
+					'ssh://ssh.example',
+					'tel:+15551234567',
+				].join(' '),
+			),
+		]);
+
+		expect(
+			links
+				.filter((link) => link.target?.kind === 'url')
+				.map((link) => (link.target?.kind === 'url' ? link.target.url : 'unreachable')),
+		).toEqual(['http://http.example', 'https://https.example', 'mailto:terminal@orchbee.dev']);
+		expect(
+			links.every((link) => link.target?.kind !== 'url' || isPermittedExternalTerminalTarget(link)),
+		).toBe(true);
+	});
+
+	it('retains unsupported explicit metadata without making it activatable', () => {
+		const links = detectTerminalRowLinks([row(11n, 'explicit ftp', 'ftp://ftp.example/path')]);
+
+		expect(links).toEqual([
+			expect.objectContaining({
+				target: { kind: 'url', url: 'ftp://ftp.example/path' },
+			}),
+		]);
+		expect(isPermittedExternalTerminalTarget(links[0] ?? unreachableLink())).toBe(false);
+	});
+
 	it('keeps detected paths inactive under the external-navigation policy', () => {
 		const links = detectTerminalRowLinks([row(2n, './src/index.ts:12:4')], '/workspace');
 		const file = links.find((link) => link.target?.kind === 'file');

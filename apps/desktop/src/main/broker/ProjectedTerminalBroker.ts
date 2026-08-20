@@ -9,6 +9,7 @@ import {
 
 import {
 	AttachmentAcknowledgedSchema,
+	AttachmentCapabilitiesSchema,
 	CanonicalUint64TextSchema,
 	decodeControlJson,
 	decodeSelectionExportChunk,
@@ -35,6 +36,8 @@ import {
 	TerminalFailedSchema,
 	TerminalControlAcceptedSchema,
 	TerminalThemeResultSchema,
+	UpdateAttachmentInputCapabilitySchema,
+	type AttachmentCapabilities,
 	type DecodedProtocolEnvelope,
 	type MessageKindValue,
 	type SelectionExportChunk,
@@ -45,12 +48,44 @@ import {
 import { HostRequestError, readTerminalInventory, type HostConnection } from '../host';
 
 const MAX_IN_FLIGHT_RENDERER_REQUESTS = 64;
+const MAX_CANONICAL_UINT64 = 0xffff_ffff_ffff_ffffn;
 const fatalTextDecoder = new TextDecoder('utf-8', { fatal: true });
 
 function copyExactArrayBuffer(bytes: Uint8Array): ArrayBuffer {
 	const copy = new Uint8Array(bytes.byteLength);
 	copy.set(bytes);
 	return copy.buffer;
+}
+
+function capabilitiesMatchBootstrap(
+	capabilities: AttachmentCapabilities,
+	bootstrap: ProjectedAttachmentBootstrap,
+): boolean {
+	return (
+		capabilities.attachmentId === bootstrap.attachmentId &&
+		capabilities.terminalId === bootstrap.terminalId &&
+		capabilities.capabilityRevision === bootstrap.capabilityRevision &&
+		capabilities.capabilities.read &&
+		capabilities.capabilities.input === bootstrap.canInput &&
+		capabilities.resizeLease === bootstrap.canResize
+	);
+}
+
+function capabilityCommitMatches(
+	current: AttachmentCapabilities,
+	capabilityRevision: ReturnType<typeof CanonicalUint64TextSchema.parse>,
+	input: boolean,
+	committed: AttachmentCapabilities,
+): boolean {
+	return (
+		committed.attachmentId === current.attachmentId &&
+		committed.terminalId === current.terminalId &&
+		committed.capabilityRevision === capabilityRevision &&
+		committed.capabilities.input === input &&
+		committed.capabilities.read === current.capabilities.read &&
+		committed.capabilities.resize === current.capabilities.resize &&
+		committed.resizeLease === current.resizeLease
+	);
 }
 
 interface ActiveSelectionCopy {
@@ -119,6 +154,9 @@ export interface ProjectedTerminalBrokerMetrics {
 
 export class ProjectedTerminalBroker {
 	readonly #bootstrap: ProjectedAttachmentBootstrap;
+	#capabilities: AttachmentCapabilities;
+	#capabilityMutationsPending = 0;
+	#capabilityMutationTail: Promise<void> = Promise.resolve();
 	readonly #dependencies: ProjectedTerminalBrokerDependencies;
 	readonly #effectTarget: ProjectedTerminalBrokerEffectTarget;
 	readonly #host: HostConnection;
@@ -155,6 +193,7 @@ export class ProjectedTerminalBroker {
 		dependencies: ProjectedTerminalBrokerDependencies = defaultDependencies,
 		effectTarget: ProjectedTerminalBrokerEffectTarget = 'desktop',
 		lifecycle?: ProjectedTerminalBrokerLifecycle,
+		initialCapabilities?: AttachmentCapabilities,
 	) {
 		this.#host = host;
 		this.#onCleanupRequested = lifecycle?.onCleanupRequested;
@@ -162,6 +201,25 @@ export class ProjectedTerminalBroker {
 		this.#onThemeChanged = lifecycle?.onThemeChanged;
 		this.#port = port;
 		this.#bootstrap = bootstrap;
+		this.#capabilities = AttachmentCapabilitiesSchema.parse(
+			initialCapabilities ?? {
+				attachmentId: bootstrap.attachmentId,
+				capabilities: {
+					input: bootstrap.canInput,
+					read: true,
+					resize: bootstrap.canInput || bootstrap.canResize,
+				},
+				capabilityRevision: bootstrap.capabilityRevision,
+				resizeLease: bootstrap.canResize,
+				terminalId: bootstrap.terminalId,
+			},
+		);
+		if (!capabilitiesMatchBootstrap(this.#capabilities, bootstrap)) {
+			throw new BrokerOperationError(
+				'invalid-initial-attachment-capabilities',
+				'Initial attachment capabilities do not match the projected terminal bootstrap.',
+			);
+		}
 		this.#dependencies = dependencies;
 		this.#effectTarget = effectTarget;
 	}
@@ -181,6 +239,76 @@ export class ProjectedTerminalBroker {
 			selectionExportBytesForwarded: this.#selectionExportBytesForwarded,
 			selectionExportChunksForwarded: this.#selectionExportChunksForwarded,
 		};
+	}
+
+	setInputCapability(input: boolean): Promise<void> {
+		this.#capabilityMutationsPending += 1;
+		const operation = this.#capabilityMutationTail.then(() => this.#commitInputCapability(input));
+		const tracked = operation.finally(() => {
+			this.#capabilityMutationsPending -= 1;
+		});
+		this.#capabilityMutationTail = tracked.then(
+			() => undefined,
+			() => undefined,
+		);
+		return tracked;
+	}
+
+	async #commitInputCapability(input: boolean): Promise<void> {
+		if (typeof input !== 'boolean') {
+			throw new BrokerOperationError(
+				'invalid-input-capability',
+				'Attachment input capability must be boolean.',
+			);
+		}
+		if (this.#disposed || this.#cleanupRequested) {
+			throw new BrokerOperationError(
+				'attachment-unavailable',
+				'The projected attachment is no longer available.',
+				true,
+			);
+		}
+		const current = this.#capabilities;
+		if (current.capabilities.input === input) return;
+		const nextRevision = BigInt(current.capabilityRevision) + 1n;
+		if (nextRevision > MAX_CANONICAL_UINT64) {
+			throw new BrokerOperationError(
+				'capability-revision-exhausted',
+				'Attachment capability revision is exhausted.',
+			);
+		}
+		const request = UpdateAttachmentInputCapabilitySchema.parse({
+			attachmentId: current.attachmentId,
+			capabilityRevision: nextRevision.toString(),
+			input,
+		});
+		const committed = await this.#host.requestControl(
+			MessageKind.updateAttachmentInputCapability,
+			request,
+			AttachmentCapabilitiesSchema,
+		);
+		if (!capabilityCommitMatches(current, request.capabilityRevision, input, committed)) {
+			const error = new BrokerOperationError(
+				'invalid-attachment-capability-response',
+				'Terminal Host returned an attachment capability result outside the requested revision.',
+			);
+			this.#requestCleanup(error);
+			throw error;
+		}
+		this.#capabilities = committed;
+		if (this.#disposed || this.#cleanupRequested) return;
+		if (
+			!this.#postMessage({
+				capabilities: committed,
+				kind: 'attachment-input-capability-changed',
+			})
+		) {
+			throw new BrokerOperationError(
+				'attachment-capability-publication-failed',
+				'Committed attachment capabilities could not be published to the renderer.',
+				true,
+			);
+		}
 	}
 
 	start(): void {
@@ -212,7 +340,11 @@ export class ProjectedTerminalBroker {
 		this.#port.off('message', this.#handleRendererMessage);
 		this.#port.off('close', this.#handlePortClose);
 		this.#port.close();
-		this.#disposePromise = this.#detach(activeCopy).catch((error: unknown) => {
+		const detach =
+			this.#capabilityMutationsPending === 0
+				? this.#detach(activeCopy)
+				: this.#capabilityMutationTail.then(() => this.#detach(activeCopy));
+		this.#disposePromise = detach.catch((error: unknown) => {
 			// Main-side listeners stay revoked after a failed detach; retrying the
 			// same AttachmentId is the only safe way to converge Host cleanup.
 			this.#disposePromise = undefined;
@@ -389,6 +521,10 @@ export class ProjectedTerminalBroker {
 					return;
 				}
 				try {
+					this.#capabilities = AttachmentCapabilitiesSchema.parse({
+						...this.#capabilities,
+						resizeLease: event.value.resizeLease,
+					});
 					this.#onResizeLeaseChanged?.(event.value.resizeLease);
 				} catch (error: unknown) {
 					this.#requestCleanup(error);

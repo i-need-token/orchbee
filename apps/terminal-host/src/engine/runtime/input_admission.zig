@@ -1,6 +1,5 @@
 const std = @import("std");
 const terminal_input = @import("terminal-input");
-const terminal_input_ownership = @import("../input_ownership.zig");
 const terminal_input_encoding = @import("../input_encoding.zig");
 const contracts = @import("contracts.zig");
 const state = @import("state.zig");
@@ -259,53 +258,6 @@ pub fn prepareSemanticInput(
     };
 }
 
-pub fn prepareAttachmentSemanticInput(
-    self: *state.State,
-    attachment_id: contracts.AttachmentId,
-    input: terminal_input.SemanticInput,
-    maximum_bytes: usize,
-) !prepared_input.Internal {
-    var prepared = try prepareSemanticInput(self, input, maximum_bytes);
-    errdefer prepared.deinit();
-    prepared.ownership = try prepareAttachmentInputMutation(self, attachment_id, input);
-    return prepared;
-}
-
-pub fn prepareAttachmentInputRepair(
-    self: *state.State,
-    attachment_id: contracts.AttachmentId,
-) !prepared_input.Internal {
-    if (self.child_exited.load(.acquire)) return error.TerminalExited;
-    self.terminal_mutex.lock();
-    defer self.terminal_mutex.unlock();
-    try failure_ops.ensureRuntimeWorkAvailableLocked(self);
-    if (self.child_exited.load(.acquire)) return error.TerminalExited;
-
-    self.input_mutex.lock();
-    defer self.input_mutex.unlock();
-    var repair = try self.input_ownership.prepareRepair(
-        self.allocator,
-        attachment_id,
-        &self.terminal,
-        self.cell_pixel_width,
-        self.cell_pixel_height,
-    );
-    errdefer {
-        if (repair.bytes) |bytes| self.allocator.free(bytes);
-        self.input_ownership.cancelPrepared(&repair.ownership);
-    }
-    const reservation = if (repair.bytes) |owned|
-        try reserveAttachmentRepairInputLocked(self, attachment_id, owned.len)
-    else
-        null;
-    return .{
-        .bytes = repair.bytes,
-        .ownership = repair.ownership,
-        .reservation = reservation,
-        .runtime = self,
-    };
-}
-
 pub fn pendingInputBytes(self: *state.State) usize {
     self.input_mutex.lock();
     defer self.input_mutex.unlock();
@@ -318,58 +270,6 @@ pub fn takeWrittenBytes(self: *state.State) usize {
 
 pub fn takeOutputBatches(self: *state.State) u64 {
     return self.output_batches_since_sync.swap(0, .acq_rel);
-}
-
-pub fn prepareAttachmentInputMutation(
-    self: *state.State,
-    attachment_id: contracts.AttachmentId,
-    input: terminal_input.SemanticInput,
-) !?contracts.PreparedInputOwnership {
-    var mutation = try terminal_input_ownership.mutationForInput(
-        self.allocator,
-        input,
-    ) orelse return null;
-    errdefer mutation.deinit(self.allocator);
-    self.input_mutex.lock();
-    defer self.input_mutex.unlock();
-    const prepared = try self.input_ownership.reserveMutation(attachment_id, &mutation);
-    return prepared;
-}
-
-pub fn hasAttachmentInputOwnership(
-    self: *state.State,
-    attachment_id: contracts.AttachmentId,
-) bool {
-    self.input_mutex.lock();
-    defer self.input_mutex.unlock();
-    return self.input_ownership.contains(attachment_id);
-}
-
-pub fn discardAttachmentInputOwnership(
-    self: *state.State,
-    attachment_id: contracts.AttachmentId,
-) void {
-    self.input_mutex.lock();
-    defer self.input_mutex.unlock();
-    self.input_ownership.discard(attachment_id);
-}
-
-pub fn failAttachmentInputRepair(
-    self: *state.State,
-    attachment_id: contracts.AttachmentId,
-    err: anyerror,
-    phase: []const u8,
-) void {
-    const runtime_already_closed = err == error.TerminalExited or
-        err == error.TerminalRuntimeUnavailable or err == error.MissingAttachment;
-    if (!runtime_already_closed) {
-        std.log.warn("attachment input repair {s}: {s}; fencing the terminal runtime", .{
-            phase,
-            @errorName(err),
-        });
-    }
-    discardAttachmentInputOwnership(self, attachment_id);
-    if (!runtime_already_closed) failure_ops.recordWorkerIntegrityFailure(self);
 }
 
 pub fn prepareEncodedInputLocked(
@@ -451,15 +351,4 @@ pub fn reserveInput(
         source,
         input_commit_ops.inputRepairCharge(self, source),
     );
-}
-
-pub fn reserveAttachmentRepairInputLocked(
-    self: *state.State,
-    attachment_id: contracts.AttachmentId,
-    byte_count: usize,
-) !contracts.InputReservation {
-    if (self.failure_fenced) return error.TerminalRuntimeUnavailable;
-    if (self.writer_stop or self.client_input_closed) return error.TerminalExited;
-    try self.input_ownership.validateRepairReservation(attachment_id, byte_count);
-    return self.input_queue.reservePrechargedClient(byte_count);
 }

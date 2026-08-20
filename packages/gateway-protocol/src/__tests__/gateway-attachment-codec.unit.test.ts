@@ -65,6 +65,24 @@ describe('Gateway attachment binary codec', () => {
 		});
 	});
 
+	it('round-trips a Host-committed live input capability replacement', () => {
+		const event = ProjectedTerminalEventSchema.parse({
+			capabilities: {
+				attachmentId,
+				capabilities: { input: false, read: true, resize: true },
+				capabilityRevision: '2',
+				resizeLease: false,
+				terminalId: '22'.repeat(16),
+			},
+			kind: 'attachment-input-capability-changed',
+		});
+
+		expect(decodeGatewayAttachmentServerFrame(encodeGatewayAttachmentServerFrame(event))).toEqual({
+			ok: true,
+			value: event,
+		});
+	});
+
 	it('preserves a correlated typed feature failure through the Browser transport', () => {
 		const failure = ProjectedTerminalEventSchema.parse({
 			failure: {

@@ -23,6 +23,9 @@ const TestingTerminalStorage = host_core.TestingTerminalStorage;
 
 pub const testing = if (@import("builtin").is_test) struct {
     pub const InvariantError = error{
+        AttachmentAdmittedCapabilitiesInvalid,
+        AttachmentCapabilityRevisionInvalid,
+        AttachmentImmutableCapabilitiesDiverged,
         AttachmentIndexCountMismatch,
         AttachmentIndexReferencesMissingTerminal,
         AttachmentMissingConnection,
@@ -323,6 +326,20 @@ pub const testing = if (@import("builtin").is_test) struct {
         }
 
         for (core.attachmentValues()) |attachment| {
+            if (!attachment.admitted_capabilities.input and
+                !attachment.admitted_capabilities.read and
+                !attachment.admitted_capabilities.resize)
+            {
+                return error.AttachmentAdmittedCapabilitiesInvalid;
+            }
+            if (attachment.capability_revision == 0) {
+                return error.AttachmentCapabilityRevisionInvalid;
+            }
+            if (attachment.admitted_capabilities.read != attachment.capabilities.read or
+                attachment.admitted_capabilities.resize != attachment.capabilities.resize)
+            {
+                return error.AttachmentImmutableCapabilitiesDiverged;
+            }
             if (attachment.admission_sequence == 0) {
                 return error.InvalidAttachmentAdmissionSequence;
             }

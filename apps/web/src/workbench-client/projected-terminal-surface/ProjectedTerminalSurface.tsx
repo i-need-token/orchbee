@@ -9,9 +9,18 @@ import { ProjectedTerminalClipboardReviewDialog } from './components/projected-t
 import { useProjectedTerminalSurface } from './hooks/useProjectedTerminalSurface';
 
 export function ProjectedTerminalSurface({
+	actionRuntime,
+	actionScope,
+	admitBellEffect,
+	bindActionContextProvider,
 	presentation,
 }: WorkbenchTerminalSurfaceProps): ReactNode {
-	const view = useProjectedTerminalSurface(presentation);
+	const view = useProjectedTerminalSurface(presentation, {
+		actionRuntime,
+		actionScope,
+		admitBellEffect,
+		bindActionContextProvider,
+	});
 	const intl = useOrchbeeIntl();
 	return (
 		<>

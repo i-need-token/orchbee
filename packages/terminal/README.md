@@ -190,9 +190,20 @@ Touch activation alone publishes no PTY input and preserves Host selection. The 
 `beforeinput` and composition events use the same shared pre-input transition and exactly-once
 deduplication as other browser input, while a read-only attachment remains focusable without
 admitting mobile text.
+Every raw, key, committed-text, paste, application-mouse, focus, and repair command carries the
+current positive attachment capability revision. Direct construction defaults to the initial
+revision `1`, while Desktop and Gateway bootstraps forward the Host-returned revision.
+`applyInputCapability` accepts only the exact attachment and terminal identity, an exact replay, or
+the next monotonic revision with a changed input value. A stale revision is inert; an identity
+mismatch, same-revision conflict, skipped revision, or changed revision with unchanged authority
+fails closed to read-only. Downgrade invalidates the dispatcher generation and immediately clears
+composition, native text settlement, paste review, held key/mouse/focus ownership, and pointer
+capture without sending client-side releases that duplicate the Host repair. Upgrade removes the
+native read-only guard but restores no prior input or queued work; the next admitted input is
+stamped only with the new revision.
 If the projected client disappears before this cleanup completes, Terminal Host releases only that
-attachment's accepted key and application-mouse ownership before revoking its capability; another
-attachment is unaffected.
+attachment's accepted key, application-mouse, and focus ownership before revoking its capability;
+another attachment is unaffected.
 
 A blur, visibility loss, or disposal that reenters while reset is staging or sending cleanup is
 coalesced into the same transaction; the transaction drains key release, mouse release, and any
@@ -209,6 +220,13 @@ Host bell effects arrive through `ProjectedTerminal.onBell` as attachment-scoped
 The package suppresses stale or duplicate sequences but performs no sound or visual effect; the
 embedding Desktop or Browser application owns that policy.
 
+The headed `terminal-parity/PR-11-bell` witness composes three real Canvas 2D projected surfaces
+with distinct attachment identities and one shared Workbench bell coordinator. It proves one effect
+for a duplicate sequence, acceptance of distinct interleaved sequences, suppression after an
+attachment reconnect, and independent sound/notification failure boundaries. The controlled
+fixture does not claim native audio output, operating-system notification delivery, WebGPU, or
+cross-browser behavior.
+
 ## Install
 
 ```sh
@@ -224,6 +242,7 @@ import { ProjectedTerminal } from '@orchbee/terminal';
 
 const terminal = new ProjectedTerminal({
 	attachmentId,
+	capabilityRevision: '1',
 	creationId,
 	hostEpoch,
 	terminalId,
@@ -386,7 +405,7 @@ terminal.updateSearch('failed', { caseSensitive: false, wholeWord: true });
 terminal.findNext();
 ```
 
-Selection endpoints and exported content remain authoritative in Terminal Host. The browser derives a one-, two-, or three-click sequence from a 500-millisecond interval and a one-cell surface-distance limit instead of trusting DOM click counts, then sends bounded surface position and cell geometry for Ghostty's word, line, rectangle, and 60% within-cell endpoint rules. A plain click does not synthesize a one-cell selection. Dragging beyond the viewport advances retained history through bounded row-window requests and continues the same Host gesture at the newly exposed row; document-level move and release fallbacks retain that behavior when pointer capture is unavailable. A modifier-assisted triple click selects Ghostty's semantic command output and dragging expands across output blocks. Only an ordinary primary-pointer release completes the gesture and requests copy by default. The serialized command queue retains the latest coalesced drag update ahead of that release even when the initial press reply is still in flight. Buttonless motion, pointer cancellation or capture loss, surface focus or document visibility loss, and presentation-geometry replacement cancel the pinned gesture without copying or clearing the latest Host selection. Serialized gesture replies make a normal release or cancellation produce exactly one copy consequence; construction-time `copyOnSelect: false` and runtime `setCopyOnSelect(false)` both opt out of normal-release copy. Every admitted automatic or manual copy publishes one source-tagged completion or failure through `onSelectionCopyResult` after the application-owned clipboard effect resolves. Programmatic range and semantic-output selection use absolute `bigint` rows. `adjustSelectionEndpoint` preserves the latest Host-published start endpoint and rectangle mode while replacing only the active end endpoint; it never reconstructs Ghostty text semantics in the client. Assistive-technology DOM ranges use the same explicit cell-range command, with UTF-16 offsets mapped across combining, wide, and surrogate-pair graphemes. Host selection is mirrored back into the visible-viewport accessibility tree when both endpoints are visible. When the document-global DOM range moves to another surface or disappears during sibling focus, this surface relinquishes only its accessibility mirror ownership; the attachment's Host selection and canvas overlay remain active. An attachment constructed with `inputEnabled: false` keeps its hidden textarea focusable but natively read-only. Shift-only page navigation, wheel history, and local selection remain available without Host input capability; defensive `beforeinput`, composition, and paste listeners own rejected browser editing and clear any residual textarea or preedit state without emitting PTY input. Construction-time input capability is otherwise immutable, but an identity-checked natural-exit outcome seals PTY input, clear, reset, and resize immediately and makes the existing textarea read-only. The retained final frame, history, search, selection, copy, and approved-link interaction remain available until disposal. The application performs the clipboard side effect and reports only its outcome.
+Selection endpoints and exported content remain authoritative in Terminal Host. The browser derives a one-, two-, or three-click sequence from a 500-millisecond interval and a one-cell surface-distance limit instead of trusting DOM click counts, then sends bounded surface position and cell geometry for Ghostty's word, line, rectangle, and 60% within-cell endpoint rules. A plain click does not synthesize a one-cell selection. Dragging beyond the viewport advances retained history through bounded row-window requests and continues the same Host gesture at the newly exposed row; document-level move and release fallbacks retain that behavior when pointer capture is unavailable. A modifier-assisted triple click selects Ghostty's semantic command output and dragging expands across output blocks. Only an ordinary primary-pointer release completes the gesture and requests copy by default. The serialized command queue retains the latest coalesced drag update ahead of that release even when the initial press reply is still in flight. Buttonless motion, pointer cancellation or capture loss, surface focus or document visibility loss, and presentation-geometry replacement cancel the pinned gesture without copying or clearing the latest Host selection. Serialized gesture replies make a normal release or cancellation produce exactly one copy consequence; construction-time `copyOnSelect: false` and runtime `setCopyOnSelect(false)` both opt out of normal-release copy. Every admitted automatic or manual copy publishes one source-tagged completion or failure through `onSelectionCopyResult` after the application-owned clipboard effect resolves. Programmatic range and semantic-output selection use absolute `bigint` rows. `adjustSelectionEndpoint` preserves the latest Host-published start endpoint and rectangle mode while replacing only the active end endpoint; it never reconstructs Ghostty text semantics in the client. Assistive-technology DOM ranges use the same explicit cell-range command, with UTF-16 offsets mapped across combining, wide, and surrogate-pair graphemes. Host selection is mirrored back into the visible-viewport accessibility tree when both endpoints are visible. When the document-global DOM range moves to another surface or disappears during sibling focus, this surface relinquishes only its accessibility mirror ownership; the attachment's Host selection and canvas overlay remain active. An attachment constructed or dynamically downgraded with no input authority keeps its hidden textarea focusable but natively read-only. Shift-only page navigation, wheel history, search, selection, copy, and approved links remain available without Host input capability; defensive `beforeinput`, composition, paste, key, and mouse listeners own rejected browser editing and clear residual input state without emitting PTY input. An identity-checked natural-exit outcome permanently seals PTY input, clear, reset, and resize and makes the existing textarea read-only. The retained final frame and local output interactions remain available until disposal. The application performs the clipboard side effect and reports only its outcome.
 
 An identity-checked runtime-failure outcome applies the same terminal-control seal as natural exit:
 PTY input, clear, reset, and resize become unavailable immediately while retained output, history,
@@ -422,11 +441,15 @@ Link discovery expands bounded generation/revision-pinned row reads until it has
 soft-wrapped logical line. The admitted line is capped by the protocol row, cell, and byte limits;
 an over-limit line produces no partial detection. OSC 8 targets and OSC 133 cell/row semantics
 arrive from Host-owned Ghostty state; this package never reparses their escape sequences. Explicit
-links take precedence over detected URL and path text. Content revisions, viewport transitions,
-surface resize, device-pixel-ratio changes, and presentation geometry changes retire the hover
-cache. A modifier-assisted click revalidates the hovered generation, revision, hover epoch, and
-clicked cell before `ProjectedTerminal` emits one approved URL request; the application decides
-whether and how to open it. Filesystem and unknown targets are not opened by this package.
+links take precedence over detected URL and path text. Automatic URL detection admits only
+`http`, `https`, and `mailto`; `normalizePermittedExternalTerminalUrl(...)` is the public policy
+operation used again by Workbench Action and Browser effect adapters. Unsupported explicit OSC 8
+metadata and detected filesystem targets may remain in the bounded link cache, but they never
+receive pointer hover, product context, or an activation request. Content revisions, viewport
+transitions, surface resize, device-pixel-ratio changes, and presentation geometry changes retire
+the hover cache. A modifier-assisted click revalidates the hovered generation, revision, hover
+epoch, and clicked cell before `ProjectedTerminal` emits one approved URL request; the application
+decides whether and how to open it. Filesystem and unknown targets are not opened by this package.
 
 Plain-text drops follow the same sanitization, review, ordering, and Host input path as paste. File drops are intentionally left to an application-owned capability that can resolve paths without exposing filesystem authority to the projected client.
 
@@ -495,6 +518,80 @@ remain shaping boundaries.
 Ghostty remains the reference for selected font metrics, shaping boundaries, complete Unicode sprite-face routing, cursor geometry, and terminal-panel rendering behavior. Deterministic generated data supplies every pinned sprite from Ghostty's four padded odd/even metric reference rasters, while selected sprites scale procedurally between those reference geometries. That reference does not make this package a Ghostty VT owner. Maintenance provenance is recorded in [`docs/ghostty-surface-test-provenance.md`](docs/ghostty-surface-test-provenance.md).
 
 Search behavior follows the bounded contract in [`docs/vscode-search-alignment.md`](docs/vscode-search-alignment.md). The application owns the find surface, query history, shortcuts, and localized labels.
+
+### Cursor-default and mounted-start evidence
+
+The exact `terminal-parity/SU-13-cursor-defaults` witness projects a real Terminal Host/PTY profile
+through the production surface. It observes the explicit block/non-blinking default, a
+blinking-bar DECSCUSR override, and RIS restoration in committed frame metadata. Deterministic
+Canvas and WebGPU owner tests separately prove that the same metadata selects the corresponding
+cursor geometry and blink scheduler; the system witness does not use a platform screenshot as a
+second cursor authority. Host runtime evidence additionally covers application Reset and an
+explicit non-default profile.
+
+`measureMountedTerminalGeometry(...)` loads the selected font and applies the same grid and physical
+cell rules as the first projected resize. The POSIX-only exact
+`terminal-parity/SU-16-startup-geometry` witness independently derives that mounted grid from the
+real Electron surface, records the child PTY's initial `stty size` before the shell starts, and
+requires the sole first client frame to carry the same columns, rows, and physical cell dimensions
+without an intermediate `80x24` frame. Desktop and Host owner tests cover deferred identity without
+a child, start-before-attach ordering, failed/duplicate/conflicting start, and Core synchronization;
+the headed witness does not claim Windows ConPTY or later-resize behavior.
+
+### Live input-capability evidence
+
+The exact headed `terminal-parity/IN-10-read-only` witness drives a monotonic downgrade and upgrade
+through a real Canvas 2D projected surface. It observes immediate composition, native-settlement,
+paste-review, and textarea repair; continued local search, selection, copy, and history; no stale
+input publication; and only fresh input at the upgraded revision. The fixture controls the
+application delivery stream, so Terminal Host owner tests separately prove authoritative stale and
+downgraded PTY rejection, per-attachment repair ordering, and no queued replay. It does not claim a
+renderer-owned capability upgrade or native browser permission policy.
+
+### Terminal Action context evidence
+
+`ProjectedTerminal.captureActionContext(...)` is the source-neutral boundary for a containing
+product menu. It returns `terminal-owned` while application mouse tracking owns the surface unless
+Shift is held. Otherwise it exposes only a permitted URL target at the requested cell together with
+the exact history generation, history revision, link epoch, absolute row, and column captured at
+that moment. `linkOpenRequestIsCurrent(...)` reparses those canonical values, requires the complete
+revision tuple to remain current, resolves the same cached cell again, and compares the exact URL
+before an application may admit an effect. It does not open links or own an Action runtime.
+
+The headed witnesses compose a real Canvas 2D `ProjectedTerminal` into one application-owned
+Workbench Action scope. `terminal-parity/IN-09-action-scope` checks available, unavailable, and
+unbound Apple Command handling. `terminal-parity/IN-11-context` checks application mouse ownership,
+the bounded pinned input, revision invalidation, and zero external effects. `terminal-parity/IN-12-actions`
+checks the complete minimal catalog, synchronous availability, typed results, no new confirmation,
+and localized perceivable feedback. `terminal-parity/FS-05-file-links` checks that explicit file
+metadata, detected paths, and a direct Browser-effect request remain inactive.
+`terminal-parity/FS-06-url-policy` checks the same real surface's hover, context, and direct
+activation path for exactly `http`, `https`, and `mailto`, including unsupported automatic and
+explicit URL cases. Owner-local unit tests additionally cover malformed context, exact-input
+copying, normalization, automatic-detection filtering, and revalidation immediately before
+execution.
+
+`terminal-parity/HS-07-selection-export` sends SGR-styled output through a real PTY and Terminal
+Host, selects the styled word through the production Canvas surface, and observes that Electron's
+clipboard receives exactly the visible plain text. The terminal protocol's generated TypeScript/Zig
+conformance corpus separately proves that `plain` is the only admitted request and response value
+and that HTML and raw VT requests fail before Host runtime access. The strict projected-client
+command exposes no format field. The headed witness runs the current macOS Electron clipboard path;
+it does not claim another operating system's native clipboard format registry.
+
+### Shared focus evidence
+
+The stable headed `terminal-parity/IN-14-shared-focus` trace opens two real `ProjectedTerminal`
+Canvas 2D surfaces with distinct attachments bound to one terminal identity. Both publish active
+projection demand and independent focus claims. Releasing the first claim leaves one active claim;
+pausing the second attachment clears the aggregate, and reactivation publishes no implicit claim.
+The fixture's small observation reducer checks only the application command trace. Terminal Host's
+native two-attachment real-PTY test independently proves the authoritative aggregate emits one
+`FocusIn`/`FocusOut` interval.
+
+| IN-14 claim                                                                                                                | Projected integration                                                                  | Host integration                                                                                                          | Headed system trace                  | Limits                                                                                                                                                        |
+| -------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Distinct visible attachments claim focus independently while the terminal observes only aggregate zero/nonzero transitions | `ProjectedTerminal` focus, blur, and projection-demand commands from two live surfaces | `two visible attachments produce one real PTY focus interval` plus stale, detach, downgrade, and repair-order regressions | `terminal-parity/IN-14-shared-focus` | Headed Chromium Canvas 2D with synthetic application-layer focus events; no OS multi-window focus, WebGPU, cross-browser, or native-browser-throttling claim. |
 
 ### Smooth retained-history evidence
 

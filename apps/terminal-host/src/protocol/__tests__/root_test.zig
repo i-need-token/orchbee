@@ -192,9 +192,10 @@ test "every native request dispatch operation is owned by the registry" {
 }
 
 test "semantic input preserves U+FEFF and rejects a BOM-prefixed key" {
-    var text_payload = [_]u8{0x22} ** 23;
-    std.mem.writeInt(u32, text_payload[16..20], 3, .little);
-    @memcpy(text_payload[20..23], "\xef\xbb\xbf");
+    var text_payload = [_]u8{0x22} ** 31;
+    std.mem.writeInt(u64, text_payload[16..24], 7, .little);
+    std.mem.writeInt(u32, text_payload[24..28], 3, .little);
+    @memcpy(text_payload[28..31], "\xef\xbb\xbf");
 
     const decoded_text = try subject.validateCommittedTextInput(&text_payload);
     const text = switch (decoded_text.input) {
@@ -203,11 +204,12 @@ test "semantic input preserves U+FEFF and rejects a BOM-prefixed key" {
     };
     try std.testing.expectEqualSlices(u8, "\xef\xbb\xbf", text.text);
 
-    var paste_payload = [_]u8{0} ** 27;
+    var paste_payload = [_]u8{0} ** 35;
     @memset(paste_payload[0..16], 0x22);
-    paste_payload[16] = 1;
-    std.mem.writeInt(u32, paste_payload[20..24], 3, .little);
-    @memcpy(paste_payload[24..27], "\xef\xbb\xbf");
+    std.mem.writeInt(u64, paste_payload[16..24], 7, .little);
+    paste_payload[24] = 1;
+    std.mem.writeInt(u32, paste_payload[28..32], 3, .little);
+    @memcpy(paste_payload[32..35], "\xef\xbb\xbf");
     const decoded_paste = try subject.validatePasteInput(&paste_payload);
     const paste = switch (decoded_paste.input) {
         .paste => |value| value,
@@ -216,21 +218,23 @@ test "semantic input preserves U+FEFF and rejects a BOM-prefixed key" {
     try std.testing.expect(paste.bracketed);
     try std.testing.expectEqualSlices(u8, "\xef\xbb\xbf", paste.text);
 
-    var key_payload = [_]u8{0} ** 37;
+    var key_payload = [_]u8{0} ** 45;
     @memset(key_payload[0..16], 0x22);
-    key_payload[16] = 1;
-    std.mem.writeInt(u16, key_payload[22..24], 5, .little);
-    @memcpy(key_payload[32..37], "\xef\xbb\xbfF1");
+    std.mem.writeInt(u64, key_payload[16..24], 7, .little);
+    key_payload[24] = 1;
+    std.mem.writeInt(u16, key_payload[30..32], 5, .little);
+    @memcpy(key_payload[40..45], "\xef\xbb\xbfF1");
     try std.testing.expectError(error.InvalidField, subject.validateKeyInput(&key_payload));
 }
 
 test "mouse input admits the exact finite float32 coordinate boundary" {
-    var payload = [_]u8{0} ** 32;
+    var payload = [_]u8{0} ** 40;
     @memset(payload[0..16], 0x22);
-    payload[16] = 1;
-    payload[17] = 1;
-    std.mem.writeInt(u32, payload[20..24], 0x7f7fffff, .little);
-    std.mem.writeInt(u32, payload[24..28], 0xff7fffff, .little);
+    std.mem.writeInt(u64, payload[16..24], 7, .little);
+    payload[24] = 1;
+    payload[25] = 1;
+    std.mem.writeInt(u32, payload[28..32], 0x7f7fffff, .little);
+    std.mem.writeInt(u32, payload[32..36], 0xff7fffff, .little);
 
     const decoded = try subject.validateMouseInput(&payload);
     const mouse = switch (decoded.input) {

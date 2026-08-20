@@ -25,6 +25,7 @@ const bootstrap = {
 	attachmentId,
 	canInput: false,
 	canResize: false,
+	capabilityRevision: '1',
 	...identity,
 	theme,
 };
@@ -53,6 +54,27 @@ describe('projected terminal contract', () => {
 
 		expect(ProjectedTerminalEventSchema.parse(event)).toEqual(event);
 		expect(bootstrap.canResize).toBe(false);
+	});
+
+	it('carries only a positive Host-committed attachment input capability revision', () => {
+		const event = {
+			capabilities: {
+				attachmentId,
+				capabilities: { input: false, read: true, resize: true },
+				capabilityRevision: '2',
+				resizeLease: false,
+				terminalId: identity.terminalId,
+			},
+			kind: 'attachment-input-capability-changed',
+		};
+
+		expect(ProjectedTerminalEventSchema.parse(event)).toEqual(event);
+		expect(
+			ProjectedTerminalEventSchema.safeParse({
+				...event,
+				capabilities: { ...event.capabilities, capabilityRevision: '0' },
+			}).success,
+		).toBe(false);
 	});
 
 	it('preserves a typed feature failure correlation through the page boundary', () => {
@@ -171,6 +193,12 @@ describe('projected terminal contract', () => {
 			ProjectedTerminalCommandSchema.safeParse({
 				kind: 'selection-copy',
 				payload: { requestSequence: '1' },
+			}).success,
+		).toBe(false);
+		expect(
+			ProjectedTerminalCommandSchema.safeParse({
+				kind: 'selection-copy',
+				payload: { attachmentId, format: 'html', requestSequence: '1' },
 			}).success,
 		).toBe(false);
 

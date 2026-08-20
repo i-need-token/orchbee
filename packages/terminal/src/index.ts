@@ -11,10 +11,14 @@ export type {
 	ProjectedPasteReview,
 	ProjectedPasteSource,
 	ProjectedRowsResult,
+	ProjectedTerminalActionContext,
+	ProjectedTerminalActionContextRequest,
 	ProjectedTerminalCommand,
 	ProjectedTerminalCommandPort,
 	ProjectedTerminalErrorEvent,
 	ProjectedTerminalFrameTelemetry,
+	ProjectedTerminalInputCapability,
+	ProjectedTerminalInputCapabilityUpdateResult,
 	ProjectedTerminalLabels,
 	ProjectedTerminalLinkOpenRequest,
 	ProjectedTerminalMetadata,
@@ -79,6 +83,7 @@ export type {
 
 export type { IDisposable, IEvent } from './EventEmitter';
 export type { TerminalOpenTarget } from './terminal-contracts';
+export { normalizePermittedExternalTerminalUrl } from './normalizePermittedExternalTerminalUrl';
 
 export { measureMountedTerminalGeometry } from './measureMountedTerminalGeometry';
 export type { MountedTerminalGeometryOptions } from './measureMountedTerminalGeometry';

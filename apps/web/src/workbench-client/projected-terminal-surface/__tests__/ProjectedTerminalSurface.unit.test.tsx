@@ -1,3 +1,4 @@
+import { ActionRuntime } from '@orchbee/actions';
 import { OrchbeeI18nProvider } from '@orchbee/i18n';
 import { terminalPresentationId, type WorkbenchTerminalPresentation } from '@orchbee/workbench';
 import { createElement } from 'react';
@@ -40,12 +41,19 @@ describe('ProjectedTerminalSurface', () => {
 			stopped: false,
 			startNewSession: () => undefined,
 		});
+		const actionRuntime = new ActionRuntime();
 
 		const markup = renderToStaticMarkup(
 			createElement(
 				OrchbeeI18nProvider,
 				{ locale: 'en-US' },
-				createElement(ProjectedTerminalSurface, { presentation }),
+				createElement(ProjectedTerminalSurface, {
+					actionRuntime,
+					actionScope: actionRuntime.createScope('test.terminal'),
+					admitBellEffect: () => true,
+					bindActionContextProvider: () => ({ dispose: () => undefined }),
+					presentation,
+				}),
 			),
 		);
 

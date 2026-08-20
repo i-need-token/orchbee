@@ -25,6 +25,7 @@ import {
 	SetTerminalDefaultsSchema,
 	StartTerminalSchema,
 	TerminalTargetSchema,
+	UpdateAttachmentInputCapabilitySchema,
 	UpdateTerminalConfigurationSchema,
 } from './control';
 import { isControlRequestKind, MessageKind } from './envelope';
@@ -68,6 +69,8 @@ export function encodeControlRequest(
 			return encodeControlJson(value, AttachTerminalSchema);
 		case MessageKind.detachTerminal:
 			return encodeControlJson(value, DetachTerminalSchema);
+		case MessageKind.updateAttachmentInputCapability:
+			return encodeControlJson(value, UpdateAttachmentInputCapabilitySchema);
 		case MessageKind.resizeTerminal:
 			return encodeControlJson(value, ResizeTerminalSchema);
 		case MessageKind.clearTerminal:

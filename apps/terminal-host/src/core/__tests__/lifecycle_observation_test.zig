@@ -41,7 +41,7 @@ test "input authority, resize, and reordered completion preserve bounds" {
         .resize = true,
     }, true);
 
-    _ = try core.authorizeInput(connection, attachment_id);
+    _ = try core.authorizeInput(connection, attachment_id, 1);
     _ = try core.resize(connection, attachment_id, 120, 40);
     try std.testing.expectEqual(@as(u64, 0), core.findTerminal(terminal_id).?.observedRevision());
 
@@ -331,7 +331,7 @@ test "runtime failure fences work without inventing a completion signal" {
     try std.testing.expectEqual(subject.RuntimeFailureStage.apply_resize, failure.stage());
     try std.testing.expectError(
         error.InvalidPhase,
-        core.authorizeInput(connection, attachment_id),
+        core.authorizeInput(connection, attachment_id, 1),
     );
     try std.testing.expectError(
         error.InvalidPhase,
@@ -597,7 +597,7 @@ test "attachment capability sequences preserve broker and terminal indexes" {
             4 => {
                 if (core.findAttachment(attachment_id)) |attachment| {
                     if (attachment.capabilities.input) {
-                        _ = try core.authorizeInput(connection, attachment_id);
+                        _ = try core.authorizeInput(connection, attachment_id, 1);
                     }
                 }
             },

@@ -93,6 +93,12 @@ export type {
 	WorkbenchSearchProviderSection,
 	WorkbenchTerminalCreateCallback,
 	WorkbenchTerminalCreateInput,
+	WorkbenchTerminalActionCatalog,
+	WorkbenchTerminalActionContextCapture,
+	WorkbenchTerminalActionContextCaptureRequest,
+	WorkbenchTerminalActionContextProvider,
+	WorkbenchTerminalBellEffect,
+	WorkbenchTerminalLinkActionInput,
 	WorkbenchTerminalPresentationCommand,
 	WorkbenchTerminalPresentationComposition,
 	WorkbenchTerminalPresentation,
@@ -105,6 +111,7 @@ export type {
 	WorkbenchTerminalCurrentDirectoryObservation,
 	WorkbenchTerminalMetadataObservation,
 } from './workbench';
+export { TERMINAL_ACTION_IDS, WorkbenchTerminalBellEffectCoordinator } from './workbench';
 export type {
 	TerminalPresentationCloseOperation,
 	TerminalPresentationCloseActivity,

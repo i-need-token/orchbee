@@ -462,9 +462,7 @@ fn parseSelectionCommand(
 }
 
 fn parseSelectionExportFormat(value: []const u8) error{InvalidField}!terminal_history.ExportFormat {
-    if (std.mem.eql(u8, value, "html")) return .html;
     if (std.mem.eql(u8, value, "plain")) return .plain;
-    if (std.mem.eql(u8, value, "vt")) return .vt;
     return error.InvalidField;
 }
 

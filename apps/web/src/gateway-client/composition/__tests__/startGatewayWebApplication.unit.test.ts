@@ -60,6 +60,29 @@ const bootstrap = WorkbenchClientSessionBootstrapSchema.parse({
 
 describe('startGatewayWebApplication', () => {
 	it('composes the common Workbench runtime with Gateway transports and Browser effects', async () => {
+		let clipboardAvailable = true;
+		let secureContext = false;
+		let transientUserActivation = true;
+		const writeText = vi.fn<(text: string) => Promise<void>>().mockResolvedValue();
+		const targetWindow = {
+			document: window.document,
+			focus: vi.fn<() => void>(),
+			get isSecureContext() {
+				return secureContext;
+			},
+			location: window.location,
+			navigator: {
+				get clipboard() {
+					return clipboardAvailable ? { writeText } : undefined;
+				},
+				get userActivation() {
+					return {
+						hasBeenActive: transientUserActivation,
+						isActive: transientUserActivation,
+					};
+				},
+			},
+		} as unknown as Window;
 		const close = vi.fn<() => void>();
 		const control = {
 			bootstrap,
@@ -101,7 +124,7 @@ describe('startGatewayWebApplication', () => {
 		});
 		const rootElement = document.createElement('div');
 		const session = startGatewayWebApplication(
-			window,
+			targetWindow,
 			rootElement,
 			document.documentElement,
 			['en-US'],
@@ -128,8 +151,29 @@ describe('startGatewayWebApplication', () => {
 				terminalPresentationConfigurationSource: expect.any(Object),
 			}),
 		);
-		const configurationSource =
-			createRuntime.mock.calls[0]?.[0].terminalPresentationConfigurationSource;
+		const runtimeOptions = createRuntime.mock.calls[0]?.[0];
+		expect(runtimeOptions).toBeDefined();
+		expect('terminalFileDropCapability' in (runtimeOptions ?? {})).toBe(false);
+		const platformEffects = runtimeOptions?.terminalPlatformEffects;
+		expect(platformEffects?.isClipboardWriteAvailable?.()).toBe(false);
+		expect(await platformEffects?.writeClipboardText?.('insecure')).toMatchObject({
+			code: 'browser-clipboard-insecure-context',
+			kind: 'failed',
+		});
+		secureContext = true;
+		transientUserActivation = false;
+		expect(platformEffects?.isClipboardWriteAvailable?.()).toBe(false);
+		transientUserActivation = true;
+		expect(platformEffects?.isClipboardWriteAvailable?.()).toBe(true);
+		expect(await platformEffects?.writeClipboardText?.('allowed')).toEqual({ kind: 'completed' });
+		clipboardAvailable = false;
+		expect(platformEffects?.isClipboardWriteAvailable?.()).toBe(false);
+		expect(await platformEffects?.writeClipboardText?.('missing')).toMatchObject({
+			code: 'browser-clipboard-unavailable',
+			kind: 'failed',
+		});
+		expect(writeText).toHaveBeenCalledExactlyOnceWith('allowed');
+		const configurationSource = runtimeOptions?.terminalPresentationConfigurationSource;
 		expect(configurationSource?.current()).toMatchObject({
 			backgroundOpacity: 1,
 			defaultColorOverride: null,

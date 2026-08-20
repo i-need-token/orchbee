@@ -61,6 +61,10 @@ pub const Action = union(enum) {
         attachment_id: core_module.AttachmentId,
         byte_count: usize,
     },
+    set_focus: struct {
+        attachment_id: core_module.AttachmentId,
+        focused: bool,
+    },
     resize: struct {
         attachment_id: core_module.AttachmentId,
         geometry: model.geometry.Geometry,
@@ -101,6 +105,7 @@ pub const Action = union(enum) {
             .attach => "Attach",
             .set_projection_demand => "SetProjectionDemand",
             .accept_input => "AcceptInput",
+            .set_focus => "SetFocus",
             .resize => "Resize",
             .update_configuration => "UpdateConfiguration",
             .apply_terminal_control => "ApplyTerminalControl",
@@ -166,6 +171,7 @@ pub const vocabulary = [_][]const u8{
     "Attach",
     "SetProjectionDemand",
     "AcceptInput",
+    "SetFocus",
     "Resize",
     "UpdateConfiguration",
     "ApplyTerminalControl",

@@ -35,6 +35,7 @@ pub const TerminalSession = contracts.TerminalSession;
 pub const TerminalRegistry = contracts.TerminalRegistry;
 pub const PreparedTerminalDefaultsUpdate = contracts.PreparedTerminalDefaultsUpdate;
 pub const AttachmentAdmission = contracts.AttachmentAdmission;
+pub const CapabilityUpdateAdmission = contracts.CapabilityUpdateAdmission;
 pub const ResizeLeaseChange = contracts.ResizeLeaseChange;
 pub const AttachmentDetach = contracts.AttachmentDetach;
 pub const ProjectionDemand = contracts.ProjectionDemand;

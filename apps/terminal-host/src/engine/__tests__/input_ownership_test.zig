@@ -72,3 +72,47 @@ test "cancelled held input mutates neither ledger nor repair charge" {
     try std.testing.expectEqual(@as(usize, 0), ledger.repairCharge().bytes);
     try std.testing.expectEqual(@as(usize, 0), ledger.repairCharge().entries);
 }
+
+test "focus claims own one aggregate repair credit across attachments" {
+    var ledger = subject.Ledger.init(std.testing.allocator);
+    defer ledger.deinit();
+    const first_attachment = subject.AttachmentId.fromBytes([_]u8{0x31} ** 16);
+    const second_attachment = subject.AttachmentId.fromBytes([_]u8{0x32} ** 16);
+    for ([_]subject.AttachmentId{ first_attachment, second_attachment }) |attachment_id| {
+        try ledger.ensureAttachmentCapacity();
+        ledger.commitAttachment(attachment_id);
+    }
+
+    const first_claim = try ledger.reserveFocusMutation(first_attachment, true);
+    try std.testing.expectEqual(subject.FocusTransition.gained, first_claim.transition);
+    var first_ownership: ?subject.PreparedMutation = first_claim.ownership;
+    try ledger.validatePrepared(first_ownership, .{});
+    ledger.commitPrepared(&first_ownership);
+    const aggregate_charge = ledger.repairCharge();
+    try std.testing.expect(aggregate_charge.bytes > 0);
+    try std.testing.expectEqual(@as(usize, 1), aggregate_charge.entries);
+
+    const second_claim = try ledger.reserveFocusMutation(second_attachment, true);
+    try std.testing.expectEqual(subject.FocusTransition.none, second_claim.transition);
+    var second_ownership: ?subject.PreparedMutation = second_claim.ownership;
+    try ledger.validatePrepared(second_ownership, .{});
+    ledger.commitPrepared(&second_ownership);
+    try std.testing.expectEqual(aggregate_charge, ledger.repairCharge());
+    try std.testing.expectEqual(@as(usize, 2), ledger.focusedCount());
+
+    const first_release = try ledger.reserveFocusMutation(first_attachment, false);
+    try std.testing.expectEqual(subject.FocusTransition.none, first_release.transition);
+    var first_release_ownership: ?subject.PreparedMutation = first_release.ownership;
+    try ledger.validatePrepared(first_release_ownership, .{});
+    ledger.commitPrepared(&first_release_ownership);
+    try std.testing.expectEqual(aggregate_charge, ledger.repairCharge());
+
+    const second_release = try ledger.reserveFocusMutation(second_attachment, false);
+    try std.testing.expectEqual(subject.FocusTransition.lost, second_release.transition);
+    var second_release_ownership: ?subject.PreparedMutation = second_release.ownership;
+    try ledger.validatePrepared(second_release_ownership, .{});
+    ledger.commitPrepared(&second_release_ownership);
+    try std.testing.expectEqual(@as(usize, 0), ledger.repairCharge().bytes);
+    try std.testing.expectEqual(@as(usize, 0), ledger.repairCharge().entries);
+    try std.testing.expect(ledger.invariantHolds());
+}

@@ -14,7 +14,12 @@ export function resolveDesktopTerminalFileDropCapability(
 	targetWindow: Window,
 ): TerminalFileDropCapability | undefined {
 	const candidate: unknown = Reflect.get(targetWindow, DESKTOP_FILE_PATH_BRIDGE_KEY);
-	if (!isDesktopRendererFilePathBridge(candidate)) return undefined;
+	if (
+		!isDesktopRendererFilePathBridge(candidate) ||
+		(candidate.platform !== 'darwin' && candidate.platform !== 'linux')
+	) {
+		return undefined;
+	}
 	return createTerminalFileDropCapability({
 		getPathForFile: (file): unknown => Reflect.apply(candidate.getPathForFile, candidate, [file]),
 		platform: candidate.platform,

@@ -23,7 +23,7 @@ describe('resolveDesktopTerminalFileDropCapability', () => {
 		Reflect.deleteProperty(targetWindow, DESKTOP_FILE_PATH_BRIDGE_KEY);
 	});
 
-	it('rejects malformed bridge values and keeps unsupported platforms explicit', async () => {
+	it('rejects malformed bridge values and exposes no capability on unsupported platforms', () => {
 		const missing = Object.assign(window, {
 			[DESKTOP_FILE_PATH_BRIDGE_KEY]: { platform: 'darwin' },
 		});
@@ -35,9 +35,7 @@ describe('resolveDesktopTerminalFileDropCapability', () => {
 				platform: 'win32',
 			},
 		});
-		await expect(
-			resolveDesktopTerminalFileDropCapability(windows)?.prepare([new File([], 'file.txt')]),
-		).resolves.toEqual({ kind: 'rejected', reason: 'unsupported' });
+		expect(resolveDesktopTerminalFileDropCapability(windows)).toBeUndefined();
 		Reflect.deleteProperty(windows, DESKTOP_FILE_PATH_BRIDGE_KEY);
 	});
 });

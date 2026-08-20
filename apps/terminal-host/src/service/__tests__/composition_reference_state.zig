@@ -64,8 +64,10 @@ pub const Terminal = struct {
 
 pub const Attachment = struct {
     admission_sequence: u64,
+    admitted_capabilities: core_module.Capabilities,
     attachment_id: core_module.AttachmentId,
     capabilities: core_module.Capabilities,
+    capability_revision: u64,
     demand: core_module.ProjectionDemand,
     request_resize_lease: bool,
     resize_lease: bool,
@@ -264,8 +266,10 @@ fn terminalFromObservation(observation: composition.TerminalObservation) Termina
 fn attachmentFromObservation(observation: composition.AttachmentObservation) Attachment {
     return .{
         .admission_sequence = observation.admission_sequence,
+        .admitted_capabilities = observation.admitted_capabilities,
         .attachment_id = observation.attachment_id,
         .capabilities = observation.capabilities,
+        .capability_revision = observation.capability_revision,
         .demand = observation.projection.demand(),
         .request_resize_lease = observation.requested_resize_lease,
         .resize_lease = observation.resize_lease,

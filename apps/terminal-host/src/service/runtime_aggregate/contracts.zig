@@ -203,6 +203,7 @@ pub const StartPreparation = union(enum) {
 pub const AttachmentBinding = struct {
     attachment_id: core_module.AttachmentId,
     capabilities: core_module.Capabilities,
+    capability_revision: u64,
     resize_lease: bool,
     terminal_id: core_module.TerminalId,
 };
@@ -238,6 +239,8 @@ pub const AttachError = core_module.CoreError || std.mem.Allocator.Error || erro
     TerminalRuntimeMissing,
     TerminalRuntimeUnavailable,
 };
+
+pub const CapabilityUpdateError = AttachError;
 
 pub const DisposeError = core_module.CoreError || error{TerminalRuntimeMissing};
 

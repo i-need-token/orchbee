@@ -33,7 +33,7 @@ pub const terminal_row_window_format_patch: u8 = 2;
 pub const transport_envelope_header_bytes = 64;
 pub const current_protocol_major: u16 = 0;
 pub const current_protocol_minor: u16 = 0;
-pub const current_protocol_patch: u16 = 14;
+pub const current_protocol_patch: u16 = 16;
 
 pub const Limits = struct {
     pub const cell_pixel_dimension = 4096;
@@ -78,7 +78,7 @@ pub const Limits = struct {
     pub const transport_record_bytes: usize = frame_bytes + transport_envelope_header_bytes;
     pub const raw_payload_bytes: usize = semantic_input_payload_bytes;
     pub const semantic_input_payload_bytes: usize = 32 + input_bytes;
-    pub const write_input_payload_bytes: usize = 16 + input_bytes;
+    pub const write_input_payload_bytes: usize = 24 + input_bytes;
 };
 
 pub const MessageKind = @import("message_kind.zig").MessageKind;
@@ -135,6 +135,7 @@ pub const RequestOperation = enum {
     start_terminal,
     terminate_terminal,
     update_terminal_configuration,
+    update_attachment_input_capability,
     write_input,
 };
 
@@ -265,6 +266,12 @@ pub fn messageContract(kind: u16) ?MessageContract {
         ),
         M.attachment_capabilities => responseOnly("AttachmentCapabilities", .control_json),
         M.resize_lease_changed => eventOnly("ResizeLeaseChanged", .control_json),
+        M.update_attachment_input_capability => requestOnly(
+            "UpdateAttachmentInputCapability",
+            .update_attachment_input_capability,
+            .control_json,
+            M.attachment_capabilities,
+        ),
         M.write_input => requestOnly("WriteInput", .write_input, .raw_bytes, M.input_accepted),
         M.input_accepted => responseOnly("InputAccepted", .control_json),
         M.resize_terminal => requestOnly(

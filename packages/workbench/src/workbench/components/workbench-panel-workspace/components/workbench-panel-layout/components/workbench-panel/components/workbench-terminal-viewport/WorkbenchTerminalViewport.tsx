@@ -11,6 +11,7 @@ import {
 import type { WorkbenchPanelWorkspaceView } from '../../../../../../types/panel-workspace-view';
 import type { WorkbenchTerminalSurface } from '../../../../../../../../types/workbench-terminal-surface';
 import { useWorkbenchTerminalContextMenu } from './hooks/useWorkbenchTerminalContextMenu';
+import { useWorkbenchTerminalActions } from './hooks/useWorkbenchTerminalActions';
 import styles from './WorkbenchTerminalViewport.module.css';
 
 interface WorkbenchTerminalViewportProps {
@@ -32,10 +33,15 @@ export function WorkbenchTerminalViewport({
 		panelId,
 		splitPanel: view.splitPanel,
 	});
+	const terminalActions = useWorkbenchTerminalActions({
+		parentScope: view.actionScope,
+		presentationId: terminal.presentationId,
+		runtime: view.actionRuntime,
+	});
 	const split = (direction: PanelSplitDirection, event: React.MouseEvent<HTMLElement>): void => {
 		contextMenu.split(direction, event.currentTarget.ownerDocument);
 	};
-	const entries: readonly WorkbenchActionMenuEntry[] = [
+	const structuralEntries: readonly WorkbenchActionMenuEntry[] = [
 		{
 			icon: 'terminal',
 			id: 'new-child-terminal',
@@ -73,6 +79,14 @@ export function WorkbenchTerminalViewport({
 			onSelect: (event) => split('above', event),
 		},
 	];
+	const entries: readonly WorkbenchActionMenuEntry[] =
+		terminalActions.entries.length === 0
+			? structuralEntries
+			: [
+					...terminalActions.entries,
+					{ id: 'terminal-product-actions', kind: 'separator' },
+					...structuralEntries,
+				];
 
 	return (
 		<ContextMenu>
@@ -83,9 +97,25 @@ export function WorkbenchTerminalViewport({
 				data-slot='workbench-terminal-viewport'
 				data-terminal-presentation-id={terminal.presentationId}
 				data-terminal-role={terminalRole}
+				onContextMenu={(event) => {
+					if (terminalActions.captureContext(event)) {
+						contextMenu.captureFinalFocus(event.currentTarget.ownerDocument);
+						return;
+					}
+					event.preventDefault();
+					event.stopPropagation();
+				}}
 				tabIndex={0}
 			>
-				{TerminalSurface === undefined ? null : <TerminalSurface presentation={terminal} />}
+				{TerminalSurface === undefined ? null : (
+					<TerminalSurface
+						actionRuntime={view.actionRuntime}
+						actionScope={terminalActions.scope}
+						admitBellEffect={view.admitTerminalBellEffect}
+						bindActionContextProvider={terminalActions.bindActionContextProvider}
+						presentation={terminal}
+					/>
+				)}
 			</ContextMenuTrigger>
 			<WorkbenchActionContextMenuContent entries={entries} finalFocus={contextMenu.finalFocus} />
 		</ContextMenu>

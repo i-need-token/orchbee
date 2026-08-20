@@ -10,7 +10,7 @@ const HostService = harness.HostService;
 const testId = harness.testId;
 
 // Stateful refinement bridge for TH-001 through TH-007, TH-010 through
-// TH-012, and TH-016. Action names are the runtime-model transition
+// TH-013, and TH-016 through TH-020. Action names are the runtime-model transition
 // vocabulary; every step runs owner-local and cross-owner invariants before
 // comparing the product observation with the executable reference reducer.
 test "semantic trace refines a native HostService composition" {
@@ -182,6 +182,7 @@ test "semantic trace refines a native HostService composition" {
     const input = service.runtime_aggregate.acceptRawInput(
         active.connection_id,
         first_attachment,
+        1,
         "x",
     );
     switch (input) {

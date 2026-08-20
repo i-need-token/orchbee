@@ -103,3 +103,46 @@ pub fn handleDetach(
     control_encode.writeAttachmentAcknowledged(&output, attachment_id) catch unreachable;
     _ = response.commitControlSuccess(self.success, &output);
 }
+
+pub fn handleUpdateAttachmentInputCapability(
+    self: anytype,
+    connection_id: core_module.ConnectionId,
+    envelope: protocol.EnvelopeSummary,
+    correlation_id: WireIdentifier,
+    outgoing: *Outgoing,
+) !void {
+    if (!try self.context.requireControl(envelope, correlation_id, outgoing)) return;
+    var decoded = control_decode.decodeUpdateAttachmentInputCapability(
+        self.context.allocator,
+        envelope.payload,
+    ) catch |err| return self.context.rejectControlDecode(
+        outgoing,
+        correlation_id,
+        err,
+        "UpdateAttachmentInputCapability payload is invalid",
+    );
+    defer decoded.deinit();
+    const request = decoded.value;
+    var response = try host_response.prepareControl(
+        outgoing,
+        correlation_id,
+        self.context.hostEpoch(),
+    );
+    defer response.deinit();
+    const attachment = self.context.runtime_aggregate.updateAttachmentInputCapability(
+        connection_id,
+        request.attachment_id,
+        request.capability_revision,
+        request.input,
+    ) catch |err| {
+        response.commitFailure(switch (err) {
+            error.TerminalRuntimeMissing => unreachable,
+            error.TerminalRuntimeUnavailable => host_failure.fromCore(error.InvalidPhase),
+            else => host_failure.fromCore(@errorCast(err)),
+        });
+        return;
+    };
+    var output = response.writer();
+    control_encode.writeAttachmentCapabilities(&output, attachment) catch unreachable;
+    _ = response.commitControlSuccess(self.success, &output);
+}

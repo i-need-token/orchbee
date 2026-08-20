@@ -1,9 +1,12 @@
 import {
-	ActionRuntime,
 	createTypedActionRuntime,
 	type ActionExecution,
 	type ActionInputFor,
+	type ActionInvocationSource,
+	type ActionResult,
+	type ActionRuntime,
 	type ActionScope,
+	type PreparedActionInvocation,
 } from '@orchbee/actions';
 
 import type { TerminalFindController } from '../terminal-find-surface';
@@ -15,7 +18,6 @@ import {
 } from './registerProjectedTerminalActions';
 
 export interface ProjectedTerminalActionComposition {
-	readonly applicationScope: ActionScope;
 	readonly findScope: ActionScope;
 	readonly terminalScope: ActionScope;
 	dispose(): void;
@@ -23,26 +25,39 @@ export interface ProjectedTerminalActionComposition {
 		actionId: Id,
 		input: ActionInputFor<ProjectedTerminalActionCatalog, Id>,
 		scope: ActionScope,
-		source: 'button' | 'keyboard' | 'pointer' | 'programmatic',
+		source: ActionInvocationSource,
 	): ActionExecution;
 	invokeShortcut<Id extends keyof ProjectedTerminalActionCatalog & string>(
 		actionId: Id,
 		input: ActionInputFor<ProjectedTerminalActionCatalog, Id>,
 		scope: ActionScope,
 	): boolean;
+	executePrepared(invocation: PreparedActionInvocation): ActionExecution;
+}
+
+export interface ProjectedTerminalActionResultEvent {
+	readonly actionId: string;
+	readonly result: ActionResult;
+}
+
+interface ProjectedTerminalActionCompositionOptions {
+	readonly platformEffects?: ProjectedTerminalPlatformEffects | undefined;
+	readonly reportResult?: ((event: ProjectedTerminalActionResultEvent) => void) | undefined;
+	readonly runtime: ActionRuntime;
+	readonly terminalScope: ActionScope;
 }
 
 /** Create the action scopes and registrations owned by one projected terminal mount. */
 export function createProjectedTerminalActionComposition(
 	terminal: ProjectedTerminalActionTarget,
 	findController: TerminalFindController,
-	platformEffects: ProjectedTerminalPlatformEffects = {},
+	options: ProjectedTerminalActionCompositionOptions,
 ): ProjectedTerminalActionComposition {
-	const runtime = new ActionRuntime();
-	const applicationScope = runtime.createScope('workbench.application');
-	const terminalScope = runtime.createScope('workbench.terminal', applicationScope);
+	const { platformEffects = {}, reportResult, runtime, terminalScope } = options;
 	const findScope = runtime.createScope('workbench.terminal.find', terminalScope);
 	const typedRuntime = createTypedActionRuntime<ProjectedTerminalActionCatalog>(runtime);
+	const activeExecutions = new Set<ActionExecution>();
+	let disposed = false;
 	const registrations = registerProjectedTerminalActions({
 		findController,
 		platformEffects,
@@ -52,13 +67,22 @@ export function createProjectedTerminalActionComposition(
 	});
 
 	return {
-		applicationScope,
 		dispose: () => {
+			if (disposed) return;
+			disposed = true;
+			for (const execution of activeExecutions) execution.cancel();
 			for (const registration of registrations) registration.dispose();
-			runtime.dispose();
 		},
-		execute: (actionId, input, scope, source) =>
-			typedRuntime.execute(actionId, input, { scope, source }),
+		execute: (actionId, input, scope, source) => {
+			const execution = typedRuntime.execute(actionId, input, { scope, source });
+			observeResult(actionId, execution);
+			return execution;
+		},
+		executePrepared: (invocation) => {
+			const execution = runtime.executePrepared(invocation);
+			observeResult(invocation.actionId, execution);
+			return execution;
+		},
 		findScope,
 		invokeShortcut: (actionId, input, scope) => {
 			const invocation = { scope, source: 'keyboard' as const };
@@ -67,9 +91,18 @@ export function createProjectedTerminalActionComposition(
 			) {
 				return false;
 			}
-			typedRuntime.execute(actionId, input, invocation);
+			const execution = typedRuntime.execute(actionId, input, invocation);
+			observeResult(actionId, execution);
 			return true;
 		},
 		terminalScope,
 	};
+
+	function observeResult(actionId: string, execution: ActionExecution): void {
+		activeExecutions.add(execution);
+		void execution.completion.then((result) => {
+			activeExecutions.delete(execution);
+			if (!disposed) reportResult?.({ actionId, result });
+		});
+	}
 }

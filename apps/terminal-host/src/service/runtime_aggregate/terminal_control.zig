@@ -12,7 +12,7 @@ pub fn applyTerminalControl(
     attachment_id: core_module.AttachmentId,
     operation: terminal_runtime.TerminalControlOperation,
 ) TerminalControlError!TerminalControl {
-    const attachment = try self.core_state.authorizeInput(connection_id, attachment_id);
+    const attachment = try self.core_state.authorizeCurrentInput(connection_id, attachment_id);
     const terminal_id = attachment.terminal_id;
     const runtime = self.runtimeFor(terminal_id) orelse return error.TerminalRuntimeMissing;
     _ = self.synchronizeRuntimeObservation(terminal_id, runtime) catch

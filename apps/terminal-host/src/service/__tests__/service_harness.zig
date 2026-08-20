@@ -108,6 +108,7 @@ pub fn expectInputAcceptedBytes(
     outgoing: *const Outgoing,
     attachment_id: core_module.AttachmentId,
     expected_bytes: usize,
+    expected_capability_revision: []const u8,
 ) !void {
     try std.testing.expectEqual(@as(usize, 1), outgoing.records().len);
     const envelope = try protocol.validateTransportEnvelope(outgoing.records()[0]);
@@ -115,6 +116,7 @@ pub fn expectInputAcceptedBytes(
     const InputAccepted = struct {
         acceptedBytes: usize,
         attachmentId: []const u8,
+        capabilityRevision: []const u8,
     };
     const accepted = try control_wire.decode(
         InputAccepted,
@@ -123,6 +125,10 @@ pub fn expectInputAcceptedBytes(
     );
     defer accepted.deinit();
     try std.testing.expectEqual(expected_bytes, accepted.value.acceptedBytes);
+    try std.testing.expectEqualStrings(
+        expected_capability_revision,
+        accepted.value.capabilityRevision,
+    );
     var attachment_buffer: [32]u8 = undefined;
     try std.testing.expectEqualStrings(
         identifierText(attachment_id, &attachment_buffer),
@@ -766,9 +772,10 @@ pub fn testRawInputPayload(
     attachment_id: core_module.AttachmentId,
     input: []const u8,
 ) ![]u8 {
-    const payload = try std.testing.allocator.alloc(u8, attachment_id.bytes.len + input.len);
+    const payload = try std.testing.allocator.alloc(u8, attachment_id.bytes.len + 8 + input.len);
     @memcpy(payload[0..attachment_id.bytes.len], &attachment_id.bytes);
-    @memcpy(payload[attachment_id.bytes.len..], input);
+    std.mem.writeInt(u64, payload[attachment_id.bytes.len..][0..8], 1, .little);
+    @memcpy(payload[attachment_id.bytes.len + 8 ..], input);
     return payload;
 }
 

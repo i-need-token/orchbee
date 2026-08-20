@@ -63,6 +63,7 @@ pub const TerminalRegistry = terminal_registry.Registry;
 pub const PreparedTerminalDefaultsUpdate = host_settings.PreparedDefaultsUpdate;
 
 pub const AttachmentAdmission = broker_session.Admission;
+pub const CapabilityUpdateAdmission = broker_session.CapabilityUpdateAdmission;
 
 pub const ResizeLeaseChange = struct {
     attachment_id: AttachmentId,
@@ -97,6 +98,8 @@ pub const BellDeliveryToken = struct {
 pub const CoreError = error{
     AttachmentConflict,
     AttachmentSequenceOverflow,
+    CapabilityRevisionConflict,
+    CapabilityUnavailable,
     ConnectionConflict,
     CreationConflict,
     FailureContainmentIncomplete,
@@ -113,6 +116,7 @@ pub const CoreError = error{
     RevisionOverflow,
     ResizeLeaseDenied,
     SequenceOverflow,
+    StaleCapabilityRevision,
     StartConflict,
     TerminalConflict,
     ThemeOperationConflict,

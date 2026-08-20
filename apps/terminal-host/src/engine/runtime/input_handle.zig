@@ -2,6 +2,7 @@ const identifiers = @import("terminal-host-model").identifiers;
 const terminal_input = @import("terminal-input");
 const contracts = @import("contracts.zig");
 const state = @import("state.zig");
+const attachment_input_admission_ops = @import("attachment_input_admission.zig");
 const input_admission_ops = @import("input_admission.zig");
 const prepared_input = @import("prepared_input.zig");
 
@@ -151,14 +152,21 @@ pub fn Type(comptime Runtime: type, comptime PreparedInput: type) type {
             input: terminal_input.SemanticInput,
             maximum_bytes: usize,
         ) !PreparedInput {
-            return exposePreparedInput(try input_admission_ops.prepareAttachmentSemanticInput(stateFrom(self), attachment_id, input, maximum_bytes));
+            return exposePreparedInput(try attachment_input_admission_ops.prepareSemanticInput(stateFrom(self), attachment_id, input, maximum_bytes));
         }
 
         pub fn prepareAttachmentInputRepair(
             self: *Runtime,
             attachment_id: contracts.AttachmentId,
         ) !PreparedInput {
-            return exposePreparedInput(try input_admission_ops.prepareAttachmentInputRepair(stateFrom(self), attachment_id));
+            return exposePreparedInput(try attachment_input_admission_ops.prepareRepair(stateFrom(self), attachment_id));
+        }
+
+        pub fn prepareAttachmentInputReset(
+            self: *Runtime,
+            attachment_id: contracts.AttachmentId,
+        ) !PreparedInput {
+            return exposePreparedInput(try attachment_input_admission_ops.prepareReset(stateFrom(self), attachment_id));
         }
 
         pub fn pendingInputBytes(self: *Runtime) usize {

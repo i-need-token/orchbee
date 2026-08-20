@@ -294,6 +294,27 @@ export interface ProjectedPasteReview {
 
 export type ProjectedPasteSource = 'api' | 'beforeinput' | 'clipboard' | 'drop' | 'file-drop';
 
+export interface ProjectedTerminalInputCapability {
+	readonly attachmentId: AttachmentId;
+	readonly capabilityRevision: CanonicalUint64Text;
+	readonly input: boolean;
+	readonly terminalId: TerminalId;
+}
+
+export type ProjectedTerminalInputCapabilityUpdateResult =
+	| { readonly kind: 'applied' }
+	| { readonly kind: 'replayed' }
+	| { readonly kind: 'stale' }
+	| {
+			readonly kind: 'rejected';
+			readonly reason:
+				| 'identity-mismatch'
+				| 'invalid-revision'
+				| 'revision-conflict'
+				| 'revision-gap'
+				| 'terminal-sealed';
+	  };
+
 export type ProjectedPasteResult =
 	| { readonly kind: 'blocked'; readonly review: ProjectedPasteReview }
 	| { readonly kind: 'empty' }
@@ -303,6 +324,8 @@ export interface ProjectedTerminalOptions {
 	readonly attachmentId: AttachmentId;
 	readonly autoActivate?: boolean;
 	readonly canResize?: boolean;
+	/** Attachment authority stamped onto every Host-bound input record. */
+	readonly capabilityRevision?: CanonicalUint64Text;
 	/** Copy a completed pointer or semantic-output selection, matching the legacy surface. */
 	readonly copyOnSelect?: boolean;
 	readonly creationId: CreationId;
@@ -360,8 +383,28 @@ export interface ProjectedBrokerFailure {
 }
 
 export interface ProjectedTerminalLinkOpenRequest {
+	readonly context: {
+		readonly column: number;
+		readonly generation: string;
+		readonly linkEpoch: string;
+		readonly revision: string;
+		readonly row: string;
+	};
 	readonly target: Extract<NonNullable<ILink['target']>, { readonly kind: 'url' }>;
 }
+
+export interface ProjectedTerminalActionContextRequest {
+	readonly clientX: number;
+	readonly clientY: number;
+	readonly shiftKey: boolean;
+}
+
+export type ProjectedTerminalActionContext =
+	| { readonly kind: 'terminal-owned' }
+	| {
+			readonly kind: 'product';
+			readonly link: ProjectedTerminalLinkOpenRequest | null;
+	  };
 
 export interface ProjectedTerminalSelectionPoint {
 	readonly column: number;
@@ -668,9 +711,11 @@ export class ProjectedTerminal {
 	readonly #accessibilityModelRows: AccessibleRow[] = [];
 	readonly #accessibilityRows: Element[] = [];
 	readonly #attachmentId: AttachmentId;
+	#capabilityRevision: CanonicalUint64Text;
 	readonly #bellEmitter = new EventEmitter<TerminalBell>();
 	readonly #clipboardWriteRequestEmitter = new EventEmitter<TerminalClipboardWriteRequest>();
 	readonly #creationId: CreationId;
+	#committedInputEnabled: boolean;
 	readonly #copyCompletions = new Map<
 		CanonicalUint64Text,
 		(result: ProjectedTerminalSideEffectResult) => void
@@ -840,10 +885,12 @@ export class ProjectedTerminal {
 		this.#options = options;
 		this.#hostEpoch = options.hostEpoch;
 		this.#attachmentId = options.attachmentId;
+		this.#capabilityRevision = options.capabilityRevision ?? CanonicalUint64TextSchema.parse('1');
 		this.#creationId = options.creationId;
 		this.#store = new PackedTerminalStore(options.hostEpoch, options.attachmentId);
 		this.#terminalId = options.terminalId;
 		this.#inputEnabled = options.inputEnabled !== false;
+		this.#committedInputEnabled = this.#inputEnabled;
 		this.#optionAsAltMode =
 			options.inputConfiguration?.optionAsAlt ?? DEFAULT_TERMINAL_INPUT_CONFIGURATION.optionAsAlt;
 		this.#selection = { attachmentId: options.attachmentId, state: 'none' };
@@ -1585,11 +1632,12 @@ export class ProjectedTerminal {
 		this.scrollLines(amount * (this.metadata?.rows ?? 1));
 	}
 
-	scrollToBottom(): void {
+	scrollToBottom(): boolean {
 		this.#historyScrollPresentation?.cancel();
-		if (this.#historyPhase === ProjectedHistoryPhase.followingBottom) return;
+		if (this.#historyPhase === ProjectedHistoryPhase.followingBottom) return false;
 		this.#showHistoryScrollbar();
 		this.#recoverHistory();
+		return true;
 	}
 
 	notifyHistoryChanged(event: HistoryChanged): void {
@@ -1737,9 +1785,9 @@ export class ProjectedTerminal {
 		this.#sendSelectionCommand('clear');
 	}
 
-	clear(): void {
-		if (!this.canControlTerminal) return;
-		this.#send({
+	clear(): boolean {
+		if (!this.canControlTerminal) return false;
+		return this.#send({
 			kind: 'clear-terminal',
 			payload: { attachmentId: this.#attachmentId },
 		});
@@ -1786,6 +1834,55 @@ export class ProjectedTerminal {
 		if (ownsResizeLease && this.#phase === ProjectedTerminalPhase.open) {
 			this.#handleSurfaceResize();
 		}
+	}
+
+	applyInputCapability(
+		update: ProjectedTerminalInputCapability,
+	): ProjectedTerminalInputCapabilityUpdateResult {
+		if (
+			this.#terminalControlSealed ||
+			this.#disposalStarted ||
+			this.#disposeAfterRepair ||
+			this.#inputAdmission === ProjectedInputAdmission.disposed ||
+			this.#isDisposed()
+		) {
+			return { kind: 'rejected', reason: 'terminal-sealed' };
+		}
+		if (update.attachmentId !== this.#attachmentId || update.terminalId !== this.#terminalId) {
+			this.#revokeInputCapability();
+			return { kind: 'rejected', reason: 'identity-mismatch' };
+		}
+		const revision = CanonicalUint64TextSchema.safeParse(update.capabilityRevision);
+		if (!revision.success || revision.data === '0') {
+			this.#revokeInputCapability();
+			return { kind: 'rejected', reason: 'invalid-revision' };
+		}
+		const currentRevision = BigInt(this.#capabilityRevision);
+		const nextRevision = BigInt(revision.data);
+		if (nextRevision < currentRevision) return { kind: 'stale' };
+		if (nextRevision === currentRevision) {
+			if (update.input === this.#committedInputEnabled) return { kind: 'replayed' };
+			this.#revokeInputCapability();
+			return { kind: 'rejected', reason: 'revision-conflict' };
+		}
+		if (nextRevision !== currentRevision + 1n) {
+			this.#revokeInputCapability();
+			return { kind: 'rejected', reason: 'revision-gap' };
+		}
+		if (update.input === this.#committedInputEnabled) {
+			this.#revokeInputCapability();
+			return { kind: 'rejected', reason: 'revision-conflict' };
+		}
+
+		this.#capabilityRevision = revision.data;
+		this.#committedInputEnabled = update.input;
+		if (!update.input) {
+			this.#revokeInputCapability();
+			return { kind: 'applied' };
+		}
+		this.#inputEnabled = true;
+		this.#input?.removeAttribute('readonly');
+		return { kind: 'applied' };
 	}
 
 	getSelectionRange(): ProjectedTerminalSelectionRange | null {
@@ -1867,6 +1964,47 @@ export class ProjectedTerminal {
 		});
 	}
 
+	captureActionContext(
+		request: ProjectedTerminalActionContextRequest,
+	): ProjectedTerminalActionContext {
+		if (this.#applicationMousePressOwned(request.shiftKey)) return { kind: 'terminal-owned' };
+		return {
+			kind: 'product',
+			link: this.#linkOpenRequestAtPoint(request.clientX, request.clientY),
+		};
+	}
+
+	linkOpenRequestIsCurrent(request: ProjectedTerminalLinkOpenRequest): boolean {
+		let generation: bigint;
+		let linkEpoch: bigint;
+		let revision: bigint;
+		let row: bigint;
+		try {
+			generation = BigInt(request.context.generation);
+			linkEpoch = BigInt(request.context.linkEpoch);
+			revision = BigInt(request.context.revision);
+			row = BigInt(request.context.row);
+		} catch {
+			return false;
+		}
+		const point: PendingLinkPoint = {
+			column: request.context.column,
+			control: false,
+			generation,
+			linkEpoch,
+			meta: false,
+			revision,
+			row,
+		};
+		if (!this.#linkPointIsCurrent(point)) return false;
+		const link = this.#linkAtPoint(point);
+		return (
+			link?.target?.kind === 'url' &&
+			link.target.url === request.target.url &&
+			isPermittedExternalTerminalTarget(link)
+		);
+	}
+
 	updateSearch(query: string, options: TerminalSearchOptions = {}): void {
 		if (this.#phase === ProjectedTerminalPhase.disposed) return;
 		this.#getSearchController().update(query, options, searchAnchorFromSelection(this.#selection));
@@ -1934,6 +2072,7 @@ export class ProjectedTerminal {
 				payload: {
 					attachmentId: this.#attachmentId,
 					bracketed: review.bracketed,
+					capabilityRevision: this.#capabilityRevision,
 					text: sanitized,
 				},
 			},
@@ -2040,20 +2179,31 @@ export class ProjectedTerminal {
 	#sealTerminalControl(): void {
 		if (this.#terminalControlSealed) return;
 		this.#terminalControlSealed = true;
-		this.#inputEnabled = false;
+		this.#revokeInputCapability();
 		this.#ownsResizeLease = false;
 		this.#lastGeometry = undefined;
 		this.#lastGeometryAttemptedAt = Number.NEGATIVE_INFINITY;
+	}
+
+	#revokeInputCapability(): void {
+		this.#inputEnabled = false;
 		this.#input?.setAttribute('readonly', '');
 		this.#inputDispatcher.invalidate();
 		this.#inputRepairEpoch++;
+		this.#inputRepairTransaction = undefined;
+		if (this.#inputAdmission !== ProjectedInputAdmission.disposed) {
+			this.#inputAdmission = ProjectedInputAdmission.accepting;
+		}
+		this.#inputRefocusAfterRepair = false;
 		this.#repairTransientInputState();
+		this.#clearNativeInputTextMarker();
 		this.#deferredKeyReleases.clear();
 		this.#pressedKeys.clear();
 		this.#publishedKeys.clear();
 		this.#pressedMouseButtons.clear();
 		this.#publishedMouseButtons.clear();
 		this.#publishedMouseSample = undefined;
+		this.#inputFocused = false;
 		this.#publishedInputFocused = false;
 		this.#finishApplicationMouseGesture(true);
 		this.#pressedModifierCodes.clear();
@@ -2987,6 +3137,49 @@ export class ProjectedTerminal {
 		);
 	}
 
+	#linkAtPoint(point: Pick<PendingLinkPoint, 'column' | 'generation' | 'revision' | 'row'>) {
+		const cache = this.#linkCache;
+		if (
+			cache === undefined ||
+			cache.generation !== point.generation ||
+			cache.revision !== point.revision ||
+			point.row < cache.startRow ||
+			point.row > cache.endRow
+		) {
+			return undefined;
+		}
+		return cache.links.find((link) => terminalLinkContains(link, point.column, Number(point.row)));
+	}
+
+	#linkOpenRequestAtPoint(
+		clientX: number,
+		clientY: number,
+	): ProjectedTerminalLinkOpenRequest | null {
+		const point = this.#selectionPointFromClient(clientX, clientY);
+		if (point === null) return null;
+		const contextPoint: PendingLinkPoint = {
+			column: point.column,
+			control: false,
+			generation: this.#historyGeneration,
+			linkEpoch: this.#linkEpoch,
+			meta: false,
+			revision: this.#historyRevision,
+			row: BigInt(point.row),
+		};
+		const link = this.#linkAtPoint(contextPoint);
+		if (link?.target?.kind !== 'url' || !isPermittedExternalTerminalTarget(link)) return null;
+		return {
+			context: {
+				column: contextPoint.column,
+				generation: contextPoint.generation.toString(),
+				linkEpoch: contextPoint.linkEpoch.toString(),
+				revision: contextPoint.revision.toString(),
+				row: contextPoint.row.toString(),
+			},
+			target: link.target,
+		};
+	}
+
 	#queueLinkLookup(point: PendingLinkPoint): void {
 		if (!this.#linkPointIsCurrent(point)) {
 			this.#clearHoveredLink();
@@ -3727,7 +3920,11 @@ export class ProjectedTerminal {
 			!this.#publishInputCommand(
 				{
 					kind: 'focus-input',
-					payload: { attachmentId: this.#attachmentId, focused: true },
+					payload: {
+						attachmentId: this.#attachmentId,
+						capabilityRevision: this.#capabilityRevision,
+						focused: true,
+					},
 				},
 				ProjectedInputPublicationIntent.held,
 			)
@@ -3844,10 +4041,8 @@ export class ProjectedTerminal {
 		this.#listen(input, 'compositionupdate', this.#handleCompositionUpdate);
 		this.#listen(input, 'compositionend', this.#handleCompositionEnd);
 		this.#listen(input, 'paste', this.#handlePaste);
-		if (this.#inputEnabled) {
-			this.#listen(root, 'dragover', this.#handleDragOver);
-			this.#listen(root, 'drop', this.#handleDrop);
-		}
+		this.#listen(root, 'dragover', this.#handleDragOver);
+		this.#listen(root, 'drop', this.#handleDrop);
 		this.#listen(input, 'focus', this.#handleFocus);
 		this.#listen(input, 'blur', this.#handleBlur);
 		this.#listen(root, 'focusin', this.#handleSurfaceFocusIn);
@@ -4030,7 +4225,12 @@ export class ProjectedTerminal {
 		this.#sendInput(
 			{
 				kind: 'key-input',
-				payload: { action, attachmentId: this.#attachmentId, ...facts },
+				payload: {
+					action,
+					attachmentId: this.#attachmentId,
+					capabilityRevision: this.#capabilityRevision,
+					...facts,
+				},
 			},
 			intent,
 			onRejected,
@@ -4563,7 +4763,11 @@ export class ProjectedTerminal {
 					this.#publishCurrentInputCommand(
 						{
 							kind: 'text-input',
-							payload: { attachmentId: this.#attachmentId, text: settlement.sealedText },
+							payload: {
+								attachmentId: this.#attachmentId,
+								capabilityRevision: this.#capabilityRevision,
+								text: settlement.sealedText,
+							},
 						},
 						ProjectedInputPublicationIntent.stateless,
 					);
@@ -4607,7 +4811,11 @@ export class ProjectedTerminal {
 		this.#sendInput(
 			{
 				kind: 'text-input',
-				payload: { attachmentId: this.#attachmentId, text },
+				payload: {
+					attachmentId: this.#attachmentId,
+					capabilityRevision: this.#capabilityRevision,
+					text,
+				},
 			},
 			ProjectedInputPublicationIntent.stateless,
 		);
@@ -4705,7 +4913,11 @@ export class ProjectedTerminal {
 		this.#sendInput(
 			{
 				kind: 'focus-input',
-				payload: { attachmentId: this.#attachmentId, focused: true },
+				payload: {
+					attachmentId: this.#attachmentId,
+					capabilityRevision: this.#capabilityRevision,
+					focused: true,
+				},
 			},
 			ProjectedInputPublicationIntent.held,
 			undefined,
@@ -4870,7 +5082,11 @@ export class ProjectedTerminal {
 		) {
 			transaction.focusOutCommand = {
 				kind: 'focus-input',
-				payload: { attachmentId: this.#attachmentId, focused: false },
+				payload: {
+					attachmentId: this.#attachmentId,
+					capabilityRevision: this.#capabilityRevision,
+					focused: false,
+				},
 			};
 		}
 	}
@@ -4926,7 +5142,11 @@ export class ProjectedTerminal {
 						this.#sendInput(
 							{
 								kind: 'focus-input',
-								payload: { attachmentId: this.#attachmentId, focused: true },
+								payload: {
+									attachmentId: this.#attachmentId,
+									capabilityRevision: this.#capabilityRevision,
+									focused: true,
+								},
 							},
 							ProjectedInputPublicationIntent.held,
 							undefined,
@@ -4982,7 +5202,11 @@ export class ProjectedTerminal {
 		if (this.#publishedInputFocused) {
 			commands.push({
 				kind: 'focus-input',
-				payload: { attachmentId: this.#attachmentId, focused: false },
+				payload: {
+					attachmentId: this.#attachmentId,
+					capabilityRevision: this.#capabilityRevision,
+					focused: false,
+				},
 			});
 		}
 		return commands;
@@ -5043,7 +5267,12 @@ export class ProjectedTerminal {
 		return [...this.#publishedKeys.values()].map(
 			(facts): ProjectedTerminalCommand => ({
 				kind: 'key-input',
-				payload: { action: KeyAction.release, attachmentId: this.#attachmentId, ...facts },
+				payload: {
+					action: KeyAction.release,
+					attachmentId: this.#attachmentId,
+					capabilityRevision: this.#capabilityRevision,
+					...facts,
+				},
 			}),
 		);
 	}
@@ -5579,7 +5808,9 @@ export class ProjectedTerminal {
 		) {
 			return;
 		}
-		this.#linkOpenEmitter.fire({ target: link.target });
+		const request = this.#linkOpenRequestAtPoint(event.clientX, event.clientY);
+		if (request === null) return;
+		this.#linkOpenEmitter.fire(request);
 		event.preventDefault();
 	};
 
@@ -5724,6 +5955,7 @@ export class ProjectedTerminal {
 			action,
 			attachmentId: this.#attachmentId,
 			button,
+			capabilityRevision: this.#capabilityRevision,
 			modifiers: this.#modifiers(event),
 			pressedButtons,
 			x,

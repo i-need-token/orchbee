@@ -2,117 +2,52 @@ const std = @import("std");
 
 const ghostty_vt = @import("ghostty-vt");
 const identifiers = @import("terminal-host-model").identifiers;
-const terminal_input = @import("terminal-input");
+const attachment_ownership = @import("input_ownership_attachment.zig");
 const input_encoding = @import("input_encoding.zig");
 const input_queue = @import("input_queue.zig");
 
 const max_key_encoded_bytes = input_encoding.max_key_bytes;
 const max_mouse_encoded_bytes = input_encoding.max_mouse_bytes;
-const mouse_button_count = @typeInfo(terminal_input.MouseButton).@"enum".fields.len;
+const max_focus_encoded_bytes = input_encoding.max_focus_bytes;
 
 pub const AttachmentId = identifiers.AttachmentId;
+const AttachmentState = attachment_ownership.AttachmentState;
+pub const mutationForInput = attachment_ownership.mutationForInput;
 
-const OwnedKeyInput = struct {
-    composing: bool,
-    consumed_modifiers: terminal_input.Modifiers,
-    key: ghostty_vt.input.Key,
-    modifiers: terminal_input.Modifiers,
-    text: []u8,
-    unshifted_codepoint: u21,
-
-    fn deinit(self: *OwnedKeyInput, allocator: std.mem.Allocator) void {
-        allocator.free(self.text);
-        self.* = undefined;
-    }
-
-    fn release(self: OwnedKeyInput) terminal_input.KeyInput {
-        return .{
-            .action = .release,
-            .composing = self.composing,
-            .consumed_modifiers = self.consumed_modifiers,
-            .key = self.key.w3c(),
-            .modifiers = self.modifiers,
-            .text = self.text,
-            .unshifted_codepoint = self.unshifted_codepoint,
-        };
-    }
+pub const FocusTransition = enum {
+    none,
+    gained,
+    lost,
 };
 
-const AttachmentState = struct {
-    detaching: bool = false,
-    keys: std.ArrayList(OwnedKeyInput) = .empty,
-    mouse_order: [mouse_button_count]terminal_input.MouseButton = undefined,
-    mouse_order_len: usize = 0,
-    mouse_sample: ?terminal_input.MouseInput = null,
-    pending_key_slots: usize = 0,
-
-    fn deinit(self: *AttachmentState, allocator: std.mem.Allocator) void {
-        for (self.keys.items) |*key| key.deinit(allocator);
-        self.keys.deinit(allocator);
-        self.* = undefined;
-    }
-
-    fn keyIndex(self: *const AttachmentState, key: ghostty_vt.input.Key) ?usize {
-        for (self.keys.items, 0..) |owned, index| {
-            if (owned.key == key) return index;
-        }
-        return null;
-    }
-
-    fn mouseIndex(self: *const AttachmentState, button: terminal_input.MouseButton) ?usize {
-        for (self.mouse_order[0..self.mouse_order_len], 0..) |owned, index| {
-            if (owned == button) return index;
-        }
-        return null;
-    }
-
-    fn mouseButtons(self: *const AttachmentState) terminal_input.MouseButtons {
-        var buttons: terminal_input.MouseButtons = .{};
-        for (self.mouse_order[0..self.mouse_order_len]) |button| {
-            setMouseButton(&buttons, button, true);
-        }
-        return buttons;
-    }
-
-    fn repairBytes(self: *const AttachmentState) usize {
-        return self.keys.items.len * max_key_encoded_bytes +
-            self.mouse_order_len * max_mouse_encoded_bytes;
-    }
-
-    fn repairEntries(self: *const AttachmentState) usize {
-        return @intFromBool(self.keys.items.len != 0 or self.mouse_order_len != 0);
-    }
-};
-
-pub const Mutation = union(enum) {
-    key_release: ghostty_vt.input.Key,
-    key_retain: OwnedKeyInput,
-    mouse: terminal_input.MouseInput,
-
-    pub fn deinit(self: *Mutation, allocator: std.mem.Allocator) void {
-        switch (self.*) {
-            .key_retain => |*key| key.deinit(allocator),
-            .key_release, .mouse => {},
-        }
-        self.* = undefined;
-    }
-};
+pub const Mutation = attachment_ownership.Mutation;
 
 pub const PreparedMutation = struct {
     attachment_id: AttachmentId,
+    attachment_revision: u64,
     key_slot_reserved: bool = false,
     mutation: union(enum) {
-        detach,
+        repair: RepairDisposition,
         input: Mutation,
     },
 
     fn deinit(self: *PreparedMutation, allocator: std.mem.Allocator) void {
         switch (self.mutation) {
             .input => |*mutation| mutation.deinit(allocator),
-            .detach => {},
+            .repair => {},
         }
         self.* = undefined;
     }
+};
+
+pub const PreparedFocusMutation = struct {
+    ownership: PreparedMutation,
+    transition: FocusTransition,
+};
+
+pub const RepairDisposition = enum {
+    remove,
+    retain,
 };
 
 pub const PreparedRepair = struct {
@@ -120,12 +55,14 @@ pub const PreparedRepair = struct {
     ownership: PreparedMutation,
 };
 
-/// Owns only the held key and mouse facts needed to repair one attachment's
-/// accepted input on detach. Capability and terminal binding remain Core facts.
-/// TerminalRuntime serializes every operation with its input mutex.
+/// Owns only the held key, mouse, and focus facts needed to repair one
+/// attachment's accepted input. Capability, visibility, and terminal binding
+/// remain Core facts. TerminalRuntime serializes every operation with its
+/// input mutex.
 pub const Ledger = struct {
     allocator: std.mem.Allocator,
     attachments: std.AutoArrayHashMap(AttachmentId, AttachmentState),
+    focused_count: usize = 0,
     repair_charge: input_queue.Charge = .{},
 
     pub fn init(allocator: std.mem.Allocator) Ledger {
@@ -153,6 +90,29 @@ pub const Ledger = struct {
         return self.attachments.contains(attachment_id);
     }
 
+    pub fn attachmentFocused(self: *const Ledger, attachment_id: AttachmentId) bool {
+        const attachment = self.attachments.get(attachment_id) orelse return false;
+        return attachment.focused;
+    }
+
+    pub fn focusedCount(self: *const Ledger) usize {
+        return self.focused_count;
+    }
+
+    pub fn invariantHolds(self: *const Ledger) bool {
+        var observed_count: usize = 0;
+        var expected_repair_bytes = self.focusRepairBytes();
+        var expected_repair_entries = self.focusRepairEntries();
+        for (self.attachments.values()) |attachment| {
+            observed_count += @intFromBool(attachment.focused);
+            expected_repair_bytes += attachment.repairBytes();
+            expected_repair_entries += attachment.repairEntries();
+        }
+        if (observed_count != self.focused_count) return false;
+        return self.repair_charge.bytes == expected_repair_bytes and
+            self.repair_charge.entries == expected_repair_entries;
+    }
+
     pub fn repairCharge(self: *const Ledger) input_queue.Charge {
         return self.repair_charge;
     }
@@ -164,7 +124,7 @@ pub const Ledger = struct {
     ) !PreparedMutation {
         const attachment = self.attachments.getPtr(attachment_id) orelse
             return error.MissingAttachment;
-        if (attachment.detaching) return error.MissingAttachment;
+        if (attachment.repairing) return error.MissingAttachment;
         var key_slot_reserved = false;
         switch (mutation.*) {
             .key_retain => {
@@ -175,14 +135,45 @@ pub const Ledger = struct {
                 attachment.pending_key_slots += 1;
                 key_slot_reserved = true;
             },
-            .key_release, .mouse => {},
+            .focus, .key_release, .mouse => {},
         }
         const owned = mutation.*;
         mutation.* = undefined;
         return .{
             .attachment_id = attachment_id,
+            .attachment_revision = attachment.revision,
             .key_slot_reserved = key_slot_reserved,
             .mutation = .{ .input = owned },
+        };
+    }
+
+    pub fn reserveFocusMutation(
+        self: *Ledger,
+        attachment_id: AttachmentId,
+        focused: bool,
+    ) !PreparedFocusMutation {
+        const attachment = self.attachments.getPtr(attachment_id) orelse
+            return error.MissingAttachment;
+        if (attachment.repairing) return error.MissingAttachment;
+        const transition: FocusTransition = if (attachment.focused == focused)
+            .none
+        else if (focused and self.focused_count == 0)
+            .gained
+        else if (!focused and self.focused_count == 1)
+            .lost
+        else
+            .none;
+        return .{
+            .ownership = .{
+                .attachment_id = attachment_id,
+                .attachment_revision = attachment.revision,
+                .mutation = .{ .input = .{ .focus = .{
+                    .expected_attachment_focused = attachment.focused,
+                    .expected_focused_count = self.focused_count,
+                    .focused = focused,
+                } } },
+            },
+            .transition = transition,
         };
     }
 
@@ -194,32 +185,52 @@ pub const Ledger = struct {
         const pending = prepared orelse return;
         const current = self.attachments.getPtr(pending.attachment_id) orelse
             return error.MissingAttachment;
+        if (current.revision != pending.attachment_revision) return error.MissingAttachment;
         switch (pending.mutation) {
-            .detach => if (!current.detaching) return error.MissingAttachment,
-            .input => if (current.detaching) return error.MissingAttachment,
+            .repair => if (!current.repairing) return error.MissingAttachment,
+            .input => |mutation| {
+                if (current.repairing) return error.MissingAttachment;
+                if (mutation == .focus) {
+                    const focus = mutation.focus;
+                    if (current.focused != focus.expected_attachment_focused) {
+                        return error.MissingAttachment;
+                    }
+                    if (focus.focused != focus.expected_attachment_focused and
+                        self.focused_count != focus.expected_focused_count)
+                    {
+                        return error.MissingAttachment;
+                    }
+                }
+            },
         }
 
-        const additional_repair_bytes: usize = switch (pending.mutation) {
+        var additional_repair_bytes: usize = 0;
+        var additional_repair_entries: usize = 0;
+        switch (pending.mutation) {
             .input => |mutation| switch (mutation) {
-                .key_retain => |key| if (current.keyIndex(key.key) == null)
-                    max_key_encoded_bytes
-                else
-                    0,
+                .focus => |focus| if (focus.focused and
+                    !focus.expected_attachment_focused and self.focused_count == 0)
+                {
+                    additional_repair_bytes = max_focus_encoded_bytes;
+                    additional_repair_entries = 1;
+                },
+                .key_retain => |key| if (current.keyIndex(key.key) == null) {
+                    additional_repair_bytes = max_key_encoded_bytes;
+                    additional_repair_entries = @intFromBool(current.repairEntries() == 0);
+                },
                 .mouse => |mouse| switch (mouse.action) {
                     .press => |button| if (mouse.pressed_buttons.contains(button) and
                         current.mouseIndex(button) == null)
-                        max_mouse_encoded_bytes
-                    else
-                        0,
-                    .release, .motion => 0,
+                    {
+                        additional_repair_bytes = max_mouse_encoded_bytes;
+                        additional_repair_entries = @intFromBool(current.repairEntries() == 0);
+                    },
+                    .release, .motion => {},
                 },
-                .key_release => 0,
+                .key_release => {},
             },
-            .detach => 0,
-        };
-        const additional_repair_entries = @intFromBool(
-            additional_repair_bytes != 0 and current.repairEntries() == 0,
-        );
+            .repair => {},
+        }
         if (additional_repair_bytes > input_queue.client_capacity_bytes -|
             client_charge.bytes -| self.repair_charge.bytes)
         {
@@ -239,16 +250,47 @@ pub const Ledger = struct {
             std.debug.assert(attachment.pending_key_slots > 0);
             attachment.pending_key_slots -= 1;
         }
-        const previous_repair_bytes = attachment.repairBytes();
-        const previous_repair_entries = attachment.repairEntries();
+        const previous_repair_bytes = attachment.repairBytes() + self.focusRepairBytes();
+        const previous_repair_entries = attachment.repairEntries() + self.focusRepairEntries();
         switch (pending.mutation) {
-            .detach => {
-                self.updateRepairCharge(previous_repair_bytes, previous_repair_entries, 0, 0);
-                var removed = self.attachments.fetchSwapRemove(pending.attachment_id).?;
-                removed.value.deinit(self.allocator);
+            .repair => |disposition| {
+                if (attachment.focused) {
+                    std.debug.assert(self.focused_count > 0);
+                    self.focused_count -= 1;
+                    attachment.focused = false;
+                }
+                attachment.resetHeldState(self.allocator);
+                const next_focus_bytes = self.focusRepairBytes();
+                const next_focus_entries = self.focusRepairEntries();
+                self.updateRepairCharge(
+                    previous_repair_bytes,
+                    previous_repair_entries,
+                    next_focus_bytes,
+                    next_focus_entries,
+                );
+                switch (disposition) {
+                    .remove => {
+                        var removed = self.attachments.fetchSwapRemove(pending.attachment_id).?;
+                        removed.value.deinit(self.allocator);
+                    },
+                    .retain => {
+                        std.debug.assert(attachment.revision < std.math.maxInt(u64));
+                        attachment.revision += 1;
+                        attachment.repairing = false;
+                    },
+                }
             },
             .input => |mutation| {
                 switch (mutation) {
+                    .focus => |focus| if (attachment.focused != focus.focused) {
+                        if (focus.focused) {
+                            self.focused_count += 1;
+                        } else {
+                            std.debug.assert(self.focused_count > 0);
+                            self.focused_count -= 1;
+                        }
+                        attachment.focused = focus.focused;
+                    },
                     .key_release => |key| {
                         if (attachment.keyIndex(key)) |index| {
                             var removed = attachment.keys.orderedRemove(index);
@@ -263,13 +305,13 @@ pub const Ledger = struct {
                             attachment.keys.appendAssumeCapacity(key);
                         }
                     },
-                    .mouse => |mouse| commitMouseOwnership(attachment, mouse),
+                    .mouse => |mouse| attachment.commitMouseOwnership(mouse),
                 }
                 self.updateRepairCharge(
                     previous_repair_bytes,
                     previous_repair_entries,
-                    attachment.repairBytes(),
-                    attachment.repairEntries(),
+                    attachment.repairBytes() + self.focusRepairBytes(),
+                    attachment.repairEntries() + self.focusRepairEntries(),
                 );
             },
         }
@@ -283,7 +325,9 @@ pub const Ledger = struct {
                 attachment.pending_key_slots -= 1;
             }
             switch (pending.mutation) {
-                .detach => attachment.detaching = false,
+                .repair => if (attachment.revision == pending.attachment_revision) {
+                    attachment.repairing = false;
+                },
                 .input => {},
             }
         }
@@ -293,7 +337,18 @@ pub const Ledger = struct {
     pub fn discard(self: *Ledger, attachment_id: AttachmentId) void {
         if (self.attachments.fetchSwapRemove(attachment_id)) |removed_value| {
             var removed = removed_value.value;
-            self.updateRepairCharge(removed.repairBytes(), removed.repairEntries(), 0, 0);
+            const previous_repair_bytes = removed.repairBytes() + self.focusRepairBytes();
+            const previous_repair_entries = removed.repairEntries() + self.focusRepairEntries();
+            if (removed.focused) {
+                std.debug.assert(self.focused_count > 0);
+                self.focused_count -= 1;
+            }
+            self.updateRepairCharge(
+                previous_repair_bytes,
+                previous_repair_entries,
+                self.focusRepairBytes(),
+                self.focusRepairEntries(),
+            );
             removed.deinit(self.allocator);
         }
     }
@@ -302,15 +357,19 @@ pub const Ledger = struct {
         self: *Ledger,
         allocator: std.mem.Allocator,
         attachment_id: AttachmentId,
+        disposition: RepairDisposition,
         terminal: *ghostty_vt.Terminal,
         cell_pixel_width: u16,
         cell_pixel_height: u16,
     ) !PreparedRepair {
         const attachment = self.attachments.getPtr(attachment_id) orelse
             return error.MissingAttachment;
-        if (attachment.detaching) return error.MissingAttachment;
-        attachment.detaching = true;
-        errdefer attachment.detaching = false;
+        if (attachment.repairing) return error.MissingAttachment;
+        if (disposition == .retain and attachment.revision == std.math.maxInt(u64)) {
+            return error.InputSequenceExhausted;
+        }
+        attachment.repairing = true;
+        errdefer attachment.repairing = false;
 
         var encoded: std.ArrayList(u8) = .empty;
         defer encoded.deinit(allocator);
@@ -329,7 +388,7 @@ pub const Ledger = struct {
         if (attachment.mouse_sample) |sample| {
             var mouse_buffer: [max_mouse_encoded_bytes]u8 = undefined;
             for (attachment.mouse_order[0..attachment.mouse_order_len]) |button| {
-                setMouseButton(&pressed_buttons, button, false);
+                attachment_ownership.setMouseButton(&pressed_buttons, button, false);
                 var release = sample;
                 release.action = .{ .release = button };
                 release.pressed_buttons = pressed_buttons;
@@ -344,6 +403,14 @@ pub const Ledger = struct {
             }
         }
 
+        if (attachment.focused and self.focused_count == 1 and
+            input_encoding.reportsFocus(terminal))
+        {
+            var focus_buffer: [max_focus_encoded_bytes]u8 = undefined;
+            const focus_out = try input_encoding.encodeFocus(&focus_buffer, false);
+            try appendRepairBytes(&encoded, allocator, focus_out);
+        }
+
         const bytes = if (encoded.items.len == 0)
             null
         else
@@ -352,7 +419,8 @@ pub const Ledger = struct {
             .bytes = bytes,
             .ownership = .{
                 .attachment_id = attachment_id,
-                .mutation = .detach,
+                .attachment_revision = attachment.revision,
+                .mutation = .{ .repair = disposition },
             },
         };
     }
@@ -364,8 +432,42 @@ pub const Ledger = struct {
     ) !void {
         const attachment = self.attachments.get(attachment_id) orelse
             return error.MissingAttachment;
-        if (!attachment.detaching) return error.MissingAttachment;
-        if (byte_count > attachment.repairBytes()) return error.InputLimitExceeded;
+        if (!attachment.repairing) return error.MissingAttachment;
+        const focus_bytes: usize = if (attachment.focused and self.focused_count == 1)
+            max_focus_encoded_bytes
+        else
+            0;
+        if (byte_count > attachment.repairBytes() + focus_bytes) {
+            return error.InputLimitExceeded;
+        }
+    }
+
+    pub fn resetRetainingAttachment(self: *Ledger, attachment_id: AttachmentId) void {
+        const attachment = self.attachments.getPtr(attachment_id) orelse return;
+        const previous_repair_bytes = attachment.repairBytes() + self.focusRepairBytes();
+        const previous_repair_entries = attachment.repairEntries() + self.focusRepairEntries();
+        if (attachment.focused) {
+            std.debug.assert(self.focused_count > 0);
+            self.focused_count -= 1;
+            attachment.focused = false;
+        }
+        attachment.resetHeldState(self.allocator);
+        attachment.repairing = false;
+        if (attachment.revision < std.math.maxInt(u64)) attachment.revision += 1;
+        self.updateRepairCharge(
+            previous_repair_bytes,
+            previous_repair_entries,
+            self.focusRepairBytes(),
+            self.focusRepairEntries(),
+        );
+    }
+
+    fn focusRepairBytes(self: *const Ledger) usize {
+        return if (self.focused_count == 0) 0 else max_focus_encoded_bytes;
+    }
+
+    fn focusRepairEntries(self: *const Ledger) usize {
+        return @intFromBool(self.focused_count != 0);
     }
 
     fn updateRepairCharge(
@@ -382,29 +484,6 @@ pub const Ledger = struct {
     }
 };
 
-pub fn mutationForInput(
-    allocator: std.mem.Allocator,
-    input: terminal_input.SemanticInput,
-) !?Mutation {
-    return switch (input) {
-        .key => |value| key: {
-            const key = try input_encoding.parseKey(value.key);
-            if (value.action == .release) break :key .{ .key_release = key };
-            const text = try allocator.dupe(u8, value.text);
-            break :key .{ .key_retain = .{
-                .composing = value.composing,
-                .consumed_modifiers = value.consumed_modifiers,
-                .key = key,
-                .modifiers = value.modifiers,
-                .text = text,
-                .unshifted_codepoint = value.unshifted_codepoint,
-            } };
-        },
-        .mouse => |value| .{ .mouse = value },
-        .focus, .paste, .text => null,
-    };
-}
-
 fn appendRepairBytes(
     encoded: *std.ArrayList(u8),
     allocator: std.mem.Allocator,
@@ -414,48 +493,4 @@ fn appendRepairBytes(
         return error.InputLimitExceeded;
     }
     try encoded.appendSlice(allocator, bytes);
-}
-
-fn commitMouseOwnership(attachment: *AttachmentState, input: terminal_input.MouseInput) void {
-    switch (input.action) {
-        .press => |button| {
-            if (!input.pressed_buttons.contains(button)) return;
-            if (attachment.mouseIndex(button) == null) {
-                std.debug.assert(attachment.mouse_order_len < attachment.mouse_order.len);
-                attachment.mouse_order[attachment.mouse_order_len] = button;
-                attachment.mouse_order_len += 1;
-            }
-        },
-        .release => |button| {
-            if (attachment.mouseIndex(button)) |index| {
-                var current = index;
-                while (current + 1 < attachment.mouse_order_len) : (current += 1) {
-                    attachment.mouse_order[current] = attachment.mouse_order[current + 1];
-                }
-                attachment.mouse_order_len -= 1;
-            }
-        },
-        .motion => {},
-    }
-    attachment.mouse_sample = if (attachment.mouse_order_len == 0) null else input;
-}
-
-fn setMouseButton(
-    buttons: *terminal_input.MouseButtons,
-    button: terminal_input.MouseButton,
-    pressed: bool,
-) void {
-    switch (button) {
-        .left => buttons.left = pressed,
-        .right => buttons.right = pressed,
-        .middle => buttons.middle = pressed,
-        .four => buttons.four = pressed,
-        .five => buttons.five = pressed,
-        .six => buttons.six = pressed,
-        .seven => buttons.seven = pressed,
-        .eight => buttons.eight = pressed,
-        .nine => buttons.nine = pressed,
-        .ten => buttons.ten = pressed,
-        .eleven => buttons.eleven = pressed,
-    }
 }

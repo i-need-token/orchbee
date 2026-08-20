@@ -267,6 +267,12 @@ pub const Attach = struct {
 
 pub const Detach = struct { attachmentId: []const u8 };
 
+pub const UpdateAttachmentInputCapability = struct {
+    attachmentId: []const u8,
+    capabilityRevision: []const u8,
+    input: bool,
+};
+
 pub const TerminalControl = struct { attachmentId: []const u8 };
 
 pub const Resize = struct {

@@ -26,6 +26,7 @@ pub fn apply(reference: *Reference, step: semantic_trace.Step) !void {
         .attach => |action| try applyAttach(reference, action, step.outcome),
         .set_projection_demand => |action| try applyDemand(reference, action, step.outcome),
         .accept_input => |action| try applyInput(reference, action, step.outcome),
+        .set_focus => |action| try applyFocus(reference, action, step.outcome),
         .resize => |action| try applyResize(reference, action, step.outcome),
         .update_configuration => |action| try applyConfiguration(reference, action, step.outcome),
         .apply_terminal_control => |action| try applyTerminalControl(reference, action, step.outcome),
@@ -163,8 +164,10 @@ fn applyAttach(reference: *Reference, action: semantic_trace.Attach, outcome: se
     }
     try reference.attachments.append(reference.allocator, .{
         .admission_sequence = reference.next_attachment_sequence,
+        .admitted_capabilities = action.capabilities,
         .attachment_id = action.attachment_id,
         .capabilities = action.capabilities,
+        .capability_revision = 1,
         .demand = .paused,
         .request_resize_lease = action.request_resize_lease,
         .resize_lease = action.request_resize_lease,
@@ -199,6 +202,19 @@ fn applyInput(reference: *Reference, action: anytype, outcome: semantic_trace.Ou
         return error.InvalidActionState;
     if (!reference.hasActiveConnection() or !attachment.capabilities.input or
         terminal.phase != .running or action.byte_count == 0)
+    {
+        return error.InvalidAppliedOutcome;
+    }
+}
+
+fn applyFocus(reference: *Reference, action: anytype, outcome: semantic_trace.Outcome) !void {
+    if (outcome != .applied) return error.InvalidReplayOutcome;
+    const attachment = reference.findAttachment(action.attachment_id) orelse
+        return error.InvalidActionState;
+    const terminal = reference.findTerminal(attachment.terminal_id) orelse
+        return error.InvalidActionState;
+    if (!reference.hasActiveConnection() or !attachment.capabilities.input or
+        terminal.phase != .running or (action.focused and attachment.demand != .active))
     {
         return error.InvalidAppliedOutcome;
     }

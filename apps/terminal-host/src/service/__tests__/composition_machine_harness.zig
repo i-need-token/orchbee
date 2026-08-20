@@ -103,6 +103,10 @@ const Machine = struct {
             .native_demand_active => try self.setNativeDemand(.active),
             .native_demand_paused => try self.setNativeDemand(.paused),
             .native_input => try self.acceptNativeInput(),
+            .native_focus_owner_on => try self.acceptNativeFocus(self.native_owner_id, true),
+            .native_focus_owner_off => try self.acceptNativeFocus(self.native_owner_id, false),
+            .native_focus_observer_on => try self.acceptNativeFocus(self.native_observer_id, true),
+            .native_focus_observer_off => try self.acceptNativeFocus(self.native_observer_id, false),
             .native_resize_small => try self.resizeNative(.{
                 .cell_pixel_height = 16,
                 .cell_pixel_width = 8,
@@ -177,7 +181,33 @@ const Machine = struct {
         const result = self.service.runtime_aggregate.acceptRawInput(
             connection_id,
             self.native_owner_id,
+            1,
             "x",
+        );
+        const outcome: semantic_trace.Outcome = switch (result) {
+            .accepted => .applied,
+            .core_rejected, .runtime_missing, .runtime_rejected => .rejected,
+        };
+        try self.record(action, outcome);
+    }
+
+    fn acceptNativeFocus(
+        self: *Machine,
+        attachment_id: core_module.AttachmentId,
+        focused: bool,
+    ) !void {
+        const action: semantic_trace.Action = .{ .set_focus = .{
+            .attachment_id = attachment_id,
+            .focused = focused,
+        } };
+        const connection_id = self.activeConnectionId() orelse
+            return self.record(action, .rejected);
+        const result = self.service.runtime_aggregate.acceptSemanticInput(
+            connection_id,
+            attachment_id,
+            1,
+            .{ .focus = .{ .focused = focused } },
+            std.math.maxInt(usize),
         );
         const outcome: semantic_trace.Outcome = switch (result) {
             .accepted => .applied,

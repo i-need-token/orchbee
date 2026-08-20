@@ -98,6 +98,7 @@ function createLease(): DesktopTerminalProjectionLease {
 			attachmentId: '11'.repeat(16) as DesktopTerminalProjectionLease['bootstrap']['attachmentId'],
 			canInput: true,
 			canResize: true,
+			capabilityRevision: '1' as DesktopTerminalProjectionLease['bootstrap']['capabilityRevision'],
 			creationId: '22'.repeat(16) as DesktopTerminalProjectionLease['bootstrap']['creationId'],
 			hostEpoch: '33'.repeat(16) as DesktopTerminalProjectionLease['bootstrap']['hostEpoch'],
 			terminalId: '44'.repeat(16) as DesktopTerminalProjectionLease['bootstrap']['terminalId'],
@@ -107,6 +108,7 @@ function createLease(): DesktopTerminalProjectionLease {
 		dispose: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
 		metrics: {} as DesktopTerminalProjectionLease['metrics'],
 		rendererPort: {} as MessagePortMain,
+		setInputCapability: vi.fn<(input: boolean) => Promise<void>>().mockResolvedValue(undefined),
 	};
 }
 

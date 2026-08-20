@@ -67,6 +67,8 @@ pub fn fromCore(err: CoreFailure) Details {
     return switch (err) {
         error.AttachmentConflict => .{ .code = "attachment-conflict", .message = "AttachmentId conflicts with retained state", .retryable = false },
         error.AttachmentSequenceOverflow => .{ .code = "resource-exhausted", .message = "attachment admission sequence space is exhausted", .retryable = false },
+        error.CapabilityRevisionConflict => .{ .code = "capability-revision-conflict", .message = "capability revision conflicts with retained attachment state", .retryable = false },
+        error.CapabilityUnavailable => .{ .code = "capability-unavailable", .message = "attachment input capability is unavailable", .retryable = false },
         error.ConnectionConflict => .{ .code = "broker-active", .message = "another broker session is already active", .retryable = true },
         error.CreationConflict => .{ .code = "creation-conflict", .message = "CreationId has a different launch", .retryable = false },
         error.FailureContainmentIncomplete => .{ .code = "cleanup-incomplete", .message = "terminal runtime cleanup is incomplete", .retryable = true },
@@ -83,6 +85,7 @@ pub fn fromCore(err: CoreFailure) Details {
         error.RevisionOverflow => .{ .code = "resource-exhausted", .message = "terminal revision space is exhausted", .retryable = false },
         error.ResizeLeaseDenied => .{ .code = "resize-lease-denied", .message = "attachment does not own the resize lease", .retryable = false },
         error.SequenceOverflow => .{ .code = "resource-exhausted", .message = "attachment frame sequence space is exhausted", .retryable = false },
+        error.StaleCapabilityRevision => .{ .code = "stale-capability-revision", .message = "capability revision is stale or out of order", .retryable = false },
         error.StartConflict => .{ .code = "start-conflict", .message = "terminal was already started with different geometry", .retryable = false },
         error.TerminalConflict => .{ .code = "terminal-conflict", .message = "TerminalId conflicts with retained state", .retryable = true },
         error.ThemeOperationConflict => .{ .code = "theme-operation-conflict", .message = "theme operation identifier conflicts with retained state", .retryable = false },

@@ -6,6 +6,7 @@ const projection_ops = @import("projection.zig");
 const AttachError = contracts.AttachError;
 const AttachOutcome = contracts.AttachOutcome;
 const AttachmentBinding = contracts.AttachmentBinding;
+const CapabilityUpdateError = contracts.CapabilityUpdateError;
 
 pub fn attach(
     self: anytype,
@@ -75,6 +76,56 @@ pub fn detach(
     return detached;
 }
 
+pub fn updateAttachmentInputCapability(
+    self: anytype,
+    connection_id: core_module.ConnectionId,
+    attachment_id: core_module.AttachmentId,
+    capability_revision: u64,
+    input: bool,
+) CapabilityUpdateError!AttachmentBinding {
+    const admission = try self.core_state.validateAttachmentInputCapabilityUpdate(
+        connection_id,
+        attachment_id,
+        capability_revision,
+        input,
+    );
+    if (admission == .replay) {
+        return attachmentBinding(self.core_state.findAttachment(attachment_id).?);
+    }
+
+    const attachment = self.core_state.findAttachment(attachment_id) orelse unreachable;
+    const runtime = self.runtimeFor(attachment.terminal_id) orelse
+        return error.TerminalRuntimeMissing;
+    if (input) {
+        var runtime_preparation = runtime.prepareAttachment(attachment_id, .{
+            .input = true,
+            .read = false,
+            .resize = false,
+        }) catch |err| return switch (err) {
+            error.OutOfMemory => error.OutOfMemory,
+            error.TerminalResizeFailed, error.TerminalRuntimeUnavailable => error.TerminalRuntimeUnavailable,
+        };
+        defer runtime_preparation.deinit();
+        self.core_state.commitAttachmentInputCapabilityUpdate(
+            attachment_id,
+            capability_revision,
+            true,
+        );
+        runtime_preparation.commit();
+    } else {
+        // Repair and release only this attachment's held key/mouse/focus ownership
+        // before revoking its Core authority. Already accepted queue records
+        // remain once-admitted and an upgrade creates a fresh empty ledger.
+        runtime.detachInput(attachment_id);
+        self.core_state.commitAttachmentInputCapabilityUpdate(
+            attachment_id,
+            capability_revision,
+            false,
+        );
+    }
+    return attachmentBinding(self.core_state.findAttachment(attachment_id).?);
+}
+
 pub fn disconnect(
     self: anytype,
     connection_id: core_module.ConnectionId,
@@ -106,6 +157,7 @@ fn attachmentBinding(attachment: *const core_module.Attachment) AttachmentBindin
     return .{
         .attachment_id = attachment.attachment_id,
         .capabilities = attachment.capabilities,
+        .capability_revision = attachment.capability_revision,
         .resize_lease = attachment.resize_lease,
         .terminal_id = attachment.terminal_id,
     };

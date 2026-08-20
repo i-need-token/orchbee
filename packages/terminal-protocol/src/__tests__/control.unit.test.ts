@@ -31,6 +31,7 @@ import {
 	SelectionChangedSchema,
 	SelectionCommandSchema,
 	SelectionExportSchema,
+	SelectionExportStartedSchema,
 	SelectionGestureSchema,
 	SetTerminalDefaultsSchema,
 	StartTerminalSchema,
@@ -50,6 +51,7 @@ import {
 	TerminalThemeSchema,
 	TerminalThemeStateSchema,
 	TypedFailureSchema,
+	UpdateAttachmentInputCapabilitySchema,
 } from '../control';
 import { ProtocolErrorCode } from '../protocol-result';
 
@@ -313,6 +315,7 @@ describe('control schemas', () => {
 		expect(
 			AttachmentCapabilitiesSchema.safeParse({
 				attachmentId: attachment.attachmentId,
+				capabilityRevision: '1',
 				capabilities: attachment.capabilities,
 				resizeLease: false,
 				terminalId: attachment.terminalId,
@@ -321,9 +324,24 @@ describe('control schemas', () => {
 		expect(
 			AttachmentCapabilitiesSchema.safeParse({
 				attachmentId: attachment.attachmentId,
+				capabilityRevision: '1',
 				capabilities: { input: true, read: false, resize: false },
 				resizeLease: true,
 				terminalId: attachment.terminalId,
+			}).success,
+		).toBe(false);
+		expect(
+			UpdateAttachmentInputCapabilitySchema.safeParse({
+				attachmentId: attachment.attachmentId,
+				capabilityRevision: '2',
+				input: false,
+			}).success,
+		).toBe(true);
+		expect(
+			UpdateAttachmentInputCapabilitySchema.safeParse({
+				attachmentId: attachment.attachmentId,
+				capabilityRevision: '0',
+				input: false,
 			}).success,
 		).toBe(false);
 		expect(
@@ -627,6 +645,23 @@ describe('control schemas', () => {
 		).toBe(false);
 	});
 
+	it('admits only plain-text selection export at the public wire boundary', () => {
+		const attachmentId = '22'.repeat(16);
+		const request = {
+			attachmentId,
+			exportSequence: '1',
+			format: 'plain',
+		};
+		const started = { ...request, byteLength: 12 };
+
+		expect(SelectionExportSchema.safeParse(request).success).toBe(true);
+		expect(SelectionExportStartedSchema.safeParse(started).success).toBe(true);
+		for (const format of ['html', 'vt']) {
+			expect(SelectionExportSchema.safeParse({ ...request, format }).success).toBe(false);
+			expect(SelectionExportStartedSchema.safeParse({ ...started, format }).success).toBe(false);
+		}
+	});
+
 	it('validates and bounds control values before encoding', () => {
 		const encoded = encodeControlJson(launch, TerminalLaunchSchema);
 		expect(encoded.ok).toBe(true);
@@ -827,6 +862,7 @@ describe('control schemas', () => {
 			InputAcceptedSchema.safeParse({
 				acceptedBytes: 0,
 				attachmentId: '22222222222222222222222222222222',
+				capabilityRevision: '1',
 			}).success,
 		).toBe(true);
 	});
@@ -836,6 +872,7 @@ describe('control schemas', () => {
 			InputAcceptedSchema.safeParse({
 				acceptedBytes,
 				attachmentId: '22222222222222222222222222222222',
+				capabilityRevision: '1',
 			});
 		expect(parse(1024 * 1024).success).toBe(true);
 		expect(parse(1024 * 1024 + 1).success).toBe(false);

@@ -53,7 +53,18 @@ pub fn setProjectionDemand(
 ) core_module.CoreError!core_module.TransitionOutcome {
     const attachment = try self.core_state.resolveAttachment(connection_id, attachment_id, .read);
     const terminal_id = attachment.terminal_id;
-    const transition = try self.core_state.setProjectionDemand(connection_id, attachment_id, demand);
+    if (attachment.projectionDemand() == demand) return .idempotent;
+    // Core demand is the focus-claim visibility fact. Repair the target's
+    // held input and focus claim while active demand is still authoritative;
+    // the already-validated Core transition is then infallible.
+    if (demand == .paused and attachment.capabilities.input) {
+        if (self.runtimeFor(terminal_id)) |runtime| runtime.resetInput(attachment_id);
+    }
+    const transition = self.core_state.setProjectionDemand(
+        connection_id,
+        attachment_id,
+        demand,
+    ) catch unreachable;
     releaseProjectionIfIdle(self, terminal_id);
     return transition;
 }

@@ -81,6 +81,7 @@ const testTerminalTargetPayload = harness.testTerminalTargetPayload;
 const testIdentifier = harness.testIdentifier;
 const testId = harness.testId;
 const testRequest = harness.testRequest;
+const aggregate_harness = @import("runtime_aggregate_harness.zig");
 
 test "retained exited terminals still project and export selection" {
     const builtin = @import("builtin");
@@ -238,6 +239,128 @@ test "retained exited terminals still project and export selection" {
         chunked = chunked or envelope.kind == MessageKind.selection_export_chunk;
     }
     try std.testing.expect(chunked);
+}
+test "two visible attachments produce one real PTY focus interval" {
+    const builtin = @import("builtin");
+    const windows_executable: ?[]u8 = if (builtin.os.tag == .windows)
+        try std.process.getEnvVarOwned(std.testing.allocator, "ComSpec")
+    else
+        null;
+    defer if (windows_executable) |value| std.testing.allocator.free(value);
+    const executable = if (windows_executable) |value| value else "/bin/sh";
+    const posix_arguments = [_][]const u8{
+        "-c",
+        "esc=$(printf '\\033'); printf '\\033[?1004hfocus-ready'; " ++
+            "IFS= read -r value; " ++
+            "if [ \"$value\" = \"${esc}[I${esc}[O\" ]; " ++
+            "then printf 'focus-bytes:1b5b491b5b4f'; " ++
+            "else printf 'focus-bytes:unexpected'; fi",
+    };
+    const windows_arguments = [_][]const u8{
+        "/D",
+        "/Q",
+        "/V:ON",
+        "/S",
+        "/C",
+        "for /F \"delims=#\" %a in ('\"prompt #$E# & for %b in (1) do rem\"') " ++
+            "do @set \"ESC=%a\" & <nul set /p =!ESC![?1004hfocus-ready & " ++
+            "set /p value= & if \"!value!\"==\"!ESC![I!ESC![O\" " ++
+            "(<nul set /p =focus-bytes:1b5b491b5b4f) else " ++
+            "(<nul set /p =focus-bytes:unexpected)",
+    };
+    const arguments: []const []const u8 = if (builtin.os.tag == .windows)
+        &windows_arguments
+    else
+        &posix_arguments;
+    var launch = aggregate_harness.validMissingExecutableLaunch();
+    launch.executable = executable;
+    launch.arguments = arguments;
+    const validated = try aggregate_harness.terminal_launch.inspect(
+        std.testing.allocator,
+        launch,
+    );
+
+    var service = HostService.init(std.testing.allocator);
+    var connection: ConnectionState = .awaiting_hello;
+    defer {
+        service.disconnect(&connection);
+        service.deinit();
+    }
+    try testHandshake(&service, &connection, "91919191919191919191919191919191");
+    const active = try activeConnection(&connection);
+    const aggregate = serviceAggregate(&service);
+    var create = try aggregate.prepareCreateTerminal(
+        active.connection_id,
+        testId(core_module.CreationId, 0x92, 0),
+        validated,
+    );
+    defer create.deinit();
+    const terminal_id = switch (try aggregate.commitPreparedTerminal(&create)) {
+        .created => |identity| identity.terminal_id,
+        .replayed => return error.ExpectedCreatedTerminal,
+    };
+    const first_attachment = core_module.AttachmentId.fromBytes([_]u8{0x93} ** 16);
+    const second_attachment = core_module.AttachmentId.fromBytes([_]u8{0x94} ** 16);
+    for ([_]core_module.AttachmentId{ first_attachment, second_attachment }) |attachment_id| {
+        _ = try aggregate.attach(
+            active.connection_id,
+            attachment_id,
+            terminal_id,
+            .{ .input = true, .read = true, .resize = false },
+            false,
+        );
+        _ = try aggregate.setProjectionDemand(
+            active.connection_id,
+            attachment_id,
+            .active,
+        );
+    }
+    const runtime = findRuntime(&service, terminal_id).?;
+    try semantic_wait.runtimeText(runtime, std.testing.allocator, "focus-ready");
+
+    for ([_]struct { core_module.AttachmentId, bool, usize }{
+        .{ first_attachment, true, 3 },
+        .{ second_attachment, true, 0 },
+        .{ first_attachment, false, 0 },
+    }) |step| {
+        switch (aggregate.acceptSemanticInput(
+            active.connection_id,
+            step[0],
+            1,
+            .{ .focus = .{ .focused = step[1] } },
+            std.math.maxInt(usize),
+        )) {
+            .accepted => |accepted| try std.testing.expectEqual(step[2], accepted.byte_count),
+            .core_rejected, .runtime_missing, .runtime_rejected => return error.ExpectedFocusAcceptance,
+        }
+    }
+    _ = try aggregate.setProjectionDemand(
+        active.connection_id,
+        second_attachment,
+        .paused,
+    );
+    const line_end: []const u8 = if (builtin.os.tag == .windows) "\r\n" else "\n";
+    switch (aggregate.acceptRawInput(
+        active.connection_id,
+        first_attachment,
+        1,
+        line_end,
+    )) {
+        .accepted => {},
+        .core_rejected, .runtime_missing, .runtime_rejected => return error.ExpectedInputAcceptance,
+    }
+
+    try semantic_wait.runtimeText(
+        runtime,
+        std.testing.allocator,
+        "focus-bytes:1b5b491b5b4f",
+    );
+    var exit_events = try semantic_wait.terminalExits(
+        &service,
+        &connection,
+        &.{terminal_id},
+    );
+    defer exit_events.deinit();
 }
 test "two PTY runtimes route input independently and isolate spawn failure" {
     const builtin = @import("builtin");
@@ -648,11 +771,12 @@ test "current protocol activates a lazy live projection and accepts semantic tex
     const counters_before_pause = runtime.projectionCounters();
 
     const input_text: []const u8 = if (builtin.os.tag == .windows) "orchbee\r\n" else "orchbee\n";
-    const text_payload = try std.testing.allocator.alloc(u8, 20 + input_text.len);
+    const text_payload = try std.testing.allocator.alloc(u8, 28 + input_text.len);
     defer std.testing.allocator.free(text_payload);
     @memset(text_payload[0..16], 0x44);
-    std.mem.writeInt(u32, text_payload[16..20], @intCast(input_text.len), .little);
-    @memcpy(text_payload[20..], input_text);
+    std.mem.writeInt(u64, text_payload[16..24], 1, .little);
+    std.mem.writeInt(u32, text_payload[24..28], @intCast(input_text.len), .little);
+    @memcpy(text_payload[28..], input_text);
     var accepted = try testRequest(
         &service,
         &connection,

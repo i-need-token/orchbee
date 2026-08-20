@@ -39,6 +39,12 @@ pub fn dispatch(
         .dispose_terminal => try handler.handleDispose(connection_id, envelope, correlation_id, outgoing),
         .attach_terminal => try handler.handleAttach(connection_id, envelope, correlation_id, outgoing),
         .detach_terminal => try handler.handleDetach(connection_id, envelope, correlation_id, outgoing),
+        .update_attachment_input_capability => try handler.handleUpdateAttachmentInputCapability(
+            connection_id,
+            envelope,
+            correlation_id,
+            outgoing,
+        ),
         .set_terminal_defaults => try handler.handleSetTerminalDefaults(envelope, correlation_id, outgoing),
         .update_terminal_configuration => try handler.handleUpdateTerminalConfiguration(
             connection_id,
@@ -71,5 +77,7 @@ const Handler = struct {
     const handleDispose = lifecycle_requests.handleDispose;
     const handleAttach = attachment_requests.handleAttach;
     const handleDetach = attachment_requests.handleDetach;
+    const handleUpdateAttachmentInputCapability =
+        attachment_requests.handleUpdateAttachmentInputCapability;
     const handleApplyTerminalTheme = theme_requests.handleApplyTerminalTheme;
 };

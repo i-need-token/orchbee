@@ -103,6 +103,7 @@ function createHarness(readOnly = false, startRequired = false) {
 		return {
 			attachmentId: request.attachmentId,
 			capabilities: request.capabilities,
+			capabilityRevision: CanonicalUint64TextSchema.parse('1'),
 			resizeLease: request.requestResizeLease,
 			terminalId: identity.terminalId,
 		} as never;
@@ -110,6 +111,7 @@ function createHarness(readOnly = false, startRequired = false) {
 	const host = { requestControl } as unknown as HostConnection;
 	const brokers: Array<{
 		readonly dispose: ReturnType<typeof vi.fn<() => Promise<void>>>;
+		readonly setInputCapability: ReturnType<typeof vi.fn<(input: boolean) => Promise<void>>>;
 		readonly start: ReturnType<typeof vi.fn<() => void>>;
 	}> = [];
 	const cleanupCallbacks: Array<((error: unknown) => void) | undefined> = [];
@@ -132,6 +134,7 @@ function createHarness(readOnly = false, startRequired = false) {
 					);
 				}),
 				metrics: EMPTY_METRICS,
+				setInputCapability: vi.fn<(input: boolean) => Promise<void>>().mockResolvedValue(undefined),
 				start: vi.fn<() => void>(),
 			};
 			cleanupCallbacks.push(lifecycle?.onCleanupRequested);
@@ -175,6 +178,30 @@ function createHarness(readOnly = false, startRequired = false) {
 }
 
 describe('DesktopTerminalProjectionService', () => {
+	it('serializes a live input capability mutation before lease disposal', async () => {
+		const harness = createHarness();
+		const presentation = terminalPresentationId('presentation-live-input-capability');
+		const lease = await harness.service.open(presentation);
+		let finishMutation: () => void = () => undefined;
+		harness.brokers[0]?.setInputCapability.mockImplementationOnce(
+			() =>
+				new Promise<void>((resolve) => {
+					finishMutation = resolve;
+				}),
+		);
+
+		const mutation = lease.setInputCapability(false);
+		const disposal = lease.dispose();
+		await Promise.resolve();
+		expect(harness.brokers[0]?.setInputCapability).toHaveBeenCalledWith(false);
+		expect(harness.brokers[0]?.dispose).not.toHaveBeenCalled();
+
+		finishMutation();
+		await mutation;
+		await disposal;
+		expect(harness.brokers[0]?.dispose).toHaveBeenCalledOnce();
+	});
+
 	it('opens independent scoped attachments and retires only the named presentation', async () => {
 		const harness = createHarness();
 		const firstPresentation = terminalPresentationId('presentation-1');
@@ -649,6 +676,7 @@ describe('DesktopTerminalProjectionService', () => {
 					);
 				}),
 				metrics: EMPTY_METRICS,
+				setInputCapability: vi.fn<(input: boolean) => Promise<void>>().mockResolvedValue(undefined),
 				start: vi.fn<() => void>(() => {
 					throw new Error('broker start failed');
 				}),

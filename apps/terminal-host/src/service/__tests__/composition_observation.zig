@@ -50,11 +50,14 @@ pub const TerminalObservation = struct {
 
 pub const AttachmentObservation = struct {
     admission_sequence: u64,
+    admitted_capabilities: core_module.Capabilities,
     attachment_id: core_module.AttachmentId,
     capabilities: core_module.Capabilities,
+    capability_revision: u64,
     projection: core_module.ProjectionState,
     requested_resize_lease: bool,
     resize_lease: bool,
+    runtime_has_focus_claim: bool,
     runtime_has_history_state: bool,
     runtime_has_input_ledger: bool,
     terminal_id: core_module.TerminalId,
@@ -167,15 +170,20 @@ pub const Observation = struct {
                 return error.RunningTerminalHasJoinedRuntime;
             }
 
+            var focus_attachment_count: usize = 0;
             var input_attachment_count: usize = 0;
             var history_attachment_count: usize = 0;
             for (self.attachments) |attachment| {
                 if (!attachment.terminal_id.eql(terminal.terminal_id)) continue;
+                focus_attachment_count += @intFromBool(attachment.runtime_has_focus_claim);
                 input_attachment_count += @intFromBool(attachment.capabilities.input);
                 history_attachment_count += @intFromBool(attachment.capabilities.read);
             }
             if (input_attachment_count != runtime.input.input_attachment_count) {
                 return error.InputLedgerCountMismatch;
+            }
+            if (focus_attachment_count != runtime.input.focused_attachment_count) {
+                return error.FocusClaimCountMismatch;
             }
             if (history_attachment_count != runtime.history_attachment_count) {
                 return error.HistoryStateCountMismatch;
@@ -186,7 +194,8 @@ pub const Observation = struct {
             const terminal = self.findTerminal(attachment.terminal_id) orelse
                 return error.AttachmentMissingRetainedTerminal;
             if (terminal.model_only) {
-                if (attachment.runtime_has_input_ledger or
+                if (attachment.runtime_has_focus_claim or
+                    attachment.runtime_has_input_ledger or
                     attachment.runtime_has_history_state)
                 {
                     return error.ModelAttachmentOwnsRuntimeState;
@@ -194,6 +203,12 @@ pub const Observation = struct {
             } else {
                 if (attachment.runtime_has_input_ledger != attachment.capabilities.input) {
                     return error.InputCapabilityLedgerMismatch;
+                }
+                if (attachment.runtime_has_focus_claim and
+                    (!attachment.capabilities.input or
+                        attachment.projection.demand() != .active))
+                {
+                    return error.FocusClaimEligibilityMismatch;
                 }
                 if (attachment.runtime_has_history_state != attachment.capabilities.read) {
                     return error.ReadCapabilityHistoryMismatch;
@@ -216,6 +231,8 @@ pub const CompositionInvariantError = error{
     ExitedLifecycleWithoutNormalRuntime,
     FailedLifecycleWithoutContainedRuntime,
     FailureLifecycleWithoutRuntimeFence,
+    FocusClaimCountMismatch,
+    FocusClaimEligibilityMismatch,
     GeometryStateDiverged,
     HistoryStateCountMismatch,
     InputCapabilityLedgerMismatch,
@@ -279,11 +296,17 @@ pub fn capture(
         const runtime = aggregate.runtimeFor(attachment.terminal_id);
         observation.* = .{
             .admission_sequence = attachment.admission_sequence,
+            .admitted_capabilities = attachment.admitted_capabilities,
             .attachment_id = attachment.attachment_id,
             .capabilities = attachment.capabilities,
+            .capability_revision = attachment.capability_revision,
             .projection = attachment.projection,
             .requested_resize_lease = attachment.requested_resize_lease,
             .resize_lease = attachment.resize_lease,
+            .runtime_has_focus_claim = if (runtime) |engine|
+                terminal_runtime.testing.attachmentFocusClaim(engine, attachment.attachment_id)
+            else
+                false,
             .runtime_has_history_state = if (runtime) |engine|
                 terminal_runtime.testing.hasHistoryAttachment(engine, attachment.attachment_id)
             else

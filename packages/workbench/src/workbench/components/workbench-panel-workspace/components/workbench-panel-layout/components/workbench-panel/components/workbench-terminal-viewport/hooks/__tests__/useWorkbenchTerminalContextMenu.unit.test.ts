@@ -53,7 +53,7 @@ describe('useWorkbenchTerminalContextMenu', () => {
 		expect(splitPanel).toHaveBeenCalledWith('panel-1', 'right', 'context-menu');
 		expect(focus).toHaveBeenCalledOnce();
 		expect(contextMenu.finalFocus()).toBe(terminal);
-		expect(contextMenu.finalFocus()).toBe(true);
+		expect(contextMenu.finalFocus()).toBe(false);
 	});
 
 	it('preserves the context menu focus behavior when a split is rejected', () => {
@@ -72,6 +72,26 @@ describe('useWorkbenchTerminalContextMenu', () => {
 		contextMenu.split('right', ownerDocument);
 
 		expect(requestAnimationFrame).not.toHaveBeenCalled();
-		expect(contextMenu.finalFocus()).toBe(true);
+		expect(contextMenu.finalFocus()).toBe(false);
+	});
+
+	it('restores the element focused before a product context menu opened', () => {
+		class FakeHTMLElement {}
+		const activeElement = new FakeHTMLElement() as HTMLElement;
+		const ownerDocument = {
+			activeElement,
+			defaultView: { HTMLElement: FakeHTMLElement },
+		} as unknown as Document;
+		renderToStaticMarkup(
+			createElement(HookProjection, {
+				splitPanel: () => null,
+			}),
+		);
+
+		const contextMenu = getControls();
+		contextMenu.captureFinalFocus(ownerDocument);
+
+		expect(contextMenu.finalFocus()).toBe(activeElement);
+		expect(contextMenu.finalFocus()).toBe(false);
 	});
 });

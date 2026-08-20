@@ -1,3 +1,4 @@
+import { ActionRuntime, type ActionDisposable, type ActionScope } from '@orchbee/actions';
 import {
 	createOrchbeeIntl,
 	projectedTerminalMessages,
@@ -6,6 +7,7 @@ import {
 } from '@orchbee/i18n';
 import {
 	ProjectedTerminal,
+	type ProjectedTerminalActionContextRequest,
 	type ProjectedTerminalThemePreparationResult,
 	type ProjectedTerminalThemeReadinessResult,
 	type ProjectedPasteReview,
@@ -22,6 +24,10 @@ import {
 	type ProjectedTerminalFailure,
 } from '@orchbee/workbench-client-protocol';
 import type { TerminalClipboardWriteRequest } from '@orchbee/terminal-protocol';
+import type {
+	WorkbenchTerminalActionContextProvider,
+	WorkbenchTerminalBellEffect,
+} from '@orchbee/workbench';
 
 import type { TerminalCompletionReminderObserver } from '../../terminal-feedback-settings';
 import { isTerminalThemePresentationSource } from '../../terminal-settings';
@@ -39,6 +45,7 @@ import {
 	createProjectedTerminalActionComposition,
 	PROJECTED_TERMINAL_ACTION_IDS,
 	installProjectedTerminalShortcuts,
+	type ProjectedTerminalActionResultEvent,
 	type ProjectedTerminalShortcutBindingSource,
 	type ProjectedTerminalShortcutPlatform,
 } from '../projected-terminal-actions';
@@ -53,13 +60,17 @@ import { createTerminalThemePresentationParticipant } from './createTerminalThem
 type ProjectedTerminalDriver = Pick<
 	ProjectedTerminal,
 	| 'applyFrame'
+	| 'applyInputCapability'
 	| 'applyRows'
 	| 'canControlTerminal'
+	| 'captureActionContext'
+	| 'clear'
 	| 'clearSearch'
 	| 'copySelectionAsync'
 	| 'dispose'
 	| 'findNext'
 	| 'findPrevious'
+	| 'linkOpenRequestIsCurrent'
 	| 'focus'
 	| 'freeze'
 	| 'getBufferRowsSnapshot'
@@ -89,6 +100,7 @@ type ProjectedTerminalDriver = Pick<
 	| 'open'
 	| 'paste'
 	| 'reset'
+	| 'scrollToBottom'
 	| 'selectAll'
 	| 'selection'
 	| 'setOptionAsAltMode'
@@ -96,6 +108,15 @@ type ProjectedTerminalDriver = Pick<
 	| 'updatePresentationConfiguration'
 	| 'updateSearch'
 >;
+
+export interface ProjectedTerminalWorkbenchHost {
+	readonly admitBellEffect: (event: WorkbenchTerminalBellEffect) => boolean;
+	readonly bindContextProvider: (
+		provider: WorkbenchTerminalActionContextProvider,
+	) => ActionDisposable;
+	readonly runtime: ActionRuntime;
+	readonly scope: ActionScope;
+}
 
 interface ProjectedTerminalThemeDriver {
 	abortThemePresentation(operationId: string): void;
@@ -167,6 +188,7 @@ export async function startProjectedTerminalRenderer(
 	) => boolean | Promise<boolean>,
 	completionReminderObserver?: TerminalCompletionReminderObserver,
 	inputConfigurationSource: TerminalInputConfigurationSource = DEFAULT_TERMINAL_INPUT_CONFIGURATION_SOURCE,
+	workbenchHost?: ProjectedTerminalWorkbenchHost,
 ): Promise<ProjectedTerminalRendererSession> {
 	if (!(rootElement instanceof HTMLElement)) {
 		throw new Error('The Orchbee projected terminal root element is missing.');
@@ -228,6 +250,10 @@ export async function startProjectedTerminalRenderer(
 	rootElement.dataset['projectedTerminalCreationId'] = bootstrap.creationId;
 	rootElement.dataset['projectedTerminalHostEpoch'] = bootstrap.hostEpoch;
 	rootElement.dataset['projectedTerminalId'] = bootstrap.terminalId;
+	rootElement.dataset['projectedTerminalInputCapability'] = bootstrap.canInput
+		? 'read-write'
+		: 'read-only';
+	rootElement.dataset['projectedTerminalCapabilityRevision'] = bootstrap.capabilityRevision;
 	let committedFrames = 0;
 	let committedPresentationEpoch = 0;
 	let committedPresentationConfiguration = initialPresentationConfiguration;
@@ -240,6 +266,7 @@ export async function startProjectedTerminalRenderer(
 	let renderedFrames = 0;
 	let presentationRequestEpoch = 0;
 	let statusKind:
+		| 'action'
 		| 'command-completion'
 		| 'connection-failure'
 		| 'copy'
@@ -248,6 +275,8 @@ export async function startProjectedTerminalRenderer(
 		| undefined;
 	let terminalOpened = false;
 	let bellTimer: ReturnType<typeof setTimeout> | undefined;
+	let bellVisualPhase: 'a' | 'b' | undefined;
+	let actionStatusTimer: ReturnType<typeof setTimeout> | undefined;
 	let completionStatusTimer: ReturnType<typeof setTimeout> | undefined;
 	let clipboardReviewController: AbortController | undefined;
 	let terminalOutcomeKind: 'exited' | 'failed' | undefined;
@@ -297,14 +326,43 @@ export async function startProjectedTerminalRenderer(
 		bellTimer = undefined;
 		delete rootElement.dataset['projectedTerminalBellActive'];
 	};
-	const showVisualBell = (): void => {
+	const showVisualBell = (sequence: string): void => {
+		bellVisualPhase = bellVisualPhase === 'a' ? 'b' : 'a';
 		rootElement.dataset['projectedTerminalBellActive'] = 'true';
+		rootElement.dataset['projectedTerminalBellPhase'] = bellVisualPhase;
+		rootElement.dataset['projectedTerminalBellSequence'] = sequence;
 		if (bellTimer !== undefined) clearTimeout(bellTimer);
 		bellTimer = setTimeout(clearVisualBell, 140);
 	};
 	const clearCompletionStatusTimer = (): void => {
 		if (completionStatusTimer !== undefined) clearTimeout(completionStatusTimer);
 		completionStatusTimer = undefined;
+	};
+	const clearActionStatusTimer = (): void => {
+		if (actionStatusTimer !== undefined) clearTimeout(actionStatusTimer);
+		actionStatusTimer = undefined;
+	};
+	const reportActionResult = (event: ProjectedTerminalActionResultEvent): void => {
+		rootElement.dataset['projectedTerminalActionId'] = event.actionId;
+		rootElement.dataset['projectedTerminalActionResult'] = event.result.kind;
+		if (event.result.kind === 'blocked') {
+			rootElement.dataset['projectedTerminalActionCode'] = event.result.code;
+		} else if (event.result.kind === 'failed') {
+			rootElement.dataset['projectedTerminalActionCode'] = event.result.failure.code;
+		} else {
+			delete rootElement.dataset['projectedTerminalActionCode'];
+		}
+		const presentation = projectedTerminalActionResultPresentation(event);
+		if (presentation === null) return;
+		clearActionStatusTimer();
+		statusKind = 'action';
+		status.setAttribute('role', presentation.role);
+		status.textContent = intl.formatMessage(presentation.message);
+		status.hidden = false;
+		actionStatusTimer = setTimeout(() => {
+			actionStatusTimer = undefined;
+			if (statusKind === 'action') clearStatus();
+		}, 5_000);
 	};
 	const observeCommandCompletion = (metadata: ProjectedTerminalMetadata): void => {
 		const completion = metadata.commandCompletion;
@@ -435,6 +493,7 @@ export async function startProjectedTerminalRenderer(
 		terminal = dependencies.createTerminal({
 			attachmentId: bootstrap.attachmentId,
 			canResize: bootstrap.canResize,
+			capabilityRevision: bootstrap.capabilityRevision,
 			creationId: bootstrap.creationId,
 			hostEpoch: bootstrap.hostEpoch,
 			inputConfiguration: initialInputConfiguration,
@@ -600,26 +659,74 @@ export async function startProjectedTerminalRenderer(
 		});
 		updateFinalPresentation();
 	};
-	const { actions, findController, subscriptions } = (() => {
+	const { actions, disposeActions, findController, subscriptions } = (() => {
+		const ownedActionRuntime = workbenchHost === undefined ? new ActionRuntime() : undefined;
+		const actionRuntime = workbenchHost?.runtime ?? ownedActionRuntime;
+		if (actionRuntime === undefined) throw new Error('The terminal action runtime is unavailable.');
+		const terminalActionScope =
+			workbenchHost?.scope ??
+			actionRuntime.createScope(`projected-terminal:${bootstrap.attachmentId}`);
 		let pendingActions: ReturnType<typeof createProjectedTerminalActionComposition> | undefined;
+		let pendingContextRegistration: ActionDisposable | undefined;
 		let pendingFindController: TerminalFindController | undefined;
 		const pendingSubscriptions: Array<ReturnType<ProjectedTerminalDriver['onBell']>> = [];
+		const disposePendingActions = (): void => {
+			pendingContextRegistration?.dispose();
+			pendingActions?.dispose();
+			ownedActionRuntime?.dispose();
+		};
 		try {
 			pendingFindController = new TerminalFindController(
 				terminal,
 				terminal.getBufferRowsSnapshot().totalRows,
 			);
-			pendingActions = createProjectedTerminalActionComposition(
-				terminal,
-				pendingFindController,
+			pendingActions = createProjectedTerminalActionComposition(terminal, pendingFindController, {
 				platformEffects,
-			);
+				reportResult: reportActionResult,
+				runtime: actionRuntime,
+				terminalScope: terminalActionScope,
+			});
 			const activeActions = pendingActions;
 			const activeFindController = pendingFindController;
+			pendingContextRegistration = workbenchHost?.bindContextProvider({
+				capture: (request) => {
+					const terminalRequest: ProjectedTerminalActionContextRequest = {
+						clientX: request.clientX,
+						clientY: request.clientY,
+						shiftKey: request.shiftKey,
+					};
+					const capture = terminal.captureActionContext(terminalRequest);
+					if (capture.kind === 'terminal-owned') return capture;
+					return {
+						actionInputs:
+							capture.link === null
+								? {}
+								: { [PROJECTED_TERMINAL_ACTION_IDS.openLink]: capture.link },
+						focus: { terminal: true },
+						kind: 'product',
+						target: { id: bootstrap.attachmentId, type: 'terminal-attachment' },
+					};
+				},
+				executePrepared: (invocation) => activeActions.executePrepared(invocation),
+			});
 			pendingSubscriptions.push(
 				terminal.onBell((event) => {
-					showVisualBell();
-					platformEffects.ringBell?.(event);
+					const effect: WorkbenchTerminalBellEffect = {
+						sequence: event.sequence,
+						terminalId: bootstrap.terminalId,
+					};
+					if (workbenchHost !== undefined && !workbenchHost.admitBellEffect(effect)) return;
+					showVisualBell(event.sequence);
+					try {
+						platformEffects.playBellSound?.(effect);
+					} catch {
+						// Optional sound failure does not suppress the visual effect or notification.
+					}
+					try {
+						platformEffects.showBellNotification?.(effect);
+					} catch {
+						// Optional notification failure does not suppress the accepted visual effect.
+					}
 				}),
 			);
 			pendingSubscriptions.push(
@@ -735,7 +842,7 @@ export async function startProjectedTerminalRenderer(
 				terminal.onLinkOpenRequest((event) => {
 					void activeActions.execute(
 						PROJECTED_TERMINAL_ACTION_IDS.openLink,
-						{ target: event.target },
+						event,
 						activeActions.terminalScope,
 						'pointer',
 					).completion;
@@ -751,6 +858,8 @@ export async function startProjectedTerminalRenderer(
 					);
 					rootElement.dataset['projectedTerminalCellPixelWidth'] = String(metadata.cellPixelWidth);
 					rootElement.dataset['projectedTerminalColumns'] = String(metadata.columns);
+					rootElement.dataset['projectedTerminalCursorBlinking'] = String(metadata.cursor.blinking);
+					rootElement.dataset['projectedTerminalCursorShape'] = metadata.cursor.shape;
 					rootElement.dataset['projectedTerminalRows'] = String(metadata.rows);
 					rootElement.dataset['projectedTerminalThemeRevision'] = metadata.themeRevision.toString();
 					updateProgress(metadata);
@@ -820,6 +929,7 @@ export async function startProjectedTerminalRenderer(
 			);
 			return {
 				actions: activeActions,
+				disposeActions: disposePendingActions,
 				findController: activeFindController,
 				subscriptions: pendingSubscriptions,
 			};
@@ -828,7 +938,7 @@ export async function startProjectedTerminalRenderer(
 				unsubscribeConfigurationSources,
 				disposeThemeParticipant,
 				...pendingSubscriptions.map((subscription) => () => subscription.dispose()),
-				() => pendingActions?.dispose(),
+				disposePendingActions,
 				() => pendingFindController?.dispose(),
 				() => terminal.dispose(),
 				() => progress.remove(),
@@ -846,6 +956,36 @@ export async function startProjectedTerminalRenderer(
 		}
 		if (themeParticipant?.handleEvent(event.data) === true) return;
 		switch (event.data.kind) {
+			case 'attachment-input-capability-changed': {
+				const { capabilities } = event.data;
+				if (
+					capabilities.attachmentId !== bootstrap.attachmentId ||
+					capabilities.terminalId !== bootstrap.terminalId
+				) {
+					reportFailure();
+					return;
+				}
+				const result = terminal.applyInputCapability({
+					attachmentId: capabilities.attachmentId,
+					capabilityRevision: capabilities.capabilityRevision,
+					input: capabilities.capabilities.input,
+					terminalId: capabilities.terminalId,
+				});
+				if (result.kind === 'stale') return;
+				if (result.kind === 'rejected') {
+					rootElement.dataset['projectedTerminalInputCapability'] = 'read-only';
+					rootElement.dataset['projectedTerminalCapabilityFailure'] = result.reason;
+					reportFailure();
+					return;
+				}
+				rootElement.dataset['projectedTerminalInputCapability'] = capabilities.capabilities.input
+					? 'read-write'
+					: 'read-only';
+				rootElement.dataset['projectedTerminalCapabilityRevision'] =
+					capabilities.capabilityRevision;
+				delete rootElement.dataset['projectedTerminalCapabilityFailure'];
+				return;
+			}
 			case 'bell':
 				terminal.notifyBell(event.data.event);
 				return;
@@ -935,7 +1075,7 @@ export async function startProjectedTerminalRenderer(
 			unsubscribeConfigurationSources,
 			disposeThemeParticipant,
 			...subscriptions.map((subscription) => () => subscription.dispose()),
-			() => actions.dispose(),
+			disposeActions,
 			() => findController.dispose(),
 			() => terminal.dispose(),
 			() => progress.remove(),
@@ -1025,7 +1165,7 @@ export async function startProjectedTerminalRenderer(
 			() => findRoot?.remove(),
 			unsubscribeTransport,
 			...subscriptions.map((subscription) => () => subscription.dispose()),
-			() => actions.dispose(),
+			disposeActions,
 			() => findController.dispose(),
 			() => terminal.dispose(),
 			() => transport.close(),
@@ -1043,6 +1183,7 @@ export async function startProjectedTerminalRenderer(
 			clipboardReviewController?.abort();
 			clipboardReviewController = undefined;
 			clearVisualBell();
+			clearActionStatusTimer();
 			clearCompletionStatusTimer();
 			if (frozen) {
 				runCleanup([
@@ -1061,7 +1202,7 @@ export async function startProjectedTerminalRenderer(
 				() => findSurface?.dispose(),
 				unsubscribeTransport,
 				...subscriptions.map((subscription) => () => subscription.dispose()),
-				() => actions.dispose(),
+				disposeActions,
 				() => findController.dispose(),
 				() => terminal.dispose(),
 				() => transport.close(),
@@ -1077,6 +1218,7 @@ export async function startProjectedTerminalRenderer(
 			clipboardReviewController?.abort();
 			clipboardReviewController = undefined;
 			clearVisualBell();
+			clearActionStatusTimer();
 			clearCompletionStatusTimer();
 			runCleanup([
 				unsubscribeConfigurationSources,
@@ -1085,7 +1227,7 @@ export async function startProjectedTerminalRenderer(
 				() => findSurface?.dispose(),
 				unsubscribeTransport,
 				...subscriptions.map((subscription) => () => subscription.dispose()),
-				() => actions.dispose(),
+				disposeActions,
 				() => findController.dispose(),
 				() => terminal.freeze(),
 				() => transport.close(),
@@ -1210,4 +1352,67 @@ async function applyClientSelectionCopy(
 		requestSequence,
 		retryable: result.kind === 'failed' && result.retryable,
 	});
+}
+
+type ProjectedTerminalActionResultPresentation = {
+	readonly message: (typeof projectedTerminalMessages)[keyof typeof projectedTerminalMessages];
+	readonly role: 'alert' | 'status';
+};
+
+function projectedTerminalActionResultPresentation(
+	event: ProjectedTerminalActionResultEvent,
+): ProjectedTerminalActionResultPresentation | null {
+	if (event.result.kind === 'blocked' && event.result.code === 'action-unavailable') {
+		return { message: projectedTerminalMessages.actionUnavailable, role: 'alert' };
+	}
+	if (
+		event.actionId === PROJECTED_TERMINAL_ACTION_IDS.copySelection ||
+		event.actionId === PROJECTED_TERMINAL_ACTION_IDS.findOpen ||
+		event.actionId === PROJECTED_TERMINAL_ACTION_IDS.findNext ||
+		event.actionId === PROJECTED_TERMINAL_ACTION_IDS.findPrevious ||
+		event.result.kind === 'cancelled'
+	) {
+		return null;
+	}
+	if (event.result.kind === 'completed') {
+		switch (event.actionId) {
+			case PROJECTED_TERMINAL_ACTION_IDS.clear:
+				return { message: projectedTerminalMessages.clearCompleted, role: 'status' };
+			case PROJECTED_TERMINAL_ACTION_IDS.openLink:
+				return { message: projectedTerminalMessages.openLinkCompleted, role: 'status' };
+			case PROJECTED_TERMINAL_ACTION_IDS.paste:
+				return { message: projectedTerminalMessages.pasteCompleted, role: 'status' };
+			case PROJECTED_TERMINAL_ACTION_IDS.reset:
+				return { message: projectedTerminalMessages.resetCompleted, role: 'status' };
+			case PROJECTED_TERMINAL_ACTION_IDS.scrollToBottom:
+				return { message: projectedTerminalMessages.scrollToBottomCompleted, role: 'status' };
+			case PROJECTED_TERMINAL_ACTION_IDS.selectAll:
+				return { message: projectedTerminalMessages.selectAllCompleted, role: 'status' };
+		}
+	}
+	if (
+		event.result.kind === 'unchanged' &&
+		event.actionId === PROJECTED_TERMINAL_ACTION_IDS.scrollToBottom
+	) {
+		return { message: projectedTerminalMessages.scrollToBottomUnchanged, role: 'status' };
+	}
+	if (event.actionId === PROJECTED_TERMINAL_ACTION_IDS.openLink) {
+		let message = projectedTerminalMessages.linkFailed;
+		if (event.result.kind === 'blocked') {
+			message =
+				event.result.code === 'stale-terminal-link-context'
+					? projectedTerminalMessages.linkStale
+					: projectedTerminalMessages.linkBlocked;
+		}
+		return {
+			message,
+			role: 'alert',
+		};
+	}
+	if (event.actionId === PROJECTED_TERMINAL_ACTION_IDS.paste) {
+		return { message: projectedTerminalMessages.pasteFailed, role: 'alert' };
+	}
+	return event.result.kind === 'unchanged'
+		? null
+		: { message: projectedTerminalMessages.requestFailure, role: 'alert' };
 }

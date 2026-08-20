@@ -2,8 +2,8 @@ const std = @import("std");
 const machine = @import("composition_machine_harness.zig");
 const property = @import("composition_property_harness.zig");
 
-// Generated state-machine refinement suite for TH-001 through TH-012 and
-// TH-016 as applicable. Every candidate starts from a fresh HostService, executes the stable
+// Generated state-machine refinement suite for TH-001 through TH-013 and
+// TH-016 through TH-020 as applicable. Every candidate starts from a fresh HostService, executes the stable
 // semantic vocabulary, and checks the composition oracle plus reference model
 // after every applied, replayed, or rejected action. A failure is delta-debugged
 // and emitted as an exact one-byte replay string.

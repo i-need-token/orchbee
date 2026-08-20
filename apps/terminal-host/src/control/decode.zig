@@ -22,6 +22,7 @@ pub const CreateTerminal = terminal.CreateTerminal;
 pub const StartTerminal = terminal.StartTerminal;
 pub const UpdateTerminalConfiguration = terminal.UpdateTerminalConfiguration;
 pub const AttachTerminal = terminal.AttachTerminal;
+pub const UpdateAttachmentInputCapability = terminal.UpdateAttachmentInputCapability;
 pub const ResizeTerminal = terminal.ResizeTerminal;
 pub const decodeCreateTerminal = terminal.decodeCreateTerminal;
 pub const decodeStartTerminal = terminal.decodeStartTerminal;
@@ -30,6 +31,8 @@ pub const decodeUpdateTerminalConfiguration = terminal.decodeUpdateTerminalConfi
 pub const decodeTerminalTarget = terminal.decodeTerminalTarget;
 pub const decodeAttachTerminal = terminal.decodeAttachTerminal;
 pub const decodeDetachTerminal = terminal.decodeDetachTerminal;
+pub const decodeUpdateAttachmentInputCapability =
+    terminal.decodeUpdateAttachmentInputCapability;
 pub const decodeTerminalControl = terminal.decodeTerminalControl;
 pub const decodeResizeTerminal = terminal.decodeResizeTerminal;
 

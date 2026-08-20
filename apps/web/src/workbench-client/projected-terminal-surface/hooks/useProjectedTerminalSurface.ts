@@ -2,7 +2,10 @@ import { useMemoizedFn } from '@orchbee/foundation/react';
 import { projectedTerminalMessages, useOrchbeeIntl } from '@orchbee/i18n';
 import type { ProjectedPasteReview } from '@orchbee/terminal';
 import type { TerminalClipboardWriteRequest } from '@orchbee/terminal-protocol';
-import type { WorkbenchTerminalPresentation } from '@orchbee/workbench';
+import type {
+	WorkbenchTerminalPresentation,
+	WorkbenchTerminalSurfaceProps,
+} from '@orchbee/workbench';
 import * as React from 'react';
 
 import {
@@ -42,9 +45,19 @@ interface PresentationFileDropFailure {
 	readonly reason: TerminalFileDropRejectionReason | 'terminal-unavailable';
 }
 
+type ProjectedTerminalSurfaceWorkbenchHost = Pick<
+	WorkbenchTerminalSurfaceProps,
+	'actionRuntime' | 'actionScope' | 'admitBellEffect' | 'bindActionContextProvider'
+>;
+
 export function useProjectedTerminalSurface(
 	presentation: WorkbenchTerminalPresentation,
+	workbenchHost?: ProjectedTerminalSurfaceWorkbenchHost,
 ): ProjectedTerminalSurfaceView {
+	const actionRuntime = workbenchHost?.actionRuntime;
+	const actionScope = workbenchHost?.actionScope;
+	const admitBellEffect = workbenchHost?.admitBellEffect;
+	const bindActionContextProvider = workbenchHost?.bindActionContextProvider;
 	const capability = React.useContext(ProjectedTerminalSurfaceCapabilityContext);
 	const intl = useOrchbeeIntl();
 	const root = React.useRef<HTMLDivElement>(null);
@@ -133,21 +146,25 @@ export function useProjectedTerminalSurface(
 		},
 	);
 	const handleFileDragOver = useMemoizedFn((event: React.DragEvent<HTMLDivElement>): void => {
-		if (
-			capability?.terminalFileDropCapability === undefined ||
-			event.dataTransfer.files.length === 0
-		) {
-			return;
-		}
+		if (event.dataTransfer.files.length === 0) return;
 		event.preventDefault();
-		event.dataTransfer.dropEffect = 'copy';
+		event.dataTransfer.dropEffect =
+			capability?.terminalFileDropCapability === undefined ? 'none' : 'copy';
 	});
 	const handleFileDrop = useMemoizedFn((event: React.DragEvent<HTMLDivElement>): void => {
 		const fileDropCapability = capability?.terminalFileDropCapability;
 		const files = Array.from(event.dataTransfer.files);
-		if (fileDropCapability === undefined || files.length === 0) return;
+		if (files.length === 0) return;
 		event.preventDefault();
 		event.stopPropagation();
+		if (fileDropCapability === undefined) {
+			setPresentationFileDropFailure({
+				count: files.length,
+				presentationId: presentation.presentationId,
+				reason: 'unsupported',
+			});
+			return;
+		}
 		settlePasteReview(false);
 		settleClipboardWriteReview(false);
 		const epoch = ++fileDropEpoch.current;
@@ -251,6 +268,17 @@ export function useProjectedTerminalSurface(
 					reviewClipboardWrite,
 					capability.terminalCompletionReminderObserver,
 					capability.inputConfigurationSource,
+					actionRuntime === undefined ||
+						actionScope === undefined ||
+						admitBellEffect === undefined ||
+						bindActionContextProvider === undefined
+						? undefined
+						: {
+								admitBellEffect,
+								bindContextProvider: bindActionContextProvider,
+								runtime: actionRuntime,
+								scope: actionScope,
+							},
 				);
 			},
 		});
@@ -267,6 +295,10 @@ export function useProjectedTerminalSurface(
 			controller.dispose();
 		};
 	}, [
+		actionRuntime,
+		actionScope,
+		admitBellEffect,
+		bindActionContextProvider,
 		capability,
 		presentation.presentationId,
 		projectable,

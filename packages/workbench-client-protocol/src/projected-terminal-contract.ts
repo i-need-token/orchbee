@@ -1,5 +1,6 @@
 import {
 	ApplyTerminalThemeSchema,
+	AttachmentCapabilitiesSchema,
 	AttachmentIdSchema,
 	CanonicalUint64TextSchema,
 	ClearTerminalSchema,
@@ -60,6 +61,10 @@ export const ProjectedAttachmentBootstrapSchema = z
 		attachmentId: AttachmentIdSchema,
 		canInput: z.boolean(),
 		canResize: z.boolean(),
+		capabilityRevision: CanonicalUint64TextSchema.refine(
+			(value) => value !== '0',
+			'Capability revision must be greater than zero.',
+		),
 		creationId: CreationIdSchema,
 		hostEpoch: HostEpochSchema,
 		terminalId: TerminalIdSchema,
@@ -174,6 +179,10 @@ const ProjectedTerminalThemeFailureSchema = z.strictObject({
 });
 
 export const ProjectedTerminalEventSchema = z.discriminatedUnion('kind', [
+	z.strictObject({
+		capabilities: AttachmentCapabilitiesSchema,
+		kind: z.literal('attachment-input-capability-changed'),
+	}),
 	z.strictObject({ event: TerminalBellSchema, kind: z.literal('bell') }),
 	z.strictObject({
 		event: TerminalClipboardWriteRequestSchema,

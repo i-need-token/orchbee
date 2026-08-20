@@ -174,6 +174,7 @@ const ControlCommandsFixture = struct {
     set_terminal_defaults: []const u8,
     start_terminal: []const u8,
     terminal_target: []const u8,
+    update_attachment_input_capability: []const u8,
     update_terminal_configuration: []const u8,
 };
 
@@ -491,7 +492,7 @@ const TestSnapshotReason = enum {
 const TestHistoryDemand = enum { following_bottom, viewing_history };
 const TestProjectionBlock = enum { capture_allocation_failed, projection_too_large };
 const TestAnchorStatus = enum { evicted, none, valid };
-const TestExportFormat = enum { html, plain, vt };
+const TestExportFormat = enum { plain };
 const TestExportStatus = enum { cancelled, completed };
 const TestSelectionPoint = struct { column: u16, row: u64 };
 const TestSelectionSnapshot = union(enum) {
@@ -864,9 +865,9 @@ test "TypeScript and native protocol limits are identical" {
     }
 }
 
-test "acknowledged input bytes equal the input bound while the raw payload reserves the attachment identity" {
+test "acknowledged input bytes equal the input bound while the raw payload reserves its authority header" {
     try std.testing.expectEqual(protocol.Limits.input_bytes, protocol.Limits.input_accepted_bytes);
-    try std.testing.expectEqual(protocol.Limits.input_bytes + 16, protocol.Limits.write_input_payload_bytes);
+    try std.testing.expectEqual(protocol.Limits.input_bytes + 24, protocol.Limits.write_input_payload_bytes);
 }
 
 test "every TypeScript control command fixture crosses the native typed decoder" {
@@ -948,6 +949,15 @@ test "every TypeScript control command fixture crosses the native typed decoder"
         defer decoded.deinit();
     }
     {
+        var decoded = try control_decode.decodeUpdateAttachmentInputCapability(
+            allocator,
+            commands.update_attachment_input_capability,
+        );
+        defer decoded.deinit();
+        try std.testing.expectEqual(@as(u64, 2), decoded.value.capability_revision);
+        try std.testing.expect(!decoded.value.input);
+    }
+    {
         var decoded = try control_decode.decodeResizeTerminal(allocator, commands.resize_terminal);
         defer decoded.deinit();
     }
@@ -1004,7 +1014,7 @@ test "every TypeScript control command fixture crosses the native typed decoder"
         var decoded = try control_decode.decodeSelectionCommand(allocator, payload);
         defer decoded.deinit();
     }
-    try std.testing.expectEqual(@as(usize, 3), commands.selection_export.len);
+    try std.testing.expectEqual(@as(usize, 1), commands.selection_export.len);
     for (commands.selection_export) |payload| {
         var decoded = try control_decode.decodeSelectionExport(allocator, payload);
         defer decoded.deinit();
@@ -1027,7 +1037,7 @@ test "TypeScript raw control cases cross strict native admission" {
     const allocator = std.testing.allocator;
     const fixture = try parseControlFixture(allocator);
     defer fixture.deinit();
-    try std.testing.expectEqual(@as(usize, 13), fixture.value.raw_cases.len);
+    try std.testing.expectEqual(@as(usize, 15), fixture.value.raw_cases.len);
 
     for (fixture.value.raw_cases) |case| {
         const payload_length = try std.base64.standard.Decoder.calcSizeForSlice(
@@ -1055,6 +1065,13 @@ test "TypeScript raw control cases cross strict native admission" {
             try expectRawControlCase(
                 control_decode.decodeSetTerminalDefaults,
                 defaultsObservedInteger,
+                case,
+                payload,
+            );
+        } else if (std.mem.eql(u8, case.decoder, "selection-export")) {
+            try expectRawControlCase(
+                control_decode.decodeSelectionExport,
+                noObservedInteger,
                 case,
                 payload,
             );
@@ -1224,6 +1241,7 @@ test "native control replies and events conform to TypeScript schemas" {
         outputs.attachment_capabilities,
         try control_encode.attachmentCapabilities(allocator, .{
             .attachment_id = attachment_id,
+            .capability_revision = 1,
             .capabilities = .{ .input = true, .read = true, .resize = false },
             .resize_lease = false,
             .terminal_id = terminal_id,
@@ -1249,6 +1267,7 @@ test "native control replies and events conform to TypeScript schemas" {
         try control_encode.inputAccepted(allocator, .{
             .attachment_id = attachment_id,
             .byte_count = 12,
+            .capability_revision = 1,
         }),
     );
     try expectOwnedJson(
@@ -1424,7 +1443,7 @@ test "native control replies and events conform to TypeScript schemas" {
             snapshot,
         ));
     }
-    const formats = [_]TestExportFormat{ .html, .plain, .vt };
+    const formats = [_]TestExportFormat{.plain};
     try std.testing.expectEqual(formats.len, outputs.selection_export_started.len);
     for (formats, outputs.selection_export_started, 0..) |format, expected, index| {
         try expectOwnedJson(allocator, expected, try control_encode.selectionExportStarted(
@@ -1611,6 +1630,7 @@ test "native lifecycle variants conform to TypeScript discriminated unions" {
 test "canonical TypeScript WriteInput fixture conforms in Zig" {
     const summary = try protocol.validateWriteInput(input_fixture);
     try std.testing.expectEqualSlices(u8, &([_]u8{0x22} ** 16), &summary.attachment_id);
+    try std.testing.expectEqual(@as(u64, 7), summary.capability_revision);
     try std.testing.expectEqualSlices(u8, &.{ 0, 0x1b, 0xf0, 0x9f, 0x90, 0x8d }, summary.bytes);
 }
 
@@ -1620,6 +1640,7 @@ test "canonical TypeScript semantic-input fixtures conform in Zig" {
         key_input_fixture,
     );
     try std.testing.expectEqualSlices(u8, &([_]u8{0x22} ** 16), &decoded_key.attachment_id);
+    try std.testing.expectEqual(@as(u64, 7), decoded_key.capability_revision);
     const key = switch (decoded_key.input) {
         .key => |value| value,
         else => return error.TestUnexpectedResult,
@@ -1767,50 +1788,50 @@ test "native semantic-input decoder rejects non-canonical intent with matching e
 
     const invalid_action = try allocator.dupe(u8, key_input_fixture);
     defer allocator.free(invalid_action);
-    invalid_action[16] = 3;
+    invalid_action[24] = 3;
     try std.testing.expectError(error.InvalidField, protocol.validateKeyInput(invalid_action));
 
     const unknown_key_flag = try allocator.dupe(u8, key_input_fixture);
     defer allocator.free(unknown_key_flag);
-    unknown_key_flag[17] |= 1 << 2;
+    unknown_key_flag[25] |= 1 << 2;
     try std.testing.expectError(error.UnknownRequiredFlag, protocol.validateKeyInput(unknown_key_flag));
 
     const invalid_key_utf8 = try allocator.dupe(u8, key_input_fixture);
     defer allocator.free(invalid_key_utf8);
-    invalid_key_utf8[32] = 0xff;
+    invalid_key_utf8[40] = 0xff;
     try std.testing.expectError(error.InvalidUtf8, protocol.validateKeyInput(invalid_key_utf8));
 
     const side_without_base = try allocator.dupe(u8, key_input_fixture);
     defer allocator.free(side_without_base);
-    std.mem.writeInt(u16, side_without_base[18..20], 1 << 6, .little);
+    std.mem.writeInt(u16, side_without_base[26..28], 1 << 6, .little);
     try std.testing.expectError(error.InvalidField, protocol.validateKeyInput(side_without_base));
 
     const consumed_but_inactive = try allocator.dupe(u8, key_input_fixture);
     defer allocator.free(consumed_but_inactive);
-    std.mem.writeInt(u16, consumed_but_inactive[20..22], 1 << 1, .little);
+    std.mem.writeInt(u16, consumed_but_inactive[28..30], 1 << 1, .little);
     try std.testing.expectError(error.InvalidField, protocol.validateKeyInput(consumed_but_inactive));
 
     const missing_mouse_button = try allocator.dupe(u8, mouse_input_fixture);
     defer allocator.free(missing_mouse_button);
-    missing_mouse_button[16] = 0;
-    missing_mouse_button[17] = 0;
+    missing_mouse_button[24] = 0;
+    missing_mouse_button[25] = 0;
     try std.testing.expectError(error.InvalidField, protocol.validateMouseInput(missing_mouse_button));
 
     const missing_motion_button = try allocator.dupe(u8, mouse_input_fixture);
     defer allocator.free(missing_motion_button);
-    missing_motion_button[17] = 0;
+    missing_motion_button[25] = 0;
     try std.testing.expectError(error.InvalidField, protocol.validateMouseInput(missing_motion_button));
 
     const inactive_motion_button = try allocator.dupe(u8, mouse_input_fixture);
     defer allocator.free(inactive_motion_button);
-    std.mem.writeInt(u16, inactive_motion_button[28..30], 0, .little);
+    std.mem.writeInt(u16, inactive_motion_button[36..38], 0, .little);
     try std.testing.expectError(error.InvalidField, protocol.validateMouseInput(inactive_motion_button));
 
     const wheel_press = try allocator.dupe(u8, mouse_input_fixture);
     defer allocator.free(wheel_press);
-    wheel_press[16] = 0;
-    wheel_press[17] = 4;
-    std.mem.writeInt(u16, wheel_press[28..30], 0, .little);
+    wheel_press[24] = 0;
+    wheel_press[25] = 4;
+    std.mem.writeInt(u16, wheel_press[36..38], 0, .little);
     const decoded_wheel = try protocol.validateMouseInput(wheel_press);
     const wheel = switch (decoded_wheel.input) {
         .mouse => |value| value,
@@ -1824,22 +1845,24 @@ test "native semantic-input decoder rejects non-canonical intent with matching e
 }
 
 fn buildKeyInputPayload(allocator: std.mem.Allocator, key: []const u8) ![]u8 {
-    const bytes = try allocator.alloc(u8, 32 + key.len);
+    const bytes = try allocator.alloc(u8, 40 + key.len);
     @memset(bytes, 0);
     @memset(bytes[0..16], 0x01); // non-zero attachment id
-    bytes[16] = 1; // action: press
-    bytes[17] = 0; // flags: not composing
-    std.mem.writeInt(u16, bytes[22..24], @intCast(key.len), .little);
-    @memcpy(bytes[32..][0..key.len], key);
+    std.mem.writeInt(u64, bytes[16..24], 1, .little); // capability revision
+    bytes[24] = 1; // action: press
+    bytes[25] = 0; // flags: not composing
+    std.mem.writeInt(u16, bytes[30..32], @intCast(key.len), .little);
+    @memcpy(bytes[40..][0..key.len], key);
     return bytes;
 }
 
 fn buildTextInputPayload(allocator: std.mem.Allocator, text_length: u32, body: []const u8) ![]u8 {
-    const bytes = try allocator.alloc(u8, 20 + body.len);
+    const bytes = try allocator.alloc(u8, 28 + body.len);
     @memset(bytes, 0);
     @memset(bytes[0..16], 0x22); // non-zero attachment id
-    std.mem.writeInt(u32, bytes[16..20], text_length, .little);
-    @memcpy(bytes[20..], body);
+    std.mem.writeInt(u64, bytes[16..24], 1, .little); // capability revision
+    std.mem.writeInt(u32, bytes[24..28], text_length, .little);
+    @memcpy(bytes[28..], body);
     return bytes;
 }
 
@@ -1847,12 +1870,12 @@ test "native key decoder rejects the non-contract F+1 function code" {
     const allocator = std.testing.allocator;
     const key = try buildKeyInputPayload(allocator, "F+1");
     defer allocator.free(key);
-    // The reachable 35-byte payload: attachment 0x01 x16, press, zero flags,
+    // The reachable 43-byte payload: attachment 0x01 x16, revision, press, zero flags,
     // modifiers, consumed modifiers, codepoint and text length, key length 3,
     // and the bytes 0x46 0x2b 0x31 ("F+1") as the function key.
-    try std.testing.expectEqual(@as(usize, 35), key.len);
+    try std.testing.expectEqual(@as(usize, 43), key.len);
     try std.testing.expectEqualSlices(u8, &([_]u8{0x01} ** 16), key[0..16]);
-    try std.testing.expectEqualSlices(u8, "F+1", key[32..]);
+    try std.testing.expectEqualSlices(u8, "F+1", key[40..]);
     try std.testing.expectError(error.InvalidField, protocol.validateKeyInput(key));
 }
 
@@ -1873,17 +1896,17 @@ test "native key decoder still admits contract function codes F1..F25" {
 test "native text decoder checks declared length before rejecting empty text" {
     const allocator = std.testing.allocator;
     // Reachable corruption: a valid nonempty TextInput with its little-endian
-    // declared length (bytes 16..20) zeroed while the body is retained.
+    // declared length (bytes 24..28) zeroed while the body is retained.
     const zero_length_text = try allocator.dupe(u8, text_input_fixture);
     defer allocator.free(zero_length_text);
-    std.mem.writeInt(u32, zero_length_text[16..20], 0, .little);
+    std.mem.writeInt(u32, zero_length_text[24..28], 0, .little);
     try std.testing.expectError(
         error.LengthMismatch,
         protocol.validateCommittedTextInput(zero_length_text),
     );
     const zero_length_paste = try allocator.dupe(u8, paste_input_fixture);
     defer allocator.free(zero_length_paste);
-    std.mem.writeInt(u32, zero_length_paste[20..24], 0, .little);
+    std.mem.writeInt(u32, zero_length_paste[28..32], 0, .little);
     try std.testing.expectError(
         error.LengthMismatch,
         protocol.validatePasteInput(zero_length_paste),
@@ -1903,10 +1926,10 @@ test "native mouse decoder classifies pressed-buttons overflow as an invalid fie
     const allocator = std.testing.allocator;
     const mouse = try allocator.dupe(u8, mouse_input_fixture);
     defer allocator.free(mouse);
-    // pressed_buttons is the u16 at bytes 28..30; setting byte 29 bit 3 adds
+    // pressed_buttons is the u16 at bytes 36..38; setting byte 37 bit 3 adds
     // pressed-buttons bit 11 (0x0800) to the fixture's pressed left button.
-    mouse[29] |= 0x08;
-    const pressed = std.mem.readInt(u16, mouse[28..30], .little);
+    mouse[37] |= 0x08;
+    const pressed = std.mem.readInt(u16, mouse[36..38], .little);
     try std.testing.expect(pressed & 0x0800 != 0);
     try std.testing.expectError(error.InvalidField, protocol.validateMouseInput(mouse));
 }
@@ -1915,12 +1938,12 @@ test "native mouse decoder retains unknown-required-flag for reserved and modifi
     const allocator = std.testing.allocator;
     const reserved = try allocator.dupe(u8, mouse_input_fixture);
     defer allocator.free(reserved);
-    std.mem.writeInt(u16, reserved[30..32], 1, .little);
+    std.mem.writeInt(u16, reserved[38..40], 1, .little);
     try std.testing.expectError(error.UnknownRequiredFlag, protocol.validateMouseInput(reserved));
 
     const unknown_modifier = try allocator.dupe(u8, mouse_input_fixture);
     defer allocator.free(unknown_modifier);
-    std.mem.writeInt(u16, unknown_modifier[18..20], 1 << 12, .little);
+    std.mem.writeInt(u16, unknown_modifier[26..28], 1 << 12, .little);
     try std.testing.expectError(error.UnknownRequiredFlag, protocol.validateMouseInput(unknown_modifier));
 }
 
@@ -2147,7 +2170,7 @@ test "native text row window admits aggregate row text above the per-cell bound 
 test "native WriteInput decoder rejects unscoped and oversized payloads" {
     try std.testing.expectError(error.Truncated, protocol.validateWriteInput(&([_]u8{0x22} ** 16)));
 
-    const oversized = try std.testing.allocator.alloc(u8, 16 + 1024 * 1024 + 1);
+    const oversized = try std.testing.allocator.alloc(u8, 24 + 1024 * 1024 + 1);
     defer std.testing.allocator.free(oversized);
     @memset(oversized, 0x22);
     try std.testing.expectError(error.LimitExceeded, protocol.validateWriteInput(oversized));

@@ -33,6 +33,7 @@ import {
 	ResizeAcceptedSchema,
 	ResizeLeaseChangedSchema,
 	SelectionChangedSchema,
+	SelectionExportSchema,
 	SelectionExportFinishedSchema,
 	SelectionExportStartedSchema,
 	SetTerminalDefaultsSchema,
@@ -53,6 +54,7 @@ import {
 	TerminalStartedSchema,
 	TerminalTargetSchema,
 	TypedFailureSchema,
+	UpdateAttachmentInputCapabilitySchema,
 } from '../dist/index.js';
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -321,6 +323,19 @@ function rawControlCases() {
 			payload: '{"cursor":null,"maximumTerminals":1e4000}',
 			schema: ListTerminalsSchema,
 		}),
+		...['html', 'vt'].map((format) =>
+			rawControlCase({
+				decoder: 'selection-export',
+				expectedCode: 'invalid-field',
+				name: `unsupported-selection-export-${format}`,
+				payload: JSON.stringify({
+					attachmentId: '22'.repeat(16),
+					exportSequence: '1',
+					format,
+				}),
+				schema: SelectionExportSchema,
+			}),
+		),
 	];
 }
 
@@ -374,6 +389,7 @@ function createUtf8BomConformanceFixture() {
 		encodeInputRequest(MessageKind.keyInput, {
 			action: 'press',
 			attachmentId,
+			capabilityRevision: '7',
 			composing: false,
 			consumedModifiers: modifiers,
 			key: 'F1',
@@ -388,10 +404,10 @@ function createUtf8BomConformanceFixture() {
 	const bomKey = new Uint8Array(key.byteLength + bom.byteLength);
 	const keyBody = key.subarray(KEY_INPUT_HEADER_BYTES);
 	bomKey.set(key.subarray(0, KEY_INPUT_HEADER_BYTES));
-	new DataView(bomKey.buffer).setUint16(22, bom.byteLength + keyBody.byteLength, true);
+	new DataView(bomKey.buffer).setUint16(30, bom.byteLength + keyBody.byteLength, true);
 	bomKey.set(bom, KEY_INPUT_HEADER_BYTES);
 	bomKey.set(keyBody, KEY_INPUT_HEADER_BYTES + bom.byteLength);
-	const textValue = { attachmentId, text: '\ufeff' };
+	const textValue = { attachmentId, capabilityRevision: '7', text: '\ufeff' };
 	const text = encodeOrThrow(
 		encodeInputRequest(MessageKind.textInput, textValue),
 		'UTF-8 BOM text input',
@@ -576,6 +592,15 @@ function createControlConformanceFixture() {
 			},
 			'AttachTerminal',
 		),
+		update_attachment_input_capability: controlRequestText(
+			MessageKind.updateAttachmentInputCapability,
+			UpdateAttachmentInputCapabilitySchema.parse({
+				attachmentId,
+				capabilityRevision: '2',
+				input: false,
+			}),
+			'UpdateAttachmentInputCapability',
+		),
 		clear_terminal: controlRequestText(
 			MessageKind.clearTerminal,
 			{ attachmentId },
@@ -705,11 +730,7 @@ function createControlConformanceFixture() {
 		),
 		selection_export: controlRequestTexts(
 			MessageKind.selectionExport,
-			['html', 'plain', 'vt'].map((format, index) => ({
-				attachmentId,
-				exportSequence: String(index + 1),
-				format,
-			})),
+			[{ attachmentId, exportSequence: '1', format: 'plain' }],
 			'SelectionExport',
 		),
 		selection_export_cancel: controlRequestTexts(
@@ -861,6 +882,7 @@ function createControlConformanceFixture() {
 			{
 				attachmentId,
 				capabilities: { input: true, read: true, resize: false },
+				capabilityRevision: '1',
 				resizeLease: false,
 				terminalId,
 			},
@@ -904,7 +926,7 @@ function createControlConformanceFixture() {
 		history_observed: commands.history_observed,
 		input_accepted: controlText(
 			InputAcceptedSchema,
-			{ acceptedBytes: 12, attachmentId },
+			{ acceptedBytes: 12, attachmentId, capabilityRevision: '1' },
 			'InputAccepted',
 		),
 		need_snapshot: commands.need_snapshot,
@@ -969,7 +991,7 @@ function createControlConformanceFixture() {
 		),
 		selection_export_started: controlTexts(
 			SelectionExportStartedSchema,
-			['html', 'plain', 'vt'].map((format, index) => ({
+			['plain'].map((format, index) => ({
 				attachmentId,
 				byteLength: 10 + index,
 				exportSequence: String(index + 1),
@@ -1269,6 +1291,7 @@ const inputBytes = encodeOrThrow(
 	encodeInputRequest(MessageKind.writeInput, {
 		attachmentId: canonical.writeInput.attachmentId,
 		bytes: bytesFromBase64(canonical.writeInput.bytesBase64),
+		capabilityRevision: canonical.writeInput.capabilityRevision,
 	}),
 	'write input',
 );

@@ -133,6 +133,7 @@ pub const TerminalRuntime = opaque {
     pub const prepareSemanticInput = InputHandle.prepareSemanticInput;
     pub const prepareAttachmentSemanticInput = InputHandle.prepareAttachmentSemanticInput;
     pub const prepareAttachmentInputRepair = InputHandle.prepareAttachmentInputRepair;
+    pub const prepareAttachmentInputReset = InputHandle.prepareAttachmentInputReset;
     pub const pendingInputBytes = InputHandle.pendingInputBytes;
     pub const takeWrittenBytes = InputHandle.takeWrittenBytes;
     pub const takeOutputBatches = InputHandle.takeOutputBatches;
@@ -246,6 +247,10 @@ pub const TerminalRuntime = opaque {
 
     pub fn detachInput(self: *TerminalRuntime, attachment_id: identifiers.AttachmentId) void {
         return attachment_ops.detachInput(stateFrom(self), attachment_id);
+    }
+
+    pub fn resetInput(self: *TerminalRuntime, attachment_id: identifiers.AttachmentId) void {
+        return attachment_ops.resetInput(stateFrom(self), attachment_id);
     }
 
     pub fn detachHistory(self: *TerminalRuntime, attachment_id: identifiers.AttachmentId) void {

@@ -190,6 +190,11 @@ pub const HostCore = struct {
     pub const validateAttachmentAdmission = attachments.validateAttachmentAdmission;
     pub const detach = attachments.detach;
     pub const authorizeInput = attachments.authorizeInput;
+    pub const authorizeCurrentInput = attachments.authorizeCurrentInput;
+    pub const validateAttachmentInputCapabilityUpdate =
+        attachments.validateAttachmentInputCapabilityUpdate;
+    pub const commitAttachmentInputCapabilityUpdate =
+        attachments.commitAttachmentInputCapabilityUpdate;
     pub const resize = attachments.resize;
     pub const findAttachment = attachments.findAttachment;
     pub const attachmentCount = attachments.attachmentCount;

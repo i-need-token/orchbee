@@ -380,6 +380,7 @@ describe('useProjectedTerminalSurface', () => {
 											attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
 											canInput: true,
 											canResize: true,
+											capabilityRevision: CanonicalUint64TextSchema.parse('1'),
 											creationId: CreationIdSchema.parse('22'.repeat(16)),
 											hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
 											terminalId: TerminalIdSchema.parse('44'.repeat(16)),
@@ -472,6 +473,7 @@ describe('useProjectedTerminalSurface', () => {
 							attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
 							canInput: true,
 							canResize: true,
+							capabilityRevision: CanonicalUint64TextSchema.parse('1'),
 							creationId: CreationIdSchema.parse('22'.repeat(16)),
 							hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
 							terminalId: TerminalIdSchema.parse('44'.repeat(16)),
@@ -677,6 +679,7 @@ describe('useProjectedTerminalSurface', () => {
 					attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
 					canInput: true,
 					canResize: true,
+					capabilityRevision: CanonicalUint64TextSchema.parse('1'),
 					creationId: CreationIdSchema.parse('22'.repeat(16)),
 					hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
 					terminalId: TerminalIdSchema.parse('44'.repeat(16)),
@@ -828,6 +831,67 @@ describe('useProjectedTerminalSurface', () => {
 		container.remove();
 	});
 
+	it('blocks native file navigation and reports unavailable clients without a path capability', async () => {
+		const presentation: WorkbenchTerminalPresentation = {
+			closeActivity: 'unknown',
+			currentCwd: '/workspace',
+			launchCwd: '/workspace',
+			lifecycle: { kind: 'stopped' },
+			naturalTitle: null,
+			presentationId: terminalPresentationId('presentation-file-drop-unavailable'),
+			title: 'Terminal File Drop Unavailable',
+		};
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		const root = createRoot(container);
+		await act(async () => {
+			root.render(
+				createElement(
+					ProjectedTerminalSurfaceCapabilityContext.Provider,
+					{
+						value: {
+							documentElement: document.documentElement,
+							observeTerminalMetadata: () => undefined,
+							platformEffects: {},
+							preferredLocales: ['en-US'],
+							presentationConfigurationSource: DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION_SOURCE,
+							projectionClient: {
+								open: () => {
+									throw new Error('An unavailable file drop must not open a projection.');
+								},
+							},
+							shortcutPlatform: 'apple',
+							startStoppedTerminalSession: () => ({ kind: 'unchanged' as const }),
+						},
+					},
+					createElement(
+						OrchbeeI18nProvider,
+						{ locale: 'en-US' },
+						createElement(TestHarness, { presentation }),
+					),
+				),
+			);
+		});
+		const surface = container.firstElementChild;
+		if (!(surface instanceof HTMLElement)) throw new Error('Terminal surface did not mount.');
+		const selectedFile = new File([], 'unavailable.txt');
+		const dragOver = terminalFileDragEvent('dragover', [selectedFile]);
+		surface.dispatchEvent(dragOver.event);
+		expect(dragOver.event.defaultPrevented).toBe(true);
+		expect(dragOver.dataTransfer.dropEffect).toBe('none');
+		const drop = terminalFileDragEvent('drop', [selectedFile]);
+		await act(async () => {
+			surface.dispatchEvent(drop.event);
+		});
+		expect(drop.event.defaultPrevented).toBe(true);
+		expect(surface.getAttribute('data-failure-message')).toBe(
+			'File drop is unavailable in this client.',
+		);
+		expect(renderer.start).not.toHaveBeenCalled();
+		await act(async () => root.unmount());
+		container.remove();
+	});
+
 	it('owns Desktop file drops, publishes only prepared text, and reports bounded rejection', async () => {
 		const preparedText = "'/tmp/space name.txt'";
 		const pasteFileDrop = vi
@@ -872,6 +936,7 @@ describe('useProjectedTerminalSurface', () => {
 					attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
 					canInput: true,
 					canResize: true,
+					capabilityRevision: CanonicalUint64TextSchema.parse('1'),
 					creationId: CreationIdSchema.parse('22'.repeat(16)),
 					hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
 					terminalId: TerminalIdSchema.parse('44'.repeat(16)),

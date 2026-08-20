@@ -15,6 +15,11 @@ pub const Admission = enum {
     replay,
 };
 
+pub const CapabilityUpdateAdmission = enum {
+    apply,
+    replay,
+};
+
 pub const Error = error{
     AttachmentConflict,
     AttachmentSequenceOverflow,
@@ -28,7 +33,11 @@ pub const Attachment = struct {
     admission_sequence: u64,
     attachment_id: AttachmentId,
     bell_cursor: u64,
+    /// Immutable attach-request identity used to classify AttachTerminal
+    /// replay after a live capability transition.
+    admitted_capabilities: Capabilities,
     capabilities: Capabilities,
+    capability_revision: u64 = 1,
     projection: attachment_projection.State = .{},
     requested_resize_lease: bool,
     resize_lease: bool,
@@ -161,7 +170,7 @@ pub const Session = struct {
 
         if (self.attachments.get(attachment_id)) |existing| {
             const equivalent = existing.terminal_id.eql(terminal_id) and
-                existing.capabilities == capabilities and
+                existing.admitted_capabilities == capabilities and
                 existing.requested_resize_lease == request_resize_lease;
             return if (equivalent) .replay else error.AttachmentConflict;
         }
@@ -215,6 +224,7 @@ pub const Session = struct {
             .admission_sequence = self.next_attachment_sequence,
             .attachment_id = attachment_id,
             .bell_cursor = bell_sequence,
+            .admitted_capabilities = capabilities,
             .capabilities = capabilities,
             .requested_resize_lease = resize_lease,
             .resize_lease = resize_lease,
