@@ -39,6 +39,8 @@ const serverMain = path.join(repositoryRoot, 'apps', 'server', 'dist', 'main', '
 const webRoot = path.join(repositoryRoot, 'apps', 'web');
 const webDist = path.join(repositoryRoot, 'apps', 'web', 'dist');
 const startupGeometryWitnessTitle = 'terminal-parity/SU-16-startup-geometry';
+const MANUAL_NATIVE_WINDOW_TEST_TAG = '@manual-native-window';
+const MANUAL_NATIVE_WINDOW_TEST_APPROVAL = 'I_ACKNOWLEDGE_FOCUS_INTERRUPTION';
 
 const applicationOutput = new WeakMap<ElectronApplication, string[]>();
 
@@ -82,6 +84,15 @@ test.afterAll(async () => {
 
 test.beforeEach(async ({ browserName }, testInfo) => {
 	if (browserName !== 'chromium') throw new Error('Desktop system tests require Chromium.');
+	if (
+		testInfo.tags.includes(MANUAL_NATIVE_WINDOW_TEST_TAG) &&
+		process.env['ORCHBEE_DESKTOP_NATIVE_WINDOW_TEST_APPROVAL'] !==
+			MANUAL_NATIVE_WINDOW_TEST_APPROVAL
+	) {
+		throw new Error(
+			'The manual native-window test requires explicit human approval before Desktop starts.',
+		);
+	}
 	const temporaryRoot = process.platform === 'win32' ? tmpdir() : '/tmp';
 	runtimeDirectory = await mkdtemp(path.join(temporaryRoot, 'orchbee-desktop-system-'));
 	let shell = '/bin/sh';
@@ -1528,7 +1539,7 @@ test('projects native window drag regions without consuming title bar controls o
 	await expect(tabs.first()).toHaveAttribute('aria-selected', 'true');
 });
 
-test('owns native window actions and restores safe normal bounds across restart', async () => {
+async function runManualNativeWindowTest(): Promise<void> {
 	test.setTimeout(60_000);
 	const application = electronApplication;
 	const currentRuntimeDirectory = runtimeDirectory;
@@ -1706,7 +1717,13 @@ test('owns native window actions and restores safe normal bounds across restart'
 			})),
 		)
 		.toEqual({ bounds: expectedBounds, maximized: true });
-});
+}
+
+test(
+	'owns native window actions and restores safe normal bounds across restart',
+	{ tag: MANUAL_NATIVE_WINDOW_TEST_TAG },
+	runManualNativeWindowTest,
+);
 
 test('applies a custom shortcut without recreating the mounted terminal', async () => {
 	const application = electronApplication;

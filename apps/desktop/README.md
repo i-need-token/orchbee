@@ -434,6 +434,22 @@ pnpm --filter @orchbee/desktop build
 pnpm --filter @orchbee/desktop test:system
 ```
 
+### Manual native-window test
+
+`test:system` excludes the `@manual-native-window` test from every aggregate, automated, CI, and
+agent-initiated run. That test changes operating-system focus while verifying minimize, activation,
+maximize, full-screen, and restart behavior. Run it only after a human explicitly approves that
+exact test:
+
+```sh
+ORCHBEE_DESKTOP_NATIVE_WINDOW_TEST_APPROVAL=I_ACKNOWLEDGE_FOCUS_INTERRUPTION \
+  pnpm --filter @orchbee/desktop test:system:manual:native-window
+```
+
+An AI agent must not invoke the command or set the approval variable unless the current human
+request explicitly authorizes this exact focus-stealing test. No aggregate or full-suite command
+may invoke the manual script.
+
 The optional throughput harness requires an absolute large-output fixture and at least five runs:
 
 ```sh

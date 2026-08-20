@@ -16,7 +16,8 @@
 		"test:unit": "vitest run",
 		"test:tla": "node ../../scripts/tla/run-models.mjs --workspace apps/desktop",
 		"test:watch": "vitest",
-		"test:system": "playwright test --config playwright.config.ts"
+		"test:system": "playwright test --config playwright.config.ts",
+		"test:system:manual:native-window": "playwright test --config playwright.manual-native-window.config.ts"
 	},
 	"dependencies": {
 		"@electron/packager": "catalog:",

@@ -8,6 +8,7 @@
 		"src",
 		"system-tests",
 		"playwright.config.ts",
+		"playwright.manual-native-window.config.ts",
 		"rsbuild.config.ts",
 		"vitest.config.ts"
 	]

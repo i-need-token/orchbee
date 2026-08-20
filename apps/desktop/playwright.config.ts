@@ -7,5 +7,6 @@ export default defineConfig({
 	retries: 0,
 	timeout: 30_000,
 	expect: { timeout: 10_000 },
+	grepInvert: /@manual-native-window/u,
 	outputDir: '../../test-results/desktop',
 });
