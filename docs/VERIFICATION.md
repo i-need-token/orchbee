@@ -16,15 +16,15 @@ A focused command is useful while iterating, but completion requires the root ga
 
 ## Required tasks
 
-| Task                 | Contract                                                                                                                          |
-| -------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `format:check`       | Oxfmt-managed files match `.oxfmtrc.json`, and every native workspace formatter accepts its owned files.                          |
-| `lint`               | Code, style, storage, architecture, dependency, project-contract, experience-catalog, export, and manifest rules pass.            |
-| `test:tla:inventory` | The TLA+ execution inventory, artifact registration, owner commands, trigger mapping, and runner negative controls agree.         |
-| `build`              | Every buildable workspace produces its supported artifacts with its pinned toolchain and dependencies.                            |
-| `typecheck`          | Every workspace with a TypeScript contract satisfies it.                                                                          |
-| `test`               | Contract-checker tests, custom lint-rule tests, default workspace test suites, and declared native cross-compilation checks pass. |
-| `test:exports`       | Every library's packed exports, runtime formats, and declarations are consumable.                                                 |
+| Task                 | Contract                                                                                                                                                                |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `format:check`       | Oxfmt-managed files match `.oxfmtrc.json`, and every native workspace formatter accepts its owned files.                                                                |
+| `lint`               | Code, documentation pairing, style, storage, architecture, dependency, project-contract, experience-catalog, export, and manifest rules pass.                           |
+| `test:tla:inventory` | The TLA+ execution inventory, artifact registration, owner commands, trigger mapping, and runner negative controls agree.                                               |
+| `build`              | Every buildable workspace produces its supported artifacts with its pinned toolchain and dependencies.                                                                  |
+| `typecheck`          | Every workspace with a TypeScript contract satisfies it.                                                                                                                |
+| `test`               | Contract-checker tests, documentation-pairing negative tests, custom lint-rule tests, default workspace test suites, and declared native cross-compilation checks pass. |
+| `test:exports`       | Every library's packed exports, runtime formats, and declarations are consumable.                                                                                       |
 
 - `build` precedes `typecheck` because verification and production consumers resolve library artifacts, not another package's source.
 - Recursive builds are topological: a clean checkout builds dependencies before dependents resolve their exports.

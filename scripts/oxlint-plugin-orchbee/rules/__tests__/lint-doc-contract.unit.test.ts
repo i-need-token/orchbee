@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { documentationStructure } from '../../../documentation-pairing.mjs';
 import orchbeePlugin from '../../index';
 
 interface OxlintConfig {
@@ -36,28 +37,6 @@ function englishDocumentationFiles(): readonly string[] {
 	return collectFiles(DOCS_ROOT, '.md').filter(
 		(file) => !file.startsWith(`${LOCALIZED_DOCS_ROOT}${sep}`),
 	);
-}
-
-function documentationStructure(markdown: string): Readonly<Record<string, readonly string[]>> {
-	const matches = (pattern: RegExp): readonly string[] =>
-		Array.from(markdown.matchAll(pattern), (match) => match[0]);
-
-	return {
-		blocks: markdown
-			.trim()
-			.split(/\n\s*\n/u)
-			.map(() => 'block'),
-		headings: matches(/^(?:#{1,6})\s+/gmu),
-		fences: matches(/^```[^\n]*$/gmu),
-		unorderedItems: matches(/^-\s+/gmu),
-		orderedItems: matches(/^\d+\.\s+/gmu),
-		tableRows: matches(/^\|/gmu),
-		links: matches(/\]\([^)]+\)/gu).map(() => 'link'),
-		inlineCode: Array.from(
-			markdown.matchAll(/(?<!`)`([^`\n]+)`(?!`)/gu),
-			(match) => match[1] ?? '',
-		).toSorted(),
-	};
 }
 
 function documentAnchors(documentPath: string): ReadonlySet<string> {

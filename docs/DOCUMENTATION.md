@@ -54,6 +54,7 @@
 
 - English standards under `docs/` are authoritative; every `docs/<path>` standard has exactly one `docs/zh-CN/<path>` counterpart.
 - Update both languages in the same change for every addition, deletion, move, heading, example, command, link, or content edit; keep meaning, coverage, and structure equal.
+- After reviewing both files for equal meaning, run `pnpm docs:confirm-pairing -- docs/<path>.md` for every added, changed, moved, or deleted standard pair; confirmation records reviewed contents or removes an obsolete receipt but cannot judge translation quality.
 - Translate all prose; preserve identifiers, paths, commands, configuration keys, rule IDs, and code semantics exactly. English resolves conflicts.
 - Runtime configuration, schemas, lint diagnostics, `CLAUDE.md`, and engineering authorities link to English standards. Links inside `docs/zh-CN/` may stay in the localized mirror.
 - Package references remain English and do not enter `docs/zh-CN/`; user-facing package guides may add locale-suffixed READMEs.
@@ -67,13 +68,13 @@
 
 ## Verification
 
-| Change                 | Required check                                                                                                                                        |
-| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| New or moved content   | Classify it by the ownership table and confirm every referenced workspace exists.                                                                     |
-| Rename or move         | Search for the old term, path, heading, rule ID, and script input.                                                                                    |
-| Command or example     | Run it successfully before documenting it.                                                                                                            |
-| Standard edit          | Update the localized counterpart in the same change.                                                                                                  |
-| Diagnostic edit        | State the action, violated constraint, and repository-relative `path#anchor`.                                                                         |
-| Enforced rule edit     | Update the implementation, configuration, standard, localized mirror, and rule tests together.                                                        |
-| Standards verification | Run `pnpm test:lint-rules`; it checks mirror coverage, structure, inline identifiers, localized links, directory admission, and workspace references. |
-| Contract edit          | Run `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, and relevant tests.                                                                           |
+| Change                 | Required check                                                                                                                                         |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| New or moved content   | Classify it by the ownership table and confirm every referenced workspace exists.                                                                      |
+| Rename or move         | Search for the old term, path, heading, rule ID, and script input.                                                                                     |
+| Command or example     | Run it successfully before documenting it.                                                                                                             |
+| Standard edit          | Update and semantically review the localized counterpart, then run `pnpm docs:confirm-pairing -- docs/<path>.md`.                                      |
+| Diagnostic edit        | State the action, violated constraint, and repository-relative `path#anchor`.                                                                          |
+| Enforced rule edit     | Update the implementation, configuration, standard, localized mirror, and rule tests together.                                                         |
+| Standards verification | Run `pnpm lint:documentation` and `pnpm test:lint-rules`; they check confirmed content pairs, mirror structure, identifiers, links, and path validity. |
+| Contract edit          | Run `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, and relevant tests.                                                                            |

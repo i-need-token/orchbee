@@ -1,0 +1,117 @@
+{
+	"formatVersion": 1,
+	"pairs": {
+		"docs/APPLICATIONS.md": {
+			"englishSha256": "1c539d8e95d8aea3e75c0aa5b0591630bec8d1bef6133ce143d560cb1dbbe22b",
+			"zhCnSha256": "134abf727082da784b6b680c938fa75c27d9399ffc336107a05e99da8d986c57"
+		},
+		"docs/ARCHITECTURE.md": {
+			"englishSha256": "4e032250ed6e70f53c8257ee0769f5de51e08caf125e90ac385d7f3159c544d0",
+			"zhCnSha256": "57e0e6ab32edd571694ae19b38208df0fb9e7ba564633e7a4366c7c177dddc0b"
+		},
+		"docs/CODESTYLE.md": {
+			"englishSha256": "3023b49ff411564bc845ef516164cecf1ce4ef17dbb8e8deb8a95271bca67588",
+			"zhCnSha256": "e635694fcaa1b721085c60c26c9656737ff5cffbdda072f383f0c29cceab95fc"
+		},
+		"docs/DEVELOPMENT.md": {
+			"englishSha256": "ea683b2d39080e0b015ced3f34c1d38dd74331948bdfb392713690893cc7fc8b",
+			"zhCnSha256": "bd300f22c432da8d63f97ba31b47c10716c2296001f25584370c148641457498"
+		},
+		"docs/DOCUMENTATION.md": {
+			"englishSha256": "0c2f5d3a4e31858eaf6ab6dccb148b7a4b30d844ae5fed2a15cce4d713362153",
+			"zhCnSha256": "adda769a9d0606681361039ebdf08c39655e9fb8d8e9ba2aba0c4db55daf326c"
+		},
+		"docs/LINTING.md": {
+			"englishSha256": "5b89b0c8c45cc4765491051b2e81fb1e6f3e4e0e97f0ec9fe57df7af42189715",
+			"zhCnSha256": "2370c1c6872661208ba8b29088abe024507ab817f3c0bfd072181ecaee89288a"
+		},
+		"docs/MODELING-AND-CORRECTNESS.md": {
+			"englishSha256": "afc8aaf6a6efae9af99dd6e408c6fa2a8b07bd7c48cc0c8df196ff9cc7bae8c0",
+			"zhCnSha256": "83a5b1ac826e4c87f6ee68642faaadb031fa550859ee32bae4ff0e35dd066f4a"
+		},
+		"docs/MODULE-BOUNDARIES.md": {
+			"englishSha256": "ca1c723dc010d7c1d6f69cec4ba785b85fdab7f7282607c31b1643b930e58bdd",
+			"zhCnSha256": "8b4b9274b3650efc8ccb3281c7aae267de21092717cd297699045bc7bb5bde3f"
+		},
+		"docs/PACKAGES.md": {
+			"englishSha256": "2f8e65b5ee0148f87bab3c73f9b507b79da22bc1974b8e3eb0487ba31c1796e4",
+			"zhCnSha256": "6c4006570bbffefcb45435b907e2500c61c4d72083b26978552e67342c091eb2"
+		},
+		"docs/PROJECTS.md": {
+			"englishSha256": "71d18894f817ecf0aa96f762ef7345755b68d02d14d921f3e84e8d04858f71e6",
+			"zhCnSha256": "e23a0c0802b663a856a8ec3ed5437092e1655fe1ebef41e37b80d3fc579554f6"
+		},
+		"docs/REPOSITORY-HYGIENE.md": {
+			"englishSha256": "34deeb5c6a3d28ae8c05d44e10c63f67e6f29962b1f0bb9b06583074c540850d",
+			"zhCnSha256": "fdc03e8b6406a04fef47fc8c217c5147b4dd1f3ab92dc5fd545a58800150a660"
+		},
+		"docs/TESTING.md": {
+			"englishSha256": "3f5c1744ea83062604541c80f820d0f6fbb176172d72cb5eafdbce6531568d47",
+			"zhCnSha256": "387b0ca074441b6e7ffdc6cc102cecd5c9998edbe66a03579c3d4bb81a942e9d"
+		},
+		"docs/TYPESCRIPT.md": {
+			"englishSha256": "bdebd302896c153ca0360928e18fe03d88f2538c233a0f793df9b39dfa964ef9",
+			"zhCnSha256": "b9ea5c0be7b4c44c6aab2e71afc33737c645564933fc3e41ad3d9f783b5a28d8"
+		},
+		"docs/VERIFICATION.md": {
+			"englishSha256": "4e1eff781b51de1cd5b042f6581db504fe57c5a6c86da19b74a7ba7d9923bbea",
+			"zhCnSha256": "817bf8b77a7053424a2a3c96e68db60c3140d88ab4a1cffbd1590dba6dadd81a"
+		},
+		"docs/ZIG.md": {
+			"englishSha256": "6907e1c0cb6e2be32a15dc16482d9986b289cd83c929821fda0f0d927e9d7980",
+			"zhCnSha256": "eca21f3f0c442c402e55b08b1c98ed42e0e2316f9c7e59adce1a1684889e14fd"
+		},
+		"docs/frontend/actions.md": {
+			"englishSha256": "91521e1579bccbe57d7cd6c630f4a051d5b4376180e1cca3c548ce29aaacf362",
+			"zhCnSha256": "1e2e1cf1ae0efa3f3d7b0fb5cd50000f38ce508f2d99127bef1b71a210093aa1"
+		},
+		"docs/frontend/browser-storage.md": {
+			"englishSha256": "cac6e8250d4304cbd11b1ca9ff4979b0cb00d0a74f57612348488fb84ed9fefd",
+			"zhCnSha256": "1cc593cdf78f1bfdd1c51e56f9218e509a8d66699c800bedf7bc5cdeb3cd8552"
+		},
+		"docs/frontend/design-tokens.md": {
+			"englishSha256": "e601e86f51768631f59f379777e036ce9d04fefbc2f2b98023fb506ab4f5d104",
+			"zhCnSha256": "bcfeb00d2c340b5077435439268cea0d138ed2d5e281744d3d66bbe171fc5bf1"
+		},
+		"docs/frontend/experience-components.md": {
+			"englishSha256": "79a6c5ef13af8ddf1b00ed0617e616fb9e0ab12f10faeef376889a1d6376d18a",
+			"zhCnSha256": "da19f1f959e959fa3d7b4cbe594307e49fc1ac3ba09f497695313697d2d01ee7"
+		},
+		"docs/frontend/keyboard-shortcuts.md": {
+			"englishSha256": "cd074b877fbf66ecf52dc2867df405e98881dc3c8cba3b9e97978c74ee06275d",
+			"zhCnSha256": "59f24b11590a8dd9e7d5c51399269d0d9c87d782b89756ee4efd6fd831445268"
+		},
+		"docs/frontend/localization.md": {
+			"englishSha256": "1c4a961e821876fe685b1ece654bd03ffc637590ea6f9d8d201803e652334b63",
+			"zhCnSha256": "1c3ffbca8d72abdfc6c6c03dfa659c5efbaa729b934f0b4878338b703fca4353"
+		},
+		"docs/frontend/menus.md": {
+			"englishSha256": "213bcdb235dbee5319ec674b2b78d7875c528dfc1e78f61f2a71c9c8a1c1249b",
+			"zhCnSha256": "5ae51eb4e5e61e22eab28dfaa01ba2285e1f91716c67bb6ce21a3ca16f62433b"
+		},
+		"docs/frontend/package-boundaries.md": {
+			"englishSha256": "594df0f6673b7bcec3f564c5c5d94a560b321a26eda663884c2d72ab90601a58",
+			"zhCnSha256": "a80a34240171886367a6801a73cd6fb4ca9bba4e5d7e256ba6cc0c079a0278d0"
+		},
+		"docs/frontend/react.md": {
+			"englishSha256": "1f47cb81c7935e121c2a831297f00079489514d2e08456fe53474b47b780a93e",
+			"zhCnSha256": "51f09a9fb14ce02a97a1aa2206868c1876cf24995d5c04e01f09bf8284061fb4"
+		},
+		"docs/frontend/storybook.md": {
+			"englishSha256": "8186c1d02401213c09b4e97d00b19b658c2abaf6bc466d189f1da6bd7fff7ecf",
+			"zhCnSha256": "9e410157f9aad0077ec91f097bbb36b8ae864502d3c433689b1e7254f665a848"
+		},
+		"docs/frontend/styling.md": {
+			"englishSha256": "e37c99987c7d052cd96da8cf2c5799a253b9628bc793d008838f7ef75d5edd79",
+			"zhCnSha256": "53d4c732f6e419f35dd4f163690c4f10b6be02b74ca994e5e4a88744ecd09fd3"
+		},
+		"docs/frontend/tooltips.md": {
+			"englishSha256": "9c5476284a01630405264a8cc7afef9c6e0bd5af31cfb10924a13f2a2ff4a7f3",
+			"zhCnSha256": "fb0709d4f0228a521fd1d7265a11a3e3c82b01b374fe3f443c71f167499f270f"
+		},
+		"docs/frontend/visual-foundations.md": {
+			"englishSha256": "50fbd33989f68869cd4e0571b17a24184685f8b78b3562c67f72db5eb6b4fabc",
+			"zhCnSha256": "2077582bb8d84113121db060167dc346d7442a044aec7a5db7fbd5ef8779ba21"
+		}
+	}
+}
