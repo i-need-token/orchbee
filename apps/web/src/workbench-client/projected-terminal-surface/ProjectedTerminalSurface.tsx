@@ -5,7 +5,6 @@ import type { ReactNode } from 'react';
 
 import styles from './ProjectedTerminalSurface.module.css';
 import { ProjectedTerminalPasteReviewDialog } from './components/projected-terminal-paste-review-dialog/ProjectedTerminalPasteReviewDialog';
-import { ProjectedTerminalClipboardReviewDialog } from './components/projected-terminal-clipboard-review-dialog/ProjectedTerminalClipboardReviewDialog';
 import { useProjectedTerminalSurface } from './hooks/useProjectedTerminalSurface';
 
 export function ProjectedTerminalSurface({
@@ -61,13 +60,6 @@ export function ProjectedTerminalSurface({
 					onApprove={view.approvePaste}
 					onCancel={view.cancelPaste}
 					review={view.pasteReview}
-				/>
-			)}
-			{view.clipboardWriteRequest === null ? null : (
-				<ProjectedTerminalClipboardReviewDialog
-					onApprove={view.approveClipboardWrite}
-					onCancel={view.cancelClipboardWrite}
-					request={view.clipboardWriteRequest}
 				/>
 			)}
 		</>

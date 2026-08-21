@@ -414,8 +414,8 @@ search, selection, copy, and approved-link interaction remain readable.
 Terminal-originated clipboard writes use a separate event path. `ProjectedTerminal` accepts only a
 schema-validated request for its exact attachment, suppresses a duplicate or stale sequence, and
 publishes the bounded text to the application without performing an effect. Disposal removes the
-listener and prevents later delivery. The application must own the user decision and platform
-clipboard capability; selection copy does not implicitly approve an OSC 52 request.
+listener and prevents later delivery. The application must own the commit policy and platform
+clipboard capability; selection copy does not implicitly commit an OSC 52 request.
 
 Frame metadata exposes one strictly decoded current progress sample. The packed store commits
 `remove`, `set`, `error`, `indeterminate`, or `pause` atomically with the frame and defaults an absent
@@ -518,6 +518,23 @@ remain shaping boundaries.
 Ghostty remains the reference for selected font metrics, shaping boundaries, complete Unicode sprite-face routing, cursor geometry, and terminal-panel rendering behavior. Deterministic generated data supplies every pinned sprite from Ghostty's four padded odd/even metric reference rasters, while selected sprites scale procedurally between those reference geometries. That reference does not make this package a Ghostty VT owner. Maintenance provenance is recorded in [`docs/ghostty-surface-test-provenance.md`](docs/ghostty-surface-test-provenance.md).
 
 Search behavior follows the bounded contract in [`docs/vscode-search-alignment.md`](docs/vscode-search-alignment.md). The application owns the find surface, query history, shortcuts, and localized labels.
+
+### Cursor blink presentation
+
+Host cursor metadata remains authoritative for the cursor coordinate, visibility, shape, and
+whether blinking is enabled. The renderer owns only the local blink phase and its 530-millisecond
+timer. A committed coordinate change immediately presents an enabled blinking cursor in its
+visible phase and restarts that timer; repeated changes inside one interval therefore keep the
+cursor visible. An unchanged coordinate never restarts the timer, so the cursor resumes alternating
+between visible and hidden after one idle interval. Disabling blinking stops the timer and leaves
+the cursor visible. Suspending the renderer stops animation in the visible phase, and resuming
+starts a fresh interval. The unfocused presentation remains a non-blinking hollow block.
+
+This presentation observes committed Host coordinates rather than keyboard intent: input that does
+not move the cursor has no effect, while a cursor move caused by terminal output has the same reset
+behavior. It never rewrites Host metadata or introduces a second cursor coordinate. Deterministic
+renderer tests control the timer and cover hidden-to-moving visibility plus the first idle toggle;
+Host/profile cursor-mode evidence remains separate.
 
 ### Cursor-default and mounted-start evidence
 

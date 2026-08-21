@@ -160,7 +160,6 @@ async function prepareWitness(): Promise<void> {
 			undefined,
 			undefined,
 			undefined,
-			undefined,
 			{
 				admitBellEffect: () => true,
 				bindContextProvider: (provider) => {

@@ -152,7 +152,6 @@ async function createRenderer(attachmentId: AttachmentId, label: string) {
 		undefined,
 		undefined,
 		undefined,
-		undefined,
 		{
 			admitBellEffect: (effect) => bellCoordinator.admit(effect),
 			bindContextProvider: () => ({ dispose: () => undefined }),

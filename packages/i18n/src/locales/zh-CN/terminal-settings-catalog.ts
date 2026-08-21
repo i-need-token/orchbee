@@ -152,7 +152,7 @@ export const zhCNTerminalSettingsCatalogMessages = {
 		'为点击分配操作，并选择终端鼠标上报何时优先。',
 	'terminal.settings.catalog.items.interaction.mouseBindings.label': '鼠标操作与上报',
 	'terminal.settings.catalog.items.interaction.osc52.description':
-		'控制终端发起的剪贴板读取和写入，包括确认策略。',
+		'控制终端发起的剪贴板读取和写入。',
 	'terminal.settings.catalog.items.interaction.osc52.label': '终端剪贴板访问',
 	'terminal.settings.catalog.items.interaction.pasteProtection.description':
 		'检查多行或可疑粘贴内容，并保留括号粘贴语义。',

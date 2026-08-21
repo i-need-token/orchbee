@@ -264,6 +264,7 @@ interface RectangleGeometry {
 }
 
 const COLOR_GLYPH_CANDIDATE = /[\p{Extended_Pictographic}\p{Regional_Indicator}\u{FE0F}\u{20E3}]/u;
+const CURSOR_BLINK_INTERVAL_MS = 530;
 const MAX_CACHED_SHAPING_RASTER_PIXELS = 8 * 1024 * 1024;
 const ZERO_PADDING: SurfacePadding = { top: 0, bottom: 0, left: 0, right: 0 };
 
@@ -1529,18 +1530,18 @@ export class WebGPURenderer {
 		const metadata = buffer.metadata;
 		if (backend === 'uninitialized' || !metadata) return;
 		this.packedHostDefaultBackgroundRgb = metadata.defaultColors.backgroundRgb;
+		const cursorMoved =
+			metadata.cursor.column !== this.lastCursorPosition.x ||
+			metadata.cursor.row !== this.lastCursorPosition.y;
+		this.syncCursorBlink(metadata.cursor.blinking);
+		if (cursorMoved) this.restartCursorBlink();
 		const timestamp = rendererNow();
 		this.currentSelectionCoords = this.projectedSelectionCoords;
 		this.currentVisibleRows = metadata.rows;
 		const reasons = new Set<RendererFrameReason>();
 		if (forceAll || buffer.needsFullRedraw) reasons.add('full');
 		if ((buffer.graphics?.placements.length ?? 0) > 0) reasons.add('graphics');
-		if (
-			this.cursorAppearanceDirty ||
-			metadata.cursor.column !== this.lastCursorPosition.x ||
-			metadata.cursor.row !== this.lastCursorPosition.y
-		)
-			reasons.add('cursor');
+		if (this.cursorAppearanceDirty || cursorMoved) reasons.add('cursor');
 		if (this.preeditDirty) reasons.add('preedit');
 		if (this.fontDirty) reasons.add('font');
 		if (this.textBlinkDirty) reasons.add('blink');
@@ -1931,7 +1932,6 @@ export class WebGPURenderer {
 		if (!this.device || !this.context || !this.bgPipeline || !this.textPipeline) return;
 		const { columns, rows } = metadata;
 		const cursor = metadata.cursor;
-		this.syncCursorBlink(cursor.blinking);
 		this.syncTextBlink(this.hasPackedBlinkingCells(buffer));
 		const needsResize =
 			this.canvas.width !== columns * this.metrics.width * this.devicePixelRatio ||
@@ -2427,7 +2427,6 @@ export class WebGPURenderer {
 		if (!ctx) return;
 		const { columns, rows } = metadata;
 		const cursor = metadata.cursor;
-		this.syncCursorBlink(cursor.blinking);
 		this.syncTextBlink(this.hasPackedBlinkingCells(buffer));
 		if (
 			buffer.needsFullRedraw ||
@@ -2911,7 +2910,13 @@ export class WebGPURenderer {
 		this.cursorBlinkInterval = setInterval(() => {
 			this.cursorVisible = !this.cursorVisible;
 			this.requestRenderCallback?.();
-		}, 530);
+		}, CURSOR_BLINK_INTERVAL_MS);
+	}
+
+	private restartCursorBlink(): void {
+		if (!this.cursorBlink) return;
+		this.stopCursorBlink();
+		this.startCursorBlink();
 	}
 
 	private syncCursorBlink(blinking: boolean): void {

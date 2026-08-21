@@ -4,6 +4,7 @@
 	min-height: 0;
 	min-width: 0;
 	overflow: hidden;
+	border-inline: var(--ob-ref-border-width-default) solid transparent;
 	position: relative;
 	width: 100%;
 	background: var(--ob-sys-color-surface-canvas);

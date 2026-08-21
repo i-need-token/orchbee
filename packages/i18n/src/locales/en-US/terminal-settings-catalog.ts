@@ -154,7 +154,7 @@ export const enUSTerminalSettingsCatalogMessages = {
 		'Assign actions to clicks and choose when terminal mouse reporting takes priority.',
 	'terminal.settings.catalog.items.interaction.mouseBindings.label': 'Mouse actions & reporting',
 	'terminal.settings.catalog.items.interaction.osc52.description':
-		'Control terminal-initiated clipboard reads and writes, including confirmation.',
+		'Control terminal-initiated clipboard reads and writes.',
 	'terminal.settings.catalog.items.interaction.osc52.label': 'Terminal clipboard access',
 	'terminal.settings.catalog.items.interaction.pasteProtection.description':
 		'Review multiline or suspicious paste content and preserve bracketed-paste semantics.',

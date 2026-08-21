@@ -1387,23 +1387,7 @@ test('terminal-parity/FB-01-clipboard-bell-progress', async () => {
 		await input.press('Enter');
 	};
 	await sendClipboardRequest();
-	let review = page.locator('[data-slot="projected-terminal-clipboard-review"]');
-	await expect(review).toBeVisible();
-	await expect(review.locator('pre')).toHaveText(requestedText);
-	await expect
-		.poll(async () => application.evaluate(({ clipboard }) => clipboard.readText()))
-		.toBe('fb01 existing clipboard sentinel');
-	await review.locator('[data-slot="alert-dialog-cancel"]').click();
-	await expect(review).not.toBeAttached();
-	await expect
-		.poll(async () => application.evaluate(({ clipboard }) => clipboard.readText()))
-		.toBe('fb01 existing clipboard sentinel');
-
-	await sendClipboardRequest();
-	review = page.locator('[data-slot="projected-terminal-clipboard-review"]');
-	await expect(review).toBeVisible();
-	await review.locator('[data-slot="alert-dialog-action"]').click();
-	await expect(review).not.toBeAttached();
+	await expect(page.locator('[data-slot="projected-terminal-clipboard-review"]')).toHaveCount(0);
 	await expect
 		.poll(async () => application.evaluate(({ clipboard }) => clipboard.readText()))
 		.toBe(requestedText);
@@ -3813,6 +3797,10 @@ async function expectTerminalSurfaceAppearance(locator: Locator): Promise<void> 
 				const style = getComputedStyle(element);
 				return {
 					backgroundColor: style.backgroundColor,
+					borderBottomWidth: style.borderBottomWidth,
+					borderLeftWidth: style.borderLeftWidth,
+					borderRightWidth: style.borderRightWidth,
+					borderTopWidth: style.borderTopWidth,
 					paddingBottom: style.paddingBottom,
 					paddingLeft: style.paddingLeft,
 					paddingRight: style.paddingRight,
@@ -3825,6 +3813,10 @@ async function expectTerminalSurfaceAppearance(locator: Locator): Promise<void> 
 		)
 		.toEqual({
 			backgroundColor: 'rgb(252, 252, 252)',
+			borderBottomWidth: '0px',
+			borderLeftWidth: '1px',
+			borderRightWidth: '1px',
+			borderTopWidth: '0px',
 			paddingBottom: '0px',
 			paddingLeft: '0px',
 			paddingRight: '0px',

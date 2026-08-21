@@ -101,6 +101,11 @@ interface ActiveSelectionCopy {
 	startedAtMilliseconds: number;
 }
 
+type ProjectedResizeCommand = Extract<
+	ProjectedTerminalCommand,
+	{ readonly kind: 'resize-terminal' }
+>;
+
 export interface ProjectedTerminalBrokerDependencies {
 	readonly openExternal: (target: string) => Promise<void>;
 	readonly writeClipboardText: (text: string) => Promise<void> | void;
@@ -180,7 +185,9 @@ export class ProjectedTerminalBroker {
 	#latestTerminalOutcomeRevision: bigint | undefined;
 	#nextExportSequence = 1n;
 	#pendingClipboardWriteRequest: TerminalClipboardWriteRequest | undefined;
+	#pendingResizeCommand: ProjectedResizeCommand | undefined;
 	#removeHostListener: (() => void) | undefined;
+	#resizeRequestActive = false;
 	#rowWindowBytesForwarded = 0;
 	#rowWindowsForwarded = 0;
 	#selectionExportBytesForwarded = 0;
@@ -334,6 +341,7 @@ export class ProjectedTerminalBroker {
 		const activeCopy = this.#activeSelectionCopy;
 		this.#activeSelectionCopy = undefined;
 		this.#pendingClipboardWriteRequest = undefined;
+		this.#pendingResizeCommand = undefined;
 		this.#disposed = true;
 		this.#removeHostListener?.();
 		this.#removeHostListener = undefined;
@@ -377,6 +385,7 @@ export class ProjectedTerminalBroker {
 	#requestCleanup(error: unknown): void {
 		if (this.#cleanupRequested) return;
 		this.#cleanupRequested = true;
+		this.#pendingResizeCommand = undefined;
 		if (this.#onCleanupRequested !== undefined) {
 			try {
 				this.#onCleanupRequested(error);
@@ -432,16 +441,20 @@ export class ProjectedTerminalBroker {
 			});
 			return;
 		}
-		if (this.#inFlightRequests >= MAX_IN_FLIGHT_RENDERER_REQUESTS) {
+		const command = parsed.data;
+		const replacesPendingResize =
+			command.kind === 'resize-terminal' &&
+			(this.#resizeRequestActive || this.#pendingResizeCommand !== undefined);
+		if (this.#inFlightRequests >= MAX_IN_FLIGHT_RENDERER_REQUESTS && !replacesPendingResize) {
 			if (
-				parsed.data.kind === 'clipboard-write-decision' &&
-				this.#matchesPendingClipboardWriteRequest(parsed.data.payload)
+				command.kind === 'clipboard-write-decision' &&
+				this.#matchesPendingClipboardWriteRequest(command.payload)
 			) {
 				this.#pendingClipboardWriteRequest = undefined;
 			}
 			this.#commandsRejected += 1;
-			if (isThemeCommand(parsed.data)) {
-				this.#postThemeFailure(parsed.data.payload.operationId, {
+			if (isThemeCommand(command)) {
+				this.#postThemeFailure(command.payload.operationId, {
 					code: 'renderer-backpressure',
 					outcome: 'known-unchanged',
 					retryable: true,
@@ -450,7 +463,7 @@ export class ProjectedTerminalBroker {
 				this.#postFailure({
 					code: 'renderer-backpressure',
 					message: 'Renderer command exceeded the bounded Main request window.',
-					...failureContext(parsed.data),
+					...failureContext(command),
 					retryable: true,
 				});
 			}
@@ -465,14 +478,23 @@ export class ProjectedTerminalBroker {
 		}
 
 		this.#commandsAccepted += 1;
+		if (command.kind === 'resize-terminal') {
+			this.#pendingResizeCommand = command;
+			this.#drainResizeCommand();
+			return;
+		}
+		this.#dispatchRendererCommand(command);
+	};
+
+	#dispatchRendererCommand(command: ProjectedTerminalCommand): void {
 		this.#inFlightRequests += 1;
-		void this.#dispatch(parsed.data)
+		void this.#dispatch(command)
 			.catch((error: unknown) => {
-				if (isThemeCommand(parsed.data)) {
-					this.#postThemeFailure(parsed.data.payload.operationId, themeFailureFromError(error));
+				if (isThemeCommand(command)) {
+					this.#postThemeFailure(command.payload.operationId, themeFailureFromError(error));
 					return;
 				}
-				const context = failureContext(parsed.data);
+				const context = failureContext(command);
 				this.#postFailure(
 					error instanceof HostRequestError || error instanceof BrokerOperationError
 						? {
@@ -497,8 +519,26 @@ export class ProjectedTerminalBroker {
 			})
 			.finally(() => {
 				this.#inFlightRequests -= 1;
+				if (command.kind === 'resize-terminal') this.#resizeRequestActive = false;
+				this.#drainResizeCommand();
 			});
-	};
+	}
+
+	#drainResizeCommand(): void {
+		if (
+			this.#resizeRequestActive ||
+			this.#disposed ||
+			this.#cleanupRequested ||
+			this.#inFlightRequests >= MAX_IN_FLIGHT_RENDERER_REQUESTS
+		) {
+			return;
+		}
+		const command = this.#pendingResizeCommand;
+		if (command === undefined) return;
+		this.#pendingResizeCommand = undefined;
+		this.#resizeRequestActive = true;
+		this.#dispatchRendererCommand(command);
+	}
 
 	readonly #handleHostEnvelope = (envelope: DecodedProtocolEnvelope): void => {
 		if (this.#disposed || this.#cleanupRequested) return;

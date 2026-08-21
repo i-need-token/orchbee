@@ -23,7 +23,6 @@ import {
 	ProjectedTerminalEventSchema,
 	type ProjectedTerminalFailure,
 } from '@orchbee/workbench-client-protocol';
-import type { TerminalClipboardWriteRequest } from '@orchbee/terminal-protocol';
 import type {
 	WorkbenchTerminalActionContextProvider,
 	WorkbenchTerminalBellEffect,
@@ -182,10 +181,6 @@ export async function startProjectedTerminalRenderer(
 	reviewPaste?: (review: ProjectedPasteReview, signal: AbortSignal) => boolean | Promise<boolean>,
 	observeMetadata?: (metadata: ProjectedTerminalMetadata) => void,
 	shortcutBindingSource?: ProjectedTerminalShortcutBindingSource,
-	reviewClipboardWrite?: (
-		request: TerminalClipboardWriteRequest,
-		signal: AbortSignal,
-	) => boolean | Promise<boolean>,
 	completionReminderObserver?: TerminalCompletionReminderObserver,
 	inputConfigurationSource: TerminalInputConfigurationSource = DEFAULT_TERMINAL_INPUT_CONFIGURATION_SOURCE,
 	workbenchHost?: ProjectedTerminalWorkbenchHost,
@@ -278,7 +273,7 @@ export async function startProjectedTerminalRenderer(
 	let bellVisualPhase: 'a' | 'b' | undefined;
 	let actionStatusTimer: ReturnType<typeof setTimeout> | undefined;
 	let completionStatusTimer: ReturnType<typeof setTimeout> | undefined;
-	let clipboardReviewController: AbortController | undefined;
+	let clipboardWriteController: AbortController | undefined;
 	let terminalOutcomeKind: 'exited' | 'failed' | undefined;
 	let pendingPresentationConfiguration: TerminalPresentationConfiguration | undefined;
 	let transportAvailable = true;
@@ -731,7 +726,7 @@ export async function startProjectedTerminalRenderer(
 			);
 			pendingSubscriptions.push(
 				terminal.onClipboardWriteRequest((event) => {
-					if (clipboardReviewController !== undefined) return;
+					if (clipboardWriteController !== undefined) return;
 					const sendDecision = (approved: boolean): void => {
 						if (disposed || frozen) return;
 						try {
@@ -743,29 +738,15 @@ export async function startProjectedTerminalRenderer(
 							reportFailure();
 						}
 					};
-					if (reviewClipboardWrite === undefined) {
-						sendDecision(false);
+					const writeClipboardText = platformEffects.writeClipboardText;
+					if (writeClipboardText === undefined) {
+						// Desktop Main owns this effect; the exact positive decision delegates one write.
+						sendDecision(true);
 						return;
 					}
 					const controller = new AbortController();
-					clipboardReviewController = controller;
+					clipboardWriteController = controller;
 					void (async () => {
-						let approved = false;
-						try {
-							approved = await reviewClipboardWrite(event, controller.signal);
-						} catch {
-							approved = false;
-						}
-						if (controller.signal.aborted || disposed || frozen) return;
-						if (!approved) {
-							sendDecision(false);
-							return;
-						}
-						const writeClipboardText = platformEffects.writeClipboardText;
-						if (writeClipboardText === undefined) {
-							sendDecision(true);
-							return;
-						}
 						let result;
 						try {
 							result = await writeClipboardText(event.text);
@@ -776,6 +757,7 @@ export async function startProjectedTerminalRenderer(
 								retryable: false,
 							} as const;
 						}
+						if (controller.signal.aborted || disposed || frozen) return;
 						sendDecision(result.kind === 'completed');
 						if (result.kind === 'failed') {
 							terminal.notifyBrokerFailure({
@@ -786,7 +768,7 @@ export async function startProjectedTerminalRenderer(
 							});
 						}
 					})().finally(() => {
-						if (clipboardReviewController === controller) clipboardReviewController = undefined;
+						if (clipboardWriteController === controller) clipboardWriteController = undefined;
 					});
 				}),
 			);
@@ -1180,8 +1162,8 @@ export async function startProjectedTerminalRenderer(
 			if (disposed) return;
 			disposed = true;
 			reportTransportUnavailable();
-			clipboardReviewController?.abort();
-			clipboardReviewController = undefined;
+			clipboardWriteController?.abort();
+			clipboardWriteController = undefined;
 			clearVisualBell();
 			clearActionStatusTimer();
 			clearCompletionStatusTimer();
@@ -1215,8 +1197,8 @@ export async function startProjectedTerminalRenderer(
 			if (disposed || frozen) return;
 			frozen = true;
 			reportTransportUnavailable();
-			clipboardReviewController?.abort();
-			clipboardReviewController = undefined;
+			clipboardWriteController?.abort();
+			clipboardWriteController = undefined;
 			clearVisualBell();
 			clearActionStatusTimer();
 			clearCompletionStatusTimer();

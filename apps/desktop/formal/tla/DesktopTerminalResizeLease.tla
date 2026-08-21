@@ -1,7 +1,9 @@
 ---------------- MODULE DesktopTerminalResizeLease ----------------
 EXTENDS FiniteSets, Naturals, TLC
 
-CONSTANTS Attachments, NoAttachment, MaxRevision
+CONSTANTS Attachments, NoAttachment, MaxRevision, Scenario
+
+ResizeScenarios == {"lease", "broker-serialization"}
 
 OperationKinds == {"idle", "open", "release"}
 Actions == {
@@ -12,7 +14,11 @@ Actions == {
   "commit-release",
   "resize",
   "runtime-advance",
-  "synchronize-resize"
+  "synchronize-resize",
+  "measure-broker-resize",
+  "settle-broker-resize",
+  "quiesce-broker-resize",
+  "cleanup-broker-resize"
 }
 
 VARIABLES
@@ -34,9 +40,22 @@ VARIABLES
   lastActor,
   previousGeometry,
   previousOwner,
-  lastPromoted
+  lastPromoted,
+  brokerResizeActive,
+  brokerActiveGeometry,
+  brokerResizePending,
+  brokerPendingGeometry,
+  brokerMeasurementsOpen,
+  brokerMeasurementSeen,
+  brokerLatestGeometry,
+  brokerCleanupRequested,
+  brokerLastAction,
+  brokerPreviousActive,
+  brokerPreviousActiveGeometry,
+  brokerPreviousPending,
+  brokerPreviousPendingGeometry
 
-vars == <<
+LeaseVars == <<
   attached,
   owner,
   admissionRank,
@@ -58,6 +77,24 @@ vars == <<
   lastPromoted
 >>
 
+BrokerVars == <<
+  brokerResizeActive,
+  brokerActiveGeometry,
+  brokerResizePending,
+  brokerPendingGeometry,
+  brokerMeasurementsOpen,
+  brokerMeasurementSeen,
+  brokerLatestGeometry,
+  brokerCleanupRequested,
+  brokerLastAction,
+  brokerPreviousActive,
+  brokerPreviousActiveGeometry,
+  brokerPreviousPending,
+  brokerPreviousPendingGeometry
+>>
+
+vars == <<LeaseVars, BrokerVars>>
+
 Oldest(candidates) ==
   CHOOSE candidate \in candidates:
     \A other \in candidates: admissionRank[candidate] <= admissionRank[other]
@@ -68,7 +105,14 @@ Record(action, actor) ==
   /\ previousGeometry' = canonicalGeometry
   /\ previousOwner' = owner
 
-Init ==
+BrokerRecord(action) ==
+  /\ brokerLastAction' = action
+  /\ brokerPreviousActive' = brokerResizeActive
+  /\ brokerPreviousActiveGeometry' = brokerActiveGeometry
+  /\ brokerPreviousPending' = brokerResizePending
+  /\ brokerPreviousPendingGeometry' = brokerPendingGeometry
+
+LeaseInit ==
   /\ attached = {}
   /\ owner = NoAttachment
   /\ admissionRank = [attachment \in Attachments |-> 0]
@@ -89,7 +133,26 @@ Init ==
   /\ previousOwner = owner
   /\ lastPromoted = NoAttachment
 
-BeginOpen(attachment) ==
+BrokerInit ==
+  /\ brokerResizeActive = FALSE
+  /\ brokerActiveGeometry = 0
+  /\ brokerResizePending = FALSE
+  /\ brokerPendingGeometry = 0
+  /\ brokerMeasurementsOpen = TRUE
+  /\ brokerMeasurementSeen = FALSE
+  /\ brokerLatestGeometry = 0
+  /\ brokerCleanupRequested = FALSE
+  /\ brokerLastAction = "init"
+  /\ brokerPreviousActive = brokerResizeActive
+  /\ brokerPreviousActiveGeometry = brokerActiveGeometry
+  /\ brokerPreviousPending = brokerResizePending
+  /\ brokerPreviousPendingGeometry = brokerPendingGeometry
+
+Init ==
+  /\ LeaseInit
+  /\ BrokerInit
+
+BeginOpenBase(attachment) ==
   /\ operationKind = "idle"
   /\ attachment \in Attachments \ attached
   /\ admissionRank[attachment] = 0
@@ -103,7 +166,7 @@ BeginOpen(attachment) ==
      >>
   /\ Record("begin-open", attachment)
 
-CommitOpen ==
+CommitOpenBase ==
   /\ operationKind = "open"
   /\ LET attachment == operationAttachment
      IN
@@ -120,7 +183,7 @@ CommitOpen ==
        resizeRevision>>
   /\ Record("commit-open", operationAttachment)
 
-BeginRelease(attachment) ==
+BeginReleaseBase(attachment) ==
   /\ operationKind = "idle"
   /\ attachment \in attached
   /\ operationKind' = "release"
@@ -137,7 +200,7 @@ BeginRelease(attachment) ==
      >>
   /\ Record("begin-release", attachment)
 
-CommitRelease ==
+CommitReleaseBase ==
   /\ operationKind = "release"
   /\ LET attachment == operationAttachment
      IN
@@ -152,7 +215,7 @@ CommitRelease ==
        resizeObservationPending, resizeRequestGeometry, resizeRevision>>
   /\ Record("commit-release", operationAttachment)
 
-AttemptResize(attachment) ==
+AttemptResizeBase(attachment) ==
   /\ operationKind = "idle"
   /\ ~resizeObservationPending
   /\ canonicalRevision < MaxRevision
@@ -173,7 +236,7 @@ AttemptResize(attachment) ==
      >>
   /\ Record("resize", attachment)
 
-AdvanceRuntimeDuringResize ==
+AdvanceRuntimeDuringResizeBase ==
   /\ operationKind = "idle"
   /\ resizeObservationPending
   /\ canonicalRevision < MaxRevision
@@ -185,7 +248,7 @@ AdvanceRuntimeDuringResize ==
        resizeRevision, lastPromoted>>
   /\ Record("runtime-advance", owner)
 
-SynchronizeResizeObservation ==
+SynchronizeResizeObservationBase ==
   /\ operationKind = "idle"
   /\ resizeObservationPending
   /\ observedGeometry' = canonicalGeometry
@@ -197,6 +260,96 @@ SynchronizeResizeObservation ==
        lastPromoted>>
   /\ Record("synchronize-resize", owner)
 
+BeginOpen(attachment) ==
+  /\ Scenario = "lease"
+  /\ BeginOpenBase(attachment)
+  /\ UNCHANGED BrokerVars
+
+CommitOpen ==
+  /\ Scenario = "lease"
+  /\ CommitOpenBase
+  /\ UNCHANGED BrokerVars
+
+BeginRelease(attachment) ==
+  /\ Scenario = "lease"
+  /\ BeginReleaseBase(attachment)
+  /\ UNCHANGED BrokerVars
+
+CommitRelease ==
+  /\ Scenario = "lease"
+  /\ CommitReleaseBase
+  /\ UNCHANGED BrokerVars
+
+AttemptResize(attachment) ==
+  /\ Scenario = "lease"
+  /\ AttemptResizeBase(attachment)
+  /\ UNCHANGED BrokerVars
+
+AdvanceRuntimeDuringResize ==
+  /\ Scenario = "lease"
+  /\ AdvanceRuntimeDuringResizeBase
+  /\ UNCHANGED BrokerVars
+
+SynchronizeResizeObservation ==
+  /\ Scenario = "lease"
+  /\ SynchronizeResizeObservationBase
+  /\ UNCHANGED BrokerVars
+
+MeasureBrokerResize(geometry) ==
+  /\ Scenario = "broker-serialization"
+  /\ geometry \in 0..1
+  /\ brokerMeasurementsOpen
+  /\ ~brokerCleanupRequested
+  /\ brokerLatestGeometry' = geometry
+  /\ brokerMeasurementSeen' = TRUE
+  /\ IF brokerResizeActive
+       THEN /\ brokerResizeActive' = TRUE
+            /\ brokerActiveGeometry' = brokerActiveGeometry
+            /\ brokerResizePending' = TRUE
+            /\ brokerPendingGeometry' = geometry
+       ELSE /\ brokerResizeActive' = TRUE
+            /\ brokerActiveGeometry' = geometry
+            /\ brokerResizePending' = FALSE
+            /\ brokerPendingGeometry' = 0
+  /\ UNCHANGED <<brokerMeasurementsOpen, brokerCleanupRequested>>
+  /\ BrokerRecord("measure-broker-resize")
+  /\ UNCHANGED LeaseVars
+
+SettleBrokerResize ==
+  /\ Scenario = "broker-serialization"
+  /\ brokerResizeActive
+  /\ brokerResizeActive' = brokerResizePending
+  /\ brokerActiveGeometry' =
+       IF brokerResizePending THEN brokerPendingGeometry ELSE 0
+  /\ brokerResizePending' = FALSE
+  /\ brokerPendingGeometry' = 0
+  /\ UNCHANGED <<brokerMeasurementsOpen, brokerMeasurementSeen,
+       brokerLatestGeometry, brokerCleanupRequested>>
+  /\ BrokerRecord("settle-broker-resize")
+  /\ UNCHANGED LeaseVars
+
+QuiesceBrokerResize ==
+  /\ Scenario = "broker-serialization"
+  /\ brokerMeasurementsOpen
+  /\ brokerMeasurementsOpen' = FALSE
+  /\ UNCHANGED <<brokerResizeActive, brokerActiveGeometry,
+       brokerResizePending, brokerPendingGeometry, brokerMeasurementSeen,
+       brokerLatestGeometry, brokerCleanupRequested>>
+  /\ BrokerRecord("quiesce-broker-resize")
+  /\ UNCHANGED LeaseVars
+
+CleanupBrokerResize ==
+  /\ Scenario = "broker-serialization"
+  /\ ~brokerCleanupRequested
+  /\ brokerCleanupRequested' = TRUE
+  /\ brokerMeasurementsOpen' = FALSE
+  /\ brokerResizePending' = FALSE
+  /\ brokerPendingGeometry' = 0
+  /\ UNCHANGED <<brokerResizeActive, brokerActiveGeometry,
+       brokerMeasurementSeen, brokerLatestGeometry>>
+  /\ BrokerRecord("cleanup-broker-resize")
+  /\ UNCHANGED LeaseVars
+
 Next ==
   \/ \E attachment \in Attachments: BeginOpen(attachment)
   \/ CommitOpen
@@ -205,6 +358,10 @@ Next ==
   \/ \E attachment \in Attachments: AttemptResize(attachment)
   \/ AdvanceRuntimeDuringResize
   \/ SynchronizeResizeObservation
+  \/ \E geometry \in 0..1: MeasureBrokerResize(geometry)
+  \/ SettleBrokerResize
+  \/ QuiesceBrokerResize
+  \/ CleanupBrokerResize
 
 Spec ==
   /\ Init
@@ -212,8 +369,10 @@ Spec ==
   /\ WF_vars(CommitOpen)
   /\ WF_vars(CommitRelease)
   /\ WF_vars(SynchronizeResizeObservation)
+  /\ WF_vars(SettleBrokerResize)
 
 TypeOK ==
+  /\ Scenario \in ResizeScenarios
   /\ NoAttachment \notin Attachments
   /\ attached \subseteq Attachments
   /\ owner \in attached \cup {NoAttachment}
@@ -234,6 +393,19 @@ TypeOK ==
   /\ previousGeometry \in 0..1
   /\ previousOwner \in Attachments \cup {NoAttachment}
   /\ lastPromoted \in Attachments \cup {NoAttachment}
+  /\ brokerResizeActive \in BOOLEAN
+  /\ brokerActiveGeometry \in 0..1
+  /\ brokerResizePending \in BOOLEAN
+  /\ brokerPendingGeometry \in 0..1
+  /\ brokerMeasurementsOpen \in BOOLEAN
+  /\ brokerMeasurementSeen \in BOOLEAN
+  /\ brokerLatestGeometry \in 0..1
+  /\ brokerCleanupRequested \in BOOLEAN
+  /\ brokerLastAction \in Actions
+  /\ brokerPreviousActive \in BOOLEAN
+  /\ brokerPreviousActiveGeometry \in 0..1
+  /\ brokerPreviousPending \in BOOLEAN
+  /\ brokerPreviousPendingGeometry \in 0..1
 
 AdmissionRanksAreUnique ==
   \A left, right \in Attachments:
@@ -274,10 +446,45 @@ NewestRuntimeObservationWins ==
     /\ observedRevision = canonicalRevision
     /\ observedGeometry = canonicalGeometry
 
+BrokerInactiveGeometryIsEmpty ==
+  /\ ~brokerResizeActive => brokerActiveGeometry = 0
+  /\ ~brokerResizePending => brokerPendingGeometry = 0
+
+BrokerPendingIsNewest ==
+  brokerResizePending => brokerPendingGeometry = brokerLatestGeometry
+
+BrokerActiveIsNewestWithoutPending ==
+  /\ brokerMeasurementSeen
+  /\ ~brokerCleanupRequested
+  /\ brokerResizeActive
+  /\ ~brokerResizePending
+  => brokerActiveGeometry = brokerLatestGeometry
+
+BrokerMeasurementDoesNotReplaceActive ==
+  /\ brokerLastAction = "measure-broker-resize"
+  /\ brokerPreviousActive
+  => /\ brokerResizeActive
+     /\ brokerActiveGeometry = brokerPreviousActiveGeometry
+
+BrokerSettlementPromotesLatestPending ==
+  /\ brokerLastAction = "settle-broker-resize"
+  /\ brokerPreviousPending
+  => /\ brokerResizeActive
+     /\ brokerActiveGeometry = brokerPreviousPendingGeometry
+     /\ ~brokerResizePending
+
+BrokerCleanupDropsPending ==
+  brokerCleanupRequested =>
+    /\ ~brokerMeasurementsOpen
+    /\ ~brokerResizePending
+
 PendingOperationEventuallyCommits ==
   operationKind # "idle" ~> operationKind = "idle"
 
 PendingResizeEventuallySynchronizes ==
   resizeObservationPending ~> ~resizeObservationPending
+
+BrokerQuiescenceEventuallyDrains ==
+  ~brokerMeasurementsOpen ~> (~brokerResizeActive /\ ~brokerResizePending)
 
 =============================================================================

@@ -154,8 +154,8 @@ freshness, focus, permission, deduplication, rate limiting, and notification eff
 `TerminalClipboardWriteRequest` is a separate event-only control record for one Host-admitted OSC
 52 plain-text write. It carries the exact attachment, a positive sequence, and at most 16 KiB of
 valid UTF-8 without NUL or unpaired surrogates. The schema grants no clipboard read, selection kind,
-HTML, image, persistence, trust, or effect capability; the application must obtain an explicit user
-decision before performing the platform write.
+HTML, image, persistence, trust, or effect capability; the application owns the commit policy and
+platform write.
 
 ## Ownership
 

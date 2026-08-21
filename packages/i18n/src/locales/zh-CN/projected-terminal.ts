@@ -31,13 +31,6 @@ export const zhCNProjectedTerminalMessages = {
 	'terminal.projected.copy.completed': '已复制 {byteLength, number} 字节。',
 	'terminal.projected.copy.failed': '无法复制终端所选内容。',
 	'terminal.projected.clear.completed': '已清除终端输出。',
-	'terminal.projected.clipboard.review.bytes': '{byteLength, number} 个 UTF-8 字节',
-	'terminal.projected.clipboard.review.cancel': '保留当前剪贴板',
-	'terminal.projected.clipboard.review.confirm': '复制到剪贴板',
-	'terminal.projected.clipboard.review.content': '请求写入剪贴板的文本',
-	'terminal.projected.clipboard.review.description':
-		'终端中运行的程序想要替换你的剪贴板。允许前请检查将要写入的完整文本。',
-	'terminal.projected.clipboard.review.title': '允许终端写入剪贴板吗？',
 	'terminal.projected.clipboard.writeFailed': '无法将终端文本写入剪贴板。',
 	'terminal.projected.commandCompleted.body':
 		'命令已在 {duration, number} 秒后完成，退出码为 {exitCode, number}。',

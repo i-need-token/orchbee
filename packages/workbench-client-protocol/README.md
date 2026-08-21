@@ -57,7 +57,7 @@ effect; a client-effect attachment receives `selection-copy-content` with bounde
 commits those bytes through its own platform clipboard before reporting local completion. Neither
 event grants HTML, raw VT, or a generic clipboard capability.
 
-Host-originated clipboard-write review is a separate, request-bound flow. Main forwards at most one pending bounded request per attachment, and the renderer can return only an exact `clipboard-write-decision` containing the original attachment, sequence, and text plus the user's boolean decision. Desktop Main rejects mismatched and duplicate decisions and performs the privileged write only for an approved Desktop-effect attachment. A client-effect attachment performs its local Browser write first and uses the same exact decision only to consume Main's pending request, so Main cannot duplicate the effect.
+Host-originated clipboard-write commit is a separate, request-bound flow. Main forwards at most one pending bounded request per attachment, and the renderer automatically returns only an exact `clipboard-write-decision` containing the original attachment, sequence, and text plus the commit result. Desktop Main rejects mismatched and duplicate decisions and performs the privileged write only for a positive Desktop-effect decision. A client-effect attachment performs its local Browser write first and uses the same exact decision only to consume Main's pending request, so Main cannot duplicate the effect.
 
 ## Verification
 

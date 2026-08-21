@@ -319,7 +319,7 @@ unpaired surrogates, a zero sequence, and oversized text are malformed. It repre
 admitted OSC 52 clipboard write assigned to one read-capable attachment; it does not represent a
 clipboard read or grant an effect. Terminal Host owns bounded pending state, one-recipient delivery,
 outgoing-batch rollback, and removal after handoff. The receiving application owns the explicit
-per-request user decision and platform clipboard effect. The record is not acknowledged or replayed
+per-request commit policy and platform clipboard effect. The record is not acknowledged or replayed
 to another attachment, and it carries no trust duration, selection-kind choice, rich format, or
 clipboard contents from the client.
 

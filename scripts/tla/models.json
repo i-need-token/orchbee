@@ -224,7 +224,25 @@
 				"CommitRelease",
 				"AttemptResize",
 				"AdvanceRuntimeDuringResize",
-				"SynchronizeResizeObservation"
+				"SynchronizeResizeObservation",
+				"MeasureBrokerResize",
+				"SettleBrokerResize",
+				"QuiesceBrokerResize",
+				"CleanupBrokerResize"
+			],
+			"variants": [
+				{
+					"name": "lease",
+					"constants": {
+						"Scenario": "lease"
+					}
+				},
+				{
+					"name": "broker-serialization",
+					"constants": {
+						"Scenario": "broker-serialization"
+					}
+				}
 			]
 		},
 		{

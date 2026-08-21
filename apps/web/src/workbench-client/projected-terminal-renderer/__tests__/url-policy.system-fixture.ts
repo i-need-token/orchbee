@@ -169,7 +169,6 @@ async function runWitness(): Promise<void> {
 			undefined,
 			undefined,
 			undefined,
-			undefined,
 			{
 				admitBellEffect: () => true,
 				bindContextProvider: (provider) => {

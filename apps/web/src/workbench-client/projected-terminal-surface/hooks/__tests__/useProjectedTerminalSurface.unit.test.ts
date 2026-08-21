@@ -99,7 +99,6 @@ function TestHarness({
 	return createElement(
 		'div',
 		{
-			'data-clipboard-write-text': view.clipboardWriteRequest?.text,
 			'data-failure-message': view.failureMessage,
 			'data-paste-review-text': view.pasteReview?.originalText,
 			'data-projection-state': view.projectionState,
@@ -121,13 +120,6 @@ function TestHarness({
 					'button',
 					{ 'data-approve-paste': true, onClick: view.approvePaste },
 					'Approve paste',
-				),
-		view.clipboardWriteRequest === null
-			? null
-			: createElement(
-					'button',
-					{ 'data-approve-clipboard-write': true, onClick: view.approveClipboardWrite },
-					'Approve clipboard write',
 				),
 		view.recoveryAvailable
 			? createElement(
@@ -649,7 +641,7 @@ describe('useProjectedTerminalSurface', () => {
 		container.remove();
 	});
 
-	it('serializes renderer paste and clipboard reviews into explicit surface decisions', async () => {
+	it('settles renderer paste reviews through explicit surface decisions', async () => {
 		renderer.start.mockReset();
 		renderer.start.mockResolvedValue({
 			dispose: vi.fn<() => void>(),
@@ -729,9 +721,7 @@ describe('useProjectedTerminalSurface', () => {
 		});
 		await vi.waitFor(() => expect(renderer.start).toHaveBeenCalledOnce());
 		const reviewPaste = renderer.start.mock.calls[0]?.[9];
-		const reviewClipboardWrite = renderer.start.mock.calls[0]?.[12];
 		expect(reviewPaste).toBeTypeOf('function');
-		expect(reviewClipboardWrite).toBeTypeOf('function');
 		const review: ProjectedPasteReview = {
 			bracketed: false,
 			embeddedBracketTerminator: false,
@@ -755,31 +745,6 @@ describe('useProjectedTerminalSurface', () => {
 		await expect(decision).resolves.toBe(true);
 		expect(container.firstElementChild?.getAttribute('data-paste-review-text')).toBeNull();
 
-		const clipboardController = new AbortController();
-		let clipboardDecision: Promise<boolean> | undefined;
-		await act(async () => {
-			clipboardDecision = Promise.resolve(
-				reviewClipboardWrite?.(
-					{
-						attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
-						sequence: CanonicalUint64TextSchema.parse('1'),
-						text: 'exact clipboard text',
-					},
-					clipboardController.signal,
-				) ?? false,
-			);
-			await Promise.resolve();
-		});
-		expect(container.firstElementChild?.getAttribute('data-clipboard-write-text')).toBe(
-			'exact clipboard text',
-		);
-		await act(async () => {
-			(container.querySelector('[data-approve-clipboard-write]') as HTMLButtonElement).click();
-			await Promise.resolve();
-		});
-		await expect(clipboardDecision).resolves.toBe(true);
-		expect(container.firstElementChild?.getAttribute('data-clipboard-write-text')).toBeNull();
-
 		const cancelledController = new AbortController();
 		let cancelledDecision: Promise<boolean> | undefined;
 		await act(async () => {
@@ -789,18 +754,6 @@ describe('useProjectedTerminalSurface', () => {
 			await Promise.resolve();
 		});
 		expect(container.firstElementChild?.getAttribute('data-paste-review-text')).toBe('one\ntwo');
-		const rejectedClipboard = Promise.resolve(
-			reviewClipboardWrite?.(
-				{
-					attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
-					sequence: CanonicalUint64TextSchema.parse('2'),
-					text: 'must not stack',
-				},
-				new AbortController().signal,
-			) ?? false,
-		);
-		await expect(rejectedClipboard).resolves.toBe(false);
-		expect(container.firstElementChild?.getAttribute('data-clipboard-write-text')).toBeNull();
 		await act(async () => {
 			cancelledController.abort();
 			await Promise.resolve();
@@ -808,25 +761,7 @@ describe('useProjectedTerminalSurface', () => {
 		await expect(cancelledDecision).resolves.toBe(false);
 		expect(container.firstElementChild?.getAttribute('data-paste-review-text')).toBeNull();
 
-		let unmountedClipboardDecision: Promise<boolean> | undefined;
-		await act(async () => {
-			unmountedClipboardDecision = Promise.resolve(
-				reviewClipboardWrite?.(
-					{
-						attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
-						sequence: CanonicalUint64TextSchema.parse('3'),
-						text: 'cancel on unmount',
-					},
-					new AbortController().signal,
-				) ?? false,
-			);
-			await Promise.resolve();
-		});
-		expect(container.firstElementChild?.getAttribute('data-clipboard-write-text')).toBe(
-			'cancel on unmount',
-		);
 		await act(async () => root.unmount());
-		await expect(unmountedClipboardDecision).resolves.toBe(false);
 		expect(release).toHaveBeenCalledOnce();
 		container.remove();
 	});

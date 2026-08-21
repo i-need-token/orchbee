@@ -30,7 +30,7 @@ Terminal Host owns:
 - a private local IPC endpoint protected by operating-system user identity; and
 - typed native adaptation of the shared terminal protocol.
 
-It does not own Project, Workspace, Workbench, Tab, Panel, agent, or product-session models. It also does not own Electron lifecycle, product recovery choices, rendering, platform clipboard contents, user confirmation, clipboard effects, search queries, external navigation, updates, network listeners, remote authentication, encryption, or sharing.
+It does not own Project, Workspace, Workbench, Tab, Panel, agent, or product-session models. It also does not own Electron lifecycle, product recovery choices, rendering, platform clipboard contents, application commit policy, clipboard effects, search queries, external navigation, updates, network listeners, remote authentication, encryption, or sharing.
 
 ## Runtime promises
 

@@ -25,11 +25,8 @@ const presentation: WorkbenchTerminalPresentation = {
 describe('ProjectedTerminalSurface', () => {
 	it('renders an acquisition failure through the visible terminal status overlay', () => {
 		vi.mocked(useProjectedTerminalSurface).mockReturnValue({
-			approveClipboardWrite: () => undefined,
 			approvePaste: () => undefined,
-			cancelClipboardWrite: () => undefined,
 			cancelPaste: () => undefined,
-			clipboardWriteRequest: null,
 			failureMessage: 'The terminal connection failed.',
 			handleFileDragOver: () => undefined,
 			handleFileDrop: () => undefined,

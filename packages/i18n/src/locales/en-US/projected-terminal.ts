@@ -30,13 +30,6 @@ export const enUSProjectedTerminalMessages = {
 	'terminal.projected.copy.completed': 'Copied {byteLength, number} bytes.',
 	'terminal.projected.copy.failed': 'The terminal selection could not be copied.',
 	'terminal.projected.clear.completed': 'Terminal output cleared.',
-	'terminal.projected.clipboard.review.bytes': '{byteLength, number} UTF-8 bytes',
-	'terminal.projected.clipboard.review.cancel': 'Keep current clipboard',
-	'terminal.projected.clipboard.review.confirm': 'Copy to clipboard',
-	'terminal.projected.clipboard.review.content': 'Requested clipboard text',
-	'terminal.projected.clipboard.review.description':
-		'A program running in this terminal wants to replace your clipboard. Review the exact text before allowing it.',
-	'terminal.projected.clipboard.review.title': 'Allow terminal clipboard write?',
 	'terminal.projected.clipboard.writeFailed':
 		'The terminal text could not be written to the clipboard.',
 	'terminal.projected.commandCompleted.body':

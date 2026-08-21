@@ -1342,6 +1342,54 @@ describe('projected terminal renderer', () => {
 		renderer.dispose();
 	});
 
+	it('keeps a blinking Canvas cursor visible after movement until one idle blink period', async () => {
+		vi.useFakeTimers();
+		vi.stubGlobal('window', { devicePixelRatio: 1 });
+		vi.stubGlobal('navigator', {});
+		const rectangles: Array<{
+			readonly color: string;
+			readonly geometry: readonly number[];
+		}> = [];
+		const fillRect: CanvasRenderingContext2D['fillRect'] = function (
+			this: CanvasRenderingContext2D,
+			x,
+			y,
+			width,
+			height,
+		) {
+			rectangles.push({ color: String(this.fillStyle), geometry: [x, y, width, height] });
+		};
+		vi.stubGlobal('document', {
+			createElement: () => createCanvas(undefined, {}, undefined, fillRect),
+		});
+		const renderer = new WebGPURenderer(createCanvas(undefined, {}, undefined, fillRect));
+		await renderer.initGPU();
+		renderer.setFocused(true);
+		const renderCursorAt = (column: number): boolean => {
+			rectangles.length = 0;
+			renderer.renderPacked(
+				createPackedSource(['AB'], {
+					cursor: { blinking: true, column, visible: true },
+				}),
+			);
+			return rectangles.some(
+				({ color, geometry }) =>
+					color === 'rgb(216, 222, 233)' && geometry[0] === column * renderer.getMetrics().width,
+			);
+		};
+
+		expect(renderCursorAt(0)).toBe(true);
+		vi.advanceTimersByTime(530);
+		expect(renderCursorAt(0)).toBe(false);
+
+		expect(renderCursorAt(1)).toBe(true);
+		vi.advanceTimersByTime(529);
+		expect(renderCursorAt(1)).toBe(true);
+		vi.advanceTimersByTime(1);
+		expect(renderCursorAt(1)).toBe(false);
+		renderer.dispose();
+	});
+
 	it('renders focused bar and underline cursors and an unfocused outline at one physical pixel', async () => {
 		vi.stubGlobal('window', { devicePixelRatio: 2 });
 		vi.stubGlobal('navigator', {});

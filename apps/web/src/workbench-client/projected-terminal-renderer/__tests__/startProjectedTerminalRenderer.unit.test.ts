@@ -143,15 +143,6 @@ describe('startProjectedTerminalRenderer', () => {
 		const playBellSound = vi.fn<NonNullable<ProjectedTerminalPlatformEffects['playBellSound']>>();
 		const showBellNotification =
 			vi.fn<NonNullable<ProjectedTerminalPlatformEffects['showBellNotification']>>();
-		let resolveClipboardReview: ((approved: boolean) => void) | undefined;
-		const reviewClipboardWrite = vi.fn<
-			NonNullable<Parameters<typeof startProjectedTerminalRenderer>[12]>
-		>(
-			() =>
-				new Promise<boolean>((resolve) => {
-					resolveClipboardReview = resolve;
-				}),
-		);
 		let emitExit: Parameters<ProjectedTerminal['onExit']>[0] = () => undefined;
 		let emitFrameTelemetry: Parameters<ProjectedTerminal['onFrameTelemetry']>[0] = () => undefined;
 		let emitLinkOpenRequest: Parameters<ProjectedTerminal['onLinkOpenRequest']>[0] = () =>
@@ -382,7 +373,6 @@ describe('startProjectedTerminalRenderer', () => {
 				undefined,
 				observeMetadata,
 				undefined,
-				reviewClipboardWrite,
 				{ observeCompletion },
 				inputConfigurationSource,
 				{ admitBellEffect, bindContextProvider, runtime: actionRuntime, scope: actionScope },
@@ -474,23 +464,17 @@ describe('startProjectedTerminalRenderer', () => {
 				event: {
 					attachmentId: bootstrap.attachmentId,
 					sequence: '6',
-					text: 'approved OSC 52 text',
+					text: 'automatic OSC 52 text',
 				},
 				kind: 'clipboard-write-request',
 			});
 			expect(notifyClipboardWriteRequest).toHaveBeenCalledWith({
 				attachmentId: bootstrap.attachmentId,
 				sequence: '6',
-				text: 'approved OSC 52 text',
+				text: 'automatic OSC 52 text',
 			});
-			expect(reviewClipboardWrite).toHaveBeenCalledWith(
-				expect.objectContaining({ text: 'approved OSC 52 text' }),
-				expect.any(AbortSignal),
-			);
-			expect(writeClipboardText).not.toHaveBeenCalledWith('approved OSC 52 text');
-			resolveClipboardReview?.(true);
 			await vi.waitFor(() =>
-				expect(writeClipboardText).toHaveBeenCalledWith('approved OSC 52 text'),
+				expect(writeClipboardText).toHaveBeenCalledWith('automatic OSC 52 text'),
 			);
 			expect(transport.send).toHaveBeenCalledWith({
 				kind: 'clipboard-write-decision',
@@ -498,7 +482,7 @@ describe('startProjectedTerminalRenderer', () => {
 					approved: true,
 					attachmentId: bootstrap.attachmentId,
 					sequence: '6',
-					text: 'approved OSC 52 text',
+					text: 'automatic OSC 52 text',
 				},
 			});
 			emitLinkOpenRequest({
@@ -528,11 +512,10 @@ describe('startProjectedTerminalRenderer', () => {
 				event: {
 					attachmentId: bootstrap.attachmentId,
 					sequence: '7',
-					text: 'rejected OSC 52 text',
+					text: 'failed OSC 52 text',
 				},
 				kind: 'clipboard-write-request',
 			});
-			resolveClipboardReview?.(true);
 			await vi.waitFor(() =>
 				expect(notifyBrokerFailure).toHaveBeenCalledWith({
 					code: 'clipboard-denied',
@@ -547,7 +530,7 @@ describe('startProjectedTerminalRenderer', () => {
 					approved: false,
 					attachmentId: bootstrap.attachmentId,
 					sequence: '7',
-					text: 'rejected OSC 52 text',
+					text: 'failed OSC 52 text',
 				},
 			});
 			expect(status).toMatchObject({
@@ -555,26 +538,26 @@ describe('startProjectedTerminalRenderer', () => {
 				textContent: '无法将终端文本写入剪贴板。',
 			});
 			await Promise.resolve();
-			const writeCountBeforeCancel = writeClipboardText.mock.calls.length;
+			const writeCountBeforeNextRequest = writeClipboardText.mock.calls.length;
 			emitTransportMessage({
 				event: {
 					attachmentId: bootstrap.attachmentId,
 					sequence: '8',
-					text: 'cancelled OSC 52 text',
+					text: 'next OSC 52 text',
 				},
 				kind: 'clipboard-write-request',
 			});
-			resolveClipboardReview?.(false);
-			await Promise.resolve();
-			await Promise.resolve();
-			expect(writeClipboardText).toHaveBeenCalledTimes(writeCountBeforeCancel);
+			await vi.waitFor(() =>
+				expect(writeClipboardText).toHaveBeenCalledTimes(writeCountBeforeNextRequest + 1),
+			);
+			expect(writeClipboardText).toHaveBeenLastCalledWith('next OSC 52 text');
 			expect(transport.send).toHaveBeenCalledWith({
 				kind: 'clipboard-write-decision',
 				payload: {
-					approved: false,
+					approved: true,
 					attachmentId: bootstrap.attachmentId,
 					sequence: '8',
-					text: 'cancelled OSC 52 text',
+					text: 'next OSC 52 text',
 				},
 			});
 			emitTransportMessage({ kind: 'invalid-event' });
@@ -905,18 +888,17 @@ describe('startProjectedTerminalRenderer', () => {
 					return unsubscribeLiveSource;
 				},
 			};
-			let resolveCancelledClipboardReview: ((approved: boolean) => void) | undefined;
-			const cancelledClipboardReview = vi.fn<
-				NonNullable<Parameters<typeof startProjectedTerminalRenderer>[12]>
+			let resolvePendingClipboardWrite:
+				| ((result: { readonly kind: 'completed' }) => void)
+				| undefined;
+			const pendingClipboardWrite = vi.fn<
+				NonNullable<ProjectedTerminalPlatformEffects['writeClipboardText']>
 			>(
 				() =>
-					new Promise<boolean>((resolve) => {
-						resolveCancelledClipboardReview = resolve;
+					new Promise<{ readonly kind: 'completed' }>((resolve) => {
+						resolvePendingClipboardWrite = resolve;
 					}),
 			);
-			const cancelledClipboardWrite = vi.fn<
-				NonNullable<ProjectedTerminalPlatformEffects['writeClipboardText']>
-			>(async () => ({ kind: 'completed' }));
 			const liveSession = await startProjectedTerminalRenderer(
 				liveElements.additionalRoot,
 				documentElement,
@@ -925,12 +907,11 @@ describe('startProjectedTerminalRenderer', () => {
 				liveBootstrap,
 				liveTransport.additionalTransport,
 				dependencies,
-				{ writeClipboardText: cancelledClipboardWrite },
+				{ writeClipboardText: pendingClipboardWrite },
 				liveSource,
 				undefined,
 				undefined,
 				undefined,
-				cancelledClipboardReview,
 			);
 			expect(liveSession.isTransportAvailable()).toBe(true);
 			expect(liveElements.additionalRoot.dataset['projectedTerminalState']).toBe('open');
@@ -942,11 +923,22 @@ describe('startProjectedTerminalRenderer', () => {
 				event: {
 					attachmentId: liveBootstrap.attachmentId,
 					sequence: '1',
-					text: 'cancel on dispose',
+					text: 'client-owned pending OSC 52 text',
 				},
 				kind: 'clipboard-write-request',
 			});
-			expect(cancelledClipboardReview).toHaveBeenCalledOnce();
+			expect(pendingClipboardWrite).toHaveBeenCalledExactlyOnceWith(
+				'client-owned pending OSC 52 text',
+			);
+			expect(liveTransport.additionalTransport.send).not.toHaveBeenCalledWith({
+				kind: 'clipboard-write-decision',
+				payload: {
+					approved: true,
+					attachmentId: liveBootstrap.attachmentId,
+					sequence: '1',
+					text: 'client-owned pending OSC 52 text',
+				},
+			});
 			liveTransport.emitMessage({
 				event: {
 					attachmentId: liveBootstrap.attachmentId,
@@ -1079,10 +1071,18 @@ describe('startProjectedTerminalRenderer', () => {
 				textContent: 'The terminal session stopped after a runtime failure.',
 			});
 			liveSession.dispose();
-			resolveCancelledClipboardReview?.(true);
+			resolvePendingClipboardWrite?.({ kind: 'completed' });
 			await Promise.resolve();
 			await Promise.resolve();
-			expect(cancelledClipboardWrite).not.toHaveBeenCalled();
+			expect(liveTransport.additionalTransport.send).not.toHaveBeenCalledWith({
+				kind: 'clipboard-write-decision',
+				payload: {
+					approved: true,
+					attachmentId: liveBootstrap.attachmentId,
+					sequence: '1',
+					text: 'client-owned pending OSC 52 text',
+				},
+			});
 			expect(unsubscribeLiveSource).toHaveBeenCalledOnce();
 			expect(liveTransport.close).toHaveBeenCalledOnce();
 
@@ -1102,6 +1102,23 @@ describe('startProjectedTerminalRenderer', () => {
 					subscribe: () => vi.fn<() => void>(),
 				},
 			);
+			hostCloseTransport.emitMessage({
+				event: {
+					attachmentId: liveBootstrap.attachmentId,
+					sequence: '2',
+					text: 'desktop-owned automatic write',
+				},
+				kind: 'clipboard-write-request',
+			});
+			expect(hostCloseTransport.additionalTransport.send).toHaveBeenCalledWith({
+				kind: 'clipboard-write-decision',
+				payload: {
+					approved: true,
+					attachmentId: liveBootstrap.attachmentId,
+					sequence: '2',
+					text: 'desktop-owned automatic write',
+				},
+			});
 			hostCloseTransport.emitMessage({
 				failure: {
 					code: 'host-connection-unavailable',

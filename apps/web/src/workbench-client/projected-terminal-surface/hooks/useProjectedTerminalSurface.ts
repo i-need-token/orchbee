@@ -1,7 +1,6 @@
 import { useMemoizedFn } from '@orchbee/foundation/react';
 import { projectedTerminalMessages, useOrchbeeIntl } from '@orchbee/i18n';
 import type { ProjectedPasteReview } from '@orchbee/terminal';
-import type { TerminalClipboardWriteRequest } from '@orchbee/terminal-protocol';
 import type {
 	WorkbenchTerminalPresentation,
 	WorkbenchTerminalSurfaceProps,
@@ -23,12 +22,6 @@ import {
 import type { ProjectedTerminalSurfaceView } from '../types/projected-terminal-surface-view';
 
 interface PendingPasteDecision {
-	readonly abort: () => void;
-	readonly resolve: (approved: boolean) => void;
-	readonly signal: AbortSignal;
-}
-
-interface PendingClipboardWriteDecision {
 	readonly abort: () => void;
 	readonly resolve: (approved: boolean) => void;
 	readonly signal: AbortSignal;
@@ -75,9 +68,6 @@ export function useProjectedTerminalSurface(
 	);
 	const [pasteReview, setPasteReview] = React.useState<ProjectedPasteReview | null>(null);
 	const pendingPasteDecision = React.useRef<PendingPasteDecision | null>(null);
-	const [clipboardWriteRequest, setClipboardWriteRequest] =
-		React.useState<TerminalClipboardWriteRequest | null>(null);
-	const pendingClipboardWriteDecision = React.useRef<PendingClipboardWriteDecision | null>(null);
 	const projectable =
 		presentation.lifecycle.kind === 'running' ||
 		presentation.lifecycle.kind === 'exited' ||
@@ -91,18 +81,9 @@ export function useProjectedTerminalSurface(
 		setPasteReview(null);
 		pending.resolve(approved);
 	});
-	const settleClipboardWriteReview = useMemoizedFn((approved: boolean): void => {
-		const pending = pendingClipboardWriteDecision.current;
-		if (pending === null) return;
-		pendingClipboardWriteDecision.current = null;
-		pending.signal.removeEventListener('abort', pending.abort);
-		setClipboardWriteRequest(null);
-		pending.resolve(approved);
-	});
 	const reviewPaste = useMemoizedFn(
 		(review: ProjectedPasteReview, signal: AbortSignal): Promise<boolean> => {
 			settlePasteReview(false);
-			settleClipboardWriteReview(false);
 			if (signal.aborted) return Promise.resolve(false);
 			return new Promise<boolean>((resolve) => {
 				const pending: PendingPasteDecision = {
@@ -114,32 +95,6 @@ export function useProjectedTerminalSurface(
 				};
 				pendingPasteDecision.current = pending;
 				setPasteReview(review);
-				signal.addEventListener('abort', pending.abort, { once: true });
-				if (signal.aborted) pending.abort();
-			});
-		},
-	);
-	const reviewClipboardWrite = useMemoizedFn(
-		(request: TerminalClipboardWriteRequest, signal: AbortSignal): Promise<boolean> => {
-			if (
-				signal.aborted ||
-				pendingClipboardWriteDecision.current !== null ||
-				pendingPasteDecision.current !== null
-			) {
-				return Promise.resolve(false);
-			}
-			return new Promise<boolean>((resolve) => {
-				const pending: PendingClipboardWriteDecision = {
-					abort: () => {
-						if (pendingClipboardWriteDecision.current === pending) {
-							settleClipboardWriteReview(false);
-						}
-					},
-					resolve,
-					signal,
-				};
-				pendingClipboardWriteDecision.current = pending;
-				setClipboardWriteRequest(request);
 				signal.addEventListener('abort', pending.abort, { once: true });
 				if (signal.aborted) pending.abort();
 			});
@@ -166,7 +121,6 @@ export function useProjectedTerminalSurface(
 			return;
 		}
 		settlePasteReview(false);
-		settleClipboardWriteReview(false);
 		const epoch = ++fileDropEpoch.current;
 		setPresentationFileDropFailure(null);
 		void (async () => {
@@ -265,7 +219,6 @@ export function useProjectedTerminalSurface(
 					reviewPaste,
 					(metadata) => capability.observeTerminalMetadata(presentation.presentationId, metadata),
 					capability.shortcutBindingSource,
-					reviewClipboardWrite,
 					capability.terminalCompletionReminderObserver,
 					capability.inputConfigurationSource,
 					actionRuntime === undefined ||
@@ -288,7 +241,6 @@ export function useProjectedTerminalSurface(
 			cancelled = true;
 			fileDropEpoch.current += 1;
 			settlePasteReview(false);
-			settleClipboardWriteReview(false);
 			if (recoveryController.current?.controller === controller) {
 				recoveryController.current = null;
 			}
@@ -302,9 +254,7 @@ export function useProjectedTerminalSurface(
 		capability,
 		presentation.presentationId,
 		projectable,
-		reviewClipboardWrite,
 		reviewPaste,
-		settleClipboardWriteReview,
 		settlePasteReview,
 	]);
 
@@ -358,11 +308,8 @@ export function useProjectedTerminalSurface(
 		}
 	}
 	return {
-		approveClipboardWrite: () => settleClipboardWriteReview(true),
 		approvePaste: () => settlePasteReview(true),
-		cancelClipboardWrite: () => settleClipboardWriteReview(false),
 		cancelPaste: () => settlePasteReview(false),
-		clipboardWriteRequest,
 		failureMessage,
 		handleFileDragOver,
 		handleFileDrop,

@@ -182,6 +182,198 @@ describe('ProjectedTerminalBroker', () => {
 		});
 	});
 
+	it('serializes Host resizes and replaces queued measurements with the newest geometry', async () => {
+		const bootstrap = {
+			attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
+			canInput: true,
+			canResize: true,
+			capabilityRevision: CanonicalUint64TextSchema.parse('1'),
+			creationId: CreationIdSchema.parse('22'.repeat(16)),
+			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
+			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
+			terminalOutcome: null,
+			theme,
+		};
+		const pendingResizes: Array<{
+			reject: (error: Error) => void;
+			resolve: (value: unknown) => void;
+		}> = [];
+		const requestControl = vi.fn<(...arguments_: unknown[]) => Promise<unknown>>((kind) => {
+			if (kind !== MessageKind.resizeTerminal) {
+				throw new Error(`Unexpected Host request ${String(kind)}`);
+			}
+			return new Promise((resolve, reject) => {
+				pendingResizes.push({ reject, resolve });
+			});
+		});
+		const host = {
+			onAttachmentEnvelope: vi.fn<HostConnection['onAttachmentEnvelope']>(() =>
+				vi.fn<() => void>(),
+			),
+			onClosed: vi.fn<HostConnection['onClosed']>(() => vi.fn<() => void>()),
+			onEnvelope: vi.fn<HostConnection['onEnvelope']>(() => vi.fn<() => void>()),
+			requestControl,
+		} as unknown as HostConnection;
+		const emitter = new EventEmitter();
+		const postMessage = vi.fn<(...arguments_: unknown[]) => void>();
+		const port = Object.assign(emitter, {
+			close: vi.fn<() => void>(),
+			postMessage,
+			start: vi.fn<() => void>(),
+		}) as unknown as MessagePortMain;
+		const broker = new ProjectedTerminalBroker(host, port, bootstrap);
+		broker.start();
+		const sendResize = (columns: number): void => {
+			emitter.emit('message', {
+				data: {
+					kind: 'resize-terminal',
+					payload: {
+						attachmentId: bootstrap.attachmentId,
+						cellPixelHeight: 20,
+						cellPixelWidth: 10,
+						columns,
+						rows: 40,
+					},
+				},
+			});
+		};
+		const acceptResize = (columns: number, revision: string): void => {
+			pendingResizes.at(-1)?.resolve({
+				attachmentId: bootstrap.attachmentId,
+				cellPixelHeight: 20,
+				cellPixelWidth: 10,
+				columns,
+				revision,
+				rows: 40,
+			});
+		};
+
+		sendResize(100);
+		sendResize(101);
+		sendResize(102);
+
+		expect(requestControl).toHaveBeenCalledTimes(1);
+		expect(requestControl).toHaveBeenLastCalledWith(
+			MessageKind.resizeTerminal,
+			expect.objectContaining({ columns: 100 }),
+			expect.anything(),
+		);
+
+		acceptResize(100, '1');
+		await vi.waitFor(() => expect(requestControl).toHaveBeenCalledTimes(2));
+		expect(requestControl).toHaveBeenLastCalledWith(
+			MessageKind.resizeTerminal,
+			expect.objectContaining({ columns: 102 }),
+			expect.anything(),
+		);
+
+		sendResize(103);
+		sendResize(104);
+		expect(requestControl).toHaveBeenCalledTimes(2);
+		pendingResizes.at(-1)?.reject(
+			new HostRequestError({
+				code: 'resize-failed',
+				message: 'PTY resize is temporarily unavailable.',
+				retryable: true,
+			}),
+		);
+
+		await vi.waitFor(() => expect(requestControl).toHaveBeenCalledTimes(3));
+		expect(requestControl).toHaveBeenLastCalledWith(
+			MessageKind.resizeTerminal,
+			expect.objectContaining({ columns: 104 }),
+			expect.anything(),
+		);
+		expect(postMessage).toHaveBeenCalledWith({
+			failure: {
+				code: 'resize-failed',
+				message: 'PTY resize is temporarily unavailable.',
+				operation: 'resize',
+				retryable: true,
+			},
+			kind: 'failure',
+		});
+		expect(broker.metrics.commandsAccepted).toBe(5);
+		acceptResize(104, '3');
+	});
+
+	it('drops a queued resize when attachment cleanup begins', async () => {
+		const bootstrap = {
+			attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
+			canInput: true,
+			canResize: true,
+			capabilityRevision: CanonicalUint64TextSchema.parse('1'),
+			creationId: CreationIdSchema.parse('22'.repeat(16)),
+			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
+			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
+			terminalOutcome: null,
+			theme,
+		};
+		let hostClosed: ((reason: Error) => void) | undefined;
+		let resolveResize: ((value: unknown) => void) | undefined;
+		const requestControl = vi.fn<(...arguments_: unknown[]) => Promise<unknown>>(
+			() =>
+				new Promise((resolve) => {
+					resolveResize = resolve;
+				}),
+		);
+		const host = {
+			onAttachmentEnvelope: vi.fn<HostConnection['onAttachmentEnvelope']>(() =>
+				vi.fn<() => void>(),
+			),
+			onClosed: vi.fn<HostConnection['onClosed']>((listener) => {
+				hostClosed = listener;
+				return vi.fn<() => void>();
+			}),
+			onEnvelope: vi.fn<HostConnection['onEnvelope']>(() => vi.fn<() => void>()),
+			requestControl,
+		} as unknown as HostConnection;
+		const emitter = new EventEmitter();
+		const port = Object.assign(emitter, {
+			close: vi.fn<() => void>(),
+			postMessage: vi.fn<(...arguments_: unknown[]) => void>(),
+			start: vi.fn<() => void>(),
+		}) as unknown as MessagePortMain;
+		const onCleanupRequested = vi.fn<(error: unknown) => void>();
+		const broker = new ProjectedTerminalBroker(host, port, bootstrap, undefined, 'desktop', {
+			onCleanupRequested,
+		});
+		broker.start();
+		const sendResize = (columns: number): void => {
+			emitter.emit('message', {
+				data: {
+					kind: 'resize-terminal',
+					payload: {
+						attachmentId: bootstrap.attachmentId,
+						cellPixelHeight: 20,
+						cellPixelWidth: 10,
+						columns,
+						rows: 40,
+					},
+				},
+			});
+		};
+
+		sendResize(100);
+		sendResize(120);
+		expect(requestControl).toHaveBeenCalledOnce();
+
+		const reason = new Error('Host closed during resize.');
+		hostClosed?.(reason);
+		resolveResize?.({
+			attachmentId: bootstrap.attachmentId,
+			cellPixelHeight: 20,
+			cellPixelWidth: 10,
+			columns: 100,
+			revision: '1',
+			rows: 40,
+		});
+		await new Promise((resolve) => setTimeout(resolve, 0));
+
+		expect(requestControl).toHaveBeenCalledOnce();
+		expect(onCleanupRequested).toHaveBeenCalledExactlyOnceWith(reason);
+	});
+
 	it('publishes live input capability only after an exact Host revision commit', async () => {
 		const bootstrap = {
 			attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
@@ -495,7 +687,7 @@ describe('ProjectedTerminalBroker', () => {
 		});
 	});
 
-	it('commits only the exact pending clipboard request once after renderer approval', async () => {
+	it('commits only the exact pending clipboard request once after a positive renderer decision', async () => {
 		let hostListener: ((envelope: DecodedProtocolEnvelope) => void) | undefined;
 		const host = {
 			onAttachmentEnvelope: vi.fn<HostConnection['onAttachmentEnvelope']>(
@@ -560,7 +752,7 @@ describe('ProjectedTerminalBroker', () => {
 			kind: 'clipboard-write-request',
 		});
 		const forwardedCount = postMessage.mock.calls.length;
-		emitClipboardRequest('6', 'bounded while review is pending');
+		emitClipboardRequest('6', 'bounded while a decision is pending');
 		expect(postMessage).toHaveBeenCalledTimes(forwardedCount);
 
 		sendDecision('5', 'tampered text', true);

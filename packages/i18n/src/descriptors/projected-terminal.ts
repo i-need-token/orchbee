@@ -69,31 +69,6 @@ export const projectedTerminalMessages = defineMessages({
 		defaultMessage: 'Terminal output cleared.',
 		id: 'terminal.projected.clear.completed',
 	},
-	clipboardReviewBytes: {
-		defaultMessage: '{byteLength, number} UTF-8 bytes',
-		id: 'terminal.projected.clipboard.review.bytes',
-	},
-	clipboardReviewCancel: {
-		defaultMessage: 'Keep current clipboard',
-		id: 'terminal.projected.clipboard.review.cancel',
-	},
-	clipboardReviewConfirm: {
-		defaultMessage: 'Copy to clipboard',
-		id: 'terminal.projected.clipboard.review.confirm',
-	},
-	clipboardReviewContent: {
-		defaultMessage: 'Requested clipboard text',
-		id: 'terminal.projected.clipboard.review.content',
-	},
-	clipboardReviewDescription: {
-		defaultMessage:
-			'A program running in this terminal wants to replace your clipboard. Review the exact text before allowing it.',
-		id: 'terminal.projected.clipboard.review.description',
-	},
-	clipboardReviewTitle: {
-		defaultMessage: 'Allow terminal clipboard write?',
-		id: 'terminal.projected.clipboard.review.title',
-	},
 	clipboardWriteFailed: {
 		defaultMessage: 'The terminal text could not be written to the clipboard.',
 		id: 'terminal.projected.clipboard.writeFailed',
