@@ -1,4 +1,13 @@
-import { Button, Input, ProductIcon, Toggle } from '@orchbee/ui/components';
+import {
+	Button,
+	Input,
+	Kbd,
+	ProductIcon,
+	Toggle,
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from '@orchbee/ui/components';
 import type * as React from 'react';
 
 import { useTerminalFindSurface } from './hooks/useTerminalFindSurface';
@@ -24,11 +33,10 @@ export function TerminalFindSurface(props: TerminalFindSurfaceProps): React.Reac
 			onKeyDown={view.onSurfaceKeyDown}
 			role='search'
 		>
-			<div className={styles['controls']}>
-				<ProductIcon name='search' />
+			<div className={styles['queryField']} data-slot='terminal-find-query'>
 				<Input
-					aria-describedby='projected-terminal-find-status'
-					aria-invalid={view.snapshot.searchState === 'error'}
+					aria-describedby={view.statusId}
+					aria-invalid={view.snapshot.searchErrorKind === 'invalid-query'}
 					aria-label={view.findLabel}
 					className={styles['input']}
 					onChange={view.onInputChange}
@@ -37,61 +45,147 @@ export function TerminalFindSurface(props: TerminalFindSurfaceProps): React.Reac
 					ref={view.inputReference}
 					value={view.snapshot.query}
 				/>
-				<Toggle
-					aria-label={view.caseSensitiveLabel}
-					aria-pressed={view.snapshot.caseSensitive}
-					onPressedChange={view.onCaseSensitiveChange}
-					size='sm'
-					variant='outline'
-				>
-					Aa
-				</Toggle>
-				<Toggle
-					aria-label={view.wholeWordLabel}
-					aria-pressed={view.snapshot.wholeWord}
-					onPressedChange={view.onWholeWordChange}
-					size='sm'
-					variant='outline'
-				>
-					W
-				</Toggle>
-				<Toggle
-					aria-label={view.regexLabel}
-					aria-pressed={view.snapshot.regex}
-					onPressedChange={view.onRegexChange}
-					size='sm'
-					variant='outline'
-				>
-					.*
-				</Toggle>
-				<Button
-					aria-label={view.previousLabel}
-					disabled={view.snapshot.resultCount === 0}
-					onClick={view.onPrevious}
-					size='icon-sm'
-					variant='ghost'
-				>
-					<ProductIcon name='arrow-left' />
-				</Button>
-				<Button
-					aria-label={view.nextLabel}
-					disabled={view.snapshot.resultCount === 0}
-					onClick={view.onNext}
-					size='icon-sm'
-					variant='ghost'
-				>
-					<ProductIcon name='chevron-right' />
-				</Button>
-				<Button aria-label={view.closeLabel} onClick={view.onClose} size='icon-sm' variant='ghost'>
-					<ProductIcon name='close' />
-				</Button>
+				<div className={styles['optionControls']} onKeyDown={view.onOptionControlsKeyDown}>
+					<Tooltip>
+						<TooltipTrigger
+							render={
+								<Toggle
+									aria-label={view.caseSensitiveLabel}
+									className={styles['option']}
+									onPressedChange={(pressed, details) =>
+										view.onCaseSensitiveChange(pressed, details.event)
+									}
+									pressed={view.snapshot.caseSensitive}
+									size='sm'
+									variant='default'
+								/>
+							}
+						>
+							Aa
+						</TooltipTrigger>
+						<TooltipContent side='bottom'>{view.caseSensitiveLabel}</TooltipContent>
+					</Tooltip>
+					<Tooltip>
+						<TooltipTrigger
+							render={
+								<Toggle
+									aria-label={view.wholeWordLabel}
+									className={styles['option']}
+									onPressedChange={(pressed, details) =>
+										view.onWholeWordChange(pressed, details.event)
+									}
+									pressed={view.snapshot.wholeWord}
+									size='sm'
+									variant='default'
+								/>
+							}
+						>
+							W
+						</TooltipTrigger>
+						<TooltipContent side='bottom'>{view.wholeWordLabel}</TooltipContent>
+					</Tooltip>
+					<Tooltip>
+						<TooltipTrigger
+							render={
+								<Toggle
+									aria-label={view.regexLabel}
+									className={styles['option']}
+									onPressedChange={(pressed, details) => view.onRegexChange(pressed, details.event)}
+									pressed={view.snapshot.regex}
+									size='sm'
+									variant='default'
+								/>
+							}
+						>
+							.*
+						</TooltipTrigger>
+						<TooltipContent side='bottom'>{view.regexLabel}</TooltipContent>
+					</Tooltip>
+				</div>
 			</div>
-			<p
-				aria-live='polite'
-				className={styles['status']}
-				id='projected-terminal-find-status'
-				role='status'
-			>
+			{view.compactStatusText === null ? null : (
+				<span
+					aria-hidden='true'
+					className={styles['resultCount']}
+					data-slot='terminal-find-result-count'
+				>
+					{view.compactStatusText}
+				</span>
+			)}
+			<div className={styles['actions']}>
+				<Tooltip>
+					<TooltipTrigger
+						render={
+							<Button
+								aria-label={view.previousLabel}
+								className={styles['action']}
+								disabled={view.snapshot.resultCount === 0}
+								onClick={view.onPrevious}
+								size='icon-xs'
+								variant='ghost'
+							/>
+						}
+					>
+						<span className={styles['previousIcon']}>
+							<ProductIcon name='arrow-down' />
+						</span>
+					</TooltipTrigger>
+					<TooltipContent side='bottom'>
+						{view.previousLabel}
+						<Kbd>⇧↵</Kbd>
+					</TooltipContent>
+				</Tooltip>
+				<Tooltip>
+					<TooltipTrigger
+						render={
+							<Button
+								aria-label={view.nextLabel}
+								className={styles['action']}
+								disabled={view.snapshot.resultCount === 0}
+								onClick={view.onNext}
+								size='icon-xs'
+								variant='ghost'
+							/>
+						}
+					>
+						<ProductIcon name='arrow-down' />
+					</TooltipTrigger>
+					<TooltipContent side='bottom'>
+						{view.nextLabel}
+						<Kbd>↵</Kbd>
+					</TooltipContent>
+				</Tooltip>
+				<Tooltip>
+					<TooltipTrigger
+						render={
+							<Button
+								aria-label={view.closeLabel}
+								className={styles['action']}
+								onClick={view.onClose}
+								size='icon-xs'
+								variant='ghost'
+							/>
+						}
+					>
+						<ProductIcon name='close' />
+					</TooltipTrigger>
+					<TooltipContent side='bottom'>
+						{view.closeLabel}
+						<Kbd>Esc</Kbd>
+					</TooltipContent>
+				</Tooltip>
+			</div>
+			{view.messageStatusText === null ? null : (
+				<p
+					aria-hidden='true'
+					className={styles['message']}
+					data-slot='terminal-find-message'
+					data-tone={view.snapshot.searchState === 'error' ? 'danger' : 'muted'}
+				>
+					{view.messageStatusText}
+				</p>
+			)}
+			<p aria-live='polite' className={styles['liveRegion']} id={view.statusId} role='status'>
 				{view.statusText}
 			</p>
 		</section>

@@ -1034,6 +1034,22 @@ describe('startProjectedTerminalRenderer', () => {
 			liveTransport.emitMessage({ failure: historyFailure, kind: 'failure' });
 			expect(notifyBrokerFailure).toHaveBeenLastCalledWith(historyFailure);
 			expect(liveElements.additionalStatus).toMatchObject({ hidden: true, textContent: null });
+			const inputFailure = {
+				code: 'input-acknowledgement-unavailable',
+				message: 'The input acknowledgement was unavailable.',
+				operation: 'input' as const,
+				requestSequence: '14',
+				retryable: false,
+			};
+			liveTransport.emitMessage({ failure: inputFailure, kind: 'failure' });
+			expect(notifyBrokerFailure).toHaveBeenLastCalledWith(inputFailure);
+			expect(liveElements.additionalRoot.dataset).toMatchObject({
+				projectedTerminalFailureCode: 'input-acknowledgement-unavailable',
+				projectedTerminalFailureOperation: 'input',
+				projectedTerminalFailureRequestSequence: '14',
+				projectedTerminalFailureRetryable: 'false',
+			});
+			expect(liveElements.additionalStatus).toMatchObject({ hidden: true, textContent: null });
 			const directActionFailure = {
 				code: 'control-rejected',
 				message: 'Control failed.',

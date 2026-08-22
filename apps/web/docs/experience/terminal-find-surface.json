@@ -4,7 +4,7 @@
 	"kind": "business",
 	"status": "canonical",
 	"name": "Projected Terminal Find Surface",
-	"description": "Provides bounded, keyboard-first search of retained content for one projected terminal client.",
+	"description": "Provides compact, bounded, keyboard-first search of retained content for one projected terminal client.",
 	"owner": "@orchbee/web",
 	"visibility": "private",
 	"intents": ["search-terminal", "navigate-terminal-match"],
@@ -15,9 +15,15 @@
 			"file": "apps/web/stories/terminal-find-surface.stories.tsx",
 			"id": "applications-web-projected-terminal-find-surface--match-results",
 			"states": [
-				"Inspect deterministic completed, searching, and invalid-expression states with localized status output.",
-				"Use the query field, option toggles, match navigation controls, and Escape close behavior entirely by keyboard."
+				"Inspect deterministic compact result, searching, and expanded invalid-expression states with localized status output.",
+				"Use the selection-seeded query field, embedded option toggles, match navigation controls, repeated-open selection, and Escape focus restoration entirely by keyboard."
 			]
+		},
+		{
+			"exportName": "NoMatches",
+			"file": "apps/web/stories/terminal-find-surface.stories.tsx",
+			"id": "applications-web-projected-terminal-find-surface--no-matches",
+			"states": ["Inspect the compact zero-result count without an unnecessary second status row."]
 		}
 	],
 	"uses": [],
@@ -30,6 +36,9 @@
 	"invariants": [
 		"Opening the surface does not create a search Worker until a non-empty query survives the debounce.",
 		"Search status never exposes raw terminal content or engine error text as product-facing copy.",
+		"Ordinary progress stays in the compact toolbar while actionable errors and retained-history notices remain fully visible.",
+		"Opening from an active selection seeds and selects its bounded preview; repeated open selects the current query again.",
+		"Left and Right Arrow move among embedded option toggles, while pointer option changes restore query focus.",
 		"Closing the surface restores terminal focus and discards no more than twenty in-memory query-history entries."
 	],
 	"references": ["apps/web/README.md"]

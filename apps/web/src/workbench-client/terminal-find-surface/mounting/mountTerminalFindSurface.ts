@@ -1,4 +1,5 @@
 import { OrchbeeI18nProvider, type OrchbeeLocale } from '@orchbee/i18n';
+import { TooltipProvider } from '@orchbee/ui/components';
 import { createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 
@@ -31,12 +32,16 @@ export function mountTerminalFindSurface({
 		createElement(
 			OrchbeeI18nProvider,
 			{ locale },
-			createElement(TerminalFindSurface, {
-				controller,
-				onNext,
-				onPrevious,
-				restoreFocus,
-			}),
+			createElement(
+				TooltipProvider,
+				undefined,
+				createElement(TerminalFindSurface, {
+					controller,
+					onNext,
+					onPrevious,
+					restoreFocus,
+				}),
+			),
 		),
 	);
 	return { dispose: () => reactRoot.unmount() };

@@ -37,10 +37,11 @@ and after its first-frame wait.
 
 An attachment feature failure remains distinct from transport loss and terminal outcome. The shared
 surface retains its operation, code, retryability, Host correlation ID or client request sequence as
-bounded diagnostics and applies the matching Terminal consequence. Background history and resize
-failures never create a global terminal-content notice: history feedback belongs to the find
-surface, while resize remains in its bounded retry and diagnostic path. Connection, runtime, and
-direct user-action failures retain localized visible feedback. The application does not
+bounded diagnostics and applies the matching Terminal consequence. Background input acknowledgement,
+history, and resize failures never create a global terminal-content notice: rejected input remains in
+the bounded diagnostic and required transport-recovery paths, history feedback belongs to the find
+surface, and resize remains in its bounded retry and diagnostic path. Connection, runtime, and
+explicit user-action failures retain localized visible feedback. The application does not
 automatically replay terminal input, control, clipboard, or navigation effects.
 
 The shared adapter exposes the last completed draw checkpoint as
@@ -59,9 +60,14 @@ its find surface, so moving between them does not publish a terminal focus trans
 Each attachment publishes only its own focus claim and projection demand. Terminal Host combines
 eligible claims for a shared terminal, so one attachment losing focus or visibility cannot emit a
 terminal-wide `FocusOut` while another eligible claim remains; reactivation requires a fresh claim.
-Opening that find surface seeds an empty or retained query from the bounded preview of an active
-Host selection when one is available; search-owned active ranges remain authoritative Host
-selections rather than a second application selection model.
+Opening that compact find surface seeds an empty or retained query from the bounded preview of an
+active Host selection when one is available; search-owned active ranges remain authoritative Host
+selections rather than a second application selection model. Opening or explicitly reopening Find
+focuses and selects the complete query, while Escape from any find control closes the surface and
+restores terminal focus. Match options live inside the query field, ordinary search progress uses an
+inline localized count, Left and Right Arrow move between option toggles, and pointer option changes
+return focus to the query. Only actionable failures, timeouts, or retained-history notices expand the
+toolbar with complete localized feedback.
 
 After a projected frame commits, the renderer forwards its complete nullable title,
 current-directory metadata, and transient `idle`/`active`/`unknown` close activity with the exact

@@ -8,6 +8,7 @@ import {
 } from '../src/workbench-client/terminal-find-surface';
 
 const completedController = createController('agent', 'complete');
+const noMatchesController = createController('missing', 'complete', false);
 const searchingController = createController('orchestration', 'searching');
 const invalidController = createController('[agent', 'error');
 
@@ -44,6 +45,13 @@ export const Searching: Story = {
 	},
 };
 
+export const NoMatches: Story = {
+	args: {
+		...MatchResults.args,
+		controller: noMatchesController,
+	},
+};
+
 export const InvalidExpression: Story = {
 	args: {
 		...MatchResults.args,
@@ -54,6 +62,7 @@ export const InvalidExpression: Story = {
 function createController(
 	query: string,
 	state: ProjectedTerminalSearchEvent['state'],
+	includeMatches = true,
 ): TerminalFindController {
 	const controller = new TerminalFindController({
 		clearSearch: () => undefined,
@@ -62,7 +71,7 @@ function createController(
 	controller.open();
 	controller.setQuery(query);
 	const matches =
-		state === 'complete'
+		state === 'complete' && includeMatches
 			? [
 					{
 						end: { column: 9, row: 42 },
@@ -78,7 +87,7 @@ function createController(
 			: [];
 	controller.applySearchEvent({
 		activeMatch: matches[1] ?? null,
-		activeIndex: state === 'complete' ? 1 : -1,
+		activeIndex: matches.length > 0 ? 1 : -1,
 		errorKind: state === 'error' ? 'invalid-query' : null,
 		generation: 1n,
 		matches,
