@@ -33,6 +33,7 @@ The control endpoint is `/v1/control`; the attachment endpoint is `/v1/attachmen
 | Disconnect     | Closing a page control channel retires that page session and its attachments without changing shared topology or terminal lifetime.                                                             |
 | Backpressure   | A bounded attachment queue admits one maximum-size valid frame when empty and retires only the exact attachment on overflow. Reopening projection creates a fresh attachment and full snapshot. |
 | Cardinality    | No product count ceiling exists for pages, terminals, or attachments. Byte and buffered-transport limits reject the affected message or connection instead of evicting another client.          |
+| Liveness       | Every accepted socket has a 10-second authentication deadline. Authenticated sockets are pinged every 30 seconds and terminated after one unanswered interval.                                  |
 
 Protocol `1.2` retains a projection request mapping after release until Desktop returns its correlated
 release acknowledgement or cleanup failure. This lets the Gateway forward delayed cleanup results
@@ -43,9 +44,9 @@ The nested Workbench projection-open command carries the visual surface's comple
 and geometry match the retained request; changed geometry is conflicting control traffic. Gateway
 forwards the value unchanged and never supplies a startup default.
 
-The page lifecycle is `awaiting-authentication -> opening-client -> active -> closed`. Authentication is the only transition that may request Desktop page ports. A late port bundle for a closed page is disposed. Attachment registration follows `registered -> authenticated -> retired`; it cannot be resumed or rebound. Gateway shutdown terminates sockets that are still awaiting attachment authentication.
+The page lifecycle is `awaiting-authentication -> opening-client -> active -> closed`. Authentication is the only transition that may request Desktop page ports. A late port bundle for a closed page is disposed. Attachment registration follows `registered -> authenticated -> retired`; it cannot be resumed or rebound. Control and attachment sockets that miss the authentication deadline are terminated without authority. Every authenticated socket participates in the same ping/pong heartbeat, and one missed pong terminates only that socket. Gateway shutdown terminates sockets in every phase and clears all owned timers.
 
-This protocol is a transport refinement of the existing Desktop multi-client session and demand attachment models. It adds no new product lifecycle state or canonical document transition, so no separate TLA+ model is authoritative for this package. Deterministic lifecycle traces, strict codec tests, and the real Electron-plus-two-Browser system trace provide the transport evidence.
+This protocol is a transport refinement of the existing Desktop multi-client session and demand attachment models. It adds no new product lifecycle state or canonical document transition. `apps/gateway/formal/tla/GatewayTransportLifecycle.tla` is authoritative only for the bounded listener-cancellation, authentication-deadline, and heartbeat refinement. Deterministic lifecycle traces, strict codec tests, and the real Electron-plus-two-Browser system trace provide the concrete transport evidence.
 
 ## Verification
 

@@ -1,11 +1,13 @@
 import {
 	encodeGatewayControlClientMessage,
+	GATEWAY_LIMITS,
 	GatewayControlClientMessageSchema,
 	GatewayDesktopCommandSchema,
 	GatewayUtilityEventSchema,
 	type GatewayUtilityEvent,
 } from '@orchbee/gateway-protocol';
-import { afterEach, describe, expect, it } from 'vitest';
+import { createServer, type Server } from 'node:http';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { WebSocket } from 'ws';
 
 import {
@@ -23,6 +25,8 @@ let gateway: LocalDevelopmentBrowserGateway | undefined;
 afterEach(async () => {
 	await gateway?.dispose();
 	gateway = undefined;
+	vi.useRealTimers();
+	vi.restoreAllMocks();
 });
 
 describe('LocalDevelopmentBrowserGateway', () => {
@@ -129,6 +133,131 @@ describe('LocalDevelopmentBrowserGateway', () => {
 
 		expect(attachment.readyState).toBe(WebSocket.CLOSED);
 		expect(parent.events.at(-1)).toEqual({ type: 'gateway-stopped' });
+	});
+
+	it('does not leave a late listener bound when the Gateway is immediately disposed', async () => {
+		const parent = new FakeParentPort();
+		let server: Server | undefined;
+		gateway = new LocalDevelopmentBrowserGateway(parent, (requestListener) => {
+			server = createServer(requestListener);
+			return server;
+		});
+		gateway.start();
+		parent.emit(
+			GatewayDesktopCommandSchema.parse({
+				allowedOrigins: [allowedOrigin],
+				bindHost: '127.0.0.1',
+				capability,
+				type: 'gateway-start',
+			}),
+		);
+
+		await gateway.dispose();
+		await new Promise((resolve) => setTimeout(resolve, 20));
+
+		try {
+			expect(server?.listening).toBe(false);
+			expect(parent.events).toEqual([{ type: 'gateway-stopped' }]);
+		} finally {
+			if (server?.listening) await new Promise<void>((resolve) => server?.close(() => resolve()));
+		}
+	});
+
+	it('reports a runtime HTTP server error and stops instead of throwing it uncaught', async () => {
+		const parent = new FakeParentPort();
+		let server: Server | undefined;
+		gateway = new LocalDevelopmentBrowserGateway(parent, (requestListener) => {
+			server = createServer(requestListener);
+			return server;
+		});
+		gateway.start();
+		parent.emit(
+			GatewayDesktopCommandSchema.parse({
+				allowedOrigins: [allowedOrigin],
+				bindHost: '127.0.0.1',
+				capability,
+				type: 'gateway-start',
+			}),
+		);
+		await parent.waitFor((event) => event.type === 'gateway-listening');
+		if (server === undefined) throw new Error('Gateway HTTP server was not created.');
+
+		server.emit('error', new Error('runtime failure'));
+
+		await parent.waitFor((event) => event.type === 'gateway-stopped');
+		expect(parent.events).toContainEqual({ code: 'listen-failed', type: 'gateway-failed' });
+	});
+
+	it('terminates a control socket that misses the authentication deadline', async () => {
+		const parent = new FakeParentPort();
+		gateway = new LocalDevelopmentBrowserGateway(parent);
+		gateway.start();
+		parent.emit(
+			GatewayDesktopCommandSchema.parse({
+				allowedOrigins: [allowedOrigin],
+				bindHost: '127.0.0.1',
+				capability,
+				type: 'gateway-start',
+			}),
+		);
+		const listening = await parent.waitFor((event) => event.type === 'gateway-listening');
+		if (listening.type !== 'gateway-listening') throw new Error('Gateway did not listen.');
+		vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+		const socket = await openWebSocket(
+			`ws://127.0.0.1:${listening.port}/v1/control`,
+			allowedOrigin,
+		);
+		const closed = waitForClose(socket);
+
+		await vi.advanceTimersByTimeAsync(GATEWAY_LIMITS.authenticationTimeoutMilliseconds);
+		await closed;
+
+		expect(
+			parent.events.filter((event) => event.type === 'gateway-client-open-requested'),
+		).toHaveLength(0);
+	});
+
+	it('terminates an authenticated socket after one unanswered heartbeat interval', async () => {
+		vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+		const parent = new FakeParentPort();
+		gateway = new LocalDevelopmentBrowserGateway(parent);
+		gateway.start();
+		parent.emit(
+			GatewayDesktopCommandSchema.parse({
+				allowedOrigins: [allowedOrigin],
+				bindHost: '127.0.0.1',
+				capability,
+				type: 'gateway-start',
+			}),
+		);
+		const listening = await parent.waitFor((event) => event.type === 'gateway-listening');
+		if (listening.type !== 'gateway-listening') throw new Error('Gateway did not listen.');
+		const socket = await openWebSocket(
+			`ws://127.0.0.1:${listening.port}/v1/control`,
+			allowedOrigin,
+		);
+		socket.send(
+			encodeGatewayControlClientMessage(
+				GatewayControlClientMessageSchema.parse({
+					capability,
+					protocolVersion: '1.2',
+					type: 'gateway-control-authenticate',
+				}),
+			),
+		);
+		await parent.waitFor((event) => event.type === 'gateway-client-open-requested');
+		const transport = Reflect.get(socket, '_socket') as
+			| { pause(): void; resume(): void }
+			| undefined;
+		if (transport === undefined) throw new Error('WebSocket transport is unavailable.');
+		transport.pause();
+		const closed = waitForClose(socket);
+
+		await vi.advanceTimersByTimeAsync(GATEWAY_LIMITS.heartbeatIntervalMilliseconds * 2);
+		transport.resume();
+		await closed;
+
+		expect(socket.readyState).toBe(WebSocket.CLOSED);
 	});
 });
 

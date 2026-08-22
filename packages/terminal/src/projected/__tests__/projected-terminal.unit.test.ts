@@ -401,6 +401,41 @@ function renderRowWindow(
 	return encoded.value;
 }
 
+function encodedTextRowWindow(
+	sequence: bigint,
+	revision: bigint,
+	startRow: bigint,
+	totalRows: bigint,
+	text: readonly string[],
+): Uint8Array {
+	const encoded = encodeTerminalRowWindow({
+		attachmentId,
+		columns: 2,
+		detail: TerminalRowWindowDetail.text,
+		generation: 1n,
+		hostEpoch,
+		revision,
+		rows: text.map((value, index) => ({
+			index: startRow + BigInt(index),
+			mappings: [...value].map((_character, column) => ({
+				byteOffset: column,
+				column,
+				utf16Offset: column,
+				width: 1,
+			})),
+			promptClass: RowPromptClass.none,
+			text: value,
+			wrap: false,
+			wrapContinuation: false,
+		})),
+		sequence,
+		startRow,
+		totalRows,
+	});
+	if (!encoded.ok) throw new Error(encoded.detail);
+	return encoded.value;
+}
+
 function searchWorkerWithMatch(
 	row: number,
 	onStart?: (
@@ -5590,6 +5625,100 @@ describe('ProjectedTerminal', () => {
 			expect.arrayContaining([expect.objectContaining({ kind: 'rows-applied' })]),
 		);
 		terminal.dispose();
+	});
+
+	it('settles viewport, search, and buffer row lanes independently in response order', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(terminalFrame('snapshot', 1n, 42n, ['a', 'b'], null, [0, 1], 10n));
+		commands.length = 0;
+		const searchRows = terminal.readBufferRows(
+			{
+				detail: 'text',
+				generation: 1n,
+				maximumBytes: PROTOCOL_LIMITS.maxRowWindowBytes,
+				purpose: 'search',
+				revision: 42n,
+				rowCount: 1,
+				startRow: 0n,
+			},
+			new AbortController().signal,
+		);
+		const bufferRows = terminal.readBufferRows(
+			{
+				detail: 'text',
+				generation: 1n,
+				maximumBytes: PROTOCOL_LIMITS.maxRowWindowBytes,
+				purpose: 'buffer',
+				revision: 42n,
+				rowCount: 1,
+				startRow: 1n,
+			},
+			new AbortController().signal,
+		);
+		terminal.scrollLines(-1);
+
+		try {
+			const reads = commands.filter((command) => command.kind === 'read-rows');
+			expect(reads.map((command) => command.payload.purpose)).toEqual([
+				'search',
+				'buffer',
+				'viewport',
+			]);
+			const searchRead = reads[0];
+			const bufferRead = reads[1];
+			const viewportRead = reads[2];
+			if (
+				searchRead?.kind !== 'read-rows' ||
+				bufferRead?.kind !== 'read-rows' ||
+				viewportRead?.kind !== 'read-rows' ||
+				viewportRead.payload.origin.kind !== 'absolute'
+			) {
+				throw new Error('three row lanes were not admitted');
+			}
+			expect(
+				terminal.applyRows(
+					encodedTextRowWindow(BigInt(bufferRead.payload.requestSequence), 42n, 1n, 12n, ['b']),
+				),
+			).toBe('committed');
+			const viewportStart = BigInt(viewportRead.payload.origin.row);
+			expect(
+				terminal.applyRows(
+					renderRowWindow(
+						BigInt(viewportRead.payload.requestSequence),
+						42n,
+						viewportStart,
+						12n,
+						Array.from({ length: viewportRead.payload.rowCount }, () => 'view'),
+					),
+				),
+			).toBe('committed');
+			expect(
+				terminal.applyRows(
+					encodedTextRowWindow(BigInt(searchRead.payload.requestSequence), 42n, 0n, 12n, ['s']),
+				),
+			).toBe('committed');
+			await expect(bufferRows).resolves.toMatchObject({ kind: 'rows', startRow: 1n });
+			await expect(searchRows).resolves.toMatchObject({ kind: 'rows', startRow: 0n });
+		} finally {
+			terminal.dispose();
+		}
 	});
 
 	it('settles a stale buffer read without surfacing a history failure', async () => {

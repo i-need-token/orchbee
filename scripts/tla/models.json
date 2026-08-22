@@ -434,6 +434,30 @@
 			]
 		},
 		{
+			"id": "gateway-transport-lifecycle",
+			"owner": "@orchbee/gateway",
+			"workspace": "apps/gateway",
+			"module": "apps/gateway/formal/tla/GatewayTransportLifecycle.tla",
+			"config": "apps/gateway/formal/tla/GatewayTransportLifecycle.cfg",
+			"claims": ["apps/gateway/README.md", "packages/gateway-protocol/README.md"],
+			"triggers": ["apps/gateway/src/**", "packages/gateway-protocol/src/**"],
+			"requiredCoverage": [
+				"BeginListen",
+				"ListenSucceeds",
+				"ListenFails",
+				"DisposeDuringListen",
+				"AcceptSocket",
+				"Authenticate",
+				"AuthenticationTimeout",
+				"SendPing",
+				"ReceivePong",
+				"MissPong",
+				"CloseSocket",
+				"RuntimeServerError",
+				"DisposeActive"
+			]
+		},
+		{
 			"id": "terminal-close-activity-freshness",
 			"owner": "@orchbee/terminal-host",
 			"workspace": "apps/terminal-host",
@@ -963,6 +987,29 @@
 				"PreparationCompletes",
 				"PreparationFails",
 				"Commit",
+				"Dispose"
+			]
+		},
+		{
+			"id": "terminal-row-flight-coordination",
+			"owner": "@orchbee/terminal",
+			"workspace": "packages/terminal",
+			"module": "packages/terminal/formal/tla/TerminalRowFlightCoordination.tla",
+			"config": "packages/terminal/formal/tla/TerminalRowFlightCoordination.cfg",
+			"claims": ["packages/terminal/formal/README.md", "packages/terminal/README.md"],
+			"triggers": ["packages/terminal/src/**"],
+			"requiredCoverage": [
+				"CoverageAdmitViewport",
+				"CoverageAdmitSearch",
+				"CoverageAdmitBuffer",
+				"CoverageResolveViewport",
+				"CoverageResolveSearch",
+				"CoverageResolveBuffer",
+				"CoverageFailViewport",
+				"CoverageFailSearch",
+				"CoverageFailBuffer",
+				"CoverageAbortSearch",
+				"CoverageAbortBuffer",
 				"Dispose"
 			]
 		},

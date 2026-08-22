@@ -53,6 +53,19 @@ TLC 配置检查两个有序请求以及全部十个已发布字段的标识。�
 
 `focused` 与 `needsFocusOut` 区分仍聚焦的修复和已经失焦的修复。处置可以从已完成的焦点修复阶段开始，无需先重新开放输入，这与 focus-out 回调中请求的同步处置一致。单独的待处置路径会在较早的释放回调中立即关闭准入，把任何必要的 focus-out 加入已持有的清理，并仅在清理后完成处置。若 reset 持有事务时焦点修复到达，reset 后果会变为条件式 focus-out；仅执行 reset 则保留焦点。DOM 焦点被保留、但失效生成未发布焦点时，重新开放 reset 修复会在新生成中启动焦点协调。弱公平性只适用于已经启动的同步发送完成与修复后果阶段、建立准入关闭、有序清理尝试推进、待处理 focus-out 结算及处置完成；它不假设发送成功、浏览器结算到达、已取消审核完成或过时延续运行。关联集合为每类来源抽象一个可替换记录。具体文本标识与严格的 99/100 毫秒边界由纯 TypeScript 测试负责。测试会严格解析并重放固定成熟跟踪中的 record/check 字段；该跟踪的版本见 [`../docs/input-repair-conformance-v0.0.1.json`](../docs/input-repair-conformance-v0.0.1.json)。有界面 `terminal-parity/IN-02-composition` 见证使用合成的 `CompositionEvent`/`InputEvent` 实例驱动真实 `ProjectedTerminal` DOM 与 Canvas 适配器。它证明应用层浏览器适配器和完整 Canvas 帧，而不是原生操作系统 IME 候选窗口 UI。
 
+## 行读取飞行协调
+
+`tla/TerminalRowFlightCoordination.tla` 对独立排序的视口、搜索和通用缓冲区行读取通道建模。每个通道最多接纳一个请求，三个通道可以共存，按请求序列关联的响应只会结算其所属通道。中止只作用于搜索或通用缓冲区工作；处置会关闭所有通道。检查边界允许每个通道连续接纳两个请求，因此除首次接纳外也覆盖结算后的复用。
+
+| 行读取飞行声明                 | 模型属性                                                            | TypeScript 细化                                                            |
+| ------------------------------ | ------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| 每种用途保持单飞行             | `AtMostOneFlightPerLane`、`AtMostThreeFlights`                      | `ProjectedTerminal` 分别保存一个视口、搜索和通用缓冲区飞行，总上限为三个。 |
+| 独立排序的响应不能串到其他通道 | `InFlightSequencesAreDistinct`、`CrossLaneSettlementIsolation`      | `applyRows` 先按解码后的请求序列选择精确通道，再结算或应用结果。           |
+| 中止不能取消其他用途           | `CrossLaneSettlementIsolation`、`SettledFlightHasExactlyOneOutcome` | 每个辅助中止监听器捕获其通道和请求序列；视口意图绝不会取消它。             |
+| 处置与正常完成都会推进         | `DisposalClosesEveryLane`、`EveryAdmittedFlightEventuallySettles`   | 处置会结算辅助调用方并丢弃视口权限；否则由关联响应完成结算。               |
+
+弱公平性只应用于已准入的关联响应。模型不假设 Host 响应期限、传输交付或三个通道之间的特定顺序；具体的过时生成、字节上限和渲染行为仍由 TypeScript 测试覆盖。
+
 ## 原生输入结算
 
 `tla/TerminalNativeInputSettlement.tla` 负责短暂的原生文本结算窗口，该窗口与 `TerminalInputRepair.tla` 中的输入法组合结算分开。模型探索两个连续获准的请求，并独立排列文本区域值变更、重复入队尝试、后备合并、input 事件延迟、计时器触发、组合开始/结束、修复/重新开放与处置。它还把后续 Host 定向输入表示为发布转换；当前原生请求得到最终结果之前，该转换保持禁用。
@@ -75,7 +88,7 @@ TLC 配置检查两个有序请求以及全部十个已发布字段的标识。�
 pnpm --filter @orchbee/terminal test:tla
 ```
 
-共享仓库运行器让呈现配置模型与原生输入结算模型各执行一次，并让输入修复模型覆盖九个固定语义场景：组合、按键、鼠标、焦点、审核按键、审核鼠标、审核焦点、审核组合和生命周期。`review-composition` 组合停滞审核、排队焦点、reset 失效、刻意失败的首次新生成焦点协调、被阻止的组合发布尝试、成功的协调重试及后续组合发布。`InputPublicationReady` 只守卫 Host 定向发布；组合开始、更新、取消、结束结算和丢弃过时延续仍是本地调度器操作，不要求 Host 焦点收敛。
+共享仓库运行器让呈现配置、行读取飞行和原生输入结算模型各执行一次，并让输入修复模型覆盖九个固定语义场景：组合、按键、鼠标、焦点、审核按键、审核鼠标、审核焦点、审核组合和生命周期。`review-composition` 组合停滞审核、排队焦点、reset 失效、刻意失败的首次新生成焦点协调、被阻止的组合发布尝试、成功的协调重试及后续组合发布。`InputPublicationReady` 只守卫 Host 定向发布；组合开始、更新、取消、结束结算和丢弃过时延续仍是本地调度器操作，不要求 Host 焦点收敛。
 
 [`../../../scripts/tla/models.json`](../../../scripts/tla/models.json) 是执行清单。运行器以 SHA-256 固定 `tla2tools 1.7.4`，每次运行使用一个 worker、零指纹多项式、显式超时、Action 覆盖率，以及根目录下已忽略 `.tools` 中的唯一元数据目录。变体配置与模型副本仅为临时文件，并在 `finally` 中删除。每项完成的检查都会发出一条 `TLA_RESULT` 记录，其中包含模型/配置摘要、持续时间、生成状态数、不同状态数、剩余队列及深度。稳定的具名覆盖条目必须存在，并在已注册变体中具有非零计数；源码行号不是证据。可以把 `ORCHBEE_TLA2TOOLS_JAR` 指向已配置且摘要匹配的 jar，也可以让运行器配置仓库根目录下已忽略的副本。
 

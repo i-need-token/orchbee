@@ -864,6 +864,46 @@ describe('projected terminal renderer', () => {
 		renderer.dispose();
 	});
 
+	it('stabilizes an integer Canvas backing store at a fractional device-pixel ratio', async () => {
+		vi.stubGlobal('window', { devicePixelRatio: 1.5 });
+		vi.stubGlobal('navigator', {});
+		vi.stubGlobal('document', { createElement: () => createCanvas() });
+		const canvas = createCanvas();
+		let backingWidth = 0;
+		let backingHeight = 0;
+		Object.defineProperties(canvas, {
+			height: {
+				configurable: true,
+				get: () => backingHeight,
+				set: (value: number) => {
+					backingHeight = Math.trunc(value);
+				},
+			},
+			width: {
+				configurable: true,
+				get: () => backingWidth,
+				set: (value: number) => {
+					backingWidth = Math.trunc(value);
+				},
+			},
+		});
+		const renderer = new WebGPURenderer(canvas, { devicePixelRatio: 1.5 });
+		const telemetry = vi.fn<(frame: RendererFrameTelemetry) => void>();
+		renderer.setFrameTelemetryCallback(telemetry);
+		await renderer.initGPU();
+		const source = createPackedSource(['AB']);
+
+		renderer.renderPacked(source);
+		expect([canvas.width, canvas.height]).toEqual([24, 26]);
+		telemetry.mockClear();
+		renderer.renderPacked(source);
+
+		expect(telemetry).toHaveBeenCalledWith(
+			expect.objectContaining({ cellsVisited: 0, forceAll: false, rowsRendered: 0 }),
+		);
+		renderer.dispose();
+	});
+
 	it('keeps the pre-frame Canvas transparent and reuses the latest Host background on resize', async () => {
 		vi.stubGlobal('window', { devicePixelRatio: 1 });
 		vi.stubGlobal('navigator', {});
@@ -1387,6 +1427,31 @@ describe('projected terminal renderer', () => {
 		expect(renderCursorAt(1)).toBe(true);
 		vi.advanceTimersByTime(1);
 		expect(renderCursorAt(1)).toBe(false);
+		renderer.dispose();
+	});
+
+	it('repaints the cursor row when a Canvas cursor becomes hidden', async () => {
+		vi.stubGlobal('window', { devicePixelRatio: 1 });
+		vi.stubGlobal('navigator', {});
+		const clearRect = vi.fn<CanvasRenderingContext2D['clearRect']>();
+		vi.stubGlobal('document', {
+			createElement: () => createCanvas(undefined, {}, undefined, undefined, undefined, clearRect),
+		});
+		const renderer = new WebGPURenderer(
+			createCanvas(undefined, {}, undefined, undefined, undefined, clearRect),
+		);
+		await renderer.initGPU();
+		renderer.setFocused(true);
+		const source = createPackedSource(['AB'], { cursor: { visible: true } });
+		renderer.renderPacked(source);
+		clearRect.mockClear();
+		const metadata = source.metadata;
+		if (metadata === null) throw new Error('packed source metadata is unavailable');
+		Reflect.set(metadata.cursor, 'visible', false);
+
+		renderer.renderPacked(source);
+
+		expect(clearRect).toHaveBeenCalledWith(0, 0, 16, 17);
 		renderer.dispose();
 	});
 

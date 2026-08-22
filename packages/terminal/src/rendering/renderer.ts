@@ -669,6 +669,7 @@ export class WebGPURenderer {
 	private disposed = false;
 	private frozen = false;
 	private lastCursorPosition: { x: number; y: number } = { x: 0, y: 0 };
+	private lastCursorEnabled = false;
 	private preeditCells: readonly PreeditCell[] = [];
 	private preeditSelection: PreeditSelection = { start: 0, end: 0 };
 	private preeditDirty = false;
@@ -1409,14 +1410,16 @@ export class WebGPURenderer {
 		this.renderedRows = rows;
 		const cssWidth = cols * this.metrics.width;
 		const cssHeight = rows * this.metrics.height;
+		const physicalWidth = Math.round(cssWidth * this.devicePixelRatio);
+		const physicalHeight = Math.round(cssHeight * this.devicePixelRatio);
 
 		this.canvas.style.width = `${cssWidth}px`;
 		this.canvas.style.height = `${cssHeight}px`;
 
 		if (this.useWebGPU && this.context) {
 			// WebGPU: canvas size is set via configure
-			this.canvas.width = cssWidth * this.devicePixelRatio;
-			this.canvas.height = cssHeight * this.devicePixelRatio;
+			this.canvas.width = physicalWidth;
+			this.canvas.height = physicalHeight;
 			const device = this.device;
 			if (!device) return;
 			this.context.configure({
@@ -1425,8 +1428,8 @@ export class WebGPURenderer {
 				alphaMode: 'premultiplied',
 			});
 		} else if (this.ctx2d) {
-			this.canvas.width = cssWidth * this.devicePixelRatio;
-			this.canvas.height = cssHeight * this.devicePixelRatio;
+			this.canvas.width = physicalWidth;
+			this.canvas.height = physicalHeight;
 			this.ctx2d.setTransform(this.devicePixelRatio, 0, 0, this.devicePixelRatio, 0, 0);
 			this.ctx2d.textBaseline = 'alphabetic';
 			this.ctx2d.textAlign = 'left';
@@ -1933,9 +1936,10 @@ export class WebGPURenderer {
 		const { columns, rows } = metadata;
 		const cursor = metadata.cursor;
 		this.syncTextBlink(this.hasPackedBlinkingCells(buffer));
+		const physicalWidth = Math.round(columns * this.metrics.width * this.devicePixelRatio);
+		const physicalHeight = Math.round(rows * this.metrics.height * this.devicePixelRatio);
 		const needsResize =
-			this.canvas.width !== columns * this.metrics.width * this.devicePixelRatio ||
-			this.canvas.height !== rows * this.metrics.height * this.devicePixelRatio;
+			this.canvas.width !== physicalWidth || this.canvas.height !== physicalHeight;
 		if (needsResize) this.resize(columns, rows);
 
 		const preeditLayout = this.getPreeditLayout({ x: cursor.column, y: cursor.row }, columns, rows);
@@ -2234,6 +2238,7 @@ export class WebGPURenderer {
 		}
 		this.submitWebGPUFrame(bgData, textData, overlayData, columns, rows, defaultBackground);
 		this.lastCursorPosition = { x: cursor.column, y: cursor.row };
+		this.lastCursorEnabled = cursorEnabled;
 		this.preeditDirty = false;
 		this.textBlinkDirty = false;
 		buffer.markRendered();
@@ -2437,9 +2442,10 @@ export class WebGPURenderer {
 		) {
 			forceAll = true;
 		}
+		const physicalWidth = Math.round(columns * this.metrics.width * this.devicePixelRatio);
+		const physicalHeight = Math.round(rows * this.metrics.height * this.devicePixelRatio);
 		const needsResize =
-			this.canvas.width !== columns * this.metrics.width * this.devicePixelRatio ||
-			this.canvas.height !== rows * this.metrics.height * this.devicePixelRatio;
+			this.canvas.width !== physicalWidth || this.canvas.height !== physicalHeight;
 		if (needsResize) {
 			this.resize(columns, rows);
 			forceAll = true;
@@ -2456,7 +2462,7 @@ export class WebGPURenderer {
 				if (y + 1 < rows) rowsToRender.add(y + 1);
 			}
 		}
-		if (cursorEnabled) {
+		if (cursorEnabled || this.lastCursorEnabled) {
 			rowsToRender.add(cursor.row);
 			rowsToRender.add(this.lastCursorPosition.y);
 		}
@@ -2600,6 +2606,7 @@ export class WebGPURenderer {
 			this.renderPackedCursor2D(ctx, buffer, metadata, renderedCursorStyle, presentation);
 		}
 		this.lastCursorPosition = { x: cursor.column, y: cursor.row };
+		this.lastCursorEnabled = cursorEnabled;
 		this.preeditDirty = false;
 		this.textBlinkDirty = false;
 		buffer.markRendered();

@@ -1310,15 +1310,8 @@ test "Windows descendants start inside the terminal kill-on-close Job" {
     try std.testing.expect(observed_descendant);
     try process.forceTerminate();
     _ = try process.wait();
-    var contained = false;
-    for (0..400) |_| {
-        if (try process.processTreeContained()) {
-            contained = true;
-            break;
-        }
-        std.Thread.sleep(5 * std.time.ns_per_ms);
-    }
-    try std.testing.expect(contained);
+    try process.finishPtyAfterChildExit();
+    try std.testing.expect(try process.processTreeContained());
 }
 
 test "Windows Job assignment failure terminates the suspended child" {

@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react';
+import { useLayoutEffect, useRef } from 'react';
 
 type Callable<ThisType, Arguments extends unknown[], Result> = (
 	this: ThisType,
@@ -9,7 +9,9 @@ export function useMemoizedFn<ThisType, Arguments extends unknown[], Result>(
 	fn: Callable<ThisType, Arguments, Result>,
 ): Callable<ThisType, Arguments, Result> {
 	const fnRef = useRef(fn);
-	fnRef.current = useMemo(() => fn, [fn]);
+	useLayoutEffect(() => {
+		fnRef.current = fn;
+	}, [fn]);
 
 	const memoizedFnRef = useRef<Callable<ThisType, Arguments, Result> | undefined>(undefined);
 	if (memoizedFnRef.current === undefined) {

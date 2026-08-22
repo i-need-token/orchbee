@@ -100,6 +100,22 @@ test "reservation publication and writer accounting have one charge owner" {
     try std.testing.expectEqual(@as(usize, 0), queue.charge(.client).entries);
 }
 
+test "oversized publication preserves its reservation and backpressure charge" {
+    var queue = Queue.init(std.testing.allocator);
+    defer queue.deinit();
+
+    const reservation = try queue.reserve(1, .client, .{});
+    const oversized = try std.testing.allocator.dupe(u8, "ab");
+    defer std.testing.allocator.free(oversized);
+
+    try std.testing.expect(!queue.publish(reservation, oversized));
+    try std.testing.expectEqual(@as(usize, 1), queue.pendingBytes());
+    try std.testing.expectEqual(@as(usize, 1), queue.charge(.client).entries);
+    try std.testing.expectEqual(@as(usize, 1), queue.entryCount());
+    try std.testing.expect(queue.cancel(reservation.identifier));
+    try std.testing.expectEqual(@as(usize, 0), queue.pendingBytes());
+}
+
 test "cancelling an unpublished reservation releases its budget and FIFO slot" {
     var queue = Queue.init(std.testing.allocator);
     defer queue.deinit();

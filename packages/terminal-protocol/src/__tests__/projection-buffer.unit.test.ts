@@ -141,6 +141,29 @@ function sectionLength(bytes: Uint8Array, section: number): number {
 }
 
 describe('terminal projection buffer', () => {
+	it('round-trips a metadata-only delta with no dirty rows', () => {
+		const encoded = encodeTerminalProjectionBuffer({
+			...frame,
+			baseRevision: 1n,
+			currentDirectory: null,
+			kind: TerminalFrameKind.delta,
+			revision: 2n,
+			rowData: [],
+			sequence: 2n,
+			title: null,
+		});
+		if (!encoded.ok) throw new Error(encoded.detail);
+
+		expect(encoded.value).toHaveLength(320);
+		for (const decode of [viewTerminalProjectionBuffer, decodeTerminalProjectionBuffer]) {
+			const decoded = decode(encoded.value);
+			if (!decoded.ok) throw new Error(decoded.detail);
+			expect(decoded.value.kind).toBe(TerminalFrameKind.delta);
+			expect(decoded.value.baseRevision).toBe(1n);
+			expect(decoded.value.rowData.indices).toHaveLength(0);
+		}
+	});
+
 	it('exposes canonical columns as direct views of the immutable buffer', () => {
 		const bytes = encodedProjection();
 		const decoded = decodeTerminalProjectionBuffer(bytes);

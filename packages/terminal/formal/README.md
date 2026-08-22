@@ -120,6 +120,25 @@ Canvas adapters with synthetic `CompositionEvent`/`InputEvent` instances. It pro
 application-layer browser adapter and completed Canvas frames, not a native operating-system IME
 candidate UI.
 
+## Row-flight coordination
+
+`tla/TerminalRowFlightCoordination.tla` models the independently ordered viewport, search, and
+general-buffer row-read lanes. Each lane admits at most one request, all three may coexist, and a
+request-sequence-correlated response settles only its owning lane. Abort remains local to search or
+general-buffer work; disposal closes every lane. The checked bound admits two successive requests
+per lane so settlement and later reuse are covered as well as initial admission.
+
+| Row-flight claim                               | Model property                                                      | TypeScript refinement                                                                                      |
+| ---------------------------------------------- | ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Each purpose remains single-flight             | `AtMostOneFlightPerLane`, `AtMostThreeFlights`                      | `ProjectedTerminal` stores one viewport, search, and general-buffer flight, for a total bound of three.    |
+| Independently ordered replies cannot cross     | `InFlightSequencesAreDistinct`, `CrossLaneSettlementIsolation`      | `applyRows` selects the exact lane by the decoded request sequence before settling or applying its result. |
+| Abort cannot cancel another purpose            | `CrossLaneSettlementIsolation`, `SettledFlightHasExactlyOneOutcome` | Each auxiliary abort listener captures its lane and request sequence; viewport intent never cancels it.    |
+| Disposal and ordinary completion make progress | `DisposalClosesEveryLane`, `EveryAdmittedFlightEventuallySettles`   | Disposal settles auxiliary callers and drops viewport authority; otherwise a correlated reply settles it.  |
+
+Weak fairness applies only to an already-admitted correlated reply. The model does not assume a
+Host response deadline, transport delivery, or a particular order among the three lanes; concrete
+stale-generation, byte-bound, and rendering behavior remains covered by TypeScript tests.
+
 ## Native input settlement
 
 `tla/TerminalNativeInputSettlement.tla` owns the short native-text settlement window that is
@@ -152,8 +171,8 @@ Run the bounded model from the repository root:
 pnpm --filter @orchbee/terminal test:tla
 ```
 
-The shared repository runner executes the presentation and native-settlement models once and the
-input-repair model through nine fixed semantic scenarios: composition, key, mouse, focus,
+The shared repository runner executes the presentation, row-flight, and native-settlement models
+once and the input-repair model through nine fixed semantic scenarios: composition, key, mouse, focus,
 review-key, review-mouse, review-focus, review-composition, and lifecycle. `review-composition`
 combines a stalled review, queued focus-in, reset invalidation, a deliberately failed first
 fresh-generation focus reconciliation, a blocked composition publication attempt, a successful

@@ -354,17 +354,20 @@ pub const Process = if (builtin.os.tag != .windows) void else struct {
         // descendant is still attached sends that descendant CTRL_CLOSE_EVENT
         // and can block indefinitely on Windows versions before 11 24H2. The
         // Job is the complete descendant authority, so zero active processes is
-        // the first safe point at which to close the pseudoconsole.
-        while (true) {
-            var active_processes: windows.DWORD = 0;
-            if (windows_api.ob_windows_terminal_job_active_processes(
-                self.job_handle,
-                &active_processes,
-            ) == 0) {
-                return error.ProcessObservationFailed;
-            }
-            if (active_processes == 0) break;
-            std.Thread.sleep(10 * std.time.ns_per_ms);
+        // the first safe point at which to close the pseudoconsole. A Job
+        // handle becomes signaled at exactly that point, so the kernel owns the
+        // wait and a later force-termination request wakes it without polling.
+        if (windows.kernel32.WaitForSingleObject(self.job_handle, windows.INFINITE) !=
+            windows.WAIT_OBJECT_0)
+        {
+            return error.ProcessObservationFailed;
+        }
+        var active_processes: windows.DWORD = 0;
+        if (windows_api.ob_windows_terminal_job_active_processes(
+            self.job_handle,
+            &active_processes,
+        ) == 0 or active_processes != 0) {
+            return error.ProcessObservationFailed;
         }
         self.pty.closeConsole();
     }

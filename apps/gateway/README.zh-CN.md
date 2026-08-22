@@ -26,8 +26,10 @@ Utility Process 从不导入或连接 Terminal Host。它不拥有共享文档�
 | 转换                 | 效果                                                                                                               |
 | -------------------- | ------------------------------------------------------------------------------------------------------------------ |
 | Utility 启动         | 绑定临时环回端口；只有显式 trusted-LAN 预览才绑定 `0.0.0.0`，并且只接受 Desktop 提供的精确渲染器 Origin 允许列表。 |
+| 套接字等待认证       | 在 10 秒内完成认证，否则终止该套接字且不分配 Desktop 权限。                                                        |
 | 页面认证成功         | 请求一组全新的 Desktop ClientSession 与投影控制端口。                                                              |
 | 页面认证失败         | 关闭套接字，不分配 Desktop 权限。                                                                                  |
+| 已认证套接字保持连接 | 每 30 秒发送一次 ping；若上一 ping 未收到 pong，则终止该套接字。                                                   |
 | 投影打开             | 注册一个派生附件能力，并且只传输匹配附件的流。                                                                     |
 | 附件队列超过字节上限 | 只退役该附件并释放其投影；保留关联关系直至 Main 确认清理，再从完整快照重新打开。                                   |
 | 页面控制关闭         | 释放该页面的每个附件和页面会话；保留共享 Workbench 状态和 Host 终端。                                              |
@@ -49,10 +51,12 @@ Desktop Main 保留每个完整的访问 URL 并仅将清理后的 HTTP Origin �
 | 错误的来源或能力不会产生页面权限         | 真实环回和 trusted-LAN-style exact-Origin WebSocket 拒绝测试和 Desktop-plus-Browser 系统跟踪。 |
 | 断开连接仅影响一页                       | 生命周期测试、范围端口测试和多客户端系统重新连接。                                             |
 | 实用程序停止无法等待未经身份验证的套接字 | 真正的环回附件关闭回归。                                                                       |
+| 监听取消始终会结算                       | 确定性的 listen/dispose 排序测试和有界 Gateway 传输模型。                                      |
+| 认证与心跳计时器不会泄漏                 | 假计时器 WebSocket 测试和 `GatewayTransportLifecycle.tla`。                                    |
 | 一个附件失败不能破坏其他附件             | 附件标识校验、二进制编解码器测试、有界队列退役及重新打开投影测试。                             |
 | Gateway 无法绕过 Main 或 Host 所有权     | Workspace 依赖关系边界、项目合同以及缺少 Host 依赖关系。                                       |
 
-生命周期是现有 Desktop 多客户端模型的传输细化；它不添加新的规范 Workbench 或终端生命周期状态机。
+生命周期是现有 Desktop 多客户端模型的传输细化；它不添加新的规范 Workbench 或终端生命周期状态机。`formal/tla/GatewayTransportLifecycle.tla` 负责有界的监听取消、认证期限和心跳细化。
 
 ## 验证
 
@@ -61,5 +65,6 @@ Desktop Main 保留每个完整的访问 URL 并仅将清理后的 HTTP Origin �
 ```sh
 pnpm --filter @orchbee/gateway typecheck
 pnpm --filter @orchbee/gateway test
+pnpm --filter @orchbee/gateway test:tla
 pnpm --filter @orchbee/gateway build
 ```

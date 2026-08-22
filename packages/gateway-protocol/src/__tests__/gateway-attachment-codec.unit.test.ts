@@ -114,6 +114,21 @@ describe('Gateway attachment binary codec', () => {
 		expect(frame.byteLength).toBeLessThanOrEqual(GATEWAY_LIMITS.maxAttachmentBufferedBytes);
 	});
 
+	it('rejects oversized terminal payloads before allocating a wire frame', () => {
+		expect(() =>
+			encodeGatewayAttachmentServerFrame({
+				frame: new ArrayBuffer(PROTOCOL_LIMITS.maxFrameBytes + 1),
+				kind: 'frame',
+			}),
+		).toThrow(/Projected terminal frame exceeds/);
+		expect(() =>
+			encodeGatewayAttachmentServerFrame({
+				kind: 'rows',
+				rows: new Uint8Array(PROTOCOL_LIMITS.maxRowWindowBytes + 1),
+			}),
+		).toThrow(/Projected terminal row window exceeds/);
+	});
+
 	it('rejects truncation and direction confusion', () => {
 		const serverFrame = encodeGatewayAttachmentServerFrame(
 			ProjectedTerminalEventSchema.parse({

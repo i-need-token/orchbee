@@ -117,7 +117,7 @@ These controls establish a same-user trust boundary. The endpoint identifier is 
 
 Desktop reconnect is supported while the Host survives. The POSIX authenticated transport helper owns only its proxy connection and bounded buffers; closing it does not terminate or otherwise own the Host. PTY migration or recovery after a Host or operating-system crash is not promised.
 
-Process-tree ownership follows the containment domain created at launch: a dedicated POSIX session or a Windows kill-on-close Job. Cleanup is complete only after that domain has no live members. Preventing a trusted same-user child from deliberately escaping a POSIX session is not an isolation promise.
+Process-tree ownership follows the containment domain created at launch: a dedicated POSIX session or a Windows kill-on-close Job. Cleanup is complete only after that domain has no live members. On Windows, the Host waits on the Job's empty signal before closing HPCON; Desktop-owned force escalation terminates the Job and wakes that wait. Preventing a trusted same-user child from deliberately escaping a POSIX session is not an isolation promise.
 
 ## Executable interface
 

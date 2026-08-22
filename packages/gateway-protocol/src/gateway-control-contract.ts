@@ -16,6 +16,8 @@ export const GATEWAY_CONTROL_PATH = '/v1/control';
 export const GATEWAY_ATTACHMENT_PATH = '/v1/attachment';
 
 export const GATEWAY_LIMITS = {
+	authenticationTimeoutMilliseconds: 10_000,
+	heartbeatIntervalMilliseconds: 30_000,
 	maxAttachmentBufferedBytes:
 		PROTOCOL_LIMITS.maxSelectionExportBytes + GATEWAY_ATTACHMENT_MAX_FRAME_OVERHEAD_BYTES,
 	maxAttachmentJsonBytes: 2 * 1024 * 1024,

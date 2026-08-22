@@ -39,7 +39,7 @@ describe('Workbench shortcuts', () => {
 		expect(WORKBENCH_SHORTCUTS.search.id).toBe('workbench.search.open');
 		expect(WORKBENCH_SHORTCUTS.settings.id).toBe('workbench.settings.open');
 		expect(WORKBENCH_SHORTCUTS.toggleSidebar.id).toBe('workbench.sidebar.toggle');
-		expect(formatWorkbenchShortcut('actionsSearch', 'apple')).toBe('⌘⇧P');
+		expect(formatWorkbenchShortcut('actionsSearch', 'apple')).toBe('⇧⌘P');
 		expect(formatWorkbenchShortcut('newTerminal', 'apple')).toBe('⌘N');
 		expect(formatWorkbenchShortcut('search', 'apple')).toBe('⌘K');
 		expect(formatWorkbenchShortcut('settings', 'apple')).toBe('⌘,');

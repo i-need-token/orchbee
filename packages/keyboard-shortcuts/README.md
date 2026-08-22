@@ -16,6 +16,9 @@ Only single-step physical chords with at least one non-Shift modifier are suppor
 unmodified typing, modifier-only events, Escape, Tab, input-method composition, and repeated
 keydown events are deliberately outside the capture contract.
 
+Apple display text follows the platform menu order Control, Option, Shift, Command (`⌃⌥⇧⌘`);
+non-Apple display text uses named modifiers separated by `+`.
+
 ```ts
 import {
 	captureKeyboardShortcutChord,

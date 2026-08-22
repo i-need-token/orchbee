@@ -182,7 +182,7 @@ export function formatKeyboardShortcutChord(
 	const flags = effectiveModifierFlags(normalized, platform);
 	const keyLabel = keyLabelFor(normalized.code);
 	if (platform === 'apple') {
-		return `${flags.metaKey ? '⌘' : ''}${flags.ctrlKey ? '⌃' : ''}${flags.altKey ? '⌥' : ''}${flags.shiftKey ? '⇧' : ''}${keyLabel}`;
+		return `${flags.ctrlKey ? '⌃' : ''}${flags.altKey ? '⌥' : ''}${flags.shiftKey ? '⇧' : ''}${flags.metaKey ? '⌘' : ''}${keyLabel}`;
 	}
 	return [
 		flags.ctrlKey ? 'Ctrl' : null,

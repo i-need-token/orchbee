@@ -8,6 +8,8 @@ Orchbee 产品所有者共享的纯键盘组合键机制。
 
 仅支持至少包含一个非 Shift 修饰键的单步物理组合键。文本输入、无修饰键输入、仅修饰键事件、Escape、Tab、输入法组合和重复 keydown 事件均有意排除在捕获契约之外。
 
+Apple 显示文本遵循平台菜单的 Control、Option、Shift、Command 顺序（`⌃⌥⇧⌘`）；非 Apple 显示文本使用以 `+` 分隔的修饰键名称。
+
 ```ts
 import {
 	captureKeyboardShortcutChord,

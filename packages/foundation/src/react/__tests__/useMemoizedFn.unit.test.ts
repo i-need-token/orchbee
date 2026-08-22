@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { createElement } from 'react';
+import { createElement, Suspense } from 'react';
 import { createRoot } from 'react-dom/client';
 import { flushSync } from 'react-dom';
 import { describe, expect, it } from 'vitest';
@@ -61,6 +61,40 @@ describe('useMemoizedFn', () => {
 				throw new Error('Expected the memoized function to be captured');
 			}
 			expect(currentFn.call({ base: 4 }, 3)).toBe(7);
+		} finally {
+			flushSync(() => {
+				root.unmount();
+			});
+		}
+	});
+
+	it('does not expose an implementation from a render that never commits', () => {
+		const container = document.createElement('div');
+		const root = createRoot(container);
+		const pending = new Promise<void>(() => undefined);
+		let currentFn: NumberFunction | undefined;
+		const Harness = ({ suspend, value }: { readonly suspend: boolean; readonly value: number }) => {
+			currentFn = useMemoizedFn((increment: number) => value + increment);
+			if (suspend) throw pending;
+			return null;
+		};
+		const view = (suspend: boolean, value: number) =>
+			createElement(Suspense, { fallback: null }, createElement(Harness, { suspend, value }));
+
+		try {
+			flushSync(() => {
+				root.render(view(false, 1));
+			});
+			const committedFn = currentFn;
+			if (committedFn === undefined) {
+				throw new Error('Expected the memoized function to be captured');
+			}
+
+			flushSync(() => {
+				root.render(view(true, 5));
+			});
+
+			expect(committedFn(2)).toBe(3);
 		} finally {
 			flushSync(() => {
 				root.unmount();

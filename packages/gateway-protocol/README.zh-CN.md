@@ -33,14 +33,15 @@ Orchbee 本地开发 Browser Gateway 的严格、运行时无关契约。
 | 断开连接 | 关闭寻呼控制通道会停用该寻呼会话及其附件，而不会更改共享拓扑或终端生命周期。                                                                |
 | 背压     | 有界附件队列在空时接纳一个最大尺寸的有效帧，并在溢出时仅收回确切的附件。重新打开投影会创建新的附件和完整的快照。                            |
 | 基数     | 页面、终端或附件不存在产品数量上限。字节和缓冲传输限制会拒绝受影响的消息或连接，而不是驱逐另一个客户端。                                    |
+| 活性     | 每个已接受套接字都有 10 秒认证期限。已认证套接字每 30 秒收到一次 ping，并在一个周期未响应后被终止。                                         |
 
 协议 `1.2` 在释放后保留投影请求映射，直到 Desktop 返回其相关的释放确认或清理失败。这使得 Gateway 可以转发延迟的清理结果，而无需将其视为外部控制流量或停用另一个附件。
 
 嵌套的 Workbench 投影打开命令携带视觉表面的完整测量 `TerminalGeometry`。重复的 Gateway 请求 ID 仅当其表示身份和几何形状都与保留的请求匹配时才有效；改变的几何形状与控制流量发生冲突。 Gateway 不变地转发该值，并且从不提供启动默认值。
 
-页面生命周期为`awaiting-authentication -> opening-client -> active -> closed`。身份验证是唯一可能请求 Desktop 页面端口的转换。已关闭页面的后期端口束被处置。附件注册遵循`registered -> authenticated -> retired`；它无法恢复或反弹。 Gateway shutdown 终止仍在等待附件身份验证的套接字。
+页面生命周期为`awaiting-authentication -> opening-client -> active -> closed`。身份验证是唯一可能请求 Desktop 页面端口的转换。已关闭页面的后期端口束被处置。附件注册遵循`registered -> authenticated -> retired`；它无法恢复或反弹。错过认证期限的控制或附件套接字会在不取得权限的情况下被终止。每个已认证套接字参与同一 ping/pong 心跳；漏掉一个 pong 只终止该套接字。Gateway shutdown 会终止所有阶段的套接字并清除其拥有的全部计时器。
 
-该协议是现有 Desktop 多客户端会话和需求附件模型的传输改进。它没有添加新的产品生命周期状态或规范文档转换，因此没有单独的 TLA+ 模型对此包具有权威性。确定性的生命周期跟踪、严格的编解码器测试和真实的 Electron-plus-two-Browser 系统跟踪提供了传输证据。
+该协议是现有 Desktop 多客户端会话和需求附件模型的传输改进。它没有添加新的产品生命周期状态或规范文档转换。`apps/gateway/formal/tla/GatewayTransportLifecycle.tla` 只对有界的监听取消、认证期限和心跳细化具有权威性。确定性的生命周期跟踪、严格的编解码器测试和真实的 Electron-plus-two-Browser 系统跟踪提供具体传输证据。
 
 ## 验证
 

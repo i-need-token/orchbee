@@ -26,8 +26,10 @@ The Utility Process never imports or connects to Terminal Host. It has no shared
 | Transition                              | Effect                                                                                                                                          |
 | --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
 | Utility start                           | Bind an ephemeral loopback port, or `0.0.0.0` only for explicit trusted-LAN preview, and accept only Desktop's exact renderer Origin allowlist. |
+| Socket awaits authentication            | Authenticate within 10 seconds or terminate the exact socket without allocating Desktop authority.                                              |
 | Page authentication succeeds            | Request one fresh Desktop ClientSession and projection-control pair.                                                                            |
 | Page authentication fails               | Close the socket without allocating Desktop authority.                                                                                          |
+| Authenticated socket remains connected  | Ping every 30 seconds; terminate the exact socket when the preceding ping received no pong.                                                     |
 | Projection opens                        | Register one derived attachment capability and transfer only the matching attachment stream.                                                    |
 | Attachment queue exceeds its byte bound | Retire the exact attachment and release its projection; retain correlation until Main acknowledges cleanup, then reopen from a full snapshot.   |
 | Page control closes                     | Release every page attachment and the page session; preserve shared Workbench state and Host terminals.                                         |
@@ -49,10 +51,12 @@ Loopback is the default. Trusted-LAN preview binds both the renderer Server and 
 | Wrong Origin or capability creates no page authority  | Real loopback and trusted-LAN-style exact-Origin WebSocket rejection tests and the Desktop-plus-Browser system trace. |
 | Disconnect affects only one page                      | Lifecycle tests, scoped-port tests, and multi-client system reconnection.                                             |
 | Utility stop cannot wait on an unauthenticated socket | Real loopback attachment shutdown regression.                                                                         |
+| Listener cancellation always settles                  | Deterministic listen/dispose ordering tests plus the bounded Gateway transport model.                                 |
+| Authentication and heartbeat timers cannot leak       | Fake-timer WebSocket tests plus `GatewayTransportLifecycle.tla`.                                                      |
 | Attachment failure cannot corrupt another attachment  | Attachment identity validation, binary codec tests, bounded queue retirement, and projection reopen tests.            |
 | Gateway cannot bypass Main or Host ownership          | Workspace dependency boundaries, project contracts, and absence of a Host dependency.                                 |
 
-The lifecycle is a transport refinement of the existing Desktop multi-client model; it does not add a new canonical Workbench or terminal-lifetime state machine.
+The lifecycle is a transport refinement of the existing Desktop multi-client model; it does not add a new canonical Workbench or terminal-lifetime state machine. `formal/tla/GatewayTransportLifecycle.tla` owns the bounded listener-cancellation, authentication-deadline, and heartbeat refinement.
 
 ## Verification
 
@@ -61,5 +65,6 @@ Run from the repository root:
 ```sh
 pnpm --filter @orchbee/gateway typecheck
 pnpm --filter @orchbee/gateway test
+pnpm --filter @orchbee/gateway test:tla
 pnpm --filter @orchbee/gateway build
 ```

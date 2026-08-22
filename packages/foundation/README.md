@@ -20,6 +20,6 @@ const handleCommit = useMemoizedFn(() => {
 });
 ```
 
-`useMemoizedFn` preserves one function identity across renders while invoking the latest supplied implementation. It preserves the original parameters, return type, and caller-provided `this`.
+`useMemoizedFn` preserves one function identity across renders while invoking the latest committed implementation. A render that suspends or is otherwise discarded cannot change the callable behavior exposed by the prior commit. The Hook preserves the original parameters, return type, and caller-provided `this`.
 
 The repository-wide admission and package rules live in [`docs/PACKAGES.md`](../../docs/PACKAGES.md#foundation-boundary).

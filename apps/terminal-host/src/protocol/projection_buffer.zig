@@ -216,7 +216,7 @@ fn parseProjectionBuffer(bytes: []const u8) contract.ProtocolError!ParsedProject
     for (reserved_directory) |byte| if (byte != 0) return error.UnknownRequiredFlag;
     if (columns == 0 or columns > contract.Limits.frame_columns or
         rows == 0 or rows > contract.Limits.frame_rows or
-        row_count == 0 or row_count > rows or
+        row_count > rows or
         cell_count != @as(u32, row_count) * columns or
         cell_count > contract.Limits.frame_cells or sequence == 0 or generation == 0 or
         cursor_column >= columns or cursor_row >= rows or

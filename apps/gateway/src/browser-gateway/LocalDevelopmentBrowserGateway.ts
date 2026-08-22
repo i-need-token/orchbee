@@ -1,5 +1,5 @@
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
-import { createServer, type Server } from 'node:http';
+import { createServer, type RequestListener, type Server } from 'node:http';
 import { isIPv4 } from 'node:net';
 import type { Duplex } from 'node:stream';
 
@@ -77,7 +77,103 @@ interface AttachmentRegistration {
 	reject(): void;
 }
 
+interface SocketHeartbeatState {
+	authenticated: boolean;
+	readonly handleClose: () => void;
+	readonly handlePong: () => void;
+	pongReceived: boolean;
+}
+
+class GatewaySocketHeartbeat {
+	readonly #interval: ReturnType<typeof setInterval>;
+	readonly #sockets = new Map<NodeWebSocket, SocketHeartbeatState>();
+
+	constructor() {
+		this.#interval = globalThis.setInterval(
+			this.#poll,
+			GATEWAY_LIMITS.heartbeatIntervalMilliseconds,
+		);
+		this.#interval.unref();
+	}
+
+	track(socket: NodeWebSocket): void {
+		if (this.#sockets.has(socket)) return;
+		const state: SocketHeartbeatState = {
+			authenticated: false,
+			handleClose: () => this.#untrack(socket),
+			handlePong: () => {
+				state.pongReceived = true;
+			},
+			pongReceived: true,
+		};
+		this.#sockets.set(socket, state);
+		socket.on('close', state.handleClose);
+		socket.on('pong', state.handlePong);
+	}
+
+	authenticate(socket: NodeWebSocket): void {
+		const state = this.#sockets.get(socket);
+		if (state === undefined) return;
+		state.authenticated = true;
+		state.pongReceived = true;
+	}
+
+	dispose(): void {
+		globalThis.clearInterval(this.#interval);
+		for (const socket of this.#sockets.keys()) this.#untrack(socket);
+	}
+
+	readonly #poll = (): void => {
+		for (const [socket, state] of this.#sockets) {
+			if (!state.authenticated) continue;
+			if (socket.readyState !== NodeWebSocket.OPEN) {
+				this.#untrack(socket);
+				continue;
+			}
+			if (!state.pongReceived) {
+				this.#untrack(socket);
+				socket.terminate();
+				continue;
+			}
+			state.pongReceived = false;
+			try {
+				socket.ping();
+			} catch {
+				this.#untrack(socket);
+				socket.terminate();
+			}
+		}
+	};
+
+	#untrack(socket: NodeWebSocket): void {
+		const state = this.#sockets.get(socket);
+		if (state === undefined) return;
+		this.#sockets.delete(socket);
+		socket.off('close', state.handleClose);
+		socket.off('pong', state.handlePong);
+	}
+}
+
+class GatewayAuthenticationDeadline {
+	#timer: ReturnType<typeof setTimeout> | undefined;
+
+	constructor(expired: () => void) {
+		this.#timer = globalThis.setTimeout(() => {
+			this.#timer = undefined;
+			expired();
+		}, GATEWAY_LIMITS.authenticationTimeoutMilliseconds);
+		this.#timer.unref();
+	}
+
+	dispose(): void {
+		if (this.#timer === undefined) return;
+		globalThis.clearTimeout(this.#timer);
+		this.#timer = undefined;
+	}
+}
+
 interface GatewayPageConnectionDependencies {
+	readonly authenticated: (socket: NodeWebSocket) => void;
 	readonly capability: GatewayCapability;
 	readonly createAttachmentSocketId: () => ReturnType<typeof GatewayAttachmentSocketIdSchema.parse>;
 	readonly deriveAttachmentCapability: (
@@ -113,12 +209,19 @@ export class LocalDevelopmentBrowserGateway {
 	readonly #pages = new Map<GatewayClientConnectionId, GatewayPageConnection>();
 	readonly #pendingAttachmentSockets = new Set<NodeWebSocket>();
 	readonly #parentPort: GatewayParentPort;
+	readonly #createServer: (requestListener: RequestListener) => Server;
 	#server: Server | undefined;
+	#serverErrorListener: ((error: Error) => void) | undefined;
+	#socketHeartbeat: GatewaySocketHeartbeat | undefined;
 	#started = false;
 	#webSocketServer: WebSocketServer | undefined;
 
-	constructor(parentPort: GatewayParentPort) {
+	constructor(
+		parentPort: GatewayParentPort,
+		createGatewayServer: (requestListener: RequestListener) => Server = createServer,
+	) {
 		this.#parentPort = parentPort;
+		this.#createServer = createGatewayServer;
 	}
 
 	start(): void {
@@ -197,7 +300,7 @@ export class LocalDevelopmentBrowserGateway {
 		}
 		for (const origin of allowedOrigins) this.#allowedOrigins.add(origin);
 		this.#capability = capability;
-		const server = createServer((_request, response) => {
+		const server = this.#createServer((_request, response) => {
 			response.statusCode = 404;
 			response.end();
 		});
@@ -207,6 +310,7 @@ export class LocalDevelopmentBrowserGateway {
 		});
 		this.#server = server;
 		this.#webSocketServer = webSocketServer;
+		this.#socketHeartbeat = new GatewaySocketHeartbeat();
 		server.on('upgrade', (request, socket, head) => {
 			const pathname = requestPathname(request.url);
 			if (
@@ -222,6 +326,7 @@ export class LocalDevelopmentBrowserGateway {
 			});
 		});
 		webSocketServer.on('connection', (socket, request) => {
+			this.#socketHeartbeat?.track(socket);
 			const pathname = requestPathname(request.url);
 			if (pathname === GATEWAY_CONTROL_PATH) this.#acceptControlSocket(socket);
 			else if (pathname === GATEWAY_ATTACHMENT_PATH) this.#acceptAttachmentSocket(socket);
@@ -230,11 +335,19 @@ export class LocalDevelopmentBrowserGateway {
 		try {
 			await listen(server, bindHost);
 		} catch {
+			if (this.#disposed) return;
 			this.#postParent({ code: 'listen-failed', type: 'gateway-failed' });
 			await this.dispose();
 			return;
 		}
 		if (this.#disposed) return;
+		const handleServerError = (): void => {
+			if (this.#disposed || this.#server !== server) return;
+			this.#postParent({ code: 'listen-failed', type: 'gateway-failed' });
+			void this.dispose();
+		};
+		this.#serverErrorListener = handleServerError;
+		server.on('error', handleServerError);
 		const address = server.address();
 		if (address === null || typeof address === 'string') {
 			this.#postParent({ code: 'listen-failed', type: 'gateway-failed' });
@@ -254,6 +367,8 @@ export class LocalDevelopmentBrowserGateway {
 			`gateway:client:${randomBytes(16).toString('hex')}`,
 		);
 		const page = new GatewayPageConnection(socket, connectionId, {
+			authenticated: (authenticatedSocket) =>
+				this.#socketHeartbeat?.authenticate(authenticatedSocket),
 			capability,
 			createAttachmentSocketId: () =>
 				GatewayAttachmentSocketIdSchema.parse(
@@ -285,17 +400,21 @@ export class LocalDevelopmentBrowserGateway {
 		}
 		let settled = false;
 		const handleClose = (): void => {
+			authenticationDeadline.dispose();
+			settled = true;
 			this.#pendingAttachmentSockets.delete(socket);
 		};
 		const reject = (): void => {
 			if (settled) return;
 			settled = true;
+			authenticationDeadline.dispose();
 			sendAttachmentFailure(socket, 'authentication-rejected', false);
 		};
 		const handleError = (): void => reject();
 		const handleMessage = (data: RawData, isBinary: boolean): void => {
 			if (settled) return;
 			settled = true;
+			authenticationDeadline.dispose();
 			socket.off('error', handleError);
 			if (isBinary) {
 				sendAttachmentFailure(socket, 'protocol-rejected', false);
@@ -313,10 +432,17 @@ export class LocalDevelopmentBrowserGateway {
 				return;
 			}
 			if (registration.accept(socket, authentication.value)) {
+				this.#socketHeartbeat?.authenticate(socket);
 				socket.off('close', handleClose);
 				this.#pendingAttachmentSockets.delete(socket);
 			}
 		};
+		const authenticationDeadline = new GatewayAuthenticationDeadline(() => {
+			if (settled) return;
+			settled = true;
+			this.#pendingAttachmentSockets.delete(socket);
+			socket.terminate();
+		});
 		this.#pendingAttachmentSockets.add(socket);
 		socket.once('close', handleClose);
 		socket.once('error', handleError);
@@ -338,17 +464,25 @@ export class LocalDevelopmentBrowserGateway {
 		this.#attachments.clear();
 		for (const socket of this.#pendingAttachmentSockets) socket.terminate();
 		this.#pendingAttachmentSockets.clear();
+		this.#socketHeartbeat?.dispose();
+		this.#socketHeartbeat = undefined;
 		const webSocketServer = this.#webSocketServer;
 		this.#webSocketServer = undefined;
 		webSocketServer?.close();
 		const server = this.#server;
 		this.#server = undefined;
+		const serverErrorListener = this.#serverErrorListener;
+		this.#serverErrorListener = undefined;
+		if (server !== undefined && serverErrorListener !== undefined) {
+			server.off('error', serverErrorListener);
+		}
 		if (server !== undefined) await closeServer(server);
 		this.#parentPort.postMessage(GatewayUtilityEventSchema.parse({ type: 'gateway-stopped' }));
 	}
 }
 
 class GatewayPageConnection {
+	#authenticationDeadline: GatewayAuthenticationDeadline | undefined;
 	readonly #attachments = new Map<TerminalProjectionRequestId, GatewayAttachment>();
 	#clientSessionPort: GatewayMessagePort | undefined;
 	readonly #connectionId: GatewayClientConnectionId;
@@ -372,6 +506,12 @@ class GatewayPageConnection {
 	start(): void {
 		if (this.#started || this.#state.phase === 'closed') return;
 		this.#started = true;
+		this.#authenticationDeadline = new GatewayAuthenticationDeadline(() => {
+			this.#authenticationDeadline = undefined;
+			if (this.#state.phase !== 'awaiting-authentication') return;
+			this.#socket.terminate();
+			this.#transition({ type: 'socket-closed' });
+		});
 		this.#socket.on('message', this.#handleControlMessage);
 		this.#socket.on('close', this.#handleSocketClose);
 		this.#socket.on('error', this.#handleSocketError);
@@ -419,8 +559,12 @@ class GatewayPageConnection {
 				this.#rejectProtocol();
 				return;
 			}
+			const accepted = capabilitiesEqual(message.capability, this.#dependencies.capability);
+			this.#authenticationDeadline?.dispose();
+			this.#authenticationDeadline = undefined;
+			if (accepted) this.#dependencies.authenticated(this.#socket);
 			this.#transition({
-				accepted: capabilitiesEqual(message.capability, this.#dependencies.capability),
+				accepted,
 				connectionId: this.#connectionId,
 				type: 'authentication-completed',
 			});
@@ -713,6 +857,8 @@ class GatewayPageConnection {
 	}
 
 	#retireLocalResources(): void {
+		this.#authenticationDeadline?.dispose();
+		this.#authenticationDeadline = undefined;
 		if (this.#started) {
 			this.#socket.off('message', this.#handleControlMessage);
 			this.#socket.off('close', this.#handleSocketClose);
@@ -935,18 +1081,40 @@ function rejectUpgrade(socket: Duplex): void {
 
 function listen(server: Server, host: GatewayBindHost): Promise<void> {
 	return new Promise((resolve, reject) => {
-		const handleError = (error: Error): void => reject(error);
-		server.once('error', handleError);
-		server.listen(0, host, () => {
+		let settled = false;
+		const cleanup = (): void => {
 			server.off('error', handleError);
-			resolve();
-		});
+			server.off('listening', handleListening);
+			server.off('close', handleClose);
+		};
+		const settle = (outcome: 'closed' | 'listening', error?: Error): void => {
+			if (settled) return;
+			settled = true;
+			cleanup();
+			if (outcome === 'listening') resolve();
+			else reject(error ?? new Error('Gateway listener closed before binding.'));
+		};
+		const handleError = (error: Error): void => settle('closed', error);
+		const handleListening = (): void => settle('listening');
+		const handleClose = (): void => settle('closed');
+		server.once('error', handleError);
+		server.once('listening', handleListening);
+		server.once('close', handleClose);
+		server.listen(0, host);
 	});
 }
 
 function closeServer(server: Server): Promise<void> {
-	if (!server.listening) return Promise.resolve();
-	return new Promise((resolve) => server.close(() => resolve()));
+	return new Promise((resolve, reject) => {
+		server.close((error) => {
+			if (error === undefined || isServerNotRunning(error)) resolve();
+			else reject(error);
+		});
+	});
+}
+
+function isServerNotRunning(error: Error): boolean {
+	return 'code' in error && error.code === 'ERR_SERVER_NOT_RUNNING';
 }
 
 function closePorts(ports: readonly GatewayMessagePort[]): void {

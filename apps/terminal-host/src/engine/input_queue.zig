@@ -106,15 +106,18 @@ pub const Queue = struct {
         return self.entries.items[index].source;
     }
 
-    /// Adopts the caller-owned bytes into an existing reservation. Returns
-    /// false only when the reservation no longer exists; ownership then stays
-    /// with the caller.
+    /// Adopts the caller-owned bytes into an exact unpublished reservation.
+    /// Returns false when the reservation is absent, already published, forged,
+    /// or too small; ownership then stays with the caller.
     pub fn publish(self: *Queue, reservation: Reservation, bytes: []u8) bool {
         const index = self.entryIndex(reservation.identifier) orelse return false;
         const entry = &self.entries.items[index];
-        std.debug.assert(entry.bytes == null);
-        std.debug.assert(bytes.len <= reservation.reserved_bytes);
-        std.debug.assert(entry.reserved_bytes == reservation.reserved_bytes);
+        if (entry.bytes != null or
+            entry.reserved_bytes != reservation.reserved_bytes or
+            bytes.len > entry.reserved_bytes)
+        {
+            return false;
+        }
 
         self.mutableCharge(entry.source).bytes -= reservation.reserved_bytes - bytes.len;
         if (bytes.len == 0) {

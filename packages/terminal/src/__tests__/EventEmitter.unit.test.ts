@@ -21,4 +21,20 @@ describe('EventEmitter', () => {
 		emitter.fire('ignored');
 		expect(values).toEqual([]);
 	});
+
+	it('finishes the listener snapshot when a callback unsubscribes a sibling', () => {
+		const emitter = new EventEmitter<string>();
+		const values: string[] = [];
+		let secondSubscription: { dispose(): void } | undefined;
+		emitter.event((value) => {
+			values.push(`first:${value}`);
+			secondSubscription?.dispose();
+		});
+		secondSubscription = emitter.event((value) => values.push(`second:${value}`));
+
+		emitter.fire('one');
+		emitter.fire('two');
+
+		expect(values).toEqual(['first:one', 'second:one', 'first:two']);
+	});
 });

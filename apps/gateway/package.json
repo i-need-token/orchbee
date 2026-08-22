@@ -10,6 +10,7 @@
 		"build": "rsbuild build --log-level error",
 		"typecheck": "tsc --noEmit",
 		"test": "vitest run",
+		"test:tla": "node ../../scripts/tla/run-models.mjs --workspace apps/gateway",
 		"test:watch": "vitest"
 	},
 	"dependencies": {

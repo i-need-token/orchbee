@@ -552,13 +552,13 @@ export class ActionRuntime implements ActionDisposable {
 		input: unknown,
 		invocation: ActionInvocation,
 	): ActionExecution {
+		const invocationScope = invocation.scope;
+		this.assertOwnedScope(invocationScope);
 		const execution = this.createManagedExecution();
 		if (this.disposed) {
 			execution.settle({ kind: 'cancelled' });
 			return execution;
 		}
-		const invocationScope = invocation.scope;
-		this.assertOwnedScope(invocationScope);
 		const boundInvocation = this.snapshotInvocation(invocation, invocationScope);
 		const resolved = this.resolve(actionId, invocationScope);
 		if (

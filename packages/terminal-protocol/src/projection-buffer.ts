@@ -722,7 +722,6 @@ export function viewTerminalProjectionBuffer(
 		columns > PROTOCOL_LIMITS.maxFrameColumns ||
 		rows === 0 ||
 		rows > PROTOCOL_LIMITS.maxFrameRows ||
-		rowCount === 0 ||
 		rowCount > rows ||
 		cellCount !== rowCount * columns ||
 		cellCount > PROTOCOL_LIMITS.maxFrameCells ||

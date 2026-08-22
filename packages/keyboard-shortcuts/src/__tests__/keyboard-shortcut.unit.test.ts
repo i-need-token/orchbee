@@ -26,8 +26,18 @@ describe('keyboard shortcut chords', () => {
 		});
 		expect(standard).toEqual(apple);
 		if (apple.kind !== 'captured' || standard.kind !== 'captured') return;
-		expect(formatKeyboardShortcutChord(apple.chord, 'apple')).toBe('⌘⇧P');
+		expect(formatKeyboardShortcutChord(apple.chord, 'apple')).toBe('⇧⌘P');
 		expect(formatKeyboardShortcutChord(standard.chord, 'standard')).toBe('Ctrl+Shift+P');
+	});
+
+	it('formats Apple modifier glyphs in platform menu order', () => {
+		const chord = normalizeKeyboardShortcutChord(
+			{ code: 'KeyA', modifiers: ['mod', 'control', 'alt', 'shift'] },
+			'apple',
+		);
+		expect(chord).not.toBeNull();
+		if (chord === null) return;
+		expect(formatKeyboardShortcutChord(chord, 'apple')).toBe('⌃⌥⇧⌘A');
 	});
 
 	it('preserves the literal secondary Control and Meta modifiers', () => {

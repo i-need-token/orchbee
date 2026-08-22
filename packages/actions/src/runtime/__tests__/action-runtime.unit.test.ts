@@ -67,6 +67,28 @@ function action(
 }
 
 describe('ActionRuntime', () => {
+	it('rejects a foreign scope before allocating a managed execution', () => {
+		const runtime = new ActionRuntime();
+		const ownScope = runtime.createScope('own');
+		const foreignRuntime = new ActionRuntime();
+		const foreignScope = foreignRuntime.createScope('foreign');
+
+		expect(() =>
+			runtime.execute('test.missing.run', undefined, {
+				scope: foreignScope,
+				source: 'programmatic',
+			}),
+		).toThrow(/belongs to another runtime/);
+		const execution = runtime.execute('test.missing.run', undefined, {
+			scope: ownScope,
+			source: 'programmatic',
+		});
+
+		expect(execution.executionId).toBe('action-execution-1');
+		runtime.dispose();
+		foreignRuntime.dispose();
+	});
+
 	it('rejects duplicate registrations in one scope and resolves the narrowest scope', async () => {
 		const runtime = new ActionRuntime({ createExecutionId: () => 'execution' });
 		const application = runtime.createScope('application');

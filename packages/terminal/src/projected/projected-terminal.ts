@@ -531,6 +531,7 @@ interface ResizeGeometry {
 interface BufferRowFlight {
 	aborted: boolean;
 	readonly kind: 'buffer';
+	readonly lane: 'buffer' | 'search';
 	readonly maximumBytes: number;
 	readonly removeAbortListener: () => void;
 	readonly request: TerminalBufferRowsRequest;
@@ -541,6 +542,7 @@ interface BufferRowFlight {
 interface ViewportRowFlight {
 	readonly expectedStartRow: bigint | null;
 	readonly kind: 'viewport';
+	readonly lane: 'viewport';
 	readonly maximumBytes: number;
 	readonly origin: ReadRows['origin'];
 	readonly overscanned: boolean;
@@ -550,6 +552,7 @@ interface ViewportRowFlight {
 }
 
 type RowFlight = BufferRowFlight | ViewportRowFlight;
+type RowFlightLane = RowFlight['lane'];
 
 type PendingHistoryTransition = 'awaiting-change' | 'recover' | 'refresh';
 
@@ -868,7 +871,7 @@ export class ProjectedTerminal {
 	#renderer: WebGPURenderer | undefined;
 	#resizeObserver: ResizeObserver | undefined;
 	#root: HTMLElement | undefined;
-	#rowFlight: RowFlight | undefined;
+	#rowFlights = new Map<RowFlightLane, RowFlight>();
 	#rowRequestSequence = 1n;
 	#selection: SelectionChanged;
 	#selectionGestureHandle: ScheduledFrame | undefined;
@@ -1422,28 +1425,30 @@ export class ProjectedTerminal {
 		if (this.#phase === ProjectedTerminalPhase.disposed) {
 			return Promise.resolve({ ...snapshot, kind: 'unavailable' });
 		}
-		if (this.#rowFlight !== undefined) {
+		const lane = request.purpose === 'search' ? 'search' : 'buffer';
+		if (this.#rowFlights.has(lane)) {
 			return Promise.resolve({ ...snapshot, kind: 'unavailable' });
 		}
 
 		return new Promise((resolve) => {
 			const requestSequence = this.#nextRowRequestSequence();
 			const handleAbort = (): void => {
-				const flight = this.#rowFlight;
+				const flight = this.#rowFlights.get(lane);
 				if (flight?.kind !== 'buffer' || flight.requestSequence !== requestSequence) return;
 				flight.aborted = true;
 				resolve({ ...this.getBufferRowsSnapshot(), kind: 'cancelled' });
 			};
 			signal.addEventListener('abort', handleAbort, { once: true });
-			this.#rowFlight = {
+			this.#rowFlights.set(lane, {
 				aborted: false,
 				kind: 'buffer',
+				lane,
 				maximumBytes: request.maximumBytes,
 				removeAbortListener: () => signal.removeEventListener('abort', handleAbort),
 				request,
 				requestSequence,
 				resolve,
-			};
+			});
 			this.#send({
 				kind: 'read-rows',
 				payload: {
@@ -1465,28 +1470,41 @@ export class ProjectedTerminal {
 	}
 
 	applyRows(rowWindow: ArrayBuffer | Uint8Array): ProjectedRowsResult {
-		const flight = this.#rowFlight;
-		if (flight === undefined || this.#phase === ProjectedTerminalPhase.disposed) return 'ignored';
+		if (this.#rowFlights.size === 0 || this.#phase === ProjectedTerminalPhase.disposed) {
+			return 'ignored';
+		}
 		const bytes = rowWindow instanceof Uint8Array ? rowWindow : new Uint8Array(rowWindow);
-		this.#rowFlight = undefined;
-		if (flight.kind === 'buffer') flight.removeAbortListener();
 		const decoded =
 			this.#options.projectionBufferTrust === 'local-host'
 				? viewTerminalRowWindow(bytes)
 				: decodeTerminalRowWindow(bytes);
+		const requestSequence = decoded.ok
+			? decoded.value.sequence.toString()
+			: this.#rowWindowRequestSequence(bytes);
+		const flight =
+			requestSequence === undefined ? undefined : this.#rowFlightForSequence(requestSequence);
+		if (!decoded.ok) {
+			if (flight !== undefined) this.#retireRowFlight(flight);
+			if (flight?.kind === 'buffer' && !flight.aborted) {
+				flight.resolve({ ...this.getBufferRowsSnapshot(), kind: 'unavailable' });
+			}
+			this.#errorEmitter.fire({ error: new Error(decoded.detail), operation: 'history' });
+			if (flight?.kind === 'viewport') this.#recoverHistory();
+			return 'rejected';
+		}
+		if (flight === undefined) return 'ignored';
+		this.#retireRowFlight(flight);
 		if (
-			!decoded.ok ||
 			bytes.byteLength > flight.maximumBytes ||
-			(decoded.ok &&
-				(decoded.value.hostEpoch !== this.#hostEpoch ||
-					decoded.value.attachmentId !== this.#attachmentId ||
-					decoded.value.sequence.toString() !== flight.requestSequence))
+			decoded.value.hostEpoch !== this.#hostEpoch ||
+			decoded.value.attachmentId !== this.#attachmentId ||
+			decoded.value.sequence.toString() !== flight.requestSequence
 		) {
 			if (flight.kind === 'buffer' && !flight.aborted) {
 				flight.resolve({ ...this.getBufferRowsSnapshot(), kind: 'unavailable' });
 			}
 			this.#errorEmitter.fire({
-				error: new Error(decoded.ok ? 'Projected row window route is invalid' : decoded.detail),
+				error: new Error('Projected row window route is invalid'),
 				operation: 'history',
 			});
 			if (flight.kind === 'viewport') this.#recoverHistory();
@@ -1503,8 +1521,8 @@ export class ProjectedTerminal {
 				}
 			} else {
 				this.#pendingHistoryTransition ??= 'awaiting-change';
+				this.#dispatchPendingHistoryIntent();
 			}
-			this.#dispatchPendingHistoryIntent();
 			return 'ignored';
 		}
 		if (flight.kind === 'buffer') {
@@ -1520,7 +1538,6 @@ export class ProjectedTerminal {
 					flight.resolve(bufferRowsFromDecodedWindow(window, bytes.byteLength));
 				}
 			}
-			this.#dispatchPendingHistoryIntent();
 			return 'committed';
 		}
 
@@ -1604,6 +1621,40 @@ export class ProjectedTerminal {
 		return 'committed';
 	}
 
+	#rowWindowRequestSequence(bytes: Uint8Array): string | undefined {
+		if (bytes.byteLength < 56) return undefined;
+		try {
+			return new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
+				.getBigUint64(48, true)
+				.toString();
+		} catch {
+			return undefined;
+		}
+	}
+
+	#rowFlightForSequence(requestSequence: string): RowFlight | undefined {
+		for (const flight of this.#rowFlights.values()) {
+			if (flight.requestSequence === requestSequence) return flight;
+		}
+		return undefined;
+	}
+
+	#retireRowFlight(flight: RowFlight): void {
+		if (this.#rowFlights.get(flight.lane) === flight) this.#rowFlights.delete(flight.lane);
+		if (flight.kind === 'buffer') flight.removeAbortListener();
+	}
+
+	#cancelAuxiliaryRowFlights(): void {
+		for (const lane of ['search', 'buffer'] as const) {
+			const flight = this.#rowFlights.get(lane);
+			if (flight?.kind !== 'buffer') continue;
+			this.#retireRowFlight(flight);
+			if (!flight.aborted) {
+				flight.resolve({ ...this.getBufferRowsSnapshot(), kind: 'cancelled' });
+			}
+		}
+	}
+
 	scrollLines(amount: number): void {
 		this.#scrollHistoryLines(amount, this.#wheelHistoryPresentation);
 	}
@@ -1629,11 +1680,9 @@ export class ProjectedTerminal {
 			);
 			return;
 		}
-		if (this.#rowFlight !== undefined) {
-			this.#cancelBufferFlightForViewportIntent();
-			if (this.#rowFlight?.kind === 'viewport') {
-				this.#rowFlight.smoothPresentation = false;
-			}
+		const viewportFlight = this.#rowFlights.get('viewport');
+		if (viewportFlight?.kind === 'viewport') {
+			viewportFlight.smoothPresentation = false;
 			this.#pendingHistorySmoothPresentation = smoothPresentation;
 			this.#pendingHistoryStartRow = undefined;
 			this.#pendingHistoryTargetRow = undefined;
@@ -1712,7 +1761,7 @@ export class ProjectedTerminal {
 		) {
 			return;
 		}
-		if (this.#rowFlight !== undefined && !changed) return;
+		if (this.#rowFlights.has('viewport') && !changed) return;
 		this.#pendingHistoryTransition = event.anchorStatus === 'valid' ? 'refresh' : 'recover';
 		this.#dispatchPendingHistoryIntent();
 	}
@@ -1763,17 +1812,15 @@ export class ProjectedTerminal {
 			failure.operation === 'selection' &&
 			this.#selectionGestureActionInFlight !== undefined &&
 			(failure.code === 'stale-generation' || failure.code === 'stale-revision');
-		const activeFlight = this.#rowFlight;
 		const flight =
 			(failure.operation === undefined || failure.operation === 'history') &&
 			failure.requestSequence !== undefined &&
-			activeFlight?.requestSequence === failure.requestSequence
-				? activeFlight
+			this.#rowFlightForSequence(failure.requestSequence) !== undefined
+				? this.#rowFlightForSequence(failure.requestSequence)
 				: undefined;
 		if (flight !== undefined) {
-			this.#rowFlight = undefined;
+			this.#retireRowFlight(flight);
 			if (flight.kind === 'buffer') {
-				flight.removeAbortListener();
 				if (!flight.aborted) {
 					let kind: 'evicted' | 'stale' | 'too-large' | 'unavailable' = 'unavailable';
 					if (failure.code === 'history-evicted') kind = 'evicted';
@@ -1782,7 +1829,6 @@ export class ProjectedTerminal {
 					} else if (failure.code === 'limit-exceeded') kind = 'too-large';
 					flight.resolve({ ...this.getBufferRowsSnapshot(), kind });
 				}
-				this.#dispatchPendingHistoryIntent();
 				handledHistoryFailure = true;
 			} else if (
 				this.#pendingHistoryTransition === 'recover' ||
@@ -2320,15 +2366,9 @@ export class ProjectedTerminal {
 		this.#copyCompletions.clear();
 		this.#copyRequests.clear();
 		this.#linkCompletions.clear();
-		const rowFlight = this.#rowFlight;
-		this.#rowFlight = undefined;
+		this.#cancelAuxiliaryRowFlights();
+		this.#rowFlights.clear();
 		this.#pendingHistoryTransition = undefined;
-		if (rowFlight?.kind === 'buffer') {
-			rowFlight.removeAbortListener();
-			if (!rowFlight.aborted) {
-				rowFlight.resolve({ ...this.getBufferRowsSnapshot(), kind: 'cancelled' });
-			}
-		}
 		this.#freezeSurfaceBindings();
 		this.#releaseHistoryScrollbarDom();
 		this.#input?.remove();
@@ -2372,15 +2412,9 @@ export class ProjectedTerminal {
 		this.#phase = ProjectedTerminalPhase.disposed;
 		this.#historyPhase = ProjectedHistoryPhase.disposed;
 		if (publishLifecycle) this.#dispatchDisposedInputCleanup(inputCleanup);
-		const rowFlight = this.#rowFlight;
-		this.#rowFlight = undefined;
+		this.#cancelAuxiliaryRowFlights();
+		this.#rowFlights.clear();
 		this.#pendingHistoryTransition = undefined;
-		if (rowFlight?.kind === 'buffer') {
-			rowFlight.removeAbortListener();
-			if (!rowFlight.aborted) {
-				rowFlight.resolve({ ...this.getBufferRowsSnapshot(), kind: 'cancelled' });
-			}
-		}
 		this.#cancelScheduledFrame();
 		this.#cancelScheduledSelectionGesture();
 		this.#clearApplicationMouseClickSuppression();
@@ -2912,7 +2946,7 @@ export class ProjectedTerminal {
 		if (
 			metadata === null ||
 			metadata === undefined ||
-			this.#rowFlight !== undefined ||
+			this.#rowFlights.has('viewport') ||
 			this.#pendingHistoryTransition !== undefined ||
 			this.#phase === ProjectedTerminalPhase.disposed
 		) {
@@ -2951,16 +2985,17 @@ export class ProjectedTerminal {
 		this.#historyPhase = ProjectedHistoryPhase.requestingHistory;
 		this.#syncPreeditPresentation();
 		const requestSequence = this.#nextRowRequestSequence();
-		this.#rowFlight = {
+		this.#rowFlights.set('viewport', {
 			expectedStartRow: origin.kind === 'committed' ? null : visibleStartRow,
 			kind: 'viewport',
+			lane: 'viewport',
 			maximumBytes: PROTOCOL_LIMITS.maxRowWindowBytes,
 			origin: requestOrigin,
 			overscanned: cacheRowCount > visibleRowCount,
 			requestSequence,
 			smoothPresentation,
 			visibleRowCount,
-		};
+		});
 		this.#send({
 			kind: 'read-rows',
 			payload: {
@@ -2988,11 +3023,9 @@ export class ProjectedTerminal {
 		this.#pendingHistoryDelta = 0;
 		this.#pendingHistorySmoothPresentation = false;
 		this.#pendingHistoryTargetRow = undefined;
-		if (this.#rowFlight !== undefined || this.#pendingHistoryTransition !== undefined) {
-			this.#cancelBufferFlightForViewportIntent();
-			if (this.#rowFlight?.kind === 'viewport') {
-				this.#rowFlight.smoothPresentation = false;
-			}
+		const viewportFlight = this.#rowFlights.get('viewport');
+		if (viewportFlight !== undefined || this.#pendingHistoryTransition !== undefined) {
+			if (viewportFlight?.kind === 'viewport') viewportFlight.smoothPresentation = false;
 			this.#pendingHistoryStartRow = startRow;
 			return;
 		}
@@ -3048,7 +3081,7 @@ export class ProjectedTerminal {
 	}
 
 	#dispatchPendingHistoryIntent(): void {
-		if (this.#rowFlight !== undefined || this.#phase === ProjectedTerminalPhase.disposed) return;
+		if (this.#rowFlights.has('viewport') || this.#phase === ProjectedTerminalPhase.disposed) return;
 		const transition = this.#pendingHistoryTransition;
 		if (transition === 'awaiting-change') return;
 		this.#pendingHistoryTransition = undefined;
@@ -3088,14 +3121,8 @@ export class ProjectedTerminal {
 		}
 		this.#historyScrollPresentation?.cancel();
 		this.#historyRecoverySmoothPresentation = smoothPresentation;
-		const flight = this.#rowFlight;
-		this.#rowFlight = undefined;
-		if (flight?.kind === 'buffer') {
-			flight.removeAbortListener();
-			if (!flight.aborted) {
-				flight.resolve({ ...this.getBufferRowsSnapshot(), kind: 'cancelled' });
-			}
-		}
+		const flight = this.#rowFlights.get('viewport');
+		if (flight !== undefined) this.#retireRowFlight(flight);
 		this.#pendingHistoryDelta = 0;
 		this.#pendingHistorySmoothPresentation = false;
 		this.#pendingHistoryTransition = undefined;
@@ -3208,11 +3235,9 @@ export class ProjectedTerminal {
 			return;
 		}
 		this.#showHistoryScrollbar();
-		if (this.#rowFlight !== undefined || this.#pendingHistoryTransition !== undefined) {
-			this.#cancelBufferFlightForViewportIntent();
-			if (this.#rowFlight?.kind === 'viewport') {
-				this.#rowFlight.smoothPresentation = false;
-			}
+		const viewportFlight = this.#rowFlights.get('viewport');
+		if (viewportFlight !== undefined || this.#pendingHistoryTransition !== undefined) {
+			if (viewportFlight?.kind === 'viewport') viewportFlight.smoothPresentation = false;
 			this.#pendingHistoryStartRow = undefined;
 			this.#pendingHistoryTargetRow = row;
 			this.#pendingHistoryDelta = 0;
@@ -3231,13 +3256,6 @@ export class ProjectedTerminal {
 			kind: 'absolute',
 			row: CanonicalUint64TextSchema.parse(startRow.toString()),
 		});
-	}
-
-	#cancelBufferFlightForViewportIntent(): void {
-		const flight = this.#rowFlight;
-		if (flight?.kind !== 'buffer' || flight.aborted) return;
-		flight.aborted = true;
-		flight.resolve({ ...this.getBufferRowsSnapshot(), kind: 'cancelled' });
 	}
 
 	#linkPointIsCurrent(point: PendingLinkPoint): boolean {
@@ -3874,7 +3892,7 @@ export class ProjectedTerminal {
 			return;
 		}
 		if (
-			this.#rowFlight !== undefined ||
+			this.#rowFlights.has('viewport') ||
 			this.#selectionGestureInFlight ||
 			this.#pendingSelectionGestures.length > 0
 		) {

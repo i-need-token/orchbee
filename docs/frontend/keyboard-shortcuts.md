@@ -53,6 +53,7 @@ Before adding a binding, search all scopes for the same canonical chord. Conditi
 
 - Store one canonical binding and derive its display form. Do not maintain separate matching and tooltip strings.
 - Display `Mod` as `⌘` on Apple platforms and `Ctrl` elsewhere. Use `Kbd` or `KbdGroup` for key presentation.
+- Order Apple modifier glyphs as Control, Option, Shift, Command (`⌃⌥⇧⌘`), matching platform menu conventions.
 - Localize the action name, not key codes, modifier glyphs, or platform names embedded in the chord formatter.
 - A visible menu item, button tooltip, command result, and shortcut reference use the same action descriptor and platform formatter.
 - A shortcut reference derives the action name, formatted chord, condition summary, and binding source from the registered descriptor rather than a separately maintained inventory.

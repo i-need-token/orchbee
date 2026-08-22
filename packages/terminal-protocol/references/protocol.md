@@ -493,7 +493,8 @@ files, shared memory, virtual placements, negative-z composition, glyph graphics
 
 A snapshot has no base and contains every visible row in canonical order. A delta names the exact
 acknowledged base and replaces complete, unique dirty rows in increasing row order; it never carries
-partial cells. Dimension, active-screen, or generation changes require a snapshot. The TypeScript
+partial cells. A delta may contain zero rows when no grid row is dirty while still carrying its
+metadata and revision transition. Dimension, active-screen, or generation changes require a snapshot. The TypeScript
 decoder first validates and scans all tables and rows, then allocates exact typed columns and reads
 cells without constructing a JavaScript object per cell. The projected store stages a full snapshot
 or every delta row before mutating the committed grid. Frame sequences are monotonically emitted,
@@ -610,7 +611,7 @@ The directory slots and element types are fixed:
 |   15 | UTF-8 string bytes     |    `u8` |
 
 Sections use their natural alignment and canonical slot order, with zero alignment padding. A
-snapshot contains every row in canonical order. A delta contains complete dirty rows in increasing
+snapshot contains every row in canonical order. A delta contains zero or more complete dirty rows in increasing
 order and names the exact acknowledged base. Snapshot consumers retain the immutable buffer;
 delta consumers retain only buffers still referenced by dirty row ranges. Shared memory is not part
 of this version.
@@ -627,7 +628,8 @@ sequence, requested row count, negotiated byte maximum, detail (`render` or `tex
 - `committed` applies a bounded signed delta to the attachment's last applied anchor.
 
 The Host resolves the origin once and returns a contiguous `RowsSnapshot`. At most one row request
-is in flight per attachment. Request sequences strictly increase for the attachment lifetime; a
+is in flight per attachment and purpose lane; `viewport`, `search`, and `buffer` lanes progress
+independently. Request sequences strictly increase for the attachment lifetime; a
 request that fails before installation does not consume its sequence. A response is only a pending
 anchor; the matching `RowsApplied` promotes it to the committed anchor, so a delayed acknowledgement
 from an earlier row request cannot promote a later anchor. Resize invalidates pending generation-pinned row captures,

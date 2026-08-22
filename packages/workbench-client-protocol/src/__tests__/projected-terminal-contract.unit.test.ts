@@ -343,6 +343,38 @@ describe('projected terminal contract', () => {
 		expect(parsedRows).toMatchObject({ kind: 'rows', rows });
 	});
 
+	it('bounds projected frame and row-window payloads by their visible bytes', () => {
+		const maximumFrame = new Uint8Array(
+			new ArrayBuffer(PROTOCOL_LIMITS.maxFrameBytes + 16),
+			8,
+			PROTOCOL_LIMITS.maxFrameBytes,
+		);
+		const maximumRows = new Uint8Array(
+			new ArrayBuffer(PROTOCOL_LIMITS.maxRowWindowBytes + 16),
+			8,
+			PROTOCOL_LIMITS.maxRowWindowBytes,
+		);
+
+		expect(
+			ProjectedTerminalEventSchema.safeParse({ frame: maximumFrame, kind: 'frame' }).success,
+		).toBe(true);
+		expect(
+			ProjectedTerminalEventSchema.safeParse({ kind: 'rows', rows: maximumRows }).success,
+		).toBe(true);
+		expect(
+			ProjectedTerminalEventSchema.safeParse({
+				frame: new ArrayBuffer(PROTOCOL_LIMITS.maxFrameBytes + 1),
+				kind: 'frame',
+			}).success,
+		).toBe(false);
+		expect(
+			ProjectedTerminalEventSchema.safeParse({
+				kind: 'rows',
+				rows: new Uint8Array(PROTOCOL_LIMITS.maxRowWindowBytes + 1),
+			}).success,
+		).toBe(false);
+	});
+
 	it('bounds Browser-owned selection copy content', () => {
 		const content = new ArrayBuffer(32);
 
