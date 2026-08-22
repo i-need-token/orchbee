@@ -45,12 +45,14 @@ export type TerminalLaunchProfileCatalogValidation =
 	| { readonly catalog: DesktopTerminalLaunchProfileCatalog; readonly kind: 'valid' }
 	| { readonly kind: 'invalid'; readonly reason: 'invalid-profile' | 'unsupported-platform' };
 
-export function createBuiltInTerminalLaunchProfileCatalog(): DesktopTerminalLaunchProfileCatalog {
+export function createBuiltInTerminalLaunchProfileCatalog(
+	platform: NodeJS.Platform,
+): DesktopTerminalLaunchProfileCatalog {
 	return DesktopTerminalLaunchProfileCatalogSchema.parse({
 		defaultProfileId: DESKTOP_BUILT_IN_TERMINAL_LAUNCH_PROFILE_ID,
 		profiles: [
 			{
-				command: { kind: 'system-shell', login: false },
+				command: { kind: 'system-shell', login: platform === 'darwin' },
 				id: DESKTOP_BUILT_IN_TERMINAL_LAUNCH_PROFILE_ID,
 				name: null,
 			},
@@ -89,7 +91,7 @@ export function transitionTerminalLaunchProfileCatalog(
 		throw new Error('Terminal launch-profile transition requires a valid current catalog.');
 	}
 	if (mutation.kind === 'reset') {
-		return { catalog: createBuiltInTerminalLaunchProfileCatalog(), kind: 'applied' };
+		return { catalog: createBuiltInTerminalLaunchProfileCatalog(platform), kind: 'applied' };
 	}
 	if (mutation.kind === 'create') return createProfile(current.catalog, mutation, platform);
 	if (mutation.kind === 'update') return updateProfile(current.catalog, mutation.profile, platform);

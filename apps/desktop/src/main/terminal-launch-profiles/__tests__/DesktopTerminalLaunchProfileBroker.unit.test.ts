@@ -13,7 +13,7 @@ import { createBuiltInTerminalLaunchProfileCatalog } from '../terminal-launch-pr
 
 const snapshot = DesktopTerminalLaunchProfileSnapshotSchema.parse({
 	capabilities: { loginShell: true },
-	catalog: createBuiltInTerminalLaunchProfileCatalog(),
+	catalog: createBuiltInTerminalLaunchProfileCatalog('darwin'),
 	persistenceIssue: null,
 	source: 'built-in',
 });

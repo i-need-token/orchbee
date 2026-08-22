@@ -11,22 +11,51 @@ import {
 } from '../terminal-launch-profile-catalog';
 
 describe('terminal launch-profile catalog', () => {
-	it('creates the compatibility-preserving built-in system profile', () => {
-		expect(createBuiltInTerminalLaunchProfileCatalog()).toEqual({
-			defaultProfileId: 'system-default',
-			profiles: [
-				{
-					command: { kind: 'system-shell', login: false },
-					id: 'system-default',
-					name: null,
+	it.each([
+		{ login: true, platform: 'darwin' },
+		{ login: false, platform: 'linux' },
+		{ login: false, platform: 'win32' },
+	] satisfies readonly { readonly login: boolean; readonly platform: NodeJS.Platform }[])(
+		'creates the $platform built-in System shell profile',
+		(expected) => {
+			expect(createBuiltInTerminalLaunchProfileCatalog(expected.platform)).toEqual({
+				defaultProfileId: 'system-default',
+				profiles: [
+					{
+						command: { kind: 'system-shell', login: expected.login },
+						id: 'system-default',
+						name: null,
+					},
+				],
+				version: 1,
+			});
+		},
+	);
+
+	it.each([
+		{ login: true, platform: 'darwin' },
+		{ login: false, platform: 'linux' },
+		{ login: false, platform: 'win32' },
+	] satisfies readonly { readonly login: boolean; readonly platform: NodeJS.Platform }[])(
+		'resets to the $platform built-in login default',
+		(expected) => {
+			const transition = transitionTerminalLaunchProfileCatalog(
+				createBuiltInTerminalLaunchProfileCatalog('linux'),
+				{ kind: 'reset' },
+				expected.platform,
+			);
+
+			expect(transition).toMatchObject({
+				catalog: {
+					profiles: [{ command: { kind: 'system-shell', login: expected.login } }],
 				},
-			],
-			version: 1,
-		});
-	});
+				kind: 'applied',
+			});
+		},
+	);
 
 	it('creates a stable command copy immediately after its source and allows duplicate names', () => {
-		const initial = createBuiltInTerminalLaunchProfileCatalog();
+		const initial = createBuiltInTerminalLaunchProfileCatalog('darwin');
 		const created = transitionTerminalLaunchProfileCatalog(
 			initial,
 			{
@@ -42,7 +71,7 @@ describe('terminal launch-profile catalog', () => {
 			catalog: {
 				profiles: [
 					{ id: 'system-default', name: null },
-					{ command: { kind: 'system-shell', login: false }, id: 'profile-1', name: 'Default' },
+					{ command: { kind: 'system-shell', login: true }, id: 'profile-1', name: 'Default' },
 				],
 			},
 			kind: 'applied',
@@ -104,7 +133,7 @@ describe('terminal launch-profile catalog', () => {
 	});
 
 	it('rejects missing identities and protected deletion without changing the catalog', () => {
-		const catalog = createBuiltInTerminalLaunchProfileCatalog();
+		const catalog = createBuiltInTerminalLaunchProfileCatalog('darwin');
 		const missingId = DesktopTerminalLaunchProfileIdSchema.parse('missing');
 
 		expect(
@@ -125,7 +154,7 @@ describe('terminal launch-profile catalog', () => {
 
 	it('rejects Windows login shells and relative custom executables at the platform boundary', () => {
 		const loginCatalog = {
-			...createBuiltInTerminalLaunchProfileCatalog(),
+			...createBuiltInTerminalLaunchProfileCatalog('win32'),
 			profiles: [
 				{
 					command: { kind: 'system-shell' as const, login: true },
@@ -135,7 +164,7 @@ describe('terminal launch-profile catalog', () => {
 			],
 		};
 		const relativeCatalog = {
-			...createBuiltInTerminalLaunchProfileCatalog(),
+			...createBuiltInTerminalLaunchProfileCatalog('linux'),
 			profiles: [
 				{
 					command: { arguments: [], executable: 'bin/shell', kind: 'custom-executable' as const },

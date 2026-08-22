@@ -27,21 +27,75 @@ const baseLaunch = TerminalLaunchSchema.parse({
 });
 
 describe('DesktopTerminalLaunchProfileController', () => {
-	it('loads the built-in compatibility profile when storage is missing', async () => {
-		const controller = createController(storeWith({ kind: 'missing' }));
+	it.each([
+		{ arguments: ['-l'], login: true, platform: 'darwin' },
+		{ arguments: [], login: false, platform: 'linux' },
+		{ arguments: [], login: false, platform: 'win32' },
+	] satisfies readonly {
+		readonly arguments: readonly string[];
+		readonly login: boolean;
+		readonly platform: NodeJS.Platform;
+	}[])('loads the $platform built-in profile when storage is missing', async (expected) => {
+		const controller = createController(storeWith({ kind: 'missing' }), expected.platform);
 
 		await expect(controller.initialize()).resolves.toMatchObject({
-			catalog: { defaultProfileId: 'system-default' },
+			catalog: {
+				defaultProfileId: 'system-default',
+				profiles: [{ command: { kind: 'system-shell', login: expected.login } }],
+			},
 			persistenceIssue: null,
 			source: 'built-in',
 		});
+		expect(controller.resolveDefaultLaunch()).toEqual({
+			...baseLaunch,
+			arguments: expected.arguments,
+		});
+	});
+
+	it('keeps a stored non-login choice authoritative on Darwin', async () => {
+		const stored = createBuiltInTerminalLaunchProfileCatalog('linux');
+		const replace = vi.fn<TerminalLaunchProfileStore['replace']>();
+		const controller = createController(
+			{ load: async () => ({ catalog: stored, kind: 'available' }), replace },
+			'darwin',
+		);
+
+		await expect(controller.initialize()).resolves.toMatchObject({
+			catalog: { profiles: [{ command: { kind: 'system-shell', login: false } }] },
+			source: 'stored',
+		});
 		expect(controller.resolveDefaultLaunch()).toEqual(baseLaunch);
+		expect(replace).not.toHaveBeenCalled();
+	});
+
+	it('resets a Darwin catalog to the login System shell only after persistence commits', async () => {
+		const stored = createBuiltInTerminalLaunchProfileCatalog('linux');
+		const replace = vi.fn<TerminalLaunchProfileStore['replace']>(async () => undefined);
+		const controller = createController({
+			load: async () => ({ catalog: stored, kind: 'available' }),
+			replace,
+		});
+		await controller.initialize();
+
+		await expect(controller.mutate({ kind: 'reset' })).resolves.toMatchObject({
+			kind: 'completed',
+			snapshot: {
+				catalog: { profiles: [{ command: { kind: 'system-shell', login: true } }] },
+				source: 'stored',
+			},
+		});
+		expect(replace).toHaveBeenCalledWith(
+			expect.objectContaining({
+				profiles: [expect.objectContaining({ command: { kind: 'system-shell', login: true } })],
+			}),
+		);
+		expect(controller.resolveDefaultLaunch()).toEqual({ ...baseLaunch, arguments: ['-l'] });
 	});
 
 	it('reports invalid stored platform behavior without rewriting it', async () => {
 		const replace = vi.fn<TerminalLaunchProfileStore['replace']>();
 		const invalid = {
-			...createBuiltInTerminalLaunchProfileCatalog(),
+			...createBuiltInTerminalLaunchProfileCatalog('win32'),
 			profiles: [
 				{
 					command: { kind: 'system-shell' as const, login: true },
@@ -63,7 +117,7 @@ describe('DesktopTerminalLaunchProfileController', () => {
 	});
 
 	it('rejects a catalog whose resolved launch cannot cross the Host control boundary', async () => {
-		const stored = createBuiltInTerminalLaunchProfileCatalog();
+		const stored = createBuiltInTerminalLaunchProfileCatalog('linux');
 		const replace = vi.fn<TerminalLaunchProfileStore['replace']>();
 		const controller = createController({
 			load: async () => ({ catalog: stored, kind: 'available' }),
@@ -97,7 +151,7 @@ describe('DesktopTerminalLaunchProfileController', () => {
 					releaseWrite = resolve;
 				}),
 		);
-		const stored = createBuiltInTerminalLaunchProfileCatalog();
+		const stored = createBuiltInTerminalLaunchProfileCatalog('linux');
 		const controller = createController({
 			load: async () => ({ catalog: stored, kind: 'available' }),
 			replace,
@@ -127,7 +181,7 @@ describe('DesktopTerminalLaunchProfileController', () => {
 	});
 
 	it('preserves the committed catalog and exposes a retryable issue after write failure', async () => {
-		const stored = createBuiltInTerminalLaunchProfileCatalog();
+		const stored = createBuiltInTerminalLaunchProfileCatalog('linux');
 		const controller = createController({
 			load: async () => ({ catalog: stored, kind: 'available' }),
 			replace: async () => Promise.reject(new Error('disk unavailable')),

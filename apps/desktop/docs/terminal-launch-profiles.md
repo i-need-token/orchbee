@@ -19,6 +19,10 @@ choice for new terminals. The current Desktop runtime resolves one process-wide 
 and provides no durable user control, named alternatives, login-shell option, or visible failure
 recovery.
 
+On macOS, a Desktop application launched outside a shell can inherit a minimal process environment.
+The built-in system-shell profile therefore needs the platform's login-shell startup path so a new
+terminal can receive the user's standard toolchain environment without Desktop synthesizing `PATH`.
+
 ## Inputs and validation
 
 | Input                         | Validation and absence                                                                                 |
@@ -53,10 +57,12 @@ TerminalLaunchProfileCatalog (version 1)
             └── custom-executable(executable, arguments[])
 ```
 
-The built-in catalog contains one stable `system-default` profile with the localized-label marker,
-system-shell command, and login mode disabled. This preserves the previous launch behavior when no
-catalog has been saved. A persisted profile name is user data and is never translated. Profile ID,
-not display name or list position, owns identity.
+The built-in catalog contains one stable `system-default` profile with the localized-label marker
+and system-shell command. Its login mode is enabled on Darwin and disabled on every other platform.
+This platform default applies only when the catalog is missing or invalid, or when the user commits
+an explicit reset. A stored catalog remains authoritative and is never rewritten to follow a later
+built-in default. A persisted profile name is user data and is never translated. Profile ID, not
+display name or list position, owns identity.
 
 `TerminalLaunchProfileSnapshot` contains the canonical catalog, its source (`built-in` or `stored`),
 and an optional persistence issue. The snapshot is the only catalog projection published to the
@@ -72,6 +78,8 @@ renderer.
   explicit names.
 - A system-shell profile has no custom executable or arguments. A custom-executable profile has no
   login-shell flag.
+- The built-in System shell enables login mode on Darwin and disables it on Linux and Windows.
+  Stored profiles keep their explicit login choice on every supported platform.
 - A Windows catalog cannot contain an enabled login-shell command.
 - Deleting the final profile or current default profile rejects. The user selects another default
   before deleting the previous one.
@@ -94,7 +102,7 @@ renderer.
 | Update profile      | Replaces that profile's name and command without changing ID or order | Profile missing, invalid platform/path/value, or write failure |
 | Select default      | Changes only `defaultProfileId`                                       | Profile missing or write failure                               |
 | Delete profile      | Removes one non-default profile                                       | Missing, final, default, or write failure                      |
-| Reset catalog       | Persists the built-in catalog                                         | Write failure                                                  |
+| Reset catalog       | Persists the platform's built-in catalog                              | Write failure                                                  |
 
 Every renderer request has one correlated completion or expected failure. Malformed messages or
 unexpected transferred ports retire that capability port. A port allows at most one request in
@@ -139,13 +147,16 @@ Desktop never silently falls back to another profile.
 | PTY creation and executable availability            | Terminal Host                      |
 
 The catalog store requires only load and atomic replace. The controller requires platform,
-trusted base launch, stable ID allocation, and the store. The deterministic catalog transition and
-launch resolver perform no filesystem, process, transport, localization, or React work.
+trusted base launch, stable ID allocation, and the store. Platform is an explicit input to both
+built-in fallback construction and reset. The deterministic catalog transition and launch resolver
+perform no filesystem, process, transport, localization, or React work.
 
 ## Verification and traceability
 
 | Claim                                                            | Executable evidence                                                               |
 | ---------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| Darwin login default and non-Darwin defaults                     | Platform-matrix catalog and Main controller unit tests                            |
+| Stored login choice remains authoritative                        | Main controller load and resolution unit tests                                    |
 | Catalog invariants and transition rejections                     | Deterministic catalog unit tests                                                  |
 | Missing, invalid, bounded, atomic, and failed I/O                | File-store unit tests with isolated temporary directories                         |
 | Exact launch refinement, Host encoding, and platform login rules | Resolver and Main controller unit tests                                           |
@@ -163,7 +174,8 @@ not claim native process execution.
 
 ## Exclusions
 
-Version 1 excludes environment overrides and secrets, per-Project or per-Workspace launch
-configuration payloads, one-off non-default profile selection, profile appearance, startup-directory
-policy, SSH or remote connections, automatic switching, import/export, shell startup-file mutation,
-multi-window behavior, and cross-device synchronization.
+Version 1 excludes environment overrides and secrets, synthesized or harvested `PATH`, macOS
+`/usr/bin/login` wrapping, per-Project or per-Workspace launch configuration payloads, one-off
+non-default profile selection, profile appearance, startup-directory policy, SSH or remote
+connections, automatic switching, import/export, shell startup-file mutation, multi-window
+behavior, and cross-device synchronization.

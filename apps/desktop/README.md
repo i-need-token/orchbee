@@ -157,11 +157,12 @@ The version-3 binding store contains a canonical BindingId-ordered collection. E
 ## Local terminal launch profiles
 
 Electron Main owns `terminal-launch-profiles-v1.json`, a strict bounded catalog of named device-local
-launch profiles. A missing file selects the built-in System shell profile with login mode disabled.
-An invalid or unreadable file projects that same safe fallback together with a recoverable issue and
-is never rewritten automatically. Explicit create, edit, default-selection, delete, and reset
-operations are serialized and use owner-only atomic replacement. The previous catalog remains
-authoritative until replacement commits; a failed write preserves the previous default and catalog.
+launch profiles. A missing file selects the built-in System shell profile with login mode enabled on
+macOS and disabled on every other platform. An invalid or unreadable file projects that same
+platform fallback together with a recoverable issue and is never rewritten automatically. Explicit
+create, edit, default-selection, delete, and reset operations are serialized and use owner-only
+atomic replacement. A stored catalog and its explicit login choices remain authoritative until
+replacement commits; a failed write preserves the previous default and catalog.
 
 A profile selects either the trusted system shell with a POSIX login-shell decision or one absolute
 custom executable with a literal ordered argument vector. It overrides only `executable` and

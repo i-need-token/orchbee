@@ -229,7 +229,7 @@ function fallbackSnapshot(
 ): DesktopTerminalLaunchProfileSnapshot {
 	return DesktopTerminalLaunchProfileSnapshotSchema.parse({
 		capabilities: capabilities(platform),
-		catalog: createBuiltInTerminalLaunchProfileCatalog(),
+		catalog: createBuiltInTerminalLaunchProfileCatalog(platform),
 		persistenceIssue,
 		source: 'built-in',
 	});
