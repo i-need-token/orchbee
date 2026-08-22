@@ -43,6 +43,7 @@
 	z-index: var(--ob-ref-layer-raised);
 	width: var(--ob-ref-border-width-default);
 	background: var(--ob-sys-color-border-default);
+	cursor: col-resize;
 }
 
 .resizeHandle::after {

@@ -148,7 +148,11 @@ export function Workbench({
 				{sidebarToggle}
 			</div>
 			<div className={styles['layout']}>
-				<ResizablePanelGroup orientation='horizontal' onLayoutChanged={view.onLayoutChanged}>
+				<ResizablePanelGroup
+					disableCursor
+					onLayoutChanged={view.onLayoutChanged}
+					orientation='horizontal'
+				>
 					{view.isSidebarVisible && (
 						<>
 							{/* Keep the navigation panel on an explicit pixel contract. */}

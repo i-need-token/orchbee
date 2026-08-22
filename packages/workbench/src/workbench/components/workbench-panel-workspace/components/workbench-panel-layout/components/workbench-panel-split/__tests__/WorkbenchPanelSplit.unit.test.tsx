@@ -120,8 +120,9 @@ function createBounds(left: number, width: number): DOMRect {
 
 function createView(
 	resizeAdjacentPanels: (splitId: string, separatorIndex: number, leadingWeight: number) => void,
+	maximizedPanelId: string | null = null,
 ): WorkbenchPanelWorkspaceView {
-	return { resizeAdjacentPanels } as unknown as WorkbenchPanelWorkspaceView;
+	return { maximizedPanelId, resizeAdjacentPanels } as unknown as WorkbenchPanelWorkspaceView;
 }
 
 function prepareHorizontalGeometry(container: HTMLElement): HTMLElement {
@@ -194,6 +195,50 @@ afterEach(() => {
 });
 
 describe('WorkbenchPanelSplit', () => {
+	it('keeps every panel DOM node mounted while projecting one maximized panel', () => {
+		const resizeAdjacentPanels =
+			vi.fn<(splitId: string, separatorIndex: number, leadingWeight: number) => void>();
+		const renderNode = (node: PanelSplit['children'][number]['node']) =>
+			createElement('span', { 'data-rendered-panel': node.id });
+		const { container, rerender } = render(
+			createElement(WorkbenchPanelSplit, {
+				renderNode,
+				split,
+				view: createView(resizeAdjacentPanels),
+			}),
+		);
+		const firstPanelContent = container.querySelector('[data-rendered-panel="panel-1"]');
+		const secondPanelContent = container.querySelector('[data-rendered-panel="panel-2"]');
+
+		rerender(
+			createElement(WorkbenchPanelSplit, {
+				renderNode,
+				split,
+				view: createView(resizeAdjacentPanels, 'panel-2'),
+			}),
+		);
+
+		const panels = container.querySelectorAll<HTMLElement>('[data-slot="resizable-panel"]');
+		expect(panels[0]?.hidden).toBe(true);
+		expect(panels[1]?.hidden).toBe(false);
+		expect(container.querySelector<HTMLElement>('[data-slot="resizable-handle"]')?.hidden).toBe(
+			true,
+		);
+		expect(container.querySelector('[data-rendered-panel="panel-1"]')).toBe(firstPanelContent);
+		expect(container.querySelector('[data-rendered-panel="panel-2"]')).toBe(secondPanelContent);
+
+		rerender(
+			createElement(WorkbenchPanelSplit, {
+				renderNode,
+				split,
+				view: createView(resizeAdjacentPanels),
+			}),
+		);
+
+		expect(container.querySelector('[data-rendered-panel="panel-1"]')).toBe(firstPanelContent);
+		expect(container.querySelector('[data-rendered-panel="panel-2"]')).toBe(secondPanelContent);
+	});
+
 	it('leaves split creation unconstrained while the resize controller owns the pixel minimum', () => {
 		const resizeAdjacentPanels =
 			vi.fn<(splitId: string, separatorIndex: number, leadingWeight: number) => void>();
@@ -237,6 +282,31 @@ describe('WorkbenchPanelSplit', () => {
 		}
 
 		expect(resizeAdjacentPanels).not.toHaveBeenCalled();
+	});
+
+	it('does not install a document-global cursor while the pointer crosses a separator', () => {
+		const insertCursorRule = vi.spyOn(CSSStyleSheet.prototype, 'insertRule');
+		const resizeAdjacentPanels =
+			vi.fn<(splitId: string, separatorIndex: number, leadingWeight: number) => void>();
+		const { container } = render(
+			createElement(WorkbenchPanelSplit, {
+				renderNode: () => createElement('span'),
+				split,
+				view: createView(resizeAdjacentPanels),
+			}),
+		);
+		const separator = prepareHorizontalGeometry(container);
+		act(flushResizeObservers);
+
+		fireEvent.pointerMove(separator, {
+			buttons: 0,
+			clientX: 500,
+			clientY: 50,
+			pointerType: 'mouse',
+		});
+
+		expect(separator.dataset['separator']).toBe('hover');
+		expect(insertCursorRule).not.toHaveBeenCalled();
 	});
 
 	it('synchronizes a real primitive arrow-key layout with the model', () => {

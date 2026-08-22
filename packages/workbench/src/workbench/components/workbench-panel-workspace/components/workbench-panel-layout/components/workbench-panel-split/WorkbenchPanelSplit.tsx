@@ -1,7 +1,11 @@
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@orchbee/ui/components';
 import * as React from 'react';
 
-import type { PanelLayoutNode, PanelSplit } from '../../../../model/panel-workspace-state';
+import {
+	findPanel,
+	type PanelLayoutNode,
+	type PanelSplit,
+} from '../../../../model/panel-workspace-state';
 import type { WorkbenchPanelWorkspaceView } from '../../../../types/panel-workspace-view';
 import {
 	DISABLED_SEPARATOR_KEYS,
@@ -26,18 +30,30 @@ export function WorkbenchPanelSplit({
 	split,
 	view,
 }: WorkbenchPanelSplitProps): React.ReactNode {
-	const resize = useAdjacentPanelResize(split, view.resizeAdjacentPanels, MINIMUM_PANEL_SIZE_PX);
+	const maximizedPanelId = view.maximizedPanelId;
+	const maximizedChildId =
+		maximizedPanelId === null
+			? null
+			: (split.children.find((child) => findPanel(child.node, maximizedPanelId) !== null)?.id ??
+				null);
+	const resize = useAdjacentPanelResize(
+		split,
+		view.resizeAdjacentPanels,
+		MINIMUM_PANEL_SIZE_PX,
+		maximizedChildId,
+	);
 
 	return (
 		<ResizablePanelGroup
 			className={styles['group']}
-			defaultLayout={resize.modelLayout}
+			defaultLayout={resize.displayLayout}
+			disableCursor
 			elementRef={resize.groupElementRef}
 			groupRef={resize.groupRef}
 			id={split.id}
 			onLayoutChange={resize.onLayoutChange}
 			onPointerDownCapture={(event) => {
-				if (event.button !== 0) {
+				if (event.button !== 0 || maximizedChildId !== null) {
 					return;
 				}
 				const separators = [...event.currentTarget.children].filter(
@@ -62,16 +78,18 @@ export function WorkbenchPanelSplit({
 		>
 			{split.children.map((child, index) => {
 				const trailingChild = split.children[index + 1];
+				const isHidden = maximizedChildId !== null && child.id !== maximizedChildId;
 
 				return (
 					<React.Fragment key={child.id}>
-						<ResizablePanel id={getPanelResizeId(split.id, child.id)}>
+						<ResizablePanel hidden={isHidden} id={getPanelResizeId(split.id, child.id)}>
 							{renderNode(child.node)}
 						</ResizablePanel>
 						{trailingChild !== undefined && (
 							<ResizableHandle
 								className={styles['separator']}
 								disableDoubleClick
+								hidden={maximizedChildId !== null}
 								id={getPanelSeparatorId(split.id, child.id, trailingChild.id)}
 								onKeyDownCapture={(event) => {
 									if (DISABLED_SEPARATOR_KEYS.has(event.key)) {

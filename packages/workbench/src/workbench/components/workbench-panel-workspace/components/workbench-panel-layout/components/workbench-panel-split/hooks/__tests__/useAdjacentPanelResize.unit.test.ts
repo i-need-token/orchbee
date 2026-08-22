@@ -134,9 +134,15 @@ function firePointerCompletion(type: string, pointerId: number): void {
 	}
 }
 
-function HookProjection({ value = split }: { readonly value?: PanelSplit }) {
-	const resize = useAdjacentPanelResize(value, onResize, 30);
-	return createElement('div', null, JSON.stringify({ layout: resize.modelLayout }));
+function HookProjection({
+	maximizedChildId = null,
+	value = split,
+}: {
+	readonly maximizedChildId?: string | null;
+	readonly value?: PanelSplit;
+}) {
+	const resize = useAdjacentPanelResize(value, onResize, 30, maximizedChildId);
+	return createElement('div', null, JSON.stringify({ layout: resize.displayLayout }));
 }
 
 afterEach(() => {
@@ -149,6 +155,84 @@ describe('useAdjacentPanelResize', () => {
 		expect(renderToStaticMarkup(createElement(HookProjection))).toContain(
 			'&quot;layout&quot;:{&quot;split-1--panel-1&quot;:50,&quot;split-1--panel-2&quot;:50}',
 		);
+	});
+
+	it('projects maximization without changing the semantic split weights', () => {
+		const markup = renderToStaticMarkup(
+			createElement(HookProjection, { maximizedChildId: 'panel-2' }),
+		);
+
+		expect(markup).toContain(
+			'&quot;layout&quot;:{&quot;split-1--panel-1&quot;:0,&quot;split-1--panel-2&quot;:100}',
+		);
+		expect(split.children.map((child) => child.weight)).toEqual([50, 50]);
+	});
+
+	it('synchronizes the projected layout on maximize and restores canonical weights on minimize', () => {
+		let primitiveLayout: Record<string, number> = {
+			'split-1--panel-1': 50,
+			'split-1--panel-2': 50,
+		};
+		const setLayout = vi.fn<(layout: Record<string, number>) => Record<string, number>>(
+			(layout) => {
+				primitiveLayout = layout;
+				return layout;
+			},
+		);
+		const initialProps: { readonly maximizedChildId: string | null } = {
+			maximizedChildId: null,
+		};
+		const { result, rerender } = renderHook(
+			({ maximizedChildId }: { readonly maximizedChildId: string | null }) =>
+				useAdjacentPanelResize(split, onResize, 30, maximizedChildId),
+			{ initialProps },
+		);
+		result.current.groupRef.current = {
+			getLayout: () => primitiveLayout,
+			setLayout,
+		};
+
+		rerender({ maximizedChildId: 'panel-2' });
+		expect(setLayout).toHaveBeenLastCalledWith({
+			'split-1--panel-1': 0,
+			'split-1--panel-2': 100,
+		});
+
+		rerender({ maximizedChildId: null });
+		expect(setLayout).toHaveBeenLastCalledWith({
+			'split-1--panel-1': 50,
+			'split-1--panel-2': 50,
+		});
+		expect(onResize).not.toHaveBeenCalled();
+	});
+
+	it('cancels an active resize before projecting maximization', () => {
+		const initialProps: { readonly maximizedChildId: string | null } = {
+			maximizedChildId: null,
+		};
+		const { result, rerender } = renderHook(
+			({ maximizedChildId }: { readonly maximizedChildId: string | null }) =>
+				useAdjacentPanelResize(split, onResize, 30, maximizedChildId),
+			{ initialProps },
+		);
+		result.current.groupElementRef.current = createPanelGroupElement([500, 500]);
+		result.current.groupRef.current = {
+			getLayout: () => ({ 'split-1--panel-1': 50, 'split-1--panel-2': 50 }),
+			setLayout: (layout) => layout,
+		};
+
+		act(() => {
+			result.current.startPointerResize(0, 7);
+		});
+		rerender({ maximizedChildId: 'panel-2' });
+		act(() => {
+			result.current.onLayoutChange({
+				'split-1--panel-1': 0,
+				'split-1--panel-2': 100,
+			});
+		});
+
+		expect(onResize).not.toHaveBeenCalled();
 	});
 
 	it('prepares the model layout when a same-axis split adds a child', () => {

@@ -104,11 +104,7 @@ export function useWorkbenchPanelWorkspace({
 	);
 	const activeTab = state.tabs.find((tab) => tab.tabId === activeTabId) ?? null;
 	const panelCount = activeTab === null ? 0 : collectPanelLeaves(activeTab.root).length;
-	const canonicalDisplayedRoot =
-		activeTab?.maximizedPanelId === null || activeTab === null
-			? (activeTab?.root ?? null)
-			: findPanel(activeTab.root, activeTab.maximizedPanelId);
-	const displayedRoot = panelDrag.previewRoot ?? canonicalDisplayedRoot;
+	const displayedRoot = panelDrag.previewRoot ?? activeTab?.root ?? null;
 	const messages = React.useMemo<PanelWorkspaceMessages>(
 		() => ({
 			cancel: intl.formatMessage(workbenchMessages.panelCancel),

@@ -117,6 +117,51 @@ describe('useWorkbenchPanelWorkspace', () => {
 		expect(view.startPanelDrag).toBe(startPanelDrag);
 	});
 
+	it('keeps the complete panel tree displayed while one panel is maximized', () => {
+		const runtime = new ActionRuntime();
+		const parentScope = runtime.createScope('workbench');
+		const model = new TabModel({
+			activeTabId: 'tab-a',
+			tabs: [{ group: null, id: 'tab-a', pinned: false, title: 'Terminal A' }],
+		});
+		let view: WorkbenchPanelWorkspaceView | undefined;
+		render(
+			createElement(
+				OrchbeeI18nProvider,
+				{ locale: 'en-US' },
+				createElement(InteractiveHarness, {
+					actionRuntime: runtime,
+					capture: (candidate) => {
+						view = candidate;
+					},
+					parentActionScope: parentScope,
+					panelWorkspaceStore: new PanelWorkspaceStore(model, {
+						composition: createPreviewComposition('maximize-tree'),
+					}),
+				}),
+			),
+		);
+		if (view === undefined) {
+			throw new Error('Expected the panel workspace view to be captured');
+		}
+
+		let newPanelId: string | null = null;
+		act(() => {
+			newPanelId = view?.splitPanel('panel-1', 'right') ?? null;
+		});
+		if (newPanelId === null) {
+			throw new Error('Expected a split panel');
+		}
+		const maximizedPanelId = newPanelId;
+		act(() => {
+			view?.togglePanelMaximization(maximizedPanelId);
+		});
+
+		expect(view.maximizedPanelId).toBe(maximizedPanelId);
+		expect(view.displayedRoot).toBe(view.activeTab?.root);
+		expect(view.displayedRoot?.kind).toBe('split');
+	});
+
 	it('shares one terminal bell admission ledger across the panel workspace lifetime', () => {
 		const runtime = new ActionRuntime();
 		const parentScope = runtime.createScope('workbench');

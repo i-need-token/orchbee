@@ -26,10 +26,10 @@ type ActiveResize =
 	  });
 
 interface UseAdjacentPanelResizeResult {
+	readonly displayLayout: Readonly<Record<string, number>>;
 	readonly finishKeyboardResize: (separatorIndex: number) => void;
 	readonly groupElementRef: React.RefObject<HTMLDivElement | null>;
 	readonly groupRef: ReturnType<typeof useResizablePanelGroup>['groupRef'];
-	readonly modelLayout: Readonly<Record<string, number>>;
 	readonly onLayoutChange: (candidateLayout: Record<string, number>) => void;
 	readonly startKeyboardResize: (separatorIndex: number) => void;
 	readonly startPointerResize: (separatorIndex: number, pointerId: number) => void;
@@ -39,6 +39,7 @@ export function useAdjacentPanelResize(
 	split: PanelSplit,
 	onResize: (splitId: string, separatorIndex: number, leadingWeight: number) => void,
 	minimumPanelSizePx: number,
+	maximizedChildId: string | null = null,
 ): UseAdjacentPanelResizeResult {
 	const activeResizeRef = React.useRef<ActiveResize | null>(null);
 	const correctingLayoutRef = React.useRef(false);
@@ -53,6 +54,18 @@ export function useAdjacentPanelResize(
 			),
 		[split],
 	);
+	const displayLayout = React.useMemo(
+		() =>
+			maximizedChildId === null
+				? modelLayout
+				: Object.fromEntries(
+						split.children.map((child) => [
+							getPanelResizeId(split.id, child.id),
+							child.id === maximizedChildId ? 100 : 0,
+						]),
+					),
+		[modelLayout, maximizedChildId, split],
+	);
 	const canSynchronizeLayout = useMemoizedFn(() => activeResizeRef.current === null);
 	const {
 		getOwnerDocument,
@@ -65,13 +78,20 @@ export function useAdjacentPanelResize(
 	} = useResizablePanelGroup({
 		canSynchronizeLayout,
 		childIds,
-		modelLayout,
+		modelLayout: displayLayout,
 		orientation: split.orientation,
 	});
+	React.useLayoutEffect(() => {
+		if (maximizedChildId === null || activeResizeRef.current === null) {
+			return;
+		}
+		activeResizeRef.current = null;
+		requestLayoutSync();
+	}, [maximizedChildId, requestLayoutSync]);
 	const applyCandidateLayout = useMemoizedFn(
 		(candidateLayout: Readonly<Record<string, number>>, writeAcceptedLayout = false) => {
 			const activeResize = activeResizeRef.current;
-			if (activeResize === null || correctingLayoutRef.current) {
+			if (activeResize === null || correctingLayoutRef.current || maximizedChildId !== null) {
 				return;
 			}
 			const reconciliation = reconcileAdjacentPanelLayout({
@@ -134,7 +154,7 @@ export function useAdjacentPanelResize(
 				| { readonly kind: 'keyboard' }
 				| { readonly kind: 'pointer'; readonly pointerId: number },
 		) => {
-			if (activeResizeRef.current !== null) {
+			if (activeResizeRef.current !== null || maximizedChildId !== null) {
 				return;
 			}
 			const imperativeLayout = readLayout();
@@ -173,10 +193,10 @@ export function useAdjacentPanelResize(
 	}, [finishPointerResize, getOwnerDocument]);
 
 	return {
+		displayLayout,
 		finishKeyboardResize,
 		groupElementRef,
 		groupRef,
-		modelLayout,
 		onLayoutChange: applyCandidateLayout,
 		startKeyboardResize: (separatorIndex) => {
 			startResize(separatorIndex, { kind: 'keyboard' });
