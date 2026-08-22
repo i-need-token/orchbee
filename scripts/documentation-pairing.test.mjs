@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import test from 'node:test';
@@ -8,6 +9,7 @@ import {
 	collectDocumentationPairingDiagnostics,
 	confirmDocumentationPairs,
 	contentSha256,
+	documentationStructure,
 	renderPairingManifest,
 	stripArgumentSeparator,
 } from './documentation-pairing.mjs';
@@ -18,6 +20,7 @@ const CHINESE = '# 规范\n\n中文要求。\n';
 function withFixture(run) {
 	const repositoryRoot = mkdtempSync(join(tmpdir(), 'orchbee-documentation-pairing-'));
 	try {
+		execFileSync('git', ['init', '--quiet'], { cwd: repositoryRoot });
 		mkdirSync(join(repositoryRoot, 'docs', 'zh-CN'), { recursive: true });
 		mkdirSync(join(repositoryRoot, 'scripts'), { recursive: true });
 		writeFileSync(
@@ -38,7 +41,10 @@ function writeRepositoryFile(repositoryRoot, path, content) {
 
 function addPair(repositoryRoot, sourcePath, english = ENGLISH, chinese = CHINESE) {
 	writeRepositoryFile(repositoryRoot, sourcePath, english);
-	writeRepositoryFile(repositoryRoot, `docs/zh-CN/${sourcePath.slice('docs/'.length)}`, chinese);
+	const localizedPath = sourcePath.startsWith('docs/')
+		? `docs/zh-CN/${sourcePath.slice('docs/'.length)}`
+		: `${sourcePath.slice(0, -'.md'.length)}.zh-CN.md`;
+	writeRepositoryFile(repositoryRoot, localizedPath, chinese);
 }
 
 function manifestPath(repositoryRoot) {
@@ -64,16 +70,54 @@ function readManifest(repositoryRoot) {
 	return JSON.parse(readFileSync(manifestPath(repositoryRoot), 'utf8'));
 }
 
-test('a confirmed English and Simplified Chinese pair passes', () => {
+test('confirmed docs mirrors and locale-suffix pairs pass', () => {
 	withFixture((repositoryRoot) => {
 		addPair(repositoryRoot, 'docs/STANDARD.md');
-		confirm(repositoryRoot, ['docs/zh-CN/STANDARD.md']);
+		addPair(repositoryRoot, 'packages/example/README.md');
+		confirm(repositoryRoot, ['docs/zh-CN/STANDARD.md', 'packages/example/README.zh-CN.md']);
 
 		assert.deepEqual(diagnostics(repositoryRoot), []);
 		assert.match(
 			readManifest(repositoryRoot).pairs['docs/STANDARD.md'].englishSha256,
 			/^[a-f0-9]{64}$/u,
 		);
+	});
+});
+
+test('untracked Markdown is checked while ignored dependency Markdown is excluded', () => {
+	withFixture((repositoryRoot) => {
+		writeRepositoryFile(repositoryRoot, '.gitignore', 'node_modules/\n');
+		writeRepositoryFile(repositoryRoot, 'README.md', ENGLISH);
+		writeRepositoryFile(repositoryRoot, 'node_modules/dependency/README.md', ENGLISH);
+
+		const output = diagnostics(repositoryRoot).join('\n');
+		assert.match(output, /README\.md: missing localized counterpart README\.zh-CN\.md/u);
+		assert.doesNotMatch(output, /node_modules/u);
+	});
+});
+
+test('docs locale-suffix files cannot substitute for the zh-CN mirror path', () => {
+	withFixture((repositoryRoot) => {
+		writeRepositoryFile(repositoryRoot, 'docs/STANDARD.md', ENGLISH);
+		writeRepositoryFile(repositoryRoot, 'docs/STANDARD.zh-CN.md', CHINESE);
+
+		const output = diagnostics(repositoryRoot).join('\n');
+		assert.match(
+			output,
+			/docs\/STANDARD\.zh-CN\.md: Simplified Chinese Markdown for docs\/STANDARD\.md must use docs\/zh-CN\/STANDARD\.md/u,
+		);
+		assert.match(output, /missing localized counterpart docs\/zh-CN\/STANDARD\.md/u);
+	});
+});
+
+test('paired Markdown symlink aliases are checked', () => {
+	withFixture((repositoryRoot) => {
+		addPair(repositoryRoot, 'CLAUDE.md');
+		symlinkSync('CLAUDE.md', join(repositoryRoot, 'AGENTS.md'));
+		symlinkSync('CLAUDE.zh-CN.md', join(repositoryRoot, 'AGENTS.zh-CN.md'));
+		confirm(repositoryRoot, ['CLAUDE.md', 'AGENTS.md']);
+
+		assert.deepEqual(diagnostics(repositoryRoot), []);
 	});
 });
 
@@ -115,8 +159,8 @@ test('coverage diagnostics report missing counterparts and missing or extra rece
 		const output = diagnostics(repositoryRoot).join('\n');
 		assert.match(output, /missing localized counterpart/u);
 		assert.match(output, /missing documentation pairing receipt/u);
-		assert.match(output, /has no English standard/u);
-		assert.match(output, /receipt has no English standard/u);
+		assert.match(output, /has no English Markdown source/u);
+		assert.match(output, /receipt has no English Markdown source/u);
 	});
 });
 
@@ -178,6 +222,9 @@ test('confirmation refuses structural drift without rewriting the manifest', () 
 test('confirmation removes a receipt for an explicitly named paired deletion', () => {
 	withFixture((repositoryRoot) => {
 		addPair(repositoryRoot, 'docs/STANDARD.md');
+		execFileSync('git', ['add', 'docs/STANDARD.md', 'docs/zh-CN/STANDARD.md'], {
+			cwd: repositoryRoot,
+		});
 		confirm(repositoryRoot, ['docs/STANDARD.md']);
 		rmSync(join(repositoryRoot, 'docs', 'STANDARD.md'));
 		rmSync(join(repositoryRoot, 'docs', 'zh-CN', 'STANDARD.md'));
@@ -206,6 +253,13 @@ test('confirmation refuses a one-sided deletion', () => {
 test('content hashes canonicalize CRLF and lone carriage returns to LF', () => {
 	assert.equal(contentSha256('first\r\nsecond\rthird\n'), contentSha256('first\nsecond\nthird\n'));
 	assert.equal(contentSha256(Buffer.from('first\r\nsecond\n')), contentSha256('first\nsecond\n'));
+});
+
+test('inline-code structure ignores language-specific line wrapping', () => {
+	assert.deepEqual(
+		documentationStructure('The `same technical\nidentifier` remains.\n'),
+		documentationStructure('同一个 `same technical identifier` 保持不变。\n'),
+	);
 });
 
 test('command parsing accepts the pnpm argument separator', () => {

@@ -5,9 +5,9 @@
 | 内容                                     | 权威来源                                                                |
 | ---------------------------------------- | ----------------------------------------------------------------------- |
 | 同步的项目价值、能力、安装和首次使用     | `README.md` 和 `README.zh-CN.md`                                        |
-| 公共包能力、API、安装和用法              | `packages/*/README.md`                                                  |
-| 当前包所拥有的行为、架构、集成和维护信息 | `packages/<package>/docs/`                                              |
-| AI Agent 项目地图、硬性规则和规范链接    | `CLAUDE.md`                                                             |
+| 公共包能力、API、安装和用法              | `packages/*/README.md` 和 `packages/*/README.zh-CN.md`                  |
+| 当前包所拥有的行为、架构、集成和维护信息 | `packages/<package>/docs/` 下的配对 Markdown                            |
+| AI Agent 项目地图、硬性规则和规范链接    | `CLAUDE.md` 和 `CLAUDE.zh-CN.md`                                        |
 | 仓库级规范和跨工作区架构                 | `docs/UPPER-KEBAB-CASE.md` 或 `docs/<engineering-domain>/kebab-case.md` |
 | 简体中文规范镜像                         | `docs/zh-CN/<same-standard-path>`                                       |
 | 工作区身份、职责、运行时、稳定性和非目标 | 所属工作区的 `project.json`                                             |
@@ -42,7 +42,7 @@
 | `docs/` 根目录               | 只包含 `CLAUDE.md` 索引的跨仓库规范；文件名使用 `UPPER-KEBAB-CASE.md`。                                                                                |
 | `docs/<engineering-domain>/` | 只覆盖跨工作区边界的稳定工程学科；文件名使用 `kebab-case.md`。新增领域需要审查并加入 lint 契约。                                                       |
 | `docs/zh-CN/`                | 只包含路径相同的完整简体中文规范镜像。                                                                                                                 |
-| `packages/<package>/docs/`   | 包含包所拥有的参考；文件名使用 `kebab-case.md`。                                                                                                       |
+| `packages/<package>/docs/`   | 包含包所拥有的参考；英文文件名使用 `kebab-case.md`，简体中文文件名使用 `kebab-case.zh-CN.md`。                                                         |
 | `<owner>/docs/experience/`   | 包含遵循 [`frontend/experience-components.md`](frontend/experience-components.md)、由 Schema 支持的包本地体验 Manifest；文件名使用 `kebab-case.json`。 |
 
 - 不得使用 `docs/<product>/` 或 `docs/<package>/` 存放单一产品或包的行为。
@@ -52,12 +52,14 @@
 
 ## 本地化
 
-- `docs/` 下的英文规范是权威来源；每份 `docs/<path>` 规范都必须有且只有一个 `docs/zh-CN/<path>` 对应文件。
+- 每份仓库自有 Markdown 文档都同时提供英文和简体中文版本。英文是权威版本，并使用不带 locale 后缀的 `.md` 文件名。
+- `docs/<path>.md` 与 `docs/zh-CN/<path>.md` 配对；`docs/` 之外的 `<path>/<name>.md` 与同目录的 `<path>/<name>.zh-CN.md` 配对。
+- 本契约覆盖已跟踪 Markdown，以及拟跟踪且未被忽略的未跟踪 Markdown，包括 Markdown 符号链接。被忽略的依赖、构建产物和一次性文件不属于仓库文档。
 - 每次新增、删除、移动、标题、示例、命令、链接或内容修改都要在同一个变更中更新两种语言，并保持含义、覆盖范围和结构一致。
-- 审查两份文件含义一致后，每个新增、修改、移动或删除的规范对都要运行 `pnpm docs:confirm-pairing -- docs/<path>.md`；确认操作会记录已审查内容或移除过期凭据，但无法判断翻译质量。
+- 审查两份文件含义一致后，每个新增、修改、移动或删除的文档对都要运行 `pnpm docs:confirm-pairing -- <english-or-zh-CN-markdown-path>`；确认操作会记录已审查内容或移除过期凭据，但无法判断翻译质量。
 - 翻译所有文字；准确保留标识符、路径、命令、配置键、规则 ID 和代码语义。发生冲突时以英文为准。
-- 运行时配置、Schema、lint 诊断、`CLAUDE.md` 和工程权威来源链接到英文规范。`docs/zh-CN/` 内的链接可以留在本地化镜像中。
-- 包参考保持为英文且不进入 `docs/zh-CN/`；面向用户的包指南可以添加 locale 后缀 README。
+- 两个版本都逐字保留第三方版权与许可文本；翻译其周围由项目编写的标题、标签和说明。
+- 运行时配置、Schema、lint 诊断、`CLAUDE.md` 和工程权威来源链接到英文来源。本地化 Markdown 可以链接到本地化对应文件。
 
 ## 链接与锚点
 
@@ -73,8 +75,8 @@
 | 新增或移动内容 | 按归属表分类，并确认引用的每个工作区都存在。                                                                         |
 | 重命名或移动   | 搜索旧术语、路径、标题、规则 ID 和脚本输入。                                                                         |
 | 命令或示例     | 成功运行后再写入文档。                                                                                               |
-| 修改规范       | 更新并完成本地化对应文件的语义审查，然后运行 `pnpm docs:confirm-pairing -- docs/<path>.md`。                         |
+| 修改 Markdown  | 更新并完成本地化对应文件的语义审查，然后运行 `pnpm docs:confirm-pairing -- <english-or-zh-CN-markdown-path>`。       |
 | 修改诊断       | 说明操作、违反的约束和仓库相对 `path#anchor`。                                                                       |
 | 修改强制规则   | 同时更新实现、配置、规范、本地化镜像和规则测试。                                                                     |
-| 验证规范       | 运行 `pnpm lint:documentation` 和 `pnpm test:lint-rules`；它们检查已确认内容对、镜像结构、标识符、链接和路径有效性。 |
+| 验证 Markdown  | 运行 `pnpm lint:documentation` 和 `pnpm test:lint-rules`；它们检查已确认内容对、规范镜像、标识符、链接和路径有效性。 |
 | 修改契约       | 运行 `pnpm format:check`、`pnpm lint`、`pnpm typecheck` 和相关测试。                                                 |

@@ -1,11 +1,13 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { existsSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { existsSync, lstatSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
 
 const REPOSITORY_ROOT = resolve(import.meta.dirname, '..');
 const FORMAT_VERSION = 1;
+const LOCALIZED_MARKDOWN_SUFFIX = '.zh-CN.md';
 const SHA_256_PATTERN = /^[a-f0-9]{64}$/u;
 
 function errorMessage(error) {
@@ -32,13 +34,35 @@ function displayPath(repositoryRoot, absolutePath) {
 	return candidate === '..' || candidate.startsWith('../') ? absolutePath : candidate;
 }
 
-function collectMarkdownFiles(directory) {
-	if (!existsSync(directory)) return [];
-	return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
-		const path = join(directory, entry.name);
-		if (entry.isDirectory()) return collectMarkdownFiles(path);
-		return entry.isFile() && entry.name.endsWith('.md') ? [path] : [];
-	});
+function pathEntryExists(path) {
+	try {
+		lstatSync(path);
+		return true;
+	} catch (error) {
+		if (
+			error instanceof Error &&
+			'code' in error &&
+			(error.code === 'ENOENT' || error.code === 'ENOTDIR')
+		) {
+			return false;
+		}
+		throw error;
+	}
+}
+
+function discoverRepositoryMarkdownPaths(repositoryRoot) {
+	const output = execFileSync(
+		'git',
+		['ls-files', '--cached', '--others', '--exclude-standard', '-z', '--', '*.md'],
+		{
+			cwd: repositoryRoot,
+			encoding: 'utf8',
+			maxBuffer: 16 * 1024 * 1024,
+		},
+	);
+	return [...new Set(output.split('\0').filter((path) => path.length > 0))]
+		.filter((path) => pathEntryExists(join(repositoryRoot, path)))
+		.toSorted();
 }
 
 function assertRecord(value, label) {
@@ -57,15 +81,28 @@ function assertExactKeys(value, expectedKeys, label) {
 function assertSourcePath(sourcePath) {
 	const segments = sourcePath.split('/');
 	if (
-		!sourcePath.startsWith('docs/') ||
 		!sourcePath.endsWith('.md') ||
+		sourcePath.endsWith(LOCALIZED_MARKDOWN_SUFFIX) ||
 		sourcePath.includes('\\') ||
-		segments.length < 2 ||
-		segments[1] === 'zh-CN' ||
+		(segments[0] === 'docs' && segments[1] === 'zh-CN') ||
 		segments.some((segment) => segment === '' || segment === '.' || segment === '..')
 	) {
-		throw new Error(`Invalid English standard path "${sourcePath}"`);
+		throw new Error(`Invalid English Markdown source path "${sourcePath}"`);
 	}
+}
+
+function sourcePathForLocalizedPath(localizedPath) {
+	if (localizedPath.startsWith('docs/zh-CN/')) {
+		const sourcePath = `docs/${localizedPath.slice('docs/zh-CN/'.length)}`;
+		assertSourcePath(sourcePath);
+		return sourcePath;
+	}
+	if (!localizedPath.endsWith(LOCALIZED_MARKDOWN_SUFFIX)) {
+		throw new Error(`Invalid Simplified Chinese Markdown path "${localizedPath}"`);
+	}
+	const sourcePath = `${localizedPath.slice(0, -LOCALIZED_MARKDOWN_SUFFIX.length)}.md`;
+	assertSourcePath(sourcePath);
+	return sourcePath;
 }
 
 function readManifest(manifestPath) {
@@ -91,9 +128,10 @@ function sourcePathFromInput(repositoryRoot, input) {
 		throw new Error(`Documentation pairing path must stay inside the repository: ${input}`);
 	}
 	const normalizedPath = relativePath.split(sep).join('/');
-	const sourcePath = normalizedPath.startsWith('docs/zh-CN/')
-		? `docs/${normalizedPath.slice('docs/zh-CN/'.length)}`
-		: normalizedPath;
+	const sourcePath =
+		normalizedPath.startsWith('docs/zh-CN/') || normalizedPath.endsWith(LOCALIZED_MARKDOWN_SUFFIX)
+			? sourcePathForLocalizedPath(normalizedPath)
+			: normalizedPath;
 	assertSourcePath(sourcePath);
 	return sourcePath;
 }
@@ -128,9 +166,8 @@ export function documentationStructure(markdown) {
 			.map(() => 'block'),
 		fences: matches(/^```[^\n]*$/gmu),
 		headings: matches(/^(?:#{1,6})\s+/gmu),
-		inlineCode: Array.from(
-			normalizedMarkdown.matchAll(/(?<!`)`([^`\n]+)`(?!`)/gu),
-			(match) => match[1] ?? '',
+		inlineCode: Array.from(normalizedMarkdown.matchAll(/(?<!`)`([^`]+?)`(?!`)/gsu), (match) =>
+			(match[1] ?? '').replaceAll(/\s+/gu, ' '),
 		).toSorted(),
 		links: matches(/\]\([^)]+\)/gu).map(() => 'link'),
 		orderedItems: matches(/^\d+\.\s+/gmu),
@@ -141,29 +178,43 @@ export function documentationStructure(markdown) {
 
 export function localizedPathForSource(sourcePath) {
 	assertSourcePath(sourcePath);
-	return `docs/zh-CN/${sourcePath.slice('docs/'.length)}`;
+	return sourcePath.startsWith('docs/')
+		? `docs/zh-CN/${sourcePath.slice('docs/'.length)}`
+		: `${sourcePath.slice(0, -'.md'.length)}${LOCALIZED_MARKDOWN_SUFFIX}`;
 }
 
 export function discoverDocumentationSources(repositoryRoot = REPOSITORY_ROOT) {
-	const docsRoot = join(repositoryRoot, 'docs');
-	const localizedRoot = join(docsRoot, 'zh-CN');
-	return collectMarkdownFiles(docsRoot)
-		.filter((path) => !path.startsWith(`${localizedRoot}${sep}`))
-		.map((path) => repositoryPath(repositoryRoot, path))
+	return discoverRepositoryMarkdownPaths(repositoryRoot)
+		.filter((path) => !path.startsWith('docs/zh-CN/') && !path.endsWith(LOCALIZED_MARKDOWN_SUFFIX))
 		.toSorted();
 }
 
 function discoverLocalizedPairs(repositoryRoot) {
-	const localizedRoot = join(repositoryRoot, 'docs', 'zh-CN');
-	return collectMarkdownFiles(localizedRoot)
-		.map((path) => {
-			const mirrorPath = repositoryPath(localizedRoot, path);
-			return {
-				localizedPath: `docs/zh-CN/${mirrorPath}`,
-				sourcePath: `docs/${mirrorPath}`,
-			};
-		})
-		.toSorted((left, right) => comparePaths(left.sourcePath, right.sourcePath));
+	const diagnostics = [];
+	const pairs = [];
+	for (const localizedPath of discoverRepositoryMarkdownPaths(repositoryRoot).filter(
+		(path) => path.startsWith('docs/zh-CN/') || path.endsWith(LOCALIZED_MARKDOWN_SUFFIX),
+	)) {
+		let sourcePath;
+		try {
+			sourcePath = sourcePathForLocalizedPath(localizedPath);
+		} catch (error) {
+			diagnostics.push(`${localizedPath}: ${errorMessage(error)}`);
+			continue;
+		}
+		const expectedLocalizedPath = localizedPathForSource(sourcePath);
+		if (localizedPath !== expectedLocalizedPath) {
+			diagnostics.push(
+				`${localizedPath}: Simplified Chinese Markdown for ${sourcePath} must use ${expectedLocalizedPath}`,
+			);
+			continue;
+		}
+		pairs.push({ localizedPath, sourcePath });
+	}
+	return {
+		diagnostics: diagnostics.toSorted(),
+		pairs: pairs.toSorted((left, right) => comparePaths(left.sourcePath, right.sourcePath)),
+	};
 }
 
 export function parsePairingManifest(raw) {
@@ -242,19 +293,23 @@ export function collectDocumentationPairingDiagnostics({
 
 	const sourcePaths = discoverDocumentationSources(repositoryRoot);
 	const sourcePathSet = new Set(sourcePaths);
-	const localizedPairs = discoverLocalizedPairs(repositoryRoot);
+	const { diagnostics: localizedDiagnostics, pairs: localizedPairs } =
+		discoverLocalizedPairs(repositoryRoot);
+	diagnostics.push(...localizedDiagnostics);
 	const localizedSourcePaths = localizedPairs.map(({ sourcePath }) => sourcePath);
 	const localizedSourcePathSet = new Set(localizedSourcePaths);
 	const receiptPaths = Object.keys(manifest.pairs).toSorted();
 
 	for (const { localizedPath, sourcePath } of localizedPairs) {
 		if (!sourcePathSet.has(sourcePath)) {
-			diagnostics.push(`${localizedPath} has no English standard`);
+			diagnostics.push(`${localizedPath} has no English Markdown source`);
 		}
 	}
 	for (const receiptPath of receiptPaths) {
 		if (!sourcePathSet.has(receiptPath)) {
-			diagnostics.push(`${manifestDisplayPath}: receipt has no English standard: ${receiptPath}`);
+			diagnostics.push(
+				`${manifestDisplayPath}: receipt has no English Markdown source: ${receiptPath}`,
+			);
 		}
 	}
 
@@ -313,8 +368,8 @@ export function confirmDocumentationPairs({
 		const localizedPath = localizedPathForSource(sourcePath);
 		const englishFile = join(repositoryRoot, sourcePath);
 		const chineseFile = join(repositoryRoot, localizedPath);
-		const englishExists = existsSync(englishFile);
-		const chineseExists = existsSync(chineseFile);
+		const englishExists = pathEntryExists(englishFile);
+		const chineseExists = pathEntryExists(chineseFile);
 		if (englishExists !== chineseExists) {
 			const missingPath = englishExists ? localizedPath : sourcePath;
 			throw new Error(`${sourcePath}: cannot confirm while ${missingPath} is missing`);
@@ -350,7 +405,7 @@ export function confirmDocumentationPairs({
 function usage() {
 	return `Usage:
   pnpm lint:documentation
-  pnpm docs:confirm-pairing -- docs/<path>.md [docs/<path>.md ...]
+  pnpm docs:confirm-pairing -- <english-or-zh-CN-markdown-path> [...]
 `;
 }
 

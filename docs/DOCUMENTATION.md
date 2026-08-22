@@ -5,9 +5,9 @@
 | Content                                                                            | Authority                                                               |
 | ---------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
 | Synchronized project value, capabilities, installation, and first use              | `README.md` and `README.zh-CN.md`                                       |
-| Public package capability, API, installation, and usage                            | `packages/*/README.md`                                                  |
-| Current package-owned behavior, architecture, integration, and maintenance         | `packages/<package>/docs/`                                              |
-| AI-agent project map, hard rules, and standard links                               | `CLAUDE.md`                                                             |
+| Public package capability, API, installation, and usage                            | `packages/*/README.md` and `packages/*/README.zh-CN.md`                 |
+| Current package-owned behavior, architecture, integration, and maintenance         | Paired Markdown under `packages/<package>/docs/`                        |
+| AI-agent project map, hard rules, and standard links                               | `CLAUDE.md` and `CLAUDE.zh-CN.md`                                       |
 | Repository-wide standards and cross-workspace architecture                         | `docs/UPPER-KEBAB-CASE.md` or `docs/<engineering-domain>/kebab-case.md` |
 | Simplified Chinese standards mirror                                                | `docs/zh-CN/<same-standard-path>`                                       |
 | Workspace identity, responsibility, runtime, stability, and non-goals              | The owning workspace's `project.json`                                   |
@@ -42,7 +42,7 @@
 | `docs/` root                 | Contains only cross-repository standards indexed by `CLAUDE.md`; filenames use `UPPER-KEBAB-CASE.md`.                                                                      |
 | `docs/<engineering-domain>/` | Covers one stable discipline across workspace boundaries; filenames use `kebab-case.md`. New domains need review and lint-contract admission.                              |
 | `docs/zh-CN/`                | Contains only the complete Simplified Chinese mirror at the same standard paths.                                                                                           |
-| `packages/<package>/docs/`   | Contains package-owned references; filenames use `kebab-case.md`.                                                                                                          |
+| `packages/<package>/docs/`   | Contains package-owned references; English filenames use `kebab-case.md`, and Simplified Chinese filenames use `kebab-case.zh-CN.md`.                                      |
 | `<owner>/docs/experience/`   | Contains schema-backed package-local experience Manifests under [`frontend/experience-components.md`](frontend/experience-components.md); filenames use `kebab-case.json`. |
 
 - Never store one product's or package's behavior under `docs/<product>/` or `docs/<package>/`.
@@ -52,12 +52,14 @@
 
 ## Localization
 
-- English standards under `docs/` are authoritative; every `docs/<path>` standard has exactly one `docs/zh-CN/<path>` counterpart.
+- Every repository-owned Markdown document ships in English and Simplified Chinese. English is authoritative and uses an unsuffixed `.md` filename.
+- Pair `docs/<path>.md` with `docs/zh-CN/<path>.md`; outside `docs/`, pair `<path>/<name>.md` with `<path>/<name>.zh-CN.md` in the same directory.
+- The contract covers tracked Markdown and untracked, non-ignored Markdown proposed for tracking, including Markdown symlinks. Ignored dependencies, build output, and disposable files are outside repository documentation.
 - Update both languages in the same change for every addition, deletion, move, heading, example, command, link, or content edit; keep meaning, coverage, and structure equal.
-- After reviewing both files for equal meaning, run `pnpm docs:confirm-pairing -- docs/<path>.md` for every added, changed, moved, or deleted standard pair; confirmation records reviewed contents or removes an obsolete receipt but cannot judge translation quality.
+- After reviewing both files for equal meaning, run `pnpm docs:confirm-pairing -- <english-or-zh-CN-markdown-path>` for every added, changed, moved, or deleted pair; confirmation records reviewed contents or removes an obsolete receipt but cannot judge translation quality.
 - Translate all prose; preserve identifiers, paths, commands, configuration keys, rule IDs, and code semantics exactly. English resolves conflicts.
-- Runtime configuration, schemas, lint diagnostics, `CLAUDE.md`, and engineering authorities link to English standards. Links inside `docs/zh-CN/` may stay in the localized mirror.
-- Package references remain English and do not enter `docs/zh-CN/`; user-facing package guides may add locale-suffixed READMEs.
+- Preserve third-party copyright and license text verbatim in both versions; translate the project-authored headings, labels, and explanation around it.
+- Runtime configuration, schemas, lint diagnostics, `CLAUDE.md`, and engineering authorities link to English sources. Localized Markdown may link to localized counterparts.
 
 ## Links and anchors
 
@@ -68,13 +70,13 @@
 
 ## Verification
 
-| Change                 | Required check                                                                                                                                         |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| New or moved content   | Classify it by the ownership table and confirm every referenced workspace exists.                                                                      |
-| Rename or move         | Search for the old term, path, heading, rule ID, and script input.                                                                                     |
-| Command or example     | Run it successfully before documenting it.                                                                                                             |
-| Standard edit          | Update and semantically review the localized counterpart, then run `pnpm docs:confirm-pairing -- docs/<path>.md`.                                      |
-| Diagnostic edit        | State the action, violated constraint, and repository-relative `path#anchor`.                                                                          |
-| Enforced rule edit     | Update the implementation, configuration, standard, localized mirror, and rule tests together.                                                         |
-| Standards verification | Run `pnpm lint:documentation` and `pnpm test:lint-rules`; they check confirmed content pairs, mirror structure, identifiers, links, and path validity. |
-| Contract edit          | Run `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, and relevant tests.                                                                            |
+| Change                | Required check                                                                                                                                         |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| New or moved content  | Classify it by the ownership table and confirm every referenced workspace exists.                                                                      |
+| Rename or move        | Search for the old term, path, heading, rule ID, and script input.                                                                                     |
+| Command or example    | Run it successfully before documenting it.                                                                                                             |
+| Markdown edit         | Update and semantically review the localized counterpart, then run `pnpm docs:confirm-pairing -- <english-or-zh-CN-markdown-path>`.                    |
+| Diagnostic edit       | State the action, violated constraint, and repository-relative `path#anchor`.                                                                          |
+| Enforced rule edit    | Update the implementation, configuration, standard, localized mirror, and rule tests together.                                                         |
+| Markdown verification | Run `pnpm lint:documentation` and `pnpm test:lint-rules`; they check confirmed content pairs, standard mirrors, identifiers, links, and path validity. |
+| Contract edit         | Run `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, and relevant tests.                                                                            |

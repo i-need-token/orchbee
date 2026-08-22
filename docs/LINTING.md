@@ -2,26 +2,26 @@
 
 ## Commands
 
-| Command                                       | Responsibility                                                                           |
-| --------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| `pnpm verify`                                 | Run the complete merge gate defined by `docs/VERIFICATION.md`                            |
-| `pnpm lint`                                   | Run every required code, documentation, style, dependency, project, and experience check |
-| `pnpm lint:code`                              | Run blocking oxlint diagnostics with agent-oriented output                               |
-| `pnpm lint:code:warnings`                     | Audit blocking diagnostics and non-blocking oxlint warnings                              |
-| `pnpm lint:documentation`                     | Validate authoritative bilingual standard pairing receipts and structure                 |
-| `pnpm lint:styles`                            | Validate the token registry and authored frontend styling contract                       |
-| `pnpm lint:storage`                           | Validate browser-storage access, ownership, key shape, and versioning                    |
-| `pnpm lint:dependencies`                      | Run Knip strict dependency, file, export, catalog, and manifest analysis                 |
-| `pnpm lint:projects`                          | Validate every schema-backed workspace project contract                                  |
-| `pnpm lint:experience`                        | Validate experience-component schemas, ownership, paths, and relations                   |
-| `pnpm lint:fix`                               | Apply safe oxlint fixes; remaining diagnostics require code changes                      |
-| `pnpm typecheck`                              | Run TypeScript diagnostics that syntax-aware lint does not replace                       |
-| `pnpm test:lint-rules`                        | Test the `orchbee/*` rules and English/Chinese standards contract                        |
-| `pnpm test:documentation-pairing`             | Run negative tests for documentation pairing checks and confirmation                     |
-| `pnpm test:style-contract`                    | Run regression tests for the frontend style-contract checker                             |
-| `pnpm test:storage-contract`                  | Run regression tests for the browser-storage contract checker                            |
-| `pnpm test:experience-contract`               | Run regression tests for the experience catalog and lookup contract                      |
-| `pnpm docs:confirm-pairing -- docs/<path>.md` | Update only explicitly named receipts after semantic review                              |
+| Command                                        | Responsibility                                                                           |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `pnpm verify`                                  | Run the complete merge gate defined by `docs/VERIFICATION.md`                            |
+| `pnpm lint`                                    | Run every required code, documentation, style, dependency, project, and experience check |
+| `pnpm lint:code`                               | Run blocking oxlint diagnostics with agent-oriented output                               |
+| `pnpm lint:code:warnings`                      | Audit blocking diagnostics and non-blocking oxlint warnings                              |
+| `pnpm lint:documentation`                      | Validate every repository Markdown pair's path, receipt, and structure                   |
+| `pnpm lint:styles`                             | Validate the token registry and authored frontend styling contract                       |
+| `pnpm lint:storage`                            | Validate browser-storage access, ownership, key shape, and versioning                    |
+| `pnpm lint:dependencies`                       | Run Knip strict dependency, file, export, catalog, and manifest analysis                 |
+| `pnpm lint:projects`                           | Validate every schema-backed workspace project contract                                  |
+| `pnpm lint:experience`                         | Validate experience-component schemas, ownership, paths, and relations                   |
+| `pnpm lint:fix`                                | Apply safe oxlint fixes; remaining diagnostics require code changes                      |
+| `pnpm typecheck`                               | Run TypeScript diagnostics that syntax-aware lint does not replace                       |
+| `pnpm test:lint-rules`                         | Test the `orchbee/*` rules and English/Chinese standards contract                        |
+| `pnpm test:documentation-pairing`              | Run negative tests for documentation pairing checks and confirmation                     |
+| `pnpm test:style-contract`                     | Run regression tests for the frontend style-contract checker                             |
+| `pnpm test:storage-contract`                   | Run regression tests for the browser-storage contract checker                            |
+| `pnpm test:experience-contract`                | Run regression tests for the experience catalog and lookup contract                      |
+| `pnpm docs:confirm-pairing -- <markdown-path>` | Update only explicitly named receipts after semantic review                              |
 
 ## Enforcement boundary
 
@@ -30,7 +30,7 @@
 | Rule authority      | Repository standards define explicitly configured and `orchbee/*` rules; the installed oxlint version governs upstream category rules.                                                                                                                                                                                                                                                                                                                                     |
 | Docs and config     | Every rule documented as enforced must be enabled in `.oxlintrc.json`; `pnpm test:lint-rules` verifies both docs-to-config and config-to-doc coverage.                                                                                                                                                                                                                                                                                                                     |
 | Standards structure | `pnpm test:lint-rules` enforces one-to-one `docs/zh-CN/` coverage, structure, inline identifiers, localized links, admitted paths under `docs/`, and existing concrete `apps/<name>` and `packages/<name>` references.                                                                                                                                                                                                                                                     |
-| Standards content   | `pnpm lint:documentation` compares every authoritative English/Chinese standard with its SHA-256 receipt in `scripts/documentation-pairing.json`. After semantic review, `pnpm docs:confirm-pairing -- docs/<path>.md` updates only named pairs; receipts detect unconfirmed content edits but cannot judge translation fidelity.                                                                                                                                          |
+| Markdown content    | `pnpm lint:documentation` discovers tracked and unignored candidate `.md` files, enforces the `docs/zh-CN/` mirror or same-directory `.zh-CN.md` naming contract, and compares every English/Chinese pair with its SHA-256 receipt in `scripts/documentation-pairing.json`. After semantic review, `pnpm docs:confirm-pairing -- <markdown-path>` updates only named pairs; receipts detect unconfirmed content edits but cannot judge translation fidelity.               |
 | Severity            | Errors fail `pnpm lint`; routine lint output omits non-blocking warnings to keep automated feedback concise. Run `pnpm lint:code:warnings` when reviewing warnings in affected package files.                                                                                                                                                                                                                                                                              |
 | Dependencies        | `pnpm lint:dependencies` runs Knip `--strict`; direct undeclared imports, unused files, dependencies, exports or types, unresolved imports, duplicate exports, cycles, and stale catalog entries fail.                                                                                                                                                                                                                                                                     |
 | Knip scope          | List every runnable script, build configuration, test suite, and public package entry in `knip.json#workspaces`; never ignore a finding caused by an omitted entry point.                                                                                                                                                                                                                                                                                                  |
