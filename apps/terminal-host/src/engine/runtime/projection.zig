@@ -105,10 +105,10 @@ pub fn resolveCloseActivity(
 }
 
 /// Samples the independent process observation without holding a runtime
-/// mutex, then commits its projection under the canonical projection ->
-/// terminal lock order. Once activity-affecting input has committed in this
-/// lifecycle, an inactive observation remains unknown: the Host has no
-/// epoch-tagged shell acknowledgement that could safely restore idle.
+/// mutex, then resolves it with Ghostty's current semantic-prompt state under
+/// the canonical projection -> terminal lock order. Activity-affecting input
+/// invalidates older evidence, but a later sample may restore idle in the same
+/// lifecycle from the current canonical state.
 pub fn sampleCloseActivity(
     self: *state.State,
 ) contracts.ProjectionEncodeError!contracts.CloseActivityRefresh {
@@ -128,21 +128,12 @@ pub fn sampleCloseActivity(
     defer self.terminal_mutex.unlock();
     try failure_ops.ensureReadableStateAvailableLocked(self);
 
-    var next_activity = if (self.close_activity_input_latched)
-        // After input, semantic prompt markers are output and cannot identify
-        // which input the shell processed. Only an independently observed
-        // foreground process is safe to publish as active.
-        if (platform_command_active == true)
-            contracts.TerminalCloseActivity.active
-        else
-            contracts.TerminalCloseActivity.unknown
-    else
-        resolveCloseActivity(
-            platform_command_active,
-            self.terminal.screens.active.semantic_prompt.seen,
-            self.terminal.screens.active.semantic_prompt.seen and
-                self.terminal.cursorIsAtPrompt(),
-        );
+    var next_activity = resolveCloseActivity(
+        platform_command_active,
+        self.terminal.screens.active.semantic_prompt.seen,
+        self.terminal.screens.active.semantic_prompt.seen and
+            self.terminal.cursorIsAtPrompt(),
+    );
 
     const previous_activity = self.close_activity;
     if (previous_activity != next_activity and
@@ -158,9 +149,7 @@ pub fn sampleCloseActivity(
 /// Commits the projection half of an activity-affecting input transaction.
 /// The caller holds projection_mutex then input_mutex and has already committed
 /// the input queue publication (or accepted a zero-byte semantic input).
-/// The latch is permanent for this runtime identity and lifecycle.
 pub fn invalidateCloseActivityAfterInputLocked(self: *state.State) void {
-    self.close_activity_input_latched = true;
     self.close_activity = .unknown;
     _ = advanceCloseActivityEpochLocked(self);
 }

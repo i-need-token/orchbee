@@ -189,7 +189,7 @@ test "successful raw and non-focus input invalidate every read presentation but 
         else => return error.ExpectedRejectedRawInput,
     }
     var activity = terminal_runtime.testing.closeActivityObservation(runtime);
-    try std.testing.expect(!activity.input_latched);
+    const initial_activity_epoch = activity.activity_epoch;
 
     switch (aggregate.acceptSemanticInput(
         connection_id,
@@ -202,7 +202,7 @@ test "successful raw and non-focus input invalidate every read presentation but 
         else => return error.ExpectedAcceptedFocus,
     }
     activity = terminal_runtime.testing.closeActivityObservation(runtime);
-    try std.testing.expect(!activity.input_latched);
+    try std.testing.expectEqual(initial_activity_epoch, activity.activity_epoch);
     for ([_]core_module.AttachmentId{ input_attachment, read_attachment }) |attachment_id| {
         try std.testing.expect(
             !aggregate.core().findAttachment(attachment_id).?.projectionReady().?.forceSnapshot(),
@@ -215,7 +215,7 @@ test "successful raw and non-focus input invalidate every read presentation but 
     }
     activity = terminal_runtime.testing.closeActivityObservation(runtime);
     try std.testing.expectEqual(protocol.TerminalCloseActivity.unknown, activity.activity);
-    try std.testing.expect(activity.input_latched);
+    try std.testing.expectEqual(initial_activity_epoch + 1, activity.activity_epoch);
     for ([_]core_module.AttachmentId{ input_attachment, read_attachment }) |attachment_id| {
         try std.testing.expect(
             aggregate.core().findAttachment(attachment_id).?.projectionReady().?.forceSnapshot(),
@@ -248,7 +248,7 @@ test "successful raw and non-focus input invalidate every read presentation but 
     }
     activity = terminal_runtime.testing.closeActivityObservation(runtime);
     try std.testing.expectEqual(protocol.TerminalCloseActivity.unknown, activity.activity);
-    try std.testing.expect(activity.input_latched);
+    try std.testing.expectEqual(initial_activity_epoch + 2, activity.activity_epoch);
     for ([_]core_module.AttachmentId{ input_attachment, read_attachment }) |attachment_id| {
         try std.testing.expect(
             aggregate.core().findAttachment(attachment_id).?.projectionReady().?.forceSnapshot(),

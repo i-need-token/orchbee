@@ -22,14 +22,13 @@ pub const State = struct {
     clipboard_write_pending: ?contracts.ClipboardWriteRequest = null,
     clipboard_write_sequence: u64 = 0,
     clipboard_write_staged: ?[]u8 = null,
-    // projection_mutex owns the cached close-activity projection and its
-    // permanent per-lifecycle input latch. Without a shell-originated,
-    // epoch-tagged acknowledgement, output, process transitions, and elapsed
-    // time cannot clear an accepted activity-affecting input.
+    // projection_mutex owns the cached close-activity projection and freshness
+    // epoch. Activity-affecting input invalidates the cache before publication;
+    // a later bounded sample may classify the current process and Ghostty
+    // prompt state again.
     close_activity: contracts.TerminalCloseActivity = .unknown,
     close_activity_epoch: u64 = 0,
     close_activity_epoch_exhausted: bool = false,
-    close_activity_input_latched: bool = false,
     command_batch_active: bool = false,
     command_completion: ?contracts.TerminalCommandCompletion = null,
     command_completion_staged: ?contracts.TerminalCommandCompletion = null,

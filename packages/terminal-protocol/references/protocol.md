@@ -440,12 +440,11 @@ sequence instead of `FrameApplied`. The Host abandons that flight and forces a c
 because the request follows the input on the consumer-to-Host stream, the replacement is causal
 evidence that the Host cache was captured after invalidation even when its terminal revision is
 unchanged. It proves neither that the Host accepted the input nor that the terminal process
-consumed it. The current Host permanently latches a Host-accepted non-focus input for that terminal
-lifecycle, so the replacement and every later same-lifecycle frame may report only `active` or
-`unknown`. If the Host rejects or otherwise does not accept the input, the causal replacement may
-legitimately publish fresh `idle`. A theme stage applies this fence before declaring readiness.
-Fresh `idle` may allow a product to close without confirmation. `active`, `unknown`, and any locally
-stale presentation require confirmation.
+consumed it. Host-accepted non-focus input invalidates the cached observation immediately. A later
+bounded current-state sample may publish `active`, `idle`, or `unknown`, so the replacement and
+later same-lifecycle frames may legitimately restore fresh `idle`. A theme stage applies this fence
+before declaring readiness. Fresh `idle` may allow a product to close without confirmation.
+`active`, `unknown`, and any locally stale presentation require confirmation.
 
 Progress state byte `0` removes the indicator, `1` is active, `2` is error, `3` is indeterminate,
 and `4` is paused. `remove` and `indeterminate` require the null sentinel. `set`, `error`, and

@@ -3,12 +3,17 @@ EXTENDS FiniteSets, Naturals, TLC
 
 \* Refines runtime-model claims TH-006, TH-010, and TH-012 for the
 \* projection-only close-activity observation. Every accepted non-focus input,
-\* including a zero-byte encoding, permanently latches the current terminal
-\* lifecycle. Writer completion, PTY output, semantic prompt markers, a
-\* foreground-process transition, and elapsed cadence cannot clear that latch
-\* because none is an epoch-tagged shell acknowledgement. A successful sample
-\* may publish active while latched only from an independently observed active
-\* foreground process; every inactive observation must publish unknown.
+\* including a zero-byte encoding, immediately invalidates an older activity
+\* sample. A later successful sample resolves the current platform foreground
+\* observation together with Ghostty's current semantic-prompt state, so an
+\* inactive terminal may return to idle in the same lifecycle. Platform-active
+\* and semantic-command observations remain active, while a failed platform
+\* query remains unknown.
+\*
+\* Input does not synchronously mutate Ghostty's prompt state. A sample may
+\* therefore observe the same prompt immediately after input, matching the
+\* pinned Ghostty close-confirmation reference. This model claims freshness of
+\* the sampled state, not shell consumption of the input.
 \*
 \* The activity epoch plus its exhausted bit prevents an ABA commit after
 \* input invalidation, including at the bounded counter maximum.
@@ -27,6 +32,10 @@ Active == "active"
 Idle == "idle"
 Unknown == "unknown"
 
+AtPrompt == "at-prompt"
+AwayFromPrompt == "away-from-prompt"
+PromptUnavailable == "prompt-unavailable"
+
 Ready == "ready"
 Provisional == "provisional"
 InFlight == "in-flight"
@@ -34,8 +43,8 @@ InFlight == "in-flight"
 VARIABLES
   revision,
   processActive,
+  terminalPrompt,
   pendingWrites,
-  inputLatched,
   cachedActivity,
   cacheFresh,
   activityEpoch,
@@ -54,7 +63,7 @@ VARIABLES
   nextSequence
 
 vars ==
-  <<revision, processActive, pendingWrites, inputLatched, cachedActivity,
+  <<revision, processActive, terminalPrompt, pendingWrites, cachedActivity,
     cacheFresh, activityEpoch, activityEpochExhausted, cadence, sampledCadence,
     delivery, snapshotRequired, forceSnapshotAfterFlight, frameActivity,
     frameFresh, frameEpoch, frameEpochExhausted, frameRevision, frameSequence,
@@ -63,8 +72,8 @@ vars ==
 Init ==
   /\ revision = 0
   /\ processActive = FALSE
+  /\ terminalPrompt = AtPrompt
   /\ pendingWrites = 0
-  /\ inputLatched = FALSE
   /\ cachedActivity = Idle
   /\ cacheFresh = TRUE
   /\ activityEpoch = 0
@@ -98,7 +107,6 @@ InvalidateReady(nextDelivery, nextRequired, nextForce) ==
 InputCommit(hasBytes) ==
   /\ hasBytes \in BOOLEAN
   /\ ~hasBytes \/ pendingWrites < MaxPendingWrites
-  /\ inputLatched' = TRUE
   /\ pendingWrites' = IF hasBytes THEN pendingWrites + 1 ELSE pendingWrites
   /\ cachedActivity' = Unknown
   /\ cacheFresh' = FALSE
@@ -109,28 +117,29 @@ InputCommit(hasBytes) ==
   /\ activityEpochExhausted' =
        (activityEpochExhausted \/ activityEpoch = MaxActivityEpoch)
   /\ InvalidateReady(delivery', snapshotRequired', forceSnapshotAfterFlight')
-  /\ UNCHANGED <<revision, processActive, cadence, sampledCadence,
+  /\ UNCHANGED <<revision, processActive, terminalPrompt, cadence, sampledCadence,
                   frameActivity, frameFresh, frameEpoch, frameRevision,
                   frameEpochExhausted, frameSequence, nextSequence>>
 
-\* Physical delivery remains modeled only to prove that it cannot clear the
-\* lifecycle latch or make a later inactive observation authoritative.
+\* Physical delivery does not itself refresh the activity observation.
 WriterCompletesInput ==
   /\ pendingWrites > 0
   /\ pendingWrites' = pendingWrites - 1
-  /\ UNCHANGED <<revision, processActive, inputLatched, cachedActivity,
+  /\ UNCHANGED <<revision, processActive, terminalPrompt, cachedActivity,
                   cacheFresh, activityEpoch, activityEpochExhausted, cadence,
                   sampledCadence, delivery, snapshotRequired,
                   forceSnapshotAfterFlight, frameActivity, frameFresh,
                   frameEpoch, frameEpochExhausted, frameRevision,
                   frameSequence, nextSequence>>
 
-\* Output may include buffered bytes, echo, OSC 133 markers, or any other PTY
-\* mutation. Without an input epoch in the shell protocol it is not an ACK.
-OutputCommit ==
+\* Output may move Ghostty's current semantic-prompt observation. It does not
+\* refresh the cached close activity until the next bounded sample.
+OutputCommit(promptState) ==
+  /\ promptState \in {AtPrompt, AwayFromPrompt, PromptUnavailable}
   /\ revision < MaxRevision
   /\ revision' = revision + 1
-  /\ UNCHANGED <<processActive, pendingWrites, inputLatched, cachedActivity,
+  /\ terminalPrompt' = promptState
+  /\ UNCHANGED <<processActive, pendingWrites, cachedActivity,
                   cacheFresh, activityEpoch, activityEpochExhausted, cadence,
                   sampledCadence, delivery, snapshotRequired,
                   forceSnapshotAfterFlight, frameActivity, frameFresh,
@@ -141,7 +150,7 @@ SilentForegroundChange(active) ==
   /\ active \in BOOLEAN
   /\ active # processActive
   /\ processActive' = active
-  /\ UNCHANGED <<revision, pendingWrites, inputLatched, cachedActivity,
+  /\ UNCHANGED <<revision, terminalPrompt, pendingWrites, cachedActivity,
                   cacheFresh, activityEpoch, activityEpochExhausted, cadence,
                   sampledCadence, delivery, snapshotRequired,
                   forceSnapshotAfterFlight, frameActivity, frameFresh,
@@ -151,7 +160,7 @@ SilentForegroundChange(active) ==
 AdvanceCadence ==
   /\ cadence < MaxCadence
   /\ cadence' = cadence + 1
-  /\ UNCHANGED <<revision, processActive, pendingWrites, inputLatched,
+  /\ UNCHANGED <<revision, processActive, terminalPrompt, pendingWrites,
                   cachedActivity, cacheFresh, activityEpoch,
                   activityEpochExhausted, sampledCadence, delivery,
                   snapshotRequired, forceSnapshotAfterFlight, frameActivity,
@@ -164,7 +173,7 @@ SampleSuccess ==
   /\ LET requestedActivity ==
            IF processActive
              THEN Active
-             ELSE IF inputLatched THEN Unknown ELSE Idle
+             ELSE IF terminalPrompt = AwayFromPrompt THEN Active ELSE Idle
          epochOverflow ==
            requestedActivity # cachedActivity /\
              activityEpoch = MaxActivityEpoch
@@ -189,7 +198,7 @@ SampleSuccess ==
                  /\ snapshotRequired' = snapshotRequired
                  /\ forceSnapshotAfterFlight' = forceSnapshotAfterFlight
   /\ sampledCadence' = cadence
-  /\ UNCHANGED <<revision, processActive, pendingWrites, inputLatched,
+  /\ UNCHANGED <<revision, processActive, terminalPrompt, pendingWrites,
                   cadence, frameActivity, frameFresh, frameEpoch,
                   frameEpochExhausted, frameRevision, frameSequence,
                   nextSequence>>
@@ -217,7 +226,7 @@ SampleFailure ==
                  /\ snapshotRequired' = snapshotRequired
                  /\ forceSnapshotAfterFlight' = forceSnapshotAfterFlight
   /\ sampledCadence' = cadence
-  /\ UNCHANGED <<revision, processActive, pendingWrites, inputLatched,
+  /\ UNCHANGED <<revision, processActive, terminalPrompt, pendingWrites,
                   cadence, frameActivity, frameFresh, frameEpoch,
                   frameEpochExhausted, frameRevision, frameSequence,
                   nextSequence>>
@@ -236,7 +245,7 @@ PrepareSnapshot(attachment) ==
   /\ frameRevision' = [frameRevision EXCEPT ![attachment] = revision]
   /\ frameSequence' =
        [frameSequence EXCEPT ![attachment] = nextSequence[attachment]]
-  /\ UNCHANGED <<revision, processActive, pendingWrites, inputLatched,
+  /\ UNCHANGED <<revision, processActive, terminalPrompt, pendingWrites,
                   cachedActivity, cacheFresh, activityEpoch,
                   activityEpochExhausted, cadence, sampledCadence,
                   snapshotRequired, forceSnapshotAfterFlight, nextSequence>>
@@ -245,7 +254,7 @@ BatchFull(attachment) ==
   /\ attachment \in Attachments
   /\ delivery[attachment] = Provisional
   /\ delivery' = [delivery EXCEPT ![attachment] = Ready]
-  /\ UNCHANGED <<revision, processActive, pendingWrites, inputLatched,
+  /\ UNCHANGED <<revision, processActive, terminalPrompt, pendingWrites,
                   cachedActivity, cacheFresh, activityEpoch,
                   activityEpochExhausted, cadence, sampledCadence,
                   snapshotRequired, forceSnapshotAfterFlight, frameActivity,
@@ -260,7 +269,7 @@ EmitSnapshot(attachment) ==
   /\ delivery' = [delivery EXCEPT ![attachment] = InFlight]
   /\ snapshotRequired' = [snapshotRequired EXCEPT ![attachment] = FALSE]
   /\ nextSequence' = [nextSequence EXCEPT ![attachment] = @ + 1]
-  /\ UNCHANGED <<revision, processActive, pendingWrites, inputLatched,
+  /\ UNCHANGED <<revision, processActive, terminalPrompt, pendingWrites,
                   cachedActivity, cacheFresh, activityEpoch,
                   activityEpochExhausted, cadence, sampledCadence,
                   forceSnapshotAfterFlight, frameActivity, frameFresh,
@@ -275,7 +284,7 @@ FrameApplied(attachment) ==
        ![attachment] = forceSnapshotAfterFlight[attachment]]
   /\ forceSnapshotAfterFlight' =
        [forceSnapshotAfterFlight EXCEPT ![attachment] = FALSE]
-  /\ UNCHANGED <<revision, processActive, pendingWrites, inputLatched,
+  /\ UNCHANGED <<revision, processActive, terminalPrompt, pendingWrites,
                   cachedActivity, cacheFresh, activityEpoch,
                   activityEpochExhausted, cadence, sampledCadence,
                   frameActivity, frameFresh, frameEpoch, frameEpochExhausted,
@@ -288,7 +297,7 @@ NeedSnapshot(attachment) ==
   /\ snapshotRequired' = [snapshotRequired EXCEPT ![attachment] = TRUE]
   /\ forceSnapshotAfterFlight' =
        [forceSnapshotAfterFlight EXCEPT ![attachment] = FALSE]
-  /\ UNCHANGED <<revision, processActive, pendingWrites, inputLatched,
+  /\ UNCHANGED <<revision, processActive, terminalPrompt, pendingWrites,
                   cachedActivity, cacheFresh, activityEpoch,
                   activityEpochExhausted, cadence, sampledCadence,
                   frameActivity, frameFresh, frameEpoch, frameEpochExhausted,
@@ -297,7 +306,8 @@ NeedSnapshot(attachment) ==
 Next ==
   \/ \E hasBytes \in BOOLEAN: InputCommit(hasBytes)
   \/ WriterCompletesInput
-  \/ OutputCommit
+  \/ \E promptState \in {AtPrompt, AwayFromPrompt, PromptUnavailable}:
+       OutputCommit(promptState)
   \/ AdvanceCadence
   \/ SampleSuccess
   \/ SampleFailure
@@ -316,8 +326,8 @@ Spec ==
 TypeOK ==
   /\ revision \in 0..MaxRevision
   /\ processActive \in BOOLEAN
+  /\ terminalPrompt \in {AtPrompt, AwayFromPrompt, PromptUnavailable}
   /\ pendingWrites \in 0..MaxPendingWrites
-  /\ inputLatched \in BOOLEAN
   /\ cachedActivity \in {Active, Idle, Unknown}
   /\ cacheFresh \in BOOLEAN
   /\ activityEpoch \in 0..MaxActivityEpoch
@@ -338,19 +348,16 @@ TypeOK ==
 StaleEncodesUnknown ==
   ~cacheFresh => cachedActivity = Unknown
 
-FreshIdleRequiresPristineLifecycle ==
-  cachedActivity = Idle => cacheFresh /\ ~inputLatched
+FreshCacheIsKnown ==
+  cacheFresh => cachedActivity \in {Active, Idle}
 
-LatchedCacheNeverIdle ==
-  inputLatched => cachedActivity # Idle
-
-CurrentTokenFrameNeverIdleAfterLatch ==
-  inputLatched =>
-    \A attachment \in Attachments:
-      delivery[attachment] \in {Provisional, InFlight} /\
-        frameEpoch[attachment] = activityEpoch /\
-        frameEpochExhausted[attachment] = activityEpochExhausted =>
-          frameActivity[attachment] # Idle
+CurrentTokenFrameMatchesCache ==
+  \A attachment \in Attachments:
+    delivery[attachment] \in {Provisional, InFlight} /\
+      frameEpoch[attachment] = activityEpoch /\
+      frameEpochExhausted[attachment] = activityEpochExhausted =>
+        frameActivity[attachment] = cachedActivity /\
+          frameFresh[attachment] = cacheFresh
 
 EpochExhaustionIsUnknown ==
   activityEpochExhausted => cachedActivity = Unknown /\ ~cacheFresh

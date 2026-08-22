@@ -136,10 +136,10 @@ consumer-owned. `NeedSnapshot` reason `activity-stale` abandons the exact in-fli
 consumer has locally invalidated its close-activity observation and cannot prove that frame is
 newer than the invalidating input; the replacement is a complete snapshot. This ordering proves
 only that the replacement reflects the Host cache after invalidation, not that the Host accepted
-the input or that the terminal process consumed it. In protocol `0.0.17`, a Host-accepted non-focus
-input permanently latches that terminal lifecycle, so the replacement and every later
-same-lifecycle frame can report only `active` or `unknown`. If the Host rejects or otherwise does
-not accept the input, the causal replacement may legitimately publish fresh `idle`.
+the input or that the terminal process consumed it. In protocol `0.0.17`, Host-accepted non-focus
+input invalidates the cached observation immediately. A later bounded current-state sample may
+publish `active`, `idle`, or `unknown`, so a causal replacement may legitimately restore fresh
+`idle` in the same terminal lifecycle. This changes no wire value or codec.
 
 Optional extension kind `2` is one strictly decoded `OBKG` record for supported Kitty direct-image
 output. A resource snapshot carries already decoded gray, gray-alpha, RGB, or RGBA bytes plus the

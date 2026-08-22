@@ -1185,7 +1185,118 @@ test "activity query failure projects unknown and later recovers at the cadence"
     try std.testing.expectEqual(@as(usize, 2), probe.calls);
 }
 
-test "pre-write buffered output and later echo cannot clear the input latch" {
+test "completed input returns to idle when Ghostty reaches a prompt" {
+    if (target_builtin.os.tag == .windows) return error.SkipZigTest;
+
+    const results = [_]ActivityQueryProbe.Result{
+        .{ .active = false },
+        .{ .active = true },
+        .{ .active = false },
+    };
+    var probe: ActivityQueryProbe = .{ .results = &results };
+    var aggregate = host_runtime_aggregate.HostRuntimeAggregate.init(std.testing.allocator);
+    defer aggregate.deinitChecked(true) catch unreachable;
+    const connection_id: core_module.ConnectionId = 1;
+    const fixture = try createHookedRuntime(&aggregate, connection_id, 0, probe.hooks());
+    const attachment_id = testId(core_module.AttachmentId, 0x6b, 0);
+    _ = try aggregate.attach(
+        connection_id,
+        attachment_id,
+        fixture.terminal_id,
+        .{ .input = true, .read = true, .resize = false },
+        false,
+    );
+    _ = try aggregate.setProjectionDemand(connection_id, attachment_id, .active);
+
+    try std.testing.expectEqual(
+        terminal_runtime.testing.ReaderBatchOutcomeType.committed,
+        commitReaderBatch(fixture.runtime, "\x1b]133;A\x07$ "),
+    );
+    _ = try aggregate.synchronizeRuntimeObservation(fixture.terminal_id, fixture.runtime);
+
+    var scheduler: subject.Scheduler = .{};
+    subject.testing.setClockSampleFn(&scheduler, 0, 0);
+    var initial = Outgoing.init(std.testing.allocator);
+    defer initial.deinit();
+    _ = try scheduler.schedule(
+        std.testing.allocator,
+        &aggregate,
+        connection_id,
+        protocol.Limits.frame_bytes,
+        &initial,
+    );
+    const initial_frame = try onlyProjectionFrame(&initial);
+    try std.testing.expectEqual(
+        @as(?protocol.TerminalCloseActivity, .idle),
+        try trailingCloseActivity(&initial),
+    );
+    try acknowledgeFrame(&aggregate, connection_id, initial_frame);
+
+    switch (aggregate.acceptSemanticInput(
+        connection_id,
+        attachment_id,
+        1,
+        .{ .text = .{ .text = "input" } },
+        protocol.Limits.input_bytes,
+    )) {
+        .accepted => |accepted| try std.testing.expectEqual(@as(usize, 5), accepted.byte_count),
+        else => return error.ExpectedAcceptedInput,
+    }
+    probe.waitForWriterAccounted(1);
+    try std.testing.expectEqual(
+        protocol.TerminalCloseActivity.unknown,
+        terminal_runtime.testing.closeActivityObservation(fixture.runtime).activity,
+    );
+
+    try std.testing.expectEqual(
+        terminal_runtime.testing.ReaderBatchOutcomeType.committed,
+        commitReaderBatch(fixture.runtime, "\x1b]133;C\x07\r\ncommand-output\r\n"),
+    );
+    _ = try aggregate.synchronizeRuntimeObservation(fixture.terminal_id, fixture.runtime);
+    subject.testing.setClockSampleFn(&scheduler, 0, projection_interval_ns);
+    var active = Outgoing.init(std.testing.allocator);
+    defer active.deinit();
+    _ = try scheduler.schedule(
+        std.testing.allocator,
+        &aggregate,
+        connection_id,
+        protocol.Limits.frame_bytes,
+        &active,
+    );
+    const active_frame = try onlyProjectionFrame(&active);
+    try std.testing.expectEqual(
+        @as(?protocol.TerminalCloseActivity, .active),
+        try trailingCloseActivity(&active),
+    );
+    try acknowledgeFrame(&aggregate, connection_id, active_frame);
+
+    try std.testing.expectEqual(
+        terminal_runtime.testing.ReaderBatchOutcomeType.committed,
+        commitReaderBatch(fixture.runtime, "\x1b]133;D;0\x07\x1b]133;A\x07$ "),
+    );
+    _ = try aggregate.synchronizeRuntimeObservation(fixture.terminal_id, fixture.runtime);
+    const prompt = terminal_runtime.testing.closeActivityObservation(fixture.runtime);
+    try std.testing.expect(prompt.semantic_prompt_seen);
+    try std.testing.expect(prompt.cursor_at_prompt);
+
+    subject.testing.setClockSampleFn(&scheduler, 0, 2 * projection_interval_ns);
+    var idle = Outgoing.init(std.testing.allocator);
+    defer idle.deinit();
+    _ = try scheduler.schedule(
+        std.testing.allocator,
+        &aggregate,
+        connection_id,
+        protocol.Limits.frame_bytes,
+        &idle,
+    );
+    _ = try onlyProjectionFrame(&idle);
+    try std.testing.expectEqual(
+        @as(?protocol.TerminalCloseActivity, .idle),
+        try trailingCloseActivity(&idle),
+    );
+}
+
+test "a fresh inactive sample can restore idle while input delivery is pending" {
     if (target_builtin.os.tag == .windows) return error.SkipZigTest;
 
     const results = [_]ActivityQueryProbe.Result{
@@ -1248,10 +1359,9 @@ test "pre-write buffered output and later echo cannot clear the input latch" {
     writer_copied.wait();
     const queued = terminal_runtime.testing.closeActivityObservation(fixture.runtime);
     try std.testing.expectEqual(protocol.TerminalCloseActivity.unknown, queued.activity);
-    try std.testing.expect(queued.input_latched);
 
-    // Buffered output that predates the blocked write may look like an echo or
-    // prompt, but it is not an epoch-tagged acknowledgement of this input.
+    // Like the pinned Ghostty close decision, the next sample classifies the
+    // current VT and process state rather than waiting for shell consumption.
     try std.testing.expectEqual(
         terminal_runtime.testing.ReaderBatchOutcomeType.committed,
         commitReaderBatch(fixture.runtime, "buffered-output-before-write\r\n$ "),
@@ -1272,7 +1382,7 @@ test "pre-write buffered output and later echo cannot clear the input latch" {
     );
     const pre_write_frame = try onlyProjectionFrame(&pre_write);
     try std.testing.expectEqual(
-        @as(?protocol.TerminalCloseActivity, null),
+        @as(?protocol.TerminalCloseActivity, .idle),
         try trailingCloseActivity(&pre_write),
     );
     try acknowledgeFrame(&aggregate, connection_id, pre_write_frame);
@@ -1301,16 +1411,17 @@ test "pre-write buffered output and later echo cannot clear the input latch" {
     );
     _ = try onlyProjectionFrame(&post_write);
     try std.testing.expectEqual(
-        @as(?protocol.TerminalCloseActivity, null),
+        @as(?protocol.TerminalCloseActivity, .idle),
         try trailingCloseActivity(&post_write),
     );
-    const still_latched = terminal_runtime.testing.closeActivityObservation(fixture.runtime);
-    try std.testing.expect(still_latched.input_latched);
-    try std.testing.expectEqual(protocol.TerminalCloseActivity.unknown, still_latched.activity);
+    try std.testing.expectEqual(
+        protocol.TerminalCloseActivity.idle,
+        terminal_runtime.testing.closeActivityObservation(fixture.runtime).activity,
+    );
     try std.testing.expectEqual(@as(usize, 3), probe.calls);
 }
 
-test "pre-existing active ending after input B is written remains unknown" {
+test "pre-existing active returns to idle after a later inactive sample" {
     if (target_builtin.os.tag == .windows) return error.SkipZigTest;
 
     const results = [_]ActivityQueryProbe.Result{
@@ -1373,15 +1484,16 @@ test "pre-existing active ending after input B is written remains unknown" {
         &inactive,
     );
     try std.testing.expectEqual(
-        @as(?protocol.TerminalCloseActivity, null),
+        @as(?protocol.TerminalCloseActivity, .idle),
         try trailingCloseActivity(&inactive),
     );
-    const latched = terminal_runtime.testing.closeActivityObservation(fixture.runtime);
-    try std.testing.expect(latched.input_latched);
-    try std.testing.expectEqual(protocol.TerminalCloseActivity.unknown, latched.activity);
+    try std.testing.expectEqual(
+        protocol.TerminalCloseActivity.idle,
+        terminal_runtime.testing.closeActivityObservation(fixture.runtime).activity,
+    );
 }
 
-test "written A and B plus activity attributable only to A cannot restore idle" {
+test "two written inputs return to idle after observed activity ends" {
     if (target_builtin.os.tag == .windows) return error.SkipZigTest;
 
     const results = [_]ActivityQueryProbe.Result{
@@ -1451,8 +1563,6 @@ test "written A and B plus activity attributable only to A cannot restore idle" 
         protocol.TerminalCloseActivity.active,
         (try trailingCloseActivity(&active)).?,
     );
-    const active_latched = terminal_runtime.testing.closeActivityObservation(fixture.runtime);
-    try std.testing.expect(active_latched.input_latched);
     try acknowledgeFrame(&aggregate, connection_id, active_frame);
 
     subject.testing.setClockSampleFn(&scheduler, 0, 2 * projection_interval_ns);
@@ -1466,21 +1576,21 @@ test "written A and B plus activity attributable only to A cannot restore idle" 
         &inactive,
     );
     try std.testing.expectEqual(
-        @as(?protocol.TerminalCloseActivity, null),
+        @as(?protocol.TerminalCloseActivity, .idle),
         try trailingCloseActivity(&inactive),
     );
-    const still_latched = terminal_runtime.testing.closeActivityObservation(fixture.runtime);
-    try std.testing.expect(still_latched.input_latched);
-    try std.testing.expectEqual(protocol.TerminalCloseActivity.unknown, still_latched.activity);
+    try std.testing.expectEqual(
+        protocol.TerminalCloseActivity.idle,
+        terminal_runtime.testing.closeActivityObservation(fixture.runtime).activity,
+    );
 }
 
-test "latched inactive ignores OSC 133 semantic active evidence after zero-byte input" {
+test "zero-byte input is reclassified from current Ghostty prompt state" {
     if (target_builtin.os.tag == .windows) return error.SkipZigTest;
 
     const results = [_]ActivityQueryProbe.Result{
         .{ .active = false },
         .{ .active = false },
-        .{ .active = true },
         .{ .active = false },
     };
     var probe: ActivityQueryProbe = .{ .results = &results };
@@ -1533,13 +1643,16 @@ test "latched inactive ignores OSC 133 semantic active evidence after zero-byte 
         .accepted => |accepted| try std.testing.expectEqual(@as(usize, 0), accepted.byte_count),
         else => return error.ExpectedAcceptedInput,
     }
-    try std.testing.expect(terminal_runtime.testing.closeActivityObservation(fixture.runtime).input_latched);
+    try std.testing.expectEqual(
+        protocol.TerminalCloseActivity.unknown,
+        terminal_runtime.testing.closeActivityObservation(fixture.runtime).activity,
+    );
 
     try std.testing.expectEqual(
         terminal_runtime.testing.ReaderBatchOutcomeType.committed,
         commitReaderBatch(
             fixture.runtime,
-            "\x1b]133;P\x07prompt\x1b]133;C\x07\r\noutput-cannot-ack-zero-byte-input",
+            "\x1b]133;A\x07prompt\x1b]133;C\x07\r\ncommand-output",
         ),
     );
     _ = try aggregate.synchronizeRuntimeObservation(fixture.terminal_id, fixture.runtime);
@@ -1547,27 +1660,46 @@ test "latched inactive ignores OSC 133 semantic active evidence after zero-byte 
     try std.testing.expect(semantic.semantic_prompt_seen);
     try std.testing.expect(!semantic.cursor_at_prompt);
 
-    const expected = [_]?protocol.TerminalCloseActivity{ null, .active, null };
-    for (expected, 1..) |activity, cadence| {
-        subject.testing.setClockSampleFn(
-            &scheduler,
-            0,
-            @as(u64, @intCast(cadence)) * projection_interval_ns,
-        );
-        var outgoing = Outgoing.init(std.testing.allocator);
-        defer outgoing.deinit();
-        _ = try scheduler.schedule(
-            std.testing.allocator,
-            &aggregate,
-            connection_id,
-            protocol.Limits.frame_bytes,
-            &outgoing,
-        );
-        const frame = try onlyProjectionFrame(&outgoing);
-        try std.testing.expectEqual(activity, try trailingCloseActivity(&outgoing));
-        try std.testing.expect(terminal_runtime.testing.closeActivityObservation(fixture.runtime).input_latched);
-        try acknowledgeFrame(&aggregate, connection_id, frame);
-    }
+    subject.testing.setClockSampleFn(&scheduler, 0, projection_interval_ns);
+    var active = Outgoing.init(std.testing.allocator);
+    defer active.deinit();
+    _ = try scheduler.schedule(
+        std.testing.allocator,
+        &aggregate,
+        connection_id,
+        protocol.Limits.frame_bytes,
+        &active,
+    );
+    const active_frame = try onlyProjectionFrame(&active);
+    try std.testing.expectEqual(
+        @as(?protocol.TerminalCloseActivity, .active),
+        try trailingCloseActivity(&active),
+    );
+    try acknowledgeFrame(&aggregate, connection_id, active_frame);
+
+    try std.testing.expectEqual(
+        terminal_runtime.testing.ReaderBatchOutcomeType.committed,
+        commitReaderBatch(fixture.runtime, "\r\n\x1b]133;D;0\x07\x1b]133;A\x07$ "),
+    );
+    _ = try aggregate.synchronizeRuntimeObservation(fixture.terminal_id, fixture.runtime);
+    const prompt = terminal_runtime.testing.closeActivityObservation(fixture.runtime);
+    try std.testing.expect(prompt.cursor_at_prompt);
+
+    subject.testing.setClockSampleFn(&scheduler, 0, 2 * projection_interval_ns);
+    var idle = Outgoing.init(std.testing.allocator);
+    defer idle.deinit();
+    _ = try scheduler.schedule(
+        std.testing.allocator,
+        &aggregate,
+        connection_id,
+        protocol.Limits.frame_bytes,
+        &idle,
+    );
+    _ = try onlyProjectionFrame(&idle);
+    try std.testing.expectEqual(
+        @as(?protocol.TerminalCloseActivity, .idle),
+        try trailingCloseActivity(&idle),
+    );
 }
 
 fn expectInputInvalidationRejectsProvisionalIdleFrame(
@@ -1656,7 +1788,6 @@ fn expectInputInvalidationRejectsProvisionalIdleFrame(
         expect_epoch_exhaustion,
         invalidated.activity_epoch_exhausted,
     );
-    try std.testing.expect(invalidated.input_latched);
 
     read_commit_gate.release();
     scheduler_thread.join();

@@ -372,12 +372,12 @@ history, staged frames, snapshot requests, failures, and disposal. A newly arriv
 may have entered flight before that input, so the client sends `NeedSnapshot(activity-stale)` for
 its exact sequence instead of `FrameApplied` and retains `unknown`. The next complete snapshot is
 causally newer than the input invalidation, but it proves neither that the Host accepted the input
-nor that the shell consumed it. Under wire protocol `0.0.17`, a Host-accepted non-focus input sets
-a permanent per-lifecycle latch, so that replacement and every later frame in the same lifecycle
-may report only `active` or `unknown`. If the Host rejects or otherwise does not accept the input,
-the causal replacement may legitimately restore fresh `idle`. A stale theme-stage frame is fenced
-at apply time and cannot make the stage ready; only a causally eligible staged frame clears the
-local override when its conservative presentation actually commits.
+nor that the shell consumed it. Under wire protocol `0.0.17`, Host-accepted non-focus input
+invalidates the Host cache immediately, while a later current-state sample may report `active`,
+`idle`, or `unknown`. A causally eligible replacement may therefore restore fresh `idle` in the
+same terminal lifecycle. A stale theme-stage frame is fenced at apply time and cannot make the
+stage ready; only a causally eligible staged frame clears the local override when its conservative
+presentation actually commits.
 
 Committed live frames may also carry the bounded Kitty graphics extension. A graphics snapshot
 atomically replaces decoded in-memory image resources and placements; a placement-only update is

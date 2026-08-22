@@ -36,7 +36,6 @@ pub const testing = if (builtin.is_test) struct {
         activity_epoch: u64,
         activity_epoch_exhausted: bool,
         cursor_at_prompt: bool,
-        input_latched: bool,
         semantic_prompt_seen: bool,
     };
 
@@ -244,7 +243,6 @@ pub const testing = if (builtin.is_test) struct {
             .activity_epoch = runtime_state.close_activity_epoch,
             .activity_epoch_exhausted = runtime_state.close_activity_epoch_exhausted,
             .cursor_at_prompt = runtime_state.terminal.cursorIsAtPrompt(),
-            .input_latched = runtime_state.close_activity_input_latched,
             .semantic_prompt_seen = runtime_state.terminal.screens.active.semantic_prompt.seen,
         };
     }
@@ -295,11 +293,6 @@ pub const testing = if (builtin.is_test) struct {
         }
         if (runtime_state.close_activity_epoch_exhausted and
             runtime_state.close_activity != .unknown)
-        {
-            return error.CloseActivityFreshnessMismatch;
-        }
-        if (runtime_state.close_activity_input_latched and
-            runtime_state.close_activity == .idle)
         {
             return error.CloseActivityFreshnessMismatch;
         }
