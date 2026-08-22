@@ -23,6 +23,8 @@ const theme = @import("theme.zig");
 const termination = @import("termination.zig");
 
 pub const HostRuntimeAggregateTestingState = if (target_builtin.is_test) struct {
+    after_configuration_commit: ?*const fn (?*anyopaque, *terminal_runtime.TerminalRuntime) void = null,
+    after_configuration_commit_context: ?*anyopaque = null,
     after_resize_commit: ?*const fn (?*anyopaque, *terminal_runtime.TerminalRuntime) void = null,
     after_resize_commit_context: ?*anyopaque = null,
     /// Counts projection-release decisions so disconnect teardown can prove
@@ -96,6 +98,8 @@ pub const HostRuntimeAggregate = struct {
     pub const needSnapshot = projection.needSnapshot;
     pub const nextProjectionAt = projection.nextProjectionAt;
     pub const setNextProjectionAt = projection.setNextProjectionAt;
+    pub const nextCloseActivitySampleAt = projection.nextCloseActivitySampleAt;
+    pub const setNextCloseActivitySampleAt = projection.setNextCloseActivitySampleAt;
     pub const setProjectionDemand = projection.setProjectionDemand;
 
     // maintenance boundary.

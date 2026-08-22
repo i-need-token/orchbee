@@ -206,6 +206,7 @@ pub const HostCore = struct {
 
     // Projection boundary.
     pub const setProjectionDemand = projection.setProjectionDemand;
+    pub const invalidateTerminalPresentations = projection.invalidateTerminalPresentations;
     pub const commitFrame = projection.commitFrame;
     pub const commitFrameTransaction = projection.commitFrameTransaction;
     pub const rollbackFrameCommit = projection.rollbackFrameCommit;

@@ -14,15 +14,28 @@ pub fn bellSequence(self: *state.State) u64 {
 
 pub fn acquireReadCommitGuard(
     self: *state.State,
+    expected_close_activity_epoch: u64,
+    expected_close_activity_epoch_exhausted: bool,
+    expected_generation: u64,
+    expected_read_commit_epoch: u64,
 ) contracts.ProjectionEncodeError!read_commit_guard.Internal {
     if (comptime target_builtin.is_test) {
         if (self.testing_hooks.read_commit_checkpoint) |notify| {
             notify(self.testing_hooks.context.?, .before_lock);
         }
     }
+    self.projection_mutex.lock();
+    errdefer self.projection_mutex.unlock();
     self.terminal_mutex.lock();
     errdefer self.terminal_mutex.unlock();
     try failure_ops.ensureReadableStateAvailableLocked(self);
+    if (self.close_activity_epoch != expected_close_activity_epoch or
+        self.close_activity_epoch_exhausted != expected_close_activity_epoch_exhausted or
+        self.generation != expected_generation or
+        self.read_commit_epoch != expected_read_commit_epoch)
+    {
+        return error.TerminalRuntimeUnavailable;
+    }
     if (comptime target_builtin.is_test) {
         if (self.testing_hooks.read_commit_checkpoint) |notify| {
             notify(self.testing_hooks.context.?, .locked);
@@ -66,6 +79,14 @@ pub fn setNextProjectionAt(self: *state.State, value: i128) void {
     self.next_projection_at_ns = value;
 }
 
+pub fn nextCloseActivitySampleAt(self: *const state.State) i128 {
+    return self.next_close_activity_sample_at_ns;
+}
+
+pub fn setNextCloseActivitySampleAt(self: *state.State, value: i128) void {
+    self.next_close_activity_sample_at_ns = value;
+}
+
 pub fn projectionResident(self: *state.State) bool {
     self.projection_mutex.lock();
     defer self.projection_mutex.unlock();
@@ -77,10 +98,88 @@ pub fn resolveCloseActivity(
     semantic_prompt_seen: bool,
     cursor_at_prompt: bool,
 ) contracts.TerminalCloseActivity {
-    if (platform_command_active == true) return .active;
+    const command_active = platform_command_active orelse return .unknown;
+    if (command_active) return .active;
     if (semantic_prompt_seen) return if (cursor_at_prompt) .idle else .active;
-    if (platform_command_active == false) return .idle;
-    return .unknown;
+    return .idle;
+}
+
+/// Samples the independent process observation without holding a runtime
+/// mutex, then commits its projection under the canonical projection ->
+/// terminal lock order. Once activity-affecting input has committed in this
+/// lifecycle, an inactive observation remains unknown: the Host has no
+/// epoch-tagged shell acknowledgement that could safely restore idle.
+pub fn sampleCloseActivity(
+    self: *state.State,
+) contracts.ProjectionEncodeError!contracts.CloseActivityRefresh {
+    self.projection_mutex.lock();
+    if (self.close_activity_epoch_exhausted) {
+        const activity = self.close_activity;
+        self.projection_mutex.unlock();
+        return .{ .activity = activity, .changed = false };
+    }
+    self.projection_mutex.unlock();
+
+    const platform_command_active: ?bool = observeActiveCommand(self) catch null;
+
+    self.projection_mutex.lock();
+    defer self.projection_mutex.unlock();
+    self.terminal_mutex.lock();
+    defer self.terminal_mutex.unlock();
+    try failure_ops.ensureReadableStateAvailableLocked(self);
+
+    var next_activity = if (self.close_activity_input_latched)
+        // After input, semantic prompt markers are output and cannot identify
+        // which input the shell processed. Only an independently observed
+        // foreground process is safe to publish as active.
+        if (platform_command_active == true)
+            contracts.TerminalCloseActivity.active
+        else
+            contracts.TerminalCloseActivity.unknown
+    else
+        resolveCloseActivity(
+            platform_command_active,
+            self.terminal.screens.active.semantic_prompt.seen,
+            self.terminal.screens.active.semantic_prompt.seen and
+                self.terminal.cursorIsAtPrompt(),
+        );
+
+    const previous_activity = self.close_activity;
+    if (previous_activity != next_activity and
+        !advanceCloseActivityEpochLocked(self))
+    {
+        next_activity = .unknown;
+    }
+    const changed = previous_activity != next_activity;
+    self.close_activity = next_activity;
+    return .{ .activity = next_activity, .changed = changed };
+}
+
+/// Commits the projection half of an activity-affecting input transaction.
+/// The caller holds projection_mutex then input_mutex and has already committed
+/// the input queue publication (or accepted a zero-byte semantic input).
+/// The latch is permanent for this runtime identity and lifecycle.
+pub fn invalidateCloseActivityAfterInputLocked(self: *state.State) void {
+    self.close_activity_input_latched = true;
+    self.close_activity = .unknown;
+    _ = advanceCloseActivityEpochLocked(self);
+}
+
+/// Advances the presentation epoch while projection_mutex is held. Once the
+/// counter is exhausted the runtime remains permanently unknown; saturating is
+/// safe because no later frame can carry idle or active evidence at that epoch.
+fn advanceCloseActivityEpochLocked(self: *state.State) bool {
+    if (self.close_activity_epoch_exhausted) return false;
+    self.close_activity_epoch = std.math.add(
+        u64,
+        self.close_activity_epoch,
+        1,
+    ) catch {
+        self.close_activity_epoch_exhausted = true;
+        self.close_activity = .unknown;
+        return false;
+    };
+    return true;
 }
 
 pub fn releaseProjectionResources(self: *state.State) void {
@@ -113,8 +212,6 @@ pub fn encodeProjectionFrameOwned(
     self.projection_mutex.lock();
     defer self.projection_mutex.unlock();
 
-    const platform_command_active = self.process.hasActiveCommand() catch null;
-
     if (comptime target_builtin.is_test) {
         if (self.testing_hooks.projection_capture_starting) |notify| {
             notify(self.testing_hooks.context.?);
@@ -127,14 +224,12 @@ pub fn encodeProjectionFrameOwned(
     };
     const revision = self.revision.load(.monotonic);
     const generation = self.generation;
-    const semantic_prompt_seen = self.terminal.screens.active.semantic_prompt.seen;
+    const read_commit_epoch = self.read_commit_epoch;
     const progress = self.progress;
     const command_completion = self.command_completion;
-    const close_activity = resolveCloseActivity(
-        platform_command_active,
-        semantic_prompt_seen,
-        semantic_prompt_seen and self.terminal.cursorIsAtPrompt(),
-    );
+    const close_activity = self.close_activity;
+    const close_activity_epoch = self.close_activity_epoch;
+    const close_activity_epoch_exhausted = self.close_activity_epoch_exhausted;
     if (self.projection.needsCapture(revision, generation)) {
         self.projection.beginCapture(
             &self.terminal,
@@ -159,7 +254,7 @@ pub fn encodeProjectionFrameOwned(
     projection_request.close_activity = close_activity;
     projection_request.progress = progress;
     projection_request.command_completion = command_completion;
-    const frame = self.projection.encodeOwned(
+    var frame = self.projection.encodeOwned(
         output_allocator,
         output_prefix_bytes,
         projection_request,
@@ -177,7 +272,20 @@ pub fn encodeProjectionFrameOwned(
         } };
     };
     std.debug.assert(frame.revision == revision);
+    std.debug.assert(frame.generation == generation);
+    frame.read_commit_epoch = read_commit_epoch;
+    frame.close_activity_epoch = close_activity_epoch;
+    frame.close_activity_epoch_exhausted = close_activity_epoch_exhausted;
     return .{ .frame = frame };
+}
+
+fn observeActiveCommand(self: *state.State) !bool {
+    if (comptime target_builtin.is_test) {
+        if (self.testing_hooks.has_active_command) |observe| {
+            return observe(self.testing_hooks.context.?);
+        }
+    }
+    return self.process.hasActiveCommand();
 }
 
 pub fn projectionBlockReason(err: anyerror) contracts.ProjectionBlockReason {

@@ -660,6 +660,7 @@ function createControlConformanceFixture() {
 		need_snapshot: controlRequestTexts(
 			MessageKind.needSnapshot,
 			[
+				'activity-stale',
 				'base-mismatch',
 				'decoder-rejected',
 				'dimensions-mismatch',
@@ -881,8 +882,8 @@ function createControlConformanceFixture() {
 			AttachmentCapabilitiesSchema,
 			{
 				attachmentId,
-				capabilities: { input: true, read: true, resize: false },
-				capabilityRevision: '1',
+				capabilities: { input: false, read: false, resize: false },
+				capabilityRevision: '2',
 				resizeLease: false,
 				terminalId,
 			},

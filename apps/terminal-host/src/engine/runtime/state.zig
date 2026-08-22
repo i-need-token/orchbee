@@ -22,6 +22,14 @@ pub const State = struct {
     clipboard_write_pending: ?contracts.ClipboardWriteRequest = null,
     clipboard_write_sequence: u64 = 0,
     clipboard_write_staged: ?[]u8 = null,
+    // projection_mutex owns the cached close-activity projection and its
+    // permanent per-lifecycle input latch. Without a shell-originated,
+    // epoch-tagged acknowledgement, output, process transitions, and elapsed
+    // time cannot clear an accepted activity-affecting input.
+    close_activity: contracts.TerminalCloseActivity = .unknown,
+    close_activity_epoch: u64 = 0,
+    close_activity_epoch_exhausted: bool = false,
+    close_activity_input_latched: bool = false,
     command_batch_active: bool = false,
     command_completion: ?contracts.TerminalCommandCompletion = null,
     command_completion_staged: ?contracts.TerminalCommandCompletion = null,
@@ -77,6 +85,10 @@ pub const State = struct {
     // The Host owner alone updates the projection cadence timestamp; engine
     // workers never read it.
     next_projection_at_ns: i128 = 0,
+    // Host projection scheduling is the only reader/writer. A distinct
+    // deadline prevents outgoing batch rollback from repeating a platform
+    // activity query inside the same cadence.
+    next_close_activity_sample_at_ns: i128 = 0,
     projection: terminal_projection.Projection,
     projection_mutex: std.Thread.Mutex = .{},
     pty_drained: std.atomic.Value(bool) = .init(false),
@@ -96,6 +108,10 @@ pub const State = struct {
     // platform effect while the reader still owns the enclosing batch commit.
     // Shutdown and unrelated failure fencing wait for that exact transaction.
     reader_commit_in_progress: bool = false,
+    // terminal_mutex protects this one-shot epoch. Failure publication advances
+    // it so a frame encoded before the fence cannot commit after containment
+    // makes retained read-only state available again.
+    read_commit_epoch: u64 = 0,
     stream: terminal_stream.Stream,
     stream_allocator: terminal_stream.ParserAllocator,
     scrollback_bytes: usize,

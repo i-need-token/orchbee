@@ -434,6 +434,29 @@
 			]
 		},
 		{
+			"id": "terminal-close-activity-freshness",
+			"owner": "@orchbee/terminal-host",
+			"workspace": "apps/terminal-host",
+			"module": "apps/terminal-host/formal/tla/TerminalCloseActivityFreshness.tla",
+			"config": "apps/terminal-host/formal/tla/TerminalCloseActivityFreshness.cfg",
+			"claims": ["apps/terminal-host/docs/runtime-model.md"],
+			"triggers": ["apps/terminal-host/src/**", "apps/terminal-host/build.zig"],
+			"requiredCoverage": [
+				"InputCommit",
+				"WriterCompletesInput",
+				"OutputCommit",
+				"SilentForegroundChange",
+				"AdvanceCadence",
+				"SampleSuccess",
+				"SampleFailure",
+				"PrepareSnapshot",
+				"BatchFull",
+				"EmitSnapshot",
+				"FrameApplied",
+				"NeedSnapshot"
+			]
+		},
+		{
 			"id": "terminal-frame-backpressure",
 			"owner": "@orchbee/terminal-host",
 			"workspace": "apps/terminal-host",
@@ -453,7 +476,6 @@
 				"EncodeFailure",
 				"PrepareFrame",
 				"AcquireReadCommit",
-				"RejectProvisional",
 				"Emit",
 				"RefreshBlocked",
 				"FrameApplied",
@@ -561,12 +583,17 @@
 			"triggers": ["apps/terminal-host/src/**", "apps/terminal-host/build.zig"],
 			"requiredCoverage": [
 				"ChildExited",
+				"AcquireMemberRef",
+				"ObserveMembership",
+				"RecycleMemberPid",
+				"ObserveMemberLiveness",
 				"ConfirmContainment",
 				"ReleaseIdentity",
 				"RebindSession",
 				"AdmitDispatch",
 				"EmitSignal",
-				"CancelSignal"
+				"CancelSignal",
+				"RetrySignal"
 			]
 		},
 		{

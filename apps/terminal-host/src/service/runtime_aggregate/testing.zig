@@ -4,6 +4,7 @@ const terminal_runtime = @import("terminal-host-engine").runtime;
 const host_runtime_maintenance = @import("../runtime_maintenance/root.zig");
 const contracts = @import("contracts.zig");
 const host_aggregate = @import("host_aggregate.zig");
+const configuration_ops = @import("configuration.zig");
 const creation_ops = @import("creation.zig");
 const geometry_ops = @import("geometry.zig");
 const termination_ops = @import("termination.zig");
@@ -96,6 +97,15 @@ pub const testing = if (target_builtin.is_test) struct {
         aggregate.testing_state.projection_release_decisions = 0;
     }
 
+    pub fn setAfterConfigurationCommitHook(
+        aggregate: *HostRuntimeAggregate,
+        hook: ?*const fn (?*anyopaque, *terminal_runtime.TerminalRuntime) void,
+        context: ?*anyopaque,
+    ) void {
+        aggregate.testing_state.after_configuration_commit = hook;
+        aggregate.testing_state.after_configuration_commit_context = context;
+    }
+
     pub fn setAfterResizeCommitHook(
         aggregate: *HostRuntimeAggregate,
         hook: ?*const fn (?*anyopaque, *terminal_runtime.TerminalRuntime) void,
@@ -128,6 +138,8 @@ pub const testing = if (target_builtin.is_test) struct {
     }
 
     pub const recordUnsafeResizeFailureFn = recordUnsafeResizeFailureForTesting;
+    pub const configurationObservationIsCompatibleFn =
+        configuration_ops.configurationObservationIsCompatible;
     pub const resizeObservationIsCompatibleFn = geometry_ops.resizeObservationIsCompatible;
     pub const adoptRunningTerminalFn = creation_ops.adoptRunningTerminalForTesting;
     pub const requestTerminationUsingFn = requestTerminationUsingForTesting;

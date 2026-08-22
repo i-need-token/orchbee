@@ -355,7 +355,20 @@ frame; that checkpoint names the newest commit actually drawn, never an earlier 
 Committed live-frame metadata maps the optional close-activity extension to `idle`, `active`, or
 `unknown`; absence, duplication, and malformed payloads resolve conservatively to `unknown`.
 Historical row windows have no live process observation, so retained-history presentation keeps the
-latest live store's close activity while using the history window for visual metadata and rows.
+latest live store's close activity while using the history window for visual metadata and rows. An
+accepted non-focus key, text, paste, mouse, or equivalent raw input immediately invalidates the
+latest observation and synchronously publishes transient `unknown`; focus-only input and a
+synchronously rejected publication do not. The override remains authoritative across retained
+history, staged frames, snapshot requests, failures, and disposal. A newly arriving `idle` frame
+may have entered flight before that input, so the client sends `NeedSnapshot(activity-stale)` for
+its exact sequence instead of `FrameApplied` and retains `unknown`. The next complete snapshot is
+causally newer than the input invalidation, but it proves neither that the Host accepted the input
+nor that the shell consumed it. Under wire protocol `0.0.17`, a Host-accepted non-focus input sets
+a permanent per-lifecycle latch, so that replacement and every later frame in the same lifecycle
+may report only `active` or `unknown`. If the Host rejects or otherwise does not accept the input,
+the causal replacement may legitimately restore fresh `idle`. A stale theme-stage frame is fenced
+at apply time and cannot make the stage ready; only a causally eligible staged frame clears the
+local override when its conservative presentation actually commits.
 
 Committed live frames may also carry the bounded Kitty graphics extension. A graphics snapshot
 atomically replaces decoded in-memory image resources and placements; a placement-only update is

@@ -98,8 +98,8 @@ test "close activity combines process-domain and semantic prompt evidence conser
     try std.testing.expectEqual(.idle, resolveCloseActivity(false, true, true));
     try std.testing.expectEqual(.idle, resolveCloseActivity(false, false, false));
     try std.testing.expectEqual(.unknown, resolveCloseActivity(null, false, false));
-    try std.testing.expectEqual(.active, resolveCloseActivity(null, true, false));
-    try std.testing.expectEqual(.idle, resolveCloseActivity(null, true, true));
+    try std.testing.expectEqual(.unknown, resolveCloseActivity(null, true, false));
+    try std.testing.expectEqual(.unknown, resolveCloseActivity(null, true, true));
 }
 const WriterProbe = harness.WriterProbe;
 const RepeatingGate = harness.RepeatingGate;
@@ -741,7 +741,10 @@ test "OSC 133 projects only bounded command completion facts with deterministic 
     ));
     defer std.testing.allocator.free(frame.allocation);
     const summary = try protocol.validateTerminalFrame(std.testing.allocator, frame.bytes);
-    try std.testing.expectEqual(@as(u16, 4), summary.extension_count);
+    // Close activity is projection-scheduler sampled. A direct Engine encode
+    // before that first sample remains conservatively unknown and omits the
+    // optional extension.
+    try std.testing.expectEqual(@as(u16, 3), summary.extension_count);
     const completion = summary.command_completion.?;
     try std.testing.expectEqual(@as(u64, 1), completion.sequence);
     try std.testing.expectEqual(@as(u64, 5_500), completion.duration_milliseconds);

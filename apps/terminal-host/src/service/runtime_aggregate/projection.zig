@@ -45,6 +45,24 @@ pub fn setNextProjectionAt(
     return true;
 }
 
+pub fn nextCloseActivitySampleAt(
+    self: anytype,
+    terminal_id: core_module.TerminalId,
+) ?i128 {
+    const runtime = self.runtimeFor(terminal_id) orelse return null;
+    return runtime.nextCloseActivitySampleAt();
+}
+
+pub fn setNextCloseActivitySampleAt(
+    self: anytype,
+    terminal_id: core_module.TerminalId,
+    next_sample_at_ns: i128,
+) bool {
+    const runtime = self.runtimeFor(terminal_id) orelse return false;
+    runtime.setNextCloseActivitySampleAt(next_sample_at_ns);
+    return true;
+}
+
 pub fn setProjectionDemand(
     self: anytype,
     connection_id: core_module.ConnectionId,

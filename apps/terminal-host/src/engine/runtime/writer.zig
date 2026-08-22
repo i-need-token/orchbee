@@ -36,6 +36,14 @@ pub fn notifyWriterSliceStarted(self: *state.State) void {
     }
 }
 
+pub fn notifyWriterSliceAccounted(self: *state.State) void {
+    if (comptime target_builtin.is_test) {
+        if (self.testing_hooks.writer_slice_accounted) |notify| {
+            notify(self.testing_hooks.context.?);
+        }
+    }
+}
+
 pub fn startWriterSlice(
     self: *state.State,
     slice: contracts.WriterSlice,
@@ -60,7 +68,8 @@ pub fn accountWriterSlice(
 ) bool {
     self.input_mutex.lock();
     defer self.input_mutex.unlock();
-    return switch (self.input_queue.accountWriterSlice(slice, written)) {
+    const outcome = self.input_queue.accountWriterSlice(slice, written);
+    return switch (outcome) {
         .advanced => true,
         .completed => completed: {
             self.input_condition.broadcast();
@@ -125,6 +134,7 @@ pub fn writerThread(self: *state.State) void {
             stopWriterAfterOwnershipLoss(self);
             return;
         }
+        notifyWriterSliceAccounted(self);
         if (slice.source == .client) {
             _ = self.written_since_sync.fetchAdd(written, .release);
         }

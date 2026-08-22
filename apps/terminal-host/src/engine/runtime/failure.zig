@@ -1,3 +1,4 @@
+const std = @import("std");
 const target_builtin = @import("builtin");
 const contracts = @import("contracts.zig");
 const state = @import("state.zig");
@@ -17,6 +18,8 @@ pub fn closeFailureFenceLocked(
     self.input_mutex.lock();
     defer self.input_mutex.unlock();
     if (self.failure_fenced) return false;
+    std.debug.assert(self.read_commit_epoch == 0);
+    self.read_commit_epoch = 1;
     self.failure_fenced = true;
     self.writer_stop = true;
     if (failure) |classification| {

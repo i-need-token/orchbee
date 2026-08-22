@@ -2,6 +2,7 @@ import { Duplex } from 'node:stream';
 import { readFile } from 'node:fs/promises';
 
 import {
+	AttachmentCapabilitiesSchema,
 	ClientIdSchema,
 	AttachmentIdSchema,
 	CanonicalUint64TextSchema,
@@ -84,6 +85,70 @@ function concatenateRecords(records: readonly Uint8Array[]): Uint8Array {
 }
 
 describe('HostConnection', () => {
+	it('decodes an all-false current capability response after an input-only downgrade', async () => {
+		const hostEpoch = HostEpochSchema.parse('10'.repeat(16));
+		const attachmentId = AttachmentIdSchema.parse('20'.repeat(16));
+		const terminalId = '30'.repeat(16);
+		let stream: Duplex;
+		stream = new Duplex({
+			read() {},
+			write(chunk, _encoding, callback) {
+				const request = decodeProtocolEnvelope(new Uint8Array(chunk));
+				if (!request.ok) throw new Error(request.detail);
+				const hello = request.value.kind === MessageKind.hello;
+				if (!hello) {
+					expect(request.value.kind).toBe(MessageKind.updateAttachmentInputCapability);
+				}
+				const response = encodeProtocolEnvelope({
+					correlationId: request.value.correlationId,
+					event: false,
+					hostEpoch,
+					kind: hello ? MessageKind.helloAccepted : MessageKind.attachmentCapabilities,
+					optionalMessage: false,
+					payload: new TextEncoder().encode(
+						JSON.stringify(
+							hello
+								? {
+										frameBytes: PROTOCOL_LIMITS.maxFrameBytes,
+										hostEpoch,
+										hostVersion: '0.1.0',
+										inputBytes: PROTOCOL_LIMITS.maxInputBytes,
+										protocol: currentProtocol,
+										rowWindowBytes: PROTOCOL_LIMITS.maxRowWindowBytes,
+										supportedOptionalFeatures: [],
+									}
+								: {
+										attachmentId,
+										capabilities: { input: false, read: false, resize: false },
+										capabilityRevision: '2',
+										resizeLease: false,
+										terminalId,
+									},
+						),
+					),
+					payloadEncoding: PayloadEncoding.controlJson,
+					protocol: currentProtocol,
+					response: true,
+				});
+				if (!response.ok) throw new Error(response.detail);
+				stream.push(response.value);
+				callback();
+			},
+		});
+		const connection = new HostConnection(stream);
+		await connection.negotiate(ClientIdSchema.parse('40'.repeat(16)));
+
+		const capabilities = await connection.requestControl(
+			MessageKind.updateAttachmentInputCapability,
+			{ attachmentId, capabilityRevision: '2', input: false },
+			AttachmentCapabilitiesSchema,
+		);
+
+		expect(capabilities.capabilities).toEqual({ input: false, read: false, resize: false });
+		expect(capabilities.capabilityRevision).toBe('2');
+		connection.close();
+	});
+
 	it('offers the current protocol and routes current-version events', async () => {
 		const hostEpoch = HostEpochSchema.parse('11'.repeat(16));
 		let stream: Duplex;

@@ -5,7 +5,7 @@
 | Status          | Current wire-contract and codec authority; this package implements no lifecycle state machine, PTY, IPC listener, renderer, Electron, recovery, or network behavior      |
 | Wire owner      | `@orchbee/terminal-protocol`                                                                                                                                             |
 | Native consumer | `apps/terminal-host` consumes declared schemas and fixture exports for bounded native dispatch and Zig conformance                                                       |
-| Reference scope | Exact protocol `0.0.16`; OBTF format `0.0.3`; OBPB and OBRW format `0.0.2`; OBKG format `0.0.1`; input/selection codecs; failure vocabulary; bounds; and pinned fixtures |
+| Reference scope | Exact protocol `0.0.17`; OBTF format `0.0.3`; OBPB and OBRW format `0.0.2`; OBKG format `0.0.1`; input/selection codecs; failure vocabulary; bounds; and pinned fixtures |
 | Change rule     | A changed field, message meaning, wire byte, bound, or fixture updates this record, both language implementations, every producer/consumer, and evidence                 |
 
 ## Modeling record
@@ -40,7 +40,7 @@ identity and are rejected where an identity is required.
 | `TerminalThemeOperationId` | Application-created idempotency identity for one terminal-theme compare-and-set operation                                        |
 | `CorrelationId`            | Required on every request and response after `Hello`; all-zero envelope bytes mean absence only for handshake messages or events |
 
-The current protocol version is exactly `0.0.16`. `Hello`, `HelloAccepted`, and every transport
+The current protocol version is exactly `0.0.17`. `Hello`, `HelloAccepted`, and every transport
 envelope carry that exact version. A different major, minor, or patch is rejected; this pre-release
 contract contains no negotiated range, compatibility mode, or historical message shape. Packed
 OBTF frame format is exactly `0.0.3`; OBPB projection-buffer and OBRW row-window formats are exactly
@@ -206,8 +206,9 @@ its one active broker session and resolves each `AttachmentId` through that sess
 diagnostic metadata and does not merge, transfer, or independently grant authority.
 
 Every attachment requests at least one of input, read, or resize authority. A resize lease is legal
-only when resize authority is also requested and granted. Empty capability bindings and a resize
-lease without resize authority are malformed at the protocol boundary.
+only when resize authority is also requested and granted. Empty requested capability bindings and a
+resize lease without resize authority are malformed at attach admission. A complete current
+capability value may be all false after an input-only attachment is downgraded.
 
 `ResizeLeaseChanged` is an event-only complete ownership fact containing the exact attachment and
 terminal identities plus `resizeLease`; it is never a toggle. When detaching a resize owner promotes
@@ -239,7 +240,8 @@ screen. `TerminalControlAccepted` returns the attachment, resolved terminal, exa
 resulting generation/revision. A lost response is an unknown result and does not authorize replay.
 
 Every attachment starts with capability revision `1`. `AttachmentCapabilities` reports that
-positive canonical uint64 revision beside the complete current capability value.
+positive canonical uint64 revision beside the complete current capability value, including an
+all-false value after an input-only attachment is downgraded.
 `UpdateAttachmentInputCapability` kind `24` carries the attachment, a positive revision, and the
 next input bit. The Host applies only an exact `current + 1` revision that changes the input bit;
 the exact current revision and value is an idempotent replay. A same-revision different value or a
@@ -303,7 +305,7 @@ Initial resize-lease authority is returned by attachment admission; later owners
 attachment-scoped event.
 
 `MESSAGE_CONTRACTS` is the executable TypeScript registry behind this table. Its native mirror is
-checked field-for-field through `control-conformance-v0.0.16.json`. Adding or changing a kind therefore
+checked field-for-field through `control-conformance-v0.0.17.json`. Adding or changing a kind therefore
 requires one atomic protocol change to the registry, native mirror, codecs, fixture, and consumers.
 
 `TerminalBell` is an event-only control record containing `attachmentId` and a positive canonical
@@ -422,9 +424,28 @@ The current optional extension registry is:
 |  `3` |         `2` | Current terminal progress: state byte plus percentage `0..100` or null sentinel `255`.                                                                       |
 |  `4` |        `25` | Latest semantic command completion: positive sequence, duration milliseconds, positive wall-clock completion milliseconds, and normalized exit code.         |
 
-Close activity is an advisory sample, not lifecycle or containment authority. A consumer maps an
-absent, duplicated, malformed, or unrecognized close-activity payload to `unknown` and applies its
-own close-confirmation policy.
+Close activity is an advisory, freshness-sensitive sample, not lifecycle or containment authority.
+A consumer maps an absent, duplicated, malformed, or unrecognized close-activity payload to
+`unknown`. An accepted non-focus input invalidates the client's last committed observation to
+`unknown` synchronously, before the input API returns. Focus-only input and synchronously rejected
+input do not invalidate it. Historical rows, a failed live snapshot, and a staged but uncommitted
+frame cannot restore freshness; only a subsequently committed live presentation with causal
+freshness evidence can do so.
+
+The Host samples activity on a bounded cadence before projection dirty gating. An accepted
+activity-affecting input invalidates the cached sample and forces a live snapshot even when the
+terminal content revision is unchanged. If an already in-flight frame reaches a locally invalidated
+consumer claiming `idle`, the consumer sends `NeedSnapshot` reason `activity-stale` with that exact
+sequence instead of `FrameApplied`. The Host abandons that flight and forces a complete snapshot;
+because the request follows the input on the consumer-to-Host stream, the replacement is causal
+evidence that the Host cache was captured after invalidation even when its terminal revision is
+unchanged. It proves neither that the Host accepted the input nor that the terminal process
+consumed it. The current Host permanently latches a Host-accepted non-focus input for that terminal
+lifecycle, so the replacement and every later same-lifecycle frame may report only `active` or
+`unknown`. If the Host rejects or otherwise does not accept the input, the causal replacement may
+legitimately publish fresh `idle`. A theme stage applies this fence before declaring readiness.
+Fresh `idle` may allow a product to close without confirmation. `active`, `unknown`, and any locally
+stale presentation require confirmation.
 
 Progress state byte `0` removes the indicator, `1` is active, `2` is error, `3` is indeterminate,
 and `4` is paused. `remove` and `indeterminate` require the null sentinel. `set`, `error`, and

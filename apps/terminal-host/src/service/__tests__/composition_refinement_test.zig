@@ -39,7 +39,9 @@ test "semantic trace refines a native HostService composition" {
         },
     } }, .applied);
 
-    const validated = try aggregate_harness.validatedLongRunningLaunch();
+    var launch_fixture = try aggregate_harness.validatedLongRunningLaunch();
+    defer launch_fixture.deinit();
+    const validated = launch_fixture.validated;
     const creation_id = testId(core_module.CreationId, 0xa1, 0);
     var preparation = try service.runtime_aggregate.prepareCreateTerminal(
         active.connection_id,

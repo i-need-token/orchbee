@@ -22,7 +22,9 @@ test "composition observation checks Core runtime and attachment owners together
     try testHandshake(&service, &connection, "91919191919191919191919191919191");
     const active = try harness.activeConnection(&connection);
 
-    const validated = try aggregate_harness.validatedLongRunningLaunch();
+    var launch_fixture = try aggregate_harness.validatedLongRunningLaunch();
+    defer launch_fixture.deinit();
+    const validated = launch_fixture.validated;
     var preparation = try service.runtime_aggregate.prepareCreateTerminal(
         active.connection_id,
         testId(core_module.CreationId, 0x91, 0),

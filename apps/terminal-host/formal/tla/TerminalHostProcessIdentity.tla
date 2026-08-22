@@ -2,23 +2,31 @@
 EXTENDS TLC
 
 \* Refines runtime-model claims TH-008, TH-009, and TH-013 for the POSIX
-\* process-identity owner (THCR-006). completion abstracts the engine's
-\* completion-classification sampling; containmentConfirmed abstracts the
-\* empty-session containment confirmation; identityRetained abstracts retention
-\* of the session-leader identity until waitpid releases it; sessionOwner
-\* abstracts the numeric session identifier, which an unrelated same-user
-\* process may rebind to itself after release (SID/PID churn); and
-\* AdmitDispatch / EmitSignal / CancelSignal abstract the Host graceful and
-\* force termination requests and their serialized platform effect.
-\* Registry identity, broker retention, and multi-runtime shutdown are
-\* intentionally owned by TerminalHostRegistry and TerminalHostShutdown.
-\* EmitSignal is the check-and-signal step of the serialized process-identity
-\* fence: it emits a process signal only while the launch identity is retained
-\* and containment is unconfirmed. After identity release or confirmed
-\* containment, the request completes as CancelSignal, an idempotent no-op that
-\* never consults the numeric identifier. NoForeignSignal is the safety claim
-\* that a rebound foreign session can never receive a signal from a settled
-\* terminal.
+\* process-identity owner (THCR-006). The retained leader identity fences the
+\* numeric session identifier until containment and reap. Each independently
+\* enumerated member is acquired as a stable kernel reference before the
+\* authoritative numeric session-membership observation; signal and liveness
+\* effects then use only that reference. The macOS reusable-PID negative
+\* prefilter precedes and is outside this authoritative abstraction.
+\* RecycleMemberPid may replace the numeric member PID at any
+\* point while the leader identity remains retained, including after membership
+\* observation and immediately before the effect.
+\*
+\* The model deliberately distinguishes the numeric PID binding from the stable
+\* member reference. EmitSignal and ObserveMemberLiveness can act on the captured
+\* identity only while it is still live. If the numeric PID has been recycled,
+\* both signaling and containment liveness retry from a fresh reference rather
+\* than treating a possibly same-session replacement as success or empty.
+\* Neither operation retargets the replacement through the stale reference.
+\* RebindSession
+\* separately retains the existing SID-reuse fence after leader release.
+\* Registry identity, broker retention, and multi-runtime shutdown remain owned
+\* by TerminalHostRegistry and TerminalHostShutdown.
+
+SignalKinds == {"HUP", "STOP", "KILL", "CONT"}
+OperationKinds == SignalKinds \union {"count"}
+MemberIdentities == {"launch-member", "replacement-member"}
+MemberSessions == {"owned", "foreign"}
 
 VARIABLES
   completion,
@@ -26,11 +34,22 @@ VARIABLES
   identityRetained,
   sessionOwner,
   requestInFlight,
-  signalsEmitted,
-  foreignSignals
+  requestKind,
+  memberPidIdentity,
+  memberPidSession,
+  memberRef,
+  membershipObserved,
+  memberSignalObservation,
+  memberLiveObservation,
+  signaledSessionOwners,
+  signalTargets,
+  countedTargets
 
 vars == <<completion, containmentConfirmed, identityRetained, sessionOwner,
-          requestInFlight, signalsEmitted, foreignSignals>>
+          requestInFlight, requestKind, memberPidIdentity, memberPidSession, memberRef,
+          membershipObserved, memberSignalObservation, memberLiveObservation,
+          signaledSessionOwners,
+          signalTargets, countedTargets>>
 
 Init ==
   /\ completion = "pending"
@@ -38,81 +57,207 @@ Init ==
   /\ identityRetained = TRUE
   /\ sessionOwner = "launch"
   /\ requestInFlight = FALSE
-  /\ signalsEmitted = FALSE
-  /\ foreignSignals = FALSE
+  /\ requestKind = "none"
+  /\ memberPidIdentity = "launch-member"
+  /\ memberPidSession = "owned"
+  /\ memberRef = "none"
+  /\ membershipObserved = "none"
+  /\ memberSignalObservation = "none"
+  /\ memberLiveObservation = "none"
+  /\ signaledSessionOwners = {}
+  /\ signalTargets = {}
+  /\ countedTargets = {}
 
-\* The engine samples child completion.
+\* The engine samples child completion without reaping the retained leader.
 ChildExited ==
   /\ completion = "pending"
   /\ completion' = "normal"
   /\ UNCHANGED <<containmentConfirmed, identityRetained, sessionOwner,
-                 requestInFlight, signalsEmitted, foreignSignals>>
+                 requestInFlight, requestKind, memberPidIdentity, memberPidSession, memberRef,
+                 membershipObserved, memberSignalObservation, memberLiveObservation,
+                 signaledSessionOwners, signalTargets, countedTargets>>
 
-\* The wait worker confirms the owned session has no live members.
+\* Graceful, force-step, and liveness operations share the same stable-member
+\* scan workflow while the retained leader/SID fence is open.
+AdmitDispatch ==
+  /\ ~requestInFlight
+  /\ identityRetained
+  /\ ~containmentConfirmed
+  /\ requestInFlight' = TRUE
+  /\ IF memberLiveObservation = "retry"
+       THEN requestKind' = "count"
+       ELSE requestKind' \in OperationKinds
+  /\ memberRef' = "none"
+  /\ membershipObserved' = "none"
+  /\ memberSignalObservation' = "none"
+  /\ memberLiveObservation' = "none"
+  /\ UNCHANGED <<completion, containmentConfirmed, identityRetained,
+                 sessionOwner, memberPidIdentity, memberPidSession, signaledSessionOwners,
+                 signalTargets, countedTargets>>
+
+\* Capture the identity currently bound to the numeric PID before asking for
+\* its numeric session membership.
+AcquireMemberRef ==
+  /\ requestInFlight
+  /\ memberRef = "none"
+  /\ memberRef' = memberPidIdentity
+  /\ UNCHANGED <<completion, containmentConfirmed, identityRetained,
+                 sessionOwner, requestInFlight, requestKind, memberPidIdentity,
+                 memberPidSession,
+                 membershipObserved, memberSignalObservation, memberLiveObservation,
+                 signaledSessionOwners, signalTargets, countedTargets>>
+
+\* getsid-style membership observation occurs only after stable acquisition.
+\* Membership is independent of the identity currently bound to the numeric
+\* PID: a replacement may either remain in the owned session or be foreign.
+ObserveMembership ==
+  /\ requestInFlight
+  /\ memberRef # "none"
+  /\ membershipObserved = "none"
+  /\ membershipObserved' =
+       IF memberPidSession = "owned" THEN "member" ELSE "nonmember"
+  /\ UNCHANGED <<completion, containmentConfirmed, identityRetained,
+                 sessionOwner, requestInFlight, requestKind, memberPidIdentity,
+                 memberPidSession, memberRef, memberSignalObservation,
+                 memberLiveObservation, signaledSessionOwners,
+                 signalTargets, countedTargets>>
+
+\* Arbitrary PID reuse is allowed while the session leader itself is still
+\* retained. In particular, this may occur between ObserveMembership and the
+\* signal or liveness effect.
+RecycleMemberPid ==
+  /\ identityRetained
+  /\ memberPidIdentity = "launch-member"
+  /\ memberPidIdentity' = "replacement-member"
+  /\ memberPidSession' \in MemberSessions
+  /\ UNCHANGED <<completion, containmentConfirmed, identityRetained,
+                 sessionOwner, requestInFlight, requestKind, memberRef,
+                 membershipObserved, memberSignalObservation, memberLiveObservation,
+                 signaledSessionOwners, signalTargets, countedTargets>>
+
+\* A signal can be emitted only through the still-live captured reference.
+\* Equality here is reference liveness, not a second numeric-PID lookup.
+EmitSignal ==
+  /\ requestInFlight
+  /\ requestKind \in SignalKinds
+  /\ membershipObserved = "member"
+  /\ memberRef = memberPidIdentity
+  /\ signaledSessionOwners' = signaledSessionOwners \union {sessionOwner}
+  /\ signalTargets' = signalTargets \union {memberRef}
+  /\ requestInFlight' = FALSE
+  /\ requestKind' = "none"
+  /\ memberRef' = "none"
+  /\ membershipObserved' = "none"
+  /\ memberSignalObservation' = "sent"
+  /\ UNCHANGED <<completion, containmentConfirmed, identityRetained,
+                 sessionOwner, memberPidIdentity, memberPidSession, memberLiveObservation,
+                 countedTargets>>
+
+\* An authoritatively observed non-member makes signaling an idempotent no-op.
+CancelSignal ==
+  /\ requestInFlight
+  /\ requestKind \in SignalKinds
+  /\ membershipObserved = "nonmember"
+  /\ requestInFlight' = FALSE
+  /\ requestKind' = "none"
+  /\ memberRef' = "none"
+  /\ membershipObserved' = "none"
+  /\ memberSignalObservation' = "cancelled"
+  /\ UNCHANGED <<completion, containmentConfirmed, identityRetained,
+                 sessionOwner, memberPidIdentity, memberPidSession, memberLiveObservation,
+                 signaledSessionOwners, signalTargets, countedTargets>>
+
+\* A matched member reference invalidated before the effect cannot report
+\* signal success. Clear only the stale reference and repeat acquisition and
+\* authoritative membership observation for the same in-flight signal.
+RetrySignal ==
+  /\ requestInFlight
+  /\ requestKind \in SignalKinds
+  /\ membershipObserved = "member"
+  /\ memberRef # memberPidIdentity
+  /\ memberRef' = "none"
+  /\ membershipObserved' = "none"
+  /\ memberSignalObservation' = "retry"
+  /\ UNCHANGED <<completion, containmentConfirmed, identityRetained,
+                 sessionOwner, requestInFlight, requestKind, memberPidIdentity,
+                 memberPidSession, memberLiveObservation, signaledSessionOwners,
+                 signalTargets, countedTargets>>
+
+\* Liveness counts the captured identity only if the observed member reference
+\* is still live. An invalidated member reference requests a fresh scan instead
+\* of treating a possibly same-session replacement as an empty observation.
+ObserveMemberLiveness ==
+  /\ requestInFlight
+  /\ requestKind = "count"
+  /\ membershipObserved # "none"
+  /\ memberLiveObservation' =
+       IF membershipObserved = "member" /\ memberRef = memberPidIdentity
+       THEN "live"
+       ELSE IF membershipObserved = "member"
+       THEN "retry"
+       ELSE "dead"
+  /\ countedTargets' =
+       IF membershipObserved = "member" /\ memberRef = memberPidIdentity
+       THEN countedTargets \union {memberRef}
+       ELSE countedTargets
+  /\ requestInFlight' = FALSE
+  /\ requestKind' = "none"
+  /\ memberRef' = "none"
+  /\ membershipObserved' = "none"
+  /\ UNCHANGED <<completion, containmentConfirmed, identityRetained,
+                 sessionOwner, memberPidIdentity, memberPidSession, signaledSessionOwners,
+                 memberSignalObservation, signalTargets>>
+
+\* The wait worker confirms the owned process domain only from a completed
+\* stable-reference liveness observation that found no live member.
 ConfirmContainment ==
   /\ completion = "normal"
   /\ ~containmentConfirmed
   /\ identityRetained
+  /\ ~requestInFlight
+  /\ memberLiveObservation = "dead"
   /\ containmentConfirmed' = TRUE
   /\ UNCHANGED <<completion, identityRetained, sessionOwner,
-                 requestInFlight, signalsEmitted, foreignSignals>>
+                 requestInFlight, requestKind, memberPidIdentity, memberPidSession, memberRef,
+                 membershipObserved, memberSignalObservation, memberLiveObservation,
+                 signaledSessionOwners, signalTargets, countedTargets>>
 
 \* The wait worker reaps the session leader: the numeric identity is freed.
 ReleaseIdentity ==
   /\ completion = "normal"
   /\ containmentConfirmed
   /\ identityRetained
+  /\ ~requestInFlight
   /\ identityRetained' = FALSE
   /\ UNCHANGED <<completion, containmentConfirmed, sessionOwner,
-                 requestInFlight, signalsEmitted, foreignSignals>>
+                 requestInFlight, requestKind, memberPidIdentity, memberPidSession, memberRef,
+                 membershipObserved, memberSignalObservation, memberLiveObservation,
+                 signaledSessionOwners, signalTargets, countedTargets>>
 
-\* An unrelated same-user process calls setsid() and rebinds the freed numeric
-\* identifier to its own session.
+\* An unrelated same-user process calls setsid() and rebinds the released
+\* numeric session identifier to its own session.
 RebindSession ==
   /\ ~identityRetained
   /\ sessionOwner = "launch"
   /\ sessionOwner' = "foreign"
   /\ UNCHANGED <<completion, containmentConfirmed, identityRetained,
-                 requestInFlight, signalsEmitted, foreignSignals>>
-
-\* The Host observes the stale pending engine and admits a graceful or force
-\* request for dispatch. The engine may still be finishing independently.
-AdmitDispatch ==
-  /\ ~requestInFlight
-  /\ completion = "pending"
-  /\ requestInFlight' = TRUE
-  /\ UNCHANGED <<completion, containmentConfirmed, identityRetained,
-                 sessionOwner, signalsEmitted, foreignSignals>>
-
-\* The serialized check-and-signal step of the identity fence: the platform
-\* effect emits a signal only while the launch identity is retained and
-\* containment is unconfirmed.
-EmitSignal ==
-  /\ requestInFlight
-  /\ ~containmentConfirmed
-  /\ identityRetained
-  /\ signalsEmitted' = TRUE
-  /\ requestInFlight' = FALSE
-  /\ UNCHANGED <<completion, containmentConfirmed, identityRetained,
-                 sessionOwner, foreignSignals>>
-
-\* Once containment is confirmed or the identity is released, the request
-\* succeeds as an idempotent no-op without consulting the numeric identifier.
-CancelSignal ==
-  /\ requestInFlight
-  /\ (containmentConfirmed \/ ~identityRetained)
-  /\ requestInFlight' = FALSE
-  /\ UNCHANGED <<completion, containmentConfirmed, identityRetained,
-                 sessionOwner, signalsEmitted, foreignSignals>>
+                 requestInFlight, requestKind, memberPidIdentity, memberPidSession, memberRef,
+                 membershipObserved, memberSignalObservation, memberLiveObservation,
+                 signaledSessionOwners, signalTargets, countedTargets>>
 
 Next ==
   \/ ChildExited
+  \/ AdmitDispatch
+  \/ AcquireMemberRef
+  \/ ObserveMembership
+  \/ RecycleMemberPid
+  \/ EmitSignal
+  \/ CancelSignal
+  \/ RetrySignal
+  \/ ObserveMemberLiveness
   \/ ConfirmContainment
   \/ ReleaseIdentity
   \/ RebindSession
-  \/ AdmitDispatch
-  \/ EmitSignal
-  \/ CancelSignal
 
 Spec ==
   /\ Init
@@ -124,20 +269,47 @@ TypeOK ==
   /\ identityRetained \in BOOLEAN
   /\ sessionOwner \in {"launch", "foreign"}
   /\ requestInFlight \in BOOLEAN
-  /\ signalsEmitted \in BOOLEAN
-  /\ foreignSignals \in BOOLEAN
+  /\ requestKind \in OperationKinds \union {"none"}
+  /\ memberPidIdentity \in MemberIdentities
+  /\ memberPidSession \in MemberSessions
+  /\ memberRef \in MemberIdentities \union {"none"}
+  /\ membershipObserved \in {"none", "member", "nonmember"}
+  /\ memberSignalObservation \in {"none", "sent", "cancelled", "retry"}
+  /\ memberLiveObservation \in {"none", "live", "dead", "retry"}
+  /\ signaledSessionOwners \subseteq {"launch", "foreign"}
+  /\ signalTargets \subseteq MemberIdentities
+  /\ countedTargets \subseteq MemberIdentities
 
-\* A foreign session can adopt the numeric identifier only after the launch
-\* identity has been released.
 ForeignBindRequiresRelease ==
   sessionOwner = "foreign" => ~identityRetained
 
-\* A signal is emitted only through EmitSignal, which observes the retained
-\* launch identity in the same serialized step; a released or contained
-\* terminal never emits a signal that could reach a rebound session.
-\* foreignSignals is the event-tracked defect flag: it is set only if the
-\* platform effect were ever emitted without the retained launch identity.
+ActiveReferenceOwned ==
+  memberRef # "none" => requestInFlight
+
+ObservedMembershipHasReference ==
+  membershipObserved # "none" => memberRef # "none"
+
+ContainmentRequiresStableEmptyObservation ==
+  containmentConfirmed => memberLiveObservation = "dead"
+
+InvalidatedReferenceCannotConfirmContainment ==
+  (memberLiveObservation = "retry" \/ memberSignalObservation = "retry")
+    => ~containmentConfirmed
+
+SignalRetryRetainsRequest ==
+  memberSignalObservation = "retry" => requestInFlight
+
+OwnedReplacementCannotAppearDead ==
+  (memberPidIdentity = "replacement-member" /\ memberPidSession = "owned")
+    => memberLiveObservation # "dead"
+
 NoForeignSignal ==
-  ~foreignSignals
+  memberPidSession = "foreign" => memberPidIdentity \notin signalTargets
+
+NoForeignSessionSignal ==
+  "foreign" \notin signaledSessionOwners
+
+NoForeignCount ==
+  memberPidSession = "foreign" => memberPidIdentity \notin countedTargets
 
 =============================================================================

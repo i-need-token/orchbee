@@ -324,6 +324,15 @@ describe('control schemas', () => {
 		expect(
 			AttachmentCapabilitiesSchema.safeParse({
 				attachmentId: attachment.attachmentId,
+				capabilityRevision: '2',
+				capabilities: { input: false, read: false, resize: false },
+				resizeLease: false,
+				terminalId: attachment.terminalId,
+			}).success,
+		).toBe(true);
+		expect(
+			AttachmentCapabilitiesSchema.safeParse({
+				attachmentId: attachment.attachmentId,
 				capabilityRevision: '1',
 				capabilities: { input: true, read: false, resize: false },
 				resizeLease: true,
@@ -845,7 +854,7 @@ describe('control schemas', () => {
 		expect(
 			NeedSnapshotSchema.safeParse({
 				attachmentId: '22222222222222222222222222222222',
-				reason: 'base-mismatch',
+				reason: 'activity-stale',
 				sequence: '3',
 			}).success,
 		).toBe(true);

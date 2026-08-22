@@ -20,7 +20,7 @@ const Machine = struct {
     service: HostService,
     connection: ConnectionState,
     refinement: reference.Refinement,
-    validated: aggregate_harness.terminal_launch.Validated,
+    launch_fixture: aggregate_harness.ValidatedLaunchFixture,
     native_create: semantic_trace.Create,
     native_owner_id: core_module.AttachmentId,
     native_observer_id: core_module.AttachmentId,
@@ -47,7 +47,9 @@ const Machine = struct {
             .limits = limits(active),
         } }, .applied);
 
-        const validated = try aggregate_harness.validatedLongRunningLaunch();
+        var launch_fixture = try aggregate_harness.validatedLongRunningLaunch();
+        errdefer launch_fixture.deinit();
+        const validated = launch_fixture.validated;
         const creation_id = harness.testId(core_module.CreationId, 0xb1, 0);
         var preparation = try service.runtime_aggregate.prepareCreateTerminal(
             active.connection_id,
@@ -78,7 +80,7 @@ const Machine = struct {
             .service = service,
             .connection = connection,
             .refinement = refinement,
-            .validated = validated,
+            .launch_fixture = launch_fixture,
             .native_create = create_action,
             .native_owner_id = harness.testId(core_module.AttachmentId, 0xb1, 1),
             .native_observer_id = harness.testId(core_module.AttachmentId, 0xb1, 2),
@@ -92,6 +94,7 @@ const Machine = struct {
         self.refinement.deinit();
         self.service.disconnect(&self.connection);
         self.service.deinit();
+        self.launch_fixture.deinit();
         self.* = undefined;
     }
 
@@ -320,7 +323,7 @@ const Machine = struct {
         var preparation = self.service.runtime_aggregate.prepareCreateTerminal(
             connection_id,
             self.native_create.creation_id,
-            self.validated,
+            self.launch_fixture.validated,
         ) catch return self.record(action, .rejected);
         defer preparation.deinit();
         const result = self.service.runtime_aggregate.commitPreparedTerminal(&preparation) catch

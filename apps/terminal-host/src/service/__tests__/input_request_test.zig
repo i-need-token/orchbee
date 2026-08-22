@@ -87,7 +87,7 @@ fn expectAttachmentInputCapability(
     outgoing: *const Outgoing,
     attachment_id: core_module.AttachmentId,
     expected_revision: []const u8,
-    expected_input: bool,
+    expected_capabilities: core_module.Capabilities,
 ) !void {
     try std.testing.expectEqual(@as(usize, 1), outgoing.records().len);
     const envelope = try protocol.validateTransportEnvelope(outgoing.records()[0]);
@@ -115,9 +115,9 @@ fn expectAttachmentInputCapability(
         decoded.value.attachmentId,
     );
     try std.testing.expectEqualStrings(expected_revision, decoded.value.capabilityRevision);
-    try std.testing.expectEqual(expected_input, decoded.value.capabilities.input);
-    try std.testing.expect(decoded.value.capabilities.read);
-    try std.testing.expect(!decoded.value.capabilities.resize);
+    try std.testing.expectEqual(expected_capabilities.input, decoded.value.capabilities.input);
+    try std.testing.expectEqual(expected_capabilities.read, decoded.value.capabilities.read);
+    try std.testing.expectEqual(expected_capabilities.resize, decoded.value.capabilities.resize);
     try std.testing.expect(!decoded.value.resizeLease);
 }
 
@@ -159,7 +159,9 @@ test "projection demand gates and repairs shared attachment focus claims" {
     try testHandshake(&service, &connection, "74747474747474747474747474747474");
     const active = try activeConnection(&connection);
     const aggregate = serviceAggregate(&service);
-    const validated = try aggregate_harness.validatedLongRunningLaunch();
+    var launch_fixture = try aggregate_harness.validatedLongRunningLaunch();
+    defer launch_fixture.deinit();
+    const validated = launch_fixture.validated;
     var create = try aggregate.prepareCreateTerminal(
         active.connection_id,
         testId(core_module.CreationId, 0x75, 0),
@@ -339,7 +341,9 @@ test "capability revision updates repair one attachment and reject stale input" 
     try testHandshake(&service, &connection, "67676767676767676767676767676767");
     const active = try activeConnection(&connection);
     const aggregate = serviceAggregate(&service);
-    const validated = try aggregate_harness.validatedLongRunningLaunch();
+    var launch_fixture = try aggregate_harness.validatedLongRunningLaunch();
+    defer launch_fixture.deinit();
+    const validated = launch_fixture.validated;
     var create = try aggregate.prepareCreateTerminal(
         active.connection_id,
         testId(core_module.CreationId, 0x68, 0),
@@ -466,7 +470,12 @@ test "capability revision updates repair one attachment and reject stale input" 
         [_]u8{0x6c} ** 16,
     );
     defer downgraded.deinit();
-    try expectAttachmentInputCapability(&downgraded, attachment_id, "2", false);
+    try expectAttachmentInputCapability(
+        &downgraded,
+        attachment_id,
+        "2",
+        .{ .input = false, .read = true, .resize = false },
+    );
     try std.testing.expectEqual(
         published_before_downgrade + 1,
         publishedClientInputCount(runtime),
@@ -519,7 +528,12 @@ test "capability revision updates repair one attachment and reject stale input" 
         [_]u8{0x6f} ** 16,
     );
     defer replayed.deinit();
-    try expectAttachmentInputCapability(&replayed, attachment_id, "2", false);
+    try expectAttachmentInputCapability(
+        &replayed,
+        attachment_id,
+        "2",
+        .{ .input = false, .read = true, .resize = false },
+    );
     const conflict_payload = try std.fmt.bufPrint(
         &update_buffer,
         "{{\"attachmentId\":\"{s}\",\"capabilityRevision\":\"2\",\"input\":true}}",
@@ -566,7 +580,12 @@ test "capability revision updates repair one attachment and reject stale input" 
         [_]u8{0x72} ** 16,
     );
     defer upgraded.deinit();
-    try expectAttachmentInputCapability(&upgraded, attachment_id, "3", true);
+    try expectAttachmentInputCapability(
+        &upgraded,
+        attachment_id,
+        "3",
+        .{ .input = true, .read = true, .resize = false },
+    );
     const after_upgrade = terminal_runtime.testing.inputQueueSnapshot(runtime);
     try std.testing.expectEqual(before_upgrade.client_charge, after_upgrade.client_charge);
     try std.testing.expectEqual(before_upgrade.entry_count, after_upgrade.entry_count);
@@ -599,6 +618,70 @@ test "capability revision updates repair one attachment and reject stale input" 
     );
     defer current_input.deinit();
     try expectInputAcceptedBytes(&current_input, attachment_id, 1, "3");
+}
+test "input-only capability downgrade and replay return an all-false current binding" {
+    var service = HostService.init(std.testing.allocator);
+    var connection: ConnectionState = .awaiting_hello;
+    defer {
+        service.disconnect(&connection);
+        service.deinit();
+    }
+    try testHandshake(&service, &connection, "74747474747474747474747474747474");
+    const active = try activeConnection(&connection);
+    const aggregate = serviceAggregate(&service);
+    var launch_fixture = try aggregate_harness.validatedLongRunningLaunch();
+    defer launch_fixture.deinit();
+    const validated = launch_fixture.validated;
+    var create = try aggregate.prepareCreateTerminal(
+        active.connection_id,
+        testId(core_module.CreationId, 0x75, 0),
+        validated,
+    );
+    defer create.deinit();
+    const terminal_id = switch (try aggregate.commitPreparedTerminal(&create)) {
+        .created => |identity| identity.terminal_id,
+        .replayed => return error.ExpectedCreatedTerminal,
+    };
+    const attachment_id = core_module.AttachmentId.fromBytes([_]u8{0x76} ** 16);
+    _ = try aggregate.attach(
+        active.connection_id,
+        attachment_id,
+        terminal_id,
+        .{ .input = true, .read = false, .resize = false },
+        false,
+    );
+
+    var attachment_buffer: [32]u8 = undefined;
+    var update_buffer: [160]u8 = undefined;
+    const downgrade_payload = try std.fmt.bufPrint(
+        &update_buffer,
+        "{{\"attachmentId\":\"{s}\",\"capabilityRevision\":\"2\",\"input\":false}}",
+        .{identifierText(attachment_id, &attachment_buffer)},
+    );
+    for ([_]u8{ 0x77, 0x78 }) |correlation_byte| {
+        var response = try testRequest(
+            &service,
+            &connection,
+            MessageKind.update_attachment_input_capability,
+            .control_json,
+            downgrade_payload,
+            [_]u8{correlation_byte} ** 16,
+        );
+        defer response.deinit();
+        try expectAttachmentInputCapability(
+            &response,
+            attachment_id,
+            "2",
+            .{ .input = false, .read = false, .resize = false },
+        );
+    }
+
+    const attachment = serviceCore(&service).findAttachment(attachment_id).?;
+    try std.testing.expectEqual(@as(u64, 2), attachment.capability_revision);
+    try std.testing.expectEqual(
+        core_module.Capabilities{ .input = false, .read = false, .resize = false },
+        attachment.capabilities,
+    );
 }
 test "I/O successful responses use supplied request contracts and publish input once" {
     const windows_executable: ?[]u8 = if (target_builtin.os.tag == .windows)
@@ -828,7 +911,7 @@ test "I/O successful responses use supplied request contracts and publish input 
     var need_snapshot_buffer: [160]u8 = undefined;
     const need_snapshot_payload = try std.fmt.bufPrint(
         &need_snapshot_buffer,
-        "{{\"attachmentId\":\"4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a\",\"reason\":\"base-mismatch\",\"sequence\":\"{d}\"}}",
+        "{{\"attachmentId\":\"4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a\",\"reason\":\"activity-stale\",\"sequence\":\"{d}\"}}",
         .{first_frame.sequence},
     );
     const need_snapshot_contract = try registeredRequestContract(MessageKind.need_snapshot);
@@ -851,6 +934,8 @@ test "I/O successful responses use supplied request contracts and publish input 
     var second_frame_batch = try pollEventsChecked(&service, &connection);
     defer second_frame_batch.deinit();
     const second_frame = try onlyTerminalFrame(&second_frame_batch);
+    try std.testing.expectEqual(protocol.FrameKind.snapshot, second_frame.kind);
+    try std.testing.expectEqual(first_frame.sequence + 1, second_frame.sequence);
     var frame_applied_buffer: [256]u8 = undefined;
     const frame_applied_payload = try std.fmt.bufPrint(
         &frame_applied_buffer,

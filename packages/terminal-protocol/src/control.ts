@@ -357,16 +357,23 @@ export const TerminalIdentitySchema = z.strictObject({
 	terminalId: TerminalIdSchema,
 });
 
-const attachmentCapabilitiesSchema = z
-	.strictObject({ input: z.boolean(), read: z.boolean(), resize: z.boolean() })
-	.refine((capabilities) => capabilities.input || capabilities.read || capabilities.resize, {
+const attachmentCapabilityStateSchema = z.strictObject({
+	input: z.boolean(),
+	read: z.boolean(),
+	resize: z.boolean(),
+});
+
+const attachmentAdmissionCapabilitiesSchema = attachmentCapabilityStateSchema.refine(
+	(capabilities) => capabilities.input || capabilities.read || capabilities.resize,
+	{
 		message: 'At least one attachment capability is required',
-	});
+	},
+);
 
 export const AttachTerminalSchema = z
 	.strictObject({
 		attachmentId: AttachmentIdSchema,
-		capabilities: attachmentCapabilitiesSchema,
+		capabilities: attachmentAdmissionCapabilitiesSchema,
 		requestResizeLease: z.boolean(),
 		terminalId: TerminalIdSchema,
 	})
@@ -414,6 +421,7 @@ export const FrameAppliedSchema = z.strictObject({
 export const NeedSnapshotSchema = z.strictObject({
 	attachmentId: AttachmentIdSchema,
 	reason: z.enum([
+		'activity-stale',
 		'base-mismatch',
 		'decoder-rejected',
 		'dimensions-mismatch',
@@ -866,7 +874,7 @@ export const AttachmentCapabilitiesSchema = z
 	.strictObject({
 		attachmentId: AttachmentIdSchema,
 		capabilityRevision: positiveCanonicalUint64TextSchema,
-		capabilities: attachmentCapabilitiesSchema,
+		capabilities: attachmentCapabilityStateSchema,
 		resizeLease: z.boolean(),
 		terminalId: TerminalIdSchema,
 	})

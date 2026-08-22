@@ -1,4 +1,5 @@
 const std = @import("std");
+const target_builtin = @import("builtin");
 const core_module = @import("terminal-host-core").state;
 const model = @import("terminal-host-model");
 const terminal_configuration = model.configuration;
@@ -6,6 +7,13 @@ const contracts = @import("contracts.zig");
 
 const ConfigurationUpdateError = contracts.ConfigurationUpdateError;
 const TerminalConfigurationUpdate = contracts.TerminalConfigurationUpdate;
+
+pub fn configurationObservationIsCompatible(
+    committed_revision: u64,
+    observed_revision: u64,
+) bool {
+    return observed_revision >= committed_revision;
+}
 
 pub fn prepareTerminalDefaultsUpdate(
     self: anytype,
@@ -52,6 +60,11 @@ pub fn updateTerminalConfiguration(
             error.TerminalRuntimeUnavailable => error.TerminalRuntimeUnavailable,
         };
     };
+    if (comptime target_builtin.is_test) {
+        if (self.testing_state.after_configuration_commit) |hook| {
+            hook(self.testing_state.after_configuration_commit_context, runtime);
+        }
+    }
 
     // All Core checks happen before the runtime mutation. HostService is
     // single-owner, so these commits cannot fail without an invariant
@@ -65,7 +78,10 @@ pub fn updateTerminalConfiguration(
         terminal_id,
         runtime,
     ) catch unreachable;
-    std.debug.assert(runtime_geometry.revision == runtime_update.revision);
+    std.debug.assert(configurationObservationIsCompatible(
+        runtime_update.revision,
+        runtime_geometry.revision,
+    ));
     const updated_terminal = self.core_state.findTerminal(terminal_id).?;
     return .{
         .configuration = updated_terminal.effectiveConfiguration(),

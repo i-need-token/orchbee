@@ -287,6 +287,7 @@ pub fn build(builder: *std.Build) void {
                 .optimize = optimize,
             });
             if (target.result.os.tag == .macos) {
+                platform_module.linkSystemLibrary("bsm", .{});
                 if (builtin.target.os.tag.isDarwin()) {
                     const libc = std.zig.LibCInstallation.findNative(.{
                         .allocator = builder.allocator,
@@ -294,6 +295,10 @@ pub fn build(builder: *std.Build) void {
                         .verbose = false,
                     }) catch @panic("could not locate native macOS libc headers");
                     pty_c.addSystemIncludePath(.{ .cwd_relative = libc.sys_include_dir.? });
+                    platform_module.addLibraryPath(.{ .cwd_relative = builder.pathJoin(&.{
+                        std.fs.path.dirname(libc.sys_include_dir.?).?,
+                        "lib",
+                    }) });
                 } else {
                     pty_c.addAfterIncludePath(
                         builder.path("src/platform/darwin-cross-headers"),

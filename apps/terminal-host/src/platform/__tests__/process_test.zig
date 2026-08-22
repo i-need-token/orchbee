@@ -210,6 +210,847 @@ test "POSIX force termination recovers from partial signaling failures" {
     );
 }
 
+// Stable-member termination runs as separate STOP and KILL scans. Exercise the
+// native macOS/Linux adapter against a leader that ignores graceful HUP so the
+// shutdown path must stop and then kill the same retained process identity.
+// The bounded containment poll prevents a signaling regression from turning
+// the test runner's cleanup into an unbounded waitpid.
+test "POSIX native force termination kills a stopped retained session leader" {
+    if (builtin.os.tag == .windows or builtin.os.tag == .freebsd) {
+        return error.SkipZigTest;
+    }
+
+    var process = try Process.spawn(std.testing.allocator, .{
+        .arguments = &.{ "-c", "trap '' HUP; exec sleep 30" },
+        .columns = 80,
+        .current_directory = null,
+        .environment = &.{},
+        .executable = "/bin/sh",
+        .rows = 24,
+    });
+    defer {
+        if (!process.exit_reaped) {
+            std.posix.kill(process.child_id, std.posix.SIG.KILL) catch {};
+            _ = process.wait() catch {};
+            process.releaseProcessIdentity() catch {};
+        }
+        process.deinit();
+    }
+
+    try process.terminate();
+    try process.forceTerminate();
+    var contained = false;
+    for (0..200) |_| {
+        if (try process.processTreeContained()) {
+            contained = true;
+            break;
+        }
+        std.Thread.sleep(5 * std.time.ns_per_ms);
+    }
+    try std.testing.expect(contained);
+    _ = try process.wait();
+    try process.releaseProcessIdentity();
+}
+
+// macOS waitid can surface CLD_STOPPED despite WEXITED. The observer must not
+// publish that transient stop as completion: the later SIGKILL is the retained
+// child's actual non-reaping exit observation.
+test "macOS process observation ignores stop and waits for actual exit" {
+    if (builtin.os.tag != .macos) return error.SkipZigTest;
+
+    var process = try Process.spawn(std.testing.allocator, .{
+        .arguments = &.{ "-c", "exec sleep 30" },
+        .columns = 80,
+        .current_directory = null,
+        .environment = &.{},
+        .executable = "/bin/sh",
+        .rows = 24,
+    });
+    defer {
+        if (!process.exit_reaped) {
+            std.posix.kill(process.child_id, std.posix.SIG.KILL) catch {};
+            _ = process.wait() catch {};
+            process.releaseProcessIdentity() catch {};
+        }
+        process.deinit();
+    }
+
+    const StopThenKill = struct {
+        child_id: std.posix.pid_t,
+
+        fn run(self: @This()) void {
+            std.Thread.sleep(10 * std.time.ns_per_ms);
+            std.posix.kill(self.child_id, std.posix.SIG.STOP) catch
+                @panic("failed to stop retained test child");
+            std.Thread.sleep(50 * std.time.ns_per_ms);
+            std.posix.kill(self.child_id, std.posix.SIG.KILL) catch
+                @panic("failed to kill retained test child");
+        }
+    };
+    const terminator = try std.Thread.spawn(
+        .{},
+        StopThenKill.run,
+        .{StopThenKill{ .child_id = process.child_id }},
+    );
+
+    var result_kind: c_int = 0;
+    var result_value: u32 = 0;
+    const observe_result = orchbee_observe_process_exit(
+        process.child_id,
+        &result_kind,
+        &result_value,
+    );
+    terminator.join();
+    try std.testing.expectEqual(@as(c_int, 0), observe_result);
+    try std.testing.expectEqual(@as(c_int, 2), result_kind);
+    try std.testing.expectEqual(@as(u32, std.posix.SIG.KILL), result_value);
+
+    try std.testing.expectEqual(
+        ExitResult{ .signal = std.posix.SIG.KILL },
+        try process.wait(),
+    );
+    try process.releaseProcessIdentity();
+}
+
+// The final wait owns the last numeric-identity transition, so it must never
+// block waiting for a child that containment did not actually prove exited.
+// A WNOHANG miss returns EAGAIN through the reaper, leaves the identity fence
+// retained, and permits a later observed exit to be reaped normally.
+test "macOS final process reap is non-blocking and retains a running identity" {
+    if (builtin.os.tag != .macos) return error.SkipZigTest;
+
+    const SessionIdentityState = subject.testing.SessionIdentityStateType;
+    const CapturingNativeReaper = struct {
+        native_result: *c_int,
+
+        pub fn reap(self: @This(), session_id: std.posix.pid_t) !void {
+            self.native_result.* = orchbee_reap_process_exit(session_id);
+            if (self.native_result.* != 0) return error.ProcessReapFailed;
+        }
+    };
+    const ReleaseCall = struct {
+        completed: *TestSignal,
+        identity: *SessionIdentityState,
+        native_result: c_int = 0,
+        release_error: ?anyerror = null,
+        session_id: std.posix.pid_t,
+
+        fn run(self: *@This()) void {
+            self.identity.release(
+                self.session_id,
+                CapturingNativeReaper{ .native_result = &self.native_result },
+            ) catch |err| {
+                self.release_error = err;
+            };
+            self.completed.notify();
+        }
+    };
+
+    const child_id = try std.posix.fork();
+    if (child_id == 0) {
+        // Stay a live direct child indefinitely without relying on allocation
+        // or a post-fork library lock. The parent later terminates us with KILL.
+        std.posix.raise(std.posix.SIG.STOP) catch
+            std.posix.exit(2);
+        std.posix.exit(3);
+    }
+    var child_reaped = false;
+    defer if (!child_reaped) {
+        std.posix.kill(child_id, std.posix.SIG.KILL) catch {};
+        _ = std.posix.waitpid(child_id, 0);
+    };
+
+    var identity: SessionIdentityState = .{};
+    var completed: TestSignal = .{};
+    var immediate_kind: c_int = 0;
+    var immediate_value: u32 = 0;
+    try std.testing.expectEqual(
+        @as(c_int, @intCast(@intFromEnum(std.posix.E.AGAIN))),
+        orchbee_try_observe_process_exit_now(
+            child_id,
+            &immediate_kind,
+            &immediate_value,
+        ),
+    );
+    var release_call: ReleaseCall = .{
+        .completed = &completed,
+        .identity = &identity,
+        .session_id = child_id,
+    };
+    const release_thread = try std.Thread.spawn(.{}, ReleaseCall.run, .{&release_call});
+    const returned_promptly = completed.waitFor(2 * std.time.ns_per_s);
+    if (!returned_promptly) {
+        // Bound the regression even against the former blocking waitpid. That
+        // implementation reaps after KILL and therefore releases the fence.
+        std.posix.kill(child_id, std.posix.SIG.KILL) catch {};
+    }
+    release_thread.join();
+    if (!returned_promptly) child_reaped = identity.isReleased();
+    try std.testing.expect(returned_promptly);
+
+    try std.testing.expectEqual(
+        @as(c_int, @intCast(@intFromEnum(std.posix.E.AGAIN))),
+        release_call.native_result,
+    );
+    try std.testing.expectEqual(error.ProcessReapFailed, release_call.release_error.?);
+    try std.testing.expect(!identity.isReleased());
+
+    try std.posix.kill(child_id, std.posix.SIG.KILL);
+    var result_kind: c_int = 0;
+    var result_value: u32 = 0;
+    try std.testing.expectEqual(
+        @as(c_int, 0),
+        orchbee_observe_process_exit(child_id, &result_kind, &result_value),
+    );
+    try std.testing.expectEqual(@as(c_int, 2), result_kind);
+    try std.testing.expectEqual(@as(u32, std.posix.SIG.KILL), result_value);
+    try identity.release(child_id, NativeSessionReaper{});
+    child_reaped = true;
+    try std.testing.expect(identity.isReleased());
+}
+
+// A stable pidfd does not turn an uncertain getsid failure into a non-member
+// result. Only ESRCH means the captured candidate vanished; EPERM and every
+// other error must abort the scan conservatively.
+test "POSIX membership observation propagates EPERM instead of skipping" {
+    if (builtin.os.tag == .windows) return error.SkipZigTest;
+
+    try std.testing.expectEqual(
+        @as(c_int, 0),
+        orchbee_classify_session_membership_error(
+            @intCast(@intFromEnum(std.posix.E.SRCH)),
+        ),
+    );
+    try std.testing.expectEqual(
+        @as(c_int, -1),
+        orchbee_classify_session_membership_error(
+            @intCast(@intFromEnum(std.posix.E.PERM)),
+        ),
+    );
+}
+
+test "POSIX PID-version external identity preserves signed extension" {
+    if (builtin.os.tag == .windows) return error.SkipZigTest;
+
+    try std.testing.expectEqual(
+        std.math.maxInt(u64),
+        orchbee_pidversion_external_id(-1),
+    );
+    try std.testing.expectEqual(
+        @as(u64, 0xffff_ffff_8000_0000),
+        orchbee_pidversion_external_id(std.math.minInt(c_int)),
+    );
+}
+
+// The Linux pidfd adapter must distinguish an exact unreaped zombie from an
+// invalidated reference whose numeric PID may already name a same-session
+// replacement. These pure seams are used by the production poll/probe path and
+// run on every POSIX test host, including macOS CI.
+test "Linux pidfd exact-state classification is fail-conservative" {
+    if (builtin.os.tag == .windows) return error.SkipZigTest;
+
+    const esrch: c_int = @intCast(@intFromEnum(std.posix.E.SRCH));
+    const eperm: c_int = @intCast(@intFromEnum(std.posix.E.PERM));
+    var live: c_int = -1;
+
+    // No readiness means the exact pidfd target is still live.
+    try std.testing.expectEqual(
+        @as(c_int, 0),
+        orchbee_linux_classify_pidfd_poll(0, 0, 0, 0, 0, 0, 0, 0, &live),
+    );
+    try std.testing.expectEqual(@as(c_int, 1), live);
+
+    // A non-leader readable pidfd needs a same-reference signal-0 probe.
+    try std.testing.expectEqual(
+        @as(c_int, 1),
+        orchbee_linux_classify_pidfd_poll(0, 1, 0, 1, 0, 0, 0, 0, &live),
+    );
+    try std.testing.expectEqual(
+        @as(c_int, 0),
+        orchbee_linux_classify_pidfd_probe(0, 0, &live),
+    );
+    try std.testing.expectEqual(@as(c_int, 0), live);
+
+    // Only the retained leader may bypass signal-0: the Host owns its wait, so
+    // readable necessarily denotes the exact unreaped leader zombie even if a
+    // credential transition would make signal-0 return EPERM.
+    live = -1;
+    try std.testing.expectEqual(
+        @as(c_int, 0),
+        orchbee_linux_classify_pidfd_poll(1, 1, 0, 1, 0, 0, 0, 0, &live),
+    );
+    try std.testing.expectEqual(@as(c_int, 0), live);
+
+    var result = orchbee_linux_classify_pidfd_probe(-1, esrch, &live);
+    var observation_error = std.posix.errno(result);
+    try std.testing.expectEqual(@as(c_int, -1), result);
+    try std.testing.expectEqual(std.posix.E.AGAIN, observation_error);
+
+    result = orchbee_linux_classify_pidfd_probe(-1, eperm, &live);
+    observation_error = std.posix.errno(result);
+    try std.testing.expectEqual(@as(c_int, -1), result);
+    try std.testing.expectEqual(std.posix.E.PERM, observation_error);
+
+    result = orchbee_linux_classify_pidfd_poll(0, 1, 0, 0, 1, 0, 0, 0, &live);
+    observation_error = std.posix.errno(result);
+    try std.testing.expectEqual(@as(c_int, -1), result);
+    try std.testing.expectEqual(std.posix.E.AGAIN, observation_error);
+
+    result = orchbee_linux_classify_pidfd_poll(0, 1, 0, 0, 0, 1, 0, 0, &live);
+    observation_error = std.posix.errno(result);
+    try std.testing.expectEqual(@as(c_int, -1), result);
+    try std.testing.expectEqual(std.posix.E.IO, observation_error);
+
+    result = orchbee_linux_classify_pidfd_poll(0, 1, 0, 0, 0, 0, 1, 0, &live);
+    observation_error = std.posix.errno(result);
+    try std.testing.expectEqual(@as(c_int, -1), result);
+    try std.testing.expectEqual(std.posix.E.BADF, observation_error);
+
+    result = orchbee_linux_classify_pidfd_poll(0, 1, 0, 0, 0, 0, 0, 1, &live);
+    observation_error = std.posix.errno(result);
+    try std.testing.expectEqual(@as(c_int, -1), result);
+    try std.testing.expectEqual(std.posix.E.IO, observation_error);
+
+    result = orchbee_linux_classify_pidfd_poll(0, -1, eperm, 0, 0, 0, 0, 0, &live);
+    observation_error = std.posix.errno(result);
+    try std.testing.expectEqual(@as(c_int, -1), result);
+    try std.testing.expectEqual(std.posix.E.PERM, observation_error);
+
+    result = orchbee_linux_classify_pidfd_signal(-1, esrch);
+    observation_error = std.posix.errno(result);
+    try std.testing.expectEqual(@as(c_int, -1), result);
+    try std.testing.expectEqual(std.posix.E.AGAIN, observation_error);
+    try std.testing.expectEqual(@as(c_int, 0), orchbee_linux_classify_pidfd_signal(0, 0));
+}
+
+// Session membership survives real/effective credential transitions. The
+// macOS candidate source must therefore be PROC_ALL_PIDS (1), not either UID
+// filter; exact getsid prefiltering and stable-reference acquisition narrow the
+// all-process list afterward.
+test "macOS member enumeration is independent of process credentials" {
+    if (builtin.os.tag != .macos) return error.SkipZigTest;
+
+    try std.testing.expectEqual(
+        @as(c_int, 1),
+        orchbee_darwin_process_enumeration_scope(),
+    );
+}
+
+// A macOS exec keeps the numeric PID and session while replacing the task and
+// incrementing its PID version. Capture the pre-exec stable reference, wait for
+// CLOEXEC to prove exec committed, and require the old reference to fail rather
+// than report non-live. A fresh production scan must still see the live child.
+test "macOS exec-invalidated member reference forces a fresh containment scan" {
+    if (builtin.os.tag != .macos) return error.SkipZigTest;
+
+    const exec_observation = try std.posix.pipe2(.{ .CLOEXEC = true });
+    const exec_gate = try std.posix.pipe2(.{ .CLOEXEC = true });
+    const child_id = try std.posix.fork();
+    if (child_id == 0) {
+        std.posix.close(exec_observation[0]);
+        std.posix.close(exec_gate[1]);
+        _ = std.posix.setsid() catch std.posix.exit(2);
+        _ = std.posix.write(exec_observation[1], &.{1}) catch std.posix.exit(3);
+        var gate: [1]u8 = undefined;
+        if ((std.posix.read(exec_gate[0], &gate) catch 0) != 1) std.posix.exit(4);
+        const arguments = [_:null]?[*:0]const u8{ "/bin/sleep", "30" };
+        const environment = [_:null]?[*:0]const u8{};
+        std.posix.exit(@truncate(@intFromError(
+            std.posix.execveZ("/bin/sleep", &arguments, &environment),
+        )));
+    }
+
+    std.posix.close(exec_observation[1]);
+    std.posix.close(exec_gate[0]);
+    var observation_read_open = true;
+    var gate_write_open = true;
+    var child_reaped = false;
+    defer {
+        if (observation_read_open) std.posix.close(exec_observation[0]);
+        if (gate_write_open) std.posix.close(exec_gate[1]);
+        if (!child_reaped) {
+            std.posix.kill(child_id, std.posix.SIG.KILL) catch {};
+            _ = std.posix.waitpid(child_id, 0);
+        }
+    }
+
+    var marker: [1]u8 = undefined;
+    try std.testing.expectEqual(
+        @as(usize, 1),
+        try std.posix.read(exec_observation[0], &marker),
+    );
+
+    var raw_iterator: ?*anyopaque = null;
+    try std.testing.expectEqual(
+        @as(c_int, 0),
+        orchbee_session_member_iterator_open(child_id, &raw_iterator),
+    );
+    defer orchbee_session_member_iterator_close(raw_iterator);
+    var raw_member_ref: ?*anyopaque = null;
+    try std.testing.expectEqual(
+        @as(c_int, 1),
+        orchbee_session_member_iterator_next(raw_iterator.?, &raw_member_ref),
+    );
+    defer if (raw_member_ref) |member_ref| orchbee_session_member_ref_close(member_ref);
+
+    try std.testing.expectEqual(
+        @as(usize, 1),
+        try std.posix.write(exec_gate[1], &.{1}),
+    );
+    std.posix.close(exec_gate[1]);
+    gate_write_open = false;
+    try std.testing.expectEqual(
+        @as(usize, 0),
+        try std.posix.read(exec_observation[0], &marker),
+    );
+    std.posix.close(exec_observation[0]);
+    observation_read_open = false;
+
+    var stale_live: c_int = 0;
+    try std.testing.expect(
+        orchbee_session_member_ref_is_live(raw_member_ref.?, &stale_live) != 0,
+    );
+    try std.testing.expectEqual(
+        @as(u32, 1),
+        try PosixProcess.sessionLiveMembersForTesting(child_id),
+    );
+
+    try std.posix.kill(child_id, std.posix.SIG.KILL);
+    var result_kind: c_int = 0;
+    var result_value: u32 = 0;
+    try std.testing.expectEqual(
+        @as(c_int, 0),
+        orchbee_observe_process_exit(child_id, &result_kind, &result_value),
+    );
+    try std.testing.expectEqual(
+        @as(c_int, 0),
+        orchbee_reap_process_exit(child_id),
+    );
+    child_reaped = true;
+}
+
+const ScriptedMemberOwner = enum {
+    launch,
+    replacement,
+};
+
+// Deterministic adapter for the production stable-member orchestration. `next`
+// acquires the launch identity before its authoritative numeric session
+// membership observation. Tests can recycle either before that observation or
+// at the last possible point before signal/liveness.
+const ScriptedMemberState = struct {
+    numeric_owner: ScriptedMemberOwner = .launch,
+    recycle_before_effect: bool = true,
+    recycle_before_membership: bool = false,
+    replacement_stays_in_owned_session: bool = false,
+    recycle_count: usize = 0,
+    closed_references: usize = 0,
+    signaled: [2]usize = .{ 0, 0 },
+    counted_live: [2]usize = .{ 0, 0 },
+
+    fn armLaunchMember(self: *@This()) void {
+        self.numeric_owner = .launch;
+        self.recycle_before_effect = true;
+    }
+
+    fn recycleImmediatelyBeforeEffect(self: *@This()) void {
+        if (!self.recycle_before_effect) return;
+        self.recycle_before_effect = false;
+        self.numeric_owner = .replacement;
+        self.recycle_count += 1;
+    }
+};
+
+const ScriptedSessionMemberSource = struct {
+    state: *ScriptedMemberState,
+
+    pub fn open(self: @This(), _: std.posix.pid_t) !ScriptedSessionMemberIterator {
+        return .{ .state = self.state };
+    }
+};
+
+const ScriptedSessionMemberIterator = struct {
+    state: *ScriptedMemberState,
+    yielded: bool = false,
+
+    pub fn deinit(_: *@This()) void {}
+
+    pub fn next(self: *@This()) !?ScriptedSessionMemberRef {
+        if (self.yielded) return null;
+        self.yielded = true;
+
+        // Stable identity acquisition precedes this authoritative membership
+        // check, matching Linux and the post-prefilter macOS adapter ordering.
+        const captured_owner = self.state.numeric_owner;
+        if (self.state.recycle_before_membership) {
+            self.state.recycle_before_membership = false;
+            self.state.recycleImmediatelyBeforeEffect();
+        }
+        if (self.state.numeric_owner != .launch and
+            !self.state.replacement_stays_in_owned_session) return null;
+        return .{ .state = self.state, .captured_owner = captured_owner };
+    }
+};
+
+const ScriptedSessionMemberRef = struct {
+    state: *ScriptedMemberState,
+    captured_owner: ScriptedMemberOwner,
+
+    pub fn deinit(self: *@This()) void {
+        self.state.closed_references += 1;
+    }
+
+    pub fn signal(self: *@This(), _: u8) !void {
+        self.state.recycleImmediatelyBeforeEffect();
+        // A stable kernel reference continues to denote the vanished launch
+        // process, never the replacement now occupying its numeric PID.
+        if (self.captured_owner != self.state.numeric_owner) {
+            return error.StableMemberIdentityInvalidated;
+        }
+        self.state.signaled[@intFromEnum(self.captured_owner)] += 1;
+    }
+
+    pub fn isLive(self: *@This()) !bool {
+        self.state.recycleImmediatelyBeforeEffect();
+        if (self.captured_owner != self.state.numeric_owner) {
+            return error.StableMemberIdentityInvalidated;
+        }
+        self.state.counted_live[@intFromEnum(self.captured_owner)] += 1;
+        return true;
+    }
+};
+
+const StableAlgorithmSignaler = struct {
+    state: *ScriptedMemberState,
+    requested: [3]u8 = undefined,
+    requested_count: usize = 0,
+
+    pub fn signal(self: *@This(), session_id: std.posix.pid_t, signal_number: u8) !void {
+        self.requested[self.requested_count] = signal_number;
+        self.requested_count += 1;
+        self.state.armLaunchMember();
+        try PosixProcess.signalStableSessionMembersForTesting(
+            session_id,
+            ScriptedSessionMemberSource{ .state = self.state },
+            signal_number,
+        );
+    }
+};
+
+const MultiMemberSignalState = struct {
+    stop_attempts: [3]usize = .{ 0, 0, 0 },
+    kill_attempts: [3]usize = .{ 0, 0, 0 },
+    continue_attempts: [3]usize = .{ 0, 0, 0 },
+    closed_references: usize = 0,
+
+    fn attemptsFor(self: *@This(), signal_number: u8) *[3]usize {
+        return switch (signal_number) {
+            std.posix.SIG.STOP => &self.stop_attempts,
+            std.posix.SIG.KILL => &self.kill_attempts,
+            std.posix.SIG.CONT => &self.continue_attempts,
+            else => unreachable,
+        };
+    }
+};
+
+const MultiMemberSignalSource = struct {
+    state: *MultiMemberSignalState,
+
+    pub fn open(self: @This(), _: std.posix.pid_t) !MultiMemberSignalIterator {
+        return .{ .state = self.state };
+    }
+};
+
+const MultiMemberSignalIterator = struct {
+    state: *MultiMemberSignalState,
+    cursor: usize = 0,
+
+    pub fn deinit(_: *@This()) void {}
+
+    pub fn next(self: *@This()) !?MultiMemberSignalRef {
+        if (self.cursor == 3) return null;
+        defer self.cursor += 1;
+        return .{ .state = self.state, .index = self.cursor };
+    }
+};
+
+const MultiMemberSignalRef = struct {
+    state: *MultiMemberSignalState,
+    index: usize,
+
+    pub fn deinit(self: *@This()) void {
+        self.state.closed_references += 1;
+    }
+
+    pub fn signal(self: *@This(), signal_number: u8) !void {
+        self.state.attemptsFor(signal_number)[self.index] += 1;
+        if (signal_number == std.posix.SIG.KILL and self.index == 1) {
+            return error.InjectedKillSignalFailure;
+        }
+        if (signal_number == std.posix.SIG.CONT and self.index == 0) {
+            return error.InjectedContinueSignalFailure;
+        }
+    }
+};
+
+const MultiMemberStableSignaler = struct {
+    state: *MultiMemberSignalState,
+
+    pub fn signal(
+        self: *@This(),
+        session_id: std.posix.pid_t,
+        signal_number: u8,
+    ) !void {
+        try PosixProcess.signalStableSessionMembersForTesting(
+            session_id,
+            MultiMemberSignalSource{ .state = self.state },
+            signal_number,
+        );
+    }
+};
+
+// A middle-member KILL failure triggers CONT compensation, and a first-member
+// CONT failure must not strand either later stopped member. Every captured
+// stable reference is attempted and released before the first error is returned.
+test "POSIX stable member signaling completes KILL and CONT scans after member errors" {
+    if (builtin.os.tag == .windows) return error.SkipZigTest;
+
+    var state: MultiMemberSignalState = .{};
+    var signaler: MultiMemberStableSignaler = .{ .state = &state };
+    try std.testing.expectError(
+        error.InjectedKillSignalFailure,
+        PosixProcess.forceTerminateSession(4242, &signaler),
+    );
+    try std.testing.expectEqualSlices(usize, &.{ 1, 1, 1 }, &state.stop_attempts);
+    try std.testing.expectEqualSlices(usize, &.{ 1, 1, 1 }, &state.kill_attempts);
+    try std.testing.expectEqualSlices(usize, &.{ 1, 1, 1 }, &state.continue_attempts);
+    try std.testing.expectEqual(@as(usize, 9), state.closed_references);
+}
+
+test "POSIX stable member signaling rejects recycle before graceful and force effects" {
+    if (builtin.os.tag == .windows) return error.SkipZigTest;
+
+    const SessionIdentityState = subject.testing.SessionIdentityStateType;
+    const session_id: std.posix.pid_t = 4242;
+
+    var graceful_state: ScriptedMemberState = .{};
+    var graceful_signaler: StableAlgorithmSignaler = .{ .state = &graceful_state };
+    var graceful_identity: SessionIdentityState = .{};
+    try std.testing.expectError(
+        error.StableMemberIdentityInvalidated,
+        graceful_identity.signal(session_id, &graceful_signaler, std.posix.SIG.HUP),
+    );
+    try std.testing.expectEqualSlices(
+        u8,
+        &.{std.posix.SIG.HUP},
+        graceful_signaler.requested[0..graceful_signaler.requested_count],
+    );
+    try std.testing.expectEqual(@as(usize, 1), graceful_state.recycle_count);
+    try std.testing.expectEqual(@as(usize, 1), graceful_state.closed_references);
+    try std.testing.expectEqualSlices(usize, &.{ 0, 0 }, &graceful_state.signaled);
+
+    // Each invalidated stable scan fails only after binding the launch identity,
+    // so the real force orchestration still executes its CONT compensation.
+    // No scan may retarget the replacement process.
+    var force_state: ScriptedMemberState = .{};
+    var force_signaler: StableAlgorithmSignaler = .{ .state = &force_state };
+    var force_identity: SessionIdentityState = .{};
+    try std.testing.expectError(
+        error.StableMemberIdentityInvalidated,
+        force_identity.forceTerminate(session_id, &force_signaler),
+    );
+    try std.testing.expectEqualSlices(
+        u8,
+        &.{ std.posix.SIG.STOP, std.posix.SIG.KILL, std.posix.SIG.CONT },
+        force_signaler.requested[0..force_signaler.requested_count],
+    );
+    try std.testing.expectEqual(@as(usize, 3), force_state.recycle_count);
+    try std.testing.expectEqual(@as(usize, 3), force_state.closed_references);
+    try std.testing.expectEqualSlices(usize, &.{ 0, 0 }, &force_state.signaled);
+}
+
+// pidfd_send_signal returning ESRCH after an authoritative membership match
+// means the captured process was reaped; the numeric PID may now name an owned
+// replacement. The stable scan must fail for retry without targeting that
+// replacement or reporting a successful signal.
+test "Linux invalidated stable member reference cannot report signal success" {
+    if (builtin.os.tag == .windows) return error.SkipZigTest;
+
+    const SessionIdentityState = subject.testing.SessionIdentityStateType;
+    var state: ScriptedMemberState = .{
+        .recycle_before_membership = true,
+        .replacement_stays_in_owned_session = true,
+    };
+    var signaler: StableAlgorithmSignaler = .{ .state = &state };
+    var identity: SessionIdentityState = .{};
+    try std.testing.expectError(
+        error.StableMemberIdentityInvalidated,
+        identity.signal(4242, &signaler, std.posix.SIG.HUP),
+    );
+    try std.testing.expectEqual(@as(usize, 1), state.recycle_count);
+    try std.testing.expectEqual(@as(usize, 1), state.closed_references);
+    try std.testing.expectEqualSlices(usize, &.{ 0, 0 }, &state.signaled);
+}
+
+test "POSIX invalidated stable member identity cannot prove empty for a foreign replacement" {
+    if (builtin.os.tag == .windows) return error.SkipZigTest;
+
+    const SessionIdentityState = subject.testing.SessionIdentityStateType;
+    const StableAlgorithmQuery = struct {
+        state: *ScriptedMemberState,
+
+        pub fn liveMembers(self: *@This(), session_id: std.posix.pid_t, count: *u32) !void {
+            count.* = try PosixProcess.countStableSessionMembersForTesting(
+                session_id,
+                ScriptedSessionMemberSource{ .state = self.state },
+            );
+        }
+    };
+
+    var state: ScriptedMemberState = .{};
+    var query: StableAlgorithmQuery = .{ .state = &state };
+    var identity: SessionIdentityState = .{};
+    try std.testing.expectError(
+        error.StableMemberIdentityInvalidated,
+        identity.contained(4242, &query),
+    );
+    try std.testing.expect(!identity.isReleased());
+    try std.testing.expectEqual(@as(usize, 1), state.recycle_count);
+    try std.testing.expectEqual(@as(usize, 1), state.closed_references);
+    try std.testing.expectEqualSlices(usize, &.{ 0, 0 }, &state.counted_live);
+}
+
+// On Linux and macOS, exec or PID reuse can invalidate an old stable reference
+// while the current numeric binding remains in the owned session. That old
+// reference becoming non-live is a retryable scan failure, not an empty
+// containment result that could omit the replacement.
+test "POSIX invalidated stable member reference cannot prove containment" {
+    if (builtin.os.tag == .windows) return error.SkipZigTest;
+
+    const SessionIdentityState = subject.testing.SessionIdentityStateType;
+    const StableAlgorithmQuery = struct {
+        state: *ScriptedMemberState,
+
+        pub fn liveMembers(self: *@This(), session_id: std.posix.pid_t, count: *u32) !void {
+            count.* = try PosixProcess.countStableSessionMembersForTesting(
+                session_id,
+                ScriptedSessionMemberSource{ .state = self.state },
+            );
+        }
+    };
+
+    var state: ScriptedMemberState = .{
+        .recycle_before_membership = true,
+        .replacement_stays_in_owned_session = true,
+    };
+    var query: StableAlgorithmQuery = .{ .state = &state };
+    var identity: SessionIdentityState = .{};
+    try std.testing.expectError(
+        error.StableMemberIdentityInvalidated,
+        identity.contained(4242, &query),
+    );
+    try std.testing.expect(!identity.isReleased());
+    try std.testing.expectEqual(@as(usize, 1), state.recycle_count);
+    try std.testing.expectEqual(@as(usize, 1), state.closed_references);
+    try std.testing.expectEqualSlices(usize, &.{ 0, 0 }, &state.counted_live);
+}
+
+const ScriptedFreebsdReaperPass = struct {
+    live_members: u32,
+    targeted_zombies_remain: bool,
+};
+
+const ScriptedFreebsdReaperQuery = struct {
+    passes: []const ScriptedFreebsdReaperPass,
+    cursor: usize = 0,
+
+    pub fn observe(
+        self: *@This(),
+        _: std.posix.pid_t,
+    ) !ScriptedFreebsdReaperPass {
+        if (self.cursor == self.passes.len) return error.UnexpectedReaperPass;
+        defer self.cursor += 1;
+        return self.passes[self.cursor];
+    }
+};
+
+// Deterministically models the native pass in which a member is live in the
+// first snapshot, exits after that pass's targeted reap, and is a direct-child
+// zombie in the fresh snapshot. The production convergence must run another
+// pass to reap it; treating that fresh zombie as zero would release the subtree
+// identity while a targeted Host child remained.
+test "FreeBSD containment retries a fresh direct-child zombie before zero" {
+    if (builtin.os.tag == .windows) return error.SkipZigTest;
+
+    const passes = [_]ScriptedFreebsdReaperPass{
+        .{ .live_members = 0, .targeted_zombies_remain = true },
+        .{ .live_members = 0, .targeted_zombies_remain = false },
+    };
+    var query: ScriptedFreebsdReaperQuery = .{ .passes = &passes };
+    try std.testing.expectEqual(
+        @as(u32, 0),
+        try PosixProcess.countFreebsdReaperMembersForTesting(4242, &query),
+    );
+    try std.testing.expectEqual(@as(usize, 2), query.cursor);
+}
+
+test "FreeBSD zombie retry predicate excludes the retained leader and non-child" {
+    if (builtin.os.tag == .windows) return error.SkipZigTest;
+
+    const subtree: c_int = 4242;
+    try std.testing.expectEqual(
+        @as(c_int, 0),
+        orchbee_freebsd_member_is_targeted_zombie(subtree, subtree, 1, 1),
+    );
+    try std.testing.expectEqual(
+        @as(c_int, 0),
+        orchbee_freebsd_member_is_targeted_zombie(4243, subtree, 0, 1),
+    );
+    try std.testing.expectEqual(
+        @as(c_int, 0),
+        orchbee_freebsd_member_is_targeted_zombie(4243, subtree, 1, 0),
+    );
+    try std.testing.expectEqual(
+        @as(c_int, 1),
+        orchbee_freebsd_member_is_targeted_zombie(4243, subtree, 1, 1),
+    );
+
+    const leader_only = [_]ScriptedFreebsdReaperPass{
+        .{ .live_members = 0, .targeted_zombies_remain = false },
+    };
+    var query: ScriptedFreebsdReaperQuery = .{ .passes = &leader_only };
+    try std.testing.expectEqual(
+        @as(u32, 0),
+        try PosixProcess.countFreebsdReaperMembersForTesting(subtree, &query),
+    );
+    try std.testing.expectEqual(@as(usize, 1), query.cursor);
+}
+
+test "FreeBSD containment fails conservatively on persistent zombie churn" {
+    if (builtin.os.tag == .windows) return error.SkipZigTest;
+
+    const zombie = ScriptedFreebsdReaperPass{
+        .live_members = 0,
+        .targeted_zombies_remain = true,
+    };
+    const passes = [_]ScriptedFreebsdReaperPass{
+        zombie,
+        zombie,
+        zombie,
+        zombie,
+        zombie,
+        zombie,
+        zombie,
+        zombie,
+    };
+    var query: ScriptedFreebsdReaperQuery = .{ .passes = &passes };
+    try std.testing.expectError(
+        error.ProcessContainmentQueryFailed,
+        PosixProcess.countFreebsdReaperMembersForTesting(4242, &query),
+    );
+    try std.testing.expectEqual(passes.len, query.cursor);
+}
+
 const TestSignal = struct {
     condition: std.Thread.Condition = .{},
     mutex: std.Thread.Mutex = .{},
@@ -226,6 +1067,19 @@ const TestSignal = struct {
         self.mutex.lock();
         while (!self.reached) self.condition.wait(&self.mutex);
         self.mutex.unlock();
+    }
+
+    fn waitFor(self: *TestSignal, timeout_ns: u64) bool {
+        var timer = std.time.Timer.start() catch return false;
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        while (!self.reached) {
+            const elapsed = timer.read();
+            if (elapsed >= timeout_ns) return false;
+            self.condition.timedWait(&self.mutex, timeout_ns - elapsed) catch
+                return self.reached;
+        }
+        return true;
     }
 };
 
@@ -704,59 +1558,9 @@ test "Windows drive-only PATH component joins without a backslash" {
     try std.testing.expect(hasString(strings, "D:\\work\\probe.exe"));
 }
 
-// THCR-028 regression. Linux writes the task name unescaped inside
-// /proc/<pid>/stat. A name embedding '\n' truncates a single fgets line, and a
-// name embedding the bytes ") Z\n" can then masquerade a sleeping process as a
-// non-live zombie. The parser reads the complete record and classifies by the
-// kernel-added final ") <state> " delimiter, failing closed on truncation.
-const native_procstat = struct {
-    extern "c" fn orchbee_process_stat_record_is_live(
-        record: [*]const u8,
-        length: usize,
-        live: *c_int,
-    ) c_int;
-
-    fn isLive(record: []const u8) !bool {
-        var live: c_int = 0;
-        if (orchbee_process_stat_record_is_live(record.ptr, record.len, &live) != 0) {
-            return error.InvalidProcessStatRecord;
-        }
-        return live != 0;
-    }
-};
-
-test "Linux /proc stat record parser uses the final kernel-added state (THCR-028)" {
-    if (builtin.os.tag == .windows) return error.SkipZigTest;
-
-    // An ordinary newline inside the task name: the real final state is live 'S'.
-    try std.testing.expect(try native_procstat.isLive("123 (name\n) S 456 ...\n"));
-    // A task name forging ") Z" before a newline: still live 'S' from the
-    // kernel-added delimiter, never the forged byte.
-    try std.testing.expect(try native_procstat.isLive("123 (worker) Z\n) S 456 ...\n"));
-    // A task name ending in ')' keeps the kernel delimiter as the last ')'.
-    try std.testing.expect(try native_procstat.isLive("123 (abc)) S 456 ...\n"));
-    // A genuinely terminal zombie is still non-live, including one with a
-    // newline-bearing name.
-    try std.testing.expect(!try native_procstat.isLive("123 (sleep) Z 456 ...\n"));
-    try std.testing.expect(!try native_procstat.isLive("123 (worker\n) Z 456 ...\n"));
-    // The truncated first line that fgets would have produced fails closed
-    // instead of reporting the forged 'Z' as the process state.
-    try std.testing.expectError(
-        error.InvalidProcessStatRecord,
-        native_procstat.isLive("123 (worker) Z\n"),
-    );
-    try std.testing.expectError(
-        error.InvalidProcessStatRecord,
-        native_procstat.isLive("123 (x) \n"),
-    );
-    try std.testing.expectError(error.InvalidProcessStatRecord, native_procstat.isLive(""));
-}
-
 const NativeSessionQuery = struct {
     pub fn liveMembers(_: @This(), session_id: std.posix.pid_t, count: *u32) !void {
-        if (orchbee_process_session_live_members(session_id, count) != 0) {
-            return error.ProcessContainmentQueryFailed;
-        }
+        count.* = try PosixProcess.sessionLiveMembersForTesting(session_id);
     }
 };
 
@@ -768,9 +1572,8 @@ const NativeSessionReaper = struct {
 
 // THCR-028 regression: a session leader whose main-thread comm embeds an
 // ordinary newline must still complete containment observation and be reaped.
-// On the base parser the zombie's stat record was truncated at the newline, so
-// every live-members query failed with EIO and identity release gated on
-// containment could never progress.
+// Stable-reference liveness does not parse the newline-bearing /proc stat comm,
+// so containment and identity release can still progress.
 test "Linux session leader with a newline comm completes containment and reaps (THCR-028)" {
     if (builtin.os.tag != .linux) return error.SkipZigTest;
 
@@ -805,10 +1608,57 @@ test "Linux session leader with a newline comm completes containment and reaps (
     try std.testing.expect(identity.isReleased());
 }
 
-extern "c" fn orchbee_process_session_live_members(session_id: c_int, count: *u32) c_int;
 extern "c" fn orchbee_observe_process_exit(
     process_id: c_int,
     result_kind: *c_int,
     result_value: *u32,
 ) c_int;
+extern "c" fn orchbee_try_observe_process_exit_now(
+    process_id: c_int,
+    result_kind: *c_int,
+    result_value: *u32,
+) c_int;
 extern "c" fn orchbee_reap_process_exit(process_id: c_int) c_int;
+extern "c" fn orchbee_classify_session_membership_error(observation_error: c_int) c_int;
+extern "c" fn orchbee_pidversion_external_id(pid_version: c_int) u64;
+extern "c" fn orchbee_darwin_process_enumeration_scope() c_int;
+extern "c" fn orchbee_session_member_iterator_open(
+    session_id: c_int,
+    iterator: *?*anyopaque,
+) c_int;
+extern "c" fn orchbee_session_member_iterator_close(iterator: ?*anyopaque) void;
+extern "c" fn orchbee_session_member_iterator_next(
+    iterator: *anyopaque,
+    member_ref: *?*anyopaque,
+) c_int;
+extern "c" fn orchbee_session_member_ref_close(member_ref: ?*anyopaque) void;
+extern "c" fn orchbee_session_member_ref_is_live(
+    member_ref: *anyopaque,
+    live: *c_int,
+) c_int;
+extern "c" fn orchbee_freebsd_member_is_targeted_zombie(
+    process_id: c_int,
+    subtree: c_int,
+    is_direct_child: c_int,
+    is_zombie: c_int,
+) c_int;
+extern "c" fn orchbee_linux_classify_pidfd_poll(
+    is_retained_leader: c_int,
+    poll_result: c_int,
+    poll_error: c_int,
+    readable: c_int,
+    hangup: c_int,
+    error_event: c_int,
+    invalid: c_int,
+    unknown: c_int,
+    live: *c_int,
+) c_int;
+extern "c" fn orchbee_linux_classify_pidfd_probe(
+    probe_result: c_int,
+    probe_error: c_int,
+    live: *c_int,
+) c_int;
+extern "c" fn orchbee_linux_classify_pidfd_signal(
+    signal_result: c_int,
+    signal_error: c_int,
+) c_int;

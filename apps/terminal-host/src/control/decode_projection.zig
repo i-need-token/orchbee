@@ -13,6 +13,7 @@ pub const FrameApplied = struct {
 };
 
 pub const SnapshotReason = enum {
+    activity_stale,
     base_mismatch,
     decoder_rejected,
     dimensions_mismatch,
@@ -90,6 +91,7 @@ pub fn decodeProjectionDemand(
 }
 fn parseSnapshotReason(value: []const u8) error{InvalidField}!SnapshotReason {
     inline for (.{
+        .{ "activity-stale", SnapshotReason.activity_stale },
         .{ "base-mismatch", SnapshotReason.base_mismatch },
         .{ "decoder-rejected", SnapshotReason.decoder_rejected },
         .{ "dimensions-mismatch", SnapshotReason.dimensions_mismatch },

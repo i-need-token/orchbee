@@ -159,7 +159,9 @@ test "deferred terminal starts at the exact supplied geometry and replays only t
         connection_id,
         testId(core_module.ClientId, 0x16),
     );
-    var validated = try validatedLongRunningLaunch();
+    var launch_fixture = try validatedLongRunningLaunch();
+    defer launch_fixture.deinit();
+    var validated = launch_fixture.validated;
     validated.launch.geometry = null;
     validated.launch_digest = (try terminal_launch.inspect(
         std.testing.allocator,
@@ -645,7 +647,9 @@ test "termination of a skipped settled target is replay-only without dispatch" {
         connection_id,
         testId(core_module.ClientId, 0x21),
     );
-    const validated = try validatedImmediateExitLaunch();
+    var launch_fixture = try validatedImmediateExitLaunch();
+    defer launch_fixture.deinit();
+    const validated = launch_fixture.validated;
     const terminal_id = try createSkippedTarget(&aggregate, connection_id, validated);
     const completion = try aggregate.runtimeFor(terminal_id).?.waitForCompletion();
     try std.testing.expectEqual(
@@ -715,7 +719,9 @@ test "exact pass retains a skipped target engine failure without dispatch" {
         connection_id,
         testId(core_module.ClientId, 0x31),
     );
-    const validated = try validatedLongRunningLaunch();
+    var launch_fixture = try validatedLongRunningLaunch();
+    defer launch_fixture.deinit();
+    const validated = launch_fixture.validated;
     const terminal_id = try createSkippedTarget(&aggregate, connection_id, validated);
     const runtime = aggregate.runtimeFor(terminal_id).?;
     // Publish a deterministic engine failure without HostService.
@@ -839,7 +845,9 @@ test "maintenance synchronizes terminal-driven geometry without projection deman
         connection_id,
         testId(core_module.ClientId, 0x84),
     );
-    const validated = try validatedLongRunningLaunch();
+    var launch_fixture = try validatedLongRunningLaunch();
+    defer launch_fixture.deinit();
+    const validated = launch_fixture.validated;
     var preparation = try aggregate.prepareCreateTerminal(
         connection_id,
         testId(core_module.CreationId, 0x85),
@@ -891,7 +899,9 @@ test "application terminal controls require input capability and synchronize one
         connection_id,
         testId(core_module.ClientId, 0xb0),
     );
-    const validated = try validatedLongRunningLaunch();
+    var launch_fixture = try validatedLongRunningLaunch();
+    defer launch_fixture.deinit();
+    const validated = launch_fixture.validated;
     var preparation = try aggregate.prepareCreateTerminal(
         connection_id,
         testId(core_module.CreationId, 0xb1),
@@ -975,7 +985,9 @@ test "configuration update preserves an unsynchronized terminal-driven geometry"
         connection_id,
         testId(core_module.ClientId, 0x87),
     );
-    const validated = try validatedLongRunningLaunch();
+    var launch_fixture = try validatedLongRunningLaunch();
+    defer launch_fixture.deinit();
+    const validated = launch_fixture.validated;
     var preparation = try aggregate.prepareCreateTerminal(
         connection_id,
         testId(core_module.CreationId, 0x88),

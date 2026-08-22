@@ -80,6 +80,8 @@ pub const Scheduler = struct {
         var scheduled: usize = 0;
         var outcome: host_outgoing.ScheduleOutcome = .complete;
         var retry_current = false;
+        var sampled_terminal_ids: [max_schedule_scan_per_poll]core_module.TerminalId = undefined;
+        var sampled_terminal_count: usize = 0;
         var used_terminal_ids: [max_scheduled_attachments_per_poll]core_module.TerminalId = undefined;
         var used_terminal_count: usize = 0;
         const PendingMutation = union(enum) {
@@ -108,12 +110,43 @@ pub const Scheduler = struct {
             // before delta versus snapshot is selected. Reading the backing
             // map value directly would miss a geometry change since the last
             // request.
-            const attachment = core.findAttachment(attachment_id) orelse continue;
-            if (!attachment.capabilities.read) continue;
-            const ready = attachment.projectionReady() orelse continue;
+            var attachment = core.findAttachment(attachment_id) orelse continue;
+            if (!attachment.capabilities.read or
+                attachment.projectionDemand() != .active) continue;
             const runtime = aggregate.runtimeFor(attachment.terminal_id) orelse continue;
-            const terminal = core.findTerminal(attachment.terminal_id) orelse continue;
+            var terminal = core.findTerminal(attachment.terminal_id) orelse continue;
             if (!terminal.hasReadableRuntimeState() or !runtime.readableStateAvailable()) continue;
+            var activity_already_sampled = false;
+            for (sampled_terminal_ids[0..sampled_terminal_count]) |sampled_terminal_id| {
+                activity_already_sampled = activity_already_sampled or
+                    sampled_terminal_id.eql(attachment.terminal_id);
+            }
+            if (!activity_already_sampled and
+                now >= aggregate.nextCloseActivitySampleAt(attachment.terminal_id).?)
+            {
+                std.debug.assert(sampled_terminal_count < sampled_terminal_ids.len);
+                sampled_terminal_ids[sampled_terminal_count] = attachment.terminal_id;
+                sampled_terminal_count += 1;
+                std.debug.assert(aggregate.setNextCloseActivitySampleAt(
+                    attachment.terminal_id,
+                    now + projection_interval_ns,
+                ));
+                const activity = runtime.sampleCloseActivity() catch continue :scan;
+                if (activity.changed) {
+                    core.invalidateTerminalPresentations(
+                        attachment.terminal_id,
+                    ) catch unreachable;
+                    // Invalidation may change ready, in-flight, or blocked
+                    // delivery state for every reader. Re-resolve both Core
+                    // observations before selecting delivery work.
+                    attachment = core.findAttachment(attachment_id) orelse continue :scan;
+                    terminal = core.findTerminal(attachment.terminal_id) orelse continue :scan;
+                    if (!attachment.capabilities.read or
+                        attachment.projectionDemand() != .active or
+                        !terminal.hasReadableRuntimeState()) continue :scan;
+                }
+            }
+            const ready = attachment.projectionReady() orelse continue;
             const ready_base = ready.base();
             const revision_dirty = ready_base == null or
                 terminal.observedRevision() > ready_base.?.revision;
@@ -282,7 +315,12 @@ fn appendProjectionFrame(
     encoded.allocation = &.{};
     encoded.bytes = &.{};
     defer adoption.deinit();
-    var read_commit = runtime.acquireReadCommitGuard() catch return .unavailable;
+    var read_commit = runtime.acquireReadCommitGuard(
+        encoded.close_activity_epoch,
+        encoded.close_activity_epoch_exhausted,
+        encoded.generation,
+        encoded.read_commit_epoch,
+    ) catch return .unavailable;
     defer read_commit.deinit();
     const append_token = adoption.commit();
     const commit = core.commitFrameTransaction(

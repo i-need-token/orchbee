@@ -79,6 +79,7 @@ pub const RuntimeTestingHooks = if (target_builtin.is_test) struct {
     context: ?*anyopaque = null,
     failure_fence_starting: ?*const fn (*anyopaque) void = null,
     finish_pty_after_child_exit: ?*const fn (*anyopaque) anyerror!void = null,
+    has_active_command: ?*const fn (*anyopaque) anyerror!bool = null,
     host_containment_waiting: ?*const fn (*anyopaque) void = null,
     projection_capture_starting: ?*const fn (*anyopaque) void = null,
     pty_drain_publication_starting: ?*const fn (*anyopaque) void = null,
@@ -96,6 +97,7 @@ pub const RuntimeTestingHooks = if (target_builtin.is_test) struct {
     ) anyerror!void = null,
     write_pty: ?*const fn (*anyopaque, []const u8) anyerror!usize = null,
     writer_waiting_for_input: ?*const fn (*anyopaque) void = null,
+    writer_slice_accounted: ?*const fn (*anyopaque) void = null,
     writer_slice_copied: ?*const fn (*anyopaque) void = null,
     writer_slice_started: ?*const fn (*anyopaque) void = null,
     wall_time_milliseconds: ?*const fn (*anyopaque) u64 = null,
@@ -131,6 +133,10 @@ pub const PreparedClipboardWriteRequest = struct {
 pub const ProjectionCounters = terminal_projection.Counters;
 pub const ProjectionEncodeRequest = terminal_projection.EncodeRequest;
 pub const TerminalCloseActivity = terminal_projection.TerminalCloseActivity;
+pub const CloseActivityRefresh = struct {
+    activity: TerminalCloseActivity,
+    changed: bool,
+};
 pub const Capabilities = model.attachment.Capabilities;
 pub const AttachmentId = identifiers.AttachmentId;
 pub const HostEpoch = identifiers.HostEpoch;

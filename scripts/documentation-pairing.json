@@ -18,8 +18,8 @@
 			"zhCnSha256": "5deaa2fb80d9633154a75a7c7436b7048076ab0a826a2f3518a54b672d15fee7"
 		},
 		"apps/desktop/README.md": {
-			"englishSha256": "fc4884fe8d60174172925e31842f378d026f5c275b659a284c75a2a63ed2b582",
-			"zhCnSha256": "6ead68b7766b9a0f4a2c70657fbea57266d746407b311e52db4437de65bea100"
+			"englishSha256": "0df74f9e54783b9fd277081b0b483ad9a6f854f36a28a35a7bee98f964b52111",
+			"zhCnSha256": "51af999fadad10c5c7d8690ac3b60efe5f829a5f278a9ecb9a0b602239caf177"
 		},
 		"apps/desktop/docs/multi-client-session-coordinator.md": {
 			"englishSha256": "9c9c0aef9212641f62781e95619d904e740f19acd584ec18e7134063716bf9ff",
@@ -54,12 +54,12 @@
 			"zhCnSha256": "3ff38198afb3f77d00b4c3ef50fae612f02c611621ab0896b9790de85317b556"
 		},
 		"apps/terminal-host/docs/module-boundaries.md": {
-			"englishSha256": "cd559351b0b78430c91e068181b763745ecd5c657affdad142bf03d044ca572a",
-			"zhCnSha256": "478b9881ffcd8e3687b740a47a1675c52734c785d2195804ba89f3b784de3f9e"
+			"englishSha256": "1cfac92604f727498c788a06f8b647d39ba40e6350aa60478a9e6026f1fae9b2",
+			"zhCnSha256": "2b9b1c63ba3ba19e78eca36f89130a352b7aaede49493a9920b24579705db768"
 		},
 		"apps/terminal-host/docs/runtime-model.md": {
-			"englishSha256": "4c8e2645dcf58c31c1298075c1d8a1bc2792a2fc94c5b88727df659320438fc6",
-			"zhCnSha256": "891527bf438e4c597f9d526fe9278734ee35bd0554d087f8b6dcd82c882b2501"
+			"englishSha256": "28b28af7bf686e055a9c171393d89bd59724beecfd5142db4b8c81a89d14b1ce",
+			"zhCnSha256": "1334ad6879be56cc33a109aacf13d83affc6a37f271437058db2ba5670a35bf5"
 		},
 		"apps/web/README.md": {
 			"englishSha256": "dce540708cc2c1e09e3406e138b8e7d2fda55b9bb443c9c69a506b4e58c26bdf",
@@ -234,20 +234,20 @@
 			"zhCnSha256": "e4ee56945df135b88c770c28d81bc7968742448ceabc43304ce8a5b8b771fa4d"
 		},
 		"packages/terminal-protocol/README.md": {
-			"englishSha256": "03c52d04e6479a860a7df3de20be1037a08765b916cdcc4d4dadf545b64d6308",
-			"zhCnSha256": "81d2fc9bb76db1ec58c19b6d4e9beda0f6c43de56b620451fc1905ffe50c2a7d"
+			"englishSha256": "d11d8ca54d40f8fda659a6431dc1d90b1569a3d97420f9d310dfbd2a3faf5335",
+			"zhCnSha256": "2ddb92b11973d576e71a872dffe537aa99208c1dd09c256899f32d26b3142cb6"
 		},
 		"packages/terminal-protocol/docs/version-history.md": {
-			"englishSha256": "3388c499cfe0b1a28f29f15be53a67dfdefe8d25e883c677828f063cd274360f",
-			"zhCnSha256": "7f41b4be2134bcd89ba9de05d6ec5c6ecf8c9708aaa20cfb1096dc84c1f5e709"
+			"englishSha256": "feb0631f15b18772073f3adb8e66ef802c8923ef105a7a51f8865f951e3b92b0",
+			"zhCnSha256": "22d1a8eb76d60ce859a4837e0359a1ec8298c34bee0f6b8e4233f63c578d4d39"
 		},
 		"packages/terminal-protocol/references/protocol.md": {
-			"englishSha256": "1a3fb5cc7dade7029d6b59e2ffa477e2e84a30d7a4858201d2f73a36b86dfdcd",
-			"zhCnSha256": "888a79ed2db5cc3bf1ae2b81e59a9be9221761ab1113b11e887ea4e3c08673d0"
+			"englishSha256": "a52e7c8b2da1c2c3ea59a7866de807226ac876b9ecc8cdd37e66522465646961",
+			"zhCnSha256": "67ae0fb5c0a2422adf4e720ab7198f8fbdbefbde10b53d538ebdee6e2d2ac998"
 		},
 		"packages/terminal/README.md": {
-			"englishSha256": "6296a12f758c288f9240a757d230a9278db27335bf547717515bd74fc429d903",
-			"zhCnSha256": "b5eaca133842905fb091158b4d230798ee1a45d1aa29144094a433902b8eabd3"
+			"englishSha256": "19c62009459056f2fbf99462f7bba248cc35e60cbddfbe197ccc224d2a3754e2",
+			"zhCnSha256": "31f48de23f66226548cb2ad9e58ce66d8d8774cdf74de86b46c3170ec94b66f3"
 		},
 		"packages/terminal/docs/ghostty-surface-test-provenance.md": {
 			"englishSha256": "66b6b018323826040df28acb47ef8c7a4e8a76bd3a5c1f2c76b8dec7f593d425",
@@ -270,8 +270,8 @@
 			"zhCnSha256": "e5b4b32cfe3479ee6c21c3ddf7bf0bb7b5c83911de7770028c3f1889499d4f59"
 		},
 		"packages/workbench/README.md": {
-			"englishSha256": "cc7ddb4110617bdea1795c62010dea1f3c571ffbeb2d8d3a2421115b85408f2f",
-			"zhCnSha256": "18d56c1e0803dbbb3fa0731e09cd08d776b5ee3e4a3557a8284c04dba0db3ab2"
+			"englishSha256": "9294b1b01cc25d8db4f4c80adfeaa06bbab99a687622ca89b620367a10369986",
+			"zhCnSha256": "dba49666bba2c99188af0d6118ca59399a1616020a3d7be0ce3d9cf6d42946e5"
 		},
 		"packages/workbench/docs/project-workspace.md": {
 			"englishSha256": "e1eac108dfe30bc8908e0a981479a7ee4d87ea2741ab61485405700ba3c27226",

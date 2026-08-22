@@ -9,6 +9,7 @@ const pty_process = harness.pty_process;
 const subject = harness.subject;
 const terminal_launch = harness.terminal_launch;
 const terminal_runtime = harness.terminal_runtime;
+const protocol = @import("terminal-protocol");
 const terminal_geometry = @import("terminal-host-model").geometry;
 const commitReaderBatch = harness.commitReaderBatch;
 const createModel = harness.createModel;
@@ -50,6 +51,211 @@ const ResizeCommitProbe = struct {
     }
 };
 
+const ConfigurationCommitProbe = struct {
+    calls: usize = 0,
+    revision: ?u64 = null,
+
+    fn commitReaderOutput(
+        context: ?*anyopaque,
+        runtime: *terminal_runtime.TerminalRuntime,
+    ) void {
+        const self: *ConfigurationCommitProbe = @ptrCast(@alignCast(context.?));
+        std.debug.assert(commitReaderBatch(runtime, "after configuration") == .committed);
+        self.calls += 1;
+        self.revision = runtime.geometry().revision;
+    }
+};
+
+test "configuration observation accepts the commit revision or a newer runtime revision" {
+    try std.testing.expect(subject.testing.configurationObservationIsCompatibleFn(11, 11));
+    try std.testing.expect(subject.testing.configurationObservationIsCompatibleFn(11, 12));
+    try std.testing.expect(!subject.testing.configurationObservationIsCompatibleFn(11, 10));
+}
+
+test "configuration synchronization adopts runtime output committed after the update" {
+    var aggregate = subject.HostRuntimeAggregate.init(std.testing.allocator);
+    defer aggregate.deinitChecked(true) catch unreachable;
+    const connection_id: core_module.ConnectionId = 1;
+    _ = try aggregate.core().connect(
+        connection_id,
+        testId(core_module.ClientId, 0x75),
+    );
+    var launch_fixture = try validatedLongRunningLaunch();
+    defer launch_fixture.deinit();
+    const validated = launch_fixture.validated;
+    var preparation = try aggregate.prepareCreateTerminal(
+        connection_id,
+        testId(core_module.CreationId, 0x76),
+        validated,
+    );
+    defer preparation.deinit();
+    const created = try aggregate.commitPreparedTerminal(&preparation);
+    const terminal_id = switch (created) {
+        .created => |identity| identity.terminal_id,
+        .replayed => return error.ExpectedCreatedTerminal,
+    };
+    const configuration_revision_before =
+        aggregate.core().findTerminal(terminal_id).?.configurationRevision();
+
+    var probe: ConfigurationCommitProbe = .{};
+    subject.testing.setAfterConfigurationCommitHook(
+        &aggregate,
+        ConfigurationCommitProbe.commitReaderOutput,
+        &probe,
+    );
+    defer subject.testing.setAfterConfigurationCommitHook(&aggregate, null, null);
+    const update = try aggregate.updateTerminalConfiguration(
+        connection_id,
+        terminal_id,
+        .{ .scrollback_bytes = 4_096 },
+    );
+
+    try std.testing.expectEqual(@as(usize, 1), probe.calls);
+    try std.testing.expectEqual(update.revision + 1, probe.revision.?);
+    try std.testing.expectEqual(
+        configuration_revision_before + 1,
+        update.configuration_revision,
+    );
+    try std.testing.expectEqual(@as(usize, 0), update.history_rows_evicted);
+    const runtime_geometry = aggregate.runtimeFor(terminal_id).?.geometry();
+    const observed = aggregate.core().findTerminal(terminal_id).?;
+    try std.testing.expectEqual(runtime_geometry.revision, observed.observedRevision());
+    try std.testing.expect(runtime_geometry.revision > update.revision);
+}
+
+test "successful raw and non-focus input invalidate every read presentation but focus does not" {
+    var aggregate = subject.HostRuntimeAggregate.init(std.testing.allocator);
+    defer aggregate.deinitChecked(true) catch unreachable;
+    const connection_id: core_module.ConnectionId = 1;
+    _ = try aggregate.core().connect(
+        connection_id,
+        testId(core_module.ClientId, 0x7a),
+    );
+    var launch_fixture = try validatedLongRunningLaunch();
+    defer launch_fixture.deinit();
+    var preparation = try aggregate.prepareCreateTerminal(
+        connection_id,
+        testId(core_module.CreationId, 0x7b),
+        launch_fixture.validated,
+    );
+    defer preparation.deinit();
+    const terminal_id = switch (try aggregate.commitPreparedTerminal(&preparation)) {
+        .created => |identity| identity.terminal_id,
+        .replayed => return error.ExpectedCreatedTerminal,
+    };
+    const input_attachment = testId(core_module.AttachmentId, 0x7c);
+    const read_attachment = testId(core_module.AttachmentId, 0x7d);
+    _ = try aggregate.attach(
+        connection_id,
+        input_attachment,
+        terminal_id,
+        .{ .input = true, .read = true, .resize = false },
+        false,
+    );
+    _ = try aggregate.attach(
+        connection_id,
+        read_attachment,
+        terminal_id,
+        .{ .input = false, .read = true, .resize = false },
+        false,
+    );
+    for ([_]core_module.AttachmentId{ input_attachment, read_attachment }) |attachment_id| {
+        _ = try aggregate.setProjectionDemand(connection_id, attachment_id, .active);
+    }
+    const runtime = aggregate.runtimeFor(terminal_id).?;
+    const geometry = runtime.geometry();
+    for ([_]core_module.AttachmentId{ input_attachment, read_attachment }) |attachment_id| {
+        const frame = try aggregate.core().commitFrame(
+            attachment_id,
+            null,
+            geometry.revision,
+            geometry.generation,
+            .snapshot,
+        );
+        _ = try aggregate.frameApplied(
+            connection_id,
+            attachment_id,
+            frame.sequence,
+            frame.revision,
+            frame.generation,
+        );
+        try std.testing.expect(
+            !aggregate.core().findAttachment(attachment_id).?.projectionReady().?.forceSnapshot(),
+        );
+    }
+
+    switch (aggregate.acceptRawInput(connection_id + 1, input_attachment, 1, "rejected")) {
+        .core_rejected => |err| try std.testing.expectEqual(error.MissingConnection, err),
+        else => return error.ExpectedRejectedRawInput,
+    }
+    var activity = terminal_runtime.testing.closeActivityObservation(runtime);
+    try std.testing.expect(!activity.input_latched);
+
+    switch (aggregate.acceptSemanticInput(
+        connection_id,
+        input_attachment,
+        1,
+        .{ .focus = .{ .focused = true } },
+        std.math.maxInt(usize),
+    )) {
+        .accepted => {},
+        else => return error.ExpectedAcceptedFocus,
+    }
+    activity = terminal_runtime.testing.closeActivityObservation(runtime);
+    try std.testing.expect(!activity.input_latched);
+    for ([_]core_module.AttachmentId{ input_attachment, read_attachment }) |attachment_id| {
+        try std.testing.expect(
+            !aggregate.core().findAttachment(attachment_id).?.projectionReady().?.forceSnapshot(),
+        );
+    }
+
+    switch (aggregate.acceptRawInput(connection_id, input_attachment, 1, "raw")) {
+        .accepted => {},
+        else => return error.ExpectedAcceptedRawInput,
+    }
+    activity = terminal_runtime.testing.closeActivityObservation(runtime);
+    try std.testing.expectEqual(protocol.TerminalCloseActivity.unknown, activity.activity);
+    try std.testing.expect(activity.input_latched);
+    for ([_]core_module.AttachmentId{ input_attachment, read_attachment }) |attachment_id| {
+        try std.testing.expect(
+            aggregate.core().findAttachment(attachment_id).?.projectionReady().?.forceSnapshot(),
+        );
+        const frame = try aggregate.core().commitFrame(
+            attachment_id,
+            null,
+            runtime.geometry().revision,
+            runtime.geometry().generation,
+            .snapshot,
+        );
+        _ = try aggregate.frameApplied(
+            connection_id,
+            attachment_id,
+            frame.sequence,
+            frame.revision,
+            frame.generation,
+        );
+    }
+
+    switch (aggregate.acceptSemanticInput(
+        connection_id,
+        input_attachment,
+        1,
+        .{ .text = .{ .text = "semantic" } },
+        std.math.maxInt(usize),
+    )) {
+        .accepted => {},
+        else => return error.ExpectedAcceptedSemanticInput,
+    }
+    activity = terminal_runtime.testing.closeActivityObservation(runtime);
+    try std.testing.expectEqual(protocol.TerminalCloseActivity.unknown, activity.activity);
+    try std.testing.expect(activity.input_latched);
+    for ([_]core_module.AttachmentId{ input_attachment, read_attachment }) |attachment_id| {
+        try std.testing.expect(
+            aggregate.core().findAttachment(attachment_id).?.projectionReady().?.forceSnapshot(),
+        );
+    }
+}
+
 test "resize observation accepts the exact commit or a newer canonical runtime state" {
     const geometry: terminal_geometry.Geometry = .{
         .cell_pixel_height = 16,
@@ -85,7 +291,9 @@ test "resize synchronization adopts a runtime revision that advances after commi
         connection_id,
         testId(core_module.ClientId, 0x70),
     );
-    const validated = try validatedLongRunningLaunch();
+    var launch_fixture = try validatedLongRunningLaunch();
+    defer launch_fixture.deinit();
+    const validated = launch_fixture.validated;
     var preparation = try aggregate.prepareCreateTerminal(
         connection_id,
         testId(core_module.CreationId, 0x71),
@@ -397,7 +605,9 @@ test "prepared input rejects a replacement attachment incarnation" {
         testId(core_module.ClientId, 0xa4),
     );
 
-    const first_validated = try validatedLongRunningLaunch();
+    var first_launch_fixture = try validatedLongRunningLaunch();
+    defer first_launch_fixture.deinit();
+    const first_validated = first_launch_fixture.validated;
     var first_preparation = try aggregate.prepareCreateTerminal(
         connection_id,
         testId(core_module.CreationId, 0xa5),
@@ -409,7 +619,9 @@ test "prepared input rejects a replacement attachment incarnation" {
         .replayed => return error.ExpectedCreatedTerminal,
     };
 
-    const second_validated = try validatedLongRunningLaunch();
+    var second_launch_fixture = try validatedLongRunningLaunch();
+    defer second_launch_fixture.deinit();
+    const second_validated = second_launch_fixture.validated;
     var second_preparation = try aggregate.prepareCreateTerminal(
         connection_id,
         testId(core_module.CreationId, 0xa6),

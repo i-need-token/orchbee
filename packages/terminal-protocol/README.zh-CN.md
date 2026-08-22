@@ -9,7 +9,7 @@
 | 领域           | 公共契约                                                                                                                               |
 | -------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
 | 标识           | 严格非零的 128 位 Host、创建、终端、客户端、附件、关联及终端主题操作标识                                                               |
-| 兼容性         | 精确校验当前协议 `0.0.16`；拒绝不同版本，不做适配                                                                                      |
+| 兼容性         | 精确校验当前协议 `0.0.17`；拒绝不同版本，不做适配                                                                                      |
 | 消息注册表     | 当前版本中从每种 kind 到其合法角色、载荷编码及成功响应 kind 的唯一映射                                                                 |
 | 控制           | 由消息 kind 选择的请求编码，以及严格的握手、配置/主题、清单、生命周期、附件、投影/历史、响铃、剪贴板写入、选择和失败 Schema            |
 | 传输           | 有界的 64 字节信封；对于 JSON、输入、终端帧和行窗口，拒绝生产方的角色或编码不匹配                                                      |
@@ -28,7 +28,7 @@
 
 每条 OBTF 和 OBPB 记录都携带与其行及元数据一同捕获的完整 Host `themeRevision`。OBRW 渲染详情中嵌套带有相同修订标记的 OBPB 快照。客户端把该修订用作呈现屏障；它不是内容修订，也不能替代控制响应与清单所返回的完整主题状态。
 
-每个附件的能力修订均从 `1` 开始。`AttachmentCapabilities` 返回当前正数修订；kind `24` 的 `UpdateAttachmentInputCapability` 只能在精确的下一个修订中更改输入位。完全相同值的重放是幂等的；相同修订冲突、旧修订、修订缺口，或未改变该位的下一修订都会被拒绝。每项原始或语义输入都在二进制权限头中携带精确修订，`InputAccepted` 会原样返回该值。
+每个附件的能力修订均从 `1` 开始。`AttachmentCapabilities` 返回当前正数修订；kind `24` 的 `UpdateAttachmentInputCapability` 只能在精确的下一个修订中更改输入位。完全相同值的重放是幂等的；相同修订冲突、旧修订、修订缺口，或未改变该位的下一修订都会被拒绝。每项原始或语义输入都在二进制权限头中携带精确修订，`InputAccepted` 会原样返回该值。初始 `AttachTerminal` 请求必须至少包含一项能力；仅输入附件降级后，完整的当前能力值可以全部为 false。
 
 `SelectionExport` 和 `SelectionExportStarted` 保留显式格式字段，唯一合法值为 `plain`。TypeScript 与 Zig 解码器都会拒绝 HTML 和原始 VT，它们不是产品线协议能力。由于帧格式是二进制的，导出分块仍为有界原始字节；执行平台剪贴板效果前，消费者须将获准的纯文本字节解码为 UTF-8。
 
@@ -70,30 +70,30 @@ if (envelope.value.payloadEncoding === PayloadEncoding.terminalFrame) {
 该包显式导出：
 
 - `@orchbee/terminal-protocol/fixtures/canonical.json`
-- `@orchbee/terminal-protocol/fixtures/control-conformance-v0.0.16.json`
+- `@orchbee/terminal-protocol/fixtures/control-conformance-v0.0.17.json`
 - `@orchbee/terminal-protocol/fixtures/malformed-frame-v0.0.3.json`
 - `@orchbee/terminal-protocol/fixtures/malformed-row-window-v0.0.2.json`
 - `@orchbee/terminal-protocol/fixtures/terminal-frame-v0.0.3.bin`
-- `@orchbee/terminal-protocol/fixtures/terminal-failed-v0.0.16.json`
+- `@orchbee/terminal-protocol/fixtures/terminal-failed-v0.0.17.json`
 - `@orchbee/terminal-protocol/fixtures/terminal-projection-buffer-v0.0.2.bin`
 - `@orchbee/terminal-protocol/fixtures/terminal-row-window-v0.0.2.bin`
-- `@orchbee/terminal-protocol/fixtures/transport-envelope-v0.0.16.bin`
-- `@orchbee/terminal-protocol/fixtures/write-input-v0.0.16.bin`
-- `@orchbee/terminal-protocol/fixtures/key-input-v0.0.16.bin`
-- `@orchbee/terminal-protocol/fixtures/text-input-v0.0.16.bin`
-- `@orchbee/terminal-protocol/fixtures/mouse-input-v0.0.16.bin`
-- `@orchbee/terminal-protocol/fixtures/focus-input-v0.0.16.bin`
-- `@orchbee/terminal-protocol/fixtures/paste-input-v0.0.16.bin`
+- `@orchbee/terminal-protocol/fixtures/transport-envelope-v0.0.17.bin`
+- `@orchbee/terminal-protocol/fixtures/write-input-v0.0.17.bin`
+- `@orchbee/terminal-protocol/fixtures/key-input-v0.0.17.bin`
+- `@orchbee/terminal-protocol/fixtures/text-input-v0.0.17.bin`
+- `@orchbee/terminal-protocol/fixtures/mouse-input-v0.0.17.bin`
+- `@orchbee/terminal-protocol/fixtures/focus-input-v0.0.17.bin`
+- `@orchbee/terminal-protocol/fixtures/paste-input-v0.0.17.bin`
 - `@orchbee/terminal-protocol/fixtures/ghostty-alternate-surface-v0.0.3.bin`
 - `@orchbee/terminal-protocol/fixtures/ghostty-surface-v0.0.3.bin`
 
-`canonical.json` 只是当前二进制格式的语言无关生成器输入，因此没有兼容版本。`control-conformance-v0.0.16.json` 包含由 Schema 生成的命令、回复、事件、可辨识联合、失败，以及原生类型适配器使用的完整 kind/role/encoding/success-response 契约。`fixtures:generate` 使用构建后的 TypeScript codec 和 Schema 生成这些已跟踪记录、权威 `TerminalFailed` 控制记录、当前 OBTF format-`0.0.3` 夹具、当前 OBPB 与 OBRW format-`0.0.2` 夹具，以及帧和行窗口畸形语料库。单元测试拒绝过时的生成文件；`apps/terminal-host` 只解析这些已声明的包导出，再用 Zig 验证器检查相同字节。每个兼容性夹具都携带其所属线协议或二进制格式的精确语义版本；不使用通配符或仅含主版本号的夹具名。
+`canonical.json` 只是当前二进制格式的语言无关生成器输入，因此没有兼容版本。`control-conformance-v0.0.17.json` 包含由 Schema 生成的命令、回复、事件、可辨识联合、失败，以及原生类型适配器使用的完整 kind/role/encoding/success-response 契约。`fixtures:generate` 使用构建后的 TypeScript codec 和 Schema 生成这些已跟踪记录、权威 `TerminalFailed` 控制记录、当前 OBTF format-`0.0.3` 夹具、当前 OBPB 与 OBRW format-`0.0.2` 夹具，以及帧和行窗口畸形语料库。单元测试拒绝过时的生成文件；`apps/terminal-host` 只解析这些已声明的包导出，再用 Zig 验证器检查相同字节。每个兼容性夹具都携带其所属线协议或二进制格式的精确语义版本；不使用通配符或仅含主版本号的夹具名。
 
 `TerminalProfile` 携带显式的 `defaultCursorShape` 和 `defaultCursorBlinking` 值。缺失字段会规范化为 `block` 和 `false`，使先前持久化的配置对象保留产品默认值；当前编码器始终发出这两个字段。运行时转义序列可以覆盖活动光标；Terminal Host 负责在 RIS 或应用重置时重新应用这些配置默认值。
 
 `ghostty-surface-v0.0.3.bin` 和 `ghostty-alternate-surface-v0.0.3.bin` 是 TypeScript 夹具生成流程的例外：Terminal Host 使用同一个固定版本的原生 Ghostty VT 及真实投影编码器生成二者。Host 一致性检查会重新生成并逐字节比较这一对夹具；`@orchbee/terminal` 则通过两个渲染器后端消费主快照，并通过打包存储依次提交两个快照。主夹具单元涵盖字素/宽度/换行、OSC 8、OSC 133 提示/输入/输出边界、OSC 4/10/11/12 调色板与动态颜色、光标颜色、样式标志、显式颜色和下划线变体。二者还共同覆盖标题、当前目录、活动屏幕、光标、交互模式、生成和行替换的原子更新。协议包只负责稳定的 OBTF 字节及导出；Host 与渲染器记录负责语义断言。
 
-实时 OBTF 快照和增量可能携带可选扩展类型 `1`，其一字节有效负载将关闭活动报告为 `idle=1` 或 `active=2`。当观察结果未知时，生产者会省略扩展。该扩展仅是瞬态投影元数据；生命周期和关闭策略仍然由消费者拥有。
+实时 OBTF 快照和增量可能携带可选扩展类型 `1`，其一字节有效负载将关闭活动报告为 `idle=1` 或 `active=2`。当观察结果未知时，生产者会省略扩展。该扩展仅是瞬态投影元数据；生命周期和关闭策略仍然由消费者拥有。`NeedSnapshot` 原因 `activity-stale` 用于消费者已在本地使关闭活动观察失效、且无法证明在途帧晚于失效输入时，放弃精确的在途帧；替换帧为完整快照。这一顺序只证明替换帧反映失效后的 Host 缓存，不证明 Host 已接受输入，也不证明终端进程已消费输入。在协议 `0.0.17` 中，Host 接受的非焦点输入会为该终端生命周期永久置闩，因此替换帧及同一生命周期内所有后续帧只能报告 `active` 或 `unknown`。如果 Host 拒绝或以其他方式没有接受输入，因果替换帧可以合法发布新鲜的 `idle`。
 
 可选扩展类型 `2` 是一个严格解码的 `OBKG` 记录，用于支持 Kitty 直接图像输出。资源快照携带已解码的gray、gray-alpha、RGB或RGBA字节以及当前可见的放置。仅放置更新会为其重用的确切映像版本命名。重复的记录、陈旧的修订、错误的像素长度、丢失的图像引用、非规范标志或违反限制会拒绝完整的 OBTF 帧。该格式不包含路径、压缩容器、共享内存、虚拟放置、负 z 组合、字形图形或动画。
 

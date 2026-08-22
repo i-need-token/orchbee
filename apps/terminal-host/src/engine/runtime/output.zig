@@ -121,11 +121,11 @@ pub fn versionEffect(handler: *ghostty_vt.TerminalStream.Handler) []const u8 {
     return runtimeFromHandler(handler).profile.version_response;
 }
 
-pub fn readerMayRead(self: *state.State) bool {
+/// Admits one PTY read while preserving shutdown and failure ordering.
+fn beginReaderRead(self: *state.State) bool {
     self.terminal_mutex.lock();
     defer self.terminal_mutex.unlock();
-    return !self.failure_fenced and
-        !self.output_abort_requested.load(.acquire);
+    return !self.failure_fenced and !self.output_abort_requested.load(.acquire);
 }
 
 pub fn notifyReaderBatchFinished(
@@ -156,6 +156,13 @@ pub fn notifyPtyDrainPublicationStarting(self: *state.State) void {
 }
 
 pub fn commitReaderBatch(
+    self: *state.State,
+    bytes: []const u8,
+) contracts.ReaderBatchOutcome {
+    return commitObservedReaderBatch(self, bytes);
+}
+
+fn commitObservedReaderBatch(
     self: *state.State,
     bytes: []const u8,
 ) contracts.ReaderBatchOutcome {
@@ -303,7 +310,7 @@ pub fn readerThread(self: *state.State) void {
     if (!self.startup.await()) return;
     var buffer: [contracts.max_pty_read_batch_bytes]u8 = undefined;
     while (true) {
-        if (!readerMayRead(self)) return;
+        if (!beginReaderRead(self)) return;
         const length = process_io_ops.readPty(self, &buffer) catch {
             if (self.output_abort_requested.load(.acquire)) return;
             failure_ops.recordReaderFailure(self);
@@ -313,7 +320,7 @@ pub fn readerThread(self: *state.State) void {
             if (self.output_abort_requested.load(.acquire)) return;
             break;
         }
-        if (commitReaderBatch(self, buffer[0..length]) != .committed) return;
+        if (commitObservedReaderBatch(self, buffer[0..length]) != .committed) return;
     }
     if (self.output_abort_requested.load(.acquire)) return;
     notifyPtyDrainPublicationStarting(self);

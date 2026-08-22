@@ -116,8 +116,9 @@ test "deferred terminal theme commit updates the owned start preparation" {
     defer aggregate.deinitChecked(true) catch unreachable;
     const connection_id: core_module.ConnectionId = 3;
     _ = try aggregate.core().connect(connection_id, testId(core_module.ClientId, 0x81));
-    const running = try validatedLongRunningLaunch();
-    var deferred_launch = running.launch;
+    var launch_fixture = try validatedLongRunningLaunch();
+    defer launch_fixture.deinit();
+    var deferred_launch = launch_fixture.validated.launch;
     deferred_launch.geometry = null;
     const deferred = try terminal_launch.inspect(std.testing.allocator, deferred_launch);
     var create = try aggregate.prepareCreateTerminal(
@@ -157,7 +158,9 @@ fn createRunningTerminal(
     connection_id: core_module.ConnectionId,
     id_byte: u8,
 ) !core_module.TerminalId {
-    const validated = try validatedLongRunningLaunch();
+    var launch_fixture = try validatedLongRunningLaunch();
+    defer launch_fixture.deinit();
+    const validated = launch_fixture.validated;
     var preparation = try aggregate.prepareCreateTerminal(
         connection_id,
         testId(core_module.CreationId, id_byte),

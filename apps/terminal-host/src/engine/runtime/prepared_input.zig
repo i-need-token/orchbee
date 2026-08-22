@@ -13,6 +13,7 @@ const PreparedInputState = enum {
 /// queue position and admits no terminal bytes.
 pub fn Type(comptime Runtime: type) type {
     return struct {
+        affects_close_activity: bool = false,
         bytes: ?[]u8,
         ownership: ?contracts.PreparedInputOwnership = null,
         reservation: ?contracts.InputReservation,
@@ -30,6 +31,11 @@ pub fn Type(comptime Runtime: type) type {
             return if (self.bytes) |bytes| bytes.len else 0;
         }
 
+        pub fn affectsCloseActivity(self: *const Self) bool {
+            std.debug.assert(self.state == .pending);
+            return self.affects_close_activity;
+        }
+
         pub fn commit(self: *Self) !usize {
             std.debug.assert(self.state == .pending);
             const byte_count = self.byteCount();
@@ -42,13 +48,23 @@ pub fn Type(comptime Runtime: type) type {
             self.state = .consumed;
             const runtime = self.runtimeState();
             if (bytes) |owned| {
-                input_commit_ops.publishPreparedInput(runtime, reservation.?, owned, &ownership) catch |err| {
+                input_commit_ops.publishPreparedInput(
+                    runtime,
+                    reservation.?,
+                    owned,
+                    &ownership,
+                    self.affects_close_activity,
+                ) catch |err| {
                     if (ownership) |*pending| input_commit_ops.cancelPreparedInputOwnership(runtime, pending);
                     return err;
                 };
             } else {
                 std.debug.assert(reservation == null);
-                input_commit_ops.validatePreparedInputCommit(runtime, &ownership) catch |err| {
+                input_commit_ops.validatePreparedInputCommit(
+                    runtime,
+                    &ownership,
+                    self.affects_close_activity,
+                ) catch |err| {
                     if (ownership) |*pending| input_commit_ops.cancelPreparedInputOwnership(runtime, pending);
                     return err;
                 };

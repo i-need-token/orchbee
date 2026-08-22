@@ -116,12 +116,13 @@ ResizeOrScreenSwitch ==
        [attachment \in Attachments |->
           IF demand[attachment] THEN TRUE ELSE pendingDirty[attachment]]
   /\ forceSnapshot' = [attachment \in Attachments |-> TRUE]
+  /\ provisional' = [attachment \in Attachments |-> FALSE]
   /\ UNCHANGED <<finalized, capturedRevision, capturedGeneration, demand,
                   blocked, blockedRevision,
                   acknowledgedRevision, acknowledgedGeneration, inFlight,
                   frameBase, frameRevision, frameGeneration, frameSequence,
                   nextSequence, lastAppliedSequence, lastAbandonedSequence,
-                  provisional, commitGuard, failurePublished,
+                  commitGuard, failurePublished,
                   containmentConfirmed, handoffDuringUnconfirmed>>
 
 SetDemand(attachment, active) ==
@@ -268,21 +269,6 @@ AcquireReadCommit(attachment) ==
                   pendingDirty, forceSnapshot, provisional, failurePublished,
                   containmentConfirmed, handoffDuringUnconfirmed>>
 
-RejectProvisional(attachment) ==
-  /\ attachment \in Attachments
-  /\ provisional[attachment]
-  /\ commitGuard = {}
-  /\ failurePublished
-  /\ ~containmentConfirmed
-  /\ provisional' = [provisional EXCEPT ![attachment] = FALSE]
-  /\ UNCHANGED <<revision, generation, finalized, captured, capturedRevision,
-                  capturedGeneration, demand, blocked, blockedRevision,
-                  acknowledgedRevision, acknowledgedGeneration, inFlight,
-                  frameBase, frameRevision, frameGeneration, frameSequence,
-                  nextSequence, lastAppliedSequence, lastAbandonedSequence,
-                  pendingDirty, forceSnapshot, commitGuard, failurePublished,
-                  containmentConfirmed, handoffDuringUnconfirmed>>
-
 Emit(attachment) ==
   /\ attachment \in Attachments
   /\ provisional[attachment]
@@ -333,12 +319,13 @@ PublishFailure ==
   /\ commitGuard = {}
   /\ failurePublished' = TRUE
   /\ captured' = FALSE
+  /\ provisional' = [attachment \in Attachments |-> FALSE]
   /\ UNCHANGED <<revision, generation, finalized, capturedRevision,
                   capturedGeneration, demand, blocked, blockedRevision,
                   acknowledgedRevision, acknowledgedGeneration, inFlight,
                   frameBase, frameRevision, frameGeneration, frameSequence,
                   nextSequence, lastAppliedSequence, lastAbandonedSequence,
-                  pendingDirty, forceSnapshot, provisional, commitGuard,
+                  pendingDirty, forceSnapshot, commitGuard,
                   containmentConfirmed, handoffDuringUnconfirmed>>
 
 ConfirmContainment ==
@@ -440,7 +427,6 @@ Next ==
        \/ EncodeFailure(attachment)
        \/ PrepareFrame(attachment)
        \/ AcquireReadCommit(attachment)
-       \/ RejectProvisional(attachment)
        \/ Emit(attachment)
        \/ RefreshBlocked(attachment)
        \/ FrameApplied(attachment)
@@ -455,7 +441,6 @@ Spec ==
   /\ WF_vars(Capture)
   /\ \A attachment \in Attachments: WF_vars(PrepareFrame(attachment))
   /\ \A attachment \in Attachments: WF_vars(AcquireReadCommit(attachment))
-  /\ \A attachment \in Attachments: WF_vars(RejectProvisional(attachment))
   /\ \A attachment \in Attachments: WF_vars(Emit(attachment))
   /\ \A attachment \in Attachments: WF_vars(RefreshBlocked(attachment))
   /\ \A attachment \in Attachments: WF_vars(FrameApplied(attachment))
@@ -542,6 +527,10 @@ ProvisionalOwnsNoFlight ==
       /\ ~blocked[attachment]
       /\ ~inFlight[attachment]
 
+ProvisionalNamesCurrentGeneration ==
+  \A attachment \in Attachments:
+    provisional[attachment] => capturedGeneration = generation
+
 CommitGuardOwnsProvisional ==
   /\ Cardinality(commitGuard) <= 1
   /\ \A attachment \in commitGuard: provisional[attachment]
@@ -549,6 +538,10 @@ CommitGuardOwnsProvisional ==
 UnconfirmedFailurePermitsNoNewFrameHandoff ==
   /\ ~handoffDuringUnconfirmed
   /\ (failurePublished /\ ~containmentConfirmed) => commitGuard = {}
+
+UnconfirmedFailureOwnsNoProvisional ==
+  (failurePublished /\ ~containmentConfirmed) =>
+    \A attachment \in Attachments: ~provisional[attachment]
 
 ContainmentConfirmationFollowsFailure ==
   containmentConfirmed => failurePublished

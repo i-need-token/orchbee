@@ -226,6 +226,40 @@ test "export sequences reject ABA acknowledgements and failed starts do not cons
     try std.testing.expect((try manager.exportChunkApplied(attachment, 7, 0)) == null);
     _ = (try manager.exportChunkApplied(attachment, 8, 0)).?;
 }
+test "export acknowledgement requires the exact current chunk sequence" {
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+        .cols = 8,
+        .rows = 2,
+    });
+    defer terminal.deinit(std.testing.allocator);
+    try terminal.printString("selected");
+    var manager = Manager.init(std.testing.allocator);
+    defer manager.deinit(&terminal);
+    const attachment = attachmentId(0x1d);
+    try manager.attach(attachment);
+    _ = try manager.applySelectionCommand(&terminal, 1, 1, .{
+        .attachment_id = attachment,
+        .command = .select_all,
+        .generation = 1,
+        .revision = 1,
+    });
+
+    _ = try manager.startExport(&terminal, attachment, 3, .plain);
+    const chunk = (try manager.encodeNextExportChunk(std.testing.allocator, attachment)).?;
+    defer std.testing.allocator.free(chunk.bytes);
+    const state = findState(&manager, attachment).?;
+    try std.testing.expectEqual(@as(u32, 0), chunk.token.chunk_sequence);
+    try std.testing.expectError(
+        error.InvalidAcknowledgement,
+        manager.exportChunkApplied(attachment, 3, 1),
+    );
+    try std.testing.expect(state.export_ledger.active.?.chunk_in_flight);
+    try std.testing.expectEqual(@as(u32, 0), state.export_ledger.active.?.chunk_sequence);
+    try std.testing.expectEqual(@as(usize, 0), state.export_ledger.active.?.next_offset);
+
+    const finished = (try manager.exportChunkApplied(attachment, 3, 0)).?;
+    try std.testing.expectEqual(@as(u64, 3), finished.export_sequence);
+}
 test "a final export chunk does not require another chunk sequence" {
     var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
         .cols = 8,

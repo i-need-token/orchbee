@@ -481,6 +481,7 @@ const TestTerminal = struct {
 const TestProjectionDemand = enum { active, paused };
 const TestTerminalControlOperation = enum { clear, reset };
 const TestSnapshotReason = enum {
+    activity_stale,
     base_mismatch,
     decoder_rejected,
     dimensions_mismatch,
@@ -973,7 +974,7 @@ test "every TypeScript control command fixture crosses the native typed decoder"
         var decoded = try control_decode.decodeFrameApplied(allocator, commands.frame_applied);
         defer decoded.deinit();
     }
-    try std.testing.expectEqual(@as(usize, 7), commands.need_snapshot.len);
+    try std.testing.expectEqual(@as(usize, 8), commands.need_snapshot.len);
     for (commands.need_snapshot) |payload| {
         var decoded = try control_decode.decodeNeedSnapshot(allocator, payload);
         defer decoded.deinit();
@@ -1241,8 +1242,8 @@ test "native control replies and events conform to TypeScript schemas" {
         outputs.attachment_capabilities,
         try control_encode.attachmentCapabilities(allocator, .{
             .attachment_id = attachment_id,
-            .capability_revision = 1,
-            .capabilities = .{ .input = true, .read = true, .resize = false },
+            .capability_revision = 2,
+            .capabilities = .{ .input = false, .read = false, .resize = false },
             .resize_lease = false,
             .terminal_id = terminal_id,
         }),
@@ -1322,6 +1323,7 @@ test "native control replies and events conform to TypeScript schemas" {
         }),
     );
     const snapshot_reasons = [_]TestSnapshotReason{
+        .activity_stale,
         .base_mismatch,
         .decoder_rejected,
         .dimensions_mismatch,

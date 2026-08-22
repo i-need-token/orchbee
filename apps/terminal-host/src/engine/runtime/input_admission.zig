@@ -29,6 +29,7 @@ pub fn prepareRawInput(self: *state.State, bytes: []const u8) !prepared_input.In
         return err;
     };
     return .{
+        .affects_close_activity = true,
         .bytes = copy,
         .reservation = reservation,
         .runtime = self,
@@ -82,7 +83,7 @@ pub fn prepareKeyInput(
         input,
     );
     if (encoded.len > max_output_bytes) return error.InputLimitExceeded;
-    return prepareEncodedInputLocked(self, encoded);
+    return prepareEncodedInputLocked(self, encoded, true);
 }
 
 pub fn enqueueTextInput(self: *state.State, text: []const u8) !usize {
@@ -110,7 +111,7 @@ pub fn prepareTextInput(
     self.terminal_mutex.lock();
     defer self.terminal_mutex.unlock();
     try failure_ops.ensureRuntimeWorkAvailableLocked(self);
-    return prepareEncodedInputLocked(self, text);
+    return prepareEncodedInputLocked(self, text, true);
 }
 
 pub fn enqueueMouseInput(self: *state.State, input: contracts.MouseInput) !usize {
@@ -160,7 +161,7 @@ pub fn prepareMouseInput(
         input,
     );
     if (encoded.len > max_output_bytes) return error.InputLimitExceeded;
-    return prepareEncodedInputLocked(self, encoded);
+    return prepareEncodedInputLocked(self, encoded, true);
 }
 
 pub fn enqueueFocusInput(self: *state.State, focused: bool) !usize {
@@ -195,11 +196,11 @@ pub fn prepareFocusInput(
     defer self.terminal_mutex.unlock();
     try failure_ops.ensureRuntimeWorkAvailableLocked(self);
     if (!terminal_input_encoding.reportsFocus(&self.terminal)) {
-        return prepareEncodedInputLocked(self, "");
+        return prepareEncodedInputLocked(self, "", false);
     }
     const encoded = try terminal_input_encoding.encodeFocus(&buffer, focused);
     if (encoded.len > max_output_bytes) return error.InputLimitExceeded;
-    return prepareEncodedInputLocked(self, encoded);
+    return prepareEncodedInputLocked(self, encoded, false);
 }
 
 pub fn enqueuePasteInput(
@@ -241,7 +242,7 @@ pub fn preparePasteInput(
         text,
         max_output_bytes,
     );
-    return prepareOwnedInputLocked(self, encoded);
+    return prepareOwnedInputLocked(self, encoded, true);
 }
 
 pub fn prepareSemanticInput(
@@ -275,10 +276,12 @@ pub fn takeOutputBatches(self: *state.State) u64 {
 pub fn prepareEncodedInputLocked(
     self: *state.State,
     bytes: []const u8,
+    affects_close_activity: bool,
 ) !prepared_input.Internal {
     try failure_ops.ensureRuntimeWorkAvailableLocked(self);
     if (self.child_exited.load(.acquire)) return error.TerminalExited;
     if (bytes.len == 0) return .{
+        .affects_close_activity = affects_close_activity,
         .bytes = null,
         .reservation = null,
         .runtime = self,
@@ -287,6 +290,7 @@ pub fn prepareEncodedInputLocked(
     errdefer input_commit_ops.cancelInput(self, reservation.identifier);
     const copy = try self.allocator.dupe(u8, bytes);
     return .{
+        .affects_close_activity = affects_close_activity,
         .bytes = copy,
         .reservation = reservation,
         .runtime = self,
@@ -296,6 +300,7 @@ pub fn prepareEncodedInputLocked(
 pub fn prepareOwnedInputLocked(
     self: *state.State,
     bytes: []u8,
+    affects_close_activity: bool,
 ) !prepared_input.Internal {
     failure_ops.ensureRuntimeWorkAvailableLocked(self) catch |err| {
         self.allocator.free(bytes);
@@ -308,6 +313,7 @@ pub fn prepareOwnedInputLocked(
     if (bytes.len == 0) {
         self.allocator.free(bytes);
         return .{
+            .affects_close_activity = affects_close_activity,
             .bytes = null,
             .reservation = null,
             .runtime = self,
@@ -318,6 +324,7 @@ pub fn prepareOwnedInputLocked(
         return err;
     };
     return .{
+        .affects_close_activity = affects_close_activity,
         .bytes = bytes,
         .reservation = reservation,
         .runtime = self,

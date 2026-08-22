@@ -105,8 +105,18 @@ pub const TerminalRuntime = opaque {
 
     pub fn acquireReadCommitGuard(
         self: *TerminalRuntime,
+        expected_close_activity_epoch: u64,
+        expected_close_activity_epoch_exhausted: bool,
+        expected_generation: u64,
+        expected_read_commit_epoch: u64,
     ) contracts.ProjectionEncodeError!ReadCommitGuard {
-        return exposeReadCommitGuard(try projection_ops.acquireReadCommitGuard(stateFrom(self)));
+        return exposeReadCommitGuard(try projection_ops.acquireReadCommitGuard(
+            stateFrom(self),
+            expected_close_activity_epoch,
+            expected_close_activity_epoch_exhausted,
+            expected_generation,
+            expected_read_commit_epoch,
+        ));
     }
 
     pub const enqueueInput = InputHandle.enqueueInput;
@@ -211,6 +221,20 @@ pub const TerminalRuntime = opaque {
 
     pub fn setNextProjectionAt(self: *TerminalRuntime, value: i128) void {
         return projection_ops.setNextProjectionAt(stateFrom(self), value);
+    }
+
+    pub fn nextCloseActivitySampleAt(self: *const TerminalRuntime) i128 {
+        return projection_ops.nextCloseActivitySampleAt(stateFromConst(self));
+    }
+
+    pub fn setNextCloseActivitySampleAt(self: *TerminalRuntime, value: i128) void {
+        return projection_ops.setNextCloseActivitySampleAt(stateFrom(self), value);
+    }
+
+    pub fn sampleCloseActivity(
+        self: *TerminalRuntime,
+    ) contracts.ProjectionEncodeError!contracts.CloseActivityRefresh {
+        return projection_ops.sampleCloseActivity(stateFrom(self));
     }
 
     pub fn projectionResident(self: *TerminalRuntime) bool {

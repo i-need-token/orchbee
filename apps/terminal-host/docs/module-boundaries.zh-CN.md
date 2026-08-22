@@ -30,19 +30,19 @@
 
 上面的目录边界仍然是构建图权限。其中，以下有状态或依赖于平台的接缝是持久的审查单元，而不是偶然的文件分割：
 
-| 边界          | 内部所有者                                                                                 | 协调员或门面责任                                                                    |
-| ------------- | ------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------- |
-| 协议          | `message_kind.zig` 拥有准确的数字类型注册表；编解码器和格式模块拥有其有界线形状            | `contract.zig` 拥有版本/绑定常量和角色/编码/成功映射； `root.zig` 公开协议命名空间  |
-| 模型          | `lifecycle/`，以及附件、交互、启动、配置与运行时主题值模块                                 | `root.zig` 公开不可变的跨层值，无需导入有状态运行时边界                             |
-| Engine        | `input_queue.zig`、`input_ownership.zig`、`history/`、`projection/` 和选择所有者           | `runtime/` 在规范终端锁与输入锁下安排跨所有者提交                                   |
-| Engine 运行时 | `runtime/` 状态、句柄适配器、生命周期、I/O、主题、终端变更、投影、交互和测试接缝           | `runtime/root.zig` 保留一个公共命名空间，各事务文件拥有可独立审查的运行时操作       |
-| 核心          | `state/` 连接、终端/主题、附件和投影交易及其专用状态所有者                                 | `state/root.zig` 保留 Core 命名空间； `host_core.zig` 保留单一混凝土核心业主        |
-| 控制          | `decode_*` 和 `encode_*` 主机、终端、主题、投影、交互适配器                                | `decode.zig` 和 `encode.zig` 保留一个显式公共协议面                                 |
-| 平台          | `process_posix.zig` 和 `process_windows.zig`，具有共享过程类型和通用模块                   | `process.zig` 选择目标实现而不重新实现进程行为                                      |
-| 服务接入      | `runtime_aggregate/`、`runtime_maintenance/`、保留终端、主题、输入准入、历史记录、选择访问 | `runtime_aggregate/host_aggregate.zig` 保留单一所有者；它的根保留现有的服务名称空间 |
-| 业务出口      | `interaction.zig`、`projection.zig` 和 `outgoing.zig`                                      | `event_delivery.zig`拥有公平调度和批量切换                                          |
-| 服务          | `terminal_requests/`、以功能命名的请求工作流、`connection_workflow.zig` 和仅测试组合观察器 | `service.zig`拥有生命周期和组成；工作流程使用聚合而不是可变的核心内部结构           |
-| 传输          | `connection.zig`、`local_server_posix.zig` 和 `local_server_windows.zig`                   | `root.zig` 选择本地服务器实现并公开稳定的传输边界                                   |
+| 边界          | 内部所有者                                                                                                           | 协调员或门面责任                                                                    |
+| ------------- | -------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| 协议          | `message_kind.zig` 拥有准确的数字类型注册表；编解码器和格式模块拥有其有界线形状                                      | `contract.zig` 拥有版本/绑定常量和角色/编码/成功映射； `root.zig` 公开协议命名空间  |
+| 模型          | `lifecycle/`，以及附件、交互、启动、配置与运行时主题值模块                                                           | `root.zig` 公开不可变的跨层值，无需导入有状态运行时边界                             |
+| Engine        | `input_queue.zig`、`input_ownership.zig`、`history/`、`projection/` 和选择所有者                                     | `runtime/` 在规范终端锁与输入锁下安排跨所有者提交                                   |
+| Engine 运行时 | `runtime/` 状态、句柄适配器、生命周期、I/O、主题、终端变更、投影、交互和测试接缝                                     | `runtime/root.zig` 保留一个公共命名空间，各事务文件拥有可独立审查的运行时操作       |
+| 核心          | `state/` 连接、终端/主题、附件和投影交易及其专用状态所有者                                                           | `state/root.zig` 保留 Core 命名空间； `host_core.zig` 保留单一混凝土核心业主        |
+| 控制          | `decode_*` 和 `encode_*` 主机、终端、主题、投影、交互适配器                                                          | `decode.zig` 和 `encode.zig` 保留一个显式公共协议面                                 |
+| 平台          | `process_session.zig` 拥有稳定的 POSIX 遏制标识；`process_posix.zig` 和 `process_windows.zig` 拥有各目标的进程适配器 | `process.zig` 选择目标实现而不重新实现进程行为                                      |
+| 服务接入      | `runtime_aggregate/`、`runtime_maintenance/`、保留终端、主题、输入准入、历史记录、选择访问                           | `runtime_aggregate/host_aggregate.zig` 保留单一所有者；它的根保留现有的服务名称空间 |
+| 业务出口      | `interaction.zig`、`projection.zig` 和 `outgoing.zig`                                                                | `event_delivery.zig`拥有公平调度和批量切换                                          |
+| 服务          | `terminal_requests/`、以功能命名的请求工作流、`connection_workflow.zig` 和仅测试组合观察器                           | `service.zig`拥有生命周期和组成；工作流程使用聚合而不是可变的核心内部结构           |
+| 传输          | `connection.zig`、`local_server_posix.zig` 和 `local_server_windows.zig`                                             | `root.zig` 选择本地服务器实现并公开稳定的传输边界                                   |
 
 一个语义所有者超出了一个独立可审阅的文件的范围，就成为一个目录。它的根源是一个狭窄的命名空间或机械外观；状态声明和分支事务逻辑存在于以职责命名的文件中。序列化提交协议在一个事务模块或类型化准备/提交切换中保持显式，而不是将外观变成一个包罗万象的文件。
 

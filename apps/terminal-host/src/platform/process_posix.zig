@@ -2,101 +2,19 @@ const std = @import("std");
 const builtin = @import("builtin");
 
 const process_common = @import("process_common.zig");
+const process_session = @import("process_session.zig");
 const process_types = @import("process_types.zig");
 const pty_module = @import("pty.zig");
 
 const ExitResult = process_types.ExitResult;
 const Launch = process_types.Launch;
 
-extern "c" fn orchbee_signal_process_session(session_id: c_int, signal_number: c_int) c_int;
-extern "c" fn orchbee_process_session_live_members(session_id: c_int, count: *u32) c_int;
 extern "c" fn orchbee_observe_process_exit(
     process_id: c_int,
     result_kind: *c_int,
     result_value: *u32,
 ) c_int;
-extern "c" fn orchbee_reap_process_exit(process_id: c_int) c_int;
-/// Serializes session signaling, containment confirmation, and identity release
-/// at the POSIX process-identity owner (THCR-006). The numeric session
-/// identifier is consulted for signaling only while the launch session leader is
-/// retained; once waitpid has released the identity (or the session is confirmed
-/// contained), graceful and force requests become idempotent no-ops that never
-/// enumerate processes by the numeric identifier. A reused numeric SID can
-/// therefore never receive HUP, STOP, KILL, or CONT from a settled terminal.
-pub const SessionIdentityState = if (builtin.os.tag == .windows)
-    struct {}
-else
-    struct {
-        mutex: std.Thread.Mutex = .{},
-        released: std.atomic.Value(bool) = .init(false),
-        signals_issued: std.atomic.Value(u64) = .init(0),
-
-        pub fn signal(
-            self: *SessionIdentityState,
-            session_id: std.posix.pid_t,
-            signaler: anytype,
-            signal_number: u8,
-        ) !void {
-            self.mutex.lock();
-            defer self.mutex.unlock();
-            if (self.released.load(.acquire)) return;
-            _ = self.signals_issued.fetchAdd(1, .monotonic);
-            try signaler.signal(session_id, signal_number);
-        }
-
-        pub fn forceTerminate(
-            self: *SessionIdentityState,
-            session_id: std.posix.pid_t,
-            signaler: anytype,
-        ) !void {
-            self.mutex.lock();
-            defer self.mutex.unlock();
-            if (self.released.load(.acquire)) return;
-            _ = self.signals_issued.fetchAdd(1, .monotonic);
-            try sessionForceTerminate(session_id, signaler);
-        }
-
-        pub fn contained(
-            self: *SessionIdentityState,
-            session_id: std.posix.pid_t,
-            query: anytype,
-        ) !bool {
-            self.mutex.lock();
-            defer self.mutex.unlock();
-            if (self.released.load(.acquire)) return true;
-            var count: u32 = 0;
-            try query.liveMembers(session_id, &count);
-            return count == 0;
-        }
-
-        pub fn release(
-            self: *SessionIdentityState,
-            session_id: std.posix.pid_t,
-            reaper: anytype,
-        ) !void {
-            self.mutex.lock();
-            defer self.mutex.unlock();
-            if (self.released.load(.acquire)) return;
-            try reaper.reap(session_id);
-            self.released.store(true, .release);
-        }
-
-        pub fn isReleased(self: *const SessionIdentityState) bool {
-            return self.released.load(.acquire);
-        }
-    };
-
-/// STOP narrows the race in which a descendant can create another session
-/// member while the platform enumerates it. A partial STOP failure must not
-/// leave already-stopped members frozen forever. POSIX-only: the constant
-/// table is not meaningful on Windows.
-fn sessionForceTerminate(session_id: std.posix.pid_t, signaler: anytype) !void {
-    signaler.signal(session_id, std.posix.SIG.STOP) catch {};
-    signaler.signal(session_id, std.posix.SIG.KILL) catch |err| {
-        signaler.signal(session_id, std.posix.SIG.CONT) catch {};
-        return err;
-    };
-}
+pub const SessionIdentityState = process_session.SessionIdentityState;
 
 pub fn foregroundCommandActive(
     shell_process_group: c_int,
@@ -120,6 +38,9 @@ pub const Process = if (builtin.os.tag == .windows) void else struct {
     identity: SessionIdentityState = .{},
 
     pub fn spawn(allocator: std.mem.Allocator, launch: Launch) !Process {
+        // FreeBSD must become and verify the process reaper before any terminal
+        // leader is forked. Other POSIX adapters validate this as a no-op.
+        try process_session.prepareProcessTracking();
         var environment = try process_common.environmentForLaunch(allocator, launch.environment);
         defer environment.deinit();
         var arena_state = std.heap.ArenaAllocator.init(allocator);
@@ -187,7 +108,10 @@ pub const Process = if (builtin.os.tag == .windows) void else struct {
             // Losing the exec-status channel makes launch outcome unknowable.
             // Contain both a child that already created its session and one
             // that failed before setsid, then reap it.
-            forceTerminateSession(child_id, NativeSessionSignaler{}) catch {};
+            process_session.forceTerminateSession(
+                child_id,
+                process_session.NativeSessionSignaler{},
+            ) catch {};
             posix.kill(child_id, posix.SIG.KILL) catch {};
             _ = posix.waitpid(child_id, 0);
             return error.SpawnFailed;
@@ -241,15 +165,25 @@ pub const Process = if (builtin.os.tag == .windows) void else struct {
     }
 
     pub fn terminate(self: *Process) !void {
-        try self.identity.signal(self.child_id, NativeSessionSignaler{}, posix.SIG.HUP);
+        try self.identity.signal(
+            self.child_id,
+            process_session.NativeSessionSignaler{},
+            posix.SIG.HUP,
+        );
     }
 
     pub fn forceTerminate(self: *Process) !void {
-        try self.identity.forceTerminate(self.child_id, NativeSessionSignaler{});
+        try self.identity.forceTerminate(
+            self.child_id,
+            process_session.NativeSessionSignaler{},
+        );
     }
 
     pub fn processTreeContained(self: *Process) !bool {
-        return try self.identity.contained(self.child_id, NativeSessionQuery{});
+        return try self.identity.contained(
+            self.child_id,
+            process_session.NativeSessionQuery{},
+        );
     }
 
     pub fn hasActiveCommand(self: *const Process) !bool {
@@ -277,7 +211,7 @@ pub const Process = if (builtin.os.tag == .windows) void else struct {
 
     pub fn releaseProcessIdentity(self: *Process) !void {
         if (self.exit_reaped) return;
-        try self.identity.release(self.child_id, NativeSessionReaper{});
+        try self.identity.release(self.child_id, process_session.NativeSessionReaper{});
         self.exit_reaped = true;
     }
 
@@ -395,34 +329,34 @@ pub const Process = if (builtin.os.tag == .windows) void else struct {
         return last_error;
     }
 
-    fn signalSession(session_id: posix.pid_t, signal_number: u8) !void {
-        if (orchbee_signal_process_session(session_id, signal_number) != 0) {
-            return error.SessionTerminationFailed;
-        }
+    pub fn forceTerminateSession(session_id: posix.pid_t, signaler: anytype) !void {
+        return process_session.forceTerminateSession(session_id, signaler);
     }
 
-    const NativeSessionSignaler = struct {
-        fn signal(_: NativeSessionSignaler, session_id: posix.pid_t, signal_number: u8) !void {
-            try signalSession(session_id, signal_number);
-        }
-    };
+    pub fn signalStableSessionMembersForTesting(
+        session_id: posix.pid_t,
+        source: anytype,
+        signal_number: u8,
+    ) !void {
+        return process_session.signalStableSessionMembers(session_id, source, signal_number);
+    }
 
-    const NativeSessionQuery = struct {
-        fn liveMembers(_: NativeSessionQuery, session_id: posix.pid_t, count: *u32) !void {
-            if (orchbee_process_session_live_members(session_id, count) != 0) {
-                return error.ProcessContainmentQueryFailed;
-            }
-        }
-    };
+    pub fn countStableSessionMembersForTesting(
+        session_id: posix.pid_t,
+        source: anytype,
+    ) !u32 {
+        return process_session.countStableSessionMembers(session_id, source);
+    }
 
-    const NativeSessionReaper = struct {
-        fn reap(_: NativeSessionReaper, session_id: posix.pid_t) !void {
-            if (orchbee_reap_process_exit(session_id) != 0) return error.ProcessReapFailed;
-        }
-    };
+    pub fn sessionLiveMembersForTesting(session_id: posix.pid_t) !u32 {
+        return process_session.sessionLiveMembers(session_id);
+    }
 
-    pub fn forceTerminateSession(session_id: posix.pid_t, signaler: anytype) !void {
-        return sessionForceTerminate(session_id, signaler);
+    pub fn countFreebsdReaperMembersForTesting(
+        session_id: posix.pid_t,
+        query: anytype,
+    ) !u32 {
+        return process_session.countFreebsdReaperMembers(session_id, query);
     }
 };
 

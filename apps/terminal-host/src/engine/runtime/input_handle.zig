@@ -187,6 +187,7 @@ pub fn Type(comptime Runtime: type, comptime PreparedInput: type) type {
 
         fn exposePreparedInput(internal: prepared_input.Internal) PreparedInput {
             return .{
+                .affects_close_activity = internal.affects_close_activity,
                 .bytes = internal.bytes,
                 .ownership = internal.ownership,
                 .reservation = internal.reservation,

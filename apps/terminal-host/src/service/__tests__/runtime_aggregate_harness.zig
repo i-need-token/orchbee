@@ -80,49 +80,75 @@ pub fn validMissingExecutableLaunch() terminal_launch.Launch {
     };
 }
 
-/// THCR-036 native launch that exits immediately with status zero. The
-/// resulting engine publishes a normal completion without any HostService
-/// interaction.
-pub fn validatedImmediateExitLaunch() !terminal_launch.Validated {
+const immediate_exit_posix_arguments = [_][]const u8{ "-c", "exit 0" };
+const immediate_exit_windows_arguments = [_][]const u8{ "/D", "/Q", "/C", "exit /B 0" };
+const long_running_posix_arguments = [_][]const u8{};
+const long_running_windows_arguments = [_][]const u8{ "/D", "/S", "/C", "more" };
+const long_running_process_posix_arguments = [_][]const u8{ "-c", "sleep 30" };
+const long_running_process_windows_arguments = [_][]const u8{
+    "/D",
+    "/S",
+    "/C",
+    "ping -n 31 127.0.0.1 >nul",
+};
+
+pub const ValidatedLaunchFixture = struct {
+    allocator: std.mem.Allocator,
+    validated: terminal_launch.Validated,
+    windows_executable: ?[]u8,
+
+    pub fn deinit(self: *@This()) void {
+        if (self.windows_executable) |value| self.allocator.free(value);
+        self.* = undefined;
+    }
+};
+
+fn validatedLaunchFixture(
+    posix_executable: []const u8,
+    posix_arguments: []const []const u8,
+    windows_arguments: []const []const u8,
+) !ValidatedLaunchFixture {
     const builtin = @import("builtin");
+    const allocator = std.testing.allocator;
     const windows_executable: ?[]u8 = if (builtin.os.tag == .windows)
-        try std.process.getEnvVarOwned(std.testing.allocator, "ComSpec")
+        try std.process.getEnvVarOwned(allocator, "ComSpec")
     else
         null;
-    defer if (windows_executable) |value| std.testing.allocator.free(value);
-    const executable = if (windows_executable) |value| value else "/bin/sh";
-    const posix_arguments = [_][]const u8{ "-c", "exit 0" };
-    const windows_arguments = [_][]const u8{ "/D", "/Q", "/C", "exit /B 0" };
-    const arguments: []const []const u8 = if (builtin.os.tag == .windows)
-        &windows_arguments
+    errdefer if (windows_executable) |value| allocator.free(value);
+    const executable = if (windows_executable) |value| value else posix_executable;
+    const arguments = if (builtin.os.tag == .windows)
+        windows_arguments
     else
-        &posix_arguments;
+        posix_arguments;
     var launch = validMissingExecutableLaunch();
     launch.executable = executable;
     launch.arguments = arguments;
-    return terminal_launch.inspect(std.testing.allocator, launch);
+    return .{
+        .allocator = allocator,
+        .validated = try terminal_launch.inspect(allocator, launch),
+        .windows_executable = windows_executable,
+    };
+}
+
+/// THCR-036 native launch that exits immediately with status zero. The
+/// resulting engine publishes a normal completion without any HostService
+/// interaction.
+pub fn validatedImmediateExitLaunch() !ValidatedLaunchFixture {
+    return validatedLaunchFixture(
+        "/bin/sh",
+        &immediate_exit_posix_arguments,
+        &immediate_exit_windows_arguments,
+    );
 }
 
 /// THCR-036 native launch that keeps running until containment stops it, so a
 /// deterministic engine failure can be published before the child exits.
-pub fn validatedLongRunningLaunch() !terminal_launch.Validated {
-    const builtin = @import("builtin");
-    const windows_executable: ?[]u8 = if (builtin.os.tag == .windows)
-        try std.process.getEnvVarOwned(std.testing.allocator, "ComSpec")
-    else
-        null;
-    defer if (windows_executable) |value| std.testing.allocator.free(value);
-    const executable = if (windows_executable) |value| value else "/bin/cat";
-    const posix_arguments = [_][]const u8{};
-    const windows_arguments = [_][]const u8{ "/D", "/S", "/C", "more" };
-    const arguments: []const []const u8 = if (builtin.os.tag == .windows)
-        &windows_arguments
-    else
-        &posix_arguments;
-    var launch = validMissingExecutableLaunch();
-    launch.executable = executable;
-    launch.arguments = arguments;
-    return terminal_launch.inspect(std.testing.allocator, launch);
+pub fn validatedLongRunningLaunch() !ValidatedLaunchFixture {
+    return validatedLaunchFixture(
+        "/bin/cat",
+        &long_running_posix_arguments,
+        &long_running_windows_arguments,
+    );
 }
 
 /// THCR-036 setup: 64 model-only filler sessions followed by one native
@@ -293,30 +319,84 @@ pub const HookedThreadSpawner = struct {
     }
 };
 
-pub fn longRunningProcessLaunch() !pty_process.Launch {
+pub const ProcessLaunchFixture = struct {
+    allocator: std.mem.Allocator,
+    launch: pty_process.Launch,
+    windows_executable: ?[]u8,
+
+    pub fn deinit(self: *@This()) void {
+        if (self.windows_executable) |value| self.allocator.free(value);
+        self.* = undefined;
+    }
+};
+
+pub fn longRunningProcessLaunch() !ProcessLaunchFixture {
     const builtin = @import("builtin");
+    const allocator = std.testing.allocator;
     const windows_executable: ?[]u8 = if (builtin.os.tag == .windows)
-        try std.process.getEnvVarOwned(std.testing.allocator, "ComSpec")
+        try std.process.getEnvVarOwned(allocator, "ComSpec")
     else
         null;
-    defer if (windows_executable) |value| std.testing.allocator.free(value);
+    errdefer if (windows_executable) |value| allocator.free(value);
     const executable = if (windows_executable) |value| value else "/bin/sh";
-    const posix_arguments = [_][]const u8{ "-c", "sleep 30" };
-    const windows_arguments = [_][]const u8{ "/D", "/S", "/C", "ping -n 31 127.0.0.1 >nul" };
     const arguments: []const []const u8 = if (builtin.os.tag == .windows)
-        &windows_arguments
+        &long_running_process_windows_arguments
     else
-        &posix_arguments;
+        &long_running_process_posix_arguments;
     return .{
-        .arguments = arguments,
-        .cell_pixel_height = 16,
-        .cell_pixel_width = 8,
-        .columns = 80,
-        .current_directory = null,
-        .environment = &.{},
-        .executable = executable,
-        .rows = 24,
+        .allocator = allocator,
+        .launch = .{
+            .arguments = arguments,
+            .cell_pixel_height = 16,
+            .cell_pixel_width = 8,
+            .columns = 80,
+            .current_directory = null,
+            .environment = &.{},
+            .executable = executable,
+            .rows = 24,
+        },
+        .windows_executable = windows_executable,
     };
+}
+
+test "launch fixtures retain every borrowed Windows value until deinit" {
+    const builtin = @import("builtin");
+
+    var validated_fixture = try validatedLongRunningLaunch();
+    defer validated_fixture.deinit();
+    const expected_validated_arguments = if (builtin.os.tag == .windows)
+        &long_running_windows_arguments
+    else
+        &long_running_posix_arguments;
+    try std.testing.expect(
+        validated_fixture.validated.launch.arguments.ptr == expected_validated_arguments.ptr,
+    );
+
+    var process_fixture = try longRunningProcessLaunch();
+    defer process_fixture.deinit();
+    const expected_process_arguments = if (builtin.os.tag == .windows)
+        &long_running_process_windows_arguments
+    else
+        &long_running_process_posix_arguments;
+    try std.testing.expect(
+        process_fixture.launch.arguments.ptr == expected_process_arguments.ptr,
+    );
+
+    if (builtin.os.tag == .windows) {
+        const validated_executable = validated_fixture.windows_executable orelse
+            return error.ExpectedOwnedWindowsExecutable;
+        try std.testing.expect(
+            validated_fixture.validated.launch.executable.ptr == validated_executable.ptr,
+        );
+        const process_executable = process_fixture.windows_executable orelse
+            return error.ExpectedOwnedWindowsExecutable;
+        try std.testing.expect(
+            process_fixture.launch.executable.ptr == process_executable.ptr,
+        );
+    } else {
+        try std.testing.expectEqual(@as(?[]u8, null), validated_fixture.windows_executable);
+        try std.testing.expectEqual(@as(?[]u8, null), process_fixture.windows_executable);
+    }
 }
 
 /// POSIX launch whose root exits normally after starting a descendant that
@@ -345,13 +425,14 @@ pub fn commitHookedRuntime(
     terminal_id: core_module.TerminalId,
     probe: *RetainedCleanupProbe,
 ) !*terminal_runtime.TerminalRuntime {
-    const process_launch = try longRunningProcessLaunch();
+    var process_launch = try longRunningProcessLaunch();
+    defer process_launch.deinit();
     return commitHookedRuntimeWithLaunch(
         aggregate,
         connection_id,
         terminal_id,
         probe,
-        process_launch,
+        process_launch.launch,
     );
 }
 

@@ -7,9 +7,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { terminalPresentationId } from '../../../../../terminal-presentation';
 import { PANEL_ACTION_IDS } from '../../actions/panel-action-contracts';
-import type {
-	PanelWorkspaceTransition,
-	TabPanelWorkspace,
+import {
+	transitionPanelWorkspace,
+	type PanelWorkspaceState,
+	type PanelWorkspaceTransition,
+	type TabPanelWorkspace,
 } from '../../model/panel-workspace-state';
 import { useWorkbenchPanelActions } from '../useWorkbenchPanelActions';
 
@@ -51,6 +53,7 @@ const appliedTransition: PanelWorkspaceTransition = {
 interface HarnessProps {
 	readonly activeTab?: TabPanelWorkspace;
 	readonly captureScope: (scope: ActionScope) => void;
+	readonly closeDisplayedTerminal?: () => PanelWorkspaceTransition;
 	readonly createChildTerminal: (panelId: string) => PanelWorkspaceTransition | null;
 	readonly panelCount?: number;
 	readonly parentScope: ActionScope;
@@ -60,6 +63,7 @@ interface HarnessProps {
 function Harness({
 	activeTab: activeTabOverride = activeTab,
 	captureScope,
+	closeDisplayedTerminal = () => appliedTransition,
 	createChildTerminal,
 	panelCount = 1,
 	parentScope,
@@ -69,7 +73,7 @@ function Harness({
 		activeTab: activeTabOverride,
 		operations: {
 			activateChildTerminal: () => appliedTransition,
-			closeDisplayedTerminal: () => appliedTransition,
+			closeDisplayedTerminal,
 			createChildTerminal,
 			focusPanel: () => appliedTransition,
 			movePanel: () => appliedTransition,
@@ -145,6 +149,65 @@ describe('useWorkbenchPanelActions', () => {
 			expect(closeDisplayedTerminal).toHaveBeenCalledOnce();
 		},
 	);
+
+	it('uses an immediate unknown metadata observation for close Action confirmation', async () => {
+		if (activeTab.root.kind !== 'panel') throw new Error('Expected a panel fixture');
+		const presentationId = activeTab.root.primaryPresentation.presentationId;
+		const idleTab: TabPanelWorkspace = {
+			...activeTab,
+			root: {
+				...activeTab.root,
+				primaryPresentation: {
+					...activeTab.root.primaryPresentation,
+					closeActivity: 'idle',
+				},
+			},
+		};
+		const state: PanelWorkspaceState = { ...appliedTransition.state, tabs: [idleTab] };
+		const observation = transitionPanelWorkspace(state, {
+			closeActivity: 'unknown',
+			naturalTitle: null,
+			presentationId,
+			tabId: idleTab.tabId,
+			type: 'terminal-metadata-changed',
+		});
+		const observedTab = observation.state.tabs[0];
+		expect(observation.outcome).toBe('applied');
+		expect(observedTab?.root).toMatchObject({
+			primaryPresentation: { closeActivity: 'unknown' },
+		});
+		if (observedTab === undefined) throw new Error('Expected the observed Tab state');
+
+		const confirm = vi.fn<() => boolean>(() => true);
+		const runtime = new ActionRuntime({ confirm });
+		const parentScope = runtime.createScope('workbench');
+		const closeDisplayedTerminal = vi.fn<() => PanelWorkspaceTransition>(() => appliedTransition);
+		let scope: ActionScope | undefined;
+		render(
+			createElement(Harness, {
+				activeTab: observedTab,
+				captureScope: (candidate) => {
+					scope = candidate;
+				},
+				closeDisplayedTerminal,
+				createChildTerminal: () => appliedTransition,
+				panelCount: 2,
+				parentScope,
+				runtime,
+			}),
+		);
+		if (scope === undefined) throw new Error('Expected the panel action scope to be captured');
+
+		const execution = runtime.execute(
+			PANEL_ACTION_IDS.close,
+			{ childPresentationId: null, panelId: 'panel-1', tabId: 'tab-1' },
+			{ scope, source: 'button' },
+		);
+
+		await expect(execution.completion).resolves.toEqual({ kind: 'completed' });
+		expect(confirm).toHaveBeenCalledOnce();
+		expect(closeDisplayedTerminal).toHaveBeenCalledOnce();
+	});
 
 	it('registers panel semantics, calls the domain writer, and disposes with its owner', async () => {
 		const runtime = new ActionRuntime();
