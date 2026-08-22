@@ -4,6 +4,7 @@ import {
 	DropdownMenuItem,
 	DropdownMenuLabel,
 	DropdownMenuSeparator,
+	DropdownMenuShortcut,
 	DropdownMenuSub,
 	DropdownMenuSubContent,
 	DropdownMenuSubTrigger,
@@ -34,6 +35,9 @@ export function WorkbenchActionDropdownMenuContent({
 							>
 								<ProductIcon name={entry.icon} size='menu-leading' />
 								{entry.label}
+								{entry.shortcut === undefined ? null : (
+									<DropdownMenuShortcut>{entry.shortcut}</DropdownMenuShortcut>
+								)}
 							</DropdownMenuItem>
 						);
 					case 'separator':
@@ -48,7 +52,9 @@ export function WorkbenchActionDropdownMenuContent({
 								<DropdownMenuSubContent>
 									{entry.groups.map((group) => (
 										<DropdownMenuGroup key={group.id}>
-											<DropdownMenuLabel>{group.label}</DropdownMenuLabel>
+											{group.label === undefined ? null : (
+												<DropdownMenuLabel>{group.label}</DropdownMenuLabel>
+											)}
 											{group.commands.map((command) => (
 												<DropdownMenuItem
 													key={command.id}
@@ -58,6 +64,9 @@ export function WorkbenchActionDropdownMenuContent({
 												>
 													<ProductIcon name={command.icon} size='menu-leading' />
 													{command.label}
+													{command.shortcut === undefined ? null : (
+														<DropdownMenuShortcut>{command.shortcut}</DropdownMenuShortcut>
+													)}
 												</DropdownMenuItem>
 											))}
 										</DropdownMenuGroup>

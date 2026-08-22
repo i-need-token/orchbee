@@ -63,10 +63,16 @@ export class KeyboardShortcutSettingsController implements ProjectedTerminalShor
 		this.#platform = platform;
 		this.#storage = storage;
 		const restored = readKeyboardShortcutOverrides(storage, platform);
+		let persistenceIssue: KeyboardShortcutPersistenceIssue | null = restored.issue;
+		if (restored.migration === 'v1') {
+			persistenceIssue = writeKeyboardShortcutOverrides(storage, restored.overrides)
+				? null
+				: 'write-failed';
+		}
 		this.#snapshot = createSnapshot(
 			createKeyboardShortcutBindings(platform, restored.overrides),
 			restored.overrides,
-			restored.issue,
+			persistenceIssue,
 		);
 	}
 

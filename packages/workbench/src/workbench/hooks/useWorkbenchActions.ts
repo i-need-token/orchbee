@@ -18,6 +18,7 @@ import * as React from 'react';
 
 import type { ProjectWorkspaceState } from '../../project-workspace';
 import { registerWorkbenchProjectWorkspaceActions } from '../actions/registerWorkbenchProjectWorkspaceActions';
+import { registerWorkbenchActiveTerminalActions } from '../actions/registerWorkbenchActiveTerminalActions';
 import {
 	WORKBENCH_ACTION_IDS,
 	type WorkbenchActionCatalog,
@@ -122,6 +123,12 @@ export function useWorkbenchActions({
 			},
 		});
 		const registrations = [
+			...registerWorkbenchActiveTerminalActions({
+				projectWorkspaceRuntime,
+				runtime,
+				scope,
+				typedRuntime,
+			}),
 			...registerWorkbenchProjectWorkspaceActions({
 				navigation,
 				primaryWorkspaceName,
@@ -251,6 +258,7 @@ export function useWorkbenchActions({
 		primaryWorkspaceName,
 		projectWorkspaceRuntime,
 		projectWorkspaceState,
+		runtime,
 		setTabStripOrientation,
 		scope,
 		tabStripOrientation,
@@ -297,6 +305,10 @@ export function useWorkbenchActions({
 					return true;
 				}
 				case 'settings':
+				case 'closeActiveTerminal':
+				case 'maximizeActivePanel':
+				case 'splitActivePanelBelow':
+				case 'splitActivePanelRight':
 				case 'toggleSidebar': {
 					const definition = WORKBENCH_SHORTCUTS[binding.action];
 					if (

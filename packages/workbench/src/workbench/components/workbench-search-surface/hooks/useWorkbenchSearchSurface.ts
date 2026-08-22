@@ -4,10 +4,8 @@ import { useOrchbeeIntl, workbenchMessages } from '@orchbee/i18n';
 import type { ProductIconName } from '@orchbee/ui/components';
 import * as React from 'react';
 
-import type { WorkbenchShortcutPlatform } from '../../../types/workbench-shortcut-platform';
 import type { WorkbenchSearchFilter } from '../../../types/workbench-search';
 import type { WorkbenchSearchProvider } from '../../../types/workbench-search-provider';
-import type { WorkbenchShortcutBindings } from '../../../utils/workbench-shortcuts';
 import { formatWorkbenchActionMessage } from '../model/project-workbench-search-catalog';
 import {
 	filterWorkbenchSearchArgumentOptions,
@@ -21,11 +19,10 @@ import { useWorkbenchSearchCatalog } from './useWorkbenchSearchCatalog';
 import { useWorkbenchSearchProviders } from './useWorkbenchSearchProviders';
 
 interface UseWorkbenchSearchSurfaceOptions {
-	readonly platform: WorkbenchShortcutPlatform;
 	readonly providers: readonly WorkbenchSearchProvider[];
 	readonly runtime: ActionRuntime;
 	readonly scope: ActionScope;
-	readonly shortcutBindings: WorkbenchShortcutBindings;
+	readonly shortcutLabelForAction: (actionId: string) => string | undefined;
 	readonly state: Exclude<WorkbenchSearchState, { readonly kind: 'closed' }>;
 	readonly update: React.Dispatch<WorkbenchSearchEvent>;
 }
@@ -103,11 +100,10 @@ interface WorkbenchSearchSurfaceView {
 }
 
 export function useWorkbenchSearchSurface({
-	platform,
 	providers,
 	runtime,
 	scope,
-	shortcutBindings,
+	shortcutLabelForAction,
 	state,
 	update,
 }: UseWorkbenchSearchSurfaceOptions): WorkbenchSearchSurfaceView {
@@ -118,10 +114,9 @@ export function useWorkbenchSearchSurface({
 	const resultsElement = React.useRef<HTMLDivElement | null>(null);
 	const catalog = useWorkbenchSearchCatalog({
 		intl,
-		platform,
 		runtime,
 		scope,
-		shortcutBindings,
+		shortcutLabelForAction,
 	});
 	const providerView = useWorkbenchSearchProviders({
 		locale: intl.locale,

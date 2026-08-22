@@ -37,7 +37,9 @@ export interface PanelWorkspaceMessages {
 	readonly minimize: string;
 	readonly more: string;
 	readonly newChildTerminal: string;
+	readonly newTab: string;
 	readonly returnToPrimary: string;
+	readonly split: string;
 	readonly splitAbove: string;
 	readonly splitBelow: string;
 	readonly splitLeft: string;
@@ -60,8 +62,10 @@ export interface WorkbenchPanelWorkspaceView {
 	) => void;
 	readonly activeTab: TabPanelWorkspace | null;
 	readonly cancelClose: () => void;
+	readonly closeActiveTerminal: (panelId: string, source?: ActionInvocationSource) => void;
 	readonly confirmClose: () => void;
 	readonly createChildTerminal: (panelId: string, source?: ActionInvocationSource) => void;
+	readonly createTerminalTab: (source?: ActionInvocationSource) => void;
 	readonly displayedRoot: PanelLayoutNode | null;
 	readonly focusPanel: (panelId: string, source?: ActionInvocationSource) => void;
 	readonly maximizedPanelId: string | null;
@@ -81,6 +85,7 @@ export interface WorkbenchPanelWorkspaceView {
 		leadingWeight: number,
 	) => void;
 	readonly showPrimaryTerminal: (panelId: string, source?: ActionInvocationSource) => void;
+	readonly shortcutLabelForAction: (actionId: string) => string | undefined;
 	readonly splitPanel: (
 		panelId: string,
 		direction: PanelSplitDirection,

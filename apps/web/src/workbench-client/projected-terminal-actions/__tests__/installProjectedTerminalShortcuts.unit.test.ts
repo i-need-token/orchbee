@@ -45,14 +45,14 @@ describe('projected terminal shortcuts', () => {
 		);
 	});
 
-	it('keeps unshifted Standard Ctrl+C, Ctrl+A, and Ctrl+F available to the PTY', () => {
+	it('keeps unshifted Standard Ctrl+C, Ctrl+A, Ctrl+F, and Ctrl+V available to the PTY', () => {
 		const harness = shortcutHarness('standard');
-		for (const code of ['KeyC', 'KeyA', 'KeyF']) {
+		for (const code of ['KeyC', 'KeyA', 'KeyF', 'KeyV']) {
 			harness.keyDown({ ...baseEvent, code, ctrlKey: true }, harness.terminalNode);
 		}
 		expect(harness.invoke).not.toHaveBeenCalled();
 
-		for (const code of ['KeyC', 'KeyA']) {
+		for (const code of ['KeyC', 'KeyA', 'KeyV']) {
 			harness.keyDown({ ...baseEvent, code, ctrlKey: true, shiftKey: true }, harness.terminalNode);
 		}
 		expect(harness.invoke).toHaveBeenNthCalledWith(
@@ -64,6 +64,12 @@ describe('projected terminal shortcuts', () => {
 		expect(harness.invoke).toHaveBeenNthCalledWith(
 			2,
 			'terminal.selection.select-all',
+			undefined,
+			harness.terminalScope,
+		);
+		expect(harness.invoke).toHaveBeenNthCalledWith(
+			3,
+			'terminal.clipboard.paste',
 			undefined,
 			harness.terminalScope,
 		);

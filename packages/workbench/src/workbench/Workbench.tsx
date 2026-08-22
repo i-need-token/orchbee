@@ -28,7 +28,9 @@ import { WorkbenchSearchSurface } from './components/workbench-search-surface/Wo
 import { WorkbenchTabBar } from './components/workbench-tab-bar/WorkbenchTabBar';
 import { EMPTY_WORKBENCH_SEARCH_PROVIDERS } from './constants/search-providers';
 import { useWorkbench } from './hooks/useWorkbench';
+import { useWorkbenchActionShortcutLabel } from './hooks/useWorkbenchActionShortcutLabel';
 import { useWorkbenchTabStripMessages } from './hooks/useWorkbenchTabStripMessages';
+import type { WorkbenchTerminalActionShortcutLabels } from './types/workbench-terminal-action-shortcut-labels';
 import type {
 	WorkbenchHostActionCallback,
 	WorkbenchNavigationPort,
@@ -55,6 +57,7 @@ export interface WorkbenchProps {
 	readonly searchProviders?: readonly WorkbenchSearchProvider[] | undefined;
 	readonly shortcutBindings?: WorkbenchShortcutBindings | undefined;
 	readonly shortcutPlatform: WorkbenchShortcutPlatform;
+	readonly terminalActionShortcutLabels?: WorkbenchTerminalActionShortcutLabels | undefined;
 	readonly terminalSurface?: WorkbenchTerminalSurface | undefined;
 }
 
@@ -69,11 +72,17 @@ export function Workbench({
 	searchProviders = EMPTY_WORKBENCH_SEARCH_PROVIDERS,
 	shortcutBindings,
 	shortcutPlatform,
+	terminalActionShortcutLabels,
 	terminalSurface,
 }: WorkbenchProps): React.ReactNode {
 	const tabStripMessages = useWorkbenchTabStripMessages();
 	const effectiveShortcutBindings =
 		shortcutBindings ?? defaultWorkbenchShortcutBindings(shortcutPlatform);
+	const shortcutLabelForAction = useWorkbenchActionShortcutLabel({
+		shortcutBindings: effectiveShortcutBindings,
+		shortcutPlatform,
+		terminalActionShortcutLabels,
+	});
 	const view = useWorkbench({
 		actionRuntime,
 		navigation,
@@ -220,6 +229,7 @@ export function Workbench({
 									actionRuntime={actionRuntime}
 									panelWorkspaceStore={view.terminalContext.panelWorkspaceStore}
 									parentActionScope={view.actionScope}
+									shortcutLabelForAction={shortcutLabelForAction}
 									terminalSurface={terminalSurface}
 								/>
 							</div>
@@ -232,8 +242,7 @@ export function Workbench({
 					actionRuntime={actionRuntime}
 					actionScope={view.actionScope}
 					providers={searchProviders}
-					shortcutBindings={effectiveShortcutBindings}
-					shortcutPlatform={shortcutPlatform}
+					shortcutLabelForAction={shortcutLabelForAction}
 					state={view.searchState}
 					update={view.updateSearch}
 				/>

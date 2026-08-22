@@ -48,6 +48,11 @@ export const workbenchMessages = defineMessages({
 		defaultMessage: enUSWorkbenchMessages['workbench.sidebar.items.terminal'],
 		description: 'Label for the standalone terminal entry in the Workbench sidebar.',
 	},
+	terminalCloseActive: {
+		id: 'workbench.terminal.actions.closeActive',
+		defaultMessage: enUSWorkbenchMessages['workbench.terminal.actions.closeActive'],
+		description: 'Action that closes the active child terminal, panel, or terminal Tab.',
+	},
 	panelCancel: {
 		id: 'workbench.panels.actions.cancel',
 		defaultMessage: enUSWorkbenchMessages['workbench.panels.actions.cancel'],
@@ -147,6 +152,11 @@ export const workbenchMessages = defineMessages({
 		id: 'workbench.panels.actions.splitRight',
 		defaultMessage: enUSWorkbenchMessages['workbench.panels.actions.splitRight'],
 		description: 'Action that creates a Workbench panel to the right of the current panel.',
+	},
+	panelToggleMaximization: {
+		id: 'workbench.panels.actions.toggleMaximization',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.actions.toggleMaximization'],
+		description: 'Action that toggles maximization for the active Workbench panel.',
 	},
 	project: {
 		id: 'workbench.sidebar.sections.project',

@@ -13,6 +13,9 @@ export const TERMINAL_ACTION_IDS = {
 	selectAll: 'terminal.selection.select-all',
 } as const;
 
+export type WorkbenchTerminalActionId =
+	(typeof TERMINAL_ACTION_IDS)[keyof typeof TERMINAL_ACTION_IDS];
+
 /** Revision-pinned link facts captured when a terminal context menu opens. */
 export interface WorkbenchTerminalLinkActionInput {
 	readonly context?:

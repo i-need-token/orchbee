@@ -30,7 +30,7 @@ describe('KeyboardShortcutSettingsController', () => {
 		).toBe('custom');
 		expect(listener).toHaveBeenCalledOnce();
 		expect(setItem).toHaveBeenCalledOnce();
-		expect(setItem.mock.calls[0]?.[0]).toBe('orchbee:web:keyboard-shortcuts:v1');
+		expect(setItem.mock.calls[0]?.[0]).toBe('orchbee:web:keyboard-shortcuts:v2');
 	});
 
 	it('rejects a global cross-scope conflict without changing, writing, or publishing', () => {
@@ -82,7 +82,7 @@ describe('KeyboardShortcutSettingsController', () => {
 			modifiers: ['mod'],
 		});
 		expect(controller.getSnapshot().overrides).toEqual([]);
-		expect(records.at(-1)).toBe('{"overrides":[],"version":1}');
+		expect(records.at(-1)).toBe('{"overrides":[],"version":2}');
 		expect(controller.resetShortcut('terminal.search.open')).toEqual({ kind: 'unchanged' });
 	});
 
@@ -109,6 +109,39 @@ describe('KeyboardShortcutSettingsController', () => {
 		});
 		expect(controller.getSnapshot().persistenceIssue).toBeNull();
 		expect(writes).toBe(2);
+	});
+
+	it('writes a canonical v2 migration while retaining the v1 rollback record', () => {
+		const versionOne = JSON.stringify({
+			overrides: [
+				{
+					chord: { code: 'KeyG', modifiers: ['mod', 'shift'] },
+					shortcutId: 'workbench.search.all.open',
+				},
+			],
+			version: 1,
+		});
+		const setItem = vi.fn<(key: string, value: string) => void>();
+		const getItem = vi.fn<(key: string) => string | null>((key) =>
+			key === 'orchbee:web:keyboard-shortcuts:v1' ? versionOne : null,
+		);
+
+		const controller = new KeyboardShortcutSettingsController({
+			platform: 'standard',
+			storage: { getItem, setItem },
+		});
+
+		expect(controller.getSnapshot().persistenceIssue).toBeNull();
+		expect(controller.getSnapshot().overrides).toHaveLength(1);
+		expect(setItem).toHaveBeenCalledWith(
+			'orchbee:web:keyboard-shortcuts:v2',
+			'{"overrides":[{"chord":{"code":"KeyG","modifiers":["mod","shift"]},"shortcutId":"workbench.search.all.open"}],"version":2}',
+		);
+		expect(getItem).toHaveBeenCalledWith('orchbee:web:keyboard-shortcuts:v1');
+		expect(setItem).not.toHaveBeenCalledWith(
+			'orchbee:web:keyboard-shortcuts:v1',
+			expect.anything(),
+		);
 	});
 
 	it('falls back after an invalid stored record and stops writes and notifications after disposal', () => {

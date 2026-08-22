@@ -1,4 +1,10 @@
 export { TabStrip } from './TabStrip';
+export {
+	TAB_STRIP_ACTION_IDS,
+	tabCloseInput,
+	type TabCloseInput,
+	type TabStripActionCatalog,
+} from './actions/tab-strip-action-contracts';
 export type {
 	TabStripCrossWindowDragRuntime,
 	TabStripCrossWindowDragRuntimeFactory,

@@ -4,6 +4,7 @@ import { useMemoizedFn } from '@orchbee/foundation/react';
 import * as React from 'react';
 
 import type { TerminalPresentationId } from '../../../../terminal-presentation';
+import { WORKBENCH_ACTION_IDS } from '../../../actions/workbench-action-ids';
 import {
 	WorkbenchTerminalBellEffectCoordinator,
 	type WorkbenchTerminalBellEffect,
@@ -41,6 +42,7 @@ interface UseWorkbenchPanelWorkspaceOptions {
 	readonly actionRuntime: ActionRuntime;
 	readonly panelWorkspaceStore: PanelWorkspaceStore;
 	readonly parentActionScope: ActionScope;
+	readonly shortcutLabelForAction: (actionId: string) => string | undefined;
 }
 
 interface PanelDragSession {
@@ -75,6 +77,7 @@ export function useWorkbenchPanelWorkspace({
 	actionRuntime,
 	panelWorkspaceStore,
 	parentActionScope,
+	shortcutLabelForAction,
 }: UseWorkbenchPanelWorkspaceOptions): WorkbenchPanelWorkspaceView {
 	const intl = useOrchbeeIntl();
 	const [terminalBellEffectCoordinator] = React.useState(
@@ -119,7 +122,9 @@ export function useWorkbenchPanelWorkspace({
 			minimize: intl.formatMessage(workbenchMessages.panelMinimize),
 			more: intl.formatMessage(workbenchMessages.panelMore),
 			newChildTerminal: intl.formatMessage(workbenchMessages.panelNewChildTerminal),
+			newTab: intl.formatMessage(workbenchTabMessages.newTab),
 			returnToPrimary: intl.formatMessage(workbenchMessages.panelReturnToPrimary),
+			split: intl.formatMessage(workbenchMessages.panelSplit),
 			splitAbove: intl.formatMessage(workbenchMessages.panelSplitAbove),
 			splitBelow: intl.formatMessage(workbenchMessages.panelSplitBelow),
 			splitLeft: intl.formatMessage(workbenchMessages.panelSplitLeft),
@@ -485,6 +490,13 @@ export function useWorkbenchPanelWorkspace({
 		},
 		activeTab,
 		cancelClose: () => pendingConfirmationRef.current?.(false),
+		closeActiveTerminal: (panelId, source: ActionInvocationSource = 'programmatic') => {
+			actionRuntime.execute(WORKBENCH_ACTION_IDS.closeActiveTerminal, undefined, {
+				scope: panelActions.scope,
+				source,
+				target: { id: panelId, type: 'panel' },
+			});
+		},
 		confirmClose: () => {
 			pendingConfirmationRef.current?.(true);
 		},
@@ -493,6 +505,13 @@ export function useWorkbenchPanelWorkspace({
 				PANEL_ACTION_IDS.createChildTerminal,
 				{ panelId } satisfies PanelTargetInput,
 				source,
+			);
+		},
+		createTerminalTab: (source: ActionInvocationSource = 'programmatic') => {
+			actionRuntime.execute(
+				WORKBENCH_ACTION_IDS.createTerminal,
+				{ groupId: null },
+				{ scope: panelActions.scope, source },
 			);
 		},
 		displayedRoot,
@@ -536,6 +555,7 @@ export function useWorkbenchPanelWorkspace({
 				source,
 			);
 		},
+		shortcutLabelForAction,
 		splitPanel: (panelId, direction, source: ActionInvocationSource = 'programmatic') => {
 			const execution = executePanelAction(
 				PANEL_ACTION_IDS.split,

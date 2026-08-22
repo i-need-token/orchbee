@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { ActionRuntime } from '@orchbee/actions';
+import { ActionRuntime, defineAction, noActionInput } from '@orchbee/actions';
 import { OrchbeeI18nProvider } from '@orchbee/i18n';
 import { TooltipProvider } from '@orchbee/ui/components';
 import {
@@ -9,7 +9,7 @@ import {
 	WorkbenchProjectWorkspaceRuntime,
 	type WorkbenchTerminalSurfaceProps,
 } from '@orchbee/workbench';
-import { act, createElement, type ReactNode } from 'react';
+import { act, createElement, useEffect, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
@@ -124,6 +124,91 @@ describe('useWebApplication', () => {
 		terminalSettingsController.dispose();
 		actionRuntime.dispose();
 	});
+
+	it('projects live Workbench and terminal bindings into the terminal context menu', async () => {
+		const container = document.createElement('div');
+		document.body.append(container);
+		const actionRuntime = new ActionRuntime();
+		let sequence = 0;
+		const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
+			standaloneCwd: '/workspace',
+			standaloneTerminalTitle: 'Terminal 1',
+			terminalPresentation: createWorkbenchPreviewTerminalPresentationComposition(
+				terminalPresentationId('shortcut-projection:initial'),
+				() => terminalPresentationId(`shortcut-projection:${(sequence += 1)}`),
+			),
+		});
+		const terminalSettingsController = new TerminalSettingsController({
+			storage: { getItem: () => null, setItem: () => undefined },
+			themeTarget: document.documentElement,
+		});
+		const keyboardShortcutSettingsController = new KeyboardShortcutSettingsController({
+			platform: 'apple',
+			storage: { getItem: () => null, setItem: () => undefined },
+		});
+		const root = createRoot(container);
+		await act(async () => {
+			root.render(
+				createElement(
+					OrchbeeI18nProvider,
+					{ locale: 'en-US' },
+					createElement(
+						TooltipProvider,
+						undefined,
+						createElement(WebApplication, {
+							actionRuntime,
+							keyboardShortcutSettingsController,
+							projectWorkspaceRuntime,
+							shortcutPlatform: 'apple',
+							terminalSettingsController,
+							terminalSurface: ShortcutProjectionTerminalSurface,
+						}),
+					),
+				),
+			);
+		});
+		const terminalBefore = requiredElement<HTMLElement>(
+			container.querySelector("[data-test-terminal-surface='true']"),
+		);
+
+		await act(async () => {
+			keyboardShortcutSettingsController.setShortcut('workbench.terminal.create', {
+				code: 'KeyT',
+				modifiers: ['mod', 'shift'],
+			});
+			keyboardShortcutSettingsController.setShortcut('terminal.clipboard.paste', {
+				code: 'KeyV',
+				modifiers: ['mod', 'shift'],
+			});
+		});
+		expect(container.querySelector("[data-test-terminal-surface='true']")).toBe(terminalBefore);
+
+		const viewport = requiredElement<HTMLElement>(
+			container.querySelector("[data-slot='workbench-terminal-viewport']"),
+		);
+		await act(async () => {
+			viewport.dispatchEvent(
+				new MouseEvent('contextmenu', {
+					bubbles: true,
+					button: 2,
+					clientX: 40,
+					clientY: 40,
+				}),
+			);
+		});
+		await vi.waitFor(() => expect(document.querySelector('[role="menu"]')).not.toBeNull());
+
+		expect(menuShortcut('New tab')).toBe('⇧⌘T');
+		expect(menuShortcut('Paste')).toBe('⇧⌘V');
+		expect(menuShortcut('Close')).toBe('⌘W');
+		expect(menuShortcut('New child terminal')).toBeNull();
+
+		await act(async () => root.unmount());
+		container.remove();
+		keyboardShortcutSettingsController.dispose();
+		terminalSettingsController.dispose();
+		actionRuntime.dispose();
+	});
 });
 
 function TestTerminalSurface({ presentation }: WorkbenchTerminalSurfaceProps): ReactNode {
@@ -134,6 +219,62 @@ function TestTerminalSurface({ presentation }: WorkbenchTerminalSurfaceProps): R
 			'data-test-terminal-surface': 'true',
 		},
 		'Terminal surface',
+	);
+}
+
+function ShortcutProjectionTerminalSurface({
+	actionRuntime,
+	actionScope,
+	bindActionContextProvider,
+	presentation,
+}: WorkbenchTerminalSurfaceProps): ReactNode {
+	useEffect(() => {
+		const actionRegistration = actionRuntime.register(
+			actionScope,
+			defineAction({
+				category: {
+					id: 'terminal',
+					title: { defaultMessage: 'Terminal', id: 'test.terminal.category' },
+				},
+				execution: {
+					concurrency: 'parallel',
+					concurrencyKey: () => 'test-paste',
+					mode: 'foreground',
+				},
+				getAvailability: () => ({ kind: 'enabled' }),
+				handler: { execute: () => ({ kind: 'completed' }) },
+				id: 'terminal.clipboard.paste',
+				input: noActionInput,
+				title: { defaultMessage: 'Paste', id: 'test.terminal.paste' },
+			}),
+		);
+		const contextRegistration = bindActionContextProvider({
+			capture: () => ({ focus: { terminal: true }, kind: 'product' }),
+			executePrepared: (invocation) => actionRuntime.executePrepared(invocation),
+		});
+		return () => {
+			contextRegistration.dispose();
+			actionRegistration.dispose();
+		};
+	}, [actionRuntime, actionScope, bindActionContextProvider]);
+
+	return createElement(
+		'div',
+		{
+			'data-presentation-id': presentation.presentationId,
+			'data-test-terminal-surface': 'true',
+		},
+		'Terminal surface',
+	);
+}
+
+function menuShortcut(label: string): string | null {
+	const item = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((candidate) =>
+		candidate.textContent?.startsWith(label),
+	);
+	if (item === undefined) throw new Error(`Expected menu item: ${label}`);
+	return (
+		item.querySelector<HTMLElement>('[data-slot="context-menu-shortcut"]')?.textContent ?? null
 	);
 }
 

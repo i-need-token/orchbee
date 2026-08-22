@@ -11,9 +11,13 @@ import type { WorkbenchShortcutPlatform } from '../types/workbench-shortcut-plat
 interface WorkbenchShortcutDefinition {
 	readonly defaults: Readonly<Record<WorkbenchShortcutPlatform, KeyboardShortcutChord>>;
 	readonly id:
+		| typeof WORKBENCH_ACTION_IDS.closeActiveTerminal
 		| typeof WORKBENCH_ACTION_IDS.createTerminal
 		| typeof WORKBENCH_ACTION_IDS.openSearch
 		| typeof WORKBENCH_ACTION_IDS.openSettings
+		| typeof WORKBENCH_ACTION_IDS.splitActivePanelBelow
+		| typeof WORKBENCH_ACTION_IDS.splitActivePanelRight
+		| typeof WORKBENCH_ACTION_IDS.toggleActivePanelMaximization
 		| typeof WORKBENCH_ACTION_IDS.toggleSidebar;
 	readonly input: { readonly filter: 'actions' | 'all' } | { readonly groupId: null } | undefined;
 	readonly shortcutId: string;
@@ -34,10 +38,28 @@ export const WORKBENCH_SHORTCUTS = {
 		input: { filter: 'actions' },
 		shortcutId: 'workbench.search.actions.open',
 	},
+	closeActiveTerminal: {
+		defaults: {
+			apple: chord('KeyW', ['mod']),
+			standard: chord('KeyW', ['mod', 'shift']),
+		},
+		id: WORKBENCH_ACTION_IDS.closeActiveTerminal,
+		input: undefined,
+		shortcutId: WORKBENCH_ACTION_IDS.closeActiveTerminal,
+	},
+	maximizeActivePanel: {
+		defaults: {
+			apple: chord('Enter', ['mod', 'shift']),
+			standard: chord('Enter', ['mod', 'shift']),
+		},
+		id: WORKBENCH_ACTION_IDS.toggleActivePanelMaximization,
+		input: undefined,
+		shortcutId: WORKBENCH_ACTION_IDS.toggleActivePanelMaximization,
+	},
 	newTerminal: {
 		defaults: {
-			apple: chord('KeyN', ['mod']),
-			standard: chord('KeyN', ['mod', 'shift']),
+			apple: chord('KeyT', ['mod']),
+			standard: chord('KeyT', ['mod', 'shift']),
 		},
 		id: WORKBENCH_ACTION_IDS.createTerminal,
 		input: { groupId: null },
@@ -60,6 +82,24 @@ export const WORKBENCH_SHORTCUTS = {
 		id: WORKBENCH_ACTION_IDS.openSettings,
 		input: undefined,
 		shortcutId: 'workbench.settings.open',
+	},
+	splitActivePanelBelow: {
+		defaults: {
+			apple: chord('KeyD', ['mod', 'shift']),
+			standard: chord('KeyE', ['mod', 'shift']),
+		},
+		id: WORKBENCH_ACTION_IDS.splitActivePanelBelow,
+		input: undefined,
+		shortcutId: WORKBENCH_ACTION_IDS.splitActivePanelBelow,
+	},
+	splitActivePanelRight: {
+		defaults: {
+			apple: chord('KeyD', ['mod']),
+			standard: chord('KeyD', ['mod', 'shift']),
+		},
+		id: WORKBENCH_ACTION_IDS.splitActivePanelRight,
+		input: undefined,
+		shortcutId: WORKBENCH_ACTION_IDS.splitActivePanelRight,
 	},
 	toggleSidebar: {
 		defaults: {
@@ -87,9 +127,13 @@ export interface WorkbenchShortcutBinding {
 
 const WORKBENCH_SHORTCUT_ACTIONS = Object.freeze([
 	'actionsSearch',
+	'closeActiveTerminal',
+	'maximizeActivePanel',
 	'newTerminal',
 	'search',
 	'settings',
+	'splitActivePanelBelow',
+	'splitActivePanelRight',
 	'toggleSidebar',
 ] as const satisfies readonly WorkbenchShortcutAction[]);
 
@@ -123,10 +167,18 @@ export function formatWorkbenchActionShortcut(
 	switch (actionId) {
 		case WORKBENCH_ACTION_IDS.createTerminal:
 			return formatWorkbenchShortcut('newTerminal', platform, bindings);
+		case WORKBENCH_ACTION_IDS.closeActiveTerminal:
+			return formatWorkbenchShortcut('closeActiveTerminal', platform, bindings);
 		case WORKBENCH_ACTION_IDS.openSearch:
 			return formatWorkbenchShortcut('search', platform, bindings);
 		case WORKBENCH_ACTION_IDS.openSettings:
 			return formatWorkbenchShortcut('settings', platform, bindings);
+		case WORKBENCH_ACTION_IDS.splitActivePanelBelow:
+			return formatWorkbenchShortcut('splitActivePanelBelow', platform, bindings);
+		case WORKBENCH_ACTION_IDS.splitActivePanelRight:
+			return formatWorkbenchShortcut('splitActivePanelRight', platform, bindings);
+		case WORKBENCH_ACTION_IDS.toggleActivePanelMaximization:
+			return formatWorkbenchShortcut('maximizeActivePanel', platform, bindings);
 		case WORKBENCH_ACTION_IDS.toggleSidebar:
 			return formatWorkbenchShortcut('toggleSidebar', platform, bindings);
 		default:
@@ -158,10 +210,18 @@ function defaultBindingsFor(platform: WorkbenchShortcutPlatform): WorkbenchShort
 	return Object.freeze({
 		[WORKBENCH_SHORTCUTS.actionsSearch.shortcutId]:
 			WORKBENCH_SHORTCUTS.actionsSearch.defaults[platform],
+		[WORKBENCH_SHORTCUTS.closeActiveTerminal.shortcutId]:
+			WORKBENCH_SHORTCUTS.closeActiveTerminal.defaults[platform],
+		[WORKBENCH_SHORTCUTS.maximizeActivePanel.shortcutId]:
+			WORKBENCH_SHORTCUTS.maximizeActivePanel.defaults[platform],
 		[WORKBENCH_SHORTCUTS.newTerminal.shortcutId]:
 			WORKBENCH_SHORTCUTS.newTerminal.defaults[platform],
 		[WORKBENCH_SHORTCUTS.search.shortcutId]: WORKBENCH_SHORTCUTS.search.defaults[platform],
 		[WORKBENCH_SHORTCUTS.settings.shortcutId]: WORKBENCH_SHORTCUTS.settings.defaults[platform],
+		[WORKBENCH_SHORTCUTS.splitActivePanelBelow.shortcutId]:
+			WORKBENCH_SHORTCUTS.splitActivePanelBelow.defaults[platform],
+		[WORKBENCH_SHORTCUTS.splitActivePanelRight.shortcutId]:
+			WORKBENCH_SHORTCUTS.splitActivePanelRight.defaults[platform],
 		[WORKBENCH_SHORTCUTS.toggleSidebar.shortcutId]:
 			WORKBENCH_SHORTCUTS.toggleSidebar.defaults[platform],
 	});

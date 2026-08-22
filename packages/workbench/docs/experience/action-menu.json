@@ -29,7 +29,8 @@
 			"file": "packages/workbench/stories/workbench.stories.tsx",
 			"id": "packages-workbench-workbench--panel-workspace",
 			"states": [
-				"Right-click a terminal viewport and inspect its icon-bearing terminal and split commands."
+				"Right-click a terminal viewport and inspect the curated terminal commands, structural commands, and four-direction Split submenu.",
+				"Confirm that only commands with an effective binding render a trailing shortcut and that custom labels match Action search."
 			]
 		}
 	],
@@ -45,9 +46,11 @@
 	],
 	"invariants": [
 		"Every projection preserves the action model's entry order, grouping, availability, icon, and invocation.",
+		"A command with an effective shortcut projects that exact label through the primitive's trailing shortcut slot; an unbound command projects no shortcut affordance.",
 		"When the same action model has dropdown and context-menu triggers, both projections remain identical.",
 		"Moving the pointer into an open menu keeps the owning row and trigger in their open interaction state.",
 		"Every command entry has a semantic leading icon and destructive entries use the shared danger treatment.",
+		"The terminal viewport menu contains only frequent contextual terminal Actions; lower-frequency terminal Actions remain discoverable in Action search.",
 		"A contextual command can derive a confirmation anchor from its pointer position or keyboard-selected menu item."
 	],
 	"references": ["packages/workbench/README.md"]

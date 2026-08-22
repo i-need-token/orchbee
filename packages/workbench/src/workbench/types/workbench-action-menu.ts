@@ -9,12 +9,13 @@ export interface WorkbenchActionMenuCommand {
 	readonly kind: 'command';
 	readonly label: string;
 	readonly onSelect: (event: React.MouseEvent<HTMLElement>) => void;
+	readonly shortcut?: string | undefined;
 }
 
 interface WorkbenchActionMenuGroup {
 	readonly commands: readonly WorkbenchActionMenuCommand[];
 	readonly id: string;
-	readonly label: string;
+	readonly label?: string | undefined;
 }
 
 interface WorkbenchActionMenuSeparator {

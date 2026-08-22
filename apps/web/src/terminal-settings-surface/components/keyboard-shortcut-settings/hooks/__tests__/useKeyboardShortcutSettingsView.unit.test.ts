@@ -28,7 +28,7 @@ describe('useKeyboardShortcutSettingsView', () => {
 				}),
 			{ wrapper: I18nWrapper },
 		);
-		expect(allRows.result.current.rows).toHaveLength(8);
+		expect(allRows.result.current.rows).toHaveLength(13);
 		expect(allRows.result.current.rows[0]).toMatchObject({
 			actionName: 'Search actions',
 			chord: 'Ctrl+Shift+P',
@@ -37,7 +37,14 @@ describe('useKeyboardShortcutSettingsView', () => {
 		});
 		expect(
 			allRows.result.current.rows.filter((row) => row.scope === 'Focused terminal'),
-		).toHaveLength(2);
+		).toHaveLength(3);
+		expect(
+			allRows.result.current.rows.find((row) => row.actionName === 'Close active terminal'),
+		).toMatchObject({
+			availability: 'When a terminal tab is active',
+			chord: 'Ctrl+Shift+W',
+			scope: 'Active terminal',
+		});
 		controller.dispose();
 	});
 });

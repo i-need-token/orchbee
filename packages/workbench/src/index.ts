@@ -94,6 +94,8 @@ export type {
 	WorkbenchTerminalCreateCallback,
 	WorkbenchTerminalCreateInput,
 	WorkbenchTerminalActionCatalog,
+	WorkbenchTerminalActionId,
+	WorkbenchTerminalActionShortcutLabels,
 	WorkbenchTerminalActionContextCapture,
 	WorkbenchTerminalActionContextCaptureRequest,
 	WorkbenchTerminalActionContextProvider,

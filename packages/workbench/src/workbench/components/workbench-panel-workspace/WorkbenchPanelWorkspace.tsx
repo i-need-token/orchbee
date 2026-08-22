@@ -13,6 +13,7 @@ interface WorkbenchPanelWorkspaceProps {
 	readonly actionRuntime: ActionRuntime;
 	readonly panelWorkspaceStore: PanelWorkspaceStore;
 	readonly parentActionScope: ActionScope;
+	readonly shortcutLabelForAction: (actionId: string) => string | undefined;
 	readonly terminalSurface?: WorkbenchTerminalSurface | undefined;
 }
 
@@ -20,12 +21,14 @@ export function WorkbenchPanelWorkspace({
 	actionRuntime,
 	panelWorkspaceStore,
 	parentActionScope,
+	shortcutLabelForAction,
 	terminalSurface,
 }: WorkbenchPanelWorkspaceProps): React.ReactNode {
 	const view = useWorkbenchPanelWorkspace({
 		actionRuntime,
 		panelWorkspaceStore,
 		parentActionScope,
+		shortcutLabelForAction,
 	});
 
 	return (

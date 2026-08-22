@@ -251,24 +251,34 @@ export const TERMINAL_SETTINGS_SEARCH_ITEMS: readonly TerminalSettingsSearchItem
 
 export const KEYBOARD_SHORTCUT_SEARCH_LABELS = {
 	'actions-search': keyboardShortcutMessages.actionsSearch,
+	'close-terminal': keyboardShortcutMessages.closeTerminal,
 	'copy-selection': keyboardShortcutMessages.copySelection,
 	find: keyboardShortcutMessages.find,
 	'global-search': keyboardShortcutMessages.globalSearch,
+	'maximize-panel': keyboardShortcutMessages.maximizePanel,
 	'new-terminal': keyboardShortcutMessages.newTerminal,
+	paste: keyboardShortcutMessages.paste,
 	'select-all': keyboardShortcutMessages.selectAll,
 	settings: keyboardShortcutMessages.settings,
+	'split-below': keyboardShortcutMessages.splitBelow,
+	'split-right': keyboardShortcutMessages.splitRight,
 	'toggle-sidebar': keyboardShortcutMessages.toggleSidebar,
 } as const;
 
 export const KEYBOARD_SHORTCUT_SEARCH_SCOPES = {
+	'active-panel': keyboardShortcutMessages.scopeActivePanel,
+	'active-terminal': keyboardShortcutMessages.scopeActiveTerminal,
 	'focused-terminal': keyboardShortcutMessages.scopeFocusedTerminal,
 	'focused-terminal-or-find': keyboardShortcutMessages.scopeFocusedTerminalOrFind,
 	workbench: keyboardShortcutMessages.scopeWorkbench,
 } as const;
 
 export const KEYBOARD_SHORTCUT_SEARCH_AVAILABILITY = {
+	'active-panel': keyboardShortcutMessages.availabilityActivePanel,
+	'active-terminal': keyboardShortcutMessages.availabilityActiveTerminal,
 	'always-in-workbench': keyboardShortcutMessages.availabilityWorkbench,
 	'focused-terminal': keyboardShortcutMessages.availabilityFocusedTerminal,
 	'focused-terminal-with-selection':
 		keyboardShortcutMessages.availabilityFocusedTerminalWithSelection,
+	'multiple-panels': keyboardShortcutMessages.availabilityMultiplePanels,
 } as const;

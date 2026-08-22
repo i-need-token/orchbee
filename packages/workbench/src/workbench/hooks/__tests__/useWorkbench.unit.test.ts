@@ -69,7 +69,7 @@ describe('useWorkbench', () => {
 			false,
 		);
 
-		expect(markup).toContain('320px horizontal Hide Sidebar ⌘B ⌘N ⌘K ⌘,');
+		expect(markup).toContain('320px horizontal Hide Sidebar ⌘B ⌘T ⌘K ⌘,');
 		expect(setItem).not.toHaveBeenCalled();
 	});
 

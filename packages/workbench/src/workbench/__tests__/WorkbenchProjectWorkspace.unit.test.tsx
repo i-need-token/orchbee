@@ -93,11 +93,11 @@ describe('Workbench Project and Workspace management', () => {
 		const menu = await screen.findByRole('menu');
 		expectActionableMenuItemsToHaveIcons(menu);
 		expect(getActionableMenuPresentation(menu)).toEqual([
+			{ icon: 'tabs', label: 'New tab⌘T' },
 			{ icon: 'terminal', label: 'New child terminal' },
-			{ icon: 'panels', label: 'Split right' },
-			{ icon: 'panels', label: 'Split left' },
-			{ icon: 'panels', label: 'Split below' },
-			{ icon: 'panels', label: 'Split above' },
+			{ icon: 'screen-full', label: 'Maximize Panel⇧⌘Enter' },
+			{ icon: 'panels', label: 'Split panel' },
+			{ icon: 'close', label: 'Close⌘W' },
 		]);
 		fireEvent.keyDown(document, { key: 'Escape' });
 		await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());

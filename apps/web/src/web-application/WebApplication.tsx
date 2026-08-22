@@ -6,6 +6,7 @@ import {
 	type WorkbenchProjectWorkspaceRuntime,
 	type WorkbenchProjectFolderAcquisition,
 	type WorkbenchShortcutPlatform,
+	type WorkbenchTerminalActionShortcutLabels,
 	type WorkbenchTerminalSurface,
 } from '@orchbee/workbench';
 import type { ReactNode } from 'react';
@@ -14,6 +15,10 @@ import {
 	type KeyboardShortcutSettingsController,
 	useKeyboardShortcutSettings,
 } from '../keyboard-shortcuts';
+import {
+	PROJECTED_TERMINAL_SHORTCUTS,
+	formatProjectedTerminalActionShortcut,
+} from '../projected-terminal-keyboard-shortcuts';
 import type { TerminalSettingsController } from '../terminal-settings';
 import type { TerminalFeedbackSettingsController } from '../terminal-feedback-settings';
 import type { MacosTerminalInputSettingsController } from '../macos-terminal-input-settings';
@@ -55,6 +60,28 @@ export function WebApplication({
 }: WebApplicationProps): ReactNode {
 	const view = useWebApplication({ terminalSettingsController });
 	const keyboardShortcuts = useKeyboardShortcutSettings(keyboardShortcutSettingsController);
+	const terminalActionShortcutLabels: WorkbenchTerminalActionShortcutLabels = {
+		[PROJECTED_TERMINAL_SHORTCUTS.copySelection.actionId]: formatProjectedTerminalActionShortcut(
+			PROJECTED_TERMINAL_SHORTCUTS.copySelection.actionId,
+			shortcutPlatform,
+			keyboardShortcuts.bindings,
+		),
+		[PROJECTED_TERMINAL_SHORTCUTS.findOpen.actionId]: formatProjectedTerminalActionShortcut(
+			PROJECTED_TERMINAL_SHORTCUTS.findOpen.actionId,
+			shortcutPlatform,
+			keyboardShortcuts.bindings,
+		),
+		[PROJECTED_TERMINAL_SHORTCUTS.paste.actionId]: formatProjectedTerminalActionShortcut(
+			PROJECTED_TERMINAL_SHORTCUTS.paste.actionId,
+			shortcutPlatform,
+			keyboardShortcuts.bindings,
+		),
+		[PROJECTED_TERMINAL_SHORTCUTS.selectAll.actionId]: formatProjectedTerminalActionShortcut(
+			PROJECTED_TERMINAL_SHORTCUTS.selectAll.actionId,
+			shortcutPlatform,
+			keyboardShortcuts.bindings,
+		),
+	};
 	return (
 		<div className={styles['root']} ref={view.applicationReference}>
 			<div
@@ -71,6 +98,7 @@ export function WebApplication({
 					projectFolderAcquisition={projectFolderAcquisition}
 					shortcutBindings={keyboardShortcuts.bindings}
 					shortcutPlatform={shortcutPlatform}
+					terminalActionShortcutLabels={terminalActionShortcutLabels}
 					terminalSurface={terminalSurface}
 				/>
 			</div>

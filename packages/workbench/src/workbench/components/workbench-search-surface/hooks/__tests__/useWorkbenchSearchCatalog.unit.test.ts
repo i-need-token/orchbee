@@ -7,7 +7,6 @@ import { createElement, type ReactNode } from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { useWorkbenchSearchCatalog } from '../useWorkbenchSearchCatalog';
-import { defaultWorkbenchShortcutBindings } from '../../../../utils/workbench-shortcuts';
 
 function I18nWrapper({ children }: { readonly children: ReactNode }) {
 	return createElement(OrchbeeI18nProvider, { locale: 'en-US' }, children);
@@ -24,10 +23,9 @@ describe('useWorkbenchSearchCatalog', () => {
 				const intl = useOrchbeeIntl();
 				return useWorkbenchSearchCatalog({
 					intl,
-					platform: 'apple',
 					runtime,
 					scope,
-					shortcutBindings: defaultWorkbenchShortcutBindings('apple'),
+					shortcutLabelForAction: () => undefined,
 				});
 			},
 			{ wrapper: I18nWrapper },

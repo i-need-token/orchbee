@@ -1,0 +1,224 @@
+import {
+	ActionRuntime,
+	createTypedActionRuntime,
+	defineAction,
+	type ActionExecutionContext,
+	type ActionResult,
+} from '@orchbee/actions';
+import { TAB_STRIP_ACTION_IDS, tabCloseInput, type TabCloseInput } from '@orchbee/tab-strip';
+import { describe, expect, it, vi } from 'vitest';
+
+import { terminalPresentationId } from '../../../terminal-presentation';
+import {
+	PANEL_ACTION_IDS,
+	panelCloseInput,
+	type PanelCloseInput,
+} from '../../components/workbench-panel-workspace/actions/panel-action-contracts';
+import { createWorkbenchPreviewTerminalPresentationComposition } from '../../model/createWorkbenchPreviewTerminalPresentationComposition';
+import { WorkbenchProjectWorkspaceRuntime } from '../../model/WorkbenchProjectWorkspaceRuntime';
+import { registerWorkbenchActiveTerminalActions } from '../registerWorkbenchActiveTerminalActions';
+import { WORKBENCH_ACTION_IDS, type WorkbenchActionCatalog } from '../workbench-action-ids';
+
+describe('registerWorkbenchActiveTerminalActions', () => {
+	it('executes the prepared Tab close Action for a singleton primary terminal', async () => {
+		const harness = createHarness();
+		const lowerExecute = vi.fn<(input: TabCloseInput) => void>();
+		registerTabClose(harness, (context, input) => {
+			lowerExecute(input);
+			context.markCommitted();
+			return { kind: 'completed' };
+		});
+
+		await expect(harness.execute(WORKBENCH_ACTION_IDS.closeActiveTerminal)).resolves.toEqual({
+			kind: 'completed',
+		});
+		const activeTabId = harness.projectWorkspaceRuntime
+			.getActiveTerminalContext()
+			.panelWorkspaceStore.getActiveTabId();
+		if (activeTabId === null) throw new Error('Expected an active Tab.');
+		expect(lowerExecute).toHaveBeenCalledExactlyOnceWith({
+			closeSource: 'non-ui',
+			tabIds: [activeTabId],
+		});
+	});
+
+	it('executes the prepared panel close Action when the active Tab is split', async () => {
+		const harness = createHarness();
+		const store = harness.projectWorkspaceRuntime.getActiveTerminalContext().panelWorkspaceStore;
+		const tabId = store.getActiveTabId();
+		if (tabId === null) throw new Error('Expected an active Tab.');
+		store.transition({
+			direction: 'right',
+			newTerminalTitle: 'Terminal 2',
+			panelId: 'panel-1',
+			presentation: store.createTerminalPresentation(),
+			tabId,
+			type: 'panel-split',
+		});
+		const lowerExecute = vi.fn<(input: PanelCloseInput) => void>();
+		const panelScope = harness.runtime.createScope('panel-workspace', harness.scope);
+		harness.runtime.register(
+			panelScope,
+			defineAction({
+				category: { id: 'panels', title: { defaultMessage: 'Panels' } },
+				execution: {
+					concurrency: 'parallel',
+					concurrencyKey: (input) => input.panelId,
+					mode: 'foreground',
+				},
+				getAvailability: () => ({ kind: 'enabled' }),
+				handler: {
+					execute: (context, input) => {
+						lowerExecute(input);
+						context.markCommitted();
+						return { kind: 'completed' };
+					},
+				},
+				id: PANEL_ACTION_IDS.close,
+				input: panelCloseInput,
+				title: { defaultMessage: 'Close panel' },
+			}),
+		);
+
+		await expect(harness.execute(WORKBENCH_ACTION_IDS.closeActiveTerminal)).resolves.toEqual({
+			kind: 'completed',
+		});
+		expect(lowerExecute).toHaveBeenCalledExactlyOnceWith({
+			childPresentationId: null,
+			panelId: 'panel-2',
+			tabId,
+		});
+	});
+
+	it('preserves lower Action confirmation cancellation without calling its handler', async () => {
+		const harness = createHarness(() => false);
+		const lowerExecute = vi.fn<() => void>();
+		registerTabClose(
+			harness,
+			() => {
+				lowerExecute();
+				return { kind: 'completed' };
+			},
+			true,
+		);
+
+		await expect(harness.execute(WORKBENCH_ACTION_IDS.closeActiveTerminal)).resolves.toEqual({
+			kind: 'cancelled',
+		});
+		expect(lowerExecute).not.toHaveBeenCalled();
+	});
+
+	it('propagates cancellation to a running prepared lower Action', async () => {
+		const harness = createHarness();
+		let lowerWasAborted = false;
+		let notifyStarted: (() => void) | undefined;
+		const started = new Promise<void>((resolve) => {
+			notifyStarted = resolve;
+		});
+		registerTabClose(harness, async (context) => {
+			notifyStarted?.();
+			await new Promise<void>((resolve) => {
+				context.signal.addEventListener(
+					'abort',
+					() => {
+						lowerWasAborted = context.signal.aborted;
+						resolve();
+					},
+					{ once: true },
+				);
+			});
+			return { kind: 'cancelled' };
+		});
+
+		const execution = harness.runtime.execute(WORKBENCH_ACTION_IDS.closeActiveTerminal, undefined, {
+			scope: harness.scope,
+			source: 'keyboard',
+		});
+		await started;
+		execution.cancel();
+
+		await expect(execution.completion).resolves.toEqual({ kind: 'cancelled' });
+		expect(lowerWasAborted).toBe(true);
+	});
+
+	it('keeps maximization unavailable for a singleton active panel', () => {
+		const harness = createHarness();
+		expect(
+			harness.runtime.resolveAction(WORKBENCH_ACTION_IDS.toggleActivePanelMaximization, undefined, {
+				scope: harness.scope,
+				source: 'keyboard',
+			}),
+		).toMatchObject({ availability: { kind: 'disabled' } });
+	});
+});
+
+interface Harness {
+	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
+	readonly runtime: ActionRuntime;
+	readonly scope: ReturnType<ActionRuntime['createScope']>;
+	execute(actionId: string): Promise<unknown>;
+}
+
+function createHarness(confirm?: () => boolean): Harness {
+	const runtime = new ActionRuntime(confirm === undefined ? {} : { confirm });
+	const scope = runtime.createScope('workbench');
+	let sequence = 0;
+	const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
+		standaloneCwd: '/workspace',
+		standaloneTerminalTitle: 'Terminal 1',
+		terminalPresentation: createWorkbenchPreviewTerminalPresentationComposition(
+			terminalPresentationId('terminal-1'),
+			() => terminalPresentationId(`terminal-${(sequence += 2)}`),
+		),
+	});
+	registerWorkbenchActiveTerminalActions({
+		projectWorkspaceRuntime,
+		runtime,
+		scope,
+		typedRuntime: createTypedActionRuntime<WorkbenchActionCatalog>(runtime),
+	});
+	return {
+		execute: async (actionId) =>
+			await runtime.execute(actionId, undefined, { scope, source: 'keyboard' }).completion,
+		projectWorkspaceRuntime,
+		runtime,
+		scope,
+	};
+}
+
+function registerTabClose(
+	harness: Harness,
+	execute: (
+		context: ActionExecutionContext,
+		input: TabCloseInput,
+	) => ActionResult | Promise<ActionResult>,
+	withConfirmation = false,
+): void {
+	const tabScope = harness.runtime.createScope('tab-strip', harness.scope);
+	harness.runtime.register(
+		tabScope,
+		defineAction({
+			category: { id: 'tabs', title: { defaultMessage: 'Tabs' } },
+			...(withConfirmation
+				? {
+						confirmation: () => ({
+							confirmLabel: { defaultMessage: 'Close' },
+							description: { defaultMessage: 'Running' },
+							risk: 'destructive' as const,
+							title: { defaultMessage: 'Close?' },
+						}),
+					}
+				: {}),
+			execution: {
+				concurrency: 'parallel',
+				concurrencyKey: (value) => value.tabIds.join(','),
+				mode: 'foreground',
+			},
+			getAvailability: () => ({ kind: 'enabled' }),
+			handler: { execute },
+			id: TAB_STRIP_ACTION_IDS.closeTabs,
+			input: tabCloseInput,
+			title: { defaultMessage: 'Close Tab' },
+		}),
+	);
+}

@@ -7,6 +7,7 @@ export const enUSWorkbenchMessages = {
 	'workbench.actions.categories.view': 'View',
 	'workbench.actions.states.unavailable':
 		'This action is not available in the current application.',
+	'workbench.terminal.actions.closeActive': 'Close Active Terminal',
 	'workbench.sidebar.label': 'Workbench navigation',
 	'workbench.sidebar.actions.hide': 'Hide Sidebar',
 	'workbench.sidebar.actions.show': 'Show Sidebar',
@@ -140,6 +141,7 @@ export const enUSWorkbenchMessages = {
 	'workbench.panels.actions.splitBelow': 'Split below',
 	'workbench.panels.actions.splitLeft': 'Split left',
 	'workbench.panels.actions.splitRight': 'Split right',
+	'workbench.panels.actions.toggleMaximization': 'Toggle Panel Maximization',
 	'workbench.panels.closeRunning.description':
 		'{count, plural, one {This terminal is still running. Closing it will end the running process.} other {# terminals are still running. Closing this panel will end their running processes.}}',
 	'workbench.panels.closeRunning.title': 'Close running terminal?',

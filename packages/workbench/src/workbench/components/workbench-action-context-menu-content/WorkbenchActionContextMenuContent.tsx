@@ -4,6 +4,7 @@ import {
 	ContextMenuItem,
 	ContextMenuLabel,
 	ContextMenuSeparator,
+	ContextMenuShortcut,
 	ContextMenuSub,
 	ContextMenuSubContent,
 	ContextMenuSubTrigger,
@@ -36,6 +37,9 @@ export function WorkbenchActionContextMenuContent({
 							>
 								<ProductIcon name={entry.icon} size='menu-leading' />
 								{entry.label}
+								{entry.shortcut === undefined ? null : (
+									<ContextMenuShortcut>{entry.shortcut}</ContextMenuShortcut>
+								)}
 							</ContextMenuItem>
 						);
 					case 'separator':
@@ -50,7 +54,9 @@ export function WorkbenchActionContextMenuContent({
 								<ContextMenuSubContent>
 									{entry.groups.map((group) => (
 										<ContextMenuGroup key={group.id}>
-											<ContextMenuLabel>{group.label}</ContextMenuLabel>
+											{group.label === undefined ? null : (
+												<ContextMenuLabel>{group.label}</ContextMenuLabel>
+											)}
 											{group.commands.map((command) => (
 												<ContextMenuItem
 													key={command.id}
@@ -60,6 +66,9 @@ export function WorkbenchActionContextMenuContent({
 												>
 													<ProductIcon name={command.icon} size='menu-leading' />
 													{command.label}
+													{command.shortcut === undefined ? null : (
+														<ContextMenuShortcut>{command.shortcut}</ContextMenuShortcut>
+													)}
 												</ContextMenuItem>
 											))}
 										</ContextMenuGroup>

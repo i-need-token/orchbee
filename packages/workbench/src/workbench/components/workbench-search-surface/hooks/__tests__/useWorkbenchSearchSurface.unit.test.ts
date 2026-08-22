@@ -11,7 +11,6 @@ import type {
 	WorkbenchSearchState,
 } from '../../model/workbench-search-state';
 import type { WorkbenchSearchProvider } from '../../../../types/workbench-search-provider';
-import { defaultWorkbenchShortcutBindings } from '../../../../utils/workbench-shortcuts';
 import { useWorkbenchSearchSurface } from '../useWorkbenchSearchSurface';
 
 const browsingState: Exclude<WorkbenchSearchState, { readonly kind: 'closed' }> = {
@@ -57,11 +56,10 @@ describe('useWorkbenchSearchSurface', () => {
 		const rendered = renderHook(
 			() =>
 				useWorkbenchSearchSurface({
-					platform: 'apple',
 					providers,
 					runtime,
 					scope,
-					shortcutBindings: defaultWorkbenchShortcutBindings('apple'),
+					shortcutLabelForAction: () => undefined,
 					state: browsingState,
 					update,
 				}),

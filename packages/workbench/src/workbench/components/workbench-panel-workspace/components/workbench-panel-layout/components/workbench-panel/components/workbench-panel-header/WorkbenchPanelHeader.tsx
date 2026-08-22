@@ -13,6 +13,7 @@ import * as React from 'react';
 
 import { WorkbenchActionContextMenuContent } from '../../../../../../../workbench-action-context-menu-content/WorkbenchActionContextMenuContent';
 import { WorkbenchActionDropdownMenuContent } from '../../../../../../../workbench-action-dropdown-menu-content/WorkbenchActionDropdownMenuContent';
+import { WORKBENCH_ACTION_IDS } from '../../../../../../../../actions/workbench-action-ids';
 import type { WorkbenchActionMenuEntry } from '../../../../../../../../types/workbench-action-menu';
 import {
 	getDisplayedTerminal,
@@ -31,6 +32,7 @@ export function WorkbenchPanelHeader({ panel, view }: WorkbenchPanelHeaderProps)
 	const displayedTerminal = getDisplayedTerminal(panel);
 	const isChildTerminalActive = panel.activeChildPresentationId !== null;
 	const isMaximized = view.maximizedPanelId === panel.id;
+	const closeShortcut = view.shortcutLabelForAction(WORKBENCH_ACTION_IDS.closeActiveTerminal);
 	const panelMenuEntries: readonly WorkbenchActionMenuEntry[] = [
 		{
 			icon: isMaximized ? 'screen-normal' : 'screen-full',
@@ -38,6 +40,7 @@ export function WorkbenchPanelHeader({ panel, view }: WorkbenchPanelHeaderProps)
 			kind: 'command',
 			label: isMaximized ? view.messages.minimize : view.messages.maximize,
 			onSelect: () => view.togglePanelMaximization(panel.id, 'menu'),
+			shortcut: view.shortcutLabelForAction(WORKBENCH_ACTION_IDS.toggleActivePanelMaximization),
 		},
 	];
 
@@ -117,7 +120,7 @@ export function WorkbenchPanelHeader({ panel, view }: WorkbenchPanelHeaderProps)
 							<Button
 								aria-label={view.messages.close}
 								className={styles['mutedAction']}
-								onClick={() => view.requestClose(panel.id, 'button')}
+								onClick={() => view.closeActiveTerminal(panel.id, 'button')}
 								size='icon-xs'
 								variant='ghost'
 							/>
@@ -125,7 +128,11 @@ export function WorkbenchPanelHeader({ panel, view }: WorkbenchPanelHeaderProps)
 					>
 						<ProductIcon name='close' />
 					</TooltipTrigger>
-					<TooltipContent side='bottom'>{view.messages.close}</TooltipContent>
+					<TooltipContent side='bottom'>
+						{closeShortcut === undefined
+							? view.messages.close
+							: `${view.messages.close} (${closeShortcut})`}
+					</TooltipContent>
 				</Tooltip>
 			</div>
 		</header>

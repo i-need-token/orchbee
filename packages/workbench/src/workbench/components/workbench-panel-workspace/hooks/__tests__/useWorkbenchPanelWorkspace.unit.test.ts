@@ -38,6 +38,7 @@ function HookProjection() {
 		actionRuntime: serverActionRuntime,
 		panelWorkspaceStore: serverPanelWorkspaceStore,
 		parentActionScope: serverParentActionScope,
+		shortcutLabelForAction: () => undefined,
 	});
 	return createElement(
 		'div',
@@ -63,6 +64,7 @@ function InteractiveHarness({
 		actionRuntime,
 		panelWorkspaceStore,
 		parentActionScope,
+		shortcutLabelForAction: () => undefined,
 	});
 	capture(view);
 	return null;

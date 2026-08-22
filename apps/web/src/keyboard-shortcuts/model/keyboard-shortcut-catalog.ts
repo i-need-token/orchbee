@@ -21,11 +21,19 @@ export type KeyboardShortcutId = WorkbenchShortcutId | ProjectedTerminalShortcut
 export type KeyboardShortcutBindings = WorkbenchShortcutBindings &
 	ProjectedTerminalShortcutBindings;
 type KeyboardShortcutFeature = 'terminal' | 'workbench';
-export type KeyboardShortcutScope = 'focused-terminal' | 'focused-terminal-or-find' | 'workbench';
+export type KeyboardShortcutScope =
+	| 'active-panel'
+	| 'active-terminal'
+	| 'focused-terminal'
+	| 'focused-terminal-or-find'
+	| 'workbench';
 export type KeyboardShortcutAvailability =
+	| 'active-panel'
+	| 'active-terminal'
 	| 'always-in-workbench'
 	| 'focused-terminal'
-	| 'focused-terminal-with-selection';
+	| 'focused-terminal-with-selection'
+	| 'multiple-panels';
 
 export interface KeyboardShortcutDeclaration {
 	readonly actionId: string;
@@ -35,12 +43,17 @@ export interface KeyboardShortcutDeclaration {
 	readonly feature: KeyboardShortcutFeature;
 	readonly name:
 		| 'actions-search'
+		| 'close-terminal'
 		| 'copy-selection'
 		| 'find'
 		| 'global-search'
+		| 'maximize-panel'
 		| 'new-terminal'
+		| 'paste'
 		| 'select-all'
 		| 'settings'
+		| 'split-below'
+		| 'split-right'
 		| 'toggle-sidebar';
 	readonly scope: KeyboardShortcutScope;
 	readonly shortcutId: KeyboardShortcutId;
@@ -66,6 +79,46 @@ export const KEYBOARD_SHORTCUT_CATALOG = Object.freeze([
 		name: 'new-terminal',
 		scope: 'workbench',
 		shortcutId: WORKBENCH_SHORTCUTS.newTerminal.shortcutId,
+	}),
+	Object.freeze({
+		actionId: WORKBENCH_SHORTCUTS.closeActiveTerminal.id,
+		actionInput: WORKBENCH_SHORTCUTS.closeActiveTerminal.input,
+		availability: 'active-terminal',
+		defaults: WORKBENCH_SHORTCUTS.closeActiveTerminal.defaults,
+		feature: 'workbench',
+		name: 'close-terminal',
+		scope: 'active-terminal',
+		shortcutId: WORKBENCH_SHORTCUTS.closeActiveTerminal.shortcutId,
+	}),
+	Object.freeze({
+		actionId: WORKBENCH_SHORTCUTS.maximizeActivePanel.id,
+		actionInput: WORKBENCH_SHORTCUTS.maximizeActivePanel.input,
+		availability: 'multiple-panels',
+		defaults: WORKBENCH_SHORTCUTS.maximizeActivePanel.defaults,
+		feature: 'workbench',
+		name: 'maximize-panel',
+		scope: 'active-panel',
+		shortcutId: WORKBENCH_SHORTCUTS.maximizeActivePanel.shortcutId,
+	}),
+	Object.freeze({
+		actionId: WORKBENCH_SHORTCUTS.splitActivePanelRight.id,
+		actionInput: WORKBENCH_SHORTCUTS.splitActivePanelRight.input,
+		availability: 'active-panel',
+		defaults: WORKBENCH_SHORTCUTS.splitActivePanelRight.defaults,
+		feature: 'workbench',
+		name: 'split-right',
+		scope: 'active-panel',
+		shortcutId: WORKBENCH_SHORTCUTS.splitActivePanelRight.shortcutId,
+	}),
+	Object.freeze({
+		actionId: WORKBENCH_SHORTCUTS.splitActivePanelBelow.id,
+		actionInput: WORKBENCH_SHORTCUTS.splitActivePanelBelow.input,
+		availability: 'active-panel',
+		defaults: WORKBENCH_SHORTCUTS.splitActivePanelBelow.defaults,
+		feature: 'workbench',
+		name: 'split-below',
+		scope: 'active-panel',
+		shortcutId: WORKBENCH_SHORTCUTS.splitActivePanelBelow.shortcutId,
 	}),
 	Object.freeze({
 		actionId: WORKBENCH_SHORTCUTS.search.id,
@@ -118,6 +171,16 @@ export const KEYBOARD_SHORTCUT_CATALOG = Object.freeze([
 		shortcutId: PROJECTED_TERMINAL_SHORTCUTS.copySelection.shortcutId,
 	}),
 	Object.freeze({
+		actionId: PROJECTED_TERMINAL_SHORTCUTS.paste.actionId,
+		actionInput: undefined,
+		availability: 'focused-terminal',
+		defaults: PROJECTED_TERMINAL_SHORTCUTS.paste.defaults,
+		feature: 'terminal',
+		name: 'paste',
+		scope: 'focused-terminal',
+		shortcutId: PROJECTED_TERMINAL_SHORTCUTS.paste.shortcutId,
+	}),
+	Object.freeze({
 		actionId: PROJECTED_TERMINAL_SHORTCUTS.selectAll.actionId,
 		actionInput: undefined,
 		availability: 'focused-terminal',
@@ -137,12 +200,17 @@ const DECLARATION_BY_ID: Readonly<Record<KeyboardShortcutId, KeyboardShortcutDec
 	Object.freeze({
 		[WORKBENCH_SHORTCUTS.actionsSearch.shortcutId]: KEYBOARD_SHORTCUT_CATALOG[0],
 		[WORKBENCH_SHORTCUTS.newTerminal.shortcutId]: KEYBOARD_SHORTCUT_CATALOG[1],
-		[WORKBENCH_SHORTCUTS.search.shortcutId]: KEYBOARD_SHORTCUT_CATALOG[2],
-		[WORKBENCH_SHORTCUTS.settings.shortcutId]: KEYBOARD_SHORTCUT_CATALOG[3],
-		[WORKBENCH_SHORTCUTS.toggleSidebar.shortcutId]: KEYBOARD_SHORTCUT_CATALOG[4],
-		[PROJECTED_TERMINAL_SHORTCUTS.findOpen.shortcutId]: KEYBOARD_SHORTCUT_CATALOG[5],
-		[PROJECTED_TERMINAL_SHORTCUTS.copySelection.shortcutId]: KEYBOARD_SHORTCUT_CATALOG[6],
-		[PROJECTED_TERMINAL_SHORTCUTS.selectAll.shortcutId]: KEYBOARD_SHORTCUT_CATALOG[7],
+		[WORKBENCH_SHORTCUTS.closeActiveTerminal.shortcutId]: KEYBOARD_SHORTCUT_CATALOG[2],
+		[WORKBENCH_SHORTCUTS.maximizeActivePanel.shortcutId]: KEYBOARD_SHORTCUT_CATALOG[3],
+		[WORKBENCH_SHORTCUTS.splitActivePanelRight.shortcutId]: KEYBOARD_SHORTCUT_CATALOG[4],
+		[WORKBENCH_SHORTCUTS.splitActivePanelBelow.shortcutId]: KEYBOARD_SHORTCUT_CATALOG[5],
+		[WORKBENCH_SHORTCUTS.search.shortcutId]: KEYBOARD_SHORTCUT_CATALOG[6],
+		[WORKBENCH_SHORTCUTS.settings.shortcutId]: KEYBOARD_SHORTCUT_CATALOG[7],
+		[WORKBENCH_SHORTCUTS.toggleSidebar.shortcutId]: KEYBOARD_SHORTCUT_CATALOG[8],
+		[PROJECTED_TERMINAL_SHORTCUTS.findOpen.shortcutId]: KEYBOARD_SHORTCUT_CATALOG[9],
+		[PROJECTED_TERMINAL_SHORTCUTS.copySelection.shortcutId]: KEYBOARD_SHORTCUT_CATALOG[10],
+		[PROJECTED_TERMINAL_SHORTCUTS.paste.shortcutId]: KEYBOARD_SHORTCUT_CATALOG[11],
+		[PROJECTED_TERMINAL_SHORTCUTS.selectAll.shortcutId]: KEYBOARD_SHORTCUT_CATALOG[12],
 	});
 
 interface KeyboardShortcutConflictPair {

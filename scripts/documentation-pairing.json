@@ -66,8 +66,8 @@
 			"zhCnSha256": "69841bfcf549206058a6558ec1937c7d876b28322f72f1a5605d8234e6bd5dfa"
 		},
 		"apps/web/docs/keyboard-shortcuts.md": {
-			"englishSha256": "f382ffd72413dcf75fde84ac69991b7dcae9e47507ddcf172df9e92a58c04c07",
-			"zhCnSha256": "4111bd7e0bd5deb0166d6888766672cea9c933e744c263161338a8212fd4d48e"
+			"englishSha256": "de054632b887d8d698abe2ebf0861640be1970f69a45afb2dee374f774b2dfe5",
+			"zhCnSha256": "b58ff7ee20180418ee6e86f3a0a12418f94da0570500a29311e853e9cbc0e307"
 		},
 		"apps/web/docs/navigation-routing.md": {
 			"englishSha256": "1f742b9d6cbfb22921c5a7d2e27ce5b9e459d56982590d85d8c34f24255652aa",
@@ -270,8 +270,8 @@
 			"zhCnSha256": "85e3cd82ba4b2b18412545fc5f47ca40668a306006d64fbc19ac6e221dae109c"
 		},
 		"packages/workbench/README.md": {
-			"englishSha256": "a2a9351eb75cfcc60a62073ba1c88f51893e44690c8f15ab6a20c4c5df939c71",
-			"zhCnSha256": "eb954a809de5e54417a9feea9e969cbc0944db402f3dac46a0892d3fd28e857d"
+			"englishSha256": "beb51a746a235a6ec0b259b3cacf61161e232caa14cd32344b54cad09a28b097",
+			"zhCnSha256": "61c2b6ce9b82a25dc4348b4504a2106d07ed8a2907ff2ad6d4793ed2d0210d4e"
 		},
 		"packages/workbench/docs/project-workspace.md": {
 			"englishSha256": "e1eac108dfe30bc8908e0a981479a7ee4d87ea2741ab61485405700ba3c27226",

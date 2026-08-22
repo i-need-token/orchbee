@@ -2,6 +2,7 @@ import { ContextMenu, ContextMenuTrigger } from '@orchbee/ui/components';
 import * as React from 'react';
 
 import { WorkbenchActionContextMenuContent } from '../../../../../../../workbench-action-context-menu-content/WorkbenchActionContextMenuContent';
+import { WORKBENCH_ACTION_IDS } from '../../../../../../../../actions/workbench-action-ids';
 import type { WorkbenchActionMenuEntry } from '../../../../../../../../types/workbench-action-menu';
 import {
 	getTerminalDisplayTitle,
@@ -37,9 +38,18 @@ export function WorkbenchTerminalViewport({
 		parentScope: view.actionScope,
 		presentationId: terminal.presentationId,
 		runtime: view.actionRuntime,
+		shortcutLabelForAction: view.shortcutLabelForAction,
 	});
 	const split = (direction: PanelSplitDirection): void => contextMenu.split(direction);
 	const structuralEntries: readonly WorkbenchActionMenuEntry[] = [
+		{
+			icon: 'tabs',
+			id: 'new-terminal-tab',
+			kind: 'command',
+			label: view.messages.newTab,
+			onSelect: () => view.createTerminalTab('context-menu'),
+			shortcut: view.shortcutLabelForAction(WORKBENCH_ACTION_IDS.createTerminal),
+		},
 		{
 			icon: 'terminal',
 			id: 'new-child-terminal',
@@ -47,34 +57,67 @@ export function WorkbenchTerminalViewport({
 			label: view.messages.newChildTerminal,
 			onSelect: () => view.createChildTerminal(panelId, 'context-menu'),
 		},
+		{
+			disabled: view.panelCount < 2,
+			icon: view.maximizedPanelId === panelId ? 'screen-normal' : 'screen-full',
+			id: 'toggle-panel-maximization',
+			kind: 'command',
+			label: view.maximizedPanelId === panelId ? view.messages.minimize : view.messages.maximize,
+			onSelect: () => view.togglePanelMaximization(panelId, 'context-menu'),
+			shortcut: view.shortcutLabelForAction(WORKBENCH_ACTION_IDS.toggleActivePanelMaximization),
+		},
 		{ id: 'terminal-split-actions', kind: 'separator' },
 		{
+			groups: [
+				{
+					commands: [
+						{
+							icon: 'panels',
+							id: 'split-panel-right',
+							kind: 'command',
+							label: view.messages.splitRight,
+							onSelect: () => split('right'),
+							shortcut: view.shortcutLabelForAction(WORKBENCH_ACTION_IDS.splitActivePanelRight),
+						},
+						{
+							icon: 'panels',
+							id: 'split-panel-left',
+							kind: 'command',
+							label: view.messages.splitLeft,
+							onSelect: () => split('left'),
+						},
+						{
+							icon: 'panels',
+							id: 'split-panel-below',
+							kind: 'command',
+							label: view.messages.splitBelow,
+							onSelect: () => split('below'),
+							shortcut: view.shortcutLabelForAction(WORKBENCH_ACTION_IDS.splitActivePanelBelow),
+						},
+						{
+							icon: 'panels',
+							id: 'split-panel-above',
+							kind: 'command',
+							label: view.messages.splitAbove,
+							onSelect: () => split('above'),
+						},
+					],
+					id: 'split-panel-directions',
+				},
+			],
 			icon: 'panels',
-			id: 'split-panel-right',
-			kind: 'command',
-			label: view.messages.splitRight,
-			onSelect: () => split('right'),
+			id: 'split-panel',
+			kind: 'submenu',
+			label: view.messages.split,
 		},
+		{ id: 'terminal-close-actions', kind: 'separator' },
 		{
-			icon: 'panels',
-			id: 'split-panel-left',
+			icon: 'close',
+			id: 'close-active-terminal',
 			kind: 'command',
-			label: view.messages.splitLeft,
-			onSelect: () => split('left'),
-		},
-		{
-			icon: 'panels',
-			id: 'split-panel-below',
-			kind: 'command',
-			label: view.messages.splitBelow,
-			onSelect: () => split('below'),
-		},
-		{
-			icon: 'panels',
-			id: 'split-panel-above',
-			kind: 'command',
-			label: view.messages.splitAbove,
-			onSelect: () => split('above'),
+			label: view.messages.close,
+			onSelect: () => view.closeActiveTerminal(panelId, 'context-menu'),
+			shortcut: view.shortcutLabelForAction(WORKBENCH_ACTION_IDS.closeActiveTerminal),
 		},
 	];
 	const entries: readonly WorkbenchActionMenuEntry[] =

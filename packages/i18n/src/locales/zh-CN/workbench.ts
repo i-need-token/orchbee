@@ -8,6 +8,7 @@ export const zhCNWorkbenchMessages = {
 	'workbench.actions.categories.tabs': '标签页',
 	'workbench.actions.categories.view': '视图',
 	'workbench.actions.states.unavailable': '此操作在当前应用中不可用。',
+	'workbench.terminal.actions.closeActive': '关闭活动终端',
 	'workbench.sidebar.label': '工作区导航',
 	'workbench.sidebar.actions.hide': '隐藏边栏',
 	'workbench.sidebar.actions.show': '显示边栏',
@@ -132,6 +133,7 @@ export const zhCNWorkbenchMessages = {
 	'workbench.panels.actions.splitBelow': '向下分割',
 	'workbench.panels.actions.splitLeft': '向左分割',
 	'workbench.panels.actions.splitRight': '向右分割',
+	'workbench.panels.actions.toggleMaximization': '切换面板最大化',
 	'workbench.panels.closeRunning.description':
 		'{count, plural, one {这个终端仍在运行。关闭后将终止正在运行的进程。} other {# 个终端仍在运行。关闭此面板后将终止其中正在运行的进程。}}',
 	'workbench.panels.closeRunning.title': '关闭正在运行的终端？',

@@ -19,8 +19,12 @@ export const WORKBENCH_ACTION_IDS = {
 	renameProject: 'workbench.project.rename',
 	reorderProject: 'workbench.project.reorder',
 	reorderWorkspace: 'workbench.workspace.reorder',
+	closeActiveTerminal: 'workbench.terminal.active.close',
+	splitActivePanelBelow: 'workbench.panel.active.split-below',
+	splitActivePanelRight: 'workbench.panel.active.split-right',
 	setTabStripOrientation: 'workbench.tab-strip.orientation.set',
 	setProjectPrimaryDirectory: 'workbench.project.primary-directory.set',
+	toggleActivePanelMaximization: 'workbench.panel.active.maximization.toggle',
 	toggleProjectExpansion: 'workbench.project.expansion.toggle',
 	toggleSidebar: 'workbench.sidebar.toggle',
 	updateWorkspace: 'workbench.workspace.update',
@@ -97,8 +101,12 @@ export interface WorkbenchActionCatalog {
 	readonly [WORKBENCH_ACTION_IDS.renameProject]: ActionSignature<WorkbenchProjectRenameInput>;
 	readonly [WORKBENCH_ACTION_IDS.reorderProject]: ActionSignature<WorkbenchProjectReorderInput>;
 	readonly [WORKBENCH_ACTION_IDS.reorderWorkspace]: ActionSignature<WorkbenchWorkspaceReorderInput>;
+	readonly [WORKBENCH_ACTION_IDS.closeActiveTerminal]: ActionSignature<void>;
+	readonly [WORKBENCH_ACTION_IDS.splitActivePanelBelow]: ActionSignature<void>;
+	readonly [WORKBENCH_ACTION_IDS.splitActivePanelRight]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.setTabStripOrientation]: ActionSignature<WorkbenchTabStripOrientationInput>;
 	readonly [WORKBENCH_ACTION_IDS.setProjectPrimaryDirectory]: ActionSignature<WorkbenchProjectDirectoryInput>;
+	readonly [WORKBENCH_ACTION_IDS.toggleActivePanelMaximization]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.toggleProjectExpansion]: ActionSignature<WorkbenchProjectInput>;
 	readonly [WORKBENCH_ACTION_IDS.toggleSidebar]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.updateWorkspace]: ActionSignature<WorkbenchWorkspaceUpdateInput>;

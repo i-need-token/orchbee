@@ -7,12 +7,12 @@ import {
 	workbenchTabStripOrientationInput,
 } from '../../../../actions/workbench-action-ids';
 import { projectWorkbenchSearchCatalog } from '../project-workbench-search-catalog';
-import { defaultWorkbenchShortcutBindings } from '../../../../utils/workbench-shortcuts';
 
 describe('Workbench search catalog projection', () => {
 	it('projects ready, disabled, settings, and nested-input results from runtime discovery', () => {
 		const runtime = new ActionRuntime();
 		const scope = runtime.createScope('workbench');
+		const terminalScope = runtime.createScope('terminal', scope);
 		const execution = {
 			concurrency: 'parallel' as const,
 			concurrencyKey: () => 'test',
@@ -31,6 +31,18 @@ describe('Workbench search catalog projection', () => {
 			}),
 		);
 		runtime.register(
+			terminalScope,
+			defineAction({
+				category: { id: 'terminal', title: workbenchMessages.actionCategoryTerminal },
+				execution,
+				getAvailability: () => ({ kind: 'enabled' }),
+				handler: { execute: () => ({ kind: 'completed' }) },
+				id: 'terminal.clipboard.paste',
+				input: noActionInput,
+				title: { defaultMessage: 'Paste', id: 'test.terminal.paste' },
+			}),
+		);
+		runtime.register(
 			scope,
 			defineAction({
 				category: { id: 'view', title: workbenchMessages.actionCategoryView },
@@ -46,10 +58,12 @@ describe('Workbench search catalog projection', () => {
 
 		const catalog = projectWorkbenchSearchCatalog({
 			intl: createOrchbeeIntl('en-US'),
-			platform: 'apple',
 			runtime,
 			scope,
-			shortcutBindings: defaultWorkbenchShortcutBindings('apple'),
+			shortcutLabelForAction: (actionId) => {
+				if (actionId === WORKBENCH_ACTION_IDS.openSettings) return '⌘,';
+				return actionId === 'terminal.clipboard.paste' ? '⌘V' : undefined;
+			},
 		});
 
 		expect(catalog.settingsResults).toMatchObject([
@@ -75,5 +89,8 @@ describe('Workbench search catalog projection', () => {
 				},
 			},
 		});
+		expect(
+			catalog.actionResults.find((result) => result.actionId === 'terminal.clipboard.paste'),
+		).toMatchObject({ shortcut: '⌘V' });
 	});
 });

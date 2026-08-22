@@ -3,11 +3,15 @@ import type {
 	KeyboardShortcutEvent,
 	KeyboardShortcutPlatform,
 } from '@orchbee/keyboard-shortcuts';
-import { matchesKeyboardShortcutChord } from '@orchbee/keyboard-shortcuts';
+import {
+	formatKeyboardShortcutChord,
+	matchesKeyboardShortcutChord,
+} from '@orchbee/keyboard-shortcuts';
 
 export const PROJECTED_TERMINAL_SHORTCUT_ACTION_IDS = Object.freeze({
 	copySelection: 'terminal.selection.copy',
 	findOpen: 'terminal.search.open',
+	paste: 'terminal.clipboard.paste',
 	selectAll: 'terminal.selection.select-all',
 } as const);
 
@@ -38,6 +42,15 @@ export const PROJECTED_TERMINAL_SHORTCUTS = {
 		focus: 'terminal-or-find',
 		shortcutId: 'terminal.search.open',
 	},
+	paste: {
+		actionId: PROJECTED_TERMINAL_SHORTCUT_ACTION_IDS.paste,
+		defaults: {
+			apple: chord('KeyV', ['mod']),
+			standard: chord('KeyV', ['mod', 'shift']),
+		},
+		focus: 'terminal',
+		shortcutId: 'terminal.clipboard.paste',
+	},
 	selectAll: {
 		actionId: PROJECTED_TERMINAL_SHORTCUT_ACTION_IDS.selectAll,
 		defaults: {
@@ -50,6 +63,8 @@ export const PROJECTED_TERMINAL_SHORTCUTS = {
 } as const;
 
 type ProjectedTerminalShortcutAction = keyof typeof PROJECTED_TERMINAL_SHORTCUTS;
+type ProjectedTerminalShortcutActionId =
+	(typeof PROJECTED_TERMINAL_SHORTCUTS)[ProjectedTerminalShortcutAction]['actionId'];
 export type ProjectedTerminalShortcutId =
 	(typeof PROJECTED_TERMINAL_SHORTCUTS)[ProjectedTerminalShortcutAction]['shortcutId'];
 export type ProjectedTerminalShortcutBindings = Readonly<
@@ -62,16 +77,14 @@ export interface ProjectedTerminalShortcutBindingSource {
 
 export interface ProjectedTerminalShortcutBinding {
 	readonly action: ProjectedTerminalShortcutAction;
-	readonly actionId:
-		| typeof PROJECTED_TERMINAL_SHORTCUT_ACTION_IDS.copySelection
-		| typeof PROJECTED_TERMINAL_SHORTCUT_ACTION_IDS.findOpen
-		| typeof PROJECTED_TERMINAL_SHORTCUT_ACTION_IDS.selectAll;
+	readonly actionId: ProjectedTerminalShortcutActionId;
 	readonly shortcutId: ProjectedTerminalShortcutId;
 }
 
 const PROJECTED_TERMINAL_SHORTCUT_ACTIONS = Object.freeze([
 	'copySelection',
 	'findOpen',
+	'paste',
 	'selectAll',
 ] as const satisfies readonly ProjectedTerminalShortcutAction[]);
 
@@ -117,7 +130,32 @@ function defaultBindingsFor(
 			PROJECTED_TERMINAL_SHORTCUTS.copySelection.defaults[platform],
 		[PROJECTED_TERMINAL_SHORTCUTS.findOpen.shortcutId]:
 			PROJECTED_TERMINAL_SHORTCUTS.findOpen.defaults[platform],
+		[PROJECTED_TERMINAL_SHORTCUTS.paste.shortcutId]:
+			PROJECTED_TERMINAL_SHORTCUTS.paste.defaults[platform],
 		[PROJECTED_TERMINAL_SHORTCUTS.selectAll.shortcutId]:
 			PROJECTED_TERMINAL_SHORTCUTS.selectAll.defaults[platform],
 	});
+}
+
+export function formatProjectedTerminalActionShortcut(
+	actionId: ProjectedTerminalShortcutActionId,
+	platform: ProjectedTerminalShortcutPlatform,
+	bindings?: ProjectedTerminalShortcutBindings,
+): string;
+export function formatProjectedTerminalActionShortcut(
+	actionId: string,
+	platform: ProjectedTerminalShortcutPlatform,
+	bindings?: ProjectedTerminalShortcutBindings,
+): string | null;
+export function formatProjectedTerminalActionShortcut(
+	actionId: string,
+	platform: ProjectedTerminalShortcutPlatform,
+	bindings: ProjectedTerminalShortcutBindings = defaultProjectedTerminalShortcutBindings(platform),
+): string | null {
+	for (const action of PROJECTED_TERMINAL_SHORTCUT_ACTIONS) {
+		const definition = PROJECTED_TERMINAL_SHORTCUTS[action];
+		if (definition.actionId !== actionId) continue;
+		return formatKeyboardShortcutChord(bindings[definition.shortcutId], platform);
+	}
+	return null;
 }

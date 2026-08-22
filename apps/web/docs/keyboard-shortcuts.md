@@ -1,26 +1,72 @@
 # Keyboard shortcuts
 
-`@orchbee/web` owns client-local overrides for eight frequent semantic shortcuts. Workbench and
-projected-terminal features continue to own their Action inputs and platform defaults. The Web
-composition combines those declarations, validates one complete effective table, and injects that
-same source into the mounted Workbench and projected terminals.
+`@orchbee/web` owns client-local overrides for a focused catalog of frequent semantic shortcuts.
+Workbench and projected-terminal features continue to own their Action inputs and platform
+defaults. The Web composition combines those declarations, validates one complete effective table,
+and injects that same source into the mounted Workbench and projected terminals. Menus, tooltips,
+the Action search surface, and shortcut settings project labels from that effective table; none of
+those surfaces owns another binding copy.
 
 ## Initial catalog
 
-| Shortcut ID                     | Scope                             | Apple default | Standard default |
-| ------------------------------- | --------------------------------- | ------------- | ---------------- |
-| `workbench.search.actions.open` | Workbench                         | `Cmd+Shift+P` | `Ctrl+Shift+P`   |
-| `workbench.terminal.create`     | Workbench                         | `Cmd+N`       | `Ctrl+Shift+N`   |
-| `workbench.search.all.open`     | Workbench                         | `Cmd+K`       | `Ctrl+Shift+K`   |
-| `workbench.settings.open`       | Workbench                         | `Cmd+,`       | `Ctrl+,`         |
-| `workbench.sidebar.toggle`      | Workbench                         | `Cmd+B`       | `Ctrl+Shift+B`   |
-| `terminal.search.open`          | Focused terminal or Find          | `Cmd+F`       | `Ctrl+Shift+F`   |
-| `terminal.selection.copy`       | Focused terminal with a selection | `Cmd+C`       | `Ctrl+Shift+C`   |
-| `terminal.selection.select-all` | Focused terminal                  | `Cmd+A`       | `Ctrl+Shift+A`   |
+| Shortcut ID                                  | Scope                             | Apple default     | Standard default   |
+| -------------------------------------------- | --------------------------------- | ----------------- | ------------------ |
+| `workbench.search.actions.open`              | Workbench                         | `Cmd+Shift+P`     | `Ctrl+Shift+P`     |
+| `workbench.terminal.create`                  | Workbench                         | `Cmd+T`           | `Ctrl+Shift+T`     |
+| `workbench.terminal.active.close`            | Active terminal                   | `Cmd+W`           | `Ctrl+Shift+W`     |
+| `workbench.panel.active.maximization.toggle` | Active panel                      | `Cmd+Shift+Enter` | `Ctrl+Shift+Enter` |
+| `workbench.panel.active.split-right`         | Active panel                      | `Cmd+D`           | `Ctrl+Shift+D`     |
+| `workbench.panel.active.split-below`         | Active panel                      | `Cmd+Shift+D`     | `Ctrl+Shift+E`     |
+| `workbench.search.all.open`                  | Workbench                         | `Cmd+K`           | `Ctrl+Shift+K`     |
+| `workbench.settings.open`                    | Workbench                         | `Cmd+,`           | `Ctrl+,`           |
+| `workbench.sidebar.toggle`                   | Workbench                         | `Cmd+B`           | `Ctrl+Shift+B`     |
+| `terminal.search.open`                       | Focused terminal or Find          | `Cmd+F`           | `Ctrl+Shift+F`     |
+| `terminal.selection.copy`                    | Focused terminal with a selection | `Cmd+C`           | `Ctrl+Shift+C`     |
+| `terminal.clipboard.paste`                   | Focused terminal                  | `Cmd+V`           | `Ctrl+Shift+V`     |
+| `terminal.selection.select-all`              | Focused terminal                  | `Cmd+A`           | `Ctrl+Shift+A`     |
 
-Standard defaults deliberately leave unshifted `Ctrl+B/N/K/F/A` and `Ctrl+C` available to the
-shell, terminal applications, and multiplexers. A user may deliberately record another supported
-custom chord. Product conflicts remain prohibited even when an Action is temporarily unavailable.
+The new-Tab, active-terminal close, active-panel maximization, right-split, down-split, and paste
+defaults adopt Warp's [documented desktop conventions](https://docs.warp.dev/getting-started/keyboard-shortcuts)
+as observed on 2026-08-22; this is a pinned default-key selection, not a broader behavior or
+visual-parity claim. Standard defaults deliberately leave
+unshifted `Ctrl+B/T/W/K/F/D/E/V/A` and `Ctrl+C` available to the shell, terminal applications, and
+multiplexers. A user may deliberately record another supported custom chord. Product conflicts
+remain prohibited even when an Action is temporarily unavailable.
+
+Commands without an effective binding do not render an empty shortcut affordance. Clear, reset,
+scroll-to-bottom, new-child-terminal, split-left, and split-above remain intentionally unbound in
+this catalog. Adding nullable or user-created bindings for initially unbound commands is outside
+this model.
+
+## Active-target command model
+
+The four `workbench.*.active.*` Actions are context commands. Their Action invocation may carry an
+explicit panel target from a menu; otherwise the active Tab's focused panel is the target. The
+target is resolved again when execution starts, so a stale or absent target is unavailable and
+does not consume the keyboard event.
+
+`workbench.terminal.active.close` resolves exactly one lower-level close operation:
+
+| Active target state                                                             | Prepared operation                             |
+| ------------------------------------------------------------------------------- | ---------------------------------------------- |
+| The displayed terminal is a child terminal                                      | Close that child terminal                      |
+| The displayed terminal is the primary and the active Tab has two or more panels | Close that panel                               |
+| The displayed terminal is the primary and the active Tab has one panel          | Close the active Tab                           |
+| No valid active Tab or target panel exists                                      | Unavailable; preserve state and event defaults |
+
+The context Action executes the already-registered panel or Tab close Action as a prepared
+invocation. Those owners retain availability, running-process confirmation, cancellation,
+serialization, and the authoritative commit. The context Action reports the lower execution's
+result and never mutates panel or Tab state directly. Confirmation cancellation leaves topology and
+terminal sessions unchanged. Cancelling the context execution cancels its prepared lower execution;
+if the lower operation has already committed, its completed result remains authoritative. A
+missing or stale lower registration blocks the context Action without a direct fallback mutation.
+
+Maximization resolves only when the active Tab has at least two panels. Right and below split
+Actions resolve whenever a valid target panel exists. Each command prepares and executes the
+existing panel Action, so menus, keyboard dispatch, and the Action search surface share the same
+transition and availability result. An unavailable command is neither executed nor passed to
+`preventDefault()`.
 
 ## Chord and conflict model
 
@@ -30,20 +76,27 @@ and Control on Standard platforms. Matching rejects extra modifiers, composition
 key code 229), repeats, unsupported codes, and modifier-only events. Formatting and conflict
 identity come from the same normalized chord.
 
-All eight initial declarations can overlap: a Workbench shortcut and the shortcut for its focused
+All catalog declarations can overlap: a Workbench shortcut and the shortcut for its focused
 terminal can both be applicable. Their effective chords must therefore be globally unique. A
 conflicting edit changes neither memory nor storage and identifies the conflicting Action, scope,
 binding source, and availability condition. During dispatch, the owning Action adapter resolves
 current availability before execution or `preventDefault()`; an unavailable binding falls through
 to the terminal or browser.
 
+Workbench owns formatting for its bindings. Projected-terminal owns its binding defaults and
+dispatch, while Web projects only its current action-to-label map through a read-only Workbench
+port. This preserves dependency direction: Workbench never imports an application-owned shortcut
+catalog. A command menu entry stores an optional effective label and both shared menu renderers use
+their UI primitive's trailing shortcut slot. Action search receives the same projector, including
+terminal Actions discovered from descendant scopes.
+
 ## Persistence and recovery
 
-Overrides use `orchbee:web:keyboard-shortcuts:v1` and a strict record:
+New writes use `orchbee:web:keyboard-shortcuts:v2` and a strict record:
 
 ```json
 {
-	"version": 1,
+	"version": 2,
 	"overrides": [
 		{
 			"shortcutId": "workbench.search.all.open",
@@ -55,14 +108,37 @@ Overrides use `orchbee:web:keyboard-shortcuts:v1` and a strict record:
 
 Only Custom values are stored, ordered by shortcut ID. Unknown fields or IDs, duplicates, unsorted
 entries, noncanonical modifiers, unsupported codes, stored defaults, excessive entries, and an
-effective conflict invalidate the complete record and restore platform defaults. A write failure
-keeps the immutable session binding active, reports that it was not saved, and retries on the next
-legal change. Restoring one item removes its override.
+effective conflict invalidate the complete v2 record and restore platform defaults. A write
+failure keeps the immutable session binding active, reports that it was not saved, and retries on
+the next legal change. Restoring one item removes its override.
+
+When v2 is absent, Web reads the legacy `orchbee:web:keyboard-shortcuts:v1` record with the legacy
+catalog and defaults, carries its explicit overrides into the expanded catalog, removes an override
+that is equivalent to a new default, rejects any resulting conflict, and writes the canonical v2
+record. The v1 value is retained unchanged as a rollback snapshot. Once a valid v2 record exists it
+is authoritative; an invalid v2 record never falls back to v1, because fallback would hide current
+data corruption. Rolling back to a v1-only build restores the pre-upgrade shortcut snapshot; edits
+made only in v2 are intentionally unavailable to that older build.
 
 Browser Preview, Gateway Browser, and Electron each create and dispose one controller against their
 own origin-local storage. Gateway and Electron pass the controller's narrow binding source through
 `ProjectedTerminalSurfaceCapability`. Event handlers read the current table at dispatch time, so a
 change does not remount Workbench, replace an attachment, or reopen a Host or Gateway connection.
+
+## Claims and evidence
+
+| Claim                                                                            | Deterministic evidence                                               |
+| -------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| One valid target produces exactly one child, panel, or Tab close operation       | Active-target resolver decision-table tests                          |
+| Confirmation, cancellation, and commit remain owned by the prepared lower Action | Workbench Action integration tests with panel and Tab registrations  |
+| Apple and Standard defaults match the catalog and custom edits affect dispatch   | Shortcut definition, resolver, and controller tests                  |
+| Menus, Action search, and settings display the same current binding              | Projection and rendered-surface tests                                |
+| A valid v1 record migrates once without losing explicit legacy overrides         | Storage migration tests, including a new-default-equivalent override |
+| Invalid v2 data restores defaults without consulting v1                          | Storage corruption and precedence tests                              |
+
+The tests use synthetic platform flags, Action scopes, storage, and keyboard events. They do not
+claim operating-system global-shortcut behavior or full Warp compatibility. The manual Desktop
+native-window focus test is excluded from autonomous verification.
 
 ## Maintenance checks
 

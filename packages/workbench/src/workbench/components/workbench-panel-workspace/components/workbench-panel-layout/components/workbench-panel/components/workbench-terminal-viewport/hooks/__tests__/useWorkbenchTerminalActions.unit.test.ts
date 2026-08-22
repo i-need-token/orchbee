@@ -1,6 +1,11 @@
 // @vitest-environment jsdom
 
-import { ActionRuntime, defineAction, type ActionExecutionContext } from '@orchbee/actions';
+import {
+	ActionRuntime,
+	defineAction,
+	noActionInput,
+	type ActionExecutionContext,
+} from '@orchbee/actions';
 import { OrchbeeI18nProvider } from '@orchbee/i18n';
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
 import * as React from 'react';
@@ -30,6 +35,8 @@ describe('useWorkbenchTerminalActions', () => {
 					parentScope,
 					presentationId: 'presentation-1',
 					runtime,
+					shortcutLabelForAction: (actionId) =>
+						actionId === 'terminal.link.open' ? '⌘L' : undefined,
 				}),
 			{ wrapper },
 		);
@@ -66,6 +73,25 @@ describe('useWorkbenchTerminalActions', () => {
 				title: { defaultMessage: 'Open terminal link', id: 'test.terminal.link.open' },
 			}),
 		);
+		const resetRegistration = runtime.register(
+			rendered.result.current.scope,
+			defineAction({
+				category: {
+					id: 'terminal',
+					title: { defaultMessage: 'Terminal', id: 'test.terminal.category' },
+				},
+				execution: {
+					concurrency: 'parallel',
+					concurrencyKey: () => 'test-terminal-reset',
+					mode: 'foreground',
+				},
+				getAvailability: () => ({ kind: 'enabled' }),
+				handler: { execute: () => ({ kind: 'completed' }) },
+				id: 'terminal.reset',
+				input: noActionInput,
+				title: { defaultMessage: 'Reset terminal', id: 'test.terminal.reset' },
+			}),
+		);
 		const capturedInput = { url: 'https://orchbee.dev/original' };
 		const provider: WorkbenchTerminalActionContextProvider = {
 			capture: () => ({
@@ -93,11 +119,15 @@ describe('useWorkbenchTerminalActions', () => {
 				'Open terminal link',
 			),
 		);
+		expect(rendered.result.current.entries.map((entry) => entry.label)).not.toContain(
+			'Reset terminal',
+		);
 		capturedInput.url = 'https://orchbee.dev/changed';
 		const linkEntry = rendered.result.current.entries.find(
 			(entry) => entry.id === 'terminal-action:terminal.link.open',
 		);
 		if (linkEntry === undefined) throw new Error('Expected the pinned link action.');
+		expect(linkEntry.shortcut).toBe('⌘L');
 		act(() => linkEntry.onSelect({} as React.MouseEvent<HTMLElement>));
 
 		await waitFor(() => expect(executed).toHaveBeenCalledOnce());
@@ -112,6 +142,7 @@ describe('useWorkbenchTerminalActions', () => {
 		expect(provider.executePrepared).toHaveBeenCalledOnce();
 		if (providerRegistration === undefined) throw new Error('Expected a provider registration.');
 		providerRegistration.dispose();
+		resetRegistration.dispose();
 		registration.dispose();
 		runtime.dispose();
 	});
@@ -127,6 +158,7 @@ describe('useWorkbenchTerminalActions', () => {
 					parentScope,
 					presentationId: 'presentation-1',
 					runtime,
+					shortcutLabelForAction: () => undefined,
 				}),
 			{ wrapper },
 		);

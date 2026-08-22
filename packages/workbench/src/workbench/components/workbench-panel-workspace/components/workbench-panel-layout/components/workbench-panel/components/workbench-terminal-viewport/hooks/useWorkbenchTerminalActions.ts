@@ -21,6 +21,7 @@ interface UseWorkbenchTerminalActionsOptions {
 	readonly parentScope: ActionScope;
 	readonly presentationId: string;
 	readonly runtime: ActionRuntime;
+	readonly shortcutLabelForAction: (actionId: string) => string | undefined;
 }
 
 interface PinnedTerminalActionContext {
@@ -42,24 +43,16 @@ const terminalActionOrder = [
 	TERMINAL_ACTION_IDS.paste,
 	TERMINAL_ACTION_IDS.selectAll,
 	TERMINAL_ACTION_IDS.findOpen,
-	TERMINAL_ACTION_IDS.findNext,
-	TERMINAL_ACTION_IDS.findPrevious,
-	TERMINAL_ACTION_IDS.scrollToBottom,
 	TERMINAL_ACTION_IDS.clear,
-	TERMINAL_ACTION_IDS.reset,
 ] as const;
 
 const terminalActionIcons: Readonly<Record<(typeof terminalActionOrder)[number], ProductIconName>> =
 	{
 		[TERMINAL_ACTION_IDS.clear]: 'trash',
 		[TERMINAL_ACTION_IDS.copySelection]: 'copy',
-		[TERMINAL_ACTION_IDS.findNext]: 'search',
 		[TERMINAL_ACTION_IDS.findOpen]: 'search',
-		[TERMINAL_ACTION_IDS.findPrevious]: 'search',
 		[TERMINAL_ACTION_IDS.openLink]: 'action',
 		[TERMINAL_ACTION_IDS.paste]: 'clipboard',
-		[TERMINAL_ACTION_IDS.reset]: 'terminal',
-		[TERMINAL_ACTION_IDS.scrollToBottom]: 'arrow-down',
 		[TERMINAL_ACTION_IDS.selectAll]: 'check',
 	};
 
@@ -67,6 +60,7 @@ export function useWorkbenchTerminalActions({
 	parentScope,
 	presentationId,
 	runtime,
+	shortcutLabelForAction,
 }: UseWorkbenchTerminalActionsOptions): WorkbenchTerminalActions {
 	const intl = useOrchbeeIntl();
 	const provider = React.useRef<WorkbenchTerminalActionContextProvider | null>(null);
@@ -139,6 +133,7 @@ export function useWorkbenchTerminalActions({
 		return terminalActionOrder.flatMap((actionId) => {
 			const result = readyById.get(actionId);
 			if (result === undefined) return [];
+			const shortcut = shortcutLabelForAction(actionId);
 			return [
 				{
 					disabled: result.availability.kind !== 'enabled',
@@ -147,6 +142,7 @@ export function useWorkbenchTerminalActions({
 					kind: 'command' as const,
 					label: formatActionMessage(result.descriptor.title),
 					onSelect: () => executePrepared(result.invocation),
+					...(shortcut === undefined ? {} : { shortcut }),
 				},
 			];
 		});
@@ -168,7 +164,7 @@ export function useWorkbenchTerminalActions({
 			};
 			return intl.formatMessage(descriptor, message.values);
 		}
-	}, [intl, pinnedContext, runtime, runtimeRevision, scope]);
+	}, [intl, pinnedContext, runtime, runtimeRevision, scope, shortcutLabelForAction]);
 
 	return { bindActionContextProvider, captureContext, entries, scope };
 }

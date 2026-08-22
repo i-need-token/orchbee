@@ -23,18 +23,29 @@ export function createKeyboardShortcutBindings(
 ): KeyboardShortcutBindings {
 	const defaults = defaultKeyboardShortcutBindings(platform);
 	let actionsSearch = defaults[WORKBENCH_SHORTCUTS.actionsSearch.shortcutId];
+	let closeActiveTerminal = defaults[WORKBENCH_SHORTCUTS.closeActiveTerminal.shortcutId];
+	let maximizeActivePanel = defaults[WORKBENCH_SHORTCUTS.maximizeActivePanel.shortcutId];
 	let newTerminal = defaults[WORKBENCH_SHORTCUTS.newTerminal.shortcutId];
 	let search = defaults[WORKBENCH_SHORTCUTS.search.shortcutId];
 	let settings = defaults[WORKBENCH_SHORTCUTS.settings.shortcutId];
+	let splitActivePanelBelow = defaults[WORKBENCH_SHORTCUTS.splitActivePanelBelow.shortcutId];
+	let splitActivePanelRight = defaults[WORKBENCH_SHORTCUTS.splitActivePanelRight.shortcutId];
 	let toggleSidebar = defaults[WORKBENCH_SHORTCUTS.toggleSidebar.shortcutId];
 	let findOpen = defaults[PROJECTED_TERMINAL_SHORTCUTS.findOpen.shortcutId];
 	let copySelection = defaults[PROJECTED_TERMINAL_SHORTCUTS.copySelection.shortcutId];
+	let paste = defaults[PROJECTED_TERMINAL_SHORTCUTS.paste.shortcutId];
 	let selectAll = defaults[PROJECTED_TERMINAL_SHORTCUTS.selectAll.shortcutId];
 
 	for (const override of overrides) {
 		switch (override.shortcutId) {
 			case WORKBENCH_SHORTCUTS.actionsSearch.shortcutId:
 				actionsSearch = override.chord;
+				break;
+			case WORKBENCH_SHORTCUTS.closeActiveTerminal.shortcutId:
+				closeActiveTerminal = override.chord;
+				break;
+			case WORKBENCH_SHORTCUTS.maximizeActivePanel.shortcutId:
+				maximizeActivePanel = override.chord;
 				break;
 			case WORKBENCH_SHORTCUTS.newTerminal.shortcutId:
 				newTerminal = override.chord;
@@ -45,6 +56,12 @@ export function createKeyboardShortcutBindings(
 			case WORKBENCH_SHORTCUTS.settings.shortcutId:
 				settings = override.chord;
 				break;
+			case WORKBENCH_SHORTCUTS.splitActivePanelBelow.shortcutId:
+				splitActivePanelBelow = override.chord;
+				break;
+			case WORKBENCH_SHORTCUTS.splitActivePanelRight.shortcutId:
+				splitActivePanelRight = override.chord;
+				break;
 			case WORKBENCH_SHORTCUTS.toggleSidebar.shortcutId:
 				toggleSidebar = override.chord;
 				break;
@@ -54,6 +71,9 @@ export function createKeyboardShortcutBindings(
 			case PROJECTED_TERMINAL_SHORTCUTS.copySelection.shortcutId:
 				copySelection = override.chord;
 				break;
+			case PROJECTED_TERMINAL_SHORTCUTS.paste.shortcutId:
+				paste = override.chord;
+				break;
 			case PROJECTED_TERMINAL_SHORTCUTS.selectAll.shortcutId:
 				selectAll = override.chord;
 				break;
@@ -62,12 +82,17 @@ export function createKeyboardShortcutBindings(
 
 	return Object.freeze({
 		[WORKBENCH_SHORTCUTS.actionsSearch.shortcutId]: actionsSearch,
+		[WORKBENCH_SHORTCUTS.closeActiveTerminal.shortcutId]: closeActiveTerminal,
+		[WORKBENCH_SHORTCUTS.maximizeActivePanel.shortcutId]: maximizeActivePanel,
 		[WORKBENCH_SHORTCUTS.newTerminal.shortcutId]: newTerminal,
 		[WORKBENCH_SHORTCUTS.search.shortcutId]: search,
 		[WORKBENCH_SHORTCUTS.settings.shortcutId]: settings,
+		[WORKBENCH_SHORTCUTS.splitActivePanelBelow.shortcutId]: splitActivePanelBelow,
+		[WORKBENCH_SHORTCUTS.splitActivePanelRight.shortcutId]: splitActivePanelRight,
 		[WORKBENCH_SHORTCUTS.toggleSidebar.shortcutId]: toggleSidebar,
 		[PROJECTED_TERMINAL_SHORTCUTS.findOpen.shortcutId]: findOpen,
 		[PROJECTED_TERMINAL_SHORTCUTS.copySelection.shortcutId]: copySelection,
+		[PROJECTED_TERMINAL_SHORTCUTS.paste.shortcutId]: paste,
 		[PROJECTED_TERMINAL_SHORTCUTS.selectAll.shortcutId]: selectAll,
 	});
 }

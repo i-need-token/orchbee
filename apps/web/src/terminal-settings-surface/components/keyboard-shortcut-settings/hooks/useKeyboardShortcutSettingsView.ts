@@ -56,24 +56,38 @@ export function useKeyboardShortcutSettingsView({
 		switch (declaration.name) {
 			case 'actions-search':
 				return intl.formatMessage(keyboardShortcutMessages.actionsSearch);
+			case 'close-terminal':
+				return intl.formatMessage(keyboardShortcutMessages.closeTerminal);
 			case 'new-terminal':
 				return intl.formatMessage(keyboardShortcutMessages.newTerminal);
 			case 'global-search':
 				return intl.formatMessage(keyboardShortcutMessages.globalSearch);
+			case 'maximize-panel':
+				return intl.formatMessage(keyboardShortcutMessages.maximizePanel);
 			case 'settings':
 				return intl.formatMessage(keyboardShortcutMessages.settings);
+			case 'split-below':
+				return intl.formatMessage(keyboardShortcutMessages.splitBelow);
+			case 'split-right':
+				return intl.formatMessage(keyboardShortcutMessages.splitRight);
 			case 'toggle-sidebar':
 				return intl.formatMessage(keyboardShortcutMessages.toggleSidebar);
 			case 'find':
 				return intl.formatMessage(keyboardShortcutMessages.find);
 			case 'copy-selection':
 				return intl.formatMessage(keyboardShortcutMessages.copySelection);
+			case 'paste':
+				return intl.formatMessage(keyboardShortcutMessages.paste);
 			case 'select-all':
 				return intl.formatMessage(keyboardShortcutMessages.selectAll);
 		}
 	};
 	const scopeNameFor = (scope: KeyboardShortcutScope): string => {
 		switch (scope) {
+			case 'active-panel':
+				return intl.formatMessage(keyboardShortcutMessages.scopeActivePanel);
+			case 'active-terminal':
+				return intl.formatMessage(keyboardShortcutMessages.scopeActiveTerminal);
 			case 'workbench':
 				return intl.formatMessage(keyboardShortcutMessages.scopeWorkbench);
 			case 'focused-terminal':
@@ -84,6 +98,10 @@ export function useKeyboardShortcutSettingsView({
 	};
 	const availabilityNameFor = (availability: KeyboardShortcutAvailability): string => {
 		switch (availability) {
+			case 'active-panel':
+				return intl.formatMessage(keyboardShortcutMessages.availabilityActivePanel);
+			case 'active-terminal':
+				return intl.formatMessage(keyboardShortcutMessages.availabilityActiveTerminal);
 			case 'always-in-workbench':
 				return intl.formatMessage(keyboardShortcutMessages.availabilityWorkbench);
 			case 'focused-terminal':
@@ -92,6 +110,8 @@ export function useKeyboardShortcutSettingsView({
 				return intl.formatMessage(
 					keyboardShortcutMessages.availabilityFocusedTerminalWithSelection,
 				);
+			case 'multiple-panels':
+				return intl.formatMessage(keyboardShortcutMessages.availabilityMultiplePanels);
 		}
 	};
 	const snapshot = useKeyboardShortcutSettings(controller);
