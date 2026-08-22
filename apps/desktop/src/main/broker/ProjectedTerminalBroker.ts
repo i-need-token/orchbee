@@ -48,8 +48,12 @@ import {
 import { HostRequestError, readTerminalInventory, type HostConnection } from '../host';
 
 const MAX_IN_FLIGHT_RENDERER_REQUESTS = 64;
+const MAX_IN_FLIGHT_RENDERER_INPUT_REQUESTS = 16;
+const MAX_PENDING_RENDERER_COMMANDS = 1_024;
+const MAX_PENDING_RENDERER_COMMAND_BYTES = PROTOCOL_LIMITS.maxPendingInputBytes;
 const MAX_CANONICAL_UINT64 = 0xffff_ffff_ffff_ffffn;
 const fatalTextDecoder = new TextDecoder('utf-8', { fatal: true });
+const rendererCommandTextEncoder = new TextEncoder();
 
 function copyExactArrayBuffer(bytes: Uint8Array): ArrayBuffer {
 	const copy = new Uint8Array(bytes.byteLength);
@@ -105,6 +109,38 @@ type ProjectedResizeCommand = Extract<
 	ProjectedTerminalCommand,
 	{ readonly kind: 'resize-terminal' }
 >;
+type ProjectedNonResizeCommand = Exclude<
+	ProjectedTerminalCommand,
+	{ readonly kind: 'resize-terminal' }
+>;
+type ProjectedInputCommand = Extract<
+	ProjectedTerminalCommand,
+	{
+		readonly kind: 'focus-input' | 'key-input' | 'mouse-input' | 'paste-input' | 'text-input';
+	}
+>;
+
+interface PendingRendererCommand {
+	readonly byteLength: number;
+	readonly command: ProjectedNonResizeCommand;
+}
+
+function serializedRendererCommandByteLength(command: ProjectedNonResizeCommand): number {
+	const serialized = JSON.stringify(command);
+	return serialized === undefined
+		? MAX_PENDING_RENDERER_COMMAND_BYTES + 1
+		: rendererCommandTextEncoder.encode(serialized).byteLength;
+}
+
+function isInputCommand(command: ProjectedTerminalCommand): command is ProjectedInputCommand {
+	return (
+		command.kind === 'focus-input' ||
+		command.kind === 'key-input' ||
+		command.kind === 'mouse-input' ||
+		command.kind === 'paste-input' ||
+		command.kind === 'text-input'
+	);
+}
 
 export interface ProjectedTerminalBrokerDependencies {
 	readonly openExternal: (target: string) => Promise<void>;
@@ -179,12 +215,16 @@ export class ProjectedTerminalBroker {
 	#externalTargetsOpened = 0;
 	#frameBytesForwarded = 0;
 	#framesForwarded = 0;
+	#inFlightInputRequests = 0;
 	#inFlightRequests = 0;
 	#lastSelectionCopyMilliseconds: number | null = null;
 	#lastSelectionExportStartMilliseconds: number | null = null;
 	#latestTerminalOutcomeRevision: bigint | undefined;
 	#nextExportSequence = 1n;
 	#pendingClipboardWriteRequest: TerminalClipboardWriteRequest | undefined;
+	#pendingRendererCommandBytes = 0;
+	#pendingRendererCommandHead = 0;
+	#pendingRendererCommands: Array<PendingRendererCommand | undefined> = [];
 	#pendingResizeCommand: ProjectedResizeCommand | undefined;
 	#removeHostListener: (() => void) | undefined;
 	#resizeRequestActive = false;
@@ -341,6 +381,7 @@ export class ProjectedTerminalBroker {
 		const activeCopy = this.#activeSelectionCopy;
 		this.#activeSelectionCopy = undefined;
 		this.#pendingClipboardWriteRequest = undefined;
+		this.#clearPendingRendererCommands();
 		this.#pendingResizeCommand = undefined;
 		this.#disposed = true;
 		this.#removeHostListener?.();
@@ -385,6 +426,7 @@ export class ProjectedTerminalBroker {
 	#requestCleanup(error: unknown): void {
 		if (this.#cleanupRequested) return;
 		this.#cleanupRequested = true;
+		this.#clearPendingRendererCommands();
 		this.#pendingResizeCommand = undefined;
 		if (this.#onCleanupRequested !== undefined) {
 			try {
@@ -442,51 +484,112 @@ export class ProjectedTerminalBroker {
 			return;
 		}
 		const command = parsed.data;
-		const replacesPendingResize =
-			command.kind === 'resize-terminal' &&
-			(this.#resizeRequestActive || this.#pendingResizeCommand !== undefined);
-		if (this.#inFlightRequests >= MAX_IN_FLIGHT_RENDERER_REQUESTS && !replacesPendingResize) {
-			if (
-				command.kind === 'clipboard-write-decision' &&
-				this.#matchesPendingClipboardWriteRequest(command.payload)
-			) {
-				this.#pendingClipboardWriteRequest = undefined;
+		if (command.kind === 'resize-terminal') {
+			this.#commandsAccepted += 1;
+			this.#pendingResizeCommand = command;
+			this.#drainRendererCommands();
+			return;
+		}
+		if (
+			this.#inFlightRequests >= MAX_IN_FLIGHT_RENDERER_REQUESTS ||
+			(isInputCommand(command) &&
+				this.#inFlightInputRequests >= MAX_IN_FLIGHT_RENDERER_INPUT_REQUESTS) ||
+			this.#pendingRendererCommandCount() > 0
+		) {
+			if (!this.#enqueueRendererCommand(command)) {
+				this.#rejectRendererCommandForBackpressure(command);
+				return;
 			}
-			this.#commandsRejected += 1;
-			if (isThemeCommand(command)) {
-				this.#postThemeFailure(command.payload.operationId, {
-					code: 'renderer-backpressure',
-					outcome: 'known-unchanged',
-					retryable: true,
-				});
-			} else {
-				this.#postFailure({
-					code: 'renderer-backpressure',
-					message: 'Renderer command exceeded the bounded Main request window.',
-					...failureContext(command),
-					retryable: true,
-				});
-			}
-			this.#requestCleanup(
-				new BrokerOperationError(
-					'renderer-backpressure',
-					'Renderer command exceeded the bounded Main request window.',
-					true,
-				),
-			);
+			this.#commandsAccepted += 1;
+			this.#drainRendererCommands();
 			return;
 		}
 
 		this.#commandsAccepted += 1;
-		if (command.kind === 'resize-terminal') {
-			this.#pendingResizeCommand = command;
-			this.#drainResizeCommand();
-			return;
-		}
 		this.#dispatchRendererCommand(command);
 	};
 
+	#pendingRendererCommandCount(): number {
+		return this.#pendingRendererCommands.length - this.#pendingRendererCommandHead;
+	}
+
+	#enqueueRendererCommand(command: ProjectedNonResizeCommand): boolean {
+		const byteLength = serializedRendererCommandByteLength(command);
+		if (
+			this.#pendingRendererCommandCount() >= MAX_PENDING_RENDERER_COMMANDS ||
+			byteLength > MAX_PENDING_RENDERER_COMMAND_BYTES - this.#pendingRendererCommandBytes
+		) {
+			return false;
+		}
+		this.#pendingRendererCommands.push({ byteLength, command });
+		this.#pendingRendererCommandBytes += byteLength;
+		return true;
+	}
+
+	#takePendingRendererCommand(): ProjectedNonResizeCommand | undefined {
+		const pending = this.#pendingRendererCommands[this.#pendingRendererCommandHead];
+		if (pending === undefined) return undefined;
+		this.#pendingRendererCommands[this.#pendingRendererCommandHead] = undefined;
+		this.#pendingRendererCommandHead += 1;
+		this.#pendingRendererCommandBytes -= pending.byteLength;
+		if (this.#pendingRendererCommandHead === this.#pendingRendererCommands.length) {
+			this.#clearPendingRendererCommands();
+		} else if (
+			this.#pendingRendererCommandHead >= 256 &&
+			this.#pendingRendererCommandHead * 2 >= this.#pendingRendererCommands.length
+		) {
+			this.#pendingRendererCommands = this.#pendingRendererCommands.slice(
+				this.#pendingRendererCommandHead,
+			);
+			this.#pendingRendererCommandHead = 0;
+		}
+		return pending.command;
+	}
+
+	#peekPendingRendererCommand(): ProjectedNonResizeCommand | undefined {
+		return this.#pendingRendererCommands[this.#pendingRendererCommandHead]?.command;
+	}
+
+	#clearPendingRendererCommands(): void {
+		this.#pendingRendererCommands = [];
+		this.#pendingRendererCommandHead = 0;
+		this.#pendingRendererCommandBytes = 0;
+	}
+
+	#rejectRendererCommandForBackpressure(command: ProjectedNonResizeCommand): void {
+		if (
+			command.kind === 'clipboard-write-decision' &&
+			this.#matchesPendingClipboardWriteRequest(command.payload)
+		) {
+			this.#pendingClipboardWriteRequest = undefined;
+		}
+		this.#commandsRejected += 1;
+		if (isThemeCommand(command)) {
+			this.#postThemeFailure(command.payload.operationId, {
+				code: 'renderer-backpressure',
+				outcome: 'known-unchanged',
+				retryable: true,
+			});
+		} else {
+			this.#postFailure({
+				code: 'renderer-backpressure',
+				message: 'Renderer command exceeded the bounded Main pending request window.',
+				...failureContext(command),
+				retryable: true,
+			});
+		}
+		this.#requestCleanup(
+			new BrokerOperationError(
+				'renderer-backpressure',
+				'Renderer command exceeded the bounded Main pending request window.',
+				true,
+			),
+		);
+	}
+
 	#dispatchRendererCommand(command: ProjectedTerminalCommand): void {
+		const input = isInputCommand(command);
+		if (input) this.#inFlightInputRequests += 1;
 		this.#inFlightRequests += 1;
 		void this.#dispatch(command)
 			.catch((error: unknown) => {
@@ -518,26 +621,35 @@ export class ProjectedTerminalBroker {
 				}
 			})
 			.finally(() => {
+				if (input) this.#inFlightInputRequests -= 1;
 				this.#inFlightRequests -= 1;
 				if (command.kind === 'resize-terminal') this.#resizeRequestActive = false;
-				this.#drainResizeCommand();
+				this.#drainRendererCommands();
 			});
 	}
 
-	#drainResizeCommand(): void {
-		if (
-			this.#resizeRequestActive ||
-			this.#disposed ||
-			this.#cleanupRequested ||
-			this.#inFlightRequests >= MAX_IN_FLIGHT_RENDERER_REQUESTS
-		) {
-			return;
+	#drainRendererCommands(): void {
+		if (this.#disposed || this.#cleanupRequested) return;
+		while (this.#inFlightRequests < MAX_IN_FLIGHT_RENDERER_REQUESTS) {
+			const resize = this.#resizeRequestActive ? undefined : this.#pendingResizeCommand;
+			if (resize !== undefined) {
+				this.#pendingResizeCommand = undefined;
+				this.#resizeRequestActive = true;
+				this.#dispatchRendererCommand(resize);
+				continue;
+			}
+			const next = this.#peekPendingRendererCommand();
+			if (
+				next !== undefined &&
+				isInputCommand(next) &&
+				this.#inFlightInputRequests >= MAX_IN_FLIGHT_RENDERER_INPUT_REQUESTS
+			) {
+				return;
+			}
+			const command = this.#takePendingRendererCommand();
+			if (command === undefined) return;
+			this.#dispatchRendererCommand(command);
 		}
-		const command = this.#pendingResizeCommand;
-		if (command === undefined) return;
-		this.#pendingResizeCommand = undefined;
-		this.#resizeRequestActive = true;
-		this.#dispatchRendererCommand(command);
 	}
 
 	readonly #handleHostEnvelope = (envelope: DecodedProtocolEnvelope): void => {

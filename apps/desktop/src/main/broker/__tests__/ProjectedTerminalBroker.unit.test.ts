@@ -11,6 +11,7 @@ import {
 	HostEpochSchema,
 	MessageKind,
 	PayloadEncoding,
+	PROTOCOL_LIMITS,
 	SelectionExportStartedSchema,
 	TerminalIdSchema,
 	TerminalThemeStateSchema,
@@ -860,7 +861,131 @@ describe('ProjectedTerminalBroker', () => {
 		expect(broker.metrics.clipboardCommits).toBe(0);
 	});
 
-	it('retires only the saturated attachment when a renderer command hits broker backpressure', () => {
+	it('absorbs a renderer input burst beyond the active Host request window and drains it in arrival order', async () => {
+		const releases: Array<() => void> = [];
+		const requestInput = vi.fn<HostConnection['requestInput']>(
+			() =>
+				new Promise<DecodedProtocolEnvelope>((resolve) => {
+					releases.push(() => resolve({} as DecodedProtocolEnvelope));
+				}),
+		);
+		const host = {
+			onAttachmentEnvelope: vi.fn<HostConnection['onAttachmentEnvelope']>(() =>
+				vi.fn<() => void>(),
+			),
+			onEnvelope: vi.fn<HostConnection['onEnvelope']>(() => vi.fn<() => void>()),
+			onClosed: vi.fn<HostConnection['onClosed']>(() => vi.fn<() => void>()),
+			requestInput,
+		} as unknown as HostConnection;
+		const emitter = new EventEmitter();
+		const postMessage = vi.fn<(...arguments_: unknown[]) => void>();
+		const port = Object.assign(emitter, {
+			close: vi.fn<() => void>(),
+			postMessage,
+			start: vi.fn<() => void>(),
+		}) as unknown as MessagePortMain;
+		const bootstrap = {
+			attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
+			canInput: true,
+			canResize: true,
+			capabilityRevision: CanonicalUint64TextSchema.parse('1'),
+			creationId: CreationIdSchema.parse('22'.repeat(16)),
+			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
+			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
+			terminalOutcome: null,
+			theme,
+		};
+		const onCleanupRequested = vi.fn<(error: unknown) => void>();
+		const broker = new ProjectedTerminalBroker(host, port, bootstrap, undefined, 'desktop', {
+			onCleanupRequested,
+		});
+		broker.start();
+
+		for (let index = 0; index < 96; index += 1) {
+			emitter.emit('message', {
+				data: {
+					kind: 'text-input',
+					payload: {
+						attachmentId: bootstrap.attachmentId,
+						capabilityRevision: bootstrap.capabilityRevision,
+						text: String(index),
+					},
+				},
+			});
+		}
+
+		expect(requestInput).toHaveBeenCalledTimes(16);
+		expect(broker.metrics).toMatchObject({ commandsAccepted: 96, commandsRejected: 0 });
+		expect(postMessage).not.toHaveBeenCalledWith({
+			failure: expect.objectContaining({ code: 'renderer-backpressure' }),
+			kind: 'failure',
+		});
+		expect(onCleanupRequested).not.toHaveBeenCalled();
+
+		releases[7]?.();
+		await vi.waitFor(() => expect(requestInput).toHaveBeenCalledTimes(17));
+		expect(requestInput.mock.calls[16]?.[1]).toMatchObject({ text: '16' });
+		expect(onCleanupRequested).not.toHaveBeenCalled();
+	});
+
+	it('retains the total active request limit while draining queued control commands in arrival order', async () => {
+		const releases: Array<() => void> = [];
+		const requestControl = vi.fn<(...arguments_: unknown[]) => Promise<unknown>>(
+			() =>
+				new Promise<DecodedProtocolEnvelope>((resolve) => {
+					releases.push(() => resolve({} as DecodedProtocolEnvelope));
+				}),
+		);
+		const host = {
+			onAttachmentEnvelope: vi.fn<HostConnection['onAttachmentEnvelope']>(() =>
+				vi.fn<() => void>(),
+			),
+			onEnvelope: vi.fn<HostConnection['onEnvelope']>(() => vi.fn<() => void>()),
+			onClosed: vi.fn<HostConnection['onClosed']>(() => vi.fn<() => void>()),
+			requestControl,
+		} as unknown as HostConnection;
+		const emitter = new EventEmitter();
+		const port = Object.assign(emitter, {
+			close: vi.fn<() => void>(),
+			postMessage: vi.fn<(...arguments_: unknown[]) => void>(),
+			start: vi.fn<() => void>(),
+		}) as unknown as MessagePortMain;
+		const bootstrap = {
+			attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
+			canInput: true,
+			canResize: true,
+			capabilityRevision: CanonicalUint64TextSchema.parse('1'),
+			creationId: CreationIdSchema.parse('22'.repeat(16)),
+			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
+			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
+			terminalOutcome: null,
+			theme,
+		};
+		const broker = new ProjectedTerminalBroker(host, port, bootstrap);
+		broker.start();
+
+		for (let index = 0; index < 96; index += 1) {
+			emitter.emit('message', {
+				data: {
+					kind: 'frame-applied',
+					payload: {
+						attachmentId: bootstrap.attachmentId,
+						generation: '1',
+						revision: String(index),
+						sequence: String(index + 1),
+					},
+				},
+			});
+		}
+
+		expect(requestControl).toHaveBeenCalledTimes(64);
+		expect(broker.metrics).toMatchObject({ commandsAccepted: 96, commandsRejected: 0 });
+		releases[7]?.();
+		await vi.waitFor(() => expect(requestControl).toHaveBeenCalledTimes(65));
+		expect(requestControl.mock.calls[64]?.[1]).toMatchObject({ sequence: '65' });
+	});
+
+	it('retires only the saturated attachment when the pending renderer window is full', () => {
 		let hostListener: ((envelope: DecodedProtocolEnvelope) => void) | undefined;
 		const requestInput = vi.fn<HostConnection['requestInput']>(
 			() => new Promise<never>(() => undefined),
@@ -899,7 +1024,7 @@ describe('ProjectedTerminalBroker', () => {
 			onCleanupRequested,
 		});
 		broker.start();
-		for (let index = 0; index < 64; index += 1) {
+		for (let index = 0; index < 16; index += 1) {
 			emitter.emit('message', {
 				data: {
 					kind: 'text-input',
@@ -911,7 +1036,19 @@ describe('ProjectedTerminalBroker', () => {
 				},
 			});
 		}
-		expect(requestInput).toHaveBeenCalledTimes(64);
+		expect(requestInput).toHaveBeenCalledTimes(16);
+		for (let index = 16; index < 1_040; index += 1) {
+			emitter.emit('message', {
+				data: {
+					kind: 'text-input',
+					payload: {
+						attachmentId: bootstrap.attachmentId,
+						capabilityRevision: bootstrap.capabilityRevision,
+						text: String(index),
+					},
+				},
+			});
+		}
 		const emitClipboardRequest = (sequence: string): void => {
 			hostListener?.(
 				eventEnvelope(
@@ -954,6 +1091,80 @@ describe('ProjectedTerminalBroker', () => {
 		emitClipboardRequest('2');
 		expect(postMessage).toHaveBeenCalledTimes(postedCount);
 		expect(broker.metrics.commandsRejected).toBe(1);
+	});
+
+	it('bounds pending renderer commands by serialized bytes independently of entry count', () => {
+		const requestInput = vi.fn<HostConnection['requestInput']>(
+			() => new Promise<never>(() => undefined),
+		);
+		const host = {
+			onAttachmentEnvelope: vi.fn<HostConnection['onAttachmentEnvelope']>(() =>
+				vi.fn<() => void>(),
+			),
+			onEnvelope: vi.fn<HostConnection['onEnvelope']>(() => vi.fn<() => void>()),
+			onClosed: vi.fn<HostConnection['onClosed']>(() => vi.fn<() => void>()),
+			requestInput,
+		} as unknown as HostConnection;
+		const emitter = new EventEmitter();
+		const postMessage = vi.fn<(...arguments_: unknown[]) => void>();
+		const port = Object.assign(emitter, {
+			close: vi.fn<() => void>(),
+			postMessage,
+			start: vi.fn<() => void>(),
+		}) as unknown as MessagePortMain;
+		const bootstrap = {
+			attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
+			canInput: true,
+			canResize: true,
+			capabilityRevision: CanonicalUint64TextSchema.parse('1'),
+			creationId: CreationIdSchema.parse('22'.repeat(16)),
+			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
+			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
+			terminalOutcome: null,
+			theme,
+		};
+		const onCleanupRequested = vi.fn<(error: unknown) => void>();
+		const broker = new ProjectedTerminalBroker(host, port, bootstrap, undefined, 'desktop', {
+			onCleanupRequested,
+		});
+		broker.start();
+		for (let index = 0; index < 16; index += 1) {
+			emitter.emit('message', {
+				data: {
+					kind: 'text-input',
+					payload: {
+						attachmentId: bootstrap.attachmentId,
+						capabilityRevision: bootstrap.capabilityRevision,
+						text: String(index),
+					},
+				},
+			});
+		}
+		const largeText = 'x'.repeat(PROTOCOL_LIMITS.maxInputBytes);
+		for (let index = 0; index < 4; index += 1) {
+			emitter.emit('message', {
+				data: {
+					kind: 'text-input',
+					payload: {
+						attachmentId: bootstrap.attachmentId,
+						capabilityRevision: bootstrap.capabilityRevision,
+						text: largeText,
+					},
+				},
+			});
+		}
+
+		expect(requestInput).toHaveBeenCalledTimes(16);
+		expect(broker.metrics).toMatchObject({ commandsAccepted: 19, commandsRejected: 1 });
+		expect(postMessage).toHaveBeenCalledWith({
+			failure: expect.objectContaining({
+				code: 'renderer-backpressure',
+				operation: 'input',
+				retryable: true,
+			}),
+			kind: 'failure',
+		});
+		expect(onCleanupRequested).toHaveBeenCalledOnce();
 	});
 
 	it('retires only the affected attachment when Desktop-to-Host admission rejects an ACK', async () => {

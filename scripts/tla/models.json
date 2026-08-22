@@ -370,6 +370,36 @@
 			]
 		},
 		{
+			"id": "projected-terminal-request-admission",
+			"owner": "@orchbee/desktop",
+			"workspace": "apps/desktop",
+			"module": "apps/desktop/formal/tla/ProjectedTerminalBrokerAdmission.tla",
+			"config": "apps/desktop/formal/tla/ProjectedTerminalBrokerAdmission.cfg",
+			"claims": ["apps/desktop/README.md"],
+			"triggers": ["apps/desktop/src/main/broker/**"],
+			"requiredCoverage": [
+				"AdmitDirect",
+				"AdmitQueued",
+				"RejectOverflow",
+				"CompleteAny",
+				"SettleRetiredAny"
+			],
+			"variants": [
+				{
+					"name": "absorbable-burst",
+					"constants": {
+						"Scenario": "absorbable-burst"
+					}
+				},
+				{
+					"name": "overflow",
+					"constants": {
+						"Scenario": "overflow"
+					}
+				}
+			]
+		},
+		{
 			"id": "terminal-exit-recovery",
 			"owner": "@orchbee/desktop",
 			"workspace": "apps/desktop",
