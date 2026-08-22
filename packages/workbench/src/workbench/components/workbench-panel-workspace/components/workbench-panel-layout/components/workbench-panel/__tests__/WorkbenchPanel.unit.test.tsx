@@ -11,6 +11,7 @@ import {
 } from '../../../../../../../../terminal-presentation';
 import type { PanelLayoutNode, PanelLeaf } from '../../../../../model/panel-workspace-state';
 import type { WorkbenchPanelWorkspaceView } from '../../../../../types/panel-workspace-view';
+import type { WorkbenchTerminalSurfaceProps } from '../../../../../../../types/workbench-terminal-surface';
 import { WorkbenchPanel } from '../WorkbenchPanel';
 
 const primaryPresentation = {
@@ -50,6 +51,10 @@ const otherPanel = {
 interface RenderPanelOptions {
 	readonly dragging?: boolean;
 	readonly focused?: boolean;
+}
+
+function TestTerminalSurface({ autoFocus }: WorkbenchTerminalSurfaceProps) {
+	return createElement('div', { 'data-terminal-auto-focus': String(autoFocus) });
 }
 
 function createPanel(activeChildPresentationId: TerminalPresentationId | null): PanelLeaf {
@@ -142,7 +147,15 @@ function renderPanel(
 		createElement(
 			OrchbeeI18nProvider,
 			{ locale: 'en-US' },
-			createElement(TooltipProvider, null, createElement(WorkbenchPanel, { panel, view })),
+			createElement(
+				TooltipProvider,
+				null,
+				createElement(WorkbenchPanel, {
+					panel,
+					terminalSurface: TestTerminalSurface,
+					view,
+				}),
+			),
 		),
 	);
 }
@@ -204,6 +217,14 @@ describe('WorkbenchPanel', () => {
 		expect(focusedMarkup).not.toContain('data-slot="workbench-panel-focus-scrim"');
 		expect(inactiveMarkup).toContain('data-inactive="true"');
 		expect(inactiveMarkup).toContain('data-slot="workbench-panel-focus-scrim"');
+	});
+
+	it('projects terminal auto focus only to the focused panel', () => {
+		const focusedMarkup = renderPanel(createPanel(null), 2);
+		const inactiveMarkup = renderPanel(createPanel(null), 2, { focused: false });
+
+		expect(focusedMarkup).toContain('data-terminal-auto-focus="true"');
+		expect(inactiveMarkup).toContain('data-terminal-auto-focus="false"');
 	});
 
 	it('renders only an empty framed placeholder at the projected drop position', () => {

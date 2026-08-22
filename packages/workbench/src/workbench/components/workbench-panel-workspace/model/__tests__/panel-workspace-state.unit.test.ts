@@ -57,6 +57,35 @@ function managedPresentation(
 	};
 }
 
+function managedCloseRequest(presentationId: string, operationId: string, removalId: string) {
+	return {
+		kind: 'managed' as const,
+		operations: [
+			{
+				operationId: terminalPresentationOperationId(operationId),
+				presentationId: terminalPresentationId(presentationId),
+			},
+		],
+		removalId: terminalPresentationRemovalId(removalId),
+	};
+}
+
+function completeManagedClose(
+	state: PanelWorkspaceState,
+	presentationId: string,
+	operationId: string,
+	removalId: string,
+	tabId = 'tab-a',
+) {
+	return transitionPanelWorkspaceCore(state, {
+		operationId: terminalPresentationOperationId(operationId),
+		presentationId: terminalPresentationId(presentationId),
+		removalId: terminalPresentationRemovalId(removalId),
+		tabId,
+		type: 'terminal-close-completed',
+	});
+}
+
 function createPanelWorkspaceState(
 	tabs: readonly { readonly cwd?: string | null; readonly id: string; readonly title: string }[],
 ): PanelWorkspaceState {
@@ -703,6 +732,38 @@ describe('panel workspace state', () => {
 		expect(requireTab(result.state).focusedPanelId).toBe('panel-1');
 	});
 
+	it('focuses the previous panel after closing the focused panel, with next as the first-panel fallback', () => {
+		let state = createPanelWorkspaceState([{ id: 'tab-a', title: 'Terminal 1' }]);
+		for (const panelId of ['panel-1', 'panel-2']) {
+			state = apply(state, {
+				direction: 'right',
+				newTerminalTitle: terminalTitle(state),
+				panelId,
+				tabId: 'tab-a',
+				type: 'panel-split',
+			});
+		}
+		state = apply(state, {
+			panelId: 'panel-2',
+			tabId: 'tab-a',
+			type: 'panel-focused',
+		});
+
+		const middleClosed = transitionPanelWorkspace(state, {
+			panelId: 'panel-2',
+			tabId: 'tab-a',
+			type: 'panel-closed',
+		});
+		const firstClosed = transitionPanelWorkspace(state, {
+			panelId: 'panel-1',
+			tabId: 'tab-a',
+			type: 'panel-closed',
+		});
+
+		expect(requireTab(middleClosed.state).focusedPanelId).toBe('panel-1');
+		expect(requireTab(firstClosed.state).focusedPanelId).toBe('panel-2');
+	});
+
 	it('resizes only the pair adjacent to a separator', () => {
 		let state = createPanelWorkspaceState([{ id: 'tab-a', title: 'Terminal 1' }]);
 		for (const panelId of ['panel-1', 'panel-2']) {
@@ -912,6 +973,406 @@ describe('panel workspace state', () => {
 				type: 'terminal-provision-completed',
 			}),
 		).toMatchObject({ outcome: 'rejected', rejection: 'stale-operation' });
+	});
+
+	it('removes only an exited child after disposal and retains a failed disposal for retry', () => {
+		const initialization = initializePanelWorkspace([
+			{
+				id: 'tab-a',
+				presentation: managedPresentation('presentation-primary', 'provision-primary'),
+				title: 'Primary',
+			},
+		]);
+		let state = transitionPanelWorkspaceCore(initialization.state, {
+			operationId: terminalPresentationOperationId('provision-primary'),
+			presentationId: terminalPresentationId('presentation-primary'),
+			tabId: 'tab-a',
+			type: 'terminal-provision-completed',
+		}).state;
+		state = transitionPanelWorkspaceCore(state, {
+			newTerminalTitle: 'Child',
+			panelId: 'panel-1',
+			presentation: managedPresentation('presentation-child', 'provision-child'),
+			tabId: 'tab-a',
+			type: 'child-terminal-created',
+		}).state;
+		state = transitionPanelWorkspaceCore(state, {
+			operationId: terminalPresentationOperationId('provision-child'),
+			presentationId: terminalPresentationId('presentation-child'),
+			tabId: 'tab-a',
+			type: 'terminal-provision-completed',
+		}).state;
+
+		const exited = transitionPanelWorkspaceCore(state, {
+			close: managedCloseRequest('presentation-child', 'close-child', 'remove-child'),
+			exitCode: null,
+			presentationId: terminalPresentationId('presentation-child'),
+			signal: 'SIGTERM',
+			tabId: 'tab-a',
+			type: 'terminal-exited',
+		});
+		expect(exited.commands).toEqual([
+			{
+				operationId: 'close-child',
+				presentationId: 'presentation-child',
+				type: 'terminal-close-requested',
+			},
+		]);
+		expect(
+			getDisplayedTerminal(requireDefined(findPanel(requireTab(exited.state).root, 'panel-1'))),
+		).toMatchObject({ lifecycle: { kind: 'closing' }, presentationId: 'presentation-child' });
+
+		const failed = transitionPanelWorkspaceCore(exited.state, {
+			failure: { code: 'host-busy', retryable: true },
+			operationId: terminalPresentationOperationId('close-child'),
+			presentationId: terminalPresentationId('presentation-child'),
+			removalId: terminalPresentationRemovalId('remove-child'),
+			tabId: 'tab-a',
+			type: 'terminal-close-failed',
+		});
+		expect(requireTab(failed.state).root).toMatchObject({
+			childPresentations: [{ lifecycle: { failure: { code: 'host-busy' }, kind: 'close-failed' } }],
+		});
+		const retry = transitionPanelWorkspaceCore(failed.state, {
+			operationId: terminalPresentationOperationId('close-child-retry'),
+			presentationId: terminalPresentationId('presentation-child'),
+			removalId: terminalPresentationRemovalId('remove-child'),
+			tabId: 'tab-a',
+			type: 'terminal-close-retried',
+		});
+		const completed = completeManagedClose(
+			retry.state,
+			'presentation-child',
+			'close-child-retry',
+			'remove-child',
+		);
+		const panel = requireDefined(findPanel(requireTab(completed.state).root, 'panel-1'));
+		expect(panel.childPresentations).toEqual([]);
+		expect(getDisplayedTerminal(panel).presentationId).toBe('presentation-primary');
+		expect(completed.state.pendingRemovals).toEqual([]);
+	});
+
+	it('promotes the active surviving child, with the first child as the no-active fallback', () => {
+		function stateWithTwoChildren(): PanelWorkspaceState {
+			const initialization = initializePanelWorkspace([
+				{
+					id: 'tab-a',
+					presentation: managedPresentation('presentation-primary', 'provision-primary'),
+					title: 'Primary',
+				},
+			]);
+			let state = transitionPanelWorkspaceCore(initialization.state, {
+				operationId: terminalPresentationOperationId('provision-primary'),
+				presentationId: terminalPresentationId('presentation-primary'),
+				tabId: 'tab-a',
+				type: 'terminal-provision-completed',
+			}).state;
+			for (const [presentationId, operationId, title] of [
+				['presentation-child-1', 'provision-child-1', 'Child 1'],
+				['presentation-child-2', 'provision-child-2', 'Child 2'],
+			] as const) {
+				state = transitionPanelWorkspaceCore(state, {
+					newTerminalTitle: title,
+					panelId: 'panel-1',
+					presentation: managedPresentation(presentationId, operationId),
+					tabId: 'tab-a',
+					type: 'child-terminal-created',
+				}).state;
+				state = transitionPanelWorkspaceCore(state, {
+					operationId: terminalPresentationOperationId(operationId),
+					presentationId: terminalPresentationId(presentationId),
+					tabId: 'tab-a',
+					type: 'terminal-provision-completed',
+				}).state;
+			}
+			return state;
+		}
+
+		let activeState = transitionPanelWorkspaceCore(stateWithTwoChildren(), {
+			childPresentationId: terminalPresentationId('presentation-child-1'),
+			panelId: 'panel-1',
+			tabId: 'tab-a',
+			type: 'child-terminal-activated',
+		}).state;
+		const activeExit = transitionPanelWorkspaceCore(activeState, {
+			close: managedCloseRequest(
+				'presentation-primary',
+				'close-primary-active',
+				'remove-primary-active',
+			),
+			exitCode: 7,
+			presentationId: terminalPresentationId('presentation-primary'),
+			signal: null,
+			tabId: 'tab-a',
+			type: 'terminal-exited',
+		});
+		expect(activeExit.commands).toEqual([
+			{
+				operationId: 'close-primary-active',
+				presentationId: 'presentation-primary',
+				type: 'terminal-close-requested',
+			},
+		]);
+		activeState = activeExit.state;
+		const activeCompleted = completeManagedClose(
+			activeState,
+			'presentation-primary',
+			'close-primary-active',
+			'remove-primary-active',
+		);
+		const activePanel = requireDefined(
+			findPanel(requireTab(activeCompleted.state).root, 'panel-1'),
+		);
+		expect(activePanel.primaryPresentation.presentationId).toBe('presentation-child-1');
+		expect(activePanel.childPresentations.map(({ presentationId }) => presentationId)).toEqual([
+			'presentation-child-2',
+		]);
+		expect(activePanel.activeChildPresentationId).toBeNull();
+
+		let fallbackState = transitionPanelWorkspaceCore(stateWithTwoChildren(), {
+			panelId: 'panel-1',
+			tabId: 'tab-a',
+			type: 'primary-terminal-shown',
+		}).state;
+		fallbackState = transitionPanelWorkspaceCore(fallbackState, {
+			close: managedCloseRequest(
+				'presentation-primary',
+				'close-primary-fallback',
+				'remove-primary-fallback',
+			),
+			exitCode: 0,
+			presentationId: terminalPresentationId('presentation-primary'),
+			signal: null,
+			tabId: 'tab-a',
+			type: 'terminal-exited',
+		}).state;
+		const fallbackCompleted = completeManagedClose(
+			fallbackState,
+			'presentation-primary',
+			'close-primary-fallback',
+			'remove-primary-fallback',
+		);
+		expect(
+			findPanel(requireTab(fallbackCompleted.state).root, 'panel-1')?.primaryPresentation
+				.presentationId,
+		).toBe('presentation-child-1');
+
+		let concurrentState = transitionPanelWorkspaceCore(stateWithTwoChildren(), {
+			childPresentationId: terminalPresentationId('presentation-child-1'),
+			panelId: 'panel-1',
+			tabId: 'tab-a',
+			type: 'child-terminal-activated',
+		}).state;
+		concurrentState = transitionPanelWorkspaceCore(concurrentState, {
+			close: managedCloseRequest(
+				'presentation-primary',
+				'close-primary-concurrent',
+				'remove-primary-concurrent',
+			),
+			exitCode: 0,
+			presentationId: terminalPresentationId('presentation-primary'),
+			signal: null,
+			tabId: 'tab-a',
+			type: 'terminal-exited',
+		}).state;
+		concurrentState = transitionPanelWorkspaceCore(concurrentState, {
+			close: managedCloseRequest(
+				'presentation-child-1',
+				'close-child-concurrent',
+				'remove-child-concurrent',
+			),
+			exitCode: 0,
+			presentationId: terminalPresentationId('presentation-child-1'),
+			signal: null,
+			tabId: 'tab-a',
+			type: 'terminal-exited',
+		}).state;
+		const concurrentPrimaryCompleted = completeManagedClose(
+			concurrentState,
+			'presentation-primary',
+			'close-primary-concurrent',
+			'remove-primary-concurrent',
+		);
+		const concurrentPanel = requireDefined(
+			findPanel(requireTab(concurrentPrimaryCompleted.state).root, 'panel-1'),
+		);
+		expect(concurrentPanel.primaryPresentation.presentationId).toBe('presentation-child-2');
+		expect(concurrentPanel.activeChildPresentationId).toBeNull();
+		expect(concurrentPrimaryCompleted.state.pendingRemovals).toEqual([
+			expect.objectContaining({ kind: 'child', removalId: 'remove-child-concurrent' }),
+		]);
+	});
+
+	it('waits when its only child exits concurrently before closing the final Tab', () => {
+		const initialization = initializePanelWorkspace([
+			{
+				id: 'tab-a',
+				presentation: managedPresentation('presentation-primary', 'provision-primary'),
+				title: 'Primary',
+			},
+		]);
+		let state = transitionPanelWorkspaceCore(initialization.state, {
+			operationId: terminalPresentationOperationId('provision-primary'),
+			presentationId: terminalPresentationId('presentation-primary'),
+			tabId: 'tab-a',
+			type: 'terminal-provision-completed',
+		}).state;
+		state = transitionPanelWorkspaceCore(state, {
+			newTerminalTitle: 'Child',
+			panelId: 'panel-1',
+			presentation: managedPresentation('presentation-child', 'provision-child'),
+			tabId: 'tab-a',
+			type: 'child-terminal-created',
+		}).state;
+		state = transitionPanelWorkspaceCore(state, {
+			operationId: terminalPresentationOperationId('provision-child'),
+			presentationId: terminalPresentationId('presentation-child'),
+			tabId: 'tab-a',
+			type: 'terminal-provision-completed',
+		}).state;
+		state = transitionPanelWorkspaceCore(state, {
+			close: managedCloseRequest('presentation-primary', 'close-primary', 'remove-primary'),
+			exitCode: 0,
+			presentationId: terminalPresentationId('presentation-primary'),
+			signal: null,
+			tabId: 'tab-a',
+			type: 'terminal-exited',
+		}).state;
+		state = transitionPanelWorkspaceCore(state, {
+			close: managedCloseRequest('presentation-child', 'close-child', 'remove-child'),
+			exitCode: 0,
+			presentationId: terminalPresentationId('presentation-child'),
+			signal: null,
+			tabId: 'tab-a',
+			type: 'terminal-exited',
+		}).state;
+
+		const primaryCompleted = completeManagedClose(
+			state,
+			'presentation-primary',
+			'close-primary',
+			'remove-primary',
+		);
+		expect(primaryCompleted.commands).toEqual([]);
+		expect(primaryCompleted.state.pendingRemovals).toHaveLength(2);
+		const childCompleted = completeManagedClose(
+			primaryCompleted.state,
+			'presentation-child',
+			'close-child',
+			'remove-child',
+		);
+		expect(childCompleted.commands).toEqual([
+			{ removalId: 'remove-primary', tabId: 'tab-a', type: 'tab-close-ready' },
+		]);
+		expect(childCompleted.state.pendingRemovals).toEqual([
+			expect.objectContaining({ kind: 'tab', removalId: 'remove-primary' }),
+		]);
+	});
+
+	it('removes an exited primary Panel with deterministic focus and escalates concurrent final Panels to Tab closure', () => {
+		const initialization = initializePanelWorkspace([
+			{
+				id: 'tab-a',
+				presentation: managedPresentation('presentation-1', 'provision-1'),
+				title: 'Terminal 1',
+			},
+		]);
+		let state = transitionPanelWorkspaceCore(initialization.state, {
+			operationId: terminalPresentationOperationId('provision-1'),
+			presentationId: terminalPresentationId('presentation-1'),
+			tabId: 'tab-a',
+			type: 'terminal-provision-completed',
+		}).state;
+		state = transitionPanelWorkspaceCore(state, {
+			direction: 'right',
+			newTerminalTitle: 'Terminal 2',
+			panelId: 'panel-1',
+			presentation: managedPresentation('presentation-2', 'provision-2'),
+			tabId: 'tab-a',
+			type: 'panel-split',
+		}).state;
+		state = transitionPanelWorkspaceCore(state, {
+			operationId: terminalPresentationOperationId('provision-2'),
+			presentationId: terminalPresentationId('presentation-2'),
+			tabId: 'tab-a',
+			type: 'terminal-provision-completed',
+		}).state;
+
+		state = transitionPanelWorkspaceCore(state, {
+			close: managedCloseRequest('presentation-2', 'close-2', 'remove-2'),
+			exitCode: 0,
+			presentationId: terminalPresentationId('presentation-2'),
+			signal: null,
+			tabId: 'tab-a',
+			type: 'terminal-exited',
+		}).state;
+		const blockedChild = transitionPanelWorkspaceCore(state, {
+			newTerminalTitle: 'Must not start',
+			panelId: 'panel-2',
+			presentation: managedPresentation('presentation-blocked', 'provision-blocked'),
+			tabId: 'tab-a',
+			type: 'child-terminal-created',
+		});
+		expect(blockedChild).toMatchObject({
+			commands: [],
+			outcome: 'rejected',
+			rejection: 'terminal-removal-conflict',
+		});
+		expect(blockedChild.state).toBe(state);
+		const focusedRemoval = completeManagedClose(state, 'presentation-2', 'close-2', 'remove-2');
+		expect(requireTab(focusedRemoval.state).focusedPanelId).toBe('panel-1');
+
+		let concurrentState = transitionPanelWorkspaceCore(
+			transitionPanelWorkspaceCore(initialization.state, {
+				operationId: terminalPresentationOperationId('provision-1'),
+				presentationId: terminalPresentationId('presentation-1'),
+				tabId: 'tab-a',
+				type: 'terminal-provision-completed',
+			}).state,
+			{
+				direction: 'right',
+				newTerminalTitle: 'Terminal 2',
+				panelId: 'panel-1',
+				presentation: managedPresentation('presentation-2', 'provision-2'),
+				tabId: 'tab-a',
+				type: 'panel-split',
+			},
+		).state;
+		concurrentState = transitionPanelWorkspaceCore(concurrentState, {
+			operationId: terminalPresentationOperationId('provision-2'),
+			presentationId: terminalPresentationId('presentation-2'),
+			tabId: 'tab-a',
+			type: 'terminal-provision-completed',
+		}).state;
+		for (const [presentationId, operationId, removalId] of [
+			['presentation-1', 'close-concurrent-1', 'remove-concurrent-1'],
+			['presentation-2', 'close-concurrent-2', 'remove-concurrent-2'],
+		] as const) {
+			concurrentState = transitionPanelWorkspaceCore(concurrentState, {
+				close: managedCloseRequest(presentationId, operationId, removalId),
+				exitCode: 0,
+				presentationId: terminalPresentationId(presentationId),
+				signal: null,
+				tabId: 'tab-a',
+				type: 'terminal-exited',
+			}).state;
+		}
+		const firstCompleted = completeManagedClose(
+			concurrentState,
+			'presentation-1',
+			'close-concurrent-1',
+			'remove-concurrent-1',
+		);
+		expect(collectPanelLeaves(requireTab(firstCompleted.state).root)).toHaveLength(1);
+		const finalCompleted = completeManagedClose(
+			firstCompleted.state,
+			'presentation-2',
+			'close-concurrent-2',
+			'remove-concurrent-2',
+		);
+		expect(finalCompleted.commands).toEqual([
+			{ removalId: 'remove-concurrent-2', tabId: 'tab-a', type: 'tab-close-ready' },
+		]);
 	});
 
 	it('clears transient terminal metadata when a stopped session starts fresh', () => {
@@ -1590,7 +2051,7 @@ describe('panel workspace state', () => {
 				);
 				expect(requireTab(closeResult.state).focusedPanelId).toBe(
 					tab.focusedPanelId === panel.id
-						? (panels[panels.indexOf(panel) + 1] ?? panels[panels.indexOf(panel) - 1])?.id
+						? (panels[panels.indexOf(panel) - 1] ?? panels[panels.indexOf(panel) + 1])?.id
 						: tab.focusedPanelId,
 				);
 				exploredActionCount += 1;

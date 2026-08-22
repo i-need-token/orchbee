@@ -17,7 +17,7 @@ describe('resolveDesktopTerminalFileDropCapability', () => {
 
 		await expect(capability?.prepare([file])).resolves.toMatchObject({
 			kind: 'ready',
-			text: "'/tmp/space name.txt'",
+			text: '/tmp/space\\ name.txt',
 		});
 		expect(getPathForFile).toHaveBeenCalledExactlyOnceWith(file);
 		Reflect.deleteProperty(targetWindow, DESKTOP_FILE_PATH_BRIDGE_KEY);

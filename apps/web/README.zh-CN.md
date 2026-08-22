@@ -10,7 +10,7 @@ Orchbee 工作台的浏览器组合条目。
 
 对于主机支持的视觉终端，共享表面在加载当前配置的字体并测量正安装视口之前不会打开投影。它通过相同的 Electron 或网关投影命令发送生成的精确列、行、物理单元格大小、填充感知网格和文档 DPR，然后固定第一个渲染器的演示配置。调整大小的观察或动画帧会唤醒不可测量的表面；释放中止等待。没有计时器启动子进程，也不存在 80x24 视觉后备。
 
-自然退出后最终帧仍可读取；投影附件则拒绝后续 PTY 输入、调整大小、clear 与 reset 控制。已停止的 Presentation 仍是独立 Workbench 状态。其 Start New Session 控件通过共享组合返回 Workbench 转换结果；获准结果会经常规持久工作流替换 Presentation，拒绝或抛出异常的启动则保留当前已停止 Presentation，并显示局部失败反馈。
+自然退出后，只有在 Workbench 的 managed 自然退出 removal 等待处置期间，最终帧仍可读取；投影附件会拒绝后续 PTY 输入、调整大小、clear 与 reset 控制，并且处置完成后不会把已退出 Presentation 保留为 Tab。已停止的 Presentation 仍是独立 Workbench 状态。其 Start New Session 控件通过共享组合返回 Workbench 转换结果；获准结果会经常规持久工作流替换 Presentation，拒绝或抛出异常的启动则保留当前已停止 Presentation，并显示局部失败反馈。
 
 意外的附件丢失会冻结最后完成的画布和可访问的行，同时释放其传输和交互所有权。共享表面会在 250、500 和 1,000 毫秒后重试新的附件，并且仅在候选者绘制其第一帧后才替换冻结的投影。耗尽预算后，诚实的最后一帧可见，并暴露了一个本地化的手动重试操作；每次尝试都拥有并释放一个投影请求。类型为 `renderer-backpressure`、`host-transport-backpressure` 或 `host-connection-unavailable` 故障在保留其原始操作和相关诊断后解决相同的附件本地传输不可用信号； Surface 永远不会重试被拒绝的命令或继续使用因果不完整的附件。传输丢失还会显式地与字体和 GPU 启动竞争：它在启动之前中止该候选者可能会拖延恢复，并且升级会在第一帧等待之前和之后检查候选者当前的传输可用性。
 
@@ -32,9 +32,29 @@ Orchbee 工作台的浏览器组合条目。
 
 稳定的有界面 Canvas 2D `terminal-parity/IN-10-read-only` 见证控制精确的附件能力修订，并观察即时本地修复、保留的搜索/选择/历史/复制、零陈旧输入命令，以及升级后只接受全新输入。Terminal Host 的所有者本地测试会证明权威拒绝与修复顺序；该 Browser 夹具不会授予渲染器改变能力的权限，也不声称原生权限行为。
 
-桌面文件放置是同一表面的可选功能，而不是浏览器文件系统 API。桌面适配器只能将用户提供的磁盘 `File` 对象解析为后备路径。确定性文件删除策略最多接受 32 个绝对 POSIX 路径，保留其顺序，将每个路径引用为一个 POSIX shell 字，并在任何路径丢失、相对、包含粘贴不安全控制字符或使完整预览超过 4,096 个 Unicode 代码点时拒绝完全删除。每个承认的文件放置都会进入现有的 FIFO 粘贴审核，即使它是一条安全线。本地化审查显示完整的生成输入，并警告 SSH、容器或其他远程 shell 中可能不存在本地路径。取消、替换、生命周期中止以及不可用的活动附件不会发布任何内容；批准仅发布审阅的文本，而不发布 Enter 键。浏览器和网关客户端不接收后备路径功能，并且 Windows 仍然不受支持，直到活动 shell 方言具有同等边界的引用协定。
+Desktop file drop 是同一 surface 的可选 capability，而不是 Browser filesystem API。Desktop
+adapter 只能把 user-supplied disk `File` object 解析为 backing path；一个 object 可以代表 file
+或 directory，但不会枚举 child。Drag data store 受保护时，file drag recognition 使用 `Files`
+marker 或 file-kind item；到 `drop` 时再使用有序 `FileList` 或非 null file-kind item。确定性
+preparer 最多接受 32 条 absolute POSIX path，保留顺序，应用固定 Ghostty live-buffer backslash
+escaping set，并用一个空格连接。任意 path 缺失、为 relative、包含 C0/C1 control character，或使
+escaped input 超过 4,096 个 Unicode code point 时，会拒绝整个 drop。Ready drop 直接进入既有
+FIFO paste path，因此 simple path 保持不变，shell 会在当前 editing cursor 收到文本，不打开 Paste
+Review，也不追加 Enter。Local path 可能不存在于 SSH、container 或其他 foreground environment；
+direct insertion 有意不增加 warning 或 remote-path translation。Replacement、lifecycle abort、
+stale preparation 与 unavailable active attachment 均不发布任何内容。Browser 与 Gateway client
+不获得 backing-path capability；在 active shell dialect 具备同样有界的 escaping contract 前，
+Windows 仍不受支持。
 
-稳定的 `terminal-parity/IN-08-drop` 见证人在当前的 POSIX 桌面平台上使用真实的 Electron `File` 和后备路径桥。它在强制粘贴检查中观察精确的单字引用，无需终端输入即可取消，无需命令执行即可批准，以及仅在单独的显式 Enter 之后执行。所有者本地测试涵盖 32 个文件和 4,096 个代码点边界、顺序、引号、Unicode、粘贴不安全控件、缺失或格式错误的桥接值、不支持的平台、过时的准备以及网关功能缺失。见证人未声明 Windows 支持、浏览器/LAN 路径访问、目录枚举、文件内容读取、上传或文件系统链接激活。
+稳定的 headed `terminal-parity/IN-08-drop` witness 在当前 POSIX Desktop platform 使用真实 Electron
+`File` 与 backing-path bridge。它的 protected `dragover` fixture 会公开 `Files` marker，但不提供
+可读 `FileList`；最终 `drop` 再提供 disk-backed object。它观察直接插入既有 shell line 中间、没有
+Paste Review、不自动执行，以及只有单独显式 Enter 后才执行。Owner-local test 覆盖 FileList
+顺序与 file-kind item fallback、Ghostty-compatible escaping、32-file 与 4,096-code-point boundary、
+Unicode、全部 control range、missing/malformed bridge value、unsupported platform、stale
+preparation 与 Gateway capability absence。该 witness 不自动操作 Finder，也不声明覆盖每一种
+native OS payload variant、Windows support、Browser/LAN path access、directory enumeration、
+file-content read、upload 或 filesystem-link activation。
 
 打包的`orchbee:` origin和Electron User-Agent令牌选择桌面模式。 User-Agent 是用于环回开发的适配器发现，而不是身份验证；桌面权限仍然只能通过经过验证的沙盒引导程序到达。显式 `?orchbee-runtime=gateway` 标记选择环回上经过身份验证的进程生命周期网关客户端或显式启用的受信任 LAN。普通的HTTP(S)浏览器源选择浏览器预览。网关端口、版本和生命周期功能必须在片段中恰好出现一次。无效、重复或不完整的值将无法关闭且不会回退。
 

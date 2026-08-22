@@ -8,8 +8,10 @@ import type {
 import * as React from 'react';
 
 import {
+	containsTerminalFileDrop,
+	extractTerminalFileDropFiles,
 	MAXIMUM_TERMINAL_FILE_DROP_FILES,
-	MAXIMUM_TERMINAL_FILE_DROP_PREVIEW_CHARACTERS,
+	MAXIMUM_TERMINAL_FILE_DROP_INPUT_CHARACTERS,
 	type TerminalFileDropRejectionReason,
 } from '../../../terminal-file-drop';
 import { startProjectedTerminalRenderer } from '../../projected-terminal-renderer';
@@ -40,7 +42,7 @@ interface PresentationFileDropFailure {
 
 type ProjectedTerminalSurfaceWorkbenchHost = Pick<
 	WorkbenchTerminalSurfaceProps,
-	'actionRuntime' | 'actionScope' | 'admitBellEffect' | 'bindActionContextProvider'
+	'actionRuntime' | 'actionScope' | 'admitBellEffect' | 'autoFocus' | 'bindActionContextProvider'
 >;
 
 export function useProjectedTerminalSurface(
@@ -50,6 +52,7 @@ export function useProjectedTerminalSurface(
 	const actionRuntime = workbenchHost?.actionRuntime;
 	const actionScope = workbenchHost?.actionScope;
 	const admitBellEffect = workbenchHost?.admitBellEffect;
+	const autoFocus = workbenchHost?.autoFocus ?? false;
 	const bindActionContextProvider = workbenchHost?.bindActionContextProvider;
 	const capability = React.useContext(ProjectedTerminalSurfaceCapabilityContext);
 	const intl = useOrchbeeIntl();
@@ -72,6 +75,10 @@ export function useProjectedTerminalSurface(
 		presentation.lifecycle.kind === 'running' ||
 		presentation.lifecycle.kind === 'exited' ||
 		presentation.lifecycle.kind === 'failed';
+	const currentRecovery =
+		presentationRecovery?.presentationId === presentation.presentationId
+			? presentationRecovery.state
+			: undefined;
 
 	const settlePasteReview = useMemoizedFn((approved: boolean): void => {
 		const pending = pendingPasteDecision.current;
@@ -101,15 +108,15 @@ export function useProjectedTerminalSurface(
 		},
 	);
 	const handleFileDragOver = useMemoizedFn((event: React.DragEvent<HTMLDivElement>): void => {
-		if (event.dataTransfer.files.length === 0) return;
+		if (!containsTerminalFileDrop(event.dataTransfer)) return;
 		event.preventDefault();
 		event.dataTransfer.dropEffect =
 			capability?.terminalFileDropCapability === undefined ? 'none' : 'copy';
 	});
 	const handleFileDrop = useMemoizedFn((event: React.DragEvent<HTMLDivElement>): void => {
 		const fileDropCapability = capability?.terminalFileDropCapability;
-		const files = Array.from(event.dataTransfer.files);
-		if (files.length === 0) return;
+		if (!containsTerminalFileDrop(event.dataTransfer)) return;
+		const files = extractTerminalFileDropFiles(event.dataTransfer);
 		event.preventDefault();
 		event.stopPropagation();
 		if (fileDropCapability === undefined) {
@@ -257,12 +264,14 @@ export function useProjectedTerminalSurface(
 		reviewPaste,
 		settlePasteReview,
 	]);
+	React.useEffect(() => {
+		if (!autoFocus || currentRecovery?.kind !== 'ready') return;
+		const recovery = recoveryController.current;
+		if (recovery?.presentationId !== presentation.presentationId) return;
+		recovery.controller.focusTerminal();
+	}, [autoFocus, currentRecovery?.kind, presentation.presentationId]);
 
 	let projectionState: ProjectedTerminalSurfaceView['projectionState'] = 'inactive';
-	const currentRecovery =
-		presentationRecovery?.presentationId === presentation.presentationId
-			? presentationRecovery.state
-			: undefined;
 	if (projectable) projectionState = 'requested';
 	if (currentRecovery?.kind === 'recovering') projectionState = 'recovering';
 	if (currentRecovery?.kind === 'failed') projectionState = 'failed';
@@ -286,10 +295,10 @@ export function useProjectedTerminalSurface(
 					maximum: MAXIMUM_TERMINAL_FILE_DROP_FILES,
 				});
 				break;
-			case 'preview-too-large':
+			case 'input-too-large':
 				failureMessage = intl.formatMessage(
-					projectedTerminalMessages.fileDropFailurePreviewTooLarge,
-					{ maximum: MAXIMUM_TERMINAL_FILE_DROP_PREVIEW_CHARACTERS },
+					projectedTerminalMessages.fileDropFailureInputTooLarge,
+					{ maximum: MAXIMUM_TERMINAL_FILE_DROP_INPUT_CHARACTERS },
 				);
 				break;
 			case 'unsupported':

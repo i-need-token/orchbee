@@ -55,8 +55,8 @@ export const zhCNProjectedTerminalMessages = {
 	'terminal.projected.history.range': '正在显示终端第 {start} 至 {end} 行，共 {total} 行。',
 	'terminal.projected.history.unavailable': '当前连接不支持保留的终端历史。',
 	'terminal.projected.fileDrop.failure.invalid': '无法安全地准备拖入的路径。',
-	'terminal.projected.fileDrop.failure.previewTooLarge':
-		'生成的终端输入超过 {maximum, number} 个字符的完整预览上限。',
+	'terminal.projected.fileDrop.failure.inputTooLarge':
+		'生成的终端输入超过 {maximum, number} 个字符的上限。',
 	'terminal.projected.fileDrop.failure.terminalUnavailable': '当前终端尚未准备好接收拖入路径。',
 	'terminal.projected.fileDrop.failure.tooMany':
 		'本次拖入 {count, number} 个文件，请不要超过 {maximum, number} 个。',

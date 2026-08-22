@@ -38,9 +38,7 @@ export function WorkbenchTerminalViewport({
 		presentationId: terminal.presentationId,
 		runtime: view.actionRuntime,
 	});
-	const split = (direction: PanelSplitDirection, event: React.MouseEvent<HTMLElement>): void => {
-		contextMenu.split(direction, event.currentTarget.ownerDocument);
-	};
+	const split = (direction: PanelSplitDirection): void => contextMenu.split(direction);
 	const structuralEntries: readonly WorkbenchActionMenuEntry[] = [
 		{
 			icon: 'terminal',
@@ -55,28 +53,28 @@ export function WorkbenchTerminalViewport({
 			id: 'split-panel-right',
 			kind: 'command',
 			label: view.messages.splitRight,
-			onSelect: (event) => split('right', event),
+			onSelect: () => split('right'),
 		},
 		{
 			icon: 'panels',
 			id: 'split-panel-left',
 			kind: 'command',
 			label: view.messages.splitLeft,
-			onSelect: (event) => split('left', event),
+			onSelect: () => split('left'),
 		},
 		{
 			icon: 'panels',
 			id: 'split-panel-below',
 			kind: 'command',
 			label: view.messages.splitBelow,
-			onSelect: (event) => split('below', event),
+			onSelect: () => split('below'),
 		},
 		{
 			icon: 'panels',
 			id: 'split-panel-above',
 			kind: 'command',
 			label: view.messages.splitAbove,
-			onSelect: (event) => split('above', event),
+			onSelect: () => split('above'),
 		},
 	];
 	const entries: readonly WorkbenchActionMenuEntry[] =
@@ -112,6 +110,7 @@ export function WorkbenchTerminalViewport({
 						actionRuntime={view.actionRuntime}
 						actionScope={terminalActions.scope}
 						admitBellEffect={view.admitTerminalBellEffect}
+						autoFocus={view.activeTab?.focusedPanelId === panelId}
 						bindActionContextProvider={terminalActions.bindActionContextProvider}
 						presentation={terminal}
 					/>

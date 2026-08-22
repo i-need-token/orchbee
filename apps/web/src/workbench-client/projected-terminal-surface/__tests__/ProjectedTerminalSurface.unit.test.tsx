@@ -48,6 +48,7 @@ describe('ProjectedTerminalSurface', () => {
 					actionRuntime,
 					actionScope: actionRuntime.createScope('test.terminal'),
 					admitBellEffect: () => true,
+					autoFocus: true,
 					bindActionContextProvider: () => ({ dispose: () => undefined }),
 					presentation,
 				}),
@@ -58,5 +59,9 @@ describe('ProjectedTerminalSurface', () => {
 		expect(markup).toContain('data-projected-terminal-close-activity="unknown"');
 		expect(markup).toContain('role="alert"');
 		expect(markup).toContain('The terminal connection failed.');
+		expect(useProjectedTerminalSurface).toHaveBeenCalledWith(
+			presentation,
+			expect.objectContaining({ autoFocus: true }),
+		);
 	});
 });

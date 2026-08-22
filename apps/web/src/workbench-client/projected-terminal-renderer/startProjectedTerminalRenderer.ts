@@ -151,6 +151,7 @@ export interface ProjectedTerminalRendererDependencies {
 
 export interface ProjectedTerminalRendererSession {
 	dispose(): void;
+	focus(): void;
 	isTransportAvailable(): boolean;
 	pasteFileDrop(text: string): Promise<ProjectedPasteResult>;
 	readonly presentationReady: Promise<void>;
@@ -1192,6 +1193,10 @@ export async function startProjectedTerminalRenderer(
 				() => progress.remove(),
 				() => findRoot?.remove(),
 			]);
+		},
+		focus: () => {
+			if (disposed || frozen) return;
+			terminal.focus();
 		},
 		freeze: () => {
 			if (disposed || frozen) return;

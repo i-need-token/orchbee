@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 
+import { ActionRuntime } from '@orchbee/actions';
 import { OrchbeeI18nProvider } from '@orchbee/i18n';
 import {
 	AttachmentIdSchema,
@@ -14,7 +15,11 @@ import type {
 	ProjectedPasteReview,
 	ProjectedTerminalMetadata,
 } from '@orchbee/terminal';
-import { terminalPresentationId, type WorkbenchTerminalPresentation } from '@orchbee/workbench';
+import {
+	terminalPresentationId,
+	type WorkbenchTerminalPresentation,
+	type WorkbenchTerminalSurfaceProps,
+} from '@orchbee/workbench';
 import { act, createElement, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -43,6 +48,13 @@ const geometryMeasurement = vi.hoisted(() => ({
 }));
 
 const mountedGeometry = { cellPixelHeight: 18, cellPixelWidth: 9, columns: 96, rows: 32 } as const;
+const workbenchActionRuntime = new ActionRuntime();
+const workbenchActionScope = workbenchActionRuntime.createScope('test.projected-terminal-surface');
+const admitBellEffect: WorkbenchTerminalSurfaceProps['admitBellEffect'] = () => true;
+const bindActionContextProvider: WorkbenchTerminalSurfaceProps['bindActionContextProvider'] =
+	() => ({
+		dispose: () => undefined,
+	});
 const theme = TerminalThemeStateSchema.parse({
 	operationId: null,
 	revision: '0',
@@ -73,6 +85,7 @@ beforeAll(() => {
 });
 
 afterAll(() => {
+	workbenchActionRuntime.dispose();
 	Object.defineProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT', {
 		configurable: true,
 		value: false,
@@ -91,11 +104,24 @@ afterEach(() => {
 });
 
 function TestHarness({
+	autoFocus,
 	presentation,
 }: {
+	readonly autoFocus?: boolean | undefined;
 	readonly presentation: WorkbenchTerminalPresentation;
 }): ReactNode {
-	const view = useProjectedTerminalSurface(presentation);
+	const view = useProjectedTerminalSurface(
+		presentation,
+		autoFocus === undefined
+			? undefined
+			: {
+					actionRuntime: workbenchActionRuntime,
+					actionScope: workbenchActionScope,
+					admitBellEffect,
+					autoFocus,
+					bindActionContextProvider,
+				},
+	);
 	return createElement(
 		'div',
 		{
@@ -132,6 +158,106 @@ function TestHarness({
 }
 
 describe('useProjectedTerminalSurface', () => {
+	it('focuses a requested terminal only after its painted attachment is ready', async () => {
+		let markPresentationReady: (() => void) | undefined;
+		const presentationReady = new Promise<void>((resolve) => {
+			markPresentationReady = resolve;
+		});
+		const focus = vi.fn<() => void>();
+		renderer.start.mockResolvedValueOnce({
+			dispose: vi.fn<() => void>(),
+			focus,
+			freeze: vi.fn<() => void>(),
+			isTransportAvailable: () => true,
+			pasteFileDrop: vi.fn<ProjectedTerminalRendererSession['pasteFileDrop']>(),
+			presentationReady,
+			transportUnavailable: new Promise<void>(() => undefined),
+			updatePresentationConfiguration: vi
+				.fn<ProjectedTerminalRendererSession['updatePresentationConfiguration']>()
+				.mockResolvedValue({
+					configuration: DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION_SOURCE.current(),
+					kind: 'completed',
+				}),
+		});
+		const release = vi.fn<() => void>();
+		const transport: ProjectedTerminalTransport = {
+			close: vi.fn<() => void>(),
+			projectionBufferTrust: 'external',
+			send: vi.fn<ProjectedTerminalTransport['send']>(),
+			subscribe: vi.fn<ProjectedTerminalTransport['subscribe']>(() => () => undefined),
+		};
+		const open = vi.fn<TerminalProjectionClient['open']>(() => ({
+			release,
+			result: Promise.resolve({
+				bootstrap: {
+					attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
+					canInput: true,
+					canResize: true,
+					capabilityRevision: CanonicalUint64TextSchema.parse('1'),
+					creationId: CreationIdSchema.parse('22'.repeat(16)),
+					hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
+					terminalId: TerminalIdSchema.parse('44'.repeat(16)),
+					terminalOutcome: null,
+					theme,
+				},
+				transport,
+			}),
+		}));
+		const presentation: WorkbenchTerminalPresentation = {
+			closeActivity: 'unknown',
+			currentCwd: '/workspace',
+			launchCwd: '/workspace',
+			lifecycle: { kind: 'running' },
+			naturalTitle: null,
+			presentationId: terminalPresentationId('presentation-auto-focus'),
+			title: 'Terminal Auto Focus',
+		};
+		const capability: ProjectedTerminalSurfaceCapability = {
+			documentElement: document.documentElement,
+			observeTerminalMetadata: () => undefined,
+			platformEffects: {},
+			preferredLocales: ['en-US'],
+			presentationConfigurationSource: DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION_SOURCE,
+			projectionClient: { open },
+			shortcutPlatform: 'apple',
+			startStoppedTerminalSession: () => ({ kind: 'unchanged' as const }),
+		};
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		const root = createRoot(container);
+		const renderHarness = async (autoFocus: boolean): Promise<void> => {
+			await act(async () => {
+				root.render(
+					createElement(
+						ProjectedTerminalSurfaceCapabilityContext.Provider,
+						{ value: capability },
+						createElement(
+							OrchbeeI18nProvider,
+							{ locale: 'en-US' },
+							createElement(TestHarness, { autoFocus, presentation }),
+						),
+					),
+				);
+			});
+		};
+
+		await renderHarness(true);
+		await vi.waitFor(() => expect(renderer.start).toHaveBeenCalledOnce());
+		expect(focus).not.toHaveBeenCalled();
+		await act(async () => markPresentationReady?.());
+		await vi.waitFor(() => expect(focus).toHaveBeenCalledOnce());
+
+		await renderHarness(true);
+		expect(focus).toHaveBeenCalledOnce();
+		await renderHarness(false);
+		await renderHarness(true);
+		await vi.waitFor(() => expect(focus).toHaveBeenCalledTimes(2));
+
+		await act(async () => root.unmount());
+		expect(release).toHaveBeenCalledOnce();
+		container.remove();
+	});
+
 	it('presents a rejected Start New Session result instead of dropping it', async () => {
 		const startStoppedTerminalSession = vi
 			.fn<ProjectedTerminalSurfaceCapability['startStoppedTerminalSession']>()
@@ -321,6 +447,7 @@ describe('useProjectedTerminalSurface', () => {
 		const sessionDispose = vi.fn<() => void>();
 		renderer.start.mockResolvedValueOnce({
 			dispose: sessionDispose,
+			focus: vi.fn<() => void>(),
 			freeze: vi.fn<() => void>(),
 			isTransportAvailable: () => true,
 			pasteFileDrop: vi.fn<ProjectedTerminalRendererSession['pasteFileDrop']>(),
@@ -431,6 +558,7 @@ describe('useProjectedTerminalSurface', () => {
 		renderer.start.mockReset();
 		renderer.start.mockResolvedValueOnce({
 			dispose: sessionDispose,
+			focus: vi.fn<() => void>(),
 			freeze: sessionFreeze,
 			isTransportAvailable: () => true,
 			pasteFileDrop: vi.fn<ProjectedTerminalRendererSession['pasteFileDrop']>(),
@@ -645,6 +773,7 @@ describe('useProjectedTerminalSurface', () => {
 		renderer.start.mockReset();
 		renderer.start.mockResolvedValue({
 			dispose: vi.fn<() => void>(),
+			focus: vi.fn<() => void>(),
 			freeze: vi.fn<() => void>(),
 			isTransportAvailable: () => true,
 			pasteFileDrop: vi.fn<ProjectedTerminalRendererSession['pasteFileDrop']>(),
@@ -810,7 +939,7 @@ describe('useProjectedTerminalSurface', () => {
 		const surface = container.firstElementChild;
 		if (!(surface instanceof HTMLElement)) throw new Error('Terminal surface did not mount.');
 		const selectedFile = new File([], 'unavailable.txt');
-		const dragOver = terminalFileDragEvent('dragover', [selectedFile]);
+		const dragOver = terminalFileDragEvent('dragover', [], { types: ['Files'] });
 		surface.dispatchEvent(dragOver.event);
 		expect(dragOver.event.defaultPrevented).toBe(true);
 		expect(dragOver.dataTransfer.dropEffect).toBe('none');
@@ -828,7 +957,8 @@ describe('useProjectedTerminalSurface', () => {
 	});
 
 	it('owns Desktop file drops, publishes only prepared text, and reports bounded rejection', async () => {
-		const preparedText = "'/tmp/space name.txt'";
+		const preparedText = '/tmp/space\\ name.txt';
+		const preparedDirectoryText = '/Users/example/github/ghostty';
 		const pasteFileDrop = vi
 			.fn<ProjectedTerminalRendererSession['pasteFileDrop']>()
 			.mockResolvedValue({
@@ -845,6 +975,7 @@ describe('useProjectedTerminalSurface', () => {
 			});
 		renderer.start.mockResolvedValue({
 			dispose: vi.fn<() => void>(),
+			focus: vi.fn<() => void>(),
 			freeze: vi.fn<() => void>(),
 			isTransportAvailable: () => true,
 			pasteFileDrop,
@@ -886,10 +1017,14 @@ describe('useProjectedTerminalSurface', () => {
 				NonNullable<ProjectedTerminalSurfaceCapability['terminalFileDropCapability']>['prepare']
 			>()
 			.mockResolvedValueOnce({
-				containsNewline: false,
 				kind: 'ready',
 				paths: ['/tmp/space name.txt'],
 				text: preparedText,
+			})
+			.mockResolvedValueOnce({
+				kind: 'ready',
+				paths: ['/Users/example/github/ghostty'],
+				text: preparedDirectoryText,
 			})
 			.mockResolvedValueOnce({ kind: 'rejected', reason: 'too-many-files' });
 		const presentation: WorkbenchTerminalPresentation = {
@@ -936,10 +1071,15 @@ describe('useProjectedTerminalSurface', () => {
 		const surface = container.firstElementChild;
 		if (!(surface instanceof HTMLElement)) throw new Error('Terminal surface did not mount.');
 		const selectedFile = new File([], 'space name.txt');
-		const dragOver = terminalFileDragEvent('dragover', [selectedFile]);
+		const protectedItem = vi.fn<() => File | null>(() => null);
+		const dragOver = terminalFileDragEvent('dragover', [], {
+			items: [{ getAsFile: protectedItem, kind: 'file' }],
+			types: ['Files'],
+		});
 		surface.dispatchEvent(dragOver.event);
 		expect(dragOver.event.defaultPrevented).toBe(true);
 		expect(dragOver.dataTransfer.dropEffect).toBe('copy');
+		expect(protectedItem).not.toHaveBeenCalled();
 
 		const drop = terminalFileDragEvent('drop', [selectedFile]);
 		await act(async () => {
@@ -949,6 +1089,19 @@ describe('useProjectedTerminalSurface', () => {
 		await vi.waitFor(() => expect(pasteFileDrop).toHaveBeenCalledExactlyOnceWith(preparedText));
 		expect(drop.event.defaultPrevented).toBe(true);
 		expect(prepare).toHaveBeenNthCalledWith(1, [selectedFile]);
+
+		const selectedDirectory = new File([], 'ghostty');
+		const directoryDrop = terminalFileDragEvent('drop', [], {
+			items: [{ getAsFile: () => selectedDirectory, kind: 'file' }],
+			types: ['Files'],
+		});
+		await act(async () => {
+			surface.dispatchEvent(directoryDrop.event);
+			await Promise.resolve();
+		});
+		await vi.waitFor(() => expect(pasteFileDrop).toHaveBeenNthCalledWith(2, preparedDirectoryText));
+		expect(directoryDrop.event.defaultPrevented).toBe(true);
+		expect(prepare).toHaveBeenNthCalledWith(2, [selectedDirectory]);
 
 		const tooMany = Array.from({ length: 33 }, (_, index) => new File([], `file-${index}`));
 		await act(async () => {
@@ -960,7 +1113,7 @@ describe('useProjectedTerminalSurface', () => {
 				'33 files were dropped. Select no more than 32.',
 			),
 		);
-		expect(pasteFileDrop).toHaveBeenCalledOnce();
+		expect(pasteFileDrop).toHaveBeenCalledTimes(2);
 
 		let releaseStalePreparation: (() => void) | undefined;
 		prepare.mockImplementationOnce(async () => {
@@ -968,22 +1121,21 @@ describe('useProjectedTerminalSurface', () => {
 				releaseStalePreparation = resolve;
 			});
 			return {
-				containsNewline: false,
 				kind: 'ready',
 				paths: ['/tmp/stale.txt'],
-				text: "'/tmp/stale.txt'",
+				text: '/tmp/stale.txt',
 			};
 		});
 		await act(async () => {
 			surface.dispatchEvent(terminalFileDragEvent('drop', [new File([], 'stale.txt')]).event);
 			await Promise.resolve();
 		});
-		await vi.waitFor(() => expect(prepare).toHaveBeenCalledTimes(3));
+		await vi.waitFor(() => expect(prepare).toHaveBeenCalledTimes(4));
 		await act(async () => root.unmount());
 		releaseStalePreparation?.();
 		await Promise.resolve();
 		await Promise.resolve();
-		expect(pasteFileDrop).toHaveBeenCalledOnce();
+		expect(pasteFileDrop).toHaveBeenCalledTimes(2);
 		expect(release).toHaveBeenCalledOnce();
 		container.remove();
 	});
@@ -992,11 +1144,26 @@ describe('useProjectedTerminalSurface', () => {
 function terminalFileDragEvent(
 	type: 'dragover' | 'drop',
 	files: readonly File[],
+	options?: {
+		readonly items?: readonly { getAsFile(): File | null; readonly kind: string }[];
+		readonly types?: readonly string[];
+	},
 ): {
-	readonly dataTransfer: { dropEffect: string; readonly files: readonly File[] };
+	readonly dataTransfer: {
+		dropEffect: string;
+		readonly files: readonly File[];
+		readonly items: readonly { getAsFile(): File | null; readonly kind: string }[];
+		readonly types: readonly string[];
+	};
 	readonly event: Event;
 } {
-	const dataTransfer = { dropEffect: 'none', files };
+	const dataTransfer = {
+		dropEffect: 'none',
+		files,
+		items:
+			options?.items ?? files.map((file) => ({ getAsFile: () => file, kind: 'file' as const })),
+		types: options?.types ?? (files.length === 0 ? [] : ['Files']),
+	};
 	const event = new Event(type, { bubbles: true, cancelable: true });
 	Object.defineProperty(event, 'dataTransfer', { value: dataTransfer });
 	return { dataTransfer, event };

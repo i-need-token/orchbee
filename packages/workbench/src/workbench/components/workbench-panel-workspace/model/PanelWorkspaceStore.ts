@@ -13,6 +13,7 @@ import {
 	initializePanelWorkspace,
 	collectPanelLeaves,
 	findPanel,
+	findTerminal,
 	getDisplayedTerminal,
 	getTerminalDisplayTitle,
 	transitionPanelWorkspace,
@@ -145,6 +146,28 @@ export class PanelWorkspaceStore {
 
 	public transition(event: PanelWorkspaceEvent): PanelWorkspaceTransition {
 		return this.applyTransition(event, true);
+	}
+
+	public applyTerminalExit(
+		event: Omit<Extract<PanelWorkspaceEvent, { readonly type: 'terminal-exited' }>, 'close'>,
+	): PanelWorkspaceTransition {
+		const tab = this.state.tabs.find((candidate) => candidate.tabId === event.tabId);
+		if (tab === undefined) return rejectedTransition(this.state, 'tab-not-found');
+		if (findTerminal(tab.root, event.presentationId) === null) {
+			return rejectedTransition(this.state, 'terminal-not-found');
+		}
+		if (
+			this.state.pendingRemovals.some((removal) =>
+				removal.presentationIds.includes(event.presentationId),
+			)
+		) {
+			return unchangedTransition(this.state);
+		}
+		const close = this.createTerminalCloseRequest([event.presentationId]);
+		if (close.kind !== 'managed') {
+			return rejectedTransition(this.state, 'invalid-close-operations');
+		}
+		return this.transition({ ...event, close });
 	}
 
 	private applyTransition(
@@ -553,4 +576,8 @@ function rejectedTransition(
 	rejection: Exclude<PanelWorkspaceTransition['rejection'], null>,
 ): PanelWorkspaceTransition {
 	return { commands: [], outcome: 'rejected', rejection, state };
+}
+
+function unchangedTransition(state: PanelWorkspaceState): PanelWorkspaceTransition {
+	return { commands: [], outcome: 'unchanged', rejection: null, state };
 }

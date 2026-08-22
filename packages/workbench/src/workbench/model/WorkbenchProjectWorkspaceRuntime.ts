@@ -656,6 +656,8 @@ export class WorkbenchProjectWorkspaceRuntime {
 					tabId: match.tabId,
 				});
 			}
+		} else if (event.type === 'terminal-exited') {
+			transition = match.store.applyTerminalExit({ ...event, tabId: match.tabId });
 		} else {
 			transition = match.store.transition({ ...event, tabId: match.tabId });
 		}

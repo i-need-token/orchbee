@@ -88,6 +88,13 @@ type TerminalPresentationRemoval =
 			readonly tabId: string;
 	  }
 	| {
+			readonly kind: 'primary';
+			readonly panelId: string;
+			readonly presentationIds: readonly TerminalPresentationId[];
+			readonly removalId: TerminalPresentationRemovalId;
+			readonly tabId: string;
+	  }
+	| {
 			readonly kind: 'tab';
 			readonly presentationIds: readonly TerminalPresentationId[];
 			readonly removalId: TerminalPresentationRemovalId;
@@ -258,6 +265,7 @@ export type PanelWorkspaceEvent =
 			readonly type: 'terminal-restore-failed';
 	  }
 	| {
+			readonly close: Extract<TerminalPresentationCloseRequest, { readonly kind: 'managed' }>;
 			readonly exitCode: number | null;
 			readonly presentationId: TerminalPresentationId;
 			readonly signal: string | null;
@@ -863,6 +871,7 @@ function beginManagedRemoval(
 	);
 	if (
 		removal.presentationIds.length === 0 ||
+		close.removalId !== removal.removalId ||
 		targetIds.size !== removal.presentationIds.length ||
 		close.operations.length !== removal.presentationIds.length ||
 		operationIds.size !== close.operations.length ||
@@ -975,7 +984,7 @@ function removePanelFromTab(
 ): PanelWorkspaceState | null {
 	const panels = collectPanelLeaves(tab.root);
 	const removedIndex = panels.findIndex((candidate) => candidate.id === panelId);
-	const nextFocusedPanel = panels[removedIndex + 1] ?? panels[removedIndex - 1];
+	const nextFocusedPanel = panels[removedIndex - 1] ?? panels[removedIndex + 1];
 	const result = removePanelFromNode(tab.root, panelId);
 	if (!result.removed || result.node === null || nextFocusedPanel === undefined) return null;
 	return replaceTab(state, tabIndex, {
@@ -994,6 +1003,188 @@ function withoutRemoval(
 		...state,
 		pendingRemovals: state.pendingRemovals.filter((removal) => removal.removalId !== removalId),
 	};
+}
+
+function removalTargetsAreClosed(
+	tab: TabPanelWorkspace,
+	removal: TerminalPresentationRemoval,
+): boolean {
+	return removal.presentationIds.every(
+		(presentationId) => findTerminalInNode(tab.root, presentationId)?.lifecycle.kind === 'closed',
+	);
+}
+
+function pendingTargetsExcept(
+	state: PanelWorkspaceState,
+	removalId: TerminalPresentationRemovalId,
+): ReadonlySet<TerminalPresentationId> {
+	return new Set(
+		state.pendingRemovals.flatMap((removal) =>
+			removal.removalId === removalId ? [] : removal.presentationIds,
+		),
+	);
+}
+
+function convertRemovalToTab(
+	state: PanelWorkspaceState,
+	removal: TerminalPresentationRemoval,
+): PanelWorkspaceState {
+	return {
+		...state,
+		pendingRemovals: state.pendingRemovals.map((candidate) =>
+			candidate.removalId === removal.removalId
+				? {
+						kind: 'tab' as const,
+						presentationIds: removal.presentationIds,
+						removalId: removal.removalId,
+						tabId: removal.tabId,
+					}
+				: candidate,
+		),
+	};
+}
+
+function settleCompletedRemovals(
+	initialState: PanelWorkspaceState,
+	tabId: string,
+): { readonly commands: readonly PanelWorkspaceCommand[]; readonly state: PanelWorkspaceState } {
+	let state = initialState;
+	while (true) {
+		const tabIndex = state.tabs.findIndex((candidate) => candidate.tabId === tabId);
+		const tab = state.tabs[tabIndex];
+		if (tab === undefined) return { commands: [], state };
+		const ready = state.pendingRemovals.filter(
+			(removal) => removal.tabId === tabId && removalTargetsAreClosed(tab, removal),
+		);
+		if (ready.length === 0) return { commands: [], state };
+
+		const childRemoval = ready.find((removal) => removal.kind === 'child');
+		if (childRemoval?.kind === 'child') {
+			const panel = findPanelInNode(tab.root, childRemoval.panelId);
+			if (panel === null) throw new Error('A completed child removal lost its owning Panel.');
+			const result = mapPanel(tab.root, childRemoval.panelId, (candidate) => ({
+				...candidate,
+				activeChildPresentationId:
+					candidate.activeChildPresentationId === childRemoval.childPresentationId
+						? null
+						: candidate.activeChildPresentationId,
+				childPresentations: candidate.childPresentations.filter(
+					(terminal) => terminal.presentationId !== childRemoval.childPresentationId,
+				),
+			}));
+			state = withoutRemoval(
+				replaceTab(state, tabIndex, { ...tab, root: result.node }),
+				childRemoval.removalId,
+			);
+			continue;
+		}
+
+		let primarySettled = false;
+		for (const primaryRemoval of ready) {
+			if (primaryRemoval.kind !== 'primary') continue;
+			const panel = findPanelInNode(tab.root, primaryRemoval.panelId);
+			if (panel === null) throw new Error('A completed primary removal lost its owning Panel.');
+			const unavailableTargets = pendingTargetsExcept(state, primaryRemoval.removalId);
+			const activeChild = panel.childPresentations.find(
+				(terminal) => terminal.presentationId === panel.activeChildPresentationId,
+			);
+			const promoted =
+				activeChild !== undefined && !unavailableTargets.has(activeChild.presentationId)
+					? activeChild
+					: panel.childPresentations.find(
+							(terminal) => !unavailableTargets.has(terminal.presentationId),
+						);
+			if (promoted !== undefined) {
+				const result = mapPanel(tab.root, primaryRemoval.panelId, (candidate) => ({
+					...candidate,
+					activeChildPresentationId: null,
+					childPresentations: candidate.childPresentations.filter(
+						(terminal) => terminal.presentationId !== promoted.presentationId,
+					),
+					primaryPresentation: promoted,
+				}));
+				state = withoutRemoval(
+					replaceTab(state, tabIndex, { ...tab, root: result.node }),
+					primaryRemoval.removalId,
+				);
+				primarySettled = true;
+				break;
+			}
+			if (panel.childPresentations.length > 0) continue;
+			if (collectPanelLeaves(tab.root).length === 1) {
+				const nextState = convertRemovalToTab(state, primaryRemoval);
+				return {
+					commands: [
+						{
+							removalId: primaryRemoval.removalId,
+							tabId: primaryRemoval.tabId,
+							type: 'tab-close-ready',
+						},
+					],
+					state: nextState,
+				};
+			}
+			const removedState = removePanelFromTab(state, tabIndex, tab, primaryRemoval.panelId);
+			if (removedState === null) {
+				throw new Error('A completed primary removal could not remove its owning Panel.');
+			}
+			state = withoutRemoval(removedState, primaryRemoval.removalId);
+			primarySettled = true;
+			break;
+		}
+		if (primarySettled) continue;
+
+		const panelRemoval = ready.find((removal) => removal.kind === 'panel');
+		if (panelRemoval?.kind === 'panel') {
+			if (collectPanelLeaves(tab.root).length === 1) {
+				const nextState = convertRemovalToTab(state, panelRemoval);
+				return {
+					commands: [
+						{
+							removalId: panelRemoval.removalId,
+							tabId: panelRemoval.tabId,
+							type: 'tab-close-ready',
+						},
+					],
+					state: nextState,
+				};
+			}
+			const removedState = removePanelFromTab(state, tabIndex, tab, panelRemoval.panelId);
+			if (removedState === null) {
+				throw new Error('A completed Panel removal could not remove its Panel.');
+			}
+			state = withoutRemoval(removedState, panelRemoval.removalId);
+			continue;
+		}
+
+		const tabRemoval = ready.find((removal) => removal.kind === 'tab');
+		if (tabRemoval?.kind === 'tab') {
+			return {
+				commands: [
+					{
+						removalId: tabRemoval.removalId,
+						tabId: tabRemoval.tabId,
+						type: 'tab-close-ready',
+					},
+				],
+				state,
+			};
+		}
+
+		return { commands: [], state };
+	}
+}
+
+function removalPreventsTerminalCreation(
+	state: PanelWorkspaceState,
+	tabId: string,
+	panelId: string,
+): boolean {
+	return state.pendingRemovals.some(
+		(removal) =>
+			removal.tabId === tabId &&
+			(removal.kind === 'tab' || (removal.kind === 'panel' && removal.panelId === panelId)),
+	);
 }
 
 export function initializePanelWorkspace(
@@ -1264,6 +1455,9 @@ export function transitionPanelWorkspace(
 		const sourcePanel = findPanelInNode(tab.root, event.panelId);
 		if (sourcePanel === null) {
 			return rejected(state, 'panel-not-found');
+		}
+		if (removalPreventsTerminalCreation(state, event.tabId, event.panelId)) {
+			return rejected(state, 'terminal-removal-conflict');
 		}
 		const sourceTerminal = getDisplayedTerminal(sourcePanel);
 		const creation = createPanel(
@@ -1592,19 +1786,73 @@ export function transitionPanelWorkspace(
 		const terminal = findTerminalInNode(tab.root, event.presentationId);
 		if (terminal === null) return rejected(state, 'terminal-not-found');
 		if (terminal.lifecycle.kind === 'exited') {
-			return terminal.lifecycle.exitCode === event.exitCode &&
-				terminal.lifecycle.signal === event.signal
-				? unchanged(state)
-				: rejected(state, 'stale-operation');
-		}
-		if (!canSettleTerminalLifecycle(terminal.lifecycle)) {
+			if (
+				terminal.lifecycle.exitCode !== event.exitCode ||
+				terminal.lifecycle.signal !== event.signal
+			) {
+				return rejected(state, 'stale-operation');
+			}
+		} else if (!canSettleTerminalLifecycle(terminal.lifecycle)) {
 			return rejected(state, 'stale-operation');
 		}
-		return replaceTerminalLifecycle(state, tabIndex, tab, event.presentationId, {
-			exitCode: event.exitCode,
-			kind: 'exited',
-			signal: event.signal,
-		});
+		const panel = collectPanelLeaves(tab.root).find(
+			(candidate) =>
+				candidate.primaryPresentation.presentationId === event.presentationId ||
+				candidate.childPresentations.some((child) => child.presentationId === event.presentationId),
+		);
+		if (panel === undefined) return rejected(state, 'panel-not-found');
+		const isPrimary = panel.primaryPresentation.presentationId === event.presentationId;
+		if (!isPrimary) {
+			return beginManagedRemoval(
+				state,
+				tabIndex,
+				tab,
+				{
+					childPresentationId: event.presentationId,
+					kind: 'child',
+					panelId: panel.id,
+					presentationIds: [event.presentationId],
+					removalId: event.close.removalId,
+					tabId: event.tabId,
+				},
+				event.close,
+			);
+		}
+		if (panel.childPresentations.length > 0) {
+			return beginManagedRemoval(
+				state,
+				tabIndex,
+				tab,
+				{
+					kind: 'primary',
+					panelId: panel.id,
+					presentationIds: [event.presentationId],
+					removalId: event.close.removalId,
+					tabId: event.tabId,
+				},
+				event.close,
+			);
+		}
+		return beginManagedRemoval(
+			state,
+			tabIndex,
+			tab,
+			collectPanelLeaves(tab.root).length === 1
+				? {
+						kind: 'tab',
+						presentationIds: [event.presentationId],
+						removalId: event.close.removalId,
+						tabId: event.tabId,
+					}
+				: {
+						kind: 'panel',
+						panelId: panel.id,
+						presentationIds: [event.presentationId],
+						removalId: event.close.removalId,
+						tabId: event.tabId,
+					},
+			event.close,
+		);
 	}
 
 	if (event.type === 'terminal-failed') {
@@ -1705,42 +1953,9 @@ export function transitionPanelWorkspace(
 				removalId: event.removalId,
 			},
 		})).node;
-		const nextTab = { ...tab, root };
-		const allClosed = removal.presentationIds.every(
-			(presentationId) => findTerminalInNode(root, presentationId)?.lifecycle.kind === 'closed',
-		);
-		if (!allClosed) return applied(replaceTab(state, tabIndex, nextTab));
-		const nextState = replaceTab(state, tabIndex, nextTab);
-		if (removal.kind === 'tab') {
-			return applied(nextState, [
-				{ removalId: removal.removalId, tabId: removal.tabId, type: 'tab-close-ready' },
-			]);
-		}
-		if (removal.kind === 'child') {
-			const panel = findPanelInNode(root, removal.panelId);
-			if (panel === null) return rejected(state, 'panel-not-found');
-			const childPresentations = panel.childPresentations.filter(
-				(candidate) => candidate.presentationId !== removal.childPresentationId,
-			);
-			const result = mapPanel(root, removal.panelId, (candidate) => ({
-				...candidate,
-				activeChildPresentationId:
-					candidate.activeChildPresentationId === removal.childPresentationId
-						? null
-						: candidate.activeChildPresentationId,
-				childPresentations,
-			}));
-			return applied(
-				withoutRemoval(
-					replaceTab(nextState, tabIndex, { ...nextTab, root: result.node }),
-					removal.removalId,
-				),
-			);
-		}
-		const removedState = removePanelFromTab(nextState, tabIndex, nextTab, removal.panelId);
-		return removedState === null
-			? rejected(state, 'panel-not-found')
-			: applied(withoutRemoval(removedState, removal.removalId));
+		const nextState = replaceTab(state, tabIndex, { ...tab, root });
+		const settled = settleCompletedRemovals(nextState, event.tabId);
+		return applied(settled.state, settled.commands);
 	}
 
 	if (event.type === 'tab-close-requested') {
@@ -1787,6 +2002,9 @@ export function transitionPanelWorkspace(
 	}
 
 	if (event.type === 'child-terminal-created') {
+		if (removalPreventsTerminalCreation(state, event.tabId, event.panelId)) {
+			return rejected(state, 'terminal-removal-conflict');
+		}
 		const creation = createTerminal(
 			event.presentation,
 			event.newTerminalTitle,
@@ -2002,7 +2220,12 @@ export function validatePanelWorkspaceState(state: PanelWorkspaceState): readonl
 		visit(tab.root);
 	}
 	const removalPresentationIds = new Set<TerminalPresentationId>();
+	const removalIds = new Set<TerminalPresentationRemovalId>();
 	for (const removal of state.pendingRemovals) {
+		if (removalIds.has(removal.removalId)) {
+			errors.push(`Duplicate terminal removal id: ${removal.removalId}`);
+		}
+		removalIds.add(removal.removalId);
 		const tab = state.tabs.find((candidate) => candidate.tabId === removal.tabId);
 		if (tab === undefined) {
 			errors.push(`Removal references missing tab: ${removal.removalId}`);
@@ -2010,6 +2233,35 @@ export function validatePanelWorkspaceState(state: PanelWorkspaceState): readonl
 		}
 		if (removal.presentationIds.length === 0) {
 			errors.push(`Removal has no terminal presentations: ${removal.removalId}`);
+		}
+		const expectedPresentationIds = (() => {
+			if (removal.kind === 'tab') return new Set(collectPresentationIds(tab.root));
+			const panel = findPanelInNode(tab.root, removal.panelId);
+			if (panel === null) return null;
+			if (removal.kind === 'child') {
+				return panel.childPresentations.some(
+					(terminal) => terminal.presentationId === removal.childPresentationId,
+				)
+					? new Set([removal.childPresentationId])
+					: null;
+			}
+			if (removal.kind === 'primary') {
+				return new Set([panel.primaryPresentation.presentationId]);
+			}
+			return new Set([
+				panel.primaryPresentation.presentationId,
+				...panel.childPresentations.map((terminal) => terminal.presentationId),
+			]);
+		})();
+		const actualPresentationIds = new Set(removal.presentationIds);
+		if (
+			expectedPresentationIds === null ||
+			expectedPresentationIds.size !== actualPresentationIds.size ||
+			![...expectedPresentationIds].every((presentationId) =>
+				actualPresentationIds.has(presentationId),
+			)
+		) {
+			errors.push(`Removal target mismatch: ${removal.removalId}`);
 		}
 		for (const presentationId of removal.presentationIds) {
 			if (removalPresentationIds.has(presentationId)) {

@@ -125,11 +125,44 @@ describe('WorkbenchProjectWorkspaceRuntime', () => {
 				type: 'terminal-exited',
 			}),
 		).toEqual({ kind: 'applied' });
+		expect(commands.at(-1)).toEqual({
+			operationId: 'managed:operation:3',
+			presentationId: 'managed:first',
+			type: 'terminal-close-requested',
+		});
 		expect(
 			runtime.getActiveTerminalContext().panelWorkspaceStore.getSnapshot().tabs[0]?.root,
 		).toMatchObject({
-			primaryPresentation: { lifecycle: { exitCode: 0, kind: 'exited', signal: null } },
+			primaryPresentation: {
+				lifecycle: {
+					kind: 'closing',
+					operationId: 'managed:operation:3',
+					removalId: 'managed:removal:1',
+				},
+			},
 		});
+		expect(
+			runtime.applyTerminalPresentationEvent({
+				exitCode: 0,
+				presentationId: terminalPresentationId('managed:first'),
+				signal: null,
+				type: 'terminal-exited',
+			}),
+		).toEqual({ kind: 'unchanged' });
+		expect(commands).toHaveLength(3);
+		expect(
+			runtime.applyTerminalPresentationEvent({
+				operationId: terminalPresentationOperationId('managed:operation:3'),
+				presentationId: terminalPresentationId('managed:first'),
+				type: 'terminal-close-completed',
+			}),
+		).toEqual({ kind: 'applied' });
+		expect(
+			runtime
+				.getActiveTerminalContext()
+				.tabModel.getSnapshot()
+				.tabs.map((tab) => tab.id),
+		).toEqual(['terminal-context-1-tab-2']);
 		expect(
 			runtime.applyTerminalPresentationEvent({
 				operationId: terminalPresentationOperationId('managed:operation:missing'),
@@ -137,6 +170,74 @@ describe('WorkbenchProjectWorkspaceRuntime', () => {
 				type: 'terminal-provision-completed',
 			}),
 		).toEqual({ kind: 'rejected', reason: 'stale-operation' });
+	});
+
+	it('closes the final Tab after a signaled natural exit without closing the Workbench runtime', () => {
+		let operationSequence = 1;
+		const commands: WorkbenchTerminalPresentationCommand[] = [];
+		const presentationId = terminalPresentationId('managed:natural-exit');
+		const runtime = new WorkbenchProjectWorkspaceRuntime({
+			standaloneCwd: '/system',
+			standaloneTerminalTitle: 'Terminal 1',
+			terminalPresentation: {
+				createOperationId: () =>
+					terminalPresentationOperationId(`managed:natural-operation:${operationSequence++}`),
+				createPresentationId: () => presentationId,
+				createRemovalId: () => terminalPresentationRemovalId('managed:natural-removal'),
+				dispatchCommands: (nextCommands) => commands.push(...nextCommands),
+				initialPresentationId: presentationId,
+				kind: 'managed',
+			},
+		});
+		runtime.applyTerminalPresentationEvent({
+			operationId: terminalPresentationOperationId('managed:natural-operation:1'),
+			presentationId,
+			type: 'terminal-provision-completed',
+		});
+		const documentListener = vi.fn<() => void>();
+		runtime.subscribeDocument(documentListener);
+
+		expect(
+			runtime.applyTerminalPresentationEvent({
+				exitCode: null,
+				presentationId,
+				signal: 'SIGTERM',
+				type: 'terminal-exited',
+			}),
+		).toEqual({ kind: 'applied' });
+		expect(documentListener).toHaveBeenCalledOnce();
+		expect(runtime.getSharedDocument(workbenchSharedDocumentRevision('1'))).toMatchObject({
+			terminalContexts: [
+				{
+					panelWorkspace: {
+						pendingRemovals: [{ kind: 'tab', presentationIds: [presentationId] }],
+						tabs: [
+							{
+								root: {
+									primaryPresentation: { intent: { kind: 'close' } },
+								},
+							},
+						],
+					},
+				},
+			],
+		});
+		expect(commands.at(-1)).toEqual({
+			operationId: 'managed:natural-operation:2',
+			presentationId,
+			type: 'terminal-close-requested',
+		});
+		expect(runtime.getActiveTerminalContext().tabModel.getSnapshot().tabs).toHaveLength(1);
+
+		expect(
+			runtime.applyTerminalPresentationEvent({
+				operationId: terminalPresentationOperationId('managed:natural-operation:2'),
+				presentationId,
+				type: 'terminal-close-completed',
+			}),
+		).toEqual({ kind: 'applied' });
+		expect(runtime.getActiveTerminalContext().tabModel.getSnapshot().tabs).toEqual([]);
+		expect(runtime.getActiveTerminalContext().panelWorkspaceStore.getSnapshot().tabs).toEqual([]);
 	});
 
 	it('keeps a managed Tab until its exact terminal close result completes', () => {

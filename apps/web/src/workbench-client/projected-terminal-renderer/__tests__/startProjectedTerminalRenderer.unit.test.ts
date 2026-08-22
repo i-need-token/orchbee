@@ -761,6 +761,8 @@ describe('startProjectedTerminalRenderer', () => {
 			expect(dataset['projectedTerminalRenderedFrames']).toBe('2');
 			expect(dependencies.createTerminal).toHaveBeenCalledOnce();
 			expect(openTerminal).toHaveBeenCalledOnce();
+			session.focus();
+			expect(focusTerminal).toHaveBeenCalledOnce();
 			expect(options?.renderer).toEqual(initialPresentationConfiguration);
 			if (emitTransportUnavailable === undefined) {
 				throw new Error('transport unavailable listener is missing');
@@ -774,7 +776,9 @@ describe('startProjectedTerminalRenderer', () => {
 			});
 			session.freeze();
 			session.freeze();
+			session.focus();
 			expect(session.isTransportAvailable()).toBe(false);
+			expect(focusTerminal).toHaveBeenCalledOnce();
 			expect(dataset['projectedTerminalBellActive']).toBeUndefined();
 			expect(freezeTerminal).toHaveBeenCalledOnce();
 			expect(disposeTerminal).not.toHaveBeenCalled();

@@ -57,8 +57,8 @@ export const enUSProjectedTerminalMessages = {
 	'terminal.projected.history.unavailable':
 		'Retained terminal history is unavailable for this connection.',
 	'terminal.projected.fileDrop.failure.invalid': 'The dropped paths could not be prepared safely.',
-	'terminal.projected.fileDrop.failure.previewTooLarge':
-		'The generated terminal input exceeds the complete {maximum, number}-character preview limit.',
+	'terminal.projected.fileDrop.failure.inputTooLarge':
+		'The generated terminal input exceeds the {maximum, number}-character limit.',
 	'terminal.projected.fileDrop.failure.terminalUnavailable':
 		'The active terminal is not ready to receive dropped paths.',
 	'terminal.projected.fileDrop.failure.tooMany':

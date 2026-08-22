@@ -17,7 +17,7 @@ Main 启动时无需创建固定终端、打开附件或启动 Web 侦听器。�
 
 客户端会话和投影有效负载是来自 `@orchbee/workbench-client-protocol` 的平台中立合约。 `@orchbee/desktop-client-protocol` 拥有原子 Electron 渲染器引导程序、Electron 应用程序生命周期合约、窄浏览器访问命令合约、类型化项目文件夹获取合约和终端启动配置文件命令合约。 Desktop Main 和 Web 渲染器各自将通用合约调整到 `MessagePort` 的末端；传输细节都不会进入共享工作台客户端运行时。
 
-渲染器没有节点集成、通用 Electron IPC、文件系统读取功能、主机清单或原始终端生命周期权限。它不能直接调用配置、恢复、关闭或存储 CAS 效果。预加载仅接受一个引导程序，一起验证所有六个端口，保留其固定的客户端会话/投影/应用程序生命周期/浏览器访问/Project-Folder-acquisition/terminal-launch-profiles顺序，并证明上下文隔离和沙箱。项目文件夹端口不接受渲染器路径，并且不公开任何枚举或突变基元。单独的上下文隔离文件放置适配器仅公开当前平台和 Electron 的 `File` 范围的后备路径查找；它无法接受任意路径字符串、读取文件内容、枚举目录或执行 IPC 请求。 Web 渲染器承认适配器仅适用于用户放置，应用其自己的有界 POSIX 引用和强制审查策略，并且从不附加 Enter。部分或格式错误的引导程序不会启动渲染器运行时。
+渲染器没有 Node 集成、通用 Electron IPC、filesystem read capability、Host inventory 或原始 terminal-lifetime 权限。它不能直接调用 provision、restore、close 或 storage CAS effect。Preload 只接受一个 bootstrap，同时验证全部六个 port，保留固定的 client-session/projection/application-lifetime/Browser-access/Project-Folder-acquisition/terminal-launch-profiles 顺序，并证明 context isolation 与 sandboxing。Project Folder port 不接受 renderer path，也不公开 enumeration 或 mutation primitive。单独的 context-isolated file-drop adapter 只公开当前 platform 与 Electron 的 `File`-scoped backing-path lookup；它不能接受 arbitrary path string、读取 file content、枚举 directory 或执行 IPC request。一个拖入的 disk `File` 可以携带 file 或 directory backing path，但不会授予 child enumeration。Web renderer 只为 user drop 准入该 adapter，应用有界且兼容 Ghostty 的 POSIX live-buffer escaping，直接发布 prepared text，并且绝不追加 Enter。Partial 或 malformed bootstrap 不会启动 renderer runtime。
 
 OSC 52 剪贴板写入使用现有投影端口，而不是通用 preload 剪贴板 API。Main 只记住转发到附件的第一个 Host 请求；渲染器自动提交决定必须精确重复其附件、序列与有界文本。匹配的肯定决定会执行 Desktop 拥有的纯文本写入并消费待处理请求；不匹配、重复、Broker 背压、页面退役或附件处置均不写入。Gateway 浏览器附件会尝试通过本地剪贴板 API 执行请求，并发送同一个精确决定，仅用于消费 Main 的待处理记录，避免 Electron 重复该客户端本地效果。
 
@@ -168,7 +168,7 @@ Electron 附件仅请求协议的文字 `plain` 选择导出并通过 Main 的�
 
 主机承认的 OSC 52 纯文本写入与用户启动的选择复制不同。 Main 路由有界附件事件而不解释其文本。共享渲染器会自动处理确切的请求。桌面效果附件将单一特权写入委托给主程序；客户端效果附件首先调用其已经限定范围的平台剪贴板效果并报告本地写入是否完成。附件停用、渲染器替换或不可用的客户端本地效果不会产生延迟写入或重复写入。 Main 和渲染器都不会保留请求文本或信任决策；主机传送到一个附件意味着另一桌面或网关页面在切换后无法接收相同的请求。在允许一个本地视觉表面提示之前，通过共享工作台生命周期中的不透明终端身份和主机序列来消除重复的响铃传送。 Desktop 目前既不注册单独的选择加入声音效果，也不注册单独的选择加入操作系统通知效果，因此默认情况下，Bell 既不请求窗口焦点、音频也不请求系统通知。 OBTF 进展仍然安静的演示元数据。语义命令完成是分开的：在用户启用默认关闭设备本地策略后，渲染器可以呈现本地化的终端状态并使用其页面本地通知功能。 PTY 输出无法请求通知权限，并且完成负载不包含命令文本。
 
-已知主机 `TerminalExited` 事件进入 Main 拥有的重试/协调路径，然后通过权威运行时注册表进行解析，保留到确切的绑定，并由 PresentationId 发布到工作台。仍然无法解析的身份将保留为持久的、可观察的协调记录，并且仅当观察到其确切身份（或通过可重试的已知条目路径）时才会升级；它不会在无限的未知身份计时器循环中旋转。恢复的退出绑定将恢复到工作台中，以只读方式附加，并保留其最终修订版呈现行为。协调器预留、适配器提交、发布分类账记录和可见事件是单独的步骤：只有在所有持久和表示所有权步骤成功后，引导程序才能看到事件。在第一个退出发布被消耗之前确认耐久性。
+已知主机 `TerminalExited` 事件进入 Main 拥有的重试/协调路径，然后通过权威运行时注册表进行解析，保留到确切的绑定，并由 PresentationId 发布到工作台。仍然无法解析的身份将保留为持久的、可观察的协调记录，并且仅当观察到其确切身份（或通过可重试的已知条目路径）时才会升级；它不会在无限的未知身份计时器循环中旋转。恢复的退出绑定只会恢复到 Workbench，直至其经过身份检查的 bootstrap 事件进入 managed 自然退出 removal 协议。在此期间最终修订仍可读取；随后产生的 close intent 会在不终止进程的情况下处置 Host 终端，再由 Workbench 按 Panel 拓扑移除或提升精确的 Presentation。协调器预留、适配器提交、发布分类账记录和可见事件是单独的步骤：只有在所有持久和表示所有权步骤成功后，引导程序才能看到事件。在第一个退出发布被消耗之前确认耐久性。
 
 Workbench `terminal-presentation-event-published` 消息是 Main 拥有的单一生命周期发布。类型化主机故障变成不可重试的 `terminal-failed` 呈现结果；协调器保留它以供以后的客户端引导，而工作台使终端保持可投影和只读状态，直到显式关闭为止。 `ProjectedTerminalBroker` 还可以转发身份检查、附件本地原始 `terminal-exited` 或 `terminal-failed` 通知，以便实时投影可以与主机状态同步；该渲染器传输有自己的单调修订过滤器，位于协调器序列之外，并且不是第二个工作台发布。因此，这两个通道不提供跨通道的一次性声明。
 
@@ -179,8 +179,8 @@ Workbench `terminal-presentation-event-published` 消息是 Main 拥有的单一
 - 严格的客户端会话和投影边界验证、格式错误的消息退出、精确的提案关联以及页面附件处理；
 - 原子引导、FIFO 完整文档提案、第一作者获胜、使用 Client View 保存进行过时回滚、无效文件保存和一个有序发布流；
 - 首次提交和每命令预写排序、Main 拥有的仅恢复恢复、失败存储效应抑制以及效应后托管容器清理；
-- 新配置、多绑定存储保存、恢复、退出恢复、孤儿和冲突处理、持久关闭和表示注册表重建；
-- 不相关的终端并发、精确关闭定位、Tab 关闭结果排序和过时结果拒绝；
+- 新配置、多绑定存储保存、恢复、退出恢复到处置、孤儿和冲突处理、持久关闭和表示注册表重建；
+- 不相关的终端并发、精确关闭定位、保留原生窗口的自然退出 Tab 移除、Tab 关闭结果排序和过时结果拒绝；
 - 两个恢复的工作台选项卡，其中两个生命周期记录一致，但只有活动的可见选项卡具有附件，然后是选项卡切换上的精确释放/打开行为；
 - 确切的 `terminal-parity/SU-16-startup-geometry` 真实 Electron/主机证据：受控 POSIX shell 在将控制权交给 `/bin/sh` 之前记录其 PTY 大小，并且第一个子几何体与独立派生的安装网格和唯一的第一个客户端框架匹配，无需中间`80x24` 框架；所有者本地跟踪涵盖无子延迟创建、附加前启动排序、重复/冲突启动、失败启动和待处理处理。系统见证仅是 POSIX，不会声明 Windows ConPTY 启动或以后的大小调整；
 - 明确的块/非闪烁配置文件默认值、闪烁条 DECSCUSR 覆盖和 RIS 恢复的精确 `terminal-parity/SU-13-cursor-defaults` real-PTY 投影证据。主机运行时测试还涵盖应用程序重置和非默认配置文件；系统见证人观察规范的投影元数据，而不是将平台屏幕截图视为光标权限；
@@ -188,8 +188,10 @@ Workbench `terminal-presentation-event-published` 消息是 Main 拥有的单一
 - deferred-Host 调整轨迹大小，证明每个附件有一个活动请求，中间测量的恒定空间替换，以及结算后立即发送最新的几何图形；
 - 精确的 `terminal-parity/IN-10-read-only` 能力证据，覆盖 Host 提交的实时降级/升级、即时客户端修复、只读本地输出交互、不重放陈旧输入，以及分离前串行化变更；
 - 精确标题为 `terminal-parity/IN-14-shared-focus` 的证据，包含两个投影附件各自的焦点声明、一个共享终端聚合焦点区间、只修复目标附件的可见性，以及激活时不重放声明。该夹具控制应用层焦点，不要求操作系统多窗口焦点；
-- 精确标题 `terminal-parity/PR-11-bell`、`terminal-parity/IN-07-pre-input`、`terminal-parity/IN-09-action-scope`、`terminal-parity/IN-11-context` 和 `terminal-parity/IN-12-actions` 提供 Canvas 证据，覆盖共享铃声协调器、无按键应用鼠标移动上报期间的历史与选择保留、containing-Workbench 操作范围、固定/重新验证的语义上下文、同步可用性、类型化执行和本地化反馈。捕获的效果不声明本机音频、通知、URL-handler 或剪贴板传送；
-- 精确的`terminal-parity/IN-08-drop`桌面后备路径解析，有界POSIX引用，强制审核，取消，无隐式回车；
+- 精确标题 `terminal-parity/PR-11-bell`、`terminal-parity/IN-07-pre-input`、`terminal-parity/IN-09-action-scope`、`terminal-parity/IN-11-context` 和 `terminal-parity/IN-12-actions` 提供 Canvas 证据，覆盖共享铃声协调器、无按键应用鼠标移动上报期间的历史与选择保留、窗口失焦折叠无障碍 DOM 镜像时的 Host 选择保留、containing-Workbench 操作范围、固定/重新验证的语义上下文、同步可用性、类型化执行和本地化反馈。捕获的效果不声明本机音频、通知、URL-handler 或剪贴板传送；
+- 精确的 `terminal-parity/IN-08-drop` protected file-marker admission、Desktop backing-path
+  resolution、有界 Ghostty-compatible POSIX escaping、直接插入 line middle，以及不打开 review
+  或追加隐式 Enter；
 - 精确的 `terminal-parity/FS-05-file-links` 和 `terminal-parity/FS-06-url-policy` 用于禁用文件系统激活和共享 `http`/`https`/`mailto` 检测、悬停、上下文和激活边界的浏览器组合见证；
 - 用于每次操作安全上下文、瞬时用户激活和 API 检查的精确标题 `terminal-parity/LC-05-lan-capability` 浏览器组合证据；同步复制可用性；一位被录取的作家来电；拒绝而不重试；局部故障；并且没有特权 insecure-LAN 路径；
 - 确切的 `terminal-parity/HS-07-selection-export` real-PTY/Electron 证据表明，样式化终端选择以精确可见的纯文本形式到达平台剪贴板，与不公开 HTML 或原始 VT 格式的协议、主机和投影命令回归配对；

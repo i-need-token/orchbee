@@ -204,6 +204,13 @@ const pendingRemovalSchema = z.discriminatedUnion('kind', [
 		tabId: identifierSchema,
 	}),
 	z.strictObject({
+		kind: z.literal('primary'),
+		panelId: identifierSchema,
+		presentationIds: z.array(TerminalPresentationIdSchema),
+		removalId: TerminalPresentationRemovalIdSchema,
+		tabId: identifierSchema,
+	}),
+	z.strictObject({
 		kind: z.literal('tab'),
 		presentationIds: z.array(TerminalPresentationIdSchema),
 		removalId: TerminalPresentationRemovalIdSchema,
@@ -502,6 +509,9 @@ function expectedRemovalPresentationIds(
 		)
 			? new Set([removal.childPresentationId])
 			: null;
+	}
+	if (removal.kind === 'primary') {
+		return new Set([panel.primaryPresentation.presentationId]);
 	}
 	return new Set([
 		panel.primaryPresentation.presentationId,

@@ -184,6 +184,82 @@ describe('Workbench document runtime', () => {
 		});
 	});
 
+	it('persists a primary-only natural-exit removal while retaining child presentations', () => {
+		const commands: WorkbenchTerminalPresentationCommand[] = [];
+		const runtime = createManagedRuntime(commands);
+		const primaryProvision = commands[0];
+		if (primaryProvision?.type !== 'terminal-provision-requested') {
+			throw new Error('Expected the initial provision command.');
+		}
+		runtime.applyTerminalPresentationEvent({
+			operationId: primaryProvision.operationId,
+			presentationId: primaryProvision.presentationId,
+			type: 'terminal-provision-completed',
+		});
+		const context = runtime.getActiveTerminalContext();
+		const tab = context.panelWorkspaceStore.getSnapshot().tabs[0];
+		if (tab === undefined || tab.root.kind !== 'panel') {
+			throw new Error('Expected an initial Panel.');
+		}
+		const child = context.panelWorkspaceStore.createTerminalPresentation();
+		if (child.kind !== 'managed') throw new Error('Expected a managed child presentation.');
+		context.panelWorkspaceStore.transition({
+			newTerminalTitle: 'Child',
+			panelId: tab.root.id,
+			presentation: child,
+			tabId: tab.tabId,
+			type: 'child-terminal-created',
+		});
+		runtime.applyTerminalPresentationEvent({
+			operationId: child.operationId,
+			presentationId: child.presentationId,
+			type: 'terminal-provision-completed',
+		});
+
+		expect(
+			runtime.applyTerminalPresentationEvent({
+				exitCode: 0,
+				presentationId: primaryProvision.presentationId,
+				signal: null,
+				type: 'terminal-exited',
+			}),
+		).toEqual({ kind: 'applied' });
+		const document = runtime.getSharedDocument(workbenchSharedDocumentRevision('9'));
+		const terminalContext = document.terminalContexts[0];
+		expect(terminalContext?.panelWorkspace.pendingRemovals).toEqual([
+			expect.objectContaining({
+				kind: 'primary',
+				presentationIds: [primaryProvision.presentationId],
+			}),
+		]);
+		expect(terminalContext?.panelWorkspace.tabs[0]?.root).toMatchObject({
+			childPresentations: [
+				{
+					intent: { kind: 'retain' },
+					presentationId: child.presentationId,
+				},
+			],
+			primaryPresentation: {
+				intent: { kind: 'close' },
+				presentationId: primaryProvision.presentationId,
+			},
+		});
+
+		const restoredCommands: WorkbenchTerminalPresentationCommand[] = [];
+		const restored = new WorkbenchProjectWorkspaceRuntime({
+			initialDocument: document,
+			standaloneCwd: '/fallback',
+			standaloneTerminalTitle: 'Unused',
+			terminalPresentation: managedComposition(restoredCommands),
+		});
+		restored.reconcileDurableTerminalPresentations();
+		expect(restoredCommands).toContainEqual({
+			operationId: expect.any(String),
+			presentationId: primaryProvision.presentationId,
+			type: 'terminal-close-requested',
+		});
+	});
+
 	it('replays a persisted provision intent with its original operation identity', () => {
 		const initialCommands: WorkbenchTerminalPresentationCommand[] = [];
 		const initial = createManagedRuntime(initialCommands);

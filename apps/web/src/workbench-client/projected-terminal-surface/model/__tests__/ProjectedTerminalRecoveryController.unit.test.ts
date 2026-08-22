@@ -8,6 +8,28 @@ import {
 } from '../ProjectedTerminalRecoveryController';
 
 describe('ProjectedTerminalRecoveryController', () => {
+	it('focuses only the current painted attachment', async () => {
+		const active = rendererSession();
+		const request = projectionRequest();
+		const states: ProjectedTerminalRecoveryState[] = [];
+		const controller = new ProjectedTerminalRecoveryController({
+			onStateChange: (state) => states.push(state),
+			open: () => request.request,
+			startRenderer: async () => active.session,
+		});
+
+		expect(controller.focusTerminal()).toBe(false);
+		controller.start();
+		request.resolve();
+		await vi.waitFor(() => expect(states.at(-1)).toEqual({ kind: 'ready' }));
+		expect(controller.focusTerminal()).toBe(true);
+		expect(active.focus).toHaveBeenCalledOnce();
+
+		controller.dispose();
+		expect(controller.focusTerminal()).toBe(false);
+		expect(active.focus).toHaveBeenCalledOnce();
+	});
+
 	it('routes a file drop only through the current painted attachment', async () => {
 		const active = rendererSession();
 		const request = projectionRequest();
@@ -192,10 +214,12 @@ describe('ProjectedTerminalRecoveryController', () => {
 
 function rendererSession(overrides: Partial<ProjectedTerminalRendererSession> = {}): {
 	readonly dispose: ReturnType<typeof vi.fn<() => void>>;
+	readonly focus: ReturnType<typeof vi.fn<() => void>>;
 	readonly freeze: ReturnType<typeof vi.fn<() => void>>;
 	readonly session: ProjectedTerminalRendererSession;
 } {
 	const dispose = vi.fn<() => void>();
+	const focus = vi.fn<() => void>();
 	const freeze = vi.fn<() => void>();
 	const pasteFileDrop = vi.fn<ProjectedTerminalRendererSession['pasteFileDrop']>(async () => ({
 		kind: 'sent',
@@ -211,9 +235,11 @@ function rendererSession(overrides: Partial<ProjectedTerminalRendererSession> = 
 	}));
 	return {
 		dispose,
+		focus,
 		freeze,
 		session: {
 			dispose,
+			focus,
 			freeze,
 			isTransportAvailable: () => true,
 			pasteFileDrop,

@@ -30,38 +30,21 @@ describe('useWorkbenchTerminalContextMenu', () => {
 		controls = null;
 	});
 
-	it('moves final focus to the newly split panel', () => {
-		const focus = vi.fn<() => void>();
-		const terminal = { focus } as unknown as HTMLElement;
-		const querySelector = vi.fn<(selector: string) => HTMLElement | null>(() => terminal);
-		const requestAnimationFrame = vi.fn<(callback: FrameRequestCallback) => number>((callback) => {
-			callback(0);
-			return 1;
-		});
-		const ownerDocument = {
-			defaultView: { requestAnimationFrame },
-			querySelector,
-		} as unknown as Document;
+	it('leaves successful split focus transfer to the new terminal surface', () => {
 		const splitPanel = vi.fn<(panelId: string, direction: PanelSplitDirection) => string | null>(
 			() => 'panel-2',
 		);
 		renderToStaticMarkup(createElement(HookProjection, { splitPanel }));
 
 		const contextMenu = getControls();
-		contextMenu.split('right', ownerDocument);
+		contextMenu.split('right');
 
 		expect(splitPanel).toHaveBeenCalledWith('panel-1', 'right', 'context-menu');
-		expect(focus).toHaveBeenCalledOnce();
-		expect(contextMenu.finalFocus()).toBe(terminal);
+		expect(contextMenu.finalFocus()).toBe(false);
 		expect(contextMenu.finalFocus()).toBe(false);
 	});
 
 	it('preserves the context menu focus behavior when a split is rejected', () => {
-		const requestAnimationFrame = vi.fn<(callback: FrameRequestCallback) => number>(() => 1);
-		const ownerDocument = {
-			defaultView: { requestAnimationFrame },
-			querySelector: vi.fn<(selector: string) => HTMLElement | null>(() => null),
-		} as unknown as Document;
 		renderToStaticMarkup(
 			createElement(HookProjection, {
 				splitPanel: () => null,
@@ -69,9 +52,8 @@ describe('useWorkbenchTerminalContextMenu', () => {
 		);
 
 		const contextMenu = getControls();
-		contextMenu.split('right', ownerDocument);
+		contextMenu.split('right');
 
-		expect(requestAnimationFrame).not.toHaveBeenCalled();
 		expect(contextMenu.finalFocus()).toBe(false);
 	});
 

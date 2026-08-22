@@ -1,17 +1,18 @@
 export const MAXIMUM_TERMINAL_FILE_DROP_FILES = 32;
-export const MAXIMUM_TERMINAL_FILE_DROP_PREVIEW_CHARACTERS = 4096;
+export const MAXIMUM_TERMINAL_FILE_DROP_INPUT_CHARACTERS = 4096;
+
+const TERMINAL_FILE_DROP_ESCAPE_CHARACTERS = new Set(`\\ ()[]{}<>"'\`!#$&;|*?`);
 
 export type TerminalFileDropRejectionReason =
 	| 'empty'
+	| 'input-too-large'
 	| 'invalid-path'
-	| 'preview-too-large'
 	| 'too-many-files'
 	| 'unavailable-path'
 	| 'unsupported';
 
 type TerminalFileDropPreparation =
 	| {
-			readonly containsNewline: boolean;
 			readonly kind: 'ready';
 			readonly paths: readonly string[];
 			readonly text: string;
@@ -28,6 +29,35 @@ interface TerminalFileDropPathResolver {
 
 export interface TerminalFileDropCapability {
 	prepare(files: readonly File[]): Promise<TerminalFileDropPreparation>;
+}
+
+type TerminalFileDropDataTransfer = Pick<DataTransfer, 'files' | 'items' | 'types'>;
+
+export function containsTerminalFileDrop(transfer: TerminalFileDropDataTransfer): boolean {
+	return (
+		transfer.files.length > 0 ||
+		Array.from(transfer.items).some((item) => item.kind === 'file') ||
+		Array.from(transfer.types).includes('Files')
+	);
+}
+
+export function extractTerminalFileDropFiles(
+	transfer: TerminalFileDropDataTransfer,
+): readonly File[] {
+	const files = Array.from(transfer.files);
+	if (files.length > 0) return files;
+
+	const itemFiles: File[] = [];
+	try {
+		for (const item of Array.from(transfer.items)) {
+			if (item.kind !== 'file') continue;
+			const file = item.getAsFile();
+			if (file !== null) itemFiles.push(file);
+		}
+	} catch {
+		return [];
+	}
+	return itemFiles;
 }
 
 export function createTerminalFileDropCapability(
@@ -58,9 +88,8 @@ async function prepareTerminalFileDrop(
 	}
 
 	const paths: string[] = [];
-	const quotedPaths: string[] = [];
-	let containsNewline = false;
-	let previewCharacters = 0;
+	const escapedPaths: string[] = [];
+	let inputCharacters = 0;
 	for (const candidate of resolved) {
 		if (typeof candidate !== 'string' || candidate.length === 0) {
 			return { kind: 'rejected', reason: 'unavailable-path' };
@@ -68,41 +97,33 @@ async function prepareTerminalFileDrop(
 		if (!candidate.startsWith('/')) {
 			return { kind: 'rejected', reason: 'invalid-path' };
 		}
-		if (quotedPaths.length > 0) previewCharacters += 1;
-		previewCharacters += 2;
+		if (escapedPaths.length > 0) inputCharacters += 1;
+		let escapedPath = '';
 		for (const character of candidate) {
 			const codepoint = character.codePointAt(0) ?? 0;
-			if (isPasteUnsafeControl(codepoint)) {
+			if (isTerminalFileDropControl(codepoint)) {
 				return { kind: 'rejected', reason: 'invalid-path' };
 			}
-			if (character === '\n') containsNewline = true;
-			previewCharacters += character === "'" ? 4 : 1;
-			if (previewCharacters > MAXIMUM_TERMINAL_FILE_DROP_PREVIEW_CHARACTERS) {
-				return { kind: 'rejected', reason: 'preview-too-large' };
+			const escapedCharacter = TERMINAL_FILE_DROP_ESCAPE_CHARACTERS.has(character)
+				? `\\${character}`
+				: character;
+			escapedPath += escapedCharacter;
+			inputCharacters += TERMINAL_FILE_DROP_ESCAPE_CHARACTERS.has(character) ? 2 : 1;
+			if (inputCharacters > MAXIMUM_TERMINAL_FILE_DROP_INPUT_CHARACTERS) {
+				return { kind: 'rejected', reason: 'input-too-large' };
 			}
 		}
 		paths.push(candidate);
-		quotedPaths.push(posixShellWord(candidate));
+		escapedPaths.push(escapedPath);
 	}
 
 	return {
-		containsNewline,
 		kind: 'ready',
 		paths,
-		text: quotedPaths.join(' '),
+		text: escapedPaths.join(' '),
 	};
 }
 
-function isPasteUnsafeControl(codepoint: number): boolean {
-	return (
-		codepoint <= 0x08 ||
-		codepoint === 0x0b ||
-		codepoint === 0x0c ||
-		(codepoint >= 0x0e && codepoint <= 0x1f) ||
-		(codepoint >= 0x7f && codepoint <= 0x9f)
-	);
-}
-
-function posixShellWord(path: string): string {
-	return `'${path.replaceAll("'", "'\\''")}'`;
+function isTerminalFileDropControl(codepoint: number): boolean {
+	return codepoint <= 0x1f || (codepoint >= 0x7f && codepoint <= 0x9f);
 }

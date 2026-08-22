@@ -77,6 +77,12 @@ export class ProjectedTerminalRecoveryController {
 		this.#beginAttempt('manual');
 	}
 
+	focusTerminal(): boolean {
+		if (this.#disposed || this.#active === undefined) return false;
+		this.#active.session.focus();
+		return true;
+	}
+
 	async pasteFileDrop(text: string): Promise<ProjectedTerminalRecoveryFileDropResult> {
 		if (this.#disposed || this.#active === undefined) return { kind: 'unavailable' };
 		return await this.#active.session.pasteFileDrop(text);

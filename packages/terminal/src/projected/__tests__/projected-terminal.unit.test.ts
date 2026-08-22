@@ -5965,6 +5965,65 @@ describe('ProjectedTerminal', () => {
 		terminal.dispose();
 	});
 
+	it.each(['surface blur', 'window blur'] as const)(
+		'keeps Host selection when %s collapses its accessible DOM mirror',
+		async (focusLoss) => {
+			const browser = createFakeBrowser();
+			vi.stubGlobal('document', browser.document);
+			vi.stubGlobal('window', browser.document.defaultView);
+			vi.stubGlobal('navigator', {});
+			const commands: ProjectedTerminalCommand[] = [];
+			const terminal = new ProjectedTerminal({
+				attachmentId,
+				creationId,
+				hostEpoch,
+				labels: { input: 'input', screen: 'screen' },
+				port: {
+					send: (command) => {
+						commands.push(command);
+					},
+				},
+				terminalId,
+			});
+			await terminal.open(browser.root);
+			terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['left', 'selection']));
+			const hostSelection = {
+				attachmentId,
+				end: { column: 8, row: CanonicalUint64TextSchema.parse('1') },
+				preview: null,
+				rectangle: false,
+				start: { column: 0, row: CanonicalUint64TextSchema.parse('0') },
+				state: 'active' as const,
+			};
+			terminal.notifySelectionChanged(hostSelection);
+
+			commands.length = 0;
+			if (focusLoss === 'surface blur') {
+				(terminal.textarea as unknown as FakeElement).dispatch('blur', {
+					relatedTarget: null,
+					type: 'blur',
+				} as unknown as FocusEvent);
+			} else {
+				browser.dispatchWindow('blur');
+			}
+			const documentSelection = browser.document.getSelection();
+			if (documentSelection === null || documentSelection.rangeCount !== 1) {
+				throw new Error('mirrored document selection is unavailable');
+			}
+			const range = documentSelection.getRangeAt(0);
+			range.setEnd(range.startContainer, range.startOffset);
+			browser.dispatchDocument('selectionchange');
+
+			expect(
+				commands.filter(
+					(command) => command.kind === 'selection-command' && command.payload.command === 'clear',
+				),
+			).toHaveLength(0);
+			expect(terminal.selection).toEqual(hostSelection);
+			terminal.dispose();
+		},
+	);
+
 	it('exposes accessible rows through a valid navigable list', async () => {
 		const browser = createFakeBrowser();
 		vi.stubGlobal('document', browser.document);
@@ -6139,16 +6198,13 @@ describe('ProjectedTerminal', () => {
 		terminal.dispose();
 	});
 
-	it('requires review for every prepared file drop and never appends Enter', async () => {
+	it('publishes a safe prepared file drop directly but retains review for suspicious input', async () => {
 		const browser = createFakeBrowser();
 		vi.stubGlobal('document', browser.document);
 		vi.stubGlobal('window', browser.document.defaultView);
 		vi.stubGlobal('navigator', {});
 		const commands: ProjectedTerminalCommand[] = [];
-		const reviewPaste = vi
-			.fn<(review: ProjectedPasteReview) => boolean>()
-			.mockReturnValueOnce(false)
-			.mockReturnValueOnce(true);
+		const reviewPaste = vi.fn<(review: ProjectedPasteReview) => boolean>(() => false);
 		const terminal = new ProjectedTerminal({
 			attachmentId,
 			creationId,
@@ -6163,20 +6219,23 @@ describe('ProjectedTerminal', () => {
 			terminalId,
 		});
 		await terminal.open(browser.root);
-		const text = "'/tmp/safe.txt'";
+		const text = '/tmp/safe.txt';
 
-		await expect(terminal.paste(text, 'file-drop')).resolves.toMatchObject({ kind: 'blocked' });
-		expect(commands.some((command) => command.kind === 'paste-input')).toBe(false);
 		await expect(terminal.paste(text, 'file-drop')).resolves.toMatchObject({ kind: 'sent' });
-
-		expect(reviewPaste.mock.calls.map(([review]) => review.source)).toEqual([
-			'file-drop',
-			'file-drop',
-		]);
+		expect(reviewPaste).not.toHaveBeenCalled();
 		expect(commands.at(-1)).toEqual({
 			kind: 'paste-input',
 			payload: { attachmentId, bracketed: false, capabilityRevision, text },
 		});
+
+		await expect(terminal.paste('one\ntwo', 'file-drop')).resolves.toMatchObject({
+			kind: 'blocked',
+		});
+		expect(reviewPaste).toHaveBeenCalledExactlyOnceWith(
+			expect.objectContaining({ multiline: true, source: 'file-drop' }),
+			expect.any(AbortSignal),
+		);
+		expect(commands.filter((command) => command.kind === 'paste-input')).toHaveLength(1);
 		terminal.dispose();
 	});
 
@@ -6382,6 +6441,30 @@ describe('ProjectedTerminal', () => {
 		);
 		expect(preventDropDefault).toHaveBeenCalledOnce();
 		expect(stopPropagation).toHaveBeenCalledOnce();
+
+		const protectedFileDragDefault = vi.fn<() => void>();
+		const protectedFileDropDefault = vi.fn<() => void>();
+		const protectedFileStopPropagation = vi.fn<() => void>();
+		const protectedFileTransfer = {
+			dropEffect: 'none',
+			files: [],
+			getData: () => '/untrusted/browser/path',
+			types: ['Files', 'text/plain'],
+		};
+		root.dispatch('dragover', {
+			dataTransfer: protectedFileTransfer,
+			preventDefault: protectedFileDragDefault,
+			type: 'dragover',
+		} as unknown as DragEvent);
+		root.dispatch('drop', {
+			dataTransfer: protectedFileTransfer,
+			preventDefault: protectedFileDropDefault,
+			stopPropagation: protectedFileStopPropagation,
+			type: 'drop',
+		} as unknown as DragEvent);
+		expect(protectedFileDragDefault).not.toHaveBeenCalled();
+		expect(protectedFileDropDefault).not.toHaveBeenCalled();
+		expect(protectedFileStopPropagation).not.toHaveBeenCalled();
 
 		const fileDefault = vi.fn<() => void>();
 		root.dispatch('drop', {

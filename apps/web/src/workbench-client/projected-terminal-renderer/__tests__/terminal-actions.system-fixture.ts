@@ -308,6 +308,25 @@ async function runWitness(): Promise<void> {
 			activeTerminal.getSelectionRange() !== null,
 		);
 
+		const focusLossCommandStart = commands.length;
+		window.dispatchEvent(new Event('blur'));
+		const documentSelection = document.getSelection();
+		if (documentSelection === null || documentSelection.rangeCount !== 1) {
+			throw new Error('Focus-loss witness did not retain the accessible selection mirror.');
+		}
+		const documentRange = documentSelection.getRangeAt(0);
+		documentRange.collapse(true);
+		document.dispatchEvent(new Event('selectionchange'));
+		const focusLossCommands = commands.slice(focusLossCommandStart);
+		root.dataset['witnessFocusLossSelectionClearCount'] = String(
+			focusLossCommands.filter(
+				(command) => command.kind === 'selection-command' && command.payload.command === 'clear',
+			).length,
+		);
+		root.dataset['witnessFocusLossSelectionPreserved'] = String(
+			activeTerminal.getSelectionRange() !== null,
+		);
+
 		root.dataset['witnessActionInputs'] = Object.keys(productContext.actionInputs ?? {}).join(',');
 		root.dataset['witnessApplicationMouseOwned'] = String(
 			applicationContext.kind === 'terminal-owned',

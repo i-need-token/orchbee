@@ -15,8 +15,10 @@ Gateway projection command, then pins that presentation configuration for the fi
 resize observation or animation frame wakes an unmeasurable surface; release aborts that wait. No
 timer starts the child and no 80x24 visual fallback exists.
 
-A natural exit keeps its final frame readable while the projected attachment rejects further PTY
-input, resize, clear, and reset control. Stopped presentations remain a separate Workbench state. Its
+A natural exit keeps its final frame readable only while Workbench's managed natural-exit removal
+awaits disposal; the projected attachment rejects further PTY input, resize, clear, and reset
+control, and the exited presentation is not retained as a Tab after disposal. Stopped presentations
+remain a separate Workbench state. Its
 Start New Session control returns the Workbench transition result through the shared composition;
 an accepted result replaces the presentation through the normal durable workflow, while a rejected
 or thrown start remains on the stopped presentation and displays localized failure feedback.
@@ -112,25 +114,31 @@ the authoritative rejection and repair ordering; this Browser fixture does not g
 capability mutation or claim native permission behavior.
 
 Desktop file drop is an optional capability of that same surface, not a browser filesystem API.
-The Desktop adapter may resolve only user-supplied disk `File` objects to backing paths. The
-deterministic file-drop policy accepts at most 32 absolute POSIX paths, preserves their order, quotes
-each path as one POSIX shell word, and rejects the complete drop when any path is missing, relative,
-contains a paste-unsafe control character, or would make the complete preview exceed 4,096 Unicode
-code points. Every admitted file drop enters the existing FIFO paste review even when it is one safe
-line. The localized review shows the complete generated input and warns that local paths may not
-exist in SSH, containers, or other remote shells. Cancel, replacement, lifecycle abort, and an
-unavailable active attachment publish nothing; approval publishes only the reviewed text and never
-an Enter key. Browser and Gateway clients receive no backing-path capability, and Windows remains
-unsupported until the active shell dialect has an equally bounded quoting contract.
+The Desktop adapter may resolve only user-supplied disk `File` objects to backing paths; one object
+may represent a file or directory, but no child is enumerated. File drag recognition uses the
+`Files` marker or file-kind items while the drag data store is protected, then the ordered `FileList`
+or non-null file-kind items at `drop`. The deterministic preparer accepts at most 32 absolute POSIX
+paths, preserves their order, applies the pinned Ghostty live-buffer backslash escaping set, and
+joins them with one space. It rejects the complete drop when any path is missing, relative, contains
+a C0/C1 control character, or would make the escaped input exceed 4,096 Unicode code points. A
+ready drop enters the existing FIFO paste path directly, so a simple path remains unchanged and a
+shell receives the text at its current editing cursor without Paste Review or an Enter key. The
+local path may not exist in SSH, containers, or another foreground environment; direct insertion
+deliberately adds no warning or remote-path translation. Replacement, lifecycle abort, stale
+preparation, and an unavailable active attachment publish nothing. Browser and Gateway clients
+receive no backing-path capability, and Windows remains unsupported until the active shell dialect
+has an equally bounded escaping contract.
 
 The stable headed `terminal-parity/IN-08-drop` witness uses a real Electron `File` and backing-path
-bridge on the current POSIX Desktop platform. It observes exact single-word quoting in mandatory
-Paste Review, cancellation without terminal input, approval without command execution, and
-execution only after a separate explicit Enter. Owner-local tests cover the 32-file and
-4,096-code-point bounds, order, quotes, Unicode, paste-unsafe controls, missing or malformed bridge
-values, unsupported platforms, stale preparation, and Gateway capability absence. The witness does
-not claim Windows support, Browser/LAN path access, directory enumeration, file-content reads,
-uploads, or filesystem-link activation.
+bridge on the current POSIX Desktop platform. Its protected `dragover` fixture exposes a `Files`
+marker without a readable `FileList`; the final `drop` supplies the disk-backed object. It observes
+direct insertion into the middle of an existing shell line, no Paste Review, no automatic
+execution, and execution only after a separate explicit Enter. Owner-local tests cover FileList
+order and file-kind item fallback, Ghostty-compatible escaping, the 32-file and 4,096-code-point
+bounds, Unicode, every control range, missing or malformed bridge values, unsupported platforms,
+stale preparation, and Gateway capability absence. The witness does not automate Finder or claim
+every native operating-system payload variant, Windows support, Browser/LAN path access, directory
+enumeration, file-content reads, uploads, or filesystem-link activation.
 
 The packaged `orchbee:` origin and Electron User-Agent token select Desktop mode. The User-Agent is adapter discovery for loopback development, never authentication; Desktop authority still arrives only through the validated sandboxed bootstrap. The explicit `?orchbee-runtime=gateway` marker selects an authenticated process-lifetime Gateway client on loopback or an explicitly enabled trusted LAN. An ordinary HTTP(S) browser origin selects Browser Preview. Gateway port, version, and lifetime capability must appear exactly once in the fragment. Invalid, duplicate, or incomplete values fail closed without falling back.
 

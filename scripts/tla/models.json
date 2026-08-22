@@ -1040,15 +1040,33 @@
 			"config": "packages/workbench/formal/tla/TerminalPresentationRemoval.cfg",
 			"claims": ["packages/workbench/README.md"],
 			"triggers": ["packages/workbench/src/**", "apps/desktop/src/**"],
+			"variants": [
+				{
+					"name": "primary-only",
+					"constants": {
+						"InitialShape": "primary-only"
+					}
+				},
+				{
+					"name": "primary-with-child",
+					"constants": {
+						"InitialShape": "primary-with-child"
+					}
+				}
+			],
 			"requiredCoverage": [
 				"ProvisionCompletes",
 				"ProvisionFails",
 				"RetryProvision",
 				"RequestRemoval",
+				"NaturalExit",
+				"RejectDuplicateRemoval",
 				"CloseCompletes",
 				"CloseFails",
 				"RetryClose",
-				"FinalizeRemoval"
+				"FinalizeExplicitRemoval",
+				"FinalizeNaturalChild",
+				"FinalizeNaturalPrimary"
 			]
 		},
 		{

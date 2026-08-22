@@ -162,10 +162,9 @@ export const projectedTerminalMessages = defineMessages({
 		defaultMessage: 'The dropped paths could not be prepared safely.',
 		id: 'terminal.projected.fileDrop.failure.invalid',
 	},
-	fileDropFailurePreviewTooLarge: {
-		defaultMessage:
-			'The generated terminal input exceeds the complete {maximum, number}-character preview limit.',
-		id: 'terminal.projected.fileDrop.failure.previewTooLarge',
+	fileDropFailureInputTooLarge: {
+		defaultMessage: 'The generated terminal input exceeds the {maximum, number}-character limit.',
+		id: 'terminal.projected.fileDrop.failure.inputTooLarge',
 	},
 	fileDropFailureTerminalUnavailable: {
 		defaultMessage: 'The active terminal is not ready to receive dropped paths.',

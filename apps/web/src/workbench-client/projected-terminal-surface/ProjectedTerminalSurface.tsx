@@ -11,6 +11,7 @@ export function ProjectedTerminalSurface({
 	actionRuntime,
 	actionScope,
 	admitBellEffect,
+	autoFocus,
 	bindActionContextProvider,
 	presentation,
 }: WorkbenchTerminalSurfaceProps): ReactNode {
@@ -18,6 +19,7 @@ export function ProjectedTerminalSurface({
 		actionRuntime,
 		actionScope,
 		admitBellEffect,
+		autoFocus,
 		bindActionContextProvider,
 	});
 	const intl = useOrchbeeIntl();

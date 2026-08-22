@@ -795,6 +795,8 @@ test('terminal-parity/IN-07-pre-input', async () => {
 			'data-witness-buttonless-motion-selection-preserved',
 			'true',
 		);
+		await expect(root).toHaveAttribute('data-witness-focus-loss-selection-clear-count', '0');
+		await expect(root).toHaveAttribute('data-witness-focus-loss-selection-preserved', 'true');
 	} finally {
 		await page.context().browser()?.close();
 	}
@@ -1819,10 +1821,9 @@ test('terminal-parity/IN-08-drop', async () => {
 	const page = await application.firstWindow();
 	const terminalRoot = projectedTerminal(page);
 	await expect(terminalRoot).toHaveAttribute('data-projected-terminal-state', 'open');
-	const scriptPath = path.join(directory, "space quote's.sh");
+	const scriptPath = path.join(directory, 'desktop-file-drop.sh');
 	await writeFile(scriptPath, "#!/bin/sh\nprintf 'desktop-file-drop-executed\\n'\n", 'utf8');
 	await chmod(scriptPath, 0o700);
-	const shellWord = `'${scriptPath.replaceAll("'", "'\\''")}'`;
 	await page.evaluate(() => {
 		const input = document.createElement('input');
 		input.dataset['desktopFileDropFixture'] = 'true';
@@ -1831,24 +1832,36 @@ test('terminal-parity/IN-08-drop', async () => {
 	});
 	await page.locator('input[data-desktop-file-drop-fixture="true"]').setInputFiles(scriptPath);
 
-	await dispatchDesktopFileDrop(terminalRoot);
+	const input = page.getByRole('textbox');
+	const prefix = 'drop-before-';
+	const suffix = '-drop-after';
+	await input.pressSequentially(`${prefix}${suffix}`, { delay: 1 });
+	for (let index = 0; index < suffix.length; index += 1) {
+		await input.press('ArrowLeft');
+	}
+	const firstDropTrace = await dispatchDesktopFileDrop(terminalRoot);
+	expect(firstDropTrace).toEqual({
+		bridgePath: scriptPath,
+		dragOverPrevented: true,
+		dropFileCount: 1,
+		dropItemCount: 1,
+		dropPrevented: true,
+		dropTypes: ['Files'],
+	});
 	const review = page.locator('[data-slot="projected-terminal-paste-review"]');
-	await expect(review).toBeVisible();
-	await expect(review.locator('pre')).toHaveText(shellWord);
-	await expect(review).toContainText(/SSH.*(?:containers|容器).*(?:remote shells|远程 Shell)/u);
-	await review.locator('[data-slot="alert-dialog-cancel"]').click();
 	await expect(review).not.toBeVisible();
-	await expect(page.locator('[role="list"]')).not.toContainText('space quote');
+	await expect(page.locator('[role="list"]')).toContainText(`${prefix}${scriptPath}${suffix}`);
+	await page.waitForTimeout(300);
+	await expect(page.locator('[role="list"]')).not.toContainText('desktop-file-drop-executed');
+	await input.press('Control+C');
 
-	await dispatchDesktopFileDrop(terminalRoot);
-	await expect(review).toBeVisible();
-	await review.locator('[data-slot="alert-dialog-action"]').click();
-	await expect(review).not.toBeVisible();
-	await expect(page.locator('[role="list"]')).toContainText('space quote');
+	const secondDropTrace = await dispatchDesktopFileDrop(terminalRoot);
+	expect(secondDropTrace).toEqual(firstDropTrace);
+	await expect(page.locator('[role="list"]')).toContainText(scriptPath);
 	await page.waitForTimeout(300);
 	await expect(page.locator('[role="list"]')).not.toContainText('desktop-file-drop-executed');
 
-	await page.getByRole('textbox').press('Enter');
+	await input.press('Enter');
 	await expect(page.locator('[role="list"]')).toContainText('desktop-file-drop-executed');
 });
 
@@ -1910,6 +1923,23 @@ test('runs an ordinary SSH PTY with a diagnosable TERM and no implicit Orchbee e
 	} finally {
 		await stopChildProcess(sshFixture.server);
 	}
+});
+
+test('closes the final Tab after a natural Host terminal exit while keeping the window open', async () => {
+	const application = electronApplication;
+	if (application === undefined) throw new Error('Electron application did not start.');
+	const page = await application.firstWindow();
+	await expect(projectedTerminal(page)).toHaveAttribute('data-projected-terminal-state', 'open');
+
+	const input = page.getByRole('textbox');
+	await input.pressSequentially('exit', { delay: 1 });
+	await input.press('Enter');
+
+	await expect(workbenchTabs(page)).toHaveCount(0);
+	await expect(projectedTerminals(page)).toHaveCount(0);
+	expect(
+		await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length),
+	).toBe(1);
 });
 
 test('routes a real sandboxed Host terminal through Main and Preload to the renderer', async () => {
@@ -2154,42 +2184,34 @@ test('routes a real sandboxed Host terminal through Main and Preload to the rend
 	await input.focus();
 	await input.pressSequentially('stty size; exit', { delay: 1 });
 	await input.press('Enter');
-	await expect(root).toHaveAttribute('data-projected-terminal-state', 'exited');
-	await expect(root).toHaveAttribute('data-projected-terminal-final-frame-presented', 'true');
-	await expect
-		.poll(async () => Number(await root.getAttribute('data-projected-terminal-committed-frames')))
-		.toBeGreaterThan(0);
-	await expect
-		.poll(async () => Number(await root.getAttribute('data-projected-terminal-rendered-frames')))
-		.toBeGreaterThan(0);
-	await expect(root).toHaveAttribute(
-		'data-projected-terminal-renderer-health',
-		/^(?:fallback|ready|recovering|lost|recovery-failed)$/u,
-	);
+	await expect(workbenchTabs(page)).toHaveCount(0);
+	await expect(projectedTerminals(page)).toHaveCount(0);
+	expect(
+		await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length),
+	).toBe(1);
 	await expect.poll(() => traceLines.join('').includes('orchbee.desktop.copy-path')).toBe(true);
 	const traceText = traceLines.join('');
 	expect(traceText).toContain('"terminalFramesReceived":');
 	expect(traceText).toContain('"framesForwarded":');
-	const identityBeforeExitedRestart = await terminalDocumentIdentity(root);
 
 	await quitDesktopAutomaticallyPreservingSessions(application);
 	electronApplication = undefined;
-	expect(hostProcess?.exitCode).toBeNull();
+	await expect.poll(() => hostProcess?.exitCode).toBe(0);
+	const directory = runtimeDirectory;
+	const environment = desktopEnvironment;
+	if (directory === undefined || environment === undefined) {
+		throw new Error('Desktop test environment is unavailable.');
+	}
+	const endpointId = environment['ORCHBEE_DESKTOP_ENDPOINT_ID'];
+	if (endpointId === undefined) throw new Error('Desktop endpoint identity is unavailable.');
+	hostProcess = await startHost(directory, endpointId);
 
 	const exitedRestart = await launchDesktop();
 	electronApplication = exitedRestart;
 	const exitedPage = await exitedRestart.firstWindow();
-	const exitedRoot = projectedTerminal(exitedPage);
-	await expect(exitedRoot).toHaveAttribute('data-projected-terminal-state', 'exited');
-	await expect(exitedRoot).toHaveAttribute('data-projected-terminal-final-frame-presented', 'true');
-	const identityAfterExitedRestart = await terminalDocumentIdentity(exitedRoot);
-	expect(identityAfterExitedRestart).toMatchObject({
-		creationId: identityBeforeExitedRestart.creationId,
-		terminalId: identityBeforeExitedRestart.terminalId,
-	});
-	expect(identityAfterExitedRestart.attachmentId).not.toBe(
-		identityBeforeExitedRestart.attachmentId,
-	);
+	await expect(exitedPage.locator('[data-slot="workbench-tab-bar"]')).toBeVisible();
+	await expect(workbenchTabs(exitedPage)).toHaveCount(0);
+	await expect(projectedTerminals(exitedPage)).toHaveCount(0);
 	await quitDesktopAutomaticallyPreservingSessions(exitedRestart);
 	electronApplication = undefined;
 });
@@ -2726,6 +2748,7 @@ test('runs the complete shared Project, Workspace, Tab, Panel, and terminal flow
 			throw new Error('Primary Workspace presentation identity is unavailable.');
 		}
 		const primaryInput = browserProjectRoot.getByRole('textbox');
+		await expect(primaryInput).toBeFocused();
 		await primaryInput.pressSequentially("pwd; printf 'lwf-primary-marker\\n'", { delay: 1 });
 		await primaryInput.press('Enter');
 		await expect(browserProjectRoot.locator('[role="list"]')).toContainText(
@@ -2763,6 +2786,7 @@ test('runs the complete shared Project, Workspace, Tab, Panel, and terminal flow
 		}
 		const splitRoot = projectedTerminalFor(browserPage, splitPresentationId);
 		const splitInput = splitRoot.getByRole('textbox');
+		await expect(splitInput).toBeFocused();
 		await splitInput.pressSequentially("printf 'lwf-split-marker\\n'; sleep 300", { delay: 1 });
 		await splitInput.press('Enter');
 		await expect(
@@ -2784,6 +2808,7 @@ test('runs the complete shared Project, Workspace, Tab, Panel, and terminal flow
 			.toBeGreaterThanOrEqual(attachmentClosesBeforeTabSwitch + 2);
 		const secondTabRoot = projectedTerminal(browserPage);
 		await expect(secondTabRoot).toHaveAttribute('data-projected-terminal-state', 'open');
+		await expect(secondTabRoot.getByRole('textbox')).toBeFocused();
 		const secondTabPresentationId = await secondTabRoot.getAttribute(
 			'data-terminal-presentation-id',
 		);
@@ -2814,6 +2839,9 @@ test('runs the complete shared Project, Workspace, Tab, Panel, and terminal flow
 			creationId: splitIdentity.creationId,
 			terminalId: splitIdentity.terminalId,
 		});
+		await expect(
+			projectedTerminalFor(browserPage, splitPresentationId).getByRole('textbox'),
+		).toBeFocused();
 		await expect(projectedTerminalFor(browserPage, splitPresentationId)).toHaveAttribute(
 			'data-projected-terminal-close-activity',
 			'active',
@@ -2834,6 +2862,7 @@ test('runs the complete shared Project, Workspace, Tab, Panel, and terminal flow
 		await expect(projectedTerminalFor(desktopPage, splitPresentationId)).toHaveCount(0);
 		await expect(projectedTerminals(browserPage)).toHaveCount(1);
 		await expect(projectedTerminals(desktopPage)).toHaveCount(1);
+		await expect(projectedTerminal(browserPage).getByRole('textbox')).toBeFocused();
 		const retainedPrimaryIdentity = await terminalDocumentIdentity(projectedTerminal(browserPage));
 		expect(retainedPrimaryIdentity).toMatchObject({
 			creationId: primaryIdentity.creationId,
@@ -3590,18 +3619,60 @@ function projectedTerminal(page: Page): Locator {
 	return page.locator('[data-terminal-presentation-id][data-projected-terminal-state]').first();
 }
 
-async function dispatchDesktopFileDrop(terminalRoot: Locator): Promise<void> {
-	await terminalRoot.evaluate((element) => {
+async function dispatchDesktopFileDrop(terminalRoot: Locator): Promise<{
+	readonly bridgePath: string;
+	readonly dragOverPrevented: boolean;
+	readonly dropFileCount: number;
+	readonly dropItemCount: number;
+	readonly dropPrevented: boolean;
+	readonly dropTypes: readonly string[];
+}> {
+	return await terminalRoot.evaluate((element) => {
 		const input = document.querySelector('input[data-desktop-file-drop-fixture="true"]');
 		const file = input instanceof HTMLInputElement ? input.files?.[0] : undefined;
 		if (file === undefined) throw new Error('Desktop file-drop fixture has no selected file.');
-		for (const type of ['dragover', 'drop'] as const) {
-			const transfer = new DataTransfer();
-			transfer.items.add(file);
-			element.dispatchEvent(
-				new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer: transfer }),
-			);
+		const bridge: unknown = Reflect.get(window, 'orchbeeDesktopFilePath');
+		if (
+			typeof bridge !== 'object' ||
+			bridge === null ||
+			!('getPathForFile' in bridge) ||
+			typeof bridge.getPathForFile !== 'function'
+		) {
+			throw new Error('Desktop file-drop fixture has no path bridge.');
 		}
+		const bridgePath: unknown = Reflect.apply(bridge.getPathForFile, bridge, [file]);
+		if (typeof bridgePath !== 'string') {
+			throw new Error('Desktop file-drop fixture path bridge returned a non-string value.');
+		}
+		const dragTransfer = {
+			dropEffect: 'none',
+			files: [],
+			getData: () => '',
+			items: [{ getAsFile: () => null, kind: 'file' }],
+			types: ['Files'],
+		};
+		const dragOver = new Event('dragover', { bubbles: true, cancelable: true });
+		Object.defineProperty(dragOver, 'dataTransfer', { value: dragTransfer });
+		element.dispatchEvent(dragOver);
+
+		const dropTransfer = {
+			dropEffect: 'none',
+			files: [file],
+			getData: () => '',
+			items: [{ getAsFile: () => file, kind: 'file' }],
+			types: ['Files'],
+		};
+		const drop = new Event('drop', { bubbles: true, cancelable: true });
+		Object.defineProperty(drop, 'dataTransfer', { value: dropTransfer });
+		element.dispatchEvent(drop);
+		return {
+			bridgePath,
+			dragOverPrevented: dragOver.defaultPrevented,
+			dropFileCount: dropTransfer.files.length,
+			dropItemCount: dropTransfer.items.length,
+			dropPrevented: drop.defaultPrevented,
+			dropTypes: Array.from(dropTransfer.types),
+		};
 	});
 }
 

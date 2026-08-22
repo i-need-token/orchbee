@@ -42,6 +42,7 @@ export interface WorkbenchTerminalSurfaceProps {
 	readonly actionRuntime: ActionRuntime;
 	readonly actionScope: ActionScope;
 	readonly admitBellEffect: (event: WorkbenchTerminalBellEffect) => boolean;
+	readonly autoFocus: boolean;
 	readonly bindActionContextProvider: (
 		provider: WorkbenchTerminalActionContextProvider,
 	) => ActionDisposable;

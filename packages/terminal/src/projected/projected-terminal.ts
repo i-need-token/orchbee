@@ -2144,7 +2144,6 @@ export class ProjectedTerminal {
 		const protectedByBracketedPaste =
 			review.bracketed && review.multiline && !review.embeddedBracketTerminator;
 		const requiresReview =
-			review.source === 'file-drop' ||
 			review.replacedControlCharacters > 0 ||
 			review.embeddedBracketTerminator ||
 			(review.multiline && !protectedByBracketedPaste);
@@ -5035,7 +5034,8 @@ export class ProjectedTerminal {
 	}
 
 	#supportsPlainTextDrop(transfer: DataTransfer): boolean {
-		return transfer.files.length === 0 && [...transfer.types].includes('text/plain');
+		const types = [...transfer.types];
+		return transfer.files.length === 0 && !types.includes('Files') && types.includes('text/plain');
 	}
 
 	readonly #handleFocus = (): void => {
@@ -5080,6 +5080,7 @@ export class ProjectedTerminal {
 
 	readonly #handleBlur = (event: FocusEvent): void => {
 		if (this.#focusTargetIsWithinSurface(event.relatedTarget)) return;
+		this.#relinquishAccessibilitySelectionOwnership();
 		this.#renderer?.setFocused(false);
 		this.#repairInputState();
 	};
@@ -5099,6 +5100,7 @@ export class ProjectedTerminal {
 	};
 
 	readonly #handleWindowBlur = (): void => {
+		this.#relinquishAccessibilitySelectionOwnership();
 		this.#renderer?.setFocused(false);
 		this.#repairInputState();
 	};

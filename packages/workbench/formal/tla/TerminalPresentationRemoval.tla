@@ -1,47 +1,85 @@
 -------------------- MODULE TerminalPresentationRemoval --------------------
 EXTENDS FiniteSets, Naturals, TLC
 
+CONSTANT InitialShape
+
 Presentations == {"primary", "child"}
+InitialPresentations ==
+  IF InitialShape = "primary-only" THEN {"primary"} ELSE Presentations
 Phases == {"provisioning", "running", "provision-failed", "closing", "close-failed", "closed"}
+NaturalRoles == {"none", "primary", "child"}
 MaxAttempt == 2
+
+ASSUME InitialShape \in {"primary-only", "primary-with-child"}
 
 VARIABLES
   phase,
   provisionAttempt,
   closeAttempt,
-  removalRequested,
+  members,
+  primaryPresentation,
+  naturalRole,
+  explicitTargets,
   topologyPresent,
-  finalized,
   lastCompletionWasStale,
   previousPhase,
+  previousMembers,
+  previousPrimaryPresentation,
+  previousNaturalRole,
+  previousExplicitTargets,
   previousTopologyPresent
 
 vars ==
-  <<phase, provisionAttempt, closeAttempt, removalRequested, topologyPresent,
-    finalized, lastCompletionWasStale, previousPhase, previousTopologyPresent>>
+  <<phase, provisionAttempt, closeAttempt, members, primaryPresentation,
+    naturalRole, explicitTargets, topologyPresent, lastCompletionWasStale,
+    previousPhase, previousMembers, previousPrimaryPresentation,
+    previousNaturalRole, previousExplicitTargets,
+    previousTopologyPresent>>
+
+NaturalTargets ==
+  {presentation \in Presentations : naturalRole[presentation] # "none"}
+
+PendingTargets == explicitTargets \cup NaturalTargets
 
 RecordNormal ==
   /\ lastCompletionWasStale' = FALSE
   /\ previousPhase' = phase
+  /\ previousMembers' = members
+  /\ previousPrimaryPresentation' = primaryPresentation
+  /\ previousNaturalRole' = naturalRole
+  /\ previousExplicitTargets' = explicitTargets
   /\ previousTopologyPresent' = topologyPresent
 
 RecordStale ==
   /\ lastCompletionWasStale' = TRUE
   /\ previousPhase' = phase
+  /\ previousMembers' = members
+  /\ previousPrimaryPresentation' = primaryPresentation
+  /\ previousNaturalRole' = naturalRole
+  /\ previousExplicitTargets' = explicitTargets
   /\ previousTopologyPresent' = topologyPresent
 
 Init ==
-  /\ phase = [presentation \in Presentations |-> "provisioning"]
-  /\ provisionAttempt = [presentation \in Presentations |-> 1]
+  /\ phase = [presentation \in Presentations |->
+       IF presentation \in InitialPresentations THEN "provisioning" ELSE "closed"]
+  /\ provisionAttempt = [presentation \in Presentations |->
+       IF presentation \in InitialPresentations THEN 1 ELSE 0]
   /\ closeAttempt = [presentation \in Presentations |-> 0]
-  /\ removalRequested = FALSE
+  /\ members = InitialPresentations
+  /\ primaryPresentation = "primary"
+  /\ naturalRole = [presentation \in Presentations |-> "none"]
+  /\ explicitTargets = {}
   /\ topologyPresent = TRUE
-  /\ finalized = FALSE
   /\ lastCompletionWasStale = FALSE
   /\ previousPhase = phase
+  /\ previousMembers = members
+  /\ previousPrimaryPresentation = primaryPresentation
+  /\ previousNaturalRole = naturalRole
+  /\ previousExplicitTargets = explicitTargets
   /\ previousTopologyPresent = topologyPresent
 
 IsCurrentProvision(presentation, candidateAttempt) ==
+  /\ presentation \in members
   /\ phase[presentation] = "provisioning"
   /\ provisionAttempt[presentation] = candidateAttempt
 
@@ -55,7 +93,8 @@ ProvisionCompletes(presentation, candidateAttempt) ==
        /\ UNCHANGED phase
        /\ RecordStale
   /\ UNCHANGED
-       <<provisionAttempt, closeAttempt, removalRequested, topologyPresent, finalized>>
+       <<provisionAttempt, closeAttempt, members, primaryPresentation,
+         naturalRole, explicitTargets, topologyPresent>>
 
 ProvisionFails(presentation, candidateAttempt) ==
   /\ candidateAttempt \in 1..MaxAttempt
@@ -67,29 +106,58 @@ ProvisionFails(presentation, candidateAttempt) ==
        /\ UNCHANGED phase
        /\ RecordStale
   /\ UNCHANGED
-       <<provisionAttempt, closeAttempt, removalRequested, topologyPresent, finalized>>
+       <<provisionAttempt, closeAttempt, members, primaryPresentation,
+         naturalRole, explicitTargets, topologyPresent>>
 
 RetryProvision(presentation) ==
+  /\ presentation \in members
   /\ phase[presentation] = "provision-failed"
   /\ provisionAttempt[presentation] < MaxAttempt
   /\ phase' = [phase EXCEPT ![presentation] = "provisioning"]
   /\ provisionAttempt' = [provisionAttempt EXCEPT ![presentation] = @ + 1]
-  /\ UNCHANGED <<closeAttempt, removalRequested, topologyPresent, finalized>>
+  /\ UNCHANGED
+       <<closeAttempt, members, primaryPresentation, naturalRole,
+         explicitTargets, topologyPresent>>
   /\ RecordNormal
 
 RequestRemoval ==
-  /\ ~removalRequested
-  /\ topologyPresent
-  /\ \A presentation \in Presentations:
+  /\ PendingTargets = {}
+  /\ members # {}
+  /\ \A presentation \in members:
        phase[presentation] \notin {"closing", "close-failed", "closed"}
-  /\ removalRequested' = TRUE
-  /\ phase' = [presentation \in Presentations |-> "closing"]
-  /\ closeAttempt' = [presentation \in Presentations |-> 1]
-  /\ UNCHANGED <<provisionAttempt, topologyPresent, finalized>>
+  /\ explicitTargets' = members
+  /\ phase' = [presentation \in Presentations |->
+       IF presentation \in members THEN "closing" ELSE phase[presentation]]
+  /\ closeAttempt' = [presentation \in Presentations |->
+       IF presentation \in members THEN 1 ELSE closeAttempt[presentation]]
+  /\ UNCHANGED
+       <<provisionAttempt, members, primaryPresentation, naturalRole,
+         topologyPresent>>
   /\ RecordNormal
 
+NaturalExit(presentation) ==
+  /\ explicitTargets = {}
+  /\ presentation \in members
+  /\ presentation \notin NaturalTargets
+  /\ phase[presentation] \in {"provisioning", "running"}
+  /\ phase' = [phase EXCEPT ![presentation] = "closing"]
+  /\ closeAttempt' = [closeAttempt EXCEPT ![presentation] = 1]
+  /\ naturalRole' = [naturalRole EXCEPT
+       ![presentation] = IF presentation = primaryPresentation THEN "primary" ELSE "child"]
+  /\ UNCHANGED
+       <<provisionAttempt, members, primaryPresentation, explicitTargets,
+         topologyPresent>>
+  /\ RecordNormal
+
+RejectDuplicateRemoval ==
+  /\ PendingTargets # {}
+  /\ UNCHANGED
+       <<phase, provisionAttempt, closeAttempt, members, primaryPresentation,
+         naturalRole, explicitTargets, topologyPresent>>
+  /\ RecordStale
+
 IsCurrentClose(presentation, candidateAttempt) ==
-  /\ removalRequested
+  /\ presentation \in PendingTargets
   /\ phase[presentation] = "closing"
   /\ closeAttempt[presentation] = candidateAttempt
 
@@ -103,7 +171,8 @@ CloseCompletes(presentation, candidateAttempt) ==
        /\ UNCHANGED phase
        /\ RecordStale
   /\ UNCHANGED
-       <<provisionAttempt, closeAttempt, removalRequested, topologyPresent, finalized>>
+       <<provisionAttempt, closeAttempt, members, primaryPresentation,
+         naturalRole, explicitTargets, topologyPresent>>
 
 CloseFails(presentation, candidateAttempt) ==
   /\ candidateAttempt \in 1..MaxAttempt
@@ -115,29 +184,64 @@ CloseFails(presentation, candidateAttempt) ==
        /\ UNCHANGED phase
        /\ RecordStale
   /\ UNCHANGED
-       <<provisionAttempt, closeAttempt, removalRequested, topologyPresent, finalized>>
+       <<provisionAttempt, closeAttempt, members, primaryPresentation,
+         naturalRole, explicitTargets, topologyPresent>>
 
 RetryClose(presentation) ==
+  /\ presentation \in PendingTargets
   /\ phase[presentation] = "close-failed"
   /\ closeAttempt[presentation] < MaxAttempt
   /\ phase' = [phase EXCEPT ![presentation] = "closing"]
   /\ closeAttempt' = [closeAttempt EXCEPT ![presentation] = @ + 1]
   /\ UNCHANGED
-       <<provisionAttempt, removalRequested, topologyPresent, finalized>>
+       <<provisionAttempt, members, primaryPresentation, naturalRole,
+         explicitTargets, topologyPresent>>
   /\ RecordNormal
 
-FinalizeRemoval ==
-  /\ removalRequested
-  /\ topologyPresent
-  /\ \A presentation \in Presentations: phase[presentation] = "closed"
+FinalizeExplicitRemoval ==
+  /\ explicitTargets # {}
+  /\ \A presentation \in explicitTargets: phase[presentation] = "closed"
+  /\ members' = members \ explicitTargets
+  /\ explicitTargets' = {}
   /\ topologyPresent' = FALSE
-  /\ finalized' = TRUE
-  /\ UNCHANGED <<phase, provisionAttempt, closeAttempt, removalRequested>>
+  /\ UNCHANGED
+       <<phase, provisionAttempt, closeAttempt, primaryPresentation, naturalRole>>
+  /\ RecordNormal
+
+FinalizeNaturalChild(presentation) ==
+  /\ naturalRole[presentation] = "child"
+  /\ phase[presentation] = "closed"
+  /\ members' = members \ {presentation}
+  /\ naturalRole' = [naturalRole EXCEPT ![presentation] = "none"]
+  /\ UNCHANGED
+       <<phase, provisionAttempt, closeAttempt, primaryPresentation,
+         explicitTargets, topologyPresent>>
+  /\ RecordNormal
+
+NaturalPrimarySurvivors(presentation) == members \ {presentation}
+
+FinalizeNaturalPrimary(presentation) ==
+  /\ naturalRole[presentation] = "primary"
+  /\ phase[presentation] = "closed"
+  /\ NaturalPrimarySurvivors(presentation) \cap PendingTargets = {}
+  /\ members' = NaturalPrimarySurvivors(presentation)
+  /\ primaryPresentation' =
+       IF NaturalPrimarySurvivors(presentation) = {}
+       THEN primaryPresentation
+       ELSE CHOOSE survivor \in NaturalPrimarySurvivors(presentation): TRUE
+  /\ naturalRole' = [naturalRole EXCEPT ![presentation] = "none"]
+  /\ topologyPresent' = (NaturalPrimarySurvivors(presentation) # {})
+  /\ UNCHANGED
+       <<phase, provisionAttempt, closeAttempt, explicitTargets>>
   /\ RecordNormal
 
 Next ==
   \/ RequestRemoval
-  \/ FinalizeRemoval
+  \/ RejectDuplicateRemoval
+  \/ FinalizeExplicitRemoval
+  \/ \E presentation \in Presentations: NaturalExit(presentation)
+  \/ \E presentation \in Presentations: FinalizeNaturalChild(presentation)
+  \/ \E presentation \in Presentations: FinalizeNaturalPrimary(presentation)
   \/ \E presentation \in Presentations: RetryProvision(presentation)
   \/ \E presentation \in Presentations: RetryClose(presentation)
   \/ \E presentation \in Presentations, candidateAttempt \in 1..MaxAttempt:
@@ -153,26 +257,60 @@ Spec == Init /\ [][Next]_vars
 
 TypeOK ==
   /\ phase \in [Presentations -> Phases]
-  /\ provisionAttempt \in [Presentations -> 1..MaxAttempt]
+  /\ provisionAttempt \in [Presentations -> 0..MaxAttempt]
   /\ closeAttempt \in [Presentations -> 0..MaxAttempt]
-  /\ removalRequested \in BOOLEAN
+  /\ members \subseteq Presentations
+  /\ primaryPresentation \in Presentations
+  /\ naturalRole \in [Presentations -> NaturalRoles]
+  /\ explicitTargets \subseteq Presentations
   /\ topologyPresent \in BOOLEAN
-  /\ finalized \in BOOLEAN
   /\ lastCompletionWasStale \in BOOLEAN
   /\ previousPhase \in [Presentations -> Phases]
+  /\ previousMembers \subseteq Presentations
+  /\ previousPrimaryPresentation \in Presentations
+  /\ previousNaturalRole \in [Presentations -> NaturalRoles]
+  /\ previousExplicitTargets \subseteq Presentations
   /\ previousTopologyPresent \in BOOLEAN
 
-RemovalIsAtomic ==
-  ~topologyPresent => \A presentation \in Presentations: phase[presentation] = "closed"
+TopologyMatchesMembership == topologyPresent <=> (members # {})
 
-PartialFailureRetainsTopology ==
-  (\E presentation \in Presentations: phase[presentation] = "close-failed") => topologyPresent
+PrimaryResolves == topologyPresent => primaryPresentation \in members
 
-FinalizedMatchesTopology == finalized <=> ~topologyPresent
+PendingTargetsRemainMembers == PendingTargets \subseteq members
+
+PendingTargetsHaveCloseLifecycle ==
+  \A presentation \in PendingTargets:
+    phase[presentation] \in {"closing", "close-failed", "closed"}
+
+CloseLifecycleRequiresPendingRemoval ==
+  \A presentation \in members:
+    phase[presentation] \in {"closing", "close-failed", "closed"} =>
+      presentation \in PendingTargets
+
+ExplicitRemovalIsExclusive ==
+  explicitTargets # {} =>
+    /\ NaturalTargets = {}
+    /\ explicitTargets = members
+
+NaturalRolesMatchOwnership ==
+  /\ \A presentation \in NaturalTargets:
+       naturalRole[presentation] = "primary" => presentation = primaryPresentation
+  /\ \A presentation \in NaturalTargets:
+       naturalRole[presentation] = "child" => presentation # primaryPresentation
+
+PartialFailureRetainsTarget ==
+  \A presentation \in Presentations:
+    phase[presentation] = "close-failed" =>
+      /\ presentation \in members
+      /\ presentation \in PendingTargets
 
 StaleCompletionDoesNotMutate ==
   lastCompletionWasStale =>
     /\ phase = previousPhase
+    /\ members = previousMembers
+    /\ primaryPresentation = previousPrimaryPresentation
+    /\ naturalRole = previousNaturalRole
+    /\ explicitTargets = previousExplicitTargets
     /\ topologyPresent = previousTopologyPresent
 
 =============================================================================
