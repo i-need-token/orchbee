@@ -3,6 +3,8 @@ import { pluginSourceBuild } from '@rsbuild/plugin-source-build';
 import { pluginTailwindcss } from '@rsbuild/plugin-tailwindcss';
 import type { StorybookConfig } from 'storybook-react-rsbuild';
 
+const DEVELOPMENT_FONT_INLINE_LIMIT_BYTES = 1_048_576;
+
 const config: StorybookConfig = {
 	stories: [
 		{
@@ -33,6 +35,10 @@ const config: StorybookConfig = {
 			rsbuildConfig,
 			configType === 'DEVELOPMENT'
 				? {
+						// Storybook's dev CSS base cannot serve dependency-relative font assets reliably.
+						output: {
+							dataUriLimit: { font: DEVELOPMENT_FONT_INLINE_LIMIT_BYTES },
+						},
 						plugins: [pluginTailwindcss(), pluginSourceBuild({ sourceField: '@orchbee/source' })],
 					}
 				: {},
