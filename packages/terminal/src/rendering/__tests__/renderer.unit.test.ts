@@ -1770,6 +1770,70 @@ describe('projected terminal renderer', () => {
 		renderer.dispose();
 	});
 
+	it('reuses bounded WebGPU vertex staging storage across sustained output frames', async () => {
+		vi.stubGlobal('window', { devicePixelRatio: 1 });
+		vi.stubGlobal('document', { createElement: () => createCanvas() });
+		vi.stubGlobal('GPUTextureUsage', { TEXTURE_BINDING: 1, COPY_DST: 2, RENDER_ATTACHMENT: 4 });
+		vi.stubGlobal('GPUBufferUsage', { UNIFORM: 1, COPY_DST: 2, VERTEX: 4 });
+		const rendering = createSubmittingDevice();
+		vi.stubGlobal('navigator', {
+			gpu: {
+				requestAdapter: async () =>
+					({ requestDevice: async () => rendering.device }) as unknown as GPUAdapter,
+				getPreferredCanvasFormat: () => 'bgra8unorm',
+			},
+		});
+		const context = {
+			configure: vi.fn<(configuration: GPUCanvasConfiguration) => void>(),
+			getCurrentTexture: () => ({ createView: () => ({}) }),
+		} as unknown as GPUCanvasContext;
+		const renderer = new WebGPURenderer(createWebGPUCanvas(context));
+		await renderer.initGPU();
+		const source = createPackedSource(['sustained output']);
+
+		for (let frame = 0; frame < 8; frame++) renderer.renderPacked(source, true);
+
+		const textUploads = rendering.writeBuffer.mock.calls.flatMap((call) => {
+			const value = call[2];
+			return value instanceof Float32Array && value.length > 0 && value.length % 13 === 0
+				? [value]
+				: [];
+		});
+		expect(textUploads).toHaveLength(8);
+		expect(new Set(textUploads.map((upload) => upload.buffer))).toHaveLength(1);
+		renderer.dispose();
+	});
+
+	it('reuses one cell-color projection scratch across sustained output cells', () => {
+		vi.stubGlobal('window', { devicePixelRatio: 1 });
+		vi.stubGlobal('document', { createElement: () => createCanvas() });
+		const renderer = new WebGPURenderer(createCanvas());
+		const source = createPackedSource(['AB']);
+		const row = source.rows[0];
+		const metadata = source.metadata;
+		if (row === undefined || metadata === null) throw new Error('Missing packed color fixture');
+		const presentation = resolvePackedPresentationColors(metadata.defaultColors, DEFAULT_THEME);
+		const projectCell = Reflect.get(renderer, 'packedCellPresentation') as (
+			row: PackedRendererRow,
+			column: number,
+			metadata: PackedRendererMetadata,
+			presentation: ReturnType<typeof resolvePackedPresentationColors>,
+		) => {
+			readonly background: readonly [number, number, number];
+			readonly foreground: readonly [number, number, number];
+		};
+
+		const first = projectCell.call(renderer, row, 0, metadata, presentation);
+		const firstBackground = first.background;
+		const firstForeground = first.foreground;
+		const second = projectCell.call(renderer, row, 1, metadata, presentation);
+
+		expect(second).toBe(first);
+		expect(second.background).toBe(firstBackground);
+		expect(second.foreground).toBe(firstForeground);
+		renderer.dispose();
+	});
+
 	it('applies the default-only display override through WebGPU with opaque cell projections', async () => {
 		vi.stubGlobal('window', { devicePixelRatio: 1 });
 		vi.stubGlobal('document', { createElement: () => createCanvas() });

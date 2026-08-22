@@ -518,6 +518,14 @@ default background for opaque fills and resize. Packed graphemes preserve CJK, c
 cell widths; explicit foreground/background and underline colors, inverse, bold, faint, italic,
 invisible, blink, underline variants, strikethrough, and overline use the projected Ghostty styles.
 Renderer health reports initialization, fallback, device loss, recovery, and recovery failure.
+The WebGPU path retains and clears one instance array plus one geometrically grown `Float32Array`
+upload buffer for each background, text, and overlay stream. Once a stream reaches the capacity of
+its largest prepared frame, later frames at or below that size reuse the same underlying CPU
+storage instead of allocating another frame-sized buffer. Disposal releases the retained staging
+storage. Per-cell foreground/background resolution also reuses one renderer-owned scratch
+projection while callers copy only values that must outlive the current cell. These rules bound the
+two full-viewport allocation hot paths by peak prepared viewport content; they do not define a
+GPU-driver, browser, or whole-process RSS ceiling.
 
 Font measurement samples the selected browser face at a large CSS size to recover its unrounded
 advance, ascent, descent, and cap-height ratios. Grid width and height retain stable CSS geometry,

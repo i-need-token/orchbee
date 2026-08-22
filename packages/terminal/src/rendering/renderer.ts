@@ -244,9 +244,10 @@ interface GlyphRasterLayout {
 }
 
 interface PackedTextPaintSegment {
-	readonly startColumn: number;
-	readonly endColumn: number;
+	endColumn: number;
 	readonly foreground: readonly [number, number, number];
+	readonly foregroundRgb: number;
+	readonly startColumn: number;
 }
 
 interface PackedRowTextShaping {
@@ -342,6 +343,12 @@ function packedOptionalColorRgb(
 
 function rgbChannels(value: number): [number, number, number] {
 	return [(value >>> 16) & 0xff, (value >>> 8) & 0xff, value & 0xff];
+}
+
+function writeRgbChannels(value: number, target: [number, number, number]): void {
+	target[0] = (value >>> 16) & 0xff;
+	target[1] = (value >>> 8) & 0xff;
+	target[2] = value & 0xff;
 }
 
 function rgbValue(channels: readonly [number, number, number]): number {
@@ -729,6 +736,24 @@ export class WebGPURenderer {
 	private textVertexBufferSize = 0;
 	private overlayVertexBuffer: GPUBuffer | null = null;
 	private overlayVertexBufferSize = 0;
+	private backgroundVertexData: number[] = [];
+	private textVertexData: number[] = [];
+	private overlayVertexData: number[] = [];
+	private backgroundVertexUpload = new Float32Array(0);
+	private textVertexUpload = new Float32Array(0);
+	private overlayVertexUpload = new Float32Array(0);
+	private readonly uniformUpload = new Float32Array(4);
+	private readonly cellPresentationScratch: {
+		background: [number, number, number];
+		foreground: [number, number, number];
+		requiresBackgroundFill: boolean;
+	} = {
+		background: [0, 0, 0],
+		foreground: [0, 0, 0],
+		requiresBackgroundFill: false,
+	};
+	private readonly cellTextForegroundScratch: [number, number, number] = [0, 0, 0];
+	private readonly drawnTextForegroundScratch: [number, number, number] = [0, 0, 0];
 
 	constructor(canvas: HTMLCanvasElement, options: RendererOptions = {}) {
 		this.canvas = canvas;
@@ -1027,15 +1052,19 @@ export class WebGPURenderer {
 		const requiredSize = data.length * Float32Array.BYTES_PER_ELEMENT;
 		let currentBuffer: GPUBuffer | null;
 		let currentSize: number;
+		let upload: Float32Array<ArrayBuffer>;
 		if (kind === 'background') {
 			currentBuffer = this.bgVertexBuffer;
 			currentSize = this.bgVertexBufferSize;
+			upload = this.backgroundVertexUpload;
 		} else if (kind === 'text') {
 			currentBuffer = this.textVertexBuffer;
 			currentSize = this.textVertexBufferSize;
+			upload = this.textVertexUpload;
 		} else {
 			currentBuffer = this.overlayVertexBuffer;
 			currentSize = this.overlayVertexBufferSize;
+			upload = this.overlayVertexUpload;
 		}
 
 		let buffer = currentBuffer;
@@ -1060,7 +1089,18 @@ export class WebGPURenderer {
 			}
 		}
 
-		this.device.queue.writeBuffer(buffer, 0, new Float32Array(data));
+		if (upload.length < data.length) {
+			let capacity = 64;
+			while (capacity < data.length) capacity *= 2;
+			upload = new Float32Array(capacity);
+			if (kind === 'background') this.backgroundVertexUpload = upload;
+			else if (kind === 'text') this.textVertexUpload = upload;
+			else this.overlayVertexUpload = upload;
+		}
+		upload.set(data);
+		// WebGPU snapshots writeBuffer input before returning, so the backing store is reusable on the
+		// next frame without extending its lifetime into the GPU queue.
+		this.device.queue.writeBuffer(buffer, 0, upload.subarray(0, data.length));
 		this.frameVertexUploadBytes += requiredSize;
 		return buffer;
 	}
@@ -1808,47 +1848,60 @@ export class WebGPURenderer {
 	): readonly PackedTextPaintSegment[] {
 		const segments: PackedTextPaintSegment[] = [];
 		for (let column = startColumn; column < endColumn; column++) {
-			const foreground = this.packedTextForeground(
+			const foregroundRgb = this.packedTextForegroundRgb(
 				column,
 				viewportRow,
-				this.packedCellForeground(row, column, metadata, presentation),
+				this.packedCellForegroundRgb(row, column, metadata, presentation),
 				presentation,
 			);
 			const previous = segments.at(-1);
-			if (
-				previous &&
-				previous.foreground[0] === foreground[0] &&
-				previous.foreground[1] === foreground[1] &&
-				previous.foreground[2] === foreground[2]
-			) {
-				segments[segments.length - 1] = { ...previous, endColumn: column + 1 };
+			if (previous?.foregroundRgb === foregroundRgb) {
+				previous.endColumn = column + 1;
 				continue;
 			}
-			segments.push({ startColumn: column, endColumn: column + 1, foreground });
+			segments.push({
+				endColumn: column + 1,
+				foreground: rgbChannels(foregroundRgb),
+				foregroundRgb,
+				startColumn: column,
+			});
 		}
 		return segments;
 	}
 
-	private packedTextForeground(
+	private packedTextForegroundRgb(
 		column: number,
 		row: number,
-		baseForeground: readonly [number, number, number],
+		baseForegroundRgb: number,
 		presentation: PackedPresentationColors,
-	): readonly [number, number, number] {
-		if (this.isCoordinateInSelection(column, row)) return presentation.selectionForeground;
+	): number {
+		if (this.isCoordinateInSelection(column, row))
+			return rgbValue(presentation.selectionForeground);
 		const search = this.getSearchHighlight(column, row);
-		if (search === 'active') return presentation.searchActiveForeground;
-		if (search === 'match') return presentation.searchForeground;
-		return baseForeground;
+		if (search === 'active') return rgbValue(presentation.searchActiveForeground);
+		if (search === 'match') return rgbValue(presentation.searchForeground);
+		return baseForegroundRgb;
 	}
 
-	private packedCellForeground(
+	private packedCellForegroundRgb(
 		row: PackedRendererRow,
 		column: number,
 		metadata: PackedRendererMetadata,
 		presentation: PackedPresentationColors,
-	): [number, number, number] {
-		return [...this.packedCellPresentation(row, column, metadata, presentation).foreground];
+	): number {
+		const flags = row.styleFlags[column] ?? 0;
+		if ((flags & TerminalStyleFlag.inverse) !== 0) {
+			return packedColorRgb(
+				row.backgroundColors[column] ?? TerminalColorEncoding.default,
+				metadata.defaultColors.backgroundRgb,
+				rgbValue(presentation.background),
+			);
+		}
+		return packedColorRgb(
+			row.foregroundColors[column] ?? TerminalColorEncoding.default,
+			metadata.defaultColors.foregroundRgb,
+			rgbValue(presentation.foreground),
+		);
 	}
 
 	private packedCellPresentation(
@@ -1873,14 +1926,13 @@ export class WebGPURenderer {
 		const inverse = (flags & TerminalStyleFlag.inverse) !== 0;
 		const displayedBackgroundToken = inverse ? foregroundToken : backgroundToken;
 		if (inverse) [foregroundRgb, backgroundRgb] = [backgroundRgb, foregroundRgb];
-		return {
-			background: rgbChannels(backgroundRgb),
-			foreground: rgbChannels(foregroundRgb),
-			requiresBackgroundFill:
-				inverse ||
-				(displayedBackgroundToken !== TerminalColorEncoding.default &&
-					displayedBackgroundToken !== TerminalColorEncoding.none),
-		};
+		writeRgbChannels(backgroundRgb, this.cellPresentationScratch.background);
+		writeRgbChannels(foregroundRgb, this.cellPresentationScratch.foreground);
+		this.cellPresentationScratch.requiresBackgroundFill =
+			inverse ||
+			(displayedBackgroundToken !== TerminalColorEncoding.default &&
+				displayedBackgroundToken !== TerminalColorEncoding.none);
+		return this.cellPresentationScratch;
 	}
 
 	private packedConstraintWidth(
@@ -2000,9 +2052,12 @@ export class WebGPURenderer {
 			}
 		}
 
-		const bgData: number[] = [];
-		const textData: number[] = [];
-		const overlayData: number[] = [];
+		const bgData = this.backgroundVertexData;
+		const textData = this.textVertexData;
+		const overlayData = this.overlayVertexData;
+		bgData.length = 0;
+		textData.length = 0;
+		overlayData.length = 0;
 		const presentation = resolvePackedPresentationColors(
 			metadata.defaultColors,
 			this.theme,
@@ -2038,26 +2093,24 @@ export class WebGPURenderer {
 				const isFullBlockCursor =
 					isBlockCursor && this.detailedMetrics.cursorHeight === this.detailedMetrics.cellHeight;
 				const cellPresentation = this.packedCellPresentation(row, x, metadata, presentation);
-				let foreground: [number, number, number] = [...cellPresentation.foreground];
-				let background: [number, number, number] = [...cellPresentation.background];
+				let foreground: readonly [number, number, number] = cellPresentation.foreground;
+				let background: readonly [number, number, number] = cellPresentation.background;
 				const selected = this.isCoordinateInSelection(x, y);
 				const search = this.getSearchHighlight(x, y);
 				if (selected) {
-					background = [...presentation.selectionBackground];
-					foreground = [...presentation.selectionForeground];
+					background = presentation.selectionBackground;
+					foreground = presentation.selectionForeground;
 				} else if (search !== null) {
-					background = [
-						...(search === 'active'
+					background =
+						search === 'active'
 							? presentation.searchActiveBackground
-							: presentation.searchBackground),
-					];
-					foreground = [
-						...(search === 'active'
+							: presentation.searchBackground;
+					foreground =
+						search === 'active'
 							? presentation.searchActiveForeground
-							: presentation.searchForeground),
-					];
+							: presentation.searchForeground;
 				}
-				if (isFullBlockCursor) background = [...cursorColor];
+				if (isFullBlockCursor) background = cursorColor;
 				if (
 					cellPresentation.requiresBackgroundFill ||
 					isFullBlockCursor ||
@@ -2079,7 +2132,7 @@ export class WebGPURenderer {
 				if ((flags & TerminalStyleFlag.invisible) !== 0) continue;
 				if ((flags & TerminalStyleFlag.blink) !== 0 && !this.textBlinkVisible) continue;
 
-				if (isBlockCursor) foreground = [...cursorAccent];
+				if (isBlockCursor) foreground = cursorAccent;
 				const alpha = (flags & TerminalStyleFlag.faint) !== 0 ? 0.5 : 1;
 				const span = shaping.plan[x];
 				let text = shaping.texts[x] ?? '';
@@ -2347,16 +2400,11 @@ export class WebGPURenderer {
 		this.frameGlyphInstances = textData.length / 13;
 		this.frameOverlayInstances = overlayData.length / 8;
 		if (this.uniformBuffer) {
-			this.device.queue.writeBuffer(
-				this.uniformBuffer,
-				0,
-				new Float32Array([
-					columns * this.metrics.width * this.devicePixelRatio,
-					rows * this.metrics.height * this.devicePixelRatio,
-					this.devicePixelRatio,
-					0,
-				]),
-			);
+			this.uniformUpload[0] = columns * this.metrics.width * this.devicePixelRatio;
+			this.uniformUpload[1] = rows * this.metrics.height * this.devicePixelRatio;
+			this.uniformUpload[2] = this.devicePixelRatio;
+			this.uniformUpload[3] = 0;
+			this.device.queue.writeBuffer(this.uniformBuffer, 0, this.uniformUpload);
 			this.frameVertexUploadBytes += 4 * Float32Array.BYTES_PER_ELEMENT;
 		}
 		const commandEncoder = this.device.createCommandEncoder();
@@ -2500,17 +2548,16 @@ export class WebGPURenderer {
 				if (width === 0) continue;
 				this.frameCellsVisited++;
 				const cellPresentation = this.packedCellPresentation(row, x, metadata, presentation);
-				let background: [number, number, number] = [...cellPresentation.background];
+				let background: readonly [number, number, number] = cellPresentation.background;
 				const selected = this.isCoordinateInSelection(x, y);
 				const search = this.getSearchHighlight(x, y);
 				if (selected) {
-					background = [...presentation.selectionBackground];
+					background = presentation.selectionBackground;
 				} else if (search !== null) {
-					background = [
-						...(search === 'active'
+					background =
+						search === 'active'
 							? presentation.searchActiveBackground
-							: presentation.searchBackground),
-					];
+							: presentation.searchBackground;
 				}
 				if (cellPresentation.requiresBackgroundFill || selected || search !== null) {
 					ctx.fillStyle = `rgb(${background[0]}, ${background[1]}, ${background[2]})`;
@@ -2530,8 +2577,14 @@ export class WebGPURenderer {
 				const span = shaping.plan[x];
 				let text = shaping.texts[x] ?? '';
 				if (span) text = span.start === x ? span.text : '';
-				const baseForeground = this.packedCellForeground(row, x, metadata, presentation);
-				const foreground = this.packedTextForeground(x, y, baseForeground, presentation);
+				const foregroundRgb = this.packedTextForegroundRgb(
+					x,
+					y,
+					this.packedCellForegroundRgb(row, x, metadata, presentation),
+					presentation,
+				);
+				writeRgbChannels(foregroundRgb, this.cellTextForegroundScratch);
+				const foreground = this.cellTextForegroundScratch;
 				if (span && span.start === x && text.length > 0) {
 					let paintedSegments = 0;
 					for (const segment of this.packedTextPaintSegments(
@@ -2642,8 +2695,14 @@ export class WebGPURenderer {
 			this.presentationConfiguration.fontSize,
 			this.presentationConfiguration.fontFamily,
 		);
-		let foreground = this.packedCellForeground(row, column, metadata, presentation);
-		foreground = colorOverride ? [...colorOverride] : foreground;
+		let foreground = colorOverride;
+		if (foreground === undefined) {
+			writeRgbChannels(
+				this.packedCellForegroundRgb(row, column, metadata, presentation),
+				this.drawnTextForegroundScratch,
+			);
+			foreground = this.drawnTextForegroundScratch;
+		}
 		ctx.fillStyle = `rgb(${foreground[0]}, ${foreground[1]}, ${foreground[2]})`;
 		if ((flags & TerminalStyleFlag.faint) !== 0) ctx.globalAlpha = 0.5;
 		if (text.length > 0) {
@@ -3208,6 +3267,12 @@ export class WebGPURenderer {
 		this.telemetryCallback = undefined;
 		this.releaseGPUResources();
 		this.releaseGraphicsOverlay();
+		this.backgroundVertexData = [];
+		this.textVertexData = [];
+		this.overlayVertexData = [];
+		this.backgroundVertexUpload = new Float32Array(0);
+		this.textVertexUpload = new Float32Array(0);
+		this.overlayVertexUpload = new Float32Array(0);
 		this.device?.destroy();
 		this.device = null;
 		this.context = null;
