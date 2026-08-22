@@ -12,6 +12,7 @@ import {
 	encodeTerminalFrame,
 	encodeTerminalRowWindow,
 	HostEpochSchema,
+	MouseAction,
 	RowPromptClass,
 	SemanticContent,
 	TerminalColorKind,
@@ -88,6 +89,7 @@ let contextProvider: WorkbenchTerminalActionContextProvider | undefined;
 let externalOpenCount = 0;
 let terminal: ProjectedTerminal | undefined;
 let transportListener: (value: unknown) => void = () => undefined;
+let suppressRowResponses = false;
 const dependencies: ProjectedTerminalRendererDependencies = {
 	createTerminal: (options: ProjectedTerminalOptions) => {
 		terminal = new ProjectedTerminal(options);
@@ -101,7 +103,7 @@ const transport: ProjectedTerminalTransport = {
 	projectionBufferTrust: 'local-host',
 	send: (command) => {
 		commands.push(command);
-		if (command.kind !== 'read-rows') return;
+		if (command.kind !== 'read-rows' || suppressRowResponses) return;
 		queueMicrotask(() => {
 			transportListener({ kind: 'rows', rows: terminalRows(command) });
 		});
@@ -258,6 +260,54 @@ async function runWitness(): Promise<void> {
 		await until(() => terminalStatusText() === '终端链接已发生变化，无法打开。');
 		const staleFeedback = terminalStatusText();
 
+		transportListener({ frame: terminalSnapshot(3n, 3n, 10n), kind: 'frame' });
+		await nextPaint();
+		suppressRowResponses = true;
+		activeTerminal.scrollLines(-1);
+		suppressRowResponses = false;
+		activeTerminal.notifySelectionChanged({
+			attachmentId,
+			end: { column: 6, row: CanonicalUint64TextSchema.parse('10') },
+			preview: 'linked',
+			rectangle: false,
+			start: { column: 0, row: CanonicalUint64TextSchema.parse('10') },
+			state: 'active',
+		});
+		const buttonlessMotionCommandStart = commands.length;
+		canvas.dispatchEvent(
+			new PointerEvent('pointermove', {
+				bubbles: true,
+				buttons: 0,
+				clientX: 4,
+				clientY: 4,
+				pointerType: 'mouse',
+			}),
+		);
+		const buttonlessMotionCommands = commands.slice(buttonlessMotionCommandStart);
+		root.dataset['witnessButtonlessMotionReportCount'] = String(
+			buttonlessMotionCommands.filter(
+				(command) =>
+					command.kind === 'mouse-input' &&
+					command.payload.action === MouseAction.motion &&
+					command.payload.button === null &&
+					command.payload.pressedButtons === 0,
+			).length,
+		);
+		root.dataset['witnessButtonlessMotionSelectionClearCount'] = String(
+			buttonlessMotionCommands.filter(
+				(command) => command.kind === 'selection-command' && command.payload.command === 'clear',
+			).length,
+		);
+		root.dataset['witnessButtonlessMotionHistoryBottomCount'] = String(
+			buttonlessMotionCommands.filter(
+				(command) =>
+					command.kind === 'set-history-demand' && command.payload.demand === 'following-bottom',
+			).length,
+		);
+		root.dataset['witnessButtonlessMotionSelectionPreserved'] = String(
+			activeTerminal.getSelectionRange() !== null,
+		);
+
 		root.dataset['witnessActionInputs'] = Object.keys(productContext.actionInputs ?? {}).join(',');
 		root.dataset['witnessApplicationMouseOwned'] = String(
 			applicationContext.kind === 'terminal-owned',
@@ -353,13 +403,18 @@ function terminalRows(
 	return encoded.value;
 }
 
-function terminalSnapshot(revision: bigint, sequence: bigint): Uint8Array {
-	const encoded = encodeTerminalFrame(terminalFrame(revision, sequence, false));
+function terminalSnapshot(revision: bigint, sequence: bigint, scrollbackRows = 0n): Uint8Array {
+	const encoded = encodeTerminalFrame(terminalFrame(revision, sequence, false, scrollbackRows));
 	if (!encoded.ok) throw new Error(encoded.detail);
 	return encoded.value;
 }
 
-function terminalFrame(revision: bigint, sequence: bigint, link: boolean): TerminalFrame {
+function terminalFrame(
+	revision: bigint,
+	sequence: bigint,
+	link: boolean,
+	scrollbackRows = 0n,
+): TerminalFrame {
 	const regularStyle: TerminalFrame['styles'][number] = {
 		background: { kind: TerminalColorKind.default },
 		blink: false,
@@ -431,7 +486,7 @@ function terminalFrame(revision: bigint, sequence: bigint, link: boolean): Termi
 			wrapContinuation: false,
 		})),
 		rows: rowText.length,
-		scrollbackRows: 0n,
+		scrollbackRows,
 		sequence,
 		styles: [regularStyle, { ...regularStyle, hyperlink: linkUrl }],
 		themeRevision: 0n,

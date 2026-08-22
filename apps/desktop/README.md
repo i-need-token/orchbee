@@ -352,11 +352,13 @@ Focused traces cover:
   independent focus claims, one shared-terminal aggregate focus interval, target-only visibility
   repair, and activation without claim replay. The fixture controls application-layer focus and
   does not claim operating-system multi-window focus;
-- exact headed `terminal-parity/PR-11-bell`, `terminal-parity/IN-09-action-scope`,
-  `terminal-parity/IN-11-context`, and `terminal-parity/IN-12-actions` Canvas evidence for the
-  shared bell coordinator, containing-Workbench Action scope, pinned/revalidated semantic context,
-  synchronous availability, typed execution, and localized feedback. Captured effects do not
-  claim native audio, notification, URL-handler, or clipboard delivery;
+- exact headed `terminal-parity/PR-11-bell`, `terminal-parity/IN-07-pre-input`,
+  `terminal-parity/IN-09-action-scope`, `terminal-parity/IN-11-context`, and
+  `terminal-parity/IN-12-actions` Canvas evidence for the shared bell coordinator, preservation of
+  history and selection during reported buttonless application motion, containing-Workbench Action
+  scope, pinned/revalidated semantic context, synchronous availability, typed execution, and
+  localized feedback. Captured effects do not claim native audio, notification, URL-handler, or
+  clipboard delivery;
 - exact `terminal-parity/IN-08-drop` Desktop backing-path resolution, bounded POSIX quoting, mandatory review, cancellation, and no implicit Enter;
 - exact headed `terminal-parity/FS-05-file-links` and `terminal-parity/FS-06-url-policy` Browser-composition witnesses for disabled filesystem activation and the shared `http`/`https`/`mailto` detection, hover, context, and activation boundary;
 - exact headed `terminal-parity/LC-05-lan-capability` Browser-composition evidence for per-operation secure-context, transient-user-activation, and API checks; synchronous Copy availability; one admitted writer call; rejection without retry; localized failure; and no privileged insecure-LAN path;

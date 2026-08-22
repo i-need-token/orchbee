@@ -2798,6 +2798,70 @@ describe('ProjectedTerminal', () => {
 		},
 	);
 
+	it('preserves history and selection while reporting buttonless application mouse motion', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(
+			terminalFrame('snapshot', 1n, 1n, ['a', 'b'], null, [0, 1], 10n, {
+				...interaction,
+				mouseAny: true,
+			}),
+		);
+		terminal.scrollLines(-1);
+		terminal.notifySelectionChanged({
+			attachmentId,
+			end: { column: 1, row: canonicalText('10') },
+			preview: 'ab',
+			rectangle: false,
+			start: { column: 0, row: canonicalText('10') },
+			state: 'active',
+		});
+		const historyPhaseBeforeMotion = terminal.historyPhase;
+		commands.length = 0;
+
+		(terminal.canvas as unknown as FakeElement).dispatch(
+			'pointermove',
+			pointerEvent('pointermove', 0, 0, 2, 2),
+		);
+
+		const milestones = commands.flatMap((command) => {
+			if (command.kind === 'set-history-demand' && command.payload.demand === 'following-bottom') {
+				return ['history-bottom'];
+			}
+			if (command.kind === 'selection-command' && command.payload.command === 'clear') {
+				return ['selection-clear'];
+			}
+			if (command.kind === 'mouse-input') {
+				return [`mouse:${command.payload.action}:${String(command.payload.button)}`];
+			}
+			return [];
+		});
+		expect(milestones).toEqual([`mouse:${MouseAction.motion}:null`]);
+		expect(terminal.historyPhase).toBe(historyPhaseBeforeMotion);
+		expect(terminal.getSelectionRange()).toEqual({
+			end: { column: 1, row: 10n },
+			rectangle: false,
+			start: { column: 0, row: 10n },
+		});
+		terminal.dispose();
+	});
+
 	it('keeps a newly established selection while releasing an already published modifier', async () => {
 		const browser = createFakeBrowser();
 		vi.stubGlobal('document', browser.document);

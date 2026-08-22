@@ -780,6 +780,26 @@ test('terminal-parity/IN-09-action-scope', async () => {
 	}
 });
 
+test('terminal-parity/IN-07-pre-input', async () => {
+	test.setTimeout(45_000);
+	const page = await openTerminalActionsWitness();
+	try {
+		const root = page.locator('#terminal-actions-witness');
+		await expect(root).toHaveAttribute('data-witness-ready', 'true');
+		await expect(root).not.toHaveAttribute('data-witness-failure', /.+/u);
+		await expect(root).toHaveAttribute('data-witness-forced-canvas', 'true');
+		await expect(root).toHaveAttribute('data-witness-buttonless-motion-report-count', '1');
+		await expect(root).toHaveAttribute('data-witness-buttonless-motion-selection-clear-count', '0');
+		await expect(root).toHaveAttribute('data-witness-buttonless-motion-history-bottom-count', '0');
+		await expect(root).toHaveAttribute(
+			'data-witness-buttonless-motion-selection-preserved',
+			'true',
+		);
+	} finally {
+		await page.context().browser()?.close();
+	}
+});
+
 test('terminal-parity/IN-11-context', async () => {
 	test.setTimeout(45_000);
 	const page = await openTerminalActionsWitness();

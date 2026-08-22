@@ -159,14 +159,22 @@ path as matched press/release taps. They retain no steady-state client ownership
 loss between the pair remains visible to the Host attachment ledger for detach repair.
 
 Shift-only Page Up and Page Down, including their keypad codes, remain local retained-history
-navigation and never become Host key input. Every admitted input-producing path shares one ordered
-surface transition: it first requests the live bottom when history is visible, then clears an active
-Host selection, and only then publishes the semantic key press or repeat, text, approved paste, or
-application-mouse input. Composition activation performs the same transition before presenting
-preedit. A physical or synthetic key release closes existing Host input ownership without starting
-that transition, so a selection established between its press and release remains visible. Focus
-reports, lifecycle and pointer-gesture repair, rejected or aborted paste review, and local history
-navigation preserve the current history and selection surface.
+navigation and never become Host key input. Every admitted input-producing path except buttonless
+application-mouse motion shares one ordered surface transition: it first requests the live bottom
+when history is visible, then clears an active Host selection, and only then publishes the semantic
+key press or repeat, text, approved paste, or application-mouse input. A buttonless motion report
+admitted by any-event mouse tracking is still published to the Host, but preserves the retained
+history position and active Host selection. Composition activation performs the shared transition
+before presenting preedit. A physical or synthetic key release closes existing Host input ownership
+without starting that transition, so a selection established between its press and release remains
+visible. Focus reports, lifecycle and pointer-gesture repair, rejected or aborted paste review, and
+local history navigation preserve the current history and selection surface.
+
+`terminal-parity/IN-07-pre-input` drives a real buttonless `PointerEvent` through the headed Canvas
+surface while retained history and a Host selection are active. It requires one application motion
+report, no return-to-bottom or selection-clear command, and a preserved readable selection. The
+owner-local regression checks the same exception and retains the existing button-press transition
+requirement.
 
 Cleanup releases only published ownership: a queued release cannot hide a Host-visible press, while
 a queued or failed press cannot produce an orphan release. Blur and visibility loss release

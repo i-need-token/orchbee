@@ -18,8 +18,8 @@
 			"zhCnSha256": "5deaa2fb80d9633154a75a7c7436b7048076ab0a826a2f3518a54b672d15fee7"
 		},
 		"apps/desktop/README.md": {
-			"englishSha256": "0df74f9e54783b9fd277081b0b483ad9a6f854f36a28a35a7bee98f964b52111",
-			"zhCnSha256": "51af999fadad10c5c7d8690ac3b60efe5f829a5f278a9ecb9a0b602239caf177"
+			"englishSha256": "d56c5c2cc435891340c33499a4ee119db2cca8a218bd7af92d73623812b38434",
+			"zhCnSha256": "02ee400264c67d4d99af721c6715ac591364ebf635dfe16372fe82023bc987e9"
 		},
 		"apps/desktop/docs/multi-client-session-coordinator.md": {
 			"englishSha256": "9c9c0aef9212641f62781e95619d904e740f19acd584ec18e7134063716bf9ff",
@@ -62,8 +62,8 @@
 			"zhCnSha256": "1334ad6879be56cc33a109aacf13d83affc6a37f271437058db2ba5670a35bf5"
 		},
 		"apps/web/README.md": {
-			"englishSha256": "dce540708cc2c1e09e3406e138b8e7d2fda55b9bb443c9c69a506b4e58c26bdf",
-			"zhCnSha256": "22ef174134267ac917f1a9a41163e33295b03f5e512bd245201a702c20cf5d6f"
+			"englishSha256": "8a219547734e268d44042af74160ceee337c6c3a6ddeddebda2372e99f3588e0",
+			"zhCnSha256": "de3dc314656fd67c04284cba53a497b5fd69021daf6201dad210e30b5dd52126"
 		},
 		"apps/web/docs/keyboard-shortcuts.md": {
 			"englishSha256": "f382ffd72413dcf75fde84ac69991b7dcae9e47507ddcf172df9e92a58c04c07",
@@ -246,8 +246,8 @@
 			"zhCnSha256": "d30dbcb32e830f4457d487e447f2afd2aa8a56730b7bfe15d267c95cda2df76e"
 		},
 		"packages/terminal/README.md": {
-			"englishSha256": "1131e4a5ddec7b6ac030490f58650c3323b677bda74f28f207a4e00acfb72473",
-			"zhCnSha256": "bf02d7ba9132af8ec1801a5f2dd04abdc766e89ebf9a10deb030f21b801bf100"
+			"englishSha256": "98bd3318d6d37068c2017b552767b4a580246d2cfe81786e61b58e3abb7384b8",
+			"zhCnSha256": "ab201209baecdc61c815c37f2bdbef03bc8ea0e7b827578f6ec08eda227de3c3"
 		},
 		"packages/terminal/docs/ghostty-surface-test-provenance.md": {
 			"englishSha256": "66b6b018323826040df28acb47ef8c7a4e8a76bd3a5c1f2c76b8dec7f593d425",
@@ -298,8 +298,8 @@
 			"zhCnSha256": "2d039a8bfc92e106c97e61375a8926e3ea73d9a3b1885f0b58d958b07794c22f"
 		},
 		"proposals/terminal/projected-terminal-experience-compatibility.md": {
-			"englishSha256": "93496b4d68eeeafc079aec47dab7bba7b7a4165d54ed702df01a761c6e51ed5a",
-			"zhCnSha256": "17b55d4a86ed5e20d426302ecf1f66f20334433f3491a81594ad1614b12a3394"
+			"englishSha256": "e4305247e917fefc4b560663614b0ad14c801c9f8b75b61d7e4a997a27d8a6a5",
+			"zhCnSha256": "101982758451ecd271c201fb43d566660530ee0bbd6375351146bb1b074c63b4"
 		},
 		"proposals/workbench/project-workspace-experience.md": {
 			"englishSha256": "0c9a4ab62256056296a6229ea9f2422f3a75e8dce7c0e8a6fd5dd3831c34536a",

@@ -188,7 +188,7 @@ Workbench `terminal-presentation-event-published` 消息是 Main 拥有的单一
 - deferred-Host 调整轨迹大小，证明每个附件有一个活动请求，中间测量的恒定空间替换，以及结算后立即发送最新的几何图形；
 - 精确的 `terminal-parity/IN-10-read-only` 能力证据，覆盖 Host 提交的实时降级/升级、即时客户端修复、只读本地输出交互、不重放陈旧输入，以及分离前串行化变更；
 - 精确标题为 `terminal-parity/IN-14-shared-focus` 的证据，包含两个投影附件各自的焦点声明、一个共享终端聚合焦点区间、只修复目标附件的可见性，以及激活时不重放声明。该夹具控制应用层焦点，不要求操作系统多窗口焦点；
-- 精确标题 `terminal-parity/PR-11-bell`、`terminal-parity/IN-09-action-scope`、`terminal-parity/IN-11-context` 和 `terminal-parity/IN-12-actions` 共享铃声协调器的 Canvas 证据、containing-Workbench 操作范围、固定/重新验证的语义上下文、同步可用性、类型化执行和本地化反馈。捕获的效果不声明本机音频、通知、URL-handler 或剪贴板传送；
+- 精确标题 `terminal-parity/PR-11-bell`、`terminal-parity/IN-07-pre-input`、`terminal-parity/IN-09-action-scope`、`terminal-parity/IN-11-context` 和 `terminal-parity/IN-12-actions` 提供 Canvas 证据，覆盖共享铃声协调器、无按键应用鼠标移动上报期间的历史与选择保留、containing-Workbench 操作范围、固定/重新验证的语义上下文、同步可用性、类型化执行和本地化反馈。捕获的效果不声明本机音频、通知、URL-handler 或剪贴板传送；
 - 精确的`terminal-parity/IN-08-drop`桌面后备路径解析，有界POSIX引用，强制审核，取消，无隐式回车；
 - 精确的 `terminal-parity/FS-05-file-links` 和 `terminal-parity/FS-06-url-policy` 用于禁用文件系统激活和共享 `http`/`https`/`mailto` 检测、悬停、上下文和激活边界的浏览器组合见证；
 - 用于每次操作安全上下文、瞬时用户激活和 API 检查的精确标题 `terminal-parity/LC-05-lan-capability` 浏览器组合证据；同步复制可用性；一位被录取的作家来电；拒绝而不重试；局部故障；并且没有特权 insecure-LAN 路径；

@@ -86,13 +86,15 @@ use the shared localized terminal status surface. These immediate terminal Actio
 confirmation step. An unavailable or unbound Apple Command shortcut remains native instead of
 being suppressed.
 
-The stable headed Canvas 2D witnesses `terminal-parity/IN-09-action-scope`,
-`terminal-parity/IN-11-context`, and `terminal-parity/IN-12-actions` compose the production
-projected surface with its real containing Workbench runtime. They assert claimed/unclaimed and
-available/unavailable shortcut handling, application-mouse ownership, exact pinned context and
-stale-link rejection, the complete minimal catalog, synchronous availability, typed outcomes, no
-new confirmation, and both `en-US` and `zh-CN` feedback. Their clipboard and external-open effects
-are captured; they do not claim an operating-system menu, clipboard, or URL handler.
+The stable headed Canvas 2D witnesses `terminal-parity/IN-07-pre-input`,
+`terminal-parity/IN-09-action-scope`, `terminal-parity/IN-11-context`, and
+`terminal-parity/IN-12-actions` compose the production projected surface with its real containing
+Workbench runtime. They assert that buttonless application motion preserves retained history and
+Host selection while remaining reported, plus claimed/unclaimed and available/unavailable shortcut
+handling, application-mouse ownership, exact pinned context and stale-link rejection, the complete
+minimal catalog, synchronous availability, typed outcomes, no new confirmation, and both `en-US`
+and `zh-CN` feedback. Their clipboard and external-open effects are captured; they do not claim an
+operating-system menu, clipboard, or URL handler.
 
 The projected attachment stream can replace input authority live only after its environment owner
 commits an exact next capability revision in Terminal Host. The shared renderer immediately makes

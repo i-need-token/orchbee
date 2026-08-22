@@ -6153,6 +6153,7 @@ export class ProjectedTerminal {
 			);
 		}
 		const stagedInputState = this.#inputState;
+		const preserveSurfaceState = action === MouseAction.motion && activeButton === null;
 		this.#sendInput(
 			{
 				kind: 'mouse-input',
@@ -6170,6 +6171,7 @@ export class ProjectedTerminal {
 						onRejected?.();
 					}
 				: undefined,
+			preserveSurfaceState,
 		);
 	}
 
