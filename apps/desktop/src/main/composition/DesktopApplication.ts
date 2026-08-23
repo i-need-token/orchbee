@@ -182,7 +182,7 @@ const RENDERER_LIFETIME_RECOVERY_POLL_MILLISECONDS = 25;
 const RENDERER_LIFETIME_RECOVERY_TIMEOUT_MILLISECONDS = 5_000;
 const TERMINAL_EXIT_RETRY_DELAY_MILLISECONDS = 25;
 const TERMINAL_EXIT_ASSOCIATION_RETRY_LIMIT = 3;
-const MACOS_TRAFFIC_LIGHT_POSITION = { x: 8, y: 12 } as const;
+const MACOS_TRAFFIC_LIGHT_POSITION = { x: 8, y: 10 } as const;
 
 function terminalRgbCss(value: number): string {
 	return `#${value.toString(16).padStart(6, '0')}`;

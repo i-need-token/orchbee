@@ -92,7 +92,7 @@ describe('DesktopApplication', () => {
 
 		expect(harness.windowOptions).toMatchObject({
 			titleBarStyle: 'hidden',
-			trafficLightPosition: { x: 8, y: 12 },
+			trafficLightPosition: { x: 8, y: 10 },
 		});
 		expect(harness.windowOptions?.titleBarOverlay).toBeUndefined();
 	});

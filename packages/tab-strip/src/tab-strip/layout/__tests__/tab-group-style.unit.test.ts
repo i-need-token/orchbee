@@ -11,7 +11,7 @@ describe('TabGroupStyle', () => {
 	it('lays out an empty 20px chip with balanced horizontal breathing room', () => {
 		expect(
 			calculateHorizontalTabGroupHeaderLayout({ title: '', measuredTitleWidth: 0 }),
-		).toMatchObject({ chipWidth: 20, chipHeight: 20, chipX: 20, chipY: 10, desiredWidth: 60 });
+		).toMatchObject({ chipWidth: 20, chipHeight: 20, chipX: 20, chipY: 8, desiredWidth: 60 });
 	});
 
 	it('caps title text to half a standard tab excluding overlap', () => {

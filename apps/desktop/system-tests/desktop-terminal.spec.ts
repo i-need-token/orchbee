@@ -1568,6 +1568,7 @@ test('projects native window drag regions without consuming title bar controls o
 			return style.getPropertyValue('app-region') || style.getPropertyValue('-webkit-app-region');
 		});
 	const leftChrome = page.locator('[data-slot="workbench-window-drag-region"]');
+	const sidebar = page.locator('[data-slot="workbench-sidebar"]');
 	const sidebarTogglePosition = page.locator('[data-slot="workbench-sidebar-toggle-position"]');
 	const sidebarToggle = page.locator('[data-slot="workbench-sidebar-toggle"]');
 	const tabTrack = page.locator(
@@ -1582,6 +1583,25 @@ test('projects native window drag regions without consuming title bar controls o
 	await expect.poll(() => appRegion(sidebarToggle)).toBe('no-drag');
 	await expect.poll(() => appRegion(selectedTab)).toBe('no-drag');
 	await expect.poll(() => appRegion(newTabButton)).toBe('no-drag');
+	await expect(sidebar).toHaveCSS('padding-top', '36px');
+
+	const [leftChromeBox, sidebarTogglePositionBox, sidebarToggleBox, tabTrackBox] =
+		await Promise.all([
+			leftChrome.boundingBox(),
+			sidebarTogglePosition.boundingBox(),
+			sidebarToggle.boundingBox(),
+			tabTrack.boundingBox(),
+		]);
+	if (!leftChromeBox || !sidebarTogglePositionBox || !sidebarToggleBox || !tabTrackBox) {
+		throw new Error('Expected complete native window chrome geometry.');
+	}
+	expect(leftChromeBox.height).toBe(36);
+	expect(tabTrackBox.height).toBe(36);
+	expect(sidebarTogglePositionBox.y - tabTrackBox.y).toBe(4);
+	expect(sidebarToggleBox.height).toBe(28);
+	expect(sidebarToggleBox.y + sidebarToggleBox.height / 2).toBe(
+		tabTrackBox.y + tabTrackBox.height / 2,
+	);
 
 	const terminalInput = page.getByRole('textbox');
 	const leftPanel = page.locator('[data-slot="workbench-left-panel"]');

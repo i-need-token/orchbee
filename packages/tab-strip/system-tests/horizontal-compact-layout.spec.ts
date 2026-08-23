@@ -15,6 +15,32 @@ test.beforeEach(async ({ page }) => {
 	await page.goto('/');
 });
 
+test('keeps the horizontal strip and its controls centered in a 36px row', async ({ page }) => {
+	const strip = page.locator('[data-ct-root][data-orientation="horizontal"]');
+	const track = page.locator('[data-horizontal-track]');
+	const item = track.locator('[data-horizontal-item]').first();
+	const groupChip = track.locator('[data-group-chip]').first();
+	const newTabButton = page.getByRole('button', { name: 'New tab', exact: true });
+
+	const [stripBox, trackBox, itemBox, groupChipBox, newTabButtonBox] = await Promise.all([
+		strip.boundingBox(),
+		track.boundingBox(),
+		item.boundingBox(),
+		groupChip.boundingBox(),
+		newTabButton.boundingBox(),
+	]);
+	if (!stripBox || !trackBox || !itemBox || !groupChipBox || !newTabButtonBox) {
+		throw new Error('Expected complete horizontal tab-strip geometry.');
+	}
+
+	expect(stripBox.height).toBe(36);
+	expect(trackBox.height).toBe(36);
+	expect(itemBox.height).toBe(36);
+	expect(groupChipBox.y - stripBox.y).toBe(8);
+	expect(newTabButtonBox.height).toBe(28);
+	expect(newTabButtonBox.y - stripBox.y).toBe(4);
+});
+
 test('renders one shared separator between adjacent inactive tabs', async ({ page }) => {
 	const trailing = page.locator('[data-tab-id="issue"] [data-tab-separator="trailing"]');
 	const leading = page.locator('[data-tab-id="new-tab"] [data-tab-separator="leading"]');

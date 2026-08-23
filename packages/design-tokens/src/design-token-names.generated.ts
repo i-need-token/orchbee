@@ -83,6 +83,7 @@ export const designTokenNames = [
 	'--ob-comp-tab-strip-track-overlay',
 	'--ob-comp-tab-strip-viewport-block-size',
 	'--ob-comp-workbench-child-terminal-strip-height',
+	'--ob-comp-workbench-horizontal-chrome-height',
 	'--ob-comp-workbench-navigation-reorder-block-start',
 	'--ob-comp-workbench-navigation-reorder-inline-size',
 	'--ob-comp-workbench-navigation-reorder-inline-start',

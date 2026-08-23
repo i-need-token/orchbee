@@ -256,8 +256,8 @@ Desktop hides the native title bar while retaining the operating system's window
 Desktop renderer marks only the sidebar's top chrome and unoccupied horizontal Tab-track background
 as native window-drag regions; Tabs, groups, the sidebar toggle, and the new-Tab control remain
 interactive non-drag regions. On macOS, Main leaves the Window Controls Overlay disabled, positions
-the native traffic lights at `(8, 12)`, and the renderer centers the sidebar toggle in the same
-`40px` horizontal Tab row after the reserved native-control space. The toggle position is itself a
+the native traffic lights at `(8, 10)`, and the renderer centers the sidebar toggle in the same
+`36px` horizontal Tab row after the reserved native-control space. The toggle position is itself a
 non-drag region, its reserved leading lane is never marked draggable, and visible sidebar drag
 geometry begins after that lane so the complete pointer target remains interactive.
 

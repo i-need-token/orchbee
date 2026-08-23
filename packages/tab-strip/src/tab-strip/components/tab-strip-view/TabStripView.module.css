@@ -76,7 +76,7 @@
 }
 .ct-tab-strip[data-orientation='horizontal'] {
 	width: 100%;
-	height: var(--ob-comp-tab-strip-length-40);
+	height: var(--ob-comp-tab-strip-length-36);
 }
 .ct-horizontal-contents {
 	position: absolute;
@@ -97,7 +97,7 @@
 .ct-horizontal-item {
 	position: absolute;
 	top: 0;
-	height: var(--ob-comp-tab-strip-length-40);
+	height: var(--ob-comp-tab-strip-length-36);
 	transition:
 		left var(--ob-sys-motion-duration-tab-strip-layout) var(--ob-sys-motion-easing-standard),
 		width var(--ob-sys-motion-duration-tab-strip-layout) var(--ob-sys-motion-easing-standard),
@@ -628,7 +628,7 @@
 .ct-group-header[data-orientation='horizontal'] {
 	position: relative;
 	width: 100%;
-	height: var(--ob-comp-tab-strip-length-40);
+	height: var(--ob-comp-tab-strip-length-36);
 	padding: 0;
 	clip-path: inset(
 		var(--ob-comp-tab-strip-length-6) var(--ob-comp-tab-strip-length-9) 0
@@ -746,7 +746,7 @@
 }
 .ct-new-tab {
 	position: absolute;
-	top: var(--ob-comp-tab-strip-length-7);
+	top: var(--ob-comp-tab-strip-length-4);
 }
 .ct-new-tab[data-frame-condensed] {
 	top: 0;

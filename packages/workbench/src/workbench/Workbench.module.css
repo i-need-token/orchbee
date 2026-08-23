@@ -8,7 +8,9 @@
 
 .sidebarToggle {
 	position: absolute;
-	inset-block-start: var(--ob-ref-space-1-5);
+	inset-block-start: calc(
+		(var(--ob-comp-workbench-horizontal-chrome-height) - var(--ob-ref-size-control-sm)) / 2
+	);
 	inset-inline-start: var(--ob-ref-space-2);
 	z-index: var(--ob-ref-layer-raised);
 }
@@ -35,7 +37,7 @@
 	z-index: var(--ob-ref-layer-base);
 	inset-block-start: 0;
 	inset-inline: 0;
-	height: var(--ob-ref-space-10);
+	height: var(--ob-comp-workbench-horizontal-chrome-height);
 }
 
 .resizeHandle {

@@ -781,6 +781,7 @@
 
 	--ob-comp-workbench-panel-header-height: var(--ob-ref-size-control-md);
 	--ob-comp-workbench-child-terminal-strip-height: 40px;
+	--ob-comp-workbench-horizontal-chrome-height: 36px;
 	--ob-comp-workbench-search-block-start: 10vh;
 	--ob-comp-workbench-search-inline-size: 64rem;
 	--ob-comp-workbench-search-input-height: 3.5rem;

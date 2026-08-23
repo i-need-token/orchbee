@@ -31,7 +31,7 @@ A composition whose URL is authoritative may supply `onSelectTab`. The `tabs.tab
 
 Pointer movement and drag geometry remain local gesture state. Model changes shown during a drag are reversible previews; accepting a local drop rolls the preview back and invokes `tabs.layout.apply-arrangement` to commit the final arrangement through the Action lifecycle.
 
-Horizontal hosts may provide `horizontalLeadingActions` for controls that must share the tab-strip surface. The tab track consumes only the remaining width, so hosted controls never overlap the first tab or require a separately painted sibling region.
+Horizontal hosts may provide `horizontalLeadingActions` for controls that must share the tab-strip surface. The tab track consumes only the remaining width, so hosted controls never overlap the first tab or require a separately painted sibling region. Horizontal layout uses a `36px` strip, item, and drag boundary; the `28px` new-tab control and `20px` group chips and separators are vertically centered within that row. Vertical geometry remains independent.
 
 Hosts that support both orientations pass the controlled `orientation` value and `onOrientationChange`. Right-clicking blank strip space then exposes the localized action for opening or closing vertical tabs; tab, group, and new-tab controls keep their own context menus.
 
