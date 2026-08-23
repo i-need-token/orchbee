@@ -62,8 +62,8 @@
 			"zhCnSha256": "77bd5b4260adca440cae2fe1b22f132970fd54925d05a44921eb990fe4076a4c"
 		},
 		"apps/web/README.md": {
-			"englishSha256": "c3b63c8ddb82a50ba58a0985f78d3686c5044fd3e4917926e8f3f5d21ca763d3",
-			"zhCnSha256": "21d0a62fa1d2c8b0d641e0e093d787516eb1bf01d966cc88235ea213ef693d6f"
+			"englishSha256": "bf76b0d5bd4d461a243f5e72250a58ad72a81a086fcdf92e8f98f377e25fabda",
+			"zhCnSha256": "367bb9fca626f6d21964fee1cb62add5a06977b5a2140a93bc0ceb67433d26b3"
 		},
 		"apps/web/docs/keyboard-shortcuts.md": {
 			"englishSha256": "ce26a0a74eb93b67dae6f1a06aa246d1d4e9e0a1252de08b7a5cf355d889a18f",
@@ -246,16 +246,16 @@
 			"zhCnSha256": "f412097011bc451559de8ce873816ce3d16b5ca856f26e0903f74a8148f56b81"
 		},
 		"packages/terminal/README.md": {
-			"englishSha256": "e0af54763ca801efef64a2257f1f01cb735d5e1bab589bd6b1ea7150e33b1111",
-			"zhCnSha256": "b470452fe09eadc3c94afe0cb7b1b66cb7d81e3fbabc58283ea808f34e199848"
+			"englishSha256": "02deb997446a2d4bf7f0ecf17b51ab46f09454879912767e4dc2466ae196fc82",
+			"zhCnSha256": "92382e955ba67592c15b5c7a23ab590725eb90e0d1b73d1fdc8e68daec3ec841"
 		},
 		"packages/terminal/docs/ghostty-surface-test-provenance.md": {
-			"englishSha256": "66b6b018323826040df28acb47ef8c7a4e8a76bd3a5c1f2c76b8dec7f593d425",
-			"zhCnSha256": "2bac24a772a523ca67f65cb95f10f45e1d4d9206d4266a6cc71abaecde041755"
+			"englishSha256": "7b0b9ed0fb1eda3f2a0f3677c96d48e26d23d158da2ad82605eece49f31e9ea6",
+			"zhCnSha256": "7fd08b172b06827f339c86a33d3ec127628bb9998bfe22f3beafa89cd64458da"
 		},
 		"packages/terminal/docs/vscode-search-alignment.md": {
-			"englishSha256": "d8a0fa5c0b7712e7cacd7f3a731114c8bee7c4383ef6e19d126e822bbc78cac6",
-			"zhCnSha256": "21b52c83100a782cb9ec9b8e426959b0fe52cadcfec3aa9471b242f84b3752f7"
+			"englishSha256": "4dadba59dabc92a0a00ff5a81fc8505923b22b63ee4eb0986277cd9454bd4b74",
+			"zhCnSha256": "55bb23f74b53ea11ad11aec4ca31c99053c1621d49ea0ae74848435bccb83810"
 		},
 		"packages/terminal/formal/README.md": {
 			"englishSha256": "eabdbad7384b7863b272166e563abdbb8c8249934f3858ec7930716df822629d",

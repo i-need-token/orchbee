@@ -4217,7 +4217,11 @@ export class ProjectedTerminal {
 		});
 		const view = document.defaultView;
 		view?.addEventListener('blur', this.#handleWindowBlur);
-		this.#listenerDisposers.push(() => view?.removeEventListener('blur', this.#handleWindowBlur));
+		view?.addEventListener('focus', this.#handleWindowFocus);
+		this.#listenerDisposers.push(() => {
+			view?.removeEventListener('blur', this.#handleWindowBlur);
+			view?.removeEventListener('focus', this.#handleWindowFocus);
+		});
 	}
 
 	#listen<K extends keyof HTMLElementEventMap>(
@@ -4232,6 +4236,7 @@ export class ProjectedTerminal {
 
 	readonly #handleKeyDown = (event: KeyboardEvent): void => {
 		if (!this.#inputAdmissionIsOpen()) return;
+		this.#updateInputPosition();
 		if (this.#inputEnabled && !this.#canAdmitInput()) return;
 		const trackedCode = normalizedKeyboardCode(event.code);
 		this.#trackModifier(event.code, true);
@@ -4667,6 +4672,7 @@ export class ProjectedTerminal {
 	}
 
 	readonly #handleCompositionStart = (event: CompositionEvent): void => {
+		this.#updateInputPosition();
 		if (this.#repairReadOnlyInputEvent(event)) return;
 		if (!this.#canAdmitInput() && !this.#canStageRefocusedComposition()) return;
 		this.#cancelNativeInputChange();
@@ -5103,6 +5109,12 @@ export class ProjectedTerminal {
 		this.#relinquishAccessibilitySelectionOwnership();
 		this.#renderer?.setFocused(false);
 		this.#repairInputState();
+	};
+
+	readonly #handleWindowFocus = (): void => {
+		const input = this.#input;
+		if (input === undefined || input.ownerDocument.activeElement !== input) return;
+		this.#handleFocus();
 	};
 
 	readonly #handleVisibilityChange = (): void => {
@@ -6608,6 +6620,7 @@ export class ProjectedTerminal {
 		const selection = this.#selection;
 		if (
 			root === undefined ||
+			this.#searchOwnedSelection !== null ||
 			selection.state !== 'active' ||
 			selection.rectangle ||
 			typeof root.ownerDocument.createRange !== 'function'

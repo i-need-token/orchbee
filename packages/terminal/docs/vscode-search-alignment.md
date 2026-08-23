@@ -34,6 +34,10 @@ decision. The Worker retains only the bounded decoration collection plus one dir
 match. The client selects that active range through Terminal Host and reveals its absolute row; an
 active match beyond the decoration cap has an `activeIndex` of `-1` without becoming unreachable.
 
+The Host selection and canvas overlay remain authoritative, but an active search match does not
+occupy the document-global DOM range. The application-owned find input therefore retains keyboard
+focus while incremental results settle.
+
 Query text and matches remain in the renderer client. They never enter Electron Main or Terminal
 Host. Search therefore cannot inspect rows evicted from Host history, and it never reconstructs
 content from GPU state.

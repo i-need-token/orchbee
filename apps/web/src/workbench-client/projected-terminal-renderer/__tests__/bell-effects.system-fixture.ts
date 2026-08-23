@@ -1,4 +1,5 @@
 import { ActionRuntime } from '@orchbee/actions';
+import '@orchbee/ui/styles.css';
 import {
 	WorkbenchTerminalBellEffectCoordinator,
 	type WorkbenchTerminalBellEffect,
@@ -15,6 +16,7 @@ import {
 } from '@orchbee/terminal-protocol';
 
 import type { ProjectedTerminalPlatformEffects } from '../../projected-terminal-platform-effects';
+import surfaceStyles from '../../projected-terminal-surface/ProjectedTerminalSurface.module.css';
 import type { ProjectedTerminalTransport } from '../../terminal-projection';
 import { startProjectedTerminalRenderer } from '../startProjectedTerminalRenderer';
 
@@ -74,6 +76,8 @@ async function runWitness(): Promise<void> {
 
 		first.publishBell('5');
 		const firstVisualPhases = [first.surface.dataset['projectedTerminalBellPhase']];
+		const visualBellStyle = getComputedStyle(first.surface, '::after');
+		const visualBellBackground = visualBellStyle.backgroundColor;
 		second.publishBell('5');
 		const duplicateSurfaceInactive =
 			second.surface.dataset['projectedTerminalBellActive'] === undefined;
@@ -100,6 +104,13 @@ async function runWitness(): Promise<void> {
 		root.dataset['witnessSoundEffects'] = soundEffects.join(',');
 		root.dataset['witnessSoundFailureIsolated'] = String(notificationEffects.includes('7'));
 		root.dataset['witnessVisualPhases'] = firstVisualPhases.join(',');
+		root.dataset['witnessVisualSurfaceBorderFree'] = String(visualBellStyle.boxShadow === 'none');
+		root.dataset['witnessVisualSurfacePointerTransparent'] = String(
+			visualBellStyle.pointerEvents === 'none',
+		);
+		root.dataset['witnessVisualSurfaceVisible'] = String(
+			visualBellBackground !== 'rgba(0, 0, 0, 0)' && visualBellBackground !== 'transparent',
+		);
 		root.dataset['witnessReady'] = 'true';
 	} catch (error) {
 		root.dataset['witnessFailure'] = error instanceof Error ? error.message : String(error);
@@ -112,6 +123,11 @@ async function runWitness(): Promise<void> {
 
 async function createRenderer(attachmentId: AttachmentId, label: string) {
 	const surface = document.createElement('section');
+	const terminalSurfaceClassName = surfaceStyles['terminalSurface'];
+	if (terminalSurfaceClassName === undefined) {
+		throw new Error('Projected terminal surface styles are unavailable.');
+	}
+	surface.className = terminalSurfaceClassName;
 	surface.dataset['bellSurface'] = label;
 	surface.style.height = '240px';
 	surface.style.minWidth = '0';

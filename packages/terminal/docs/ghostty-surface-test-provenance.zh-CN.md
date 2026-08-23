@@ -63,7 +63,7 @@
 
 渲染器以 1,000 CSS 像素采样所选浏览器字体，把未经舍入的比率缩放回配置尺寸，并按当前物理设备像素比对基线取整。`rounds sampled font metrics at the physical pixel scale like Ghostty` 回归覆盖了先按 CSS 尺度取整、再进行高 DPI 光栅缩放所造成的一个物理像素基线误差。DPR 转换期间，单元格宽高仍保持稳定的 CSS 几何。
 
-浏览器文本段规划器会把占多个单元格的 Host 字素排除在自然字宽整形段之外。每个宽字素锚定在其投影头单元格，间隔尾单元格不绘制，随后较窄的复杂文本段则正常开始。`anchors wide fallback graphemes to their Host cells and resumes shaping after tails` 回归同时覆盖累积后备漂移和 emoji 之后组合文本段丢失的问题。窄单元格文本段会按活动光栅尺度，将字体字宽与网格字宽之间的小数差作为 Canvas 字间距加入。选择与搜索覆盖层保留该文本段，仅对裁剪后的单元格对齐区域重新着色，不单独重新整形；`keeps grid-fitted shaping intact across selection boundaries` 与 `keeps a shaped run at the same horizontal origin when selection recolors it` 回归分别覆盖 Canvas 与 WebGPU 路径。
+浏览器文本段规划器会把占多个单元格的 Host 字素排除在自然字宽整形段之外。每个宽字素锚定在其投影头单元格，间隔尾单元格不绘制，随后较窄的复杂文本段则正常开始。`anchors wide fallback graphemes to their Host cells and resumes shaping after tails` 回归同时覆盖累积后备漂移和 emoji 之后组合文本段丢失的问题。窄单元格文本段会按活动光栅尺度，将字体字宽与网格字宽之间的小数差作为 Canvas 字间距加入。选择与搜索覆盖层保留该文本段，仅对裁剪后的单元格对齐区域重新着色，不单独重新整形；`keeps grid-fitted shaping intact across selection boundaries` 与 `keeps a shaped run at the same horizontal origin when selection recolors it` 回归分别覆盖 Canvas 与 WebGPU 路径。WebGPU 图集还会让纹理四边形保持设备像素对齐，并把横向裁剪余数保留在光栅中；`keeps WebGPU run baselines on the cell anchor across cursor splits` 覆盖了光标切分后新首字形具有不同带符号墨迹边界的情况。
 
 ## 宿主衍生的投影语料库
 

@@ -647,6 +647,54 @@ describe('projected terminal renderer', () => {
 		renderer.dispose();
 	});
 
+	it('keeps WebGPU run baselines on the cell anchor across cursor splits', () => {
+		vi.stubGlobal('window', { devicePixelRatio: 2 });
+		const fullRun = 'fresh editor lazy git btop';
+		const splitRun = 'resh editor lazy git btop';
+		// Bundled JetBrains Mono at 13 CSS pixels and DPR 2 reports these first-ink bearings.
+		const bearings = new Map([
+			[fullRun, -1.43],
+			[splitRun, -2.912],
+		]);
+		const atlasCanvas = createCanvas(undefined, (text) => {
+			const left = bearings.get(text);
+			if (left === undefined) return {};
+			const width = text.length * 15.6;
+			return {
+				actualBoundingBoxLeft: left,
+				actualBoundingBoxRight: width - left,
+				width,
+			};
+		});
+		const atlasContext = atlasCanvas.getContext('2d');
+		if (atlasContext === null) throw new Error('WebGPU atlas context is unavailable.');
+		const translate = vi.spyOn(atlasContext, 'translate');
+		vi.stubGlobal('document', { createElement: () => atlasCanvas });
+		const renderer = new WebGPURenderer(createCanvas(), { devicePixelRatio: 2 });
+		const ensureGlyph = Reflect.get(renderer, 'ensureGlyph') as (
+			text: string,
+			flags: number,
+			width: number,
+			codepoint: number,
+			constraintWidth: 1 | 2,
+		) => { readonly offsetX: number; readonly x: number } | null;
+		const baselineAnchor = (text: string): number => {
+			const left = bearings.get(text);
+			if (left === undefined) throw new Error(`Missing bearing for ${text}`);
+			const translationIndex = translate.mock.calls.length;
+			const glyph = ensureGlyph.call(renderer, text, 0, text.length, 0, 1);
+			const translation = translate.mock.calls[translationIndex];
+			if (glyph === null || translation === undefined) {
+				throw new Error(`Missing raster placement for ${text}`);
+			}
+			return glyph.offsetX + ((translation[0] ?? 0) - glyph.x + left) / 2;
+		};
+
+		expect(baselineAnchor(fullRun)).toBeCloseTo(0.1, 8);
+		expect(baselineAnchor(splitRun)).toBeCloseTo(0.1, 8);
+		renderer.dispose();
+	});
+
 	it('keeps animated foreground boundaries out of shaping geometry while preserving paint', async () => {
 		vi.stubGlobal('window', { devicePixelRatio: 1 });
 		vi.stubGlobal('navigator', {});

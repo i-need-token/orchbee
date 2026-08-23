@@ -113,7 +113,10 @@ lost post-emoji combining run. Narrow-cell runs add the fractional face-to-grid 
 as Canvas letter spacing at the active raster scale. Selection and search overlays preserve that
 run and recolor clipped cell-aligned portions instead of reshaping independently; the
 `keeps grid-fitted shaping intact across selection boundaries` and `keeps a shaped run at the same
-horizontal origin when selection recolors it` regressions cover the Canvas and WebGPU paths.
+horizontal origin when selection recolors it` regressions cover the Canvas and WebGPU paths. The
+WebGPU atlas also keeps device-aligned textured quads while rasterizing the horizontal crop
+remainder; `keeps WebGPU run baselines on the cell anchor across cursor splits` covers a cursor
+split whose new first glyph has a different signed ink bearing.
 
 ## Host-derived projection corpus
 

@@ -243,6 +243,54 @@ test('terminal-parity/SU-14-runtime-presentation', async () => {
 		expect(Number(await root.getAttribute('data-witness-resize-count'))).toBe(
 			baselineResizeCount + 1,
 		);
+		const inputAnchorRecovery = await root.evaluate((element) => {
+			const input = element.querySelector('textarea');
+			if (!(input instanceof HTMLTextAreaElement)) {
+				throw new Error('Runtime presentation witness input is unavailable.');
+			}
+			const inputGeometry = () => ({
+				height: input.style.height,
+				left: input.style.left,
+				lineHeight: input.style.lineHeight,
+				top: input.style.top,
+				width: input.style.width,
+			});
+			const invalidateInputGeometry = () => {
+				input.style.height = '1px';
+				input.style.left = '0px';
+				input.style.lineHeight = '1px';
+				input.style.top = '0px';
+				input.style.width = '1px';
+			};
+			const beforeModifier = inputGeometry();
+			invalidateInputGeometry();
+			input.dispatchEvent(
+				new KeyboardEvent('keydown', {
+					bubbles: true,
+					code: 'ShiftLeft',
+					key: 'Shift',
+					shiftKey: true,
+				}),
+			);
+			const afterModifier = inputGeometry();
+			window.dispatchEvent(new Event('blur'));
+			const beforeWindowFocus = inputGeometry();
+			const activeElementRetained = document.activeElement === input;
+			invalidateInputGeometry();
+			window.dispatchEvent(new Event('focus'));
+			return {
+				activeElementRetained,
+				afterModifier,
+				afterWindowFocus: inputGeometry(),
+				beforeModifier,
+				beforeWindowFocus,
+			};
+		});
+		expect(inputAnchorRecovery.beforeModifier.width).not.toBe('1px');
+		expect(inputAnchorRecovery.afterModifier).toEqual(inputAnchorRecovery.beforeModifier);
+		expect(inputAnchorRecovery.activeElementRetained).toBe(true);
+		expect(inputAnchorRecovery.beforeWindowFocus.width).not.toBe('1px');
+		expect(inputAnchorRecovery.afterWindowFocus).toEqual(inputAnchorRecovery.beforeWindowFocus);
 	} finally {
 		await browser.close();
 	}
@@ -704,6 +752,7 @@ test('terminal-parity/PR-11-bell', async () => {
 	const browser = await chromium.launch();
 	try {
 		const page = await browser.newPage({ viewport: { height: 500, width: 1000 } });
+		await page.emulateMedia({ reducedMotion: 'reduce' });
 		await page.goto(
 			new URL('terminal-bell-effects-fixture.html', currentDevelopmentRendererUrl).href,
 		);
@@ -719,6 +768,9 @@ test('terminal-parity/PR-11-bell', async () => {
 		await expect(root).toHaveAttribute('data-witness-notification-effects', '5,7,6,8');
 		await expect(root).toHaveAttribute('data-witness-sound-failure-isolated', 'true');
 		await expect(root).toHaveAttribute('data-witness-visual-phases', 'a,b');
+		await expect(root).toHaveAttribute('data-witness-visual-surface-border-free', 'true');
+		await expect(root).toHaveAttribute('data-witness-visual-surface-pointer-transparent', 'true');
+		await expect(root).toHaveAttribute('data-witness-visual-surface-visible', 'true');
 	} finally {
 		await browser.close();
 	}
@@ -2068,7 +2120,9 @@ test('routes a real sandboxed Host terminal through Main and Preload to the rend
 	const findSurface = page.getByRole('search');
 	await expect(findSurface).toBeAttached();
 	const findInput = findSurface.getByRole('textbox');
-	await findInput.fill('history-001');
+	await findInput.pressSequentially('history-001', { delay: 1 });
+	await expect(findInput).toBeFocused();
+	await expect(findInput).toHaveValue('history-001');
 	await expect(findSurface).toHaveAttribute('data-search-state', 'complete', {
 		timeout: 10_000,
 	});

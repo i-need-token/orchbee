@@ -1187,10 +1187,22 @@ export class WebGPURenderer {
 						geometry: spriteGeometry,
 						padding: ghosttySpriteRasterPadding(spriteGeometry.width, spriteGeometry.height),
 					};
+		const rawOffsetX =
+			raster.kind === 'sprite'
+				? -(inkPadding + raster.padding.x) / rasterScale
+				: raster.layout.target.x - inkPadding / rasterScale;
+		const offsetX = snapToDevicePixel(rawOffsetX, rasterScale);
+		// Keep the textured quad on physical pixels without discarding the subpixel crop remainder.
+		// Rasterizing that remainder into the atlas leaves every natural glyph baseline on the same
+		// cell anchor even when a cursor boundary changes the first glyph and its ink bearing.
+		const fontRasterShiftX = raster.kind === 'font' ? (rawOffsetX - offsetX) * rasterScale : 0;
 		const w =
 			raster.kind === 'sprite'
 				? raster.geometry.width + raster.padding.x * 2 + inkPadding * 2
-				: Math.max(1, Math.ceil(raster.layout.target.width * rasterScale) + inkPadding * 2);
+				: Math.max(
+						1,
+						Math.ceil(raster.layout.target.width * rasterScale + fontRasterShiftX) + inkPadding * 2,
+					);
 		const h =
 			raster.kind === 'sprite'
 				? raster.geometry.height + raster.padding.y * 2 + inkPadding * 2
@@ -1227,16 +1239,15 @@ export class WebGPURenderer {
 				raster.geometry.boxThickness,
 			);
 		} else {
-			this.atlasCtx.translate(this.atlasX + inkPadding, this.atlasY + inkPadding);
+			this.atlasCtx.translate(
+				this.atlasX + inkPadding + fontRasterShiftX,
+				this.atlasY + inkPadding,
+			);
 			this.atlasCtx.scale(raster.layout.scaleX, raster.layout.scaleY);
 			this.atlasCtx.fillText(text, raster.layout.left, raster.layout.ascent);
 		}
 		this.atlasCtx.restore();
 
-		const offsetX =
-			raster.kind === 'sprite'
-				? -(inkPadding + raster.padding.x) / rasterScale
-				: raster.layout.target.x - inkPadding / rasterScale;
 		const offsetY =
 			raster.kind === 'sprite'
 				? -(inkPadding + raster.padding.y) / rasterScale
@@ -1246,7 +1257,7 @@ export class WebGPURenderer {
 			y: this.atlasY,
 			w,
 			h,
-			offsetX: snapToDevicePixel(offsetX, rasterScale),
+			offsetX,
 			offsetY: snapToDevicePixel(offsetY, rasterScale),
 			renderWidth: w / rasterScale,
 			renderHeight: h / rasterScale,

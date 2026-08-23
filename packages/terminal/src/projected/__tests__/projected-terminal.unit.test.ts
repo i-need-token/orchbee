@@ -613,6 +613,7 @@ function createFakeBrowser(): FakeBrowser {
 		},
 	} as unknown as Selection;
 	let selection: Selection | null = domSelection;
+	let activeElement: FakeElement | null = null;
 	let visibilityState: DocumentVisibilityState = 'visible';
 	const context = createContext();
 	const createElement = (tagName: string): FakeElement => {
@@ -670,6 +671,8 @@ function createFakeBrowser(): FakeBrowser {
 				return element.children.some((child) => child.contains(node));
 			},
 			dispatch: (type: string, event: Event) => {
+				if (type === 'focus') activeElement = element;
+				else if (type === 'blur' && activeElement === element) activeElement = null;
 				for (const listener of listeners.get(type) ?? []) {
 					listener(event);
 					if (event.cancelBubble) return;
@@ -754,6 +757,9 @@ function createFakeBrowser(): FakeBrowser {
 		},
 	};
 	const document = {
+		get activeElement() {
+			return activeElement;
+		},
 		addEventListener: (type: string, listener: EventListener) => {
 			const entries = documentListeners.get(type) ?? new Set<EventListener>();
 			entries.add(listener);
@@ -2043,12 +2049,34 @@ describe('ProjectedTerminal', () => {
 		};
 		input.selectionStart = 1;
 		input.selectionEnd = 1;
+		input.style['left'] = '0px';
+		input.style['top'] = '0px';
+		input.style['width'] = '1px';
+		input.style['height'] = '1px';
+		input.style['lineHeight'] = '1px';
+		let anchorBeforePreedit: Record<string, string | undefined> | undefined;
 
 		input.dispatch('compositionstart', {
-			data: '你',
+			get data() {
+				anchorBeforePreedit = {
+					height: input.style['height'],
+					left: input.style['left'],
+					lineHeight: input.style['lineHeight'],
+					top: input.style['top'],
+					width: input.style['width'],
+				};
+				return '你';
+			},
 			type: 'compositionstart',
 		} as unknown as CompositionEvent);
 
+		expect(anchorBeforePreedit).toEqual({
+			height: '16px',
+			left: '12px',
+			lineHeight: '16px',
+			top: '16px',
+			width: '8px',
+		});
 		expect(input.style['left']).toBe('4px');
 		expect(input.style['top']).toBe('16px');
 		expect(input.style['width']).toBe('16px');
@@ -2073,6 +2101,90 @@ describe('ProjectedTerminal', () => {
 			width: '24px',
 		});
 		expect(browser.frames.size).toBe(1);
+		terminal.dispose();
+	});
+
+	it('refreshes a stale native IME anchor before a modifier key reaches the platform', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: { send: () => undefined },
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(
+			terminalFrame('snapshot', 1n, 1n, ['a', 'b'], null, [0, 1], 0n, interaction, {
+				column: 1,
+				row: 1,
+			}),
+		);
+		const input = terminal.textarea as unknown as FakeElement;
+		input.style['left'] = '0px';
+		input.style['top'] = '0px';
+		input.style['width'] = '1px';
+		input.style['height'] = '1px';
+		input.style['lineHeight'] = '1px';
+
+		input.dispatch(
+			'keydown',
+			keyboardEvent('keydown', 'ShiftLeft', 'Shift', 16, { shiftKey: true }),
+		);
+
+		expect(input.style).toMatchObject({
+			height: '16px',
+			left: '12px',
+			lineHeight: '16px',
+			top: '16px',
+			width: '8px',
+		});
+		terminal.dispose();
+	});
+
+	it('restores the focused native IME anchor when the window regains focus', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(
+			terminalFrame('snapshot', 1n, 1n, ['a', 'b'], null, [0, 1], 0n, interaction, {
+				column: 1,
+				row: 1,
+			}),
+		);
+		const input = terminal.textarea as unknown as FakeElement;
+		input.dispatch('focus', { type: 'focus' } as FocusEvent);
+		browser.dispatchWindow('blur');
+		input.style['left'] = '0px';
+		input.style['top'] = '0px';
+
+		browser.dispatchWindow('focus');
+
+		expect(input.style).toMatchObject({ left: '12px', top: '16px' });
+		expect(
+			commands
+				.filter((command) => command.kind === 'focus-input')
+				.map((command) => command.payload.focused),
+		).toEqual([true, false, true]);
 		terminal.dispose();
 	});
 
@@ -5897,6 +6009,84 @@ describe('ProjectedTerminal', () => {
 				?.parentElement,
 		).toBe(accessibilityRoot?.children[1]);
 		expect(reverseRange?.endOffset).toBe(1);
+		terminal.dispose();
+	});
+
+	it('keeps a search-owned Host selection out of the document DOM selection', async () => {
+		vi.useFakeTimers();
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			searchWorkerFactory: () => searchWorkerWithMatch(0),
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['needle', '']));
+		const rows: TerminalBufferRow[] = [
+			{
+				cells: null,
+				identityAscii: true,
+				index: 0n,
+				mappings: [],
+				promptClass: RowPromptClass.none,
+				text: 'needle',
+				wrap: false,
+				wrapContinuation: false,
+			},
+			{
+				cells: null,
+				identityAscii: true,
+				index: 1n,
+				mappings: [],
+				promptClass: RowPromptClass.none,
+				text: '',
+				wrap: false,
+				wrapContinuation: false,
+			},
+		];
+		vi.spyOn(terminal, 'readBufferRows').mockImplementation(async (request) => ({
+			byteLength: rows.length,
+			detail: request.detail,
+			generation: request.generation,
+			kind: 'rows',
+			revision: request.revision,
+			rows,
+			startRow: request.startRow,
+			totalRows: 2n,
+		}));
+
+		terminal.updateSearch('needle');
+		await vi.advanceTimersByTimeAsync(200);
+		expect(
+			commands.some(
+				(command) =>
+					command.kind === 'selection-command' && command.payload.command === 'set-range',
+			),
+		).toBe(true);
+
+		terminal.notifySelectionChanged({
+			attachmentId,
+			end: { column: 1, row: canonicalText('0') },
+			preview: 'ne',
+			rectangle: false,
+			start: { column: 0, row: canonicalText('0') },
+			state: 'active',
+		});
+
+		expect(terminal.selection).toMatchObject({ state: 'active' });
+		expect(browser.document.getSelection()?.rangeCount).toBe(0);
 		terminal.dispose();
 	});
 
