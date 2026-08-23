@@ -5297,6 +5297,7 @@ describe('ProjectedTerminal', () => {
 		expect(scrollbar.style['width']).toBe('16px');
 		expect(thumb.style['right']).toBe('2px');
 		expect(thumb.style['width']).toBe('8px');
+		expect(thumb.style['borderRadius']).toBe('9999px');
 		expect(Number.parseFloat(canvas.style['width'] ?? '0')).toBeLessThan(
 			(browser.root as unknown as FakeElement).clientWidth - 2,
 		);

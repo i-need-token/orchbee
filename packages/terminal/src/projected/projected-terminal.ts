@@ -1095,6 +1095,7 @@ export class ProjectedTerminal {
 			historyScrollbarThumb.style.position = 'absolute';
 			historyScrollbarThumb.style.right = '2px';
 			historyScrollbarThumb.style.width = '8px';
+			historyScrollbarThumb.style.borderRadius = '9999px';
 			historyScrollbarThumb.style.background = 'rgb(128, 128, 128)';
 			historyScrollbarThumb.style.pointerEvents = 'none';
 			historyScrollbarThumb.style.opacity = '0';

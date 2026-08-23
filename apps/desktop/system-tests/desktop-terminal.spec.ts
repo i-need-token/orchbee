@@ -1107,6 +1107,7 @@ test('terminal-parity/SU-10-scrollbar', async () => {
 	const scrollbar = root.locator('[data-projected-terminal-history-scrollbar="true"]');
 	const scrollbarThumb = root.locator('[data-projected-terminal-history-scrollbar-thumb="true"]');
 	await expect(scrollbar).toBeVisible();
+	await expect(scrollbarThumb).toHaveCSS('border-radius', '9999px');
 	await page.clock.install();
 	await page.clock.pauseAt((await page.evaluate(() => Date.now())) + 1_000);
 
@@ -1145,8 +1146,14 @@ test('terminal-parity/SU-10-scrollbar', async () => {
 	await expect.poll(firstVisibleRow).toBeLessThan(bottomStart);
 	const scrollbarBounds = await scrollbar.boundingBox();
 	if (scrollbarBounds === null) throw new Error('Terminal scrollbar has no bounding box.');
+	const terminalBorderRightWidth = await root.evaluate((element) =>
+		Number.parseFloat(getComputedStyle(element).borderRightWidth),
+	);
 	expect(scrollbarBounds.width).toBe(16);
-	expect(scrollbarBounds.x + scrollbarBounds.width).toBeCloseTo(bounds.x + bounds.width, 5);
+	expect(scrollbarBounds.x + scrollbarBounds.width).toBeCloseTo(
+		bounds.x + bounds.width - terminalBorderRightWidth,
+		5,
+	);
 	const visible = await captureTerminalScrollbarStrip(page, root);
 	expect(visible.equals(faded)).toBe(false);
 	await page.clock.runFor(1_482);
