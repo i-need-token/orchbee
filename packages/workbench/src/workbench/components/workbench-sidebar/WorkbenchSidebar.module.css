@@ -113,7 +113,7 @@
 	align-items: center;
 	justify-content: space-between;
 	margin-block-end: var(--ob-ref-space-1);
-	padding-inline: var(--ob-ref-space-1-5);
+	padding-inline-start: var(--ob-ref-space-1-5);
 }
 
 .sectionHeading {
