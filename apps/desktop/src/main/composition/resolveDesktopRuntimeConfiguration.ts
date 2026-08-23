@@ -58,6 +58,7 @@ export interface DesktopRuntimeConfiguration {
 	readonly browserAccess: DesktopBrowserAccessRuntimeConfiguration;
 	readonly endpointId: string;
 	readonly runtimeDirectory: string;
+	readonly terminalArchiveDirectory: string;
 	readonly terminalBindingStorePath: string;
 	readonly terminalExitPublicationLedgerPath: string;
 	readonly terminalExitSpillPath: string;
@@ -201,6 +202,7 @@ export function resolveDesktopRuntimeConfiguration(
 		browserAccess,
 		endpointId,
 		runtimeDirectory,
+		terminalArchiveDirectory: path.join(recoveryDirectory, 'terminal-archives-v1'),
 		terminalBindingStorePath: path.join(recoveryDirectory, 'bindings-v3.json'),
 		terminalExitPublicationLedgerPath: path.join(
 			recoveryDirectory,

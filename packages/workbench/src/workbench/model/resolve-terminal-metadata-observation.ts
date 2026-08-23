@@ -16,12 +16,26 @@ export interface RawTerminalMetadataObservation {
 	readonly title: string | null;
 }
 
+export type RawTerminalNaturalMetadataObservation = Omit<
+	RawTerminalMetadataObservation,
+	'closeActivity'
+>;
+
 export function resolveTerminalMetadataObservation(
 	metadata: RawTerminalMetadataObservation,
 	terminalHostName: string,
 ): WorkbenchTerminalMetadataObservation {
 	return {
 		closeActivity: metadata.closeActivity,
+		...resolveTerminalNaturalMetadataObservation(metadata, terminalHostName),
+	};
+}
+
+export function resolveTerminalNaturalMetadataObservation(
+	metadata: RawTerminalNaturalMetadataObservation,
+	terminalHostName: string,
+): Omit<WorkbenchTerminalMetadataObservation, 'closeActivity'> {
+	return {
 		currentDirectory:
 			metadata.currentDirectory === null
 				? { currentCwd: null, kind: 'reported' }

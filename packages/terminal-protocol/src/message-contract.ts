@@ -30,6 +30,7 @@ export const MessageKind = {
 	historyObserved: 54,
 	terminalBell: 55,
 	terminalClipboardWriteRequest: 56,
+	terminalMetadataChanged: 57,
 	protocolRejected: 3,
 	readRows: 45,
 	resizeAccepted: 33,
@@ -385,6 +386,12 @@ export const MESSAGE_CONTRACTS = {
 	[MessageKind.terminalClipboardWriteRequest]: {
 		eventEncoding: control,
 		name: 'TerminalClipboardWriteRequest',
+		request: null,
+		responseEncoding: null,
+	},
+	[MessageKind.terminalMetadataChanged]: {
+		eventEncoding: control,
+		name: 'TerminalMetadataChanged',
 		request: null,
 		responseEncoding: null,
 	},

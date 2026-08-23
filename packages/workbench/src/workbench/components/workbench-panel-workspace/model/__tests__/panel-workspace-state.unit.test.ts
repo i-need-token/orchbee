@@ -1013,6 +1013,7 @@ describe('panel workspace state', () => {
 		});
 		expect(exited.commands).toEqual([
 			{
+				disposition: 'remove',
 				operationId: 'close-child',
 				presentationId: 'presentation-child',
 				type: 'terminal-close-requested',
@@ -1108,6 +1109,7 @@ describe('panel workspace state', () => {
 		});
 		expect(activeExit.commands).toEqual([
 			{
+				disposition: 'remove',
 				operationId: 'close-primary-active',
 				presentationId: 'presentation-primary',
 				type: 'terminal-close-requested',
@@ -1398,7 +1400,7 @@ describe('panel workspace state', () => {
 			tabId: 'tab-a',
 			type: 'terminal-metadata-changed',
 		}).state;
-		state = transitionPanelWorkspaceCore(state, {
+		const stopping = transitionPanelWorkspaceCore(state, {
 			operations: [
 				{
 					operationId: terminalPresentationOperationId('stop-1'),
@@ -1406,7 +1408,16 @@ describe('panel workspace state', () => {
 				},
 			],
 			type: 'terminal-sessions-stop-requested',
-		}).state;
+		});
+		expect(stopping.commands).toEqual([
+			{
+				disposition: 'stop',
+				operationId: 'stop-1',
+				presentationId: 'presentation-1',
+				type: 'terminal-close-requested',
+			},
+		]);
+		state = stopping.state;
 		state = transitionPanelWorkspaceCore(state, {
 			operationId: terminalPresentationOperationId('stop-1'),
 			presentationId: terminalPresentationId('presentation-1'),
@@ -1504,11 +1515,13 @@ describe('panel workspace state', () => {
 		});
 		expect(close.commands).toEqual([
 			{
+				disposition: 'remove',
 				operationId: 'close-2',
 				presentationId: 'presentation-2',
 				type: 'terminal-close-requested',
 			},
 			{
+				disposition: 'remove',
 				operationId: 'close-3',
 				presentationId: 'presentation-3',
 				type: 'terminal-close-requested',
@@ -1570,6 +1583,7 @@ describe('panel workspace state', () => {
 		});
 		expect(retry.commands).toEqual([
 			{
+				disposition: 'remove',
 				operationId: 'close-3-retry',
 				presentationId: 'presentation-3',
 				type: 'terminal-close-requested',

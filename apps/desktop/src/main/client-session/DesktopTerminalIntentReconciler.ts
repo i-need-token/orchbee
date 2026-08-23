@@ -335,8 +335,15 @@ function commandForPresentation(
 				type: 'terminal-provision-requested',
 			};
 		case 'close':
+			return {
+				disposition: 'remove',
+				operationId: presentation.intent.operationId,
+				presentationId: presentation.presentationId,
+				type: 'terminal-close-requested',
+			};
 		case 'stop':
 			return {
+				disposition: 'stop',
 				operationId: presentation.intent.operationId,
 				presentationId: presentation.presentationId,
 				type: 'terminal-close-requested',

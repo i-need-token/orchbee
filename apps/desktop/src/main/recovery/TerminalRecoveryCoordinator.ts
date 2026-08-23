@@ -373,11 +373,15 @@ function reconcileClosing(
 	hostEpoch: HostEpoch,
 ): TerminalRecoveryOutcome {
 	const identity = state.identity;
-	if (identity.hostEpoch !== hostEpoch) return { identity, kind: 'closing', summary: null };
+	if (identity.hostEpoch !== hostEpoch) {
+		return { disposition: state.disposition, identity, kind: 'closing', summary: null };
+	}
 	const match = inventory.find((summary) => summary.identity.creationId === binding.creationId);
-	if (match === undefined) return { identity, kind: 'closing', summary: null };
+	if (match === undefined) {
+		return { disposition: state.disposition, identity, kind: 'closing', summary: null };
+	}
 	return identitiesEqual(identity, match.identity)
-		? { identity, kind: 'closing', summary: match }
+		? { disposition: state.disposition, identity, kind: 'closing', summary: match }
 		: { kind: 'conflict', reason: 'identity-conflict' };
 }
 

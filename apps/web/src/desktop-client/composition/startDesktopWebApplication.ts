@@ -8,6 +8,7 @@ import type { WorkbenchShortcutPlatform } from '@orchbee/workbench';
 import {
 	startDesktopWorkbenchRenderer,
 	type DesktopWorkbenchRendererSession,
+	type DesktopWorkbenchRendererStorage,
 } from './startDesktopWorkbenchRenderer';
 import { resolveDesktopTerminalFileDropCapability } from '../terminal-file-drop';
 
@@ -29,7 +30,7 @@ export function startDesktopWebApplication(
 	documentElement: Pick<HTMLElement, 'dataset' | 'dir' | 'lang'>,
 	preferredLocales: readonly string[],
 	shortcutPlatform: WorkbenchShortcutPlatform,
-	storage: Pick<Storage, 'getItem' | 'setItem'>,
+	storage: DesktopWorkbenchRendererStorage,
 	dependencies: DesktopWebApplicationDependencies = defaultDependencies,
 ): DesktopWebApplicationSession {
 	let disposed = false;

@@ -44,6 +44,7 @@ import {
 	UpdateTerminalConfigurationSchema,
 	TerminalLaunchSchema,
 	TerminalListSchema,
+	TerminalMetadataChangedSchema,
 	TerminalStartAcceptedSchema,
 	TerminalProfileSchema,
 	TerminalSummarySchema,
@@ -218,6 +219,27 @@ describe('control schemas', () => {
 		expect(TerminalBellSchema.safeParse({ ...bell, sequence: '0' }).success).toBe(false);
 		expect(TerminalBellSchema.safeParse({ ...bell, sequence: '01' }).success).toBe(false);
 		expect(TerminalBellSchema.safeParse({ sequence: '7' }).success).toBe(false);
+	});
+
+	it('publishes terminal-global title and current-directory metadata at one revision', () => {
+		const metadata = {
+			currentDirectory: 'file://orchbee-host/workspace',
+			identity: {
+				creationId: '11'.repeat(16),
+				hostEpoch: '22'.repeat(16),
+				terminalId: '33'.repeat(16),
+			},
+			revision: '7',
+			title: 'background agent',
+		};
+
+		expect(TerminalMetadataChangedSchema.parse(metadata)).toEqual(metadata);
+		expect(TerminalMetadataChangedSchema.safeParse({ ...metadata, revision: '0' }).success).toBe(
+			false,
+		);
+		expect(
+			TerminalMetadataChangedSchema.safeParse({ ...metadata, title: 'bad\0title' }).success,
+		).toBe(false);
 	});
 
 	it('bounds attachment-scoped terminal clipboard writes to valid plain text', () => {

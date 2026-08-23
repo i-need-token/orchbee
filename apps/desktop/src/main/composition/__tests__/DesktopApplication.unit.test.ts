@@ -17,6 +17,7 @@ import {
 	type TerminalExited,
 	type TerminalFailed,
 	type TerminalIdentity,
+	type TerminalMetadataChanged,
 	type TerminalSummary,
 } from '@orchbee/terminal-protocol';
 import {
@@ -27,6 +28,7 @@ import {
 	workbenchSharedDocumentRevision,
 	type WorkbenchSharedDocument,
 } from '@orchbee/workbench/document';
+import type { WorkbenchTerminalMetadata } from '@orchbee/workbench-client-protocol';
 import type { BrowserWindow, BrowserWindowConstructorOptions, MessagePortMain } from 'electron';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -238,6 +240,47 @@ describe('DesktopApplication', () => {
 
 		initialization.resolve({ kind: 'ready' });
 		await start;
+		await application.shutdown();
+	});
+
+	it('buffers Host metadata during reconciliation and includes it in renderer bootstrap', async () => {
+		const harness = createHarness();
+		const initialization =
+			createDeferred<Awaited<ReturnType<DesktopTerminalRuntime['initialize']>>>();
+		harness.terminalRuntime.initialize.mockReturnValue(initialization.promise);
+		const application = createApplication(harness.dependencies);
+		const start = application.start();
+		const metadata = terminalMetadataChanged('7', 'background agent');
+
+		await vi.waitFor(() => expect(harness.host.onEnvelope).toHaveBeenCalledOnce());
+		harness.hostEnvelopeListener?.(terminalMetadataChangedEnvelope(metadata));
+		initialization.resolve({ kind: 'ready' });
+		await start;
+
+		expect(latestRendererBootstrap(harness)?.clientSession?.terminalMetadata).toEqual([
+			{
+				...metadata,
+				presentationId,
+			},
+		]);
+		await application.shutdown();
+	});
+
+	it('publishes Host metadata for a terminal without requiring a projected surface', async () => {
+		const harness = createHarness();
+		const application = createApplication(harness.dependencies);
+		await application.start();
+		const metadata = terminalMetadataChanged('8', 'background agent');
+
+		harness.hostEnvelopeListener?.(terminalMetadataChangedEnvelope(metadata));
+
+		await vi.waitFor(() =>
+			expect(harness.clientSessionPorts[0]?.postMessage).toHaveBeenCalledWith({
+				metadata: { ...metadata, presentationId },
+				sequence: '1',
+				type: 'terminal-metadata-published',
+			}),
+		);
 		await application.shutdown();
 	});
 
@@ -1767,6 +1810,9 @@ function createHarness(
 			.mockResolvedValue({ closedCount: 0, failures: [] }),
 		dispose: vi.fn<DesktopTerminalRuntime['dispose']>().mockResolvedValue(undefined),
 		execute: vi.fn<DesktopTerminalRuntime['execute']>(),
+		findPresentationByIdentity: vi
+			.fn<DesktopTerminalRuntime['findPresentationByIdentity']>()
+			.mockReturnValue(presentationId),
 		getProjectionTarget: vi
 			.fn<DesktopTerminalRuntime['getProjectionTarget']>()
 			.mockReturnValue(null),
@@ -1791,6 +1837,9 @@ function createHarness(
 			.fn<DesktopTerminalRuntime['inspectUnknownHostTerminalCount']>()
 			.mockResolvedValue(0),
 		open: vi.fn<DesktopTerminalRuntime['open']>(),
+		reconcileArchives: vi
+			.fn<DesktopTerminalRuntime['reconcileArchives']>()
+			.mockResolvedValue(undefined),
 		recordExit: vi.fn<DesktopTerminalRuntime['recordExit']>().mockResolvedValue(null),
 		recordExitOutcome: vi
 			.fn<DesktopTerminalRuntime['recordExitOutcome']>()
@@ -2074,6 +2123,7 @@ function rendererBootstrap(harness: ReturnType<typeof createHarness>):
 	| {
 			readonly clientSession?: {
 				readonly initializationDocument?: WorkbenchSharedDocument;
+				readonly terminalMetadata?: readonly WorkbenchTerminalMetadata[];
 				readonly terminalEvents?: readonly TerminalPresentationEvent[];
 			};
 	  }
@@ -2084,6 +2134,7 @@ function rendererBootstrap(harness: ReturnType<typeof createHarness>):
 		| {
 				readonly clientSession?: {
 					readonly initializationDocument?: WorkbenchSharedDocument;
+					readonly terminalMetadata?: readonly WorkbenchTerminalMetadata[];
 					readonly terminalEvents?: readonly TerminalPresentationEvent[];
 				};
 		  }
@@ -2204,6 +2255,22 @@ function terminalExitedEnvelope(event: TerminalExited): DecodedProtocolEnvelope 
 	};
 }
 
+function terminalMetadataChangedEnvelope(event: TerminalMetadataChanged): DecodedProtocolEnvelope {
+	return {
+		correlationId: null,
+		event: true,
+		hostEpoch: identity.hostEpoch,
+		ignoredOptionalFlags: 0,
+		kind: MessageKind.terminalMetadataChanged,
+		knownMessage: true,
+		optionalMessage: false,
+		payload: new TextEncoder().encode(JSON.stringify(event)),
+		payloadEncoding: PayloadEncoding.controlJson,
+		protocol: CURRENT_PROTOCOL_VERSION,
+		response: false,
+	};
+}
+
 function terminalFailedEnvelope(event: TerminalFailed): DecodedProtocolEnvelope {
 	return {
 		correlationId: null,
@@ -2217,6 +2284,15 @@ function terminalFailedEnvelope(event: TerminalFailed): DecodedProtocolEnvelope 
 		payloadEncoding: PayloadEncoding.controlJson,
 		protocol: CURRENT_PROTOCOL_VERSION,
 		response: false,
+	};
+}
+
+function terminalMetadataChanged(revision: string, title: string | null): TerminalMetadataChanged {
+	return {
+		currentDirectory: 'file://orchbee-host/workspace/background-agent',
+		identity,
+		revision: CanonicalUint64TextSchema.parse(revision),
+		title,
 	};
 }
 

@@ -99,7 +99,10 @@ export interface DesktopTerminalLifecycleOperations {
 export interface DesktopTerminalBindingLifecyclePort {
 	reconcile(): Promise<TerminalBindingLifecycleOutcome>;
 	recordExit(event: TerminalExited): Promise<TerminalExitDisposition>;
-	requestClose(retireProjection: () => Promise<void>): Promise<TerminalCloseOutcome>;
+	requestClose(
+		retireProjection: () => Promise<void>,
+		disposition: 'remove' | 'stop',
+	): Promise<TerminalCloseOutcome>;
 }
 
 export interface DesktopTerminalLifecycleAdapterDependencies {
@@ -273,7 +276,10 @@ export class DesktopTerminalLifecycleAdapter implements DesktopTerminalLifecycle
 				}
 				const outcome = await this.#enqueue(entry, async () => {
 					if (entry.retired) return { kind: 'closed' } as const;
-					return entry.lifecycle.requestClose(() => this.#retireProjection(entry.presentationId));
+					return entry.lifecycle.requestClose(
+						() => this.#retireProjection(entry.presentationId),
+						'remove',
+					);
 				});
 				if (outcome.kind !== 'closed') {
 					return { failure: closeFailure(outcome), presentationId: entry.presentationId };
@@ -734,8 +740,9 @@ export class DesktopTerminalLifecycleAdapter implements DesktopTerminalLifecycle
 
 		return this.#enqueue(entry, async () => {
 			if (entry.retired) return closeCompleted(command);
-			const outcome = await entry.lifecycle.requestClose(() =>
-				this.#retireProjection(command.presentationId),
+			const outcome = await entry.lifecycle.requestClose(
+				() => this.#retireProjection(command.presentationId),
+				command.disposition,
 			);
 			if (outcome.kind !== 'closed') return closeFailed(command, closeFailure(outcome));
 			return this.#retireClosedEntry(entry)

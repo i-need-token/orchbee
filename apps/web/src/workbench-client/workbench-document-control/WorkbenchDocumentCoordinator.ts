@@ -152,6 +152,10 @@ export class WorkbenchDocumentCoordinator {
 				if (result.kind === 'rejected') this.#fail('projection-mismatch');
 				break;
 			}
+			case 'terminal-metadata-published':
+				// Terminal-global metadata is transient presentation state owned by the
+				// page composition, not by shared-document convergence.
+				break;
 			case 'client-session-coordinator-unavailable':
 				this.#fail(publication.reason);
 				break;

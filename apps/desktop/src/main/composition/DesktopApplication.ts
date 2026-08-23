@@ -18,6 +18,7 @@ import {
 	TerminalDefaultsAcceptedSchema,
 	TerminalExitedSchema,
 	TerminalFailedSchema,
+	TerminalMetadataChangedSchema,
 	type DecodedProtocolEnvelope,
 	type AttachmentCapabilities,
 	type TerminalExited,
@@ -25,6 +26,7 @@ import {
 	type TerminalGeometry,
 	type TerminalIdentity,
 	type TerminalLaunch,
+	type TerminalMetadataChanged,
 } from '@orchbee/terminal-protocol';
 import {
 	type TerminalPresentationIdSchema,
@@ -46,6 +48,7 @@ import type {
 import {
 	BrowserWindow,
 	app,
+	clipboard,
 	MessageChannelMain,
 	screen,
 	type BrowserWindowConstructorOptions,
@@ -174,6 +177,7 @@ interface GatewayClientResourceOwner {
 type TerminalExitPublicationResult = 'already-committed' | 'committed' | 'pending';
 
 const MAX_PENDING_TERMINAL_EXIT_RETRIES = 64;
+const MAX_PENDING_TERMINAL_METADATA = 1_024;
 const RENDERER_LIFETIME_RECOVERY_POLL_MILLISECONDS = 25;
 const RENDERER_LIFETIME_RECOVERY_TIMEOUT_MILLISECONDS = 5_000;
 const TERMINAL_EXIT_RETRY_DELAY_MILLISECONDS = 25;
@@ -338,6 +342,7 @@ const defaultDependencies: DesktopApplicationDependencies = {
 			host,
 			randomIdentifier,
 			resolveTerminalLaunch,
+			writeClipboardText: async (text) => clipboard.writeText(text),
 		}),
 	createTerminalIntentReconciler: (dependencies) =>
 		new DesktopTerminalIntentReconciler(dependencies),
@@ -397,6 +402,7 @@ export class DesktopApplication {
 	#terminalLaunchProfileBroker: DesktopTerminalLaunchProfileBrokerHandle | undefined;
 	readonly #terminalLaunchProfileController: DesktopTerminalLaunchProfileControllerHandle;
 	readonly #pendingTerminalExits = new Map<string, TerminalExited>();
+	readonly #pendingTerminalMetadata = new Map<string, TerminalMetadataChanged>();
 	readonly #terminalExitAttempts = new Map<string, Promise<void>>();
 	readonly #terminalExitPublicationReservations = new Map<
 		string,
@@ -631,6 +637,12 @@ export class DesktopApplication {
 						publish(event);
 						return true;
 					}),
+				reconcileTerminalArchives: (document) =>
+					terminalRuntime.reconcileArchives(
+						document === null
+							? new Set<TerminalPresentationId>()
+							: collectDocumentArchivePresentationIds(document),
+					),
 				store: this.#workbenchDocumentStore,
 				terminalHostName: this.#options.runtime.terminalHostName,
 				validateDocument: (document) => terminalIntentReconciler.validateDocument(document),
@@ -643,6 +655,7 @@ export class DesktopApplication {
 					`Desktop client session coordinator stopped with ${coordinatorStart.reason}.`,
 				);
 			}
+			this.#publishAllPendingTerminalMetadata();
 			this.#promoteSpilledTerminalExits();
 			this.#scheduleTerminalExitRetry();
 			if (this.#options.runtime.browserAccess.kind === 'enabled') {
@@ -1337,11 +1350,55 @@ export class DesktopApplication {
 			if (exited.ok) this.#acceptTerminalExit(exited.value);
 			return;
 		}
+		if (envelope.kind === MessageKind.terminalMetadataChanged) {
+			const metadata = decodeControlJson(envelope.payload, TerminalMetadataChangedSchema);
+			if (metadata.ok) this.#acceptTerminalMetadata(metadata.value);
+			return;
+		}
 		if (envelope.kind !== MessageKind.terminalFailed) return;
 		const failed = decodeControlJson(envelope.payload, TerminalFailedSchema);
 		if (!failed.ok) return;
 		this.#acceptTerminalFailure(failed.value);
 	};
+
+	#acceptTerminalMetadata(event: TerminalMetadataChanged): void {
+		const key = terminalExitIdentityKey(event.identity);
+		const existing = this.#pendingTerminalMetadata.get(key);
+		if (existing !== undefined && BigInt(existing.revision) >= BigInt(event.revision)) return;
+		if (
+			existing === undefined &&
+			this.#pendingTerminalMetadata.size >= MAX_PENDING_TERMINAL_METADATA
+		) {
+			const oldestKey = this.#pendingTerminalMetadata.keys().next().value;
+			if (oldestKey !== undefined) this.#pendingTerminalMetadata.delete(oldestKey);
+		}
+		this.#pendingTerminalMetadata.delete(key);
+		this.#pendingTerminalMetadata.set(key, event);
+		this.#publishPendingTerminalMetadata(key);
+	}
+
+	#publishPendingTerminalMetadata(key: string): void {
+		const event = this.#pendingTerminalMetadata.get(key);
+		const runtime = this.#terminalRuntime;
+		const coordinator = this.#clientSessionCoordinator;
+		if (event === undefined || runtime === undefined || coordinator === undefined) return;
+		const presentationId = runtime.findPresentationByIdentity(event.identity);
+		if (presentationId === null) return;
+		coordinator.publishTerminalMetadata({
+			currentDirectory: event.currentDirectory,
+			identity: event.identity,
+			presentationId,
+			revision: event.revision,
+			title: event.title,
+		});
+		this.#pendingTerminalMetadata.delete(key);
+	}
+
+	#publishAllPendingTerminalMetadata(): void {
+		for (const key of this.#pendingTerminalMetadata.keys()) {
+			this.#publishPendingTerminalMetadata(key);
+		}
+	}
 
 	#acceptTerminalFailure(event: TerminalFailed): void {
 		const runtime = this.#terminalRuntime;
@@ -1788,6 +1845,7 @@ export class DesktopApplication {
 
 	readonly #handleTerminalIdentityObserved = (identity: TerminalIdentity): void => {
 		const key = terminalExitIdentityKey(identity);
+		this.#publishPendingTerminalMetadata(key);
 		this.#associatedTerminalExitKeys.add(key);
 		this.#unknownIdentityAttempts.delete(key);
 		if (this.#pendingTerminalExits.has(key)) {
@@ -1846,6 +1904,27 @@ function collectDocumentPresentationIds(
 			presentationIds.add(node.primaryPresentation.presentationId);
 			for (const presentation of node.childPresentations) {
 				presentationIds.add(presentation.presentationId);
+			}
+			return;
+		}
+		for (const child of node.children) visit(child.node);
+	};
+	for (const context of document.terminalContexts) {
+		for (const tab of context.panelWorkspace.tabs) visit(tab.root);
+	}
+	return presentationIds;
+}
+
+function collectDocumentArchivePresentationIds(
+	document: WorkbenchSharedDocument,
+): ReadonlySet<TerminalPresentationId> {
+	const presentationIds = new Set<TerminalPresentationId>();
+	const visit = (node: WorkbenchSharedPanelNode): void => {
+		if (node.kind === 'panel') {
+			for (const presentation of [node.primaryPresentation, ...node.childPresentations]) {
+				if (presentation.intent.kind === 'stop' || presentation.intent.kind === 'stopped') {
+					presentationIds.add(presentation.presentationId);
+				}
 			}
 			return;
 		}

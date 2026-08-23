@@ -17,6 +17,11 @@ import type {
 } from '../broker';
 import { readTerminalInventory, type HostConnection } from '../host';
 import { FileTerminalBindingStore } from '../recovery';
+import {
+	ArchivedTerminalProjectionService,
+	FileTerminalArchiveStore,
+	TerminalArchiveCaptureService,
+} from '../terminal-archive';
 import { DesktopTerminalBindingRegistry } from '../terminal-binding-registry';
 import {
 	composeDesktopTerminalLifecycleAdapter,
@@ -41,6 +46,7 @@ export interface DesktopTerminalRuntime extends DesktopTerminalLifecycleOperatio
 	): Promise<DesktopTerminalBindingDrainResult>;
 	dispose(): Promise<void>;
 	getOwnedBindingCount(): number;
+	findPresentationByIdentity(identity: TerminalIdentity): TerminalPresentationId | null;
 	getProjectionTarget(
 		presentationId: TerminalPresentationId,
 	): DesktopTerminalProjectionTarget | null;
@@ -55,6 +61,7 @@ export interface DesktopTerminalRuntime extends DesktopTerminalLifecycleOperatio
 		geometry: TerminalGeometry,
 		options?: DesktopTerminalProjectionOpenOptions,
 	): Promise<DesktopTerminalProjectionLease>;
+	reconcileArchives(retainedPresentationIds: ReadonlySet<TerminalPresentationId>): Promise<void>;
 	recordExit(event: TerminalExited): Promise<TerminalPresentationId | null>;
 	recordExitOutcome(event: TerminalExited): Promise<DesktopTerminalExitRecordResult>;
 	commitExitPublication?(event: TerminalExited): boolean;
@@ -79,17 +86,27 @@ export interface DesktopTerminalRuntimeComposition {
 	readonly host: HostConnection;
 	readonly randomIdentifier: () => string;
 	readonly resolveTerminalLaunch: () => TerminalLaunch;
+	readonly writeClipboardText?: (text: string) => Promise<void>;
 }
 
 export function composeDesktopTerminalRuntime(
 	composition: DesktopTerminalRuntimeComposition,
 ): DesktopTerminalRuntime {
 	const store = new FileTerminalBindingStore(composition.configuration.terminalBindingStorePath);
+	const archiveStore = new FileTerminalArchiveStore(
+		composition.configuration.terminalArchiveDirectory,
+	);
 	const registry = new DesktopTerminalBindingRegistry();
 	let identityObservedListener: ((identity: TerminalIdentity) => void) | undefined;
 	let projections: DesktopTerminalProjectionService | undefined;
+	let archiveCapture: TerminalArchiveCaptureService | undefined;
 	const adapter = composeDesktopTerminalLifecycleAdapter({
 		allocateFreshBindingId: () => `binding-${composition.randomIdentifier()}`,
+		beforeDispose: async (presentationId, identity, minimumRevision) => {
+			if (archiveCapture !== undefined) {
+				await archiveCapture.capture(presentationId, identity, minimumRevision);
+			}
+		},
 		host: composition.host,
 		randomCreationId: composition.randomIdentifier,
 		registry,
@@ -110,18 +127,44 @@ export function composeDesktopTerminalRuntime(
 		randomAttachmentId: composition.randomIdentifier,
 	});
 	const projectionService = projections;
+	const archivedProjections = new ArchivedTerminalProjectionService({
+		createMessageChannel: composition.createMessageChannel,
+		randomAttachmentId: composition.randomIdentifier,
+		store: archiveStore,
+		writeClipboardText:
+			composition.writeClipboardText ??
+			(() => Promise.reject(new Error('Desktop clipboard integration is unavailable.'))),
+	});
+	archiveCapture = new TerminalArchiveCaptureService({
+		openCaptureReadOnly: (presentationId, identity) =>
+			projectionService.openCaptureReadOnly(presentationId, identity),
+		store: archiveStore,
+	});
 	return {
 		closeBindingsNotReferencedBy: async (referencedPresentationIds) =>
 			adapter.closeBindingsNotReferencedBy(referencedPresentationIds),
 		dispose: async () => {
 			try {
-				await projectionService.dispose();
+				await archivedProjections.dispose();
 			} finally {
-				adapter.dispose();
+				try {
+					await projectionService.dispose();
+				} finally {
+					adapter.dispose();
+				}
 			}
 		},
-		execute: async (command) => adapter.execute(command),
-		getProjectionMetrics: () => projectionService.getMetrics(),
+		execute: async (command) => {
+			if (command.type === 'terminal-close-requested' && command.disposition === 'remove') {
+				await archiveStore.remove(command.presentationId).catch(() => undefined);
+			}
+			return adapter.execute(command);
+		},
+		findPresentationByIdentity: (identity) => adapter.findPresentationByIdentity(identity),
+		getProjectionMetrics: () => [
+			...projectionService.getMetrics(),
+			...archivedProjections.getMetrics(),
+		],
 		getOwnedBindingCount: () => adapter.bindingCount,
 		getDurableTerminalExit: (presentationId) => adapter.getDurableTerminalExit(presentationId),
 		getTerminalFailure: (presentationId) => adapter.getTerminalFailure(presentationId),
@@ -134,8 +177,28 @@ export function composeDesktopTerminalRuntime(
 			}
 			return (await readTerminalInventory(composition.host)).length;
 		},
-		open: async (presentationId, geometry, options) =>
-			projectionService.open(presentationId, geometry, options),
+		open: async (presentationId, geometry, options) => {
+			try {
+				return await projectionService.open(presentationId, geometry, options);
+			} catch (liveError) {
+				if (
+					options?.brokerEffectTarget === 'client' ||
+					adapter.getProjectionTarget(presentationId) !== null
+				) {
+					throw liveError;
+				}
+				try {
+					const archived = await archivedProjections.open(presentationId);
+					if (archived !== null) return archived;
+				} catch {
+					await archiveStore.remove(presentationId).catch(() => undefined);
+				}
+				throw liveError;
+			}
+		},
+		reconcileArchives: async (retainedPresentationIds) => {
+			await archiveStore.reconcile(retainedPresentationIds).catch(() => undefined);
+		},
 		recordExit: async (event) => adapter.recordExit(event),
 		recordExitOutcome: async (event) => adapter.recordExitOutcome(event),
 		recordFailure: async (event) => adapter.recordFailure(event),

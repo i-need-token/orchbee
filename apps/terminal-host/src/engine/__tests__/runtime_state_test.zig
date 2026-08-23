@@ -1088,6 +1088,41 @@ test "reader alternate-screen batch publishes one coherent projection generation
     try std.testing.expectEqual(alternate_geometry.generation, alternate_summary.generation);
     try std.testing.expectEqual(alternate_geometry.revision, alternate_summary.revision);
 }
+test "terminal metadata events coalesce by revision and replay once per Host connection" {
+    const runtime = try createIdleRuntimeWithGeometry(8, 6, .{});
+    defer runtime.destroy();
+
+    try std.testing.expectEqual(ReaderBatchOutcome.committed, commitReaderBatch(
+        runtime,
+        "\x1b]2;Background agent\x1b\\" ++
+            "\x1b]7;file:///workspace/background-agent\x1b\\",
+    ));
+    const changed_revision = runtime.geometry().revision;
+    var first = (try runtime.prepareMetadataEvent(std.testing.allocator, 41)).?;
+    defer first.deinit();
+    try std.testing.expectEqual(changed_revision, first.revision);
+    try std.testing.expectEqualStrings("Background agent", first.title.?);
+    try std.testing.expectEqualStrings(
+        "file:///workspace/background-agent",
+        first.current_directory.?,
+    );
+    runtime.commitMetadataEvent(first);
+    var duplicate = try runtime.prepareMetadataEvent(std.testing.allocator, 41);
+    defer if (duplicate) |*event| event.deinit();
+    try std.testing.expect(duplicate == null);
+
+    var replay = (try runtime.prepareMetadataEvent(std.testing.allocator, 42)).?;
+    defer replay.deinit();
+    try std.testing.expectEqual(changed_revision, replay.revision);
+    runtime.commitMetadataEvent(replay);
+
+    const reset = try runtime.applyTerminalControl(.reset);
+    var cleared = (try runtime.prepareMetadataEvent(std.testing.allocator, 42)).?;
+    defer cleared.deinit();
+    try std.testing.expectEqual(reset.revision, cleared.revision);
+    try std.testing.expectEqual(@as(?[]const u8, null), cleared.title);
+    try std.testing.expectEqual(@as(?[]const u8, null), cleared.current_directory);
+}
 test "application clear erases and homes the active screen without resetting metadata or modes" {
     const runtime = try createIdleRuntimeWithGeometry(8, 6, .{});
     defer runtime.destroy();

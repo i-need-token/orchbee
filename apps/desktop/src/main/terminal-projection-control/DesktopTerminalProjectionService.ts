@@ -53,6 +53,12 @@ export interface DesktopTerminalProjectionOpenOptions {
 	readonly brokerEffectTarget: ProjectedTerminalBrokerEffectTarget;
 }
 
+interface DesktopTerminalProjectionOpenBehavior {
+	readonly allowRetired: boolean;
+	readonly expectedIdentity?: TerminalIdentity;
+	readonly forceReadOnly: boolean;
+}
+
 export interface DesktopTerminalProjectionServiceDependencies {
 	readonly createBroker: (
 		host: HostConnection,
@@ -126,7 +132,25 @@ export class DesktopTerminalProjectionService {
 			throw projectionError('terminal-projection-retired', false);
 		}
 		return this.#enqueueOperation(presentationId, async () =>
-			this.#openSerialized(presentationId, geometry, options),
+			this.#openSerialized(presentationId, geometry, options, {
+				allowRetired: false,
+				forceReadOnly: false,
+			}),
+		);
+	}
+
+	async openCaptureReadOnly(
+		presentationId: TerminalPresentationId,
+		identity: TerminalIdentity,
+	): Promise<DesktopTerminalProjectionLease> {
+		if (this.#disposed) throw projectionError('terminal-projection-unavailable', true);
+		return this.#enqueueOperation(presentationId, async () =>
+			this.#openSerialized(
+				presentationId,
+				{ cellPixelHeight: 1, cellPixelWidth: 1, columns: 1, rows: 1 },
+				{ brokerEffectTarget: 'desktop' },
+				{ allowRetired: true, expectedIdentity: identity, forceReadOnly: true },
+			),
 		);
 	}
 
@@ -153,20 +177,30 @@ export class DesktopTerminalProjectionService {
 		presentationId: TerminalPresentationId,
 		geometry: TerminalGeometry,
 		options: DesktopTerminalProjectionOpenOptions,
+		behavior: DesktopTerminalProjectionOpenBehavior,
 	): Promise<DesktopTerminalProjectionLease> {
 		if (this.#disposed) throw projectionError('terminal-projection-unavailable', true);
-		if (this.#retiredPresentations.has(presentationId)) {
+		if (!behavior.allowRetired && this.#retiredPresentations.has(presentationId)) {
 			throw projectionError('terminal-projection-retired', false);
 		}
 		await this.#retryPendingDetaches(presentationId);
 		if (this.#disposed) throw projectionError('terminal-projection-unavailable', true);
-		if (this.#retiredPresentations.has(presentationId)) {
+		if (!behavior.allowRetired && this.#retiredPresentations.has(presentationId)) {
 			throw projectionError('terminal-projection-retired', false);
 		}
 		let target = this.#dependencies.getProjectionTarget(presentationId);
 		if (target === null) throw projectionError('terminal-presentation-not-ready', true);
+		if (
+			behavior.expectedIdentity !== undefined &&
+			!identitiesMatch(target.identity, behavior.expectedIdentity)
+		) {
+			throw projectionError('terminal-projection-unavailable', true);
+		}
 		const retirementGeneration = this.#retirementGenerations.get(presentationId) ?? 0;
 		if (target.startRequired) {
+			if (behavior.forceReadOnly) {
+				throw projectionError('terminal-presentation-not-ready', true);
+			}
 			const accepted = await this.#dependencies.host.requestControl(
 				MessageKind.startTerminal,
 				StartTerminalSchema.parse({ geometry, terminalId: target.identity.terminalId }),
@@ -185,8 +219,9 @@ export class DesktopTerminalProjectionService {
 			}
 		}
 		const attachmentId = AttachmentIdSchema.parse(this.#dependencies.randomAttachmentId());
+		const readOnly = behavior.forceReadOnly || target.readOnly;
 		const requestResizeLease =
-			!target.readOnly &&
+			!readOnly &&
 			![...(this.#activeLeases.get(presentationId) ?? [])].some((lease) => lease.ownsResize);
 		this.#provisionalAttachments.set(attachmentId, presentationId);
 		let capabilities: ReturnType<typeof AttachmentCapabilitiesSchema.parse>;
@@ -195,7 +230,7 @@ export class DesktopTerminalProjectionService {
 				MessageKind.attachTerminal,
 				AttachTerminalSchema.parse({
 					attachmentId,
-					capabilities: { input: !target.readOnly, read: true, resize: !target.readOnly },
+					capabilities: { input: !readOnly, read: true, resize: !readOnly },
 					requestResizeLease,
 					terminalId: target.identity.terminalId,
 				}),
@@ -205,7 +240,7 @@ export class DesktopTerminalProjectionService {
 			await this.#detachAttachment(presentationId, attachmentId);
 			throw error;
 		}
-		if (this.#isGenerationStale(presentationId, retirementGeneration)) {
+		if (this.#isGenerationStale(presentationId, retirementGeneration, behavior.allowRetired)) {
 			await this.#detachAttachment(presentationId, attachmentId);
 			throw projectionError('terminal-projection-retired', false);
 		}
@@ -213,8 +248,8 @@ export class DesktopTerminalProjectionService {
 			!capabilitiesMatch(
 				attachmentId,
 				target.identity,
-				!target.readOnly,
-				!target.readOnly,
+				!readOnly,
+				!readOnly,
 				requestResizeLease,
 				capabilities,
 			)
@@ -223,7 +258,10 @@ export class DesktopTerminalProjectionService {
 			throw projectionError('terminal-projection-capability-rejected', false);
 		}
 		const currentTarget = this.#dependencies.getProjectionTarget(presentationId);
-		if (currentTarget === null || this.#isGenerationStale(presentationId, retirementGeneration)) {
+		if (
+			currentTarget === null ||
+			this.#isGenerationStale(presentationId, retirementGeneration, behavior.allowRetired)
+		) {
 			await this.#detachAttachment(presentationId, attachmentId);
 			throw projectionError('terminal-projection-retired', false);
 		}
@@ -317,9 +355,15 @@ export class DesktopTerminalProjectionService {
 					this.#enqueueOperation(presentationId, async () => {
 						if (
 							disposalCompleted ||
-							this.#isGenerationStale(presentationId, retirementGeneration)
+							this.#isGenerationStale(presentationId, retirementGeneration, behavior.allowRetired)
 						) {
 							throw projectionError('terminal-projection-unavailable', true);
+						}
+						if (behavior.forceReadOnly) {
+							if (input) {
+								throw projectionError('terminal-projection-capability-rejected', false);
+							}
+							return;
 						}
 						await createdBroker.setInputCapability(input);
 					}),
@@ -331,7 +375,7 @@ export class DesktopTerminalProjectionService {
 				await activeLease.performDispose();
 				throw projectionError('terminal-projection-cleanup-failed', true);
 			}
-			if (this.#isGenerationStale(presentationId, retirementGeneration)) {
+			if (this.#isGenerationStale(presentationId, retirementGeneration, behavior.allowRetired)) {
 				await activeLease.performDispose();
 				throw projectionError('terminal-projection-retired', false);
 			}
@@ -368,10 +412,14 @@ export class DesktopTerminalProjectionService {
 		}
 	}
 
-	#isGenerationStale(presentationId: TerminalPresentationId, generation: number): boolean {
+	#isGenerationStale(
+		presentationId: TerminalPresentationId,
+		generation: number,
+		allowRetired: boolean,
+	): boolean {
 		return (
 			this.#disposed ||
-			this.#retiredPresentations.has(presentationId) ||
+			(!allowRetired && this.#retiredPresentations.has(presentationId)) ||
 			(this.#retirementGenerations.get(presentationId) ?? 0) !== generation
 		);
 	}

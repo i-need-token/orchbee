@@ -111,11 +111,14 @@ pub fn createWithOptionsUsingSpawner(
     effects.device_attributes = output_ops.deviceAttributesEffect;
     effects.enquiry = output_ops.enquiryEffect;
     effects.size = output_ops.sizeEffect;
+    effects.title_changed = output_ops.metadataChangedEffect;
+    effects.pwd_changed = output_ops.metadataChangedEffect;
     effects.xtversion = output_ops.versionEffect;
     self.stream.handler.column_mode = output_ops.columnModeEffect;
     self.stream.handler.clipboard_contents = feedback_ops.clipboardContentsEffect;
     self.stream.handler.progress_report = feedback_ops.progressReportEffect;
     self.stream.handler.semantic_prompt = feedback_ops.semanticPromptEffect;
+    self.stream.handler.metadata_reset = output_ops.metadataResetEffect;
 
     self.wait_thread = try spawner.spawn(wait_thread_ops.waitThread, self);
     self.reader_thread = try spawner.spawn(output_ops.readerThread, self);

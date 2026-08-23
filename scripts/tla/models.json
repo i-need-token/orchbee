@@ -187,6 +187,38 @@
 			]
 		},
 		{
+			"id": "desktop-terminal-archive",
+			"owner": "@orchbee/desktop",
+			"workspace": "apps/desktop",
+			"module": "apps/desktop/formal/tla/DesktopTerminalArchive.tla",
+			"config": "apps/desktop/formal/tla/DesktopTerminalArchive.cfg",
+			"claims": [
+				"apps/desktop/README.md",
+				"packages/workbench/README.md",
+				"proposals/terminal/projected-terminal-experience-compatibility.md"
+			],
+			"triggers": [
+				"apps/desktop/src/**",
+				"apps/web/src/workbench-client/**",
+				"packages/workbench/src/**"
+			],
+			"requiredCoverage": [
+				"RequestStop",
+				"RequestClose",
+				"HostExit",
+				"BeginCapture",
+				"CaptureSucceeds",
+				"CaptureFails",
+				"RejectCorruptArchive",
+				"EvictArchive",
+				"DisposeHost",
+				"FinishStop",
+				"FinishClose",
+				"StartFresh",
+				"CloseStopped"
+			]
+		},
+		{
 			"id": "desktop-terminal-lifecycle-adapter",
 			"owner": "@orchbee/desktop",
 			"workspace": "apps/desktop",
@@ -207,6 +239,35 @@
 				"CloseCompletes",
 				"CloseFails",
 				"CloseUnbound"
+			]
+		},
+		{
+			"id": "desktop-terminal-metadata-delivery",
+			"owner": "@orchbee/desktop",
+			"workspace": "apps/desktop",
+			"module": "apps/desktop/formal/tla/DesktopTerminalMetadataDelivery.tla",
+			"config": "apps/desktop/formal/tla/DesktopTerminalMetadataDelivery.cfg",
+			"claims": [
+				"apps/desktop/README.md",
+				"packages/workbench-client-protocol/README.md",
+				"proposals/terminal/projected-terminal-experience-compatibility.md"
+			],
+			"triggers": [
+				"apps/desktop/src/**",
+				"apps/terminal-host/src/**",
+				"apps/web/src/workbench-client/**",
+				"packages/terminal-protocol/src/**",
+				"packages/workbench-client-protocol/src/**",
+				"packages/workbench/src/**"
+			],
+			"requiredCoverage": [
+				"HostMetadataChange",
+				"PrepareHostEvent",
+				"CommitHostEvent",
+				"DiscardPreparedEvent",
+				"ClientObserveMetadata",
+				"ObserveStaleFrame",
+				"SetTabVisibility"
 			]
 		},
 		{

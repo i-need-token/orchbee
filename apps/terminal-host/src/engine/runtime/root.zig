@@ -22,6 +22,7 @@ pub const ProjectionBlockedCapture = contracts.ProjectionBlockedCapture;
 pub const ProjectionEncodeOutcome = contracts.ProjectionEncodeOutcome;
 pub const ProjectionEncodeError = contracts.ProjectionEncodeError;
 pub const HistoryDemand = contracts.HistoryDemand;
+pub const MetadataEvent = contracts.MetadataEvent;
 pub const HistoryEvent = contracts.HistoryEvent;
 pub const HistoryReadRequest = contracts.HistoryReadRequest;
 pub const HistoryRows = contracts.HistoryRows;

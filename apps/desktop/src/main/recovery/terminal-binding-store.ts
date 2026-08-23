@@ -33,6 +33,7 @@ const exitedStateSchema = z.strictObject({
 	kind: z.literal('exited'),
 });
 const closingStateSchema = z.strictObject({
+	disposition: z.enum(['remove', 'stop']).default('remove'),
 	identity: TerminalIdentitySchema,
 	kind: z.literal('closing'),
 });

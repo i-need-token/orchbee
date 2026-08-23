@@ -78,12 +78,16 @@ describe('createWorkbenchClientRuntime', () => {
 	it('composes a transport-neutral page runtime without eagerly opening a projection', async () => {
 		const closeSessionTransport = vi.fn<() => void>();
 		const unsubscribeSessionTransport = vi.fn<() => void>();
+		let publishSession: ((value: unknown) => void) | undefined;
 		const sessionTransport: WorkbenchClientSessionTransport = {
 			close: closeSessionTransport,
 			send: () => {
 				throw new Error('An available bootstrap must not propose an initialization document.');
 			},
-			subscribe: () => unsubscribeSessionTransport,
+			subscribe: (listener) => {
+				publishSession = listener;
+				return unsubscribeSessionTransport;
+			},
 		};
 		const session = new WorkbenchClientSessionClient(
 			sessionTransport,
@@ -134,6 +138,7 @@ describe('createWorkbenchClientRuntime', () => {
 		runtime.terminalSurfaceCapability.observeTerminalMetadata(initialPresentationId, {
 			closeActivity: 'idle',
 			currentDirectory: 'file://ORCHBEE-HOST/workspace/My%20Project',
+			revision: 1n,
 			title: 'vim\0',
 		});
 		const terminalContext = runtime.projectWorkspaceRuntime.getActiveTerminalContext();
@@ -145,6 +150,29 @@ describe('createWorkbenchClientRuntime', () => {
 				launchCwd: '/workspace',
 				naturalTitle: 'vim',
 				title: 'Terminal 1',
+			},
+		});
+		publishSession?.({
+			metadata: {
+				currentDirectory: 'file://orchbee-host/workspace/background-agent',
+				identity: {
+					creationId: '11'.repeat(16),
+					hostEpoch: '22'.repeat(16),
+					terminalId: '33'.repeat(16),
+				},
+				presentationId: initialPresentationId,
+				revision: '2',
+				title: 'background agent',
+			},
+			sequence: '1',
+			type: 'terminal-metadata-published',
+		});
+		expect(terminalContext.tabModel.getSnapshot().tabs[0]?.title).toBe('background agent');
+		expect(terminalContext.panelWorkspaceStore.getSnapshot().tabs[0]?.root).toMatchObject({
+			primaryPresentation: {
+				closeActivity: 'idle',
+				currentCwd: '/workspace/background-agent',
+				naturalTitle: 'background agent',
 			},
 		});
 		const startRejected = {

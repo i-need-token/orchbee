@@ -10,7 +10,10 @@ interface TerminalBindingRecoveryPort {
 
 interface TerminalBindingClosePort {
 	recordExit(event: TerminalExited): Promise<TerminalExitDisposition>;
-	requestClose(retireProjection: () => Promise<void>): Promise<TerminalCloseOutcome>;
+	requestClose(
+		retireProjection: () => Promise<void>,
+		disposition?: 'remove' | 'stop',
+	): Promise<TerminalCloseOutcome>;
 }
 
 export type TerminalBindingLifecycleOutcome =
@@ -35,13 +38,19 @@ export class TerminalBindingLifecycle {
 		return this.#enqueue(async () => {
 			const outcome = await this.#recovery.reconcile();
 			if (outcome.kind !== 'closing') return outcome;
-			const closeOutcome = await this.#closing.requestClose(() => Promise.resolve());
+			const closeOutcome = await this.#closing.requestClose(
+				() => Promise.resolve(),
+				outcome.disposition,
+			);
 			return closeOutcomeToLifecycleOutcome(closeOutcome);
 		});
 	}
 
-	requestClose(retireProjection: () => Promise<void>): Promise<TerminalCloseOutcome> {
-		return this.#enqueue(async () => this.#closing.requestClose(retireProjection));
+	requestClose(
+		retireProjection: () => Promise<void>,
+		disposition: 'remove' | 'stop' = 'remove',
+	): Promise<TerminalCloseOutcome> {
+		return this.#enqueue(async () => this.#closing.requestClose(retireProjection, disposition));
 	}
 
 	recordExit(event: TerminalExited): Promise<TerminalExitDisposition> {

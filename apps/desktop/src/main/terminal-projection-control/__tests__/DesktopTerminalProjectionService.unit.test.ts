@@ -221,6 +221,33 @@ describe('DesktopTerminalProjectionService', () => {
 		expect(harness.brokers[0]?.dispose).toHaveBeenCalledOnce();
 	});
 
+	it('opens one post-retirement capture lease with permanently read-only Host capabilities', async () => {
+		const harness = createHarness();
+		const presentation = terminalPresentationId('presentation-archive-capture');
+		const identity = {
+			creationId: CreationIdSchema.parse('22'.repeat(16)),
+			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
+			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
+		};
+		await harness.service.retirePresentation(presentation);
+
+		const lease = await harness.service.openCaptureReadOnly(presentation, identity);
+		expect(lease.bootstrap).toMatchObject({ canInput: false, canResize: false });
+		expect(harness.requestControl).toHaveBeenCalledWith(
+			MessageKind.attachTerminal,
+			expect.objectContaining({
+				capabilities: { input: false, read: true, resize: false },
+				requestResizeLease: false,
+			}),
+			expect.anything(),
+		);
+		await expect(lease.setInputCapability(true)).rejects.toMatchObject({
+			failure: { code: 'terminal-projection-capability-rejected', retryable: false },
+		});
+		expect(harness.brokers[0]?.setInputCapability).not.toHaveBeenCalled();
+		await lease.dispose();
+	});
+
 	it('starts a pending terminal with exact mounted geometry before attaching it once', async () => {
 		const harness = createHarness(false, true);
 		const presentation = terminalPresentationId('presentation-awaiting-start');

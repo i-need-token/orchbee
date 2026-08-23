@@ -8,6 +8,7 @@ import {
 	terminalPresentationId,
 	terminalPresentationOperationId,
 } from '@orchbee/workbench/terminal-presentation';
+import { WorkbenchTerminalMetadataSchema } from '@orchbee/workbench-client-protocol';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { WorkbenchDocumentStore } from '../../workbench-document';
@@ -118,6 +119,29 @@ describe('DesktopClientSessionCoordinator', () => {
 		expect(reconcileDocument).not.toHaveBeenCalled();
 	});
 
+	it('reconciles local archive ownership on load and every committed document replacement', async () => {
+		const current = document('3', 'Stopped', { intent: { kind: 'stopped' } });
+		const candidate = document('4', 'Fresh', {
+			intent: {
+				kind: 'provision',
+				operationId: terminalPresentationOperationId('fresh-operation'),
+			},
+			presentationId: 'presentation-fresh',
+		});
+		const store = storeWith({ document: current, kind: 'available' });
+		store.commit.mockResolvedValue({ kind: 'committed', revision: candidate.revision });
+		const reconcileTerminalArchives = vi
+			.fn<NonNullable<DesktopClientSessionCoordinatorConstructor['reconcileTerminalArchives']>>()
+			.mockResolvedValue();
+		const coordinator = coordinatorWith(store, { reconcileTerminalArchives });
+
+		await coordinator.start();
+		const client = register(coordinator, publisher());
+		await client.propose('replace-stopped', current.revision, candidate);
+
+		expect(reconcileTerminalArchives.mock.calls).toEqual([[current], [candidate]]);
+	});
+
 	it('does not replay a terminal event live after it was included in bootstrap', async () => {
 		const terminalEvent = {
 			exitCode: 0,
@@ -139,6 +163,49 @@ describe('DesktopClientSessionCoordinator', () => {
 		expect(coordinator.publishTerminalEvent(laterEvent)).toBe(true);
 		expect(publications).toMatchObject([
 			{ event: laterEvent, sequence: '1', type: 'terminal-presentation-event-published' },
+		]);
+	});
+
+	it('bootstraps the latest terminal metadata and publishes only current revisions', async () => {
+		const coordinator = coordinatorWith(storeWith({ kind: 'missing' }));
+		await coordinator.start();
+		const first = WorkbenchTerminalMetadataSchema.parse({
+			currentDirectory: 'file://orchbee-host/workspace',
+			identity: {
+				creationId: '11'.repeat(16),
+				hostEpoch: '22'.repeat(16),
+				terminalId: '33'.repeat(16),
+			},
+			presentationId: 'presentation-1',
+			revision: '7',
+			title: 'first title',
+		});
+
+		expect(coordinator.publishTerminalMetadata(first)).toBe(true);
+		const publications: DesktopClientSessionPublication[] = [];
+		const session = register(coordinator, publisher(publications));
+		expect(session.bootstrap.terminalMetadata).toEqual([first]);
+		expect(publications).toEqual([]);
+
+		expect(
+			coordinator.publishTerminalMetadata(
+				WorkbenchTerminalMetadataSchema.parse({
+					...first,
+					revision: '6',
+					title: 'stale title',
+				}),
+			),
+		).toBe(true);
+		expect(publications).toEqual([]);
+
+		const current = WorkbenchTerminalMetadataSchema.parse({
+			...first,
+			revision: '8',
+			title: 'current title',
+		});
+		expect(coordinator.publishTerminalMetadata(current)).toBe(true);
+		expect(publications).toMatchObject([
+			{ metadata: current, sequence: '2', type: 'terminal-metadata-published' },
 		]);
 	});
 
@@ -349,6 +416,9 @@ function coordinatorWith(
 	store: WorkbenchDocumentStore,
 	overrides: Partial<{
 		readonly reconcileDocument: DesktopClientSessionCoordinatorConstructor['reconcileDocument'];
+		readonly reconcileTerminalArchives: NonNullable<
+			DesktopClientSessionCoordinatorConstructor['reconcileTerminalArchives']
+		>;
 		readonly getTerminalEvents: DesktopClientSessionCoordinatorConstructor['getTerminalEvents'];
 	}> = {},
 ): DesktopClientSessionCoordinator {
@@ -360,6 +430,9 @@ function coordinatorWith(
 		initialPresentationId: terminalPresentationId('presentation-initial'),
 		initializationDocument: document('0', 'Initial'),
 		reconcileDocument: overrides.reconcileDocument ?? (async () => undefined),
+		...(overrides.reconcileTerminalArchives === undefined
+			? {}
+			: { reconcileTerminalArchives: overrides.reconcileTerminalArchives }),
 		store,
 		terminalHostName: 'orchbee-host',
 		validateDocument: () => true,

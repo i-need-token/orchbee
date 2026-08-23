@@ -12,10 +12,12 @@ import {
 	TerminalFrameKind,
 	UnderlineKind,
 } from '../frame';
+import { AttachmentIdSchema } from '../identifiers';
 import {
 	decodeTerminalProjectionBuffer,
 	encodeTerminalProjectionBuffer,
 	encodeTerminalProjectionBufferWithin,
+	materializeTerminalProjectionFrame,
 	TerminalProjectionSection,
 	viewTerminalProjectionBuffer,
 } from '../projection-buffer';
@@ -141,6 +143,56 @@ function sectionLength(bytes: Uint8Array, section: number): number {
 }
 
 describe('terminal projection buffer', () => {
+	it('materializes a rebased archive snapshot across contiguous packed sources', () => {
+		const archiveAttachmentId = AttachmentIdSchema.parse('33'.repeat(16));
+		const historyBytes = encodeTerminalProjectionBuffer({
+			...frame,
+			cursor: { ...frame.cursor, visible: false },
+			rowData: [
+				{
+					...frame.rowData[0],
+					cells: [{ ...frame.rowData[0].cells[0], grapheme: 'old' }],
+				},
+			],
+			scrollbackRows: 5n,
+		});
+		const viewportBytes = encodeTerminalProjectionBuffer({
+			...frame,
+			rowData: [
+				{
+					...frame.rowData[0],
+					cells: [{ ...frame.rowData[0].cells[0], grapheme: 'new' }],
+				},
+			],
+			scrollbackRows: 6n,
+		});
+		if (!historyBytes.ok || !viewportBytes.ok) throw new Error('Archive fixture failed to encode');
+		const history = decodeTerminalProjectionBuffer(historyBytes.value);
+		const viewport = decodeTerminalProjectionBuffer(viewportBytes.value);
+		if (!history.ok || !viewport.ok) throw new Error('Archive fixture failed to decode');
+
+		const materialized = materializeTerminalProjectionFrame(
+			viewport.value,
+			[history.value, viewport.value],
+			{
+				attachmentId: archiveAttachmentId,
+				revealCursor: true,
+				rowCount: 2,
+				scrollbackRows: 0n,
+				sequence: 7n,
+				sourceStartRow: 5n,
+			},
+		);
+		if (!materialized.ok) throw new Error(materialized.detail);
+
+		expect(materialized.value.attachmentId).toBe(archiveAttachmentId);
+		expect(materialized.value.rowData.map((row) => row.cells[0]?.grapheme)).toEqual(['old', 'new']);
+		expect(materialized.value.cursor).toMatchObject({ row: 1, visible: true });
+		expect(materialized.value.scrollbackRows).toBe(0n);
+		expect(materialized.value.sequence).toBe(7n);
+		expect(materialized.value.extensions).toEqual([]);
+	});
+
 	it('round-trips a metadata-only delta with no dirty rows', () => {
 		const encoded = encodeTerminalProjectionBuffer({
 			...frame,

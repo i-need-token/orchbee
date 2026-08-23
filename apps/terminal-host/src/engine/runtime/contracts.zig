@@ -120,6 +120,20 @@ pub const DeviceAttributes = terminal_profile.DeviceAttributes;
 pub const TerminalProgress = protocol.TerminalProgress;
 pub const TerminalCommandCompletion = protocol.TerminalCommandCompletion;
 
+pub const MetadataEvent = struct {
+    allocator: std.mem.Allocator,
+    connection_id: u64,
+    current_directory: ?[]u8,
+    revision: u64,
+    title: ?[]u8,
+
+    pub fn deinit(self: *@This()) void {
+        if (self.current_directory) |value| self.allocator.free(value);
+        if (self.title) |value| self.allocator.free(value);
+        self.* = undefined;
+    }
+};
+
 pub const ClipboardWriteRequest = struct {
     sequence: u64,
     text: []u8,

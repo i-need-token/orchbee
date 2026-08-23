@@ -11,10 +11,13 @@ import {
 	terminalPresentationOperationId,
 	terminalPresentationRemovalId,
 	resolveTerminalMetadataObservation,
+	resolveTerminalNaturalMetadataObservation,
 	WorkbenchProjectWorkspaceRuntime,
+	type TerminalPresentationId,
 	type WorkbenchTerminalPresentationComposition,
 	type WorkbenchShortcutPlatform,
 } from '@orchbee/workbench';
+import { workbenchSharedDocumentRevision } from '@orchbee/workbench/document';
 
 import { createBrowserRandomIdentifier } from '../../browser-random-identifier';
 import type { WorkbenchClientSessionClient } from '../client-session';
@@ -33,6 +36,13 @@ import {
 	DEFAULT_TERMINAL_INPUT_CONFIGURATION_SOURCE,
 	type TerminalInputConfigurationSource,
 } from '../../terminal-input-configuration';
+import {
+	createFocusRecoveredWorkbenchClientView,
+	readWorkbenchFocusRecovery,
+	resolveFocusedWorkbenchPresentationId,
+	writeWorkbenchFocusRecovery,
+	type WorkbenchFocusRecoveryStorage,
+} from './workbench-focus-recovery-storage';
 
 export interface WorkbenchClientRuntime {
 	readonly actionRuntime: ActionRuntime;
@@ -49,6 +59,7 @@ export interface WorkbenchClientRuntime {
 export interface CreateWorkbenchClientRuntimeOptions {
 	readonly clientSession: WorkbenchClientSessionClient;
 	readonly documentElement: Pick<HTMLElement, 'dir' | 'lang'>;
+	readonly focusRecoveryStorage?: WorkbenchFocusRecoveryStorage;
 	readonly preferredLocales: readonly string[];
 	readonly projectionClient: TerminalProjectionClient;
 	readonly shortcutBindingSource?: ProjectedTerminalShortcutBindingSource;
@@ -63,6 +74,7 @@ export interface CreateWorkbenchClientRuntimeOptions {
 export function createWorkbenchClientRuntime({
 	clientSession,
 	documentElement,
+	focusRecoveryStorage,
 	preferredLocales,
 	projectionClient,
 	shortcutBindingSource,
@@ -78,6 +90,17 @@ export function createWorkbenchClientRuntime({
 	const intl = createOrchbeeIntl(locale);
 	documentElement.lang = locale;
 	documentElement.dir = getOrchbeeTextDirection(locale);
+	const initialDocument =
+		bootstrap.documentState.kind === 'available'
+			? bootstrap.documentState.document
+			: bootstrap.initializationDocument;
+	const initialClientView =
+		focusRecoveryStorage === undefined
+			? undefined
+			: createFocusRecoveredWorkbenchClientView(
+					initialDocument,
+					readWorkbenchFocusRecovery(focusRecoveryStorage),
+				);
 	const actionRuntime = new ActionRuntime();
 	const terminalPresentation: WorkbenchTerminalPresentationComposition = {
 		createOperationId: () =>
@@ -91,18 +114,81 @@ export function createWorkbenchClientRuntime({
 		kind: 'managed',
 	};
 	const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
-		initialDocument:
-			bootstrap.documentState.kind === 'available'
-				? bootstrap.documentState.document
-				: bootstrap.initializationDocument,
+		initialClientView,
+		initialDocument,
 		standaloneCwd: bootstrap.defaultCwd,
 		standaloneTerminalTitle: intl.formatMessage(workbenchTabMessages.terminalTitle, { number: 1 }),
 		terminalPresentation,
 	});
+	const persistFocusRecovery = (): void => {
+		if (focusRecoveryStorage === undefined) return;
+		writeWorkbenchFocusRecovery(
+			focusRecoveryStorage,
+			resolveFocusedWorkbenchPresentationId(
+				projectWorkspaceRuntime.getSharedDocument(workbenchSharedDocumentRevision('0')),
+				projectWorkspaceRuntime.getClientView(),
+			),
+		);
+	};
+	const stopFocusRecoveryDocumentObservation =
+		focusRecoveryStorage === undefined
+			? undefined
+			: projectWorkspaceRuntime.subscribeDocument(persistFocusRecovery);
+	const stopFocusRecoveryViewObservation =
+		focusRecoveryStorage === undefined
+			? undefined
+			: projectWorkspaceRuntime.subscribeClientView(persistFocusRecovery);
 	const documentCoordinator = new WorkbenchDocumentCoordinator(
 		projectWorkspaceRuntime,
 		clientSession,
 	);
+	const latestTerminalMetadataRevisions = new Map<
+		TerminalPresentationId,
+		{ readonly identityKey?: string; readonly revision: bigint }
+	>();
+	const acceptsTerminalMetadataRevision = (
+		presentationId: TerminalPresentationId,
+		revision: bigint,
+		identityKey?: string,
+	): boolean => {
+		const previous = latestTerminalMetadataRevisions.get(presentationId);
+		if (
+			previous !== undefined &&
+			(identityKey === undefined || previous.identityKey === identityKey) &&
+			previous.revision > revision
+		) {
+			return false;
+		}
+		const retainedIdentityKey = identityKey ?? previous?.identityKey;
+		latestTerminalMetadataRevisions.set(presentationId, {
+			...(retainedIdentityKey === undefined ? {} : { identityKey: retainedIdentityKey }),
+			revision,
+		});
+		return true;
+	};
+	const applyPublishedTerminalMetadata = (
+		metadata: (typeof bootstrap.terminalMetadata)[number],
+	): void => {
+		const revision = BigInt(metadata.revision);
+		if (
+			!acceptsTerminalMetadataRevision(
+				metadata.presentationId,
+				revision,
+				terminalIdentityKey(metadata.identity),
+			)
+		) {
+			return;
+		}
+		projectWorkspaceRuntime.applyTerminalNaturalMetadataObservation(
+			metadata.presentationId,
+			resolveTerminalNaturalMetadataObservation(metadata, bootstrap.terminalHostName),
+		);
+	};
+	for (const metadata of bootstrap.terminalMetadata) applyPublishedTerminalMetadata(metadata);
+	const stopTerminalMetadataPublicationObservation = clientSession.subscribe((publication) => {
+		if (publication.type !== 'terminal-metadata-published') return;
+		applyPublishedTerminalMetadata(publication.metadata);
+	});
 	let disposed = false;
 	const terminalSurfaceCapability: ProjectedTerminalSurfaceCapability = {
 		documentElement,
@@ -118,17 +204,25 @@ export function createWorkbenchClientRuntime({
 		...(shortcutBindingSource === undefined ? {} : { shortcutBindingSource }),
 		shortcutPlatform,
 		observeTerminalMetadata: (presentationId, metadata) => {
+			if (!acceptsTerminalMetadataRevision(presentationId, metadata.revision)) return;
 			projectWorkspaceRuntime.applyTerminalMetadataObservation(
 				presentationId,
 				resolveTerminalMetadataObservation(metadata, bootstrap.terminalHostName),
 			);
 		},
-		startStoppedTerminalSession: (presentationId) =>
-			projectWorkspaceRuntime.startStoppedTerminalSession(presentationId),
+		startStoppedTerminalSession: (presentationId) => {
+			const result = projectWorkspaceRuntime.startStoppedTerminalSession(presentationId);
+			if (result.kind !== 'rejected') latestTerminalMetadataRevisions.delete(presentationId);
+			return result;
+		},
 	};
 	const dispose = (): void => {
 		if (disposed) return;
 		disposed = true;
+		stopFocusRecoveryDocumentObservation?.();
+		stopFocusRecoveryViewObservation?.();
+		stopTerminalMetadataPublicationObservation();
+		latestTerminalMetadataRevisions.clear();
 		actionRuntime.dispose();
 		documentCoordinator.dispose();
 		clientSession.dispose();
@@ -150,4 +244,12 @@ export function createWorkbenchClientRuntime({
 		ready,
 		terminalSurfaceCapability,
 	};
+}
+
+function terminalIdentityKey(identity: {
+	readonly creationId: string;
+	readonly hostEpoch: string;
+	readonly terminalId: string;
+}): string {
+	return `${identity.hostEpoch}:${identity.terminalId}:${identity.creationId}`;
 }

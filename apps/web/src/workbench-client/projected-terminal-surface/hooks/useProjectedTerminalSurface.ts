@@ -74,7 +74,9 @@ export function useProjectedTerminalSurface(
 	const projectable =
 		presentation.lifecycle.kind === 'running' ||
 		presentation.lifecycle.kind === 'exited' ||
-		presentation.lifecycle.kind === 'failed';
+		presentation.lifecycle.kind === 'failed' ||
+		presentation.lifecycle.kind === 'stopped';
+	const stopped = presentation.lifecycle.kind === 'stopped';
 	const currentRecovery =
 		presentationRecovery?.presentationId === presentation.presentationId
 			? presentationRecovery.state
@@ -276,9 +278,9 @@ export function useProjectedTerminalSurface(
 	if (currentRecovery?.kind === 'recovering') projectionState = 'recovering';
 	if (currentRecovery?.kind === 'failed') projectionState = 'failed';
 	let failureMessage: string | null = null;
-	if (currentRecovery?.kind === 'recovering') {
+	if (!stopped && currentRecovery?.kind === 'recovering') {
 		failureMessage = intl.formatMessage(projectedTerminalMessages.connectionRecovering);
-	} else if (currentRecovery?.kind === 'failed') {
+	} else if (!stopped && currentRecovery?.kind === 'failed') {
 		failureMessage = intl.formatMessage(projectedTerminalMessages.connectionRecoveryFailed);
 	} else if (startFailurePresentationId === presentation.presentationId) {
 		failureMessage = intl.formatMessage(projectedTerminalMessages.sessionStartFailed);
@@ -324,14 +326,14 @@ export function useProjectedTerminalSurface(
 		handleFileDrop,
 		pasteReview,
 		projectionState,
-		recoveryAvailable: currentRecovery?.kind === 'failed',
+		recoveryAvailable: !stopped && currentRecovery?.kind === 'failed',
 		retryProjection: () => {
 			if (recoveryController.current?.presentationId === presentation.presentationId) {
 				recoveryController.current.controller.retry();
 			}
 		},
 		root,
-		stopped: presentation.lifecycle.kind === 'stopped',
+		stopped,
 		startNewSession,
 	};
 }

@@ -29,13 +29,22 @@ if (runtimeMode === 'browser') {
 	);
 	window.addEventListener('unload', () => session.dispose(), { once: true });
 } else if (runtimeMode === 'desktop') {
+	let focusRecoveryStorage: Pick<Storage, 'getItem' | 'removeItem' | 'setItem'> | undefined;
+	try {
+		focusRecoveryStorage = window.sessionStorage;
+	} catch {
+		focusRecoveryStorage = undefined;
+	}
 	startDesktopWebApplication(
 		window,
 		rootElement,
 		document.documentElement,
 		navigator.languages,
 		shortcutPlatform,
-		window.localStorage,
+		{
+			...(focusRecoveryStorage === undefined ? {} : { focusRecovery: focusRecoveryStorage }),
+			preferences: window.localStorage,
+		},
 	);
 } else if (runtimeMode === 'gateway') {
 	const connection = decodeGatewayBrowserFragment(window.location.hash);

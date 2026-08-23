@@ -47,6 +47,11 @@ and a completed application stop to `stopped`. Hydration reconstructs pending li
 dispatches no process command. Explicit reconciliation later replays provision, close, and stop and
 uses restore-only for `retain`.
 
+The effect command makes destructive disposition explicit: `terminal-close-requested` carries
+`remove` for ordinary close and structural removal, or `stop` for application stop and its durable
+retry. This command-only distinction lets the application archive a stopped terminal without
+changing the five shared intent forms or treating ordinary close as retained product history.
+
 Each shared Tab stores a durable fallback `title` and nullable durable `customTitle`. The fallback
 is the stable launch/product label; a custom title is the explicit user override. Host-derived
 natural terminal titles and current CWD are transient runtime observations and never enter the
@@ -94,10 +99,13 @@ The runtime returns `unchanged` when only the supplied revision differs because 
 belongs to the application coordinator.
 
 Client View is in-memory for this foundation. Closing a page destroys it; a new page receives the
-deterministic default. It is not written to browser key-value storage because its reference sets
-have no product count ceiling and ordinary same-origin `localStorage` would accidentally couple
-independent Browser pages. Cross-restart Client View recovery requires a separate accepted owner
-and contract.
+deterministic default unless its application supplies a separately owned candidate for
+reconciliation. The Client View itself is not written to browser key-value storage because its
+reference sets have no product count ceiling and ordinary same-origin `localStorage` would
+accidentally couple independent Browser pages. The current Desktop Web composition stores only one
+bounded, session-scoped focused `TerminalPresentationId` hint and projects it into an otherwise
+default candidate; it does not serialize the Client View. Full or cross-restart Client View
+recovery requires a separate accepted owner and contract.
 
 ## Invariants
 

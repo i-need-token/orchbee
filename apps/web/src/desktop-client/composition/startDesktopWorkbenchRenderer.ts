@@ -39,12 +39,17 @@ export interface DesktopWorkbenchRendererSession {
 	>;
 }
 
+export interface DesktopWorkbenchRendererStorage {
+	readonly focusRecovery?: Pick<Storage, 'getItem' | 'removeItem' | 'setItem'> | undefined;
+	readonly preferences: Pick<Storage, 'getItem' | 'setItem'>;
+}
+
 export function startDesktopWorkbenchRenderer(
 	rootElement: Element | null,
 	documentElement: Pick<HTMLElement, 'dataset' | 'dir' | 'lang'>,
 	preferredLocales: readonly string[],
 	shortcutPlatform: WorkbenchShortcutPlatform,
-	storage: Pick<Storage, 'getItem' | 'setItem'>,
+	storage: DesktopWorkbenchRendererStorage,
 	bootstrap: WorkbenchClientSessionBootstrap,
 	lifetimePort: MessagePort,
 	clientSessionPort: MessagePort,
@@ -71,12 +76,14 @@ export function startDesktopWorkbenchRenderer(
 	);
 	const keyboardShortcutSettingsController = new KeyboardShortcutSettingsController({
 		platform: shortcutPlatform,
-		storage,
+		storage: storage.preferences,
 	});
 	const macosTerminalInputSettingsController =
-		shortcutPlatform === 'apple' ? new MacosTerminalInputSettingsController(storage) : undefined;
+		shortcutPlatform === 'apple'
+			? new MacosTerminalInputSettingsController(storage.preferences)
+			: undefined;
 	const terminalSettingsController = new TerminalSettingsController({
-		storage,
+		storage: storage.preferences,
 		themeTarget: documentElement,
 	});
 	const terminalFeedbackSettingsController = new TerminalFeedbackSettingsController({
@@ -84,11 +91,12 @@ export function startDesktopWorkbenchRenderer(
 			applicationRoot.ownerDocument.defaultView === null
 				? UNSUPPORTED_TERMINAL_NOTIFICATION_CAPABILITY
 				: createBrowserTerminalNotificationCapability(applicationRoot.ownerDocument.defaultView),
-		storage,
+		storage: storage.preferences,
 	});
 	const runtime = createWorkbenchClientRuntime({
 		clientSession,
 		documentElement,
+		...(storage.focusRecovery === undefined ? {} : { focusRecoveryStorage: storage.focusRecovery }),
 		preferredLocales,
 		projectionClient,
 		shortcutBindingSource: keyboardShortcutSettingsController,
@@ -157,7 +165,7 @@ export function startDesktopWorkbenchRenderer(
 		const nextRouting = createWebApplicationRouting({
 			actionRuntime: workbenchClientRuntime.actionRuntime,
 			keyboardShortcutSettingsController,
-			layoutStorage: storage,
+			layoutStorage: storage.preferences,
 			macosTerminalInputSettingsController,
 			projectWorkspaceRuntime: workbenchClientRuntime.projectWorkspaceRuntime,
 			projectFolderAcquisition: projectFolderAcquisitionClient,

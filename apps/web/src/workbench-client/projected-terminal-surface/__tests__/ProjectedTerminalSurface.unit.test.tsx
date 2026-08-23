@@ -64,4 +64,46 @@ describe('ProjectedTerminalSurface', () => {
 			expect.objectContaining({ autoFocus: true }),
 		);
 	});
+
+	it('keeps the archived terminal surface visible behind a stopped-session action bar', () => {
+		vi.mocked(useProjectedTerminalSurface).mockReturnValue({
+			approvePaste: () => undefined,
+			cancelPaste: () => undefined,
+			failureMessage: null,
+			handleFileDragOver: () => undefined,
+			handleFileDrop: () => undefined,
+			pasteReview: null,
+			projectionState: 'requested',
+			recoveryAvailable: false,
+			retryProjection: () => undefined,
+			root: { current: null },
+			stopped: true,
+			startNewSession: () => undefined,
+		});
+		const actionRuntime = new ActionRuntime();
+		const stoppedPresentation: WorkbenchTerminalPresentation = {
+			...presentation,
+			lifecycle: { kind: 'stopped' },
+		};
+
+		const markup = renderToStaticMarkup(
+			createElement(
+				OrchbeeI18nProvider,
+				{ locale: 'en-US' },
+				createElement(ProjectedTerminalSurface, {
+					actionRuntime,
+					actionScope: actionRuntime.createScope('test.stopped-terminal'),
+					admitBellEffect: () => true,
+					autoFocus: false,
+					bindActionContextProvider: () => ({ dispose: () => undefined }),
+					presentation: stoppedPresentation,
+				}),
+			),
+		);
+
+		expect(markup).toContain('data-slot="projected-terminal-stopped"');
+		expect(markup).toContain('Terminal session stopped');
+		expect(markup).toContain('Start New Session');
+		expect(markup).not.toContain('data-projected-terminal-status="true"');
+	});
 });

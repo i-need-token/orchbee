@@ -70,6 +70,7 @@ export {
 	TerminalControlOperationSchema,
 	TerminalDefaultsAcceptedSchema,
 	TerminalLaunchSchema,
+	TerminalMetadataChangedSchema,
 	TerminalProfileSchema,
 	TerminalListSchema,
 	TerminalStartedSchema,
@@ -148,6 +149,7 @@ export type {
 	TerminalControlOperation,
 	TerminalDefaultsAccepted,
 	TerminalLaunch,
+	TerminalMetadataChanged,
 	TerminalProfile,
 	TerminalList,
 	TerminalStarted,
@@ -381,6 +383,7 @@ export type {
 export {
 	decodeTerminalProjectionBuffer,
 	encodeTerminalProjectionBuffer,
+	materializeTerminalProjectionFrame,
 	TerminalProjectionSection,
 	TERMINAL_PROJECTION_BUFFER_FORMAT,
 	TERMINAL_PROJECTION_BUFFER_HEADER_BYTES,
@@ -391,6 +394,7 @@ export type {
 	DecodedTerminalProjectionBuffer,
 	DecodedTerminalProjectionCells,
 	DecodedTerminalProjectionRows,
+	TerminalProjectionFrameMaterialization,
 } from './projection-buffer';
 export {
 	CURRENT_PROTOCOL_VERSION,

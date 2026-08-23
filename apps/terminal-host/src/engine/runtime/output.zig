@@ -11,6 +11,7 @@ const input_admission_ops = @import("input_admission.zig");
 const input_commit_ops = @import("input_commit.zig");
 const process_io_ops = @import("process_io.zig");
 const resize_ops = @import("resize.zig");
+const metadata_ops = @import("metadata.zig");
 
 pub fn writePtyEffect(handler: *ghostty_vt.TerminalStream.Handler, bytes: [:0]const u8) void {
     const self = runtimeFromHandler(handler);
@@ -35,6 +36,14 @@ pub fn bellEffect(handler: *ghostty_vt.TerminalStream.Handler) void {
         return;
     }
     self.bell_sequence += 1;
+}
+
+pub fn metadataChangedEffect(handler: *ghostty_vt.TerminalStream.Handler) void {
+    metadata_ops.markChangedLocked(runtimeFromHandler(handler));
+}
+
+pub fn metadataResetEffect(handler: *terminal_stream.Handler) void {
+    metadata_ops.markChangedLocked(runtimeFromHostHandler(handler));
 }
 
 pub fn colorSchemeEffect(
@@ -245,6 +254,7 @@ fn commitObservedReaderBatch(
     if (screen_changed or geometry_changed) self.generation += 1;
     const revision = current_revision + 1;
     self.revision.store(revision, .release);
+    metadata_ops.commitRevisionLocked(self, revision);
     if (screen_changed) {
         self.history.screenChanged(&self.terminal);
     } else if (geometry_changed) {

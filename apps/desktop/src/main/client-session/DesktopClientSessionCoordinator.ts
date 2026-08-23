@@ -6,6 +6,7 @@ import type {
 	WorkbenchSharedDocument,
 	WorkbenchSharedDocumentRevision,
 } from '@orchbee/workbench/document';
+import type { WorkbenchTerminalMetadata } from '@orchbee/workbench-client-protocol';
 
 import type { WorkbenchDocumentStore } from '../workbench-document';
 import {
@@ -24,6 +25,11 @@ export type DesktopClientSessionPublication =
 			readonly event: TerminalPresentationEvent;
 			readonly sequence: string;
 			readonly type: 'terminal-presentation-event-published';
+	  }
+	| {
+			readonly metadata: WorkbenchTerminalMetadata;
+			readonly sequence: string;
+			readonly type: 'terminal-metadata-published';
 	  }
 	| {
 			readonly reason: 'invalid' | 'read-failed' | 'write-failed';
@@ -60,6 +66,7 @@ type DesktopClientSessionBootstrap =
 			readonly kind: 'available';
 			readonly sequence: string;
 			readonly terminalHostName: string;
+			readonly terminalMetadata: readonly WorkbenchTerminalMetadata[];
 			readonly terminalEvents: readonly TerminalPresentationEvent[];
 	  }
 	| {
@@ -69,6 +76,7 @@ type DesktopClientSessionBootstrap =
 			readonly kind: 'missing';
 			readonly sequence: string;
 			readonly terminalHostName: string;
+			readonly terminalMetadata: readonly WorkbenchTerminalMetadata[];
 			readonly terminalEvents: readonly TerminalPresentationEvent[];
 	  };
 
@@ -98,6 +106,7 @@ export interface DesktopClientSessionCoordinatorDependencies {
 		document: WorkbenchSharedDocument,
 		publish: (event: TerminalPresentationEvent) => void,
 	) => Promise<void>;
+	readonly reconcileTerminalArchives?: (document: WorkbenchSharedDocument | null) => Promise<void>;
 	readonly store: WorkbenchDocumentStore;
 	readonly terminalHostName: string;
 	readonly validateDocument: (document: WorkbenchSharedDocument) => boolean;
@@ -128,6 +137,10 @@ export class DesktopClientSessionCoordinator {
 	#proposalTail = Promise.resolve();
 	#sequence = 0n;
 	readonly #sessions = new Map<string, ClientSessionRecord>();
+	readonly #terminalMetadataByPresentation = new Map<
+		TerminalPresentationId,
+		WorkbenchTerminalMetadata
+	>();
 	readonly #retiringSessions = new Map<string, ClientSessionRecord>();
 	readonly #pendingTerminalExitPublications = new Map<
 		string,
@@ -178,10 +191,15 @@ export class DesktopClientSessionCoordinator {
 				this.#startResult = { kind: 'unavailable', reason: 'invalid' };
 				return this.#startResult;
 			}
+			await this.#dependencies
+				.reconcileTerminalArchives?.(this.#canonicalDocument)
+				.catch(() => undefined);
 			await this.#dependencies.reconcileDocument(
 				this.#canonicalDocument,
 				this.publishTerminalEvent,
 			);
+		} else {
+			await this.#dependencies.reconcileTerminalArchives?.(null).catch(() => undefined);
 		}
 		this.#startResult = { kind: 'ready' };
 		return this.#startResult;
@@ -226,6 +244,7 @@ export class DesktopClientSessionCoordinator {
 						kind: 'missing',
 						sequence: this.#sequence.toString(),
 						terminalHostName: this.#dependencies.terminalHostName,
+						terminalMetadata: [...this.#terminalMetadataByPresentation.values()],
 						terminalEvents,
 					}
 				: {
@@ -236,6 +255,7 @@ export class DesktopClientSessionCoordinator {
 						kind: 'available',
 						sequence: this.#sequence.toString(),
 						terminalHostName: this.#dependencies.terminalHostName,
+						terminalMetadata: [...this.#terminalMetadataByPresentation.values()],
 						terminalEvents,
 					};
 		return {
@@ -302,6 +322,24 @@ export class DesktopClientSessionCoordinator {
 		const published = this.#broadcastTerminalExit(publication, key);
 		if (published) this.#pendingTerminalExitPublications.delete(key);
 		return published;
+	};
+
+	readonly publishTerminalMetadata = (metadata: WorkbenchTerminalMetadata): boolean => {
+		const existing = this.#terminalMetadataByPresentation.get(metadata.presentationId);
+		if (
+			existing !== undefined &&
+			sameTerminalIdentity(existing.identity, metadata.identity) &&
+			BigInt(existing.revision) > BigInt(metadata.revision)
+		) {
+			return true;
+		}
+		this.#terminalMetadataByPresentation.delete(metadata.presentationId);
+		this.#terminalMetadataByPresentation.set(metadata.presentationId, metadata);
+		return this.#broadcast({
+			metadata,
+			sequence: this.#nextSequence(),
+			type: 'terminal-metadata-published',
+		});
 	};
 
 	#allocateClientSessionId(): string {
@@ -392,6 +430,7 @@ export class DesktopClientSessionCoordinator {
 		}
 		if (committed.revision !== document.revision) return this.#becomeUnavailable('write-failed');
 		this.#canonicalDocument = document;
+		await this.#dependencies.reconcileTerminalArchives?.(document).catch(() => undefined);
 		this.#broadcast({
 			document,
 			sequence: this.#nextSequence(),
@@ -508,6 +547,17 @@ function terminalExitEventKey(
 	event: Extract<TerminalPresentationEvent, { readonly type: 'terminal-exited' }>,
 ): string {
 	return JSON.stringify(event);
+}
+
+function sameTerminalIdentity(
+	left: WorkbenchTerminalMetadata['identity'],
+	right: WorkbenchTerminalMetadata['identity'],
+): boolean {
+	return (
+		left.creationId === right.creationId &&
+		left.hostEpoch === right.hostEpoch &&
+		left.terminalId === right.terminalId
+	);
 }
 
 function resultFromDecision(

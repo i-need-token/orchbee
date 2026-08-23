@@ -178,6 +178,7 @@ describe('Workbench document runtime', () => {
 			kind: 'started',
 		});
 		expect(restoredCommands).toContainEqual({
+			disposition: 'remove',
 			operationId: expect.any(String),
 			presentationId: provision.presentationId,
 			type: 'terminal-close-requested',
@@ -254,6 +255,7 @@ describe('Workbench document runtime', () => {
 		});
 		restored.reconcileDurableTerminalPresentations();
 		expect(restoredCommands).toContainEqual({
+			disposition: 'remove',
 			operationId: expect.any(String),
 			presentationId: primaryProvision.presentationId,
 			type: 'terminal-close-requested',

@@ -38,6 +38,8 @@ WorkbenchSharedDocument
 
 投影将配置失败映射到 `provision`；对 `retain` 运行、恢复、协调、恢复失败或退出观察；关闭状态为 `close`；停止状态为 `stop`；并填写完整的申请表至 `stopped`。 Hydration 重建挂起的生命周期状态，但不分派任何进程命令。显式协调稍后会重播配置、关闭和停止，并仅对 `retain` 使用恢复。
 
+效果命令会显式区分破坏性处置：`terminal-close-requested` 在普通关闭和结构移除时携带 `remove`，在应用停止及其持久重试时携带 `stop`。这一仅属于命令的区别允许应用归档已停止终端，而不会改变五种共享意图，也不会把普通关闭视为应保留的产品历史。
+
 每个共享选项卡都存储一个持久回退 `title` 和可为 null 的持久 `customTitle`。后备方案是稳定的发布/产品标签；自定义标题是显式用户覆盖。主机派生的自然终端标题和当前的 CWD 是瞬态运行时观察结果，永远不会进入共享文档。因此，水合会恢复自定义标题，但会等待新的投影，然后再显示自然标题或当前的 CWD。
 
 ## Client View
@@ -63,7 +65,7 @@ Client View 没有共享修订版。切换工作区或选项卡、聚焦或最�
 
 `WorkbenchProjectWorkspaceRuntime#applySharedDocument(...)` 会应用不同的共享结构、协调当前 Client View、不发出终端命令，并为持久记录未变的 Presentation 保留自然标题、当前 CWD 及丰富生命周期观察。若唯一差异是所提供的修订，运行时返回 `unchanged`，因为修订所有权属于应用协调器。
 
-Client View 位于该基础的内存中。关闭页面会破坏它；新页面接收确定性默认值。它不会写入浏览器键值存储，因为它的引用集没有产品计数上限，并且普通的同源 `localStorage` 会意外耦合独立的浏览器页面。交叉重启 Client View 恢复需要单独接受的所有者和合同。
+Client View 位于该基础的内存中。关闭页面会销毁它；除非应用提供一个由其单独拥有、供协调使用的候选，否则新页面接收确定性默认值。Client View 本身不会写入浏览器键值存储，因为它的引用集没有产品计数上限，并且普通的同源 `localStorage` 会意外耦合独立的浏览器页面。当前 Desktop Web 组合只存储一个有界、会话范围的焦点 `TerminalPresentationId` 提示，并把它投影到其余部分保持默认的候选中；它不会序列化 Client View。完整或跨重启 Client View 恢复需要单独获准的所有者和契约。
 
 ## 不变量
 

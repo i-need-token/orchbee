@@ -36,6 +36,9 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 		expect(first.runtimeDirectory).toBe(path.resolve('/private/runtime'));
 		expect(first.browserAccess).toEqual({ kind: 'disabled' });
 		expect(first.terminalBindingStorePath).toBe(path.resolve('/private/recovery/bindings-v3.json'));
+		expect(first.terminalArchiveDirectory).toBe(
+			path.resolve('/private/recovery/terminal-archives-v1'),
+		);
 		expect(first.terminalLaunchProfileStorePath).toBe(
 			path.resolve('/users/orchbee/library/orchbee/terminal-launch-profiles-v1.json'),
 		);
@@ -112,6 +115,9 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 		expect(configuration.endpointId).toMatch(/^[0-9a-f]{32}$/u);
 		expect(configuration.terminalBindingStorePath).toBe(
 			path.resolve('/users/orchbee/.config/orchbee/terminal-recovery/bindings-v3.json'),
+		);
+		expect(configuration.terminalArchiveDirectory).toBe(
+			path.resolve('/users/orchbee/.config/orchbee/terminal-recovery/terminal-archives-v1'),
 		);
 		expect(configuration.workbenchDocumentStorePath).toBe(
 			path.resolve(

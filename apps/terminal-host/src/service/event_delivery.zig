@@ -4,6 +4,7 @@ const control_encode = @import("terminal-host-control").encode;
 const core_module = @import("terminal-host-core").state;
 const host_connection = @import("connection_workflow.zig");
 const host_interaction = @import("interaction.zig");
+const host_metadata_delivery = @import("metadata_delivery.zig");
 const host_outgoing = @import("outgoing.zig");
 const host_projection = @import("projection.zig");
 const host_response = @import("response.zig");
@@ -67,6 +68,8 @@ pub const OutcomePublicationHandoff = struct {
 /// commits outcome visibility only after the complete outgoing batch exists.
 pub const Workflow = struct {
     interaction_scheduler: host_interaction.Scheduler = .{},
+    metadata_leads: bool = true,
+    metadata_scheduler: host_metadata_delivery.Scheduler = .{},
     next_egress_priority: EgressPriority = .projection,
     projection_scheduler: host_projection.Scheduler = .{},
 
@@ -175,6 +178,16 @@ pub const Workflow = struct {
         connection: *const host_connection.ConnectionState.Active,
         outgoing: *Outgoing,
     ) !void {
+        if (self.metadata_leads and outgoing.records().len == 0) {
+            self.metadata_leads = false;
+            _ = try self.metadata_scheduler.schedule(
+                allocator,
+                runtime_aggregate,
+                connection.connection_id,
+                outgoing,
+            );
+            if (outgoing.records().len != 0) return;
+        }
         const first = self.next_egress_priority;
         const record_count_before = outgoing.records().len;
         const first_outcome = switch (first) {
@@ -216,6 +229,7 @@ pub const Workflow = struct {
             };
         }
         self.next_egress_priority = first.next();
+        self.metadata_leads = true;
     }
 
     pub fn setNextProjectionForTesting(self: *Workflow) void {

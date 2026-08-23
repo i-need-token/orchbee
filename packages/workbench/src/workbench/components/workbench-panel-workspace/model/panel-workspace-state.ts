@@ -912,6 +912,7 @@ function beginManagedRemoval(
 			},
 		})).node;
 		commands.push({
+			disposition: 'remove',
 			operationId: operation.operationId,
 			presentationId: operation.presentationId,
 			type: 'terminal-close-requested',
@@ -968,6 +969,7 @@ function beginManagedStop(
 		nextTabs[tabIndex] = { ...tab, root: result.node };
 		tabs = nextTabs;
 		commands.push({
+			disposition: 'stop',
 			operationId: operation.operationId,
 			presentationId: operation.presentationId,
 			type: 'terminal-close-requested',
@@ -1618,6 +1620,7 @@ export function transitionPanelWorkspace(
 			{ kind: 'stopping', operationId: event.operationId },
 			[
 				{
+					disposition: 'stop',
 					operationId: event.operationId,
 					presentationId: event.presentationId,
 					type: 'terminal-close-requested',
@@ -1922,6 +1925,7 @@ export function transitionPanelWorkspace(
 			},
 			[
 				{
+					disposition: 'remove',
 					operationId: event.operationId,
 					presentationId: event.presentationId,
 					type: 'terminal-close-requested',

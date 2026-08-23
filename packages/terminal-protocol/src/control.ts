@@ -516,6 +516,13 @@ export const TerminalBellSchema = z.strictObject({
 	sequence: positiveCanonicalUint64TextSchema,
 });
 
+export const TerminalMetadataChangedSchema = z.strictObject({
+	currentDirectory: boundedTextSchema.nullable(),
+	identity: TerminalIdentitySchema,
+	revision: positiveCanonicalUint64TextSchema,
+	title: boundedTextSchema.nullable(),
+});
+
 const terminalClipboardTextSchema = z
 	.string()
 	.max(PROTOCOL_LIMITS.maxClipboardTextBytes)
@@ -1064,6 +1071,7 @@ export type HistoryDemand = z.infer<typeof HistoryDemandSchema>;
 export type HistoryDemandAccepted = z.infer<typeof HistoryDemandAcceptedSchema>;
 export type HistoryObserved = z.infer<typeof HistoryObservedSchema>;
 export type TerminalBell = z.infer<typeof TerminalBellSchema>;
+export type TerminalMetadataChanged = z.infer<typeof TerminalMetadataChangedSchema>;
 export type TerminalClipboardWriteRequest = z.infer<typeof TerminalClipboardWriteRequestSchema>;
 export type RowWindowOrigin = z.infer<typeof RowWindowOriginSchema>;
 export type RowWindowPurpose = z.infer<typeof RowWindowPurposeSchema>;

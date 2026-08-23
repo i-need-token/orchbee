@@ -6,6 +6,7 @@ const contracts = @import("contracts.zig");
 const state = @import("state.zig");
 const completion_ops = @import("completion.zig");
 const failure_ops = @import("failure.zig");
+const metadata_ops = @import("metadata.zig");
 
 pub fn applyTerminalControl(
     self: *state.State,
@@ -28,6 +29,7 @@ pub fn applyTerminalControl(
         return error.RevisionOverflow;
     }
 
+    const had_metadata = self.terminal.getTitle() != null or self.terminal.getPwd() != null;
     switch (operation) {
         .clear => {
             self.terminal.eraseDisplay(.complete, false);
@@ -43,6 +45,7 @@ pub fn applyTerminalControl(
     self.generation += 1;
     const revision = current_revision + 1;
     self.revision.store(revision, .release);
+    if (operation == .reset) metadata_ops.commitResetLocked(self, revision, had_metadata);
     self.history.screenChanged(&self.terminal);
     const update: contracts.TerminalControlUpdate = .{
         .generation = self.generation,

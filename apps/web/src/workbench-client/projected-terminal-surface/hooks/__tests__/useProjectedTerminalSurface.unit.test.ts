@@ -319,6 +319,7 @@ describe('useProjectedTerminalSurface', () => {
 
 	it.each([
 		{ kind: 'running' },
+		{ kind: 'stopped' },
 		{
 			failure: { code: 'terminal-runtime-pty-read-read-output', retryable: false },
 			kind: 'failed',

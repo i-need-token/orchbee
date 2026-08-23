@@ -75,6 +75,41 @@ notification acknowledges that target instead of producing a second navigation. 
 View notification that no longer resolves the displayed route is a domain reconciliation and
 replaces, rather than pushes, the canonical fallback.
 
+## Renderer reload focus recovery
+
+- **Problem and inputs:** Reloading the Electron renderer replaces its in-memory Client View while
+  the native window, canonical shared document, and Terminal Host sessions survive. Without a
+  client-local handoff, the active Tab falls back to its first Panel and later keyboard input can
+  reach a different terminal. Trusted inputs are the reconciled shared document and Client View;
+  the optional `sessionStorage` value is untrusted and strict-parsed at the Web composition
+  boundary. Missing, malformed, unavailable, or stale input means no recovery hint.
+- **Data and ownership:** The Desktop Web composition owns one version-1
+  `orchbee:web:terminal-focus-recovery:v1` record containing exactly one bounded
+  `TerminalPresentationId`. Workbench remains the sole Client View and logical-focus writer, the
+  route remains authoritative for location and active Tab, and Terminal Host remains authoritative
+  for the process and terminal. The record is disposable with the Electron page-session lifetime
+  and is neither shared nor durable application state.
+- **Outputs and model:** A deterministic projector starts from the default Client View and, when
+  the exact presentation still resolves, changes only that Tab's focused Panel and displayed child
+  presentation. It never selects a location or Tab. Workbench's existing `autoFocus` projection
+  moves real DOM focus only after the recovered terminal renderer is ready. A missing target is an
+  intentional no-op that retains the default Client View.
+- **Transitions:** Every committed shared-document or Client View notification resolves its one
+  displayed terminal and replaces the session record; a view with no displayed terminal removes
+  it. Renderer bootstrap reads once and supplies the projected candidate to Workbench before route
+  reconciliation. Storage read, write, removal, validation, or quota failure never blocks startup
+  or changes the current in-memory focus.
+- **Invariants and exclusions:** At most one bounded presentation identity is stored per browsing
+  context. Independent pages cannot share the hint. Recovery cannot create an identity, revive a
+  removed presentation, change shared state, send terminal input, or restore maximization, Split
+  weights, selection, scroll, search, output, or any other Client View or viewport fact. Full Client
+  View recovery and recovery across native-window or application restart remain excluded.
+- **Verification:** Deterministic tests cover primary and child targets, stale identity, strict
+  parsing, absence, storage failure, removal, and projection isolation. The Desktop system trace
+  focuses a non-first split terminal, reloads the renderer, and sends input through the naturally
+  restored DOM focus to that same presentation. TLA+ is not selected because the record has one
+  synchronous writer, no asynchronous completion, and no ordering or cancellation state.
+
 ## Resolution invariants
 
 - A canonical Tab route resolves to exactly one terminal context and one active Tab.

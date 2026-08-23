@@ -53,6 +53,7 @@ describe('Workbench client session contract', () => {
 			initializationDocument: document,
 			sequence: '999999999999999999999999',
 			terminalHostName: 'orchbee-host',
+			terminalMetadata: [],
 			terminalEvents,
 			type: WORKBENCH_CLIENT_SESSION_BOOTSTRAP,
 		});
@@ -104,9 +105,36 @@ describe('Workbench client session contract', () => {
 				initializationDocument: document,
 				sequence: '0',
 				terminalHostName: 'orchbee-host',
+				terminalMetadata: [],
 				terminalEvents: [],
 				type: WORKBENCH_CLIENT_SESSION_BOOTSTRAP,
 			}),
 		).toMatchObject({ sequence: '0' });
+	});
+
+	it('accepts sequenced terminal-global metadata and rejects non-positive revisions', () => {
+		const publication = {
+			metadata: {
+				currentDirectory: 'file://orchbee-host/workspace',
+				identity: {
+					creationId: '11'.repeat(16),
+					hostEpoch: '22'.repeat(16),
+					terminalId: '33'.repeat(16),
+				},
+				presentationId: 'presentation-initial',
+				revision: '7',
+				title: 'background agent',
+			},
+			sequence: '1',
+			type: 'terminal-metadata-published',
+		};
+
+		expect(WorkbenchClientSessionEventSchema.parse(publication)).toEqual(publication);
+		expect(
+			WorkbenchClientSessionEventSchema.safeParse({
+				...publication,
+				metadata: { ...publication.metadata, revision: '0' },
+			}).success,
+		).toBe(false);
 	});
 });

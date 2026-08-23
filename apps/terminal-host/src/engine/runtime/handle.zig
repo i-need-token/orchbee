@@ -7,6 +7,7 @@ const contracts = @import("contracts.zig");
 const state = @import("state.zig");
 const creation_ops = @import("creation.zig");
 const lifecycle_ops = @import("lifecycle.zig");
+const metadata_ops = @import("metadata.zig");
 const completion_ops = @import("completion.zig");
 const failure_ops = @import("failure.zig");
 const feedback_ops = @import("feedback.zig");
@@ -81,6 +82,21 @@ pub const TerminalRuntime = opaque {
 
     pub fn bellSequence(self: *TerminalRuntime) u64 {
         return projection_ops.bellSequence(stateFrom(self));
+    }
+
+    pub fn prepareMetadataEvent(
+        self: *TerminalRuntime,
+        allocator: std.mem.Allocator,
+        connection_id: u64,
+    ) !?contracts.MetadataEvent {
+        return metadata_ops.prepareEvent(stateFrom(self), allocator, connection_id);
+    }
+
+    pub fn commitMetadataEvent(
+        self: *TerminalRuntime,
+        event: contracts.MetadataEvent,
+    ) void {
+        return metadata_ops.commitEvent(stateFrom(self), event);
     }
 
     pub fn prepareClipboardWriteRequest(

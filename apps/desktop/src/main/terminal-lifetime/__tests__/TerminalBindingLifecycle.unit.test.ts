@@ -24,7 +24,12 @@ const exit: TerminalExited = {
 
 describe('TerminalBindingLifecycle', () => {
 	it('resumes a durable close before exposing startup state', async () => {
-		const recovery = createRecovery({ identity, kind: 'closing', summary: null });
+		const recovery = createRecovery({
+			disposition: 'remove',
+			identity,
+			kind: 'closing',
+			summary: null,
+		});
 		const closing = createClosing({ kind: 'closed' });
 		const lifecycle = new TerminalBindingLifecycle(recovery, closing);
 
@@ -33,7 +38,12 @@ describe('TerminalBindingLifecycle', () => {
 	});
 
 	it('reports a safely pending resumed close without provisioning a replacement', async () => {
-		const recovery = createRecovery({ identity, kind: 'closing', summary: null });
+		const recovery = createRecovery({
+			disposition: 'remove',
+			identity,
+			kind: 'closing',
+			summary: null,
+		});
 		const closing = createClosing({ kind: 'pending', reason: 'transport-unavailable' });
 		const lifecycle = new TerminalBindingLifecycle(recovery, closing);
 

@@ -20,6 +20,7 @@ import {
 describe('startDesktopWebApplication', () => {
 	it('starts the managed renderer once from one trusted atomic capability bundle', () => {
 		const harness = createHarness();
+		const storage = desktopStorage();
 		Object.assign(harness.targetWindow, {
 			[DESKTOP_FILE_PATH_BRIDGE_KEY]: {
 				getPathForFile: () => '/tmp/user-selected.txt',
@@ -33,7 +34,7 @@ describe('startDesktopWebApplication', () => {
 			document.documentElement,
 			['en-US'],
 			'apple',
-			window.localStorage,
+			storage,
 			harness.dependencies,
 		);
 
@@ -44,7 +45,7 @@ describe('startDesktopWebApplication', () => {
 			document.documentElement,
 			['en-US'],
 			'apple',
-			window.localStorage,
+			storage,
 			expect.objectContaining({
 				clientSessionId: 'client-1',
 				terminalHostName: 'orchbee-host',
@@ -76,7 +77,7 @@ describe('startDesktopWebApplication', () => {
 			document.documentElement,
 			['en-US'],
 			'standard',
-			window.localStorage,
+			desktopStorage(),
 			harness.dependencies,
 		);
 
@@ -86,6 +87,13 @@ describe('startDesktopWebApplication', () => {
 		expect(closeSpies.every((spy) => spy.mock.calls.length === 1)).toBe(true);
 	});
 });
+
+function desktopStorage() {
+	return {
+		focusRecovery: window.sessionStorage,
+		preferences: window.localStorage,
+	};
+}
 
 function createHarness() {
 	let messageListener: ((event: MessageEvent<unknown>) => void) | undefined;

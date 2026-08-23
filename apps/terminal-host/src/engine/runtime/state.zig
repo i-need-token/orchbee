@@ -63,6 +63,10 @@ pub const State = struct {
     input_condition: std.Thread.Condition = .{},
     input_queue: terminal_input_queue.Queue,
     input_mutex: std.Thread.Mutex = .{},
+    metadata_change_pending: bool = false,
+    metadata_published_connection_id: ?u64 = null,
+    metadata_published_revision: u64 = 0,
+    metadata_revision: u64 = 0,
     // Distinguishes an owner-requested read interruption from a normal PTY EOF.
     // Only the reader may publish pty_drained, and only after a non-aborted EOF.
     output_abort_requested: std.atomic.Value(bool) = .init(false),

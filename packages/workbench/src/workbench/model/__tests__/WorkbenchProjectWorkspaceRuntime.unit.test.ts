@@ -126,6 +126,7 @@ describe('WorkbenchProjectWorkspaceRuntime', () => {
 			}),
 		).toEqual({ kind: 'applied' });
 		expect(commands.at(-1)).toEqual({
+			disposition: 'remove',
 			operationId: 'managed:operation:3',
 			presentationId: 'managed:first',
 			type: 'terminal-close-requested',
@@ -223,6 +224,7 @@ describe('WorkbenchProjectWorkspaceRuntime', () => {
 			],
 		});
 		expect(commands.at(-1)).toEqual({
+			disposition: 'remove',
 			operationId: 'managed:natural-operation:2',
 			presentationId,
 			type: 'terminal-close-requested',
@@ -268,6 +270,7 @@ describe('WorkbenchProjectWorkspaceRuntime', () => {
 		});
 		expect(runtime.getActiveTerminalContext().tabModel.getSnapshot().tabs).toHaveLength(1);
 		expect(commands.at(-1)).toEqual({
+			disposition: 'remove',
 			operationId: 'managed:close-operation:2',
 			presentationId: 'managed:close-target',
 			type: 'terminal-close-requested',

@@ -54,6 +54,7 @@ function closeCommand(
 	operation = 'close-1',
 ): TerminalPresentationCommand {
 	return {
+		disposition: 'remove',
 		operationId: terminalPresentationOperationId(operation),
 		presentationId: terminalPresentationId(presentation),
 		type: 'terminal-close-requested',
@@ -1238,7 +1239,7 @@ describe('DesktopTerminalLifecycleAdapter', () => {
 			creationId: identity.creationId,
 			launch: createTerminalLaunch(),
 			presentationId: closingPresentationId,
-			state: { identity, kind: 'closing' },
+			state: { disposition: 'remove', identity, kind: 'closing' },
 		};
 		const registry = new DesktopTerminalBindingRegistry();
 		const closingLifecycle: DesktopTerminalBindingLifecyclePort = {

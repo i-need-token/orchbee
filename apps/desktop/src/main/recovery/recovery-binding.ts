@@ -13,6 +13,7 @@ export type TerminalRecoveryOutcome =
 			readonly summary: TerminalSummary;
 	  }
 	| {
+			readonly disposition: 'remove' | 'stop';
 			readonly identity: TerminalIdentity;
 			readonly kind: 'closing';
 			readonly summary: TerminalSummary | null;

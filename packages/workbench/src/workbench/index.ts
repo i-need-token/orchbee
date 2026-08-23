@@ -2,7 +2,10 @@ export { Workbench } from './Workbench';
 export type { WorkbenchProps } from './Workbench';
 export { WorkbenchProjectWorkspaceRuntime } from './model/WorkbenchProjectWorkspaceRuntime';
 export { createWorkbenchPreviewTerminalPresentationComposition } from './model/createWorkbenchPreviewTerminalPresentationComposition';
-export { resolveTerminalMetadataObservation } from './model/resolveTerminalMetadataObservation';
+export {
+	resolveTerminalMetadataObservation,
+	resolveTerminalNaturalMetadataObservation,
+} from './model/resolve-terminal-metadata-observation';
 export { WorkbenchTerminalBellEffectCoordinator } from './model/WorkbenchTerminalBellEffectCoordinator';
 export type { WorkbenchTerminalBellEffect } from './model/WorkbenchTerminalBellEffectCoordinator';
 export type {
@@ -25,9 +28,10 @@ export type {
 } from './model/WorkbenchProjectWorkspaceRuntime';
 export type {
 	RawTerminalMetadataObservation,
+	RawTerminalNaturalMetadataObservation,
 	WorkbenchTerminalCurrentDirectoryObservation,
 	WorkbenchTerminalMetadataObservation,
-} from './model/resolveTerminalMetadataObservation';
+} from './model/resolve-terminal-metadata-observation';
 export type {
 	WorkbenchTerminalPresentationCommand,
 	WorkbenchTerminalPresentationComposition,

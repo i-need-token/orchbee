@@ -43,7 +43,7 @@ import {
 	projectWorkbenchClientView,
 	projectWorkbenchSharedDocument,
 } from './workbench-document-runtime';
-import type { WorkbenchTerminalMetadataObservation } from './resolveTerminalMetadataObservation';
+import type { WorkbenchTerminalMetadataObservation } from './resolve-terminal-metadata-observation';
 
 type Listener = () => void;
 
@@ -289,8 +289,17 @@ export class WorkbenchProjectWorkspaceRuntime {
 								break;
 							}
 							case 'closing':
+								commands.push({
+									disposition: 'remove',
+									operationId: terminal.lifecycle.operationId,
+									presentationId: terminal.presentationId,
+									type: 'terminal-close-requested',
+								});
+								commandCount += 1;
+								break;
 							case 'stopping':
 								commands.push({
+									disposition: 'stop',
 									operationId: terminal.lifecycle.operationId,
 									presentationId: terminal.presentationId,
 									type: 'terminal-close-requested',
@@ -670,11 +679,35 @@ export class WorkbenchProjectWorkspaceRuntime {
 		presentationId: TerminalPresentationId,
 		observation: WorkbenchTerminalMetadataObservation,
 	): WorkbenchTerminalPresentationEventResult {
-		const matches: Array<{ readonly store: PanelWorkspaceStore; readonly tabId: string }> = [];
+		return this.#applyTerminalMetadataObservation(
+			presentationId,
+			observation,
+			observation.closeActivity,
+		);
+	}
+
+	public applyTerminalNaturalMetadataObservation(
+		presentationId: TerminalPresentationId,
+		observation: Omit<WorkbenchTerminalMetadataObservation, 'closeActivity'>,
+	): WorkbenchTerminalPresentationEventResult {
+		return this.#applyTerminalMetadataObservation(presentationId, observation);
+	}
+
+	#applyTerminalMetadataObservation(
+		presentationId: TerminalPresentationId,
+		observation: Omit<WorkbenchTerminalMetadataObservation, 'closeActivity'>,
+		closeActivity?: WorkbenchTerminalMetadataObservation['closeActivity'],
+	): WorkbenchTerminalPresentationEventResult {
+		const matches: Array<{
+			readonly store: PanelWorkspaceStore;
+			readonly tabId: string;
+			readonly terminal: TerminalPresentation;
+		}> = [];
 		for (const context of this.contexts.values()) {
 			for (const tab of context.panelWorkspaceStore.getSnapshot().tabs) {
-				if (findTerminal(tab.root, presentationId) !== null) {
-					matches.push({ store: context.panelWorkspaceStore, tabId: tab.tabId });
+				const terminal = findTerminal(tab.root, presentationId);
+				if (terminal !== null) {
+					matches.push({ store: context.panelWorkspaceStore, tabId: tab.tabId, terminal });
 				}
 			}
 		}
@@ -689,7 +722,7 @@ export class WorkbenchProjectWorkspaceRuntime {
 			...(observation.currentDirectory.kind === 'reported'
 				? { currentCwd: observation.currentDirectory.currentCwd }
 				: {}),
-			closeActivity: observation.closeActivity,
+			closeActivity: closeActivity ?? match.terminal.closeActivity,
 			naturalTitle: observation.naturalTitle,
 			presentationId,
 			tabId: match.tabId,

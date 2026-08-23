@@ -23,11 +23,16 @@ import {
 } from './frame';
 import type {
 	ActiveScreen as ActiveScreenValue,
+	CellWidth as CellWidthValue,
 	CursorShape as CursorShapeValue,
+	RowPromptClass as RowPromptClassValue,
+	SemanticContent as SemanticContentValue,
 	TerminalColor,
+	TerminalFrame,
 	TerminalFrameKind as TerminalFrameKindValue,
 	TerminalInteraction,
 	TerminalStyle,
+	UnderlineKind as UnderlineKindValue,
 } from './frame';
 import { PROTOCOL_LIMITS } from './limits';
 import { ProtocolErrorCode, protocolFailure, protocolSuccess } from './protocol-result';
@@ -149,6 +154,15 @@ export interface DecodedTerminalProjectionBuffer {
 	readonly stringBytes: Uint8Array;
 	readonly themeRevision: bigint;
 	readonly title: string | null;
+}
+
+export interface TerminalProjectionFrameMaterialization {
+	readonly attachmentId: AttachmentId;
+	readonly revealCursor: boolean;
+	readonly rowCount: number;
+	readonly scrollbackRows: bigint;
+	readonly sequence: bigint;
+	readonly sourceStartRow: bigint;
 }
 
 function align(value: number, alignment: number): ProtocolResult<number> {
@@ -1134,4 +1148,270 @@ export function decodeTerminalProjectionBuffer(
 		previousSpacerHead = spacerHead;
 	}
 	return viewed;
+}
+
+/**
+ * Materializes a bounded snapshot from one or more already-decoded packed projections. This is a
+ * local projection operation: it does not restore VT state or carry frame extensions.
+ */
+export function materializeTerminalProjectionFrame(
+	metadata: DecodedTerminalProjectionBuffer,
+	sources: readonly DecodedTerminalProjectionBuffer[],
+	options: TerminalProjectionFrameMaterialization,
+): ProtocolResult<TerminalFrame> {
+	if (
+		!Number.isSafeInteger(options.rowCount) ||
+		options.rowCount < 1 ||
+		options.rowCount > PROTOCOL_LIMITS.maxFrameRows ||
+		options.rowCount * metadata.columns > PROTOCOL_LIMITS.maxFrameCells ||
+		options.sequence <= 0n ||
+		options.sourceStartRow < 0n ||
+		options.scrollbackRows < 0n
+	) {
+		return protocolFailure(
+			ProtocolErrorCode.invalidField,
+			'Projection materialization options are outside the protocol bounds',
+		);
+	}
+	const styles: TerminalFrame['styles'] = [];
+	const styleIndices = new Map<string, number>();
+	const rowData: TerminalFrame['rowData'] = [];
+	for (let outputRow = 0; outputRow < options.rowCount; outputRow += 1) {
+		const absoluteRow = options.sourceStartRow + BigInt(outputRow);
+		const source = sources.find(
+			(candidate) =>
+				absoluteRow >= candidate.scrollbackRows &&
+				absoluteRow < candidate.scrollbackRows + BigInt(candidate.rows),
+		);
+		if (source === undefined || !projectionMaterializationSourceMatches(metadata, source)) {
+			return protocolFailure(
+				ProtocolErrorCode.invalidField,
+				`Projection materialization is missing source row ${absoluteRow}`,
+			);
+		}
+		const sourceRow = Number(absoluteRow - source.scrollbackRows);
+		const flags = source.rowData.flags[sourceRow];
+		const promptClass = source.rowData.promptClasses[sourceRow];
+		if (flags === undefined || promptClass === undefined) {
+			return protocolFailure(
+				ProtocolErrorCode.invalidField,
+				`Projection materialization source row ${absoluteRow} is incomplete`,
+			);
+		}
+		const cells: TerminalFrame['rowData'][number]['cells'] = [];
+		for (let column = 0; column < metadata.columns; column += 1) {
+			const cellOffset = sourceRow * metadata.columns + column;
+			const style = materializedStyle(source, cellOffset);
+			if (!style.ok) return style;
+			const styleKey = JSON.stringify(style.value);
+			let styleIndex = styleIndices.get(styleKey);
+			if (styleIndex === undefined) {
+				if (styles.length >= PROTOCOL_LIMITS.maxFrameStyles) {
+					return protocolFailure(
+						ProtocolErrorCode.limitExceeded,
+						'Projection materialization exceeds the style-table limit',
+					);
+				}
+				styleIndex = styles.length;
+				styles.push(style.value);
+				styleIndices.set(styleKey, styleIndex);
+			}
+			const grapheme = projectionString(
+				source,
+				source.cells.graphemeOffsets[cellOffset],
+				source.cells.graphemeLengths[cellOffset],
+				false,
+			);
+			if (!grapheme.ok) return grapheme;
+			const width = materializedWidth(source.cells.widths[cellOffset]);
+			if (!width.ok) return width;
+			const semanticContent = materializedSemantic(source.cells.semanticContents[cellOffset]);
+			if (!semanticContent.ok) return semanticContent;
+			const protectedCell = source.cells.protected[cellOffset];
+			if (protectedCell !== 0 && protectedCell !== 1) {
+				return protocolFailure(
+					ProtocolErrorCode.invalidField,
+					`Projection materialization cell ${cellOffset} is invalid`,
+				);
+			}
+			cells.push({
+				grapheme: grapheme.value ?? '',
+				protected: protectedCell === 1,
+				semanticContent: semanticContent.value,
+				style: styleIndex,
+				width: width.value,
+			});
+		}
+		const prompt = materializedPromptClass(promptClass);
+		if (!prompt.ok) return prompt;
+		rowData.push({
+			cells,
+			index: outputRow,
+			promptClass: prompt.value,
+			wrap: (flags & TerminalRowFlag.wrap) !== 0,
+			wrapContinuation: (flags & TerminalRowFlag.wrapContinuation) !== 0,
+		});
+	}
+	const sourceCursorRow = metadata.scrollbackRows + BigInt(metadata.cursor.row);
+	const cursorOffset = sourceCursorRow - options.sourceStartRow;
+	const cursorVisible =
+		options.revealCursor && cursorOffset >= 0n && cursorOffset < BigInt(options.rowCount);
+	const frame = TerminalFrameSchema.safeParse({
+		activeScreen: metadata.activeScreen,
+		attachmentId: options.attachmentId,
+		baseRevision: null,
+		cellPixelHeight: metadata.cellPixelHeight,
+		cellPixelWidth: metadata.cellPixelWidth,
+		columns: metadata.columns,
+		currentDirectory: metadata.currentDirectory,
+		cursor: {
+			...metadata.cursor,
+			row: cursorVisible ? Number(cursorOffset) : 0,
+			visible: cursorVisible && metadata.cursor.visible,
+			wideTail: cursorVisible && metadata.cursor.wideTail,
+		},
+		defaultColors: metadata.defaultColors,
+		extensions: [],
+		generation: metadata.generation,
+		hostEpoch: metadata.hostEpoch,
+		interaction: metadata.interaction,
+		kind: TerminalFrameKind.snapshot,
+		revision: metadata.revision,
+		rowData,
+		rows: options.rowCount,
+		scrollbackRows: options.scrollbackRows,
+		sequence: options.sequence,
+		styles,
+		themeRevision: metadata.themeRevision,
+		title: metadata.title,
+	});
+	return frame.success
+		? protocolSuccess(frame.data)
+		: protocolFailure(
+				ProtocolErrorCode.invalidField,
+				`Projection materialization failed: ${frame.error.issues[0]?.message ?? 'invalid frame'}`,
+			);
+}
+
+function projectionMaterializationSourceMatches(
+	metadata: DecodedTerminalProjectionBuffer,
+	source: DecodedTerminalProjectionBuffer,
+): boolean {
+	return (
+		source.kind === TerminalFrameKind.snapshot &&
+		source.columns === metadata.columns &&
+		source.generation === metadata.generation &&
+		source.hostEpoch === metadata.hostEpoch &&
+		source.revision === metadata.revision &&
+		source.themeRevision === metadata.themeRevision
+	);
+}
+
+function projectionString(
+	source: DecodedTerminalProjectionBuffer,
+	offset: number | undefined,
+	length: number | undefined,
+	nullable: boolean,
+): ProtocolResult<string | null> {
+	if (offset === undefined || length === undefined) {
+		return protocolFailure(ProtocolErrorCode.invalidField, 'Projection string range is missing');
+	}
+	if (offset === MAX_UINT32) {
+		return nullable && length === 0
+			? protocolSuccess(null)
+			: protocolFailure(ProtocolErrorCode.invalidField, 'Projection string range is null');
+	}
+	if (offset + length > source.stringBytes.byteLength) {
+		return protocolFailure(ProtocolErrorCode.invalidField, 'Projection string range is invalid');
+	}
+	try {
+		return protocolSuccess(
+			textDecoder.decode(source.stringBytes.subarray(offset, offset + length)),
+		);
+	} catch {
+		return protocolFailure(ProtocolErrorCode.invalidUtf8, 'Projection string is not valid UTF-8');
+	}
+}
+
+function materializedColor(value: number | undefined): ProtocolResult<TerminalColor> {
+	if (value === TerminalColorEncoding.default) {
+		return protocolSuccess({ kind: TerminalColorKind.default });
+	}
+	if (value === TerminalColorEncoding.none) {
+		return protocolSuccess({ kind: TerminalColorKind.none });
+	}
+	return value !== undefined && value <= COLOR_RGB_MASK
+		? protocolSuccess({ kind: TerminalColorKind.rgb, rgb: value })
+		: protocolFailure(ProtocolErrorCode.invalidField, 'Projection color is invalid');
+}
+
+function materializedStyle(
+	source: DecodedTerminalProjectionBuffer,
+	cellOffset: number,
+): ProtocolResult<TerminalStyle> {
+	const foreground = materializedColor(source.cells.foregroundColors[cellOffset]);
+	if (!foreground.ok) return foreground;
+	const background = materializedColor(source.cells.backgroundColors[cellOffset]);
+	if (!background.ok) return background;
+	const underline = materializedColor(source.cells.underlineColors[cellOffset]);
+	if (!underline.ok) return underline;
+	const hyperlink = projectionString(
+		source,
+		source.cells.hyperlinkOffsets[cellOffset],
+		source.cells.hyperlinkLengths[cellOffset],
+		true,
+	);
+	if (!hyperlink.ok) return hyperlink;
+	const flags = source.cells.styleFlags[cellOffset];
+	const underlineKind = materializedUnderlineKind(source.cells.underlineKinds[cellOffset]);
+	if (flags === undefined || (flags & ~STYLE_FLAGS_MASK) !== 0 || !underlineKind.ok) {
+		return protocolFailure(ProtocolErrorCode.invalidField, 'Projection style is invalid');
+	}
+	return protocolSuccess({
+		background: background.value,
+		blink: (flags & TerminalStyleFlag.blink) !== 0,
+		bold: (flags & TerminalStyleFlag.bold) !== 0,
+		faint: (flags & TerminalStyleFlag.faint) !== 0,
+		foreground: foreground.value,
+		hyperlink: hyperlink.value,
+		inverse: (flags & TerminalStyleFlag.inverse) !== 0,
+		invisible: (flags & TerminalStyleFlag.invisible) !== 0,
+		italic: (flags & TerminalStyleFlag.italic) !== 0,
+		overline: (flags & TerminalStyleFlag.overline) !== 0,
+		strikethrough: (flags & TerminalStyleFlag.strikethrough) !== 0,
+		underline: underline.value,
+		underlineKind: underlineKind.value,
+	});
+}
+
+function materializedWidth(value: number | undefined): ProtocolResult<CellWidthValue> {
+	if (value === 0) return protocolSuccess(CellWidth.narrow);
+	if (value === 1) return protocolSuccess(CellWidth.wide);
+	if (value === 2) return protocolSuccess(CellWidth.spacerTail);
+	if (value === 3) return protocolSuccess(CellWidth.spacerHead);
+	return protocolFailure(ProtocolErrorCode.invalidField, 'Projection cell width is invalid');
+}
+
+function materializedSemantic(value: number | undefined): ProtocolResult<SemanticContentValue> {
+	if (value === 0) return protocolSuccess(SemanticContent.output);
+	if (value === 1) return protocolSuccess(SemanticContent.input);
+	if (value === 2) return protocolSuccess(SemanticContent.prompt);
+	return protocolFailure(ProtocolErrorCode.invalidField, 'Projection semantic content is invalid');
+}
+
+function materializedPromptClass(value: number | undefined): ProtocolResult<RowPromptClassValue> {
+	if (value === 0) return protocolSuccess(RowPromptClass.none);
+	if (value === 1) return protocolSuccess(RowPromptClass.prompt);
+	if (value === 2) return protocolSuccess(RowPromptClass.promptContinuation);
+	return protocolFailure(ProtocolErrorCode.invalidField, 'Projection prompt class is invalid');
+}
+
+function materializedUnderlineKind(value: number | undefined): ProtocolResult<UnderlineKindValue> {
+	if (value === 0) return protocolSuccess(UnderlineKind.none);
+	if (value === 1) return protocolSuccess(UnderlineKind.single);
+	if (value === 2) return protocolSuccess(UnderlineKind.double);
+	if (value === 3) return protocolSuccess(UnderlineKind.curly);
+	if (value === 4) return protocolSuccess(UnderlineKind.dotted);
+	if (value === 5) return protocolSuccess(UnderlineKind.dashed);
+	return protocolFailure(ProtocolErrorCode.invalidField, 'Projection underline kind is invalid');
 }

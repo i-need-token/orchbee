@@ -27,5 +27,5 @@ export type ProtocolVersion = z.infer<typeof ProtocolVersionSchema>;
 export const CURRENT_PROTOCOL_VERSION = {
 	major: 0,
 	minor: 0,
-	patch: 17,
+	patch: 18,
 } as const satisfies ProtocolVersion;

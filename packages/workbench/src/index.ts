@@ -31,6 +31,7 @@ export {
 	createWorkbenchPreviewTerminalPresentationComposition,
 	defaultWorkbenchShortcutBindings,
 	resolveTerminalMetadataObservation,
+	resolveTerminalNaturalMetadataObservation,
 } from './workbench';
 export {
 	TerminalPresentationFailureSchema,
@@ -110,6 +111,7 @@ export type {
 	WorkbenchWorkspaceInput,
 	WorkbenchWorkspaceUpdateInput,
 	RawTerminalMetadataObservation,
+	RawTerminalNaturalMetadataObservation,
 	WorkbenchTerminalCurrentDirectoryObservation,
 	WorkbenchTerminalMetadataObservation,
 } from './workbench';

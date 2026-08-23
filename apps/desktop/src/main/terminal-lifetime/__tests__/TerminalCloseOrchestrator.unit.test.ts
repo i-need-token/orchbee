@@ -25,7 +25,10 @@ import {
 	type TerminalBindingId,
 	type TerminalBindingStore,
 } from '../../recovery';
-import { TerminalCloseOrchestrator } from '../TerminalCloseOrchestrator';
+import {
+	TerminalCloseOrchestrator,
+	type TerminalCloseOrchestratorDependencies,
+} from '../TerminalCloseOrchestrator';
 
 const hostEpoch = HostEpochSchema.parse('11'.repeat(16));
 const creationId = CreationIdSchema.parse('21'.repeat(16));
@@ -63,6 +66,71 @@ describe('TerminalCloseOrchestrator', () => {
 			'store:remove',
 		]);
 		expect(store.document?.bindings).toEqual([unrelated]);
+	});
+
+	it('captures a durable stop after the final revision and before Host disposal', async () => {
+		const trace: string[] = [];
+		const store = new MemoryStore(
+			createDocument([createBinding({ identity, kind: 'retained' })]),
+			trace,
+		);
+		const host = new HostHarness(hostEpoch, [createSummary()], trace);
+		host.afterRequest = (kind) => {
+			if (kind === MessageKind.terminateTerminal) host.emitExit(createExit());
+		};
+		const beforeDispose = vi.fn<
+			NonNullable<TerminalCloseOrchestratorDependencies['beforeDispose']>
+		>(async (_identity, minimumRevision) => {
+			trace.push(`archive:capture:${minimumRevision}`);
+			expect(findTerminalBinding(requireDocument(store), bindingId)?.state).toMatchObject({
+				disposition: 'stop',
+				kind: 'closing',
+			});
+		});
+		const orchestrator = new TerminalCloseOrchestrator(host.value, store, bindingId, {
+			beforeDispose,
+		});
+
+		expect(await orchestrator.requestClose(() => Promise.resolve(), 'stop')).toEqual({
+			kind: 'closed',
+		});
+		expect(beforeDispose).toHaveBeenCalledWith(identity, createExit().finalRevision);
+		expect(trace).toEqual([
+			'store:put:closing',
+			'host:list',
+			'host:terminate',
+			'archive:capture:5',
+			'host:dispose',
+			'store:remove',
+		]);
+	});
+
+	it('never lets archive failure block stop disposal and never captures an ordinary close', async () => {
+		const failedCapture = vi.fn<() => Promise<void>>().mockRejectedValue(new Error('disk full'));
+		const stoppedStore = new MemoryStore(
+			createDocument([createBinding({ identity, kind: 'retained' })]),
+		);
+		const stoppedHost = new HostHarness(hostEpoch, [createExitedSummary()]);
+		const stopped = new TerminalCloseOrchestrator(stoppedHost.value, stoppedStore, bindingId, {
+			beforeDispose: failedCapture,
+		});
+		expect(await stopped.requestClose(() => Promise.resolve(), 'stop')).toEqual({
+			kind: 'closed',
+		});
+		expect(stoppedHost.lifecycleKinds).toEqual([MessageKind.disposeTerminal]);
+
+		const closeCapture = vi.fn<() => Promise<void>>().mockResolvedValue();
+		const closeStore = new MemoryStore(
+			createDocument([createBinding({ identity, kind: 'retained' })]),
+		);
+		const closeHost = new HostHarness(hostEpoch, [createExitedSummary()]);
+		const closed = new TerminalCloseOrchestrator(closeHost.value, closeStore, bindingId, {
+			beforeDispose: closeCapture,
+		});
+		expect(await closed.requestClose(() => Promise.resolve(), 'remove')).toEqual({
+			kind: 'closed',
+		});
+		expect(closeCapture).not.toHaveBeenCalled();
 	});
 
 	it('resolves a requested creation before persisting its exact close identity', async () => {
@@ -137,7 +205,7 @@ describe('TerminalCloseOrchestrator', () => {
 	it('resumes a durable closing binding and disposes an already exited terminal', async () => {
 		const trace: string[] = [];
 		const store = new MemoryStore(
-			createDocument([createBinding({ identity, kind: 'closing' })]),
+			createDocument([createBinding({ disposition: 'remove', identity, kind: 'closing' })]),
 			trace,
 		);
 		const host = new HostHarness(hostEpoch, [createExitedSummary()], trace);
@@ -178,6 +246,7 @@ describe('TerminalCloseOrchestrator', () => {
 			reason: 'transport-unavailable',
 		});
 		expect(findTerminalBinding(requireDocument(store), bindingId)?.state).toEqual({
+			disposition: 'remove',
 			identity,
 			kind: 'closing',
 		});
@@ -234,7 +303,9 @@ describe('TerminalCloseOrchestrator', () => {
 	});
 
 	it('completes a pending close when the exact terminal exit is routed later', async () => {
-		const store = new MemoryStore(createDocument([createBinding({ identity, kind: 'closing' })]));
+		const store = new MemoryStore(
+			createDocument([createBinding({ disposition: 'remove', identity, kind: 'closing' })]),
+		);
 		const host = new HostHarness(hostEpoch, [createSummary()]);
 		const orchestrator = new TerminalCloseOrchestrator(host.value, store, bindingId);
 

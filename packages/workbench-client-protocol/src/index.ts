@@ -26,10 +26,12 @@ export {
 	WorkbenchClientSessionCommandSchema,
 	WorkbenchClientSessionEventSchema,
 	WorkbenchClientSessionRequestIdSchema,
+	WorkbenchTerminalMetadataSchema,
 } from './workbench-client-session-contract';
 export type {
 	WorkbenchClientSessionBootstrap,
 	WorkbenchClientSessionEvent,
 	WorkbenchClientSessionRequestId,
 	WorkbenchDocumentProposalResult,
+	WorkbenchTerminalMetadata,
 } from './workbench-client-session-contract';

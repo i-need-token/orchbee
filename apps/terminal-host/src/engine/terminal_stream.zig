@@ -112,6 +112,7 @@ pub const Handler = struct {
     clipboard_contents: ?*const fn (*Handler, ghostty_vt.StreamAction.ClipboardContents) void = null,
     progress_report: ?*const fn (*Handler, ghostty_vt.osc.Command.ProgressReport) void = null,
     semantic_prompt: ?*const fn (*Handler, ghostty_vt.StreamAction.SemanticPrompt) void = null,
+    metadata_reset: ?*const fn (*Handler) void = null,
     discard_actions: bool = false,
 
     pub fn init(terminal: *ghostty_vt.Terminal) Handler {
@@ -154,8 +155,11 @@ pub const Handler = struct {
                 if (self.semantic_prompt) |apply| apply(self, value);
             },
             .full_reset => {
+                const had_metadata = self.terminal_handler.terminal.getTitle() != null or
+                    self.terminal_handler.terminal.getPwd() != null;
                 self.terminal_handler.vt(action, value);
                 restoreColorDefaults(self.terminal_handler.terminal);
+                if (had_metadata) if (self.metadata_reset) |apply| apply(self);
                 return;
             },
             else => {},

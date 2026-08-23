@@ -1942,6 +1942,45 @@ test('closes the final Tab after a natural Host terminal exit while keeping the 
 	).toBe(1);
 });
 
+test('restores the focused split terminal after a renderer reload', async () => {
+	const application = electronApplication;
+	if (application === undefined) throw new Error('Electron application did not start.');
+	const page = await application.firstWindow();
+	const primaryRoot = projectedTerminal(page);
+	await expect(primaryRoot).toHaveAttribute('data-projected-terminal-state', 'open');
+	const primaryPresentationId = await primaryRoot.getAttribute('data-terminal-presentation-id');
+	if (primaryPresentationId === null) {
+		throw new Error('Primary terminal presentation identity is unavailable.');
+	}
+
+	await primaryRoot.getByRole('textbox').focus();
+	await page.keyboard.press(process.platform === 'darwin' ? 'Meta+KeyD' : 'Control+Shift+KeyD');
+	await expect(projectedTerminals(page)).toHaveCount(2);
+	await waitForProjectedTerminalsOpen(page);
+	const splitPresentationId = (await projectedTerminalPresentationIds(page)).find(
+		(presentationId) => presentationId !== primaryPresentationId,
+	);
+	if (splitPresentationId === undefined) {
+		throw new Error('Split terminal presentation identity is unavailable.');
+	}
+	const splitRoot = projectedTerminalFor(page, splitPresentationId);
+	await expect(splitRoot.getByRole('textbox')).toBeFocused();
+
+	await application.evaluate(({ BrowserWindow }) => {
+		BrowserWindow.getAllWindows()[0]?.webContents.reload();
+	});
+	await expect(projectedTerminals(page)).toHaveCount(2);
+	await waitForProjectedTerminalsOpen(page);
+	await expect(splitRoot.getByRole('textbox')).toBeFocused();
+
+	await page.keyboard.insertText("printf 'renderer-reload-focus-target\\n'");
+	await page.keyboard.press('Enter');
+	await expect(splitRoot.locator('[role="list"]')).toContainText('renderer-reload-focus-target');
+	await expect(primaryRoot.locator('[role="list"]')).not.toContainText(
+		'renderer-reload-focus-target',
+	);
+});
+
 test('routes a real sandboxed Host terminal through Main and Preload to the renderer', async () => {
 	const application = electronApplication;
 	if (application === undefined) throw new Error('Electron application did not start.');
@@ -3047,11 +3086,14 @@ test('stops Host sessions while retaining topology and starts a fresh session ex
 	expect(await stoppedSurface.getAttribute('data-terminal-presentation-id')).toBe(
 		stoppedPresentationId,
 	);
-
+	const stoppedProjection = stoppedSurface.locator('[data-terminal-projection-state]');
+	await expect(stoppedProjection).toHaveAttribute('data-projected-terminal-state', 'open');
+	await expect(restartedPage.locator('[role="list"]')).toContainText('stop-policy-marker');
 	await stoppedSurface.locator('[data-slot="projected-terminal-start-new-session"]').click();
 	const restartedRoot = projectedTerminal(restartedPage);
 	await expect(restartedRoot).toHaveAttribute('data-projected-terminal-state', 'open');
 	await expect(restartedRoot).toHaveAttribute('data-projected-terminal-close-activity', 'idle');
+	await expect(restartedPage.locator('[role="list"]')).not.toContainText('stop-policy-marker');
 	expect(await restartedRoot.getAttribute('data-terminal-presentation-id')).not.toBe(
 		stoppedPresentationId,
 	);

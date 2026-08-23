@@ -70,6 +70,7 @@ beforeAll(() => {
 
 beforeEach(() => {
 	window.localStorage.clear();
+	window.sessionStorage.clear();
 	window.history.replaceState({}, '', '/');
 });
 
@@ -211,7 +212,7 @@ describe('startDesktopWorkbenchRenderer', () => {
 				document.documentElement,
 				['en-US'],
 				'apple',
-				window.localStorage,
+				desktopStorage(),
 				bootstrap({ kind: 'missing' }, initializationDocument),
 				lifetimeChannel.port1,
 				clientSessionChannel.port1,
@@ -272,7 +273,7 @@ describe('startDesktopWorkbenchRenderer', () => {
 				document.documentElement,
 				['en-US'],
 				'apple',
-				window.localStorage,
+				desktopStorage(),
 				bootstrap(
 					{ document: sharedDocument, kind: 'available' },
 					sharedDocument,
@@ -416,7 +417,7 @@ describe('startDesktopWorkbenchRenderer', () => {
 				document.documentElement,
 				['en-US'],
 				'apple',
-				window.localStorage,
+				desktopStorage(),
 				bootstrap({ document: sharedDocument, kind: 'available' }, sharedDocument, terminalEvents),
 				lifetimeChannel.port1,
 				clientSessionChannel.port1,
@@ -440,6 +441,13 @@ describe('startDesktopWorkbenchRenderer', () => {
 		root.remove();
 	});
 });
+
+function desktopStorage() {
+	return {
+		focusRecovery: window.sessionStorage,
+		preferences: window.localStorage,
+	};
+}
 
 function bootstrap(
 	documentState:

@@ -124,6 +124,7 @@ export type TerminalPresentationCommand =
 			readonly type: 'terminal-restore-requested';
 	  }
 	| {
+			readonly disposition: 'remove' | 'stop';
 			readonly operationId: TerminalPresentationOperationId;
 			readonly presentationId: TerminalPresentationId;
 			readonly type: 'terminal-close-requested';

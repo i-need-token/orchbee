@@ -33,7 +33,7 @@ pub const terminal_row_window_format_patch: u8 = 2;
 pub const transport_envelope_header_bytes = 64;
 pub const current_protocol_major: u16 = 0;
 pub const current_protocol_minor: u16 = 0;
-pub const current_protocol_patch: u16 = 17;
+pub const current_protocol_patch: u16 = 18;
 
 pub const Limits = struct {
     pub const cell_pixel_dimension = 4096;
@@ -355,6 +355,7 @@ pub fn messageContract(kind: u16) ?MessageContract {
         ),
         M.terminal_bell => eventOnly("TerminalBell", .control_json),
         M.terminal_clipboard_write_request => eventOnly("TerminalClipboardWriteRequest", .control_json),
+        M.terminal_metadata_changed => eventOnly("TerminalMetadataChanged", .control_json),
         M.selection_gesture => requestOnly(
             "SelectionGesture",
             .selection_gesture,

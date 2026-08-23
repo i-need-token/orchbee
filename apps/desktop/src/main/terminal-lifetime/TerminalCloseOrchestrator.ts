@@ -37,6 +37,10 @@ export type TerminalCloseOutcome =
 	  };
 
 export interface TerminalCloseOrchestratorDependencies {
+	readonly beforeDispose?: (
+		identity: TerminalIdentity,
+		minimumRevision: TerminalExited['finalRevision'],
+	) => Promise<void>;
 	readonly waitForGracePeriod?: () => Promise<void>;
 }
 
@@ -49,6 +53,7 @@ export interface TerminalExitDisposition {
 
 export class TerminalCloseOrchestrator {
 	readonly #bindingId: TerminalBindingId;
+	readonly #beforeDispose: NonNullable<TerminalCloseOrchestratorDependencies['beforeDispose']>;
 	readonly #host: HostConnection;
 	readonly #store: TerminalBindingStore;
 	readonly #waitForGracePeriod: () => Promise<void>;
@@ -62,10 +67,14 @@ export class TerminalCloseOrchestrator {
 		this.#host = host;
 		this.#store = store;
 		this.#bindingId = TerminalBindingIdSchema.parse(bindingId);
+		this.#beforeDispose = dependencies.beforeDispose ?? (() => Promise.resolve());
 		this.#waitForGracePeriod = dependencies.waitForGracePeriod ?? waitForDefaultGracePeriod;
 	}
 
-	async requestClose(retireProjection: () => Promise<void>): Promise<TerminalCloseOutcome> {
+	async requestClose(
+		retireProjection: () => Promise<void>,
+		disposition: 'remove' | 'stop' = 'remove',
+	): Promise<TerminalCloseOutcome> {
 		const loaded = await this.#store.load();
 		if (loaded.kind === 'unavailable') {
 			return { kind: 'store-unavailable', reason: loaded.reason };
@@ -86,21 +95,23 @@ export class TerminalCloseOrchestrator {
 				const inventory = await readTerminalInventory(this.#host);
 				const plan = planTerminalBindingClose(binding, inventory, this.#host.hostEpoch);
 				if (plan.kind !== 'close-terminal') return this.#finishNonTerminalPlan(plan);
-				if (!(await this.#persistClosing(plan.binding, plan.identity))) {
+				if (!(await this.#persistClosing(plan.binding, plan.identity, disposition))) {
 					return { kind: 'store-unavailable', reason: 'write-failed' };
 				}
 				await retireProjection();
+				const closingBinding = toClosingBinding(plan.binding, plan.identity, disposition);
 				const outcome = await this.#driveTerminalClose(
-					{ ...plan, binding: toClosingBinding(plan.binding, plan.identity) },
+					{ ...plan, binding: closingBinding },
 					outcomes,
 					closure,
+					closingBinding.state.kind === 'closing' ? closingBinding.state.disposition : disposition,
 				);
 				return outcome;
 			}
 
-			const closingBinding = toClosingBinding(binding, binding.state.identity);
+			const closingBinding = toClosingBinding(binding, binding.state.identity, disposition);
 			if (binding.state.kind !== 'closing') {
-				if (!(await this.#persistClosing(binding, binding.state.identity))) {
+				if (!(await this.#persistClosing(binding, binding.state.identity, disposition))) {
 					return { kind: 'store-unavailable', reason: 'write-failed' };
 				}
 			}
@@ -108,7 +119,12 @@ export class TerminalCloseOrchestrator {
 			const inventory = await readTerminalInventory(this.#host);
 			const plan = planTerminalBindingClose(closingBinding, inventory, this.#host.hostEpoch);
 			if (plan.kind !== 'close-terminal') return this.#finishNonTerminalPlan(plan);
-			const outcome = await this.#driveTerminalClose(plan, outcomes, closure);
+			const outcome = await this.#driveTerminalClose(
+				plan,
+				outcomes,
+				closure,
+				closingBinding.state.kind === 'closing' ? closingBinding.state.disposition : disposition,
+			);
 			return outcome;
 		} catch (error) {
 			await Promise.resolve();
@@ -139,7 +155,12 @@ export class TerminalCloseOrchestrator {
 		}
 		const closure = new HostCloseObservation(this.#host);
 		try {
-			const outcome = await this.#disposeTerminal(event.identity, closure);
+			const outcome = await this.#disposeTerminal(
+				event.identity,
+				closure,
+				binding.state.disposition,
+				event.finalRevision,
+			);
 			const durable = outcome.kind !== 'pending' && outcome.kind !== 'store-unavailable';
 			return {
 				handled: true,
@@ -155,17 +176,24 @@ export class TerminalCloseOrchestrator {
 		plan: Extract<TerminalClosePlan, { readonly kind: 'close-terminal' }>,
 		outcomes: TerminalOutcomeObservation,
 		closure: HostCloseObservation,
+		disposition: 'remove' | 'stop',
 		refreshCount = 0,
 	): Promise<TerminalCloseOutcome> {
 		if (plan.summary.phase === TerminalPhase.awaitingStart) {
-			return this.#disposeTerminal(plan.identity, closure);
+			return this.#disposeTerminal(plan.identity, closure, disposition, null);
 		}
+		const observedOutcome = outcomes.get(plan.identity);
 		if (
-			outcomes.has(plan.identity) ||
+			observedOutcome !== null ||
 			plan.summary.phase === TerminalPhase.exited ||
 			plan.summary.phase === TerminalPhase.failed
 		) {
-			return this.#disposeTerminal(plan.identity, closure);
+			return this.#disposeTerminal(
+				plan.identity,
+				closure,
+				disposition,
+				observedOutcome?.finalRevision ?? plan.summary.revision,
+			);
 		}
 		if (plan.summary.phase === TerminalPhase.finishing && !plan.summary.terminateRequested) {
 			return { kind: 'pending', reason: 'terminal-not-running' };
@@ -175,19 +203,36 @@ export class TerminalCloseOrchestrator {
 			try {
 				await this.#requestTerminalLifecycle(MessageKind.terminateTerminal, plan.identity);
 			} catch (error) {
-				return this.#recoverRejectedMutation(error, plan.binding, outcomes, closure, refreshCount);
+				return this.#recoverRejectedMutation(
+					error,
+					plan.binding,
+					outcomes,
+					closure,
+					disposition,
+					refreshCount,
+				);
 			}
-			if (outcomes.has(plan.identity)) return this.#disposeTerminal(plan.identity, closure);
+			const outcome = outcomes.get(plan.identity);
+			if (outcome !== null) {
+				return this.#disposeTerminal(plan.identity, closure, disposition, outcome.finalRevision);
+			}
 		}
 
 		if (plan.summary.phase !== TerminalPhase.containingFailure) {
 			const graceResult = await Promise.race([
-				outcomes.waitFor(plan.identity).then(() => 'outcome' as const),
-				closure.wait().then(() => 'closed' as const),
-				this.#waitForGracePeriod().then(() => 'grace' as const),
+				outcomes.waitFor(plan.identity).then((event) => ({ event, kind: 'outcome' as const })),
+				closure.wait().then(() => ({ kind: 'closed' as const })),
+				this.#waitForGracePeriod().then(() => ({ kind: 'grace' as const })),
 			]);
-			if (graceResult === 'outcome') return this.#disposeTerminal(plan.identity, closure);
-			if (graceResult === 'closed') {
+			if (graceResult.kind === 'outcome') {
+				return this.#disposeTerminal(
+					plan.identity,
+					closure,
+					disposition,
+					graceResult.event.finalRevision,
+				);
+			}
+			if (graceResult.kind === 'closed') {
 				return { kind: 'pending', reason: 'transport-unavailable' };
 			}
 		}
@@ -195,15 +240,35 @@ export class TerminalCloseOrchestrator {
 		try {
 			await this.#requestTerminalLifecycle(MessageKind.forceTerminateTerminal, plan.identity);
 		} catch (error) {
-			return this.#recoverRejectedMutation(error, plan.binding, outcomes, closure, refreshCount);
+			return this.#recoverRejectedMutation(
+				error,
+				plan.binding,
+				outcomes,
+				closure,
+				disposition,
+				refreshCount,
+			);
 		}
-		if (outcomes.has(plan.identity)) return this.#disposeTerminal(plan.identity, closure);
+		const forcedOutcome = outcomes.get(plan.identity);
+		if (forcedOutcome !== null) {
+			return this.#disposeTerminal(
+				plan.identity,
+				closure,
+				disposition,
+				forcedOutcome.finalRevision,
+			);
+		}
 		const outcomeResult = await Promise.race([
-			outcomes.waitFor(plan.identity).then(() => 'outcome' as const),
-			closure.wait().then(() => 'closed' as const),
+			outcomes.waitFor(plan.identity).then((event) => ({ event, kind: 'outcome' as const })),
+			closure.wait().then(() => ({ kind: 'closed' as const })),
 		]);
-		return outcomeResult === 'outcome'
-			? this.#disposeTerminal(plan.identity, closure)
+		return outcomeResult.kind === 'outcome'
+			? this.#disposeTerminal(
+					plan.identity,
+					closure,
+					disposition,
+					outcomeResult.event.finalRevision,
+				)
 			: { kind: 'pending', reason: 'transport-unavailable' };
 	}
 
@@ -212,6 +277,7 @@ export class TerminalCloseOrchestrator {
 		binding: TerminalBinding,
 		outcomes: TerminalOutcomeObservation,
 		closure: HostCloseObservation,
+		disposition: 'remove' | 'stop',
 		refreshCount: number,
 	): Promise<TerminalCloseOutcome> {
 		await Promise.resolve();
@@ -226,13 +292,22 @@ export class TerminalCloseOrchestrator {
 		const inventory = await readTerminalInventory(this.#host);
 		const plan = planTerminalBindingClose(binding, inventory, this.#host.hostEpoch);
 		if (plan.kind !== 'close-terminal') return this.#finishNonTerminalPlan(plan);
-		return this.#driveTerminalClose(plan, outcomes, closure, refreshCount + 1);
+		return this.#driveTerminalClose(plan, outcomes, closure, disposition, refreshCount + 1);
 	}
 
 	async #disposeTerminal(
 		identity: TerminalIdentity,
 		closure: HostCloseObservation,
+		disposition: 'remove' | 'stop',
+		minimumRevision: TerminalExited['finalRevision'] | null,
 	): Promise<TerminalCloseOutcome> {
+		if (disposition === 'stop' && minimumRevision !== null) {
+			try {
+				await this.#beforeDispose(identity, minimumRevision);
+			} catch {
+				// Archive capture is a best-effort projection and never owns Host disposal.
+			}
+		}
 		try {
 			await this.#requestTerminalLifecycle(MessageKind.disposeTerminal, identity);
 		} catch (error) {
@@ -260,9 +335,13 @@ export class TerminalCloseOrchestrator {
 		}
 	}
 
-	async #persistClosing(binding: TerminalBinding, identity: TerminalIdentity): Promise<boolean> {
+	async #persistClosing(
+		binding: TerminalBinding,
+		identity: TerminalIdentity,
+		disposition: 'remove' | 'stop',
+	): Promise<boolean> {
 		try {
-			await this.#store.put(toClosingBinding(binding, identity));
+			await this.#store.put(toClosingBinding(binding, identity, disposition));
 			return true;
 		} catch {
 			return false;
@@ -339,9 +418,9 @@ class TerminalOutcomeObservation {
 		this.#waiters.clear();
 	}
 
-	has(identity: TerminalIdentity): boolean {
+	get(identity: TerminalIdentity): TerminalOutcome | null {
 		const event = this.#events.get(identityKey(identity));
-		return event !== undefined && identitiesEqual(event.identity, identity);
+		return event !== undefined && identitiesEqual(event.identity, identity) ? event : null;
 	}
 
 	waitFor(identity: TerminalIdentity): Promise<TerminalOutcome> {
@@ -374,8 +453,19 @@ class TerminalOutcomeObservation {
 	}
 }
 
-function toClosingBinding(binding: TerminalBinding, identity: TerminalIdentity): TerminalBinding {
-	return { ...binding, state: { identity, kind: 'closing' } };
+function toClosingBinding(
+	binding: TerminalBinding,
+	identity: TerminalIdentity,
+	disposition: 'remove' | 'stop',
+): TerminalBinding {
+	return {
+		...binding,
+		state: {
+			disposition: binding.state.kind === 'closing' ? binding.state.disposition : disposition,
+			identity,
+			kind: 'closing',
+		},
+	};
 }
 
 function identitiesEqual(left: TerminalIdentity, right: TerminalIdentity): boolean {

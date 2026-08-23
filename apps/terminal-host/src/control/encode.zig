@@ -1,6 +1,7 @@
 const common = @import("encode_common.zig");
 const host = @import("encode_host.zig");
 const interaction = @import("encode_interaction.zig");
+const metadata = @import("encode_metadata.zig");
 const terminal = @import("encode_terminal.zig");
 const theme = @import("encode_theme.zig");
 
@@ -21,6 +22,7 @@ pub const terminalList = host.terminalList;
 pub const terminalSummary = host.terminalSummary;
 pub const terminalExited = host.terminalExited;
 pub const terminalFailed = host.terminalFailed;
+pub const terminalMetadataChanged = metadata.terminalMetadataChanged;
 
 pub const terminalThemeResult = theme.terminalThemeResult;
 pub const writeTerminalThemeResult = theme.writeTerminalThemeResult;
