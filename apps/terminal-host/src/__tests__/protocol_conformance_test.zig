@@ -150,6 +150,7 @@ fn buildTextRowWindow(
 const ControlCommandsFixture = struct {
     apply_terminal_theme: []const u8,
     attach_terminal: []const u8,
+    claim_resize_lease: []const u8,
     clear_terminal: []const u8,
     create_terminal: []const u8,
     create_terminal_deferred: []const u8,
@@ -943,6 +944,13 @@ test "every TypeScript control command fixture crosses the native typed decoder"
     }
     {
         var decoded = try control_decode.decodeAttachTerminal(allocator, commands.attach_terminal);
+        defer decoded.deinit();
+    }
+    {
+        var decoded = try control_decode.decodeClaimResizeLease(
+            allocator,
+            commands.claim_resize_lease,
+        );
         defer decoded.deinit();
     }
     {

@@ -60,6 +60,7 @@ pub const Dispatcher = struct {
             .force_terminate_terminal,
             .dispose_terminal,
             .attach_terminal,
+            .claim_resize_lease,
             .detach_terminal,
             .update_attachment_input_capability,
             .set_terminal_defaults,

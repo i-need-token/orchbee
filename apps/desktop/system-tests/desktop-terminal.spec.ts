@@ -22,7 +22,12 @@ import {
 	type Locator,
 	type Page,
 } from '@playwright/test';
-import { decodeGatewayBrowserFragment, GATEWAY_CONTROL_PATH } from '@orchbee/gateway-protocol';
+import {
+	decodeGatewayAttachmentClientFrame,
+	decodeGatewayAttachmentServerFrame,
+	decodeGatewayBrowserFragment,
+	GATEWAY_CONTROL_PATH,
+} from '@orchbee/gateway-protocol';
 
 const repositoryRoot = path.resolve(import.meta.dirname, '..', '..', '..');
 const hostBinary = path.join(
@@ -633,6 +638,54 @@ test('terminal-parity/SU-08-dpr', async () => {
 		expect(afterDispose.matchMediaInvocationCount).toBe(disposed.matchMediaInvocationCount);
 		expect(afterDispose.matchMediaActiveCount).toBe(0);
 		expect(afterDispose.windowResizeActiveCount).toBe(0);
+	} finally {
+		await browser.close();
+	}
+});
+
+test('terminal-parity/LC-07-resize-lease', async () => {
+	test.setTimeout(45_000);
+	const currentDevelopmentRendererUrl = developmentRendererUrl;
+	if (currentDevelopmentRendererUrl === undefined) {
+		throw new Error('Web development renderer server is unavailable.');
+	}
+	const browser = await chromium.launch();
+	try {
+		const page = await browser.newPage({ viewport: { height: 600, width: 900 } });
+		await page.goto(
+			new URL('terminal-resize-ownership-fixture.html', currentDevelopmentRendererUrl).href,
+		);
+		const root = page.locator('#terminal-resize-ownership-witness');
+		await expect(root).toHaveAttribute('data-witness-ready', 'true');
+		await expect(root).not.toHaveAttribute('data-witness-failure', /.+/u);
+		await expect(root).toHaveAttribute(
+			'data-witness-control',
+			'chromium-resize-observer-with-explicit-lease-grant',
+		);
+		await expect(root).toHaveAttribute(
+			'data-witness-limitation',
+			'client-convergence-only-not-a-physical-phone',
+		);
+		await expect(root).toHaveAttribute('data-witness-observer-width', '320');
+		await expect(root).toHaveAttribute('data-witness-observer-height', '480');
+		await expect(root).toHaveAttribute('data-witness-resize-count', '0');
+
+		await page.locator('#grant-resize-ownership').click();
+		await expect(root).toHaveAttribute('data-witness-complete', 'true');
+		await expect(root).not.toHaveAttribute('data-witness-failure', /.+/u);
+		await expect(root).toHaveAttribute('data-witness-resize-count', '1');
+		expect(Number(await root.getAttribute('data-witness-columns'))).toBeGreaterThan(0);
+		expect(Number(await root.getAttribute('data-witness-rows'))).toBeGreaterThan(0);
+		expect(
+			Number(await root.getAttribute('data-witness-terminal-pixel-width')),
+		).toBeLessThanOrEqual(320);
+		expect(
+			Number(await root.getAttribute('data-witness-terminal-pixel-height')),
+		).toBeLessThanOrEqual(480);
+
+		await page.locator('#dispose-resize-ownership-witness').click();
+		await expect(root).toHaveAttribute('data-witness-disposed', 'true');
+		await expect(root).toHaveAttribute('data-witness-dispose-child-count', '0');
 	} finally {
 		await browser.close();
 	}
@@ -2629,6 +2682,12 @@ test('shares one Workbench and Host terminal with two authenticated Browser clie
 	await expect(desktopRoot).toHaveAttribute('data-projected-terminal-state', 'open');
 	const desktopIdentity = await terminalDocumentIdentity(desktopRoot);
 	const sharedPresentationId = await desktopRoot.getAttribute('data-terminal-presentation-id');
+	const desktopInitialColumns = Number(
+		await desktopRoot.getAttribute('data-projected-terminal-columns'),
+	);
+	if (!Number.isInteger(desktopInitialColumns) || desktopInitialColumns < 1) {
+		throw new Error('Desktop terminal did not expose its initial canonical columns.');
+	}
 
 	const browser = await chromium.launch();
 	try {
@@ -2638,6 +2697,7 @@ test('shares one Workbench and Host terminal with two authenticated Browser clie
 		});
 		const firstBrowserPage = await context.newPage();
 		const secondBrowserPage = await context.newPage();
+		await firstBrowserPage.setViewportSize({ height: 760, width: 430 });
 		const firstSockets = trackGatewaySockets(firstBrowserPage);
 		const secondSockets = trackGatewaySockets(secondBrowserPage);
 		await firstBrowserPage.goto(gatewayUrl);
@@ -2654,6 +2714,37 @@ test('shares one Workbench and Host terminal with two authenticated Browser clie
 					{ cause: error },
 				);
 			});
+		const firstInput = firstBrowserPage.getByRole('textbox');
+		await firstBrowserPage.evaluate(() => {
+			if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+		});
+		await firstInput.focus();
+		await expect
+			.poll(async () => Number(await firstRoot.getAttribute('data-projected-terminal-columns')))
+			.toBeLessThan(desktopInitialColumns)
+			.catch(async (error: unknown) => {
+				const metrics = await firstRoot.evaluate((element) => {
+					const bounds = element.getBoundingClientRect();
+					const canvasBounds = element.querySelector('canvas')?.getBoundingClientRect();
+					return {
+						canvasHeight: canvasBounds?.height ?? null,
+						canvasWidth: canvasBounds?.width ?? null,
+						columns: element.dataset['projectedTerminalColumns'] ?? null,
+						rootHeight: bounds.height,
+						rootWidth: bounds.width,
+						viewportHeight: window.innerHeight,
+						viewportWidth: window.innerWidth,
+					};
+				});
+				throw new Error(
+					`Mobile resize ownership did not converge: ${JSON.stringify({ metrics, socketEvents: firstSockets.events })}`,
+					{ cause: error },
+				);
+			});
+		const mobileColumns = Number(await firstRoot.getAttribute('data-projected-terminal-columns'));
+		await expect
+			.poll(async () => Number(await desktopRoot.getAttribute('data-projected-terminal-columns')))
+			.toBe(mobileColumns);
 		await secondBrowserPage.goto(gatewayUrl);
 		await expect(secondRoot).toHaveAttribute('data-projected-terminal-state', 'open');
 		const firstIdentity = await terminalDocumentIdentity(firstRoot);
@@ -2684,7 +2775,6 @@ test('shares one Workbench and Host terminal with two authenticated Browser clie
 		await expect.poll(() => gatewaySocketCount(firstSockets, '/v1/attachment')).toBe(1);
 		await expect.poll(() => gatewaySocketCount(secondSockets, '/v1/attachment')).toBe(1);
 
-		const firstInput = firstBrowserPage.getByRole('textbox');
 		await firstInput.pressSequentially("printf 'gateway-shared-terminal-marker\\n'");
 		await firstInput.press('Enter');
 		await expect(firstBrowserPage.locator('[role="list"]')).toContainText(
@@ -3498,6 +3588,8 @@ async function startWebRendererDevelopmentServer(): Promise<{
 					'./src/workbench-client/projected-terminal-renderer/__tests__/bell-effects.system-fixture.ts',
 				'terminal-dpr-fixture':
 					'./src/workbench-client/projected-terminal-renderer/__tests__/dpr.system-fixture.ts',
+				'terminal-resize-ownership-fixture':
+					'./src/workbench-client/projected-terminal-renderer/__tests__/resize-ownership.system-fixture.ts',
 				'terminal-input-repair-fixture':
 					'./src/workbench-client/projected-terminal-renderer/__tests__/input-repair.system-fixture.ts',
 				'terminal-input-capability-fixture':
@@ -4135,7 +4227,17 @@ function isRfc1918IPv4(value: string): boolean {
 }
 
 function gatewayFrameShape(payload: string | Buffer): string {
-	if (typeof payload !== 'string') return `binary:${payload.byteLength}`;
+	if (typeof payload !== 'string') {
+		const frame = payload.buffer.slice(
+			payload.byteOffset,
+			payload.byteOffset + payload.byteLength,
+		) as ArrayBuffer;
+		const client = decodeGatewayAttachmentClientFrame(frame);
+		if (client.ok) return `binary:${payload.byteLength}:client:${client.value.kind}`;
+		const server = decodeGatewayAttachmentServerFrame(frame);
+		if (server.ok) return `binary:${payload.byteLength}:server:${server.value.kind}`;
+		return `binary:${payload.byteLength}`;
+	}
 	try {
 		const value: unknown = JSON.parse(payload);
 		if (typeof value === 'object' && value !== null && 'type' in value) {

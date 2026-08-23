@@ -84,6 +84,7 @@ pub fn fromCore(err: CoreFailure) Details {
         error.OutcomePublicationPending => .{ .code = "outcome-publication-pending", .message = "terminal outcome publication is pending", .retryable = true },
         error.RevisionOverflow => .{ .code = "resource-exhausted", .message = "terminal revision space is exhausted", .retryable = false },
         error.ResizeLeaseDenied => .{ .code = "resize-lease-denied", .message = "attachment does not own the resize lease", .retryable = false },
+        error.ResizeLeaseSequenceOverflow => .{ .code = "resource-exhausted", .message = "resize lease claim sequence space is exhausted", .retryable = false },
         error.SequenceOverflow => .{ .code = "resource-exhausted", .message = "attachment frame sequence space is exhausted", .retryable = false },
         error.StaleCapabilityRevision => .{ .code = "stale-capability-revision", .message = "capability revision is stale or out of order", .retryable = false },
         error.StartConflict => .{ .code = "start-conflict", .message = "terminal was already started with different geometry", .retryable = false },

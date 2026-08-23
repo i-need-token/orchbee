@@ -22,6 +22,7 @@ describe('message contract registry', () => {
 		expect(MessageKind.startTerminal).toBe(16);
 		expect(MessageKind.terminalStartAccepted).toBe(17);
 		expect(MessageKind.updateAttachmentInputCapability).toBe(24);
+		expect(MessageKind.claimResizeLease).toBe(25);
 		expect(MessageKind.applyTerminalTheme).toBe(77);
 		expect(MessageKind.terminalThemeResult).toBe(78);
 	});
@@ -56,6 +57,9 @@ describe('message contract registry', () => {
 		expect(
 			MESSAGE_CONTRACTS[MessageKind.updateAttachmentInputCapability].request?.successKind,
 		).toBe(MessageKind.attachmentCapabilities);
+		expect(MESSAGE_CONTRACTS[MessageKind.claimResizeLease].request?.successKind).toBe(
+			MessageKind.attachmentCapabilities,
+		);
 		expect(messagePayloadEncoding(MessageKind.selectionChanged, 'response')).toBe(
 			PayloadEncoding.controlJson,
 		);

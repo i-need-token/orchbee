@@ -393,6 +393,10 @@ export const UpdateAttachmentInputCapabilitySchema = z.strictObject({
 	input: z.boolean(),
 });
 
+export const ClaimResizeLeaseSchema = z.strictObject({
+	attachmentId: AttachmentIdSchema,
+});
+
 export const ResizeTerminalSchema = z
 	.strictObject({
 		attachmentId: AttachmentIdSchema,
@@ -1044,6 +1048,7 @@ export type AttachmentCapabilities = z.infer<typeof AttachmentCapabilitiesSchema
 export type AttachTerminal = z.infer<typeof AttachTerminalSchema>;
 export type CanonicalUint64Text = z.infer<typeof CanonicalUint64TextSchema>;
 export type ClearTerminal = z.infer<typeof ClearTerminalSchema>;
+export type ClaimResizeLease = z.infer<typeof ClaimResizeLeaseSchema>;
 export type CreateTerminal = z.infer<typeof CreateTerminalSchema>;
 export type DetachTerminal = z.infer<typeof DetachTerminalSchema>;
 export type ExitResult = z.infer<typeof ExitResultSchema>;

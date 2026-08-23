@@ -9,7 +9,7 @@ It does not open sockets or named pipes, spawn processes, parse VT, route Electr
 | Area                 | Public contract                                                                                                                                                                                |
 | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Identity             | Strict non-zero 128-bit host, creation, terminal, client, attachment, correlation, and terminal-theme operation identities                                                                     |
-| Compatibility        | Exact current protocol `0.0.18` validation; a different version is rejected rather than adapted                                                                                                |
+| Compatibility        | Exact current protocol `0.0.19` validation; a different version is rejected rather than adapted                                                                                                |
 | Message registry     | One current-version mapping from every kind to its legal role, payload encoding, and successful response kind                                                                                  |
 | Control              | Message-kind-selected request encoding plus strict handshake, configuration/theme, inventory, lifecycle, attachment, projection/history, bell, clipboard-write, selection, and failure schemas |
 | Transport            | A bounded 64-byte envelope that rejects producer-side role or encoding mismatches for JSON, input, terminal frames, and row windows                                                            |
@@ -48,6 +48,13 @@ revision, a gap, or a next revision that does not change the bit is rejected. Ev
 input carries the exact revision in its binary authority header, and `InputAccepted` echoes it. The
 initial `AttachTerminal` request must be nonempty, while the complete current capability value may
 be all false after an input-only attachment is downgraded.
+
+`ClaimResizeLease` kind `25` carries one attachment identity and returns its complete current
+`AttachmentCapabilities`. A running resize-capable attachment may claim; replay by the current
+owner is idempotent. A transfer publishes the prior owner's complete `resizeLease: false` fact
+before the new owner's `resizeLease: true` fact and then returns the response. Claiming changes
+neither admitted capabilities nor capability revision, and `ResizeTerminal` is never an implicit
+claim.
 
 `SelectionExport` and `SelectionExportStarted` retain an explicit format field whose only valid
 value is `plain`. HTML and raw VT are rejected by both language decoders and are not product wire
@@ -96,24 +103,24 @@ if (envelope.value.payloadEncoding === PayloadEncoding.terminalFrame) {
 The package explicitly exports:
 
 - `@orchbee/terminal-protocol/fixtures/canonical.json`
-- `@orchbee/terminal-protocol/fixtures/control-conformance-v0.0.18.json`
+- `@orchbee/terminal-protocol/fixtures/control-conformance-v0.0.19.json`
 - `@orchbee/terminal-protocol/fixtures/malformed-frame-v0.0.3.json`
 - `@orchbee/terminal-protocol/fixtures/malformed-row-window-v0.0.2.json`
 - `@orchbee/terminal-protocol/fixtures/terminal-frame-v0.0.3.bin`
-- `@orchbee/terminal-protocol/fixtures/terminal-failed-v0.0.18.json`
+- `@orchbee/terminal-protocol/fixtures/terminal-failed-v0.0.19.json`
 - `@orchbee/terminal-protocol/fixtures/terminal-projection-buffer-v0.0.2.bin`
 - `@orchbee/terminal-protocol/fixtures/terminal-row-window-v0.0.2.bin`
-- `@orchbee/terminal-protocol/fixtures/transport-envelope-v0.0.18.bin`
-- `@orchbee/terminal-protocol/fixtures/write-input-v0.0.18.bin`
-- `@orchbee/terminal-protocol/fixtures/key-input-v0.0.18.bin`
-- `@orchbee/terminal-protocol/fixtures/text-input-v0.0.18.bin`
-- `@orchbee/terminal-protocol/fixtures/mouse-input-v0.0.18.bin`
-- `@orchbee/terminal-protocol/fixtures/focus-input-v0.0.18.bin`
-- `@orchbee/terminal-protocol/fixtures/paste-input-v0.0.18.bin`
+- `@orchbee/terminal-protocol/fixtures/transport-envelope-v0.0.19.bin`
+- `@orchbee/terminal-protocol/fixtures/write-input-v0.0.19.bin`
+- `@orchbee/terminal-protocol/fixtures/key-input-v0.0.19.bin`
+- `@orchbee/terminal-protocol/fixtures/text-input-v0.0.19.bin`
+- `@orchbee/terminal-protocol/fixtures/mouse-input-v0.0.19.bin`
+- `@orchbee/terminal-protocol/fixtures/focus-input-v0.0.19.bin`
+- `@orchbee/terminal-protocol/fixtures/paste-input-v0.0.19.bin`
 - `@orchbee/terminal-protocol/fixtures/ghostty-alternate-surface-v0.0.3.bin`
 - `@orchbee/terminal-protocol/fixtures/ghostty-surface-v0.0.3.bin`
 
-`canonical.json` is only the language-neutral generator input for the current binary formats, so it has no compatibility version. `control-conformance-v0.0.18.json` contains schema-produced command, reply, event, discriminated-union, failure, and complete kind/role/encoding/success-response contracts consumed by the native typed adapter. `fixtures:generate` uses the built TypeScript codecs and schemas to produce those tracked records, the canonical `TerminalFailed` control record, the current OBTF format-`0.0.3` fixture, and the current OBPB and OBRW format-`0.0.2` fixtures, plus the frame and row-window malformed corpora. Unit tests reject stale generated files, and `apps/terminal-host` resolves only these declared package exports before running the Zig validator against the same bytes. Every compatibility fixture carries the exact semantic version of its owning wire protocol or binary format; no wildcard or major-only fixture name is used.
+`canonical.json` is only the language-neutral generator input for the current binary formats, so it has no compatibility version. `control-conformance-v0.0.19.json` contains schema-produced command, reply, event, discriminated-union, failure, and complete kind/role/encoding/success-response contracts consumed by the native typed adapter. `fixtures:generate` uses the built TypeScript codecs and schemas to produce those tracked records, the canonical `TerminalFailed` control record, the current OBTF format-`0.0.3` fixture, and the current OBPB and OBRW format-`0.0.2` fixtures, plus the frame and row-window malformed corpora. Unit tests reject stale generated files, and `apps/terminal-host` resolves only these declared package exports before running the Zig validator against the same bytes. Every compatibility fixture carries the exact semantic version of its owning wire protocol or binary format; no wildcard or major-only fixture name is used.
 
 `TerminalProfile` carries explicit `defaultCursorShape` and `defaultCursorBlinking` values. Missing
 fields normalize to `block` and `false` so previously persisted profile objects retain the product
@@ -138,7 +145,7 @@ consumer-owned. `NeedSnapshot` reason `activity-stale` abandons the exact in-fli
 consumer has locally invalidated its close-activity observation and cannot prove that frame is
 newer than the invalidating input; the replacement is a complete snapshot. This ordering proves
 only that the replacement reflects the Host cache after invalidation, not that the Host accepted
-the input or that the terminal process consumed it. In protocol `0.0.18`, Host-accepted non-focus
+the input or that the terminal process consumed it. In protocol `0.0.19`, Host-accepted non-focus
 input invalidates the cached observation immediately. A later bounded current-state sample may
 publish `active`, `idle`, or `unknown`, so a causal replacement may legitimately restore fresh
 `idle` in the same terminal lifecycle. This changes no wire value or codec.

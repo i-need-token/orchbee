@@ -33,7 +33,7 @@ pub const terminal_row_window_format_patch: u8 = 2;
 pub const transport_envelope_header_bytes = 64;
 pub const current_protocol_major: u16 = 0;
 pub const current_protocol_minor: u16 = 0;
-pub const current_protocol_patch: u16 = 18;
+pub const current_protocol_patch: u16 = 19;
 
 pub const Limits = struct {
     pub const cell_pixel_dimension = 4096;
@@ -108,6 +108,7 @@ pub const PayloadEncoding = enum(u8) {
 pub const RequestOperation = enum {
     apply_terminal_theme,
     attach_terminal,
+    claim_resize_lease,
     clear_terminal,
     create_terminal,
     detach_terminal,
@@ -269,6 +270,12 @@ pub fn messageContract(kind: u16) ?MessageContract {
         M.update_attachment_input_capability => requestOnly(
             "UpdateAttachmentInputCapability",
             .update_attachment_input_capability,
+            .control_json,
+            M.attachment_capabilities,
+        ),
+        M.claim_resize_lease => requestOnly(
+            "ClaimResizeLease",
+            .claim_resize_lease,
             .control_json,
             M.attachment_capabilities,
         ),

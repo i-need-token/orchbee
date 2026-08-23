@@ -25,6 +25,7 @@ pub const Error = error{
     AttachmentSequenceOverflow,
     InvalidCapabilities,
     ResizeLeaseDenied,
+    ResizeLeaseSequenceOverflow,
 };
 
 pub const Capabilities = model.attachment.Capabilities;
@@ -40,6 +41,7 @@ pub const Attachment = struct {
     capability_revision: u64 = 1,
     projection: attachment_projection.State = .{},
     requested_resize_lease: bool,
+    resize_claim_sequence: u64 = 0,
     resize_lease: bool,
     terminal_attachment_index: usize,
     terminal_id: TerminalId,
@@ -86,6 +88,7 @@ pub const Session = struct {
     client_id: ClientId,
     connection_id: ConnectionId,
     next_attachment_sequence: u64 = 1,
+    next_resize_claim_sequence: u64 = 1,
     testing_state: SessionTestingState = .{},
 
     pub fn init(
@@ -193,6 +196,9 @@ pub const Session = struct {
         if (self.next_attachment_sequence == std.math.maxInt(u64)) {
             return error.AttachmentSequenceOverflow;
         }
+        if (resize_lease and self.next_resize_claim_sequence == std.math.maxInt(u64)) {
+            return error.ResizeLeaseSequenceOverflow;
+        }
 
         var terminal_list_created = false;
         if (!self.attachments_by_terminal.contains(terminal_id)) {
@@ -227,28 +233,64 @@ pub const Session = struct {
             .admitted_capabilities = capabilities,
             .capabilities = capabilities,
             .requested_resize_lease = resize_lease,
+            .resize_claim_sequence = if (resize_lease) self.next_resize_claim_sequence else 0,
             .resize_lease = resize_lease,
             .terminal_attachment_index = terminal_list.items.len - 1,
             .terminal_id = terminal_id,
         });
         self.next_attachment_sequence += 1;
+        if (resize_lease) self.next_resize_claim_sequence += 1;
     }
 
     pub fn promoteResizeLease(self: *Session, terminal_id: TerminalId) ?AttachmentId {
         const attachment_ids = self.idsForTerminal(terminal_id) orelse return null;
         var successor: ?AttachmentId = null;
-        var successor_sequence: u64 = std.math.maxInt(u64);
+        var successor_claim_sequence: u64 = 0;
+        var successor_admission_sequence: u64 = std.math.maxInt(u64);
         for (attachment_ids) |attachment_id| {
             const attachment = self.attachments.get(attachment_id).?;
             if (!attachment.capabilities.resize or attachment.resize_lease) continue;
-            if (attachment.admission_sequence < successor_sequence) {
+            if (attachment.resize_claim_sequence > successor_claim_sequence or
+                (attachment.resize_claim_sequence == successor_claim_sequence and
+                    attachment.admission_sequence < successor_admission_sequence))
+            {
                 successor = attachment_id;
-                successor_sequence = attachment.admission_sequence;
+                successor_claim_sequence = attachment.resize_claim_sequence;
+                successor_admission_sequence = attachment.admission_sequence;
             }
         }
         const attachment_id = successor orelse return null;
         self.attachments.getPtr(attachment_id).?.resize_lease = true;
         return attachment_id;
+    }
+
+    /// Transfers resize authority without allocation. The caller validates
+    /// connection ownership, terminal phase, and target capability first.
+    pub fn claimResizeLease(
+        self: *Session,
+        attachment_id: AttachmentId,
+    ) Error!?AttachmentId {
+        const target = self.attachments.get(attachment_id) orelse unreachable;
+        std.debug.assert(target.capabilities.resize);
+        if (target.resize_lease) return null;
+        if (self.next_resize_claim_sequence == std.math.maxInt(u64)) {
+            return error.ResizeLeaseSequenceOverflow;
+        }
+
+        var previous_owner: ?AttachmentId = null;
+        const attachment_ids = self.idsForTerminal(target.terminal_id) orelse unreachable;
+        for (attachment_ids) |candidate_id| {
+            const candidate = self.attachments.getPtr(candidate_id).?;
+            if (!candidate.resize_lease) continue;
+            previous_owner = candidate_id;
+            candidate.resize_lease = false;
+            break;
+        }
+        const claimed = self.attachments.getPtr(attachment_id).?;
+        claimed.resize_claim_sequence = self.next_resize_claim_sequence;
+        claimed.resize_lease = true;
+        self.next_resize_claim_sequence += 1;
+        return previous_owner;
     }
 
     pub fn remove(self: *Session, attachment_id: AttachmentId) ?Attachment {
@@ -354,6 +396,10 @@ pub const testing = if (@import("builtin").is_test) struct {
 
     pub fn resetActiveReadDemandScans(session: *Session) void {
         session.testing_state.active_read_demand_scans = 0;
+    }
+
+    pub fn setNextResizeClaimSequence(session: *Session, sequence: u64) void {
+        session.next_resize_claim_sequence = sequence;
     }
 
     pub fn indexedAttachmentCount(session: *const Session) usize {

@@ -71,6 +71,12 @@ pub const ResizeLeaseChange = struct {
     terminal_id: TerminalId,
 };
 
+pub const ResizeLeaseClaim = struct {
+    outcome: TransitionOutcome,
+    previous_owner: ?AttachmentId,
+    terminal_id: TerminalId,
+};
+
 pub const AttachmentDetach = struct {
     outcome: TransitionOutcome,
     resize_lease_change: ?ResizeLeaseChange,
@@ -115,6 +121,7 @@ pub const CoreError = error{
     OutcomePublicationPending,
     RevisionOverflow,
     ResizeLeaseDenied,
+    ResizeLeaseSequenceOverflow,
     SequenceOverflow,
     StaleCapabilityRevision,
     StartConflict,

@@ -5,7 +5,7 @@
 | 状态       | 当前的有线合同和编解码器权威；此包不实现生命周期状态机、PTY、IPC 侦听器、渲染器、Electron、恢复或网络行为                       |
 | 线主       | `@orchbee/terminal-protocol`                                                                                                    |
 | 本土消费者 | `apps/terminal-host` 使用声明的模式和夹具导出来实现有界本机调度和 Zig 一致性                                                    |
-| 参考范围   | 精确协议 `0.0.18`；OBTF 格式 `0.0.3`；OBPB 与 OBRW 格式 `0.0.2`；OBKG 格式 `0.0.1`；输入/选择编解码器；失败术语；边界；以及夹具 |
+| 参考范围   | 精确协议 `0.0.19`；OBTF 格式 `0.0.3`；OBPB 与 OBRW 格式 `0.0.2`；OBKG 格式 `0.0.1`；输入/选择编解码器；失败术语；边界；以及夹具 |
 | 变更规则   | 字段、消息语义、线协议字节、边界或夹具发生变化时，必须更新本文、两种语言实现、每个生产者/消费者及证据                           |
 
 ## 建模记录
@@ -38,7 +38,7 @@
 | `TerminalThemeOperationId` | 应用程序为一个终端主题比较和设置操作创建的幂等性身份                         |
 | `CorrelationId`            | `Hello` 之后的每个请求和响应都需要；全零信封字节意味着仅握手消息或事件不存在 |
 
-当前协议版本精确为 `0.0.18`。`Hello`、`HelloAccepted` 与每个传输信封都携带该精确版本。不同的主版本、次版本或补丁版本均被拒绝；该预发布契约不包含任何协商范围、兼容模式或历史消息结构。打包 OBTF 帧格式精确为 `0.0.3`；OBPB 投影缓冲区与 OBRW 行窗口格式精确为 `0.0.2`；OBKG 图形扩展格式精确为 `0.0.1`。对应解码器只接受这些精确格式。虽然这些契约的主版本为 `0`，仓库只保留当前尚未发布的契约，不为开发修订保留变更日志。首次公开发布时契约版本变为 `1.0.0`；此后每项外部可观察契约变化都要更新所属语义版本，并在 [`../docs/version-history.md`](../docs/version-history.md) 记录。Host 构建版本是用于标识可执行文件的独立语义版本；`HelloAccepted.hostVersion` 仅将其用于诊断，不要求构建版本与协议版本一同递增。
+当前协议版本精确为 `0.0.19`。`Hello`、`HelloAccepted` 与每个传输信封都携带该精确版本。不同的主版本、次版本或补丁版本均被拒绝；该预发布契约不包含任何协商范围、兼容模式或历史消息结构。打包 OBTF 帧格式精确为 `0.0.3`；OBPB 投影缓冲区与 OBRW 行窗口格式精确为 `0.0.2`；OBKG 图形扩展格式精确为 `0.0.1`。对应解码器只接受这些精确格式。虽然这些契约的主版本为 `0`，仓库只保留当前尚未发布的契约，不为开发修订保留变更日志。首次公开发布时契约版本变为 `1.0.0`；此后每项外部可观察契约变化都要更新所属语义版本，并在 [`../docs/version-history.md`](../docs/version-history.md) 记录。Host 构建版本是用于标识可执行文件的独立语义版本；`HelloAccepted.hostVersion` 仅将其用于诊断，不要求构建版本与协议版本一同递增。
 
 ## 控制合约
 
@@ -82,6 +82,7 @@ JSON 内的规范无符号 64 位整数使用十进制文本，除了值 `0` 之
 | `AttachTerminal`                  | 附件与终端标识、授予的 input/read/resize 能力、初始能力修订 `1`，以及调整大小租约事实                                                                                        |
 | `DetachTerminal`                  | 目标 `AttachmentId`                                                                                                                                                          |
 | `UpdateAttachmentInputCapability` | 附件与终端标识、完整当前能力、当前正数能力修订，以及调整大小租约事实                                                                                                         |
+| `ClaimResizeLease`                | 附件与终端标识、完整且未改变的能力与能力修订，以及已提交的调整大小租约事实                                                                                                   |
 | 原始或语义输入                    | 附件身份、准确的功能修订以及致力于有序入口的编码终端字节计数                                                                                                                 |
 | `ResizeTerminal`                  | 附件身份、接受的规范单元/像素几何形状以及由此产生的修订                                                                                                                      |
 | `ClearTerminal` / `ResetTerminal` | 附件和终端身份、精确操作以及最终的修订/生成                                                                                                                                  |
@@ -102,6 +103,13 @@ JSON 内的规范无符号 64 位整数使用十进制文本，除了值 `0` 之
 该线路不会暴露主机的物理代理会话身份。主机将附件绑定到其一个活动代理会话，并通过该会话解析每个 `AttachmentId`。 `ClientId`是诊断元数据，不合并、转让、独立授予权限。
 
 每个附件至少请求输入、读取或调整大小权限之一。仅当也请求并授予调整大小权限时，调整大小租约才是合法的。空的请求能力绑定和没有调整大小权限的调整大小租约在附件准入时格式错误。仅输入附件降级后，完整的当前能力值可以全部为 false。
+
+kind `25` 的 `ClaimResizeLease` 只携带一个附件标识。运行中且具有 resize 能力的附件可以
+claim terminal 的唯一 lease；当前 owner 的重放是幂等的。一次成功 transfer 会返回完整且未改变的
+`AttachmentCapabilities`，先发布前 owner 的 `resizeLease: false` `ResizeLeaseChanged` fact，
+再发布 claimant 的 `resizeLease: true` fact；成功 response 位于两个 event 之后。遭拒 claim
+保留此前 owner、geometry、capability revision 与已准入 capability value。Non-owner 的
+`ResizeTerminal` 会被拒绝，绝不会隐式 claim。
 
 `ResizeLeaseChanged` 是仅事件的完整所有权事实，包含确切的附件和终端身份以及 `resizeLease`；它从来都不是一个切换。当分离调整大小所有者提升现有观察者时，主机会在成功分离响应之前提交该观察者的事件。消费者在更改可能颁发 `ResizeTerminal` 的人员之前，根据其附件范围验证这两个身份；演示测量本身仍然是客户本地的，并且不需要租用。
 
@@ -125,15 +133,15 @@ TypeScript 生产者使用 `encodeInputRequest`；消息类型选择原始或语
 | ------- | -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `1-5`   | 连接方式             | `Hello=1`、`HelloAccepted=2`、`ProtocolRejected=3`、`Ping=4`、`TypedFailure=5`                                                                                                                                                                                                                                                                                        |
 | `10-19` | 库存和生命周期       | `ListTerminals=10`、`CreateTerminal=11`、`TerminateTerminal=12`、`DisposeTerminal=13`、`TerminalStarted=14`、`TerminalExited=15`、`StartTerminal=16`、 `TerminalStartAccepted=17`、`ForceTerminateTerminal=18`、`TerminalFailed=19`                                                                                                                                   |
-| `20-24` | 附件                 | `AttachTerminal=20`、`DetachTerminal=21`、`AttachmentCapabilities=22`、`ResizeLeaseChanged=23`、`UpdateAttachmentInputCapability=24`                                                                                                                                                                                                                                  |
+| `20-25` | 附件                 | `AttachTerminal=20`、`DetachTerminal=21`、`AttachmentCapabilities=22`、`ResizeLeaseChanged=23`、`UpdateAttachmentInputCapability=24`、`ClaimResizeLease=25`                                                                                                                                                                                                           |
 | `30-38` | 输入和大小           | `WriteInput=30`、`InputAccepted=31`、`ResizeTerminal=32`、`ResizeAccepted=33`、`KeyInput=34`、`TextInput=35`、`MouseInput=36`、 `FocusInput=37`, `PasteInput=38`                                                                                                                                                                                                      |
 | `41-56` | 投影与效果           | `SnapshotFrame=41`、`DeltaFrame=42`、`FrameApplied=43`、`NeedSnapshot=44`、`ReadRows=45`、`RowsSnapshot=46`、`SetProjectionDemand=47`、 `ProjectionDemandAccepted=48`、`ProjectionBlocked=49`、`RowsApplied=50`、`SetHistoryDemand=51`、`HistoryDemandAccepted=52`、`HistoryChanged=53`、`HistoryObserved=54`、 `TerminalBell=55`, `TerminalClipboardWriteRequest=56` |
 | `60-68` | 选择和导出           | `SelectionGesture=60`、`SelectionCommand=61`、`SelectionChanged=62`、`SelectionExport=63`、`SelectionExportStarted=64`、`SelectionExportChunk=65`、`SelectionExportChunkApplied=66`、 `SelectionExportFinished=67`, `SelectionExportCancel=68`                                                                                                                        |
 | `70-78` | 终端配置、控制和主题 | `SetTerminalDefaults=70`、`TerminalDefaultsAccepted=71`、`UpdateTerminalConfiguration=72`、`TerminalConfigurationAccepted=73`、`ClearTerminal=74`、`ResetTerminal=75`、`TerminalControlAccepted=76`、 `ApplyTerminalTheme=77`, `TerminalThemeResult=78`                                                                                                               |
 
-未列出的号码未分配。标题和当前目录更改在终端框架中传播。初始调整大小租约权限通过附件许可返回；稍后的所有权更改使用附件范围的事件。
+未列出的号码未分配。标题和当前目录更改在终端框架中传播。初始调整大小租约权限通过附件许可返回；稍后的所有权 transfer 使用附件作用域的 claim 与完整 event。
 
-`MESSAGE_CONTRACTS` 是该表背后的可执行 TypeScript 注册表。其原生镜像通过 `control-conformance-v0.0.18.json` 逐字段检查。因此，新增或修改 kind 时，必须原子更新注册表、原生镜像、编解码器、夹具及消费者。
+`MESSAGE_CONTRACTS` 是该表背后的可执行 TypeScript 注册表。其原生镜像通过 `control-conformance-v0.0.19.json` 逐字段检查。因此，新增或修改 kind 时，必须原子更新注册表、原生镜像、编解码器、夹具及消费者。
 
 `TerminalBell` 是包含 `attachmentId` 和正规范终端响铃 `sequence` 的仅事件控制记录。主机以终端的当前序列为新的可读取附件设置基线，因此在连接或重新连接时不会重播较早的铃声。当提交其确切的传出记录时，每个后续序列都会针对每个实时可读附件发出一次。该事件没有客户端确认，仅携带语义意图；声音、视觉闪烁、通知和可访问性策略仍然是应用程序效果而不是线路行为。
 

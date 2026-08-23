@@ -38,6 +38,10 @@ pub const UpdateAttachmentInputCapability = struct {
     input: bool,
 };
 
+pub const ClaimResizeLease = struct {
+    attachment_id: identifiers.AttachmentId,
+};
+
 pub const ResizeTerminal = struct {
     attachment_id: identifiers.AttachmentId,
     geometry: terminal_geometry.Geometry,
@@ -311,6 +315,23 @@ pub fn decodeUpdateAttachmentInputCapability(
                 parsed.value.capabilityRevision,
             ),
             .input = parsed.value.input,
+        },
+    };
+}
+
+pub fn decodeClaimResizeLease(
+    allocator: std.mem.Allocator,
+    payload: []const u8,
+) decode_common.Error!decode_common.Decoded(control_wire.ClaimResizeLease, ClaimResizeLease) {
+    const parsed = try control_wire.decode(control_wire.ClaimResizeLease, allocator, payload);
+    errdefer parsed.deinit();
+    return .{
+        .parsed = parsed,
+        .value = .{
+            .attachment_id = try identifiers.parseLowerHex(
+                identifiers.AttachmentId,
+                parsed.value.attachmentId,
+            ),
         },
     };
 }

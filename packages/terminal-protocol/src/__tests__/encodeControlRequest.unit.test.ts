@@ -17,6 +17,11 @@ describe('control request encoding', () => {
 				attachmentId: '22'.repeat(16),
 			}),
 		).toEqual(expect.objectContaining({ ok: true }));
+		expect(
+			encodeControlRequest(MessageKind.claimResizeLease, {
+				attachmentId: '22'.repeat(16),
+			}),
+		).toEqual(expect.objectContaining({ ok: true }));
 		for (const kind of [
 			MessageKind.terminateTerminal,
 			MessageKind.forceTerminateTerminal,

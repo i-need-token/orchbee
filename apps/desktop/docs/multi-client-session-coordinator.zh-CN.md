@@ -113,7 +113,16 @@ validate proposal
 
 会话退役绝不会改变共享文档、绑定注册表、PTY、进程或终端生命周期。显式关闭 Panel 或 Tab 仍是共享产品转换，并会协调其持久关闭意图。
 
-对于运行中的终端，第一个成功打开的附件拥有 Host 的独占调整大小租约。后续获准附件可获得 read/input 而无 resize 能力，并通过客户端本地内边距、滚动或缩放呈现规范网格。并发 open 按 Presentation 串行化，不区分 Electron 与浏览器优先级。所有者分离后，现有观察者保持已附加状态且不会自动晋升；下一个新附件可以获得租约。显式控制权转移保留给未来 Gateway 设计。
+对于运行中的 terminal，第一个成功打开的可写 attachment 获得 Host 的初始独占 resize lease。
+后来加入的可写 attachment 获得 read/input/resize capability，但保持 resize observer。
+接纳的 focus-in、key press/repeat、已提交 text 或 paste、application mouse press 或
+terminal-selection start 会使该 attachment 成为最新 desired owner；attachment、background
+state、viewport measurement、pointer motion、release/repair input 与 focus-out 不会。Desktop
+按 presentation 合并并发 intent，一次串行一个显式 `ClaimResizeLease`，不设置固定的
+Electron/Browser 优先级。Host 先发布旧 owner 的 revoke，再发布新 owner 的 grant；晋升后的
+surface 随即提交其测量 geometry。Owner detach 会晋升 successful claim 最新的剩余 attachment，
+从未获 grant 的 observer 以最早 admission 打破平局；若 Desktop 记录了更新的剩余 activity，
+则会再次 claim。
 
 ### Host 连接附件清理
 

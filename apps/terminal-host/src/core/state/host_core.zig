@@ -189,6 +189,7 @@ pub const HostCore = struct {
     pub const commitBellDelivery = attachments.commitBellDelivery;
     pub const validateAttachmentAdmission = attachments.validateAttachmentAdmission;
     pub const detach = attachments.detach;
+    pub const claimResizeLease = attachments.claimResizeLease;
     pub const authorizeInput = attachments.authorizeInput;
     pub const authorizeCurrentInput = attachments.authorizeCurrentInput;
     pub const validateAttachmentInputCapabilityUpdate =

@@ -177,12 +177,17 @@ Session retirement never changes the shared document, Binding registry, PTY, pro
 lifecycle. Explicitly closing a Panel or Tab remains a shared product transition and reconciles its
 durable close intent.
 
-For a running terminal, the first successfully opened attachment owns the Host's exclusive resize
-lease. Later authorized attachments receive read/input without resize and render the canonical grid
-with client-local padding, scrolling, or scaling. Concurrent opens are serialized per presentation
-and have no Electron/Browser priority. When the owner detaches, existing observers remain attached
-without automatic promotion; the next new attachment may acquire the lease. Explicit control
-transfer is reserved for the Gateway design.
+For a running terminal, the first successfully opened writable attachment receives the Host's
+initial exclusive resize lease. Later writable attachments receive read/input/resize capability but
+remain resize observers. An admitted focus-in, key press/repeat, committed text or paste,
+application mouse press, or terminal-selection start makes that attachment the latest desired
+owner; attachment, background state, viewport measurement, pointer motion, release/repair input,
+and focus-out do not. Desktop coalesces concurrent intent per presentation and serializes one
+explicit `ClaimResizeLease` at a time, with no fixed Electron/Browser priority. Host publishes the
+old owner's revocation before the new owner's grant, after which the promoted surface immediately
+submits its measured geometry. Owner detach promotes the remaining attachment with the newest
+successful claim, with earliest admission breaking ties among never-granted observers; Desktop
+reclaims for any newer remaining activity it recorded.
 
 ### Host-connection attachment cleanup
 

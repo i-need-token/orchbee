@@ -21,6 +21,7 @@ pub const MessageKind = struct {
     pub const attachment_capabilities: u16 = 22;
     pub const resize_lease_changed: u16 = 23;
     pub const update_attachment_input_capability: u16 = 24;
+    pub const claim_resize_lease: u16 = 25;
     pub const write_input: u16 = 30;
     pub const input_accepted: u16 = 31;
     pub const resize_terminal: u16 = 32;

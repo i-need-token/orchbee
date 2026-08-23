@@ -12,6 +12,7 @@ const CapabilityUpdateAdmission = contracts.CapabilityUpdateAdmission;
 const ConnectionId = contracts.ConnectionId;
 const CoreError = contracts.CoreError;
 const RequiredCapability = contracts.RequiredCapability;
+const ResizeLeaseClaim = contracts.ResizeLeaseClaim;
 const TerminalId = contracts.TerminalId;
 const TransitionOutcome = contracts.TransitionOutcome;
 
@@ -147,6 +148,32 @@ pub fn detach(
             .resize_lease = true,
             .terminal_id = attachment.terminal_id,
         } else null,
+    };
+}
+
+pub fn claimResizeLease(
+    self: anytype,
+    connection_id: ConnectionId,
+    attachment_id: AttachmentId,
+) CoreError!ResizeLeaseClaim {
+    if (!storage.connected(self, connection_id)) return error.MissingConnection;
+    const broker = if (self.broker) |*active| active else unreachable;
+    const attachment = broker.find(attachment_id) orelse return error.MissingResource;
+    if (!attachment.capabilities.resize) return error.ResizeLeaseDenied;
+    const terminal = try storage.requireTerminal(self, attachment.terminal_id);
+    if (!terminal.acceptsRuntimeWork()) return error.InvalidPhase;
+    if (attachment.resize_lease) {
+        return .{
+            .outcome = .idempotent,
+            .previous_owner = null,
+            .terminal_id = attachment.terminal_id,
+        };
+    }
+    const terminal_id = attachment.terminal_id;
+    return .{
+        .outcome = .applied,
+        .previous_owner = try broker.claimResizeLease(attachment_id),
+        .terminal_id = terminal_id,
     };
 }
 

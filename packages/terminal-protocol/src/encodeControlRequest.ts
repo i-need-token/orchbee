@@ -2,6 +2,7 @@ import {
 	ApplyTerminalThemeSchema,
 	AttachTerminalSchema,
 	ClearTerminalSchema,
+	ClaimResizeLeaseSchema,
 	CreateTerminalSchema,
 	DetachTerminalSchema,
 	EmptyControlSchema,
@@ -71,6 +72,8 @@ export function encodeControlRequest(
 			return encodeControlJson(value, DetachTerminalSchema);
 		case MessageKind.updateAttachmentInputCapability:
 			return encodeControlJson(value, UpdateAttachmentInputCapabilitySchema);
+		case MessageKind.claimResizeLease:
+			return encodeControlJson(value, ClaimResizeLeaseSchema);
 		case MessageKind.resizeTerminal:
 			return encodeControlJson(value, ResizeTerminalSchema);
 		case MessageKind.clearTerminal:

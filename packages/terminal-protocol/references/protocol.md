@@ -5,7 +5,7 @@
 | Status          | Current wire-contract and codec authority; this package implements no lifecycle state machine, PTY, IPC listener, renderer, Electron, recovery, or network behavior      |
 | Wire owner      | `@orchbee/terminal-protocol`                                                                                                                                             |
 | Native consumer | `apps/terminal-host` consumes declared schemas and fixture exports for bounded native dispatch and Zig conformance                                                       |
-| Reference scope | Exact protocol `0.0.18`; OBTF format `0.0.3`; OBPB and OBRW format `0.0.2`; OBKG format `0.0.1`; input/selection codecs; failure vocabulary; bounds; and pinned fixtures |
+| Reference scope | Exact protocol `0.0.19`; OBTF format `0.0.3`; OBPB and OBRW format `0.0.2`; OBKG format `0.0.1`; input/selection codecs; failure vocabulary; bounds; and pinned fixtures |
 | Change rule     | A changed field, message meaning, wire byte, bound, or fixture updates this record, both language implementations, every producer/consumer, and evidence                 |
 
 ## Modeling record
@@ -40,7 +40,7 @@ identity and are rejected where an identity is required.
 | `TerminalThemeOperationId` | Application-created idempotency identity for one terminal-theme compare-and-set operation                                        |
 | `CorrelationId`            | Required on every request and response after `Hello`; all-zero envelope bytes mean absence only for handshake messages or events |
 
-The current protocol version is exactly `0.0.18`. `Hello`, `HelloAccepted`, and every transport
+The current protocol version is exactly `0.0.19`. `Hello`, `HelloAccepted`, and every transport
 envelope carry that exact version. A different major, minor, or patch is rejected; this pre-release
 contract contains no negotiated range, compatibility mode, or historical message shape. Packed
 OBTF frame format is exactly `0.0.3`; OBPB projection-buffer and OBRW row-window formats are exactly
@@ -156,6 +156,7 @@ and preserves its correlation.
 | `AttachTerminal`                  | Attachment and terminal identities, granted input/read/resize capabilities, initial capability revision `1`, and resize-lease fact                                                                                                                                                                   |
 | `DetachTerminal`                  | Target `AttachmentId`                                                                                                                                                                                                                                                                                |
 | `UpdateAttachmentInputCapability` | Attachment and terminal identities, complete current capabilities, current positive capability revision, and resize-lease fact                                                                                                                                                                       |
+| `ClaimResizeLease`                | Attachment and terminal identities, complete unchanged capabilities and capability revision, and the committed resize-lease fact                                                                                                                                                                     |
 | raw or semantic input             | Attachment identity, exact capability revision, and encoded terminal-byte count committed to ordered ingress                                                                                                                                                                                         |
 | `ResizeTerminal`                  | Attachment identity, accepted canonical cell/pixel geometry, and resulting revision                                                                                                                                                                                                                  |
 | `ClearTerminal` / `ResetTerminal` | Attachment and terminal identities, exact operation, and resulting revision/generation                                                                                                                                                                                                               |
@@ -209,6 +210,14 @@ Every attachment requests at least one of input, read, or resize authority. A re
 only when resize authority is also requested and granted. Empty requested capability bindings and a
 resize lease without resize authority are malformed at attach admission. A complete current
 capability value may be all false after an input-only attachment is downgraded.
+
+`ClaimResizeLease` kind `25` carries exactly one attachment identity. A running attachment with
+resize capability may claim the terminal's sole lease; replay by the current owner is idempotent.
+An applied transfer returns complete unchanged `AttachmentCapabilities`, first publishes the prior
+owner's `ResizeLeaseChanged` fact with `resizeLease: false`, and then publishes the claimant's fact
+with `resizeLease: true`. The successful response follows both events. A rejected claim preserves
+the prior owner, geometry, capability revision, and admitted capability value. A `ResizeTerminal`
+request from a non-owner is rejected and never acts as an implicit claim.
 
 `ResizeLeaseChanged` is an event-only complete ownership fact containing the exact attachment and
 terminal identities plus `resizeLease`; it is never a toggle. When detaching a resize owner promotes
@@ -294,18 +303,18 @@ bytes to the ordered ingress budget.
 | ------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `1-5`   | Connection                                 | `Hello=1`, `HelloAccepted=2`, `ProtocolRejected=3`, `Ping=4`, `TypedFailure=5`                                                                                                                                                                                                                                                                                      |
 | `10-19` | Inventory and lifecycle                    | `ListTerminals=10`, `CreateTerminal=11`, `TerminateTerminal=12`, `DisposeTerminal=13`, `TerminalStarted=14`, `TerminalExited=15`, `StartTerminal=16`, `TerminalStartAccepted=17`, `ForceTerminateTerminal=18`, `TerminalFailed=19`                                                                                                                                  |
-| `20-24` | Attachment                                 | `AttachTerminal=20`, `DetachTerminal=21`, `AttachmentCapabilities=22`, `ResizeLeaseChanged=23`, `UpdateAttachmentInputCapability=24`                                                                                                                                                                                                                                |
+| `20-25` | Attachment                                 | `AttachTerminal=20`, `DetachTerminal=21`, `AttachmentCapabilities=22`, `ResizeLeaseChanged=23`, `UpdateAttachmentInputCapability=24`, `ClaimResizeLease=25`                                                                                                                                                                                                         |
 | `30-38` | Input and size                             | `WriteInput=30`, `InputAccepted=31`, `ResizeTerminal=32`, `ResizeAccepted=33`, `KeyInput=34`, `TextInput=35`, `MouseInput=36`, `FocusInput=37`, `PasteInput=38`                                                                                                                                                                                                     |
 | `41-56` | Projection and effects                     | `SnapshotFrame=41`, `DeltaFrame=42`, `FrameApplied=43`, `NeedSnapshot=44`, `ReadRows=45`, `RowsSnapshot=46`, `SetProjectionDemand=47`, `ProjectionDemandAccepted=48`, `ProjectionBlocked=49`, `RowsApplied=50`, `SetHistoryDemand=51`, `HistoryDemandAccepted=52`, `HistoryChanged=53`, `HistoryObserved=54`, `TerminalBell=55`, `TerminalClipboardWriteRequest=56` |
 | `60-68` | Selection and export                       | `SelectionGesture=60`, `SelectionCommand=61`, `SelectionChanged=62`, `SelectionExport=63`, `SelectionExportStarted=64`, `SelectionExportChunk=65`, `SelectionExportChunkApplied=66`, `SelectionExportFinished=67`, `SelectionExportCancel=68`                                                                                                                       |
 | `70-78` | Terminal configuration, control, and theme | `SetTerminalDefaults=70`, `TerminalDefaultsAccepted=71`, `UpdateTerminalConfiguration=72`, `TerminalConfigurationAccepted=73`, `ClearTerminal=74`, `ResetTerminal=75`, `TerminalControlAccepted=76`, `ApplyTerminalTheme=77`, `TerminalThemeResult=78`                                                                                                              |
 
 Unlisted numbers are unassigned. Title and current-directory changes travel in terminal frames.
-Initial resize-lease authority is returned by attachment admission; later ownership changes use the
-attachment-scoped event.
+Initial resize-lease authority is returned by attachment admission; later ownership transfers use
+the attachment-scoped claim and complete events.
 
 `MESSAGE_CONTRACTS` is the executable TypeScript registry behind this table. Its native mirror is
-checked field-for-field through `control-conformance-v0.0.18.json`. Adding or changing a kind therefore
+checked field-for-field through `control-conformance-v0.0.19.json`. Adding or changing a kind therefore
 requires one atomic protocol change to the registry, native mirror, codecs, fixture, and consumers.
 
 `TerminalBell` is an event-only control record containing `attachmentId` and a positive canonical

@@ -195,6 +195,198 @@ describe('ProjectedTerminalBroker', () => {
 		});
 	});
 
+	it('claims resize ownership once through the exact attachment-scoped Host operation', async () => {
+		const bootstrap = {
+			attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
+			canInput: true,
+			canResize: false,
+			capabilityRevision: CanonicalUint64TextSchema.parse('1'),
+			creationId: CreationIdSchema.parse('22'.repeat(16)),
+			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
+			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
+			terminalOutcome: null,
+			theme,
+		};
+		const initialCapabilities = AttachmentCapabilitiesSchema.parse({
+			attachmentId: bootstrap.attachmentId,
+			capabilities: { input: true, read: true, resize: true },
+			capabilityRevision: '1',
+			resizeLease: false,
+			terminalId: bootstrap.terminalId,
+		});
+		const committedCapabilities = AttachmentCapabilitiesSchema.parse({
+			...initialCapabilities,
+			resizeLease: true,
+		});
+		const requestControl = vi.fn<HostConnection['requestControl']>(async (kind) => {
+			if (kind !== MessageKind.claimResizeLease) throw new Error('Unexpected Host request.');
+			return committedCapabilities as never;
+		});
+		const host = {
+			onAttachmentEnvelope: vi.fn<HostConnection['onAttachmentEnvelope']>(() =>
+				vi.fn<() => void>(),
+			),
+			onClosed: vi.fn<HostConnection['onClosed']>(() => vi.fn<() => void>()),
+			onEnvelope: vi.fn<HostConnection['onEnvelope']>(() => vi.fn<() => void>()),
+			requestControl,
+		} as unknown as HostConnection;
+		const emitter = new EventEmitter();
+		const port = Object.assign(emitter, {
+			close: vi.fn<() => void>(),
+			postMessage: vi.fn<(...arguments_: unknown[]) => void>(),
+			start: vi.fn<() => void>(),
+		}) as unknown as MessagePortMain;
+		const broker = new ProjectedTerminalBroker(
+			host,
+			port,
+			bootstrap,
+			undefined,
+			'desktop',
+			{ onCleanupRequested: vi.fn<(error: unknown) => void>() },
+			initialCapabilities,
+		);
+
+		await broker.claimResizeLease();
+		await broker.claimResizeLease();
+
+		expect(requestControl).toHaveBeenCalledExactlyOnceWith(
+			MessageKind.claimResizeLease,
+			{ attachmentId: bootstrap.attachmentId },
+			expect.anything(),
+		);
+	});
+
+	it('claims only for the accepted meaningful-activity command classes', () => {
+		const bootstrap = {
+			attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
+			canInput: true,
+			canResize: true,
+			capabilityRevision: CanonicalUint64TextSchema.parse('1'),
+			creationId: CreationIdSchema.parse('22'.repeat(16)),
+			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
+			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
+			terminalOutcome: null,
+			theme,
+		};
+		const requestControl = vi.fn<HostConnection['requestControl']>(
+			async () => ({ attachmentId: bootstrap.attachmentId, state: 'none' }) as never,
+		);
+		const host = {
+			onAttachmentEnvelope: vi.fn<HostConnection['onAttachmentEnvelope']>(() =>
+				vi.fn<() => void>(),
+			),
+			onClosed: vi.fn<HostConnection['onClosed']>(() => vi.fn<() => void>()),
+			onEnvelope: vi.fn<HostConnection['onEnvelope']>(() => vi.fn<() => void>()),
+			requestControl,
+			requestInput: vi.fn<HostConnection['requestInput']>().mockResolvedValue({} as never),
+		} as unknown as HostConnection;
+		const emitter = new EventEmitter();
+		const port = Object.assign(emitter, {
+			close: vi.fn<() => void>(),
+			postMessage: vi.fn<(...arguments_: unknown[]) => void>(),
+			start: vi.fn<() => void>(),
+		}) as unknown as MessagePortMain;
+		const onResizeActivity = vi.fn<() => void>();
+		const broker = new ProjectedTerminalBroker(host, port, bootstrap, undefined, 'desktop', {
+			onCleanupRequested: vi.fn<(error: unknown) => void>(),
+			onResizeActivity,
+		});
+		broker.start();
+		const modifiers = {
+			alt: false,
+			altRight: false,
+			capsLock: false,
+			control: false,
+			controlRight: false,
+			meta: false,
+			metaRight: false,
+			numLock: false,
+			shift: false,
+			shiftRight: false,
+		};
+		const authority = {
+			attachmentId: bootstrap.attachmentId,
+			capabilityRevision: bootstrap.capabilityRevision,
+		};
+		const send = (data: unknown): void => {
+			emitter.emit('message', { data });
+		};
+		const key = {
+			...authority,
+			composing: false,
+			consumedModifiers: modifiers,
+			key: 'KeyA',
+			modifiers,
+			optionAsAlt: false,
+			text: 'a',
+			unshiftedCodepoint: 97,
+		};
+		const mouse = {
+			...authority,
+			button: 1,
+			modifiers,
+			pressedButtons: 1,
+			x: 10,
+			y: 20,
+		};
+		const selection = {
+			attachmentId: bootstrap.attachmentId,
+			generation: '1',
+			point: { column: 0, row: '0' },
+			revision: '1',
+		};
+
+		send({ kind: 'focus-input', payload: { ...authority, focused: true } });
+		send({ kind: 'focus-input', payload: { ...authority, focused: false } });
+		send({ kind: 'key-input', payload: { ...key, action: 'press' } });
+		send({ kind: 'key-input', payload: { ...key, action: 'repeat' } });
+		send({ kind: 'key-input', payload: { ...key, action: 'release' } });
+		send({ kind: 'text-input', payload: { ...authority, text: 'committed' } });
+		send({ kind: 'paste-input', payload: { ...authority, bracketed: false, text: 'pasted' } });
+		send({ kind: 'mouse-input', payload: { ...mouse, action: 'press' } });
+		send({
+			kind: 'mouse-input',
+			payload: { ...mouse, action: 'motion', pressedButtons: 1 },
+		});
+		send({
+			kind: 'mouse-input',
+			payload: { ...mouse, action: 'release', pressedButtons: 0 },
+		});
+		send({
+			kind: 'selection-gesture',
+			payload: {
+				...selection,
+				action: 'start',
+				clickCount: 1,
+				position: { x: 0, y: 0 },
+				selectOutput: false,
+			},
+		});
+		send({
+			kind: 'selection-gesture',
+			payload: {
+				...selection,
+				action: 'update',
+				geometry: { cellWidth: 10, columns: 80, paddingLeft: 0, screenHeight: 400 },
+				position: { x: 10, y: 0 },
+				rectangle: false,
+			},
+		});
+		send({ kind: 'selection-gesture', payload: { ...selection, action: 'end' } });
+		send({
+			kind: 'resize-terminal',
+			payload: {
+				...authority,
+				cellPixelHeight: 20,
+				cellPixelWidth: 10,
+				columns: 80,
+				rows: 24,
+			},
+		});
+
+		expect(onResizeActivity).toHaveBeenCalledTimes(7);
+	});
+
 	it('serializes Host resizes and replaces queued measurements with the newest geometry', async () => {
 		const bootstrap = {
 			attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),

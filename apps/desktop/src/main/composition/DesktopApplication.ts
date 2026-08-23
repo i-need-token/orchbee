@@ -120,6 +120,7 @@ import { startsDesktopRendererDocument } from './startsDesktopRendererDocument';
 
 interface DesktopBrokerHandle {
 	readonly metrics: ProjectedTerminalBrokerMetrics;
+	claimResizeLease(): Promise<void>;
 	dispose(): Promise<void>;
 	setInputCapability(input: boolean): Promise<void>;
 	start(): void;

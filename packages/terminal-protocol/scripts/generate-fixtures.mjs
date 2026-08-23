@@ -6,6 +6,7 @@ import {
 	TerminalThemeResultSchema,
 	AttachmentAcknowledgedSchema,
 	AttachmentCapabilitiesSchema,
+	ClaimResizeLeaseSchema,
 	CURRENT_PROTOCOL_VERSION,
 	decodeKeyInput,
 	decodePasteInput,
@@ -591,6 +592,11 @@ function createControlConformanceFixture() {
 				terminalId,
 			},
 			'AttachTerminal',
+		),
+		claim_resize_lease: controlRequestText(
+			MessageKind.claimResizeLease,
+			ClaimResizeLeaseSchema.parse({ attachmentId }),
+			'ClaimResizeLease',
 		),
 		update_attachment_input_capability: controlRequestText(
 			MessageKind.updateAttachmentInputCapability,

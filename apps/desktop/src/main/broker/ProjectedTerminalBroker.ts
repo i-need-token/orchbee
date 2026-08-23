@@ -11,6 +11,7 @@ import {
 	AttachmentAcknowledgedSchema,
 	AttachmentCapabilitiesSchema,
 	CanonicalUint64TextSchema,
+	ClaimResizeLeaseSchema,
 	decodeControlJson,
 	decodeSelectionExportChunk,
 	FrameAppliedSchema,
@@ -93,6 +94,21 @@ function capabilityCommitMatches(
 	);
 }
 
+function resizeLeaseClaimMatches(
+	current: AttachmentCapabilities,
+	committed: AttachmentCapabilities,
+): boolean {
+	return (
+		committed.attachmentId === current.attachmentId &&
+		committed.terminalId === current.terminalId &&
+		committed.capabilityRevision === current.capabilityRevision &&
+		committed.capabilities.input === current.capabilities.input &&
+		committed.capabilities.read === current.capabilities.read &&
+		committed.capabilities.resize === current.capabilities.resize &&
+		committed.resizeLease
+	);
+}
+
 interface ActiveSelectionCopy {
 	buffer: Uint8Array | undefined;
 	byteLength: number | undefined;
@@ -143,6 +159,24 @@ function isInputCommand(command: ProjectedTerminalCommand): command is Projected
 	);
 }
 
+function isMeaningfulResizeActivity(command: ProjectedTerminalCommand): boolean {
+	switch (command.kind) {
+		case 'focus-input':
+			return command.payload.focused;
+		case 'key-input':
+			return command.payload.action !== 'release';
+		case 'mouse-input':
+			return command.payload.action === 'press';
+		case 'paste-input':
+		case 'text-input':
+			return true;
+		case 'selection-gesture':
+			return command.payload.action === 'start';
+		default:
+			return false;
+	}
+}
+
 export interface ProjectedTerminalBrokerDependencies {
 	readonly openExternal: (target: string) => Promise<void>;
 	readonly writeClipboardText: (text: string) => Promise<void> | void;
@@ -152,6 +186,7 @@ export type ProjectedTerminalBrokerEffectTarget = 'client' | 'desktop';
 
 export interface ProjectedTerminalBrokerLifecycle {
 	readonly onCleanupRequested: (error: unknown) => void;
+	readonly onResizeActivity?: () => void;
 	readonly onResizeLeaseChanged?: (ownsResize: boolean) => void;
 	readonly onThemeChanged?: (theme: TerminalThemeState) => void;
 }
@@ -203,6 +238,7 @@ export class ProjectedTerminalBroker {
 	readonly #effectTarget: ProjectedTerminalBrokerEffectTarget;
 	readonly #host: HostConnection;
 	readonly #onCleanupRequested: ((error: unknown) => void) | undefined;
+	readonly #onResizeActivity: (() => void) | undefined;
 	readonly #onResizeLeaseChanged: ((ownsResize: boolean) => void) | undefined;
 	readonly #onThemeChanged: ((theme: TerminalThemeState) => void) | undefined;
 	readonly #port: MessagePortMain;
@@ -245,6 +281,7 @@ export class ProjectedTerminalBroker {
 	) {
 		this.#host = host;
 		this.#onCleanupRequested = lifecycle?.onCleanupRequested;
+		this.#onResizeActivity = lifecycle?.onResizeActivity;
 		this.#onResizeLeaseChanged = lifecycle?.onResizeLeaseChanged;
 		this.#onThemeChanged = lifecycle?.onThemeChanged;
 		this.#port = port;
@@ -300,6 +337,52 @@ export class ProjectedTerminalBroker {
 			() => undefined,
 		);
 		return tracked;
+	}
+
+	claimResizeLease(): Promise<void> {
+		this.#capabilityMutationsPending += 1;
+		const operation = this.#capabilityMutationTail.then(() => this.#commitResizeLeaseClaim());
+		const tracked = operation.finally(() => {
+			this.#capabilityMutationsPending -= 1;
+		});
+		this.#capabilityMutationTail = tracked.then(
+			() => undefined,
+			() => undefined,
+		);
+		return tracked;
+	}
+
+	async #commitResizeLeaseClaim(): Promise<void> {
+		if (this.#disposed || this.#cleanupRequested) {
+			throw new BrokerOperationError(
+				'attachment-unavailable',
+				'The projected attachment is no longer available.',
+				true,
+			);
+		}
+		const current = this.#capabilities;
+		if (!current.capabilities.resize) {
+			throw new BrokerOperationError(
+				'resize-capability-unavailable',
+				'The projected attachment cannot claim resize ownership.',
+			);
+		}
+		if (current.resizeLease) return;
+		const request = ClaimResizeLeaseSchema.parse({ attachmentId: current.attachmentId });
+		const committed = await this.#host.requestControl(
+			MessageKind.claimResizeLease,
+			request,
+			AttachmentCapabilitiesSchema,
+		);
+		if (!resizeLeaseClaimMatches(current, committed)) {
+			const error = new BrokerOperationError(
+				'invalid-resize-lease-claim-response',
+				'Terminal Host returned a resize-lease claim outside the scoped attachment.',
+			);
+			this.#requestCleanup(error);
+			throw error;
+		}
+		this.#capabilities = committed;
 	}
 
 	async #commitInputCapability(input: boolean): Promise<void> {
@@ -494,7 +577,7 @@ export class ProjectedTerminalBroker {
 		}
 		const command = parsed.data;
 		if (command.kind === 'resize-terminal') {
-			this.#commandsAccepted += 1;
+			this.#acceptRendererCommand(command);
 			this.#pendingResizeCommand = command;
 			this.#drainRendererCommands();
 			return;
@@ -509,14 +592,21 @@ export class ProjectedTerminalBroker {
 				this.#rejectRendererCommandForBackpressure(command);
 				return;
 			}
-			this.#commandsAccepted += 1;
+			this.#acceptRendererCommand(command);
 			this.#drainRendererCommands();
 			return;
 		}
 
-		this.#commandsAccepted += 1;
+		this.#acceptRendererCommand(command);
 		this.#dispatchRendererCommand(command);
 	};
+
+	#acceptRendererCommand(command: ProjectedTerminalCommand): void {
+		this.#commandsAccepted += 1;
+		if (this.#capabilities.capabilities.resize && isMeaningfulResizeActivity(command)) {
+			this.#onResizeActivity?.();
+		}
+	}
 
 	#pendingRendererCommandCount(): number {
 		return this.#pendingRendererCommands.length - this.#pendingRendererCommandHead;

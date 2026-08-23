@@ -1027,6 +1027,175 @@ test "detaching a resize owner publishes its observer promotion before acknowled
     try std.testing.expect(acknowledgement.response);
     try std.testing.expect(serviceCore(&service).findAttachment(observer_id).?.resize_lease);
 }
+test "claiming the resize lease publishes revoke then grant before the complete response" {
+    var service = HostService.init(std.testing.allocator);
+    defer service.deinit();
+    var owner: ConnectionState = .awaiting_hello;
+    defer service.disconnect(&owner);
+    try testHandshake(&service, &owner, "22222222222222222222222222222222");
+    const active = try activeConnection(&owner);
+
+    const terminal_id = core_module.TerminalId.fromBytes([_]u8{0x42} ** 16);
+    const original_owner_id = core_module.AttachmentId.fromBytes([_]u8{0x43} ** 16);
+    const claimant_id = core_module.AttachmentId.fromBytes([_]u8{0x44} ** 16);
+    _ = try createModel(
+        serviceCore(&service),
+        active.connection_id,
+        core_module.CreationId.fromBytes([_]u8{0x41} ** 16),
+        terminal_id,
+        [_]u8{0x45} ** 32,
+        80,
+        24,
+    );
+    _ = try serviceCore(&service).attach(
+        active.connection_id,
+        original_owner_id,
+        terminal_id,
+        .{ .input = true, .read = true, .resize = true },
+        true,
+    );
+    _ = try serviceCore(&service).attach(
+        active.connection_id,
+        claimant_id,
+        terminal_id,
+        .{ .input = true, .read = true, .resize = true },
+        false,
+    );
+
+    const claim_payload = "{\"attachmentId\":\"44444444444444444444444444444444\"}";
+    var claimed = try testRequest(
+        &service,
+        &owner,
+        MessageKind.claim_resize_lease,
+        .control_json,
+        claim_payload,
+        [_]u8{0x46} ** 16,
+    );
+    defer claimed.deinit();
+
+    try std.testing.expectEqual(@as(usize, 3), claimed.records().len);
+    const revoked = try protocol.validateTransportEnvelope(claimed.records()[0]);
+    try std.testing.expectEqual(MessageKind.resize_lease_changed, revoked.kind);
+    try std.testing.expect(revoked.event);
+    try std.testing.expectEqualStrings(
+        "{\"attachmentId\":\"43434343434343434343434343434343\",\"resizeLease\":false,\"terminalId\":\"42424242424242424242424242424242\"}",
+        revoked.payload,
+    );
+    const granted = try protocol.validateTransportEnvelope(claimed.records()[1]);
+    try std.testing.expectEqual(MessageKind.resize_lease_changed, granted.kind);
+    try std.testing.expect(granted.event);
+    try std.testing.expectEqualStrings(
+        "{\"attachmentId\":\"44444444444444444444444444444444\",\"resizeLease\":true,\"terminalId\":\"42424242424242424242424242424242\"}",
+        granted.payload,
+    );
+    const response = try protocol.validateTransportEnvelope(claimed.records()[2]);
+    try std.testing.expectEqual(MessageKind.attachment_capabilities, response.kind);
+    try std.testing.expect(response.response);
+    try std.testing.expectEqualStrings(
+        "{\"attachmentId\":\"44444444444444444444444444444444\",\"capabilities\":{\"input\":true,\"read\":true,\"resize\":true},\"capabilityRevision\":\"1\",\"resizeLease\":true,\"terminalId\":\"42424242424242424242424242424242\"}",
+        response.payload,
+    );
+    try std.testing.expect(!serviceCore(&service).findAttachment(original_owner_id).?.resize_lease);
+    try std.testing.expect(serviceCore(&service).findAttachment(claimant_id).?.resize_lease);
+
+    var replayed = try testRequest(
+        &service,
+        &owner,
+        MessageKind.claim_resize_lease,
+        .control_json,
+        claim_payload,
+        [_]u8{0x47} ** 16,
+    );
+    defer replayed.deinit();
+    try std.testing.expectEqual(@as(usize, 1), replayed.records().len);
+    try std.testing.expectEqual(
+        MessageKind.attachment_capabilities,
+        (try protocol.validateTransportEnvelope(replayed.records()[0])).kind,
+    );
+}
+test "resize lease claim reservation failure preserves the current owner" {
+    var service = HostService.init(std.testing.allocator);
+    defer service.deinit();
+    var owner: ConnectionState = .awaiting_hello;
+    defer service.disconnect(&owner);
+    try testHandshake(&service, &owner, "22222222222222222222222222222222");
+    const active = try activeConnection(&owner);
+
+    const terminal_id = core_module.TerminalId.fromBytes([_]u8{0x42} ** 16);
+    const original_owner_id = core_module.AttachmentId.fromBytes([_]u8{0x43} ** 16);
+    const claimant_id = core_module.AttachmentId.fromBytes([_]u8{0x44} ** 16);
+    _ = try createModel(
+        serviceCore(&service),
+        active.connection_id,
+        core_module.CreationId.fromBytes([_]u8{0x41} ** 16),
+        terminal_id,
+        [_]u8{0x45} ** 32,
+        80,
+        24,
+    );
+    _ = try serviceCore(&service).attach(
+        active.connection_id,
+        original_owner_id,
+        terminal_id,
+        .{ .input = true, .read = true, .resize = true },
+        true,
+    );
+    _ = try serviceCore(&service).attach(
+        active.connection_id,
+        claimant_id,
+        terminal_id,
+        .{ .input = true, .read = true, .resize = true },
+        false,
+    );
+
+    const correlation_id = [_]u8{0x46} ** 16;
+    const record = try protocol.encodeTransportEnvelope(
+        std.testing.allocator,
+        MessageKind.claim_resize_lease,
+        .control_json,
+        "{\"attachmentId\":\"44444444444444444444444444444444\"}",
+        correlation_id,
+        serviceCore(&service).epoch.bytes,
+        false,
+        false,
+    );
+    defer std.testing.allocator.free(record);
+    const envelope = try protocol.validateTransportEnvelope(record);
+    var outgoing = Outgoing.init(std.testing.allocator);
+    defer outgoing.deinit();
+    const maximum_control_record_bytes = protocol.transport_envelope_header_bytes +
+        protocol.Limits.control_json_bytes;
+    try fillOutgoingLeaving(
+        &outgoing,
+        serviceCore(&service).epoch,
+        maximum_control_record_bytes * 2,
+    );
+    var dispatcher = RequestDispatcher.init(
+        service.allocator,
+        &service.runtime_aggregate,
+        service.trace_interactions,
+    );
+
+    try std.testing.expectError(
+        error.OutgoingCapacityInvariant,
+        dispatcher.dispatch(
+            try registeredRequestContract(MessageKind.claim_resize_lease),
+            active.connection_id,
+            .{
+                .input_bytes = active.limits.input_bytes,
+                .row_window_bytes = active.limits.row_window_bytes,
+            },
+            envelope,
+            correlation_id,
+            &outgoing,
+        ),
+    );
+
+    try std.testing.expectEqual(@as(usize, 2), outgoing.records().len);
+    try std.testing.expect(serviceCore(&service).findAttachment(original_owner_id).?.resize_lease);
+    try std.testing.expect(!serviceCore(&service).findAttachment(claimant_id).?.resize_lease);
+    try expectCompositionInvariants(&service, &owner);
+}
 test "current protocol rejects a cursor made stale by disposal and freshly pages exact inventory" {
     const inventory_count = 130;
     const fresh_page_size = 17;

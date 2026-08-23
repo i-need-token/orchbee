@@ -376,7 +376,7 @@ history, staged frames, snapshot requests, failures, and disposal. A newly arriv
 may have entered flight before that input, so the client sends `NeedSnapshot(activity-stale)` for
 its exact sequence instead of `FrameApplied` and retains `unknown`. The next complete snapshot is
 causally newer than the input invalidation, but it proves neither that the Host accepted the input
-nor that the shell consumed it. Under wire protocol `0.0.18`, Host-accepted non-focus input
+nor that the shell consumed it. Under wire protocol `0.0.19`, Host-accepted non-focus input
 invalidates the Host cache immediately, while a later current-state sample may report `active`,
 `idle`, or `unknown`. A causally eligible replacement may therefore restore fresh `idle` in the
 same terminal lifecycle. A stale theme-stage frame is fenced at apply time and cannot make the

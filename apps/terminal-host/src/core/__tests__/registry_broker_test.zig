@@ -622,7 +622,7 @@ test "invalid resize lease replay cannot bypass capability validation" {
     try std.testing.expect(!core.findAttachment(attachment_id).?.resize_lease);
     try expectCoreInvariants(&core);
 }
-test "detaching the resize owner promotes the earliest capable observer" {
+test "detaching the resize owner promotes the earliest capable observer without claim history" {
     var core = HostCore.init(std.testing.allocator, testId(HostEpoch, 1));
     defer core.deinit();
     const connection: ConnectionId = 2;
@@ -689,6 +689,124 @@ test "detaching the resize owner promotes the earliest capable observer" {
             .{ .input = true, .read = true, .resize = true },
             true,
         ),
+    );
+    try expectCoreInvariants(&core);
+}
+test "explicit resize claims transfer one owner and detach falls back by successful claim recency" {
+    var core = HostCore.init(std.testing.allocator, testId(HostEpoch, 1));
+    defer core.deinit();
+    const connection: ConnectionId = 2;
+    const terminal_id = testId(TerminalId, 3);
+    const original_owner_id = testId(AttachmentId, 4);
+    const first_observer_id = testId(AttachmentId, 5);
+    const second_observer_id = testId(AttachmentId, 6);
+    const incapable_id = testId(AttachmentId, 7);
+    _ = try core.connect(connection, testId(ClientId, 8));
+    _ = try createModel(
+        &core,
+        connection,
+        testId(CreationId, 9),
+        terminal_id,
+        [_]u8{10} ** 32,
+        80,
+        24,
+    );
+    inline for (.{ original_owner_id, first_observer_id, second_observer_id }) |attachment_id| {
+        _ = try core.attach(
+            connection,
+            attachment_id,
+            terminal_id,
+            .{ .input = true, .read = true, .resize = true },
+            attachment_id.eql(original_owner_id),
+        );
+    }
+    _ = try core.attach(
+        connection,
+        incapable_id,
+        terminal_id,
+        .{ .input = true, .read = true, .resize = false },
+        false,
+    );
+
+    try std.testing.expectError(
+        error.ResizeLeaseDenied,
+        core.claimResizeLease(connection, incapable_id),
+    );
+    try std.testing.expectError(
+        error.ResizeLeaseDenied,
+        core.resize(connection, first_observer_id, 100, 30),
+    );
+    const first_claim = try core.claimResizeLease(connection, first_observer_id);
+    try std.testing.expectEqual(subject.TransitionOutcome.applied, first_claim.outcome);
+    try std.testing.expect(first_claim.previous_owner.?.eql(original_owner_id));
+    try std.testing.expect(!core.findAttachment(original_owner_id).?.resize_lease);
+    try std.testing.expect(core.findAttachment(first_observer_id).?.resize_lease);
+    try std.testing.expectEqual(
+        subject.TransitionOutcome.applied,
+        try core.resize(connection, first_observer_id, 100, 30),
+    );
+
+    const first_claim_sequence = core.findAttachment(first_observer_id).?.resize_claim_sequence;
+    const replay = try core.claimResizeLease(connection, first_observer_id);
+    try std.testing.expectEqual(subject.TransitionOutcome.idempotent, replay.outcome);
+    try std.testing.expect(replay.previous_owner == null);
+    try std.testing.expectEqual(
+        first_claim_sequence,
+        core.findAttachment(first_observer_id).?.resize_claim_sequence,
+    );
+
+    const second_claim = try core.claimResizeLease(connection, second_observer_id);
+    try std.testing.expect(second_claim.previous_owner.?.eql(first_observer_id));
+    const return_claim = try core.claimResizeLease(connection, first_observer_id);
+    try std.testing.expect(return_claim.previous_owner.?.eql(second_observer_id));
+    const detached = try core.detach(connection, first_observer_id);
+    try std.testing.expect(detached.resize_lease_change.?.attachment_id.eql(second_observer_id));
+    try std.testing.expect(core.findAttachment(second_observer_id).?.resize_lease);
+    try std.testing.expect(!core.findAttachment(original_owner_id).?.resize_lease);
+    try expectCoreInvariants(&core);
+}
+test "resize claim sequence exhaustion preserves the current owner" {
+    var core = HostCore.init(std.testing.allocator, testId(HostEpoch, 1));
+    defer core.deinit();
+    const connection: ConnectionId = 2;
+    const terminal_id = testId(TerminalId, 3);
+    const owner_id = testId(AttachmentId, 4);
+    const observer_id = testId(AttachmentId, 5);
+    _ = try core.connect(connection, testId(ClientId, 6));
+    _ = try createModel(
+        &core,
+        connection,
+        testId(CreationId, 7),
+        terminal_id,
+        [_]u8{8} ** 32,
+        80,
+        24,
+    );
+    _ = try core.attach(
+        connection,
+        owner_id,
+        terminal_id,
+        .{ .input = true, .read = true, .resize = true },
+        true,
+    );
+    _ = try core.attach(
+        connection,
+        observer_id,
+        terminal_id,
+        .{ .input = true, .read = true, .resize = true },
+        false,
+    );
+    subject.testing.setNextResizeClaimSequence(&core, std.math.maxInt(u64));
+
+    try std.testing.expectError(
+        error.ResizeLeaseSequenceOverflow,
+        core.claimResizeLease(connection, observer_id),
+    );
+    try std.testing.expect(core.findAttachment(owner_id).?.resize_lease);
+    try std.testing.expect(!core.findAttachment(observer_id).?.resize_lease);
+    try std.testing.expectEqual(
+        @as(u64, 0),
+        core.findAttachment(observer_id).?.resize_claim_sequence,
     );
     try expectCoreInvariants(&core);
 }

@@ -68,10 +68,11 @@ The accepted contract requires these externally visible properties:
 - Attachment resize and terminal-driven 80/132-column requests share one native geometry commit
   owner. The Host correlates OS PTY size, Ghostty dimensions, cell pixels, revision, generation, Core
   observation, and the projected snapshot before clients observe the change.
-- A running terminal has at most one attachment resize lease. Detaching its owner atomically
-  promotes the earliest admitted remaining resize-capable attachment and publishes that scoped
-  ownership change before the detach acknowledgement; an observer never has to reopen to become
-  owner.
+- A running terminal has at most one attachment resize lease. A resize-capable observer can claim
+  it explicitly; Host publishes the old owner's revocation before the new owner's grant and then
+  acknowledges the claim. Detaching an owner promotes the remaining attachment with the newest
+  successful claim, with earliest admission breaking ties among never-granted observers; an
+  observer never has to reopen to become owner.
 - Every attachment starts at capability revision `1`. A live input-capability update is accepted
   only at the exact next revision and is idempotent only for the exact current value. Raw and
   semantic PTY input must carry that current revision at preparation and final queue commit. A

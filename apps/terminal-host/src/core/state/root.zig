@@ -37,6 +37,7 @@ pub const PreparedTerminalDefaultsUpdate = contracts.PreparedTerminalDefaultsUpd
 pub const AttachmentAdmission = contracts.AttachmentAdmission;
 pub const CapabilityUpdateAdmission = contracts.CapabilityUpdateAdmission;
 pub const ResizeLeaseChange = contracts.ResizeLeaseChange;
+pub const ResizeLeaseClaim = contracts.ResizeLeaseClaim;
 pub const AttachmentDetach = contracts.AttachmentDetach;
 pub const ProjectionDemand = contracts.ProjectionDemand;
 pub const ProjectionBlock = contracts.ProjectionBlock;

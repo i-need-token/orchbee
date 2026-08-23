@@ -8,6 +8,7 @@ import {
 	canonicalEnvironmentName,
 	CanonicalUint64TextSchema,
 	ClearTerminalSchema,
+	ClaimResizeLeaseSchema,
 	DEFAULT_TERMINAL_CONFIGURATION,
 	decodeControlJson,
 	EmptyControlSchema,
@@ -373,6 +374,15 @@ describe('control schemas', () => {
 				attachmentId: attachment.attachmentId,
 				capabilityRevision: '0',
 				input: false,
+			}).success,
+		).toBe(false);
+		expect(ClaimResizeLeaseSchema.parse({ attachmentId: attachment.attachmentId })).toEqual({
+			attachmentId: attachment.attachmentId,
+		});
+		expect(
+			ClaimResizeLeaseSchema.safeParse({
+				attachmentId: attachment.attachmentId,
+				terminalId: attachment.terminalId,
 			}).success,
 		).toBe(false);
 		expect(

@@ -123,6 +123,7 @@ pub const HostRuntimeAggregate = struct {
 
     // attachment-lifecycle boundary.
     pub const attach = attachments.attach;
+    pub const claimResizeLease = attachments.claimResizeLease;
     pub const updateAttachmentInputCapability = attachments.updateAttachmentInputCapability;
     pub const detach = attachments.detach;
     pub const disconnect = attachments.disconnect;

@@ -273,6 +273,8 @@ pub const UpdateAttachmentInputCapability = struct {
     input: bool,
 };
 
+pub const ClaimResizeLease = struct { attachmentId: []const u8 };
+
 pub const TerminalControl = struct { attachmentId: []const u8 };
 
 pub const Resize = struct {

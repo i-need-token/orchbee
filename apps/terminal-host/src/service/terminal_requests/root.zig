@@ -38,6 +38,12 @@ pub fn dispatch(
         .force_terminate_terminal => try handler.handleForceTerminate(connection_id, envelope, correlation_id, outgoing),
         .dispose_terminal => try handler.handleDispose(connection_id, envelope, correlation_id, outgoing),
         .attach_terminal => try handler.handleAttach(connection_id, envelope, correlation_id, outgoing),
+        .claim_resize_lease => try handler.handleClaimResizeLease(
+            connection_id,
+            envelope,
+            correlation_id,
+            outgoing,
+        ),
         .detach_terminal => try handler.handleDetach(connection_id, envelope, correlation_id, outgoing),
         .update_attachment_input_capability => try handler.handleUpdateAttachmentInputCapability(
             connection_id,
@@ -76,6 +82,7 @@ const Handler = struct {
     const handleForceTerminate = lifecycle_requests.handleForceTerminate;
     const handleDispose = lifecycle_requests.handleDispose;
     const handleAttach = attachment_requests.handleAttach;
+    const handleClaimResizeLease = attachment_requests.handleClaimResizeLease;
     const handleDetach = attachment_requests.handleDetach;
     const handleUpdateAttachmentInputCapability =
         attachment_requests.handleUpdateAttachmentInputCapability;

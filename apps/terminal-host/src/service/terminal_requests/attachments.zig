@@ -146,3 +146,70 @@ pub fn handleUpdateAttachmentInputCapability(
     control_encode.writeAttachmentCapabilities(&output, attachment) catch unreachable;
     _ = response.commitControlSuccess(self.success, &output);
 }
+
+pub fn handleClaimResizeLease(
+    self: anytype,
+    connection_id: core_module.ConnectionId,
+    envelope: protocol.EnvelopeSummary,
+    correlation_id: WireIdentifier,
+    outgoing: *Outgoing,
+) !void {
+    if (!try self.context.requireControl(envelope, correlation_id, outgoing)) return;
+    var decoded = control_decode.decodeClaimResizeLease(
+        self.context.allocator,
+        envelope.payload,
+    ) catch |err| return self.context.rejectControlDecode(
+        outgoing,
+        correlation_id,
+        err,
+        "ClaimResizeLease payload is invalid",
+    );
+    defer decoded.deinit();
+    var response = try host_response.prepareControl(
+        outgoing,
+        correlation_id,
+        self.context.hostEpoch(),
+    );
+    defer response.deinit();
+    var revocation_event = try host_response.prepare(
+        outgoing,
+        protocol.Limits.control_json_bytes,
+        host_response.eventDelivery(self.context.hostEpoch()),
+    );
+    defer revocation_event.deinit();
+    var grant_event = try host_response.prepare(
+        outgoing,
+        protocol.Limits.control_json_bytes,
+        host_response.eventDelivery(self.context.hostEpoch()),
+    );
+    defer grant_event.deinit();
+
+    const claimed = self.context.runtime_aggregate.claimResizeLease(
+        connection_id,
+        decoded.value.attachment_id,
+    ) catch |err| {
+        response.commitFailure(host_failure.fromCore(err));
+        return;
+    };
+    if (claimed.transition == .applied) {
+        if (claimed.previous_owner) |previous_owner| {
+            var event_output = revocation_event.writer();
+            control_encode.writeResizeLeaseChanged(&event_output, .{
+                .attachment_id = previous_owner,
+                .resize_lease = false,
+                .terminal_id = claimed.binding.terminal_id,
+            }) catch unreachable;
+            _ = revocation_event.commitControl(MessageKind.resize_lease_changed, &event_output);
+        }
+        var event_output = grant_event.writer();
+        control_encode.writeResizeLeaseChanged(&event_output, .{
+            .attachment_id = claimed.binding.attachment_id,
+            .resize_lease = true,
+            .terminal_id = claimed.binding.terminal_id,
+        }) catch unreachable;
+        _ = grant_event.commitControl(MessageKind.resize_lease_changed, &event_output);
+    }
+    var output = response.writer();
+    control_encode.writeAttachmentCapabilities(&output, claimed.binding) catch unreachable;
+    _ = response.commitControlSuccess(self.success, &output);
+}

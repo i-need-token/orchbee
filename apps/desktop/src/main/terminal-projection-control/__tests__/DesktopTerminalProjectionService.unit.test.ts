@@ -122,11 +122,13 @@ function createHarness(readOnly = false, startRequired = false) {
 		},
 	} as unknown as HostConnection;
 	const brokers: Array<{
+		readonly claimResizeLease: ReturnType<typeof vi.fn<() => Promise<void>>>;
 		readonly dispose: ReturnType<typeof vi.fn<() => Promise<void>>>;
 		readonly setInputCapability: ReturnType<typeof vi.fn<(input: boolean) => Promise<void>>>;
 		readonly start: ReturnType<typeof vi.fn<() => void>>;
 	}> = [];
 	const cleanupCallbacks: Array<((error: unknown) => void) | undefined> = [];
+	const resizeActivityCallbacks: Array<(() => void) | undefined> = [];
 	const resizeLeaseCallbacks: Array<((ownsResize: boolean) => void) | undefined> = [];
 	let nextAttachment = 1;
 	const createMessageChannel = vi.fn<
@@ -137,7 +139,13 @@ function createHarness(readOnly = false, startRequired = false) {
 	}));
 	const createBroker = vi.fn<DesktopTerminalProjectionServiceDependencies['createBroker']>(
 		(_host, _port, bootstrap, _effectTarget, lifecycle) => {
+			const brokerIndex = brokers.length;
 			const broker = {
+				claimResizeLease: vi.fn<() => Promise<void>>().mockImplementation(async () => {
+					for (const [index, callback] of resizeLeaseCallbacks.entries()) {
+						callback?.(index === brokerIndex);
+					}
+				}),
 				dispose: vi.fn<() => Promise<void>>().mockImplementation(async () => {
 					if (requestTransportEnded) return;
 					await requestControl(
@@ -151,6 +159,7 @@ function createHarness(readOnly = false, startRequired = false) {
 				start: vi.fn<() => void>(),
 			};
 			cleanupCallbacks.push(lifecycle?.onCleanupRequested);
+			resizeActivityCallbacks.push(lifecycle?.onResizeActivity);
 			resizeLeaseCallbacks.push(lifecycle?.onResizeLeaseChanged);
 			brokers.push(broker);
 			return broker;
@@ -186,6 +195,7 @@ function createHarness(readOnly = false, startRequired = false) {
 		},
 		markTerminalStarted,
 		requestControl,
+		resizeActivityCallbacks,
 		resizeLeaseCallbacks,
 		service,
 		setTarget: (nextTarget: typeof target) => {
@@ -434,6 +444,48 @@ describe('DesktopTerminalProjectionService', () => {
 			expect.objectContaining({ requestResizeLease: false }),
 			expect.anything(),
 		);
+	});
+
+	it('coalesces activity while a claim is in flight and converges to the latest active projection', async () => {
+		const harness = createHarness();
+		const presentation = terminalPresentationId('presentation-active-resize-owner');
+		await harness.service.open(presentation);
+		await harness.service.open(presentation);
+		const secondClaim = createDeferred<void>();
+		harness.brokers[1]?.claimResizeLease.mockImplementationOnce(async () => {
+			await secondClaim.promise;
+			harness.resizeLeaseCallbacks[0]?.(false);
+			harness.resizeLeaseCallbacks[1]?.(true);
+		});
+
+		harness.resizeActivityCallbacks[1]?.();
+		harness.resizeActivityCallbacks[1]?.();
+		await vi.waitFor(() => expect(harness.brokers[1]?.claimResizeLease).toHaveBeenCalledOnce());
+		harness.resizeActivityCallbacks[0]?.();
+		expect(harness.brokers[0]?.claimResizeLease).not.toHaveBeenCalled();
+
+		secondClaim.resolve(undefined);
+		await vi.waitFor(() => expect(harness.brokers[0]?.claimResizeLease).toHaveBeenCalledOnce());
+		expect(harness.brokers[1]?.claimResizeLease).toHaveBeenCalledOnce();
+	});
+
+	it('retries recorded newer activity after Host fallback without spinning on claim failure', async () => {
+		const harness = createHarness();
+		const presentation = terminalPresentationId('presentation-resize-owner-fallback');
+		await harness.service.open(presentation);
+		await harness.service.open(presentation);
+		await harness.service.open(presentation);
+		harness.brokers[1]?.claimResizeLease.mockRejectedValueOnce(new Error('injected claim failure'));
+
+		harness.resizeActivityCallbacks[1]?.();
+		await vi.waitFor(() => expect(harness.brokers[1]?.claimResizeLease).toHaveBeenCalledOnce());
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		expect(harness.brokers[1]?.claimResizeLease).toHaveBeenCalledOnce();
+
+		harness.resizeLeaseCallbacks[0]?.(false);
+		harness.resizeLeaseCallbacks[2]?.(true);
+		await vi.waitFor(() => expect(harness.brokers[1]?.claimResizeLease).toHaveBeenCalledTimes(2));
+		expect(harness.brokers[2]?.claimResizeLease).not.toHaveBeenCalled();
 	});
 
 	it('orders a release before a racing open so the replacement requests ownership', async () => {
@@ -775,6 +827,7 @@ describe('DesktopTerminalProjectionService', () => {
 		const harness = createHarness();
 		harness.createBroker.mockImplementationOnce((_host, _port, bootstrap) => {
 			const broker = {
+				claimResizeLease: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
 				dispose: vi.fn<() => Promise<void>>().mockImplementation(async () => {
 					await harness.requestControl(
 						MessageKind.detachTerminal,

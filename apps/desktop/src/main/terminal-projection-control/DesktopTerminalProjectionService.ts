@@ -36,6 +36,7 @@ import type { DesktopTerminalProjectionTarget } from '../terminal-document-contr
 
 export interface DesktopProjectionBrokerHandle {
 	readonly metrics: ProjectedTerminalBrokerMetrics;
+	claimResizeLease(): Promise<void>;
 	dispose(): Promise<void>;
 	setInputCapability(input: boolean): Promise<void>;
 	start(): void;
@@ -98,25 +99,37 @@ class DesktopTerminalProjectionError extends Error {
 }
 
 interface ActiveLease {
+	activitySequence: bigint;
+	readonly claimResizeLease: () => Promise<void>;
 	readonly dispose: () => Promise<void>;
 	readonly metrics: ProjectedTerminalBrokerMetrics;
 	readonly performDispose: () => Promise<void>;
 	readonly setInputCapability: (input: boolean) => Promise<void>;
 	ownsResize: boolean;
+	readonly resizeEligible: boolean;
+}
+
+interface DesiredResizeOwner {
+	readonly lease: ActiveLease;
+	readonly sequence: bigint;
 }
 
 export class DesktopTerminalProjectionService {
 	readonly #activeLeases = new Map<TerminalPresentationId, Set<ActiveLease>>();
 	readonly #dependencies: DesktopTerminalProjectionServiceDependencies;
+	readonly #desiredResizeOwners = new Map<TerminalPresentationId, DesiredResizeOwner>();
 	readonly #detachTasks = new Map<AttachmentId, Promise<void>>();
 	readonly #provisionalAttachments = new Map<AttachmentId, TerminalPresentationId>();
 	#disposePromise: Promise<void> | undefined;
 	readonly #operationTails = new Map<TerminalPresentationId, Promise<void>>();
+	readonly #resizeClaimAttempts = new Map<TerminalPresentationId, bigint>();
+	readonly #resizeClaimScheduled = new Set<TerminalPresentationId>();
 	readonly #pendingDetaches = new Map<TerminalPresentationId, Set<AttachmentId>>();
 	readonly #retiredPresentations = new Set<TerminalPresentationId>();
 	readonly #retirementGenerations = new Map<TerminalPresentationId, number>();
 	readonly #retirementTasks = new Map<TerminalPresentationId, Promise<void>>();
 	#disposed = false;
+	#nextResizeActivitySequence = 1n;
 	#removeHostClosedListener: (() => void) | undefined;
 
 	constructor(dependencies: DesktopTerminalProjectionServiceDependencies) {
@@ -173,6 +186,106 @@ export class DesktopTerminalProjectionService {
 			}
 		});
 		return result;
+	}
+
+	#recordResizeActivity(presentationId: TerminalPresentationId, lease: ActiveLease): void {
+		if (
+			this.#disposed ||
+			!lease.resizeEligible ||
+			!this.#activeLeases.get(presentationId)?.has(lease)
+		) {
+			return;
+		}
+		const sequence = this.#nextResizeActivitySequence;
+		this.#nextResizeActivitySequence += 1n;
+		lease.activitySequence = sequence;
+		this.#desiredResizeOwners.set(presentationId, { lease, sequence });
+		this.#scheduleResizeClaim(presentationId);
+	}
+
+	#recordResizeLeaseChange(
+		presentationId: TerminalPresentationId,
+		lease: ActiveLease,
+		ownsResize: boolean,
+	): void {
+		lease.ownsResize = ownsResize;
+		if (!ownsResize) return;
+		for (const candidate of this.#activeLeases.get(presentationId) ?? []) {
+			if (candidate !== lease) candidate.ownsResize = false;
+		}
+		const desired = this.#desiredResizeOwners.get(presentationId);
+		if (desired === undefined || desired.lease === lease || desired.lease.ownsResize) return;
+		this.#resizeClaimAttempts.delete(presentationId);
+		this.#scheduleResizeClaim(presentationId);
+	}
+
+	#scheduleResizeClaim(presentationId: TerminalPresentationId): void {
+		if (this.#disposed || this.#resizeClaimScheduled.has(presentationId)) return;
+		this.#resizeClaimScheduled.add(presentationId);
+		const operation = this.#enqueueOperation(presentationId, async () =>
+			this.#convergeResizeOwner(presentationId),
+		);
+		const settle = (): void => {
+			this.#resizeClaimScheduled.delete(presentationId);
+			if (this.#disposed) return;
+			const desired = this.#desiredResizeOwners.get(presentationId);
+			if (
+				desired !== undefined &&
+				this.#resizeClaimAttempts.get(presentationId) !== desired.sequence
+			) {
+				this.#scheduleResizeClaim(presentationId);
+			}
+		};
+		void operation.then(settle, settle);
+	}
+
+	async #convergeResizeOwner(presentationId: TerminalPresentationId): Promise<void> {
+		while (!this.#disposed) {
+			const desired = this.#desiredResizeOwners.get(presentationId);
+			if (desired === undefined) return;
+			if (!this.#activeLeases.get(presentationId)?.has(desired.lease)) {
+				this.#replaceRemovedDesiredOwner(presentationId, desired.lease);
+				continue;
+			}
+			this.#resizeClaimAttempts.set(presentationId, desired.sequence);
+			if (desired.lease.ownsResize) return;
+			try {
+				await desired.lease.claimResizeLease();
+			} catch {
+				if (this.#desiredResizeOwners.get(presentationId)?.sequence !== desired.sequence) {
+					continue;
+				}
+				return;
+			}
+			for (const lease of this.#activeLeases.get(presentationId) ?? []) {
+				lease.ownsResize = lease === desired.lease;
+			}
+			if (this.#desiredResizeOwners.get(presentationId)?.sequence === desired.sequence) return;
+		}
+	}
+
+	#replaceRemovedDesiredOwner(presentationId: TerminalPresentationId, removed: ActiveLease): void {
+		if (this.#desiredResizeOwners.get(presentationId)?.lease !== removed) return;
+		let fallback: ActiveLease | undefined;
+		for (const candidate of this.#activeLeases.get(presentationId) ?? []) {
+			if (
+				candidate.resizeEligible &&
+				candidate.activitySequence > 0n &&
+				(fallback === undefined || candidate.activitySequence > fallback.activitySequence)
+			) {
+				fallback = candidate;
+			}
+		}
+		if (fallback === undefined) {
+			this.#desiredResizeOwners.delete(presentationId);
+			this.#resizeClaimAttempts.delete(presentationId);
+			return;
+		}
+		this.#desiredResizeOwners.set(presentationId, {
+			lease: fallback,
+			sequence: fallback.activitySequence,
+		});
+		this.#scheduleResizeClaim(presentationId);
 	}
 
 	async #openSerialized(
@@ -305,11 +418,16 @@ export class DesktopTerminalProjectionService {
 				options.brokerEffectTarget,
 				{
 					onCleanupRequested: requestCleanup,
+					onResizeActivity: () => {
+						if (activeLease !== undefined) {
+							this.#recordResizeActivity(presentationId, activeLease);
+						}
+					},
 					onResizeLeaseChanged: (ownsResize) => {
 						if (activeLease === undefined) {
 							throw projectionError('terminal-projection-capability-rejected', false);
 						}
-						activeLease.ownsResize = ownsResize;
+						this.#recordResizeLeaseChange(presentationId, activeLease, ownsResize);
 					},
 					onThemeChanged: (theme) => {
 						if (!this.#dependencies.observeTerminalTheme(presentationId, theme)) {
@@ -330,6 +448,9 @@ export class DesktopTerminalProjectionService {
 				if (this.#activeLeases.get(presentationId)?.size === 0) {
 					this.#activeLeases.delete(presentationId);
 				}
+				if (activeLease !== undefined) {
+					this.#replaceRemovedDesiredOwner(presentationId, activeLease);
+				}
 			};
 			const performDispose = (): Promise<void> => {
 				if (disposalCompleted) return Promise.resolve();
@@ -347,12 +468,15 @@ export class DesktopTerminalProjectionService {
 				return disposalPromise;
 			};
 			activeLease = {
+				activitySequence: 0n,
+				claimResizeLease: () => createdBroker.claimResizeLease(),
 				dispose: () => this.#enqueueOperation(presentationId, performDispose),
 				get metrics() {
 					return createdBroker.metrics;
 				},
 				ownsResize: bootstrap.canResize,
 				performDispose,
+				resizeEligible: capabilities.capabilities.resize,
 				setInputCapability: (input) =>
 					this.#enqueueOperation(presentationId, async () => {
 						if (

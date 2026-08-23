@@ -213,6 +213,12 @@ pub const AttachOutcome = struct {
     transition: core_module.TransitionOutcome,
 };
 
+pub const ResizeLeaseClaimOutcome = struct {
+    binding: AttachmentBinding,
+    previous_owner: ?core_module.AttachmentId,
+    transition: core_module.TransitionOutcome,
+};
+
 pub const AcceptedInput = host_input_admission.AcceptedInput;
 pub const InputRejection = host_input_admission.Rejection;
 pub const InputAdmission = host_input_admission.Admission;
@@ -241,6 +247,8 @@ pub const AttachError = core_module.CoreError || std.mem.Allocator.Error || erro
 };
 
 pub const CapabilityUpdateError = AttachError;
+
+pub const ResizeLeaseClaimError = core_module.CoreError;
 
 pub const DisposeError = core_module.CoreError || error{TerminalRuntimeMissing};
 

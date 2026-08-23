@@ -34,6 +34,7 @@ pub const testing = if (@import("builtin").is_test) struct {
         CreationBindingMismatch,
         CreationIndexCountMismatch,
         DuplicateAttachmentAdmissionSequence,
+        DuplicateResizeClaimSequence,
         GeometryRevisionAheadOfObservation,
         InvalidAttachmentAdmissionSequence,
         InvalidAwaitingStartLifecycle,
@@ -46,6 +47,7 @@ pub const testing = if (@import("builtin").is_test) struct {
         InvalidInFlightProjectionBase,
         InvalidProjectionSequence,
         InvalidRequestedResizeLease,
+        InvalidResizeClaimSequence,
         InvalidResizeLease,
         InvalidRunningLifecycle,
         InvalidTerminalConfiguration,
@@ -192,6 +194,11 @@ pub const testing = if (@import("builtin").is_test) struct {
         core.testing_state.last_active_read_demand_scans = 0;
         const broker = if (core.broker) |*active| active else return;
         broker_session.testing.resetActiveReadDemandScans(broker);
+    }
+
+    pub fn setNextResizeClaimSequence(core: *HostCore, sequence: u64) void {
+        const broker = if (core.broker) |*active| active else return;
+        broker_session.testing.setNextResizeClaimSequence(broker, sequence);
     }
 
     pub fn setTerminalDefaultsRevision(core: *HostCore, revision: u64) void {
@@ -353,6 +360,9 @@ pub const testing = if (@import("builtin").is_test) struct {
             if (attachment.resize_lease and !attachment.capabilities.resize) {
                 return error.InvalidResizeLease;
             }
+            if (attachment.resize_claim_sequence != 0 and !attachment.capabilities.resize) {
+                return error.InvalidResizeClaimSequence;
+            }
             const terminal_ids = attachmentIdsForTerminal(
                 core,
                 attachment.terminal_id,
@@ -409,6 +419,12 @@ pub const testing = if (@import("builtin").is_test) struct {
                     candidate.admission_sequence == attachment.admission_sequence)
                 {
                     return error.DuplicateAttachmentAdmissionSequence;
+                }
+                if (attachment.resize_claim_sequence != 0 and
+                    !candidate.attachment_id.eql(attachment.attachment_id) and
+                    candidate.resize_claim_sequence == attachment.resize_claim_sequence)
+                {
+                    return error.DuplicateResizeClaimSequence;
                 }
                 if (candidate.resize_lease and
                     candidate.terminal_id.eql(attachment.terminal_id))

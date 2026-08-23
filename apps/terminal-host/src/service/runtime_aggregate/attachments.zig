@@ -7,6 +7,8 @@ const AttachError = contracts.AttachError;
 const AttachOutcome = contracts.AttachOutcome;
 const AttachmentBinding = contracts.AttachmentBinding;
 const CapabilityUpdateError = contracts.CapabilityUpdateError;
+const ResizeLeaseClaimError = contracts.ResizeLeaseClaimError;
+const ResizeLeaseClaimOutcome = contracts.ResizeLeaseClaimOutcome;
 
 pub fn attach(
     self: anytype,
@@ -124,6 +126,19 @@ pub fn updateAttachmentInputCapability(
         );
     }
     return attachmentBinding(self.core_state.findAttachment(attachment_id).?);
+}
+
+pub fn claimResizeLease(
+    self: anytype,
+    connection_id: core_module.ConnectionId,
+    attachment_id: core_module.AttachmentId,
+) ResizeLeaseClaimError!ResizeLeaseClaimOutcome {
+    const claim = try self.core_state.claimResizeLease(connection_id, attachment_id);
+    return .{
+        .binding = attachmentBinding(self.core_state.findAttachment(attachment_id).?),
+        .previous_owner = claim.previous_owner,
+        .transition = claim.outcome,
+    };
 }
 
 pub fn disconnect(
