@@ -38,6 +38,29 @@ scroll-to-bottom, new-child-terminal, split-left, and split-above remain intenti
 this catalog. Adding nullable or user-created bindings for initially unbound commands is outside
 this model.
 
+## Workbench dispatch scope
+
+Web publishes whether Workbench is the active product surface. The mounted Workbench owns one
+capture listener on its document and participates only while that semantic scope is active. Focus
+inside a terminal, Tab strip, sidebar control, Workbench interaction surface, or the document body
+does not change Workbench binding applicability. Opening the full-screen Settings surface makes the
+still-mounted Workbench inactive; closing Settings activates it again. Unmounting Workbench removes
+the listener.
+
+| Workbench surface state      | Binding decision                                                                   |
+| ---------------------------- | ---------------------------------------------------------------------------------- |
+| Active with one or more Tabs | Resolve Workbench bindings independently of the focused Workbench region           |
+| Active with no Tabs          | New Tab remains enabled; target-dependent close and Panel commands are unavailable |
+| Settings is open             | Skip every Workbench binding and preserve event defaults                           |
+| Workbench is unmounted       | No Workbench listener or binding participates                                      |
+
+A resolved binding still runs only when its Action is enabled. Successful New Tab execution makes
+the new Tab active and projects its first Panel terminal as the sole `autoFocus` target; the
+injected terminal surface claims real input when ready. Active-terminal and active-Panel commands
+resolve from the active Tab's remembered focused Panel rather than the keyboard event target, so a
+sidebar or document-body focus does not redirect them. An unavailable Action preserves state and
+does not call `preventDefault()`.
+
 ## Active-target command model
 
 The four `workbench.*.active.*` Actions are context commands. Their Action invocation may carry an
@@ -131,14 +154,17 @@ change does not remount Workbench, replace an attachment, or reopen a Host or Ga
 | -------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
 | One valid target produces exactly one child, panel, or Tab close operation       | Active-target resolver decision-table tests                          |
 | Confirmation, cancellation, and commit remain owned by the prepared lower Action | Workbench Action integration tests with panel and Tab registrations  |
+| Active Workbench bindings do not depend on a surviving focused descendant        | Document-capture lifecycle and Web application integration tests     |
+| Empty-Tab New Tab creates and focuses the new terminal; Settings suppresses it   | Web application focus and Settings-scope integration trace           |
 | Apple and Standard defaults match the catalog and custom edits affect dispatch   | Shortcut definition, resolver, and controller tests                  |
 | Menus, Action search, and settings display the same current binding              | Projection and rendered-surface tests                                |
 | A valid v1 record migrates once without losing explicit legacy overrides         | Storage migration tests, including a new-default-equivalent override |
 | Invalid v2 data restores defaults without consulting v1                          | Storage corruption and precedence tests                              |
 
-The tests use synthetic platform flags, Action scopes, storage, and keyboard events. They do not
-claim operating-system global-shortcut behavior or full Warp compatibility. The manual Desktop
-native-window focus test is excluded from autonomous verification.
+The tests use synthetic platform flags, Action scopes, storage, document capture, injected terminal
+focus, and keyboard events. They do not claim operating-system global-shortcut behavior or full
+Warp compatibility. The manual Desktop native-window focus test is excluded from autonomous
+verification.
 
 ## Maintenance checks
 

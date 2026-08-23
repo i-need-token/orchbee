@@ -91,6 +91,7 @@ export function WebApplication({
 			>
 				<Workbench
 					actionRuntime={actionRuntime}
+					isShortcutScopeActive={!view.settingsOpen}
 					layoutStorage={layoutStorage}
 					navigation={navigation}
 					onSettings={view.onSettings}

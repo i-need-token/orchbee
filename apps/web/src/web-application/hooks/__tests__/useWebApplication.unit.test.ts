@@ -9,7 +9,7 @@ import {
 	WorkbenchProjectWorkspaceRuntime,
 	type WorkbenchTerminalSurfaceProps,
 } from '@orchbee/workbench';
-import { act, createElement, useEffect, type ReactNode } from 'react';
+import { act, createElement, useEffect, useRef, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
@@ -40,6 +40,184 @@ afterAll(() => {
 });
 
 describe('useWebApplication', () => {
+	it('routes Workbench shortcuts by the visible product surface and restores terminal focus', async () => {
+		const container = document.createElement('div');
+		document.body.append(container);
+		const actionRuntime = new ActionRuntime();
+		let sequence = 0;
+		const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
+			standaloneCwd: '/workspace',
+			standaloneTerminalTitle: 'Terminal 1',
+			terminalPresentation: createWorkbenchPreviewTerminalPresentationComposition(
+				terminalPresentationId('shortcut-scope:initial'),
+				() => terminalPresentationId(`shortcut-scope:${(sequence += 1)}`),
+			),
+		});
+		const terminalSettingsController = new TerminalSettingsController({
+			storage: { getItem: () => null, setItem: () => undefined },
+			themeTarget: document.documentElement,
+		});
+		const keyboardShortcutSettingsController = new KeyboardShortcutSettingsController({
+			platform: 'apple',
+			storage: { getItem: () => null, setItem: () => undefined },
+		});
+		const root = createRoot(container);
+		await act(async () => {
+			root.render(
+				createElement(
+					OrchbeeI18nProvider,
+					{ locale: 'en-US' },
+					createElement(
+						TooltipProvider,
+						undefined,
+						createElement(WebApplication, {
+							actionRuntime,
+							keyboardShortcutSettingsController,
+							projectWorkspaceRuntime,
+							shortcutPlatform: 'apple',
+							terminalSettingsController,
+							terminalSurface: FocusTerminalSurface,
+						}),
+					),
+				),
+			);
+		});
+
+		const initialInput = requiredElement<HTMLTextAreaElement>(
+			container.querySelector('[data-test-terminal-input="true"]'),
+		);
+		expect(document.activeElement).toBe(initialInput);
+		initialInput.blur();
+		expect(document.activeElement).toBe(document.body);
+		const createWithBodyFocus = appleCommand('KeyT');
+		await act(async () => document.body.dispatchEvent(createWithBodyFocus));
+		expect(createWithBodyFocus.defaultPrevented).toBe(true);
+		await vi.waitFor(() =>
+			expect(
+				projectWorkspaceRuntime.getActiveTerminalContext().tabModel.getSnapshot().tabs,
+			).toHaveLength(2),
+		);
+		const createdInput = requiredElement<HTMLTextAreaElement>(
+			container.querySelector('[data-test-terminal-input="true"]'),
+		);
+		expect(document.activeElement).toBe(createdInput);
+		createdInput.blur();
+
+		const split = appleCommand('KeyD');
+		await act(async () => document.body.dispatchEvent(split));
+		expect(split.defaultPrevented).toBe(true);
+		await vi.waitFor(() =>
+			expect(container.querySelectorAll('[data-slot="workbench-panel"]')).toHaveLength(2),
+		);
+		const splitFocus = document.activeElement;
+		expect(splitFocus).toBeInstanceOf(HTMLTextAreaElement);
+		if (!(splitFocus instanceof HTMLTextAreaElement)) {
+			throw new Error('Expected the split terminal to receive focus.');
+		}
+		splitFocus.blur();
+
+		const closePanel = appleCommand('KeyW');
+		await act(async () => document.body.dispatchEvent(closePanel));
+		expect(closePanel.defaultPrevented).toBe(true);
+		await confirmCloseAnyway();
+		await vi.waitFor(() =>
+			expect(container.querySelectorAll('[data-slot="workbench-panel"]')).toHaveLength(1),
+		);
+		expect(document.activeElement).toBe(
+			container.querySelector('[data-test-terminal-input="true"]'),
+		);
+
+		const activeTabInput = requiredElement<HTMLTextAreaElement>(
+			container.querySelector('[data-test-terminal-input="true"]'),
+		);
+		activeTabInput.blur();
+		const closeActiveTab = appleCommand('KeyW');
+		await act(async () => document.body.dispatchEvent(closeActiveTab));
+		expect(closeActiveTab.defaultPrevented).toBe(true);
+		await confirmCloseAnyway();
+		await vi.waitFor(() =>
+			expect(
+				projectWorkspaceRuntime.getActiveTerminalContext().tabModel.getSnapshot().tabs,
+			).toHaveLength(1),
+		);
+		const finalTabInput = requiredElement<HTMLTextAreaElement>(
+			container.querySelector('[data-test-terminal-input="true"]'),
+		);
+		expect(document.activeElement).toBe(finalTabInput);
+		finalTabInput.blur();
+		const closeFinalTab = appleCommand('KeyW');
+		await act(async () => document.body.dispatchEvent(closeFinalTab));
+		expect(closeFinalTab.defaultPrevented).toBe(true);
+		await confirmCloseAnyway();
+		await vi.waitFor(() =>
+			expect(
+				projectWorkspaceRuntime.getActiveTerminalContext().tabModel.getSnapshot().tabs,
+			).toHaveLength(0),
+		);
+		expect(
+			projectWorkspaceRuntime.getActiveTerminalContext().tabModel.getSnapshot().tabs,
+		).toHaveLength(0);
+		expect(document.activeElement).toBe(document.body);
+
+		const createFromEmpty = appleCommand('KeyT');
+		await act(async () => document.body.dispatchEvent(createFromEmpty));
+		expect(createFromEmpty.defaultPrevented).toBe(true);
+		await vi.waitFor(() =>
+			expect(
+				projectWorkspaceRuntime.getActiveTerminalContext().tabModel.getSnapshot().tabs,
+			).toHaveLength(1),
+		);
+		const recreatedInput = requiredElement<HTMLTextAreaElement>(
+			container.querySelector('[data-test-terminal-input="true"]'),
+		);
+		expect(document.activeElement).toBe(recreatedInput);
+
+		const settingsAction = requiredElement<HTMLButtonElement>(
+			container.querySelector("[data-slot='workbench-sidebar-settings']"),
+		);
+		await act(async () => settingsAction.click());
+		const settingsInput = await vi.waitFor(() =>
+			requiredElement<HTMLInputElement>(
+				container.querySelector("input[aria-label='Search settings']"),
+			),
+		);
+		expect(document.activeElement).toBe(settingsInput);
+		const createFromSettings = appleCommand('KeyT');
+		await act(async () => settingsInput.dispatchEvent(createFromSettings));
+		expect(createFromSettings.defaultPrevented).toBe(false);
+		expect(
+			projectWorkspaceRuntime.getActiveTerminalContext().tabModel.getSnapshot().tabs,
+		).toHaveLength(1);
+		expect(document.activeElement).toBe(settingsInput);
+		await act(async () => {
+			settingsInput.dispatchEvent(
+				new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'Escape' }),
+			);
+		});
+		await vi.waitFor(() =>
+			expect(container.querySelector('[data-slot="terminal-settings-surface"]')).toBeNull(),
+		);
+		await vi.waitFor(() => expect(document.activeElement).toBe(recreatedInput));
+		recreatedInput.blur();
+		const createAfterSettings = appleCommand('KeyT');
+		await act(async () => document.body.dispatchEvent(createAfterSettings));
+		expect(createAfterSettings.defaultPrevented).toBe(true);
+		await vi.waitFor(() =>
+			expect(
+				projectWorkspaceRuntime.getActiveTerminalContext().tabModel.getSnapshot().tabs,
+			).toHaveLength(2),
+		);
+		expect(document.activeElement).toBe(
+			container.querySelector('[data-test-terminal-input="true"]'),
+		);
+
+		await act(async () => root.unmount());
+		container.remove();
+		keyboardShortcutSettingsController.dispose();
+		terminalSettingsController.dispose();
+		actionRuntime.dispose();
+	});
+
 	it('keeps the Workbench mounted, makes it inert, and restores focus after close', async () => {
 		const container = document.createElement('div');
 		document.body.append(container);
@@ -222,6 +400,22 @@ function TestTerminalSurface({ presentation }: WorkbenchTerminalSurfaceProps): R
 	);
 }
 
+function FocusTerminalSurface({
+	autoFocus,
+	presentation,
+}: WorkbenchTerminalSurfaceProps): ReactNode {
+	const inputReference = useRef<HTMLTextAreaElement>(null);
+	useEffect(() => {
+		if (autoFocus) inputReference.current?.focus();
+	}, [autoFocus, presentation.presentationId]);
+	return createElement('textarea', {
+		'aria-label': presentation.title,
+		'data-presentation-id': presentation.presentationId,
+		'data-test-terminal-input': 'true',
+		ref: inputReference,
+	});
+}
+
 function ShortcutProjectionTerminalSurface({
 	actionRuntime,
 	actionScope,
@@ -281,4 +475,24 @@ function menuShortcut(label: string): string | null {
 function requiredElement<ElementType extends Element>(element: ElementType | null): ElementType {
 	if (element === null) throw new Error('Expected element was not rendered.');
 	return element;
+}
+
+function appleCommand(code: string): KeyboardEvent {
+	return new KeyboardEvent('keydown', {
+		bubbles: true,
+		cancelable: true,
+		code,
+		metaKey: true,
+	});
+}
+
+async function confirmCloseAnyway(): Promise<void> {
+	const closeAnyway = await vi.waitFor(() =>
+		requiredElement<HTMLButtonElement>(
+			[...document.querySelectorAll<HTMLButtonElement>('button')].find(
+				(button) => button.textContent?.trim() === 'Close anyway',
+			) ?? null,
+		),
+	);
+	await act(async () => closeAnyway.click());
 }

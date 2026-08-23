@@ -28,6 +28,7 @@ interface WorkbenchHarnessProps {
 function WorkbenchHarness({ actionRuntime, isUserInteraction, storage }: WorkbenchHarnessProps) {
 	const workbench = useWorkbench({
 		actionRuntime,
+		isShortcutScopeActive: true,
 		onSettings: undefined,
 		projectWorkspaceRuntime: new WorkbenchProjectWorkspaceRuntime({
 			standaloneCwd: '/system',

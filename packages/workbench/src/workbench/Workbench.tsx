@@ -49,6 +49,7 @@ import styles from './Workbench.module.css';
 export interface WorkbenchProps {
 	readonly actionRuntime: ActionRuntime;
 	readonly createCrossWindowDragRuntime?: TabStripCrossWindowDragRuntimeFactory | undefined;
+	readonly isShortcutScopeActive?: boolean | undefined;
 	readonly layoutStorage?: WorkbenchLayoutStorage | undefined;
 	readonly navigation?: WorkbenchNavigationPort | undefined;
 	readonly onSettings?: WorkbenchHostActionCallback | undefined;
@@ -64,6 +65,7 @@ export interface WorkbenchProps {
 export function Workbench({
 	actionRuntime,
 	createCrossWindowDragRuntime,
+	isShortcutScopeActive = true,
 	layoutStorage,
 	navigation,
 	onSettings,
@@ -85,6 +87,7 @@ export function Workbench({
 	});
 	const view = useWorkbench({
 		actionRuntime,
+		isShortcutScopeActive,
 		navigation,
 		onSettings,
 		projectWorkspaceRuntime,
@@ -143,7 +146,7 @@ export function Workbench({
 	}
 
 	return (
-		<div className={styles['root']} onKeyDownCapture={view.onShortcutKeyDownCapture}>
+		<div className={styles['root']} ref={view.shortcutScopeReference}>
 			<div className={styles['sidebarToggle']} data-slot='workbench-sidebar-toggle-position'>
 				{sidebarToggle}
 			</div>

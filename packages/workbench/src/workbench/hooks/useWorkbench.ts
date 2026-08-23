@@ -92,7 +92,7 @@ interface WorkbenchView {
 		meta: ResizableLayoutChangedMeta,
 	) => void;
 	readonly onLeftPanelResize: (size: ResizablePanelSize) => void;
-	readonly onShortcutKeyDownCapture: React.KeyboardEventHandler<HTMLDivElement>;
+	readonly shortcutScopeReference: React.RefObject<HTMLDivElement | null>;
 	readonly sidebarShortcutId: string;
 	readonly sidebarShortcutLabel: string;
 	readonly sidebarToggleLabel: string;
@@ -146,6 +146,7 @@ interface WorkbenchView {
 
 interface UseWorkbenchOptions {
 	readonly actionRuntime: ActionRuntime;
+	readonly isShortcutScopeActive: boolean;
 	readonly navigation?: WorkbenchNavigationPort | undefined;
 	readonly onSettings: WorkbenchHostActionCallback | undefined;
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
@@ -156,6 +157,7 @@ interface UseWorkbenchOptions {
 
 export function useWorkbench({
 	actionRuntime,
+	isShortcutScopeActive,
 	navigation,
 	onSettings,
 	projectWorkspaceRuntime,
@@ -364,7 +366,8 @@ export function useWorkbench({
 		};
 	}, [actionRuntime, actions.scope, intl]);
 
-	const onShortcutKeyDownCapture = useWorkbenchShortcuts(
+	const shortcutScopeReference = useWorkbenchShortcuts(
+		isShortcutScopeActive,
 		shortcutPlatform,
 		shortcutBindings,
 		actions.invokeShortcut,
@@ -428,7 +431,7 @@ export function useWorkbench({
 		onLeftPanelResize: (size) => {
 			leftPanelWidth.current = size.inPixels;
 		},
-		onShortcutKeyDownCapture,
+		shortcutScopeReference,
 		sidebarShortcutId: WORKBENCH_SHORTCUTS.toggleSidebar.id,
 		sidebarShortcutLabel: formatWorkbenchShortcut(
 			'toggleSidebar',

@@ -161,7 +161,7 @@ Workbench 公开了跨 Workbench、Terminal Host 和预计客户端的运行时�
 
 该包不执行存储或 IPC 效果。组合应用程序在其边界解析合约，并拥有私有存储、共享修订、写入顺序、恢复诊断和最终的终端生命周期效果。版本 1 解析器将省略的 `customTitle` 默认为 `null`，同时不保留未交付的拓扑模式的读取器或别名。维护的模型、不变量和证据在 [`docs/shared-workbench-document.md`](docs/shared-workbench-document.md) 中定义。
 
-Workbench 拥有九个稳定的快捷键声明：Action 搜索、新建 Tab、上下文关闭终端、全部搜索、设置、切换边栏、面板最大化、向右拆分与向下拆分。Apple 默认值依次为 `⇧⌘P`、`⌘T`、`⌘W`、`⌘K`、`⌘,`、`⌘B`、`⇧⌘Enter`、`⌘D` 与 `⇧⌘D`。标准默认值为 `Ctrl+Shift+P/T/W/K/B/Enter/D`、`Ctrl+,`，向下拆分则为 `Ctrl+Shift+E`；未加 Shift 的终端控制序列继续传给 PTY。组合应用注入一张以快捷键标识为键的完整当前 Workbench 绑定表，并可为终端拥有的 Action 注入只读的实际生效标签映射。同一组值驱动匹配、菜单、Tooltip 与 Action 搜索标签，包括 `workbench.search.open` 的“全部”和“Action”两种不同输入。只有对应 Action 当前启用时快捷键才会被消费；不匹配或不可用的绑定会继续传给聚焦表面而不受抑制。
+Workbench 拥有九个稳定的快捷键声明：Action 搜索、新建 Tab、上下文关闭终端、全部搜索、设置、切换边栏、面板最大化、向右拆分与向下拆分。Apple 默认值依次为 `⇧⌘P`、`⌘T`、`⌘W`、`⌘K`、`⌘,`、`⌘B`、`⇧⌘Enter`、`⌘D` 与 `⇧⌘D`。标准默认值为 `Ctrl+Shift+P/T/W/K/B/Enter/D`、`Ctrl+,`，向下拆分则为 `Ctrl+Shift+E`；未加 Shift 的终端控制序列继续传给 PTY。组合应用注入一张以快捷键标识为键的完整当前 Workbench 绑定表、发布 Workbench 是否为活动快捷键作用域，并可为终端拥有的 Action 注入只读的实际生效标签映射。处于活动状态时，Workbench 通过所属 document 上的一个捕获监听器解析自身绑定，不依赖焦点位于哪个 Workbench 区域或 document body。非活动或已卸载的 Workbench 不参与；全屏设置表面打开时，Web 会让它变为非活动。同一组绑定值驱动匹配、菜单、Tooltip 与 Action 搜索标签，包括 `workbench.search.open` 的“全部”和“Action”两种不同输入。只有对应 Action 当前启用时快捷键才会被消费；不匹配或不可用的绑定会继续传给聚焦表面而不受抑制。成功执行新建 Tab 后，其第一个 Panel 终端会成为唯一的 `autoFocus` 目标，包括从空 Tab 模型创建时。
 
 ## 开发
 

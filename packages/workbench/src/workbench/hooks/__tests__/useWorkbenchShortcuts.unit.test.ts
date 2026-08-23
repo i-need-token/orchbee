@@ -12,18 +12,23 @@ import {
 } from '../../utils/workbench-shortcuts';
 
 interface WorkbenchShortcutsHarnessProps {
+	readonly active?: boolean | undefined;
 	readonly invokeIfEnabled: (binding: WorkbenchShortcutBinding, source: 'keyboard') => boolean;
 }
 
-function WorkbenchShortcutsHarness({ invokeIfEnabled }: WorkbenchShortcutsHarnessProps) {
-	const onKeyDownCapture = useWorkbenchShortcuts(
+function WorkbenchShortcutsHarness({
+	active = true,
+	invokeIfEnabled,
+}: WorkbenchShortcutsHarnessProps) {
+	const rootReference = useWorkbenchShortcuts(
+		active,
 		'apple',
 		defaultWorkbenchShortcutBindings('apple'),
 		invokeIfEnabled,
 	);
 	return createElement(
 		'div',
-		{ onKeyDownCapture },
+		{ ref: rootReference },
 		createElement('textarea', { 'aria-label': 'Terminal input' }),
 	);
 }
@@ -72,6 +77,50 @@ describe('useWorkbenchShortcuts', () => {
 		expect(terminalKeyDown).not.toHaveBeenCalled();
 	});
 
+	it('captures an active Workbench shortcut when no focused descendant survives', () => {
+		const invokeIfEnabled = vi.fn<
+			(binding: WorkbenchShortcutBinding, source: 'keyboard') => boolean
+		>(() => true);
+		render(createElement(WorkbenchShortcutsHarness, { invokeIfEnabled }));
+		const accepted = new KeyboardEvent('keydown', {
+			bubbles: true,
+			cancelable: true,
+			code: 'KeyT',
+			metaKey: true,
+		});
+
+		document.body.dispatchEvent(accepted);
+
+		expect(invokeIfEnabled).toHaveBeenCalledWith(
+			expect.objectContaining({ shortcutId: 'workbench.terminal.create' }),
+			'keyboard',
+		);
+		expect(accepted.defaultPrevented).toBe(true);
+	});
+
+	it('does not participate while its semantic scope is inactive', () => {
+		const invokeIfEnabled = vi.fn<
+			(binding: WorkbenchShortcutBinding, source: 'keyboard') => boolean
+		>(() => true);
+		render(
+			createElement(WorkbenchShortcutsHarness, {
+				active: false,
+				invokeIfEnabled,
+			}),
+		);
+		const skipped = new KeyboardEvent('keydown', {
+			bubbles: true,
+			cancelable: true,
+			code: 'KeyT',
+			metaKey: true,
+		});
+
+		document.body.dispatchEvent(skipped);
+
+		expect(invokeIfEnabled).not.toHaveBeenCalled();
+		expect(skipped.defaultPrevented).toBe(false);
+	});
+
 	it('leaves terminal input untouched when the Action is unavailable', () => {
 		const invokeIfEnabled = vi.fn<
 			(binding: WorkbenchShortcutBinding, source: 'keyboard') => boolean
@@ -95,5 +144,24 @@ describe('useWorkbenchShortcuts', () => {
 
 		expect(unavailable.defaultPrevented).toBe(false);
 		expect(terminalKeyDown).toHaveBeenCalledOnce();
+	});
+
+	it('removes its document listener when Workbench unmounts', () => {
+		const invokeIfEnabled = vi.fn<
+			(binding: WorkbenchShortcutBinding, source: 'keyboard') => boolean
+		>(() => true);
+		const rendered = render(createElement(WorkbenchShortcutsHarness, { invokeIfEnabled }));
+		rendered.unmount();
+
+		document.body.dispatchEvent(
+			new KeyboardEvent('keydown', {
+				bubbles: true,
+				cancelable: true,
+				code: 'KeyT',
+				metaKey: true,
+			}),
+		);
+
+		expect(invokeIfEnabled).not.toHaveBeenCalled();
 	});
 });
