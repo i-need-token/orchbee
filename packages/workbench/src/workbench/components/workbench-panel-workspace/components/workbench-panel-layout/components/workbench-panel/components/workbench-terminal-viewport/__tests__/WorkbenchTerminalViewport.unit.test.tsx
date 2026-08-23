@@ -95,7 +95,8 @@ function createView(actionRuntime: ActionRuntime): WorkbenchPanelWorkspaceView {
 			splitRight: 'Split right',
 		},
 		panelCount: 1,
-		shortcutLabelForAction: () => undefined,
+		shortcutLabelForAction: (actionId: string) =>
+			actionId === TERMINAL_ACTION_IDS.clear ? '⌘K' : undefined,
 		splitPanel: () => null,
 		togglePanelMaximization: () => undefined,
 	} as unknown as WorkbenchPanelWorkspaceView;
@@ -125,7 +126,8 @@ describe('WorkbenchTerminalViewport', () => {
 		expect(input.ownerDocument.activeElement).toBe(input);
 
 		fireEvent.contextMenu(input, { clientX: 20, clientY: 20 });
-		const clearItem = await screen.findByRole('menuitem', { name: 'Clear terminal' });
+		const clearItem = await screen.findByRole('menuitem', { name: /Clear terminal/u });
+		expect(clearItem.textContent).toContain('⌘K');
 		clearItem.focus();
 		expect(input.ownerDocument.activeElement).not.toBe(input);
 

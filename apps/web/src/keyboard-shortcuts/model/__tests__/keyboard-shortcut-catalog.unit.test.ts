@@ -10,9 +10,9 @@ import {
 } from '../keyboard-shortcut-catalog';
 
 describe('keyboard shortcut catalog', () => {
-	it('combines the nine Workbench and four terminal owner declarations once', () => {
-		expect(KEYBOARD_SHORTCUT_CATALOG).toHaveLength(13);
-		expect(new Set(KEYBOARD_SHORTCUT_IDS).size).toBe(13);
+	it('combines the nine Workbench and five terminal owner declarations once', () => {
+		expect(KEYBOARD_SHORTCUT_CATALOG).toHaveLength(14);
+		expect(new Set(KEYBOARD_SHORTCUT_IDS).size).toBe(14);
 		expect(keyboardShortcutDeclaration('workbench.search.actions.open')).toMatchObject({
 			actionId: 'workbench.search.open',
 			actionInput: { filter: 'actions' },
@@ -29,6 +29,11 @@ describe('keyboard shortcut catalog', () => {
 		});
 		expect(keyboardShortcutDeclaration('terminal.clipboard.paste')).toMatchObject({
 			actionId: 'terminal.clipboard.paste',
+			scope: 'focused-terminal',
+		});
+		expect(keyboardShortcutDeclaration('terminal.clear')).toMatchObject({
+			actionId: 'terminal.clear',
+			availability: 'focused-terminal',
 			scope: 'focused-terminal',
 		});
 	});
@@ -52,6 +57,10 @@ describe('keyboard shortcut catalog', () => {
 		);
 		expect(formatKeyboardShortcutChord(standard['terminal.search.open'], 'standard')).toBe(
 			'Ctrl+Shift+F',
+		);
+		expect(formatKeyboardShortcutChord(apple['terminal.clear'], 'apple')).toBe('⌘K');
+		expect(formatKeyboardShortcutChord(standard['terminal.clear'], 'standard')).toBe(
+			'Ctrl+Shift+L',
 		);
 		expect(formatKeyboardShortcutChord(standard['workbench.settings.open'], 'standard')).toBe(
 			'Ctrl+,',

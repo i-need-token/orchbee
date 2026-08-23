@@ -67,7 +67,7 @@ export const WORKBENCH_SHORTCUTS = {
 	},
 	search: {
 		defaults: {
-			apple: chord('KeyK', ['mod']),
+			apple: chord('KeyF', ['mod', 'shift']),
 			standard: chord('KeyK', ['mod', 'shift']),
 		},
 		id: WORKBENCH_ACTION_IDS.openSearch,

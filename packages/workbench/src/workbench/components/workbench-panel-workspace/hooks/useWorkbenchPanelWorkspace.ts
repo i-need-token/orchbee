@@ -129,9 +129,7 @@ export function useWorkbenchPanelWorkspace({
 		[intl],
 	);
 	const createTerminalTitle = useMemoizedFn(() =>
-		intl.formatMessage(workbenchTabMessages.terminalTitle, {
-			number: store.getSnapshot().nextTerminalSequence,
-		}),
+		intl.formatMessage(workbenchTabMessages.terminalTitle),
 	);
 	const transitionForActiveTab = useMemoizedFn(
 		(event: ActiveTabPanelWorkspaceEventInput): PanelWorkspaceTransition | null => {

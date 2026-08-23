@@ -31,6 +31,7 @@ export function createKeyboardShortcutBindings(
 	let splitActivePanelBelow = defaults[WORKBENCH_SHORTCUTS.splitActivePanelBelow.shortcutId];
 	let splitActivePanelRight = defaults[WORKBENCH_SHORTCUTS.splitActivePanelRight.shortcutId];
 	let toggleSidebar = defaults[WORKBENCH_SHORTCUTS.toggleSidebar.shortcutId];
+	let clear = defaults[PROJECTED_TERMINAL_SHORTCUTS.clear.shortcutId];
 	let findOpen = defaults[PROJECTED_TERMINAL_SHORTCUTS.findOpen.shortcutId];
 	let copySelection = defaults[PROJECTED_TERMINAL_SHORTCUTS.copySelection.shortcutId];
 	let paste = defaults[PROJECTED_TERMINAL_SHORTCUTS.paste.shortcutId];
@@ -68,6 +69,9 @@ export function createKeyboardShortcutBindings(
 			case PROJECTED_TERMINAL_SHORTCUTS.findOpen.shortcutId:
 				findOpen = override.chord;
 				break;
+			case PROJECTED_TERMINAL_SHORTCUTS.clear.shortcutId:
+				clear = override.chord;
+				break;
 			case PROJECTED_TERMINAL_SHORTCUTS.copySelection.shortcutId:
 				copySelection = override.chord;
 				break;
@@ -90,6 +94,7 @@ export function createKeyboardShortcutBindings(
 		[WORKBENCH_SHORTCUTS.splitActivePanelBelow.shortcutId]: splitActivePanelBelow,
 		[WORKBENCH_SHORTCUTS.splitActivePanelRight.shortcutId]: splitActivePanelRight,
 		[WORKBENCH_SHORTCUTS.toggleSidebar.shortcutId]: toggleSidebar,
+		[PROJECTED_TERMINAL_SHORTCUTS.clear.shortcutId]: clear,
 		[PROJECTED_TERMINAL_SHORTCUTS.findOpen.shortcutId]: findOpen,
 		[PROJECTED_TERMINAL_SHORTCUTS.copySelection.shortcutId]: copySelection,
 		[PROJECTED_TERMINAL_SHORTCUTS.paste.shortcutId]: paste,

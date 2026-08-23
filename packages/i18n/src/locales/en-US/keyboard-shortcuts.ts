@@ -1,6 +1,7 @@
 export const enUSKeyboardShortcutMessages = {
 	'keyboard.shortcuts.actions.actionsSearch': 'Search actions',
 	'keyboard.shortcuts.actions.change': 'Change shortcut for {action}',
+	'keyboard.shortcuts.actions.clearTerminal': 'Clear terminal',
 	'keyboard.shortcuts.actions.closeTerminal': 'Close active terminal',
 	'keyboard.shortcuts.actions.copySelection': 'Copy terminal selection',
 	'keyboard.shortcuts.actions.find': 'Find in terminal',

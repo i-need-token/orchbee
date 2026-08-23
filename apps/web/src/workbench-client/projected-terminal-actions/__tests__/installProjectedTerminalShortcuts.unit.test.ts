@@ -45,9 +45,33 @@ describe('projected terminal shortcuts', () => {
 		);
 	});
 
-	it('keeps unshifted Standard Ctrl+C, Ctrl+A, Ctrl+F, and Ctrl+V available to the PTY', () => {
+	it('clears only the focused terminal with the platform default', () => {
+		const apple = shortcutHarness('apple');
+		const accepted = apple.keyDown(
+			{ ...baseEvent, code: 'KeyK', metaKey: true },
+			apple.terminalNode,
+		);
+		expect(apple.invoke).toHaveBeenCalledWith('terminal.clear', undefined, apple.terminalScope);
+		expect(accepted.preventDefault).toHaveBeenCalledOnce();
+
+		apple.keyDown({ ...baseEvent, code: 'KeyK', metaKey: true }, apple.findNode);
+		expect(apple.invoke).toHaveBeenCalledOnce();
+
+		const standard = shortcutHarness('standard');
+		standard.keyDown(
+			{ ...baseEvent, code: 'KeyL', ctrlKey: true, shiftKey: true },
+			standard.terminalNode,
+		);
+		expect(standard.invoke).toHaveBeenCalledWith(
+			'terminal.clear',
+			undefined,
+			standard.terminalScope,
+		);
+	});
+
+	it('keeps unshifted Standard Ctrl+C, Ctrl+A, Ctrl+F, Ctrl+L, and Ctrl+V available to the PTY', () => {
 		const harness = shortcutHarness('standard');
-		for (const code of ['KeyC', 'KeyA', 'KeyF', 'KeyV']) {
+		for (const code of ['KeyC', 'KeyA', 'KeyF', 'KeyL', 'KeyV']) {
 			harness.keyDown({ ...baseEvent, code, ctrlKey: true }, harness.terminalNode);
 		}
 		expect(harness.invoke).not.toHaveBeenCalled();

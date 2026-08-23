@@ -17,23 +17,25 @@ those surfaces owns another binding copy.
 | `workbench.panel.active.maximization.toggle` | Active panel                      | `Cmd+Shift+Enter` | `Ctrl+Shift+Enter` |
 | `workbench.panel.active.split-right`         | Active panel                      | `Cmd+D`           | `Ctrl+Shift+D`     |
 | `workbench.panel.active.split-below`         | Active panel                      | `Cmd+Shift+D`     | `Ctrl+Shift+E`     |
-| `workbench.search.all.open`                  | Workbench                         | `Cmd+K`           | `Ctrl+Shift+K`     |
+| `workbench.search.all.open`                  | Workbench                         | `Cmd+Shift+F`     | `Ctrl+Shift+K`     |
 | `workbench.settings.open`                    | Workbench                         | `Cmd+,`           | `Ctrl+,`           |
 | `workbench.sidebar.toggle`                   | Workbench                         | `Cmd+B`           | `Ctrl+Shift+B`     |
 | `terminal.search.open`                       | Focused terminal or Find          | `Cmd+F`           | `Ctrl+Shift+F`     |
 | `terminal.selection.copy`                    | Focused terminal with a selection | `Cmd+C`           | `Ctrl+Shift+C`     |
 | `terminal.clipboard.paste`                   | Focused terminal                  | `Cmd+V`           | `Ctrl+Shift+V`     |
 | `terminal.selection.select-all`              | Focused terminal                  | `Cmd+A`           | `Ctrl+Shift+A`     |
+| `terminal.clear`                             | Focused terminal                  | `Cmd+K`           | `Ctrl+Shift+L`     |
 
 The new-Tab, active-terminal close, active-panel maximization, right-split, down-split, and paste
 defaults adopt Warp's [documented desktop conventions](https://docs.warp.dev/getting-started/keyboard-shortcuts)
 as observed on 2026-08-22; this is a pinned default-key selection, not a broader behavior or
-visual-parity claim. Standard defaults deliberately leave
-unshifted `Ctrl+B/T/W/K/F/D/E/V/A` and `Ctrl+C` available to the shell, terminal applications, and
-multiplexers. A user may deliberately record another supported custom chord. Product conflicts
-remain prohibited even when an Action is temporarily unavailable.
+visual-parity claim. Apple All search uses `Cmd+Shift+F`, leaving the familiar `Cmd+K` to clear only
+the focused terminal. Standard Clear uses `Ctrl+Shift+L`; Standard defaults deliberately leave
+unshifted `Ctrl+B/T/W/K/F/D/E/V/A/L` and `Ctrl+C` available to the shell, terminal applications,
+and multiplexers. A user may deliberately record another supported custom chord. Product
+conflicts remain prohibited even when an Action is temporarily unavailable.
 
-Commands without an effective binding do not render an empty shortcut affordance. Clear, reset,
+Commands without an effective binding do not render an empty shortcut affordance. Reset,
 scroll-to-bottom, new-child-terminal, split-left, and split-above remain intentionally unbound in
 this catalog. Adding nullable or user-created bindings for initially unbound commands is outside
 this model.
@@ -115,11 +117,11 @@ terminal Actions discovered from descendant scopes.
 
 ## Persistence and recovery
 
-New writes use `orchbee:web:keyboard-shortcuts:v2` and a strict record:
+New writes use `orchbee:web:keyboard-shortcuts:v3` and a strict record:
 
 ```json
 {
-	"version": 2,
+	"version": 3,
 	"overrides": [
 		{
 			"shortcutId": "workbench.search.all.open",
@@ -131,17 +133,18 @@ New writes use `orchbee:web:keyboard-shortcuts:v2` and a strict record:
 
 Only Custom values are stored, ordered by shortcut ID. Unknown fields or IDs, duplicates, unsorted
 entries, noncanonical modifiers, unsupported codes, stored defaults, excessive entries, and an
-effective conflict invalidate the complete v2 record and restore platform defaults. A write
+effective conflict invalidate the complete v3 record and restore platform defaults. A write
 failure keeps the immutable session binding active, reports that it was not saved, and retries on
 the next legal change. Restoring one item removes its override.
 
-When v2 is absent, Web reads the legacy `orchbee:web:keyboard-shortcuts:v1` record with the legacy
-catalog and defaults, carries its explicit overrides into the expanded catalog, removes an override
-that is equivalent to a new default, rejects any resulting conflict, and writes the canonical v2
-record. The v1 value is retained unchanged as a rollback snapshot. Once a valid v2 record exists it
-is authoritative; an invalid v2 record never falls back to v1, because fallback would hide current
-data corruption. Rolling back to a v1-only build restores the pre-upgrade shortcut snapshot; edits
-made only in v2 are intentionally unavailable to that older build.
+When v3 is absent, Web first reads `orchbee:web:keyboard-shortcuts:v2` with its exact prior catalog
+and defaults, carries explicit overrides into the expanded catalog, removes an override equivalent
+to a current default, rejects any resulting conflict, and writes the canonical v3 record. When both
+v3 and v2 are absent, the same migration starts from `orchbee:web:keyboard-shortcuts:v1`. The v1 and
+v2 values remain unchanged as rollback snapshots. An invalid v3 record never falls back to an older
+record, and an invalid v2 migration source never falls through to v1, because either fallback would
+hide current data corruption. Rolling back restores the latest record that older build understands;
+edits made only in v3 are intentionally unavailable to it.
 
 Browser Preview, Gateway Browser, and Electron each create and dispose one controller against their
 own origin-local storage. Gateway and Electron pass the controller's narrow binding source through
@@ -158,8 +161,8 @@ change does not remount Workbench, replace an attachment, or reopen a Host or Ga
 | Empty-Tab New Tab creates and focuses the new terminal; Settings suppresses it   | Web application focus and Settings-scope integration trace           |
 | Apple and Standard defaults match the catalog and custom edits affect dispatch   | Shortcut definition, resolver, and controller tests                  |
 | Menus, Action search, and settings display the same current binding              | Projection and rendered-surface tests                                |
-| A valid v1 record migrates once without losing explicit legacy overrides         | Storage migration tests, including a new-default-equivalent override |
-| Invalid v2 data restores defaults without consulting v1                          | Storage corruption and precedence tests                              |
+| Valid v1 and v2 records migrate once without losing explicit legacy overrides    | Storage migration tests, including a new-default-equivalent override |
+| Invalid current or migration-source data does not consult an older record        | Storage corruption and precedence tests                              |
 
 The tests use synthetic platform flags, Action scopes, storage, document capture, injected terminal
 focus, and keyboard events. They do not claim operating-system global-shortcut behavior or full

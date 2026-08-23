@@ -380,7 +380,7 @@ describe('WorkbenchProjectWorkspaceRuntime', () => {
 		const panelWorkspace = context.panelWorkspaceStore.getSnapshot().tabs[0];
 
 		expect(runtime.getSnapshot().activeLocation).toEqual({ kind: 'standalone' });
-		expect(tab).toMatchObject({ id: 'terminal-context-1-tab-1', title: 'Terminal 1' });
+		expect(tab).toMatchObject({ id: 'terminal-context-1-tab-1', title: 'system' });
 		expect(panelWorkspace?.root).toMatchObject({
 			kind: 'panel',
 			primaryPresentation: {
@@ -389,6 +389,47 @@ describe('WorkbenchProjectWorkspaceRuntime', () => {
 				title: 'Terminal 1',
 			},
 		});
+	});
+
+	it('uses current or launch directory context until a natural title arrives', () => {
+		const runtime = createManagedRuntime();
+		const context = runtime.getActiveTerminalContext();
+		const workspace = context.panelWorkspaceStore.getSnapshot().tabs[0];
+		if (workspace === undefined || workspace.root.kind !== 'panel') {
+			throw new Error('Expected one active terminal Tab.');
+		}
+		const presentationId = workspace.root.primaryPresentation.presentationId;
+
+		expect(context.tabModel.getSnapshot().tabs[0]?.title).toBe('system');
+		expect(
+			runtime.applyTerminalMetadataObservation(presentationId, {
+				closeActivity: 'idle',
+				currentDirectory: { currentCwd: '/workspace/orchbee', kind: 'reported' },
+				naturalTitle: null,
+			}),
+		).toEqual({ kind: 'applied' });
+		expect(context.tabModel.getSnapshot().tabs[0]?.title).toBe('orchbee');
+
+		runtime.applyTerminalMetadataObservation(presentationId, {
+			closeActivity: 'active',
+			currentDirectory: { kind: 'ignored' },
+			naturalTitle: 'vim',
+		});
+		expect(context.tabModel.getSnapshot().tabs[0]?.title).toBe('vim');
+
+		runtime.applyTerminalMetadataObservation(presentationId, {
+			closeActivity: 'idle',
+			currentDirectory: { currentCwd: 'C:\\Users\\liushuai\\orchbee', kind: 'reported' },
+			naturalTitle: null,
+		});
+		expect(context.tabModel.getSnapshot().tabs[0]?.title).toBe('orchbee');
+
+		runtime.applyTerminalMetadataObservation(presentationId, {
+			closeActivity: 'idle',
+			currentDirectory: { currentCwd: null, kind: 'reported' },
+			naturalTitle: null,
+		});
+		expect(context.tabModel.getSnapshot().tabs[0]?.title).toBe('system');
 	});
 
 	it('keeps Warp-style natural and custom titles separate from launch metadata', () => {
@@ -665,7 +706,7 @@ describe('WorkbenchProjectWorkspaceRuntime', () => {
 			group: null,
 			id: 'terminal-context-3-tab-1',
 			pinned: false,
-			title: 'Terminal 2',
+			title: 'orchbee',
 		});
 		expect(copiedTab?.root).not.toBe(sourceSplitTab?.root);
 		expect(copiedTab?.root).toMatchObject({

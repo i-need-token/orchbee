@@ -17,7 +17,7 @@ describe('createDesktopWorkbenchInitializationDocument', () => {
 			primaryPresentation: {
 				intent: { kind: 'provision', operationId: 'operation-1' },
 				presentationId: 'presentation-initial',
-				title: 'Terminal 1',
+				title: 'Terminal',
 			},
 		});
 	});
@@ -59,6 +59,6 @@ function options(
 		defaultCwd: '/workspace',
 		initialPresentationId: terminalPresentationId('presentation-initial'),
 		recoveredPresentations,
-		terminalTitle: (sequence: number) => `Terminal ${sequence}`,
+		terminalTitle: 'Terminal',
 	};
 }

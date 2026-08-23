@@ -140,7 +140,7 @@ export const zhCNWorkbenchMessages = {
 	'workbench.panels.childTerminals.label': '子终端',
 	'workbench.tabs.label': '终端标签页',
 	'workbench.tabs.titles.new': '新标签页',
-	'workbench.tabs.titles.terminal': '终端 {number}',
+	'workbench.tabs.titles.terminal': '终端',
 	'workbench.tabs.actions.new': '新建标签页',
 	'workbench.tabs.actions.newBelow': '在下方新建标签页',
 	'workbench.tabs.actions.newToRight': '在右侧新建标签页',

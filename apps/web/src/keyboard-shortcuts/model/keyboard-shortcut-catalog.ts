@@ -43,6 +43,7 @@ export interface KeyboardShortcutDeclaration {
 	readonly feature: KeyboardShortcutFeature;
 	readonly name:
 		| 'actions-search'
+		| 'clear-terminal'
 		| 'close-terminal'
 		| 'copy-selection'
 		| 'find'
@@ -190,6 +191,16 @@ export const KEYBOARD_SHORTCUT_CATALOG = Object.freeze([
 		scope: 'focused-terminal',
 		shortcutId: PROJECTED_TERMINAL_SHORTCUTS.selectAll.shortcutId,
 	}),
+	Object.freeze({
+		actionId: PROJECTED_TERMINAL_SHORTCUTS.clear.actionId,
+		actionInput: undefined,
+		availability: 'focused-terminal',
+		defaults: PROJECTED_TERMINAL_SHORTCUTS.clear.defaults,
+		feature: 'terminal',
+		name: 'clear-terminal',
+		scope: 'focused-terminal',
+		shortcutId: PROJECTED_TERMINAL_SHORTCUTS.clear.shortcutId,
+	}),
 ] as const satisfies readonly KeyboardShortcutDeclaration[]);
 
 export const KEYBOARD_SHORTCUT_IDS = Object.freeze(
@@ -211,6 +222,7 @@ const DECLARATION_BY_ID: Readonly<Record<KeyboardShortcutId, KeyboardShortcutDec
 		[PROJECTED_TERMINAL_SHORTCUTS.copySelection.shortcutId]: KEYBOARD_SHORTCUT_CATALOG[10],
 		[PROJECTED_TERMINAL_SHORTCUTS.paste.shortcutId]: KEYBOARD_SHORTCUT_CATALOG[11],
 		[PROJECTED_TERMINAL_SHORTCUTS.selectAll.shortcutId]: KEYBOARD_SHORTCUT_CATALOG[12],
+		[PROJECTED_TERMINAL_SHORTCUTS.clear.shortcutId]: KEYBOARD_SHORTCUT_CATALOG[13],
 	});
 
 interface KeyboardShortcutConflictPair {

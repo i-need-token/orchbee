@@ -9,6 +9,7 @@ import {
 } from '@orchbee/keyboard-shortcuts';
 
 export const PROJECTED_TERMINAL_SHORTCUT_ACTION_IDS = Object.freeze({
+	clear: 'terminal.clear',
 	copySelection: 'terminal.selection.copy',
 	findOpen: 'terminal.search.open',
 	paste: 'terminal.clipboard.paste',
@@ -24,6 +25,15 @@ const chord = (
 ): KeyboardShortcutChord => Object.freeze({ code, modifiers: Object.freeze([...modifiers]) });
 
 export const PROJECTED_TERMINAL_SHORTCUTS = {
+	clear: {
+		actionId: PROJECTED_TERMINAL_SHORTCUT_ACTION_IDS.clear,
+		defaults: {
+			apple: chord('KeyK', ['mod']),
+			standard: chord('KeyL', ['mod', 'shift']),
+		},
+		focus: 'terminal',
+		shortcutId: 'terminal.clear',
+	},
 	copySelection: {
 		actionId: PROJECTED_TERMINAL_SHORTCUT_ACTION_IDS.copySelection,
 		defaults: {
@@ -82,6 +92,7 @@ export interface ProjectedTerminalShortcutBinding {
 }
 
 const PROJECTED_TERMINAL_SHORTCUT_ACTIONS = Object.freeze([
+	'clear',
 	'copySelection',
 	'findOpen',
 	'paste',
@@ -126,6 +137,8 @@ function defaultBindingsFor(
 	platform: ProjectedTerminalShortcutPlatform,
 ): ProjectedTerminalShortcutBindings {
 	return Object.freeze({
+		[PROJECTED_TERMINAL_SHORTCUTS.clear.shortcutId]:
+			PROJECTED_TERMINAL_SHORTCUTS.clear.defaults[platform],
 		[PROJECTED_TERMINAL_SHORTCUTS.copySelection.shortcutId]:
 			PROJECTED_TERMINAL_SHORTCUTS.copySelection.defaults[platform],
 		[PROJECTED_TERMINAL_SHORTCUTS.findOpen.shortcutId]:

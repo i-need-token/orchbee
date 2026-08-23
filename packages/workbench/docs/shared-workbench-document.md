@@ -52,11 +52,12 @@ The effect command makes destructive disposition explicit: `terminal-close-reque
 retry. This command-only distinction lets the application archive a stopped terminal without
 changing the five shared intent forms or treating ordinary close as retained product history.
 
-Each shared Tab stores a durable fallback `title` and nullable durable `customTitle`. The fallback
-is the stable launch/product label; a custom title is the explicit user override. Host-derived
-natural terminal titles and current CWD are transient runtime observations and never enter the
-shared document. Hydration therefore restores a custom title but waits for a new projection before
-showing a natural title or current CWD.
+Each shared Tab stores a durable fallback `title` and nullable durable `customTitle`. Product-created
+fallbacks are the localized unnumbered Terminal label; a custom title is the explicit user override.
+Host-derived natural terminal titles and current CWD are transient runtime observations and never
+enter the shared document. Display may derive a compact directory label from the durable launch CWD,
+so hydration can restore directory context before a new projection while preserving the stored
+fallback and custom title unchanged.
 
 ## Client View
 

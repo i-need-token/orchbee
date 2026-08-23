@@ -300,10 +300,8 @@ describe('startDesktopWorkbenchRenderer', () => {
 		const proposalCountAfterStartup = sessionCommands.length;
 		expect(root.querySelector('[data-slot="desktop-workbench"]')).not.toBeNull();
 
-		const secondTab = [...root.querySelectorAll<HTMLElement>('[role="tab"]')].find((tab) =>
-			tab.getAttribute('aria-label')?.includes('Terminal 2'),
-		);
-		expect(secondTab).toBeDefined();
+		const secondTab = root.querySelector<HTMLElement>('[role="tab"][data-tab-id="tab-2"]');
+		expect(secondTab?.getAttribute('aria-label')).toBe('2');
 		await act(async () => {
 			secondTab?.dispatchEvent(
 				new MouseEvent('pointerdown', { bubbles: true, button: 0, cancelable: true }),
@@ -434,7 +432,7 @@ describe('startDesktopWorkbenchRenderer', () => {
 			[...root.querySelectorAll<HTMLElement>('[role="tab"]')].map((tab) =>
 				tab.getAttribute('aria-label'),
 			),
-		).toEqual(expect.arrayContaining([expect.stringContaining('Retained')]));
+		).toEqual(expect.arrayContaining(['retained']));
 		expect(sessionCommands).toEqual([]);
 
 		await act(async () => session?.dispose());

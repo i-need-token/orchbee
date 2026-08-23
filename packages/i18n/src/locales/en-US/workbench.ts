@@ -148,7 +148,7 @@ export const enUSWorkbenchMessages = {
 	'workbench.panels.childTerminals.label': 'Child terminals',
 	'workbench.tabs.label': 'Terminal tabs',
 	'workbench.tabs.titles.new': 'New Tab',
-	'workbench.tabs.titles.terminal': 'Terminal {number}',
+	'workbench.tabs.titles.terminal': 'Terminal',
 	'workbench.tabs.actions.new': 'New tab',
 	'workbench.tabs.actions.newBelow': 'New tab below',
 	'workbench.tabs.actions.newToRight': 'New tab to the right',

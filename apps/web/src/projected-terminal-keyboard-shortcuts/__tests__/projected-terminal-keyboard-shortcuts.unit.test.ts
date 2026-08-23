@@ -9,15 +9,19 @@ import {
 } from '../projected-terminal-keyboard-shortcuts';
 
 describe('projected terminal shortcut declarations', () => {
-	it('owns four unique Apple and terminal-safe Standard defaults', () => {
+	it('owns five unique Apple and terminal-safe Standard defaults', () => {
 		const apple = defaultProjectedTerminalShortcutBindings('apple');
 		const standard = defaultProjectedTerminalShortcutBindings('standard');
+		expect(formatKeyboardShortcutChord(apple['terminal.clear'], 'apple')).toBe('⌘K');
 		expect(formatKeyboardShortcutChord(apple['terminal.search.open'], 'apple')).toBe('⌘F');
 		expect(formatKeyboardShortcutChord(apple['terminal.selection.copy'], 'apple')).toBe('⌘C');
 		expect(formatKeyboardShortcutChord(apple['terminal.clipboard.paste'], 'apple')).toBe('⌘V');
 		expect(formatKeyboardShortcutChord(apple['terminal.selection.select-all'], 'apple')).toBe('⌘A');
 		expect(formatKeyboardShortcutChord(standard['terminal.search.open'], 'standard')).toBe(
 			'Ctrl+Shift+F',
+		);
+		expect(formatKeyboardShortcutChord(standard['terminal.clear'], 'standard')).toBe(
+			'Ctrl+Shift+L',
 		);
 		expect(formatKeyboardShortcutChord(standard['terminal.selection.copy'], 'standard')).toBe(
 			'Ctrl+Shift+C',
@@ -34,17 +38,18 @@ describe('projected terminal shortcut declarations', () => {
 					keyboardShortcutChordKey(definition.defaults.standard, 'standard'),
 				),
 			).size,
-		).toBe(4);
+		).toBe(5);
+		expect(formatProjectedTerminalActionShortcut('terminal.clear', 'apple')).toBe('⌘K');
 		expect(formatProjectedTerminalActionShortcut('terminal.clipboard.paste', 'apple')).toBe('⌘V');
 		expect(formatProjectedTerminalActionShortcut('unknown', 'apple')).toBeNull();
 	});
 
-	it('does not intercept the unshifted Standard control sequence', () => {
+	it.each(['KeyF', 'KeyL'])('does not intercept unshifted Standard Control+%s', (code) => {
 		expect(
 			resolveProjectedTerminalShortcut(
 				{
 					altKey: false,
-					code: 'KeyF',
+					code,
 					ctrlKey: true,
 					isComposing: false,
 					metaKey: false,

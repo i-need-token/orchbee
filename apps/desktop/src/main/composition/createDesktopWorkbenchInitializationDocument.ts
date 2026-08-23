@@ -24,7 +24,7 @@ export interface DesktopWorkbenchInitializationOptions {
 	readonly defaultCwd: string;
 	readonly initialPresentationId: TerminalPresentationId;
 	readonly recoveredPresentations: readonly DesktopRecoveredTerminalPresentation[];
-	readonly terminalTitle: (sequence: number) => string;
+	readonly terminalTitle: string;
 }
 
 export function createDesktopWorkbenchInitializationDocument(
@@ -38,14 +38,14 @@ export function createDesktopWorkbenchInitializationDocument(
 		initialPresentationId: options.initialPresentationId,
 		kind: 'managed',
 	};
-	const recovered = options.recoveredPresentations.map((presentation, index) => ({
+	const recovered = options.recoveredPresentations.map((presentation) => ({
 		cwd: presentation.launchCwd ?? options.defaultCwd,
 		presentationId: presentation.presentationId,
-		title: options.terminalTitle(index + 1),
+		title: options.terminalTitle,
 	}));
 	const runtime = new WorkbenchProjectWorkspaceRuntime({
 		standaloneCwd: options.defaultCwd,
-		standaloneTerminalTitle: options.terminalTitle(1),
+		standaloneTerminalTitle: options.terminalTitle,
 		...(recovered.length === 0 ? {} : { standalonePresentations: recovered }),
 		terminalPresentation: composition,
 	});

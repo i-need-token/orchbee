@@ -42,7 +42,7 @@ Workbench 在 [`docs/experience`](docs/experience) 中维护已审核的交互�
 
 维护的行为、所有权、转换和正确性模型位于 [`docs/unified-search.md`](docs/unified-search.md) 中。
 
-侧栏搜索控件和 `Mod+K` 打开一个上部视口模式，其中包含 `All` 过滤器和一个空查询。 `Mod+Shift+P` 与 `Actions` 过滤器打开相同的表面。每个全局打开都会启动一个新的内存会话；在 `All`、`Agents`、`Actions` 和 `Settings` 之间切换会保留当前查询，而关闭会丢弃会话。故意不进行文件搜索。
+侧栏搜索控件与平台的全部搜索绑定——Apple 上为 `Mod+Shift+F`，标准平台为 `Mod+Shift+K`——会打开一个上部视口模态界面，其中包含 `All` 过滤器和空查询。`Mod+Shift+P` 会以 `Actions` 过滤器打开同一个界面。每次全局打开都会启动新的内存会话；在 `All`、`Agents`、`Actions` 和 `Settings` 之间切换会保留当前查询，而关闭会丢弃会话。文件搜索有意保持缺失。
 
 当前本地提供程序通过从已安装的应用程序 `ActionRuntime` 请求子树发现来投影操作。它保持每个运行时拥有的已准备或未绑定调用完整，按本地化的 Action 类别对结果进行分组，解释禁用能力，显示组合应用当前提供的 Workbench 与后代终端 Action 快捷键标签，并通过 `executePrepared(...)` 调用选定的就绪结果。Tab 条方向 Action 演示了嵌套输入：选择命令会打开表面内水平/垂直选取器，通过 `prepareInvocation(...)` 绑定所选值，然后执行相同的 scope 绑定令牌。设置提供程序通过 `workbench.settings.open` 投影稳定的根设置目标。
 
@@ -74,7 +74,7 @@ managed 终端经过标识校验的自然退出是一项无需确认的终端级
 
 终端进程渲染和保留输出搜索执行仍然是终端表面功能。 Find 通过终端 Action 范围及其可用快捷方式公开，而不占用面板标题镶边；仅当安装的查找控制器具有非空查询时，“查找下一个”和“查找上一个”才会同步启用。
 
-已提交的投影终端元数据通过 `applyTerminalMetadataObservation(...)` 进入 Workbench。终端的自然 OSC 标题与持久启动后备标题及可选持久自定义 Tab 标题保持分离。显示优先级依次为自定义标题、聚焦终端的最新自然标题、后备标题。后续自然标题变化仍记录在自定义标题下；清除自定义标题会立即显示最新自然标题。Host 报告的 OSC 7 CWD 只有在应用提供可信终端机器主机名，且共享策略校验并解码 URI 后才会接受；无效观察不能替换最近一次已接受的当前 CWD。同一观察还携带瞬态关闭活动 `idle`、`active` 或 `unknown`。新建、刚启动、水合及预览 Presentation 都从 `unknown` 开始。已提交的实时投影可以报告当前新鲜值，而已接受的本地非焦点活动会在评估关闭 Action 前立即把该观察失效为 `unknown`。失效时已经在途的 `idle` 帧会一直保持为 `unknown`，直至终端客户端完成其因果快照屏障。该屏障只证明替换帧发生在失效之后；既不证明 Host 已接受，也不证明 shell 已消费。后续因果上合格的当前状态投影可以报告 `active`、`idle` 或 `unknown`，包括在 Host 接受输入后恢复新鲜的 `idle`。该值既不持久化，也不作为终端生命周期权威。
+已提交的投影终端元数据通过 `applyTerminalMetadataObservation(...)` 进入 Workbench。终端的自然 OSC 标题与持久启动后备标题及可选持久自定义 Tab 标题保持分离。显示优先级依次为自定义标题、聚焦终端的最新自然标题、其当前 CWD 或启动 CWD 的最后一个非空路径段，然后是后备标题。产品创建的后备值是本地化且不带编号的“终端”标签，因此新 Tab 会立即显示启动目录上下文，而不会把标题与身份序号耦合。后续自然标题变化仍记录在自定义标题下；清除自定义标题会立即显示最新自然标题。Host 报告的 OSC 7 CWD 只有在应用提供可信终端机器主机名，且共享策略校验并解码 URI 后才会接受；无效观察不能替换最近一次已接受的当前 CWD。同一观察还携带瞬态关闭活动 `idle`、`active` 或 `unknown`。新建、刚启动、水合及预览 Presentation 都从 `unknown` 开始。已提交的实时投影可以报告当前新鲜值，而已接受的本地非焦点活动会在评估关闭 Action 前立即把该观察失效为 `unknown`。失效时已经在途的 `idle` 帧会一直保持为 `unknown`，直至终端客户端完成其因果快照屏障。该屏障只证明替换帧发生在失效之后；既不证明 Host 已接受，也不证明 shell 已消费。后续因果上合格的当前状态投影可以报告 `active`、`idle` 或 `unknown`，包括在 Host 接受输入后恢复新鲜的 `idle`。该值既不持久化，也不作为终端生命周期权威。
 
 ### 建模记录
 
@@ -161,7 +161,7 @@ Workbench 公开了跨 Workbench、Terminal Host 和预计客户端的运行时�
 
 该包不执行存储或 IPC 效果。组合应用程序在其边界解析合约，并拥有私有存储、共享修订、写入顺序、恢复诊断和最终的终端生命周期效果。版本 1 解析器将省略的 `customTitle` 默认为 `null`，同时不保留未交付的拓扑模式的读取器或别名。维护的模型、不变量和证据在 [`docs/shared-workbench-document.md`](docs/shared-workbench-document.md) 中定义。
 
-Workbench 拥有九个稳定的快捷键声明：Action 搜索、新建 Tab、上下文关闭终端、全部搜索、设置、切换边栏、面板最大化、向右拆分与向下拆分。Apple 默认值依次为 `⇧⌘P`、`⌘T`、`⌘W`、`⌘K`、`⌘,`、`⌘B`、`⇧⌘Enter`、`⌘D` 与 `⇧⌘D`。标准默认值为 `Ctrl+Shift+P/T/W/K/B/Enter/D`、`Ctrl+,`，向下拆分则为 `Ctrl+Shift+E`；未加 Shift 的终端控制序列继续传给 PTY。组合应用注入一张以快捷键标识为键的完整当前 Workbench 绑定表、发布 Workbench 是否为活动快捷键作用域，并可为终端拥有的 Action 注入只读的实际生效标签映射。处于活动状态时，Workbench 通过所属 document 上的一个捕获监听器解析自身绑定，不依赖焦点位于哪个 Workbench 区域或 document body。非活动或已卸载的 Workbench 不参与；全屏设置表面打开时，Web 会让它变为非活动。同一组绑定值驱动匹配、菜单、Tooltip 与 Action 搜索标签，包括 `workbench.search.open` 的“全部”和“Action”两种不同输入。只有对应 Action 当前启用时快捷键才会被消费；不匹配或不可用的绑定会继续传给聚焦表面而不受抑制。成功执行新建 Tab 后，其第一个 Panel 终端会成为唯一的 `autoFocus` 目标，包括从空 Tab 模型创建时。
+Workbench 拥有九个稳定的快捷键声明：Action 搜索、新建 Tab、上下文关闭终端、全部搜索、设置、切换边栏、面板最大化、向右拆分与向下拆分。Apple 默认值依次为 `⇧⌘P`、`⌘T`、`⌘W`、`⇧⌘F`、`⌘,`、`⌘B`、`⇧⌘Enter`、`⌘D` 与 `⇧⌘D`。标准默认值为 `Ctrl+Shift+P/T/W/K/B/Enter/D`、`Ctrl+,`，向下拆分则为 `Ctrl+Shift+E`；未加 Shift 的终端控制序列继续传给 PTY。组合应用注入一张以快捷键标识为键的完整当前 Workbench 绑定表、发布 Workbench 是否为活动快捷键作用域，并可为终端拥有的 Action 注入只读的实际生效标签映射。处于活动状态时，Workbench 通过所属 document 上的一个捕获监听器解析自身绑定，不依赖焦点位于哪个 Workbench 区域或 document body。非活动或已卸载的 Workbench 不参与；全屏设置表面打开时，Web 会让它变为非活动。同一组绑定值驱动匹配、菜单、Tooltip 与 Action 搜索标签，包括 `workbench.search.open` 的“全部”和“Action”两种不同输入。只有对应 Action 当前启用时快捷键才会被消费；不匹配或不可用的绑定会继续传给聚焦表面而不受抑制。成功执行新建 Tab 后，其第一个 Panel 终端会成为唯一的 `autoFocus` 目标，包括从空 Tab 模型创建时。
 
 ## 开发
 

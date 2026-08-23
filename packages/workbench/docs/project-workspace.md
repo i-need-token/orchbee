@@ -125,10 +125,12 @@ Directory never changes an existing terminal CWD.
 The application forwards one complete committed terminal metadata observation with the trusted
 hostname of the machine that owns the terminal. Workbench normalizes the natural OSC 0/2 title by
 trimming outer whitespace and then removing NUL characters. `null` clears the natural title. The
-durable fallback title and optional durable custom Tab title remain separate: display resolution is
-custom title, then the focused terminal's latest natural title, then fallback. Setting a custom
-title trims it; blank or already-displayed input is unchanged. A later natural title remains hidden
-beneath the custom title, and clearing the custom title reveals that latest natural title
+durable fallback title and optional durable custom Tab title remain separate. Display resolution is
+custom title, then the focused terminal's latest natural title, then the final non-empty path
+segment of its current CWD or launch CWD, then fallback. Product-created fallbacks use the localized
+unnumbered Terminal label, so identity allocation never leaks into the visible title. Setting a
+custom title trims it; blank or already-displayed input is unchanged. A later natural title remains
+hidden beneath the custom title, and clearing the custom title reveals that latest natural title
 immediately.
 
 An OSC 7 current-directory value is accepted only as

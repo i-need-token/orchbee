@@ -89,6 +89,7 @@ export class PanelWorkspaceStore {
 		}));
 		const initialization = initializePanelWorkspace(initialTabs);
 		this.state = initialization.state;
+		this.syncTabTitles();
 		this.dispatchCommands(initialization.commands);
 	}
 

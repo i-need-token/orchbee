@@ -245,7 +245,6 @@ export function useWorkbench({
 		ReturnType<WorkbenchTerminalCreateCallback>
 	>((context, input) => {
 		if (context.signal.aborted) return { kind: 'cancelled' };
-		const terminalSequence = projectWorkspaceRuntime.getActiveNextTerminalSequence();
 		const cwdResult = projectWorkspaceRuntime.resolveActiveTerminalCwd(input.directoryId);
 		if (cwdResult.kind === 'rejected') {
 			return { code: cwdResult.reason, kind: 'blocked' };
@@ -256,9 +255,7 @@ export function useWorkbench({
 			groupId: input.groupId,
 			...(input.index === undefined ? {} : { index: input.index }),
 			source: context.source,
-			title: intl.formatMessage(workbenchTabMessages.terminalTitle, {
-				number: terminalSequence,
-			}),
+			title: intl.formatMessage(workbenchTabMessages.terminalTitle),
 		});
 		if (creation.kind === 'rejected') {
 			throw new Error('A resolved terminal Directory became invalid during synchronous creation.');
@@ -312,7 +309,7 @@ export function useWorkbench({
 		tabStripOrientation,
 		toggleSidebar,
 		workspaceCopySuffix: intl.formatMessage(workbenchMessages.workspaceCopySuffix),
-		workspaceTerminalTitle: intl.formatMessage(workbenchTabMessages.terminalTitle, { number: 1 }),
+		workspaceTerminalTitle: intl.formatMessage(workbenchTabMessages.terminalTitle),
 	});
 	React.useEffect(() => {
 		const formatActionMessage = (message: ActionConfirmation['title']) => {

@@ -117,7 +117,7 @@ export function createWorkbenchClientRuntime({
 		initialClientView,
 		initialDocument,
 		standaloneCwd: bootstrap.defaultCwd,
-		standaloneTerminalTitle: intl.formatMessage(workbenchTabMessages.terminalTitle, { number: 1 }),
+		standaloneTerminalTitle: intl.formatMessage(workbenchTabMessages.terminalTitle),
 		terminalPresentation,
 	});
 	const persistFocusRecovery = (): void => {

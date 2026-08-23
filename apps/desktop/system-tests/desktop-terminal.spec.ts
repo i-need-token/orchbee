@@ -772,7 +772,7 @@ test('terminal-parity/IN-09-action-scope', async () => {
 		await expect(root).toHaveAttribute('data-witness-workbench-scope', 'true');
 		await expect(root).toHaveAttribute(
 			'data-witness-apple-commands',
-			'unbound-native:true,unavailable-native:true,available-claimed:true',
+			'unbound-native:true,unavailable-native:true,available-claimed:true,clear-claimed:true',
 		);
 		await expect(root).toHaveAttribute('data-witness-confirmation-count', '0');
 	} finally {

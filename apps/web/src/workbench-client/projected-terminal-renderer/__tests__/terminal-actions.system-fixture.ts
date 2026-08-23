@@ -198,10 +198,13 @@ async function runWitness(): Promise<void> {
 		input.dispatchEvent(unavailableCommand);
 		const claimedCommand = appleCommand('KeyF', 'f');
 		input.dispatchEvent(claimedCommand);
+		const clearCommand = appleCommand('KeyK', 'k');
+		input.dispatchEvent(clearCommand);
 		root.dataset['witnessAppleCommands'] = [
 			`unbound-native:${!unboundCommand.defaultPrevented}`,
 			`unavailable-native:${!unavailableCommand.defaultPrevented}`,
 			`available-claimed:${claimedCommand.defaultPrevented}`,
+			`clear-claimed:${clearCommand.defaultPrevented}`,
 		].join(',');
 
 		const pasteResult = await executeReady(

@@ -61,6 +61,11 @@ export function WebApplication({
 	const view = useWebApplication({ terminalSettingsController });
 	const keyboardShortcuts = useKeyboardShortcutSettings(keyboardShortcutSettingsController);
 	const terminalActionShortcutLabels: WorkbenchTerminalActionShortcutLabels = {
+		[PROJECTED_TERMINAL_SHORTCUTS.clear.actionId]: formatProjectedTerminalActionShortcut(
+			PROJECTED_TERMINAL_SHORTCUTS.clear.actionId,
+			shortcutPlatform,
+			keyboardShortcuts.bindings,
+		),
 		[PROJECTED_TERMINAL_SHORTCUTS.copySelection.actionId]: formatProjectedTerminalActionShortcut(
 			PROJECTED_TERMINAL_SHORTCUTS.copySelection.actionId,
 			shortcutPlatform,

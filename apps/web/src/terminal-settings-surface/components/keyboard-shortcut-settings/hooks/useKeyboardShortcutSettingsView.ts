@@ -56,6 +56,8 @@ export function useKeyboardShortcutSettingsView({
 		switch (declaration.name) {
 			case 'actions-search':
 				return intl.formatMessage(keyboardShortcutMessages.actionsSearch);
+			case 'clear-terminal':
+				return intl.formatMessage(keyboardShortcutMessages.clearTerminal);
 			case 'close-terminal':
 				return intl.formatMessage(keyboardShortcutMessages.closeTerminal);
 			case 'new-terminal':

@@ -608,8 +608,7 @@ export class DesktopApplication {
 				defaultCwd,
 				initialPresentationId,
 				recoveredPresentations: terminalRuntime.getRecoveredPresentations(),
-				terminalTitle: (sequence) =>
-					intl.formatMessage(workbenchTabMessages.terminalTitle, { number: sequence }),
+				terminalTitle: intl.formatMessage(workbenchTabMessages.terminalTitle),
 			});
 			const terminalIntentReconciler = this.#dependencies.createTerminalIntentReconciler({
 				createOperationId,

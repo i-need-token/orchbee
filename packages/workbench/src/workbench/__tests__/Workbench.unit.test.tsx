@@ -120,7 +120,7 @@ describe('Workbench', () => {
 		expect(markup).toContain('data-icon="search"');
 		expect(markup).toContain('Search');
 		expect(markup).toContain('data-shortcut-action="workbench.search.open"');
-		expect(markup).toContain('⌘K');
+		expect(markup).toContain('⇧⌘F');
 		expect(markup).toContain('Project');
 		expect(markup).toContain('data-slot="workbench-sidebar-project-create"');
 		expect(markup).toContain('data-empty="true"');
@@ -133,8 +133,9 @@ describe('Workbench', () => {
 		expect(markup).toContain('⌘,');
 		expect(markup).toContain('role="tablist"');
 		expect(markup).toContain('aria-label="Terminal tabs"');
-		expect(markup).toContain('Terminal 1');
-		expect(markup).toContain('Terminal 2');
+		expect(markup).toContain('data-tab-id="terminal-context-1-tab-1"');
+		expect(markup).toContain('data-tab-id="terminal-context-1-tab-2"');
+		expect(markup).toContain('aria-label="system"');
 		expect(markup).toContain('data-slot="workbench-tab-content"');
 		expect(markup).toContain('data-slot="workbench-panel-workspace"');
 		expect(markup).toContain('data-slot="workbench-panel"');

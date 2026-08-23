@@ -63,9 +63,7 @@ export function startWebApplication(
 	});
 	const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
 		standaloneCwd: '/workspace',
-		standaloneTerminalTitle: intl.formatMessage(workbenchTabMessages.terminalTitle, {
-			number: 1,
-		}),
+		standaloneTerminalTitle: intl.formatMessage(workbenchTabMessages.terminalTitle),
 		terminalPresentation: createWorkbenchPreviewTerminalPresentationComposition(
 			terminalPresentationId('web:standalone:initial'),
 			() => terminalPresentationId(`web:preview:${createBrowserRandomIdentifier()}`),

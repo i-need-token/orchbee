@@ -1304,7 +1304,21 @@ export function getDisplayedTerminal(panel: PanelLeaf): TerminalPresentation {
 }
 
 export function getTerminalDisplayTitle(terminal: TerminalPresentation): string {
-	return terminal.naturalTitle ?? terminal.title;
+	return (
+		terminal.naturalTitle ??
+		deriveTerminalDirectoryTitle(terminal.currentCwd) ??
+		deriveTerminalDirectoryTitle(terminal.launchCwd) ??
+		terminal.title
+	);
+}
+
+function deriveTerminalDirectoryTitle(cwd: string | null): string | null {
+	if (cwd === null) return null;
+	const trimmedCwd = cwd.trim();
+	if (trimmedCwd.length === 0) return null;
+	const cwdWithoutTrailingSeparators = trimmedCwd.replace(/[\\/]+$/u, '');
+	if (cwdWithoutTrailingSeparators.length === 0) return trimmedCwd;
+	return cwdWithoutTrailingSeparators.split(/[\\/]/u).at(-1) ?? null;
 }
 
 export function findTerminal(

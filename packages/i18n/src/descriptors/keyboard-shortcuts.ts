@@ -8,6 +8,7 @@ export const keyboardShortcutMessages = defineMessages({
 		'keyboard.shortcuts.actions.change',
 		'Accessible label for the shortcut recorder. action is a localized action name.',
 	),
+	clearTerminal: message('keyboard.shortcuts.actions.clearTerminal'),
 	closeTerminal: message('keyboard.shortcuts.actions.closeTerminal'),
 	copySelection: message('keyboard.shortcuts.actions.copySelection'),
 	find: message('keyboard.shortcuts.actions.find'),

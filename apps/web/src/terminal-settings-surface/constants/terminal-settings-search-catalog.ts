@@ -251,6 +251,7 @@ export const TERMINAL_SETTINGS_SEARCH_ITEMS: readonly TerminalSettingsSearchItem
 
 export const KEYBOARD_SHORTCUT_SEARCH_LABELS = {
 	'actions-search': keyboardShortcutMessages.actionsSearch,
+	'clear-terminal': keyboardShortcutMessages.clearTerminal,
 	'close-terminal': keyboardShortcutMessages.closeTerminal,
 	'copy-selection': keyboardShortcutMessages.copySelection,
 	find: keyboardShortcutMessages.find,

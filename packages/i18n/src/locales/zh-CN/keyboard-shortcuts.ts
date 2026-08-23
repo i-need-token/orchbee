@@ -3,6 +3,7 @@ import type { KeyboardShortcutMessageId } from '../en-US';
 export const zhCNKeyboardShortcutMessages = {
 	'keyboard.shortcuts.actions.actionsSearch': '搜索操作',
 	'keyboard.shortcuts.actions.change': '修改“{action}”的快捷键',
+	'keyboard.shortcuts.actions.clearTerminal': '清除终端',
 	'keyboard.shortcuts.actions.closeTerminal': '关闭活动终端',
 	'keyboard.shortcuts.actions.copySelection': '复制终端选区',
 	'keyboard.shortcuts.actions.find': '在终端中查找',

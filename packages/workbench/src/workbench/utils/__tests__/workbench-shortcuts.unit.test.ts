@@ -49,7 +49,7 @@ describe('Workbench shortcuts', () => {
 		expect(formatWorkbenchShortcut('closeActiveTerminal', 'apple')).toBe('⌘W');
 		expect(formatWorkbenchShortcut('maximizeActivePanel', 'apple')).toBe('⇧⌘Enter');
 		expect(formatWorkbenchShortcut('newTerminal', 'apple')).toBe('⌘T');
-		expect(formatWorkbenchShortcut('search', 'apple')).toBe('⌘K');
+		expect(formatWorkbenchShortcut('search', 'apple')).toBe('⇧⌘F');
 		expect(formatWorkbenchShortcut('settings', 'apple')).toBe('⌘,');
 		expect(formatWorkbenchShortcut('splitActivePanelBelow', 'apple')).toBe('⇧⌘D');
 		expect(formatWorkbenchShortcut('splitActivePanelRight', 'apple')).toBe('⌘D');
@@ -63,7 +63,7 @@ describe('Workbench shortcuts', () => {
 		expect(formatWorkbenchShortcut('splitActivePanelBelow', 'standard')).toBe('Ctrl+Shift+E');
 		expect(formatWorkbenchShortcut('splitActivePanelRight', 'standard')).toBe('Ctrl+Shift+D');
 		expect(formatWorkbenchShortcut('toggleSidebar', 'standard')).toBe('Ctrl+Shift+B');
-		expect(formatWorkbenchActionShortcut('workbench.search.open', 'apple')).toBe('⌘K');
+		expect(formatWorkbenchActionShortcut('workbench.search.open', 'apple')).toBe('⇧⌘F');
 		expect(formatWorkbenchActionShortcut('unknown.action', 'apple')).toBe(null);
 		expect(
 			new Set(
@@ -79,7 +79,7 @@ describe('Workbench shortcuts', () => {
 		['closeActiveTerminal', 'KeyW', 'KeyW'],
 		['maximizeActivePanel', 'Enter', 'Enter'],
 		['newTerminal', 'KeyT', 'KeyT'],
-		['search', 'KeyK', 'KeyK'],
+		['search', 'KeyF', 'KeyK'],
 		['settings', 'Comma', 'Comma'],
 		['splitActivePanelBelow', 'KeyD', 'KeyE'],
 		['splitActivePanelRight', 'KeyD', 'KeyD'],
@@ -129,6 +129,12 @@ describe('Workbench shortcuts', () => {
 		]) {
 			expect(resolveWorkbenchShortcut(event, 'apple')).toBe(null);
 		}
+	});
+
+	it('leaves Apple Command+K available to the focused terminal scope', () => {
+		expect(
+			resolveWorkbenchShortcut(shortcutEvent({ code: 'KeyK', metaKey: true }), 'apple'),
+		).toBeNull();
 	});
 
 	it('resolves the enumerable binding table to stable shortcut identities', () => {

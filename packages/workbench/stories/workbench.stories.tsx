@@ -223,8 +223,9 @@ export const UnifiedSearchAll: Story = {
 	play: () => {
 		window.dispatchEvent(
 			new KeyboardEvent('keydown', {
-				code: 'KeyK',
+				code: 'KeyF',
 				metaKey: true,
+				shiftKey: true,
 			}),
 		);
 	},
@@ -273,8 +274,9 @@ export const UnifiedSearchProviderFailure: Story = {
 	play: () => {
 		window.dispatchEvent(
 			new KeyboardEvent('keydown', {
-				code: 'KeyK',
+				code: 'KeyF',
 				metaKey: true,
+				shiftKey: true,
 			}),
 		);
 	},
