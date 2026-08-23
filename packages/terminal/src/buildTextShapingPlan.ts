@@ -25,6 +25,8 @@ export interface TextShapingReader {
 export interface TextShapingOptions {
 	/** Keep browser shaping for complex scripts when optional Latin ligatures are disabled. */
 	readonly allowOptionalLigatures?: boolean;
+	/** Bound one shaped raster by terminal columns when the rendering backend has a finite surface. */
+	readonly maximumRunColumns?: number;
 }
 
 /**
@@ -48,12 +50,24 @@ export function buildTextShapingPlan(
 				text: (index: number) => source[index]?.text ?? '',
 				width: (index: number) => source[index]?.width ?? 0,
 			};
-	return buildTextShapingPlanFromReader(reader, options.allowOptionalLigatures !== false);
+	const maximumRunColumns = options.maximumRunColumns ?? Number.POSITIVE_INFINITY;
+	if (
+		maximumRunColumns !== Number.POSITIVE_INFINITY &&
+		(!Number.isSafeInteger(maximumRunColumns) || maximumRunColumns < 1)
+	) {
+		throw new RangeError('maximumRunColumns must be a positive safe integer');
+	}
+	return buildTextShapingPlanFromReader(
+		reader,
+		options.allowOptionalLigatures !== false,
+		maximumRunColumns,
+	);
 }
 
 function buildTextShapingPlanFromReader(
 	reader: TextShapingReader,
 	allowOptionalLigatures: boolean,
+	maximumRunColumns: number,
 ): TextShapingPlan {
 	const plan: (TextShapingSpan | null)[] = Array.from({ length: reader.length }, () => null);
 	let column = 0;
@@ -65,12 +79,15 @@ function buildTextShapingPlanFromReader(
 
 		const start = column;
 		let end = start + 1;
+		let runColumns = Math.max(0, reader.width(start));
 		while (
 			end < reader.length &&
 			isRunCell(reader, end) &&
 			reader.sameStyle(start, end) &&
-			!isRejectedLigatureBoundary(reader.text(end - 1), reader.text(end))
+			!isRejectedLigatureBoundary(reader.text(end - 1), reader.text(end)) &&
+			runColumns + Math.max(0, reader.width(end)) <= maximumRunColumns
 		) {
+			runColumns += Math.max(0, reader.width(end));
 			end++;
 		}
 

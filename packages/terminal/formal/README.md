@@ -4,6 +4,27 @@ This directory owns bounded formal evidence for concurrency, independently order
 client input repair in `@orchbee/terminal`. The models abstract only client-owned
 projected-terminal state; Terminal Host and its PTY/Ghostty authority are outside this directory.
 
+## Renderer initialization retirement
+
+`tla/TerminalRendererInitialization.tla` models initial WebGPU setup and recovery as ordered
+adapter, device, pipeline, validation, preparation, and backend-publication phases. `freeze()` and
+`dispose()` can occur independently while an external promise is pending. Every completion fence
+either advances a still-live initialization or cancels it without publishing WebGPU or Canvas
+fallback ownership.
+
+| Renderer claim                                     | Model property                                                 | TypeScript refinement                                                                                                      |
+| -------------------------------------------------- | -------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| A retired initialization cannot publish WebGPU     | `PublicationRequiresLive`                                      | `WebGPURenderer.initializeGPU` checks retirement after each await and before context acquisition/configuration.            |
+| A retired failure cannot activate Canvas fallback  | `FallbackRequiresLive`                                         | `activateFallback` rejects frozen and disposed renderers, including failures that settle after lifecycle retirement.       |
+| Cancelled initialization retains no backend        | `CancelledOwnsNothing`, `OwnershipMatchesPhase`                | The retirement fence releases partially created GPU resources, clears current ownership, and destroys the acquired device. |
+| Disposal retains no renderer backend ownership     | `DisposedOwnsNothing`, `BackendMatchesPublication`             | `dispose()` releases GPU resources, destroys its current device, and clears WebGPU and Canvas context references.          |
+| Freeze preserves only an already-published surface | `FreezePreservesPresentedBackend`, `BackendMatchesPublication` | A completed renderer keeps its last painted canvas; an in-flight initialization can only cancel after freeze.              |
+
+The model treats browser and GPU promise settlement as independently ordered environment actions.
+It proves only the bounded safety invariants above; it does not claim that an adapter, device, or
+driver operation eventually completes, that physical GPU memory is reclaimed synchronously, or
+that every browser implements identical context-retention behavior.
+
 ## Runtime presentation configuration
 
 `tla/TerminalPresentationConfiguration.tla` models two independently completing presentation

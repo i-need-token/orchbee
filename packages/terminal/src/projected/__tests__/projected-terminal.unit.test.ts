@@ -2188,6 +2188,37 @@ describe('ProjectedTerminal', () => {
 		terminal.dispose();
 	});
 
+	it('reuses measured IME surface offsets across terminal frames', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: { send: () => undefined },
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		const canvas = terminal.canvas;
+		if (canvas === undefined) throw new Error('Projected terminal canvas is unavailable');
+		const canvasBounds = vi.spyOn(canvas, 'getBoundingClientRect');
+
+		terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['a', 'b']));
+		expect(canvasBounds).toHaveBeenCalledOnce();
+		browser.flushFrames();
+		canvasBounds.mockClear();
+
+		terminal.applyFrame(terminalFrame('delta', 2n, 2n, ['c', 'd'], 1n));
+		expect(canvasBounds).not.toHaveBeenCalled();
+
+		browser.dispatchWindow('resize');
+		expect(canvasBounds).toHaveBeenCalledOnce();
+		terminal.dispose();
+	});
+
 	it('moves the native IME anchor with a wrapped preedit caret', async () => {
 		const browser = createFakeBrowser();
 		vi.stubGlobal('document', browser.document);

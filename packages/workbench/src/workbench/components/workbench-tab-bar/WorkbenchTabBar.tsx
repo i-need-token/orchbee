@@ -9,6 +9,7 @@ import {
 	type TabStripNewTabRequest,
 	type TabStripOrientation,
 	type TabStripSelectCallback,
+	type TabStripShortcutLabels,
 } from '@orchbee/tab-strip';
 import type { ReactNode } from 'react';
 
@@ -26,6 +27,7 @@ interface WorkbenchTabBarProps {
 	readonly onVerticalCollapsedChange: (collapsed: boolean) => void;
 	readonly orientation: TabStripOrientation;
 	readonly reserveSidebarToggleSpace: boolean;
+	readonly shortcutLabels: TabStripShortcutLabels;
 	readonly tabModel: TabModel;
 	readonly tabStripMessages: TabStripMessages;
 	readonly verticalCollapsed: boolean;
@@ -43,6 +45,7 @@ export function WorkbenchTabBar({
 	orientation,
 	parentActionScope,
 	reserveSidebarToggleSpace,
+	shortcutLabels,
 	tabModel,
 	tabStripMessages,
 	verticalCollapsed,
@@ -77,6 +80,7 @@ export function WorkbenchTabBar({
 				showGroupHoverCards={false}
 				showHoverCardMemoryUsage={false}
 				showHoverCardPreviews={false}
+				shortcutLabels={shortcutLabels}
 				verticalCollapsed={verticalCollapsed}
 				onVerticalCollapsedChange={onVerticalCollapsedChange}
 			/>

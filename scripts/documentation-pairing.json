@@ -222,8 +222,8 @@
 			"zhCnSha256": "791d414c05e05a1cd96efc97e3d7081ea2cc690d3043a97d458cb6595b700117"
 		},
 		"packages/tab-strip/README.md": {
-			"englishSha256": "9db18d521495c4b88a162755030dedab514270b9cb0bec0fc1eea356e2412f53",
-			"zhCnSha256": "5623e585bdcde7be0f607cb707c43456a29237b48f88769c15491fc99d0a4ead"
+			"englishSha256": "6370eb73e12df53bfb4f1052f7dff43a249d206efb404c461346f5faa2193bdc",
+			"zhCnSha256": "15609dcdb834f03403449163d1ca1d22443ea6f276a5feb9e4ddd04126d9e4d8"
 		},
 		"packages/tab-strip/docs/horizontal-group-drag.md": {
 			"englishSha256": "fc90b535669852a51bba00a02ab9a10befbcdfcbd002d504433a2c44a7b42249",
@@ -246,8 +246,8 @@
 			"zhCnSha256": "f412097011bc451559de8ce873816ce3d16b5ca856f26e0903f74a8148f56b81"
 		},
 		"packages/terminal/README.md": {
-			"englishSha256": "02deb997446a2d4bf7f0ecf17b51ab46f09454879912767e4dc2466ae196fc82",
-			"zhCnSha256": "92382e955ba67592c15b5c7a23ab590725eb90e0d1b73d1fdc8e68daec3ec841"
+			"englishSha256": "c31783623873130c919859fd3b9dbe808cdf6164f90de648740f36f18a07189d",
+			"zhCnSha256": "7700cf9b020d9c2db81cbee2b080f7272d7f45a80ea36f89cec8c0149b0d3cdd"
 		},
 		"packages/terminal/docs/ghostty-surface-test-provenance.md": {
 			"englishSha256": "7b0b9ed0fb1eda3f2a0f3677c96d48e26d23d158da2ad82605eece49f31e9ea6",
@@ -258,8 +258,8 @@
 			"zhCnSha256": "55bb23f74b53ea11ad11aec4ca31c99053c1621d49ea0ae74848435bccb83810"
 		},
 		"packages/terminal/formal/README.md": {
-			"englishSha256": "eabdbad7384b7863b272166e563abdbb8c8249934f3858ec7930716df822629d",
-			"zhCnSha256": "9631fa54104e15c740f7aee3857ffd9a02f439630509ed57ecf4f8f68deadb59"
+			"englishSha256": "fd6c20bfb1b133ae0c69357fd39ad359a185ce67b55582f78947066bb1135d2a",
+			"zhCnSha256": "d47dfc656b2630343c195ea42f4f344725b115acf646ca3a91a7e4e1aa02a4af"
 		},
 		"packages/ui/README.md": {
 			"englishSha256": "e845c57f8558047a1198fd9f12c075fb2cec4496e3121a4703b42d6fe8beda21",
@@ -270,8 +270,8 @@
 			"zhCnSha256": "85e3cd82ba4b2b18412545fc5f47ca40668a306006d64fbc19ac6e221dae109c"
 		},
 		"packages/workbench/README.md": {
-			"englishSha256": "3beea251fbff9a27b1293065c494cb79c848b9561bd468aa14f68c18655399ee",
-			"zhCnSha256": "284d0c657f3b7659e1683cb7599802414984539f22d819e944df9a6ac7e44e83"
+			"englishSha256": "722e1403c26efe252a9e4c4698d29ab2e7d9144fd150b5eecab4e574f3308982",
+			"zhCnSha256": "b94f19a2dd2e0e00340aa2beed628238c0280268db4f565fb1f3fd29c32305f1"
 		},
 		"packages/workbench/docs/project-workspace.md": {
 			"englishSha256": "b939dd3f5d2a3c7e48b5956adcd7adce605679dfd30d0fc72a95ec6c53ec748a",

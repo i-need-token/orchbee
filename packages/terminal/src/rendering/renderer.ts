@@ -720,6 +720,7 @@ export class WebGPURenderer {
 	private glyphMap: Map<string, GlyphAtlasEntry> = new Map();
 	private shapingGlyphKeys = new Set<string>();
 	private shapingRasterPixels = 0;
+	private atlasUsedPixels = 0;
 	private atlasX = 0;
 	private atlasY = 0;
 	private atlasRowHeight = 0;
@@ -736,6 +737,8 @@ export class WebGPURenderer {
 	private textVertexBufferSize = 0;
 	private overlayVertexBuffer: GPUBuffer | null = null;
 	private overlayVertexBufferSize = 0;
+	private backgroundBindGroup: GPUBindGroup | null = null;
+	private textBindGroup: GPUBindGroup | null = null;
 	private backgroundVertexData: number[] = [];
 	private textVertexData: number[] = [];
 	private overlayVertexData: number[] = [];
@@ -794,24 +797,29 @@ export class WebGPURenderer {
 			return this.activateFallback('webgpu-unavailable');
 		}
 
+		let initializingDevice: GPUDevice | null = null;
 		try {
 			const adapter = await navigator.gpu.requestAdapter();
+			if (this.disposed || this.frozen) return false;
 			if (!adapter) throw new Error('No WebGPU adapter is available');
 
 			this.format = navigator.gpu.getPreferredCanvasFormat();
 			const device = await adapter.requestDevice();
 			if (this.disposed || this.frozen) {
 				device.destroy();
-				throw new Error('Renderer was retired during WebGPU initialization');
+				return false;
 			}
 			this.device = device;
+			initializingDevice = device;
 			void device.lost.then((info) => this.handleDeviceLost(device, info));
 
 			// Validate all device resources before locking this canvas to WebGPU so
 			// Canvas 2D remains available if initialization fails.
 			device.pushErrorScope('validation');
 			await this.createPipelines();
+			if (this.cancelRetiredGPUInitialization(device)) return false;
 			const pipelineError = await device.popErrorScope();
+			if (this.cancelRetiredGPUInitialization(device)) return false;
 			if (pipelineError)
 				throw new Error(`WebGPU pipeline validation failed: ${pipelineError.message}`);
 
@@ -821,7 +829,9 @@ export class WebGPURenderer {
 
 			// Create uniform buffer
 			this.createUniformBuffer();
+			this.createBindGroups();
 
+			if (this.cancelRetiredGPUInitialization(device)) return false;
 			this.context ??= this.canvas.getContext('webgpu');
 			if (!this.context) {
 				throw new Error('Failed to get WebGPU rendering context');
@@ -838,6 +848,12 @@ export class WebGPURenderer {
 			this.requestRenderCallback?.();
 			return true;
 		} catch (error) {
+			if (this.disposed || this.frozen) {
+				if (initializingDevice !== null && this.device === initializingDevice) {
+					this.cancelRetiredGPUInitialization(initializingDevice);
+				}
+				return false;
+			}
 			if (!allowFallback || this.context) throw error;
 			return this.activateFallback(
 				error instanceof Error ? error.message : 'webgpu-initialization-failed',
@@ -846,6 +862,7 @@ export class WebGPURenderer {
 	}
 
 	private activateFallback(reason: string): false {
+		if (this.disposed || this.frozen) return false;
 		const device = this.device;
 		this.releaseGPUResources();
 		this.device = null;
@@ -853,6 +870,17 @@ export class WebGPURenderer {
 		this.initFallback2D();
 		this.emitHealth({ state: 'fallback', backend: 'canvas2d', reason });
 		return false;
+	}
+
+	private cancelRetiredGPUInitialization(device: GPUDevice): boolean {
+		if (!this.disposed && !this.frozen && this.device === device) return false;
+		if (this.device === device) {
+			this.releaseGPUResources();
+			this.device = null;
+			this.useWebGPU = false;
+		}
+		device.destroy();
+		return true;
 	}
 
 	private handleDeviceLost(device: GPUDevice, info: GPUDeviceLostInfo): void {
@@ -876,8 +904,10 @@ export class WebGPURenderer {
 			await this.initializeGPU(false);
 		} catch (error) {
 			if (!this.disposed && !this.frozen) {
+				const device = this.device;
 				this.releaseGPUResources();
 				this.device = null;
+				device?.destroy();
 				this.emitHealth({
 					state: 'recovery-failed',
 					backend: 'webgpu',
@@ -901,6 +931,8 @@ export class WebGPURenderer {
 		this.bgVertexBuffer = null;
 		this.textVertexBuffer = null;
 		this.overlayVertexBuffer = null;
+		this.backgroundBindGroup = null;
+		this.textBindGroup = null;
 		this.bgVertexBufferSize = 0;
 		this.textVertexBufferSize = 0;
 		this.overlayVertexBufferSize = 0;
@@ -1024,6 +1056,7 @@ export class WebGPURenderer {
 				GPUTextureUsage.COPY_DST |
 				GPUTextureUsage.RENDER_ATTACHMENT,
 		});
+		this.createBindGroups();
 		this.markEntireAtlasDirty();
 	}
 
@@ -1040,6 +1073,39 @@ export class WebGPURenderer {
 		this.uniformBuffer = this.device.createBuffer({
 			size: 16, // vec2f + f32 + f32 = 16 bytes
 			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+		});
+	}
+
+	private createBindGroups(): void {
+		const device = this.device;
+		const uniformBuffer = this.uniformBuffer;
+		const backgroundPipeline = this.bgPipeline;
+		const textPipeline = this.textPipeline;
+		const atlasSampler = this.atlasSampler;
+		const atlasTexture = this.atlasTexture;
+		if (
+			device === null ||
+			uniformBuffer === null ||
+			backgroundPipeline === null ||
+			textPipeline === null ||
+			atlasSampler === null ||
+			atlasTexture === null
+		) {
+			this.backgroundBindGroup = null;
+			this.textBindGroup = null;
+			return;
+		}
+		this.backgroundBindGroup = device.createBindGroup({
+			layout: backgroundPipeline.getBindGroupLayout(0),
+			entries: [{ binding: 0, resource: { buffer: uniformBuffer } }],
+		});
+		this.textBindGroup = device.createBindGroup({
+			layout: textPipeline.getBindGroupLayout(0),
+			entries: [
+				{ binding: 0, resource: { buffer: uniformBuffer } },
+				{ binding: 1, resource: atlasSampler },
+				{ binding: 2, resource: atlasTexture.createView() },
+			],
 		});
 	}
 
@@ -1265,6 +1331,7 @@ export class WebGPURenderer {
 				raster.kind === 'sprite' ? false : this.isColorGlyph(text, this.atlasX, this.atlasY, w, h),
 		};
 		this.glyphMap.set(key, entry);
+		this.atlasUsedPixels += w * h;
 		if (codepoint === 0) {
 			this.shapingGlyphKeys.add(key);
 			this.shapingRasterPixels += w * h;
@@ -1416,26 +1483,12 @@ export class WebGPURenderer {
 		};
 		const width = bounds.maxX - bounds.minX;
 		const height = bounds.maxY - bounds.minY;
-		const uploadsEntireAtlas =
-			bounds.minX === 0 &&
-			bounds.minY === 0 &&
-			width === this.atlasCanvas.width &&
-			height === this.atlasCanvas.height;
-		if (uploadsEntireAtlas) {
-			this.device.queue.copyExternalImageToTexture(
-				{ source: this.atlasCanvas },
-				{ texture: this.atlasTexture },
-				{ width, height },
-			);
-		} else {
-			const pixels = this.atlasCtx.getImageData(bounds.minX, bounds.minY, width, height).data;
-			this.device.queue.writeTexture(
-				{ texture: this.atlasTexture, origin: { x: bounds.minX, y: bounds.minY } },
-				pixels,
-				{ bytesPerRow: width * 4, rowsPerImage: height },
-				{ width, height },
-			);
-		}
+		const origin = { x: bounds.minX, y: bounds.minY };
+		this.device.queue.copyExternalImageToTexture(
+			{ source: this.atlasCanvas, origin },
+			{ texture: this.atlasTexture, origin },
+			{ width, height },
+		);
 		this.frameAtlasUploadBytes += width * height * 4;
 		this.atlasDirty = false;
 		this.atlasDirtyBounds = null;
@@ -1445,6 +1498,7 @@ export class WebGPURenderer {
 		this.glyphMap.clear();
 		this.shapingGlyphKeys.clear();
 		this.shapingRasterPixels = 0;
+		this.atlasUsedPixels = 0;
 		this.atlasX = 0;
 		this.atlasY = 0;
 		this.atlasRowHeight = 0;
@@ -1722,8 +1776,6 @@ export class WebGPURenderer {
 		forceAll: boolean,
 		viewportY: number,
 	): void {
-		let atlasUsedPixels = 0;
-		for (const glyph of this.glyphMap.values()) atlasUsedPixels += glyph.w * glyph.h;
 		const atlasPixels = this.atlasCanvas.width * this.atlasCanvas.height;
 		const telemetry: RendererFrameTelemetry = {
 			frameId: ++this.frameId,
@@ -1746,7 +1798,7 @@ export class WebGPURenderer {
 			atlasGlyphCount: this.glyphMap.size,
 			atlasWidth: this.atlasCanvas.width,
 			atlasHeight: this.atlasCanvas.height,
-			atlasPressure: atlasPixels === 0 ? 0 : atlasUsedPixels / atlasPixels,
+			atlasPressure: atlasPixels === 0 ? 0 : this.atlasUsedPixels / atlasPixels,
 		};
 		this.lastTelemetry = telemetry;
 		this.telemetryCallback?.(telemetry);
@@ -1777,6 +1829,7 @@ export class WebGPURenderer {
 		cursor: PackedRendererMetadata['cursor'],
 		cursorEnabled: boolean,
 		preeditLayout: PreeditLayout | null,
+		maximumRunColumns?: number,
 	): PackedRowTextShaping & { readonly codepoints: Uint32Array } {
 		const texts = Array.from({ length: columns }, (_, column) => row.grapheme(column));
 		const codepoints = Uint32Array.from(texts, (text) => text.codePointAt(0) ?? 0);
@@ -1844,9 +1897,26 @@ export class WebGPURenderer {
 					width: (column) =>
 						packedCellWidth(row.widths[column] ?? TerminalCellWidthCode.spacerTail),
 				},
-				{ allowOptionalLigatures: this.presentationConfiguration.fontLigatures },
+				{
+					allowOptionalLigatures: this.presentationConfiguration.fontLigatures,
+					...(maximumRunColumns === undefined ? {} : { maximumRunColumns }),
+				},
 			),
 		};
+	}
+
+	private maximumWebGPUShapingRunColumns(): number {
+		const rasterScale = this.devicePixelRatio;
+		const maximumAtlasDimension = this.device?.limits.maxTextureDimension2D ?? 8192;
+		const packingPadding = Math.max(2, Math.ceil(2 * rasterScale));
+		const inkPadding = Math.max(1, Math.ceil(rasterScale));
+		const overhangReserve = Math.ceil(this.metrics.height * rasterScale);
+		const availableWidth = Math.max(
+			1,
+			maximumAtlasDimension - packingPadding - inkPadding * 2 - overhangReserve,
+		);
+		const physicalCellWidth = Math.max(1, this.metrics.width * rasterScale);
+		return Math.max(1, Math.floor(availableWidth / physicalCellWidth));
 	}
 
 	private packedTextPaintSegments(
@@ -2015,6 +2085,7 @@ export class WebGPURenderer {
 		);
 		const shapings: Array<(PackedRowTextShaping & { readonly codepoints: Uint32Array }) | null> =
 			Array.from({ length: rows }, () => null);
+		const maximumShapingRunColumns = this.maximumWebGPUShapingRunColumns();
 
 		for (let y = 0; y < rows; y++) {
 			const row = buffer.rows[y];
@@ -2026,6 +2097,7 @@ export class WebGPURenderer {
 				cursor,
 				cursorEnabled,
 				preeditLayout,
+				maximumShapingRunColumns,
 			);
 			shapings[y] = shaping;
 		}
@@ -2434,11 +2506,8 @@ export class WebGPURenderer {
 				},
 			],
 		});
-		if (this.uniformBuffer) {
-			const backgroundBindGroup = this.device.createBindGroup({
-				layout: this.bgPipeline.getBindGroupLayout(0),
-				entries: [{ binding: 0, resource: { buffer: this.uniformBuffer } }],
-			});
+		const backgroundBindGroup = this.backgroundBindGroup;
+		if (this.uniformBuffer && backgroundBindGroup) {
 			const backgroundBuffer = this.uploadVertexData('background', backgroundData);
 			if (backgroundBuffer) {
 				renderPass.setPipeline(this.bgPipeline);
@@ -2447,20 +2516,12 @@ export class WebGPURenderer {
 				renderPass.draw(6, backgroundData.length / 8);
 				this.frameGpuDrawCalls++;
 			}
-			if (textData.length > 0 && this.atlasTexture && this.atlasSampler) {
+			if (textData.length > 0 && this.textBindGroup) {
 				const textBuffer = this.uploadVertexData('text', textData);
 				if (textBuffer) {
-					const textBindGroup = this.device.createBindGroup({
-						layout: this.textPipeline.getBindGroupLayout(0),
-						entries: [
-							{ binding: 0, resource: { buffer: this.uniformBuffer } },
-							{ binding: 1, resource: this.atlasSampler },
-							{ binding: 2, resource: this.atlasTexture.createView() },
-						],
-					});
 					renderPass.setPipeline(this.textPipeline);
 					renderPass.setVertexBuffer(0, textBuffer);
-					renderPass.setBindGroup(0, textBindGroup);
+					renderPass.setBindGroup(0, this.textBindGroup);
 					renderPass.draw(6, textData.length / 13);
 					this.frameGpuDrawCalls++;
 				}

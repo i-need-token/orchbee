@@ -10,6 +10,10 @@ import { terminalPresentationId } from '../../terminal-presentation';
 import { Workbench } from '../Workbench';
 import { createWorkbenchPreviewTerminalPresentationComposition } from '../model/createWorkbenchPreviewTerminalPresentationComposition';
 import { WorkbenchProjectWorkspaceRuntime } from '../model/WorkbenchProjectWorkspaceRuntime';
+import {
+	defaultWorkbenchShortcutBindings,
+	type WorkbenchShortcutBindings,
+} from '../utils/workbench-shortcuts';
 
 function createTestTerminalPresentationComposition(scope: string) {
 	let sequence = 0;
@@ -58,6 +62,48 @@ function getActionableMenuPresentation(menu: HTMLElement): readonly {
 }
 
 describe('Workbench Project and Workspace management', () => {
+	it('projects current configured bindings into the tab context menu', async () => {
+		const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
+			standaloneCwd: '/system',
+			standaloneTerminalTitle: 'Terminal 1',
+			terminalPresentation: createTestTerminalPresentationComposition('tab-menu-shortcuts'),
+		});
+		const shortcutBindings = {
+			...defaultWorkbenchShortcutBindings('apple'),
+			'workbench.terminal.active.close': {
+				code: 'KeyQ',
+				modifiers: ['mod'],
+			},
+			'workbench.terminal.create': {
+				code: 'KeyN',
+				modifiers: ['mod', 'shift'],
+			},
+		} as const satisfies WorkbenchShortcutBindings;
+		render(
+			<OrchbeeI18nProvider locale='en-US'>
+				<TooltipProvider>
+					<Workbench
+						actionRuntime={new ActionRuntime()}
+						projectWorkspaceRuntime={projectWorkspaceRuntime}
+						shortcutBindings={shortcutBindings}
+						shortcutPlatform='apple'
+					/>
+				</TooltipProvider>
+			</OrchbeeI18nProvider>,
+		);
+
+		fireEvent.contextMenu(screen.getByRole('tab', { name: 'system' }), {
+			clientX: 120,
+			clientY: 20,
+		});
+		const menu = await screen.findByRole('menu', { name: 'Tab options' });
+		expect(
+			Array.from(menu.querySelectorAll('[data-slot="context-menu-shortcut"]')).map(
+				(shortcut) => shortcut.textContent,
+			),
+		).toEqual(['⇧⌘N', '⌘Q']);
+	});
+
 	it('projects terminal context commands through the shared icon-bearing action menu', async () => {
 		const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
 			standaloneCwd: '/system',

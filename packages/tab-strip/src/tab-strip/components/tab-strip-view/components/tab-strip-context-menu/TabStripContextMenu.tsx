@@ -4,6 +4,7 @@ import {
 	ContextMenuContent,
 	ContextMenuItem,
 	ContextMenuSeparator,
+	ContextMenuShortcut,
 	ContextMenuSub,
 	ContextMenuSubContent,
 	ContextMenuSubTrigger,
@@ -21,6 +22,7 @@ import { GroupEditorMenuIcon } from './components/group-editor-menu-icon/GroupEd
 import { useTabStripMessages } from '../../../../hooks/useTabStripMessages';
 import type { TabStripActions } from '../../../../types/tab-strip-actions';
 import { TAB_STRIP_ACTION_IDS } from '../../../../actions/tab-strip-action-contracts';
+import type { TabStripShortcutLabels } from '../../../../types/tab-strip-options';
 
 interface TabStripContextMenuProps {
 	actions: TabStripActions;
@@ -34,6 +36,7 @@ interface TabStripContextMenuProps {
 	tabSearchPinned: boolean;
 	moveGroupToNewWindowAvailable: boolean;
 	moveTabsToNewWindowAvailable: boolean;
+	shortcutLabels: TabStripShortcutLabels | undefined;
 	onClose: () => void;
 }
 
@@ -49,6 +52,7 @@ export function TabStripContextMenu({
 	tabSearchPinned,
 	moveGroupToNewWindowAvailable,
 	moveTabsToNewWindowAvailable,
+	shortcutLabels,
 	onClose,
 }: TabStripContextMenuProps): ReactNode {
 	const messages = useTabStripMessages();
@@ -134,6 +138,9 @@ export function TabStripContextMenu({
 					)}
 				>
 					{messages.newTab}
+					{shortcutLabels?.newTab === undefined ? null : (
+						<ContextMenuShortcut>{shortcutLabels.newTab}</ContextMenuShortcut>
+					)}
 				</ContextMenuItem>
 				<ContextMenuItem
 					disabled={!recentGroup}
@@ -267,6 +274,9 @@ export function TabStripContextMenu({
 				>
 					<GroupEditorMenuIcon kind='new-tab' />
 					<span>{messages.newTabInGroup}</span>
+					{shortcutLabels?.newTab === undefined ? null : (
+						<ContextMenuShortcut>{shortcutLabels.newTab}</ContextMenuShortcut>
+					)}
 				</ContextMenuItem>
 				{moveGroupToNewWindowAvailable && snapshot.tabs.some((tab) => tab.group !== group.id) ? (
 					<ContextMenuItem
@@ -337,6 +347,9 @@ export function TabStripContextMenu({
 				)}
 			>
 				{vertical ? messages.newTabBelow : messages.newTabToRight}
+				{shortcutLabels?.newTab === undefined ? null : (
+					<ContextMenuShortcut>{shortcutLabels.newTab}</ContextMenuShortcut>
+				)}
 			</ContextMenuItem>
 			<ContextMenuSub>
 				<ContextMenuSubTrigger>
@@ -432,6 +445,9 @@ export function TabStripContextMenu({
 				)}
 			>
 				{messages.close}
+				{shortcutLabels?.closeTab === undefined ? null : (
+					<ContextMenuShortcut>{shortcutLabels.closeTab}</ContextMenuShortcut>
+				)}
 			</ContextMenuItem>
 			<ContextMenuItem
 				disabled={!closeAllowed || closeOtherTabIds.length === 0}

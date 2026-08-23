@@ -854,6 +854,26 @@ describe('TabStrip', () => {
 		expect(screen.queryByRole('menu')).toBeNull();
 	});
 
+	it('renders only host-supplied shortcuts in the tab context menu trailing slot', () => {
+		const model = createModel();
+		render(<TabStrip model={model} shortcutLabels={{ closeTab: '⌘W', newTab: '⌘T' }} />);
+
+		fireEvent.contextMenu(screen.getByRole('tab', { name: /^Loose/ }), {
+			clientX: 50,
+			clientY: 30,
+		});
+
+		const shortcuts = Array.from(
+			document.querySelectorAll<HTMLElement>('[data-slot="context-menu-shortcut"]'),
+		);
+		expect(shortcuts.map((shortcut) => shortcut.textContent)).toEqual(['⌘T', '⌘W']);
+		expect(shortcuts.map((shortcut) => shortcut.closest('[role="menuitem"]')?.textContent)).toEqual(
+			['New tab to the right⌘T', 'Close⌘W'],
+		);
+		expect(screen.getByRole('menuitem', { name: 'Duplicate' }).textContent).toBe('Duplicate');
+		expect(screen.getByRole('menuitem', { name: 'Pin' }).textContent).toBe('Pin');
+	});
+
 	it('requests the opposite orientation from the blank tab-strip context menu', () => {
 		const model = createModel();
 		const onOrientationChange = vi.fn<(orientation: TabStripOrientation) => void>();

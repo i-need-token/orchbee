@@ -15,6 +15,7 @@ export type {
 	TabStripNewTabRequest,
 	TabStripProps,
 	TabStripSelectCallback,
+	TabStripShortcutLabels,
 } from './TabStrip';
 export { TabStripOrientation, VerticalTabStripCollapseState } from './types/tab-strip-types';
 export {

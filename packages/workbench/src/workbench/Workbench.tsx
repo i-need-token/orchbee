@@ -26,6 +26,7 @@ import { WorkbenchSidebar } from './components/workbench-sidebar/WorkbenchSideba
 import { WorkbenchPanelWorkspace } from './components/workbench-panel-workspace/WorkbenchPanelWorkspace';
 import { WorkbenchSearchSurface } from './components/workbench-search-surface/WorkbenchSearchSurface';
 import { WorkbenchTabBar } from './components/workbench-tab-bar/WorkbenchTabBar';
+import { WORKBENCH_ACTION_IDS } from './actions/workbench-action-ids';
 import { EMPTY_WORKBENCH_SEARCH_PROVIDERS } from './constants/search-providers';
 import { useWorkbench } from './hooks/useWorkbench';
 import { useWorkbenchActionShortcutLabel } from './hooks/useWorkbenchActionShortcutLabel';
@@ -227,6 +228,10 @@ export function Workbench({
 								onSelectTab={navigation?.selectTab}
 								parentActionScope={view.actionScope}
 								reserveSidebarToggleSpace={!view.isSidebarVisible}
+								shortcutLabels={{
+									closeTab: shortcutLabelForAction(WORKBENCH_ACTION_IDS.closeActiveTerminal),
+									newTab: shortcutLabelForAction(WORKBENCH_ACTION_IDS.createTerminal),
+								}}
 								tabModel={view.terminalContext.tabModel}
 								tabStripMessages={tabStripMessages}
 								verticalCollapsed={view.verticalTabStripCollapsed}

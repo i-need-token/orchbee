@@ -106,6 +106,17 @@ describe('buildTextShapingPlan', () => {
 		expect(span).not.toBeNull();
 		expect(plan.every((candidate) => candidate === span)).toBe(true);
 	});
+
+	it('splits a shaping run at an explicit terminal-column capacity', () => {
+		const plan = buildTextShapingPlan(cells('abcdefgh'), { maximumRunColumns: 3 });
+
+		expect(plan[0]).toEqual({ start: 0, end: 3, columns: 3, text: 'abc' });
+		expect(plan[3]).toEqual({ start: 3, end: 6, columns: 3, text: 'def' });
+		expect(plan[6]).toEqual({ start: 6, end: 8, columns: 2, text: 'gh' });
+		expect(plan[2]).toBe(plan[0]);
+		expect(plan[5]).toBe(plan[3]);
+		expect(plan[7]).toBe(plan[6]);
+	});
 });
 
 function cells(text: string): TextShapingCell[] {

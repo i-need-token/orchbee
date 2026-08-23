@@ -168,6 +168,7 @@ interface PackedTerminalRowBacking {
 
 export class PackedTerminalRowView {
 	#backing: PackedTerminalRowBacking;
+	readonly #graphemeCache: string[] = [];
 	#dirty = true;
 	readonly index: number;
 
@@ -225,12 +226,18 @@ export class PackedTerminalRowView {
 	}
 
 	grapheme(column: number): string {
-		return decodeRowString(
+		const length = this.#backing.graphemeLengths[column];
+		if (length === undefined || length === 0) return '';
+		const cached = this.#graphemeCache[column];
+		if (cached !== undefined) return cached;
+		const grapheme = decodeRowString(
 			this.#backing,
 			this.#backing.graphemeOffsets,
 			this.#backing.graphemeLengths,
 			column,
 		);
+		this.#graphemeCache[column] = grapheme;
+		return grapheme;
 	}
 
 	hyperlink(column: number): string | null {
@@ -250,6 +257,7 @@ export class PackedTerminalRowView {
 
 	replace(backing: PackedTerminalRowBacking): void {
 		this.#backing = backing;
+		this.#graphemeCache.length = 0;
 		this.#dirty = true;
 	}
 }

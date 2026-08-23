@@ -63,6 +63,11 @@ export type TabStripSelectCallback = (
 	input: TabSelectionInput,
 ) => ActionResult<void> | Promise<ActionResult<void>>;
 
+export interface TabStripShortcutLabels {
+	readonly closeTab?: string | undefined;
+	readonly newTab?: string | undefined;
+}
+
 export interface TabStripOptions {
 	actionRuntime?: ActionRuntime | undefined;
 	parentActionScope?: ActionScope | undefined;
@@ -110,4 +115,6 @@ export interface TabStripOptions {
 	getCloseTabsConfirmation?: TabStripCloseConfirmation | undefined;
 	onSelectTab?: TabStripSelectCallback | undefined;
 	onNewTabButtonPressed?: () => void;
+	/** Current platform-formatted bindings supplied by the composing application. */
+	shortcutLabels?: TabStripShortcutLabels | undefined;
 }

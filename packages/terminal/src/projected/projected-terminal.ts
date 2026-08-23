@@ -823,6 +823,7 @@ export class ProjectedTerminal {
 	#inputRepairEpoch = 0;
 	#inputRepairTransaction: ProjectedInputRepairTransaction | undefined;
 	#inputState: TerminalInputState<MouseInput> = createTerminalInputState();
+	#inputSurfaceOffset: { readonly left: number; readonly top: number } | undefined;
 	#lastGeometry: ResizeGeometry | undefined;
 	#lastGeometryAttemptedAt = Number.NEGATIVE_INFINITY;
 	#listenerDisposers: Array<() => void> = [];
@@ -2494,6 +2495,7 @@ export class ProjectedTerminal {
 		this.#canvas = undefined;
 		this.#inputHelper = undefined;
 		this.#input = undefined;
+		this.#inputSurfaceOffset = undefined;
 		this.#accessibilityAnnouncement = undefined;
 		this.#accessibilityRoot = undefined;
 		this.#root = undefined;
@@ -4798,7 +4800,7 @@ export class ProjectedTerminal {
 		);
 	}
 
-	#updateInputPosition(): void {
+	#updateInputPosition(measureSurface = false): void {
 		const input = this.#input;
 		const root = this.#root;
 		const canvas = this.#canvas;
@@ -4813,8 +4815,15 @@ export class ProjectedTerminal {
 			input.style.lineHeight = '1px';
 			return;
 		}
-		const rootBounds = root.getBoundingClientRect();
-		const canvasBounds = canvas.getBoundingClientRect();
+		if (measureSurface || this.#inputSurfaceOffset === undefined) {
+			const rootBounds = root.getBoundingClientRect();
+			const canvasBounds = canvas.getBoundingClientRect();
+			this.#inputSurfaceOffset = {
+				left: canvasBounds.left - rootBounds.left,
+				top: canvasBounds.top - rootBounds.top,
+			};
+		}
+		const surfaceOffset = this.#inputSurfaceOffset;
 		const metrics = renderer.getMetrics();
 		const preeditLayout =
 			this.#preeditState === undefined
@@ -4827,15 +4836,15 @@ export class ProjectedTerminal {
 						metadata.rows,
 					);
 		const anchor = calculateInputAnchor({
-			canvasLeft: canvasBounds.left,
-			canvasTop: canvasBounds.top,
+			canvasLeft: surfaceOffset.left,
+			canvasTop: surfaceOffset.top,
 			cellHeight: metrics.height,
 			cellWidth: metrics.width,
 			columns: metadata.columns,
 			cursorColumn: preeditLayout?.caret.column ?? metadata.cursor.column,
 			cursorRow: preeditLayout?.caret.row ?? metadata.cursor.row,
-			elementLeft: rootBounds.left,
-			elementTop: rootBounds.top,
+			elementLeft: 0,
+			elementTop: 0,
 			preeditCaretPixelOffset: this.#preeditCaretPixelOffset,
 			preeditCellWidth: this.#preeditCellWidth,
 			rows: metadata.rows,
@@ -6200,7 +6209,7 @@ export class ProjectedTerminal {
 		this.#invalidateLinkCache();
 		this.#renderer?.syncSurfacePadding();
 		this.#syncHistoryScrollbarPresentation();
-		this.#updateInputPosition();
+		this.#updateInputPosition(true);
 		this.#sendResizeIfChanged();
 	}
 
@@ -6219,7 +6228,7 @@ export class ProjectedTerminal {
 		this.#syncDevicePixelRatio();
 		this.#renderer?.syncSurfacePadding();
 		this.#syncHistoryScrollbarPresentation();
-		this.#updateInputPosition();
+		this.#updateInputPosition(true);
 		this.#sendResizeIfChanged();
 	};
 
@@ -6237,7 +6246,7 @@ export class ProjectedTerminal {
 		this.#invalidateLinkCache();
 		this.#devicePixelRatio = Number.isFinite(ratio) && ratio > 0 ? ratio : 1;
 		this.#watchDevicePixelRatio(view);
-		this.#updateInputPosition();
+		this.#updateInputPosition(true);
 		this.#sendResizeIfChanged();
 	}
 
@@ -6280,6 +6289,7 @@ export class ProjectedTerminal {
 			rendererError = error;
 		}
 		this.#applyInputPresentation(input, prepared.configuration);
+		this.#inputSurfaceOffset = undefined;
 		this.#refreshPreeditGeometry();
 		this.#invalidateLinkCache();
 		this.#finishHistoryScrollbarGesture(true);

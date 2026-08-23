@@ -1086,6 +1086,30 @@
 			]
 		},
 		{
+			"id": "terminal-renderer-initialization",
+			"owner": "@orchbee/terminal",
+			"workspace": "packages/terminal",
+			"module": "packages/terminal/formal/tla/TerminalRendererInitialization.tla",
+			"config": "packages/terminal/formal/tla/TerminalRendererInitialization.cfg",
+			"claims": ["packages/terminal/formal/README.md", "packages/terminal/README.md"],
+			"triggers": [
+				"packages/terminal/src/rendering/**",
+				"packages/terminal/src/projected/projected-terminal.ts"
+			],
+			"requiredCoverage": [
+				"Start",
+				"AdapterCompletes",
+				"DeviceCompletes",
+				"PipelineCompletes",
+				"ValidationCompletes",
+				"PublishWebGPU",
+				"InitializationFails",
+				"Freeze",
+				"CancelRetired",
+				"Dispose"
+			]
+		},
+		{
 			"id": "terminal-row-flight-coordination",
 			"owner": "@orchbee/terminal",
 			"workspace": "packages/terminal",

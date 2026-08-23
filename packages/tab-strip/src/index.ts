@@ -28,6 +28,7 @@ export {
 	type TabStripNewTabRequest,
 	type TabStripProps,
 	type TabStripSelectCallback,
+	type TabStripShortcutLabels,
 	CrossWindowDragState,
 	CrossWindowTabDragRuntime,
 	DomTabDragRegistry,

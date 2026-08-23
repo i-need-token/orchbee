@@ -349,6 +349,10 @@ animation, resize, search, and in-flight side effects while retaining the last p
 accessible row list. Frozen instances reject further frame and command work. A later `dispose()`
 releases the retained renderer resources and DOM after the application has painted a replacement.
 
+WebGPU initialization and recovery fence every asynchronous completion against that lifecycle:
+retired work destroys its uncommitted device and resources and cannot configure a context, activate
+Canvas fallback, or publish renderer health.
+
 `notifyBrokerFailure` preserves the broker's typed code, semantic operation, retryability, optional
 Host correlation ID, and optional client request sequence on `onError`. It also applies the owned
 consequence: resize rejection re-admits unchanged geometry, history rejection completes or repairs
@@ -528,6 +532,24 @@ storage. Per-cell foreground/background resolution also reuses one renderer-owne
 projection while callers copy only values that must outlive the current cell. These rules bound the
 two full-viewport allocation hot paths by peak prepared viewport content; they do not define a
 GPU-driver, browser, or whole-process RSS ceiling.
+
+Dirty glyph-atlas rectangles transfer directly from the Canvas atlas into the WebGPU texture, so
+incremental uploads do not materialize an intermediate CPU pixel array. Frame telemetry maintains
+atlas occupancy when glyphs are admitted or reset instead of rescanning the glyph map. The hidden
+IME textarea reuses the Canvas-to-surface offset between geometry changes and remeasures it after
+resize, device-pixel-ratio, or presentation-configuration changes.
+
+WebGPU bind groups for the uniform and atlas resources persist until their owning device or atlas
+is recreated instead of being rebuilt for every submitted frame. A packed row view also caches
+decoded non-empty graphemes for the lifetime of its current backing, allowing accessibility and
+rendering to share one UTF-8 decode; replacing the row backing clears that cache. The cache remains
+bounded by the cells in the currently retained grid.
+
+WebGPU shaping runs are split at a terminal-column capacity derived from the device texture limit,
+device-pixel ratio, cell advance, atlas padding, and an ink-overhang reserve. Normal runs retain
+their complete shaping boundaries; a row that exceeds one atlas entry is emitted as ordered bounded
+runs so the device limit cannot silently remove valid projected text. Canvas shaping remains
+unbounded by WebGPU texture capacity.
 
 Font measurement samples the selected browser face at a large CSS size to recover its unrounded
 advance, ascent, descent, and cap-height ratios. Grid width and height retain stable CSS geometry,

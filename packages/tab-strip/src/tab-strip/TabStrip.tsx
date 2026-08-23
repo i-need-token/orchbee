@@ -13,6 +13,7 @@ import type {
 	TabStripNewTabRequest,
 	TabStripOptions,
 	TabStripSelectCallback,
+	TabStripShortcutLabels,
 } from './types/tab-strip-options';
 
 export interface TabStripProps extends TabStripOptions {
@@ -28,6 +29,7 @@ export type {
 	TabStripCloseRequest,
 	TabStripNewTabRequest,
 	TabStripSelectCallback,
+	TabStripShortcutLabels,
 	TabStripMessages,
 };
 

@@ -21,7 +21,7 @@ import {
 	type TerminalFrame,
 	type TerminalGraphicsPlacement,
 } from '@orchbee/terminal-protocol';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { PackedTerminalStore, ProjectedStorePhase } from '../packed-terminal-store';
 
@@ -438,6 +438,30 @@ describe('PackedTerminalStore', () => {
 		expect(second?.grapheme(0)).toBe('b');
 		expect(first?.dirty).toBe(true);
 		expect(second?.dirty).toBe(false);
+	});
+
+	it('decodes a row grapheme once per backing and invalidates the cache on replacement', () => {
+		const store = new PackedTerminalStore(hostEpoch, attachmentId);
+		store.apply(bytes(frame('snapshot', 1n, 1n, ['a', 'b'])));
+		const row = store.rows[0];
+		if (row === undefined) throw new Error('Missing packed row fixture');
+		const decode = vi.spyOn(TextDecoder.prototype, 'decode');
+		decode.mockClear();
+
+		expect(row.grapheme(0)).toBe('a');
+		expect(row.grapheme(0)).toBe('a');
+		expect(decode).toHaveBeenCalledOnce();
+		decode.mockClear();
+		expect(row.grapheme(1)).toBe('');
+		expect(row.grapheme(1)).toBe('');
+		expect(decode).not.toHaveBeenCalled();
+
+		store.apply(bytes(frame('delta', 2n, 2n, ['x', ''], 1n, [0])));
+		decode.mockClear();
+		expect(row.grapheme(0)).toBe('x');
+		expect(row.grapheme(0)).toBe('x');
+		expect(decode).toHaveBeenCalledOnce();
+		decode.mockRestore();
 	});
 
 	it('retains only the bounded current grid across a long delta stream', () => {

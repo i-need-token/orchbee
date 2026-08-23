@@ -146,6 +146,7 @@ export function useTabStrip(
 		onSelectTab,
 		onNewTabButtonPressed,
 		parentActionScope,
+		shortcutLabels,
 	}: TabStripOptions,
 	messages: TabStripMessages = DEFAULT_TAB_STRIP_MESSAGES,
 ): TabStripViewModel {
@@ -2411,6 +2412,7 @@ export function useTabStrip(
 		onTabKeyboardFocusChanged,
 		onMoveTabsToNewWindow,
 		onMoveGroupToNewWindow,
+		shortcutLabels,
 		ariaLabel: ariaLabel ?? messages.tabStripLabel,
 		snapshot,
 		verticalTabCountTransitionSuppressed: tabCountChanged || verticalTabCountTransitionSuppressed,

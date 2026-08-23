@@ -2,6 +2,20 @@
 
 本目录负责 `@orchbee/terminal` 中有关并发、独立排序工作和客户端输入修复的有界形式化证据。这些模型只抽象客户端拥有的投影终端状态；Terminal Host 及其 PTY/Ghostty 权威不在本目录范围内。
 
+## 渲染器初始化退役
+
+`tla/TerminalRendererInitialization.tla` 将首次 WebGPU 建立和恢复建模为依次进行的适配器、设备、管线、验证、准备与后端发布阶段。外部 Promise 挂起时，`freeze()` 与 `dispose()` 可以独立发生。每个完成栅栏要么推进仍存活的初始化，要么取消初始化且不发布 WebGPU 或 Canvas 后备所有权。
+
+| 渲染器声明                       | 模型属性                                                       | TypeScript 细化                                                                 |
+| -------------------------------- | -------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| 已退役的初始化不能发布 WebGPU    | `PublicationRequiresLive`                                      | `WebGPURenderer.initializeGPU` 在每次 await 后及获取/配置上下文前检查退役状态。 |
+| 已退役的失败不能激活 Canvas 后备 | `FallbackRequiresLive`                                         | `activateFallback` 拒绝已冻结或已处置的渲染器，包括生命周期退役后才完成的失败。 |
+| 已取消初始化不保留后端           | `CancelledOwnsNothing`、`OwnershipMatchesPhase`                | 退役栅栏释放部分创建的 GPU 资源、清除当前所有权并销毁取得的设备。               |
+| 处置后不保留渲染器后端所有权     | `DisposedOwnsNothing`、`BackendMatchesPublication`             | `dispose()` 释放 GPU 资源、销毁当前设备并清除 WebGPU 与 Canvas 上下文引用。     |
+| 冻结只保留已经发布的表面         | `FreezePreservesPresentedBackend`、`BackendMatchesPublication` | 已完成的渲染器保留最后绘制的画布；飞行中的初始化在冻结后只能取消。              |
+
+模型把浏览器和 GPU Promise 的完成视为独立排序的环境动作。它只证明上述有界安全不变量；不声称适配器、设备或驱动操作最终完成，不声称物理 GPU 内存被同步回收，也不声称所有浏览器实现相同的上下文保留行为。
+
 ## 运行时呈现配置
 
 `tla/TerminalPresentationConfiguration.tla` 对两个彼此独立完成的呈现配置请求建模。字体准备与提交资格是分离的状态：请求被取代或对象被处置时会撤销资格，但不会假定已经启动的异步工作随即停止。该过时工作以后仍可能完成或失败，但其操作只能得到已取消的最终结果，无法发布。只有最新、具备资格且已就绪的请求才能在一次提交中发布全部呈现字段。

@@ -248,6 +248,143 @@ describe('WebGPURenderer recovery retirement', () => {
 		expect(renderer.setDevicePixelRatio(2)).toBe(false);
 		renderer.dispose();
 	});
+
+	it('does not activate a backend after disposal while requesting a device', async () => {
+		vi.stubGlobal('window', { devicePixelRatio: 1 });
+		vi.stubGlobal('document', { createElement: () => createCanvas() });
+		vi.stubGlobal('GPUTextureUsage', { TEXTURE_BINDING: 1, COPY_DST: 2, RENDER_ATTACHMENT: 4 });
+		vi.stubGlobal('GPUBufferUsage', { UNIFORM: 1, COPY_DST: 2, VERTEX: 4 });
+		const rendering = createSubmittingDevice();
+		let resolveDevice: ((device: GPUDevice) => void) | undefined;
+		const requestDevice = vi.fn<() => Promise<GPUDevice>>(
+			() =>
+				new Promise<GPUDevice>((resolve) => {
+					resolveDevice = resolve;
+				}),
+		);
+		vi.stubGlobal('navigator', {
+			gpu: {
+				requestAdapter: async () => ({ requestDevice }) as unknown as GPUAdapter,
+				getPreferredCanvasFormat: () => 'bgra8unorm',
+			},
+		});
+		const context = {
+			configure: vi.fn<GPUCanvasContext['configure']>(),
+			getCurrentTexture: () => ({ createView: () => ({}) }),
+		} as unknown as GPUCanvasContext;
+		const baseCanvas = createCanvas();
+		const fallbackContext = baseCanvas.getContext.bind(baseCanvas);
+		const getContext = vi.fn<(kind: string, options?: unknown) => unknown>((kind, options) =>
+			kind === 'webgpu' ? context : fallbackContext(kind, options),
+		);
+		const canvas = { ...baseCanvas, getContext } as unknown as HTMLCanvasElement;
+		const renderer = new WebGPURenderer(canvas);
+
+		const initialization = renderer.initGPU();
+		await vi.waitFor(() => expect(requestDevice).toHaveBeenCalledOnce());
+		renderer.dispose();
+		resolveDevice?.(rendering.device);
+
+		await expect(initialization).resolves.toBe(false);
+		expect(rendering.destroy).toHaveBeenCalledOnce();
+		expect(getContext).not.toHaveBeenCalled();
+		expect(context.configure).not.toHaveBeenCalled();
+	});
+
+	it('does not publish resources after freezing during pipeline validation', async () => {
+		vi.stubGlobal('window', { devicePixelRatio: 1 });
+		vi.stubGlobal('document', { createElement: () => createCanvas() });
+		vi.stubGlobal('GPUTextureUsage', { TEXTURE_BINDING: 1, COPY_DST: 2, RENDER_ATTACHMENT: 4 });
+		vi.stubGlobal('GPUBufferUsage', { UNIFORM: 1, COPY_DST: 2, VERTEX: 4 });
+		let resolveValidation: ((error: GPUError | null) => void) | undefined;
+		const popErrorScope = vi.fn<GPUDevice['popErrorScope']>(
+			() =>
+				new Promise<GPUError | null>((resolve) => {
+					resolveValidation = resolve;
+				}),
+		);
+		const rendering = createSubmittingDevice({ popErrorScope });
+		vi.stubGlobal('navigator', {
+			gpu: {
+				requestAdapter: async () =>
+					({ requestDevice: async () => rendering.device }) as unknown as GPUAdapter,
+				getPreferredCanvasFormat: () => 'bgra8unorm',
+			},
+		});
+		const context = {
+			configure: vi.fn<GPUCanvasContext['configure']>(),
+			getCurrentTexture: () => ({ createView: () => ({}) }),
+		} as unknown as GPUCanvasContext;
+		const baseCanvas = createCanvas();
+		const fallbackContext = baseCanvas.getContext.bind(baseCanvas);
+		const getContext = vi.fn<(kind: string, options?: unknown) => unknown>((kind, options) =>
+			kind === 'webgpu' ? context : fallbackContext(kind, options),
+		);
+		const createBuffer = vi.spyOn(rendering.device, 'createBuffer');
+		const createTexture = vi.spyOn(rendering.device, 'createTexture');
+		const renderer = new WebGPURenderer({
+			...baseCanvas,
+			getContext,
+		} as unknown as HTMLCanvasElement);
+
+		const initialization = renderer.initGPU();
+		await vi.waitFor(() => expect(popErrorScope).toHaveBeenCalledOnce());
+		renderer.freeze();
+		resolveValidation?.(null);
+
+		await expect(initialization).resolves.toBe(false);
+		expect(rendering.destroy).toHaveBeenCalledOnce();
+		expect(createTexture).not.toHaveBeenCalled();
+		expect(createBuffer).not.toHaveBeenCalled();
+		expect(rendering.createBindGroup).not.toHaveBeenCalled();
+		expect(getContext).not.toHaveBeenCalled();
+		expect(context.configure).not.toHaveBeenCalled();
+	});
+
+	it('releases resources when pipeline validation rejects after freezing', async () => {
+		vi.stubGlobal('window', { devicePixelRatio: 1 });
+		vi.stubGlobal('document', { createElement: () => createCanvas() });
+		vi.stubGlobal('GPUTextureUsage', { TEXTURE_BINDING: 1, COPY_DST: 2, RENDER_ATTACHMENT: 4 });
+		vi.stubGlobal('GPUBufferUsage', { UNIFORM: 1, COPY_DST: 2, VERTEX: 4 });
+		let rejectValidation: ((error: Error) => void) | undefined;
+		const popErrorScope = vi.fn<GPUDevice['popErrorScope']>(
+			() =>
+				new Promise<GPUError | null>((_resolve, reject) => {
+					rejectValidation = reject;
+				}),
+		);
+		const rendering = createSubmittingDevice({ popErrorScope });
+		vi.stubGlobal('navigator', {
+			gpu: {
+				requestAdapter: async () =>
+					({ requestDevice: async () => rendering.device }) as unknown as GPUAdapter,
+				getPreferredCanvasFormat: () => 'bgra8unorm',
+			},
+		});
+		const context = {
+			configure: vi.fn<GPUCanvasContext['configure']>(),
+			getCurrentTexture: () => ({ createView: () => ({}) }),
+		} as unknown as GPUCanvasContext;
+		const baseCanvas = createCanvas();
+		const fallbackContext = baseCanvas.getContext.bind(baseCanvas);
+		const getContext = vi.fn<(kind: string, options?: unknown) => unknown>((kind, options) =>
+			kind === 'webgpu' ? context : fallbackContext(kind, options),
+		);
+		const renderer = new WebGPURenderer({
+			...baseCanvas,
+			getContext,
+		} as unknown as HTMLCanvasElement);
+
+		const initialization = renderer.initGPU();
+		await vi.waitFor(() => expect(popErrorScope).toHaveBeenCalledOnce());
+		renderer.freeze();
+		rejectValidation?.(new Error('simulated validation rejection'));
+
+		await expect(initialization).resolves.toBe(false);
+		expect(rendering.destroy).toHaveBeenCalledOnce();
+		expect(getContext).not.toHaveBeenCalled();
+		expect(context.configure).not.toHaveBeenCalled();
+	});
 });
 
 describe('projected terminal renderer', () => {
@@ -1838,6 +1975,7 @@ describe('projected terminal renderer', () => {
 		const renderer = new WebGPURenderer(createWebGPUCanvas(context));
 		await renderer.initGPU();
 		const source = createPackedSource(['sustained output']);
+		expect(rendering.createBindGroup).toHaveBeenCalledTimes(2);
 
 		for (let frame = 0; frame < 8; frame++) renderer.renderPacked(source, true);
 
@@ -1849,6 +1987,7 @@ describe('projected terminal renderer', () => {
 		});
 		expect(textUploads).toHaveLength(8);
 		expect(new Set(textUploads.map((upload) => upload.buffer))).toHaveLength(1);
+		expect(rendering.createBindGroup).toHaveBeenCalledTimes(2);
 		renderer.dispose();
 	});
 
@@ -2078,6 +2217,106 @@ describe('projected terminal renderer', () => {
 
 		renderer.renderPacked(createPackedSource(['CD']));
 		expect(resetAtlas).toHaveBeenCalledOnce();
+		renderer.dispose();
+	});
+
+	it('splits an atlas-limited shaping run without dropping projected text', async () => {
+		vi.stubGlobal('window', { devicePixelRatio: 1 });
+		const fillText = vi.fn<CanvasRenderingContext2D['fillText']>();
+		const textMetrics = (text: string): Partial<TextMetrics> => ({
+			actualBoundingBoxAscent: 8,
+			actualBoundingBoxDescent: 2,
+			actualBoundingBoxLeft: 0,
+			actualBoundingBoxRight: text.length * 8,
+			fontBoundingBoxAscent: 8,
+			fontBoundingBoxDescent: 2,
+			width: text.length * 8,
+		});
+		vi.stubGlobal('document', {
+			createElement: () => createCanvas(undefined, textMetrics, fillText),
+		});
+		vi.stubGlobal('GPUTextureUsage', { TEXTURE_BINDING: 1, COPY_DST: 2, RENDER_ATTACHMENT: 4 });
+		vi.stubGlobal('GPUBufferUsage', { UNIFORM: 1, COPY_DST: 2, VERTEX: 4 });
+		const rendering = createSubmittingDevice();
+		vi.stubGlobal('navigator', {
+			gpu: {
+				requestAdapter: async () =>
+					({ requestDevice: async () => rendering.device }) as unknown as GPUAdapter,
+				getPreferredCanvasFormat: () => 'bgra8unorm',
+			},
+		});
+		const context = {
+			configure: () => {},
+			getCurrentTexture: () => ({ createView: () => ({}) }),
+		} as unknown as GPUCanvasContext;
+		const renderer = new WebGPURenderer(createWebGPUCanvas(context));
+		await renderer.initGPU();
+		const line = Array.from({ length: 4_096 }, (_, index) =>
+			String.fromCodePoint(65 + (Math.floor(index / 128) % 26)),
+		).join('');
+
+		renderer.renderPacked(createPackedSource([line]));
+
+		const shapingRasters = fillText.mock.calls.map(([text]) => text);
+		expect(shapingRasters.length).toBeGreaterThan(1);
+		expect(shapingRasters.join('')).toBe(line);
+		const textUpload = rendering.writeBuffer.mock.calls.find((call) => {
+			const value = call[2];
+			return value instanceof Float32Array && value.length > 0 && value.length % 13 === 0;
+		})?.[2];
+		expect(textUpload).toBeInstanceOf(Float32Array);
+		expect((textUpload as Float32Array).length / 13).toBe(shapingRasters.length);
+		renderer.dispose();
+	});
+
+	it('uploads a dirty atlas rectangle without synchronously reading Canvas pixels', async () => {
+		vi.stubGlobal('window', { devicePixelRatio: 1 });
+		const textMetrics = (text: string): Partial<TextMetrics> => ({
+			actualBoundingBoxAscent: 8,
+			actualBoundingBoxDescent: 2,
+			actualBoundingBoxLeft: 0,
+			actualBoundingBoxRight: text.length * 8,
+			fontBoundingBoxAscent: 8,
+			fontBoundingBoxDescent: 2,
+			width: text.length * 8,
+		});
+		const getImageData = vi.fn<CanvasRenderingContext2D['getImageData']>(
+			(_x, _y, width, height) => ({ data: new Uint8ClampedArray(width * height * 4) }) as ImageData,
+		);
+		vi.stubGlobal('document', {
+			createElement: () => createCanvas(getImageData, textMetrics),
+		});
+		vi.stubGlobal('GPUTextureUsage', { TEXTURE_BINDING: 1, COPY_DST: 2, RENDER_ATTACHMENT: 4 });
+		vi.stubGlobal('GPUBufferUsage', { UNIFORM: 1, COPY_DST: 2, VERTEX: 4 });
+		const rendering = createSubmittingDevice();
+		vi.stubGlobal('navigator', {
+			gpu: {
+				requestAdapter: async () =>
+					({ requestDevice: async () => rendering.device }) as unknown as GPUAdapter,
+				getPreferredCanvasFormat: () => 'bgra8unorm',
+			},
+		});
+		const context = {
+			configure: () => {},
+			getCurrentTexture: () => ({ createView: () => ({}) }),
+		} as unknown as GPUCanvasContext;
+		const renderer = new WebGPURenderer(createWebGPUCanvas(context));
+		await renderer.initGPU();
+
+		renderer.renderPacked(createPackedSource(['AB']));
+		getImageData.mockClear();
+		rendering.copyExternalImageToTexture.mockClear();
+		rendering.writeTexture.mockClear();
+		renderer.renderPacked(createPackedSource(['CD']));
+
+		expect(getImageData).not.toHaveBeenCalled();
+		expect(rendering.writeTexture).not.toHaveBeenCalled();
+		expect(rendering.copyExternalImageToTexture).toHaveBeenCalledOnce();
+		const copy = rendering.copyExternalImageToTexture.mock.calls[0];
+		if (copy === undefined) throw new Error('Missing dirty atlas copy');
+		expect(copy[0].origin).toEqual({ x: 20, y: 0 });
+		expect(copy[1].origin).toEqual({ x: 20, y: 0 });
+		expect(copy[2]).toEqual({ height: 12, width: 18 });
 		renderer.dispose();
 	});
 
@@ -2312,6 +2551,42 @@ describe('projected terminal renderer', () => {
 		expect(health.mock.calls.at(-1)?.[0]).toEqual({ state: 'ready', backend: 'webgpu' });
 		renderer.dispose();
 	});
+
+	it('destroys the retained device when WebGPU recovery fails', async () => {
+		vi.stubGlobal('window', { devicePixelRatio: 1 });
+		vi.stubGlobal('document', { createElement: () => createCanvas() });
+		vi.stubGlobal('GPUTextureUsage', { TEXTURE_BINDING: 1, COPY_DST: 2, RENDER_ATTACHMENT: 4 });
+		vi.stubGlobal('GPUBufferUsage', { UNIFORM: 1, COPY_DST: 2, VERTEX: 4 });
+		const first = createControllableDevice();
+		const requestDevice = vi
+			.fn<() => Promise<GPUDevice>>()
+			.mockResolvedValueOnce(first.device)
+			.mockRejectedValueOnce(new Error('simulated recovery failure'));
+		vi.stubGlobal('navigator', {
+			gpu: {
+				requestAdapter: async () => ({ requestDevice }) as unknown as GPUAdapter,
+				getPreferredCanvasFormat: () => 'bgra8unorm',
+			},
+		});
+		const context = {
+			configure: vi.fn<GPUCanvasContext['configure']>(),
+		} as unknown as GPUCanvasContext;
+		const renderer = new WebGPURenderer(createWebGPUCanvas(context));
+		const health = vi.fn<(event: { readonly state: string }) => void>();
+		renderer.setHealthChangeCallback(health);
+		await renderer.initGPU();
+
+		first.lose({ reason: 'unknown', message: 'simulated device loss' });
+		await vi.waitFor(() =>
+			expect(health.mock.calls.at(-1)?.[0]).toEqual({
+				state: 'recovery-failed',
+				backend: 'webgpu',
+				reason: 'simulated recovery failure',
+			}),
+		);
+		expect(first.destroy).toHaveBeenCalledOnce();
+		renderer.dispose();
+	});
 });
 
 function createWebGPUCanvas(context: GPUCanvasContext): HTMLCanvasElement {
@@ -2326,14 +2601,17 @@ function createWebGPUCanvas(context: GPUCanvasContext): HTMLCanvasElement {
 
 function createControllableDevice(): {
 	readonly device: GPUDevice;
+	readonly destroy: ReturnType<typeof vi.fn<GPUDevice['destroy']>>;
 	lose(info: { readonly reason: GPUDeviceLostReason; readonly message: string }): void;
 } {
 	let resolveLost: ((info: GPUDeviceLostInfo) => void) | undefined;
 	const lost = new Promise<GPUDeviceLostInfo>((resolve) => {
 		resolveLost = resolve;
 	});
-	const destroy = (): void =>
+	const destroy = vi.fn<GPUDevice['destroy']>(() => {
 		resolveLost?.({ reason: 'destroyed', message: 'destroyed' } as GPUDeviceLostInfo);
+		return undefined;
+	});
 	const device = {
 		lost,
 		destroy,
@@ -2341,6 +2619,7 @@ function createControllableDevice(): {
 		popErrorScope: async () => null,
 		createShaderModule: () => ({}),
 		createRenderPipeline: () => ({ getBindGroupLayout: () => ({}) }),
+		createBindGroup: () => ({}),
 		createTexture: () => ({ destroy: () => {}, createView: () => ({}) }),
 		createSampler: () => ({}),
 		createBuffer: () => ({ destroy: () => {} }),
@@ -2353,20 +2632,40 @@ function createControllableDevice(): {
 	} as unknown as GPUDevice;
 	return {
 		device,
+		destroy,
 		lose: (info) => resolveLost?.(info as GPUDeviceLostInfo),
 	};
 }
 
-function createSubmittingDevice(): {
+function createSubmittingDevice(
+	options: { readonly popErrorScope?: GPUDevice['popErrorScope'] } = {},
+): {
 	readonly beginRenderPass: ReturnType<
 		typeof vi.fn<(descriptor: GPURenderPassDescriptor) => GPURenderPassEncoder>
 	>;
+	readonly copyExternalImageToTexture: ReturnType<
+		typeof vi.fn<GPUQueue['copyExternalImageToTexture']>
+	>;
+	readonly createBindGroup: ReturnType<
+		typeof vi.fn<(descriptor: GPUBindGroupDescriptor) => GPUBindGroup>
+	>;
 	readonly device: GPUDevice;
+	readonly destroy: ReturnType<typeof vi.fn<GPUDevice['destroy']>>;
 	readonly submit: ReturnType<typeof vi.fn<GPUQueue['submit']>>;
 	readonly writeBuffer: ReturnType<typeof vi.fn<GPUQueue['writeBuffer']>>;
+	readonly writeTexture: ReturnType<typeof vi.fn<GPUQueue['writeTexture']>>;
 } {
 	const submit = vi.fn<GPUQueue['submit']>();
 	const writeBuffer = vi.fn<GPUQueue['writeBuffer']>();
+	const writeTexture = vi.fn<GPUQueue['writeTexture']>();
+	const copyExternalImageToTexture = vi.fn<GPUQueue['copyExternalImageToTexture']>();
+	const createBindGroup = vi.fn<(descriptor: GPUBindGroupDescriptor) => GPUBindGroup>(
+		() => ({}) as GPUBindGroup,
+	);
+	const destroy = vi.fn<GPUDevice['destroy']>();
+	const popErrorScope = vi.fn<GPUDevice['popErrorScope']>(
+		options.popErrorScope ?? (async () => null),
+	);
 	const renderPass = {
 		draw: () => {},
 		end: () => {},
@@ -2378,13 +2677,13 @@ function createSubmittingDevice(): {
 		() => renderPass as unknown as GPURenderPassEncoder,
 	);
 	const queue = {
-		copyExternalImageToTexture: () => {},
+		copyExternalImageToTexture,
 		submit,
 		writeBuffer,
-		writeTexture: () => {},
+		writeTexture,
 	};
 	const device = {
-		createBindGroup: () => ({}),
+		createBindGroup,
 		createBuffer: () => ({ destroy: () => {} }),
 		createCommandEncoder: () => ({
 			beginRenderPass,
@@ -2394,12 +2693,21 @@ function createSubmittingDevice(): {
 		createSampler: () => ({}),
 		createShaderModule: () => ({}),
 		createTexture: () => ({ createView: () => ({}), destroy: () => {} }),
-		destroy: () => {},
+		destroy,
 		limits: { maxTextureDimension2D: 8_192 },
 		lost: new Promise<GPUDeviceLostInfo>(() => undefined),
-		popErrorScope: async () => null,
+		popErrorScope,
 		pushErrorScope: () => {},
 		queue,
 	} as unknown as GPUDevice;
-	return { beginRenderPass, device, submit, writeBuffer };
+	return {
+		beginRenderPass,
+		copyExternalImageToTexture,
+		createBindGroup,
+		device,
+		destroy,
+		submit,
+		writeBuffer,
+		writeTexture,
+	};
 }
