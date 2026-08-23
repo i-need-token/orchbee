@@ -224,7 +224,10 @@
 			"workspace": "apps/desktop",
 			"module": "apps/desktop/formal/tla/DesktopTerminalLifecycleAdapter.tla",
 			"config": "apps/desktop/formal/tla/DesktopTerminalLifecycleAdapter.cfg",
-			"claims": ["apps/desktop/README.md"],
+			"claims": [
+				"apps/desktop/README.md",
+				"proposals/terminal/projected-terminal-experience-compatibility.md"
+			],
 			"triggers": ["apps/desktop/src/**", "packages/workbench/src/**"],
 			"requiredCoverage": [
 				"FreshProvision",
@@ -278,14 +281,27 @@
 			"config": "apps/desktop/formal/tla/DesktopTerminalResizeLease.cfg",
 			"claims": ["apps/desktop/README.md"],
 			"triggers": ["apps/desktop/src/**"],
+			"timeoutMilliseconds": 900000,
 			"requiredCoverage": [
 				"BeginOpen",
 				"CommitOpen",
 				"BeginRelease",
 				"CommitRelease",
+				"RecordActivity",
+				"QuiesceActivity",
+				"BeginClaim",
+				"CommitClaim",
+				"ClaimCurrentOwner",
+				"RejectClaimOverflow",
+				"RejectIneligibleActivity",
+				"RevokeInput",
+				"StopTerminal",
+				"RejectInFlightClaim",
 				"AttemptResize",
 				"AdvanceRuntimeDuringResize",
 				"SynchronizeResizeObservation",
+				"ObserveCanonical",
+				"SubmitGrantedGeometry",
 				"MeasureBrokerResize",
 				"SettleBrokerResize",
 				"QuiesceBrokerResize",
@@ -296,6 +312,24 @@
 					"name": "lease",
 					"constants": {
 						"Scenario": "lease"
+					}
+				},
+				{
+					"name": "handoff",
+					"constants": {
+						"Scenario": "handoff"
+					}
+				},
+				{
+					"name": "eligibility",
+					"constants": {
+						"Scenario": "eligibility"
+					}
+				},
+				{
+					"name": "grant-convergence",
+					"constants": {
+						"Scenario": "grant-convergence"
 					}
 				},
 				{

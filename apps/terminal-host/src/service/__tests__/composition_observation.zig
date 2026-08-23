@@ -56,6 +56,7 @@ pub const AttachmentObservation = struct {
     capability_revision: u64,
     projection: core_module.ProjectionState,
     requested_resize_lease: bool,
+    resize_claim_sequence: u64,
     resize_lease: bool,
     runtime_has_focus_claim: bool,
     runtime_has_history_state: bool,
@@ -71,6 +72,7 @@ pub const Observation = struct {
     core_connection_count: usize,
     host_epoch: core_module.HostEpoch,
     inventory_generation: u64,
+    next_resize_claim_sequence: u64,
     retained_cleanup: host_runtime_aggregate.RetainedCleanupStatus,
     runtime_count: usize,
     service_phase: ServicePhase,
@@ -302,6 +304,7 @@ pub fn capture(
             .capability_revision = attachment.capability_revision,
             .projection = attachment.projection,
             .requested_resize_lease = attachment.requested_resize_lease,
+            .resize_claim_sequence = attachment.resize_claim_sequence,
             .resize_lease = attachment.resize_lease,
             .runtime_has_focus_claim = if (runtime) |engine|
                 terminal_runtime.testing.attachmentFocusClaim(engine, attachment.attachment_id)
@@ -327,6 +330,7 @@ pub fn capture(
         .core_connection_count = core.connectionCount(),
         .host_epoch = aggregate.hostEpoch(),
         .inventory_generation = aggregate.inventoryGeneration(),
+        .next_resize_claim_sequence = core_module.testing.nextResizeClaimSequence(core),
         .retained_cleanup = aggregate.retainedCleanupStatus(),
         .runtime_count = aggregate.runtimeCount(),
         .service_phase = if (host_service.testing.shuttingDownFn(service))

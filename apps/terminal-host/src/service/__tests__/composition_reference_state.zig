@@ -22,6 +22,7 @@ pub const RefinementError = error{
     InventoryGenerationMismatch,
     MissingAttachment,
     MissingTerminal,
+    ResizeClaimSequenceMismatch,
     ServicePhaseMismatch,
     TerminalCountMismatch,
     TerminalDefaultsMismatch,
@@ -70,6 +71,7 @@ pub const Attachment = struct {
     capability_revision: u64,
     demand: core_module.ProjectionDemand,
     request_resize_lease: bool,
+    resize_claim_sequence: u64,
     resize_lease: bool,
     terminal_id: core_module.TerminalId,
 };
@@ -83,6 +85,7 @@ pub const Reference = struct {
     host_epoch: core_module.HostEpoch,
     inventory_generation: u64,
     next_attachment_sequence: u64,
+    next_resize_claim_sequence: u64,
     service_phase: composition.ServicePhase,
     terminal_defaults: model.configuration.Configuration,
     terminals: std.ArrayList(Terminal) = .empty,
@@ -98,6 +101,7 @@ pub const Reference = struct {
             .host_epoch = observation.host_epoch,
             .inventory_generation = observation.inventory_generation,
             .next_attachment_sequence = 1,
+            .next_resize_claim_sequence = observation.next_resize_claim_sequence,
             .service_phase = observation.service_phase,
             .terminal_defaults = observation.terminal_defaults,
         };
@@ -199,7 +203,9 @@ pub const Reference = struct {
         for (self.attachments.items) |*attachment| {
             if (!attachment.terminal_id.eql(terminal_id) or !attachment.capabilities.resize) continue;
             if (successor == null or
-                attachment.admission_sequence < successor.?.admission_sequence)
+                attachment.resize_claim_sequence > successor.?.resize_claim_sequence or
+                (attachment.resize_claim_sequence == successor.?.resize_claim_sequence and
+                    attachment.admission_sequence < successor.?.admission_sequence))
             {
                 successor = attachment;
             }
@@ -272,6 +278,7 @@ fn attachmentFromObservation(observation: composition.AttachmentObservation) Att
         .capability_revision = observation.capability_revision,
         .demand = observation.projection.demand(),
         .request_resize_lease = observation.requested_resize_lease,
+        .resize_claim_sequence = observation.resize_claim_sequence,
         .resize_lease = observation.resize_lease,
         .terminal_id = observation.terminal_id,
     };

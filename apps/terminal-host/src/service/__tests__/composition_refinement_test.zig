@@ -197,10 +197,52 @@ test "semantic trace refines a native HostService composition" {
     } }, .unknown);
     try refinement.stepService(&service, &connection, .reconcile, .applied);
 
+    const third_attachment = testId(core_module.AttachmentId, 0xa1, 3);
+    const third_attach: semantic_trace.Attach = .{
+        .attachment_id = third_attachment,
+        .capabilities = .{ .input = true, .read = true, .resize = true },
+        .request_resize_lease = false,
+        .terminal_id = terminal_id,
+    };
+    _ = try service.runtime_aggregate.attach(
+        active.connection_id,
+        third_attachment,
+        terminal_id,
+        third_attach.capabilities,
+        third_attach.request_resize_lease,
+    );
+    try refinement.stepService(&service, &connection, .{ .attach = third_attach }, .applied);
+
+    const third_claim = try service.runtime_aggregate.claimResizeLease(
+        active.connection_id,
+        third_attachment,
+    );
+    try std.testing.expectEqual(core_module.TransitionOutcome.applied, third_claim.transition);
+    try refinement.stepService(
+        &service,
+        &connection,
+        .{ .claim_resize_lease = third_attachment },
+        .applied,
+    );
+    const first_claim = try service.runtime_aggregate.claimResizeLease(
+        active.connection_id,
+        first_attachment,
+    );
+    try std.testing.expectEqual(core_module.TransitionOutcome.applied, first_claim.transition);
+    try refinement.stepService(
+        &service,
+        &connection,
+        .{ .claim_resize_lease = first_attachment },
+        .applied,
+    );
+
     _ = try service.runtime_aggregate.detach(active.connection_id, first_attachment);
     try refinement.stepService(&service, &connection, .{ .detach = first_attachment }, .applied);
+    try std.testing.expect(service.runtime_aggregate.core().findAttachment(third_attachment).?.resize_lease);
     _ = try service.runtime_aggregate.detach(active.connection_id, second_attachment);
     try refinement.stepService(&service, &connection, .{ .detach = second_attachment }, .applied);
+    _ = try service.runtime_aggregate.detach(active.connection_id, third_attachment);
+    try refinement.stepService(&service, &connection, .{ .detach = third_attachment }, .applied);
 
     const first_connection_id = active.connection_id;
     service.disconnect(&connection);
@@ -240,9 +282,9 @@ test "semantic trace refines a native HostService composition" {
         .replayed,
     );
 
-    try std.testing.expectEqual(@as(usize, 18), refinement.trace.items().len);
-    try std.testing.expectEqualStrings("Create", refinement.trace.items()[17].action.name());
-    try std.testing.expectEqual(semantic_trace.Outcome.replayed, refinement.trace.items()[17].outcome);
+    try std.testing.expectEqual(@as(usize, 22), refinement.trace.items().len);
+    try std.testing.expectEqualStrings("Create", refinement.trace.items()[21].action.name());
+    try std.testing.expectEqual(semantic_trace.Outcome.replayed, refinement.trace.items()[21].outcome);
 }
 
 test "semantic trace vocabulary uses stable unique names" {
@@ -254,6 +296,10 @@ test "semantic trace vocabulary uses stable unique names" {
     }
     const poll: semantic_trace.Action = .poll;
     const reconcile: semantic_trace.Action = .reconcile;
+    const claim: semantic_trace.Action = .{
+        .claim_resize_lease = testId(core_module.AttachmentId, 0xa1, 1),
+    };
     try std.testing.expectEqualStrings("Poll", poll.name());
     try std.testing.expectEqualStrings("Reconcile", reconcile.name());
+    try std.testing.expectEqualStrings("ClaimResizeLease", claim.name());
 }

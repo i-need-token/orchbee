@@ -361,10 +361,14 @@ export class ProjectedTerminalBroker {
 			);
 		}
 		const current = this.#capabilities;
-		if (!current.capabilities.resize) {
+		if (
+			this.#latestTerminalOutcomeRevision !== undefined ||
+			!current.capabilities.input ||
+			!current.capabilities.resize
+		) {
 			throw new BrokerOperationError(
 				'resize-capability-unavailable',
-				'The projected attachment cannot claim resize ownership.',
+				'The projected attachment is not eligible to claim resize ownership.',
 			);
 		}
 		if (current.resizeLease) return;
@@ -603,7 +607,12 @@ export class ProjectedTerminalBroker {
 
 	#acceptRendererCommand(command: ProjectedTerminalCommand): void {
 		this.#commandsAccepted += 1;
-		if (this.#capabilities.capabilities.resize && isMeaningfulResizeActivity(command)) {
+		if (
+			this.#latestTerminalOutcomeRevision === undefined &&
+			this.#capabilities.capabilities.input &&
+			this.#capabilities.capabilities.resize &&
+			isMeaningfulResizeActivity(command)
+		) {
 			this.#onResizeActivity?.();
 		}
 	}

@@ -171,17 +171,29 @@ pub fn handleClaimResizeLease(
         self.context.hostEpoch(),
     );
     defer response.deinit();
-    var revocation_event = try host_response.prepare(
+    var revocation_event = host_response.prepare(
         outgoing,
         protocol.Limits.control_json_bytes,
         host_response.eventDelivery(self.context.hostEpoch()),
-    );
+    ) catch |err| switch (err) {
+        error.OutOfMemory => {
+            response.commitFailure(host_failure.fromCore(error.OutOfMemory));
+            return;
+        },
+        else => return err,
+    };
     defer revocation_event.deinit();
-    var grant_event = try host_response.prepare(
+    var grant_event = host_response.prepare(
         outgoing,
         protocol.Limits.control_json_bytes,
         host_response.eventDelivery(self.context.hostEpoch()),
-    );
+    ) catch |err| switch (err) {
+        error.OutOfMemory => {
+            response.commitFailure(host_failure.fromCore(error.OutOfMemory));
+            return;
+        },
+        else => return err,
+    };
     defer grant_event.deinit();
 
     const claimed = self.context.runtime_aggregate.claimResizeLease(

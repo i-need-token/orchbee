@@ -101,7 +101,10 @@ class DesktopTerminalProjectionError extends Error {
 interface ActiveLease {
 	activitySequence: bigint;
 	readonly claimResizeLease: () => Promise<void>;
+	committedInputEligible: boolean;
 	readonly dispose: () => Promise<void>;
+	inputEligible: boolean;
+	inputMutationSequence: number;
 	readonly metrics: ProjectedTerminalBrokerMetrics;
 	readonly performDispose: () => Promise<void>;
 	readonly setInputCapability: (input: boolean) => Promise<void>;
@@ -191,6 +194,7 @@ export class DesktopTerminalProjectionService {
 	#recordResizeActivity(presentationId: TerminalPresentationId, lease: ActiveLease): void {
 		if (
 			this.#disposed ||
+			!lease.inputEligible ||
 			!lease.resizeEligible ||
 			!this.#activeLeases.get(presentationId)?.has(lease)
 		) {
@@ -247,6 +251,10 @@ export class DesktopTerminalProjectionService {
 				this.#replaceRemovedDesiredOwner(presentationId, desired.lease);
 				continue;
 			}
+			if (!desired.lease.inputEligible || !desired.lease.resizeEligible) {
+				this.#replaceRemovedDesiredOwner(presentationId, desired.lease);
+				continue;
+			}
 			this.#resizeClaimAttempts.set(presentationId, desired.sequence);
 			if (desired.lease.ownsResize) return;
 			try {
@@ -269,6 +277,8 @@ export class DesktopTerminalProjectionService {
 		let fallback: ActiveLease | undefined;
 		for (const candidate of this.#activeLeases.get(presentationId) ?? []) {
 			if (
+				candidate !== removed &&
+				candidate.inputEligible &&
 				candidate.resizeEligible &&
 				candidate.activitySequence > 0n &&
 				(fallback === undefined || candidate.activitySequence > fallback.activitySequence)
@@ -470,15 +480,28 @@ export class DesktopTerminalProjectionService {
 			activeLease = {
 				activitySequence: 0n,
 				claimResizeLease: () => createdBroker.claimResizeLease(),
+				committedInputEligible: capabilities.capabilities.input,
 				dispose: () => this.#enqueueOperation(presentationId, performDispose),
+				inputEligible: capabilities.capabilities.input,
+				inputMutationSequence: 0,
 				get metrics() {
 					return createdBroker.metrics;
 				},
 				ownsResize: bootstrap.canResize,
 				performDispose,
 				resizeEligible: capabilities.capabilities.resize,
-				setInputCapability: (input) =>
-					this.#enqueueOperation(presentationId, async () => {
+				setInputCapability: (input) => {
+					const lease = activeLease;
+					if (lease === undefined) {
+						return Promise.reject(projectionError('terminal-projection-unavailable', true));
+					}
+					lease.inputMutationSequence += 1;
+					const mutationSequence = lease.inputMutationSequence;
+					if (!input) {
+						lease.inputEligible = false;
+						this.#replaceRemovedDesiredOwner(presentationId, lease);
+					}
+					return this.#enqueueOperation(presentationId, async () => {
 						if (
 							disposalCompleted ||
 							this.#isGenerationStale(presentationId, retirementGeneration, behavior.allowRetired)
@@ -491,8 +514,21 @@ export class DesktopTerminalProjectionService {
 							}
 							return;
 						}
-						await createdBroker.setInputCapability(input);
-					}),
+						try {
+							await createdBroker.setInputCapability(input);
+							lease.committedInputEligible = input;
+							if (lease.inputMutationSequence === mutationSequence) {
+								lease.inputEligible = input;
+								if (!input) this.#replaceRemovedDesiredOwner(presentationId, lease);
+							}
+						} catch (error: unknown) {
+							if (lease.inputMutationSequence === mutationSequence) {
+								lease.inputEligible = lease.committedInputEligible;
+							}
+							throw error;
+						}
+					});
+				},
 			};
 			const leases = this.#activeLeases.get(presentationId) ?? new Set<ActiveLease>();
 			leases.add(activeLease);

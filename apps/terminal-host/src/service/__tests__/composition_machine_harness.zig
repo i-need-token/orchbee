@@ -24,6 +24,7 @@ const Machine = struct {
     native_create: semantic_trace.Create,
     native_owner_id: core_module.AttachmentId,
     native_observer_id: core_module.AttachmentId,
+    native_third_id: core_module.AttachmentId,
     model_attachment_id: core_module.AttachmentId,
     model_creation_id: core_module.CreationId,
     model_terminal_id: core_module.TerminalId,
@@ -84,6 +85,7 @@ const Machine = struct {
             .native_create = create_action,
             .native_owner_id = harness.testId(core_module.AttachmentId, 0xb1, 1),
             .native_observer_id = harness.testId(core_module.AttachmentId, 0xb1, 2),
+            .native_third_id = harness.testId(core_module.AttachmentId, 0xb1, 3),
             .model_attachment_id = harness.testId(core_module.AttachmentId, 0xb2, 1),
             .model_creation_id = harness.testId(core_module.CreationId, 0xb2, 0),
             .model_terminal_id = harness.testId(core_module.TerminalId, 0xb2, 0),
@@ -102,7 +104,11 @@ const Machine = struct {
         switch (command) {
             .native_attach_owner => try self.attachNative(self.nativeOwner()),
             .native_attach_observer => try self.attachNative(self.nativeObserver()),
+            .native_attach_third => try self.attachNative(self.nativeThird()),
             .native_attach_conflict => try self.attachNative(self.nativeConflict()),
+            .native_claim_owner => try self.claimNativeResizeLease(self.native_owner_id),
+            .native_claim_observer => try self.claimNativeResizeLease(self.native_observer_id),
+            .native_claim_third => try self.claimNativeResizeLease(self.native_third_id),
             .native_demand_active => try self.setNativeDemand(.active),
             .native_demand_paused => try self.setNativeDemand(.paused),
             .native_input => try self.acceptNativeInput(),
@@ -128,6 +134,7 @@ const Machine = struct {
             .native_reset => try self.controlNative(.reset),
             .native_detach_owner => try self.detach(self.native_owner_id),
             .native_detach_observer => try self.detach(self.native_observer_id),
+            .native_detach_third => try self.detach(self.native_third_id),
             .disconnect => try self.disconnect(),
             .connect => try self.connect(),
             .native_create_replay => try self.replayNativeCreate(),
@@ -172,6 +179,20 @@ const Machine = struct {
             demand,
         ) catch return self.record(action, .rejected);
         try self.record(action, transitionOutcome(result));
+    }
+
+    fn claimNativeResizeLease(
+        self: *Machine,
+        attachment_id: core_module.AttachmentId,
+    ) !void {
+        const action: semantic_trace.Action = .{ .claim_resize_lease = attachment_id };
+        const connection_id = self.activeConnectionId() orelse
+            return self.record(action, .rejected);
+        const result = self.service.runtime_aggregate.claimResizeLease(
+            connection_id,
+            attachment_id,
+        ) catch return self.record(action, .rejected);
+        try self.record(action, transitionOutcome(result.transition));
     }
 
     fn acceptNativeInput(self: *Machine) !void {
@@ -533,6 +554,15 @@ const Machine = struct {
     fn nativeObserver(self: *const Machine) semantic_trace.Attach {
         return .{
             .attachment_id = self.native_observer_id,
+            .capabilities = .{ .input = true, .read = true, .resize = true },
+            .request_resize_lease = false,
+            .terminal_id = self.native_create.terminal_id,
+        };
+    }
+
+    fn nativeThird(self: *const Machine) semantic_trace.Attach {
+        return .{
+            .attachment_id = self.native_third_id,
             .capabilities = .{ .input = true, .read = true, .resize = true },
             .request_resize_lease = false,
             .terminal_id = self.native_create.terminal_id,

@@ -469,6 +469,41 @@ describe('DesktopTerminalProjectionService', () => {
 		expect(harness.brokers[1]?.claimResizeLease).toHaveBeenCalledOnce();
 	});
 
+	it('ignores resize activity after the attachment is downgraded to read-only', async () => {
+		const harness = createHarness();
+		const presentation = terminalPresentationId('presentation-read-only-resize-activity');
+		await harness.service.open(presentation);
+		const observer = await harness.service.open(presentation);
+
+		await observer.setInputCapability(false);
+		harness.resizeActivityCallbacks[1]?.();
+		await Promise.resolve();
+
+		expect(harness.brokers[1]?.claimResizeLease).not.toHaveBeenCalled();
+	});
+
+	it('invalidates queued resize activity before a read-only downgrade reaches the broker', async () => {
+		const harness = createHarness();
+		const presentation = terminalPresentationId('presentation-queued-read-only-resize-activity');
+		const owner = await harness.service.open(presentation);
+		const observer = await harness.service.open(presentation);
+		const blocker = createDeferred<void>();
+		harness.brokers[0]?.setInputCapability.mockImplementationOnce(() => blocker.promise);
+
+		const blockingMutation = owner.setInputCapability(true);
+		await vi.waitFor(() =>
+			expect(harness.brokers[0]?.setInputCapability).toHaveBeenCalledWith(true),
+		);
+		harness.resizeActivityCallbacks[1]?.();
+		const downgrade = observer.setInputCapability(false);
+		blocker.resolve(undefined);
+
+		await blockingMutation;
+		await downgrade;
+		await Promise.resolve();
+		expect(harness.brokers[1]?.claimResizeLease).not.toHaveBeenCalled();
+	});
+
 	it('retries recorded newer activity after Host fallback without spinning on claim failure', async () => {
 		const harness = createHarness();
 		const presentation = terminalPresentationId('presentation-resize-owner-fallback');

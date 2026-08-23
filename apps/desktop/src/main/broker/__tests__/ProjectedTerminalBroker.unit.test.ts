@@ -256,7 +256,7 @@ describe('ProjectedTerminalBroker', () => {
 		);
 	});
 
-	it('claims only for the accepted meaningful-activity command classes', () => {
+	it('claims only for accepted meaningful activity from a currently writable attachment', async () => {
 		const bootstrap = {
 			attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
 			canInput: true,
@@ -268,9 +268,22 @@ describe('ProjectedTerminalBroker', () => {
 			terminalOutcome: null,
 			theme,
 		};
-		const requestControl = vi.fn<HostConnection['requestControl']>(
-			async () => ({ attachmentId: bootstrap.attachmentId, state: 'none' }) as never,
-		);
+		const requestControl = vi.fn<HostConnection['requestControl']>(async (kind, value) => {
+			if (kind === MessageKind.updateAttachmentInputCapability) {
+				const request = value as {
+					readonly capabilityRevision: ReturnType<typeof CanonicalUint64TextSchema.parse>;
+					readonly input: boolean;
+				};
+				return {
+					attachmentId: bootstrap.attachmentId,
+					capabilities: { input: request.input, read: true, resize: true },
+					capabilityRevision: request.capabilityRevision,
+					resizeLease: true,
+					terminalId: bootstrap.terminalId,
+				} as never;
+			}
+			return { attachmentId: bootstrap.attachmentId, state: 'none' } as never;
+		});
 		const host = {
 			onAttachmentEnvelope: vi.fn<HostConnection['onAttachmentEnvelope']>(() =>
 				vi.fn<() => void>(),
@@ -385,6 +398,27 @@ describe('ProjectedTerminalBroker', () => {
 		});
 
 		expect(onResizeActivity).toHaveBeenCalledTimes(7);
+
+		await broker.setInputCapability(false);
+		onResizeActivity.mockClear();
+		send({
+			kind: 'selection-gesture',
+			payload: {
+				...selection,
+				action: 'start',
+				clickCount: 1,
+				position: { x: 0, y: 0 },
+				selectOutput: false,
+			},
+		});
+
+		expect(onResizeActivity).not.toHaveBeenCalled();
+		await expect(broker.claimResizeLease()).rejects.toMatchObject({
+			code: 'resize-capability-unavailable',
+		});
+		expect(
+			requestControl.mock.calls.filter(([kind]) => kind === MessageKind.claimResizeLease),
+		).toEqual([]);
 	});
 
 	it('serializes Host resizes and replaces queued measurements with the newest geometry', async () => {

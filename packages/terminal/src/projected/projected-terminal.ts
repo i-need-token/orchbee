@@ -824,6 +824,7 @@ export class ProjectedTerminal {
 	#inputRepairTransaction: ProjectedInputRepairTransaction | undefined;
 	#inputState: TerminalInputState<MouseInput> = createTerminalInputState();
 	#inputSurfaceOffset: { readonly left: number; readonly top: number } | undefined;
+	#forceResizeSubmission = false;
 	#lastGeometry: ResizeGeometry | undefined;
 	#lastGeometryAttemptedAt = Number.NEGATIVE_INFINITY;
 	#listenerDisposers: Array<() => void> = [];
@@ -1920,6 +1921,7 @@ export class ProjectedTerminal {
 	setResizeOwnership(ownsResizeLease: boolean): void {
 		if (typeof ownsResizeLease !== 'boolean' || this.#ownsResizeLease === ownsResizeLease) return;
 		this.#ownsResizeLease = ownsResizeLease;
+		this.#forceResizeSubmission = ownsResizeLease;
 		this.#lastGeometry = undefined;
 		this.#lastGeometryAttemptedAt = Number.NEGATIVE_INFINITY;
 		if (ownsResizeLease && this.#phase === ProjectedTerminalPhase.open) {
@@ -2271,6 +2273,7 @@ export class ProjectedTerminal {
 		this.#terminalControlSealed = true;
 		this.#revokeInputCapability();
 		this.#ownsResizeLease = false;
+		this.#forceResizeSubmission = false;
 		this.#lastGeometry = undefined;
 		this.#lastGeometryAttemptedAt = Number.NEGATIVE_INFINITY;
 	}
@@ -2387,6 +2390,7 @@ export class ProjectedTerminal {
 		this.#releaseSurfaceDom();
 		this.#documentHidden = false;
 		this.#devicePixelRatio = 1;
+		this.#forceResizeSubmission = false;
 		this.#lastGeometry = undefined;
 		this.#lastGeometryAttemptedAt = Number.NEGATIVE_INFINITY;
 		this.#presentationSuspended = false;
@@ -6381,12 +6385,17 @@ export class ProjectedTerminal {
 			rows,
 		};
 		const committedMetadata = this.#store.metadata;
-		if (committedMetadata !== null && sameGeometry(geometry, committedMetadata)) {
+		if (
+			!this.#forceResizeSubmission &&
+			committedMetadata !== null &&
+			sameGeometry(geometry, committedMetadata)
+		) {
 			this.#lastGeometry = undefined;
 			return;
 		}
 		const now = projectedNow();
 		if (
+			!this.#forceResizeSubmission &&
 			sameGeometry(geometry, this.#lastGeometry) &&
 			now - this.#lastGeometryAttemptedAt < RESIZE_REENTRY_MS
 		) {
@@ -6394,10 +6403,14 @@ export class ProjectedTerminal {
 		}
 		this.#lastGeometry = geometry;
 		this.#lastGeometryAttemptedAt = now;
-		this.#send({
-			kind: 'resize-terminal',
-			payload: { attachmentId: this.#attachmentId, ...geometry },
-		});
+		if (
+			this.#send({
+				kind: 'resize-terminal',
+				payload: { attachmentId: this.#attachmentId, ...geometry },
+			})
+		) {
+			this.#forceResizeSubmission = false;
+		}
 	}
 
 	#reconcileCommittedGeometry(metadata: ProjectedTerminalMetadata): void {

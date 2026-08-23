@@ -24,6 +24,11 @@ pub fn apply(reference: *Reference, step: semantic_trace.Step) !void {
         .disconnect => |connection_id| try applyDisconnect(reference, connection_id, step.outcome),
         .create => |action| try applyCreate(reference, action, step.outcome),
         .attach => |action| try applyAttach(reference, action, step.outcome),
+        .claim_resize_lease => |attachment_id| try applyClaimResizeLease(
+            reference,
+            attachment_id,
+            step.outcome,
+        ),
         .set_projection_demand => |action| try applyDemand(reference, action, step.outcome),
         .accept_input => |action| try applyInput(reference, action, step.outcome),
         .set_focus => |action| try applyFocus(reference, action, step.outcome),
@@ -106,6 +111,7 @@ fn applyDisconnect(
     reference.attachments.clearRetainingCapacity();
     reference.connection = .awaiting_hello;
     reference.next_attachment_sequence = 1;
+    reference.next_resize_claim_sequence = 1;
 }
 
 fn applyCreate(reference: *Reference, action: semantic_trace.Create, outcome: semantic_trace.Outcome) !void {
@@ -158,7 +164,8 @@ fn applyAttach(reference: *Reference, action: semantic_trace.Attach, outcome: se
     }
     if ((!action.capabilities.input and !action.capabilities.read and !action.capabilities.resize) or
         (action.request_resize_lease and !action.capabilities.resize) or
-        (action.request_resize_lease and reference.hasResizeLease(action.terminal_id)))
+        (action.request_resize_lease and reference.hasResizeLease(action.terminal_id)) or
+        (action.request_resize_lease and reference.next_resize_claim_sequence == std.math.maxInt(u64)))
     {
         return error.InvalidAppliedOutcome;
     }
@@ -170,12 +177,54 @@ fn applyAttach(reference: *Reference, action: semantic_trace.Attach, outcome: se
         .capability_revision = 1,
         .demand = .paused,
         .request_resize_lease = action.request_resize_lease,
+        .resize_claim_sequence = if (action.request_resize_lease)
+            reference.next_resize_claim_sequence
+        else
+            0,
         .resize_lease = action.request_resize_lease,
         .terminal_id = action.terminal_id,
     });
     reference.next_attachment_sequence = std.math.add(
         u64,
         reference.next_attachment_sequence,
+        1,
+    ) catch return error.InvalidActionState;
+    if (action.request_resize_lease) {
+        reference.next_resize_claim_sequence = std.math.add(
+            u64,
+            reference.next_resize_claim_sequence,
+            1,
+        ) catch return error.InvalidActionState;
+    }
+}
+
+fn applyClaimResizeLease(
+    reference: *Reference,
+    attachment_id: core_module.AttachmentId,
+    outcome: semantic_trace.Outcome,
+) !void {
+    const claimed = reference.findAttachment(attachment_id) orelse
+        return error.InvalidActionState;
+    const terminal = reference.findTerminal(claimed.terminal_id) orelse
+        return error.InvalidActionState;
+    if (!reference.hasActiveConnection() or !claimed.capabilities.resize or terminal.phase != .running) {
+        return error.InvalidActionState;
+    }
+    if (claimed.resize_lease) {
+        if (outcome != .replayed) return error.InvalidReplayOutcome;
+        return;
+    }
+    if (outcome != .applied or reference.next_resize_claim_sequence == std.math.maxInt(u64)) {
+        return error.InvalidAppliedOutcome;
+    }
+    for (reference.attachments.items) |*attachment| {
+        if (attachment.terminal_id.eql(claimed.terminal_id)) attachment.resize_lease = false;
+    }
+    claimed.resize_claim_sequence = reference.next_resize_claim_sequence;
+    claimed.resize_lease = true;
+    reference.next_resize_claim_sequence = std.math.add(
+        u64,
+        reference.next_resize_claim_sequence,
         1,
     ) catch return error.InvalidActionState;
 }

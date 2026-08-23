@@ -155,13 +155,18 @@ function terminalFrame(
 	activeScreen: TerminalFrame['activeScreen'] = ActiveScreen.primary,
 	closeActivity: 'active' | 'idle' | 'unknown' = 'unknown',
 	themeRevision = 0n,
+	geometry: {
+		readonly cellPixelHeight?: number;
+		readonly cellPixelWidth?: number;
+		readonly rows?: number;
+	} = {},
 ): Uint8Array {
 	const frame: TerminalFrame = {
 		activeScreen,
 		attachmentId,
 		baseRevision,
-		cellPixelHeight: 18,
-		cellPixelWidth: 9,
+		cellPixelHeight: geometry.cellPixelHeight ?? 18,
+		cellPixelWidth: geometry.cellPixelWidth ?? 9,
 		columns,
 		cursor: {
 			blinking: false,
@@ -211,7 +216,7 @@ function terminalFrame(
 			wrap: false,
 			wrapContinuation: false,
 		})),
-		rows: 2,
+		rows: geometry.rows ?? 2,
 		scrollbackRows,
 		sequence,
 		styles: [
@@ -11691,6 +11696,78 @@ describe('ProjectedTerminal', () => {
 
 		terminal.setResizeOwnership(true);
 		expect(commands.filter((command) => command.kind === 'resize-terminal')).toHaveLength(1);
+		terminal.dispose();
+	});
+
+	it('forces one current geometry proposal on promotion even when projection metadata is stale', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		vi.stubGlobal(
+			'ResizeObserver',
+			class {
+				disconnect(): void {}
+
+				observe(): void {}
+
+				unobserve(): void {}
+			},
+		);
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+
+		await terminal.open(browser.root);
+		terminal.setResizeOwnership(true);
+		const measured = commands.find(
+			(
+				command,
+			): command is Extract<ProjectedTerminalCommand, { readonly kind: 'resize-terminal' }> =>
+				command.kind === 'resize-terminal',
+		);
+		if (measured === undefined) throw new Error('promoted geometry is missing');
+		terminal.setResizeOwnership(false);
+		const rowIndices = Array.from({ length: measured.payload.rows }, (_, index) => index);
+		expect(
+			terminal.applyFrame(
+				terminalFrame(
+					'snapshot',
+					1n,
+					1n,
+					['a', 'b'],
+					null,
+					rowIndices,
+					0n,
+					interaction,
+					{ column: 0, row: 0 },
+					1n,
+					measured.payload.columns,
+					ActiveScreen.primary,
+					'unknown',
+					0n,
+					{
+						cellPixelHeight: measured.payload.cellPixelHeight,
+						cellPixelWidth: measured.payload.cellPixelWidth,
+						rows: measured.payload.rows,
+					},
+				),
+			),
+		).toBe('committed');
+		commands.length = 0;
+
+		terminal.setResizeOwnership(true);
+		expect(commands).toEqual([measured]);
 		terminal.dispose();
 	});
 

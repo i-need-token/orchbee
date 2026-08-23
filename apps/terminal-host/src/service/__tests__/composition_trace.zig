@@ -53,6 +53,7 @@ pub const Action = union(enum) {
     disconnect: core_module.ConnectionId,
     create: Create,
     attach: Attach,
+    claim_resize_lease: core_module.AttachmentId,
     set_projection_demand: struct {
         attachment_id: core_module.AttachmentId,
         demand: core_module.ProjectionDemand,
@@ -103,6 +104,7 @@ pub const Action = union(enum) {
             .disconnect => "Disconnect",
             .create => "Create",
             .attach => "Attach",
+            .claim_resize_lease => "ClaimResizeLease",
             .set_projection_demand => "SetProjectionDemand",
             .accept_input => "AcceptInput",
             .set_focus => "SetFocus",
@@ -169,6 +171,7 @@ pub const vocabulary = [_][]const u8{
     "Disconnect",
     "Create",
     "Attach",
+    "ClaimResizeLease",
     "SetProjectionDemand",
     "AcceptInput",
     "SetFocus",

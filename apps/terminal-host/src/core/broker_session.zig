@@ -402,6 +402,10 @@ pub const testing = if (@import("builtin").is_test) struct {
         session.next_resize_claim_sequence = sequence;
     }
 
+    pub fn nextResizeClaimSequence(session: *const Session) u64 {
+        return session.next_resize_claim_sequence;
+    }
+
     pub fn indexedAttachmentCount(session: *const Session) usize {
         var count: usize = 0;
         var lists = session.attachments_by_terminal.valueIterator();

@@ -8,7 +8,11 @@ pub const seed_environment = "ORCHBEE_TERMINAL_HOST_PROPERTY_SEED";
 pub const Command = enum(u8) {
     native_attach_owner = 'A',
     native_attach_observer = 'B',
+    native_attach_third = 'S',
     native_attach_conflict = 'C',
+    native_claim_owner = '1',
+    native_claim_observer = '2',
+    native_claim_third = '3',
     native_demand_active = 'D',
     native_demand_paused = 'd',
     native_input = 'I',
@@ -24,6 +28,7 @@ pub const Command = enum(u8) {
     native_reset = 'Z',
     native_detach_owner = 'T',
     native_detach_observer = 't',
+    native_detach_third = 's',
     disconnect = 'O',
     connect = 'o',
     native_create_replay = 'P',
@@ -42,14 +47,15 @@ pub const Command = enum(u8) {
 
     pub fn simpler(self: Command) ?Command {
         return switch (self) {
-            .native_attach_observer, .native_attach_conflict => .native_attach_owner,
+            .native_attach_observer, .native_attach_third, .native_attach_conflict => .native_attach_owner,
+            .native_claim_observer, .native_claim_third => .native_claim_owner,
             .native_demand_active => .native_demand_paused,
             .native_focus_owner_on => .native_focus_owner_off,
             .native_focus_observer_on => .native_focus_observer_off,
             .native_resize_large => .native_resize_small,
             .native_config_default => .native_config_small,
             .native_reset => .native_clear,
-            .native_detach_observer => .native_detach_owner,
+            .native_detach_observer, .native_detach_third => .native_detach_owner,
             .model_force => .model_graceful,
             else => null,
         };
@@ -59,7 +65,11 @@ pub const Command = enum(u8) {
 const choices = [_]Command{
     .native_attach_owner,
     .native_attach_observer,
+    .native_attach_third,
     .native_attach_conflict,
+    .native_claim_owner,
+    .native_claim_observer,
+    .native_claim_third,
     .native_demand_active,
     .native_demand_paused,
     .native_input,
@@ -75,6 +85,7 @@ const choices = [_]Command{
     .native_reset,
     .native_detach_owner,
     .native_detach_observer,
+    .native_detach_third,
     .disconnect,
     .connect,
     .native_create_replay,

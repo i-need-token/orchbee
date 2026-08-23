@@ -21,6 +21,9 @@ pub fn expectObservation(
     if (reference.inventory_generation != observation.inventory_generation) {
         return error.InventoryGenerationMismatch;
     }
+    if (reference.next_resize_claim_sequence != observation.next_resize_claim_sequence) {
+        return error.ResizeClaimSequenceMismatch;
+    }
     if (!std.meta.eql(reference.terminal_defaults, observation.terminal_defaults)) {
         return error.TerminalDefaultsMismatch;
     }
@@ -118,6 +121,7 @@ fn sameAttachment(expected: Attachment, actual: composition.AttachmentObservatio
         expected.capability_revision == actual.capability_revision and
         expected.demand == actual.projection.demand() and
         expected.request_resize_lease == actual.requested_resize_lease and
+        expected.resize_claim_sequence == actual.resize_claim_sequence and
         expected.resize_lease == actual.resize_lease and
         expected.terminal_id.eql(actual.terminal_id);
 }

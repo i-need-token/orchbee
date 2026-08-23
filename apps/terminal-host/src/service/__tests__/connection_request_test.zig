@@ -1196,6 +1196,102 @@ test "resize lease claim reservation failure preserves the current owner" {
     try std.testing.expect(!serviceCore(&service).findAttachment(claimant_id).?.resize_lease);
     try expectCompositionInvariants(&service, &owner);
 }
+test "resize lease claim event allocation failures return typed failure without mutation" {
+    var service = HostService.init(std.testing.allocator);
+    defer service.deinit();
+    var owner: ConnectionState = .awaiting_hello;
+    defer service.disconnect(&owner);
+    try testHandshake(&service, &owner, "22222222222222222222222222222222");
+    const active = try activeConnection(&owner);
+
+    const terminal_id = core_module.TerminalId.fromBytes([_]u8{0x42} ** 16);
+    const original_owner_id = core_module.AttachmentId.fromBytes([_]u8{0x43} ** 16);
+    const claimant_id = core_module.AttachmentId.fromBytes([_]u8{0x44} ** 16);
+    _ = try createModel(
+        serviceCore(&service),
+        active.connection_id,
+        core_module.CreationId.fromBytes([_]u8{0x41} ** 16),
+        terminal_id,
+        [_]u8{0x45} ** 32,
+        80,
+        24,
+    );
+    _ = try serviceCore(&service).attach(
+        active.connection_id,
+        original_owner_id,
+        terminal_id,
+        .{ .input = true, .read = true, .resize = true },
+        true,
+    );
+    _ = try serviceCore(&service).attach(
+        active.connection_id,
+        claimant_id,
+        terminal_id,
+        .{ .input = true, .read = true, .resize = true },
+        false,
+    );
+
+    const correlation_id = [_]u8{0x46} ** 16;
+    const record = try protocol.encodeTransportEnvelope(
+        std.testing.allocator,
+        MessageKind.claim_resize_lease,
+        .control_json,
+        "{\"attachmentId\":\"44444444444444444444444444444444\"}",
+        correlation_id,
+        serviceCore(&service).epoch.bytes,
+        false,
+        false,
+    );
+    defer std.testing.allocator.free(record);
+    const envelope = try protocol.validateTransportEnvelope(record);
+    const original_claim_sequence = serviceCore(&service).findAttachment(original_owner_id).?.resize_claim_sequence;
+    const claimant_claim_sequence = serviceCore(&service).findAttachment(claimant_id).?.resize_claim_sequence;
+    const geometry = serviceCore(&service).findTerminal(terminal_id).?.observedGeometry();
+
+    for ([_]usize{ 3, 4 }) |fail_index| {
+        var failing = std.testing.FailingAllocator.init(
+            std.testing.allocator,
+            .{ .fail_index = fail_index },
+        );
+        var outgoing = Outgoing.init(failing.allocator());
+        defer outgoing.deinit();
+        var dispatcher = RequestDispatcher.init(
+            service.allocator,
+            &service.runtime_aggregate,
+            service.trace_interactions,
+        );
+
+        try dispatcher.dispatch(
+            try registeredRequestContract(MessageKind.claim_resize_lease),
+            active.connection_id,
+            .{
+                .input_bytes = active.limits.input_bytes,
+                .row_window_bytes = active.limits.row_window_bytes,
+            },
+            envelope,
+            correlation_id,
+            &outgoing,
+        );
+
+        try expectSingleFailureCode(&outgoing, "resource-exhausted");
+        try std.testing.expect((try activeConnection(&owner)).connection_id == active.connection_id);
+        try std.testing.expect(serviceCore(&service).findAttachment(original_owner_id).?.resize_lease);
+        try std.testing.expect(!serviceCore(&service).findAttachment(claimant_id).?.resize_lease);
+        try std.testing.expectEqual(
+            original_claim_sequence,
+            serviceCore(&service).findAttachment(original_owner_id).?.resize_claim_sequence,
+        );
+        try std.testing.expectEqual(
+            claimant_claim_sequence,
+            serviceCore(&service).findAttachment(claimant_id).?.resize_claim_sequence,
+        );
+        try std.testing.expectEqual(
+            geometry,
+            serviceCore(&service).findTerminal(terminal_id).?.observedGeometry(),
+        );
+        try expectCompositionInvariants(&service, &owner);
+    }
+}
 test "current protocol rejects a cursor made stale by disposal and freshly pages exact inventory" {
     const inventory_count = 130;
     const fresh_page_size = 17;

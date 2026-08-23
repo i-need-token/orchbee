@@ -201,6 +201,11 @@ pub const testing = if (@import("builtin").is_test) struct {
         broker_session.testing.setNextResizeClaimSequence(broker, sequence);
     }
 
+    pub fn nextResizeClaimSequence(core: *const HostCore) u64 {
+        const broker = if (core.broker) |*active| active else return 1;
+        return broker_session.testing.nextResizeClaimSequence(broker);
+    }
+
     pub fn setTerminalDefaultsRevision(core: *HostCore, revision: u64) void {
         core.host_settings.revision = revision;
     }
