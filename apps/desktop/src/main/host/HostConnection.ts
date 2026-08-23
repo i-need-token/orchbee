@@ -159,6 +159,10 @@ export class HostConnection {
 		return this.#hostEpoch;
 	}
 
+	get requestTransportEnded(): boolean {
+		return this.#transportEnded;
+	}
+
 	get metrics(): HostConnectionMetrics {
 		return {
 			bytesReceived: this.#bytesReceived,

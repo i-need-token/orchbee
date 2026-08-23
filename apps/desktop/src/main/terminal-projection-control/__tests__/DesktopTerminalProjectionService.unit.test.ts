@@ -81,7 +81,10 @@ function createHarness(readOnly = false, startRequired = false) {
 		terminalOutcome: null,
 		theme,
 	};
+	let requestTransportEnded = false;
+	const hostClosedListeners = new Set<(reason: Error) => void>();
 	const requestControl = vi.fn<HostConnection['requestControl']>(async (kind, value) => {
+		if (requestTransportEnded) throw new Error('Host request transport ended.');
 		if (kind === MessageKind.startTerminal) {
 			const request = value as { readonly geometry: typeof mountedGeometry };
 			return {
@@ -108,7 +111,16 @@ function createHarness(readOnly = false, startRequired = false) {
 			terminalId: identity.terminalId,
 		} as never;
 	});
-	const host = { requestControl } as unknown as HostConnection;
+	const host = {
+		onClosed: (listener: (reason: Error) => void) => {
+			hostClosedListeners.add(listener);
+			return () => hostClosedListeners.delete(listener);
+		},
+		requestControl,
+		get requestTransportEnded() {
+			return requestTransportEnded;
+		},
+	} as unknown as HostConnection;
 	const brokers: Array<{
 		readonly dispose: ReturnType<typeof vi.fn<() => Promise<void>>>;
 		readonly setInputCapability: ReturnType<typeof vi.fn<(input: boolean) => Promise<void>>>;
@@ -127,6 +139,7 @@ function createHarness(readOnly = false, startRequired = false) {
 		(_host, _port, bootstrap, _effectTarget, lifecycle) => {
 			const broker = {
 				dispose: vi.fn<() => Promise<void>>().mockImplementation(async () => {
+					if (requestTransportEnded) return;
 					await requestControl(
 						MessageKind.detachTerminal,
 						{ attachmentId: bootstrap.attachmentId },
@@ -167,6 +180,10 @@ function createHarness(readOnly = false, startRequired = false) {
 		cleanupCallbacks,
 		createBroker,
 		createMessageChannel,
+		endRequestTransport: (reason = new Error('Host request transport ended.')) => {
+			requestTransportEnded = true;
+			for (const listener of hostClosedListeners) listener(reason);
+		},
 		markTerminalStarted,
 		requestControl,
 		resizeLeaseCallbacks,
@@ -631,6 +648,37 @@ describe('DesktopTerminalProjectionService', () => {
 		expect(harness.service.getMetrics()).toEqual([]);
 	});
 
+	it('settles a failed active lease when the Host request transport ends', async () => {
+		const harness = createHarness();
+		const presentation = terminalPresentationId('presentation-host-close-cleanup');
+		await harness.service.open(presentation);
+		harness.brokers[0]?.dispose.mockRejectedValueOnce(new Error('detach unavailable'));
+
+		harness.cleanupCallbacks[0]?.(new Error('renderer port closed'));
+		await vi.waitFor(() => expect(harness.brokers[0]?.dispose).toHaveBeenCalledOnce());
+		expect(harness.service.getMetrics()).toHaveLength(1);
+
+		harness.endRequestTransport();
+		await vi.waitFor(() => expect(harness.service.getMetrics()).toEqual([]));
+		expect(harness.brokers[0]?.dispose).toHaveBeenCalledTimes(2);
+		expect(
+			harness.requestControl.mock.calls.filter(([kind]) => kind === MessageKind.detachTerminal),
+		).toEqual([]);
+	});
+
+	it('rejects new projection work locally after the Host request transport ends', async () => {
+		const harness = createHarness();
+		harness.endRequestTransport();
+		const requestCountAtEnd = harness.requestControl.mock.calls.length;
+
+		await expect(
+			harness.service.open(terminalPresentationId('presentation-after-host-close')),
+		).rejects.toMatchObject({
+			failure: { code: 'terminal-projection-unavailable', retryable: true },
+		});
+		expect(harness.requestControl).toHaveBeenCalledTimes(requestCountAtEnd);
+	});
+
 	it('detaches an attachment when broker construction fails', async () => {
 		const harness = createHarness();
 		harness.createBroker.mockImplementationOnce(() => {
@@ -691,6 +739,38 @@ describe('DesktopTerminalProjectionService', () => {
 		expect(harness.requestControl).toHaveBeenCalledTimes(3);
 	});
 
+	it('settles a retained provisional detach when the Host request transport ends', async () => {
+		const harness = createHarness();
+		harness.createBroker.mockImplementationOnce(() => {
+			throw new Error('broker factory failed');
+		});
+		let detachFailuresRemaining = 1;
+		const defaultImplementation = harness.requestControl.getMockImplementation();
+		harness.requestControl.mockImplementation(async (...arguments_) => {
+			if (arguments_[0] === MessageKind.detachTerminal && detachFailuresRemaining > 0) {
+				detachFailuresRemaining -= 1;
+				throw new Error('detach unavailable');
+			}
+			if (defaultImplementation === undefined) throw new Error('Missing Host response.');
+			return defaultImplementation(...arguments_);
+		});
+
+		await expect(
+			harness.service.open(terminalPresentationId('presentation-factory-host-close')),
+		).rejects.toMatchObject({
+			failure: { code: 'terminal-projection-cleanup-failed', retryable: true },
+		});
+		const detachCallsBeforeClose = harness.requestControl.mock.calls.filter(
+			([kind]) => kind === MessageKind.detachTerminal,
+		).length;
+
+		harness.endRequestTransport();
+		await expect(harness.service.dispose()).resolves.toBeUndefined();
+		expect(
+			harness.requestControl.mock.calls.filter(([kind]) => kind === MessageKind.detachTerminal),
+		).toHaveLength(detachCallsBeforeClose);
+	});
+
 	it('detaches an attachment when broker start fails', async () => {
 		const harness = createHarness();
 		harness.createBroker.mockImplementationOnce((_host, _port, bootstrap) => {
@@ -732,7 +812,11 @@ describe('DesktopTerminalProjectionService', () => {
 			createMessageChannel:
 				vi.fn<DesktopTerminalProjectionServiceDependencies['createMessageChannel']>(),
 			getProjectionTarget: () => null,
-			host: { requestControl: harness.requestControl } as unknown as HostConnection,
+			host: {
+				onClosed: () => () => undefined,
+				requestControl: harness.requestControl,
+				requestTransportEnded: false,
+			} as unknown as HostConnection,
 			markTerminalStarted: () => false,
 			observeTerminalTheme: () => false,
 			randomAttachmentId: () => '11'.repeat(16),

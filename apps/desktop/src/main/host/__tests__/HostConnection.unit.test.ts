@@ -1003,4 +1003,21 @@ describe('HostConnection', () => {
 			outboundAdmittedRecords: 0,
 		});
 	});
+
+	it('exposes request-transport retirement before close continuation delivery', async () => {
+		const stream = new Duplex({
+			read() {},
+			write(_chunk, _encoding, callback) {
+				callback();
+			},
+		});
+		const connection = new HostConnection(stream);
+		const closeListener = vi.fn<(reason: Error) => void>();
+		connection.onClosed(closeListener);
+
+		expect(connection.requestTransportEnded).toBe(false);
+		connection.close();
+		expect(connection.requestTransportEnded).toBe(true);
+		await vi.waitFor(() => expect(closeListener).toHaveBeenCalledOnce());
+	});
 });

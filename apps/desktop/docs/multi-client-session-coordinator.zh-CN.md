@@ -115,6 +115,24 @@ validate proposal
 
 对于运行中的终端，第一个成功打开的附件拥有 Host 的独占调整大小租约。后续获准附件可获得 read/input 而无 resize 能力，并通过客户端本地内边距、滚动或缩放呈现规范网格。并发 open 按 Presentation 串行化，不区分 Electron 与浏览器优先级。所有者分离后，现有观察者保持已附加状态且不会自动晋升；下一个新附件可以获得租约。显式控制权转移保留给未来 Gateway 设计。
 
+### Host 连接附件清理
+
+| 字段   | 契约                                                                                                                                                                                                                                                                                                                                   |
+| ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 问题   | Terminal Host 断开连接时已经销毁该连接拥有的全部附件，但通过已终止的 Desktop 传输重试 `DetachTerminal` 不可能成功，并可能无限期保留本地租约或待分离所有者。                                                                                                                                                                            |
+| 输入   | 请求传输状态、活动与临时附件所有权、本地 release 或 retirement、匹配或不匹配的 detach acknowledgement、detach failure，以及 connection end。                                                                                                                                                                                           |
+| 数据   | `ProjectedTerminalBroker` 清理状态，以及投影服务拥有的 active lease、provisional attachment、in-flight detach 与 pending detach。                                                                                                                                                                                                      |
+| 输出   | 活动 surface 会先收到 `host-connection-unavailable`，随后其 broker 请求清理；每个受影响的本地所有者再通过匹配的 detach acknowledgement 或已确认的 connection end 完成结算。                                                                                                                                                            |
+| 不变量 | 请求传输仍可用时，只有匹配的 `DetachTerminal` acknowledgement 才能清除附件所有者。传输终止后，Desktop 不再为该连接发出任何 Host 请求，并且恰好一次清除每个 connection-scoped 本地所有者。两条路径都不改变共享文档、Binding registry、PTY、process 或 retained terminal。重复或重排的 close、release、retirement 与 disposal 保持幂等。 |
+| 决策   | 只有对该已终止连接范围内的附件，已确认的 connection end 才是与逐附件 detach 等价的清理证据。传输仍可用时发生的 detach failure 会保留其精确所有者以供重试。                                                                                                                                                                             |
+| 模型   | `ProjectedTerminalIpcReliability` 在 release-race 状态机中加入 request-transport end 与 connection-cleanup 转换；它信任 Terminal Host 的连接 teardown，但不假设最终会重连。                                                                                                                                                            |
+| 转换   | 匹配的 detach acknowledgement 移除一个所有者；传输可用时的失败保留所有者；connection end 封闭后续请求并结算该连接的所有所有者；之后重复的清理是 no-op。                                                                                                                                                                                |
+| 依赖   | Terminal Host 连接 teardown 仍是远端附件移除的权威。terminal protocol 与 Host terminal lifecycle 均不改变。                                                                                                                                                                                                                            |
+| 所有权 | Terminal Host 拥有远端连接 teardown，Desktop 投影服务拥有 lease 与 pending-detach 收敛，每个 broker 拥有其 renderer failure 与 port retirement。                                                                                                                                                                                       |
+| 验证   | TLA+ action coverage 与 invariants 检查 detach success、available-transport failure、disconnect-before-detach、disconnect-during-detach、retry-after-failure 与 duplicate cleanup。确定性的 HostConnection、broker 与 projection-service 测试覆盖实现边界；composed-runtime 与 application 测试套件覆盖集成和处置。                    |
+| 正确性 | Safety 证据只覆盖已注册的有限模型。Progress 要求已经观察到的 connection-end continuation 得到交付；不假设网络恢复或延迟上界。                                                                                                                                                                                                          |
+| 排除项 | Live Host reconnect、startup deadline、Windows server authentication、lifecycle-operation replay 与 protocol change 属于独立决策。                                                                                                                                                                                                     |
+
 ## 应用生命周期
 
 应用生命周期是一项仅限 Electron 的能力，与普通 ClientSession 控制并列分层。在准备 preserve 或 stop 前，Main 进入 quiescing 状态。已经接受的工作可以完成；来自其他所有会话的新普通提案都会被拒绝。Preserve 不接纳新的文档变更；stop 只接纳退出所有者保持结构不变的 `stop` 到 `stopped` 推进。这样可防止其他页面在应用排空期间创建终端或改变终端结构。
@@ -132,7 +150,7 @@ validate proposal
 - 到达某些会话但在另一个会话上失败的终端退出发布将保留一个序列，并仅重试尚未接受该确切事件的会话；成功的会话不会重播，并且重试不会分配序列间隙。
 - 退出持久性或关联失败是类型化的可重试结果。在 Host 监听器返回前，Desktop Main 会同步把每个已接受的 `TerminalExited` 接纳到所有者专用的持久待处理日志。有界的 64 项内存重试队列只是调度器/缓存；它不是崩溃恢复的权威所有者，而且当前 Host 事件信封仍没有确认/重新交付字段。待处理日志、发布账本与持久拒绝日志各有独立容量。队列已满和关机条目可以提升为重试；等待关联或身份未知的条目会被停放，直至观察到确切身份后再提升。身份未知的条目不会进入无界定时重试循环。只有运行时结果、适配器提交、发布账本准入、协调器可见性与实时发布全部成功后，才会移除待处理所有权。待处理日志已满或写入失败时会尽可能记录持久拒绝，否则以失败关闭；绝不会只留下一条跟踪消息。bootstrap 只读取协调器已经提交且可见的观察，不读取待处理预留或尚未提交的账本尝试。
 - Workbench 的终端 Presentation 发布是 Main 唯一的生命周期发布。附件的 `ProjectedTerminalBroker` 可以另行转发经过身份校验的原始 `terminal-exited` 或 `terminal-failed` 传输通知，并按附件执行单调修订过滤。该通知不是协调器序列事件，也不构成跨两个通道的恰好一次保证。Main 会先把 `terminal-failed` 记录为保留的 Presentation 结果，再广播它；失败会话只读，但仍可显式关闭。故障恢复依据存活 Host 的清单，而不是退出专用的溢出与发布账本。
-- 投影清理失败由服务级租约/分离所有者保留。渲染器端口关闭、畸形控制消息、postMessage 失败、会话退役，以及附件工厂或 open 后失败，会通过后续 release、retire 或 dispose 重试收敛；只有分离成功后才清除请求。
+- 投影清理失败由服务级租约/分离所有者保留。渲染器端口关闭、畸形控制消息、postMessage 失败、会话退役，以及附件工厂或 open 后失败，会在 Host 请求传输仍可用时通过后续 release、retire 或 dispose 重试收敛；该路径只有收到匹配的 detach acknowledgement 后才清除请求。一旦确认连接终止，Host 连接 teardown 就构成该连接附件的清理证据：Desktop 不再发送 Host 请求，并结算连接作用域内的本地所有者。
 - 已删除且从未发布的单客户端 IPC 契约不提供兼容读取器、别名或迁移。版本 1 的共享文档文件格式与路径不变。
 
 ## 正确性主张和证据

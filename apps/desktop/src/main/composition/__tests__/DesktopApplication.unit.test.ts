@@ -1641,7 +1641,9 @@ function createHarness(
 			rowWindowBytes: PROTOCOL_LIMITS.maxRowWindowBytes,
 			supportedOptionalFeatures: [],
 		}),
+		onClosed: vi.fn<HostConnection['onClosed']>(() => vi.fn<() => void>()),
 		requestControl,
+		requestTransportEnded: false,
 		onEnvelope: vi.fn<HostConnection['onEnvelope']>((listener) => {
 			hostEnvelopeListener = listener;
 			return vi.fn<() => void>();

@@ -40,7 +40,9 @@ describe('composeDesktopTerminalRuntime', () => {
 		const createBroker = vi.fn<DesktopTerminalRuntimeComposition['createBroker']>();
 		const createMessageChannel = vi.fn<DesktopTerminalRuntimeComposition['createMessageChannel']>();
 		const host = {
+			onClosed: vi.fn<HostConnection['onClosed']>(() => vi.fn<() => void>()),
 			requestControl: vi.fn<HostConnection['requestControl']>(),
+			requestTransportEnded: false,
 		} as unknown as HostConnection;
 		const configuration = resolveDesktopRuntimeConfiguration({
 			applicationPath: directory,
@@ -93,7 +95,12 @@ describe('composeDesktopTerminalRuntime', () => {
 			}
 			throw new Error(`Unexpected Host request ${kind}.`);
 		});
-		const host = { hostEpoch, requestControl } as unknown as HostConnection;
+		const host = {
+			hostEpoch,
+			onClosed: vi.fn<HostConnection['onClosed']>(() => vi.fn<() => void>()),
+			requestControl,
+			requestTransportEnded: false,
+		} as unknown as HostConnection;
 		const configuration = resolveDesktopRuntimeConfiguration({
 			applicationPath: directory,
 			environment: { ORCHBEE_DESKTOP_RECOVERY_DIRECTORY: directory },

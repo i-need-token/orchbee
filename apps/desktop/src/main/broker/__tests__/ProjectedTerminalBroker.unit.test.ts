@@ -58,8 +58,11 @@ function eventEnvelope(
 }
 
 describe('ProjectedTerminalBroker', () => {
-	it('retires only its attachment when the shared Host connection closes', () => {
+	it('publishes failure and settles locally when the shared Host request transport has ended', async () => {
 		let hostClosed: ((reason: Error) => void) | undefined;
+		const requestControl = vi.fn<HostConnection['requestControl']>(
+			async (_kind, value) => value as never,
+		);
 		const host = {
 			onAttachmentEnvelope: vi.fn<HostConnection['onAttachmentEnvelope']>(() =>
 				vi.fn<() => void>(),
@@ -69,6 +72,8 @@ describe('ProjectedTerminalBroker', () => {
 				return vi.fn<() => void>();
 			}),
 			onEnvelope: vi.fn<HostConnection['onEnvelope']>(() => vi.fn<() => void>()),
+			requestControl,
+			requestTransportEnded: true,
 		} as unknown as HostConnection;
 		const emitter = new EventEmitter();
 		const postMessage = vi.fn<(...arguments_: unknown[]) => void>();
@@ -88,14 +93,19 @@ describe('ProjectedTerminalBroker', () => {
 			terminalOutcome: null,
 			theme,
 		};
-		const onCleanupRequested = vi.fn<(error: unknown) => void>();
-		const broker = new ProjectedTerminalBroker(host, port, bootstrap, undefined, 'desktop', {
+		let cleanup: Promise<void> | undefined;
+		let broker: ProjectedTerminalBroker;
+		const onCleanupRequested = vi.fn<(error: unknown) => void>(() => {
+			cleanup = broker.dispose();
+		});
+		broker = new ProjectedTerminalBroker(host, port, bootstrap, undefined, 'desktop', {
 			onCleanupRequested,
 		});
 		broker.start();
 		const reason = new Error('Host transport lost');
 
 		hostClosed?.(reason);
+		await cleanup;
 
 		expect(postMessage).toHaveBeenCalledWith({
 			failure: {
@@ -108,6 +118,8 @@ describe('ProjectedTerminalBroker', () => {
 		});
 		expect(onCleanupRequested).toHaveBeenCalledOnce();
 		expect(onCleanupRequested).toHaveBeenCalledWith(reason);
+		expect(requestControl).not.toHaveBeenCalled();
+		expect(port.close).toHaveBeenCalledOnce();
 	});
 
 	it('publishes an attachment-scoped resize-lease promotion to its renderer and lifecycle owner', () => {

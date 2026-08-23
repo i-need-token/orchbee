@@ -117,9 +117,11 @@ export class DesktopTerminalProjectionService {
 	readonly #retirementGenerations = new Map<TerminalPresentationId, number>();
 	readonly #retirementTasks = new Map<TerminalPresentationId, Promise<void>>();
 	#disposed = false;
+	#removeHostClosedListener: (() => void) | undefined;
 
 	constructor(dependencies: DesktopTerminalProjectionServiceDependencies) {
 		this.#dependencies = dependencies;
+		this.#removeHostClosedListener = dependencies.host.onClosed(this.#handleHostClosed);
 	}
 
 	async open(
@@ -430,18 +432,23 @@ export class DesktopTerminalProjectionService {
 	): Promise<void> {
 		const existing = this.#detachTasks.get(attachmentId);
 		if (existing !== undefined) return existing;
+		if (this.#dependencies.host.requestTransportEnded) {
+			this.#settleAttachmentCleanup(presentationId, attachmentId);
+			return;
+		}
 		const operation = this.#dependencies.host
 			.requestControl(MessageKind.detachTerminal, { attachmentId }, AttachmentAcknowledgedSchema)
 			.then((acknowledgement) => {
 				if (acknowledgement.attachmentId !== attachmentId) {
 					throw projectionError('terminal-projection-cleanup-failed', true);
 				}
-				this.#provisionalAttachments.delete(attachmentId);
-				const pending = this.#pendingDetaches.get(presentationId);
-				pending?.delete(attachmentId);
-				if (pending?.size === 0) this.#pendingDetaches.delete(presentationId);
+				this.#settleAttachmentCleanup(presentationId, attachmentId);
 			})
 			.catch((error: unknown) => {
+				if (this.#dependencies.host.requestTransportEnded) {
+					this.#settleAttachmentCleanup(presentationId, attachmentId);
+					return;
+				}
 				const pending = this.#pendingDetaches.get(presentationId) ?? new Set<AttachmentId>();
 				pending.add(attachmentId);
 				this.#pendingDetaches.set(presentationId, pending);
@@ -464,6 +471,29 @@ export class DesktopTerminalProjectionService {
 		);
 		return operation;
 	}
+
+	#settleAttachmentCleanup(
+		presentationId: TerminalPresentationId,
+		attachmentId: AttachmentId,
+	): void {
+		this.#provisionalAttachments.delete(attachmentId);
+		const pending = this.#pendingDetaches.get(presentationId);
+		pending?.delete(attachmentId);
+		if (pending?.size === 0) this.#pendingDetaches.delete(presentationId);
+	}
+
+	readonly #handleHostClosed = (): void => {
+		this.#disposed = true;
+		this.#provisionalAttachments.clear();
+		this.#pendingDetaches.clear();
+		// Broker close listeners share this Host continuation. Let each live renderer
+		// receive its failure before service-level lease disposal retires the broker.
+		queueMicrotask(() => {
+			for (const leases of this.#activeLeases.values()) {
+				for (const lease of leases) void lease.dispose().catch(() => undefined);
+			}
+		});
+	};
 
 	async #retryPendingDetaches(presentationId: TerminalPresentationId): Promise<void> {
 		const pending = this.#pendingDetaches.get(presentationId);
@@ -548,7 +578,10 @@ export class DesktopTerminalProjectionService {
 	async dispose(): Promise<void> {
 		this.#disposed = true;
 		if (this.#disposePromise !== undefined) return this.#disposePromise;
-		const operation = this.#disposeAll();
+		const operation = this.#disposeAll().then(() => {
+			this.#removeHostClosedListener?.();
+			this.#removeHostClosedListener = undefined;
+		});
 		this.#disposePromise = operation.catch((error: unknown) => {
 			this.#disposePromise = undefined;
 			throw error;

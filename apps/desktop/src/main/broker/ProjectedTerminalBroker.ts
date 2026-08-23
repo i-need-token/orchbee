@@ -37,6 +37,7 @@ import {
 	TerminalControlAcceptedSchema,
 	TerminalThemeResultSchema,
 	UpdateAttachmentInputCapabilitySchema,
+	type AttachmentAcknowledged,
 	type AttachmentCapabilities,
 	type DecodedProtocolEnvelope,
 	type MessageKindValue,
@@ -452,14 +453,22 @@ export class ProjectedTerminalBroker {
 	}
 
 	async #detach(activeCopy: ActiveSelectionCopy | undefined): Promise<void> {
+		if (this.#host.requestTransportEnded) return;
 		if (activeCopy !== undefined) {
 			await this.#requestSelectionExportCancel(activeCopy, 'disposed').catch(() => undefined);
 		}
-		const acknowledgement = await this.#host.requestControl(
-			MessageKind.detachTerminal,
-			{ attachmentId: this.#bootstrap.attachmentId },
-			AttachmentAcknowledgedSchema,
-		);
+		if (this.#host.requestTransportEnded) return;
+		let acknowledgement: AttachmentAcknowledged;
+		try {
+			acknowledgement = await this.#host.requestControl(
+				MessageKind.detachTerminal,
+				{ attachmentId: this.#bootstrap.attachmentId },
+				AttachmentAcknowledgedSchema,
+			);
+		} catch (error: unknown) {
+			if (this.#host.requestTransportEnded) return;
+			throw error;
+		}
 		if (acknowledgement.attachmentId !== this.#bootstrap.attachmentId) {
 			throw new BrokerOperationError(
 				'attachment-ack-mismatch',

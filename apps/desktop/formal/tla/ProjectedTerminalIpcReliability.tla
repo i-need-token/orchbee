@@ -23,9 +23,11 @@ Actions == {
   "init",
   "begin-open", "client-release", "deliver-release-command",
   "service-attach", "publish-open", "deliver-expected-open",
-  "reject-late-open", "detach-fails", "deliver-cleanup-failure",
+  "reject-late-open", "begin-detach", "detach-fails", "deliver-cleanup-failure",
   "retire-control", "retirement-cleanup-succeeds", "detach-succeeds",
   "deliver-release-ack", "service-open-fails-after-release",
+  "end-request-transport", "settle-connection-cleanup",
+  "observe-duplicate-connection-cleanup",
   "queue-attach-response", "queue-first-frame", "queue-host-close",
   "deliver-attach-response", "install-projection-continuation",
   "resume-inbound", "deliver-first-frame", "initialize-renderer",
@@ -56,11 +58,17 @@ Init ==
     releaseEvents |-> {},
     cleanupFailureEvents |-> {},
     cleanupFailures |-> {},
+    cleanupEvidence |-> {},
     activated |-> {},
     latePortsClosed |-> {},
     clientAcknowledged |-> {},
     clientCleanupFailed |-> {},
+    connectionCleanupDelivered |-> FALSE,
+    connectionSettled |-> {},
     controlClosed |-> FALSE,
+    detachInFlight |-> {},
+    detachRequests |-> {},
+    detachRequestsAtEnd |-> {},
     hostQueue |-> <<>>,
     hostQueued |-> {},
     responseResolved |-> FALSE,
@@ -81,6 +89,7 @@ Init ==
     releasedAttempts |-> {},
     retryScheduled |-> FALSE,
     recoveryFailed |-> FALSE,
+    requestTransportEnded |-> FALSE,
     operationState |-> [operation \in Operations |-> "not-issued"],
     operationAttempt |-> [operation \in Operations |-> NoAttempt],
     operationAttempts |-> [operation \in Operations |-> {}],
@@ -97,6 +106,7 @@ Record(next, action, attempt) ==
 BeginOpen(attempt) ==
   /\ Scenario = "release-race"
   /\ ~s.controlClosed
+  /\ ~s.requestTransportEnded
   /\ attempt \in Attempts \ s.allocatedRequests
   /\ s' = Record(
        [s EXCEPT
@@ -127,6 +137,7 @@ DeliverReleaseCommand(attempt) ==
 
 ServiceAttach(attempt) ==
   /\ Scenario = "release-race"
+  /\ ~s.requestTransportEnded
   /\ attempt \in s.serverRequests \ s.leases
   /\ s' = Record(
        [s EXCEPT !.leases = @ \cup {attempt}],
@@ -136,6 +147,7 @@ ServiceAttach(attempt) ==
 PublishOpen(attempt) ==
   /\ Scenario = "release-race"
   /\ ~s.controlClosed
+  /\ ~s.requestTransportEnded
   /\ attempt \in s.leases \cap s.serverRequests
   /\ attempt \notin s.serverReleaseRequested \cup s.openEvents \cup s.activated
   /\ s' = Record(
@@ -168,12 +180,25 @@ RejectLateOpen(attempt) ==
        "reject-late-open",
        attempt)
 
-DetachFails(attempt) ==
+BeginDetach(attempt) ==
   /\ Scenario = "release-race"
-  /\ attempt \in
-       (s.leases \cap s.serverRequests \cap s.serverReleaseRequested) \ s.cleanupFailures
+  /\ ~s.requestTransportEnded
+  /\ attempt \in s.leases \cap s.serverRequests \cap s.serverReleaseRequested
+  /\ attempt \notin s.detachInFlight
   /\ s' = Record(
        [s EXCEPT
+         !.detachInFlight = @ \cup {attempt},
+         !.detachRequests = @ \cup {attempt}],
+       "begin-detach",
+       attempt)
+
+DetachFails(attempt) ==
+  /\ Scenario = "release-race"
+  /\ ~s.requestTransportEnded
+  /\ attempt \in s.detachInFlight
+  /\ s' = Record(
+       [s EXCEPT
+         !.detachInFlight = @ \ {attempt},
          !.cleanupFailures = @ \cup {attempt},
          !.cleanupFailureEvents = @ \cup {attempt}],
        "detach-fails",
@@ -207,25 +232,32 @@ RetireControl ==
 RetirementCleanupSucceeds(attempt) ==
   /\ Scenario = "release-race"
   /\ s.controlClosed
-  /\ attempt \in s.cleanupFailures
+  /\ ~s.requestTransportEnded
+  /\ attempt \in s.cleanupFailures \cap s.detachInFlight
   /\ s' = Record(
        [s EXCEPT
          !.leases = @ \ {attempt},
          !.serverRequests = @ \ {attempt},
+         !.detachInFlight = @ \ {attempt},
          !.cleanupFailures = @ \ {attempt},
-         !.cleanupFailureEvents = @ \ {attempt}],
+         !.cleanupFailureEvents = @ \ {attempt},
+         !.cleanupEvidence = @ \cup {attempt}],
        "retirement-cleanup-succeeds",
        attempt)
 
 DetachSucceeds(attempt) ==
   /\ Scenario = "release-race"
   /\ ~s.controlClosed
-  /\ attempt \in
-       (s.leases \cap s.serverRequests \cap s.serverReleaseRequested) \ s.cleanupFailures
+  /\ ~s.requestTransportEnded
+  /\ attempt \in s.detachInFlight
   /\ s' = Record(
        [s EXCEPT
          !.leases = @ \ {attempt},
          !.serverRequests = @ \ {attempt},
+         !.detachInFlight = @ \ {attempt},
+         !.cleanupFailures = @ \ {attempt},
+         !.cleanupFailureEvents = @ \ {attempt},
+         !.cleanupEvidence = @ \cup {attempt},
          !.releaseEvents = @ \cup {attempt}],
        "detach-succeeds",
        attempt)
@@ -245,13 +277,53 @@ DeliverReleaseAck(attempt) ==
 ServiceOpenFailsAfterRelease(attempt) ==
   /\ Scenario = "release-race"
   /\ ~s.controlClosed
+  /\ ~s.requestTransportEnded
   /\ attempt \in (s.serverRequests \cap s.serverReleaseRequested) \ s.leases
   /\ s' = Record(
        [s EXCEPT
          !.serverRequests = @ \ {attempt},
+         !.cleanupEvidence = @ \cup {attempt},
          !.releaseEvents = @ \cup {attempt}],
        "service-open-fails-after-release",
        attempt)
+
+EndRequestTransport ==
+  /\ Scenario = "release-race"
+  /\ ~s.requestTransportEnded
+  /\ s' = Record(
+       [s EXCEPT
+         !.requestTransportEnded = TRUE,
+         !.detachRequestsAtEnd = s.detachRequests],
+       "end-request-transport",
+       NoAttempt)
+
+SettleConnectionCleanup ==
+  /\ Scenario = "release-race"
+  /\ s.requestTransportEnded
+  /\ ~s.connectionCleanupDelivered
+  /\ LET owned ==
+       s.serverRequests \cup s.leases \cup s.cleanupFailures \cup s.detachInFlight
+     IN s' = Record(
+       [s EXCEPT
+         !.leases = {},
+         !.serverRequests = {},
+         !.openEvents = {},
+         !.cleanupFailureEvents = {},
+         !.cleanupFailures = {},
+         !.cleanupEvidence = @ \cup owned,
+         !.activated = {},
+         !.detachInFlight = {},
+         !.connectionCleanupDelivered = TRUE,
+         !.connectionSettled = @ \cup owned,
+         !.releaseEvents = @ \cup
+           (owned \cap s.serverReleaseRequested \cap s.clientRequests)],
+       "settle-connection-cleanup",
+       NoAttempt)
+
+ObserveDuplicateConnectionCleanup ==
+  /\ Scenario = "release-race"
+  /\ s.connectionCleanupDelivered
+  /\ s' = Record(s, "observe-duplicate-connection-cleanup", NoAttempt)
 
 QueueAttachResponse ==
   /\ Scenario = "attach-order"
@@ -616,6 +688,7 @@ Next ==
   \/ \E attempt \in Attempts: PublishOpen(attempt)
   \/ \E attempt \in Attempts: DeliverExpectedOpen(attempt)
   \/ \E attempt \in Attempts: RejectLateOpen(attempt)
+  \/ \E attempt \in Attempts: BeginDetach(attempt)
   \/ \E attempt \in Attempts: DetachFails(attempt)
   \/ \E attempt \in Attempts: DeliverCleanupFailure(attempt)
   \/ RetireControl
@@ -623,6 +696,9 @@ Next ==
   \/ \E attempt \in Attempts: DetachSucceeds(attempt)
   \/ \E attempt \in Attempts: DeliverReleaseAck(attempt)
   \/ \E attempt \in Attempts: ServiceOpenFailsAfterRelease(attempt)
+  \/ EndRequestTransport
+  \/ SettleConnectionCleanup
+  \/ ObserveDuplicateConnectionCleanup
   \/ QueueAttachResponse
   \/ QueueFirstFrame
   \/ QueueHostClose
@@ -660,6 +736,7 @@ Spec ==
   /\ WF_vars(ResumeInbound)
   /\ WF_vars(DeliverFirstFrame)
   /\ WF_vars(DeliverHostClose)
+  /\ WF_vars(SettleConnectionCleanup)
 
 TypeOK ==
   /\ Scenario \in Scenarios
@@ -673,11 +750,17 @@ TypeOK ==
   /\ s.releaseEvents \subseteq Attempts
   /\ s.cleanupFailureEvents \subseteq Attempts
   /\ s.cleanupFailures \subseteq Attempts
+  /\ s.cleanupEvidence \subseteq Attempts
   /\ s.activated \subseteq Attempts
   /\ s.latePortsClosed \subseteq Attempts
   /\ s.clientAcknowledged \subseteq Attempts
   /\ s.clientCleanupFailed \subseteq Attempts
+  /\ s.connectionCleanupDelivered \in BOOLEAN
+  /\ s.connectionSettled \subseteq Attempts
   /\ s.controlClosed \in BOOLEAN
+  /\ s.detachInFlight \subseteq Attempts
+  /\ s.detachRequests \subseteq Attempts
+  /\ s.detachRequestsAtEnd \subseteq Attempts
   /\ s.hostQueue \in Seq(HostMessages)
   /\ s.hostQueued \subseteq HostMessages
   /\ s.responseResolved \in BOOLEAN
@@ -698,6 +781,7 @@ TypeOK ==
   /\ s.releasedAttempts \subseteq Attempts
   /\ s.retryScheduled \in BOOLEAN
   /\ s.recoveryFailed \in BOOLEAN
+  /\ s.requestTransportEnded \in BOOLEAN
   /\ s.operationState \in [Operations -> OperationStates]
   /\ s.operationAttempt \in [Operations -> Attempts \cup {NoAttempt}]
   /\ s.operationAttempts \in [Operations -> SUBSET Attempts]
@@ -727,10 +811,26 @@ CleanupFailureRetainsServerOwnership ==
     s.cleanupFailures \subseteq
       (s.leases \cap s.serverRequests \cap s.serverReleaseRequested)
 
-ReleaseAcknowledgementFollowsDetach ==
+ReleaseAcknowledgementHasCleanupEvidence ==
   Scenario # "release-race" \/
-    /\ s.clientAcknowledged \cap s.leases = {}
-    /\ s.releaseEvents \cap s.leases = {}
+    /\ s.clientAcknowledged \subseteq s.cleanupEvidence
+    /\ s.releaseEvents \subseteq s.cleanupEvidence
+
+TransportEndSealsDetachAdmission ==
+  Scenario # "release-race" \/
+    ~s.requestTransportEnded \/ s.detachRequests = s.detachRequestsAtEnd
+
+ConnectionCleanupConvergesLocalOwnership ==
+  Scenario # "release-race" \/
+    ~s.connectionCleanupDelivered \/
+      /\ s.requestTransportEnded
+      /\ s.leases = {}
+      /\ s.serverRequests = {}
+      /\ s.cleanupFailures = {}
+      /\ s.detachInFlight = {}
+
+ConnectionCleanupSettlesOnlyAllocatedAttempts ==
+  Scenario # "release-race" \/ s.connectionSettled \subseteq s.allocatedRequests
 
 OpenPublicationRequiresUnreleasedServerRequest ==
   Scenario # "release-race" \/
@@ -812,5 +912,9 @@ QueuedFrameEventuallyDelivers ==
 
 QueuedCloseEventuallyDelivers ==
   []("close" \in s.hostQueued ~> s.hostCloseDelivered)
+
+RequestTransportEndEventuallySettles ==
+  Scenario # "release-race" \/
+    [](s.requestTransportEnded => <>s.connectionCleanupDelivered)
 
 =============================================================================
