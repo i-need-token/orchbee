@@ -6,6 +6,8 @@ const prepared_attachment = @import("prepared_attachment.zig");
 const attachment_input_admission_ops = @import("attachment_input_admission.zig");
 const failure_ops = @import("failure.zig");
 
+const focus_mode_retry_limit = 3;
+
 pub fn prepareAttachment(
     self: *state.State,
     attachment_id: identifiers.AttachmentId,
@@ -39,26 +41,50 @@ pub fn prepareAttachment(
 
 pub fn detachInput(self: *state.State, attachment_id: identifiers.AttachmentId) void {
     if (!attachment_input_admission_ops.hasOwnership(self, attachment_id)) return;
-    var repair = attachment_input_admission_ops.prepareRepair(self, attachment_id) catch |err| {
-        attachment_input_admission_ops.failRepair(self, attachment_id, err, "preparation failed");
+    for (0..focus_mode_retry_limit) |_| {
+        var repair = attachment_input_admission_ops.prepareRepair(self, attachment_id) catch |err| {
+            attachment_input_admission_ops.failRepair(self, attachment_id, err, "preparation failed");
+            return;
+        };
+        const committed = repair.commit();
+        repair.deinit();
+        _ = committed catch |err| {
+            if (err == error.FocusModeChanged) continue;
+            attachment_input_admission_ops.failRepair(self, attachment_id, err, "commit was rejected");
+            return;
+        };
         return;
-    };
-    defer repair.deinit();
-    _ = repair.commit() catch |err| {
-        attachment_input_admission_ops.failRepair(self, attachment_id, err, "commit was rejected");
-    };
+    }
+    attachment_input_admission_ops.failRepair(
+        self,
+        attachment_id,
+        error.FocusModeChanged,
+        "focus mode did not stabilize",
+    );
 }
 
 pub fn resetInput(self: *state.State, attachment_id: identifiers.AttachmentId) void {
     if (!attachment_input_admission_ops.hasOwnership(self, attachment_id)) return;
-    var repair = attachment_input_admission_ops.prepareReset(self, attachment_id) catch |err| {
-        attachment_input_admission_ops.failReset(self, attachment_id, err, "preparation failed");
+    for (0..focus_mode_retry_limit) |_| {
+        var repair = attachment_input_admission_ops.prepareReset(self, attachment_id) catch |err| {
+            attachment_input_admission_ops.failReset(self, attachment_id, err, "preparation failed");
+            return;
+        };
+        const committed = repair.commit();
+        repair.deinit();
+        _ = committed catch |err| {
+            if (err == error.FocusModeChanged) continue;
+            attachment_input_admission_ops.failReset(self, attachment_id, err, "commit was rejected");
+            return;
+        };
         return;
-    };
-    defer repair.deinit();
-    _ = repair.commit() catch |err| {
-        attachment_input_admission_ops.failReset(self, attachment_id, err, "commit was rejected");
-    };
+    }
+    attachment_input_admission_ops.failReset(
+        self,
+        attachment_id,
+        error.FocusModeChanged,
+        "focus mode did not stabilize",
+    );
 }
 
 pub fn detachHistory(self: *state.State, attachment_id: identifiers.AttachmentId) void {

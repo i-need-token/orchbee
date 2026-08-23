@@ -1229,7 +1229,7 @@ test "attachment detach repair uses its precharged input capacity" {
     _ = try press.commit();
     probe.copied.wait();
 
-    const queued_before_fill = runtime.pendingInputBytes();
+    const queued_before_fill = inputQueueSnapshot(runtime).client_charge.bytes;
     const fill_size = subject.testing.pending_input_limit -
         subject.max_key_encoded_bytes - queued_before_fill;
     const fill = try std.testing.allocator.alloc(u8, fill_size);
@@ -1273,7 +1273,7 @@ test "final aggregate focus release uses its precharged input capacity" {
     try std.testing.expectEqual(@as(usize, 3), try claim.commit());
     probe.copied.wait();
 
-    const queued_before_fill = runtime.pendingInputBytes();
+    const queued_before_fill = inputQueueSnapshot(runtime).client_charge.bytes;
     const fill_size = subject.testing.pending_input_limit -
         subject.max_focus_encoded_bytes - queued_before_fill;
     const fill = try std.testing.allocator.alloc(u8, fill_size);
@@ -1780,4 +1780,242 @@ test "ordered input reservations prevent overtaking and cancellation leaves no g
     const plain = try runtime.plainString(std.testing.allocator);
     defer std.testing.allocator.free(plain);
     try std.testing.expect(std.mem.indexOf(u8, plain, "<AC>") != null);
+}
+
+test "linefeed mode expands carriage returns before semantic and reply admission" {
+    var probe: WriterProbe = .{ .pause_at = .copied };
+    const runtime = try createRuntimeWithHooks(probe.hooks());
+    defer {
+        probe.copied.release();
+        runtime.destroy();
+    }
+
+    try std.testing.expectEqual(
+        ReaderBatchOutcome.committed,
+        commitReaderBatch(runtime, "\x1b[20h"),
+    );
+
+    var text = try runtime.prepareTextInput("a\rb", 4);
+    defer text.deinit();
+    try std.testing.expectEqual(@as(usize, 4), text.byteCount());
+    try std.testing.expectEqualStrings("a\r\nb", text.bytes.?);
+
+    try std.testing.expectError(
+        error.InputLimitExceeded,
+        runtime.prepareTextInput("a\rb", 3),
+    );
+
+    var raw = try runtime.prepareRawInput("\r");
+    defer raw.deinit();
+    try std.testing.expectEqualStrings("\r\n", raw.bytes.?);
+
+    var paste = try runtime.preparePasteInput("a\rb", false, 4);
+    defer paste.deinit();
+    try std.testing.expectEqualStrings("a\r\nb", paste.bytes.?);
+
+    const runtime_state = runtimeState(runtime);
+    runtime_state.terminal_mutex.lock();
+    const terminal_handler = &runtime_state.stream.handler.terminal_handler;
+    terminal_handler.effects.write_pty.?(terminal_handler, "a\rb");
+    runtime_state.terminal_mutex.unlock();
+    probe.copied.wait();
+    const reply = try expectNextQueuedTerminalBytes(runtime, "a\r\nb");
+    cancelInput(runtime, reply);
+    probe.copied.release();
+    try runtime.forceTerminate();
+}
+
+test "focus mode reports the aggregate immediately and rejects stale preparation" {
+    var probe: WriterProbe = .{ .pause_at = .copied };
+    const runtime = try createRuntimeWithHooks(probe.hooks());
+    defer {
+        probe.copied.release();
+        runtime.destroy();
+    }
+    const attachment_id = AttachmentId.fromBytes([_]u8{0x71} ** 16);
+    var attachment = try runtime.prepareAttachment(
+        attachment_id,
+        .{ .input = true, .read = false, .resize = false },
+    );
+    attachment.commit();
+
+    var claim = try runtime.prepareAttachmentSemanticInput(
+        attachment_id,
+        .{ .focus = .{ .focused = true } },
+        std.math.maxInt(usize),
+    );
+    try std.testing.expectEqual(@as(usize, 0), try claim.commit());
+
+    try std.testing.expectEqual(
+        ReaderBatchOutcome.committed,
+        commitReaderBatch(runtime, "\x1b[?1004h"),
+    );
+    const first_reply = try expectNextQueuedTerminalBytes(runtime, "\x1b[I");
+    cancelInput(runtime, first_reply);
+
+    try std.testing.expectEqual(
+        ReaderBatchOutcome.committed,
+        commitReaderBatch(runtime, "\x1b[?1004l"),
+    );
+    var stale = try runtime.prepareAttachmentSemanticInput(
+        attachment_id,
+        .{ .focus = .{ .focused = false } },
+        std.math.maxInt(usize),
+    );
+    defer stale.deinit();
+    try std.testing.expectEqual(@as(usize, 0), stale.byteCount());
+
+    try std.testing.expectEqual(
+        ReaderBatchOutcome.committed,
+        commitReaderBatch(runtime, "\x1b[?1004h"),
+    );
+    const second_reply = try expectNextQueuedTerminalBytes(runtime, "\x1b[I");
+    cancelInput(runtime, second_reply);
+    try std.testing.expectError(error.FocusModeChanged, stale.commit());
+    try std.testing.expect(subject.testing.attachmentFocusClaim(runtime, attachment_id));
+}
+
+test "in-band size mode reports enable and both geometry commit paths" {
+    var probe: WriterProbe = .{ .pause_at = .copied };
+    const runtime = try createRuntimeWithHooks(probe.hooks());
+    defer {
+        probe.copied.release();
+        runtime.destroy();
+    }
+
+    try std.testing.expectEqual(
+        ReaderBatchOutcome.committed,
+        commitReaderBatch(runtime, "\x1b[?2048h"),
+    );
+    var expected: [128]u8 = undefined;
+    const initial_reply = try expectNextQueuedTerminalBytes(
+        runtime,
+        try inBandSizeReport(&expected, runtime.geometry()),
+    );
+    cancelInput(runtime, initial_reply);
+
+    _ = try runtime.resizeGeometry(100, 30, 9, 18);
+    const attachment_reply = try expectNextQueuedTerminalBytes(
+        runtime,
+        try inBandSizeReport(&expected, runtime.geometry()),
+    );
+    cancelInput(runtime, attachment_reply);
+
+    try std.testing.expectEqual(
+        ReaderBatchOutcome.committed,
+        commitReaderBatch(runtime, "\x1b[?40h\x1b[?3h"),
+    );
+    try std.testing.expectEqual(@as(u16, 132), runtime.geometry().columns);
+    const terminal_reply = try expectNextQueuedTerminalBytes(
+        runtime,
+        try inBandSizeReport(&expected, runtime.geometry()),
+    );
+    cancelInput(runtime, terminal_reply);
+
+    const unchanged = runtime.geometry();
+    _ = try runtime.resizeGeometry(
+        unchanged.columns,
+        unchanged.rows,
+        unchanged.cell_pixel_width,
+        unchanged.cell_pixel_height,
+    );
+    try std.testing.expectEqual(
+        @as(usize, 0),
+        inputQueueSnapshot(runtime).terminal_reply_charge.bytes,
+    );
+
+    try std.testing.expectEqual(
+        ReaderBatchOutcome.committed,
+        commitReaderBatch(runtime, "\x1b[?2048l"),
+    );
+    _ = try runtime.resizeGeometry(120, 35, 10, 20);
+    try std.testing.expectEqual(
+        @as(usize, 0),
+        inputQueueSnapshot(runtime).terminal_reply_charge.bytes,
+    );
+}
+
+test "mode-effect reply exhaustion fences reader and attachment resize commits" {
+    {
+        const runtime = try createIdleRuntime(.{});
+        defer runtime.destroy();
+        _ = try reserveInput(
+            runtime,
+            max_pending_terminal_reply_bytes,
+            false,
+            .terminal,
+        );
+        try std.testing.expectEqual(
+            ReaderBatchOutcome.runtime_failed,
+            commitReaderBatch(runtime, "\x1b[?2048h"),
+        );
+        try std.testing.expectEqual(
+            subject.RuntimeFailureKind.terminal_reply,
+            runtime.primaryFailure().?,
+        );
+        const runtime_state = runtimeState(runtime);
+        runtime_state.terminal_mutex.lock();
+        defer runtime_state.terminal_mutex.unlock();
+        try std.testing.expect(runtime_state.terminal.modes.get(.in_band_size_reports));
+    }
+
+    {
+        var probe: WriterProbe = .{ .pause_at = .copied };
+        const runtime = try createRuntimeWithHooks(probe.hooks());
+        defer {
+            probe.copied.release();
+            runtime.destroy();
+        }
+        try std.testing.expectEqual(
+            ReaderBatchOutcome.committed,
+            commitReaderBatch(runtime, "\x1b[?2048h"),
+        );
+        var expected: [128]u8 = undefined;
+        const enable_reply = try expectNextQueuedTerminalBytes(
+            runtime,
+            try inBandSizeReport(&expected, runtime.geometry()),
+        );
+        cancelInput(runtime, enable_reply);
+        _ = try reserveInput(
+            runtime,
+            max_pending_terminal_reply_bytes,
+            false,
+            .terminal,
+        );
+        try std.testing.expectError(
+            error.TerminalRuntimeUnavailable,
+            runtime.resizeGeometry(90, 25, 8, 16),
+        );
+        try std.testing.expectEqual(
+            subject.RuntimeFailureKind.terminal_reply,
+            runtime.primaryFailure().?,
+        );
+        const retained = runtime.geometry();
+        try std.testing.expectEqual(@as(u16, 90), retained.columns);
+        try std.testing.expectEqual(@as(u16, 25), retained.rows);
+    }
+}
+
+fn expectNextQueuedTerminalBytes(
+    runtime: *TerminalRuntime,
+    expected: []const u8,
+) !u64 {
+    var buffer: [256]u8 = undefined;
+    const runtime_state = runtimeState(runtime);
+    runtime_state.input_mutex.lock();
+    defer runtime_state.input_mutex.unlock();
+    if (!runtime_state.input_queue.hasWritableEntry()) return error.ExpectedQueuedInput;
+    const slice = runtime_state.input_queue.copyNextWriterSlice(&buffer);
+    try std.testing.expectEqual(InputSource.terminal, slice.source);
+    try std.testing.expectEqualStrings(expected, buffer[0..slice.length]);
+    return slice.identifier;
+}
+
+fn inBandSizeReport(buffer: []u8, geometry: anytype) ![]const u8 {
+    return std.fmt.bufPrint(buffer, "\x1b[48;{d};{d};{d};{d}t", .{
+        geometry.rows,
+        geometry.columns,
+        @as(u64, geometry.rows) * geometry.cell_pixel_height,
+        @as(u64, geometry.columns) * geometry.cell_pixel_width,
+    });
 }

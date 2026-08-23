@@ -118,6 +118,10 @@ pub const State = struct {
     stream: terminal_stream.Stream,
     stream_allocator: terminal_stream.ParserAllocator,
     scrollback_bytes: usize,
+    // terminal_mutex protects the bounded DEC synchronized-output interval.
+    // The deadline shares the runtime monotonic clock used by terminal
+    // feedback and is absent whenever the canonical mode is disabled.
+    synchronized_output_deadline_ns: ?u64 = null,
     startup: terminal_runtime_startup.Gate = .{},
     terminal: ghostty_vt.Terminal,
     // terminal_mutex protects terminal parsing, history, generation, scrollback,

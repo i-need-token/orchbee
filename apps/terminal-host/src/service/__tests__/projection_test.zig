@@ -116,6 +116,25 @@ const CaptureAdvanceProbe = struct {
     }
 };
 
+const ModeClockProbe = struct {
+    samples: []const u64,
+    next_sample: usize = 0,
+
+    fn monotonicTimeNanoseconds(context: *anyopaque) u64 {
+        const self: *ModeClockProbe = @ptrCast(@alignCast(context));
+        const sample = self.samples[self.next_sample];
+        self.next_sample += 1;
+        return sample;
+    }
+
+    fn hooks(self: *ModeClockProbe) RuntimeTestingHooks {
+        return .{
+            .context = self,
+            .monotonic_time_nanoseconds = monotonicTimeNanoseconds,
+        };
+    }
+};
+
 const FailureCommitProbe = struct {
     allow_containment: bool = false,
     checkpoint: ReadCommitCheckpoint,
@@ -1834,6 +1853,75 @@ fn expectInputInvalidationRejectsProvisionalIdleFrame(
         try trailingCloseActivity(&retry),
     );
     try std.testing.expectEqual(@as(usize, 1), probe.calls);
+}
+
+test "scheduler preserves synchronized output and publishes the newest frame at deadline" {
+    if (target_builtin.os.tag == .windows) return error.SkipZigTest;
+
+    var aggregate = host_runtime_aggregate.HostRuntimeAggregate.init(std.testing.allocator);
+    defer aggregate.deinitChecked(true) catch unreachable;
+    const connection_id: core_module.ConnectionId = 1;
+    const samples = [_]u64{
+        0,
+        500 * std.time.ns_per_ms,
+        std.time.ns_per_s,
+    };
+    var clock: ModeClockProbe = .{ .samples = &samples };
+    const fixture = try createHookedRuntime(
+        &aggregate,
+        connection_id,
+        0,
+        clock.hooks(),
+    );
+    const attachment_id = testId(core_module.AttachmentId, 0x59, 0);
+    try activateAttachments(
+        &aggregate,
+        connection_id,
+        fixture.terminal_id,
+        &.{attachment_id},
+    );
+    try std.testing.expectEqual(.committed, commitReaderBatch(
+        fixture.runtime,
+        "before\x1b[?2026hafter",
+    ));
+    const synchronized_revision = fixture.runtime.geometry().revision;
+
+    var scheduler: subject.Scheduler = .{};
+    subject.testing.setClockSampleFn(&scheduler, 0, 0);
+    var suppressed = Outgoing.init(std.testing.allocator);
+    defer suppressed.deinit();
+    try std.testing.expectEqual(
+        host_outgoing.ScheduleOutcome.complete,
+        try scheduler.schedule(
+            std.testing.allocator,
+            &aggregate,
+            connection_id,
+            protocol.Limits.frame_bytes,
+            &suppressed,
+        ),
+    );
+    try std.testing.expectEqual(@as(usize, 0), suppressed.records().len);
+    try std.testing.expectEqual(
+        @as(u64, 1),
+        aggregate.core().findAttachment(attachment_id).?.nextProjectionSequence(),
+    );
+
+    subject.testing.setClockSampleFn(&scheduler, 0, std.time.ns_per_s);
+    var released = Outgoing.init(std.testing.allocator);
+    defer released.deinit();
+    try std.testing.expectEqual(
+        host_outgoing.ScheduleOutcome.complete,
+        try scheduler.schedule(
+            std.testing.allocator,
+            &aggregate,
+            connection_id,
+            protocol.Limits.frame_bytes,
+            &released,
+        ),
+    );
+    const frame = try onlyProjectionFrame(&released);
+    try std.testing.expectEqual(synchronized_revision + 1, frame.revision);
+    try std.testing.expectEqual(fixture.runtime.geometry().revision, frame.revision);
 }
 
 test "input invalidation rejects a provisional idle frame before Core commit" {

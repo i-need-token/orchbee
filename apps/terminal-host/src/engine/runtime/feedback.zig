@@ -4,6 +4,7 @@ const protocol = @import("terminal-protocol");
 const terminal_stream = @import("../terminal_stream.zig");
 const contracts = @import("contracts.zig");
 const state = @import("state.zig");
+const clock = @import("clock.zig");
 const failure_ops = @import("failure.zig");
 
 const max_clipboard_text_bytes = protocol.Limits.clipboard_text_bytes;
@@ -62,12 +63,12 @@ pub fn semanticPromptEffect(
     std.debug.assert(self.command_batch_active);
     switch (command.action) {
         .end_input_start_output => {
-            self.command_started_at_ns_staged = monotonicTimeNanoseconds(self);
+            self.command_started_at_ns_staged = clock.monotonicTimeNanoseconds(self);
         },
         .end_command => {
             const started_at_ns = self.command_started_at_ns_staged orelse return;
             self.command_started_at_ns_staged = null;
-            const completed_at_ns = monotonicTimeNanoseconds(self) orelse return;
+            const completed_at_ns = clock.monotonicTimeNanoseconds(self) orelse return;
             const completed_at_ms = wallTimeMilliseconds(self) orelse return;
             if (completed_at_ns < started_at_ns) return;
             if (self.command_sequence_staged == std.math.maxInt(u64)) {
@@ -201,16 +202,6 @@ fn validClipboardText(text: []const u8) bool {
         }
     }
     return true;
-}
-
-fn monotonicTimeNanoseconds(self: *state.State) ?u64 {
-    if (comptime @import("builtin").is_test) {
-        if (self.testing_hooks.monotonic_time_nanoseconds) |read| {
-            return read(self.testing_hooks.context.?);
-        }
-    }
-    if (self.command_timer) |*timer| return timer.read();
-    return null;
 }
 
 fn wallTimeMilliseconds(self: *state.State) ?u64 {

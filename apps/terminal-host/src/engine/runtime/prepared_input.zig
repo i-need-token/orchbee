@@ -15,6 +15,7 @@ pub fn Type(comptime Runtime: type) type {
     return struct {
         affects_close_activity: bool = false,
         bytes: ?[]u8,
+        focus_reporting_enabled: ?bool = null,
         ownership: ?contracts.PreparedInputOwnership = null,
         reservation: ?contracts.InputReservation,
         runtime: *Runtime,
@@ -40,9 +41,11 @@ pub fn Type(comptime Runtime: type) type {
             std.debug.assert(self.state == .pending);
             const byte_count = self.byteCount();
             const bytes = self.bytes;
+            const focus_reporting_enabled = self.focus_reporting_enabled;
             var ownership = self.ownership;
             const reservation = self.reservation;
             self.bytes = null;
+            self.focus_reporting_enabled = null;
             self.ownership = null;
             self.reservation = null;
             self.state = .consumed;
@@ -54,6 +57,7 @@ pub fn Type(comptime Runtime: type) type {
                     owned,
                     &ownership,
                     self.affects_close_activity,
+                    focus_reporting_enabled,
                 ) catch |err| {
                     if (ownership) |*pending| input_commit_ops.cancelPreparedInputOwnership(runtime, pending);
                     return err;
@@ -64,6 +68,7 @@ pub fn Type(comptime Runtime: type) type {
                     runtime,
                     &ownership,
                     self.affects_close_activity,
+                    focus_reporting_enabled,
                 ) catch |err| {
                     if (ownership) |*pending| input_commit_ops.cancelPreparedInputOwnership(runtime, pending);
                     return err;

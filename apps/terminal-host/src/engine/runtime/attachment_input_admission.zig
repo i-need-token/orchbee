@@ -7,6 +7,7 @@ const state = @import("state.zig");
 const prepared_input = @import("prepared_input.zig");
 const failure_ops = @import("failure.zig");
 const input_admission_ops = @import("input_admission.zig");
+const linefeed = @import("linefeed.zig");
 
 /// Coordinates attachment-scoped semantic input with its held-input ledger.
 /// Terminal-scoped encoding stays in input_admission; this module owns the
@@ -79,6 +80,7 @@ fn prepareFocusInput(
     const bytes = if (encoded.len == 0) null else try self.allocator.dupe(u8, encoded);
     return .{
         .bytes = bytes,
+        .focus_reporting_enabled = terminal_input_encoding.reportsFocus(&self.terminal),
         .ownership = ownership,
         .reservation = reservation,
         .runtime = self,
@@ -112,6 +114,9 @@ fn prepareCleanup(
 
     self.input_mutex.lock();
     defer self.input_mutex.unlock();
+    const repairs_aggregate_focus =
+        self.input_ownership.attachmentFocused(attachment_id) and
+        self.input_ownership.focusedCount() == 1;
     var repair = try self.input_ownership.prepareRepair(
         self.allocator,
         attachment_id,
@@ -124,12 +129,33 @@ fn prepareCleanup(
         if (repair.bytes) |bytes| self.allocator.free(bytes);
         self.input_ownership.cancelPrepared(&repair.ownership);
     }
+    if (repair.bytes) |bytes| {
+        const byte_count = try input_admission_ops.expandedInputLengthLocked(
+            self,
+            bytes,
+            std.math.maxInt(usize),
+        );
+        if (byte_count != bytes.len) {
+            const expanded = try linefeed.duplicateExpanded(
+                self.allocator,
+                bytes,
+                true,
+                byte_count,
+            );
+            self.allocator.free(bytes);
+            repair.bytes = expanded;
+        }
+    }
     const reservation = if (repair.bytes) |owned|
         try reserveRepairInputLocked(self, attachment_id, owned.len)
     else
         null;
     return .{
         .bytes = repair.bytes,
+        .focus_reporting_enabled = if (repairs_aggregate_focus)
+            terminal_input_encoding.reportsFocus(&self.terminal)
+        else
+            null,
         .ownership = repair.ownership,
         .reservation = reservation,
         .runtime = self,

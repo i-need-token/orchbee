@@ -168,6 +168,7 @@ pub const ProjectionEncodeOutcome = union(enum) {
     frame: ProjectionFrame,
 };
 pub const ProjectionEncodeError = error{
+    SynchronizedOutput,
     TerminalResizeFailed,
     TerminalRuntimeUnavailable,
 };

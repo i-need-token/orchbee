@@ -115,6 +115,8 @@ pub fn createWithOptionsUsingSpawner(
     effects.pwd_changed = output_ops.metadataChangedEffect;
     effects.xtversion = output_ops.versionEffect;
     self.stream.handler.column_mode = output_ops.columnModeEffect;
+    self.stream.handler.mode_changed = output_ops.modeChangedEffect;
+    self.stream.handler.full_reset = output_ops.fullResetEffect;
     self.stream.handler.clipboard_contents = feedback_ops.clipboardContentsEffect;
     self.stream.handler.progress_report = feedback_ops.progressReportEffect;
     self.stream.handler.semantic_prompt = feedback_ops.semanticPromptEffect;

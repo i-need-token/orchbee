@@ -75,15 +75,22 @@ test "Host terminal stream restores scoped DECRQSS replies across parser chunks"
         capture.bytes[0..capture.length],
     );
 
-    const before_unsupported = capture.length;
+    const before_xtgettcap = capture.length;
     capture.stream.nextSlice("\x1bP+q544e\x1b\\");
-    try std.testing.expectEqual(before_unsupported, capture.length);
+    try std.testing.expectEqualStrings(
+        "\x1bP1+r544E=787465726D2D323536636F6C6F72\x1b\\",
+        capture.bytes[before_xtgettcap..capture.length],
+    );
 
+    const before_superseded = capture.length;
     capture.stream.handler.vt(.dcs_hook, .{ .intermediates = "$", .final = 'q' });
     capture.stream.handler.vt(.dcs_put, 'm');
     capture.stream.handler.vt(.dcs_hook, .{ .intermediates = "+", .final = 'q' });
     capture.stream.handler.vt(.dcs_unhook, {});
-    try std.testing.expectEqual(before_unsupported, capture.length);
+    try std.testing.expectEqualStrings(
+        "\x1bP0+r\x1b\\",
+        capture.bytes[before_superseded..capture.length],
+    );
 
     const plain = try terminal.plainString(std.testing.allocator);
     defer std.testing.allocator.free(plain);

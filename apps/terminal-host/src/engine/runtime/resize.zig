@@ -4,6 +4,7 @@ const terminal_geometry = @import("terminal-host-model").geometry;
 const state = @import("state.zig");
 const completion_ops = @import("completion.zig");
 const failure_ops = @import("failure.zig");
+const mode_effects = @import("mode_effects.zig");
 
 pub fn resize(self: *state.State, columns: u16, rows: u16) !void {
     self.terminal_mutex.lock();
@@ -147,6 +148,13 @@ pub fn resizeGeometry(
     self.generation = next_generation;
     self.revision.store(revision, .release);
     self.history.generationChanged(&self.terminal, revision, self.generation);
+    mode_effects.geometryCommittedLocked(self) catch {
+        const won = failure_ops.closeFailureFenceLocked(self, .terminal_reply);
+        finishResizeEffectLocked(self);
+        self.terminal_mutex.unlock();
+        if (won) failure_ops.finishFailureFence(self);
+        return error.TerminalRuntimeUnavailable;
+    };
     finishResizeEffectLocked(self);
     self.terminal_mutex.unlock();
     completion_ops.markNormalCompletionReady(self);

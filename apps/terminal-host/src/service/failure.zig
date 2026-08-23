@@ -44,7 +44,7 @@ pub fn fromInput(rejection: host_input_admission.Rejection) InputFailure {
         .terminal_exited, .terminal_runtime_unavailable => .{ .code = "invalid-phase", .retryable = false },
         .input_limit_exceeded => .{ .code = "limit-exceeded", .retryable = false },
         .invalid_input => .{ .code = "invalid-field", .retryable = false },
-        .paste_mode_changed => .{ .code = "input-mode-changed", .retryable = false },
+        .input_mode_changed => .{ .code = "input-mode-changed", .retryable = false },
     };
 }
 

@@ -140,7 +140,7 @@ test "input failure metadata is consistent across raw and semantic ingress" {
     );
     try std.testing.expectEqualDeep(
         InputFailure{ .code = "input-mode-changed", .retryable = false },
-        inputFailure(.paste_mode_changed),
+        inputFailure(.input_mode_changed),
     );
 }
 test "protocol identifier failures retain their public error code" {

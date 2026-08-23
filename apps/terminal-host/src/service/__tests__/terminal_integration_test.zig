@@ -252,8 +252,8 @@ test "two visible attachments produce one real PTY focus interval" {
         "-c",
         "esc=$(printf '\\033'); printf '\\033[?1004hfocus-ready'; " ++
             "IFS= read -r value; " ++
-            "if [ \"$value\" = \"${esc}[I${esc}[O\" ]; " ++
-            "then printf 'focus-bytes:1b5b491b5b4f'; " ++
+            "if [ \"$value\" = \"${esc}[O${esc}[I${esc}[O\" ]; " ++
+            "then printf 'focus-bytes:1b5b4f1b5b491b5b4f'; " ++
             "else printf 'focus-bytes:unexpected'; fi",
     };
     const windows_arguments = [_][]const u8{
@@ -264,8 +264,8 @@ test "two visible attachments produce one real PTY focus interval" {
         "/C",
         "for /F \"delims=#\" %a in ('\"prompt #$E# & for %b in (1) do rem\"') " ++
             "do @set \"ESC=%a\" & <nul set /p =!ESC![?1004hfocus-ready & " ++
-            "set /p value= & if \"!value!\"==\"!ESC![I!ESC![O\" " ++
-            "(<nul set /p =focus-bytes:1b5b491b5b4f) else " ++
+            "set /p value= & if \"!value!\"==\"!ESC![O!ESC![I!ESC![O\" " ++
+            "(<nul set /p =focus-bytes:1b5b4f1b5b491b5b4f) else " ++
             "(<nul set /p =focus-bytes:unexpected)",
     };
     const arguments: []const []const u8 = if (builtin.os.tag == .windows)
@@ -353,7 +353,7 @@ test "two visible attachments produce one real PTY focus interval" {
     try semantic_wait.runtimeText(
         runtime,
         std.testing.allocator,
-        "focus-bytes:1b5b491b5b4f",
+        "focus-bytes:1b5b4f1b5b491b5b4f",
     );
     var exit_events = try semantic_wait.terminalExits(
         &service,

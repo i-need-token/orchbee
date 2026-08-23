@@ -7,24 +7,15 @@ const contracts = @import("contracts.zig");
 const state = @import("state.zig");
 const failure_ops = @import("failure.zig");
 const feedback_ops = @import("feedback.zig");
-const input_admission_ops = @import("input_admission.zig");
-const input_commit_ops = @import("input_commit.zig");
 const process_io_ops = @import("process_io.zig");
 const resize_ops = @import("resize.zig");
 const metadata_ops = @import("metadata.zig");
+const mode_effects = @import("mode_effects.zig");
+const terminal_reply = @import("terminal_reply.zig");
 
 pub fn writePtyEffect(handler: *ghostty_vt.TerminalStream.Handler, bytes: [:0]const u8) void {
     const self = runtimeFromHandler(handler);
-    const reservation = input_admission_ops.reserveInput(self, bytes.len, false, .terminal) catch {
-        self.reply_failure_pending = true;
-        return;
-    };
-    const copy = self.allocator.dupe(u8, bytes) catch {
-        input_commit_ops.cancelInput(self, reservation.identifier);
-        self.reply_failure_pending = true;
-        return;
-    };
-    input_commit_ops.publishInput(self, reservation, copy) catch {
+    terminal_reply.enqueueLocked(self, bytes) catch {
         self.reply_failure_pending = true;
     };
 }
@@ -44,6 +35,21 @@ pub fn metadataChangedEffect(handler: *ghostty_vt.TerminalStream.Handler) void {
 
 pub fn metadataResetEffect(handler: *terminal_stream.Handler) void {
     metadata_ops.markChangedLocked(runtimeFromHostHandler(handler));
+}
+
+pub fn modeChangedEffect(
+    handler: *terminal_stream.Handler,
+    mode: ghostty_vt.Mode,
+    enabled: bool,
+) void {
+    const self = runtimeFromHostHandler(handler);
+    mode_effects.streamModeChangedLocked(self, mode, enabled) catch {
+        self.reply_failure_pending = true;
+    };
+}
+
+pub fn fullResetEffect(handler: *terminal_stream.Handler) void {
+    mode_effects.resetLocked(runtimeFromHostHandler(handler));
 }
 
 pub fn colorSchemeEffect(
@@ -110,7 +116,12 @@ pub fn columnModeEffect(handler: *terminal_stream.Handler, enabled: bool) bool {
     };
 
     self.terminal_driven_resize_target = next_geometry;
-    if (geometry_changes) resize_ops.finishResizeEffectLocked(self);
+    if (geometry_changes) {
+        mode_effects.geometryCommittedLocked(self) catch {
+            self.reply_failure_pending = true;
+        };
+        resize_ops.finishResizeEffectLocked(self);
+    }
     return true;
 }
 

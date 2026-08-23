@@ -995,12 +995,15 @@ test "reader alternate-screen batch publishes one coherent projection generation
     const primary_bytes = "\x1b]2;Orchbee primary\x1b\\" ++
         "\x1b]7;file:///workspace/primary\x1b\\" ++
         "\x1b[4 q\x1b[?25l\x1b[?1h\x1b=" ++
-        "\x1b[?2004h\x1b[?1004h\x1b[?1002h\x1b[?1006h" ++
+        "\x1b[?2004h\x1b[?1002h\x1b[?1006h" ++
         "\x1b[>4;2m\x1b[=31;1u\x1b[HPRI";
     try std.testing.expectEqual(ReaderBatchOutcome.committed, commitReaderBatch(
         runtime,
         primary_bytes,
     ));
+    runtimeState(runtime).terminal_mutex.lock();
+    runtimeState(runtime).terminal.modes.set(.focus_event, true);
+    runtimeState(runtime).terminal_mutex.unlock();
     const primary_geometry = runtime.geometry();
     const attachment_id = AttachmentId.fromBytes([_]u8{0x62} ** 16);
     const host_epoch = HostEpoch.fromBytes([_]u8{0x71} ** 16);
@@ -1131,8 +1134,11 @@ test "application clear erases and homes the active screen without resetting met
         runtime,
         "\x1b[?1049h\x1b]2;Clear metadata\x1b\\" ++
             "\x1b]7;file:///workspace/clear\x1b\\" ++
-            "\x1b[?2004h\x1b[?1004h\x1b[?1002h\x1b[?1006h\x1b[3;4HCLEAR",
+            "\x1b[?2004h\x1b[?1002h\x1b[?1006h\x1b[3;4HCLEAR",
     ));
+    runtimeState(runtime).terminal_mutex.lock();
+    runtimeState(runtime).terminal.modes.set(.focus_event, true);
+    runtimeState(runtime).terminal_mutex.unlock();
     const before = runtime.geometry();
     const attachment_id = AttachmentId.fromBytes([_]u8{0x63} ** 16);
     const host_epoch = HostEpoch.fromBytes([_]u8{0x72} ** 16);
@@ -1208,8 +1214,11 @@ test "application reset returns alternate state to a fresh primary terminal" {
         "PRIMARY\x1b[?1049h\x1b]2;Reset metadata\x1b\\" ++
             "\x1b]7;file:///workspace/reset\x1b\\" ++
             "\x1b[5 q\x1b[?25l\x1b[?1h\x1b=\x1b[?2004h" ++
-            "\x1b[?1004h\x1b[?1003h\x1b[?1016h\x1b[4;5HRESET",
+            "\x1b[?1003h\x1b[?1016h\x1b[4;5HRESET",
     ));
+    runtimeState(runtime).terminal_mutex.lock();
+    runtimeState(runtime).terminal.modes.set(.focus_event, true);
+    runtimeState(runtime).terminal_mutex.unlock();
     const before = runtime.geometry();
 
     try std.testing.expectEqual(@as(usize, 0), runtime.pendingInputBytes());
@@ -1556,4 +1565,117 @@ test "runtime projection preserves resize and hyperlink transitions" {
     const resized_links = try observeFrameHyperlinks(resized.bytes, hyperlink_target);
     try std.testing.expect(!resized_links.any);
     try std.testing.expect(!resized_links.target);
+}
+
+test "synchronized output suppresses capture only until its monotonic deadline" {
+    const samples = [_]u64{
+        0,
+        500 * std.time.ns_per_ms,
+        std.time.ns_per_s,
+    };
+    var clock: CommandClockProbe = .{
+        .monotonic_values = &samples,
+        .wall_milliseconds = 0,
+    };
+    const runtime = try createRuntimeWithHooks(clock.hooks());
+    defer runtime.destroy();
+    try std.testing.expectEqual(
+        ReaderBatchOutcome.committed,
+        commitReaderBatch(runtime, "before\x1b[?2026hafter"),
+    );
+
+    const request: ProjectionEncodeRequest = .{
+        .attachment_id = AttachmentId.fromBytes([_]u8{0xe1} ** 16),
+        .base_generation = null,
+        .base_revision = null,
+        .force_snapshot = true,
+        .host_epoch = HostEpoch.fromBytes([_]u8{0xe2} ** 16),
+        .maximum_bytes = protocol.Limits.frame_bytes,
+        .sequence = 1,
+    };
+    if (runtime.encodeProjectionFrameOwned(
+        std.testing.allocator,
+        0,
+        request,
+    )) |outcome| {
+        switch (outcome) {
+            .frame => |frame| std.testing.allocator.free(frame.allocation),
+            .blocked => {},
+        }
+        return error.ExpectedSynchronizedOutputSuppression;
+    } else |err| {
+        try std.testing.expectEqual(error.SynchronizedOutput, err);
+    }
+
+    var released_request = request;
+    released_request.sequence = 2;
+    const released = try requireProjectionFrame(try runtime.encodeProjectionFrameOwned(
+        std.testing.allocator,
+        0,
+        released_request,
+    ));
+    defer std.testing.allocator.free(released.allocation);
+    const plain = try runtime.plainString(std.testing.allocator);
+    defer std.testing.allocator.free(plain);
+    try std.testing.expect(std.mem.indexOf(u8, plain, "beforeafter") != null);
+    try runtime.forceTerminate();
+}
+
+test "reset and successful resize release synchronized output" {
+    const samples = [_]u64{ 0, 1, 2 };
+    var clock: CommandClockProbe = .{
+        .monotonic_values = &samples,
+        .wall_milliseconds = 0,
+    };
+    const runtime = try createRuntimeWithHooks(clock.hooks());
+    defer runtime.destroy();
+    const base_request: ProjectionEncodeRequest = .{
+        .attachment_id = AttachmentId.fromBytes([_]u8{0xe3} ** 16),
+        .base_generation = null,
+        .base_revision = null,
+        .force_snapshot = true,
+        .host_epoch = HostEpoch.fromBytes([_]u8{0xe4} ** 16),
+        .maximum_bytes = protocol.Limits.frame_bytes,
+        .sequence = 1,
+    };
+
+    try std.testing.expectEqual(ReaderBatchOutcome.committed, commitReaderBatch(
+        runtime,
+        "\x1b[?2026h",
+    ));
+    _ = try runtime.resizeGeometry(81, 25, 8, 16);
+    const resized = try requireProjectionFrame(try runtime.encodeProjectionFrameOwned(
+        std.testing.allocator,
+        0,
+        base_request,
+    ));
+    std.testing.allocator.free(resized.allocation);
+
+    try std.testing.expectEqual(ReaderBatchOutcome.committed, commitReaderBatch(
+        runtime,
+        "\x1b[?2026h",
+    ));
+    _ = try runtime.applyTerminalControl(.reset);
+    var reset_request = base_request;
+    reset_request.sequence = 2;
+    const reset = try requireProjectionFrame(try runtime.encodeProjectionFrameOwned(
+        std.testing.allocator,
+        0,
+        reset_request,
+    ));
+    std.testing.allocator.free(reset.allocation);
+
+    try std.testing.expectEqual(ReaderBatchOutcome.committed, commitReaderBatch(
+        runtime,
+        "\x1b[?2026h\x1bc",
+    ));
+    var ris_request = base_request;
+    ris_request.sequence = 3;
+    const ris = try requireProjectionFrame(try runtime.encodeProjectionFrameOwned(
+        std.testing.allocator,
+        0,
+        ris_request,
+    ));
+    std.testing.allocator.free(ris.allocation);
+    try runtime.forceTerminate();
 }

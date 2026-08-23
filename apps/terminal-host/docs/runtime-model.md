@@ -528,6 +528,13 @@ is exhausted the writer yields to a waiting client entry and the burst restarts 
 slice; replies continue to make progress whenever no client entry is waiting. `InputAccepted`
 remains queue-admission-only and never promises delivery order relative to terminal replies.
 
+ANSI linefeed mode `20` applies at the Host-owned PTY-write preparation boundary. While it is
+enabled, every literal carriage return in client input or a terminal-generated reply is expanded
+exactly once to carriage-return/line-feed before the queue reservation is charged. The expanded
+length, rather than the source length, must satisfy the negotiated semantic-input limit and the
+appropriate bounded queue budget. Preparation observes the canonical mode while holding
+`terminal_mutex`; a later mode change does not rewrite an already prepared FIFO entry.
+
 Semantic key and application-mouse input commit their attachment-owned held-state mutation under
 the input mutex at the same linearization point that publishes their client FIFO entry. Preparation,
 cancellation, rejection, and a late commit after detach mutate neither ledger nor queue. Key facts
@@ -555,7 +562,11 @@ terminal: the first claim emits one semantic `FocusIn`, later claims emit no PTY
 releases emit no PTY bytes, and the final release emits one semantic `FocusOut`. Replaying the
 attachment's current claim is inert. Paused, disabled, detached, or stale-revision input cannot
 create a claim. Activating demand or upgrading input capability creates no claim and replays no
-focus; a fresh exact-revision focus input is required.
+focus; a fresh exact-revision focus input is required. Enabling DEC mode `1004` additionally admits
+one immediate report of the current aggregate through the terminal-reply budget. The mode update,
+aggregate observation, and reply reservation are ordered under `terminal -> input`; prepared focus
+input records the reporting mode it observed and a conflicting final commit is rejected as
+`input-mode-changed`, so an enable action cannot overtake an unreported focus transition.
 
 Every newly held key or mouse button precharges its worst-case release bytes, and the first terminal
 focus claim precharges the worst-case final `FocusOut` bytes. Held state and a non-empty focus
@@ -583,13 +594,21 @@ the normal fencing and containment path. A prepared client input reserves its FI
 budget before reply preparation; cancelling it releases both and admits no bytes.
 
 Ghostty's terminal handler remains the only terminal-state mutator. The Host-owned stream adapter
-delegates every ordinary parser action and effect to that handler and intercepts only `DCS $ q`,
-because the pinned allocation-free `ghostty_vt.TerminalStream` intentionally ignores DCS actions.
-Ghostty's DCS handler classifies the bounded DECRQSS payload, and the Host encodes DECRPSS from the
-same canonical SGR, cursor, and margin state before admitting it to the terminal-reply queue. It
-does not enable XTGETTCAP, tmux control mode, or a second VT owner. A retained legacy corpus fixes
-the exact ordered bytes for DSR, primary/secondary/tertiary DA, XTWINOPS, color-scheme, XTVERSION,
-ENQ, and supported and unsupported DECRQSS queries.
+delegates every ordinary parser action and effect to that handler and intercepts the bounded
+`DCS $ q` and `DCS + q` query families because the pinned allocation-free
+`ghostty_vt.TerminalStream` intentionally ignores DCS actions. Ghostty's DCS handler classifies the
+payload. The Host encodes DECRPSS from the same canonical SGR, cursor, and margin state, and answers
+XTGETTCAP from a reviewed fixed subset of the advertised `TERM=xterm-256color` identity: terminal
+name, color counts, direct-color width, and the baseline navigation and F1-F12 key strings. One
+request produces one ordered response and every name and value is uppercase hexadecimal. An invalid
+or unsupported first name returns `DCS 0 + r ST`; a later invalid name ends the list and preserves
+the preceding semicolon-separated `DCS 1 + r ... ST` prefix, matching xterm's multi-name behavior.
+The adapter does not enable XTSETTCAP, tmux control mode, or a second VT owner.
+Its APC handler disables Glyph Protocol recognition: support, query, registration, and clear
+requests produce neither a reply nor glossary mutation until an end-to-end projected renderer and
+resource contract are accepted. A retained source-independent corpus fixes the exact ordered bytes
+for DSR, primary/secondary/tertiary DA, XTWINOPS, color-scheme, XTVERSION, ENQ, DECRQSS,
+XTGETTCAP, disabled Glyph requests, malformed boundaries, and parser chunking.
 
 `TerminationIntent` moves monotonically from `none` to `graceful` to `force`; force subsumes
 graceful. An accepted intent performs its platform effect at most once. A partial or failed
@@ -706,6 +725,15 @@ projection cadence, scheduler position, or visible outgoing batch. If the guard 
 frame commits before a generation-changing mutation or failure publisher can acquire the mutex.
 Confirmed containment may again admit a newly prepared retained-state frame, but cannot revive a
 pre-fence provisional frame; resize failure never admits retained reads.
+
+DEC synchronized-output mode `2026` suppresses live projection capture, not canonical parsing,
+revision advancement, history mutation, or terminal replies. Enabling or re-enabling the mode arms
+a one-second deadline in the Engine's monotonic clock domain. An explicit reset, RIS or application
+reset, a successful geometry change, or deadline expiry clears both the canonical mode and the
+deadline; the next eligible scheduler pass may publish only the newest coherent revision. If a
+monotonic sample or deadline addition is unavailable, the Host clears the mode immediately rather
+than permitting an unbounded presentation freeze. No attachment owns a separate synchronized
+region, and pausing or attaching a client does not extend the child-owned deadline.
 
 History row delivery and plain-text selection export use the same principle: each flight has one
 positive, strictly increasing sequence; only its exact acknowledgement can commit it. The control
@@ -899,6 +927,14 @@ committed history anchor and active selection remain attached to Ghostty's track
 pins survive reflow; the Host republishes the selection's reflowed endpoints. Screen replacement,
 retained-row eviction, or a garbage tracked pin instead releases the selection and reports
 `evicted`, so reflow and content loss are not conflated.
+
+When DEC in-band size-report mode `2048` is enabled, the same reader transaction immediately queues
+`CSI 48 ; rows ; columns ; height-pixels ; width-pixels t` from the committed canonical geometry.
+Every later successful attachment or terminal-driven geometry commit first clears synchronized
+output and then queues another report from that exact committed geometry; no-op and failed resize
+attempts emit none. Report admission uses the independent terminal-reply budget. Failure to admit a
+required report is a typed `terminal_reply` integrity failure rather than a successful resize with
+an unreported geometry.
 
 Each attachment also owns one pinned Ghostty selection gesture. A start replaces the prior gesture
 only after its click behavior and selection can be installed, an update applies Ghostty's
@@ -1258,6 +1294,8 @@ Stable claim identifiers are used by tests, models, and review findings.
 | `TH-018` | One accepted runtime-theme operation atomically replaces color scheme, default foreground/background, nullable cursor color, and all 256 palette entries at one independent Host theme revision. Replay, stale, conflict, validation, overflow, lifecycle, and runtime-coherence failures preserve the complete prior Core and physical state. Recovery publishes the complete current state; all attachments observe one coherent content revision, and OSC/reset/RIS resolve against the latest committed runtime theme.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | `TH-019` | Each attachment has one positive monotonic capability revision initialized to `1`. Input preparation and final queue commit require its exact current revision and enabled input bit. An exact capability-update replay is inert; stale, gapped, conflicting, and unchanged next revisions cannot mutate authority. Downgrade repairs and removes only the target attachment's held-input ledger before revocation, preserves already accepted FIFO entries without duplication, and upgrade creates a fresh empty ledger. Immutable admitted capabilities continue to define attach replay.                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | `TH-020` | `TerminalEngine` OR-aggregates focus claims from attached, input-capable attachments whose Core projection demand is active. Only aggregate zero-to-nonzero and nonzero-to-zero transitions emit terminal `FocusIn` and `FocusOut`. Detach, broker loss, demand pause, and capability downgrade clear only the target claim after its key and mouse repair; a final focus repair is precharged and ordered last. Stale, disabled, paused, and detached input cannot create a claim, while activation and capability upgrade never replay one.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `TH-021` | The Host advertises only terminal capabilities with an owned, bounded, observable implementation. Glyph Protocol is disabled and cannot reply or mutate its glossary. XTGETTCAP answers one fixed `xterm-256color` subset with one bounded ordered response and exact hexadecimal encoding; an invalid first name returns a negative response, while a later invalid name terminates the successful prefix. It never installs capability data or introduces another VT owner.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `TH-022` | External effects of modes `20`, `1004`, `2026`, and `2048` refine the same canonical mode transition. Mode `20` charges CR-to-CRLF expansion before PTY-write admission. Mode `1004` orders its immediate aggregate report against prepared focus commits. Mode `2026` suppresses only projections and is bounded by explicit reset, full reset, successful resize, or a one-second monotonic deadline. Mode `2048` reports the exact geometry on enable and every successful geometry commit. Required-reply admission failure enters typed runtime containment; no effect creates attachment-local terminal state.                                                                                                                                                                                                                                                                                                                                                                                                                     |
 
 ## Scenario decisions
 
@@ -1293,6 +1331,7 @@ coverage alone is insufficient.
 | [Frame-delivery TLA+ model](../formal/tla/TerminalFrameBackpressure.tla)                     | `TH-006`, `TH-009`, `TH-010`, `TH-011`, `TH-012`, `TH-016`, two-attachment projection mutation/capture separation, generation-changing clear/reset, exact failed revisions, provisional frame commit, failure publication and containment confirmation, no unconfirmed-failure handoff, one flight per attachment, acknowledgement bases, pause/abandonment, and blocked snapshot recovery                                                                                                                                                                        |
 | [Close-activity freshness TLA+ model](../formal/tla/TerminalCloseActivityFreshness.tla)      | `TH-006`, `TH-010`, `TH-012`, immediate Host-side invalidation for byte-bearing and zero-byte input, current Ghostty prompt-state reclassification, platform active and failure precedence, silent same-revision process or prompt changes, bounded sampling cadence, provisional epoch/exhaustion guards, batch-full rollback, current-token cache agreement, and forced successor snapshots for invalidated flights; consumer-local presentation and close decisions remain outside this Host model and are verified by the terminal client and Workbench tests |
 | [Input-backpressure TLA+ model](../formal/tla/TerminalInputBackpressure.tla)                 | `TH-003`, `TH-004`, `TH-007`, `TH-012`, `TH-019`, `TH-020`, two-attachment held-input ownership and focus aggregation, visibility loss/gain without replay, monotonic input-capability downgrade/upgrade/replay/rejection, stale-input rejection, queued-input preservation, precharged repair without cross-release, independent client/reply admission budgets, client FIFO ownership, writer shutdown cleanup, reply priority, and bounded client progress                                                                                                     |
+| [Terminal-mode effects TLA+ model](../formal/tla/TerminalModeEffects.tla)                    | `TH-006`, `TH-007`, `TH-020`, `TH-022`, synchronized projection suppression and bounded release, mode-20 admission charging, immediate focus reporting ordered against prepared focus, mode-2048 enable/resize reports, reset and resize interactions, and required-reply failure containment                                                                                                                                                                                                                                                                     |
 | [Process-identity TLA+ model](../formal/tla/TerminalHostProcessIdentity.tla)                 | `TH-008`, `TH-009`, `TH-013`, retained leader/SID fencing, stable member-reference acquisition before authoritative membership observation, identity-independent owned/foreign membership for a replacement PID, invalidated signal and liveness retries followed by a fresh scan, containment confirmation, reap, and later SID rebinding; no foreign replacement is signaled or counted, while an owned replacement requires a fresh stable reference; checked bounds live in its adjacent `.cfg`                                                               |
 | [History-interaction TLA+ model](../formal/tla/TerminalHistoryInteraction.tla)               | `TH-002`, `TH-006`, `TH-010`, `TH-011`, `TH-012`, `TH-016`, row flights and anchors, generation-changing clear/reset invalidation, history observation, selection eviction, exact export/chunk acknowledgement identity, stale search pages, and detach cleanup                                                                                                                                                                                                                                                                                                   |
 | Composition invariant oracle                                                                 | `TH-001` through `TH-013` and `TH-016` through `TH-020` across owner boundaries: retained-runtime membership, broker identity, lifecycle and containment, configuration, terminal-theme, geometry, capability revision, input-ledger/focus eligibility agreement, and bounded projection observations after every stable Service step                                                                                                                                                                                                                             |
@@ -1377,6 +1416,8 @@ and raw VT formats are rejected before runtime access.
 | `TH-018`           | `src/model/__tests__/theme_test.zig` and `src/core/__tests__/theme_revision_test.zig`: complete state validity, compare-and-set, exact replay, stale/conflict, overflow, and no-mutation rejection; `src/engine/__tests__/runtime_theme_test.zig`: atomic physical replacement, OSC override/reset, RIS/application-reset priority, failure preservation, and two-attachment revision agreement; `src/service/__tests__/runtime_aggregate_theme_test.zig` and `connection_request_test.zig`: deferred/running cross-owner commit, reply preallocation, recovery inventory, replay/stale/conflict/failure results; `src/__tests__/protocol_conformance_test.zig`: exact TypeScript/native theme request, result, state, and registry agreement                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | `TH-019`           | `src/core/__tests__/registry_broker_test.zig`: revision initialization, exact update/replay, stale/gap/conflict rejection, immutable attach replay, and invariants; `src/service/__tests__/input_request_test.zig`: two-attachment held ownership, target-only downgrade repair, prepared-input final reauthorization, queued-input preservation, disabled/stale wire rejection, fresh upgrade ledger, and current-revision acceptance; composition state-machine traces and protocol conformance cover revision visibility and exact cross-language bytes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | `TH-020`           | `src/engine/__tests__/runtime_input_test.zig`: two-attachment aggregate focus transitions, duplicate claims, retained-ledger visibility reset, ordered key/mouse/focus repair, precharged final release, stale prepared-input rejection, and repair-failure containment; `src/service/__tests__/input_request_test.zig` plus composition traces: stale/paused rejection, demand-loss repair, detach and downgrade ordering, activation/upgrade without replay, and invariant agreement; `src/service/__tests__/terminal_integration_test.zig`: deterministic real-PTY two-attachment focus trace; headed `terminal-parity/IN-14-shared-focus`: two production projected surfaces and the application command trace                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `TH-021`           | `src/engine/__tests__/terminal_compatibility_test.zig`: disabled Glyph support/registration without reply or glossary mutation; bounded, chunked, multi-name, unsupported, malformed, and ordered XTGETTCAP/DECRQSS behavior against the fixed compatibility corpus                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `TH-022`           | `src/engine/__tests__/runtime_input_test.zig`, `runtime_state_test.zig`, and `projection_test.zig`: mode-20 expansion and post-expansion limits, mode-1004 immediate aggregate reporting and stale preparation, mode-2026 split-batch suppression/reset/resize/timeout, mode-2048 enable and attachment/terminal-driven resize reports, reply-budget failure containment, and exact geometry/order                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 
 The deterministic commit-seam set is: creation preparation/spawn/admission; deferred-start spawn;
 control-reply
@@ -1384,6 +1425,7 @@ reservation; raw and semantic queue reservation/publication with final capabilit
 attachment input-ledger admission, focus aggregation, visibility repair, capability
 downgrade/upgrade, and detach-repair materialization/publication/failure containment; application terminal-control
 validation and canonical mutation; resize effect and unsafe rollback;
+mode-effect reply admission, focus-mode revalidation, and synchronized-output deadline release;
 projection capture/encoding, provisional payload adoption, and serialized read commit; row,
 history, selection, and export provisional mutation; batch prefix/full behavior; lifecycle outcome
 handoff; Local IPC partial write; process observation and containment; multi-runtime shutdown; and
@@ -1428,6 +1470,9 @@ transport adapter, and single-owner schedules exercise an ordered local transact
 | `CS-023` | `MultiRuntimeShutdown`                 | contain and retain           | deterministic interleaving |
 | `CS-024` | `DeferredStartSpawn`                   | contain and retain           | native boundary            |
 | `CS-025` | `RuntimeThemeCommit`                   | reject without commit        | single owner               |
+| `CS-026` | `ModeEffectReplyAdmission`             | contain and retain           | single owner               |
+| `CS-027` | `FocusModeRevalidation`                | reject without commit        | deterministic interleaving |
+| `CS-028` | `SynchronizedOutputDeadlineRelease`    | preserve for retry           | deterministic interleaving |
 
 `src/service/__tests__/commit_seam_matrix_test.zig` is the executable catalog. It requires a
 one-to-one enum/table entry for every row above and locates the exact named test that supplies its

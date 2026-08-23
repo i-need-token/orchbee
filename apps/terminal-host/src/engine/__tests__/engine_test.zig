@@ -19,4 +19,5 @@ comptime {
     _ = @import("selection_test.zig");
     _ = @import("selection_export_test.zig");
     _ = @import("terminal_stream_test.zig");
+    _ = @import("terminal_compatibility_test.zig");
 }

@@ -4,6 +4,7 @@ const contracts = @import("contracts.zig");
 const state = @import("state.zig");
 const read_commit_guard = @import("read_commit_guard.zig");
 const failure_ops = @import("failure.zig");
+const mode_effects = @import("mode_effects.zig");
 
 pub fn bellSequence(self: *state.State) u64 {
     self.terminal_mutex.lock();
@@ -211,6 +212,10 @@ pub fn encodeProjectionFrameOwned(
         self.terminal_mutex.unlock();
         return err;
     };
+    if (mode_effects.projectionSuppressedLocked(self)) {
+        self.terminal_mutex.unlock();
+        return error.SynchronizedOutput;
+    }
     const revision = self.revision.load(.monotonic);
     const generation = self.generation;
     const read_commit_epoch = self.read_commit_epoch;

@@ -7,6 +7,7 @@ const state = @import("state.zig");
 const completion_ops = @import("completion.zig");
 const failure_ops = @import("failure.zig");
 const metadata_ops = @import("metadata.zig");
+const mode_effects = @import("mode_effects.zig");
 
 pub fn applyTerminalControl(
     self: *state.State,
@@ -37,6 +38,7 @@ pub fn applyTerminalControl(
         },
         .reset => {
             self.terminal.fullReset();
+            mode_effects.resetLocked(self);
             terminal_stream.restoreColorDefaults(&self.terminal);
             self.profile.applyCursorDefaults(&self.terminal);
             self.stream.handler.terminal_handler.default_cursor = true;

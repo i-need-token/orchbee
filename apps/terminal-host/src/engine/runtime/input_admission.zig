@@ -6,6 +6,7 @@ const state = @import("state.zig");
 const prepared_input = @import("prepared_input.zig");
 const failure_ops = @import("failure.zig");
 const input_commit_ops = @import("input_commit.zig");
+const linefeed = @import("linefeed.zig");
 
 pub fn enqueueInput(self: *state.State, bytes: []const u8) !void {
     _ = try enqueueRawInput(self, bytes);
@@ -23,17 +24,7 @@ pub fn prepareRawInput(self: *state.State, bytes: []const u8) !prepared_input.In
     defer self.terminal_mutex.unlock();
     try failure_ops.ensureRuntimeWorkAvailableLocked(self);
     if (self.child_exited.load(.acquire)) return error.TerminalExited;
-    const reservation = try reserveInput(self, bytes.len, false, .client);
-    errdefer input_commit_ops.cancelInput(self, reservation.identifier);
-    const copy = self.allocator.dupe(u8, bytes) catch |err| {
-        return err;
-    };
-    return .{
-        .affects_close_activity = true,
-        .bytes = copy,
-        .reservation = reservation,
-        .runtime = self,
-    };
+    return prepareEncodedInputLocked(self, bytes, true, std.math.maxInt(usize));
 }
 
 pub fn enqueueKeyInput(self: *state.State, input: contracts.KeyInput) !usize {
@@ -82,8 +73,7 @@ pub fn prepareKeyInput(
         key,
         input,
     );
-    if (encoded.len > max_output_bytes) return error.InputLimitExceeded;
-    return prepareEncodedInputLocked(self, encoded, true);
+    return prepareEncodedInputLocked(self, encoded, true, max_output_bytes);
 }
 
 pub fn enqueueTextInput(self: *state.State, text: []const u8) !usize {
@@ -111,7 +101,7 @@ pub fn prepareTextInput(
     self.terminal_mutex.lock();
     defer self.terminal_mutex.unlock();
     try failure_ops.ensureRuntimeWorkAvailableLocked(self);
-    return prepareEncodedInputLocked(self, text, true);
+    return prepareEncodedInputLocked(self, text, true, max_output_bytes);
 }
 
 pub fn enqueueMouseInput(self: *state.State, input: contracts.MouseInput) !usize {
@@ -160,8 +150,7 @@ pub fn prepareMouseInput(
         self.cell_pixel_height,
         input,
     );
-    if (encoded.len > max_output_bytes) return error.InputLimitExceeded;
-    return prepareEncodedInputLocked(self, encoded, true);
+    return prepareEncodedInputLocked(self, encoded, true, max_output_bytes);
 }
 
 pub fn enqueueFocusInput(self: *state.State, focused: bool) !usize {
@@ -195,12 +184,14 @@ pub fn prepareFocusInput(
     self.terminal_mutex.lock();
     defer self.terminal_mutex.unlock();
     try failure_ops.ensureRuntimeWorkAvailableLocked(self);
-    if (!terminal_input_encoding.reportsFocus(&self.terminal)) {
-        return prepareEncodedInputLocked(self, "", false);
-    }
-    const encoded = try terminal_input_encoding.encodeFocus(&buffer, focused);
-    if (encoded.len > max_output_bytes) return error.InputLimitExceeded;
-    return prepareEncodedInputLocked(self, encoded, false);
+    const reporting_enabled = terminal_input_encoding.reportsFocus(&self.terminal);
+    const encoded = if (reporting_enabled)
+        try terminal_input_encoding.encodeFocus(&buffer, focused)
+    else
+        "";
+    var prepared = try prepareEncodedInputLocked(self, encoded, false, max_output_bytes);
+    prepared.focus_reporting_enabled = reporting_enabled;
+    return prepared;
 }
 
 pub fn enqueuePasteInput(
@@ -242,7 +233,7 @@ pub fn preparePasteInput(
         text,
         max_output_bytes,
     );
-    return prepareOwnedInputLocked(self, encoded, true);
+    return prepareOwnedInputLocked(self, encoded, true, max_output_bytes);
 }
 
 pub fn prepareSemanticInput(
@@ -277,6 +268,7 @@ pub fn prepareEncodedInputLocked(
     self: *state.State,
     bytes: []const u8,
     affects_close_activity: bool,
+    maximum_bytes: usize,
 ) !prepared_input.Internal {
     try failure_ops.ensureRuntimeWorkAvailableLocked(self);
     if (self.child_exited.load(.acquire)) return error.TerminalExited;
@@ -286,9 +278,17 @@ pub fn prepareEncodedInputLocked(
         .reservation = null,
         .runtime = self,
     };
-    const reservation = try reserveInput(self, bytes.len, false, .client);
+    const byte_count = expandedInputLengthLocked(self, bytes, maximum_bytes) catch |err| {
+        return err;
+    };
+    const reservation = try reserveInput(self, byte_count, false, .client);
     errdefer input_commit_ops.cancelInput(self, reservation.identifier);
-    const copy = try self.allocator.dupe(u8, bytes);
+    const copy = try linefeed.duplicateExpanded(
+        self.allocator,
+        bytes,
+        self.terminal.modes.get(.linefeed),
+        byte_count,
+    );
     return .{
         .affects_close_activity = affects_close_activity,
         .bytes = copy,
@@ -301,6 +301,7 @@ pub fn prepareOwnedInputLocked(
     self: *state.State,
     bytes: []u8,
     affects_close_activity: bool,
+    maximum_bytes: usize,
 ) !prepared_input.Internal {
     failure_ops.ensureRuntimeWorkAvailableLocked(self) catch |err| {
         self.allocator.free(bytes);
@@ -319,16 +320,46 @@ pub fn prepareOwnedInputLocked(
             .runtime = self,
         };
     }
-    const reservation = reserveInput(self, bytes.len, false, .client) catch |err| {
+    const byte_count = expandedInputLengthLocked(self, bytes, maximum_bytes) catch |err| {
         self.allocator.free(bytes);
+        return err;
+    };
+    const owned = if (byte_count == bytes.len)
+        bytes
+    else
+        linefeed.duplicateExpanded(
+            self.allocator,
+            bytes,
+            true,
+            byte_count,
+        ) catch |err| {
+            self.allocator.free(bytes);
+            return err;
+        };
+    if (owned.ptr != bytes.ptr) self.allocator.free(bytes);
+    const reservation = reserveInput(self, byte_count, false, .client) catch |err| {
+        self.allocator.free(owned);
         return err;
     };
     return .{
         .affects_close_activity = affects_close_activity,
-        .bytes = bytes,
+        .bytes = owned,
         .reservation = reservation,
         .runtime = self,
     };
+}
+
+pub fn expandedInputLengthLocked(
+    self: *const state.State,
+    bytes: []const u8,
+    maximum_bytes: usize,
+) !usize {
+    const byte_count = linefeed.expandedLength(
+        bytes,
+        self.terminal.modes.get(.linefeed),
+    ) catch return error.InputLimitExceeded;
+    if (byte_count > maximum_bytes) return error.InputLimitExceeded;
+    return byte_count;
 }
 
 pub fn reserveInput(

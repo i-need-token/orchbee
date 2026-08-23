@@ -27,6 +27,9 @@ const Seam = enum(u8) {
     multi_runtime_shutdown,
     deferred_start_spawn,
     runtime_theme_commit,
+    mode_effect_reply_admission,
+    focus_mode_revalidation,
+    synchronized_output_deadline_release,
 };
 
 const Disposition = enum {
@@ -84,6 +87,9 @@ const matrix = [_]Entry{
     entry(.multi_runtime_shutdown, "CS-023", "MultiRuntimeShutdown", .contain_and_retain, .deterministic_interleaving, "src/service/__tests__/runtime_aggregate_cleanup_test.zig", "runtime destruction starts only after every shutdown succeeds"),
     entry(.deferred_start_spawn, "CS-024", "DeferredStartSpawn", .contain_and_retain, .native_boundary, "src/service/__tests__/runtime_aggregate_lifecycle_test.zig", "deferred creation retains launch ownership and failed start stays retryable"),
     entry(.runtime_theme_commit, "CS-025", "RuntimeThemeCommit", .reject_without_commit, .single_owner, "src/service/__tests__/runtime_aggregate_theme_test.zig", "runtime theme failure never commits the semantic theme revision"),
+    entry(.mode_effect_reply_admission, "CS-026", "ModeEffectReplyAdmission", .contain_and_retain, .single_owner, "src/engine/__tests__/runtime_input_test.zig", "mode-effect reply exhaustion fences reader and attachment resize commits"),
+    entry(.focus_mode_revalidation, "CS-027", "FocusModeRevalidation", .reject_without_commit, .deterministic_interleaving, "src/engine/__tests__/runtime_input_test.zig", "focus mode reports the aggregate immediately and rejects stale preparation"),
+    entry(.synchronized_output_deadline_release, "CS-028", "SynchronizedOutputDeadlineRelease", .preserve_for_retry, .deterministic_interleaving, "src/engine/__tests__/runtime_state_test.zig", "synchronized output suppresses capture only until its monotonic deadline"),
 };
 
 test "commit seam matrix is exhaustive unique documented and backed by named tests" {
