@@ -939,6 +939,12 @@ int orchbee_process_session_member_pass(
 
 #endif
 
+int orchbee_try_observe_process_exit_now(
+    int process_id,
+    int *result_kind,
+    uint32_t *result_value
+);
+
 #if defined(__APPLE__)
 
 // Darwin's waitid may report CLD_STOPPED even when the caller requests only
@@ -946,8 +952,17 @@ int orchbee_process_session_member_pass(
 // from being mistaken for child completion while retaining the zombie for the
 // later containment-confirmed reap. EVFILT_PROC registration may return ESRCH
 // once XNU has drained the process reference but before the child is waitable.
-// The caller therefore follows both NOTE_EXIT and registration ESRCH with the
-// same bounded, non-blocking waitid observation loop.
+// A successful registration can also lose NOTE_EXIT across XNU process-reference
+// drain races. The audit timeout closes the kqueue before observing again so
+// its retained process reference cannot itself prevent proc_refdrain from
+// making the child waitable. A still-running child is then re-registered. The
+// caller follows a witnessed exit, an already-waitable child, and registration
+// ESRCH with the same bounded non-blocking waitid observation loop.
+enum {
+    darwin_wait_ready = 0,
+    darwin_wait_audit_timeout = 1,
+};
+
 static int darwin_wait_for_process_exit(pid_t process_id) {
     const int queue = kqueue();
     if (queue < 0) return -1;
@@ -974,25 +989,59 @@ static int darwin_wait_for_process_exit(pid_t process_id) {
         return -1;
     }
 
-    struct kevent event = {0};
-    do {
-        result = kevent(queue, NULL, 0, &event, 1, NULL);
-    } while (result < 0 && errno == EINTR);
-    const int wait_error = errno;
-    (void)close(queue);
-    if (result != 1) {
-        errno = wait_error == 0 ? EIO : wait_error;
-        return -1;
+    for (;;) {
+        int immediate_kind = 0;
+        uint32_t immediate_value = 0;
+        const int immediate_error = orchbee_try_observe_process_exit_now(
+            process_id,
+            &immediate_kind,
+            &immediate_value
+        );
+        if (immediate_error == 0) {
+            (void)close(queue);
+            return 0;
+        }
+        if (immediate_error != EAGAIN) {
+            (void)close(queue);
+            errno = immediate_error;
+            return -1;
+        }
+
+        const struct timespec audit_interval = {
+            .tv_sec = 1,
+            .tv_nsec = 0,
+        };
+        struct kevent event = {0};
+        result = kevent(queue, NULL, 0, &event, 1, &audit_interval);
+        if (result < 0 && errno == EINTR) continue;
+        if (result < 0) {
+            const int wait_error = errno;
+            (void)close(queue);
+            errno = wait_error == 0 ? EIO : wait_error;
+            return -1;
+        }
+        if (result == 0) {
+            (void)close(queue);
+            return darwin_wait_audit_timeout;
+        }
+        if (result != 1) {
+            (void)close(queue);
+            errno = EIO;
+            return -1;
+        }
+        if ((event.flags & EV_ERROR) != 0) {
+            (void)close(queue);
+            errno = event.data == 0 ? EIO : (int)event.data;
+            return -1;
+        }
+        if ((event.fflags & NOTE_EXIT) == 0) {
+            (void)close(queue);
+            errno = EIO;
+            return -1;
+        }
+        (void)close(queue);
+        return darwin_wait_ready;
     }
-    if ((event.flags & EV_ERROR) != 0) {
-        errno = event.data == 0 ? EIO : (int)event.data;
-        return -1;
-    }
-    if ((event.fflags & NOTE_EXIT) == 0) {
-        errno = EIO;
-        return -1;
-    }
-    return 0;
 }
 
 #endif
@@ -1042,31 +1091,39 @@ int orchbee_observe_process_exit(
         return EINVAL;
     }
 #if defined(__APPLE__)
-    if (darwin_wait_for_process_exit((pid_t)process_id) != 0) {
-        return errno == 0 ? EIO : errno;
-    }
-    // EVFILT_PROC registration can lose a narrow race with proc_refdrain and
-    // report ESRCH before waitid considers the child waitable. Never fall back
-    // to blocking waitid: retry the non-blocking observation for a fixed bound.
-    enum { darwin_waitid_retry_limit = 1000 };
+    // EVFILT_PROC registration can race proc_refdrain before waitid considers
+    // the child waitable. Never fall back to blocking waitid. A witnessed exit
+    // or registration ESRCH gets the full fixed retry bound. An audit timeout
+    // closes the kqueue first, gives proc_refdrain one millisecond to advance,
+    // and re-registers if the child is still running.
+    enum {
+        darwin_waitid_retry_limit = 1000,
+        darwin_audit_retry_limit = 2,
+    };
     const struct timespec retry_delay = {
         .tv_sec = 0,
         .tv_nsec = 1000000,
     };
-    for (size_t attempt = 0; attempt < darwin_waitid_retry_limit; ++attempt) {
-        const int observation_error = orchbee_try_observe_process_exit_now(
-            process_id,
-            result_kind,
-            result_value
-        );
-        if (observation_error == 0) return 0;
-        if (observation_error != EAGAIN) return observation_error;
-        if (attempt + 1 < darwin_waitid_retry_limit) {
-            struct timespec remaining = retry_delay;
-            while (nanosleep(&remaining, &remaining) != 0 && errno == EINTR) {}
+    for (;;) {
+        const int wait_result = darwin_wait_for_process_exit((pid_t)process_id);
+        if (wait_result < 0) return errno == 0 ? EIO : errno;
+        const size_t retry_limit = wait_result == darwin_wait_audit_timeout ?
+            darwin_audit_retry_limit : darwin_waitid_retry_limit;
+        for (size_t attempt = 0; attempt < retry_limit; ++attempt) {
+            const int observation_error = orchbee_try_observe_process_exit_now(
+                process_id,
+                result_kind,
+                result_value
+            );
+            if (observation_error == 0) return 0;
+            if (observation_error != EAGAIN) return observation_error;
+            if (attempt + 1 < retry_limit) {
+                struct timespec remaining = retry_delay;
+                while (nanosleep(&remaining, &remaining) != 0 && errno == EINTR) {}
+            }
         }
+        if (wait_result != darwin_wait_audit_timeout) return EAGAIN;
     }
-    return EAGAIN;
 #else
     siginfo_t information = {0};
     while (waitid(P_PID, (id_t)process_id, &information, WEXITED | WNOWAIT) != 0) {

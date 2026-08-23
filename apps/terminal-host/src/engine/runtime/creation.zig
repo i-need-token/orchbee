@@ -82,6 +82,12 @@ pub fn createWithOptionsUsingSpawner(
         .input_queue = .init(allocator),
         .input_ownership = .init(allocator),
         .cell_pixel_width = resolved_options.cell_pixel_width,
+        .viewport_geometry = .{
+            .cell_pixel_height = resolved_options.cell_pixel_height,
+            .cell_pixel_width = resolved_options.cell_pixel_width,
+            .columns = resolved_launch.columns,
+            .rows = resolved_launch.rows,
+        },
         .process = undefined,
         .profile = resources.profile,
         .projection = .init(allocator),

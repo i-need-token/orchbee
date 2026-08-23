@@ -41,11 +41,15 @@ pub fn modeChangedEffect(
     handler: *terminal_stream.Handler,
     mode: ghostty_vt.Mode,
     enabled: bool,
-) void {
+) bool {
     const self = runtimeFromHostHandler(handler);
+    if (mode == .enable_mode_3 and !restoreViewportGeometryEffect(handler)) {
+        return false;
+    }
     mode_effects.streamModeChangedLocked(self, mode, enabled) catch {
         self.reply_failure_pending = true;
     };
+    return true;
 }
 
 pub fn fullResetEffect(handler: *terminal_stream.Handler) void {
@@ -71,19 +75,49 @@ pub fn columnModeEffect(handler: *terminal_stream.Handler, enabled: bool) bool {
     std.debug.assert(self.reader_commit_in_progress);
     const terminal = handler.terminal_handler.terminal;
     const target_columns: u16 = if (enabled) 132 else 80;
-    const previous_geometry: terminal_geometry.Geometry = .{
-        .cell_pixel_height = self.cell_pixel_height,
-        .cell_pixel_width = self.cell_pixel_width,
-        .columns = terminal.cols,
-        .rows = terminal.rows,
-    };
     const next_geometry: terminal_geometry.Geometry = .{
         .cell_pixel_height = self.cell_pixel_height,
         .cell_pixel_width = self.cell_pixel_width,
         .columns = target_columns,
         .rows = terminal.rows,
     };
-    const geometry_changes = previous_geometry.columns != next_geometry.columns;
+    return terminalDrivenGeometryEffect(
+        self,
+        terminal,
+        next_geometry,
+        .{ .column_mode = enabled },
+    );
+}
+
+const TerminalGeometryMutation = union(enum) {
+    column_mode: bool,
+    viewport,
+};
+
+fn restoreViewportGeometryEffect(handler: *terminal_stream.Handler) bool {
+    const self = runtimeFromHostHandler(handler);
+    std.debug.assert(self.reader_commit_in_progress);
+    return terminalDrivenGeometryEffect(
+        self,
+        handler.terminal_handler.terminal,
+        self.viewport_geometry,
+        .viewport,
+    );
+}
+
+fn terminalDrivenGeometryEffect(
+    self: *state.State,
+    terminal: *ghostty_vt.Terminal,
+    next_geometry: terminal_geometry.Geometry,
+    mutation: TerminalGeometryMutation,
+) bool {
+    const previous_geometry: terminal_geometry.Geometry = .{
+        .cell_pixel_height = self.cell_pixel_height,
+        .cell_pixel_width = self.cell_pixel_width,
+        .columns = terminal.cols,
+        .rows = terminal.rows,
+    };
+    const geometry_changes = !terminal_geometry.eql(previous_geometry, next_geometry);
 
     if (geometry_changes) {
         std.debug.assert(!self.resize_effect_in_flight);
@@ -100,10 +134,7 @@ pub fn columnModeEffect(handler: *terminal_stream.Handler, enabled: bool) bool {
         };
     }
 
-    terminal.deccolm(
-        terminal.screens.active.alloc,
-        if (enabled) .@"132_cols" else .@"80_cols",
-    ) catch {
+    applyTerminalGeometryMutation(self, terminal, next_geometry, mutation) catch {
         self.resize_fenced.store(true, .release);
         if (geometry_changes) {
             self.terminal_mutex.unlock();
@@ -123,6 +154,29 @@ pub fn columnModeEffect(handler: *terminal_stream.Handler, enabled: bool) bool {
         resize_ops.finishResizeEffectLocked(self);
     }
     return true;
+}
+
+fn applyTerminalGeometryMutation(
+    self: *state.State,
+    terminal: *ghostty_vt.Terminal,
+    next_geometry: terminal_geometry.Geometry,
+    mutation: TerminalGeometryMutation,
+) !void {
+    switch (mutation) {
+        .column_mode => |enabled| try terminal.deccolm(
+            terminal.screens.active.alloc,
+            if (enabled) .@"132_cols" else .@"80_cols",
+        ),
+        .viewport => {
+            try terminal.resize(
+                self.allocator,
+                next_geometry.columns,
+                next_geometry.rows,
+            );
+            self.cell_pixel_width = next_geometry.cell_pixel_width;
+            self.cell_pixel_height = next_geometry.cell_pixel_height;
+        },
+    }
 }
 
 pub fn sizeEffect(
@@ -224,6 +278,8 @@ fn commitObservedReaderBatch(
     const previous_screen = self.terminal.screens.active_key;
     const previous_columns = self.terminal.cols;
     const previous_rows = self.terminal.rows;
+    const previous_cell_pixel_width = self.cell_pixel_width;
+    const previous_cell_pixel_height = self.cell_pixel_height;
     // Ghostty's 1049 path can reset the active screen without changing
     // its key (for example, enabling it twice). Isolate the terminal clear
     // marker for this batch so same-key replacement still invalidates
@@ -234,7 +290,9 @@ fn commitObservedReaderBatch(
     const screen_reset = self.terminal.flags.dirty.clear;
     self.terminal.flags.dirty.clear = previous_clear or screen_reset;
     const geometry_changed = previous_columns != self.terminal.cols or
-        previous_rows != self.terminal.rows;
+        previous_rows != self.terminal.rows or
+        previous_cell_pixel_width != self.cell_pixel_width or
+        previous_cell_pixel_height != self.cell_pixel_height;
     const terminal_resize_target = self.terminal_driven_resize_target;
     self.terminal_driven_resize_target = null;
     const terminal_geometry_unsynchronized = geometry_changed and

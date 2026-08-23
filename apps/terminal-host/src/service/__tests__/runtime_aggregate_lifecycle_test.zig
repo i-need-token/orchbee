@@ -890,6 +890,30 @@ test "maintenance synchronizes terminal-driven geometry without projection deman
         observed.observedGeometry().cell_pixel_height,
     );
     try std.testing.expectEqual(runtime_geometry.revision, observed.observedRevision());
+
+    try std.testing.expectEqual(
+        terminal_runtime.testing.ReaderBatchOutcomeType.committed,
+        commitReaderBatch(runtime, "\x1b[?40l"),
+    );
+    const restored_geometry = runtime.geometry();
+    try std.testing.expectEqual(@as(u16, 80), restored_geometry.columns);
+    try std.testing.expectEqual(
+        @as(u16, 132),
+        aggregate.core().findTerminal(terminal_id).?.observedGeometry().columns,
+    );
+
+    aggregate.synchronizeRuntimes();
+
+    const restored_observation = aggregate.core().findTerminal(terminal_id).?;
+    try std.testing.expectEqual(
+        restored_geometry.columns,
+        restored_observation.observedGeometry().columns,
+    );
+    try std.testing.expectEqual(
+        restored_geometry.rows,
+        restored_observation.observedGeometry().rows,
+    );
+    try std.testing.expectEqual(restored_geometry.revision, restored_observation.observedRevision());
 }
 test "application terminal controls require input capability and synchronize one exact Core observation" {
     var aggregate = subject.HostRuntimeAggregate.init(std.testing.allocator);

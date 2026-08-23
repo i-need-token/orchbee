@@ -39,6 +39,10 @@ pub const State = struct {
     command_timer: ?std.time.Timer = null,
     cell_pixel_height: u16,
     cell_pixel_width: u16,
+    // terminal_mutex protects the complete viewport requested by the latest
+    // successfully committed resize owner. Terminal-driven geometry effects
+    // may change canonical geometry but never replace this restore target.
+    viewport_geometry: terminal_geometry.Geometry,
     child_exited: std.atomic.Value(bool) = .init(false),
     client_input_closed: bool = false,
     containment_confirmed: std.atomic.Value(bool) = .init(false),

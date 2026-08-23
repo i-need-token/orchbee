@@ -109,7 +109,7 @@ pub const Handler = struct {
     dcs_handler: ghostty_vt.dcs.Handler = .{},
     dcs_active: DcsKind = .none,
     column_mode: ?*const fn (*Handler, bool) bool = null,
-    mode_changed: ?*const fn (*Handler, ghostty_vt.Mode, bool) void = null,
+    mode_changed: ?*const fn (*Handler, ghostty_vt.Mode, bool) bool = null,
     full_reset: ?*const fn (*Handler) void = null,
     clipboard_contents: ?*const fn (*Handler, ghostty_vt.StreamAction.ClipboardContents) void = null,
     progress_report: ?*const fn (*Handler, ghostty_vt.osc.Command.ProgressReport) void = null,
@@ -148,24 +148,28 @@ pub const Handler = struct {
             .set_mode => {
                 if (self.handleColumnMode(value, true)) return;
                 self.terminal_handler.vt(action, value);
-                if (self.mode_changed) |apply| apply(self, value.mode, true);
+                if (self.mode_changed) |apply| {
+                    if (!apply(self, value.mode, true)) self.discard_actions = true;
+                }
                 return;
             },
             .reset_mode => {
                 if (self.handleColumnMode(value, false)) return;
                 self.terminal_handler.vt(action, value);
-                if (self.mode_changed) |apply| apply(self, value.mode, false);
+                if (self.mode_changed) |apply| {
+                    if (!apply(self, value.mode, false)) self.discard_actions = true;
+                }
                 return;
             },
             .restore_mode => {
                 if (self.restoreColumnMode(value)) return;
                 self.terminal_handler.vt(action, value);
                 if (self.mode_changed) |apply| {
-                    apply(
+                    if (!apply(
                         self,
                         value.mode,
                         self.terminal_handler.terminal.modes.get(value.mode),
-                    );
+                    )) self.discard_actions = true;
                 }
                 return;
             },

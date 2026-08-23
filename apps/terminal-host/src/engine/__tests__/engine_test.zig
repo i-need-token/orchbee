@@ -14,6 +14,7 @@ comptime {
     _ = @import("runtime_failure_test.zig");
     _ = @import("runtime_input_test.zig");
     _ = @import("runtime_launch_integration_test.zig");
+    _ = @import("runtime_mode_effects_test.zig");
     _ = @import("runtime_state_test.zig");
     _ = @import("runtime_theme_test.zig");
     _ = @import("selection_test.zig");

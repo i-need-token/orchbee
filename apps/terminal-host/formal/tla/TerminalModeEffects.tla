@@ -2,16 +2,21 @@
 EXTENDS Naturals, TLC
 
 \* Refines runtime-model claims TH-006, TH-007, TH-020, and TH-022. The model
-\* keeps the four externally observable mode effects in one Host transaction
+\* keeps the five externally observable mode effects in one Host transaction
 \* domain: mode-20 expansion is charged at preparation, mode-1004 enable reports
 \* the current aggregate and stale prepared focus is rejected, mode-2026 blocks
 \* projection only until reset, resize, or its deadline, and mode-2048 reports
-\* the exact committed geometry. A required terminal-reply admission failure
-\* fences the runtime after retaining the canonical mode or geometry commit.
+\* the exact committed geometry. Mode 40 restores the latest successful
+\* resize-owner viewport without letting mode-3 DECCOLM overwrite that target.
+\* A required terminal-reply admission failure fences the runtime after
+\* retaining the canonical mode or geometry commit.
 
-CONSTANTS MaxInputBytes, MaxReplies, MaxTime, MaxGeometryRevision, MaxProjections
+CONSTANTS Scenario, MaxInputBytes, MaxReplies, MaxTime, MaxGeometryRevision, MaxProjections
 
 NoDeadline == MaxTime + 1
+Scenarios == {"input-focus", "geometry"}
+GeometryValues == {"a", "b"}
+GeometryActions == {"none", "viewport", "deccolm", "mode40"}
 
 VARIABLES
   linefeedMode,
@@ -30,6 +35,10 @@ VARIABLES
   syncDeadline,
   time,
   sizeMode,
+  mode40,
+  viewportGeometry,
+  canonicalGeometry,
+  lastGeometryAction,
   geometryRevision,
   replyCount,
   lastFocusReply,
@@ -45,11 +54,17 @@ vars ==
     preparedCarriageReturns, preparedLinefeedMode, preparedCharge,
     clientInputBytes, focusMode, focused, focusPrepared, preparedFocusMode,
     preparedFocusTarget, syncMode, syncDeadline, time, sizeMode,
+    mode40, viewportGeometry, canonicalGeometry, lastGeometryAction,
     geometryRevision, replyCount, lastFocusReply, lastFocusSnapshot,
     lastSizeReplyRevision, projectionCount, suppressedProjectionObserved,
     unsafeProjection, failureFenced>>
 
+UnchangedGeometry ==
+  UNCHANGED <<mode40, viewportGeometry, canonicalGeometry,
+              lastGeometryAction>>
+
 Init ==
+  /\ Scenario \in Scenarios
   /\ linefeedMode = FALSE
   /\ inputPrepared = FALSE
   /\ preparedSourceBytes = 0
@@ -66,6 +81,14 @@ Init ==
   /\ syncDeadline = NoDeadline
   /\ time = 0
   /\ sizeMode = FALSE
+  /\ mode40 = FALSE
+  \* Either value represents the launch geometry or a viewport already
+  \* replaced by the latest successful resize-owner request before this trace.
+  /\ IF Scenario = "geometry"
+       THEN viewportGeometry \in GeometryValues
+       ELSE viewportGeometry = "a"
+  /\ canonicalGeometry = viewportGeometry
+  /\ lastGeometryAction = "none"
   /\ geometryRevision = 0
   /\ replyCount = 0
   /\ lastFocusReply = "none"
@@ -77,6 +100,8 @@ Init ==
   /\ failureFenced = FALSE
 
 SetLinefeedMode(enabled) ==
+  /\ Scenario = "input-focus"
+  /\ UnchangedGeometry
   /\ ~failureFenced
   /\ enabled \in BOOLEAN
   /\ enabled # linefeedMode
@@ -92,6 +117,8 @@ SetLinefeedMode(enabled) ==
                   failureFenced>>
 
 PrepareClientInput(sourceBytes, carriageReturns) ==
+  /\ Scenario = "input-focus"
+  /\ UnchangedGeometry
   /\ ~failureFenced
   /\ ~inputPrepared
   /\ sourceBytes \in 1..MaxInputBytes
@@ -114,6 +141,8 @@ PrepareClientInput(sourceBytes, carriageReturns) ==
                   failureFenced>>
 
 CommitPreparedInput ==
+  /\ Scenario = "input-focus"
+  /\ UnchangedGeometry
   /\ ~failureFenced
   /\ inputPrepared
   /\ clientInputBytes' = clientInputBytes + preparedCharge
@@ -130,6 +159,8 @@ CommitPreparedInput ==
                   unsafeProjection, failureFenced>>
 
 CancelPreparedInput ==
+  /\ Scenario = "input-focus"
+  /\ UnchangedGeometry
   /\ inputPrepared
   /\ inputPrepared' = FALSE
   /\ preparedSourceBytes' = 0
@@ -145,6 +176,8 @@ CancelPreparedInput ==
                   failureFenced>>
 
 DrainClientInput ==
+  /\ Scenario = "input-focus"
+  /\ UnchangedGeometry
   /\ clientInputBytes > 0
   /\ clientInputBytes' = 0
   /\ UNCHANGED <<linefeedMode, inputPrepared, preparedSourceBytes,
@@ -157,6 +190,8 @@ DrainClientInput ==
                   unsafeProjection, failureFenced>>
 
 PrepareFocus(target) ==
+  /\ Scenario = "input-focus"
+  /\ UnchangedGeometry
   /\ ~failureFenced
   /\ ~focusPrepared
   /\ target \in BOOLEAN
@@ -173,6 +208,8 @@ PrepareFocus(target) ==
                   failureFenced>>
 
 CommitPreparedFocus ==
+  /\ Scenario = "input-focus"
+  /\ UnchangedGeometry
   /\ ~failureFenced
   /\ focusPrepared
   /\ preparedFocusMode = focusMode
@@ -189,6 +226,8 @@ CommitPreparedFocus ==
                   unsafeProjection, failureFenced>>
 
 RejectStalePreparedFocus ==
+  /\ Scenario = "input-focus"
+  /\ UnchangedGeometry
   /\ focusPrepared
   /\ preparedFocusMode # focusMode
   /\ focusPrepared' = FALSE
@@ -204,6 +243,8 @@ RejectStalePreparedFocus ==
                   failureFenced>>
 
 EnableFocusReporting ==
+  /\ Scenario = "input-focus"
+  /\ UnchangedGeometry
   /\ ~failureFenced
   /\ ~focusMode
   /\ replyCount < MaxReplies
@@ -221,6 +262,8 @@ EnableFocusReporting ==
                   failureFenced>>
 
 FailFocusEnableReply ==
+  /\ Scenario = "input-focus"
+  /\ UnchangedGeometry
   /\ ~failureFenced
   /\ ~focusMode
   /\ replyCount = MaxReplies
@@ -236,6 +279,8 @@ FailFocusEnableReply ==
                   unsafeProjection>>
 
 DisableFocusReporting ==
+  /\ Scenario = "input-focus"
+  /\ UnchangedGeometry
   /\ ~failureFenced
   /\ focusMode
   /\ focusMode' = FALSE
@@ -249,6 +294,8 @@ DisableFocusReporting ==
                   unsafeProjection, failureFenced>>
 
 EnableSynchronizedOutput ==
+  /\ Scenario = "geometry"
+  /\ UnchangedGeometry
   /\ ~failureFenced
   /\ time < MaxTime
   /\ syncMode' = TRUE
@@ -263,6 +310,8 @@ EnableSynchronizedOutput ==
                   failureFenced>>
 
 DisableSynchronizedOutput ==
+  /\ Scenario = "geometry"
+  /\ UnchangedGeometry
   /\ ~failureFenced
   /\ syncMode
   /\ syncMode' = FALSE
@@ -277,6 +326,8 @@ DisableSynchronizedOutput ==
                   failureFenced>>
 
 AdvanceTime ==
+  /\ Scenario = "geometry"
+  /\ UnchangedGeometry
   /\ time < MaxTime
   /\ time' = time + 1
   /\ UNCHANGED <<linefeedMode, inputPrepared, preparedSourceBytes,
@@ -290,6 +341,8 @@ AdvanceTime ==
                   failureFenced>>
 
 SuppressProjection ==
+  /\ Scenario = "geometry"
+  /\ UnchangedGeometry
   /\ ~failureFenced
   /\ syncMode
   /\ time < syncDeadline
@@ -304,6 +357,8 @@ SuppressProjection ==
                   failureFenced>>
 
 ExpireSynchronizedOutput ==
+  /\ Scenario = "geometry"
+  /\ UnchangedGeometry
   /\ ~failureFenced
   /\ syncMode
   /\ time >= syncDeadline
@@ -321,6 +376,8 @@ ExpireSynchronizedOutput ==
                   failureFenced>>
 
 CaptureProjection ==
+  /\ Scenario = "geometry"
+  /\ UnchangedGeometry
   /\ ~failureFenced
   /\ ~syncMode
   /\ projectionCount < MaxProjections
@@ -336,6 +393,8 @@ CaptureProjection ==
                   failureFenced>>
 
 EnableInBandSizeReports ==
+  /\ Scenario = "geometry"
+  /\ UnchangedGeometry
   /\ ~failureFenced
   /\ ~sizeMode
   /\ replyCount < MaxReplies
@@ -352,6 +411,8 @@ EnableInBandSizeReports ==
                   failureFenced>>
 
 FailInBandSizeEnableReply ==
+  /\ Scenario = "geometry"
+  /\ UnchangedGeometry
   /\ ~failureFenced
   /\ ~sizeMode
   /\ replyCount = MaxReplies
@@ -367,6 +428,8 @@ FailInBandSizeEnableReply ==
                   unsafeProjection>>
 
 DisableInBandSizeReports ==
+  /\ Scenario = "geometry"
+  /\ UnchangedGeometry
   /\ ~failureFenced
   /\ sizeMode
   /\ sizeMode' = FALSE
@@ -379,10 +442,17 @@ DisableInBandSizeReports ==
                   projectionCount, suppressedProjectionObserved,
                   unsafeProjection, failureFenced>>
 
-ResizeGeometry ==
-  /\ ~failureFenced
+CommitGeometry(target, nextViewport, nextMode40, source) ==
+  /\ target \in GeometryValues
+  /\ nextViewport \in GeometryValues
+  /\ nextMode40 \in BOOLEAN
+  /\ source \in GeometryActions \ {"none"}
   /\ geometryRevision < MaxGeometryRevision
   /\ ~sizeMode \/ replyCount < MaxReplies
+  /\ canonicalGeometry' = target
+  /\ viewportGeometry' = nextViewport
+  /\ mode40' = nextMode40
+  /\ lastGeometryAction' = source
   /\ geometryRevision' = geometryRevision + 1
   /\ syncMode' = FALSE
   /\ syncDeadline' = NoDeadline
@@ -397,11 +467,18 @@ ResizeGeometry ==
                   projectionCount, suppressedProjectionObserved,
                   unsafeProjection, failureFenced>>
 
-FailResizeSizeReply ==
-  /\ ~failureFenced
+FailGeometryReply(target, nextViewport, nextMode40, source) ==
+  /\ target \in GeometryValues
+  /\ nextViewport \in GeometryValues
+  /\ nextMode40 \in BOOLEAN
+  /\ source \in GeometryActions \ {"none"}
   /\ sizeMode
   /\ geometryRevision < MaxGeometryRevision
   /\ replyCount = MaxReplies
+  /\ canonicalGeometry' = target
+  /\ viewportGeometry' = nextViewport
+  /\ mode40' = nextMode40
+  /\ lastGeometryAction' = source
   /\ geometryRevision' = geometryRevision + 1
   /\ syncMode' = FALSE
   /\ syncDeadline' = NoDeadline
@@ -414,24 +491,106 @@ FailResizeSizeReply ==
                   lastSizeReplyRevision, projectionCount,
                   suppressedProjectionObserved, unsafeProjection>>
 
+ResizeGeometry(target) ==
+  /\ Scenario = "geometry"
+  /\ ~failureFenced
+  /\ target \in GeometryValues
+  /\ target # canonicalGeometry
+  /\ CommitGeometry(target, target, mode40, "viewport")
+
+FailResizeSizeReply(target) ==
+  /\ Scenario = "geometry"
+  /\ ~failureFenced
+  /\ target \in GeometryValues
+  /\ target # canonicalGeometry
+  /\ FailGeometryReply(target, target, mode40, "viewport")
+
+RefreshViewportGeometry(target) ==
+  /\ Scenario = "geometry"
+  /\ ~failureFenced
+  /\ target \in GeometryValues
+  /\ target = canonicalGeometry
+  /\ target # viewportGeometry
+  /\ viewportGeometry' = target
+  /\ lastGeometryAction' = "viewport"
+  /\ UNCHANGED <<linefeedMode, inputPrepared, preparedSourceBytes,
+                  preparedCarriageReturns, preparedLinefeedMode,
+                  preparedCharge, clientInputBytes, focusMode, focused,
+                  focusPrepared, preparedFocusMode, preparedFocusTarget,
+                  syncMode, syncDeadline, time, sizeMode, mode40,
+                  canonicalGeometry, geometryRevision, replyCount,
+                  lastFocusReply, lastFocusSnapshot, lastSizeReplyRevision,
+                  projectionCount, suppressedProjectionObserved,
+                  unsafeProjection, failureFenced>>
+
+SetColumnModeGeometry(target) ==
+  /\ Scenario = "geometry"
+  /\ ~failureFenced
+  /\ mode40
+  /\ target \in GeometryValues
+  /\ target # canonicalGeometry
+  /\ CommitGeometry(target, viewportGeometry, mode40, "deccolm")
+
+FailColumnModeSizeReply(target) ==
+  /\ Scenario = "geometry"
+  /\ ~failureFenced
+  /\ mode40
+  /\ target \in GeometryValues
+  /\ target # canonicalGeometry
+  /\ FailGeometryReply(target, viewportGeometry, mode40, "deccolm")
+
+SetMode40AtViewport(enabled) ==
+  /\ Scenario = "geometry"
+  /\ ~failureFenced
+  /\ enabled \in BOOLEAN
+  /\ canonicalGeometry = viewportGeometry
+  /\ mode40' = enabled
+  /\ lastGeometryAction' = "mode40"
+  /\ UNCHANGED <<linefeedMode, inputPrepared, preparedSourceBytes,
+                  preparedCarriageReturns, preparedLinefeedMode,
+                  preparedCharge, clientInputBytes, focusMode, focused,
+                  focusPrepared, preparedFocusMode, preparedFocusTarget,
+                  syncMode, syncDeadline, time, sizeMode, viewportGeometry,
+                  canonicalGeometry, geometryRevision, replyCount,
+                  lastFocusReply, lastFocusSnapshot, lastSizeReplyRevision,
+                  projectionCount, suppressedProjectionObserved,
+                  unsafeProjection, failureFenced>>
+
+RestoreViewportOnMode40(enabled) ==
+  /\ Scenario = "geometry"
+  /\ ~failureFenced
+  /\ enabled \in BOOLEAN
+  /\ canonicalGeometry # viewportGeometry
+  /\ CommitGeometry(viewportGeometry, viewportGeometry, enabled, "mode40")
+
+FailMode40SizeReply(enabled) ==
+  /\ Scenario = "geometry"
+  /\ ~failureFenced
+  /\ enabled \in BOOLEAN
+  /\ canonicalGeometry # viewportGeometry
+  /\ FailGeometryReply(viewportGeometry, viewportGeometry, enabled, "mode40")
+
 ResetModes ==
   /\ ~failureFenced
-  /\ linefeedMode \/ focusMode \/ syncMode \/ sizeMode
+  /\ linefeedMode \/ focusMode \/ syncMode \/ sizeMode \/ mode40
   /\ linefeedMode' = FALSE
   /\ focusMode' = FALSE
   /\ syncMode' = FALSE
   /\ syncDeadline' = NoDeadline
   /\ sizeMode' = FALSE
+  /\ mode40' = FALSE
   /\ UNCHANGED <<inputPrepared, preparedSourceBytes,
                   preparedCarriageReturns, preparedLinefeedMode,
                   preparedCharge, clientInputBytes, focused, focusPrepared,
                   preparedFocusMode, preparedFocusTarget, time,
+                  viewportGeometry, canonicalGeometry, lastGeometryAction,
                   geometryRevision, replyCount, lastFocusReply,
                   lastFocusSnapshot, lastSizeReplyRevision, projectionCount,
                   suppressedProjectionObserved, unsafeProjection,
                   failureFenced>>
 
 DrainReply ==
+  /\ UnchangedGeometry
   /\ replyCount > 0
   /\ replyCount' = replyCount - 1
   /\ UNCHANGED <<linefeedMode, inputPrepared, preparedSourceBytes,
@@ -466,10 +625,16 @@ Next ==
   \/ EnableInBandSizeReports
   \/ FailInBandSizeEnableReply
   \/ DisableInBandSizeReports
-  \/ ResizeGeometry
-  \/ FailResizeSizeReply
-  \/ ResetModes
   \/ DrainReply
+  \/ \E target \in GeometryValues: ResizeGeometry(target)
+  \/ \E target \in GeometryValues: FailResizeSizeReply(target)
+  \/ \E target \in GeometryValues: RefreshViewportGeometry(target)
+  \/ \E target \in GeometryValues: SetColumnModeGeometry(target)
+  \/ \E target \in GeometryValues: FailColumnModeSizeReply(target)
+  \/ \E enabled \in BOOLEAN: SetMode40AtViewport(enabled)
+  \/ \E enabled \in BOOLEAN: RestoreViewportOnMode40(enabled)
+  \/ \E enabled \in BOOLEAN: FailMode40SizeReply(enabled)
+  \/ ResetModes
 
 Spec ==
   /\ Init
@@ -492,6 +657,10 @@ TypeOK ==
   /\ syncDeadline \in 0..NoDeadline
   /\ time \in 0..MaxTime
   /\ sizeMode \in BOOLEAN
+  /\ mode40 \in BOOLEAN
+  /\ viewportGeometry \in GeometryValues
+  /\ canonicalGeometry \in GeometryValues
+  /\ lastGeometryAction \in GeometryActions
   /\ geometryRevision \in 0..MaxGeometryRevision
   /\ replyCount \in 0..MaxReplies
   /\ lastFocusReply \in {"none", "in", "out"}
@@ -527,6 +696,9 @@ ProjectionNeverCapturesWhileSynchronized ==
 
 SizeReplyNeverLeadsGeometry ==
   lastSizeReplyRevision <= geometryRevision
+
+Mode40RestoreUsesViewportGeometry ==
+  lastGeometryAction = "mode40" => canonicalGeometry = viewportGeometry
 
 RequiredReplyFailureIsContained ==
   failureFenced => (focusMode \/ sizeMode)

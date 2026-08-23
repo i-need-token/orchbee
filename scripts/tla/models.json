@@ -852,6 +852,22 @@
 			"config": "apps/terminal-host/formal/tla/TerminalModeEffects.cfg",
 			"claims": ["apps/terminal-host/docs/runtime-model.md"],
 			"triggers": ["apps/terminal-host/src/**", "apps/terminal-host/build.zig"],
+			"variants": [
+				{
+					"name": "input-focus",
+					"constants": {
+						"Scenario": "input-focus",
+						"MaxGeometryRevision": 0
+					}
+				},
+				{
+					"name": "geometry",
+					"constants": {
+						"Scenario": "geometry",
+						"MaxGeometryRevision": 2
+					}
+				}
+			],
 			"requiredCoverage": [
 				"SetLinefeedMode",
 				"PrepareClientInput",
@@ -875,6 +891,12 @@
 				"DisableInBandSizeReports",
 				"ResizeGeometry",
 				"FailResizeSizeReply",
+				"RefreshViewportGeometry",
+				"SetColumnModeGeometry",
+				"FailColumnModeSizeReply",
+				"SetMode40AtViewport",
+				"RestoreViewportOnMode40",
+				"FailMode40SizeReply",
 				"ResetModes",
 				"DrainReply"
 			]

@@ -291,6 +291,9 @@ pub const testing = if (builtin.is_test) struct {
         if (!terminal_geometry.isValid(observation.geometry)) {
             return error.InvalidRuntimeGeometry;
         }
+        if (!terminal_geometry.isValid(runtime_state.viewport_geometry)) {
+            return error.InvalidRuntimeGeometry;
+        }
         if (runtime_state.close_activity_epoch_exhausted and
             runtime_state.close_activity != .unknown)
         {

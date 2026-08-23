@@ -1046,6 +1046,12 @@ pub const TerminalDrivenResizeProbe = struct {
         defer self.mutex.unlock();
         return self.calls[0..self.count];
     }
+
+    pub fn clearObservedCalls(self: *TerminalDrivenResizeProbe) void {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        self.count = 0;
+    }
 };
 
 pub const TerminalResizeSerializationProbe = struct {

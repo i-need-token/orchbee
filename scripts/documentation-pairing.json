@@ -58,8 +58,8 @@
 			"zhCnSha256": "2b9b1c63ba3ba19e78eca36f89130a352b7aaede49493a9920b24579705db768"
 		},
 		"apps/terminal-host/docs/runtime-model.md": {
-			"englishSha256": "c4a58b4c369b2bb8b8fd731994f8c96b895d14d1af8fd2b93d65f77bb7bfee46",
-			"zhCnSha256": "e6155bf1e6c71efe504c554ad92503846b45880ec71e7cb637502cf2f3d3ea0a"
+			"englishSha256": "f4304e129fe74fa1135bde23f5910ab2e2ea547f9d2e3b2aef8e49c5119c0527",
+			"zhCnSha256": "3e77c17dbdc2b601ba9f2711fa79223badb147369fd8df2589f7705925738fc7"
 		},
 		"apps/web/README.md": {
 			"englishSha256": "bf76b0d5bd4d461a243f5e72250a58ad72a81a086fcdf92e8f98f377e25fabda",
@@ -298,8 +298,8 @@
 			"zhCnSha256": "2d039a8bfc92e106c97e61375a8926e3ea73d9a3b1885f0b58d958b07794c22f"
 		},
 		"proposals/terminal/projected-terminal-experience-compatibility.md": {
-			"englishSha256": "7c428d70152d687ff1a4447c29f5942b8935fb3244738ae66157b2d8ade0be3f",
-			"zhCnSha256": "a58db2802054fa9fae85a6f466f9abef16c98f889e23973d6266b5ce72d3a2da"
+			"englishSha256": "3cf957d7a50ec6cdc89ac5cb32f1da485e0a174c884bffcb6176671e162f8ee0",
+			"zhCnSha256": "fd0dbf760cab2369e7238ff8e25ed5cb4ca5d40ab3ff83bc9c26355d2c2e972c"
 		},
 		"proposals/workbench/project-workspace-experience.md": {
 			"englishSha256": "0c9a4ab62256056296a6229ea9f2422f3a75e8dce7c0e8a6fd5dd3831c34536a",

@@ -312,6 +312,51 @@ test "macOS process observation ignores stop and waits for actual exit" {
     try process.releaseProcessIdentity();
 }
 
+test "macOS process observation sees an exit that predates kqueue registration" {
+    if (builtin.os.tag != .macos) return error.SkipZigTest;
+
+    const child_id = try std.posix.fork();
+    if (child_id == 0) std.posix.exit(23);
+    var child_reaped = false;
+    defer if (!child_reaped) {
+        _ = std.posix.waitpid(child_id, 0);
+    };
+
+    var result_kind: c_int = 0;
+    var result_value: u32 = 0;
+    var waitable = false;
+    for (0..200) |_| {
+        const observation_error = orchbee_try_observe_process_exit_now(
+            child_id,
+            &result_kind,
+            &result_value,
+        );
+        if (observation_error == 0) {
+            waitable = true;
+            break;
+        }
+        try std.testing.expectEqual(
+            @as(c_int, @intCast(@intFromEnum(std.posix.E.AGAIN))),
+            observation_error,
+        );
+        std.Thread.sleep(std.time.ns_per_ms);
+    }
+    try std.testing.expect(waitable);
+    try std.testing.expectEqual(@as(c_int, 1), result_kind);
+    try std.testing.expectEqual(@as(u32, 23), result_value);
+
+    result_kind = 0;
+    result_value = 0;
+    try std.testing.expectEqual(
+        @as(c_int, 0),
+        orchbee_observe_process_exit(child_id, &result_kind, &result_value),
+    );
+    try std.testing.expectEqual(@as(c_int, 1), result_kind);
+    try std.testing.expectEqual(@as(u32, 23), result_value);
+    try std.testing.expectEqual(@as(c_int, 0), orchbee_reap_process_exit(child_id));
+    child_reaped = true;
+}
+
 // The final wait owns the last numeric-identity transition, so it must never
 // block waiting for a child that containment did not actually prove exited.
 // A WNOHANG miss returns EAGAIN through the reaper, leaves the identity fence

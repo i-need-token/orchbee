@@ -35,7 +35,17 @@ pub fn resizeGeometry(
     const cells_changed = old_columns != columns or old_rows != rows;
     const pixels_changed = self.cell_pixel_width != cell_pixel_width or
         self.cell_pixel_height != cell_pixel_height;
+    const next_geometry: terminal_geometry.Geometry = .{
+        .cell_pixel_height = cell_pixel_height,
+        .cell_pixel_width = cell_pixel_width,
+        .columns = columns,
+        .rows = rows,
+    };
     if (!cells_changed and !pixels_changed) {
+        // A granted owner is required to submit one measured geometry. Even
+        // when canonical geometry already matches, that successful request
+        // replaces a stale viewport target left by DECCOLM.
+        self.viewport_geometry = next_geometry;
         const revision = self.revision.load(.acquire);
         self.terminal_mutex.unlock();
         return revision;
@@ -51,12 +61,6 @@ pub fn resizeGeometry(
         .cell_pixel_width = self.cell_pixel_width,
         .columns = old_columns,
         .rows = old_rows,
-    };
-    const next_geometry: terminal_geometry.Geometry = .{
-        .cell_pixel_height = cell_pixel_height,
-        .cell_pixel_width = cell_pixel_width,
-        .columns = columns,
-        .rows = rows,
     };
     self.resize_effect_in_flight = true;
     self.terminal_mutex.unlock();
@@ -145,6 +149,7 @@ pub fn resizeGeometry(
     }
     self.cell_pixel_width = cell_pixel_width;
     self.cell_pixel_height = cell_pixel_height;
+    self.viewport_geometry = next_geometry;
     self.generation = next_generation;
     self.revision.store(revision, .release);
     self.history.generationChanged(&self.terminal, revision, self.generation);
