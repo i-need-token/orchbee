@@ -1091,8 +1091,8 @@ describe('ProjectedTerminal', () => {
 		await vi.waitFor(() => expect(fontLoad).toHaveBeenCalledTimes(4));
 		expect(fontLoad).toHaveBeenCalledWith('500 17px "Menlo", monospace', 'MW你🚀\uF120');
 		expect(fontLoad).toHaveBeenCalledWith('italic 500 17px "Menlo", monospace', 'MW你🚀\uF120');
-		expect(fontLoad).toHaveBeenCalledWith('bold 17px "Menlo", monospace', 'MW你🚀\uF120');
-		expect(fontLoad).toHaveBeenCalledWith('italic bold 17px "Menlo", monospace', 'MW你🚀\uF120');
+		expect(fontLoad).toHaveBeenCalledWith('700 17px "Menlo", monospace', 'MW你🚀\uF120');
+		expect(fontLoad).toHaveBeenCalledWith('italic 700 17px "Menlo", monospace', 'MW你🚀\uF120');
 		expect(commands).toEqual([]);
 		expect(terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['early', '']))).toBe('committed');
 		expect(browser.frames.size).toBe(0);
@@ -1797,6 +1797,7 @@ describe('ProjectedTerminal', () => {
 			fontWeight: 450,
 			fontWeightBold: 700,
 			paddingBalance: 'equal',
+			terminalPadding: 12,
 		} as const;
 
 		const update = terminal.updatePresentationConfiguration(configuration);
@@ -1832,7 +1833,12 @@ describe('ProjectedTerminal', () => {
 		});
 		expect(commands.filter((command) => command.kind === 'resize-terminal')).toEqual([
 			expect.objectContaining({
-				payload: expect.objectContaining({ cellPixelHeight: 36, cellPixelWidth: 20 }),
+				payload: expect.objectContaining({
+					cellPixelHeight: 36,
+					cellPixelWidth: 20,
+					columns: 69,
+					rows: 18,
+				}),
 			}),
 		]);
 		expect(commands.filter((command) => command.kind === 'selection-copy')).toHaveLength(0);

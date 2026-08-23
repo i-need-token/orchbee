@@ -42,6 +42,7 @@ describe('TerminalSettingsController', () => {
 	it('restores and normalizes one complete valid record', () => {
 		const storage = createStorage(
 			JSON.stringify({
+				...DEFAULT_TERMINAL_APPEARANCE_PREFERENCES,
 				applicationTheme: 'dark',
 				backgroundOpacityPercent: 65,
 				customBackground: '#ABCDEF',
@@ -55,6 +56,7 @@ describe('TerminalSettingsController', () => {
 		const controller = new TerminalSettingsController({ storage, themeTarget: target });
 
 		expect(controller.getSnapshot().preferences).toEqual({
+			...DEFAULT_TERMINAL_APPEARANCE_PREFERENCES,
 			applicationTheme: 'dark',
 			backgroundOpacityPercent: 65,
 			customBackground: '#abcdef',

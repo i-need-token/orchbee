@@ -6,7 +6,11 @@ import {
 
 import type { TerminalSettingsCategory } from '../types/terminal-settings-surface';
 
-export type TerminalSettingsSearchCapability = 'desktop-launch-profiles' | 'macos-option-as-alt';
+export type TerminalSettingsSearchCapability =
+	| 'desktop-launch-profiles'
+	| 'desktop-terminal-default-settings'
+	| 'macos-option-as-alt'
+	| 'terminal-interaction';
 
 export const TERMINAL_SETTINGS_SEARCH_RESULTS_ID = 'terminal-settings-search-results';
 
@@ -23,6 +27,16 @@ export interface TerminalSettingsSearchItemDefinition {
 
 export const TERMINAL_SETTINGS_SEARCH_ITEMS: readonly TerminalSettingsSearchItemDefinition[] = [
 	{
+		capability: 'desktop-terminal-default-settings',
+		category: 'terminal',
+		description: terminalSettingsMessages.scrollbackBytesDescription,
+		id: 'terminal.scrollback',
+		keywords: ['history', 'buffer', 'bytes', 'scrollback'],
+		label: terminalSettingsMessages.scrollbackBytesLabel,
+		section: terminalSettingsMessages.terminalHistorySection,
+		targetId: 'terminal.scrollback',
+	},
+	{
 		category: 'appearance',
 		description: terminalSettingsMessages.applicationThemeDescription,
 		id: 'appearance.application-theme',
@@ -33,6 +47,15 @@ export const TERMINAL_SETTINGS_SEARCH_ITEMS: readonly TerminalSettingsSearchItem
 		label: terminalSettingsMessages.applicationThemeLabel,
 		section: terminalSettingsMessages.applicationAppearanceSection,
 		targetId: 'appearance.application-theme',
+	},
+	{
+		category: 'appearance',
+		description: terminalSettingsMessages.terminalPaddingDescription,
+		id: 'appearance.terminalPadding',
+		keywords: ['padding', 'inset', 'space'],
+		label: terminalSettingsMessages.terminalPaddingLabel,
+		section: terminalSettingsMessages.terminalLayoutSection,
+		targetId: 'appearance.terminalPadding',
 	},
 	{
 		category: 'text',
@@ -51,6 +74,33 @@ export const TERMINAL_SETTINGS_SEARCH_ITEMS: readonly TerminalSettingsSearchItem
 		label: terminalSettingsMessages.fontSizeLabel,
 		section: terminalSettingsMessages.terminalTypographySection,
 		targetId: 'text.font-size',
+	},
+	{
+		category: 'text',
+		description: terminalSettingsMessages.fontWeightDescription,
+		id: 'text.font-weight',
+		keywords: ['font', 'weight', 'regular', '400'],
+		label: terminalSettingsMessages.fontWeightLabel,
+		section: terminalSettingsMessages.terminalTypographySection,
+		targetId: 'text.font-weight',
+	},
+	{
+		category: 'text',
+		description: terminalSettingsMessages.fontWeightBoldDescription,
+		id: 'text.font-weight-bold',
+		keywords: ['font', 'weight', 'bold', '700'],
+		label: terminalSettingsMessages.fontWeightBoldLabel,
+		section: terminalSettingsMessages.terminalTypographySection,
+		targetId: 'text.font-weight-bold',
+	},
+	{
+		category: 'text',
+		description: terminalSettingsMessages.fontLigaturesDescription,
+		id: 'text.ligatures',
+		keywords: ['font', 'shaping', 'OpenType'],
+		label: terminalSettingsMessages.fontLigaturesLabel,
+		section: terminalSettingsMessages.terminalTextShapingSection,
+		targetId: 'text.ligatures',
 	},
 	{
 		category: 'colors',
@@ -106,6 +156,16 @@ export const TERMINAL_SETTINGS_SEARCH_ITEMS: readonly TerminalSettingsSearchItem
 		label: terminalSettingsMessages.macosOptionAsAltLabel,
 		section: terminalSettingsMessages.macosOptionKeySection,
 		targetId: 'cursor-input.macos-option-as-alt',
+	},
+	{
+		capability: 'terminal-interaction',
+		category: 'interaction',
+		description: terminalSettingsMessages.copyOnSelectDescription,
+		id: 'interaction.copyOnSelect',
+		keywords: ['selection', 'clipboard', 'copy'],
+		label: terminalSettingsMessages.copyOnSelectLabel,
+		section: terminalSettingsMessages.terminalClipboardSection,
+		targetId: 'interaction.copyOnSelect',
 	},
 	{
 		category: 'general',

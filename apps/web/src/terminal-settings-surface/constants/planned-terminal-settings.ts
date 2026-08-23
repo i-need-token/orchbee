@@ -35,7 +35,6 @@ export const PLANNED_TERMINAL_SETTINGS = {
 	appearance: [
 		section('appearance.layout', 'terminal.settings.catalog.sections.appearance.layout', [
 			item('appearance.density', 'appearance.density', 'select'),
-			item('appearance.terminalPadding', 'appearance.terminalPadding', 'number'),
 			item('appearance.sidebarPosition', 'appearance.sidebarPosition', 'select'),
 		]),
 		section('appearance.window', 'terminal.settings.catalog.sections.appearance.window', [
@@ -94,7 +93,6 @@ export const PLANNED_TERMINAL_SETTINGS = {
 	],
 	interaction: [
 		section('interaction.clipboard', 'terminal.settings.catalog.sections.interaction.clipboard', [
-			item('interaction.copyOnSelect', 'interaction.copyOnSelect', 'toggle'),
 			item('interaction.copyFormatTrim', 'interaction.copyFormatTrim', 'select'),
 			item('interaction.wordSelection', 'interaction.wordSelection', 'text'),
 		]),
@@ -149,11 +147,9 @@ export const PLANNED_TERMINAL_SETTINGS = {
 	text: [
 		section('text.typography', 'terminal.settings.catalog.sections.text.typography', [
 			item('text.fallbackFonts', 'text.fallbackFonts', 'text'),
-			item('text.weights', 'text.weights', 'select'),
 			item('text.lineCellSpacing', 'text.lineCellSpacing', 'number'),
 		]),
 		section('text.shaping', 'terminal.settings.catalog.sections.text.shaping', [
-			item('text.ligatures', 'text.ligatures', 'toggle'),
 			item('text.openTypeAxes', 'text.openTypeAxes', 'action'),
 		]),
 		section('text.rendering', 'terminal.settings.catalog.sections.text.rendering', [

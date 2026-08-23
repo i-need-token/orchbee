@@ -23,6 +23,8 @@ import {
 import {
 	DesktopProjectFolderAcquisitionMainEventSchema,
 	DesktopProjectFolderAcquisitionRendererCommandSchema,
+	DesktopTerminalDefaultSettingsMainEventSchema,
+	DesktopTerminalDefaultSettingsRendererCommandSchema,
 	DesktopTerminalLaunchProfileMainEventSchema,
 	DesktopTerminalLaunchProfileRendererCommandSchema,
 } from '@orchbee/desktop-client-protocol';
@@ -181,6 +183,28 @@ function serveTerminalLaunchProfiles(port: TestMessagePort): void {
 	});
 }
 
+function serveTerminalDefaultSettings(port: TestMessagePort): void {
+	port.addEventListener('message', (event) => {
+		const command = DesktopTerminalDefaultSettingsRendererCommandSchema.parse(
+			(event as MessageEvent).data,
+		);
+		const configuration =
+			command.type === 'desktop-terminal-default-settings-update-requested'
+				? command.configuration
+				: { scrollbackBytes: 10_000_000 };
+		port.postMessage(
+			DesktopTerminalDefaultSettingsMainEventSchema.parse({
+				requestId: command.requestId,
+				result: {
+					kind: 'completed',
+					snapshot: { configuration, persistenceIssue: null, source: 'stored' },
+				},
+				type: 'desktop-terminal-default-settings-responded',
+			}),
+		);
+	});
+}
+
 describe('startDesktopWorkbenchRenderer', () => {
 	it('fails closed without rendering when the initial shared-document commit is unavailable', async () => {
 		const lifetimeChannel = createTestChannel();
@@ -190,7 +214,9 @@ describe('startDesktopWorkbenchRenderer', () => {
 		const projectFolderAcquisitionChannel = createTestChannel();
 		const projectWorktreeChannel = createTestChannel();
 		const terminalLaunchProfileChannel = createTestChannel();
+		const terminalDefaultSettingsChannel = createTestChannel();
 		serveTerminalLaunchProfiles(terminalLaunchProfileChannel.port2);
+		serveTerminalDefaultSettings(terminalDefaultSettingsChannel.port2);
 		const initializationDocument = provisionDocument('0', ['Terminal 1']);
 		const commands: WorkbenchClientSessionCommand[] = [];
 		clientSessionChannel.port2.addEventListener('message', (event) => {
@@ -222,6 +248,7 @@ describe('startDesktopWorkbenchRenderer', () => {
 				projectFolderAcquisitionChannel.port1,
 				projectWorktreeChannel.port1,
 				terminalLaunchProfileChannel.port1,
+				terminalDefaultSettingsChannel.port1,
 			);
 			await expect(session.ready).resolves.toEqual({ kind: 'unavailable', reason: 'read-failed' });
 		});
@@ -235,6 +262,7 @@ describe('startDesktopWorkbenchRenderer', () => {
 		expect((projectFolderAcquisitionChannel.port1 as unknown as TestMessagePort).closed).toBe(true);
 		expect((projectWorktreeChannel.port1 as unknown as TestMessagePort).closed).toBe(true);
 		expect((terminalLaunchProfileChannel.port1 as unknown as TestMessagePort).closed).toBe(true);
+		expect((terminalDefaultSettingsChannel.port1 as unknown as TestMessagePort).closed).toBe(true);
 		root.remove();
 	});
 
@@ -246,7 +274,9 @@ describe('startDesktopWorkbenchRenderer', () => {
 		const projectFolderAcquisitionChannel = createTestChannel();
 		const projectWorktreeChannel = createTestChannel();
 		const terminalLaunchProfileChannel = createTestChannel();
+		const terminalDefaultSettingsChannel = createTestChannel();
 		serveTerminalLaunchProfiles(terminalLaunchProfileChannel.port2);
+		serveTerminalDefaultSettings(terminalDefaultSettingsChannel.port2);
 		const sharedDocument = provisionDocument('4', ['Terminal 1', 'Terminal 2']);
 		const sessionCommands = serveSuccessfulClientSession(clientSessionChannel.port2);
 		const projectionCommands: Array<{ presentationId?: string; type?: string }> = [];
@@ -290,6 +320,7 @@ describe('startDesktopWorkbenchRenderer', () => {
 				projectFolderAcquisitionChannel.port1,
 				projectWorktreeChannel.port1,
 				terminalLaunchProfileChannel.port1,
+				terminalDefaultSettingsChannel.port1,
 			);
 			session = started;
 			await expect(started.ready).resolves.toEqual({ kind: 'ready' });
@@ -402,7 +433,9 @@ describe('startDesktopWorkbenchRenderer', () => {
 		const projectFolderAcquisitionChannel = createTestChannel();
 		const projectWorktreeChannel = createTestChannel();
 		const terminalLaunchProfileChannel = createTestChannel();
+		const terminalDefaultSettingsChannel = createTestChannel();
 		serveTerminalLaunchProfiles(terminalLaunchProfileChannel.port2);
+		serveTerminalDefaultSettings(terminalDefaultSettingsChannel.port2);
 		const sharedDocument = retainedDocument('4');
 		const sessionCommands = serveSuccessfulClientSession(clientSessionChannel.port2);
 		const root = document.createElement('div');
@@ -430,6 +463,7 @@ describe('startDesktopWorkbenchRenderer', () => {
 				projectFolderAcquisitionChannel.port1,
 				projectWorktreeChannel.port1,
 				terminalLaunchProfileChannel.port1,
+				terminalDefaultSettingsChannel.port1,
 			);
 			session = started;
 			await expect(started.ready).resolves.toEqual({ kind: 'ready' });

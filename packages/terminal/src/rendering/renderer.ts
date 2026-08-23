@@ -45,7 +45,11 @@ import {
 	type PreeditLayoutRow,
 } from '../input';
 import { searchMatchContainsCell, type TerminalSearchMatch } from '../search';
-import { additionalSurfaceMargins, balanceGridPadding } from '../surface-size';
+import {
+	additionalSurfaceMargins,
+	addUniformSurfacePadding,
+	balanceGridPadding,
+} from '../surface-size';
 import { buildTextShapingPlan, type TextShapingPlan } from '../buildTextShapingPlan';
 import {
 	normalizeTerminalPresentationConfiguration,
@@ -267,8 +271,6 @@ interface RectangleGeometry {
 const COLOR_GLYPH_CANDIDATE = /[\p{Extended_Pictographic}\p{Regional_Indicator}\u{FE0F}\u{20E3}]/u;
 const CURSOR_BLINK_INTERVAL_MS = 530;
 const MAX_CACHED_SHAPING_RASTER_PIXELS = 8 * 1024 * 1024;
-const ZERO_PADDING: SurfacePadding = { top: 0, bottom: 0, left: 0, right: 0 };
-
 // ============================================================================
 // Color Helpers
 // ============================================================================
@@ -1562,18 +1564,22 @@ export class WebGPURenderer {
 	syncSurfacePadding(): void {
 		const parent = this.canvas.parentElement;
 		if (!parent) return;
-		if (this.presentationConfiguration.paddingBalance === false) {
-			this.setSurfaceMargins(ZERO_PADDING);
-			return;
-		}
 		if (typeof window.getComputedStyle !== 'function') return;
 		const style = window.getComputedStyle(parent);
-		const explicit: SurfacePadding = {
+		const mounted: SurfacePadding = {
 			top: cssPixels(style.paddingTop),
 			bottom: cssPixels(style.paddingBottom),
 			left: cssPixels(style.paddingLeft),
 			right: cssPixels(style.paddingRight),
 		};
+		const explicit = addUniformSurfacePadding(
+			mounted,
+			this.presentationConfiguration.terminalPadding,
+		);
+		if (this.presentationConfiguration.paddingBalance === false) {
+			this.setSurfaceMargins(additionalSurfaceMargins(explicit, mounted));
+			return;
+		}
 		const balanced = balanceGridPadding(
 			{ width: parent.clientWidth, height: parent.clientHeight },
 			{ width: this.metrics.width, height: this.metrics.height },
@@ -1581,7 +1587,7 @@ export class WebGPURenderer {
 			{ columns: this.renderedColumns, rows: this.renderedRows },
 			this.presentationConfiguration.paddingBalance,
 		);
-		this.setSurfaceMargins(additionalSurfaceMargins(balanced, explicit));
+		this.setSurfaceMargins(additionalSurfaceMargins(balanced, mounted));
 	}
 
 	private setSurfaceMargins(padding: SurfacePadding): void {

@@ -82,6 +82,7 @@ const runtimeConfiguration: TerminalPresentationConfiguration = {
 	fontWeight: 500,
 	fontWeightBold: 800,
 	paddingBalance: 'equal',
+	terminalPadding: 0,
 };
 
 class MutablePresentationConfigurationSource implements TerminalPresentationConfigurationSource {

@@ -21,10 +21,12 @@ import {
 	formatProjectedTerminalActionShortcut,
 } from '../projected-terminal-keyboard-shortcuts';
 import type { TerminalSettingsController } from '../terminal-settings';
+import type { TerminalInteractionSettingsController } from '../terminal-interaction-settings';
 import type { TerminalFeedbackSettingsController } from '../terminal-feedback-settings';
 import type { MacosTerminalInputSettingsController } from '../macos-terminal-input-settings';
 import { TerminalSettingsSurface } from '../terminal-settings-surface';
 import type { DesktopTerminalLaunchProfileControl } from '../terminal-launch-profile-control';
+import type { DesktopTerminalDefaultSettingsControl } from '../terminal-default-settings-control';
 import { useWebApplication } from './hooks/useWebApplication';
 import styles from './WebApplication.module.css';
 
@@ -40,8 +42,12 @@ export interface WebApplicationProps {
 	readonly requestBrowserAccess?: ((returnFocus: HTMLElement) => void) | undefined;
 	readonly shortcutPlatform: WorkbenchShortcutPlatform;
 	readonly terminalSettingsController: TerminalSettingsController;
+	readonly terminalInteractionSettingsController?:
+		| TerminalInteractionSettingsController
+		| undefined;
 	readonly terminalFeedbackSettingsController?: TerminalFeedbackSettingsController | undefined;
 	readonly terminalLaunchProfileClient?: DesktopTerminalLaunchProfileControl | undefined;
+	readonly terminalDefaultSettingsControl?: DesktopTerminalDefaultSettingsControl | undefined;
 	readonly terminalSurface?: WorkbenchTerminalSurface | undefined;
 }
 
@@ -57,8 +63,10 @@ export function WebApplication({
 	requestBrowserAccess,
 	shortcutPlatform,
 	terminalSettingsController,
+	terminalInteractionSettingsController,
 	terminalFeedbackSettingsController,
 	terminalLaunchProfileClient,
+	terminalDefaultSettingsControl,
 	terminalSurface,
 }: WebApplicationProps): ReactNode {
 	const view = useWebApplication({ terminalSettingsController });
@@ -114,6 +122,7 @@ export function WebApplication({
 			</div>
 			<TerminalSettingsSurface
 				controller={terminalSettingsController}
+				terminalInteractionSettingsController={terminalInteractionSettingsController}
 				keyboardShortcutController={keyboardShortcutSettingsController}
 				keyboardShortcutPlatform={shortcutPlatform}
 				macosTerminalInputSettingsController={macosTerminalInputSettingsController}
@@ -121,6 +130,7 @@ export function WebApplication({
 				requestBrowserAccess={requestBrowserAccess}
 				terminalFeedbackSettingsController={terminalFeedbackSettingsController}
 				terminalLaunchProfileClient={terminalLaunchProfileClient}
+				terminalDefaultSettingsControl={terminalDefaultSettingsControl}
 			/>
 		</div>
 	);

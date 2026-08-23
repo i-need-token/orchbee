@@ -9,6 +9,7 @@ import {
 	type DesktopApplicationExitFailure,
 	type DesktopApplicationExitReason,
 	type DesktopApplicationExitRequestId,
+	type DesktopTerminalDefaultSettingsSnapshot,
 	type DesktopTerminalLaunchProfileSnapshot,
 } from '@orchbee/desktop-client-protocol';
 import {
@@ -19,6 +20,7 @@ import {
 	TerminalExitedSchema,
 	TerminalFailedSchema,
 	TerminalMetadataChangedSchema,
+	type TerminalConfiguration,
 	type DecodedProtocolEnvelope,
 	type AttachmentCapabilities,
 	type TerminalExited,
@@ -101,6 +103,12 @@ import {
 	type DesktopTerminalProjectionLease,
 } from '../terminal-projection-control';
 import {
+	DesktopTerminalDefaultSettingsBroker,
+	DesktopTerminalDefaultSettingsController,
+	FileTerminalDefaultSettingsStore,
+	type DesktopTerminalDefaultSettingsBrokerController,
+} from '../terminal-default-settings';
+import {
 	DesktopTerminalLaunchProfileBroker,
 	DesktopTerminalLaunchProfileController,
 	FileTerminalLaunchProfileStore,
@@ -178,6 +186,16 @@ type DesktopProjectWorktreeRuntimeHandle = Pick<
 interface DesktopTerminalLaunchProfileBrokerHandle {
 	dispose(): void;
 	start(): void;
+}
+
+interface DesktopTerminalDefaultSettingsBrokerHandle {
+	dispose(): void;
+	start(): void;
+}
+
+interface DesktopTerminalDefaultSettingsControllerHandle extends DesktopTerminalDefaultSettingsBrokerController {
+	flush(): Promise<void>;
+	initialize(): Promise<DesktopTerminalDefaultSettingsSnapshot>;
 }
 
 interface DesktopTerminalLaunchProfileControllerHandle extends DesktopTerminalLaunchProfileBrokerController {
@@ -279,6 +297,17 @@ export interface DesktopApplicationDependencies {
 		port: MessagePortMain,
 		controller: DesktopTerminalLaunchProfileBrokerController,
 	) => DesktopTerminalLaunchProfileBrokerHandle;
+	readonly createTerminalDefaultSettingsBroker: (
+		port: MessagePortMain,
+		controller: DesktopTerminalDefaultSettingsBrokerController,
+	) => DesktopTerminalDefaultSettingsBrokerHandle;
+	readonly createTerminalDefaultSettingsController: (options: {
+		readonly runtimeConfiguration: TerminalConfiguration;
+		readonly setHostDefaults: (
+			configuration: TerminalConfiguration,
+		) => Promise<TerminalConfiguration>;
+		readonly storePath: string;
+	}) => DesktopTerminalDefaultSettingsControllerHandle;
 	readonly createTerminalLaunchProfileController: (options: {
 		readonly allocateProfileId: () => string;
 		readonly baseLaunch: TerminalLaunch;
@@ -355,6 +384,14 @@ const defaultDependencies: DesktopApplicationDependencies = {
 			managedRoot: options.managedRoot,
 			operationStore: new FileProjectWorktreeOperationStore(options.operationStorePath),
 			terminalTitle: options.terminalTitle,
+		}),
+	createTerminalDefaultSettingsBroker: (port, controller) =>
+		new DesktopTerminalDefaultSettingsBroker(port, controller),
+	createTerminalDefaultSettingsController: (options) =>
+		new DesktopTerminalDefaultSettingsController({
+			runtimeConfiguration: options.runtimeConfiguration,
+			setHostDefaults: options.setHostDefaults,
+			store: new FileTerminalDefaultSettingsStore(options.storePath),
 		}),
 	createTerminalLaunchProfileBroker: (port, controller) =>
 		new DesktopTerminalLaunchProfileBroker(port, controller),
@@ -439,6 +476,8 @@ export class DesktopApplication {
 	#shutdownPromise: Promise<void> | undefined;
 	#terminalRuntime: DesktopTerminalRuntime | undefined;
 	#terminalIntentReconciler: DesktopTerminalIntentReconciler | undefined;
+	#terminalDefaultSettingsBroker: DesktopTerminalDefaultSettingsBrokerHandle | undefined;
+	#terminalDefaultSettingsController: DesktopTerminalDefaultSettingsControllerHandle | undefined;
 	#terminalLaunchProfileBroker: DesktopTerminalLaunchProfileBrokerHandle | undefined;
 	readonly #terminalLaunchProfileController: DesktopTerminalLaunchProfileControllerHandle;
 	readonly #pendingTerminalExits = new Map<string, TerminalExited>();
@@ -583,17 +622,21 @@ export class DesktopApplication {
 		this.#connection = connection;
 		try {
 			await connection.negotiate(ClientIdSchema.parse(this.#dependencies.randomIdentifier()));
-			const acceptedDefaults = await connection.requestControl(
-				MessageKind.setTerminalDefaults,
-				{ configuration: this.#options.runtime.terminalConfiguration },
-				TerminalDefaultsAcceptedSchema,
-			);
-			if (
-				acceptedDefaults.configuration.scrollbackBytes !==
-				this.#options.runtime.terminalConfiguration.scrollbackBytes
-			) {
-				throw new Error('Terminal Host did not accept the requested terminal defaults.');
-			}
+			const terminalDefaultSettingsController =
+				this.#dependencies.createTerminalDefaultSettingsController({
+					runtimeConfiguration: this.#options.runtime.terminalConfiguration,
+					setHostDefaults: async (configuration) => {
+						const accepted = await connection.requestControl(
+							MessageKind.setTerminalDefaults,
+							{ configuration },
+							TerminalDefaultsAcceptedSchema,
+						);
+						return accepted.configuration;
+					},
+					storePath: this.#options.runtime.terminalDefaultSettingsStorePath,
+				});
+			await terminalDefaultSettingsController.initialize();
+			this.#terminalDefaultSettingsController = terminalDefaultSettingsController;
 			const publicationLedgerLoad = await this.#terminalExitPublicationLedger.load();
 			if (publicationLedgerLoad.kind !== 'ready') {
 				throw new Error(
@@ -889,6 +932,11 @@ export class DesktopApplication {
 			firstFailure ??= error;
 		}
 		try {
+			await this.#terminalDefaultSettingsController?.flush();
+		} catch (error: unknown) {
+			firstFailure ??= error;
+		}
+		try {
 			await this.#disposeBrowserAccessResources();
 		} catch (error: unknown) {
 			firstFailure ??= error;
@@ -968,6 +1016,8 @@ export class DesktopApplication {
 		this.#projectFolderAcquisitionBroker = undefined;
 		this.#projectWorktreeBroker?.dispose();
 		this.#projectWorktreeBroker = undefined;
+		this.#terminalDefaultSettingsBroker?.dispose();
+		this.#terminalDefaultSettingsBroker = undefined;
 		this.#terminalLaunchProfileBroker?.dispose();
 		this.#terminalLaunchProfileBroker = undefined;
 		const clientSessionBroker = this.#clientSessionBroker;
@@ -1095,9 +1145,11 @@ export class DesktopApplication {
 	async #attachRendererDocument(window: BrowserWindow, generation: number): Promise<void> {
 		const terminalRuntime = this.#terminalRuntime;
 		const clientSessionCoordinator = this.#clientSessionCoordinator;
+		const terminalDefaultSettingsController = this.#terminalDefaultSettingsController;
 		if (
 			terminalRuntime === undefined ||
 			clientSessionCoordinator === undefined ||
+			terminalDefaultSettingsController === undefined ||
 			this.#pendingRendererDocumentRetirement !== undefined ||
 			this.#pendingRendererBootstrapCleanup !== undefined ||
 			this.#window !== window ||
@@ -1128,6 +1180,9 @@ export class DesktopApplication {
 		let terminalLaunchProfileChannel:
 			| { readonly port1: MessagePortMain; readonly port2: MessagePortMain }
 			| undefined;
+		let terminalDefaultSettingsChannel:
+			| { readonly port1: MessagePortMain; readonly port2: MessagePortMain }
+			| undefined;
 		let projectionBroker: DesktopProjectionControlBrokerHandle | undefined;
 		let clientSessionBroker: DesktopClientSessionBrokerHandle | undefined;
 		let lifetimeBroker: DesktopApplicationLifetimeBrokerHandle | undefined;
@@ -1135,6 +1190,7 @@ export class DesktopApplication {
 		let projectFolderAcquisitionBroker: DesktopProjectFolderAcquisitionBrokerHandle | undefined;
 		let projectWorktreeBroker: DesktopProjectWorktreeBrokerHandle | undefined;
 		let terminalLaunchProfileBroker: DesktopTerminalLaunchProfileBrokerHandle | undefined;
+		let terminalDefaultSettingsBroker: DesktopTerminalDefaultSettingsBrokerHandle | undefined;
 		const cleanup = async (): Promise<void> => {
 			let firstFailure: unknown;
 			try {
@@ -1154,6 +1210,11 @@ export class DesktopApplication {
 			}
 			try {
 				projectWorktreeBroker?.dispose();
+			} catch (error: unknown) {
+				firstFailure ??= error;
+			}
+			try {
+				terminalDefaultSettingsBroker?.dispose();
 			} catch (error: unknown) {
 				firstFailure ??= error;
 			}
@@ -1183,6 +1244,7 @@ export class DesktopApplication {
 			closeRendererChannel(projectFolderAcquisitionChannel);
 			closeRendererChannel(projectWorktreeChannel);
 			closeRendererChannel(terminalLaunchProfileChannel);
+			closeRendererChannel(terminalDefaultSettingsChannel);
 			if (firstFailure !== undefined) throw firstFailure;
 		};
 		try {
@@ -1193,6 +1255,7 @@ export class DesktopApplication {
 			projectFolderAcquisitionChannel = this.#dependencies.createMessageChannel();
 			projectWorktreeChannel = this.#dependencies.createMessageChannel();
 			terminalLaunchProfileChannel = this.#dependencies.createMessageChannel();
+			terminalDefaultSettingsChannel = this.#dependencies.createMessageChannel();
 			projectionBroker = this.#dependencies.createProjectionControlBroker(
 				projectionChannel.port2,
 				terminalRuntime,
@@ -1252,6 +1315,10 @@ export class DesktopApplication {
 				terminalLaunchProfileChannel.port2,
 				this.#terminalLaunchProfileController,
 			);
+			terminalDefaultSettingsBroker = this.#dependencies.createTerminalDefaultSettingsBroker(
+				terminalDefaultSettingsChannel.port2,
+				terminalDefaultSettingsController,
+			);
 			clientSessionBroker.start();
 			browserAccessBroker.start();
 			lifetimeBroker.start();
@@ -1259,6 +1326,7 @@ export class DesktopApplication {
 			projectFolderAcquisitionBroker.start();
 			projectWorktreeBroker.start();
 			terminalLaunchProfileBroker.start();
+			terminalDefaultSettingsBroker.start();
 			window.webContents.postMessage(
 				DESKTOP_RENDERER_BOOTSTRAP_IPC_CHANNEL,
 				DesktopRendererBootstrapSchema.parse({
@@ -1273,6 +1341,7 @@ export class DesktopApplication {
 					projectFolderAcquisitionChannel.port1,
 					projectWorktreeChannel.port1,
 					terminalLaunchProfileChannel.port1,
+					terminalDefaultSettingsChannel.port1,
 				],
 			);
 			this.#applicationLifetimeBroker = lifetimeBroker;
@@ -1282,6 +1351,7 @@ export class DesktopApplication {
 			this.#projectFolderAcquisitionBroker = projectFolderAcquisitionBroker;
 			this.#projectWorktreeBroker = projectWorktreeBroker;
 			this.#terminalLaunchProfileBroker = terminalLaunchProfileBroker;
+			this.#terminalDefaultSettingsBroker = terminalDefaultSettingsBroker;
 		} catch (error: unknown) {
 			this.#pendingRendererBootstrapCleanup = cleanup;
 			await cleanup();

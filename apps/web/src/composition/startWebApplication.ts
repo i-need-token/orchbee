@@ -21,6 +21,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { createWebApplicationRouting } from '../application-routing';
 import { createBrowserRandomIdentifier } from '../browser-random-identifier';
 import { KeyboardShortcutSettingsController } from '../keyboard-shortcuts';
+import { TerminalInteractionSettingsController } from '../terminal-interaction-settings';
 import { TerminalSettingsController } from '../terminal-settings';
 import {
 	createBrowserTerminalNotificationCapability,
@@ -53,6 +54,9 @@ export function startWebApplication(
 		storage: layoutStorage,
 		themeTarget: documentElement,
 	});
+	const terminalInteractionSettingsController = new TerminalInteractionSettingsController(
+		layoutStorage,
+	);
 	const targetWindow = rootElement.ownerDocument?.defaultView;
 	const terminalFeedbackSettingsController = new TerminalFeedbackSettingsController({
 		notificationCapability:
@@ -76,6 +80,7 @@ export function startWebApplication(
 		projectWorkspaceRuntime,
 		shortcutPlatform,
 		terminalSettingsController,
+		terminalInteractionSettingsController,
 		terminalFeedbackSettingsController,
 	});
 	let reactRoot: Root | undefined = createRoot(rootElement);
@@ -99,6 +104,7 @@ export function startWebApplication(
 			actionRuntime.dispose();
 			keyboardShortcutSettingsController.dispose();
 			terminalSettingsController.dispose();
+			terminalInteractionSettingsController.dispose();
 			terminalFeedbackSettingsController.dispose();
 		},
 	};

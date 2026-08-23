@@ -16,9 +16,10 @@ describe('terminal presentation configuration', () => {
 			fontLigatures: true,
 			fontMetricModifiers: {},
 			fontSize: 15,
-			fontWeight: 'normal',
-			fontWeightBold: 'bold',
+			fontWeight: 400,
+			fontWeightBold: 700,
 			paddingBalance: false,
+			terminalPadding: 0,
 		});
 	});
 
@@ -38,6 +39,7 @@ describe('terminal presentation configuration', () => {
 			fontWeight: 450,
 			fontWeightBold: 700,
 			paddingBalance: 'equal',
+			terminalPadding: 12,
 		} as const;
 		const result = normalizeTerminalPresentationConfiguration(candidate);
 
@@ -71,11 +73,13 @@ describe('terminal presentation configuration', () => {
 		const configuration = presentationConfigurationFromRendererOptions({
 			backgroundOpacity: 0,
 			defaultColorOverride,
+			terminalPadding: 14,
 		});
 
 		expect(configuration).toMatchObject({
 			backgroundOpacity: 0,
 			defaultColorOverride: { background: '#aabbcc', foreground: '#ddeeff' },
+			terminalPadding: 14,
 		});
 		defaultColorOverride.foreground = '#000000';
 		expect(configuration.defaultColorOverride).toEqual({
@@ -84,7 +88,7 @@ describe('terminal presentation configuration', () => {
 		});
 	});
 
-	it.each(['backgroundOpacity', 'defaultColorOverride'] as const)(
+	it.each(['backgroundOpacity', 'defaultColorOverride', 'terminalPadding'] as const)(
 		'requires the complete transaction field $field',
 		(field) => {
 			const candidate = { ...DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION };
@@ -143,6 +147,18 @@ describe('terminal presentation configuration', () => {
 		{
 			name: 'invalid weight',
 			value: { ...DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION, fontWeight: 1_001 },
+		},
+		{
+			name: 'negative terminal padding',
+			value: { ...DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION, terminalPadding: -1 },
+		},
+		{
+			name: 'fractional terminal padding',
+			value: { ...DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION, terminalPadding: 1.5 },
+		},
+		{
+			name: 'terminal padding above the admitted range',
+			value: { ...DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION, terminalPadding: 33 },
 		},
 		{
 			name: 'invalid metric modifier',

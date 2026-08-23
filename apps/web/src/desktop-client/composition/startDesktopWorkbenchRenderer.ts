@@ -6,6 +6,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { createWebApplicationRouting, type WebApplicationRouting } from '../../application-routing';
 import { KeyboardShortcutSettingsController } from '../../keyboard-shortcuts';
 import { MacosTerminalInputSettingsController } from '../../macos-terminal-input-settings';
+import { TerminalInteractionSettingsController } from '../../terminal-interaction-settings';
 import { TerminalSettingsController } from '../../terminal-settings';
 import {
 	createBrowserTerminalNotificationCapability,
@@ -31,6 +32,7 @@ import { DesktopTerminalProjectionClient } from '../terminal-projection-control'
 import { DesktopProjectFolderAcquisitionClient } from '../project-folder-acquisition';
 import { DesktopProjectWorktreeClient } from '../project-worktree';
 import { DesktopTerminalLaunchProfileClient } from '../terminal-launch-profiles';
+import { DesktopTerminalDefaultSettingsClient } from '../terminal-default-settings';
 import type { TerminalFileDropCapability } from '../../terminal-file-drop';
 
 export interface DesktopWorkbenchRendererSession {
@@ -59,6 +61,7 @@ export function startDesktopWorkbenchRenderer(
 	projectFolderAcquisitionPort: MessagePort,
 	projectWorktreePort: MessagePort,
 	terminalLaunchProfilePort: MessagePort,
+	terminalDefaultSettingsPort: MessagePort,
 	terminalFileDropCapability?: TerminalFileDropCapability,
 ): DesktopWorkbenchRendererSession {
 	if (!(rootElement instanceof HTMLElement)) {
@@ -77,6 +80,9 @@ export function startDesktopWorkbenchRenderer(
 	const terminalLaunchProfileClient = new DesktopTerminalLaunchProfileClient(
 		terminalLaunchProfilePort,
 	);
+	const terminalDefaultSettingsClient = new DesktopTerminalDefaultSettingsClient(
+		terminalDefaultSettingsPort,
+	);
 	const keyboardShortcutSettingsController = new KeyboardShortcutSettingsController({
 		platform: shortcutPlatform,
 		storage: storage.preferences,
@@ -89,6 +95,9 @@ export function startDesktopWorkbenchRenderer(
 		storage: storage.preferences,
 		themeTarget: documentElement,
 	});
+	const terminalInteractionSettingsController = new TerminalInteractionSettingsController(
+		storage.preferences,
+	);
 	const terminalFeedbackSettingsController = new TerminalFeedbackSettingsController({
 		notificationCapability:
 			applicationRoot.ownerDocument.defaultView === null
@@ -105,6 +114,7 @@ export function startDesktopWorkbenchRenderer(
 		shortcutBindingSource: keyboardShortcutSettingsController,
 		shortcutPlatform,
 		terminalPresentationConfigurationSource: terminalSettingsController,
+		terminalInteractionConfigurationSource: terminalInteractionSettingsController,
 		terminalCompletionReminderObserver: terminalFeedbackSettingsController,
 		...(macosTerminalInputSettingsController === undefined
 			? {}
@@ -129,11 +139,13 @@ export function startDesktopWorkbenchRenderer(
 		projectFolderAcquisitionClient.dispose();
 		projectWorktreeClient.dispose();
 		terminalLaunchProfileClient.dispose();
+		terminalDefaultSettingsClient.dispose();
 		routing?.dispose();
 		routing = undefined;
 		runtime.dispose();
 		keyboardShortcutSettingsController.dispose();
 		terminalSettingsController.dispose();
+		terminalInteractionSettingsController.dispose();
 		terminalFeedbackSettingsController.dispose();
 		macosTerminalInputSettingsController?.dispose();
 		if (lifetimeClient === undefined) lifetimePort.close();
@@ -151,10 +163,12 @@ export function startDesktopWorkbenchRenderer(
 	): Promise<
 		{ readonly kind: 'ready' } | { readonly kind: 'unavailable'; readonly reason: string }
 	> {
-		const [runtimeStart, terminalLaunchProfilesStart] = await Promise.all([
-			workbenchClientRuntime.ready,
-			terminalLaunchProfileClient.initialize(),
-		]);
+		const [runtimeStart, terminalLaunchProfilesStart, terminalDefaultSettingsStart] =
+			await Promise.all([
+				workbenchClientRuntime.ready,
+				terminalLaunchProfileClient.initialize(),
+				terminalDefaultSettingsClient.initialize(),
+			]);
 		if (runtimeStart.kind === 'unavailable') {
 			dispose();
 			return runtimeStart;
@@ -180,8 +194,12 @@ export function startDesktopWorkbenchRenderer(
 			},
 			shortcutPlatform,
 			terminalSettingsController,
+			terminalInteractionSettingsController,
 			terminalFeedbackSettingsController,
 			...(terminalLaunchProfilesStart.kind === 'ready' ? { terminalLaunchProfileClient } : {}),
+			...(terminalDefaultSettingsStart.kind === 'ready'
+				? { terminalDefaultSettingsControl: terminalDefaultSettingsClient }
+				: {}),
 			terminalSurface: ProjectedTerminalSurface,
 		});
 		routing = nextRouting;

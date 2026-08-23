@@ -30,9 +30,10 @@ describe('buildTerminalSettingsSearchCatalog', () => {
 			targetId: 'text.font-family',
 		});
 		expect(entries.find((entry) => entry.id === 'text.ligatures')).toMatchObject({
+			availability: 'available',
 			category: 'text',
 			kind: 'setting',
-			sectionLabel: 'Font shaping',
+			sectionLabel: 'Text shaping',
 		});
 		expect(
 			entries.find((entry) => entry.id === 'keyboard-shortcuts.workbench.search.all.open')
@@ -54,10 +55,32 @@ describe('buildTerminalSettingsSearchCatalog', () => {
 		expect(entries.some((entry) => entry.id === 'cursor-input.ime')).toBe(true);
 	});
 
+	it('replaces the planned scrollback result when Desktop owns the setting', () => {
+		const intl = createOrchbeeIntl('en-US');
+		const buildCatalog = (
+			enabledCapabilities: readonly ['desktop-terminal-default-settings'] | [],
+		) =>
+			buildTerminalSettingsSearchCatalog({
+				enabledCapabilities,
+				enabledCategories: ['terminal'],
+				formatMessage: (descriptor) => intl.formatMessage(descriptor),
+				keyboardShortcutChords: {},
+			});
+
+		expect(buildCatalog([]).filter((entry) => entry.id === 'terminal.scrollback')).toEqual([
+			expect.objectContaining({ availability: 'planned' }),
+		]);
+		expect(
+			buildCatalog(['desktop-terminal-default-settings']).filter(
+				(entry) => entry.id === 'terminal.scrollback',
+			),
+		).toEqual([expect.objectContaining({ availability: 'available' })]);
+	});
+
 	it('formats category, section, and setting copy in the effective locale', () => {
 		const intl = createOrchbeeIntl('zh-CN');
 		const entries = buildTerminalSettingsSearchCatalog({
-			enabledCapabilities: [],
+			enabledCapabilities: ['terminal-interaction'],
 			enabledCategories: ['interaction'],
 			formatMessage: (descriptor) => intl.formatMessage(descriptor),
 			keyboardShortcutChords: {},

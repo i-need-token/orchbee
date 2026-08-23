@@ -5,6 +5,7 @@ import { createRoot, type Root } from 'react-dom/client';
 
 import { createWebApplicationRouting, type WebApplicationRouting } from '../../application-routing';
 import { KeyboardShortcutSettingsController } from '../../keyboard-shortcuts';
+import { TerminalInteractionSettingsController } from '../../terminal-interaction-settings';
 import { TerminalSettingsController } from '../../terminal-settings';
 import {
 	createBrowserTerminalNotificationCapability,
@@ -76,6 +77,7 @@ export function startGatewayWebApplication(
 		storage,
 		themeTarget: documentElement,
 	});
+	const terminalInteractionSettingsController = new TerminalInteractionSettingsController(storage);
 	const terminalFeedbackSettingsController = new TerminalFeedbackSettingsController({
 		notificationCapability: createBrowserTerminalNotificationCapability(targetWindow),
 		storage,
@@ -91,6 +93,7 @@ export function startGatewayWebApplication(
 		runtime = undefined;
 		keyboardShortcutSettingsController.dispose();
 		terminalSettingsController.dispose();
+		terminalInteractionSettingsController.dispose();
 		terminalFeedbackSettingsController.dispose();
 		control?.close();
 		control = undefined;
@@ -148,6 +151,7 @@ export function startGatewayWebApplication(
 			terminalPlatformEffects: platformEffects,
 			terminalCompletionReminderObserver: terminalFeedbackSettingsController,
 			terminalPresentationConfigurationSource: terminalSettingsController,
+			terminalInteractionConfigurationSource: terminalInteractionSettingsController,
 		});
 		runtime = nextRuntime;
 		const runtimeStart = await nextRuntime.ready;
@@ -163,6 +167,7 @@ export function startGatewayWebApplication(
 			projectWorkspaceRuntime: nextRuntime.projectWorkspaceRuntime,
 			shortcutPlatform,
 			terminalSettingsController,
+			terminalInteractionSettingsController,
 			terminalFeedbackSettingsController,
 			terminalSurface: ProjectedTerminalSurface,
 		});

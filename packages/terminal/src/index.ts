@@ -94,3 +94,14 @@ export {
 	TerminalOptionAsAltMode,
 } from './input-configuration';
 export type { TerminalInputConfiguration } from './input-configuration';
+
+export {
+	DEFAULT_TERMINAL_INTERACTION_CONFIGURATION,
+	DEFAULT_TERMINAL_INTERACTION_CONFIGURATION_SOURCE,
+	normalizeTerminalInteractionConfiguration,
+} from './interaction-configuration';
+export type {
+	TerminalInteractionConfiguration,
+	TerminalInteractionConfigurationSource,
+	TerminalInteractionConfigurationValidationResult,
+} from './interaction-configuration';

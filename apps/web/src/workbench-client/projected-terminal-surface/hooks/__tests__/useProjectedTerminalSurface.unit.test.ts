@@ -15,6 +15,7 @@ import type {
 	ProjectedPasteReview,
 	ProjectedTerminalMetadata,
 } from '@orchbee/terminal';
+import { DEFAULT_TERMINAL_INTERACTION_CONFIGURATION_SOURCE } from '@orchbee/terminal';
 import {
 	terminalPresentationId,
 	type WorkbenchTerminalPresentation,
@@ -217,6 +218,7 @@ describe('useProjectedTerminalSurface', () => {
 			observeTerminalMetadata: () => undefined,
 			platformEffects: {},
 			preferredLocales: ['en-US'],
+			interactionConfigurationSource: DEFAULT_TERMINAL_INTERACTION_CONFIGURATION_SOURCE,
 			presentationConfigurationSource: DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION_SOURCE,
 			projectionClient: { open },
 			shortcutPlatform: 'apple',

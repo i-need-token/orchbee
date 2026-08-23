@@ -8,6 +8,8 @@ import {
 type ApplicationTheme = 'dark' | 'light';
 type TerminalDisplayTheme = 'custom' | 'dark' | 'host' | 'light';
 export type TerminalHexColor = `#${string}`;
+export const TERMINAL_FONT_WEIGHT_OPTIONS = [100, 200, 300, 400, 500, 600, 700, 800, 900] as const;
+export type TerminalFontWeight = (typeof TERMINAL_FONT_WEIGHT_OPTIONS)[number];
 
 export interface TerminalAppearancePreferences {
 	readonly applicationTheme: ApplicationTheme;
@@ -15,7 +17,11 @@ export interface TerminalAppearancePreferences {
 	readonly customBackground: TerminalHexColor;
 	readonly customForeground: TerminalHexColor;
 	readonly fontFamily: string;
+	readonly fontLigatures: boolean;
 	readonly fontSize: number;
+	readonly fontWeight: TerminalFontWeight;
+	readonly fontWeightBold: TerminalFontWeight;
+	readonly terminalPadding: number;
 	readonly terminalDisplayTheme: TerminalDisplayTheme;
 }
 
@@ -28,7 +34,11 @@ export const DEFAULT_TERMINAL_APPEARANCE_PREFERENCES: TerminalAppearancePreferen
 		customBackground: '#fcfcfc',
 		customForeground: '#141414',
 		fontFamily: productPresentation.fontFamily,
+		fontLigatures: true,
 		fontSize: productPresentation.fontSize,
+		fontWeight: 400,
+		fontWeightBold: 700,
+		terminalPadding: 0,
 		terminalDisplayTheme: 'host',
 	},
 );
@@ -42,7 +52,11 @@ export function terminalPresentationConfigurationFromPreferences(
 		backgroundOpacity: preferences.backgroundOpacityPercent / 100,
 		defaultColorOverride: null,
 		fontFamily: preferences.fontFamily,
+		fontLigatures: preferences.fontLigatures,
 		fontSize: preferences.fontSize,
+		fontWeight: preferences.fontWeight,
+		fontWeightBold: preferences.fontWeightBold,
+		terminalPadding: preferences.terminalPadding,
 	});
 }
 
@@ -53,7 +67,11 @@ export function terminalDerivedPreferencesEqual(
 	if (
 		left.backgroundOpacityPercent !== right.backgroundOpacityPercent ||
 		left.fontFamily !== right.fontFamily ||
-		left.fontSize !== right.fontSize
+		left.fontLigatures !== right.fontLigatures ||
+		left.fontSize !== right.fontSize ||
+		left.fontWeight !== right.fontWeight ||
+		left.fontWeightBold !== right.fontWeightBold ||
+		left.terminalPadding !== right.terminalPadding
 	) {
 		return false;
 	}
@@ -83,7 +101,11 @@ export function terminalAppearancePreferencesEqual(
 		left.customBackground === right.customBackground &&
 		left.customForeground === right.customForeground &&
 		left.fontFamily === right.fontFamily &&
+		left.fontLigatures === right.fontLigatures &&
 		left.fontSize === right.fontSize &&
+		left.fontWeight === right.fontWeight &&
+		left.fontWeightBold === right.fontWeightBold &&
+		left.terminalPadding === right.terminalPadding &&
 		left.terminalDisplayTheme === right.terminalDisplayTheme
 	);
 }

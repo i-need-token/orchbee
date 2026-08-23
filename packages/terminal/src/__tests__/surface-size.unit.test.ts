@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { balanceSurfacePadding, calculateSurfaceGrid } from '../surface-size';
+import {
+	addUniformSurfacePadding,
+	balanceSurfacePadding,
+	calculateSurfaceGrid,
+} from '../surface-size';
 
 describe('calculateSurfaceGrid', () => {
 	it('keeps the mature two-column minimum when a positive content area is narrower', () => {
@@ -27,6 +31,17 @@ describe('calculateSurfaceGrid', () => {
 				{ top: 0, bottom: 0, left: 8, right: 8 },
 			),
 		).toBeUndefined();
+	});
+});
+
+describe('addUniformSurfacePadding', () => {
+	it('adds the configured terminal inset to every mounted CSS edge', () => {
+		expect(addUniformSurfacePadding({ top: 1, bottom: 2, left: 3, right: 4 }, 8)).toEqual({
+			top: 9,
+			bottom: 10,
+			left: 11,
+			right: 12,
+		});
 	});
 });
 

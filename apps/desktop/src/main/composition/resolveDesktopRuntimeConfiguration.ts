@@ -65,6 +65,7 @@ export interface DesktopRuntimeConfiguration {
 	readonly terminalExitPublicationLedgerPath: string;
 	readonly terminalExitSpillPath: string;
 	readonly terminalConfiguration: TerminalConfiguration;
+	readonly terminalDefaultSettingsStorePath: string;
 	readonly terminalHostName: string;
 	readonly terminalHostLaunchMode: 'connect-only' | 'connect-or-launch';
 	readonly terminalLaunch: TerminalLaunch;
@@ -217,6 +218,10 @@ export function resolveDesktopRuntimeConfiguration(
 		),
 		terminalExitSpillPath: path.join(recoveryDirectory, 'terminal-exits-v1.json'),
 		terminalConfiguration,
+		terminalDefaultSettingsStorePath: path.join(
+			input.userDataPath,
+			'terminal-default-settings-v1.json',
+		),
 		terminalHostName: input.terminalHostName,
 		terminalHostLaunchMode: supervisedHostFlag === '1' ? 'connect-only' : 'connect-or-launch',
 		terminalLaunch: TerminalLaunchSchema.parse({

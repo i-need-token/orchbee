@@ -21,6 +21,8 @@ export interface TerminalPresentationConfiguration {
 	readonly fontWeight: FontWeight;
 	readonly fontWeightBold: FontWeight;
 	readonly paddingBalance: PaddingBalance;
+	/** Uniform client-side inset in CSS pixels around the projected grid. */
+	readonly terminalPadding: number;
 }
 
 export type TerminalPresentationConfigurationValidationResult =
@@ -66,6 +68,7 @@ const CONFIGURATION_FIELDS = [
 	'fontWeight',
 	'fontWeightBold',
 	'paddingBalance',
+	'terminalPadding',
 ] as const;
 
 const METRIC_FIELDS = [
@@ -93,9 +96,10 @@ export const DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION: TerminalPresentationCo
 		fontLigatures: true,
 		fontMetricModifiers: Object.freeze({}),
 		fontSize: 15,
-		fontWeight: 'normal',
-		fontWeightBold: 'bold',
+		fontWeight: 400,
+		fontWeightBold: 700,
 		paddingBalance: false,
+		terminalPadding: 0,
 	});
 
 /** Validate one complete transaction and isolate it from caller mutation. */
@@ -142,6 +146,8 @@ function normalizeTerminalPresentationConfigurationUnchecked(
 	if (!isFontWeight(fontWeightBold)) return invalid('fontWeightBold');
 	const paddingBalance = Reflect.get(input, 'paddingBalance');
 	if (!isPaddingBalance(paddingBalance)) return invalid('paddingBalance');
+	const terminalPadding = Reflect.get(input, 'terminalPadding');
+	if (!isTerminalPadding(terminalPadding)) return invalid('terminalPadding');
 
 	return {
 		configuration: Object.freeze({
@@ -155,6 +161,7 @@ function normalizeTerminalPresentationConfigurationUnchecked(
 			fontWeight,
 			fontWeightBold,
 			paddingBalance,
+			terminalPadding,
 		}),
 		kind: 'valid',
 	};
@@ -175,6 +182,7 @@ export function presentationConfigurationFromRendererOptions(
 		fontWeight: options?.fontWeight ?? defaults.fontWeight,
 		fontWeightBold: options?.fontWeightBold ?? defaults.fontWeightBold,
 		paddingBalance: options?.paddingBalance ?? defaults.paddingBalance,
+		terminalPadding: options?.terminalPadding ?? defaults.terminalPadding,
 	});
 	if (result.kind === 'invalid') {
 		throw new TypeError(`Invalid terminal presentation configuration field: ${result.field}`);
@@ -247,6 +255,10 @@ function isFontWeight(input: unknown): input is FontWeight {
 
 function isPaddingBalance(input: unknown): input is PaddingBalance {
 	return input === false || input === true || input === 'equal';
+}
+
+function isTerminalPadding(input: unknown): input is number {
+	return typeof input === 'number' && Number.isInteger(input) && input >= 0 && input <= 32;
 }
 
 function isPositiveFiniteNumber(input: unknown): input is number {

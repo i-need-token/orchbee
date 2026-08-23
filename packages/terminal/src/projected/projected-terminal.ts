@@ -127,7 +127,7 @@ import {
 	type TerminalSearchMatch,
 	type TerminalSearchOptions,
 } from '../search';
-import { calculateSurfaceGrid } from '../surface-size';
+import { addUniformSurfacePadding, calculateSurfaceGrid } from '../surface-size';
 import { loadTerminalFonts } from '../font-metrics';
 import {
 	detectTerminalRowLinks,
@@ -6348,7 +6348,10 @@ export class ProjectedTerminal {
 		const grid = calculateSurfaceGrid(
 			{ height: root.clientHeight, width: root.clientWidth },
 			{ height: metrics.height, width: metrics.width },
-			readSurfacePadding(root),
+			addUniformSurfacePadding(
+				readSurfacePadding(root),
+				this.#presentationConfiguration.terminalPadding,
+			),
 		);
 		if (grid === undefined) return;
 		const cellPixelHeight = clamp(

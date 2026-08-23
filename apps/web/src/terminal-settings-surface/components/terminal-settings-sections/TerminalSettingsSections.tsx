@@ -1,6 +1,14 @@
-import { Button, Input, NativeSelect, NativeSelectOption, Slider } from '@orchbee/ui/components';
+import {
+	Button,
+	Input,
+	NativeSelect,
+	NativeSelectOption,
+	Slider,
+	Switch,
+} from '@orchbee/ui/components';
 import * as React from 'react';
 
+import { TERMINAL_FONT_WEIGHT_OPTIONS } from '../../../terminal-settings';
 import type { TerminalSettingsSurfaceView } from '../../types/terminal-settings-surface';
 import { SettingsSection } from '../settings-section/SettingsSection';
 import { TerminalSettingsRow } from '../terminal-settings-row/TerminalSettingsRow';
@@ -15,6 +23,39 @@ interface TerminalSettingsSectionsProps {
 export function TerminalSettingsSections({ view }: TerminalSettingsSectionsProps): React.ReactNode {
 	return (
 		<div className={styles['root']}>
+			<SettingsSection
+				title={view.messages.terminalHistorySection}
+				visible={view.category === 'terminal' && view.scrollbackBytesVisible}
+			>
+				<TerminalSettingsRow
+					description={view.messages.scrollbackBytesDescription}
+					label={view.messages.scrollbackBytesLabel}
+					settingId='terminal.scrollback'
+					visible={view.scrollbackBytesVisible}
+				>
+					<div className={styles['stackedControl']}>
+						<FieldControl
+							error={view.scrollbackBytesInvalid ? view.messages.scrollbackBytesInvalid : null}
+						>
+							<Input
+								aria-label={view.messages.scrollbackBytesLabel}
+								aria-invalid={view.scrollbackBytesInvalid}
+								disabled={view.scrollbackBytesPending}
+								max={1_000_000_000}
+								min={0}
+								type='number'
+								value={view.scrollbackBytesDraft}
+								onBlur={view.onScrollbackBytesBlur}
+								onChange={view.onScrollbackBytesChange}
+								onKeyDown={view.onScrollbackBytesKeyDown}
+							/>
+						</FieldControl>
+						<span className={styles['deviceNotice']}>
+							{view.messages.scrollbackBytesFutureNotice}
+						</span>
+					</div>
+				</TerminalSettingsRow>
+			</SettingsSection>
 			<SettingsSection
 				title={view.messages.applicationAppearanceSection}
 				visible={view.category === 'appearance' && view.applicationThemeVisible}
@@ -40,10 +81,43 @@ export function TerminalSettingsSections({ view }: TerminalSettingsSectionsProps
 					</NativeSelect>
 				</TerminalSettingsRow>
 			</SettingsSection>
+			<SettingsSection
+				title={view.messages.terminalLayoutSection}
+				visible={view.category === 'appearance' && view.terminalPaddingVisible}
+			>
+				<TerminalSettingsRow
+					description={view.messages.terminalPaddingDescription}
+					label={view.messages.terminalPaddingLabel}
+					settingId='appearance.terminalPadding'
+					visible={view.terminalPaddingVisible}
+				>
+					<FieldControl
+						error={view.terminalPaddingInvalid ? view.messages.terminalPaddingInvalid : null}
+					>
+						<Input
+							aria-label={view.messages.terminalPaddingLabel}
+							aria-invalid={view.terminalPaddingInvalid}
+							max={32}
+							min={0}
+							type='number'
+							value={view.terminalPaddingDraft}
+							onBlur={view.onTerminalPaddingBlur}
+							onChange={view.onTerminalPaddingChange}
+							onKeyDown={view.onTerminalPaddingKeyDown}
+						/>
+					</FieldControl>
+				</TerminalSettingsRow>
+			</SettingsSection>
 
 			<SettingsSection
 				title={view.messages.terminalTypographySection}
-				visible={view.category === 'text' && (view.fontFamilyVisible || view.fontSizeVisible)}
+				visible={
+					view.category === 'text' &&
+					(view.fontFamilyVisible ||
+						view.fontSizeVisible ||
+						view.fontWeightVisible ||
+						view.fontWeightBoldVisible)
+				}
 			>
 				<TerminalSettingsRow
 					description={`${view.messages.fontFamilyDescription} ${view.messages.fontFamilyDeviceAvailability}`}
@@ -81,6 +155,79 @@ export function TerminalSettingsSections({ view }: TerminalSettingsSectionsProps
 							onKeyDown={view.onFontSizeKeyDown}
 						/>
 					</FieldControl>
+				</TerminalSettingsRow>
+				<TerminalSettingsRow
+					description={view.messages.fontWeightDescription}
+					label={view.messages.fontWeightLabel}
+					settingId='text.font-weight'
+					visible={view.fontWeightVisible}
+				>
+					<NativeSelect
+						aria-label={view.messages.fontWeightLabel}
+						className={styles['wideControl']}
+						value={String(view.preferences.fontWeight)}
+						onChange={view.onFontWeightChange}
+					>
+						{TERMINAL_FONT_WEIGHT_OPTIONS.map((weight) => (
+							<NativeSelectOption key={weight} value={String(weight)}>
+								{weight}
+							</NativeSelectOption>
+						))}
+					</NativeSelect>
+				</TerminalSettingsRow>
+				<TerminalSettingsRow
+					description={view.messages.fontWeightBoldDescription}
+					label={view.messages.fontWeightBoldLabel}
+					settingId='text.font-weight-bold'
+					visible={view.fontWeightBoldVisible}
+				>
+					<NativeSelect
+						aria-label={view.messages.fontWeightBoldLabel}
+						className={styles['wideControl']}
+						value={String(view.preferences.fontWeightBold)}
+						onChange={view.onFontWeightBoldChange}
+					>
+						{TERMINAL_FONT_WEIGHT_OPTIONS.map((weight) => (
+							<NativeSelectOption key={weight} value={String(weight)}>
+								{weight}
+							</NativeSelectOption>
+						))}
+					</NativeSelect>
+				</TerminalSettingsRow>
+			</SettingsSection>
+			<SettingsSection
+				title={view.messages.terminalTextShapingSection}
+				visible={view.category === 'text' && view.fontLigaturesVisible}
+			>
+				<TerminalSettingsRow
+					description={view.messages.fontLigaturesDescription}
+					label={view.messages.fontLigaturesLabel}
+					settingId='text.ligatures'
+					visible={view.fontLigaturesVisible}
+				>
+					<Switch
+						aria-label={view.messages.fontLigaturesLabel}
+						checked={view.preferences.fontLigatures}
+						onCheckedChange={view.onFontLigaturesChange}
+					/>
+				</TerminalSettingsRow>
+			</SettingsSection>
+
+			<SettingsSection
+				title={view.messages.terminalClipboardSection}
+				visible={view.category === 'interaction' && view.copyOnSelectVisible}
+			>
+				<TerminalSettingsRow
+					description={view.messages.copyOnSelectDescription}
+					label={view.messages.copyOnSelectLabel}
+					settingId='interaction.copyOnSelect'
+					visible={view.copyOnSelectVisible}
+				>
+					<Switch
+						aria-label={view.messages.copyOnSelectLabel}
+						checked={view.copyOnSelect}
+						onCheckedChange={view.onCopyOnSelectChange}
+					/>
 				</TerminalSettingsRow>
 			</SettingsSection>
 

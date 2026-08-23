@@ -1,0 +1,1 @@
+export { useTerminalInteractionSettings } from './useTerminalInteractionSettings';

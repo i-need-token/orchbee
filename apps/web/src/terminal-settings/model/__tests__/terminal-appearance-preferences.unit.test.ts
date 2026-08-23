@@ -23,7 +23,11 @@ describe('terminal appearance preferences', () => {
 			customBackground: '#abcdef',
 			customForeground: '#123456',
 			fontFamily: 'Example Mono, monospace',
+			fontLigatures: false,
 			fontSize: 17,
+			fontWeight: 300,
+			fontWeightBold: 800,
+			terminalPadding: 12,
 			terminalDisplayTheme: 'custom',
 		});
 
@@ -32,9 +36,27 @@ describe('terminal appearance preferences', () => {
 			backgroundOpacity: 0.65,
 			defaultColorOverride: null,
 			fontFamily: 'Example Mono, monospace',
+			fontLigatures: false,
 			fontSize: 17,
+			fontWeight: 300,
+			fontWeightBold: 800,
+			terminalPadding: 12,
 		});
 		expect(Object.isFrozen(configuration)).toBe(true);
+	});
+
+	it.each([
+		['fontLigatures', false],
+		['fontWeight', 300],
+		['fontWeightBold', 800],
+		['terminalPadding', 12],
+	] as const)('treats %s as a terminal-derived presentation preference', (field, value) => {
+		expect(
+			terminalDerivedPreferencesEqual(DEFAULT_TERMINAL_APPEARANCE_PREFERENCES, {
+				...DEFAULT_TERMINAL_APPEARANCE_PREFERENCES,
+				[field]: value,
+			}),
+		).toBe(false);
 	});
 
 	it('keeps retained custom colors out of the terminal publication while Host is active', () => {

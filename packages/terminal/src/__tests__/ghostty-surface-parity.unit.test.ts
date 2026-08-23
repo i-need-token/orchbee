@@ -703,7 +703,7 @@ describe('Ghostty surface parity', () => {
 			y: 51,
 		});
 		expect(recording.texts.find(({ text }) => text === 'K')).toMatchObject({ alpha: 1 });
-		expect(recording.texts.find(({ text }) => text === 'D')?.font).toContain('bold');
+		expect(recording.texts.find(({ text }) => text === 'D')?.font).toContain('700');
 		expect(recording.texts.find(({ text }) => text === 'E')?.font).toMatch(/^italic /);
 
 		expect(recording.rectangles).toContainEqual(
@@ -833,7 +833,7 @@ describe('Ghostty surface parity', () => {
 		expect(textInstance(10)[11]).toBe(0.5);
 		expect(textInstance(19)[11]).toBe(0.5);
 		expect(atlasTexts.some(({ text }) => text === 'V')).toBe(false);
-		expect(atlasTexts.find(({ text }) => text === 'D')?.font).toContain('bold');
+		expect(atlasTexts.find(({ text }) => text === 'D')?.font).toContain('700');
 		expect(atlasTexts.find(({ text }) => text === 'E')?.font).toMatch(/^italic /);
 
 		const backgroundColors = Array.from({ length: 3 }, (_value, index) =>

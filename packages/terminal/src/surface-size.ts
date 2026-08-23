@@ -13,6 +13,19 @@ export interface SurfaceGridSize {
 const MINIMUM_COLUMNS = 2;
 const MINIMUM_ROWS = 1;
 
+/** Add one product-configured inset to every edge already reserved by mounted CSS. */
+export function addUniformSurfacePadding(
+	explicit: SurfacePadding,
+	uniform: number,
+): SurfacePadding {
+	return {
+		top: explicit.top + uniform,
+		bottom: explicit.bottom + uniform,
+		left: explicit.left + uniform,
+		right: explicit.right + uniform,
+	};
+}
+
 /** Calculate the terminal grid that remains after explicit padding. */
 export function calculateSurfaceGrid(
 	screen: SurfaceSize,

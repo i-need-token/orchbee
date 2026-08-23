@@ -3,6 +3,7 @@ export {
 	DEFAULT_TERMINAL_APPEARANCE_PREFERENCES,
 	isTerminalThemePresentationSource,
 	normalizeTerminalHexColor,
+	TERMINAL_FONT_WEIGHT_OPTIONS,
 	TerminalSettingsController,
 } from './model';
 export type {
@@ -10,4 +11,4 @@ export type {
 	TerminalThemePresentationParticipant,
 	TerminalThemePresentationPreparation,
 } from './model';
-export type { TerminalAppearancePreferences } from './model';
+export type { TerminalAppearancePreferences, TerminalFontWeight } from './model';

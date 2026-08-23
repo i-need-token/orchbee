@@ -1308,6 +1308,7 @@ describe('projected terminal renderer', () => {
 			fontWeight: 450,
 			fontWeightBold: 700,
 			paddingBalance: 'equal',
+			terminalPadding: 4,
 		});
 		expect(requestRender).not.toHaveBeenCalled();
 		expect(renderer.getMetrics()).toEqual({ baseline: 13, height: 17, width: 8 });
@@ -1318,6 +1319,12 @@ describe('projected terminal renderer', () => {
 		expect(requestRender).toHaveBeenCalledOnce();
 		expect(renderer.getMetrics()).toEqual({ baseline: 14, height: 20, width: 10 });
 		expect(canvas.style).toMatchObject({ height: '20px', width: '20px' });
+		expect(canvas.style).toMatchObject({
+			marginBottom: '15px',
+			marginLeft: '7px',
+			marginRight: '7px',
+			marginTop: '15px',
+		});
 		expect(canvas.width).toBe(40);
 		expect(canvas.height).toBe(40);
 		expect(Reflect.get(renderer, 'projectedSelectionCoords')).toEqual({
@@ -1916,7 +1923,7 @@ describe('projected terminal renderer', () => {
 
 		renderer.renderPacked(source);
 
-		expect(textPaints).toEqual([{ alpha: 0.5, font: 'italic bold 15px monospace' }]);
+		expect(textPaints).toEqual([{ alpha: 0.5, font: 'italic 700 15px monospace' }]);
 		expect(decorationAlphas).toEqual([0.5]);
 		expect(decorationFillAlphas).toEqual([0.5, 0.5]);
 		renderer.dispose();

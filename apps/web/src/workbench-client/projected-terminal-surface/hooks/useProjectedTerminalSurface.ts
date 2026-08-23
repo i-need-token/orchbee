@@ -241,6 +241,7 @@ export function useProjectedTerminalSurface(
 								runtime: actionRuntime,
 								scope: actionScope,
 							},
+					capability.interactionConfigurationSource,
 				);
 			},
 		});

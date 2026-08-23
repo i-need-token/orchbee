@@ -2,13 +2,13 @@
 
 ## Ownership and scope
 
-`@orchbee/web` owns separate local terminal-appearance, terminal-feedback, and macOS terminal-input
+`@orchbee/web` owns separate local terminal-appearance, terminal-interaction, terminal-feedback, and macOS terminal-input
 preference records, their Browser storage codecs, the Settings overlay, and the stable client-side
 sources observed by projected terminal attachments. It also owns the presentation and unprivileged
-request client for the optional Desktop terminal-launch-profile capability; Electron Main owns that
-catalog, its persistence, and launch resolution. The Browser-backed preference records are local to
+request clients for the optional Desktop terminal-launch-profile and terminal-default-settings
+capabilities; Electron Main owns those records, persistence, Host commit, and launch resolution. The Browser-backed preference records are local to
 one Browser origin or Desktop renderer user-data partition. Neither those records nor the Main-owned
-profile catalog are part of the shared Workbench document or sent to a Gateway or remote terminal.
+profile and terminal-default records are part of the shared Workbench document or sent to a Gateway or remote terminal.
 A theme-affecting preference derives one complete runtime-theme request that crosses the active
 Desktop or Gateway projection transport to Terminal Host; per-key Option-as-Alt likewise crosses
 only as a semantic input decision, never as the stored preference.
@@ -26,25 +26,39 @@ palette editor, make an Electron window transparent, or synchronize preferences 
 It also projects a read-only remote-development diagnostic. That projection neither owns an SSH
 process nor infers whether the current terminal is remote.
 
-## Version 1 preference record
+## Appearance and interaction preference records
 
-The feature owns the key `orchbee:web:terminal-appearance:v1`. Its value is one complete JSON
+The feature writes the key `orchbee:web:terminal-appearance:v2`. Its value is one complete JSON
 object with no unknown fields:
 
 ```ts
-interface StoredTerminalAppearancePreferencesV1 {
+interface StoredTerminalAppearancePreferencesV2 {
 	readonly applicationTheme: 'light' | 'dark';
 	readonly backgroundOpacityPercent: number;
 	readonly customBackground: `#${string}`;
 	readonly customForeground: `#${string}`;
 	readonly fontFamily: string;
+	readonly fontLigatures: boolean;
 	readonly fontSize: number;
+	readonly fontWeight: 100 | 200 | 300 | 400 | 500 | 600 | 700 | 800 | 900;
+	readonly fontWeightBold: 100 | 200 | 300 | 400 | 500 | 600 | 700 | 800 | 900;
 	readonly terminalDisplayTheme: 'host' | 'light' | 'dark' | 'custom';
+	readonly terminalPadding: number;
 }
 ```
 
-The font family is trimmed and contains 1–256 characters. Font size is an integer from 8 through 48. Custom colors are exactly `#RRGGBB` and are normalized to lowercase. Background opacity is an
-integer percentage from 10 through 100.
+When version 2 is absent, one valid `orchbee:web:terminal-appearance:v1` record is migrated only in
+memory by adding the new product defaults. No eager migration write occurs; every later semantic
+write uses version 2. Invalid version-2 data never falls back to version 1.
+
+The font family is trimmed and contains 1–256 characters. Font size is an integer from 8 through 48.
+Both weights are integer hundreds from 100 through 900. Terminal padding is an integer from 0
+through 32 CSS pixels. Custom colors are exactly `#RRGGBB` and are normalized to lowercase.
+Background opacity is an integer percentage from 10 through 100.
+
+The separate strict key `orchbee:web:terminal-interaction:v1` contains only
+`copyOnSelect: boolean`. It has an independent controller, persistence issue, and source-neutral
+subscription. Its product default is `true`.
 
 The complete product default is:
 
@@ -53,10 +67,15 @@ The complete product default is:
 | Application theme      | `light`                                                            |
 | Font family            | `"Orchbee JetBrains Mono", "Orchbee Symbols Nerd Font", monospace` |
 | Font size              | `13`                                                               |
+| Regular font weight    | `400`                                                              |
+| Bold font weight       | `700`                                                              |
+| Font ligatures         | `true`                                                             |
+| Terminal padding       | `0`                                                                |
 | Terminal display theme | `host`                                                             |
 | Custom foreground      | `#141414`                                                          |
 | Custom background      | `#fcfcfc`                                                          |
 | Background opacity     | `100`                                                              |
+| Copy on select         | `true`                                                             |
 
 Terminal display themes derive one complete candidate from the latest reconciled Host state without
 modifying the stored custom pair:
@@ -124,21 +143,40 @@ feature. An unavailable custom executable fails visibly through the terminal lif
 system-shell fallback. The full Main model is authoritative in
 [`../../desktop/docs/terminal-launch-profiles.md`](../../desktop/docs/terminal-launch-profiles.md).
 
+## Desktop terminal defaults
+
+Only a local Electron composition injects `DesktopTerminalDefaultSettingsControl`. Its snapshot
+contains the complete bounded Host default, persistence issue, source, pending state, and bounded
+failure code. The Terminal page exposes `terminal.scrollback` as a decimal byte count from `0`
+through `1_000_000_000` and states that running terminals keep their current limit. Browser Preview
+and authenticated Gateway compositions receive no control and retain the same row as Planned.
+
+The renderer validates drafts before sending a complete update. Host rejection keeps the prior
+value; persistence failure after Host acceptance keeps the session value visible and shows that it
+was not saved. A later submission retries persistence. This client never sends a live terminal
+configuration update or evicts history. The authoritative Main transaction is
+[`../../desktop/docs/terminal-settings.md`](../../desktop/docs/terminal-settings.md).
+
 ## Read, commit, and recovery model
 
-Startup reads the key once through injected `getItem` and parses `JSON.parse(...)` directly into a
-strict Zod schema. A missing record uses the product default without a warning. A read exception,
-malformed JSON, unknown field, old shape, or out-of-range value uses the complete default and
-records a recoverable persistence issue; partial recovery is forbidden.
+Startup reads each current local key once through injected `getItem` and parses `JSON.parse(...)`
+directly into a strict Zod schema. Appearance additionally reads version 1 only when version 2 is
+missing. A missing record uses the product default without a warning. A read exception, malformed
+JSON, unknown field, unsupported shape, or out-of-range value uses the complete default and records
+a recoverable persistence issue; partial recovery is forbidden.
 
 One semantic update follows this order:
 
 1. Validate a complete candidate preference record.
-2. Derive an immutable complete preference snapshot, source-neutral font/opacity presentation
+2. Derive an immutable complete preference snapshot, source-neutral presentation
    configuration, and, when theme-affecting fields changed, a complete runtime-theme candidate.
-3. Commit the in-memory snapshot. Publish font/opacity configuration only when those derived values
+3. Commit the in-memory snapshot. Publish presentation configuration only when those derived values
    changed, and start one latest-wins runtime-theme barrier when theme-derived values changed.
 4. Attempt one write of the complete preference record.
+
+Font family, size, regular and bold weight, ligatures, padding, and opacity update mounted terminal
+renderers live without replacing an attachment. The independent interaction controller follows the
+same validate, session-commit, publish, and write ordering for `copyOnSelect`.
 
 For a runtime-theme barrier, every mounted projected terminal first preflights its renderer
 overlays. A failed preflight sends no Host mutation. A ready participant then completes the Host
@@ -206,8 +244,8 @@ keyboard-scrollable even when every setting control is a disabled Planned previe
 
 Back closes Settings. Escape first clears a non-empty Settings search and closes Settings only when
 the query is empty; closing restores the captured element, then the Settings Action target, then the
-Workbench root as fallbacks. Desktop may inject semantic Browser-access and local shell-profile
-controls.
+Workbench root as fallbacks. Desktop may inject semantic Browser-access, local shell-profile, and
+terminal-default controls.
 The existing Browser-access dialog remains above Settings; closing it returns focus to its Settings
 entry, while Settings remains open. Browser and Gateway compositions do not receive this Desktop
 capability bundle.
@@ -237,16 +275,19 @@ top-level surface:
 | Integrations  | Shell Integration, Remote Development                                   |
 | Data & Access | Ghostty Migration and the capability-gated Desktop Browser Access entry |
 
-The appearance theme, terminal font, effective default colors, default-background opacity, Reset,
-macOS Option-as-Alt, keyboard shortcuts, Shell integration, remote diagnostic, migration report,
-Browser-access entry, and capability-gated Desktop launch-profile editor retain their existing
-behavior and ownership. The remaining General, Appearance, Text, Colors, Cursor & Input,
+The appearance theme, terminal font family and size, regular and bold weights, ligatures, padding,
+effective default colors, default-background opacity, copy-on-select, Reset, macOS Option-as-Alt,
+keyboard shortcuts, Shell integration, remote diagnostic, migration report, Browser-access entry,
+capability-gated Desktop launch-profile editor, and capability-gated Desktop scrollback default
+retain their existing behavior and ownership. The remaining General, Appearance, Text, Colors, Cursor & Input,
 Interaction, Terminal, Windows & Tabs, and Profile appearance, connection, and automation rows form
 a localized planned catalog derived from recurring settings across Ghostty, WezTerm, Kitty,
 Alacritty, Windows Terminal, iTerm2, Tabby, Konsole, GNOME Terminal, and Foot. This catalog covers
 startup and restore policy, window presentation, typography and shaping, palettes and contrast,
 cursor and keyboard protocols, clipboard and mouse behavior, shell and emulation policy, history
 and feedback, windows and tabs, and profile capabilities outside the accepted launch-profile scope.
+Without the Desktop terminal-default capability, the scrollback row remains part of that planned
+catalog and cannot mutate Host state.
 
 Planned rows are explicitly marked, expose only disabled preview controls, and never read or write
 a preference. Implementing one requires its own accepted behavioral authority, model, persistence
@@ -430,10 +471,11 @@ not claims about Ghostty's byte limits.
 
 ## Required evidence
 
-- Storage tests cover missing, malformed, unknown, old, out-of-range, read-throw, write-fail then
-  success, Reset repair, and healthy no-op behavior.
-- Source tests prove complete single publication, application-theme isolation, terminal-setting
-  isolation, stable subscription, and disposal.
+- Storage tests cover missing, malformed, unknown, version-1 in-memory migration, invalid version-2
+  precedence, out-of-range, read-throw, write-fail then success, Reset repair, and healthy no-op behavior.
+- Source tests prove complete single presentation publication, independent interaction publication,
+  live attachment updates, application-theme isolation, terminal-setting isolation, stable
+  subscription, and disposal.
 - macOS input tests cover strict storage recovery, all four Option-side values, live source
   publication, physical-side resolution, mounted-terminal updates, and Host encoding with the
   semantic flag both disabled and enabled.
@@ -451,6 +493,10 @@ not claims about Ghostty's byte limits.
   mutation, malformed records, failure projection, and disposal. Settings component tests cover
   literal custom executable arguments, the future-terminal boundary, create and default selection,
   delete constraints, reset confirmation, platform capabilities, and localized failures.
+- Terminal-default-settings protocol, Main controller, store, broker, renderer client, composition,
+  and component tests cover strict bounds, eight-port bootstrap ordering, Host-first commit, Host
+  rejection, session-visible write failure, retry, future-terminal-only capture, capability gating,
+  localized validation, and visible failures. The TLA+ model checks no live eviction.
 - Terminal-feedback model tests cover default-off behavior, strict persistence recovery, duration
   and focus policy, stale and future facts, sequence deduplication, notification rate limiting,
   explicit permission requests, and disposal. Component tests cover both locales, all three manual

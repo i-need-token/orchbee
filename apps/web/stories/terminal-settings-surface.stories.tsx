@@ -2,6 +2,7 @@ import { OrchbeeI18nProvider } from '@orchbee/i18n';
 import {
 	DesktopTerminalLaunchProfileIdSchema,
 	DesktopTerminalLaunchProfileSnapshotSchema,
+	DesktopTerminalDefaultSettingsSnapshotSchema,
 	type DesktopTerminalLaunchProfileCatalog,
 } from '@orchbee/desktop-client-protocol';
 import type { Meta, StoryObj } from 'storybook-react-rsbuild';
@@ -21,12 +22,19 @@ import type {
 	DesktopTerminalLaunchProfileClientSnapshot,
 	DesktopTerminalLaunchProfileControl,
 } from '../src/terminal-launch-profile-control';
+import { TerminalInteractionSettingsController } from '../src/terminal-interaction-settings';
+import type {
+	DesktopTerminalDefaultSettingsClientSnapshot,
+	DesktopTerminalDefaultSettingsControl,
+} from '../src/terminal-default-settings-control';
 
 const englishController = createStoryController();
 const englishKeyboardController = createKeyboardStoryController('apple');
 const englishMacosInputController = createMacosInputStoryController();
 const englishFeedbackController = createFeedbackStoryController();
 const englishTerminalLaunchProfiles = createTerminalLaunchProfileStoryControl(true);
+const englishInteractionController = createInteractionStoryController();
+const englishTerminalDefaults = createTerminalDefaultSettingsStoryControl();
 const chineseController = createStoryController({
 	...DEFAULT_TERMINAL_APPEARANCE_PREFERENCES,
 	applicationTheme: 'dark',
@@ -39,6 +47,8 @@ const chineseController = createStoryController({
 const chineseKeyboardController = createKeyboardStoryController('standard');
 const chineseFeedbackController = createFeedbackStoryController();
 const chineseTerminalLaunchProfiles = createTerminalLaunchProfileStoryControl(false);
+const chineseInteractionController = createInteractionStoryController();
+const chineseTerminalDefaults = createTerminalDefaultSettingsStoryControl(24_000_000);
 
 const meta = {
 	title: 'Terminal Settings Surface',
@@ -59,12 +69,14 @@ export const EnglishLight: Story = {
 		onRequestClose: () => englishController.close(),
 		terminalFeedbackSettingsController: englishFeedbackController,
 		terminalLaunchProfileClient: englishTerminalLaunchProfiles,
+		terminalInteractionSettingsController: englishInteractionController,
+		terminalDefaultSettingsControl: englishTerminalDefaults,
 	},
 	parameters: {
 		docs: {
 			description: {
 				story:
-					'Inspect the grouped Application, Terminal, Workspace, Integrations, and Data & Access rail; open Profiles to manage the local system and Fish launches, literal ordered arguments, future-terminal boundary, and confirmed destructive actions. Type font to see global Text results without blanking General, then activate Terminal font family to restore the rail and reveal the row. Neutral setting groups have no outer stroke, future controls are clearly marked Planned and disabled, Shell integration remains manual-only, Remote development remains read-only, and Ghostty migration remains a paste-only dry-run.',
+					'Inspect the grouped Application, Terminal, Workspace, Integrations, and Data & Access rail; inspect live padding, weights, ligatures, copy-on-select, and the Desktop scrollback default with its future-terminal notice. Open Profiles to manage the local system and Fish launches, literal ordered arguments, future-terminal boundary, and confirmed destructive actions. Type font to see global Text results without blanking General, then activate Terminal font family to restore the rail and reveal the row. Neutral setting groups have no outer stroke, future controls are clearly marked Planned and disabled, Shell integration remains manual-only, Remote development remains read-only, and Ghostty migration remains a paste-only dry-run.',
 			},
 		},
 	},
@@ -88,6 +100,8 @@ export const ChineseDarkCustom: Story = {
 		requestBrowserAccess: () => undefined,
 		terminalFeedbackSettingsController: chineseFeedbackController,
 		terminalLaunchProfileClient: chineseTerminalLaunchProfiles,
+		terminalInteractionSettingsController: chineseInteractionController,
+		terminalDefaultSettingsControl: chineseTerminalDefaults,
 	},
 	decorators: [
 		(Story) => (
@@ -135,6 +149,40 @@ function createMacosInputStoryController(): MacosTerminalInputSettingsController
 		getItem: () => null,
 		setItem: () => undefined,
 	});
+}
+
+function createInteractionStoryController(): TerminalInteractionSettingsController {
+	return new TerminalInteractionSettingsController({
+		getItem: () => null,
+		setItem: () => undefined,
+	});
+}
+
+function createTerminalDefaultSettingsStoryControl(
+	scrollbackBytes = 10_000_000,
+): DesktopTerminalDefaultSettingsControl {
+	let snapshot: DesktopTerminalDefaultSettingsClientSnapshot = {
+		...DesktopTerminalDefaultSettingsSnapshotSchema.parse({
+			configuration: { scrollbackBytes },
+			persistenceIssue: null,
+			source: 'stored',
+		}),
+		failureCode: null,
+		pending: false,
+	};
+	const listeners = new Set<() => void>();
+	return {
+		getSnapshot: () => snapshot,
+		subscribe: (listener) => {
+			listeners.add(listener);
+			return () => listeners.delete(listener);
+		},
+		update: (configuration) => {
+			snapshot = { ...snapshot, configuration, persistenceIssue: null, source: 'stored' };
+			for (const listener of listeners) listener();
+			return Promise.resolve({ kind: 'completed', snapshot });
+		},
+	};
 }
 
 function createTerminalLaunchProfileStoryControl(

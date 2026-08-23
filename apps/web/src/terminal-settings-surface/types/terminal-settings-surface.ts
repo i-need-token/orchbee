@@ -9,6 +9,8 @@ import type {
 import type { TerminalFeedbackSettingsController } from '../../terminal-feedback-settings';
 import type { MacosTerminalInputSettingsController } from '../../macos-terminal-input-settings';
 import type { DesktopTerminalLaunchProfileControl } from '../../terminal-launch-profile-control';
+import type { DesktopTerminalDefaultSettingsControl } from '../../terminal-default-settings-control';
+import type { TerminalInteractionSettingsController } from '../../terminal-interaction-settings';
 
 export type TerminalSettingsCategory =
 	| 'appearance'
@@ -98,14 +100,22 @@ export interface TerminalSettingsSurfaceMessages {
 	readonly browserAccessDescription: string;
 	readonly browserAccessTitle: string;
 	readonly currentDeviceOnlyNotice: string;
+	readonly copyOnSelectDescription: string;
+	readonly copyOnSelectLabel: string;
 	readonly description: string;
 	readonly fontFamilyDescription: string;
 	readonly fontFamilyDeviceAvailability: string;
 	readonly fontFamilyInvalid: string;
 	readonly fontFamilyLabel: string;
+	readonly fontLigaturesDescription: string;
+	readonly fontLigaturesLabel: string;
 	readonly fontSizeDescription: string;
 	readonly fontSizeLabel: string;
 	readonly fontSizeRangeInvalid: string;
+	readonly fontWeightBoldDescription: string;
+	readonly fontWeightBoldLabel: string;
+	readonly fontWeightDescription: string;
+	readonly fontWeightLabel: string;
 	readonly foregroundDescription: string;
 	readonly foregroundInvalid: string;
 	readonly foregroundLabel: string;
@@ -137,11 +147,28 @@ export interface TerminalSettingsSurfaceMessages {
 	readonly remoteDevelopmentResultDescription: string;
 	readonly remoteDevelopmentTitle: string;
 	readonly searchPlaceholder: string;
+	readonly scrollbackBytesBusyWarning: string;
+	readonly scrollbackBytesControlUnavailableWarning: string;
+	readonly scrollbackBytesDescription: string;
+	readonly scrollbackBytesFutureNotice: string;
+	readonly scrollbackBytesHostRejectedWarning: string;
+	readonly scrollbackBytesInvalid: string;
+	readonly scrollbackBytesLabel: string;
+	readonly scrollbackBytesPersistenceInvalidWarning: string;
+	readonly scrollbackBytesPersistenceReadWarning: string;
+	readonly scrollbackBytesPersistenceWriteWarning: string;
 	readonly shellIntegrationCategory: string;
 	readonly shellIntegrationDescription: string;
 	readonly shellIntegrationTitle: string;
 	readonly terminalCategory: string;
+	readonly terminalClipboardSection: string;
 	readonly terminalColorsSection: string;
+	readonly terminalHistorySection: string;
+	readonly terminalLayoutSection: string;
+	readonly terminalPaddingDescription: string;
+	readonly terminalPaddingInvalid: string;
+	readonly terminalPaddingLabel: string;
+	readonly terminalTextShapingSection: string;
 	readonly terminalDisplayThemeCustom: string;
 	readonly terminalDisplayThemeDark: string;
 	readonly terminalDisplayThemeDescription: string;
@@ -161,6 +188,10 @@ export interface UseTerminalSettingsSurfaceOptions {
 	readonly requestBrowserAccess?: ((returnFocus: HTMLElement) => void) | undefined;
 	readonly terminalFeedbackSettingsController?: TerminalFeedbackSettingsController | undefined;
 	readonly terminalLaunchProfileClient?: DesktopTerminalLaunchProfileControl | undefined;
+	readonly terminalDefaultSettingsControl?: DesktopTerminalDefaultSettingsControl | undefined;
+	readonly terminalInteractionSettingsController?:
+		| TerminalInteractionSettingsController
+		| undefined;
 }
 
 export interface TerminalSettingsSurfaceView {
@@ -171,14 +202,19 @@ export interface TerminalSettingsSurfaceView {
 	readonly backgroundVisible: boolean;
 	readonly category: TerminalSettingsCategory;
 	readonly contentReference: React.RefObject<HTMLElement | null>;
+	readonly copyOnSelect: boolean;
+	readonly copyOnSelectVisible: boolean;
 	readonly customColorsEnabled: boolean;
 	readonly displayThemeVisible: boolean;
 	readonly fontFamilyDraft: string;
 	readonly fontFamilyInvalid: boolean;
 	readonly fontFamilyVisible: boolean;
+	readonly fontLigaturesVisible: boolean;
 	readonly fontSizeDraft: string;
 	readonly fontSizeInvalid: boolean;
 	readonly fontSizeVisible: boolean;
+	readonly fontWeightBoldVisible: boolean;
+	readonly fontWeightVisible: boolean;
 	readonly foregroundDraft: string;
 	readonly foregroundInvalid: boolean;
 	readonly foregroundVisible: boolean;
@@ -193,12 +229,16 @@ export interface TerminalSettingsSurfaceView {
 	readonly onBackgroundInputBlur: React.FocusEventHandler<HTMLInputElement>;
 	readonly onBackgroundOpacityChange: (value: number | readonly number[]) => void;
 	readonly onCategorySelect: (category: TerminalSettingsCategory) => void;
+	readonly onCopyOnSelectChange: (checked: boolean) => void;
 	readonly onFontFamilyBlur: React.FocusEventHandler<HTMLInputElement>;
 	readonly onFontFamilyChange: React.ChangeEventHandler<HTMLInputElement>;
 	readonly onFontFamilyKeyDown: React.KeyboardEventHandler<HTMLInputElement>;
+	readonly onFontLigaturesChange: (checked: boolean) => void;
 	readonly onFontSizeBlur: React.FocusEventHandler<HTMLInputElement>;
 	readonly onFontSizeChange: React.ChangeEventHandler<HTMLInputElement>;
 	readonly onFontSizeKeyDown: React.KeyboardEventHandler<HTMLInputElement>;
+	readonly onFontWeightBoldChange: React.ChangeEventHandler<HTMLSelectElement>;
+	readonly onFontWeightChange: React.ChangeEventHandler<HTMLSelectElement>;
 	readonly onForegroundColorChange: React.ChangeEventHandler<HTMLInputElement>;
 	readonly onForegroundDraftChange: React.ChangeEventHandler<HTMLInputElement>;
 	readonly onForegroundDraftKeyDown: React.KeyboardEventHandler<HTMLInputElement>;
@@ -208,8 +248,14 @@ export interface TerminalSettingsSurfaceView {
 	readonly onReset: React.MouseEventHandler<HTMLButtonElement>;
 	readonly onSearchChange: React.ChangeEventHandler<HTMLInputElement>;
 	readonly onSearchKeyDown: React.KeyboardEventHandler<HTMLInputElement>;
+	readonly onScrollbackBytesBlur: React.FocusEventHandler<HTMLInputElement>;
+	readonly onScrollbackBytesChange: React.ChangeEventHandler<HTMLInputElement>;
+	readonly onScrollbackBytesKeyDown: React.KeyboardEventHandler<HTMLInputElement>;
 	readonly onSurfaceKeyDown: React.KeyboardEventHandler<HTMLDivElement>;
 	readonly onTerminalDisplayThemeChange: React.ChangeEventHandler<HTMLSelectElement>;
+	readonly onTerminalPaddingBlur: React.FocusEventHandler<HTMLInputElement>;
+	readonly onTerminalPaddingChange: React.ChangeEventHandler<HTMLInputElement>;
+	readonly onTerminalPaddingKeyDown: React.KeyboardEventHandler<HTMLInputElement>;
 	readonly open: boolean;
 	readonly opacityVisible: boolean;
 	readonly persistenceWarning: string | null;
@@ -223,4 +269,12 @@ export interface TerminalSettingsSurfaceView {
 	readonly searchActive: boolean;
 	readonly searchResults: readonly TerminalSettingsSearchResultView[];
 	readonly searchResultsId: string;
+	readonly scrollbackBytesDraft: string;
+	readonly scrollbackBytesInvalid: boolean;
+	readonly scrollbackBytesPending: boolean;
+	readonly scrollbackBytesVisible: boolean;
+	readonly terminalDefaultSettingsWarning: string | null;
+	readonly terminalPaddingDraft: string;
+	readonly terminalPaddingInvalid: boolean;
+	readonly terminalPaddingVisible: boolean;
 }

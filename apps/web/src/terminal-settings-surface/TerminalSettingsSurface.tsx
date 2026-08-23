@@ -12,10 +12,12 @@ import { TerminalSettingsSections } from './components/terminal-settings-section
 import { TerminalLaunchProfileSettings } from './components/terminal-launch-profile-settings/TerminalLaunchProfileSettings';
 import { useTerminalSettingsSurface } from './hooks/useTerminalSettingsSurface';
 import type { TerminalSettingsController } from '../terminal-settings';
+import type { TerminalInteractionSettingsController } from '../terminal-interaction-settings';
 import type { KeyboardShortcutSettingsController } from '../keyboard-shortcuts';
 import type { TerminalFeedbackSettingsController } from '../terminal-feedback-settings';
 import type { MacosTerminalInputSettingsController } from '../macos-terminal-input-settings';
 import type { DesktopTerminalLaunchProfileControl } from '../terminal-launch-profile-control';
+import type { DesktopTerminalDefaultSettingsControl } from '../terminal-default-settings-control';
 import styles from './TerminalSettingsSurface.module.css';
 
 export interface TerminalSettingsSurfaceProps {
@@ -27,6 +29,10 @@ export interface TerminalSettingsSurfaceProps {
 	readonly requestBrowserAccess?: ((returnFocus: HTMLElement) => void) | undefined;
 	readonly terminalFeedbackSettingsController?: TerminalFeedbackSettingsController | undefined;
 	readonly terminalLaunchProfileClient?: DesktopTerminalLaunchProfileControl | undefined;
+	readonly terminalDefaultSettingsControl?: DesktopTerminalDefaultSettingsControl | undefined;
+	readonly terminalInteractionSettingsController?:
+		| TerminalInteractionSettingsController
+		| undefined;
 }
 
 export function TerminalSettingsSurface(props: TerminalSettingsSurfaceProps): React.ReactNode {
@@ -36,7 +42,10 @@ export function TerminalSettingsSurface(props: TerminalSettingsSurfaceProps): Re
 		view.category === 'appearance' ||
 		view.category === 'colors' ||
 		view.category === 'general' ||
+		view.category === 'interaction' ||
 		view.category === 'text';
+	const terminalSettingsSectionsCategory =
+		appearancePreferenceCategory || view.category === 'terminal';
 
 	let mainContent: React.ReactNode;
 	if (view.category === 'keyboard-shortcuts') {
@@ -81,7 +90,7 @@ export function TerminalSettingsSurface(props: TerminalSettingsSurfaceProps): Re
 				!view.macosInputVisible ? null : (
 					<MacosTerminalInputSettings controller={props.macosTerminalInputSettingsController} />
 				)}
-				{appearancePreferenceCategory ? <TerminalSettingsSections view={view} /> : null}
+				{terminalSettingsSectionsCategory ? <TerminalSettingsSections view={view} /> : null}
 			</>
 		);
 		mainContent = (
@@ -238,6 +247,11 @@ export function TerminalSettingsSurface(props: TerminalSettingsSurfaceProps): Re
 					{!appearancePreferenceCategory || view.persistenceWarning === null ? null : (
 						<div className={styles['warning']} role='alert'>
 							{view.persistenceWarning}
+						</div>
+					)}
+					{view.category !== 'terminal' || view.terminalDefaultSettingsWarning === null ? null : (
+						<div className={styles['warning']} role='alert'>
+							{view.terminalDefaultSettingsWarning}
 						</div>
 					)}
 

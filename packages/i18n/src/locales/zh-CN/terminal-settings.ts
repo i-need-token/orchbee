@@ -7,6 +7,11 @@ export const zhCNTerminalSettingsMessages = {
 	'terminal.settings.applicationTheme.description': '选择 Orchbee 的浅色或深色外观。',
 	'terminal.settings.applicationTheme.label': '应用主题',
 	'terminal.settings.applicationTheme.light': '浅色',
+	'terminal.settings.appearance.terminalPadding.description':
+		'在终端文本四周添加相同的 CSS 像素间距；现有终端会立即更新。',
+	'terminal.settings.appearance.terminalPadding.invalid':
+		'请输入 {minimum, number} 到 {maximum, number} 之间的整数。',
+	'terminal.settings.appearance.terminalPadding.label': '终端内边距',
 	'terminal.settings.browserAccess.actions.open': '打开浏览器访问',
 	'terminal.settings.browserAccess.description': '通过浏览器使用此桌面端终端。',
 	'terminal.settings.browserAccess.title': '浏览器访问',
@@ -37,6 +42,9 @@ export const zhCNTerminalSettingsMessages = {
 	'terminal.settings.colors.foreground.invalid': '请输入 #RRGGBB 格式的颜色。',
 	'terminal.settings.colors.foreground.label': '前景色',
 	'terminal.settings.description': '自定义应用和终端的外观。',
+	'terminal.settings.interaction.copyOnSelect.description':
+		'选区完成时复制所选终端文本；现有终端会立即更新。',
+	'terminal.settings.interaction.copyOnSelect.label': '选中时复制',
 	'terminal.settings.macosInput.description': '选择这台 Mac 如何把键盘输入发送给终端程序。',
 	'terminal.settings.macosInput.optionAsAlt.both': '左右 Option 键',
 	'terminal.settings.macosInput.optionAsAlt.description':
@@ -214,18 +222,48 @@ export const zhCNTerminalSettingsMessages = {
 	'terminal.settings.shellIntegration.title': 'Shell 集成',
 	'terminal.settings.shellIntegration.zsh.title': 'Zsh',
 	'terminal.settings.sections.applicationAppearance': '应用外观',
+	'terminal.settings.sections.terminalClipboard': '选择与剪贴板',
 	'terminal.settings.sections.terminalColors': '终端颜色',
+	'terminal.settings.sections.terminalHistory': '历史记录',
+	'terminal.settings.sections.terminalLayout': '终端布局',
+	'terminal.settings.sections.terminalTextShaping': '文本塑形',
 	'terminal.settings.sections.terminalTypography': '终端字体',
+	'terminal.settings.terminal.scrollbackBytes.busyWarning':
+		'另一项回滚缓冲区更新仍在进行，请在完成后重试。',
+	'terminal.settings.terminal.scrollbackBytes.controlUnavailableWarning':
+		'Desktop 控制连接恢复前，无法更改回滚缓冲区设置。',
+	'terminal.settings.terminal.scrollbackBytes.description':
+		'终端历史记录最多保留的字节数；新建终端会采用此值。',
+	'terminal.settings.terminal.scrollbackBytes.futureNotice':
+		'正在运行的终端会保留其当前历史记录上限。',
+	'terminal.settings.terminal.scrollbackBytes.hostRejectedWarning':
+		'终端主机拒绝了此更改，之前的值仍然有效。',
+	'terminal.settings.terminal.scrollbackBytes.invalid':
+		'请输入 {minimum, number} 到 {maximum, number} 之间的整数。',
+	'terminal.settings.terminal.scrollbackBytes.label': '回滚缓冲区上限',
+	'terminal.settings.terminal.scrollbackBytes.persistenceInvalidWarning':
+		'保存的回滚缓冲区设置无效，本次会话已采用运行时默认值。',
+	'terminal.settings.terminal.scrollbackBytes.persistenceReadWarning':
+		'无法读取保存的回滚缓冲区设置，本次会话已采用运行时默认值。',
+	'terminal.settings.terminal.scrollbackBytes.persistenceWriteWarning':
+		'此回滚缓冲区值已在本次会话生效，但无法保存；再次提交此值即可重试保存。',
 	'terminal.settings.title': '设置',
 	'terminal.settings.typography.fontFamily.description': '设置终端文本使用的字体。',
 	'terminal.settings.typography.fontFamily.deviceAvailability':
 		'字体是否可用取决于当前设备；需要时会使用回退字体。',
 	'terminal.settings.typography.fontFamily.invalid': '请输入 1 到 256 个字符的字体族。',
 	'terminal.settings.typography.fontFamily.label': '终端字体族',
+	'terminal.settings.typography.fontLigatures.description':
+		'使用终端字体提供的可选连字；现有终端会立即更新。',
+	'terminal.settings.typography.fontLigatures.label': '字体连字',
 	'terminal.settings.typography.fontSize.description': '选择终端文本的字号。',
 	'terminal.settings.typography.fontSize.invalid':
 		'请输入 {minimum, number} 到 {maximum, number} 之间的整数。',
 	'terminal.settings.typography.fontSize.label': '终端字号',
+	'terminal.settings.typography.fontWeight.description': '选择常规终端文本使用的数字字重。',
+	'terminal.settings.typography.fontWeight.label': '常规字体字重',
+	'terminal.settings.typography.fontWeightBold.description': '选择粗体终端文本使用的数字字重。',
+	'terminal.settings.typography.fontWeightBold.label': '粗体字体字重',
 	'terminal.settings.search.noResults': '未找到设置。',
 	'terminal.settings.search.placeholder': '搜索设置',
 } as const satisfies Readonly<Record<TerminalSettingsMessageId, string>>;

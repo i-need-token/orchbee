@@ -7,6 +7,10 @@ import {
 	workbenchTabMessages,
 } from '@orchbee/i18n';
 import {
+	DEFAULT_TERMINAL_INTERACTION_CONFIGURATION_SOURCE,
+	type TerminalInteractionConfigurationSource,
+} from '@orchbee/terminal';
+import {
 	terminalPresentationId,
 	terminalPresentationOperationId,
 	terminalPresentationRemovalId,
@@ -67,6 +71,7 @@ export interface CreateWorkbenchClientRuntimeOptions {
 	readonly terminalPlatformEffects?: ProjectedTerminalPlatformEffects;
 	readonly terminalFileDropCapability?: TerminalFileDropCapability;
 	readonly terminalInputConfigurationSource?: TerminalInputConfigurationSource;
+	readonly terminalInteractionConfigurationSource?: TerminalInteractionConfigurationSource;
 	readonly terminalCompletionReminderObserver?: TerminalCompletionReminderObserver;
 	readonly terminalPresentationConfigurationSource?: TerminalPresentationConfigurationSource;
 }
@@ -82,6 +87,7 @@ export function createWorkbenchClientRuntime({
 	terminalPlatformEffects = {},
 	terminalFileDropCapability,
 	terminalInputConfigurationSource = DEFAULT_TERMINAL_INPUT_CONFIGURATION_SOURCE,
+	terminalInteractionConfigurationSource = DEFAULT_TERMINAL_INTERACTION_CONFIGURATION_SOURCE,
 	terminalCompletionReminderObserver,
 	terminalPresentationConfigurationSource = DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION_SOURCE,
 }: CreateWorkbenchClientRuntimeOptions): WorkbenchClientRuntime {
@@ -199,6 +205,7 @@ export function createWorkbenchClientRuntime({
 			? {}
 			: { terminalCompletionReminderObserver }),
 		inputConfigurationSource: terminalInputConfigurationSource,
+		interactionConfigurationSource: terminalInteractionConfigurationSource,
 		presentationConfigurationSource: terminalPresentationConfigurationSource,
 		projectionClient,
 		...(shortcutBindingSource === undefined ? {} : { shortcutBindingSource }),

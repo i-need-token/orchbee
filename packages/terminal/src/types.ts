@@ -105,6 +105,8 @@ export interface RendererOptions {
 	readonly fontWeight?: FontWeight;
 	readonly fontWeightBold?: FontWeight;
 	readonly paddingBalance?: PaddingBalance;
+	/** Uniform client-side inset in CSS pixels around the projected grid. */
+	readonly terminalPadding?: number;
 	readonly theme?: Partial<ITheme>;
 }
 

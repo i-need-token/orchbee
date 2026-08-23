@@ -4,6 +4,8 @@ import { pathToFileURL } from 'node:url';
 
 const expectedRuntimeExports = [
 	'DEFAULT_TERMINAL_INPUT_CONFIGURATION',
+	'DEFAULT_TERMINAL_INTERACTION_CONFIGURATION',
+	'DEFAULT_TERMINAL_INTERACTION_CONFIGURATION_SOURCE',
 	'DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION',
 	'ProjectedHistoryPhase',
 	'ProjectedTerminal',
@@ -13,6 +15,7 @@ const expectedRuntimeExports = [
 	'isTerminalOptionAsAltMode',
 	'measureMountedTerminalGeometry',
 	'normalizePermittedExternalTerminalUrl',
+	'normalizeTerminalInteractionConfiguration',
 	'normalizeTerminalPresentationConfiguration',
 ];
 

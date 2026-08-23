@@ -61,6 +61,18 @@ boolean semantic intent per admitted key event, and updates that mode live witho
 terminal. It never prepends Escape to committed text. Terminal Host consumes the event intent and
 continues to own the actual Ghostty keyboard encoding for the current terminal modes.
 
+The complete source-neutral presentation configuration includes font family, integer font size,
+regular and bold CSS weights, ligature enablement, uniform terminal padding from `0` through `32`
+CSS pixels, color overrides, and background opacity. The current Settings source admits
+integer-hundred weights from `100` through `900`; its defaults use weights `400` and `700`, ligatures
+enabled, and zero padding. A complete live update changes the mounted renderer and recomputes usable
+terminal geometry without replacing its Host attachment. Uniform padding is additional to the
+mounted surface's measured CSS border and padding.
+
+The separate source-neutral interaction configuration contains `copyOnSelect`, defaults it to
+`true`, and updates an installed terminal through `setCopyOnSelect` without recreating the surface.
+Presentation and interaction sources have independent lifecycles and persistence owners.
+
 Live preedit is a reversible presentation that begins at the projected Host cursor and wraps in
 row-major order across the visible grid. Narrow and wide cells remain atomic, overflow beyond the
 last visible row is clipped without scrolling or mutating Host state, and the hidden native input

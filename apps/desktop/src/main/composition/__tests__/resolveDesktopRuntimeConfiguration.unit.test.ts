@@ -48,6 +48,9 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 		expect(first.terminalLaunchProfileStorePath).toBe(
 			path.resolve('/users/orchbee/library/orchbee/terminal-launch-profiles-v1.json'),
 		);
+		expect(first.terminalDefaultSettingsStorePath).toBe(
+			path.resolve('/users/orchbee/library/orchbee/terminal-default-settings-v1.json'),
+		);
 		expect(first.terminalExitPublicationLedgerPath).toBe(
 			path.resolve('/private/recovery/terminal-exit-publications-v1.json'),
 		);

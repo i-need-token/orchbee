@@ -29,6 +29,7 @@
 		"test:exports": "node ../../scripts/check-package-exports.mjs ."
 	},
 	"dependencies": {
+		"@orchbee/terminal-protocol": "workspace:^",
 		"@orchbee/workbench": "workspace:^",
 		"@orchbee/workbench-client-protocol": "workspace:^",
 		"zod": "catalog:"

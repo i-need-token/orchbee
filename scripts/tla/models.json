@@ -255,6 +255,33 @@
 			]
 		},
 		{
+			"id": "desktop-terminal-default-settings",
+			"owner": "@orchbee/desktop",
+			"workspace": "apps/desktop",
+			"module": "apps/desktop/formal/tla/DesktopTerminalDefaultSettings.tla",
+			"config": "apps/desktop/formal/tla/DesktopTerminalDefaultSettings.cfg",
+			"claims": [
+				"apps/desktop/docs/terminal-settings.md",
+				"proposals/terminal/projected-terminal-experience-compatibility.md"
+			],
+			"triggers": [
+				"apps/desktop/src/main/terminal-default-settings/**",
+				"apps/web/src/desktop-client/terminal-default-settings/**",
+				"packages/desktop-client-protocol/src/desktop-terminal-default-settings-contract.ts"
+			],
+			"requiredCoverage": [
+				"Initialize",
+				"Request",
+				"HostAccept",
+				"HostReject",
+				"PersistenceSucceeds",
+				"PersistenceFails",
+				"CreateTerminal",
+				"RendererReload",
+				"Dispose"
+			]
+		},
+		{
 			"id": "desktop-terminal-lifecycle-adapter",
 			"owner": "@orchbee/desktop",
 			"workspace": "apps/desktop",

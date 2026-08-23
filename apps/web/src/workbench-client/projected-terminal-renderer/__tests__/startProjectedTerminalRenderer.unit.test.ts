@@ -17,6 +17,7 @@ import type {
 	ProjectedTerminalFrameTelemetry,
 	ProjectedTerminalMetadata,
 	ProjectedTerminalOptions,
+	TerminalInteractionConfigurationSource,
 	TerminalPresentationConfiguration,
 } from '@orchbee/terminal';
 import { DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION } from '@orchbee/terminal';
@@ -128,6 +129,7 @@ describe('startProjectedTerminalRenderer', () => {
 		const pasteTerminal = vi.fn<ProjectedTerminal['paste']>().mockResolvedValue({ kind: 'empty' });
 		const setResizeOwnership = vi.fn<ProjectedTerminal['setResizeOwnership']>();
 		const setOptionAsAltMode = vi.fn<ProjectedTerminal['setOptionAsAltMode']>();
+		const setCopyOnSelect = vi.fn<ProjectedTerminal['setCopyOnSelect']>();
 		const updatePresentationConfiguration = vi
 			.fn<ProjectedTerminal['updatePresentationConfiguration']>()
 			.mockResolvedValue({
@@ -257,6 +259,7 @@ describe('startProjectedTerminalRenderer', () => {
 							state: 'active',
 						},
 						setResizeOwnership,
+						setCopyOnSelect,
 						setOptionAsAltMode,
 						updatePresentationConfiguration,
 						updateSearch: vi.fn<ProjectedTerminal['updateSearch']>(),
@@ -330,6 +333,17 @@ describe('startProjectedTerminalRenderer', () => {
 				return unsubscribeInputConfiguration;
 			},
 		};
+		let emitInteractionConfiguration: Parameters<
+			TerminalInteractionConfigurationSource['subscribe']
+		>[0] = () => undefined;
+		const unsubscribeInteractionConfiguration = vi.fn<() => void>();
+		const interactionConfigurationSource: TerminalInteractionConfigurationSource = {
+			current: () => ({ copyOnSelect: false }),
+			subscribe: (listener) => {
+				emitInteractionConfiguration = listener;
+				return unsubscribeInteractionConfiguration;
+			},
+		};
 		const observeMetadata = vi.fn<(metadata: ProjectedTerminalMetadata) => void>();
 		const actionRuntime = new ActionRuntime();
 		const actionScope = actionRuntime.createScope('test.workbench.terminal');
@@ -376,9 +390,10 @@ describe('startProjectedTerminalRenderer', () => {
 				{ observeCompletion },
 				inputConfigurationSource,
 				{ admitBellEffect, bindContextProvider, runtime: actionRuntime, scope: actionScope },
+				interactionConfigurationSource,
 			);
 			expect(dependencies.createTerminal).toHaveBeenCalledWith(
-				expect.objectContaining({ projectionBufferTrust: 'local-host' }),
+				expect.objectContaining({ copyOnSelect: false, projectionBufferTrust: 'local-host' }),
 			);
 			expect(contextProvider).toBeDefined();
 			expect(
@@ -720,6 +735,8 @@ describe('startProjectedTerminalRenderer', () => {
 			expect(options?.inputConfiguration).toEqual({ optionAsAlt: 'right' });
 			emitInputConfiguration({ optionAsAlt: 'both' });
 			expect(setOptionAsAltMode).toHaveBeenCalledWith('both');
+			emitInteractionConfiguration({ copyOnSelect: true });
+			expect(setCopyOnSelect).toHaveBeenCalledWith(true);
 			expect(openTerminal).toHaveBeenCalledOnce();
 			expect(focusTerminal).not.toHaveBeenCalled();
 			expect(root.style.backgroundColor).toBe('#123456');
@@ -788,6 +805,7 @@ describe('startProjectedTerminalRenderer', () => {
 			session.dispose();
 			expect(unsubscribePresentationConfiguration).toHaveBeenCalledOnce();
 			expect(unsubscribeInputConfiguration).toHaveBeenCalledOnce();
+			expect(unsubscribeInteractionConfiguration).toHaveBeenCalledOnce();
 			expect(disposeTerminal).toHaveBeenCalledOnce();
 
 			const createAdditionalRoot = () => {

@@ -1,7 +1,10 @@
 // @vitest-environment jsdom
 
 import { OrchbeeI18nProvider } from '@orchbee/i18n';
-import type { TerminalInputConfiguration } from '@orchbee/terminal';
+import type {
+	TerminalInputConfiguration,
+	TerminalInteractionConfiguration,
+} from '@orchbee/terminal';
 import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
@@ -9,11 +12,16 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { TerminalSettingsSurface } from '../TerminalSettingsSurface';
 import { KeyboardShortcutSettingsController } from '../../keyboard-shortcuts';
 import { MacosTerminalInputSettingsController } from '../../macos-terminal-input-settings';
+import { TerminalInteractionSettingsController } from '../../terminal-interaction-settings';
 import {
 	DEFAULT_TERMINAL_APPEARANCE_PREFERENCES,
 	TerminalSettingsController,
 } from '../../terminal-settings';
 import { REMOTE_DEVELOPMENT_DIAGNOSTIC_COMMAND } from '../constants/remote-development-diagnostic';
+import type {
+	DesktopTerminalDefaultSettingsClientSnapshot,
+	DesktopTerminalDefaultSettingsControl,
+} from '../../terminal-default-settings-control';
 
 type TerminalAppearanceStorage = ConstructorParameters<
 	typeof TerminalSettingsController
@@ -281,6 +289,189 @@ describe('TerminalSettingsSurface', () => {
 			);
 		});
 		expect(close).toHaveBeenCalledOnce();
+
+		await act(async () => root.unmount());
+		container.remove();
+		controller.dispose();
+		keyboardShortcutController.dispose();
+	});
+
+	it('applies typography, padding, and copy-on-select settings live without Planned duplicates', async () => {
+		const container = document.createElement('div');
+		document.body.append(container);
+		const storage = memoryStorage();
+		const controller = new TerminalSettingsController({
+			storage,
+			themeTarget: document.documentElement,
+		});
+		const interactionController = new TerminalInteractionSettingsController(storage);
+		const interactionListener = vi.fn<(configuration: TerminalInteractionConfiguration) => void>();
+		interactionController.subscribe(interactionListener);
+		const keyboardShortcutController = new KeyboardShortcutSettingsController({
+			platform: 'apple',
+			storage,
+		});
+		controller.open();
+		const root = createRoot(container);
+		await act(async () => {
+			root.render(
+				createElement(
+					OrchbeeI18nProvider,
+					{ locale: 'en-US' },
+					createElement(TerminalSettingsSurface, {
+						controller,
+						keyboardShortcutController,
+						keyboardShortcutPlatform: 'apple',
+						onRequestClose: () => undefined,
+						terminalInteractionSettingsController: interactionController,
+					}),
+				),
+			);
+		});
+
+		await act(async () =>
+			requiredElement<HTMLButtonElement>(
+				container.querySelector("button[data-settings-category='appearance']"),
+			).click(),
+		);
+		expect(
+			container.querySelector("[data-planned-setting='appearance.terminalPadding']"),
+		).toBeNull();
+		const padding = requiredElement<HTMLInputElement>(
+			container.querySelector("input[aria-label='Terminal padding']"),
+		);
+		await act(async () => {
+			padding.focus();
+			setInputValue(padding, '12');
+			padding.dispatchEvent(new Event('input', { bubbles: true }));
+			padding.blur();
+		});
+
+		await act(async () =>
+			requiredElement<HTMLButtonElement>(
+				container.querySelector("button[data-settings-category='text']"),
+			).click(),
+		);
+		expect(container.querySelector("[data-planned-setting='text.weights']")).toBeNull();
+		expect(container.querySelector("[data-planned-setting='text.ligatures']")).toBeNull();
+		const regularWeight = requiredElement<HTMLSelectElement>(
+			container.querySelector("select[aria-label='Regular font weight']"),
+		);
+		const boldWeight = requiredElement<HTMLSelectElement>(
+			container.querySelector("select[aria-label='Bold font weight']"),
+		);
+		const ligatures = requiredElement<HTMLElement>(
+			container.querySelector("[aria-label='Font ligatures']"),
+		);
+		await act(async () => {
+			regularWeight.value = '300';
+			regularWeight.dispatchEvent(new Event('change', { bubbles: true }));
+			boldWeight.value = '800';
+			boldWeight.dispatchEvent(new Event('change', { bubbles: true }));
+			ligatures.click();
+		});
+		expect(controller.current()).toMatchObject({
+			fontLigatures: false,
+			fontWeight: 300,
+			fontWeightBold: 800,
+			terminalPadding: 12,
+		});
+
+		await act(async () =>
+			requiredElement<HTMLButtonElement>(
+				container.querySelector("button[data-settings-category='interaction']"),
+			).click(),
+		);
+		expect(container.querySelector("[data-planned-setting='interaction.copyOnSelect']")).toBeNull();
+		const copyOnSelect = requiredElement<HTMLElement>(
+			container.querySelector("[aria-label='Copy on select']"),
+		);
+		await act(async () => copyOnSelect.click());
+		expect(interactionController.current()).toEqual({ copyOnSelect: false });
+		expect(interactionListener).toHaveBeenCalledWith({ copyOnSelect: false });
+
+		await act(async () => root.unmount());
+		container.remove();
+		controller.dispose();
+		interactionController.dispose();
+		keyboardShortcutController.dispose();
+	});
+
+	it('commits Desktop scrollback defaults for future terminals and keeps failures visible', async () => {
+		const container = document.createElement('div');
+		document.body.append(container);
+		const storage = memoryStorage();
+		const controller = new TerminalSettingsController({
+			storage,
+			themeTarget: document.documentElement,
+		});
+		const keyboardShortcutController = new KeyboardShortcutSettingsController({
+			platform: 'apple',
+			storage,
+		});
+		const terminalDefaults = createTerminalDefaultSettingsControl();
+		controller.open();
+		const root = createRoot(container);
+		await act(async () => {
+			root.render(
+				createElement(
+					OrchbeeI18nProvider,
+					{ locale: 'en-US' },
+					createElement(TerminalSettingsSurface, {
+						controller,
+						keyboardShortcutController,
+						keyboardShortcutPlatform: 'apple',
+						onRequestClose: () => undefined,
+						terminalDefaultSettingsControl: terminalDefaults.control,
+					}),
+				),
+			);
+		});
+
+		await act(async () =>
+			requiredElement<HTMLButtonElement>(
+				container.querySelector("button[data-settings-category='terminal']"),
+			).click(),
+		);
+		expect(container.querySelector("[data-planned-setting='terminal.scrollback']")).toBeNull();
+		expect(container.textContent).toContain('Running terminals keep their current history limit.');
+		const scrollback = requiredElement<HTMLInputElement>(
+			container.querySelector("input[aria-label='Scrollback limit']"),
+		);
+		expect(scrollback.value).toBe('10000000');
+
+		await act(async () => {
+			scrollback.focus();
+			setInputValue(scrollback, '1000000001');
+			scrollback.dispatchEvent(new Event('input', { bubbles: true }));
+			scrollback.blur();
+		});
+		expect(scrollback.getAttribute('aria-invalid')).toBe('true');
+		expect(terminalDefaults.update).not.toHaveBeenCalled();
+
+		await act(async () => {
+			scrollback.focus();
+			setInputValue(scrollback, '25000000');
+			scrollback.dispatchEvent(new Event('input', { bubbles: true }));
+			scrollback.blur();
+		});
+		expect(terminalDefaults.update).toHaveBeenCalledWith({ scrollbackBytes: 25_000_000 });
+		expect(container.textContent).toContain(
+			'This scrollback value is active for this session, but could not be saved.',
+		);
+
+		const search = requiredElement<HTMLInputElement>(
+			container.querySelector("input[aria-label='Search settings']"),
+		);
+		await act(async () => {
+			setInputValue(search, 'scrollback');
+			search.dispatchEvent(new Event('input', { bubbles: true }));
+		});
+		const searchResult = requiredElement<HTMLElement>(
+			container.querySelector("[data-settings-search-result='terminal.scrollback']"),
+		);
+		expect(searchResult.textContent).toContain('Scrollback limit');
+		expect(searchResult.textContent).not.toContain('Planned');
 
 		await act(async () => root.unmount());
 		container.remove();
@@ -811,6 +1002,42 @@ function memoryStorage(): {
 	return {
 		getItem: vi.fn<TerminalAppearanceStorage['getItem']>(() => null),
 		setItem: vi.fn<TerminalAppearanceStorage['setItem']>(() => undefined),
+	};
+}
+
+function createTerminalDefaultSettingsControl(): {
+	readonly control: DesktopTerminalDefaultSettingsControl;
+	readonly update: ReturnType<typeof vi.fn<DesktopTerminalDefaultSettingsControl['update']>>;
+} {
+	let snapshot: DesktopTerminalDefaultSettingsClientSnapshot = {
+		configuration: { scrollbackBytes: 10_000_000 },
+		failureCode: null,
+		pending: false,
+		persistenceIssue: null,
+		source: 'stored',
+	};
+	const listeners = new Set<() => void>();
+	const update = vi.fn<DesktopTerminalDefaultSettingsControl['update']>(async (configuration) => {
+		snapshot = {
+			configuration,
+			failureCode: null,
+			pending: false,
+			persistenceIssue: 'write-failed',
+			source: 'session',
+		};
+		for (const listener of listeners) listener();
+		return { kind: 'completed', snapshot };
+	});
+	return {
+		control: {
+			getSnapshot: () => snapshot,
+			subscribe: (listener) => {
+				listeners.add(listener);
+				return () => listeners.delete(listener);
+			},
+			update,
+		},
+		update,
 	};
 }
 

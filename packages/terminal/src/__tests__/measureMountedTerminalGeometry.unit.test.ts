@@ -34,6 +34,27 @@ describe('measureMountedTerminalGeometry', () => {
 			measureMountedTerminalGeometry(root, DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION),
 		).resolves.toBeUndefined();
 	});
+
+	it('reserves configured terminal padding in addition to mounted CSS padding', async () => {
+		const root = createMountedRoot({
+			clientHeight: 600,
+			clientWidth: 900,
+			devicePixelRatio: 2,
+			padding: { bottom: '18px', left: '9px', right: '9px', top: '18px' },
+		});
+
+		await expect(
+			measureMountedTerminalGeometry(root, {
+				...DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION,
+				terminalPadding: 9,
+			}),
+		).resolves.toEqual({
+			cellPixelHeight: 36,
+			cellPixelWidth: 18,
+			columns: 96,
+			rows: 30,
+		});
+	});
 });
 
 function createMountedRoot(options: {

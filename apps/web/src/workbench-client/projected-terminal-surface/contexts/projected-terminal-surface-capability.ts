@@ -2,7 +2,10 @@ import type {
 	TerminalPresentationId,
 	WorkbenchTerminalPresentationEventResult,
 } from '@orchbee/workbench';
-import type { ProjectedTerminalMetadata } from '@orchbee/terminal';
+import type {
+	ProjectedTerminalMetadata,
+	TerminalInteractionConfigurationSource,
+} from '@orchbee/terminal';
 import { createContext } from 'react';
 
 import type {
@@ -27,6 +30,7 @@ export interface ProjectedTerminalSurfaceCapability {
 	readonly terminalCompletionReminderObserver?: TerminalCompletionReminderObserver | undefined;
 	readonly presentationConfigurationSource: TerminalPresentationConfigurationSource;
 	readonly inputConfigurationSource?: TerminalInputConfigurationSource | undefined;
+	readonly interactionConfigurationSource?: TerminalInteractionConfigurationSource | undefined;
 	observeTerminalMetadata(
 		presentationId: TerminalPresentationId,
 		metadata: Pick<

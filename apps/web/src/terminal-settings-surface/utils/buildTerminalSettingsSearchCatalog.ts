@@ -37,6 +37,7 @@ export function buildTerminalSettingsSearchCatalog({
 	const capabilitySet = new Set(enabledCapabilities);
 	const categorySet = new Set(enabledCategories);
 	const entries: TerminalSettingsSearchEntry[] = [];
+	const availableSettingIds = new Set<string>();
 
 	for (const navigationGroup of TERMINAL_SETTINGS_NAVIGATION_GROUPS) {
 		for (const category of navigationGroup.categories) {
@@ -78,6 +79,7 @@ export function buildTerminalSettingsSearchCatalog({
 					sectionLabel: definition.section === undefined ? null : formatMessage(definition.section),
 					targetId: definition.targetId,
 				});
+				availableSettingIds.add(definition.id);
 			}
 
 			if (category === 'keyboard-shortcuts') {
@@ -105,6 +107,7 @@ export function buildTerminalSettingsSearchCatalog({
 			for (const section of PLANNED_TERMINAL_SETTINGS[category]) {
 				const sectionLabel = formatMessage(section.title);
 				for (const definition of section.items) {
+					if (availableSettingIds.has(definition.id)) continue;
 					entries.push({
 						availability: 'planned',
 						category,

@@ -6,6 +6,7 @@ import {
 	resolveOrchbeeLocale,
 } from '@orchbee/i18n';
 import {
+	DEFAULT_TERMINAL_INTERACTION_CONFIGURATION_SOURCE,
 	ProjectedTerminal,
 	type ProjectedTerminalActionContextRequest,
 	type ProjectedTerminalThemePreparationResult,
@@ -15,6 +16,8 @@ import {
 	type ProjectedTerminalMetadata,
 	type ProjectedTerminalOptions,
 	type TerminalInputConfiguration,
+	type TerminalInteractionConfiguration,
+	type TerminalInteractionConfigurationSource,
 	type TerminalPresentationConfiguration,
 	type TerminalPresentationConfigurationUpdateResult,
 } from '@orchbee/terminal';
@@ -103,6 +106,7 @@ type ProjectedTerminalDriver = Pick<
 	| 'selectAll'
 	| 'selection'
 	| 'setOptionAsAltMode'
+	| 'setCopyOnSelect'
 	| 'setResizeOwnership'
 	| 'updatePresentationConfiguration'
 	| 'updateSearch'
@@ -185,6 +189,7 @@ export async function startProjectedTerminalRenderer(
 	completionReminderObserver?: TerminalCompletionReminderObserver,
 	inputConfigurationSource: TerminalInputConfigurationSource = DEFAULT_TERMINAL_INPUT_CONFIGURATION_SOURCE,
 	workbenchHost?: ProjectedTerminalWorkbenchHost,
+	interactionConfigurationSource: TerminalInteractionConfigurationSource = DEFAULT_TERMINAL_INTERACTION_CONFIGURATION_SOURCE,
 ): Promise<ProjectedTerminalRendererSession> {
 	if (!(rootElement instanceof HTMLElement)) {
 		throw new Error('The Orchbee projected terminal root element is missing.');
@@ -199,9 +204,11 @@ export async function startProjectedTerminalRenderer(
 	const initialRootVisibility = rootElement.style.visibility;
 	let initialPresentationConfiguration: TerminalPresentationConfiguration;
 	let initialInputConfiguration: TerminalInputConfiguration;
+	let initialInteractionConfiguration: TerminalInteractionConfiguration;
 	try {
 		initialPresentationConfiguration = presentationConfigurationSource.current();
 		initialInputConfiguration = inputConfigurationSource.current();
+		initialInteractionConfiguration = interactionConfigurationSource.current();
 	} catch (error) {
 		runCleanup([() => transport.close()]);
 		throw error;
@@ -499,6 +506,7 @@ export async function startProjectedTerminalRenderer(
 			creationId: bootstrap.creationId,
 			hostEpoch: bootstrap.hostEpoch,
 			inputConfiguration: initialInputConfiguration,
+			copyOnSelect: initialInteractionConfiguration.copyOnSelect,
 			inputEnabled: bootstrap.canInput !== false,
 			labels: {
 				deleted: (text) =>
@@ -595,6 +603,7 @@ export async function startProjectedTerminalRenderer(
 		void updatePresentationConfiguration(configuration).catch(() => undefined);
 	};
 	let unsubscribeInputConfiguration = (): void => undefined;
+	let unsubscribeInteractionConfiguration = (): void => undefined;
 	let unsubscribePresentationConfiguration = (): void => undefined;
 	let unregisterThemeParticipant = (): void => undefined;
 	try {
@@ -616,9 +625,17 @@ export async function startProjectedTerminalRenderer(
 			throw new TypeError('The terminal input configuration source did not unsubscribe.');
 		}
 		unsubscribeInputConfiguration = unsubscribeInput;
+		const unsubscribeInteraction = interactionConfigurationSource.subscribe((configuration) => {
+			terminal.setCopyOnSelect(configuration.copyOnSelect);
+		});
+		if (typeof unsubscribeInteraction !== 'function') {
+			throw new TypeError('The terminal interaction configuration source did not unsubscribe.');
+		}
+		unsubscribeInteractionConfiguration = unsubscribeInteraction;
 	} catch (error) {
 		runCleanup([
 			unsubscribeInputConfiguration,
+			unsubscribeInteractionConfiguration,
 			unsubscribePresentationConfiguration,
 			disposeThemeParticipant,
 			() => terminal.dispose(),
@@ -630,6 +647,7 @@ export async function startProjectedTerminalRenderer(
 	}
 	const unsubscribeConfigurationSources = (): void => {
 		unsubscribeInputConfiguration();
+		unsubscribeInteractionConfiguration();
 		unsubscribePresentationConfiguration();
 		unregisterThemeParticipant();
 		unregisterThemeParticipant = () => undefined;

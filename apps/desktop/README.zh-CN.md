@@ -6,7 +6,7 @@
 
 桌面与主机支持的投影终端组成共享工作台。 Workbench拥有Project、Workspace、Tab、Panel、`TerminalPresentationId`状态； Electron Main拥有持久的技术绑定和Electron独有的特权效果； `apps/terminal-host` 拥有 PTYs、进程、Ghostty VT 状态、历史记录和真实终端身份。浏览器客户端在其自己的页面中提交剪贴板和白名单链接效果。共享工作台文档均不存储在主机中。
 
-Main 启动时无需创建固定终端、打开附件或启动 Web 侦听器。它将持久的 `TerminalPresentationId` 恢复为 `TerminalBindingId` 注册表，拥有一个进程范围的规范 Workbench 共享文档协调器，并通过沙盒预加载传输一个原子允许列表功能包。它的七个端口有一个固定的顺序：
+Main 启动时无需创建固定终端、打开附件或启动 Web 侦听器。它将持久的 `TerminalPresentationId` 恢复为 `TerminalBindingId` 注册表，拥有一个进程范围的规范 Workbench 共享文档协调器，并通过沙盒预加载传输一个原子允许列表功能包。它的八个端口有一个固定的顺序：
 
 - 客户端会话控制提供一个原子文档/终端观察引导程序，接受完整的精确下一个共享文档提案，并发布一个有序的规范事件流；
 - 投影控件仅为显示的终端视口打开并释放范围内的主机附件；
@@ -14,11 +14,12 @@ Main 启动时无需创建固定终端、打开附件或启动 Web 侦听器。�
 - 浏览器访问控制仅包含显式启动、模式切换、打开、复制、停止、净化的原始状态和有限故障。它从不携带能力承载URL；
 - 项目文件夹获取请求一个本机现有目录选择，并仅返回相关的选定路径、取消或有限失败；
 - Project Worktree 控制只从当前规范 Project Directory 发现 repository，并根据 repository、base、branch 与 Workspace 选项创建一个托管 Worktree；renderer 命令绝不携带目标路径；
-- Terminal-launch-profile 控制项目并改变系统 shell 或显式可执行启动选择的一个有界设备本地目录。它不携带环境、CWD、机密、项目有效负载或通用文件系统功能。
+- Terminal-launch-profile 控制投影并改变系统 shell 或显式可执行启动选择的一个有界设备本地目录。它不携带环境、CWD、机密、项目有效负载或通用文件系统功能；
+- Terminal-default-settings 控制只投影并改变有界的设备本地默认回滚缓冲区字节数。它不携带正在运行的终端、Host 或文件系统权限。
 
-客户端会话和投影有效负载是来自 `@orchbee/workbench-client-protocol` 的平台中立合约。 `@orchbee/desktop-client-protocol` 拥有原子 Electron 渲染器引导程序、Electron 应用程序生命周期合约、窄浏览器访问命令合约、类型化 Project Folder 获取与 Project Worktree 合约，以及终端启动配置文件命令合约。 Desktop Main 和 Web 渲染器各自将通用合约调整到 `MessagePort` 的末端；传输细节都不会进入共享工作台客户端运行时。
+客户端会话和投影有效负载是来自 `@orchbee/workbench-client-protocol` 的平台中立合约。 `@orchbee/desktop-client-protocol` 拥有原子 Electron 渲染器引导程序、Electron 应用程序生命周期合约、窄浏览器访问命令合约、类型化 Project Folder 获取与 Project Worktree 合约、终端启动配置文件命令合约和终端默认设置命令合约。 Desktop Main 和 Web 渲染器各自将通用合约调整到 `MessagePort` 的末端；传输细节都不会进入共享工作台客户端运行时。
 
-渲染器没有 Node 集成、通用 Electron IPC、filesystem read capability、Host inventory 或原始 terminal-lifetime 权限。它不能直接调用 provision、restore、close 或 storage CAS effect。Preload 只接受一个 bootstrap，同时验证全部七个 port，保留固定的 client-session/projection/application-lifetime/Browser-access/Project-Folder-acquisition/Project-Worktree/terminal-launch-profiles 顺序，并证明 context isolation 与 sandboxing。Project Folder port 不接受 renderer path，也不公开 enumeration 或 mutation primitive。Project Worktree port 不接受源或目标 path：discovery 从规范 Project state 推导 repository，创建只接受返回的不透明 identity 与 Git 值。单独的 context-isolated file-drop adapter 只公开当前 platform 与 Electron 的 `File`-scoped backing-path lookup；它不能接受 arbitrary path string、读取 file content、枚举 directory 或执行 IPC request。一个拖入的 disk `File` 可以携带 file 或 directory backing path，但不会授予 child enumeration。Web renderer 只为 user drop 准入该 adapter，应用有界且兼容 Ghostty 的 POSIX live-buffer escaping，直接发布 prepared text，并且绝不追加 Enter。Partial 或 malformed bootstrap 不会启动 renderer runtime。
+渲染器没有 Node 集成、通用 Electron IPC、filesystem read capability、Host inventory 或原始 terminal-lifetime 权限。它不能直接调用 provision、restore、close 或 storage CAS effect。Preload 只接受一个 bootstrap，同时验证全部八个 port，保留固定的 client-session/projection/application-lifetime/Browser-access/Project-Folder-acquisition/Project-Worktree/terminal-launch-profiles/terminal-default-settings 顺序，并证明 context isolation 与 sandboxing。Project Folder port 不接受 renderer path，也不公开 enumeration 或 mutation primitive。Project Worktree port 不接受源或目标 path：discovery 从规范 Project state 推导 repository，创建只接受返回的不透明 identity 与 Git 值。单独的 context-isolated file-drop adapter 只公开当前 platform 与 Electron 的 `File`-scoped backing-path lookup；它不能接受 arbitrary path string、读取 file content、枚举 directory 或执行 IPC request。一个拖入的 disk `File` 可以携带 file 或 directory backing path，但不会授予 child enumeration。Web renderer 只为 user drop 准入该 adapter，应用有界且兼容 Ghostty 的 POSIX live-buffer escaping，直接发布 prepared text，并且绝不追加 Enter。Partial 或 malformed bootstrap 不会启动 renderer runtime。
 
 OSC 52 剪贴板写入使用现有投影端口，而不是通用 preload 剪贴板 API。Main 只记住转发到附件的第一个 Host 请求；渲染器自动提交决定必须精确重复其附件、序列与有界文本。匹配的肯定决定会执行 Desktop 拥有的纯文本写入并消费待处理请求；不匹配、重复、Broker 背压、页面退役或附件处置均不写入。Gateway 浏览器附件会尝试通过本地剪贴板 API 执行请求，并发送同一个精确决定，仅用于消费 Main 的待处理记录，避免 Electron 重复该客户端本地效果。
 
@@ -36,7 +37,7 @@ Desktop 严格要求唯一的当前 Host 协议 `0.0.19`；预发布版本既不
 
 在 POSIX 上构造 `HostConnection` 之前，Desktop 会要求打包的本机主机帮助程序验证运行时目录和实际套接字、连接并根据内核对等凭据验证服务器的有效 UID。只有经过身份验证的 same-UID 连接才能抑制主机启动，并且每次重试或稍后桌面重新连接都会重复检查。助手是该连接的有界 stdio 代理；它的退出不能拥有或终止保留的主机进程，并且其传输保留 `HostConnection` 准入和未知结果行为不变。
 
-Desktop 将一个 Terminal Host 端点扩展到其产品 `userData` 身份，该身份将 OS 用户、产品配置文件和发布通道数据根分开。短 POSIX 运行时路径是操作系统受信任的每用户运行时位置（Linux 上的 `/run/user/<effective-uid>` 和 Electron 上 macOS 上的 Electron 的每用户临时位置）的稳定产品范围子代，从来都不是确定性的共享 `/tmp` 的子级。 Windows 命名管道标识源自相同的产品范围。显式端点和运行时覆盖仅适用于受控开发和测试； POSIX 覆盖仍然通过本机无跟随所有者、私有模式和 ACL 准备和验证。每次成功握手后，Desktop 都会通过 `SetTerminalDefaults` 发送当前终端默认值，因此重新连接到已运行的单例与新启动 CLI 具有相同的结果。新终端使用与工作台画布对齐的灯光轮廓；保留的终端保留与其现有主机会话一起存储的配置文件。设备本地产品设置由共享 Web 渲染器拥有，并且永远不会成为主机默认设置。
+Desktop 将一个 Terminal Host 端点扩展到其产品 `userData` 身份，该身份将 OS 用户、产品配置文件和发布通道数据根分开。短 POSIX 运行时路径是操作系统受信任的每用户运行时位置（Linux 上的 `/run/user/<effective-uid>` 和 Electron 上 macOS 上的 Electron 的每用户临时位置）的稳定产品范围子代，从来都不是确定性的共享 `/tmp` 的子级。 Windows 命名管道标识源自相同的产品范围。显式端点和运行时覆盖仅适用于受控开发和测试； POSIX 覆盖仍然通过本机无跟随所有者、私有模式和 ACL 准备和验证。每次成功握手后，Desktop 都会通过 `SetTerminalDefaults` 发送当前终端默认值，因此重新连接到已运行的单例与新启动 CLI 具有相同的结果。新终端使用与工作台画布对齐的浅色配置；保留的终端保留与其现有主机会话一起存储的配置。Presentation 与输入首选项仍只属于渲染器；Main 拥有的回滚缓冲区默认值是当前唯一会改变 Host 终端默认值的产品设置。
 
 Desktop Main 还拥有单个本地 Electron 窗口生命周期。它恢复严格的设备本地正常边界和最大化记录，将保存的几何图形重新投影到当前显示工作区域，并通过应用程序菜单及其加速器使用的 Main 拥有的语义操作公开最大化/恢复和全屏。全屏保持短暂状态，窗口状态永远不会进入共享工作台文档或终端恢复。请参阅[`docs/window-lifecycle.md`](docs/window-lifecycle.md)。
 
@@ -119,6 +120,14 @@ AttachmentId ── one disposable projection capability
 `TerminalPresentationId` 由 Workbench 创建并停用。 Main 保持对 `TerminalBindingId` 的严格内存中双射；它从不通过生命周期控制公开绑定、创建、主机、终端或附件身份。主机仍然是该过程和 VT 的真实来源。
 
 版本 3 绑定存储包含规范的 BindingId-ordered 集合。 每条记录都有一个唯一的 BindingId、PresentationId、CreationId、有界启动配置文件以及一个持久状态：`planned`、`create-requested`、`retained`、 `exited`、`closing` 或 `lost`。 保留的身份是唯一的，并且必须重复其所属 CreationId。 该文件被解析为不受信任的输入，通过仅限所有者的原子替换进行更新，并且在无效或不可读时不会自动重写。 启动环境值永远不会进入诊断。 每个默认启动都会声明`TERM=xterm-256color`, `COLORTERM=truecolor`， 和`TERM_PROGRAM=Orchbee`，并删除继承的`NO_COLOR`, `FORCE_COLOR`， 和`NODE_DISABLE_COLORS`主机创建之前的策略PTY过程。 新的 POSIX 终端还从代码解析的应用程序资源路径接收 `ORCHBEE_SHELL_INTEGRATION_DIR`：开发相对于构建的 Main 条目解析它，打包的应用程序在 `process.resourcesPath` 下解析它。 周围环境无法替代该路径。 Desktop 将其自己的 Zsh、Bash 和 Fish 脚本作为包资源提供，但从不获取它们或修改启动文件； 设置公开了确切的手动命令。 桌面保留显式的 UTF-8 语言环境； 当继承的 POSIX 语言环境优先级不会产生 UTF-8 时，Main 会删除冲突的 `LC_ALL`，修复无效的 `LANG`，并提供 UTF-8 `LC_CTYPE` 后备根据需要。 Darwin 使用 `en_US.UTF-8` 是因为它的 shell 环境不提供 Linux 的 `C.UTF-8` 语言环境。
+
+## 本地终端默认值
+
+Electron Main 拥有 `terminal-default-settings-v1.json`，并在公开 Desktop 渲染器前把其中严格的
+回滚缓冲区字节数提交给 Terminal Host。更新先提交 Host、再写入存储：Host 拒绝会保留两个
+旧状态，存储失败则保留已接受的会话值并显示可恢复警告。新终端捕获最新 Host 默认值；正在
+运行和恢复的终端绝不会被截断或重新配置。浏览器访问和普通 Browser 客户端不会收到此控制。
+详见 [`docs/terminal-settings.md`](docs/terminal-settings.zh-CN.md)。
 
 ## 本地终端启动配置文件
 

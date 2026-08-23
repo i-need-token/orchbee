@@ -37,7 +37,21 @@ describe('resolvePlannedTerminalSettings', () => {
 
 		expect(result).toHaveLength(3);
 		expect(result[0]?.title).toBe('选择与剪贴板');
-		expect(result[0]?.items.map((item) => item.label)).toContain('选中时复制');
+		expect(result[0]?.items.map((item) => item.label)).toContain('复制格式与空白');
+	});
+
+	it('removes implemented rows without hiding the remaining planned section', () => {
+		const intl = createOrchbeeIntl('en-US');
+		const result = resolvePlannedTerminalSettings({
+			category: 'terminal',
+			formatMessage: (descriptor) => intl.formatMessage(descriptor),
+			implementedSettingIds: new Set(['terminal.scrollback']),
+		});
+
+		expect(
+			result.flatMap((section) => section.items).some((item) => item.id === 'terminal.scrollback'),
+		).toBe(false);
+		expect(result.flatMap((section) => section.items).length).toBeGreaterThan(0);
 	});
 
 	it('returns no planned rows for independently implemented categories', () => {

@@ -9,6 +9,7 @@ Fields == {
   "fontWeightBold",
   "fontLigatures",
   "fontMetricModifiers",
+  "terminalPadding",
   "paddingBalance",
   "allowTransparency",
   "backgroundOpacity",

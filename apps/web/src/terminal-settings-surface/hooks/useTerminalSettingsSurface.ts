@@ -1,10 +1,5 @@
 import { formatKeyboardShortcutChord } from '@orchbee/keyboard-shortcuts';
-import {
-	keyboardShortcutMessages,
-	terminalSettingsCatalogMessages,
-	terminalSettingsMessages,
-	useOrchbeeIntl,
-} from '@orchbee/i18n';
+import { terminalSettingsCatalogMessages, useOrchbeeIntl } from '@orchbee/i18n';
 import * as React from 'react';
 
 import {
@@ -12,6 +7,8 @@ import {
 	useKeyboardShortcutSettings,
 	type KeyboardShortcutId,
 } from '../../keyboard-shortcuts';
+import { useTerminalInteractionSettings } from '../../terminal-interaction-settings';
+import type { DesktopTerminalDefaultSettingsClientSnapshot } from '../../terminal-default-settings-control';
 import { normalizeTerminalHexColor, useTerminalSettings } from '../../terminal-settings';
 import { TERMINAL_SETTINGS_SEARCH_RESULTS_ID } from '../constants/terminal-settings-search-catalog';
 import {
@@ -20,13 +17,28 @@ import {
 } from '../constants/terminal-settings-information-architecture';
 import type {
 	TerminalSettingsCategory,
-	TerminalSettingsSurfaceMessages,
 	TerminalSettingsSurfaceView,
 	UseTerminalSettingsSurfaceOptions,
 } from '../types/terminal-settings-surface';
 import { buildTerminalSettingsSearchCatalog } from '../utils/buildTerminalSettingsSearchCatalog';
+import { buildTerminalSettingsSurfaceMessages } from '../utils/buildTerminalSettingsSurfaceMessages';
 import { resolvePlannedTerminalSettings } from '../utils/resolvePlannedTerminalSettings';
 import { resolveTerminalSettingsSearch } from '../utils/resolveTerminalSettingsSearch';
+import {
+	parseScrollbackBytes,
+	parseTerminalFontWeight,
+	parseTerminalPadding,
+} from '../utils/terminal-settings-draft-parsing';
+
+const DESKTOP_TERMINAL_DEFAULT_SETTING_IDS: ReadonlySet<string> = new Set(['terminal.scrollback']);
+const UNAVAILABLE_TERMINAL_DEFAULT_SETTINGS_SNAPSHOT: DesktopTerminalDefaultSettingsClientSnapshot =
+	{
+		configuration: { scrollbackBytes: 10_000_000 },
+		failureCode: 'control-unavailable',
+		pending: false,
+		persistenceIssue: null,
+		source: 'runtime',
+	};
 
 export function useTerminalSettingsSurface({
 	controller,
@@ -36,10 +48,28 @@ export function useTerminalSettingsSurface({
 	onRequestClose,
 	requestBrowserAccess,
 	terminalFeedbackSettingsController,
+	terminalDefaultSettingsControl,
+	terminalInteractionSettingsController,
 	terminalLaunchProfileClient,
 }: UseTerminalSettingsSurfaceOptions): TerminalSettingsSurfaceView {
 	const intl = useOrchbeeIntl();
 	const snapshot = useTerminalSettings(controller);
+	const interactionSnapshot = useTerminalInteractionSettings(terminalInteractionSettingsController);
+	const unavailableTerminalDefaultSettingsSource = React.useMemo(
+		() => ({
+			getSnapshot: (): DesktopTerminalDefaultSettingsClientSnapshot =>
+				UNAVAILABLE_TERMINAL_DEFAULT_SETTINGS_SNAPSHOT,
+			subscribe: (): (() => void) => () => undefined,
+		}),
+		[],
+	);
+	const terminalDefaultSettingsSource =
+		terminalDefaultSettingsControl ?? unavailableTerminalDefaultSettingsSource;
+	const terminalDefaultSettingsSnapshot = React.useSyncExternalStore(
+		terminalDefaultSettingsSource.subscribe,
+		terminalDefaultSettingsSource.getSnapshot,
+		terminalDefaultSettingsSource.getSnapshot,
+	);
 	const keyboardShortcutSnapshot = useKeyboardShortcutSettings(keyboardShortcutController);
 	const inputReference = React.useRef<HTMLInputElement>(null);
 	const contentReference = React.useRef<HTMLElement>(null);
@@ -53,6 +83,14 @@ export function useTerminalSettingsSurface({
 	const [fontFamilyInvalid, setFontFamilyInvalid] = React.useState(false);
 	const [fontSizeDraft, setFontSizeDraft] = React.useState(String(snapshot.preferences.fontSize));
 	const [fontSizeInvalid, setFontSizeInvalid] = React.useState(false);
+	const [terminalPaddingDraft, setTerminalPaddingDraft] = React.useState(
+		String(snapshot.preferences.terminalPadding),
+	);
+	const [terminalPaddingInvalid, setTerminalPaddingInvalid] = React.useState(false);
+	const [scrollbackBytesDraft, setScrollbackBytesDraft] = React.useState(
+		String(terminalDefaultSettingsSnapshot.configuration.scrollbackBytes),
+	);
+	const [scrollbackBytesInvalid, setScrollbackBytesInvalid] = React.useState(false);
 	const [foregroundDraft, setForegroundDraft] = React.useState<string>(
 		snapshot.preferences.customForeground,
 	);
@@ -67,11 +105,18 @@ export function useTerminalSettingsSurface({
 		setFontFamilyInvalid(false);
 		setFontSizeDraft(String(snapshot.preferences.fontSize));
 		setFontSizeInvalid(false);
+		setTerminalPaddingDraft(String(snapshot.preferences.terminalPadding));
+		setTerminalPaddingInvalid(false);
 		setForegroundDraft(snapshot.preferences.customForeground);
 		setForegroundInvalid(false);
 		setBackgroundDraft(snapshot.preferences.customBackground);
 		setBackgroundInvalid(false);
 	}, [snapshot.preferences]);
+
+	React.useEffect(() => {
+		setScrollbackBytesDraft(String(terminalDefaultSettingsSnapshot.configuration.scrollbackBytes));
+		setScrollbackBytesInvalid(false);
+	}, [terminalDefaultSettingsSnapshot.configuration.scrollbackBytes]);
 
 	React.useEffect(() => {
 		if (!snapshot.open) return;
@@ -93,136 +138,30 @@ export function useTerminalSettingsSurface({
 		setPendingSearchTargetId(undefined);
 	}, [category, pendingSearchTargetId]);
 
-	const messages: TerminalSettingsSurfaceMessages = {
-		applicationAppearanceSection: intl.formatMessage(
-			terminalSettingsMessages.applicationAppearanceSection,
-		),
-		applicationThemeDark: intl.formatMessage(terminalSettingsMessages.applicationThemeDark),
-		applicationThemeDescription: intl.formatMessage(
-			terminalSettingsMessages.applicationThemeDescription,
-		),
-		applicationThemeLabel: intl.formatMessage(terminalSettingsMessages.applicationThemeLabel),
-		applicationThemeLight: intl.formatMessage(terminalSettingsMessages.applicationThemeLight),
-		back: intl.formatMessage(terminalSettingsMessages.back),
-		backgroundDescription: intl.formatMessage(terminalSettingsMessages.backgroundDescription),
-		backgroundInvalid: intl.formatMessage(terminalSettingsMessages.backgroundInvalid),
-		backgroundLabel: intl.formatMessage(terminalSettingsMessages.backgroundLabel),
-		backgroundOpacityDescription: intl.formatMessage(
-			terminalSettingsMessages.backgroundOpacityDescription,
-		),
-		backgroundOpacityLabel: intl.formatMessage(terminalSettingsMessages.backgroundOpacityLabel),
-		backgroundOpacityPercentValue: (value: number): string =>
-			intl.formatMessage(terminalSettingsMessages.backgroundOpacityPercentValue, { value }),
-		browserAccessCategory: intl.formatMessage(terminalSettingsMessages.browserAccessCategory),
-		browserAccessDescription: intl.formatMessage(terminalSettingsMessages.browserAccessDescription),
-		browserAccessTitle: intl.formatMessage(terminalSettingsMessages.browserAccessTitle),
-		currentDeviceOnlyNotice: intl.formatMessage(terminalSettingsMessages.currentDeviceOnlyNotice),
-		description: intl.formatMessage(terminalSettingsMessages.description),
-		fontFamilyDescription: intl.formatMessage(terminalSettingsMessages.fontFamilyDescription),
-		fontFamilyDeviceAvailability: intl.formatMessage(
-			terminalSettingsMessages.fontFamilyDeviceAvailability,
-		),
-		fontFamilyInvalid: intl.formatMessage(terminalSettingsMessages.fontFamilyInvalid),
-		fontFamilyLabel: intl.formatMessage(terminalSettingsMessages.fontFamilyLabel),
-		fontSizeDescription: intl.formatMessage(terminalSettingsMessages.fontSizeDescription),
-		fontSizeLabel: intl.formatMessage(terminalSettingsMessages.fontSizeLabel),
-		fontSizeRangeInvalid: intl.formatMessage(terminalSettingsMessages.fontSizeRangeInvalid, {
-			maximum: 48,
-			minimum: 8,
-		}),
-		foregroundDescription: intl.formatMessage(terminalSettingsMessages.foregroundDescription),
-		foregroundInvalid: intl.formatMessage(terminalSettingsMessages.foregroundInvalid),
-		foregroundLabel: intl.formatMessage(terminalSettingsMessages.foregroundLabel),
-		ghosttyMigrationCategory: intl.formatMessage(terminalSettingsMessages.ghosttyMigrationCategory),
-		ghosttyMigrationDescription: intl.formatMessage(
-			terminalSettingsMessages.ghosttyMigrationDescription,
-		),
-		ghosttyMigrationTitle: intl.formatMessage(terminalSettingsMessages.ghosttyMigrationTitle),
-		keyboardShortcutsCategory: intl.formatMessage(keyboardShortcutMessages.category),
-		keyboardShortcutsDescription: intl.formatMessage(keyboardShortcutMessages.description),
-		keyboardShortcutsTitle: intl.formatMessage(keyboardShortcutMessages.title),
-		macosInputCategory: intl.formatMessage(terminalSettingsMessages.macosInputCategory),
-		macosInputDescription: intl.formatMessage(terminalSettingsMessages.macosInputDescription),
-		macosInputTitle: intl.formatMessage(terminalSettingsMessages.macosInputTitle),
-		noResults: intl.formatMessage(terminalSettingsMessages.noResults),
-		openBrowserAccess: intl.formatMessage(terminalSettingsMessages.openBrowserAccess),
-		persistenceInvalidWarning: intl.formatMessage(
-			terminalSettingsMessages.persistenceInvalidWarning,
-		),
-		persistenceReadWarning: intl.formatMessage(terminalSettingsMessages.persistenceReadWarning),
-		persistenceWriteWarning: intl.formatMessage(terminalSettingsMessages.persistenceWriteWarning),
-		reset: intl.formatMessage(terminalSettingsMessages.reset),
-		resetDescription: intl.formatMessage(terminalSettingsMessages.resetDescription),
-		remoteDevelopmentBaselineDescription: intl.formatMessage(
-			terminalSettingsMessages.remoteDevelopmentBaselineDescription,
-		),
-		remoteDevelopmentBaselineTitle: intl.formatMessage(
-			terminalSettingsMessages.remoteDevelopmentBaselineTitle,
-		),
-		remoteDevelopmentCategory: intl.formatMessage(
-			terminalSettingsMessages.remoteDevelopmentCategory,
-		),
-		remoteDevelopmentDescription: intl.formatMessage(
-			terminalSettingsMessages.remoteDevelopmentDescription,
-		),
-		remoteDevelopmentDiagnosticDescription: intl.formatMessage(
-			terminalSettingsMessages.remoteDevelopmentDiagnosticDescription,
-		),
-		remoteDevelopmentDiagnosticLabel: intl.formatMessage(
-			terminalSettingsMessages.remoteDevelopmentDiagnosticLabel,
-		),
-		remoteDevelopmentDiagnosticTitle: intl.formatMessage(
-			terminalSettingsMessages.remoteDevelopmentDiagnosticTitle,
-		),
-		remoteDevelopmentNoChangesDescription: intl.formatMessage(
-			terminalSettingsMessages.remoteDevelopmentNoChangesDescription,
-		),
-		remoteDevelopmentNoChangesTitle: intl.formatMessage(
-			terminalSettingsMessages.remoteDevelopmentNoChangesTitle,
-		),
-		remoteDevelopmentResultDescription: intl.formatMessage(
-			terminalSettingsMessages.remoteDevelopmentResultDescription,
-		),
-		remoteDevelopmentTitle: intl.formatMessage(terminalSettingsMessages.remoteDevelopmentTitle),
-		searchPlaceholder: intl.formatMessage(terminalSettingsMessages.searchPlaceholder),
-		shellIntegrationCategory: intl.formatMessage(terminalSettingsMessages.shellIntegrationCategory),
-		shellIntegrationDescription: intl.formatMessage(
-			terminalSettingsMessages.shellIntegrationDescription,
-		),
-		shellIntegrationTitle: intl.formatMessage(terminalSettingsMessages.shellIntegrationTitle),
-		terminalCategory: intl.formatMessage(terminalSettingsMessages.terminalCategory),
-		terminalColorsSection: intl.formatMessage(terminalSettingsMessages.terminalColorsSection),
-		terminalDisplayThemeCustom: intl.formatMessage(
-			terminalSettingsMessages.terminalDisplayThemeCustom,
-		),
-		terminalDisplayThemeDark: intl.formatMessage(terminalSettingsMessages.terminalDisplayThemeDark),
-		terminalDisplayThemeDescription: intl.formatMessage(
-			terminalSettingsMessages.terminalDisplayThemeDescription,
-		),
-		terminalDisplayThemeHost: intl.formatMessage(terminalSettingsMessages.terminalDisplayThemeHost),
-		terminalDisplayThemeLabel: intl.formatMessage(
-			terminalSettingsMessages.terminalDisplayThemeLabel,
-		),
-		terminalDisplayThemeLight: intl.formatMessage(
-			terminalSettingsMessages.terminalDisplayThemeLight,
-		),
-		terminalTypographySection: intl.formatMessage(
-			terminalSettingsMessages.terminalTypographySection,
-		),
-		title: intl.formatMessage(terminalSettingsMessages.title),
-	};
+	const messages = buildTerminalSettingsSurfaceMessages((descriptor, values) =>
+		intl.formatMessage(descriptor, values),
+	);
 	const applicationThemeVisible = true;
+	const terminalPaddingVisible = true;
 	const fontFamilyVisible = true;
+	const fontLigaturesVisible = true;
 	const fontSizeVisible = true;
+	const fontWeightVisible = true;
+	const fontWeightBoldVisible = true;
 	const displayThemeVisible = true;
 	const foregroundVisible = true;
 	const backgroundVisible = true;
 	const opacityVisible = true;
 	const resetVisible = true;
 	const macosInputVisible = true;
+	const copyOnSelectVisible = terminalInteractionSettingsController !== undefined;
+	const scrollbackBytesVisible = terminalDefaultSettingsControl !== undefined;
 	const plannedSections = resolvePlannedTerminalSettings({
 		category,
 		formatMessage: (descriptor) => intl.formatMessage(descriptor),
+		...(scrollbackBytesVisible
+			? { implementedSettingIds: DESKTOP_TERMINAL_DEFAULT_SETTING_IDS }
+			: {}),
 	});
 	const navigationGroups = TERMINAL_SETTINGS_NAVIGATION_GROUPS.map((group) => ({
 		id: group.id,
@@ -252,6 +191,12 @@ export function useTerminalSettingsSurface({
 			? []
 			: (['macos-option-as-alt'] as const)),
 		...(terminalLaunchProfileClient === undefined ? [] : (['desktop-launch-profiles'] as const)),
+		...(terminalDefaultSettingsControl === undefined
+			? []
+			: (['desktop-terminal-default-settings'] as const)),
+		...(terminalInteractionSettingsController === undefined
+			? []
+			: (['terminal-interaction'] as const)),
 	];
 	const searchCatalog = buildTerminalSettingsSearchCatalog({
 		enabledCapabilities,
@@ -306,6 +251,24 @@ export function useTerminalSettingsSurface({
 		const result = controller.update({ fontSize: Number(fontSizeDraft) });
 		setFontSizeInvalid(result.kind === 'invalid');
 	};
+	const commitTerminalPadding = (): void => {
+		const terminalPadding = parseTerminalPadding(terminalPaddingDraft);
+		if (terminalPadding === null) {
+			setTerminalPaddingInvalid(true);
+			return;
+		}
+		const result = controller.update({ terminalPadding });
+		setTerminalPaddingInvalid(result.kind === 'invalid');
+	};
+	const commitScrollbackBytes = (): void => {
+		const scrollbackBytes = parseScrollbackBytes(scrollbackBytesDraft);
+		if (scrollbackBytes === null) {
+			setScrollbackBytesInvalid(true);
+			return;
+		}
+		setScrollbackBytesInvalid(false);
+		void terminalDefaultSettingsControl?.update({ scrollbackBytes });
+	};
 	const commitForeground = (): void => {
 		const normalized = normalizeTerminalHexColor(foregroundDraft);
 		if (normalized === null) {
@@ -323,7 +286,8 @@ export function useTerminalSettingsSurface({
 		setBackgroundInvalid(controller.update({ customBackground: normalized }).kind === 'invalid');
 	};
 	let persistenceWarning: string | null = null;
-	switch (snapshot.persistenceIssue) {
+	const persistenceIssue = snapshot.persistenceIssue ?? interactionSnapshot.persistenceIssue;
+	switch (persistenceIssue) {
 		case 'invalid-record':
 			persistenceWarning = messages.persistenceInvalidWarning;
 			break;
@@ -334,6 +298,34 @@ export function useTerminalSettingsSurface({
 			persistenceWarning = messages.persistenceWriteWarning;
 			break;
 	}
+	let terminalDefaultSettingsWarning: string | null = null;
+	if (terminalDefaultSettingsControl !== undefined) {
+		switch (terminalDefaultSettingsSnapshot.failureCode) {
+			case 'busy':
+				terminalDefaultSettingsWarning = messages.scrollbackBytesBusyWarning;
+				break;
+			case 'control-unavailable':
+				terminalDefaultSettingsWarning = messages.scrollbackBytesControlUnavailableWarning;
+				break;
+			case 'host-rejected':
+				terminalDefaultSettingsWarning = messages.scrollbackBytesHostRejectedWarning;
+				break;
+			case null:
+				switch (terminalDefaultSettingsSnapshot.persistenceIssue) {
+					case 'invalid-record':
+						terminalDefaultSettingsWarning = messages.scrollbackBytesPersistenceInvalidWarning;
+						break;
+					case 'read-failed':
+						terminalDefaultSettingsWarning = messages.scrollbackBytesPersistenceReadWarning;
+						break;
+					case 'write-failed':
+						terminalDefaultSettingsWarning = messages.scrollbackBytesPersistenceWriteWarning;
+						break;
+					case null:
+						break;
+				}
+		}
+	}
 
 	return {
 		activeSearchResultId,
@@ -343,14 +335,19 @@ export function useTerminalSettingsSurface({
 		backgroundVisible,
 		category,
 		contentReference,
+		copyOnSelect: interactionSnapshot.preferences.copyOnSelect,
+		copyOnSelectVisible,
 		customColorsEnabled: snapshot.preferences.terminalDisplayTheme === 'custom',
 		displayThemeVisible,
 		fontFamilyDraft,
 		fontFamilyInvalid,
 		fontFamilyVisible,
+		fontLigaturesVisible,
 		fontSizeDraft,
 		fontSizeInvalid,
 		fontSizeVisible,
+		fontWeightBoldVisible,
+		fontWeightVisible,
 		foregroundDraft,
 		foregroundInvalid,
 		foregroundVisible,
@@ -389,6 +386,9 @@ export function useTerminalSettingsSurface({
 			setCategory(nextCategory);
 			setPendingSearchTargetId(null);
 		},
+		onCopyOnSelectChange: (checked): void => {
+			terminalInteractionSettingsController?.update({ copyOnSelect: checked });
+		},
 		onFontFamilyBlur: (): void => commitFontFamily(),
 		onFontFamilyChange: (event): void => setFontFamilyDraft(event.currentTarget.value),
 		onFontFamilyKeyDown: (event): void => {
@@ -397,6 +397,9 @@ export function useTerminalSettingsSurface({
 			commitFontFamily();
 			event.currentTarget.blur();
 		},
+		onFontLigaturesChange: (checked): void => {
+			controller.update({ fontLigatures: checked });
+		},
 		onFontSizeBlur: (): void => commitFontSize(),
 		onFontSizeChange: (event): void => setFontSizeDraft(event.currentTarget.value),
 		onFontSizeKeyDown: (event): void => {
@@ -404,6 +407,14 @@ export function useTerminalSettingsSurface({
 			event.preventDefault();
 			commitFontSize();
 			event.currentTarget.blur();
+		},
+		onFontWeightBoldChange: (event): void => {
+			const fontWeightBold = parseTerminalFontWeight(event.currentTarget.value);
+			if (fontWeightBold !== null) controller.update({ fontWeightBold });
+		},
+		onFontWeightChange: (event): void => {
+			const fontWeight = parseTerminalFontWeight(event.currentTarget.value);
+			if (fontWeight !== null) controller.update({ fontWeight });
 		},
 		onForegroundColorChange: (event): void => {
 			setForegroundDraft(event.currentTarget.value);
@@ -426,6 +437,7 @@ export function useTerminalSettingsSurface({
 		onRequestClose: (): void => onRequestClose(),
 		onReset: (): void => {
 			controller.reset();
+			terminalInteractionSettingsController?.reset();
 		},
 		onSearchChange: (event): void => {
 			setQuery(event.currentTarget.value);
@@ -447,6 +459,14 @@ export function useTerminalSettingsSurface({
 			if (event.key !== 'Enter' || activeSearchEntry === undefined) return;
 			event.preventDefault();
 			activateSearchEntry(boundedSearchResultIndex);
+		},
+		onScrollbackBytesBlur: (): void => commitScrollbackBytes(),
+		onScrollbackBytesChange: (event): void => setScrollbackBytesDraft(event.currentTarget.value),
+		onScrollbackBytesKeyDown: (event): void => {
+			if (event.key !== 'Enter') return;
+			event.preventDefault();
+			commitScrollbackBytes();
+			event.currentTarget.blur();
 		},
 		onSurfaceKeyDown: (event): void => {
 			if (event.key !== 'Escape' || event.defaultPrevented) return;
@@ -470,6 +490,14 @@ export function useTerminalSettingsSurface({
 				controller.update({ terminalDisplayTheme });
 			}
 		},
+		onTerminalPaddingBlur: (): void => commitTerminalPadding(),
+		onTerminalPaddingChange: (event): void => setTerminalPaddingDraft(event.currentTarget.value),
+		onTerminalPaddingKeyDown: (event): void => {
+			if (event.key !== 'Enter') return;
+			event.preventDefault();
+			commitTerminalPadding();
+			event.currentTarget.blur();
+		},
 		open: snapshot.open,
 		opacityVisible,
 		persistenceWarning,
@@ -485,5 +513,13 @@ export function useTerminalSettingsSurface({
 		searchActive,
 		searchResults,
 		searchResultsId: TERMINAL_SETTINGS_SEARCH_RESULTS_ID,
+		scrollbackBytesDraft,
+		scrollbackBytesInvalid,
+		scrollbackBytesPending: terminalDefaultSettingsSnapshot.pending,
+		scrollbackBytesVisible,
+		terminalDefaultSettingsWarning,
+		terminalPaddingDraft,
+		terminalPaddingInvalid,
+		terminalPaddingVisible,
 	};
 }

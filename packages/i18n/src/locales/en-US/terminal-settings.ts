@@ -6,6 +6,11 @@ export const enUSTerminalSettingsMessages = {
 		'Choose the light or dark appearance for Orchbee.',
 	'terminal.settings.applicationTheme.label': 'Application theme',
 	'terminal.settings.applicationTheme.light': 'Light',
+	'terminal.settings.appearance.terminalPadding.description':
+		'Add the same amount of space, in CSS pixels, around terminal text. Existing terminals update immediately.',
+	'terminal.settings.appearance.terminalPadding.invalid':
+		'Enter a whole number from {minimum, number} to {maximum, number}.',
+	'terminal.settings.appearance.terminalPadding.label': 'Terminal padding',
 	'terminal.settings.browserAccess.actions.open': 'Open Browser access',
 	'terminal.settings.browserAccess.description':
 		'Use Browser access to open this Desktop terminal in a browser.',
@@ -40,6 +45,9 @@ export const enUSTerminalSettingsMessages = {
 	'terminal.settings.colors.foreground.invalid': 'Enter a color in #RRGGBB format.',
 	'terminal.settings.colors.foreground.label': 'Foreground color',
 	'terminal.settings.description': 'Customize the application and terminal appearance.',
+	'terminal.settings.interaction.copyOnSelect.description':
+		'Copy selected terminal text when the selection completes. Existing terminals update immediately.',
+	'terminal.settings.interaction.copyOnSelect.label': 'Copy on select',
 	'terminal.settings.macosInput.description':
 		'Choose how macOS keyboard input is sent to terminal programs on this Mac.',
 	'terminal.settings.macosInput.optionAsAlt.both': 'Both Option keys',
@@ -230,8 +238,31 @@ export const enUSTerminalSettingsMessages = {
 	'terminal.settings.shellIntegration.title': 'Shell integration',
 	'terminal.settings.shellIntegration.zsh.title': 'Zsh',
 	'terminal.settings.sections.applicationAppearance': 'Application appearance',
+	'terminal.settings.sections.terminalClipboard': 'Selection and clipboard',
 	'terminal.settings.sections.terminalColors': 'Terminal colors',
+	'terminal.settings.sections.terminalHistory': 'History',
+	'terminal.settings.sections.terminalLayout': 'Terminal layout',
+	'terminal.settings.sections.terminalTextShaping': 'Text shaping',
 	'terminal.settings.sections.terminalTypography': 'Terminal typography',
+	'terminal.settings.terminal.scrollbackBytes.busyWarning':
+		'Another scrollback update is still in progress. Try again after it finishes.',
+	'terminal.settings.terminal.scrollbackBytes.controlUnavailableWarning':
+		'Scrollback settings are unavailable until the Desktop control connection is restored.',
+	'terminal.settings.terminal.scrollbackBytes.description':
+		'Maximum retained terminal history, in bytes. New terminals capture this value.',
+	'terminal.settings.terminal.scrollbackBytes.futureNotice':
+		'Running terminals keep their current history limit.',
+	'terminal.settings.terminal.scrollbackBytes.hostRejectedWarning':
+		'The Terminal Host rejected this change. The previous value remains active.',
+	'terminal.settings.terminal.scrollbackBytes.invalid':
+		'Enter a whole number from {minimum, number} to {maximum, number}.',
+	'terminal.settings.terminal.scrollbackBytes.label': 'Scrollback limit',
+	'terminal.settings.terminal.scrollbackBytes.persistenceInvalidWarning':
+		'The saved scrollback setting is invalid. The runtime default is active for this session.',
+	'terminal.settings.terminal.scrollbackBytes.persistenceReadWarning':
+		'The saved scrollback setting could not be read. The runtime default is active for this session.',
+	'terminal.settings.terminal.scrollbackBytes.persistenceWriteWarning':
+		'This scrollback value is active for this session, but could not be saved. Retry the value to save it.',
 	'terminal.settings.title': 'Settings',
 	'terminal.settings.typography.fontFamily.description': 'Set the font used for terminal text.',
 	'terminal.settings.typography.fontFamily.deviceAvailability':
@@ -239,10 +270,19 @@ export const enUSTerminalSettingsMessages = {
 	'terminal.settings.typography.fontFamily.invalid':
 		'Enter a font family between 1 and 256 characters.',
 	'terminal.settings.typography.fontFamily.label': 'Terminal font family',
+	'terminal.settings.typography.fontLigatures.description':
+		'Use discretionary ligatures provided by the terminal font. Existing terminals update immediately.',
+	'terminal.settings.typography.fontLigatures.label': 'Font ligatures',
 	'terminal.settings.typography.fontSize.description': 'Choose a size for terminal text.',
 	'terminal.settings.typography.fontSize.invalid':
 		'Enter a whole number from {minimum, number} to {maximum, number}.',
 	'terminal.settings.typography.fontSize.label': 'Terminal font size',
+	'terminal.settings.typography.fontWeight.description':
+		'Choose the numeric weight used for regular terminal text.',
+	'terminal.settings.typography.fontWeight.label': 'Regular font weight',
+	'terminal.settings.typography.fontWeightBold.description':
+		'Choose the numeric weight used for bold terminal text.',
+	'terminal.settings.typography.fontWeightBold.label': 'Bold font weight',
 	'terminal.settings.search.noResults': 'No settings found.',
 	'terminal.settings.search.placeholder': 'Search settings',
 } as const;

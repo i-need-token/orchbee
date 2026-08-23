@@ -8,7 +8,8 @@ import {
 	type TerminalAppearanceStorage,
 } from '../terminal-appearance-preferences-storage';
 
-const EXPECTED_STORAGE_KEY = 'orchbee:web:terminal-appearance:v1';
+const EXPECTED_STORAGE_KEY = 'orchbee:web:terminal-appearance:v2';
+const LEGACY_STORAGE_KEY = 'orchbee:web:terminal-appearance:v1';
 
 interface StorageFixture extends TerminalAppearanceStorage {
 	readonly getItem: ReturnType<typeof vi.fn<TerminalAppearanceStorage['getItem']>>;
@@ -35,6 +36,47 @@ describe('terminal appearance preference storage', () => {
 				unexpected: true,
 			}),
 		).toBeNull();
+		expect(
+			normalizeTerminalAppearancePreferences({
+				...DEFAULT_TERMINAL_APPEARANCE_PREFERENCES,
+				fontWeight: 450,
+			}),
+		).toBeNull();
+		expect(
+			normalizeTerminalAppearancePreferences({
+				...DEFAULT_TERMINAL_APPEARANCE_PREFERENCES,
+				terminalPadding: 33,
+			}),
+		).toBeNull();
+	});
+
+	it('losslessly migrates a valid v1 record in memory without eagerly writing v2', () => {
+		const legacy = {
+			applicationTheme: 'dark',
+			backgroundOpacityPercent: 80,
+			customBackground: '#abcdef',
+			customForeground: '#123456',
+			fontFamily: 'Legacy Mono',
+			fontSize: 16,
+			terminalDisplayTheme: 'custom',
+		};
+		const storage = createStorage(null, {
+			[LEGACY_STORAGE_KEY]: JSON.stringify(legacy),
+		});
+
+		expect(readTerminalAppearancePreferences(storage)).toEqual({
+			issue: null,
+			preferences: {
+				...legacy,
+				fontLigatures: true,
+				fontWeight: 400,
+				fontWeightBold: 700,
+				terminalPadding: 0,
+			},
+		});
+		expect(storage.getItem).toHaveBeenNthCalledWith(1, EXPECTED_STORAGE_KEY);
+		expect(storage.getItem).toHaveBeenNthCalledWith(2, LEGACY_STORAGE_KEY);
+		expect(storage.setItem).not.toHaveBeenCalled();
 	});
 
 	it('uses the complete default when a record is malformed or storage cannot be read', () => {
@@ -88,9 +130,12 @@ describe('terminal appearance preference storage', () => {
 	});
 });
 
-function createStorage(serialized: string | null): StorageFixture {
+function createStorage(
+	serialized: string | null,
+	overrides: Readonly<Record<string, string | null>> = {},
+): StorageFixture {
 	return {
-		getItem: vi.fn<TerminalAppearanceStorage['getItem']>(() => serialized),
+		getItem: vi.fn<TerminalAppearanceStorage['getItem']>((key) => overrides[key] ?? serialized),
 		setItem: vi.fn<TerminalAppearanceStorage['setItem']>(() => undefined),
 	};
 }

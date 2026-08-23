@@ -6,7 +6,7 @@ import {
 
 import { loadTerminalFonts, measureTerminalFont } from './font-metrics';
 import type { TerminalPresentationConfiguration } from './presentation-configuration';
-import { calculateSurfaceGrid } from './surface-size';
+import { addUniformSurfacePadding, calculateSurfaceGrid } from './surface-size';
 import type { SurfacePadding } from './types';
 
 const MAX_PTY_PIXEL_DIMENSION = 0xffff;
@@ -38,7 +38,7 @@ export async function measureMountedTerminalGeometry(
 	const grid = calculateSurfaceGrid(
 		{ height: root.clientHeight, width: root.clientWidth },
 		{ height: metrics.cellHeight, width: metrics.cellWidth },
-		readSurfacePadding(root),
+		addUniformSurfacePadding(readSurfacePadding(root), configuration.terminalPadding),
 	);
 	if (grid === undefined) return undefined;
 	const cellPixelHeight = clamp(
