@@ -10,6 +10,7 @@ import { terminalPresentationId } from '../../terminal-presentation';
 import { Workbench } from '../Workbench';
 import { createWorkbenchPreviewTerminalPresentationComposition } from '../model/createWorkbenchPreviewTerminalPresentationComposition';
 import { WorkbenchProjectWorkspaceRuntime } from '../model/WorkbenchProjectWorkspaceRuntime';
+import type { WorkbenchProjectWorktreeCapability } from '../types/workbench-project-worktree';
 import {
 	defaultWorkbenchShortcutBindings,
 	type WorkbenchShortcutBindings,
@@ -369,6 +370,180 @@ describe('Workbench Project and Workspace management', () => {
 		expect(projectWorkspaceRuntime.getSnapshot().projects).toEqual([]);
 	});
 
+	it('prioritizes the new branch and only offers repository selection when needed', async () => {
+		const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
+			standaloneCwd: '/system',
+			standaloneTerminalTitle: 'Terminal 1',
+			terminalPresentation: createTestTerminalPresentationComposition('managed-worktree'),
+		});
+		projectWorkspaceRuntime.transition({
+			directory: {
+				available: true,
+				git: null,
+				id: 'directory-orchbee',
+				kind: 'folder',
+				name: 'orchbee',
+				path: '/workspace/orchbee',
+				source: 'selected',
+			},
+			launchConfigurations: [],
+			primaryWorkspaceLaunchConfigurationId: null,
+			primaryWorkspaceName: 'Primary',
+			projectName: 'orchbee',
+			terminalTitle: 'Terminal 1',
+			type: 'project-created',
+		});
+		const discover = vi.fn<WorkbenchProjectWorktreeCapability['discover']>(async () => ({
+			discovery: {
+				managedRoot: '/Users/test/.orchbee-dev-scope/worktrees',
+				repositories: [
+					{
+						defaultBaseRef: 'main',
+						label: 'orchbee',
+						localBaseRefs: ['compare/warp', 'main', 'release'],
+						repositoryId: 'repository-orchbee',
+						sourceDirectoryId: 'directory-orchbee',
+						suggestedBranchName: 'orchbee/workspace-1',
+					},
+				],
+			},
+			kind: 'discovered',
+		}));
+		const create = vi.fn<WorkbenchProjectWorktreeCapability['create']>(async () => ({
+			directoryId: 'managed-worktree-1',
+			kind: 'created',
+			workspaceId: 'workspace-2',
+		}));
+		render(
+			<OrchbeeI18nProvider locale='en-US'>
+				<TooltipProvider>
+					<Workbench
+						actionRuntime={new ActionRuntime()}
+						projectWorkspaceRuntime={projectWorkspaceRuntime}
+						projectWorktree={{ create, discover }}
+						shortcutPlatform='apple'
+					/>
+				</TooltipProvider>
+			</OrchbeeI18nProvider>,
+		);
+
+		fireEvent.click(screen.getByRole('button', { name: 'Project options: orchbee' }));
+		const projectMenu = await screen.findByRole('menu');
+		const newWorkspace = within(projectMenu).getByRole('menuitem', { name: 'New Workspace' });
+		fireEvent.click(newWorkspace);
+		const newWorktree = await screen.findByRole('menuitem', { name: 'New Worktree…' });
+		fireEvent.click(newWorktree);
+
+		const dialog = await screen.findByRole('dialog');
+		await waitFor(() =>
+			expect(discover).toHaveBeenCalledWith({
+				preferredDirectoryId: 'directory-orchbee',
+				projectId: 'project-1',
+			}),
+		);
+		expect(within(dialog).queryByLabelText('Repository')).toBeNull();
+		const base = within(dialog).getByLabelText('Base branch or commit');
+		const branch = within(dialog).getByLabelText('New branch');
+		expect(base).toHaveProperty('value', 'main');
+		expect(branch).toHaveProperty('value', 'orchbee/workspace-1');
+		expect(document.activeElement).toBe(branch);
+		const location = within(dialog).getByLabelText('Managed location');
+		expect(location).toHaveProperty(
+			'value',
+			'/Users/test/.orchbee-dev-scope/worktrees/managed-worktree-…',
+		);
+		expect(location).toHaveProperty('readOnly', true);
+		expect(
+			[...dialog.querySelectorAll('input')]
+				.map((input) => input.id)
+				.filter((id) => id.startsWith('project-worktree-')),
+		).toEqual(['project-worktree-branch', 'project-worktree-base', 'project-worktree-location']);
+		expect(
+			within(dialog)
+				.getByRole('checkbox', { name: 'Create a Workspace for this Worktree' })
+				.getAttribute('aria-checked'),
+		).toBe('true');
+		fireEvent.mouseDown(base);
+		fireEvent.input(base, { inputType: 'insertText', target: { value: 'warp' } });
+		await waitFor(() => {
+			expect(base).toHaveProperty('value', 'warp');
+			expect(screen.getByRole('option', { name: 'compare/warp' })).toBeDefined();
+			expect(screen.queryByRole('option', { name: 'main' })).toBeNull();
+		});
+		const filteredBase = screen.getByRole('option', { name: 'compare/warp' });
+		fireEvent.click(filteredBase);
+		expect(base).toHaveProperty('value', 'compare/warp');
+		fireEvent.input(base, { inputType: 'insertText', target: { value: '8d34c51' } });
+		expect(
+			await screen.findByText(
+				'No matching local branch. The entered branch or commit will be used.',
+			),
+		).toBeDefined();
+		fireEvent.change(branch, { target: { value: 'feature/worktree-ui' } });
+		const form = dialog.querySelector('form');
+		if (form === null) throw new Error('Expected the Worktree creation form.');
+		fireEvent.submit(form);
+
+		await waitFor(() =>
+			expect(create).toHaveBeenCalledWith({
+				baseRef: '8d34c51',
+				branchName: 'feature/worktree-ui',
+				createWorkspace: true,
+				projectId: 'project-1',
+				repositoryId: 'repository-orchbee',
+				sourceDirectoryId: 'directory-orchbee',
+			}),
+		);
+		await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+
+		discover.mockResolvedValue({
+			discovery: {
+				managedRoot: '/Users/test/.orchbee-dev-scope/worktrees',
+				repositories: [
+					{
+						defaultBaseRef: 'main',
+						label: 'orchbee',
+						localBaseRefs: ['main'],
+						repositoryId: 'repository-orchbee',
+						sourceDirectoryId: 'directory-orchbee',
+						suggestedBranchName: 'orchbee/workspace-1',
+					},
+					{
+						defaultBaseRef: 'stable',
+						label: 'ghostty',
+						localBaseRefs: ['stable'],
+						repositoryId: 'repository-ghostty',
+						sourceDirectoryId: 'directory-ghostty',
+						suggestedBranchName: 'ghostty/workspace-1',
+					},
+				],
+			},
+			kind: 'discovered',
+		});
+		fireEvent.click(screen.getByRole('button', { name: 'Project options: orchbee' }));
+		fireEvent.click(
+			within(await screen.findByRole('menu')).getByRole('menuitem', { name: 'New Workspace' }),
+		);
+		fireEvent.click(await screen.findByRole('menuitem', { name: 'New Worktree…' }));
+		const multipleRepositoryDialog = await screen.findByRole('dialog');
+		const repository = await within(multipleRepositoryDialog).findByLabelText('Repository');
+		expect(repository.getAttribute('data-slot')).toBe('select-trigger');
+		expect(repository.textContent).toContain('orchbee');
+		fireEvent.click(repository);
+		const ghosttyRepository = await screen.findByRole('option', { name: 'ghostty' });
+		fireEvent.pointerDown(ghosttyRepository, { pointerType: 'mouse' });
+		fireEvent.click(ghosttyRepository, { detail: 1 });
+		expect(repository.textContent).toContain('ghostty');
+		expect(within(multipleRepositoryDialog).getByLabelText('New branch')).toHaveProperty(
+			'value',
+			'ghostty/workspace-1',
+		);
+		expect(within(multipleRepositoryDialog).getByLabelText('Base branch or commit')).toHaveProperty(
+			'value',
+			'stable',
+		);
+	});
+
 	it('omits redundant primary controls when a Project has one Folder', async () => {
 		const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
 			standaloneCwd: '/system',
@@ -482,30 +657,27 @@ describe('Workbench Project and Workspace management', () => {
 			'Manage Workspace…',
 			'Delete Workspace',
 		]);
-		fireEvent.click(within(workspaceMenu).getByRole('menuitem', { name: 'Delete Workspace' }), {
-			clientX: 320,
-			clientY: 240,
-			detail: 1,
-		});
+		fireEvent.click(within(workspaceMenu).getByRole('menuitem', { name: 'Delete Workspace' }));
 		const deleteWorkspaceTitle = await screen.findByText('Delete Workspace?');
-		const confirmationPopover = deleteWorkspaceTitle.closest<HTMLElement>(
-			'[data-slot="workbench-confirmation-popover"]',
+		const confirmationDialog = deleteWorkspaceTitle.closest<HTMLElement>(
+			'[data-slot="alert-dialog-content"]',
 		);
-		expect(confirmationPopover).not.toBeNull();
-		if (confirmationPopover === null) throw new Error('Expected an anchored confirmation Popover.');
-		expect(confirmationPopover.getAttribute('data-anchor-x')).toBe('320');
-		expect(confirmationPopover.getAttribute('data-anchor-y')).toBe('240');
-		expect(document.querySelector('[data-slot="alert-dialog-overlay"]')).toBeNull();
-		const confirmationCancel = within(confirmationPopover).getByRole('button', { name: 'Cancel' });
-		const confirmationSubmit = within(confirmationPopover).getByRole('button', {
+		expect(confirmationDialog).not.toBeNull();
+		if (confirmationDialog === null) throw new Error('Expected a modal confirmation Alert Dialog.');
+		expect(document.querySelector('[data-slot="alert-dialog-overlay"]')).not.toBeNull();
+		expect(document.querySelector('[data-slot="workbench-confirmation-popover"]')).toBeNull();
+		const confirmationCancel = within(confirmationDialog).getByRole('button', { name: 'Cancel' });
+		const confirmationSubmit = within(confirmationDialog).getByRole('button', {
 			name: 'Delete Workspace',
 		});
 		expect(within(confirmationCancel).getByText('Esc')).toBeDefined();
 		expect(within(confirmationSubmit).getByText('Enter')).toBeDefined();
+		await waitFor(() => expect(document.activeElement).toBe(confirmationSubmit));
 		fireEvent.click(confirmationCancel);
 		await waitFor(() =>
-			expect(document.querySelector('[data-slot="workbench-confirmation-popover"]')).toBeNull(),
+			expect(document.querySelector('[data-slot="alert-dialog-content"]')).toBeNull(),
 		);
+		expect(document.querySelector('[data-slot="alert-dialog-overlay"]')).toBeNull();
 
 		const navigationBeforeContextMenus = projectWorkspaceRuntime.getSnapshot();
 		const workspaceRow = workspaceOptions.closest<HTMLElement>(
@@ -663,6 +835,21 @@ describe('Workbench Project and Workspace management', () => {
 		fireEvent.submit(projectForm);
 		await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
 		expect(projectWorkspaceRuntime.getSnapshot().projects[0]?.name).toBe('Orchbee renamed');
+
+		fireEvent.click(screen.getByRole('button', { name: 'Project options: Orchbee renamed' }));
+		fireEvent.click(
+			within(await screen.findByRole('menu')).getByRole('menuitem', { name: 'Remove Project' }),
+		);
+		const removeProjectTitle = await screen.findByText('Remove Project?');
+		const removeProjectDialog = removeProjectTitle.closest<HTMLElement>(
+			'[data-slot="alert-dialog-content"]',
+		);
+		expect(removeProjectDialog).not.toBeNull();
+		expect(document.querySelector('[data-slot="alert-dialog-overlay"]')).not.toBeNull();
+		if (removeProjectDialog === null) throw new Error('Expected a Project removal Alert Dialog.');
+		fireEvent.click(within(removeProjectDialog).getByRole('button', { name: 'Cancel' }));
+		await waitFor(() => expect(screen.queryByText('Remove Project?')).toBeNull());
+		expect(projectWorkspaceRuntime.getSnapshot().projects).toHaveLength(1);
 	});
 
 	it('previews Project reorder compactly, commits on release, and restores expansion on completion or cancellation', async () => {

@@ -13,6 +13,14 @@ export type {
 	WorkbenchProjectFolderAcquisitionFailureCode,
 	WorkbenchProjectFolderAcquisitionResult,
 } from './types/workbench-project-folder-acquisition';
+export type {
+	WorkbenchProjectWorktreeCapability,
+	WorkbenchProjectWorktreeCreationResult,
+	WorkbenchProjectWorktreeDiscovery,
+	WorkbenchProjectWorktreeDiscoveryResult,
+	WorkbenchProjectWorktreeFailureCode,
+	WorkbenchProjectWorktreeRepository,
+} from './types/workbench-project-worktree';
 export { WORKBENCH_SHORTCUTS, defaultWorkbenchShortcutBindings } from './utils/workbench-shortcuts';
 export type {
 	WorkbenchProjectWorkspaceRuntimeOptions,

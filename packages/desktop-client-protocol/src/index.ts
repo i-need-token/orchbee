@@ -46,6 +46,23 @@ export {
 	DesktopProjectFolderAcquisitionResultSchema,
 	DesktopProjectFolderPathSchema,
 } from './desktop-project-folder-acquisition-contract';
+export {
+	DesktopProjectWorktreeCreationResultSchema,
+	DesktopProjectWorktreeDiscoverySchema,
+	DesktopProjectWorktreeFailureCodeSchema,
+	DesktopProjectWorktreeMainEventSchema,
+	DesktopProjectWorktreeRendererCommandSchema,
+	DesktopProjectWorktreeRepositorySchema,
+	DesktopProjectWorktreeRequestIdSchema,
+} from './desktop-project-worktree-contract';
+export type {
+	DesktopProjectWorktreeCreationResult,
+	DesktopProjectWorktreeDiscovery,
+	DesktopProjectWorktreeFailureCode,
+	DesktopProjectWorktreeMainEvent,
+	DesktopProjectWorktreeRendererCommand,
+	DesktopProjectWorktreeRequestId,
+} from './desktop-project-worktree-contract';
 export type {
 	DesktopProjectFolderAcquisitionFailureCode,
 	DesktopProjectFolderAcquisitionMainEvent,

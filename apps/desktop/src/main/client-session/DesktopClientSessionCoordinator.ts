@@ -6,6 +6,7 @@ import type {
 	WorkbenchSharedDocument,
 	WorkbenchSharedDocumentRevision,
 } from '@orchbee/workbench/document';
+import { workbenchSharedDocumentRevision } from '@orchbee/workbench/document';
 import type { WorkbenchTerminalMetadata } from '@orchbee/workbench-client-protocol';
 
 import type { WorkbenchDocumentStore } from '../workbench-document';
@@ -53,6 +54,18 @@ export type DesktopClientDocumentProposalResult =
 	  }
 	| {
 			readonly document: WorkbenchSharedDocument | null;
+			readonly kind: 'unavailable';
+			readonly reason: 'invalid' | 'read-failed' | 'write-failed';
+	  };
+
+export type DesktopCanonicalDocumentMutationDecision =
+	| { readonly document: WorkbenchSharedDocument; readonly kind: 'commit' }
+	| { readonly kind: 'rejected'; readonly reason: string };
+
+export type DesktopCanonicalDocumentMutationResult =
+	| { readonly document: WorkbenchSharedDocument; readonly kind: 'committed' }
+	| { readonly kind: 'rejected'; readonly reason: string }
+	| {
 			readonly kind: 'unavailable';
 			readonly reason: 'invalid' | 'read-failed' | 'write-failed';
 	  };
@@ -166,6 +179,44 @@ export class DesktopClientSessionCoordinator {
 
 	get sessionCount(): number {
 		return this.#sessions.size;
+	}
+
+	mutateCanonicalDocument(
+		mutation: (document: WorkbenchSharedDocument) => DesktopCanonicalDocumentMutationDecision,
+	): Promise<DesktopCanonicalDocumentMutationResult> {
+		return this.#enqueueOperation(async () => {
+			if (this.#startResult?.kind !== 'ready' || this.#phase.kind !== 'accepting') {
+				return { kind: 'rejected', reason: 'control-unavailable' };
+			}
+			const canonical = this.#canonicalDocument;
+			if (canonical === null) return { kind: 'rejected', reason: 'document-missing' };
+			const decision = mutation(canonical);
+			if (decision.kind === 'rejected') return decision;
+			const document = decision.document;
+			const nextRevision = workbenchSharedDocumentRevision(
+				(BigInt(canonical.revision) + 1n).toString(),
+			);
+			if (document.revision !== nextRevision || !this.#dependencies.validateDocument(document)) {
+				return { kind: 'rejected', reason: 'invalid-mutation' };
+			}
+			const committed = await this.#dependencies.store.commit(canonical.revision, document);
+			if (committed.kind !== 'committed' || committed.revision !== document.revision) {
+				const reason = committed.kind === 'unavailable' ? committed.reason : 'write-failed';
+				this.#becomeUnavailable(reason);
+				return { kind: 'unavailable', reason };
+			}
+			this.#canonicalDocument = document;
+			await this.#dependencies.reconcileTerminalArchives?.(document).catch(() => undefined);
+			this.#broadcast({
+				document,
+				sequence: this.#nextSequence(),
+				type: 'shared-document-published',
+			});
+			await this.#dependencies
+				.reconcileDocument(document, this.publishTerminalEvent)
+				.catch(() => undefined);
+			return { document, kind: 'committed' };
+		});
 	}
 
 	async start(): Promise<
@@ -379,7 +430,7 @@ export class DesktopClientSessionCoordinator {
 				reason: 'control-unavailable',
 			});
 		}
-		const result = this.#enqueueProposal(async () => {
+		const result = this.#enqueueOperation(async () => {
 			if (this.#sessions.get(clientSessionId)?.connected !== true) {
 				return {
 					document: this.#canonicalDocument,
@@ -393,9 +444,7 @@ export class DesktopClientSessionCoordinator {
 		return result;
 	}
 
-	#enqueueProposal(
-		operation: () => Promise<DesktopClientDocumentProposalResult>,
-	): Promise<DesktopClientDocumentProposalResult> {
+	#enqueueOperation<Result>(operation: () => Promise<Result>): Promise<Result> {
 		const result = this.#proposalTail.then(operation);
 		this.#proposalTail = result.then(
 			() => undefined,

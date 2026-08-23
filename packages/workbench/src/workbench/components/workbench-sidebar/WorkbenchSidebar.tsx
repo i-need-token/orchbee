@@ -13,8 +13,9 @@ import {
 import * as React from 'react';
 
 import type { ProjectWorkspaceState } from '../../../project-workspace';
-import type { WorkbenchConfirmationAnchor } from '../../types/workbench-confirmation';
 import type { WorkbenchProjectFolderAcquisition } from '../../types/workbench-project-folder-acquisition';
+import type { WorkbenchProjectWorktreeCapability } from '../../types/workbench-project-worktree';
+import { CreateWorktreeDialog } from './components/create-worktree-dialog/CreateWorktreeDialog';
 import { CreateProjectDialog } from './components/create-project-dialog/CreateProjectDialog';
 import { ProjectCreateMenu } from './components/project-create-menu/ProjectCreateMenu';
 import { ProjectManagerDialog } from './components/project-manager-dialog/ProjectManagerDialog';
@@ -23,6 +24,7 @@ import { WorkspaceManagerDialog } from './components/workspace-manager-dialog/Wo
 import { useWorkbenchSidebar } from './hooks/useWorkbenchSidebar';
 import { useNavigationReorderDrag } from './hooks/useNavigationReorderDrag';
 import { useProjectFolderAcquisition } from './hooks/useProjectFolderAcquisition';
+import { useProjectWorktreeCreation } from './hooks/useProjectWorktreeCreation';
 import type { WorkbenchProjectNavigationMessages } from './types/workbench-sidebar-types';
 import styles from './WorkbenchSidebar.module.css';
 
@@ -32,11 +34,7 @@ interface WorkbenchSidebarProps {
 	readonly addProjectDirectory: (projectId: string, path: string) => void;
 	readonly createWorkspace: (projectId: string, directoryId: string) => void;
 	readonly createProject: (path: string) => void;
-	readonly deleteWorkspace: (
-		projectId: string,
-		workspaceId: string,
-		anchor: WorkbenchConfirmationAnchor,
-	) => void;
+	readonly deleteWorkspace: (projectId: string, workspaceId: string) => void;
 	readonly duplicateWorkspace: (projectId: string, workspaceId: string) => void;
 	readonly label: string;
 	readonly onSearch: (returnFocus: HTMLElement) => void;
@@ -44,8 +42,9 @@ interface WorkbenchSidebarProps {
 	readonly projectLabel: string;
 	readonly projectNavigationMessages: WorkbenchProjectNavigationMessages;
 	readonly projectFolderAcquisition?: WorkbenchProjectFolderAcquisition | undefined;
+	readonly projectWorktree?: WorkbenchProjectWorktreeCapability | undefined;
 	readonly projectWorkspaceState: ProjectWorkspaceState;
-	readonly removeProject: (projectId: string, anchor: WorkbenchConfirmationAnchor) => void;
+	readonly removeProject: (projectId: string) => void;
 	readonly removeProjectDirectory: (projectId: string, directoryId: string) => void;
 	readonly reorderProject: (projectId: string, beforeProjectId: string | null) => void;
 	readonly reorderWorkspace: (
@@ -85,6 +84,7 @@ export function WorkbenchSidebar({
 	projectLabel,
 	projectNavigationMessages,
 	projectFolderAcquisition,
+	projectWorktree,
 	projectWorkspaceState,
 	removeProject,
 	removeProjectDirectory,
@@ -114,6 +114,10 @@ export function WorkbenchSidebar({
 	const projectCreation = view.projectCreation;
 	const projectManagement = view.projectManagement;
 	const workspaceManagement = view.workspaceManagement;
+	const worktreeCreation = useProjectWorktreeCreation({
+		capability: projectWorktree,
+		projectWorkspaceState,
+	});
 	return (
 		<>
 			<aside aria-label={label} className={styles['root']} data-slot='workbench-sidebar'>
@@ -182,6 +186,7 @@ export function WorkbenchSidebar({
 									activateWorkspace={activateWorkspace}
 									activeLocation={projectWorkspaceState.activeLocation}
 									createWorkspace={createWorkspace}
+									createWorktree={projectWorktree === undefined ? undefined : worktreeCreation.open}
 									deleteWorkspace={deleteWorkspace}
 									displacement={
 										projectReorder.displacedItemIds.includes(project.id)
@@ -283,6 +288,25 @@ export function WorkbenchSidebar({
 					primaryDirectoryId={workspaceManagement.primaryDirectoryId}
 					project={workspaceManagement.project}
 					workspace={workspaceManagement.workspace}
+				/>
+			)}
+			{worktreeCreation.dialog === null ? null : (
+				<CreateWorktreeDialog
+					baseRef={worktreeCreation.dialog.baseRef}
+					branchName={worktreeCreation.dialog.branchName}
+					createWorkspace={worktreeCreation.dialog.createWorkspace}
+					discovery={worktreeCreation.dialog.discovery}
+					failure={worktreeCreation.dialog.failure}
+					loading={worktreeCreation.dialog.phase === 'discovering'}
+					messages={projectNavigationMessages}
+					repositoryId={worktreeCreation.dialog.repositoryId}
+					submitting={worktreeCreation.dialog.phase === 'submitting'}
+					onBaseRefChange={worktreeCreation.setBaseRef}
+					onBranchNameChange={worktreeCreation.setBranchName}
+					onClose={worktreeCreation.close}
+					onCreateWorkspaceChange={worktreeCreation.setCreateWorkspace}
+					onRepositoryChange={worktreeCreation.setRepository}
+					onSubmit={worktreeCreation.submit}
 				/>
 			)}
 			{folderAcquisition.failure === null ? null : (

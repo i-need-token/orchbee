@@ -50,6 +50,49 @@ describe('DesktopClientSessionCoordinator', () => {
 		expect(first.clientSessionId).not.toBe(second.clientSessionId);
 	});
 
+	it('serializes an owned canonical mutation with renderer proposals and publishes its commit', async () => {
+		const current = document('4', 'Canonical');
+		const candidate = document('5', 'Owned mutation');
+		const store = storeWith({ document: current, kind: 'available' });
+		store.commit.mockResolvedValue({ kind: 'committed', revision: candidate.revision });
+		const reconcileDocument = vi.fn<() => Promise<void>>(async () => undefined);
+		const coordinator = coordinatorWith(store, { reconcileDocument });
+		await coordinator.start();
+		reconcileDocument.mockClear();
+		const publications: DesktopClientSessionPublication[] = [];
+		register(coordinator, publisher(publications));
+
+		await expect(
+			coordinator.mutateCanonicalDocument((canonical) => {
+				expect(canonical).toBe(current);
+				return { document: candidate, kind: 'commit' };
+			}),
+		).resolves.toEqual({ document: candidate, kind: 'committed' });
+
+		expect(store.commit).toHaveBeenCalledWith(current.revision, candidate);
+		expect(coordinator.canonicalDocument).toBe(candidate);
+		expect(publications).toMatchObject([
+			{ document: candidate, sequence: '1', type: 'shared-document-published' },
+		]);
+		expect(reconcileDocument).toHaveBeenCalledWith(candidate, expect.any(Function));
+	});
+
+	it('keeps canonical state unchanged when an owned mutation is rejected', async () => {
+		const current = document('4', 'Canonical');
+		const store = storeWith({ document: current, kind: 'available' });
+		const coordinator = coordinatorWith(store);
+		await coordinator.start();
+
+		await expect(
+			coordinator.mutateCanonicalDocument(() => ({
+				kind: 'rejected',
+				reason: 'project-not-found',
+			})),
+		).resolves.toEqual({ kind: 'rejected', reason: 'project-not-found' });
+		expect(store.commit).not.toHaveBeenCalled();
+		expect(coordinator.canonicalDocument).toBe(current);
+	});
+
 	it('commits the first proposal, publishes before its effect, and converges an equivalent race', async () => {
 		const store = storeWith({ kind: 'missing' });
 		store.commit.mockResolvedValue({

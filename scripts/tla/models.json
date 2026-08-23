@@ -187,6 +187,42 @@
 			]
 		},
 		{
+			"id": "desktop-project-worktree-creation",
+			"owner": "@orchbee/desktop",
+			"workspace": "apps/desktop",
+			"module": "apps/desktop/formal/tla/ProjectWorktreeCreation.tla",
+			"config": "apps/desktop/formal/tla/ProjectWorktreeCreation.cfg",
+			"claims": ["apps/desktop/docs/project-worktree-creation.md"],
+			"triggers": [
+				"apps/desktop/src/main/client-session/**",
+				"apps/desktop/src/main/project-worktree/**",
+				"packages/desktop-client-protocol/src/desktop-project-worktree-contract.ts",
+				"packages/workbench/src/project-workspace/**"
+			],
+			"requiredCoverage": [
+				"RequestCreation",
+				"RejectBusy",
+				"RetireRenderer",
+				"ReconnectRenderer",
+				"GitCreationSucceeds",
+				"GitCreationFailsClean",
+				"GitCreationFailsPartial",
+				"PersistGitCreation",
+				"RestartBeginCompensation",
+				"BeginDocumentCommit",
+				"CommitDocumentEffect",
+				"DocumentCommitFails",
+				"FinishDocumentCommit",
+				"RestartRecoverCommitted",
+				"CompensationSucceeds",
+				"CompensationFails",
+				"RetryRecovery",
+				"ClearCommittedLedger",
+				"DeliverSuccess",
+				"FailSuccessDelivery"
+			]
+		},
+		{
 			"id": "desktop-terminal-archive",
 			"owner": "@orchbee/desktop",
 			"workspace": "apps/desktop",

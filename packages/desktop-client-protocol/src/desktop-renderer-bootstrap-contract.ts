@@ -10,6 +10,7 @@ export const DESKTOP_RENDERER_PORT_ROLES = [
 	'application-lifetime',
 	'browser-access',
 	'project-folder-acquisition',
+	'project-worktree',
 	'terminal-launch-profiles',
 ] as const;
 

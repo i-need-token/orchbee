@@ -15,8 +15,6 @@ import type {
 	WorkbenchActionMenuCommand,
 	WorkbenchActionMenuEntry,
 } from '../../../../types/workbench-action-menu';
-import type { WorkbenchConfirmationAnchor } from '../../../../types/workbench-confirmation';
-import { workbenchConfirmationAnchorFromMenuEvent } from '../../../../utils/workbenchConfirmationAnchorFromMenuEvent';
 import { useNavigationReorderDrag } from '../../hooks/useNavigationReorderDrag';
 import type { WorkbenchProjectNavigationMessages } from '../../types/workbench-sidebar-types';
 import styles from './ProjectNavigationItem.module.css';
@@ -25,11 +23,8 @@ interface ProjectNavigationItemProps {
 	readonly activateWorkspace: (projectId: string, workspaceId: string) => void;
 	readonly activeLocation: ProjectWorkspaceState['activeLocation'];
 	readonly createWorkspace: (projectId: string, directoryId: string) => void;
-	readonly deleteWorkspace: (
-		projectId: string,
-		workspaceId: string,
-		anchor: WorkbenchConfirmationAnchor,
-	) => void;
+	readonly createWorktree?: ((projectId: string) => void) | undefined;
+	readonly deleteWorkspace: (projectId: string, workspaceId: string) => void;
 	readonly displacement: 'down' | 'up' | null;
 	readonly duplicateWorkspace: (projectId: string, workspaceId: string) => void;
 	readonly dragging: boolean;
@@ -43,7 +38,7 @@ interface ProjectNavigationItemProps {
 		workspaceId: string,
 		beforeWorkspaceId: string | null,
 	) => void;
-	readonly removeProject: (projectId: string, anchor: WorkbenchConfirmationAnchor) => void;
+	readonly removeProject: (projectId: string) => void;
 	readonly showProjectManager: (projectId: string) => void;
 	readonly showWorkspaceManager: (projectId: string, workspaceId: string) => void;
 	readonly toggleProjectExpansion: (projectId: string) => void;
@@ -53,6 +48,7 @@ export function ProjectNavigationItem({
 	activateWorkspace,
 	activeLocation,
 	createWorkspace,
+	createWorktree,
 	deleteWorkspace,
 	displacement,
 	duplicateWorkspace,
@@ -76,6 +72,22 @@ export function ProjectNavigationItem({
 	const projectMenuEntries: readonly WorkbenchActionMenuEntry[] = [
 		{
 			groups: [
+				...(createWorktree === undefined
+					? []
+					: [
+							{
+								commands: [
+									{
+										icon: 'git-branch',
+										id: 'new-managed-worktree',
+										kind: 'command',
+										label: messages.newWorktree,
+										onSelect: () => createWorktree(project.id),
+									} satisfies WorkbenchActionMenuCommand,
+								],
+								id: 'project-new-worktree',
+							},
+						]),
 				{
 					commands: projectFolders.map(
 						(directory): WorkbenchActionMenuCommand => ({
@@ -125,8 +137,7 @@ export function ProjectNavigationItem({
 			id: 'remove-project',
 			kind: 'command',
 			label: messages.removeProject,
-			onSelect: (event) =>
-				removeProject(project.id, workbenchConfirmationAnchorFromMenuEvent(event)),
+			onSelect: () => removeProject(project.id),
 		},
 	];
 	return (
@@ -184,7 +195,7 @@ export function ProjectNavigationItem({
 						>
 							<ProductIcon name='ellipsis' />
 						</DropdownMenuTrigger>
-						<WorkbenchActionDropdownMenuContent entries={projectMenuEntries} />
+						<WorkbenchActionDropdownMenuContent align='start' entries={projectMenuEntries} />
 					</DropdownMenu>
 				</ContextMenuTrigger>
 				<WorkbenchActionContextMenuContent entries={projectMenuEntries} />
@@ -222,12 +233,7 @@ export function ProjectNavigationItem({
 								id: 'delete-workspace',
 								kind: 'command',
 								label: messages.deleteWorkspace,
-								onSelect: (event) =>
-									deleteWorkspace(
-										project.id,
-										workspace.id,
-										workbenchConfirmationAnchorFromMenuEvent(event),
-									),
+								onSelect: () => deleteWorkspace(project.id, workspace.id),
 							},
 						];
 						const workspaceDragging = workspaceReorder.draggingItemId === workspace.id;

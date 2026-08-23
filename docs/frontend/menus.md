@@ -21,8 +21,9 @@ not implement parallel mutations for those invocation paths.
 
 - Give every icon-only trigger an accessible name independently of its Tooltip. Follow
   [`tooltips.md`](tooltips.md) when a visible action hint is useful.
-- An add or ellipsis trigger opens its anchored menu from the trigger's block-end edge, aligned to
-  its inline-end edge. Collision handling may flip or shift the surface to keep it visible.
+- An add or ellipsis trigger opens its anchored menu from the trigger's block-end edge. It aligns
+  to the inline-end edge unless the owning feature's current authority explicitly requires
+  inline-start alignment. Collision handling may flip or shift the surface to keep it visible.
 - A Context Menu opens at the pointer or long-press location. Suppress the platform menu only
   inside a trigger that owns a product Context Menu.
 - Opening a Context Menu does not activate, select, expand, or navigate the owning object unless

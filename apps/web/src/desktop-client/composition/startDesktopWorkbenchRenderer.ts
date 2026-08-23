@@ -29,6 +29,7 @@ import {
 import { DesktopWorkbench } from '../desktop-workbench';
 import { DesktopTerminalProjectionClient } from '../terminal-projection-control';
 import { DesktopProjectFolderAcquisitionClient } from '../project-folder-acquisition';
+import { DesktopProjectWorktreeClient } from '../project-worktree';
 import { DesktopTerminalLaunchProfileClient } from '../terminal-launch-profiles';
 import type { TerminalFileDropCapability } from '../../terminal-file-drop';
 
@@ -56,6 +57,7 @@ export function startDesktopWorkbenchRenderer(
 	projectionPort: MessagePort,
 	browserAccessPort: MessagePort,
 	projectFolderAcquisitionPort: MessagePort,
+	projectWorktreePort: MessagePort,
 	terminalLaunchProfilePort: MessagePort,
 	terminalFileDropCapability?: TerminalFileDropCapability,
 ): DesktopWorkbenchRendererSession {
@@ -71,6 +73,7 @@ export function startDesktopWorkbenchRenderer(
 	const projectFolderAcquisitionClient = new DesktopProjectFolderAcquisitionClient(
 		projectFolderAcquisitionPort,
 	);
+	const projectWorktreeClient = new DesktopProjectWorktreeClient(projectWorktreePort);
 	const terminalLaunchProfileClient = new DesktopTerminalLaunchProfileClient(
 		terminalLaunchProfilePort,
 	);
@@ -124,6 +127,7 @@ export function startDesktopWorkbenchRenderer(
 		reactRoot?.unmount();
 		reactRoot = undefined;
 		projectFolderAcquisitionClient.dispose();
+		projectWorktreeClient.dispose();
 		terminalLaunchProfileClient.dispose();
 		routing?.dispose();
 		routing = undefined;
@@ -169,6 +173,7 @@ export function startDesktopWorkbenchRenderer(
 			macosTerminalInputSettingsController,
 			projectWorkspaceRuntime: workbenchClientRuntime.projectWorkspaceRuntime,
 			projectFolderAcquisition: projectFolderAcquisitionClient,
+			projectWorktree: projectWorktreeClient,
 			requestBrowserAccess: (returnFocus) => {
 				browserAccessReturnFocus = returnFocus;
 				browserAccessController.open();

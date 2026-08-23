@@ -34,6 +34,12 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 		expect(first).toEqual(second);
 		expect(first.binaryPath).toBe(path.resolve('/private/bin/orchbee-terminal-host'));
 		expect(first.runtimeDirectory).toBe(path.resolve('/private/runtime'));
+		expect(first.managedWorktreeRoot).toBe(
+			path.resolve('/users/orchbee/library/orchbee/worktrees'),
+		);
+		expect(first.projectWorktreeOperationStorePath).toBe(
+			path.resolve('/users/orchbee/library/orchbee/project-worktree-operations-v1.json'),
+		);
 		expect(first.browserAccess).toEqual({ kind: 'disabled' });
 		expect(first.terminalBindingStorePath).toBe(path.resolve('/private/recovery/bindings-v3.json'));
 		expect(first.terminalArchiveDirectory).toBe(

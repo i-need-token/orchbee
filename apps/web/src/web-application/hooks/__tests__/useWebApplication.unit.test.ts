@@ -490,7 +490,7 @@ async function confirmCloseAnyway(): Promise<void> {
 	const closeAnyway = await vi.waitFor(() =>
 		requiredElement<HTMLButtonElement>(
 			[...document.querySelectorAll<HTMLButtonElement>('button')].find(
-				(button) => button.textContent?.trim() === 'Close anyway',
+				(button) => button.textContent?.trim().startsWith('Close anyway') === true,
 			) ?? null,
 		),
 	);

@@ -1,0 +1,31 @@
+.select {
+	width: 100%;
+}
+
+.modalPopup {
+	z-index: var(--ob-ref-layer-modal);
+}
+
+.checkbox {
+	display: flex;
+	align-items: center;
+	gap: var(--ob-ref-space-2-5);
+	font: var(--ob-sys-typography-body-sm);
+	cursor: pointer;
+}
+
+.status {
+	margin: 0;
+	color: var(--ob-sys-color-text-muted);
+	font: var(--ob-sys-typography-body-sm);
+}
+
+.failure {
+	display: grid;
+	gap: var(--ob-ref-space-1);
+	padding: var(--ob-ref-space-3);
+	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-status-danger-border);
+	border-radius: var(--ob-ref-radius-ui-md);
+	color: var(--ob-sys-color-status-danger-text);
+	font: var(--ob-sys-typography-body-sm);
+}

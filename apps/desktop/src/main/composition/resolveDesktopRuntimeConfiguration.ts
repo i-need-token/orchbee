@@ -57,6 +57,8 @@ export interface DesktopRuntimeConfiguration {
 	readonly binaryPath: string;
 	readonly browserAccess: DesktopBrowserAccessRuntimeConfiguration;
 	readonly endpointId: string;
+	readonly managedWorktreeRoot: string;
+	readonly projectWorktreeOperationStorePath: string;
 	readonly runtimeDirectory: string;
 	readonly terminalArchiveDirectory: string;
 	readonly terminalBindingStorePath: string;
@@ -201,6 +203,11 @@ export function resolveDesktopRuntimeConfiguration(
 		binaryPath,
 		browserAccess,
 		endpointId,
+		managedWorktreeRoot: path.join(input.userDataPath, 'worktrees'),
+		projectWorktreeOperationStorePath: path.join(
+			input.userDataPath,
+			'project-worktree-operations-v1.json',
+		),
 		runtimeDirectory,
 		terminalArchiveDirectory: path.join(recoveryDirectory, 'terminal-archives-v1'),
 		terminalBindingStorePath: path.join(recoveryDirectory, 'bindings-v3.json'),

@@ -317,7 +317,7 @@ describe('DesktopApplication', () => {
 		await application.shutdown();
 	});
 
-	it('starts without creating an attachment and atomically transfers six scoped controls', async () => {
+	it('starts without creating an attachment and atomically transfers seven scoped controls', async () => {
 		const harness = createHarness();
 		const application = createApplication(harness.dependencies);
 
@@ -350,12 +350,14 @@ describe('DesktopApplication', () => {
 				expect.anything(),
 				expect.anything(),
 				expect.anything(),
+				expect.anything(),
 			],
 		);
 		expect(harness.clientSessionPorts[0]?.start).toHaveBeenCalledOnce();
 		expect(harness.browserAccessBrokers[0]?.start).toHaveBeenCalledOnce();
 		expect(harness.projectionBrokers[0]?.start).toHaveBeenCalledOnce();
 		expect(harness.projectFolderAcquisitionBrokers[0]?.start).toHaveBeenCalledOnce();
+		expect(harness.projectWorktreeBrokers[0]?.start).toHaveBeenCalledOnce();
 		expect(harness.terminalLaunchProfileBrokers[0]?.start).toHaveBeenCalledOnce();
 		expect(harness.terminalLaunchProfileController.initialize).toHaveBeenCalledOnce();
 		expect(harness.createTerminalRuntime.mock.calls[0]?.[5]?.()).toEqual(
@@ -441,7 +443,7 @@ describe('DesktopApplication', () => {
 		const application = createApplication(harness.dependencies);
 
 		await expect(application.start()).rejects.toThrow('renderer projection broker factory failed');
-		expect(harness.messageChannels).toHaveLength(6);
+		expect(harness.messageChannels).toHaveLength(7);
 		for (const channel of harness.messageChannels) {
 			expect(channel.port1.close).toHaveBeenCalledOnce();
 			expect(channel.port2.close).toHaveBeenCalledOnce();
@@ -562,8 +564,8 @@ describe('DesktopApplication', () => {
 			throw new Error('gateway projection factory failed');
 		});
 		await expect(factoryOpenClient()).rejects.toThrow('gateway projection factory failed');
-		expect(factoryHarness.messageChannels).toHaveLength(8);
-		for (const channel of factoryHarness.messageChannels.slice(6)) {
+		expect(factoryHarness.messageChannels).toHaveLength(9);
+		for (const channel of factoryHarness.messageChannels.slice(7)) {
 			expect(channel.port1.close).toHaveBeenCalledOnce();
 			expect(channel.port2.close).toHaveBeenCalledOnce();
 		}
@@ -591,7 +593,7 @@ describe('DesktopApplication', () => {
 		});
 		await expect(startOpenClient()).rejects.toThrow('gateway projection start failed');
 		expect(startHarness.projectionBrokers[1]?.dispose).toHaveBeenCalledOnce();
-		for (const channel of startHarness.messageChannels.slice(6)) {
+		for (const channel of startHarness.messageChannels.slice(7)) {
 			expect(channel.port1.close).toHaveBeenCalledOnce();
 			expect(channel.port2.close).toHaveBeenCalled();
 		}
@@ -644,7 +646,7 @@ describe('DesktopApplication', () => {
 
 		expect(harness.clientSessionPorts[0]?.close).not.toHaveBeenCalled();
 		expect(harness.projectionBrokers[0]?.dispose).not.toHaveBeenCalled();
-		expect(harness.messageChannels).toHaveLength(6);
+		expect(harness.messageChannels).toHaveLength(7);
 		expect(harness.webContents.postMessage).toHaveBeenCalledOnce();
 		await application.shutdown();
 	});
@@ -663,12 +665,12 @@ describe('DesktopApplication', () => {
 		await vi.waitFor(() => expect(projectionDispose).toHaveBeenCalledTimes(2));
 		await Promise.resolve();
 		expect(harness.webContents.postMessage).toHaveBeenCalledOnce();
-		expect(harness.messageChannels).toHaveLength(6);
+		expect(harness.messageChannels).toHaveLength(7);
 		expect(harness.projectionBrokers).toHaveLength(1);
 
 		emitRendererDocumentLoad(harness.webContents);
 		await vi.waitFor(() => expect(harness.webContents.postMessage).toHaveBeenCalledTimes(2));
-		expect(harness.messageChannels).toHaveLength(12);
+		expect(harness.messageChannels).toHaveLength(14);
 		expect(harness.projectionBrokers).toHaveLength(2);
 		await application.shutdown();
 	});
@@ -1691,6 +1693,10 @@ function createHarness(
 		readonly dispose: ReturnType<typeof vi.fn<() => void>>;
 		readonly start: ReturnType<typeof vi.fn<() => void>>;
 	}> = [];
+	const projectWorktreeBrokers: Array<{
+		readonly dispose: ReturnType<typeof vi.fn<() => void>>;
+		readonly start: ReturnType<typeof vi.fn<() => void>>;
+	}> = [];
 	const terminalLaunchProfileBrokers: Array<{
 		readonly dispose: ReturnType<typeof vi.fn<() => void>>;
 		readonly start: ReturnType<typeof vi.fn<() => void>>;
@@ -1930,6 +1936,19 @@ function createHarness(
 			>['resolveDefaultLaunch']
 		>(() => terminalLaunchProfileBaseLaunch),
 	} satisfies ReturnType<DesktopApplicationDependencies['createTerminalLaunchProfileController']>;
+	type ProjectWorktreeRuntime = ReturnType<
+		DesktopApplicationDependencies['createProjectWorktreeRuntime']
+	>;
+	const projectWorktreeRuntime: ProjectWorktreeRuntime = {
+		create: vi
+			.fn<ProjectWorktreeRuntime['create']>()
+			.mockResolvedValue({ code: 'control-unavailable', kind: 'failed' }),
+		discover: vi
+			.fn<ProjectWorktreeRuntime['discover']>()
+			.mockResolvedValue({ code: 'control-unavailable', kind: 'failed' }),
+		dispose: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
+		start: vi.fn<() => Promise<'ready'>>().mockResolvedValue('ready'),
+	};
 	let identifierSequence = 0;
 	const dependencies: DesktopApplicationDependencies = {
 		connectHost: vi.fn<DesktopApplicationDependencies['connectHost']>().mockResolvedValue(host),
@@ -1992,6 +2011,19 @@ function createHarness(
 			projectFolderAcquisitionBrokers.push(broker);
 			return broker;
 		}),
+		createProjectWorktreeBroker: vi.fn<
+			DesktopApplicationDependencies['createProjectWorktreeBroker']
+		>(() => {
+			const broker = {
+				dispose: vi.fn<() => void>(),
+				start: vi.fn<() => void>(),
+			};
+			projectWorktreeBrokers.push(broker);
+			return broker;
+		}),
+		createProjectWorktreeRuntime: vi
+			.fn<DesktopApplicationDependencies['createProjectWorktreeRuntime']>()
+			.mockReturnValue(projectWorktreeRuntime),
 		createTerminalLaunchProfileBroker: vi.fn<
 			DesktopApplicationDependencies['createTerminalLaunchProfileBroker']
 		>(() => {
@@ -2052,6 +2084,8 @@ function createHarness(
 		},
 		projectionBrokers,
 		projectFolderAcquisitionBrokers,
+		projectWorktreeBrokers,
+		projectWorktreeRuntime,
 		terminalLaunchProfileBrokers,
 		terminalLaunchProfileController,
 		projectionServices,

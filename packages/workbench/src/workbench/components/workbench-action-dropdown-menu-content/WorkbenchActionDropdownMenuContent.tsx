@@ -15,14 +15,16 @@ import type * as React from 'react';
 import type { WorkbenchActionMenuEntry } from '../../types/workbench-action-menu';
 
 interface WorkbenchActionDropdownMenuContentProps {
+	readonly align?: 'end' | 'start';
 	readonly entries: readonly WorkbenchActionMenuEntry[];
 }
 
 export function WorkbenchActionDropdownMenuContent({
+	align = 'end',
 	entries,
 }: WorkbenchActionDropdownMenuContentProps): React.ReactNode {
 	return (
-		<DropdownMenuContent align='end'>
+		<DropdownMenuContent align={align}>
 			{entries.map((entry) => {
 				switch (entry.kind) {
 					case 'command':

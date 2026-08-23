@@ -87,6 +87,11 @@ import {
 	DesktopProjectFolderAcquisitionRuntime,
 } from '../project-folder-acquisition';
 import {
+	DesktopProjectWorktreeBroker,
+	DesktopProjectWorktreeRuntime,
+	FileProjectWorktreeOperationStore,
+} from '../project-worktree';
+import {
 	TerminalExitPublicationLedger,
 	TerminalExitSpillStore,
 	type TerminalExitSpillReason,
@@ -159,6 +164,16 @@ interface DesktopProjectFolderAcquisitionBrokerHandle {
 	dispose(): void;
 	start(): void;
 }
+
+interface DesktopProjectWorktreeBrokerHandle {
+	dispose(): void;
+	start(): void;
+}
+
+type DesktopProjectWorktreeRuntimeHandle = Pick<
+	DesktopProjectWorktreeRuntime,
+	'create' | 'discover' | 'dispose' | 'start'
+>;
 
 interface DesktopTerminalLaunchProfileBrokerHandle {
 	dispose(): void;
@@ -248,6 +263,18 @@ export interface DesktopApplicationDependencies {
 		port: MessagePortMain,
 		window: BrowserWindow,
 	) => DesktopProjectFolderAcquisitionBrokerHandle;
+	readonly createProjectWorktreeBroker: (
+		port: MessagePortMain,
+		runtime: DesktopProjectWorktreeRuntimeHandle,
+	) => DesktopProjectWorktreeBrokerHandle;
+	readonly createProjectWorktreeRuntime: (options: {
+		readonly allocateIdentifier: () => string;
+		readonly coordinator: DesktopClientSessionCoordinator;
+		readonly defaultCwd: string;
+		readonly managedRoot: string;
+		readonly operationStorePath: string;
+		readonly terminalTitle: string;
+	}) => DesktopProjectWorktreeRuntimeHandle;
 	readonly createTerminalLaunchProfileBroker: (
 		port: MessagePortMain,
 		controller: DesktopTerminalLaunchProfileBrokerController,
@@ -319,6 +346,16 @@ const defaultDependencies: DesktopApplicationDependencies = {
 			port,
 			new DesktopProjectFolderAcquisitionRuntime(window),
 		),
+	createProjectWorktreeBroker: (port, runtime) => new DesktopProjectWorktreeBroker(port, runtime),
+	createProjectWorktreeRuntime: (options) =>
+		new DesktopProjectWorktreeRuntime({
+			allocateIdentifier: options.allocateIdentifier,
+			coordinator: options.coordinator,
+			defaultCwd: options.defaultCwd,
+			managedRoot: options.managedRoot,
+			operationStore: new FileProjectWorktreeOperationStore(options.operationStorePath),
+			terminalTitle: options.terminalTitle,
+		}),
 	createTerminalLaunchProfileBroker: (port, controller) =>
 		new DesktopTerminalLaunchProfileBroker(port, controller),
 	createTerminalLaunchProfileController: (options) =>
@@ -394,6 +431,8 @@ export class DesktopApplication {
 	#pendingRendererBootstrapCleanup: (() => Promise<void>) | undefined;
 	#projectionControlBroker: DesktopProjectionControlBrokerHandle | undefined;
 	#projectFolderAcquisitionBroker: DesktopProjectFolderAcquisitionBrokerHandle | undefined;
+	#projectWorktreeBroker: DesktopProjectWorktreeBrokerHandle | undefined;
+	#projectWorktreeRuntime: DesktopProjectWorktreeRuntimeHandle | undefined;
 	#quitPrepared = false;
 	#removeHostListener: (() => void) | undefined;
 	#shuttingDown = false;
@@ -655,6 +694,18 @@ export class DesktopApplication {
 					`Desktop client session coordinator stopped with ${coordinatorStart.reason}.`,
 				);
 			}
+			const projectWorktreeRuntime = this.#dependencies.createProjectWorktreeRuntime({
+				allocateIdentifier: this.#dependencies.randomIdentifier,
+				coordinator: clientSessionCoordinator,
+				defaultCwd,
+				managedRoot: this.#options.runtime.managedWorktreeRoot,
+				operationStorePath: this.#options.runtime.projectWorktreeOperationStorePath,
+				terminalTitle: intl.formatMessage(workbenchTabMessages.terminalTitle),
+			});
+			this.#projectWorktreeRuntime = projectWorktreeRuntime;
+			if ((await projectWorktreeRuntime.start()) !== 'ready') {
+				throw new Error('Desktop Project Worktree control is unavailable.');
+			}
 			this.#publishAllPendingTerminalMetadata();
 			this.#promoteSpilledTerminalExits();
 			this.#scheduleTerminalExitRetry();
@@ -680,6 +731,15 @@ export class DesktopApplication {
 			}
 			try {
 				await this.#disposeBrowserAccessResources();
+			} catch (cleanupError: unknown) {
+				cleanupFailure ??= cleanupError;
+			}
+			try {
+				const projectWorktreeRuntime = this.#projectWorktreeRuntime;
+				await projectWorktreeRuntime?.dispose();
+				if (this.#projectWorktreeRuntime === projectWorktreeRuntime) {
+					this.#projectWorktreeRuntime = undefined;
+				}
 			} catch (cleanupError: unknown) {
 				cleanupFailure ??= cleanupError;
 			}
@@ -834,6 +894,15 @@ export class DesktopApplication {
 			firstFailure ??= error;
 		}
 		try {
+			const projectWorktreeRuntime = this.#projectWorktreeRuntime;
+			await projectWorktreeRuntime?.dispose();
+			if (this.#projectWorktreeRuntime === projectWorktreeRuntime) {
+				this.#projectWorktreeRuntime = undefined;
+			}
+		} catch (error: unknown) {
+			firstFailure ??= error;
+		}
+		try {
 			const coordinator = this.#clientSessionCoordinator;
 			await coordinator?.dispose();
 			if (this.#clientSessionCoordinator === coordinator) {
@@ -897,6 +966,8 @@ export class DesktopApplication {
 		this.#browserAccessBroker = undefined;
 		this.#projectFolderAcquisitionBroker?.dispose();
 		this.#projectFolderAcquisitionBroker = undefined;
+		this.#projectWorktreeBroker?.dispose();
+		this.#projectWorktreeBroker = undefined;
 		this.#terminalLaunchProfileBroker?.dispose();
 		this.#terminalLaunchProfileBroker = undefined;
 		const clientSessionBroker = this.#clientSessionBroker;
@@ -1051,6 +1122,9 @@ export class DesktopApplication {
 		let projectFolderAcquisitionChannel:
 			| { readonly port1: MessagePortMain; readonly port2: MessagePortMain }
 			| undefined;
+		let projectWorktreeChannel:
+			| { readonly port1: MessagePortMain; readonly port2: MessagePortMain }
+			| undefined;
 		let terminalLaunchProfileChannel:
 			| { readonly port1: MessagePortMain; readonly port2: MessagePortMain }
 			| undefined;
@@ -1059,6 +1133,7 @@ export class DesktopApplication {
 		let lifetimeBroker: DesktopApplicationLifetimeBrokerHandle | undefined;
 		let browserAccessBroker: DesktopBrowserAccessBrokerHandle | undefined;
 		let projectFolderAcquisitionBroker: DesktopProjectFolderAcquisitionBrokerHandle | undefined;
+		let projectWorktreeBroker: DesktopProjectWorktreeBrokerHandle | undefined;
 		let terminalLaunchProfileBroker: DesktopTerminalLaunchProfileBrokerHandle | undefined;
 		const cleanup = async (): Promise<void> => {
 			let firstFailure: unknown;
@@ -1074,6 +1149,11 @@ export class DesktopApplication {
 			}
 			try {
 				projectFolderAcquisitionBroker?.dispose();
+			} catch (error: unknown) {
+				firstFailure ??= error;
+			}
+			try {
+				projectWorktreeBroker?.dispose();
 			} catch (error: unknown) {
 				firstFailure ??= error;
 			}
@@ -1101,6 +1181,7 @@ export class DesktopApplication {
 			closeRendererChannel(clientSessionChannel);
 			closeRendererChannel(projectionChannel);
 			closeRendererChannel(projectFolderAcquisitionChannel);
+			closeRendererChannel(projectWorktreeChannel);
 			closeRendererChannel(terminalLaunchProfileChannel);
 			if (firstFailure !== undefined) throw firstFailure;
 		};
@@ -1110,6 +1191,7 @@ export class DesktopApplication {
 			clientSessionChannel = this.#dependencies.createMessageChannel();
 			projectionChannel = this.#dependencies.createMessageChannel();
 			projectFolderAcquisitionChannel = this.#dependencies.createMessageChannel();
+			projectWorktreeChannel = this.#dependencies.createMessageChannel();
 			terminalLaunchProfileChannel = this.#dependencies.createMessageChannel();
 			projectionBroker = this.#dependencies.createProjectionControlBroker(
 				projectionChannel.port2,
@@ -1158,6 +1240,14 @@ export class DesktopApplication {
 				projectFolderAcquisitionChannel.port2,
 				window,
 			);
+			const projectWorktreeRuntime = this.#projectWorktreeRuntime;
+			if (projectWorktreeRuntime === undefined) {
+				throw new Error('Desktop Project Worktree runtime is unavailable.');
+			}
+			projectWorktreeBroker = this.#dependencies.createProjectWorktreeBroker(
+				projectWorktreeChannel.port2,
+				projectWorktreeRuntime,
+			);
 			terminalLaunchProfileBroker = this.#dependencies.createTerminalLaunchProfileBroker(
 				terminalLaunchProfileChannel.port2,
 				this.#terminalLaunchProfileController,
@@ -1167,6 +1257,7 @@ export class DesktopApplication {
 			lifetimeBroker.start();
 			projectionBroker.start();
 			projectFolderAcquisitionBroker.start();
+			projectWorktreeBroker.start();
 			terminalLaunchProfileBroker.start();
 			window.webContents.postMessage(
 				DESKTOP_RENDERER_BOOTSTRAP_IPC_CHANNEL,
@@ -1180,6 +1271,7 @@ export class DesktopApplication {
 					lifetimeChannel.port1,
 					browserAccessChannel.port1,
 					projectFolderAcquisitionChannel.port1,
+					projectWorktreeChannel.port1,
 					terminalLaunchProfileChannel.port1,
 				],
 			);
@@ -1188,6 +1280,7 @@ export class DesktopApplication {
 			this.#clientSessionBroker = clientSessionBroker;
 			this.#projectionControlBroker = projectionBroker;
 			this.#projectFolderAcquisitionBroker = projectFolderAcquisitionBroker;
+			this.#projectWorktreeBroker = projectWorktreeBroker;
 			this.#terminalLaunchProfileBroker = terminalLaunchProfileBroker;
 		} catch (error: unknown) {
 			this.#pendingRendererBootstrapCleanup = cleanup;

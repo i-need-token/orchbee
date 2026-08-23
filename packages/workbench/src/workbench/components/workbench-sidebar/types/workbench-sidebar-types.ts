@@ -1,4 +1,5 @@
 import type { WorkbenchProjectFolderAcquisitionFailureCode } from '../../../types/workbench-project-folder-acquisition';
+import type { WorkbenchProjectWorktreeFailureCode } from '../../../types/workbench-project-worktree';
 
 export interface WorkbenchProjectNavigationMessages {
 	readonly add: string;
@@ -22,6 +23,7 @@ export interface WorkbenchProjectNavigationMessages {
 	>;
 	readonly folderAcquisitionFailureTitle: string;
 	readonly newFolder: string;
+	readonly newWorktree: string;
 	readonly projectFolders: string;
 	readonly projectManage: string;
 	readonly projectManageAddFolder: string;
@@ -34,6 +36,21 @@ export interface WorkbenchProjectNavigationMessages {
 	readonly projectManageTitle: string;
 	readonly projectOptions: string;
 	readonly projectWorktrees: string;
+	readonly projectWorktreeBase: string;
+	readonly projectWorktreeBaseNoMatches: string;
+	readonly projectWorktreeBranch: string;
+	readonly projectWorktreeCreateWorkspace: string;
+	readonly projectWorktreeDescription: string;
+	readonly projectWorktreeFailureMessages: Readonly<
+		Record<WorkbenchProjectWorktreeFailureCode, string>
+	>;
+	readonly projectWorktreeFailureTitle: string;
+	readonly projectWorktreeLoading: string;
+	readonly projectWorktreeLocation: string;
+	readonly projectWorktreeLocationAutomatic: (root: string) => string;
+	readonly projectWorktreeNoRepositories: string;
+	readonly projectWorktreeRepository: string;
+	readonly projectWorktreeTitle: string;
 	readonly removeProject: string;
 	readonly removeProjectFolder: string;
 	readonly save: string;

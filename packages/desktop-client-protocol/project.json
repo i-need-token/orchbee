@@ -3,7 +3,7 @@
 	"domain": "desktop-client-protocol",
 	"runtime": ["universal"],
 	"stability": "experimental",
-	"responsibility": "Strict data contracts for the sandboxed Electron Desktop renderer bootstrap, fixed six-port capability ordering, security attestation, application-lifetime control, and device-local terminal-launch-profile management.",
+	"responsibility": "Strict data contracts for the sandboxed Electron Desktop renderer bootstrap, fixed seven-port capability ordering, security attestation, application-lifetime control, existing-Project-Folder acquisition, managed Project Worktree discovery and creation, and device-local terminal-launch-profile management.",
 	"nonGoals": [
 		"Owning Electron Main, preload, renderer, Gateway, network, authentication, or transport lifecycle implementations.",
 		"Owning shared Workbench client-session, terminal projection, projected attachment, Workbench document, TerminalPresentation, PTY, VT, terminal process, or product-interface semantics.",

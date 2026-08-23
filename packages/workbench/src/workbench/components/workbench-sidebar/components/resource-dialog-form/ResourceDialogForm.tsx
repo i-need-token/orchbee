@@ -4,6 +4,7 @@ import * as React from 'react';
 import styles from './ResourceDialogForm.module.css';
 
 interface ResourceDialogFormProps {
+	readonly cancelDisabled?: boolean | undefined;
 	readonly cancelLabel: string;
 	readonly children: React.ReactNode;
 	readonly onCancel: () => void;
@@ -13,6 +14,7 @@ interface ResourceDialogFormProps {
 }
 
 export function ResourceDialogForm({
+	cancelDisabled = false,
 	cancelLabel,
 	children,
 	onCancel,
@@ -30,7 +32,7 @@ export function ResourceDialogForm({
 		>
 			{children}
 			<DialogFooter>
-				<Button type='button' variant='outline' onClick={onCancel}>
+				<Button disabled={cancelDisabled} type='button' variant='outline' onClick={onCancel}>
 					{cancelLabel}
 					<Kbd aria-hidden='true' className={styles['shortcut']}>
 						Esc

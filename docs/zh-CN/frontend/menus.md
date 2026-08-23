@@ -19,8 +19,8 @@
 
 - 每个纯图标触发器都要独立拥有可访问名称。需要可见动作提示时遵循
   [`tooltips.md`](tooltips.md)。
-- 加号或省略号触发器从其 Block-end 边缘打开锚定菜单，并与 Inline-end 边缘对齐。碰撞处理可以
-  翻转或移动菜单表面以保持可见。
+- 加号或省略号触发器从其 Block-end 边缘打开锚定菜单。除非所属功能的当前权威明确要求
+  Inline-start 对齐，否则菜单与 Inline-end 边缘对齐。碰撞处理可以翻转或移动菜单表面以保持可见。
 - Context Menu 在 Pointer 或长按位置打开。只有拥有产品 Context Menu 的触发区域才抑制平台菜单。
 - 打开 Context Menu 不得激活、选择、展开或导航所属对象，除非该变化本身是显式动作。
 - Hover、Focus 和 Open 的展示由 CSS 与 Primitive 状态属性驱动。不得在功能状态中镜像 Pointer

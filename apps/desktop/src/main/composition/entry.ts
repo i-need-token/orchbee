@@ -26,6 +26,7 @@ import {
 } from '../secure-keyboard-entry';
 import { DesktopWindowActions } from '../window-actions';
 import { DesktopApplication } from './DesktopApplication';
+import { prepareDesktopDataRoot } from './prepareDesktopDataRoot';
 import { resolveDesktopRuntimeConfiguration } from './resolveDesktopRuntimeConfiguration';
 
 let desktopApplication: DesktopApplication | undefined;
@@ -38,6 +39,13 @@ let desktopWindowActions: DesktopWindowActions | undefined;
 let developmentRestartPlanStore: DesktopDevelopmentRestartPlanStore | undefined;
 let bypassQuitGate = false;
 registerDesktopRendererScheme(protocol);
+const desktopDataRoot = prepareDesktopDataRoot({
+	environment: process.env,
+	homeDirectory: app.getPath('home'),
+	packaged: app.isPackaged,
+	platform: process.platform,
+});
+app.setPath('userData', desktopDataRoot.path);
 const singleInstanceLockOwned = app.requestSingleInstanceLock();
 
 if (!singleInstanceLockOwned) {

@@ -1,11 +1,11 @@
 # Project and Workspace Platform Effects
 
-| Field             | Value                                                                                                                                                                                             |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Status            | Current model, browser preview, native existing-Folder selection, and local shared-document persistence are implemented; filesystem mutation, Git, launch, and cross-device effects remain future |
-| Owner             | Workbench product maintainers and platform application owners                                                                                                                                     |
-| Current authority | [`packages/workbench/docs/project-workspace.md`](../../packages/workbench/docs/project-workspace.md)                                                                                              |
-| Exit condition    | Implement separately accepted platform slices, move maintained facts into their owning application and package guides, then delete this proposal                                                  |
+| Field             | Value                                                                                                                                                                                                             |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Status            | Current model, browser preview, native existing-Folder selection, local shared-document persistence, and the accepted managed-Worktree creation contract are owned; launch and cross-device effects remain future |
+| Owner             | Workbench product maintainers and platform application owners                                                                                                                                                     |
+| Current authority | [`packages/workbench/docs/project-workspace.md`](../../packages/workbench/docs/project-workspace.md)                                                                                                              |
+| Exit condition    | Implement separately accepted platform slices, move maintained facts into their owning application and package guides, then delete this proposal                                                                  |
 
 Simplified Chinese review translation:
 [project-workspace-experience.zh-CN.md](project-workspace-experience.zh-CN.md). English remains
@@ -50,20 +50,26 @@ the point-in-time selection claim.
 Git observation and mutation belong to a platform or Git capability owner. Workbench may consume
 validated Directory descriptors whose semantic kind is `worktree`.
 
+The accepted Desktop creation slice is maintained by
+[`apps/desktop/docs/project-worktree-creation.md`](../../apps/desktop/docs/project-worktree-creation.md),
+with its environment-isolated default path maintained by
+[`apps/desktop/docs/data-root.md`](../../apps/desktop/docs/data-root.md).
+
 The accepted product direction is:
 
 - creating a Worktree is a Project-level operation and may optionally create a Workspace using that
   Directory;
 - the create-Workspace option defaults to enabled;
+- creation uses Desktop's environment-isolated fixed managed root; application-level and
+  Project-level location overrides require a later accepted settings slice;
 - deleting a Workspace retains its Worktree by default;
 - deleting the Worktree requires an explicit user choice and must be rejected while another
   Workspace, terminal CWD, or final Project Directory still depends on it;
 - Git deletion succeeds before the Workspace and Directory are removed from product state; failure
   preserves them and exposes an owned diagnostic.
 
-Before implementation, the Git owner must define repository selection for multi-repository Projects,
-base ref and branch rules, target path policy, existing-Worktree handling, cancellation, rollback,
-and recovery when Git succeeds but the product-state commit fails.
+Deletion still requires a separately accepted slice defining dependency checks, confirmation,
+terminal-CWD handling, Git ordering, and recovery.
 
 ## Launch configuration and remaining durability
 
@@ -80,8 +86,8 @@ recovery evidence.
 
 ## Exclusions
 
-Except for the accepted existing-Folder picker and its point-in-time validation, this proposal does
-not authorize filesystem mutation or Git implementation, generic renderer access to native
-capabilities, remote Folder connections, automatic deletion of source data, PTY ownership in
-Workbench, or cross-device synchronization. Each additional effectful platform slice still requires
-its own bounded authorization and verification.
+Except for the accepted existing-Folder picker and managed-Worktree creation contracts, this
+proposal does not authorize other filesystem mutation or Git implementation, generic renderer
+access to native capabilities, remote Folder connections, automatic deletion of source data, PTY
+ownership in Workbench, or cross-device synchronization. Each additional effectful platform slice
+still requires its own bounded authorization and verification.

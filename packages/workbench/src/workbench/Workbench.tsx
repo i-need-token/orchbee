@@ -7,6 +7,7 @@ import {
 	AlertDialogFooter,
 	AlertDialogHeader,
 	AlertDialogTitle,
+	Kbd,
 	ResizableHandle,
 	ResizablePanel,
 	ResizablePanelGroup,
@@ -21,7 +22,6 @@ import {
 	type WorkbenchLayoutStorage,
 } from '../workbench-layout-storage';
 import { WorkbenchSidebarToggle } from './components/workbench-sidebar-toggle/WorkbenchSidebarToggle';
-import { WorkbenchConfirmationPopover } from './components/workbench-confirmation-popover/WorkbenchConfirmationPopover';
 import { WorkbenchSidebar } from './components/workbench-sidebar/WorkbenchSidebar';
 import { WorkbenchPanelWorkspace } from './components/workbench-panel-workspace/WorkbenchPanelWorkspace';
 import { WorkbenchSearchSurface } from './components/workbench-search-surface/WorkbenchSearchSurface';
@@ -40,6 +40,7 @@ import type { WorkbenchShortcutPlatform } from './types/workbench-shortcut-platf
 import type { WorkbenchSearchProvider } from './types/workbench-search-provider';
 import type { WorkbenchTerminalSurface } from './types/workbench-terminal-surface';
 import type { WorkbenchProjectFolderAcquisition } from './types/workbench-project-folder-acquisition';
+import type { WorkbenchProjectWorktreeCapability } from './types/workbench-project-worktree';
 import type { WorkbenchProjectWorkspaceRuntime } from './model/WorkbenchProjectWorkspaceRuntime';
 import {
 	defaultWorkbenchShortcutBindings,
@@ -56,6 +57,7 @@ export interface WorkbenchProps {
 	readonly onSettings?: WorkbenchHostActionCallback | undefined;
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
 	readonly projectFolderAcquisition?: WorkbenchProjectFolderAcquisition | undefined;
+	readonly projectWorktree?: WorkbenchProjectWorktreeCapability | undefined;
 	readonly searchProviders?: readonly WorkbenchSearchProvider[] | undefined;
 	readonly shortcutBindings?: WorkbenchShortcutBindings | undefined;
 	readonly shortcutPlatform: WorkbenchShortcutPlatform;
@@ -72,6 +74,7 @@ export function Workbench({
 	onSettings,
 	projectWorkspaceRuntime,
 	projectFolderAcquisition,
+	projectWorktree,
 	searchProviders = EMPTY_WORKBENCH_SEARCH_PROVIDERS,
 	shortcutBindings,
 	shortcutPlatform,
@@ -105,16 +108,15 @@ export function Workbench({
 			shortcutLabel={view.sidebarShortcutLabel}
 		/>
 	);
-	let projectWorkspaceConfirmationSurface: React.ReactNode = null;
-	if (view.projectWorkspaceConfirmation?.anchor === null) {
-		projectWorkspaceConfirmationSurface = (
+	const projectWorkspaceConfirmationSurface =
+		view.projectWorkspaceConfirmation === null ? null : (
 			<AlertDialog
 				open
 				onOpenChange={(open) => {
 					if (!open) view.cancelProjectWorkspaceConfirmation();
 				}}
 			>
-				<AlertDialogContent>
+				<AlertDialogContent initialFocus={view.projectWorkspaceConfirmationConfirmButtonRef}>
 					<AlertDialogHeader>
 						<AlertDialogTitle>{view.projectWorkspaceConfirmation.title}</AlertDialogTitle>
 						<AlertDialogDescription>
@@ -124,27 +126,24 @@ export function Workbench({
 					<AlertDialogFooter>
 						<AlertDialogCancel onClick={view.cancelProjectWorkspaceConfirmation}>
 							{view.projectWorkspaceConfirmation.cancelLabel}
+							<Kbd aria-hidden='true' className={styles['confirmationShortcut']}>
+								Esc
+							</Kbd>
 						</AlertDialogCancel>
-						<AlertDialogAction variant='destructive' onClick={view.confirmProjectWorkspaceAction}>
+						<AlertDialogAction
+							ref={view.projectWorkspaceConfirmationConfirmButtonRef}
+							variant='destructive'
+							onClick={view.confirmProjectWorkspaceAction}
+						>
 							{view.projectWorkspaceConfirmation.confirmLabel}
+							<Kbd aria-hidden='true' className={styles['confirmationShortcut']}>
+								Enter
+							</Kbd>
 						</AlertDialogAction>
 					</AlertDialogFooter>
 				</AlertDialogContent>
 			</AlertDialog>
 		);
-	} else if (view.projectWorkspaceConfirmation !== null) {
-		projectWorkspaceConfirmationSurface = (
-			<WorkbenchConfirmationPopover
-				anchor={view.projectWorkspaceConfirmation.anchor}
-				cancelLabel={view.projectWorkspaceConfirmation.cancelLabel}
-				confirmLabel={view.projectWorkspaceConfirmation.confirmLabel}
-				description={view.projectWorkspaceConfirmation.description}
-				onCancel={view.cancelProjectWorkspaceConfirmation}
-				onConfirm={view.confirmProjectWorkspaceAction}
-				title={view.projectWorkspaceConfirmation.title}
-			/>
-		);
-	}
 
 	return (
 		<div className={styles['root']} ref={view.shortcutScopeReference}>
@@ -183,6 +182,7 @@ export function Workbench({
 										projectLabel={view.projectLabel}
 										projectNavigationMessages={view.projectNavigationMessages}
 										projectFolderAcquisition={projectFolderAcquisition}
+										projectWorktree={projectWorktree}
 										projectWorkspaceState={view.projectWorkspaceState}
 										removeProject={view.removeProject}
 										removeProjectDirectory={view.removeProjectDirectory}

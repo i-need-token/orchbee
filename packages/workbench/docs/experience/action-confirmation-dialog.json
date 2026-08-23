@@ -1,0 +1,42 @@
+{
+	"$schema": "../../../../schemas/experience-component.schema.json",
+	"id": "workbench.action-confirmation-dialog",
+	"kind": "experience",
+	"status": "canonical",
+	"name": "Workbench Action Confirmation Dialog",
+	"description": "Presents destructive Project and Workspace Action confirmations as a consistent centered modal decision.",
+	"owner": "@orchbee/workbench",
+	"visibility": "private",
+	"intents": ["confirm-action", "confirm-destructive-action"],
+	"implementation": [
+		"packages/workbench/src/workbench/Workbench.tsx",
+		"packages/workbench/src/workbench/hooks/useWorkbench.ts"
+	],
+	"stories": [
+		{
+			"exportName": "ProjectWorkspaceNavigation",
+			"file": "packages/workbench/stories/workbench.stories.tsx",
+			"id": "packages-workbench-workbench--project-workspace-navigation",
+			"states": [
+				"Open a Project or Workspace action menu, choose its destructive command, and inspect the centered modal Alert Dialog and page-wide backdrop.",
+				"Cancel with Escape or the visible Cancel action, then reopen and confirm with Enter or the destructive action."
+			]
+		}
+	],
+	"uses": ["workbench.action-menu"],
+	"useWhen": [
+		"A Project or Workspace Action requires an explicit decision before a destructive transition.",
+		"The confirmation must remain visually and behaviorally identical across menu, shortcut, and other Action invocation sources."
+	],
+	"avoidWhen": [
+		"The workflow contains editable fields, multiple steps, or content requiring a full task Dialog.",
+		"The Action is reversible and does not require an interrupting confirmation decision."
+	],
+	"invariants": [
+		"The Alert Dialog stays centered in the viewport above a page-wide modal backdrop regardless of invocation source.",
+		"Title and description identify the exact consequence before the destructive Action can commit.",
+		"Cancel and confirm expose visible keyboard hints, support Escape and Enter, and settle the pending Action exactly once.",
+		"Dismissal and Action cancellation reject the pending confirmation without committing the destructive transition."
+	],
+	"references": ["packages/workbench/docs/project-workspace.md"]
+}

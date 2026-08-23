@@ -31,7 +31,6 @@ import type {
 	WorkbenchTerminalCreateCallback,
 } from '../types/workbench-host-actions';
 import type { WorkbenchSearchFilter } from '../types/workbench-search';
-import type { WorkbenchConfirmationAnchor } from '../types/workbench-confirmation';
 import type { WorkbenchProjectNavigationMessages } from '../components/workbench-sidebar/types/workbench-sidebar-types';
 import {
 	createWorkbenchSearchState,
@@ -49,10 +48,6 @@ import type {
 	WorkbenchProjectWorkspaceRuntime,
 	WorkbenchTerminalContext,
 } from '../model/WorkbenchProjectWorkspaceRuntime';
-import {
-	readWorkbenchConfirmationAnchor,
-	workbenchConfirmationCapabilities,
-} from '../model/workbench-confirmation-invocation';
 import { useWorkbenchActions } from './useWorkbenchActions';
 import { useWorkbenchShortcuts } from './useWorkbenchShortcuts';
 
@@ -72,11 +67,7 @@ interface WorkbenchView {
 	readonly confirmProjectWorkspaceAction: () => void;
 	readonly createProject: (path: string) => void;
 	readonly createWorkspace: (projectId: string, directoryId: string) => void;
-	readonly deleteWorkspace: (
-		projectId: string,
-		workspaceId: string,
-		anchor: WorkbenchConfirmationAnchor,
-	) => void;
+	readonly deleteWorkspace: (projectId: string, workspaceId: string) => void;
 	readonly duplicateWorkspace: (projectId: string, workspaceId: string) => void;
 	readonly isSidebarVisible: boolean;
 	readonly leftPanelSize: string;
@@ -99,15 +90,15 @@ interface WorkbenchView {
 	readonly sidebarLabel: string;
 	readonly projectLabel: string;
 	readonly projectNavigationMessages: WorkbenchProjectNavigationMessages;
+	readonly projectWorkspaceConfirmationConfirmButtonRef: React.RefObject<HTMLButtonElement | null>;
 	readonly projectWorkspaceConfirmation: {
-		readonly anchor: WorkbenchConfirmationAnchor | null;
 		readonly cancelLabel: string;
 		readonly confirmLabel: string;
 		readonly description: string;
 		readonly title: string;
 	} | null;
 	readonly projectWorkspaceState: ProjectWorkspaceState;
-	readonly removeProject: (projectId: string, anchor: WorkbenchConfirmationAnchor) => void;
+	readonly removeProject: (projectId: string) => void;
 	readonly removeProjectDirectory: (projectId: string, directoryId: string) => void;
 	readonly reorderProject: (projectId: string, beforeProjectId: string | null) => void;
 	readonly reorderWorkspace: (
@@ -169,8 +160,8 @@ export function useWorkbench({
 	const pendingProjectWorkspaceConfirmation = React.useRef<((accepted: boolean) => void) | null>(
 		null,
 	);
+	const projectWorkspaceConfirmationConfirmButtonRef = React.useRef<HTMLButtonElement>(null);
 	const [projectWorkspaceConfirmation, setProjectWorkspaceConfirmation] = React.useState<{
-		readonly anchor: WorkbenchConfirmationAnchor | null;
 		readonly cancelLabel: string;
 		readonly confirmLabel: string;
 		readonly description: string;
@@ -328,7 +319,7 @@ export function useWorkbench({
 		};
 		const registration = actionRuntime.registerConfirmationPresenter(
 			actions.scope,
-			(confirmation, invocation, signal) =>
+			(confirmation, _invocation, signal) =>
 				new Promise<boolean>((resolve) => {
 					pendingProjectWorkspaceConfirmation.current?.(false);
 					let settled = false;
@@ -345,7 +336,6 @@ export function useWorkbench({
 					const onAbort = () => finish(false);
 					pendingProjectWorkspaceConfirmation.current = finish;
 					setProjectWorkspaceConfirmation({
-						anchor: readWorkbenchConfirmationAnchor(invocation.capabilities),
 						cancelLabel:
 							confirmation.cancelLabel === undefined
 								? intl.formatMessage(workbenchMessages.panelCancel)
@@ -389,10 +379,8 @@ export function useWorkbench({
 		createWorkspace: (projectId, directoryId) => {
 			actions.invoke(WORKBENCH_ACTION_IDS.createWorkspace, { directoryId, projectId }, 'menu');
 		},
-		deleteWorkspace: (projectId, workspaceId, anchor) => {
-			actions.invoke(WORKBENCH_ACTION_IDS.deleteWorkspace, { projectId, workspaceId }, 'menu', {
-				capabilities: workbenchConfirmationCapabilities(anchor),
-			});
+		deleteWorkspace: (projectId, workspaceId) => {
+			actions.invoke(WORKBENCH_ACTION_IDS.deleteWorkspace, { projectId, workspaceId }, 'menu');
 		},
 		duplicateWorkspace: (projectId, workspaceId) => {
 			actions.invoke(WORKBENCH_ACTION_IDS.duplicateWorkspace, { projectId, workspaceId }, 'menu');
@@ -476,6 +464,7 @@ export function useWorkbench({
 				workbenchMessages.projectFolderAcquisitionTitle,
 			),
 			newFolder: intl.formatMessage(workbenchMessages.projectNewFolder),
+			newWorktree: intl.formatMessage(workbenchMessages.projectNewWorktree),
 			projectFolders: intl.formatMessage(workbenchMessages.projectFolders),
 			projectCreate: intl.formatMessage(workbenchMessages.projectCreate),
 			projectCreateDescription: intl.formatMessage(workbenchMessages.projectCreateDescription),
@@ -502,6 +491,50 @@ export function useWorkbench({
 			projectManageTitle: intl.formatMessage(workbenchMessages.projectManageTitle),
 			projectOptions: intl.formatMessage(workbenchMessages.projectOptions),
 			projectWorktrees: intl.formatMessage(workbenchMessages.projectWorktrees),
+			projectWorktreeBase: intl.formatMessage(workbenchMessages.projectWorktreeBase),
+			projectWorktreeBaseNoMatches: intl.formatMessage(
+				workbenchMessages.projectWorktreeBaseNoMatches,
+			),
+			projectWorktreeBranch: intl.formatMessage(workbenchMessages.projectWorktreeBranch),
+			projectWorktreeCreateWorkspace: intl.formatMessage(
+				workbenchMessages.projectWorktreeCreateWorkspace,
+			),
+			projectWorktreeDescription: intl.formatMessage(workbenchMessages.projectWorktreeDescription),
+			projectWorktreeFailureMessages: {
+				'base-not-found': intl.formatMessage(workbenchMessages.projectWorktreeFailureBaseNotFound),
+				'branch-already-exists': intl.formatMessage(
+					workbenchMessages.projectWorktreeFailureBranchAlreadyExists,
+				),
+				busy: intl.formatMessage(workbenchMessages.projectWorktreeFailureGeneric),
+				'compensation-failed': intl.formatMessage(
+					workbenchMessages.projectWorktreeFailureCompensationFailed,
+				),
+				'control-unavailable': intl.formatMessage(workbenchMessages.projectWorktreeFailureGeneric),
+				'creation-failed': intl.formatMessage(workbenchMessages.projectWorktreeFailureGeneric),
+				'discovery-failed': intl.formatMessage(workbenchMessages.projectWorktreeFailureGeneric),
+				'document-conflict': intl.formatMessage(workbenchMessages.projectWorktreeFailureGeneric),
+				'git-unavailable': intl.formatMessage(workbenchMessages.projectWorktreeFailureGeneric),
+				'invalid-branch': intl.formatMessage(workbenchMessages.projectWorktreeFailureInvalidBranch),
+				'project-not-found': intl.formatMessage(workbenchMessages.projectWorktreeFailureGeneric),
+				'recovery-required': intl.formatMessage(
+					workbenchMessages.projectWorktreeFailureRecoveryRequired,
+				),
+				'repository-not-found': intl.formatMessage(workbenchMessages.projectWorktreeFailureGeneric),
+				'source-unavailable': intl.formatMessage(workbenchMessages.projectWorktreeFailureGeneric),
+				'target-conflict': intl.formatMessage(workbenchMessages.projectWorktreeFailureGeneric),
+			},
+			projectWorktreeFailureTitle: intl.formatMessage(
+				workbenchMessages.projectWorktreeFailureTitle,
+			),
+			projectWorktreeLoading: intl.formatMessage(workbenchMessages.projectWorktreeLoading),
+			projectWorktreeLocation: intl.formatMessage(workbenchMessages.projectWorktreeLocation),
+			projectWorktreeLocationAutomatic: (root) =>
+				intl.formatMessage(workbenchMessages.projectWorktreeLocationAutomatic, { root }),
+			projectWorktreeNoRepositories: intl.formatMessage(
+				workbenchMessages.projectWorktreeNoRepositories,
+			),
+			projectWorktreeRepository: intl.formatMessage(workbenchMessages.projectWorktreeRepository),
+			projectWorktreeTitle: intl.formatMessage(workbenchMessages.projectWorktreeTitle),
 			removeProject: intl.formatMessage(workbenchMessages.projectRemove),
 			removeProjectFolder: intl.formatMessage(workbenchMessages.projectRemoveFolder),
 			save: intl.formatMessage(workbenchMessages.resourceSave),
@@ -519,12 +552,11 @@ export function useWorkbench({
 			workspaceManageTitle: intl.formatMessage(workbenchMessages.workspaceManageTitle),
 			workspaceOptions: intl.formatMessage(workbenchMessages.workspaceOptions),
 		},
+		projectWorkspaceConfirmationConfirmButtonRef,
 		projectWorkspaceConfirmation,
 		projectWorkspaceState,
-		removeProject: (projectId, anchor) => {
-			actions.invoke(WORKBENCH_ACTION_IDS.removeProject, { projectId }, 'menu', {
-				capabilities: workbenchConfirmationCapabilities(anchor),
-			});
+		removeProject: (projectId) => {
+			actions.invoke(WORKBENCH_ACTION_IDS.removeProject, { projectId }, 'menu');
 		},
 		removeProjectDirectory: (projectId, directoryId) => {
 			actions.invoke(

@@ -29,6 +29,7 @@ export default defineConfig(({ command }) => {
 		path.resolve(desktopRoot, '..', 'server', 'dist', 'main', 'server.cjs');
 	const webRendererRoot =
 		process.env['ORCHBEE_WEB_RENDERER_ROOT'] ?? path.resolve(desktopRoot, '..', 'web', 'dist');
+	const sourceRoot = path.resolve(desktopRoot, '..', '..');
 	const developmentRuntimePlugin: RsbuildPlugin = {
 		name: 'orchbee-desktop-development-runtime',
 		apply: 'serve',
@@ -48,6 +49,7 @@ export default defineConfig(({ command }) => {
 						gatewayEntryPath,
 						rendererUrl,
 						serverEntryPath,
+						sourceRoot,
 						terminalHostRoot: path.resolve(desktopRoot, '..', 'terminal-host'),
 						webRendererRoot,
 					},

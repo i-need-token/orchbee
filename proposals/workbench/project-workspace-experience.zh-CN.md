@@ -1,11 +1,11 @@
 # Project 与 Workspace 平台 Effects
 
-| 字段     | 内容                                                                                                                                       |
-| -------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| 状态     | 当前模型、浏览器预览、原生现有 Folder 选择和本地 shared-document 持久化已经实现；文件系统 mutation、Git、启动和跨设备 effects 仍是未来工作 |
-| Owner    | Workbench 产品维护者与平台应用 owner                                                                                                       |
-| 当前权威 | [`packages/workbench/docs/project-workspace.md`](../../packages/workbench/docs/project-workspace.md)                                       |
-| 退出条件 | 实现分别接受的平台切片，把维护事实迁入对应 application 和 package 指南，然后删除本提案                                                     |
+| 字段     | 内容                                                                                                                                                 |
+| -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 状态     | 当前模型、浏览器预览、原生现有 Folder 选择、本地 shared-document 持久化和已接受的托管 Worktree 创建契约已有 owner；启动和跨设备 effects 仍是未来工作 |
+| Owner    | Workbench 产品维护者与平台应用 owner                                                                                                                 |
+| 当前权威 | [`packages/workbench/docs/project-workspace.md`](../../packages/workbench/docs/project-workspace.md)                                                 |
+| 退出条件 | 实现分别接受的平台切片，把维护事实迁入对应 application 和 package 指南，然后删除本提案                                                               |
 
 英文 [project-workspace-experience.md](project-workspace-experience.md) 是 canonical 版本；本文用于简体中文评审。
 
@@ -43,18 +43,24 @@ picker 和时间点目录校验，再把 host-normalized path 交给浏览器预
 Git observation 和 mutation 属于平台或 Git capability owner。Workbench 可以消费语义 kind 为
 `worktree` 的已验证 Directory descriptor。
 
+已接受的 Desktop 创建切片由
+[`apps/desktop/docs/project-worktree-creation.md`](../../apps/desktop/docs/project-worktree-creation.md)
+维护，其环境隔离默认路径由
+[`apps/desktop/docs/data-root.md`](../../apps/desktop/docs/data-root.md) 维护。
+
 已经接受的产品方向是：
 
 - 创建 Worktree 是 Project 级操作，并可选择同时创建使用该 Directory 的 Workspace；
 - “同时创建 Workspace”默认启用；
+- 创建使用 Desktop 按环境隔离的固定托管根目录；应用级和 Project 级位置覆盖需要后续单独接受的
+  settings 切片；
 - 删除 Workspace 默认保留其 Worktree；
 - 删除 Worktree 需要用户明确选择；其他 Workspace、terminal CWD 或 Project 最后一个 Directory
   仍依赖它时必须拒绝；
 - Git 删除成功后才能从产品 state 删除 Workspace 和 Directory；失败时保留两者并显示 owner-owned
   diagnostic。
 
-实现前，Git owner 必须定义多仓库 Project 的仓库选择、base ref 与分支规则、目标路径策略、已有
-Worktree 的处理、取消、回滚，以及 Git 成功但产品状态提交失败时的恢复。
+删除仍需单独接受的切片来定义依赖检查、确认、terminal CWD 处理、Git 顺序与恢复。
 
 ## Launch Configuration 与剩余持久能力
 
@@ -68,6 +74,7 @@ Desktop 已经持久化 canonical shared Workbench document 和 durable terminal
 
 ## 排除项
 
-除已接受的现有 Folder picker 及其时间点校验外，本提案不授权文件系统 mutation 或 Git 实现，不向
-renderer 暴露通用原生 capability，不包含远程 Folder 连接、自动删除源码数据、Workbench 中的 PTY
-ownership 或跨设备同步。每个新增的带 effect 平台切片仍需各自的有限授权和验证。
+除已接受的现有 Folder picker 与托管 Worktree 创建契约外，本提案不授权其他文件系统 mutation 或
+Git 实现，不向 renderer 暴露通用原生 capability，不包含远程 Folder 连接、自动删除源码数据、
+Workbench 中的 PTY ownership 或跨设备同步。每个新增的带 effect 平台切片仍需各自的有限授权和
+验证。

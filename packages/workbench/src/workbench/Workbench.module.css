@@ -15,6 +15,12 @@
 	z-index: var(--ob-ref-layer-raised);
 }
 
+.confirmationShortcut {
+	color: currentColor;
+	background: transparent;
+	opacity: var(--ob-sys-opacity-muted);
+}
+
 .layout {
 	height: 100%;
 	min-height: 0;

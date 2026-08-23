@@ -156,6 +156,7 @@ function createHarness(
 			rendererUrl: 'http://127.0.0.1:3000/',
 			restartTimeoutMilliseconds: 1,
 			serverEntryPath: '/repo/apps/server/dist/main/server.cjs',
+			sourceRoot: '/repo',
 			terminalHostRoot: '/repo/apps/terminal-host',
 			webRendererRoot: '/repo/apps/web/dist',
 		},

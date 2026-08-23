@@ -64,7 +64,8 @@ export function startDesktopWebApplication(
 		const lifetimePort = event.ports[2];
 		const browserAccessPort = event.ports[3];
 		const projectFolderAcquisitionPort = event.ports[4];
-		const terminalLaunchProfilePort = event.ports[5];
+		const projectWorktreePort = event.ports[5];
+		const terminalLaunchProfilePort = event.ports[6];
 		if (
 			!message.success ||
 			!message.data.security.contextIsolated ||
@@ -74,6 +75,7 @@ export function startDesktopWebApplication(
 			lifetimePort === undefined ||
 			browserAccessPort === undefined ||
 			projectFolderAcquisitionPort === undefined ||
+			projectWorktreePort === undefined ||
 			terminalLaunchProfilePort === undefined
 		) {
 			closeMessagePorts(event.ports);
@@ -94,6 +96,7 @@ export function startDesktopWebApplication(
 				projectionPort,
 				browserAccessPort,
 				projectFolderAcquisitionPort,
+				projectWorktreePort,
 				terminalLaunchProfilePort,
 				terminalFileDropCapability,
 			);

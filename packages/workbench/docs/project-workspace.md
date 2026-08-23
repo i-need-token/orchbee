@@ -22,6 +22,7 @@ independent Tab and Panel contexts or determine their default CWD from a Project
 | `ProjectWorkspaceState`                                 | Trusted only after construction or transition invariant checks                  |
 | Project, Directory, Workspace, and terminal-context IDs | Stable opaque strings; missing or stale IDs reject                              |
 | Directory descriptor                                    | A host-normalized local location with one canonical Folder or Worktree kind     |
+| Managed Worktree commit                                 | One host-validated created Worktree and one current source Directory            |
 | Browser-entered Folder path                             | Trimmed, non-empty user input; otherwise preserved and not filesystem-verified  |
 | Display name                                            | User or localized product input; duplicate names are allowed                    |
 | Launch-configuration reference                          | Stable Project-local ID and display name; executable payload remains host-owned |
@@ -161,6 +162,7 @@ trusted command or SSH fact; this policy does not guess either state.
 | Activate Workspace           | Known Project and Workspace membership                       | Workspace becomes active and Project expands                          | None                                                                  |
 | Create Project               | One normalized available Directory                           | Project, Primary Workspace, and active location are created           | Create one context with one Tab, Panel, and shell projection          |
 | Add Directory                | Known Project; location not already present                  | Directory appends to stable order                                     | None                                                                  |
+| Register created Worktree    | Known Project and available source; unique valid Worktree    | Directory appends; optional Workspace appends, expands, and activates | Create one context only when the Workspace option is enabled          |
 | Refresh Directory            | Known identity; unchanged kind and source; unique path       | Host observations update in place; order and references remain        | None                                                                  |
 | Remove Directories           | At least one Directory survives; only Folder kinds requested | Referencing primaries use circular next-survivor selection            | None                                                                  |
 | Reconcile launch references  | Known Project; unique non-empty reference IDs                | Catalog replaces; removed Workspace selections become `null`          | None                                                                  |
@@ -178,9 +180,9 @@ an observer failure is isolated and cannot relabel the transition or prevent lat
 receiving it.
 
 Delete Workspace and Remove Project remain Action-owned destructive transitions. When invoked
-from a dropdown or context menu, their confirmation is a compact Popover anchored to the pointer or
-selected menu item; it introduces no page-wide backdrop and supports `Escape` to cancel and `Enter`
-to confirm. Invocations without a contextual anchor fall back to the shared modal Alert Dialog.
+from a dropdown, context menu, shortcut, or another Action source, their confirmation uses the shared
+modal Alert Dialog centered in the viewport with a page-wide backdrop. `Escape` cancels and `Enter`
+confirms; no destructive transition commits before confirmation is accepted.
 
 Preview Workspace duplication copies the primary Directory, launch-configuration selection, Tab groups,
 Panel layout, presentation names, and each terminal's recorded launch CWD. It uses a whitelist:
@@ -242,6 +244,23 @@ renderer-document replacement, port retirement, window close, and application di
 request; a later native completion cannot commit. The maintained Desktop policy and evidence limits
 live in
 [`apps/desktop/docs/project-folder-acquisition.md`](../../../apps/desktop/docs/project-folder-acquisition.md).
+
+## Managed Worktree product commit
+
+Workbench keeps Git Worktrees and Workspaces as separate domain objects. A platform owner may
+submit `project-worktree-created` only after it has validated and created one Git Worktree. The pure
+transition verifies the current Project, the available source Directory, repository consistency,
+the created Worktree descriptor, and Directory identity and path uniqueness. It then appends the
+Worktree Directory and, when requested, appends and activates one Workspace whose primary Directory
+is that Worktree. The optional Workspace and its terminal context are part of the same transition;
+when the option is off, active location and identity sequences remain unchanged.
+
+The transition performs no Git or filesystem effect and does not select a physical path. Desktop
+owns the current effectful adapter, fixed managed location, canonical-document transaction,
+compensation, and recovery. Its maintained contract is
+[`apps/desktop/docs/project-worktree-creation.md`](../../../apps/desktop/docs/project-worktree-creation.md).
+Existing Folder or Worktree choices remain available to the ordinary Workspace-create transition,
+so several Workspaces may reference one Directory.
 
 ## Project navigation action menus
 
@@ -309,19 +328,21 @@ mutation.
 
 ## Dependencies and ownership
 
-| Responsibility                                                                             | Owner                                 |
-| ------------------------------------------------------------------------------------------ | ------------------------------------- |
-| Project, Directory, Workspace, active-location model, invariants, and product presentation | `@orchbee/workbench`                  |
-| Tab ordering, grouping, selection, and Tab interaction                                     | `@orchbee/tab-strip`                  |
-| Panel layout plus terminal presentation identity, lifecycle, and command projection        | `@orchbee/workbench` Panel workspace  |
-| Product descriptors and `en-US` / `zh-CN` catalogs                                         | `@orchbee/i18n`                       |
-| Browser and Gateway path-entry presentation and synthetic Folder projection                | `@orchbee/workbench`                  |
-| Existing-Folder native picker, path normalization, and point-in-time validation            | `apps/desktop`                        |
-| Typed platform Folder-acquisition capability                                               | `@orchbee/workbench`                  |
-| External filesystem availability and Git observations                                      | Future application or runtime adapter |
-| Launch-configuration executable payload                                                    | Future application or runtime owner   |
-| Filesystem mutation, Git, PTY, synchronization, and recovery effects                       | Future application or runtime owner   |
-| Locale and platform adapter selection                                                      | Composition application               |
+| Responsibility                                                                             | Owner                                |
+| ------------------------------------------------------------------------------------------ | ------------------------------------ |
+| Project, Directory, Workspace, active-location model, invariants, and product presentation | `@orchbee/workbench`                 |
+| Tab ordering, grouping, selection, and Tab interaction                                     | `@orchbee/tab-strip`                 |
+| Panel layout plus terminal presentation identity, lifecycle, and command projection        | `@orchbee/workbench` Panel workspace |
+| Product descriptors and `en-US` / `zh-CN` catalogs                                         | `@orchbee/i18n`                      |
+| Browser and Gateway path-entry presentation and synthetic Folder projection                | `@orchbee/workbench`                 |
+| Existing-Folder native picker, path normalization, and point-in-time validation            | `apps/desktop`                       |
+| Typed platform Folder-acquisition capability                                               | `@orchbee/workbench`                 |
+| Typed platform managed-Worktree capability                                                 | `@orchbee/workbench`                 |
+| Electron managed-Worktree data contract                                                    | `@orchbee/desktop-client-protocol`   |
+| Managed Worktree Git observation, creation, compensation, recovery, and fixed path         | `apps/desktop`                       |
+| Launch-configuration executable payload                                                    | Future application or runtime owner  |
+| Other filesystem mutation, Git effects, PTY, synchronization, and recovery                 | Future application or runtime owner  |
+| Locale and platform adapter selection                                                      | Composition application              |
 
 `@orchbee/workbench` exposes one product-capability boundary. The first delivery creates no new
 headless package and keeps unavailable platform actions hidden or disabled through their owned
@@ -347,14 +368,16 @@ Action availability.
 | Browser path entry appends one unique Folder or leaves state intact                                        | Action, component, and web integration tests              | N/A                                           | Exact path comparison; no FS call                       |
 | Desktop selection commits only one validated selected result; cancel and failure never mutate              | Main runtime, broker, client, Hook, and integration tests | `DesktopLifecycle` Folder scenario            | Injected dialog adapter; real picker is manual evidence |
 | A retired renderer or stale/duplicate Add target cannot accept a late native completion                    | Broker lifecycle and Workbench state-machine tests        | `DesktopLifecycle` safety and progress checks | Bounded model and controlled event loop                 |
+| A managed Worktree commit adds its Directory and optional Workspace atomically                             | Transition and managed-runtime tests                      | Desktop creation transaction model            | Git and filesystem refinement remain Desktop-owned      |
 | Ellipsis and row context gestures expose one action-menu model                                             | Component parity and invocation tests                     | Pointer interaction review                    | Project and Workspace rows only                         |
 
 TLA+ is not required for the synchronous in-memory transition and browser path-entry set. The
-asynchronous Desktop adapter is covered by the `project-folder-acquisition` configuration of
-`DesktopLifecycle`, including selection, cancellation, failure, stale targets, renderer retirement,
-and late native completion. Real operating-system picker behavior, filesystem changes after the
-point-in-time validation, filesystem mutation, Git recovery, and cross-device synchronization remain
-outside that model's claims.
+asynchronous existing-Folder adapter is covered by the `project-folder-acquisition` configuration
+of `DesktopLifecycle`, including selection, cancellation, failure, stale targets, renderer
+retirement, and late native completion. Managed Worktree Git/product parity and recovery are covered
+by Desktop's separately registered `ProjectWorktreeCreation` model. Real operating-system picker
+behavior, Git command refinement, other filesystem mutation, and cross-device synchronization remain
+outside those model claims.
 
 ## Delivery and recovery
 
@@ -364,8 +387,8 @@ API and its only application consumer atomically; do not retain a compatibility 
 
 The browser delivery performs no disk or process effect. The Desktop existing-Folder slice writes no
 filesystem data; only the selected path may enter the existing canonical Project document through
-the normal Workbench Action and shared-document commit. Rollback removes the Desktop acquisition
-port and adapters and restores manual path collection in Desktop; already committed Project records
-remain valid and require no schema migration. New Folder, Git, and other platform effects remain
-outside current authority until separately accepted, implemented, and documented by their semantic
-owners.
+the normal Workbench Action and shared-document commit. Desktop managed-Worktree creation is the
+only current Git mutation slice and enters product state through the atomic transition above.
+Rollback of either adapter does not invalidate already committed Project records. New Folder,
+Worktree deletion or movement, and other platform effects remain outside current authority until
+separately accepted, implemented, and documented by their semantic owners.

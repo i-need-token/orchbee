@@ -5,6 +5,7 @@ import {
 	type WorkbenchNavigationPort,
 	type WorkbenchProjectWorkspaceRuntime,
 	type WorkbenchProjectFolderAcquisition,
+	type WorkbenchProjectWorktreeCapability,
 	type WorkbenchShortcutPlatform,
 	type WorkbenchTerminalActionShortcutLabels,
 	type WorkbenchTerminalSurface,
@@ -35,6 +36,7 @@ export interface WebApplicationProps {
 	readonly navigation?: WorkbenchNavigationPort | undefined;
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
 	readonly projectFolderAcquisition?: WorkbenchProjectFolderAcquisition | undefined;
+	readonly projectWorktree?: WorkbenchProjectWorktreeCapability | undefined;
 	readonly requestBrowserAccess?: ((returnFocus: HTMLElement) => void) | undefined;
 	readonly shortcutPlatform: WorkbenchShortcutPlatform;
 	readonly terminalSettingsController: TerminalSettingsController;
@@ -51,6 +53,7 @@ export function WebApplication({
 	navigation,
 	projectWorkspaceRuntime,
 	projectFolderAcquisition,
+	projectWorktree,
 	requestBrowserAccess,
 	shortcutPlatform,
 	terminalSettingsController,
@@ -102,6 +105,7 @@ export function WebApplication({
 					onSettings={view.onSettings}
 					projectWorkspaceRuntime={projectWorkspaceRuntime}
 					projectFolderAcquisition={projectFolderAcquisition}
+					projectWorktree={projectWorktree}
 					shortcutBindings={keyboardShortcuts.bindings}
 					shortcutPlatform={shortcutPlatform}
 					terminalActionShortcutLabels={terminalActionShortcutLabels}

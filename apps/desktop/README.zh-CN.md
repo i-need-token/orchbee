@@ -6,18 +6,19 @@
 
 桌面与主机支持的投影终端组成共享工作台。 Workbench拥有Project、Workspace、Tab、Panel、`TerminalPresentationId`状态； Electron Main拥有持久的技术绑定和Electron独有的特权效果； `apps/terminal-host` 拥有 PTYs、进程、Ghostty VT 状态、历史记录和真实终端身份。浏览器客户端在其自己的页面中提交剪贴板和白名单链接效果。共享工作台文档均不存储在主机中。
 
-Main 启动时无需创建固定终端、打开附件或启动 Web 侦听器。它将持久的 `TerminalPresentationId` 恢复为 `TerminalBindingId` 注册表，拥有一个进程范围的规范 Workbench 共享文档协调器，并通过沙盒预加载传输一个原子允许列表功能包。它的六个端口有一个固定的顺序：
+Main 启动时无需创建固定终端、打开附件或启动 Web 侦听器。它将持久的 `TerminalPresentationId` 恢复为 `TerminalBindingId` 注册表，拥有一个进程范围的规范 Workbench 共享文档协调器，并通过沙盒预加载传输一个原子允许列表功能包。它的七个端口有一个固定的顺序：
 
 - 客户端会话控制提供一个原子文档/终端观察引导程序，接受完整的精确下一个共享文档提案，并发布一个有序的规范事件流；
 - 投影控件仅为显示的终端视口打开并释放范围内的主机附件；
 - 应用程序生命周期控制仅包含退出原因、用户选择、静默确认、共享文档修订、聚合进度、类型化故障以及恢复正在进行的开发主机重启所需的工作台表示标识；
 - 浏览器访问控制仅包含显式启动、模式切换、打开、复制、停止、净化的原始状态和有限故障。它从不携带能力承载URL；
 - 项目文件夹获取请求一个本机现有目录选择，并仅返回相关的选定路径、取消或有限失败；
+- Project Worktree 控制只从当前规范 Project Directory 发现 repository，并根据 repository、base、branch 与 Workspace 选项创建一个托管 Worktree；renderer 命令绝不携带目标路径；
 - Terminal-launch-profile 控制项目并改变系统 shell 或显式可执行启动选择的一个有界设备本地目录。它不携带环境、CWD、机密、项目有效负载或通用文件系统功能。
 
-客户端会话和投影有效负载是来自 `@orchbee/workbench-client-protocol` 的平台中立合约。 `@orchbee/desktop-client-protocol` 拥有原子 Electron 渲染器引导程序、Electron 应用程序生命周期合约、窄浏览器访问命令合约、类型化项目文件夹获取合约和终端启动配置文件命令合约。 Desktop Main 和 Web 渲染器各自将通用合约调整到 `MessagePort` 的末端；传输细节都不会进入共享工作台客户端运行时。
+客户端会话和投影有效负载是来自 `@orchbee/workbench-client-protocol` 的平台中立合约。 `@orchbee/desktop-client-protocol` 拥有原子 Electron 渲染器引导程序、Electron 应用程序生命周期合约、窄浏览器访问命令合约、类型化 Project Folder 获取与 Project Worktree 合约，以及终端启动配置文件命令合约。 Desktop Main 和 Web 渲染器各自将通用合约调整到 `MessagePort` 的末端；传输细节都不会进入共享工作台客户端运行时。
 
-渲染器没有 Node 集成、通用 Electron IPC、filesystem read capability、Host inventory 或原始 terminal-lifetime 权限。它不能直接调用 provision、restore、close 或 storage CAS effect。Preload 只接受一个 bootstrap，同时验证全部六个 port，保留固定的 client-session/projection/application-lifetime/Browser-access/Project-Folder-acquisition/terminal-launch-profiles 顺序，并证明 context isolation 与 sandboxing。Project Folder port 不接受 renderer path，也不公开 enumeration 或 mutation primitive。单独的 context-isolated file-drop adapter 只公开当前 platform 与 Electron 的 `File`-scoped backing-path lookup；它不能接受 arbitrary path string、读取 file content、枚举 directory 或执行 IPC request。一个拖入的 disk `File` 可以携带 file 或 directory backing path，但不会授予 child enumeration。Web renderer 只为 user drop 准入该 adapter，应用有界且兼容 Ghostty 的 POSIX live-buffer escaping，直接发布 prepared text，并且绝不追加 Enter。Partial 或 malformed bootstrap 不会启动 renderer runtime。
+渲染器没有 Node 集成、通用 Electron IPC、filesystem read capability、Host inventory 或原始 terminal-lifetime 权限。它不能直接调用 provision、restore、close 或 storage CAS effect。Preload 只接受一个 bootstrap，同时验证全部七个 port，保留固定的 client-session/projection/application-lifetime/Browser-access/Project-Folder-acquisition/Project-Worktree/terminal-launch-profiles 顺序，并证明 context isolation 与 sandboxing。Project Folder port 不接受 renderer path，也不公开 enumeration 或 mutation primitive。Project Worktree port 不接受源或目标 path：discovery 从规范 Project state 推导 repository，创建只接受返回的不透明 identity 与 Git 值。单独的 context-isolated file-drop adapter 只公开当前 platform 与 Electron 的 `File`-scoped backing-path lookup；它不能接受 arbitrary path string、读取 file content、枚举 directory 或执行 IPC request。一个拖入的 disk `File` 可以携带 file 或 directory backing path，但不会授予 child enumeration。Web renderer 只为 user drop 准入该 adapter，应用有界且兼容 Ghostty 的 POSIX live-buffer escaping，直接发布 prepared text，并且绝不追加 Enter。Partial 或 malformed bootstrap 不会启动 renderer runtime。
 
 OSC 52 剪贴板写入使用现有投影端口，而不是通用 preload 剪贴板 API。Main 只记住转发到附件的第一个 Host 请求；渲染器自动提交决定必须精确重复其附件、序列与有界文本。匹配的肯定决定会执行 Desktop 拥有的纯文本写入并消费待处理请求；不匹配、重复、Broker 背压、页面退役或附件处置均不写入。Gateway 浏览器附件会尝试通过本地剪贴板 API 执行请求，并发送同一个精确决定，仅用于消费 Main 的待处理记录，避免 Electron 重复该客户端本地效果。
 
@@ -61,6 +62,19 @@ Electron Main 拥有渲染器文档生成及其客户端会话、投影和应用
 Desktop 是当前唯一注入 Workbench existing-Folder 采集功能的组合。一个相关渲染器请求要求 Electron Main 打开所属窗口的 `dialog.showOpenDialog(..., { properties: ['openDirectory'] })`。 Main 最多接受该渲染器的一个活动请求，只需要一个选定的路径，将其标准化为绝对路径，并检查它是否仍命名为可读、可遍历的目录。验证遵循符号链接，同时保留用户选择的路径拼写。渲染器无法提交验证路径或请求目录内容。
 
 选中结果会进入现有的 Workbench 项目创建或项目目录添加 Action。取消，以及有界对话框、类型、存在性、权限或校验失败，都不会改变 Project 状态。Workbench 会在变更前重新检查最新添加目标与精确重复路径。渲染器文档退役、重新加载、卸载、端口关闭、窗口关闭和应用处置都会撤销交付，防止延迟完成的原生请求改变替代页面。本切片不创建、删除或编辑任何文件系统条目；`New Folder…` 保持禁用。受维护的行为、证据、限制与回滚契约见 [`docs/project-folder-acquisition.md`](docs/project-folder-acquisition.md)。
+
+## 托管 Project Worktree 创建
+
+Desktop 是当前唯一注入托管 Worktree 创建能力的组合。Main 从目标 Project 的当前可用 Directory
+发现 Git repository，按规范 Git common-directory identity 去重，并返回可编辑的 base 与新分支
+默认值。Renderer 只读展示固定托管位置，可以请求可选 Workspace，但不能选择或提交文件系统 path。
+
+打包版 Desktop 使用 `~/.orchbee`；每个开发 checkout 使用
+`~/.orchbee-dev-<scope-digest>`，稳定 digest 从该 checkout 的规范源码路径推导。托管 Worktree 位于
+`<data-root>/worktrees/<opaque-id>`。本期没有应用级或 Project 级位置设置。Main 在 Git mutation 前
+记录恢复意图，原子提交 Workbench Directory 与可选 Workspace；对已变化或所有权不明确的结果，
+会保守保留而不递归删除用户数据。参见 [`docs/data-root.md`](docs/data-root.md) 与
+[`docs/project-worktree-creation.md`](docs/project-worktree-creation.md)。
 
 ## 浏览器访问预览
 
@@ -207,7 +221,7 @@ Workbench `terminal-presentation-event-published` 消息是 Main 拥有的单一
 - 一个 Electron 渲染器和两个普通浏览器页面共享规范工作台和终端状态，同时保留新页面会话、Client View 和附件标识，包括浏览器复制、链接、断开连接、拒绝和重新连接行为；
 - 用户退出保留/取消/停止、空闲运行终端的自动保留、面板关闭保护的精确重用、隐藏终端停止、failed-CAS 抑制、部分停止重试、未引用绑定耗尽、unknown-Host-orphan 拒绝、更新重新启动保留、开发主机停止/阶段/就绪排序以及显式启动停止会话后的新身份。
 
-桌面终端生命周期适配器模型检查新的延迟绑定是否等待已安装的几何图形，启动失败返回到等待状态而不提交几何图形，启动成功提交精确观察到的几何图形，并且排队关闭遵循配置或退休前的启动。现有的 TLA+ 模型继续检查独立有界终端绑定恢复和退出事件恢复、生命周期适配器序列化、投影需求和工作台删除安全性。恢复检查分别执行主机纪元/创建/文档生成行为以及跨主要发布和重新获取的持久退出准入/发布；每个声明的恢复操作都必须有可联系的 TLC 见证人。 `DesktopLifecycle` 将应用程序生命周期、浏览器访问、开发运行时、项目文件夹获取、渲染器文档、终端绑定关闭和窗口状态保留为一个注册工件中的七个场景隔离配置；每个配置都保留其转换系统、不变量、进度属性和所需的动作见证，而无需乘以七个状态空间。其项目文件夹获取配置检查一个实时请求、仅选择的突变、取消和无突变的失败、过时或重复的工作台目标、渲染器退休和延迟本机完成。它的窗口状态配置检查有序的正常边界捕获、序列化持久性、瞬时全屏排除、刷新完成以及跨可写和不可用存储分支的处置。它的渲染器文档配置检查忽略了相同文档和子帧导航、生成范围的控件替换以及有界加载进度。其应用程序生命周期配置检查提示、保留、停止、更新和开发主机重启路径；收盘前停止订单；持久的重启准备和计划准备；未引用的绑定漏极；生效前取消；干净的退出；以及显式的强制退出转义。它的开发运行时配置检查失败构建保留、合并进程生成、就绪计划排序以及关闭而不重新启动。其末端结合关闭配置保留了精确目标突变和无关结合保留。Desktop resize-lease model 检查三个 attachment、串行 open/release/claim operation、latest-activity intent、当前 input/resize/running 资格、幂等与遭拒 claim、successful-claim recency promotion、仅 owner 可改变 canonical geometry、即使 canonical metadata 陈旧也会在 grant 边沿提交当前测量 geometry，以及 ownership、显式拒绝或 intent 失效三种收敛结果。桌面共享文档存储模型还检查下一个 CAS、冲突保留、序列化、不可用存储、生成处理以及修订版 `2` 的进度。桌面多客户端模型检查两个会话、缺少/可用的引导程序、等效和不同的竞争、影响发布排序、附件/会话所有权、断开连接、静默切换、不可用存储和有限的发布进度。桌面预写模型在提供、恢复、关闭或停止调度之前检查匹配的持久意图；提交失败保存；无需创建替换即可恢复；渲染器处理和重新加载重放；以及一个抽象演示的实时生成进度。 Workbench 的终端停止模型检查布局保留、无绑定停止、重试身份和新的 PresentationId 生成。存储库没有为此集成切片强加新的吞吐量接受门；可选的基准仍然是一种诊断工具。
+桌面终端生命周期适配器模型检查新的延迟绑定是否等待已安装的几何图形，启动失败返回到等待状态而不提交几何图形，启动成功提交精确观察到的几何图形，并且排队关闭遵循配置或退休前的启动。现有的 TLA+ 模型继续检查独立有界终端绑定恢复和退出事件恢复、生命周期适配器序列化、投影需求和工作台删除安全性。恢复检查分别执行主机纪元/创建/文档生成行为以及跨主要发布和重新获取的持久退出准入/发布；每个声明的恢复操作都必须有可联系的 TLC 见证人。 `DesktopLifecycle` 将应用程序生命周期、浏览器访问、开发运行时、项目文件夹获取、渲染器文档、终端绑定关闭和窗口状态保留为一个注册工件中的七个场景隔离配置；每个配置都保留其转换系统、不变量、进度属性和所需的动作见证，而无需乘以七个状态空间。其项目文件夹获取配置检查一个实时请求、仅选择的突变、取消和无突变的失败、过时或重复的工作台目标、渲染器退休和延迟本机完成。它的窗口状态配置检查有序的正常边界捕获、序列化持久性、瞬时全屏排除、刷新完成以及跨可写和不可用存储分支的处置。它的渲染器文档配置检查忽略了相同文档和子帧导航、生成范围的控件替换以及有界加载进度。其应用程序生命周期配置检查提示、保留、停止、更新和开发主机重启路径；收盘前停止订单；持久的重启准备和计划准备；未引用的绑定漏极；生效前取消；干净的退出；以及显式的强制退出转义。它的开发运行时配置检查失败构建保留、合并进程生成、就绪计划排序以及关闭而不重新启动。其末端结合关闭配置保留了精确目标突变和无关结合保留。Desktop resize-lease model 检查三个 attachment、串行 open/release/claim operation、latest-activity intent、当前 input/resize/running 资格、幂等与遭拒 claim、successful-claim recency promotion、仅 owner 可改变 canonical geometry、即使 canonical metadata 陈旧也会在 grant 边沿提交当前测量 geometry，以及 ownership、显式拒绝或 intent 失效三种收敛结果。桌面共享文档存储模型还检查下一个 CAS、冲突保留、序列化、不可用存储、生成处理以及修订版 `2` 的进度。桌面多客户端模型检查两个会话、缺少/可用的引导程序、等效和不同的竞争、影响发布排序、附件/会话所有权、断开连接、静默切换、不可用存储和有限的发布进度。桌面预写模型在提供、恢复、关闭或停止调度之前检查匹配的持久意图；提交失败保存；无需创建替换即可恢复；渲染器处理和重新加载重放；以及一个抽象演示的实时生成进度。 Workbench 的终端停止模型检查布局保留、无绑定停止、重试身份和新的 PresentationId 生成。`ProjectWorktreeCreation` 另行检查有界的逐 repository 创建、Git/产品一致性、恢复 ledger 覆盖、response 顺序，以及最终 commit 或保留 recovery 的结果。存储库没有为此集成切片强加新的吞吐量接受门；可选的基准仍然是一种诊断工具。
 
 Desktop terminal-archive 模型会另外检查 stop/close 分离、Host disposal 前 capture 收敛、有界只读 archive projection、corruption/eviction fallback、cleanup 与 fresh-session non-merging。
 

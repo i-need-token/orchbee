@@ -51,7 +51,7 @@
 		"Moving the pointer into an open menu keeps the owning row and trigger in their open interaction state.",
 		"Every command entry has a semantic leading icon and destructive entries use the shared danger treatment.",
 		"The terminal viewport menu contains only frequent contextual terminal Actions; lower-frequency terminal Actions remain discoverable in Action search.",
-		"A contextual command can derive a confirmation anchor from its pointer position or keyboard-selected menu item."
+		"Action invocation does not encode pointer geometry into confirmation policy; destructive confirmation remains identical for pointer and keyboard menu selection."
 	],
 	"references": ["packages/workbench/README.md"]
 }

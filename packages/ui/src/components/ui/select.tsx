@@ -57,6 +57,7 @@ function SelectTrigger({
 function SelectContent({
 	className,
 	children,
+	positionerClassName,
 	side = 'bottom',
 	sideOffset = 4,
 	align = 'center',
@@ -67,7 +68,9 @@ function SelectContent({
 	Pick<
 		SelectPrimitive.Positioner.Props,
 		'align' | 'alignOffset' | 'side' | 'sideOffset' | 'alignItemWithTrigger'
-	>) {
+	> & {
+		positionerClassName?: string | undefined;
+	}) {
 	return (
 		<SelectPrimitive.Portal>
 			<SelectPrimitive.Positioner
@@ -76,7 +79,7 @@ function SelectContent({
 				align={align}
 				alignOffset={alignOffset}
 				alignItemWithTrigger={alignItemWithTrigger}
-				className='isolate z-50'
+				className={cn('isolate', positionerClassName ?? 'z-50')}
 			>
 				<SelectPrimitive.Popup
 					data-slot='select-content'

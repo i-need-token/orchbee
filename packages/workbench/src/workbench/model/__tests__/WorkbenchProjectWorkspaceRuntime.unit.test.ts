@@ -36,6 +36,16 @@ const FEATURE_DIRECTORY: WorkbenchDirectory = {
 	path: '/projects/feature',
 };
 
+const REPOSITORY_DIRECTORY: WorkbenchDirectory = {
+	...DIRECTORY,
+	git: {
+		branch: 'main',
+		head: 'abc123',
+		repositoryId: 'repository-1',
+		worktree: false,
+	},
+};
+
 function createRuntime(): WorkbenchProjectWorkspaceRuntime {
 	return new WorkbenchProjectWorkspaceRuntime({
 		standaloneCwd: '/system',
@@ -65,6 +75,65 @@ function createManagedRuntime(): WorkbenchProjectWorkspaceRuntime {
 }
 
 describe('WorkbenchProjectWorkspaceRuntime', () => {
+	it('materializes the terminal context for an atomically created Worktree Workspace', () => {
+		const runtime = createManagedRuntime();
+		runtime.transition({
+			directory: REPOSITORY_DIRECTORY,
+			launchConfigurations: [],
+			primaryWorkspaceLaunchConfigurationId: null,
+			primaryWorkspaceName: 'Primary',
+			projectName: 'orchbee',
+			terminalTitle: 'Terminal 1',
+			type: 'project-created',
+		});
+		const result = runtime.transition({
+			createWorkspace: true,
+			directory: {
+				available: true,
+				git: {
+					branch: 'orchbee/workspace-1',
+					head: 'abc123',
+					repositoryId: 'repository-1',
+					worktree: true,
+				},
+				id: 'managed-worktree-1',
+				kind: 'worktree',
+				name: 'orchbee/workspace-1',
+				path: '/managed/worktrees/managed-worktree-1',
+				source: 'created',
+			},
+			projectId: 'project-1',
+			sourceDirectoryId: REPOSITORY_DIRECTORY.id,
+			terminalTitle: 'Terminal 2',
+			type: 'project-worktree-created',
+			workspaceName: 'orchbee/workspace-1',
+		});
+
+		expect(result.outcome).toBe('applied');
+		expect(runtime.getActiveDefaultCwd()).toBe('/managed/worktrees/managed-worktree-1');
+		expect(runtime.getActiveTerminalContext().panelWorkspaceStore.getSnapshot()).toMatchObject({
+			tabs: [
+				{
+					root: {
+						kind: 'panel',
+						primaryPresentation: {
+							launchCwd: '/managed/worktrees/managed-worktree-1',
+						},
+					},
+				},
+			],
+		});
+		expect(
+			runtime
+				.getSharedDocument(workbenchSharedDocumentRevision('3'))
+				.terminalContexts.find((context) => context.terminalContextId === 'terminal-context-3')
+				?.panelWorkspace.tabs[0]?.root,
+		).toMatchObject({
+			kind: 'panel',
+			primaryPresentation: { intent: { kind: 'provision' } },
+		});
+	});
+
 	it('routes managed lifecycle results to recovered standalone presentations by opaque identity', () => {
 		let operationSequence = 1;
 		let removalSequence = 1;

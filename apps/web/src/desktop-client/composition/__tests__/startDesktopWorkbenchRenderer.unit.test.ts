@@ -188,6 +188,7 @@ describe('startDesktopWorkbenchRenderer', () => {
 		const projectionChannel = createTestChannel();
 		const browserAccessChannel = createTestChannel();
 		const projectFolderAcquisitionChannel = createTestChannel();
+		const projectWorktreeChannel = createTestChannel();
 		const terminalLaunchProfileChannel = createTestChannel();
 		serveTerminalLaunchProfiles(terminalLaunchProfileChannel.port2);
 		const initializationDocument = provisionDocument('0', ['Terminal 1']);
@@ -219,6 +220,7 @@ describe('startDesktopWorkbenchRenderer', () => {
 				projectionChannel.port1,
 				browserAccessChannel.port1,
 				projectFolderAcquisitionChannel.port1,
+				projectWorktreeChannel.port1,
 				terminalLaunchProfileChannel.port1,
 			);
 			await expect(session.ready).resolves.toEqual({ kind: 'unavailable', reason: 'read-failed' });
@@ -231,6 +233,7 @@ describe('startDesktopWorkbenchRenderer', () => {
 		expect((projectionChannel.port1 as unknown as TestMessagePort).closed).toBe(true);
 		expect((browserAccessChannel.port1 as unknown as TestMessagePort).closed).toBe(true);
 		expect((projectFolderAcquisitionChannel.port1 as unknown as TestMessagePort).closed).toBe(true);
+		expect((projectWorktreeChannel.port1 as unknown as TestMessagePort).closed).toBe(true);
 		expect((terminalLaunchProfileChannel.port1 as unknown as TestMessagePort).closed).toBe(true);
 		root.remove();
 	});
@@ -241,6 +244,7 @@ describe('startDesktopWorkbenchRenderer', () => {
 		const projectionChannel = createTestChannel();
 		const browserAccessChannel = createTestChannel();
 		const projectFolderAcquisitionChannel = createTestChannel();
+		const projectWorktreeChannel = createTestChannel();
 		const terminalLaunchProfileChannel = createTestChannel();
 		serveTerminalLaunchProfiles(terminalLaunchProfileChannel.port2);
 		const sharedDocument = provisionDocument('4', ['Terminal 1', 'Terminal 2']);
@@ -284,6 +288,7 @@ describe('startDesktopWorkbenchRenderer', () => {
 				projectionChannel.port1,
 				browserAccessChannel.port1,
 				projectFolderAcquisitionChannel.port1,
+				projectWorktreeChannel.port1,
 				terminalLaunchProfileChannel.port1,
 			);
 			session = started;
@@ -395,6 +400,7 @@ describe('startDesktopWorkbenchRenderer', () => {
 		const projectionChannel = createTestChannel();
 		const browserAccessChannel = createTestChannel();
 		const projectFolderAcquisitionChannel = createTestChannel();
+		const projectWorktreeChannel = createTestChannel();
 		const terminalLaunchProfileChannel = createTestChannel();
 		serveTerminalLaunchProfiles(terminalLaunchProfileChannel.port2);
 		const sharedDocument = retainedDocument('4');
@@ -422,6 +428,7 @@ describe('startDesktopWorkbenchRenderer', () => {
 				projectionChannel.port1,
 				browserAccessChannel.port1,
 				projectFolderAcquisitionChannel.port1,
+				projectWorktreeChannel.port1,
 				terminalLaunchProfileChannel.port1,
 			);
 			session = started;

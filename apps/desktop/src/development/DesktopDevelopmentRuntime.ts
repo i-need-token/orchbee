@@ -23,6 +23,7 @@ interface DesktopDevelopmentRuntimeOptions {
 	readonly rendererUrl: string;
 	readonly restartTimeoutMilliseconds?: number;
 	readonly serverEntryPath: string;
+	readonly sourceRoot: string;
 	readonly terminalHostRoot: string;
 	readonly webRendererRoot: string;
 }
@@ -119,6 +120,7 @@ export class DesktopDevelopmentRuntime {
 			['Electron executable', options.electronExecutable],
 			['Gateway entry', options.gatewayEntryPath],
 			['Server entry', options.serverEntryPath],
+			['Source root', options.sourceRoot],
 			['Terminal Host root', options.terminalHostRoot],
 			['Web renderer root', options.webRendererRoot],
 		] as const) {
@@ -376,6 +378,7 @@ export class DesktopDevelopmentRuntime {
 				ORCHBEE_DESKTOP_RECOVERY_DIRECTORY: workspace.recoveryDirectory,
 				ORCHBEE_DESKTOP_RENDERER_URL: this.#options.rendererUrl,
 				ORCHBEE_DESKTOP_RUNTIME_DIRECTORY: workspace.runtimeDirectory,
+				ORCHBEE_DESKTOP_DEVELOPMENT_SOURCE_ROOT: this.#options.sourceRoot,
 				ORCHBEE_GATEWAY_ENTRY_PATH: this.#options.gatewayEntryPath,
 				ORCHBEE_SERVER_ENTRY_PATH: this.#options.serverEntryPath,
 				ORCHBEE_TERMINAL_HOST_BINARY: candidate.binaryPath,

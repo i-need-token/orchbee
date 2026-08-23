@@ -31,6 +31,23 @@ function directory(id: string, kind: WorkbenchDirectory['kind'] = 'folder'): Wor
 		: { ...base, git: null, kind };
 }
 
+function repositoryDirectory(id: string): WorkbenchDirectory {
+	return {
+		available: true,
+		git: {
+			branch: 'main',
+			head: 'abc123',
+			repositoryId: 'repository-1',
+			worktree: false,
+		},
+		id,
+		kind: 'folder',
+		name: id,
+		path: `/projects/${id}`,
+		source: 'selected',
+	};
+}
+
 function createProject(state: ProjectWorkspaceState, primaryDirectory = directory('directory-a')) {
 	return transitionProjectWorkspace(state, {
 		directory: primaryDirectory,
@@ -67,6 +84,125 @@ function createWorkspaces(count: number): ProjectWorkspaceState {
 }
 
 describe('project-workspace-state', () => {
+	it('adds a managed Worktree Directory and optional Workspace atomically', () => {
+		const sourceDirectory = repositoryDirectory('directory-a');
+		const state = createProject(createProjectWorkspaceState(), sourceDirectory);
+		const result = transitionProjectWorkspace(state, {
+			createWorkspace: true,
+			directory: {
+				available: true,
+				git: {
+					branch: 'orchbee/workspace-1',
+					head: 'abc123',
+					repositoryId: 'repository-1',
+					worktree: true,
+				},
+				id: 'managed-worktree-1',
+				kind: 'worktree',
+				name: 'orchbee/workspace-1',
+				path: '/managed/worktrees/managed-worktree-1',
+				source: 'created',
+			},
+			projectId: 'project-1',
+			sourceDirectoryId: 'directory-a',
+			terminalTitle: 'Terminal 2',
+			type: 'project-worktree-created',
+			workspaceName: 'orchbee/workspace-1',
+		});
+
+		expect(result).toMatchObject({
+			commands: [
+				{
+					cwd: '/managed/worktrees/managed-worktree-1',
+					terminalContextId: 'terminal-context-3',
+					terminalTitle: 'Terminal 2',
+					type: 'terminal-context-created',
+				},
+			],
+			outcome: 'applied',
+		});
+		expect(result.state.projects[0]).toMatchObject({
+			directories: [{ id: 'directory-a' }, { id: 'managed-worktree-1', source: 'created' }],
+			workspaces: [
+				{ id: 'workspace-1' },
+				{
+					id: 'workspace-2',
+					name: 'orchbee/workspace-1',
+					primaryDirectoryId: 'managed-worktree-1',
+					terminalContextId: 'terminal-context-3',
+				},
+			],
+		});
+	});
+
+	it('can register a managed Worktree Directory without creating a Workspace', () => {
+		const sourceDirectory = repositoryDirectory('directory-a');
+		const state = createProject(createProjectWorkspaceState(), sourceDirectory);
+		const result = transitionProjectWorkspace(state, {
+			createWorkspace: false,
+			directory: {
+				available: true,
+				git: {
+					branch: 'orchbee/workspace-1',
+					head: 'abc123',
+					repositoryId: 'repository-1',
+					worktree: true,
+				},
+				id: 'managed-worktree-1',
+				kind: 'worktree',
+				name: 'orchbee/workspace-1',
+				path: '/managed/worktrees/managed-worktree-1',
+				source: 'created',
+			},
+			projectId: 'project-1',
+			sourceDirectoryId: 'directory-a',
+			terminalTitle: 'Terminal 2',
+			type: 'project-worktree-created',
+			workspaceName: 'orchbee/workspace-1',
+		});
+
+		expect(result).toMatchObject({ commands: [], outcome: 'applied' });
+		expect(result.state.projects[0]?.directories).toHaveLength(2);
+		expect(result.state.projects[0]?.workspaces).toHaveLength(1);
+		expect(result.state.nextTerminalContextSequence).toBe(state.nextTerminalContextSequence);
+		expect(result.state.nextWorkspaceSequence).toBe(state.nextWorkspaceSequence);
+		expect(result.state.activeLocation).toBe(state.activeLocation);
+	});
+
+	it('rejects a managed Worktree that does not belong to the selected source repository', () => {
+		const sourceDirectory = repositoryDirectory('directory-a');
+		const state = createProject(createProjectWorkspaceState(), sourceDirectory);
+		const result = transitionProjectWorkspace(state, {
+			createWorkspace: true,
+			directory: {
+				available: true,
+				git: {
+					branch: 'orchbee/workspace-1',
+					head: 'abc123',
+					repositoryId: 'repository-2',
+					worktree: true,
+				},
+				id: 'managed-worktree-1',
+				kind: 'worktree',
+				name: 'orchbee/workspace-1',
+				path: '/managed/worktrees/managed-worktree-1',
+				source: 'created',
+			},
+			projectId: 'project-1',
+			sourceDirectoryId: 'directory-a',
+			terminalTitle: 'Terminal 2',
+			type: 'project-worktree-created',
+			workspaceName: 'orchbee/workspace-1',
+		});
+
+		expect(result).toEqual({
+			commands: [],
+			outcome: 'rejected',
+			rejection: 'directory-invalid',
+			state,
+		});
+	});
+
 	it('creates a Project, Primary Workspace, active context, and shell command atomically', () => {
 		const initial = createProjectWorkspaceState();
 		const result = transitionProjectWorkspace(initial, {

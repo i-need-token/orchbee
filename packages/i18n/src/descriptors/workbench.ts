@@ -285,6 +285,11 @@ export const workbenchMessages = defineMessages({
 		defaultMessage: enUSWorkbenchMessages['workbench.projects.actions.newFolder'],
 		description: 'Action that creates a new Folder for a Project.',
 	},
+	projectNewWorktree: {
+		id: 'workbench.projects.actions.newWorktree',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.actions.newWorktree'],
+		description: 'Action that creates a managed Git Worktree for a Project.',
+	},
 	projectOptions: {
 		id: 'workbench.projects.actions.options',
 		defaultMessage: enUSWorkbenchMessages['workbench.projects.actions.options'],
@@ -339,6 +344,98 @@ export const workbenchMessages = defineMessages({
 		id: 'workbench.projects.groups.worktrees',
 		defaultMessage: enUSWorkbenchMessages['workbench.projects.groups.worktrees'],
 		description: 'Menu group for Git worktree folders.',
+	},
+	projectWorktreeBase: {
+		id: 'workbench.projects.worktree.base',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.worktree.base'],
+		description: 'Label for the local base ref used to create a Worktree.',
+	},
+	projectWorktreeBaseNoMatches: {
+		id: 'workbench.projects.worktree.baseNoMatches',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.worktree.baseNoMatches'],
+		description:
+			'Empty filter state explaining that a custom Worktree base branch or commit remains valid.',
+	},
+	projectWorktreeBranch: {
+		id: 'workbench.projects.worktree.branch',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.worktree.branch'],
+		description: 'Label for the new Worktree branch.',
+	},
+	projectWorktreeCreateWorkspace: {
+		id: 'workbench.projects.worktree.createWorkspace',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.worktree.createWorkspace'],
+		description: 'Option that creates a Workspace for a new Worktree.',
+	},
+	projectWorktreeDescription: {
+		id: 'workbench.projects.worktree.description',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.worktree.description'],
+		description: 'Description of managed Worktree creation.',
+	},
+	projectWorktreeFailureBaseNotFound: {
+		id: 'workbench.projects.worktree.failure.baseNotFound',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.worktree.failure.baseNotFound'],
+		description: 'Failure shown when a Worktree base ref is unavailable.',
+	},
+	projectWorktreeFailureBranchAlreadyExists: {
+		id: 'workbench.projects.worktree.failure.branchAlreadyExists',
+		defaultMessage:
+			enUSWorkbenchMessages['workbench.projects.worktree.failure.branchAlreadyExists'],
+		description: 'Failure shown when a Worktree branch already exists.',
+	},
+	projectWorktreeFailureCompensationFailed: {
+		id: 'workbench.projects.worktree.failure.compensationFailed',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.worktree.failure.compensationFailed'],
+		description: 'Failure shown when Worktree compensation needs recovery.',
+	},
+	projectWorktreeFailureGeneric: {
+		id: 'workbench.projects.worktree.failure.generic',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.worktree.failure.generic'],
+		description: 'Generic safe Worktree creation failure.',
+	},
+	projectWorktreeFailureInvalidBranch: {
+		id: 'workbench.projects.worktree.failure.invalidBranch',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.worktree.failure.invalidBranch'],
+		description: 'Failure shown for an invalid new Worktree branch.',
+	},
+	projectWorktreeFailureRecoveryRequired: {
+		id: 'workbench.projects.worktree.failure.recoveryRequired',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.worktree.failure.recoveryRequired'],
+		description: 'Failure shown when prior Worktree recovery blocks creation.',
+	},
+	projectWorktreeFailureTitle: {
+		id: 'workbench.projects.worktree.failure.title',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.worktree.failure.title'],
+		description: 'Title for a managed Worktree failure.',
+	},
+	projectWorktreeLoading: {
+		id: 'workbench.projects.worktree.loading',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.worktree.loading'],
+		description: 'Progress text while local Git repositories are discovered.',
+	},
+	projectWorktreeLocation: {
+		id: 'workbench.projects.worktree.location',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.worktree.location'],
+		description: 'Label for the managed Worktree location.',
+	},
+	projectWorktreeLocationAutomatic: {
+		id: 'workbench.projects.worktree.locationAutomatic',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.worktree.locationAutomatic'],
+		description: 'Read-only managed Worktree path with an automatic identity.',
+	},
+	projectWorktreeNoRepositories: {
+		id: 'workbench.projects.worktree.noRepositories',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.worktree.noRepositories'],
+		description: 'Empty state when a Project has no local Git repository.',
+	},
+	projectWorktreeRepository: {
+		id: 'workbench.projects.worktree.repository',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.worktree.repository'],
+		description: 'Label for the repository used to create a Worktree.',
+	},
+	projectWorktreeTitle: {
+		id: 'workbench.projects.worktree.title',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.worktree.title'],
+		description: 'Title for managed Worktree creation.',
 	},
 	projectManageDescription: {
 		id: 'workbench.projects.manage.description',

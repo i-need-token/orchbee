@@ -24,6 +24,7 @@ export const enUSWorkbenchMessages = {
 	'workbench.projects.actions.expand': 'Expand project',
 	'workbench.projects.actions.manage': 'Manage Project…',
 	'workbench.projects.actions.newFolder': 'New Folder…',
+	'workbench.projects.actions.newWorktree': 'New Worktree…',
 	'workbench.projects.actions.options': 'Project options',
 	'workbench.projects.actions.remove': 'Remove Project',
 	'workbench.projects.actions.removeFolder': 'Remove folder',
@@ -62,6 +63,31 @@ export const enUSWorkbenchMessages = {
 		'The selected folder could not be validated.',
 	'workbench.projects.groups.folders': 'Project Folders',
 	'workbench.projects.groups.worktrees': 'Git Worktrees',
+	'workbench.projects.worktree.base': 'Base branch or commit',
+	'workbench.projects.worktree.baseNoMatches':
+		'No matching local branch. The entered branch or commit will be used.',
+	'workbench.projects.worktree.branch': 'New branch',
+	'workbench.projects.worktree.createWorkspace': 'Create a Workspace for this Worktree',
+	'workbench.projects.worktree.description':
+		'Create an isolated Git Worktree in Orchbee-managed storage. The defaults are ready to submit.',
+	'workbench.projects.worktree.failure.baseNotFound':
+		'The selected base branch or commit is no longer available.',
+	'workbench.projects.worktree.failure.branchAlreadyExists': 'That branch already exists.',
+	'workbench.projects.worktree.failure.compensationFailed':
+		'Orchbee could not fully roll back the failed operation. Restart Orchbee before trying this repository again.',
+	'workbench.projects.worktree.failure.generic':
+		'The Worktree could not be created. Check the repository and try again.',
+	'workbench.projects.worktree.failure.invalidBranch': 'Enter a valid new Git branch name.',
+	'workbench.projects.worktree.failure.recoveryRequired':
+		'This repository has an unfinished Worktree recovery. Restart Orchbee and try again.',
+	'workbench.projects.worktree.failure.title': 'Worktree Could Not Be Created',
+	'workbench.projects.worktree.loading': 'Reading local Git repositories…',
+	'workbench.projects.worktree.location': 'Managed location',
+	'workbench.projects.worktree.locationAutomatic': '{root}/managed-worktree-…',
+	'workbench.projects.worktree.noRepositories':
+		'This Project does not contain an available local Git repository.',
+	'workbench.projects.worktree.repository': 'Repository',
+	'workbench.projects.worktree.title': 'New Worktree',
 	'workbench.projects.manage.description': 'Change the Project name and primary folder.',
 	'workbench.projects.manage.folders': 'Folders',
 	'workbench.projects.manage.name': 'Project name',
