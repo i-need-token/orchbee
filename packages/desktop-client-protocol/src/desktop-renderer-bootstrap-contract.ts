@@ -13,6 +13,7 @@ export const DESKTOP_RENDERER_PORT_ROLES = [
 	'project-worktree',
 	'terminal-launch-profiles',
 	'terminal-default-settings',
+	'clipboard-read',
 ] as const;
 
 export const DesktopRendererBootstrapSchema = z.strictObject({

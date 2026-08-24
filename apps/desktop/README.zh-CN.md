@@ -6,7 +6,7 @@
 
 桌面与主机支持的投影终端组成共享工作台。 Workbench拥有Project、Workspace、Tab、Panel、`TerminalPresentationId`状态； Electron Main拥有持久的技术绑定和Electron独有的特权效果； `apps/terminal-host` 拥有 PTYs、进程、Ghostty VT 状态、历史记录和真实终端身份。浏览器客户端在其自己的页面中提交剪贴板和白名单链接效果。共享工作台文档均不存储在主机中。
 
-Main 启动时无需创建固定终端、打开附件或启动 Web 侦听器。它将持久的 `TerminalPresentationId` 恢复为 `TerminalBindingId` 注册表，拥有一个进程范围的规范 Workbench 共享文档协调器，并通过沙盒预加载传输一个原子允许列表功能包。它的八个端口有一个固定的顺序：
+Main 启动时无需创建固定终端、打开附件或启动 Web 侦听器。它将持久的 `TerminalPresentationId` 恢复为 `TerminalBindingId` 注册表，拥有一个进程范围的规范 Workbench 共享文档协调器，并通过沙盒预加载传输一个原子允许列表功能包。它的九个端口有一个固定的顺序：
 
 - 客户端会话控制提供一个原子文档/终端观察引导程序，接受完整的精确下一个共享文档提案，并发布一个有序的规范事件流；
 - 投影控件仅为显示的终端视口打开并释放范围内的主机附件；
@@ -15,11 +15,14 @@ Main 启动时无需创建固定终端、打开附件或启动 Web 侦听器。�
 - 项目文件夹获取请求一个本机现有目录选择，并仅返回相关的选定路径、取消或有限失败；
 - Project Worktree 控制只从当前规范 Project Directory 发现 repository，并根据 repository、base、branch 与 Workspace 选项创建一个托管 Worktree；renderer 命令绝不携带目标路径；
 - Terminal-launch-profile 控制投影并改变系统 shell 或显式可执行启动选择的一个有界设备本地目录。它不携带环境、CWD、机密、项目有效负载或通用文件系统功能；
-- Terminal-default-settings 控制只投影并改变有界的设备本地默认回滚缓冲区字节数。它不携带正在运行的终端、Host 或文件系统权限。
+- Terminal-default-settings 控制只投影并改变有界的设备本地默认回滚缓冲区字节数。它不携带正在运行的终端、Host 或文件系统权限；
+- 剪贴板读取控制只接受相关的纯文本读取请求，并返回一项受终端输入边界限制的文本值或类型化失败。它不公开写入、其他格式、图像、历史记录或通用 Electron 能力。
 
-客户端会话和投影有效负载是来自 `@orchbee/workbench-client-protocol` 的平台中立合约。 `@orchbee/desktop-client-protocol` 拥有原子 Electron 渲染器引导程序、Electron 应用程序生命周期合约、窄浏览器访问命令合约、类型化 Project Folder 获取与 Project Worktree 合约、终端启动配置文件命令合约和终端默认设置命令合约。 Desktop Main 和 Web 渲染器各自将通用合约调整到 `MessagePort` 的末端；传输细节都不会进入共享工作台客户端运行时。
+客户端会话和投影有效负载是来自 `@orchbee/workbench-client-protocol` 的平台中立合约。 `@orchbee/desktop-client-protocol` 拥有原子 Electron 渲染器引导程序、Electron 应用程序生命周期合约、窄浏览器访问命令合约、类型化 Project Folder 获取与 Project Worktree 合约、终端启动配置文件命令合约、终端默认设置命令合约和剪贴板读取命令合约。 Desktop Main 和 Web 渲染器各自将通用合约调整到 `MessagePort` 的末端；传输细节都不会进入共享工作台客户端运行时。
 
-渲染器没有 Node 集成、通用 Electron IPC、filesystem read capability、Host inventory 或原始 terminal-lifetime 权限。它不能直接调用 provision、restore、close 或 storage CAS effect。Preload 只接受一个 bootstrap，同时验证全部八个 port，保留固定的 client-session/projection/application-lifetime/Browser-access/Project-Folder-acquisition/Project-Worktree/terminal-launch-profiles/terminal-default-settings 顺序，并证明 context isolation 与 sandboxing。Project Folder port 不接受 renderer path，也不公开 enumeration 或 mutation primitive。Project Worktree port 不接受源或目标 path：discovery 从规范 Project state 推导 repository，创建只接受返回的不透明 identity 与 Git 值。单独的 context-isolated file-drop adapter 只公开当前 platform 与 Electron 的 `File`-scoped backing-path lookup；它不能接受 arbitrary path string、读取 file content、枚举 directory 或执行 IPC request。一个拖入的 disk `File` 可以携带 file 或 directory backing path，但不会授予 child enumeration。Web renderer 只为 user drop 准入该 adapter，应用有界且兼容 Ghostty 的 POSIX live-buffer escaping，直接发布 prepared text，并且绝不追加 Enter。Partial 或 malformed bootstrap 不会启动 renderer runtime。
+渲染器没有 Node 集成、通用 Electron IPC、filesystem read capability、Host inventory 或原始 terminal-lifetime 权限。它不能直接调用 provision、restore、close 或 storage CAS effect。Preload 只接受一个 bootstrap，同时验证全部九个 port，保留固定的 client-session/projection/application-lifetime/Browser-access/Project-Folder-acquisition/Project-Worktree/terminal-launch-profiles/terminal-default-settings/clipboard-read 顺序，并证明 context isolation 与 sandboxing。Project Folder port 不接受 renderer path，也不公开 enumeration 或 mutation primitive。Project Worktree port 不接受源或目标 path：discovery 从规范 Project state 推导 repository，创建只接受返回的不透明 identity 与 Git 值。单独的 context-isolated file-drop adapter 只公开当前 platform 与 Electron 的 `File`-scoped backing-path lookup；它不能接受 arbitrary path string、读取 file content、枚举 directory 或执行 IPC request。一个拖入的 disk `File` 可以携带 file 或 directory backing path，但不会授予 child enumeration。Web renderer 只为 user drop 准入该 adapter，应用有界且兼容 Ghostty 的 POSIX live-buffer escaping，直接发布 prepared text，并且绝不追加 Enter。Partial 或 malformed bootstrap 不会启动 renderer runtime。
+
+Desktop 终端粘贴使用 Main 拥有的剪贴板读取端口，而不依赖原生可编辑元素的 paste 事件投递。手动选择复制仍在提交时，紧随其后的粘贴会等待该精确复制操作结算后再请求当前纯文本；随后复用共享终端的粘贴清理、审阅、回到底部和清除选择路径。复制失败时不会合成文本或重试：粘贴会在结算后读取平台剪贴板中的实际内容。Browser Preview 与 Gateway 页面不接收 Desktop 剪贴板读取端口，并保留现有本地 Browser 策略。
 
 OSC 52 剪贴板写入使用现有投影端口，而不是通用 preload 剪贴板 API。Main 只记住转发到附件的第一个 Host 请求；渲染器自动提交决定必须精确重复其附件、序列与有界文本。匹配的肯定决定会执行 Desktop 拥有的纯文本写入并消费待处理请求；不匹配、重复、Broker 背压、页面退役或附件处置均不写入。Gateway 浏览器附件会尝试通过本地剪贴板 API 执行请求，并发送同一个精确决定，仅用于消费 Main 的待处理记录，避免 Electron 重复该客户端本地效果。
 
@@ -234,6 +237,7 @@ Workbench `terminal-presentation-event-published` 消息是 Main 拥有的单一
 - 精确的 `terminal-parity/FS-05-file-links` 和 `terminal-parity/FS-06-url-policy` 用于禁用文件系统激活和共享 `http`/`https`/`mailto` 检测、悬停、上下文和激活边界的浏览器组合见证；
 - 用于每次操作安全上下文、瞬时用户激活和 API 检查的精确标题 `terminal-parity/LC-05-lan-capability` 浏览器组合证据；同步复制可用性；一位被录取的作家来电；拒绝而不重试；局部故障；并且没有特权 insecure-LAN 路径；
 - 确切的 `terminal-parity/HS-07-selection-export` real-PTY/Electron 证据表明，样式化终端选择以精确可见的纯文本形式到达平台剪贴板，与不公开 HTML 或原始 VT 格式的协议、主机和投影命令回归配对；
+- 精确的 `terminal-parity/IN-13-selection-copy-paste` real-PTY/Electron 证据表明，活动选择后立即依次复制和粘贴时，会等待 Main 拥有的复制提交，读取新选择文本而不是故意安装的陈旧剪贴板哨兵，通过共享粘贴路径清除选择，并执行产生的 shell 输入；
 - 固定标头帧仅路由到匹配的 AttachmentId，并具有精确大小的结构化克隆有效负载隔离；
 - 完整的主题引导、身份范围的应用/协调转发、生命周期刷新、未知结果保存以及精确的 `terminal-parity/SU-09-theme` 持有/释放证据，不会暴露混合应用程序/终端修订；
 - 精确标题为 `terminal-parity/CF-03-visual-environment` 的证据，使用仓库产品字体，在生产渲染器能力边界强制选择 Canvas 2D，并固定 `900x500` 视口、DPR `1`、`en-US`、UTC、浅色配色方案及减少动态效果。它断言精确语义状态，不执行像素容差标准化；它不是 WebGPU、跨浏览器、原生 DPI 或操作系统字体光栅化的黄金基准；

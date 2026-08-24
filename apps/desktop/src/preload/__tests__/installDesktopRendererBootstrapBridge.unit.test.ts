@@ -40,7 +40,7 @@ const document = createWorkbenchSharedDocument({
 });
 
 describe('installDesktopRendererBootstrapBridge', () => {
-	it('transfers one validated bootstrap with eight ports in their fixed role order', () => {
+	it('transfers one validated bootstrap with nine ports in their fixed role order', () => {
 		let listener: ((event: IpcRendererEvent, value: unknown) => void) | undefined;
 		const ipc: DesktopRendererBootstrapIpc = {
 			once: vi.fn<DesktopRendererBootstrapIpc['once']>((channel, nextListener) => {
@@ -53,6 +53,7 @@ describe('installDesktopRendererBootstrapBridge', () => {
 			postMessage: vi.fn<DesktopRendererBootstrapWindow['postMessage']>(),
 		};
 		const ports = [
+			new MessageChannel().port1,
 			new MessageChannel().port1,
 			new MessageChannel().port1,
 			new MessageChannel().port1,

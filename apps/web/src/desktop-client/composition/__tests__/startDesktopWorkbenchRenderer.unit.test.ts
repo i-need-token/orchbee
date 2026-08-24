@@ -215,6 +215,7 @@ describe('startDesktopWorkbenchRenderer', () => {
 		const projectWorktreeChannel = createTestChannel();
 		const terminalLaunchProfileChannel = createTestChannel();
 		const terminalDefaultSettingsChannel = createTestChannel();
+		const clipboardReadChannel = createTestChannel();
 		serveTerminalLaunchProfiles(terminalLaunchProfileChannel.port2);
 		serveTerminalDefaultSettings(terminalDefaultSettingsChannel.port2);
 		const initializationDocument = provisionDocument('0', ['Terminal 1']);
@@ -249,6 +250,7 @@ describe('startDesktopWorkbenchRenderer', () => {
 				projectWorktreeChannel.port1,
 				terminalLaunchProfileChannel.port1,
 				terminalDefaultSettingsChannel.port1,
+				clipboardReadChannel.port1,
 			);
 			await expect(session.ready).resolves.toEqual({ kind: 'unavailable', reason: 'read-failed' });
 		});
@@ -263,6 +265,7 @@ describe('startDesktopWorkbenchRenderer', () => {
 		expect((projectWorktreeChannel.port1 as unknown as TestMessagePort).closed).toBe(true);
 		expect((terminalLaunchProfileChannel.port1 as unknown as TestMessagePort).closed).toBe(true);
 		expect((terminalDefaultSettingsChannel.port1 as unknown as TestMessagePort).closed).toBe(true);
+		expect((clipboardReadChannel.port1 as unknown as TestMessagePort).closed).toBe(true);
 		root.remove();
 	});
 
@@ -275,6 +278,7 @@ describe('startDesktopWorkbenchRenderer', () => {
 		const projectWorktreeChannel = createTestChannel();
 		const terminalLaunchProfileChannel = createTestChannel();
 		const terminalDefaultSettingsChannel = createTestChannel();
+		const clipboardReadChannel = createTestChannel();
 		serveTerminalLaunchProfiles(terminalLaunchProfileChannel.port2);
 		serveTerminalDefaultSettings(terminalDefaultSettingsChannel.port2);
 		const sharedDocument = provisionDocument('4', ['Terminal 1', 'Terminal 2']);
@@ -321,6 +325,7 @@ describe('startDesktopWorkbenchRenderer', () => {
 				projectWorktreeChannel.port1,
 				terminalLaunchProfileChannel.port1,
 				terminalDefaultSettingsChannel.port1,
+				clipboardReadChannel.port1,
 			);
 			session = started;
 			await expect(started.ready).resolves.toEqual({ kind: 'ready' });
@@ -434,6 +439,7 @@ describe('startDesktopWorkbenchRenderer', () => {
 		const projectWorktreeChannel = createTestChannel();
 		const terminalLaunchProfileChannel = createTestChannel();
 		const terminalDefaultSettingsChannel = createTestChannel();
+		const clipboardReadChannel = createTestChannel();
 		serveTerminalLaunchProfiles(terminalLaunchProfileChannel.port2);
 		serveTerminalDefaultSettings(terminalDefaultSettingsChannel.port2);
 		const sharedDocument = retainedDocument('4');
@@ -464,6 +470,7 @@ describe('startDesktopWorkbenchRenderer', () => {
 				projectWorktreeChannel.port1,
 				terminalLaunchProfileChannel.port1,
 				terminalDefaultSettingsChannel.port1,
+				clipboardReadChannel.port1,
 			);
 			session = started;
 			await expect(started.ready).resolves.toEqual({ kind: 'ready' });

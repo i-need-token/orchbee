@@ -1383,6 +1383,57 @@ test('terminal-parity/HS-07-selection-export', async () => {
 		.toBe('HS07StyledPlain');
 });
 
+test('terminal-parity/IN-13-selection-copy-paste', async () => {
+	const application = electronApplication;
+	const directory = runtimeDirectory;
+	if (application === undefined) throw new Error('Electron application did not start.');
+	if (directory === undefined) throw new Error('Desktop runtime directory is unavailable.');
+	const page = await application.firstWindow();
+	const root = projectedTerminal(page);
+	await expect(root).toHaveAttribute('data-projected-terminal-state', 'open');
+	const input = root.getByRole('textbox');
+	await input.pressSequentially(`printf '\\033[2J\\033[Htouch\\n'`, { delay: 1 });
+	await input.press('Enter');
+	const accessibility = root.locator('[role="list"]');
+	await expect(accessibility).toContainText('touch');
+	await waitForTerminalPresentationStability(root);
+	const word = await terminalCellPoint(
+		root,
+		root.locator('canvas'),
+		accessibility.locator(':scope > div'),
+		'touch',
+		2,
+	);
+	await page.mouse.click(word.x, word.y, { clickCount: 2 });
+	await expect(root).toHaveAttribute('data-projected-terminal-selection-state', 'active');
+	await expect
+		.poll(async () => application.evaluate(({ clipboard }) => clipboard.readText()))
+		.toBe('touch');
+	await application.evaluate(({ clipboard }) => clipboard.writeText('stale clipboard sentinel'));
+
+	await input.focus();
+	await page.keyboard.press(process.platform === 'darwin' ? 'Meta+KeyC' : 'Control+Shift+KeyC');
+	await page.keyboard.press(process.platform === 'darwin' ? 'Meta+KeyV' : 'Control+Shift+KeyV');
+	await expect(root).toHaveAttribute('data-projected-terminal-selection-state', 'none');
+	const witnessPath = path.join(directory, 'selection-copy-paste-witness');
+	await input.pressSequentially(` ${quotePosixShellWord(witnessPath)}`, { delay: 1 });
+	await input.press('Enter');
+
+	await expect
+		.poll(async () => {
+			try {
+				await access(witnessPath);
+				return true;
+			} catch {
+				return false;
+			}
+		})
+		.toBe(true);
+	await expect
+		.poll(async () => application.evaluate(({ clipboard }) => clipboard.readText()))
+		.toBe('touch');
+});
+
 test('terminal-parity/SU-02-font-metrics', async () => {
 	const application = electronApplication;
 	if (application === undefined) throw new Error('Electron application did not start.');

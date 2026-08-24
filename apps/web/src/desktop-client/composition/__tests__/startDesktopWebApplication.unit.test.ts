@@ -27,7 +27,7 @@ describe('startDesktopWebApplication', () => {
 				platform: 'darwin',
 			},
 		});
-		const ports = messagePorts(8);
+		const ports = messagePorts(9);
 		const session = startDesktopWebApplication(
 			harness.targetWindow,
 			harness.root,
@@ -58,12 +58,13 @@ describe('startDesktopWebApplication', () => {
 			ports[5],
 			ports[6],
 			ports[7],
+			ports[8],
 			expect.objectContaining({ prepare: expect.any(Function) }),
 		);
 		expect(harness.root.dataset['desktopContextIsolated']).toBe('true');
 		expect(harness.root.dataset['desktopSandboxed']).toBe('true');
 
-		harness.dispatchMessage(rendererMessage(), messagePorts(8));
+		harness.dispatchMessage(rendererMessage(), messagePorts(9));
 		expect(harness.startRenderer).toHaveBeenCalledOnce();
 		session.dispose();
 		expect(harness.disposeRenderer).toHaveBeenCalledOnce();
@@ -71,7 +72,7 @@ describe('startDesktopWebApplication', () => {
 
 	it('fails closed without starting Preview for an untrusted or partial bundle', () => {
 		const harness = createHarness();
-		const ports = messagePorts(7);
+		const ports = messagePorts(8);
 		const closeSpies = ports.map((port) => vi.spyOn(port, 'close'));
 		startDesktopWebApplication(
 			harness.targetWindow,

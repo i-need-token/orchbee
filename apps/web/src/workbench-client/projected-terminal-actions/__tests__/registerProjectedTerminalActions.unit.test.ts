@@ -217,6 +217,78 @@ describe('registerProjectedTerminalActions', () => {
 		runtime.dispose();
 	});
 
+	it('waits for an in-flight selection copy before reading clipboard text for paste', async () => {
+		const runtime = new ActionRuntime();
+		const scope = runtime.createScope('terminal.projected');
+		const controller = new TerminalFindController({
+			clearSearch: vi.fn<() => void>(),
+			updateSearch: vi.fn<(query: string, options: TerminalSearchOptions) => void>(),
+		});
+		const terminal = terminalTarget({
+			attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
+			end: { column: 7, row: CanonicalUint64TextSchema.parse('4') },
+			preview: 'selected',
+			rectangle: false,
+			start: { column: 0, row: CanonicalUint64TextSchema.parse('4') },
+			state: 'active',
+		});
+		let completeCopy:
+			| ((result: Awaited<ReturnType<ProjectedTerminalActionTarget['copySelectionAsync']>>) => void)
+			| undefined;
+		vi.mocked(terminal.copySelectionAsync).mockImplementation(
+			() =>
+				new Promise((resolve) => {
+					completeCopy = resolve;
+				}),
+		);
+		vi.mocked(terminal.paste).mockResolvedValue({
+			kind: 'sent',
+			review: {
+				bracketed: false,
+				embeddedBracketTerminator: false,
+				multiline: false,
+				originalText: 'selected',
+				replacedControlCharacters: 0,
+				source: 'clipboard',
+				text: 'selected',
+			},
+		});
+		const readClipboardText = vi.fn<
+			NonNullable<ProjectedTerminalPlatformEffects['readClipboardText']>
+		>(() => ({ kind: 'completed', text: 'selected' }));
+		const registrations = registerProjectedTerminalActions({
+			findController: controller,
+			platformEffects: { readClipboardText },
+			scope,
+			terminal,
+			typedRuntime: createTypedActionRuntime<ProjectedTerminalActionCatalog>(runtime),
+		});
+		const actionContext = { scope, source: 'keyboard' as const };
+
+		const copy = runtime.execute(
+			PROJECTED_TERMINAL_ACTION_IDS.copySelection,
+			undefined,
+			actionContext,
+		).completion;
+		await vi.waitFor(() => expect(terminal.copySelectionAsync).toHaveBeenCalledOnce());
+		const paste = runtime.execute(
+			PROJECTED_TERMINAL_ACTION_IDS.paste,
+			undefined,
+			actionContext,
+		).completion;
+		await Promise.resolve();
+		expect(readClipboardText).not.toHaveBeenCalled();
+
+		completeCopy?.({ byteLength: 8, kind: 'completed' });
+		await expect(copy).resolves.toEqual({ kind: 'completed' });
+		await expect(paste).resolves.toEqual({ kind: 'completed' });
+		expect(readClipboardText).toHaveBeenCalledOnce();
+		expect(terminal.paste).toHaveBeenCalledWith('selected', 'clipboard');
+
+		for (const registration of registrations) registration.dispose();
+		runtime.dispose();
+	});
+
 	it('rechecks Browser clipboard capability when resolving and executing Copy', async () => {
 		const runtime = new ActionRuntime();
 		const scope = runtime.createScope('terminal.projected');

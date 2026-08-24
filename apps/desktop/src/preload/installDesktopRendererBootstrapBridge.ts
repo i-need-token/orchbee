@@ -35,6 +35,7 @@ export function installDesktopRendererBootstrapBridge(
 		const projectWorktreePort = event.ports[5];
 		const terminalLaunchProfilesPort = event.ports[6];
 		const terminalDefaultSettingsPort = event.ports[7];
+		const clipboardReadPort = event.ports[8];
 		if (
 			clientSessionPort === undefined ||
 			terminalProjectionPort === undefined ||
@@ -43,7 +44,8 @@ export function installDesktopRendererBootstrapBridge(
 			projectFolderAcquisitionPort === undefined ||
 			projectWorktreePort === undefined ||
 			terminalLaunchProfilesPort === undefined ||
-			terminalDefaultSettingsPort === undefined
+			terminalDefaultSettingsPort === undefined ||
+			clipboardReadPort === undefined
 		) {
 			closeTransferredPorts(event.ports);
 			return;
@@ -65,6 +67,7 @@ export function installDesktopRendererBootstrapBridge(
 					projectWorktreePort,
 					terminalLaunchProfilesPort,
 					terminalDefaultSettingsPort,
+					clipboardReadPort,
 				],
 			);
 		} catch {

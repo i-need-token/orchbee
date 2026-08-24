@@ -70,6 +70,7 @@ export function registerProjectedTerminalActions({
 					kind: 'disabled',
 					reason: projectedTerminalMessages.actionUnavailable,
 				} as const);
+	let pendingSelectionCopy: Promise<ProjectedTerminalSideEffectResult> | undefined;
 
 	return [
 		typedRuntime.register(
@@ -87,6 +88,15 @@ export function registerProjectedTerminalActions({
 						: { kind: 'disabled', reason: projectedTerminalMessages.actionUnavailable },
 				handler: {
 					execute: async (context) => {
+						if (context.signal.aborted) return { kind: 'cancelled' };
+						const copy = pendingSelectionCopy;
+						if (copy !== undefined) {
+							try {
+								await copy;
+							} catch {
+								// The Copy Action reports its own failure; Paste still reads the current clipboard.
+							}
+						}
 						if (context.signal.aborted) return { kind: 'cancelled' };
 						const clipboard = await platformEffects.readClipboardText?.();
 						if (clipboard === undefined) {
@@ -240,7 +250,14 @@ export function registerProjectedTerminalActions({
 				handler: {
 					execute: async (context) => {
 						if (context.signal.aborted) return { kind: 'cancelled' };
-						const result = await terminal.copySelectionAsync();
+						const copy = terminal.copySelectionAsync();
+						pendingSelectionCopy = copy;
+						let result: ProjectedTerminalSideEffectResult;
+						try {
+							result = await copy;
+						} finally {
+							if (pendingSelectionCopy === copy) pendingSelectionCopy = undefined;
+						}
 						if (result.kind === 'completed') {
 							context.markCommitted();
 							return { kind: 'completed' };

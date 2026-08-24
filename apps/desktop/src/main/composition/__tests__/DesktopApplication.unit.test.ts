@@ -320,7 +320,7 @@ describe('DesktopApplication', () => {
 		await application.shutdown();
 	});
 
-	it('starts without creating an attachment and atomically transfers eight scoped controls', async () => {
+	it('starts without creating an attachment and atomically transfers nine scoped controls', async () => {
 		const harness = createHarness();
 		const application = createApplication(harness.dependencies);
 
@@ -355,10 +355,12 @@ describe('DesktopApplication', () => {
 				expect.anything(),
 				expect.anything(),
 				expect.anything(),
+				expect.anything(),
 			],
 		);
 		expect(harness.clientSessionPorts[0]?.start).toHaveBeenCalledOnce();
 		expect(harness.browserAccessBrokers[0]?.start).toHaveBeenCalledOnce();
+		expect(harness.clipboardBrokers[0]?.start).toHaveBeenCalledOnce();
 		expect(harness.projectionBrokers[0]?.start).toHaveBeenCalledOnce();
 		expect(harness.projectFolderAcquisitionBrokers[0]?.start).toHaveBeenCalledOnce();
 		expect(harness.projectWorktreeBrokers[0]?.start).toHaveBeenCalledOnce();
@@ -465,7 +467,7 @@ describe('DesktopApplication', () => {
 		const application = createApplication(harness.dependencies);
 
 		await expect(application.start()).rejects.toThrow('renderer projection broker factory failed');
-		expect(harness.messageChannels).toHaveLength(8);
+		expect(harness.messageChannels).toHaveLength(9);
 		for (const channel of harness.messageChannels) {
 			expect(channel.port1.close).toHaveBeenCalledOnce();
 			expect(channel.port2.close).toHaveBeenCalledOnce();
@@ -586,8 +588,8 @@ describe('DesktopApplication', () => {
 			throw new Error('gateway projection factory failed');
 		});
 		await expect(factoryOpenClient()).rejects.toThrow('gateway projection factory failed');
-		expect(factoryHarness.messageChannels).toHaveLength(10);
-		for (const channel of factoryHarness.messageChannels.slice(8)) {
+		expect(factoryHarness.messageChannels).toHaveLength(11);
+		for (const channel of factoryHarness.messageChannels.slice(9)) {
 			expect(channel.port1.close).toHaveBeenCalledOnce();
 			expect(channel.port2.close).toHaveBeenCalledOnce();
 		}
@@ -615,7 +617,7 @@ describe('DesktopApplication', () => {
 		});
 		await expect(startOpenClient()).rejects.toThrow('gateway projection start failed');
 		expect(startHarness.projectionBrokers[1]?.dispose).toHaveBeenCalledOnce();
-		for (const channel of startHarness.messageChannels.slice(8)) {
+		for (const channel of startHarness.messageChannels.slice(9)) {
 			expect(channel.port1.close).toHaveBeenCalledOnce();
 			expect(channel.port2.close).toHaveBeenCalled();
 		}
@@ -668,7 +670,7 @@ describe('DesktopApplication', () => {
 
 		expect(harness.clientSessionPorts[0]?.close).not.toHaveBeenCalled();
 		expect(harness.projectionBrokers[0]?.dispose).not.toHaveBeenCalled();
-		expect(harness.messageChannels).toHaveLength(8);
+		expect(harness.messageChannels).toHaveLength(9);
 		expect(harness.webContents.postMessage).toHaveBeenCalledOnce();
 		await application.shutdown();
 	});
@@ -687,12 +689,12 @@ describe('DesktopApplication', () => {
 		await vi.waitFor(() => expect(projectionDispose).toHaveBeenCalledTimes(2));
 		await Promise.resolve();
 		expect(harness.webContents.postMessage).toHaveBeenCalledOnce();
-		expect(harness.messageChannels).toHaveLength(8);
+		expect(harness.messageChannels).toHaveLength(9);
 		expect(harness.projectionBrokers).toHaveLength(1);
 
 		emitRendererDocumentLoad(harness.webContents);
 		await vi.waitFor(() => expect(harness.webContents.postMessage).toHaveBeenCalledTimes(2));
-		expect(harness.messageChannels).toHaveLength(16);
+		expect(harness.messageChannels).toHaveLength(18);
 		expect(harness.projectionBrokers).toHaveLength(2);
 		await application.shutdown();
 	});
@@ -1707,6 +1709,10 @@ function createHarness(
 		readonly runtime: Parameters<DesktopApplicationDependencies['createBrowserAccessBroker']>[1];
 		readonly start: ReturnType<typeof vi.fn<() => void>>;
 	}> = [];
+	const clipboardBrokers: Array<{
+		readonly dispose: ReturnType<typeof vi.fn<() => void>>;
+		readonly start: ReturnType<typeof vi.fn<() => void>>;
+	}> = [];
 	const projectionBrokers: Array<{
 		readonly dispose: ReturnType<typeof vi.fn<() => Promise<void>>>;
 		readonly start: ReturnType<typeof vi.fn<() => void>>;
@@ -2044,6 +2050,14 @@ function createHarness(
 			},
 		),
 		createBrowserAccessRuntime,
+		createClipboardBroker: vi.fn<DesktopApplicationDependencies['createClipboardBroker']>(() => {
+			const broker = {
+				dispose: vi.fn<() => void>(),
+				start: vi.fn<() => void>(),
+			};
+			clipboardBrokers.push(broker);
+			return broker;
+		}),
 		createBroker: vi.fn<DesktopApplicationDependencies['createBroker']>(),
 		createClientSessionBroker: vi.fn<DesktopApplicationDependencies['createClientSessionBroker']>(
 			(port, coordinator, disposeAttachments) => {
@@ -2143,6 +2157,7 @@ function createHarness(
 		browserAccessBrokers,
 		browserAccessRuntime,
 		browserWindow,
+		clipboardBrokers,
 		clientSessionPorts,
 		createBrowserAccessRuntime,
 		createProjectionControlBroker,

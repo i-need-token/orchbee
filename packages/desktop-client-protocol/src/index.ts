@@ -15,6 +15,21 @@ export type {
 	DesktopBrowserAccessState,
 } from './desktop-browser-access-contract';
 export {
+	DesktopClipboardFailureCodeSchema,
+	DesktopClipboardMainEventSchema,
+	DesktopClipboardReadResultSchema,
+	DesktopClipboardRendererCommandSchema,
+	DesktopClipboardRequestIdSchema,
+	DesktopClipboardTextSchema,
+} from './desktop-clipboard-contract';
+export type {
+	DesktopClipboardFailureCode,
+	DesktopClipboardMainEvent,
+	DesktopClipboardReadResult,
+	DesktopClipboardRendererCommand,
+	DesktopClipboardRequestId,
+} from './desktop-clipboard-contract';
+export {
 	DesktopApplicationExitRequestIdSchema,
 	DesktopApplicationLifetimeMainEventSchema,
 	DesktopApplicationLifetimeRendererCommandSchema,

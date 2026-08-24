@@ -83,6 +83,7 @@ import {
 	type DesktopBrowserAccessBrokerRuntime,
 	type DesktopBrowserAccessRuntimeOptions,
 } from '../browser-access';
+import { DesktopClipboardBroker } from '../desktop-clipboard';
 import { DevelopmentHostRuntime, type HostConnection } from '../host';
 import {
 	DesktopProjectFolderAcquisitionBroker,
@@ -160,6 +161,11 @@ interface DesktopApplicationLifetimeBrokerHandle {
 }
 
 interface DesktopBrowserAccessBrokerHandle {
+	dispose(): void;
+	start(): void;
+}
+
+interface DesktopClipboardBrokerHandle {
 	dispose(): void;
 	start(): void;
 }
@@ -256,6 +262,10 @@ export interface DesktopApplicationDependencies {
 		options: DesktopBrowserAccessRuntimeOptions,
 		openClient: () => Promise<DesktopGatewayClientHandle>,
 	) => DesktopBrowserAccessRuntimeHandle;
+	readonly createClipboardBroker: (
+		port: MessagePortMain,
+		readClipboardText: () => string,
+	) => DesktopClipboardBrokerHandle;
 	readonly createClientSessionBroker: (
 		port: MessagePortMain,
 		coordinator: DesktopClientSessionCoordinator,
@@ -363,6 +373,8 @@ const defaultDependencies: DesktopApplicationDependencies = {
 	createBrowserAccessBroker: (port, runtime) => new DesktopBrowserAccessBroker(port, runtime),
 	createBrowserAccessRuntime: (options, openClient) =>
 		new DesktopBrowserAccessRuntime(options, { openClient }),
+	createClipboardBroker: (port, readClipboardText) =>
+		new DesktopClipboardBroker(port, { readText: readClipboardText }),
 	createClientSessionBroker: (port, coordinator, disposeAttachments) =>
 		new DesktopClientSessionBroker(port, coordinator, { disposeAttachments }),
 	createClientSessionCoordinator: (dependencies) =>
@@ -454,6 +466,7 @@ export class DesktopApplication {
 	#applicationLifetimeRecovery: Promise<boolean> | undefined;
 	#browserAccessBroker: DesktopBrowserAccessBrokerHandle | undefined;
 	#browserAccessRuntime: DesktopBrowserAccessRuntimeHandle | undefined;
+	#clipboardBroker: DesktopClipboardBrokerHandle | undefined;
 	#clientSessionBroker: DesktopClientSessionBrokerHandle | undefined;
 	#clientSessionCoordinator: DesktopClientSessionCoordinator | undefined;
 	readonly #dependencies: DesktopApplicationDependencies;
@@ -1012,6 +1025,8 @@ export class DesktopApplication {
 		this.#applicationLifetimeBroker = undefined;
 		this.#browserAccessBroker?.dispose();
 		this.#browserAccessBroker = undefined;
+		this.#clipboardBroker?.dispose();
+		this.#clipboardBroker = undefined;
 		this.#projectFolderAcquisitionBroker?.dispose();
 		this.#projectFolderAcquisitionBroker = undefined;
 		this.#projectWorktreeBroker?.dispose();
@@ -1165,6 +1180,9 @@ export class DesktopApplication {
 		let browserAccessChannel:
 			| { readonly port1: MessagePortMain; readonly port2: MessagePortMain }
 			| undefined;
+		let clipboardChannel:
+			| { readonly port1: MessagePortMain; readonly port2: MessagePortMain }
+			| undefined;
 		let clientSessionChannel:
 			| { readonly port1: MessagePortMain; readonly port2: MessagePortMain }
 			| undefined;
@@ -1187,6 +1205,7 @@ export class DesktopApplication {
 		let clientSessionBroker: DesktopClientSessionBrokerHandle | undefined;
 		let lifetimeBroker: DesktopApplicationLifetimeBrokerHandle | undefined;
 		let browserAccessBroker: DesktopBrowserAccessBrokerHandle | undefined;
+		let clipboardBroker: DesktopClipboardBrokerHandle | undefined;
 		let projectFolderAcquisitionBroker: DesktopProjectFolderAcquisitionBrokerHandle | undefined;
 		let projectWorktreeBroker: DesktopProjectWorktreeBrokerHandle | undefined;
 		let terminalLaunchProfileBroker: DesktopTerminalLaunchProfileBrokerHandle | undefined;
@@ -1200,6 +1219,11 @@ export class DesktopApplication {
 			}
 			try {
 				browserAccessBroker?.dispose();
+			} catch (error: unknown) {
+				firstFailure ??= error;
+			}
+			try {
+				clipboardBroker?.dispose();
 			} catch (error: unknown) {
 				firstFailure ??= error;
 			}
@@ -1239,6 +1263,7 @@ export class DesktopApplication {
 			}
 			closeRendererChannel(lifetimeChannel);
 			closeRendererChannel(browserAccessChannel);
+			closeRendererChannel(clipboardChannel);
 			closeRendererChannel(clientSessionChannel);
 			closeRendererChannel(projectionChannel);
 			closeRendererChannel(projectFolderAcquisitionChannel);
@@ -1256,6 +1281,7 @@ export class DesktopApplication {
 			projectWorktreeChannel = this.#dependencies.createMessageChannel();
 			terminalLaunchProfileChannel = this.#dependencies.createMessageChannel();
 			terminalDefaultSettingsChannel = this.#dependencies.createMessageChannel();
+			clipboardChannel = this.#dependencies.createMessageChannel();
 			projectionBroker = this.#dependencies.createProjectionControlBroker(
 				projectionChannel.port2,
 				terminalRuntime,
@@ -1299,6 +1325,9 @@ export class DesktopApplication {
 				browserAccessChannel.port2,
 				this.#browserAccessRuntime ?? unavailableBrowserAccessRuntime,
 			);
+			clipboardBroker = this.#dependencies.createClipboardBroker(clipboardChannel.port2, () =>
+				clipboard.readText(),
+			);
 			projectFolderAcquisitionBroker = this.#dependencies.createProjectFolderAcquisitionBroker(
 				projectFolderAcquisitionChannel.port2,
 				window,
@@ -1321,6 +1350,7 @@ export class DesktopApplication {
 			);
 			clientSessionBroker.start();
 			browserAccessBroker.start();
+			clipboardBroker.start();
 			lifetimeBroker.start();
 			projectionBroker.start();
 			projectFolderAcquisitionBroker.start();
@@ -1342,10 +1372,12 @@ export class DesktopApplication {
 					projectWorktreeChannel.port1,
 					terminalLaunchProfileChannel.port1,
 					terminalDefaultSettingsChannel.port1,
+					clipboardChannel.port1,
 				],
 			);
 			this.#applicationLifetimeBroker = lifetimeBroker;
 			this.#browserAccessBroker = browserAccessBroker;
+			this.#clipboardBroker = clipboardBroker;
 			this.#clientSessionBroker = clientSessionBroker;
 			this.#projectionControlBroker = projectionBroker;
 			this.#projectFolderAcquisitionBroker = projectFolderAcquisitionBroker;

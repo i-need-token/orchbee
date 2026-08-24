@@ -19,6 +19,7 @@ import {
 	type WorkbenchClientRuntime,
 } from '../../workbench-client';
 import { DesktopClientSessionClient } from '../client-session';
+import { createDesktopTerminalPlatformEffects, DesktopClipboardClient } from '../desktop-clipboard';
 import {
 	DesktopApplicationLifetimeClient,
 	DesktopApplicationLifetimeCoordinator,
@@ -62,6 +63,7 @@ export function startDesktopWorkbenchRenderer(
 	projectWorktreePort: MessagePort,
 	terminalLaunchProfilePort: MessagePort,
 	terminalDefaultSettingsPort: MessagePort,
+	clipboardReadPort: MessagePort,
 	terminalFileDropCapability?: TerminalFileDropCapability,
 ): DesktopWorkbenchRendererSession {
 	if (!(rootElement instanceof HTMLElement)) {
@@ -69,6 +71,7 @@ export function startDesktopWorkbenchRenderer(
 	}
 	const applicationRoot = rootElement;
 	const clientSession = new DesktopClientSessionClient(clientSessionPort, bootstrap);
+	const clipboardClient = new DesktopClipboardClient(clipboardReadPort);
 	const projectionClient = new DesktopTerminalProjectionClient(projectionPort);
 	const browserAccessController = new DesktopBrowserAccessController(
 		new DesktopBrowserAccessClient(browserAccessPort),
@@ -116,6 +119,7 @@ export function startDesktopWorkbenchRenderer(
 		terminalPresentationConfigurationSource: terminalSettingsController,
 		terminalInteractionConfigurationSource: terminalInteractionSettingsController,
 		terminalCompletionReminderObserver: terminalFeedbackSettingsController,
+		terminalPlatformEffects: createDesktopTerminalPlatformEffects(clipboardClient),
 		...(macosTerminalInputSettingsController === undefined
 			? {}
 			: { terminalInputConfigurationSource: macosTerminalInputSettingsController }),
@@ -134,6 +138,7 @@ export function startDesktopWorkbenchRenderer(
 		applicationLifetimeCoordinator?.dispose();
 		applicationLifetimeCoordinator = undefined;
 		browserAccessController.dispose();
+		clipboardClient.dispose();
 		reactRoot?.unmount();
 		reactRoot = undefined;
 		projectFolderAcquisitionClient.dispose();
