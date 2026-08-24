@@ -790,6 +790,10 @@ test('terminal-parity/IN-02-composition', async () => {
 		await expect(root).toHaveAttribute('data-witness-new-composition-text-count', '1');
 		await expect(root).toHaveAttribute('data-witness-restart-before-old-end-text-count', '1');
 		await expect(root).toHaveAttribute('data-witness-duplicate-end-text-count', '1');
+		await expect(root).toHaveAttribute('data-witness-shifted-native-text', '：');
+		await expect(root).toHaveAttribute('data-witness-shifted-native-key-count', '0');
+		await expect(root).toHaveAttribute('data-witness-shifted-fallback-text', ':');
+		await expect(root).toHaveAttribute('data-witness-shifted-fallback-key-count', '0');
 		await expect(root).toHaveAttribute('data-witness-textarea-cleared', 'true');
 		await expect(root).toHaveAttribute('data-witness-same-attachment', 'true');
 		await expect(root).toHaveAttribute('data-witness-dom-child-count-after-dispose', '0');

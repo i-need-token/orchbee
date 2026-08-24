@@ -137,9 +137,10 @@ tests. They strictly parse and replay the record/check fields of the pinned matu
 versioned in
 [`../docs/input-repair-conformance-v0.0.1.json`](../docs/input-repair-conformance-v0.0.1.json).
 The headed `terminal-parity/IN-02-composition` witness drives real `ProjectedTerminal` DOM and
-Canvas adapters with synthetic `CompositionEvent`/`InputEvent` instances. It proves the
-application-layer browser adapter and completed Canvas frames, not a native operating-system IME
-candidate UI.
+Canvas adapters with synthetic `CompositionEvent`, `KeyboardEvent`, and `InputEvent` instances. It
+checks composition repair plus Shift-punctuation native-text preference and fallback at the
+application-layer browser adapter, together with completed Canvas frames. It does not exercise a
+native operating-system IME candidate UI.
 
 ## Row-flight coordination
 
@@ -160,19 +161,57 @@ Weak fairness applies only to an already-admitted correlated reply. The model do
 Host response deadline, transport delivery, or a particular order among the three lanes; concrete
 stale-generation, byte-bound, and rendering behavior remains covered by TypeScript tests.
 
+## Selection-gesture stale cancellation
+
+`tla/TerminalSelectionGestureCoordination.tla` models a pointer gesture whose serialized Host
+command can become stale while a later update, end, or cancellation is still unsent. The client
+owns the active pointer, capture, autoscroll, one in-flight gesture command, and its bounded pending
+queue; Terminal Host owns selection content, gesture validation, and generation/revision authority.
+The absence value `none` means that no command occupies a modeled lane. A stale response is an
+expected cancellation outcome, while another rejection remains a visible typed failure.
+
+| Event                         | Guard                                    | Client transition and observable result                                                                                       |
+| ----------------------------- | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Pointer start                 | No prior gesture work                    | Capture the pointer and publish `start`.                                                                                      |
+| Pointer move, end, or cancel  | A local gesture is active                | Publish immediately or retain the latest bounded unsent endpoint; end and cancel retire local activity.                       |
+| Current Host acceptance       | Generation and revision still match      | Settle the flight; only an accepted `end` may request automatic copy.                                                         |
+| Generation or revision change | A command may still be in flight         | Make that command eligible for a stale rejection; generation change also retires Host gesture state.                          |
+| Stale rejection               | The serialized gesture flight is stale   | Retire the complete local gesture, drop unsent endpoints, preserve Host selection, copy nothing, and emit no feature failure. |
+| Other rejection               | The serialized gesture flight is current | Retain the existing visible failure behavior without automatic replay.                                                        |
+| Fresh pointer start           | Stale cancellation left no gesture work  | Start a new independent gesture using current generation and revision.                                                        |
+
+| Selection-gesture claim                       | Model property                                                      | TypeScript refinement                                                                                                                         |
+| --------------------------------------------- | ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| Stale cancellation leaves no old gesture work | `StaleBarrierClearsGestureWork`, `StaleBarrierRecordsCancellation`  | `ProjectedTerminal.notifyBrokerFailure` clears the flight and queue, cancels scheduled dispatch and autoscroll, and releases pointer capture. |
+| Stale cancellation preserves Host selection   | `StaleBarrierPreservesSelection`                                    | Repair sends neither a selection endpoint nor a clear command; the latest Host-published selection remains projected.                         |
+| Stale cancellation performs no copy           | `StaleBarrierDoesNotCopy`                                           | The retired in-flight action cannot later be interpreted as an accepted `end`.                                                                |
+| Stale cancellation remains silent             | `StaleBarrierDoesNotSurfaceFailure`                                 | Only an in-flight `stale-generation` or `stale-revision` selection failure is absorbed.                                                       |
+| A later gesture starts independently          | Required action coverage for `RestartGesture` and `AcceptSelection` | The deterministic pointer trace cancels stale work, then completes a new gesture normally.                                                    |
+| Other selection failures remain visible       | Required action coverage for `RejectSelection`                      | Existing `onError` delivery remains unchanged for non-stale selection failures.                                                               |
+
+TLC checks one current pointer gesture, one coalesced pending endpoint, two generations, two
+revisions, and bounded publication, selection, failure, and stale-cancellation counts. The concrete
+queue bound and pointer/capture effects are checked by deterministic `ProjectedTerminal` tests.
+The model assumes that a selection failure settles the current serialized gesture command because
+the protocol does not correlate selection gestures by request sequence. Concurrent programmatic
+selection commands, transport deadlines, Host text semantics, clipboard delivery, and automatic
+retry are excluded; their existing contracts are unchanged.
+
 ## Native input settlement
 
 `tla/TerminalNativeInputSettlement.tla` owns the short native-text settlement window that is
 separate from composition settlement in `TerminalInputRepair.tla`. It explores two consecutively
-admitted requests and independently orders textarea-value changes, repeated queue attempts,
-fallback coalescing, input-event deferral, timer firing, composition start/end, repair/reopen, and
-disposal. It also represents a later Host-directed input as a publication transition that remains
-disabled until the current native request has a terminal outcome.
+admitted requests, distinguishes unmodified and Shift-produced printable fallback requests, and
+independently orders textarea-value changes, repeated queue attempts, fallback coalescing,
+input-event deferral, timer firing, composition start/end, repair/reopen, and disposal. It also
+represents a later Host-directed input as a publication transition that remains disabled until the
+current native request has a terminal outcome.
 
 | Native settlement claim                                  | Model property                                                                                          | TypeScript refinement                                                                                             |
 | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
 | One admitted request has one terminal outcome            | `EveryAdmittedRequestSettlesOnce`, `PublicationIsExactlyOnce`                                           | `#queueNativeInputChange` owns one pending request and clears it before timer publication.                        |
-| Changed native text wins over the raw-key fallback       | `NativePublicationRequiresChangedValue`, `FallbackPublicationRequiresUnchangedValue`                    | The timer compares the settled textarea value with its captured baseline before choosing native text or fallback. |
+| Shift printable candidates retain a text fallback        | `ShiftedRequestsAreAdmittedFallbacks`, required `QueueShiftedFallback` coverage                         | `shouldUseNativeTextInput` admits Shift punctuation and digits into the same settlement state machine.            |
+| Changed native text wins over the layout-text fallback   | `NativePublicationRequiresChangedValue`, `FallbackPublicationRequiresUnchangedValue`                    | The timer compares the settled textarea value with its captured baseline before choosing native text or fallback. |
 | A repeated keydown only enriches the current request     | `PendingIdentityIsCurrent`, `FallbackPublicationRequiresUnchangedValue`                                 | A pending request retains its baseline and timer while the first non-empty fallback is coalesced.                 |
 | An independent input event waits for the timer           | `DeferredInputDoesNotPublishEarly`                                                                      | `#consumeInputValue` returns while an independent text insertion has a native change pending.                     |
 | A later Host-directed input cannot overtake settlement   | `FollowingInputCannotOvertakeSettlement`                                                                | `#sendInput` synchronously settles a pending native request before publishing the later command.                  |
@@ -180,11 +219,14 @@ disabled until the current native request has a terminal outcome.
 | An uncancelled timer eventually settles                  | `PendingTimerEventuallySettles`                                                                         | Weak fairness applies only to the already-armed current timer; environment events may cancel it first.            |
 
 The model represents time by event ordering and never assumes that a slow machine fires at exactly
-30 milliseconds. It abstracts concrete Unicode strings to textarea generations and does not model
-send failure or focus convergence, which remain owned by `TerminalInputRepair.tla` and TypeScript
-tests. The separate zero-delay `#nativeInputTextForNextKey` marker is also outside this model; unit
-tests cover input-before-keydown within the marker's browser-task window, so no formal claim is made
-for arbitrary delay between those two browser events.
+30 milliseconds. It abstracts concrete Unicode strings to textarea generations and the browser
+admission partition to unmodified or Shift-produced fallback actions. Deterministic TypeScript
+tests own the concrete punctuation/digit, letter, Space, and Control/Meta/Alt guard partitions. The
+operating-system input method owns the resulting Unicode mapping. Send failure and focus convergence
+remain owned by `TerminalInputRepair.tla` and TypeScript tests. The separate zero-delay
+`#nativeInputTextForNextKey` marker is also outside this model; unit tests cover input-before-keydown
+within the marker's browser-task window, so no formal claim is made for arbitrary delay between
+those two browser events.
 
 Run the bounded model from the repository root:
 
@@ -192,9 +234,10 @@ Run the bounded model from the repository root:
 pnpm --filter @orchbee/terminal test:tla
 ```
 
-The shared repository runner executes the presentation, row-flight, and native-settlement models
-once and the input-repair model through nine fixed semantic scenarios: composition, key, mouse, focus,
-review-key, review-mouse, review-focus, review-composition, and lifecycle. `review-composition`
+The shared repository runner executes the renderer-initialization, presentation, row-flight,
+selection-gesture, and native-settlement models once and the input-repair model through nine fixed
+semantic scenarios: composition, key, mouse, focus, review-key, review-mouse, review-focus,
+review-composition, and lifecycle. `review-composition`
 combines a stalled review, queued focus-in, reset invalidation, a deliberately failed first
 fresh-generation focus reconciliation, a blocked composition publication attempt, a successful
 reconciliation retry, and a later composition publication. `InputPublicationReady` guards only

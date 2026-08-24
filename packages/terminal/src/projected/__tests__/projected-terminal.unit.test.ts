@@ -1225,7 +1225,7 @@ describe('ProjectedTerminal', () => {
 		terminal.dispose();
 	});
 
-	it('lets native IME punctuation settle before publishing a raw punctuation keydown', async () => {
+	it('lets native IME punctuation settle before publishing its text fallback', async () => {
 		vi.useFakeTimers();
 		const browser = createFakeBrowser();
 		vi.stubGlobal('document', browser.document);
@@ -1261,7 +1261,175 @@ describe('ProjectedTerminal', () => {
 		terminal.dispose();
 	});
 
-	it('falls back to raw punctuation when the native IME produces no input', async () => {
+	it.each([
+		{ code: 'Semicolon', key: ':', keyCode: 186, nativeText: '：' },
+		{ code: 'Digit1', key: '!', keyCode: 49, nativeText: '！' },
+	])('publishes shifted $code IME punctuation before releasing Shift', async (testCase) => {
+		vi.useFakeTimers();
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		const input = terminal.textarea as unknown as FakeElement;
+
+		input.dispatch(
+			'keydown',
+			keyboardEvent('keydown', 'ShiftLeft', 'Shift', 16, { shiftKey: true }),
+		);
+		input.dispatch(
+			'keydown',
+			keyboardEvent('keydown', testCase.code, testCase.key, testCase.keyCode, { shiftKey: true }),
+		);
+		input.value = testCase.nativeText;
+		dispatchInput(input);
+		input.dispatch(
+			'keyup',
+			keyboardEvent('keyup', testCase.code, testCase.key, testCase.keyCode, { shiftKey: true }),
+		);
+		input.dispatch('keyup', keyboardEvent('keyup', 'ShiftLeft', 'Shift', 16));
+		await vi.advanceTimersByTimeAsync(30);
+
+		expect(
+			commands.flatMap((command) => {
+				if (command.kind === 'text-input') return [`text:${command.payload.text}`];
+				if (command.kind === 'key-input') {
+					return [`key:${command.payload.action}:${command.payload.key}`];
+				}
+				return [];
+			}),
+		).toEqual(['key:press:ShiftLeft', `text:${testCase.nativeText}`, 'key:release:ShiftLeft']);
+		terminal.dispose();
+	});
+
+	it('falls back to shifted punctuation text when the native IME produces no input', async () => {
+		vi.useFakeTimers();
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		const input = terminal.textarea as unknown as FakeElement;
+
+		input.dispatch('keydown', keyboardEvent('keydown', 'Semicolon', ':', 186, { shiftKey: true }));
+		await vi.advanceTimersByTimeAsync(30);
+
+		expect(
+			commands
+				.filter((command) => command.kind === 'text-input')
+				.map((command) => command.payload.text),
+		).toEqual([':']);
+		expect(commands.filter((command) => command.kind === 'key-input')).toEqual([]);
+		terminal.dispose();
+	});
+
+	it('does not duplicate shifted punctuation when input arrives before keydown', async () => {
+		vi.useFakeTimers();
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		const input = terminal.textarea as unknown as FakeElement;
+
+		input.value = '：';
+		dispatchInput(input);
+		input.dispatch('keydown', keyboardEvent('keydown', 'Semicolon', ':', 186, { shiftKey: true }));
+		await vi.advanceTimersByTimeAsync(30);
+
+		expect(
+			commands
+				.filter((command) => command.kind === 'text-input')
+				.map((command) => command.payload.text),
+		).toEqual(['：']);
+		expect(commands.filter((command) => command.kind === 'key-input')).toEqual([]);
+		terminal.dispose();
+	});
+
+	it('keeps shifted letters, Space, and shortcut chords outside native text settlement', async () => {
+		vi.useFakeTimers();
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		const input = terminal.textarea as unknown as FakeElement;
+		const events = [
+			keyboardEvent('keydown', 'KeyA', 'A', 65, { shiftKey: true }),
+			keyboardEvent('keydown', 'KeyB', 'Β', 66, { shiftKey: true }),
+			keyboardEvent('keydown', 'Space', ' ', 32, { shiftKey: true }),
+			keyboardEvent('keydown', 'Semicolon', ':', 186, { ctrlKey: true, shiftKey: true }),
+			keyboardEvent('keydown', 'Slash', '?', 191, { altKey: true, shiftKey: true }),
+			keyboardEvent('keydown', 'Quote', '"', 222, { metaKey: true, shiftKey: true }),
+		];
+
+		for (const event of events) input.dispatch('keydown', event);
+		await vi.advanceTimersByTimeAsync(30);
+
+		expect(commands.filter((command) => command.kind === 'text-input')).toEqual([]);
+		expect(
+			commands.flatMap((command) =>
+				command.kind === 'key-input' && command.payload.action === KeyAction.press
+					? [command.payload.key]
+					: [],
+			),
+		).toEqual(['KeyA', 'KeyB', 'Space', 'Semicolon', 'Slash', 'Quote']);
+		terminal.dispose();
+	});
+
+	it('falls back to punctuation text when the native IME produces no input', async () => {
 		vi.useFakeTimers();
 		const browser = createFakeBrowser();
 		vi.stubGlobal('document', browser.document);
@@ -9747,7 +9915,7 @@ describe('ProjectedTerminal', () => {
 		terminal.dispose();
 	});
 
-	it('repairs a reflow-stale selection gesture without surfacing a feature failure', async () => {
+	it('cancels a revision-stale selection gesture without dispatching its pending end', async () => {
 		const browser = createFakeBrowser();
 		vi.stubGlobal('document', browser.document);
 		vi.stubGlobal('window', browser.document.defaultView);
@@ -9796,9 +9964,115 @@ describe('ProjectedTerminal', () => {
 		browser.flushFrames();
 
 		const gestures = commands.filter((command) => command.kind === 'selection-gesture');
-		expect(gestures.map((command) => command.payload.action)).toEqual(['start', 'end']);
-		expect(gestures.at(-1)?.payload).toMatchObject({ generation: '2', revision: '2' });
+		expect(gestures.map((command) => command.payload.action)).toEqual(['start']);
+		expect(commands.filter((command) => command.kind === 'selection-copy')).toHaveLength(0);
 		expect(errors).not.toHaveBeenCalled();
+		terminal.dispose();
+	});
+
+	it('retires a generation-stale active gesture and admits a fresh gesture', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		const errors = vi.fn<(event: ProjectedTerminalErrorEvent) => void>();
+		terminal.onError(errors);
+		await terminal.open(browser.root);
+		terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['a', 'b']));
+		const canvas = terminal.canvas as unknown as FakeElement;
+
+		canvas.dispatch('pointerdown', pointerEvent('pointerdown', 0, 1, 2, 2, { pointerId: 72 }));
+		expect(canvas.capturedPointers.has(72)).toBe(true);
+		terminal.notifyHistoryChanged({
+			anchorStatus: 'none',
+			attachmentId,
+			generation: canonicalText('2'),
+			revision: canonicalText('1'),
+			sequence: canonicalText('1'),
+			totalRows: canonicalText('2'),
+		});
+		terminal.notifyBrokerFailure({
+			code: 'stale-generation',
+			message: 'SelectionGesture failed because the generation advanced',
+			operation: 'selection',
+			retryable: true,
+		});
+
+		expect(canvas.capturedPointers.has(72)).toBe(false);
+		canvas.dispatch('pointermove', pointerEvent('pointermove', 0, 1, 12, 2, { pointerId: 72 }));
+		canvas.dispatch('pointerup', pointerEvent('pointerup', 0, 0, 12, 2, { pointerId: 72 }));
+		browser.flushFrames();
+		expect(
+			commands
+				.filter((command) => command.kind === 'selection-gesture')
+				.map((command) => command.payload.action),
+		).toEqual(['start']);
+		expect(commands.filter((command) => command.kind === 'selection-copy')).toHaveLength(0);
+
+		canvas.dispatch('pointerdown', pointerEvent('pointerdown', 0, 1, 2, 2, { pointerId: 73 }));
+		const restartedGestures = commands.filter((command) => command.kind === 'selection-gesture');
+		expect(restartedGestures.map((command) => command.payload.action)).toEqual(['start', 'start']);
+		expect(restartedGestures.at(-1)?.payload).toMatchObject({ generation: '2', revision: '1' });
+		terminal.notifySelectionChanged({ attachmentId, state: 'none' });
+		canvas.dispatch('pointerup', pointerEvent('pointerup', 0, 0, 12, 2, { pointerId: 73 }));
+		browser.flushFrames();
+		terminal.notifySelectionChanged({
+			attachmentId,
+			end: { column: 0, row: canonicalText('0') },
+			preview: 'a',
+			rectangle: false,
+			start: { column: 0, row: canonicalText('0') },
+			state: 'active',
+		});
+
+		expect(
+			commands
+				.filter((command) => command.kind === 'selection-gesture')
+				.map((command) => command.payload.action),
+		).toEqual(['start', 'start', 'end']);
+		expect(commands.filter((command) => command.kind === 'selection-copy')).toHaveLength(1);
+		expect(errors).not.toHaveBeenCalled();
+		terminal.dispose();
+	});
+
+	it('keeps a non-stale selection failure visible', async () => {
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: { send: () => {} },
+			terminalId,
+		});
+		const errors = vi.fn<(event: ProjectedTerminalErrorEvent) => void>();
+		terminal.onError(errors);
+
+		terminal.notifyBrokerFailure({
+			code: 'invalid-field',
+			message: 'SelectionGesture requires an active press',
+			operation: 'selection',
+			retryable: false,
+		});
+
+		expect(errors).toHaveBeenCalledOnce();
+		expect(errors.mock.calls[0]?.[0]).toMatchObject({
+			code: 'invalid-field',
+			operation: 'selection',
+			retryable: false,
+		});
 		terminal.dispose();
 	});
 

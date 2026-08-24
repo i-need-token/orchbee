@@ -1193,7 +1193,8 @@
 			"triggers": ["packages/terminal/src/**"],
 			"requiredCoverage": [
 				"QueueWithoutFallback",
-				"QueueWithFallback",
+				"QueueUnmodifiedFallback",
+				"QueueShiftedFallback",
 				"CoalesceWithoutFallback",
 				"CoalesceFallback",
 				"NativeValueChanges",
@@ -1270,6 +1271,29 @@
 				"CoverageAbortSearch",
 				"CoverageAbortBuffer",
 				"Dispose"
+			]
+		},
+		{
+			"id": "terminal-selection-gesture-coordination",
+			"owner": "@orchbee/terminal",
+			"workspace": "packages/terminal",
+			"module": "packages/terminal/formal/tla/TerminalSelectionGestureCoordination.tla",
+			"config": "packages/terminal/formal/tla/TerminalSelectionGestureCoordination.cfg",
+			"claims": ["packages/terminal/formal/README.md", "packages/terminal/README.md"],
+			"triggers": ["packages/terminal/src/projected/projected-terminal.ts"],
+			"requiredCoverage": [
+				"StartGesture",
+				"RestartGesture",
+				"MoveGesture",
+				"EndGesture",
+				"CancelGesture",
+				"DispatchPending",
+				"AcceptSelection",
+				"RejectStaleRevision",
+				"RejectStaleGeneration",
+				"RejectSelection",
+				"AdvanceRevision",
+				"AdvanceGeneration"
 			]
 		},
 		{

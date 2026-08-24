@@ -134,6 +134,50 @@ async function runWitness(): Promise<void> {
 			throw new Error('A new composition did not commit exactly once.');
 		}
 		if (input.value !== '') throw new Error('Composition completion did not clear the textarea.');
+
+		const shiftedNativeStart = commands.length;
+		dispatchKey(input, 'keydown', 'ShiftLeft', 'Shift', true);
+		dispatchKey(input, 'keydown', 'Semicolon', ':', true);
+		dispatchTextBeforeInput(input, ':');
+		input.value = '：';
+		dispatchTextInput(input, '：');
+		dispatchKey(input, 'keyup', 'Semicolon', ':', true);
+		dispatchKey(input, 'keyup', 'ShiftLeft', 'Shift', false);
+		await nextTask();
+		const shiftedNativeCommands = commands.slice(shiftedNativeStart);
+		const shiftedNativeText = shiftedNativeCommands.flatMap((command) =>
+			command.kind === 'text-input' ? [command.payload.text] : [],
+		);
+		const shiftedNativeKeyCount = shiftedNativeCommands.filter(
+			(command) => command.kind === 'key-input' && command.payload.key === 'Semicolon',
+		).length;
+		if (shiftedNativeText.length !== 1 || shiftedNativeText[0] !== '：') {
+			throw new Error('Shift punctuation did not preserve the native IME Unicode text.');
+		}
+		if (shiftedNativeKeyCount !== 0) {
+			throw new Error('Shift punctuation also published a physical punctuation key.');
+		}
+
+		const shiftedFallbackStart = commands.length;
+		dispatchKey(input, 'keydown', 'ShiftLeft', 'Shift', true);
+		dispatchKey(input, 'keydown', 'Semicolon', ':', true);
+		dispatchKey(input, 'keyup', 'Semicolon', ':', true);
+		dispatchKey(input, 'keyup', 'ShiftLeft', 'Shift', false);
+		await nextTask();
+		const shiftedFallbackCommands = commands.slice(shiftedFallbackStart);
+		const shiftedFallbackText = shiftedFallbackCommands.flatMap((command) =>
+			command.kind === 'text-input' ? [command.payload.text] : [],
+		);
+		const shiftedFallbackKeyCount = shiftedFallbackCommands.filter(
+			(command) => command.kind === 'key-input' && command.payload.key === 'Semicolon',
+		).length;
+		if (shiftedFallbackText.length !== 1 || shiftedFallbackText[0] !== ':') {
+			throw new Error('Shift punctuation did not publish its deterministic text fallback.');
+		}
+		if (shiftedFallbackKeyCount !== 0) {
+			throw new Error('Shift fallback published a physical punctuation key.');
+		}
+
 		if (commands.some((command) => command.payload.attachmentId !== initialAttachment)) {
 			throw new Error('Input repair changed the projected attachment.');
 		}
@@ -147,6 +191,10 @@ async function runWitness(): Promise<void> {
 		root.dataset['witnessRestartBeforeOldEndTextCount'] = String(textCountAfterNewEnd);
 		root.dataset['witnessDuplicateEndTextCount'] = String(textCountAfterDuplicateEnd);
 		root.dataset['witnessRepairDrawDelta'] = String(repairedDrawCount - activeDrawCount);
+		root.dataset['witnessShiftedFallbackKeyCount'] = String(shiftedFallbackKeyCount);
+		root.dataset['witnessShiftedFallbackText'] = shiftedFallbackText[0];
+		root.dataset['witnessShiftedNativeKeyCount'] = String(shiftedNativeKeyCount);
+		root.dataset['witnessShiftedNativeText'] = shiftedNativeText[0];
 		root.dataset['witnessTextareaCleared'] = String(input.value === '');
 		root.dataset['witnessSameAttachment'] = 'true';
 		terminal.dispose();
@@ -179,6 +227,41 @@ function dispatchBeforeInput(input: HTMLTextAreaElement, data: string): void {
 			bubbles: true,
 			data,
 			inputType: 'insertFromComposition',
+			isComposing: false,
+		}),
+	);
+}
+
+function dispatchKey(
+	input: HTMLTextAreaElement,
+	type: 'keydown' | 'keyup',
+	code: string,
+	key: string,
+	shiftKey: boolean,
+): void {
+	input.dispatchEvent(
+		new KeyboardEvent(type, { bubbles: true, cancelable: true, code, key, shiftKey }),
+	);
+}
+
+function dispatchTextBeforeInput(input: HTMLTextAreaElement, data: string): void {
+	input.dispatchEvent(
+		new InputEvent('beforeinput', {
+			bubbles: true,
+			cancelable: true,
+			data,
+			inputType: 'insertText',
+			isComposing: false,
+		}),
+	);
+}
+
+function dispatchTextInput(input: HTMLTextAreaElement, data: string): void {
+	input.dispatchEvent(
+		new InputEvent('input', {
+			bubbles: true,
+			data,
+			inputType: 'insertText',
 			isComposing: false,
 		}),
 	);
@@ -295,5 +378,11 @@ function incrementDataset(element: HTMLElement, key: string): void {
 async function nextPaint(): Promise<void> {
 	await new Promise<void>((resolve) => {
 		requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+	});
+}
+
+async function nextTask(): Promise<void> {
+	await new Promise<void>((resolve) => {
+		setTimeout(resolve, 0);
 	});
 }

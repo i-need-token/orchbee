@@ -190,9 +190,9 @@ function isCompositionInput(isComposing: boolean, inputType: string): boolean {
 
 function shouldUseNativeTextInput(event: KeyboardEvent): boolean {
 	if (event.isComposing || event.keyCode === 229) return false;
-	if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey || event.key.length !== 1)
-		return false;
+	if (event.ctrlKey || event.metaKey || event.altKey || event.key.length !== 1) return false;
 	if (event.key === ' ') return false;
+	if (event.shiftKey && /^\p{Letter}$/u.test(event.key)) return false;
 	return /^[0-9]$/.test(event.key) || !/^[A-Za-z]$/.test(event.key);
 }
 
@@ -1811,7 +1811,7 @@ export class ProjectedTerminal {
 	notifyBrokerFailure(failure: ProjectedBrokerFailure): void {
 		if (failure.operation === 'resize') this.#lastGeometry = undefined;
 		let handledHistoryFailure = false;
-		const repairedStaleSelectionGesture =
+		const staleSelectionGestureFailure =
 			failure.operation === 'selection' &&
 			this.#selectionGestureActionInFlight !== undefined &&
 			(failure.code === 'stale-generation' || failure.code === 'stale-revision');
@@ -1861,14 +1861,16 @@ export class ProjectedTerminal {
 			this.#linkCompletions.delete(failure.requestSequence);
 			complete?.({ code: failure.code, kind: 'failed', retryable: failure.retryable });
 		}
-		if (failure.operation === undefined || failure.operation === 'selection') {
+		if (staleSelectionGestureFailure) {
+			this.#retireStaleSelectionGesture();
+		} else if (failure.operation === undefined || failure.operation === 'selection') {
 			this.#selectionGestureActionInFlight = undefined;
 			this.#selectionGestureInFlight = false;
 			this.#selectionClickSequence = undefined;
 			this.#suppressNextSelectionCopy = false;
 			this.#scheduleSelectionGesture();
 		}
-		if (!handledHistoryFailure && !repairedStaleSelectionGesture) {
+		if (!handledHistoryFailure && !staleSelectionGestureFailure) {
 			this.#errorEmitter.fire({ ...failure, error: new Error(failure.message) });
 		}
 	}
@@ -5911,6 +5913,28 @@ export class ProjectedTerminal {
 			canvas?.releasePointerCapture(pointerId);
 		} catch {
 			// Browsers may release capture before cancellation repairs the gesture.
+		}
+	}
+
+	#retireStaleSelectionGesture(): void {
+		const canvas = this.#canvas;
+		const pointerId = this.#selectionGesturePointerId;
+		this.#selectionGestureActionInFlight = undefined;
+		this.#selectionGestureInFlight = false;
+		this.#selectionGestureActive = false;
+		this.#selectionGestureLast = undefined;
+		this.#selectionGesturePointerId = undefined;
+		this.#selectionClickSequence = undefined;
+		this.#pendingSelectionGestures.length = 0;
+		this.#suppressNextSelectionCopy = false;
+		this.#cancelScheduledSelectionGesture();
+		this.#stopSelectionAutoscroll();
+		this.#updateSurfaceMouseCursor();
+		if (pointerId === undefined) return;
+		try {
+			canvas?.releasePointerCapture(pointerId);
+		} catch {
+			// Browsers may release capture before a stale Host reply retires the gesture.
 		}
 	}
 
