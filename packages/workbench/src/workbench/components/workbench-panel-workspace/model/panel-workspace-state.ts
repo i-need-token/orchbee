@@ -51,6 +51,7 @@ export type PanelLayoutNode = PanelLeaf | PanelSplit;
 export interface TabPanelWorkspace {
 	readonly focusedPanelId: string;
 	readonly maximizedPanelId: string | null;
+	readonly panelFocusHistory: readonly string[];
 	readonly root: PanelLayoutNode;
 	readonly tabId: string;
 }
@@ -946,15 +947,44 @@ function removePanelFromTab(
 ): PanelWorkspaceState | null {
 	const panels = collectPanelLeaves(tab.root);
 	const removedIndex = panels.findIndex((candidate) => candidate.id === panelId);
-	const nextFocusedPanel = panels[removedIndex - 1] ?? panels[removedIndex + 1];
+	const visualFallbackPanel = panels[removedIndex - 1] ?? panels[removedIndex + 1];
 	const result = removePanelFromNode(tab.root, panelId);
-	if (!result.removed || result.node === null || nextFocusedPanel === undefined) return null;
+	if (!result.removed || result.node === null || visualFallbackPanel === undefined) return null;
+	const remainingPanelIds = new Set(
+		panels.filter((panel) => panel.id !== panelId).map((panel) => panel.id),
+	);
+	const survivingHistory = tab.panelFocusHistory.filter(
+		(candidatePanelId) => candidatePanelId !== panelId && remainingPanelIds.has(candidatePanelId),
+	);
+	const focusedPanelId =
+		tab.focusedPanelId === panelId
+			? (survivingHistory.at(-1) ?? visualFallbackPanel.id)
+			: tab.focusedPanelId;
+	const panelFocusHistory = [
+		...survivingHistory.filter((candidatePanelId) => candidatePanelId !== focusedPanelId),
+		focusedPanelId,
+	];
 	return replaceTab(state, tabIndex, {
 		...tab,
-		focusedPanelId: tab.focusedPanelId === panelId ? nextFocusedPanel.id : tab.focusedPanelId,
+		focusedPanelId,
 		maximizedPanelId: tab.maximizedPanelId === panelId ? null : tab.maximizedPanelId,
+		panelFocusHistory,
 		root: result.node,
 	});
+}
+
+function focusPanelInTab(tab: TabPanelWorkspace, panelId: string): TabPanelWorkspace {
+	if (tab.focusedPanelId === panelId && tab.panelFocusHistory.at(-1) === panelId) {
+		return tab;
+	}
+	return {
+		...tab,
+		focusedPanelId: panelId,
+		panelFocusHistory: [
+			...tab.panelFocusHistory.filter((candidatePanelId) => candidatePanelId !== panelId),
+			panelId,
+		],
+	};
 }
 
 function withoutRemoval(
@@ -1165,6 +1195,7 @@ export function initializePanelWorkspace(
 		return {
 			focusedPanelId: creation.panel.id,
 			maximizedPanelId: null,
+			panelFocusHistory: [creation.panel.id],
 			root: creation.panel,
 			tabId: tab.id,
 		};
@@ -1233,17 +1264,19 @@ export function clonePanelWorkspaceState(
 			if (tabId === undefined) {
 				throw new Error(`Panel workspace clone is missing Tab mapping for ${tab.tabId}.`);
 			}
+			const focusedPanelId = cloneIdentity(
+				identities.panelIds,
+				identities.prefix,
+				'panel',
+				tab.focusedPanelId,
+			);
 			return {
-				focusedPanelId: cloneIdentity(
-					identities.panelIds,
-					identities.prefix,
-					'panel',
-					tab.focusedPanelId,
-				),
+				focusedPanelId,
 				maximizedPanelId:
 					tab.maximizedPanelId === null
 						? null
 						: cloneIdentity(identities.panelIds, identities.prefix, 'panel', tab.maximizedPanelId),
+				panelFocusHistory: [focusedPanelId],
 				root: clonePanelLayoutNode(tab.root, identities),
 				tabId,
 			};
@@ -1401,6 +1434,7 @@ export function transitionPanelWorkspace(
 			return {
 				focusedPanelId: creation.panel.id,
 				maximizedPanelId: null,
+				panelFocusHistory: [creation.panel.id],
 				root: creation.panel,
 				tabId: tab.id,
 			};
@@ -1460,8 +1494,7 @@ export function transitionPanelWorkspace(
 		return applied(
 			{
 				...replaceTab(state, tabIndex, {
-					...tab,
-					focusedPanelId: newPanel.id,
+					...focusPanelInTab(tab, newPanel.id),
 					maximizedPanelId: null,
 					root: result.node,
 				}),
@@ -1506,8 +1539,7 @@ export function transitionPanelWorkspace(
 		}
 		return applied({
 			...replaceTab(state, tabIndex, {
-				...tab,
-				focusedPanelId: panel.id,
+				...focusPanelInTab(tab, panel.id),
 				maximizedPanelId: null,
 				root: result.node,
 			}),
@@ -1997,8 +2029,7 @@ export function transitionPanelWorkspace(
 		return applied(
 			{
 				...replaceTab(state, tabIndex, {
-					...tab,
-					focusedPanelId: event.panelId,
+					...focusPanelInTab(tab, event.panelId),
 					root: result.node,
 				}),
 				nextTerminalSequence: state.nextTerminalSequence + 1,
@@ -2024,8 +2055,7 @@ export function transitionPanelWorkspace(
 		}));
 		return applied(
 			replaceTab(state, tabIndex, {
-				...tab,
-				focusedPanelId: event.panelId,
+				...focusPanelInTab(tab, event.panelId),
 				root: result.node,
 			}),
 		);
@@ -2081,15 +2111,14 @@ export function transitionPanelWorkspace(
 	if (event.type === 'panel-focused') {
 		return tab.focusedPanelId === event.panelId
 			? unchanged(state)
-			: applied(replaceTab(state, tabIndex, { ...tab, focusedPanelId: event.panelId }));
+			: applied(replaceTab(state, tabIndex, focusPanelInTab(tab, event.panelId)));
 	}
 
 	if (event.type === 'panel-maximization-toggled') {
 		const maximizedPanelId = tab.maximizedPanelId === event.panelId ? null : event.panelId;
 		return applied(
 			replaceTab(state, tabIndex, {
-				...tab,
-				focusedPanelId: event.panelId,
+				...focusPanelInTab(tab, event.panelId),
 				maximizedPanelId,
 			}),
 		);
@@ -2137,6 +2166,22 @@ export function validatePanelWorkspaceState(state: PanelWorkspaceState): readonl
 		const localPanelIds = new Set(panels.map((panel) => panel.id));
 		if (!localPanelIds.has(tab.focusedPanelId)) {
 			errors.push(`Missing focused panel: ${tab.focusedPanelId}`);
+		}
+		if (tab.panelFocusHistory.length === 0) {
+			errors.push(`Empty panel focus history: ${tab.tabId}`);
+		}
+		const historyPanelIds = new Set<string>();
+		for (const historyPanelId of tab.panelFocusHistory) {
+			if (historyPanelIds.has(historyPanelId)) {
+				errors.push(`Duplicate panel focus history id: ${historyPanelId}`);
+			}
+			historyPanelIds.add(historyPanelId);
+			if (!localPanelIds.has(historyPanelId)) {
+				errors.push(`Missing panel in focus history: ${historyPanelId}`);
+			}
+		}
+		if (tab.panelFocusHistory.at(-1) !== tab.focusedPanelId) {
+			errors.push(`Panel focus history does not end with focused panel: ${tab.tabId}`);
 		}
 		if (tab.maximizedPanelId !== null && !localPanelIds.has(tab.maximizedPanelId)) {
 			errors.push(`Missing maximized panel: ${tab.maximizedPanelId}`);

@@ -75,6 +75,10 @@ showing one child terminal, collapsing a Group, or resizing a Split does not cha
 document. Split hierarchy and orientation are shared; weights are local so clients with different
 viewport sizes can render the same structure independently.
 
+The live per-Tab MRU Panel focus history is runtime-only state initialized from each Client View
+focused Panel. It is not serialized in either contract, and initial hydration therefore does not
+restore earlier focus visits.
+
 Terminal viewport state is outside both contracts. Each projected terminal client owns its
 `AttachmentId`, dimensions, scroll position, search input and results, selection, copy state, GPU
 resources, and renderer caches. `TerminalId`, Binding identity, PTY bytes, VT state, output, and

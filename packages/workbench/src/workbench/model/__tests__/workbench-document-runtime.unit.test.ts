@@ -71,6 +71,67 @@ describe('Workbench document runtime', () => {
 		expect(commands).toHaveLength(commandCount);
 	});
 
+	it('preserves live Panel focus history across shared-document application without serializing it', () => {
+		const commands: WorkbenchTerminalPresentationCommand[] = [];
+		const runtime = createManagedRuntime(commands);
+		const initialProvision = commands[0];
+		if (initialProvision?.type !== 'terminal-provision-requested') {
+			throw new Error('Expected the initial provision command.');
+		}
+		runtime.applyTerminalPresentationEvent({
+			operationId: initialProvision.operationId,
+			presentationId: initialProvision.presentationId,
+			type: 'terminal-provision-completed',
+		});
+		const context = runtime.getActiveTerminalContext();
+		const initialTab = context.panelWorkspaceStore.getSnapshot().tabs[0];
+		if (initialTab === undefined) throw new Error('Expected an initial Tab.');
+		for (const panelId of ['panel-1', 'panel-2']) {
+			const presentation = context.panelWorkspaceStore.createTerminalPresentation();
+			if (presentation.kind !== 'managed') throw new Error('Expected a managed presentation.');
+			context.panelWorkspaceStore.transition({
+				direction: 'right',
+				newTerminalTitle: `Terminal ${panelId === 'panel-1' ? '2' : '3'}`,
+				panelId,
+				presentation,
+				tabId: initialTab.tabId,
+				type: 'panel-split',
+			});
+			runtime.applyTerminalPresentationEvent({
+				operationId: presentation.operationId,
+				presentationId: presentation.presentationId,
+				type: 'terminal-provision-completed',
+			});
+		}
+		for (const panelId of ['panel-1', 'panel-3', 'panel-2']) {
+			context.panelWorkspaceStore.transition({
+				panelId,
+				tabId: initialTab.tabId,
+				type: 'panel-focused',
+			});
+		}
+		const clientView = runtime.getClientView();
+		const document = runtime.getSharedDocument(workbenchSharedDocumentRevision('11'));
+
+		expect(context.panelWorkspaceStore.getSnapshot().tabs[0]?.panelFocusHistory).toEqual([
+			'panel-1',
+			'panel-3',
+			'panel-2',
+		]);
+		expect(JSON.stringify(document)).not.toContain('panelFocusHistory');
+		expect(
+			hydrateWorkbenchDocuments(document, clientView).terminalContexts[0]?.panelWorkspace.tabs[0]
+				?.panelFocusHistory,
+		).toEqual(['panel-2']);
+
+		runtime.createTerminal({ groupId: null, source: 'button', title: 'Terminal 4' });
+		expect(runtime.applySharedDocument(document)).toMatchObject({ kind: 'applied' });
+		expect(
+			runtime.getActiveTerminalContext().panelWorkspaceStore.getSnapshot().tabs[0]
+				?.panelFocusHistory,
+		).toEqual(['panel-1', 'panel-3', 'panel-2']);
+	});
+
 	it('projects and hydrates managed shared document without dispatching recovered effects', () => {
 		const commands: WorkbenchTerminalPresentationCommand[] = [];
 		const runtime = createManagedRuntime(commands);

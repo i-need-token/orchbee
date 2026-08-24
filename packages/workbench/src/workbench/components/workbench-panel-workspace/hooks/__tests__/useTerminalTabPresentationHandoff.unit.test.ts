@@ -11,6 +11,7 @@ function tab(tabId: string, presentationId: string): TabPanelWorkspace {
 	return {
 		focusedPanelId: `${tabId}-panel`,
 		maximizedPanelId: null,
+		panelFocusHistory: [`${tabId}-panel`],
 		root: {
 			activeChildPresentationId: null,
 			childPresentations: [],

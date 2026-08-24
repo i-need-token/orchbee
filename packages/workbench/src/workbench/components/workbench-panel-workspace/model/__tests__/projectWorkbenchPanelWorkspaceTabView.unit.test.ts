@@ -9,6 +9,7 @@ function tab(tabId: string): TabPanelWorkspace {
 	return {
 		focusedPanelId: `${tabId}-panel`,
 		maximizedPanelId: null,
+		panelFocusHistory: [`${tabId}-panel`],
 		root: {
 			activeChildPresentationId: null,
 			childPresentations: [],

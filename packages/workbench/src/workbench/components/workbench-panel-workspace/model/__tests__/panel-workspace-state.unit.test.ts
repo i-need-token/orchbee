@@ -24,6 +24,7 @@ import {
 	initializePanelWorkspace,
 	projectPanelDrag,
 	transitionPanelWorkspace as transitionPanelWorkspaceCore,
+	validatePanelWorkspaceState,
 	type PanelLayoutNode,
 	type PanelSplit,
 	type PanelSplitDirection,
@@ -356,6 +357,7 @@ describe('panel workspace state', () => {
 		expect(clone.tabs[0]?.root).not.toBe(state.tabs[0]?.root);
 		expect(clone.tabs[0]).toMatchObject({
 			focusedPanelId: 'copy-context-panel-1',
+			panelFocusHistory: ['copy-context-panel-1'],
 			root: {
 				children: [
 					{
@@ -752,7 +754,7 @@ describe('panel workspace state', () => {
 		]);
 	});
 
-	it('keeps focus on the current panel when a different panel closes', () => {
+	it('keeps focus on the current panel and purges its history entry when a different panel closes', () => {
 		let state = createPanelWorkspaceState([{ id: 'tab-a', title: 'Terminal 1' }]);
 		for (const panelId of ['panel-1', 'panel-2']) {
 			state = apply(state, {
@@ -776,9 +778,10 @@ describe('panel workspace state', () => {
 		});
 
 		expect(requireTab(result.state).focusedPanelId).toBe('panel-1');
+		expect(requireTab(result.state).panelFocusHistory).toEqual(['panel-2', 'panel-1']);
 	});
 
-	it('focuses the previous panel after closing the focused panel, with next as the first-panel fallback', () => {
+	it('focuses the most recently focused surviving panel after closing the focused panel', () => {
 		let state = createPanelWorkspaceState([{ id: 'tab-a', title: 'Terminal 1' }]);
 		for (const panelId of ['panel-1', 'panel-2']) {
 			state = apply(state, {
@@ -789,25 +792,110 @@ describe('panel workspace state', () => {
 				type: 'panel-split',
 			});
 		}
-		state = apply(state, {
-			panelId: 'panel-2',
-			tabId: 'tab-a',
-			type: 'panel-focused',
-		});
+		for (const panelId of ['panel-1', 'panel-3', 'panel-2']) {
+			state = apply(state, {
+				panelId,
+				tabId: 'tab-a',
+				type: 'panel-focused',
+			});
+		}
 
-		const middleClosed = transitionPanelWorkspace(state, {
+		expect(requireTab(state).panelFocusHistory).toEqual(['panel-1', 'panel-3', 'panel-2']);
+
+		const result = transitionPanelWorkspace(state, {
 			panelId: 'panel-2',
 			tabId: 'tab-a',
 			type: 'panel-closed',
 		});
-		const firstClosed = transitionPanelWorkspace(state, {
+
+		expect(requireTab(result.state)).toMatchObject({
+			focusedPanelId: 'panel-3',
+			panelFocusHistory: ['panel-1', 'panel-3'],
+		});
+	});
+
+	it('falls back to previous-then-next visual order when no earlier focus visit survives', () => {
+		let state = createPanelWorkspaceState([{ id: 'tab-a', title: 'Terminal 1' }]);
+		for (const panelId of ['panel-1', 'panel-2']) {
+			state = apply(state, {
+				direction: 'right',
+				newTerminalTitle: terminalTitle(state),
+				panelId,
+				tabId: 'tab-a',
+				type: 'panel-split',
+			});
+		}
+		state = {
+			...state,
+			tabs: [
+				{
+					...requireTab(state),
+					focusedPanelId: 'panel-2',
+					panelFocusHistory: ['panel-2'],
+				},
+			],
+		};
+		state = apply(state, {
+			panelId: 'panel-2',
+			tabId: 'tab-a',
+			type: 'panel-closed',
+		});
+
+		expect(requireTab(state)).toMatchObject({
+			focusedPanelId: 'panel-1',
+			panelFocusHistory: ['panel-1'],
+		});
+
+		const firstPanelOnlyHistory: PanelWorkspaceState = {
+			...state,
+			tabs: [
+				{
+					...requireTab(state),
+					focusedPanelId: 'panel-1',
+					panelFocusHistory: ['panel-1'],
+				},
+			],
+		};
+		const firstClosed = transitionPanelWorkspace(firstPanelOnlyHistory, {
 			panelId: 'panel-1',
 			tabId: 'tab-a',
 			type: 'panel-closed',
 		});
 
-		expect(requireTab(middleClosed.state).focusedPanelId).toBe('panel-1');
-		expect(requireTab(firstClosed.state).focusedPanelId).toBe('panel-2');
+		expect(requireTab(firstClosed.state)).toMatchObject({
+			focusedPanelId: 'panel-3',
+			panelFocusHistory: ['panel-3'],
+		});
+	});
+
+	it('reports malformed panel focus histories', () => {
+		const state = createPanelWorkspaceState([{ id: 'tab-a', title: 'Terminal 1' }]);
+		const tab = requireTab(state);
+
+		expect(
+			validatePanelWorkspaceState({
+				...state,
+				tabs: [{ ...tab, panelFocusHistory: [] }],
+			}),
+		).toContain('Empty panel focus history: tab-a');
+		expect(
+			validatePanelWorkspaceState({
+				...state,
+				tabs: [{ ...tab, panelFocusHistory: ['panel-1', 'panel-1'] }],
+			}),
+		).toContain('Duplicate panel focus history id: panel-1');
+		expect(
+			validatePanelWorkspaceState({
+				...state,
+				tabs: [{ ...tab, panelFocusHistory: ['missing-panel', 'panel-1'] }],
+			}),
+		).toContain('Missing panel in focus history: missing-panel');
+		expect(
+			validatePanelWorkspaceState({
+				...state,
+				tabs: [{ ...tab, panelFocusHistory: ['panel-1'], focusedPanelId: 'missing-panel' }],
+			}),
+		).toContain('Panel focus history does not end with focused panel: tab-a');
 	});
 
 	it('resizes only the binary split that owns a separator', () => {
@@ -1500,6 +1588,60 @@ describe('panel workspace state', () => {
 		});
 	});
 
+	it('uses the latest Panel focus history when a managed close commits', () => {
+		const initialization = initializePanelWorkspace([
+			{
+				id: 'tab-a',
+				presentation: managedPresentation('presentation-1', 'provision-1'),
+				title: 'Terminal 1',
+			},
+		]);
+		let state = transitionPanelWorkspaceCore(initialization.state, {
+			operationId: terminalPresentationOperationId('provision-1'),
+			presentationId: terminalPresentationId('presentation-1'),
+			tabId: 'tab-a',
+			type: 'terminal-provision-completed',
+		}).state;
+		for (const [panelId, sequence] of [
+			['panel-1', 2],
+			['panel-2', 3],
+		] as const) {
+			state = transitionPanelWorkspaceCore(state, {
+				direction: 'right',
+				newTerminalTitle: `Terminal ${sequence}`,
+				panelId,
+				presentation: managedPresentation(`presentation-${sequence}`, `provision-${sequence}`),
+				tabId: 'tab-a',
+				type: 'panel-split',
+			}).state;
+			state = transitionPanelWorkspaceCore(state, {
+				operationId: terminalPresentationOperationId(`provision-${sequence}`),
+				presentationId: terminalPresentationId(`presentation-${sequence}`),
+				tabId: 'tab-a',
+				type: 'terminal-provision-completed',
+			}).state;
+		}
+		for (const panelId of ['panel-1', 'panel-3', 'panel-2']) {
+			state = apply(state, { panelId, tabId: 'tab-a', type: 'panel-focused' });
+		}
+		state = transitionPanelWorkspaceCore(state, {
+			close: managedCloseRequest('presentation-2', 'close-2', 'remove-panel-2'),
+			panelId: 'panel-2',
+			tabId: 'tab-a',
+			type: 'panel-closed',
+		}).state;
+		for (const panelId of ['panel-1', 'panel-3']) {
+			state = apply(state, { panelId, tabId: 'tab-a', type: 'panel-focused' });
+		}
+
+		const completed = completeManagedClose(state, 'presentation-2', 'close-2', 'remove-panel-2');
+
+		expect(requireTab(completed.state)).toMatchObject({
+			focusedPanelId: 'panel-3',
+			panelFocusHistory: ['panel-1', 'panel-3'],
+		});
+	});
+
 	it('keeps a partially closed Panel until failed terminals retry and complete', () => {
 		const initialization = initializePanelWorkspace([
 			{
@@ -2120,7 +2262,8 @@ describe('panel workspace state', () => {
 				);
 				expect(requireTab(closeResult.state).focusedPanelId).toBe(
 					tab.focusedPanelId === panel.id
-						? (panels[panels.indexOf(panel) - 1] ?? panels[panels.indexOf(panel) + 1])?.id
+						? ([...tab.panelFocusHistory].reverse().find((panelId) => panelId !== panel.id) ??
+								(panels[panels.indexOf(panel) - 1] ?? panels[panels.indexOf(panel) + 1])?.id)
 						: tab.focusedPanelId,
 				);
 				exploredActionCount += 1;

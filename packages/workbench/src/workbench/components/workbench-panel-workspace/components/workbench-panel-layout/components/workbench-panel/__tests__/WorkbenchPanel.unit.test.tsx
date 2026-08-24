@@ -93,6 +93,7 @@ function renderPanel(
 	const tab = {
 		focusedPanelId: options.focused === false ? otherPanel.id : panel.id,
 		maximizedPanelId: null,
+		panelFocusHistory: [options.focused === false ? otherPanel.id : panel.id],
 		root,
 		tabId: 'tab-a',
 	} as const;

@@ -2170,7 +2170,7 @@ test('moves terminal focus through a four-Panel layout by visual direction', asy
 	await expect(bottomLeftRoot.getByRole('textbox')).toBeFocused();
 });
 
-test('restores an equal four-Panel grid after closing a repeated-axis nested split', async () => {
+test('restores an equal four-Panel grid and the MRU focus after closing a nested split', async () => {
 	const application = electronApplication;
 	if (application === undefined) throw new Error('Electron application did not start.');
 	const page = await application.firstWindow();
@@ -2266,8 +2266,9 @@ test('restores an equal four-Panel grid after closing a repeated-axis nested spl
 	await page.keyboard.press(closeShortcut);
 	await expect(nestedLeftRoot).toHaveCount(0);
 	await expect(projectedTerminals(page)).toHaveCount(4);
+	await expect(bottomRightPanel).toHaveAttribute('data-focused', 'true');
 	await expect(
-		projectedTerminalFor(page, bottomLeftPresentationId).getByRole('textbox'),
+		projectedTerminalFor(page, bottomRightPresentationId).getByRole('textbox'),
 	).toBeFocused();
 
 	const fourPanelBounds = await Promise.all([

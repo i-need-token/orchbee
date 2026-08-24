@@ -191,6 +191,12 @@ export class WorkbenchProjectWorkspaceRuntime {
 		}
 		const hydrated = hydrateWorkbenchDocuments(document, this.getClientView());
 		const currentTerminals = collectRuntimeTerminals(this.contexts);
+		const currentPanelWorkspaces = new Map(
+			[...this.contexts].map(([terminalContextId, context]) => [
+				terminalContextId,
+				context.panelWorkspaceStore.getSnapshot(),
+			]),
+		);
 		const currentPresentations = collectSharedPresentations(projected);
 		const incomingPresentations = collectSharedPresentations(document);
 		for (const unsubscribe of this.contextDocumentSubscriptions.values()) unsubscribe();
@@ -203,8 +209,9 @@ export class WorkbenchProjectWorkspaceRuntime {
 				nextTabSequence: terminalContext.nextTabSequence,
 				panelWorkspaceStore: new PanelWorkspaceStore(tabModel, {
 					composition: this.terminalPresentation,
-					initialState: preserveRuntimeTerminalObservations(
+					initialState: preserveRuntimePanelWorkspaceState(
 						terminalContext.panelWorkspace,
+						currentPanelWorkspaces.get(terminalContext.terminalContextId),
 						currentTerminals,
 						currentPresentations,
 						incomingPresentations,
@@ -1096,23 +1103,34 @@ function collectSharedPresentations(
 	return presentations;
 }
 
-function preserveRuntimeTerminalObservations(
+function preserveRuntimePanelWorkspaceState(
 	state: PanelWorkspaceState,
+	currentState: PanelWorkspaceState | undefined,
 	currentTerminals: ReadonlyMap<string, TerminalPresentation>,
 	currentPresentations: ReadonlyMap<string, WorkbenchSharedPresentation>,
 	incomingPresentations: ReadonlyMap<string, WorkbenchSharedPresentation>,
 ): PanelWorkspaceState {
+	const currentTabs = new Map(currentState?.tabs.map((tab) => [tab.tabId, tab]) ?? []);
 	return {
 		...state,
-		tabs: state.tabs.map((tab) => ({
-			...tab,
-			root: preservePanelNodeObservations(
-				tab.root,
-				currentTerminals,
-				currentPresentations,
-				incomingPresentations,
-			),
-		})),
+		tabs: state.tabs.map((tab) => {
+			const livePanelIds = new Set(collectPanelLeaves(tab.root).map((panel) => panel.id));
+			const currentHistory = currentTabs.get(tab.tabId)?.panelFocusHistory ?? [];
+			const survivingHistory = currentHistory.filter((panelId) => livePanelIds.has(panelId));
+			return {
+				...tab,
+				panelFocusHistory: [
+					...survivingHistory.filter((panelId) => panelId !== tab.focusedPanelId),
+					tab.focusedPanelId,
+				],
+				root: preservePanelNodeObservations(
+					tab.root,
+					currentTerminals,
+					currentPresentations,
+					incomingPresentations,
+				),
+			};
+		}),
 	};
 }
 

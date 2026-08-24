@@ -18,6 +18,7 @@ import { useWorkbenchPanelActions } from '../useWorkbenchPanelActions';
 const activeTab: TabPanelWorkspace = {
 	focusedPanelId: 'panel-1',
 	maximizedPanelId: null,
+	panelFocusHistory: ['panel-1'],
 	root: {
 		activeChildPresentationId: null,
 		childPresentations: [],

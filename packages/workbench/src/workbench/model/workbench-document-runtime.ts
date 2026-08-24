@@ -362,6 +362,7 @@ function hydratePanelWorkspace(
 			return {
 				focusedPanelId: tabView.focusedPanelId,
 				maximizedPanelId: tabView.maximizedPanelId,
+				panelFocusHistory: [tabView.focusedPanelId],
 				root: hydratePanelNode(tab.root, panelViews, splitViews),
 				tabId: tab.tabId,
 			};
