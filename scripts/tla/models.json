@@ -228,11 +228,7 @@
 			"workspace": "apps/desktop",
 			"module": "apps/desktop/formal/tla/DesktopTerminalArchive.tla",
 			"config": "apps/desktop/formal/tla/DesktopTerminalArchive.cfg",
-			"claims": [
-				"apps/desktop/README.md",
-				"packages/workbench/README.md",
-				"proposals/terminal/projected-terminal-experience-compatibility.md"
-			],
+			"claims": ["apps/desktop/README.md", "packages/workbench/README.md"],
 			"triggers": [
 				"apps/desktop/src/**",
 				"apps/web/src/workbench-client/**",
@@ -260,10 +256,7 @@
 			"workspace": "apps/desktop",
 			"module": "apps/desktop/formal/tla/DesktopTerminalDefaultSettings.tla",
 			"config": "apps/desktop/formal/tla/DesktopTerminalDefaultSettings.cfg",
-			"claims": [
-				"apps/desktop/docs/terminal-settings.md",
-				"proposals/terminal/projected-terminal-experience-compatibility.md"
-			],
+			"claims": ["apps/desktop/docs/terminal-settings.md"],
 			"triggers": [
 				"apps/desktop/src/main/terminal-default-settings/**",
 				"apps/web/src/desktop-client/terminal-default-settings/**",
@@ -287,10 +280,7 @@
 			"workspace": "apps/desktop",
 			"module": "apps/desktop/formal/tla/DesktopTerminalLifecycleAdapter.tla",
 			"config": "apps/desktop/formal/tla/DesktopTerminalLifecycleAdapter.cfg",
-			"claims": [
-				"apps/desktop/README.md",
-				"proposals/terminal/projected-terminal-experience-compatibility.md"
-			],
+			"claims": ["apps/desktop/README.md"],
 			"triggers": ["apps/desktop/src/**", "packages/workbench/src/**"],
 			"requiredCoverage": [
 				"FreshProvision",
@@ -313,11 +303,7 @@
 			"workspace": "apps/desktop",
 			"module": "apps/desktop/formal/tla/DesktopTerminalMetadataDelivery.tla",
 			"config": "apps/desktop/formal/tla/DesktopTerminalMetadataDelivery.cfg",
-			"claims": [
-				"apps/desktop/README.md",
-				"packages/workbench-client-protocol/README.md",
-				"proposals/terminal/projected-terminal-experience-compatibility.md"
-			],
+			"claims": ["apps/desktop/README.md", "packages/workbench-client-protocol/README.md"],
 			"triggers": [
 				"apps/desktop/src/**",
 				"apps/terminal-host/src/**",

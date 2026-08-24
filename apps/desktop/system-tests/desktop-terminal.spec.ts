@@ -124,6 +124,10 @@ test.beforeEach(async ({ browserName }, testInfo) => {
 	if (currentRendererUrl === undefined) throw new Error('Web renderer server is unavailable.');
 	desktopEnvironment = {
 		...environment,
+		...(process.platform === 'win32'
+			? { USERPROFILE: runtimeDirectory }
+			: { HOME: runtimeDirectory }),
+		ORCHBEE_DESKTOP_DEVELOPMENT_SOURCE_ROOT: repositoryRoot,
 		ORCHBEE_DESKTOP_ENDPOINT_ID: endpointId,
 		ORCHBEE_DESKTOP_GATEWAY: '1',
 		ORCHBEE_DESKTOP_RECOVERY_DIRECTORY: runtimeDirectory,
@@ -1291,7 +1295,7 @@ test('terminal-parity/SU-11-smooth-scroll', async () => {
 	});
 });
 
-test('terminal-parity/LC-06-live-title', async () => {
+test('terminal-parity/LC-06-metadata-bridge', async () => {
 	const application = electronApplication;
 	if (application === undefined) throw new Error('Electron application did not start.');
 	const page = await application.firstWindow();
@@ -1311,7 +1315,7 @@ test('terminal-parity/LC-06-live-title', async () => {
 	await expect(selectedTab).toContainText('lc06-osc2-title');
 });
 
-test('terminal-parity/HS-04-multi-click-selection', async () => {
+test('terminal-parity/HS-04-selection-gesture', async () => {
 	const application = electronApplication;
 	if (application === undefined) throw new Error('Electron application did not start.');
 	const page = await application.firstWindow();
@@ -1375,7 +1379,7 @@ test('terminal-parity/HS-07-selection-export', async () => {
 		.toBe('HS07StyledPlain');
 });
 
-test('terminal-parity/SU-02-product-font-fallback', async () => {
+test('terminal-parity/SU-02-font-metrics', async () => {
 	const application = electronApplication;
 	if (application === undefined) throw new Error('Electron application did not start.');
 	const page = await application.firstWindow();
@@ -1997,6 +2001,24 @@ test('terminal-parity/IN-08-drop', async () => {
 	await expect(page.locator('[role="list"]')).toContainText('desktop-file-drop-executed');
 });
 
+test('terminal-parity/LC-04-environment', async () => {
+	test.skip(process.platform === 'win32', 'The launch-locale witness is POSIX-only.');
+	const application = electronApplication;
+	if (application === undefined) throw new Error('Electron application did not start.');
+	const page = await application.firstWindow();
+	const root = projectedTerminal(page);
+	await expect(root).toHaveAttribute('data-projected-terminal-state', 'open');
+
+	const input = root.getByRole('textbox');
+	const command =
+		'printf \'orchbee-launch-env TERM=%s COLORTERM=%s TERM_PROGRAM=%s NO_COLOR=%s FORCE_COLOR=%s NODE_DISABLE_COLORS=%s CHARMAP=%s\\n\' "$TERM" "$COLORTERM" "$TERM_PROGRAM" "${NO_COLOR-unset}" "${FORCE_COLOR-unset}" "${NODE_DISABLE_COLORS-unset}" "$(locale charmap 2>/dev/null || printf unknown)"';
+	await input.pressSequentially(command, { delay: 1 });
+	await input.press('Enter');
+	await expect(root.locator('[role="list"]')).toContainText(
+		/orchbee-launch-env TERM=xterm-256color COLORTERM=truecolor TERM_PROGRAM=Orchbee NO_COLOR=unset FORCE_COLOR=unset NODE_DISABLE_COLORS=unset CHARMAP=UTF-?8/u,
+	);
+});
+
 test('runs an ordinary SSH PTY with a diagnosable TERM and no implicit Orchbee environment forwarding', async () => {
 	test.skip(process.platform !== 'darwin', 'The current real SSH baseline is verified on macOS.');
 	test.setTimeout(45_000);
@@ -2389,7 +2411,7 @@ test('routes a real sandboxed Host terminal through Main and Preload to the rend
 	electronApplication = undefined;
 });
 
-test('opts into trusted LAN Browser access through the Desktop UI', async () => {
+test('terminal-parity/LC-08-browser-access', async () => {
 	test.setTimeout(60_000);
 	const application = electronApplication;
 	if (application === undefined) throw new Error('Electron application did not start.');
@@ -2478,7 +2500,7 @@ test('opts into trusted LAN Browser access through the Desktop UI', async () => 
 	);
 });
 
-test('opens an authenticated Browser peer through the Desktop Browser-access UI', async () => {
+test('terminal-parity/LC-09-client-isolation', async () => {
 	test.setTimeout(90_000);
 	const staticApplication = electronApplication;
 	const currentDevelopmentRendererUrl = developmentRendererUrl;
@@ -2670,7 +2692,7 @@ test('opens an authenticated Browser peer through the Desktop Browser-access UI'
 	}
 });
 
-test('shares one Workbench and Host terminal with two authenticated Browser clients', async () => {
+test('terminal-parity/LC-03-dual-client', async () => {
 	test.setTimeout(60_000);
 	const application = electronApplication;
 	if (application === undefined) throw new Error('Electron application did not start.');
