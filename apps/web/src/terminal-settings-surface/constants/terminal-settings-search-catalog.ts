@@ -324,6 +324,7 @@ export const KEYBOARD_SHORTCUT_SEARCH_LABELS = {
 	'new-terminal': keyboardShortcutMessages.newTerminal,
 	paste: keyboardShortcutMessages.paste,
 	'select-all': keyboardShortcutMessages.selectAll,
+	'select-tab': keyboardShortcutMessages.selectTab,
 	settings: keyboardShortcutMessages.settings,
 	'split-below': keyboardShortcutMessages.splitBelow,
 	'split-right': keyboardShortcutMessages.splitRight,
@@ -347,4 +348,5 @@ export const KEYBOARD_SHORTCUT_SEARCH_AVAILABILITY = {
 	'focused-terminal-with-selection':
 		keyboardShortcutMessages.availabilityFocusedTerminalWithSelection,
 	'multiple-panels': keyboardShortcutMessages.availabilityMultiplePanels,
+	'tab-position': keyboardShortcutMessages.availabilityTabPosition,
 } as const;

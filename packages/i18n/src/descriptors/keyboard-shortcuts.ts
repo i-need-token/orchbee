@@ -22,6 +22,10 @@ export const keyboardShortcutMessages = defineMessages({
 	paste: message('keyboard.shortcuts.actions.paste'),
 	reset: message('keyboard.shortcuts.actions.reset'),
 	selectAll: message('keyboard.shortcuts.actions.selectAll'),
+	selectTab: message(
+		'keyboard.shortcuts.actions.selectTab',
+		'Numbered Tab-selection action. position is the one-based Tab position.',
+	),
 	settings: message('keyboard.shortcuts.actions.settings'),
 	splitBelow: message('keyboard.shortcuts.actions.splitBelow'),
 	splitRight: message('keyboard.shortcuts.actions.splitRight'),
@@ -35,6 +39,7 @@ export const keyboardShortcutMessages = defineMessages({
 	availabilityDirectionalPanel: message('keyboard.shortcuts.availability.directionalPanel'),
 	availabilityWorkbench: message('keyboard.shortcuts.availability.workbench'),
 	availabilityMultiplePanels: message('keyboard.shortcuts.availability.multiplePanels'),
+	availabilityTabPosition: message('keyboard.shortcuts.availability.tabPosition'),
 	category: message('keyboard.shortcuts.category'),
 	conflict: message(
 		'keyboard.shortcuts.conflict',

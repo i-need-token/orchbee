@@ -52,6 +52,8 @@ export type {
 	WorkbenchProjectInput,
 	WorkbenchProjectRenameInput,
 	WorkbenchSearchOpenInput,
+	WorkbenchTabPosition,
+	WorkbenchTabPositionInput,
 	WorkbenchTerminalCreateInput,
 	WorkbenchWorkspaceCreateInput,
 	WorkbenchWorkspaceInput,

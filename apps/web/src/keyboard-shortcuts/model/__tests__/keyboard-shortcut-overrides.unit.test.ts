@@ -68,4 +68,22 @@ describe('keyboard shortcut overrides', () => {
 			modifiers: ['alt', 'mod'],
 		});
 	});
+
+	it('applies one positional Tab override without changing the other positions', () => {
+		const bindings = createKeyboardShortcutBindings('apple', [
+			{
+				chord: { code: 'Digit2', modifiers: ['alt', 'mod'] },
+				shortcutId: 'workbench.tab.select.2',
+			},
+		]);
+
+		expect(bindings['workbench.tab.select.2']).toEqual({
+			code: 'Digit2',
+			modifiers: ['alt', 'mod'],
+		});
+		expect(bindings['workbench.tab.select.3']).toEqual({
+			code: 'Digit3',
+			modifiers: ['mod'],
+		});
+	});
 });

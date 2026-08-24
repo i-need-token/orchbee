@@ -78,8 +78,8 @@
 			"zhCnSha256": "d849c177c65a199ec6a863d262aa23ae9dac0e9ca48adc13594108ca0a3cee12"
 		},
 		"apps/web/docs/keyboard-shortcuts.md": {
-			"englishSha256": "d966d8b849c854bdefbb216c5defb56105c2dbdacb8aac452043fc34c909974e",
-			"zhCnSha256": "f03be0e7a79181cd8c40eebb43f3a1cf3293edbb756aaebfeb9a0be75fec7d28"
+			"englishSha256": "145543bff552655d9e9f077157bc8878ec502259c0539cbaed1879b84ec4d39d",
+			"zhCnSha256": "939e330e3dd9c3ffb34606f49e3719bd9d3281b717ff7e192b8c079fb9602949"
 		},
 		"apps/web/docs/navigation-routing.md": {
 			"englishSha256": "cd5dec1d6effde16a6f3e1f5f9c756c1b7601ff22afb44a422eba59cb775c0bd",
@@ -234,8 +234,8 @@
 			"zhCnSha256": "791d414c05e05a1cd96efc97e3d7081ea2cc690d3043a97d458cb6595b700117"
 		},
 		"packages/tab-strip/README.md": {
-			"englishSha256": "e2d40d7d2b4add02de95a9d3506aba05745f046858788e40e1f5489556749c8e",
-			"zhCnSha256": "8304453aff4124032dec8b2eb0e90281fc8e0f31f4117962f546823e94cdeb4d"
+			"englishSha256": "46cadf973e3766171b5a87905a2b49534f4b97606702bb6fa868dc6fbde97ba0",
+			"zhCnSha256": "a8bbab40499ced018bfba2134169c390a0fae1e13f7dac86b61dc3b803684f1d"
 		},
 		"packages/tab-strip/docs/horizontal-group-drag.md": {
 			"englishSha256": "fc90b535669852a51bba00a02ab9a10befbcdfcbd002d504433a2c44a7b42249",
@@ -282,8 +282,8 @@
 			"zhCnSha256": "85e3cd82ba4b2b18412545fc5f47ca40668a306006d64fbc19ac6e221dae109c"
 		},
 		"packages/workbench/README.md": {
-			"englishSha256": "9fc184f3588715769842766ad437f09fda6f8b66d0e12b694a73c39fdfafb86c",
-			"zhCnSha256": "a9bdc2fbc581fcd9e064786093157622d2fafe69f8130f847b61849564332683"
+			"englishSha256": "7b6563285177433f98e9814301654cc2ce04f2b3033994e0df6d07bb3b0bccb1",
+			"zhCnSha256": "9bb912f56cde81fa323e81c781bcf55d2947a0b1204ffa8754263b5b92686e63"
 		},
 		"packages/workbench/docs/project-workspace.md": {
 			"englishSha256": "da2ca92f77fe8662d43ec965f7d91f4ef69edc8c33188bf2da444b8330a741bc",

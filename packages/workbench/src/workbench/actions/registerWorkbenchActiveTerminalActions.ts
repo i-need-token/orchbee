@@ -17,6 +17,7 @@ import {
 	type ActiveTerminalCommandResolution,
 } from '../model/resolveActiveTerminalCommand';
 import type { WorkbenchProjectWorkspaceRuntime } from '../model/WorkbenchProjectWorkspaceRuntime';
+import { executePreparedDescendantAction } from './executePreparedDescendantAction';
 import { WORKBENCH_ACTION_IDS, type WorkbenchActionCatalog } from './workbench-action-ids';
 
 interface RegisterWorkbenchActiveTerminalActionsOptions {
@@ -242,36 +243,5 @@ async function executeResolvedCommand({
 		return { code: 'active-command-target-unavailable', kind: 'blocked' };
 	}
 
-	const execution = runtime.executePrepared(prepared.invocation);
-	const cancelLowerExecution = () => execution.cancel();
-	context.signal.addEventListener('abort', cancelLowerExecution, { once: true });
-	if (context.signal.aborted) execution.cancel();
-	try {
-		const result = await execution.completion;
-		if (result.kind === 'completed') context.markCommitted();
-		return withoutValue(result);
-	} finally {
-		context.signal.removeEventListener('abort', cancelLowerExecution);
-	}
-}
-
-function withoutValue(result: ActionResult): ActionResult<void> {
-	switch (result.kind) {
-		case 'blocked':
-			return {
-				code: result.code,
-				...(result.details === undefined ? {} : { details: result.details }),
-				kind: 'blocked',
-			};
-		case 'cancelled':
-			return { kind: 'cancelled' };
-		case 'completed':
-			return { kind: 'completed' };
-		case 'failed':
-			return { failure: result.failure, kind: 'failed' };
-		case 'unchanged':
-			return { kind: 'unchanged' };
-		case 'unsupported':
-			return { kind: 'unsupported' };
-	}
+	return await executePreparedDescendantAction(context, runtime, prepared.invocation);
 }

@@ -6,6 +6,7 @@ import {
 } from '@orchbee/keyboard-shortcuts';
 
 import { WORKBENCH_ACTION_IDS } from '../actions/workbench-action-ids';
+import type { WorkbenchTabPositionInput } from '../actions/workbench-action-ids';
 import type { WorkbenchShortcutPlatform } from '../types/workbench-shortcut-platform';
 
 interface WorkbenchShortcutDefinition {
@@ -19,11 +20,16 @@ interface WorkbenchShortcutDefinition {
 		| typeof WORKBENCH_ACTION_IDS.focusActivePanelUp
 		| typeof WORKBENCH_ACTION_IDS.openSearch
 		| typeof WORKBENCH_ACTION_IDS.openSettings
+		| typeof WORKBENCH_ACTION_IDS.selectTabByPosition
 		| typeof WORKBENCH_ACTION_IDS.splitActivePanelBelow
 		| typeof WORKBENCH_ACTION_IDS.splitActivePanelRight
 		| typeof WORKBENCH_ACTION_IDS.toggleActivePanelMaximization
 		| typeof WORKBENCH_ACTION_IDS.toggleSidebar;
-	readonly input: { readonly filter: 'actions' | 'all' } | { readonly groupId: null } | undefined;
+	readonly input:
+		| { readonly filter: 'actions' | 'all' }
+		| { readonly groupId: null }
+		| WorkbenchTabPositionInput
+		| undefined;
 	readonly shortcutId: string;
 }
 
@@ -114,6 +120,15 @@ export const WORKBENCH_SHORTCUTS = {
 		input: { filter: 'all' },
 		shortcutId: 'workbench.search.all.open',
 	},
+	selectTab1: positionalTabShortcut(1),
+	selectTab2: positionalTabShortcut(2),
+	selectTab3: positionalTabShortcut(3),
+	selectTab4: positionalTabShortcut(4),
+	selectTab5: positionalTabShortcut(5),
+	selectTab6: positionalTabShortcut(6),
+	selectTab7: positionalTabShortcut(7),
+	selectTab8: positionalTabShortcut(8),
+	selectTab9: positionalTabShortcut(9),
 	settings: {
 		defaults: {
 			apple: chord('Comma', ['mod']),
@@ -175,11 +190,34 @@ const WORKBENCH_SHORTCUT_ACTIONS = Object.freeze([
 	'maximizeActivePanel',
 	'newTerminal',
 	'search',
+	'selectTab1',
+	'selectTab2',
+	'selectTab3',
+	'selectTab4',
+	'selectTab5',
+	'selectTab6',
+	'selectTab7',
+	'selectTab8',
+	'selectTab9',
 	'settings',
 	'splitActivePanelBelow',
 	'splitActivePanelRight',
 	'toggleSidebar',
 ] as const satisfies readonly WorkbenchShortcutAction[]);
+
+function positionalTabShortcut<const Position extends WorkbenchTabPositionInput['position']>(
+	position: Position,
+) {
+	return {
+		defaults: {
+			apple: chord(`Digit${position}`, ['mod']),
+			standard: chord(`Digit${position}`, ['mod']),
+		},
+		id: WORKBENCH_ACTION_IDS.selectTabByPosition,
+		input: { position },
+		shortcutId: `workbench.tab.select.${position}`,
+	} as const;
+}
 
 const DEFAULT_WORKBENCH_SHORTCUT_BINDINGS: Readonly<
 	Record<WorkbenchShortcutPlatform, WorkbenchShortcutBindings>
@@ -277,6 +315,15 @@ function defaultBindingsFor(platform: WorkbenchShortcutPlatform): WorkbenchShort
 		[WORKBENCH_SHORTCUTS.newTerminal.shortcutId]:
 			WORKBENCH_SHORTCUTS.newTerminal.defaults[platform],
 		[WORKBENCH_SHORTCUTS.search.shortcutId]: WORKBENCH_SHORTCUTS.search.defaults[platform],
+		[WORKBENCH_SHORTCUTS.selectTab1.shortcutId]: WORKBENCH_SHORTCUTS.selectTab1.defaults[platform],
+		[WORKBENCH_SHORTCUTS.selectTab2.shortcutId]: WORKBENCH_SHORTCUTS.selectTab2.defaults[platform],
+		[WORKBENCH_SHORTCUTS.selectTab3.shortcutId]: WORKBENCH_SHORTCUTS.selectTab3.defaults[platform],
+		[WORKBENCH_SHORTCUTS.selectTab4.shortcutId]: WORKBENCH_SHORTCUTS.selectTab4.defaults[platform],
+		[WORKBENCH_SHORTCUTS.selectTab5.shortcutId]: WORKBENCH_SHORTCUTS.selectTab5.defaults[platform],
+		[WORKBENCH_SHORTCUTS.selectTab6.shortcutId]: WORKBENCH_SHORTCUTS.selectTab6.defaults[platform],
+		[WORKBENCH_SHORTCUTS.selectTab7.shortcutId]: WORKBENCH_SHORTCUTS.selectTab7.defaults[platform],
+		[WORKBENCH_SHORTCUTS.selectTab8.shortcutId]: WORKBENCH_SHORTCUTS.selectTab8.defaults[platform],
+		[WORKBENCH_SHORTCUTS.selectTab9.shortcutId]: WORKBENCH_SHORTCUTS.selectTab9.defaults[platform],
 		[WORKBENCH_SHORTCUTS.settings.shortcutId]: WORKBENCH_SHORTCUTS.settings.defaults[platform],
 		[WORKBENCH_SHORTCUTS.splitActivePanelBelow.shortcutId]:
 			WORKBENCH_SHORTCUTS.splitActivePanelBelow.defaults[platform],

@@ -2,7 +2,9 @@ export { TabStrip } from './TabStrip';
 export {
 	TAB_STRIP_ACTION_IDS,
 	tabCloseInput,
+	tabSelectionInput,
 	type TabCloseInput,
+	type TabSelectionInput,
 	type TabStripActionCatalog,
 } from './actions/tab-strip-action-contracts';
 export type {

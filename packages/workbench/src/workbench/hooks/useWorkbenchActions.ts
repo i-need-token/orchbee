@@ -19,6 +19,7 @@ import * as React from 'react';
 import type { ProjectWorkspaceState } from '../../project-workspace';
 import { registerWorkbenchProjectWorkspaceActions } from '../actions/registerWorkbenchProjectWorkspaceActions';
 import { registerWorkbenchActiveTerminalActions } from '../actions/registerWorkbenchActiveTerminalActions';
+import { registerWorkbenchTabSelectionActions } from '../actions/registerWorkbenchTabSelectionActions';
 import {
 	WORKBENCH_ACTION_IDS,
 	type WorkbenchActionCatalog,
@@ -137,6 +138,12 @@ export function useWorkbenchActions({
 				typedRuntime,
 				workspaceCopySuffix,
 				workspaceTerminalTitle,
+			}),
+			...registerWorkbenchTabSelectionActions({
+				projectWorkspaceRuntime,
+				runtime,
+				scope,
+				typedRuntime,
 			}),
 			typedRuntime.register(
 				scope,
@@ -294,6 +301,25 @@ export function useWorkbenchActions({
 				}
 				case 'actionsSearch':
 				case 'search': {
+					const definition = WORKBENCH_SHORTCUTS[binding.action];
+					if (
+						typedRuntime.resolveAction(definition.id, definition.input, invocation)?.availability
+							.kind !== 'enabled'
+					) {
+						return false;
+					}
+					typedRuntime.execute(definition.id, definition.input, invocation);
+					return true;
+				}
+				case 'selectTab1':
+				case 'selectTab2':
+				case 'selectTab3':
+				case 'selectTab4':
+				case 'selectTab5':
+				case 'selectTab6':
+				case 'selectTab7':
+				case 'selectTab8':
+				case 'selectTab9': {
 					const definition = WORKBENCH_SHORTCUTS[binding.action];
 					if (
 						typedRuntime.resolveAction(definition.id, definition.input, invocation)?.availability

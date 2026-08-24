@@ -98,6 +98,30 @@ describe('useWorkbenchShortcuts', () => {
 		expect(accepted.defaultPrevented).toBe(true);
 	});
 
+	it('captures positional Tab selection before focused terminal input', () => {
+		const invokeIfEnabled = vi.fn<
+			(binding: WorkbenchShortcutBinding, source: 'keyboard') => boolean
+		>(() => true);
+		render(createElement(WorkbenchShortcutsHarness, { invokeIfEnabled }));
+		const input = screen.getByRole('textbox', { name: 'Terminal input' });
+		const accepted = new KeyboardEvent('keydown', {
+			cancelable: true,
+			code: 'Digit2',
+			metaKey: true,
+		});
+
+		input.dispatchEvent(accepted);
+
+		expect(invokeIfEnabled).toHaveBeenCalledWith(
+			expect.objectContaining({
+				action: 'selectTab2',
+				shortcutId: 'workbench.tab.select.2',
+			}),
+			'keyboard',
+		);
+		expect(accepted.defaultPrevented).toBe(true);
+	});
+
 	it('does not participate while its semantic scope is inactive', () => {
 		const invokeIfEnabled = vi.fn<
 			(binding: WorkbenchShortcutBinding, source: 'keyboard') => boolean

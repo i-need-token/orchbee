@@ -45,6 +45,16 @@ describe('Workbench shortcuts', () => {
 		);
 		expect(WORKBENCH_SHORTCUTS.newTerminal.id).toBe('workbench.terminal.create');
 		expect(WORKBENCH_SHORTCUTS.search.id).toBe('workbench.search.open');
+		expect(WORKBENCH_SHORTCUTS.selectTab1).toMatchObject({
+			id: 'workbench.tab.select-by-position',
+			input: { position: 1 },
+			shortcutId: 'workbench.tab.select.1',
+		});
+		expect(WORKBENCH_SHORTCUTS.selectTab9).toMatchObject({
+			id: 'workbench.tab.select-by-position',
+			input: { position: 9 },
+			shortcutId: 'workbench.tab.select.9',
+		});
 		expect(WORKBENCH_SHORTCUTS.settings.id).toBe('workbench.settings.open');
 		expect(WORKBENCH_SHORTCUTS.splitActivePanelBelow.id).toBe('workbench.panel.active.split-below');
 		expect(WORKBENCH_SHORTCUTS.splitActivePanelRight.id).toBe('workbench.panel.active.split-right');
@@ -58,6 +68,8 @@ describe('Workbench shortcuts', () => {
 		expect(formatWorkbenchShortcut('maximizeActivePanel', 'apple')).toBe('⇧⌘Enter');
 		expect(formatWorkbenchShortcut('newTerminal', 'apple')).toBe('⌘T');
 		expect(formatWorkbenchShortcut('search', 'apple')).toBe('⇧⌘F');
+		expect(formatWorkbenchShortcut('selectTab1', 'apple')).toBe('⌘1');
+		expect(formatWorkbenchShortcut('selectTab9', 'apple')).toBe('⌘9');
 		expect(formatWorkbenchShortcut('settings', 'apple')).toBe('⌘,');
 		expect(formatWorkbenchShortcut('splitActivePanelBelow', 'apple')).toBe('⇧⌘D');
 		expect(formatWorkbenchShortcut('splitActivePanelRight', 'apple')).toBe('⌘D');
@@ -71,6 +83,8 @@ describe('Workbench shortcuts', () => {
 		expect(formatWorkbenchShortcut('maximizeActivePanel', 'standard')).toBe('Ctrl+Shift+Enter');
 		expect(formatWorkbenchShortcut('newTerminal', 'standard')).toBe('Ctrl+Shift+T');
 		expect(formatWorkbenchShortcut('search', 'standard')).toBe('Ctrl+Shift+K');
+		expect(formatWorkbenchShortcut('selectTab1', 'standard')).toBe('Ctrl+1');
+		expect(formatWorkbenchShortcut('selectTab9', 'standard')).toBe('Ctrl+9');
 		expect(formatWorkbenchShortcut('settings', 'standard')).toBe('Ctrl+,');
 		expect(formatWorkbenchShortcut('splitActivePanelBelow', 'standard')).toBe('Ctrl+Shift+E');
 		expect(formatWorkbenchShortcut('splitActivePanelRight', 'standard')).toBe('Ctrl+Shift+D');
@@ -96,6 +110,15 @@ describe('Workbench shortcuts', () => {
 		['maximizeActivePanel', 'Enter', 'Enter'],
 		['newTerminal', 'KeyT', 'KeyT'],
 		['search', 'KeyF', 'KeyK'],
+		['selectTab1', 'Digit1', 'Digit1'],
+		['selectTab2', 'Digit2', 'Digit2'],
+		['selectTab3', 'Digit3', 'Digit3'],
+		['selectTab4', 'Digit4', 'Digit4'],
+		['selectTab5', 'Digit5', 'Digit5'],
+		['selectTab6', 'Digit6', 'Digit6'],
+		['selectTab7', 'Digit7', 'Digit7'],
+		['selectTab8', 'Digit8', 'Digit8'],
+		['selectTab9', 'Digit9', 'Digit9'],
 		['settings', 'Comma', 'Comma'],
 		['splitActivePanelBelow', 'KeyD', 'KeyE'],
 		['splitActivePanelRight', 'KeyD', 'KeyD'],

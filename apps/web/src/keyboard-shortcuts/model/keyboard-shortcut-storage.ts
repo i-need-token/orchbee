@@ -20,6 +20,7 @@ import {
 const KEYBOARD_SHORTCUT_STORAGE_V1_KEY = 'orchbee:web:keyboard-shortcuts:v1';
 const KEYBOARD_SHORTCUT_STORAGE_V2_KEY = 'orchbee:web:keyboard-shortcuts:v2';
 const KEYBOARD_SHORTCUT_STORAGE_V3_KEY = 'orchbee:web:keyboard-shortcuts:v3';
+const KEYBOARD_SHORTCUT_STORAGE_V4_KEY = 'orchbee:web:keyboard-shortcuts:v4';
 
 const LEGACY_V1_KEYBOARD_SHORTCUT_IDS = Object.freeze([
 	'terminal.search.open',
@@ -51,6 +52,29 @@ const LEGACY_V2_KEYBOARD_SHORTCUT_IDS = Object.freeze([
 ] as const satisfies readonly (typeof KEYBOARD_SHORTCUT_IDS)[number][]);
 
 type LegacyV2KeyboardShortcutId = (typeof LEGACY_V2_KEYBOARD_SHORTCUT_IDS)[number];
+
+const LEGACY_V3_KEYBOARD_SHORTCUT_IDS = Object.freeze([
+	'terminal.clear',
+	'terminal.clipboard.paste',
+	'terminal.search.open',
+	'terminal.selection.copy',
+	'terminal.selection.select-all',
+	'workbench.panel.active.focus-down',
+	'workbench.panel.active.focus-left',
+	'workbench.panel.active.focus-right',
+	'workbench.panel.active.focus-up',
+	'workbench.panel.active.maximization.toggle',
+	'workbench.panel.active.split-below',
+	'workbench.panel.active.split-right',
+	'workbench.search.actions.open',
+	'workbench.search.all.open',
+	'workbench.settings.open',
+	'workbench.sidebar.toggle',
+	'workbench.terminal.active.close',
+	'workbench.terminal.create',
+] as const satisfies readonly (typeof KEYBOARD_SHORTCUT_IDS)[number][]);
+
+type LegacyV3KeyboardShortcutId = (typeof LEGACY_V3_KEYBOARD_SHORTCUT_IDS)[number];
 
 const legacyChord = (
 	code: string,
@@ -123,6 +147,54 @@ const LEGACY_V2_DEFAULT_BINDINGS = Object.freeze({
 	>
 >);
 
+const LEGACY_V3_DEFAULT_BINDINGS = Object.freeze({
+	apple: Object.freeze({
+		'terminal.clear': legacyChord('KeyK', ['mod']),
+		'terminal.clipboard.paste': legacyChord('KeyV', ['mod']),
+		'terminal.search.open': legacyChord('KeyF', ['mod']),
+		'terminal.selection.copy': legacyChord('KeyC', ['mod']),
+		'terminal.selection.select-all': legacyChord('KeyA', ['mod']),
+		'workbench.panel.active.focus-down': legacyChord('ArrowDown', ['alt', 'mod']),
+		'workbench.panel.active.focus-left': legacyChord('ArrowLeft', ['alt', 'mod']),
+		'workbench.panel.active.focus-right': legacyChord('ArrowRight', ['alt', 'mod']),
+		'workbench.panel.active.focus-up': legacyChord('ArrowUp', ['alt', 'mod']),
+		'workbench.panel.active.maximization.toggle': legacyChord('Enter', ['mod', 'shift']),
+		'workbench.panel.active.split-below': legacyChord('KeyD', ['mod', 'shift']),
+		'workbench.panel.active.split-right': legacyChord('KeyD', ['mod']),
+		'workbench.search.actions.open': legacyChord('KeyP', ['mod', 'shift']),
+		'workbench.search.all.open': legacyChord('KeyF', ['mod', 'shift']),
+		'workbench.settings.open': legacyChord('Comma', ['mod']),
+		'workbench.sidebar.toggle': legacyChord('KeyB', ['mod']),
+		'workbench.terminal.active.close': legacyChord('KeyW', ['mod']),
+		'workbench.terminal.create': legacyChord('KeyT', ['mod']),
+	}),
+	standard: Object.freeze({
+		'terminal.clear': legacyChord('KeyL', ['mod', 'shift']),
+		'terminal.clipboard.paste': legacyChord('KeyV', ['mod', 'shift']),
+		'terminal.search.open': legacyChord('KeyF', ['mod', 'shift']),
+		'terminal.selection.copy': legacyChord('KeyC', ['mod', 'shift']),
+		'terminal.selection.select-all': legacyChord('KeyA', ['mod', 'shift']),
+		'workbench.panel.active.focus-down': legacyChord('ArrowDown', ['alt', 'mod']),
+		'workbench.panel.active.focus-left': legacyChord('ArrowLeft', ['alt', 'mod']),
+		'workbench.panel.active.focus-right': legacyChord('ArrowRight', ['alt', 'mod']),
+		'workbench.panel.active.focus-up': legacyChord('ArrowUp', ['alt', 'mod']),
+		'workbench.panel.active.maximization.toggle': legacyChord('Enter', ['mod', 'shift']),
+		'workbench.panel.active.split-below': legacyChord('KeyE', ['mod', 'shift']),
+		'workbench.panel.active.split-right': legacyChord('KeyD', ['mod', 'shift']),
+		'workbench.search.actions.open': legacyChord('KeyP', ['mod', 'shift']),
+		'workbench.search.all.open': legacyChord('KeyK', ['mod', 'shift']),
+		'workbench.settings.open': legacyChord('Comma', ['mod']),
+		'workbench.sidebar.toggle': legacyChord('KeyB', ['mod', 'shift']),
+		'workbench.terminal.active.close': legacyChord('KeyW', ['mod', 'shift']),
+		'workbench.terminal.create': legacyChord('KeyT', ['mod', 'shift']),
+	}),
+} satisfies Readonly<
+	Record<
+		KeyboardShortcutPlatform,
+		Readonly<Record<LegacyV3KeyboardShortcutId, KeyboardShortcutChord>>
+	>
+>);
+
 export type KeyboardShortcutPersistenceIssue = 'invalid-record' | 'read-failed' | 'write-failed';
 
 export interface KeyboardShortcutStorage {
@@ -132,7 +204,7 @@ export interface KeyboardShortcutStorage {
 
 export interface KeyboardShortcutStorageReadResult {
 	readonly issue: Exclude<KeyboardShortcutPersistenceIssue, 'write-failed'> | null;
-	readonly migration: 'v1' | 'v2' | null;
+	readonly migration: 'v1' | 'v2' | 'v3' | null;
 	readonly overrides: readonly KeyboardShortcutOverride[];
 }
 
@@ -173,8 +245,19 @@ const storedKeyboardShortcutOverridesV3Schema = z.strictObject({
 				shortcutId: z.string(),
 			}),
 		)
-		.max(KEYBOARD_SHORTCUT_IDS.length),
+		.max(LEGACY_V3_KEYBOARD_SHORTCUT_IDS.length),
 	version: z.literal(3),
+});
+const storedKeyboardShortcutOverridesV4Schema = z.strictObject({
+	overrides: z
+		.array(
+			z.strictObject({
+				chord: chordSchema,
+				shortcutId: z.string(),
+			}),
+		)
+		.max(KEYBOARD_SHORTCUT_IDS.length),
+	version: z.literal(4),
 });
 
 interface StoredKeyboardShortcutOverride {
@@ -186,13 +269,21 @@ export function readKeyboardShortcutOverrides(
 	storage: KeyboardShortcutStorage,
 	platform: KeyboardShortcutPlatform,
 ): KeyboardShortcutStorageReadResult {
+	let versionFour: string | null;
+	try {
+		versionFour = storage.getItem(KEYBOARD_SHORTCUT_STORAGE_V4_KEY);
+	} catch {
+		return defaultReadResult('read-failed');
+	}
+	if (versionFour !== null) return readVersionFour(versionFour, platform);
+
 	let versionThree: string | null;
 	try {
 		versionThree = storage.getItem(KEYBOARD_SHORTCUT_STORAGE_V3_KEY);
 	} catch {
 		return defaultReadResult('read-failed');
 	}
-	if (versionThree !== null) return readVersionThree(versionThree, platform);
+	if (versionThree !== null) return migrateVersionThree(versionThree, platform);
 
 	let versionTwo: string | null;
 	try {
@@ -218,13 +309,13 @@ export function writeKeyboardShortcutOverrides(
 ): boolean {
 	try {
 		storage.setItem(
-			KEYBOARD_SHORTCUT_STORAGE_V3_KEY,
+			KEYBOARD_SHORTCUT_STORAGE_V4_KEY,
 			JSON.stringify({
 				overrides: overrides.map((override) => ({
 					chord: override.chord,
 					shortcutId: override.shortcutId,
 				})),
-				version: 3,
+				version: 4,
 			}),
 		);
 		return true;
@@ -233,17 +324,38 @@ export function writeKeyboardShortcutOverrides(
 	}
 }
 
-function readVersionThree(
+function readVersionFour(
+	serialized: string,
+	platform: KeyboardShortcutPlatform,
+): KeyboardShortcutStorageReadResult {
+	try {
+		const parsed = storedKeyboardShortcutOverridesV4Schema.safeParse(JSON.parse(serialized));
+		if (!parsed.success) return defaultReadResult('invalid-record');
+		const overrides = validateCurrentOverrides(parsed.data.overrides, platform);
+		return overrides === null
+			? defaultReadResult('invalid-record')
+			: { issue: null, migration: null, overrides };
+	} catch {
+		return defaultReadResult('invalid-record');
+	}
+}
+
+function migrateVersionThree(
 	serialized: string,
 	platform: KeyboardShortcutPlatform,
 ): KeyboardShortcutStorageReadResult {
 	try {
 		const parsed = storedKeyboardShortcutOverridesV3Schema.safeParse(JSON.parse(serialized));
 		if (!parsed.success) return defaultReadResult('invalid-record');
-		const overrides = validateCurrentOverrides(parsed.data.overrides, platform);
-		return overrides === null
+		const legacyOverrides = validateLegacyOverrides(
+			parsed.data.overrides,
+			platform,
+			LEGACY_V3_KEYBOARD_SHORTCUT_IDS,
+			LEGACY_V3_DEFAULT_BINDINGS,
+		);
+		return legacyOverrides === null
 			? defaultReadResult('invalid-record')
-			: { issue: null, migration: null, overrides };
+			: migrateLegacyOverrides(legacyOverrides, platform, 'v3');
 	} catch {
 		return defaultReadResult('invalid-record');
 	}

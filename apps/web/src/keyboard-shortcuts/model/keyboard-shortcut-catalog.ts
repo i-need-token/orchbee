@@ -8,6 +8,7 @@ import {
 	defaultWorkbenchShortcutBindings,
 	type WorkbenchShortcutBindings,
 	type WorkbenchShortcutId,
+	type WorkbenchTabPosition,
 } from '@orchbee/workbench';
 
 import {
@@ -34,35 +35,88 @@ export type KeyboardShortcutAvailability =
 	| 'focused-terminal'
 	| 'focused-terminal-with-selection'
 	| 'multiple-panels'
-	| 'directional-panel';
+	| 'directional-panel'
+	| 'tab-position';
 
-export interface KeyboardShortcutDeclaration {
+interface KeyboardShortcutDeclarationBase {
 	readonly actionId: string;
 	readonly actionInput: Readonly<Record<string, unknown>> | undefined;
 	readonly availability: KeyboardShortcutAvailability;
 	readonly defaults: Readonly<Record<KeyboardShortcutPlatform, KeyboardShortcutChord>>;
 	readonly feature: KeyboardShortcutFeature;
-	readonly name:
-		| 'actions-search'
-		| 'clear-terminal'
-		| 'close-terminal'
-		| 'copy-selection'
-		| 'find'
-		| 'focus-panel-down'
-		| 'focus-panel-left'
-		| 'focus-panel-right'
-		| 'focus-panel-up'
-		| 'global-search'
-		| 'maximize-panel'
-		| 'new-terminal'
-		| 'paste'
-		| 'select-all'
-		| 'settings'
-		| 'split-below'
-		| 'split-right'
-		| 'toggle-sidebar';
 	readonly scope: KeyboardShortcutScope;
 	readonly shortcutId: KeyboardShortcutId;
+}
+
+type KeyboardShortcutName =
+	| 'actions-search'
+	| 'clear-terminal'
+	| 'close-terminal'
+	| 'copy-selection'
+	| 'find'
+	| 'focus-panel-down'
+	| 'focus-panel-left'
+	| 'focus-panel-right'
+	| 'focus-panel-up'
+	| 'global-search'
+	| 'maximize-panel'
+	| 'new-terminal'
+	| 'paste'
+	| 'select-all'
+	| 'settings'
+	| 'split-below'
+	| 'split-right'
+	| 'toggle-sidebar';
+
+export type KeyboardShortcutDeclaration = KeyboardShortcutDeclarationBase &
+	(
+		| {
+				readonly name: 'select-tab';
+				readonly position: WorkbenchTabPosition;
+		  }
+		| {
+				readonly name: KeyboardShortcutName;
+				readonly position?: undefined;
+		  }
+	);
+
+const POSITIONAL_TAB_SHORTCUT_DECLARATIONS = Object.freeze(
+	[
+		WORKBENCH_SHORTCUTS.selectTab1,
+		WORKBENCH_SHORTCUTS.selectTab2,
+		WORKBENCH_SHORTCUTS.selectTab3,
+		WORKBENCH_SHORTCUTS.selectTab4,
+		WORKBENCH_SHORTCUTS.selectTab5,
+		WORKBENCH_SHORTCUTS.selectTab6,
+		WORKBENCH_SHORTCUTS.selectTab7,
+		WORKBENCH_SHORTCUTS.selectTab8,
+		WORKBENCH_SHORTCUTS.selectTab9,
+	].map(positionalTabDeclaration),
+);
+
+function positionalTabDeclaration(
+	shortcut:
+		| typeof WORKBENCH_SHORTCUTS.selectTab1
+		| typeof WORKBENCH_SHORTCUTS.selectTab2
+		| typeof WORKBENCH_SHORTCUTS.selectTab3
+		| typeof WORKBENCH_SHORTCUTS.selectTab4
+		| typeof WORKBENCH_SHORTCUTS.selectTab5
+		| typeof WORKBENCH_SHORTCUTS.selectTab6
+		| typeof WORKBENCH_SHORTCUTS.selectTab7
+		| typeof WORKBENCH_SHORTCUTS.selectTab8
+		| typeof WORKBENCH_SHORTCUTS.selectTab9,
+): KeyboardShortcutDeclaration {
+	return Object.freeze({
+		actionId: shortcut.id,
+		actionInput: shortcut.input,
+		availability: 'tab-position',
+		defaults: shortcut.defaults,
+		feature: 'workbench',
+		name: 'select-tab',
+		position: shortcut.input.position,
+		scope: 'workbench',
+		shortcutId: shortcut.shortcutId,
+	});
 }
 
 export const KEYBOARD_SHORTCUT_CATALOG = Object.freeze([
@@ -86,6 +140,7 @@ export const KEYBOARD_SHORTCUT_CATALOG = Object.freeze([
 		scope: 'workbench',
 		shortcutId: WORKBENCH_SHORTCUTS.newTerminal.shortcutId,
 	}),
+	...POSITIONAL_TAB_SHORTCUT_DECLARATIONS,
 	Object.freeze({
 		actionId: WORKBENCH_SHORTCUTS.closeActiveTerminal.id,
 		actionInput: WORKBENCH_SHORTCUTS.closeActiveTerminal.input,

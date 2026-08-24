@@ -23,6 +23,7 @@ export const WORKBENCH_ACTION_IDS = {
 	renameProject: 'workbench.project.rename',
 	reorderProject: 'workbench.project.reorder',
 	reorderWorkspace: 'workbench.workspace.reorder',
+	selectTabByPosition: 'workbench.tab.select-by-position',
 	closeActiveTerminal: 'workbench.terminal.active.close',
 	splitActivePanelBelow: 'workbench.panel.active.split-below',
 	splitActivePanelRight: 'workbench.panel.active.split-right',
@@ -79,6 +80,12 @@ export interface WorkbenchTabStripOrientationInput {
 	readonly orientation: TabStripOrientation;
 }
 
+export type WorkbenchTabPosition = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
+
+export interface WorkbenchTabPositionInput {
+	readonly position: WorkbenchTabPosition;
+}
+
 export interface WorkbenchTerminalCreateInput {
 	readonly directoryId?: string | undefined;
 	readonly groupId: string | null;
@@ -109,6 +116,7 @@ export interface WorkbenchActionCatalog {
 	readonly [WORKBENCH_ACTION_IDS.renameProject]: ActionSignature<WorkbenchProjectRenameInput>;
 	readonly [WORKBENCH_ACTION_IDS.reorderProject]: ActionSignature<WorkbenchProjectReorderInput>;
 	readonly [WORKBENCH_ACTION_IDS.reorderWorkspace]: ActionSignature<WorkbenchWorkspaceReorderInput>;
+	readonly [WORKBENCH_ACTION_IDS.selectTabByPosition]: ActionSignature<WorkbenchTabPositionInput>;
 	readonly [WORKBENCH_ACTION_IDS.closeActiveTerminal]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.splitActivePanelBelow]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.splitActivePanelRight]: ActionSignature<void>;
@@ -171,6 +179,31 @@ export const workbenchSearchOpenInput: ActionInputValidation<WorkbenchSearchOpen
 				}
 			: { success: false, code: 'expected-workbench-search-filter' },
 };
+
+export const workbenchTabPositionInput: ActionInputValidation<WorkbenchTabPositionInput> = {
+	name: 'WorkbenchTabPositionInput',
+	parse: (input) =>
+		isRecord(input) && isWorkbenchTabPosition(input['position'])
+			? {
+					data: { position: input['position'] },
+					success: true,
+				}
+			: { code: 'expected-workbench-tab-position-input', success: false },
+};
+
+function isWorkbenchTabPosition(input: unknown): input is WorkbenchTabPosition {
+	return (
+		input === 1 ||
+		input === 2 ||
+		input === 3 ||
+		input === 4 ||
+		input === 5 ||
+		input === 6 ||
+		input === 7 ||
+		input === 8 ||
+		input === 9
+	);
+}
 
 export const workbenchProjectInput: ActionInputValidation<WorkbenchProjectInput> = {
 	name: 'WorkbenchProjectInput',

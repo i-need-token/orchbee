@@ -201,7 +201,7 @@ export function useTerminalSettingsSurface({
 	const searchCatalog = buildTerminalSettingsSearchCatalog({
 		enabledCapabilities,
 		enabledCategories,
-		formatMessage: (descriptor) => intl.formatMessage(descriptor),
+		formatMessage: (descriptor, values) => intl.formatMessage(descriptor, values),
 		keyboardShortcutChords,
 	});
 	const resolvedSearchResults = resolveTerminalSettingsSearch({

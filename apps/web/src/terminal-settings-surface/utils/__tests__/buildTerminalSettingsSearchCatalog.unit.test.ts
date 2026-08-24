@@ -13,7 +13,7 @@ describe('buildTerminalSettingsSearchCatalog', () => {
 		const entries = buildTerminalSettingsSearchCatalog({
 			enabledCapabilities: ['macos-option-as-alt'],
 			enabledCategories,
-			formatMessage: (descriptor) => intl.formatMessage(descriptor),
+			formatMessage: (descriptor, values) => intl.formatMessage(descriptor, values),
 			keyboardShortcutChords: { 'workbench.search.all.open': '⌘ ⇧ K' },
 		});
 
@@ -39,6 +39,12 @@ describe('buildTerminalSettingsSearchCatalog', () => {
 			entries.find((entry) => entry.id === 'keyboard-shortcuts.workbench.search.all.open')
 				?.keywords,
 		).toContain('⌘ ⇧ K');
+		expect(
+			entries.find((entry) => entry.id === 'keyboard-shortcuts.workbench.tab.select.2'),
+		).toMatchObject({
+			label: 'Select tab 2',
+			sectionLabel: 'Workbench',
+		});
 	});
 
 	it('omits unavailable categories and capability-gated settings', () => {
@@ -46,7 +52,7 @@ describe('buildTerminalSettingsSearchCatalog', () => {
 		const entries = buildTerminalSettingsSearchCatalog({
 			enabledCapabilities: [],
 			enabledCategories: ['cursor-input', 'general'],
-			formatMessage: (descriptor) => intl.formatMessage(descriptor),
+			formatMessage: (descriptor, values) => intl.formatMessage(descriptor, values),
 			keyboardShortcutChords: {},
 		});
 
@@ -63,7 +69,7 @@ describe('buildTerminalSettingsSearchCatalog', () => {
 			buildTerminalSettingsSearchCatalog({
 				enabledCapabilities,
 				enabledCategories: ['terminal'],
-				formatMessage: (descriptor) => intl.formatMessage(descriptor),
+				formatMessage: (descriptor, values) => intl.formatMessage(descriptor, values),
 				keyboardShortcutChords: {},
 			});
 
@@ -82,7 +88,7 @@ describe('buildTerminalSettingsSearchCatalog', () => {
 		const entries = buildTerminalSettingsSearchCatalog({
 			enabledCapabilities: ['terminal-interaction'],
 			enabledCategories: ['interaction'],
-			formatMessage: (descriptor) => intl.formatMessage(descriptor),
+			formatMessage: (descriptor, values) => intl.formatMessage(descriptor, values),
 			keyboardShortcutChords: {},
 		});
 

@@ -233,6 +233,9 @@ describe('useWorkbenchActions', () => {
 							[WORKBENCH_ACTION_IDS.setTabStripOrientation]: {
 								orientation: 'horizontal',
 							},
+							[WORKBENCH_ACTION_IDS.selectTabByPosition]: {
+								position: 1,
+							},
 							[WORKBENCH_ACTION_IDS.setProjectPrimaryDirectory]: {
 								directoryId: 'missing-directory',
 								projectId: 'missing-project',

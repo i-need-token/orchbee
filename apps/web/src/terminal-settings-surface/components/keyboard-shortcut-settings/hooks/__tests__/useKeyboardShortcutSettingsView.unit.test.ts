@@ -28,7 +28,7 @@ describe('useKeyboardShortcutSettingsView', () => {
 				}),
 			{ wrapper: I18nWrapper },
 		);
-		expect(allRows.result.current.rows).toHaveLength(18);
+		expect(allRows.result.current.rows).toHaveLength(27);
 		expect(allRows.result.current.rows[0]).toMatchObject({
 			actionName: 'Search actions',
 			chord: 'Ctrl+Shift+P',
@@ -58,6 +58,13 @@ describe('useKeyboardShortcutSettingsView', () => {
 			availability: 'When an adjacent panel exists in that direction',
 			chord: 'Ctrl+Alt+←',
 			scope: 'Active panel',
+		});
+		expect(
+			allRows.result.current.rows.find((row) => row.actionName === 'Select tab 2'),
+		).toMatchObject({
+			availability: 'When that tab position exists',
+			chord: 'Ctrl+2',
+			scope: 'Workbench',
 		});
 		controller.dispose();
 	});

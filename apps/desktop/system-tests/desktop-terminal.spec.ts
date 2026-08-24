@@ -1734,6 +1734,10 @@ test('projects native window drag regions without consuming title bar controls o
 	await expect(tabs).toHaveCount(initialTabCount + 1);
 	await tabs.first().click();
 	await expect(tabs.first()).toHaveAttribute('aria-selected', 'true');
+	await page.keyboard.press(`${primaryModifier}+Digit2`);
+	await expect(tabs.nth(1)).toHaveAttribute('aria-selected', 'true');
+	await page.keyboard.press(`${primaryModifier}+Digit1`);
+	await expect(tabs.first()).toHaveAttribute('aria-selected', 'true');
 });
 
 async function runManualNativeWindowTest(): Promise<void> {

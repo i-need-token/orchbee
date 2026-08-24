@@ -90,6 +90,10 @@ export function useKeyboardShortcutSettingsView({
 				return intl.formatMessage(keyboardShortcutMessages.paste);
 			case 'select-all':
 				return intl.formatMessage(keyboardShortcutMessages.selectAll);
+			case 'select-tab':
+				return intl.formatMessage(keyboardShortcutMessages.selectTab, {
+					position: declaration.position,
+				});
 		}
 	};
 	const scopeNameFor = (scope: KeyboardShortcutScope): string => {
@@ -124,6 +128,8 @@ export function useKeyboardShortcutSettingsView({
 				return intl.formatMessage(keyboardShortcutMessages.availabilityDirectionalPanel);
 			case 'multiple-panels':
 				return intl.formatMessage(keyboardShortcutMessages.availabilityMultiplePanels);
+			case 'tab-position':
+				return intl.formatMessage(keyboardShortcutMessages.availabilityTabPosition);
 		}
 	};
 	const snapshot = useKeyboardShortcutSettings(controller);

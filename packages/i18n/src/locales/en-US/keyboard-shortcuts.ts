@@ -15,6 +15,7 @@ export const enUSKeyboardShortcutMessages = {
 	'keyboard.shortcuts.actions.paste': 'Paste into terminal',
 	'keyboard.shortcuts.actions.reset': 'Restore default',
 	'keyboard.shortcuts.actions.selectAll': 'Select all terminal text',
+	'keyboard.shortcuts.actions.selectTab': 'Select tab {position}',
 	'keyboard.shortcuts.actions.settings': 'Open settings',
 	'keyboard.shortcuts.actions.splitBelow': 'Split panel below',
 	'keyboard.shortcuts.actions.splitRight': 'Split panel right',
@@ -27,6 +28,7 @@ export const enUSKeyboardShortcutMessages = {
 	'keyboard.shortcuts.availability.focusedTerminalWithSelection':
 		'When a focused terminal has a selection',
 	'keyboard.shortcuts.availability.multiplePanels': 'When the active tab has multiple panels',
+	'keyboard.shortcuts.availability.tabPosition': 'When that tab position exists',
 	'keyboard.shortcuts.availability.workbench': 'While the Workbench is active',
 	'keyboard.shortcuts.category': 'Keyboard shortcuts',
 	'keyboard.shortcuts.conflict':

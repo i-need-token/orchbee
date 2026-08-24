@@ -15,7 +15,7 @@ import '@orchbee/ui/styles.css';
 import '@orchbee/tab-strip/styles.css';
 ```
 
-- `@orchbee/tab-strip` 公开组件以及创建和托管它所需的选定合约。
+- `@orchbee/tab-strip` 公开组件，以及托管它所需的 Action 标识、关闭与选择输入和边界验证器。
 - `@orchbee/ui/styles.css` 提供上下文菜单使用的共享原始样式和设计令牌注册表。
 - `@orchbee/tab-strip/styles.css` 为内置消费者提供组件的 CSS 模块输出。
 
@@ -27,7 +27,7 @@ import '@orchbee/tab-strip/styles.css';
 
 本地合成通过`TabModel`同步关闭已知Tab IDs。相反，终端拥有的组合提供 `onCloseTabs`。它还可以提供 `getCloseTabsConfirmation`，这使得所有者可以从受验证的选项卡集影响的完整资源中获得保护，同时选项卡条在同一 `tabs.tab.close` 操作内保持确认。 Action 委托其经过验证的 ID 集和执行上下文，而不改变 `TabModel`；只有在终端关闭编排成功后，所有者才会标记提交点并删除选项卡。因此，取消的确认、挂起的关闭或部分失败的关闭无法使选项卡条尽早删除拓扑。
 
-URL 具有权威性的组合物可以提供`onSelectTab`。 `tabs.tab.select` Action 在任何本地 `TabModel` 写入之前委托其经过验证的 `TabSelectionInput` 和执行上下文；所有者提交导航，然后在观察到该路线时应用选择。省略回调会保留包拥有的本地选择转换。此端口不会将路由、历史记录或 URL 解析移动到选项卡条中。
+以 URL 为权威来源的组合可以提供 `onSelectTab`。`tabs.tab.select` Action 在任何本地 `TabModel` 写入之前委托其经过验证的 `TabSelectionInput` 和执行上下文；公开的 `tabSelectionInput` 验证器允许组合 Action 准备同一个边界，而无需导入私有源代码。所有者提交导航，然后在观察到该路由时应用选择。省略回调会保留包拥有的本地选择转换。此端口不会将路由、历史记录或 URL 解析移动到 Tab Strip 中。
 
 指针移动和拖动几何体保持本地手势状态。拖动期间显示的模型更改是可逆预览；接受本地放置会回滚预览并调用 `tabs.layout.apply-arrangement` 以通过 Action 生命周期提交最终安排。
 

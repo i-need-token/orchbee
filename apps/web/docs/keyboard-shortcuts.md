@@ -9,26 +9,27 @@ those surfaces owns another binding copy.
 
 ## Initial catalog
 
-| Shortcut ID                                  | Scope                             | Apple default      | Standard default   |
-| -------------------------------------------- | --------------------------------- | ------------------ | ------------------ |
-| `workbench.search.actions.open`              | Workbench                         | `Cmd+Shift+P`      | `Ctrl+Shift+P`     |
-| `workbench.terminal.create`                  | Workbench                         | `Cmd+T`            | `Ctrl+Shift+T`     |
-| `workbench.terminal.active.close`            | Active terminal                   | `Cmd+W`            | `Ctrl+Shift+W`     |
-| `workbench.panel.active.focus-down`          | Active panel                      | `Cmd+Option+Down`  | `Ctrl+Alt+Down`    |
-| `workbench.panel.active.focus-left`          | Active panel                      | `Cmd+Option+Left`  | `Ctrl+Alt+Left`    |
-| `workbench.panel.active.focus-right`         | Active panel                      | `Cmd+Option+Right` | `Ctrl+Alt+Right`   |
-| `workbench.panel.active.focus-up`            | Active panel                      | `Cmd+Option+Up`    | `Ctrl+Alt+Up`      |
-| `workbench.panel.active.maximization.toggle` | Active panel                      | `Cmd+Shift+Enter`  | `Ctrl+Shift+Enter` |
-| `workbench.panel.active.split-right`         | Active panel                      | `Cmd+D`            | `Ctrl+Shift+D`     |
-| `workbench.panel.active.split-below`         | Active panel                      | `Cmd+Shift+D`      | `Ctrl+Shift+E`     |
-| `workbench.search.all.open`                  | Workbench                         | `Cmd+Shift+F`      | `Ctrl+Shift+K`     |
-| `workbench.settings.open`                    | Workbench                         | `Cmd+,`            | `Ctrl+,`           |
-| `workbench.sidebar.toggle`                   | Workbench                         | `Cmd+B`            | `Ctrl+Shift+B`     |
-| `terminal.search.open`                       | Focused terminal or Find          | `Cmd+F`            | `Ctrl+Shift+F`     |
-| `terminal.selection.copy`                    | Focused terminal with a selection | `Cmd+C`            | `Ctrl+Shift+C`     |
-| `terminal.clipboard.paste`                   | Focused terminal                  | `Cmd+V`            | `Ctrl+Shift+V`     |
-| `terminal.selection.select-all`              | Focused terminal                  | `Cmd+A`            | `Ctrl+Shift+A`     |
-| `terminal.clear`                             | Focused terminal                  | `Cmd+K`            | `Ctrl+Shift+L`     |
+| Shortcut ID                                  | Scope                             | Apple default      | Standard default    |
+| -------------------------------------------- | --------------------------------- | ------------------ | ------------------- |
+| `workbench.search.actions.open`              | Workbench                         | `Cmd+Shift+P`      | `Ctrl+Shift+P`      |
+| `workbench.terminal.create`                  | Workbench                         | `Cmd+T`            | `Ctrl+Shift+T`      |
+| `workbench.tab.select.1` … `.9`              | Workbench                         | `Cmd+1` … `Cmd+9`  | `Ctrl+1` … `Ctrl+9` |
+| `workbench.terminal.active.close`            | Active terminal                   | `Cmd+W`            | `Ctrl+Shift+W`      |
+| `workbench.panel.active.focus-down`          | Active panel                      | `Cmd+Option+Down`  | `Ctrl+Alt+Down`     |
+| `workbench.panel.active.focus-left`          | Active panel                      | `Cmd+Option+Left`  | `Ctrl+Alt+Left`     |
+| `workbench.panel.active.focus-right`         | Active panel                      | `Cmd+Option+Right` | `Ctrl+Alt+Right`    |
+| `workbench.panel.active.focus-up`            | Active panel                      | `Cmd+Option+Up`    | `Ctrl+Alt+Up`       |
+| `workbench.panel.active.maximization.toggle` | Active panel                      | `Cmd+Shift+Enter`  | `Ctrl+Shift+Enter`  |
+| `workbench.panel.active.split-right`         | Active panel                      | `Cmd+D`            | `Ctrl+Shift+D`      |
+| `workbench.panel.active.split-below`         | Active panel                      | `Cmd+Shift+D`      | `Ctrl+Shift+E`      |
+| `workbench.search.all.open`                  | Workbench                         | `Cmd+Shift+F`      | `Ctrl+Shift+K`      |
+| `workbench.settings.open`                    | Workbench                         | `Cmd+,`            | `Ctrl+,`            |
+| `workbench.sidebar.toggle`                   | Workbench                         | `Cmd+B`            | `Ctrl+Shift+B`      |
+| `terminal.search.open`                       | Focused terminal or Find          | `Cmd+F`            | `Ctrl+Shift+F`      |
+| `terminal.selection.copy`                    | Focused terminal with a selection | `Cmd+C`            | `Ctrl+Shift+C`      |
+| `terminal.clipboard.paste`                   | Focused terminal                  | `Cmd+V`            | `Ctrl+Shift+V`      |
+| `terminal.selection.select-all`              | Focused terminal                  | `Cmd+A`            | `Ctrl+Shift+A`      |
+| `terminal.clear`                             | Focused terminal                  | `Cmd+K`            | `Ctrl+Shift+L`      |
 
 The new-Tab, active-terminal close, active-panel maximization, right-split, down-split, and paste
 defaults adopt Warp's [documented desktop conventions](https://docs.warp.dev/getting-started/keyboard-shortcuts)
@@ -71,6 +72,13 @@ injected terminal surface claims real input when ready. Active-terminal and acti
 resolve from the active Tab's remembered focused Panel rather than the keyboard event target, so a
 sidebar or document-body focus does not redirect them. An unavailable Action preserves state and
 does not call `preventDefault()`.
+
+`Mod+1` through `Mod+9` invoke `workbench.tab.select-by-position` with the matching one-based
+position. Position is resolved from the active terminal context's canonical `TabModel.tabs` order:
+the pinned prefix comes first, followed by the current grouped and ungrouped order. Tabs inside a
+collapsed group still occupy positions, and the delegated `tabs.tab.select` Action expands the
+selected Tab's group through the ordinary selection transition. A missing position is unavailable
+and leaves the event untouched. `Mod+9` means the ninth Tab, never the last Tab.
 
 ## Active-target command model
 
@@ -132,11 +140,11 @@ terminal Actions discovered from descendant scopes.
 
 ## Persistence and recovery
 
-New writes use `orchbee:web:keyboard-shortcuts:v3` and a strict record:
+New writes use `orchbee:web:keyboard-shortcuts:v4` and a strict record:
 
 ```json
 {
-	"version": 3,
+	"version": 4,
 	"overrides": [
 		{
 			"shortcutId": "workbench.search.all.open",
@@ -148,18 +156,18 @@ New writes use `orchbee:web:keyboard-shortcuts:v3` and a strict record:
 
 Only Custom values are stored, ordered by shortcut ID. Unknown fields or IDs, duplicates, unsorted
 entries, noncanonical modifiers, unsupported codes, stored defaults, excessive entries, and an
-effective conflict invalidate the complete v3 record and restore platform defaults. A write
+effective conflict invalidate the complete v4 record and restore platform defaults. A write
 failure keeps the immutable session binding active, reports that it was not saved, and retries on
 the next legal change. Restoring one item removes its override.
 
-When v3 is absent, Web first reads `orchbee:web:keyboard-shortcuts:v2` with its exact prior catalog
-and defaults, carries explicit overrides into the expanded catalog, removes an override equivalent
-to a current default, rejects any resulting conflict, and writes the canonical v3 record. When both
-v3 and v2 are absent, the same migration starts from `orchbee:web:keyboard-shortcuts:v1`. The v1 and
-v2 values remain unchanged as rollback snapshots. An invalid v3 record never falls back to an older
-record, and an invalid v2 migration source never falls through to v1, because either fallback would
-hide current data corruption. Rolling back restores the latest record that older build understands;
-edits made only in v3 are intentionally unavailable to it.
+When v4 is absent, Web first reads `orchbee:web:keyboard-shortcuts:v3` with its exact prior catalog
+and defaults. If v3 is also absent, it tries v2 and then v1. Every migration carries explicit
+overrides into the expanded catalog, removes an override equivalent to a current default, rejects
+any resulting conflict, and writes the canonical v4 record. The v1, v2, and v3 values remain
+unchanged as rollback snapshots. An invalid current record never falls back to an older record, and
+an invalid migration source never falls through to the next older version, because either fallback
+would hide data corruption. Rolling back restores the latest record that the older build
+understands; edits made only in v4 are intentionally unavailable to it.
 
 Browser Preview, Gateway Browser, and Electron each create and dispose one controller against their
 own origin-local storage. Gateway and Electron pass the controller's narrow binding source through
@@ -168,17 +176,18 @@ change does not remount Workbench, replace an attachment, or reopen a Host or Ga
 
 ## Claims and evidence
 
-| Claim                                                                            | Deterministic evidence                                               |
-| -------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
-| One valid target produces exactly one child, panel, or Tab close operation       | Active-target resolver decision-table tests                          |
-| Confirmation, cancellation, and commit remain owned by the prepared lower Action | Workbench Action integration tests with panel and Tab registrations  |
-| Active Workbench bindings do not depend on a surviving focused descendant        | Document-capture lifecycle and Web application integration tests     |
-| Empty-Tab New Tab creates and focuses the new terminal; Settings suppresses it   | Web application focus and Settings-scope integration trace           |
-| Apple and Standard defaults match the catalog and custom edits affect dispatch   | Shortcut definition, resolver, and controller tests                  |
-| Directional focus selects a spatial neighbor and falls through at outer edges    | Four-Panel resolver, Action, and shortcut dispatch tests             |
-| Menus, Action search, and settings display the same current binding              | Projection and rendered-surface tests                                |
-| Valid v1 and v2 records migrate once without losing explicit legacy overrides    | Storage migration tests, including a new-default-equivalent override |
-| Invalid current or migration-source data does not consult an older record        | Storage corruption and precedence tests                              |
+| Claim                                                                            | Deterministic evidence                                              |
+| -------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| One valid target produces exactly one child, panel, or Tab close operation       | Active-target resolver decision-table tests                         |
+| Confirmation, cancellation, and commit remain owned by the prepared lower Action | Workbench Action integration tests with panel and Tab registrations |
+| Active Workbench bindings do not depend on a surviving focused descendant        | Document-capture lifecycle and Web application integration tests    |
+| Empty-Tab New Tab creates and focuses the new terminal; Settings suppresses it   | Web application focus and Settings-scope integration trace          |
+| Apple and Standard defaults match the catalog and custom edits affect dispatch   | Shortcut definition, resolver, and controller tests                 |
+| Directional focus selects a spatial neighbor and falls through at outer edges    | Four-Panel resolver, Action, and shortcut dispatch tests            |
+| Positional selection follows canonical Tab order and falls through out of range  | Grouped and pinned Action integration plus shortcut dispatch tests  |
+| Menus, Action search, and settings display the same current binding              | Projection and rendered-surface tests                               |
+| Valid v1, v2, and v3 records migrate without losing explicit legacy overrides    | Storage migration tests, including new-default conflicts            |
+| Invalid current or migration-source data does not consult an older record        | Storage corruption and precedence tests                             |
 
 The tests use synthetic platform flags, Action scopes, storage, document capture, injected terminal
 focus, and keyboard events. They do not claim operating-system global-shortcut behavior or full

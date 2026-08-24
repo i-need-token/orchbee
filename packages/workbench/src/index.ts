@@ -91,6 +91,8 @@ export type {
 	WorkbenchShortcutId,
 	WorkbenchSearchFilter,
 	WorkbenchSearchOpenInput,
+	WorkbenchTabPosition,
+	WorkbenchTabPositionInput,
 	WorkbenchSearchProvider,
 	WorkbenchSearchProviderArgumentOption,
 	WorkbenchSearchProviderArgumentPicker,

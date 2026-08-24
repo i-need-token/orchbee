@@ -9,6 +9,7 @@ import {
 	workbenchProjectRenameInput,
 	workbenchProjectReorderInput,
 	workbenchSearchOpenInput,
+	workbenchTabPositionInput,
 	workbenchTabStripOrientationInput,
 	workbenchTerminalCreateInput,
 	workbenchWorkspaceCreateInput,
@@ -40,6 +41,7 @@ describe('workbench action contracts', () => {
 			renameProject: 'workbench.project.rename',
 			reorderProject: 'workbench.project.reorder',
 			reorderWorkspace: 'workbench.workspace.reorder',
+			selectTabByPosition: 'workbench.tab.select-by-position',
 			splitActivePanelBelow: 'workbench.panel.active.split-below',
 			splitActivePanelRight: 'workbench.panel.active.split-right',
 			setTabStripOrientation: 'workbench.tab-strip.orientation.set',
@@ -49,6 +51,21 @@ describe('workbench action contracts', () => {
 			toggleSidebar: 'workbench.sidebar.toggle',
 			updateWorkspace: 'workbench.workspace.update',
 		});
+	});
+
+	it('accepts only the first nine one-based Tab positions', () => {
+		for (let position = 1; position <= 9; position += 1) {
+			expect(workbenchTabPositionInput.parse({ position })).toEqual({
+				data: { position },
+				success: true,
+			});
+		}
+		for (const position of [0, 10, 1.5, '2']) {
+			expect(workbenchTabPositionInput.parse({ position })).toEqual({
+				code: 'expected-workbench-tab-position-input',
+				success: false,
+			});
+		}
 	});
 
 	it('trims a non-empty Folder path for Project creation', () => {

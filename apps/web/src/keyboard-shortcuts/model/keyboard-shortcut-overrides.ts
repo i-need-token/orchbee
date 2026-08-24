@@ -22,103 +22,90 @@ export function createKeyboardShortcutBindings(
 	overrides: readonly KeyboardShortcutOverride[],
 ): KeyboardShortcutBindings {
 	const defaults = defaultKeyboardShortcutBindings(platform);
-	let actionsSearch = defaults[WORKBENCH_SHORTCUTS.actionsSearch.shortcutId];
-	let closeActiveTerminal = defaults[WORKBENCH_SHORTCUTS.closeActiveTerminal.shortcutId];
-	let focusActivePanelDown = defaults[WORKBENCH_SHORTCUTS.focusActivePanelDown.shortcutId];
-	let focusActivePanelLeft = defaults[WORKBENCH_SHORTCUTS.focusActivePanelLeft.shortcutId];
-	let focusActivePanelRight = defaults[WORKBENCH_SHORTCUTS.focusActivePanelRight.shortcutId];
-	let focusActivePanelUp = defaults[WORKBENCH_SHORTCUTS.focusActivePanelUp.shortcutId];
-	let maximizeActivePanel = defaults[WORKBENCH_SHORTCUTS.maximizeActivePanel.shortcutId];
-	let newTerminal = defaults[WORKBENCH_SHORTCUTS.newTerminal.shortcutId];
-	let search = defaults[WORKBENCH_SHORTCUTS.search.shortcutId];
-	let settings = defaults[WORKBENCH_SHORTCUTS.settings.shortcutId];
-	let splitActivePanelBelow = defaults[WORKBENCH_SHORTCUTS.splitActivePanelBelow.shortcutId];
-	let splitActivePanelRight = defaults[WORKBENCH_SHORTCUTS.splitActivePanelRight.shortcutId];
-	let toggleSidebar = defaults[WORKBENCH_SHORTCUTS.toggleSidebar.shortcutId];
-	let clear = defaults[PROJECTED_TERMINAL_SHORTCUTS.clear.shortcutId];
-	let findOpen = defaults[PROJECTED_TERMINAL_SHORTCUTS.findOpen.shortcutId];
-	let copySelection = defaults[PROJECTED_TERMINAL_SHORTCUTS.copySelection.shortcutId];
-	let paste = defaults[PROJECTED_TERMINAL_SHORTCUTS.paste.shortcutId];
-	let selectAll = defaults[PROJECTED_TERMINAL_SHORTCUTS.selectAll.shortcutId];
-
-	for (const override of overrides) {
-		switch (override.shortcutId) {
-			case WORKBENCH_SHORTCUTS.actionsSearch.shortcutId:
-				actionsSearch = override.chord;
-				break;
-			case WORKBENCH_SHORTCUTS.closeActiveTerminal.shortcutId:
-				closeActiveTerminal = override.chord;
-				break;
-			case WORKBENCH_SHORTCUTS.focusActivePanelDown.shortcutId:
-				focusActivePanelDown = override.chord;
-				break;
-			case WORKBENCH_SHORTCUTS.focusActivePanelLeft.shortcutId:
-				focusActivePanelLeft = override.chord;
-				break;
-			case WORKBENCH_SHORTCUTS.focusActivePanelRight.shortcutId:
-				focusActivePanelRight = override.chord;
-				break;
-			case WORKBENCH_SHORTCUTS.focusActivePanelUp.shortcutId:
-				focusActivePanelUp = override.chord;
-				break;
-			case WORKBENCH_SHORTCUTS.maximizeActivePanel.shortcutId:
-				maximizeActivePanel = override.chord;
-				break;
-			case WORKBENCH_SHORTCUTS.newTerminal.shortcutId:
-				newTerminal = override.chord;
-				break;
-			case WORKBENCH_SHORTCUTS.search.shortcutId:
-				search = override.chord;
-				break;
-			case WORKBENCH_SHORTCUTS.settings.shortcutId:
-				settings = override.chord;
-				break;
-			case WORKBENCH_SHORTCUTS.splitActivePanelBelow.shortcutId:
-				splitActivePanelBelow = override.chord;
-				break;
-			case WORKBENCH_SHORTCUTS.splitActivePanelRight.shortcutId:
-				splitActivePanelRight = override.chord;
-				break;
-			case WORKBENCH_SHORTCUTS.toggleSidebar.shortcutId:
-				toggleSidebar = override.chord;
-				break;
-			case PROJECTED_TERMINAL_SHORTCUTS.findOpen.shortcutId:
-				findOpen = override.chord;
-				break;
-			case PROJECTED_TERMINAL_SHORTCUTS.clear.shortcutId:
-				clear = override.chord;
-				break;
-			case PROJECTED_TERMINAL_SHORTCUTS.copySelection.shortcutId:
-				copySelection = override.chord;
-				break;
-			case PROJECTED_TERMINAL_SHORTCUTS.paste.shortcutId:
-				paste = override.chord;
-				break;
-			case PROJECTED_TERMINAL_SHORTCUTS.selectAll.shortcutId:
-				selectAll = override.chord;
-				break;
-		}
-	}
+	const overrideByShortcutId = new Map(
+		overrides.map((override) => [override.shortcutId, override.chord]),
+	);
+	const bindingFor = (shortcutId: KeyboardShortcutId): KeyboardShortcutChord =>
+		overrideByShortcutId.get(shortcutId) ?? defaults[shortcutId];
 
 	return Object.freeze({
-		[WORKBENCH_SHORTCUTS.actionsSearch.shortcutId]: actionsSearch,
-		[WORKBENCH_SHORTCUTS.closeActiveTerminal.shortcutId]: closeActiveTerminal,
-		[WORKBENCH_SHORTCUTS.focusActivePanelDown.shortcutId]: focusActivePanelDown,
-		[WORKBENCH_SHORTCUTS.focusActivePanelLeft.shortcutId]: focusActivePanelLeft,
-		[WORKBENCH_SHORTCUTS.focusActivePanelRight.shortcutId]: focusActivePanelRight,
-		[WORKBENCH_SHORTCUTS.focusActivePanelUp.shortcutId]: focusActivePanelUp,
-		[WORKBENCH_SHORTCUTS.maximizeActivePanel.shortcutId]: maximizeActivePanel,
-		[WORKBENCH_SHORTCUTS.newTerminal.shortcutId]: newTerminal,
-		[WORKBENCH_SHORTCUTS.search.shortcutId]: search,
-		[WORKBENCH_SHORTCUTS.settings.shortcutId]: settings,
-		[WORKBENCH_SHORTCUTS.splitActivePanelBelow.shortcutId]: splitActivePanelBelow,
-		[WORKBENCH_SHORTCUTS.splitActivePanelRight.shortcutId]: splitActivePanelRight,
-		[WORKBENCH_SHORTCUTS.toggleSidebar.shortcutId]: toggleSidebar,
-		[PROJECTED_TERMINAL_SHORTCUTS.clear.shortcutId]: clear,
-		[PROJECTED_TERMINAL_SHORTCUTS.findOpen.shortcutId]: findOpen,
-		[PROJECTED_TERMINAL_SHORTCUTS.copySelection.shortcutId]: copySelection,
-		[PROJECTED_TERMINAL_SHORTCUTS.paste.shortcutId]: paste,
-		[PROJECTED_TERMINAL_SHORTCUTS.selectAll.shortcutId]: selectAll,
+		[WORKBENCH_SHORTCUTS.actionsSearch.shortcutId]: bindingFor(
+			WORKBENCH_SHORTCUTS.actionsSearch.shortcutId,
+		),
+		[WORKBENCH_SHORTCUTS.closeActiveTerminal.shortcutId]: bindingFor(
+			WORKBENCH_SHORTCUTS.closeActiveTerminal.shortcutId,
+		),
+		[WORKBENCH_SHORTCUTS.focusActivePanelDown.shortcutId]: bindingFor(
+			WORKBENCH_SHORTCUTS.focusActivePanelDown.shortcutId,
+		),
+		[WORKBENCH_SHORTCUTS.focusActivePanelLeft.shortcutId]: bindingFor(
+			WORKBENCH_SHORTCUTS.focusActivePanelLeft.shortcutId,
+		),
+		[WORKBENCH_SHORTCUTS.focusActivePanelRight.shortcutId]: bindingFor(
+			WORKBENCH_SHORTCUTS.focusActivePanelRight.shortcutId,
+		),
+		[WORKBENCH_SHORTCUTS.focusActivePanelUp.shortcutId]: bindingFor(
+			WORKBENCH_SHORTCUTS.focusActivePanelUp.shortcutId,
+		),
+		[WORKBENCH_SHORTCUTS.maximizeActivePanel.shortcutId]: bindingFor(
+			WORKBENCH_SHORTCUTS.maximizeActivePanel.shortcutId,
+		),
+		[WORKBENCH_SHORTCUTS.newTerminal.shortcutId]: bindingFor(
+			WORKBENCH_SHORTCUTS.newTerminal.shortcutId,
+		),
+		[WORKBENCH_SHORTCUTS.search.shortcutId]: bindingFor(WORKBENCH_SHORTCUTS.search.shortcutId),
+		[WORKBENCH_SHORTCUTS.selectTab1.shortcutId]: bindingFor(
+			WORKBENCH_SHORTCUTS.selectTab1.shortcutId,
+		),
+		[WORKBENCH_SHORTCUTS.selectTab2.shortcutId]: bindingFor(
+			WORKBENCH_SHORTCUTS.selectTab2.shortcutId,
+		),
+		[WORKBENCH_SHORTCUTS.selectTab3.shortcutId]: bindingFor(
+			WORKBENCH_SHORTCUTS.selectTab3.shortcutId,
+		),
+		[WORKBENCH_SHORTCUTS.selectTab4.shortcutId]: bindingFor(
+			WORKBENCH_SHORTCUTS.selectTab4.shortcutId,
+		),
+		[WORKBENCH_SHORTCUTS.selectTab5.shortcutId]: bindingFor(
+			WORKBENCH_SHORTCUTS.selectTab5.shortcutId,
+		),
+		[WORKBENCH_SHORTCUTS.selectTab6.shortcutId]: bindingFor(
+			WORKBENCH_SHORTCUTS.selectTab6.shortcutId,
+		),
+		[WORKBENCH_SHORTCUTS.selectTab7.shortcutId]: bindingFor(
+			WORKBENCH_SHORTCUTS.selectTab7.shortcutId,
+		),
+		[WORKBENCH_SHORTCUTS.selectTab8.shortcutId]: bindingFor(
+			WORKBENCH_SHORTCUTS.selectTab8.shortcutId,
+		),
+		[WORKBENCH_SHORTCUTS.selectTab9.shortcutId]: bindingFor(
+			WORKBENCH_SHORTCUTS.selectTab9.shortcutId,
+		),
+		[WORKBENCH_SHORTCUTS.settings.shortcutId]: bindingFor(WORKBENCH_SHORTCUTS.settings.shortcutId),
+		[WORKBENCH_SHORTCUTS.splitActivePanelBelow.shortcutId]: bindingFor(
+			WORKBENCH_SHORTCUTS.splitActivePanelBelow.shortcutId,
+		),
+		[WORKBENCH_SHORTCUTS.splitActivePanelRight.shortcutId]: bindingFor(
+			WORKBENCH_SHORTCUTS.splitActivePanelRight.shortcutId,
+		),
+		[WORKBENCH_SHORTCUTS.toggleSidebar.shortcutId]: bindingFor(
+			WORKBENCH_SHORTCUTS.toggleSidebar.shortcutId,
+		),
+		[PROJECTED_TERMINAL_SHORTCUTS.clear.shortcutId]: bindingFor(
+			PROJECTED_TERMINAL_SHORTCUTS.clear.shortcutId,
+		),
+		[PROJECTED_TERMINAL_SHORTCUTS.findOpen.shortcutId]: bindingFor(
+			PROJECTED_TERMINAL_SHORTCUTS.findOpen.shortcutId,
+		),
+		[PROJECTED_TERMINAL_SHORTCUTS.copySelection.shortcutId]: bindingFor(
+			PROJECTED_TERMINAL_SHORTCUTS.copySelection.shortcutId,
+		),
+		[PROJECTED_TERMINAL_SHORTCUTS.paste.shortcutId]: bindingFor(
+			PROJECTED_TERMINAL_SHORTCUTS.paste.shortcutId,
+		),
+		[PROJECTED_TERMINAL_SHORTCUTS.selectAll.shortcutId]: bindingFor(
+			PROJECTED_TERMINAL_SHORTCUTS.selectAll.shortcutId,
+		),
 	});
 }
 

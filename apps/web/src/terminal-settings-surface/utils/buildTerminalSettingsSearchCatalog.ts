@@ -24,7 +24,10 @@ import type {
 interface BuildTerminalSettingsSearchCatalogOptions {
 	readonly enabledCapabilities: readonly TerminalSettingsSearchCapability[];
 	readonly enabledCategories: readonly TerminalSettingsCategory[];
-	readonly formatMessage: (descriptor: MessageDescriptor) => string;
+	readonly formatMessage: (
+		descriptor: MessageDescriptor,
+		values?: Readonly<Record<string, number | string>>,
+	) => string;
 	readonly keyboardShortcutChords: Readonly<Partial<Record<KeyboardShortcutId, string>>>;
 }
 
@@ -96,7 +99,10 @@ export function buildTerminalSettingsSearchCatalog({
 							keyboardShortcutChords[declaration.shortcutId] ?? '',
 						],
 						kind: 'setting',
-						label: formatMessage(KEYBOARD_SHORTCUT_SEARCH_LABELS[declaration.name]),
+						label: formatMessage(
+							KEYBOARD_SHORTCUT_SEARCH_LABELS[declaration.name],
+							declaration.name === 'select-tab' ? { position: declaration.position } : undefined,
+						),
 						sectionLabel: formatMessage(KEYBOARD_SHORTCUT_SEARCH_SCOPES[declaration.scope]),
 						targetId: `keyboard-shortcuts.${declaration.shortcutId}`,
 					});

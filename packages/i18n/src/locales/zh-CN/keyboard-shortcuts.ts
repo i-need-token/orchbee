@@ -17,6 +17,7 @@ export const zhCNKeyboardShortcutMessages = {
 	'keyboard.shortcuts.actions.paste': '粘贴到终端',
 	'keyboard.shortcuts.actions.reset': '恢复默认',
 	'keyboard.shortcuts.actions.selectAll': '全选终端文本',
+	'keyboard.shortcuts.actions.selectTab': '选择第 {position} 个标签页',
 	'keyboard.shortcuts.actions.settings': '打开设置',
 	'keyboard.shortcuts.actions.splitBelow': '向下拆分面板',
 	'keyboard.shortcuts.actions.splitRight': '向右拆分面板',
@@ -27,6 +28,7 @@ export const zhCNKeyboardShortcutMessages = {
 	'keyboard.shortcuts.availability.focusedTerminal': '终端获得焦点时可用',
 	'keyboard.shortcuts.availability.focusedTerminalWithSelection': '已聚焦的终端存在选区时可用',
 	'keyboard.shortcuts.availability.multiplePanels': '活动标签页包含多个面板时可用',
+	'keyboard.shortcuts.availability.tabPosition': '对应标签页位置存在时可用',
 	'keyboard.shortcuts.availability.workbench': '工作台处于活动状态时可用',
 	'keyboard.shortcuts.category': '键盘快捷键',
 	'keyboard.shortcuts.conflict':

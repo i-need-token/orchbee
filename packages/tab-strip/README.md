@@ -15,7 +15,7 @@ import '@orchbee/ui/styles.css';
 import '@orchbee/tab-strip/styles.css';
 ```
 
-- `@orchbee/tab-strip` exposes the component and the selected contracts needed to create and host it.
+- `@orchbee/tab-strip` exposes the component plus the Action identifiers, close and selection inputs, and boundary validators needed to host it.
 - `@orchbee/ui/styles.css` provides the shared primitive styles and design-token registry used by the context menu.
 - `@orchbee/tab-strip/styles.css` provides the component's CSS Module output for built consumers.
 
@@ -27,7 +27,7 @@ A product composition may provide `shortcutLabels` for New Tab and contextual Cl
 
 Local composition closes known Tab IDs synchronously through `TabModel`. A terminal-owning composition instead supplies `onCloseTabs`. It may also supply `getCloseTabsConfirmation`, which lets the owner derive protection from the complete resources affected by the validated Tab set while Tab Strip keeps confirmation inside the same `tabs.tab.close` Action. The Action delegates its validated ID set and execution context without mutating `TabModel`; the owner marks the commit point and removes Tabs only after its terminal-close orchestration succeeds. A cancelled confirmation, pending close, or partially failed close therefore cannot make Tab Strip delete topology early.
 
-A composition whose URL is authoritative may supply `onSelectTab`. The `tabs.tab.select` Action delegates its validated `TabSelectionInput` and execution context before any local `TabModel` write; the owner commits navigation, then applies the selection when that route is observed. Omitting the callback preserves the package-owned local selection transition. This port does not move routing, history, or URL parsing into Tab Strip.
+A composition whose URL is authoritative may supply `onSelectTab`. The `tabs.tab.select` Action delegates its validated `TabSelectionInput` and execution context before any local `TabModel` write; the public `tabSelectionInput` validator lets a composing Action prepare that same boundary without importing private source. The owner commits navigation, then applies the selection when that route is observed. Omitting the callback preserves the package-owned local selection transition. This port does not move routing, history, or URL parsing into Tab Strip.
 
 Pointer movement and drag geometry remain local gesture state. Model changes shown during a drag are reversible previews; accepting a local drop rolls the preview back and invokes `tabs.layout.apply-arrangement` to commit the final arrangement through the Action lifecycle.
 
