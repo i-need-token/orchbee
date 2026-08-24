@@ -9,7 +9,7 @@ import {
 	WorkbenchProjectWorkspaceRuntime,
 	type WorkbenchTerminalSurfaceProps,
 } from '@orchbee/workbench';
-import { act, createElement, useEffect, useRef, type ReactNode } from 'react';
+import { act, createElement, useEffect, useLayoutEffect, useRef, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
@@ -389,7 +389,9 @@ describe('useWebApplication', () => {
 	});
 });
 
-function TestTerminalSurface({ presentation }: WorkbenchTerminalSurfaceProps): ReactNode {
+function TestTerminalSurface(properties: WorkbenchTerminalSurfaceProps): ReactNode {
+	const { presentation } = properties;
+	useImmediateTerminalPresentationReadiness(properties);
 	return createElement(
 		'div',
 		{
@@ -402,9 +404,12 @@ function TestTerminalSurface({ presentation }: WorkbenchTerminalSurfaceProps): R
 
 function FocusTerminalSurface({
 	autoFocus,
+	onPresentationReady,
 	presentation,
+	presentationMode,
 }: WorkbenchTerminalSurfaceProps): ReactNode {
 	const inputReference = useRef<HTMLTextAreaElement>(null);
+	useImmediateTerminalPresentationReadiness({ onPresentationReady, presentationMode });
 	useEffect(() => {
 		if (autoFocus) inputReference.current?.focus();
 	}, [autoFocus, presentation.presentationId]);
@@ -420,8 +425,11 @@ function ShortcutProjectionTerminalSurface({
 	actionRuntime,
 	actionScope,
 	bindActionContextProvider,
+	onPresentationReady,
 	presentation,
+	presentationMode,
 }: WorkbenchTerminalSurfaceProps): ReactNode {
+	useImmediateTerminalPresentationReadiness({ onPresentationReady, presentationMode });
 	useEffect(() => {
 		const actionRegistration = actionRuntime.register(
 			actionScope,
@@ -460,6 +468,17 @@ function ShortcutProjectionTerminalSurface({
 		},
 		'Terminal surface',
 	);
+}
+
+function useImmediateTerminalPresentationReadiness({
+	onPresentationReady,
+	presentationMode,
+}: Pick<WorkbenchTerminalSurfaceProps, 'onPresentationReady' | 'presentationMode'>): void {
+	useLayoutEffect(() => {
+		if (presentationMode !== 'incoming') return;
+		onPresentationReady('display-ready');
+		onPresentationReady('activation-ready');
+	}, [onPresentationReady, presentationMode]);
 }
 
 function menuShortcut(label: string): string | null {

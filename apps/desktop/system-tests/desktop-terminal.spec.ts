@@ -3220,6 +3220,69 @@ test('runs the complete shared Project, Workspace, Tab, Panel, and terminal flow
 			projectedTerminalFor(desktopPage, splitPresentationId).locator('[role="list"]'),
 		).toContainText('lwf-split-marker');
 		const splitIdentity = await terminalDocumentIdentity(splitRoot);
+		await expect(browserProjectRoot).toHaveAttribute(
+			'data-projected-terminal-rendered-revision',
+			/^\d+$/u,
+		);
+		await expect(splitRoot).toHaveAttribute('data-projected-terminal-rendered-revision', /^\d+$/u);
+		const tabHandoffTrace = await browserPage.evaluateHandle(() => {
+			const entries: Array<{
+				readonly blankTop: boolean;
+				readonly modes: readonly string[];
+			}> = [];
+			const control = { animationFrame: 0, running: true };
+			const record = (): void => {
+				const workspace = document.querySelector('[data-slot="workbench-panel-workspace"]');
+				if (!(workspace instanceof HTMLElement)) {
+					entries.push({ blankTop: true, modes: [] });
+					return;
+				}
+				const layers = Array.from(workspace.children).filter(
+					(element): element is HTMLElement =>
+						element instanceof HTMLElement && element.dataset['presentationMode'] !== undefined,
+				);
+				const top =
+					layers.find((layer) => layer.dataset['presentationMode'] === 'retained') ??
+					layers.find((layer) => layer.dataset['presentationMode'] === 'incoming') ??
+					layers.find((layer) => layer.dataset['presentationMode'] === 'active');
+				const terminalRoots =
+					top === undefined
+						? []
+						: Array.from(top.querySelectorAll('[data-terminal-projection-state]')).filter(
+								(element): element is HTMLElement => element instanceof HTMLElement,
+							);
+				const meaningful =
+					terminalRoots.length > 0 &&
+					terminalRoots.every(
+						(root) =>
+							root.dataset['projectedTerminalCachedPresentation'] === 'true' ||
+							root.dataset['projectedTerminalRenderedRevision'] !== undefined,
+					);
+				entries.push({
+					blankTop: !meaningful,
+					modes: layers.flatMap((layer) => layer.dataset['presentationMode'] ?? []),
+				});
+			};
+			const observer = new MutationObserver(record);
+			observer.observe(document.body, {
+				attributeFilter: [
+					'data-presentation-mode',
+					'data-projected-terminal-cached-presentation',
+					'data-projected-terminal-rendered-revision',
+				],
+				attributes: true,
+				childList: true,
+				subtree: true,
+			});
+			const sampleFrame = (): void => {
+				if (!control.running) return;
+				record();
+				control.animationFrame = requestAnimationFrame(sampleFrame);
+			};
+			record();
+			control.animationFrame = requestAnimationFrame(sampleFrame);
+			return { control, entries, observer };
+		});
 
 		const attachmentClosesBeforeTabSwitch = gatewaySocketEventCount(
 			browserSockets,
@@ -3275,6 +3338,20 @@ test('runs the complete shared Project, Workspace, Tab, Panel, and terminal flow
 		);
 		expect(primaryIdentityAfterTabReturn.attachmentId).not.toBe(primaryIdentity.attachmentId);
 		expect(splitIdentityAfterTabReturn.attachmentId).not.toBe(splitIdentity.attachmentId);
+		const handoffEntries = await tabHandoffTrace.evaluate((trace) => {
+			trace.control.running = false;
+			cancelAnimationFrame(trace.control.animationFrame);
+			trace.observer.disconnect();
+			return trace.entries;
+		});
+		await tabHandoffTrace.dispose();
+		expect(handoffEntries.length).toBeGreaterThan(1);
+		expect(
+			handoffEntries.some(
+				(entry) => entry.modes.includes('incoming') && entry.modes.includes('retained'),
+			),
+		).toBe(true);
+		expect(handoffEntries.filter((entry) => entry.blankTop)).toEqual([]);
 
 		const splitPanel = browserPage.locator('[data-slot="workbench-panel"]').filter({
 			has: projectedTerminalFor(browserPage, splitPresentationId),

@@ -25,6 +25,8 @@ import {
 	type TerminalProgress,
 } from '@orchbee/terminal-protocol';
 
+import type { PackedRendererRow, PackedRendererSource } from '../rendering';
+
 const NO_STRING_OFFSET = 0xffff_ffff;
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
@@ -94,6 +96,13 @@ export interface ProjectedTerminalGraphics {
 	readonly images: ReadonlyMap<number, TerminalGraphicsImage>;
 	readonly placements: readonly TerminalGraphicsPlacement[];
 	readonly resourceRevision: bigint;
+}
+
+/** Immutable, display-only packed state retained without transport or attachment authority. */
+export interface ProjectedTerminalPresentationSnapshot extends PackedRendererSource {
+	readonly byteLength: number;
+	readonly graphics: ProjectedTerminalGraphics;
+	readonly metadata: ProjectedTerminalMetadata;
 }
 
 const EMPTY_TERMINAL_GRAPHICS: ProjectedTerminalGraphics = {
@@ -225,6 +234,10 @@ export class PackedTerminalRowView {
 		return packedRowByteLength(this.#backing);
 	}
 
+	capturePresentationRow(): PackedRendererRow {
+		return new PackedTerminalPresentationRow(this.#backing);
+	}
+
 	grapheme(column: number): string {
 		const length = this.#backing.graphemeLengths[column];
 		if (length === undefined || length === 0) return '';
@@ -259,6 +272,53 @@ export class PackedTerminalRowView {
 		this.#backing = backing;
 		this.#graphemeCache.length = 0;
 		this.#dirty = true;
+	}
+}
+
+class PackedTerminalPresentationRow implements PackedRendererRow {
+	readonly #backing: PackedTerminalRowBacking;
+
+	constructor(backing: PackedTerminalRowBacking) {
+		this.#backing = backing;
+	}
+
+	get backgroundColors(): Uint32Array {
+		return this.#backing.backgroundColors;
+	}
+
+	get dirty(): boolean {
+		return true;
+	}
+
+	get foregroundColors(): Uint32Array {
+		return this.#backing.foregroundColors;
+	}
+
+	get styleFlags(): Uint16Array {
+		return this.#backing.styleFlags;
+	}
+
+	get underlineColors(): Uint32Array {
+		return this.#backing.underlineColors;
+	}
+
+	get underlineKinds(): Uint8Array {
+		return this.#backing.underlineKinds;
+	}
+
+	get widths(): Uint8Array {
+		return this.#backing.widths;
+	}
+
+	grapheme(column: number): string {
+		const length = this.#backing.graphemeLengths[column];
+		if (length === undefined || length === 0) return '';
+		return decodeRowString(
+			this.#backing,
+			this.#backing.graphemeOffsets,
+			this.#backing.graphemeLengths,
+			column,
+		);
 	}
 }
 
@@ -625,6 +685,20 @@ export class PackedTerminalStore {
 		return this.#lastCommit?.kind ?? null;
 	}
 
+	capturePresentationSnapshot(): ProjectedTerminalPresentationSnapshot | null {
+		const metadata = this.#metadata;
+		const grid = this.#grid;
+		if (this.#phase !== ProjectedStorePhase.synchronized || metadata === null || grid === null) {
+			return null;
+		}
+		return createPresentationSnapshot(
+			this.byteLength,
+			this.#graphics,
+			metadata,
+			grid.rows.map((row) => row.capturePresentationRow()),
+		);
+	}
+
 	apply(bytes: Uint8Array): ProjectedFrameApplyResult {
 		if (this.#phase === ProjectedStorePhase.disposed) return { kind: 'disposed' };
 		const inspected = inspectTerminalFrameHeader(bytes);
@@ -916,6 +990,17 @@ export class PackedTerminalViewport {
 		return this.#store.byteLength;
 	}
 
+	capturePresentationSnapshot(): ProjectedTerminalPresentationSnapshot | null {
+		const metadata = this.#metadata;
+		if (metadata === null) return null;
+		return createPresentationSnapshot(
+			this.byteLength,
+			EMPTY_TERMINAL_GRAPHICS,
+			metadata,
+			this.#rows.map((row) => row.capturePresentationRow()),
+		);
+	}
+
 	markRendered(): void {
 		this.#store.markRendered();
 	}
@@ -923,6 +1008,22 @@ export class PackedTerminalViewport {
 	dispose(): void {
 		this.#store.dispose();
 	}
+}
+
+function createPresentationSnapshot(
+	byteLength: number,
+	graphics: ProjectedTerminalGraphics,
+	metadata: ProjectedTerminalMetadata,
+	rows: readonly PackedRendererRow[],
+): ProjectedTerminalPresentationSnapshot {
+	return Object.freeze({
+		byteLength,
+		graphics,
+		markRendered: () => undefined,
+		metadata,
+		needsFullRedraw: true,
+		rows: Object.freeze(rows),
+	});
 }
 
 export function projectedCellDisplayWidth(width: number): 0 | 1 | 2 {

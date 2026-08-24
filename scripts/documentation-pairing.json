@@ -74,8 +74,8 @@
 			"zhCnSha256": "952654cc478ba9295fcd708eaf5d73f4b246a50e72c0ca520a548d53fdbb5cab"
 		},
 		"apps/web/README.md": {
-			"englishSha256": "884be9b79d356ce65b4ff611f8da81ae59c9f657f6635a0c4f32fe07e488e66a",
-			"zhCnSha256": "c9ef3bf451d6714ab4df6f4ef83a18061c172bc8bc19b5e001bc5f0958aaf420"
+			"englishSha256": "de58db7e4c576f0bfe4415e1b91f8a859d4d5cca5f70da3e53979891e1b25786",
+			"zhCnSha256": "06f33f724df9316ebe35f47e406c45335ec66b8046c7ad8fad6a05797d8d44c6"
 		},
 		"apps/web/docs/keyboard-shortcuts.md": {
 			"englishSha256": "d966d8b849c854bdefbb216c5defb56105c2dbdacb8aac452043fc34c909974e",
@@ -258,8 +258,8 @@
 			"zhCnSha256": "b164074390234973011849763c7d4780d6c7dd7f899a8fe13b9281a30373e99b"
 		},
 		"packages/terminal/README.md": {
-			"englishSha256": "f017b4fd3ce0b9d4d178a266e1427ec8c5f7018a46cf1001dcd83e170fd8d553",
-			"zhCnSha256": "a156c367ed52ab361b1f4c17770b9f971a94bcc657049b973e2bfe897129c9b1"
+			"englishSha256": "3e037af5270a41e584f353079a5fb8dfdf2122471d4031301a9c837c07f47945",
+			"zhCnSha256": "642d7d974b06ea584eb1c20e2a9bf0af360760fd1ad8d6f3b7376e2e6b20a7dc"
 		},
 		"packages/terminal/docs/ghostty-surface-test-provenance.md": {
 			"englishSha256": "7b0b9ed0fb1eda3f2a0f3677c96d48e26d23d158da2ad82605eece49f31e9ea6",
@@ -282,8 +282,8 @@
 			"zhCnSha256": "85e3cd82ba4b2b18412545fc5f47ca40668a306006d64fbc19ac6e221dae109c"
 		},
 		"packages/workbench/README.md": {
-			"englishSha256": "c4af4580ca66954f23826ff57c64243f985609409cebc7a7fb0a3b6a565fa5c0",
-			"zhCnSha256": "e7df05a0bd05f502ee639cc4284f20d353e3b547277f61a9f8a21a8f110814fa"
+			"englishSha256": "4e8da546a17473e9ed87b977fe1491ff83e870c280a5b33e7bd539db97041719",
+			"zhCnSha256": "4dfcd88a2faa2d91025b201a45aa944916bb1477b5b373d46add01d52d93d95b"
 		},
 		"packages/workbench/docs/project-workspace.md": {
 			"englishSha256": "da2ca92f77fe8662d43ec965f7d91f4ef69edc8c33188bf2da444b8330a741bc",

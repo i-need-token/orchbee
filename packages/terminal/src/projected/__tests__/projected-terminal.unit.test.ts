@@ -3868,6 +3868,7 @@ describe('ProjectedTerminal', () => {
 
 		expect(commands).toEqual([]);
 		await terminal.open(browser.root);
+		expect(terminal.capturePresentationSnapshot()).toBeNull();
 		expect(commands).toEqual([
 			{
 				kind: 'set-projection-demand',
@@ -3883,6 +3884,7 @@ describe('ProjectedTerminal', () => {
 			payload: { attachmentId, generation: '1', revision: '1', sequence: '1' },
 		});
 		expect(telemetry).not.toHaveBeenCalled();
+		expect(terminal.capturePresentationSnapshot()).toBeNull();
 		browser.flushFrames();
 		expect(telemetry).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -3892,6 +3894,10 @@ describe('ProjectedTerminal', () => {
 				rowsRendered: 2,
 			}),
 		);
+		const firstPresentation = terminal.capturePresentationSnapshot();
+		if (firstPresentation === null) throw new Error('Expected the rendered presentation.');
+		expect(firstPresentation.metadata.revision).toBe(1n);
+		expect(firstPresentation.rows.map((row) => row.grapheme(0))).toEqual(['a', 'b']);
 		expect('write' in terminal).toBe(false);
 
 		expect(terminal.applyFrame(snapshot)).toBe('duplicate');
@@ -3899,6 +3905,13 @@ describe('ProjectedTerminal', () => {
 			kind: 'frame-applied',
 			payload: { attachmentId, generation: '1', revision: '1', sequence: '1' },
 		});
+		expect(terminal.applyFrame(terminalFrame('delta', 2n, 2n, ['c', ''], 1n, [0]))).toBe(
+			'committed',
+		);
+		expect(terminal.capturePresentationSnapshot()).toBeNull();
+		browser.flushFrames();
+		expect(terminal.capturePresentationSnapshot()?.metadata.revision).toBe(2n);
+		expect(firstPresentation.rows.map((row) => row.grapheme(0))).toEqual(['a', 'b']);
 		terminal.dispose();
 	});
 

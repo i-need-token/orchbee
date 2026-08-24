@@ -4,6 +4,7 @@ import type {
 } from '@orchbee/workbench';
 import type {
 	ProjectedTerminalMetadata,
+	ProjectedTerminalPresentationSnapshot,
 	TerminalInteractionConfigurationSource,
 } from '@orchbee/terminal';
 import { createContext } from 'react';
@@ -24,6 +25,17 @@ export interface ProjectedTerminalSurfaceCapability {
 	readonly preferredLocales: readonly string[];
 	readonly platformEffects: ProjectedTerminalPlatformEffects;
 	readonly projectionClient: Pick<TerminalProjectionClient, 'open'>;
+	readonly presentationSnapshots?:
+		| {
+				get(
+					presentationId: TerminalPresentationId,
+				): ProjectedTerminalPresentationSnapshot | undefined;
+				set(
+					presentationId: TerminalPresentationId,
+					snapshot: ProjectedTerminalPresentationSnapshot,
+				): boolean;
+		  }
+		| undefined;
 	readonly shortcutBindingSource?: ProjectedTerminalShortcutBindingSource | undefined;
 	readonly shortcutPlatform: ProjectedTerminalShortcutPlatform;
 	readonly terminalFileDropCapability?: TerminalFileDropCapability | undefined;

@@ -17,6 +17,7 @@ import type {
 	ProjectedTerminalFrameTelemetry,
 	ProjectedTerminalMetadata,
 	ProjectedTerminalOptions,
+	ProjectedTerminalPresentationSnapshot,
 	TerminalInteractionConfigurationSource,
 	TerminalPresentationConfiguration,
 } from '@orchbee/terminal';
@@ -165,6 +166,7 @@ describe('startProjectedTerminalRenderer', () => {
 						applyInputCapability,
 						applyRows,
 						canControlTerminal: true,
+						capturePresentationSnapshot: () => nextOptions.presentationSnapshot ?? null,
 						captureActionContext,
 						clear: clearTerminal,
 						clearSearch: vi.fn<ProjectedTerminal['clearSearch']>(),
@@ -921,6 +923,62 @@ describe('startProjectedTerminalRenderer', () => {
 						resolvePendingClipboardWrite = resolve;
 					}),
 			);
+			const cachedPresentation: ProjectedTerminalPresentationSnapshot = {
+				byteLength: 0,
+				graphics: { images: new Map(), placements: [], resourceRevision: 0n },
+				markRendered: () => undefined,
+				metadata: {
+					activeScreen: 'primary',
+					cellPixelHeight: 18,
+					cellPixelWidth: 9,
+					closeActivity: 'unknown',
+					columns: 80,
+					commandCompletion: null,
+					currentDirectory: null,
+					cursor: {
+						blinking: false,
+						column: 0,
+						row: 0,
+						shape: 'block',
+						visible: true,
+						wideTail: false,
+					},
+					defaultColors: {
+						backgroundRgb: 0x1e_1e_1e,
+						cursorRgb: null,
+						foregroundRgb: 0xd4_d4_d4,
+					},
+					generation: 1n,
+					interaction: {
+						applicationCursorKeys: false,
+						applicationKeypad: false,
+						bracketedPaste: false,
+						focusReporting: false,
+						kittyDisambiguateEscapeCodes: false,
+						kittyReportAllKeysAsEscapeCodes: false,
+						kittyReportAlternateKeys: false,
+						kittyReportAssociatedText: false,
+						kittyReportEventTypes: false,
+						modifyOtherKeys2: false,
+						mouseAny: false,
+						mouseButton: false,
+						mouseNormal: false,
+						mouseSgr: false,
+						mouseSgrPixels: false,
+						mouseUrxvt: false,
+						mouseUtf8: false,
+						mouseX10: false,
+					},
+					progress: { state: 'remove', value: null },
+					revision: 1n,
+					rows: 24,
+					scrollbackRows: 0n,
+					themeRevision: 0n,
+					title: null,
+				},
+				needsFullRedraw: true,
+				rows: [],
+			};
 			const liveSession = await startProjectedTerminalRenderer(
 				liveElements.additionalRoot,
 				documentElement,
@@ -934,7 +992,52 @@ describe('startProjectedTerminalRenderer', () => {
 				undefined,
 				undefined,
 				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				cachedPresentation,
 			);
+			let displayReady = false;
+			let activationReady = false;
+			void liveSession.displayReady?.then(() => {
+				displayReady = true;
+			});
+			void liveSession.presentationReady.then(() => {
+				activationReady = true;
+			});
+			await Promise.resolve();
+			expect(displayReady).toBe(true);
+			expect(activationReady).toBe(false);
+			expect(liveElements.additionalRoot.dataset['projectedTerminalCachedPresentation']).toBe(
+				'true',
+			);
+			emitFrameTelemetry({
+				atlasGlyphCount: 0,
+				atlasGlyphsCreated: 0,
+				atlasHeight: 0,
+				atlasPressure: 0,
+				atlasUploadBytes: 0,
+				atlasWidth: 0,
+				backend: 'webgpu',
+				backgroundInstances: 0,
+				cellsVisited: 0,
+				durationMs: 1,
+				forceAll: true,
+				frameId: 1,
+				generation: CanonicalUint64TextSchema.parse('1'),
+				glyphInstances: 0,
+				gpuDrawCalls: 1,
+				overlayInstances: 0,
+				reasons: ['dirty'],
+				revision: CanonicalUint64TextSchema.parse('1'),
+				rowsRendered: 24,
+				shapingRuns: 0,
+				timestamp: 1,
+				vertexUploadBytes: 0,
+				viewportY: 0,
+			});
+			await expect(liveSession.presentationReady).resolves.toBeUndefined();
 			expect(liveSession.isTransportAvailable()).toBe(true);
 			expect(liveElements.additionalRoot.dataset['projectedTerminalState']).toBe('open');
 			expect(liveElements.additionalRoot.dataset['projectedTerminalInputCapability']).toBe(

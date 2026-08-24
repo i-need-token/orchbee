@@ -8,6 +8,7 @@ import {
 } from '@orchbee/i18n';
 import {
 	DEFAULT_TERMINAL_INTERACTION_CONFIGURATION_SOURCE,
+	type ProjectedTerminalPresentationSnapshot,
 	type TerminalInteractionConfigurationSource,
 } from '@orchbee/terminal';
 import {
@@ -25,7 +26,10 @@ import { workbenchSharedDocumentRevision } from '@orchbee/workbench/document';
 
 import { createBrowserRandomIdentifier } from '../../browser-random-identifier';
 import type { WorkbenchClientSessionClient } from '../client-session';
-import type { ProjectedTerminalSurfaceCapability } from '../projected-terminal-surface';
+import {
+	TerminalPresentationSnapshotCache,
+	type ProjectedTerminalSurfaceCapability,
+} from '../projected-terminal-surface';
 import type { ProjectedTerminalShortcutBindingSource } from '../projected-terminal-actions';
 import {
 	DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION_SOURCE,
@@ -152,6 +156,8 @@ export function createWorkbenchClientRuntime({
 		TerminalPresentationId,
 		{ readonly identityKey?: string; readonly revision: bigint }
 	>();
+	const presentationSnapshots =
+		new TerminalPresentationSnapshotCache<ProjectedTerminalPresentationSnapshot>();
 	const acceptsTerminalMetadataRevision = (
 		presentationId: TerminalPresentationId,
 		revision: bigint,
@@ -207,6 +213,7 @@ export function createWorkbenchClientRuntime({
 		inputConfigurationSource: terminalInputConfigurationSource,
 		interactionConfigurationSource: terminalInteractionConfigurationSource,
 		presentationConfigurationSource: terminalPresentationConfigurationSource,
+		presentationSnapshots,
 		projectionClient,
 		...(shortcutBindingSource === undefined ? {} : { shortcutBindingSource }),
 		shortcutPlatform,
@@ -230,6 +237,7 @@ export function createWorkbenchClientRuntime({
 		stopFocusRecoveryViewObservation?.();
 		stopTerminalMetadataPublicationObservation();
 		latestTerminalMetadataRevisions.clear();
+		presentationSnapshots.clear();
 		actionRuntime.dispose();
 		documentCoordinator.dispose();
 		clientSession.dispose();

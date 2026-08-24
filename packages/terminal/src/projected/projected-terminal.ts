@@ -142,6 +142,7 @@ import {
 	projectedCellDisplayWidth,
 	type ProjectedTerminalCloseActivity,
 	type ProjectedTerminalMetadata,
+	type ProjectedTerminalPresentationSnapshot,
 } from './packed-terminal-store';
 
 const terminalKeyCodes: ReadonlyMap<string, TerminalKeyCodeValue> = new Map(
@@ -335,6 +336,8 @@ export interface ProjectedTerminalOptions {
 	readonly inputEnabled?: boolean;
 	readonly labels: ProjectedTerminalLabels;
 	readonly port: ProjectedTerminalCommandPort;
+	/** Previously painted, display-only state. It never participates in Host acknowledgement. */
+	readonly presentationSnapshot?: ProjectedTerminalPresentationSnapshot | undefined;
 	/** Trust boundary for OBPB 0.0.1 render buffers. Omitted means strict external validation. */
 	readonly projectionBufferTrust?: 'external' | 'local-host';
 	readonly renderer?: RendererOptions;
@@ -753,7 +756,7 @@ export class ProjectedTerminal {
 		CanonicalUint64Text,
 		(result: ProjectedTerminalSideEffectResult) => void
 	>();
-	readonly #options: ProjectedTerminalOptions;
+	readonly #options: Omit<ProjectedTerminalOptions, 'presentationSnapshot'>;
 	readonly #deferredKeyReleases = new Map<TerminalKeyCodeValue, KeyFacts>();
 	readonly #pressedKeys = new Map<string, KeyFacts>();
 	readonly #pressedModifierCodes = new Set<string>();
@@ -827,6 +830,9 @@ export class ProjectedTerminal {
 	#forceResizeSubmission = false;
 	#lastGeometry: ResizeGeometry | undefined;
 	#lastGeometryAttemptedAt = Number.NEGATIVE_INFINITY;
+	#lastPresentedMetadata: ProjectedTerminalMetadata | undefined;
+	#lastPresentedSnapshot: ProjectedTerminalPresentationSnapshot | undefined;
+	#lastPresentedSource: PackedTerminalStore | PackedTerminalViewport | undefined;
 	#listenerDisposers: Array<() => void> = [];
 	#hoveredLink: ILink | undefined;
 	#hoveredLinkPoint: PendingLinkPoint | undefined;
@@ -835,6 +841,7 @@ export class ProjectedTerminal {
 	#linkEpoch = 0n;
 	#linkLookupActive = false;
 	#pendingLinkPoint: PendingLinkPoint | undefined;
+	#openingPresentationSnapshot: ProjectedTerminalPresentationSnapshot | undefined;
 	#pendingExit: TerminalExited | undefined;
 	#latestExitFinalRevision: bigint | undefined;
 	#terminalControlSealed = false;
@@ -872,6 +879,8 @@ export class ProjectedTerminal {
 	#preeditText = '';
 	#renderer: WebGPURenderer | undefined;
 	#resizeObserver: ResizeObserver | undefined;
+	#renderingLiveMetadata: ProjectedTerminalMetadata | undefined;
+	#renderingLiveSource: PackedTerminalStore | PackedTerminalViewport | undefined;
 	#root: HTMLElement | undefined;
 	#rowFlights = new Map<RowFlightLane, RowFlight>();
 	#rowRequestSequence = 1n;
@@ -902,7 +911,9 @@ export class ProjectedTerminal {
 	#synchronizingAccessibilitySelection = false;
 
 	constructor(options: ProjectedTerminalOptions) {
-		this.#options = options;
+		const { presentationSnapshot, ...runtimeOptions } = options;
+		this.#options = runtimeOptions;
+		this.#openingPresentationSnapshot = presentationSnapshot;
 		this.#hostEpoch = options.hostEpoch;
 		this.#attachmentId = options.attachmentId;
 		this.#capabilityRevision = options.capabilityRevision ?? CanonicalUint64TextSchema.parse('1');
@@ -952,6 +963,21 @@ export class ProjectedTerminal {
 
 	get canControlTerminal(): boolean {
 		return !this.#isDisposed() && this.#inputEnabled;
+	}
+
+	/** Capture only the exact semantic source represented by the most recently painted frame. */
+	capturePresentationSnapshot(): ProjectedTerminalPresentationSnapshot | null {
+		if (this.#lastPresentedSnapshot !== undefined) return this.#lastPresentedSnapshot;
+		const visibleStore = this.#visibleStore();
+		const metadata = visibleStore.metadata;
+		if (
+			metadata === null ||
+			this.#lastPresentedSource !== visibleStore ||
+			this.#lastPresentedMetadata !== metadata
+		) {
+			return null;
+		}
+		return visibleStore.capturePresentationSnapshot();
 	}
 
 	get copyOnSelect(): boolean {
@@ -1116,8 +1142,12 @@ export class ProjectedTerminal {
 			});
 			renderer.setHealthChangeCallback((event) => this.#healthEmitter.fire(event));
 			renderer.setFrameTelemetryCallback((event) => {
-				const metadata = this.#visibleStore().metadata;
-				if (metadata === null) return;
+				const metadata = this.#renderingLiveMetadata;
+				const source = this.#renderingLiveSource;
+				if (metadata === undefined || source === undefined) return;
+				this.#lastPresentedMetadata = metadata;
+				this.#lastPresentedSnapshot = undefined;
+				this.#lastPresentedSource = source;
 				this.#frameTelemetryEmitter.fire({
 					...event,
 					generation: CanonicalUint64TextSchema.parse(metadata.generation.toString()),
@@ -1129,6 +1159,14 @@ export class ProjectedTerminal {
 			this.#installInputListeners(root, canvas, input, historyScrollbar);
 			await renderer.initGPU();
 			if (this.#isDisposed()) return;
+			const openingPresentationSnapshot = this.#openingPresentationSnapshot;
+			this.#openingPresentationSnapshot = undefined;
+			if (openingPresentationSnapshot !== undefined) {
+				renderer.renderPacked(openingPresentationSnapshot, true);
+				this.#lastPresentedMetadata = openingPresentationSnapshot.metadata;
+				this.#lastPresentedSnapshot = openingPresentationSnapshot;
+				this.#lastPresentedSource = undefined;
+			}
 			this.#installDevicePixelRatioListeners(view);
 			this.#installResizeObserver(root);
 			this.#phase = ProjectedTerminalPhase.open;
@@ -2446,6 +2484,12 @@ export class ProjectedTerminal {
 		this.#store.dispose();
 		this.#historyStore?.dispose();
 		this.#historyStore = undefined;
+		this.#lastPresentedMetadata = undefined;
+		this.#lastPresentedSnapshot = undefined;
+		this.#lastPresentedSource = undefined;
+		this.#openingPresentationSnapshot = undefined;
+		this.#renderingLiveMetadata = undefined;
+		this.#renderingLiveSource = undefined;
 		this.#releaseSurfaceDom();
 		this.#errorEmitter.dispose();
 		this.#clipboardWriteRequestEmitter.dispose();
@@ -2529,7 +2573,15 @@ export class ProjectedTerminal {
 				return;
 			}
 			try {
-				renderer.renderPacked(this.#visibleStore());
+				const visibleStore = this.#visibleStore();
+				this.#renderingLiveMetadata = visibleStore.metadata ?? undefined;
+				this.#renderingLiveSource = visibleStore;
+				try {
+					renderer.renderPacked(visibleStore);
+				} finally {
+					this.#renderingLiveMetadata = undefined;
+					this.#renderingLiveSource = undefined;
+				}
 				this.#historyScrollPresentation?.commit();
 			} catch (error) {
 				this.#historyScrollPresentation?.cancel();

@@ -8,6 +8,95 @@ import {
 } from '../ProjectedTerminalRecoveryController';
 
 describe('ProjectedTerminalRecoveryController', () => {
+	it('retires the active attachment and resumes behind its frozen frame', async () => {
+		const displayReady = vi.fn<() => void>();
+		const activationReady = vi.fn<() => void>();
+		const first = rendererSession();
+		const secondDisplay = deferred<void>();
+		const secondActivation = deferred<void>();
+		const second = rendererSession({
+			displayReady: secondDisplay.promise,
+			presentationReady: secondActivation.promise,
+		});
+		const firstRequest = projectionRequest();
+		const secondRequest = projectionRequest();
+		const open = vi
+			.fn<() => TerminalProjectionRequest>()
+			.mockReturnValueOnce(firstRequest.request)
+			.mockReturnValueOnce(secondRequest.request);
+		const startRenderer = vi
+			.fn<(projection: TerminalProjection) => Promise<ProjectedTerminalRendererSession>>()
+			.mockResolvedValueOnce(first.session)
+			.mockResolvedValueOnce(second.session);
+		const controller = new ProjectedTerminalRecoveryController({
+			onActivationReady: activationReady,
+			onDisplayReady: displayReady,
+			onStateChange: () => undefined,
+			open,
+			startRenderer,
+		});
+
+		controller.start();
+		firstRequest.resolve();
+		await drainMicrotasks();
+		displayReady.mockClear();
+		activationReady.mockClear();
+		controller.retain();
+
+		expect(first.capturePresentationSnapshot).toHaveBeenCalledOnce();
+		expect(first.freeze).toHaveBeenCalledOnce();
+		expect(firstRequest.release).toHaveBeenCalledOnce();
+		expect(controller.focusTerminal()).toBe(false);
+
+		controller.resume();
+		expect(displayReady).toHaveBeenCalledOnce();
+		expect(open).toHaveBeenCalledTimes(2);
+		secondRequest.resolve();
+		await drainMicrotasks();
+		secondDisplay.resolve();
+		await drainMicrotasks();
+		expect(first.dispose).not.toHaveBeenCalled();
+		expect(activationReady).not.toHaveBeenCalled();
+
+		secondActivation.resolve();
+		await drainMicrotasks();
+		expect(first.dispose).toHaveBeenCalledOnce();
+		expect(activationReady).toHaveBeenCalledOnce();
+		controller.dispose();
+	});
+
+	it('retains a display-ready candidate when transport fails before activation', async () => {
+		const displayReady = deferred<void>();
+		const activationReady = deferred<void>();
+		const transportUnavailable = deferred<void>();
+		const candidate = rendererSession({
+			displayReady: displayReady.promise,
+			presentationReady: activationReady.promise,
+			transportUnavailable: transportUnavailable.promise,
+		});
+		const request = projectionRequest();
+		const controller = new ProjectedTerminalRecoveryController({
+			onDisplayReady: vi.fn<() => void>(),
+			onStateChange: () => undefined,
+			open: () => request.request,
+			startRenderer: async () => candidate.session,
+		});
+
+		controller.start();
+		request.resolve();
+		await drainMicrotasks();
+		displayReady.resolve();
+		await drainMicrotasks();
+		transportUnavailable.resolve();
+		await drainMicrotasks();
+
+		expect(candidate.freeze).toHaveBeenCalledOnce();
+		expect(candidate.dispose).not.toHaveBeenCalled();
+		expect(request.release).toHaveBeenCalledOnce();
+		controller.dispose();
+		expect(candidate.dispose).toHaveBeenCalledOnce();
+	});
+
 	it('focuses only the current painted attachment', async () => {
 		const active = rendererSession();
 		const request = projectionRequest();
@@ -167,11 +256,12 @@ describe('ProjectedTerminalRecoveryController', () => {
 		await drainMicrotasks();
 
 		expect(isTransportAvailable).toHaveBeenCalledTimes(2);
-		expect(candidate.dispose).toHaveBeenCalledOnce();
-		expect(candidate.freeze).not.toHaveBeenCalled();
+		expect(candidate.dispose).not.toHaveBeenCalled();
+		expect(candidate.freeze).toHaveBeenCalledOnce();
 		expect(request.release).toHaveBeenCalledOnce();
 		expect(states.at(-1)).toEqual({ attempt: 1, kind: 'recovering' });
 		controller.dispose();
+		expect(candidate.dispose).toHaveBeenCalledOnce();
 		vi.useRealTimers();
 	});
 
@@ -213,12 +303,14 @@ describe('ProjectedTerminalRecoveryController', () => {
 });
 
 function rendererSession(overrides: Partial<ProjectedTerminalRendererSession> = {}): {
+	readonly capturePresentationSnapshot: ReturnType<typeof vi.fn<() => null>>;
 	readonly dispose: ReturnType<typeof vi.fn<() => void>>;
 	readonly focus: ReturnType<typeof vi.fn<() => void>>;
 	readonly freeze: ReturnType<typeof vi.fn<() => void>>;
 	readonly session: ProjectedTerminalRendererSession;
 } {
 	const dispose = vi.fn<() => void>();
+	const capturePresentationSnapshot = vi.fn<() => null>(() => null);
 	const focus = vi.fn<() => void>();
 	const freeze = vi.fn<() => void>();
 	const pasteFileDrop = vi.fn<ProjectedTerminalRendererSession['pasteFileDrop']>(async () => ({
@@ -234,10 +326,12 @@ function rendererSession(overrides: Partial<ProjectedTerminalRendererSession> = 
 		},
 	}));
 	return {
+		capturePresentationSnapshot,
 		dispose,
 		focus,
 		freeze,
 		session: {
+			capturePresentationSnapshot,
 			dispose,
 			focus,
 			freeze,

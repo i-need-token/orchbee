@@ -13,6 +13,7 @@ export type {
 	ProjectedTerminalMetadata,
 	ProjectedTerminalGraphics,
 	ProjectedTerminalCloseActivity,
+	ProjectedTerminalPresentationSnapshot,
 } from './packed-terminal-store';
 export {
 	ProjectedTerminal,

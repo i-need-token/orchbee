@@ -11,6 +11,7 @@ import { TERMINAL_ACTION_IDS } from '../../../../../../../../../actions/terminal
 import type { WorkbenchTerminalSurfaceProps } from '../../../../../../../../../types/workbench-terminal-surface';
 import type { TerminalPresentation } from '../../../../../../../model/panel-workspace-state';
 import type { WorkbenchPanelWorkspaceView } from '../../../../../../../types/panel-workspace-view';
+import type { TerminalTabPresentationLayer } from '../../../../../../../types/terminal-tab-presentation-layer';
 import { WorkbenchTerminalViewport } from '../WorkbenchTerminalViewport';
 
 const clearTerminal = vi.fn<() => void>();
@@ -22,6 +23,11 @@ const terminal: TerminalPresentation = {
 	naturalTitle: null,
 	presentationId: terminalPresentationId('terminal-1'),
 	title: 'Terminal 1',
+};
+const layer: TerminalTabPresentationLayer = {
+	epoch: 0,
+	mode: 'active',
+	reportPresentationReady: () => undefined,
 };
 
 function TestTerminalSurface({
@@ -113,6 +119,7 @@ describe('WorkbenchTerminalViewport', () => {
 		const rendered = render(
 			<OrchbeeI18nProvider locale='en-US'>
 				<WorkbenchTerminalViewport
+					layer={layer}
 					panelId='panel-1'
 					terminal={terminal}
 					terminalRole='primary'

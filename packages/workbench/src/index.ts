@@ -111,6 +111,8 @@ export type {
 	WorkbenchTerminalPresentationCommand,
 	WorkbenchTerminalPresentationComposition,
 	WorkbenchTerminalPresentation,
+	WorkbenchTerminalPresentationMode,
+	WorkbenchTerminalPresentationReadiness,
 	WorkbenchTerminalSurface,
 	WorkbenchTerminalSurfaceProps,
 	WorkbenchWorkspaceCreateInput,

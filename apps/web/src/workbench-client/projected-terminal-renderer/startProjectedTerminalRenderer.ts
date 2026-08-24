@@ -15,6 +15,7 @@ import {
 	type ProjectedPasteResult,
 	type ProjectedTerminalMetadata,
 	type ProjectedTerminalOptions,
+	type ProjectedTerminalPresentationSnapshot,
 	type TerminalInputConfiguration,
 	type TerminalInteractionConfiguration,
 	type TerminalInteractionConfigurationSource,
@@ -110,7 +111,8 @@ type ProjectedTerminalDriver = Pick<
 	| 'setResizeOwnership'
 	| 'updatePresentationConfiguration'
 	| 'updateSearch'
->;
+> &
+	Partial<Pick<ProjectedTerminal, 'capturePresentationSnapshot'>>;
 
 export interface ProjectedTerminalWorkbenchHost {
 	readonly admitBellEffect: (event: WorkbenchTerminalBellEffect) => boolean;
@@ -147,6 +149,12 @@ function isProjectedTerminalThemeDriver(
 	);
 }
 
+function isProjectedTerminalSnapshotDriver(
+	terminal: ProjectedTerminalDriver,
+): terminal is ProjectedTerminalDriver & Pick<ProjectedTerminal, 'capturePresentationSnapshot'> {
+	return typeof Reflect.get(terminal, 'capturePresentationSnapshot') === 'function';
+}
+
 export interface ProjectedTerminalRendererDependencies {
 	readonly createTerminal: (options: ProjectedTerminalOptions) => ProjectedTerminalDriver;
 	readonly installShortcuts: typeof installProjectedTerminalShortcuts;
@@ -154,7 +162,9 @@ export interface ProjectedTerminalRendererDependencies {
 }
 
 export interface ProjectedTerminalRendererSession {
+	capturePresentationSnapshot?(): ProjectedTerminalPresentationSnapshot | null;
 	dispose(): void;
+	readonly displayReady?: Promise<void> | undefined;
 	focus(): void;
 	isTransportAvailable(): boolean;
 	pasteFileDrop(text: string): Promise<ProjectedPasteResult>;
@@ -190,6 +200,7 @@ export async function startProjectedTerminalRenderer(
 	inputConfigurationSource: TerminalInputConfigurationSource = DEFAULT_TERMINAL_INPUT_CONFIGURATION_SOURCE,
 	workbenchHost?: ProjectedTerminalWorkbenchHost,
 	interactionConfigurationSource: TerminalInteractionConfigurationSource = DEFAULT_TERMINAL_INTERACTION_CONFIGURATION_SOURCE,
+	presentationSnapshot?: ProjectedTerminalPresentationSnapshot,
 ): Promise<ProjectedTerminalRendererSession> {
 	if (!(rootElement instanceof HTMLElement)) {
 		throw new Error('The Orchbee projected terminal root element is missing.');
@@ -285,14 +296,32 @@ export async function startProjectedTerminalRenderer(
 	let terminalOutcomeKind: 'exited' | 'failed' | undefined;
 	let pendingPresentationConfiguration: TerminalPresentationConfiguration | undefined;
 	let transportAvailable = true;
+	let activationPresentationDrawn = false;
+	let displayPresentationDrawn = false;
+	let presentationVisible = terminalThemeSource === undefined;
+	let resolveDisplayReady: (() => void) | undefined;
 	let resolveTransportUnavailable: (() => void) | undefined;
 	let resolvePresentationReady: (() => void) | undefined;
+	const displayReady = new Promise<void>((resolve) => {
+		resolveDisplayReady = resolve;
+	});
 	const presentationReady = new Promise<void>((resolve) => {
 		resolvePresentationReady = resolve;
 	});
 	const transportUnavailable = new Promise<void>((resolve) => {
 		resolveTransportUnavailable = resolve;
 	});
+	const resolveReadiness = (): void => {
+		if (!presentationVisible) return;
+		if (displayPresentationDrawn) {
+			resolveDisplayReady?.();
+			resolveDisplayReady = undefined;
+		}
+		if (activationPresentationDrawn) {
+			resolvePresentationReady?.();
+			resolvePresentationReady = undefined;
+		}
+	};
 	const reportTransportUnavailable = (): void => {
 		if (!transportAvailable) return;
 		transportAvailable = false;
@@ -535,6 +564,7 @@ export async function startProjectedTerminalRenderer(
 			port: {
 				send: (command) => transport.send(command),
 			},
+			...(presentationSnapshot === undefined ? {} : { presentationSnapshot }),
 			projectionBufferTrust: transport.projectionBufferTrust,
 			renderer: initialPresentationConfiguration,
 			...(reviewPaste === undefined ? {} : { reviewPaste }),
@@ -556,6 +586,8 @@ export async function startProjectedTerminalRenderer(
 					onPresented: () => {
 						rootElement.style.visibility = initialRootVisibility;
 						rootElement.dataset['projectedTerminalThemeState'] = 'presented';
+						presentationVisible = true;
+						resolveReadiness();
 					},
 					terminal,
 					transport,
@@ -838,8 +870,9 @@ export async function startProjectedTerminalRenderer(
 					);
 					rootElement.dataset['projectedTerminalRenderer'] = event.backend;
 					updateFinalPresentation();
-					resolvePresentationReady?.();
-					resolvePresentationReady = undefined;
+					displayPresentationDrawn = true;
+					activationPresentationDrawn = true;
+					resolveReadiness();
 				}),
 			);
 			pendingSubscriptions.push(
@@ -1109,6 +1142,15 @@ export async function startProjectedTerminalRenderer(
 			throw new Error('Projected terminal transport became unavailable during renderer startup.');
 		}
 		terminalOpened = true;
+		if (
+			presentationSnapshot !== undefined &&
+			isProjectedTerminalSnapshotDriver(terminal) &&
+			terminal.capturePresentationSnapshot() === presentationSnapshot
+		) {
+			displayPresentationDrawn = true;
+			rootElement.dataset['projectedTerminalCachedPresentation'] = 'true';
+			resolveReadiness();
+		}
 		reportProjectionReady();
 		if (terminalThemeSource !== undefined && themeParticipant !== undefined) {
 			unregisterThemeParticipant = terminalThemeSource.registerThemeParticipant(themeParticipant);
@@ -1183,6 +1225,8 @@ export async function startProjectedTerminalRenderer(
 	}
 
 	return {
+		capturePresentationSnapshot: () =>
+			isProjectedTerminalSnapshotDriver(terminal) ? terminal.capturePresentationSnapshot() : null,
 		dispose: () => {
 			if (disposed) return;
 			disposed = true;
@@ -1218,6 +1262,7 @@ export async function startProjectedTerminalRenderer(
 				() => findRoot?.remove(),
 			]);
 		},
+		displayReady,
 		focus: () => {
 			if (disposed || frozen) return;
 			terminal.focus();

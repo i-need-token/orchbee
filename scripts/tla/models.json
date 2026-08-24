@@ -1373,6 +1373,32 @@
 			]
 		},
 		{
+			"id": "terminal-tab-presentation-handoff",
+			"owner": "@orchbee/workbench",
+			"workspace": "packages/workbench",
+			"module": "packages/workbench/formal/tla/TerminalTabPresentationHandoff.tla",
+			"config": "packages/workbench/formal/tla/TerminalTabPresentationHandoff.cfg",
+			"claims": ["packages/workbench/README.md"],
+			"triggers": [
+				"packages/workbench/src/workbench/components/workbench-panel-workspace/**",
+				"apps/web/src/workbench-client/projected-terminal-renderer/**",
+				"apps/web/src/workbench-client/projected-terminal-surface/**",
+				"packages/terminal/src/projected/**",
+				"packages/terminal/src/rendering/**"
+			],
+			"requiredCoverage": [
+				"BeginSwitch",
+				"Supersede",
+				"SwitchWithoutSurface",
+				"RemoveOutgoingAndSwitch",
+				"ReportDisplay",
+				"ReportActivation",
+				"RejectStaleDisplay",
+				"RejectStaleActivation",
+				"RejectDuplicateReport"
+			]
+		},
+		{
 			"id": "terminal-theme-revision",
 			"owner": "@orchbee/workbench",
 			"workspace": "packages/workbench",

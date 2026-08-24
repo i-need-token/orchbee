@@ -489,6 +489,27 @@ describe('PackedTerminalStore', () => {
 		expect(store.needsFullRedraw).toBe(false);
 	});
 
+	it('captures an immutable display-only view that survives later row replacement', () => {
+		const store = new PackedTerminalStore(hostEpoch, attachmentId);
+		expect(store.capturePresentationSnapshot()).toBeNull();
+		store.apply(bytes(frame('snapshot', 1n, 1n, ['a', 'b'])));
+		const snapshot = store.capturePresentationSnapshot();
+		if (snapshot === null) throw new Error('Expected a packed presentation snapshot.');
+		const capturedByteLength = store.byteLength;
+
+		store.apply(bytes(frame('delta', 2n, 2n, ['x', ''], 1n, [0])));
+
+		expect(snapshot.metadata.revision).toBe(1n);
+		expect(snapshot.rows.map((row) => row.grapheme(0))).toEqual(['a', 'b']);
+		expect(store.rows.map((row) => row.grapheme(0))).toEqual(['x', 'b']);
+		expect(snapshot.byteLength).toBe(capturedByteLength);
+		expect(snapshot.needsFullRedraw).toBe(true);
+		expect(Object.isFrozen(snapshot)).toBe(true);
+		expect(Object.isFrozen(snapshot.rows)).toBe(true);
+		snapshot.markRendered();
+		expect(snapshot.needsFullRedraw).toBe(true);
+	});
+
 	it('re-acknowledges an exact duplicate without mutating the packed grid', () => {
 		const store = new PackedTerminalStore(hostEpoch, attachmentId);
 		const snapshot = bytes(frame('snapshot', 1n, 1n, ['a', 'b']));

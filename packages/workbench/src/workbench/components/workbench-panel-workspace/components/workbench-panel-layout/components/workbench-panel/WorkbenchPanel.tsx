@@ -2,6 +2,7 @@ import * as React from 'react';
 
 import { getDisplayedTerminal, type PanelLeaf } from '../../../../model/panel-workspace-state';
 import type { WorkbenchPanelWorkspaceView } from '../../../../types/panel-workspace-view';
+import type { TerminalTabPresentationLayer } from '../../../../types/terminal-tab-presentation-layer';
 import type { WorkbenchTerminalSurface } from '../../../../../../types/workbench-terminal-surface';
 import { WorkbenchChildTerminalStrip } from './components/workbench-child-terminal-strip/WorkbenchChildTerminalStrip';
 import { WorkbenchPanelDropPlaceholder } from './components/workbench-panel-drop-placeholder/WorkbenchPanelDropPlaceholder';
@@ -11,12 +12,14 @@ import { WorkbenchTerminalViewport } from './components/workbench-terminal-viewp
 import styles from './WorkbenchPanel.module.css';
 
 interface WorkbenchPanelProps {
+	readonly layer: TerminalTabPresentationLayer;
 	readonly panel: PanelLeaf;
 	readonly terminalSurface?: WorkbenchTerminalSurface | undefined;
 	readonly view: WorkbenchPanelWorkspaceView;
 }
 
 export function WorkbenchPanel({
+	layer,
 	panel,
 	terminalSurface,
 	view,
@@ -54,6 +57,7 @@ export function WorkbenchPanel({
 		>
 			{showHeader && <WorkbenchPanelHeader panel={panel} view={view} />}
 			<WorkbenchTerminalViewport
+				layer={layer}
 				panelId={panel.id}
 				terminal={displayedTerminal}
 				terminalRole={panel.activeChildPresentationId === null ? 'primary' : 'child'}

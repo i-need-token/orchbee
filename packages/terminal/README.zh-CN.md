@@ -200,7 +200,12 @@ const rows = await terminal.readBufferRows(
 
 ## 渲染器行为
 
-条件允许时优先使用 WebGPU；Canvas 2D 是可观察的后备。两条路径使用相同的打包投影、字体配置、应用拥有的选择/搜索覆盖、预编辑状态和光标元数据。Host 帧元数据保持权威且不被修改。非空客户端 `defaultColorOverride` 只改变打包前景或背景 token 为 `TerminalColorEncoding.default` 的单元格；显式 RGB（包括黑色）、Host 投影调色板 RGB 与 `none` 保持其 Host 投影语义。反色会交换已经解析的显示角色；默认下划线使用有效前景色；光标始终使用 Host 光标颜色，并以 Host 前景色后备。显式客户端光标强调色只影响块光标内的文本。该覆盖位于带修订的 Host 主题路径之外，在共享 Orchbee Web/Desktop 组合中始终为 `null`。`allowTransparency` 只控制透明渲染器的清除方式；组合客户端将 `backgroundOpacity` 用作有效默认背景根，绝不为整个表面应用 CSS opacity。Canvas 在首帧前保持透明，之后以最新有效默认背景进行不透明填充及调整大小。打包字素保留 CJK、组合与 emoji 单元格宽度；显式前景/背景和下划线颜色、反色、粗体、微弱、斜体、不可见、闪烁、下划线变体、删除线和上划线都使用投影中的 Ghostty 样式。渲染器健康状态报告初始化、后备、设备丢失、恢复及恢复失败。
+条件允许时优先使用 WebGPU；Canvas 2D 是可观察的后备。两条路径使用相同的打包投影、字体配置、应用拥有的选择/搜索覆盖、预编辑状态和光标元数据。Host 帧元数据保持权威且不被修改。非空客户端 `defaultColorOverride` 只改变打包前景或背景 token 为 `TerminalColorEncoding.default` 的单元格；显式 RGB（包括黑色）、Host 投影调色板 RGB 与 `none` 保持其 Host 投影语义。反色会交换已经解析的显示角色；默认下划线使用有效前景色；光标始终使用 Host 光标颜色，并以 Host 前景色后备。显式客户端光标强调色只影响块光标内的文本。该覆盖位于带修订的 Host 主题路径之外，在共享 Orchbee Web/Desktop 组合中始终为 `null`。`allowTransparency` 只控制透明渲染器的清除方式；组合客户端将 `backgroundOpacity` 用作有效默认背景根，绝不为整个表面应用 CSS opacity。新打开的 Canvas 会保持透明，直到绘制注入的语义呈现快照或首个实时帧，之后以最新有效默认背景进行不透明填充及调整大小。打包字素保留 CJK、组合与 emoji 单元格宽度；显式前景/背景和下划线颜色、反色、粗体、微弱、斜体、不可见、闪烁、下划线变体、删除线和上划线都使用投影中的 Ghostty 样式。渲染器健康状态报告初始化、后备、设备丢失、恢复及恢复失败。
+
+`capturePresentationSnapshot()` 只公开最近一次完成绘制所精确表示的打包来源与元数据。如果较新的 Host 提交已被接受但尚未绘制，捕获会返回空，直到该 revision 完成绘制；它绝不会把未显示的状态标记为可见。捕获的快照不可变且仅用于显示，在可行时结构共享不可变行 backing，统计其保留字节，并包含可见图形资源与 placement。打开新的 `ProjectedTerminal` 时传入快照，会在计划中的实时渲染前先绘制它，但这次绘制不会发出实时帧 telemetry 或 acknowledgement，也不会授予 attachment、输入、resize、transport、元数据发布或持久状态权威。缓存绘制完成后，终端会释放其 opening reference；外部有界缓存仍可为后续呈现保留该快照。
+
+同一 `Document` 中的渲染器共享 WebGPU adapter 获取、device 创建、首选 format，以及不可变的背景/文本 pipeline 对。每个 renderer 仍各自拥有并释放 canvas context、字形 atlas texture 与 Canvas、sampler、uniform 与 vertex buffer、bind group、CPU staging storage 和 overlay。因此，处置或冻结单个 renderer 绝不会销毁共享 device。device 丢失会使该 document generation 失效；每个受影响的活动 renderer 都会针对下一共享 generation 独立走既有类型化恢复路径，Canvas 2D 仍是可观察后备。每个活动或短暂冻结的 renderer 持有一个引用计数 runtime lease；释放最后一个 lease 会销毁 device 并丢弃共享 pipeline，而按 `Document` 索引的 weak map 只负责并发发现。因此，该 runtime 既不增加逐非活动终端 GPU surface，也不保留空闲 device。
+
 WebGPU 路径为背景、文本和覆盖层三种流分别保留并清空一个实例数组，以及一个按几何级数增长的 `Float32Array` 上传缓冲区。当某个流达到其最大已准备帧所需的容量后，后续不超过该尺寸的帧会复用同一底层 CPU 存储，而不再分配另一个帧大小的缓冲区。销毁时会释放保留的暂存空间。逐单元格的前景色/背景色解析也会复用一个由渲染器拥有的暂存投影，调用方只复制必须比当前单元格存活更久的值。这些规则把两个全视口分配热点限制在已准备视口内容的峰值容量内；它们不定义 GPU 驱动、浏览器或整个进程的 RSS 上限。
 
 脏字形图集矩形会直接从 Canvas 图集传输到 WebGPU 纹理，因此增量上传不会具体化中间 CPU 像素数组。帧遥测会在接纳或重置字形时维护图集占用量，而不是重新扫描字形映射。隐藏的 IME textarea 会在几何变化之间复用 Canvas 相对于界面的偏移，并在调整大小、设备像素比或呈现配置变化后重新测量。

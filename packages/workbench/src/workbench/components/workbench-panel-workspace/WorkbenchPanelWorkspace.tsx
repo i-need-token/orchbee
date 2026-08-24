@@ -7,6 +7,10 @@ import { WorkbenchPanelCloseDialog } from './components/workbench-panel-close-di
 import { WorkbenchPanelDragGhost } from './components/workbench-panel-drag-ghost/WorkbenchPanelDragGhost';
 import { WorkbenchPanelLayout } from './components/workbench-panel-layout/WorkbenchPanelLayout';
 import { useWorkbenchPanelWorkspace } from './hooks/useWorkbenchPanelWorkspace';
+import { useTerminalTabPresentationHandoff } from './hooks/useTerminalTabPresentationHandoff';
+import { projectTerminalTabPresentationLayers } from './model/projectTerminalTabPresentationLayers';
+import { projectWorkbenchPanelWorkspaceTabView } from './model/projectWorkbenchPanelWorkspaceTabView';
+import type { TerminalTabPresentationLayer } from './types/terminal-tab-presentation-layer';
 import styles from './WorkbenchPanelWorkspace.module.css';
 
 interface WorkbenchPanelWorkspaceProps {
@@ -30,6 +34,12 @@ export function WorkbenchPanelWorkspace({
 		parentActionScope,
 		shortcutLabelForAction,
 	});
+	const handoff = useTerminalTabPresentationHandoff({
+		activeTab: view.activeTab,
+		tabs: view.state.tabs,
+		terminalSurfaceAvailable: terminalSurface !== undefined,
+	});
+	const presentationLayers = projectTerminalTabPresentationLayers(view.state.tabs, handoff.state);
 
 	return (
 		<div
@@ -37,13 +47,34 @@ export function WorkbenchPanelWorkspace({
 			data-dragging={view.panelDrag.draggingPanelId !== null || undefined}
 			data-slot='workbench-panel-workspace'
 		>
-			{view.displayedRoot !== null && (
-				<WorkbenchPanelLayout
-					node={view.displayedRoot}
-					terminalSurface={terminalSurface}
-					view={view}
-				/>
-			)}
+			{presentationLayers.map(({ epoch, mode, tab }) => {
+				const layer: TerminalTabPresentationLayer = {
+					epoch,
+					mode,
+					reportPresentationReady: (presentationId, readiness) => {
+						handoff.reportPresentationReady(epoch, presentationId, readiness);
+					},
+				};
+				const layerView = projectWorkbenchPanelWorkspaceTabView(view, tab);
+				const node = mode === 'active' ? (view.panelDrag.previewRoot ?? tab.root) : tab.root;
+				return (
+					<div
+						aria-hidden={mode === 'active' ? undefined : true}
+						className={styles['presentationLayer']}
+						data-presentation-mode={mode}
+						data-terminal-tab-id={tab.tabId}
+						inert={mode === 'active' ? undefined : true}
+						key={tab.tabId}
+					>
+						<WorkbenchPanelLayout
+							layer={layer}
+							node={node}
+							terminalSurface={terminalSurface}
+							view={layerView}
+						/>
+					</div>
+				);
+			})}
 			{view.panelDrag.ghost !== null && <WorkbenchPanelDragGhost ghost={view.panelDrag.ghost} />}
 			<WorkbenchPanelCloseDialog view={view} />
 		</div>

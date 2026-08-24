@@ -575,6 +575,179 @@ fn fs(input: VertexOutput) -> @location(0) vec4f {
 }
 `;
 
+interface SharedWebGPURenderingState {
+	readonly backgroundPipeline: GPURenderPipeline;
+	readonly device: GPUDevice;
+	readonly format: GPUTextureFormat;
+	readonly textPipeline: GPURenderPipeline;
+}
+
+interface SharedWebGPURenderingRuntime {
+	readonly acquisition: Promise<SharedWebGPURenderingState>;
+	readonly gpu: GPU;
+	lost: boolean;
+	references: number;
+	retired: boolean;
+	state?: SharedWebGPURenderingState | undefined;
+}
+
+interface SharedWebGPURenderingLease {
+	readonly acquisition: Promise<SharedWebGPURenderingState>;
+	release(): void;
+}
+
+const sharedWebGPURenderingRuntimes = new WeakMap<Document, SharedWebGPURenderingRuntime>();
+
+function acquireSharedWebGPURenderingState(
+	document: Document,
+	gpu: GPU,
+): SharedWebGPURenderingLease {
+	let runtime = sharedWebGPURenderingRuntimes.get(document);
+	if (runtime?.gpu !== gpu) {
+		const acquisition = createSharedWebGPURenderingState(gpu);
+		runtime = { acquisition, gpu, lost: false, references: 0, retired: false };
+		sharedWebGPURenderingRuntimes.set(document, runtime);
+		const createdRuntime = runtime;
+		void acquisition.then(
+			(state) => {
+				createdRuntime.state = state;
+				if (createdRuntime.retired && !createdRuntime.lost) state.device.destroy();
+				void state.device.lost.then(() => {
+					createdRuntime.lost = true;
+					if (sharedWebGPURenderingRuntimes.get(document) === createdRuntime) {
+						sharedWebGPURenderingRuntimes.delete(document);
+					}
+				});
+			},
+			() => {
+				if (sharedWebGPURenderingRuntimes.get(document) === createdRuntime) {
+					sharedWebGPURenderingRuntimes.delete(document);
+				}
+			},
+		);
+	}
+	runtime.references += 1;
+	let released = false;
+	return {
+		acquisition: runtime.acquisition,
+		release: () => {
+			if (released) return;
+			released = true;
+			runtime.references -= 1;
+			if (runtime.references !== 0) return;
+			runtime.retired = true;
+			if (sharedWebGPURenderingRuntimes.get(document) === runtime) {
+				sharedWebGPURenderingRuntimes.delete(document);
+			}
+			if (!runtime.lost) runtime.state?.device.destroy();
+		},
+	};
+}
+
+async function createSharedWebGPURenderingState(gpu: GPU): Promise<SharedWebGPURenderingState> {
+	const adapter = await gpu.requestAdapter();
+	if (adapter === null) throw new Error('No WebGPU adapter is available');
+	const format = gpu.getPreferredCanvasFormat();
+	const device = await adapter.requestDevice();
+	device.pushErrorScope('validation');
+	let popRequested = false;
+	try {
+		const pipelines = createSharedWebGPUPipelines(device, format);
+		popRequested = true;
+		const pipelineError = await device.popErrorScope();
+		if (pipelineError !== null) {
+			throw new Error(`WebGPU pipeline validation failed: ${pipelineError.message}`);
+		}
+		return { device, format, ...pipelines };
+	} catch (error) {
+		if (!popRequested) {
+			try {
+				await device.popErrorScope();
+			} catch {
+				// Device destruction below is the authoritative cleanup for a failed acquisition.
+			}
+		}
+		device.destroy();
+		throw error;
+	}
+}
+
+function createSharedWebGPUPipelines(
+	device: GPUDevice,
+	format: GPUTextureFormat,
+): Pick<SharedWebGPURenderingState, 'backgroundPipeline' | 'textPipeline'> {
+	const backgroundModule = device.createShaderModule({ code: CELL_BG_SHADER });
+	const backgroundPipeline = device.createRenderPipeline({
+		layout: 'auto',
+		vertex: {
+			module: backgroundModule,
+			entryPoint: 'vs',
+			buffers: [
+				{
+					arrayStride: 32,
+					stepMode: 'instance',
+					attributes: [
+						{ shaderLocation: 0, offset: 0, format: 'float32x2' },
+						{ shaderLocation: 1, offset: 8, format: 'float32x2' },
+						{ shaderLocation: 2, offset: 16, format: 'float32x4' },
+					],
+				},
+			],
+		},
+		fragment: {
+			module: backgroundModule,
+			entryPoint: 'fs',
+			targets: [
+				{
+					format,
+					blend: {
+						color: { srcFactor: 'src-alpha', dstFactor: 'one-minus-src-alpha' },
+						alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha' },
+					},
+				},
+			],
+		},
+		primitive: { topology: 'triangle-list' },
+	});
+	const textModule = device.createShaderModule({ code: CELL_TEXT_SHADER });
+	const textPipeline = device.createRenderPipeline({
+		layout: 'auto',
+		vertex: {
+			module: textModule,
+			entryPoint: 'vs',
+			buffers: [
+				{
+					arrayStride: 52,
+					stepMode: 'instance',
+					attributes: [
+						{ shaderLocation: 0, offset: 0, format: 'float32x2' },
+						{ shaderLocation: 1, offset: 8, format: 'float32x2' },
+						{ shaderLocation: 2, offset: 16, format: 'float32x2' },
+						{ shaderLocation: 3, offset: 24, format: 'float32x2' },
+						{ shaderLocation: 4, offset: 32, format: 'float32x4' },
+						{ shaderLocation: 5, offset: 48, format: 'float32' },
+					],
+				},
+			],
+		},
+		fragment: {
+			module: textModule,
+			entryPoint: 'fs',
+			targets: [
+				{
+					format,
+					blend: {
+						color: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha' },
+						alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha' },
+					},
+				},
+			],
+		},
+		primitive: { topology: 'triangle-list' },
+	});
+	return { backgroundPipeline, textPipeline };
+}
+
 // ============================================================================
 // WebGPURenderer Class
 // ============================================================================
@@ -630,6 +803,7 @@ function pushGlyph(
 export class WebGPURenderer {
 	private canvas: HTMLCanvasElement;
 	private device: GPUDevice | null = null;
+	private sharedWebGPULease: SharedWebGPURenderingLease | null = null;
 	private context: GPUCanvasContext | null = null;
 	private format: GPUTextureFormat;
 
@@ -794,44 +968,52 @@ export class WebGPURenderer {
 	}
 
 	private async initializeGPU(allowFallback: boolean): Promise<boolean> {
-		if (!navigator.gpu) {
+		const gpu = this.canvas.ownerDocument.defaultView?.navigator?.gpu ?? globalThis.navigator?.gpu;
+		if (gpu === undefined) {
 			if (!allowFallback) throw new Error('WebGPU became unavailable during recovery');
 			return this.activateFallback('webgpu-unavailable');
 		}
 
-		let initializingDevice: GPUDevice | null = null;
 		try {
-			const adapter = await navigator.gpu.requestAdapter();
-			if (this.disposed || this.frozen) return false;
-			if (!adapter) throw new Error('No WebGPU adapter is available');
-
-			this.format = navigator.gpu.getPreferredCanvasFormat();
-			const device = await adapter.requestDevice();
+			const lease = acquireSharedWebGPURenderingState(this.canvas.ownerDocument, gpu);
+			let shared: SharedWebGPURenderingState;
+			try {
+				shared = await lease.acquisition;
+			} catch (error) {
+				lease.release();
+				throw error;
+			}
 			if (this.disposed || this.frozen) {
-				device.destroy();
+				lease.release();
 				return false;
 			}
+			this.sharedWebGPULease?.release();
+			this.sharedWebGPULease = lease;
+			const device = shared.device;
+			this.format = shared.format;
 			this.device = device;
-			initializingDevice = device;
+			this.bgPipeline = shared.backgroundPipeline;
+			this.textPipeline = shared.textPipeline;
 			void device.lost.then((info) => this.handleDeviceLost(device, info));
 
-			// Validate all device resources before locking this canvas to WebGPU so
+			// Validate per-surface resources before locking this canvas to WebGPU so
 			// Canvas 2D remains available if initialization fails.
 			device.pushErrorScope('validation');
-			await this.createPipelines();
+			let resourceError: GPUError | null;
+			try {
+				this.createAtlasTexture();
+				this.createAtlasSampler();
+				this.createUniformBuffer();
+				this.createBindGroups();
+			} catch (error) {
+				await device.popErrorScope();
+				throw error;
+			}
+			resourceError = await device.popErrorScope();
 			if (this.cancelRetiredGPUInitialization(device)) return false;
-			const pipelineError = await device.popErrorScope();
-			if (this.cancelRetiredGPUInitialization(device)) return false;
-			if (pipelineError)
-				throw new Error(`WebGPU pipeline validation failed: ${pipelineError.message}`);
-
-			// Create atlas texture and sampler
-			this.createAtlasTexture();
-			this.createAtlasSampler();
-
-			// Create uniform buffer
-			this.createUniformBuffer();
-			this.createBindGroups();
+			if (resourceError !== null) {
+				throw new Error(`WebGPU surface validation failed: ${resourceError.message}`);
+			}
 
 			if (this.cancelRetiredGPUInitialization(device)) return false;
 			this.context ??= this.canvas.getContext('webgpu');
@@ -851,9 +1033,7 @@ export class WebGPURenderer {
 			return true;
 		} catch (error) {
 			if (this.disposed || this.frozen) {
-				if (initializingDevice !== null && this.device === initializingDevice) {
-					this.cancelRetiredGPUInitialization(initializingDevice);
-				}
+				if (this.device !== null) this.cancelRetiredGPUInitialization(this.device);
 				return false;
 			}
 			if (!allowFallback || this.context) throw error;
@@ -865,10 +1045,8 @@ export class WebGPURenderer {
 
 	private activateFallback(reason: string): false {
 		if (this.disposed || this.frozen) return false;
-		const device = this.device;
 		this.releaseGPUResources();
 		this.device = null;
-		device?.destroy();
 		this.initFallback2D();
 		this.emitHealth({ state: 'fallback', backend: 'canvas2d', reason });
 		return false;
@@ -881,13 +1059,11 @@ export class WebGPURenderer {
 			this.device = null;
 			this.useWebGPU = false;
 		}
-		device.destroy();
 		return true;
 	}
 
 	private handleDeviceLost(device: GPUDevice, info: GPUDeviceLostInfo): void {
-		if (this.disposed || this.frozen || info.reason === 'destroyed' || device !== this.device)
-			return;
+		if (this.disposed || this.frozen || device !== this.device) return;
 		this.useWebGPU = false;
 		this.emitHealth({
 			state: 'lost',
@@ -906,10 +1082,8 @@ export class WebGPURenderer {
 			await this.initializeGPU(false);
 		} catch (error) {
 			if (!this.disposed && !this.frozen) {
-				const device = this.device;
 				this.releaseGPUResources();
 				this.device = null;
-				device?.destroy();
 				this.emitHealth({
 					state: 'recovery-failed',
 					backend: 'webgpu',
@@ -935,6 +1109,8 @@ export class WebGPURenderer {
 		this.overlayVertexBuffer = null;
 		this.backgroundBindGroup = null;
 		this.textBindGroup = null;
+		this.sharedWebGPULease?.release();
+		this.sharedWebGPULease = null;
 		this.bgVertexBufferSize = 0;
 		this.textVertexBufferSize = 0;
 		this.overlayVertexBufferSize = 0;
@@ -965,87 +1141,6 @@ export class WebGPURenderer {
 	private remeasureFont(): void {
 		this.detailedMetrics = this.measureFont();
 		this.metrics = publicFontMetrics(this.detailedMetrics);
-	}
-
-	// ==========================================================================
-	// WebGPU Pipeline Setup
-	// ==========================================================================
-
-	private async createPipelines(): Promise<void> {
-		if (!this.device) return;
-
-		// Background pipeline
-		const bgModule = this.device.createShaderModule({ code: CELL_BG_SHADER });
-		this.bgPipeline = this.device.createRenderPipeline({
-			layout: 'auto',
-			vertex: {
-				module: bgModule,
-				entryPoint: 'vs',
-				buffers: [
-					{
-						arrayStride: 32, // 8 floats * 4 bytes
-						stepMode: 'instance',
-						attributes: [
-							{ shaderLocation: 0, offset: 0, format: 'float32x2' }, // pos
-							{ shaderLocation: 1, offset: 8, format: 'float32x2' }, // cellSize
-							{ shaderLocation: 2, offset: 16, format: 'float32x4' }, // color
-						],
-					},
-				],
-			},
-			fragment: {
-				module: bgModule,
-				entryPoint: 'fs',
-				targets: [
-					{
-						format: this.format,
-						blend: {
-							color: { srcFactor: 'src-alpha', dstFactor: 'one-minus-src-alpha' },
-							alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha' },
-						},
-					},
-				],
-			},
-			primitive: { topology: 'triangle-list' },
-		});
-
-		// Text pipeline
-		const textModule = this.device.createShaderModule({ code: CELL_TEXT_SHADER });
-		this.textPipeline = this.device.createRenderPipeline({
-			layout: 'auto',
-			vertex: {
-				module: textModule,
-				entryPoint: 'vs',
-				buffers: [
-					{
-						arrayStride: 52, // 13 floats * 4 bytes
-						stepMode: 'instance',
-						attributes: [
-							{ shaderLocation: 0, offset: 0, format: 'float32x2' }, // pos
-							{ shaderLocation: 1, offset: 8, format: 'float32x2' }, // cellSize
-							{ shaderLocation: 2, offset: 16, format: 'float32x2' }, // uvPos
-							{ shaderLocation: 3, offset: 24, format: 'float32x2' }, // uvSize
-							{ shaderLocation: 4, offset: 32, format: 'float32x4' }, // color
-							{ shaderLocation: 5, offset: 48, format: 'float32' }, // colored glyph
-						],
-					},
-				],
-			},
-			fragment: {
-				module: textModule,
-				entryPoint: 'fs',
-				targets: [
-					{
-						format: this.format,
-						blend: {
-							color: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha' },
-							alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha' },
-						},
-					},
-				],
-			},
-			primitive: { topology: 'triangle-list' },
-		});
 	}
 
 	private createAtlasTexture(): void {
@@ -3351,7 +3446,6 @@ export class WebGPURenderer {
 		this.backgroundVertexUpload = new Float32Array(0);
 		this.textVertexUpload = new Float32Array(0);
 		this.overlayVertexUpload = new Float32Array(0);
-		this.device?.destroy();
 		this.device = null;
 		this.context = null;
 		this.ctx2d = null;

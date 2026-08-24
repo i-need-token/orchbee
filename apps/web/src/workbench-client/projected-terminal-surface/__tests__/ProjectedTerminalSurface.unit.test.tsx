@@ -50,7 +50,9 @@ describe('ProjectedTerminalSurface', () => {
 					admitBellEffect: () => true,
 					autoFocus: true,
 					bindActionContextProvider: () => ({ dispose: () => undefined }),
+					onPresentationReady: () => undefined,
 					presentation,
+					presentationMode: 'active',
 				}),
 			),
 		);
@@ -96,7 +98,9 @@ describe('ProjectedTerminalSurface', () => {
 					admitBellEffect: () => true,
 					autoFocus: false,
 					bindActionContextProvider: () => ({ dispose: () => undefined }),
+					onPresentationReady: () => undefined,
 					presentation: stoppedPresentation,
+					presentationMode: 'active',
 				}),
 			),
 		);

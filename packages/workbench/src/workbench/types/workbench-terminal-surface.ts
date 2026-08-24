@@ -12,6 +12,8 @@ import type { TerminalPresentation } from '../components/workbench-panel-workspa
 import type { WorkbenchTerminalBellEffect } from '../model/WorkbenchTerminalBellEffectCoordinator';
 
 export type WorkbenchTerminalPresentation = TerminalPresentation;
+export type WorkbenchTerminalPresentationMode = 'active' | 'incoming' | 'retained';
+export type WorkbenchTerminalPresentationReadiness = 'activation-ready' | 'display-ready';
 
 export interface WorkbenchTerminalActionContextCaptureRequest {
 	readonly altKey: boolean;
@@ -46,7 +48,9 @@ export interface WorkbenchTerminalSurfaceProps {
 	readonly bindActionContextProvider: (
 		provider: WorkbenchTerminalActionContextProvider,
 	) => ActionDisposable;
+	readonly onPresentationReady: (readiness: WorkbenchTerminalPresentationReadiness) => void;
 	readonly presentation: WorkbenchTerminalPresentation;
+	readonly presentationMode: WorkbenchTerminalPresentationMode;
 }
 
 export type WorkbenchTerminalSurface = ComponentType<WorkbenchTerminalSurfaceProps>;

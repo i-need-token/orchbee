@@ -13,7 +13,9 @@ export function ProjectedTerminalSurface({
 	admitBellEffect,
 	autoFocus,
 	bindActionContextProvider,
+	onPresentationReady,
 	presentation,
+	presentationMode,
 }: WorkbenchTerminalSurfaceProps): ReactNode {
 	const view = useProjectedTerminalSurface(presentation, {
 		actionRuntime,
@@ -21,6 +23,8 @@ export function ProjectedTerminalSurface({
 		admitBellEffect,
 		autoFocus,
 		bindActionContextProvider,
+		onPresentationReady,
+		presentationMode,
 	});
 	const intl = useOrchbeeIntl();
 	return (

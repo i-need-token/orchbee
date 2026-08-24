@@ -10,12 +10,14 @@ import {
 	type PanelSplitDirection,
 } from '../../../../../../model/panel-workspace-state';
 import type { WorkbenchPanelWorkspaceView } from '../../../../../../types/panel-workspace-view';
+import type { TerminalTabPresentationLayer } from '../../../../../../types/terminal-tab-presentation-layer';
 import type { WorkbenchTerminalSurface } from '../../../../../../../../types/workbench-terminal-surface';
 import { useWorkbenchTerminalContextMenu } from './hooks/useWorkbenchTerminalContextMenu';
 import { useWorkbenchTerminalActions } from './hooks/useWorkbenchTerminalActions';
 import styles from './WorkbenchTerminalViewport.module.css';
 
 interface WorkbenchTerminalViewportProps {
+	readonly layer: TerminalTabPresentationLayer;
 	readonly panelId: string;
 	readonly terminal: TerminalPresentation;
 	readonly terminalRole: 'child' | 'primary';
@@ -24,6 +26,7 @@ interface WorkbenchTerminalViewportProps {
 }
 
 export function WorkbenchTerminalViewport({
+	layer,
 	panelId,
 	terminal,
 	terminalRole,
@@ -153,9 +156,13 @@ export function WorkbenchTerminalViewport({
 						actionRuntime={view.actionRuntime}
 						actionScope={terminalActions.scope}
 						admitBellEffect={view.admitTerminalBellEffect}
-						autoFocus={view.activeTab?.focusedPanelId === panelId}
+						autoFocus={layer.mode === 'active' && view.activeTab?.focusedPanelId === panelId}
 						bindActionContextProvider={terminalActions.bindActionContextProvider}
+						onPresentationReady={(readiness) =>
+							layer.reportPresentationReady(terminal.presentationId, readiness)
+						}
 						presentation={terminal}
+						presentationMode={layer.mode}
 					/>
 				)}
 			</ContextMenuTrigger>

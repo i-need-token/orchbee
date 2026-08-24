@@ -82,6 +82,8 @@ export type {
 	WorkbenchTerminalActionContextCaptureRequest,
 	WorkbenchTerminalActionContextProvider,
 	WorkbenchTerminalPresentation,
+	WorkbenchTerminalPresentationMode,
+	WorkbenchTerminalPresentationReadiness,
 	WorkbenchTerminalSurface,
 	WorkbenchTerminalSurfaceProps,
 } from './types/workbench-terminal-surface';

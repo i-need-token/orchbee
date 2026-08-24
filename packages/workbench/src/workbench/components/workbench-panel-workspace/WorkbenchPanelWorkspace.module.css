@@ -3,7 +3,27 @@
 	min-height: 0;
 	min-width: 0;
 	overflow: hidden;
+	position: relative;
 	background: var(--ob-sys-color-surface-canvas);
+}
+
+.presentationLayer {
+	position: absolute;
+	inset: 0;
+	min-height: 0;
+	min-width: 0;
+	overflow: hidden;
+	background: var(--ob-sys-color-surface-canvas);
+	z-index: var(--ob-ref-layer-base);
+}
+
+.presentationLayer[data-presentation-mode='incoming'] {
+	pointer-events: none;
+}
+
+.presentationLayer[data-presentation-mode='retained'] {
+	pointer-events: none;
+	z-index: var(--ob-ref-layer-raised);
 }
 
 .root[data-dragging='true'],

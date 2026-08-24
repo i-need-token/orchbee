@@ -35,6 +35,20 @@ Transport loss also races font and GPU startup explicitly: it aborts that candid
 can stall recovery, and promotion checks the candidate's current transport availability both before
 and after its first-frame wait.
 
+Active-Tab handoff uses the same frozen-session discipline without keeping inactive terminal DOM or
+attachments mounted. When a surface becomes retained, it captures only its exact last-painted
+semantic presentation, freezes the canvas, and releases transport, input, resize, request, and
+attachment ownership. The application-scoped `TerminalPresentationSnapshotCache` retains those
+display-only snapshots in a byte-accounted `32 MiB` least-recently-used budget and clears them when
+the shared client runtime is disposed. An incoming surface may paint a cached snapshot before its
+fresh live attachment produces a frame. That cached draw satisfies only Workbench's display-ready
+barrier; input, pointer interaction, and `autoFocus` remain disabled until the candidate paints its
+first live frame and satisfies activation-ready. On a miss or oversized snapshot, the outgoing
+frozen layer remains visible until live, stopped, or honest failure content is ready. Returning to a
+still-frozen surface reuses its canvas for the display barrier while attaching a fresh candidate
+behind it. Superseded or inactive sessions cannot acknowledge frames or publish metadata, and each
+surface still releases its per-terminal Canvas, atlas, buffers, and renderer after handoff.
+
 An attachment feature failure remains distinct from transport loss and terminal outcome. The shared
 surface retains its operation, code, retryability, Host correlation ID or client request sequence as
 bounded diagnostics and applies the matching Terminal consequence. Background input acknowledgement,

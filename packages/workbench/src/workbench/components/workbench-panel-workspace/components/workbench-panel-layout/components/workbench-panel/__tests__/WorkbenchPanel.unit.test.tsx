@@ -11,6 +11,7 @@ import {
 } from '../../../../../../../../terminal-presentation';
 import type { PanelLayoutNode, PanelLeaf } from '../../../../../model/panel-workspace-state';
 import type { WorkbenchPanelWorkspaceView } from '../../../../../types/panel-workspace-view';
+import type { TerminalTabPresentationLayer } from '../../../../../types/terminal-tab-presentation-layer';
 import type { WorkbenchTerminalSurfaceProps } from '../../../../../../../types/workbench-terminal-surface';
 import { WorkbenchPanel } from '../WorkbenchPanel';
 
@@ -47,6 +48,11 @@ const otherPanel = {
 		title: 'Terminal 3',
 	},
 } as const;
+const layer: TerminalTabPresentationLayer = {
+	epoch: 0,
+	mode: 'active',
+	reportPresentationReady: () => undefined,
+};
 
 interface RenderPanelOptions {
 	readonly dragging?: boolean;
@@ -156,6 +162,7 @@ function renderPanel(
 				TooltipProvider,
 				null,
 				createElement(WorkbenchPanel, {
+					layer,
 					panel,
 					terminalSurface: TestTerminalSurface,
 					view,

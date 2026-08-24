@@ -229,6 +229,37 @@ function createPackedGraphemeSource(
 }
 
 describe('WebGPURenderer recovery retirement', () => {
+	it('shares one document device and immutable pipeline pair across renderers', async () => {
+		vi.stubGlobal('window', { devicePixelRatio: 1 });
+		vi.stubGlobal('document', { createElement: () => createCanvas() });
+		vi.stubGlobal('GPUTextureUsage', { TEXTURE_BINDING: 1, COPY_DST: 2, RENDER_ATTACHMENT: 4 });
+		vi.stubGlobal('GPUBufferUsage', { UNIFORM: 1, COPY_DST: 2, VERTEX: 4 });
+		const rendering = createSubmittingDevice();
+		const requestDevice = vi.fn<() => Promise<GPUDevice>>(async () => rendering.device);
+		const createRenderPipeline = vi.spyOn(rendering.device, 'createRenderPipeline');
+		vi.stubGlobal('navigator', {
+			gpu: {
+				requestAdapter: async () => ({ requestDevice }) as unknown as GPUAdapter,
+				getPreferredCanvasFormat: () => 'bgra8unorm',
+			},
+		});
+		const first = new WebGPURenderer(
+			createWebGPUCanvas({ configure: () => {} } as unknown as GPUCanvasContext),
+		);
+		const second = new WebGPURenderer(
+			createWebGPUCanvas({ configure: () => {} } as unknown as GPUCanvasContext),
+		);
+
+		await expect(Promise.all([first.initGPU(), second.initGPU()])).resolves.toEqual([true, true]);
+
+		expect(requestDevice).toHaveBeenCalledOnce();
+		expect(createRenderPipeline).toHaveBeenCalledTimes(2);
+		first.dispose();
+		expect(rendering.destroy).not.toHaveBeenCalled();
+		second.dispose();
+		expect(rendering.destroy).toHaveBeenCalledOnce();
+	});
+
 	it('keeps the last canvas readable while rejecting later draw mutations', async () => {
 		vi.stubGlobal('navigator', {});
 		vi.stubGlobal('window', { devicePixelRatio: 1 });
@@ -2559,7 +2590,7 @@ describe('projected terminal renderer', () => {
 		renderer.dispose();
 	});
 
-	it('destroys the retained device when WebGPU recovery fails', async () => {
+	it('leaves the shared lost device under runtime ownership when recovery fails', async () => {
 		vi.stubGlobal('window', { devicePixelRatio: 1 });
 		vi.stubGlobal('document', { createElement: () => createCanvas() });
 		vi.stubGlobal('GPUTextureUsage', { TEXTURE_BINDING: 1, COPY_DST: 2, RENDER_ATTACHMENT: 4 });
@@ -2591,7 +2622,7 @@ describe('projected terminal renderer', () => {
 				reason: 'simulated recovery failure',
 			}),
 		);
-		expect(first.destroy).toHaveBeenCalledOnce();
+		expect(first.destroy).not.toHaveBeenCalled();
 		renderer.dispose();
 	});
 });

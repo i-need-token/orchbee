@@ -43,7 +43,8 @@ interface PresentationFileDropFailure {
 type ProjectedTerminalSurfaceWorkbenchHost = Pick<
 	WorkbenchTerminalSurfaceProps,
 	'actionRuntime' | 'actionScope' | 'admitBellEffect' | 'autoFocus' | 'bindActionContextProvider'
->;
+> &
+	Partial<Pick<WorkbenchTerminalSurfaceProps, 'onPresentationReady' | 'presentationMode'>>;
 
 export function useProjectedTerminalSurface(
 	presentation: WorkbenchTerminalPresentation,
@@ -54,6 +55,8 @@ export function useProjectedTerminalSurface(
 	const admitBellEffect = workbenchHost?.admitBellEffect;
 	const autoFocus = workbenchHost?.autoFocus ?? false;
 	const bindActionContextProvider = workbenchHost?.bindActionContextProvider;
+	const onPresentationReady = workbenchHost?.onPresentationReady;
+	const presentationMode = workbenchHost?.presentationMode ?? 'active';
 	const capability = React.useContext(ProjectedTerminalSurfaceCapabilityContext);
 	const intl = useOrchbeeIntl();
 	const root = React.useRef<HTMLDivElement>(null);
@@ -81,6 +84,11 @@ export function useProjectedTerminalSurface(
 		presentationRecovery?.presentationId === presentation.presentationId
 			? presentationRecovery.state
 			: undefined;
+	const reportPresentationReady = useMemoizedFn(
+		(readiness: Parameters<WorkbenchTerminalSurfaceProps['onPresentationReady']>[0]): void => {
+			if (presentationMode === 'incoming') onPresentationReady?.(readiness);
+		},
+	);
 
 	const settlePasteReview = useMemoizedFn((approved: boolean): void => {
 		const pending = pendingPasteDecision.current;
@@ -192,6 +200,11 @@ export function useProjectedTerminalSurface(
 		let cancelled = false;
 		let preparedProjectionRequest: MountedTerminalProjectionRequest | undefined;
 		const controller = new ProjectedTerminalRecoveryController({
+			onActivationReady: () => reportPresentationReady('activation-ready'),
+			onDisplayReady: () => reportPresentationReady('display-ready'),
+			onRetainedSnapshot: (snapshot) => {
+				capability.presentationSnapshots?.set(presentation.presentationId, snapshot);
+			},
 			onStateChange: (state) => {
 				if (!cancelled) {
 					setPresentationRecovery({
@@ -242,6 +255,7 @@ export function useProjectedTerminalSurface(
 								scope: actionScope,
 							},
 					capability.interactionConfigurationSource,
+					capability.presentationSnapshots?.get(presentation.presentationId),
 				);
 			},
 		});
@@ -265,14 +279,28 @@ export function useProjectedTerminalSurface(
 		presentation.presentationId,
 		projectable,
 		reviewPaste,
+		reportPresentationReady,
 		settlePasteReview,
 	]);
+	React.useLayoutEffect(() => {
+		const recovery = recoveryController.current;
+		if (recovery?.presentationId !== presentation.presentationId) return;
+		if (presentationMode === 'retained') recovery.controller.retain();
+		else if (presentationMode === 'incoming') recovery.controller.resume();
+	}, [presentation.presentationId, presentationMode]);
+	React.useLayoutEffect(() => {
+		if (presentationMode !== 'incoming') return;
+		if (!projectable || stopped || currentRecovery?.kind === 'failed') {
+			reportPresentationReady('display-ready');
+			reportPresentationReady('activation-ready');
+		}
+	}, [currentRecovery?.kind, presentationMode, projectable, reportPresentationReady, stopped]);
 	React.useEffect(() => {
-		if (!autoFocus || currentRecovery?.kind !== 'ready') return;
+		if (presentationMode !== 'active' || !autoFocus || currentRecovery?.kind !== 'ready') return;
 		const recovery = recoveryController.current;
 		if (recovery?.presentationId !== presentation.presentationId) return;
 		recovery.controller.focusTerminal();
-	}, [autoFocus, currentRecovery?.kind, presentation.presentationId]);
+	}, [autoFocus, currentRecovery?.kind, presentation.presentationId, presentationMode]);
 
 	let projectionState: ProjectedTerminalSurfaceView['projectionState'] = 'inactive';
 	if (projectable) projectionState = 'requested';

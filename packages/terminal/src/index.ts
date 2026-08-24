@@ -25,6 +25,7 @@ export type {
 	ProjectedTerminalCloseActivity,
 	ProjectedTerminalOptions,
 	ProjectedTerminalPhaseValue,
+	ProjectedTerminalPresentationSnapshot,
 	ProjectedTerminalSelectionCopyEvent,
 	ProjectedTerminalSelectionCopyResult,
 	ProjectedTerminalSelectionPoint,

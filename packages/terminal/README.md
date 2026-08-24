@@ -537,11 +537,35 @@ default underline uses the effective foreground, and the cursor always uses the 
 block cursor. This override is outside the revisioned Host-theme path and is always `null` in the
 shared Orchbee Web/Desktop composition. `allowTransparency` alone controls transparent renderer clear; a composing client
 uses `backgroundOpacity` for its effective default-background root and never applies whole-surface
-CSS opacity. Canvas remains transparent before the first frame, then reuses the latest effective
-default background for opaque fills and resize. Packed graphemes preserve CJK, combining, and emoji
+CSS opacity. A newly opened Canvas remains transparent until it paints either an injected semantic
+presentation snapshot or its first live frame, then reuses the latest effective default background
+for opaque fills and resize. Packed graphemes preserve CJK, combining, and emoji
 cell widths; explicit foreground/background and underline colors, inverse, bold, faint, italic,
 invisible, blink, underline variants, strikethrough, and overline use the projected Ghostty styles.
 Renderer health reports initialization, fallback, device loss, recovery, and recovery failure.
+
+`capturePresentationSnapshot()` exposes only the exact packed source and metadata represented by
+the most recently completed draw. If a newer Host commit is accepted before it is painted, capture
+returns no snapshot until that revision is drawn; it never labels unseen state as visible. A
+captured snapshot is immutable and display-only, structurally shares immutable row backing where
+possible, accounts its retained bytes, and includes the visible graphics resources and placements.
+Supplying one while opening a new `ProjectedTerminal` paints it before scheduled live rendering,
+but that draw emits no live-frame telemetry or acknowledgement and grants no attachment, input,
+resize, transport, metadata-publication, or durable-state authority. The terminal releases its
+opening reference once the cached draw completes, while an external bounded cache may retain the
+snapshot for later presentation.
+
+WebGPU adapter acquisition, device creation, preferred format, and the immutable background/text
+pipeline pair are shared by renderers in one `Document`. Every renderer continues to own and
+release its canvas context, glyph atlas texture and Canvas, sampler, uniform and vertex buffers,
+bind groups, CPU staging storage, and overlays. Disposing or freezing one renderer therefore never
+destroys the shared device. Device loss invalidates that document generation; each affected live
+renderer independently follows the existing typed recovery path against the next shared generation,
+and Canvas 2D remains the observable fallback. Each live or transiently frozen renderer holds one
+reference-counted runtime lease. Releasing the final lease destroys the device and discards the
+shared pipelines; the `Document`-keyed weak map is only the concurrent discovery boundary. The
+runtime therefore adds neither per-inactive-terminal GPU surfaces nor idle device retention.
+
 The WebGPU path retains and clears one instance array plus one geometrically grown `Float32Array`
 upload buffer for each background, text, and overlay stream. Once a stream reaches the capacity of
 its largest prepared frame, later frames at or below that size reuse the same underlying CPU

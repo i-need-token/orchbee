@@ -1,4 +1,7 @@
-import type { ProjectedPasteResult } from '@orchbee/terminal';
+import type {
+	ProjectedPasteResult,
+	ProjectedTerminalPresentationSnapshot,
+} from '@orchbee/terminal';
 
 import type { ProjectedTerminalRendererSession } from '../../projected-terminal-renderer';
 import type { TerminalProjection, TerminalProjectionRequest } from '../../terminal-projection';
@@ -21,6 +24,11 @@ interface ManagedProjectedTerminalSession extends ManagedProjectionRequest {
 }
 
 export interface ProjectedTerminalRecoveryControllerOptions {
+	readonly onActivationReady?: (() => void) | undefined;
+	readonly onDisplayReady?: (() => void) | undefined;
+	readonly onRetainedSnapshot?:
+		| ((snapshot: ProjectedTerminalPresentationSnapshot) => void)
+		| undefined;
 	readonly onStateChange: (state: ProjectedTerminalRecoveryState) => void;
 	readonly open: () => TerminalProjectionRequest;
 	readonly startRenderer: (
@@ -36,6 +44,9 @@ type RecoveryAttemptSource = 'automatic' | 'initial' | 'manual';
 
 /** Owns one bounded projected-attachment recovery sequence for a mounted terminal surface. */
 export class ProjectedTerminalRecoveryController {
+	readonly #onActivationReady: () => void;
+	readonly #onDisplayReady: () => void;
+	readonly #onRetainedSnapshot: (snapshot: ProjectedTerminalPresentationSnapshot) => void;
 	readonly #onStateChange: ProjectedTerminalRecoveryControllerOptions['onStateChange'];
 	readonly #open: ProjectedTerminalRecoveryControllerOptions['open'];
 	readonly #startRenderer: ProjectedTerminalRecoveryControllerOptions['startRenderer'];
@@ -47,9 +58,13 @@ export class ProjectedTerminalRecoveryController {
 	#frozen: ManagedProjectedTerminalSession | undefined;
 	#pending: ManagedProjectionRequest | undefined;
 	#resolveDisposed: (() => void) | undefined;
+	#retained = false;
 	#retryTimer: ReturnType<typeof globalThis.setTimeout> | undefined;
 
 	constructor(options: ProjectedTerminalRecoveryControllerOptions) {
+		this.#onActivationReady = options.onActivationReady ?? (() => undefined);
+		this.#onDisplayReady = options.onDisplayReady ?? (() => undefined);
+		this.#onRetainedSnapshot = options.onRetainedSnapshot ?? (() => undefined);
 		this.#onStateChange = options.onStateChange;
 		this.#open = options.open;
 		this.#startRenderer = options.startRenderer;
@@ -60,6 +75,39 @@ export class ProjectedTerminalRecoveryController {
 
 	start(): void {
 		if (this.#disposed || this.#active !== undefined || this.#pending !== undefined) return;
+		this.#retained = false;
+		this.#onStateChange({ kind: 'connecting' });
+		this.#beginAttempt('initial');
+	}
+
+	/** Retire attachment and input ownership while keeping the last painted DOM in place. */
+	retain(): void {
+		if (this.#disposed || this.#retained) return;
+		this.#retained = true;
+		if (this.#retryTimer !== undefined) globalThis.clearTimeout(this.#retryTimer);
+		this.#retryTimer = undefined;
+		const candidate = this.#candidate;
+		if (candidate !== undefined) {
+			this.#candidate = undefined;
+			this.#pending = undefined;
+			this.#freezeForRetention(candidate);
+		} else if (this.#active !== undefined) {
+			const active = this.#active;
+			this.#active = undefined;
+			this.#freezeForRetention(active);
+		} else {
+			this.#pending?.release();
+			this.#pending = undefined;
+			const snapshot = this.#frozen?.session.capturePresentationSnapshot?.() ?? null;
+			if (snapshot !== null) this.#onRetainedSnapshot(snapshot);
+		}
+	}
+
+	/** Acquire a fresh attachment behind an existing frozen presentation. */
+	resume(): void {
+		if (this.#disposed || !this.#retained) return;
+		this.#retained = false;
+		if (this.#frozen !== undefined) this.#onDisplayReady();
 		this.#onStateChange({ kind: 'connecting' });
 		this.#beginAttempt('initial');
 	}
@@ -67,6 +115,7 @@ export class ProjectedTerminalRecoveryController {
 	retry(): void {
 		if (
 			this.#disposed ||
+			this.#retained ||
 			this.#active !== undefined ||
 			this.#pending !== undefined ||
 			this.#retryTimer !== undefined
@@ -109,7 +158,7 @@ export class ProjectedTerminalRecoveryController {
 	}
 
 	#beginAttempt(source: RecoveryAttemptSource): void {
-		if (this.#disposed || this.#pending !== undefined) return;
+		if (this.#disposed || this.#retained || this.#pending !== undefined) return;
 		let request: TerminalProjectionRequest;
 		try {
 			request = this.#open();
@@ -164,6 +213,11 @@ export class ProjectedTerminalRecoveryController {
 
 		const managed: ManagedProjectedTerminalSession = { ...pending, session };
 		this.#candidate = managed;
+		let candidateDisplayReady = false;
+		void (session.displayReady ?? session.presentationReady).then(() => {
+			candidateDisplayReady = true;
+			if (this.#ownsPending(pending) && this.#candidate === managed) this.#onDisplayReady();
+		});
 		const outcome = session.isTransportAvailable()
 			? await Promise.race([
 					session.presentationReady.then(() => 'ready' as const),
@@ -179,8 +233,14 @@ export class ProjectedTerminalRecoveryController {
 		this.#candidate = undefined;
 		this.#pending = undefined;
 		if (outcome !== 'ready' || !session.isTransportAvailable()) {
-			session.dispose();
-			pending.release();
+			if (candidateDisplayReady && this.#frozen === undefined) {
+				session.freeze();
+				pending.release();
+				this.#frozen = managed;
+			} else {
+				session.dispose();
+				pending.release();
+			}
 			this.#handleAttemptFailure(source);
 			return;
 		}
@@ -191,6 +251,8 @@ export class ProjectedTerminalRecoveryController {
 		this.#active = managed;
 		this.#automaticRetryIndex = 0;
 		this.#onStateChange({ kind: 'ready' });
+		this.#onDisplayReady();
+		this.#onActivationReady();
 		void session.transportUnavailable.then(() => this.#handleTransportUnavailable(managed));
 	}
 
@@ -216,6 +278,7 @@ export class ProjectedTerminalRecoveryController {
 	}
 
 	#scheduleAutomaticRetry(): void {
+		if (this.#retained) return;
 		const delay = AUTOMATIC_RETRY_DELAYS_MILLISECONDS[this.#automaticRetryIndex];
 		if (delay === undefined) {
 			this.#onStateChange({ kind: 'failed' });
@@ -230,7 +293,23 @@ export class ProjectedTerminalRecoveryController {
 	}
 
 	#ownsPending(pending: ManagedProjectionRequest): boolean {
-		return !this.#disposed && this.#pending === pending;
+		return !this.#disposed && !this.#retained && this.#pending === pending;
+	}
+
+	#freezeForRetention(managed: ManagedProjectedTerminalSession): void {
+		const snapshot = managed.session.capturePresentationSnapshot?.() ?? null;
+		if (snapshot !== null) this.#onRetainedSnapshot(snapshot);
+		managed.session.freeze();
+		managed.release();
+		if (snapshot === null && this.#frozen !== undefined) {
+			const retainedSnapshot = this.#frozen.session.capturePresentationSnapshot?.() ?? null;
+			if (retainedSnapshot !== null) this.#onRetainedSnapshot(retainedSnapshot);
+			managed.session.dispose();
+			return;
+		}
+		this.#frozen?.session.dispose();
+		this.#frozen?.release();
+		this.#frozen = managed;
 	}
 }
 
