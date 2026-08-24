@@ -12,6 +12,10 @@ export const keyboardShortcutMessages = defineMessages({
 	closeTerminal: message('keyboard.shortcuts.actions.closeTerminal'),
 	copySelection: message('keyboard.shortcuts.actions.copySelection'),
 	find: message('keyboard.shortcuts.actions.find'),
+	focusPanelDown: message('keyboard.shortcuts.actions.focusPanelDown'),
+	focusPanelLeft: message('keyboard.shortcuts.actions.focusPanelLeft'),
+	focusPanelRight: message('keyboard.shortcuts.actions.focusPanelRight'),
+	focusPanelUp: message('keyboard.shortcuts.actions.focusPanelUp'),
 	globalSearch: message('keyboard.shortcuts.actions.globalSearch'),
 	maximizePanel: message('keyboard.shortcuts.actions.maximizePanel'),
 	newTerminal: message('keyboard.shortcuts.actions.newTerminal'),
@@ -28,6 +32,7 @@ export const keyboardShortcutMessages = defineMessages({
 	availabilityFocusedTerminalWithSelection: message(
 		'keyboard.shortcuts.availability.focusedTerminalWithSelection',
 	),
+	availabilityDirectionalPanel: message('keyboard.shortcuts.availability.directionalPanel'),
 	availabilityWorkbench: message('keyboard.shortcuts.availability.workbench'),
 	availabilityMultiplePanels: message('keyboard.shortcuts.availability.multiplePanels'),
 	category: message('keyboard.shortcuts.category'),

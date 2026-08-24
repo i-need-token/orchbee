@@ -315,6 +315,10 @@ export const KEYBOARD_SHORTCUT_SEARCH_LABELS = {
 	'close-terminal': keyboardShortcutMessages.closeTerminal,
 	'copy-selection': keyboardShortcutMessages.copySelection,
 	find: keyboardShortcutMessages.find,
+	'focus-panel-down': keyboardShortcutMessages.focusPanelDown,
+	'focus-panel-left': keyboardShortcutMessages.focusPanelLeft,
+	'focus-panel-right': keyboardShortcutMessages.focusPanelRight,
+	'focus-panel-up': keyboardShortcutMessages.focusPanelUp,
 	'global-search': keyboardShortcutMessages.globalSearch,
 	'maximize-panel': keyboardShortcutMessages.maximizePanel,
 	'new-terminal': keyboardShortcutMessages.newTerminal,
@@ -338,6 +342,7 @@ export const KEYBOARD_SHORTCUT_SEARCH_AVAILABILITY = {
 	'active-panel': keyboardShortcutMessages.availabilityActivePanel,
 	'active-terminal': keyboardShortcutMessages.availabilityActiveTerminal,
 	'always-in-workbench': keyboardShortcutMessages.availabilityWorkbench,
+	'directional-panel': keyboardShortcutMessages.availabilityDirectionalPanel,
 	'focused-terminal': keyboardShortcutMessages.availabilityFocusedTerminal,
 	'focused-terminal-with-selection':
 		keyboardShortcutMessages.availabilityFocusedTerminalWithSelection,

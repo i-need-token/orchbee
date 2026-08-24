@@ -117,7 +117,8 @@ recovery requires a separate accepted owner and contract.
 - Directory, primary-Directory, launch-configuration, and Terminal Context references resolve.
 - Tab and Panel-workspace Tab membership and order match; pinned Tabs form one prefix and every
   Group is contiguous.
-- Every Split has at least two children, unique slots, and no child Split repeating its orientation.
+- Every Split has exactly two children and unique slots. A child Split may repeat its parent's
+  orientation because that ancestry owns local close and resize behavior.
 - Every presentation appears exactly once. Pending removals resolve to an exact non-empty target,
   never overlap, and match only `close` intent with the same removal identity.
 - A `stop` intent never belongs to a pending removal. `stopped` never provisions or restores
@@ -132,11 +133,12 @@ recovery requires a separate accepted owner and contract.
 
 ## Compatibility and application integration
 
-`WorkbenchSharedDocument` version `1` is a new contract, not a reader for the unshipped Workbench
-topology schema. Within version `1`, an omitted Tab `customTitle` is canonicalized to `null` so
-documents written before that optional override was introduced remain readable. There is no old
-topology alias, migration, or field reinterpretation. Applications use a distinct storage path and
-ignore any development-era topology file without deleting it.
+`WorkbenchSharedDocument` version `1` is a new binary-split contract, not a reader for the unshipped
+Workbench topology schema. Within version `1`, an omitted Tab `customTitle` is canonicalized to
+`null` so documents written before that optional override was introduced remain readable. There is
+no alias, migration, or reinterpretation for development-era flattened or n-ary topology.
+Applications use a distinct storage path and ignore any such development-era file without deleting
+it.
 
 Only shared changes advance the application-owned revision and enter its durability barrier.
 `subscribeDocument(...)` and `subscribeClientView(...)` compare their owned projections and notify
@@ -146,15 +148,15 @@ to the Desktop session coordinator.
 
 ## Correctness evidence
 
-| Claim                                                        | Evidence                                                                 | Limits                                          |
-| ------------------------------------------------------------ | ------------------------------------------------------------------------ | ----------------------------------------------- |
-| Strict shared documents preserve every relationship          | Valid/malformed examples, JSON round trips, and generated hierarchies    | Generated bounds: eight Tabs, four Panels each  |
-| Client Views are isolated and reconciliation is idempotent   | Two-view examples, stale-reference regression, and fixed-seed properties | In-memory view contract only                    |
-| Hydration preserves durable terminal intent                  | Provision/retain/close/stop/stopped runtime round trips                  | Host binding existence remains application work |
-| Custom title survives while natural metadata stays transient | Title override/reset and shared-document hydration scenarios             | Rename presentation is adapter-owned            |
-| Applying a shared document emits no terminal effect          | Runtime trace with structural removal and retained running observation   | One renderer runtime                            |
-| View-only changes never require a shared write               | Projection-specific observers and Desktop coordinator fingerprint tests  | Multi-client ordering belongs to the next slice |
-| Preview state cannot claim shared durability                 | Deterministic rejection test                                             | Preview remains an in-memory composition        |
+| Claim                                                        | Evidence                                                                        | Limits                                          |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------- | ----------------------------------------------- |
+| Strict shared documents preserve every binary relationship   | Valid/malformed examples, JSON round trips, and generated same-axis hierarchies | Generated bounds: eight Tabs, four Panels each  |
+| Client Views are isolated and reconciliation is idempotent   | Two-view examples, stale-reference regression, and fixed-seed properties        | In-memory view contract only                    |
+| Hydration preserves durable terminal intent                  | Provision/retain/close/stop/stopped runtime round trips                         | Host binding existence remains application work |
+| Custom title survives while natural metadata stays transient | Title override/reset and shared-document hydration scenarios                    | Rename presentation is adapter-owned            |
+| Applying a shared document emits no terminal effect          | Runtime trace with structural removal and retained running observation          | One renderer runtime                            |
+| View-only changes never require a shared write               | Projection-specific observers and Desktop coordinator fingerprint tests         | Multi-client ordering belongs to the next slice |
+| Preview state cannot claim shared durability                 | Deterministic rejection test                                                    | Preview remains an in-memory composition        |
 
 TLA+ is not selected for the pure document/view projection because it contains no asynchronous
 completion, cancellation, or independently ordered event. The Desktop commit/lifecycle workflow

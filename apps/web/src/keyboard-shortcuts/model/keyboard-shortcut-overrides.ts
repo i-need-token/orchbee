@@ -24,6 +24,10 @@ export function createKeyboardShortcutBindings(
 	const defaults = defaultKeyboardShortcutBindings(platform);
 	let actionsSearch = defaults[WORKBENCH_SHORTCUTS.actionsSearch.shortcutId];
 	let closeActiveTerminal = defaults[WORKBENCH_SHORTCUTS.closeActiveTerminal.shortcutId];
+	let focusActivePanelDown = defaults[WORKBENCH_SHORTCUTS.focusActivePanelDown.shortcutId];
+	let focusActivePanelLeft = defaults[WORKBENCH_SHORTCUTS.focusActivePanelLeft.shortcutId];
+	let focusActivePanelRight = defaults[WORKBENCH_SHORTCUTS.focusActivePanelRight.shortcutId];
+	let focusActivePanelUp = defaults[WORKBENCH_SHORTCUTS.focusActivePanelUp.shortcutId];
 	let maximizeActivePanel = defaults[WORKBENCH_SHORTCUTS.maximizeActivePanel.shortcutId];
 	let newTerminal = defaults[WORKBENCH_SHORTCUTS.newTerminal.shortcutId];
 	let search = defaults[WORKBENCH_SHORTCUTS.search.shortcutId];
@@ -44,6 +48,18 @@ export function createKeyboardShortcutBindings(
 				break;
 			case WORKBENCH_SHORTCUTS.closeActiveTerminal.shortcutId:
 				closeActiveTerminal = override.chord;
+				break;
+			case WORKBENCH_SHORTCUTS.focusActivePanelDown.shortcutId:
+				focusActivePanelDown = override.chord;
+				break;
+			case WORKBENCH_SHORTCUTS.focusActivePanelLeft.shortcutId:
+				focusActivePanelLeft = override.chord;
+				break;
+			case WORKBENCH_SHORTCUTS.focusActivePanelRight.shortcutId:
+				focusActivePanelRight = override.chord;
+				break;
+			case WORKBENCH_SHORTCUTS.focusActivePanelUp.shortcutId:
+				focusActivePanelUp = override.chord;
 				break;
 			case WORKBENCH_SHORTCUTS.maximizeActivePanel.shortcutId:
 				maximizeActivePanel = override.chord;
@@ -87,6 +103,10 @@ export function createKeyboardShortcutBindings(
 	return Object.freeze({
 		[WORKBENCH_SHORTCUTS.actionsSearch.shortcutId]: actionsSearch,
 		[WORKBENCH_SHORTCUTS.closeActiveTerminal.shortcutId]: closeActiveTerminal,
+		[WORKBENCH_SHORTCUTS.focusActivePanelDown.shortcutId]: focusActivePanelDown,
+		[WORKBENCH_SHORTCUTS.focusActivePanelLeft.shortcutId]: focusActivePanelLeft,
+		[WORKBENCH_SHORTCUTS.focusActivePanelRight.shortcutId]: focusActivePanelRight,
+		[WORKBENCH_SHORTCUTS.focusActivePanelUp.shortcutId]: focusActivePanelUp,
 		[WORKBENCH_SHORTCUTS.maximizeActivePanel.shortcutId]: maximizeActivePanel,
 		[WORKBENCH_SHORTCUTS.newTerminal.shortcutId]: newTerminal,
 		[WORKBENCH_SHORTCUTS.search.shortcutId]: search,

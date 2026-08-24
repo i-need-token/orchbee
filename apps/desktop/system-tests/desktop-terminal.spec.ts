@@ -2100,6 +2100,197 @@ test('closes the final Tab after a natural Host terminal exit while keeping the 
 	).toBe(1);
 });
 
+test('moves terminal focus through a four-Panel layout by visual direction', async () => {
+	const application = electronApplication;
+	if (application === undefined) throw new Error('Electron application did not start.');
+	const page = await application.firstWindow();
+	const primaryRoot = projectedTerminal(page);
+	await expect(primaryRoot).toHaveAttribute('data-projected-terminal-state', 'open');
+	const primaryPresentationId = await primaryRoot.getAttribute('data-terminal-presentation-id');
+	if (primaryPresentationId === null) {
+		throw new Error('Primary terminal presentation identity is unavailable.');
+	}
+
+	const splitRightShortcut = process.platform === 'darwin' ? 'Meta+KeyD' : 'Control+Shift+KeyD';
+	const splitBelowShortcut =
+		process.platform === 'darwin' ? 'Meta+Shift+KeyD' : 'Control+Shift+KeyE';
+	const focusModifier = process.platform === 'darwin' ? 'Meta+Alt' : 'Control+Alt';
+	await primaryRoot.getByRole('textbox').focus();
+	await page.keyboard.press(splitRightShortcut);
+	await expect(projectedTerminals(page)).toHaveCount(2);
+	await waitForProjectedTerminalsOpen(page);
+	const rightPresentationId = (await projectedTerminalPresentationIds(page)).find(
+		(presentationId) => presentationId !== primaryPresentationId,
+	);
+	if (rightPresentationId === undefined) {
+		throw new Error('Right terminal presentation identity is unavailable.');
+	}
+	const rightRoot = projectedTerminalFor(page, rightPresentationId);
+	await expect(rightRoot.getByRole('textbox')).toBeFocused();
+
+	await page.keyboard.press(splitBelowShortcut);
+	await expect(projectedTerminals(page)).toHaveCount(3);
+	await waitForProjectedTerminalsOpen(page);
+	const bottomRightPresentationId = (await projectedTerminalPresentationIds(page)).find(
+		(presentationId) =>
+			presentationId !== primaryPresentationId && presentationId !== rightPresentationId,
+	);
+	if (bottomRightPresentationId === undefined) {
+		throw new Error('Bottom-right terminal presentation identity is unavailable.');
+	}
+	const bottomRightRoot = projectedTerminalFor(page, bottomRightPresentationId);
+	await expect(bottomRightRoot.getByRole('textbox')).toBeFocused();
+
+	await page.keyboard.press(`${focusModifier}+ArrowLeft`);
+	await expect(primaryRoot.getByRole('textbox')).toBeFocused();
+	await page.keyboard.press(splitBelowShortcut);
+	await expect(projectedTerminals(page)).toHaveCount(4);
+	await waitForProjectedTerminalsOpen(page);
+	const bottomLeftPresentationId = (await projectedTerminalPresentationIds(page)).find(
+		(presentationId) =>
+			presentationId !== primaryPresentationId &&
+			presentationId !== rightPresentationId &&
+			presentationId !== bottomRightPresentationId,
+	);
+	if (bottomLeftPresentationId === undefined) {
+		throw new Error('Bottom-left terminal presentation identity is unavailable.');
+	}
+	const bottomLeftRoot = projectedTerminalFor(page, bottomLeftPresentationId);
+	await expect(bottomLeftRoot.getByRole('textbox')).toBeFocused();
+
+	await page.keyboard.press(`${focusModifier}+ArrowUp`);
+	await expect(primaryRoot.getByRole('textbox')).toBeFocused();
+	await page.keyboard.press(`${focusModifier}+ArrowRight`);
+	await expect(rightRoot.getByRole('textbox')).toBeFocused();
+	await page.keyboard.press(`${focusModifier}+ArrowDown`);
+	await expect(bottomRightRoot.getByRole('textbox')).toBeFocused();
+	await page.keyboard.press(`${focusModifier}+ArrowLeft`);
+	await expect(bottomLeftRoot.getByRole('textbox')).toBeFocused();
+	await page.keyboard.press(`${focusModifier}+ArrowDown`);
+	await expect(bottomLeftRoot.getByRole('textbox')).toBeFocused();
+});
+
+test('restores an equal four-Panel grid after closing a repeated-axis nested split', async () => {
+	const application = electronApplication;
+	if (application === undefined) throw new Error('Electron application did not start.');
+	const page = await application.firstWindow();
+	const primaryRoot = projectedTerminal(page);
+	await expect(primaryRoot).toHaveAttribute('data-projected-terminal-state', 'open');
+	const primaryPresentationId = await primaryRoot.getAttribute('data-terminal-presentation-id');
+	if (primaryPresentationId === null) {
+		throw new Error('Primary terminal presentation identity is unavailable.');
+	}
+
+	const splitRightShortcut = process.platform === 'darwin' ? 'Meta+KeyD' : 'Control+Shift+KeyD';
+	const splitBelowShortcut =
+		process.platform === 'darwin' ? 'Meta+Shift+KeyD' : 'Control+Shift+KeyE';
+	const focusModifier = process.platform === 'darwin' ? 'Meta+Alt' : 'Control+Alt';
+	const closeShortcut = process.platform === 'darwin' ? 'Meta+KeyW' : 'Control+Shift+KeyW';
+	await primaryRoot.getByRole('textbox').focus();
+	await page.keyboard.press(splitBelowShortcut);
+	await expect(projectedTerminals(page)).toHaveCount(2);
+	await waitForProjectedTerminalsOpen(page);
+	const bottomLeftPresentationId = (await projectedTerminalPresentationIds(page)).find(
+		(presentationId) => presentationId !== primaryPresentationId,
+	);
+	if (bottomLeftPresentationId === undefined) {
+		throw new Error('Bottom-left terminal presentation identity is unavailable.');
+	}
+
+	await page.keyboard.press(`${focusModifier}+ArrowUp`);
+	await page.keyboard.press(splitRightShortcut);
+	await expect(projectedTerminals(page)).toHaveCount(3);
+	await waitForProjectedTerminalsOpen(page);
+	const topRightPresentationId = (await projectedTerminalPresentationIds(page)).find(
+		(presentationId) =>
+			presentationId !== primaryPresentationId && presentationId !== bottomLeftPresentationId,
+	);
+	if (topRightPresentationId === undefined) {
+		throw new Error('Top-right terminal presentation identity is unavailable.');
+	}
+
+	await page.keyboard.press(`${focusModifier}+ArrowDown`);
+	await page.keyboard.press(splitRightShortcut);
+	await expect(projectedTerminals(page)).toHaveCount(4);
+	await waitForProjectedTerminalsOpen(page);
+	const nestedLeftPresentationId = (await projectedTerminalPresentationIds(page)).find(
+		(presentationId) =>
+			presentationId !== primaryPresentationId &&
+			presentationId !== bottomLeftPresentationId &&
+			presentationId !== topRightPresentationId,
+	);
+	if (nestedLeftPresentationId === undefined) {
+		throw new Error('Nested-left terminal presentation identity is unavailable.');
+	}
+
+	await page.keyboard.press(splitRightShortcut);
+	await expect(projectedTerminals(page)).toHaveCount(5);
+	await waitForProjectedTerminalsOpen(page);
+	const bottomRightPresentationId = (await projectedTerminalPresentationIds(page)).find(
+		(presentationId) =>
+			presentationId !== primaryPresentationId &&
+			presentationId !== bottomLeftPresentationId &&
+			presentationId !== topRightPresentationId &&
+			presentationId !== nestedLeftPresentationId,
+	);
+	if (bottomRightPresentationId === undefined) {
+		throw new Error('Bottom-right terminal presentation identity is unavailable.');
+	}
+
+	const panelFor = (presentationId: string): Locator =>
+		page.locator('[data-slot="workbench-panel"]').filter({
+			has: projectedTerminalFor(page, presentationId),
+		});
+	const bottomLeftPanel = panelFor(bottomLeftPresentationId);
+	const nestedLeftPanel = panelFor(nestedLeftPresentationId);
+	const bottomRightPanel = panelFor(bottomRightPresentationId);
+	const beforeCloseBounds = await Promise.all([
+		bottomLeftPanel.boundingBox(),
+		nestedLeftPanel.boundingBox(),
+		bottomRightPanel.boundingBox(),
+	]);
+	if (beforeCloseBounds.some((bounds) => bounds === null)) {
+		throw new Error('Pre-close Panel geometry is unavailable.');
+	}
+	const [bottomLeftBefore, nestedLeftBefore, bottomRightBefore] = beforeCloseBounds;
+	if (bottomLeftBefore === null || nestedLeftBefore === null || bottomRightBefore === null) {
+		throw new Error('Pre-close Panel geometry is unavailable.');
+	}
+	expect(bottomLeftBefore.width).toBeGreaterThan(nestedLeftBefore.width * 1.8);
+	expect(Math.abs(nestedLeftBefore.width - bottomRightBefore.width)).toBeLessThanOrEqual(2);
+
+	await page.keyboard.press(`${focusModifier}+ArrowLeft`);
+	const nestedLeftRoot = projectedTerminalFor(page, nestedLeftPresentationId);
+	await expect(nestedLeftRoot.getByRole('textbox')).toBeFocused();
+	await expect(nestedLeftRoot).toHaveAttribute('data-projected-terminal-close-activity', 'idle');
+	await page.keyboard.press(closeShortcut);
+	await expect(nestedLeftRoot).toHaveCount(0);
+	await expect(projectedTerminals(page)).toHaveCount(4);
+	await expect(
+		projectedTerminalFor(page, bottomLeftPresentationId).getByRole('textbox'),
+	).toBeFocused();
+
+	const fourPanelBounds = await Promise.all([
+		panelFor(primaryPresentationId).boundingBox(),
+		panelFor(topRightPresentationId).boundingBox(),
+		panelFor(bottomLeftPresentationId).boundingBox(),
+		panelFor(bottomRightPresentationId).boundingBox(),
+	]);
+	if (fourPanelBounds.some((bounds) => bounds === null)) {
+		throw new Error('Post-close four-Panel geometry is unavailable.');
+	}
+	const [topLeft, topRight, bottomLeft, bottomRight] = fourPanelBounds;
+	if (topLeft === null || topRight === null || bottomLeft === null || bottomRight === null) {
+		throw new Error('Post-close four-Panel geometry is unavailable.');
+	}
+	for (const bounds of [topRight, bottomLeft, bottomRight]) {
+		expect(Math.abs(bounds.width - topLeft.width)).toBeLessThanOrEqual(2);
+		expect(Math.abs(bounds.height - topLeft.height)).toBeLessThanOrEqual(2);
+	}
+	expect(Math.abs(bottomLeft.x - topLeft.x)).toBeLessThanOrEqual(2);
+	expect(Math.abs(bottomRight.x - topRight.x)).toBeLessThanOrEqual(2);
+});
+
 test('restores the focused split terminal after a renderer reload', async () => {
 	const application = electronApplication;
 	if (application === undefined) throw new Error('Electron application did not start.');

@@ -9,22 +9,26 @@ those surfaces owns another binding copy.
 
 ## Initial catalog
 
-| Shortcut ID                                  | Scope                             | Apple default     | Standard default   |
-| -------------------------------------------- | --------------------------------- | ----------------- | ------------------ |
-| `workbench.search.actions.open`              | Workbench                         | `Cmd+Shift+P`     | `Ctrl+Shift+P`     |
-| `workbench.terminal.create`                  | Workbench                         | `Cmd+T`           | `Ctrl+Shift+T`     |
-| `workbench.terminal.active.close`            | Active terminal                   | `Cmd+W`           | `Ctrl+Shift+W`     |
-| `workbench.panel.active.maximization.toggle` | Active panel                      | `Cmd+Shift+Enter` | `Ctrl+Shift+Enter` |
-| `workbench.panel.active.split-right`         | Active panel                      | `Cmd+D`           | `Ctrl+Shift+D`     |
-| `workbench.panel.active.split-below`         | Active panel                      | `Cmd+Shift+D`     | `Ctrl+Shift+E`     |
-| `workbench.search.all.open`                  | Workbench                         | `Cmd+Shift+F`     | `Ctrl+Shift+K`     |
-| `workbench.settings.open`                    | Workbench                         | `Cmd+,`           | `Ctrl+,`           |
-| `workbench.sidebar.toggle`                   | Workbench                         | `Cmd+B`           | `Ctrl+Shift+B`     |
-| `terminal.search.open`                       | Focused terminal or Find          | `Cmd+F`           | `Ctrl+Shift+F`     |
-| `terminal.selection.copy`                    | Focused terminal with a selection | `Cmd+C`           | `Ctrl+Shift+C`     |
-| `terminal.clipboard.paste`                   | Focused terminal                  | `Cmd+V`           | `Ctrl+Shift+V`     |
-| `terminal.selection.select-all`              | Focused terminal                  | `Cmd+A`           | `Ctrl+Shift+A`     |
-| `terminal.clear`                             | Focused terminal                  | `Cmd+K`           | `Ctrl+Shift+L`     |
+| Shortcut ID                                  | Scope                             | Apple default      | Standard default   |
+| -------------------------------------------- | --------------------------------- | ------------------ | ------------------ |
+| `workbench.search.actions.open`              | Workbench                         | `Cmd+Shift+P`      | `Ctrl+Shift+P`     |
+| `workbench.terminal.create`                  | Workbench                         | `Cmd+T`            | `Ctrl+Shift+T`     |
+| `workbench.terminal.active.close`            | Active terminal                   | `Cmd+W`            | `Ctrl+Shift+W`     |
+| `workbench.panel.active.focus-down`          | Active panel                      | `Cmd+Option+Down`  | `Ctrl+Alt+Down`    |
+| `workbench.panel.active.focus-left`          | Active panel                      | `Cmd+Option+Left`  | `Ctrl+Alt+Left`    |
+| `workbench.panel.active.focus-right`         | Active panel                      | `Cmd+Option+Right` | `Ctrl+Alt+Right`   |
+| `workbench.panel.active.focus-up`            | Active panel                      | `Cmd+Option+Up`    | `Ctrl+Alt+Up`      |
+| `workbench.panel.active.maximization.toggle` | Active panel                      | `Cmd+Shift+Enter`  | `Ctrl+Shift+Enter` |
+| `workbench.panel.active.split-right`         | Active panel                      | `Cmd+D`            | `Ctrl+Shift+D`     |
+| `workbench.panel.active.split-below`         | Active panel                      | `Cmd+Shift+D`      | `Ctrl+Shift+E`     |
+| `workbench.search.all.open`                  | Workbench                         | `Cmd+Shift+F`      | `Ctrl+Shift+K`     |
+| `workbench.settings.open`                    | Workbench                         | `Cmd+,`            | `Ctrl+,`           |
+| `workbench.sidebar.toggle`                   | Workbench                         | `Cmd+B`            | `Ctrl+Shift+B`     |
+| `terminal.search.open`                       | Focused terminal or Find          | `Cmd+F`            | `Ctrl+Shift+F`     |
+| `terminal.selection.copy`                    | Focused terminal with a selection | `Cmd+C`            | `Ctrl+Shift+C`     |
+| `terminal.clipboard.paste`                   | Focused terminal                  | `Cmd+V`            | `Ctrl+Shift+V`     |
+| `terminal.selection.select-all`              | Focused terminal                  | `Cmd+A`            | `Ctrl+Shift+A`     |
+| `terminal.clear`                             | Focused terminal                  | `Cmd+K`            | `Ctrl+Shift+L`     |
 
 The new-Tab, active-terminal close, active-panel maximization, right-split, down-split, and paste
 defaults adopt Warp's [documented desktop conventions](https://docs.warp.dev/getting-started/keyboard-shortcuts)
@@ -34,6 +38,11 @@ the focused terminal. Standard Clear uses `Ctrl+Shift+L`; Standard defaults deli
 unshifted `Ctrl+B/T/W/K/F/D/E/V/A/L` and `Ctrl+C` available to the shell, terminal applications,
 and multiplexers. A user may deliberately record another supported custom chord. Product
 conflicts remain prohibited even when an Action is temporarily unavailable.
+
+Directional panel focus adopts Ghostty's Apple `Command+Option+Arrow` and Standard
+`Control+Alt+Arrow` convention at revision `91f66da24527fa02d92b5fd0b41cd020f553a64c`, also
+cross-checked against Warp revision `086dade63ff7327426d6276d57f85b3f2f313af0`. The binding
+selection is the only application-level concern here; Workbench owns spatial neighbor resolution.
 
 Commands without an effective binding do not render an empty shortcut affordance. Reset,
 scroll-to-bottom, new-child-terminal, split-left, and split-above remain intentionally unbound in
@@ -65,7 +74,7 @@ does not call `preventDefault()`.
 
 ## Active-target command model
 
-The four `workbench.*.active.*` Actions are context commands. Their Action invocation may carry an
+The eight `workbench.*.active.*` Actions are context commands. Their Action invocation may carry an
 explicit panel target from a menu; otherwise the active Tab's focused panel is the target. The
 target is resolved again when execution starts, so a stale or absent target is unavailable and
 does not consume the keyboard event.
@@ -92,6 +101,12 @@ Actions resolve whenever a valid target panel exists. Each command prepares and 
 existing panel Action, so menus, keyboard dispatch, and the Action search surface share the same
 transition and availability result. An unavailable command is neither executed nor passed to
 `preventDefault()`.
+
+The four directional focus Actions resolve from the weighted split layout only while no Panel is
+maximized. Workbench requires a neighboring Panel in the requested direction with positive overlap
+on the perpendicular axis, never wraps at an outer edge, and delegates the result through the
+existing Panel focus Action. A missing directional neighbor leaves the shortcut event available to
+the terminal or browser.
 
 ## Chord and conflict model
 
@@ -160,6 +175,7 @@ change does not remount Workbench, replace an attachment, or reopen a Host or Ga
 | Active Workbench bindings do not depend on a surviving focused descendant        | Document-capture lifecycle and Web application integration tests     |
 | Empty-Tab New Tab creates and focuses the new terminal; Settings suppresses it   | Web application focus and Settings-scope integration trace           |
 | Apple and Standard defaults match the catalog and custom edits affect dispatch   | Shortcut definition, resolver, and controller tests                  |
+| Directional focus selects a spatial neighbor and falls through at outer edges    | Four-Panel resolver, Action, and shortcut dispatch tests             |
 | Menus, Action search, and settings display the same current binding              | Projection and rendered-surface tests                                |
 | Valid v1 and v2 records migrate once without losing explicit legacy overrides    | Storage migration tests, including a new-default-equivalent override |
 | Invalid current or migration-source data does not consult an older record        | Storage corruption and precedence tests                              |

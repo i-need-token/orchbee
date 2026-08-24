@@ -103,6 +103,26 @@ export const workbenchMessages = defineMessages({
 		defaultMessage: enUSWorkbenchMessages['workbench.panels.actions.focus'],
 		description: 'Action that focuses a Workbench panel.',
 	},
+	panelFocusDown: {
+		id: 'workbench.panels.actions.focusDown',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.actions.focusDown'],
+		description: 'Action that focuses the neighboring Workbench panel below the active panel.',
+	},
+	panelFocusLeft: {
+		id: 'workbench.panels.actions.focusLeft',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.actions.focusLeft'],
+		description: 'Action that focuses the neighboring Workbench panel to the left.',
+	},
+	panelFocusRight: {
+		id: 'workbench.panels.actions.focusRight',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.actions.focusRight'],
+		description: 'Action that focuses the neighboring Workbench panel to the right.',
+	},
+	panelFocusUp: {
+		id: 'workbench.panels.actions.focusUp',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.actions.focusUp'],
+		description: 'Action that focuses the neighboring Workbench panel above the active panel.',
+	},
 	panelMinimize: {
 		id: 'workbench.panels.actions.minimize',
 		defaultMessage: enUSWorkbenchMessages['workbench.panels.actions.minimize'],

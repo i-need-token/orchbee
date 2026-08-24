@@ -306,6 +306,10 @@ export function useWorkbenchActions({
 				}
 				case 'settings':
 				case 'closeActiveTerminal':
+				case 'focusActivePanelDown':
+				case 'focusActivePanelLeft':
+				case 'focusActivePanelRight':
+				case 'focusActivePanelUp':
 				case 'maximizeActivePanel':
 				case 'splitActivePanelBelow':
 				case 'splitActivePanelRight':

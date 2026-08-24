@@ -324,7 +324,7 @@ function validateClientView(
 					issues,
 				);
 				const total = split.weights.reduce((sum, weight) => sum + weight.weight, 0);
-				if (split.weights.length < 2 || Math.abs(total - 100) > 0.000_001) {
+				if (split.weights.length !== 2 || Math.abs(total - 100) > 0.000_001) {
 					issues.push(`Client Split ${split.splitId} has invalid weights.`);
 				}
 			}

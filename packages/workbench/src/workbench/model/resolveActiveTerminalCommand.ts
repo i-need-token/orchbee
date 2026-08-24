@@ -11,8 +11,29 @@ import {
 	findPanel,
 	type PanelWorkspaceState,
 } from '../components/workbench-panel-workspace/model/panel-workspace-state';
+import {
+	resolveDirectionalPanelFocus,
+	type PanelFocusDirection,
+} from '../components/workbench-panel-workspace/model/resolveDirectionalPanelFocus';
 
-export type ActiveTerminalCommand = 'close' | 'split-below' | 'split-right' | 'toggle-maximization';
+export type ActiveTerminalCommand =
+	| 'close'
+	| 'focus-down'
+	| 'focus-left'
+	| 'focus-right'
+	| 'focus-up'
+	| 'split-below'
+	| 'split-right'
+	| 'toggle-maximization';
+
+const PANEL_FOCUS_DIRECTION_BY_COMMAND = {
+	'focus-down': 'down',
+	'focus-left': 'left',
+	'focus-right': 'right',
+	'focus-up': 'up',
+} as const satisfies Readonly<
+	Record<Extract<ActiveTerminalCommand, `focus-${string}`>, PanelFocusDirection>
+>;
 
 interface ResolveActiveTerminalCommandOptions {
 	readonly activeTabId: string | null;
@@ -22,6 +43,12 @@ interface ResolveActiveTerminalCommandOptions {
 }
 
 export type ActiveTerminalCommandResolution =
+	| {
+			readonly actionId: typeof PANEL_ACTION_IDS.focus;
+			readonly input: PanelTargetInput;
+			readonly kind: 'ready';
+			readonly panelId: string;
+	  }
 	| {
 			readonly actionId: typeof PANEL_ACTION_IDS.close;
 			readonly input: PanelCloseInput;
@@ -48,7 +75,12 @@ export type ActiveTerminalCommandResolution =
 	  }
 	| {
 			readonly kind: 'unavailable';
-			readonly reason: 'active-tab-unavailable' | 'panel-unavailable' | 'requires-multiple-panels';
+			readonly reason:
+				| 'active-tab-unavailable'
+				| 'directional-neighbor-unavailable'
+				| 'panel-maximized'
+				| 'panel-unavailable'
+				| 'requires-multiple-panels';
 	  };
 
 export function resolveActiveTerminalCommand({
@@ -116,5 +148,26 @@ export function resolveActiveTerminalCommand({
 						kind: 'ready',
 						panelId,
 					};
+		case 'focus-down':
+		case 'focus-left':
+		case 'focus-right':
+		case 'focus-up': {
+			if (activeTab.maximizedPanelId !== null) {
+				return { kind: 'unavailable', reason: 'panel-maximized' };
+			}
+			const targetId = resolveDirectionalPanelFocus(
+				activeTab.root,
+				panelId,
+				PANEL_FOCUS_DIRECTION_BY_COMMAND[command],
+			);
+			return targetId === null
+				? { kind: 'unavailable', reason: 'directional-neighbor-unavailable' }
+				: {
+						actionId: PANEL_ACTION_IDS.focus,
+						input: { panelId: targetId },
+						kind: 'ready',
+						panelId: targetId,
+					};
+		}
 	}
 }

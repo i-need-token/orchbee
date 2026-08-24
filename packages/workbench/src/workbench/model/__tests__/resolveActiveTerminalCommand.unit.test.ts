@@ -99,6 +99,34 @@ describe('resolveActiveTerminalCommand', () => {
 		});
 	});
 
+	it('resolves directional focus to the neighboring Panel and rejects outer edges', () => {
+		const split = splitRight(initialState());
+		expect(resolve(split, 'focus-left')).toEqual({
+			actionId: PANEL_ACTION_IDS.focus,
+			input: { panelId: 'panel-1' },
+			kind: 'ready',
+			panelId: 'panel-1',
+		});
+		expect(resolve(split, 'focus-right')).toEqual({
+			kind: 'unavailable',
+			reason: 'directional-neighbor-unavailable',
+		});
+	});
+
+	it('keeps directional focus unavailable while a Panel is maximized', () => {
+		const split = splitRight(initialState());
+		const maximized = transitionPanelWorkspace(split, {
+			panelId: 'panel-2',
+			tabId: 'tab-1',
+			type: 'panel-maximization-toggled',
+		}).state;
+
+		expect(resolve(maximized, 'focus-left')).toEqual({
+			kind: 'unavailable',
+			reason: 'panel-maximized',
+		});
+	});
+
 	it('rejects absent, stale, and cross-Tab targets without preparing an operation', () => {
 		const state = initialState();
 		expect(

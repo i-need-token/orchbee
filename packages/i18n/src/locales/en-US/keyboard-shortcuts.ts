@@ -5,6 +5,10 @@ export const enUSKeyboardShortcutMessages = {
 	'keyboard.shortcuts.actions.closeTerminal': 'Close active terminal',
 	'keyboard.shortcuts.actions.copySelection': 'Copy terminal selection',
 	'keyboard.shortcuts.actions.find': 'Find in terminal',
+	'keyboard.shortcuts.actions.focusPanelDown': 'Focus panel below',
+	'keyboard.shortcuts.actions.focusPanelLeft': 'Focus panel left',
+	'keyboard.shortcuts.actions.focusPanelRight': 'Focus panel right',
+	'keyboard.shortcuts.actions.focusPanelUp': 'Focus panel above',
 	'keyboard.shortcuts.actions.globalSearch': 'Search everything',
 	'keyboard.shortcuts.actions.maximizePanel': 'Toggle panel maximization',
 	'keyboard.shortcuts.actions.newTerminal': 'New terminal',
@@ -17,6 +21,8 @@ export const enUSKeyboardShortcutMessages = {
 	'keyboard.shortcuts.actions.toggleSidebar': 'Toggle sidebar',
 	'keyboard.shortcuts.availability.activePanel': 'When an active terminal panel is available',
 	'keyboard.shortcuts.availability.activeTerminal': 'When a terminal tab is active',
+	'keyboard.shortcuts.availability.directionalPanel':
+		'When an adjacent panel exists in that direction',
 	'keyboard.shortcuts.availability.focusedTerminal': 'When a terminal is focused',
 	'keyboard.shortcuts.availability.focusedTerminalWithSelection':
 		'When a focused terminal has a selection',

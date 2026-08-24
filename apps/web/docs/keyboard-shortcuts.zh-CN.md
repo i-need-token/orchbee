@@ -4,24 +4,30 @@
 
 ## 初始目录
 
-| 快捷方式 ID                                  | 适用范围               | 苹果默认          | 标准默认值         |
-| -------------------------------------------- | ---------------------- | ----------------- | ------------------ |
-| `workbench.search.actions.open`              | Workbench              | `Cmd+Shift+P`     | `Ctrl+Shift+P`     |
-| `workbench.terminal.create`                  | Workbench              | `Cmd+T`           | `Ctrl+Shift+T`     |
-| `workbench.terminal.active.close`            | 活动终端               | `Cmd+W`           | `Ctrl+Shift+W`     |
-| `workbench.panel.active.maximization.toggle` | 活动面板               | `Cmd+Shift+Enter` | `Ctrl+Shift+Enter` |
-| `workbench.panel.active.split-right`         | 活动面板               | `Cmd+D`           | `Ctrl+Shift+D`     |
-| `workbench.panel.active.split-below`         | 活动面板               | `Cmd+Shift+D`     | `Ctrl+Shift+E`     |
-| `workbench.search.all.open`                  | Workbench              | `Cmd+Shift+F`     | `Ctrl+Shift+K`     |
-| `workbench.settings.open`                    | Workbench              | `Cmd+,`           | `Ctrl+,`           |
-| `workbench.sidebar.toggle`                   | Workbench              | `Cmd+B`           | `Ctrl+Shift+B`     |
-| `terminal.search.open`                       | 聚焦终端或查找         | `Cmd+F`           | `Ctrl+Shift+F`     |
-| `terminal.selection.copy`                    | 具有选择功能的聚焦终端 | `Cmd+C`           | `Ctrl+Shift+C`     |
-| `terminal.clipboard.paste`                   | 聚焦终端               | `Cmd+V`           | `Ctrl+Shift+V`     |
-| `terminal.selection.select-all`              | 聚焦终端               | `Cmd+A`           | `Ctrl+Shift+A`     |
-| `terminal.clear`                             | 聚焦终端               | `Cmd+K`           | `Ctrl+Shift+L`     |
+| 快捷方式 ID                                  | 适用范围               | 苹果默认           | 标准默认值         |
+| -------------------------------------------- | ---------------------- | ------------------ | ------------------ |
+| `workbench.search.actions.open`              | Workbench              | `Cmd+Shift+P`      | `Ctrl+Shift+P`     |
+| `workbench.terminal.create`                  | Workbench              | `Cmd+T`            | `Ctrl+Shift+T`     |
+| `workbench.terminal.active.close`            | 活动终端               | `Cmd+W`            | `Ctrl+Shift+W`     |
+| `workbench.panel.active.focus-down`          | 活动面板               | `Cmd+Option+Down`  | `Ctrl+Alt+Down`    |
+| `workbench.panel.active.focus-left`          | 活动面板               | `Cmd+Option+Left`  | `Ctrl+Alt+Left`    |
+| `workbench.panel.active.focus-right`         | 活动面板               | `Cmd+Option+Right` | `Ctrl+Alt+Right`   |
+| `workbench.panel.active.focus-up`            | 活动面板               | `Cmd+Option+Up`    | `Ctrl+Alt+Up`      |
+| `workbench.panel.active.maximization.toggle` | 活动面板               | `Cmd+Shift+Enter`  | `Ctrl+Shift+Enter` |
+| `workbench.panel.active.split-right`         | 活动面板               | `Cmd+D`            | `Ctrl+Shift+D`     |
+| `workbench.panel.active.split-below`         | 活动面板               | `Cmd+Shift+D`      | `Ctrl+Shift+E`     |
+| `workbench.search.all.open`                  | Workbench              | `Cmd+Shift+F`      | `Ctrl+Shift+K`     |
+| `workbench.settings.open`                    | Workbench              | `Cmd+,`            | `Ctrl+,`           |
+| `workbench.sidebar.toggle`                   | Workbench              | `Cmd+B`            | `Ctrl+Shift+B`     |
+| `terminal.search.open`                       | 聚焦终端或查找         | `Cmd+F`            | `Ctrl+Shift+F`     |
+| `terminal.selection.copy`                    | 具有选择功能的聚焦终端 | `Cmd+C`            | `Ctrl+Shift+C`     |
+| `terminal.clipboard.paste`                   | 聚焦终端               | `Cmd+V`            | `Ctrl+Shift+V`     |
+| `terminal.selection.select-all`              | 聚焦终端               | `Cmd+A`            | `Ctrl+Shift+A`     |
+| `terminal.clear`                             | 聚焦终端               | `Cmd+K`            | `Ctrl+Shift+L`     |
 
 新建标签页、关闭活动终端、活动面板最大化、向右分屏、向下分屏和粘贴的默认键采用 2026-08-22 观察到的 Warp [桌面端文档约定](https://docs.warp.dev/getting-started/keyboard-shortcuts)；这里只固定选择默认按键，不主张更广泛的行为或视觉一致性。Apple 的全部搜索使用 `Cmd+Shift+F`，把熟悉的 `Cmd+K` 留给且只留给已聚焦终端的清除操作。标准平台的清除使用 `Ctrl+Shift+L`；标准默认值特意保留未加 Shift 的 `Ctrl+B/T/W/K/F/D/E/V/A/L` 与 `Ctrl+C`，供 shell、终端应用和多路复用器使用。用户可以主动录入其他受支持的自定义组合键。即使某个 Action 暂时不可用，产品内冲突仍然不允许出现。
+
+方向面板聚焦采用 Ghostty 在修订版 `91f66da24527fa02d92b5fd0b41cd020f553a64c` 中的 Apple `Command+Option+Arrow` 与标准平台 `Control+Alt+Arrow` 约定，并与 Warp 修订版 `086dade63ff7327426d6276d57f85b3f2f313af0` 交叉核对。此处只负责应用层绑定选择；空间邻居解析由 Workbench 所有。
 
 没有有效绑定的命令不渲染空的快捷键提示。“重置”“滚动到底部”“新建子终端”“向左分屏”和“向上分屏”在本目录中仍然有意保持未绑定。允许用户为初始未绑定命令创建可空绑定不在本模型范围内。
 
@@ -40,7 +46,7 @@ Web 发布 Workbench 是否为当前活动产品表面。已挂载的 Workbench 
 
 ## 活动目标命令模型
 
-四个 `workbench.*.active.*` Action 是上下文命令。菜单发起的 Action 调用可以携带显式面板目标；否则使用活动标签页中聚焦的面板。执行开始时会重新解析目标，因此陈旧或缺失的目标不可用，也不会吞掉键盘事件。
+八个 `workbench.*.active.*` Action 是上下文命令。菜单发起的 Action 调用可以携带显式面板目标；否则使用活动标签页中聚焦的面板。执行开始时会重新解析目标，因此陈旧或缺失的目标不可用，也不会吞掉键盘事件。
 
 `workbench.terminal.active.close` 精确解析为一个下层关闭操作：
 
@@ -54,6 +60,8 @@ Web 发布 Workbench 是否为当前活动产品表面。已挂载的 Workbench 
 上下文 Action 会把已经注册的面板或标签页关闭 Action 准备成调用并执行。下层所有者继续负责可用性、运行中进程确认、取消、串行化与权威提交。上下文 Action 只报告下层执行结果，绝不直接修改面板或标签页状态。取消确认后，拓扑与终端会话保持不变。取消上下文执行会取消其准备好的下层执行；如果下层操作已经提交，则其完成结果仍是权威结果。下层注册缺失或陈旧时，上下文 Action 会被阻止，且不会通过直接修改来兜底。
 
 最大化只在活动标签页至少有两个面板时可解析。向右和向下分屏 Action 在存在有效目标面板时可解析。每个命令都准备并执行现有面板 Action，因此菜单、键盘分发和 Action 搜索界面共享同一个状态转换与可用性结果。不可用命令既不会执行，也不会触发 `preventDefault()`。
+
+四个方向聚焦 Action 仅在没有面板最大化时根据加权拆分布局解析。Workbench 要求所请求方向存在一个在垂直于移动方向的轴上具有正重叠的相邻面板，在外边缘绝不循环，并通过现有面板聚焦 Action 委托结果。方向上没有邻居时，快捷键事件仍可交给终端或浏览器处理。
 
 ## 和弦与冲突模型
 
@@ -94,6 +102,7 @@ Browser Preview、Gateway Browser 和 Electron 各自针对自己的源本地存
 | 活动 Workbench 绑定不依赖仍然存在的聚焦后代            | document 捕获生命周期与 Web 应用集成测试                 |
 | 空 Tab 状态下新建 Tab 会创建并聚焦新终端，设置会抑制它 | Web 应用焦点与设置作用域集成轨迹                         |
 | Apple 与标准平台默认值符合目录，且自定义编辑会影响分发 | 快捷键定义、解析器与控制器测试                           |
+| 方向聚焦会选择空间邻居，并在外边缘继续传递事件         | 四面板解析器、Action 与快捷键分发测试                    |
 | 菜单、Action 搜索和设置显示同一个当前绑定              | 投影与渲染界面测试                                       |
 | 有效 v1 与 v2 记录只迁移一次且不会丢失显式旧覆盖       | 存储迁移测试，包括与新默认值等价的覆盖                   |
 | 无效当前记录或迁移源数据不会读取更旧记录               | 存储损坏与优先级测试                                     |

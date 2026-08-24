@@ -10,9 +10,9 @@ import {
 } from '../keyboard-shortcut-catalog';
 
 describe('keyboard shortcut catalog', () => {
-	it('combines the nine Workbench and five terminal owner declarations once', () => {
-		expect(KEYBOARD_SHORTCUT_CATALOG).toHaveLength(14);
-		expect(new Set(KEYBOARD_SHORTCUT_IDS).size).toBe(14);
+	it('combines the thirteen Workbench and five terminal owner declarations once', () => {
+		expect(KEYBOARD_SHORTCUT_CATALOG).toHaveLength(18);
+		expect(new Set(KEYBOARD_SHORTCUT_IDS).size).toBe(18);
 		expect(keyboardShortcutDeclaration('workbench.search.actions.open')).toMatchObject({
 			actionId: 'workbench.search.open',
 			actionInput: { filter: 'actions' },
@@ -26,6 +26,12 @@ describe('keyboard shortcut catalog', () => {
 			actionId: 'workbench.terminal.active.close',
 			availability: 'active-terminal',
 			scope: 'active-terminal',
+		});
+		expect(keyboardShortcutDeclaration('workbench.panel.active.focus-left')).toMatchObject({
+			actionId: 'workbench.panel.active.focus-left',
+			availability: 'directional-panel',
+			name: 'focus-panel-left',
+			scope: 'active-panel',
 		});
 		expect(keyboardShortcutDeclaration('terminal.clipboard.paste')).toMatchObject({
 			actionId: 'terminal.clipboard.paste',
@@ -49,6 +55,12 @@ describe('keyboard shortcut catalog', () => {
 		expect(formatKeyboardShortcutChord(apple['workbench.terminal.active.close'], 'apple')).toBe(
 			'⌘W',
 		);
+		expect(formatKeyboardShortcutChord(apple['workbench.panel.active.focus-left'], 'apple')).toBe(
+			'⌥⌘←',
+		);
+		expect(
+			formatKeyboardShortcutChord(standard['workbench.panel.active.focus-right'], 'standard'),
+		).toBe('Ctrl+Alt+→');
 		expect(
 			formatKeyboardShortcutChord(standard['workbench.panel.active.split-below'], 'standard'),
 		).toBe('Ctrl+Shift+E');

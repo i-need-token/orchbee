@@ -677,27 +677,6 @@ function insertPanelNode(
 	}
 
 	for (const [index, child] of node.children.entries()) {
-		if (
-			node.orientation === orientation &&
-			child.node.kind === 'panel' &&
-			child.node.id === panelId
-		) {
-			const nextWeight = child.weight / 2;
-			const sourceChild = { ...child, weight: nextWeight };
-			const newChild = {
-				id: slotIds.insertedPanelSlotId,
-				node: newPanel,
-				weight: nextWeight,
-			};
-			const children = [...node.children];
-			children.splice(
-				index,
-				1,
-				...(directionInsertsBefore(direction) ? [newChild, sourceChild] : [sourceChild, newChild]),
-			);
-			return { changed: true, node: { ...node, children } };
-		}
-
 		const result = insertPanelNode(child.node, panelId, direction, newPanel, splitId, slotIds);
 		if (result.changed) {
 			const children = [...node.children];
@@ -709,28 +688,9 @@ function insertPanelNode(
 	return { changed: false, node };
 }
 
-function normalizeSplit(split: PanelSplit): PanelLayoutNode {
-	const flattenedChildren = split.children.flatMap((child): readonly PanelSplitChild[] => {
-		if (child.node.kind !== 'split' || child.node.orientation !== split.orientation) {
-			return [child];
-		}
-		return child.node.children.map((nestedChild) => ({
-			id: nestedChild.id,
-			node: nestedChild.node,
-			weight: (child.weight * nestedChild.weight) / WEIGHT_TOTAL,
-		}));
-	});
-	const currentTotal = flattenedChildren.reduce((sum, child) => sum + child.weight, 0);
-	const children = flattenedChildren.map((child) => ({
-		id: child.id,
-		node: child.node,
-		weight:
-			currentTotal <= WEIGHT_TOLERANCE
-				? WEIGHT_TOTAL / flattenedChildren.length
-				: (child.weight * WEIGHT_TOTAL) / currentTotal,
-	}));
-	const onlyChild = children.length === 1 ? children[0] : undefined;
-	return onlyChild === undefined ? { ...split, children } : onlyChild.node;
+function collapseSplit(split: PanelSplit): PanelLayoutNode {
+	const onlyChild = split.children.length === 1 ? split.children[0] : undefined;
+	return onlyChild === undefined ? split : onlyChild.node;
 }
 
 function removePanelFromNode(node: PanelLayoutNode, panelId: string): TreeRemoval {
@@ -752,7 +712,7 @@ function removePanelFromNode(node: PanelLayoutNode, panelId: string): TreeRemova
 			};
 		}
 		return {
-			node: normalizeSplit({ ...node, children }),
+			node: collapseSplit({ ...node, children }),
 			removed: true,
 		};
 	}
@@ -2208,8 +2168,8 @@ export function validatePanelWorkspaceState(state: PanelWorkspaceState): readonl
 				errors.push(`Duplicate split id: ${node.id}`);
 			}
 			splitIds.add(node.id);
-			if (node.children.length < 2) {
-				errors.push(`Split has fewer than two children: ${node.id}`);
+			if (node.children.length !== 2) {
+				errors.push(`Split does not have exactly two children: ${node.id}`);
 			}
 			const childIds = new Set(node.children.map((child) => child.id));
 			if (childIds.size !== node.children.length) {
@@ -2228,12 +2188,7 @@ export function validatePanelWorkspaceState(state: PanelWorkspaceState): readonl
 			) {
 				errors.push(`Invalid split weights: ${node.id}`);
 			}
-			for (const child of node.children) {
-				if (child.node.kind === 'split' && child.node.orientation === node.orientation) {
-					errors.push(`Nested split repeats orientation: ${child.node.id}`);
-				}
-				visit(child.node);
-			}
+			for (const child of node.children) visit(child.node);
 		};
 		visit(tab.root);
 	}

@@ -28,7 +28,7 @@ describe('useKeyboardShortcutSettingsView', () => {
 				}),
 			{ wrapper: I18nWrapper },
 		);
-		expect(allRows.result.current.rows).toHaveLength(14);
+		expect(allRows.result.current.rows).toHaveLength(18);
 		expect(allRows.result.current.rows[0]).toMatchObject({
 			actionName: 'Search actions',
 			chord: 'Ctrl+Shift+P',
@@ -51,6 +51,13 @@ describe('useKeyboardShortcutSettingsView', () => {
 			availability: 'When a terminal tab is active',
 			chord: 'Ctrl+Shift+W',
 			scope: 'Active terminal',
+		});
+		expect(
+			allRows.result.current.rows.find((row) => row.actionName === 'Focus panel left'),
+		).toMatchObject({
+			availability: 'When an adjacent panel exists in that direction',
+			chord: 'Ctrl+Alt+←',
+			scope: 'Active panel',
 		});
 		controller.dispose();
 	});

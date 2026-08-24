@@ -12,7 +12,9 @@ import { terminalPresentationId } from '../../../terminal-presentation';
 import {
 	PANEL_ACTION_IDS,
 	panelCloseInput,
+	panelTargetInput,
 	type PanelCloseInput,
+	type PanelTargetInput,
 } from '../../components/workbench-panel-workspace/actions/panel-action-contracts';
 import { createWorkbenchPreviewTerminalPresentationComposition } from '../../model/createWorkbenchPreviewTerminalPresentationComposition';
 import { WorkbenchProjectWorkspaceRuntime } from '../../model/WorkbenchProjectWorkspaceRuntime';
@@ -150,6 +152,42 @@ describe('registerWorkbenchActiveTerminalActions', () => {
 			}),
 		).toMatchObject({ availability: { kind: 'disabled' } });
 	});
+
+	it('executes the prepared focus Action for a directional neighbor', async () => {
+		const harness = createHarness();
+		const store = harness.projectWorkspaceRuntime.getActiveTerminalContext().panelWorkspaceStore;
+		const tabId = store.getActiveTabId();
+		if (tabId === null) throw new Error('Expected an active Tab.');
+		store.transition({
+			direction: 'right',
+			newTerminalTitle: 'Terminal 2',
+			panelId: 'panel-1',
+			presentation: store.createTerminalPresentation(),
+			tabId,
+			type: 'panel-split',
+		});
+		const lowerExecute = vi.fn<(input: PanelTargetInput) => void>();
+		registerPanelFocus(harness, (context, input) => {
+			lowerExecute(input);
+			context.markCommitted();
+			return { kind: 'completed' };
+		});
+
+		await expect(harness.execute(WORKBENCH_ACTION_IDS.focusActivePanelLeft)).resolves.toEqual({
+			kind: 'completed',
+		});
+		expect(lowerExecute).toHaveBeenCalledExactlyOnceWith({ panelId: 'panel-1' });
+	});
+
+	it('keeps an outer-edge directional focus Action unavailable', () => {
+		const harness = createHarness();
+		expect(
+			harness.runtime.resolveAction(WORKBENCH_ACTION_IDS.focusActivePanelLeft, undefined, {
+				scope: harness.scope,
+				source: 'keyboard',
+			}),
+		).toMatchObject({ availability: { kind: 'disabled' } });
+	});
 });
 
 interface Harness {
@@ -219,6 +257,32 @@ function registerTabClose(
 			id: TAB_STRIP_ACTION_IDS.closeTabs,
 			input: tabCloseInput,
 			title: { defaultMessage: 'Close Tab' },
+		}),
+	);
+}
+
+function registerPanelFocus(
+	harness: Harness,
+	execute: (
+		context: ActionExecutionContext,
+		input: PanelTargetInput,
+	) => ActionResult | Promise<ActionResult>,
+): void {
+	const panelScope = harness.runtime.createScope('panel-workspace', harness.scope);
+	harness.runtime.register(
+		panelScope,
+		defineAction({
+			category: { id: 'panels', title: { defaultMessage: 'Panels' } },
+			execution: {
+				concurrency: 'parallel',
+				concurrencyKey: (input) => input.panelId,
+				mode: 'foreground',
+			},
+			getAvailability: () => ({ kind: 'enabled' }),
+			handler: { execute },
+			id: PANEL_ACTION_IDS.focus,
+			input: panelTargetInput,
+			title: { defaultMessage: 'Focus panel' },
 		}),
 	);
 }

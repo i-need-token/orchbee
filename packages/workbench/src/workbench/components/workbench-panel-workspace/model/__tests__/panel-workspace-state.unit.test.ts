@@ -594,15 +594,16 @@ describe('panel workspace state', () => {
 			),
 		);
 
-		expect(previewRoot.children.map((child) => child.node.id)).toEqual([
-			'panel-4',
+		const rightBranch = requireSplit(requireDefined(previewRoot.children[1]).node);
+		const targetBranch = requireSplit(requireDefined(rightBranch.children[1]).node);
+
+		expect(previewRoot.children.map((child) => child.node.id)).toEqual(['panel-4', 'split-2']);
+		expect(rightBranch.children.map((child) => child.node.id)).toEqual([
 			'panel-2',
-			'panel-1',
-			'panel-3',
+			'panel-drag-preview-split',
 		]);
-		expect(new Set(previewRoot.children.map((child) => child.id)).size).toBe(
-			previewRoot.children.length,
-		);
+		expect(targetBranch.children.map((child) => child.node.id)).toEqual(['panel-1', 'panel-3']);
+		expect(hasUniquePanelSlotIds(previewRoot)).toBe(true);
 	});
 
 	it('keeps slot ids unique when moving a panel out of a non-collapsing nested split', () => {
@@ -624,7 +625,7 @@ describe('panel workspace state', () => {
 		expect(() => assertValidPanelMove(state, 'panel-1', 'panel-2', 'left')).not.toThrow();
 	});
 
-	it('keeps the untouched sibling at 50 percent when the right panel splits again', () => {
+	it('keeps the outer sibling at 50 percent when the right panel splits again', () => {
 		let state = createPanelWorkspaceState([{ id: 'tab-a', title: 'Terminal 1' }]);
 		state = apply(state, {
 			direction: 'right',
@@ -641,8 +642,10 @@ describe('panel workspace state', () => {
 			type: 'panel-split',
 		});
 		const root = requireSplit(requireDefined(state.tabs[0]).root);
+		const nestedRight = requireSplit(requireDefined(root.children[1]).node);
 
-		expect(root.children.map((child) => child.weight)).toEqual([50, 25, 25]);
+		expect(root.children.map((child) => child.weight)).toEqual([50, 50]);
+		expect(nestedRight.children.map((child) => child.weight)).toEqual([50, 50]);
 	});
 
 	it('keeps the parent split child identity stable when a panel becomes a nested split', () => {
@@ -706,6 +709,49 @@ describe('panel workspace state', () => {
 		expect(root.children.map((child) => child.node.kind)).toEqual(['panel', 'panel']);
 	});
 
+	it('restores an equal four-Panel grid after closing one leaf of a repeated right split', () => {
+		let state = createPanelWorkspaceState([{ id: 'tab-a', title: 'Terminal 1' }]);
+		for (const [panelId, direction] of [
+			['panel-1', 'below'],
+			['panel-1', 'right'],
+			['panel-2', 'right'],
+			['panel-4', 'right'],
+		] as const) {
+			state = apply(state, {
+				direction,
+				newTerminalTitle: terminalTitle(state),
+				panelId,
+				tabId: 'tab-a',
+				type: 'panel-split',
+			});
+		}
+
+		const rootBeforeClose = requireSplit(requireTab(state).root);
+		const lowerBeforeClose = requireSplit(requireDefined(rootBeforeClose.children[1]).node);
+		expect(lowerBeforeClose.children).toHaveLength(2);
+		expect(requireDefined(lowerBeforeClose.children[1]).node.kind).toBe('split');
+
+		state = apply(state, {
+			panelId: 'panel-4',
+			tabId: 'tab-a',
+			type: 'panel-closed',
+		});
+		const root = requireSplit(requireTab(state).root);
+		const upper = requireSplit(requireDefined(root.children[0]).node);
+		const lower = requireSplit(requireDefined(root.children[1]).node);
+
+		expect(root.orientation).toBe('vertical');
+		expect(root.children.map((child) => child.weight)).toEqual([50, 50]);
+		expect(upper.children.map((child) => child.weight)).toEqual([50, 50]);
+		expect(lower.children.map((child) => child.weight)).toEqual([50, 50]);
+		expect(collectPanelLeaves(root).map((panel) => panel.id)).toEqual([
+			'panel-1',
+			'panel-3',
+			'panel-2',
+			'panel-5',
+		]);
+	});
+
 	it('keeps focus on the current panel when a different panel closes', () => {
 		let state = createPanelWorkspaceState([{ id: 'tab-a', title: 'Terminal 1' }]);
 		for (const panelId of ['panel-1', 'panel-2']) {
@@ -764,7 +810,7 @@ describe('panel workspace state', () => {
 		expect(requireTab(firstClosed.state).focusedPanelId).toBe('panel-2');
 	});
 
-	it('resizes only the pair adjacent to a separator', () => {
+	it('resizes only the binary split that owns a separator', () => {
 		let state = createPanelWorkspaceState([{ id: 'tab-a', title: 'Terminal 1' }]);
 		for (const panelId of ['panel-1', 'panel-2']) {
 			state = apply(state, {
@@ -784,12 +830,14 @@ describe('panel workspace state', () => {
 			type: 'adjacent-panels-resized',
 		});
 
-		expect(
-			requireSplit(requireDefined(state.tabs[0]).root).children.map((child) => child.weight),
-		).toEqual([30, 45, 25]);
+		const resizedRoot = requireSplit(requireDefined(state.tabs[0]).root);
+		const nestedRight = requireSplit(requireDefined(resizedRoot.children[1]).node);
+
+		expect(resizedRoot.children.map((child) => child.weight)).toEqual([30, 70]);
+		expect(nestedRight.children.map((child) => child.weight)).toEqual([50, 50]);
 	});
 
-	it('nests the other orientation and flattens repeated orientations', () => {
+	it('keeps repeated orientations nested after closing an intermediate sibling', () => {
 		let state = createPanelWorkspaceState([{ id: 'tab-a', title: 'Terminal 1' }]);
 		state = apply(state, {
 			direction: 'right',
@@ -818,9 +866,16 @@ describe('panel workspace state', () => {
 			type: 'panel-closed',
 		});
 
-		expect(collectPanelLeaves(requireDefined(state.tabs[0]).root).map((panel) => panel.id)).toEqual(
-			['panel-1', 'panel-3', 'panel-4'],
-		);
+		const root = requireSplit(requireDefined(state.tabs[0]).root);
+		const repeatedRight = requireSplit(requireDefined(root.children[1]).node);
+
+		expect(root.orientation).toBe('horizontal');
+		expect(repeatedRight.orientation).toBe('horizontal');
+		expect(collectPanelLeaves(root).map((panel) => panel.id)).toEqual([
+			'panel-1',
+			'panel-3',
+			'panel-4',
+		]);
 	});
 
 	it('creates one-level child terminals, switches presentation, and returns to primary on close', () => {

@@ -260,6 +260,80 @@ describe('Workbench shared document and Client View', () => {
 		expect(WorkbenchSharedDocumentRevisionSchema.safeParse('-1').success).toBe(false);
 	});
 
+	it('accepts a same-axis binary split as meaningful close ancestry', () => {
+		const input = inputWithTabs([3]);
+		const terminalContext = input.terminalContexts[0];
+		const workspaceTab = terminalContext?.panelWorkspace.tabs[0];
+		const root = workspaceTab?.root;
+		if (terminalContext === undefined || workspaceTab === undefined || root?.kind !== 'split') {
+			throw new Error('Expected a three-Panel shared-document fixture.');
+		}
+		const nestedChild = root.children[1];
+		if (nestedChild?.node.kind !== 'split') {
+			throw new Error('Expected a nested split fixture.');
+		}
+		const sameAxisRoot: WorkbenchSharedPanelNode = {
+			...root,
+			children: [
+				root.children[0] ?? nestedChild,
+				{
+					...nestedChild,
+					node: { ...nestedChild.node, orientation: root.orientation },
+				},
+			],
+		};
+
+		expect(
+			WorkbenchSharedDocumentSchema.safeParse({
+				...input,
+				version: 1,
+				terminalContexts: [
+					{
+						...terminalContext,
+						panelWorkspace: {
+							...terminalContext.panelWorkspace,
+							tabs: [{ ...workspaceTab, root: sameAxisRoot }],
+						},
+					},
+				],
+			}).success,
+		).toBe(true);
+	});
+
+	it('rejects an n-ary Split from the binary shared topology', () => {
+		const input = inputWithTabs([2]);
+		const terminalContext = input.terminalContexts[0];
+		const workspaceTab = terminalContext?.panelWorkspace.tabs[0];
+		const root = workspaceTab?.root;
+		if (terminalContext === undefined || workspaceTab === undefined || root?.kind !== 'split') {
+			throw new Error('Expected a two-Panel shared-document fixture.');
+		}
+
+		expect(
+			WorkbenchSharedDocumentSchema.safeParse({
+				...input,
+				version: 1,
+				terminalContexts: [
+					{
+						...terminalContext,
+						panelWorkspace: {
+							...terminalContext.panelWorkspace,
+							tabs: [
+								{
+									...workspaceTab,
+									root: {
+										...root,
+										children: [...root.children, { id: 'panel-slot-extra', node: panel(999) }],
+									},
+								},
+							],
+						},
+					},
+				],
+			}).success,
+		).toBe(false);
+	});
+
 	it('round-trips generated hierarchies and reconciles Client Views with a stable seed', () => {
 		fc.assert(
 			fc.property(

@@ -50,4 +50,22 @@ describe('keyboard shortcut overrides', () => {
 			),
 		).toBe(true);
 	});
+
+	it('applies a custom directional focus binding without changing the other directions', () => {
+		const bindings = createKeyboardShortcutBindings('standard', [
+			{
+				chord: { code: 'KeyH', modifiers: ['alt', 'mod'] },
+				shortcutId: 'workbench.panel.active.focus-left',
+			},
+		]);
+
+		expect(bindings['workbench.panel.active.focus-left']).toEqual({
+			code: 'KeyH',
+			modifiers: ['alt', 'mod'],
+		});
+		expect(bindings['workbench.panel.active.focus-right']).toEqual({
+			code: 'ArrowRight',
+			modifiers: ['alt', 'mod'],
+		});
+	});
 });

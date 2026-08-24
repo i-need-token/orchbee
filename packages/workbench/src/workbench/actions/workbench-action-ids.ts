@@ -12,6 +12,10 @@ export const WORKBENCH_ACTION_IDS = {
 	createWorkspace: 'workbench.workspace.create',
 	deleteWorkspace: 'workbench.workspace.delete',
 	duplicateWorkspace: 'workbench.workspace.duplicate',
+	focusActivePanelDown: 'workbench.panel.active.focus-down',
+	focusActivePanelLeft: 'workbench.panel.active.focus-left',
+	focusActivePanelRight: 'workbench.panel.active.focus-right',
+	focusActivePanelUp: 'workbench.panel.active.focus-up',
 	openSearch: 'workbench.search.open',
 	openSettings: 'workbench.settings.open',
 	removeProject: 'workbench.project.remove',
@@ -94,6 +98,10 @@ export interface WorkbenchActionCatalog {
 	readonly [WORKBENCH_ACTION_IDS.createWorkspace]: ActionSignature<WorkbenchWorkspaceCreateInput>;
 	readonly [WORKBENCH_ACTION_IDS.deleteWorkspace]: ActionSignature<WorkbenchWorkspaceInput>;
 	readonly [WORKBENCH_ACTION_IDS.duplicateWorkspace]: ActionSignature<WorkbenchWorkspaceInput>;
+	readonly [WORKBENCH_ACTION_IDS.focusActivePanelDown]: ActionSignature<void>;
+	readonly [WORKBENCH_ACTION_IDS.focusActivePanelLeft]: ActionSignature<void>;
+	readonly [WORKBENCH_ACTION_IDS.focusActivePanelRight]: ActionSignature<void>;
+	readonly [WORKBENCH_ACTION_IDS.focusActivePanelUp]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.openSearch]: ActionSignature<WorkbenchSearchOpenInput>;
 	readonly [WORKBENCH_ACTION_IDS.openSettings]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.removeProject]: ActionSignature<WorkbenchProjectInput>;

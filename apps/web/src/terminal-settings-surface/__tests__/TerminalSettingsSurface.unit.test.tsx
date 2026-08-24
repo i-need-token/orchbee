@@ -640,10 +640,12 @@ describe('TerminalSettingsSurface', () => {
 			),
 		);
 		await act(async () => keyboardCategory.click());
-		expect(container.querySelectorAll('[data-shortcut-id]')).toHaveLength(14);
+		expect(container.querySelectorAll('[data-shortcut-id]')).toHaveLength(18);
 		expect(container.textContent).toContain('Ctrl+Shift+T');
 		expect(container.textContent).toContain('Ctrl+Shift+W');
 		expect(container.textContent).toContain('Clear terminal');
+		expect(container.textContent).toContain('Focus panel left');
+		expect(container.textContent).toContain('Ctrl+Alt+←');
 		expect(container.textContent).toContain('Focused terminal');
 
 		const search = requiredElement<HTMLInputElement>(
@@ -653,7 +655,7 @@ describe('TerminalSettingsSurface', () => {
 			setInputValue(search, 'Focused terminal');
 			search.dispatchEvent(new Event('input', { bubbles: true }));
 		});
-		expect(container.querySelectorAll('[data-shortcut-id]')).toHaveLength(14);
+		expect(container.querySelectorAll('[data-shortcut-id]')).toHaveLength(18);
 		expect(
 			container.querySelectorAll('[data-settings-search-result]').length,
 		).toBeGreaterThanOrEqual(3);

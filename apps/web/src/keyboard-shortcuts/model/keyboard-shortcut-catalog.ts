@@ -33,7 +33,8 @@ export type KeyboardShortcutAvailability =
 	| 'always-in-workbench'
 	| 'focused-terminal'
 	| 'focused-terminal-with-selection'
-	| 'multiple-panels';
+	| 'multiple-panels'
+	| 'directional-panel';
 
 export interface KeyboardShortcutDeclaration {
 	readonly actionId: string;
@@ -47,6 +48,10 @@ export interface KeyboardShortcutDeclaration {
 		| 'close-terminal'
 		| 'copy-selection'
 		| 'find'
+		| 'focus-panel-down'
+		| 'focus-panel-left'
+		| 'focus-panel-right'
+		| 'focus-panel-up'
 		| 'global-search'
 		| 'maximize-panel'
 		| 'new-terminal'
@@ -90,6 +95,46 @@ export const KEYBOARD_SHORTCUT_CATALOG = Object.freeze([
 		name: 'close-terminal',
 		scope: 'active-terminal',
 		shortcutId: WORKBENCH_SHORTCUTS.closeActiveTerminal.shortcutId,
+	}),
+	Object.freeze({
+		actionId: WORKBENCH_SHORTCUTS.focusActivePanelDown.id,
+		actionInput: WORKBENCH_SHORTCUTS.focusActivePanelDown.input,
+		availability: 'directional-panel',
+		defaults: WORKBENCH_SHORTCUTS.focusActivePanelDown.defaults,
+		feature: 'workbench',
+		name: 'focus-panel-down',
+		scope: 'active-panel',
+		shortcutId: WORKBENCH_SHORTCUTS.focusActivePanelDown.shortcutId,
+	}),
+	Object.freeze({
+		actionId: WORKBENCH_SHORTCUTS.focusActivePanelLeft.id,
+		actionInput: WORKBENCH_SHORTCUTS.focusActivePanelLeft.input,
+		availability: 'directional-panel',
+		defaults: WORKBENCH_SHORTCUTS.focusActivePanelLeft.defaults,
+		feature: 'workbench',
+		name: 'focus-panel-left',
+		scope: 'active-panel',
+		shortcutId: WORKBENCH_SHORTCUTS.focusActivePanelLeft.shortcutId,
+	}),
+	Object.freeze({
+		actionId: WORKBENCH_SHORTCUTS.focusActivePanelRight.id,
+		actionInput: WORKBENCH_SHORTCUTS.focusActivePanelRight.input,
+		availability: 'directional-panel',
+		defaults: WORKBENCH_SHORTCUTS.focusActivePanelRight.defaults,
+		feature: 'workbench',
+		name: 'focus-panel-right',
+		scope: 'active-panel',
+		shortcutId: WORKBENCH_SHORTCUTS.focusActivePanelRight.shortcutId,
+	}),
+	Object.freeze({
+		actionId: WORKBENCH_SHORTCUTS.focusActivePanelUp.id,
+		actionInput: WORKBENCH_SHORTCUTS.focusActivePanelUp.input,
+		availability: 'directional-panel',
+		defaults: WORKBENCH_SHORTCUTS.focusActivePanelUp.defaults,
+		feature: 'workbench',
+		name: 'focus-panel-up',
+		scope: 'active-panel',
+		shortcutId: WORKBENCH_SHORTCUTS.focusActivePanelUp.shortcutId,
 	}),
 	Object.freeze({
 		actionId: WORKBENCH_SHORTCUTS.maximizeActivePanel.id,
@@ -207,23 +252,9 @@ export const KEYBOARD_SHORTCUT_IDS = Object.freeze(
 	KEYBOARD_SHORTCUT_CATALOG.map((declaration) => declaration.shortcutId),
 );
 
-const DECLARATION_BY_ID: Readonly<Record<KeyboardShortcutId, KeyboardShortcutDeclaration>> =
-	Object.freeze({
-		[WORKBENCH_SHORTCUTS.actionsSearch.shortcutId]: KEYBOARD_SHORTCUT_CATALOG[0],
-		[WORKBENCH_SHORTCUTS.newTerminal.shortcutId]: KEYBOARD_SHORTCUT_CATALOG[1],
-		[WORKBENCH_SHORTCUTS.closeActiveTerminal.shortcutId]: KEYBOARD_SHORTCUT_CATALOG[2],
-		[WORKBENCH_SHORTCUTS.maximizeActivePanel.shortcutId]: KEYBOARD_SHORTCUT_CATALOG[3],
-		[WORKBENCH_SHORTCUTS.splitActivePanelRight.shortcutId]: KEYBOARD_SHORTCUT_CATALOG[4],
-		[WORKBENCH_SHORTCUTS.splitActivePanelBelow.shortcutId]: KEYBOARD_SHORTCUT_CATALOG[5],
-		[WORKBENCH_SHORTCUTS.search.shortcutId]: KEYBOARD_SHORTCUT_CATALOG[6],
-		[WORKBENCH_SHORTCUTS.settings.shortcutId]: KEYBOARD_SHORTCUT_CATALOG[7],
-		[WORKBENCH_SHORTCUTS.toggleSidebar.shortcutId]: KEYBOARD_SHORTCUT_CATALOG[8],
-		[PROJECTED_TERMINAL_SHORTCUTS.findOpen.shortcutId]: KEYBOARD_SHORTCUT_CATALOG[9],
-		[PROJECTED_TERMINAL_SHORTCUTS.copySelection.shortcutId]: KEYBOARD_SHORTCUT_CATALOG[10],
-		[PROJECTED_TERMINAL_SHORTCUTS.paste.shortcutId]: KEYBOARD_SHORTCUT_CATALOG[11],
-		[PROJECTED_TERMINAL_SHORTCUTS.selectAll.shortcutId]: KEYBOARD_SHORTCUT_CATALOG[12],
-		[PROJECTED_TERMINAL_SHORTCUTS.clear.shortcutId]: KEYBOARD_SHORTCUT_CATALOG[13],
-	});
+const DECLARATION_BY_ID: ReadonlyMap<string, KeyboardShortcutDeclaration> = new Map(
+	KEYBOARD_SHORTCUT_CATALOG.map((declaration) => [declaration.shortcutId, declaration]),
+);
 
 interface KeyboardShortcutConflictPair {
 	readonly firstShortcutId: KeyboardShortcutId;
@@ -233,11 +264,15 @@ interface KeyboardShortcutConflictPair {
 export function keyboardShortcutDeclaration(
 	shortcutId: KeyboardShortcutId,
 ): KeyboardShortcutDeclaration {
-	return DECLARATION_BY_ID[shortcutId];
+	const declaration = DECLARATION_BY_ID.get(shortcutId);
+	if (declaration === undefined) {
+		throw new Error(`Missing keyboard shortcut declaration: ${shortcutId}`);
+	}
+	return declaration;
 }
 
 export function isKeyboardShortcutId(value: string): value is KeyboardShortcutId {
-	return Object.hasOwn(DECLARATION_BY_ID, value);
+	return DECLARATION_BY_ID.has(value);
 }
 
 export function defaultKeyboardShortcutBindings(

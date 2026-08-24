@@ -76,6 +76,14 @@ export function useKeyboardShortcutSettingsView({
 				return intl.formatMessage(keyboardShortcutMessages.toggleSidebar);
 			case 'find':
 				return intl.formatMessage(keyboardShortcutMessages.find);
+			case 'focus-panel-down':
+				return intl.formatMessage(keyboardShortcutMessages.focusPanelDown);
+			case 'focus-panel-left':
+				return intl.formatMessage(keyboardShortcutMessages.focusPanelLeft);
+			case 'focus-panel-right':
+				return intl.formatMessage(keyboardShortcutMessages.focusPanelRight);
+			case 'focus-panel-up':
+				return intl.formatMessage(keyboardShortcutMessages.focusPanelUp);
 			case 'copy-selection':
 				return intl.formatMessage(keyboardShortcutMessages.copySelection);
 			case 'paste':
@@ -112,6 +120,8 @@ export function useKeyboardShortcutSettingsView({
 				return intl.formatMessage(
 					keyboardShortcutMessages.availabilityFocusedTerminalWithSelection,
 				);
+			case 'directional-panel':
+				return intl.formatMessage(keyboardShortcutMessages.availabilityDirectionalPanel);
 			case 'multiple-panels':
 				return intl.formatMessage(keyboardShortcutMessages.availabilityMultiplePanels);
 		}

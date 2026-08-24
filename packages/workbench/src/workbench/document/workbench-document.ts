@@ -169,12 +169,14 @@ const panelNodeSchema: z.ZodType<WorkbenchSharedPanelNode> = z.lazy(() =>
 			primaryPresentation: presentationSchema,
 		}),
 		z.strictObject({
-			children: z.array(
-				z.strictObject({
-					id: identifierSchema,
-					node: panelNodeSchema,
-				}),
-			),
+			children: z
+				.array(
+					z.strictObject({
+						id: identifierSchema,
+						node: panelNodeSchema,
+					}),
+				)
+				.length(2),
 			id: identifierSchema,
 			kind: z.literal('split'),
 			orientation: z.enum(['horizontal', 'vertical']),
@@ -388,7 +390,6 @@ function validatePanelWorkspace(
 		const localPanels = new Map<string, WorkbenchSharedPanelLeaf>();
 		visitPanelNode(
 			tab.root,
-			null,
 			panelIds,
 			splitIds,
 			slotIds,
@@ -450,7 +451,6 @@ function validatePanelWorkspace(
 
 function visitPanelNode(
 	node: WorkbenchSharedPanelNode,
-	parentOrientation: WorkbenchSharedPanelSplit['orientation'] | null,
 	panelIds: Set<string>,
 	splitIds: Set<string>,
 	slotIds: Set<string>,
@@ -474,16 +474,14 @@ function visitPanelNode(
 	}
 	if (splitIds.has(node.id)) issues.push(`Duplicate Split: ${node.id}.`);
 	splitIds.add(node.id);
-	if (node.children.length < 2) issues.push(`Split ${node.id} has fewer than two children.`);
-	if (parentOrientation === node.orientation) {
-		issues.push(`Split ${node.id} repeats its parent orientation.`);
+	if (node.children.length !== 2) {
+		issues.push(`Split ${node.id} does not have exactly two children.`);
 	}
 	for (const child of node.children) {
 		if (slotIds.has(child.id)) issues.push(`Duplicate Panel slot: ${child.id}.`);
 		slotIds.add(child.id);
 		visitPanelNode(
 			child.node,
-			node.orientation,
 			panelIds,
 			splitIds,
 			slotIds,

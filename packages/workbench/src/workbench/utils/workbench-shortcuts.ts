@@ -13,6 +13,10 @@ interface WorkbenchShortcutDefinition {
 	readonly id:
 		| typeof WORKBENCH_ACTION_IDS.closeActiveTerminal
 		| typeof WORKBENCH_ACTION_IDS.createTerminal
+		| typeof WORKBENCH_ACTION_IDS.focusActivePanelDown
+		| typeof WORKBENCH_ACTION_IDS.focusActivePanelLeft
+		| typeof WORKBENCH_ACTION_IDS.focusActivePanelRight
+		| typeof WORKBENCH_ACTION_IDS.focusActivePanelUp
 		| typeof WORKBENCH_ACTION_IDS.openSearch
 		| typeof WORKBENCH_ACTION_IDS.openSettings
 		| typeof WORKBENCH_ACTION_IDS.splitActivePanelBelow
@@ -46,6 +50,42 @@ export const WORKBENCH_SHORTCUTS = {
 		id: WORKBENCH_ACTION_IDS.closeActiveTerminal,
 		input: undefined,
 		shortcutId: WORKBENCH_ACTION_IDS.closeActiveTerminal,
+	},
+	focusActivePanelDown: {
+		defaults: {
+			apple: chord('ArrowDown', ['alt', 'mod']),
+			standard: chord('ArrowDown', ['alt', 'mod']),
+		},
+		id: WORKBENCH_ACTION_IDS.focusActivePanelDown,
+		input: undefined,
+		shortcutId: WORKBENCH_ACTION_IDS.focusActivePanelDown,
+	},
+	focusActivePanelLeft: {
+		defaults: {
+			apple: chord('ArrowLeft', ['alt', 'mod']),
+			standard: chord('ArrowLeft', ['alt', 'mod']),
+		},
+		id: WORKBENCH_ACTION_IDS.focusActivePanelLeft,
+		input: undefined,
+		shortcutId: WORKBENCH_ACTION_IDS.focusActivePanelLeft,
+	},
+	focusActivePanelRight: {
+		defaults: {
+			apple: chord('ArrowRight', ['alt', 'mod']),
+			standard: chord('ArrowRight', ['alt', 'mod']),
+		},
+		id: WORKBENCH_ACTION_IDS.focusActivePanelRight,
+		input: undefined,
+		shortcutId: WORKBENCH_ACTION_IDS.focusActivePanelRight,
+	},
+	focusActivePanelUp: {
+		defaults: {
+			apple: chord('ArrowUp', ['alt', 'mod']),
+			standard: chord('ArrowUp', ['alt', 'mod']),
+		},
+		id: WORKBENCH_ACTION_IDS.focusActivePanelUp,
+		input: undefined,
+		shortcutId: WORKBENCH_ACTION_IDS.focusActivePanelUp,
 	},
 	maximizeActivePanel: {
 		defaults: {
@@ -128,6 +168,10 @@ export interface WorkbenchShortcutBinding {
 const WORKBENCH_SHORTCUT_ACTIONS = Object.freeze([
 	'actionsSearch',
 	'closeActiveTerminal',
+	'focusActivePanelDown',
+	'focusActivePanelLeft',
+	'focusActivePanelRight',
+	'focusActivePanelUp',
 	'maximizeActivePanel',
 	'newTerminal',
 	'search',
@@ -169,6 +213,14 @@ export function formatWorkbenchActionShortcut(
 			return formatWorkbenchShortcut('newTerminal', platform, bindings);
 		case WORKBENCH_ACTION_IDS.closeActiveTerminal:
 			return formatWorkbenchShortcut('closeActiveTerminal', platform, bindings);
+		case WORKBENCH_ACTION_IDS.focusActivePanelDown:
+			return formatWorkbenchShortcut('focusActivePanelDown', platform, bindings);
+		case WORKBENCH_ACTION_IDS.focusActivePanelLeft:
+			return formatWorkbenchShortcut('focusActivePanelLeft', platform, bindings);
+		case WORKBENCH_ACTION_IDS.focusActivePanelRight:
+			return formatWorkbenchShortcut('focusActivePanelRight', platform, bindings);
+		case WORKBENCH_ACTION_IDS.focusActivePanelUp:
+			return formatWorkbenchShortcut('focusActivePanelUp', platform, bindings);
 		case WORKBENCH_ACTION_IDS.openSearch:
 			return formatWorkbenchShortcut('search', platform, bindings);
 		case WORKBENCH_ACTION_IDS.openSettings:
@@ -212,6 +264,14 @@ function defaultBindingsFor(platform: WorkbenchShortcutPlatform): WorkbenchShort
 			WORKBENCH_SHORTCUTS.actionsSearch.defaults[platform],
 		[WORKBENCH_SHORTCUTS.closeActiveTerminal.shortcutId]:
 			WORKBENCH_SHORTCUTS.closeActiveTerminal.defaults[platform],
+		[WORKBENCH_SHORTCUTS.focusActivePanelDown.shortcutId]:
+			WORKBENCH_SHORTCUTS.focusActivePanelDown.defaults[platform],
+		[WORKBENCH_SHORTCUTS.focusActivePanelLeft.shortcutId]:
+			WORKBENCH_SHORTCUTS.focusActivePanelLeft.defaults[platform],
+		[WORKBENCH_SHORTCUTS.focusActivePanelRight.shortcutId]:
+			WORKBENCH_SHORTCUTS.focusActivePanelRight.defaults[platform],
+		[WORKBENCH_SHORTCUTS.focusActivePanelUp.shortcutId]:
+			WORKBENCH_SHORTCUTS.focusActivePanelUp.defaults[platform],
 		[WORKBENCH_SHORTCUTS.maximizeActivePanel.shortcutId]:
 			WORKBENCH_SHORTCUTS.maximizeActivePanel.defaults[platform],
 		[WORKBENCH_SHORTCUTS.newTerminal.shortcutId]:

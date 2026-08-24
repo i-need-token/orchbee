@@ -77,6 +77,70 @@ export function registerWorkbenchActiveTerminalActions({
 				category: panelCategory,
 				execution: {
 					concurrency: 'parallel',
+					concurrencyKey: () => 'active-panel-focus-down',
+					mode: 'foreground',
+				},
+				getAvailability: availabilityFor('focus-down'),
+				handler: { execute: execute('focus-down') },
+				id: WORKBENCH_ACTION_IDS.focusActivePanelDown,
+				input: noActionInput,
+				title: workbenchMessages.panelFocusDown,
+			}),
+		),
+		typedRuntime.register(
+			scope,
+			defineAction({
+				category: panelCategory,
+				execution: {
+					concurrency: 'parallel',
+					concurrencyKey: () => 'active-panel-focus-left',
+					mode: 'foreground',
+				},
+				getAvailability: availabilityFor('focus-left'),
+				handler: { execute: execute('focus-left') },
+				id: WORKBENCH_ACTION_IDS.focusActivePanelLeft,
+				input: noActionInput,
+				title: workbenchMessages.panelFocusLeft,
+			}),
+		),
+		typedRuntime.register(
+			scope,
+			defineAction({
+				category: panelCategory,
+				execution: {
+					concurrency: 'parallel',
+					concurrencyKey: () => 'active-panel-focus-right',
+					mode: 'foreground',
+				},
+				getAvailability: availabilityFor('focus-right'),
+				handler: { execute: execute('focus-right') },
+				id: WORKBENCH_ACTION_IDS.focusActivePanelRight,
+				input: noActionInput,
+				title: workbenchMessages.panelFocusRight,
+			}),
+		),
+		typedRuntime.register(
+			scope,
+			defineAction({
+				category: panelCategory,
+				execution: {
+					concurrency: 'parallel',
+					concurrencyKey: () => 'active-panel-focus-up',
+					mode: 'foreground',
+				},
+				getAvailability: availabilityFor('focus-up'),
+				handler: { execute: execute('focus-up') },
+				id: WORKBENCH_ACTION_IDS.focusActivePanelUp,
+				input: noActionInput,
+				title: workbenchMessages.panelFocusUp,
+			}),
+		),
+		typedRuntime.register(
+			scope,
+			defineAction({
+				category: panelCategory,
+				execution: {
+					concurrency: 'parallel',
 					concurrencyKey: () => 'active-panel-maximization',
 					mode: 'foreground',
 				},
