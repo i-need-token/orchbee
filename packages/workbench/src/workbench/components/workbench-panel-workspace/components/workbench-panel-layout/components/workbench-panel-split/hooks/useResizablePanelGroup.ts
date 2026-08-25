@@ -10,6 +10,7 @@ interface UseResizablePanelGroupInput {
 	readonly canSynchronizeLayout: () => boolean;
 	readonly childIds: readonly string[];
 	readonly modelLayout: Readonly<Record<string, number>>;
+	readonly onModelLayoutSynchronized?: (() => void) | undefined;
 	readonly orientation: 'horizontal' | 'vertical';
 }
 
@@ -27,6 +28,7 @@ export function useResizablePanelGroup({
 	canSynchronizeLayout,
 	childIds,
 	modelLayout,
+	onModelLayoutSynchronized,
 	orientation,
 }: UseResizablePanelGroupInput): UseResizablePanelGroupResult {
 	const groupElementRef = React.useRef<HTMLDivElement | null>(null);
@@ -60,18 +62,27 @@ export function useResizablePanelGroup({
 			return;
 		}
 		const primitiveLayout = readLayout();
-		if (
-			primitiveLayout !== null &&
-			matchesPanelLayoutTopology(primitiveLayout, childIds) &&
-			childIds.some(
-				(childId) =>
-					typeof primitiveLayout[childId] !== 'number' ||
-					Math.abs(primitiveLayout[childId] - (modelLayout[childId] ?? 0)) > 0.000_001,
-			)
-		) {
-			writeLayout(modelLayout);
+		if (primitiveLayout === null || !matchesPanelLayoutTopology(primitiveLayout, childIds)) {
+			return;
 		}
-	}, [canSynchronizeLayout, childIds, layoutSyncRevision, modelLayout, readLayout, writeLayout]);
+		const needsSynchronization = childIds.some(
+			(childId) =>
+				typeof primitiveLayout[childId] !== 'number' ||
+				Math.abs(primitiveLayout[childId] - (modelLayout[childId] ?? 0)) > 0.000_001,
+		);
+		if (needsSynchronization && !writeLayout(modelLayout)) {
+			return;
+		}
+		onModelLayoutSynchronized?.();
+	}, [
+		canSynchronizeLayout,
+		childIds,
+		layoutSyncRevision,
+		modelLayout,
+		onModelLayoutSynchronized,
+		readLayout,
+		writeLayout,
+	]);
 
 	return {
 		getOwnerDocument,

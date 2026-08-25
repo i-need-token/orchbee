@@ -2314,6 +2314,105 @@ test('moves terminal focus through a four-Panel layout by visual direction', asy
 	await expect(bottomLeftRoot.getByRole('textbox')).toBeFocused();
 });
 
+test('restores terminal geometry, focus, input, and scrolling after Panel maximization', async () => {
+	test.setTimeout(45_000);
+	const application = electronApplication;
+	if (application === undefined) throw new Error('Electron application did not start.');
+	const page = await application.firstWindow();
+	const primaryRoot = projectedTerminal(page);
+	await expect(primaryRoot).toHaveAttribute('data-projected-terminal-state', 'open');
+	const primaryPresentationId = await primaryRoot.getAttribute('data-terminal-presentation-id');
+	if (primaryPresentationId === null) {
+		throw new Error('Primary terminal presentation identity is unavailable.');
+	}
+
+	await primaryRoot.getByRole('textbox').focus();
+	await page.keyboard.press(process.platform === 'darwin' ? 'Meta+KeyD' : 'Control+Shift+KeyD');
+	await expect(projectedTerminals(page)).toHaveCount(2);
+	await waitForProjectedTerminalsOpen(page);
+	const splitPresentationId = (await projectedTerminalPresentationIds(page)).find(
+		(presentationId) => presentationId !== primaryPresentationId,
+	);
+	if (splitPresentationId === undefined) {
+		throw new Error('Split terminal presentation identity is unavailable.');
+	}
+	const splitRoot = projectedTerminalFor(page, splitPresentationId);
+	const splitInput = splitRoot.getByRole('textbox');
+	const splitPanel = splitRoot.locator('xpath=ancestor::*[@data-slot="workbench-panel"][1]');
+	await expect(splitInput).toBeFocused();
+
+	const readGeometry = async (): Promise<{
+		readonly canvasWidth: number;
+		readonly columns: number;
+		readonly panelWidth: number;
+		readonly rootWidth: number;
+	}> => {
+		const [surface, panelBounds] = await Promise.all([
+			splitRoot.evaluate((element) => {
+				const canvas = element.querySelector('canvas');
+				if (!(canvas instanceof HTMLCanvasElement)) {
+					throw new Error('Split terminal canvas is unavailable.');
+				}
+				return {
+					canvasWidth: canvas.getBoundingClientRect().width,
+					columns: Number(element.dataset['projectedTerminalColumns'] ?? '0'),
+					rootWidth: element.getBoundingClientRect().width,
+				};
+			}),
+			splitPanel.boundingBox(),
+		]);
+		if (panelBounds === null) throw new Error('Split Panel geometry is unavailable.');
+		return { ...surface, panelWidth: panelBounds.width };
+	};
+	const initialGeometry = await readGeometry();
+	expect(initialGeometry.columns).toBeGreaterThan(0);
+
+	await splitPanel.getByRole('button', { name: /Panel options|面板选项/u }).click();
+	await page.getByRole('menuitem', { name: /Maximize Panel|最大化面板/u }).click();
+	await expect
+		.poll(async () => (await readGeometry()).columns)
+		.toBeGreaterThan(initialGeometry.columns);
+	await expect(splitInput).toBeFocused();
+	const maximizedGeometry = await readGeometry();
+	expect(maximizedGeometry.panelWidth).toBeGreaterThan(initialGeometry.panelWidth);
+	expect(maximizedGeometry.rootWidth).toBeGreaterThan(initialGeometry.rootWidth);
+	expect(maximizedGeometry.canvasWidth).toBeGreaterThan(initialGeometry.canvasWidth);
+
+	await splitInput.pressSequentially("seq 180; printf 'panel-maximized-marker\\n'", { delay: 1 });
+	await splitInput.press('Enter');
+	const accessibility = splitRoot.locator('[role="list"]');
+	await expect(accessibility).toContainText('panel-maximized-marker');
+	await expect
+		.poll(async () => Number(await accessibility.getAttribute('data-terminal-retained-rows')))
+		.toBeGreaterThan(180);
+
+	await splitPanel.getByRole('button', { name: /Panel options|面板选项/u }).click();
+	await page.getByRole('menuitem', { name: /Minimize Panel|最小化面板/u }).click();
+	await expect.poll(async () => (await readGeometry()).columns).toBe(initialGeometry.columns);
+	await expect(splitInput).toBeFocused();
+	const restoredGeometry = await readGeometry();
+	expect(Math.abs(restoredGeometry.panelWidth - initialGeometry.panelWidth)).toBeLessThanOrEqual(2);
+	expect(Math.abs(restoredGeometry.rootWidth - initialGeometry.rootWidth)).toBeLessThanOrEqual(2);
+	expect(Math.abs(restoredGeometry.canvasWidth - initialGeometry.canvasWidth)).toBeLessThanOrEqual(
+		2,
+	);
+	expect(restoredGeometry.canvasWidth).toBeLessThan(maximizedGeometry.canvasWidth);
+
+	await splitInput.pressSequentially("printf 'panel-restored-input-marker\\n'", { delay: 1 });
+	await splitInput.press('Enter');
+	await expect(accessibility).toContainText('panel-restored-input-marker');
+	await waitForTerminalPresentationStability(splitRoot);
+	const accessibleRows = accessibility.locator(':scope > div');
+	const firstVisibleRow = async (): Promise<bigint> =>
+		BigInt((await accessibleRows.first().getAttribute('data-terminal-absolute-row')) ?? '0');
+	const bottomStart = await firstVisibleRow();
+	const restoredBounds = await splitRoot.boundingBox();
+	if (restoredBounds === null) throw new Error('Restored terminal surface has no bounds.');
+	await splitRoot.locator('canvas').hover();
+	await page.mouse.wheel(0, -restoredBounds.height);
+	await expect.poll(firstVisibleRow).toBeLessThan(bottomStart);
+});
+
 test('restores an equal four-Panel grid and the MRU focus after closing a nested split', async () => {
 	const application = electronApplication;
 	if (application === undefined) throw new Error('Electron application did not start.');

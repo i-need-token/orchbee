@@ -120,6 +120,7 @@ describe('WorkbenchTerminalViewport', () => {
 			<OrchbeeI18nProvider locale='en-US'>
 				<WorkbenchTerminalViewport
 					layer={layer}
+					layoutSettled
 					panelId='panel-1'
 					terminal={terminal}
 					terminalRole='primary'

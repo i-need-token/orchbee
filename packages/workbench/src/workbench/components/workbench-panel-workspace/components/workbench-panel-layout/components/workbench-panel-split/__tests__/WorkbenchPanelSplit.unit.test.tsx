@@ -239,6 +239,63 @@ describe('WorkbenchPanelSplit', () => {
 		expect(container.querySelector('[data-rendered-panel="panel-2"]')).toBe(secondPanelContent);
 	});
 
+	it('withholds descendant focus until maximize and minimize layouts have settled', () => {
+		const resizeAdjacentPanels =
+			vi.fn<(splitId: string, separatorIndex: number, leadingWeight: number) => void>();
+		const settlements: Array<boolean | undefined> = [];
+		const renderNode = (node: PanelSplit['children'][number]['node'], layoutSettled?: boolean) => {
+			if (node.id === 'panel-2') settlements.push(layoutSettled);
+			return createElement('span', { 'data-rendered-panel': node.id });
+		};
+		const { rerender } = render(
+			createElement(WorkbenchPanelSplit, {
+				renderNode,
+				split,
+				view: createView(resizeAdjacentPanels),
+			}),
+		);
+		expect(settlements.at(-1)).toBe(true);
+
+		settlements.length = 0;
+		rerender(
+			createElement(WorkbenchPanelSplit, {
+				renderNode,
+				split,
+				view: createView(resizeAdjacentPanels, 'panel-2'),
+			}),
+		);
+		expect(settlements).toContain(false);
+		expect(settlements.at(-1)).toBe(true);
+
+		settlements.length = 0;
+		rerender(
+			createElement(WorkbenchPanelSplit, {
+				renderNode,
+				split,
+				view: createView(resizeAdjacentPanels),
+			}),
+		);
+		expect(settlements).toContain(false);
+		expect(settlements.at(-1)).toBe(true);
+	});
+
+	it('withholds descendant focus while an initially maximized layout mounts', () => {
+		const settlements: Array<boolean | undefined> = [];
+		render(
+			createElement(WorkbenchPanelSplit, {
+				renderNode: (node, layoutSettled) => {
+					if (node.id === 'panel-2') settlements.push(layoutSettled);
+					return createElement('span', { 'data-rendered-panel': node.id });
+				},
+				split,
+				view: createView(() => undefined, 'panel-2'),
+			}),
+		);
+
+		expect(settlements).toContain(false);
+		expect(settlements.at(-1)).toBe(true);
+	});
+
 	it('leaves split creation unconstrained while the resize controller owns the pixel minimum', () => {
 		const resizeAdjacentPanels =
 			vi.fn<(splitId: string, separatorIndex: number, leadingWeight: number) => void>();

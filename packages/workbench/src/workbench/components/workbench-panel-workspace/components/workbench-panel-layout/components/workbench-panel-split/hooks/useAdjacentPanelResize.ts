@@ -30,6 +30,7 @@ interface UseAdjacentPanelResizeResult {
 	readonly finishKeyboardResize: (separatorIndex: number) => void;
 	readonly groupElementRef: React.RefObject<HTMLDivElement | null>;
 	readonly groupRef: ReturnType<typeof useResizablePanelGroup>['groupRef'];
+	readonly maximizationLayoutSettled: boolean;
 	readonly onLayoutChange: (candidateLayout: Record<string, number>) => void;
 	readonly startKeyboardResize: (separatorIndex: number) => void;
 	readonly startPointerResize: (separatorIndex: number, pointerId: number) => void;
@@ -43,6 +44,9 @@ export function useAdjacentPanelResize(
 ): UseAdjacentPanelResizeResult {
 	const activeResizeRef = React.useRef<ActiveResize | null>(null);
 	const correctingLayoutRef = React.useRef(false);
+	const [synchronizedMaximizedChildId, setSynchronizedMaximizedChildId] = React.useState<
+		string | null | undefined
+	>(maximizedChildId === null ? null : undefined);
 	const childIds = React.useMemo(
 		() => split.children.map((child) => getPanelResizeId(split.id, child.id)),
 		[split],
@@ -67,6 +71,11 @@ export function useAdjacentPanelResize(
 		[modelLayout, maximizedChildId, split],
 	);
 	const canSynchronizeLayout = useMemoizedFn(() => activeResizeRef.current === null);
+	const markModelLayoutSynchronized = useMemoizedFn(() => {
+		setSynchronizedMaximizedChildId((current) =>
+			current === maximizedChildId ? current : maximizedChildId,
+		);
+	});
 	const {
 		getOwnerDocument,
 		groupElementRef,
@@ -79,6 +88,7 @@ export function useAdjacentPanelResize(
 		canSynchronizeLayout,
 		childIds,
 		modelLayout: displayLayout,
+		onModelLayoutSynchronized: markModelLayoutSynchronized,
 		orientation: split.orientation,
 	});
 	React.useLayoutEffect(() => {
@@ -197,6 +207,7 @@ export function useAdjacentPanelResize(
 		finishKeyboardResize,
 		groupElementRef,
 		groupRef,
+		maximizationLayoutSettled: synchronizedMaximizedChildId === maximizedChildId,
 		onLayoutChange: applyCandidateLayout,
 		startKeyboardResize: (separatorIndex) => {
 			startResize(separatorIndex, { kind: 'keyboard' });

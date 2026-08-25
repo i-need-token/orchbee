@@ -57,6 +57,7 @@ const layer: TerminalTabPresentationLayer = {
 interface RenderPanelOptions {
 	readonly dragging?: boolean;
 	readonly focused?: boolean;
+	readonly layoutSettled?: boolean;
 }
 
 function TestTerminalSurface({ autoFocus }: WorkbenchTerminalSurfaceProps) {
@@ -164,6 +165,7 @@ function renderPanel(
 				null,
 				createElement(WorkbenchPanel, {
 					layer,
+					layoutSettled: options.layoutSettled ?? true,
 					panel,
 					terminalSurface: TestTerminalSurface,
 					view,
@@ -235,9 +237,11 @@ describe('WorkbenchPanel', () => {
 	it('projects terminal auto focus only to the focused panel', () => {
 		const focusedMarkup = renderPanel(createPanel(null), 2);
 		const inactiveMarkup = renderPanel(createPanel(null), 2, { focused: false });
+		const unsettledMarkup = renderPanel(createPanel(null), 2, { layoutSettled: false });
 
 		expect(focusedMarkup).toContain('data-terminal-auto-focus="true"');
 		expect(inactiveMarkup).toContain('data-terminal-auto-focus="false"');
+		expect(unsettledMarkup).toContain('data-terminal-auto-focus="false"');
 	});
 
 	it('renders only an empty framed placeholder at the projected drop position', () => {

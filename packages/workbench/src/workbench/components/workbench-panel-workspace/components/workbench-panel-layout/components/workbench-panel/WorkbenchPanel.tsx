@@ -13,6 +13,7 @@ import styles from './WorkbenchPanel.module.css';
 
 interface WorkbenchPanelProps {
 	readonly layer: TerminalTabPresentationLayer;
+	readonly layoutSettled: boolean;
 	readonly panel: PanelLeaf;
 	readonly terminalSurface?: WorkbenchTerminalSurface | undefined;
 	readonly view: WorkbenchPanelWorkspaceView;
@@ -20,6 +21,7 @@ interface WorkbenchPanelProps {
 
 export function WorkbenchPanel({
 	layer,
+	layoutSettled,
 	panel,
 	terminalSurface,
 	view,
@@ -58,6 +60,7 @@ export function WorkbenchPanel({
 			{showHeader && <WorkbenchPanelHeader panel={panel} view={view} />}
 			<WorkbenchTerminalViewport
 				layer={layer}
+				layoutSettled={layoutSettled}
 				panelId={panel.id}
 				terminal={displayedTerminal}
 				terminalRole={panel.activeChildPresentationId === null ? 'primary' : 'child'}

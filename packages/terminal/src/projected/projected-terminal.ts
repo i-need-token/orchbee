@@ -2161,6 +2161,7 @@ export class ProjectedTerminal {
 	}
 
 	focus(): void {
+		if (this.#phase === ProjectedTerminalPhase.open) this.#synchronizeSurfaceBeforeFocus();
 		this.#input?.focus({ preventScroll: true });
 	}
 
@@ -6283,6 +6284,13 @@ export class ProjectedTerminal {
 		if (typeof ResizeObserver === 'undefined') return;
 		this.#resizeObserver = new ResizeObserver(() => this.#handleSurfaceResize());
 		this.#resizeObserver.observe(root);
+	}
+
+	#synchronizeSurfaceBeforeFocus(): void {
+		this.#renderer?.syncSurfacePadding();
+		this.#syncHistoryScrollbarPresentation();
+		this.#updateInputPosition(true);
+		this.#sendResizeIfChanged();
 	}
 
 	#handleSurfaceResize(): void {

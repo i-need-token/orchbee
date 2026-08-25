@@ -207,8 +207,9 @@ A projected terminal treats its hidden textarea, accessibility descendants, and 
 controls mounted under the same root as one focus boundary. Movement within that boundary neither
 repairs input nor repeats focus reporting; leaving it releases published key and mouse ownership
 before one focus-out, while entering through a non-textarea descendant publishes the matching
-focus-in. The application decides when to call `focus()`; opening the package surface does not claim
-initial product focus.
+focus-in. The application decides when to call `focus()`; an open surface synchronizes its local
+padding, scrollbar, hidden-input anchor, and current resize proposal before moving native focus to
+the hidden textarea. Opening the package surface does not claim initial product focus.
 Desktop and pen pointer activation focuses the hidden textarea on pointer down. Touch pointer
 handling completes before a non-passive canvas `touchend` prevents native compatibility mouse and
 caret handling, then focuses the textarea; a writable textarea opens the mobile virtual keyboard.

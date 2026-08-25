@@ -20,7 +20,7 @@ import { getPanelSeparatorId } from './utils/getPanelSeparatorId';
 import styles from './WorkbenchPanelSplit.module.css';
 
 interface WorkbenchPanelSplitProps {
-	readonly renderNode: (node: PanelLayoutNode) => React.ReactNode;
+	readonly renderNode: (node: PanelLayoutNode, layoutSettled: boolean) => React.ReactNode;
 	readonly split: PanelSplit;
 	readonly view: WorkbenchPanelWorkspaceView;
 }
@@ -83,7 +83,7 @@ export function WorkbenchPanelSplit({
 				return (
 					<React.Fragment key={child.id}>
 						<ResizablePanel hidden={isHidden} id={getPanelResizeId(split.id, child.id)}>
-							{renderNode(child.node)}
+							{renderNode(child.node, resize.maximizationLayoutSettled)}
 						</ResizablePanel>
 						{trailingChild !== undefined && (
 							<ResizableHandle

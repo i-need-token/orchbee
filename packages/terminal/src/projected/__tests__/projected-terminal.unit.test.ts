@@ -11473,6 +11473,46 @@ describe('ProjectedTerminal', () => {
 		terminal.dispose();
 	});
 
+	it('remeasures a silently resized mounted surface before programmatic focus', async () => {
+		const browser = createFakeBrowser();
+		const root = browser.root as unknown as FakeElement;
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			canResize: true,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		const initialResize = commands.find((command) => command.kind === 'resize-terminal');
+		if (initialResize?.kind !== 'resize-terminal') {
+			throw new Error('initial resize proposal is unavailable');
+		}
+
+		root.clientWidth = 360;
+		terminal.focus();
+
+		const resizeCommands = commands.filter((command) => command.kind === 'resize-terminal');
+		expect(resizeCommands).toHaveLength(2);
+		const focusedResize = resizeCommands.at(-1);
+		if (focusedResize?.kind !== 'resize-terminal') {
+			throw new Error('focused resize proposal is unavailable');
+		}
+		expect(focusedResize.payload.columns).toBeLessThan(initialResize.payload.columns);
+		expect(browser.document.activeElement).toBe(terminal.textarea);
+		terminal.dispose();
+	});
+
 	it('caps resize geometry to the PTY total-pixel bounds', async () => {
 		const browser = createFakeBrowser();
 		const root = browser.root as unknown as FakeElement;

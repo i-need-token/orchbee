@@ -18,6 +18,7 @@ import styles from './WorkbenchTerminalViewport.module.css';
 
 interface WorkbenchTerminalViewportProps {
 	readonly layer: TerminalTabPresentationLayer;
+	readonly layoutSettled: boolean;
 	readonly panelId: string;
 	readonly terminal: TerminalPresentation;
 	readonly terminalRole: 'child' | 'primary';
@@ -27,6 +28,7 @@ interface WorkbenchTerminalViewportProps {
 
 export function WorkbenchTerminalViewport({
 	layer,
+	layoutSettled,
 	panelId,
 	terminal,
 	terminalRole,
@@ -156,7 +158,9 @@ export function WorkbenchTerminalViewport({
 						actionRuntime={view.actionRuntime}
 						actionScope={terminalActions.scope}
 						admitBellEffect={view.admitTerminalBellEffect}
-						autoFocus={layer.mode === 'active' && view.activeTab?.focusedPanelId === panelId}
+						autoFocus={
+							layoutSettled && layer.mode === 'active' && view.activeTab?.focusedPanelId === panelId
+						}
 						bindActionContextProvider={terminalActions.bindActionContextProvider}
 						onPresentationReady={(readiness) =>
 							layer.reportPresentationReady(terminal.presentationId, readiness)
