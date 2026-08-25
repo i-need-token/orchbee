@@ -88,6 +88,7 @@ export interface ProjectedTerminalShortcutBindingSource {
 export interface ProjectedTerminalShortcutBinding {
 	readonly action: ProjectedTerminalShortcutAction;
 	readonly actionId: ProjectedTerminalShortcutActionId;
+	readonly nativePasteFallback: boolean;
 	readonly shortcutId: ProjectedTerminalShortcutId;
 }
 
@@ -127,6 +128,13 @@ export function resolveProjectedTerminalShortcut(
 		return {
 			action,
 			actionId: definition.actionId,
+			nativePasteFallback:
+				action === 'paste' &&
+				matchesKeyboardShortcutChord(
+					event,
+					PROJECTED_TERMINAL_SHORTCUTS.paste.defaults[platform],
+					platform,
+				),
 			shortcutId,
 		};
 	}

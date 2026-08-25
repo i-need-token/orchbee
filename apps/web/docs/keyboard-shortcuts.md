@@ -40,6 +40,37 @@ unshifted `Ctrl+B/T/W/K/F/D/E/V/A/L` and `Ctrl+C` available to the shell, termin
 and multiplexers. A user may deliberately record another supported custom chord. Product
 conflicts remain prohibited even when an Action is temporarily unavailable.
 
+## Terminal paste routing
+
+The platform-default `terminal.clipboard.paste` chord has a native-event fallback because
+`@orchbee/terminal` owns the MIME-aware DOM `paste` contract: plain text is authoritative when
+present, while an image-only event emits exactly one synthetic `Control+V` press/release pair for
+the running Agent without reading image bytes. A custom paste chord cannot cause that browser
+event and therefore invokes the Paste Action.
+
+The projected-terminal clipboard Action coordinator owns whether one exact selection Copy or Paste
+Action is pending. Shortcut resolution combines the normalized chord with that synchronous state:
+
+| Effective paste chord | Selection Copy | Paste Action | Route                                                               |
+| --------------------- | -------------- | ------------ | ------------------------------------------------------------------- |
+| Platform default      | Idle           | Idle         | Preserve the key event default for one native `paste` event         |
+| Platform default      | Pending        | Any          | Invoke Paste Action and wait for that exact Copy                    |
+| Platform default      | Idle           | Pending      | Invoke Paste Action so its concurrency policy rejects the duplicate |
+| Custom                | Any            | Any          | Invoke Paste Action                                                 |
+
+An Action route consumes the key only while the Action is enabled; otherwise browser or terminal
+behavior remains available. A selection Copy remains pending until its exact Promise settles. The
+Paste Action snapshots and awaits that Promise before reading current clipboard text, rechecks
+cancellation, and performs no retry. Copy failure retains its own result and Paste reads the current
+clipboard after settlement. The Paste Action remains pending through preparation and terminal
+publication so a second default chord cannot escape through the native path and duplicate input.
+Context-menu Paste always uses the Action route.
+
+Each admitted shortcut takes exactly one route. Native routing invokes no Action, reads no
+Main-owned clipboard text, produces no Action status, and delegates text/image precedence to the
+terminal adapter. Action routing never reads image bytes or expands the Desktop clipboard-read
+contract beyond bounded plain text.
+
 Directional panel focus adopts Ghostty's Apple `Command+Option+Arrow` and Standard
 `Control+Alt+Arrow` convention at revision `91f66da24527fa02d92b5fd0b41cd020f553a64c`, also
 cross-checked against Warp revision `086dade63ff7327426d6276d57f85b3f2f313af0`. The binding
@@ -176,18 +207,20 @@ change does not remount Workbench, replace an attachment, or reopen a Host or Ga
 
 ## Claims and evidence
 
-| Claim                                                                            | Deterministic evidence                                              |
-| -------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| One valid target produces exactly one child, panel, or Tab close operation       | Active-target resolver decision-table tests                         |
-| Confirmation, cancellation, and commit remain owned by the prepared lower Action | Workbench Action integration tests with panel and Tab registrations |
-| Active Workbench bindings do not depend on a surviving focused descendant        | Document-capture lifecycle and Web application integration tests    |
-| Empty-Tab New Tab creates and focuses the new terminal; Settings suppresses it   | Web application focus and Settings-scope integration trace          |
-| Apple and Standard defaults match the catalog and custom edits affect dispatch   | Shortcut definition, resolver, and controller tests                 |
-| Directional focus selects a spatial neighbor and falls through at outer edges    | Four-Panel resolver, Action, and shortcut dispatch tests            |
-| Positional selection follows canonical Tab order and falls through out of range  | Grouped and pinned Action integration plus shortcut dispatch tests  |
-| Menus, Action search, and settings display the same current binding              | Projection and rendered-surface tests                               |
-| Valid v1, v2, and v3 records migrate without losing explicit legacy overrides    | Storage migration tests, including new-default conflicts            |
-| Invalid current or migration-source data does not consult an older record        | Storage corruption and precedence tests                             |
+| Claim                                                                            | Deterministic evidence                                                                                                  |
+| -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| One valid target produces exactly one child, panel, or Tab close operation       | Active-target resolver decision-table tests                                                                             |
+| Confirmation, cancellation, and commit remain owned by the prepared lower Action | Workbench Action integration tests with panel and Tab registrations                                                     |
+| Active Workbench bindings do not depend on a surviving focused descendant        | Document-capture lifecycle and Web application integration tests                                                        |
+| Empty-Tab New Tab creates and focuses the new terminal; Settings suppresses it   | Web application focus and Settings-scope integration trace                                                              |
+| Apple and Standard defaults match the catalog and custom edits affect dispatch   | Shortcut definition, resolver, and controller tests                                                                     |
+| Idle platform-default terminal Paste preserves MIME-aware native delivery        | Shortcut routing and installer tests, terminal image-paste tests, and exact Desktop `terminal-parity/IN-03-image-paste` |
+| Pending Copy and Paste work cannot admit stale or duplicate shortcut input       | Clipboard coordinator and Action tests plus exact Desktop `terminal-parity/IN-13-selection-copy-paste`                  |
+| Directional focus selects a spatial neighbor and falls through at outer edges    | Four-Panel resolver, Action, and shortcut dispatch tests                                                                |
+| Positional selection follows canonical Tab order and falls through out of range  | Grouped and pinned Action integration plus shortcut dispatch tests                                                      |
+| Menus, Action search, and settings display the same current binding              | Projection and rendered-surface tests                                                                                   |
+| Valid v1, v2, and v3 records migrate without losing explicit legacy overrides    | Storage migration tests, including new-default conflicts                                                                |
+| Invalid current or migration-source data does not consult an older record        | Storage corruption and precedence tests                                                                                 |
 
 The tests use synthetic platform flags, Action scopes, storage, document capture, injected terminal
 focus, and keyboard events. They do not claim operating-system global-shortcut behavior or full

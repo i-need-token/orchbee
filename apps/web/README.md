@@ -101,8 +101,11 @@ Terminal Host rejects a mode change before encoding or queue admission.
 Each projected surface registers the Workbench-owned minimal terminal Action catalog into the
 viewport's application runtime and scope: Copy, Paste, Select All, Find, Find Next, Find Previous,
 Scroll to Bottom, Clear, and Reset. Availability is synchronous and remains authoritative when a
-prepared invocation executes. Paste reads text only through an injected client capability. When a
-manual selection Copy is still in flight, Paste waits for that exact operation to settle before it
+prepared invocation executes. Context-menu and custom-shortcut Paste read text only through an
+injected client capability. An idle platform-default paste chord preserves native DOM delivery so
+the terminal adapter can apply its plain-text-first and image-only `Control+V` policy without
+reading image bytes. When a manual selection Copy or another Paste Action is still in flight, the
+default chord uses the Action path; Paste waits for the exact Copy operation to settle before it
 reads the current clipboard, then reuses the same terminal paste sanitation and review path. Every
 execution settles with a typed
 Action result; completed, unchanged, blocked, and failed outcomes that need perceivable feedback

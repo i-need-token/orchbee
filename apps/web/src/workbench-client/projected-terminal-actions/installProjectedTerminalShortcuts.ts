@@ -16,6 +16,7 @@ export interface InstallProjectedTerminalShortcutsOptions {
 		actionId: ProjectedTerminalShortcutBinding['actionId'],
 		input: undefined,
 		scope: ActionScope,
+		options?: { readonly nativePasteFallback: true },
 	) => boolean;
 	readonly findScope: ActionScope;
 	readonly platform: ProjectedTerminalShortcutPlatform;
@@ -50,7 +51,10 @@ export function installProjectedTerminalShortcuts({
 		);
 		if (binding === null) return;
 		const scope = focus === 'find' ? findScope : terminalScope;
-		if (!invoke(binding.actionId, undefined, scope)) return;
+		const invoked = binding.nativePasteFallback
+			? invoke(binding.actionId, undefined, scope, { nativePasteFallback: true })
+			: invoke(binding.actionId, undefined, scope);
+		if (!invoked) return;
 		event.preventDefault();
 		event.stopPropagation();
 	};

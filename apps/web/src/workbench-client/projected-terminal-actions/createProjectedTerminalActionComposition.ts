@@ -11,7 +11,11 @@ import {
 
 import type { TerminalFindController } from '../terminal-find-surface';
 import type { ProjectedTerminalPlatformEffects } from '../projected-terminal-platform-effects';
-import type { ProjectedTerminalActionCatalog } from './projected-terminal-action-ids';
+import {
+	PROJECTED_TERMINAL_ACTION_IDS,
+	type ProjectedTerminalActionCatalog,
+} from './projected-terminal-action-ids';
+import { createProjectedTerminalClipboardActionCoordinator } from './createProjectedTerminalClipboardActionCoordinator';
 import {
 	registerProjectedTerminalActions,
 	type ProjectedTerminalActionTarget,
@@ -31,6 +35,7 @@ export interface ProjectedTerminalActionComposition {
 		actionId: Id,
 		input: ActionInputFor<ProjectedTerminalActionCatalog, Id>,
 		scope: ActionScope,
+		options?: { readonly nativePasteFallback: true },
 	): boolean;
 	executePrepared(invocation: PreparedActionInvocation): ActionExecution;
 }
@@ -57,8 +62,10 @@ export function createProjectedTerminalActionComposition(
 	const findScope = runtime.createScope('workbench.terminal.find', terminalScope);
 	const typedRuntime = createTypedActionRuntime<ProjectedTerminalActionCatalog>(runtime);
 	const activeExecutions = new Set<ActionExecution>();
+	const clipboardActionCoordinator = createProjectedTerminalClipboardActionCoordinator();
 	let disposed = false;
 	const registrations = registerProjectedTerminalActions({
+		clipboardActionCoordinator,
 		findController,
 		platformEffects,
 		scope: terminalScope,
@@ -84,7 +91,15 @@ export function createProjectedTerminalActionComposition(
 			return execution;
 		},
 		findScope,
-		invokeShortcut: (actionId, input, scope) => {
+		invokeShortcut: (actionId, input, scope, shortcutOptions) => {
+			if (
+				actionId === PROJECTED_TERMINAL_ACTION_IDS.paste &&
+				!clipboardActionCoordinator.shouldInvokePasteShortcut(
+					shortcutOptions?.nativePasteFallback === true,
+				)
+			) {
+				return false;
+			}
 			const invocation = { scope, source: 'keyboard' as const };
 			if (
 				typedRuntime.resolveAction(actionId, input, invocation)?.availability.kind !== 'enabled'

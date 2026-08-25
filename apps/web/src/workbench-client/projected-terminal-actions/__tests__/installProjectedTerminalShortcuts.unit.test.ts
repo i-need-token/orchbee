@@ -96,6 +96,7 @@ describe('projected terminal shortcuts', () => {
 			'terminal.clipboard.paste',
 			undefined,
 			harness.terminalScope,
+			{ nativePasteFallback: true },
 		);
 	});
 
@@ -141,13 +142,50 @@ describe('projected terminal shortcuts', () => {
 			harness.terminalScope,
 		);
 	});
+
+	it('offers native fallback only for the platform-default Paste chord', () => {
+		const apple = shortcutHarness('apple');
+		const native = apple.keyDown({ ...baseEvent, code: 'KeyV', metaKey: true }, apple.terminalNode);
+		expect(apple.invoke).toHaveBeenCalledWith(
+			'terminal.clipboard.paste',
+			undefined,
+			apple.terminalScope,
+			{ nativePasteFallback: true },
+		);
+		expect(native.preventDefault).toHaveBeenCalledOnce();
+
+		const customBindings = {
+			...defaultProjectedTerminalShortcutBindings('apple'),
+			'terminal.clipboard.paste': {
+				code: 'KeyP',
+				modifiers: ['mod', 'shift'] as const,
+			},
+		};
+		const custom = shortcutHarness('apple', true, () => customBindings);
+		custom.keyDown(
+			{ ...baseEvent, code: 'KeyP', metaKey: true, shiftKey: true },
+			custom.terminalNode,
+		);
+		expect(custom.invoke).toHaveBeenCalledWith(
+			'terminal.clipboard.paste',
+			undefined,
+			custom.terminalScope,
+		);
+	});
 });
 
 interface ShortcutHarness {
 	readonly findNode: TestNode;
 	readonly findScope: ActionScope;
 	readonly invoke: ReturnType<
-		typeof vi.fn<(actionId: string, input: undefined, scope: ActionScope) => boolean>
+		typeof vi.fn<
+			(
+				actionId: string,
+				input: undefined,
+				scope: ActionScope,
+				options?: { readonly nativePasteFallback: true },
+			) => boolean
+		>
 	>;
 	readonly terminalNode: TestNode;
 	readonly terminalScope: ActionScope;
@@ -190,9 +228,14 @@ function shortcutHarness(
 	const runtime = new ActionRuntime();
 	const terminalScope = runtime.createScope('terminal');
 	const findScope = runtime.createScope('find', terminalScope);
-	const invoke = vi.fn<(actionId: string, input: undefined, scope: ActionScope) => boolean>(
-		() => available,
-	);
+	const invoke = vi.fn<
+		(
+			actionId: string,
+			input: undefined,
+			scope: ActionScope,
+			options?: { readonly nativePasteFallback: true },
+		) => boolean
+	>(() => available);
 	installProjectedTerminalShortcuts({
 		document,
 		findRoot,

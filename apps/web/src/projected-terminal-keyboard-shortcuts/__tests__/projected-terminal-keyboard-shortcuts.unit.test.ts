@@ -61,4 +61,61 @@ describe('projected terminal shortcut declarations', () => {
 			),
 		).toBeNull();
 	});
+
+	it('marks only the platform-default Paste chord for native event fallback', () => {
+		expect(
+			resolveProjectedTerminalShortcut(
+				{
+					altKey: false,
+					code: 'KeyV',
+					ctrlKey: false,
+					isComposing: false,
+					metaKey: true,
+					repeat: false,
+					shiftKey: false,
+				},
+				'apple',
+				'terminal',
+			),
+		).toMatchObject({ action: 'paste', nativePasteFallback: true });
+		expect(
+			resolveProjectedTerminalShortcut(
+				{
+					altKey: false,
+					code: 'KeyV',
+					ctrlKey: true,
+					isComposing: false,
+					metaKey: false,
+					repeat: false,
+					shiftKey: true,
+				},
+				'standard',
+				'terminal',
+			),
+		).toMatchObject({ action: 'paste', nativePasteFallback: true });
+
+		const custom = {
+			...defaultProjectedTerminalShortcutBindings('apple'),
+			'terminal.clipboard.paste': {
+				code: 'KeyP',
+				modifiers: ['mod', 'shift'] as const,
+			},
+		};
+		expect(
+			resolveProjectedTerminalShortcut(
+				{
+					altKey: false,
+					code: 'KeyP',
+					ctrlKey: false,
+					isComposing: false,
+					metaKey: true,
+					repeat: false,
+					shiftKey: true,
+				},
+				'apple',
+				'terminal',
+				custom,
+			),
+		).toMatchObject({ action: 'paste', nativePasteFallback: false });
+	});
 });

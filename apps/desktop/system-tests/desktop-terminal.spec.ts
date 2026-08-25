@@ -1383,6 +1383,53 @@ test('terminal-parity/HS-07-selection-export', async () => {
 		.toBe('HS07StyledPlain');
 });
 
+test('terminal-parity/IN-03-image-paste', async () => {
+	test.skip(process.platform === 'win32', 'The exact child-input witness uses a POSIX shell.');
+	const application = electronApplication;
+	const directory = runtimeDirectory;
+	if (application === undefined) throw new Error('Electron application did not start.');
+	if (directory === undefined) throw new Error('Desktop runtime directory is unavailable.');
+	const page = await application.firstWindow();
+	const root = projectedTerminal(page);
+	await expect(root).toHaveAttribute('data-projected-terminal-state', 'open');
+	const input = root.getByRole('textbox');
+	const readyPath = path.join(directory, 'image-paste-ready');
+	const witnessPath = path.join(directory, 'image-paste-witness');
+	const script = [
+		"const fs = require('node:fs')",
+		'process.stdin.setRawMode(true)',
+		'process.stdin.resume()',
+		`fs.writeFileSync(${JSON.stringify(readyPath)}, 'ready')`,
+		`process.stdin.once('data', (data) => { fs.writeFileSync(${JSON.stringify(witnessPath)}, data.toString('hex')); process.exit(0) })`,
+	].join(';');
+	await input.pressSequentially(`node -e ${quotePosixShellWord(script)}`, { delay: 1 });
+	await input.press('Enter');
+	await expect
+		.poll(async () => {
+			try {
+				await access(readyPath);
+				return true;
+			} catch {
+				return false;
+			}
+		})
+		.toBe(true);
+	await application.evaluate(({ clipboard, nativeImage }) => {
+		const image = nativeImage.createFromDataURL(
+			'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+		);
+		if (image.isEmpty()) throw new Error('Image-paste witness could not create clipboard image.');
+		clipboard.writeImage(image);
+	});
+
+	await input.focus();
+	await page.keyboard.press(process.platform === 'darwin' ? 'Meta+KeyV' : 'Control+Shift+KeyV');
+	await expect.poll(async () => readFile(witnessPath, 'utf8')).toBe('16');
+	expect(await root.getAttribute('data-projected-terminal-action-id')).not.toBe(
+		'terminal.clipboard.paste',
+	);
+});
+
 test('terminal-parity/IN-13-selection-copy-paste', async () => {
 	const application = electronApplication;
 	const directory = runtimeDirectory;

@@ -1198,7 +1198,8 @@ export async function startProjectedTerminalRenderer(
 			document: rootElement.ownerDocument,
 			findRoot,
 			findScope: actions.findScope,
-			invoke: (actionId, input, scope) => actions.invokeShortcut(actionId, input, scope),
+			invoke: (actionId, input, scope, options) =>
+				actions.invokeShortcut(actionId, input, scope, options),
 			platform: shortcutPlatform,
 			shortcutBindingSource,
 			terminalRoot: rootElement,

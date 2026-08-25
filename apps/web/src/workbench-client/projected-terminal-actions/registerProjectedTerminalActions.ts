@@ -19,6 +19,10 @@ import type { SelectionChanged } from '@orchbee/terminal-protocol';
 import type { TerminalFindController } from '../terminal-find-surface';
 import type { ProjectedTerminalPlatformEffects } from '../projected-terminal-platform-effects';
 import {
+	createProjectedTerminalClipboardActionCoordinator,
+	type ProjectedTerminalClipboardActionCoordinator,
+} from './createProjectedTerminalClipboardActionCoordinator';
+import {
 	PROJECTED_TERMINAL_ACTION_IDS,
 	type ProjectedTerminalActionCatalog,
 	projectedTerminalLinkActionInput,
@@ -40,6 +44,7 @@ export interface ProjectedTerminalActionTarget {
 }
 
 export interface RegisterProjectedTerminalActionsOptions {
+	readonly clipboardActionCoordinator?: ProjectedTerminalClipboardActionCoordinator;
 	readonly findController: TerminalFindController;
 	readonly platformEffects?: ProjectedTerminalPlatformEffects;
 	readonly scope: ActionScope;
@@ -48,6 +53,7 @@ export interface RegisterProjectedTerminalActionsOptions {
 }
 
 export function registerProjectedTerminalActions({
+	clipboardActionCoordinator = createProjectedTerminalClipboardActionCoordinator(),
 	findController,
 	platformEffects = {},
 	scope,
@@ -70,8 +76,6 @@ export function registerProjectedTerminalActions({
 					kind: 'disabled',
 					reason: projectedTerminalMessages.actionUnavailable,
 				} as const);
-	let pendingSelectionCopy: Promise<ProjectedTerminalSideEffectResult> | undefined;
-
 	return [
 		typedRuntime.register(
 			scope,
@@ -87,29 +91,21 @@ export function registerProjectedTerminalActions({
 						? { kind: 'enabled' }
 						: { kind: 'disabled', reason: projectedTerminalMessages.actionUnavailable },
 				handler: {
-					execute: async (context) => {
-						if (context.signal.aborted) return { kind: 'cancelled' };
-						const copy = pendingSelectionCopy;
-						if (copy !== undefined) {
-							try {
-								await copy;
-							} catch {
-								// The Copy Action reports its own failure; Paste still reads the current clipboard.
+					execute: (context) =>
+						clipboardActionCoordinator.runPaste(async () => {
+							if (context.signal.aborted) return { kind: 'cancelled' };
+							const clipboard = await platformEffects.readClipboardText?.();
+							if (clipboard === undefined) {
+								return { code: 'clipboard-read-unavailable', kind: 'blocked' };
 							}
-						}
-						if (context.signal.aborted) return { kind: 'cancelled' };
-						const clipboard = await platformEffects.readClipboardText?.();
-						if (clipboard === undefined) {
-							return { code: 'clipboard-read-unavailable', kind: 'blocked' };
-						}
-						if (clipboard.kind === 'cancelled' || context.signal.aborted) {
-							return { kind: 'cancelled' };
-						}
-						if (clipboard.kind === 'failed') {
-							return { failure: { code: clipboard.code }, kind: 'failed' };
-						}
-						return pasteClipboardText(context, await terminal.paste(clipboard.text, 'clipboard'));
-					},
+							if (clipboard.kind === 'cancelled' || context.signal.aborted) {
+								return { kind: 'cancelled' };
+							}
+							if (clipboard.kind === 'failed') {
+								return { failure: { code: clipboard.code }, kind: 'failed' };
+							}
+							return pasteClipboardText(context, await terminal.paste(clipboard.text, 'clipboard'));
+						}),
 				},
 				id: PROJECTED_TERMINAL_ACTION_IDS.paste,
 				input: noActionInput,
@@ -250,14 +246,8 @@ export function registerProjectedTerminalActions({
 				handler: {
 					execute: async (context) => {
 						if (context.signal.aborted) return { kind: 'cancelled' };
-						const copy = terminal.copySelectionAsync();
-						pendingSelectionCopy = copy;
-						let result: ProjectedTerminalSideEffectResult;
-						try {
-							result = await copy;
-						} finally {
-							if (pendingSelectionCopy === copy) pendingSelectionCopy = undefined;
-						}
+						const result: ProjectedTerminalSideEffectResult =
+							await clipboardActionCoordinator.trackSelectionCopy(terminal.copySelectionAsync());
 						if (result.kind === 'completed') {
 							context.markCommitted();
 							return { kind: 'completed' };

@@ -68,6 +68,30 @@ describe('createProjectedTerminalActionComposition', () => {
 		runtime.dispose();
 	});
 
+	it('leaves an idle platform-default Paste shortcut to native clipboard delivery', () => {
+		const terminal = terminalTarget();
+		const controller = findController();
+		const readClipboardText = vi.fn<
+			NonNullable<ProjectedTerminalPlatformEffects['readClipboardText']>
+		>(() => ({ kind: 'completed', text: '' }));
+		const { composition, runtime } = createComposition(terminal, controller, {
+			platformEffects: { readClipboardText },
+		});
+
+		expect(
+			composition.invokeShortcut(
+				PROJECTED_TERMINAL_ACTION_IDS.paste,
+				undefined,
+				composition.terminalScope,
+				{ nativePasteFallback: true },
+			),
+		).toBe(false);
+		expect(readClipboardText).not.toHaveBeenCalled();
+		expect(terminal.paste).not.toHaveBeenCalled();
+		composition.dispose();
+		runtime.dispose();
+	});
+
 	it('re-resolves live input capability while local output Actions remain available', () => {
 		let canControlTerminal = true;
 		const terminal = terminalTarget();
