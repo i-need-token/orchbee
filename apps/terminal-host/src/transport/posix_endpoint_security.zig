@@ -8,13 +8,6 @@ const c = if (builtin.os.tag == .freebsd or builtin.os.tag == .linux or builtin.
 else
     struct {};
 
-pub const authenticated_status_ready: u8 = 1;
-pub const authenticated_status_endpoint_unavailable: u8 = 2;
-pub const authenticated_status_identity_mismatch: u8 = 3;
-pub const authenticated_status_identity_unavailable: u8 = 4;
-pub const authenticated_status_insecure_endpoint: u8 = 5;
-pub const authenticated_status_system_error: u8 = 6;
-
 pub fn prepareRuntimeDirectory(runtime_directory: []const u8) !std.fs.Dir {
     return prepareRuntimeDirectoryForUser(runtime_directory, std.posix.geteuid());
 }
@@ -116,66 +109,12 @@ pub fn requirePeerEffectiveUid(socket: std.posix.socket_t, expected_uid: std.pos
     };
 }
 
-pub fn connectAuthenticated(
-    allocator: std.mem.Allocator,
-    runtime_directory: []const u8,
-    endpoint_id: []const u8,
-) !std.net.Stream {
-    return connectAuthenticatedForUser(
-        allocator,
-        runtime_directory,
-        endpoint_id,
-        std.posix.geteuid(),
-    );
-}
-
-pub fn connectAuthenticatedForUser(
-    allocator: std.mem.Allocator,
-    runtime_directory: []const u8,
-    endpoint_id: []const u8,
-    expected_uid: std.posix.uid_t,
-) !std.net.Stream {
-    var directory = try validateRuntimeDirectoryForUser(runtime_directory, expected_uid);
-    defer directory.close();
-    const endpoint_name = try endpointName(allocator, endpoint_id);
-    defer allocator.free(endpoint_name);
-
-    var original_directory = try std.fs.cwd().openDir(".", .{});
-    defer original_directory.close();
-    try std.posix.fchdir(directory.fd);
-    var restored = false;
-    defer if (!restored) std.posix.fchdir(original_directory.fd) catch {};
-
-    try validateEndpoint(directory, endpoint_name, expected_uid);
-    const stream = try std.net.connectUnixSocket(endpoint_name);
-    errdefer stream.close();
-    try std.posix.fchdir(original_directory.fd);
-    restored = true;
-    try requirePeerEffectiveUid(stream.handle, expected_uid);
-    return stream;
-}
-
 pub fn endpointName(allocator: std.mem.Allocator, endpoint_id: []const u8) ![]u8 {
     return std.fmt.allocPrint(allocator, "{s}.s", .{endpoint_id});
 }
 
 pub fn lockName(allocator: std.mem.Allocator, endpoint_id: []const u8) ![]u8 {
     return std.fmt.allocPrint(allocator, "{s}.l", .{endpoint_id});
-}
-
-pub fn statusForConnectError(failure: anyerror) u8 {
-    return switch (failure) {
-        error.FileNotFound,
-        error.ConnectionRefused,
-        error.ConnectionResetByPeer,
-        => authenticated_status_endpoint_unavailable,
-        error.PeerIdentityMismatch => authenticated_status_identity_mismatch,
-        error.PeerIdentityUnavailable => authenticated_status_identity_unavailable,
-        error.InsecureEndpoint,
-        error.InsecureRuntimeDirectory,
-        => authenticated_status_insecure_endpoint,
-        else => authenticated_status_system_error,
-    };
 }
 
 fn checkedUid(uid: std.posix.uid_t) !u32 {

@@ -24,14 +24,14 @@ fn runtimeDirectory() []const u8 {
 fn expectServe(command: subject.Command) !subject.ServeOptions {
     return switch (command) {
         .serve => |options| options,
-        .connect, .prepare_runtime, .version => error.ExpectedServeCommand,
+        .version => error.ExpectedServeCommand,
     };
 }
 
 test "launcher recognizes only the exact version command" {
     switch (try subject.parse(&.{"--version"})) {
         .version => {},
-        .connect, .prepare_runtime, .serve => return error.ExpectedVersionCommand,
+        .serve => return error.ExpectedVersionCommand,
     }
     try std.testing.expectError(error.InvalidArguments, subject.parse(&.{}));
     try std.testing.expectError(
@@ -41,46 +41,20 @@ test "launcher recognizes only the exact version command" {
     try std.testing.expectError(error.InvalidArguments, subject.parse(&.{"version"}));
 }
 
-test "launcher parses typed platform-neutral endpoint helper commands" {
+test "launcher rejects removed endpoint helper commands" {
     const runtime_directory = runtimeDirectory();
-    switch (try subject.parse(&.{
+    try std.testing.expectError(error.InvalidArguments, subject.parse(&.{
         "prepare-runtime",
         "--runtime-directory",
         runtime_directory,
-    })) {
-        .prepare_runtime => |options| try std.testing.expectEqualStrings(
-            runtime_directory,
-            options.runtime_directory,
-        ),
-        else => return error.ExpectedPrepareRuntimeCommand,
-    }
-    switch (try subject.parse(&.{
+    }));
+    try std.testing.expectError(error.InvalidArguments, subject.parse(&.{
         "connect",
         "--runtime-directory",
         runtime_directory,
         "--endpoint-id",
         "0123456789abcdef0123456789abcdef",
-    })) {
-        .connect => |options| {
-            try std.testing.expectEqualStrings(runtime_directory, options.runtime_directory);
-            try std.testing.expectEqualStrings(
-                "0123456789abcdef0123456789abcdef",
-                options.endpoint_id,
-            );
-        },
-        else => return error.ExpectedConnectCommand,
-    }
-    try std.testing.expectError(error.InvalidArguments, subject.parse(&.{
-        "prepare-runtime",
-        "--runtime-directory",
-        runtime_directory,
-        "--endpoint-id",
-        "0123456789abcdef0123456789abcdef",
     }));
-}
-
-test "launcher rejects platform-named endpoint helper commands" {
-    const runtime_directory = runtimeDirectory();
     try std.testing.expectError(error.InvalidArguments, subject.parse(&.{
         "posix-prepare-runtime",
         "--runtime-directory",
@@ -92,26 +66,6 @@ test "launcher rejects platform-named endpoint helper commands" {
         runtime_directory,
         "--endpoint-id",
         "0123456789abcdef0123456789abcdef",
-    }));
-}
-
-test "launcher endpoint commands require exactly one value per declared option" {
-    const runtime_directory = runtimeDirectory();
-    try std.testing.expectError(error.InvalidArguments, subject.parse(&.{
-        "prepare-runtime",
-        "--runtime-directory",
-        runtime_directory,
-        "--runtime-directory",
-        runtime_directory,
-    }));
-    try std.testing.expectError(error.InvalidArguments, subject.parse(&.{
-        "connect",
-        "--runtime-directory",
-        runtime_directory,
-        "--endpoint-id",
-        "0123456789abcdef0123456789abcdef",
-        "--endpoint-id",
-        "fedcba9876543210fedcba9876543210",
     }));
 }
 

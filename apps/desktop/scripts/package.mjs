@@ -36,6 +36,14 @@ const terminalHostBinary = path.join(
 	'bin',
 	terminalHostBinaryName,
 );
+// Cross-runtime contract: search for `posix-host-endpoint-addon-name` before changing this value.
+const posixHostEndpointAddonName = 'orchbee-posix-host-endpoint.node';
+const posixHostEndpointAddon = path.join(
+	applicationRoot,
+	'zig-out',
+	'lib',
+	posixHostEndpointAddonName,
+);
 const shellIntegrationResources = path.join(applicationRoot, 'resources', 'shell-integration');
 
 await Promise.all([
@@ -45,6 +53,7 @@ await Promise.all([
 	access(gatewayBuild),
 	access(serverBuild),
 	access(terminalHostBinary),
+	...(process.platform === 'win32' ? [] : [access(posixHostEndpointAddon)]),
 	access(path.join(shellIntegrationResources, 'orchbee.zsh')),
 	access(path.join(shellIntegrationResources, 'orchbee.bash')),
 	access(path.join(shellIntegrationResources, 'orchbee.fish')),
@@ -80,6 +89,7 @@ try {
 			stagedGateway,
 			stagedServer,
 			terminalHostBinary,
+			...(process.platform === 'win32' ? [] : [posixHostEndpointAddon]),
 			shellIntegrationResources,
 		],
 		name: 'Orchbee',

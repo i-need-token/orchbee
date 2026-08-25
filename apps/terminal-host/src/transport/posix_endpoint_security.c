@@ -18,7 +18,7 @@
 #include <sys/xattr.h>
 #endif
 
-_Static_assert(sizeof(uid_t) <= sizeof(uint32_t), "uid_t must fit in the helper ABI");
+_Static_assert(sizeof(uid_t) <= sizeof(uint32_t), "uid_t must fit in the security ABI");
 
 static int runtime_directory_stat_is_private(
     const struct stat *status,

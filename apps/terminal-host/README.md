@@ -116,7 +116,7 @@ The runtime directory and endpoint are private to the operating-system user. POS
 
 These controls establish a same-user trust boundary. The endpoint identifier is not a secret, and Terminal Host does not distinguish one same-user application from another. It is not a multi-tenant service.
 
-Desktop reconnect is supported while the Host survives. The POSIX authenticated transport helper owns only its proxy connection and bounded buffers; closing it does not terminate or otherwise own the Host. PTY migration or recovery after a Host or operating-system crash is not promised.
+Desktop reconnect is supported while the Host survives. On POSIX, Desktop's in-process native endpoint adapter owns the client socket and authenticates the Host before protocol work; Terminal Host independently authenticates every accepted client. Closing the Desktop connection does not terminate or otherwise own the Host. PTY migration or recovery after a Host or operating-system crash is not promised. The client-side model lives in the Desktop [POSIX Host endpoint contract](../desktop/docs/posix-host-endpoint.md).
 
 Process-tree ownership follows the containment domain created at launch: a dedicated POSIX session or a Windows kill-on-close Job. Cleanup is complete only after that domain has no live members. On Windows, the Host waits on the Job's empty signal before closing HPCON; Desktop-owned force escalation terminates the Job and wakes that wait. Preventing a trusted same-user child from deliberately escaping a POSIX session is not an isolation promise.
 
@@ -133,18 +133,8 @@ orchbee-terminal-host serve \
 
 Desktop derives the runtime directory and endpoint identifier from its product user-data scope; the Host treats both as infrastructure values and does not infer product topology from them.
 
-Desktop may use the binary's private, platform-neutral endpoint-helper ABI:
-
-```text
-orchbee-terminal-host prepare-runtime \
-  --runtime-directory <absolute-path>
-
-orchbee-terminal-host connect \
-  --runtime-directory <absolute-path> \
-  --endpoint-id <32-lowercase-hex>
-```
-
-`src/cli/local_endpoint.zig` selects the target-specific implementation, so callers do not choose a platform operation. On POSIX, `prepare-runtime` prepares and validates the runtime-directory descriptor; `connect` validates the directory and endpoint, checks kernel peer credentials, reports authentication on file descriptor 3, and only then proxies bounded stdio to the socket. The Windows helper implementation deliberately returns `UnsupportedPlatform` until it can provide an equivalent authenticated proxy; this change does not migrate Desktop's existing named-pipe path. These operations are an internal Desktop/Host composition ABI, not a protocol compatibility layer or a general client interface.
+The binary exposes no client connection or runtime-preparation command. Desktop owns those operations
+inside its platform adapter, while Terminal Host remains a separately retained server process.
 
 `--scrollback-bytes` sets the startup default for newly created terminals. The current default is 10,000,000 decimal bytes; accepted values range from `0` through `1,000,000,000`. A broker may replace the process default for later terminals or supply an explicit configuration when creating one. Zero disables retained scrollback.
 

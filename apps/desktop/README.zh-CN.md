@@ -38,7 +38,7 @@ Desktop 严格要求唯一的当前 Host 协议 `0.0.19`；预发布版本既不
 
 入站 Host 记录跨 JavaScript Promise 结算保持线协议顺序。`HostConnection` 在解码时认领每个相关响应、完成该响应，并将后续记录延迟到一个事件循环屏障之后，使响应延续先于稍后的 Host 事件运行。先于响应到达的事件仍保持在前；连续事件/帧交付保持同步；每条记录解码后，传输尾部都会跟进，而无需重新开放请求准入。
 
-在 POSIX 上构造 `HostConnection` 之前，Desktop 会要求打包的本机主机帮助程序验证运行时目录和实际套接字、连接并根据内核对等凭据验证服务器的有效 UID。只有经过身份验证的 same-UID 连接才能抑制主机启动，并且每次重试或稍后桌面重新连接都会重复检查。助手是该连接的有界 stdio 代理；它的退出不能拥有或终止保留的主机进程，并且其传输保留 `HostConnection` 准入和未知结果行为不变。
+在 POSIX 上构造 `HostConnection` 之前，Desktop 的进程内本机端点适配器会验证运行时目录和实际套接字、建立连接，并根据内核对端凭据验证服务器的有效 UID。只有经过验证的同 UID 连接才能抑制 Host 启动，并且每次重试或稍后 Desktop 重连都会重复检查。适配器把已验证描述符直接移交给 Node 套接字且不启动帮助进程，因此 `serve` 是唯一的 Terminal Host 产品进程。其所有权、失败、证据和回滚合同见 [`docs/posix-host-endpoint.md`](docs/posix-host-endpoint.zh-CN.md)。
 
 Desktop 将一个 Terminal Host 端点扩展到其产品 `userData` 身份，该身份将 OS 用户、产品配置文件和发布通道数据根分开。短 POSIX 运行时路径是操作系统受信任的每用户运行时位置（Linux 上的 `/run/user/<effective-uid>` 和 Electron 上 macOS 上的 Electron 的每用户临时位置）的稳定产品范围子代，从来都不是确定性的共享 `/tmp` 的子级。 Windows 命名管道标识源自相同的产品范围。显式端点和运行时覆盖仅适用于受控开发和测试； POSIX 覆盖仍然通过本机无跟随所有者、私有模式和 ACL 准备和验证。每次成功握手后，Desktop 都会通过 `SetTerminalDefaults` 发送当前终端默认值，因此重新连接到已运行的单例与新启动 CLI 具有相同的结果。新终端使用与工作台画布对齐的浅色配置；保留的终端保留与其现有主机会话一起存储的配置。Presentation 与输入首选项仍只属于渲染器；Main 拥有的回滚缓冲区默认值是当前唯一会改变 Host 终端默认值的产品设置。
 
@@ -269,6 +269,8 @@ Electron 或 Host 编译失败不会影响最后运行的进程。只有新二�
 
 开发运行时仅从受监督的 Terminal Host 环境中删除继承的 `PAGER` 和 `GIT_PAGER` 覆盖。因此，交互式 shell 选择其配置的或默认的寻呼机，而 Electron、构建过程、打包启动和调用开发人员环境保持不变。
 
+在 POSIX 上，开发 supervisor 会直接在 `/tmp` 下创建一个随机、仅所有者可访问的工作区。该受控路径使完整端点保持在 Darwin 的 Unix 套接字路径名上限以内；进程内本机适配器仍会验证禁止跟随的目录描述符、所有者、模式、ACL、端点和实际对端凭据。打包产品集合点仍位于上述受信任的每用户运行时位置下，绝不使用该开发工作区。
+
 一起启动规范的 Web 开发服务器和桌面：
 
 ```sh
@@ -283,7 +285,7 @@ pnpm desktop
 pnpm desktop:package
 ```
 
-该命令在打包之前构建 Terminal Host、Web 渲染器、浏览器服务器、网关和 Electron Main/预加载包。 Web 构建既是只读的 `orchbee://app` 资源，也是按需浏览器渲染器根；本机主机、服务器和网关条目在 `app.asar` 外部仍然可用。输出是在 `apps/desktop/out/` 下生成的，不是签名的安装程序或发布工件。
+该命令在打包之前构建 Terminal Host、POSIX 端点适配器、Web 渲染器、浏览器服务器、网关和 Electron Main/预加载包。Web 构建既是只读的 `orchbee://app` 资源，也是按需浏览器渲染器根；本机 Host、当前平台端点适配器、服务器和网关条目在 `app.asar` 外部仍然可用。输出是在 `apps/desktop/out/` 下生成的，不是签名的安装程序或发布工件。
 
 `ORCHBEE_TERMINAL_HOST_BINARY` 选择绝对的开发/测试主机二进制文件。 `ORCHBEE_TERMINAL_SCROLLBACK_BYTES` 从 `0` 到 `1000000000` 选择以十进制字节为单位的临时开发启动/默认回滚预算；内置默认值为 `10000000`。当不使用默认同级版本时，`ORCHBEE_GATEWAY_ENTRY_PATH`、`ORCHBEE_SERVER_ENTRY_PATH` 和 `ORCHBEE_WEB_RENDERER_ROOT` 选择显式开发浏览器访问资源。 `ORCHBEE_DESKTOP_RUNTIME_DIRECTORY`、`ORCHBEE_DESKTOP_ENDPOINT_ID` 和 `ORCHBEE_DESKTOP_RECOVERY_DIRECTORY` 隔离受控开发和系统测试状态。它们不是版本化的主机安装或发现机制。默认的 POSIX 运行时使用上述受信任的每用户运行时位置的短稳定产品范围子代；显式运行时目录仍由本机端点安全边界准备和验证。
 

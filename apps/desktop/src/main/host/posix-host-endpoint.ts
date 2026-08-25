@@ -1,214 +1,121 @@
-import { type ChildProcess, spawn } from 'node:child_process';
-import { Duplex, Readable, Writable } from 'node:stream';
+import { closeSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import { Socket } from 'node:net';
+import path from 'node:path';
+import type { Duplex } from 'node:stream';
 
 import { HostConnection } from './HostConnection';
 
-const AUTHENTICATED_STATUS_READY = 1;
-const AUTHENTICATED_STATUS_ENDPOINT_UNAVAILABLE = 2;
-const AUTHENTICATED_STATUS_IDENTITY_MISMATCH = 3;
-const AUTHENTICATED_STATUS_IDENTITY_UNAVAILABLE = 4;
-const AUTHENTICATED_STATUS_INSECURE_ENDPOINT = 5;
-const AUTHENTICATED_STATUS_SYSTEM_ERROR = 6;
-const retiredHelpers = new WeakSet<ChildProcess>();
+// Cross-runtime contract: search for `posix-host-endpoint-addon-name` before changing this value.
+export const POSIX_HOST_ENDPOINT_ADDON_NAME = 'orchbee-posix-host-endpoint.node';
+
+interface PosixHostEndpointNativeAdapter {
+	connectAuthenticated(runtimeDirectory: string, endpointId: string): number;
+	prepareRuntimeDirectory(runtimeDirectory: string): void;
+}
 
 export interface PosixHostEndpointDependencies {
+	readonly closeDescriptor: (descriptor: number) => void;
 	readonly createConnection: (transport: Duplex) => HostConnection;
-	readonly spawn: typeof spawn;
+	readonly createSocket: (descriptor: number) => Duplex;
+	readonly loadNativeAdapter: (addonPath: string) => PosixHostEndpointNativeAdapter;
 }
 
 const defaultDependencies: PosixHostEndpointDependencies = {
+	closeDescriptor: (descriptor) => closeSync(descriptor),
 	createConnection: (transport) => new HostConnection(transport),
-	spawn,
+	createSocket: (descriptor) => new Socket({ fd: descriptor, readable: true, writable: true }),
+	loadNativeAdapter,
 };
 
-export function preparePosixHostRuntimeDirectory(
-	binaryPath: string,
+export async function preparePosixHostRuntimeDirectory(
+	addonPath: string,
 	runtimeDirectory: string,
 	dependencies: PosixHostEndpointDependencies = defaultDependencies,
 ): Promise<void> {
-	const child = dependencies.spawn(
-		binaryPath,
-		['prepare-runtime', '--runtime-directory', runtimeDirectory],
-		{ stdio: 'ignore' },
-	);
-	return waitForSuccessfulExit(child, 'POSIX Terminal Host runtime-directory preparation failed.');
+	requireAbsoluteAddonPath(addonPath);
+	dependencies.loadNativeAdapter(addonPath).prepareRuntimeDirectory(runtimeDirectory);
 }
 
-export function connectAuthenticatedPosixHost(
-	binaryPath: string,
+export async function connectAuthenticatedPosixHost(
+	addonPath: string,
 	runtimeDirectory: string,
 	endpointId: string,
 	dependencies: PosixHostEndpointDependencies = defaultDependencies,
 ): Promise<HostConnection> {
-	const child = dependencies.spawn(
-		binaryPath,
-		['connect', '--runtime-directory', runtimeDirectory, '--endpoint-id', endpointId],
-		{ stdio: ['pipe', 'pipe', 'ignore', 'pipe'] },
-	);
-	const input = child.stdin;
-	const output = child.stdout;
-	const status = child.stdio[3];
-	if (input === null || output === null || !(status instanceof Readable)) {
-		retireHelper(child);
-		return Promise.reject(new Error('POSIX Terminal Host helper stdio is unavailable.'));
-	}
-
-	return new Promise((resolve, reject) => {
-		let settled = false;
-		const removePreauthenticationListeners = (): void => {
-			child.off('error', handleError);
-			child.off('exit', handleExit);
-			status.off('data', handleStatus);
-			status.off('end', handleStatusEnd);
-		};
-		const rejectBeforeAuthentication = (error: Error): void => {
-			if (settled) return;
-			settled = true;
-			removePreauthenticationListeners();
-			status.destroy();
-			input.destroy();
-			output.destroy();
-			retireHelper(child);
-			reject(error);
-		};
-		const handleError = (error: Error): void => rejectBeforeAuthentication(error);
-		const handleExit = (code: number | null, signal: NodeJS.Signals | null): void => {
-			rejectBeforeAuthentication(
-				new Error(
-					`POSIX Terminal Host helper exited before authentication (${formatExit(code, signal)}).`,
-				),
-			);
-		};
-		const handleStatusEnd = (): void => {
-			rejectBeforeAuthentication(
-				new Error('POSIX Terminal Host helper closed before reporting peer authentication.'),
-			);
-		};
-		const handleStatus = (chunk: unknown): void => {
-			if (!(chunk instanceof Uint8Array) || chunk.byteLength !== 1) {
-				rejectBeforeAuthentication(
-					new Error('POSIX Terminal Host helper emitted an invalid authentication status.'),
-				);
-				return;
-			}
-			const statusCode = chunk[0];
-			if (statusCode !== AUTHENTICATED_STATUS_READY) {
-				rejectBeforeAuthentication(authenticationFailure(statusCode));
-				return;
-			}
-
-			settled = true;
-			removePreauthenticationListeners();
-			status.destroy();
-			let transport: Duplex | undefined;
-			try {
-				transport = Duplex.fromWeb({
-					readable: Readable.toWeb(output),
-					writable: Writable.toWeb(input),
-				});
-				bindAuthenticatedHelperLifetime(child, transport);
-				resolve(dependencies.createConnection(transport));
-			} catch (error) {
-				transport?.destroy();
-				input.destroy();
-				output.destroy();
-				retireHelper(child);
-				reject(
-					error instanceof Error
-						? error
-						: new Error('POSIX Terminal Host connection construction failed.'),
-				);
-			}
-		};
-
-		child.once('error', handleError);
-		child.once('exit', handleExit);
-		status.once('data', handleStatus);
-		status.once('end', handleStatusEnd);
-	});
-}
-
-function waitForSuccessfulExit(child: ChildProcess, failureMessage: string): Promise<void> {
-	return new Promise((resolve, reject) => {
-		let settled = false;
-		const handleError = (error: Error): void => {
-			if (settled) return;
-			settled = true;
-			child.off('exit', handleExit);
-			reject(error);
-		};
-		const handleExit = (code: number | null, signal: NodeJS.Signals | null): void => {
-			if (settled) return;
-			settled = true;
-			child.off('error', handleError);
-			if (code === 0 && signal === null) {
-				resolve();
-				return;
-			}
-			reject(new Error(`${failureMessage} ${formatExit(code, signal)}.`));
-		};
-		child.once('error', handleError);
-		child.once('exit', handleExit);
-	});
-}
-
-function bindAuthenticatedHelperLifetime(child: ChildProcess, transport: Duplex): void {
-	const handleError = (error: Error): void => {
-		transport.destroy(error);
-	};
-	const handleExit = (code: number | null, signal: NodeJS.Signals | null): void => {
-		if (transport.destroyed) return;
-		if (code === 0 && signal === null) {
-			transport.destroy();
-			return;
-		}
-		transport.destroy(
-			new Error(`POSIX Terminal Host helper exited (${formatExit(code, signal)}).`),
-		);
-	};
-	child.once('error', handleError);
-	child.once('exit', handleExit);
-	transport.once('close', () => {
-		child.off('error', handleError);
-		child.off('exit', handleExit);
-		if (child.exitCode === null && child.signalCode === null) retireHelper(child);
-	});
-}
-
-function retireHelper(child: ChildProcess): void {
-	if (child.exitCode !== null || child.signalCode !== null) return;
-	if (retiredHelpers.has(child)) return;
-	retiredHelpers.add(child);
-	child.once('error', ignoreRetiredHelperError);
+	requireAbsoluteAddonPath(addonPath);
+	const descriptor = dependencies
+		.loadNativeAdapter(addonPath)
+		.connectAuthenticated(runtimeDirectory, endpointId);
+	let descriptorOwned = true;
+	let transport: Duplex | undefined;
 	try {
-		child.kill();
-	} catch {
-		// A concurrent helper exit already releases its stdio and authenticated socket.
+		transport = dependencies.createSocket(descriptor);
+		descriptorOwned = false;
+		return dependencies.createConnection(transport);
+	} catch (error: unknown) {
+		if (descriptorOwned) {
+			try {
+				dependencies.closeDescriptor(descriptor);
+			} catch (closeError: unknown) {
+				throw new AggregateError(
+					[error, closeError],
+					'POSIX Terminal Host descriptor handoff and cleanup both failed.',
+				);
+			}
+		} else {
+			transport?.destroy();
+		}
+		throw error;
 	}
 }
 
-function ignoreRetiredHelperError(): void {
-	// A retired helper can report a late spawn or termination error after ownership ended.
+function loadNativeAdapter(addonPath: string): PosixHostEndpointNativeAdapter {
+	const candidate: unknown = createRequire(addonPath)(addonPath);
+	if (!isRecord(candidate)) {
+		throw new Error('POSIX Terminal Host native endpoint adapter is invalid.');
+	}
+	const connect = candidate['connectAuthenticated'];
+	const prepare = candidate['prepareRuntimeDirectory'];
+	if (!isUnknownFunction(connect) || !isUnknownFunction(prepare)) {
+		throw new Error('POSIX Terminal Host native endpoint adapter exports are invalid.');
+	}
+	return {
+		connectAuthenticated: (runtimeDirectory, endpointId) => {
+			const descriptor = connect(runtimeDirectory, endpointId);
+			if (
+				typeof descriptor !== 'number' ||
+				!Number.isInteger(descriptor) ||
+				descriptor < 0 ||
+				descriptor > 0x7fff_ffff
+			) {
+				throw new Error('POSIX Terminal Host native adapter returned an invalid descriptor.');
+			}
+			return descriptor;
+		},
+		prepareRuntimeDirectory: (runtimeDirectory) => {
+			const result = prepare(runtimeDirectory);
+			if (result !== undefined) {
+				throw new Error(
+					'POSIX Terminal Host native adapter returned an invalid preparation result.',
+				);
+			}
+		},
+	};
 }
 
-function authenticationFailure(status: number | undefined): Error {
-	switch (status) {
-		case AUTHENTICATED_STATUS_ENDPOINT_UNAVAILABLE:
-			return new Error('POSIX Terminal Host endpoint is unavailable.');
-		case AUTHENTICATED_STATUS_IDENTITY_MISMATCH:
-			return new Error('POSIX Terminal Host peer effective UID does not match Desktop.');
-		case AUTHENTICATED_STATUS_IDENTITY_UNAVAILABLE:
-			return new Error('POSIX Terminal Host peer credentials are unavailable.');
-		case AUTHENTICATED_STATUS_INSECURE_ENDPOINT:
-			return new Error('POSIX Terminal Host runtime directory or endpoint is insecure.');
-		case AUTHENTICATED_STATUS_SYSTEM_ERROR:
-			return new Error('POSIX Terminal Host endpoint authentication failed.');
-		default:
-			return new Error('POSIX Terminal Host helper emitted an unknown authentication status.');
+function requireAbsoluteAddonPath(addonPath: string): void {
+	if (!path.isAbsolute(addonPath)) {
+		throw new Error('POSIX Terminal Host native endpoint adapter path must be absolute.');
 	}
 }
 
-function formatExit(code: number | null, signal: NodeJS.Signals | null): string {
-	if (signal !== null) return `signal ${signal}`;
-	return `status ${code ?? 'unknown'}`;
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === 'object' && value !== null;
+}
+
+function isUnknownFunction(
+	value: unknown,
+): value is (...arguments_: readonly unknown[]) => unknown {
+	return typeof value === 'function';
 }

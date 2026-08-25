@@ -10,6 +10,7 @@ import {
 	DesktopDevelopmentRuntime,
 	type DesktopDevelopmentRuntimeLogger,
 } from './src/development';
+import { buildPosixHostEndpoint } from './scripts/build-posix-host-endpoint.mjs';
 
 const electronExecutable: unknown = createRequire(import.meta.url)('electron');
 if (typeof electronExecutable !== 'string') {
@@ -75,12 +76,34 @@ export default defineConfig(({ command }) => {
 			});
 		},
 	};
+	const posixHostEndpointPlugin: RsbuildPlugin = {
+		name: 'orchbee-desktop-posix-host-endpoint',
+		apply: 'serve',
+		setup(api) {
+			api.onBeforeCreateCompiler(async () => {
+				await buildPosixHostEndpoint();
+			});
+		},
+	};
 
 	return {
 		plugins:
 			command === 'dev'
-				? [pluginSourceBuild({ sourceField: '@orchbee/source' }), developmentRuntimePlugin]
+				? [
+						pluginSourceBuild({ sourceField: '@orchbee/source' }),
+						posixHostEndpointPlugin,
+						developmentRuntimePlugin,
+					]
 				: [],
+		dev: {
+			watchFiles: {
+				paths: [
+					path.join(desktopRoot, 'scripts', 'build-posix-host-endpoint.mjs'),
+					path.join(desktopRoot, 'src', 'native', 'posix-host-endpoint'),
+				],
+				type: 'reload-server',
+			},
+		},
 		environments: {
 			main: {
 				dev: { hmr: false, liveReload: false, writeToDisk: true },

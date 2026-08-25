@@ -355,6 +355,9 @@ const defaultDependencies: DesktopApplicationDependencies = {
 			binaryPath: configuration.binaryPath,
 			endpointId: configuration.endpointId,
 			launchIfUnavailable: configuration.terminalHostLaunchMode === 'connect-or-launch',
+			...(configuration.posixHostEndpointAddonPath === null
+				? {}
+				: { posixEndpointAddonPath: configuration.posixHostEndpointAddonPath }),
 			runtimeDirectory: configuration.runtimeDirectory,
 			terminalDefaults: configuration.terminalConfiguration,
 		}).connect(),

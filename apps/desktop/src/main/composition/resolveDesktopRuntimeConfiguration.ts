@@ -9,7 +9,7 @@ import {
 	type TerminalLaunch,
 } from '@orchbee/terminal-protocol';
 
-import { createDefaultTerminalProfile } from '../host';
+import { createDefaultTerminalProfile, POSIX_HOST_ENDPOINT_ADDON_NAME } from '../host';
 
 export interface DesktopRuntimeEnvironment {
 	readonly FORCE_COLOR?: string;
@@ -43,6 +43,7 @@ export type DesktopBrowserAccessRuntimeConfiguration =
 
 export interface DesktopRuntimeConfigurationInput {
 	readonly applicationPath: string;
+	readonly developmentPosixHostEndpointAddonPath?: string | undefined;
 	readonly developmentShellIntegrationDirectory?: string | undefined;
 	readonly environment: DesktopRuntimeEnvironment;
 	readonly homeDirectory: string;
@@ -58,6 +59,7 @@ export interface DesktopRuntimeConfiguration {
 	readonly browserAccess: DesktopBrowserAccessRuntimeConfiguration;
 	readonly endpointId: string;
 	readonly managedWorktreeRoot: string;
+	readonly posixHostEndpointAddonPath: string | null;
 	readonly projectWorktreeOperationStorePath: string;
 	readonly runtimeDirectory: string;
 	readonly terminalArchiveDirectory: string;
@@ -199,12 +201,27 @@ export function resolveDesktopRuntimeConfiguration(
 	) {
 		throw new Error('ORCHBEE_TERMINAL_HOST_SUPERVISED must be 0 or 1.');
 	}
+	let posixHostEndpointAddonPath: string | null;
+	if (input.platform === 'win32') {
+		posixHostEndpointAddonPath = null;
+	} else if (input.packagedResourcesPath === undefined) {
+		posixHostEndpointAddonPath = path.resolve(
+			input.developmentPosixHostEndpointAddonPath ??
+				path.join(input.applicationPath, 'zig-out', 'lib', POSIX_HOST_ENDPOINT_ADDON_NAME),
+		);
+	} else {
+		posixHostEndpointAddonPath = path.resolve(
+			input.packagedResourcesPath,
+			POSIX_HOST_ENDPOINT_ADDON_NAME,
+		);
+	}
 
 	return {
 		binaryPath,
 		browserAccess,
 		endpointId,
 		managedWorktreeRoot: path.join(input.userDataPath, 'worktrees'),
+		posixHostEndpointAddonPath,
 		projectWorktreeOperationStorePath: path.join(
 			input.userDataPath,
 			'project-worktree-operations-v1.json',

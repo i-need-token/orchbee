@@ -7,12 +7,14 @@
 	"main": "./dist/main/main.cjs",
 	"scripts": {
 		"benchmark": "node scripts/benchmark-throughput.mjs",
+		"build:native": "node scripts/build-posix-host-endpoint.mjs",
 		"dev": "rsbuild dev",
-		"build": "rsbuild build --log-level error",
+		"build": "rsbuild build --log-level error && node scripts/build-posix-host-endpoint.mjs",
 		"package": "pnpm --filter @orchbee/terminal-host build && pnpm --filter @orchbee/server... build && pnpm --filter @orchbee/gateway... build && pnpm --filter @orchbee/web... build && pnpm --filter @orchbee/desktop... build && node scripts/package.mjs",
 		"start": "electron dist/main/main.cjs",
 		"typecheck": "tsc --noEmit",
-		"test": "pnpm test:unit",
+		"test": "pnpm test:unit && pnpm test:native",
+		"test:native": "node scripts/test-posix-host-endpoint.mjs",
 		"test:unit": "vitest run",
 		"test:tla": "node ../../scripts/tla/run-models.mjs --workspace apps/desktop",
 		"test:watch": "vitest",
@@ -37,6 +39,7 @@
 		"@rsbuild/plugin-source-build": "catalog:",
 		"@types/node": "catalog:",
 		"fast-check": "4.9.0",
+		"node-api-headers": "1.9.0",
 		"vitest": "catalog:"
 	}
 }

@@ -11,8 +11,6 @@ pub const LocalServer = switch (builtin.os.tag) {
 };
 
 pub const validEndpointId = connection.validEndpointId;
-pub const preparePosixRuntimeDirectory = posix.prepareRuntimeDirectory;
-pub const runPosixClientProxy = posix.runClientProxy;
 
 pub const testing = if (builtin.is_test) struct {
     pub const checkedWindowsBufferLengthFn = windows.checkedBufferLength;
@@ -23,7 +21,6 @@ pub const testing = if (builtin.is_test) struct {
     pub const requireWindowsStatusFn = windows.requireStatus;
     pub const posixSendFlags = posix.send_flags;
     pub const posixEndpointSecurity = posix.endpoint_security;
-    pub const posixProxy = posix.proxy;
     pub const serveAcceptedConnectionFn = connection.serveAcceptedConnection;
     pub const serveConnectionFn = connection.serveConnection;
     pub const serveConnectionWithHandshakeTimeoutFn = connection.serveConnectionWithHandshakeTimeout;

@@ -83,7 +83,8 @@ export function createNodeDesktopDevelopmentRuntimeDependencies(
 			const terminalScrollbackBytes = resolveScrollbackBytes(
 				environment['ORCHBEE_TERMINAL_SCROLLBACK_BYTES'],
 			);
-			const workspaceRoot = await mkdtemp(path.join(tmpdir(), 'orchbee-desktop-development-'));
+			const temporaryRoot = process.platform === 'win32' ? tmpdir() : '/tmp';
+			const workspaceRoot = await mkdtemp(path.join(temporaryRoot, 'orchbee-desktop-development-'));
 			const runtimeDirectory = resolveOptionalDirectory(
 				environment['ORCHBEE_DESKTOP_RUNTIME_DIRECTORY'],
 				path.join(workspaceRoot, 'runtime'),

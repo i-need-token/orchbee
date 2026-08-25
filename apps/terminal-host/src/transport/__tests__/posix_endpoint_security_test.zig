@@ -424,27 +424,3 @@ test "native POSIX peer credentials admit only the actual effective UID" {
         security.requirePeerEffectiveUid(pipe[0], std.posix.geteuid()),
     );
 }
-
-test "POSIX helper authentication failures have bounded preprotocol statuses" {
-    if (builtin.os.tag == .windows) return error.SkipZigTest;
-    try std.testing.expectEqual(
-        security.authenticated_status_endpoint_unavailable,
-        security.statusForConnectError(error.FileNotFound),
-    );
-    try std.testing.expectEqual(
-        security.authenticated_status_identity_mismatch,
-        security.statusForConnectError(error.PeerIdentityMismatch),
-    );
-    try std.testing.expectEqual(
-        security.authenticated_status_identity_unavailable,
-        security.statusForConnectError(error.PeerIdentityUnavailable),
-    );
-    try std.testing.expectEqual(
-        security.authenticated_status_insecure_endpoint,
-        security.statusForConnectError(error.InsecureEndpoint),
-    );
-    try std.testing.expectEqual(
-        security.authenticated_status_system_error,
-        security.statusForConnectError(error.Unexpected),
-    );
-}

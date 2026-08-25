@@ -5,41 +5,11 @@ const host_service = @import("terminal-host-service").service;
 const connection = @import("connection.zig");
 
 pub const endpoint_security = @import("posix_endpoint_security.zig");
-pub const proxy = @import("posix_proxy.zig");
 
 pub const send_flags = if (builtin.os.tag == .windows)
     0
 else
     std.posix.MSG.DONTWAIT | std.posix.MSG.NOSIGNAL;
-
-pub fn prepareRuntimeDirectory(runtime_directory: []const u8) !void {
-    if (builtin.os.tag == .windows) return error.UnsupportedPlatform;
-    var directory = try endpoint_security.prepareRuntimeDirectory(runtime_directory);
-    directory.close();
-}
-
-pub fn runClientProxy(
-    allocator: std.mem.Allocator,
-    runtime_directory: []const u8,
-    endpoint_id: []const u8,
-    status: std.fs.File,
-    input: std.fs.File,
-    output: std.fs.File,
-) !void {
-    if (builtin.os.tag == .windows) return error.UnsupportedPlatform;
-    defer status.close();
-    const stream = endpoint_security.connectAuthenticated(
-        allocator,
-        runtime_directory,
-        endpoint_id,
-    ) catch |failure| {
-        try status.writeAll(&.{endpoint_security.statusForConnectError(failure)});
-        return;
-    };
-    defer stream.close();
-    try status.writeAll(&.{endpoint_security.authenticated_status_ready});
-    try proxy.run(stream.handle, input.handle, output.handle);
-}
 
 const Connection = if (builtin.os.tag == .windows) void else struct {
     stream: std.net.Stream,

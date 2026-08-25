@@ -73,7 +73,7 @@ Terminal Host 拥有：
 
 这些控制建立了同一用户的信任边界。端点标识符不是秘密，并且 Terminal Host 不区分一个相同用户应用程序与另一个。它不是多租户服务。
 
-当主机存活时，支持桌面重新连接。 POSIX 经过身份验证的传输助手仅拥有其代理连接和有界缓冲区；关闭它并不终止主机或以其他方式拥有主机。 PTY 不承诺主机或操作系统崩溃后的迁移或恢复。
+当 Host 存活时，支持 Desktop 重新连接。在 POSIX 上，Desktop 的进程内本机端点适配器拥有客户端套接字，并在协议工作前验证 Host；Terminal Host 独立验证每个已接受客户端。关闭 Desktop 连接不会终止或以其他方式拥有 Host。不承诺在 Host 或操作系统崩溃后迁移或恢复 PTY。客户端模型见 Desktop 的 [POSIX Host 端点合同](../desktop/docs/posix-host-endpoint.zh-CN.md)。
 
 进程树所有权遵循启动时创建的遏制域：专用的 POSIX 会话或 Windows 关闭时终止作业。仅当该域没有实时成员时清理才完成。在 Windows 上，Host 会等待 Job 的空信号后再关闭 HPCON；Desktop 拥有的强制升级会终止 Job 并唤醒该等待。防止受信任的同一用户子进程故意逃离 POSIX 会话并不是一个隔离承诺。
 
@@ -90,18 +90,7 @@ orchbee-terminal-host serve \
 
 Desktop 从其产品用户数据范围派生运行时目录和端点标识符；主机将两者视为基础设施值，并且不会从中推断出产品拓扑。
 
-桌面可以使用二进制文件的私有、平台中立的端点帮助程序 ABI：
-
-```text
-orchbee-terminal-host prepare-runtime \
-  --runtime-directory <absolute-path>
-
-orchbee-terminal-host connect \
-  --runtime-directory <absolute-path> \
-  --endpoint-id <32-lowercase-hex>
-```
-
-`src/cli/local_endpoint.zig` 选择特定于目标的实现，因此调用者不会选择平台操作。在POSIX上，`prepare-runtime`准备并验证运行时目录描述符； `connect` 验证目录和端点，检查内核对等凭据，报告文件描述符 3 上的身份验证，然后才将绑定的 stdio 代理到套接字。 Windows 帮助程序实现有意返回 `UnsupportedPlatform`，直到它可以提供等效的经过身份验证的代理；此更改不会迁移 Desktop 的现有命名管道路径。这些操作是内部桌面/主机组合ABI，而不是协议兼容层或通用客户端接口。
+该二进制不公开客户端连接或运行时准备命令。Desktop 在其平台适配器内拥有这些操作，而 Terminal Host 继续作为独立保留的服务器进程。
 
 `--scrollback-bytes` 设置新创建终端的启动默认值。当前默认为 10,000,000 个十进制字节；可接受的值范围从 `0` 到 `1,000,000,000`。代理可以替换后续终端的流程默认值，或者在创建终端时提供显式配置。零禁用保留的回滚。
 

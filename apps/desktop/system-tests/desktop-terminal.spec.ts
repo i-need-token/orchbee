@@ -1,4 +1,4 @@
-import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import { execFile, spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { access, chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
@@ -6,6 +6,7 @@ import { createConnection, type AddressInfo } from 'node:net';
 import { tmpdir, userInfo } from 'node:os';
 import path from 'node:path';
 import { setTimeout as wait } from 'node:timers/promises';
+import { promisify } from 'node:util';
 
 import {
 	createRsbuild,
@@ -46,6 +47,7 @@ const webDist = path.join(repositoryRoot, 'apps', 'web', 'dist');
 const startupGeometryWitnessTitle = 'terminal-parity/SU-16-startup-geometry';
 const MANUAL_NATIVE_WINDOW_TEST_TAG = '@manual-native-window';
 const MANUAL_NATIVE_WINDOW_TEST_APPROVAL = 'I_ACKNOWLEDGE_FOCUS_INTERRUPTION';
+const executeFile = promisify(execFile);
 
 const applicationOutput = new WeakMap<ElectronApplication, string[]>();
 
@@ -168,6 +170,46 @@ test.afterEach(async () => {
 	hostProcess = undefined;
 	if (runtimeDirectory !== undefined) await rm(runtimeDirectory, { force: true, recursive: true });
 	runtimeDirectory = undefined;
+});
+
+test('terminal-host/SU-17-single-process-boundary', async () => {
+	test.setTimeout(45_000);
+	test.skip(process.platform === 'win32', 'Windows already uses the direct named-pipe transport.');
+	const application = electronApplication;
+	const currentHost = hostProcess;
+	const currentRuntimeDirectory = runtimeDirectory;
+	if (
+		application === undefined ||
+		currentHost === undefined ||
+		currentRuntimeDirectory === undefined
+	) {
+		throw new Error('Desktop single-process witness is unavailable.');
+	}
+	try {
+		const page = await application.firstWindow();
+		await expect(projectedTerminal(page)).toHaveAttribute('data-projected-terminal-state', 'open');
+	} catch (error: unknown) {
+		throw new Error(
+			`Desktop closed before the single-process witness: ${(applicationOutput.get(application) ?? []).join('')}`,
+			{ cause: error },
+		);
+	}
+	const { stdout } = await executeFile('ps', ['-axo', 'pid=,ppid=,command='], {
+		encoding: 'utf8',
+	});
+	const endpointProcesses = stdout
+		.split('\n')
+		.map((line) => line.trim())
+		.filter(
+			(line) =>
+				line.includes(hostBinary) &&
+				line.includes(`--runtime-directory ${currentRuntimeDirectory}`),
+		);
+	expect(endpointProcesses).toHaveLength(1);
+	expect(endpointProcesses[0]).toContain(String(currentHost.pid));
+	expect(endpointProcesses[0]).toContain(' serve ');
+	expect(endpointProcesses[0]).not.toContain(' connect ');
+	expect(endpointProcesses[0]).not.toContain(' prepare-runtime ');
 });
 
 test('terminal-parity/SU-14-runtime-presentation', async () => {

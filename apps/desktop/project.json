@@ -1,7 +1,7 @@
 {
 	"$schema": "../../schemas/project-contract.schema.json",
 	"domain": "desktop",
-	"runtime": ["electron", "node"],
+	"runtime": ["electron", "native", "node"],
 	"stability": "experimental",
 	"responsibility": "Electron Main and preload composition, packaged Web resource delivery through the standard secure orchbee scheme, product-data-root and development-checkout isolation, current-platform application packaging, development-only Electron and Terminal Host build/process supervision, durable multi-terminal binding storage, a durable device-local terminal-launch-profile catalog and local renderer broker, one canonical shared Workbench document writer and transport-neutral multi-client session coordinator, managed Project Worktree Git creation and recovery under a fixed product-owned location, Host inventory reconciliation, serialized per-binding terminal lifetime orchestration, demand-driven multi-viewer projection control, terminal-presentation binding registration, Electron MessagePort adapters for transport-neutral Workbench client contracts, atomic sandboxed bootstrap and application-lifetime capability brokering, explicit process-lifetime loopback or trusted-LAN Browser access lifecycle, Main-owned access-link effects, scoped Browser page-capability allocation, and the local Desktop-to-Terminal-Host transport boundary.",
 	"nonGoals": [

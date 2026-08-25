@@ -42,7 +42,7 @@ behind one event-loop barrier so the response continuation runs before a later H
 precedes the response remains first, consecutive event/frame delivery remains synchronous, and a
 transport end follows every already-decoded record without reopening request admission.
 
-Before it constructs `HostConnection` on POSIX, Desktop asks the packaged native Host helper to validate the runtime directory and actual socket, connect, and authenticate the server's effective UID from kernel peer credentials. Only an authenticated same-UID connection can suppress Host launch, and every retry or later Desktop reconnect repeats the check. The helper is a bounded stdio proxy for that one connection; its exit cannot own or terminate the retained Host process, and its transport preserves `HostConnection` admission and unknown-outcome behavior unchanged.
+Before it constructs `HostConnection` on POSIX, Desktop's in-process native endpoint adapter validates the runtime directory and actual socket, connects, and authenticates the server's effective UID from kernel peer credentials. Only an authenticated same-UID connection can suppress Host launch, and every retry or later Desktop reconnect repeats the check. The adapter transfers the authenticated descriptor directly into a Node socket and starts no helper process, so `serve` is the only Terminal Host product process. Its ownership, failure, evidence, and rollback contract lives in [`docs/posix-host-endpoint.md`](docs/posix-host-endpoint.md).
 
 Desktop scopes one Terminal Host endpoint to its product `userData` identity, which separates OS users, product profiles, and release-channel data roots. The short POSIX runtime path is a stable product-scoped child of the operating system's trusted per-user runtime location (`/run/user/<effective-uid>` on Linux and Electron's per-user temporary location on macOS), never a deterministic child of shared `/tmp`. The Windows named-pipe identity is derived from the same product scope. Explicit endpoint and runtime overrides exist only for controlled development and tests; POSIX overrides still pass through native no-follow owner, private-mode, and ACL preparation and validation. After every successful handshake, Desktop sends the current terminal default through `SetTerminalDefaults`, so reconnecting to an already-running singleton has the same result as a fresh CLI launch. New terminals use a light profile aligned with the Workbench canvas; retained terminals preserve the profile stored with their existing Host session. Presentation and input preferences remain renderer-local; the Main-owned scrollback default is the only current product setting that mutates Host terminal defaults.
 
@@ -489,6 +489,12 @@ Terminal Host environment. Interactive shells therefore select their configured 
 while Electron, build processes, packaged launches, and the invoking developer environment remain
 unchanged.
 
+On POSIX, the development supervisor creates one random owner-only workspace directly beneath
+`/tmp`. This controlled path keeps the complete endpoint beneath Darwin's Unix-socket pathname bound;
+the in-process native adapter still validates its no-follow directory descriptor, owner, mode, ACL,
+endpoint, and actual peer credentials. Packaged product rendezvous remains beneath the trusted
+per-user runtime location described above and never uses this development workspace.
+
 Start the canonical Web development server and Desktop together:
 
 ```sh
@@ -503,7 +509,7 @@ Build an unsigned current-platform application bundle with:
 pnpm desktop:package
 ```
 
-The command builds the Terminal Host, Web renderer, Browser Server, Gateway, and Electron Main/preload bundles before packaging. The Web build is both a read-only `orchbee://app` resource and the on-demand Browser renderer root; the native Host, Server, and Gateway entries remain available outside `app.asar`. The output is generated beneath `apps/desktop/out/` and is not a signed installer or release artifact.
+The command builds the Terminal Host, POSIX endpoint adapter, Web renderer, Browser Server, Gateway, and Electron Main/preload bundles before packaging. The Web build is both a read-only `orchbee://app` resource and the on-demand Browser renderer root; the native Host, current-platform endpoint adapter, Server, and Gateway entries remain available outside `app.asar`. The output is generated beneath `apps/desktop/out/` and is not a signed installer or release artifact.
 
 `ORCHBEE_TERMINAL_HOST_BINARY` selects an absolute development/test Host binary. `ORCHBEE_TERMINAL_SCROLLBACK_BYTES` selects the temporary development startup/default scrollback budget in decimal bytes from `0` through `1000000000`; the built-in default is `10000000`. `ORCHBEE_GATEWAY_ENTRY_PATH`, `ORCHBEE_SERVER_ENTRY_PATH`, and `ORCHBEE_WEB_RENDERER_ROOT` select explicit development Browser-access resources when the default sibling builds are not used. `ORCHBEE_DESKTOP_RUNTIME_DIRECTORY`, `ORCHBEE_DESKTOP_ENDPOINT_ID`, and `ORCHBEE_DESKTOP_RECOVERY_DIRECTORY` isolate controlled development and system-test state. They are not a versioned Host installation or discovery mechanism. The default POSIX runtime uses the short stable product-scoped child of the trusted per-user runtime location described above; an explicit runtime directory is still prepared and validated by the native endpoint-security boundary.
 

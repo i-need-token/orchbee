@@ -13,6 +13,7 @@ describe('DevelopmentHostRuntime', () => {
 		const common = {
 			binaryPath: path.resolve('/opt/orchbee/orchbee-terminal-host'),
 			endpointId: 'ab'.repeat(16),
+			posixEndpointAddonPath: path.resolve('/opt/orchbee/orchbee-posix-host-endpoint.node'),
 			runtimeDirectory: path.resolve('/tmp/orchbee-runtime'),
 			terminalDefaults: { scrollbackBytes: 10_000_000 },
 		};
@@ -46,6 +47,7 @@ describe('DevelopmentHostRuntime', () => {
 				connectionAttempts: 2,
 				endpointId: 'cd'.repeat(16),
 				platform: 'linux',
+				posixEndpointAddonPath: path.resolve('/opt/orchbee/orchbee-posix-host-endpoint.node'),
 				retryDelayMilliseconds: 1,
 				runtimeDirectory: path.resolve('/tmp/orchbee-runtime'),
 				terminalDefaults: { scrollbackBytes: 25_000_000 },
@@ -57,7 +59,7 @@ describe('DevelopmentHostRuntime', () => {
 		expect(dependencies.prepareDirectory).toHaveBeenCalledWith(
 			path.resolve('/tmp/orchbee-runtime'),
 			'linux',
-			path.resolve('/opt/orchbee/orchbee-terminal-host'),
+			path.resolve('/opt/orchbee/orchbee-posix-host-endpoint.node'),
 		);
 		expect(dependencies.launch).toHaveBeenCalledOnce();
 		expect(dependencies.launch).toHaveBeenCalledWith(
@@ -76,10 +78,10 @@ describe('DevelopmentHostRuntime', () => {
 		expect(connect).toHaveBeenNthCalledWith(
 			3,
 			path.join(path.resolve('/tmp/orchbee-runtime'), `${'cd'.repeat(16)}.s`),
-			path.resolve('/opt/orchbee/orchbee-terminal-host'),
 			path.resolve('/tmp/orchbee-runtime'),
 			'cd'.repeat(16),
 			'linux',
+			path.resolve('/opt/orchbee/orchbee-posix-host-endpoint.node'),
 		);
 		expect(dependencies.wait).toHaveBeenCalledWith(1);
 	});
@@ -99,6 +101,7 @@ describe('DevelopmentHostRuntime', () => {
 				binaryPath: path.resolve('/opt/orchbee/orchbee-terminal-host'),
 				endpointId: 'ef'.repeat(16),
 				platform: 'darwin',
+				posixEndpointAddonPath: path.resolve('/opt/orchbee/orchbee-posix-host-endpoint.node'),
 				runtimeDirectory: path.resolve('/private/runtime'),
 				terminalDefaults: { scrollbackBytes: 10_000_000 },
 			},
@@ -132,6 +135,7 @@ describe('DevelopmentHostRuntime', () => {
 				endpointId: 'ab'.repeat(16),
 				launchIfUnavailable: false,
 				platform: 'darwin',
+				posixEndpointAddonPath: path.resolve('/opt/orchbee/orchbee-posix-host-endpoint.node'),
 				runtimeDirectory: path.resolve('/private/runtime'),
 				terminalDefaults: { scrollbackBytes: 10_000_000 },
 			},

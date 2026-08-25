@@ -19,6 +19,7 @@ import {
 	installDesktopRendererScheme,
 	registerDesktopRendererScheme,
 } from '../desktop-renderer-protocol';
+import { POSIX_HOST_ENDPOINT_ADDON_NAME } from '../host';
 import { installDesktopApplicationMenu } from '../application-menu';
 import {
 	DesktopSecureKeyboardEntry,
@@ -93,6 +94,14 @@ if (!singleInstanceLockOwned) {
 				...(app.isPackaged
 					? {}
 					: {
+							developmentPosixHostEndpointAddonPath: path.resolve(
+								__dirname,
+								'..',
+								'..',
+								'zig-out',
+								'lib',
+								POSIX_HOST_ENDPOINT_ADDON_NAME,
+							),
 							developmentShellIntegrationDirectory: path.resolve(
 								__dirname,
 								'..',

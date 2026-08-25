@@ -120,6 +120,9 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 		expect(configuration.binaryPath).toBe(
 			path.resolve('/repo/apps/terminal-host/zig-out/bin/orchbee-terminal-host'),
 		);
+		expect(configuration.posixHostEndpointAddonPath).toBe(
+			path.resolve('/repo/apps/desktop/zig-out/lib/orchbee-posix-host-endpoint.node'),
+		);
 		expect(configuration.terminalLaunch.executable).toBe('/bin/sh');
 		expect(configuration.endpointId).toMatch(/^[0-9a-f]{32}$/u);
 		expect(configuration.terminalBindingStorePath).toBe(
@@ -194,6 +197,9 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 		expect(configuration.binaryPath).toBe(
 			path.resolve('/Applications/Orchbee.app/Contents/Resources/orchbee-terminal-host'),
 		);
+		expect(configuration.posixHostEndpointAddonPath).toBe(
+			path.resolve('/Applications/Orchbee.app/Contents/Resources/orchbee-posix-host-endpoint.node'),
+		);
 		expect(configuration.browserAccess).toEqual({
 			gatewayEntryPath: path.resolve(
 				'/Applications/Orchbee.app/Contents/Resources/orchbee-gateway.cjs',
@@ -211,11 +217,15 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 	});
 
 	it('accepts the bundle-resolved development shell integration directory', () => {
+		const developmentPosixHostEndpointAddonPath = path.resolve(
+			'/repo/apps/desktop/zig-out/lib/orchbee-posix-host-endpoint.node',
+		);
 		const developmentShellIntegrationDirectory = path.resolve(
 			'/repo/apps/desktop/resources/shell-integration',
 		);
 		const configuration = resolveDesktopRuntimeConfiguration({
 			applicationPath: path.resolve('/unexpected/electron/application/path'),
+			developmentPosixHostEndpointAddonPath,
 			developmentShellIntegrationDirectory,
 			environment: {},
 			homeDirectory: path.resolve('/users/orchbee'),
@@ -223,6 +233,7 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 			posixRuntimeBaseDirectory: path.resolve('/private/var/folders/user/T'),
 			userDataPath: path.resolve('/users/orchbee/library/orchbee'),
 		});
+		expect(configuration.posixHostEndpointAddonPath).toBe(developmentPosixHostEndpointAddonPath);
 
 		expect(configuration.terminalLaunch.environment).toContainEqual({
 			name: 'ORCHBEE_SHELL_INTEGRATION_DIR',
@@ -326,6 +337,7 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 		expect(configuration.runtimeDirectory).toBe(
 			path.join('C:\\Users\\orchbee\\AppData\\Roaming\\Orchbee', 'terminal-host'),
 		);
+		expect(configuration.posixHostEndpointAddonPath).toBeNull();
 	});
 
 	it('sets terminal identity and removes inherited parent color policy', () => {

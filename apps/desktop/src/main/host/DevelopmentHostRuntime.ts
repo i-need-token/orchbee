@@ -24,6 +24,7 @@ export interface DevelopmentHostRuntimeOptions {
 	readonly endpointId: string;
 	readonly launchIfUnavailable?: boolean;
 	readonly platform?: NodeJS.Platform;
+	readonly posixEndpointAddonPath?: string;
 	readonly retryDelayMilliseconds?: number;
 	readonly runtimeDirectory: string;
 	readonly terminalDefaults: TerminalConfiguration;
@@ -32,25 +33,29 @@ export interface DevelopmentHostRuntimeOptions {
 export interface DevelopmentHostRuntimeDependencies {
 	readonly connect: (
 		endpoint: string,
-		binaryPath: string,
 		runtimeDirectory: string,
 		endpointId: string,
 		platform: NodeJS.Platform,
+		posixEndpointAddonPath: string | undefined,
 	) => Promise<HostConnection>;
 	readonly launch: (binaryPath: string, arguments_: readonly string[]) => Promise<void>;
 	readonly prepareDirectory: (
 		directory: string,
 		platform: NodeJS.Platform,
-		binaryPath: string,
+		posixEndpointAddonPath: string | undefined,
 	) => Promise<void>;
 	readonly wait: (milliseconds: number) => Promise<void>;
 }
 
 const defaultDependencies: DevelopmentHostRuntimeDependencies = {
-	connect: (endpoint, binaryPath, runtimeDirectory, endpointId, platform) =>
+	connect: (endpoint, runtimeDirectory, endpointId, platform, posixEndpointAddonPath) =>
 		platform === 'win32'
 			? HostConnection.connectNamedPipe(endpoint)
-			: connectAuthenticatedPosixHost(binaryPath, runtimeDirectory, endpointId),
+			: connectAuthenticatedPosixHost(
+					requirePosixEndpointAddonPath(posixEndpointAddonPath),
+					runtimeDirectory,
+					endpointId,
+				),
 	launch: (binaryPath, arguments_) =>
 		new Promise((resolve, reject) => {
 			const child = spawn(binaryPath, arguments_, {
@@ -65,10 +70,13 @@ const defaultDependencies: DevelopmentHostRuntimeDependencies = {
 				resolve();
 			});
 		}),
-	prepareDirectory: (directory, platform, binaryPath) =>
+	prepareDirectory: (directory, platform, posixEndpointAddonPath) =>
 		platform === 'win32'
 			? mkdir(directory, { mode: 0o700, recursive: true }).then(() => undefined)
-			: preparePosixHostRuntimeDirectory(binaryPath, directory),
+			: preparePosixHostRuntimeDirectory(
+					requirePosixEndpointAddonPath(posixEndpointAddonPath),
+					directory,
+				),
 	wait: (milliseconds) => wait(milliseconds),
 };
 
@@ -79,6 +87,7 @@ export class DevelopmentHostRuntime {
 	readonly #endpointId: string;
 	readonly #launchIfUnavailable: boolean;
 	readonly #platform: NodeJS.Platform;
+	readonly #posixEndpointAddonPath: string | undefined;
 	readonly #retryDelayMilliseconds: number;
 	readonly #runtimeDirectory: string;
 	readonly #terminalDefaults: TerminalConfiguration;
@@ -102,6 +111,13 @@ export class DevelopmentHostRuntime {
 		this.#endpointId = options.endpointId;
 		this.#launchIfUnavailable = options.launchIfUnavailable ?? true;
 		this.#platform = options.platform ?? process.platform;
+		this.#posixEndpointAddonPath = options.posixEndpointAddonPath;
+		if (
+			this.#platform !== 'win32' &&
+			(this.#posixEndpointAddonPath === undefined || !path.isAbsolute(this.#posixEndpointAddonPath))
+		) {
+			throw new Error('A trusted POSIX Host endpoint adapter path is required.');
+		}
 		this.#retryDelayMilliseconds =
 			options.retryDelayMilliseconds ?? DEFAULT_RETRY_DELAY_MILLISECONDS;
 		this.#runtimeDirectory = options.runtimeDirectory;
@@ -122,7 +138,7 @@ export class DevelopmentHostRuntime {
 		await this.#dependencies.prepareDirectory(
 			this.#runtimeDirectory,
 			this.#platform,
-			this.#binaryPath,
+			this.#posixEndpointAddonPath,
 		);
 		try {
 			return await this.#connectOnce();
@@ -167,10 +183,15 @@ export class DevelopmentHostRuntime {
 	#connectOnce(): Promise<HostConnection> {
 		return this.#dependencies.connect(
 			this.endpoint,
-			this.#binaryPath,
 			this.#runtimeDirectory,
 			this.#endpointId,
 			this.#platform,
+			this.#posixEndpointAddonPath,
 		);
 	}
+}
+
+function requirePosixEndpointAddonPath(value: string | undefined): string {
+	if (value === undefined) throw new Error('POSIX Host endpoint adapter path is unavailable.');
+	return value;
 }

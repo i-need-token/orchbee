@@ -1,17 +1,7 @@
-import type { ChildProcess, spawn } from 'node:child_process';
-import { EventEmitter, once } from 'node:events';
+import path from 'node:path';
 import { PassThrough } from 'node:stream';
 import type { Duplex } from 'node:stream';
 
-import {
-	CorrelationIdSchema,
-	CURRENT_PROTOCOL_VERSION,
-	encodeProtocolEnvelope,
-	HostEpochSchema,
-	MessageKind,
-	PayloadEncoding,
-	PROTOCOL_LIMITS,
-} from '@orchbee/terminal-protocol';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { HostConnection } from '../HostConnection';
@@ -21,197 +11,135 @@ import {
 	type PosixHostEndpointDependencies,
 } from '../posix-host-endpoint';
 
-interface ControlledHelper {
-	readonly child: ChildProcess;
-	readonly input: PassThrough;
-	readonly kill: ReturnType<typeof vi.fn<() => boolean>>;
-	readonly output: PassThrough;
-	readonly status: PassThrough;
-}
+const addonPath = path.resolve('/opt/orchbee/orchbee-posix-host-endpoint.node');
+const runtimeDirectory = path.resolve('/private/runtime');
+const endpointId = 'ab'.repeat(16);
 
-describe('POSIX Host endpoint helper', () => {
-	it('closes a credential-mismatched helper before HostConnection or Hello can exist', async () => {
-		const helper = createControlledHelper();
-		const helloBytes: Uint8Array[] = [];
-		helper.input.on('data', (chunk: Uint8Array) => helloBytes.push(chunk));
-		helper.output.write(createHostileHelloAccepted());
-		const createConnection = vi.fn<(transport: Duplex) => HostConnection>();
-		const dependencies = createDependencies(helper, createConnection);
-		let connection: HostConnection | undefined;
-		let hostEpoch: string | undefined;
-		let protocolVersion: object | undefined;
-		const pending = connectAuthenticatedPosixHost(
-			'/opt/orchbee/orchbee-terminal-host',
-			'/private/runtime',
-			'ab'.repeat(16),
-			dependencies,
-		).then((value) => {
-			connection = value;
-			hostEpoch = value.hostEpoch;
-			protocolVersion = value.protocolVersion;
-			return value;
+describe('POSIX Host endpoint adapter', () => {
+	it('admits no socket or protocol connection after native peer authentication fails', async () => {
+		const dependencies = createDependencies();
+		dependencies.adapter.connectAuthenticated.mockImplementation(() => {
+			throw new Error('POSIX Terminal Host peer effective UID does not match Desktop.');
 		});
 
-		helper.status.write(Uint8Array.of(3));
-		await expect(pending).rejects.toThrow('peer effective UID does not match');
-		expect(createConnection).not.toHaveBeenCalled();
-		expect(connection).toBeUndefined();
-		expect(hostEpoch).toBeUndefined();
-		expect(protocolVersion).toBeUndefined();
-		expect(helloBytes).toHaveLength(0);
-		expect(helper.output.destroyed).toBe(true);
-		expect(helper.kill).toHaveBeenCalledOnce();
-
-		helper.child.emit('error', new Error('late helper error'));
-		helper.child.emit('exit', 1, null);
-		expect(helper.kill).toHaveBeenCalledOnce();
+		await expect(
+			connectAuthenticatedPosixHost(addonPath, runtimeDirectory, endpointId, dependencies.value),
+		).rejects.toThrow('peer effective UID does not match');
+		expect(dependencies.createSocket).not.toHaveBeenCalled();
+		expect(dependencies.createConnection).not.toHaveBeenCalled();
+		expect(dependencies.closeDescriptor).not.toHaveBeenCalled();
 	});
 
-	it('fails closed when kernel peer credentials are unavailable', async () => {
-		const helper = createControlledHelper();
-		const createConnection = vi.fn<(transport: Duplex) => HostConnection>();
-		const pending = connectAuthenticatedPosixHost(
-			'/opt/orchbee/orchbee-terminal-host',
-			'/private/runtime',
-			'bc'.repeat(16),
-			createDependencies(helper, createConnection),
-		);
-
-		helper.status.write(Uint8Array.of(4));
-		await expect(pending).rejects.toThrow('peer credentials are unavailable');
-		expect(createConnection).not.toHaveBeenCalled();
-		expect(helper.kill).toHaveBeenCalledOnce();
-	});
-
-	it('constructs the protocol connection only after native same-UID authentication', async () => {
-		const helper = createControlledHelper();
+	it('transfers one authenticated descriptor into HostConnection', async () => {
+		const dependencies = createDependencies();
 		const expected = {} as HostConnection;
-		let transport: Duplex | undefined;
-		const createConnection = vi.fn<(value: Duplex) => HostConnection>((value) => {
-			transport = value;
-			return expected;
+		dependencies.adapter.connectAuthenticated.mockReturnValue(41);
+		dependencies.createConnection.mockReturnValue(expected);
+
+		await expect(
+			connectAuthenticatedPosixHost(addonPath, runtimeDirectory, endpointId, dependencies.value),
+		).resolves.toBe(expected);
+		expect(dependencies.loadNativeAdapter).toHaveBeenCalledExactlyOnceWith(addonPath);
+		expect(dependencies.adapter.connectAuthenticated).toHaveBeenCalledExactlyOnceWith(
+			runtimeDirectory,
+			endpointId,
+		);
+		expect(dependencies.createSocket).toHaveBeenCalledExactlyOnceWith(41);
+		expect(dependencies.createConnection).toHaveBeenCalledExactlyOnceWith(dependencies.transport);
+		expect(dependencies.closeDescriptor).not.toHaveBeenCalled();
+	});
+
+	it('closes a descriptor when Node socket construction fails before handoff', async () => {
+		const dependencies = createDependencies();
+		dependencies.adapter.connectAuthenticated.mockReturnValue(42);
+		dependencies.createSocket.mockImplementation(() => {
+			throw new Error('injected socket construction failure');
 		});
-		const dependencies = createDependencies(helper, createConnection);
-		const pending = connectAuthenticatedPosixHost(
-			'/opt/orchbee/orchbee-terminal-host',
-			'/private/runtime',
-			'cd'.repeat(16),
-			dependencies,
-		);
 
-		expect(dependencies.spawn).toHaveBeenCalledWith(
-			'/opt/orchbee/orchbee-terminal-host',
-			['connect', '--runtime-directory', '/private/runtime', '--endpoint-id', 'cd'.repeat(16)],
-			{ stdio: ['pipe', 'pipe', 'ignore', 'pipe'] },
-		);
-		expect(createConnection).not.toHaveBeenCalled();
-		helper.status.write(Uint8Array.of(1));
-		await expect(pending).resolves.toBe(expected);
-		expect(createConnection).toHaveBeenCalledOnce();
-		if (transport === undefined) throw new Error('Authenticated transport was not constructed.');
-		const closed = once(transport, 'close');
-		transport.destroy();
-		await closed;
-		expect(helper.kill).toHaveBeenCalledOnce();
+		await expect(
+			connectAuthenticatedPosixHost(addonPath, runtimeDirectory, endpointId, dependencies.value),
+		).rejects.toThrow('injected socket construction failure');
+		expect(dependencies.closeDescriptor).toHaveBeenCalledExactlyOnceWith(42);
+		expect(dependencies.createConnection).not.toHaveBeenCalled();
 	});
 
-	it('releases the authenticated helper when protocol-connection construction fails', async () => {
-		const helper = createControlledHelper();
-		const pending = connectAuthenticatedPosixHost(
-			'/opt/orchbee/orchbee-terminal-host',
-			'/private/runtime',
-			'de'.repeat(16),
-			createDependencies(helper, () => {
-				throw new Error('injected construction failure');
-			}),
-		);
+	it('destroys the owning socket when protocol connection construction fails', async () => {
+		const dependencies = createDependencies();
+		dependencies.adapter.connectAuthenticated.mockReturnValue(43);
+		dependencies.createConnection.mockImplementation(() => {
+			throw new Error('injected HostConnection construction failure');
+		});
+		const destroy = vi.spyOn(dependencies.transport, 'destroy');
 
-		helper.status.write(Uint8Array.of(1));
-		await expect(pending).rejects.toThrow('injected construction failure');
-		expect(helper.input.destroyed).toBe(true);
-		expect(helper.output.destroyed).toBe(true);
-		expect(helper.kill).toHaveBeenCalledOnce();
+		await expect(
+			connectAuthenticatedPosixHost(addonPath, runtimeDirectory, endpointId, dependencies.value),
+		).rejects.toThrow('injected HostConnection construction failure');
+		expect(destroy).toHaveBeenCalledOnce();
+		expect(dependencies.closeDescriptor).not.toHaveBeenCalled();
 	});
 
-	it('requires successful native runtime-directory preparation', async () => {
-		const successful = createControlledHelper();
-		const successfulDependencies = createDependencies(
-			successful,
-			vi.fn<(transport: Duplex) => HostConnection>(),
-		);
-		const successfulPreparation = preparePosixHostRuntimeDirectory(
-			'/opt/orchbee/orchbee-terminal-host',
-			'/private/runtime',
-			successfulDependencies,
-		);
-		expect(successfulDependencies.spawn).toHaveBeenCalledWith(
-			'/opt/orchbee/orchbee-terminal-host',
-			['prepare-runtime', '--runtime-directory', '/private/runtime'],
-			{ stdio: 'ignore' },
-		);
-		successful.child.emit('exit', 0, null);
-		await expect(successfulPreparation).resolves.toBeUndefined();
+	it('prepares the runtime directory inside the native adapter', async () => {
+		const dependencies = createDependencies();
 
-		const failed = createControlledHelper();
-		const failedPreparation = preparePosixHostRuntimeDirectory(
-			'/opt/orchbee/orchbee-terminal-host',
-			'/private/runtime',
-			createDependencies(failed, vi.fn<(transport: Duplex) => HostConnection>()),
+		await expect(
+			preparePosixHostRuntimeDirectory(addonPath, runtimeDirectory, dependencies.value),
+		).resolves.toBeUndefined();
+		expect(dependencies.adapter.prepareRuntimeDirectory).toHaveBeenCalledExactlyOnceWith(
+			runtimeDirectory,
 		);
-		failed.child.emit('exit', 1, null);
-		await expect(failedPreparation).rejects.toThrow('status 1');
+
+		dependencies.adapter.prepareRuntimeDirectory.mockImplementation(() => {
+			throw new Error('injected insecure runtime directory');
+		});
+		await expect(
+			preparePosixHostRuntimeDirectory(addonPath, runtimeDirectory, dependencies.value),
+		).rejects.toThrow('injected insecure runtime directory');
+	});
+
+	it('requires a code-resolved absolute native artifact path', async () => {
+		const dependencies = createDependencies();
+
+		await expect(
+			preparePosixHostRuntimeDirectory(
+				'relative-endpoint.node',
+				runtimeDirectory,
+				dependencies.value,
+			),
+		).rejects.toThrow('path must be absolute');
+		expect(dependencies.loadNativeAdapter).not.toHaveBeenCalled();
 	});
 });
 
-function createDependencies(
-	helper: ControlledHelper,
-	createConnection: (transport: Duplex) => HostConnection,
-): PosixHostEndpointDependencies {
-	const spawnHelper = vi.fn<() => ChildProcess>(() => helper.child) as unknown as typeof spawn;
-	return { createConnection, spawn: spawnHelper };
-}
-
-function createControlledHelper(): ControlledHelper {
-	const emitter = new EventEmitter();
-	const input = new PassThrough();
-	const output = new PassThrough();
-	const status = new PassThrough();
-	const kill = vi.fn<() => boolean>(() => true);
-	const child = Object.assign(emitter, {
-		exitCode: null,
-		kill,
-		signalCode: null,
-		stderr: null,
-		stdin: input,
-		stdio: [input, output, null, status],
-		stdout: output,
-	}) as unknown as ChildProcess;
-	return { child, input, kill, output, status };
-}
-
-function createHostileHelloAccepted(): Uint8Array {
-	const hostEpoch = HostEpochSchema.parse('aa'.repeat(16));
-	const response = encodeProtocolEnvelope({
-		correlationId: CorrelationIdSchema.parse('bb'.repeat(16)),
-		event: false,
-		hostEpoch,
-		kind: MessageKind.helloAccepted,
-		optionalMessage: false,
-		payload: new TextEncoder().encode(
-			JSON.stringify({
-				frameBytes: PROTOCOL_LIMITS.maxFrameBytes,
-				hostEpoch,
-				hostVersion: '0.1.0',
-				inputBytes: PROTOCOL_LIMITS.maxInputBytes,
-				protocol: CURRENT_PROTOCOL_VERSION,
-				rowWindowBytes: PROTOCOL_LIMITS.maxRowWindowBytes,
-				supportedOptionalFeatures: [],
-			}),
-		),
-		payloadEncoding: PayloadEncoding.controlJson,
-		protocol: CURRENT_PROTOCOL_VERSION,
-		response: true,
-	});
-	if (!response.ok) throw new Error(response.detail);
-	return response.value;
+function createDependencies(): {
+	readonly adapter: {
+		readonly connectAuthenticated: ReturnType<
+			typeof vi.fn<(runtimeDirectory: string, endpointId: string) => number>
+		>;
+		readonly prepareRuntimeDirectory: ReturnType<typeof vi.fn<(runtimeDirectory: string) => void>>;
+	};
+	readonly closeDescriptor: ReturnType<typeof vi.fn<(descriptor: number) => void>>;
+	readonly createConnection: ReturnType<typeof vi.fn<(transport: Duplex) => HostConnection>>;
+	readonly createSocket: ReturnType<typeof vi.fn<(descriptor: number) => PassThrough>>;
+	readonly loadNativeAdapter: ReturnType<typeof vi.fn<(addonPath: string) => unknown>>;
+	readonly transport: PassThrough;
+	readonly value: PosixHostEndpointDependencies;
+} {
+	const adapter = {
+		connectAuthenticated: vi.fn<(runtimeDirectory: string, endpointId: string) => number>(),
+		prepareRuntimeDirectory: vi.fn<(runtimeDirectory: string) => void>(),
+	};
+	const transport = new PassThrough();
+	const closeDescriptor = vi.fn<(descriptor: number) => void>();
+	const createConnection = vi.fn<(value: Duplex) => HostConnection>();
+	const createSocket = vi.fn<(descriptor: number) => PassThrough>(() => transport);
+	const loadNativeAdapter = vi.fn<(path: string) => typeof adapter>(() => adapter);
+	return {
+		adapter,
+		closeDescriptor,
+		createConnection,
+		createSocket,
+		loadNativeAdapter,
+		transport,
+		value: { closeDescriptor, createConnection, createSocket, loadNativeAdapter },
+	};
 }

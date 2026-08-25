@@ -147,6 +147,10 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Test Desktop POSIX Host endpoint adapter
+        if: runner.os == 'macOS'
+        run: pnpm --filter @orchbee/desktop test:native
+
       - name: Test native Terminal Host
         run: pnpm --filter @orchbee/terminal-host test
 

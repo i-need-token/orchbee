@@ -3,7 +3,6 @@ const terminal_host = @import("terminal-host");
 
 const host_service = terminal_host.host_service;
 const launcher_arguments = terminal_host.launcher_arguments;
-const local_endpoint = terminal_host.local_endpoint;
 const local_ipc = terminal_host.local_ipc;
 
 pub fn main() !void {
@@ -13,8 +12,6 @@ pub fn main() !void {
     if (arguments.len == 0) return error.InvalidArguments;
 
     switch (try launcher_arguments.parse(allocator, arguments[1..])) {
-        .connect => |options| try local_endpoint.connect(allocator, options),
-        .prepare_runtime => |options| try local_endpoint.prepareRuntime(options),
         .version => try writeVersion(),
         .serve => |options| try serve(allocator, options),
     }

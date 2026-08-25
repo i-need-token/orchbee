@@ -72,6 +72,23 @@ describe('createNodeDesktopDevelopmentRuntimeDependencies', () => {
 		await expect(access(workspaceRoot)).rejects.toMatchObject({ code: 'ENOENT' });
 	});
 
+	it.runIf(process.platform !== 'win32')(
+		'keeps the supervised endpoint beneath the Darwin socket pathname bound',
+		async () => {
+			const dependencies = createNodeDesktopDevelopmentRuntimeDependencies({
+				error: () => undefined,
+				info: () => undefined,
+				warn: () => undefined,
+			});
+			const workspace = await dependencies.createWorkspace({});
+			temporaryDirectories.push(path.dirname(workspace.restartPlanPath));
+
+			expect(
+				Buffer.byteLength(path.join(workspace.runtimeDirectory, `${workspace.endpointId}.s`)),
+			).toBeLessThan(104);
+		},
+	);
+
 	it('rejects malformed endpoint and scrollback configuration before starting processes', async () => {
 		const dependencies = createNodeDesktopDevelopmentRuntimeDependencies({
 			error: () => undefined,

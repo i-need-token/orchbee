@@ -18,8 +18,8 @@
 			"zhCnSha256": "5deaa2fb80d9633154a75a7c7436b7048076ab0a826a2f3518a54b672d15fee7"
 		},
 		"apps/desktop/README.md": {
-			"englishSha256": "69f325c5873ba534a862bdf38b36572c0f51c3f132399e4aa2c9273ef2e76696",
-			"zhCnSha256": "81e548405bc5b7245d9ec9a23c16e7c5371f8c9d93c861d5dfe373b6bba51901"
+			"englishSha256": "d3f8d2c35a65806d412718ba617c51a0c47142af5f674868f9828356b0805268",
+			"zhCnSha256": "1a75dbe24a21fdbc6232b0cb46d417bf1c2bb3c57df89576159623f53bd6ef4f"
 		},
 		"apps/desktop/docs/data-root.md": {
 			"englishSha256": "70b2836c182df8c32456081cc30682ecd9bb4bb2d6bf3409bb3f9853ad23490e",
@@ -28,6 +28,10 @@
 		"apps/desktop/docs/multi-client-session-coordinator.md": {
 			"englishSha256": "6f07ec622e55d7bd99e0b89df0a6dc24aeaddccc0382348ddb09f1f74254970f",
 			"zhCnSha256": "7ef9f9e4276eddf65996305d52ebaf80a4ed1396be1843cf915fee851dbd713f"
+		},
+		"apps/desktop/docs/posix-host-endpoint.md": {
+			"englishSha256": "15b0f07557b1373bc23d72ff51893b9fdcb52cafe6b89ec8787f69f5f9082ad1",
+			"zhCnSha256": "91657bae693593f251e1894584392b3a8d8823246851799aa3f68121ad9f31ff"
 		},
 		"apps/desktop/docs/project-folder-acquisition.md": {
 			"englishSha256": "b7f3003f88b19e8437cfd656153a3a2c31fa0cd7a4df8c61f1b164d6016bde69",
@@ -62,12 +66,12 @@
 			"zhCnSha256": "40c911588ffde091443925ce4b4cc2d14455297cfeb9e69809add3643c689ec0"
 		},
 		"apps/terminal-host/README.md": {
-			"englishSha256": "a07dff8a9fad68750f61a809196f034ce270ed7b668c060b46e493fb9a20b620",
-			"zhCnSha256": "30d0aad53e141eb4deed2a900f350a2a25de0c7b556ac98f7bdb371b5d99e61f"
+			"englishSha256": "7b5c0f9859fcd0ba0245f274ac58d1cfe02bf90d4dda7a85939d0d542f922093",
+			"zhCnSha256": "1f71f81574ecbed79271fa7ea32f8f83d1a075b7808e52de2844ae1841591bb8"
 		},
 		"apps/terminal-host/docs/module-boundaries.md": {
-			"englishSha256": "1cfac92604f727498c788a06f8b647d39ba40e6350aa60478a9e6026f1fae9b2",
-			"zhCnSha256": "2b9b1c63ba3ba19e78eca36f89130a352b7aaede49493a9920b24579705db768"
+			"englishSha256": "bc7127a66ff3b985a16fcf182e29e6aec1831c002cbfde3c32006489e39dbb5f",
+			"zhCnSha256": "28fabafccacffb6d026804dc0ee50100606b58f966163619cceef2de66b704f5"
 		},
 		"apps/terminal-host/docs/runtime-model.md": {
 			"englishSha256": "dbcb1fe9cdb9f5acbff3c5c143076256bd7c4b297ea763cafc80fa7ccaef3165",
