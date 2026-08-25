@@ -581,6 +581,14 @@ atlas occupancy when glyphs are admitted or reset instead of rescanning the glyp
 IME textarea reuses the Canvas-to-surface offset between geometry changes and remeasures it after
 resize, device-pixel-ratio, or presentation-configuration changes.
 
+The glyph atlas starts at 2048 physical pixels on each axis. Admitting a complete raster reservation
+independently doubles only the axis whose current bound is too small, up to the device texture limit;
+row-wide shaping can therefore consume additional width without multiplying unused height. A cache
+reset clears entries while retaining the current atlas dimensions. Freezing retains the last
+presented canvas, while disposal unconfigures the WebGPU canvas before destroying its device so
+presentation textures can be released explicitly. These are atlas and lifecycle allocation bounds,
+not a GPU-driver, browser, or whole-process RSS ceiling.
+
 WebGPU bind groups for the uniform and atlas resources persist until their owning device or atlas
 is recreated instead of being rebuilt for every submitted frame. A packed row view also caches
 decoded non-empty graphemes for the lifetime of its current backing, allowing accessibility and

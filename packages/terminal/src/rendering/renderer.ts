@@ -270,6 +270,7 @@ interface RectangleGeometry {
 
 const COLOR_GLYPH_CANDIDATE = /[\p{Extended_Pictographic}\p{Regional_Indicator}\u{FE0F}\u{20E3}]/u;
 const CURSOR_BLINK_INTERVAL_MS = 530;
+const INITIAL_GLYPH_ATLAS_DIMENSION = 2_048;
 const MAX_CACHED_SHAPING_RASTER_PIXELS = 8 * 1024 * 1024;
 // ============================================================================
 // Color Helpers
@@ -948,15 +949,15 @@ export class WebGPURenderer {
 
 		// Create atlas canvas for glyph rasterization
 		this.atlasCanvas = document.createElement('canvas');
-		this.atlasCanvas.width = 2048;
-		this.atlasCanvas.height = 2048;
+		this.atlasCanvas.width = INITIAL_GLYPH_ATLAS_DIMENSION;
+		this.atlasCanvas.height = INITIAL_GLYPH_ATLAS_DIMENSION;
 		const atlasCtx = this.atlasCanvas.getContext('2d');
 		if (!atlasCtx) throw new Error('Failed to create atlas canvas context');
 		this.atlasCtx = atlasCtx;
 		configureGhosttyTextRasterization(this.atlasCtx);
 		this.atlasCtx.direction = 'ltr';
 		this.atlasCtx.imageSmoothingEnabled = false;
-		this.atlasCtx.clearRect(0, 0, 2048, 2048);
+		this.atlasCtx.clearRect(0, 0, INITIAL_GLYPH_ATLAS_DIMENSION, INITIAL_GLYPH_ATLAS_DIMENSION);
 
 		if (this.cursorBlink) this.startCursorBlink();
 	}
@@ -1384,7 +1385,7 @@ export class WebGPURenderer {
 			w + padding > this.atlasCanvas.width ||
 			this.atlasY + h + padding > this.atlasCanvas.height
 		) {
-			if (!this.growAtlas()) return null;
+			if (!this.growAtlas(w + padding, this.atlasY + h + padding)) return null;
 		}
 
 		// Render the full ink bounds with a transparent edge so filtering never
@@ -1513,10 +1514,12 @@ export class WebGPURenderer {
 		return false;
 	}
 
-	private growAtlas(): boolean {
+	private growAtlas(requiredWidth: number, requiredHeight: number): boolean {
 		const maximum = this.device?.limits.maxTextureDimension2D ?? 8192;
-		const width = Math.min(this.atlasCanvas.width * 2, maximum);
-		const height = Math.min(this.atlasCanvas.height * 2, maximum);
+		let width = this.atlasCanvas.width;
+		let height = this.atlasCanvas.height;
+		while (width < requiredWidth && width < maximum) width = Math.min(width * 2, maximum);
+		while (height < requiredHeight && height < maximum) height = Math.min(height * 2, maximum);
 		if (width === this.atlasCanvas.width && height === this.atlasCanvas.height) return false;
 
 		const previousContext = this.atlasCtx;
@@ -3438,6 +3441,7 @@ export class WebGPURenderer {
 		this.requestRenderCallback = undefined;
 		this.healthChangeCallback = undefined;
 		this.telemetryCallback = undefined;
+		this.context?.unconfigure?.();
 		this.releaseGPUResources();
 		this.releaseGraphicsOverlay();
 		this.backgroundVertexData = [];

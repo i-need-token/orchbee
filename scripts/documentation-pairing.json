@@ -258,8 +258,8 @@
 			"zhCnSha256": "b164074390234973011849763c7d4780d6c7dd7f899a8fe13b9281a30373e99b"
 		},
 		"packages/terminal/README.md": {
-			"englishSha256": "3e037af5270a41e584f353079a5fb8dfdf2122471d4031301a9c837c07f47945",
-			"zhCnSha256": "642d7d974b06ea584eb1c20e2a9bf0af360760fd1ad8d6f3b7376e2e6b20a7dc"
+			"englishSha256": "ff9b0383bb56eaa2bfc16056f519cf0862792bb7f81db029babaa647707f1ca5",
+			"zhCnSha256": "d4b542772175b703da30e82c934401e577749226e0f0aa678c96575ec6c4fd61"
 		},
 		"packages/terminal/docs/ghostty-surface-test-provenance.md": {
 			"englishSha256": "7b0b9ed0fb1eda3f2a0f3677c96d48e26d23d158da2ad82605eece49f31e9ea6",

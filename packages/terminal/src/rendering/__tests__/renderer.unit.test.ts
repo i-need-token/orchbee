@@ -1993,6 +1993,44 @@ describe('projected terminal renderer', () => {
 		renderer.dispose();
 	});
 
+	it('retains a frozen WebGPU presentation and unconfigures it once on disposal', async () => {
+		vi.stubGlobal('window', { devicePixelRatio: 1 });
+		vi.stubGlobal('document', { createElement: () => createCanvas() });
+		vi.stubGlobal('GPUTextureUsage', { TEXTURE_BINDING: 1, COPY_DST: 2, RENDER_ATTACHMENT: 4 });
+		vi.stubGlobal('GPUBufferUsage', { UNIFORM: 1, COPY_DST: 2, VERTEX: 4 });
+		const rendering = createSubmittingDevice();
+		const disposalOrder: string[] = [];
+		rendering.destroy.mockImplementation(() => {
+			disposalOrder.push('destroy-device');
+		});
+		vi.stubGlobal('navigator', {
+			gpu: {
+				requestAdapter: async () =>
+					({ requestDevice: async () => rendering.device }) as unknown as GPUAdapter,
+				getPreferredCanvasFormat: () => 'bgra8unorm',
+			},
+		});
+		const unconfigure = vi.fn<GPUCanvasContext['unconfigure']>(() => {
+			disposalOrder.push('unconfigure-canvas');
+		});
+		const context = {
+			configure: vi.fn<GPUCanvasContext['configure']>(),
+			getCurrentTexture: () => ({ createView: () => ({}) }),
+			unconfigure,
+		} as unknown as GPUCanvasContext;
+		const renderer = new WebGPURenderer(createWebGPUCanvas(context));
+		await renderer.initGPU();
+
+		renderer.freeze();
+		expect(unconfigure).not.toHaveBeenCalled();
+		renderer.dispose();
+		renderer.dispose();
+
+		expect(unconfigure).toHaveBeenCalledOnce();
+		expect(rendering.destroy).toHaveBeenCalledOnce();
+		expect(disposalOrder).toEqual(['unconfigure-canvas', 'destroy-device']);
+	});
+
 	it('reuses bounded WebGPU vertex staging storage across sustained output frames', async () => {
 		vi.stubGlobal('window', { devicePixelRatio: 1 });
 		vi.stubGlobal('document', { createElement: () => createCanvas() });
@@ -2258,6 +2296,29 @@ describe('projected terminal renderer', () => {
 		renderer.dispose();
 	});
 
+	it('grows only the glyph-atlas axis required by the next raster reservation', () => {
+		vi.stubGlobal('window', { devicePixelRatio: 1 });
+		vi.stubGlobal('document', { createElement: () => createCanvas() });
+		const renderer = new WebGPURenderer(createCanvas());
+		const growAtlas = Reflect.get(renderer, 'growAtlas') as (
+			requiredWidth: number,
+			requiredHeight: number,
+		) => boolean;
+
+		expect(growAtlas.call(renderer, 5_000, 1_800)).toBe(true);
+		expect(Reflect.get(renderer, 'atlasCanvas')).toMatchObject({
+			height: 2_048,
+			width: 8_192,
+		});
+
+		expect(growAtlas.call(renderer, 5_000, 5_000)).toBe(true);
+		expect(Reflect.get(renderer, 'atlasCanvas')).toMatchObject({
+			height: 8_192,
+			width: 8_192,
+		});
+		renderer.dispose();
+	});
+
 	it('splits an atlas-limited shaping run without dropping projected text', async () => {
 		vi.stubGlobal('window', { devicePixelRatio: 1 });
 		const fillText = vi.fn<CanvasRenderingContext2D['fillText']>();
@@ -2304,6 +2365,10 @@ describe('projected terminal renderer', () => {
 		})?.[2];
 		expect(textUpload).toBeInstanceOf(Float32Array);
 		expect((textUpload as Float32Array).length / 13).toBe(shapingRasters.length);
+		expect(renderer.getLastFrameTelemetry()).toMatchObject({
+			atlasHeight: 2_048,
+			atlasWidth: 8_192,
+		});
 		renderer.dispose();
 	});
 
