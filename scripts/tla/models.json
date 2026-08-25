@@ -1389,12 +1389,16 @@
 			"requiredCoverage": [
 				"BeginSwitch",
 				"Supersede",
+				"SupersedeWithoutSurface",
 				"SwitchWithoutSurface",
 				"RemoveOutgoingAndSwitch",
+				"Retarget",
+				"RemovePendingOutgoing",
 				"ReportDisplay",
 				"ReportActivation",
 				"RejectStaleDisplay",
 				"RejectStaleActivation",
+				"RejectWrongTargetReport",
 				"RejectDuplicateReport"
 			]
 		},

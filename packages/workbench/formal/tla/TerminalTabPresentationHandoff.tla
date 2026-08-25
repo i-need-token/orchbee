@@ -3,7 +3,7 @@ EXTENDS FiniteSets, Naturals, TLC
 
 Tabs == {"tab-a", "tab-b", "tab-c"}
 Presentations == {"presentation-a", "presentation-b"}
-ExpectedSets == {{"presentation-a"}, {"presentation-b"}, Presentations}
+ExpectedSets == SUBSET Presentations
 None == "none"
 Phases == {"settled", "preparing", "activating"}
 MaxEpoch == 3
@@ -85,7 +85,7 @@ Init ==
 BeginSwitch(nextTab, nextExpected) ==
   /\ phase = "settled"
   /\ nextTab \in Tabs \ {displayedTab}
-  /\ nextExpected \in ExpectedSets
+  /\ nextExpected \in ExpectedSets \ {{}}
   /\ epoch < MaxEpoch
   /\ phase' = "preparing"
   /\ targetTab' = nextTab
@@ -101,7 +101,7 @@ BeginSwitch(nextTab, nextExpected) ==
 Supersede(nextTab, nextExpected) ==
   /\ phase \in {"preparing", "activating"}
   /\ nextTab \in Tabs \ {targetTab}
-  /\ nextExpected \in ExpectedSets
+  /\ nextExpected \in ExpectedSets \ {{}}
   /\ epoch < MaxEpoch
   /\ phase' = "preparing"
   /\ targetTab' = nextTab
@@ -112,6 +112,21 @@ Supersede(nextTab, nextExpected) ==
   /\ targetDisplayCommitted' = FALSE
   /\ interactiveTab' = None
   /\ UNCHANGED displayedTab
+  /\ RecordNormal
+
+SupersedeWithoutSurface(nextTab) ==
+  /\ phase \in {"preparing", "activating"}
+  /\ nextTab \in Tabs \ {targetTab}
+  /\ epoch < MaxEpoch
+  /\ phase' = "settled"
+  /\ displayedTab' = nextTab
+  /\ targetTab' = nextTab
+  /\ epoch' = epoch + 1
+  /\ expected' = {}
+  /\ displayReady' = {}
+  /\ activationReady' = {}
+  /\ targetDisplayCommitted' = TRUE
+  /\ interactiveTab' = nextTab
   /\ RecordNormal
 
 SwitchWithoutSurface(nextTab) ==
@@ -132,7 +147,7 @@ SwitchWithoutSurface(nextTab) ==
 RemoveOutgoingAndSwitch(nextTab, nextExpected) ==
   /\ phase = "settled"
   /\ nextTab \in Tabs \ {displayedTab}
-  /\ nextExpected \in ExpectedSets
+  /\ nextExpected \in ExpectedSets \ {{}}
   /\ epoch < MaxEpoch
   /\ phase' = "preparing"
   /\ displayedTab' = None
@@ -145,43 +160,80 @@ RemoveOutgoingAndSwitch(nextTab, nextExpected) ==
   /\ interactiveTab' = None
   /\ RecordNormal
 
-ReportDisplay(presentation) ==
+Retarget(nextExpected) ==
+  /\ phase \in {"preparing", "activating"}
+  /\ nextExpected \in ExpectedSets \ {expected}
+  /\ expected' = nextExpected
+  /\ IF nextExpected \subseteq activationReady
+     THEN
+       /\ phase' = "settled"
+       /\ displayedTab' = targetTab
+       /\ targetDisplayCommitted' = TRUE
+       /\ interactiveTab' = targetTab
+     ELSE IF nextExpected \subseteq displayReady
+     THEN
+       /\ phase' = "activating"
+       /\ displayedTab' = targetTab
+       /\ targetDisplayCommitted' = TRUE
+       /\ interactiveTab' = None
+     ELSE
+       /\ phase' = "preparing"
+       /\ targetDisplayCommitted' = FALSE
+       /\ interactiveTab' = None
+       /\ UNCHANGED displayedTab
+  /\ UNCHANGED <<targetTab, epoch, displayReady, activationReady>>
+  /\ RecordNormal
+
+RemovePendingOutgoing ==
   /\ phase = "preparing"
-  /\ presentation \in expected \ displayReady
+  /\ displayedTab \in Tabs \ {targetTab}
+  /\ displayedTab' = None
+  /\ UNCHANGED
+       <<phase, targetTab, epoch, expected, displayReady, activationReady,
+         targetDisplayCommitted, interactiveTab>>
+  /\ RecordNormal
+
+ReportDisplay(presentation) ==
+  /\ phase \in {"preparing", "activating"}
+  /\ presentation \in Presentations \ displayReady
   /\ LET nextDisplayReady == displayReady \cup {presentation}
      IN
        /\ displayReady' = nextDisplayReady
-       /\ IF nextDisplayReady = expected
+       /\ IF expected \subseteq activationReady
           THEN
             /\ displayedTab' = targetTab
             /\ targetDisplayCommitted' = TRUE
-            /\ IF activationReady = expected
-               THEN
-                 /\ phase' = "settled"
-                 /\ interactiveTab' = targetTab
-               ELSE
-                 /\ phase' = "activating"
-                 /\ interactiveTab' = None
+            /\ phase' = "settled"
+            /\ interactiveTab' = targetTab
+          ELSE IF expected \subseteq nextDisplayReady
+          THEN
+            /\ displayedTab' = targetTab
+            /\ targetDisplayCommitted' = TRUE
+            /\ phase' = "activating"
+            /\ interactiveTab' = None
           ELSE
-            /\ UNCHANGED <<phase, displayedTab, targetDisplayCommitted, interactiveTab>>
+            /\ phase' = "preparing"
+            /\ targetDisplayCommitted' = FALSE
+            /\ interactiveTab' = None
+            /\ UNCHANGED displayedTab
   /\ UNCHANGED <<targetTab, epoch, expected, activationReady>>
   /\ RecordNormal
 
 ReportActivation(presentation) ==
   /\ phase \in {"preparing", "activating"}
-  /\ presentation \in expected \ activationReady
+  /\ presentation \in Presentations \ activationReady
   /\ LET nextActivationReady == activationReady \cup {presentation}
          nextDisplayReady == displayReady \cup {presentation}
      IN
        /\ activationReady' = nextActivationReady
        /\ displayReady' = nextDisplayReady
-       /\ IF nextActivationReady = expected
+       /\ IF expected \subseteq nextActivationReady
           THEN
             /\ phase' = "settled"
             /\ displayedTab' = targetTab
             /\ targetDisplayCommitted' = TRUE
             /\ interactiveTab' = targetTab
-          ELSE IF nextDisplayReady = expected
+          ELSE IF expected \subseteq nextDisplayReady
           THEN
             /\ phase' = "activating"
             /\ displayedTab' = targetTab
@@ -215,6 +267,15 @@ RejectStaleActivation(presentation, candidateEpoch) ==
          activationReady, targetDisplayCommitted, interactiveTab>>
   /\ RecordIgnored
 
+RejectWrongTargetReport(presentation, candidateTab) ==
+  /\ phase \in {"preparing", "activating"}
+  /\ presentation \in Presentations
+  /\ candidateTab \in Tabs \ {targetTab}
+  /\ UNCHANGED
+       <<phase, displayedTab, targetTab, epoch, expected, displayReady,
+         activationReady, targetDisplayCommitted, interactiveTab>>
+  /\ RecordIgnored
+
 RejectDuplicateReport(presentation) ==
   /\ phase \in {"preparing", "activating"}
   /\ presentation \in displayReady \cup activationReady
@@ -228,15 +289,20 @@ Next ==
        BeginSwitch(nextTab, nextExpected)
   \/ \E nextTab \in Tabs, nextExpected \in ExpectedSets:
        Supersede(nextTab, nextExpected)
+  \/ \E nextTab \in Tabs: SupersedeWithoutSurface(nextTab)
   \/ \E nextTab \in Tabs: SwitchWithoutSurface(nextTab)
   \/ \E nextTab \in Tabs, nextExpected \in ExpectedSets:
        RemoveOutgoingAndSwitch(nextTab, nextExpected)
+  \/ \E nextExpected \in ExpectedSets: Retarget(nextExpected)
+  \/ RemovePendingOutgoing
   \/ \E presentation \in Presentations: ReportDisplay(presentation)
   \/ \E presentation \in Presentations: ReportActivation(presentation)
   \/ \E presentation \in Presentations, candidateEpoch \in 0..MaxEpoch:
        RejectStaleDisplay(presentation, candidateEpoch)
   \/ \E presentation \in Presentations, candidateEpoch \in 0..MaxEpoch:
        RejectStaleActivation(presentation, candidateEpoch)
+  \/ \E presentation \in Presentations, candidateTab \in Tabs:
+       RejectWrongTargetReport(presentation, candidateTab)
   \/ \E presentation \in Presentations: RejectDuplicateReport(presentation)
 
 Spec == Init /\ [][Next]_vars
@@ -247,8 +313,8 @@ TypeOK ==
   /\ targetTab \in Tabs
   /\ epoch \in 0..MaxEpoch
   /\ expected \subseteq Presentations
-  /\ displayReady \subseteq expected
-  /\ activationReady \subseteq expected
+  /\ displayReady \subseteq Presentations
+  /\ activationReady \subseteq Presentations
   /\ targetDisplayCommitted \in BOOLEAN
   /\ interactiveTab \in Tabs \cup {None}
   /\ lastReportIgnored \in BOOLEAN
@@ -265,24 +331,27 @@ TypeOK ==
 ActivationImpliesDisplay == activationReady \subseteq displayReady
 
 VisualCommitRequiresDisplay ==
-  targetDisplayCommitted /\ expected # {} => displayReady = expected
+  targetDisplayCommitted /\ expected # {} => expected \subseteq displayReady
 
 PendingInteractionIsInert ==
   phase \in {"preparing", "activating"} => interactiveTab = None
+
+PreparationHasNoVisualCommit ==
+  phase = "preparing" => ~targetDisplayCommitted
 
 SettledInteractionIsExclusive ==
   phase = "settled" =>
     /\ displayedTab = targetTab
     /\ interactiveTab = displayedTab
     /\ targetDisplayCommitted
-    /\ expected = {} \/ activationReady = expected
+    /\ expected = {} \/ expected \subseteq activationReady
 
 ActivationBarrierFollowsDisplayBarrier ==
   phase = "activating" =>
     /\ displayedTab = targetTab
     /\ targetDisplayCommitted
-    /\ displayReady = expected
-    /\ activationReady # expected
+    /\ expected \subseteq displayReady
+    /\ ~(expected \subseteq activationReady)
 
 IgnoredReportsDoNotMutate ==
   lastReportIgnored =>

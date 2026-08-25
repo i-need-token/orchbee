@@ -19,10 +19,12 @@ export type TerminalTabPresentationHandoffState =
 	  }
 	| {
 			readonly activationReadyPresentationIds: readonly string[];
+			readonly displayReadyPresentationIds: readonly string[];
 			readonly displayedTabId: string;
 			readonly epoch: number;
 			readonly expectedPresentationIds: readonly string[];
 			readonly kind: 'activating';
+			readonly targetTabId: string;
 	  };
 
 export type TerminalTabPresentationHandoffEvent =
@@ -36,6 +38,7 @@ export type TerminalTabPresentationHandoffEvent =
 			readonly epoch: number;
 			readonly presentationId: string;
 			readonly readiness: TerminalTabPresentationReadiness;
+			readonly targetTabId: string;
 			readonly type: 'presentation-ready';
 	  };
 
@@ -47,45 +50,29 @@ export function transitionTerminalTabPresentationHandoff(
 	if (event.type === 'target-observed') return observeTarget(state, event);
 	if (state === null) return settled(null, 0);
 	if (state.kind === 'settled' || event.epoch !== state.epoch) return state;
-	if (!state.expectedPresentationIds.includes(event.presentationId)) return state;
-
-	const activationReadyPresentationIds =
-		event.readiness === 'activation-ready'
-			? includeOnce(state.activationReadyPresentationIds, event.presentationId)
-			: state.activationReadyPresentationIds;
-	if (state.kind === 'activating') {
-		if (activationReadyPresentationIds === state.activationReadyPresentationIds) return state;
-		return containsEvery(activationReadyPresentationIds, state.expectedPresentationIds)
-			? settled(state.displayedTabId, state.epoch)
-			: Object.freeze({ ...state, activationReadyPresentationIds });
-	}
+	if (event.targetTabId !== state.targetTabId) return state;
 
 	const displayReadyPresentationIds = includeOnce(
 		state.displayReadyPresentationIds,
 		event.presentationId,
 	);
+	const activationReadyPresentationIds =
+		event.readiness === 'activation-ready'
+			? includeOnce(state.activationReadyPresentationIds, event.presentationId)
+			: state.activationReadyPresentationIds;
 	if (
 		activationReadyPresentationIds === state.activationReadyPresentationIds &&
 		displayReadyPresentationIds === state.displayReadyPresentationIds
 	) {
 		return state;
 	}
-	if (!containsEvery(displayReadyPresentationIds, state.expectedPresentationIds)) {
-		return Object.freeze({
-			...state,
-			activationReadyPresentationIds,
-			displayReadyPresentationIds,
-		});
-	}
-	if (containsEvery(activationReadyPresentationIds, state.expectedPresentationIds)) {
-		return settled(state.targetTabId, state.epoch);
-	}
-	return Object.freeze({
+	return derivePendingState({
 		activationReadyPresentationIds,
-		displayedTabId: state.targetTabId,
+		displayReadyPresentationIds,
+		displayedTabId: state.displayedTabId,
 		epoch: state.epoch,
 		expectedPresentationIds: state.expectedPresentationIds,
-		kind: 'activating',
+		targetTabId: state.targetTabId,
 	});
 }
 
@@ -95,14 +82,24 @@ function observeTarget(
 ): TerminalTabPresentationHandoffState {
 	const expectedPresentationIds = uniquePresentationIds(event.expectedPresentationIds);
 	if (state === null) return settled(event.targetTabId, 0);
-	const currentTargetTabId = state.kind === 'preparing' ? state.targetTabId : state.displayedTabId;
+	const currentTargetTabId = state.kind === 'settled' ? state.displayedTabId : state.targetTabId;
 	if (event.targetTabId === currentTargetTabId) {
+		if (state.kind === 'settled') return state;
+		const displayedTabId = event.outgoingAvailable ? state.displayedTabId : null;
 		if (
-			state.kind === 'settled' ||
-			samePresentationIds(expectedPresentationIds, state.expectedPresentationIds)
+			displayedTabId === state.displayedTabId &&
+			samePresentationIdentitySet(expectedPresentationIds, state.expectedPresentationIds)
 		) {
 			return state;
 		}
+		return derivePendingState({
+			activationReadyPresentationIds: state.activationReadyPresentationIds,
+			displayReadyPresentationIds: state.displayReadyPresentationIds,
+			displayedTabId,
+			epoch: state.epoch,
+			expectedPresentationIds,
+			targetTabId: state.targetTabId,
+		});
 	}
 	const epoch = state.epoch + 1;
 	if (event.targetTabId === null || expectedPresentationIds.length === 0) {
@@ -117,6 +114,46 @@ function observeTarget(
 		expectedPresentationIds,
 		kind: 'preparing',
 		targetTabId: event.targetTabId,
+	});
+}
+
+function derivePendingState({
+	activationReadyPresentationIds,
+	displayReadyPresentationIds,
+	displayedTabId,
+	epoch,
+	expectedPresentationIds,
+	targetTabId,
+}: {
+	readonly activationReadyPresentationIds: readonly string[];
+	readonly displayReadyPresentationIds: readonly string[];
+	readonly displayedTabId: string | null;
+	readonly epoch: number;
+	readonly expectedPresentationIds: readonly string[];
+	readonly targetTabId: string;
+}): TerminalTabPresentationHandoffState {
+	if (containsEvery(activationReadyPresentationIds, expectedPresentationIds)) {
+		return settled(targetTabId, epoch);
+	}
+	if (containsEvery(displayReadyPresentationIds, expectedPresentationIds)) {
+		return Object.freeze({
+			activationReadyPresentationIds,
+			displayReadyPresentationIds,
+			displayedTabId: targetTabId,
+			epoch,
+			expectedPresentationIds,
+			kind: 'activating',
+			targetTabId,
+		});
+	}
+	return Object.freeze({
+		activationReadyPresentationIds,
+		displayReadyPresentationIds,
+		displayedTabId,
+		epoch,
+		expectedPresentationIds,
+		kind: 'preparing',
+		targetTabId,
 	});
 }
 
@@ -146,6 +183,6 @@ function containsEvery(actual: readonly string[], expected: readonly string[]): 
 	return expected.every((presentationId) => actual.includes(presentationId));
 }
 
-function samePresentationIds(left: readonly string[], right: readonly string[]): boolean {
-	return left.length === right.length && left.every((value, index) => value === right[index]);
+function samePresentationIdentitySet(left: readonly string[], right: readonly string[]): boolean {
+	return left.length === right.length && containsEvery(left, right);
 }

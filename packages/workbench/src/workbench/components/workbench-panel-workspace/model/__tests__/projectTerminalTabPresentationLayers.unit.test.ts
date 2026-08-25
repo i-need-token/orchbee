@@ -51,10 +51,12 @@ describe('projectTerminalTabPresentationLayers', () => {
 	it('projects only the inert target after its display barrier commits', () => {
 		const state: TerminalTabPresentationHandoffState = {
 			activationReadyPresentationIds: [],
+			displayReadyPresentationIds: ['tab-b-presentation'],
 			displayedTabId: 'tab-b',
 			epoch: 2,
 			expectedPresentationIds: ['tab-b-presentation'],
 			kind: 'activating',
+			targetTabId: 'tab-b',
 		};
 
 		expect(projectTerminalTabPresentationLayers([tab('tab-b')], state)).toMatchObject([

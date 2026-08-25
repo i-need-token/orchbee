@@ -57,6 +57,7 @@ describe('useTerminalTabPresentationHandoff', () => {
 		act(() => {
 			result.current.reportPresentationReady(
 				epoch,
+				'second',
 				terminalPresentationId('presentation-second'),
 				'display-ready',
 			);
@@ -65,6 +66,7 @@ describe('useTerminalTabPresentationHandoff', () => {
 		act(() => {
 			result.current.reportPresentationReady(
 				epoch,
+				'second',
 				terminalPresentationId('presentation-second'),
 				'activation-ready',
 			);

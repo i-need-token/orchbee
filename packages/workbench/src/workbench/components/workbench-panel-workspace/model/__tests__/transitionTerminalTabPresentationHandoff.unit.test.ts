@@ -24,11 +24,14 @@ function ready(
 	presentationId: string,
 	readiness: 'activation-ready' | 'display-ready',
 	epoch = state.epoch,
+	targetTabId = state.kind === 'settled' ? state.displayedTabId : state.targetTabId,
 ): TerminalTabPresentationHandoffState {
+	if (targetTabId === null) throw new Error('Expected a readiness target Tab.');
 	return transitionTerminalTabPresentationHandoff(state, {
 		epoch,
 		presentationId,
 		readiness,
+		targetTabId,
 		type: 'presentation-ready',
 	});
 }
@@ -55,10 +58,12 @@ describe('transitionTerminalTabPresentationHandoff', () => {
 		});
 		expect(ready(oneReady, 'terminal-b-1', 'display-ready')).toEqual({
 			activationReadyPresentationIds: [],
+			displayReadyPresentationIds: ['terminal-b-2', 'terminal-b-1'],
 			displayedTabId: 'tab-b',
 			epoch: 1,
 			expectedPresentationIds: ['terminal-b-1', 'terminal-b-2'],
 			kind: 'activating',
+			targetTabId: 'tab-b',
 		});
 	});
 
@@ -83,6 +88,75 @@ describe('transitionTerminalTabPresentationHandoff', () => {
 		});
 	});
 
+	it('preserves partial readiness when the same target identity set is reordered', () => {
+		let state = observe(observe(null, 'tab-a', ['terminal-a']), 'tab-b', [
+			'terminal-b-1',
+			'terminal-b-2',
+		]);
+		state = ready(state, 'terminal-b-1', 'activation-ready');
+		state = ready(state, 'terminal-b-2', 'display-ready');
+		const reordered = observe(state, 'tab-b', ['terminal-b-2', 'terminal-b-1']);
+
+		expect(reordered).toBe(state);
+		expect(ready(reordered, 'terminal-b-2', 'activation-ready')).toEqual({
+			displayedTabId: 'tab-b',
+			epoch: 1,
+			kind: 'settled',
+		});
+	});
+
+	it('retargets the same Tab without advancing its epoch or discarding readiness', () => {
+		let state = observe(observe(null, 'tab-a', ['terminal-a']), 'tab-b', [
+			'terminal-b-1',
+			'terminal-b-2',
+		]);
+		state = ready(state, 'terminal-b-1', 'activation-ready');
+
+		expect(observe(state, 'tab-b', ['terminal-b-1'])).toEqual({
+			displayedTabId: 'tab-b',
+			epoch: 1,
+			kind: 'settled',
+		});
+	});
+
+	it('retains current-target readiness that arrives before the identity becomes required', () => {
+		const preparing = observe(observe(null, 'tab-a', ['terminal-a']), 'tab-b', ['terminal-b-1']);
+		const earlyReady = ready(preparing, 'terminal-b-2', 'activation-ready');
+		const expanded = observe(earlyReady, 'tab-b', ['terminal-b-1', 'terminal-b-2']);
+
+		expect(expanded).toMatchObject({
+			activationReadyPresentationIds: ['terminal-b-2'],
+			displayReadyPresentationIds: ['terminal-b-2'],
+			epoch: 1,
+			kind: 'preparing',
+		});
+		expect(ready(expanded, 'terminal-b-1', 'activation-ready')).toEqual({
+			displayedTabId: 'tab-b',
+			epoch: 1,
+			kind: 'settled',
+		});
+	});
+
+	it('preserves readiness ledgers when an activating target expands', () => {
+		let state = observe(observe(null, 'tab-a', ['terminal-a']), 'tab-b', ['terminal-b-1']);
+		state = ready(state, 'terminal-b-1', 'display-ready');
+		state = ready(state, 'terminal-b-2', 'activation-ready');
+		const expanded = observe(state, 'tab-b', ['terminal-b-1', 'terminal-b-2']);
+
+		expect(expanded).toMatchObject({
+			activationReadyPresentationIds: ['terminal-b-2'],
+			displayReadyPresentationIds: ['terminal-b-1', 'terminal-b-2'],
+			displayedTabId: 'tab-b',
+			epoch: 1,
+			kind: 'activating',
+		});
+		expect(ready(expanded, 'terminal-b-1', 'activation-ready')).toEqual({
+			displayedTabId: 'tab-b',
+			epoch: 1,
+			kind: 'settled',
+		});
+	});
+
 	it('treats activation readiness as display readiness under reordered completion', () => {
 		const preparing = observe(observe(null, 'tab-a', ['terminal-a']), 'tab-b', ['terminal-b']);
 
@@ -93,13 +167,15 @@ describe('transitionTerminalTabPresentationHandoff', () => {
 		});
 	});
 
-	it('ignores duplicate, unexpected, and stale readiness reports', () => {
+	it('ignores duplicate, stale, and wrong-target readiness reports', () => {
 		const preparing = observe(observe(null, 'tab-a', ['terminal-a']), 'tab-b', ['terminal-b']);
 		const displayReady = ready(preparing, 'terminal-b', 'display-ready');
 
 		expect(ready(displayReady, 'terminal-b', 'display-ready')).toBe(displayReady);
-		expect(ready(preparing, 'terminal-other', 'activation-ready')).toBe(preparing);
 		expect(ready(preparing, 'terminal-b', 'activation-ready', 0)).toBe(preparing);
+		expect(ready(preparing, 'terminal-b', 'activation-ready', preparing.epoch, 'tab-other')).toBe(
+			preparing,
+		);
 	});
 
 	it('supersedes a preparing target while retaining the actually displayed Tab', () => {
@@ -149,6 +225,24 @@ describe('transitionTerminalTabPresentationHandoff', () => {
 		expect(observe(initial, 'tab-b', ['terminal-b'], false)).toMatchObject({
 			displayedTabId: null,
 			kind: 'preparing',
+		});
+	});
+
+	it('drops a removed outgoing identity without restarting the same target barrier', () => {
+		const initial = observe(null, 'tab-a', ['terminal-a']);
+		const preparing = observe(initial, 'tab-b', ['terminal-b']);
+		const withoutOutgoing = observe(preparing, 'tab-b', ['terminal-b'], false);
+
+		expect(withoutOutgoing).toMatchObject({
+			displayedTabId: null,
+			epoch: 1,
+			kind: 'preparing',
+			targetTabId: 'tab-b',
+		});
+		expect(ready(withoutOutgoing, 'terminal-b', 'activation-ready')).toEqual({
+			displayedTabId: 'tab-b',
+			epoch: 1,
+			kind: 'settled',
 		});
 	});
 

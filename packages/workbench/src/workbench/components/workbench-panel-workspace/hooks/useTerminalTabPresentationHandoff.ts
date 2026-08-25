@@ -3,11 +3,8 @@ import * as React from 'react';
 
 import type { TerminalPresentationId } from '../../../../terminal-presentation';
 import type { WorkbenchTerminalPresentationReadiness } from '../../../types/workbench-terminal-surface';
-import {
-	collectPanelLeaves,
-	getDisplayedTerminal,
-	type TabPanelWorkspace,
-} from '../model/panel-workspace-state';
+import type { TabPanelWorkspace } from '../model/panel-workspace-state';
+import { projectTerminalTabPresentationHandoffTarget } from '../model/projectTerminalTabPresentationHandoffTarget';
 import {
 	transitionTerminalTabPresentationHandoff,
 	type TerminalTabPresentationHandoffState,
@@ -23,6 +20,7 @@ interface TerminalTabPresentationHandoffView {
 	readonly state: TerminalTabPresentationHandoffState;
 	reportPresentationReady(
 		epoch: number,
+		targetTabId: string,
 		presentationId: TerminalPresentationId,
 		readiness: WorkbenchTerminalPresentationReadiness,
 	): void;
@@ -35,12 +33,7 @@ export function useTerminalTabPresentationHandoff({
 	terminalSurfaceAvailable,
 }: UseTerminalTabPresentationHandoffOptions): TerminalTabPresentationHandoffView {
 	const expectedPresentationIds = React.useMemo(
-		() =>
-			activeTab === null || !terminalSurfaceAvailable
-				? []
-				: collectPanelLeaves(activeTab.root).map(
-						(panel) => getDisplayedTerminal(panel).presentationId,
-					),
+		() => projectTerminalTabPresentationHandoffTarget(activeTab, terminalSurfaceAvailable),
 		[activeTab, terminalSurfaceAvailable],
 	);
 	const [state, setState] = React.useState<TerminalTabPresentationHandoffState>(() =>
@@ -66,6 +59,7 @@ export function useTerminalTabPresentationHandoff({
 	const reportPresentationReady = useMemoizedFn(
 		(
 			epoch: number,
+			targetTabId: string,
 			presentationId: TerminalPresentationId,
 			readiness: WorkbenchTerminalPresentationReadiness,
 		): void => {
@@ -74,6 +68,7 @@ export function useTerminalTabPresentationHandoff({
 					epoch,
 					presentationId,
 					readiness,
+					targetTabId,
 					type: 'presentation-ready',
 				}),
 			);

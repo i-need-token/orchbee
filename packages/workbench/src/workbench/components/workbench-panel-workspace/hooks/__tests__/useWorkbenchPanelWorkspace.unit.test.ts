@@ -6,10 +6,10 @@ import { TabModel } from '@orchbee/tab-strip';
 import { act, createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { cleanup, render } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { terminalPresentationId } from '../../../../../terminal-presentation';
-import { findPanel } from '../../model/panel-workspace-state';
+import { collectPanelLeaves, findPanel } from '../../model/panel-workspace-state';
 import { PanelWorkspaceStore } from '../../model/PanelWorkspaceStore';
 import type { WorkbenchPanelWorkspaceView } from '../../types/panel-workspace-view';
 import { useWorkbenchPanelWorkspace } from '../useWorkbenchPanelWorkspace';
@@ -70,7 +70,10 @@ function InteractiveHarness({
 	return null;
 }
 
-afterEach(cleanup);
+afterEach(() => {
+	cleanup();
+	document.body.replaceChildren();
+});
 
 describe('useWorkbenchPanelWorkspace', () => {
 	it('projects the active tab and localized panel actions on the first render', () => {
@@ -160,6 +163,87 @@ describe('useWorkbenchPanelWorkspace', () => {
 		expect(view.maximizedPanelId).toBe(maximizedPanelId);
 		expect(view.displayedRoot).toBe(view.activeTab?.root);
 		expect(view.displayedRoot?.kind).toBe('split');
+	});
+
+	it('cancels an owned panel drag when the active Tab changes', () => {
+		const runtime = new ActionRuntime();
+		const parentScope = runtime.createScope('workbench');
+		const model = new TabModel({
+			activeTabId: 'tab-a',
+			tabs: [
+				{ group: null, id: 'tab-a', pinned: false, title: 'Terminal A' },
+				{ group: null, id: 'tab-b', pinned: false, title: 'Terminal B' },
+			],
+		});
+		let view: WorkbenchPanelWorkspaceView | undefined;
+		render(
+			createElement(
+				OrchbeeI18nProvider,
+				{ locale: 'en-US' },
+				createElement(InteractiveHarness, {
+					actionRuntime: runtime,
+					capture: (candidate) => {
+						view = candidate;
+					},
+					parentActionScope: parentScope,
+					panelWorkspaceStore: new PanelWorkspaceStore(model, {
+						composition: createPreviewComposition('drag-tab-change'),
+					}),
+				}),
+			),
+		);
+		if (view === undefined || view.activeTab === null) {
+			throw new Error('Expected the panel workspace view to be captured');
+		}
+		const sourcePanelId = collectPanelLeaves(view.activeTab.root)[0]?.id;
+		if (sourcePanelId === undefined) throw new Error('Expected a source Panel');
+		act(() => {
+			view?.splitPanel(sourcePanelId, 'right');
+		});
+
+		const workspaceElement = document.createElement('div');
+		workspaceElement.dataset['slot'] = 'workbench-panel-workspace';
+		const sourceElement = document.createElement('section');
+		sourceElement.dataset['slot'] = 'workbench-panel';
+		sourceElement.dataset['panelId'] = sourcePanelId;
+		const headerElement = document.createElement('button');
+		sourceElement.append(headerElement);
+		workspaceElement.append(sourceElement);
+		document.body.append(workspaceElement);
+		vi.spyOn(sourceElement, 'getBoundingClientRect').mockReturnValue({
+			bottom: 100,
+			height: 100,
+			left: 0,
+			right: 200,
+			top: 0,
+			width: 200,
+			x: 0,
+			y: 0,
+			toJSON: () => ({}),
+		});
+		const setPointerCapture = vi.fn<(pointerId: number) => void>();
+		const releasePointerCapture = vi.fn<(pointerId: number) => void>();
+		Object.defineProperties(workspaceElement, {
+			hasPointerCapture: { value: () => true },
+			releasePointerCapture: { value: releasePointerCapture },
+			setPointerCapture: { value: setPointerCapture },
+		});
+
+		act(() => {
+			view?.startPanelDrag(sourcePanelId, {
+				button: 0,
+				clientX: 50,
+				clientY: 25,
+				currentTarget: headerElement,
+				pointerId: 7,
+				preventDefault: vi.fn<() => void>(),
+			} as unknown as Parameters<WorkbenchPanelWorkspaceView['startPanelDrag']>[1]);
+		});
+		expect(setPointerCapture).toHaveBeenCalledWith(7);
+
+		act(() => model.selectTab('tab-b'));
+
+		expect(releasePointerCapture).toHaveBeenCalledWith(7);
 	});
 
 	it('shares one terminal bell admission ledger across the panel workspace lifetime', () => {

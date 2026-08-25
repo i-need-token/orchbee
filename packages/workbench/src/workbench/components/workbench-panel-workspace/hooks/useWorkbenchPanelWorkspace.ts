@@ -60,6 +60,7 @@ interface PanelDragSession {
 	readonly sourceWidth: number;
 	readonly startX: number;
 	readonly startY: number;
+	readonly tabId: string;
 	readonly workspaceElement: HTMLElement;
 }
 
@@ -72,6 +73,12 @@ type ActiveTabPanelWorkspaceEventInput = ActiveTabPanelWorkspaceEvent extends in
 
 const PANEL_DRAG_PREVIEW_MAX_HEIGHT_PX = 192;
 const PANEL_DRAG_PREVIEW_MAX_WIDTH_PX = 320;
+const EMPTY_PANEL_DRAG: WorkbenchPanelWorkspaceView['panelDrag'] = Object.freeze({
+	draggingPanelId: null,
+	dropTarget: null,
+	ghost: null,
+	previewRoot: null,
+});
 
 export function useWorkbenchPanelWorkspace({
 	actionRuntime,
@@ -93,18 +100,19 @@ export function useWorkbenchPanelWorkspace({
 	const [pendingClose, setPendingClose] = React.useState<PendingPanelClose | null>(null);
 	const pendingConfirmationRef = React.useRef<((accepted: boolean) => void) | null>(null);
 	const [panelDragSession, setPanelDragSession] = React.useState<PanelDragSession | null>(null);
-	const [panelDrag, setPanelDrag] = React.useState<WorkbenchPanelWorkspaceView['panelDrag']>({
-		draggingPanelId: null,
-		dropTarget: null,
-		ghost: null,
-		previewRoot: null,
-	});
+	const [panelDrag, setPanelDrag] =
+		React.useState<WorkbenchPanelWorkspaceView['panelDrag']>(EMPTY_PANEL_DRAG);
 	const admitTerminalBellEffect = useMemoizedFn((event: WorkbenchTerminalBellEffect): boolean =>
 		terminalBellEffectCoordinator.admit(event),
 	);
 	const activeTab = state.tabs.find((tab) => tab.tabId === activeTabId) ?? null;
 	const panelCount = activeTab === null ? 0 : collectPanelLeaves(activeTab.root).length;
 	const displayedRoot = panelDrag.previewRoot ?? activeTab?.root ?? null;
+	React.useLayoutEffect(() => {
+		if (panelDragSession === null || panelDragSession.tabId === activeTabId) return;
+		setPanelDragSession(null);
+		setPanelDrag(EMPTY_PANEL_DRAG);
+	}, [activeTabId, panelDragSession]);
 	const messages = React.useMemo<PanelWorkspaceMessages>(
 		() => ({
 			cancel: intl.formatMessage(workbenchMessages.panelCancel),
@@ -323,6 +331,7 @@ export function useWorkbenchPanelWorkspace({
 				sourceWidth: sourceBounds.width,
 				startX: event.clientX,
 				startY: event.clientY,
+				tabId: activeTab.tabId,
 				workspaceElement,
 			});
 		},
@@ -338,19 +347,19 @@ export function useWorkbenchPanelWorkspace({
 		let finished = false;
 		let mountSnapshot: PanelDragGhost['mountSnapshot'] | null = null;
 		const resetProjection = () => {
-			setPanelDrag({
-				draggingPanelId: null,
-				dropTarget: null,
-				ghost: null,
-				previewRoot: null,
-			});
+			setPanelDrag(EMPTY_PANEL_DRAG);
 		};
 		const finishDrag = (commit: boolean) => {
 			if (finished) {
 				return;
 			}
 			finished = true;
-			if (commit && dragStarted && dropTarget !== null) {
+			if (
+				commit &&
+				dragStarted &&
+				dropTarget !== null &&
+				store.getActiveTabId() === panelDragSession.tabId
+			) {
 				movePanel(panelDragSession.panelId, dropTarget.panelId, dropTarget.direction);
 			}
 			resetProjection();
@@ -361,6 +370,10 @@ export function useWorkbenchPanelWorkspace({
 		};
 		const handlePointerMove = (event: PointerEvent) => {
 			if (event.pointerId !== panelDragSession.pointerId) {
+				return;
+			}
+			if (store.getActiveTabId() !== panelDragSession.tabId) {
+				finishDrag(false);
 				return;
 			}
 			if (
@@ -465,7 +478,7 @@ export function useWorkbenchPanelWorkspace({
 				panelDragSession.captureElement.releasePointerCapture(panelDragSession.pointerId);
 			}
 		};
-	}, [movePanel, panelDragSession]);
+	}, [movePanel, panelDragSession, store]);
 
 	return {
 		actionRuntime,

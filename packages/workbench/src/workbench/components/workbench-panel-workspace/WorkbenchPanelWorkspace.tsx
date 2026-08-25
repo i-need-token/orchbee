@@ -52,11 +52,11 @@ export function WorkbenchPanelWorkspace({
 					epoch,
 					mode,
 					reportPresentationReady: (presentationId, readiness) => {
-						handoff.reportPresentationReady(epoch, presentationId, readiness);
+						handoff.reportPresentationReady(epoch, tab.tabId, presentationId, readiness);
 					},
 				};
 				const layerView = projectWorkbenchPanelWorkspaceTabView(view, tab);
-				const node = mode === 'active' ? (view.panelDrag.previewRoot ?? tab.root) : tab.root;
+				const node = mode === 'active' ? (layerView.panelDrag.previewRoot ?? tab.root) : tab.root;
 				return (
 					<div
 						aria-hidden={mode === 'active' ? undefined : true}
