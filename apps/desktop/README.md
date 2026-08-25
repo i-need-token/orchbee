@@ -176,7 +176,7 @@ AttachmentId ── one disposable projection capability
 
 `TerminalPresentationId` is created and retired by Workbench. Main maintains a strict in-memory bijection to `TerminalBindingId`; it never exposes Binding, Creation, Host, Terminal, or Attachment identity through lifecycle control. The Host remains the source of truth for the process and VT.
 
-The version-3 binding store contains a canonical BindingId-ordered collection. Every record has one unique BindingId, PresentationId, CreationId, bounded launch profile, and exactly one durable state: `planned`, `create-requested`, `retained`, `exited`, `closing`, or `lost`. Retained identities are unique and must repeat their owning CreationId. The file is parsed as untrusted input, updated through owner-only atomic replacement, and never rewritten automatically when invalid or unreadable. Launch environment values never enter diagnostics. Every default launch declares `TERM=xterm-256color`, `COLORTERM=truecolor`, and `TERM_PROGRAM=Orchbee`, and removes inherited `NO_COLOR`, `FORCE_COLOR`, and `NODE_DISABLE_COLORS` policy before the Host creates the PTY process. New POSIX terminals also receive `ORCHBEE_SHELL_INTEGRATION_DIR` from a code-resolved application resource path: development resolves it relative to the built Main entry, and packaged applications resolve it beneath `process.resourcesPath`. Ambient environment cannot replace that path. Desktop ships its own Zsh, Bash, and Fish scripts as package resources but never sources them or modifies a startup file; Settings exposes the exact manual commands. Desktop preserves an explicit UTF-8 locale; when inherited POSIX locale precedence would not produce UTF-8, Main removes a conflicting `LC_ALL`, repairs an invalid `LANG`, and supplies a UTF-8 `LC_CTYPE` fallback as needed. Darwin uses `en_US.UTF-8` because its shell environment does not provide Linux's `C.UTF-8` locale.
+The version-3 binding store contains a canonical BindingId-ordered collection. Every record has one unique BindingId, PresentationId, CreationId, bounded launch profile, and exactly one durable state: `planned`, `create-requested`, `retained`, `exited`, `closing`, or `lost`. Retained identities are unique and must repeat their owning CreationId. The file is parsed as untrusted input, updated through owner-only atomic replacement, and never rewritten automatically when invalid or unreadable. Launch environment values never enter diagnostics. Every default launch declares `TERM=xterm-256color`, `COLORTERM=truecolor`, and the Ghostty compatibility identity `TERM_PROGRAM=ghostty`, and removes inherited `NO_COLOR`, `FORCE_COLOR`, and `NODE_DISABLE_COLORS` policy before the Host creates the PTY process. `TERM` remains the portable baseline because Desktop does not install `xterm-ghostty` terminfo; the compatibility identity lets applications select the Kitty graphics and keyboard protocols that Orchbee implements through its pinned Ghostty VT without claiming a Ghostty application version. New POSIX terminals also receive `ORCHBEE_SHELL_INTEGRATION_DIR` from a code-resolved application resource path: development resolves it relative to the built Main entry, and packaged applications resolve it beneath `process.resourcesPath`. Ambient environment cannot replace that path. Desktop ships its own Zsh, Bash, and Fish scripts as package resources but never sources them or modifies a startup file; Settings exposes the exact manual commands. Desktop preserves an explicit UTF-8 locale; when inherited POSIX locale precedence would not produce UTF-8, Main removes a conflicting `LC_ALL`, repairs an invalid `LANG`, and supplies a UTF-8 `LC_CTYPE` fallback as needed. Darwin uses `en_US.UTF-8` because its shell environment does not provide Linux's `C.UTF-8` locale.
 
 ## Local terminal defaults
 
@@ -286,11 +286,14 @@ choose terminal colors.
 Desktop hides the native title bar while retaining the operating system's window controls. The
 Desktop renderer marks only the sidebar's top chrome and unoccupied horizontal Tab-track background
 as native window-drag regions; Tabs, groups, the sidebar toggle, and the new-Tab control remain
-interactive non-drag regions. On macOS, Main leaves the Window Controls Overlay disabled, positions
-the native traffic lights at `(8, 10)`, and the renderer centers the sidebar toggle in the same
-`36px` horizontal Tab row after the reserved native-control space. The toggle position is itself a
-non-drag region, its reserved leading lane is never marked draggable, and visible sidebar drag
-geometry begins after that lane so the complete pointer target remains interactive.
+interactive non-drag regions. On macOS, Workbench exclusively owns `Command+W` as Close Terminal;
+Main keeps the native Close Window menu item clickable but does not register its accelerator, so a
+repeated or temporarily unavailable terminal-close event cannot fall through and close the native
+window. Main also leaves the Window Controls Overlay disabled, positions the native traffic lights
+at `(8, 10)`, and the renderer centers the sidebar toggle in the same `36px` horizontal Tab row after
+the reserved native-control space. The toggle position is itself a non-drag region, its reserved
+leading lane is never marked draggable, and visible sidebar drag geometry begins after that lane so
+the complete pointer target remains interactive.
 
 Desktop reads the terminal machine's hostname once at the trusted Main composition boundary,
 validates it as runtime configuration, and includes it in every Electron or Gateway client-session

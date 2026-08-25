@@ -260,6 +260,41 @@ describe('WebGPURenderer recovery retirement', () => {
 		expect(rendering.destroy).toHaveBeenCalledOnce();
 	});
 
+	it('keeps one shared loss observer and releases disposed atlas backing', async () => {
+		vi.stubGlobal('window', { devicePixelRatio: 1 });
+		vi.stubGlobal('document', { createElement: () => createCanvas() });
+		vi.stubGlobal('GPUTextureUsage', { TEXTURE_BINDING: 1, COPY_DST: 2, RENDER_ATTACHMENT: 4 });
+		vi.stubGlobal('GPUBufferUsage', { UNIFORM: 1, COPY_DST: 2, VERTEX: 4 });
+		const rendering = createSubmittingDevice();
+		const observeLoss = vi.spyOn(rendering.device.lost, 'then');
+		vi.stubGlobal('navigator', {
+			gpu: {
+				requestAdapter: async () =>
+					({ requestDevice: async () => rendering.device }) as unknown as GPUAdapter,
+				getPreferredCanvasFormat: () => 'bgra8unorm',
+			},
+		});
+		const first = new WebGPURenderer(
+			createWebGPUCanvas({ configure: () => {} } as unknown as GPUCanvasContext),
+		);
+		const second = new WebGPURenderer(
+			createWebGPUCanvas({ configure: () => {} } as unknown as GPUCanvasContext),
+		);
+		const firstAtlas = Reflect.get(first, 'atlasCanvas') as HTMLCanvasElement;
+		const secondAtlas = Reflect.get(second, 'atlasCanvas') as HTMLCanvasElement;
+
+		await expect(Promise.all([first.initGPU(), second.initGPU()])).resolves.toEqual([true, true]);
+
+		expect(observeLoss).toHaveBeenCalledOnce();
+		first.dispose();
+		expect(firstAtlas).toMatchObject({ height: 0, width: 0 });
+		expect(secondAtlas).toMatchObject({ height: 2_048, width: 2_048 });
+		expect(rendering.destroy).not.toHaveBeenCalled();
+		second.dispose();
+		expect(secondAtlas).toMatchObject({ height: 0, width: 0 });
+		expect(rendering.destroy).toHaveBeenCalledOnce();
+	});
+
 	it('keeps the last canvas readable while rejecting later draw mutations', async () => {
 		vi.stubGlobal('navigator', {});
 		vi.stubGlobal('window', { devicePixelRatio: 1 });

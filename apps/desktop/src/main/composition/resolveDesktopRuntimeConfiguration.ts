@@ -251,7 +251,7 @@ export function resolveDesktopRuntimeConfiguration(
 			environment: [
 				{ name: 'COLORTERM', value: 'truecolor' },
 				{ name: 'TERM', value: 'xterm-256color' },
-				{ name: 'TERM_PROGRAM', value: 'Orchbee' },
+				{ name: 'TERM_PROGRAM', value: 'ghostty' },
 				...(shellIntegrationDirectory === null
 					? []
 					: [{ name: 'ORCHBEE_SHELL_INTEGRATION_DIR', value: shellIntegrationDirectory }]),

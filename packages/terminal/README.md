@@ -562,9 +562,11 @@ release its canvas context, glyph atlas texture and Canvas, sampler, uniform and
 bind groups, CPU staging storage, and overlays. Disposing or freezing one renderer therefore never
 destroys the shared device. Device loss invalidates that document generation; each affected live
 renderer independently follows the existing typed recovery path against the next shared generation,
-and Canvas 2D remains the observable fallback. Each live or transiently frozen renderer holds one
-reference-counted runtime lease. Releasing the final lease destroys the device and discards the
-shared pipelines; the `Document`-keyed weak map is only the concurrent discovery boundary. The
+and Canvas 2D remains the observable fallback. The shared runtime owns the generation's only pending
+`GPUDevice.lost` reaction. Each live or transiently frozen renderer holds one reference-counted
+runtime lease with a detachable loss subscriber; releasing the lease removes that subscriber before
+decrementing the runtime reference count. Releasing the final lease destroys the device and discards
+the shared pipelines; the `Document`-keyed weak map is only the concurrent discovery boundary. The
 runtime therefore adds neither per-inactive-terminal GPU surfaces nor idle device retention.
 
 The WebGPU path retains and clears one instance array plus one geometrically grown `Float32Array`
@@ -586,9 +588,10 @@ The glyph atlas starts at 2048 physical pixels on each axis. Admitting a complet
 independently doubles only the axis whose current bound is too small, up to the device texture limit;
 row-wide shaping can therefore consume additional width without multiplying unused height. A cache
 reset clears entries while retaining the current atlas dimensions. Freezing retains the last
-presented canvas, while disposal unconfigures the WebGPU canvas before destroying its device so
-presentation textures can be released explicitly. These are atlas and lifecycle allocation bounds,
-not a GPU-driver, browser, or whole-process RSS ceiling.
+presented canvas, while disposal unconfigures the WebGPU canvas, destroys its per-surface GPU
+resources, clears glyph state, and resets the renderer-owned atlas Canvas backing to zero pixels.
+These are atlas and lifecycle allocation bounds, not a GPU-driver, browser, or whole-process RSS
+ceiling.
 
 WebGPU bind groups for the uniform and atlas resources persist until their owning device or atlas
 is recreated instead of being rebuilt for every submitted frame. A packed row view also caches

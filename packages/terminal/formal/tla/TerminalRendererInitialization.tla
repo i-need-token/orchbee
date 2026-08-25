@@ -11,7 +11,8 @@ Results == {"none", "pending", "ready", "fallback", "cancelled", "failed", "disp
 Actions == {
   "init", "start", "adapter-completes", "device-completes",
   "pipeline-completes", "validation-completes", "publish-webgpu",
-  "publish-fallback", "fail", "freeze", "cancel-retired", "dispose"
+  "publish-fallback", "fail", "device-lost", "freeze",
+  "cancel-retired", "dispose"
 }
 
 VARIABLES
@@ -19,7 +20,8 @@ VARIABLES
   phase,
   fallbackAllowed,
   backend,
-  deviceOwned,
+  runtimeLeaseOwned,
+  lossSubscriptionOwned,
   resourcesOwned,
   contextOwned,
   result,
@@ -28,16 +30,17 @@ VARIABLES
   previousPhase,
   previousBackend
 
-vars == <<lifecycle, phase, fallbackAllowed, backend, deviceOwned,
-  resourcesOwned, contextOwned, result, lastAction, previousLifecycle,
-  previousPhase, previousBackend>>
+vars == <<lifecycle, phase, fallbackAllowed, backend, runtimeLeaseOwned,
+  lossSubscriptionOwned, resourcesOwned, contextOwned, result, lastAction,
+  previousLifecycle, previousPhase, previousBackend>>
 
 Init ==
   /\ lifecycle = "live"
   /\ phase = "idle"
   /\ fallbackAllowed = FALSE
   /\ backend = "none"
-  /\ deviceOwned = FALSE
+  /\ runtimeLeaseOwned = FALSE
+  /\ lossSubscriptionOwned = FALSE
   /\ resourcesOwned = FALSE
   /\ contextOwned = FALSE
   /\ result = "none"
@@ -58,25 +61,26 @@ Start(allowFallback) ==
   /\ allowFallback \in BOOLEAN
   /\ phase' = "adapter"
   /\ fallbackAllowed' = allowFallback
+  /\ runtimeLeaseOwned' = TRUE
+  /\ lossSubscriptionOwned' = TRUE
   /\ result' = "pending"
-  /\ UNCHANGED <<lifecycle, backend, deviceOwned, resourcesOwned, contextOwned>>
+  /\ UNCHANGED <<lifecycle, backend, resourcesOwned, contextOwned>>
   /\ Record("start")
 
 AdapterCompletes ==
   /\ lifecycle = "live"
   /\ phase = "adapter"
   /\ phase' = "device"
-  /\ UNCHANGED <<lifecycle, fallbackAllowed, backend, deviceOwned,
-       resourcesOwned, contextOwned, result>>
+  /\ UNCHANGED <<lifecycle, fallbackAllowed, backend, runtimeLeaseOwned,
+       lossSubscriptionOwned, resourcesOwned, contextOwned, result>>
   /\ Record("adapter-completes")
 
 DeviceCompletes ==
   /\ lifecycle = "live"
   /\ phase = "device"
   /\ phase' = "pipeline"
-  /\ deviceOwned' = TRUE
-  /\ UNCHANGED <<lifecycle, fallbackAllowed, backend, resourcesOwned,
-       contextOwned, result>>
+  /\ UNCHANGED <<lifecycle, fallbackAllowed, backend, runtimeLeaseOwned,
+       lossSubscriptionOwned, resourcesOwned, contextOwned, result>>
   /\ Record("device-completes")
 
 PipelineCompletes ==
@@ -84,16 +88,16 @@ PipelineCompletes ==
   /\ phase = "pipeline"
   /\ phase' = "validation"
   /\ resourcesOwned' = TRUE
-  /\ UNCHANGED <<lifecycle, fallbackAllowed, backend, deviceOwned,
-       contextOwned, result>>
+  /\ UNCHANGED <<lifecycle, fallbackAllowed, backend, runtimeLeaseOwned,
+       lossSubscriptionOwned, contextOwned, result>>
   /\ Record("pipeline-completes")
 
 ValidationCompletes ==
   /\ lifecycle = "live"
   /\ phase = "validation"
   /\ phase' = "prepared"
-  /\ UNCHANGED <<lifecycle, fallbackAllowed, backend, deviceOwned,
-       resourcesOwned, contextOwned, result>>
+  /\ UNCHANGED <<lifecycle, fallbackAllowed, backend, runtimeLeaseOwned,
+       lossSubscriptionOwned, resourcesOwned, contextOwned, result>>
   /\ Record("validation-completes")
 
 PublishWebGPU ==
@@ -103,7 +107,8 @@ PublishWebGPU ==
   /\ backend' = "webgpu"
   /\ contextOwned' = TRUE
   /\ result' = "ready"
-  /\ UNCHANGED <<lifecycle, fallbackAllowed, deviceOwned, resourcesOwned>>
+  /\ UNCHANGED <<lifecycle, fallbackAllowed, runtimeLeaseOwned,
+       lossSubscriptionOwned, resourcesOwned>>
   /\ Record("publish-webgpu")
 
 InitializationFails ==
@@ -111,18 +116,32 @@ InitializationFails ==
   /\ phase \in PendingPhases
   /\ phase' = IF fallbackAllowed THEN "fallback" ELSE "failed"
   /\ backend' = IF fallbackAllowed THEN "canvas2d" ELSE "none"
-  /\ deviceOwned' = FALSE
+  /\ runtimeLeaseOwned' = FALSE
+  /\ lossSubscriptionOwned' = FALSE
   /\ resourcesOwned' = FALSE
   /\ contextOwned' = fallbackAllowed
   /\ result' = IF fallbackAllowed THEN "fallback" ELSE "failed"
   /\ UNCHANGED <<lifecycle, fallbackAllowed>>
   /\ Record(IF fallbackAllowed THEN "publish-fallback" ELSE "fail")
 
+DeviceLost ==
+  /\ lifecycle = "live"
+  /\ phase = "ready"
+  /\ phase' = "idle"
+  /\ backend' = "none"
+  /\ runtimeLeaseOwned' = FALSE
+  /\ lossSubscriptionOwned' = FALSE
+  /\ resourcesOwned' = FALSE
+  /\ contextOwned' = FALSE
+  /\ result' = "none"
+  /\ UNCHANGED <<lifecycle, fallbackAllowed>>
+  /\ Record("device-lost")
+
 Freeze ==
   /\ lifecycle = "live"
   /\ lifecycle' = "frozen"
-  /\ UNCHANGED <<phase, fallbackAllowed, backend, deviceOwned,
-       resourcesOwned, contextOwned, result>>
+  /\ UNCHANGED <<phase, fallbackAllowed, backend, runtimeLeaseOwned,
+       lossSubscriptionOwned, resourcesOwned, contextOwned, result>>
   /\ Record("freeze")
 
 CancelRetired ==
@@ -130,7 +149,8 @@ CancelRetired ==
   /\ phase \in PendingPhases
   /\ phase' = "cancelled"
   /\ backend' = "none"
-  /\ deviceOwned' = FALSE
+  /\ runtimeLeaseOwned' = FALSE
+  /\ lossSubscriptionOwned' = FALSE
   /\ resourcesOwned' = FALSE
   /\ contextOwned' = FALSE
   /\ result' = "cancelled"
@@ -142,7 +162,8 @@ Dispose ==
   /\ lifecycle' = "disposed"
   /\ phase' = "disposed"
   /\ backend' = "none"
-  /\ deviceOwned' = FALSE
+  /\ runtimeLeaseOwned' = FALSE
+  /\ lossSubscriptionOwned' = FALSE
   /\ resourcesOwned' = FALSE
   /\ contextOwned' = FALSE
   /\ result' = "disposed"
@@ -158,6 +179,7 @@ Next ==
   \/ ValidationCompletes
   \/ PublishWebGPU
   \/ InitializationFails
+  \/ DeviceLost
   \/ Freeze
   \/ CancelRetired
   \/ Dispose
@@ -169,7 +191,8 @@ TypeOK ==
   /\ phase \in Phases
   /\ fallbackAllowed \in BOOLEAN
   /\ backend \in Backends
-  /\ deviceOwned \in BOOLEAN
+  /\ runtimeLeaseOwned \in BOOLEAN
+  /\ lossSubscriptionOwned \in BOOLEAN
   /\ resourcesOwned \in BOOLEAN
   /\ contextOwned \in BOOLEAN
   /\ result \in Results
@@ -179,7 +202,8 @@ TypeOK ==
   /\ previousBackend \in Backends
 
 OwnershipMatchesPhase ==
-  /\ (deviceOwned <=> phase \in {"pipeline", "validation", "prepared", "ready"})
+  /\ (runtimeLeaseOwned <=> phase \in PendingPhases \cup {"ready"})
+  /\ (lossSubscriptionOwned <=> runtimeLeaseOwned)
   /\ (resourcesOwned <=> phase \in {"validation", "prepared", "ready"})
   /\ (contextOwned <=> phase \in {"ready", "fallback"})
 
@@ -206,7 +230,8 @@ FallbackRequiresLive ==
 CancelledOwnsNothing ==
   phase = "cancelled" =>
     /\ backend = "none"
-    /\ ~deviceOwned
+    /\ ~runtimeLeaseOwned
+    /\ ~lossSubscriptionOwned
     /\ ~resourcesOwned
     /\ ~contextOwned
 
@@ -214,7 +239,18 @@ DisposedOwnsNothing ==
   lifecycle = "disposed" =>
     /\ phase = "disposed"
     /\ backend = "none"
-    /\ ~deviceOwned
+    /\ ~runtimeLeaseOwned
+    /\ ~lossSubscriptionOwned
+    /\ ~resourcesOwned
+    /\ ~contextOwned
+
+LossRetiresGeneration ==
+  lastAction = "device-lost" =>
+    /\ previousPhase = "ready"
+    /\ phase = "idle"
+    /\ backend = "none"
+    /\ ~runtimeLeaseOwned
+    /\ ~lossSubscriptionOwned
     /\ ~resourcesOwned
     /\ ~contextOwned
 

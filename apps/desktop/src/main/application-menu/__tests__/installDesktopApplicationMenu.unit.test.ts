@@ -10,6 +10,7 @@ import {
 } from '../installDesktopApplicationMenu';
 
 const ITEM_IDS = {
+	closeWindow: 'desktop-window-close',
 	secureKeyboardEntry: 'desktop-secure-keyboard-entry',
 	toggleFullScreen: 'desktop-window-toggle-full-screen',
 	toggleMaximized: 'desktop-window-toggle-maximized',
@@ -69,6 +70,35 @@ describe('installDesktopApplicationMenu', () => {
 		});
 		installedMenu?.items[0]?.submenu?.emit('menu-will-show', {});
 		expect(secureItem).toMatchObject({ checked: true, enabled: true, visible: true });
+
+		installation.dispose();
+		expect(menuApi.setApplicationMenu).toHaveBeenLastCalledWith(previousMenu);
+	});
+
+	it('keeps macOS Close Window clickable without registering its Workbench-owned accelerator', () => {
+		const nativeCloseItem = fakeMenuItem({
+			accelerator: 'CommandOrControl+W',
+			label: 'Close Window',
+			role: 'close',
+		});
+		const previousMenu = fakeMenu([
+			fakeMenuItem({
+				role: 'fileMenu',
+				submenu: fakeMenu([nativeCloseItem]),
+			}),
+		]);
+		const menuApi = createMenuApi(previousMenu);
+
+		const installation = installDesktopApplicationMenu(createActions(), labels, 'darwin', menuApi);
+		const installedMenu = menuApi.setApplicationMenu.mock.calls[0]?.[0];
+
+		expect(installedMenu?.getMenuItemById(ITEM_IDS.closeWindow)).toMatchObject({
+			accelerator: 'CommandOrControl+W',
+			label: 'Close Window',
+			registerAccelerator: false,
+			role: 'close',
+		});
+		expect(nativeCloseItem.registerAccelerator).toBe(true);
 
 		installation.dispose();
 		expect(menuApi.setApplicationMenu).toHaveBeenLastCalledWith(previousMenu);

@@ -258,7 +258,7 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 		expect(configuration.terminalLaunch.environment).toEqual([
 			{ name: 'COLORTERM', value: 'truecolor' },
 			{ name: 'TERM', value: 'xterm-256color' },
-			{ name: 'TERM_PROGRAM', value: 'Orchbee' },
+			{ name: 'TERM_PROGRAM', value: 'ghostty' },
 			{
 				name: 'ORCHBEE_SHELL_INTEGRATION_DIR',
 				value: path.resolve('/repo/apps/desktop/resources/shell-integration'),
@@ -284,7 +284,7 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 		expect(configuration.terminalLaunch.environment).toEqual([
 			{ name: 'COLORTERM', value: 'truecolor' },
 			{ name: 'TERM', value: 'xterm-256color' },
-			{ name: 'TERM_PROGRAM', value: 'Orchbee' },
+			{ name: 'TERM_PROGRAM', value: 'ghostty' },
 			{
 				name: 'ORCHBEE_SHELL_INTEGRATION_DIR',
 				value: path.resolve('/repo/apps/desktop/resources/shell-integration'),
@@ -314,7 +314,7 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 		expect(configuration.terminalLaunch.environment).toEqual([
 			{ name: 'COLORTERM', value: 'truecolor' },
 			{ name: 'TERM', value: 'xterm-256color' },
-			{ name: 'TERM_PROGRAM', value: 'Orchbee' },
+			{ name: 'TERM_PROGRAM', value: 'ghostty' },
 			{
 				name: 'ORCHBEE_SHELL_INTEGRATION_DIR',
 				value: path.resolve('/repo/apps/desktop/resources/shell-integration'),
@@ -340,7 +340,7 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 		expect(configuration.posixHostEndpointAddonPath).toBeNull();
 	});
 
-	it('sets terminal identity and removes inherited parent color policy', () => {
+	it('sets the Ghostty compatibility identity and removes inherited parent color policy', () => {
 		const configuration = resolveDesktopRuntimeConfiguration({
 			applicationPath: 'C:\\repo\\apps\\desktop',
 			environment: {
@@ -356,7 +356,7 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 		expect(configuration.terminalLaunch.environment).toEqual([
 			{ name: 'COLORTERM', value: 'truecolor' },
 			{ name: 'TERM', value: 'xterm-256color' },
-			{ name: 'TERM_PROGRAM', value: 'Orchbee' },
+			{ name: 'TERM_PROGRAM', value: 'ghostty' },
 			{ name: 'NO_COLOR', value: null },
 			{ name: 'FORCE_COLOR', value: null },
 			{ name: 'NODE_DISABLE_COLORS', value: null },

@@ -5,6 +5,7 @@ import type { DesktopSecureKeyboardEntryActionSource } from '../secure-keyboard-
 import type { DesktopWindowActionSource } from '../window-actions';
 
 const DESKTOP_APPLICATION_MENU_ITEM_IDS = {
+	closeWindow: 'desktop-window-close',
 	secureKeyboardEntry: 'desktop-secure-keyboard-entry',
 	toggleFullScreen: 'desktop-window-toggle-full-screen',
 	toggleMaximized: 'desktop-window-toggle-maximized',
@@ -48,6 +49,7 @@ export function installDesktopApplicationMenu(
 	const previousMenu = menuApi.getApplicationMenu();
 	const baseMenu =
 		previousMenu ?? menuApi.buildFromTemplate(defaultApplicationMenuTemplate(platform));
+	const fileRoot = findRole(baseMenu, 'fileMenu');
 	const viewRoot = findRole(baseMenu, 'viewMenu');
 	const windowRoot = findRole(baseMenu, 'windowMenu');
 	const fullScreenItem: MenuItemConstructorOptions & { readonly id: string } = {
@@ -70,6 +72,34 @@ export function installDesktopApplicationMenu(
 	};
 	const rootPlans = new Map<MenuItem, RootPlan>();
 	const appendedRoots: MenuItemConstructorOptions[] = [];
+	const fileMenu = fileRoot?.submenu;
+	if (
+		platform === 'darwin' &&
+		fileRoot !== undefined &&
+		fileMenu !== null &&
+		fileMenu !== undefined
+	) {
+		const nativeCloseWindowItem = findRole(fileMenu, 'close');
+		if (nativeCloseWindowItem !== undefined) {
+			planRoot(
+				rootPlans,
+				fileRoot,
+				{
+					...(nativeCloseWindowItem.accelerator === null
+						? {}
+						: { accelerator: nativeCloseWindowItem.accelerator }),
+					enabled: nativeCloseWindowItem.enabled,
+					id: DESKTOP_APPLICATION_MENU_ITEM_IDS.closeWindow,
+					label: nativeCloseWindowItem.label,
+					registerAccelerator: false,
+					role: 'close',
+					type: nativeCloseWindowItem.type,
+					visible: nativeCloseWindowItem.visible,
+				},
+				'close',
+			);
+		}
+	}
 	if (viewRoot === undefined && windowRoot === undefined) {
 		appendedRoots.push({
 			id: 'desktop-window-menu',

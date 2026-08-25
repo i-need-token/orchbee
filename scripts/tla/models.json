@@ -1245,6 +1245,7 @@
 				"ValidationCompletes",
 				"PublishWebGPU",
 				"InitializationFails",
+				"DeviceLost",
 				"Freeze",
 				"CancelRetired",
 				"Dispose"

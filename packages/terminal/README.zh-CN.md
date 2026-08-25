@@ -204,13 +204,13 @@ const rows = await terminal.readBufferRows(
 
 `capturePresentationSnapshot()` 只公开最近一次完成绘制所精确表示的打包来源与元数据。如果较新的 Host 提交已被接受但尚未绘制，捕获会返回空，直到该 revision 完成绘制；它绝不会把未显示的状态标记为可见。捕获的快照不可变且仅用于显示，在可行时结构共享不可变行 backing，统计其保留字节，并包含可见图形资源与 placement。打开新的 `ProjectedTerminal` 时传入快照，会在计划中的实时渲染前先绘制它，但这次绘制不会发出实时帧 telemetry 或 acknowledgement，也不会授予 attachment、输入、resize、transport、元数据发布或持久状态权威。缓存绘制完成后，终端会释放其 opening reference；外部有界缓存仍可为后续呈现保留该快照。
 
-同一 `Document` 中的渲染器共享 WebGPU adapter 获取、device 创建、首选 format，以及不可变的背景/文本 pipeline 对。每个 renderer 仍各自拥有并释放 canvas context、字形 atlas texture 与 Canvas、sampler、uniform 与 vertex buffer、bind group、CPU staging storage 和 overlay。因此，处置或冻结单个 renderer 绝不会销毁共享 device。device 丢失会使该 document generation 失效；每个受影响的活动 renderer 都会针对下一共享 generation 独立走既有类型化恢复路径，Canvas 2D 仍是可观察后备。每个活动或短暂冻结的 renderer 持有一个引用计数 runtime lease；释放最后一个 lease 会销毁 device 并丢弃共享 pipeline，而按 `Document` 索引的 weak map 只负责并发发现。因此，该 runtime 既不增加逐非活动终端 GPU surface，也不保留空闲 device。
+同一 `Document` 中的渲染器共享 WebGPU adapter 获取、device 创建、首选 format，以及不可变的背景/文本 pipeline 对。每个 renderer 仍各自拥有并释放 canvas context、字形 atlas texture 与 Canvas、sampler、uniform 与 vertex buffer、bind group、CPU staging storage 和 overlay。因此，处置或冻结单个 renderer 绝不会销毁共享 device。device 丢失会使该 document generation 失效；每个受影响的活动 renderer 都会针对下一共享 generation 独立走既有类型化恢复路径，Canvas 2D 仍是可观察后备。共享 runtime 拥有该 generation 唯一待定的 `GPUDevice.lost` reaction。每个活动或短暂冻结的 renderer 持有一个引用计数 runtime lease 及可分离的 loss subscriber；释放 lease 时会先移除 subscriber，再减少 runtime 引用计数。释放最后一个 lease 会销毁 device 并丢弃共享 pipeline，而按 `Document` 索引的 weak map 只负责并发发现。因此，该 runtime 既不增加逐非活动终端 GPU surface，也不保留空闲 device。
 
 WebGPU 路径为背景、文本和覆盖层三种流分别保留并清空一个实例数组，以及一个按几何级数增长的 `Float32Array` 上传缓冲区。当某个流达到其最大已准备帧所需的容量后，后续不超过该尺寸的帧会复用同一底层 CPU 存储，而不再分配另一个帧大小的缓冲区。销毁时会释放保留的暂存空间。逐单元格的前景色/背景色解析也会复用一个由渲染器拥有的暂存投影，调用方只复制必须比当前单元格存活更久的值。这些规则把两个全视口分配热点限制在已准备视口内容的峰值容量内；它们不定义 GPU 驱动、浏览器或整个进程的 RSS 上限。
 
 脏字形图集矩形会直接从 Canvas 图集传输到 WebGPU 纹理，因此增量上传不会具体化中间 CPU 像素数组。帧遥测会在接纳或重置字形时维护图集占用量，而不是重新扫描字形映射。隐藏的 IME textarea 会在几何变化之间复用 Canvas 相对于界面的偏移，并在调整大小、设备像素比或呈现配置变化后重新测量。
 
-字形图集的两个轴都从 2048 个物理像素开始。接纳一个完整光栅预留时，只会分别倍增当前边界不足的轴，并以设备纹理上限为界；因此，整行塑形可以使用更多宽度，而不会同时倍增未使用的高度。缓存重置会清空条目但保留当前图集尺寸。冻结会保留最后呈现的 Canvas，销毁则会在销毁设备前解除 WebGPU Canvas 配置，以便显式释放呈现纹理。这些约束只限定图集与生命周期分配，并不构成 GPU 驱动、浏览器或整个进程的 RSS 上限。
+字形图集的两个轴都从 2048 个物理像素开始。接纳一个完整光栅预留时，只会分别倍增当前边界不足的轴，并以设备纹理上限为界；因此，整行塑形可以使用更多宽度，而不会同时倍增未使用的高度。缓存重置会清空条目但保留当前图集尺寸。冻结会保留最后呈现的 Canvas；处置则会解除 WebGPU Canvas 配置、销毁每表面 GPU 资源、清除字形状态，并把 renderer 自有 atlas Canvas backing 重置为零像素。这些约束只限定图集与生命周期分配，并不构成 GPU 驱动、浏览器或整个进程的 RSS 上限。
 
 用于 uniform 和图集资源的 WebGPU bind group 会持续存活到其所属设备或图集被重新创建，而不是随每个提交帧重建。打包行视图还会在当前 backing 的生命周期内缓存已解码的非空字素，让无障碍与渲染共享一次 UTF-8 解码；替换行 backing 时会清除该缓存。缓存范围由当前保留网格中的单元格数量限定。
 

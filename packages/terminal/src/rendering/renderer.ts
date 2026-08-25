@@ -583,8 +583,11 @@ interface SharedWebGPURenderingState {
 	readonly textPipeline: GPURenderPipeline;
 }
 
+type SharedWebGPUDeviceLossSubscriber = (device: GPUDevice, info: GPUDeviceLostInfo) => void;
+
 interface SharedWebGPURenderingRuntime {
 	readonly acquisition: Promise<SharedWebGPURenderingState>;
+	readonly deviceLossSubscribers: Set<SharedWebGPUDeviceLossSubscriber>;
 	readonly gpu: GPU;
 	lost: boolean;
 	references: number;
@@ -602,21 +605,34 @@ const sharedWebGPURenderingRuntimes = new WeakMap<Document, SharedWebGPURenderin
 function acquireSharedWebGPURenderingState(
 	document: Document,
 	gpu: GPU,
+	deviceLossSubscriber: SharedWebGPUDeviceLossSubscriber,
 ): SharedWebGPURenderingLease {
 	let runtime = sharedWebGPURenderingRuntimes.get(document);
 	if (runtime?.gpu !== gpu) {
 		const acquisition = createSharedWebGPURenderingState(gpu);
-		runtime = { acquisition, gpu, lost: false, references: 0, retired: false };
+		runtime = {
+			acquisition,
+			deviceLossSubscribers: new Set(),
+			gpu,
+			lost: false,
+			references: 0,
+			retired: false,
+		};
 		sharedWebGPURenderingRuntimes.set(document, runtime);
 		const createdRuntime = runtime;
 		void acquisition.then(
 			(state) => {
 				createdRuntime.state = state;
 				if (createdRuntime.retired && !createdRuntime.lost) state.device.destroy();
-				void state.device.lost.then(() => {
+				void state.device.lost.then((info) => {
 					createdRuntime.lost = true;
 					if (sharedWebGPURenderingRuntimes.get(document) === createdRuntime) {
 						sharedWebGPURenderingRuntimes.delete(document);
+					}
+					const subscribers = [...createdRuntime.deviceLossSubscribers];
+					createdRuntime.deviceLossSubscribers.clear();
+					for (const subscriber of subscribers) {
+						queueMicrotask(() => subscriber(state.device, info));
 					}
 				});
 			},
@@ -628,12 +644,14 @@ function acquireSharedWebGPURenderingState(
 		);
 	}
 	runtime.references += 1;
+	runtime.deviceLossSubscribers.add(deviceLossSubscriber);
 	let released = false;
 	return {
 		acquisition: runtime.acquisition,
 		release: () => {
 			if (released) return;
 			released = true;
+			runtime.deviceLossSubscribers.delete(deviceLossSubscriber);
 			runtime.references -= 1;
 			if (runtime.references !== 0) return;
 			runtime.retired = true;
@@ -976,7 +994,11 @@ export class WebGPURenderer {
 		}
 
 		try {
-			const lease = acquireSharedWebGPURenderingState(this.canvas.ownerDocument, gpu);
+			const lease = acquireSharedWebGPURenderingState(
+				this.canvas.ownerDocument,
+				gpu,
+				(device, info) => this.handleDeviceLost(device, info),
+			);
 			let shared: SharedWebGPURenderingState;
 			try {
 				shared = await lease.acquisition;
@@ -995,7 +1017,6 @@ export class WebGPURenderer {
 			this.device = device;
 			this.bgPipeline = shared.backgroundPipeline;
 			this.textPipeline = shared.textPipeline;
-			void device.lost.then((info) => this.handleDeviceLost(device, info));
 
 			// Validate per-surface resources before locking this canvas to WebGPU so
 			// Canvas 2D remains available if initialization fails.
@@ -1595,6 +1616,12 @@ export class WebGPURenderer {
 	}
 
 	private resetAtlas(): void {
+		this.clearGlyphAtlasState();
+		this.atlasCtx.clearRect(0, 0, this.atlasCanvas.width, this.atlasCanvas.height);
+		this.markEntireAtlasDirty();
+	}
+
+	private clearGlyphAtlasState(): void {
 		this.glyphMap.clear();
 		this.shapingGlyphKeys.clear();
 		this.shapingRasterPixels = 0;
@@ -1602,8 +1629,14 @@ export class WebGPURenderer {
 		this.atlasX = 0;
 		this.atlasY = 0;
 		this.atlasRowHeight = 0;
-		this.atlasCtx.clearRect(0, 0, this.atlasCanvas.width, this.atlasCanvas.height);
-		this.markEntireAtlasDirty();
+		this.atlasDirty = false;
+		this.atlasDirtyBounds = null;
+	}
+
+	private releaseGlyphAtlasBacking(): void {
+		this.clearGlyphAtlasState();
+		this.atlasCanvas.width = 0;
+		this.atlasCanvas.height = 0;
 	}
 
 	// ==========================================================================
@@ -3443,6 +3476,7 @@ export class WebGPURenderer {
 		this.telemetryCallback = undefined;
 		this.context?.unconfigure?.();
 		this.releaseGPUResources();
+		this.releaseGlyphAtlasBacking();
 		this.releaseGraphicsOverlay();
 		this.backgroundVertexData = [];
 		this.textVertexData = [];

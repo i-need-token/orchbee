@@ -1829,6 +1829,67 @@ test('projects native window drag regions without consuming title bar controls o
 	await expect(tabs.first()).toHaveAttribute('aria-selected', 'true');
 });
 
+test('keeps the macOS window open when Command+W repeat outruns terminal close', async () => {
+	test.skip(process.platform !== 'darwin', 'The native Command+W accelerator is macOS-specific.');
+	const application = electronApplication;
+	if (application === undefined) throw new Error('Electron application did not start.');
+	const page = await application.firstWindow();
+	await expect
+		.poll(() =>
+			application.evaluate(({ Menu }) =>
+				Boolean(Menu.getApplicationMenu()?.getMenuItemById('desktop-window-close')),
+			),
+		)
+		.toBe(true);
+	expect(
+		await application.evaluate(({ Menu }) => {
+			const closeWindowItem = Menu.getApplicationMenu()?.getMenuItemById('desktop-window-close');
+			return closeWindowItem === null || closeWindowItem === undefined
+				? null
+				: {
+						accelerator: closeWindowItem.accelerator,
+						registerAccelerator: closeWindowItem.registerAccelerator,
+						role: closeWindowItem.role,
+					};
+		}),
+	).toEqual({
+		accelerator: 'CommandOrControl+W',
+		registerAccelerator: false,
+		role: 'close',
+	});
+	const tabTrack = page.locator(
+		'[data-slot="workbench-tab-bar"][data-orientation="horizontal"] [data-horizontal-track]',
+	);
+	const tabs = workbenchTabs(page);
+	const newTabButton = tabTrack.locator(':scope > button').last();
+	await expect(projectedTerminal(page)).toHaveAttribute('data-projected-terminal-state', 'open');
+	await expect(tabs).toHaveCount(1);
+	const initialTabCount = await tabs.count();
+
+	await newTabButton.click();
+	await expect(tabs).toHaveCount(initialTabCount + 1);
+	const activeTerminal = projectedTerminal(page);
+	await expect(activeTerminal).toHaveAttribute('data-projected-terminal-state', 'open');
+	await expect(activeTerminal).toHaveAttribute('data-projected-terminal-close-activity', 'idle');
+	await activeTerminal.getByRole('textbox').focus();
+
+	await page.keyboard.down('Meta');
+	try {
+		await page.keyboard.down('KeyW');
+		await page.keyboard.down('KeyW');
+		await page.keyboard.down('KeyW');
+	} finally {
+		await page.keyboard.up('KeyW').catch(() => undefined);
+		await page.keyboard.up('Meta').catch(() => undefined);
+	}
+
+	await expect(tabs).toHaveCount(initialTabCount);
+	expect(page.isClosed()).toBe(false);
+	expect(
+		await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length),
+	).toBe(1);
+});
+
 async function runManualNativeWindowTest(): Promise<void> {
 	test.setTimeout(60_000);
 	const application = electronApplication;
@@ -2163,7 +2224,7 @@ test('terminal-parity/LC-04-environment', async () => {
 	await input.pressSequentially(command, { delay: 1 });
 	await input.press('Enter');
 	await expect(root.locator('[role="list"]')).toContainText(
-		/orchbee-launch-env TERM=xterm-256color COLORTERM=truecolor TERM_PROGRAM=Orchbee NO_COLOR=unset FORCE_COLOR=unset NODE_DISABLE_COLORS=unset CHARMAP=UTF-?8/u,
+		/orchbee-launch-env TERM=xterm-256color COLORTERM=truecolor TERM_PROGRAM=ghostty NO_COLOR=unset FORCE_COLOR=unset NODE_DISABLE_COLORS=unset CHARMAP=UTF-?8/u,
 	);
 });
 

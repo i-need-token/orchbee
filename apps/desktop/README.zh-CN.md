@@ -122,7 +122,7 @@ AttachmentId ── one disposable projection capability
 
 `TerminalPresentationId` 由 Workbench 创建并停用。 Main 保持对 `TerminalBindingId` 的严格内存中双射；它从不通过生命周期控制公开绑定、创建、主机、终端或附件身份。主机仍然是该过程和 VT 的真实来源。
 
-版本 3 绑定存储包含规范的 BindingId-ordered 集合。 每条记录都有一个唯一的 BindingId、PresentationId、CreationId、有界启动配置文件以及一个持久状态：`planned`、`create-requested`、`retained`、 `exited`、`closing` 或 `lost`。 保留的身份是唯一的，并且必须重复其所属 CreationId。 该文件被解析为不受信任的输入，通过仅限所有者的原子替换进行更新，并且在无效或不可读时不会自动重写。 启动环境值永远不会进入诊断。 每个默认启动都会声明`TERM=xterm-256color`, `COLORTERM=truecolor`， 和`TERM_PROGRAM=Orchbee`，并删除继承的`NO_COLOR`, `FORCE_COLOR`， 和`NODE_DISABLE_COLORS`主机创建之前的策略PTY过程。 新的 POSIX 终端还从代码解析的应用程序资源路径接收 `ORCHBEE_SHELL_INTEGRATION_DIR`：开发相对于构建的 Main 条目解析它，打包的应用程序在 `process.resourcesPath` 下解析它。 周围环境无法替代该路径。 Desktop 将其自己的 Zsh、Bash 和 Fish 脚本作为包资源提供，但从不获取它们或修改启动文件； 设置公开了确切的手动命令。 桌面保留显式的 UTF-8 语言环境； 当继承的 POSIX 语言环境优先级不会产生 UTF-8 时，Main 会删除冲突的 `LC_ALL`，修复无效的 `LANG`，并提供 UTF-8 `LC_CTYPE` 后备根据需要。 Darwin 使用 `en_US.UTF-8` 是因为它的 shell 环境不提供 Linux 的 `C.UTF-8` 语言环境。
+版本 3 绑定存储包含规范的 BindingId-ordered 集合。每条记录都有唯一的 BindingId、PresentationId、CreationId、有界启动配置文件以及一个持久状态：`planned`、`create-requested`、`retained`、`exited`、`closing` 或 `lost`。保留的身份是唯一的，并且必须重复其所属的 CreationId。该文件被解析为不受信任的输入，通过仅所有者可用的原子替换进行更新，并且在无效或不可读时绝不自动重写。启动环境值绝不进入诊断。每个默认启动都声明 `TERM=xterm-256color`、`COLORTERM=truecolor` 和 Ghostty 兼容身份 `TERM_PROGRAM=ghostty`，并在 Host 创建 PTY 进程前删除继承的 `NO_COLOR`、`FORCE_COLOR` 和 `NODE_DISABLE_COLORS` 策略。Desktop 不安装 `xterm-ghostty` terminfo，因此 `TERM` 仍保持可移植基线；该兼容身份使应用可以选择 Orchbee 通过固定 Ghostty VT 实现的 Kitty graphics 和 Kitty keyboard 协议，而不声称 Ghostty 应用版本。新的 POSIX 终端还从代码解析的应用资源路径接收 `ORCHBEE_SHELL_INTEGRATION_DIR`：开发环境相对构建后的 Main 入口解析它，打包应用则在 `process.resourcesPath` 下解析它。环境中的值无法替换该路径。Desktop 将自己的 Zsh、Bash 和 Fish 脚本作为包资源提供，但绝不自动 source 它们或修改启动文件；Settings 公开确切的手动命令。Desktop 保留显式的 UTF-8 locale；当继承的 POSIX locale 优先级无法产生 UTF-8 时，Main 会删除冲突的 `LC_ALL`，修复无效的 `LANG`，并在需要时提供 UTF-8 `LC_CTYPE` 后备。Darwin 使用 `en_US.UTF-8`，因为其 shell 环境不提供 Linux 的 `C.UTF-8` locale。
 
 ## 本地终端默认值
 
@@ -180,7 +180,7 @@ Workbench 仅在显示的面板视口内安装应用程序拥有的终端表面�
 
 每个投影引导程序都包含由生命周期适配器保留的完整的最新主机主题状态。投影代理将附件范围的 `apply-terminal-theme` 命令转发为一个主机比较和设置，并仅发布经过身份检查的完整结果。在渲染器可以使用稍后的引导程序之前，它将结果记录回生命周期恢复状态。协调读取主机清单，需要准确的创建/主机/终端身份，刷新相同的完整状态，并返回专用的协调事件。已知的未改变的故障和未知的传输结果使用特定于主题的结果通道；未知的结果必须在重试之前进行协调，并且永远不会演变成一般的投影失败。 Desktop Main 不渲染或独立选择终端颜色。
 
-Desktop 隐藏本机标题栏，同时保留操作系统的窗口控件。桌面渲染器仅将侧边栏的顶部镶边和未占用的水平 Tab 轨道背景标记为本机窗口拖动区域；选项卡、组、侧边栏切换和 new-Tab 控件仍然是交互式非拖动区域。在 macOS 上，Main 禁用窗口控制覆盖，将本机交通信号灯定位在 `(8, 10)`，渲染器将侧边栏切换置于保留本机控制空间后的同一 `36px` 水平选项卡行中。切换位置本身就是一个非拖动区域，其保留的引导通道永远不会被标记为可拖动，并且可见的侧边栏拖动几何图形在该通道之后开始，因此完整的指针目标保持交互式。
+Desktop 隐藏本机标题栏，同时保留操作系统的窗口控件。桌面渲染器仅将侧边栏的顶部镶边和未占用的水平 Tab 轨道背景标记为本机窗口拖动区域；选项卡、组、侧边栏切换和 new-Tab 控件仍然是交互式非拖动区域。在 macOS 上，Workbench 独占 `Command+W` 作为关闭终端快捷键；Main 保留可点击的本机“关闭窗口”菜单项，但不注册它的快捷键，因此重复的终端关闭事件或终端关闭动作暂时不可用时，事件不会向下落入并关闭本机窗口。Main 同时禁用窗口控制覆盖，将本机交通信号灯定位在 `(8, 10)`，渲染器将侧边栏切换置于保留本机控制空间后的同一 `36px` 水平选项卡行中。切换位置本身就是一个非拖动区域，其保留的引导通道永远不会被标记为可拖动，并且可见的侧边栏拖动几何图形在该通道之后开始，因此完整的指针目标保持交互式。
 
 Desktop 在受信任的主要组合边界处读取一次终端计算机的主机名，将其验证为运行时配置，并将其包含在每个 Electron 或网关客户端会话引导程序中。共享 Web 渲染器将该主机名与提交的主机标题/CWD 元数据相结合，并应用 Workbench 拥有的 Warp 范围策略。渲染器输入、浏览器位置和传输对等名称无法替换此主机名。自然标题和当前 CWD 保留每页瞬时观察结果；只有后备和显式自定义选项卡标题才会进入共享文档协调器。
 
