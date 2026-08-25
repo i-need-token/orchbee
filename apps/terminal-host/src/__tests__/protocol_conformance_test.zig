@@ -8,6 +8,7 @@ const control_encode = control_boundary.encode;
 
 const frame_fixture = options.frame_fixture;
 const projection_fixture = options.projection_fixture;
+const packed_projection_conformance_fixture = options.packed_projection_conformance_fixture;
 const envelope_fixture = options.envelope_fixture;
 const envelope_fixture_max_bytes = options.envelope_fixture_max_bytes;
 const input_fixture = options.input_fixture;
@@ -36,29 +37,242 @@ fn readFixtureU32(bytes: []const u8, offset: usize) u32 {
     return std.mem.readInt(u32, bytes[offset..][0..@sizeOf(u32)], .little);
 }
 
-fn projectionSectionOffset(bytes: []const u8, section: usize) usize {
-    return @as(usize, readFixtureU32(bytes, 160 + section * 8));
+const PackedProjectionObservations = struct {
+    detail: ?[]const u8 = null,
+    ignoredOptionalFlags: ?u8 = null,
+    kind: ?[]const u8 = null,
+    rowCount: ?u16 = null,
+    rowIndices: ?[]const u16 = null,
+};
+
+const PackedProjectionExpected = struct {
+    code: ?[]const u8 = null,
+    observations: ?PackedProjectionObservations = null,
+    result: []const u8,
+};
+
+const PackedProjectionCase = struct {
+    bytesBase64: []const u8,
+    codec: []const u8,
+    expected: PackedProjectionExpected,
+    name: []const u8,
+    strictBoundary: []const u8,
+};
+
+const PackedProjectionCorpus = struct {
+    cases: []const PackedProjectionCase,
+    formatVersion: []const u8,
+    schemaVersion: u8,
+};
+
+const ProjectionSuccessObservation = struct {
+    kind: protocol.FrameKind,
+    row_count: u16,
+};
+
+const RowWindowSuccessObservation = struct {
+    detail: protocol.RowWindowDetail,
+    row_count: u16,
+};
+
+const projection_conformance_case_names = [_][]const u8{
+    "obpb-width-out-of-range",
+    "obpb-row-flag-unknown",
+    "obpb-row-index-out-of-range",
+    "obpb-prompt-class-out-of-range",
+    "obpb-whole-string-invalid-utf8",
+    "obpb-grapheme-length-splits-scalar",
+    "obpb-grapheme-offset-null-nonnullable",
+    "obpb-color-out-of-range",
+    "obpb-style-flag-unknown",
+    "obpb-underline-kind-out-of-range",
+    "obpb-width-spacer-tail-without-head",
+    "obpb-row-ends-with-wide-cell",
+    "obpb-semantic-out-of-range",
+    "obpb-protected-out-of-range",
+    "obpb-adjacent-wrap-disagreement",
+    "obpb-interaction-unknown-required-flag",
+    "obpb-interaction-mouse-mode-conflict",
+    "obpb-sparse-delta-increasing-row-indices",
+    "obpb-sparse-delta-duplicate-row-indices",
+    "obpb-sparse-delta-descending-row-indices",
+    "obpb-optional-header-flag-01",
+    "obpb-optional-header-flags-7f",
+    "obpb-unknown-required-header-flag-80",
+};
+
+const row_window_conformance_case_names = [_][]const u8{
+    "obrw-optional-header-flag-01",
+    "obrw-optional-header-flags-7f",
+    "obrw-unknown-required-header-flag-80",
+};
+
+const packed_projection_conformance_case_count =
+    projection_conformance_case_names.len + row_window_conformance_case_names.len;
+
+comptime {
+    if (projection_conformance_case_names.len != 23) @compileError("expected 23 OBPB cases");
+    if (row_window_conformance_case_names.len != 3) @compileError("expected 3 OBRW cases");
 }
 
-fn expectProjectionMutation(
-    expected: protocol.ProtocolError,
-    bytes: []const u8,
+const PackedProjectionCaseRoute = enum {
+    projection_buffer,
+    row_window,
+};
+
+const PackedProjectionCaseIdentity = struct {
+    inventory_index: usize,
+    route: PackedProjectionCaseRoute,
+};
+
+fn packedProjectionCaseIdentity(
     name: []const u8,
-) !void {
-    const result = protocol.validateTerminalProjectionBuffer(bytes);
-    if (result) |_| {
-        std.debug.print("projection mutation unexpectedly accepted: {s}\n", .{name});
-        return error.TestExpectedError;
-    } else |err| {
-        if (err != expected) {
-            std.debug.print("projection mutation {s}: expected {s}, got {s}\n", .{
-                name,
-                @errorName(expected),
-                @errorName(err),
-            });
-            return error.TestUnexpectedError;
+    codec: []const u8,
+) ?PackedProjectionCaseIdentity {
+    if (std.mem.eql(u8, codec, "OBPB")) {
+        for (projection_conformance_case_names, 0..) |authorized_name, index| {
+            if (std.mem.eql(u8, name, authorized_name)) {
+                return .{ .inventory_index = index, .route = .projection_buffer };
+            }
+        }
+        return null;
+    }
+    if (std.mem.eql(u8, codec, "OBRW")) {
+        for (row_window_conformance_case_names, 0..) |authorized_name, index| {
+            if (std.mem.eql(u8, name, authorized_name)) {
+                return .{
+                    .inventory_index = projection_conformance_case_names.len + index,
+                    .route = .row_window,
+                };
+            }
+        }
+        return null;
+    }
+    return null;
+}
+
+const PackedProjectionInventory = struct {
+    seen: [packed_projection_conformance_case_count]bool =
+        [_]bool{false} ** packed_projection_conformance_case_count,
+    projection_case_count: usize = 0,
+    row_window_case_count: usize = 0,
+
+    fn observe(
+        self: *PackedProjectionInventory,
+        name: []const u8,
+        codec: []const u8,
+    ) !PackedProjectionCaseRoute {
+        const identity = packedProjectionCaseIdentity(name, codec) orelse
+            return error.InvalidConformanceCorpus;
+        if (self.seen[identity.inventory_index]) return error.InvalidConformanceCorpus;
+        self.seen[identity.inventory_index] = true;
+        switch (identity.route) {
+            .projection_buffer => self.projection_case_count += 1,
+            .row_window => self.row_window_case_count += 1,
+        }
+        return identity.route;
+    }
+
+    fn validateComplete(self: *const PackedProjectionInventory) !void {
+        if (self.projection_case_count != projection_conformance_case_names.len or
+            self.row_window_case_count != row_window_conformance_case_names.len)
+        {
+            return error.InvalidConformanceCorpus;
+        }
+        for (self.seen) |was_seen| {
+            if (!was_seen) return error.InvalidConformanceCorpus;
         }
     }
+};
+
+fn decodeCanonicalBase64(
+    allocator: std.mem.Allocator,
+    encoded: []const u8,
+) ![]u8 {
+    if (encoded.len == 0) return error.InvalidConformanceCorpus;
+    const decoded_length = std.base64.standard.Decoder.calcSizeForSlice(encoded) catch
+        return error.InvalidConformanceCorpus;
+    if (decoded_length == 0) return error.InvalidConformanceCorpus;
+    const decoded = try allocator.alloc(u8, decoded_length);
+    errdefer allocator.free(decoded);
+    std.base64.standard.Decoder.decode(decoded, encoded) catch
+        return error.InvalidConformanceCorpus;
+
+    const canonical = try allocator.alloc(
+        u8,
+        std.base64.standard.Encoder.calcSize(decoded.len),
+    );
+    defer allocator.free(canonical);
+    _ = std.base64.standard.Encoder.encode(canonical, decoded);
+    if (!std.mem.eql(u8, canonical, encoded)) return error.InvalidConformanceCorpus;
+    return decoded;
+}
+
+fn expectedPackedProjectionError(expected: PackedProjectionExpected) ?protocol.ProtocolError {
+    if (!std.mem.eql(u8, expected.result, "failure") or expected.observations != null) {
+        return null;
+    }
+    const code = expected.code orelse return null;
+    if (std.mem.eql(u8, code, "invalid-field")) return error.InvalidField;
+    if (std.mem.eql(u8, code, "invalid-utf8")) return error.InvalidUtf8;
+    if (std.mem.eql(u8, code, "unknown-required-flag")) return error.UnknownRequiredFlag;
+    return null;
+}
+
+fn expectedProjectionSuccess(
+    expected: PackedProjectionExpected,
+) !ProjectionSuccessObservation {
+    if (!std.mem.eql(u8, expected.result, "success") or expected.code != null) {
+        return error.InvalidConformanceCorpus;
+    }
+    const observations = expected.observations orelse return error.InvalidConformanceCorpus;
+    if (observations.detail != null or
+        (observations.ignoredOptionalFlags orelse 0x80) > 0x7f)
+    {
+        return error.InvalidConformanceCorpus;
+    }
+    const row_count = observations.rowCount orelse return error.InvalidConformanceCorpus;
+    const row_indices = observations.rowIndices orelse return error.InvalidConformanceCorpus;
+    if (row_indices.len != @as(usize, row_count)) return error.InvalidConformanceCorpus;
+    var previous: ?u16 = null;
+    for (row_indices) |row| {
+        if (row >= 4096 or (previous != null and row <= previous.?)) {
+            return error.InvalidConformanceCorpus;
+        }
+        previous = row;
+    }
+    const kind_name = observations.kind orelse return error.InvalidConformanceCorpus;
+    const kind: protocol.FrameKind = if (std.mem.eql(u8, kind_name, "snapshot"))
+        .snapshot
+    else if (std.mem.eql(u8, kind_name, "delta"))
+        .delta
+    else
+        return error.InvalidConformanceCorpus;
+    return .{ .kind = kind, .row_count = row_count };
+}
+
+fn expectedRowWindowSuccess(
+    expected: PackedProjectionExpected,
+) !RowWindowSuccessObservation {
+    if (!std.mem.eql(u8, expected.result, "success") or expected.code != null) {
+        return error.InvalidConformanceCorpus;
+    }
+    const observations = expected.observations orelse return error.InvalidConformanceCorpus;
+    if (observations.kind != null or observations.rowIndices != null or
+        (observations.ignoredOptionalFlags orelse 0x80) > 0x7f)
+    {
+        return error.InvalidConformanceCorpus;
+    }
+    const row_count = observations.rowCount orelse return error.InvalidConformanceCorpus;
+    if (row_count == 0 or row_count > 4096) return error.InvalidConformanceCorpus;
+    const detail_name = observations.detail orelse return error.InvalidConformanceCorpus;
+    const detail: protocol.RowWindowDetail = if (std.mem.eql(u8, detail_name, "render"))
+        .render
+    else if (std.mem.eql(u8, detail_name, "text"))
+        .text
+    else
+        return error.InvalidConformanceCorpus;
+    return .{ .detail = detail, .row_count = row_count };
 }
 
 fn buildRenderRowWindow(allocator: std.mem.Allocator, snapshot: []const u8) ![]u8 {
@@ -566,107 +780,171 @@ test "canonical TypeScript terminal projection-buffer fixture conforms in Zig" {
     try std.testing.expectEqualSlices(u8, &([_]u8{0x22} ** 16), &summary.attachment_id);
 }
 
-test "projection strict scan rejects an out-of-range first width byte" {
-    const allocator = std.testing.allocator;
-    const mutated = try allocator.dupe(u8, projection_fixture);
-    defer allocator.free(mutated);
-    // Slot 12 (widths) offset is read from the canonical section directory.
-    const width_section = projectionSectionOffset(mutated, 12);
-    mutated[width_section] = 0xff;
-    try std.testing.expectError(
-        error.InvalidField,
-        protocol.validateTerminalProjectionBuffer(mutated),
-    );
+test "packed projection inventory accepts every authorized ID exactly once in any order" {
+    var inventory = PackedProjectionInventory{};
+
+    var index = row_window_conformance_case_names.len;
+    while (index > 0) {
+        index -= 1;
+        try std.testing.expectEqual(
+            PackedProjectionCaseRoute.row_window,
+            try inventory.observe(row_window_conformance_case_names[index], "OBRW"),
+        );
+    }
+    index = projection_conformance_case_names.len;
+    while (index > 0) {
+        index -= 1;
+        try std.testing.expectEqual(
+            PackedProjectionCaseRoute.projection_buffer,
+            try inventory.observe(projection_conformance_case_names[index], "OBPB"),
+        );
+    }
+    try inventory.validateComplete();
 }
 
-test "projection strict scan matches the TypeScript decoder on every mutation class" {
+test "packed projection inventory rejects unknown duplicate and incomplete case IDs" {
+    var unknown = PackedProjectionInventory{};
+    try std.testing.expectError(
+        error.InvalidConformanceCorpus,
+        unknown.observe("obpb-unrecognized-but-valid", "OBPB"),
+    );
+
+    var duplicate = PackedProjectionInventory{};
+    _ = try duplicate.observe(projection_conformance_case_names[0], "OBPB");
+    try std.testing.expectError(
+        error.InvalidConformanceCorpus,
+        duplicate.observe(projection_conformance_case_names[0], "OBPB"),
+    );
+
+    var incomplete = PackedProjectionInventory{};
+    try std.testing.expectError(error.InvalidConformanceCorpus, incomplete.validateComplete());
+}
+
+test "shared packed projection corpus drives both native strict validators" {
     const allocator = std.testing.allocator;
-    const width = projectionSectionOffset(projection_fixture, 12);
-    const row_flags = projectionSectionOffset(projection_fixture, 1);
-    const row_indices = projectionSectionOffset(projection_fixture, 0);
-    const prompt = projectionSectionOffset(projection_fixture, 2);
-    const string_section = projectionSectionOffset(projection_fixture, 15);
-    const grapheme_lengths = projectionSectionOffset(projection_fixture, 4);
-    const grapheme_offsets = projectionSectionOffset(projection_fixture, 3);
-    const foreground = projectionSectionOffset(projection_fixture, 7);
-    const style_flags = projectionSectionOffset(projection_fixture, 10);
-    const underline_kinds = projectionSectionOffset(projection_fixture, 11);
-    const semantic = projectionSectionOffset(projection_fixture, 13);
-    const protected_cells = projectionSectionOffset(projection_fixture, 14);
+    try std.testing.expect(packed_projection_conformance_fixture.len > 0);
+    const parsed = try std.json.parseFromSlice(
+        PackedProjectionCorpus,
+        allocator,
+        packed_projection_conformance_fixture,
+        .{},
+    );
+    defer parsed.deinit();
+    try std.testing.expectEqual(@as(u8, 1), parsed.value.schemaVersion);
+    try std.testing.expectEqualStrings("0.0.2", parsed.value.formatVersion);
+    try std.testing.expectEqual(@as(usize, 26), parsed.value.cases.len);
 
-    const cases = [_]struct {
-        name: []const u8,
-        offset: usize,
-        bytes: []const u8,
-        expected: protocol.ProtocolError,
-    }{
-        .{ .name = "width-out-of-range", .offset = width, .bytes = &.{0xff}, .expected = error.InvalidField },
-        .{ .name = "row-flag-unknown", .offset = row_flags, .bytes = &.{0x05}, .expected = error.UnknownRequiredFlag },
-        .{ .name = "row-index-out-of-range", .offset = row_indices + 2, .bytes = &.{ 0x02, 0x00 }, .expected = error.InvalidField },
-        .{ .name = "prompt-class-out-of-range", .offset = prompt, .bytes = &.{0x03}, .expected = error.InvalidField },
-        .{ .name = "whole-string-invalid-utf8", .offset = string_section + 25, .bytes = &.{0xff}, .expected = error.InvalidUtf8 },
-        .{ .name = "grapheme-length-splits-scalar", .offset = grapheme_lengths, .bytes = &.{ 0x02, 0x00 }, .expected = error.InvalidUtf8 },
-        .{ .name = "grapheme-offset-null-nonnullable", .offset = grapheme_offsets, .bytes = &.{ 0xff, 0xff, 0xff, 0xff }, .expected = error.InvalidField },
-        .{ .name = "color-out-of-range", .offset = foreground, .bytes = &.{ 0x00, 0x00, 0x00, 0x04 }, .expected = error.InvalidField },
-        .{ .name = "style-flag-unknown", .offset = style_flags, .bytes = &.{ 0x00, 0x01 }, .expected = error.UnknownRequiredFlag },
-        .{ .name = "underline-kind-out-of-range", .offset = underline_kinds, .bytes = &.{0x06}, .expected = error.InvalidField },
-        .{ .name = "width-spacer-tail-without-head", .offset = width, .bytes = &.{0x02}, .expected = error.InvalidField },
-        .{ .name = "row-ends-with-wide-cell", .offset = width + 5, .bytes = &.{0x01}, .expected = error.InvalidField },
-        .{ .name = "semantic-out-of-range", .offset = semantic, .bytes = &.{0x03}, .expected = error.InvalidField },
-        .{ .name = "protected-out-of-range", .offset = protected_cells, .bytes = &.{0x02}, .expected = error.InvalidField },
-        .{ .name = "adjacent-wrap-disagreement", .offset = row_flags + 1, .bytes = &.{0x00}, .expected = error.InvalidField },
-        .{ .name = "interaction-unknown-required-flag", .offset = 108, .bytes = &.{ 0x8d, 0x62, 0x04, 0x00 }, .expected = error.UnknownRequiredFlag },
-        .{ .name = "interaction-mouse-mode-conflict", .offset = 108, .bytes = &.{ 0x9d, 0x62, 0x00, 0x00 }, .expected = error.InvalidField },
-    };
+    var inventory = PackedProjectionInventory{};
+    for (parsed.value.cases) |case| {
+        const route = try inventory.observe(case.name, case.codec);
+        const bytes = try decodeCanonicalBase64(allocator, case.bytesBase64);
+        defer allocator.free(bytes);
 
-    for (cases) |case| {
-        const mutated = try allocator.dupe(u8, projection_fixture);
-        defer allocator.free(mutated);
-        @memcpy(mutated[case.offset..][0..case.bytes.len], case.bytes);
-        try expectProjectionMutation(case.expected, mutated, case.name);
+        switch (route) {
+            .projection_buffer => {
+                if (!std.mem.eql(u8, case.strictBoundary, "projection-buffer")) {
+                    return error.InvalidConformanceCorpus;
+                }
+                if (std.mem.eql(u8, case.expected.result, "failure")) {
+                    const expected = expectedPackedProjectionError(case.expected) orelse
+                        return error.InvalidConformanceCorpus;
+                    if (protocol.validateTerminalProjectionBuffer(bytes)) |_| {
+                        std.debug.print("packed projection case unexpectedly passed: {s}\n", .{case.name});
+                        return error.TestExpectedError;
+                    } else |err| {
+                        if (err != expected) {
+                            std.debug.print("packed projection case {s}: expected {s}, got {s}\n", .{
+                                case.name,
+                                @errorName(expected),
+                                @errorName(err),
+                            });
+                            return error.TestUnexpectedError;
+                        }
+                    }
+                } else {
+                    const expected = try expectedProjectionSuccess(case.expected);
+                    const summary = protocol.validateTerminalProjectionBuffer(bytes) catch |err| {
+                        std.debug.print("packed projection case {s} failed: {s}\n", .{
+                            case.name,
+                            @errorName(err),
+                        });
+                        return err;
+                    };
+                    try std.testing.expectEqual(expected.kind, summary.kind);
+                    try std.testing.expectEqual(expected.row_count, summary.row_count);
+                }
+            },
+            .row_window => {
+                if (!std.mem.eql(u8, case.strictBoundary, "row-window")) {
+                    return error.InvalidConformanceCorpus;
+                }
+                if (std.mem.eql(u8, case.expected.result, "failure")) {
+                    const expected = expectedPackedProjectionError(case.expected) orelse
+                        return error.InvalidConformanceCorpus;
+                    if (protocol.validateTerminalRowWindow(allocator, bytes)) |_| {
+                        std.debug.print("packed row-window case unexpectedly passed: {s}\n", .{case.name});
+                        return error.TestExpectedError;
+                    } else |err| {
+                        if (err != expected) {
+                            std.debug.print("packed row-window case {s}: expected {s}, got {s}\n", .{
+                                case.name,
+                                @errorName(expected),
+                                @errorName(err),
+                            });
+                            return error.TestUnexpectedError;
+                        }
+                    }
+                } else {
+                    const expected = try expectedRowWindowSuccess(case.expected);
+                    const summary = protocol.validateTerminalRowWindow(allocator, bytes) catch |err| {
+                        std.debug.print("packed row-window case {s} failed: {s}\n", .{
+                            case.name,
+                            @errorName(err),
+                        });
+                        return err;
+                    };
+                    try std.testing.expectEqual(expected.detail, summary.detail);
+                    try std.testing.expectEqual(expected.row_count, summary.row_count);
+                }
+            },
+        }
     }
+    try inventory.validateComplete();
 }
 
 test "render row window delegates to the strict projection scan" {
     const allocator = std.testing.allocator;
-    const snapshot = try allocator.dupe(u8, projection_fixture);
-    defer allocator.free(snapshot);
-    snapshot[6] = 1; // snapshot kind
-    std.mem.writeInt(u64, snapshot[64..72], std.math.maxInt(u64), .little); // no base revision
-    const window = try buildRenderRowWindow(allocator, snapshot);
+    const parsed = try std.json.parseFromSlice(
+        PackedProjectionCorpus,
+        allocator,
+        packed_projection_conformance_fixture,
+        .{},
+    );
+    defer parsed.deinit();
+
+    var authoritative_case: ?PackedProjectionCase = null;
+    for (parsed.value.cases) |case| {
+        if (std.mem.eql(u8, case.name, "obpb-width-out-of-range")) {
+            if (authoritative_case != null) return error.InvalidConformanceCorpus;
+            authoritative_case = case;
+        }
+    }
+    const corpus_case = authoritative_case orelse return error.InvalidConformanceCorpus;
+    const identity = packedProjectionCaseIdentity(corpus_case.name, corpus_case.codec) orelse
+        return error.InvalidConformanceCorpus;
+    if (identity.route != .projection_buffer or
+        !std.mem.eql(u8, corpus_case.strictBoundary, "projection-buffer"))
+    {
+        return error.InvalidConformanceCorpus;
+    }
+
+    const expected = expectedPackedProjectionError(corpus_case.expected) orelse
+        return error.InvalidConformanceCorpus;
+    const malformed_projection = try decodeCanonicalBase64(allocator, corpus_case.bytesBase64);
+    defer allocator.free(malformed_projection);
+    const window = try buildRenderRowWindow(allocator, malformed_projection);
     defer allocator.free(window);
-    const summary = try protocol.validateTerminalRowWindow(allocator, window);
-    try std.testing.expectEqual(protocol.RowWindowDetail.render, summary.detail);
-    try std.testing.expectEqual(@as(u16, 2), summary.row_count);
-
-    const width_section = projectionSectionOffset(snapshot, 12);
-    window[112 + width_section] = 0xff;
-    try std.testing.expectError(
-        error.InvalidField,
-        protocol.validateTerminalRowWindow(allocator, window),
-    );
-}
-
-test "projection interaction unknown required flag is typed separately from invalid field" {
-    const allocator = std.testing.allocator;
-    const unknown_interaction = try allocator.dupe(u8, projection_fixture);
-    defer allocator.free(unknown_interaction);
-    std.mem.writeInt(u32, unknown_interaction[108..112], 0x0004_628d, .little);
-    try std.testing.expectError(
-        error.UnknownRequiredFlag,
-        protocol.validateTerminalProjectionBuffer(unknown_interaction),
-    );
-}
-
-test "projection simultaneous mouse modes remain invalid field" {
-    const allocator = std.testing.allocator;
-    const conflicting_modes = try allocator.dupe(u8, projection_fixture);
-    defer allocator.free(conflicting_modes);
-    std.mem.writeInt(u32, conflicting_modes[108..112], 0x0000_629d, .little);
-    try std.testing.expectError(
-        error.InvalidField,
-        protocol.validateTerminalProjectionBuffer(conflicting_modes),
-    );
+    try std.testing.expectError(expected, protocol.validateTerminalRowWindow(allocator, window));
 }
 
 test "canonical TypeScript terminal row-window fixture conforms in Zig" {

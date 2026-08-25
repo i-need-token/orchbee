@@ -22,11 +22,16 @@ pub const testing = if (@import("builtin").is_test) struct {
     pub const link_entry_limit = protocol.Limits.frame_strings;
     pub const link_value_byte_limit = render_encoding.max_string_bytes;
     pub const LinkTableType = links.LinkTable;
+    pub const LinkStringMapType = render_encoding.LinkStringMap;
+    pub const SourceLinkCacheType = links.SourceLinkCache;
+    pub const SourceLinkKeyType = links.SourceLinkKey;
     pub const GraphicsStateType = graphics.State;
     pub const ImageFormat = graphics.ImageFormat;
     pub const linkTableDeinitFn = links.LinkTable.deinit;
     pub const linkTableInitFn = links.LinkTable.init;
     pub const linkTableInternFn = links.LinkTable.intern;
+    pub const linkTableInternCallCountFn = links.LinkTable.testingInternCallCount;
+    pub const linkWorkObservationFn = state.Projection.linkWorkObservation;
     pub const projection_source = @embedFile("encoding.zig");
     pub const StringTableType = render_encoding.StringTable;
 } else struct {};

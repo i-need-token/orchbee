@@ -2,6 +2,7 @@ import { EventEmitter } from 'node:events';
 
 import {
 	ActiveScreen,
+	AttachmentIdSchema,
 	CellWidth,
 	CreationIdSchema,
 	CursorShape,
@@ -10,6 +11,7 @@ import {
 	encodeTerminalProjectionBuffer,
 	encodeTerminalRowWindow,
 	HostEpochSchema,
+	materializeTerminalProjectionFrame,
 	RowPromptClass,
 	SemanticContent,
 	TerminalColorKind,
@@ -18,6 +20,7 @@ import {
 	TerminalRowWindowDetail,
 	TerminalThemeStateSchema,
 	UnderlineKind,
+	type AttachmentId,
 	type TerminalIdentity,
 } from '@orchbee/terminal-protocol';
 import {
@@ -32,7 +35,31 @@ import {
 	type ArchivedTerminalProjectionServiceDependencies,
 } from '../ArchivedTerminalProjectionService';
 import type { FileTerminalArchiveStore } from '../FileTerminalArchiveStore';
-import { decodeTerminalArchive, encodeTerminalArchive } from '../terminal-archive-document';
+import {
+	decodeTerminalArchive,
+	encodeTerminalArchive,
+	terminalArchiveTextRows,
+	type TerminalArchive,
+} from '../terminal-archive-document';
+
+const terminalProtocolOperations = vi.hoisted(() => ({
+	materializations: 0,
+	sourceInputs: 0,
+}));
+
+vi.mock(import('@orchbee/terminal-protocol'), async (importOriginal) => {
+	const actual = await importOriginal();
+	return {
+		...actual,
+		materializeTerminalProjectionFrame(
+			...parameters: Parameters<typeof actual.materializeTerminalProjectionFrame>
+		) {
+			terminalProtocolOperations.materializations += 1;
+			terminalProtocolOperations.sourceInputs += parameters[1].length;
+			return actual.materializeTerminalProjectionFrame(...parameters);
+		},
+	};
+});
 
 const presentationId = terminalPresentationId('presentation-archived');
 const attachmentId = '11'.repeat(16);
@@ -87,7 +114,7 @@ describe('ArchivedTerminalProjectionService', () => {
 		const frameEvent = await initialFrame;
 		const frame = decodeTerminalFrame(new Uint8Array(frameEvent.frame));
 		if (!frame.ok) throw new Error(frame.detail);
-		expect(frame.value.scrollbackRows).toBe(2n);
+		expect(frame.value.scrollbackRows).toBe(6n);
 		expect(frame.value.rowData.indices).toHaveLength(2);
 
 		const renderRows = nextEvent(port, (event) => (event.kind === 'rows' ? event : null));
@@ -98,7 +125,7 @@ describe('ArchivedTerminalProjectionService', () => {
 				detail: 'render',
 				generation: frame.value.generation.toString(),
 				maximumBytes: 2 * 1024 * 1024,
-				origin: { kind: 'absolute', row: '0' },
+				origin: { kind: 'absolute', row: '4' },
 				purpose: 'viewport',
 				requestSequence: '7',
 				revision: frame.value.revision.toString(),
@@ -109,7 +136,21 @@ describe('ArchivedTerminalProjectionService', () => {
 		if (!rendered.ok || rendered.value.detail !== TerminalRowWindowDetail.render) {
 			throw new Error('Expected archived render rows');
 		}
-		expect(rendered.value.startRow).toBe(0n);
+		expect(rendered.value.startRow).toBe(4n);
+
+		const scrolledFrameEvent = nextEvent(port, (event) => (event.kind === 'frame' ? event : null));
+		port.postMessage({
+			kind: 'need-snapshot',
+			payload: {
+				attachmentId: lease.bootstrap.attachmentId,
+				reason: 'store-reset',
+				sequence: '1',
+			},
+		});
+		const scrolledFrame = decodeTerminalFrame(new Uint8Array((await scrolledFrameEvent).frame));
+		if (!scrolledFrame.ok) throw new Error(scrolledFrame.detail);
+		expect(scrolledFrame.value.scrollbackRows).toBe(4n);
+		expect(scrolledFrame.value.rowData.indices).toHaveLength(2);
 
 		const searchRows = nextEvent(port, (event) => (event.kind === 'rows' ? event : null));
 		port.postMessage({
@@ -123,7 +164,7 @@ describe('ArchivedTerminalProjectionService', () => {
 				purpose: 'search',
 				requestSequence: '8',
 				revision: frame.value.revision.toString(),
-				rowCount: 4,
+				rowCount: 8,
 			},
 		});
 		const searched = decodeTerminalRowWindow(new Uint8Array((await searchRows).rows));
@@ -133,6 +174,10 @@ describe('ArchivedTerminalProjectionService', () => {
 		expect(searched.value.rows.map((row) => row.text)).toEqual([
 			'history-a',
 			'history-b',
+			'history-c',
+			'history-d',
+			'history-e',
+			'history-f',
 			'viewport-a',
 			'viewport-b',
 		]);
@@ -157,7 +202,27 @@ describe('ArchivedTerminalProjectionService', () => {
 			payload: { attachmentId: lease.bootstrap.attachmentId, requestSequence: '9' },
 		});
 		expect((await copied).byteLength).toBeGreaterThan(0);
-		expect(writeClipboardText).toHaveBeenCalledWith('history-a\nhistory-b\nviewport-a\nviewport-b');
+		expect(writeClipboardText).toHaveBeenCalledWith(
+			'history-a\nhistory-b\nhistory-c\nhistory-d\nhistory-ehistory-f\nviewport-a\nviewport-b',
+		);
+
+		port.postMessage({
+			kind: 'set-projection-demand',
+			payload: { attachmentId: lease.bootstrap.attachmentId, demand: 'paused' },
+		});
+		const reactivatedFrameEvent = nextEvent(port, (event) =>
+			event.kind === 'frame' ? event : null,
+		);
+		port.postMessage({
+			kind: 'set-projection-demand',
+			payload: { attachmentId: lease.bootstrap.attachmentId, demand: 'active' },
+		});
+		const reactivatedFrame = decodeTerminalFrame(
+			new Uint8Array((await reactivatedFrameEvent).frame),
+		);
+		if (!reactivatedFrame.ok) throw new Error(reactivatedFrame.detail);
+		expect(reactivatedFrame.value.scrollbackRows).toBe(4n);
+		expect(reactivatedFrame.value.rowData.indices).toHaveLength(2);
 
 		const rejectedInput = nextEvent(port, (event) => (event.kind === 'failure' ? event : null));
 		port.postMessage({
@@ -189,6 +254,185 @@ describe('ArchivedTerminalProjectionService', () => {
 				vi.fn<ArchivedTerminalProjectionServiceDependencies['writeClipboardText']>(),
 		});
 		expect(await service.open(presentationId)).toBeNull();
+	});
+
+	it.each(
+		[20, 40, 80].flatMap((sourceCount) =>
+			[TerminalRowWindowDetail.render, TerminalRowWindowDetail.text].map((detail) => ({
+				detail,
+				sourceCount,
+			})),
+		),
+	)(
+		'materializes $sourceCount sources once for the maximal $detail row response',
+		async ({ detail, sourceCount }) => {
+			const archive = createArchiveWithSourceCount(sourceCount);
+			const channel = createChannel();
+			const projectedAttachmentId = AttachmentIdSchema.parse('55'.repeat(16));
+			const service = new ArchivedTerminalProjectionService({
+				createMessageChannel: () => channel,
+				randomAttachmentId: () => projectedAttachmentId,
+				store: {
+					load: vi.fn<FileTerminalArchiveStore['load']>().mockResolvedValue(archive),
+				} as unknown as FileTerminalArchiveStore,
+				writeClipboardText:
+					vi.fn<ArchivedTerminalProjectionServiceDependencies['writeClipboardText']>(),
+			});
+			const lease = await service.open(presentationId);
+			if (lease === null) throw new Error('Expected an archived projection');
+			const expectedRowCount = sourceCount - 3;
+			const requestSequence = 71n;
+			const expected = encodeArchivedRows(
+				archive,
+				projectedAttachmentId,
+				detail,
+				expectedRowCount,
+				requestSequence,
+			);
+			const firstExcluded = encodeArchivedRows(
+				archive,
+				projectedAttachmentId,
+				detail,
+				expectedRowCount + 1,
+				requestSequence,
+			);
+			expect(firstExcluded.byteLength).toBeGreaterThan(expected.byteLength);
+			terminalProtocolOperations.materializations = 0;
+			terminalProtocolOperations.sourceInputs = 0;
+			const rowsEvent = nextEvent(channel.port1, (event) => (event.kind === 'rows' ? event : null));
+
+			channel.port1.postMessage({
+				kind: 'read-rows',
+				payload: {
+					attachmentId: lease.bootstrap.attachmentId,
+					detail,
+					generation: archive.frame.generation.toString(),
+					maximumBytes: expected.byteLength,
+					origin: { kind: 'absolute', row: '0' },
+					purpose: 'buffer',
+					requestSequence: requestSequence.toString(),
+					revision: archive.frame.revision.toString(),
+					rowCount: sourceCount,
+				},
+			});
+			const encoded = new Uint8Array((await rowsEvent).rows);
+			const decoded = decodeTerminalRowWindow(encoded);
+			if (!decoded.ok) throw new Error(decoded.detail);
+			const returnedRows =
+				decoded.value.detail === TerminalRowWindowDetail.render
+					? decoded.value.frame.rows
+					: decoded.value.rows.length;
+			expect(returnedRows).toBe(expectedRowCount);
+			expect(encoded).toEqual(expected);
+			expect(encoded.byteLength).toBeLessThanOrEqual(expected.byteLength);
+			expect(firstExcluded.byteLength).toBeGreaterThan(expected.byteLength);
+			expect({
+				materializations: terminalProtocolOperations.materializations,
+				sourceInputs: terminalProtocolOperations.sourceInputs,
+			}).toEqual({ materializations: 1, sourceInputs: sourceCount });
+
+			await lease.dispose();
+			await service.dispose();
+		},
+	);
+
+	it('admits a shared-hyperlink render prefix once and still obeys the final byte budget', async () => {
+		const archive = createArchiveWithSharedHyperlink();
+		const channel = createChannel();
+		const projectedAttachmentId = AttachmentIdSchema.parse('55'.repeat(16));
+		const service = new ArchivedTerminalProjectionService({
+			createMessageChannel: () => channel,
+			randomAttachmentId: () => projectedAttachmentId,
+			store: {
+				load: vi.fn<FileTerminalArchiveStore['load']>().mockResolvedValue(archive),
+			} as unknown as FileTerminalArchiveStore,
+			writeClipboardText:
+				vi.fn<ArchivedTerminalProjectionServiceDependencies['writeClipboardText']>(),
+		});
+		const lease = await service.open(presentationId);
+		if (lease === null) throw new Error('Expected an archived projection');
+		const expected = encodeArchivedRows(
+			archive,
+			projectedAttachmentId,
+			TerminalRowWindowDetail.render,
+			24,
+			91n,
+		);
+		const exactResponse = nextEvent(channel.port1, (event) =>
+			event.kind === 'rows' || event.kind === 'failure' ? event : null,
+		);
+		const exactEvent = await (async () => {
+			const keyConstructionSpy = vi.spyOn(String, 'fromCharCode');
+			try {
+				channel.port1.postMessage({
+					kind: 'read-rows',
+					payload: {
+						attachmentId: lease.bootstrap.attachmentId,
+						detail: 'render',
+						generation: archive.frame.generation.toString(),
+						maximumBytes: expected.byteLength,
+						origin: { kind: 'absolute', row: '0' },
+						purpose: 'buffer',
+						requestSequence: '91',
+						revision: archive.frame.revision.toString(),
+						rowCount: 24,
+					},
+				});
+				const event = await exactResponse;
+				expect(keyConstructionSpy).toHaveBeenCalledTimes(4);
+				return event;
+			} finally {
+				keyConstructionSpy.mockRestore();
+			}
+		})();
+		if (exactEvent.kind !== 'rows') {
+			throw new Error(`Expected shared-link rows, received ${JSON.stringify(exactEvent.failure)}`);
+		}
+		const exactBytes = new Uint8Array(exactEvent.rows);
+		const exactDecoded = decodeTerminalRowWindow(exactBytes);
+		if (!exactDecoded.ok || exactDecoded.value.detail !== TerminalRowWindowDetail.render) {
+			throw new Error('Expected archived shared-link render rows');
+		}
+		expect(exactDecoded.value.frame.rows).toBe(24);
+		expect(exactBytes).toEqual(expected);
+		expect(exactBytes.byteLength).toBe(expected.byteLength);
+
+		const constrainedResponse = nextEvent(channel.port1, (event) =>
+			event.kind === 'rows' || event.kind === 'failure' ? event : null,
+		);
+		channel.port1.postMessage({
+			kind: 'read-rows',
+			payload: {
+				attachmentId: lease.bootstrap.attachmentId,
+				detail: 'render',
+				generation: archive.frame.generation.toString(),
+				maximumBytes: expected.byteLength - 1,
+				origin: { kind: 'absolute', row: '0' },
+				purpose: 'buffer',
+				requestSequence: '92',
+				revision: archive.frame.revision.toString(),
+				rowCount: 24,
+			},
+		});
+		const constrainedEvent = await constrainedResponse;
+		if (constrainedEvent.kind !== 'rows') {
+			throw new Error(
+				`Expected constrained shared-link rows, received ${JSON.stringify(constrainedEvent.failure)}`,
+			);
+		}
+		const constrainedBytes = new Uint8Array(constrainedEvent.rows);
+		const constrainedDecoded = decodeTerminalRowWindow(constrainedBytes);
+		if (
+			!constrainedDecoded.ok ||
+			constrainedDecoded.value.detail !== TerminalRowWindowDetail.render
+		) {
+			throw new Error('Expected constrained archived shared-link render rows');
+		}
+		expect(constrainedDecoded.value.frame.rows).toBeLessThan(24);
+		expect(constrainedBytes.byteLength).toBeLessThanOrEqual(expected.byteLength - 1);
+
+		await lease.dispose();
+		await service.dispose();
 	});
 });
 
@@ -241,26 +485,42 @@ function nextEvent<Event extends ProjectedTerminalEvent>(
 }
 
 function createArchive() {
-	const frame = encodeTerminalProjectionBuffer(createFrame(2n, ['viewport-a', 'viewport-b']));
-	const historyFrame = createFrame(0n, ['history-a', 'history-b']);
-	const history = encodeTerminalRowWindow({
-		attachmentId,
-		columns: 2,
-		detail: TerminalRowWindowDetail.render,
-		frame: historyFrame,
-		generation: 3n,
-		hostEpoch: identity.hostEpoch,
-		revision: 5n,
-		sequence: 1n,
-		startRow: 0n,
-		totalRows: 4n,
-	});
-	if (!frame.ok || !history.ok) throw new Error('Archive fixture failed to encode');
+	const frame = encodeTerminalProjectionBuffer(createFrame(6n, ['viewport-a', 'viewport-b']));
+	const histories = [
+		{ rows: ['history-a'], sequence: 1n, startRow: 0n },
+		{ rows: ['history-b'], sequence: 2n, startRow: 1n },
+		{ rows: ['history-c'], sequence: 3n, startRow: 2n },
+		{ rows: ['history-d'], sequence: 4n, startRow: 3n },
+		{ rows: ['history-e'], sequence: 5n, startRow: 4n },
+		{ rows: ['history-f'], sequence: 6n, startRow: 5n },
+	].map(({ rows, sequence, startRow }) =>
+		encodeTerminalRowWindow({
+			attachmentId,
+			columns: 2,
+			detail: TerminalRowWindowDetail.render,
+			frame: createFrame(startRow, rows, sequence, {
+				wrap: startRow === 4n,
+				wrapContinuation: startRow === 5n,
+			}),
+			generation: 3n,
+			hostEpoch: identity.hostEpoch,
+			revision: 5n,
+			sequence,
+			startRow,
+			totalRows: 8n,
+		}),
+	);
+	if (!frame.ok || histories.some((history) => !history.ok)) {
+		throw new Error('Archive fixture failed to encode');
+	}
 	const encoded = encodeTerminalArchive({
 		frame: frame.value,
 		identity,
 		presentationId,
-		rowWindows: [history.value],
+		rowWindows: histories.map((history) => {
+			if (!history.ok) throw new Error(history.detail);
+			return history.value;
+		}),
 		theme,
 	});
 	if (!encoded.ok) throw new Error(encoded.detail);
@@ -269,7 +529,155 @@ function createArchive() {
 	return archive.value;
 }
 
-function createFrame(scrollbackRows: bigint, rows: readonly string[]) {
+function createArchiveWithSourceCount(sourceCount: number): TerminalArchive {
+	const lastRow = sourceCount - 1;
+	const frame = encodeTerminalProjectionBuffer(
+		createFrame(BigInt(lastRow), [`archive-row-${lastRow.toString().padStart(3, '0')}`]),
+	);
+	const histories = Array.from({ length: lastRow }, (_, index) => {
+		const startRow = BigInt(index);
+		return encodeTerminalRowWindow({
+			attachmentId,
+			columns: 2,
+			detail: TerminalRowWindowDetail.render,
+			frame: createFrame(
+				startRow,
+				[`archive-row-${index.toString().padStart(3, '0')}`],
+				BigInt(index + 1),
+			),
+			generation: 3n,
+			hostEpoch: identity.hostEpoch,
+			revision: 5n,
+			sequence: BigInt(index + 1),
+			startRow,
+			totalRows: BigInt(sourceCount),
+		});
+	});
+	if (!frame.ok || histories.some((history) => !history.ok)) {
+		throw new Error('Scaling archive fixture failed to encode');
+	}
+	const encoded = encodeTerminalArchive({
+		frame: frame.value,
+		identity,
+		presentationId,
+		rowWindows: histories.map((history) => {
+			if (!history.ok) throw new Error(history.detail);
+			return history.value;
+		}),
+		theme,
+	});
+	if (!encoded.ok) throw new Error(encoded.detail);
+	const archive = decodeTerminalArchive(encoded.value);
+	if (!archive.ok) throw new Error(archive.detail);
+	return archive.value;
+}
+
+function createArchiveWithSharedHyperlink(): TerminalArchive {
+	const frame = encodeTerminalProjectionBuffer(createSharedHyperlinkFrame());
+	if (!frame.ok) throw new Error(`${frame.code}: ${frame.detail}`);
+	const encoded = encodeTerminalArchive({
+		frame: frame.value,
+		identity,
+		presentationId,
+		theme,
+		rowWindows: [],
+	});
+	if (!encoded.ok) throw new Error(encoded.detail);
+	const archive = decodeTerminalArchive(encoded.value);
+	if (!archive.ok) throw new Error(archive.detail);
+	return archive.value;
+}
+
+function createSharedHyperlinkFrame() {
+	const base = createFrame(0n, ['']);
+	const baseStyle = base.styles[0];
+	if (baseStyle === undefined) throw new Error('Expected a base terminal style');
+	const columns = 80;
+	const rows = 24;
+	const prefix = 'https://example.com/';
+	const hyperlink = prefix + 'a'.repeat(1_061 - prefix.length);
+	return {
+		...base,
+		columns,
+		currentDirectory: null,
+		cursor: { ...base.cursor, row: rows - 1 },
+		rowData: Array.from({ length: rows }, (_rowValue, row) => ({
+			cells: Array.from({ length: columns }, (_cellValue, column) => ({
+				grapheme: 'X',
+				protected: false,
+				semanticContent: SemanticContent.output,
+				style: column % 2,
+				width: CellWidth.narrow,
+			})),
+			index: row,
+			promptClass: RowPromptClass.none,
+			wrap: false,
+			wrapContinuation: false,
+		})),
+		rows,
+		styles: [
+			{ ...baseStyle, hyperlink },
+			{ ...baseStyle, bold: true, hyperlink },
+		],
+		title: null,
+	};
+}
+
+function encodeArchivedRows(
+	archive: TerminalArchive,
+	projectedAttachmentId: AttachmentId,
+	detail: TerminalRowWindowDetail,
+	rowCount: number,
+	sequence: bigint,
+): Uint8Array {
+	const materialized = materializeTerminalProjectionFrame(
+		archive.frame,
+		[...archive.rowWindows, archive.frame],
+		{
+			attachmentId: projectedAttachmentId,
+			revealCursor: false,
+			rowCount,
+			scrollbackRows: 0n,
+			sequence,
+			sourceStartRow: archive.sourceStartRow,
+		},
+	);
+	if (!materialized.ok) throw new Error(materialized.detail);
+	const common = {
+		attachmentId: projectedAttachmentId,
+		columns: archive.frame.columns,
+		generation: archive.frame.generation,
+		hostEpoch: archive.frame.hostEpoch,
+		revision: archive.frame.revision,
+		sequence,
+		startRow: 0n,
+		totalRows: BigInt(archive.retainedRows),
+	};
+	const encoded =
+		detail === TerminalRowWindowDetail.render
+			? encodeTerminalRowWindow({
+					...common,
+					detail: TerminalRowWindowDetail.render,
+					frame: materialized.value,
+				})
+			: encodeTerminalRowWindow({
+					...common,
+					detail: TerminalRowWindowDetail.text,
+					rows: terminalArchiveTextRows(materialized.value, 0n),
+				});
+	if (!encoded.ok) throw new Error(encoded.detail);
+	return encoded.value;
+}
+
+function createFrame(
+	scrollbackRows: bigint,
+	rows: readonly string[],
+	sequence = 1n,
+	rowFlags: { readonly wrap: boolean; readonly wrapContinuation: boolean } = {
+		wrap: false,
+		wrapContinuation: false,
+	},
+) {
 	return {
 		activeScreen: ActiveScreen.primary,
 		attachmentId,
@@ -281,7 +689,7 @@ function createFrame(scrollbackRows: bigint, rows: readonly string[]) {
 		cursor: {
 			blinking: false,
 			column: 0,
-			row: 1,
+			row: rows.length - 1,
 			shape: CursorShape.block,
 			visible: false,
 			wideTail: false,
@@ -331,12 +739,12 @@ function createFrame(scrollbackRows: bigint, rows: readonly string[]) {
 			],
 			index,
 			promptClass: RowPromptClass.none,
-			wrap: false,
-			wrapContinuation: false,
+			wrap: rowFlags.wrap,
+			wrapContinuation: rowFlags.wrapContinuation,
 		})),
-		rows: 2,
+		rows: rows.length,
 		scrollbackRows,
-		sequence: 1n,
+		sequence,
 		styles: [
 			{
 				background: { kind: TerminalColorKind.default },

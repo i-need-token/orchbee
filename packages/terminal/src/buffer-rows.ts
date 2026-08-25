@@ -12,7 +12,7 @@ import {
 } from '@orchbee/terminal-protocol';
 
 const textEncoder = new TextEncoder();
-const textDecoder = new TextDecoder();
+const textDecoder = new TextDecoder('utf-8', { ignoreBOM: true });
 
 export const TerminalBufferRowDetail = {
 	render: 'render',

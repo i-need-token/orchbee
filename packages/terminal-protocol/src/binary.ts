@@ -2,6 +2,10 @@ import { ProtocolErrorCode, protocolFailure, protocolSuccess } from './protocol-
 import type { ProtocolFailure, ProtocolResult } from './protocol-result';
 
 const emptyBytes = new Uint8Array();
+const sharedArrayBufferByteLengthGetter =
+	typeof SharedArrayBuffer === 'function'
+		? Object.getOwnPropertyDescriptor(SharedArrayBuffer.prototype, 'byteLength')?.get
+		: undefined;
 
 export class BinaryReader {
 	readonly #bytes: Uint8Array;
@@ -171,4 +175,36 @@ export function checkedMultiply(left: number, right: number): ProtocolResult<num
 		);
 	}
 	return protocolSuccess(left * right);
+}
+
+export function isSharedArrayBuffer(buffer: ArrayBufferLike): boolean {
+	if (sharedArrayBufferByteLengthGetter === undefined) return false;
+	try {
+		Reflect.apply(sharedArrayBufferByteLengthGetter, buffer, []);
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+export function copyBytesToFixedArrayBuffer(
+	bytes: Uint8Array,
+	maximumBytes: number,
+	recordName: string,
+): ProtocolResult<Uint8Array> {
+	try {
+		const byteLength = bytes.byteLength;
+		if (byteLength > maximumBytes) {
+			return protocolFailure(ProtocolErrorCode.limitExceeded, `${recordName} exceeds its limit`);
+		}
+		const source = new Uint8Array(bytes.buffer, bytes.byteOffset, byteLength);
+		const copy = new Uint8Array(byteLength);
+		copy.set(source);
+		return protocolSuccess(copy);
+	} catch {
+		return protocolFailure(
+			ProtocolErrorCode.invalidField,
+			`${recordName} could not be copied into stable storage`,
+		);
+	}
 }

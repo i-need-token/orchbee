@@ -524,12 +524,18 @@ row's wrap-continuation flag. A spacer-head is valid only in the final column of
 the following row is present, it begins with the corresponding wide cell. These relationships are
 validated before a frame is exposed or committed.
 
-The exported `ghostty-surface-v0.0.3.bin` and `ghostty-alternate-surface-v0.0.3.bin` conformance
-snapshots are generated in sequence by Terminal Host from one pinned native Ghostty VT and the real
-OBTF encoder. They are byte-compared on the producer side and consumed by the TypeScript decoder,
-packed store, and renderers. The pair covers grapheme/width preservation plus one atomic
-primary-to-alternate metadata and row transition across the language boundary; it does not give
-this package VT or rendering authority.
+The native surface evidence set contains exported `ghostty-surface-v0.0.3.bin`,
+`ghostty-alternate-surface-v0.0.3.bin`, and `ghostty-render-row-window-v0.0.2.bin`. Terminal Host
+generates the OBTF pair in sequence from one pinned native Ghostty VT and the real OBTF encoder. A
+separate pinned terminal replays the primary corpus, adds DECSCA protected and unprotected cells,
+and generates the render-detail OBRW only through `row_encoding.encode` and
+`projection_buffer.encodeRenderSnapshot`; no TypeScript encoder constructs those bytes. Producer
+conformance regenerates and byte-compares all three. The TypeScript OBRW consumer checks strict and
+trusted views against one contract-authored complete 6x8 matrix, commits the trusted frame through
+`replaceProjectionBufferSnapshot`, and verifies wire-valid mutations for color section order, style,
+semantic, protection, hyperlink, row-wrap, and width topology. This evidence detects native column
+misassignment or omission, but does not change the format, validate PTY/history behavior, or grant
+this package VT, renderer, lifecycle, or trusted-local-path authority.
 
 ## Current projection buffer
 
@@ -542,6 +548,15 @@ directory, alignment and zero padding, total length, and the two small metadata 
 typed-array views over the same bytes. It deliberately does not walk every cell to revalidate values
 already produced from canonical Ghostty state; cross-language conformance and producer tests
 establish those column invariants.
+
+`materializeTerminalProjectionFrame` validates every selected grapheme and hyperlink source range
+before allocating the materialized row/style graph or decoding UTF-8. Exact aliases from the same
+source count once and decode once; source identity is part of the range key. Different or
+overlapping ranges each contribute their complete byte length to cumulative logical decode work,
+which must not exceed `PROTOCOL_LIMITS.maxFrameBytes`. Repeated raw style tuples reuse their
+materialized style, while different ranges that decode to equivalent styles still share one
+semantic style-table entry. `TerminalFrameSchema` validates equal string content once per parse and
+preserves an issue at every invalid occurrence path.
 
 The fixed header is 320 bytes. Bytes `0..159` contain `OBPB`, version `0.0.2`, snapshot/delta kind,
 total/header lengths, columns, grid rows, included rows/cells, Host and attachment identities,
@@ -623,6 +638,8 @@ snapshot contains every row in canonical order. A delta contains zero or more co
 order and names the exact acknowledged base. Snapshot consumers retain the immutable buffer;
 delta consumers retain only buffers still referenced by dirty row ranges. Shared memory is not part
 of this version.
+
+The exported `packed-projection-conformance-v0.0.2.json` is the generated, tracked evidence authority for shared OBPB and OBRW strict-admission cases. Its 23 OBPB cases contain the 17 canonical mutation classes, accepted sparse delta row indices `[0, 2]` with duplicate and descending rejections, and optional/required header-flag partitions; its three OBRW cases cover the equivalent header-flag partitions. The fixture generator owns every complete canonical byte string and hard-codes each contract-authored outcome and success observation without asking either decoder for the oracle. `test:fixtures` rejects missing or byte-stale output. `decodeTerminalProjectionBuffer` and `decodeTerminalRowWindow` consume every matching case; the Host runner resolves the declared package export, supplies bounded corpus bytes, and makes both Zig strict validators consume the same cases while asserting only observations exposed by their public summaries.
 
 ## Current packed terminal row-window
 

@@ -6,12 +6,15 @@ import {
 	encodeTerminalRowWindow,
 	materializeTerminalProjectionFrame,
 	PROTOCOL_LIMITS,
+	TERMINAL_PROJECTION_BUFFER_HEADER_BYTES,
+	TERMINAL_ROW_WINDOW_HEADER_BYTES,
 	TerminalRowWindowDetail,
 	type AttachmentId,
 	type DecodedTerminalProjectionBuffer,
 	type SelectionChanged,
 	type SelectionPoint,
 	type TerminalFrame,
+	type TerminalTextRow,
 } from '@orchbee/terminal-protocol';
 import {
 	ProjectedAttachmentBootstrapSchema,
@@ -28,7 +31,21 @@ import type { MessagePortMain } from 'electron';
 import type { ProjectedTerminalBrokerMetrics } from '../broker';
 import type { DesktopTerminalProjectionLease } from '../terminal-projection-control';
 import type { FileTerminalArchiveStore } from './FileTerminalArchiveStore';
-import type { TerminalArchive } from './terminal-archive-document';
+import { terminalArchiveTextRows, type TerminalArchive } from './terminal-archive-document';
+
+// Exact widths of the projection buffer's 16 columnar sections. This accounts admission only;
+// encodeTerminalRowWindow remains the sole wire writer and the final size check fails closed.
+const TERMINAL_PROJECTION_SECTION_ELEMENT_BYTES = [
+	2, 1, 1, 4, 2, 4, 2, 4, 4, 4, 2, 1, 1, 1, 1, 1,
+] as const;
+const TERMINAL_TEXT_MAPPING_BYTES = 12;
+const TERMINAL_TEXT_ROW_HEADER_BYTES = 12;
+const textEncoder = new TextEncoder();
+
+interface PreparedArchivedHyperlink {
+	readonly byteLength: number;
+	readonly byteValueKey: string;
+}
 
 export interface ArchivedTerminalProjectionServiceDependencies {
 	readonly createMessageChannel: () => {
@@ -301,19 +318,42 @@ class ArchivedTerminalBroker {
 			command.payload.purpose === 'viewport'
 				? Math.min(this.#archive.frame.rows, resolved.maximumRows)
 				: 1;
-		let lower = minimumRows;
-		let upper = Math.min(command.payload.rowCount, resolved.maximumRows);
-		let encoded: Uint8Array | null = null;
-		while (lower <= upper) {
-			const candidateRows = Math.floor((lower + upper) / 2);
-			const candidate = this.#encodeRows(command, resolved.startRow, candidateRows);
-			if (candidate !== null && candidate.byteLength <= command.payload.maximumBytes) {
-				encoded = candidate;
-				lower = candidateRows + 1;
-			} else {
-				upper = candidateRows - 1;
-			}
-		}
+		const maximumMaterializableRows = Math.min(
+			PROTOCOL_LIMITS.maxFrameRows,
+			Math.floor(PROTOCOL_LIMITS.maxFrameCells / this.#archive.frame.columns),
+		);
+		const maximumRows = Math.min(
+			command.payload.rowCount,
+			resolved.maximumRows,
+			maximumMaterializableRows,
+		);
+		const materialized =
+			maximumRows >= minimumRows
+				? this.#materializeFrame(
+						resolved.startRow,
+						maximumRows,
+						BigInt(command.payload.requestSequence),
+					)
+				: null;
+		const encoded =
+			materialized?.ok === true
+				? encodeLargestArchivedRowWindow(
+						command.payload.detail,
+						materialized.value,
+						{
+							attachmentId: this.#attachmentId,
+							columns: this.#archive.frame.columns,
+							generation: this.#archive.frame.generation,
+							hostEpoch: this.#archive.frame.hostEpoch,
+							revision: this.#archive.frame.revision,
+							sequence: BigInt(command.payload.requestSequence),
+							startRow: resolved.startRow,
+							totalRows: BigInt(this.#archive.retainedRows),
+						},
+						minimumRows,
+						command.payload.maximumBytes,
+					)
+				: null;
 		if (encoded === null) throw new Error('Archived terminal row window exceeds its byte limit.');
 		if (command.payload.purpose === 'viewport') {
 			this.#committedViewportStart = resolved.startRow;
@@ -321,42 +361,6 @@ class ArchivedTerminalBroker {
 		this.#rowWindowBytesForwarded += encoded.byteLength;
 		this.#rowWindowsForwarded += 1;
 		this.#post({ kind: 'rows', rows: exactArrayBuffer(encoded) });
-	}
-
-	#encodeRows(
-		command: Extract<ProjectedTerminalCommand, { readonly kind: 'read-rows' }>,
-		startRow: bigint,
-		rowCount: number,
-	): Uint8Array | null {
-		const materialized = this.#materializeFrame(
-			startRow,
-			rowCount,
-			BigInt(command.payload.requestSequence),
-		);
-		if (!materialized.ok) return null;
-		const common = {
-			attachmentId: this.#attachmentId,
-			columns: this.#archive.frame.columns,
-			generation: this.#archive.frame.generation,
-			hostEpoch: this.#archive.frame.hostEpoch,
-			revision: this.#archive.frame.revision,
-			sequence: BigInt(command.payload.requestSequence),
-			startRow,
-			totalRows: BigInt(this.#archive.retainedRows),
-		};
-		const encoded =
-			command.payload.detail === TerminalRowWindowDetail.render
-				? encodeTerminalRowWindow({
-						...common,
-						detail: TerminalRowWindowDetail.render,
-						frame: materialized.value,
-					})
-				: encodeTerminalRowWindow({
-						...common,
-						detail: TerminalRowWindowDetail.text,
-						rows: textRows(materialized.value, startRow),
-					});
-		return encoded.ok ? encoded.value : null;
 	}
 
 	#resolveRowRequest(command: Extract<ProjectedTerminalCommand, { readonly kind: 'read-rows' }>): {
@@ -591,39 +595,165 @@ class ArchivedTerminalBroker {
 	}
 }
 
-function textRows(frame: TerminalFrame, startRow: bigint) {
-	const encoder = new TextEncoder();
-	return frame.rowData.map((row, rowOffset) => {
-		const mappings: Array<{
-			byteOffset: number;
-			column: number;
-			utf16Offset: number;
-			width: 1 | 2;
-		}> = [];
-		let text = '';
-		let byteOffset = 0;
-		let utf16Offset = 0;
-		for (const [column, cell] of row.cells.entries()) {
-			if (cell.width === CellWidth.spacerTail || cell.grapheme.length === 0) continue;
-			mappings.push({
-				byteOffset,
-				column,
-				utf16Offset,
-				width: cell.width === CellWidth.wide ? 2 : 1,
-			});
-			text += cell.grapheme;
-			byteOffset += encoder.encode(cell.grapheme).byteLength;
-			utf16Offset += cell.grapheme.length;
-		}
-		return {
-			index: startRow + BigInt(rowOffset),
-			mappings,
-			promptClass: row.promptClass,
-			text,
-			wrap: row.wrap,
-			wrapContinuation: row.wrapContinuation,
-		};
+interface ArchivedRowWindowMetadata {
+	readonly attachmentId: AttachmentId;
+	readonly columns: number;
+	readonly generation: bigint;
+	readonly hostEpoch: TerminalFrame['hostEpoch'];
+	readonly revision: bigint;
+	readonly sequence: bigint;
+	readonly startRow: bigint;
+	readonly totalRows: bigint;
+}
+
+function encodeLargestArchivedRowWindow(
+	detail: TerminalRowWindowDetail,
+	frame: TerminalFrame,
+	metadata: ArchivedRowWindowMetadata,
+	minimumRows: number,
+	maximumBytes: number,
+): Uint8Array | null {
+	if (detail === TerminalRowWindowDetail.render) {
+		const rowCount = maximumEncodableRenderRows(frame, minimumRows, maximumBytes);
+		if (rowCount === null) return null;
+		const encoded = encodeTerminalRowWindow({
+			...metadata,
+			detail: TerminalRowWindowDetail.render,
+			frame:
+				rowCount === frame.rows
+					? frame
+					: { ...frame, rowData: frame.rowData.slice(0, rowCount), rows: rowCount },
+		});
+		return encoded.ok && encoded.value.byteLength <= maximumBytes ? encoded.value : null;
+	}
+
+	const rows = terminalArchiveTextRows(frame, metadata.startRow);
+	const rowCount = maximumEncodableTextRows(rows, minimumRows, maximumBytes);
+	if (rowCount === null) return null;
+	const encoded = encodeTerminalRowWindow({
+		...metadata,
+		detail: TerminalRowWindowDetail.text,
+		rows: rows.slice(0, rowCount),
 	});
+	return encoded.ok && encoded.value.byteLength <= maximumBytes ? encoded.value : null;
+}
+
+function maximumEncodableRenderRows(
+	frame: TerminalFrame,
+	minimumRows: number,
+	maximumBytes: number,
+): number | null {
+	const stringByteLengths = new Map<string, number>();
+	const preparedHyperlinksByStyle = new Map<number, PreparedArchivedHyperlink | null>();
+	const admittedHyperlinkByteValues = new Set<string>();
+	let stringBytes =
+		utf8ByteLength(frame.title, stringByteLengths) +
+		utf8ByteLength(frame.currentDirectory, stringByteLengths);
+	let maximumRows = 0;
+	for (const [rowOffset, row] of frame.rowData.entries()) {
+		for (const cell of row.cells) {
+			const style = frame.styles[cell.style];
+			if (style === undefined) return null;
+			stringBytes += utf8ByteLength(cell.grapheme, stringByteLengths);
+			let preparedHyperlink = preparedHyperlinksByStyle.get(cell.style);
+			if (!preparedHyperlinksByStyle.has(cell.style)) {
+				if (style.hyperlink === null) {
+					preparedHyperlink = null;
+				} else {
+					const hyperlinkBytes = textEncoder.encode(style.hyperlink);
+					preparedHyperlink = {
+						byteLength: hyperlinkBytes.byteLength,
+						byteValueKey: projectionByteValueKey(hyperlinkBytes),
+					};
+				}
+				preparedHyperlinksByStyle.set(cell.style, preparedHyperlink);
+			}
+			if (preparedHyperlink !== null && preparedHyperlink !== undefined) {
+				if (!admittedHyperlinkByteValues.has(preparedHyperlink.byteValueKey)) {
+					admittedHyperlinkByteValues.add(preparedHyperlink.byteValueKey);
+					stringBytes += preparedHyperlink.byteLength;
+				}
+			}
+		}
+		const rowCount = rowOffset + 1;
+		const byteLength =
+			TERMINAL_ROW_WINDOW_HEADER_BYTES +
+			terminalProjectionBufferByteLength(rowCount, frame.columns, stringBytes);
+		if (byteLength > maximumBytes) break;
+		maximumRows = rowCount;
+	}
+	return maximumRows >= minimumRows ? maximumRows : null;
+}
+
+function maximumEncodableTextRows(
+	rows: readonly TerminalTextRow[],
+	minimumRows: number,
+	maximumBytes: number,
+): number | null {
+	let byteLength = TERMINAL_ROW_WINDOW_HEADER_BYTES;
+	let maximumRows = 0;
+	for (const [rowOffset, row] of rows.entries()) {
+		byteLength += TERMINAL_TEXT_ROW_HEADER_BYTES + textEncoder.encode(row.text).byteLength;
+		if (!usesIdentityAsciiMapping(row)) {
+			byteLength += row.mappings.length * TERMINAL_TEXT_MAPPING_BYTES;
+		}
+		if (byteLength > maximumBytes) break;
+		maximumRows = rowOffset + 1;
+	}
+	return maximumRows >= minimumRows ? maximumRows : null;
+}
+
+function terminalProjectionBufferByteLength(
+	rowCount: number,
+	columns: number,
+	stringByteLength: number,
+): number {
+	const cellCount = rowCount * columns;
+	let byteLength = TERMINAL_PROJECTION_BUFFER_HEADER_BYTES;
+	for (const [section, elementBytes] of TERMINAL_PROJECTION_SECTION_ELEMENT_BYTES.entries()) {
+		const remainder = byteLength % elementBytes;
+		if (remainder !== 0) byteLength += elementBytes - remainder;
+		let elementCount = cellCount;
+		if (section <= 2) elementCount = rowCount;
+		else if (section === 15) elementCount = stringByteLength;
+		byteLength += elementCount * elementBytes;
+	}
+	return byteLength;
+}
+
+function utf8ByteLength(value: string | null, cache: Map<string, number>): number {
+	if (value === null) return 0;
+	const cached = cache.get(value);
+	if (cached !== undefined) return cached;
+	const byteLength = textEncoder.encode(value).byteLength;
+	cache.set(value, byteLength);
+	return byteLength;
+}
+
+function projectionByteValueKey(bytes: Uint8Array): string {
+	const chunks: string[] = [];
+	for (let offset = 0; offset < bytes.byteLength; offset += 4_096) {
+		chunks.push(String.fromCharCode(...bytes.subarray(offset, offset + 4_096)));
+	}
+	return chunks.join('');
+}
+
+function usesIdentityAsciiMapping(row: TerminalTextRow): boolean {
+	if (row.mappings.length !== row.text.length) return false;
+	for (let index = 0; index < row.text.length; index += 1) {
+		const mapping = row.mappings[index];
+		if (
+			row.text.charCodeAt(index) > 0x7f ||
+			mapping === undefined ||
+			mapping.byteOffset !== index ||
+			mapping.utf16Offset !== index ||
+			mapping.column !== index ||
+			mapping.width !== 1
+		) {
+			return false;
+		}
+	}
+	return true;
 }
 
 function rowText(row: TerminalFrame['rowData'][number], startColumn: number, endColumn: number) {

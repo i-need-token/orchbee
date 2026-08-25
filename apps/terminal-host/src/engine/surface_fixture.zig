@@ -3,6 +3,7 @@ const std = @import("std");
 const ghostty_vt = @import("ghostty-vt");
 const protocol = @import("terminal-protocol");
 const projection = @import("projection/root.zig");
+const row_encoding = @import("row_encoding.zig");
 
 pub const columns: u16 = 8;
 pub const rows: u16 = 6;
@@ -44,13 +45,20 @@ const alternate_corpus = "\x1b[?1049h" ++
     "\x1b[?2004l\x1b[?1004l\x1b[?1002l\x1b[?1006l" ++
     "\x1b[>4;0m\x1b[?1003h\x1b[?1016h\x1b[=3;1u\x1b[HALT";
 
+// The row-window fixture uses a separate terminal so the paired OBTF corpus
+// remains byte-stable. DECSCA marks Z as protected, then restores the
+// unprotected pen before u; both cells still pass through Ghostty VT state.
+const render_protection_corpus = "\x1b[1\"qZ\x1b[0\"qu";
+
 pub const FixtureSet = struct {
     alternate: []u8,
     primary: []u8,
+    render_row_window: []u8,
 
     pub fn deinit(self: FixtureSet, allocator: std.mem.Allocator) void {
         allocator.free(self.primary);
         allocator.free(self.alternate);
+        allocator.free(self.render_row_window);
     }
 };
 
@@ -93,10 +101,47 @@ pub fn create(allocator: std.mem.Allocator) !FixtureSet {
         .maximum_bytes = protocol.Limits.frame_bytes,
         .sequence = 2,
     });
+    errdefer allocator.free(alternate_frame.allocation);
     std.debug.assert(alternate_frame.bytes.ptr == alternate_frame.allocation.ptr);
     std.debug.assert(alternate_frame.bytes.len == alternate_frame.allocation.len);
+    const render_row_window = try createRenderRowWindow(allocator);
     return .{
         .alternate = alternate_frame.allocation,
         .primary = primary_frame.allocation,
+        .render_row_window = render_row_window,
     };
+}
+
+fn createRenderRowWindow(allocator: std.mem.Allocator) ![]u8 {
+    var terminal: ghostty_vt.Terminal = try .init(allocator, .{
+        .cols = columns,
+        .rows = rows,
+    });
+    defer terminal.deinit(allocator);
+    var stream = terminal.vtStream();
+    defer stream.deinit();
+    stream.nextSlice(corpus);
+    stream.nextSlice(render_protection_corpus);
+
+    const screen = terminal.screens.active;
+    const start_pin = screen.pages.pin(.{ .screen = .{ .x = 0, .y = 0 } }) orelse
+        return error.InvalidFixture;
+    return row_encoding.encode(allocator, &terminal, .{
+        .cell_pixel_height = 16,
+        .cell_pixel_width = 8,
+        .hard_limit = protocol.Limits.row_window_bytes,
+        .request = .{
+            .attachment_id = projection.AttachmentId.fromBytes([_]u8{0x44} ** 16),
+            .detail = .render,
+            .generation = 13,
+            .host_epoch = projection.HostEpoch.fromBytes([_]u8{0x33} ** 16),
+            .request_sequence = 7,
+            .revision = 11,
+            .theme_revision = 17,
+        },
+        .row_count = rows,
+        .start_pin = start_pin,
+        .start_row = 0,
+        .total_rows = @intCast(screen.pages.total_rows),
+    });
 }

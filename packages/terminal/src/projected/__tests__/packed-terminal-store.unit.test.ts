@@ -228,6 +228,30 @@ describe('PackedTerminalStore', () => {
 		expect(store.rows.map((row) => row.grapheme(0))).toEqual(['蜂', 'b']);
 	});
 
+	it('preserves leading U+FEFF in packed OBPB grapheme and hyperlink ranges', () => {
+		const grapheme = '\uFEFFA';
+		const hyperlink = '\uFEFFx';
+		const projectionFrame = frame('snapshot', 1n, 1n, [grapheme, 'b']);
+		const projectionStyle = projectionFrame.styles[0];
+		if (projectionStyle === undefined) throw new Error('Projection style is missing');
+		const encoded = encodeTerminalProjectionBuffer({
+			...projectionFrame,
+			styles: [{ ...projectionStyle, hyperlink }],
+		});
+		if (!encoded.ok) throw new Error(encoded.detail);
+		const viewed = viewTerminalProjectionBuffer(encoded.value);
+		if (!viewed.ok) throw new Error(viewed.detail);
+		const store = new PackedTerminalStore(hostEpoch, attachmentId);
+
+		expect(store.replaceProjectionBufferSnapshot(viewed.value, 1024 * 1024).kind).toBe('committed');
+		const row = store.rows[0];
+		expect(row?.grapheme(0)).toBe(grapheme);
+		expect(row?.grapheme(0).codePointAt(0)).toBe(0xfeff);
+		expect(row?.hyperlink(0)).toBe(hyperlink);
+		expect(row?.hyperlink(0)?.codePointAt(0)).toBe(0xfeff);
+		expect(row?.widths[0]).toBe(0);
+	});
+
 	it('commits an already-decoded immutable history snapshot without source bytes', () => {
 		const store = new PackedTerminalStore(hostEpoch, attachmentId);
 		const snapshot = frame('snapshot', 1n, 1n, ['a', 'b']);

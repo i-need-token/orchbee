@@ -1,15 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
-import {
-	chmod,
-	mkdir,
-	open,
-	readFile,
-	readdir,
-	rename,
-	stat,
-	unlink,
-	utimes,
-} from 'node:fs/promises';
+import { chmod, mkdir, open, readdir, rename, stat, unlink, utimes } from 'node:fs/promises';
 import path from 'node:path';
 
 import type { TerminalPresentationId } from '@orchbee/workbench/terminal-presentation';
@@ -17,6 +7,7 @@ import type { TerminalPresentationId } from '@orchbee/workbench/terminal-present
 import {
 	decodeTerminalArchive,
 	encodeTerminalArchive,
+	MAX_TERMINAL_ARCHIVE_BYTES,
 	MAX_TERMINAL_ARCHIVE_STORE_BYTES,
 	type TerminalArchive,
 	type TerminalArchiveWrite,
@@ -58,7 +49,11 @@ export class FileTerminalArchiveStore {
 		return this.#enqueue(async () => {
 			const filePath = this.#archivePath(presentationId);
 			try {
-				const encoded = await readFile(filePath);
+				const encoded = await readBoundedArchive(filePath);
+				if (encoded === null) {
+					await unlink(filePath).catch(() => undefined);
+					return null;
+				}
 				const decoded = decodeTerminalArchive(encoded);
 				if (!decoded.ok || decoded.value.presentationId !== presentationId) {
 					await unlink(filePath).catch(() => undefined);
@@ -132,11 +127,14 @@ export class FileTerminalArchiveStore {
 				if (!entry.name.endsWith(ARCHIVE_FILE_SUFFIX)) continue;
 				let keep = false;
 				try {
-					const decoded = decodeTerminalArchive(await readFile(filePath));
-					keep =
-						decoded.ok &&
-						retainedPresentationIds.has(decoded.value.presentationId) &&
-						filePath === this.#archivePath(decoded.value.presentationId);
+					const encoded = await readBoundedArchive(filePath);
+					if (encoded !== null) {
+						const decoded = decodeTerminalArchive(encoded);
+						keep =
+							decoded.ok &&
+							retainedPresentationIds.has(decoded.value.presentationId) &&
+							filePath === this.#archivePath(decoded.value.presentationId);
+					}
 				} catch {
 					keep = false;
 				}
@@ -214,6 +212,26 @@ export class FileTerminalArchiveStore {
 			}
 		}
 		return files;
+	}
+}
+
+async function readBoundedArchive(filePath: string): Promise<Uint8Array | null> {
+	const handle = await open(filePath, 'r');
+	try {
+		const metadata = await handle.stat();
+		if (metadata.size > MAX_TERMINAL_ARCHIVE_BYTES) return null;
+
+		const encoded = Buffer.allocUnsafe(MAX_TERMINAL_ARCHIVE_BYTES + 1);
+		let byteLength = 0;
+		while (byteLength < encoded.byteLength) {
+			const result = await handle.read(encoded, byteLength, encoded.byteLength - byteLength);
+			if (result.bytesRead === 0) break;
+			byteLength += result.bytesRead;
+		}
+		if (byteLength > MAX_TERMINAL_ARCHIVE_BYTES) return null;
+		return encoded.subarray(0, byteLength);
+	} finally {
+		await handle.close();
 	}
 }
 

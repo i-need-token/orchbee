@@ -1,4 +1,5 @@
 const std = @import("std");
+const target_builtin = @import("builtin");
 
 const ghostty_vt = @import("ghostty-vt");
 const protocol = @import("terminal-protocol");
@@ -209,6 +210,55 @@ pub const StringTable = struct {
             self.indexOf(bytes) orelse no_string_index
         else
             no_string_index else no_string_index;
+    }
+};
+
+const LinkStringMapTestingState = if (target_builtin.is_test) struct {
+    resolutions: usize = 0,
+} else struct {};
+
+pub const LinkStringMap = struct {
+    allocator: std.mem.Allocator,
+    indices: []u32,
+    testing_state: LinkStringMapTestingState = .{},
+
+    pub fn init(allocator: std.mem.Allocator, value_count: usize) !LinkStringMap {
+        const indices = try allocator.alloc(u32, value_count);
+        @memset(indices, no_string_index);
+        return .{ .allocator = allocator, .indices = indices };
+    }
+
+    pub fn deinit(self: *LinkStringMap) void {
+        self.allocator.free(self.indices);
+        self.* = undefined;
+    }
+
+    pub fn resolve(
+        self: *LinkStringMap,
+        link_table_index: u32,
+        link_table_values: anytype,
+        strings: *StringTable,
+    ) !u32 {
+        if (link_table_index == no_string_index) return no_string_index;
+        std.debug.assert(link_table_index < self.indices.len);
+        const mapped_index = &self.indices[link_table_index];
+        if (mapped_index.* != no_string_index) return mapped_index.*;
+        if (comptime target_builtin.is_test) self.testing_state.resolutions += 1;
+        mapped_index.* = try strings.add(link_table_values[link_table_index]);
+        return mapped_index.*;
+    }
+
+    pub fn mapped(self: *const LinkStringMap, link_table_index: u32) u32 {
+        if (link_table_index == no_string_index) return no_string_index;
+        std.debug.assert(link_table_index < self.indices.len);
+        const index = self.indices[link_table_index];
+        std.debug.assert(index != no_string_index);
+        return index;
+    }
+
+    pub fn testingResolutionCount(self: *const LinkStringMap) usize {
+        if (comptime target_builtin.is_test) return self.testing_state.resolutions;
+        return 0;
     }
 };
 

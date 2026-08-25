@@ -6,6 +6,8 @@ const frameFixture =
 	require.resolve('@orchbee/terminal-protocol/fixtures/terminal-frame-v0.0.3.bin');
 const projectionFixture =
 	require.resolve('@orchbee/terminal-protocol/fixtures/terminal-projection-buffer-v0.0.2.bin');
+const packedProjectionConformanceFixture =
+	require.resolve('@orchbee/terminal-protocol/fixtures/packed-projection-conformance-v0.0.2.json');
 const envelopeFixture =
 	require.resolve('@orchbee/terminal-protocol/fixtures/transport-envelope-v0.0.19.bin');
 const inputFixture = require.resolve('@orchbee/terminal-protocol/fixtures/write-input-v0.0.19.bin');
@@ -35,6 +37,7 @@ const child = spawn(
 		'test-protocol',
 		`-Dframe-fixture=${frameFixture}`,
 		`-Dprojection-fixture=${projectionFixture}`,
+		`-Dpacked-projection-conformance-fixture=${packedProjectionConformanceFixture}`,
 		`-Denvelope-fixture=${envelopeFixture}`,
 		`-Dinput-fixture=${inputFixture}`,
 		`-Dkey-input-fixture=${keyInputFixture}`,

@@ -113,6 +113,128 @@ test "render row window writes directly into caller-owned storage" {
     try std.testing.expectEqual(protocol.RowWindowDetail.render, summary.detail);
     try std.testing.expectEqual(@as(u16, 1), summary.row_count);
 }
+test "render row window reuses one long OSC 8 hyperlink byte range across 80 by 24 cells" {
+    const columns = 80;
+    const row_count = 24;
+    const cell_count = columns * row_count;
+    const hyperlink_prefix = "https://example.com/";
+    var hyperlink = [_]u8{'a'} ** 1_061;
+    @memcpy(hyperlink[0..hyperlink_prefix.len], hyperlink_prefix);
+    var linked_text = [_]u8{'X'} ** cell_count;
+
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+        .cols = columns,
+        .rows = row_count,
+    });
+    defer terminal.deinit(std.testing.allocator);
+    var stream = terminal.vtStream();
+    defer stream.deinit();
+    stream.nextSlice("\x1b]8;;");
+    stream.nextSlice(&hyperlink);
+    stream.nextSlice("\x1b\\");
+    stream.nextSlice(&linked_text);
+    stream.nextSlice("\x1b]8;;\x1b\\");
+
+    var manager = Manager.init(std.testing.allocator);
+    defer manager.deinit(&terminal);
+    const attachment = attachmentId(0x0d);
+    try manager.attach(attachment);
+    const rows = try manager.readRows(std.testing.allocator, &terminal, 1, 1, 8, 16, .{
+        .attachment_id = attachment,
+        .detail = .render,
+        .generation = 1,
+        .host_epoch = hostEpoch(1),
+        .maximum_bytes = max_row_window_bytes,
+        .origin = .{ .absolute = 0 },
+        .purpose = .search,
+        .request_sequence = 1,
+        .revision = 1,
+        .row_count = row_count,
+    });
+    defer std.testing.allocator.free(rows.bytes);
+
+    const summary = try protocol.validateTerminalRowWindow(std.testing.allocator, rows.bytes);
+    try std.testing.expectEqual(protocol.RowWindowDetail.render, summary.detail);
+    try std.testing.expectEqual(@as(u16, row_count), summary.row_count);
+    try std.testing.expectEqual(@as(u32, cell_count), summary.entry_count);
+    try std.testing.expect(rows.bytes.len <= max_row_window_bytes);
+
+    const frame = rows.bytes[protocol.terminal_row_window_header_bytes..];
+    const hyperlink_offsets_start: usize = @intCast(std.mem.readInt(u32, frame[200..204], .little));
+    const hyperlink_lengths_start: usize = @intCast(std.mem.readInt(u32, frame[208..212], .little));
+    const strings_start: usize = @intCast(std.mem.readInt(u32, frame[280..284], .little));
+    const strings_length: usize = @intCast(std.mem.readInt(u32, frame[284..288], .little));
+    try std.testing.expectEqual(@as(usize, cell_count + hyperlink.len), strings_length);
+    for (0..cell_count) |cell_index| {
+        try std.testing.expectEqual(
+            @as(u32, 1),
+            std.mem.readInt(
+                u32,
+                frame[hyperlink_offsets_start + cell_index * 4 ..][0..4],
+                .little,
+            ),
+        );
+        try std.testing.expectEqual(
+            @as(u16, hyperlink.len),
+            std.mem.readInt(
+                u16,
+                frame[hyperlink_lengths_start + cell_index * 2 ..][0..2],
+                .little,
+            ),
+        );
+    }
+    const strings = frame[strings_start..][0..strings_length];
+    try std.testing.expectEqual(@as(usize, 1), countByteSequence(strings, &hyperlink));
+}
+test "render row window preserves ProjectionTooLarge for genuinely distinct hyperlink bytes" {
+    const columns = 64;
+    const row_count = 16;
+    const cell_count = columns * row_count;
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+        .cols = columns,
+        .rows = row_count,
+    });
+    defer terminal.deinit(std.testing.allocator);
+    var stream = terminal.vtStream();
+    defer stream.deinit();
+    for (0..cell_count) |cell_index| {
+        var hyperlink = [_]u8{'d'} ** 2_040;
+        _ = try std.fmt.bufPrint(hyperlink[0..64], "https://example.com/{d}/", .{cell_index});
+        stream.nextSlice("\x1b]8;;");
+        stream.nextSlice(&hyperlink);
+        stream.nextSlice("\x1b\\X\x1b]8;;\x1b\\");
+    }
+
+    var manager = Manager.init(std.testing.allocator);
+    defer manager.deinit(&terminal);
+    const attachment = attachmentId(0x0f);
+    try manager.attach(attachment);
+    try std.testing.expectError(
+        error.ProjectionTooLarge,
+        manager.readRows(std.testing.allocator, &terminal, 1, 1, 8, 16, .{
+            .attachment_id = attachment,
+            .detail = .render,
+            .generation = 1,
+            .host_epoch = hostEpoch(1),
+            .maximum_bytes = max_row_window_bytes,
+            .origin = .{ .absolute = 0 },
+            .purpose = .viewport,
+            .request_sequence = 1,
+            .revision = 1,
+            .row_count = row_count,
+        }),
+    );
+    const state = findState(&manager, attachment).?;
+    try std.testing.expectEqual(@as(u64, 0), state.last_row_request_sequence);
+    try std.testing.expect(state.pending == null);
+}
+test "render row hyperlink scratch allocations clean up without consuming request state" {
+    try std.testing.checkAllAllocationFailures(
+        std.testing.allocator,
+        exerciseRenderRowHyperlinkAllocations,
+        .{},
+    );
+}
 test "one empty text row fits exact caller storage with one-kibibyte scratch" {
     var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
         .cols = 1,
@@ -460,4 +582,60 @@ test "render row encoding preserves combining grapheme string mapping" {
         );
         try std.testing.expectEqual(@as(u8, 0), frame[widths_start + column]);
     }
+}
+
+fn countByteSequence(bytes: []const u8, value: []const u8) usize {
+    if (value.len == 0 or value.len > bytes.len) return 0;
+    var count: usize = 0;
+    var offset: usize = 0;
+    while (offset <= bytes.len - value.len) : (offset += 1) {
+        if (!std.mem.eql(u8, bytes[offset..][0..value.len], value)) continue;
+        count += 1;
+        offset += value.len - 1;
+    }
+    return count;
+}
+
+fn exerciseRenderRowHyperlinkAllocations(allocator: std.mem.Allocator) !void {
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+        .cols = 2,
+        .rows = 1,
+    });
+    defer terminal.deinit(std.testing.allocator);
+    var stream = terminal.vtStream();
+    defer stream.deinit();
+    stream.nextSlice("\x1b]8;;https://allocation.example\x1b\\XX\x1b]8;;\x1b\\");
+
+    var manager = Manager.init(std.testing.allocator);
+    defer manager.deinit(&terminal);
+    const attachment = attachmentId(0x0e);
+    try manager.attach(attachment);
+    var destination: [2_048]u8 = undefined;
+    const rows = manager.readRowsInto(
+        allocator,
+        &destination,
+        &terminal,
+        1,
+        1,
+        8,
+        16,
+        .{
+            .attachment_id = attachment,
+            .detail = .render,
+            .generation = 1,
+            .host_epoch = hostEpoch(1),
+            .maximum_bytes = destination.len,
+            .origin = .{ .absolute = 0 },
+            .purpose = .viewport,
+            .request_sequence = 1,
+            .revision = 1,
+            .row_count = 1,
+        },
+    ) catch |err| {
+        const state = findState(&manager, attachment).?;
+        try std.testing.expectEqual(@as(u64, 0), state.last_row_request_sequence);
+        try std.testing.expect(state.pending == null);
+        return err;
+    };
+    _ = try protocol.validateTerminalRowWindow(std.testing.allocator, rows.bytes);
 }

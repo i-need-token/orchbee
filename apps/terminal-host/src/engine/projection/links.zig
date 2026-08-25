@@ -1,4 +1,5 @@
 const std = @import("std");
+const target_builtin = @import("builtin");
 const ghostty_vt = @import("ghostty-vt");
 const protocol = @import("terminal-protocol");
 const render_encoding = @import("../render_encoding.zig");
@@ -8,6 +9,52 @@ const max_frame_strings = protocol.Limits.frame_strings;
 const max_link_cache_bytes = max_frame_bytes;
 const max_string_bytes = render_encoding.max_string_bytes;
 const no_string_index = render_encoding.no_string_index;
+
+pub const SourceLinkKey = struct {
+    page: *const ghostty_vt.Page,
+    identifier: ghostty_vt.size.HyperlinkCountInt,
+};
+
+const SourceLinkCacheTestingState = if (target_builtin.is_test) struct {
+    resolutions: usize = 0,
+} else struct {};
+
+pub const SourceLinkCache = struct {
+    indices: std.AutoHashMapUnmanaged(SourceLinkKey, u32) = .empty,
+    testing_state: SourceLinkCacheTestingState = .{},
+
+    pub fn deinit(self: *SourceLinkCache, allocator: std.mem.Allocator) void {
+        self.indices.deinit(allocator);
+        self.* = undefined;
+    }
+
+    pub fn resolve(
+        self: *SourceLinkCache,
+        allocator: std.mem.Allocator,
+        key: SourceLinkKey,
+        link_table: *LinkTable,
+        resolver: anytype,
+    ) !u32 {
+        const result = try self.indices.getOrPut(allocator, key);
+        if (result.found_existing) return result.value_ptr.*;
+        errdefer _ = self.indices.remove(key);
+        if (comptime target_builtin.is_test) self.testing_state.resolutions += 1;
+        result.value_ptr.* = try link_table.intern(
+            allocator,
+            resolver.resolve(key),
+        );
+        return result.value_ptr.*;
+    }
+
+    pub fn testingResolutionCount(self: *const SourceLinkCache) usize {
+        if (comptime target_builtin.is_test) return self.testing_state.resolutions;
+        return 0;
+    }
+};
+
+const LinkTableTestingState = if (target_builtin.is_test) struct {
+    intern_calls: usize = 0,
+} else struct {};
 
 pub const LinkRow = struct {
     indices: std.ArrayList(u32) = .empty,
@@ -27,6 +74,7 @@ pub const LinkRow = struct {
         pin: ghostty_vt.PageList.Pin,
         cells: []const ghostty_vt.page.Cell,
         link_table: *LinkTable,
+        source_links: *SourceLinkCache,
     ) (std.mem.Allocator.Error || error{ProjectionTooLarge})!void {
         self.clear();
         var any_link = false;
@@ -41,17 +89,27 @@ pub const LinkRow = struct {
             if (!cell.hyperlink) continue;
             const page_cell = page.getRowAndCell(column, pin.y).cell;
             const identifier = page.lookupHyperlink(page_cell) orelse continue;
-            const entry = page.hyperlink_set.get(page.memory, identifier);
-            const target = entry.uri.slice(page.memory);
-            const index = try link_table.intern(allocator, target);
-            if (index != no_string_index) link_table.retain(index);
-            self.indices.items[column] = index;
+            const link_table_index = try source_links.resolve(
+                allocator,
+                .{ .page = page, .identifier = identifier },
+                link_table,
+                GhosttySourceResolver{},
+            );
+            if (link_table_index != no_string_index) link_table.retain(link_table_index);
+            self.indices.items[column] = link_table_index;
         }
     }
 
-    pub fn uri(self: *const LinkRow, column: usize, link_table: *const LinkTable) ?[]const u8 {
-        if (column >= self.indices.items.len) return null;
-        return link_table.uri(self.indices.items[column]);
+    pub fn linkIndex(self: *const LinkRow, column: usize) u32 {
+        if (column >= self.indices.items.len) return no_string_index;
+        return self.indices.items[column];
+    }
+};
+
+const GhosttySourceResolver = struct {
+    fn resolve(_: GhosttySourceResolver, key: SourceLinkKey) []const u8 {
+        const entry = key.page.hyperlink_set.get(key.page.memory, key.identifier);
+        return entry.uri.slice(key.page.memory);
     }
 };
 
@@ -61,6 +119,7 @@ pub const LinkTable = struct {
     values: std.ArrayList([]u8) = .empty,
     ref_counts: std.ArrayList(u32) = .empty,
     byte_count: usize = 0,
+    testing_state: LinkTableTestingState = .{},
 
     pub fn init(allocator: std.mem.Allocator) LinkTable {
         return .{ .allocator = allocator };
@@ -83,6 +142,7 @@ pub const LinkTable = struct {
     }
 
     pub fn intern(self: *LinkTable, allocator: std.mem.Allocator, value: []const u8) !u32 {
+        if (comptime target_builtin.is_test) self.testing_state.intern_calls += 1;
         if (value.len > max_string_bytes) return error.ProjectionTooLarge;
         if (!std.unicode.utf8ValidateSlice(value)) return no_string_index;
         if (self.indices.get(value)) |index| return index;
@@ -101,6 +161,11 @@ pub const LinkTable = struct {
         try self.indices.put(allocator, copy, index);
         self.byte_count += value.len;
         return index;
+    }
+
+    pub fn testingInternCallCount(self: *const LinkTable) usize {
+        if (comptime target_builtin.is_test) return self.testing_state.intern_calls;
+        return 0;
     }
 
     pub fn retain(self: *LinkTable, index: u32) void {

@@ -195,12 +195,17 @@ real terminal through Local IPC, disconnects, reconnects and replays the creatio
 reattaches the same attachment identity, drives the child through PTY input, observes drained PTY
 output in the final revision and a successful exit event, disposes the retained terminal, and
 requires the Host process to stop cleanly. `test:protocol` runs protocol conformance alone;
-`test:surface-fixtures` regenerates the Host-owned primary/alternate OBTF corpus in a temporary
-directory and rejects byte drift. The paired snapshots come from one Ghostty terminal and
-Projection so metadata and rows can be checked across a real alternate-screen transition. After an
-intentional reviewed corpus or encoder change, run
-`pnpm --filter @orchbee/terminal-host surface-fixtures:generate` and review the binary consumer
-assertions in `@orchbee/terminal`. `test:cross` compiles the complete test graph, including the
+`test:surface-fixtures` regenerates and byte-compares three Host-owned native fixtures in a
+temporary directory. The primary/alternate OBTF pair comes from one Ghostty terminal and Projection
+across a real alternate-screen transition. A separate Ghostty terminal replays the rich primary
+corpus, adds DECSCA protected and unprotected sentinels, and reaches the render-detail OBRW fixture
+only through `row_encoding.encode` and `projection_buffer.encodeRenderSnapshot`. The protocol
+package owns the tracked bytes and exports; `@orchbee/terminal` owns the exact strict-view,
+trusted-view, and packed-store semantic oracle. This evidence covers the deterministic native
+projection mapping, not PTY delivery, history anchoring, or authorization of another trust path.
+After an intentional reviewed corpus or encoder change, run
+`pnpm --filter @orchbee/terminal-host surface-fixtures:generate` and review all producer and
+consumer assertions. `test:cross` compiles the complete test graph, including the
 black-box runner, for Linux, FreeBSD, macOS, and Windows; cross-compilation is not runtime evidence
 for those platforms. Repository CI runs the package `test` command, and therefore the external Host
 trace, natively on Linux, macOS, and Windows. FreeBSD remains compile-only evidence and is not

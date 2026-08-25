@@ -33,6 +33,43 @@ const StringRange = struct {
     offset: u32,
 };
 
+const HyperlinkRangeMap = struct {
+    ranges: std.StringHashMapUnmanaged(StringRange) = .empty,
+    maximum_entries: usize,
+
+    fn init(maximum_entries: usize) HyperlinkRangeMap {
+        return .{ .maximum_entries = maximum_entries };
+    }
+
+    fn deinit(self: *HyperlinkRangeMap, allocator: std.mem.Allocator) void {
+        self.ranges.deinit(allocator);
+        self.* = undefined;
+    }
+
+    fn appendOptional(
+        self: *HyperlinkRangeMap,
+        allocator: std.mem.Allocator,
+        writer: anytype,
+        frame_offset: usize,
+        string_offset: usize,
+        value: ?[]const u8,
+    ) !StringRange {
+        const bytes = value orelse return .{ .length = 0, .offset = no_string_offset };
+        if (!std.unicode.utf8ValidateSlice(bytes) or bytes.len > render_encoding.max_string_bytes) {
+            return .{ .length = 0, .offset = no_string_offset };
+        }
+        if (self.ranges.count() >= self.maximum_entries) {
+            return self.ranges.get(bytes) orelse error.ProjectionTooLarge;
+        }
+        // Keys borrow stable bytes from the admitted pinned Ghostty cells; only map storage is owned.
+        const result = try self.ranges.getOrPut(allocator, bytes);
+        if (result.found_existing) return result.value_ptr.*;
+        errdefer _ = self.ranges.remove(bytes);
+        result.value_ptr.* = try appendString(writer, frame_offset, string_offset, bytes);
+        return result.value_ptr.*;
+    }
+};
+
 fn preflightGeometry(
     columns: usize,
     rows: usize,
@@ -130,6 +167,7 @@ fn appendOptionalString(
 }
 
 pub fn encodeRenderSnapshot(
+    scratch_allocator: std.mem.Allocator,
     writer: anytype,
     terminal: *ghostty_vt.Terminal,
     pins: []const ghostty_vt.Pin,
@@ -142,6 +180,8 @@ pub fn encodeRenderSnapshot(
         parameters.cell_pixel_height,
     );
     const layout = try calculateLayout(pins.len, cell_count);
+    var hyperlinks = HyperlinkRangeMap.init(cell_count);
+    defer hyperlinks.deinit(scratch_allocator);
     const frame_offset = writer.written().len;
     try writer.appendZeros(layout.string_offset);
 
@@ -180,7 +220,8 @@ pub fn encodeRenderSnapshot(
                 layout.string_offset,
                 grapheme,
             );
-            const hyperlink_range = try appendOptionalString(
+            const hyperlink_range = try hyperlinks.appendOptional(
+                scratch_allocator,
                 writer,
                 frame_offset,
                 layout.string_offset,

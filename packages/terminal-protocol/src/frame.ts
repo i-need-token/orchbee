@@ -305,6 +305,7 @@ export const TerminalFrameSchema = z
 		title: z.string().nullable(),
 	})
 	.superRefine((frame, context) => {
+		const stringValidationCache = new Map<string, StringByteValidation>();
 		if (frame.kind === TerminalFrameKind.snapshot && frame.baseRevision !== null) {
 			addIssue(context, ['baseRevision'], 'Snapshot frames must not declare a base revision');
 		}
@@ -342,10 +343,20 @@ export const TerminalFrameSchema = z
 			addIssue(context, ['interaction'], 'Mouse reporting modes and formats must be exclusive');
 		}
 
-		validateStringBytes(frame.title, ['title'], context);
-		validateStringBytes(frame.currentDirectory, ['currentDirectory'], context);
+		validateStringBytes(frame.title, ['title'], context, stringValidationCache);
+		validateStringBytes(
+			frame.currentDirectory,
+			['currentDirectory'],
+			context,
+			stringValidationCache,
+		);
 		for (const [index, style] of frame.styles.entries()) {
-			validateStringBytes(style.hyperlink, ['styles', index, 'hyperlink'], context);
+			validateStringBytes(
+				style.hyperlink,
+				['styles', index, 'hyperlink'],
+				context,
+				stringValidationCache,
+			);
 		}
 
 		let previousRow = -1;
@@ -394,6 +405,7 @@ export const TerminalFrameSchema = z
 					cell.grapheme,
 					['rowData', rowOffset, 'cells', cellOffset, 'grapheme'],
 					context,
+					stringValidationCache,
 				);
 				if (cell.style >= frame.styles.length) {
 					addIssue(
@@ -525,7 +537,11 @@ export interface InspectedTerminalFrameHeader {
 }
 
 const textEncoder = new TextEncoder();
-const textDecoder = new TextDecoder('utf-8', { fatal: true });
+const textDecoder = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
+
+interface StringByteValidation {
+	readonly issue: string | null;
+}
 
 function addIssue(context: z.RefinementCtx, path: readonly PropertyKey[], message: string): void {
 	context.addIssue({ code: 'custom', message, path: [...path] });
@@ -535,15 +551,21 @@ function validateStringBytes(
 	value: string | null,
 	path: readonly PropertyKey[],
 	context: z.RefinementCtx,
+	cache: Map<string, StringByteValidation>,
 ): void {
 	if (value === null) return;
-	if (containsUnpairedSurrogate(value)) {
-		addIssue(context, path, 'String contains an unpaired UTF-16 surrogate');
-		return;
+	let validation = cache.get(value);
+	if (validation === undefined) {
+		let issue: string | null = null;
+		if (containsUnpairedSurrogate(value)) {
+			issue = 'String contains an unpaired UTF-16 surrogate';
+		} else if (textEncoder.encode(value).byteLength > PROTOCOL_LIMITS.maxStringBytes) {
+			issue = `String exceeds ${PROTOCOL_LIMITS.maxStringBytes} UTF-8 bytes`;
+		}
+		validation = { issue };
+		cache.set(value, validation);
 	}
-	if (textEncoder.encode(value).byteLength > PROTOCOL_LIMITS.maxStringBytes) {
-		addIssue(context, path, `String exceeds ${PROTOCOL_LIMITS.maxStringBytes} UTF-8 bytes`);
-	}
+	if (validation.issue !== null) addIssue(context, path, validation.issue);
 }
 
 function validateWidthSequence(

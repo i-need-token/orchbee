@@ -1,6 +1,13 @@
 import { z } from 'zod';
 
-import { BinaryReader, BinaryWriter, checkedAdd, checkedMultiply } from './binary';
+import {
+	BinaryReader,
+	BinaryWriter,
+	checkedAdd,
+	checkedMultiply,
+	copyBytesToFixedArrayBuffer,
+	isSharedArrayBuffer,
+} from './binary';
 import {
 	AttachmentIdSchema,
 	HostEpochSchema,
@@ -69,7 +76,7 @@ const EMPTY_UINT8_ARRAY = new Uint8Array(0);
 const EMPTY_UINT16_ARRAY = new Uint16Array(0);
 const EMPTY_UINT32_ARRAY = new Uint32Array(0);
 const textEncoder = new TextEncoder();
-const textDecoder = new TextDecoder('utf-8', { fatal: true });
+const textDecoder = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
 
 export const TerminalTextCellMappingSchema = z.strictObject({
 	byteOffset: uint32Schema,
@@ -516,10 +523,6 @@ function isMagic(bytes: Uint8Array): boolean {
 	return TERMINAL_ROW_WINDOW_MAGIC.every((value, index) => bytes[index] === value);
 }
 
-function isSharedMemory(buffer: ArrayBufferLike): boolean {
-	return typeof SharedArrayBuffer === 'function' && buffer instanceof SharedArrayBuffer;
-}
-
 function allZero(bytes: Uint8Array): boolean {
 	return bytes.every((value) => value === 0);
 }
@@ -823,16 +826,21 @@ function decodeTextWindow(
 export function decodeTerminalRowWindow(
 	bytes: Uint8Array,
 ): ProtocolResult<DecodedTerminalRowWindow> {
-	if (bytes.byteLength > PROTOCOL_LIMITS.maxRowWindowBytes) {
+	const hasSharedBacking = isSharedArrayBuffer(bytes.buffer);
+	let stableBytes = bytes;
+	if (hasSharedBacking) {
+		const copied = copyBytesToFixedArrayBuffer(
+			bytes,
+			PROTOCOL_LIMITS.maxRowWindowBytes,
+			'Terminal row window',
+		);
+		if (!copied.ok) return copied;
+		stableBytes = copied.value;
+	} else if (bytes.byteLength > PROTOCOL_LIMITS.maxRowWindowBytes) {
 		return protocolFailure(
 			ProtocolErrorCode.limitExceeded,
 			'Terminal row window exceeds its limit',
 		);
-	}
-	let stableBytes = bytes;
-	if (isSharedMemory(bytes.buffer)) {
-		stableBytes = new Uint8Array(bytes.byteLength);
-		stableBytes.set(bytes);
 	}
 	const header = decodeHeader(stableBytes);
 	if (!header.ok) return header;
@@ -847,7 +855,7 @@ export function decodeTerminalRowWindow(
  * all fixed routing metadata remain strictly decoded; external input must use decodeTerminalRowWindow.
  */
 export function viewTerminalRowWindow(bytes: Uint8Array): ProtocolResult<DecodedTerminalRowWindow> {
-	if (isSharedMemory(bytes.buffer)) {
+	if (isSharedArrayBuffer(bytes.buffer)) {
 		return protocolFailure(
 			ProtocolErrorCode.invalidField,
 			'Trusted row-window views do not accept shared memory',

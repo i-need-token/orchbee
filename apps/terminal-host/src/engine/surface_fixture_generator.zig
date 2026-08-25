@@ -6,9 +6,10 @@ pub fn main() !void {
     const allocator = std.heap.smp_allocator;
     const arguments = try std.process.argsAlloc(allocator);
     defer std.process.argsFree(allocator, arguments);
-    if (arguments.len != 3 or
+    if (arguments.len != 4 or
         !std.fs.path.isAbsolute(arguments[1]) or
-        !std.fs.path.isAbsolute(arguments[2]))
+        !std.fs.path.isAbsolute(arguments[2]) or
+        !std.fs.path.isAbsolute(arguments[3]))
     {
         return error.InvalidArguments;
     }
@@ -17,6 +18,7 @@ pub fn main() !void {
     defer fixtures.deinit(allocator);
     try writeFixture(arguments[1], fixtures.primary);
     try writeFixture(arguments[2], fixtures.alternate);
+    try writeFixture(arguments[3], fixtures.render_row_window);
 }
 
 fn writeFixture(path: []const u8, fixture: []const u8) !void {

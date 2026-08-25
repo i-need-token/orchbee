@@ -1,3 +1,5 @@
+import { runInNewContext } from 'node:vm';
+
 import { describe, expect, it, vi } from 'vitest';
 
 import {
@@ -9,7 +11,9 @@ import {
 	TerminalColorKind,
 	TerminalFrameKind,
 	UnderlineKind,
+	type TerminalFrame,
 } from '../frame';
+import { PROTOCOL_LIMITS } from '../limits';
 import { ProtocolErrorCode } from '../protocol-result';
 import {
 	decodeTerminalRowWindow,
@@ -57,6 +61,69 @@ const style = {
 	strikethrough: false,
 	underline: { kind: TerminalColorKind.none },
 	underlineKind: UnderlineKind.none,
+} as const;
+
+const renderWindow = {
+	attachmentId: '22222222222222222222222222222222',
+	columns: 1,
+	detail: TerminalRowWindowDetail.render,
+	frame: {
+		activeScreen: ActiveScreen.primary,
+		attachmentId: '22222222222222222222222222222222',
+		baseRevision: null,
+		cellPixelHeight: 16,
+		cellPixelWidth: 8,
+		columns: 1,
+		cursor: {
+			blinking: false,
+			column: 0,
+			row: 0,
+			shape: CursorShape.block,
+			visible: false,
+			wideTail: false,
+		},
+		currentDirectory: null,
+		defaultColors: {
+			backgroundRgb: 0,
+			cursorRgb: null,
+			foregroundRgb: 0xffffff,
+		},
+		extensions: [],
+		generation: 2n,
+		hostEpoch: '11111111111111111111111111111111',
+		interaction,
+		kind: TerminalFrameKind.snapshot,
+		revision: 7n,
+		rowData: [
+			{
+				cells: [
+					{
+						grapheme: '蜂',
+						protected: false,
+						semanticContent: SemanticContent.output,
+						style: 0,
+						width: CellWidth.narrow,
+					},
+				],
+				index: 0,
+				promptClass: RowPromptClass.none,
+				wrap: false,
+				wrapContinuation: false,
+			},
+		],
+		rows: 1,
+		scrollbackRows: 4n,
+		sequence: 3n,
+		styles: [style],
+		themeRevision: 2n,
+		title: null,
+	},
+	generation: 2n,
+	hostEpoch: '11111111111111111111111111111111',
+	revision: 7n,
+	sequence: 3n,
+	startRow: 4n,
+	totalRows: 10n,
 } as const;
 
 interface TextRowWindowMapping {
@@ -119,78 +186,171 @@ function buildTextRowWindow(
 	return bytes;
 }
 
-describe('packed terminal row windows', () => {
-	it('round-trips a render window through the nested OBPB 0.0.1 projection buffer', () => {
-		const encoded = encodeTerminalRowWindow({
-			attachmentId: '22222222222222222222222222222222',
-			columns: 1,
-			detail: TerminalRowWindowDetail.render,
-			frame: {
-				activeScreen: ActiveScreen.primary,
-				attachmentId: '22222222222222222222222222222222',
-				baseRevision: null,
-				cellPixelHeight: 16,
-				cellPixelWidth: 8,
-				columns: 1,
-				cursor: {
-					blinking: false,
-					column: 0,
-					row: 0,
-					shape: CursorShape.block,
-					visible: false,
-					wideTail: false,
-				},
-				currentDirectory: null,
-				defaultColors: {
-					backgroundRgb: 0,
-					cursorRgb: null,
-					foregroundRgb: 0xffffff,
-				},
-				extensions: [],
-				generation: 2n,
-				hostEpoch: '11111111111111111111111111111111',
-				interaction,
-				kind: TerminalFrameKind.snapshot,
-				revision: 7n,
-				rowData: [
-					{
-						cells: [
-							{
-								grapheme: '蜂',
-								protected: false,
-								semanticContent: SemanticContent.output,
-								style: 0,
-								width: CellWidth.narrow,
-							},
-						],
-						index: 0,
-						promptClass: RowPromptClass.none,
-						wrap: false,
-						wrapContinuation: false,
-					},
+function encodedRenderWindow(): Uint8Array {
+	const encoded = encodeTerminalRowWindow(renderWindow);
+	if (!encoded.ok) throw new Error(encoded.detail);
+	return encoded.value;
+}
+
+function encodedTextWindowWithLeadingByteOrderMarks(): Uint8Array {
+	const encoded = encodeTerminalRowWindow({
+		attachmentId: '22222222222222222222222222222222',
+		columns: 2,
+		detail: TerminalRowWindowDetail.text,
+		generation: 1n,
+		hostEpoch: '11111111111111111111111111111111',
+		revision: 9n,
+		rows: [
+			{
+				index: 11n,
+				mappings: [
+					{ byteOffset: 0, column: 0, utf16Offset: 0, width: 1 },
+					{ byteOffset: 3, column: 1, utf16Offset: 1, width: 1 },
 				],
-				rows: 1,
-				scrollbackRows: 4n,
-				sequence: 3n,
-				styles: [style],
-				themeRevision: 2n,
-				title: null,
+				promptClass: RowPromptClass.none,
+				text: '\uFEFFA',
+				wrap: false,
+				wrapContinuation: false,
 			},
+			{
+				index: 12n,
+				mappings: [{ byteOffset: 0, column: 0, utf16Offset: 0, width: 1 }],
+				promptClass: RowPromptClass.none,
+				text: '\uFEFF',
+				wrap: false,
+				wrapContinuation: false,
+			},
+		],
+		sequence: 4n,
+		startRow: 11n,
+		totalRows: 20n,
+	});
+	if (!encoded.ok) throw new Error(encoded.detail);
+	return encoded.value;
+}
+
+function crossRealmSharedSubview(source: Uint8Array): Uint8Array {
+	const byteLength = source.byteLength + 8;
+	const buffer: SharedArrayBuffer = runInNewContext('new SharedArrayBuffer(byteLength)', {
+		byteLength,
+	});
+	const storage = new Uint8Array(buffer);
+	storage.fill(0xa5);
+	const view = storage.subarray(4, 4 + source.byteLength);
+	view.set(source);
+	return view;
+}
+
+function renderWidthOffset(bytes: Uint8Array): number {
+	const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+	const widthDirectoryEntry = TERMINAL_ROW_WINDOW_HEADER_BYTES + 160 + 12 * 8;
+	return TERMINAL_ROW_WINDOW_HEADER_BYTES + view.getUint32(widthDirectoryEntry, true);
+}
+
+function linkedRenderWindow(
+	columns: number,
+	rows: number,
+	hyperlinkForCell: (cellOffset: number) => string,
+) {
+	const styles: Array<TerminalFrame['styles'][number]> = [];
+	const styleIndices = new Map<string, number>();
+	return {
+		attachmentId: '22222222222222222222222222222222',
+		columns,
+		detail: TerminalRowWindowDetail.render,
+		frame: {
+			activeScreen: ActiveScreen.primary,
+			attachmentId: '22222222222222222222222222222222',
+			baseRevision: null,
+			cellPixelHeight: 16,
+			cellPixelWidth: 8,
+			columns,
+			cursor: {
+				blinking: false,
+				column: 0,
+				row: rows - 1,
+				shape: CursorShape.block,
+				visible: false,
+				wideTail: false,
+			},
+			currentDirectory: null,
+			defaultColors: {
+				backgroundRgb: 0,
+				cursorRgb: null,
+				foregroundRgb: 0xffffff,
+			},
+			extensions: [],
 			generation: 2n,
 			hostEpoch: '11111111111111111111111111111111',
+			interaction,
+			kind: TerminalFrameKind.snapshot,
 			revision: 7n,
+			rowData: Array.from({ length: rows }, (_rowValue, row) => ({
+				cells: Array.from({ length: columns }, (_columnValue, column) => {
+					const cellOffset = row * columns + column;
+					const hyperlink = hyperlinkForCell(cellOffset);
+					let styleIndex = styleIndices.get(hyperlink);
+					if (styleIndex === undefined) {
+						styleIndex = styles.length;
+						styleIndices.set(hyperlink, styleIndex);
+						styles.push({ ...style, hyperlink });
+					}
+					return {
+						grapheme: 'X',
+						protected: false,
+						semanticContent: SemanticContent.output,
+						style: styleIndex,
+						width: CellWidth.narrow,
+					};
+				}),
+				index: row,
+				promptClass: RowPromptClass.none,
+				wrap: false,
+				wrapContinuation: false,
+			})),
+			rows,
+			scrollbackRows: 0n,
 			sequence: 3n,
-			startRow: 4n,
-			totalRows: 10n,
-		});
-		if (!encoded.ok) throw new Error(encoded.detail);
-		const decoded = decodeTerminalRowWindow(encoded.value);
+			styles,
+			themeRevision: 2n,
+			title: null,
+		},
+		generation: 2n,
+		hostEpoch: '11111111111111111111111111111111',
+		revision: 7n,
+		sequence: 3n,
+		startRow: 0n,
+		totalRows: BigInt(rows),
+	};
+}
+
+function countByteSequence(bytes: Uint8Array, value: Uint8Array): number {
+	let count = 0;
+	for (let offset = 0; offset <= bytes.byteLength - value.byteLength; offset += 1) {
+		let matches = true;
+		for (let index = 0; index < value.byteLength; index += 1) {
+			if (bytes[offset + index] !== value[index]) {
+				matches = false;
+				break;
+			}
+		}
+		if (!matches) continue;
+		count += 1;
+		offset += value.byteLength - 1;
+	}
+	return count;
+}
+
+describe('packed terminal row windows', () => {
+	it('round-trips a render window through the nested OBPB 0.0.1 projection buffer', () => {
+		const bytes = encodedRenderWindow();
+		const decoded = decodeTerminalRowWindow(bytes);
 		if (!decoded.ok) throw new Error(decoded.detail);
 		expect(decoded.value.detail).toBe(TerminalRowWindowDetail.render);
 		if (decoded.value.detail !== TerminalRowWindowDetail.render) return;
 		expect(decoded.value.startRow).toBe(4n);
-		expect(decoded.value.frame.bytes.buffer).toBe(encoded.value.buffer);
-		expect(decoded.value.frame.cells.widths.buffer).toBe(encoded.value.buffer);
+		expect(decoded.value.frame.bytes.buffer).toBe(bytes.buffer);
+		expect(decoded.value.frame.cells.widths.buffer).toBe(bytes.buffer);
 		const graphemeOffset = decoded.value.frame.cells.graphemeOffsets[0] ?? 0;
 		const graphemeLength = decoded.value.frame.cells.graphemeLengths[0] ?? 0;
 		expect(
@@ -200,20 +360,20 @@ describe('packed terminal row windows', () => {
 		).toBe('蜂');
 		expect(decoded.value).not.toHaveProperty('frameBytes');
 
-		const mismatchedHistoryOrigin = encoded.value.slice();
+		const mismatchedHistoryOrigin = bytes.slice();
 		new DataView(mismatchedHistoryOrigin.buffer).setBigUint64(80, 5n, true);
 		expect(decodeTerminalRowWindow(mismatchedHistoryOrigin)).toEqual(
 			expect.objectContaining({ code: ProtocolErrorCode.invalidField, ok: false }),
 		);
 
-		const noncanonicalDirectory = encoded.value.slice();
+		const noncanonicalDirectory = bytes.slice();
 		const projectionDirectory = 112 + 160;
 		new DataView(noncanonicalDirectory.buffer).setUint32(projectionDirectory, 0, true);
 		expect(decodeTerminalRowWindow(noncanonicalDirectory)).toEqual(
 			expect.objectContaining({ code: ProtocolErrorCode.invalidField, ok: false }),
 		);
 
-		const invalidTrustedCell = encoded.value.slice();
+		const invalidTrustedCell = bytes.slice();
 		const invalidView = new DataView(invalidTrustedCell.buffer);
 		const widthDirectoryEntry = projectionDirectory + 12 * 8;
 		const widthOffset = 112 + invalidView.getUint32(widthDirectoryEntry, true);
@@ -224,6 +384,96 @@ describe('packed terminal row windows', () => {
 		expect(viewTerminalRowWindow(invalidTrustedCell)).toEqual(
 			expect.objectContaining({ ok: true }),
 		);
+	});
+
+	it('stores one shared 1,061-byte hyperlink range for an 80-by-24 render window', () => {
+		const prefix = 'https://example.com/';
+		const hyperlink = prefix + 'a'.repeat(1_061 - prefix.length);
+		const encoded = encodeTerminalRowWindow(linkedRenderWindow(80, 24, () => hyperlink));
+		if (!encoded.ok) throw new Error(`${encoded.code}: ${encoded.detail}`);
+		expect(encoded.value.byteLength).toBeLessThanOrEqual(2 * 1024 * 1024);
+
+		const decoded = decodeTerminalRowWindow(encoded.value);
+		if (!decoded.ok) throw new Error(decoded.detail);
+		if (decoded.value.detail !== TerminalRowWindowDetail.render) {
+			throw new Error('Expected a render row window');
+		}
+		const { frame } = decoded.value;
+		expect(frame.cells.hyperlinkOffsets).toHaveLength(1_920);
+		expect([...frame.cells.hyperlinkOffsets].every((offset) => offset === 1)).toBe(true);
+		expect([...frame.cells.hyperlinkLengths].every((length) => length === 1_061)).toBe(true);
+		expect(frame.stringBytes.byteLength).toBe(1_920 + 1_061);
+		expect(countByteSequence(frame.stringBytes, new TextEncoder().encode(hyperlink))).toBe(1);
+	});
+
+	it('keeps genuinely distinct hyperlink bytes classified as limit exceeded', () => {
+		const encoded = encodeTerminalRowWindow(
+			linkedRenderWindow(64, 16, (cellOffset) => {
+				const prefix = `https://example.com/${cellOffset}/`;
+				return prefix + 'b'.repeat(2_100 - prefix.length);
+			}),
+		);
+		expect(encoded).toEqual(
+			expect.objectContaining({ code: ProtocolErrorCode.limitExceeded, ok: false }),
+		);
+	});
+
+	it('rejects cross-realm shared render views and snapshots the exact outer subview', () => {
+		const bytes = encodedRenderWindow();
+		const sharedBytes = crossRealmSharedSubview(bytes);
+		expect(sharedBytes.buffer).not.toBeInstanceOf(SharedArrayBuffer);
+		expect(sharedBytes.byteOffset).toBe(4);
+		expect(viewTerminalRowWindow(sharedBytes)).toEqual(
+			expect.objectContaining({ code: ProtocolErrorCode.invalidField, ok: false }),
+		);
+
+		const decoded = decodeTerminalRowWindow(sharedBytes);
+		if (!decoded.ok) throw new Error(decoded.detail);
+		if (decoded.value.detail !== TerminalRowWindowDetail.render) {
+			throw new Error('Expected render row window');
+		}
+		expect(decoded.value.frame.bytes.buffer).toBeInstanceOf(ArrayBuffer);
+		expect(decoded.value.frame.bytes.buffer.byteLength).toBe(bytes.byteLength);
+		expect(decoded.value.frame.bytes.byteOffset).toBe(TERMINAL_ROW_WINDOW_HEADER_BYTES);
+		sharedBytes[renderWidthOffset(sharedBytes)] = 0xff;
+		expect(decoded.value.frame.cells.widths[0]).toBe(0);
+	});
+
+	it('does not mistake a spoofed outer ArrayBuffer tag for shared memory', () => {
+		const bytes = encodedRenderWindow();
+		Object.defineProperty(bytes.buffer, Symbol.toStringTag, {
+			configurable: true,
+			value: 'SharedArrayBuffer',
+		});
+		expect(Object.prototype.toString.call(bytes.buffer)).toBe('[object SharedArrayBuffer]');
+
+		const viewed = viewTerminalRowWindow(bytes);
+		const decoded = decodeTerminalRowWindow(bytes);
+		if (!viewed.ok || !decoded.ok) throw new Error('Spoofed ordinary storage was rejected');
+		if (
+			viewed.value.detail !== TerminalRowWindowDetail.render ||
+			decoded.value.detail !== TerminalRowWindowDetail.render
+		) {
+			throw new Error('Expected render row windows');
+		}
+		expect(viewed.value.frame.bytes.buffer).toBe(bytes.buffer);
+		expect(decoded.value.frame.bytes.buffer).toBe(bytes.buffer);
+	});
+
+	it('maps an outer shared-memory copy failure to a typed protocol failure', () => {
+		const bytes = encodedRenderWindow();
+		const sharedBytes = new Uint8Array(new SharedArrayBuffer(bytes.byteLength));
+		sharedBytes.set(bytes);
+		const setSpy = vi.spyOn(Uint8Array.prototype, 'set').mockImplementationOnce(() => {
+			throw new RangeError('controlled shared-memory copy failure');
+		});
+		try {
+			expect(decodeTerminalRowWindow(sharedBytes)).toEqual(
+				expect.objectContaining({ code: ProtocolErrorCode.invalidField, ok: false }),
+			);
+		} finally {
+			setSpy.mockRestore();
+		}
 	});
 
 	it('round-trips compact text and rejects reserved flags atomically', () => {
@@ -270,6 +520,63 @@ describe('packed terminal row windows', () => {
 		expect(decodeTerminalRowWindow(malformed)).toEqual(
 			expect.objectContaining({ code: ProtocolErrorCode.unknownRequiredFlag, ok: false }),
 		);
+	});
+
+	it.each([
+		{ flags: 0x01, label: '0x01' },
+		{ flags: 0x02, label: '0x02' },
+		{ flags: 0x04, label: '0x04' },
+		{ flags: 0x08, label: '0x08' },
+		{ flags: 0x10, label: '0x10' },
+		{ flags: 0x20, label: '0x20' },
+		{ flags: 0x40, label: '0x40' },
+		{ flags: 0x7f, label: '0x7f' },
+	])('accepts OBRW optional header flags $label', ({ flags }) => {
+		const bytes = encodedRenderWindow().slice();
+		bytes[7] = flags;
+		const decoded = decodeTerminalRowWindow(bytes);
+		if (!decoded.ok) throw new Error(decoded.detail);
+		expect(decoded.value.ignoredOptionalFlags).toBe(flags);
+	});
+
+	it.each([
+		{ boundary: 'strict', decode: decodeTerminalRowWindow },
+		{ boundary: 'structural', decode: viewTerminalRowWindow },
+	])('preserves leading U+FEFF text and mappings through the $boundary API', ({ decode }) => {
+		const bytes = encodedTextWindowWithLeadingByteOrderMarks();
+		const wire = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+		const firstTextLength = wire.getUint32(116, true);
+		const firstMappingCount = wire.getUint32(120, true);
+		const firstTextOffset = 124;
+		const secondRowOffset = firstTextOffset + firstTextLength + firstMappingCount * 12;
+		const secondTextLength = wire.getUint32(secondRowOffset + 4, true);
+		const secondTextOffset = secondRowOffset + 12;
+		expect([...bytes.subarray(firstTextOffset, firstTextOffset + firstTextLength)]).toEqual([
+			0xef, 0xbb, 0xbf, 0x41,
+		]);
+		expect([...bytes.subarray(secondTextOffset, secondTextOffset + secondTextLength)]).toEqual([
+			0xef, 0xbb, 0xbf,
+		]);
+
+		const decoded = decode(bytes);
+		if (!decoded.ok) throw new Error(decoded.detail);
+		if (decoded.value.detail !== TerminalRowWindowDetail.text) {
+			throw new Error('Expected a text row window');
+		}
+		const firstRow = decoded.value.rows[0];
+		const secondRow = decoded.value.rows[1];
+		expect(firstRow?.text).toBe('\uFEFFA');
+		expect(firstRow?.text.codePointAt(0)).toBe(0xfeff);
+		expect([...(firstRow?.byteOffsets ?? [])]).toEqual([0, 3]);
+		expect([...(firstRow?.utf16Offsets ?? [])]).toEqual([0, 1]);
+		expect([...(firstRow?.columns ?? [])]).toEqual([0, 1]);
+		expect([...(firstRow?.widths ?? [])]).toEqual([1, 1]);
+		expect(secondRow?.text).toBe('\uFEFF');
+		expect(secondRow?.text.codePointAt(0)).toBe(0xfeff);
+		expect([...(secondRow?.byteOffsets ?? [])]).toEqual([0]);
+		expect([...(secondRow?.utf16Offsets ?? [])]).toEqual([0]);
+		expect([...(secondRow?.columns ?? [])]).toEqual([0]);
+		expect([...(secondRow?.widths ?? [])]).toEqual([1]);
 	});
 
 	it('encodes each text row once after bounded preflight and rejects shared local views', () => {
@@ -517,6 +824,7 @@ describe('packed terminal row windows', () => {
 	});
 
 	it('accepts a one-mapping cell span at the 16 KiB bound and rejects one byte above', () => {
+		const maximumCellBytes = PROTOCOL_LIMITS.maxStringBytes;
 		const window = {
 			attachmentId: '22222222222222222222222222222222',
 			columns: 1,
@@ -529,7 +837,7 @@ describe('packed terminal row windows', () => {
 					index: 123n,
 					mappings: [{ byteOffset: 0, column: 0, utf16Offset: 0, width: 1 }],
 					promptClass: RowPromptClass.none,
-					text: 'a'.repeat(16_384),
+					text: 'a'.repeat(maximumCellBytes),
 					wrap: false,
 					wrapContinuation: false,
 				},
@@ -538,6 +846,7 @@ describe('packed terminal row windows', () => {
 			startRow: 123n,
 			totalRows: 125n,
 		} as const;
+		expect(maximumCellBytes).toBe(16_384);
 		const encoded = encodeTerminalRowWindow(window);
 		expect(encoded).toEqual(expect.objectContaining({ ok: true }));
 		if (!encoded.ok) return;
@@ -558,7 +867,8 @@ describe('packed terminal row windows', () => {
 		);
 	});
 
-	it('round-trips aggregate row text above the per-cell bound when every cell span is bounded', () => {
+	it('rejects an oversized interior mapped cell span at encoding when the final tail is short', () => {
+		const oversizedInteriorCell = 'a'.repeat(PROTOCOL_LIMITS.maxStringBytes + 1);
 		const window = {
 			attachmentId: '22222222222222222222222222222222',
 			columns: 2,
@@ -571,12 +881,56 @@ describe('packed terminal row windows', () => {
 					index: 123n,
 					mappings: [
 						{ byteOffset: 0, column: 0, utf16Offset: 0, width: 1 },
-						{ byteOffset: 16_384, column: 1, utf16Offset: 16_384, width: 1 },
+						{
+							byteOffset: PROTOCOL_LIMITS.maxStringBytes + 1,
+							column: 1,
+							utf16Offset: PROTOCOL_LIMITS.maxStringBytes + 1,
+							width: 1,
+						},
 					],
 					promptClass: RowPromptClass.none,
-					text: 'a'.repeat(32_768),
+					text: `${oversizedInteriorCell}b`,
 					wrap: false,
 					wrapContinuation: false,
+				},
+			],
+			sequence: 7n,
+			startRow: 123n,
+			totalRows: 125n,
+		} as const;
+		expect(encodeTerminalRowWindow(window)).toEqual(
+			expect.objectContaining({ code: ProtocolErrorCode.invalidField, ok: false }),
+		);
+	});
+
+	it('round-trips aggregate row text above the per-cell bound when every cell span is bounded', () => {
+		const maximumCellBytes = PROTOCOL_LIMITS.maxStringBytes;
+		const firstCellText = 'a'.repeat(maximumCellBytes);
+		const secondCellText = 'b'.repeat(maximumCellBytes);
+		const text = firstCellText + secondCellText;
+		const window = {
+			attachmentId: '22222222222222222222222222222222',
+			columns: 3,
+			detail: TerminalRowWindowDetail.text,
+			generation: 1n,
+			hostEpoch: '11111111111111111111111111111111',
+			revision: 42n,
+			rows: [
+				{
+					index: 123n,
+					mappings: [
+						{ byteOffset: 0, column: 0, utf16Offset: 0, width: 1 },
+						{
+							byteOffset: maximumCellBytes,
+							column: 1,
+							utf16Offset: maximumCellBytes,
+							width: 2,
+						},
+					],
+					promptClass: RowPromptClass.promptContinuation,
+					text,
+					wrap: true,
+					wrapContinuation: true,
 				},
 			],
 			sequence: 7n,
@@ -586,7 +940,34 @@ describe('packed terminal row windows', () => {
 		const encoded = encodeTerminalRowWindow(window);
 		expect(encoded).toEqual(expect.objectContaining({ ok: true }));
 		if (!encoded.ok) return;
-		expect(decodeTerminalRowWindow(encoded.value)).toEqual(expect.objectContaining({ ok: true }));
+		const decoded = decodeTerminalRowWindow(encoded.value);
+		if (!decoded.ok) throw new Error(decoded.detail);
+		expect(decoded.value).toEqual({
+			attachmentId: '22222222222222222222222222222222',
+			columns: 3,
+			detail: TerminalRowWindowDetail.text,
+			generation: 1n,
+			hostEpoch: '11111111111111111111111111111111',
+			ignoredOptionalFlags: 0,
+			revision: 42n,
+			rows: [
+				{
+					byteOffsets: new Uint32Array([0, maximumCellBytes]),
+					columns: new Uint16Array([0, 1]),
+					identityAscii: false,
+					index: 123n,
+					promptClass: RowPromptClass.promptContinuation,
+					text,
+					utf16Offsets: new Uint32Array([0, maximumCellBytes]),
+					widths: new Uint8Array([1, 2]),
+					wrap: true,
+					wrapContinuation: true,
+				},
+			],
+			sequence: 7n,
+			startRow: 123n,
+			totalRows: 125n,
+		});
 	});
 
 	it('rejects an over-cap mapped cell at encoding', () => {

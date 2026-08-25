@@ -5,15 +5,22 @@ import {
 	ActiveScreen,
 	CursorShape,
 	decodeTerminalFrame,
+	decodeTerminalRowWindow,
+	type DecodedTerminalProjectionBuffer,
 	RowPromptClass,
 	SemanticContent,
 	TerminalCellWidthCode,
 	TerminalColorEncoding,
+	TerminalFrameKind,
+	TerminalProjectionSection,
 	TerminalRowPromptClassCode,
 	TerminalRowFlag,
+	TerminalRowWindowDetail,
 	TerminalSemanticContentCode,
 	TerminalStyleFlag,
 	TerminalUnderlineKindCode,
+	TERMINAL_ROW_WINDOW_HEADER_BYTES,
+	viewTerminalRowWindow,
 } from '@orchbee/terminal-protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -32,6 +39,488 @@ const surfaceFixturePath = moduleRequire.resolve(
 const alternateSurfaceFixturePath = moduleRequire.resolve(
 	'@orchbee/terminal-protocol/fixtures/ghostty-alternate-surface-v0.0.3.bin',
 );
+const renderRowWindowFixturePath = moduleRequire.resolve(
+	'@orchbee/terminal-protocol/fixtures/ghostty-render-row-window-v0.0.2.bin',
+);
+
+const RENDER_ATTACHMENT_ID = '44444444444444444444444444444444';
+const RENDER_HOST_EPOCH = '33333333333333333333333333333333';
+const RENDER_COLUMNS = 8;
+const RENDER_LINK = 'https://example.com';
+const RENDER_LINK_OFFSET = 41;
+const RENDER_LINK_LENGTH = 19;
+const RENDER_PROJECTION_BYTE_LENGTH = 1_891;
+const NO_STRING_OFFSET = 0xffff_ffff;
+const PROJECTION_DIRECTORY_OFFSET = 160;
+
+interface ExpectedRenderRow {
+	readonly backgroundColors: readonly number[];
+	readonly foregroundColors: readonly number[];
+	readonly graphemeLengths: readonly number[];
+	readonly graphemeOffsets: readonly number[];
+	readonly graphemes: readonly string[];
+	readonly hyperlinkLengths: readonly number[];
+	readonly hyperlinkOffsets: readonly number[];
+	readonly hyperlinks: readonly (string | null)[];
+	readonly index: number;
+	readonly promptClass: number;
+	readonly protectedCells: readonly number[];
+	readonly rowFlags: number;
+	readonly semanticContents: readonly number[];
+	readonly styleFlags: readonly number[];
+	readonly underlineColors: readonly number[];
+	readonly underlineKinds: readonly number[];
+	readonly widths: readonly number[];
+}
+
+function filledRenderRow<Value>(value: Value): Value[] {
+	return Array.from({ length: RENDER_COLUMNS }, () => value);
+}
+
+const EXPECTED_RENDER_ROWS: readonly ExpectedRenderRow[] = [
+	{
+		backgroundColors: filledRenderRow(TerminalColorEncoding.default),
+		foregroundColors: filledRenderRow(TerminalColorEncoding.default),
+		graphemeLengths: [1, 3, 0, 3, 15, 0, 1, 0],
+		graphemeOffsets: [40, 60, 63, 63, 66, 81, 81, 82],
+		graphemes: ['A', '中', '', 'e\u0301', '👩🏽‍💻', '', 'x', ''],
+		hyperlinkLengths: filledRenderRow(RENDER_LINK_LENGTH),
+		hyperlinkOffsets: filledRenderRow(RENDER_LINK_OFFSET),
+		hyperlinks: filledRenderRow(RENDER_LINK),
+		index: 0,
+		promptClass: TerminalRowPromptClassCode.none,
+		protectedCells: filledRenderRow(0),
+		rowFlags: TerminalRowFlag.wrap,
+		semanticContents: filledRenderRow(TerminalSemanticContentCode.output),
+		styleFlags: filledRenderRow(0),
+		underlineColors: filledRenderRow(TerminalColorEncoding.none),
+		underlineKinds: filledRenderRow(TerminalUnderlineKindCode.none),
+		widths: [
+			TerminalCellWidthCode.narrow,
+			TerminalCellWidthCode.wide,
+			TerminalCellWidthCode.spacerTail,
+			TerminalCellWidthCode.narrow,
+			TerminalCellWidthCode.wide,
+			TerminalCellWidthCode.spacerTail,
+			TerminalCellWidthCode.narrow,
+			TerminalCellWidthCode.spacerHead,
+		],
+	},
+	{
+		backgroundColors: filledRenderRow(TerminalColorEncoding.default),
+		foregroundColors: filledRenderRow(TerminalColorEncoding.default),
+		graphemeLengths: [3, 0, 0, 0, 0, 0, 0, 0],
+		graphemeOffsets: [82, 85, 85, 85, 85, 85, 85, 85],
+		graphemes: ['界', '', '', '', '', '', '', ''],
+		hyperlinkLengths: [RENDER_LINK_LENGTH, RENDER_LINK_LENGTH, 0, 0, 0, 0, 0, 0],
+		hyperlinkOffsets: [
+			RENDER_LINK_OFFSET,
+			RENDER_LINK_OFFSET,
+			NO_STRING_OFFSET,
+			NO_STRING_OFFSET,
+			NO_STRING_OFFSET,
+			NO_STRING_OFFSET,
+			NO_STRING_OFFSET,
+			NO_STRING_OFFSET,
+		],
+		hyperlinks: [RENDER_LINK, RENDER_LINK, null, null, null, null, null, null],
+		index: 1,
+		promptClass: TerminalRowPromptClassCode.none,
+		protectedCells: filledRenderRow(0),
+		rowFlags: TerminalRowFlag.wrapContinuation,
+		semanticContents: filledRenderRow(TerminalSemanticContentCode.output),
+		styleFlags: filledRenderRow(0),
+		underlineColors: filledRenderRow(TerminalColorEncoding.none),
+		underlineKinds: filledRenderRow(TerminalUnderlineKindCode.none),
+		widths: [
+			TerminalCellWidthCode.wide,
+			TerminalCellWidthCode.spacerTail,
+			TerminalCellWidthCode.narrow,
+			TerminalCellWidthCode.narrow,
+			TerminalCellWidthCode.narrow,
+			TerminalCellWidthCode.narrow,
+			TerminalCellWidthCode.narrow,
+			TerminalCellWidthCode.narrow,
+		],
+	},
+	{
+		backgroundColors: filledRenderRow(TerminalColorEncoding.default),
+		foregroundColors: filledRenderRow(TerminalColorEncoding.default),
+		graphemeLengths: [1, 0, 0, 0, 0, 0, 0, 0],
+		graphemeOffsets: [85, 86, 86, 86, 86, 86, 86, 86],
+		graphemes: ['H', '', '', '', '', '', '', ''],
+		hyperlinkLengths: filledRenderRow(0),
+		hyperlinkOffsets: filledRenderRow(NO_STRING_OFFSET),
+		hyperlinks: filledRenderRow(null),
+		index: 2,
+		promptClass: TerminalRowPromptClassCode.none,
+		protectedCells: filledRenderRow(0),
+		rowFlags: 0,
+		semanticContents: filledRenderRow(TerminalSemanticContentCode.output),
+		styleFlags: filledRenderRow(0),
+		underlineColors: filledRenderRow(TerminalColorEncoding.none),
+		underlineKinds: filledRenderRow(TerminalUnderlineKindCode.none),
+		widths: filledRenderRow(TerminalCellWidthCode.narrow),
+	},
+	{
+		backgroundColors: [
+			TerminalColorEncoding.default,
+			0,
+			TerminalColorEncoding.default,
+			TerminalColorEncoding.default,
+			0x0a_0b_0c,
+			TerminalColorEncoding.default,
+			TerminalColorEncoding.default,
+			TerminalColorEncoding.default,
+		],
+		foregroundColors: [0x01_02_03, ...filledRenderRow(TerminalColorEncoding.default).slice(1)],
+		graphemeLengths: filledRenderRow(1),
+		graphemeOffsets: [86, 87, 88, 89, 90, 91, 92, 93],
+		graphemes: ['F', 'B', 'I', 'T', 'V', 'K', 'O', 'S'],
+		hyperlinkLengths: filledRenderRow(0),
+		hyperlinkOffsets: filledRenderRow(NO_STRING_OFFSET),
+		hyperlinks: filledRenderRow(null),
+		index: 3,
+		promptClass: TerminalRowPromptClassCode.none,
+		protectedCells: filledRenderRow(0),
+		rowFlags: 0,
+		semanticContents: filledRenderRow(TerminalSemanticContentCode.output),
+		styleFlags: [
+			0,
+			0,
+			TerminalStyleFlag.inverse,
+			TerminalStyleFlag.faint,
+			TerminalStyleFlag.invisible,
+			TerminalStyleFlag.blink,
+			TerminalStyleFlag.overline,
+			TerminalStyleFlag.strikethrough,
+		],
+		underlineColors: filledRenderRow(TerminalColorEncoding.none),
+		underlineKinds: filledRenderRow(TerminalUnderlineKindCode.none),
+		widths: filledRenderRow(TerminalCellWidthCode.narrow),
+	},
+	{
+		backgroundColors: filledRenderRow(TerminalColorEncoding.default),
+		foregroundColors: filledRenderRow(TerminalColorEncoding.default),
+		graphemeLengths: filledRenderRow(1),
+		graphemeOffsets: [94, 95, 96, 97, 98, 99, 100, 101],
+		graphemes: ['1', '2', '3', '4', '5', 'U', 'D', 'E'],
+		hyperlinkLengths: filledRenderRow(0),
+		hyperlinkOffsets: filledRenderRow(NO_STRING_OFFSET),
+		hyperlinks: filledRenderRow(null),
+		index: 4,
+		promptClass: TerminalRowPromptClassCode.none,
+		protectedCells: filledRenderRow(0),
+		rowFlags: 0,
+		semanticContents: filledRenderRow(TerminalSemanticContentCode.output),
+		styleFlags: [
+			0,
+			0,
+			0,
+			0,
+			0,
+			TerminalStyleFlag.faint,
+			TerminalStyleFlag.bold,
+			TerminalStyleFlag.italic,
+		],
+		underlineColors: [
+			TerminalColorEncoding.none,
+			TerminalColorEncoding.none,
+			TerminalColorEncoding.none,
+			TerminalColorEncoding.none,
+			TerminalColorEncoding.none,
+			0x07_08_09,
+			TerminalColorEncoding.none,
+			TerminalColorEncoding.none,
+		],
+		underlineKinds: [
+			TerminalUnderlineKindCode.single,
+			TerminalUnderlineKindCode.double,
+			TerminalUnderlineKindCode.curly,
+			TerminalUnderlineKindCode.dotted,
+			TerminalUnderlineKindCode.dashed,
+			TerminalUnderlineKindCode.single,
+			TerminalUnderlineKindCode.none,
+			TerminalUnderlineKindCode.none,
+		],
+		widths: filledRenderRow(TerminalCellWidthCode.narrow),
+	},
+	{
+		backgroundColors: filledRenderRow(TerminalColorEncoding.default),
+		foregroundColors: [
+			TerminalColorEncoding.default,
+			0xaa_bb_cc,
+			TerminalColorEncoding.default,
+			TerminalColorEncoding.default,
+			TerminalColorEncoding.default,
+			TerminalColorEncoding.default,
+			TerminalColorEncoding.default,
+			TerminalColorEncoding.default,
+		],
+		graphemeLengths: [1, 1, 1, 1, 1, 0, 0, 0],
+		graphemeOffsets: [102, 103, 104, 105, 106, 107, 107, 107],
+		graphemes: ['^', 'P', '.', 'Z', 'u', '', '', ''],
+		hyperlinkLengths: filledRenderRow(0),
+		hyperlinkOffsets: filledRenderRow(NO_STRING_OFFSET),
+		hyperlinks: filledRenderRow(null),
+		index: 5,
+		promptClass: TerminalRowPromptClassCode.prompt,
+		protectedCells: [0, 0, 0, 1, 0, 0, 0, 0],
+		rowFlags: 0,
+		semanticContents: [
+			TerminalSemanticContentCode.prompt,
+			TerminalSemanticContentCode.input,
+			TerminalSemanticContentCode.output,
+			TerminalSemanticContentCode.output,
+			TerminalSemanticContentCode.output,
+			TerminalSemanticContentCode.output,
+			TerminalSemanticContentCode.output,
+			TerminalSemanticContentCode.output,
+		],
+		styleFlags: filledRenderRow(0),
+		underlineColors: filledRenderRow(TerminalColorEncoding.none),
+		underlineKinds: filledRenderRow(TerminalUnderlineKindCode.none),
+		widths: filledRenderRow(TerminalCellWidthCode.narrow),
+	},
+];
+
+const EXPECTED_RENDER_INTERACTION = {
+	applicationCursorKeys: true,
+	applicationKeypad: true,
+	bracketedPaste: true,
+	focusReporting: true,
+	kittyDisambiguateEscapeCodes: true,
+	kittyReportAllKeysAsEscapeCodes: true,
+	kittyReportAlternateKeys: true,
+	kittyReportAssociatedText: true,
+	kittyReportEventTypes: true,
+	modifyOtherKeys2: true,
+	mouseAny: false,
+	mouseButton: true,
+	mouseNormal: false,
+	mouseSgr: true,
+	mouseSgrPixels: false,
+	mouseUrxvt: false,
+	mouseUtf8: false,
+	mouseX10: false,
+} as const;
+
+const projectionStringDecoder = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
+
+function projectionStrings(
+	stringBytes: Uint8Array,
+	offsets: Uint32Array,
+	lengths: Uint16Array,
+	nullable: boolean,
+): (string | null)[] {
+	return Array.from(offsets, (offset, index) => {
+		const length = lengths[index];
+		if (length === undefined) throw new Error('Projection string range is incomplete');
+		if (offset === NO_STRING_OFFSET) {
+			if (nullable && length === 0) return null;
+			throw new Error('Projection grapheme range is absent');
+		}
+		return projectionStringDecoder.decode(stringBytes.subarray(offset, offset + length));
+	});
+}
+
+function projectionMatrix(frame: DecodedTerminalProjectionBuffer): ExpectedRenderRow[] {
+	return Array.from(frame.rowData.indices, (index, rowOffset) => {
+		const rowFlags = frame.rowData.flags[rowOffset];
+		const promptClass = frame.rowData.promptClasses[rowOffset];
+		if (rowFlags === undefined || promptClass === undefined) {
+			throw new Error('Projection row metadata is incomplete');
+		}
+		const cellOffset = rowOffset * frame.columns;
+		const cellEnd = cellOffset + frame.columns;
+		const graphemeOffsets = frame.cells.graphemeOffsets.subarray(cellOffset, cellEnd);
+		const graphemeLengths = frame.cells.graphemeLengths.subarray(cellOffset, cellEnd);
+		const hyperlinkOffsets = frame.cells.hyperlinkOffsets.subarray(cellOffset, cellEnd);
+		const hyperlinkLengths = frame.cells.hyperlinkLengths.subarray(cellOffset, cellEnd);
+		return {
+			backgroundColors: Array.from(frame.cells.backgroundColors.subarray(cellOffset, cellEnd)),
+			foregroundColors: Array.from(frame.cells.foregroundColors.subarray(cellOffset, cellEnd)),
+			graphemeLengths: Array.from(graphemeLengths),
+			graphemeOffsets: Array.from(graphemeOffsets),
+			graphemes: projectionStrings(frame.stringBytes, graphemeOffsets, graphemeLengths, false).map(
+				(value) => value ?? '',
+			),
+			hyperlinkLengths: Array.from(hyperlinkLengths),
+			hyperlinkOffsets: Array.from(hyperlinkOffsets),
+			hyperlinks: projectionStrings(frame.stringBytes, hyperlinkOffsets, hyperlinkLengths, true),
+			index,
+			promptClass,
+			protectedCells: Array.from(frame.cells.protected.subarray(cellOffset, cellEnd)),
+			rowFlags,
+			semanticContents: Array.from(frame.cells.semanticContents.subarray(cellOffset, cellEnd)),
+			styleFlags: Array.from(frame.cells.styleFlags.subarray(cellOffset, cellEnd)),
+			underlineColors: Array.from(frame.cells.underlineColors.subarray(cellOffset, cellEnd)),
+			underlineKinds: Array.from(frame.cells.underlineKinds.subarray(cellOffset, cellEnd)),
+			widths: Array.from(frame.cells.widths.subarray(cellOffset, cellEnd)),
+		};
+	});
+}
+
+function storeMatrix(store: PackedTerminalStore) {
+	return store.rows.map((row) => ({
+		backgroundColors: Array.from(row.backgroundColors),
+		foregroundColors: Array.from(row.foregroundColors),
+		graphemes: Array.from({ length: RENDER_COLUMNS }, (_value, column) => row.grapheme(column)),
+		hyperlinks: Array.from({ length: RENDER_COLUMNS }, (_value, column) => row.hyperlink(column)),
+		index: row.index,
+		promptClass: row.promptClass,
+		protectedCells: Array.from(row.protectedCells),
+		rowFlags: row.rowFlags,
+		semanticContents: Array.from(row.semanticContents),
+		styleFlags: Array.from(row.styleFlags),
+		underlineColors: Array.from(row.underlineColors),
+		underlineKinds: Array.from(row.underlineKinds),
+		widths: Array.from(row.widths),
+	}));
+}
+
+function expectedStoreMatrix() {
+	return EXPECTED_RENDER_ROWS.map((row) => ({
+		backgroundColors: row.backgroundColors,
+		foregroundColors: row.foregroundColors,
+		graphemes: row.graphemes,
+		hyperlinks: row.hyperlinks,
+		index: row.index,
+		promptClass: row.promptClass,
+		protectedCells: row.protectedCells,
+		rowFlags: row.rowFlags,
+		semanticContents: row.semanticContents,
+		styleFlags: row.styleFlags,
+		underlineColors: row.underlineColors,
+		underlineKinds: row.underlineKinds,
+		widths: row.widths,
+	}));
+}
+
+function projectionSectionByteOffset(bytes: Uint8Array, section: number): number {
+	const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+	return (
+		TERMINAL_ROW_WINDOW_HEADER_BYTES +
+		view.getUint32(
+			TERMINAL_ROW_WINDOW_HEADER_BYTES + PROJECTION_DIRECTORY_OFFSET + section * 8,
+			true,
+		)
+	);
+}
+
+function renderCellIndex(row: number, column: number): number {
+	return row * RENDER_COLUMNS + column;
+}
+
+interface RenderMutation {
+	readonly assertDifference: (rows: readonly ExpectedRenderRow[]) => void;
+	readonly mutate: (bytes: Uint8Array) => void;
+	readonly name: string;
+}
+
+const RENDER_MUTATIONS: readonly RenderMutation[] = [
+	{
+		assertDifference: (rows) => {
+			expect(rows[3]?.foregroundColors[0]).toBe(TerminalColorEncoding.default);
+			expect(rows[3]?.backgroundColors[0]).toBe(0x01_02_03);
+		},
+		mutate: (bytes) => {
+			const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+			const cell = renderCellIndex(3, 0);
+			const foreground = projectionSectionByteOffset(
+				bytes,
+				TerminalProjectionSection.foregroundColors,
+			);
+			const background = projectionSectionByteOffset(
+				bytes,
+				TerminalProjectionSection.backgroundColors,
+			);
+			const foregroundValue = view.getUint32(foreground + cell * 4, true);
+			const backgroundValue = view.getUint32(background + cell * 4, true);
+			view.setUint32(foreground + cell * 4, backgroundValue, true);
+			view.setUint32(background + cell * 4, foregroundValue, true);
+		},
+		name: 'foreground/background swap',
+	},
+	{
+		assertDifference: (rows) => {
+			expect(rows[4]?.styleFlags[6]).toBe(TerminalStyleFlag.italic);
+		},
+		mutate: (bytes) => {
+			const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+			const offset = projectionSectionByteOffset(bytes, TerminalProjectionSection.styleFlags);
+			view.setUint16(offset + renderCellIndex(4, 6) * 2, TerminalStyleFlag.italic, true);
+		},
+		name: 'different supported style flag',
+	},
+	{
+		assertDifference: (rows) => {
+			expect(rows[5]?.semanticContents[0]).toBe(TerminalSemanticContentCode.input);
+		},
+		mutate: (bytes) => {
+			const offset = projectionSectionByteOffset(bytes, TerminalProjectionSection.semanticContents);
+			bytes[offset + renderCellIndex(5, 0)] = TerminalSemanticContentCode.input;
+		},
+		name: 'different supported semantic value',
+	},
+	{
+		assertDifference: (rows) => {
+			expect(rows[5]?.protectedCells[3]).toBe(0);
+		},
+		mutate: (bytes) => {
+			const offset = projectionSectionByteOffset(bytes, TerminalProjectionSection.protectedCells);
+			bytes[offset + renderCellIndex(5, 3)] = 0;
+		},
+		name: 'cleared protected sentinel',
+	},
+	{
+		assertDifference: (rows) => {
+			expect(rows[0]?.hyperlinkOffsets[0]).toBe(NO_STRING_OFFSET);
+			expect(rows[0]?.hyperlinkLengths[0]).toBe(0);
+			expect(rows[0]?.hyperlinks[0]).toBeNull();
+		},
+		mutate: (bytes) => {
+			const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+			const offsets = projectionSectionByteOffset(
+				bytes,
+				TerminalProjectionSection.hyperlinkOffsets,
+			);
+			const lengths = projectionSectionByteOffset(
+				bytes,
+				TerminalProjectionSection.hyperlinkLengths,
+			);
+			view.setUint32(offsets, NO_STRING_OFFSET, true);
+			view.setUint16(lengths, 0, true);
+		},
+		name: 'canonically removed hyperlink',
+	},
+	{
+		assertDifference: (rows) => {
+			expect(rows[2]?.rowFlags).toBe(TerminalRowFlag.wrap);
+			expect(rows[3]?.rowFlags).toBe(TerminalRowFlag.wrapContinuation);
+		},
+		mutate: (bytes) => {
+			const offset = projectionSectionByteOffset(bytes, TerminalProjectionSection.rowFlags);
+			bytes[offset + 2] = TerminalRowFlag.wrap;
+			bytes[offset + 3] = TerminalRowFlag.wrapContinuation;
+		},
+		name: 'valid adjacent row-wrap change',
+	},
+	{
+		assertDifference: (rows) => {
+			expect(rows[0]?.widths.slice(1, 3)).toEqual([
+				TerminalCellWidthCode.narrow,
+				TerminalCellWidthCode.narrow,
+			]);
+		},
+		mutate: (bytes) => {
+			const offset = projectionSectionByteOffset(bytes, TerminalProjectionSection.widths);
+			bytes[offset + renderCellIndex(0, 1)] = TerminalCellWidthCode.narrow;
+			bytes[offset + renderCellIndex(0, 2)] = TerminalCellWidthCode.narrow;
+		},
+		name: 'valid width-topology change',
+	},
+];
 
 afterEach(() => {
 	vi.useRealTimers();
@@ -368,6 +857,142 @@ function bufferRows(store: PackedTerminalStore): readonly TerminalBufferRow[] {
 }
 
 describe('Ghostty surface parity', () => {
+	it('preserves every native Ghostty OBRW projection column through strict, trusted, and store consumers', async () => {
+		const fixtureBytes = await readFile(renderRowWindowFixturePath);
+		const strict = decodeTerminalRowWindow(fixtureBytes);
+		const trusted = viewTerminalRowWindow(fixtureBytes);
+		expect(strict.ok).toBe(true);
+		expect(trusted.ok).toBe(true);
+		if (!strict.ok) throw new Error(strict.detail);
+		if (!trusted.ok) throw new Error(trusted.detail);
+		expect(strict.value).toMatchObject({
+			attachmentId: RENDER_ATTACHMENT_ID,
+			columns: RENDER_COLUMNS,
+			detail: TerminalRowWindowDetail.render,
+			generation: 13n,
+			hostEpoch: RENDER_HOST_EPOCH,
+			ignoredOptionalFlags: 0,
+			revision: 11n,
+			sequence: 7n,
+			startRow: 0n,
+			totalRows: 6n,
+		});
+		expect(trusted.value).toMatchObject({
+			attachmentId: RENDER_ATTACHMENT_ID,
+			columns: RENDER_COLUMNS,
+			detail: TerminalRowWindowDetail.render,
+			generation: 13n,
+			hostEpoch: RENDER_HOST_EPOCH,
+			ignoredOptionalFlags: 0,
+			revision: 11n,
+			sequence: 7n,
+			startRow: 0n,
+			totalRows: 6n,
+		});
+		if (strict.value.detail !== TerminalRowWindowDetail.render) {
+			throw new Error('Expected strict render row window');
+		}
+		if (trusted.value.detail !== TerminalRowWindowDetail.render) {
+			throw new Error('Expected trusted render row window');
+		}
+		const expectedFrameMetadata = {
+			activeScreen: ActiveScreen.primary,
+			attachmentId: RENDER_ATTACHMENT_ID,
+			baseRevision: null,
+			cellPixelHeight: 16,
+			cellPixelWidth: 8,
+			columns: RENDER_COLUMNS,
+			currentDirectory: 'file:///workspace/primary',
+			cursor: {
+				blinking: false,
+				column: 0,
+				row: 0,
+				shape: CursorShape.block,
+				visible: false,
+				wideTail: false,
+			},
+			defaultColors: {
+				backgroundRgb: 0x10_14_18,
+				cursorRgb: 0xf5_a9_7f,
+				foregroundRgb: 0xd8_de_e9,
+			},
+			generation: 13n,
+			hostEpoch: RENDER_HOST_EPOCH,
+			ignoredOptionalFlags: 0,
+			interaction: EXPECTED_RENDER_INTERACTION,
+			kind: TerminalFrameKind.snapshot,
+			revision: 11n,
+			rows: 6,
+			scrollbackRows: 0n,
+			sequence: 7n,
+			themeRevision: 17n,
+			title: 'Orchbee primary',
+		};
+		expect(strict.value.frame).toMatchObject(expectedFrameMetadata);
+		expect(trusted.value.frame).toMatchObject(expectedFrameMetadata);
+
+		const strictMatrix = projectionMatrix(strict.value.frame);
+		const trustedMatrix = projectionMatrix(trusted.value.frame);
+		expect(strictMatrix).toEqual(EXPECTED_RENDER_ROWS);
+		expect(trustedMatrix).toEqual(EXPECTED_RENDER_ROWS);
+		expect(trustedMatrix).toEqual(strictMatrix);
+
+		const store = new PackedTerminalStore(
+			strict.value.frame.hostEpoch,
+			strict.value.frame.attachmentId,
+		);
+		expect(
+			store.replaceProjectionBufferSnapshot(trusted.value.frame, RENDER_PROJECTION_BYTE_LENGTH),
+		).toEqual({
+			acknowledgement: {
+				attachmentId: RENDER_ATTACHMENT_ID,
+				generation: '13',
+				revision: '11',
+				sequence: '7',
+			},
+			byteLength: RENDER_PROJECTION_BYTE_LENGTH,
+			kind: 'committed',
+		});
+		expect(store.byteLength).toBe(RENDER_PROJECTION_BYTE_LENGTH);
+		expect(store.metadata).toEqual({
+			activeScreen: ActiveScreen.primary,
+			cellPixelHeight: 16,
+			cellPixelWidth: 8,
+			columns: RENDER_COLUMNS,
+			commandCompletion: null,
+			closeActivity: 'unknown',
+			currentDirectory: 'file:///workspace/primary',
+			cursor: expectedFrameMetadata.cursor,
+			defaultColors: expectedFrameMetadata.defaultColors,
+			generation: 13n,
+			interaction: EXPECTED_RENDER_INTERACTION,
+			progress: { state: 'remove', value: null },
+			revision: 11n,
+			rows: 6,
+			scrollbackRows: 0n,
+			themeRevision: 17n,
+			title: 'Orchbee primary',
+		});
+		expect(storeMatrix(store)).toEqual(expectedStoreMatrix());
+	});
+
+	it.each(RENDER_MUTATIONS)(
+		'keeps $name wire-valid while the exact native semantic oracle detects it',
+		async ({ assertDifference, mutate }) => {
+			const mutatedBytes = new Uint8Array(await readFile(renderRowWindowFixturePath));
+			mutate(mutatedBytes);
+			const decoded = decodeTerminalRowWindow(mutatedBytes);
+			expect(decoded.ok).toBe(true);
+			if (!decoded.ok) throw new Error(decoded.detail);
+			if (decoded.value.detail !== TerminalRowWindowDetail.render) {
+				throw new Error('Expected mutated render row window');
+			}
+			const mutatedMatrix = projectionMatrix(decoded.value.frame);
+			assertDifference(mutatedMatrix);
+			expect(mutatedMatrix).not.toEqual(EXPECTED_RENDER_ROWS);
+		},
+	);
+
 	it('preserves native graphemes and wide-cell topology through the packed Canvas surface', async () => {
 		const store = await loadSurfaceStore();
 		expect(store.metadata).toMatchObject({ columns: 8, rows: 6 });

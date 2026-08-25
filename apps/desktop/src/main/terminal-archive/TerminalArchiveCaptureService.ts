@@ -18,6 +18,8 @@ import type { DesktopTerminalProjectionLease } from '../terminal-projection-cont
 import type { FileTerminalArchiveStore } from './FileTerminalArchiveStore';
 import {
 	encodeTerminalArchive,
+	encodeTerminalArchiveForCaptureSizing,
+	MAX_TERMINAL_ARCHIVE_BYTES,
 	MAX_TERMINAL_ARCHIVE_ROWS,
 	type TerminalArchiveWrite,
 } from './terminal-archive-document';
@@ -132,6 +134,18 @@ export class TerminalArchiveCaptureService {
 			const viewport = await viewportEvent;
 			const viewportBytes = copyBytes(viewport.frame.bytes);
 			const rowWindows: Uint8Array[] = [];
+			const initialArchive = archiveWrite(
+				presentationId,
+				identity,
+				lease,
+				viewportBytes,
+				rowWindows,
+			);
+			const initialSizing = encodeTerminalArchiveForCaptureSizing(initialArchive);
+			if (!initialSizing.ok) throw new Error(initialSizing.detail);
+			let encodedByteLength = initialSizing.value.byteLength;
+			let retainedRows = finalFrame.rows;
+			let sourceStartRow = finalFrame.scrollbackRows;
 			let capturedHistoryRows = 0;
 			const availableHistoryRows = bigintToBoundedNumber(
 				finalFrame.scrollbackRows,
@@ -186,24 +200,46 @@ export class TerminalArchiveCaptureService {
 				const captured = await rowsEvent;
 				const capturedRows = captured.window.frame.rows;
 				if (capturedRows < 1 || capturedRows > rowCount) break;
-				const candidateWindows = [captured.bytes, ...rowWindows];
-				const candidate = archiveWrite(
-					presentationId,
-					identity,
-					lease,
-					viewportBytes,
-					candidateWindows,
-				);
-				if (!encodeTerminalArchive(candidate).ok) break;
-				rowWindows.unshift(captured.bytes);
+				if (
+					captured.window.totalRows !== totalRows ||
+					captured.window.frame.columns !== finalFrame.columns ||
+					captured.window.frame.cellPixelWidth !== finalFrame.cellPixelWidth ||
+					captured.window.frame.cellPixelHeight !== finalFrame.cellPixelHeight ||
+					captured.window.frame.themeRevision !== finalFrame.themeRevision
+				) {
+					break;
+				}
+				const nextRetainedRows = retainedRows + capturedRows;
+				const nextSourceStartRow = captured.window.frame.scrollbackRows;
+				// The payload, one chunk-length entry, and the two changing decimal header fields are
+				// the complete encoded-size delta; the digest remains a fixed 64-character value.
+				const candidateByteLength =
+					encodedByteLength +
+					captured.bytes.byteLength +
+					decimalDigitCount(captured.bytes.byteLength) +
+					(rowWindows.length === 0 ? 0 : 1) +
+					decimalDigitCount(nextRetainedRows) -
+					decimalDigitCount(retainedRows) +
+					decimalDigitCount(nextSourceStartRow) -
+					decimalDigitCount(sourceStartRow);
+				if (candidateByteLength > MAX_TERMINAL_ARCHIVE_BYTES) break;
+				rowWindows.push(captured.bytes);
+				encodedByteLength = candidateByteLength;
+				retainedRows = nextRetainedRows;
+				sourceStartRow = nextSourceStartRow;
 				capturedHistoryRows += capturedRows;
 				rowsRemaining -= capturedRows;
 				requestSequence += 1n;
 			}
 			if (controller.signal.aborted) throw new Error('Terminal archive capture timed out.');
-			await this.#store.put(
-				archiveWrite(presentationId, identity, lease, viewportBytes, rowWindows),
-			);
+			rowWindows.reverse();
+			const archive = archiveWrite(presentationId, identity, lease, viewportBytes, rowWindows);
+			const admission = encodeTerminalArchive(archive);
+			if (!admission.ok) throw new Error(admission.detail);
+			if (admission.value.byteLength !== encodedByteLength) {
+				throw new Error('Terminal archive capture byte accounting is inconsistent.');
+			}
+			await this.#store.put(archive);
 		} finally {
 			clearTimeout(timeout);
 			await lease?.dispose();
@@ -309,4 +345,8 @@ function copyBytes(value: ArrayBuffer | Uint8Array): Uint8Array {
 
 function bigintToBoundedNumber(value: bigint, maximum: number): number {
 	return value > BigInt(maximum) ? maximum : Number(value);
+}
+
+function decimalDigitCount(value: bigint | number): number {
+	return value.toString().length;
 }

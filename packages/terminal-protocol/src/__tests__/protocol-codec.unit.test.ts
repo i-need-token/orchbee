@@ -31,6 +31,7 @@ import {
 	UnderlineKind,
 } from '../frame';
 import { parseHostEpoch } from '../identifiers';
+import { decodeTerminalProjectionBuffer } from '../projection-buffer';
 import { ProtocolErrorCode } from '../protocol-result';
 import { decodeTerminalRowWindow, TerminalRowWindowDetail } from '../row-window';
 import { CURRENT_PROTOCOL_VERSION } from '../version';
@@ -50,6 +51,10 @@ const rowWindowFixtureUrl = new URL(
 );
 const malformedRowWindowFixtureUrl = new URL(
 	'../../fixtures/malformed-row-window-v0.0.2.json',
+	import.meta.url,
+);
+const packedProjectionConformanceFixtureUrl = new URL(
+	'../../fixtures/packed-projection-conformance-v0.0.2.json',
 	import.meta.url,
 );
 
@@ -85,6 +90,163 @@ const malformedCorpusSchema = z.strictObject({
 		}),
 	),
 });
+
+const canonicalBase64Schema = z
+	.string()
+	.min(4)
+	.refine(
+		(value) =>
+			/^(?:[A-Za-z\d+/]{4})*(?:[A-Za-z\d+/]{2}==|[A-Za-z\d+/]{3}=)?$/.test(value) &&
+			Buffer.from(value, 'base64').toString('base64') === value,
+		{ message: 'Expected non-empty canonical base64' },
+	);
+const corpusFailureSchema = z.strictObject({
+	code: z.enum(ProtocolErrorCode),
+	result: z.literal('failure'),
+});
+const projectionSuccessSchema = z.strictObject({
+	observations: z.strictObject({
+		ignoredOptionalFlags: z.number().int().min(0).max(0x7f),
+		kind: z.enum(TerminalFrameKind),
+		rowCount: z.number().int().min(0).max(4096),
+		rowIndices: z.array(z.number().int().min(0).max(4095)),
+	}),
+	result: z.literal('success'),
+});
+const rowWindowSuccessSchema = z.strictObject({
+	observations: z.strictObject({
+		detail: z.enum(TerminalRowWindowDetail),
+		ignoredOptionalFlags: z.number().int().min(0).max(0x7f),
+		rowCount: z.number().int().min(1).max(4096),
+	}),
+	result: z.literal('success'),
+});
+const projectionConformanceCaseNames = [
+	'obpb-width-out-of-range',
+	'obpb-row-flag-unknown',
+	'obpb-row-index-out-of-range',
+	'obpb-prompt-class-out-of-range',
+	'obpb-whole-string-invalid-utf8',
+	'obpb-grapheme-length-splits-scalar',
+	'obpb-grapheme-offset-null-nonnullable',
+	'obpb-color-out-of-range',
+	'obpb-style-flag-unknown',
+	'obpb-underline-kind-out-of-range',
+	'obpb-width-spacer-tail-without-head',
+	'obpb-row-ends-with-wide-cell',
+	'obpb-semantic-out-of-range',
+	'obpb-protected-out-of-range',
+	'obpb-adjacent-wrap-disagreement',
+	'obpb-interaction-unknown-required-flag',
+	'obpb-interaction-mouse-mode-conflict',
+	'obpb-sparse-delta-increasing-row-indices',
+	'obpb-sparse-delta-duplicate-row-indices',
+	'obpb-sparse-delta-descending-row-indices',
+	'obpb-optional-header-flag-01',
+	'obpb-optional-header-flags-7f',
+	'obpb-unknown-required-header-flag-80',
+] as const;
+const rowWindowConformanceCaseNames = [
+	'obrw-optional-header-flag-01',
+	'obrw-optional-header-flags-7f',
+	'obrw-unknown-required-header-flag-80',
+] as const;
+const packedProjectionConformanceCaseNames = [
+	...projectionConformanceCaseNames,
+	...rowWindowConformanceCaseNames,
+] as const;
+const packedProjectionCaseSchema = z.union([
+	z.strictObject({
+		bytesBase64: canonicalBase64Schema,
+		codec: z.literal('OBPB'),
+		expected: z.union([corpusFailureSchema, projectionSuccessSchema]),
+		name: z.enum(projectionConformanceCaseNames),
+		strictBoundary: z.literal('projection-buffer'),
+	}),
+	z.strictObject({
+		bytesBase64: canonicalBase64Schema,
+		codec: z.literal('OBRW'),
+		expected: z.union([corpusFailureSchema, rowWindowSuccessSchema]),
+		name: z.enum(rowWindowConformanceCaseNames),
+		strictBoundary: z.literal('row-window'),
+	}),
+]);
+const packedProjectionCorpusSchema = z
+	.strictObject({
+		cases: z.array(packedProjectionCaseSchema).length(26),
+		formatVersion: z.literal('0.0.2'),
+		schemaVersion: z.literal(1),
+	})
+	.superRefine((corpus, context) => {
+		const names = new Set<string>();
+		let projectionCases = 0;
+		let rowWindowCases = 0;
+		for (const [index, fixtureCase] of corpus.cases.entries()) {
+			if (names.has(fixtureCase.name)) {
+				context.addIssue({
+					code: 'custom',
+					message: `Duplicate conformance case name: ${fixtureCase.name}`,
+					path: ['cases', index, 'name'],
+				});
+			}
+			names.add(fixtureCase.name);
+			if (fixtureCase.codec === 'OBPB') projectionCases += 1;
+			else rowWindowCases += 1;
+		}
+		for (const requiredName of packedProjectionConformanceCaseNames) {
+			if (!names.has(requiredName)) {
+				context.addIssue({
+					code: 'custom',
+					message: `Missing conformance case: ${requiredName}`,
+					path: ['cases'],
+				});
+			}
+		}
+		if (projectionCases !== 23) {
+			context.addIssue({
+				code: 'custom',
+				message: `Expected 23 OBPB cases, received ${projectionCases}`,
+				path: ['cases'],
+			});
+		}
+		if (rowWindowCases !== 3) {
+			context.addIssue({
+				code: 'custom',
+				message: `Expected 3 OBRW cases, received ${rowWindowCases}`,
+				path: ['cases'],
+			});
+		}
+	});
+
+function projectionCorpusObservation(bytes: Uint8Array) {
+	const decoded = decodeTerminalProjectionBuffer(bytes);
+	if (!decoded.ok) return { code: decoded.code, result: 'failure' as const };
+	return {
+		observations: {
+			ignoredOptionalFlags: decoded.value.ignoredOptionalFlags,
+			kind: decoded.value.kind,
+			rowCount: decoded.value.rowData.indices.length,
+			rowIndices: [...decoded.value.rowData.indices],
+		},
+		result: 'success' as const,
+	};
+}
+
+function rowWindowCorpusObservation(bytes: Uint8Array) {
+	const decoded = decodeTerminalRowWindow(bytes);
+	if (!decoded.ok) return { code: decoded.code, result: 'failure' as const };
+	return {
+		observations: {
+			detail: decoded.value.detail,
+			ignoredOptionalFlags: decoded.value.ignoredOptionalFlags,
+			rowCount:
+				decoded.value.detail === TerminalRowWindowDetail.render
+					? decoded.value.frame.rows
+					: decoded.value.rows.length,
+		},
+		result: 'success' as const,
+	};
+}
 
 async function fixtureBytes(url: URL): Promise<Uint8Array> {
 	return new Uint8Array(await readFile(url));
@@ -490,5 +652,94 @@ describe('terminal row-window codec', () => {
 		expect(decodeTerminalRowWindow(differentPatch)).toEqual(
 			expect.objectContaining({ code: ProtocolErrorCode.unsupportedVersion, ok: false }),
 		);
+	});
+});
+
+describe('packed projection cross-language corpus', () => {
+	it('rejects malformed case identity, routing, bytes, outcomes, observations, and inventory', async () => {
+		const raw = await readFile(packedProjectionConformanceFixtureUrl, 'utf8');
+		const corpus = packedProjectionCorpusSchema.parse(JSON.parse(raw));
+		const first = corpus.cases[0];
+		const second = corpus.cases[1];
+		const successCase = corpus.cases.find(
+			(fixtureCase) => fixtureCase.codec === 'OBPB' && fixtureCase.expected.result === 'success',
+		);
+		if (
+			first === undefined ||
+			second === undefined ||
+			first.codec !== second.codec ||
+			successCase === undefined ||
+			successCase.codec !== 'OBPB' ||
+			successCase.expected.result !== 'success'
+		) {
+			throw new Error('Packed projection schema fixture is incomplete');
+		}
+		const replaceFirst = (replacement: unknown) => ({
+			...corpus,
+			cases: [replacement, ...corpus.cases.slice(1)],
+		});
+		const malformedSuccess = {
+			...successCase,
+			expected: {
+				observations: {
+					ignoredOptionalFlags: successCase.expected.observations.ignoredOptionalFlags,
+					kind: successCase.expected.observations.kind,
+					rowCount: successCase.expected.observations.rowCount,
+				},
+				result: 'success',
+			},
+		};
+		const corruptions = [
+			{ name: 'name', value: replaceFirst({ ...first, name: 'OBPB invalid name' }) },
+			{
+				name: 'unknown well-formed case',
+				value: replaceFirst({ ...first, name: 'obpb-unrecognized-but-valid' }),
+			},
+			{ name: 'duplicate case', value: replaceFirst({ ...first, name: second.name }) },
+			{ name: 'codec', value: replaceFirst({ ...first, codec: 'OBPX' }) },
+			{ name: 'base64', value: replaceFirst({ ...first, bytesBase64: '***' }) },
+			{
+				name: 'outcome',
+				value: replaceFirst({ ...first, expected: { result: 'ignored' } }),
+			},
+			{
+				name: 'success observations',
+				value: {
+					...corpus,
+					cases: corpus.cases.map((fixtureCase) =>
+						fixtureCase.name === successCase.name ? malformedSuccess : fixtureCase,
+					),
+				},
+			},
+			{ name: 'missing case', value: { ...corpus, cases: corpus.cases.slice(1) } },
+		];
+		for (const corruption of corruptions) {
+			expect({
+				name: corruption.name,
+				success: packedProjectionCorpusSchema.safeParse(corruption.value).success,
+			}).toEqual({ name: corruption.name, success: false });
+		}
+		expect(
+			packedProjectionCorpusSchema.safeParse({
+				...corpus,
+				cases: [...corpus.cases.slice(1), first],
+			}).success,
+		).toBe(true);
+	});
+
+	it('consumes every authored OBPB and OBRW case through its strict TypeScript decoder', async () => {
+		const raw = await readFile(packedProjectionConformanceFixtureUrl, 'utf8');
+		const corpus = packedProjectionCorpusSchema.parse(JSON.parse(raw));
+		for (const fixtureCase of corpus.cases) {
+			const bytes = new Uint8Array(Buffer.from(fixtureCase.bytesBase64, 'base64'));
+			const observed =
+				fixtureCase.codec === 'OBPB'
+					? projectionCorpusObservation(bytes)
+					: rowWindowCorpusObservation(bytes);
+			expect({ name: fixtureCase.name, observed }).toEqual({
+				name: fixtureCase.name,
+				observed: fixtureCase.expected,
+			});
+		}
 	});
 });

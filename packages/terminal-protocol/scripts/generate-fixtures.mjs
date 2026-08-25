@@ -50,6 +50,7 @@ import {
 	TerminalIdentitySchema,
 	TerminalListSchema,
 	TERMINAL_PROJECTION_BUFFER_FORMAT,
+	TerminalProjectionSection,
 	TERMINAL_ROW_WINDOW_FORMAT,
 	TerminalStartAcceptedSchema,
 	TerminalStartedSchema,
@@ -96,6 +97,10 @@ const rowWindowPath = path.join(fixturesDirectory, `terminal-row-window-v${rowWi
 const malformedRowWindowPath = path.join(
 	fixturesDirectory,
 	`malformed-row-window-v${rowWindowVersion}.json`,
+);
+const packedProjectionConformancePath = path.join(
+	fixturesDirectory,
+	`packed-projection-conformance-v${projectionVersion}.json`,
 );
 const checkOnly = process.argv.includes('--check');
 
@@ -1255,6 +1260,317 @@ function malformedRowWindowCorpus(rowWindowBytes) {
 	];
 }
 
+function projectionSectionOffset(bytes, section) {
+	return new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength).getUint32(
+		160 + section * 8,
+		true,
+	);
+}
+
+function mutatedBytes(source, offset, replacement) {
+	const bytes = source.slice();
+	bytes.set(replacement, offset);
+	return bytes;
+}
+
+function packedProjectionFailureCase({ bytes, code, codec, name, strictBoundary }) {
+	return {
+		bytesBase64: Buffer.from(bytes).toString('base64'),
+		codec,
+		expected: { code, result: 'failure' },
+		name,
+		strictBoundary,
+	};
+}
+
+function packedProjectionSuccessCase({ bytes, codec, name, observations, strictBoundary }) {
+	return {
+		bytesBase64: Buffer.from(bytes).toString('base64'),
+		codec,
+		expected: { observations, result: 'success' },
+		name,
+		strictBoundary,
+	};
+}
+
+function packedProjectionConformanceCorpus(projectionBytes, rowWindowBytes, canonicalFrame) {
+	const width = projectionSectionOffset(projectionBytes, TerminalProjectionSection.widths);
+	const rowFlags = projectionSectionOffset(projectionBytes, TerminalProjectionSection.rowFlags);
+	const rowIndices = projectionSectionOffset(projectionBytes, TerminalProjectionSection.rowIndices);
+	const prompt = projectionSectionOffset(
+		projectionBytes,
+		TerminalProjectionSection.rowPromptClasses,
+	);
+	const stringSection = projectionSectionOffset(
+		projectionBytes,
+		TerminalProjectionSection.stringBytes,
+	);
+	const graphemeLengths = projectionSectionOffset(
+		projectionBytes,
+		TerminalProjectionSection.graphemeLengths,
+	);
+	const graphemeOffsets = projectionSectionOffset(
+		projectionBytes,
+		TerminalProjectionSection.graphemeOffsets,
+	);
+	const foreground = projectionSectionOffset(
+		projectionBytes,
+		TerminalProjectionSection.foregroundColors,
+	);
+	const styleFlags = projectionSectionOffset(projectionBytes, TerminalProjectionSection.styleFlags);
+	const underlineKinds = projectionSectionOffset(
+		projectionBytes,
+		TerminalProjectionSection.underlineKinds,
+	);
+	const semantic = projectionSectionOffset(
+		projectionBytes,
+		TerminalProjectionSection.semanticContents,
+	);
+	const protectedCells = projectionSectionOffset(
+		projectionBytes,
+		TerminalProjectionSection.protectedCells,
+	);
+	const projectionMutations = [
+		{
+			bytes: [0xff],
+			code: 'invalid-field',
+			name: 'obpb-width-out-of-range',
+			offset: width,
+		},
+		{
+			bytes: [0x05],
+			code: 'unknown-required-flag',
+			name: 'obpb-row-flag-unknown',
+			offset: rowFlags,
+		},
+		{
+			bytes: [0x02, 0x00],
+			code: 'invalid-field',
+			name: 'obpb-row-index-out-of-range',
+			offset: rowIndices + 2,
+		},
+		{
+			bytes: [0x03],
+			code: 'invalid-field',
+			name: 'obpb-prompt-class-out-of-range',
+			offset: prompt,
+		},
+		{
+			bytes: [0xff],
+			code: 'invalid-utf8',
+			name: 'obpb-whole-string-invalid-utf8',
+			offset: stringSection + 25,
+		},
+		{
+			bytes: [0x02, 0x00],
+			code: 'invalid-utf8',
+			name: 'obpb-grapheme-length-splits-scalar',
+			offset: graphemeLengths,
+		},
+		{
+			bytes: [0xff, 0xff, 0xff, 0xff],
+			code: 'invalid-field',
+			name: 'obpb-grapheme-offset-null-nonnullable',
+			offset: graphemeOffsets,
+		},
+		{
+			bytes: [0x00, 0x00, 0x00, 0x04],
+			code: 'invalid-field',
+			name: 'obpb-color-out-of-range',
+			offset: foreground,
+		},
+		{
+			bytes: [0x00, 0x01],
+			code: 'unknown-required-flag',
+			name: 'obpb-style-flag-unknown',
+			offset: styleFlags,
+		},
+		{
+			bytes: [0x06],
+			code: 'invalid-field',
+			name: 'obpb-underline-kind-out-of-range',
+			offset: underlineKinds,
+		},
+		{
+			bytes: [0x02],
+			code: 'invalid-field',
+			name: 'obpb-width-spacer-tail-without-head',
+			offset: width,
+		},
+		{
+			bytes: [0x01],
+			code: 'invalid-field',
+			name: 'obpb-row-ends-with-wide-cell',
+			offset: width + 5,
+		},
+		{
+			bytes: [0x03],
+			code: 'invalid-field',
+			name: 'obpb-semantic-out-of-range',
+			offset: semantic,
+		},
+		{
+			bytes: [0x02],
+			code: 'invalid-field',
+			name: 'obpb-protected-out-of-range',
+			offset: protectedCells,
+		},
+		{
+			bytes: [0x00],
+			code: 'invalid-field',
+			name: 'obpb-adjacent-wrap-disagreement',
+			offset: rowFlags + 1,
+		},
+		{
+			bytes: [0x8d, 0x62, 0x04, 0x00],
+			code: 'unknown-required-flag',
+			name: 'obpb-interaction-unknown-required-flag',
+			offset: 108,
+		},
+		{
+			bytes: [0x9d, 0x62, 0x00, 0x00],
+			code: 'invalid-field',
+			name: 'obpb-interaction-mouse-mode-conflict',
+			offset: 108,
+		},
+	];
+	const cases = projectionMutations.map((mutation) =>
+		packedProjectionFailureCase({
+			bytes: mutatedBytes(projectionBytes, mutation.offset, mutation.bytes),
+			code: mutation.code,
+			codec: 'OBPB',
+			name: mutation.name,
+			strictBoundary: 'projection-buffer',
+		}),
+	);
+
+	const sparseFrame = frameFromJson(canonicalFrame);
+	if (sparseFrame.rowData.length !== 2) {
+		throw new Error('Sparse projection conformance source must contain exactly two rows');
+	}
+	const sparseProjectionBytes = encodeOrThrow(
+		encodeTerminalProjectionBuffer({
+			...sparseFrame,
+			extensions: [],
+			rowData: sparseFrame.rowData.map((row, index) => ({
+				...row,
+				index: index === 0 ? 0 : 2,
+			})),
+			rows: 3,
+		}),
+		'sparse terminal projection buffer',
+	);
+	const sparseRowIndices = projectionSectionOffset(
+		sparseProjectionBytes,
+		TerminalProjectionSection.rowIndices,
+	);
+	cases.push(
+		packedProjectionSuccessCase({
+			bytes: sparseProjectionBytes,
+			codec: 'OBPB',
+			name: 'obpb-sparse-delta-increasing-row-indices',
+			observations: {
+				ignoredOptionalFlags: 0,
+				kind: 'delta',
+				rowCount: 2,
+				rowIndices: [0, 2],
+			},
+			strictBoundary: 'projection-buffer',
+		}),
+		packedProjectionFailureCase({
+			bytes: mutatedBytes(sparseProjectionBytes, sparseRowIndices + 2, [0x00, 0x00]),
+			code: 'invalid-field',
+			codec: 'OBPB',
+			name: 'obpb-sparse-delta-duplicate-row-indices',
+			strictBoundary: 'projection-buffer',
+		}),
+		packedProjectionFailureCase({
+			bytes: mutatedBytes(sparseProjectionBytes, sparseRowIndices, [0x02, 0x00, 0x00, 0x00]),
+			code: 'invalid-field',
+			codec: 'OBPB',
+			name: 'obpb-sparse-delta-descending-row-indices',
+			strictBoundary: 'projection-buffer',
+		}),
+	);
+
+	for (const [flag, name] of [
+		[0x01, 'obpb-optional-header-flag-01'],
+		[0x7f, 'obpb-optional-header-flags-7f'],
+	]) {
+		cases.push(
+			packedProjectionSuccessCase({
+				bytes: mutatedBytes(projectionBytes, 7, [flag]),
+				codec: 'OBPB',
+				name,
+				observations: {
+					ignoredOptionalFlags: flag,
+					kind: 'delta',
+					rowCount: 2,
+					rowIndices: [0, 1],
+				},
+				strictBoundary: 'projection-buffer',
+			}),
+		);
+	}
+	cases.push(
+		packedProjectionFailureCase({
+			bytes: mutatedBytes(projectionBytes, 7, [0x80]),
+			code: 'unknown-required-flag',
+			codec: 'OBPB',
+			name: 'obpb-unknown-required-header-flag-80',
+			strictBoundary: 'projection-buffer',
+		}),
+	);
+
+	for (const [flag, name] of [
+		[0x01, 'obrw-optional-header-flag-01'],
+		[0x7f, 'obrw-optional-header-flags-7f'],
+	]) {
+		cases.push(
+			packedProjectionSuccessCase({
+				bytes: mutatedBytes(rowWindowBytes, 7, [flag]),
+				codec: 'OBRW',
+				name,
+				observations: {
+					detail: 'text',
+					ignoredOptionalFlags: flag,
+					rowCount: 2,
+				},
+				strictBoundary: 'row-window',
+			}),
+		);
+	}
+	cases.push(
+		packedProjectionFailureCase({
+			bytes: mutatedBytes(rowWindowBytes, 7, [0x80]),
+			code: 'unknown-required-flag',
+			codec: 'OBRW',
+			name: 'obrw-unknown-required-header-flag-80',
+			strictBoundary: 'row-window',
+		}),
+	);
+
+	return { cases, formatVersion: projectionVersion, schemaVersion: 1 };
+}
+
+function stringifyPackedProjectionConformance(corpus) {
+	const rowIndexArrays = [];
+	let text = JSON.stringify(
+		corpus,
+		(key, value) => {
+			if (key !== 'rowIndices') return value;
+			const marker = `__ORCHBEE_ROW_INDICES_${rowIndexArrays.length}__`;
+			rowIndexArrays.push({ marker, values: value });
+			return marker;
+		},
+		'\t',
+	);
+	for (const rowIndices of rowIndexArrays) {
+		text = text.replace(`"${rowIndices.marker}"`, `[${rowIndices.values.join(', ')}]`);
+	}
+	return `${text}\n`;
+}
+
 async function compareFile(filePath, expected) {
 	let actual;
 	try {
@@ -1337,6 +1653,11 @@ const malformedBytes = new TextEncoder().encode(
 const malformedRowWindowBytes = new TextEncoder().encode(
 	`${JSON.stringify({ cases: malformedRowWindowCorpus(rowWindowBytes) }, null, '\t')}\n`,
 );
+const packedProjectionConformanceBytes = new TextEncoder().encode(
+	stringifyPackedProjectionConformance(
+		packedProjectionConformanceCorpus(projectionBytes, rowWindowBytes, canonical.frame),
+	),
+);
 
 if (checkOnly) {
 	await compareFile(framePath, frameBytes);
@@ -1354,6 +1675,7 @@ if (checkOnly) {
 	await compareFile(malformedPath, malformedBytes);
 	await compareFile(rowWindowPath, rowWindowBytes);
 	await compareFile(malformedRowWindowPath, malformedRowWindowBytes);
+	await compareFile(packedProjectionConformancePath, packedProjectionConformanceBytes);
 } else {
 	await writeFile(framePath, frameBytes);
 	await writeFile(projectionPath, projectionBytes);
@@ -1370,4 +1692,5 @@ if (checkOnly) {
 	await writeFile(malformedPath, malformedBytes);
 	await writeFile(rowWindowPath, rowWindowBytes);
 	await writeFile(malformedRowWindowPath, malformedRowWindowBytes);
+	await writeFile(packedProjectionConformancePath, packedProjectionConformanceBytes);
 }

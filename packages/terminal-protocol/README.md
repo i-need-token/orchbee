@@ -106,6 +106,7 @@ The package explicitly exports:
 - `@orchbee/terminal-protocol/fixtures/control-conformance-v0.0.19.json`
 - `@orchbee/terminal-protocol/fixtures/malformed-frame-v0.0.3.json`
 - `@orchbee/terminal-protocol/fixtures/malformed-row-window-v0.0.2.json`
+- `@orchbee/terminal-protocol/fixtures/packed-projection-conformance-v0.0.2.json`
 - `@orchbee/terminal-protocol/fixtures/terminal-frame-v0.0.3.bin`
 - `@orchbee/terminal-protocol/fixtures/terminal-failed-v0.0.19.json`
 - `@orchbee/terminal-protocol/fixtures/terminal-projection-buffer-v0.0.2.bin`
@@ -118,25 +119,32 @@ The package explicitly exports:
 - `@orchbee/terminal-protocol/fixtures/focus-input-v0.0.19.bin`
 - `@orchbee/terminal-protocol/fixtures/paste-input-v0.0.19.bin`
 - `@orchbee/terminal-protocol/fixtures/ghostty-alternate-surface-v0.0.3.bin`
+- `@orchbee/terminal-protocol/fixtures/ghostty-render-row-window-v0.0.2.bin`
 - `@orchbee/terminal-protocol/fixtures/ghostty-surface-v0.0.3.bin`
 
-`canonical.json` is only the language-neutral generator input for the current binary formats, so it has no compatibility version. `control-conformance-v0.0.19.json` contains schema-produced command, reply, event, discriminated-union, failure, and complete kind/role/encoding/success-response contracts consumed by the native typed adapter. `fixtures:generate` uses the built TypeScript codecs and schemas to produce those tracked records, the canonical `TerminalFailed` control record, the current OBTF format-`0.0.3` fixture, and the current OBPB and OBRW format-`0.0.2` fixtures, plus the frame and row-window malformed corpora. Unit tests reject stale generated files, and `apps/terminal-host` resolves only these declared package exports before running the Zig validator against the same bytes. Every compatibility fixture carries the exact semantic version of its owning wire protocol or binary format; no wildcard or major-only fixture name is used.
+`canonical.json` is only the language-neutral generator input for the current binary formats, so it has no compatibility version. `control-conformance-v0.0.19.json` contains schema-produced command, reply, event, discriminated-union, failure, and complete kind/role/encoding/success-response contracts consumed by the native typed adapter. `fixtures:generate` uses the built TypeScript codecs and schemas to produce those tracked records, the canonical `TerminalFailed` control record, the current OBTF format-`0.0.3` fixture, the current OBPB and OBRW format-`0.0.2` fixtures, their strict conformance corpus, and the frame and row-window malformed corpora. `test:fixtures` rejects every missing or byte-stale generated output. Every compatibility fixture carries the exact semantic version of its owning wire protocol or binary format; no wildcard or major-only fixture name is used.
+
+`packed-projection-conformance-v0.0.2.json` is the language-neutral strict-boundary oracle for OBPB and OBRW format `0.0.2`. Each named case stores complete canonical bytes, its owning strict boundary, and a contract-authored outcome; accepted cases also store all observations required by the corpus schema. Neither decoder generates the expected result. The TypeScript strict decoders consume every case, while `apps/terminal-host` resolves the declared package export, passes the bounded JSON bytes into Zig conformance, and runs every case through the matching native strict validator.
 
 `TerminalProfile` carries explicit `defaultCursorShape` and `defaultCursorBlinking` values. Missing
 fields normalize to `block` and `false` so previously persisted profile objects retain the product
 default, while current encoders always emit both fields. Runtime escape sequences may override the
 active cursor; Terminal Host owns applying these profile defaults again on RIS or application reset.
 
-`ghostty-surface-v0.0.3.bin` and `ghostty-alternate-surface-v0.0.3.bin` are the exceptions to
-TypeScript fixture generation: Terminal Host produces both from one pinned native Ghostty VT and
-its real projection encoder. Host conformance regenerates and byte-compares the pair, while
-`@orchbee/terminal` consumes the primary snapshot through both renderer backends and commits the
-two snapshots in sequence through the packed store. The primary cells cover grapheme/width/wrap,
-OSC 8, OSC 133 prompt/input/output boundaries, OSC 4/10/11/12 palette and dynamic colors, cursor
-color, style flags, explicit colors, and underline variants. The pair additionally covers atomic
-title, current-directory, active-screen, cursor, interaction-mode, generation, and row replacement.
-The protocol package owns only the stable OBTF bytes and exports; Host and renderer records own the
-semantic assertions.
+`ghostty-surface-v0.0.3.bin`, `ghostty-alternate-surface-v0.0.3.bin`, and
+`ghostty-render-row-window-v0.0.2.bin` are the exceptions to TypeScript fixture generation. Terminal
+Host produces the OBTF pair from one pinned native Ghostty VT and its real projection encoder; a
+separate native terminal replays the primary corpus, adds real DECSCA protected/unprotected cells,
+and produces the OBRW fixture through `row_encoding.encode` and
+`projection_buffer.encodeRenderSnapshot`. Host conformance regenerates and byte-compares all three.
+`@orchbee/terminal` consumes the OBTF pair through both renderer backends and the packed store, and
+consumes the OBRW bytes through the strict decoder, trusted structural view, and packed store. Its
+contract-authored 6x8 oracle checks every row and cell column, raw string range, decoded string,
+color, style flag, underline kind, width, semantic value, protected flag, and commit metadata;
+wire-valid semantic mutations prove that strict admission alone cannot satisfy that oracle. The
+protocol package owns the stable bytes and exports, Terminal Host owns native production, and the
+terminal package owns consumer semantics. This evidence does not grant VT, lifecycle, history, or
+trust-boundary authority to the protocol package.
 
 Live OBTF snapshots and deltas may carry optional extension kind `1`, whose one-byte payload reports
 close activity as `idle=1` or `active=2`. The producer omits the extension when the observation is
@@ -199,4 +207,7 @@ pnpm --filter @orchbee/terminal-host test:protocol
 pnpm verify
 ```
 
-Run `pnpm --filter @orchbee/terminal-protocol fixtures:generate` only after an intentional reviewed fixture change. `test:fixtures` compares the tracked files without rewriting them.
+Run `pnpm --filter @orchbee/terminal-protocol fixtures:generate` only after an intentional reviewed
+TypeScript-owned fixture change. For the three native surface fixtures, run
+`pnpm --filter @orchbee/terminal-host surface-fixtures:generate`. Their respective conformance
+checks compare tracked files without rewriting them.

@@ -62,8 +62,8 @@
 			"zhCnSha256": "40c911588ffde091443925ce4b4cc2d14455297cfeb9e69809add3643c689ec0"
 		},
 		"apps/terminal-host/README.md": {
-			"englishSha256": "d18306aa4c6b7ddd2635f00ffd0420e48a74b718d681a9d971b095dff020e659",
-			"zhCnSha256": "13b8d063a152bc6fca03bc8e1d210ef732c0b50cb764e63dd81ffceaf54d04ee"
+			"englishSha256": "a07dff8a9fad68750f61a809196f034ce270ed7b668c060b46e493fb9a20b620",
+			"zhCnSha256": "30d0aad53e141eb4deed2a900f350a2a25de0c7b556ac98f7bdb371b5d99e61f"
 		},
 		"apps/terminal-host/docs/module-boundaries.md": {
 			"englishSha256": "1cfac92604f727498c788a06f8b647d39ba40e6350aa60478a9e6026f1fae9b2",
@@ -246,24 +246,24 @@
 			"zhCnSha256": "e4ee56945df135b88c770c28d81bc7968742448ceabc43304ce8a5b8b771fa4d"
 		},
 		"packages/terminal-protocol/README.md": {
-			"englishSha256": "e5b18637776784fe509b54836e9af8d153f252f5ce4a8941ae92f2f5d8c48e6b",
-			"zhCnSha256": "c45b9afeb3d0e208b883b711a222781762cffeb62f60875f80b1d93c0dbbf9c6"
+			"englishSha256": "084bc8b6439b2c6904bd3a8d12cc86b0a709a57631a928e3580120a918fbcca2",
+			"zhCnSha256": "4d321df6dd66a36dc95e85eb7c3f44a4b94b6ef3e092cb11ea670b460ba60e56"
 		},
 		"packages/terminal-protocol/docs/version-history.md": {
 			"englishSha256": "734836c3ec5a518d98e4a16f4e1d2f2da17a2e3f524b41ed498768638cd2bc92",
 			"zhCnSha256": "75a4f2aee9613db980b5356a1a455d49abcecbfe4764b3069402c2eed432f801"
 		},
 		"packages/terminal-protocol/references/protocol.md": {
-			"englishSha256": "e38e036846dc74465e463df5c15e1777b49d6977fbbc412f6860951e29accfb5",
-			"zhCnSha256": "b164074390234973011849763c7d4780d6c7dd7f899a8fe13b9281a30373e99b"
+			"englishSha256": "3f17a3bc2e14050ec0279759796a5d3543aea68b95d3098ecb30f96f8cf2fdc8",
+			"zhCnSha256": "402adb0fd032a2226f57cef28369c66524072ac9b459074357f995be2109463c"
 		},
 		"packages/terminal/README.md": {
 			"englishSha256": "ff9b0383bb56eaa2bfc16056f519cf0862792bb7f81db029babaa647707f1ca5",
 			"zhCnSha256": "d4b542772175b703da30e82c934401e577749226e0f0aa678c96575ec6c4fd61"
 		},
 		"packages/terminal/docs/ghostty-surface-test-provenance.md": {
-			"englishSha256": "7b0b9ed0fb1eda3f2a0f3677c96d48e26d23d158da2ad82605eece49f31e9ea6",
-			"zhCnSha256": "7fd08b172b06827f339c86a33d3ec127628bb9998bfe22f3beafa89cd64458da"
+			"englishSha256": "3fb97c150c1d2e1a602d7e5a175636ccf82e05f77bab48660576d069569e7fa1",
+			"zhCnSha256": "93cc52e1773bcd8bba8a7c31d4236a390dd98235c7cdef97c010af4bd5ecba7c"
 		},
 		"packages/terminal/docs/vscode-search-alignment.md": {
 			"englishSha256": "4dadba59dabc92a0a00ff5a81fc8505923b22b63ee4eb0986277cd9454bd4b74",

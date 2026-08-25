@@ -1,4 +1,5 @@
 const std = @import("std");
+const target_builtin = @import("builtin");
 
 const protocol = @import("terminal-protocol");
 const render_encoding = @import("../render_encoding.zig");
@@ -11,6 +12,7 @@ const no_string_index = render_encoding.no_string_index;
 const no_base_revision = render_encoding.no_base_revision;
 const color_default = render_encoding.color_default;
 const LimitedWriter = render_encoding.LimitedWriter;
+const LinkStringMap = render_encoding.LinkStringMap;
 const StringTable = render_encoding.StringTable;
 const StyleTable = render_encoding.StyleTable;
 const cellGrapheme = render_encoding.cellGrapheme;
@@ -55,6 +57,17 @@ pub fn encodeOwned(
 
     var strings = StringTable.init(self.allocator);
     defer strings.deinit();
+    var frame_links = try LinkStringMap.init(
+        self.allocator,
+        self.link_table.values.items.len,
+    );
+    defer frame_links.deinit();
+    defer {
+        if (comptime target_builtin.is_test) {
+            self.testing_state.frame_link_resolutions +=
+                frame_links.testingResolutionCount();
+        }
+    }
     var styles = StyleTable.init(self.allocator);
     defer styles.deinit();
     const title_index = try strings.addOptional(self.captured_title);
@@ -75,8 +88,10 @@ pub fn encodeOwned(
                 &grapheme_buffer,
             );
             _ = try strings.add(grapheme);
-            const hyperlink_index = try strings.addOptional(
-                self.links.items[row_index].uri(column, &self.link_table),
+            const hyperlink_index = try frame_links.resolve(
+                self.links.items[row_index].linkIndex(column),
+                self.link_table.values.items,
+                &strings,
             );
             const style = styleRecord(
                 cells.items(.raw)[column],
@@ -181,8 +196,8 @@ pub fn encodeOwned(
                 &grapheme_buffer,
             );
             const grapheme_index = strings.indexOf(grapheme).?;
-            const hyperlink_index = strings.indexOfOptional(
-                self.links.items[row_index].uri(column, &self.link_table),
+            const hyperlink_index = frame_links.mapped(
+                self.links.items[row_index].linkIndex(column),
             );
             const style = styleRecord(
                 cells.items(.raw)[column],

@@ -1,4 +1,9 @@
-import { checkedAdd, checkedMultiply } from './binary';
+import {
+	checkedAdd,
+	checkedMultiply,
+	copyBytesToFixedArrayBuffer,
+	isSharedArrayBuffer,
+} from './binary';
 import {
 	IDENTIFIER_BYTE_LENGTH,
 	identifierBytes,
@@ -83,7 +88,7 @@ const ProjectionStringRangeStatus = {
 	limitExceeded: 2,
 	valid: 0,
 } as const;
-const textDecoder = new TextDecoder('utf-8', { fatal: true });
+const textDecoder = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
 const textEncoder = new TextEncoder();
 
 interface ProjectionLayout {
@@ -95,6 +100,25 @@ interface ProjectionLayout {
 interface EncodedProjectionString {
 	readonly length: number;
 	readonly offset: number;
+}
+
+interface CanonicalProjectionHyperlink {
+	readonly bytes: Uint8Array;
+	readonly firstCellOffset: number;
+	readonly range: EncodedProjectionString;
+}
+
+interface PreparedProjectionHyperlink {
+	readonly byteValueKey: string;
+	readonly canonical: CanonicalProjectionHyperlink;
+}
+
+function projectionByteValueKey(bytes: Uint8Array): string {
+	const chunks: string[] = [];
+	for (let offset = 0; offset < bytes.byteLength; offset += 4_096) {
+		chunks.push(String.fromCharCode(...bytes.subarray(offset, offset + 4_096)));
+	}
+	return chunks.join('');
 }
 
 export interface DecodedTerminalProjectionCells {
@@ -163,6 +187,25 @@ export interface TerminalProjectionFrameMaterialization {
 	readonly scrollbackRows: bigint;
 	readonly sequence: bigint;
 	readonly sourceStartRow: bigint;
+}
+
+interface PreparedProjectionMaterializationString {
+	decoded: ProtocolResult<string | null> | null;
+	readonly length: number;
+	readonly offset: number;
+}
+
+interface ProjectionMaterializationStringCache {
+	logicalByteLength: number;
+	readonly rangesBySource: WeakMap<
+		Uint8Array,
+		Map<number, PreparedProjectionMaterializationString>
+	>;
+}
+
+interface PreparedProjectionMaterialization {
+	readonly indexedSources: readonly (DecodedTerminalProjectionBuffer | undefined)[];
+	readonly stringCache: ProjectionMaterializationStringCache;
 }
 
 function align(value: number, alignment: number): ProtocolResult<number> {
@@ -366,10 +409,6 @@ function sectionView<Column extends Uint8Array | Uint16Array | Uint32Array>(
 	);
 }
 
-function isSharedMemory(buffer: ArrayBufferLike): boolean {
-	return typeof SharedArrayBuffer === 'function' && buffer instanceof SharedArrayBuffer;
-}
-
 export function encodeTerminalProjectionBuffer(value: unknown): ProtocolResult<Uint8Array> {
 	return encodeTerminalProjectionBufferWithin(value, PROTOCOL_LIMITS.maxFrameBytes);
 }
@@ -407,12 +446,14 @@ export function encodeTerminalProjectionBufferWithin(
 	if (!fixedLayout.ok) return fixedLayout;
 	const maximumStringBytes = maximumBytes - fixedLayout.value.totalLength;
 	let stringByteLength = 0;
-	const accountString = (text: string | null): boolean => {
-		if (text === null) return true;
-		const byteLength = utf8ByteLength(text);
+	const accountByteLength = (byteLength: number): boolean => {
 		if (byteLength > maximumStringBytes - stringByteLength) return false;
 		stringByteLength += byteLength;
 		return true;
+	};
+	const accountString = (text: string | null): boolean => {
+		if (text === null) return true;
+		return accountByteLength(utf8ByteLength(text));
 	};
 	if (!accountString(frame.title) || !accountString(frame.currentDirectory)) {
 		return protocolFailure(
@@ -420,18 +461,52 @@ export function encodeTerminalProjectionBufferWithin(
 			'Projection string section exceeds its byte limit',
 		);
 	}
+	const cellHyperlinks: Array<CanonicalProjectionHyperlink | null> = [];
+	const preparedHyperlinksByStyle = new Map<number, PreparedProjectionHyperlink | null>();
+	const hyperlinksByByteValue = new Map<string, CanonicalProjectionHyperlink>();
 	for (const row of frame.rowData) {
 		for (const cell of row.cells) {
 			const style = frame.styles[cell.style];
 			if (style === undefined) {
 				return protocolFailure(ProtocolErrorCode.invalidField, 'Projection cell style is missing');
 			}
-			if (!accountString(cell.grapheme) || !accountString(style.hyperlink)) {
+			if (!accountString(cell.grapheme)) {
 				return protocolFailure(
 					ProtocolErrorCode.limitExceeded,
 					'Projection string section exceeds its byte limit',
 				);
 			}
+			let preparedHyperlink = preparedHyperlinksByStyle.get(cell.style);
+			if (!preparedHyperlinksByStyle.has(cell.style)) {
+				preparedHyperlink = null;
+				if (style.hyperlink !== null) {
+					const hyperlinkBytes = textEncoder.encode(style.hyperlink);
+					const byteValueKey = projectionByteValueKey(hyperlinkBytes);
+					let canonical = hyperlinksByByteValue.get(byteValueKey);
+					if (canonical === undefined) {
+						const offset = stringByteLength;
+						if (!accountByteLength(hyperlinkBytes.byteLength)) {
+							return protocolFailure(
+								ProtocolErrorCode.limitExceeded,
+								'Projection string section exceeds its byte limit',
+							);
+						}
+						canonical = {
+							bytes: hyperlinkBytes,
+							firstCellOffset: cellHyperlinks.length,
+							range: { length: hyperlinkBytes.byteLength, offset },
+						};
+						hyperlinksByByteValue.set(byteValueKey, canonical);
+					}
+					preparedHyperlink = { byteValueKey, canonical };
+				}
+				preparedHyperlinksByStyle.set(cell.style, preparedHyperlink);
+			}
+			if (preparedHyperlink === null || preparedHyperlink === undefined) {
+				cellHyperlinks.push(null);
+				continue;
+			}
+			cellHyperlinks.push(preparedHyperlink.canonical);
 		}
 	}
 	const layout = calculateLayout(frame.rowData.length, cellCount, stringByteLength, maximumBytes);
@@ -555,12 +630,28 @@ export function encodeTerminalProjectionBufferWithin(
 				return protocolFailure(ProtocolErrorCode.invalidField, 'Projection cell style is missing');
 			}
 			const grapheme = appendString(cell.grapheme);
-			const hyperlink = appendString(style.hyperlink);
-			if (grapheme === null || hyperlink === null) {
+			const preparedHyperlink = cellHyperlinks[cellOffset];
+			if (grapheme === null || preparedHyperlink === undefined) {
 				return protocolFailure(
 					ProtocolErrorCode.invalidField,
 					'Projection cell string encoding is inconsistent',
 				);
+			}
+			let hyperlink: EncodedProjectionString;
+			if (preparedHyperlink === null) {
+				hyperlink = { length: 0, offset: MAX_UINT32 };
+			} else {
+				if (preparedHyperlink.firstCellOffset === cellOffset) {
+					if (stringOffset !== preparedHyperlink.range.offset) {
+						return protocolFailure(
+							ProtocolErrorCode.invalidField,
+							'Projection hyperlink encoding is inconsistent',
+						);
+					}
+					stringBytes.set(preparedHyperlink.bytes, stringOffset);
+					stringOffset += preparedHyperlink.bytes.byteLength;
+				}
+				hyperlink = preparedHyperlink.range;
 			}
 			graphemeOffsets[cellOffset] = grapheme.offset;
 			graphemeLengths[cellOffset] = grapheme.length;
@@ -575,6 +666,12 @@ export function encodeTerminalProjectionBufferWithin(
 			semanticContents[cellOffset] = semanticCode(cell.semanticContent);
 			protectedCells[cellOffset] = cell.protected ? 1 : 0;
 		}
+	}
+	if (stringOffset !== stringByteLength) {
+		return protocolFailure(
+			ProtocolErrorCode.invalidField,
+			'Projection string encoding is inconsistent',
+		);
 	}
 	bytes.set(TERMINAL_PROJECTION_BUFFER_MAGIC, 0);
 	view.setUint8(4, TERMINAL_PROJECTION_BUFFER_FORMAT.major);
@@ -655,7 +752,7 @@ function decodeMetadataString(
 export function viewTerminalProjectionBuffer(
 	bytes: Uint8Array,
 ): ProtocolResult<DecodedTerminalProjectionBuffer> {
-	if (isSharedMemory(bytes.buffer)) {
+	if (isSharedArrayBuffer(bytes.buffer)) {
 		return protocolFailure(
 			ProtocolErrorCode.invalidField,
 			'Trusted projection views do not accept shared memory',
@@ -731,11 +828,16 @@ export function viewTerminalProjectionBuffer(
 			'Projection buffer contains a reserved or required flag',
 		);
 	}
+	const gridCellCount = checkedMultiply(columns, rows);
+	if (!gridCellCount.ok) {
+		return protocolFailure(ProtocolErrorCode.invalidField, 'Projection buffer shape is invalid');
+	}
 	if (
 		columns === 0 ||
 		columns > PROTOCOL_LIMITS.maxFrameColumns ||
 		rows === 0 ||
 		rows > PROTOCOL_LIMITS.maxFrameRows ||
+		gridCellCount.value > PROTOCOL_LIMITS.maxFrameCells ||
 		rowCount > rows ||
 		cellCount !== rowCount * columns ||
 		cellCount > PROTOCOL_LIMITS.maxFrameCells ||
@@ -1002,6 +1104,48 @@ function projectionStringRangeFailure(
 	return protocolFailure(ProtocolErrorCode.invalidField, `${field} validation failed`);
 }
 
+function projectionStringRangeKey(offset: number, length: number): number {
+	// The complete u32/u16 tuple fits exactly below Number.MAX_SAFE_INTEGER.
+	return offset * (MAX_UINT16 + 1) + length;
+}
+
+function preflightProjectionStringRange(
+	cache: ProjectionMaterializationStringCache,
+	source: DecodedTerminalProjectionBuffer,
+	offset: number | undefined,
+	length: number | undefined,
+	nullable: boolean,
+	field: string,
+): ProtocolResult<undefined> {
+	if (offset === undefined || length === undefined) {
+		return protocolFailure(ProtocolErrorCode.invalidField, `${field} range is missing`);
+	}
+	let sourceRanges = cache.rangesBySource.get(source.stringBytes);
+	if (sourceRanges === undefined) {
+		sourceRanges = new Map();
+		cache.rangesBySource.set(source.stringBytes, sourceRanges);
+	}
+	const key = projectionStringRangeKey(offset, length);
+	if (sourceRanges.has(key) && (offset !== MAX_UINT32 || nullable)) {
+		return protocolSuccess(undefined);
+	}
+	const status = projectionStringRangeStatus(source.stringBytes, offset, length, nullable);
+	if (status !== ProjectionStringRangeStatus.valid) {
+		return projectionStringRangeFailure(status, field);
+	}
+	const logicalByteLength = checkedAdd(cache.logicalByteLength, length);
+	if (!logicalByteLength.ok) return logicalByteLength;
+	if (logicalByteLength.value > PROTOCOL_LIMITS.maxFrameBytes) {
+		return protocolFailure(
+			ProtocolErrorCode.limitExceeded,
+			'Projection materialization string ranges exceed the frame byte limit',
+		);
+	}
+	sourceRanges.set(key, { decoded: null, length, offset });
+	cache.logicalByteLength = logicalByteLength.value;
+	return protocolSuccess(undefined);
+}
+
 function isUtf8Boundary(bytes: Uint8Array, offset: number): boolean {
 	if (offset === 0 || offset === bytes.byteLength) return true;
 	const value = bytes[offset];
@@ -1018,6 +1162,123 @@ function validateProjectionStringSection(bytes: Uint8Array): ProtocolResult<unde
 	return protocolSuccess(undefined);
 }
 
+function nextUnassignedProjectionRow(successors: number[], row: number): number {
+	let root = row;
+	let parent = successors[root];
+	if (parent === undefined)
+		throw new Error('Projection materialization source index is incomplete');
+	while (parent !== root) {
+		root = parent;
+		parent = successors[root];
+		if (parent === undefined) {
+			throw new Error('Projection materialization source index is incomplete');
+		}
+	}
+	let current = row;
+	while (current !== root) {
+		const next = successors[current];
+		if (next === undefined) {
+			throw new Error('Projection materialization source index is incomplete');
+		}
+		successors[current] = root;
+		current = next;
+	}
+	return root;
+}
+
+function indexProjectionMaterializationSources(
+	sources: readonly DecodedTerminalProjectionBuffer[],
+	sourceStartRow: bigint,
+	rowCount: number,
+): readonly (DecodedTerminalProjectionBuffer | undefined)[] {
+	const indexedSources: Array<DecodedTerminalProjectionBuffer | undefined> = Array.from(
+		{ length: rowCount },
+		() => undefined,
+	);
+	const successors = Array.from({ length: rowCount + 1 }, (_, index) => index);
+	const requestedEndRow = sourceStartRow + BigInt(rowCount);
+	let rowsRemaining = rowCount;
+	for (const source of sources) {
+		if (rowsRemaining === 0) break;
+		const sourceEndRow = source.scrollbackRows + BigInt(source.rows);
+		const overlapStartRow =
+			source.scrollbackRows > sourceStartRow ? source.scrollbackRows : sourceStartRow;
+		const overlapEndRow = sourceEndRow < requestedEndRow ? sourceEndRow : requestedEndRow;
+		if (overlapStartRow >= overlapEndRow) continue;
+		let outputRow = nextUnassignedProjectionRow(
+			successors,
+			Number(overlapStartRow - sourceStartRow),
+		);
+		const outputEndRow = Number(overlapEndRow - sourceStartRow);
+		while (outputRow < outputEndRow) {
+			indexedSources[outputRow] = source;
+			rowsRemaining -= 1;
+			const nextOutputRow = nextUnassignedProjectionRow(successors, outputRow + 1);
+			successors[outputRow] = nextOutputRow;
+			outputRow = nextOutputRow;
+		}
+	}
+	return indexedSources;
+}
+
+function prepareProjectionMaterialization(
+	metadata: DecodedTerminalProjectionBuffer,
+	sources: readonly DecodedTerminalProjectionBuffer[],
+	options: TerminalProjectionFrameMaterialization,
+): ProtocolResult<PreparedProjectionMaterialization> {
+	const indexedSources = indexProjectionMaterializationSources(
+		sources,
+		options.sourceStartRow,
+		options.rowCount,
+	);
+	const stringCache: ProjectionMaterializationStringCache = {
+		logicalByteLength: 0,
+		rangesBySource: new WeakMap(),
+	};
+	for (let outputRow = 0; outputRow < options.rowCount; outputRow += 1) {
+		const absoluteRow = options.sourceStartRow + BigInt(outputRow);
+		const source = indexedSources[outputRow];
+		if (source === undefined || !projectionMaterializationSourceMatches(metadata, source)) {
+			return protocolFailure(
+				ProtocolErrorCode.invalidField,
+				`Projection materialization is missing source row ${absoluteRow}`,
+			);
+		}
+		const sourceRow = Number(absoluteRow - source.scrollbackRows);
+		if (
+			source.rowData.flags[sourceRow] === undefined ||
+			source.rowData.promptClasses[sourceRow] === undefined
+		) {
+			return protocolFailure(
+				ProtocolErrorCode.invalidField,
+				`Projection materialization source row ${absoluteRow} is incomplete`,
+			);
+		}
+		for (let column = 0; column < metadata.columns; column += 1) {
+			const cellOffset = sourceRow * metadata.columns + column;
+			const grapheme = preflightProjectionStringRange(
+				stringCache,
+				source,
+				source.cells.graphemeOffsets[cellOffset],
+				source.cells.graphemeLengths[cellOffset],
+				false,
+				`Projection grapheme ${cellOffset}`,
+			);
+			if (!grapheme.ok) return grapheme;
+			const hyperlink = preflightProjectionStringRange(
+				stringCache,
+				source,
+				source.cells.hyperlinkOffsets[cellOffset],
+				source.cells.hyperlinkLengths[cellOffset],
+				true,
+				`Projection hyperlink ${cellOffset}`,
+			);
+			if (!hyperlink.ok) return hyperlink;
+		}
+	}
+	return protocolSuccess({ indexedSources, stringCache });
+}
+
 /**
  * Strictly validates an untrusted projection buffer before exposing its zero-repack typed views.
  * Local capability-scoped Host delivery may use {@link viewTerminalProjectionBuffer} instead.
@@ -1025,13 +1286,18 @@ function validateProjectionStringSection(bytes: Uint8Array): ProtocolResult<unde
 export function decodeTerminalProjectionBuffer(
 	bytes: Uint8Array,
 ): ProtocolResult<DecodedTerminalProjectionBuffer> {
-	if (bytes.byteLength > PROTOCOL_LIMITS.maxFrameBytes) {
-		return protocolFailure(ProtocolErrorCode.limitExceeded, 'Projection buffer exceeds its limit');
-	}
+	const hasSharedBacking = isSharedArrayBuffer(bytes.buffer);
 	let stableBytes = bytes;
-	if (isSharedMemory(bytes.buffer) || bytes.byteOffset % 4 !== 0) {
-		stableBytes = new Uint8Array(bytes.byteLength);
-		stableBytes.set(bytes);
+	if (hasSharedBacking || bytes.byteOffset % 4 !== 0) {
+		const copied = copyBytesToFixedArrayBuffer(
+			bytes,
+			PROTOCOL_LIMITS.maxFrameBytes,
+			'Projection buffer',
+		);
+		if (!copied.ok) return copied;
+		stableBytes = copied.value;
+	} else if (bytes.byteLength > PROTOCOL_LIMITS.maxFrameBytes) {
+		return protocolFailure(ProtocolErrorCode.limitExceeded, 'Projection buffer exceeds its limit');
 	}
 	const viewed = viewTerminalProjectionBuffer(stableBytes);
 	if (!viewed.ok) return viewed;
@@ -1173,16 +1439,18 @@ export function materializeTerminalProjectionFrame(
 			'Projection materialization options are outside the protocol bounds',
 		);
 	}
+	// Input-order assignment retains first-match precedence even for overlapping, unsorted sources.
+	// Successor links skip rows already claimed by an earlier source, so each row is assigned once.
+	const prepared = prepareProjectionMaterialization(metadata, sources, options);
+	if (!prepared.ok) return prepared;
 	const styles: TerminalFrame['styles'] = [];
 	const styleIndices = new Map<string, number>();
+	const rawStyleIndices = new WeakMap<DecodedTerminalProjectionBuffer, Map<string, number>>();
 	const rowData: TerminalFrame['rowData'] = [];
+	const { indexedSources, stringCache } = prepared.value;
 	for (let outputRow = 0; outputRow < options.rowCount; outputRow += 1) {
 		const absoluteRow = options.sourceStartRow + BigInt(outputRow);
-		const source = sources.find(
-			(candidate) =>
-				absoluteRow >= candidate.scrollbackRows &&
-				absoluteRow < candidate.scrollbackRows + BigInt(candidate.rows),
-		);
+		const source = indexedSources[outputRow];
 		if (source === undefined || !projectionMaterializationSourceMatches(metadata, source)) {
 			return protocolFailure(
 				ProtocolErrorCode.invalidField,
@@ -1201,26 +1469,36 @@ export function materializeTerminalProjectionFrame(
 		const cells: TerminalFrame['rowData'][number]['cells'] = [];
 		for (let column = 0; column < metadata.columns; column += 1) {
 			const cellOffset = sourceRow * metadata.columns + column;
-			const style = materializedStyle(source, cellOffset);
-			if (!style.ok) return style;
-			const styleKey = JSON.stringify(style.value);
-			let styleIndex = styleIndices.get(styleKey);
+			let sourceStyleIndices = rawStyleIndices.get(source);
+			if (sourceStyleIndices === undefined) {
+				sourceStyleIndices = new Map();
+				rawStyleIndices.set(source, sourceStyleIndices);
+			}
+			const rawStyleKey = projectionStyleKey(source, cellOffset);
+			let styleIndex = sourceStyleIndices.get(rawStyleKey);
 			if (styleIndex === undefined) {
-				if (styles.length >= PROTOCOL_LIMITS.maxFrameStyles) {
-					return protocolFailure(
-						ProtocolErrorCode.limitExceeded,
-						'Projection materialization exceeds the style-table limit',
-					);
+				const style = materializedStyle(stringCache, source, cellOffset);
+				if (!style.ok) return style;
+				const styleKey = JSON.stringify(style.value);
+				styleIndex = styleIndices.get(styleKey);
+				if (styleIndex === undefined) {
+					if (styles.length >= PROTOCOL_LIMITS.maxFrameStyles) {
+						return protocolFailure(
+							ProtocolErrorCode.limitExceeded,
+							'Projection materialization exceeds the style-table limit',
+						);
+					}
+					styleIndex = styles.length;
+					styles.push(style.value);
+					styleIndices.set(styleKey, styleIndex);
 				}
-				styleIndex = styles.length;
-				styles.push(style.value);
-				styleIndices.set(styleKey, styleIndex);
+				sourceStyleIndices.set(rawStyleKey, styleIndex);
 			}
 			const grapheme = projectionString(
+				stringCache,
 				source,
 				source.cells.graphemeOffsets[cellOffset],
 				source.cells.graphemeLengths[cellOffset],
-				false,
 			);
 			if (!grapheme.ok) return grapheme;
 			const width = materializedWidth(source.cells.widths[cellOffset]);
@@ -1300,6 +1578,8 @@ function projectionMaterializationSourceMatches(
 	return (
 		source.kind === TerminalFrameKind.snapshot &&
 		source.columns === metadata.columns &&
+		source.cellPixelWidth === metadata.cellPixelWidth &&
+		source.cellPixelHeight === metadata.cellPixelHeight &&
 		source.generation === metadata.generation &&
 		source.hostEpoch === metadata.hostEpoch &&
 		source.revision === metadata.revision &&
@@ -1308,29 +1588,41 @@ function projectionMaterializationSourceMatches(
 }
 
 function projectionString(
+	cache: ProjectionMaterializationStringCache,
 	source: DecodedTerminalProjectionBuffer,
 	offset: number | undefined,
 	length: number | undefined,
-	nullable: boolean,
 ): ProtocolResult<string | null> {
 	if (offset === undefined || length === undefined) {
 		return protocolFailure(ProtocolErrorCode.invalidField, 'Projection string range is missing');
 	}
-	if (offset === MAX_UINT32) {
-		return nullable && length === 0
-			? protocolSuccess(null)
-			: protocolFailure(ProtocolErrorCode.invalidField, 'Projection string range is null');
+	const prepared = cache.rangesBySource
+		.get(source.stringBytes)
+		?.get(projectionStringRangeKey(offset, length));
+	if (prepared === undefined) {
+		return protocolFailure(
+			ProtocolErrorCode.invalidField,
+			'Projection string range was not preflighted',
+		);
 	}
-	if (offset + length > source.stringBytes.byteLength) {
-		return protocolFailure(ProtocolErrorCode.invalidField, 'Projection string range is invalid');
+	if (prepared.decoded !== null) return prepared.decoded;
+	if (prepared.offset === MAX_UINT32) {
+		prepared.decoded = protocolSuccess(null);
+		return prepared.decoded;
 	}
 	try {
-		return protocolSuccess(
-			textDecoder.decode(source.stringBytes.subarray(offset, offset + length)),
+		prepared.decoded = protocolSuccess(
+			textDecoder.decode(
+				source.stringBytes.subarray(prepared.offset, prepared.offset + prepared.length),
+			),
 		);
 	} catch {
-		return protocolFailure(ProtocolErrorCode.invalidUtf8, 'Projection string is not valid UTF-8');
+		prepared.decoded = protocolFailure(
+			ProtocolErrorCode.invalidUtf8,
+			'Projection string is not valid UTF-8',
+		);
 	}
+	return prepared.decoded;
 }
 
 function materializedColor(value: number | undefined): ProtocolResult<TerminalColor> {
@@ -1345,7 +1637,12 @@ function materializedColor(value: number | undefined): ProtocolResult<TerminalCo
 		: protocolFailure(ProtocolErrorCode.invalidField, 'Projection color is invalid');
 }
 
+function projectionStyleKey(source: DecodedTerminalProjectionBuffer, cellOffset: number): string {
+	return `${source.cells.foregroundColors[cellOffset]}:${source.cells.backgroundColors[cellOffset]}:${source.cells.underlineColors[cellOffset]}:${source.cells.hyperlinkOffsets[cellOffset]}:${source.cells.hyperlinkLengths[cellOffset]}:${source.cells.styleFlags[cellOffset]}:${source.cells.underlineKinds[cellOffset]}`;
+}
+
 function materializedStyle(
+	cache: ProjectionMaterializationStringCache,
 	source: DecodedTerminalProjectionBuffer,
 	cellOffset: number,
 ): ProtocolResult<TerminalStyle> {
@@ -1356,10 +1653,10 @@ function materializedStyle(
 	const underline = materializedColor(source.cells.underlineColors[cellOffset]);
 	if (!underline.ok) return underline;
 	const hyperlink = projectionString(
+		cache,
 		source,
 		source.cells.hyperlinkOffsets[cellOffset],
 		source.cells.hyperlinkLengths[cellOffset],
-		true,
 	);
 	if (!hyperlink.ok) return hyperlink;
 	const flags = source.cells.styleFlags[cellOffset];

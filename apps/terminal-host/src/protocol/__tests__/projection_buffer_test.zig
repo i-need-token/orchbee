@@ -1,7 +1,7 @@
 const std = @import("std");
 const subject = @import("terminal-protocol");
 
-test "projection validator accepts a metadata-only delta with no dirty rows" {
+fn metadataOnlyDelta(columns: u16, rows: u16) [subject.terminal_projection_buffer_header_bytes]u8 {
     var bytes = [_]u8{0} ** subject.terminal_projection_buffer_header_bytes;
     @memcpy(bytes[0..4], "OBPB");
     bytes[4] = subject.terminal_projection_buffer_format_major;
@@ -9,8 +9,8 @@ test "projection validator accepts a metadata-only delta with no dirty rows" {
     bytes[6] = 2;
     std.mem.writeInt(u32, bytes[8..12], bytes.len, .little);
     std.mem.writeInt(u16, bytes[12..14], bytes.len, .little);
-    std.mem.writeInt(u16, bytes[14..16], 1, .little);
-    std.mem.writeInt(u16, bytes[16..18], 1, .little);
+    std.mem.writeInt(u16, bytes[14..16], columns, .little);
+    std.mem.writeInt(u16, bytes[16..18], rows, .little);
     @memset(bytes[24..40], 0x11);
     @memset(bytes[40..56], 0x22);
     std.mem.writeInt(u64, bytes[56..64], 2, .little);
@@ -32,8 +32,25 @@ test "projection validator accepts a metadata-only delta with no dirty rows" {
         std.mem.writeInt(u32, bytes[directory_offset..][0..4], bytes.len, .little);
     }
 
+    return bytes;
+}
+
+test "projection validator accepts a metadata-only delta with no dirty rows" {
+    const bytes = metadataOnlyDelta(1, 1);
+
     const summary = try subject.validateTerminalProjectionBuffer(&bytes);
     try std.testing.expectEqual(subject.FrameKind.delta, summary.kind);
     try std.testing.expectEqual(@as(u16, 0), summary.row_count);
     try std.testing.expectEqual(@as(?u64, 1), summary.base_revision);
+}
+
+test "projection validator enforces the grid-area cell limit for metadata-only deltas" {
+    const maximum_grid = metadataOnlyDelta(512, 512);
+    _ = try subject.validateTerminalProjectionBuffer(&maximum_grid);
+
+    const oversized_grid = metadataOnlyDelta(512, 513);
+    try std.testing.expectError(
+        error.InvalidField,
+        subject.validateTerminalProjectionBuffer(&oversized_grid),
+    );
 }

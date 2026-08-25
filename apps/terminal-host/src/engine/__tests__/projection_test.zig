@@ -12,9 +12,14 @@ const max_link_entries = subject.testing.link_entry_limit;
 const max_link_value_bytes = subject.testing.link_value_byte_limit;
 const capturedStyle = subject.testing.capturedStyleFn;
 const LinkTable = subject.testing.LinkTableType;
+const LinkStringMap = subject.testing.LinkStringMapType;
+const SourceLinkCache = subject.testing.SourceLinkCacheType;
+const SourceLinkKey = subject.testing.SourceLinkKeyType;
 const linkTableDeinit = subject.testing.linkTableDeinitFn;
 const linkTableInit = subject.testing.linkTableInitFn;
 const linkTableIntern = subject.testing.linkTableInternFn;
+const linkTableInternCallCount = subject.testing.linkTableInternCallCountFn;
+const linkWorkObservation = subject.testing.linkWorkObservationFn;
 const Projection = subject.Projection;
 const StringTable = subject.testing.StringTableType;
 const AttachmentId = subject.AttachmentId;
@@ -370,6 +375,207 @@ test "projection capture deduplicates repeated hyperlink URIs" {
     try std.testing.expect(projection.link_table.ref_counts.items[0] >= 4);
 }
 
+test "projection capture resolves one shared near-limit source hyperlink once" {
+    const columns = 64;
+    const rows = 8;
+    const linked_cell_count = columns * rows;
+    var target = [_]u8{'u'} ** (max_link_value_bytes - 64);
+    @memcpy(target[0.."https://".len], "https://");
+    const text = try std.testing.allocator.alloc(u8, linked_cell_count);
+    defer std.testing.allocator.free(text);
+    @memset(text, 'X');
+
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+        .cols = columns,
+        .rows = rows,
+    });
+    defer terminal.deinit(std.testing.allocator);
+    try terminal.screens.active.startHyperlink(&target, "shared");
+    try terminal.printString(text);
+    terminal.screens.active.endHyperlink();
+
+    var projection = Projection.init(std.testing.allocator);
+    defer projection.deinit();
+    try projection.beginCapture(&terminal, 1, 1, 8, 16);
+    projection.endCapture();
+
+    try std.testing.expectEqual(@as(usize, 1), projection.link_table.values.items.len);
+    try std.testing.expectEqual(
+        @as(u32, linked_cell_count),
+        projection.link_table.ref_counts.items[0],
+    );
+    try std.testing.expectEqualSlices(u8, &target, projection.link_table.values.items[0]);
+
+    try std.testing.expectEqual(
+        @as(usize, 1),
+        linkWorkObservation(&projection).source_link_resolutions,
+    );
+
+    const frame = try projection.encode(.{
+        .attachment_id = AttachmentId.fromBytes([_]u8{2} ** 16),
+        .base_generation = null,
+        .base_revision = null,
+        .force_snapshot = true,
+        .host_epoch = HostEpoch.fromBytes([_]u8{1} ** 16),
+        .maximum_bytes = max_frame_bytes,
+        .sequence = 1,
+    });
+    defer std.testing.allocator.free(frame.allocation);
+    _ = try protocol.validateTerminalFrame(std.testing.allocator, frame.bytes);
+    var decoded = try decodeFrameLinks(std.testing.allocator, frame.bytes);
+    defer decoded.deinit();
+    try std.testing.expectEqual(linked_cell_count, decoded.cell_links.len);
+    for (decoded.cell_links) |link_index| {
+        try std.testing.expectEqualStrings(&target, decoded.linkTarget(link_index).?);
+    }
+    try std.testing.expectEqual(
+        @as(usize, 1),
+        linkWorkObservation(&projection).frame_link_resolutions,
+    );
+}
+
+test "projection frame resolves one captured LinkTable value across both passes" {
+    const columns = 16;
+    const rows = 4;
+    var target = [_]u8{'v'} ** (max_link_value_bytes - 64);
+    var text = [_]u8{'Y'} ** (columns * rows);
+
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+        .cols = columns,
+        .rows = rows,
+    });
+    defer terminal.deinit(std.testing.allocator);
+    try terminal.screens.active.startHyperlink(&target, "shared");
+    try terminal.printString(&text);
+    terminal.screens.active.endHyperlink();
+
+    var projection = Projection.init(std.testing.allocator);
+    defer projection.deinit();
+    try projection.beginCapture(&terminal, 1, 1, 8, 16);
+    projection.endCapture();
+    const frame = try projection.encode(.{
+        .attachment_id = AttachmentId.fromBytes([_]u8{2} ** 16),
+        .base_generation = null,
+        .base_revision = null,
+        .force_snapshot = true,
+        .host_epoch = HostEpoch.fromBytes([_]u8{1} ** 16),
+        .maximum_bytes = max_frame_bytes,
+        .sequence = 1,
+    });
+    defer std.testing.allocator.free(frame.allocation);
+    _ = try protocol.validateTerminalFrame(std.testing.allocator, frame.bytes);
+
+    try std.testing.expectEqual(
+        @as(usize, 1),
+        linkWorkObservation(&projection).frame_link_resolutions,
+    );
+}
+
+test "projection source hyperlink cache includes page identity in its key" {
+    var first_terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+        .cols = 1,
+        .rows = 1,
+    });
+    defer first_terminal.deinit(std.testing.allocator);
+    var second_terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+        .cols = 1,
+        .rows = 1,
+    });
+    defer second_terminal.deinit(std.testing.allocator);
+    const first_page = &first_terminal.screens.active.cursor.page_pin.node.data;
+    const second_page = &second_terminal.screens.active.cursor.page_pin.node.data;
+    var resolver_calls: usize = 0;
+    const resolver: KeyedSourceLinkResolver = .{
+        .calls = &resolver_calls,
+        .first_page = first_page,
+    };
+    const keys = [_]SourceLinkKey{
+        .{ .page = first_page, .identifier = 1 },
+        .{ .page = second_page, .identifier = 1 },
+        .{ .page = second_page, .identifier = 2 },
+    };
+    var source_links: SourceLinkCache = .{};
+    defer source_links.deinit(std.testing.allocator);
+    var link_table: LinkTable = linkTableInit(std.testing.allocator);
+    defer linkTableDeinit(&link_table);
+
+    const first = try source_links.resolve(
+        std.testing.allocator,
+        keys[0],
+        &link_table,
+        resolver,
+    );
+    const second = try source_links.resolve(
+        std.testing.allocator,
+        keys[1],
+        &link_table,
+        resolver,
+    );
+    const deduplicated = try source_links.resolve(
+        std.testing.allocator,
+        keys[2],
+        &link_table,
+        resolver,
+    );
+    for (keys) |key| {
+        _ = try source_links.resolve(std.testing.allocator, key, &link_table, resolver);
+    }
+
+    try std.testing.expectEqual(@as(u32, 0), first);
+    try std.testing.expectEqual(@as(u32, 1), second);
+    try std.testing.expectEqual(first, deduplicated);
+    try std.testing.expectEqual(@as(usize, 3), resolver_calls);
+    try std.testing.expectEqual(@as(usize, 3), source_links.testingResolutionCount());
+    try std.testing.expectEqual(@as(usize, 3), linkTableInternCallCount(&link_table));
+    try std.testing.expectEqual(@as(usize, 2), link_table.values.items.len);
+}
+
+test "projection source hyperlink cache remembers invalid UTF-8 omission" {
+    var page_token: u8 align(@alignOf(ghostty_vt.Page)) = 0;
+    const key: SourceLinkKey = .{
+        .page = @ptrCast(&page_token),
+        .identifier = 1,
+    };
+    const invalid = [_]u8{0xff};
+    var resolver_calls: usize = 0;
+    const resolver: FixedSourceLinkResolver = .{
+        .calls = &resolver_calls,
+        .value = &invalid,
+    };
+    var source_links: SourceLinkCache = .{};
+    defer source_links.deinit(std.testing.allocator);
+    var link_table: LinkTable = linkTableInit(std.testing.allocator);
+    defer linkTableDeinit(&link_table);
+
+    const first = try source_links.resolve(
+        std.testing.allocator,
+        key,
+        &link_table,
+        resolver,
+    );
+    const second = try source_links.resolve(
+        std.testing.allocator,
+        key,
+        &link_table,
+        resolver,
+    );
+
+    try std.testing.expectEqual(std.math.maxInt(u32), first);
+    try std.testing.expectEqual(first, second);
+    try std.testing.expectEqual(@as(usize, 1), resolver_calls);
+    try std.testing.expectEqual(@as(usize, 1), source_links.testingResolutionCount());
+    try std.testing.expectEqual(@as(usize, 1), linkTableInternCallCount(&link_table));
+    try std.testing.expectEqual(@as(usize, 0), link_table.values.items.len);
+}
+
+test "projection link work releases every partial allocation" {
+    try std.testing.checkAllAllocationFailures(
+        std.testing.allocator,
+        exerciseLinkWorkAllocations,
+        .{},
+    );
+}
+
 test "projection capture compacts a dirty linked row" {
     var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
         .cols = 4,
@@ -391,6 +597,81 @@ test "projection capture compacts a dirty linked row" {
     projection.endCapture();
     try std.testing.expectEqual(@as(usize, 0), projection.link_table.values.items.len);
     try std.testing.expectEqual(@as(usize, 0), projection.link_table.byte_count);
+}
+
+test "projection dirty recapture compacts links and preserves delta first-use order" {
+    const target_a = "https://a.example";
+    const target_b = "https://b.example";
+    const target_c = "https://c.example";
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+        .cols = 5,
+        .rows = 2,
+    });
+    defer terminal.deinit(std.testing.allocator);
+    try writeLinked(&terminal, target_a, "a", "AAAA");
+    terminal.setCursorPos(2, 1);
+    try writeLinked(&terminal, target_b, "b", "BBBB");
+    try terminal.screens.active.startHyperlink(target_c, "c");
+    terminal.screens.active.endHyperlink();
+    terminal.setCursorPos(1, 1);
+
+    var projection = Projection.init(std.testing.allocator);
+    defer projection.deinit();
+    try projection.beginCapture(&terminal, 1, 1, 8, 16);
+    projection.endCapture();
+    try std.testing.expectEqual(@as(usize, 2), projection.link_table.values.items.len);
+    try std.testing.expectEqualSlices(u8, target_a, projection.link_table.values.items[0]);
+    try std.testing.expectEqualSlices(u8, target_b, projection.link_table.values.items[1]);
+
+    try writeLinked(&terminal, target_c, "c", "C");
+    try writeLinked(&terminal, target_b, "b", "B");
+    try writeLinked(&terminal, target_c, "c", "C");
+    try writeLinked(&terminal, target_b, "b", "B");
+    try projection.beginCapture(&terminal, 2, 1, 8, 16);
+    projection.endCapture();
+
+    try std.testing.expectEqualSlices(u64, &.{ 2, 1 }, projection.row_revisions.items);
+    try std.testing.expectEqual(@as(usize, 2), projection.link_table.values.items.len);
+    try std.testing.expectEqualSlices(u8, target_b, projection.link_table.values.items[0]);
+    try std.testing.expectEqualSlices(u8, target_c, projection.link_table.values.items[1]);
+    try std.testing.expectEqualSlices(u32, &.{ 6, 2 }, projection.link_table.ref_counts.items);
+    try std.testing.expectEqualSlices(
+        u32,
+        &.{ 1, 0, 1, 0, std.math.maxInt(u32) },
+        projection.links.items[0].indices.items,
+    );
+    try std.testing.expectEqualSlices(
+        u32,
+        &.{ 0, 0, 0, 0, std.math.maxInt(u32) },
+        projection.links.items[1].indices.items,
+    );
+    try std.testing.expectEqual(
+        @as(usize, 4),
+        linkWorkObservation(&projection).source_link_resolutions,
+    );
+
+    const delta = try projection.encode(.{
+        .attachment_id = AttachmentId.fromBytes([_]u8{2} ** 16),
+        .base_generation = 1,
+        .base_revision = 1,
+        .force_snapshot = false,
+        .host_epoch = HostEpoch.fromBytes([_]u8{1} ** 16),
+        .maximum_bytes = max_frame_bytes,
+        .sequence = 2,
+    });
+    defer std.testing.allocator.free(delta.allocation);
+    const summary = try protocol.validateTerminalFrame(std.testing.allocator, delta.bytes);
+    try std.testing.expectEqual(protocol.FrameKind.delta, summary.kind);
+    try std.testing.expectEqual(@as(u16, 1), summary.row_count);
+    var decoded = try decodeFrameLinks(std.testing.allocator, delta.bytes);
+    defer decoded.deinit();
+    try decoded.expectTargets(&.{ target_c, target_b, target_c, target_b }, 0);
+    try std.testing.expect(decoded.linkTarget(decoded.cell_links[4]) == null);
+    try std.testing.expect(decoded.stringIndex(target_c).? < decoded.stringIndex(target_b).?);
+    try std.testing.expectEqual(
+        @as(usize, 2),
+        linkWorkObservation(&projection).frame_link_resolutions,
+    );
 }
 
 test "projection resets all hyperlink state after an aggregate frame limit failure" {
@@ -523,4 +804,156 @@ fn repeatedLinkCount(allocator: std.mem.Allocator) !usize {
     _ = try linkTableIntern(&table, allocator, "https://example.com");
     _ = try linkTableIntern(&table, allocator, "https://example.com");
     return table.values.items.len;
+}
+
+const FixedSourceLinkResolver = struct {
+    calls: *usize,
+    value: []const u8,
+
+    pub fn resolve(self: FixedSourceLinkResolver, _: SourceLinkKey) []const u8 {
+        self.calls.* += 1;
+        return self.value;
+    }
+};
+
+const KeyedSourceLinkResolver = struct {
+    calls: *usize,
+    first_page: *const ghostty_vt.Page,
+
+    pub fn resolve(self: KeyedSourceLinkResolver, key: SourceLinkKey) []const u8 {
+        self.calls.* += 1;
+        return if (key.page == self.first_page or key.identifier == 2)
+            "https://shared.example"
+        else
+            "https://second-page.example";
+    }
+};
+
+const DecodedFrameLinks = struct {
+    allocator: std.mem.Allocator,
+    cell_links: []u32,
+    strings: [][]const u8,
+
+    fn deinit(self: *DecodedFrameLinks) void {
+        self.allocator.free(self.cell_links);
+        self.allocator.free(self.strings);
+        self.* = undefined;
+    }
+
+    fn expectTargets(
+        self: *const DecodedFrameLinks,
+        expected: []const []const u8,
+        first_cell: usize,
+    ) !void {
+        try std.testing.expect(first_cell + expected.len <= self.cell_links.len);
+        for (self.cell_links[first_cell..][0..expected.len], expected) |link_index, target| {
+            try std.testing.expectEqualStrings(target, self.linkTarget(link_index).?);
+        }
+    }
+
+    fn linkTarget(self: *const DecodedFrameLinks, index: u32) ?[]const u8 {
+        if (index == std.math.maxInt(u32)) return null;
+        return self.strings[index];
+    }
+
+    fn stringIndex(self: *const DecodedFrameLinks, target: []const u8) ?usize {
+        for (self.strings, 0..) |value, index| {
+            if (std.mem.eql(u8, value, target)) return index;
+        }
+        return null;
+    }
+};
+
+fn decodeFrameLinks(
+    allocator: std.mem.Allocator,
+    bytes: []const u8,
+) !DecodedFrameLinks {
+    const string_count: usize = @intCast(std.mem.readInt(u32, bytes[124..128], .little));
+    const style_count: usize = @intCast(std.mem.readInt(u16, bytes[128..130], .little));
+    const row_count: usize = @intCast(std.mem.readInt(u16, bytes[130..132], .little));
+    const columns: usize = @intCast(std.mem.readInt(u16, bytes[88..90], .little));
+    const strings = try allocator.alloc([]const u8, string_count);
+    errdefer allocator.free(strings);
+    const style_links = try allocator.alloc(u32, style_count);
+    defer allocator.free(style_links);
+    const cell_links = try allocator.alloc(u32, row_count * columns);
+    errdefer allocator.free(cell_links);
+
+    var offset: usize = protocol.terminal_frame_header_bytes;
+    for (strings) |*value| {
+        const length: usize = @intCast(readFrameInt(u32, bytes, &offset));
+        value.* = bytes[offset..][0..length];
+        offset += length;
+    }
+    for (style_links) |*link_index| {
+        offset += 12;
+        link_index.* = readFrameInt(u32, bytes, &offset);
+        offset += 4;
+    }
+    var cell_offset: usize = 0;
+    for (0..row_count) |_| {
+        offset += 8;
+        for (0..columns) |_| {
+            offset += 4;
+            const style_index = readFrameInt(u16, bytes, &offset);
+            offset += 2;
+            cell_links[cell_offset] = style_links[style_index];
+            cell_offset += 1;
+        }
+    }
+    return .{
+        .allocator = allocator,
+        .cell_links = cell_links,
+        .strings = strings,
+    };
+}
+
+fn readFrameInt(
+    comptime T: type,
+    bytes: []const u8,
+    offset: *usize,
+) T {
+    const value = std.mem.readInt(T, bytes[offset.*..][0..@sizeOf(T)], .little);
+    offset.* += @sizeOf(T);
+    return value;
+}
+
+fn exerciseLinkWorkAllocations(allocator: std.mem.Allocator) !void {
+    var page_token: u8 align(@alignOf(ghostty_vt.Page)) = 0;
+    const key: SourceLinkKey = .{
+        .page = @ptrCast(&page_token),
+        .identifier = 1,
+    };
+    var resolver_calls: usize = 0;
+    const resolver: FixedSourceLinkResolver = .{
+        .calls = &resolver_calls,
+        .value = "https://allocation.example",
+    };
+    var source_links: SourceLinkCache = .{};
+    defer source_links.deinit(allocator);
+    var link_table: LinkTable = linkTableInit(allocator);
+    defer linkTableDeinit(&link_table);
+    const link_table_index = try source_links.resolve(
+        allocator,
+        key,
+        &link_table,
+        resolver,
+    );
+
+    var strings = StringTable.init(allocator);
+    defer strings.deinit();
+    var frame_links = try LinkStringMap.init(allocator, link_table.values.items.len);
+    defer frame_links.deinit();
+    _ = try frame_links.resolve(link_table_index, link_table.values.items, &strings);
+}
+
+fn writeLinked(
+    terminal: *ghostty_vt.Terminal,
+    target: []const u8,
+    identifier: []const u8,
+    text: []const u8,
+) !void {
+    try terminal.screens.active.startHyperlink(target, identifier);
+    defer terminal.screens.active.endHyperlink();
+    try terminal.printString(text);
 }

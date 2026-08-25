@@ -67,7 +67,9 @@
 
 ## 宿主衍生的投影语料库
 
-`@orchbee/terminal-protocol/fixtures/ghostty-surface-v0.0.3.bin` 和 `ghostty-alternate-surface-v0.0.3.bin` 是 `apps/terminal-host` 从一个固定的本机 Ghostty VT 和一个主机投影生成的 OBTF format-`0.0.3` 快照。生成器馈送主流，捕获其快照，进入同一终端上的备用屏幕，并捕获第二个快照；它永远不会使用 TypeScript 编解码器构建任一帧。 Terminal Host 验证重新生成字节序列并拒绝夹具漂移。投影渲染器测试对 Canvas 和 WebGPU 证据的主要字节进行解码，然后通过打包存储提交两个快照以获取转换证据。
+`@orchbee/terminal-protocol/fixtures/ghostty-surface-v0.0.3.bin`、`ghostty-alternate-surface-v0.0.3.bin` 和 `ghostty-render-row-window-v0.0.2.bin` 共同组成一套由 Host 拥有的原生表面证据。`apps/terminal-host` 从一个固定版本的原生 Ghostty VT 和一个 Host Projection 生成 OBTF 夹具对：馈送主流、捕获快照、在同一终端进入备用屏幕，再捕获第二个快照。另一个原生终端会重放主流，追加 DECSCA 受保护哨兵和恢复未受保护后的哨兵，并通过生产 `row_encoding.encode` 到 `projection_buffer.encodeRenderSnapshot` 路径生成 render-detail OBRW。三个夹具均不由 TypeScript 编码器构造。
+
+Terminal Host 验证会重新生成并逐字节比较全部三个夹具。投影渲染器测试会解码主 OBTF 字节作为 Canvas 和 WebGPU 证据，再通过打包存储提交两个 OBTF 快照以获得转换证据。OBRW 消费者独立固定完整的六行乘八单元判定：行索引、标志、提示类、字素与超链接字符串及其原始字节范围、全部三个颜色列、每个样式标志和下划线类型、宽度拓扑、语义内容、受保护标志和提交元数据。它要求严格解码与可信结构视图匹配同一矩阵，通过 `replaceProjectionBufferSnapshot` 提交可信帧，并按相同语义列检查每一存储行。线协议有效的内存变异覆盖前景/背景交换、受支持样式变化、受支持语义变化、清除受保护单元、规范移除超链接、协调行换行和有效宽度拓扑替换。
 
 该语料库启用 Ghostty 字素簇模式 `2027`，然后在一个 OSC 8 链接内包含窄文本、CJK、组合序列和 modifier-plus-ZWJ 表情符号。它将最终链接的宽字素放在右边缘，以便 Ghostty 发出包裹的间隔头，然后是下一行的宽头和间隔尾。然后，在出现明确的硬换行和最后一个未链接的单元格之前，链接将关闭。另外两个硬行设置非黑色动态默认值并使用显式的前景色/背景色、反色、微弱、不可见、闪烁、上划线、删除线、所有五种下划线类型、独立的下划线颜色、粗体和斜体。因此，共享断言涵盖了这些边界：
 
@@ -81,7 +83,7 @@
 - Ghostty 拥有 SGR 解析和样式组合；主机、解码器和打包存储保留生成的颜色编码、标志和下划线类型，而不重建 SGR 状态。
 - Canvas 和 WebGPU 使用相同的样式行，包括显式 RGB 零、默认颜色、独立下划线颜色、隐藏文本、闪烁阶段和装饰几何形状。
 
-夹具对是确定性一致性证据，而不是第二个 VT 实施或产品样本。更改语料库、Ghostty 引脚、主机编码器、OBTF 格式、解码器、打包存储或绘制合约都需要重新生成和审查生产者和消费者断言。
+三个夹具构成确定性一致性证据，而不是第二个 VT 实现或产品样本。Terminal Host 负责原生生成，`@orchbee/terminal-protocol` 负责已跟踪字节和导出，本包负责消费者语义。经审核变更语料、Ghostty 固定版本、Host 编码器、OBTF/OBRW/OBPB 格式、解码器、打包存储或绘制契约后，运行 `pnpm --filter @orchbee/terminal-host surface-fixtures:generate`，并审核生产者与消费者断言。该证据集证明这条有界生产者到消费者映射；它不证明 PTY 交付、历史锚点行为、生命周期策略、其他平台运行时或更广泛的可信传输。
 
 ## 打包式投影
 

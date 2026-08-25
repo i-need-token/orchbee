@@ -83,6 +83,7 @@ fn encodeToWriter(
     const body_offset = writer.written().len;
     const entry_count = switch (parameters.request.detail) {
         .render => try projection_buffer.encodeRenderSnapshot(
+            scratch_allocator,
             writer,
             terminal,
             pins,

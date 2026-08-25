@@ -29,7 +29,7 @@ import type { PackedRendererRow, PackedRendererSource } from '../rendering';
 
 const NO_STRING_OFFSET = 0xffff_ffff;
 const textEncoder = new TextEncoder();
-const textDecoder = new TextDecoder();
+const textDecoder = new TextDecoder('utf-8', { ignoreBOM: true });
 
 export const ProjectedStorePhase = {
 	disposed: 'disposed',

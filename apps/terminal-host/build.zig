@@ -21,6 +21,9 @@ const max_host_version_bytes = 64;
 // authoritative protocol record limit so a framing change cannot silently
 // make the boundary fixture unreachable; the conformance test asserts the tie.
 const envelope_fixture_max_bytes = contract.Limits.transport_record_bytes;
+// Test-harness bound for the JSON corpus itself; it does not change either
+// packed format's per-record protocol limit.
+const packed_projection_conformance_fixture_max_bytes = 256 * 1024;
 
 fn readFixture(
     builder: *std.Build,
@@ -450,6 +453,12 @@ pub fn build(builder: *std.Build) void {
         "projection-fixture",
         "Canonical terminal projection-buffer fixture path",
         8 * 1024 * 1024,
+    ));
+    conformance_options.addOption([]const u8, "packed_projection_conformance_fixture", readFixture(
+        builder,
+        "packed-projection-conformance-fixture",
+        "Canonical packed projection conformance corpus path",
+        packed_projection_conformance_fixture_max_bytes,
     ));
     conformance_options.addOption([]const u8, "envelope_fixture", readFixture(
         builder,

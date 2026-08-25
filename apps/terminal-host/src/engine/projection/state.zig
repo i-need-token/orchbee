@@ -1,4 +1,5 @@
 const std = @import("std");
+const target_builtin = @import("builtin");
 const ghostty_vt = @import("ghostty-vt");
 const render_encoding = @import("../render_encoding.zig");
 const contracts = @import("contracts.zig");
@@ -14,7 +15,18 @@ const EncodeRequest = contracts.EncodeRequest;
 const EncodedFrame = contracts.EncodedFrame;
 const ProjectionError = contracts.ProjectionError;
 const LinkRow = links.LinkRow;
+const SourceLinkCache = links.SourceLinkCache;
 const LinkTable = links.LinkTable;
+
+const ProjectionTestingState = if (target_builtin.is_test) struct {
+    frame_link_resolutions: usize = 0,
+    source_link_resolutions: usize = 0,
+} else struct {};
+
+pub const LinkWorkObservation = struct {
+    frame_link_resolutions: usize,
+    source_link_resolutions: usize,
+};
 
 pub const Projection = struct {
     allocator: std.mem.Allocator,
@@ -33,6 +45,7 @@ pub const Projection = struct {
     links: std.ArrayList(LinkRow) = .empty,
     render_state: ?ghostty_vt.RenderState = null,
     row_revisions: std.ArrayList(u64) = .empty,
+    testing_state: ProjectionTestingState = .{},
 
     pub fn init(allocator: std.mem.Allocator) Projection {
         return .{
@@ -128,6 +141,8 @@ pub const Projection = struct {
                 try self.compactLinkTable();
             }
         }
+        var source_links: SourceLinkCache = .{};
+        defer source_links.deinit(self.allocator);
         for (0..state.rows) |row_index| {
             if (!self.capture_full and !row_dirties[row_index]) continue;
             try self.links.items[row_index].rebuild(
@@ -135,7 +150,12 @@ pub const Projection = struct {
                 row_pins[row_index],
                 row_cells[row_index].items(.raw),
                 &self.link_table,
+                &source_links,
             );
+        }
+        if (comptime target_builtin.is_test) {
+            self.testing_state.source_link_resolutions +=
+                source_links.testingResolutionCount();
         }
 
         const title = try duplicateOptional(self.allocator, terminal.getTitle());
@@ -210,6 +230,19 @@ pub const Projection = struct {
     pub fn needsCapture(self: *const Projection, revision: u64, generation: u64) bool {
         return self.render_state == null or self.captured_revision < revision or
             self.captured_generation != generation;
+    }
+
+    pub fn linkWorkObservation(self: *const Projection) LinkWorkObservation {
+        return .{
+            .frame_link_resolutions = if (comptime target_builtin.is_test)
+                self.testing_state.frame_link_resolutions
+            else
+                0,
+            .source_link_resolutions = if (comptime target_builtin.is_test)
+                self.testing_state.source_link_resolutions
+            else
+                0,
+        };
     }
 
     pub fn encode(
