@@ -17,7 +17,7 @@ const authored_c_flags: []const []const u8 = &.{
 // before changing this value, then update every occurrence together.
 const max_host_version_bytes = 64;
 // The envelope fixture may legally span the full transport-record bound: a
-// 64-byte OBTP header declaring a 16 MiB row-window payload. Tied to the
+// 64-byte OBTP header declaring a 44 MiB row-window payload. Tied to the
 // authoritative protocol record limit so a framing change cannot silently
 // make the boundary fixture unreachable; the conformance test asserts the tie.
 const envelope_fixture_max_bytes = contract.Limits.transport_record_bytes;

@@ -18,10 +18,23 @@ const input_commit_ops = @import("input_commit.zig");
 const output_ops = @import("output.zig");
 const projection_ops = @import("projection.zig");
 const resize_ops = @import("resize.zig");
+const scrollback_compression_ops = @import("scrollback_compression.zig");
 const terminal_control_ops = @import("terminal_control.zig");
 const writer_ops = @import("writer.zig");
 
 pub const testing = if (builtin.is_test) struct {
+    pub const ScrollbackMemoryStats = struct {
+        compressed_pages: usize,
+        decommitted_raw_bytes: usize,
+        encoded_bytes: usize,
+        estimated_resident_bytes: usize,
+        estimated_savings: usize,
+        raw_bytes: usize,
+        resident_backing_bytes: usize,
+        resident_pages: usize,
+        resident_raw_bytes: usize,
+    };
+
     pub const InputQueueSnapshot = struct {
         client_charge: contracts.InputCharge,
         entry_count: usize,
@@ -83,6 +96,7 @@ pub const testing = if (builtin.is_test) struct {
     };
 
     pub const applyScrollbackBytesFn = terminal_control_ops.applyScrollbackBytes;
+    pub const scrollbackCompressionIdleIntervalNs = scrollback_compression_ops.idle_interval_ns;
     pub const tickAnimationLockedAtFn = animation_ops.tickLockedAt;
     pub const cancelInputFn = cancelInput;
     pub const closeClientInputFn = closeClientInput;
@@ -183,6 +197,24 @@ pub const testing = if (builtin.is_test) struct {
 
     pub fn stateForTesting(runtime: *handle.TerminalRuntime) *state.State {
         return handle.stateFrom(runtime);
+    }
+
+    pub fn scrollbackMemoryStats(runtime: *handle.TerminalRuntime) ScrollbackMemoryStats {
+        const runtime_state = handle.stateFrom(runtime);
+        runtime_state.terminal_mutex.lock();
+        defer runtime_state.terminal_mutex.unlock();
+        const memory = runtime_state.terminal.screens.get(.primary).?.pages.memoryStats();
+        return .{
+            .compressed_pages = memory.compressed_pages,
+            .decommitted_raw_bytes = memory.decommitted_raw_bytes,
+            .encoded_bytes = memory.encoded_bytes,
+            .estimated_resident_bytes = memory.estimatedResidentBytes(),
+            .estimated_savings = memory.estimatedSavings(),
+            .raw_bytes = memory.raw_bytes,
+            .resident_backing_bytes = memory.resident_backing_bytes,
+            .resident_pages = memory.resident_pages,
+            .resident_raw_bytes = memory.resident_raw_bytes,
+        };
     }
 
     pub fn clearTestingHooks(runtime: *handle.TerminalRuntime) void {

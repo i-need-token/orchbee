@@ -12,6 +12,9 @@ pub const pty_process = platform_boundary.process;
 pub const thread_sync = platform_boundary.thread_sync;
 
 pub const applyScrollbackBytes = subject.testing.applyScrollbackBytesFn;
+pub const scrollbackCompressionIdleIntervalNs =
+    subject.testing.scrollbackCompressionIdleIntervalNs;
+pub const scrollbackMemoryStats = subject.testing.scrollbackMemoryStats;
 pub const tickAnimationLockedAt = subject.testing.tickAnimationLockedAtFn;
 pub const cancelInput = subject.testing.cancelInputFn;
 pub const clearTestingHooks = subject.testing.clearTestingHooks;

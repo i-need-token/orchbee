@@ -5,6 +5,7 @@ const terminal_geometry = @import("terminal-host-model").geometry;
 const terminal_stream = @import("../terminal_stream.zig");
 const contracts = @import("contracts.zig");
 const state = @import("state.zig");
+const animation_ops = @import("animation.zig");
 const failure_ops = @import("failure.zig");
 const feedback_ops = @import("feedback.zig");
 const process_io_ops = @import("process_io.zig");
@@ -282,6 +283,7 @@ fn commitObservedReaderBatch(
     self.stream.handler.beginBatch();
     feedback_ops.beginReaderBatch(self);
     const previous_screen = self.terminal.screens.active_key;
+    const previous_graphics_generation = self.terminal.screens.active.kitty_images.generation;
     const previous_columns = self.terminal.cols;
     const previous_rows = self.terminal.rows;
     const previous_cell_pixel_width = self.cell_pixel_width;
@@ -326,6 +328,8 @@ fn commitObservedReaderBatch(
     }
     const screen_changed = previous_screen != self.terminal.screens.active_key or
         screen_reset;
+    const graphics_changed = screen_changed or
+        previous_graphics_generation != self.terminal.screens.active.kitty_images.generation;
     if (screen_changed or geometry_changed) self.generation += 1;
     const revision = current_revision + 1;
     self.revision.store(revision, .release);
@@ -355,6 +359,7 @@ fn commitObservedReaderBatch(
     else
         false;
     finishReaderCommitLocked(self);
+    if (graphics_changed) animation_ops.requestWakeLocked(self);
     self.terminal_mutex.unlock();
 
     const outcome: contracts.ReaderBatchOutcome = if (reply_failed or

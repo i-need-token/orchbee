@@ -13,6 +13,7 @@ const RetainedCleanupStatus = contracts.RetainedCleanupStatus;
 const max_runtime_sync_per_poll = contracts.max_runtime_sync_per_poll;
 
 const cleanup_retry_delay_ns: i128 = std.time.ns_per_s;
+pub const scrollback_compression_opportunity_interval_ns: i128 = 20 * std.time.ns_per_ms;
 /// Bounded number of cleanup-eligibility inspections allowed per
 /// synchronization pass. The cleanup-retry cursor advances by the number of
 /// terminals actually inspected, so a registry larger than this budget never
@@ -26,6 +27,8 @@ const retained_cleanup_backoff_ns = std.time.ns_per_s;
 pub const Maintenance = struct {
     cleanup_clock: CleanupClock = .{},
     cleanup_retry_scan_index: usize = 0,
+    compression_scan_index: usize = 0,
+    next_compression_opportunity_at_ns: i128 = 0,
     outcome_scan_index: usize = 0,
     retained_cleanup: RetainedCleanupStatus = .{},
     runtime_sync_index: usize = 0,
@@ -178,7 +181,9 @@ pub const Maintenance = struct {
             self.synchronizeRuntime(core, terminal_id, runtime);
         }
         self.runtime_sync_index = (start + limit) % count;
-        self.retryOneBlockedCleanup(owner, self.cleanup_clock.now());
+        const now_ns = self.cleanup_clock.now();
+        self.retryOneBlockedCleanup(owner, now_ns);
+        self.maintainOneScrollbackCompression(owner, now_ns);
     }
 
     /// Synchronizes exactly the bounded inventory slice that is about to be
@@ -323,6 +328,46 @@ pub const Maintenance = struct {
 
     pub fn cleanupRetryScanIndex(self: *const Maintenance) usize {
         return self.cleanup_retry_scan_index;
+    }
+
+    /// Returns one fair retained-runtime index when the shared global cadence
+    /// permits work. The next deadline is based on `now_ns`, not the previous
+    /// deadline, so delayed polls never produce catch-up bursts.
+    pub fn takeScrollbackCompressionIndex(
+        self: *Maintenance,
+        count: usize,
+        now_ns: i128,
+    ) ?usize {
+        if (count == 0 or now_ns < self.next_compression_opportunity_at_ns) return null;
+        const index = self.compression_scan_index % count;
+        self.compression_scan_index = (index + 1) % count;
+        self.next_compression_opportunity_at_ns = std.math.add(
+            i128,
+            now_ns,
+            scrollback_compression_opportunity_interval_ns,
+        ) catch std.math.maxInt(i128);
+        return index;
+    }
+
+    pub fn compressionScanIndex(self: *const Maintenance) usize {
+        return self.compression_scan_index;
+    }
+
+    pub fn nextCompressionOpportunityAt(self: *const Maintenance) i128 {
+        return self.next_compression_opportunity_at_ns;
+    }
+
+    fn maintainOneScrollbackCompression(
+        self: *Maintenance,
+        owner: anytype,
+        now_ns: i128,
+    ) void {
+        const core = owner.core();
+        const count = core.terminalCount();
+        const index = self.takeScrollbackCompressionIndex(count, now_ns) orelse return;
+        const terminal_id = core.terminalKeys()[index];
+        const runtime = owner.runtimeFor(terminal_id) orelse return;
+        _ = runtime.maintainScrollbackCompression(now_ns);
     }
 
     fn retryOneBlockedCleanup(

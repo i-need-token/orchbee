@@ -359,17 +359,24 @@ packed store and renderer directly. Applying that snapshot never emits a reverse
 only a measured container or device-pixel-ratio change may request a new attachment resize.
 
 Document visibility and explicit presentation demand jointly suspend renderer animation and queued
-draw work. Hidden commits still advance and acknowledge the packed store; becoming visible schedules
-one draw of the newest committed state rather than replaying stale destinations.
+draw work. A document-hidden WebGPU surface also unconfigures its canvas and releases its
+per-surface GPU residency and shared-device lease while retaining the packed store and CPU
+presentation caches. Hidden commits still advance and acknowledge the packed store. Visibility
+restoration reacquires the current shared-device generation and draws the newest committed state
+once; that restoration draw is permitted even while explicit presentation demand remains paused,
+after which the independent pause continues to suppress later draws. Canvas 2D visibility changes
+remain timer-and-draw suspension only.
 
 `freeze()` is the application recovery handoff: it retires input, transport-facing listeners,
 animation, resize, search, and in-flight side effects while retaining the last painted canvas and
 accessible row list. Frozen instances reject further frame and command work. A later `dispose()`
 releases the retained renderer resources and DOM after the application has painted a replacement.
 
-WebGPU initialization and recovery fence every asynchronous completion against that lifecycle:
-retired work destroys its uncommitted device and resources and cannot configure a context, activate
-Canvas fallback, or publish renderer health.
+WebGPU initialization, visibility restoration, and device-loss recovery fence every asynchronous
+completion against both lifecycle and visibility epochs. Hiding during pending initialization
+retires that attempt; stale work releases its uncommitted lease and resources and cannot configure a
+context, activate Canvas fallback, or publish renderer health. Showing the surface publishes no
+backend by itself: a fresh visible initialization must complete first.
 
 `notifyBrokerFailure` preserves the broker's typed code, semantic operation, retryability, optional
 Host correlation ID, and optional client request sequence on `onError`. It also applies the owned
@@ -395,7 +402,7 @@ history, staged frames, snapshot requests, failures, and disposal. A newly arriv
 may have entered flight before that input, so the client sends `NeedSnapshot(activity-stale)` for
 its exact sequence instead of `FrameApplied` and retains `unknown`. The next complete snapshot is
 causally newer than the input invalidation, but it proves neither that the Host accepted the input
-nor that the shell consumed it. Under wire protocol `0.0.20`, Host-accepted non-focus input
+nor that the shell consumed it. Under wire protocol `0.0.21`, Host-accepted non-focus input
 invalidates the Host cache immediately, while a later current-state sample may report `active`,
 `idle`, or `unknown`. A causally eligible replacement may therefore restore fresh `idle` in the
 same terminal lifecycle. A stale theme-stage frame is fenced at apply time and cannot make the
@@ -411,7 +418,9 @@ committed. Canvas2D and WebGPU convert raw gray/gray-alpha/RGB/RGBA pixels once 
 reuse the resulting resource for crop, scale, and movement, and paint the exact three signed-z
 layers below cell backgrounds, between backgrounds and text, and above text. Render-detail OBRW
 `0.0.3` replaces rows and its independent graphics snapshot atomically; text detail carries no
-graphics. Empty snapshots, deletion, reset, replacement, and disposal release obsolete pixel,
+graphics. Text-only commits retain the same graphics identity, so a static placement does not turn
+an otherwise dirty-row Canvas2D update into a full-surface repaint. Empty snapshots, deletion,
+reset, replacement, and disposal release obsolete pixel,
 Canvas, and GPU resources. This package deliberately never parses PNG or Kitty commands, loads a
 path or shared-memory object, or resolves animation, virtual/relative placement, or history pins;
 Terminal Host completes that work before owned decoded pixels and absolute placements cross the
@@ -561,23 +570,27 @@ opening reference once the cached draw completes, while an external bounded cach
 snapshot for later presentation.
 
 WebGPU adapter acquisition, device creation, preferred format, and the immutable background/text
-pipeline pair are shared by renderers in one `Document`. Every renderer continues to own and
-release its canvas context, glyph atlas texture and Canvas, sampler, uniform and vertex buffers,
-bind groups, CPU staging storage, and overlays. Disposing or freezing one renderer therefore never
-destroys the shared device. Device loss invalidates that document generation; each affected live
-renderer independently follows the existing typed recovery path against the next shared generation,
-and Canvas 2D remains the observable fallback. The shared runtime owns the generation's only pending
-`GPUDevice.lost` reaction. Each live or transiently frozen renderer holds one reference-counted
-runtime lease with a detachable loss subscriber; releasing the lease removes that subscriber before
-decrementing the runtime reference count. Releasing the final lease destroys the device and discards
-the shared pipelines; the `Document`-keyed weak map is only the concurrent discovery boundary. The
-runtime therefore adds neither per-inactive-terminal GPU surfaces nor idle device retention.
+pipeline pair are shared by renderers in one `Document`. Every configured renderer owns its glyph
+atlas texture, sampler, uniform and vertex buffers, bind groups, Kitty textures, reconstructible CPU
+staging, and one detachable shared-runtime lease. Document hiding unconfigures that canvas,
+destroys those per-surface GPU resources, clears peak-sized staging arrays, and releases the lease;
+the renderer retains its packed source, raw graphics data, glyph map, and CPU atlas Canvas so a
+visible restoration can rebuild without changing terminal state. A pending initialization is
+retired by the same visibility epoch. `freeze()` remains different: it preserves the already-painted
+canvas and its resources for application recovery handoff. Device loss invalidates the document
+generation; each affected visible renderer follows the typed recovery path against the next shared
+generation, while Canvas 2D remains the observable fallback. The shared runtime owns the
+generation's only pending `GPUDevice.lost` reaction. Releasing a lease removes its subscriber before
+decrementing the reference count; releasing the final visible-or-frozen lease destroys the device
+and discards shared pipelines. The `Document`-keyed weak map is only the concurrent discovery
+boundary, so hidden or inactive terminals retain neither GPU surfaces nor an otherwise idle device.
 
 The WebGPU path retains and clears one instance array plus one geometrically grown `Float32Array`
 upload buffer for each background, text, and overlay stream. Once a stream reaches the capacity of
 its largest prepared frame, later frames at or below that size reuse the same underlying CPU
-storage instead of allocating another frame-sized buffer. Disposal releases the retained staging
-storage. Per-cell foreground/background resolution also reuses one renderer-owned scratch
+storage instead of allocating another frame-sized buffer. Document-hidden parking and disposal
+release the retained staging storage; the next visible full draw reconstructs it. Per-cell
+foreground/background resolution also reuses one renderer-owned scratch
 projection while callers copy only values that must outlive the current cell. These rules bound the
 two full-viewport allocation hot paths by peak prepared viewport content; they do not define a
 GPU-driver, browser, or whole-process RSS ceiling.
@@ -591,9 +604,11 @@ resize, device-pixel-ratio, or presentation-configuration changes.
 The glyph atlas starts at 2048 physical pixels on each axis. Admitting a complete raster reservation
 independently doubles only the axis whose current bound is too small, up to the device texture limit;
 row-wide shaping can therefore consume additional width without multiplying unused height. A cache
-reset clears entries while retaining the current atlas dimensions. Freezing retains the last
-presented canvas, while disposal unconfigures the WebGPU canvas, destroys its per-surface GPU
-resources, clears glyph state, and resets the renderer-owned atlas Canvas backing to zero pixels.
+reset clears entries while retaining the current atlas dimensions. Document-hidden parking retains
+that CPU atlas and glyph state but destroys its GPU texture; restoration marks the entire atlas dirty
+and uploads it into the newly created texture. Freezing retains the last presented canvas and
+resources, while disposal unconfigures the WebGPU canvas, destroys its per-surface GPU resources,
+clears glyph state, and resets the renderer-owned atlas Canvas backing to zero pixels.
 These are atlas and lifecycle allocation bounds, not a GPU-driver, browser, or whole-process RSS
 ceiling.
 
@@ -758,9 +773,15 @@ The headed fixture overrides `document.visibilityState` only inside its test doc
 the real application-layer `visibilitychange` event. It does not exercise operating-system tab
 backgrounding or browser throttling policy, and it makes no WebGPU or cross-browser claim.
 
-| SU-15 claim                                                                                                                                       | Renderer evidence                                      | Projected integration                                                                                | Headed system trace                | Limits                                                                                                                                       |
-| ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------- | ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| Visibility and explicit demand retain independent pause causes; commits and acknowledgements continue while draws coalesce until the final resume | `suspends packed blinking-cell animation while hidden` | `coordinates document visibility and projection demand before drawing the newest acknowledged frame` | `terminal-parity/SU-15-visibility` | Headed Chromium Canvas 2D with synthetic application-layer document visibility; no OS background-throttling, WebGPU, or other-browser claim. |
+Deterministic WebGPU tests separately verify that hiding unconfigures the context, destroys
+per-surface resources, preserves CPU atlas state, releases the final shared lease, fences a pending
+initialization, and rebuilds on visibility restoration. A projected integration test verifies the
+single forced restoration draw uses the newest revision while explicit demand remains paused and
+that later paused revisions do not draw.
+
+| SU-15 claim                                                                                                                                       | Renderer evidence                                                                                                                                                                   | Projected integration                                                                                                                                                                         | Headed system trace                | Limits                                                                                                                                                                 |
+| ------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Visibility and explicit demand retain independent pause causes; commits and acknowledgements continue while draws coalesce until the final resume | `suspends packed blinking-cell animation while hidden`; `parks document-hidden WebGPU residency and rebuilds it from retained CPU state`; pending-init and shared-lease regressions | `coordinates document visibility and projection demand before drawing the newest acknowledged frame`; `draws one current restoration frame while explicit presentation demand remains paused` | `terminal-parity/SU-15-visibility` | Headed Chromium Canvas 2D plus deterministic WebGPU ownership/refinement tests; no OS background-throttling, cross-browser, or synchronous physical-reclamation claim. |
 
 ### Device-pixel-ratio evidence
 

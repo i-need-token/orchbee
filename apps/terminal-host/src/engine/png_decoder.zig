@@ -5,6 +5,7 @@ const thread_sync = @import("terminal-host-platform").thread_sync;
 const wuffs = @import("wuffs");
 
 const png_signature = "\x89PNG\r\n\x1a\n";
+pub const acquisition_limit_bytes = 400 * 1024 * 1024;
 var install_mutex: thread_sync.Mutex = .{};
 var installed = false;
 
@@ -30,7 +31,7 @@ fn decodePng(
     data: []const u8,
 ) ghostty_vt.sys.DecodeError!ghostty_vt.sys.Image {
     if (data.len < 24 or
-        data.len > protocol.Limits.terminal_graphics_resource_bytes or
+        data.len > acquisition_limit_bytes or
         !std.mem.eql(u8, data[0..8], png_signature) or
         std.mem.readInt(u32, data[8..12], .big) != 13 or
         !std.mem.eql(u8, data[12..16], "IHDR"))

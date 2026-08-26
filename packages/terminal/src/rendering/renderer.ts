@@ -855,7 +855,7 @@ export class WebGPURenderer {
 		number,
 		{ readonly canvas: HTMLCanvasElement; readonly generation: bigint }
 	>();
-	private previousGraphicsHadPlacements = false;
+	private previousGraphics: PackedRendererGraphics | undefined;
 	private useWebGPU = false;
 
 	// Font and surface presentation
@@ -890,6 +890,11 @@ export class WebGPURenderer {
 	private frameOverlayInstances = 0;
 	private frameGpuDrawCalls = 0;
 	private recoveryInFlight = false;
+	private documentHidden = false;
+	private gpuResidencyEpoch = 0;
+	private gpuInitializationInFlight: Promise<boolean> | null = null;
+	private webGPUDesired = false;
+	private webGPUConfirmed = false;
 	private disposed = false;
 	private frozen = false;
 	private lastCursorPosition: { x: number; y: number } = { x: 0, y: 0 };
@@ -1010,10 +1015,33 @@ export class WebGPURenderer {
 	/** Initialize WebGPU. Call after construction. */
 	async initGPU(): Promise<boolean> {
 		if (this.frozen || this.disposed) return false;
-		return await this.initializeGPU(true);
+		this.webGPUDesired = true;
+		if (this.documentHidden) return false;
+		return await this.startGPUInitialization(true);
 	}
 
-	private async initializeGPU(allowFallback: boolean): Promise<boolean> {
+	private startGPUInitialization(allowFallback: boolean): Promise<boolean> {
+		const current = this.gpuInitializationInFlight;
+		if (current !== null) return current;
+		const epoch = this.gpuResidencyEpoch;
+		const initialization = this.initializeGPU(allowFallback, epoch);
+		this.gpuInitializationInFlight = initialization;
+		void initialization.then(
+			() => {
+				if (this.gpuInitializationInFlight === initialization) {
+					this.gpuInitializationInFlight = null;
+				}
+			},
+			() => {
+				if (this.gpuInitializationInFlight === initialization) {
+					this.gpuInitializationInFlight = null;
+				}
+			},
+		);
+		return initialization;
+	}
+
+	private async initializeGPU(allowFallback: boolean, epoch: number): Promise<boolean> {
 		const gpu = this.canvas.ownerDocument.defaultView?.navigator?.gpu ?? globalThis.navigator?.gpu;
 		if (gpu === undefined) {
 			if (!allowFallback) throw new Error('WebGPU became unavailable during recovery');
@@ -1033,7 +1061,7 @@ export class WebGPURenderer {
 				lease.release();
 				throw error;
 			}
-			if (this.disposed || this.frozen) {
+			if (this.isGPUInitializationRetired(epoch)) {
 				lease.release();
 				return false;
 			}
@@ -1059,12 +1087,12 @@ export class WebGPURenderer {
 				throw error;
 			}
 			resourceError = await device.popErrorScope();
-			if (this.cancelRetiredGPUInitialization(device)) return false;
+			if (this.cancelRetiredGPUInitialization(device, epoch)) return false;
 			if (resourceError !== null) {
 				throw new Error(`WebGPU surface validation failed: ${resourceError.message}`);
 			}
 
-			if (this.cancelRetiredGPUInitialization(device)) return false;
+			if (this.cancelRetiredGPUInitialization(device, epoch)) return false;
 			this.context ??= this.canvas.getContext('webgpu');
 			if (!this.context) {
 				throw new Error('Failed to get WebGPU rendering context');
@@ -1076,13 +1104,15 @@ export class WebGPURenderer {
 			});
 
 			this.useWebGPU = true;
+			this.webGPUConfirmed = true;
 			this.ctx2d = null;
+			this.surfaceDirty = true;
 			this.emitHealth({ state: 'ready', backend: 'webgpu' });
 			this.requestRenderCallback?.();
 			return true;
 		} catch (error) {
-			if (this.disposed || this.frozen) {
-				if (this.device !== null) this.cancelRetiredGPUInitialization(this.device);
+			if (this.isGPUInitializationRetired(epoch)) {
+				if (this.device !== null) this.cancelRetiredGPUInitialization(this.device, epoch);
 				return false;
 			}
 			if (!allowFallback || this.context) throw error;
@@ -1096,13 +1126,18 @@ export class WebGPURenderer {
 		if (this.disposed || this.frozen) return false;
 		this.releaseGPUResources();
 		this.device = null;
+		this.webGPUDesired = false;
 		this.initFallback2D();
 		this.emitHealth({ state: 'fallback', backend: 'canvas2d', reason });
 		return false;
 	}
 
-	private cancelRetiredGPUInitialization(device: GPUDevice): boolean {
-		if (!this.disposed && !this.frozen && this.device === device) return false;
+	private isGPUInitializationRetired(epoch: number): boolean {
+		return this.disposed || this.frozen || this.documentHidden || epoch !== this.gpuResidencyEpoch;
+	}
+
+	private cancelRetiredGPUInitialization(device: GPUDevice, epoch: number): boolean {
+		if (!this.isGPUInitializationRetired(epoch) && this.device === device) return false;
 		if (this.device === device) {
 			this.releaseGPUResources();
 			this.device = null;
@@ -1112,8 +1147,9 @@ export class WebGPURenderer {
 	}
 
 	private handleDeviceLost(device: GPUDevice, info: GPUDeviceLostInfo): void {
-		if (this.disposed || this.frozen || device !== this.device) return;
+		if (this.disposed || this.frozen || this.documentHidden || device !== this.device) return;
 		this.useWebGPU = false;
+		this.webGPUDesired = true;
 		this.emitHealth({
 			state: 'lost',
 			backend: 'webgpu',
@@ -1123,14 +1159,16 @@ export class WebGPURenderer {
 	}
 
 	private async recoverWebGPU(): Promise<void> {
-		if (this.disposed || this.frozen || this.recoveryInFlight) return;
+		if (this.disposed || this.frozen || this.documentHidden || this.recoveryInFlight) return;
 		this.recoveryInFlight = true;
+		this.gpuResidencyEpoch += 1;
 		this.emitHealth({ state: 'recovering', backend: 'webgpu', attempt: 1 });
 		this.releaseGPUResources();
+		this.device = null;
 		try {
-			await this.initializeGPU(false);
+			await this.startGPUInitialization(false);
 		} catch (error) {
-			if (!this.disposed && !this.frozen) {
+			if (!this.disposed && !this.frozen && !this.documentHidden) {
 				this.releaseGPUResources();
 				this.device = null;
 				this.emitHealth({
@@ -1171,6 +1209,17 @@ export class WebGPURenderer {
 		this.bgPipeline = null;
 		this.textPipeline = null;
 		this.markEntireAtlasDirty();
+	}
+
+	private releaseReconstructibleFrameStaging(): void {
+		this.backgroundVertexData = [];
+		this.textVertexData = [];
+		this.overlayVertexData = [];
+		this.graphicsVertexData = [];
+		this.backgroundVertexUpload = new Float32Array(0);
+		this.textVertexUpload = new Float32Array(0);
+		this.overlayVertexUpload = new Float32Array(0);
+		this.graphicsVertexUpload = new Float32Array(0);
 	}
 
 	private initFallback2D(): void {
@@ -1799,8 +1848,7 @@ export class WebGPURenderer {
 		const timestamp = rendererNow();
 		this.currentSelectionCoords = this.projectedSelectionCoords;
 		this.currentVisibleRows = metadata.rows;
-		const graphicsHadPlacements = (buffer.graphics?.placements.length ?? 0) > 0;
-		const graphicsChanged = graphicsHadPlacements || this.previousGraphicsHadPlacements;
+		const graphicsChanged = buffer.graphics !== this.previousGraphics;
 		const reasons = new Set<RendererFrameReason>();
 		if (forceAll || buffer.needsFullRedraw) reasons.add('full');
 		if (graphicsChanged) reasons.add('graphics');
@@ -1816,7 +1864,7 @@ export class WebGPURenderer {
 		this.resetFrameCounters();
 		if (this.useWebGPU) this.renderPackedWebGPU(buffer, metadata);
 		else this.renderPackedCanvas2D(buffer, metadata, redrawAll);
-		this.previousGraphicsHadPlacements = graphicsHadPlacements;
+		this.previousGraphics = buffer.graphics;
 		this.fontDirty = false;
 		this.cursorAppearanceDirty = false;
 		this.searchDirty = false;
@@ -3518,6 +3566,87 @@ export class WebGPURenderer {
 		this.requestRenderCallback?.();
 	}
 
+	/**
+	 * Release document-hidden WebGPU residency while retaining CPU presentation
+	 * state. Visibility restoration reacquires the current shared device
+	 * generation and requests one complete redraw.
+	 */
+	setDocumentHidden(hidden: boolean): Promise<boolean> {
+		if (this.disposed || this.frozen) return Promise.resolve(false);
+		if (hidden === this.documentHidden) {
+			return hidden ? Promise.resolve(false) : this.restoreVisibleGPU();
+		}
+
+		this.documentHidden = hidden;
+		this.gpuResidencyEpoch += 1;
+		if (!hidden) return this.restoreVisibleGPU();
+
+		if (
+			this.webGPUDesired ||
+			this.useWebGPU ||
+			this.device !== null ||
+			this.sharedWebGPULease !== null
+		) {
+			this.webGPUDesired = true;
+			this.context?.unconfigure?.();
+			this.releaseGPUResources();
+			this.releaseReconstructibleFrameStaging();
+			this.device = null;
+			this.useWebGPU = false;
+			this.surfaceDirty = true;
+		}
+		return Promise.resolve(false);
+	}
+
+	private async restoreVisibleGPU(): Promise<boolean> {
+		if (
+			this.documentHidden ||
+			this.disposed ||
+			this.frozen ||
+			!this.webGPUDesired ||
+			this.useWebGPU
+		) {
+			return false;
+		}
+
+		const priorInitialization = this.gpuInitializationInFlight;
+		if (priorInitialization !== null) {
+			try {
+				await priorInitialization;
+			} catch {
+				// A retired attempt cannot publish; the visible epoch retries below.
+			}
+			if (
+				this.documentHidden ||
+				this.disposed ||
+				this.frozen ||
+				!this.webGPUDesired ||
+				this.useWebGPU
+			) {
+				return false;
+			}
+		}
+
+		const wasRenderable = this.useWebGPU || this.ctx2d !== null;
+		try {
+			const restored = await this.startGPUInitialization(!this.webGPUConfirmed);
+			const becameRenderable = !wasRenderable && (this.useWebGPU || this.ctx2d !== null);
+			if (restored || becameRenderable) this.surfaceDirty = true;
+			return restored || becameRenderable;
+		} catch (error) {
+			if (!this.documentHidden && !this.disposed && !this.frozen) {
+				this.releaseGPUResources();
+				this.device = null;
+				this.emitHealth({
+					state: 'recovery-failed',
+					backend: 'webgpu',
+					reason: error instanceof Error ? error.message : 'webgpu-visibility-restore-failed',
+				});
+			}
+			return false;
+		}
+	}
+
 	/** Suspend animation timers while the surface is not visible. */
 	setSuspended(suspended: boolean): void {
 		if (suspended === this.suspended) return;
@@ -3637,6 +3766,7 @@ export class WebGPURenderer {
 	freeze(): void {
 		if (this.disposed || this.frozen) return;
 		this.frozen = true;
+		this.gpuResidencyEpoch += 1;
 		this.suspended = true;
 		this.stopCursorBlink();
 		this.stopTextBlink();
@@ -3648,6 +3778,8 @@ export class WebGPURenderer {
 	dispose(): void {
 		if (this.disposed) return;
 		this.disposed = true;
+		this.gpuResidencyEpoch += 1;
+		this.webGPUDesired = false;
 		this.stopCursorBlink();
 		this.stopTextBlink();
 		this.requestRenderCallback = undefined;
@@ -3657,14 +3789,7 @@ export class WebGPURenderer {
 		this.releaseGPUResources();
 		this.releaseGlyphAtlasBacking();
 		this.graphicsResourceCanvases.clear();
-		this.backgroundVertexData = [];
-		this.textVertexData = [];
-		this.overlayVertexData = [];
-		this.graphicsVertexData = [];
-		this.backgroundVertexUpload = new Float32Array(0);
-		this.textVertexUpload = new Float32Array(0);
-		this.overlayVertexUpload = new Float32Array(0);
-		this.graphicsVertexUpload = new Float32Array(0);
+		this.releaseReconstructibleFrameStaging();
 		this.device = null;
 		this.context = null;
 		this.ctx2d = null;

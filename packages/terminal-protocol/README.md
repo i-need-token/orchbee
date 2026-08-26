@@ -9,7 +9,7 @@ It does not open sockets or named pipes, spawn processes, parse VT, route Electr
 | Area                 | Public contract                                                                                                                                                                                |
 | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Identity             | Strict non-zero 128-bit host, creation, terminal, client, attachment, correlation, and terminal-theme operation identities                                                                     |
-| Compatibility        | Exact current protocol `0.0.20` validation; a different version is rejected rather than adapted                                                                                                |
+| Compatibility        | Exact current protocol `0.0.21` validation; a different version is rejected rather than adapted                                                                                                |
 | Message registry     | One current-version mapping from every kind to its legal role, payload encoding, and successful response kind                                                                                  |
 | Control              | Message-kind-selected request encoding plus strict handshake, configuration/theme, inventory, lifecycle, attachment, projection/history, bell, clipboard-write, selection, and failure schemas |
 | Transport            | A bounded 64-byte envelope that rejects producer-side role or encoding mismatches for JSON, input, terminal frames, and row windows                                                            |
@@ -104,27 +104,27 @@ if (envelope.value.payloadEncoding === PayloadEncoding.terminalFrame) {
 The package explicitly exports:
 
 - `@orchbee/terminal-protocol/fixtures/canonical.json`
-- `@orchbee/terminal-protocol/fixtures/control-conformance-v0.0.20.json`
-- `@orchbee/terminal-protocol/fixtures/focus-input-v0.0.20.bin`
+- `@orchbee/terminal-protocol/fixtures/control-conformance-v0.0.21.json`
+- `@orchbee/terminal-protocol/fixtures/focus-input-v0.0.21.bin`
 - `@orchbee/terminal-protocol/fixtures/malformed-frame-v0.0.3.json`
 - `@orchbee/terminal-protocol/fixtures/malformed-row-window-v0.0.3.json`
 - `@orchbee/terminal-protocol/fixtures/packed-projection-conformance-v0.0.3.json`
 - `@orchbee/terminal-protocol/fixtures/terminal-frame-v0.0.3.bin`
-- `@orchbee/terminal-protocol/fixtures/terminal-failed-v0.0.20.json`
+- `@orchbee/terminal-protocol/fixtures/terminal-failed-v0.0.21.json`
 - `@orchbee/terminal-protocol/fixtures/terminal-projection-buffer-v0.0.2.bin`
 - `@orchbee/terminal-protocol/fixtures/terminal-row-window-v0.0.3.bin`
-- `@orchbee/terminal-protocol/fixtures/transport-envelope-v0.0.20.bin`
-- `@orchbee/terminal-protocol/fixtures/write-input-v0.0.20.bin`
-- `@orchbee/terminal-protocol/fixtures/key-input-v0.0.20.bin`
-- `@orchbee/terminal-protocol/fixtures/text-input-v0.0.20.bin`
-- `@orchbee/terminal-protocol/fixtures/mouse-input-v0.0.20.bin`
-- `@orchbee/terminal-protocol/fixtures/paste-input-v0.0.20.bin`
-- `@orchbee/terminal-protocol/fixtures/utf8-bom-conformance-v0.0.20.json`
+- `@orchbee/terminal-protocol/fixtures/transport-envelope-v0.0.21.bin`
+- `@orchbee/terminal-protocol/fixtures/write-input-v0.0.21.bin`
+- `@orchbee/terminal-protocol/fixtures/key-input-v0.0.21.bin`
+- `@orchbee/terminal-protocol/fixtures/text-input-v0.0.21.bin`
+- `@orchbee/terminal-protocol/fixtures/mouse-input-v0.0.21.bin`
+- `@orchbee/terminal-protocol/fixtures/paste-input-v0.0.21.bin`
+- `@orchbee/terminal-protocol/fixtures/utf8-bom-conformance-v0.0.21.json`
 - `@orchbee/terminal-protocol/fixtures/ghostty-alternate-surface-v0.0.3.bin`
 - `@orchbee/terminal-protocol/fixtures/ghostty-render-row-window-v0.0.3.bin`
 - `@orchbee/terminal-protocol/fixtures/ghostty-surface-v0.0.3.bin`
 
-`canonical.json` is only the language-neutral generator input for the current binary formats, so it has no compatibility version. `control-conformance-v0.0.20.json` contains schema-produced command, reply, event, discriminated-union, failure, and complete kind/role/encoding/success-response contracts consumed by the native typed adapter. `fixtures:generate` uses the built TypeScript codecs and schemas to produce those tracked records, the canonical `TerminalFailed` control record, the current OBTF format-`0.0.3`, OBPB format-`0.0.2`, OBRW format-`0.0.3`, and OBKG format-`0.0.2` fixtures, their strict conformance corpus, and the frame and row-window malformed corpora. `test:fixtures` rejects every missing or byte-stale generated output. Every compatibility fixture carries the exact semantic version of its owning wire protocol or binary format; no wildcard or major-only fixture name is used.
+`canonical.json` is only the language-neutral generator input for the current binary formats, so it has no compatibility version. `control-conformance-v0.0.21.json` contains schema-produced command, reply, event, discriminated-union, failure, and complete kind/role/encoding/success-response contracts consumed by the native typed adapter. `fixtures:generate` uses the built TypeScript codecs and schemas to produce those tracked records, the canonical `TerminalFailed` control record, the current OBTF format-`0.0.3`, OBPB format-`0.0.2`, OBRW format-`0.0.3`, and OBKG format-`0.0.2` fixtures, their strict conformance corpus, and the frame and row-window malformed corpora. `test:fixtures` rejects every missing or byte-stale generated output. Every compatibility fixture carries the exact semantic version of its owning wire protocol or binary format; no wildcard or major-only fixture name is used.
 
 `packed-projection-conformance-v0.0.3.json` is the language-neutral strict-boundary oracle for OBPB format `0.0.2` and OBRW format `0.0.3`. Each named case stores complete canonical bytes, its owning strict boundary, and a contract-authored outcome; accepted cases also store all observations required by the corpus schema. Neither decoder generates the expected result. The TypeScript strict decoders consume every case, while `apps/terminal-host` resolves the declared package export, passes the bounded JSON bytes into Zig conformance, and runs every case through the matching native strict validator.
 
@@ -155,7 +155,7 @@ consumer-owned. `NeedSnapshot` reason `activity-stale` abandons the exact in-fli
 consumer has locally invalidated its close-activity observation and cannot prove that frame is
 newer than the invalidating input; the replacement is a complete snapshot. This ordering proves
 only that the replacement reflects the Host cache after invalidation, not that the Host accepted
-the input or that the terminal process consumed it. In protocol `0.0.20`, Host-accepted non-focus
+the input or that the terminal process consumed it. In protocol `0.0.21`, Host-accepted non-focus
 input invalidates the cached observation immediately. A later bounded current-state sample may
 publish `active`, `idle`, or `unknown`, so a causal replacement may legitimately restore fresh
 `idle` in the same terminal lifecycle. This changes no wire value or codec.

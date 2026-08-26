@@ -295,6 +295,165 @@ describe('WebGPURenderer recovery retirement', () => {
 		expect(rendering.destroy).toHaveBeenCalledOnce();
 	});
 
+	it('parks document-hidden WebGPU residency and rebuilds it from retained CPU state', async () => {
+		vi.stubGlobal('window', { devicePixelRatio: 1 });
+		vi.stubGlobal('document', { createElement: () => createCanvas() });
+		vi.stubGlobal('GPUTextureUsage', { TEXTURE_BINDING: 1, COPY_DST: 2, RENDER_ATTACHMENT: 4 });
+		vi.stubGlobal('GPUBufferUsage', { UNIFORM: 1, COPY_DST: 2, VERTEX: 4 });
+		const firstRendering = createSubmittingDevice();
+		const secondRendering = createSubmittingDevice();
+		const firstTextureDestroy = vi.fn<GPUTexture['destroy']>();
+		vi.spyOn(firstRendering.device, 'createTexture').mockImplementation(
+			() => ({ createView: () => ({}), destroy: firstTextureDestroy }) as unknown as GPUTexture,
+		);
+		const requestDevice = vi
+			.fn<() => Promise<GPUDevice>>()
+			.mockResolvedValueOnce(firstRendering.device)
+			.mockResolvedValueOnce(secondRendering.device);
+		vi.stubGlobal('navigator', {
+			gpu: {
+				requestAdapter: async () => ({ requestDevice }) as unknown as GPUAdapter,
+				getPreferredCanvasFormat: () => 'bgra8unorm',
+			},
+		});
+		const context = {
+			configure: vi.fn<GPUCanvasContext['configure']>(),
+			getCurrentTexture: () => ({ createView: () => ({}) }),
+			unconfigure: vi.fn<GPUCanvasContext['unconfigure']>(),
+		} as unknown as GPUCanvasContext;
+		const renderer = new WebGPURenderer(createWebGPUCanvas(context));
+
+		await expect(renderer.initGPU()).resolves.toBe(true);
+		renderer.resize(8, 1);
+		renderer.renderPacked(createPackedSource(['retained']));
+		const atlas = Reflect.get(renderer, 'atlasCanvas') as HTMLCanvasElement;
+		const glyphMap = Reflect.get(renderer, 'glyphMap') as Map<string, unknown>;
+		expect(glyphMap.size).toBeGreaterThan(0);
+
+		await expect(renderer.setDocumentHidden(true)).resolves.toBe(false);
+
+		expect(renderer.getBackend()).toBe('uninitialized');
+		expect(context.unconfigure).toHaveBeenCalledOnce();
+		expect(firstTextureDestroy).toHaveBeenCalled();
+		expect(firstRendering.destroy).toHaveBeenCalledOnce();
+		expect(atlas).toMatchObject({ height: 2_048, width: 2_048 });
+		expect(glyphMap.size).toBeGreaterThan(0);
+
+		await expect(renderer.setDocumentHidden(false)).resolves.toBe(true);
+
+		expect(requestDevice).toHaveBeenCalledTimes(2);
+		expect(context.configure).toHaveBeenCalledTimes(3);
+		expect(renderer.getBackend()).toBe('webgpu');
+		renderer.renderPacked(createPackedSource(['restored']));
+		expect(renderer.getLastFrameTelemetry()).toMatchObject({
+			backend: 'webgpu',
+			forceAll: true,
+		});
+		renderer.dispose();
+	});
+
+	it('restores an initially hidden surface through Canvas fallback as redrawable', async () => {
+		vi.stubGlobal('window', { devicePixelRatio: 1 });
+		vi.stubGlobal('navigator', {});
+		vi.stubGlobal('document', { createElement: () => createCanvas() });
+		const renderer = new WebGPURenderer(createCanvas());
+
+		await expect(renderer.setDocumentHidden(true)).resolves.toBe(false);
+		await expect(renderer.initGPU()).resolves.toBe(false);
+		expect(renderer.getBackend()).toBe('uninitialized');
+
+		await expect(renderer.setDocumentHidden(false)).resolves.toBe(true);
+		expect(renderer.getBackend()).toBe('canvas2d');
+		renderer.dispose();
+	});
+
+	it('retires a hidden pending initialization before a visible retry can publish', async () => {
+		vi.stubGlobal('window', { devicePixelRatio: 1 });
+		vi.stubGlobal('document', { createElement: () => createCanvas() });
+		vi.stubGlobal('GPUTextureUsage', { TEXTURE_BINDING: 1, COPY_DST: 2, RENDER_ATTACHMENT: 4 });
+		vi.stubGlobal('GPUBufferUsage', { UNIFORM: 1, COPY_DST: 2, VERTEX: 4 });
+		const retiredRendering = createSubmittingDevice();
+		const visibleRendering = createSubmittingDevice();
+		let resolveRetiredDevice: ((device: GPUDevice) => void) | undefined;
+		const requestDevice = vi
+			.fn<() => Promise<GPUDevice>>()
+			.mockImplementationOnce(
+				() =>
+					new Promise<GPUDevice>((resolve) => {
+						resolveRetiredDevice = resolve;
+					}),
+			)
+			.mockResolvedValueOnce(visibleRendering.device);
+		vi.stubGlobal('navigator', {
+			gpu: {
+				requestAdapter: async () => ({ requestDevice }) as unknown as GPUAdapter,
+				getPreferredCanvasFormat: () => 'bgra8unorm',
+			},
+		});
+		const context = {
+			configure: vi.fn<GPUCanvasContext['configure']>(),
+			getCurrentTexture: () => ({ createView: () => ({}) }),
+			unconfigure: vi.fn<GPUCanvasContext['unconfigure']>(),
+		} as unknown as GPUCanvasContext;
+		const baseCanvas = createCanvas();
+		const fallbackContext = baseCanvas.getContext.bind(baseCanvas);
+		const getContext = vi.fn<(kind: string, options?: unknown) => unknown>((kind, options) =>
+			kind === 'webgpu' ? context : fallbackContext(kind, options),
+		);
+		const renderer = new WebGPURenderer({ ...baseCanvas, getContext } as HTMLCanvasElement);
+
+		const initialization = renderer.initGPU();
+		await vi.waitFor(() => expect(requestDevice).toHaveBeenCalledOnce());
+		await renderer.setDocumentHidden(true);
+		const restoration = renderer.setDocumentHidden(false);
+		resolveRetiredDevice?.(retiredRendering.device);
+
+		await expect(initialization).resolves.toBe(false);
+		await expect(restoration).resolves.toBe(true);
+		expect(retiredRendering.destroy).toHaveBeenCalledOnce();
+		expect(requestDevice).toHaveBeenCalledTimes(2);
+		expect(context.configure).toHaveBeenCalledOnce();
+		expect(getContext.mock.calls.every(([kind]) => kind === 'webgpu')).toBe(true);
+		expect(renderer.getBackend()).toBe('webgpu');
+		renderer.dispose();
+	});
+
+	it('releases one hidden surface without destroying a device leased by its sibling', async () => {
+		vi.stubGlobal('window', { devicePixelRatio: 1 });
+		vi.stubGlobal('document', { createElement: () => createCanvas() });
+		vi.stubGlobal('GPUTextureUsage', { TEXTURE_BINDING: 1, COPY_DST: 2, RENDER_ATTACHMENT: 4 });
+		vi.stubGlobal('GPUBufferUsage', { UNIFORM: 1, COPY_DST: 2, VERTEX: 4 });
+		const rendering = createSubmittingDevice();
+		const requestDevice = vi.fn<() => Promise<GPUDevice>>(async () => rendering.device);
+		vi.stubGlobal('navigator', {
+			gpu: {
+				requestAdapter: async () => ({ requestDevice }) as unknown as GPUAdapter,
+				getPreferredCanvasFormat: () => 'bgra8unorm',
+			},
+		});
+		const firstContext = {
+			configure: vi.fn<GPUCanvasContext['configure']>(),
+			unconfigure: vi.fn<GPUCanvasContext['unconfigure']>(),
+		} as unknown as GPUCanvasContext;
+		const secondContext = {
+			configure: vi.fn<GPUCanvasContext['configure']>(),
+			unconfigure: vi.fn<GPUCanvasContext['unconfigure']>(),
+		} as unknown as GPUCanvasContext;
+		const first = new WebGPURenderer(createWebGPUCanvas(firstContext));
+		const second = new WebGPURenderer(createWebGPUCanvas(secondContext));
+		await expect(Promise.all([first.initGPU(), second.initGPU()])).resolves.toEqual([true, true]);
+
+		await first.setDocumentHidden(true);
+		expect(first.getBackend()).toBe('uninitialized');
+		expect(second.getBackend()).toBe('webgpu');
+		expect(rendering.destroy).not.toHaveBeenCalled();
+
+		await second.setDocumentHidden(true);
+		expect(rendering.destroy).toHaveBeenCalledOnce();
+		first.dispose();
+		second.dispose();
+	});
+
 	it('keeps the last canvas readable while rejecting later draw mutations', async () => {
 		vi.stubGlobal('navigator', {});
 		vi.stubGlobal('window', { devicePixelRatio: 1 });
@@ -514,6 +673,9 @@ describe('projected terminal renderer', () => {
 		if (baseMetadata === null) throw new Error('Expected packed-source metadata.');
 		const source: PackedRendererSource = {
 			...base,
+			get needsFullRedraw() {
+				return base.needsFullRedraw;
+			},
 			graphics: {
 				animationTick: 1n,
 				images: new Map([
@@ -600,6 +762,11 @@ describe('projected terminal renderer', () => {
 		expect(belowBackground).toBeLessThan(belowText);
 		expect(belowText).toBeLessThan(firstText);
 		expect(firstText).toBeLessThan(aboveText);
+
+		const operationsAfterInitialPaint = operations.length;
+		renderer.renderPacked(source);
+		expect(operations).toHaveLength(operationsAfterInitialPaint);
+		expect(drawImageCalls).toHaveLength(3);
 
 		renderer.renderPacked(base);
 		expect(drawImageCalls).toHaveLength(3);

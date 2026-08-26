@@ -5,6 +5,8 @@ import type {
 	TerminalSearchOptions,
 } from './terminal-search';
 
+export const PROJECTED_SEARCH_SOURCE_BYTE_LIMIT = 16 * 1024 * 1024;
+
 export type ProjectedSearchWorkerRequest =
 	| {
 			readonly generation: string;

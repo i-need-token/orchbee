@@ -8,7 +8,11 @@ pub const TerminalFailureNotice = contracts.TerminalFailureNotice;
 pub const TerminalOutcomeNotice = contracts.TerminalOutcomeNotice;
 pub const PendingOutcomeBatch = contracts.PendingOutcomeBatch;
 pub const CleanupClock = contracts.CleanupClock;
-pub const Maintenance = @import("maintenance.zig").Maintenance;
+pub const MaintenanceClock = contracts.MaintenanceClock;
+const maintenance = @import("maintenance.zig");
+pub const scrollback_compression_opportunity_interval_ns =
+    maintenance.scrollback_compression_opportunity_interval_ns;
+pub const Maintenance = maintenance.Maintenance;
 pub const synchronizeRuntimeObservation = observation.synchronizeRuntimeObservation;
 pub const cleanupFailure = observation.cleanupFailure;
 pub const runtimeFailureFromObservation = observation.runtimeFailureFromObservation;

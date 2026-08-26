@@ -872,6 +872,41 @@
 			]
 		},
 		{
+			"id": "terminal-host-scrollback-compression",
+			"owner": "@orchbee/terminal-host",
+			"workspace": "apps/terminal-host",
+			"module": "apps/terminal-host/formal/tla/TerminalScrollbackCompression.tla",
+			"config": "apps/terminal-host/formal/tla/TerminalScrollbackCompression.cfg",
+			"claims": ["apps/terminal-host/docs/runtime-model.md"],
+			"triggers": ["apps/terminal-host/src/**", "apps/terminal-host/build.zig"],
+			"requiredCoverage": [
+				"CompressionActivityChanges",
+				"CompressionLockBecomesBusy",
+				"CompressionLockBecomesAvailable",
+				"CompressionObserveActivity",
+				"CompressionIdleWait",
+				"CompressionLockBusy",
+				"CompressionStepPending",
+				"CompressionStepComplete",
+				"CompressionStepUnsupported",
+				"CompressionDormant"
+			],
+			"variants": [
+				{
+					"name": "interference",
+					"constants": {
+						"Scenario": "interference"
+					}
+				},
+				{
+					"name": "quiescent-progress",
+					"constants": {
+						"Scenario": "quiescent"
+					}
+				}
+			]
+		},
+		{
 			"id": "terminal-host-shutdown",
 			"owner": "@orchbee/terminal-host",
 			"workspace": "apps/terminal-host",
@@ -1279,6 +1314,8 @@
 				"PublishWebGPU",
 				"InitializationFails",
 				"DeviceLost",
+				"Hide",
+				"Show",
 				"Freeze",
 				"CancelRetired",
 				"Dispose"

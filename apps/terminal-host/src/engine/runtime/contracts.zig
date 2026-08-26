@@ -66,6 +66,26 @@ pub const ReaderBatchOutcome = enum {
     runtime_failed,
 };
 
+pub const ScrollbackCompressionOutcome = enum {
+    complete,
+    dormant,
+    idle_wait,
+    lock_busy,
+    pending,
+    unsupported,
+};
+
+pub const ScrollbackCompressionSchedule = struct {
+    activity: ?u64 = null,
+    eligible_at_ns: i128 = 0,
+    phase: enum {
+        waiting,
+        pending,
+        dormant,
+        unsupported,
+    } = .waiting,
+};
+
 pub const ReadCommitCheckpoint = enum {
     before_lock,
     locked,
@@ -74,6 +94,7 @@ pub const ReadCommitCheckpoint = enum {
 pub const FirstContainmentAttempt = terminal_runtime_containment.FirstAttempt;
 
 pub const RuntimeTestingHooks = if (target_builtin.is_test) struct {
+    animation_wake_requested: ?*const fn (*anyopaque) void = null,
     abort_read: ?*const fn (*anyopaque) anyerror!void = null,
     contain_process_tree: ?*const fn (*anyopaque) anyerror!void = null,
     context: ?*anyopaque = null,

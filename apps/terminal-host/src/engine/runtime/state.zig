@@ -19,6 +19,7 @@ pub const State = struct {
     allocator: std.mem.Allocator,
     // terminal_mutex protects the monotonically increasing count of visible
     // time-driven Kitty animation frame changes.
+    animation_condition: thread_sync.Condition = .{},
     animation_tick: u64 = 0,
     animation_thread: ?std.Thread = null,
     // terminal_mutex protects the canonical count and its deferred overflow
@@ -131,6 +132,9 @@ pub const State = struct {
     stream: terminal_stream.Stream,
     stream_allocator: terminal_stream.ParserAllocator,
     scrollback_bytes: usize,
+    // terminal_mutex owns Ghostty's opaque compression activity observation,
+    // its idle deadline, and the outcome of the latest bounded step.
+    scrollback_compression: contracts.ScrollbackCompressionSchedule = .{},
     // terminal_mutex protects the bounded DEC synchronized-output interval.
     // The deadline shares the runtime monotonic clock used by terminal
     // feedback and is absent whenever the canonical mode is disabled.

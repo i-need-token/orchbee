@@ -11,15 +11,18 @@ import {
 	type TerminalSearchOptions,
 	type TerminalSearchPosition,
 } from './terminal-search';
-import type {
-	ProjectedSearchWorkerFactory,
-	ProjectedSearchWorkerLike,
-	ProjectedSearchWorkerResponse,
+import {
+	PROJECTED_SEARCH_SOURCE_BYTE_LIMIT,
+	type ProjectedSearchWorkerFactory,
+	type ProjectedSearchWorkerLike,
+	type ProjectedSearchWorkerResponse,
 } from './projected-search-protocol';
 
 const SEARCH_WATCHDOG_MILLISECONDS = 10_000;
 const SEARCH_INITIAL_PAGE_ROWS = 1400;
-const SEARCH_PAGE_BYTE_TARGET = Math.floor(PROTOCOL_LIMITS.maxRowWindowBytes * 0.95);
+const SEARCH_PAGE_BYTE_TARGET = Math.floor(
+	Math.min(PROTOCOL_LIMITS.maxRowWindowBytes, PROJECTED_SEARCH_SOURCE_BYTE_LIMIT) * 0.95,
+);
 const SEARCH_PAGE_ENTRY_TARGET = Math.floor(PROTOCOL_LIMITS.maxFrameCells * 0.95);
 
 export interface ProjectedTerminalSearchEvent {

@@ -795,6 +795,7 @@ export class ProjectedTerminal {
 	#devicePixelRatioQuery: MediaQueryList | undefined;
 	#documentHidden = false;
 	#frameHandle: ScheduledFrame | undefined;
+	#scheduledRenderForceAll = false;
 	#historyGeneration = 1n;
 	#historyPhase: ProjectedHistoryPhase = ProjectedHistoryPhase.followingBottom;
 	#historyRecoverySmoothPresentation = false;
@@ -1157,11 +1158,12 @@ export class ProjectedTerminal {
 			renderer.setRenderRequestCallback(() => this.#scheduleRender());
 			this.#renderer = renderer;
 			this.#installInputListeners(root, canvas, input, historyScrollbar);
+			void renderer.setDocumentHidden(this.#documentHidden);
 			await renderer.initGPU();
 			if (this.#isDisposed()) return;
 			const openingPresentationSnapshot = this.#openingPresentationSnapshot;
-			this.#openingPresentationSnapshot = undefined;
-			if (openingPresentationSnapshot !== undefined) {
+			if (openingPresentationSnapshot !== undefined && !this.#documentHidden) {
+				this.#openingPresentationSnapshot = undefined;
 				renderer.renderPacked(openingPresentationSnapshot, true);
 				this.#lastPresentedMetadata = openingPresentationSnapshot.metadata;
 				this.#lastPresentedSnapshot = openingPresentationSnapshot;
@@ -2563,14 +2565,17 @@ export class ProjectedTerminal {
 		this.#historyScrollbarThumb = undefined;
 	}
 
-	#scheduleRender(): boolean {
+	#scheduleRender(forceWhileSuspended = false, forceAll = false): boolean {
 		if (this.#isDisposed() || !this.#renderer) return false;
-		if (this.#presentationSuspended) return true;
+		if (this.#presentationSuspended && !forceWhileSuspended) return true;
 		this.#syncProjectedViewportState();
 		this.#updateInputPosition();
+		this.#scheduledRenderForceAll ||= forceAll;
 		if (this.#frameHandle !== undefined) return true;
 		const callback = (): void => {
 			this.#frameHandle = undefined;
+			const renderForceAll = this.#scheduledRenderForceAll;
+			this.#scheduledRenderForceAll = false;
 			if (this.#isDisposed()) return;
 			const renderer = this.#renderer;
 			if (renderer === undefined) {
@@ -2579,13 +2584,24 @@ export class ProjectedTerminal {
 			}
 			try {
 				const visibleStore = this.#visibleStore();
-				this.#renderingLiveMetadata = visibleStore.metadata ?? undefined;
-				this.#renderingLiveSource = visibleStore;
-				try {
-					renderer.renderPacked(visibleStore);
-				} finally {
-					this.#renderingLiveMetadata = undefined;
-					this.#renderingLiveSource = undefined;
+				const openingPresentationSnapshot =
+					visibleStore.metadata === null ? this.#openingPresentationSnapshot : undefined;
+				if (openingPresentationSnapshot !== undefined) {
+					this.#openingPresentationSnapshot = undefined;
+					renderer.renderPacked(openingPresentationSnapshot, true);
+					this.#lastPresentedMetadata = openingPresentationSnapshot.metadata;
+					this.#lastPresentedSnapshot = openingPresentationSnapshot;
+					this.#lastPresentedSource = undefined;
+				} else {
+					if (visibleStore.metadata !== null) this.#openingPresentationSnapshot = undefined;
+					this.#renderingLiveMetadata = visibleStore.metadata ?? undefined;
+					this.#renderingLiveSource = visibleStore;
+					try {
+						renderer.renderPacked(visibleStore, renderForceAll);
+					} finally {
+						this.#renderingLiveMetadata = undefined;
+						this.#renderingLiveSource = undefined;
+					}
 				}
 				this.#historyScrollPresentation?.commit();
 			} catch (error) {
@@ -2620,6 +2636,7 @@ export class ProjectedTerminal {
 			globalThis.clearTimeout(this.#frameHandle.value);
 		}
 		this.#frameHandle = undefined;
+		this.#scheduledRenderForceAll = false;
 	}
 
 	#syncRendererSuspension(): void {
@@ -5192,8 +5209,18 @@ export class ProjectedTerminal {
 
 	readonly #handleVisibilityChange = (): void => {
 		this.#documentHidden = this.#root?.ownerDocument.visibilityState === 'hidden';
+		const restoration = this.#renderer?.setDocumentHidden(this.#documentHidden);
 		this.#syncRendererSuspension();
-		if (this.#documentHidden) this.#handleWindowBlur();
+		if (this.#documentHidden) {
+			this.#handleWindowBlur();
+			return;
+		}
+		if (restoration !== undefined) {
+			void restoration.then((restored) => {
+				if (!restored || this.#isDisposed() || this.#documentHidden) return;
+				this.#scheduleRender(true, true);
+			});
+		}
 	};
 
 	#repairInputState(): void {

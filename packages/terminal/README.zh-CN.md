@@ -117,19 +117,19 @@ hostConnection.onTerminalExited((event) => terminal.notifyExited(event));
 
 主机驱动的帧几何结构，包括终端发起的 80/132 列转换，直接更新打包存储和渲染器。应用该快照永远不会发出反向 `ResizeTerminal`；只有测量的容器或设备像素比更改可能会请求新的附件大小调整。
 
-文档可见性和显式呈现需求共同暂停渲染器动画和排队绘制工作。隐藏的提交仍然前进并承认拥挤的商店；变得可见会安排一次最新提交状态的绘制，而不是重播过时的目的地。
+文档可见性和显式呈现需求共同暂停渲染器动画和排队绘制工作。文档隐藏时，WebGPU surface 还会解除 Canvas 配置，并释放每 surface GPU 驻留资源与共享 device lease，同时保留 packed store 和 CPU presentation cache。隐藏期间的提交仍会推进并确认 packed store。恢复可见性时会重新取得当前共享 device generation，并恰好绘制一次最新提交状态；即使显式 presentation demand 仍为 paused，也允许这次恢复绘制，随后独立的暂停原因继续抑制后续绘制。Canvas 2D 的可见性变化仍只暂停计时器与绘制。
 
 `freeze()` 是应用程序恢复切换：它取消输入、面向传输的侦听器、动画、调整大小、搜索和飞行中的副作用，同时保留最后绘制的画布和可访问的行列表。冻结的实例拒绝进一步的框架和命令工作。稍后的 `dispose()` 会在应用程序绘制替换后释放保留的渲染器资源和 DOM。
 
-WebGPU 初始化与恢复会针对该生命周期围栏每次异步完成：已退役的工作会销毁其尚未提交的设备与资源，且不能配置上下文、激活 Canvas 后备或发布渲染器健康状态。
+WebGPU 初始化、可见性恢复与 device-loss 恢复会同时按生命周期 epoch 和可见性 epoch 围栏每次异步完成。在初始化仍挂起时隐藏 surface 会退役该尝试；过时工作会释放尚未提交的 lease 与资源，且不能配置 context、激活 Canvas 后备或发布 renderer health。重新显示本身不会发布后端：必须先完成一次新的可见初始化。
 
 `notifyBrokerFailure` 保留代理的类型代码、语义操作、可重试性、可选 Host 相关性 ID 以及 `onError` 上的可选客户端请求序列。它还应用所拥有的结果：调整大小拒绝重新接纳未更改的几何图形，历史拒绝完成或修复确切的行请求，选择拒绝释放手势调度；过时的在途手势拒绝则会终止完整本地手势、丢弃所有未发送端点，然后被吸收。相关复制或链接失败只完成该副作用。该包永远不会将可重试性转变为自动重放。
 
 渲染器直接消耗打包行。它永远不会重建本地 VT 状态或每单元对象图。绘制完成后，帧遥测记录从可见打包存储中读取的确切提交的主机生成和修订。多个提交可能合并在一个动画帧后面；该检查点命名实际绘制的最新提交，而不是较早计划的修订。
 
-已提交的实时帧元数据将可选的关闭活动扩展映射到 `idle`、`active` 或 `unknown`；缺失、重复和格式错误的载荷会保守解析为 `unknown`。历史行窗口没有实时进程观察，因此保留历史呈现会保留最新实时存储的关闭活动，同时使用历史窗口提供视觉元数据和行。已接受的非焦点按键、文本、粘贴、鼠标或等效原始输入会立即使最新观察失效，并同步发布瞬态 `unknown`；仅焦点输入和同步遭拒的发布不会如此。该覆盖在保留历史、暂存帧、快照请求、失败及处置期间始终具有权威性。新到达的 `idle` 帧可能早在该输入前便已进入在途状态，因此客户端针对其精确序列发送 `NeedSnapshot(activity-stale)` 而非 `FrameApplied`，并保留 `unknown`。下一份完整快照在因果上晚于输入失效，但不证明 Host 接受了输入，也不证明 shell 消费了输入。在协议 `0.0.20` 下，Host 接受的非焦点输入会立即使 Host 缓存失效，而后续当前状态采样可以报告 `active`、`idle` 或 `unknown`。因此，因果上合格的替换帧可以在同一终端生命周期内恢复新鲜的 `idle`。过时的主题暂存帧会在应用时被围栏，不能让暂存阶段就绪；只有因果上合格的暂存帧在其保守呈现实际提交后才会清除本地覆盖。
+已提交的实时帧元数据将可选的关闭活动扩展映射到 `idle`、`active` 或 `unknown`；缺失、重复和格式错误的载荷会保守解析为 `unknown`。历史行窗口没有实时进程观察，因此保留历史呈现会保留最新实时存储的关闭活动，同时使用历史窗口提供视觉元数据和行。已接受的非焦点按键、文本、粘贴、鼠标或等效原始输入会立即使最新观察失效，并同步发布瞬态 `unknown`；仅焦点输入和同步遭拒的发布不会如此。该覆盖在保留历史、暂存帧、快照请求、失败及处置期间始终具有权威性。新到达的 `idle` 帧可能早在该输入前便已进入在途状态，因此客户端针对其精确序列发送 `NeedSnapshot(activity-stale)` 而非 `FrameApplied`，并保留 `unknown`。下一份完整快照在因果上晚于输入失效，但不证明 Host 接受了输入，也不证明 shell 消费了输入。在协议 `0.0.21` 下，Host 接受的非焦点输入会立即使 Host 缓存失效，而后续当前状态采样可以报告 `active`、`idle` 或 `unknown`。因此，因果上合格的替换帧可以在同一终端生命周期内恢复新鲜的 `idle`。过时的主题暂存帧会在应用时被围栏，不能让暂存阶段就绪；只有因果上合格的暂存帧在其保守呈现实际提交后才会清除本地覆盖。
 
-已提交的实时帧还可以携带有界 Kitty 图形扩展。图形快照会原子替换已解码内存图像资源、已解析放置和单调 animation tick；仅放置更新只有在命名精确的已提交图像修订且 tick 不倒退时才会接受。无效字节或缺失资源引用会拒绝整个终端帧，并在部分提交文本或图形前请求新快照。Canvas2D 与 WebGPU 对每项图像 generation 只转换一次 raw gray/gray-alpha/RGB/RGBA 像素，复用所得资源完成裁剪、缩放和移动，并精确绘制单元格背景下方、背景与文本之间、文本上方三个有符号 z 层。Render-detail OBRW `0.0.3` 会原子替换行及其独立图形快照；text detail 不携带图形。空快照、删除、重置、替换和处置会释放过时像素、Canvas 与 GPU 资源。本包有意不解析 PNG 或 Kitty 命令，不加载路径或共享内存对象，也不解析动画、virtual/relative 放置或历史 pin；Terminal Host 会在自有解码像素和绝对放置跨越协议边界前完成这些工作。
+已提交的实时帧还可以携带有界 Kitty 图形扩展。图形快照会原子替换已解码内存图像资源、已解析放置和单调 animation tick；仅放置更新只有在命名精确的已提交图像修订且 tick 不倒退时才会接受。无效字节或缺失资源引用会拒绝整个终端帧，并在部分提交文本或图形前请求新快照。Canvas2D 与 WebGPU 对每项图像 generation 只转换一次 raw gray/gray-alpha/RGB/RGBA 像素，复用所得资源完成裁剪、缩放和移动，并精确绘制单元格背景下方、背景与文本之间、文本上方三个有符号 z 层。Render-detail OBRW `0.0.3` 会原子替换行及其独立图形快照；text detail 不携带图形。纯文本提交会保留同一个图形标识，因此静态放置不会把原本只需更新脏行的 Canvas2D 绘制扩大为整面重绘。空快照、删除、重置、替换和处置会释放过时像素、Canvas 与 GPU 资源。本包有意不解析 PNG 或 Kitty 命令，不加载路径或共享内存对象，也不解析动画、virtual/relative 放置或历史 pin；Terminal Host 会在自有解码像素和绝对放置跨越协议边界前完成这些工作。
 
 默认情况下，行窗口输入被严格解码。仅当应用程序适配器拥有不可变、同一用户、功能范围的 Terminal Host 传输时，应用程序适配器才可以设置 `projectionBufferTrust: 'local-host'`。该路径保留 OBPB format-`0.0.2` 缓冲区并创建类型化数组视图，而无需重新扫描或重新打包每个单元格。网关、网络、插件和持久输入必须保留默认的 `external` 行为。
 
@@ -204,13 +204,13 @@ const rows = await terminal.readBufferRows(
 
 `capturePresentationSnapshot()` 只公开最近一次完成绘制所精确表示的打包来源与元数据。如果较新的 Host 提交已被接受但尚未绘制，捕获会返回空，直到该 revision 完成绘制；它绝不会把未显示的状态标记为可见。捕获的快照不可变且仅用于显示，在可行时结构共享不可变行 backing，统计其保留字节，并包含可见图形资源与 placement。打开新的 `ProjectedTerminal` 时传入快照，会在计划中的实时渲染前先绘制它，但这次绘制不会发出实时帧 telemetry 或 acknowledgement，也不会授予 attachment、输入、resize、transport、元数据发布或持久状态权威。缓存绘制完成后，终端会释放其 opening reference；外部有界缓存仍可为后续呈现保留该快照。
 
-同一 `Document` 中的渲染器共享 WebGPU adapter 获取、device 创建、首选 format，以及不可变的背景/文本 pipeline 对。每个 renderer 仍各自拥有并释放 canvas context、字形 atlas texture 与 Canvas、sampler、uniform 与 vertex buffer、bind group、CPU staging storage 和 overlay。因此，处置或冻结单个 renderer 绝不会销毁共享 device。device 丢失会使该 document generation 失效；每个受影响的活动 renderer 都会针对下一共享 generation 独立走既有类型化恢复路径，Canvas 2D 仍是可观察后备。共享 runtime 拥有该 generation 唯一待定的 `GPUDevice.lost` reaction。每个活动或短暂冻结的 renderer 持有一个引用计数 runtime lease 及可分离的 loss subscriber；释放 lease 时会先移除 subscriber，再减少 runtime 引用计数。释放最后一个 lease 会销毁 device 并丢弃共享 pipeline，而按 `Document` 索引的 weak map 只负责并发发现。因此，该 runtime 既不增加逐非活动终端 GPU surface，也不保留空闲 device。
+同一 `Document` 中的渲染器共享 WebGPU adapter 获取、device 创建、首选 format，以及不可变的背景/文本 pipeline 对。每个已配置 renderer 拥有自己的 glyph atlas texture、sampler、uniform/vertex buffer、bind group、Kitty texture、可重建 CPU staging，以及一项可分离的共享 runtime lease。文档隐藏会解除该 Canvas 的配置、销毁这些每 surface GPU 资源、清空峰值大小的 staging array 并释放 lease；renderer 保留 packed source、原始图形数据、glyph map 与 CPU atlas Canvas，因此恢复可见性时可以重建而不改变终端状态。同一可见性 epoch 也会退役挂起的初始化。`freeze()` 的语义不同：它为应用恢复切换保留已绘制 Canvas 及其资源。device 丢失会使 document generation 失效；每个受影响的可见 renderer 都会针对下一共享 generation 走类型化恢复路径，Canvas 2D 仍是可观察后备。共享 runtime 拥有该 generation 唯一待定的 `GPUDevice.lost` reaction。释放 lease 时会先移除 subscriber，再减少引用计数；释放最后一个可见或冻结 lease 会销毁 device 并丢弃共享 pipeline。按 `Document` 索引的 weak map 只负责并发发现，因此隐藏或非活动终端既不保留 GPU surface，也不保留原本空闲的 device。
 
-WebGPU 路径为背景、文本和覆盖层三种流分别保留并清空一个实例数组，以及一个按几何级数增长的 `Float32Array` 上传缓冲区。当某个流达到其最大已准备帧所需的容量后，后续不超过该尺寸的帧会复用同一底层 CPU 存储，而不再分配另一个帧大小的缓冲区。销毁时会释放保留的暂存空间。逐单元格的前景色/背景色解析也会复用一个由渲染器拥有的暂存投影，调用方只复制必须比当前单元格存活更久的值。这些规则把两个全视口分配热点限制在已准备视口内容的峰值容量内；它们不定义 GPU 驱动、浏览器或整个进程的 RSS 上限。
+WebGPU 路径为背景、文本和覆盖层三种流分别保留并清空一个实例数组，以及一个按几何级数增长的 `Float32Array` 上传缓冲区。当某个流达到其最大已准备帧所需的容量后，后续不超过该尺寸的帧会复用同一底层 CPU 存储，而不再分配另一个帧大小的缓冲区。文档隐藏停车与销毁都会释放保留的暂存空间；下一次可见的完整绘制会重建它。逐单元格的前景色/背景色解析也会复用一个由渲染器拥有的暂存投影，调用方只复制必须比当前单元格存活更久的值。这些规则把两个全视口分配热点限制在已准备视口内容的峰值容量内；它们不定义 GPU 驱动、浏览器或整个进程的 RSS 上限。
 
 脏字形图集矩形会直接从 Canvas 图集传输到 WebGPU 纹理，因此增量上传不会具体化中间 CPU 像素数组。帧遥测会在接纳或重置字形时维护图集占用量，而不是重新扫描字形映射。隐藏的 IME textarea 会在几何变化之间复用 Canvas 相对于界面的偏移，并在调整大小、设备像素比或呈现配置变化后重新测量。
 
-字形图集的两个轴都从 2048 个物理像素开始。接纳一个完整光栅预留时，只会分别倍增当前边界不足的轴，并以设备纹理上限为界；因此，整行塑形可以使用更多宽度，而不会同时倍增未使用的高度。缓存重置会清空条目但保留当前图集尺寸。冻结会保留最后呈现的 Canvas；处置则会解除 WebGPU Canvas 配置、销毁每表面 GPU 资源、清除字形状态，并把 renderer 自有 atlas Canvas backing 重置为零像素。这些约束只限定图集与生命周期分配，并不构成 GPU 驱动、浏览器或整个进程的 RSS 上限。
+字形图集的两个轴都从 2048 个物理像素开始。接纳一个完整光栅预留时，只会分别倍增当前边界不足的轴，并以设备纹理上限为界；因此，整行塑形可以使用更多宽度，而不会同时倍增未使用的高度。缓存重置会清空条目但保留当前图集尺寸。文档隐藏停车会保留 CPU atlas 与 glyph state，但销毁其 GPU texture；恢复时把整个 atlas 标记为 dirty 并上传到新 texture。冻结会保留最后呈现的 Canvas 与资源；处置则会解除 WebGPU Canvas 配置、销毁每 surface GPU 资源、清除 glyph state，并把 renderer 自有 atlas Canvas backing 重置为零像素。这些约束只限定图集与生命周期分配，并不构成 GPU 驱动、浏览器或整个进程的 RSS 上限。
 
 用于 uniform 和图集资源的 WebGPU bind group 会持续存活到其所属设备或图集被重新创建，而不是随每个提交帧重建。打包行视图还会在当前 backing 的生命周期内缓存已解码的非空字素，让无障碍与渲染共享一次 UTF-8 解码；替换行 backing 时会清除该缓存。缓存范围由当前保留网格中的单元格数量限定。
 
@@ -272,9 +272,11 @@ Ghostty 仍然是选定字体规格、形状边界、完整 Unicode sprite-face 
 
 有界面夹具只在自身测试文档内覆盖 `document.visibilityState`，并派发真实的应用层 `visibilitychange` 事件。它不执行操作系统级标签页后台行为或浏览器节流策略，也不对 WebGPU 或跨浏览器行为作出声明。
 
-| SU-15 声明                                                                     | 渲染器证据                                             | 投影集成                                                                                             | 有界面系统跟踪                     | 限制                                                                                                |
-| ------------------------------------------------------------------------------ | ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------- | ---------------------------------- | --------------------------------------------------------------------------------------------------- |
-| 可见性和显式需求保留独立的暂停原因；提交和确认继续，同时绘制合并，直到最终恢复 | `suspends packed blinking-cell animation while hidden` | `coordinates document visibility and projection demand before drawing the newest acknowledged frame` | `terminal-parity/SU-15-visibility` | Headed Chromium Canvas 2D 具有合成应用程序层文档可见性；没有 OS 后台节流、WebGPU 或其他浏览器声明。 |
+单独的确定性 WebGPU 测试验证：隐藏会解除 context 配置、销毁每 surface 资源、保留 CPU atlas state、释放最后一项共享 lease、围栏挂起的初始化，并在恢复可见性时重建。投影集成测试验证：显式 demand 仍暂停时，唯一一次强制恢复绘制使用最新 revision，后续 paused revision 不会绘制。
+
+| SU-15 声明                                                                     | 渲染器证据                                                                                                                                                            | 投影集成                                                                                                                                                                                      | 有界面系统跟踪                     | 限制                                                                                                           |
+| ------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| 可见性和显式需求保留独立的暂停原因；提交和确认继续，同时绘制合并，直到最终恢复 | `suspends packed blinking-cell animation while hidden`；`parks document-hidden WebGPU residency and rebuilds it from retained CPU state`；挂起初始化与共享 lease 回归 | `coordinates document visibility and projection demand before drawing the newest acknowledged frame`；`draws one current restoration frame while explicit presentation demand remains paused` | `terminal-parity/SU-15-visibility` | Headed Chromium Canvas 2D 加确定性 WebGPU 所有权/refinement 测试；不声明 OS 后台节流、跨浏览器或同步物理回收。 |
 
 ### 设备像素比证据
 

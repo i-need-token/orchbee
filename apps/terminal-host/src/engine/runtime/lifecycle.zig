@@ -20,6 +20,7 @@ pub fn stopIoForShutdown(self: *state.State) void {
     self.input_condition.broadcast();
     self.input_mutex.unlock();
     self.terminal_condition.broadcast();
+    self.animation_condition.broadcast();
     self.terminal_mutex.unlock();
 }
 

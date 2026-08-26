@@ -67,6 +67,30 @@ describe('terminal graphics extension', () => {
 		expect(decodeTerminalGraphics(encodeOrThrow(update))).toEqual({ ok: true, value: update });
 	});
 
+	it('admits a 1536 by 1360 RGBA resource within the decoded-image budget', () => {
+		const image = snapshot.images[0];
+		if (image === undefined) throw new Error('Expected the canonical image fixture.');
+		const largeSnapshot: TerminalGraphics = {
+			...snapshot,
+			images: [
+				{
+					...image,
+					data: new Uint8Array(1536 * 1360 * 4),
+					height: 1360,
+					width: 1536,
+				},
+			],
+			placements: [],
+		};
+
+		const encoded = encodeTerminalGraphics(largeSnapshot);
+		if (!encoded.ok) throw new Error(encoded.detail);
+		const decoded = decodeTerminalGraphics(encoded.value);
+		if (!decoded.ok) throw new Error(decoded.detail);
+		expect(decoded.value.images[0]).toMatchObject({ height: 1360, width: 1536 });
+		expect(decoded.value.images[0]?.data).toHaveLength(1536 * 1360 * 4);
+	});
+
 	it('rejects non-canonical metadata and unsafe resource geometry', () => {
 		const placement = snapshot.placements[0];
 		if (placement === undefined) throw new Error('Expected the canonical placement fixture.');

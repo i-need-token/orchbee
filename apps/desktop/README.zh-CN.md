@@ -30,7 +30,7 @@ Main 在允许客户端之前加载并验证共享文档一次。可用的文档
 
 协调器是传输中立的，支持独立的页面会话，没有产品数量上限。 Electron 使用直接 `MessagePort` 适配器。显式浏览器访问启动 `apps/server` 和 `apps/gateway` 作为按需实用程序进程； Desktop 拥有这两个生命周期，并为每个经过身份验证的页面分配一对客户端会话/投影端口。服务器拥有静态渲染器交付，而网关拥有 exact-Origin 准入、能力认证、成帧和环回上的传输背压或显式选择的可信 LAN。网关永远不会接收应用程序生命周期端口或主机连接。 `apps/web` 拥有平台中立的 Workbench 客户端运行时和普通浏览器中使用的单个渲染器应用程序、网关浏览器客户端和 Electron。开发Electron是从环回Web来源上的User-Agent发现的。 Packaged Desktop 在 Electron 准备就绪之前注册标准安全 `orchbee:` 方案，为 `orchbee://app` 的 Web 构建提供服务，并回退到 `index.html` 来处理浏览器路由器文档请求。桌面拥有渲染器资源交付，而不是另一个渲染器源树。请参见 [`docs/multi-client-session-coordinator.md`](docs/multi-client-session-coordinator.md) 和 [`../web/docs/navigation-routing.md`](../web/docs/navigation-routing.md)。
 
-Desktop 严格要求唯一的当前 Host 协议 `0.0.20`；预发布版本既不协商，也不记录历史协议变体。Electron 使用 `42.8.0`，即本仓库所选当前 Electron 主版本中的最新次版本。
+Desktop 严格要求唯一的当前 Host 协议 `0.0.21`；预发布版本既不协商，也不记录历史协议变体。Electron 使用 `42.8.0`，即本仓库所选当前 Electron 主版本中的最新次版本。
 
 `HostConnection` 在每个代理调用者上拥有一个连接全局出站窗口：最多 64 个未应答请求记录和 4 个 MiB 编码请求字节。它会保留该许可，直到相关响应或连接失败为止。已返回 `false` 的完整窗口或节点可写在切换之前拒绝工作，并可重试 `host-transport-backpressure`；在 `drain` 之前没有请求写入恢复。如果移交的请求达到其截止日期，Desktop 将终止连接，并使用不可重试的 `host-request-outcome-unknown` 拒绝所有待处理和未来的请求，因此在出现不明确的结果后，永远不会重播输入。
 

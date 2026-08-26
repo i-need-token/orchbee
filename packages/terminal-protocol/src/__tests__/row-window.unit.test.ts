@@ -445,16 +445,22 @@ describe('packed terminal row windows', () => {
 		expect(countByteSequence(frame.stringBytes, new TextEncoder().encode(hyperlink))).toBe(1);
 	});
 
-	it('keeps genuinely distinct hyperlink bytes classified as limit exceeded', () => {
+	it('round-trips genuinely distinct hyperlink bytes inside the expanded render budget', () => {
 		const encoded = encodeTerminalRowWindow(
 			linkedRenderWindow(64, 16, (cellOffset) => {
 				const prefix = `https://example.com/${cellOffset}/`;
 				return prefix + 'b'.repeat(9_000 - prefix.length);
 			}),
 		);
-		expect(encoded).toEqual(
-			expect.objectContaining({ code: ProtocolErrorCode.limitExceeded, ok: false }),
-		);
+		if (!encoded.ok) throw new Error(`${encoded.code}: ${encoded.detail}`);
+		expect(encoded.value.byteLength).toBeGreaterThan(8 * 1024 * 1024);
+		expect(encoded.value.byteLength).toBeLessThanOrEqual(PROTOCOL_LIMITS.maxRowWindowBytes);
+
+		const decoded = decodeTerminalRowWindow(encoded.value);
+		if (!decoded.ok) throw new Error(decoded.detail);
+		expect(decoded.value.detail).toBe(TerminalRowWindowDetail.render);
+		if (decoded.value.detail !== TerminalRowWindowDetail.render) return;
+		expect(decoded.value.frame.stringBytes.byteLength).toBeGreaterThan(8 * 1024 * 1024);
 	});
 
 	it('rejects cross-realm shared render views and snapshots the exact outer subview', () => {

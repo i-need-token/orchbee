@@ -42,6 +42,14 @@ fn cleanupRetryScanIndexForTesting(aggregate: *const HostRuntimeAggregate) usize
     return aggregate.maintenance.cleanupRetryScanIndex();
 }
 
+fn takeScrollbackCompressionIndexForTesting(
+    aggregate: *HostRuntimeAggregate,
+    count: usize,
+    now_ns: i128,
+) ?usize {
+    return aggregate.maintenance.takeScrollbackCompressionIndex(count, now_ns);
+}
+
 fn requestTerminationUsingForTesting(
     aggregate: *HostRuntimeAggregate,
     connection_id: core_module.ConnectionId,
@@ -78,6 +86,8 @@ pub const testing = if (target_builtin.is_test) struct {
     pub const cleanupFailureFn = host_runtime_maintenance.cleanupFailure;
     pub const cleanupRetryScanIndexFn = cleanupRetryScanIndexForTesting;
     pub const CleanupClockType = host_runtime_maintenance.CleanupClock;
+    pub const scrollbackCompressionOpportunityIntervalNs =
+        host_runtime_maintenance.scrollback_compression_opportunity_interval_ns;
     pub const RetainedCleanupResultType = RetainedCleanupResult;
     pub const RetainedCleanupStatusType = RetainedCleanupStatus;
 
@@ -150,4 +160,14 @@ pub const testing = if (target_builtin.is_test) struct {
     pub const synchronizeRuntimeCompletionFn =
         host_runtime_maintenance.synchronizeRuntimeCompletion;
     pub const takeDueCleanupRetryFn = takeDueCleanupRetryForTesting;
+    pub const takeScrollbackCompressionIndexFn =
+        takeScrollbackCompressionIndexForTesting;
+
+    pub fn compressionScanIndex(aggregate: *const HostRuntimeAggregate) usize {
+        return aggregate.maintenance.compressionScanIndex();
+    }
+
+    pub fn nextCompressionOpportunityAt(aggregate: *const HostRuntimeAggregate) i128 {
+        return aggregate.maintenance.nextCompressionOpportunityAt();
+    }
 } else struct {};

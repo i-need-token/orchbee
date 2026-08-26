@@ -11,6 +11,8 @@ const subject = harness.subject;
 const terminal_launch = harness.terminal_launch;
 const pty_process = harness.pty_process;
 const applyScrollbackBytes = harness.applyScrollbackBytes;
+const scrollbackCompressionIdleIntervalNs = harness.scrollbackCompressionIdleIntervalNs;
+const scrollbackMemoryStats = harness.scrollbackMemoryStats;
 const tickAnimationLockedAt = harness.tickAnimationLockedAt;
 const cancelInput = harness.cancelInput;
 const clearTestingHooks = harness.clearTestingHooks;
@@ -90,6 +92,22 @@ const CommandClockProbe = struct {
     fn wallTimeMilliseconds(context: *anyopaque) u64 {
         const self: *CommandClockProbe = @ptrCast(@alignCast(context));
         return self.wall_milliseconds;
+    }
+};
+
+const AnimationWakeProbe = struct {
+    count: std.atomic.Value(usize) = .init(0),
+
+    fn hooks(self: *AnimationWakeProbe) RuntimeTestingHooks {
+        return .{
+            .animation_wake_requested = animationWakeRequested,
+            .context = self,
+        };
+    }
+
+    fn animationWakeRequested(context: *anyopaque) void {
+        const self: *AnimationWakeProbe = @ptrCast(@alignCast(context));
+        _ = self.count.fetchAdd(1, .monotonic);
     }
 };
 
@@ -292,6 +310,106 @@ test "dynamic scrollback configuration evicts history and can retain history aga
     for (0..100) |_| try terminal.printString("line\n");
     try std.testing.expect(terminal.screens.get(.primary).?.pages.total_rows > terminal.rows);
 }
+test "idle scrollback compression is nonblocking bounded and representation-only" {
+    const runtime = try createIdleRuntimeWithGeometry(80, 24, .{
+        .scrollback_bytes = 8 * 1024 * 1024,
+    });
+    defer destroyRuntimeWithIdentityRetry(runtime);
+    const runtime_state = runtimeState(runtime);
+
+    var batch: [64 * 1024]u8 = undefined;
+    for (&batch, 0..) |*byte, index| {
+        byte.* = if (index % 80 == 79) '\n' else @as(u8, 'a') + @as(u8, @intCast(index % 4));
+    }
+    for (0..48) |_| {
+        try std.testing.expectEqual(
+            ReaderBatchOutcome.committed,
+            commitReaderBatch(runtime, &batch),
+        );
+    }
+
+    const revision_before = runtime_state.revision.load(.acquire);
+    const generation_before = runtime_state.generation;
+    const memory_before = scrollbackMemoryStats(runtime);
+    try std.testing.expect(memory_before.resident_pages > 1);
+
+    runtime_state.terminal_mutex.lock();
+    try std.testing.expectEqual(
+        subject.ScrollbackCompressionOutcome.lock_busy,
+        runtime.maintainScrollbackCompression(0),
+    );
+    runtime_state.terminal_mutex.unlock();
+    try std.testing.expectEqual(
+        subject.ScrollbackCompressionOutcome.idle_wait,
+        runtime.maintainScrollbackCompression(0),
+    );
+    const original_deadline = runtime_state.scrollback_compression.eligible_at_ns;
+    try std.testing.expectEqual(scrollbackCompressionIdleIntervalNs, original_deadline);
+    try std.testing.expectEqual(
+        subject.ScrollbackCompressionOutcome.idle_wait,
+        runtime.maintainScrollbackCompression(scrollbackCompressionIdleIntervalNs - 1),
+    );
+
+    runtime_state.terminal_mutex.lock();
+    try std.testing.expectEqual(
+        subject.ScrollbackCompressionOutcome.lock_busy,
+        runtime.maintainScrollbackCompression(scrollbackCompressionIdleIntervalNs),
+    );
+    runtime_state.terminal_mutex.unlock();
+    try std.testing.expectEqual(
+        original_deadline,
+        runtime_state.scrollback_compression.eligible_at_ns,
+    );
+
+    var now_ns = scrollbackCompressionIdleIntervalNs;
+    var previous_compressed_pages = memory_before.compressed_pages;
+    var completed = false;
+    for (0..4_096) |_| {
+        const outcome = runtime.maintainScrollbackCompression(now_ns);
+        const memory = scrollbackMemoryStats(runtime);
+        try std.testing.expect(memory.compressed_pages >= previous_compressed_pages);
+        try std.testing.expect(memory.compressed_pages - previous_compressed_pages <= 1);
+        previous_compressed_pages = memory.compressed_pages;
+        switch (outcome) {
+            .complete => {
+                completed = true;
+                break;
+            },
+            .pending, .idle_wait => {},
+            .dormant, .lock_busy, .unsupported => return error.UnexpectedCompressionOutcome,
+        }
+        now_ns += 20 * std.time.ns_per_ms;
+    }
+    try std.testing.expect(completed);
+
+    const memory_after = scrollbackMemoryStats(runtime);
+    try std.testing.expect(memory_after.compressed_pages > memory_before.compressed_pages);
+    try std.testing.expect(memory_after.estimated_savings > 0);
+    try std.testing.expect(memory_after.estimated_resident_bytes < memory_before.estimated_resident_bytes);
+    try std.testing.expectEqual(revision_before, runtime_state.revision.load(.acquire));
+    try std.testing.expectEqual(generation_before, runtime_state.generation);
+    try std.testing.expectEqual(
+        subject.ScrollbackCompressionOutcome.dormant,
+        runtime.maintainScrollbackCompression(now_ns),
+    );
+
+    try std.testing.expectEqual(
+        ReaderBatchOutcome.committed,
+        commitReaderBatch(runtime, "activity\n"),
+    );
+    const changed_revision = runtime_state.revision.load(.acquire);
+    try std.testing.expect(changed_revision > revision_before);
+    try std.testing.expectEqual(
+        subject.ScrollbackCompressionOutcome.idle_wait,
+        runtime.maintainScrollbackCompression(now_ns),
+    );
+    try std.testing.expectEqual(
+        subject.ScrollbackCompressionOutcome.idle_wait,
+        runtime.maintainScrollbackCompression(now_ns + scrollbackCompressionIdleIntervalNs - 1),
+    );
+    try std.testing.expectEqual(changed_revision, runtime_state.revision.load(.acquire));
+    try std.testing.expectEqual(generation_before, runtime_state.generation);
+}
 test "visible Kitty animation ticks monotonically advance Host revision and history" {
     const runtime = try createIdleRuntime(.{});
     defer destroyRuntimeWithIdentityRetry(runtime);
@@ -335,6 +453,69 @@ test "visible Kitty animation ticks monotonically advance Host revision and hist
     try std.testing.expectEqual(baseline_batches + 1, runtime_state.output_batches_since_sync.load(.acquire));
     try std.testing.expectEqual(@as(u64, 1), runtime_state.animation_tick);
     try std.testing.expectEqual(@as(u64, 1), runtime_state.history.animation_tick);
+}
+test "only Kitty graphics mutations request an animation scheduler wake" {
+    var probe: AnimationWakeProbe = .{};
+    const runtime = try createRuntimeWithHooks(probe.hooks());
+    defer destroyRuntimeWithIdentityRetry(runtime);
+
+    try std.testing.expectEqual(
+        ReaderBatchOutcome.committed,
+        commitReaderBatch(runtime, "plain text"),
+    );
+    try std.testing.expectEqual(@as(usize, 0), probe.count.load(.monotonic));
+
+    try std.testing.expectEqual(
+        ReaderBatchOutcome.committed,
+        commitReaderBatch(
+            runtime,
+            "\x1b_Ga=T,t=d,f=24,s=1,v=1,i=1,p=1,C=1;/wAA\x1b\\" ++
+                "\x1b_Ga=f,i=1,f=24,s=1,v=1;AAD/\x1b\\" ++
+                "\x1b_Ga=a,i=1,s=3\x1b\\",
+        ),
+    );
+    try std.testing.expectEqual(@as(usize, 1), probe.count.load(.monotonic));
+}
+test "reader preserves direct Kitty graphics emitted through a real PTY" {
+    if (target_builtin.os.tag == .windows) return error.SkipZigTest;
+    const runtime = try TerminalRuntime.create(std.testing.allocator, .{
+        .arguments = &.{},
+        .columns = 80,
+        .current_directory = null,
+        .environment = &.{},
+        .executable = "/bin/sh",
+        .rows = 24,
+    });
+    defer runtime.destroy();
+
+    try runtime.enqueueInput(
+        "printf '\\033_Ga=T,t=d,f=24,i=71,p=1,s=1,v=1,c=2,r=1,q=2;/wAA\\033\\\\'\n" ++
+            "exit\n",
+    );
+    _ = try runtime.waitForCompletion();
+
+    const frame = try runtime.encodeProjectionFrame(.{
+        .attachment_id = AttachmentId.fromBytes([_]u8{0x31} ** 16),
+        .base_generation = null,
+        .base_revision = null,
+        .force_snapshot = true,
+        .host_epoch = HostEpoch.fromBytes([_]u8{0x42} ** 16),
+        .maximum_bytes = protocol.Limits.frame_bytes,
+        .sequence = 1,
+    });
+    defer std.testing.allocator.free(frame.allocation);
+    const summary = try protocol.validateTerminalFrame(std.testing.allocator, frame.bytes);
+    try std.testing.expectEqual(@as(u16, 1), summary.graphics.?.image_count);
+    try std.testing.expectEqual(@as(u16, 1), summary.graphics.?.placement_count);
+
+    try runtime.shutdown();
+
+    const runtime_state = runtimeState(runtime);
+    runtime_state.terminal_mutex.lock();
+    defer runtime_state.terminal_mutex.unlock();
+    const graphics = &runtime_state.terminal.screens.active.kitty_images;
+    try std.testing.expectEqual(@as(usize, 1), graphics.images.count());
+    try std.testing.expectEqual(@as(usize, 1), graphics.placements.count());
 }
 test "owned terminal profile releases every partial allocation" {
     try std.testing.checkAllAllocationFailures(

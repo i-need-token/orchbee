@@ -11,6 +11,10 @@ pub fn io() std.Io {
 pub const Mutex = struct {
     raw: std.Io.Mutex = .init,
 
+    pub fn tryLock(self: *Mutex) bool {
+        return self.raw.tryLock();
+    }
+
     pub fn lock(self: *Mutex) void {
         self.raw.lockUncancelable(io());
     }

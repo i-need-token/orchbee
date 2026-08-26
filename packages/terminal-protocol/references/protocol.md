@@ -5,7 +5,7 @@
 | Status          | Current wire-contract and codec authority; this package implements no lifecycle state machine, PTY, IPC listener, renderer, Electron, recovery, or network behavior                  |
 | Wire owner      | `@orchbee/terminal-protocol`                                                                                                                                                         |
 | Native consumer | `apps/terminal-host` consumes declared schemas and fixture exports for bounded native dispatch and Zig conformance                                                                   |
-| Reference scope | Exact protocol `0.0.20`; OBTF format `0.0.3`; OBPB format `0.0.2`; OBRW format `0.0.3`; OBKG format `0.0.2`; input/selection codecs; failure vocabulary; bounds; and pinned fixtures |
+| Reference scope | Exact protocol `0.0.21`; OBTF format `0.0.3`; OBPB format `0.0.2`; OBRW format `0.0.3`; OBKG format `0.0.2`; input/selection codecs; failure vocabulary; bounds; and pinned fixtures |
 | Change rule     | A changed field, message meaning, wire byte, bound, or fixture updates this record, both language implementations, every producer/consumer, and evidence                             |
 
 ## Modeling record
@@ -40,7 +40,7 @@ identity and are rejected where an identity is required.
 | `TerminalThemeOperationId` | Application-created idempotency identity for one terminal-theme compare-and-set operation                                        |
 | `CorrelationId`            | Required on every request and response after `Hello`; all-zero envelope bytes mean absence only for handshake messages or events |
 
-The current protocol version is exactly `0.0.20`. `Hello`, `HelloAccepted`, and every transport
+The current protocol version is exactly `0.0.21`. `Hello`, `HelloAccepted`, and every transport
 envelope carry that exact version. A different major, minor, or patch is rejected; this pre-release
 contract contains no negotiated range, compatibility mode, or historical message shape. Packed
 OBTF frame format is exactly `0.0.3`; OBPB projection-buffer format is exactly `0.0.2`; OBRW
@@ -315,7 +315,7 @@ Initial resize-lease authority is returned by attachment admission; later owners
 the attachment-scoped claim and complete events.
 
 `MESSAGE_CONTRACTS` is the executable TypeScript registry behind this table. Its native mirror is
-checked field-for-field through `control-conformance-v0.0.20.json`. Adding or changing a kind therefore
+checked field-for-field through `control-conformance-v0.0.21.json`. Adding or changing a kind therefore
 requires one atomic protocol change to the registry, native mirror, codecs, fixture, and consumers.
 
 `TerminalBell` is an event-only control record containing `attachmentId` and a positive canonical
@@ -427,12 +427,12 @@ Variable sections follow in this exact order:
 
 The current optional extension registry is:
 
-| Kind |       Bytes | Meaning                                                                                                                                                      |
-| ---: | ----------: | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-|  `1` |         `1` | Live close activity: `0=unknown`, `1=idle`, `2=active`. Terminal Host emits only `idle` or `active` and omits the extension when its observation is unknown. |
-|  `2` | `40..5 MiB` | One strictly decoded OBKG `0.0.2` Kitty graphics resource snapshot or placement-only update.                                                                 |
-|  `3` |         `2` | Current terminal progress: state byte plus percentage `0..100` or null sentinel `255`.                                                                       |
-|  `4` |        `25` | Latest semantic command completion: positive sequence, duration milliseconds, positive wall-clock completion milliseconds, and normalized exit code.         |
+| Kind |        Bytes | Meaning                                                                                                                                                      |
+| ---: | -----------: | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+|  `1` |          `1` | Live close activity: `0=unknown`, `1=idle`, `2=active`. Terminal Host emits only `idle` or `active` and omits the extension when its observation is unknown. |
+|  `2` | `40..33 MiB` | One strictly decoded OBKG `0.0.2` Kitty graphics resource snapshot or placement-only update.                                                                 |
+|  `3` |          `2` | Current terminal progress: state byte plus percentage `0..100` or null sentinel `255`.                                                                       |
+|  `4` |         `25` | Latest semantic command completion: positive sequence, duration milliseconds, positive wall-clock completion milliseconds, and normalized exit code.         |
 
 Close activity is an advisory, freshness-sensitive sample, not lifecycle or containment authority.
 A consumer maps an absent, duplicated, malformed, or unrecognized close-activity payload to
@@ -495,7 +495,7 @@ bit is defined. Every signed 32-bit z value is valid; composition uses exactly t
 `z < -1073741824` below cell backgrounds, `-1073741824 <= z < 0` between cell backgrounds and text,
 and `z >= 0` above text. Snapshot crop rectangles are bounded by their image.
 
-The client retains at most 4 MiB across 256 visible decoded images and 1,024 visible placements.
+The client retains at most 32 MiB across 256 visible decoded images and 1,024 visible placements.
 A placement-only update carries no image bytes and must name the exact retained resource revision;
 the consumer additionally validates every reference and crop against its retained image map before
 committing any text row. A terminal snapshot with placement-only extension data is invalid. Resource-set
@@ -503,7 +503,9 @@ or displayed-animation-generation change, retransmission, deletion, reset, scree
 unconfirmed base promotes the Host's whole OBTF record to a snapshot. Direct, file, temporary-file,
 and supported POSIX shared-memory inputs, raw/PNG/zlib/chunk transport, animation, virtual and
 relative placements, cropping, signed-z composition, and historical intersection are resolved at
-the native boundary. OBKG carries only owned decoded pixels and resolved placements; it never
+the native boundary. The pinned loader admits at most 400 MiB of encoded acquisition data, while
+decoded storage and every projected resource set remain independently capped at 32 MiB. OBKG
+carries only owned decoded pixels and resolved placements; it never
 carries a path, URL, handle, shared-memory name or mapping, encoded container, compressed stream,
 or unresolved Ghostty pin.
 
@@ -770,19 +772,19 @@ The handshake may select smaller transport payload bounds. It never raises these
 | Pending ordered input per terminal     |              4 MiB |
 | Scrollback configuration per terminal  |    1,000,000,000 B |
 | PTY read batch                         |            256 KiB |
-| Packed frame                           |              8 MiB |
-| All frame extensions / one OBKG record |              5 MiB |
-| Decoded Kitty resources                |              4 MiB |
+| Packed frame                           |             36 MiB |
+| All frame extensions / one OBKG record |             33 MiB |
+| Decoded Kitty resources                |             32 MiB |
 | Kitty images / placements              |         256 / 1024 |
-| Transport record                       |      16 MiB + 64 B |
-| Row-window record                      |             16 MiB |
+| Transport record                       |      44 MiB + 64 B |
+| Row-window record                      |             44 MiB |
 | Search query at a client boundary      |             16 KiB |
 | Selection preview                      |              4 KiB |
 | Selection export / one chunk           |     16 MiB / 1 MiB |
 | One UTF-8 string                       |             16 KiB |
 | Strings / styles / row records         | 4096 / 1024 / 4096 |
 | Cells / frame extensions               |        262144 / 64 |
-| Total extension bytes                  |              5 MiB |
+| Total extension bytes                  |             33 MiB |
 | Grid columns / rows                    |        4096 / 4096 |
 | Cell-pixel width / height              |        4096 / 4096 |
 | Total terminal pixel width / height    |      65535 / 65535 |

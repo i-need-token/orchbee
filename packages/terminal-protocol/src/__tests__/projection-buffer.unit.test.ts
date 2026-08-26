@@ -504,7 +504,7 @@ describe('terminal projection buffer', () => {
 		if (sourceRow === undefined || sourceCell === undefined) {
 			throw new Error('Logical range limit fixture is incomplete');
 		}
-		const backingGraphemes = ['a'.repeat(rangeBytes), 'b'.repeat(512)];
+		const backingGraphemes = ['a'.repeat(rangeBytes), 'b'.repeat(cellCount - 1)];
 		const encoded = encodeTerminalProjectionBuffer({
 			...frame,
 			columns: cellCount,

@@ -11854,6 +11854,58 @@ describe('ProjectedTerminal', () => {
 		expect(browser.frames.size).toBe(0);
 	});
 
+	it('draws one current restoration frame while explicit presentation demand remains paused', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		let hiddenObserved = false;
+		const setDocumentHidden = vi
+			.spyOn(WebGPURenderer.prototype, 'setDocumentHidden')
+			.mockImplementation(async (hidden) => {
+				if (hidden) {
+					hiddenObserved = true;
+					return false;
+				}
+				return hiddenObserved;
+			});
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: { send: () => undefined },
+			terminalId,
+		});
+		const telemetry = vi.fn<(event: ProjectedTerminalFrameTelemetry) => void>();
+		terminal.onFrameTelemetry(telemetry);
+		await terminal.open(browser.root);
+		terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['initial', '']));
+		browser.flushFrames();
+		telemetry.mockClear();
+
+		browser.setVisibilityState('hidden');
+		browser.dispatchDocument('visibilitychange');
+		terminal.setProjectionDemand('paused');
+		terminal.applyFrame(terminalFrame('delta', 2n, 2n, ['current', ''], 1n));
+		expect(browser.frames.size).toBe(0);
+
+		browser.setVisibilityState('visible');
+		browser.dispatchDocument('visibilitychange');
+		await Promise.resolve();
+		expect(setDocumentHidden).toHaveBeenLastCalledWith(false);
+		expect(browser.frames.size).toBe(1);
+		browser.flushFrames();
+		expect(telemetry).toHaveBeenCalledOnce();
+		expect(telemetry).toHaveBeenCalledWith(
+			expect.objectContaining({ forceAll: true, revision: '2' }),
+		);
+
+		terminal.applyFrame(terminalFrame('delta', 3n, 3n, ['later', ''], 2n));
+		expect(browser.frames.size).toBe(0);
+		terminal.dispose();
+	});
+
 	it('applies Host-driven frame geometry without emitting a reverse resize', async () => {
 		const browser = createFakeBrowser();
 		vi.stubGlobal('document', browser.document);

@@ -993,7 +993,7 @@ test "canonical TypeScript envelope carries the exact canonical frame" {
 
 /// Hand-assembles a wire-valid OBTP transport envelope whose row-window
 /// payload is exactly the row-window bound, making the whole record equal the
-/// transport-record bound (64-byte header + 16 MiB payload). The payload is
+/// transport-record bound (64-byte header + 44 MiB payload). The payload is
 /// opaque to the envelope validator, so a zero-filled body is a valid
 /// row-window payload declaration for envelope admission purposes.
 fn buildBoundaryEnvelopeRecord(allocator: std.mem.Allocator) ![]u8 {
@@ -1432,7 +1432,7 @@ test "native control replies and events conform to TypeScript schemas" {
         .{
             .frame_bytes = 8 * 1024 * 1024,
             .input_bytes = 1024 * 1024,
-            .row_window_bytes = 16 * 1024 * 1024,
+            .row_window_bytes = 44 * 1024 * 1024,
         },
         host_epoch,
         "0.1.0",

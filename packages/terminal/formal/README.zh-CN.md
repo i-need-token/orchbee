@@ -4,18 +4,21 @@
 
 ## 渲染器初始化退役
 
-`tla/TerminalRendererInitialization.tla` 将首次 WebGPU 建立和恢复建模为依次进行的适配器、设备、管线、验证、准备与后端发布阶段。一个渲染器 lease 拥有一个可分离的 device-loss 订阅。设备丢失会在恢复开始前退役该 generation；外部 Promise 挂起时，`freeze()` 与 `dispose()` 仍可独立发生。每个完成栅栏要么推进仍存活的初始化，要么取消初始化且不发布 WebGPU 或 Canvas 后备所有权。
+`tla/TerminalRendererInitialization.tla` 将首次 WebGPU 建立、可见性恢复和 device-loss 恢复建模为依次进行的适配器、设备、管线、验证、准备与后端发布阶段。一个渲染器 lease 拥有一个可分离的 device-loss 订阅。设备丢失会在恢复开始前退役该 generation。文档隐藏会停车 ready surface 或退役挂起的初始化；重新显示只让 parked 状态重新具备初始化资格，并不发布后端。外部 Promise 挂起时，`freeze()` 与 `dispose()` 仍可独立发生。每个完成栅栏要么推进可见且仍存活的初始化，要么取消初始化且不发布 WebGPU 或 Canvas 后备所有权。
 
-| 渲染器声明                       | 模型属性                                                       | TypeScript 细化                                                                            |
-| -------------------------------- | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| 已退役的初始化不能发布 WebGPU    | `PublicationRequiresLive`                                      | `WebGPURenderer.initializeGPU` 在每次 await 后及获取/配置上下文前检查退役状态。            |
-| 已退役的失败不能激活 Canvas 后备 | `FallbackRequiresLive`                                         | `activateFallback` 拒绝已冻结或已处置的渲染器，包括生命周期退役后才完成的失败。            |
-| 已取消初始化不保留后端           | `CancelledOwnsNothing`、`OwnershipMatchesPhase`                | 退役栅栏释放部分创建的 GPU 资源、runtime lease 及其 device-loss 订阅。                     |
-| 设备丢失会退役上一 generation    | `LossRetiresGeneration`、`OwnershipMatchesPhase`               | 共享 runtime 会先分离该 generation 的订阅者，再由每个活动渲染器释放旧 lease 并恢复。       |
-| 处置后不保留渲染器后端所有权     | `DisposedOwnsNothing`、`BackendMatchesPublication`             | `dispose()` 释放 runtime lease、可分离 device-loss 订阅、GPU 资源、图集 backing 与上下文。 |
-| 冻结只保留已经发布的表面         | `FreezePreservesPresentedBackend`、`BackendMatchesPublication` | 已完成的渲染器保留最后绘制的画布；飞行中的初始化在冻结后只能取消。                         |
+| 渲染器声明                                | 模型属性                                                       | TypeScript 细化                                                                                 |
+| ----------------------------------------- | -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| 已退役的初始化不能发布 WebGPU             | `PublicationRequiresLive`                                      | `WebGPURenderer.initializeGPU` 在每次 await 后及获取/配置上下文前检查退役状态。                 |
+| 已退役的失败不能激活 Canvas 后备          | `FallbackRequiresLive`                                         | `activateFallback` 拒绝已冻结或已处置的渲染器，包括生命周期退役后才完成的失败。                 |
+| 已取消初始化不保留后端                    | `CancelledOwnsNothing`、`OwnershipMatchesPhase`                | 退役栅栏释放部分创建的 GPU 资源、runtime lease 及其 device-loss 订阅。                          |
+| 设备丢失会退役上一 generation             | `LossRetiresGeneration`、`OwnershipMatchesPhase`               | 共享 runtime 会先分离该 generation 的订阅者，再由每个活动渲染器释放旧 lease 并恢复。            |
+| 隐藏的 WebGPU surface 不拥有 GPU 驻留资源 | `HiddenWebGPUOwnsNothing`、`HideReleasesWebGPU`                | `setDocumentHidden(true)` 解除 Canvas 配置，并释放每 surface 资源、lease 与 loss subscription。 |
+| 隐藏会退役挂起的初始化                    | `HideCancelsPendingInitialization`、`OwnershipMatchesPhase`    | 可见性 epoch 围栏每次 await；过时完成会释放 lease，不能配置 context 或进入后备。                |
+| 重新显示本身不能发布后端                  | `ShowPublishesNothing`、`BackendMatchesPublication`            | 可见重试必须重新取得并校验当前共享 generation，之后 `useWebGPU` 才能变为 true。                 |
+| 处置后不保留渲染器后端所有权              | `DisposedOwnsNothing`、`BackendMatchesPublication`             | `dispose()` 释放 runtime lease、可分离 device-loss 订阅、GPU 资源、图集 backing 与上下文。      |
+| 冻结只保留已经发布的表面                  | `FreezePreservesPresentedBackend`、`BackendMatchesPublication` | 已完成的渲染器保留最后绘制的画布；飞行中的初始化在冻结后只能取消。                              |
 
-模型把浏览器和 GPU Promise 的完成视为独立排序的环境动作。它只证明上述有界安全不变量；不声称适配器、设备或驱动操作最终完成，不声称物理 GPU 内存被同步回收，也不声称所有浏览器实现相同的上下文保留行为。
+模型把浏览器和 GPU Promise 的完成视为独立排序的环境动作。它只证明上述有界所有权与发布安全不变量。确定性的 renderer 与 `ProjectedTerminal` 测试进一步细化 CPU atlas 保留、共享 device 引用计数、完整资源重建，以及即使显式 demand 仍暂停也恰好绘制一次最新状态的恢复帧。模型不声称适配器、设备或驱动操作最终完成，不声称物理 GPU 内存被同步回收，也不声称所有浏览器实现相同的上下文保留行为。
 
 ## 运行时呈现配置
 

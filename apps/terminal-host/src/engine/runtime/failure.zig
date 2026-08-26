@@ -31,6 +31,7 @@ pub fn closeFailureFenceLocked(
         self.first_containment_attempt.reserveEngine();
     }
     self.input_condition.broadcast();
+    self.animation_condition.broadcast();
     return true;
 }
 

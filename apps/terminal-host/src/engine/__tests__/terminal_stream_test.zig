@@ -97,3 +97,25 @@ test "Host terminal stream delegates bounded DCS replies and recovers overlappin
     defer std.testing.allocator.free(plain);
     try std.testing.expectEqualStrings("A", plain);
 }
+
+test "Host terminal stream delegates Kitty graphics APC commands" {
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
+        .cols = 4,
+        .kitty_image_loading_limits = .direct,
+        .kitty_image_storage_limit = 1024,
+        .rows = 2,
+    });
+    defer terminal.deinit(std.testing.allocator);
+    terminal.width_px = 32;
+    terminal.height_px = 32;
+
+    var stream: terminal_stream.Stream = .init(.{ .handler = .init(&terminal) });
+    defer stream.deinit();
+    stream.nextSlice(
+        "\x1b_Ga=T,t=d,f=24,i=71,p=1,s=1,v=1,c=2,r=1,q=2;/wAA\x1b\\",
+    );
+
+    const graphics = &terminal.screens.active.kitty_images;
+    try std.testing.expectEqual(@as(usize, 1), graphics.images.count());
+    try std.testing.expectEqual(@as(usize, 1), graphics.placements.count());
+}

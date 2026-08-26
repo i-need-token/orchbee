@@ -262,6 +262,22 @@ test "Host-installed decoder rejects direct PNG dimensions beyond the resource b
     try std.testing.expectEqual(@as(usize, 0), terminal.screens.active.kitty_images.placements.count());
 }
 
+test "Host-installed decoder admits a 1536 by 1360 PNG within the resource budget" {
+    png_decoder.install();
+    try std.testing.expectEqual(@as(usize, 400 * 1024 * 1024), png_decoder.acquisition_limit_bytes);
+    const encoded = try storedRgbaPng(std.testing.allocator, 1536, 1360);
+    defer std.testing.allocator.free(encoded);
+    try std.testing.expect(encoded.len > 4 * 1024 * 1024);
+
+    const decode = ghostty_vt.sys.decode_png orelse return error.TestUnexpectedResult;
+    const decoded = try decode(std.testing.allocator, encoded);
+    defer std.testing.allocator.free(decoded.data);
+
+    try std.testing.expectEqual(@as(u32, 1536), decoded.width);
+    try std.testing.expectEqual(@as(u32, 1360), decoded.height);
+    try std.testing.expectEqual(@as(usize, 1536 * 1360 * 4), decoded.data.len);
+}
+
 test "projection never aliases equal Kitty generations across primary and alternate screens" {
     var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = 4,
@@ -1125,6 +1141,64 @@ fn transmitPathGraphic(
         .{ medium, image_id, encoded_path },
     );
     stream.nextSlice(command);
+}
+
+fn storedRgbaPng(
+    allocator: std.mem.Allocator,
+    width: u32,
+    height: u32,
+) ![]u8 {
+    const row_bytes = try std.math.add(usize, 1, try std.math.mul(usize, width, 4));
+    const raw_bytes = try std.math.mul(usize, row_bytes, height);
+    const raw = try allocator.alloc(u8, raw_bytes);
+    defer allocator.free(raw);
+    @memset(raw, 0);
+
+    var idat: std.Io.Writer.Allocating = .init(allocator);
+    defer idat.deinit();
+    try idat.writer.writeAll(&.{ 0x78, 0x01 });
+    var offset: usize = 0;
+    while (offset < raw.len) {
+        const block_length = @min(raw.len - offset, std.math.maxInt(u16));
+        const encoded_length: u16 = @intCast(block_length);
+        try idat.writer.writeByte(if (offset + block_length == raw.len) 1 else 0);
+        try idat.writer.writeInt(u16, encoded_length, .little);
+        try idat.writer.writeInt(u16, ~encoded_length, .little);
+        try idat.writer.writeAll(raw[offset..][0..block_length]);
+        offset += block_length;
+    }
+    try idat.writer.writeInt(u32, std.hash.Adler32.hash(raw), .big);
+    const idat_bytes = try idat.toOwnedSlice();
+    defer allocator.free(idat_bytes);
+
+    var ihdr: [13]u8 = @splat(0);
+    std.mem.writeInt(u32, ihdr[0..4], width, .big);
+    std.mem.writeInt(u32, ihdr[4..8], height, .big);
+    ihdr[8] = 8;
+    ihdr[9] = 6;
+
+    var png: std.Io.Writer.Allocating = .init(allocator);
+    errdefer png.deinit();
+    try png.writer.writeAll("\x89PNG\r\n\x1a\n");
+    try appendPngChunk(&png.writer, "IHDR", &ihdr);
+    try appendPngChunk(&png.writer, "IDAT", idat_bytes);
+    try appendPngChunk(&png.writer, "IEND", &.{});
+    return png.toOwnedSlice();
+}
+
+fn appendPngChunk(
+    writer: *std.Io.Writer,
+    kind: []const u8,
+    data: []const u8,
+) !void {
+    std.debug.assert(kind.len == 4);
+    try writer.writeInt(u32, @intCast(data.len), .big);
+    try writer.writeAll(kind);
+    try writer.writeAll(data);
+    var crc: std.hash.Crc32 = .init();
+    crc.update(kind);
+    crc.update(data);
+    try writer.writeInt(u32, crc.final(), .big);
 }
 
 fn setTerminalCellSize(

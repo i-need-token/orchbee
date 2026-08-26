@@ -6,12 +6,14 @@ projected-terminal state; Terminal Host and its PTY/Ghostty authority are outsid
 
 ## Renderer initialization retirement
 
-`tla/TerminalRendererInitialization.tla` models initial WebGPU setup and recovery as ordered
+`tla/TerminalRendererInitialization.tla` models initial WebGPU setup, visibility restoration, and recovery as ordered
 adapter, device, pipeline, validation, preparation, and backend-publication phases. One renderer
 lease owns one detachable device-loss subscription. Device loss retires that generation before
-recovery starts, while `freeze()` and `dispose()` can occur independently with an external promise
-pending. Every completion fence either advances a still-live initialization or cancels it without
-publishing WebGPU or Canvas fallback ownership.
+recovery starts. Document hiding parks a ready surface or retires pending initialization, and showing
+only returns parked state to initialization eligibility; it does not publish a backend. `freeze()`
+and `dispose()` can occur independently with an external promise pending. Every completion fence
+either advances a visible, still-live initialization or cancels it without publishing WebGPU or
+Canvas fallback ownership.
 
 | Renderer claim                                     | Model property                                                 | TypeScript refinement                                                                                                    |
 | -------------------------------------------------- | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
@@ -19,13 +21,19 @@ publishing WebGPU or Canvas fallback ownership.
 | A retired failure cannot activate Canvas fallback  | `FallbackRequiresLive`                                         | `activateFallback` rejects frozen and disposed renderers, including failures that settle after lifecycle retirement.     |
 | Cancelled initialization retains no backend        | `CancelledOwnsNothing`, `OwnershipMatchesPhase`                | The retirement fence releases partially created GPU resources, its runtime lease, and its device-loss subscription.      |
 | Device loss retires the previous generation        | `LossRetiresGeneration`, `OwnershipMatchesPhase`               | The shared runtime detaches the generation's subscribers before each live renderer releases its old lease and recovers.  |
+| A hidden WebGPU surface owns no GPU residency      | `HiddenWebGPUOwnsNothing`, `HideReleasesWebGPU`                | `setDocumentHidden(true)` unconfigures the canvas and releases per-surface resources, its lease, and loss subscription.  |
+| Hiding retires pending initialization              | `HideCancelsPendingInitialization`, `OwnershipMatchesPhase`    | The visibility epoch fences every await; a stale completion releases its lease and cannot configure or fall back.        |
+| Showing cannot publish a backend by itself         | `ShowPublishesNothing`, `BackendMatchesPublication`            | A visible retry must reacquire and validate the current shared generation before `useWebGPU` becomes true.               |
 | Disposal retains no renderer backend ownership     | `DisposedOwnsNothing`, `BackendMatchesPublication`             | `dispose()` releases its runtime lease, detachable device-loss subscription, GPU resources, atlas backing, and contexts. |
 | Freeze preserves only an already-published surface | `FreezePreservesPresentedBackend`, `BackendMatchesPublication` | A completed renderer keeps its last painted canvas; an in-flight initialization can only cancel after freeze.            |
 
 The model treats browser and GPU promise settlement as independently ordered environment actions.
-It proves only the bounded safety invariants above; it does not claim that an adapter, device, or
-driver operation eventually completes, that physical GPU memory is reclaimed synchronously, or
-that every browser implements identical context-retention behavior.
+It proves only the bounded ownership and publication safety invariants above. The deterministic
+renderer and `ProjectedTerminal` tests refine retained CPU atlas state, shared-device reference
+counting, full resource reconstruction, and exactly one newest-state restoration draw even when
+explicit demand remains paused. The model does not claim that an adapter, device, or driver
+operation eventually completes, that physical GPU memory is reclaimed synchronously, or that every
+browser implements identical context-retention behavior.
 
 ## Runtime presentation configuration
 

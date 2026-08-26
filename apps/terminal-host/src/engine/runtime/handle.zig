@@ -16,6 +16,7 @@ const input_handle = @import("input_handle.zig");
 const terminal_control_ops = @import("terminal_control.zig");
 const process_io_ops = @import("process_io.zig");
 const resize_ops = @import("resize.zig");
+const scrollback_compression_ops = @import("scrollback_compression.zig");
 const theme_ops = @import("theme.zig");
 const attachment_ops = @import("attachment.zig");
 const interaction_ops = @import("interaction.zig");
@@ -259,6 +260,13 @@ pub const TerminalRuntime = opaque {
 
     pub fn releaseProjectionResources(self: *TerminalRuntime) void {
         return projection_ops.releaseProjectionResources(stateFrom(self));
+    }
+
+    pub fn maintainScrollbackCompression(
+        self: *TerminalRuntime,
+        now_ns: i128,
+    ) contracts.ScrollbackCompressionOutcome {
+        return scrollback_compression_ops.maintain(stateFrom(self), now_ns);
     }
 
     pub fn encodeProjectionFrame(

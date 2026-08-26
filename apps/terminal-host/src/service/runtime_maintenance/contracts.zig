@@ -72,23 +72,22 @@ pub const PendingOutcomeBatch = struct {
     }
 };
 
-/// Host-lifetime monotonic clock for cleanup-retry scheduling. Both the
-/// one-second retry deadline and the due-eligibility check read this clock, so
-/// an adjustable wall clock (CLOCK_REALTIME / system calendar time) can neither
-/// postpone nor accelerate cleanup retries. Production samples elapsed
-/// monotonic time since the clock's first scheduling use and clamps readings so
-/// they never go backward; tests inject a logical clock.
-pub const CleanupClock = struct {
+/// Host-lifetime monotonic clock for bounded maintenance scheduling. Cleanup
+/// retries and scrollback-compression opportunities share this clock, so an
+/// adjustable wall clock cannot postpone or accelerate either class of work.
+/// Production samples elapsed monotonic time since the first scheduling use
+/// and clamps readings so they never go backward; tests inject a logical clock.
+pub const MaintenanceClock = struct {
     timer: ?monotonic.Timer = null,
     previous_ns: u64 = 0,
     context: ?*anyopaque = null,
-    read_ns: *const fn (clock: *CleanupClock) i128 = readMonotonicNs,
+    read_ns: *const fn (clock: *MaintenanceClock) i128 = readMonotonicNs,
 
-    pub fn now(self: *CleanupClock) i128 {
+    pub fn now(self: *MaintenanceClock) i128 {
         return self.read_ns(self);
     }
 
-    fn readMonotonicNs(self: *CleanupClock) i128 {
+    fn readMonotonicNs(self: *MaintenanceClock) i128 {
         if (self.timer) |*timer| {
             const reading = @max(timer.read(), self.previous_ns);
             self.previous_ns = reading;
@@ -99,3 +98,5 @@ pub const CleanupClock = struct {
         return 0;
     }
 };
+
+pub const CleanupClock = MaintenanceClock;

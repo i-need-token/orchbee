@@ -1,10 +1,10 @@
-import type {
-	ProjectedSearchWorkerRequest,
-	ProjectedSearchWorkerResponse,
+import {
+	PROJECTED_SEARCH_SOURCE_BYTE_LIMIT,
+	type ProjectedSearchWorkerRequest,
+	type ProjectedSearchWorkerResponse,
 } from './projected-search-protocol';
 import { ProjectedSearchAccumulator } from './ProjectedSearchAccumulator';
 
-const MAX_SEARCH_SOURCE_BYTES = 16 * 1024 * 1024;
 const textEncoder = new TextEncoder();
 
 interface ActiveSearch {
@@ -68,7 +68,7 @@ function handleProjectedSearchWorkerMessage(
 			return;
 		}
 		search.sourceBytes += textEncoder.encode(row.text).byteLength;
-		if (search.sourceBytes > MAX_SEARCH_SOURCE_BYTES) {
+		if (search.sourceBytes > PROJECTED_SEARCH_SOURCE_BYTE_LIMIT) {
 			active = undefined;
 			postError(
 				postMessage,

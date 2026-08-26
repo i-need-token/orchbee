@@ -11,6 +11,18 @@ pub const TickResult = struct {
     next_delay_milliseconds: ?u64,
 };
 
+/// Wakes the animation scheduler after a committed Kitty resource or active-
+/// screen change. The caller owns terminal_mutex, keeping the notification
+/// ordered with the canonical terminal mutation that made animation possible.
+pub fn requestWakeLocked(self: *state.State) void {
+    if (comptime @import("builtin").is_test) {
+        if (self.testing_hooks.animation_wake_requested) |notify| {
+            notify(self.testing_hooks.context.?);
+        }
+    }
+    self.animation_condition.broadcast();
+}
+
 /// Advances Ghostty's active-screen animation clock. The caller owns
 /// terminal_mutex; a displayed-frame change becomes one Host revision and one
 /// monotonic animation tick regardless of how many images advance together.
@@ -56,7 +68,7 @@ pub fn animationThread(self: *state.State) void {
         if (self.failure_fenced or self.output_abort_requested.load(.acquire)) return;
 
         const timer = if (self.command_timer) |*value| value else {
-            self.terminal_condition.wait(&self.terminal_mutex);
+            self.animation_condition.wait(&self.terminal_mutex);
             continue;
         };
         const now_milliseconds = timer.read() / nanoseconds_per_millisecond;
@@ -71,9 +83,9 @@ pub fn animationThread(self: *state.State) void {
         if (result.next_delay_milliseconds) |delay_ms| {
             const delay_ns = std.math.mul(u64, delay_ms, nanoseconds_per_millisecond) catch
                 std.math.maxInt(u64);
-            self.terminal_condition.timedWait(&self.terminal_mutex, delay_ns) catch {};
+            self.animation_condition.timedWait(&self.terminal_mutex, delay_ns) catch {};
         } else {
-            self.terminal_condition.wait(&self.terminal_mutex);
+            self.animation_condition.wait(&self.terminal_mutex);
         }
     }
 }
