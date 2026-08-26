@@ -881,9 +881,12 @@
 			"triggers": ["apps/terminal-host/src/**", "apps/terminal-host/build.zig"],
 			"requiredCoverage": [
 				"CompressionActivityChanges",
+				"InteractionActivityChanges",
 				"CompressionLockBecomesBusy",
 				"CompressionLockBecomesAvailable",
 				"CompressionObserveActivity",
+				"InteractionObserveActivity",
+				"DormantInteractionObservation",
 				"CompressionIdleWait",
 				"CompressionLockBusy",
 				"CompressionStepPending",

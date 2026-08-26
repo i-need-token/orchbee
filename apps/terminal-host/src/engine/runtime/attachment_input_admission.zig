@@ -8,6 +8,7 @@ const prepared_input = @import("prepared_input.zig");
 const failure_ops = @import("failure.zig");
 const input_admission_ops = @import("input_admission.zig");
 const linefeed = @import("linefeed.zig");
+const scrollback_compression_ops = @import("scrollback_compression.zig");
 
 /// Coordinates attachment-scoped semantic input with its held-input ledger.
 /// Terminal-scoped encoding stays in input_admission; this module owns the
@@ -78,6 +79,7 @@ fn prepareFocusInput(
         self.input_queue.charge(.client),
     );
     const bytes = if (encoded.len == 0) null else try self.allocator.dupe(u8, encoded);
+    if (bytes != null) scrollback_compression_ops.noteInteractionLocked(self);
     return .{
         .bytes = bytes,
         .focus_reporting_enabled = terminal_input_encoding.reportsFocus(&self.terminal),

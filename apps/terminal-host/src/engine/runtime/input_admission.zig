@@ -7,6 +7,7 @@ const prepared_input = @import("prepared_input.zig");
 const failure_ops = @import("failure.zig");
 const input_commit_ops = @import("input_commit.zig");
 const linefeed = @import("linefeed.zig");
+const scrollback_compression_ops = @import("scrollback_compression.zig");
 
 pub fn enqueueInput(self: *state.State, bytes: []const u8) !void {
     _ = try enqueueRawInput(self, bytes);
@@ -289,6 +290,7 @@ pub fn prepareEncodedInputLocked(
         self.terminal.modes.get(.linefeed),
         byte_count,
     );
+    scrollback_compression_ops.noteInteractionLocked(self);
     return .{
         .affects_close_activity = affects_close_activity,
         .bytes = copy,
@@ -341,6 +343,7 @@ pub fn prepareOwnedInputLocked(
         self.allocator.free(owned);
         return err;
     };
+    scrollback_compression_ops.noteInteractionLocked(self);
     return .{
         .affects_close_activity = affects_close_activity,
         .bytes = owned,

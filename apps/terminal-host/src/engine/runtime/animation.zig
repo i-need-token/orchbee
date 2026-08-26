@@ -2,6 +2,7 @@ const std = @import("std");
 
 const thread_sync = @import("terminal-host-platform").thread_sync;
 const failure_ops = @import("failure.zig");
+const scrollback_compression_ops = @import("scrollback_compression.zig");
 const state = @import("state.zig");
 
 const nanoseconds_per_millisecond = std.time.ns_per_ms;
@@ -45,6 +46,7 @@ pub fn tickLockedAt(self: *state.State, now_milliseconds: u64) error{CounterExha
     }
     self.animation_tick += 1;
     self.revision.store(revision + 1, .release);
+    scrollback_compression_ops.noteInteractionLocked(self);
     self.history.animation_tick = self.animation_tick;
     self.history.noteMutation(&self.terminal, revision + 1, self.generation);
     _ = self.output_batches_since_sync.fetchAdd(1, .release);

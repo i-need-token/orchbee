@@ -12,6 +12,7 @@ const process_io_ops = @import("process_io.zig");
 const resize_ops = @import("resize.zig");
 const metadata_ops = @import("metadata.zig");
 const mode_effects = @import("mode_effects.zig");
+const scrollback_compression_ops = @import("scrollback_compression.zig");
 const terminal_reply = @import("terminal_reply.zig");
 
 pub fn writePtyEffect(handler: *ghostty_vt.TerminalStream.Handler, bytes: []const u8) void {
@@ -333,6 +334,7 @@ fn commitObservedReaderBatch(
     if (screen_changed or geometry_changed) self.generation += 1;
     const revision = current_revision + 1;
     self.revision.store(revision, .release);
+    scrollback_compression_ops.noteInteractionLocked(self);
     metadata_ops.commitRevisionLocked(self, revision);
     if (screen_changed) {
         self.history.screenChanged(&self.terminal);

@@ -133,7 +133,8 @@ pub const State = struct {
     stream_allocator: terminal_stream.ParserAllocator,
     scrollback_bytes: usize,
     // terminal_mutex owns Ghostty's opaque compression activity observation,
-    // its idle deadline, and the outcome of the latest bounded step.
+    // the client-input/output interaction serial, the idle deadline, and the
+    // outcome of the latest bounded step.
     scrollback_compression: contracts.ScrollbackCompressionSchedule = .{},
     // terminal_mutex protects the bounded DEC synchronized-output interval.
     // The deadline shares the runtime monotonic clock used by terminal

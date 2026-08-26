@@ -69,6 +69,18 @@ const createIdleRuntimeWithGeometry = harness.createIdleRuntimeWithGeometry;
 const parseTerminalInput = harness.parseTerminalInput;
 const WriterPause = harness.WriterPause;
 
+fn maintainScrollbackCompressionWhenAvailable(
+    runtime: *TerminalRuntime,
+    now_ns: i128,
+) subject.ScrollbackCompressionOutcome {
+    for (0..1_024) |_| {
+        const outcome = runtime.maintainScrollbackCompression(now_ns);
+        if (outcome != .lock_busy) return outcome;
+        std.Thread.yield() catch {};
+    }
+    return .lock_busy;
+}
+
 const CommandClockProbe = struct {
     monotonic_values: []const u64,
     next_monotonic: usize = 0,
@@ -341,31 +353,44 @@ test "idle scrollback compression is nonblocking bounded and representation-only
     runtime_state.terminal_mutex.unlock();
     try std.testing.expectEqual(
         subject.ScrollbackCompressionOutcome.idle_wait,
-        runtime.maintainScrollbackCompression(0),
+        maintainScrollbackCompressionWhenAvailable(runtime, 0),
     );
     const original_deadline = runtime_state.scrollback_compression.eligible_at_ns;
     try std.testing.expectEqual(scrollbackCompressionIdleIntervalNs, original_deadline);
+
+    const client_input_observed_at = 100 * std.time.ns_per_ms;
+    try runtime.enqueueInput("i");
     try std.testing.expectEqual(
         subject.ScrollbackCompressionOutcome.idle_wait,
-        runtime.maintainScrollbackCompression(scrollbackCompressionIdleIntervalNs - 1),
+        maintainScrollbackCompressionWhenAvailable(runtime, client_input_observed_at),
+    );
+    const client_input_deadline = client_input_observed_at +
+        scrollbackCompressionIdleIntervalNs;
+    try std.testing.expectEqual(
+        client_input_deadline,
+        runtime_state.scrollback_compression.eligible_at_ns,
+    );
+    try std.testing.expectEqual(
+        subject.ScrollbackCompressionOutcome.idle_wait,
+        maintainScrollbackCompressionWhenAvailable(runtime, client_input_deadline - 1),
     );
 
     runtime_state.terminal_mutex.lock();
     try std.testing.expectEqual(
         subject.ScrollbackCompressionOutcome.lock_busy,
-        runtime.maintainScrollbackCompression(scrollbackCompressionIdleIntervalNs),
+        runtime.maintainScrollbackCompression(client_input_deadline),
     );
     runtime_state.terminal_mutex.unlock();
     try std.testing.expectEqual(
-        original_deadline,
+        client_input_deadline,
         runtime_state.scrollback_compression.eligible_at_ns,
     );
 
-    var now_ns = scrollbackCompressionIdleIntervalNs;
+    var now_ns = client_input_deadline;
     var previous_compressed_pages = memory_before.compressed_pages;
     var completed = false;
     for (0..4_096) |_| {
-        const outcome = runtime.maintainScrollbackCompression(now_ns);
+        const outcome = maintainScrollbackCompressionWhenAvailable(runtime, now_ns);
         const memory = scrollbackMemoryStats(runtime);
         try std.testing.expect(memory.compressed_pages >= previous_compressed_pages);
         try std.testing.expect(memory.compressed_pages - previous_compressed_pages <= 1);
@@ -390,7 +415,28 @@ test "idle scrollback compression is nonblocking bounded and representation-only
     try std.testing.expectEqual(generation_before, runtime_state.generation);
     try std.testing.expectEqual(
         subject.ScrollbackCompressionOutcome.dormant,
-        runtime.maintainScrollbackCompression(now_ns),
+        maintainScrollbackCompressionWhenAvailable(runtime, now_ns),
+    );
+
+    runtime_state.terminal_mutex.lock();
+    const compression_activity_before_dormant_output =
+        runtime_state.terminal.compressionActivity();
+    runtime_state.terminal_mutex.unlock();
+    try std.testing.expectEqual(
+        ReaderBatchOutcome.committed,
+        commitReaderBatch(runtime, "\x07"),
+    );
+    runtime_state.terminal_mutex.lock();
+    const compression_activity_after_dormant_output =
+        runtime_state.terminal.compressionActivity();
+    runtime_state.terminal_mutex.unlock();
+    try std.testing.expectEqual(
+        compression_activity_before_dormant_output,
+        compression_activity_after_dormant_output,
+    );
+    try std.testing.expectEqual(
+        subject.ScrollbackCompressionOutcome.dormant,
+        maintainScrollbackCompressionWhenAvailable(runtime, now_ns),
     );
 
     try std.testing.expectEqual(
@@ -401,13 +447,42 @@ test "idle scrollback compression is nonblocking bounded and representation-only
     try std.testing.expect(changed_revision > revision_before);
     try std.testing.expectEqual(
         subject.ScrollbackCompressionOutcome.idle_wait,
-        runtime.maintainScrollbackCompression(now_ns),
+        maintainScrollbackCompressionWhenAvailable(runtime, now_ns),
+    );
+
+    runtime_state.terminal_mutex.lock();
+    const compression_activity_before_same_line_output =
+        runtime_state.terminal.compressionActivity();
+    runtime_state.terminal_mutex.unlock();
+    try std.testing.expectEqual(
+        ReaderBatchOutcome.committed,
+        commitReaderBatch(runtime, "x"),
+    );
+    runtime_state.terminal_mutex.lock();
+    const compression_activity_after_same_line_output =
+        runtime_state.terminal.compressionActivity();
+    runtime_state.terminal_mutex.unlock();
+    try std.testing.expectEqual(
+        compression_activity_before_same_line_output,
+        compression_activity_after_same_line_output,
+    );
+
+    const original_activity_deadline = now_ns + scrollbackCompressionIdleIntervalNs;
+    try std.testing.expectEqual(
+        subject.ScrollbackCompressionOutcome.idle_wait,
+        maintainScrollbackCompressionWhenAvailable(runtime, original_activity_deadline),
+    );
+    const same_line_output_deadline = original_activity_deadline +
+        scrollbackCompressionIdleIntervalNs;
+    try std.testing.expectEqual(
+        same_line_output_deadline,
+        runtime_state.scrollback_compression.eligible_at_ns,
     );
     try std.testing.expectEqual(
         subject.ScrollbackCompressionOutcome.idle_wait,
-        runtime.maintainScrollbackCompression(now_ns + scrollbackCompressionIdleIntervalNs - 1),
+        maintainScrollbackCompressionWhenAvailable(runtime, same_line_output_deadline - 1),
     );
-    try std.testing.expectEqual(changed_revision, runtime_state.revision.load(.acquire));
+    try std.testing.expectEqual(changed_revision + 1, runtime_state.revision.load(.acquire));
     try std.testing.expectEqual(generation_before, runtime_state.generation);
 }
 test "visible Kitty animation ticks monotonically advance Host revision and history" {

@@ -305,8 +305,8 @@ pub fn createIdleRuntimeWithGeometry(
         null;
     defer if (windows_executable) |value| std.testing.allocator.free(value);
     const executable = if (windows_executable) |value| value else "/bin/sh";
-    const posix_arguments = [_][]const u8{ "-c", "sleep 30" };
-    const windows_arguments = [_][]const u8{ "/D", "/S", "/C", "ping -n 31 127.0.0.1 >nul" };
+    const posix_arguments = [_][]const u8{ "-c", "sleep 120" };
+    const windows_arguments = [_][]const u8{ "/D", "/S", "/C", "ping -n 121 127.0.0.1 >nul" };
     const arguments = if (builtin.os.tag == .windows) &windows_arguments else &posix_arguments;
     return TerminalRuntime.createWithOptions(std.testing.allocator, .{
         .arguments = arguments,

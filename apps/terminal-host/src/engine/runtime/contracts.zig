@@ -76,8 +76,10 @@ pub const ScrollbackCompressionOutcome = enum {
 };
 
 pub const ScrollbackCompressionSchedule = struct {
-    activity: ?u64 = null,
+    compression_activity: ?u64 = null,
     eligible_at_ns: i128 = 0,
+    interaction_serial: u64 = 0,
+    observed_interaction_serial: u64 = 0,
     phase: enum {
         waiting,
         pending,
