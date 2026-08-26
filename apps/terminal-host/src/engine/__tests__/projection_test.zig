@@ -978,6 +978,18 @@ test "production projection source excludes executable test scenarios" {
     }
 }
 
+test "projection owns one frame-scoped grapheme scratch buffer across both cell passes" {
+    const source = subject.testing.projection_source;
+    try std.testing.expectEqual(
+        @as(usize, 1),
+        std.mem.count(u8, source, "var grapheme_buffer: [max_string_bytes]u8 = undefined;"),
+    );
+    try std.testing.expectEqual(
+        @as(usize, 2),
+        std.mem.count(u8, source, "&grapheme_buffer"),
+    );
+}
+
 fn linkTableBoundary(allocator: std.mem.Allocator) !void {
     var aggregate: LinkTable = linkTableInit(allocator);
     defer linkTableDeinit(&aggregate);

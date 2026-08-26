@@ -66,6 +66,7 @@ const createIdleRuntime = harness.createIdleRuntime;
 const destroyRuntimeWithIdentityRetry = harness.destroyRuntimeWithIdentityRetry;
 const createImmediateExitRuntime = harness.createImmediateExitRuntime;
 const createIdleRuntimeWithGeometry = harness.createIdleRuntimeWithGeometry;
+const createIdleRuntimeWithGeometryAndHooks = harness.createIdleRuntimeWithGeometryAndHooks;
 const parseTerminalInput = harness.parseTerminalInput;
 const WriterPause = harness.WriterPause;
 
@@ -104,6 +105,16 @@ const CommandClockProbe = struct {
     fn wallTimeMilliseconds(context: *anyopaque) u64 {
         const self: *CommandClockProbe = @ptrCast(@alignCast(context));
         return self.wall_milliseconds;
+    }
+};
+
+const PtyWriteSink = struct {
+    fn write(_: *anyopaque, bytes: []const u8) anyerror!usize {
+        return bytes.len;
+    }
+
+    fn hooks(self: *PtyWriteSink) RuntimeTestingHooks {
+        return .{ .context = self, .write_pty = write };
     }
 };
 
@@ -323,9 +334,15 @@ test "dynamic scrollback configuration evicts history and can retain history aga
     try std.testing.expect(terminal.screens.get(.primary).?.pages.total_rows > terminal.rows);
 }
 test "idle scrollback compression is nonblocking bounded and representation-only" {
-    const runtime = try createIdleRuntimeWithGeometry(80, 24, .{
-        .scrollback_bytes = 8 * 1024 * 1024,
-    });
+    // The input exercises production admission but must not introduce an
+    // asynchronous PTY echo into the representation-only revision assertions.
+    var pty_write_sink: PtyWriteSink = .{};
+    const runtime = try createIdleRuntimeWithGeometryAndHooks(
+        80,
+        24,
+        .{ .scrollback_bytes = 8 * 1024 * 1024 },
+        pty_write_sink.hooks(),
+    );
     defer destroyRuntimeWithIdentityRetry(runtime);
     const runtime_state = runtimeState(runtime);
 

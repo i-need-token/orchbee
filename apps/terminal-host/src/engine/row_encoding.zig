@@ -159,6 +159,9 @@ fn encodeTextBody(
     pins: []const ghostty_vt.Pin,
 ) (Error || std.mem.Allocator.Error)!u32 {
     var entry_count: u32 = 0;
+    // Keep the bounded scratch outside cell traversal so ReleaseSafe initializes
+    // it once per row-window encode rather than once per text cell.
+    var grapheme_buffer: [render_encoding.max_string_bytes]u8 = undefined;
     for (pins) |pin| {
         const cells = pin.cells(.all);
         const logical_columns = textColumns(cells);
@@ -182,7 +185,7 @@ fn encodeTextBody(
         try writer.appendInt(u32, if (identity_ascii) 0 else mapping_count);
         for (cells[0..logical_columns]) |*cell| {
             if (isSpacer(cell.*)) continue;
-            try appendCellText(writer, pin, cell);
+            try appendCellText(writer, pin, cell, &grapheme_buffer);
         }
         if (!identity_ascii) {
             var byte_offset: u32 = 0;
@@ -268,16 +271,16 @@ fn appendCellText(
     writer: anytype,
     pin: ghostty_vt.Pin,
     cell: *const ghostty_vt.page.Cell,
+    grapheme_buffer: *[render_encoding.max_string_bytes]u8,
 ) !void {
     if (!cell.hasText()) {
         try writer.appendSlice(" ");
         return;
     }
-    var buffer: [render_encoding.max_string_bytes]u8 = undefined;
     const grapheme = try render_encoding.cellGrapheme(
         cell.*,
         pin.grapheme(cell) orelse &.{},
-        &buffer,
+        grapheme_buffer,
     );
     try writer.appendSlice(grapheme);
 }

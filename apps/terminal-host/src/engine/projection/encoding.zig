@@ -73,6 +73,10 @@ pub fn encodeOwned(
     const title_index = try strings.addOptional(self.captured_title);
     const current_directory_index = try strings.addOptional(self.captured_current_directory);
 
+    // Keep this bounded scratch frame-scoped: ReleaseSafe initializes undefined
+    // storage at declaration, so per-cell ownership turns the string limit into
+    // grid-sized memory traffic in both passes below.
+    var grapheme_buffer: [max_string_bytes]u8 = undefined;
     var included_rows: usize = 0;
     const row_data = state.row_data.slice();
     const row_cells = row_data.items(.cells);
@@ -81,7 +85,6 @@ pub fn encodeOwned(
         included_rows += 1;
         const cells = row_cells[row_index].slice();
         for (0..state.cols) |column| {
-            var grapheme_buffer: [max_string_bytes]u8 = undefined;
             const grapheme = try cellGrapheme(
                 cells.items(.raw)[column],
                 cells.items(.grapheme)[column],
@@ -189,7 +192,6 @@ pub fn encodeOwned(
         try writer.appendInt(u16, 0);
         const cells = row_cells[row_index].slice();
         for (0..state.cols) |column| {
-            var grapheme_buffer: [max_string_bytes]u8 = undefined;
             const grapheme = try cellGrapheme(
                 cells.items(.raw)[column],
                 cells.items(.grapheme)[column],

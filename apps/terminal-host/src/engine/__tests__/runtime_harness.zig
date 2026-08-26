@@ -298,6 +298,15 @@ pub fn createIdleRuntimeWithGeometry(
     rows: u16,
     options: subject.Options,
 ) !*TerminalRuntime {
+    return createIdleRuntimeWithGeometryAndHooks(columns, rows, options, .{});
+}
+
+pub fn createIdleRuntimeWithGeometryAndHooks(
+    columns: u16,
+    rows: u16,
+    options: subject.Options,
+    hooks: RuntimeTestingHooks,
+) !*TerminalRuntime {
     const builtin = @import("builtin");
     const windows_executable: ?[]u8 = if (builtin.os.tag == .windows)
         try pty_process.environmentVariableOwned(std.testing.allocator, "ComSpec")
@@ -308,14 +317,15 @@ pub fn createIdleRuntimeWithGeometry(
     const posix_arguments = [_][]const u8{ "-c", "sleep 120" };
     const windows_arguments = [_][]const u8{ "/D", "/S", "/C", "ping -n 121 127.0.0.1 >nul" };
     const arguments = if (builtin.os.tag == .windows) &windows_arguments else &posix_arguments;
-    return TerminalRuntime.createWithOptions(std.testing.allocator, .{
+    var spawner: HookedThreadSpawner = .{ .hooks = hooks };
+    return createWithOptionsUsingSpawner(std.testing.allocator, .{
         .arguments = arguments,
         .columns = columns,
         .current_directory = null,
         .environment = &.{},
         .executable = executable,
         .rows = rows,
-    }, options);
+    }, options, &spawner);
 }
 
 pub fn parseTerminalInput(runtime: *TerminalRuntime, bytes: []const u8) void {

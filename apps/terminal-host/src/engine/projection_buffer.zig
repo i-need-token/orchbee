@@ -198,6 +198,9 @@ pub fn encodeRenderSnapshot(
         terminal.getPwd(),
     );
     const colors = renderColors(terminal);
+    // Keep the bounded scratch outside cell traversal so ReleaseSafe initializes
+    // it once per snapshot rather than once per projected cell.
+    var grapheme_buffer: [render_encoding.max_string_bytes]u8 = undefined;
     for (pins, 0..) |pin, row_index| {
         var frame = writer.written()[frame_offset..];
         const row = pin.rowAndCell().row;
@@ -208,7 +211,6 @@ pub fn encodeRenderSnapshot(
         frame[layout.offsets[2] + row_index] = render_encoding.rowPromptClass(row.semantic_prompt);
         for (pin.cells(.all), 0..) |*cell, column| {
             const cell_index = row_index * terminal.cols + column;
-            var grapheme_buffer: [render_encoding.max_string_bytes]u8 = undefined;
             const grapheme = render_encoding.cellGrapheme(
                 cell.*,
                 pin.grapheme(cell) orelse &.{},
