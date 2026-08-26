@@ -62,8 +62,8 @@ pub const FixtureSet = struct {
     }
 };
 
-pub fn create(allocator: std.mem.Allocator) !FixtureSet {
-    var terminal: ghostty_vt.Terminal = try .init(allocator, .{
+pub fn create(io: std.Io, allocator: std.mem.Allocator) !FixtureSet {
+    var terminal: ghostty_vt.Terminal = try .init(io, allocator, .{
         .cols = columns,
         .rows = rows,
     });
@@ -104,7 +104,7 @@ pub fn create(allocator: std.mem.Allocator) !FixtureSet {
     errdefer allocator.free(alternate_frame.allocation);
     std.debug.assert(alternate_frame.bytes.ptr == alternate_frame.allocation.ptr);
     std.debug.assert(alternate_frame.bytes.len == alternate_frame.allocation.len);
-    const render_row_window = try createRenderRowWindow(allocator);
+    const render_row_window = try createRenderRowWindow(io, allocator);
     return .{
         .alternate = alternate_frame.allocation,
         .primary = primary_frame.allocation,
@@ -112,8 +112,8 @@ pub fn create(allocator: std.mem.Allocator) !FixtureSet {
     };
 }
 
-fn createRenderRowWindow(allocator: std.mem.Allocator) ![]u8 {
-    var terminal: ghostty_vt.Terminal = try .init(allocator, .{
+fn createRenderRowWindow(io: std.Io, allocator: std.mem.Allocator) ![]u8 {
+    var terminal: ghostty_vt.Terminal = try .init(io, allocator, .{
         .cols = columns,
         .rows = rows,
     });
@@ -131,6 +131,7 @@ fn createRenderRowWindow(allocator: std.mem.Allocator) ![]u8 {
         .cell_pixel_width = 8,
         .hard_limit = protocol.Limits.row_window_bytes,
         .request = .{
+            .animation_tick = 0,
             .attachment_id = projection.AttachmentId.fromBytes([_]u8{0x44} ** 16),
             .detail = .render,
             .generation = 13,

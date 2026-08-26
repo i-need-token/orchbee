@@ -8,92 +8,102 @@ const c = if (builtin.os.tag == .freebsd or builtin.os.tag == .linux or builtin.
 else
     struct {};
 
-pub fn prepareRuntimeDirectory(runtime_directory: []const u8) !std.fs.Dir {
-    return prepareRuntimeDirectoryForUser(runtime_directory, std.posix.geteuid());
+pub fn prepareRuntimeDirectory(io: std.Io, runtime_directory: []const u8) !std.Io.Dir {
+    return prepareRuntimeDirectoryForUser(io, runtime_directory, std.c.geteuid());
 }
 
 pub fn prepareRuntimeDirectoryForUser(
+    io: std.Io,
     runtime_directory: []const u8,
     expected_uid: std.posix.uid_t,
-) !std.fs.Dir {
+) !std.Io.Dir {
     if (!std.fs.path.isAbsolute(runtime_directory)) return error.RuntimeDirectoryNotAbsolute;
-    std.posix.mkdir(runtime_directory, 0o700) catch |err| switch (err) {
+    std.Io.Dir.createDirAbsolute(io, runtime_directory, @enumFromInt(0o700)) catch |err| switch (err) {
         error.PathAlreadyExists => {},
         else => return err,
     };
-    var directory = try std.fs.openDirAbsolute(runtime_directory, .{ .no_follow = true });
-    errdefer directory.close();
-    const initial_status = try std.posix.fstat(directory.fd);
-    if (initial_status.uid != expected_uid or initial_status.mode & 0o077 != 0) {
+    var directory = try std.Io.Dir.openDirAbsolute(io, runtime_directory, .{
+        .follow_symlinks = false,
+    });
+    errdefer directory.close(io);
+    const initial_status = try directory.stat(io);
+    if (initial_status.permissions.toMode() & 0o077 != 0) {
         return error.InsecureRuntimeDirectory;
     }
     try requireSecurityStatus(c.ob_posix_secure_runtime_directory(
-        directory.fd,
+        directory.handle,
         try checkedUid(expected_uid),
     ), error.InsecureRuntimeDirectory);
     return directory;
 }
 
-pub fn validateRuntimeDirectory(runtime_directory: []const u8) !std.fs.Dir {
-    return validateRuntimeDirectoryForUser(runtime_directory, std.posix.geteuid());
+pub fn validateRuntimeDirectory(io: std.Io, runtime_directory: []const u8) !std.Io.Dir {
+    return validateRuntimeDirectoryForUser(io, runtime_directory, std.c.geteuid());
 }
 
 pub fn validateRuntimeDirectoryForUser(
+    io: std.Io,
     runtime_directory: []const u8,
     expected_uid: std.posix.uid_t,
-) !std.fs.Dir {
+) !std.Io.Dir {
     if (!std.fs.path.isAbsolute(runtime_directory)) return error.RuntimeDirectoryNotAbsolute;
-    var directory = try std.fs.openDirAbsolute(runtime_directory, .{ .no_follow = true });
-    errdefer directory.close();
+    var directory = try std.Io.Dir.openDirAbsolute(io, runtime_directory, .{
+        .follow_symlinks = false,
+    });
+    errdefer directory.close(io);
     try requireSecurityStatus(c.ob_posix_validate_runtime_directory(
-        directory.fd,
+        directory.handle,
         try checkedUid(expected_uid),
     ), error.InsecureRuntimeDirectory);
     return directory;
 }
 
 pub fn acquireLock(
-    directory: std.fs.Dir,
+    io: std.Io,
+    directory: std.Io.Dir,
     lock_name: []const u8,
     expected_uid: std.posix.uid_t,
-) !std.fs.File {
+) !std.Io.File {
     const lock_name_z = try std.posix.toPosixPath(lock_name);
     var descriptor: c_int = -1;
     try requireSecurityStatus(c.ob_posix_open_lock_at(
-        directory.fd,
+        directory.handle,
         &lock_name_z,
         try checkedUid(expected_uid),
         &descriptor,
     ), error.InsecureLockFile);
     if (descriptor < 0) return error.PosixEndpointSecurityFailure;
 
-    var lock_file: std.fs.File = .{ .handle = descriptor };
-    errdefer lock_file.close();
-    if (!try lock_file.tryLock(.exclusive)) return error.AlreadyRunning;
+    var lock_file: std.Io.File = .{
+        .flags = .{ .nonblocking = false },
+        .handle = descriptor,
+    };
+    errdefer lock_file.close(io);
+    if (!try lock_file.tryLock(io, .exclusive)) return error.AlreadyRunning;
     return lock_file;
 }
 
 pub fn secureEndpoint(
-    directory: std.fs.Dir,
+    directory: std.Io.Dir,
     endpoint_name: []const u8,
     expected_uid: std.posix.uid_t,
 ) !void {
     const endpoint_name_z = try std.posix.toPosixPath(endpoint_name);
     try requireEndpointSecurityStatus(c.ob_posix_secure_endpoint_at(
-        directory.fd,
+        directory.handle,
         &endpoint_name_z,
         try checkedUid(expected_uid),
     ), error.InsecureEndpoint);
 }
 
 pub fn validateEndpoint(
-    directory: std.fs.Dir,
+    directory: std.Io.Dir,
     endpoint_name: []const u8,
     expected_uid: std.posix.uid_t,
 ) !void {
     const endpoint_name_z = try std.posix.toPosixPath(endpoint_name);
     try requireEndpointSecurityStatus(c.ob_posix_validate_endpoint_at(
-        directory.fd,
+        directory.handle,
         &endpoint_name_z,
         try checkedUid(expected_uid),
     ), error.InsecureEndpoint);

@@ -111,7 +111,7 @@ fn validatedLaunchFixture(
     const builtin = @import("builtin");
     const allocator = std.testing.allocator;
     const windows_executable: ?[]u8 = if (builtin.os.tag == .windows)
-        try std.process.getEnvVarOwned(allocator, "ComSpec")
+        try pty_process.environmentVariableOwned(allocator, "ComSpec")
     else
         null;
     errdefer if (windows_executable) |value| allocator.free(value);
@@ -334,7 +334,7 @@ pub fn longRunningProcessLaunch() !ProcessLaunchFixture {
     const builtin = @import("builtin");
     const allocator = std.testing.allocator;
     const windows_executable: ?[]u8 = if (builtin.os.tag == .windows)
-        try std.process.getEnvVarOwned(allocator, "ComSpec")
+        try pty_process.environmentVariableOwned(allocator, "ComSpec")
     else
         null;
     errdefer if (windows_executable) |value| allocator.free(value);

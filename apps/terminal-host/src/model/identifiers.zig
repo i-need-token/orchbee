@@ -119,7 +119,7 @@ fn equalBytes(left: IdentifierBytes, right: IdentifierBytes) bool {
 fn randomNonZero(comptime Id: type) Id {
     while (true) {
         var bytes: IdentifierBytes = undefined;
-        std.crypto.random.bytes(&bytes);
+        std.Io.Threaded.global_single_threaded.io().random(&bytes);
         for (bytes) |byte| {
             if (byte != 0) return Id.fromBytes(bytes);
         }

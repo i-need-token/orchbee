@@ -20,8 +20,8 @@ export async function buildPosixHostEndpoint() {
 		throw new Error('The pinned Node-API include directory is unavailable.');
 	}
 	const { stdout } = await executeFile('zig', ['version'], { encoding: 'utf8' });
-	if (stdout.trim() !== '0.15.2') {
-		throw new Error(`Desktop native endpoint requires Zig 0.15.2, received ${stdout.trim()}.`);
+	if (stdout.trim() !== '0.16.0') {
+		throw new Error(`Desktop native endpoint requires Zig 0.16.0, received ${stdout.trim()}.`);
 	}
 	await mkdir(nativeOutputRoot, { mode: 0o700, recursive: true });
 	const arguments_ = [

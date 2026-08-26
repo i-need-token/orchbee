@@ -9,8 +9,10 @@ pub const semantic_wait = @import("semantic_wait.zig");
 pub const subject = engine_boundary.runtime;
 pub const terminal_launch = engine_boundary.launch;
 pub const pty_process = platform_boundary.process;
+pub const thread_sync = platform_boundary.thread_sync;
 
 pub const applyScrollbackBytes = subject.testing.applyScrollbackBytesFn;
+pub const tickAnimationLockedAt = subject.testing.tickAnimationLockedAtFn;
 pub const cancelInput = subject.testing.cancelInputFn;
 pub const clearTestingHooks = subject.testing.clearTestingHooks;
 pub const closeClientInput = subject.testing.closeClientInputFn;
@@ -63,8 +65,8 @@ pub fn requireProjectionFrame(
 }
 
 pub const TestGate = struct {
-    condition: std.Thread.Condition = .{},
-    mutex: std.Thread.Mutex = .{},
+    condition: thread_sync.Condition = .{},
+    mutex: thread_sync.Mutex = .{},
     reached: bool = false,
     released: bool = false,
 
@@ -91,8 +93,8 @@ pub const TestGate = struct {
 };
 
 pub const TestSignal = struct {
-    condition: std.Thread.Condition = .{},
-    mutex: std.Thread.Mutex = .{},
+    condition: thread_sync.Condition = .{},
+    mutex: thread_sync.Mutex = .{},
     reached: bool = false,
 
     pub fn notify(self: *TestSignal) void {
@@ -179,7 +181,7 @@ pub fn createRuntimeWithHooks(hooks: RuntimeTestingHooks) !*TerminalRuntime {
     const builtin = @import("builtin");
     var spawner: HookedThreadSpawner = .{ .hooks = hooks };
     if (builtin.os.tag == .windows) {
-        const executable = try std.process.getEnvVarOwned(std.testing.allocator, "ComSpec");
+        const executable = try pty_process.environmentVariableOwned(std.testing.allocator, "ComSpec");
         defer std.testing.allocator.free(executable);
         const arguments = [_][]const u8{
             "/D",
@@ -234,10 +236,43 @@ pub fn createIdleRuntime(options: subject.Options) !*TerminalRuntime {
     return createIdleRuntimeWithGeometry(80, 24, options);
 }
 
+/// Completes the production-defined retry path for a transient POSIX reap
+/// miss, then destroys the fully quiesced runtime without hiding any other
+/// shutdown failure from the test runner.
+pub fn destroyRuntimeWithIdentityRetry(runtime: *TerminalRuntime) void {
+    runtime.terminate() catch |err| {
+        std.debug.panic("terminal runtime graceful termination failed: {s}", .{@errorName(err)});
+    };
+    for (0..500) |_| {
+        if (runtimeState(runtime).child_exited.load(.acquire)) break;
+        platform_boundary.monotonic.sleep(10 * std.time.ns_per_ms);
+    }
+
+    const maximum_attempts = 8;
+    for (0..maximum_attempts) |attempt| {
+        runtime.shutdown() catch |err| switch (err) {
+            error.ProcessIdentityReleaseFailed => {
+                if (attempt + 1 == maximum_attempts) {
+                    std.debug.panic("terminal runtime identity release did not converge", .{});
+                }
+                // Match the production cleanup scheduler's quiet interval so
+                // Darwin can drain the prior EVFILT_PROC reference before the
+                // next non-reaping observation attempt.
+                platform_boundary.monotonic.sleep(std.time.ns_per_s);
+                continue;
+            },
+            else => std.debug.panic("terminal runtime shutdown failed: {s}", .{@errorName(err)}),
+        };
+        runtime.destroyAfterShutdown();
+        return;
+    }
+    unreachable;
+}
+
 pub fn createImmediateExitRuntime() !*TerminalRuntime {
     const builtin = @import("builtin");
     const windows_executable: ?[]u8 = if (builtin.os.tag == .windows)
-        try std.process.getEnvVarOwned(std.testing.allocator, "ComSpec")
+        try pty_process.environmentVariableOwned(std.testing.allocator, "ComSpec")
     else
         null;
     defer if (windows_executable) |value| std.testing.allocator.free(value);
@@ -262,7 +297,7 @@ pub fn createIdleRuntimeWithGeometry(
 ) !*TerminalRuntime {
     const builtin = @import("builtin");
     const windows_executable: ?[]u8 = if (builtin.os.tag == .windows)
-        try std.process.getEnvVarOwned(std.testing.allocator, "ComSpec")
+        try pty_process.environmentVariableOwned(std.testing.allocator, "ComSpec")
     else
         null;
     defer if (windows_executable) |value| std.testing.allocator.free(value);
@@ -293,7 +328,7 @@ pub const WriterPause = enum {
 
 pub const WriterProbe = struct {
     copied: TestGate = .{},
-    mutex: std.Thread.Mutex = .{},
+    mutex: thread_sync.Mutex = .{},
     pause_at: WriterPause,
     started: TestGate = .{},
     write_bytes: usize = 0,
@@ -346,8 +381,8 @@ pub const WriterProbe = struct {
 /// an `unpause()` cannot return while the writer is still leaving the previous
 /// park.
 pub const RepeatingGate = struct {
-    condition: std.Thread.Condition = .{},
-    mutex: std.Thread.Mutex = .{},
+    condition: thread_sync.Condition = .{},
+    mutex: thread_sync.Mutex = .{},
     generation: usize = 0,
     last_returned: usize = 0,
     release: bool = false,
@@ -386,7 +421,7 @@ pub const BurstProbe = struct {
     // Once set, the writer stops pausing per slice and drains freely so the
     // test can end without a gate deadlock at shutdown.
     detached: std.atomic.Value(bool) = .init(false),
-    mutex: std.Thread.Mutex = .{},
+    mutex: thread_sync.Mutex = .{},
     written: [512]u8 = undefined,
     write_count: usize = 0,
 
@@ -443,7 +478,7 @@ pub const DescendantProbe = struct {
     read_gate: TestGate = .{},
     write_bytes: usize = 0,
     write_calls: usize = 0,
-    write_mutex: std.Thread.Mutex = .{},
+    write_mutex: thread_sync.Mutex = .{},
 
     pub fn fromContext(context: *anyopaque) *DescendantProbe {
         return @ptrCast(@alignCast(context));
@@ -473,7 +508,7 @@ pub const ReaderProbe = struct {
     batch: []const u8,
     batch_finished: TestGate = .{},
     batch_read: TestGate = .{},
-    mutex: std.Thread.Mutex = .{},
+    mutex: thread_sync.Mutex = .{},
     outcome: ?ReaderBatchOutcome = null,
     read_calls: usize = 0,
     stopped: TestSignal = .{},
@@ -714,7 +749,7 @@ pub const ContainmentProbe = struct {
     contain_calls: usize = 0,
     first_attempt: TestGate = .{},
     host_waiting: TestSignal = .{},
-    mutex: std.Thread.Mutex = .{},
+    mutex: thread_sync.Mutex = .{},
     pause_first_attempt: bool,
 
     pub fn fromContext(context: *anyopaque) *ContainmentProbe {
@@ -777,7 +812,7 @@ pub const FailureReporter = struct {
 pub const ShutdownProbe = struct {
     done: TestSignal = .{},
     failure: ?anyerror = null,
-    mutex: std.Thread.Mutex = .{},
+    mutex: thread_sync.Mutex = .{},
     runtime: *TerminalRuntime,
 
     pub fn run(self: *ShutdownProbe) void {
@@ -804,7 +839,7 @@ pub const OutputCleanupProbe = struct {
     batch: []const u8 = "cleanup-reader-batch-must-be-discarded",
     finish_calls: usize = 0,
     finish_fails: bool,
-    mutex: std.Thread.Mutex = .{},
+    mutex: thread_sync.Mutex = .{},
     read_calls: usize = 0,
     reader_batch_finished: TestSignal = .{},
     reader_batch_in_flight: TestGate = .{},
@@ -952,7 +987,7 @@ pub const ResizeEffectOutcome = enum {
 
 pub const ResizeProbe = struct {
     effect_calls: usize = 0,
-    mutex: std.Thread.Mutex = .{},
+    mutex: thread_sync.Mutex = .{},
     outcome: ResizeEffectOutcome,
     post_effect: TestGate = .{},
     post_effect_notifications: usize = 0,
@@ -1014,7 +1049,7 @@ pub const TerminalDrivenResizeProbe = struct {
     calls: [4]ResizeObservation = undefined,
     count: usize = 0,
     fail: bool = false,
-    mutex: std.Thread.Mutex = .{},
+    mutex: thread_sync.Mutex = .{},
 
     pub fn fromContext(context: *anyopaque) *TerminalDrivenResizeProbe {
         return @ptrCast(@alignCast(context));
@@ -1059,7 +1094,7 @@ pub const TerminalResizeSerializationProbe = struct {
     count: usize = 0,
     effect_returns: usize = 0,
     first_effect_returned: TestGate = .{},
-    mutex: std.Thread.Mutex = .{},
+    mutex: thread_sync.Mutex = .{},
     reader_commit_waiting: TestSignal = .{},
 
     pub fn fromContext(context: *anyopaque) *TerminalResizeSerializationProbe {
@@ -1115,7 +1150,7 @@ pub const ResizeCall = struct {
     };
 
     done: TestSignal = .{},
-    mutex: std.Thread.Mutex = .{},
+    mutex: thread_sync.Mutex = .{},
     result: ?Result = null,
     runtime: *TerminalRuntime,
 
@@ -1139,7 +1174,7 @@ pub const ResizeCall = struct {
 
 pub const ReaderBatchCall = struct {
     done: TestSignal = .{},
-    mutex: std.Thread.Mutex = .{},
+    mutex: thread_sync.Mutex = .{},
     outcome: ?ReaderBatchOutcome = null,
     runtime: *TerminalRuntime,
 
@@ -1261,17 +1296,18 @@ pub fn parseDescendantPid(text: []const u8) ?std.posix.pid_t {
 pub fn procCommEquals(pid: std.posix.pid_t, expected: []const u8) bool {
     var path_buffer: [64]u8 = undefined;
     const path = std.fmt.bufPrint(&path_buffer, "/proc/{d}/comm", .{pid}) catch return false;
-    const file = std.fs.openFileAbsolute(path, .{}) catch return false;
-    defer file.close();
+    const io = thread_sync.io();
+    const file = std.Io.Dir.openFileAbsolute(io, path, .{}) catch return false;
+    defer file.close(io);
     var comm_buffer: [64]u8 = undefined;
-    const count = file.readAll(&comm_buffer) catch return false;
+    const count = file.readPositionalAll(io, &comm_buffer, 0) catch return false;
     var end = count;
     while (end > 0 and (comm_buffer[end - 1] == '\n' or comm_buffer[end - 1] == '\r')) end -= 1;
     return std.mem.eql(u8, comm_buffer[0..end], expected);
 }
 
 pub fn processAlive(pid: std.posix.pid_t) bool {
-    std.posix.kill(pid, 0) catch |err| switch (err) {
+    std.posix.kill(pid, @enumFromInt(0)) catch |err| switch (err) {
         error.ProcessNotFound => return false,
         else => return true,
     };

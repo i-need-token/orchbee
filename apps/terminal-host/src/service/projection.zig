@@ -7,6 +7,7 @@ const host_outgoing = @import("outgoing.zig");
 const host_runtime_aggregate = @import("runtime_aggregate/root.zig");
 const protocol = @import("terminal-protocol");
 const terminal_runtime = @import("terminal-host-engine").runtime;
+const monotonic = @import("terminal-host-platform").monotonic;
 
 const projection_interval_ns = 16 * std.time.ns_per_ms;
 const max_schedule_scan_per_poll = 64;
@@ -38,10 +39,10 @@ const TestClockState = if (target_builtin.is_test) struct {
 
 pub const Scheduler = struct {
     scan_index: usize = 0,
-    timer: ?std.time.Timer = null,
+    timer: ?monotonic.Timer = null,
     test_clock: TestClockState = .{},
 
-    fn sampleElapsed(self: *Scheduler) std.time.Timer.Error!u64 {
+    fn sampleElapsed(self: *Scheduler) monotonic.Timer.Error!u64 {
         if (target_builtin.is_test) {
             switch (self.test_clock.mode) {
                 .logical => |sample| {
@@ -58,7 +59,7 @@ pub const Scheduler = struct {
                 .system => {},
             }
         }
-        if (self.timer == null) self.timer = try std.time.Timer.start();
+        if (self.timer == null) self.timer = try monotonic.Timer.start();
         return self.timer.?.read();
     }
 

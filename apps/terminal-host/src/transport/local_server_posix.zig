@@ -2,6 +2,9 @@ const std = @import("std");
 const builtin = @import("builtin");
 
 const host_service = @import("terminal-host-service").service;
+const monotonic = @import("terminal-host-platform").monotonic;
+const posix_compat = @import("terminal-host-platform").posix_compat;
+const thread_sync = @import("terminal-host-platform").thread_sync;
 const connection = @import("connection.zig");
 
 pub const endpoint_security = @import("posix_endpoint_security.zig");
@@ -12,14 +15,15 @@ else
     std.posix.MSG.DONTWAIT | std.posix.MSG.NOSIGNAL;
 
 const Connection = if (builtin.os.tag == .windows) void else struct {
-    stream: std.net.Stream,
+    io: std.Io,
+    stream: std.Io.net.Stream,
 
     pub fn read(self: *Connection, bytes: []u8) !usize {
-        return self.stream.read(bytes);
+        return std.posix.read(self.stream.socket.handle, bytes);
     }
 
     pub fn writeAll(self: *Connection, bytes: []const u8) !void {
-        var timer = std.time.Timer.start() catch return error.ConnectionClosed;
+        var timer = monotonic.Timer.start() catch return error.ConnectionClosed;
         var deadline = connection.Deadline.init(&timer, connection.record_read_timeout_ns) catch return error.ConnectionClosed;
         self.writeAllBefore(bytes, &deadline) catch return error.ConnectionClosed;
     }
@@ -34,7 +38,7 @@ const Connection = if (builtin.os.tag == .windows) void else struct {
                 @as(u64, connection.poll_interval_ms),
             ));
             var descriptors = [_]std.posix.pollfd{.{
-                .fd = self.stream.handle,
+                .fd = self.stream.socket.handle,
                 .events = std.posix.POLL.OUT,
                 .revents = 0,
             }};
@@ -43,8 +47,8 @@ const Connection = if (builtin.os.tag == .windows) void else struct {
             if (result & (std.posix.POLL.ERR | std.posix.POLL.HUP | std.posix.POLL.NVAL) != 0) {
                 return error.ConnectionClosed;
             }
-            const written = std.posix.send(
-                self.stream.handle,
+            const written = posix_compat.send(
+                self.stream.socket.handle,
                 bytes[offset..],
                 send_flags,
             ) catch |err| switch (err) {
@@ -58,7 +62,7 @@ const Connection = if (builtin.os.tag == .windows) void else struct {
 
     pub fn waitReadable(self: *Connection) !bool {
         var descriptors = [_]std.posix.pollfd{.{
-            .fd = self.stream.handle,
+            .fd = self.stream.socket.handle,
             .events = std.posix.POLL.IN,
             .revents = 0,
         }};
@@ -74,9 +78,10 @@ const Connection = if (builtin.os.tag == .windows) void else struct {
 
 pub const Server = if (builtin.os.tag == .windows) void else struct {
     allocator: std.mem.Allocator,
-    directory: std.fs.Dir,
-    listener: std.net.Server,
-    lock_file: std.fs.File,
+    directory: std.Io.Dir,
+    io: std.Io,
+    listener: std.Io.net.Server,
+    lock_file: std.Io.File,
     lock_name: []u8,
     socket_name: []u8,
     socket_path: []u8,
@@ -86,20 +91,30 @@ pub const Server = if (builtin.os.tag == .windows) void else struct {
         runtime_directory: []const u8,
         endpoint_id: []const u8,
     ) !Server {
+        return initWithIo(thread_sync.io(), allocator, runtime_directory, endpoint_id);
+    }
+
+    pub fn initWithIo(
+        io: std.Io,
+        allocator: std.mem.Allocator,
+        runtime_directory: []const u8,
+        endpoint_id: []const u8,
+    ) !Server {
         if (!std.fs.path.isAbsolute(runtime_directory)) return error.RuntimeDirectoryNotAbsolute;
         if (!connection.validEndpointId(endpoint_id)) return error.InvalidEndpointId;
 
-        var directory = try endpoint_security.prepareRuntimeDirectory(runtime_directory);
-        errdefer directory.close();
+        const directory = try endpoint_security.prepareRuntimeDirectory(io, runtime_directory);
+        errdefer directory.close(io);
 
         const lock_name = try endpoint_security.lockName(allocator, endpoint_id);
         errdefer allocator.free(lock_name);
         var lock_file = try endpoint_security.acquireLock(
+            io,
             directory,
             lock_name,
-            std.posix.geteuid(),
+            std.c.geteuid(),
         );
-        errdefer lock_file.close();
+        errdefer lock_file.close(io);
 
         const socket_name = try endpoint_security.endpointName(allocator, endpoint_id);
         errdefer allocator.free(socket_name);
@@ -108,31 +123,33 @@ pub const Server = if (builtin.os.tag == .windows) void else struct {
             &.{ runtime_directory, socket_name },
         );
         errdefer allocator.free(socket_path);
-        directory.deleteFile(socket_name) catch |err| switch (err) {
+        directory.deleteFile(io, socket_name) catch |err| switch (err) {
             error.FileNotFound => {},
             else => return err,
         };
-        errdefer directory.deleteFile(socket_name) catch {};
+        errdefer directory.deleteFile(io, socket_name) catch {};
 
-        var original_directory = try std.fs.cwd().openDir(".", .{});
-        defer original_directory.close();
-        try std.posix.fchdir(directory.fd);
+        const original_directory = try std.Io.Dir.cwd().openDir(io, ".", .{});
+        defer original_directory.close(io);
+        try posix_compat.fchdir(directory.handle);
         var restored_directory = false;
-        defer if (!restored_directory) std.posix.fchdir(original_directory.fd) catch {};
-        const address = std.net.Address.initUnix(socket_name) catch return error.EndpointPathTooLong;
-        var listener = try address.listen(.{ .kernel_backlog = 8 });
-        errdefer listener.deinit();
+        defer if (!restored_directory) posix_compat.fchdir(original_directory.handle) catch {};
+        const address = std.Io.net.UnixAddress.init(socket_name) catch
+            return error.EndpointPathTooLong;
+        var listener = try address.listen(io, .{ .kernel_backlog = 8 });
+        errdefer listener.deinit(io);
         try endpoint_security.secureEndpoint(
             directory,
             socket_name,
-            std.posix.geteuid(),
+            std.c.geteuid(),
         );
-        try std.posix.fchdir(original_directory.fd);
+        try posix_compat.fchdir(original_directory.handle);
         restored_directory = true;
 
         return .{
             .allocator = allocator,
             .directory = directory,
+            .io = io,
             .listener = listener,
             .lock_file = lock_file,
             .lock_name = lock_name,
@@ -142,10 +159,10 @@ pub const Server = if (builtin.os.tag == .windows) void else struct {
     }
 
     pub fn deinit(self: *Server) void {
-        self.listener.deinit();
-        self.directory.deleteFile(self.socket_name) catch {};
-        self.lock_file.close();
-        self.directory.close();
+        self.listener.deinit(self.io);
+        self.directory.deleteFile(self.io, self.socket_name) catch {};
+        self.lock_file.close(self.io);
+        self.directory.close(self.io);
         self.allocator.free(self.socket_path);
         self.allocator.free(self.socket_name);
         self.allocator.free(self.lock_name);
@@ -174,7 +191,7 @@ pub const Server = if (builtin.os.tag == .windows) void else struct {
         timeout_ms: u32,
     ) !bool {
         var descriptors = [_]std.posix.pollfd{.{
-            .fd = self.listener.stream.handle,
+            .fd = self.listener.socket.handle,
             .events = std.posix.POLL.IN,
             .revents = 0,
         }};
@@ -189,13 +206,13 @@ pub const Server = if (builtin.os.tag == .windows) void else struct {
     }
 
     fn acceptAndServe(self: *Server, service: *host_service.HostService) !void {
-        var accepted = try self.listener.accept();
-        defer accepted.stream.close();
+        const accepted = try self.listener.accept(self.io);
+        defer accepted.close(self.io);
         try endpoint_security.requirePeerEffectiveUid(
-            accepted.stream.handle,
-            std.posix.geteuid(),
+            accepted.socket.handle,
+            std.c.geteuid(),
         );
-        var transport: Connection = .{ .stream = accepted.stream };
+        var transport: Connection = .{ .io = self.io, .stream = accepted };
         connection.serveAcceptedConnection(&transport, service);
     }
 };

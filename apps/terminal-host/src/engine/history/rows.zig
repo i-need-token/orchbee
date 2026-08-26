@@ -148,6 +148,7 @@ pub fn readRowsTo(
         .cell_pixel_width = cell_pixel_width,
         .hard_limit = hard_limit,
         .request = .{
+            .animation_tick = self.animation_tick,
             .attachment_id = request.attachment_id,
             .detail = request.detail,
             .generation = current_generation,

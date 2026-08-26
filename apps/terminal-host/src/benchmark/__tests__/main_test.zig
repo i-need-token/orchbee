@@ -44,21 +44,22 @@ test "benchmark startup plan keeps PTY launch and runtime cell pixels identical"
 
 test "benchmark rejects non-regular and empty fixtures before launch" {
     if (builtin.os.tag == .windows) return error.SkipZigTest;
-    try std.testing.expectError(error.InvalidFileFixture, openRegularFixture("/tmp"));
-    try std.testing.expectError(error.InvalidFileFixture, openRegularFixture("/dev/zero"));
+    try std.testing.expectError(error.InvalidFileFixture, openRegularFixture(std.testing.io, "/tmp"));
+    try std.testing.expectError(error.InvalidFileFixture, openRegularFixture(std.testing.io, "/dev/zero"));
 
     var temporary = std.testing.tmpDir(.{});
     defer temporary.cleanup();
-    const empty_file = try temporary.dir.createFile("empty", .{});
-    empty_file.close();
-    const directory_path = try temporary.parent_dir.realpathAlloc(
-        std.testing.allocator,
+    const empty_file = try temporary.dir.createFile(std.testing.io, "empty", .{});
+    empty_file.close(std.testing.io);
+    const directory_path = try temporary.parent_dir.realPathFileAlloc(
+        std.testing.io,
         &temporary.sub_path,
+        std.testing.allocator,
     );
     defer std.testing.allocator.free(directory_path);
     const empty_path = try std.fs.path.join(std.testing.allocator, &.{ directory_path, "empty" });
     defer std.testing.allocator.free(empty_path);
-    try std.testing.expectError(error.EmptyFileFixture, openRegularFixture(empty_path));
+    try std.testing.expectError(error.EmptyFileFixture, openRegularFixture(std.testing.io, empty_path));
 }
 
 test "benchmark display deadlines do not accumulate capture time" {
@@ -163,43 +164,51 @@ test "benchmark file fixture resolves utilities through the effective PATH" {
     if (builtin.os.tag == .windows) return error.SkipZigTest;
     var temporary = std.testing.tmpDir(.{});
     defer temporary.cleanup();
-    const time_file = try temporary.dir.createFile("time", .{ .mode = 0o755 });
-    time_file.close();
-    const cat_file = try temporary.dir.createFile("cat", .{ .mode = 0o755 });
-    cat_file.close();
-    const directory_path = try temporary.parent_dir.realpathAlloc(
-        std.testing.allocator,
+    const time_file = try temporary.dir.createFile(std.testing.io, "time", .{
+        .permissions = @enumFromInt(0o755),
+    });
+    time_file.close(std.testing.io);
+    const cat_file = try temporary.dir.createFile(std.testing.io, "cat", .{
+        .permissions = @enumFromInt(0o755),
+    });
+    cat_file.close(std.testing.io);
+    const directory_path = try temporary.parent_dir.realPathFileAlloc(
+        std.testing.io,
         &temporary.sub_path,
+        std.testing.allocator,
     );
     defer std.testing.allocator.free(directory_path);
     const absent_path = try std.fs.path.join(std.testing.allocator, &.{ directory_path, "absent" });
     defer std.testing.allocator.free(absent_path);
 
     // The utilities exist only under this PATH, never at fixed FHS paths.
-    try requireFileFixtureUtilitiesOnPath(directory_path);
-    try std.testing.expect(executableOnPath(directory_path, "time"));
-    try std.testing.expect(executableOnPath(directory_path, "cat"));
+    try requireFileFixtureUtilitiesOnPath(std.testing.io, directory_path);
+    try std.testing.expect(executableOnPath(std.testing.io, directory_path, "time"));
+    try std.testing.expect(executableOnPath(std.testing.io, directory_path, "cat"));
     // A PATH that carries neither utility cannot satisfy the workload.
-    try std.testing.expect(!executableOnPath(absent_path, "time"));
-    try std.testing.expect(!executableOnPath(absent_path, "cat"));
+    try std.testing.expect(!executableOnPath(std.testing.io, absent_path, "time"));
+    try std.testing.expect(!executableOnPath(std.testing.io, absent_path, "cat"));
 }
 
 test "benchmark file fixture reports a clear error when a required utility is absent from PATH" {
     if (builtin.os.tag == .windows) return error.SkipZigTest;
     var temporary = std.testing.tmpDir(.{});
     defer temporary.cleanup();
-    const time_file = try temporary.dir.createFile("time", .{ .mode = 0o755 });
-    time_file.close();
-    const directory_path = try temporary.parent_dir.realpathAlloc(
-        std.testing.allocator,
+    const time_file = try temporary.dir.createFile(std.testing.io, "time", .{
+        .permissions = @enumFromInt(0o755),
+    });
+    time_file.close(std.testing.io);
+    const directory_path = try temporary.parent_dir.realPathFileAlloc(
+        std.testing.io,
         &temporary.sub_path,
+        std.testing.allocator,
     );
     defer std.testing.allocator.free(directory_path);
     const absent_path = try std.fs.path.join(std.testing.allocator, &.{ directory_path, "absent" });
     defer std.testing.allocator.free(absent_path);
 
     // `cat` is missing from this PATH even though `time` is present.
-    try std.testing.expectError(error.BenchmarkUtilityUnavailable, requireFileFixtureUtilitiesOnPath(directory_path));
+    try std.testing.expectError(error.BenchmarkUtilityUnavailable, requireFileFixtureUtilitiesOnPath(std.testing.io, directory_path));
     // A PATH that resolves neither utility reports the same clear error.
-    try std.testing.expectError(error.BenchmarkUtilityUnavailable, requireFileFixtureUtilitiesOnPath(absent_path));
+    try std.testing.expectError(error.BenchmarkUtilityUnavailable, requireFileFixtureUtilitiesOnPath(std.testing.io, absent_path));
 }

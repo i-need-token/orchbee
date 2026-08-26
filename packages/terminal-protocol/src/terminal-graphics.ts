@@ -4,8 +4,8 @@ import { ProtocolErrorCode, protocolFailure, protocolSuccess } from './protocol-
 import type { ProtocolResult } from './protocol-result';
 
 export const TERMINAL_GRAPHICS_MAGIC = new Uint8Array([0x4f, 0x42, 0x4b, 0x47]);
-export const TERMINAL_GRAPHICS_FORMAT = { major: 0, minor: 0, patch: 1 } as const;
-export const TERMINAL_GRAPHICS_HEADER_BYTES = 32;
+export const TERMINAL_GRAPHICS_FORMAT = { major: 0, minor: 0, patch: 2 } as const;
+export const TERMINAL_GRAPHICS_HEADER_BYTES = 40;
 
 const IMAGE_RECORD_BYTES = 32;
 const PLACEMENT_RECORD_BYTES = 56;
@@ -57,6 +57,7 @@ export interface TerminalGraphicsPlacement {
 }
 
 export interface TerminalGraphics {
+	readonly animationTick: bigint;
 	readonly images: readonly TerminalGraphicsImage[];
 	readonly kind: TerminalGraphicsUpdateKind;
 	readonly placements: readonly TerminalGraphicsPlacement[];
@@ -185,13 +186,14 @@ function validPlacementShape(placement: TerminalGraphicsPlacement): boolean {
 		Number.isInteger(placement.destinationHeight) &&
 		placement.destinationHeight > 0 &&
 		placement.destinationHeight <= PROTOCOL_LIMITS.maxTerminalGraphicsDestinationPixels &&
-		signedInt32(placement.z) &&
-		placement.z >= 0
+		signedInt32(placement.z)
 	);
 }
 
 function validateGraphics(value: TerminalGraphics): ProtocolResult<number> {
 	if (
+		value.animationTick < 0n ||
+		value.animationTick > MAX_UINT64 ||
 		value.resourceRevision < 0n ||
 		value.resourceRevision > MAX_UINT64 ||
 		value.images.length > PROTOCOL_LIMITS.maxTerminalGraphicsImages ||
@@ -262,6 +264,7 @@ export function encodeTerminalGraphics(value: TerminalGraphics): ProtocolResult<
 	writer.writeUint8(updateKindCode(value.kind));
 	writer.writeUint32(length.value);
 	writer.writeUint64(value.resourceRevision);
+	writer.writeUint64(value.animationTick);
 	writer.writeUint16(value.images.length);
 	writer.writeUint16(value.placements.length);
 	writer.writeUint32(imageByteLength);
@@ -313,6 +316,7 @@ export function decodeTerminalGraphics(bytes: Uint8Array): ProtocolResult<Termin
 	const kindCode = reader.readUint8();
 	const totalLength = reader.readUint32();
 	const resourceRevision = reader.readUint64();
+	const animationTick = reader.readUint64();
 	const imageCount = reader.readUint16();
 	const placementCount = reader.readUint16();
 	const declaredImageBytes = reader.readUint32();
@@ -466,5 +470,5 @@ export function decodeTerminalGraphics(bytes: Uint8Array): ProtocolResult<Termin
 			'Graphics extension has trailing bytes',
 		);
 	}
-	return protocolSuccess({ images, kind: kind.value, placements, resourceRevision });
+	return protocolSuccess({ animationTick, images, kind: kind.value, placements, resourceRevision });
 }

@@ -2,6 +2,7 @@ const std = @import("std");
 const builtin = @import("builtin");
 
 const host_service = @import("terminal-host-service").service;
+const monotonic = @import("terminal-host-platform").monotonic;
 const connection = @import("connection.zig");
 
 const windows_c = if (builtin.os.tag == .windows) @cImport({
@@ -12,6 +13,15 @@ pub const Server = if (builtin.os.tag != .windows) void else struct {
     handle: *windows_c.ObWindowsLocalServer,
 
     pub fn init(
+        allocator: std.mem.Allocator,
+        runtime_directory: []const u8,
+        endpoint_id: []const u8,
+    ) !Server {
+        return initWithIo(undefined, allocator, runtime_directory, endpoint_id);
+    }
+
+    pub fn initWithIo(
+        _: std.Io,
         allocator: std.mem.Allocator,
         runtime_directory: []const u8,
         endpoint_id: []const u8,
@@ -78,7 +88,7 @@ pub const Server = if (builtin.os.tag != .windows) void else struct {
     }
 
     pub fn writeAll(self: *Server, bytes: []const u8) !void {
-        var timer = std.time.Timer.start() catch return error.ConnectionClosed;
+        var timer = monotonic.Timer.start() catch return error.ConnectionClosed;
         var deadline = connection.Deadline.init(&timer, connection.record_read_timeout_ns) catch return error.ConnectionClosed;
         self.writeAllBefore(bytes, &deadline) catch return error.ConnectionClosed;
     }
@@ -112,7 +122,7 @@ pub const Server = if (builtin.os.tag != .windows) void else struct {
             &available,
         ));
         if (available > 0) return true;
-        std.Thread.sleep(connection.poll_interval_ms * std.time.ns_per_ms);
+        monotonic.sleep(connection.poll_interval_ms * std.time.ns_per_ms);
         return false;
     }
 };

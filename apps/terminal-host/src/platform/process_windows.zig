@@ -149,7 +149,7 @@ pub const Process = if (builtin.os.tag != .windows) void else struct {
         const command_line = try windowsCommandLine(arena, arguments);
         const command_line_template = try std.unicode.utf8ToUtf16LeAllocZ(arena, command_line);
         const command_line_w = try arena.allocSentinel(u16, command_line_template.len, 0);
-        const environment_w = try std.process.createWindowsEnvBlock(arena, &environment);
+        const environment_w = try environment.createWindowsBlock(arena, .{});
         const directory_w = if (launch.current_directory) |directory|
             try std.unicode.utf8ToUtf16LeAllocZ(arena, directory)
         else
@@ -163,20 +163,20 @@ pub const Process = if (builtin.os.tag != .windows) void else struct {
         });
         errdefer pty.deinit();
         const job_handle = windows_api.ob_windows_terminal_job_create() orelse
-            return windows.unexpectedError(windows.kernel32.GetLastError());
+            return windows.unexpectedError(windows.GetLastError());
         errdefer windows.CloseHandle(job_handle);
 
         var attribute_list_size: usize = 0;
         _ = windows_api.InitializeProcThreadAttributeList(null, 2, 0, &attribute_list_size);
         const attribute_list = try arena.alloc(u8, attribute_list_size);
-        if (windows_api.InitializeProcThreadAttributeList(
+        if (!windows_api.InitializeProcThreadAttributeList(
             attribute_list.ptr,
             2,
             0,
             &attribute_list_size,
-        ) == 0) return windows.unexpectedError(windows.kernel32.GetLastError());
+        ).toBool()) return windows.unexpectedError(windows.GetLastError());
         defer windows_api.DeleteProcThreadAttributeList(attribute_list.ptr);
-        if (windows_api.UpdateProcThreadAttribute(
+        if (!windows_api.UpdateProcThreadAttribute(
             attribute_list.ptr,
             0,
             windows_api.PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE,
@@ -184,9 +184,9 @@ pub const Process = if (builtin.os.tag != .windows) void else struct {
             @sizeOf(windows_api.HPCON),
             null,
             null,
-        ) == 0) return windows.unexpectedError(windows.kernel32.GetLastError());
+        ).toBool()) return windows.unexpectedError(windows.GetLastError());
         var job_list = [_]windows.HANDLE{job_handle};
-        if (windows_api.UpdateProcThreadAttribute(
+        if (!windows_api.UpdateProcThreadAttribute(
             attribute_list.ptr,
             0,
             windows_api.PROC_THREAD_ATTRIBUTE_JOB_LIST,
@@ -194,12 +194,12 @@ pub const Process = if (builtin.os.tag != .windows) void else struct {
             @sizeOf(@TypeOf(job_list)),
             null,
             null,
-        ) == 0) return windows.unexpectedError(windows.kernel32.GetLastError());
+        ).toBool()) return windows.unexpectedError(windows.GetLastError());
 
         var startup_info: windows_api.STARTUPINFOEXW = std.mem.zeroes(windows_api.STARTUPINFOEXW);
         startup_info.StartupInfo.cb = @sizeOf(windows_api.STARTUPINFOEXW);
         startup_info.lpAttributeList = attribute_list.ptr;
-        var process_information: windows.PROCESS_INFORMATION = undefined;
+        var process_information: windows.PROCESS.INFORMATION = undefined;
         const flags = windows_api.CREATE_SUSPENDED |
             windows_api.CREATE_UNICODE_ENVIRONMENT |
             windows_api.EXTENDED_STARTUPINFO_PRESENT;
@@ -215,17 +215,17 @@ pub const Process = if (builtin.os.tag != .windows) void else struct {
                 command_line_w.ptr,
                 null,
                 null,
-                windows.FALSE,
+                .FALSE,
                 flags,
-                environment_w.ptr,
+                environment_w.slice.ptr,
                 if (directory_w) |directory| directory.ptr else null,
                 @ptrCast(&startup_info.StartupInfo),
                 &process_information,
-            ) != 0) {
+            ).toBool()) {
                 spawned = true;
                 break;
             }
-            switch (windows.kernel32.GetLastError()) {
+            switch (windows.GetLastError()) {
                 .FILE_NOT_FOUND, .PATH_NOT_FOUND => continue,
                 .BAD_EXE_FORMAT => return error.SpawnFailed,
                 else => |err| return windows.unexpectedError(err),
@@ -234,12 +234,12 @@ pub const Process = if (builtin.os.tag != .windows) void else struct {
         if (!spawned) return error.SpawnFailed;
         errdefer windows.CloseHandle(process_information.hProcess);
         defer windows.CloseHandle(process_information.hThread);
-        if (windows_api.ob_windows_terminal_job_assign_and_resume(
+        if (!windows_api.ob_windows_terminal_job_assign_and_resume(
             job_handle,
             process_information.hProcess,
             process_information.hThread,
-        ) == 0) {
-            return windows.unexpectedError(windows.kernel32.GetLastError());
+        ).toBool()) {
+            return windows.unexpectedError(windows.GetLastError());
         }
         return .{
             .job_handle = job_handle,
@@ -287,10 +287,10 @@ pub const Process = if (builtin.os.tag != .windows) void else struct {
     }
 
     pub fn terminate(self: *const Process) !void {
-        if (windows.kernel32.TerminateProcess(self.process_handle, 1) == 0) {
-            const terminate_error = windows.kernel32.GetLastError();
-            if (windows.kernel32.WaitForSingleObject(self.process_handle, 0) ==
-                windows.WAIT_OBJECT_0)
+        if (!windows_api.TerminateProcess(self.process_handle, 1).toBool()) {
+            const terminate_error = windows.GetLastError();
+            if (windows_api.WaitForSingleObject(self.process_handle, 0) ==
+                windows_api.WAIT_OBJECT_0)
             {
                 return;
             }
@@ -299,17 +299,17 @@ pub const Process = if (builtin.os.tag != .windows) void else struct {
     }
 
     pub fn forceTerminate(self: *const Process) !void {
-        if (windows_api.ob_windows_terminal_job_terminate(self.job_handle, 1) == 0) {
-            return windows.unexpectedError(windows.kernel32.GetLastError());
+        if (!windows_api.ob_windows_terminal_job_terminate(self.job_handle, 1).toBool()) {
+            return windows.unexpectedError(windows.GetLastError());
         }
     }
 
     pub fn processTreeContained(self: *const Process) !bool {
         var active_processes: windows.DWORD = 0;
-        if (windows_api.ob_windows_terminal_job_active_processes(
+        if (!windows_api.ob_windows_terminal_job_active_processes(
             self.job_handle,
             &active_processes,
-        ) == 0) {
+        ).toBool()) {
             return error.ProcessContainmentQueryFailed;
         }
         return active_processes == 0;
@@ -317,23 +317,23 @@ pub const Process = if (builtin.os.tag != .windows) void else struct {
 
     pub fn hasActiveCommand(self: *const Process) !bool {
         var active_processes: windows.DWORD = 0;
-        if (windows_api.ob_windows_terminal_job_active_processes(
+        if (!windows_api.ob_windows_terminal_job_active_processes(
             self.job_handle,
             &active_processes,
-        ) == 0) {
+        ).toBool()) {
             return error.ProcessObservationFailed;
         }
         return active_processes > 1;
     }
 
     pub fn wait(self: *Process) !ExitResult {
-        if (windows.kernel32.WaitForSingleObject(self.process_handle, windows.INFINITE) !=
-            windows.WAIT_OBJECT_0)
+        if (windows_api.WaitForSingleObject(self.process_handle, windows_api.INFINITE) !=
+            windows_api.WAIT_OBJECT_0)
         {
             return error.ProcessObservationFailed;
         }
         var code: windows.DWORD = undefined;
-        if (windows.kernel32.GetExitCodeProcess(self.process_handle, &code) == 0) {
+        if (!windows_api.GetExitCodeProcess(self.process_handle, &code).toBool()) {
             return error.ProcessObservationFailed;
         }
         return windowsTerminatedExitResult(code);
@@ -357,16 +357,16 @@ pub const Process = if (builtin.os.tag != .windows) void else struct {
         // the first safe point at which to close the pseudoconsole. A Job
         // handle becomes signaled at exactly that point, so the kernel owns the
         // wait and a later force-termination request wakes it without polling.
-        if (windows.kernel32.WaitForSingleObject(self.job_handle, windows.INFINITE) !=
-            windows.WAIT_OBJECT_0)
+        if (windows_api.WaitForSingleObject(self.job_handle, windows_api.INFINITE) !=
+            windows_api.WAIT_OBJECT_0)
         {
             return error.ProcessObservationFailed;
         }
         var active_processes: windows.DWORD = 0;
-        if (windows_api.ob_windows_terminal_job_active_processes(
+        if (!windows_api.ob_windows_terminal_job_active_processes(
             self.job_handle,
             &active_processes,
-        ) == 0 or active_processes != 0) {
+        ).toBool() or active_processes != 0) {
             return error.ProcessObservationFailed;
         }
         self.pty.closeConsole();
@@ -378,7 +378,7 @@ pub const Process = if (builtin.os.tag != .windows) void else struct {
 
     fn executableCandidates(
         arena: std.mem.Allocator,
-        environment: *const std.process.EnvMap,
+        environment: *const std.process.Environ.Map,
         launch: Launch,
     ) ![][:0]u16 {
         if (std.mem.indexOfAny(u8, launch.executable, "\\/") != null) {
@@ -415,12 +415,12 @@ pub const Process = if (builtin.os.tag != .windows) void else struct {
 
     fn windowsNeedsCurrentDirectory(arena: std.mem.Allocator, executable: []const u8) !bool {
         const executable_w = try std.unicode.utf8ToUtf16LeAllocZ(arena, executable);
-        return windows_api.NeedCurrentDirectoryForExePathW(executable_w.ptr) != 0;
+        return windows_api.NeedCurrentDirectoryForExePathW(executable_w.ptr).toBool();
     }
 
     fn windowsApplicationDirectory(arena: std.mem.Allocator) ![]u8 {
         var buffer: [32768]u16 = undefined;
-        const length = windows.kernel32.GetModuleFileNameW(null, &buffer, buffer.len);
+        const length = windows_api.GetModuleFileNameW(null, &buffer, buffer.len);
         if (length == 0 or length >= buffer.len) return error.WindowsPathUnavailable;
         const utf8 = try std.unicode.utf16LeToUtf8Alloc(arena, buffer[0..length]);
         const separator = std.mem.lastIndexOfAny(u8, utf8, "\\/") orelse return error.WindowsPathUnavailable;
@@ -429,14 +429,14 @@ pub const Process = if (builtin.os.tag != .windows) void else struct {
 
     fn windowsCurrentDirectory(arena: std.mem.Allocator) ![]u8 {
         var buffer: [32768]u16 = undefined;
-        const length = windows.kernel32.GetCurrentDirectoryW(buffer.len, &buffer);
+        const length = windows_api.GetCurrentDirectoryW(buffer.len, &buffer);
         if (length == 0 or length >= buffer.len) return error.WindowsPathUnavailable;
         return std.unicode.utf16LeToUtf8Alloc(arena, buffer[0..length]);
     }
 
     fn windowsSystemDirectory(arena: std.mem.Allocator) ![]u8 {
         var buffer: [32768]u16 = undefined;
-        const length = windows.kernel32.GetSystemDirectoryW(@ptrCast(&buffer), buffer.len);
+        const length = windows_api.GetSystemDirectoryW(@ptrCast(&buffer), buffer.len);
         if (length == 0 or length >= buffer.len) return error.WindowsPathUnavailable;
         return std.unicode.utf16LeToUtf8Alloc(arena, buffer[0..length]);
     }

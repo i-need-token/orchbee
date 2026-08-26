@@ -68,7 +68,7 @@ schemas/        # 机器可读的仓库契约 Schema
 - **路由**：TanStack Router
 - **客户端状态**：Zustand
 - **UI**：使用 Base UI 原语的 shadcn/ui
-- **原生运行时**：Zig 0.15.2 + 固定版本的 Ghostty VT
+- **原生运行时**：Zig 0.16.0 + 固定版本的 Ghostty VT
 - **工具运行时**：Node.js（>=22）
 - **Lint**：oxlint（使用 typescript、unicorn、oxc、react、import 插件）
 - **格式化**：oxfmt + `zig fmt`

@@ -1,7 +1,11 @@
 const std = @import("std");
 const target_builtin = @import("builtin");
 const ghostty_vt = @import("ghostty-vt");
-const pty_process = @import("terminal-host-platform").process;
+const platform = @import("terminal-host-platform");
+const monotonic = platform.monotonic;
+const pty_process = platform.process;
+const thread_sync = platform.thread_sync;
+const temp_directory = platform.temp_directory;
 const protocol = @import("terminal-protocol");
 const terminal_profile = @import("../profile.zig");
 const terminal_runtime_launch = @import("../runtime_launch.zig");
@@ -12,6 +16,7 @@ const feedback_ops = @import("feedback.zig");
 const png_decoder = @import("../png_decoder.zig");
 const writer_ops = @import("writer.zig");
 const wait_thread_ops = @import("wait_thread.zig");
+const animation_ops = @import("animation.zig");
 
 const SystemThreadSpawner = struct {
     fn spawn(
@@ -58,18 +63,32 @@ pub fn createWithOptionsUsingSpawner(
         var profile = try contracts.OwnedProfile.init(allocator, resolved_options.profile);
         errdefer profile.deinit(allocator);
 
-        var terminal: ghostty_vt.Terminal = try .init(allocator, .{
+        const kitty_temp_directory = try temp_directory.resolveOwned(allocator);
+        errdefer allocator.free(kitty_temp_directory);
+
+        const kitty_loading_limits: ghostty_vt.kitty.graphics.LoadingImage.Limits = .{
+            .file = true,
+            .temporary_file = .{ .enabled = .{ .directory = kitty_temp_directory } },
+            .shared_memory = target_builtin.os.tag != .windows,
+        };
+
+        var terminal: ghostty_vt.Terminal = try .init(thread_sync.io(), allocator, .{
             .cols = resolved_launch.columns,
             .colors = colors,
+            .default_cursor_blink = profile.default_cursor_blinking,
+            .default_cursor_style = profile.cursorStyle(),
             .default_modes = .{ .cursor_blinking = profile.default_cursor_blinking },
-            .kitty_image_loading_limits = .direct,
+            .kitty_image_loading_limits = kitty_loading_limits,
             .kitty_image_storage_limit = protocol.Limits.terminal_graphics_resource_bytes,
-            .max_scrollback = resolved_options.scrollback_bytes,
+            .max_scrollback_bytes = resolved_options.scrollback_bytes,
             .rows = resolved_launch.rows,
         });
         errdefer terminal.deinit(allocator);
+        terminal.width_px = @as(u32, resolved_launch.columns) * resolved_options.cell_pixel_width;
+        terminal.height_px = @as(u32, resolved_launch.rows) * resolved_options.cell_pixel_height;
         profile.applyCursorDefaults(&terminal);
         break :resources .{
+            .kitty_temp_directory = kitty_temp_directory,
             .profile = profile,
             .terminal = terminal,
         };
@@ -78,9 +97,10 @@ pub fn createWithOptionsUsingSpawner(
     self.* = .{
         .allocator = allocator,
         .cell_pixel_height = resolved_options.cell_pixel_height,
-        .command_timer = std.time.Timer.start() catch null,
+        .command_timer = monotonic.Timer.start() catch null,
         .input_queue = .init(allocator),
         .input_ownership = .init(allocator),
+        .kitty_temp_directory = resources.kitty_temp_directory,
         .cell_pixel_width = resolved_options.cell_pixel_width,
         .viewport_geometry = .{
             .cell_pixel_height = resolved_options.cell_pixel_height,
@@ -103,13 +123,10 @@ pub fn createWithOptionsUsingSpawner(
         self.testing_hooks = spawner.terminalRuntimeTestingHooks();
     }
     errdefer cleanupFailedThreadStartup(self);
-    self.stream = .initAlloc(
-        self.stream_allocator.allocator(),
-        .init(&self.terminal),
-    );
-    self.stream.handler.terminal_handler.default_cursor_blink =
-        self.profile.default_cursor_blinking;
-    self.stream.handler.terminal_handler.default_cursor_style = self.profile.cursorStyle();
+    self.stream = .init(.{
+        .allocator = self.stream_allocator.allocator(),
+        .handler = .init(&self.terminal),
+    });
     const effects = &self.stream.handler.terminal_handler.effects;
     effects.bell = output_ops.bellEffect;
     effects.write_pty = output_ops.writePtyEffect;
@@ -131,6 +148,7 @@ pub fn createWithOptionsUsingSpawner(
     self.wait_thread = try spawner.spawn(wait_thread_ops.waitThread, self);
     self.reader_thread = try spawner.spawn(output_ops.readerThread, self);
     self.writer_thread = try spawner.spawn(writer_ops.writerThread, self);
+    self.animation_thread = try spawner.spawn(animation_ops.animationThread, self);
     self.process = try pty_process.Process.spawn(allocator, resolved_launch);
     self.process.registerReaderThread(self.reader_thread.?.getHandle());
     self.startup.ready();
@@ -146,12 +164,14 @@ pub fn cleanupFailedThreadStartup(self: *state.State) void {
     if (self.wait_thread) |thread| thread.join();
     if (self.reader_thread) |thread| thread.join();
     if (self.writer_thread) |thread| thread.join();
+    if (self.animation_thread) |thread| thread.join();
     self.stream.deinit();
     self.stream_allocator.deinit();
     feedback_ops.deinit(self);
     self.history.deinit(&self.terminal);
     self.input_ownership.deinit();
     self.terminal.deinit(self.allocator);
+    if (self.kitty_temp_directory) |path| self.allocator.free(path);
     self.input_queue.deinit();
     self.profile.deinit(self.allocator);
     self.projection.deinit();

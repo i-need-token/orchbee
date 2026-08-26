@@ -79,7 +79,7 @@ const SessionTestingState = if (target_builtin.is_test) struct {
 /// stores a second copy of attachment authority or projection demand.
 pub const Session = struct {
     allocator: std.mem.Allocator,
-    attachments: std.AutoArrayHashMap(AttachmentId, Attachment),
+    attachments: std.AutoArrayHashMapUnmanaged(AttachmentId, Attachment),
     attachments_by_terminal: std.AutoHashMap(TerminalId, std.ArrayList(AttachmentId)),
     /// O(1) per-terminal count of read-capable attachments whose projection
     /// demand is active. Maintained exactly on add, demand transition, and
@@ -98,7 +98,7 @@ pub const Session = struct {
     ) Session {
         return .{
             .allocator = allocator,
-            .attachments = .init(allocator),
+            .attachments = .empty,
             .attachments_by_terminal = .init(allocator),
             .active_read_demand_by_terminal = .init(allocator),
             .client_id = client_id,
@@ -109,7 +109,7 @@ pub const Session = struct {
     pub fn deinit(self: *Session) void {
         var attachment_lists = self.attachments_by_terminal.valueIterator();
         while (attachment_lists.next()) |list| list.deinit(self.allocator);
-        self.attachments.deinit();
+        self.attachments.deinit(self.allocator);
         self.attachments_by_terminal.deinit();
         self.active_read_demand_by_terminal.deinit();
         self.* = undefined;
@@ -226,7 +226,7 @@ pub const Session = struct {
             _ = self.active_read_demand_by_terminal.fetchRemove(terminal_id);
         };
 
-        try self.attachments.putNoClobber(attachment_id, .{
+        try self.attachments.putNoClobber(self.allocator, attachment_id, .{
             .admission_sequence = self.next_attachment_sequence,
             .attachment_id = attachment_id,
             .bell_cursor = bell_sequence,

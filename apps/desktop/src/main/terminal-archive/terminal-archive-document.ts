@@ -4,17 +4,23 @@ import {
 	CellWidth,
 	decodeTerminalProjectionBuffer,
 	decodeTerminalRowWindow,
+	decodeTerminalGraphics,
 	encodeTerminalFrame,
+	encodeTerminalGraphics,
 	encodeTerminalRowWindow,
 	materializeTerminalProjectionFrame,
 	PROTOCOL_LIMITS,
 	TerminalFrameKind,
+	TerminalGraphicsUpdateKind,
 	TerminalIdentitySchema,
 	TerminalRowWindowDetail,
 	TERMINAL_ROW_WINDOW_HEADER_BYTES,
 	TerminalThemeStateSchema,
 	type DecodedTerminalProjectionBuffer,
+	type DecodedTerminalRenderRowWindow,
 	type TerminalFrame,
+	type TerminalGraphics,
+	type TerminalGraphicsImage,
 	type TerminalIdentity,
 	type TerminalTextRow,
 	type TerminalThemeState,
@@ -33,7 +39,7 @@ const TERMINAL_ARCHIVE_REPRESENTABILITY_FAILURE_DETAIL =
 
 const TERMINAL_ARCHIVE_HEADER_BYTES = 12;
 const TERMINAL_ARCHIVE_MAGIC = new Uint8Array([0x4f, 0x42, 0x54, 0x41]);
-const TERMINAL_ARCHIVE_VERSION = 1;
+const TERMINAL_ARCHIVE_VERSION = 2;
 const TERMINAL_FRAME_STRING_LENGTH_BYTES = 4;
 const TERMINAL_FRAME_STYLE_RECORD_BYTES = 20;
 const TERMINAL_TEXT_MAPPING_BYTES = 12;
@@ -44,6 +50,7 @@ const textEncoder = new TextEncoder();
 const TerminalArchiveDigestMetadataSchema = z.strictObject({
 	chunkLengths: z.array(z.number().int().min(1).max(MAX_TERMINAL_ARCHIVE_BYTES)).max(5_000),
 	frameLength: z.number().int().min(1).max(MAX_TERMINAL_ARCHIVE_BYTES),
+	graphicsLength: z.number().int().min(1).max(PROTOCOL_LIMITS.maxTerminalGraphicsExtensionBytes),
 	identity: TerminalIdentitySchema,
 	presentationId: TerminalPresentationIdSchema,
 	retainedRows: z.number().int().min(1).max(MAX_TERMINAL_ARCHIVE_ROWS),
@@ -59,6 +66,7 @@ type TerminalArchiveDigestMetadata = z.infer<typeof TerminalArchiveDigestMetadat
 
 export interface TerminalArchiveWrite {
 	readonly frame: Uint8Array;
+	readonly graphics: Uint8Array;
 	readonly identity: TerminalIdentity;
 	readonly presentationId: TerminalPresentationId;
 	readonly rowWindows: readonly Uint8Array[];
@@ -69,11 +77,13 @@ export interface TerminalArchive {
 	readonly encodedByteLength: number;
 	readonly frame: DecodedTerminalProjectionBuffer;
 	readonly frameBytes: Uint8Array;
+	readonly graphics: TerminalGraphics;
+	readonly graphicsBytes: Uint8Array;
 	readonly identity: TerminalIdentity;
 	readonly presentationId: TerminalPresentationId;
 	readonly retainedRows: number;
 	readonly rowWindowBytes: readonly Uint8Array[];
-	readonly rowWindows: readonly DecodedTerminalProjectionBuffer[];
+	readonly rowWindows: readonly DecodedTerminalRenderRowWindow[];
 	readonly sourceStartRow: bigint;
 	readonly theme: TerminalThemeState;
 }
@@ -124,6 +134,7 @@ function encodeTerminalArchiveDocument(
 	const digestMetadata = TerminalArchiveDigestMetadataSchema.parse({
 		chunkLengths: value.rowWindows.map((window) => window.byteLength),
 		frameLength: value.frame.byteLength,
+		graphicsLength: value.graphics.byteLength,
 		identity: value.identity,
 		presentationId: value.presentationId,
 		retainedRows: validated.value.retainedRows,
@@ -133,13 +144,19 @@ function encodeTerminalArchiveDocument(
 	});
 	const header = TerminalArchiveHeaderSchema.parse({
 		...digestMetadata,
-		contentDigest: archiveContentDigest(digestMetadata, value.frame, value.rowWindows),
+		contentDigest: archiveContentDigest(
+			digestMetadata,
+			value.frame,
+			value.graphics,
+			value.rowWindows,
+		),
 	});
 	const headerBytes = textEncoder.encode(JSON.stringify(header));
 	const totalBytes =
 		TERMINAL_ARCHIVE_HEADER_BYTES +
 		headerBytes.byteLength +
 		value.frame.byteLength +
+		value.graphics.byteLength +
 		value.rowWindows.reduce((total, window) => total + window.byteLength, 0);
 	if (totalBytes > MAX_TERMINAL_ARCHIVE_BYTES) {
 		return failure('Terminal archive exceeds its per-presentation byte limit');
@@ -154,6 +171,8 @@ function encodeTerminalArchiveDocument(
 	offset += headerBytes.byteLength;
 	encoded.set(value.frame, offset);
 	offset += value.frame.byteLength;
+	encoded.set(value.graphics, offset);
+	offset += value.graphics.byteLength;
 	for (const window of value.rowWindows) {
 		encoded.set(window, offset);
 		offset += window.byteLength;
@@ -200,13 +219,17 @@ export function decodeTerminalArchive(
 	const header = TerminalArchiveHeaderSchema.safeParse(headerValue);
 	if (!header.success) return failure('Terminal archive header fields are invalid');
 	const payloadLength =
-		header.data.frameLength + header.data.chunkLengths.reduce((total, length) => total + length, 0);
+		header.data.frameLength +
+		header.data.graphicsLength +
+		header.data.chunkLengths.reduce((total, length) => total + length, 0);
 	if (TERMINAL_ARCHIVE_HEADER_BYTES + headerLength + payloadLength !== encoded.byteLength) {
 		return failure('Terminal archive payload length does not match its header');
 	}
 	let offset = TERMINAL_ARCHIVE_HEADER_BYTES + headerLength;
 	const frameBytes = encoded.subarray(offset, offset + header.data.frameLength);
 	offset += header.data.frameLength;
+	const graphicsBytes = encoded.subarray(offset, offset + header.data.graphicsLength);
+	offset += header.data.graphicsLength;
 	const rowWindowBytes = header.data.chunkLengths.map((length) => {
 		const window = encoded.subarray(offset, offset + length);
 		offset += length;
@@ -215,6 +238,7 @@ export function decodeTerminalArchive(
 	const digestMetadata: TerminalArchiveDigestMetadata = {
 		chunkLengths: header.data.chunkLengths,
 		frameLength: header.data.frameLength,
+		graphicsLength: header.data.graphicsLength,
 		identity: header.data.identity,
 		presentationId: header.data.presentationId,
 		retainedRows: header.data.retainedRows,
@@ -223,13 +247,15 @@ export function decodeTerminalArchive(
 		version: header.data.version,
 	};
 	if (
-		archiveContentDigest(digestMetadata, frameBytes, rowWindowBytes) !== header.data.contentDigest
+		archiveContentDigest(digestMetadata, frameBytes, graphicsBytes, rowWindowBytes) !==
+		header.data.contentDigest
 	) {
 		return failure('Terminal archive content digest does not match its header');
 	}
 	const validated = validateTerminalArchiveParts(
 		{
 			frame: frameBytes,
+			graphics: graphicsBytes,
 			identity: header.data.identity,
 			presentationId: header.data.presentationId,
 			rowWindows: rowWindowBytes,
@@ -250,6 +276,8 @@ export function decodeTerminalArchive(
 			encodedByteLength: encoded.byteLength,
 			frame: validated.value.frame,
 			frameBytes,
+			graphics: validated.value.graphics,
+			graphicsBytes,
 			identity: header.data.identity,
 			presentationId: header.data.presentationId,
 			retainedRows: header.data.retainedRows,
@@ -266,8 +294,9 @@ function validateTerminalArchiveParts(
 	preflightRepresentability: boolean,
 ): TerminalArchiveCodecResult<{
 	readonly frame: DecodedTerminalProjectionBuffer;
+	readonly graphics: TerminalGraphics;
 	readonly retainedRows: number;
-	readonly rowWindows: readonly DecodedTerminalProjectionBuffer[];
+	readonly rowWindows: readonly DecodedTerminalRenderRowWindow[];
 	readonly sourceStartRow: bigint;
 }> {
 	const presentationId = TerminalPresentationIdSchema.safeParse(value.presentationId);
@@ -277,17 +306,22 @@ function validateTerminalArchiveParts(
 		return failure('Terminal archive identity, presentation, or theme is invalid');
 	}
 	const decodedFrame = decodeTerminalProjectionBuffer(value.frame);
+	const decodedGraphics = decodeTerminalGraphics(value.graphics);
 	if (!decodedFrame.ok || decodedFrame.value.kind !== TerminalFrameKind.snapshot) {
 		return failure('Terminal archive frame is not a valid packed snapshot');
 	}
+	if (!decodedGraphics.ok || decodedGraphics.value.kind !== TerminalGraphicsUpdateKind.snapshot) {
+		return failure('Terminal archive graphics are not a valid resource snapshot');
+	}
 	const frame = decodedFrame.value;
+	const graphics = decodedGraphics.value;
 	if (
 		frame.hostEpoch !== identity.data.hostEpoch ||
 		frame.themeRevision !== BigInt(theme.data.revision)
 	) {
 		return failure('Terminal archive frame identity or theme revision is inconsistent');
 	}
-	const decodedWindows: DecodedTerminalProjectionBuffer[] = [];
+	const decodedWindows: DecodedTerminalRenderRowWindow[] = [];
 	for (const encodedWindow of value.rowWindows) {
 		const decoded = decodeTerminalRowWindow(encodedWindow);
 		if (!decoded.ok || decoded.value.detail !== TerminalRowWindowDetail.render) {
@@ -307,39 +341,88 @@ function validateTerminalArchiveParts(
 		) {
 			return failure('Terminal archive row-window metadata is inconsistent');
 		}
-		decodedWindows.push(window);
+		decodedWindows.push(decoded.value);
 	}
-	let expectedStart = decodedWindows[0]?.scrollbackRows ?? frame.scrollbackRows;
+	if (!archiveGraphicsSnapshotsAreConsistent(graphics, decodedWindows)) {
+		return failure('Terminal archive graphics snapshots are inconsistent');
+	}
+	let expectedStart = decodedWindows[0]?.frame.scrollbackRows ?? frame.scrollbackRows;
 	for (const window of decodedWindows) {
-		if (window.scrollbackRows !== expectedStart) {
+		if (window.frame.scrollbackRows !== expectedStart) {
 			return failure('Terminal archive row windows are not contiguous');
 		}
-		expectedStart += BigInt(window.rows);
+		expectedStart += BigInt(window.frame.rows);
 	}
 	if (expectedStart !== frame.scrollbackRows) {
 		return failure('Terminal archive history does not meet the final viewport');
 	}
-	const sourceStartRow = decodedWindows[0]?.scrollbackRows ?? frame.scrollbackRows;
+	const sourceStartRow = decodedWindows[0]?.frame.scrollbackRows ?? frame.scrollbackRows;
 	const retainedRows = Number(frame.scrollbackRows + BigInt(frame.rows) - sourceStartRow);
 	if (retainedRows < 1 || retainedRows > MAX_TERMINAL_ARCHIVE_ROWS) {
 		return failure('Terminal archive retained row count is outside its limit');
 	}
 	if (
 		preflightRepresentability &&
-		!validateTerminalArchiveRepresentability(frame, decodedWindows, sourceStartRow, retainedRows)
+		!validateTerminalArchiveRepresentability(
+			frame,
+			graphics,
+			decodedWindows,
+			sourceStartRow,
+			retainedRows,
+		)
 	) {
 		return failure(TERMINAL_ARCHIVE_REPRESENTABILITY_FAILURE_DETAIL);
 	}
-	return { ok: true, value: { frame, retainedRows, rowWindows: decodedWindows, sourceStartRow } };
+	return {
+		ok: true,
+		value: { frame, graphics, retainedRows, rowWindows: decodedWindows, sourceStartRow },
+	};
+}
+
+function archiveGraphicsSnapshotsAreConsistent(
+	viewport: TerminalGraphics,
+	rowWindows: readonly DecodedTerminalRenderRowWindow[],
+): boolean {
+	const images = new Map<number, TerminalGraphicsImage>();
+	for (const snapshot of [viewport, ...rowWindows.map((window) => window.graphics)]) {
+		if (
+			snapshot.kind !== TerminalGraphicsUpdateKind.snapshot ||
+			snapshot.resourceRevision !== viewport.resourceRevision ||
+			snapshot.animationTick !== viewport.animationTick
+		) {
+			return false;
+		}
+		for (const image of snapshot.images) {
+			const previous = images.get(image.id);
+			if (previous === undefined) {
+				images.set(image.id, image);
+				continue;
+			}
+			if (
+				previous.generation !== image.generation ||
+				previous.format !== image.format ||
+				previous.width !== image.width ||
+				previous.height !== image.height ||
+				previous.data.byteLength !== image.data.byteLength
+			) {
+				return false;
+			}
+			for (let offset = 0; offset < image.data.byteLength; offset++) {
+				if (previous.data[offset] !== image.data[offset]) return false;
+			}
+		}
+	}
+	return true;
 }
 
 function validateTerminalArchiveRepresentability(
 	frame: DecodedTerminalProjectionBuffer,
-	rowWindows: readonly DecodedTerminalProjectionBuffer[],
+	graphics: TerminalGraphics,
+	rowWindows: readonly DecodedTerminalRenderRowWindow[],
 	sourceStartRow: bigint,
 	retainedRows: number,
 ): boolean {
-	const sources = [...rowWindows, frame];
+	const sources = [...rowWindows.map((window) => window.frame), frame];
 	// Archived operations may splice any retained range across stored OBPB chunks. Summarizing each
 	// retained cell once keeps admission linear while the archive-wide canonical tables avoid
 	// inventing a representability-driven row-retention policy.
@@ -375,12 +458,22 @@ function validateTerminalArchiveRepresentability(
 		renderWindow.start,
 		frame.rows,
 	);
+	const renderGraphics = materializeArchiveGraphics(
+		frame,
+		graphics,
+		rowWindows,
+		sourceStartRow,
+		BigInt(renderWindow.start),
+		frame.rows,
+	);
 	if (
 		renderCandidate === null ||
+		renderGraphics === null ||
 		!encodeTerminalRowWindow({
 			...archiveRowWindowMetadata(frame, retainedRows, renderWindow.start),
 			detail: TerminalRowWindowDetail.render,
 			frame: renderCandidate,
+			graphics: renderGraphics,
 		}).ok
 	) {
 		return false;
@@ -721,6 +814,87 @@ function materializeArchiveFrame(
 	return materialized.ok ? materialized.value : null;
 }
 
+/** Re-roots retained graphics snapshots into one archive-relative render row range. */
+export function terminalArchiveGraphicsForRows(
+	archive: TerminalArchive,
+	startRow: bigint,
+	rowCount: number,
+): TerminalGraphics | null {
+	if (startRow < 0n || rowCount < 1 || startRow + BigInt(rowCount) > BigInt(archive.retainedRows)) {
+		return null;
+	}
+	return materializeArchiveGraphics(
+		archive.frame,
+		archive.graphics,
+		archive.rowWindows,
+		archive.sourceStartRow,
+		startRow,
+		rowCount,
+	);
+}
+
+function materializeArchiveGraphics(
+	frame: DecodedTerminalProjectionBuffer,
+	viewport: TerminalGraphics,
+	rowWindows: readonly DecodedTerminalRenderRowWindow[],
+	sourceStartRow: bigint,
+	startRow: bigint,
+	rowCount: number,
+): TerminalGraphics | null {
+	const targetStart = sourceStartRow + startRow;
+	const targetHeight = rowCount * frame.cellPixelHeight;
+	const images = new Map<number, TerminalGraphicsImage>();
+	const placements: TerminalGraphics['placements'][number][] = [];
+	const placementKeys = new Set<string>();
+	const sources = [
+		...rowWindows.map((window) => ({
+			graphics: window.graphics,
+			startRow: window.startRow,
+		})),
+		{ graphics: viewport, startRow: frame.scrollbackRows },
+	];
+	for (const source of sources) {
+		const sourceRowDelta = Number(source.startRow - targetStart);
+		for (const placement of source.graphics.placements) {
+			const pixelY = (sourceRowDelta + placement.row) * frame.cellPixelHeight + placement.offsetY;
+			if (pixelY + placement.destinationHeight <= 0 || pixelY >= targetHeight) continue;
+			const row = Math.floor(pixelY / frame.cellPixelHeight);
+			const offsetY = pixelY - row * frame.cellPixelHeight;
+			const reRooted = { ...placement, offsetY, row };
+			const key = [
+				reRooted.imageId,
+				reRooted.placementId,
+				reRooted.internalId ? 1 : 0,
+				reRooted.column,
+				reRooted.row,
+				reRooted.offsetX,
+				reRooted.offsetY,
+				reRooted.sourceX,
+				reRooted.sourceY,
+				reRooted.sourceWidth,
+				reRooted.sourceHeight,
+				reRooted.destinationWidth,
+				reRooted.destinationHeight,
+				reRooted.z,
+			].join(':');
+			if (placementKeys.has(key)) continue;
+			const image = source.graphics.images.find((candidate) => candidate.id === placement.imageId);
+			if (image === undefined) return null;
+			placementKeys.add(key);
+			placements.push(reRooted);
+			images.set(image.id, image);
+		}
+	}
+	const graphics: TerminalGraphics = {
+		animationTick: viewport.animationTick,
+		images: [...images.values()],
+		kind: TerminalGraphicsUpdateKind.snapshot,
+		placements,
+		resourceRevision: viewport.resourceRevision,
+	};
+	return encodeTerminalGraphics(graphics).ok ? graphics : null;
+}
+
 function archiveRowWindowMetadata(
 	frame: DecodedTerminalProjectionBuffer,
 	retainedRows: number,
@@ -780,7 +954,7 @@ function failure(detail: string): TerminalArchiveCodecResult<never> {
 }
 
 function archivePayloadFitsWithinLimit(value: TerminalArchiveWrite): boolean {
-	let payloadBytes = value.frame.byteLength;
+	let payloadBytes = value.frame.byteLength + value.graphics.byteLength;
 	if (payloadBytes > MAX_TERMINAL_ARCHIVE_BYTES) return false;
 	for (const window of value.rowWindows) {
 		if (window.byteLength > MAX_TERMINAL_ARCHIVE_BYTES - payloadBytes) return false;
@@ -792,11 +966,13 @@ function archivePayloadFitsWithinLimit(value: TerminalArchiveWrite): boolean {
 function archiveContentDigest(
 	metadata: TerminalArchiveDigestMetadata,
 	frame: Uint8Array,
+	graphics: Uint8Array,
 	rowWindows: readonly Uint8Array[],
 ): string {
 	const hash = createHash('sha256');
 	hash.update(JSON.stringify(metadata), 'utf8');
 	hash.update(frame);
+	hash.update(graphics);
 	for (const window of rowWindows) hash.update(window);
 	return hash.digest('hex');
 }

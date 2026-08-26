@@ -4,7 +4,7 @@ const ghostty_vt = @import("ghostty-vt");
 const selection = @import("terminal-host-engine").testing.selection;
 
 test "selection state owns and releases its Ghostty pins" {
-    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = 8,
         .rows = 2,
     });
@@ -33,7 +33,7 @@ test "selection state owns and releases its Ghostty pins" {
 }
 
 test "select all uses Ghostty content bounds instead of viewport bounds" {
-    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = 12,
         .rows = 5,
     });
@@ -56,7 +56,7 @@ test "select all uses Ghostty content bounds instead of viewport bounds" {
 }
 
 test "select all leaves an empty terminal unselected" {
-    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = 8,
         .rows = 5,
     });
@@ -75,7 +75,7 @@ test "select all leaves an empty terminal unselected" {
 }
 
 test "selection state rejects stale identity before mutation" {
-    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = 8,
         .rows = 2,
     });

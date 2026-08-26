@@ -23,7 +23,7 @@ const gestureCancel = harness.gestureCancel;
 const readSingleRow = harness.readSingleRow;
 
 test "idle manager owns no tracked pins or row capture" {
-    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = 8,
         .rows = 2,
     });
@@ -36,7 +36,7 @@ test "idle manager owns no tracked pins or row capture" {
     try std.testing.expectEqual(initial_pins, terminal.screens.active.pages.countTrackedPins());
 }
 test "text row window is bounded and cross-language valid" {
-    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = 8,
         .rows = 2,
     });
@@ -76,7 +76,7 @@ test "text row window is bounded and cross-language valid" {
     );
 }
 test "render row window writes directly into caller-owned storage" {
-    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = 8,
         .rows = 2,
     });
@@ -113,6 +113,92 @@ test "render row window writes directly into caller-owned storage" {
     try std.testing.expectEqual(protocol.RowWindowDetail.render, summary.detail);
     try std.testing.expectEqual(@as(u16, 1), summary.row_count);
 }
+test "retained history render rows include graphics while text rows exclude them" {
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
+        .cols = 4,
+        .kitty_image_loading_limits = .direct,
+        .kitty_image_storage_limit = protocol.Limits.terminal_graphics_resource_bytes,
+        .max_scrollback_bytes = 1_000_000,
+        .rows = 2,
+    });
+    defer terminal.deinit(std.testing.allocator);
+    terminal.width_px = @as(u32, terminal.cols) * 8;
+    terminal.height_px = @as(u32, terminal.rows) * 16;
+    var stream = terminal.vtStream();
+    defer stream.deinit();
+    stream.nextSlice(
+        "\x1b_Ga=T,t=d,f=24,s=1,v=1,i=1,p=1,C=1,z=-1073741825;/wAA\x1b\\" ++
+            "\r\none\r\ntwo",
+    );
+    try std.testing.expect(terminal.screens.active.pages.total_rows > terminal.rows);
+
+    var manager = Manager.init(std.testing.allocator);
+    defer manager.deinit(&terminal);
+    manager.animation_tick = 17;
+    const attachment = attachmentId(0x0f);
+    try manager.attach(attachment);
+    const render_rows = try manager.readRows(std.testing.allocator, &terminal, 4, 1, 8, 16, .{
+        .attachment_id = attachment,
+        .detail = .render,
+        .generation = 1,
+        .host_epoch = hostEpoch(1),
+        .maximum_bytes = max_row_window_bytes,
+        .origin = .{ .absolute = 0 },
+        .purpose = .search,
+        .request_sequence = 1,
+        .revision = 4,
+        .row_count = 1,
+    });
+    defer std.testing.allocator.free(render_rows.bytes);
+    _ = try protocol.validateTerminalRowWindow(std.testing.allocator, render_rows.bytes);
+    const projection_length: usize = @intCast(std.mem.readInt(
+        u32,
+        render_rows.bytes[101..105],
+        .little,
+    ));
+    const graphics_length: usize = @intCast(std.mem.readInt(
+        u32,
+        render_rows.bytes[105..109],
+        .little,
+    ));
+    const graphics_start = protocol.terminal_row_window_header_bytes + projection_length;
+    const graphics = render_rows.bytes[graphics_start..][0..graphics_length];
+    const graphics_summary = try protocol.validateTerminalGraphics(graphics);
+    try std.testing.expectEqual(protocol.TerminalGraphicsUpdateKind.snapshot, graphics_summary.kind);
+    try std.testing.expectEqual(@as(u16, 1), graphics_summary.image_count);
+    try std.testing.expectEqual(@as(u16, 1), graphics_summary.placement_count);
+    try std.testing.expectEqual(@as(u64, 17), graphics_summary.animation_tick);
+    try std.testing.expectEqual(
+        @as(i32, -1073741825),
+        std.mem.readInt(i32, graphics[123..127], .little),
+    );
+
+    const text_rows = try manager.readRows(std.testing.allocator, &terminal, 4, 1, 8, 16, .{
+        .attachment_id = attachment,
+        .detail = .text,
+        .generation = 1,
+        .host_epoch = hostEpoch(1),
+        .maximum_bytes = max_row_window_bytes,
+        .origin = .{ .absolute = 0 },
+        .purpose = .search,
+        .request_sequence = 2,
+        .revision = 4,
+        .row_count = 1,
+    });
+    defer std.testing.allocator.free(text_rows.bytes);
+    const text_summary = try protocol.validateTerminalRowWindow(std.testing.allocator, text_rows.bytes);
+    try std.testing.expectEqual(protocol.RowWindowDetail.text, text_summary.detail);
+    try std.testing.expectEqual(@as(u32, 0), std.mem.readInt(
+        u32,
+        text_rows.bytes[101..105],
+        .little,
+    ));
+    try std.testing.expectEqual(@as(u32, 0), std.mem.readInt(
+        u32,
+        text_rows.bytes[105..109],
+        .little,
+    ));
+}
 test "render row window reuses one long OSC 8 hyperlink byte range across 80 by 24 cells" {
     const columns = 80;
     const row_count = 24;
@@ -122,7 +208,7 @@ test "render row window reuses one long OSC 8 hyperlink byte range across 80 by 
     @memcpy(hyperlink[0..hyperlink_prefix.len], hyperlink_prefix);
     var linked_text = [_]u8{'X'} ** cell_count;
 
-    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = columns,
         .rows = row_count,
     });
@@ -190,7 +276,7 @@ test "render row window preserves ProjectionTooLarge for genuinely distinct hype
     const columns = 64;
     const row_count = 16;
     const cell_count = columns * row_count;
-    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = columns,
         .rows = row_count,
     });
@@ -216,7 +302,7 @@ test "render row window preserves ProjectionTooLarge for genuinely distinct hype
             .detail = .render,
             .generation = 1,
             .host_epoch = hostEpoch(1),
-            .maximum_bytes = max_row_window_bytes,
+            .maximum_bytes = 2 * 1024 * 1024,
             .origin = .{ .absolute = 0 },
             .purpose = .viewport,
             .request_sequence = 1,
@@ -236,7 +322,7 @@ test "render row hyperlink scratch allocations clean up without consuming reques
     );
 }
 test "one empty text row fits exact caller storage with one-kibibyte scratch" {
-    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = 1,
         .rows = 1,
     });
@@ -284,9 +370,9 @@ test "empty text row scratch is exactly bounded by requested pin storage" {
     const maximum_serialized_bytes = protocol.terminal_row_window_header_bytes +
         @as(usize, maximum_rows) * 12;
     const maximum_pin_storage_bytes = @sizeOf(ghostty_vt.Pin) * @as(usize, maximum_rows);
-    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = 1,
-        .max_scrollback = 10_000_000,
+        .max_scrollback_bytes = 10_000_000,
         .rows = 1,
     });
     defer terminal.deinit(std.testing.allocator);
@@ -341,7 +427,7 @@ test "empty text row scratch is exactly bounded by requested pin storage" {
     }
 }
 test "failed row encoding releases pin storage before request state can commit" {
-    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = 1,
         .rows = 1,
     });
@@ -388,9 +474,9 @@ test "failed row encoding releases pin storage before request state can commit" 
 test "render row pixel height rejects before consuming viewport request state" {
     const valid_row_count: u16 = 3_640;
     const invalid_row_count: u16 = valid_row_count + 1;
-    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = 8,
-        .max_scrollback = 10_000_000,
+        .max_scrollback_bytes = 10_000_000,
         .rows = 1,
     });
     defer terminal.deinit(std.testing.allocator);
@@ -484,7 +570,7 @@ test "render row pixel height rejects before consuming viewport request state" {
     try manager.rowsApplied(&terminal, attachment, 2, 1, 1);
 }
 test "text row encoding preserves ordinary ASCII identity" {
-    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = 8,
         .rows = 1,
     });
@@ -506,7 +592,7 @@ test "text row encoding preserves ordinary ASCII identity" {
     try std.testing.expectEqualSlices(u8, "abc", rows[124..127]);
 }
 test "text row encoding preserves combining grapheme bytes and mappings" {
-    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = 8,
         .rows = 1,
     });
@@ -533,7 +619,7 @@ test "text row encoding preserves combining grapheme bytes and mappings" {
     try std.testing.expectEqual(@as(u8, 0), rows[138]);
 }
 test "render row encoding preserves combining grapheme string mapping" {
-    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = 8,
         .rows = 1,
     });
@@ -597,7 +683,7 @@ fn countByteSequence(bytes: []const u8, value: []const u8) usize {
 }
 
 fn exerciseRenderRowHyperlinkAllocations(allocator: std.mem.Allocator) !void {
-    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = 2,
         .rows = 1,
     });

@@ -454,7 +454,7 @@ describe('WebGPURenderer recovery retirement', () => {
 });
 
 describe('projected terminal renderer', () => {
-	it('renders decoded Kitty pixels on a clipped sibling overlay and removes it when empty', async () => {
+	it('renders decoded Kitty pixels in the three z layers of the primary Canvas surface', async () => {
 		vi.stubGlobal('navigator', {});
 		vi.stubGlobal('window', {
 			devicePixelRatio: 1,
@@ -465,31 +465,23 @@ describe('projected terminal renderer', () => {
 				paddingTop: '0px',
 			}),
 		});
+		const operations: string[] = [];
 		const drawImageCalls: unknown[][] = [];
-		const drawImage: AtlasDrawImage = (...arguments_) => drawImageCalls.push(arguments_);
+		const drawImage: AtlasDrawImage = (...arguments_) => {
+			drawImageCalls.push(arguments_);
+			operations.push(`graphics:${String(Reflect.get(arguments_, 5))}`);
+		};
 		const putImageDataCalls: Array<readonly [ImageData, number, number]> = [];
-		const removed: HTMLCanvasElement[] = [];
 		const children: HTMLCanvasElement[] = [];
 		const ownerDocument = {
 			createElement: () => {
-				const created = createCanvas(
-					undefined,
-					{},
-					undefined,
-					undefined,
-					undefined,
-					undefined,
-					drawImage,
-				);
+				const created = createCanvas();
 				const context = created.getContext('2d');
 				if (context) {
 					Reflect.set(context, 'putImageData', (imageData: ImageData, x: number, y: number) => {
 						putImageDataCalls.push([imageData, x, y]);
 					});
 				}
-				Object.assign(created, {
-					remove: () => removed.push(created),
-				});
 				return created;
 			},
 		};
@@ -502,7 +494,15 @@ describe('projected terminal renderer', () => {
 			clientHeight: 40,
 			clientWidth: 80,
 		};
-		const canvas = createCanvas();
+		const canvas = createCanvas(
+			undefined,
+			{},
+			() => operations.push('text'),
+			() => operations.push('background'),
+			undefined,
+			() => operations.push('clear'),
+			drawImage,
+		);
 		Object.defineProperties(canvas, {
 			ownerDocument: { value: ownerDocument },
 			parentElement: { value: parent },
@@ -515,6 +515,7 @@ describe('projected terminal renderer', () => {
 		const source: PackedRendererSource = {
 			...base,
 			graphics: {
+				animationTick: 1n,
 				images: new Map([
 					[
 						7,
@@ -530,14 +531,46 @@ describe('projected terminal renderer', () => {
 				]),
 				placements: [
 					{
-						column: 1,
+						column: 0,
+						destinationHeight: 16,
+						destinationWidth: 16,
+						imageId: 7,
+						internalId: false,
+						offsetX: 1,
+						offsetY: 4,
+						placementId: 1,
+						row: 0,
+						sourceHeight: 1,
+						sourceWidth: 1,
+						sourceX: 0,
+						sourceY: 0,
+						z: -0x4000_0001,
+					},
+					{
+						column: 0,
 						destinationHeight: 16,
 						destinationWidth: 16,
 						imageId: 7,
 						internalId: false,
 						offsetX: 2,
 						offsetY: 4,
-						placementId: 1,
+						placementId: 2,
+						row: 0,
+						sourceHeight: 1,
+						sourceWidth: 1,
+						sourceX: 0,
+						sourceY: 0,
+						z: -0x4000_0000,
+					},
+					{
+						column: 0,
+						destinationHeight: 16,
+						destinationWidth: 16,
+						imageId: 7,
+						internalId: false,
+						offsetX: 3,
+						offsetY: 4,
+						placementId: 3,
 						row: 0,
 						sourceHeight: 1,
 						sourceWidth: 1,
@@ -553,16 +586,187 @@ describe('projected terminal renderer', () => {
 
 		renderer.renderPacked(source);
 
-		expect(children).toHaveLength(1);
-		expect(children[0]?.getAttribute?.('data-terminal-graphics-overlay')).not.toBeNull();
+		expect(children).toHaveLength(0);
 		expect(putImageDataCalls).toEqual([
 			[expect.objectContaining({ data: new Uint8ClampedArray([10, 20, 30, 255]) }), 0, 0],
 		]);
-		const placementDraw = drawImageCalls.find((call) => call.length === 9);
-		expect(placementDraw?.slice(1)).toEqual([0, 0, 1, 1, 10, 4.25, 16, 17]);
+		expect(drawImageCalls).toHaveLength(3);
+		const firstBackground = operations.indexOf('background');
+		const belowBackground = operations.findIndex((operation) => operation.startsWith('graphics:1'));
+		const belowText = operations.findIndex((operation) => operation.startsWith('graphics:2'));
+		const firstText = operations.indexOf('text');
+		const aboveText = operations.findIndex((operation) => operation.startsWith('graphics:3'));
+		expect(firstBackground).toBeLessThan(belowBackground);
+		expect(belowBackground).toBeLessThan(belowText);
+		expect(belowText).toBeLessThan(firstText);
+		expect(firstText).toBeLessThan(aboveText);
 
 		renderer.renderPacked(base);
-		expect(removed).toEqual([children[0]]);
+		expect(drawImageCalls).toHaveLength(3);
+		renderer.dispose();
+	});
+
+	it('submits Kitty placements around WebGPU cell backgrounds and text at both z boundaries', async () => {
+		vi.stubGlobal('window', { devicePixelRatio: 1 });
+		vi.stubGlobal('document', { createElement: () => createCanvas() });
+		vi.stubGlobal('GPUTextureUsage', { TEXTURE_BINDING: 1, COPY_DST: 2, RENDER_ATTACHMENT: 4 });
+		vi.stubGlobal('GPUBufferUsage', { UNIFORM: 1, COPY_DST: 2, VERTEX: 4 });
+		const rendering = createSubmittingDevice();
+		vi.stubGlobal('navigator', {
+			gpu: {
+				requestAdapter: async () =>
+					({ requestDevice: async () => rendering.device }) as unknown as GPUAdapter,
+				getPreferredCanvasFormat: () => 'bgra8unorm',
+			},
+		});
+		const context = {
+			configure: () => {},
+			getCurrentTexture: () => ({ createView: () => ({}) }),
+		} as unknown as GPUCanvasContext;
+		const renderer = new WebGPURenderer(createWebGPUCanvas(context));
+		await expect(renderer.initGPU()).resolves.toBe(true);
+		const base = createPackedSource(['AB']);
+		const row = base.rows[0];
+		const metadata = base.metadata;
+		if (!row || metadata === null) throw new Error('Expected packed renderer fixture data.');
+		row.backgroundColors[0] = 0x01_02_03;
+		const placement = {
+			column: 0,
+			destinationHeight: 16,
+			destinationWidth: 16,
+			imageId: 7,
+			internalId: false,
+			offsetY: 0,
+			row: 0,
+			sourceHeight: 1,
+			sourceWidth: 1,
+			sourceX: 0,
+			sourceY: 0,
+		};
+		const source: PackedRendererSource = {
+			...base,
+			graphics: {
+				animationTick: 1n,
+				images: new Map([
+					[
+						7,
+						{
+							data: new Uint8Array([10, 20, 30]),
+							format: TerminalGraphicsImageFormat.rgb,
+							generation: 1n,
+							height: 1,
+							id: 7,
+							width: 1,
+						},
+					],
+				]),
+				placements: [
+					{ ...placement, offsetX: 1, placementId: 1, z: -0x4000_0001 },
+					{ ...placement, offsetX: 2, placementId: 2, z: -0x4000_0000 },
+					{ ...placement, offsetX: 3, placementId: 3, z: 0 },
+				],
+				resourceRevision: 1n,
+			},
+			metadata: { ...metadata, cellPixelHeight: 16, cellPixelWidth: 8 },
+		};
+
+		renderer.renderPacked(source);
+
+		expect(rendering.setVertexBuffer.mock.calls.map((call) => call[2])).toEqual([
+			0,
+			undefined,
+			52,
+			undefined,
+			104,
+		]);
+		expect(rendering.draw.mock.calls.map((call) => call.slice(0, 2))).toEqual([
+			[6, 1],
+			[6, 1],
+			[6, 1],
+			[6, 1],
+			[6, 1],
+		]);
+		expect(rendering.writeTexture).toHaveBeenCalledOnce();
+		const upload = rendering.writeTexture.mock.calls[0];
+		if (upload === undefined) throw new Error('Expected one Kitty texture upload');
+		expect(upload[2]).toMatchObject({ bytesPerRow: 256, rowsPerImage: 1 });
+		expect(Array.from((upload[1] as Uint8Array).slice(0, 4))).toEqual([10, 20, 30, 255]);
+		renderer.dispose();
+	});
+
+	it('destroys an uncommitted Kitty texture when WebGPU bind-group creation fails', async () => {
+		vi.stubGlobal('window', { devicePixelRatio: 1 });
+		vi.stubGlobal('document', { createElement: () => createCanvas() });
+		vi.stubGlobal('GPUTextureUsage', { TEXTURE_BINDING: 1, COPY_DST: 2, RENDER_ATTACHMENT: 4 });
+		vi.stubGlobal('GPUBufferUsage', { UNIFORM: 1, COPY_DST: 2, VERTEX: 4 });
+		const rendering = createSubmittingDevice();
+		vi.stubGlobal('navigator', {
+			gpu: {
+				requestAdapter: async () =>
+					({ requestDevice: async () => rendering.device }) as unknown as GPUAdapter,
+				getPreferredCanvasFormat: () => 'bgra8unorm',
+			},
+		});
+		const context = {
+			configure: () => {},
+			getCurrentTexture: () => ({ createView: () => ({}) }),
+		} as unknown as GPUCanvasContext;
+		const renderer = new WebGPURenderer(createWebGPUCanvas(context));
+		await expect(renderer.initGPU()).resolves.toBe(true);
+
+		const textureDestroy = vi.fn<GPUTexture['destroy']>();
+		vi.spyOn(rendering.device, 'createTexture').mockReturnValue({
+			createView: () => ({}),
+			destroy: textureDestroy,
+		} as unknown as GPUTexture);
+		rendering.createBindGroup.mockImplementationOnce(() => {
+			throw new Error('simulated graphics bind-group failure');
+		});
+		const base = createPackedSource(['A']);
+		const metadata = base.metadata;
+		if (metadata === null) throw new Error('Expected packed-source metadata.');
+		const source: PackedRendererSource = {
+			...base,
+			graphics: {
+				animationTick: 1n,
+				images: new Map([
+					[
+						7,
+						{
+							data: new Uint8Array([10, 20, 30]),
+							format: TerminalGraphicsImageFormat.rgb,
+							generation: 1n,
+							height: 1,
+							id: 7,
+							width: 1,
+						},
+					],
+				]),
+				placements: [
+					{
+						column: 0,
+						destinationHeight: 16,
+						destinationWidth: 8,
+						imageId: 7,
+						internalId: false,
+						offsetX: 0,
+						offsetY: 0,
+						placementId: 1,
+						row: 0,
+						sourceHeight: 1,
+						sourceWidth: 1,
+						sourceX: 0,
+						sourceY: 0,
+						z: 0,
+					},
+				],
+				resourceRevision: 1n,
+			},
+			metadata: { ...metadata, cellPixelHeight: 16, cellPixelWidth: 8 },
+		};
+
+		expect(() => renderer.renderPacked(source)).toThrow('simulated graphics bind-group failure');
+		expect(textureDestroy).toHaveBeenCalledOnce();
 		renderer.dispose();
 	});
 
@@ -2788,7 +2992,9 @@ function createSubmittingDevice(
 		typeof vi.fn<(descriptor: GPUBindGroupDescriptor) => GPUBindGroup>
 	>;
 	readonly device: GPUDevice;
+	readonly draw: ReturnType<typeof vi.fn<GPURenderPassEncoder['draw']>>;
 	readonly destroy: ReturnType<typeof vi.fn<GPUDevice['destroy']>>;
+	readonly setVertexBuffer: ReturnType<typeof vi.fn<GPURenderPassEncoder['setVertexBuffer']>>;
 	readonly submit: ReturnType<typeof vi.fn<GPUQueue['submit']>>;
 	readonly writeBuffer: ReturnType<typeof vi.fn<GPUQueue['writeBuffer']>>;
 	readonly writeTexture: ReturnType<typeof vi.fn<GPUQueue['writeTexture']>>;
@@ -2801,15 +3007,17 @@ function createSubmittingDevice(
 		() => ({}) as GPUBindGroup,
 	);
 	const destroy = vi.fn<GPUDevice['destroy']>();
+	const draw = vi.fn<GPURenderPassEncoder['draw']>();
+	const setVertexBuffer = vi.fn<GPURenderPassEncoder['setVertexBuffer']>();
 	const popErrorScope = vi.fn<GPUDevice['popErrorScope']>(
 		options.popErrorScope ?? (async () => null),
 	);
 	const renderPass = {
-		draw: () => {},
+		draw,
 		end: () => {},
 		setBindGroup: () => {},
 		setPipeline: () => {},
-		setVertexBuffer: () => {},
+		setVertexBuffer,
 	};
 	const beginRenderPass = vi.fn<(descriptor: GPURenderPassDescriptor) => GPURenderPassEncoder>(
 		() => renderPass as unknown as GPURenderPassEncoder,
@@ -2843,7 +3051,9 @@ function createSubmittingDevice(
 		copyExternalImageToTexture,
 		createBindGroup,
 		device,
+		draw,
 		destroy,
+		setVertexBuffer,
 		submit,
 		writeBuffer,
 		writeTexture,

@@ -1,7 +1,11 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const platform_boundary = @import("terminal-host-platform");
+const monotonic = platform_boundary.monotonic;
+const posix_compat = platform_boundary.posix_compat;
 const subject = platform_boundary.process;
+const pty_process = subject;
+const thread_sync = platform_boundary.thread_sync;
 const windows_api = platform_boundary.testing.windows_api;
 
 const EnvironmentDelta = subject.EnvironmentDelta;
@@ -17,9 +21,9 @@ const ProcessReadResult = anyerror!usize;
 test "Windows API test facade exposes only process test dependencies" {
     comptime {
         const declarations = @typeInfo(windows_api).@"struct".decls;
-        if (declarations.len != 4) {
+        if (declarations.len != 7) {
             @compileError(std.fmt.comptimePrint(
-                "terminal-host-platform.testing.windows_api exposes {d} declarations; expected exactly 4",
+                "terminal-host-platform.testing.windows_api exposes {d} declarations; expected exactly 7",
                 .{declarations.len},
             ));
         } else {
@@ -64,7 +68,7 @@ const ProcessReader = struct {
 
 test "PTY process preserves exact arguments, environment, and exit" {
     const windows_executable: ?[]u8 = if (builtin.os.tag == .windows)
-        try std.process.getEnvVarOwned(std.testing.allocator, "ComSpec")
+        try pty_process.environmentVariableOwned(std.testing.allocator, "ComSpec")
     else
         null;
     defer if (windows_executable) |value| std.testing.allocator.free(value);
@@ -154,7 +158,7 @@ test "failed exec leaves no retained child" {
 test "POSIX effective PATH preserves empty components as the child current directory" {
     if (builtin.os.tag == .windows) return error.SkipZigTest;
 
-    var environment = std.process.EnvMap.init(std.testing.allocator);
+    var environment = std.process.Environ.Map.init(std.testing.allocator);
     defer environment.deinit();
     var arena_state = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena_state.deinit();
@@ -179,11 +183,11 @@ test "POSIX force termination recovers from partial signaling failures" {
     if (builtin.os.tag == .windows) return error.SkipZigTest;
 
     const RecordingSignaler = struct {
-        calls: [3]u8 = undefined,
+        calls: [3]std.posix.SIG = undefined,
         count: usize = 0,
-        fail_signal: ?u8,
+        fail_signal: ?std.posix.SIG,
 
-        pub fn signal(self: *@This(), _: std.posix.pid_t, signal_number: u8) !void {
+        pub fn signal(self: *@This(), _: std.posix.pid_t, signal_number: std.posix.SIG) !void {
             self.calls[self.count] = signal_number;
             self.count += 1;
             if (self.fail_signal == signal_number) return error.InjectedSignalFailure;
@@ -193,7 +197,7 @@ test "POSIX force termination recovers from partial signaling failures" {
     var stop_failure: RecordingSignaler = .{ .fail_signal = std.posix.SIG.STOP };
     try PosixProcess.forceTerminateSession(1, &stop_failure);
     try std.testing.expectEqualSlices(
-        u8,
+        std.posix.SIG,
         &.{ std.posix.SIG.STOP, std.posix.SIG.KILL },
         stop_failure.calls[0..stop_failure.count],
     );
@@ -204,7 +208,7 @@ test "POSIX force termination recovers from partial signaling failures" {
         PosixProcess.forceTerminateSession(1, &kill_failure),
     );
     try std.testing.expectEqualSlices(
-        u8,
+        std.posix.SIG,
         &.{ std.posix.SIG.STOP, std.posix.SIG.KILL, std.posix.SIG.CONT },
         kill_failure.calls[0..kill_failure.count],
     );
@@ -245,7 +249,7 @@ test "POSIX native force termination kills a stopped retained session leader" {
             contained = true;
             break;
         }
-        std.Thread.sleep(5 * std.time.ns_per_ms);
+        monotonic.sleep(5 * std.time.ns_per_ms);
     }
     try std.testing.expect(contained);
     _ = try process.wait();
@@ -279,10 +283,10 @@ test "macOS process observation ignores stop and waits for actual exit" {
         child_id: std.posix.pid_t,
 
         fn run(self: @This()) void {
-            std.Thread.sleep(10 * std.time.ns_per_ms);
+            monotonic.sleep(10 * std.time.ns_per_ms);
             std.posix.kill(self.child_id, std.posix.SIG.STOP) catch
                 @panic("failed to stop retained test child");
-            std.Thread.sleep(50 * std.time.ns_per_ms);
+            monotonic.sleep(50 * std.time.ns_per_ms);
             std.posix.kill(self.child_id, std.posix.SIG.KILL) catch
                 @panic("failed to kill retained test child");
         }
@@ -303,10 +307,10 @@ test "macOS process observation ignores stop and waits for actual exit" {
     terminator.join();
     try std.testing.expectEqual(@as(c_int, 0), observe_result);
     try std.testing.expectEqual(@as(c_int, 2), result_kind);
-    try std.testing.expectEqual(@as(u32, std.posix.SIG.KILL), result_value);
+    try std.testing.expectEqual(@as(u32, @intFromEnum(std.posix.SIG.KILL)), result_value);
 
     try std.testing.expectEqual(
-        ExitResult{ .signal = std.posix.SIG.KILL },
+        ExitResult{ .signal = @intFromEnum(std.posix.SIG.KILL) },
         try process.wait(),
     );
     try process.releaseProcessIdentity();
@@ -315,11 +319,11 @@ test "macOS process observation ignores stop and waits for actual exit" {
 test "macOS process observation sees an exit that predates kqueue registration" {
     if (builtin.os.tag != .macos) return error.SkipZigTest;
 
-    const child_id = try std.posix.fork();
-    if (child_id == 0) std.posix.exit(23);
+    const child_id = try posix_compat.fork();
+    if (child_id == 0) posix_compat.exit(23);
     var child_reaped = false;
     defer if (!child_reaped) {
-        _ = std.posix.waitpid(child_id, 0);
+        _ = std.c.waitpid(child_id, null, 0);
     };
 
     var result_kind: c_int = 0;
@@ -339,7 +343,7 @@ test "macOS process observation sees an exit that predates kqueue registration" 
             @as(c_int, @intCast(@intFromEnum(std.posix.E.AGAIN))),
             observation_error,
         );
-        std.Thread.sleep(std.time.ns_per_ms);
+        monotonic.sleep(std.time.ns_per_ms);
     }
     try std.testing.expect(waitable);
     try std.testing.expectEqual(@as(c_int, 1), result_kind);
@@ -391,18 +395,18 @@ test "macOS final process reap is non-blocking and retains a running identity" {
         }
     };
 
-    const child_id = try std.posix.fork();
+    const child_id = try posix_compat.fork();
     if (child_id == 0) {
         // Stay a live direct child indefinitely without relying on allocation
         // or a post-fork library lock. The parent later terminates us with KILL.
         std.posix.raise(std.posix.SIG.STOP) catch
-            std.posix.exit(2);
-        std.posix.exit(3);
+            posix_compat.exit(2);
+        posix_compat.exit(3);
     }
     var child_reaped = false;
     defer if (!child_reaped) {
         std.posix.kill(child_id, std.posix.SIG.KILL) catch {};
-        _ = std.posix.waitpid(child_id, 0);
+        _ = std.c.waitpid(child_id, null, 0);
     };
 
     var identity: SessionIdentityState = .{};
@@ -448,7 +452,7 @@ test "macOS final process reap is non-blocking and retains a running identity" {
         orchbee_observe_process_exit(child_id, &result_kind, &result_value),
     );
     try std.testing.expectEqual(@as(c_int, 2), result_kind);
-    try std.testing.expectEqual(@as(u32, std.posix.SIG.KILL), result_value);
+    try std.testing.expectEqual(@as(u32, @intFromEnum(std.posix.SIG.KILL)), result_value);
     try identity.release(child_id, NativeSessionReaper{});
     child_reaped = true;
     try std.testing.expect(identity.isReleased());
@@ -588,34 +592,34 @@ test "macOS member enumeration is independent of process credentials" {
 test "macOS exec-invalidated member reference forces a fresh containment scan" {
     if (builtin.os.tag != .macos) return error.SkipZigTest;
 
-    const exec_observation = try std.posix.pipe2(.{ .CLOEXEC = true });
-    const exec_gate = try std.posix.pipe2(.{ .CLOEXEC = true });
-    const child_id = try std.posix.fork();
+    const exec_observation = try posix_compat.pipe2(.{ .CLOEXEC = true });
+    const exec_gate = try posix_compat.pipe2(.{ .CLOEXEC = true });
+    const child_id = try posix_compat.fork();
     if (child_id == 0) {
-        std.posix.close(exec_observation[0]);
-        std.posix.close(exec_gate[1]);
-        _ = std.posix.setsid() catch std.posix.exit(2);
-        _ = std.posix.write(exec_observation[1], &.{1}) catch std.posix.exit(3);
+        _ = std.posix.system.close(exec_observation[0]);
+        _ = std.posix.system.close(exec_gate[1]);
+        if (std.c.setsid() < 0) posix_compat.exit(2);
+        _ = posix_compat.write(exec_observation[1], &.{1}) catch posix_compat.exit(3);
         var gate: [1]u8 = undefined;
-        if ((std.posix.read(exec_gate[0], &gate) catch 0) != 1) std.posix.exit(4);
+        if ((std.posix.read(exec_gate[0], &gate) catch 0) != 1) posix_compat.exit(4);
         const arguments = [_:null]?[*:0]const u8{ "/bin/sleep", "30" };
         const environment = [_:null]?[*:0]const u8{};
-        std.posix.exit(@truncate(@intFromError(
-            std.posix.execveZ("/bin/sleep", &arguments, &environment),
+        posix_compat.exit(@truncate(@intFromError(
+            posix_compat.execveZ("/bin/sleep", &arguments, &environment),
         )));
     }
 
-    std.posix.close(exec_observation[1]);
-    std.posix.close(exec_gate[0]);
+    _ = std.posix.system.close(exec_observation[1]);
+    _ = std.posix.system.close(exec_gate[0]);
     var observation_read_open = true;
     var gate_write_open = true;
     var child_reaped = false;
     defer {
-        if (observation_read_open) std.posix.close(exec_observation[0]);
-        if (gate_write_open) std.posix.close(exec_gate[1]);
+        if (observation_read_open) _ = std.posix.system.close(exec_observation[0]);
+        if (gate_write_open) _ = std.posix.system.close(exec_gate[1]);
         if (!child_reaped) {
             std.posix.kill(child_id, std.posix.SIG.KILL) catch {};
-            _ = std.posix.waitpid(child_id, 0);
+            _ = std.c.waitpid(child_id, null, 0);
         }
     }
 
@@ -640,15 +644,15 @@ test "macOS exec-invalidated member reference forces a fresh containment scan" {
 
     try std.testing.expectEqual(
         @as(usize, 1),
-        try std.posix.write(exec_gate[1], &.{1}),
+        try posix_compat.write(exec_gate[1], &.{1}),
     );
-    std.posix.close(exec_gate[1]);
+    _ = std.posix.system.close(exec_gate[1]);
     gate_write_open = false;
     try std.testing.expectEqual(
         @as(usize, 0),
         try std.posix.read(exec_observation[0], &marker),
     );
-    std.posix.close(exec_observation[0]);
+    _ = std.posix.system.close(exec_observation[0]);
     observation_read_open = false;
 
     var stale_live: c_int = 0;
@@ -745,7 +749,7 @@ const ScriptedSessionMemberRef = struct {
         self.state.closed_references += 1;
     }
 
-    pub fn signal(self: *@This(), _: u8) !void {
+    pub fn signal(self: *@This(), _: std.posix.SIG) !void {
         self.state.recycleImmediatelyBeforeEffect();
         // A stable kernel reference continues to denote the vanished launch
         // process, never the replacement now occupying its numeric PID.
@@ -767,10 +771,10 @@ const ScriptedSessionMemberRef = struct {
 
 const StableAlgorithmSignaler = struct {
     state: *ScriptedMemberState,
-    requested: [3]u8 = undefined,
+    requested: [3]std.posix.SIG = undefined,
     requested_count: usize = 0,
 
-    pub fn signal(self: *@This(), session_id: std.posix.pid_t, signal_number: u8) !void {
+    pub fn signal(self: *@This(), session_id: std.posix.pid_t, signal_number: std.posix.SIG) !void {
         self.requested[self.requested_count] = signal_number;
         self.requested_count += 1;
         self.state.armLaunchMember();
@@ -788,7 +792,7 @@ const MultiMemberSignalState = struct {
     continue_attempts: [3]usize = .{ 0, 0, 0 },
     closed_references: usize = 0,
 
-    fn attemptsFor(self: *@This(), signal_number: u8) *[3]usize {
+    fn attemptsFor(self: *@This(), signal_number: std.posix.SIG) *[3]usize {
         return switch (signal_number) {
             std.posix.SIG.STOP => &self.stop_attempts,
             std.posix.SIG.KILL => &self.kill_attempts,
@@ -827,7 +831,7 @@ const MultiMemberSignalRef = struct {
         self.state.closed_references += 1;
     }
 
-    pub fn signal(self: *@This(), signal_number: u8) !void {
+    pub fn signal(self: *@This(), signal_number: std.posix.SIG) !void {
         self.state.attemptsFor(signal_number)[self.index] += 1;
         if (signal_number == std.posix.SIG.KILL and self.index == 1) {
             return error.InjectedKillSignalFailure;
@@ -844,7 +848,7 @@ const MultiMemberStableSignaler = struct {
     pub fn signal(
         self: *@This(),
         session_id: std.posix.pid_t,
-        signal_number: u8,
+        signal_number: std.posix.SIG,
     ) !void {
         try PosixProcess.signalStableSessionMembersForTesting(
             session_id,
@@ -886,7 +890,7 @@ test "POSIX stable member signaling rejects recycle before graceful and force ef
         graceful_identity.signal(session_id, &graceful_signaler, std.posix.SIG.HUP),
     );
     try std.testing.expectEqualSlices(
-        u8,
+        std.posix.SIG,
         &.{std.posix.SIG.HUP},
         graceful_signaler.requested[0..graceful_signaler.requested_count],
     );
@@ -905,7 +909,7 @@ test "POSIX stable member signaling rejects recycle before graceful and force ef
         force_identity.forceTerminate(session_id, &force_signaler),
     );
     try std.testing.expectEqualSlices(
-        u8,
+        std.posix.SIG,
         &.{ std.posix.SIG.STOP, std.posix.SIG.KILL, std.posix.SIG.CONT },
         force_signaler.requested[0..force_signaler.requested_count],
     );
@@ -1097,8 +1101,8 @@ test "FreeBSD containment fails conservatively on persistent zombie churn" {
 }
 
 const TestSignal = struct {
-    condition: std.Thread.Condition = .{},
-    mutex: std.Thread.Mutex = .{},
+    condition: thread_sync.Condition = .{},
+    mutex: thread_sync.Mutex = .{},
     reached: bool = false,
 
     fn notify(self: *TestSignal) void {
@@ -1115,7 +1119,7 @@ const TestSignal = struct {
     }
 
     fn waitFor(self: *TestSignal, timeout_ns: u64) bool {
-        var timer = std.time.Timer.start() catch return false;
+        var timer = monotonic.Timer.start() catch return false;
         self.mutex.lock();
         defer self.mutex.unlock();
         while (!self.reached) {
@@ -1129,8 +1133,8 @@ const TestSignal = struct {
 };
 
 const TestGate = struct {
-    condition: std.Thread.Condition = .{},
-    mutex: std.Thread.Mutex = .{},
+    condition: thread_sync.Condition = .{},
+    mutex: thread_sync.Mutex = .{},
     reached: bool = false,
     released: bool = false,
 
@@ -1165,10 +1169,10 @@ test "POSIX session identity never signals a reused numeric session after releas
 
     const SessionIdentityState = subject.testing.SessionIdentityStateType;
     const RecordingSignaler = struct {
-        calls: [16]u8 = undefined,
+        calls: [16]std.posix.SIG = undefined,
         count: usize = 0,
 
-        pub fn signal(self: *@This(), _: std.posix.pid_t, signal_number: u8) !void {
+        pub fn signal(self: *@This(), _: std.posix.pid_t, signal_number: std.posix.SIG) !void {
             if (self.count >= self.calls.len) return error.TooManySignals;
             self.calls[self.count] = signal_number;
             self.count += 1;
@@ -1193,7 +1197,7 @@ test "POSIX session identity never signals a reused numeric session after releas
     try identity.forceTerminate(session_id, &signaler);
     try std.testing.expectEqual(@as(usize, 3), signaler.count);
     try std.testing.expectEqualSlices(
-        u8,
+        std.posix.SIG,
         &.{ std.posix.SIG.HUP, std.posix.SIG.STOP, std.posix.SIG.KILL },
         signaler.calls[0..signaler.count],
     );
@@ -1242,7 +1246,7 @@ test "POSIX session identity release waits for in-flight session signaling" {
         entered: *TestSignal,
         gate: *TestGate,
 
-        pub fn signal(self: *@This(), _: std.posix.pid_t, _: u8) !void {
+        pub fn signal(self: *@This(), _: std.posix.pid_t, _: std.posix.SIG) !void {
             self.entered.notify();
             // Hold the identity fence until the test releases the gate.
             self.gate.pause();
@@ -1311,7 +1315,7 @@ fn signalThreadRun(
     identity: *subject.testing.SessionIdentityStateType,
     session_id: std.posix.pid_t,
     signaler: anytype,
-    signal_number: u8,
+    signal_number: std.posix.SIG,
 ) void {
     identity.signal(session_id, signaler, signal_number) catch
         std.debug.panic("unexpected signal failure", .{});
@@ -1319,7 +1323,7 @@ fn signalThreadRun(
 
 test "Windows descendants start inside the terminal kill-on-close Job" {
     if (builtin.os.tag != .windows) return error.SkipZigTest;
-    const executable = try std.process.getEnvVarOwned(std.testing.allocator, "ComSpec");
+    const executable = try pty_process.environmentVariableOwned(std.testing.allocator, "ComSpec");
     defer std.testing.allocator.free(executable);
     const arguments = [_][]const u8{
         "/D",
@@ -1340,17 +1344,17 @@ test "Windows descendants start inside the terminal kill-on-close Job" {
     var observed_descendant = false;
     for (0..400) |_| {
         var active_processes: std.os.windows.DWORD = 0;
-        if (windows_api.ob_windows_terminal_job_active_processes(
+        if (!windows_api.ob_windows_terminal_job_active_processes(
             process.job_handle,
             &active_processes,
-        ) == 0) {
-            return std.os.windows.unexpectedError(std.os.windows.kernel32.GetLastError());
+        ).toBool()) {
+            return std.os.windows.unexpectedError(std.os.windows.GetLastError());
         }
         if (active_processes >= 2) {
             observed_descendant = true;
             break;
         }
-        std.Thread.sleep(5 * std.time.ns_per_ms);
+        monotonic.sleep(5 * std.time.ns_per_ms);
     }
     try std.testing.expect(observed_descendant);
     try process.forceTerminate();
@@ -1362,7 +1366,7 @@ test "Windows descendants start inside the terminal kill-on-close Job" {
 test "Windows Job assignment failure terminates the suspended child" {
     if (builtin.os.tag != .windows) return error.SkipZigTest;
     const windows = std.os.windows;
-    const executable = try std.process.getEnvVarOwned(std.testing.allocator, "ComSpec");
+    const executable = try pty_process.environmentVariableOwned(std.testing.allocator, "ComSpec");
     defer std.testing.allocator.free(executable);
     var arena_state = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena_state.deinit();
@@ -1378,25 +1382,25 @@ test "Windows Job assignment failure terminates the suspended child" {
     const command_line_w = try std.unicode.utf8ToUtf16LeAllocZ(arena, command_line);
     var startup_info: windows.STARTUPINFOW = std.mem.zeroes(windows.STARTUPINFOW);
     startup_info.cb = @sizeOf(windows.STARTUPINFOW);
-    var process_information: windows.PROCESS_INFORMATION = undefined;
-    if (windows_api.CreateProcessW(
+    var process_information: windows.PROCESS.INFORMATION = undefined;
+    if (!windows_api.CreateProcessW(
         null,
         command_line_w.ptr,
         null,
         null,
-        windows.FALSE,
+        .FALSE,
         windows_api.CREATE_SUSPENDED,
         null,
         null,
         &startup_info,
         &process_information,
-    ) == 0) return windows.unexpectedError(windows.kernel32.GetLastError());
+    ).toBool()) return windows.unexpectedError(windows.GetLastError());
     defer _ = windows.CloseHandle(process_information.hProcess);
     defer _ = windows.CloseHandle(process_information.hThread);
-    defer _ = windows.kernel32.TerminateProcess(process_information.hProcess, 1);
+    defer _ = windows_api.TerminateProcess(process_information.hProcess, 1);
 
     try std.testing.expectEqual(
-        windows.FALSE,
+        windows.BOOL.FALSE,
         windows_api.ob_windows_terminal_job_assign_and_resume(
             windows.INVALID_HANDLE_VALUE,
             process_information.hProcess,
@@ -1404,8 +1408,8 @@ test "Windows Job assignment failure terminates the suspended child" {
         ),
     );
     try std.testing.expectEqual(
-        @as(windows.DWORD, windows.WAIT_OBJECT_0),
-        windows.kernel32.WaitForSingleObject(process_information.hProcess, 5_000),
+        @as(windows.DWORD, windows_api.WAIT_OBJECT_0),
+        windows_api.WaitForSingleObject(process_information.hProcess, 5_000),
     );
 }
 
@@ -1415,7 +1419,7 @@ test "Windows Job assignment failure terminates the suspended child" {
 // required; compiled for `x86_64-windows-gnu` on non-Windows hosts.
 test "Windows wait preserves exact exit codes 258/259/260 (THCR-041)" {
     if (builtin.os.tag != .windows) return error.SkipZigTest;
-    const executable = try std.process.getEnvVarOwned(std.testing.allocator, "ComSpec");
+    const executable = try pty_process.environmentVariableOwned(std.testing.allocator, "ComSpec");
     defer std.testing.allocator.free(executable);
     for ([_]u32{ 258, 259, 260 }) |expected_code| {
         var command_buffer: [32]u8 = undefined;
@@ -1618,13 +1622,13 @@ test "Linux session leader with a newline comm completes containment and reaps (
     const PR_SET_NAME: c_int = 15;
     const SessionIdentityState = subject.testing.SessionIdentityStateType;
 
-    const child_id = try std.posix.fork();
+    const child_id = try posix_compat.fork();
     if (child_id == 0) {
         // Child: become the session leader, set a newline-bearing main-thread
         // comm, and exit; the zombie retains that comm.
-        _ = std.posix.setsid() catch std.posix.exit(1);
+        if (std.c.setsid() < 0) posix_compat.exit(1);
         _ = std.os.linux.prctl(PR_SET_NAME, @intFromPtr("worker\n"), 0, 0, 0);
-        std.posix.exit(0);
+        posix_compat.exit(0);
     }
     var identity: SessionIdentityState = .{};
     defer identity.release(child_id, NativeSessionReaper{}) catch {};

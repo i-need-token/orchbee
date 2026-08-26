@@ -15,7 +15,10 @@ pub fn streamModeChangedLocked(
     switch (mode) {
         .synchronized_output => updateSynchronizedOutputLocked(self, enabled),
         .focus_event => if (enabled) try reportFocusLocked(self),
-        .in_band_size_reports => if (enabled) try reportSizeLocked(self),
+        // The pinned Ghostty handler reports committed geometry when mode
+        // 2048 is enabled. Host-driven geometry commits still use
+        // `geometryCommittedLocked` below.
+        .in_band_size_reports => {},
         .linefeed => {},
         else => {},
     }

@@ -21,6 +21,7 @@ pub const readRecord = subject.testing.readRecordFn;
 pub const readRecordWithTimeout = subject.testing.readRecordWithTimeoutFn;
 pub const requireWindowsStatus = subject.testing.requireWindowsStatusFn;
 pub const posix_send_flags = subject.testing.posixSendFlags;
+pub const posix_compat = subject.testing.posixCompat;
 pub const serveAcceptedConnection = subject.testing.serveAcceptedConnectionFn;
 pub const serveConnection = subject.testing.serveConnectionFn;
 pub const serveConnectionWithHandshakeTimeout = subject.testing.serveConnectionWithHandshakeTimeoutFn;
@@ -53,18 +54,20 @@ pub const TestRuntimeDirectory = switch (builtin.os.tag) {
 
 pub const PosixTestRuntimeDirectory = if (builtin.os.tag == .windows) void else struct {
     allocator: std.mem.Allocator,
-    directory: std.fs.Dir,
+    directory: std.Io.Dir,
     path_bytes: []u8,
 
     pub fn init(allocator: std.mem.Allocator) !PosixTestRuntimeDirectory {
         var random: [8]u8 = undefined;
-        std.crypto.random.bytes(&random);
+        std.testing.io.random(&random);
         const encoded = std.fmt.bytesToHex(random, .lower);
         const path_bytes = try std.fmt.allocPrint(allocator, "/tmp/ob-{s}", .{encoded});
         errdefer allocator.free(path_bytes);
-        try std.posix.mkdir(path_bytes, 0o700);
-        errdefer std.fs.deleteDirAbsolute(path_bytes) catch {};
-        const directory = try std.fs.openDirAbsolute(path_bytes, .{ .no_follow = true });
+        try std.Io.Dir.createDirAbsolute(std.testing.io, path_bytes, @enumFromInt(0o700));
+        errdefer std.Io.Dir.cwd().deleteDir(std.testing.io, path_bytes) catch {};
+        const directory = try std.Io.Dir.openDirAbsolute(std.testing.io, path_bytes, .{
+            .follow_symlinks = false,
+        });
         return .{
             .allocator = allocator,
             .directory = directory,
@@ -73,8 +76,8 @@ pub const PosixTestRuntimeDirectory = if (builtin.os.tag == .windows) void else 
     }
 
     pub fn deinit(self: *PosixTestRuntimeDirectory) void {
-        self.directory.close();
-        std.fs.deleteTreeAbsolute(self.path_bytes) catch {};
+        self.directory.close(std.testing.io);
+        std.Io.Dir.cwd().deleteTree(std.testing.io, self.path_bytes) catch {};
         self.allocator.free(self.path_bytes);
         self.* = undefined;
     }
@@ -83,8 +86,8 @@ pub const PosixTestRuntimeDirectory = if (builtin.os.tag == .windows) void else 
         return self.path_bytes;
     }
 
-    pub fn chmod(self: *PosixTestRuntimeDirectory, mode: std.fs.File.Mode) !void {
-        try self.directory.chmod(mode);
+    pub fn chmod(self: *PosixTestRuntimeDirectory, mode: std.posix.mode_t) !void {
+        try self.directory.setPermissions(std.testing.io, @enumFromInt(mode));
     }
 };
 
@@ -96,9 +99,10 @@ pub const WindowsTestRuntimeDirectory = if (builtin.os.tag != .windows) void els
     pub fn init(allocator: std.mem.Allocator) !WindowsTestRuntimeDirectory {
         var temporary = std.testing.tmpDir(.{});
         errdefer temporary.cleanup();
-        const path_bytes = try temporary.parent_dir.realpathAlloc(
-            allocator,
+        const path_bytes = try temporary.parent_dir.realPathFileAlloc(
+            std.testing.io,
             &temporary.sub_path,
+            allocator,
         );
         errdefer allocator.free(path_bytes);
         const path_w = try std.unicode.utf8ToUtf16LeAllocZ(allocator, path_bytes);
@@ -123,18 +127,19 @@ pub const WindowsTestRuntimeDirectory = if (builtin.os.tag != .windows) void els
 };
 
 pub const PosixTestClient = if (builtin.os.tag == .windows) void else struct {
-    stream: std.net.Stream,
+    stream: std.Io.net.Stream,
 
     pub fn connect(server: *const PosixServer, _: std.mem.Allocator, _: []const u8) !PosixTestClient {
-        return .{ .stream = try std.net.connectUnixSocket(server.endpointPath()) };
+        const address = try std.Io.net.UnixAddress.init(server.endpointPath());
+        return .{ .stream = try address.connect(std.testing.io) };
     }
 
     pub fn close(self: *PosixTestClient) void {
-        self.stream.close();
+        self.stream.close(std.testing.io);
     }
 
     pub fn read(self: *PosixTestClient, bytes: []u8) !usize {
-        return self.stream.read(bytes);
+        return std.posix.read(self.stream.socket.handle, bytes);
     }
 
     pub fn waitReadable(_: *PosixTestClient) !bool {
@@ -142,7 +147,16 @@ pub const PosixTestClient = if (builtin.os.tag == .windows) void else struct {
     }
 
     pub fn writeAll(self: *PosixTestClient, bytes: []const u8) !void {
-        try self.stream.writeAll(bytes);
+        var offset: usize = 0;
+        while (offset < bytes.len) {
+            const written = try posix_compat.send(
+                self.stream.socket.handle,
+                bytes[offset..],
+                std.posix.MSG.NOSIGNAL,
+            );
+            if (written == 0) return error.ConnectionClosed;
+            offset += written;
+        }
     }
 };
 

@@ -84,7 +84,7 @@ pub const LinkRow = struct {
         try self.indices.resize(allocator, cells.len);
         @memset(self.indices.items, no_string_index);
 
-        const page: *ghostty_vt.Page = &pin.node.data;
+        const page: *ghostty_vt.Page = pin.node.page();
         for (cells, 0..) |cell, column| {
             if (!cell.hyperlink) continue;
             const page_cell = page.getRowAndCell(column, pin.y).cell;

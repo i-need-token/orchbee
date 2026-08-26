@@ -225,6 +225,7 @@ pub fn encodeProjectionFrameOwned(
     const close_activity_epoch = self.close_activity_epoch;
     const close_activity_epoch_exhausted = self.close_activity_epoch_exhausted;
     if (self.projection.needsCapture(revision, generation)) {
+        self.projection.graphics.animation_tick = self.animation_tick;
         self.projection.beginCapture(
             &self.terminal,
             revision,

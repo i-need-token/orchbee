@@ -1,5 +1,6 @@
 const std = @import("std");
 const builtin = @import("builtin");
+const thread_sync = @import("thread_sync.zig");
 
 extern "c" fn orchbee_prepare_process_tracking() c_int;
 extern "c" fn orchbee_session_member_iterator_open(
@@ -43,7 +44,7 @@ pub const SessionIdentityState = if (builtin.os.tag == .windows)
     struct {}
 else
     struct {
-        mutex: std.Thread.Mutex = .{},
+        mutex: thread_sync.Mutex = .{},
         released: std.atomic.Value(bool) = .init(false),
         signals_issued: std.atomic.Value(u64) = .init(0),
 
@@ -51,7 +52,7 @@ else
             self: *SessionIdentityState,
             session_id: std.posix.pid_t,
             signaler: anytype,
-            signal_number: u8,
+            signal_number: std.posix.SIG,
         ) !void {
             self.mutex.lock();
             defer self.mutex.unlock();
@@ -105,7 +106,7 @@ else
 pub fn signalStableSessionMembers(
     session_id: std.posix.pid_t,
     source: anytype,
-    signal_number: u8,
+    signal_number: std.posix.SIG,
 ) !void {
     var iterator = try source.open(session_id);
     defer iterator.deinit();
@@ -179,8 +180,11 @@ const NativeSessionMemberRef = struct {
         self.* = undefined;
     }
 
-    fn signal(self: *@This(), signal_number: u8) !void {
-        if (orchbee_session_member_ref_signal(self.raw, signal_number) != 0) {
+    fn signal(self: *@This(), signal_number: std.posix.SIG) !void {
+        if (orchbee_session_member_ref_signal(
+            self.raw,
+            @intCast(@intFromEnum(signal_number)),
+        ) != 0) {
             return error.SessionTerminationFailed;
         }
     }
@@ -198,7 +202,7 @@ const NativeSessionMemberRef = struct {
 // now owns as direct children. Serialize those targeted waits with retained
 // leader waits across terminals so a snapshot PID cannot be released and reused
 // by another terminal between ownership classification and waitpid.
-var freebsd_reap_mutex: std.Thread.Mutex = .{};
+var freebsd_reap_mutex: thread_sync.Mutex = .{};
 
 const freebsd_reaper_max_passes = 8;
 
@@ -252,9 +256,12 @@ pub fn forceTerminateSession(session_id: std.posix.pid_t, signaler: anytype) !vo
     };
 }
 
-fn signalSession(session_id: std.posix.pid_t, signal_number: u8) !void {
+fn signalSession(session_id: std.posix.pid_t, signal_number: std.posix.SIG) !void {
     switch (builtin.os.tag) {
-        .freebsd => if (orchbee_signal_process_session(session_id, signal_number) != 0) {
+        .freebsd => if (orchbee_signal_process_session(
+            session_id,
+            @intCast(@intFromEnum(signal_number)),
+        ) != 0) {
             return error.SessionTerminationFailed;
         },
         .linux, .macos => try signalStableSessionMembers(
@@ -285,7 +292,7 @@ pub fn sessionLiveMembers(session_id: std.posix.pid_t) !u32 {
 }
 
 pub const NativeSessionSignaler = struct {
-    pub fn signal(_: @This(), session_id: std.posix.pid_t, signal_number: u8) !void {
+    pub fn signal(_: @This(), session_id: std.posix.pid_t, signal_number: std.posix.SIG) !void {
         try signalSession(session_id, signal_number);
     }
 };

@@ -10,6 +10,7 @@ import {
 } from '../terminal-graphics';
 
 const snapshot: TerminalGraphics = {
+	animationTick: 23n,
 	images: [
 		{
 			data: new Uint8Array([255, 0, 0, 255, 0, 255, 0, 128]),
@@ -57,6 +58,7 @@ describe('terminal graphics extension', () => {
 
 	it('accepts placement-only updates without repeating image bytes', () => {
 		const update: TerminalGraphics = {
+			animationTick: snapshot.animationTick + 1n,
 			images: [],
 			kind: TerminalGraphicsUpdateKind.placements,
 			placements: snapshot.placements,
@@ -72,11 +74,13 @@ describe('terminal graphics extension', () => {
 			expect.objectContaining({ code: ProtocolErrorCode.invalidField, ok: false }),
 		);
 		expect(
-			encodeTerminalGraphics({
-				...snapshot,
-				placements: [{ ...placement, z: -1 }],
+			decodeTerminalGraphics(encodeOrThrow({ ...snapshot, placements: [{ ...placement, z: -1 }] })),
+		).toEqual(
+			expect.objectContaining({
+				ok: true,
+				value: expect.objectContaining({ placements: [{ ...placement, z: -1 }] }),
 			}),
-		).toEqual(expect.objectContaining({ code: ProtocolErrorCode.invalidField, ok: false }));
+		);
 		expect(
 			encodeTerminalGraphics({
 				...snapshot,

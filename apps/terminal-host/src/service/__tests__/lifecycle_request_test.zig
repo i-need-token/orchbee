@@ -424,7 +424,7 @@ test "invalid transport framing closes dispatch without a response" {
 test "real PTY lifecycle survives disconnect and an idempotent create retry" {
     const builtin = @import("builtin");
     const windows_executable: ?[]u8 = if (builtin.os.tag == .windows)
-        try std.process.getEnvVarOwned(std.testing.allocator, "ComSpec")
+        try pty_process.environmentVariableOwned(std.testing.allocator, "ComSpec")
     else
         null;
     defer if (windows_executable) |value| std.testing.allocator.free(value);

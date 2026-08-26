@@ -8,6 +8,7 @@ const contracts = @import("contracts.zig");
 const state = @import("state.zig");
 const handle = @import("handle.zig");
 const attachment_input_admission_ops = @import("attachment_input_admission.zig");
+const animation_ops = @import("animation.zig");
 const creation_ops = @import("creation.zig");
 const lifecycle_ops = @import("lifecycle.zig");
 const completion_ops = @import("completion.zig");
@@ -82,6 +83,7 @@ pub const testing = if (builtin.is_test) struct {
     };
 
     pub const applyScrollbackBytesFn = terminal_control_ops.applyScrollbackBytes;
+    pub const tickAnimationLockedAtFn = animation_ops.tickLockedAt;
     pub const cancelInputFn = cancelInput;
     pub const closeClientInputFn = closeClientInput;
     pub const closeFailureFenceFn = closeFailureFence;

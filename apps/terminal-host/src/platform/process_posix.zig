@@ -2,6 +2,7 @@ const std = @import("std");
 const builtin = @import("builtin");
 
 const process_common = @import("process_common.zig");
+const posix_compat = @import("posix_compat.zig");
 const process_session = @import("process_session.zig");
 const process_types = @import("process_types.zig");
 const pty_module = @import("pty.zig");
@@ -53,7 +54,7 @@ pub const Process = if (builtin.os.tag == .windows) void else struct {
         for (launch.arguments, 1..) |argument, index| {
             argv[index] = (try arena.dupeZ(u8, argument)).ptr;
         }
-        const environment_pointer = (try std.process.createNullDelimitedEnvMap(arena, &environment)).ptr;
+        const environment_pointer = (try environment.createPosixBlock(arena, .{})).slice.ptr;
         const executable_candidates = try executableCandidates(arena, &environment, launch.executable);
 
         var pty = try pty_module.Pty.open(.{
@@ -68,24 +69,27 @@ pub const Process = if (builtin.os.tag == .windows) void else struct {
             const duplicated = try duplicateCloexec(@intCast(raw_fd));
             child_stdin_fd = @intCast(duplicated);
         }
-        errdefer if (child_stdin_fd) |fd| posix.close(fd);
-        const error_pipe = try posix.pipe2(.{ .CLOEXEC = true });
+        errdefer if (child_stdin_fd) |fd| {
+            _ = posix.system.close(fd);
+        };
+        const error_pipe = try posix_compat.pipe2(.{ .CLOEXEC = true });
         var error_read_open = true;
         var error_write_open = true;
         errdefer {
-            if (error_read_open) posix.close(error_pipe[0]);
-            if (error_write_open) posix.close(error_pipe[1]);
+            if (error_read_open) _ = posix.system.close(error_pipe[0]);
+            if (error_write_open) _ = posix.system.close(error_pipe[1]);
         }
 
-        const child_id = try posix.fork();
+        const child_id = try posix_compat.fork();
         if (child_id == 0) {
-            posix.close(error_pipe[0]);
+            _ = posix.system.close(error_pipe[0]);
             if (launch.current_directory) |directory| {
-                posix.chdir(directory) catch reportChildFailure(error_pipe[1]);
+                posix_compat.chdir(directory) catch reportChildFailure(error_pipe[1]);
             }
             pty.childSetup() catch reportChildFailure(error_pipe[1]);
             if (child_stdin_fd) |fd| {
-                posix.dup2(fd, posix.STDIN_FILENO) catch reportChildFailure(error_pipe[1]);
+                _ = posix_compat.dup2(fd, posix.STDIN_FILENO) catch
+                    reportChildFailure(error_pipe[1]);
             }
             const exec_error = execWithEffectivePath(
                 launch.executable,
@@ -96,10 +100,10 @@ pub const Process = if (builtin.os.tag == .windows) void else struct {
             reportExecFailure(error_pipe[1], exec_error);
         }
 
-        posix.close(error_pipe[1]);
+        _ = posix.system.close(error_pipe[1]);
         error_write_open = false;
         if (child_stdin_fd) |fd| {
-            posix.close(fd);
+            _ = posix.system.close(fd);
             child_stdin_fd = null;
         }
         pty.closeSlave();
@@ -113,13 +117,13 @@ pub const Process = if (builtin.os.tag == .windows) void else struct {
                 process_session.NativeSessionSignaler{},
             ) catch {};
             posix.kill(child_id, posix.SIG.KILL) catch {};
-            _ = posix.waitpid(child_id, 0);
+            _ = posix_compat.waitpid(child_id, 0);
             return error.SpawnFailed;
         };
-        posix.close(error_pipe[0]);
+        _ = posix.system.close(error_pipe[0]);
         error_read_open = false;
         if (failure_bytes != 0) {
-            _ = posix.waitpid(child_id, 0);
+            _ = posix_compat.waitpid(child_id, 0);
             return error.SpawnFailed;
         }
         return .{ .child_id = child_id, .pty = pty, .identity = .{} };
@@ -235,13 +239,13 @@ pub const Process = if (builtin.os.tag == .windows) void else struct {
     }
 
     fn reportChildFailure(error_fd: posix.fd_t) noreturn {
-        _ = posix.write(error_fd, &.{1}) catch 0;
+        _ = posix_compat.write(error_fd, &.{1}) catch 0;
         exitChildFailure();
     }
 
     fn reportExecFailure(error_fd: posix.fd_t, exec_error: anyerror) noreturn {
         const marker = [_]u8{@truncate(@intFromError(exec_error))};
-        _ = posix.write(error_fd, &marker) catch 0;
+        _ = posix_compat.write(error_fd, &marker) catch 0;
         exitChildFailure();
     }
 
@@ -249,7 +253,7 @@ pub const Process = if (builtin.os.tag == .windows) void else struct {
         if (builtin.link_libc) {
             std.c._exit(127);
         } else {
-            posix.exit(127);
+            posix_compat.exit(127);
         }
     }
 
@@ -264,12 +268,12 @@ pub const Process = if (builtin.os.tag == .windows) void else struct {
             .macos => 67,
             else => unreachable,
         };
-        return @intCast(try posix.fcntl(fd, command, 3));
+        return @intCast(try posix_compat.fcntl(fd, command, 3));
     }
 
     fn executableCandidates(
         arena: std.mem.Allocator,
-        environment: *const std.process.EnvMap,
+        environment: *const std.process.Environ.Map,
         executable: []const u8,
     ) ![][*:0]const u8 {
         if (std.mem.indexOfScalar(u8, executable, '/') != null) return &.{};
@@ -311,14 +315,14 @@ pub const Process = if (builtin.os.tag == .windows) void else struct {
         argv: [*:null]const ?[*:0]const u8,
         environment: [*:null]const ?[*:0]const u8,
         candidates: []const [*:0]const u8,
-    ) posix.ExecveError {
+    ) posix_compat.ExecveError {
         if (std.mem.indexOfScalar(u8, executable, '/') != null) {
-            return posix.execveZ(argv[0].?, argv, environment);
+            return posix_compat.execveZ(argv[0].?, argv, environment);
         }
         var seen_access_denied = false;
-        var last_error: posix.ExecveError = error.FileNotFound;
+        var last_error: posix_compat.ExecveError = error.FileNotFound;
         for (candidates) |candidate| {
-            last_error = posix.execveZ(candidate, argv, environment);
+            last_error = posix_compat.execveZ(candidate, argv, environment);
             switch (last_error) {
                 error.AccessDenied => seen_access_denied = true,
                 error.FileNotFound, error.NotDir => {},
@@ -336,7 +340,7 @@ pub const Process = if (builtin.os.tag == .windows) void else struct {
     pub fn signalStableSessionMembersForTesting(
         session_id: posix.pid_t,
         source: anytype,
-        signal_number: u8,
+        signal_number: std.posix.SIG,
     ) !void {
         return process_session.signalStableSessionMembers(session_id, source, signal_number);
     }
@@ -362,7 +366,7 @@ pub const Process = if (builtin.os.tag == .windows) void else struct {
 
 pub fn executableCandidatesForTesting(
     arena: std.mem.Allocator,
-    environment: *const std.process.EnvMap,
+    environment: *const std.process.Environ.Map,
     executable: []const u8,
 ) ![][*:0]const u8 {
     if (builtin.os.tag == .windows) return error.Unsupported;

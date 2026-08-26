@@ -141,6 +141,7 @@ export interface PackedRendererMetadata {
 }
 
 export interface PackedRendererGraphics {
+	readonly animationTick: bigint;
 	readonly images: ReadonlyMap<number, TerminalGraphicsImage>;
 	readonly placements: readonly TerminalGraphicsPlacement[];
 	readonly resourceRevision: bigint;
@@ -153,6 +154,16 @@ export interface PackedRendererSource {
 	readonly needsFullRedraw: boolean;
 	readonly rows: readonly PackedRendererRow[];
 	markRendered(): void;
+}
+
+const KITTY_BACKGROUND_Z_LIMIT = -0x4000_0000;
+
+type KittyGraphicsLayer = 'below-background' | 'below-text' | 'above-text';
+
+function kittyGraphicsLayer(z: number): KittyGraphicsLayer {
+	if (z < KITTY_BACKGROUND_Z_LIMIT) return 'below-background';
+	if (z < 0) return 'below-text';
+	return 'above-text';
 }
 
 /** Font measurements prepared before one complete presentation configuration commit. */
@@ -583,6 +594,18 @@ interface SharedWebGPURenderingState {
 	readonly textPipeline: GPURenderPipeline;
 }
 
+interface WebGPUGraphicsResource {
+	readonly bindGroup: GPUBindGroup;
+	readonly generation: bigint;
+	readonly texture: GPUTexture;
+}
+
+interface WebGPUGraphicsDraw {
+	readonly bindGroup: GPUBindGroup;
+	readonly layer: KittyGraphicsLayer;
+	readonly vertexOffset: number;
+}
+
 type SharedWebGPUDeviceLossSubscriber = (device: GPUDevice, info: GPUDeviceLostInfo) => void;
 
 interface SharedWebGPURenderingRuntime {
@@ -828,12 +851,11 @@ export class WebGPURenderer {
 
 	// Fallback Canvas 2D renderer
 	private ctx2d: CanvasRenderingContext2D | null = null;
-	private graphicsCanvas: HTMLCanvasElement | null = null;
-	private graphicsContext: CanvasRenderingContext2D | null = null;
 	private graphicsResourceCanvases = new Map<
 		number,
 		{ readonly canvas: HTMLCanvasElement; readonly generation: bigint }
 	>();
+	private previousGraphicsHadPlacements = false;
 	private useWebGPU = false;
 
 	// Font and surface presentation
@@ -932,14 +954,19 @@ export class WebGPURenderer {
 	private textVertexBufferSize = 0;
 	private overlayVertexBuffer: GPUBuffer | null = null;
 	private overlayVertexBufferSize = 0;
+	private graphicsVertexBuffer: GPUBuffer | null = null;
+	private graphicsVertexBufferSize = 0;
 	private backgroundBindGroup: GPUBindGroup | null = null;
 	private textBindGroup: GPUBindGroup | null = null;
+	private graphicsResources = new Map<number, WebGPUGraphicsResource>();
 	private backgroundVertexData: number[] = [];
 	private textVertexData: number[] = [];
 	private overlayVertexData: number[] = [];
+	private graphicsVertexData: number[] = [];
 	private backgroundVertexUpload = new Float32Array(0);
 	private textVertexUpload = new Float32Array(0);
 	private overlayVertexUpload = new Float32Array(0);
+	private graphicsVertexUpload = new Float32Array(0);
 	private readonly uniformUpload = new Float32Array(4);
 	private readonly cellPresentationScratch: {
 		background: [number, number, number];
@@ -1119,16 +1146,20 @@ export class WebGPURenderer {
 
 	private releaseGPUResources(): void {
 		this.atlasTexture?.destroy();
+		for (const resource of this.graphicsResources.values()) resource.texture.destroy();
+		this.graphicsResources.clear();
 		this.uniformBuffer?.destroy();
 		this.bgVertexBuffer?.destroy();
 		this.textVertexBuffer?.destroy();
 		this.overlayVertexBuffer?.destroy();
+		this.graphicsVertexBuffer?.destroy();
 		this.atlasTexture = null;
 		this.atlasSampler = null;
 		this.uniformBuffer = null;
 		this.bgVertexBuffer = null;
 		this.textVertexBuffer = null;
 		this.overlayVertexBuffer = null;
+		this.graphicsVertexBuffer = null;
 		this.backgroundBindGroup = null;
 		this.textBindGroup = null;
 		this.sharedWebGPULease?.release();
@@ -1136,6 +1167,7 @@ export class WebGPURenderer {
 		this.bgVertexBufferSize = 0;
 		this.textVertexBufferSize = 0;
 		this.overlayVertexBufferSize = 0;
+		this.graphicsVertexBufferSize = 0;
 		this.bgPipeline = null;
 		this.textPipeline = null;
 		this.markEntireAtlasDirty();
@@ -1229,7 +1261,7 @@ export class WebGPURenderer {
 	}
 
 	private uploadVertexData(
-		kind: 'background' | 'text' | 'overlay',
+		kind: 'background' | 'text' | 'overlay' | 'graphics',
 		data: readonly number[],
 	): GPUBuffer | null {
 		if (!this.device || data.length === 0) return null;
@@ -1246,10 +1278,14 @@ export class WebGPURenderer {
 			currentBuffer = this.textVertexBuffer;
 			currentSize = this.textVertexBufferSize;
 			upload = this.textVertexUpload;
-		} else {
+		} else if (kind === 'overlay') {
 			currentBuffer = this.overlayVertexBuffer;
 			currentSize = this.overlayVertexBufferSize;
 			upload = this.overlayVertexUpload;
+		} else {
+			currentBuffer = this.graphicsVertexBuffer;
+			currentSize = this.graphicsVertexBufferSize;
+			upload = this.graphicsVertexUpload;
 		}
 
 		let buffer = currentBuffer;
@@ -1268,9 +1304,12 @@ export class WebGPURenderer {
 			} else if (kind === 'text') {
 				this.textVertexBuffer = buffer;
 				this.textVertexBufferSize = size;
-			} else {
+			} else if (kind === 'overlay') {
 				this.overlayVertexBuffer = buffer;
 				this.overlayVertexBufferSize = size;
+			} else {
+				this.graphicsVertexBuffer = buffer;
+				this.graphicsVertexBufferSize = size;
 			}
 		}
 
@@ -1280,7 +1319,8 @@ export class WebGPURenderer {
 			upload = new Float32Array(capacity);
 			if (kind === 'background') this.backgroundVertexUpload = upload;
 			else if (kind === 'text') this.textVertexUpload = upload;
-			else this.overlayVertexUpload = upload;
+			else if (kind === 'overlay') this.overlayVertexUpload = upload;
+			else this.graphicsVertexUpload = upload;
 		}
 		upload.set(data);
 		// WebGPU snapshots writeBuffer input before returning, so the backing store is reusable on the
@@ -1679,7 +1719,6 @@ export class WebGPURenderer {
 			}
 		}
 		this.syncSurfacePadding();
-		this.syncGraphicsOverlayGeometry();
 	}
 
 	private effectiveDefaultBackgroundRgb(): number | null {
@@ -1723,29 +1762,6 @@ export class WebGPURenderer {
 
 	private setSurfaceMargins(padding: SurfacePadding): void {
 		setCanvasMargins(this.canvas, padding);
-		if (this.graphicsCanvas) setCanvasMargins(this.graphicsCanvas, padding);
-	}
-
-	private syncGraphicsOverlayGeometry(): void {
-		const canvas = this.graphicsCanvas;
-		const context = this.graphicsContext;
-		if (!canvas || !context) return;
-		const cssWidth = this.renderedColumns * this.metrics.width;
-		const cssHeight = this.renderedRows * this.metrics.height;
-		canvas.style.width = `${cssWidth}px`;
-		canvas.style.height = `${cssHeight}px`;
-		canvas.style.marginTop = this.canvas.style.marginTop;
-		canvas.style.marginBottom = this.canvas.style.marginBottom;
-		canvas.style.marginLeft = this.canvas.style.marginLeft;
-		canvas.style.marginRight = this.canvas.style.marginRight;
-		const physicalWidth = Math.round(cssWidth * this.devicePixelRatio);
-		const physicalHeight = Math.round(cssHeight * this.devicePixelRatio);
-		if (canvas.width !== physicalWidth || canvas.height !== physicalHeight) {
-			canvas.width = physicalWidth;
-			canvas.height = physicalHeight;
-		}
-		context.setTransform(this.devicePixelRatio, 0, 0, this.devicePixelRatio, 0, 0);
-		context.imageSmoothingEnabled = true;
 	}
 
 	/** Rebuild physical-pixel resources after browser zoom or monitor changes. */
@@ -1783,9 +1799,11 @@ export class WebGPURenderer {
 		const timestamp = rendererNow();
 		this.currentSelectionCoords = this.projectedSelectionCoords;
 		this.currentVisibleRows = metadata.rows;
+		const graphicsHadPlacements = (buffer.graphics?.placements.length ?? 0) > 0;
+		const graphicsChanged = graphicsHadPlacements || this.previousGraphicsHadPlacements;
 		const reasons = new Set<RendererFrameReason>();
 		if (forceAll || buffer.needsFullRedraw) reasons.add('full');
-		if ((buffer.graphics?.placements.length ?? 0) > 0) reasons.add('graphics');
+		if (graphicsChanged) reasons.add('graphics');
 		if (this.cursorAppearanceDirty || cursorMoved) reasons.add('cursor');
 		if (this.preeditDirty) reasons.add('preedit');
 		if (this.fontDirty) reasons.add('font');
@@ -1794,11 +1812,11 @@ export class WebGPURenderer {
 		if (this.surfaceDirty) reasons.add('surface');
 		if (reasons.size === 0) reasons.add('dirty');
 
-		const redrawAll = forceAll || this.surfaceDirty;
+		const redrawAll = forceAll || this.surfaceDirty || graphicsChanged;
 		this.resetFrameCounters();
 		if (this.useWebGPU) this.renderPackedWebGPU(buffer, metadata);
 		else this.renderPackedCanvas2D(buffer, metadata, redrawAll);
-		this.renderPackedGraphics(buffer.graphics, metadata);
+		this.previousGraphicsHadPlacements = graphicsHadPlacements;
 		this.fontDirty = false;
 		this.cursorAppearanceDirty = false;
 		this.searchDirty = false;
@@ -1806,29 +1824,39 @@ export class WebGPURenderer {
 		this.completeFrameTelemetry(backend, timestamp, reasons, redrawAll, 0);
 	}
 
-	private renderPackedGraphics(
-		graphics: PackedRendererGraphics | undefined,
-		metadata: PackedRendererMetadata,
-	): void {
-		if (!graphics || graphics.placements.length === 0) {
-			this.releaseGraphicsOverlay();
-			return;
-		}
-		const context = this.ensureGraphicsOverlay();
-		if (!context) return;
-		this.syncGraphicsOverlayGeometry();
-		const cssWidth = this.renderedColumns * this.metrics.width;
-		const cssHeight = this.renderedRows * this.metrics.height;
-		context.clearRect(0, 0, cssWidth, cssHeight);
-		const imageIds = new Set(graphics.images.keys());
+	private pruneGraphicsResourceCanvases(graphics: PackedRendererGraphics | undefined): void {
+		const imageIds = new Set(graphics?.images.keys() ?? []);
 		for (const imageId of this.graphicsResourceCanvases.keys()) {
 			if (!imageIds.has(imageId)) this.graphicsResourceCanvases.delete(imageId);
 		}
+	}
+
+	private renderPackedGraphicsLayer2D(
+		context: CanvasRenderingContext2D,
+		graphics: PackedRendererGraphics | undefined,
+		metadata: PackedRendererMetadata,
+		layer: KittyGraphicsLayer,
+		rowsToRender: ReadonlySet<number>,
+	): void {
+		if (!graphics || graphics.placements.length === 0 || rowsToRender.size === 0) return;
+		context.save();
+		context.beginPath();
+		for (const row of rowsToRender) {
+			if (row < 0 || row >= metadata.rows) continue;
+			context.rect(
+				0,
+				row * this.metrics.height,
+				metadata.columns * this.metrics.width,
+				this.metrics.height,
+			);
+		}
+		context.clip();
 		const hostCellWidth = metadata.cellPixelWidth ?? this.metrics.width;
 		const hostCellHeight = metadata.cellPixelHeight ?? this.metrics.height;
 		const horizontalScale = this.metrics.width / hostCellWidth;
 		const verticalScale = this.metrics.height / hostCellHeight;
 		for (const placement of graphics.placements) {
+			if (kittyGraphicsLayer(placement.z) !== layer) continue;
 			const image = graphics.images.get(placement.imageId);
 			if (!image) continue;
 			const source = this.graphicsResourceCanvas(image);
@@ -1846,28 +1874,7 @@ export class WebGPURenderer {
 			);
 			this.frameOverlayInstances++;
 		}
-	}
-
-	private ensureGraphicsOverlay(): CanvasRenderingContext2D | null {
-		if (this.graphicsContext) return this.graphicsContext;
-		const parent = this.canvas.parentElement;
-		if (!parent) return null;
-		const ownerDocument = this.canvas.ownerDocument ?? document;
-		const canvas = ownerDocument.createElement('canvas');
-		canvas.setAttribute('aria-hidden', 'true');
-		canvas.setAttribute('data-terminal-graphics-overlay', 'true');
-		canvas.style.display = 'block';
-		canvas.style.insetBlockStart = '0';
-		canvas.style.insetInlineStart = '0';
-		canvas.style.pointerEvents = 'none';
-		canvas.style.position = 'absolute';
-		canvas.style.zIndex = '1';
-		const context = canvas.getContext('2d', { alpha: true });
-		if (!context) return null;
-		parent.appendChild(canvas);
-		this.graphicsCanvas = canvas;
-		this.graphicsContext = context;
-		return context;
+		context.restore();
 	}
 
 	private graphicsResourceCanvas(image: TerminalGraphicsImage): HTMLCanvasElement | null {
@@ -1886,11 +1893,108 @@ export class WebGPURenderer {
 		return canvas;
 	}
 
-	private releaseGraphicsOverlay(): void {
-		this.graphicsCanvas?.remove();
-		this.graphicsCanvas = null;
-		this.graphicsContext = null;
-		this.graphicsResourceCanvases.clear();
+	private graphicsResourceWebGPU(image: TerminalGraphicsImage): WebGPUGraphicsResource | null {
+		const cached = this.graphicsResources.get(image.id);
+		if (cached?.generation === image.generation) return cached;
+		cached?.texture.destroy();
+		this.graphicsResources.delete(image.id);
+		const device = this.device;
+		const uniformBuffer = this.uniformBuffer;
+		const textPipeline = this.textPipeline;
+		const sampler = this.atlasSampler;
+		if (!device || !uniformBuffer || !textPipeline || !sampler) return null;
+
+		const texture = device.createTexture({
+			size: [image.width, image.height],
+			format: 'rgba8unorm',
+			usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
+		});
+		try {
+			const rowBytes = image.width * 4;
+			const bytesPerRow = Math.ceil(rowBytes / 256) * 256;
+			const rgba = new Uint8ClampedArray(rowBytes * image.height);
+			writeGraphicsPixels(rgba, image);
+			let upload: Uint8Array;
+			if (bytesPerRow === rowBytes) {
+				upload = new Uint8Array(rgba.buffer, rgba.byteOffset, rgba.byteLength);
+			} else {
+				upload = new Uint8Array(bytesPerRow * image.height);
+				for (let row = 0; row < image.height; row++) {
+					upload.set(rgba.subarray(row * rowBytes, (row + 1) * rowBytes), row * bytesPerRow);
+				}
+			}
+			device.queue.writeTexture(
+				{ texture },
+				upload,
+				{ bytesPerRow, rowsPerImage: image.height },
+				{ width: image.width, height: image.height, depthOrArrayLayers: 1 },
+			);
+			const resource: WebGPUGraphicsResource = {
+				bindGroup: device.createBindGroup({
+					layout: textPipeline.getBindGroupLayout(0),
+					entries: [
+						{ binding: 0, resource: { buffer: uniformBuffer } },
+						{ binding: 1, resource: sampler },
+						{ binding: 2, resource: texture.createView() },
+					],
+				}),
+				generation: image.generation,
+				texture,
+			};
+			this.graphicsResources.set(image.id, resource);
+			return resource;
+		} catch (error) {
+			texture.destroy();
+			throw error;
+		}
+	}
+
+	private prepareWebGPUGraphics(
+		graphics: PackedRendererGraphics | undefined,
+		metadata: PackedRendererMetadata,
+	): readonly WebGPUGraphicsDraw[] {
+		const imageIds = new Set(graphics?.images.keys() ?? []);
+		for (const [imageId, resource] of this.graphicsResources) {
+			if (imageIds.has(imageId)) continue;
+			resource.texture.destroy();
+			this.graphicsResources.delete(imageId);
+		}
+		const data = this.graphicsVertexData;
+		data.length = 0;
+		if (!graphics || graphics.placements.length === 0) return [];
+		const draws: WebGPUGraphicsDraw[] = [];
+		const hostCellWidth = metadata.cellPixelWidth ?? this.metrics.width;
+		const hostCellHeight = metadata.cellPixelHeight ?? this.metrics.height;
+		const horizontalScale = this.metrics.width / hostCellWidth;
+		const verticalScale = this.metrics.height / hostCellHeight;
+		for (const placement of graphics.placements) {
+			const image = graphics.images.get(placement.imageId);
+			if (!image) continue;
+			const resource = this.graphicsResourceWebGPU(image);
+			if (!resource) continue;
+			const vertexOffset = data.length * Float32Array.BYTES_PER_ELEMENT;
+			data.push(
+				placement.column * this.metrics.width + placement.offsetX * horizontalScale,
+				placement.row * this.metrics.height + placement.offsetY * verticalScale,
+				placement.destinationWidth * horizontalScale,
+				placement.destinationHeight * verticalScale,
+				placement.sourceX / image.width,
+				placement.sourceY / image.height,
+				placement.sourceWidth / image.width,
+				placement.sourceHeight / image.height,
+				1,
+				1,
+				1,
+				1,
+				1,
+			);
+			draws.push({
+				bindGroup: resource.bindGroup,
+				layer: kittyGraphicsLayer(placement.z),
+				vertexOffset,
+			});
+		}
+		return draws;
 	}
 
 	private resetFrameCounters(): void {
@@ -2509,7 +2613,16 @@ export class WebGPURenderer {
 				pushRect(overlayData, geometry.x, geometry.y, geometry.width, geometry.height, cursorColor);
 			}
 		}
-		this.submitWebGPUFrame(bgData, textData, overlayData, columns, rows, defaultBackground);
+		const graphicsDraws = this.prepareWebGPUGraphics(buffer.graphics, metadata);
+		this.submitWebGPUFrame(
+			bgData,
+			textData,
+			overlayData,
+			graphicsDraws,
+			columns,
+			rows,
+			defaultBackground,
+		);
 		this.lastCursorPosition = { x: cursor.column, y: cursor.row };
 		this.lastCursorEnabled = cursorEnabled;
 		this.preeditDirty = false;
@@ -2610,15 +2723,17 @@ export class WebGPURenderer {
 		backgroundData: number[],
 		textData: number[],
 		overlayData: number[],
+		graphicsDraws: readonly WebGPUGraphicsDraw[],
 		columns: number,
 		rows: number,
 		clearColor: readonly [number, number, number],
 	): void {
-		if (!this.device || !this.context || !this.bgPipeline || !this.textPipeline) return;
+		const textPipeline = this.textPipeline;
+		if (!this.device || !this.context || !this.bgPipeline || !textPipeline) return;
 		this.uploadAtlas();
 		this.frameBackgroundInstances = backgroundData.length / 8;
 		this.frameGlyphInstances = textData.length / 13;
-		this.frameOverlayInstances = overlayData.length / 8;
+		this.frameOverlayInstances = overlayData.length / 8 + graphicsDraws.length;
 		if (this.uniformBuffer) {
 			this.uniformUpload[0] = columns * this.metrics.width * this.devicePixelRatio;
 			this.uniformUpload[1] = rows * this.metrics.height * this.devicePixelRatio;
@@ -2646,6 +2761,19 @@ export class WebGPURenderer {
 		const backgroundBindGroup = this.backgroundBindGroup;
 		if (this.uniformBuffer && backgroundBindGroup) {
 			const backgroundBuffer = this.uploadVertexData('background', backgroundData);
+			const graphicsBuffer = this.uploadVertexData('graphics', this.graphicsVertexData);
+			const drawGraphicsLayer = (layer: KittyGraphicsLayer): void => {
+				if (!graphicsBuffer) return;
+				for (const draw of graphicsDraws) {
+					if (draw.layer !== layer) continue;
+					renderPass.setPipeline(textPipeline);
+					renderPass.setVertexBuffer(0, graphicsBuffer, draw.vertexOffset, 13 * 4);
+					renderPass.setBindGroup(0, draw.bindGroup);
+					renderPass.draw(6, 1);
+					this.frameGpuDrawCalls++;
+				}
+			};
+			drawGraphicsLayer('below-background');
 			if (backgroundBuffer) {
 				renderPass.setPipeline(this.bgPipeline);
 				renderPass.setVertexBuffer(0, backgroundBuffer);
@@ -2653,16 +2781,18 @@ export class WebGPURenderer {
 				renderPass.draw(6, backgroundData.length / 8);
 				this.frameGpuDrawCalls++;
 			}
+			drawGraphicsLayer('below-text');
 			if (textData.length > 0 && this.textBindGroup) {
 				const textBuffer = this.uploadVertexData('text', textData);
 				if (textBuffer) {
-					renderPass.setPipeline(this.textPipeline);
+					renderPass.setPipeline(textPipeline);
 					renderPass.setVertexBuffer(0, textBuffer);
 					renderPass.setBindGroup(0, this.textBindGroup);
 					renderPass.draw(6, textData.length / 13);
 					this.frameGpuDrawCalls++;
 				}
 			}
+			drawGraphicsLayer('above-text');
 			const overlayBuffer = this.uploadVertexData('overlay', overlayData);
 			if (overlayBuffer) {
 				renderPass.setPipeline(this.bgPipeline);
@@ -2731,10 +2861,15 @@ export class WebGPURenderer {
 		);
 		const defaultBackground = presentation.background;
 		const defaultForeground = presentation.foreground;
+		this.pruneGraphicsResourceCanvases(buffer.graphics);
+		const shapings = new Map<number, PackedRowTextShaping & { readonly codepoints: Uint32Array }>();
+
+		// Clear and establish the surface background before any Kitty layer. Graphics below the
+		// cell background remain visible through default/transparent cells, while explicit cell
+		// backgrounds are painted over them in the next pass.
 		for (const y of rowsToRender) {
 			const row = buffer.rows[y];
 			if (!row || y < 0 || y >= rows) continue;
-			const preeditRow = preeditLayoutRow(preeditLayout, y);
 			const shaping = this.buildPackedRowTextShaping(
 				row,
 				columns,
@@ -2743,6 +2878,7 @@ export class WebGPURenderer {
 				cursorEnabled,
 				preeditLayout,
 			);
+			shapings.set(y, shaping);
 			this.frameRowsRendered++;
 			const lineY = y * this.metrics.height;
 			const lineWidth = columns * this.metrics.width;
@@ -2751,7 +2887,20 @@ export class WebGPURenderer {
 				ctx.fillStyle = `rgb(${defaultBackground[0]}, ${defaultBackground[1]}, ${defaultBackground[2]})`;
 				ctx.fillRect(0, lineY, lineWidth, this.metrics.height);
 			}
+		}
 
+		this.renderPackedGraphicsLayer2D(
+			ctx,
+			buffer.graphics,
+			metadata,
+			'below-background',
+			rowsToRender,
+		);
+
+		for (const y of rowsToRender) {
+			const row = buffer.rows[y];
+			if (!row || y < 0 || y >= rows) continue;
+			const lineY = y * this.metrics.height;
 			for (let x = 0; x < columns; x++) {
 				const width = packedCellWidth(row.widths[x] ?? TerminalCellWidthCode.spacerTail);
 				if (width === 0) continue;
@@ -2778,7 +2927,17 @@ export class WebGPURenderer {
 					);
 				}
 			}
+		}
 
+		this.renderPackedGraphicsLayer2D(ctx, buffer.graphics, metadata, 'below-text', rowsToRender);
+
+		for (const y of rowsToRender) {
+			const row = buffer.rows[y];
+			const shaping = shapings.get(y);
+			if (!row || !shaping || y < 0 || y >= rows) continue;
+			const preeditRow = preeditLayoutRow(preeditLayout, y);
+			const lineY = y * this.metrics.height;
+			const lineWidth = columns * this.metrics.width;
 			for (let x = 0; x < columns; x++) {
 				const width = packedCellWidth(row.widths[x] ?? TerminalCellWidthCode.spacerTail);
 				if (width === 0) continue;
@@ -2830,18 +2989,6 @@ export class WebGPURenderer {
 					}
 					this.frameGlyphInstances += paintedSegments;
 					if (paintedSegments > 0) this.frameShapingRuns++;
-					this.drawPackedCellText2D(
-						ctx,
-						row,
-						shaping,
-						x,
-						y,
-						width,
-						'',
-						metadata,
-						presentation,
-						foreground,
-					);
 					continue;
 				}
 				const paintedText = this.drawPackedCellText2D(
@@ -2855,10 +3002,45 @@ export class WebGPURenderer {
 					metadata,
 					presentation,
 					foreground,
+					false,
 				);
 				if (paintedText) {
 					this.frameGlyphInstances++;
 				}
+			}
+		}
+
+		this.renderPackedGraphicsLayer2D(ctx, buffer.graphics, metadata, 'above-text', rowsToRender);
+
+		// Decorations and application UI stay above protocol graphics. They communicate selection,
+		// hover, preedit, and cursor state rather than terminal image z-order.
+		for (const y of rowsToRender) {
+			const row = buffer.rows[y];
+			const shaping = shapings.get(y);
+			if (!row || !shaping || y < 0 || y >= rows) continue;
+			const preeditRow = preeditLayoutRow(preeditLayout, y);
+			for (let x = 0; x < columns; x++) {
+				const width = packedCellWidth(row.widths[x] ?? TerminalCellWidthCode.spacerTail);
+				if (width === 0 || (preeditRow && x >= preeditRow.start && x < preeditRow.end)) continue;
+				const foregroundRgb = this.packedTextForegroundRgb(
+					x,
+					y,
+					this.packedCellForegroundRgb(row, x, metadata, presentation),
+					presentation,
+				);
+				writeRgbChannels(foregroundRgb, this.cellTextForegroundScratch);
+				this.drawPackedCellText2D(
+					ctx,
+					row,
+					shaping,
+					x,
+					y,
+					width,
+					'',
+					metadata,
+					presentation,
+					this.cellTextForegroundScratch,
+				);
 			}
 		}
 
@@ -3445,9 +3627,6 @@ export class WebGPURenderer {
 				this.ctx2d.fillRect(0, 0, this.canvas.width, this.canvas.height);
 			}
 		}
-		if (this.graphicsCanvas && this.graphicsContext) {
-			this.graphicsContext.clearRect(0, 0, this.graphicsCanvas.width, this.graphicsCanvas.height);
-		}
 	}
 
 	private emitHealth(event: RendererHealthEvent): void {
@@ -3477,13 +3656,15 @@ export class WebGPURenderer {
 		this.context?.unconfigure?.();
 		this.releaseGPUResources();
 		this.releaseGlyphAtlasBacking();
-		this.releaseGraphicsOverlay();
+		this.graphicsResourceCanvases.clear();
 		this.backgroundVertexData = [];
 		this.textVertexData = [];
 		this.overlayVertexData = [];
+		this.graphicsVertexData = [];
 		this.backgroundVertexUpload = new Float32Array(0);
 		this.textVertexUpload = new Float32Array(0);
 		this.overlayVertexUpload = new Float32Array(0);
+		this.graphicsVertexUpload = new Float32Array(0);
 		this.device = null;
 		this.context = null;
 		this.ctx2d = null;

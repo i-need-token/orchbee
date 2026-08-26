@@ -3,6 +3,7 @@ const std = @import("std");
 const ghostty_vt = @import("ghostty-vt");
 const identifiers = @import("terminal-host-model").identifiers;
 const protocol = @import("terminal-protocol");
+const graphics_projection = @import("projection/graphics.zig");
 const projection_buffer = @import("projection_buffer.zig");
 const render_encoding = @import("render_encoding.zig");
 
@@ -11,6 +12,7 @@ pub const max_entries = protocol.Limits.frame_cells;
 pub const header_bytes = protocol.terminal_row_window_header_bytes;
 
 pub const RequestMetadata = struct {
+    animation_tick: u64,
     attachment_id: identifiers.AttachmentId,
     detail: protocol.RowWindowDetail,
     generation: u64,
@@ -81,24 +83,44 @@ fn encodeToWriter(
 
     try writer.appendZeros(header_bytes);
     const body_offset = writer.written().len;
+    var projection_length: usize = 0;
+    var graphics_length: usize = 0;
     const entry_count = switch (parameters.request.detail) {
-        .render => try projection_buffer.encodeRenderSnapshot(
-            scratch_allocator,
-            writer,
-            terminal,
-            pins,
-            .{
-                .attachment_id = parameters.request.attachment_id,
-                .cell_pixel_height = parameters.cell_pixel_height,
-                .cell_pixel_width = parameters.cell_pixel_width,
-                .generation = parameters.request.generation,
-                .host_epoch = parameters.request.host_epoch,
-                .request_sequence = parameters.request.request_sequence,
-                .revision = parameters.request.revision,
-                .start_row = parameters.start_row,
-                .theme_revision = parameters.request.theme_revision,
-            },
-        ),
+        .render => render: {
+            const projection_offset = writer.written().len;
+            const entries = try projection_buffer.encodeRenderSnapshot(
+                scratch_allocator,
+                writer,
+                terminal,
+                pins,
+                .{
+                    .attachment_id = parameters.request.attachment_id,
+                    .cell_pixel_height = parameters.cell_pixel_height,
+                    .cell_pixel_width = parameters.cell_pixel_width,
+                    .generation = parameters.request.generation,
+                    .host_epoch = parameters.request.host_epoch,
+                    .request_sequence = parameters.request.request_sequence,
+                    .revision = parameters.request.revision,
+                    .start_row = parameters.start_row,
+                    .theme_revision = parameters.request.theme_revision,
+                },
+            );
+            projection_length = writer.written().len - projection_offset;
+            var graphics = graphics_projection.State.init(scratch_allocator);
+            defer graphics.deinit();
+            try graphics.captureRows(
+                terminal,
+                parameters.request.revision,
+                parameters.request.animation_tick,
+                parameters.cell_pixel_width,
+                parameters.cell_pixel_height,
+                pins,
+            );
+            const graphics_offset = writer.written().len;
+            try graphics.encode(writer, true);
+            graphics_length = writer.written().len - graphics_offset;
+            break :render entries;
+        },
         .text => try encodeTextBody(writer, pins),
     };
     const body_length = writer.written().len - body_offset;
@@ -126,7 +148,9 @@ fn encodeToWriter(
     try header.appendInt(u32, entry_count);
     try header.appendInt(u32, @intCast(body_length));
     try header.appendInt(u8, protocol.terminal_row_window_format_patch);
-    try header.appendZeros(11);
+    try header.appendInt(u32, @intCast(projection_length));
+    try header.appendInt(u32, @intCast(graphics_length));
+    try header.appendZeros(3);
     std.debug.assert(header.written().len == header_bytes);
 }
 

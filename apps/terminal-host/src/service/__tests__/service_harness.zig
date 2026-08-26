@@ -274,7 +274,7 @@ pub fn disposeSkippedTargetThroughTransport(cursor: usize) !void {
     try testHandshake(&service, &connection, "39393939393939393939393939393939");
     const active = try activeConnection(&connection);
     const windows_executable: ?[]u8 = if (target_builtin.os.tag == .windows)
-        try std.process.getEnvVarOwned(std.testing.allocator, "ComSpec")
+        try pty_process.environmentVariableOwned(std.testing.allocator, "ComSpec")
     else
         null;
     defer if (windows_executable) |value| std.testing.allocator.free(value);

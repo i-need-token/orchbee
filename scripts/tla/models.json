@@ -688,6 +688,39 @@
 			]
 		},
 		{
+			"id": "terminal-graphics-projection",
+			"owner": "@orchbee/terminal-host",
+			"workspace": "apps/terminal-host",
+			"module": "apps/terminal-host/formal/tla/TerminalGraphicsProjection.tla",
+			"config": "apps/terminal-host/formal/tla/TerminalGraphicsProjection.cfg",
+			"claims": ["apps/terminal-host/docs/runtime-model.md"],
+			"triggers": [
+				"apps/terminal-host/src/**",
+				"apps/terminal-host/build.zig",
+				"packages/terminal-protocol/src/**",
+				"packages/terminal/src/projected/**",
+				"packages/terminal/src/rendering/**"
+			],
+			"requiredCoverage": [
+				"MutateImage",
+				"MutatePlacement",
+				"DeleteOrReset",
+				"StartAnimation",
+				"AnimationDeadlineDue",
+				"AnimationTickChanged",
+				"AnimationTickStutter",
+				"StopAnimation",
+				"StageCapture",
+				"RejectBoundedOperation",
+				"ClearRejection",
+				"AbortStaleCapture",
+				"CommitCapture",
+				"Acknowledge",
+				"StaleAcknowledge",
+				"InvalidateBase"
+			]
+		},
+		{
 			"id": "terminal-history-interaction",
 			"owner": "@orchbee/terminal-host",
 			"workspace": "apps/terminal-host",

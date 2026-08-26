@@ -61,25 +61,25 @@ pub const PreparedRepair = struct {
 /// input mutex.
 pub const Ledger = struct {
     allocator: std.mem.Allocator,
-    attachments: std.AutoArrayHashMap(AttachmentId, AttachmentState),
+    attachments: std.AutoArrayHashMapUnmanaged(AttachmentId, AttachmentState),
     focused_count: usize = 0,
     repair_charge: input_queue.Charge = .{},
 
     pub fn init(allocator: std.mem.Allocator) Ledger {
         return .{
             .allocator = allocator,
-            .attachments = .init(allocator),
+            .attachments = .empty,
         };
     }
 
     pub fn deinit(self: *Ledger) void {
         for (self.attachments.values()) |*attachment| attachment.deinit(self.allocator);
-        self.attachments.deinit();
+        self.attachments.deinit(self.allocator);
         self.* = undefined;
     }
 
     pub fn ensureAttachmentCapacity(self: *Ledger) !void {
-        try self.attachments.ensureUnusedCapacity(1);
+        try self.attachments.ensureUnusedCapacity(self.allocator, 1);
     }
 
     pub fn commitAttachment(self: *Ledger, attachment_id: AttachmentId) void {

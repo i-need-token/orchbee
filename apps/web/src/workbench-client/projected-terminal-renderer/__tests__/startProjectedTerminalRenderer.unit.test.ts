@@ -925,7 +925,12 @@ describe('startProjectedTerminalRenderer', () => {
 			);
 			const cachedPresentation: ProjectedTerminalPresentationSnapshot = {
 				byteLength: 0,
-				graphics: { images: new Map(), placements: [], resourceRevision: 0n },
+				graphics: {
+					animationTick: 0n,
+					images: new Map(),
+					placements: [],
+					resourceRevision: 0n,
+				},
 				markRendered: () => undefined,
 				metadata: {
 					activeScreen: 'primary',

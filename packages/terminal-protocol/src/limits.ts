@@ -21,7 +21,7 @@ export const PROTOCOL_LIMITS = {
 	maxOptionalFeatures: 64,
 	maxPendingInputBytes: 4 * 1024 * 1024,
 	maxPtyReadBatchBytes: 256 * 1024,
-	maxRowWindowBytes: 2 * 1024 * 1024,
+	maxRowWindowBytes: 16 * 1024 * 1024,
 	maxRowWindowRows: 4096,
 	maxSearchQueryBytes: 16 * 1024,
 	maxSelectionExportBytes: 16 * 1024 * 1024,
@@ -40,7 +40,7 @@ export const PROTOCOL_LIMITS = {
 	// changing this value, then update every occurrence in the same change.
 	maxScrollbackBytes: 1000 * 1000 * 1000,
 	maxStringBytes: 16 * 1024,
-	maxTransportRecordBytes: 8 * 1024 * 1024 + 64,
+	maxTransportRecordBytes: 16 * 1024 * 1024 + 64,
 	maxRawPayloadBytes: 32 + 1024 * 1024,
 	maxSemanticInputPayloadBytes: 32 + 1024 * 1024,
 	maxWriteInputPayloadBytes: 24 + 1024 * 1024,

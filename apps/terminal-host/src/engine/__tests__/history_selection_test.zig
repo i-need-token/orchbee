@@ -23,7 +23,7 @@ const gestureCancel = harness.gestureCancel;
 const readSingleRow = harness.readSingleRow;
 
 test "screen replacement publishes one selection eviction event" {
-    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = 8,
         .rows = 2,
     });
@@ -53,7 +53,7 @@ test "screen replacement publishes one selection eviction event" {
     try std.testing.expect((try manager.takeSelectionEvent(attachment)) == null);
 }
 test "invalid gesture start leaves tracked state unchanged" {
-    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = 8,
         .rows = 2,
     });
@@ -75,7 +75,7 @@ test "invalid gesture start leaves tracked state unchanged" {
     try std.testing.expectEqual(initial_pins, terminal.screens.active.pages.countTrackedPins());
 }
 test "selection validation precedes attachment lookup" {
-    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = 8,
         .rows = 2,
     });
@@ -94,7 +94,7 @@ test "selection validation precedes attachment lookup" {
     );
 }
 test "single click release clears selection without creating a one-cell range" {
-    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = 8,
         .rows = 2,
     });
@@ -117,7 +117,7 @@ test "single click release clears selection without creating a one-cell range" {
     try std.testing.expectEqual(SelectionSnapshot.none, std.meta.activeTag(released));
 }
 test "cell drag and repeated clicks retain terminal selection semantics" {
-    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = 12,
         .rows = 2,
     });
@@ -159,7 +159,7 @@ test "cell drag and repeated clicks retain terminal selection semantics" {
     try std.testing.expectEqual(SelectionSnapshot.active, std.meta.activeTag(line));
 }
 test "gesture cancellation preserves selection and is idempotent" {
-    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = 12,
         .rows = 2,
     });
@@ -193,7 +193,7 @@ test "gesture cancellation preserves selection and is idempotent" {
     try std.testing.expectEqual(tracked_pins, terminal.screens.active.pages.countTrackedPins());
 }
 test "cell drag applies the within-cell endpoint threshold and rectangle mode" {
-    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = 8,
         .rows = 2,
     });
@@ -237,7 +237,7 @@ test "cell drag applies the within-cell endpoint threshold and rectangle mode" {
     try std.testing.expectEqual(@as(u16, 3), rectangle.active.end.column);
 }
 test "double click drag through empty cells uses the nearest word endpoints" {
-    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = 20,
         .rows = 2,
     });
@@ -261,7 +261,7 @@ test "double click drag through empty cells uses the nearest word endpoints" {
     try std.testing.expectEqual(@as(u16, 9), dragged.active.end.column);
 }
 test "modifier triple click drag expands across semantic output blocks" {
-    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = 10,
         .rows = 8,
     });
@@ -300,7 +300,7 @@ test "modifier triple click drag expands across semantic output blocks" {
     try std.testing.expectEqual(@as(u64, 3), expanded.active.end.row);
 }
 test "explicit range command preserves endpoints and rectangle semantics" {
-    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = 8,
         .rows = 2,
     });
@@ -328,7 +328,7 @@ test "explicit range command preserves endpoints and rectangle semantics" {
     try std.testing.expect(selected.active.rectangle);
 }
 test "gesture update and end require an active press" {
-    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = 8,
         .rows = 2,
     });
@@ -351,7 +351,7 @@ test "gesture update and end require an active press" {
     }
 }
 test "row request sequences are strictly monotonic and allocation failure is retryable" {
-    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = 8,
         .rows = 2,
     });
@@ -429,7 +429,7 @@ test "row request sequences are strictly monotonic and allocation failure is ret
     try manager.rowsApplied(&terminal, attachment, 2, 1, 1);
 }
 test "history events wait for pending viewport rows" {
-    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = 8,
         .rows = 2,
     });
@@ -483,7 +483,7 @@ test "history events wait for pending viewport rows" {
     try manager.historyObserved(attachment, retried.sequence, retried.revision, retried.generation);
 }
 test "invalid selection command preserves an active gesture" {
-    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = 8,
         .rows = 2,
     });
@@ -512,7 +512,7 @@ test "invalid selection command preserves an active gesture" {
     try std.testing.expectEqual(tracked_pins, terminal.screens.active.pages.countTrackedPins());
 }
 test "screen changes invalidate anchors gesture selection and export" {
-    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = 8,
         .rows = 2,
     });

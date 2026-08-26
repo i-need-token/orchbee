@@ -180,6 +180,7 @@ function graphicsExtension(
 	includeImage: boolean,
 ) {
 	const encoded = encodeTerminalGraphics({
+		animationTick: resourceRevision,
 		images: includeImage
 			? [
 					{

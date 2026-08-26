@@ -395,7 +395,7 @@ history, staged frames, snapshot requests, failures, and disposal. A newly arriv
 may have entered flight before that input, so the client sends `NeedSnapshot(activity-stale)` for
 its exact sequence instead of `FrameApplied` and retains `unknown`. The next complete snapshot is
 causally newer than the input invalidation, but it proves neither that the Host accepted the input
-nor that the shell consumed it. Under wire protocol `0.0.19`, Host-accepted non-focus input
+nor that the shell consumed it. Under wire protocol `0.0.20`, Host-accepted non-focus input
 invalidates the Host cache immediately, while a later current-state sample may report `active`,
 `idle`, or `unknown`. A causally eligible replacement may therefore restore fresh `idle` in the
 same terminal lifecycle. A stale theme-stage frame is fenced at apply time and cannot make the
@@ -403,15 +403,19 @@ stage ready; only a causally eligible staged frame clears the local override whe
 presentation actually commits.
 
 Committed live frames may also carry the bounded Kitty graphics extension. A graphics snapshot
-atomically replaces decoded in-memory image resources and placements; a placement-only update is
-accepted only against the exact committed image revision. Invalid bytes or a missing resource
-reference reject the whole terminal frame and request a new snapshot before text or graphics can
-be partially committed. The renderer presents supported `z >= 0` placements on a
-pointer-transparent overlay canvas, converts raw gray/gray-alpha/RGB/RGBA pixels once per image
-generation, and reuses that raster for crop, scale, and movement. Empty snapshots, deletion,
-reset, history presentation, and disposal clear both pixels and DOM resources. The package does
-not parse PNG, load paths or URLs, persist images, or implement virtual, negative-z, glyph, or
-animated graphics.
+atomically replaces decoded in-memory image resources, resolved placements, and the monotonic
+animation tick; a placement-only update is accepted only against the exact committed image
+revision and cannot move the tick backward. Invalid bytes or a missing resource reference reject
+the whole terminal frame and request a new snapshot before text or graphics can be partially
+committed. Canvas2D and WebGPU convert raw gray/gray-alpha/RGB/RGBA pixels once per image generation,
+reuse the resulting resource for crop, scale, and movement, and paint the exact three signed-z
+layers below cell backgrounds, between backgrounds and text, and above text. Render-detail OBRW
+`0.0.3` replaces rows and its independent graphics snapshot atomically; text detail carries no
+graphics. Empty snapshots, deletion, reset, replacement, and disposal release obsolete pixel,
+Canvas, and GPU resources. This package deliberately never parses PNG or Kitty commands, loads a
+path or shared-memory object, or resolves animation, virtual/relative placement, or history pins;
+Terminal Host completes that work before owned decoded pixels and absolute placements cross the
+protocol boundary.
 
 Row-window input is strictly decoded by default. An application adapter may set `projectionBufferTrust: 'local-host'` only when it owns an immutable, same-user, capability-scoped Terminal Host transport. That path retains the OBPB format-`0.0.2` buffer and creates typed-array views without rescanning or repacking every cell. Gateway, network, plugin, and persisted input must retain the default `external` behavior.
 

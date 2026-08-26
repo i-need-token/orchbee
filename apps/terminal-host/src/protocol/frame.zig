@@ -316,10 +316,10 @@ pub fn validateTerminalFrame(
         const extension = try reader.readBytes(length);
         if (extension_kind == contract.terminal_frame_extension_close_activity) {
             if (close_activity != null or extension.len != 1) return error.InvalidField;
-            close_activity = std.meta.intToEnum(
+            close_activity = std.enums.fromInt(
                 contract.TerminalCloseActivity,
                 extension[0],
-            ) catch return error.InvalidField;
+            ) orelse return error.InvalidField;
             if (close_activity == .unknown) return error.InvalidField;
         } else if (extension_kind == contract.terminal_frame_extension_kitty_graphics) {
             if (graphics != null) return error.InvalidField;
@@ -329,10 +329,10 @@ pub fn validateTerminalFrame(
             }
         } else if (extension_kind == contract.terminal_frame_extension_progress) {
             if (progress != null or extension.len != 2) return error.InvalidField;
-            const state = std.meta.intToEnum(
+            const state = std.enums.fromInt(
                 contract.TerminalProgressState,
                 extension[0],
-            ) catch return error.InvalidField;
+            ) orelse return error.InvalidField;
             const value: ?u8 = if (extension[1] == std.math.maxInt(u8))
                 null
             else if (extension[1] <= 100)

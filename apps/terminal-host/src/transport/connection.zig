@@ -1,6 +1,7 @@
 const std = @import("std");
 
 const host_service = @import("terminal-host-service").service;
+const monotonic = @import("terminal-host-platform").monotonic;
 const protocol = @import("terminal-protocol");
 
 const endpoint_id_bytes = 32;
@@ -8,10 +9,10 @@ pub const poll_interval_ms = 20;
 pub const record_read_timeout_ns = 5 * std.time.ns_per_s;
 
 pub const Deadline = struct {
-    timer: *std.time.Timer,
+    timer: *monotonic.Timer,
     timeout_ns: u64,
 
-    pub fn init(timer: *std.time.Timer, timeout_ns: i128) !Deadline {
+    pub fn init(timer: *monotonic.Timer, timeout_ns: i128) !Deadline {
         if (timeout_ns < 0) return error.ConnectionClosed;
         return .{
             .timer = timer,
@@ -53,7 +54,7 @@ pub fn serveConnectionWithHandshakeTimeout(
 ) !void {
     var connection: host_service.ConnectionState = .awaiting_hello;
     defer service.disconnect(&connection);
-    var handshake_timer = std.time.Timer.start() catch return error.ConnectionClosed;
+    var handshake_timer = monotonic.Timer.start() catch return error.ConnectionClosed;
     var handshake_deadline = Deadline.init(&handshake_timer, handshake_timeout_ns) catch return error.ConnectionClosed;
 
     while (true) {
@@ -130,7 +131,7 @@ pub fn serveUntilIdleLoop(
 }
 
 pub fn writeOutgoing(transport: anytype, records: []const []const u8) !void {
-    var timer = std.time.Timer.start() catch return error.ConnectionClosed;
+    var timer = monotonic.Timer.start() catch return error.ConnectionClosed;
     var deadline = try Deadline.init(&timer, record_read_timeout_ns);
     for (records) |record| {
         if (@hasDecl(@TypeOf(transport.*), "writeAllBefore")) {
@@ -150,7 +151,7 @@ fn readRecordMaintaining(
     transport: anytype,
     service: *host_service.HostService,
 ) ![]u8 {
-    var timer = std.time.Timer.start() catch return error.ConnectionClosed;
+    var timer = monotonic.Timer.start() catch return error.ConnectionClosed;
     var deadline = try Deadline.init(&timer, record_read_timeout_ns);
     return readRecordBeforeMaintaining(allocator, transport, &deadline, service);
 }
@@ -160,7 +161,7 @@ pub fn readRecordWithTimeout(
     transport: anytype,
     timeout_ns: i128,
 ) ![]u8 {
-    var timer = std.time.Timer.start() catch return error.ConnectionClosed;
+    var timer = monotonic.Timer.start() catch return error.ConnectionClosed;
     var deadline = try Deadline.init(&timer, timeout_ns);
     return readRecordBefore(allocator, transport, &deadline);
 }

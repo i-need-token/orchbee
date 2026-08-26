@@ -685,7 +685,7 @@ test "input-only capability downgrade and replay return an all-false current bin
 }
 test "I/O successful responses use supplied request contracts and publish input once" {
     const windows_executable: ?[]u8 = if (target_builtin.os.tag == .windows)
-        try std.process.getEnvVarOwned(std.testing.allocator, "ComSpec")
+        try pty_process.environmentVariableOwned(std.testing.allocator, "ComSpec")
     else
         null;
     defer if (windows_executable) |value| std.testing.allocator.free(value);
@@ -960,7 +960,7 @@ test "I/O successful responses use supplied request contracts and publish input 
 }
 test "semantic input service preserves negotiated limits and total mouse encoding" {
     const windows_executable: ?[]u8 = if (target_builtin.os.tag == .windows)
-        try std.process.getEnvVarOwned(std.testing.allocator, "ComSpec")
+        try pty_process.environmentVariableOwned(std.testing.allocator, "ComSpec")
     else
         null;
     defer if (windows_executable) |value| std.testing.allocator.free(value);
@@ -1162,7 +1162,7 @@ test "semantic input service preserves negotiated limits and total mouse encodin
 }
 test "semantic input preparation commits to a terminal-exited rejection after client admission closes" {
     const windows_executable: ?[]u8 = if (target_builtin.os.tag == .windows)
-        try std.process.getEnvVarOwned(std.testing.allocator, "ComSpec")
+        try pty_process.environmentVariableOwned(std.testing.allocator, "ComSpec")
     else
         null;
     defer if (windows_executable) |value| std.testing.allocator.free(value);
@@ -1255,7 +1255,7 @@ test "semantic input preparation commits to a terminal-exited rejection after cl
 }
 test "InputAccepted stays queue-admission-only while terminal replies queue ahead of the client entry" {
     const windows_executable: ?[]u8 = if (target_builtin.os.tag == .windows)
-        try std.process.getEnvVarOwned(std.testing.allocator, "ComSpec")
+        try pty_process.environmentVariableOwned(std.testing.allocator, "ComSpec")
     else
         null;
     defer if (windows_executable) |value| std.testing.allocator.free(value);

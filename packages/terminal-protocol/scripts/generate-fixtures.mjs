@@ -100,7 +100,7 @@ const malformedRowWindowPath = path.join(
 );
 const packedProjectionConformancePath = path.join(
 	fixturesDirectory,
-	`packed-projection-conformance-v${projectionVersion}.json`,
+	`packed-projection-conformance-v${rowWindowVersion}.json`,
 );
 const checkOnly = process.argv.includes('--check');
 
@@ -645,7 +645,7 @@ function createControlConformanceFixture() {
 				frameBytes: 8 * 1024 * 1024,
 				inputBytes: 1024 * 1024,
 				protocol,
-				rowWindowBytes: 2 * 1024 * 1024,
+				rowWindowBytes: PROTOCOL_LIMITS.maxRowWindowBytes,
 				supportedOptionalFeatures: ['future-x'],
 			},
 			'Hello',
@@ -915,7 +915,7 @@ function createControlConformanceFixture() {
 				hostVersion: '0.1.0',
 				inputBytes: 1024 * 1024,
 				protocol,
-				rowWindowBytes: 2 * 1024 * 1024,
+				rowWindowBytes: PROTOCOL_LIMITS.maxRowWindowBytes,
 				supportedOptionalFeatures: [],
 			},
 			'HelloAccepted',
@@ -1210,7 +1210,7 @@ function malformedCorpus(frameBytes) {
 	];
 }
 
-function malformedRowWindowCorpus(rowWindowBytes) {
+function malformedRowWindowCorpus(rowWindowBytes, renderRowWindowBytes) {
 	const invalidMagic = rowWindowBytes.slice();
 	invalidMagic[0] = 0;
 
@@ -1225,6 +1225,22 @@ function malformedRowWindowCorpus(rowWindowBytes) {
 
 	const invalidMappingOrder = rowWindowBytes.slice();
 	new DataView(invalidMappingOrder.buffer).setUint16(152, 0, true);
+
+	const renderView = new DataView(
+		renderRowWindowBytes.buffer,
+		renderRowWindowBytes.byteOffset,
+		renderRowWindowBytes.byteLength,
+	);
+	const projectionLength = renderView.getUint32(101, true);
+	const graphicsLength = renderView.getUint32(105, true);
+	const projectionSectionMismatch = renderRowWindowBytes.slice();
+	const projectionSectionView = new DataView(projectionSectionMismatch.buffer);
+	projectionSectionView.setUint32(101, projectionLength - 1, true);
+	projectionSectionView.setUint32(105, graphicsLength + 1, true);
+	const graphicsSectionMismatch = renderRowWindowBytes.slice();
+	new DataView(graphicsSectionMismatch.buffer).setUint32(105, graphicsLength - 1, true);
+	const graphicsUpdateNotSnapshot = renderRowWindowBytes.slice();
+	graphicsUpdateNotSnapshot[112 + projectionLength + 7] = 2;
 
 	return [
 		{
@@ -1256,6 +1272,21 @@ function malformedRowWindowCorpus(rowWindowBytes) {
 			bytesBase64: Buffer.from(invalidMappingOrder).toString('base64'),
 			code: 'invalid-field',
 			name: 'invalid-mapping-order',
+		},
+		{
+			bytesBase64: Buffer.from(projectionSectionMismatch).toString('base64'),
+			code: 'length-mismatch',
+			name: 'render-projection-section-length-mismatch',
+		},
+		{
+			bytesBase64: Buffer.from(graphicsSectionMismatch).toString('base64'),
+			code: 'length-mismatch',
+			name: 'render-graphics-section-length-mismatch',
+		},
+		{
+			bytesBase64: Buffer.from(graphicsUpdateNotSnapshot).toString('base64'),
+			code: 'invalid-field',
+			name: 'render-graphics-update-not-snapshot',
 		},
 	];
 }
@@ -1293,7 +1324,12 @@ function packedProjectionSuccessCase({ bytes, codec, name, observations, strictB
 	};
 }
 
-function packedProjectionConformanceCorpus(projectionBytes, rowWindowBytes, canonicalFrame) {
+function packedProjectionConformanceCorpus(
+	projectionBytes,
+	rowWindowBytes,
+	renderRowWindowBytes,
+	canonicalFrame,
+) {
 	const width = projectionSectionOffset(projectionBytes, TerminalProjectionSection.widths);
 	const rowFlags = projectionSectionOffset(projectionBytes, TerminalProjectionSection.rowFlags);
 	const rowIndices = projectionSectionOffset(projectionBytes, TerminalProjectionSection.rowIndices);
@@ -1550,7 +1586,46 @@ function packedProjectionConformanceCorpus(projectionBytes, rowWindowBytes, cano
 		}),
 	);
 
-	return { cases, formatVersion: projectionVersion, schemaVersion: 1 };
+	const renderView = new DataView(
+		renderRowWindowBytes.buffer,
+		renderRowWindowBytes.byteOffset,
+		renderRowWindowBytes.byteLength,
+	);
+	const renderProjectionLength = renderView.getUint32(101, true);
+	const renderGraphicsLength = renderView.getUint32(105, true);
+	const projectionSectionMismatch = renderRowWindowBytes.slice();
+	const projectionSectionView = new DataView(projectionSectionMismatch.buffer);
+	projectionSectionView.setUint32(101, renderProjectionLength - 1, true);
+	projectionSectionView.setUint32(105, renderGraphicsLength + 1, true);
+	const graphicsSectionMismatch = renderRowWindowBytes.slice();
+	new DataView(graphicsSectionMismatch.buffer).setUint32(105, renderGraphicsLength - 1, true);
+	const graphicsUpdateNotSnapshot = renderRowWindowBytes.slice();
+	graphicsUpdateNotSnapshot[112 + renderProjectionLength + 7] = 2;
+	cases.push(
+		packedProjectionFailureCase({
+			bytes: projectionSectionMismatch,
+			code: 'length-mismatch',
+			codec: 'OBRW',
+			name: 'obrw-projection-section-length-mismatch',
+			strictBoundary: 'row-window',
+		}),
+		packedProjectionFailureCase({
+			bytes: graphicsSectionMismatch,
+			code: 'length-mismatch',
+			codec: 'OBRW',
+			name: 'obrw-graphics-section-length-mismatch',
+			strictBoundary: 'row-window',
+		}),
+		packedProjectionFailureCase({
+			bytes: graphicsUpdateNotSnapshot,
+			code: 'invalid-field',
+			codec: 'OBRW',
+			name: 'obrw-graphics-update-not-snapshot',
+			strictBoundary: 'row-window',
+		}),
+	);
+
+	return { cases, formatVersion: rowWindowVersion, schemaVersion: 1 };
 }
 
 function stringifyPackedProjectionConformance(corpus) {
@@ -1602,6 +1677,34 @@ const rowWindowBytes = encodeOrThrow(
 	encodeTerminalRowWindow(rowWindowFromJson(canonical.rowWindow)),
 	'terminal row window',
 );
+const renderSnapshot = {
+	...frameFromJson(canonical.frame),
+	baseRevision: null,
+	extensions: [],
+	kind: 'snapshot',
+};
+const renderRowWindowBytes = encodeOrThrow(
+	encodeTerminalRowWindow({
+		attachmentId: renderSnapshot.attachmentId,
+		columns: renderSnapshot.columns,
+		detail: 'render',
+		frame: renderSnapshot,
+		generation: renderSnapshot.generation,
+		graphics: {
+			animationTick: 0n,
+			images: [],
+			kind: 'snapshot',
+			placements: [],
+			resourceRevision: 0n,
+		},
+		hostEpoch: renderSnapshot.hostEpoch,
+		revision: renderSnapshot.revision,
+		sequence: renderSnapshot.sequence,
+		startRow: renderSnapshot.scrollbackRows,
+		totalRows: renderSnapshot.scrollbackRows + BigInt(renderSnapshot.rows),
+	}),
+	'render terminal row window',
+);
 const envelopeBytes = encodeOrThrow(
 	encodeProtocolEnvelope({
 		...canonical.transportEnvelope,
@@ -1651,11 +1754,16 @@ const malformedBytes = new TextEncoder().encode(
 	`${JSON.stringify({ cases: malformedCorpus(frameBytes) }, null, '\t')}\n`,
 );
 const malformedRowWindowBytes = new TextEncoder().encode(
-	`${JSON.stringify({ cases: malformedRowWindowCorpus(rowWindowBytes) }, null, '\t')}\n`,
+	`${JSON.stringify({ cases: malformedRowWindowCorpus(rowWindowBytes, renderRowWindowBytes) }, null, '\t')}\n`,
 );
 const packedProjectionConformanceBytes = new TextEncoder().encode(
 	stringifyPackedProjectionConformance(
-		packedProjectionConformanceCorpus(projectionBytes, rowWindowBytes, canonical.frame),
+		packedProjectionConformanceCorpus(
+			projectionBytes,
+			rowWindowBytes,
+			renderRowWindowBytes,
+			canonical.frame,
+		),
 	),
 );
 

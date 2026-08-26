@@ -26,7 +26,7 @@ const ReplyCapture = struct {
 
     fn writePty(
         terminal_handler: *ghostty_vt.TerminalStream.Handler,
-        bytes: [:0]const u8,
+        bytes: []const u8,
     ) void {
         const host_handler: *terminal_stream.Handler = @fieldParentPtr(
             "terminal_handler",
@@ -40,15 +40,15 @@ const ReplyCapture = struct {
     }
 };
 
-test "Host terminal stream restores scoped DECRQSS replies across parser chunks" {
-    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+test "Host terminal stream delegates bounded DCS replies and recovers overlapping hooks" {
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = 80,
         .rows = 24,
     });
     defer terminal.deinit(std.testing.allocator);
 
     var capture: ReplyCapture = .{
-        .stream = .init(.init(&terminal)),
+        .stream = .init(.{ .handler = .init(&terminal) }),
     };
     defer capture.stream.deinit();
     capture.stream.handler.terminal_handler.effects.write_pty = ReplyCapture.writePty;
@@ -86,9 +86,10 @@ test "Host terminal stream restores scoped DECRQSS replies across parser chunks"
     capture.stream.handler.vt(.dcs_hook, .{ .intermediates = "$", .final = 'q' });
     capture.stream.handler.vt(.dcs_put, 'm');
     capture.stream.handler.vt(.dcs_hook, .{ .intermediates = "+", .final = 'q' });
+    for ("544e") |byte| capture.stream.handler.vt(.dcs_put, byte);
     capture.stream.handler.vt(.dcs_unhook, {});
     try std.testing.expectEqualStrings(
-        "\x1bP0+r\x1b\\",
+        "\x1bP1+r544E=787465726D2D323536636F6C6F72\x1b\\",
         capture.bytes[before_superseded..capture.length],
     );
 

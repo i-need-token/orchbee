@@ -4,7 +4,7 @@ const identifiers = @import("terminal-host-model").identifiers;
 const protocol = @import("terminal-protocol");
 
 const max_records = 256;
-const max_bytes = 16 * 1024 * 1024;
+const max_bytes = protocol.Limits.transport_record_bytes;
 
 pub const owned_payload_prefix_bytes = protocol.transport_envelope_header_bytes;
 
@@ -239,9 +239,7 @@ pub const Outgoing = struct {
         maximum_payload_length: usize,
         delivery: Delivery,
     ) !ReserveOutcome {
-        if (maximum_payload_length > protocol.Limits.frame_bytes or
-            maximum_payload_length > max_bytes - protocol.transport_envelope_header_bytes)
-        {
+        if (maximum_payload_length > max_bytes - protocol.transport_envelope_header_bytes) {
             return error.OutgoingRecordTooLarge;
         }
         if (!self.hasCapacityForPayload(maximum_payload_length)) return .full;
@@ -475,5 +473,16 @@ pub const testing = if (@import("builtin").is_test) struct {
 
     pub fn reservedRecordCount(outgoing: *const Outgoing) usize {
         return outgoing.reserved_records;
+    }
+
+    pub fn forceNextCapacityGrowth(outgoing: *Outgoing) !void {
+        try outgoing.record_storage.shrinkAndFreePrecise(
+            outgoing.allocator,
+            outgoing.record_storage.items.len,
+        );
+        try outgoing.record_views.shrinkAndFreePrecise(
+            outgoing.allocator,
+            outgoing.record_views.items.len,
+        );
     }
 } else struct {};

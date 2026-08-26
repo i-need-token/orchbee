@@ -3,8 +3,8 @@
 ## Scope
 
 Audit the projected client renderer against the pinned Ghostty renderer, font, and shaper sources.
-The audit covers pixel geometry, glyph constraints, shaping boundaries, cursor presentation, and
-other browser-renderer behavior that has a direct analogue.
+The audit covers pixel geometry, glyph constraints, shaping boundaries, cursor presentation,
+projected Kitty image composition, and other browser-renderer behavior that has a direct analogue.
 
 It explicitly excludes VT parsing, PTY bytes, terminal modes, history and selection authority,
 semantic input encoding, search ownership, windows, tabs, splits, updates, and other application
@@ -13,8 +13,8 @@ UI. Those exclusions are architectural boundaries: Ghostty VT authority lives on
 
 | Baseline       | Value                                      |
 | -------------- | ------------------------------------------ |
-| Verified       | 2026-08-13                                 |
-| Ghostty commit | `91f66da24527fa02d92b5fd0b41cd020f553a64c` |
+| Verified       | 2026-08-25                                 |
+| Ghostty commit | `9c3ec931d64561a8407dde7ac984ce156ae91539` |
 
 `pnpm audit:ghostty-panel` reports the authoritative declaration and disposition counts for the
 checked Ghostty source. The audit accepts `test {}`, `test name {}`, and `test "name" {}` and
@@ -34,16 +34,17 @@ Declaration counts are provenance metrics, not user-visible feature percentages.
 
 ## Orchbee evidence
 
-| Code       | Evidence                                                                                                                                  |
-| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `E-RENDER` | `src/rendering/__tests__/renderer.unit.test.ts` and projected-terminal integration tests                                                  |
-| `E-FIT`    | `src/__tests__/surface-size.unit.test.ts`                                                                                                 |
-| `E-SHAPE`  | `src/__tests__/buildTextShapingPlan.unit.test.ts` and projected renderer tests                                                            |
-| `E-LINK`   | `src/__tests__/terminal-row-links.unit.test.ts`, projected-terminal tests, and projected renderer tests                                   |
-| `E-IME`    | `src/input/__tests__/preedit.unit.test.ts` and projected-terminal tests                                                                   |
-| `E-SELECT` | `src/projected/__tests__/projected-terminal.unit.test.ts` and projected renderer tests                                                    |
-| `E-FONT`   | font metrics, glyph constraints, complete Ghostty sprite routing, generated raster/constraint data, shaping, and projected renderer tests |
-| `E-ENV`    | exact headed `terminal-parity/CF-03-visual-environment` system witness and each named visual witness's asserted controls and limits       |
+| Code         | Evidence                                                                                                                                  |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `E-RENDER`   | `src/rendering/__tests__/renderer.unit.test.ts` and projected-terminal integration tests                                                  |
+| `E-FIT`      | `src/__tests__/surface-size.unit.test.ts`                                                                                                 |
+| `E-SHAPE`    | `src/__tests__/buildTextShapingPlan.unit.test.ts` and projected renderer tests                                                            |
+| `E-LINK`     | `src/__tests__/terminal-row-links.unit.test.ts`, projected-terminal tests, and projected renderer tests                                   |
+| `E-IME`      | `src/input/__tests__/preedit.unit.test.ts` and projected-terminal tests                                                                   |
+| `E-SELECT`   | `src/projected/__tests__/projected-terminal.unit.test.ts` and projected renderer tests                                                    |
+| `E-FONT`     | font metrics, glyph constraints, complete Ghostty sprite routing, generated raster/constraint data, shaping, and projected renderer tests |
+| `E-GRAPHICS` | strict OBKG/OBRW stores, `src/rendering/__tests__/renderer.unit.test.ts`, and Terminal Host projection/animation differential tests       |
+| `E-ENV`      | exact headed `terminal-parity/CF-03-visual-environment` system witness and each named visual witness's asserted controls and limits       |
 
 Each declaration below has exactly one disposition. `<unnamed@line>` identifies an unnamed
 upstream test at the pinned commit.
@@ -118,10 +119,31 @@ WebGPU atlas also keeps device-aligned textured quads while rasterizing the hori
 remainder; `keeps WebGPU run baselines on the cell anchor across cursor splits` covers a cursor
 split whose new first glyph has a different signed ink bearing.
 
+## Projected Kitty graphics
+
+Pinned Ghostty remains the state owner for decoded images, frame selection, virtual and relative
+placements, source intersection, and z ordering. Terminal Host resolves that state into bounded
+OBKG `0.0.2` owned pixels and absolute placements. No path, file descriptor, shared-memory name or
+mapping, compressed stream, encoded container, or unresolved pin reaches this package.
+
+The packed store commits image resources, placements, resource revision, and monotonic animation
+tick atomically. Canvas2D and WebGPU cache one converted resource per image generation, use the
+intersected source rectangle and destination geometry, and paint at three matching seams:
+`z < -1073741824` below cell backgrounds, `-1073741824 <= z < 0` between backgrounds and text, and
+`z >= 0` above text. Replacement and failure paths cannot retain an obsolete Canvas or GPU
+resource. Render-detail OBRW `0.0.3` carries an independent complete graphics snapshot rebased to
+the selected history window; text detail carries none.
+
+The upstream `src/renderer/image.zig` declarations map to the Host projection and client renderer
+together: source intersection and relative/virtual placement are resolved before the wire;
+pending/replaced images are covered by atomic store replacement and resource cleanup; current
+animation frames are covered by Host generation/tick evidence plus generation-keyed renderer
+caches. The package renderer never becomes a second Kitty parser or animation state machine.
+
 ## Host-derived projection corpus
 
 `@orchbee/terminal-protocol/fixtures/ghostty-surface-v0.0.3.bin`,
-`ghostty-alternate-surface-v0.0.3.bin`, and `ghostty-render-row-window-v0.0.2.bin` form one
+`ghostty-alternate-surface-v0.0.3.bin`, and `ghostty-render-row-window-v0.0.3.bin` form one
 Host-owned native surface evidence set. `apps/terminal-host` generates the OBTF pair from one pinned
 native Ghostty VT and one Host Projection: it feeds the primary stream, captures its snapshot,
 enters the alternate screen on the same terminal, and captures the second snapshot. A separate
@@ -333,11 +355,13 @@ property; `PR-03` is complete only when both backends exercise a real wide-head/
 ## Renderer manifest
 
 - `src/renderer/State.zig` — Covered (`E-RENDER`): `preedit range covers exact cell width`; `preedit range shifts left at right edge`.
-- `src/renderer/cell.zig` — Covered (`E-RENDER`): `Contents`; `Contents clear retains other content`; `Contents clear last added content`; `Contents with zero-sized screen`.
+- `src/renderer/cell.zig` — Covered (`E-RENDER`): `Contents`; `Contents resize grows and shrinks`; `Contents clear retains other content`; `Contents clear last added content`; `Contents with zero-sized screen`.
 - `src/renderer/cell.zig` — Covered (`E-FONT`): `Cell constraint widths`.
 - `src/renderer/cursor.zig` — Covered (`E-RENDER`): `cursor: default uses configured style`; `cursor: blinking disabled`; `cursor: explicitly not visible`; `cursor: always block with preedit`.
 - `src/renderer/link.zig` — Covered (`E-LINK`): `renderCellMap`; `renderCellMap hover links`; `renderCellMap mods no match`.
-- `src/renderer/metal/shaders.zig` — Browser product: `<unnamed@283>`; WebGPU shader compilation replaces Metal shader compilation.
+- `src/renderer/link.zig` — Browser product: `renderCellMap inactive links don't allocate`; browser-owned link indexing and garbage collection replace the native allocation assertion.
+- `src/renderer/image.zig` — Covered (`E-GRAPHICS`): `kitty renderer ignores pending payloads and removes replaced placements`; `kitty renderer uses the intersected source rectangle`; `kitty renderer positions relative placements from the parent pin`; `kitty renderer relative placement with negative offsets`; `kitty renderer positions relative placements from virtual parent placeholders`; `kitty renderer uploads the current animation frame`; Host resolves canonical relationships and the packed store plus both renderer backends preserve their bounded presentation.
+- `src/renderer/metal/shaders.zig` — Browser product: `<unnamed@278>`; WebGPU shader compilation replaces Metal shader compilation.
 - `src/renderer/shadertoy.zig` — Gap: `spirv`; `spirv invalid`; `shadertoy to msl`; `shadertoy to glsl`.
 - `src/renderer/size.zig` — Covered (`E-FIT`): `Size.balancePadding equal distributes whitespace equally`; `Size.balancePadding true shifts excess top to bottom`; `Padding balanced on zero`.
 - `src/renderer/size.zig` — Covered (`E-FIT`, `E-SELECT`): `GridSize update exact`; `GridSize update rounding`; `coordinate conversion`.
@@ -350,7 +374,7 @@ property; `PR-03` is complete only when both backends exercise a real wide-head/
 - `src/font/CodepointMap.zig` — Browser product: `codepointmap`.
 - `src/font/CodepointResolver.zig` — Browser product: `getIndex`; `getIndex disabled font style`.
 - `src/font/CodepointResolver.zig` — Covered (`E-FONT`): `getIndex box glyph`; Orchbee routes every Unicode codepoint range declared by the pinned Ghostty sprite face before browser font fallback.
-- `src/font/Collection.zig` — Upstream internal: `<unnamed@929>`.
+- `src/font/Collection.zig` — Upstream internal: `<unnamed@930>`.
 - `src/font/Collection.zig` — Browser product: `init`; `add full`; `add deferred without loading options`; `getFace`; `getIndex`; `completeStyles`; `hasCodepoint`; `hasCodepoint emoji default graphical`; `face metrics`.
 - `src/font/Collection.zig` — Covered (`E-FONT`): `setSize`; `metrics`.
 - `src/font/Collection.zig` — Covered (`E-FONT`): `adjusted sizes`.
@@ -365,9 +389,9 @@ property; `PR-03` is complete only when both backends exercise a real wide-head/
 - `src/font/discovery.zig` — Browser product: `descriptor hash`; `descriptor hash family names`; `fontconfig`; `fontconfig codepoint`; `coretext`; `coretext codepoint`; `coretext sorting`; `windows`.
 - `src/font/face.zig` — Upstream internal: `<unnamed@96>`.
 - `src/font/face.zig` — Browser product: `Variation.Id: wght should be 2003265652`; `Variation.Id: slnt should be 1936486004`; numeric regular/bold weights and italic style use CSS font selection, so the browser owns variable-font axis identifiers. Arbitrary axes remain outside the complete eight-field presentation transaction.
-- `src/font/face/coretext.zig` — Browser product: `<unnamed@970>`; `name`; `emoji`; `in-memory`; `variable`; `variable set variation`; `svg font table`; `glyphIndex colored vs text`.
-- `src/font/face/freetype.zig` — Browser product: `face name`; `<unnamed@1111>`; `color emoji`; `mono to bgra`; `svg font table`; `bitmap glyph`; `bitmap glyph BDF`; `bitmap glyph PCF`; `bitmap glyph OTB`.
-- `src/font/glyf_rasterize.zig` — Browser product: `<unnamed@457>`; `glyf_rasterize: empty outline returns empty bitmap`; `glyf_rasterize: square fills bitmap center`; `glyf_rasterize: quadratic contour renders`; `glyf_rasterize: consecutive off-curve points render`; `glyf_rasterize: units per em controls baseline scale`; `glyf_rasterize: degenerate outline returns full empty bitmap`; `glyf_rasterize: contour can start off curve with final on curve point`; `glyf_rasterize: contour can start with implied midpoint`; `glyf_rasterize: multiple contours render independently`; browser font rasterization replaces Ghostty's native outline rasterizer.
+- `src/font/face/coretext.zig` — Browser product: `<unnamed@971>`; `name`; `emoji`; `in-memory`; `variable`; `variable set variation`; `svg font table`; `glyphIndex colored vs text`.
+- `src/font/face/freetype.zig` — Browser product: `face name`; `<unnamed@1112>`; `color emoji`; `mono to bgra`; `svg font table`; `bitmap glyph`; `bitmap glyph BDF`; `bitmap glyph PCF`; `bitmap glyph OTB`.
+- `src/font/glyf_rasterize.zig` — Browser product: `<unnamed@459>`; `glyf_rasterize: empty outline returns empty bitmap`; `glyf_rasterize: square fills bitmap center`; `glyf_rasterize: quadratic contour renders`; `glyf_rasterize: consecutive off-curve points render`; `glyf_rasterize: units per em controls baseline scale`; `glyf_rasterize: degenerate outline returns full empty bitmap`; `glyf_rasterize: contour can start off curve with final on curve point`; `glyf_rasterize: contour can start with implied midpoint`; `glyf_rasterize: multiple contours render independently`; browser font rasterization replaces Ghostty's native outline rasterizer.
 - `src/font/glyf_rasterize.zig` — Covered (`E-FONT`): `glyf_rasterize: non-zero bearings preserve declared whitespace`; `glyf_rasterize: negative y coordinates descend below baseline`; `glyf_rasterize: two-cell bitmap and constraint render within width`; `glyf_rasterize: line height does not change unconstrained em scale`; signed Canvas ink bounds, terminal baselines, and Ghostty-derived width constraints preserve the corresponding projected geometry.
 - `src/font/glyf_rasterize_png_test.zig` — Gap: `glyf_rasterize: bubbletea glyph protocol examples match reference image`; Ghostty glyph graphics are not represented by the Host projection format and remain unsupported by the client renderer.
 - `src/font/main.zig` — Upstream internal: `<unnamed@75>`.
@@ -378,7 +402,7 @@ property; `PR-03` is complete only when both backends exercise a real wide-head/
 - `src/font/opentype/os2.zig` — Browser product: `OS/2`.
 - `src/font/opentype/post.zig` — Browser product: `post`.
 - `src/font/opentype/sfnt.zig` — Browser product: `FixedPoint`; `parse font`; `get table`.
-- `src/font/opentype/svg.zig` — Browser product: `SVG`.
+- `src/font/opentype/svg.zig` — Browser product: `SVG`; `SVG document list offset past end`; browser font loading and validation replace Ghostty's native SVG-table parser.
 - `src/font/shape.zig` — Upstream internal: `<unnamed@96>`.
 - `src/font/shaper/Cache.zig` — Covered (`E-FONT`): `Cache`.
 - `src/font/shaper/coretext.zig` — Covered (`E-SHAPE`, `E-FONT`): `shape inconsolata ligs`; `shape monaspace ligs`; `shape emoji width`; `shape emoji width long`; `shape Combining characters`; `shape selection boundary`; `shape cursor boundary`; `shape cursor boundary and colored emoji`; `shape cell attribute change`; `shape nerd fonts`.
@@ -390,13 +414,14 @@ property; `PR-03` is complete only when both backends exercise a real wide-head/
 - `src/font/shaper/harfbuzz.zig` — Covered (`E-SHAPE`): `shape inconsolata ligs`; `shape monaspace ligs`; `shape emoji width`; `shape emoji width long`; `shape Combining characters`; `shape selection boundary`; `shape cursor boundary`; `shape cursor boundary and colored emoji`; `shape cell attribute change`.
 - `src/font/shaper/harfbuzz.zig` — Browser product: `shape`; `shape variation selector VS15`; `shape variation selector VS16`.
 - `src/font/shaper/harfbuzz.zig` — Covered (`E-SHAPE`): `run iterator`; `run iterator: empty cells with background set`; `shape arabic forced LTR`; `shape with empty cells in between`; complete row-bounded style runs are explicitly rasterized left-to-right.
+- `src/font/shaper/harfbuzz.zig` — Covered (`E-SHAPE`, `E-FONT`): `shaper selects font for entire grapheme`; each Host-projected grapheme remains one shaping unit across browser font fallback.
 - `src/font/shaper/harfbuzz.zig` — Browser product: `shape Devanagari string`; `shape Tai Tham vowels (position differs from advance)`; `shape Tibetan characters`; `shape Tai Tham letters (run_offset.y differs from zero)`; `shape Javanese ligatures`; `shape Chakma vowel sign with ligature (vowel sign renders first)`; `shape Bengali ligatures with out of order vowels`; Canvas replaces HarfBuzz glyph placement inside the bounded run.
 - `src/font/shaper/harfbuzz.zig` — Covered (`E-FONT`): `shape box glyphs`; the complete pinned Unicode sprite-face resolver bypasses browser font fallback.
 - `src/font/shaper/noop.zig` — Upstream internal: `<unnamed@141>`.
 - `src/font/sprite.zig` — Upstream internal: `<unnamed@37>`; `<unnamed@43>`.
 - `src/font/sprite/Face.zig` — Covered (`E-FONT`): `sprite face render all sprites`; deterministic generated data carries every declared Unicode sprite and all four complete padded odd/even cell-size and thickness reference rasters, while selected box, block, triangle, and Powerline shapes retain their procedural renderer between reference geometries.
 - `src/font/sprite/Face.zig` — Covered (`E-RENDER`): `full height cursor sprites respect cursor height metric`; cursor geometry is renderer-owned and consumes the adjusted cursor-height metric rather than Unicode sprite data.
-- `src/font/sprite/Face.zig` — Upstream internal: `<unnamed@664>`; compile-time declaration traversal has no browser analogue.
+- `src/font/sprite/Face.zig` — Upstream internal: `<unnamed@666>`; compile-time declaration traversal has no browser analogue.
 
 ## Maintained limits
 
@@ -411,8 +436,9 @@ property; `PR-03` is complete only when both backends exercise a real wide-head/
   geometries select the nearest reference and resample it, while selected procedural shapes
   continue to scale directly.
 
-Kitty graphics, VT behavior, and terminal query responses are outside this renderer audit. Their
-absence here is not evidence about Terminal Host behavior.
+Kitty protocol parsing, VT behavior, and terminal query responses are outside this renderer audit;
+the bounded Host-to-client graphics projection and composition described above are inside it. An
+unmapped native behavior is not evidence about Terminal Host behavior.
 
 ## Upgrade verification
 

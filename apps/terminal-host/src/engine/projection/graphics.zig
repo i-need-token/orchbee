@@ -2,66 +2,32 @@ const std = @import("std");
 
 const ghostty_vt = @import("ghostty-vt");
 const protocol = @import("terminal-protocol");
+const capture = @import("graphics_capture.zig");
 
-const graphics_header_bytes = 32;
+const graphics_header_bytes = 40;
 const image_record_bytes = 32;
 const placement_record_bytes = 56;
 const placement_flag_internal_id: u32 = 1;
 
-const ScreenIdentity = struct {
-    generation: usize,
-    key: ghostty_vt.ScreenSet.Key,
-};
+const ScreenIdentity = capture.ScreenIdentity;
+const ImageReference = capture.ImageReference;
+const PendingRelative = capture.PendingRelative;
+const VirtualOrigin = capture.VirtualOrigin;
+const appendBoundedPlacement = capture.appendBoundedPlacement;
+const captureCanonicalPlacement = capture.captureCanonicalPlacement;
+const containsImageReference = capture.containsImageReference;
+const imageReference = capture.imageReference;
+const sameImages = capture.sameImages;
+const sameScreen = capture.sameScreen;
+const validatePlacementGeometry = capture.validatePlacementGeometry;
 
-pub const ImageFormat = enum(u8) {
-    gray = 1,
-    gray_alpha = 2,
-    rgb = 3,
-    rgba = 4,
-};
-
-pub const Image = struct {
-    data: []u8,
-    format: ImageFormat,
-    generation: u64,
-    height: u32,
-    id: u32,
-    width: u32,
-
-    fn deinit(self: *Image, allocator: std.mem.Allocator) void {
-        allocator.free(self.data);
-        self.* = undefined;
-    }
-};
-
-pub const Placement = struct {
-    column: i32,
-    destination_height: u32,
-    destination_width: u32,
-    image_id: u32,
-    internal_id: bool,
-    offset_x: u32,
-    offset_y: u32,
-    placement_id: u32,
-    row: i32,
-    source_height: u32,
-    source_width: u32,
-    source_x: u32,
-    source_y: u32,
-    z: i32,
-};
-
-const ImageReference = struct {
-    data: []const u8,
-    format: ImageFormat,
-    generation: u64,
-    height: u32,
-    id: u32,
-    width: u32,
-};
+pub const ImageFormat = capture.ImageFormat;
+pub const Image = capture.Image;
+pub const Placement = capture.Placement;
 
 pub const State = struct {
     allocator: std.mem.Allocator,
+    animation_tick: u64 = 0,
     images: std.ArrayList(Image) = .empty,
     placements: std.ArrayList(Placement) = .empty,
     resource_revision: u64 = 0,
@@ -82,6 +48,7 @@ pub const State = struct {
         self.placements.deinit(self.allocator);
         self.images = .empty;
         self.placements = .empty;
+        self.animation_tick = 0;
         self.resource_revision = 0;
         self.screen_identity = null;
     }
@@ -93,6 +60,53 @@ pub const State = struct {
         cell_pixel_width: u16,
         cell_pixel_height: u16,
     ) !void {
+        const pages = &terminal.screens.active.pages;
+        const top = pages.getTopLeft(.viewport);
+        const bottom = pages.getBottomRight(.viewport) orelse return error.ProjectionTooLarge;
+        try self.captureRange(
+            terminal,
+            revision,
+            cell_pixel_width,
+            cell_pixel_height,
+            top,
+            bottom,
+        );
+    }
+
+    /// Captures graphics intersecting an arbitrary retained row interval. The
+    /// first selected row becomes row zero in the encoded history projection.
+    pub fn captureRows(
+        self: *State,
+        terminal: *ghostty_vt.Terminal,
+        revision: u64,
+        animation_tick: u64,
+        cell_pixel_width: u16,
+        cell_pixel_height: u16,
+        pins: []const ghostty_vt.Pin,
+    ) !void {
+        if (pins.len == 0) return error.ProjectionTooLarge;
+        self.animation_tick = animation_tick;
+        var bottom = pins[pins.len - 1];
+        bottom.x = terminal.cols - 1;
+        try self.captureRange(
+            terminal,
+            revision,
+            cell_pixel_width,
+            cell_pixel_height,
+            pins[0],
+            bottom,
+        );
+    }
+
+    fn captureRange(
+        self: *State,
+        terminal: *ghostty_vt.Terminal,
+        revision: u64,
+        cell_pixel_width: u16,
+        cell_pixel_height: u16,
+        top: ghostty_vt.Pin,
+        bottom: ghostty_vt.Pin,
+    ) !void {
         const storage = &terminal.screens.active.kitty_images;
         const screen_identity: ScreenIdentity = .{
             .generation = terminal.screens.generation(terminal.screens.active_key),
@@ -102,28 +116,170 @@ pub const State = struct {
         errdefer placements.deinit(self.allocator);
         var references: std.ArrayList(ImageReference) = .empty;
         defer references.deinit(self.allocator);
+        var pending_relative: std.ArrayList(PendingRelative) = .empty;
+        defer pending_relative.deinit(self.allocator);
+        var virtual_origins: std.AutoHashMapUnmanaged(
+            ghostty_vt.kitty.graphics.ImageStorage.PlacementKey,
+            VirtualOrigin,
+        ) = .empty;
+        defer virtual_origins.deinit(self.allocator);
+
+        if (cell_pixel_width == 0 or cell_pixel_height == 0) {
+            return error.ProjectionTooLarge;
+        }
+        const pages = &terminal.screens.active.pages;
+        const top_screen = pages.pointFromPin(.screen, top) orelse
+            return error.ProjectionTooLarge;
+        const bottom_screen = pages.pointFromPin(.screen, bottom) orelse
+            return error.ProjectionTooLarge;
+        if (bottom_screen.screen.y < top_screen.screen.y) return error.ProjectionTooLarge;
+        const top_y = top_screen.screen.y;
+        const bottom_y = bottom_screen.screen.y;
+        const range_rows = @as(u64, bottom_y) - top_y + 1;
 
         var iterator = storage.placements.iterator();
         while (iterator.next()) |entry| {
-            if (placements.items.len >= protocol.Limits.terminal_graphics_placements) {
-                return error.ProjectionTooLarge;
-            }
             const image = storage.images.getPtr(entry.key_ptr.image_id) orelse continue;
-            const placement = capturePlacement(
+            const placement = entry.value_ptr;
+            const origin: struct {
+                pin: *const ghostty_vt.Pin,
+                horizontal_offset: i32 = 0,
+                vertical_offset: i32 = 0,
+            } = switch (placement.location) {
+                .pin => |pin| .{ .pin = pin },
+                .virtual => continue,
+                .relative => |relative| relative_origin: {
+                    const chain = storage.resolveChain(relative) orelse continue;
+                    switch (chain.root.location) {
+                        .pin => |pin| break :relative_origin .{
+                            .pin = pin,
+                            .horizontal_offset = chain.horizontal_offset,
+                            .vertical_offset = chain.vertical_offset,
+                        },
+                        .virtual => {
+                            try pending_relative.append(self.allocator, .{
+                                .horizontal_offset = chain.horizontal_offset,
+                                .image_id = entry.key_ptr.image_id,
+                                .key = entry.key_ptr.*,
+                                .placement = placement.*,
+                                .root_key = chain.root_key,
+                                .vertical_offset = chain.vertical_offset,
+                            });
+                            continue;
+                        },
+                        .relative => unreachable,
+                    }
+                },
+            };
+            if (origin.pin.garbage or image.data.isPending()) continue;
+            const origin_screen = pages.pointFromPin(.screen, origin.pin.*) orelse continue;
+            const row = @as(i64, origin_screen.screen.y) - top_y + origin.vertical_offset;
+            const column = @as(i64, origin.pin.x) + origin.horizontal_offset;
+            if (try captureCanonicalPlacement(
                 terminal,
                 image,
-                entry.key_ptr,
-                entry.value_ptr,
+                entry.key_ptr.*,
+                placement,
+                column,
+                row,
+                range_rows,
+            )) |captured| {
+                try appendBoundedPlacement(self.allocator, &placements, captured);
+            }
+        }
+
+        var virtual_iterator = ghostty_vt.kitty.graphics.unicode.placementIterator(top, bottom);
+        while (virtual_iterator.next()) |virtual| {
+            const target = storage.placeholderTarget(
+                virtual.image_id,
+                virtual.placement_id,
+            ) orelse continue;
+            const image = storage.images.getPtr(virtual.image_id) orelse continue;
+            if (image.data.isPending()) continue;
+            const rendered = virtual.renderPlacement(
+                storage,
+                image,
                 cell_pixel_width,
                 cell_pixel_height,
-            ) orelse continue;
-            try placements.append(self.allocator, placement);
-            if (!containsImageReference(references.items, image.id)) {
-                if (references.items.len >= protocol.Limits.terminal_graphics_images) {
-                    return error.ProjectionTooLarge;
-                }
-                try references.append(self.allocator, try imageReference(image));
+            ) catch continue;
+            if (rendered.dest_width == 0 or rendered.dest_height == 0 or
+                rendered.source_width == 0 or rendered.source_height == 0)
+            {
+                continue;
             }
+            const rendered_screen = pages.pointFromPin(.screen, rendered.top_left) orelse continue;
+            const row_u64 = @as(u64, rendered_screen.screen.y) - top_y;
+            const row = std.math.cast(i32, row_u64) orelse return error.ProjectionTooLarge;
+            const column = std.math.cast(i32, rendered.top_left.x) orelse
+                return error.ProjectionTooLarge;
+            try validatePlacementGeometry(
+                image,
+                rendered.source_x,
+                rendered.source_y,
+                rendered.source_width,
+                rendered.source_height,
+                rendered.dest_width,
+                rendered.dest_height,
+            );
+            try appendBoundedPlacement(self.allocator, &placements, .{
+                .column = column,
+                .destination_height = rendered.dest_height,
+                .destination_width = rendered.dest_width,
+                .image_id = image.id,
+                .internal_id = target.key.placement_id.tag == .internal,
+                .offset_x = rendered.offset_x,
+                .offset_y = rendered.offset_y,
+                .placement_id = target.key.placement_id.id,
+                .row = row,
+                .source_height = rendered.source_height,
+                .source_width = rendered.source_width,
+                .source_x = rendered.source_x,
+                .source_y = rendered.source_y,
+                .z = -1,
+            });
+
+            if (pending_relative.items.len > 0) {
+                const current = VirtualOrigin{
+                    .column = rendered_screen.screen.x,
+                    .row = @intCast(row_u64),
+                };
+                const origin = try virtual_origins.getOrPut(self.allocator, target.key);
+                if (!origin.found_existing) {
+                    origin.value_ptr.* = current;
+                } else {
+                    origin.value_ptr.column = @min(origin.value_ptr.column, current.column);
+                    origin.value_ptr.row = @min(origin.value_ptr.row, current.row);
+                }
+            }
+        }
+
+        for (pending_relative.items) |pending| {
+            const origin = virtual_origins.get(pending.root_key) orelse continue;
+            const image = storage.images.getPtr(pending.image_id) orelse continue;
+            if (image.data.isPending()) continue;
+            const column = @as(i64, origin.column) + pending.horizontal_offset;
+            const row = @as(i64, origin.row) + pending.vertical_offset;
+            if (try captureCanonicalPlacement(
+                terminal,
+                image,
+                pending.key,
+                &pending.placement,
+                column,
+                row,
+                range_rows,
+            )) |captured| {
+                try appendBoundedPlacement(self.allocator, &placements, captured);
+            }
+        }
+
+        for (placements.items) |placement| {
+            if (containsImageReference(references.items, placement.image_id)) continue;
+            if (references.items.len >= protocol.Limits.terminal_graphics_images) {
+                return error.ProjectionTooLarge;
+            }
+            const image = storage.images.getPtr(placement.image_id) orelse
+                return error.ProjectionTooLarge;
+            try references.append(self.allocator, try imageReference(image));
         }
 
         std.mem.sort(Placement, placements.items, {}, struct {
@@ -223,6 +379,7 @@ pub const State = struct {
         try writer.appendInt(u8, if (snapshot) 1 else 2);
         try writer.appendInt(u32, @intCast(length));
         try writer.appendInt(u64, self.resource_revision);
+        try writer.appendInt(u64, self.animation_tick);
         try writer.appendInt(u16, if (snapshot) @intCast(self.images.items.len) else 0);
         try writer.appendInt(u16, @intCast(self.placements.items.len));
         try writer.appendInt(u32, @intCast(image_bytes));
@@ -258,173 +415,3 @@ pub const State = struct {
         }
     }
 };
-
-fn sameScreen(current: ?ScreenIdentity, captured: ScreenIdentity) bool {
-    const value = current orelse return false;
-    return value.key == captured.key and value.generation == captured.generation;
-}
-
-fn imageReference(image: *const ghostty_vt.kitty.graphics.Image) !ImageReference {
-    if (image.id == 0 or image.generation == 0 or image.width == 0 or image.height == 0) {
-        return error.ProjectionTooLarge;
-    }
-    const format: ImageFormat = switch (image.format) {
-        .gray => .gray,
-        .gray_alpha => .gray_alpha,
-        .rgb => .rgb,
-        .rgba => .rgba,
-        .png => return error.ProjectionTooLarge,
-    };
-    if (image.compression != .none) return error.ProjectionTooLarge;
-    const bytes_per_pixel: usize = switch (format) {
-        .gray => 1,
-        .gray_alpha => 2,
-        .rgb => 3,
-        .rgba => 4,
-    };
-    const pixels = std.math.mul(usize, image.width, image.height) catch
-        return error.ProjectionTooLarge;
-    const expected = std.math.mul(usize, pixels, bytes_per_pixel) catch
-        return error.ProjectionTooLarge;
-    if (expected != image.data.len or image.width > protocol.Limits.terminal_graphics_dimension or
-        image.height > protocol.Limits.terminal_graphics_dimension)
-    {
-        return error.ProjectionTooLarge;
-    }
-    return .{
-        .data = image.data,
-        .format = format,
-        .generation = image.generation,
-        .height = image.height,
-        .id = image.id,
-        .width = image.width,
-    };
-}
-
-fn containsImageReference(references: []const ImageReference, image_id: u32) bool {
-    for (references) |reference| if (reference.id == image_id) return true;
-    return false;
-}
-
-fn sameImages(images: []const Image, references: []const ImageReference) bool {
-    if (images.len != references.len) return false;
-    for (images, references) |image, reference| {
-        if (image.id != reference.id or image.generation != reference.generation or
-            image.width != reference.width or image.height != reference.height or
-            image.format != reference.format)
-        {
-            return false;
-        }
-    }
-    return true;
-}
-
-fn capturePlacement(
-    terminal: *ghostty_vt.Terminal,
-    image: *const ghostty_vt.kitty.graphics.Image,
-    key: *const ghostty_vt.kitty.graphics.ImageStorage.PlacementKey,
-    placement: *const ghostty_vt.kitty.graphics.ImageStorage.Placement,
-    cell_pixel_width: u16,
-    cell_pixel_height: u16,
-) ?Placement {
-    if (placement.z < 0 or cell_pixel_width == 0 or cell_pixel_height == 0) return null;
-    const pin = switch (placement.location) {
-        .pin => |value| value,
-        .virtual => return null,
-    };
-    const pages = &terminal.screens.active.pages;
-    const pin_screen = pages.pointFromPin(.screen, pin.*) orelse return null;
-    const viewport_top = pages.pointFromPin(.screen, pages.getTopLeft(.viewport)) orelse return null;
-    const row_i64 = @as(i64, @intCast(pin_screen.screen.y)) -
-        @as(i64, @intCast(viewport_top.screen.y));
-    const column_i64: i64 = @intCast(pin_screen.screen.x);
-    const row = std.math.cast(i32, row_i64) orelse return null;
-    const column = std.math.cast(i32, column_i64) orelse return null;
-
-    const source_x = @min(placement.source_x, image.width);
-    const source_y = @min(placement.source_y, image.height);
-    const available_width = image.width - source_x;
-    const available_height = image.height - source_y;
-    const source_width = @min(
-        if (placement.source_width > 0) placement.source_width else image.width,
-        available_width,
-    );
-    const source_height = @min(
-        if (placement.source_height > 0) placement.source_height else image.height,
-        available_height,
-    );
-    if (source_width == 0 or source_height == 0) return null;
-
-    const destination = destinationSize(
-        placement.columns,
-        placement.rows,
-        source_width,
-        source_height,
-        cell_pixel_width,
-        cell_pixel_height,
-    ) orelse return null;
-    const grid_width = divideCeil(
-        @as(u64, destination.width) + placement.x_offset,
-        cell_pixel_width,
-    ) orelse return null;
-    const grid_height = divideCeil(
-        @as(u64, destination.height) + placement.y_offset,
-        cell_pixel_height,
-    ) orelse return null;
-    const bottom = @as(i64, row) + (std.math.cast(i64, grid_height) orelse return null);
-    const right = @as(i64, column) + (std.math.cast(i64, grid_width) orelse return null);
-    if (bottom <= 0 or row >= terminal.rows or right <= 0 or column >= terminal.cols) return null;
-
-    return .{
-        .column = column,
-        .destination_height = destination.height,
-        .destination_width = destination.width,
-        .image_id = image.id,
-        .internal_id = key.placement_id.tag == .internal,
-        .offset_x = placement.x_offset,
-        .offset_y = placement.y_offset,
-        .placement_id = key.placement_id.id,
-        .row = row,
-        .source_height = source_height,
-        .source_width = source_width,
-        .source_x = source_x,
-        .source_y = source_y,
-        .z = placement.z,
-    };
-}
-
-fn destinationSize(
-    columns: u32,
-    rows: u32,
-    source_width: u32,
-    source_height: u32,
-    cell_pixel_width: u16,
-    cell_pixel_height: u16,
-) ?struct { width: u32, height: u32 } {
-    var width: u64 = source_width;
-    var height: u64 = source_height;
-    if (columns > 0 and rows > 0) {
-        width = std.math.mul(u64, columns, cell_pixel_width) catch return null;
-        height = std.math.mul(u64, rows, cell_pixel_height) catch return null;
-    } else if (columns > 0) {
-        width = std.math.mul(u64, columns, cell_pixel_width) catch return null;
-        const scaled = std.math.mul(u64, width, source_height) catch return null;
-        height = (scaled + source_width / 2) / source_width;
-    } else if (rows > 0) {
-        height = std.math.mul(u64, rows, cell_pixel_height) catch return null;
-        const scaled = std.math.mul(u64, height, source_width) catch return null;
-        width = (scaled + source_height / 2) / source_height;
-    }
-    if (width == 0 or height == 0 or
-        width > protocol.Limits.terminal_graphics_destination_pixels or
-        height > protocol.Limits.terminal_graphics_destination_pixels)
-    {
-        return null;
-    }
-    return .{ .width = @intCast(width), .height = @intCast(height) };
-}
-
-fn divideCeil(numerator: u64, denominator: u16) ?u64 {
-    if (denominator == 0) return null;
-    return std.math.divCeil(u64, numerator, denominator) catch null;
-}

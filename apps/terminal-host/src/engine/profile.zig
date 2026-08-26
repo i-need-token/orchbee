@@ -90,8 +90,10 @@ pub const Owned = struct {
     }
 
     pub fn applyCursorDefaults(self: *const Owned, terminal: *ghostty_vt.Terminal) void {
+        terminal.cursor.default_blink = self.default_cursor_blinking;
+        terminal.cursor.default_style = self.cursorStyle();
         terminal.modes.set(.cursor_blinking, self.default_cursor_blinking);
-        terminal.screens.active.cursor.cursor_style = self.cursorStyle();
+        terminal.setCursorStyle(.default);
     }
 
     pub fn themeDefaults(

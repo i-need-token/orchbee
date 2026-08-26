@@ -135,7 +135,9 @@ test "Outgoing returns full without discarding an appendable prefix" {
     @memset(maximum_frame, 0);
     const exact_remainder_payload = try std.testing.allocator.alloc(
         u8,
-        protocol.Limits.frame_bytes - 2 * protocol.transport_envelope_header_bytes,
+        protocol.Limits.transport_record_bytes -
+            protocol.Limits.frame_bytes -
+            2 * protocol.transport_envelope_header_bytes,
     );
     defer std.testing.allocator.free(exact_remainder_payload);
     @memset(exact_remainder_payload, 0);
@@ -150,7 +152,9 @@ test "Outgoing returns full without discarding an appendable prefix" {
         .{ .event = host_epoch },
     ));
     try std.testing.expectEqual(
-        protocol.Limits.frame_bytes - protocol.transport_envelope_header_bytes,
+        protocol.Limits.transport_record_bytes -
+            protocol.Limits.frame_bytes -
+            protocol.transport_envelope_header_bytes,
         subject.testing.byte_limit - subject.testing.byteCount(&outgoing),
     );
 
@@ -338,6 +342,7 @@ test "Outgoing adoption allocation failure preserves caller ownership and reserv
     const payload_storage = allocation[subject.owned_payload_prefix_bytes..];
     @memcpy(payload_storage, payload);
 
+    try subject.testing.forceNextCapacityGrowth(&outgoing);
     failing.fail_index = failing.alloc_index;
     failing.resize_fail_index = failing.resize_index;
     const adoption_result = outgoing.adoptPayload(

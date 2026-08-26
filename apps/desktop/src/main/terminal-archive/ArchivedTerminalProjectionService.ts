@@ -3,17 +3,20 @@ import {
 	CanonicalUint64TextSchema,
 	CellWidth,
 	encodeTerminalFrame,
+	encodeTerminalGraphics,
 	encodeTerminalRowWindow,
 	materializeTerminalProjectionFrame,
 	PROTOCOL_LIMITS,
 	TERMINAL_PROJECTION_BUFFER_HEADER_BYTES,
 	TERMINAL_ROW_WINDOW_HEADER_BYTES,
+	TerminalFrameExtensionKind,
 	TerminalRowWindowDetail,
 	type AttachmentId,
 	type DecodedTerminalProjectionBuffer,
 	type SelectionChanged,
 	type SelectionPoint,
 	type TerminalFrame,
+	type TerminalGraphics,
 	type TerminalTextRow,
 } from '@orchbee/terminal-protocol';
 import {
@@ -31,7 +34,11 @@ import type { MessagePortMain } from 'electron';
 import type { ProjectedTerminalBrokerMetrics } from '../broker';
 import type { DesktopTerminalProjectionLease } from '../terminal-projection-control';
 import type { FileTerminalArchiveStore } from './FileTerminalArchiveStore';
-import { terminalArchiveTextRows, type TerminalArchive } from './terminal-archive-document';
+import {
+	terminalArchiveGraphicsForRows,
+	terminalArchiveTextRows,
+	type TerminalArchive,
+} from './terminal-archive-document';
 
 // Exact widths of the projection buffer's 16 columnar sections. This accounts admission only;
 // encodeTerminalRowWindow remains the sole wire writer and the final size check fails closed.
@@ -164,7 +171,7 @@ class ArchivedTerminalBroker {
 		this.#onDispose = onDispose;
 		this.#port = port;
 		this.#selection = { attachmentId: this.#attachmentId, state: 'none' };
-		this.#sources = [...archive.rowWindows, archive.frame];
+		this.#sources = [...archive.rowWindows.map((window) => window.frame), archive.frame];
 		this.#writeClipboardText = writeClipboardText;
 		const initial = this.#materializeFrame(
 			this.#committedViewportStart,
@@ -304,7 +311,33 @@ class ArchivedTerminalBroker {
 			this.#sequence,
 		);
 		if (!encoded.ok) throw new Error(encoded.detail);
-		const frame = encodeTerminalFrame(encoded.value);
+		const graphics = terminalArchiveGraphicsForRows(
+			this.#archive,
+			this.#committedViewportStart,
+			this.#archive.frame.rows,
+		);
+		if (graphics === null) throw new Error('Archived terminal graphics cannot be materialized.');
+		let materializedFrame = encoded.value;
+		if (graphics.images.length > 0 || graphics.placements.length > 0) {
+			const graphicsBytes = encodeTerminalGraphics(graphics);
+			if (!graphicsBytes.ok) throw new Error(graphicsBytes.detail);
+			const extensionData = new Uint8Array(graphicsBytes.value.byteLength);
+			extensionData.set(graphicsBytes.value);
+			materializedFrame = {
+				...materializedFrame,
+				extensions: [
+					...materializedFrame.extensions.filter(
+						(extension) => extension.kind !== TerminalFrameExtensionKind.kittyGraphics,
+					),
+					{
+						data: extensionData,
+						kind: TerminalFrameExtensionKind.kittyGraphics,
+						required: false,
+					},
+				],
+			};
+		}
+		const frame = encodeTerminalFrame(materializedFrame);
 		if (!frame.ok) throw new Error(frame.detail);
 		this.#frameBytesForwarded += frame.value.byteLength;
 		this.#framesForwarded += 1;
@@ -335,11 +368,17 @@ class ArchivedTerminalBroker {
 						BigInt(command.payload.requestSequence),
 					)
 				: null;
+		const graphics =
+			materialized?.ok === true && command.payload.detail === TerminalRowWindowDetail.render
+				? terminalArchiveGraphicsForRows(this.#archive, resolved.startRow, maximumRows)
+				: null;
 		const encoded =
-			materialized?.ok === true
+			materialized?.ok === true &&
+			(command.payload.detail !== TerminalRowWindowDetail.render || graphics !== null)
 				? encodeLargestArchivedRowWindow(
 						command.payload.detail,
 						materialized.value,
+						graphics,
 						{
 							attachmentId: this.#attachmentId,
 							columns: this.#archive.frame.columns,
@@ -609,22 +648,43 @@ interface ArchivedRowWindowMetadata {
 function encodeLargestArchivedRowWindow(
 	detail: TerminalRowWindowDetail,
 	frame: TerminalFrame,
+	graphics: TerminalGraphics | null,
 	metadata: ArchivedRowWindowMetadata,
 	minimumRows: number,
 	maximumBytes: number,
 ): Uint8Array | null {
 	if (detail === TerminalRowWindowDetail.render) {
-		const rowCount = maximumEncodableRenderRows(frame, minimumRows, maximumBytes);
-		if (rowCount === null) return null;
-		const encoded = encodeTerminalRowWindow({
-			...metadata,
-			detail: TerminalRowWindowDetail.render,
-			frame:
+		if (graphics === null) return null;
+		const maximumRows = maximumEncodableRenderRows(frame, minimumRows, maximumBytes);
+		if (maximumRows === null) return null;
+		const encodeRows = (rowCount: number) => {
+			const candidateFrame =
 				rowCount === frame.rows
 					? frame
-					: { ...frame, rowData: frame.rowData.slice(0, rowCount), rows: rowCount },
-		});
-		return encoded.ok && encoded.value.byteLength <= maximumBytes ? encoded.value : null;
+					: { ...frame, rowData: frame.rowData.slice(0, rowCount), rows: rowCount };
+			return encodeTerminalRowWindow({
+				...metadata,
+				detail: TerminalRowWindowDetail.render,
+				frame: candidateFrame,
+				graphics: graphicsForLeadingRows(graphics, rowCount, frame.cellPixelHeight),
+			});
+		};
+		const full = encodeRows(maximumRows);
+		if (full.ok && full.value.byteLength <= maximumBytes) return full.value;
+		let lower = minimumRows;
+		let upper = maximumRows - 1;
+		let largest: Uint8Array | null = null;
+		while (lower <= upper) {
+			const rowCount = Math.floor((lower + upper) / 2);
+			const encoded = encodeRows(rowCount);
+			if (encoded.ok && encoded.value.byteLength <= maximumBytes) {
+				largest = encoded.value;
+				lower = rowCount + 1;
+			} else {
+				upper = rowCount - 1;
+			}
+		}
+		return largest;
 	}
 
 	const rows = terminalArchiveTextRows(frame, metadata.startRow);
@@ -636,6 +696,24 @@ function encodeLargestArchivedRowWindow(
 		rows: rows.slice(0, rowCount),
 	});
 	return encoded.ok && encoded.value.byteLength <= maximumBytes ? encoded.value : null;
+}
+
+function graphicsForLeadingRows(
+	graphics: TerminalGraphics,
+	rowCount: number,
+	cellPixelHeight: number,
+): TerminalGraphics {
+	const maximumY = rowCount * cellPixelHeight;
+	const placements = graphics.placements.filter((placement) => {
+		const top = placement.row * cellPixelHeight + placement.offsetY;
+		return top < maximumY && top + placement.destinationHeight > 0;
+	});
+	const imageIds = new Set(placements.map((placement) => placement.imageId));
+	return {
+		...graphics,
+		images: graphics.images.filter((image) => imageIds.has(image.id)),
+		placements,
+	};
 }
 
 function maximumEncodableRenderRows(

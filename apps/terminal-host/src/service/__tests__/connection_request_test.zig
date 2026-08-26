@@ -236,7 +236,7 @@ test "pre-handshake role failures do not publish the HostEpoch" {
 }
 test "terminal acknowledgement honors a schema-compatible success reassociation" {
     const windows_executable: ?[]u8 = if (target_builtin.os.tag == .windows)
-        try std.process.getEnvVarOwned(std.testing.allocator, "ComSpec")
+        try pty_process.environmentVariableOwned(std.testing.allocator, "ComSpec")
     else
         null;
     defer if (windows_executable) |value| std.testing.allocator.free(value);
@@ -304,7 +304,7 @@ test "terminal acknowledgement honors a schema-compatible success reassociation"
 }
 test "theme request returns a complete recoverable snapshot with replay and stale outcomes" {
     const windows_executable: ?[]u8 = if (target_builtin.os.tag == .windows)
-        try std.process.getEnvVarOwned(std.testing.allocator, "ComSpec")
+        try pty_process.environmentVariableOwned(std.testing.allocator, "ComSpec")
     else
         null;
     defer if (windows_executable) |value| std.testing.allocator.free(value);
@@ -546,7 +546,7 @@ test "SetTerminalDefaults token coercion is rejected before mutation" {
 test "IPC updates terminal defaults and retained terminal configuration" {
     const builtin = @import("builtin");
     const windows_executable: ?[]u8 = if (builtin.os.tag == .windows)
-        try std.process.getEnvVarOwned(std.testing.allocator, "ComSpec")
+        try pty_process.environmentVariableOwned(std.testing.allocator, "ComSpec")
     else
         null;
     defer if (windows_executable) |value| std.testing.allocator.free(value);

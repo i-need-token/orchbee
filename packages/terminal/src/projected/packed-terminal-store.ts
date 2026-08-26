@@ -93,6 +93,7 @@ export interface ProjectedTerminalMetadata {
 
 /** Decoded Kitty resources and visible placements retained independently from text rows. */
 export interface ProjectedTerminalGraphics {
+	readonly animationTick: bigint;
 	readonly images: ReadonlyMap<number, TerminalGraphicsImage>;
 	readonly placements: readonly TerminalGraphicsPlacement[];
 	readonly resourceRevision: bigint;
@@ -106,6 +107,7 @@ export interface ProjectedTerminalPresentationSnapshot extends PackedRendererSou
 }
 
 const EMPTY_TERMINAL_GRAPHICS: ProjectedTerminalGraphics = {
+	animationTick: 0n,
 	images: new Map(),
 	placements: [],
 	resourceRevision: 0n,
@@ -117,6 +119,7 @@ function graphicsFromSnapshot(graphics: TerminalGraphics | null): ProjectedTermi
 		throw new Error('Decoded terminal snapshot omitted its graphics resource snapshot');
 	}
 	return {
+		animationTick: graphics.animationTick,
 		images: new Map(graphics.images.map((image) => [image.id, image])),
 		placements: graphics.placements,
 		resourceRevision: graphics.resourceRevision,
@@ -130,7 +133,8 @@ function graphicsFromDelta(
 	if (graphics === null) return current;
 	if (
 		graphics.kind !== TerminalGraphicsUpdateKind.placements ||
-		graphics.resourceRevision !== current.resourceRevision
+		graphics.resourceRevision !== current.resourceRevision ||
+		graphics.animationTick < current.animationTick
 	) {
 		return null;
 	}
@@ -145,6 +149,7 @@ function graphicsFromDelta(
 		}
 	}
 	return {
+		animationTick: graphics.animationTick,
 		images: current.images,
 		placements: graphics.placements,
 		resourceRevision: current.resourceRevision,
@@ -812,6 +817,7 @@ export class PackedTerminalStore {
 	replaceProjectionBufferSnapshot(
 		frame: DecodedTerminalProjectionBuffer,
 		maximumBytes: number,
+		graphics: TerminalGraphics | null = null,
 	): ProjectedSnapshotReplaceResult {
 		if (this.#phase === ProjectedStorePhase.disposed) return { kind: 'disposed' };
 		if (
@@ -821,7 +827,12 @@ export class PackedTerminalStore {
 		) {
 			return { kind: 'invalid' };
 		}
-		if (frame.bytes.byteLength > maximumBytes) return { kind: 'too-large' };
+		if (graphics !== null && graphics.kind !== TerminalGraphicsUpdateKind.snapshot) {
+			return { kind: 'invalid' };
+		}
+		const stagedGraphics = graphicsFromSnapshot(graphics);
+		const byteLength = frame.bytes.byteLength + graphicsByteLength(stagedGraphics);
+		if (byteLength > maximumBytes) return { kind: 'too-large' };
 		const stagedRows = Array.from(frame.rowData.indices, (rowIndex, rowOffset) => {
 			const cellOffset = rowOffset * frame.columns;
 			const cellEnd = cellOffset + frame.columns;
@@ -844,7 +855,7 @@ export class PackedTerminalStore {
 			});
 		});
 		this.#grid = { directByteLength: frame.bytes.byteLength, rows: stagedRows };
-		this.#graphics = EMPTY_TERMINAL_GRAPHICS;
+		this.#graphics = stagedGraphics;
 		this.#metadata = metadataFromProjectionBuffer(frame);
 		this.#phase = ProjectedStorePhase.synchronized;
 		this.#fullRedraw = true;
@@ -858,7 +869,7 @@ export class PackedTerminalStore {
 		};
 		return {
 			acknowledgement: acknowledgement(frame),
-			byteLength: frame.bytes.byteLength,
+			byteLength,
 			kind: 'committed',
 		};
 	}
@@ -938,6 +949,7 @@ export class PackedTerminalStore {
 
 /** Bounded visible slice over one immutable packed history-window commit. */
 export class PackedTerminalViewport {
+	readonly #graphics: ProjectedTerminalGraphics;
 	readonly #metadata: ProjectedTerminalMetadata | null;
 	readonly #rows: readonly PackedTerminalRowView[];
 	readonly #store: PackedTerminalStore;
@@ -951,6 +963,13 @@ export class PackedTerminalViewport {
 		}
 		this.#store = store;
 		this.#rows = store.rows.slice(rowOffset, rowOffset + visibleRows);
+		this.#graphics = {
+			...store.graphics,
+			placements: store.graphics.placements.map((placement) => ({
+				...placement,
+				row: placement.row - rowOffset,
+			})),
+		};
 		const metadata = store.metadata;
 		this.#metadata =
 			metadata === null
@@ -975,7 +994,7 @@ export class PackedTerminalViewport {
 	}
 
 	get graphics(): ProjectedTerminalGraphics {
-		return EMPTY_TERMINAL_GRAPHICS;
+		return this.#graphics;
 	}
 
 	get rows(): readonly PackedTerminalRowView[] {
@@ -995,7 +1014,7 @@ export class PackedTerminalViewport {
 		if (metadata === null) return null;
 		return createPresentationSnapshot(
 			this.byteLength,
-			EMPTY_TERMINAL_GRAPHICS,
+			this.#graphics,
 			metadata,
 			this.#rows.map((row) => row.capturePresentationRow()),
 		);

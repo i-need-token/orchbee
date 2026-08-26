@@ -9,6 +9,7 @@ import {
 	SemanticContent,
 	TerminalColorKind,
 	TerminalFrameKind,
+	TerminalGraphicsUpdateKind,
 	TerminalRowWindowDetail,
 	UnderlineKind,
 } from '@orchbee/terminal-protocol';
@@ -19,6 +20,14 @@ import {
 	TerminalBufferRowDetail,
 	validateBufferRowsRequest,
 } from '../buffer-rows';
+
+const emptyGraphics = {
+	animationTick: 0n,
+	images: [],
+	kind: TerminalGraphicsUpdateKind.snapshot,
+	placements: [],
+	resourceRevision: 0n,
+} as const;
 
 describe('terminal buffer rows', () => {
 	it('converts compact identity-ASCII row windows without allocating explicit mappings', () => {
@@ -82,6 +91,7 @@ describe('terminal buffer rows', () => {
 			attachmentId: '22'.repeat(16),
 			columns: 2,
 			detail: TerminalRowWindowDetail.render,
+			graphics: emptyGraphics,
 			frame: {
 				activeScreen: ActiveScreen.primary,
 				attachmentId: '22'.repeat(16),

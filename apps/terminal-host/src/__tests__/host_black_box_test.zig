@@ -1,5 +1,8 @@
 const std = @import("std");
 const builtin = @import("builtin");
+const platform_boundary = @import("terminal-host-platform");
+const monotonic = platform_boundary.monotonic;
+const pty_process = platform_boundary.process;
 const protocol = @import("terminal-protocol");
 const black_box_transport = @import("black_box_transport.zig");
 
@@ -269,23 +272,22 @@ const Session = struct {
     }
 };
 
-pub fn main() !void {
+pub fn main(init: std.process.Init) !void {
     var allocator_state: std.heap.DebugAllocator(.{}) = .init;
     defer if (allocator_state.deinit() == .leak) {
         @panic("terminal Host black-box test leaked memory");
     };
     const allocator = allocator_state.allocator();
-    const arguments = try std.process.argsAlloc(allocator);
-    defer std.process.argsFree(allocator, arguments);
+    const arguments = try init.minimal.args.toSlice(init.arena.allocator());
     if (arguments.len != 2) return error.InvalidArguments;
-    try runTrace(allocator, arguments[1]);
+    try runTrace(init.io, allocator, arguments[1]);
 }
 
-fn runTrace(allocator: std.mem.Allocator, host_executable: []const u8) !void {
+fn runTrace(io: std.Io, allocator: std.mem.Allocator, host_executable: []const u8) !void {
     var runtime_directory = try black_box_transport.RuntimeDirectory.init(allocator);
     defer runtime_directory.deinit();
     var endpoint_bytes: [16]u8 = undefined;
-    std.crypto.random.bytes(&endpoint_bytes);
+    io.random(&endpoint_bytes);
     const endpoint_id = std.fmt.bytesToHex(endpoint_bytes, .lower);
 
     const host_arguments = [_][]const u8{
@@ -296,15 +298,12 @@ fn runTrace(allocator: std.mem.Allocator, host_executable: []const u8) !void {
         "--endpoint-id",
         &endpoint_id,
     };
-    var child = std.process.Child.init(&host_arguments, allocator);
-    child.stdin_behavior = .Ignore;
-    try child.spawn();
+    var child = try std.process.spawn(io, .{
+        .argv = &host_arguments,
+        .stdin = .ignore,
+    });
     var child_reaped = false;
-    defer if (!child_reaped) {
-        _ = child.kill() catch {
-            _ = child.wait() catch {};
-        };
-    };
+    defer if (!child_reaped) child.kill(io);
 
     var trace: Trace = .{};
     try trace.observe(.host_spawned);
@@ -470,9 +469,12 @@ fn runTrace(allocator: std.mem.Allocator, host_executable: []const u8) !void {
 
     client.close();
     client_open = false;
-    const term = try waitForHost(&child);
+    const term = try waitForHost(io, &child);
     child_reaped = true;
-    if (term != .Exited or term.Exited != 0) return error.UnexpectedHostExit;
+    switch (term) {
+        .exited => |status| if (status != 0) return error.UnexpectedHostExit,
+        else => return error.UnexpectedHostExit,
+    }
     try trace.observe(.host_exited);
     try trace.expectComplete();
     std.debug.print(
@@ -541,7 +543,7 @@ const ShellCommand = struct {
 
 fn shellCommand(allocator: std.mem.Allocator) !ShellCommand {
     if (builtin.os.tag == .windows) {
-        const executable = try std.process.getEnvVarOwned(allocator, "ComSpec");
+        const executable = try pty_process.environmentVariableOwned(allocator, "ComSpec");
         const arguments = &[_][]const u8{
             "/Q",
             "/D",
@@ -644,27 +646,27 @@ const Watchdog = struct {
         const interval = 10 * std.time.ns_per_ms;
         while (elapsed < host_exit_timeout_ns) : (elapsed += interval) {
             if (self.completed.load(.acquire)) return;
-            std.Thread.sleep(interval);
+            monotonic.sleep(interval);
         }
         if (self.completed.load(.acquire)) return;
         self.timed_out.store(true, .release);
         if (builtin.os.tag == .windows) {
-            std.os.windows.TerminateProcess(self.host_id, 1) catch {};
+            _ = std.os.windows.ntdll.NtTerminateProcess(self.host_id, @enumFromInt(1));
         } else {
             std.posix.kill(self.host_id, std.posix.SIG.KILL) catch {};
         }
     }
 };
 
-fn waitForHost(child: *std.process.Child) !std.process.Child.Term {
+fn waitForHost(io: std.Io, child: *std.process.Child) !std.process.Child.Term {
     var completed = std.atomic.Value(bool).init(false);
     var timed_out = std.atomic.Value(bool).init(false);
     const watchdog = try std.Thread.spawn(.{}, Watchdog.run, .{Watchdog{
         .completed = &completed,
-        .host_id = child.id,
+        .host_id = child.id.?,
         .timed_out = &timed_out,
     }});
-    const result = child.wait();
+    const result = child.wait(io);
     completed.store(true, .release);
     watchdog.join();
     if (timed_out.load(.acquire)) return error.HostExitTimeout;

@@ -6,7 +6,7 @@ Orchbee 包含以下第三方软件和视觉资产。收录这些内容并不表
 
 - 版权声明：Copyright (c) 2024 Mitchell Hashimoto, Ghostty contributors
 - 来源：<https://github.com/ghostty-org/ghostty>
-- 固定版本：`91f66da24527fa02d92b5fd0b41cd020f553a64c`
+- 固定版本：`9c3ec931d64561a8407dde7ac984ce156ae91539`
 - 许可证：MIT
 - 在 Orchbee 中的用途：为原生和 WebAssembly 运行时提供终端模拟
 

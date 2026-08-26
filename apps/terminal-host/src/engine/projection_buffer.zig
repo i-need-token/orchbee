@@ -320,7 +320,7 @@ fn renderColors(terminal: *const ghostty_vt.Terminal) ghostty_vt.RenderState.Col
 
 fn hyperlinkTarget(pin: ghostty_vt.Pin, cell: ghostty_vt.page.Cell, column: usize) ?[]const u8 {
     if (!cell.hyperlink) return null;
-    const page = &pin.node.data;
+    const page = pin.node.page();
     const page_cell = page.getRowAndCell(column, pin.y).cell;
     const identifier = page.lookupHyperlink(page_cell) orelse return null;
     const entry = page.hyperlink_set.get(page.memory, identifier);

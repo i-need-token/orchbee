@@ -1605,7 +1605,11 @@ export class ProjectedTerminal {
 			return 'rejected';
 		}
 		const staged = new PackedTerminalStore(this.#hostEpoch, this.#attachmentId);
-		const result = staged.replaceProjectionBufferSnapshot(window.frame, MAX_HISTORY_CACHE_BYTES);
+		const result = staged.replaceProjectionBufferSnapshot(
+			window.frame,
+			MAX_HISTORY_CACHE_BYTES,
+			window.graphics,
+		);
 		if (result.kind !== 'committed') {
 			staged.dispose();
 			this.#errorEmitter.fire({

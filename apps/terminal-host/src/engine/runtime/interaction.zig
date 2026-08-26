@@ -1,4 +1,5 @@
 const std = @import("std");
+const monotonic = @import("terminal-host-platform").monotonic;
 const identifiers = @import("terminal-host-model").identifiers;
 const terminal_history = @import("../history/root.zig");
 const contracts = @import("contracts.zig");
@@ -24,6 +25,7 @@ pub fn readHistoryRows(
     self.terminal_mutex.lock();
     defer self.terminal_mutex.unlock();
     try failure_ops.ensureReadableStateAvailableLocked(self);
+    self.history.animation_tick = self.animation_tick;
     return self.history.readRows(
         output_allocator,
         &self.terminal,
@@ -44,6 +46,7 @@ pub fn readHistoryRowsInto(
     self.terminal_mutex.lock();
     defer self.terminal_mutex.unlock();
     try failure_ops.ensureReadableStateAvailableLocked(self);
+    self.history.animation_tick = self.animation_tick;
     return self.history.readRowsInto(
         scratch_allocator,
         destination,
@@ -204,7 +207,7 @@ pub fn startSelectionExport(
     self.terminal_mutex.lock();
     defer self.terminal_mutex.unlock();
     try failure_ops.ensureReadableStateAvailableLocked(self);
-    const lock_started_at = std.time.nanoTimestamp();
+    var lock_timer = monotonic.Timer.start() catch null;
     // The reader can invalidate an export between IPC dispatches. Keep
     // cancellation extraction and the replacement start in one state transition;
     // HostService serializes the returned cancellation records before the start response.
@@ -234,12 +237,12 @@ pub fn startSelectionExport(
         ) catch |restore_err| return restore_err;
         return err;
     };
-    const elapsed = @max(std.time.nanoTimestamp() - lock_started_at, 0);
+    const elapsed = if (lock_timer) |*timer| timer.read() else 0;
     return .{
         .cancellation_count = cancellation_count,
         .cancellations = cancellations,
         .invalidation_history = invalidation_history,
-        .lock_hold_nanoseconds = @intCast(@min(elapsed, std.math.maxInt(u64))),
+        .lock_hold_nanoseconds = elapsed,
         .previous_completed_export_sequence = start_transaction.previous_completed_export_sequence,
         .previous_last_export_sequence = start_transaction.previous_last_export_sequence,
         .started = start_transaction.started,

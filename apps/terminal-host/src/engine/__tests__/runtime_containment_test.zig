@@ -1,4 +1,5 @@
 const std = @import("std");
+const thread_sync = @import("terminal-host-platform").thread_sync;
 
 const subject = @import("terminal-host-engine").testing.runtime_containment;
 
@@ -44,8 +45,8 @@ const AwaitCall = struct {
 };
 
 const Signal = struct {
-    condition: std.Thread.Condition = .{},
-    mutex: std.Thread.Mutex = .{},
+    condition: thread_sync.Condition = .{},
+    mutex: thread_sync.Mutex = .{},
     value: bool = false,
 
     fn notify(self: *Signal) void {

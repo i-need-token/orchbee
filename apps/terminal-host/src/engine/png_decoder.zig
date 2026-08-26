@@ -1,10 +1,12 @@
 const std = @import("std");
 const ghostty_vt = @import("ghostty-vt");
 const protocol = @import("terminal-protocol");
+const thread_sync = @import("terminal-host-platform").thread_sync;
 const wuffs = @import("wuffs");
 
 const png_signature = "\x89PNG\r\n\x1a\n";
-var install_once = std.once(installDecoder);
+var install_mutex: thread_sync.Mutex = .{};
+var installed = false;
 
 /// Installs the Host-owned PNG decoder required by Ghostty VT library builds.
 ///
@@ -12,7 +14,11 @@ var install_once = std.once(installDecoder);
 /// process-wide, thread-safe installation happens before terminal creation so
 /// direct Kitty PNG transmissions have the same support as raw pixel payloads.
 pub fn install() void {
-    install_once.call();
+    install_mutex.lock();
+    defer install_mutex.unlock();
+    if (installed) return;
+    installDecoder();
+    installed = true;
 }
 
 fn installDecoder() void {

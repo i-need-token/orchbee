@@ -20,6 +20,7 @@ import {
 	TerminalCloseActivityCode,
 	TerminalFrameExtensionKind,
 	TerminalFrameKind,
+	TerminalGraphicsUpdateKind,
 	TerminalRowWindowDetail,
 	UnderlineKind,
 	type TerminalFrame,
@@ -41,6 +42,14 @@ import {
 	type ProjectedTerminalErrorEvent,
 	type ProjectedTerminalFrameTelemetry,
 } from '../projected-terminal';
+
+const emptyGraphics = {
+	animationTick: 0n,
+	images: [],
+	kind: TerminalGraphicsUpdateKind.snapshot,
+	placements: [],
+	resourceRevision: 0n,
+} as const;
 
 interface FakeElement {
 	readonly attributes: Map<string, string>;
@@ -395,6 +404,7 @@ function renderRowWindow(
 		columns: 2,
 		detail: TerminalRowWindowDetail.render,
 		frame: decodedFrame,
+		graphics: emptyGraphics,
 		generation: options.generation ?? 1n,
 		hostEpoch,
 		revision,

@@ -1,5 +1,6 @@
 const std = @import("std");
 const target_builtin = @import("builtin");
+const monotonic = @import("terminal-host-platform").monotonic;
 const contracts = @import("contracts.zig");
 const state = @import("state.zig");
 
@@ -10,7 +11,7 @@ pub fn processTreeAlreadyContained(self: *state.State) !bool {
     for (0..contracts.required_consecutive_containment_observations) |observation| {
         if (!try self.process.processTreeContained()) return false;
         if (observation + 1 < contracts.required_consecutive_containment_observations) {
-            std.Thread.sleep(contracts.process_containment_observation_delay_ns);
+            monotonic.sleep(contracts.process_containment_observation_delay_ns);
         }
     }
     self.containment_confirmed.store(true, .release);
@@ -49,14 +50,14 @@ pub fn containProcessTree(self: *state.State) !void {
             self.process.forceTerminate() catch |err| {
                 last_failure = err;
                 if (observation + 1 < contracts.max_process_containment_observations) {
-                    std.Thread.sleep(contracts.process_containment_observation_delay_ns);
+                    monotonic.sleep(contracts.process_containment_observation_delay_ns);
                 }
                 continue;
             };
             last_failure = error.ProcessContainmentIncomplete;
         }
         if (observation + 1 < contracts.max_process_containment_observations) {
-            std.Thread.sleep(contracts.process_containment_observation_delay_ns);
+            monotonic.sleep(contracts.process_containment_observation_delay_ns);
         }
     }
     return last_failure;

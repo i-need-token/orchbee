@@ -1,6 +1,7 @@
 const std = @import("std");
 
 const contract = @import("contract.zig");
+const graphics_codec = @import("graphics_extension.zig");
 const projection_buffer_codec = @import("projection_buffer.zig");
 const wire = @import("wire.zig");
 
@@ -68,7 +69,9 @@ pub fn validateTerminalRowWindow(
     const entry_count = try reader.readInt(u32);
     const body_length = try reader.readInt(u32);
     const format_patch = try reader.readInt(u8);
-    const reserved_tail = try reader.readBytes(11);
+    const projection_length = try reader.readInt(u32);
+    const graphics_length = try reader.readInt(u32);
+    const reserved_tail = try reader.readBytes(3);
 
     if (format_major != terminal_row_window_format_major or
         format_minor != terminal_row_window_format_minor or
@@ -96,8 +99,18 @@ pub fn validateTerminalRowWindow(
     const body = bytes[header_length..];
     switch (detail) {
         .render => {
-            const frame = try validateTerminalProjectionBuffer(body);
+            if (projection_length == 0 or
+                graphics_length < contract.terminal_graphics_header_bytes or
+                @as(u64, projection_length) + graphics_length != body.len)
+            {
+                return error.LengthMismatch;
+            }
+            const frame = try validateTerminalProjectionBuffer(body[0..projection_length]);
+            const graphics = try graphics_codec.validate(
+                body[projection_length..][0..graphics_length],
+            );
             if (frame.kind != .snapshot or
+                graphics.kind != .snapshot or
                 !std.mem.eql(u8, &frame.host_epoch, &host_epoch) or
                 !std.mem.eql(u8, &frame.attachment_id, &attachment_id) or
                 frame.sequence != sequence or frame.revision != revision or
@@ -108,7 +121,10 @@ pub fn validateTerminalRowWindow(
                 return error.InvalidField;
             }
         },
-        .text => try validateTextRowWindowBody(body, row_count, columns, entry_count),
+        .text => {
+            if (projection_length != 0 or graphics_length != 0) return error.LengthMismatch;
+            try validateTextRowWindowBody(body, row_count, columns, entry_count);
+        },
     }
     return .{
         .attachment_id = attachment_id,

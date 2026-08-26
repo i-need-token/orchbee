@@ -8,7 +8,7 @@ const hostRoot = fileURLToPath(new URL('../', import.meta.url));
 const fixtureNames = [
 	'ghostty-surface-v0.0.3.bin',
 	'ghostty-alternate-surface-v0.0.3.bin',
-	'ghostty-render-row-window-v0.0.2.bin',
+	'ghostty-render-row-window-v0.0.3.bin',
 ];
 const write = process.argv.slice(2).includes('--write');
 const temporaryDirectory = await mkdtemp(join(tmpdir(), 'orchbee-ghostty-surface-'));

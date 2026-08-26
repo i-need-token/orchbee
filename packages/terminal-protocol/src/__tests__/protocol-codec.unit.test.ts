@@ -41,20 +41,20 @@ if (!hostEpoch.ok) throw new Error(hostEpoch.detail);
 
 const frameFixtureUrl = new URL('../../fixtures/terminal-frame-v0.0.3.bin', import.meta.url);
 const envelopeFixtureUrl = new URL(
-	'../../fixtures/transport-envelope-v0.0.19.bin',
+	'../../fixtures/transport-envelope-v0.0.20.bin',
 	import.meta.url,
 );
 const malformedFixtureUrl = new URL('../../fixtures/malformed-frame-v0.0.3.json', import.meta.url);
 const rowWindowFixtureUrl = new URL(
-	'../../fixtures/terminal-row-window-v0.0.2.bin',
+	'../../fixtures/terminal-row-window-v0.0.3.bin',
 	import.meta.url,
 );
 const malformedRowWindowFixtureUrl = new URL(
-	'../../fixtures/malformed-row-window-v0.0.2.json',
+	'../../fixtures/malformed-row-window-v0.0.3.json',
 	import.meta.url,
 );
 const packedProjectionConformanceFixtureUrl = new URL(
-	'../../fixtures/packed-projection-conformance-v0.0.2.json',
+	'../../fixtures/packed-projection-conformance-v0.0.3.json',
 	import.meta.url,
 );
 
@@ -150,6 +150,9 @@ const rowWindowConformanceCaseNames = [
 	'obrw-optional-header-flag-01',
 	'obrw-optional-header-flags-7f',
 	'obrw-unknown-required-header-flag-80',
+	'obrw-projection-section-length-mismatch',
+	'obrw-graphics-section-length-mismatch',
+	'obrw-graphics-update-not-snapshot',
 ] as const;
 const packedProjectionConformanceCaseNames = [
 	...projectionConformanceCaseNames,
@@ -173,8 +176,8 @@ const packedProjectionCaseSchema = z.union([
 ]);
 const packedProjectionCorpusSchema = z
 	.strictObject({
-		cases: z.array(packedProjectionCaseSchema).length(26),
-		formatVersion: z.literal('0.0.2'),
+		cases: z.array(packedProjectionCaseSchema).length(29),
+		formatVersion: z.literal('0.0.3'),
 		schemaVersion: z.literal(1),
 	})
 	.superRefine((corpus, context) => {
@@ -209,10 +212,10 @@ const packedProjectionCorpusSchema = z
 				path: ['cases'],
 			});
 		}
-		if (rowWindowCases !== 3) {
+		if (rowWindowCases !== 6) {
 			context.addIssue({
 				code: 'custom',
-				message: `Expected 3 OBRW cases, received ${rowWindowCases}`,
+				message: `Expected 6 OBRW cases, received ${rowWindowCases}`,
 				path: ['cases'],
 			});
 		}
@@ -648,7 +651,7 @@ describe('terminal row-window codec', () => {
 		);
 
 		const differentPatch = canonical.slice();
-		differentPatch[100] = 3;
+		differentPatch[100] = 4;
 		expect(decodeTerminalRowWindow(differentPatch)).toEqual(
 			expect.objectContaining({ code: ProtocolErrorCode.unsupportedVersion, ok: false }),
 		);

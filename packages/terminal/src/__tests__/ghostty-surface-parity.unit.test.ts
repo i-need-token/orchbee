@@ -40,7 +40,7 @@ const alternateSurfaceFixturePath = moduleRequire.resolve(
 	'@orchbee/terminal-protocol/fixtures/ghostty-alternate-surface-v0.0.3.bin',
 );
 const renderRowWindowFixturePath = moduleRequire.resolve(
-	'@orchbee/terminal-protocol/fixtures/ghostty-render-row-window-v0.0.2.bin',
+	'@orchbee/terminal-protocol/fixtures/ghostty-render-row-window-v0.0.3.bin',
 );
 
 const RENDER_ATTACHMENT_ID = '44444444444444444444444444444444';

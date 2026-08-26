@@ -41,6 +41,7 @@ const AttachmentState = storage.AttachmentState;
 
 pub const Manager = struct {
     allocator: std.mem.Allocator,
+    animation_tick: u64 = 0,
     selection_count: usize = 0,
     states: std.ArrayList(AttachmentState) = .empty,
     viewing_count: usize = 0,

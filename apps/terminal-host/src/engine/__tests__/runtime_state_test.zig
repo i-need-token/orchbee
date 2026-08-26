@@ -11,6 +11,7 @@ const subject = harness.subject;
 const terminal_launch = harness.terminal_launch;
 const pty_process = harness.pty_process;
 const applyScrollbackBytes = harness.applyScrollbackBytes;
+const tickAnimationLockedAt = harness.tickAnimationLockedAt;
 const cancelInput = harness.cancelInput;
 const clearTestingHooks = harness.clearTestingHooks;
 const closeClientInput = harness.closeClientInput;
@@ -60,6 +61,7 @@ const createRuntimeWithHooks = harness.createRuntimeWithHooks;
 const createRuntimeWithHooksAndCommand = harness.createRuntimeWithHooksAndCommand;
 const waitForWriterStop = harness.waitForWriterStop;
 const createIdleRuntime = harness.createIdleRuntime;
+const destroyRuntimeWithIdentityRetry = harness.destroyRuntimeWithIdentityRetry;
 const createImmediateExitRuntime = harness.createImmediateExitRuntime;
 const createIdleRuntimeWithGeometry = harness.createIdleRuntimeWithGeometry;
 const parseTerminalInput = harness.parseTerminalInput;
@@ -270,9 +272,9 @@ test "mouse press counts as pressed for encoder options before persistent state 
     try std.testing.expect(mouseHasPressedButton(input));
 }
 test "dynamic scrollback configuration evicts history and can retain history again" {
-    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = 8,
-        .max_scrollback = 1_000_000,
+        .max_scrollback_bytes = 1_000_000,
         .rows = 3,
     });
     defer terminal.deinit(std.testing.allocator);
@@ -289,6 +291,50 @@ test "dynamic scrollback configuration evicts history and can retain history aga
     _ = applyScrollbackBytes(&terminal, 1_000_000);
     for (0..100) |_| try terminal.printString("line\n");
     try std.testing.expect(terminal.screens.get(.primary).?.pages.total_rows > terminal.rows);
+}
+test "visible Kitty animation ticks monotonically advance Host revision and history" {
+    const runtime = try createIdleRuntime(.{});
+    defer destroyRuntimeWithIdentityRetry(runtime);
+    const runtime_state = runtimeState(runtime);
+
+    // Park the autonomous animation worker so this test owns the exact clock.
+    runtime_state.terminal_mutex.lock();
+    runtime_state.command_timer = null;
+    runtime_state.terminal_mutex.unlock();
+
+    try std.testing.expectEqual(
+        ReaderBatchOutcome.committed,
+        commitReaderBatch(
+            runtime,
+            "\x1b_Ga=T,t=d,f=24,s=1,v=1,i=1,p=1,C=1;/wAA\x1b\\" ++
+                "\x1b_Ga=f,i=1,f=24,s=1,v=1;AAD/\x1b\\" ++
+                "\x1b_Ga=a,i=1,s=3\x1b\\",
+        ),
+    );
+    const baseline_revision = runtime_state.revision.load(.acquire);
+    const baseline_batches = runtime_state.output_batches_since_sync.load(.acquire);
+    try std.testing.expectEqual(@as(u64, 0), runtime_state.animation_tick);
+    try std.testing.expectEqual(@as(u64, 0), runtime_state.history.animation_tick);
+
+    runtime_state.terminal_mutex.lock();
+    const first = try tickAnimationLockedAt(runtime_state, 0);
+    runtime_state.terminal_mutex.unlock();
+    try std.testing.expect(first.changed);
+    try std.testing.expectEqual(@as(?u64, 40), first.next_delay_milliseconds);
+    try std.testing.expectEqual(baseline_revision + 1, runtime_state.revision.load(.acquire));
+    try std.testing.expectEqual(baseline_batches + 1, runtime_state.output_batches_since_sync.load(.acquire));
+    try std.testing.expectEqual(@as(u64, 1), runtime_state.animation_tick);
+    try std.testing.expectEqual(@as(u64, 1), runtime_state.history.animation_tick);
+
+    runtime_state.terminal_mutex.lock();
+    const early = try tickAnimationLockedAt(runtime_state, 10);
+    runtime_state.terminal_mutex.unlock();
+    try std.testing.expect(!early.changed);
+    try std.testing.expectEqual(@as(?u64, 30), early.next_delay_milliseconds);
+    try std.testing.expectEqual(baseline_revision + 1, runtime_state.revision.load(.acquire));
+    try std.testing.expectEqual(baseline_batches + 1, runtime_state.output_batches_since_sync.load(.acquire));
+    try std.testing.expectEqual(@as(u64, 1), runtime_state.animation_tick);
+    try std.testing.expectEqual(@as(u64, 1), runtime_state.history.animation_tick);
 }
 test "owned terminal profile releases every partial allocation" {
     try std.testing.checkAllAllocationFailures(
@@ -325,7 +371,7 @@ test "runtime rejects an incomplete palette before starting a process" {
     );
 }
 test "thread startup failure releases transferred runtime resources" {
-    for (0..3) |failure_stage| {
+    for (0..4) |failure_stage| {
         var spawner: FailingThreadSpawner = .{ .fail_at = failure_stage };
         try std.testing.expectError(
             error.InjectedThreadSpawnFailure,
@@ -335,7 +381,7 @@ test "thread startup failure releases transferred runtime resources" {
                 .current_directory = null,
                 .environment = &.{},
                 // The injected thread error must win because no process launch
-                // is attempted until all three workers exist.
+                // is attempted until all four workers exist.
                 .executable = "thread-startup-must-precede-process-spawn",
                 .rows = 24,
             }, .{}, &spawner),
@@ -343,7 +389,7 @@ test "thread startup failure releases transferred runtime resources" {
     }
 }
 test "process spawn failure releases workers waiting at the startup gate" {
-    var spawner: FailingThreadSpawner = .{ .fail_at = 3 };
+    var spawner: FailingThreadSpawner = .{ .fail_at = 4 };
     try std.testing.expectError(
         error.SpawnFailed,
         createWithOptionsUsingSpawner(std.testing.allocator, .{
@@ -355,12 +401,12 @@ test "process spawn failure releases workers waiting at the startup gate" {
             .rows = 24,
         }, .{}, &spawner),
     );
-    try std.testing.expectEqual(@as(usize, 3), spawner.attempts);
+    try std.testing.expectEqual(@as(usize, 4), spawner.attempts);
 }
 test "unrecoverable worker failures contain the process tree without a connected broker" {
     const builtin = @import("builtin");
     const windows_executable: ?[]u8 = if (builtin.os.tag == .windows)
-        try std.process.getEnvVarOwned(std.testing.allocator, "ComSpec")
+        try pty_process.environmentVariableOwned(std.testing.allocator, "ComSpec")
     else
         null;
     defer if (windows_executable) |value| std.testing.allocator.free(value);
@@ -418,7 +464,7 @@ test "unrecoverable worker failures contain the process tree without a connected
 test "runtime parses PTY output before exposing canonical terminal state" {
     const builtin = @import("builtin");
     const windows_executable: ?[]u8 = if (builtin.os.tag == .windows)
-        try std.process.getEnvVarOwned(std.testing.allocator, "ComSpec")
+        try pty_process.environmentVariableOwned(std.testing.allocator, "ComSpec")
     else
         null;
     defer if (windows_executable) |value| std.testing.allocator.free(value);
@@ -784,7 +830,7 @@ test "OSC 133 preserves parser order for multiple completions in one reader batc
 test "Windows child exiting 259 completes normally with exit code 259 (THCR-041)" {
     const builtin = @import("builtin");
     if (builtin.os.tag != .windows) return error.SkipZigTest;
-    const executable = try std.process.getEnvVarOwned(std.testing.allocator, "ComSpec");
+    const executable = try pty_process.environmentVariableOwned(std.testing.allocator, "ComSpec");
     defer std.testing.allocator.free(executable);
     const arguments = [_][]const u8{ "/D", "/S", "/C", "exit 259" };
     const runtime = try TerminalRuntime.create(std.testing.allocator, .{
@@ -923,7 +969,7 @@ test "attachment preparation derives reservations from canonical capabilities" {
 test "runtime resets projection resources after encode failure" {
     const builtin = @import("builtin");
     const windows_executable: ?[]u8 = if (builtin.os.tag == .windows)
-        try std.process.getEnvVarOwned(std.testing.allocator, "ComSpec")
+        try pty_process.environmentVariableOwned(std.testing.allocator, "ComSpec")
     else
         null;
     defer if (windows_executable) |value| std.testing.allocator.free(value);
@@ -1449,7 +1495,7 @@ test "attachment resize waits for a terminal-driven reader transaction" {
 test "runtime projection preserves resize and hyperlink transitions" {
     const builtin = @import("builtin");
     const windows_executable: ?[]u8 = if (builtin.os.tag == .windows)
-        try std.process.getEnvVarOwned(std.testing.allocator, "ComSpec")
+        try pty_process.environmentVariableOwned(std.testing.allocator, "ComSpec")
     else
         null;
     defer if (windows_executable) |value| std.testing.allocator.free(value);

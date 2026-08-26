@@ -13,7 +13,7 @@ const metadata_ops = @import("metadata.zig");
 const mode_effects = @import("mode_effects.zig");
 const terminal_reply = @import("terminal_reply.zig");
 
-pub fn writePtyEffect(handler: *ghostty_vt.TerminalStream.Handler, bytes: [:0]const u8) void {
+pub fn writePtyEffect(handler: *ghostty_vt.TerminalStream.Handler, bytes: []const u8) void {
     const self = runtimeFromHandler(handler);
     terminal_reply.enqueueLocked(self, bytes) catch {
         self.reply_failure_pending = true;
@@ -170,8 +170,14 @@ fn applyTerminalGeometryMutation(
         .viewport => {
             try terminal.resize(
                 self.allocator,
-                next_geometry.columns,
-                next_geometry.rows,
+                .{
+                    .cell_size_px = .{
+                        .height = next_geometry.cell_pixel_height,
+                        .width = next_geometry.cell_pixel_width,
+                    },
+                    .cols = next_geometry.columns,
+                    .rows = next_geometry.rows,
+                },
             );
             self.cell_pixel_width = next_geometry.cell_pixel_width;
             self.cell_pixel_height = next_geometry.cell_pixel_height;

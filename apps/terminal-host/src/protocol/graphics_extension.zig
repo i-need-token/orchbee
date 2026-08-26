@@ -15,6 +15,7 @@ pub const UpdateKind = enum(u8) {
 };
 
 pub const Summary = struct {
+    animation_tick: u64,
     image_count: u16,
     kind: UpdateKind,
     placement_count: u16,
@@ -39,6 +40,7 @@ pub fn validate(bytes: []const u8) ProtocolError!Summary {
     const kind_code = try reader.readInt(u8);
     const total_length = try reader.readInt(u32);
     const resource_revision = try reader.readInt(u64);
+    const animation_tick = try reader.readInt(u64);
     const image_count = try reader.readInt(u16);
     const placement_count = try reader.readInt(u16);
     const declared_image_bytes = try reader.readInt(u32);
@@ -121,14 +123,14 @@ pub fn validate(bytes: []const u8) ProtocolError!Summary {
         const source_height = try reader.readInt(u32);
         const destination_width = try reader.readInt(u32);
         const destination_height = try reader.readInt(u32);
-        const z: i32 = @bitCast(try reader.readInt(u32));
+        _ = try reader.readInt(u32); // signed z accepts the complete i32 bit pattern
         const flags = try reader.readInt(u32);
         if (image_id == 0 or source_width == 0 or source_height == 0 or
             source_width > contract.Limits.terminal_graphics_dimension or
             source_height > contract.Limits.terminal_graphics_dimension or
             destination_width == 0 or destination_height == 0 or
             destination_width > contract.Limits.terminal_graphics_destination_pixels or
-            destination_height > contract.Limits.terminal_graphics_destination_pixels or z < 0)
+            destination_height > contract.Limits.terminal_graphics_destination_pixels)
         {
             return error.InvalidField;
         }
@@ -160,6 +162,7 @@ pub fn validate(bytes: []const u8) ProtocolError!Summary {
     if (minimum_records + actual_image_bytes != bytes.len) return error.LengthMismatch;
 
     return .{
+        .animation_tick = animation_tick,
         .image_count = image_count,
         .kind = kind,
         .placement_count = placement_count,

@@ -2,6 +2,7 @@ const std = @import("std");
 const target_builtin = @import("builtin");
 const core_module = @import("terminal-host-core").state;
 const terminal_runtime = @import("terminal-host-engine").runtime;
+const monotonic = @import("terminal-host-platform").monotonic;
 const contracts = @import("contracts.zig");
 const runtime_observation = @import("observation.zig");
 
@@ -70,7 +71,7 @@ pub const Maintenance = struct {
                 return .complete;
             }
             if (comptime !target_builtin.is_test) {
-                std.Thread.sleep(retained_cleanup_backoff_ns);
+                monotonic.sleep(retained_cleanup_backoff_ns);
             }
         }
         self.markRetainedCleanupExhausted(owner);

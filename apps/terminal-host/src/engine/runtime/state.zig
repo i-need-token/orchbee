@@ -1,7 +1,10 @@
 const std = @import("std");
 const ghostty_vt = @import("ghostty-vt");
 const identifiers = @import("terminal-host-model").identifiers;
-const pty_process = @import("terminal-host-platform").process;
+const platform = @import("terminal-host-platform");
+const monotonic = platform.monotonic;
+const pty_process = platform.process;
+const thread_sync = platform.thread_sync;
 const terminal_geometry = @import("terminal-host-model").geometry;
 const terminal_history = @import("../history/root.zig");
 const terminal_input_ownership = @import("../input_ownership.zig");
@@ -14,6 +17,10 @@ const contracts = @import("contracts.zig");
 
 pub const State = struct {
     allocator: std.mem.Allocator,
+    // terminal_mutex protects the monotonically increasing count of visible
+    // time-driven Kitty animation frame changes.
+    animation_tick: u64 = 0,
+    animation_thread: ?std.Thread = null,
     // terminal_mutex protects the canonical count and its deferred overflow
     // marker because Ghostty invokes bell synchronously while parsing output.
     bell_sequence: u64 = 0,
@@ -36,7 +43,7 @@ pub const State = struct {
     command_sequence_staged: u64 = 0,
     command_started_at_ns: ?u64 = null,
     command_started_at_ns_staged: ?u64 = null,
-    command_timer: ?std.time.Timer = null,
+    command_timer: ?monotonic.Timer = null,
     cell_pixel_height: u16,
     cell_pixel_width: u16,
     // terminal_mutex protects the complete viewport requested by the latest
@@ -46,7 +53,7 @@ pub const State = struct {
     child_exited: std.atomic.Value(bool) = .init(false),
     client_input_closed: bool = false,
     containment_confirmed: std.atomic.Value(bool) = .init(false),
-    containment_mutex: std.Thread.Mutex = .{},
+    containment_mutex: thread_sync.Mutex = .{},
     exit_result: ?pty_process.ExitResult = null,
     // terminal_mutex and input_mutex jointly protect this irreversible gate.
     // Parser/state readers observe it while holding terminal_mutex; queue and
@@ -64,9 +71,11 @@ pub const State = struct {
     // queue order, charged bytes, reservation identifiers, the writer stop
     // transition, and completion notifications that must not be missed between
     // a predicate check and wait.
-    input_condition: std.Thread.Condition = .{},
+    input_condition: thread_sync.Condition = .{},
     input_queue: terminal_input_queue.Queue,
-    input_mutex: std.Thread.Mutex = .{},
+    // Ghostty borrows this canonical path for temporary-file validation.
+    kitty_temp_directory: ?[:0]u8 = null,
+    input_mutex: thread_sync.Mutex = .{},
     metadata_change_pending: bool = false,
     metadata_published_connection_id: ?u64 = null,
     metadata_published_revision: u64 = 0,
@@ -97,7 +106,7 @@ pub const State = struct {
     // activity query inside the same cadence.
     next_close_activity_sample_at_ns: i128 = 0,
     projection: terminal_projection.Projection,
-    projection_mutex: std.Thread.Mutex = .{},
+    projection_mutex: thread_sync.Mutex = .{},
     pty_drained: std.atomic.Value(bool) = .init(false),
     // Ghostty may discover a reply-admission failure synchronously while a
     // reader batch is being parsed. terminal_mutex protects this deferred
@@ -130,9 +139,9 @@ pub const State = struct {
     terminal: ghostty_vt.Terminal,
     // terminal_mutex protects terminal parsing, history, generation, scrollback,
     // and cell geometry as one state transition.
-    terminal_condition: std.Thread.Condition = .{},
+    terminal_condition: thread_sync.Condition = .{},
     terminal_driven_resize_target: ?terminal_geometry.Geometry = null,
-    terminal_mutex: std.Thread.Mutex = .{},
+    terminal_mutex: thread_sync.Mutex = .{},
     terminal_resize_failure_pending: bool = false,
     testing_hooks: contracts.RuntimeTestingHooks = .{},
     threads_joined: bool = false,

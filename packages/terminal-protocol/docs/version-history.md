@@ -5,14 +5,15 @@ the first public release, their release history.
 
 ## Version domains
 
-Four independent business-contract versions are in scope:
+Five independent business-contract versions are in scope:
 
-| Contract                 | Current version | Owns                                                                         |
-| ------------------------ | --------------- | ---------------------------------------------------------------------------- |
-| Wire protocol            | `0.0.19`        | Handshake, transport envelope, control messages, input, and message registry |
-| `OBTF` terminal frame    | `0.0.3`         | Packed terminal-frame bytes                                                  |
-| `OBPB` projection buffer | `0.0.2`         | Packed Host-to-render projection bytes                                       |
-| `OBRW` row window        | `0.0.2`         | Packed render/text history-window bytes                                      |
+| Contract                  | Current version | Owns                                                                         |
+| ------------------------- | --------------- | ---------------------------------------------------------------------------- |
+| Wire protocol             | `0.0.20`        | Handshake, transport envelope, control messages, input, and message registry |
+| `OBTF` terminal frame     | `0.0.3`         | Packed terminal-frame bytes                                                  |
+| `OBPB` projection buffer  | `0.0.2`         | Packed Host-to-render projection bytes                                       |
+| `OBRW` row window         | `0.0.3`         | Packed render/text history-window bytes and render-detail graphics           |
+| `OBKG` graphics extension | `0.0.2`         | Owned decoded images, resolved placements, layers, and animation tick        |
 
 The NPM package version, Terminal Host executable version, Zig toolchain version, and third-party
 dependency versions belong to their own release owners. They are not wire-compatibility versions
@@ -21,7 +22,7 @@ and do not advance with these four contracts automatically.
 ## Before the first public release
 
 All business-contract versions use major version `0`. The repository retains only the exact current
-development contract, currently `0.0.19`; it does not promise compatibility with an earlier `0.x`
+development contract, currently `0.0.20`; it does not promise compatibility with an earlier `0.x`
 shape or retain changelog entries for pre-release iteration. A pre-release contract update changes
 the TypeScript and Zig constants, encoders, decoders, fixtures, exports, tests, and current protocol
 reference together.
@@ -43,8 +44,8 @@ never be silently overwritten under the same version.
 ## Fixture naming
 
 Every compatibility fixture carries the complete semantic version of the contract that owns its
-bytes or schema. Wire fixtures therefore use names such as `transport-envelope-v0.0.19.bin`, while
-format fixtures use names such as `terminal-frame-v0.0.3.bin`. Wildcards and major-only suffixes are
+bytes or schema. Wire fixtures therefore use names such as `transport-envelope-v0.0.20.bin`, while
+format fixtures use names such as `ghostty-render-row-window-v0.0.3.bin`. Wildcards and major-only suffixes are
 not used. `canonical.json` is unversioned because it is generator input for the current fixtures,
 not a compatibility artifact.
 

@@ -1,4 +1,5 @@
 const std = @import("std");
+const thread_sync = @import("terminal-host-platform").thread_sync;
 
 pub const FirstAttempt = enum(u8) {
     none,
@@ -12,8 +13,8 @@ pub const FirstAttempt = enum(u8) {
 /// worker and a Host-originated failure fence. Later Host calls wait for the
 /// winner and become retries; they can never overtake an in-flight owner.
 pub const FirstAttemptGate = struct {
-    condition: std.Thread.Condition = .{},
-    mutex: std.Thread.Mutex = .{},
+    condition: thread_sync.Condition = .{},
+    mutex: thread_sync.Mutex = .{},
     state: std.atomic.Value(FirstAttempt) = .init(.none),
 
     pub fn reserveEngine(self: *FirstAttemptGate) void {

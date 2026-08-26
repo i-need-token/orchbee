@@ -10,6 +10,7 @@ import {
 	decodeTerminalProjectionBuffer,
 	decodeTerminalRowWindow,
 	encodeTerminalFrame,
+	encodeTerminalGraphics,
 	encodeTerminalRowWindow,
 	HostEpochSchema,
 	PROTOCOL_LIMITS,
@@ -17,6 +18,7 @@ import {
 	SemanticContent,
 	TerminalColorKind,
 	TerminalFrameKind,
+	TerminalGraphicsUpdateKind,
 	TerminalIdSchema,
 	TerminalRowWindowDetail,
 	TerminalThemeStateSchema,
@@ -57,6 +59,16 @@ vi.mock(import('@orchbee/terminal-protocol'), async (importOriginal) => {
 });
 
 const presentationId = terminalPresentationId('presentation-capture');
+const emptyGraphics = {
+	animationTick: 0n,
+	images: [],
+	kind: TerminalGraphicsUpdateKind.snapshot,
+	placements: [],
+	resourceRevision: 0n,
+} as const;
+const encodedEmptyGraphics = encodeTerminalGraphics(emptyGraphics);
+if (!encodedEmptyGraphics.ok) throw new Error(encodedEmptyGraphics.detail);
+const emptyGraphicsBytes = encodedEmptyGraphics.value;
 const attachmentId = AttachmentIdSchema.parse('11'.repeat(16));
 const identity: TerminalIdentity = {
 	creationId: CreationIdSchema.parse('22'.repeat(16)),
@@ -125,6 +137,7 @@ describe('TerminalArchiveCaptureService', () => {
 				columns: 2,
 				detail: TerminalRowWindowDetail.render,
 				frame: createFrame(startRow, rowTexts, BigInt(requestSequence)),
+				graphics: emptyGraphics,
 				generation: 3n,
 				hostEpoch: identity.hostEpoch,
 				revision: 5n,
@@ -180,6 +193,7 @@ describe('TerminalArchiveCaptureService', () => {
 					columns: 2,
 					detail: TerminalRowWindowDetail.render,
 					frame: createFrame(startRow, [isViewport ? 'viewport' : `history-${startRow}`], sequence),
+					graphics: emptyGraphics,
 					generation: 3n,
 					hostEpoch: identity.hostEpoch,
 					revision: 5n,
@@ -561,6 +575,7 @@ function createByteBoundedCaptureScenario(): ByteBoundedCaptureScenario {
 		const candidateWindows = [window, ...expectedRetainedWindows];
 		const candidate = encodeTerminalArchiveForCaptureSizing({
 			frame: decodedViewport.value.frame.bytes,
+			graphics: emptyGraphicsBytes,
 			identity,
 			presentationId,
 			rowWindows: candidateWindows,
@@ -765,6 +780,7 @@ function encodeCaptureWindow(value: {
 			styles: value.styles,
 			title: value.title,
 		}),
+		graphics: emptyGraphics,
 		generation: 3n,
 		hostEpoch: identity.hostEpoch,
 		revision: 5n,

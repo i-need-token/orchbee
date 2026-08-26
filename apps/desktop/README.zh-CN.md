@@ -30,7 +30,7 @@ Main 在允许客户端之前加载并验证共享文档一次。可用的文档
 
 协调器是传输中立的，支持独立的页面会话，没有产品数量上限。 Electron 使用直接 `MessagePort` 适配器。显式浏览器访问启动 `apps/server` 和 `apps/gateway` 作为按需实用程序进程； Desktop 拥有这两个生命周期，并为每个经过身份验证的页面分配一对客户端会话/投影端口。服务器拥有静态渲染器交付，而网关拥有 exact-Origin 准入、能力认证、成帧和环回上的传输背压或显式选择的可信 LAN。网关永远不会接收应用程序生命周期端口或主机连接。 `apps/web` 拥有平台中立的 Workbench 客户端运行时和普通浏览器中使用的单个渲染器应用程序、网关浏览器客户端和 Electron。开发Electron是从环回Web来源上的User-Agent发现的。 Packaged Desktop 在 Electron 准备就绪之前注册标准安全 `orchbee:` 方案，为 `orchbee://app` 的 Web 构建提供服务，并回退到 `index.html` 来处理浏览器路由器文档请求。桌面拥有渲染器资源交付，而不是另一个渲染器源树。请参见 [`docs/multi-client-session-coordinator.md`](docs/multi-client-session-coordinator.md) 和 [`../web/docs/navigation-routing.md`](../web/docs/navigation-routing.md)。
 
-Desktop 严格要求唯一的当前 Host 协议 `0.0.19`；预发布版本既不协商，也不记录历史协议变体。Electron 使用 `42.8.0`，即本仓库所选当前 Electron 主版本中的最新次版本。
+Desktop 严格要求唯一的当前 Host 协议 `0.0.20`；预发布版本既不协商，也不记录历史协议变体。Electron 使用 `42.8.0`，即本仓库所选当前 Electron 主版本中的最新次版本。
 
 `HostConnection` 在每个代理调用者上拥有一个连接全局出站窗口：最多 64 个未应答请求记录和 4 个 MiB 编码请求字节。它会保留该许可，直到相关响应或连接失败为止。已返回 `false` 的完整窗口或节点可写在切换之前拒绝工作，并可重试 `host-transport-backpressure`；在 `drain` 之前没有请求写入恢复。如果移交的请求达到其截止日期，Desktop 将终止连接，并使用不可重试的 `host-request-outcome-unknown` 拒绝所有待处理和未来的请求，因此在出现不明确的结果后，永远不会重播输入。
 
@@ -166,7 +166,7 @@ Electron Main 拥有 `terminal-launch-profiles-v1.json`，这是命名设备本�
 
 stop 会封闭退出所有者页面上的终端创建，把每个可见或隐藏的 Workbench Presentation 投影为持久 `stop`，对完整共享文档执行 compare-and-swap，随后才释放关闭命令。成功的关闭结果会把 Presentation 变为 `stopped`，同时保留 Project、Workspace、Tab、Panel、Split、标题及启动 CWD。水合绝不会启动已停止的 Presentation。可见的“开始新会话”Action 会用新标识替换已停止的 PresentationId，并只 provision 所选 Presentation。
 
-当持久 stop 到达最终 Host revision 时，Main 会在终端结果之后、Host Dispose 之前打开一个临时只读附件。它为该 Presentation 归档最新 5,000 行最终渲染行或 10 MiB，以先达到的边界为准。Desktop 本地存储使用带内容校验、私有权限的原子文件，并施加 250 MiB 的全局 least-recently-used 上限。有效归档会在本地 Electron 的 stopped surface 中供现有终端 renderer 使用，保留滚动、搜索、选择与复制，并永久拒绝输入和调整尺寸。归档缺失、损坏、超时、不可写或被淘汰时，会回退到空的 stopped 状态，且绝不阻塞 Host Dispose 或应用退出。归档不会进入共享文档、renderer bootstrap、Gateway、Browser storage 或 cloud。普通关闭会移除任何归档，共享文档协调会移除孤立条目，“开始新会话”会删除旧关联；归档行绝不会恢复到新 VT 或与其拼接。
+当持久 stop 到达最终 Host revision 时，Main 会在终端结果之后、Host Dispose 之前打开一个临时只读附件。它为该 Presentation 归档最新 5,000 行最终渲染行或 10 MiB，以先达到的边界为准。归档格式 `2` 会存储最终 viewport 投影及其完整 OBKG 资源快照，并在每个 render-detail OBRW `0.0.3` 分块中保留独立图形快照；解码器只接受格式 `2` 与精确的当前嵌套格式，不会静默回退。Desktop 本地存储使用带内容校验、私有权限的原子文件，并施加 250 MiB 的全局 least-recently-used 上限。有效归档会在本地 Electron 的 stopped surface 中供现有终端 renderer 使用，保留图形、滚动、搜索、选择与复制，并永久拒绝输入和调整尺寸。归档缺失、损坏、超时、不可写或被淘汰时，会回退到空的 stopped 状态，且绝不阻塞 Host Dispose 或应用退出。归档不会进入共享文档、renderer bootstrap、Gateway、Browser storage 或 cloud。普通关闭会移除任何归档，共享文档协调会移除孤立条目，“开始新会话”会删除旧关联；归档行与图像绝不会恢复到新 VT 或与其拼接。
 
 被引用的 Presentation 停止后，Main 会加载精确的已提交共享文档修订，并关闭由它拥有但文档未引用的每项绑定。随后要求绑定注册表为空，并扫描 Host 清单。未知 Host 终端会被报告为未解决，绝不会静默终止。部分失败会让 Desktop 进入不可逆恢复对话框，并在受支持时重试，同时显示明确的“仍然退出”警告。“仍然退出”可能让进程继续运行；持久 `stop` 意图会保留到下次启动时的重放权限。本工作流不声明 OS 关机、注销或强制终止行为。
 
@@ -188,7 +188,7 @@ Desktop 在受信任的主要组合边界处读取一次终端计算机的主机
 
 每个 `ProjectedTerminalBroker` 还为其附件拥有一个有界调整大小命令序列化器。串行器处于空闲状态或只有一个主机调整大小请求处于活动状态；当处于活动状态时，每个较新的经过验证的渲染器测量都会替换单个待处理的测量，而不是启动竞争的 PTY 调整大小。活动请求的成功或类型化失败使串行器返回空闲状态，并在附件保持活动状态时立即接受最新的待处理测量。活动失败仍然通过现有的类型化渲染器失败路径发布，并且永远不会静默重播；只有在开始后到达的测量才能驱动下一个请求。处置或附件清理会删除挂起的测量，其他渲染器命令保留其现有并发性，并且挂起的调整大小在调度之前不占用主机请求窗口槽。因此，容器测量的突发使用恒定内存，一次最多提交一个调整大小，并使最新的挂起几何图形成为下一个主机请求，而不允许中间请求超越它。
 
-`HostConnection` 读取并验证固定终端帧标头一次，然后通过 AttachmentId 直接路由二进制记录。 Main 不执行 VT 解析、行重建、Kitty 图像加载、JSON/base64 转换或每单元传递。在 Electron 功能边界，代理在结构化克隆之前仅将路由有效负载复制到精确大小的 `ArrayBuffer` 中，因此信封标头和合并的相邻记录永远不会穿过渲染器端口。渲染器严格解码 OBTF 内的有界 OBKG 原始像素，并且从不接收路径、URL、临时文件句柄或共享内存功能。 OBPB 格式 `0.0.2` 本地历史渲染缓冲区然后使用结构视图边界；网关交付仍然经过外部验证。历史记录、选择、复制、链接和辅助功能行为仍然属于附件范围。正常的底部跟踪使用不会创建历史缓存或搜索 Worker；这些资源只能通过其现有的交互合约来激活。
+`HostConnection` 读取并验证固定终端帧标头一次，然后通过 AttachmentId 直接路由二进制记录。Main 不执行 VT 解析、行重建、Kitty 图像加载、JSON/base64 转换或每单元传递。在 Electron capability 边界，broker 在 structured clone 前只把路由后的 payload 复制到精确大小的 `ArrayBuffer`，因此信封头与合并的相邻记录绝不会穿过 renderer port。Renderer 严格解码 OBTF 中的有界 OBKG raw 像素，通过 Canvas2D 或 WebGPU 绘制全部三个有符号 z 层，并且绝不接收路径、URL、临时文件句柄或共享内存 capability。OBRW format `0.0.3` 本地历史 render buffer 携带自己的 OBKG 快照，并使用 OBPB structural-view 边界；Gateway 交付仍经外部验证。历史、选择、复制、链接和辅助功能行为仍属于附件作用域。正常 bottom-following 使用不会创建历史缓存或搜索 Worker；这些资源只由既有交互合同激活。
 
 相关主机 `TypedFailure` 仍为类型化 `HostRequestError`； `HostConnection` 保留了响应相关性 ID，而 `ProjectedTerminalBroker` 添加了确切的渲染器命令操作，而无需替换主机代码、消息或可重试性。失败的行读取还会保留其渲染器请求序列，以便只有历史记录飞行才能解决。客户端拥有的复制和链接效果使用其请求序列。 Electron 和网关转发相同的有界故障合约，并且两个代理都不会重试该诊断身份的用户效果。
 

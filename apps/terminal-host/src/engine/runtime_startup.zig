@@ -1,4 +1,5 @@
 const std = @import("std");
+const thread_sync = @import("terminal-host-platform").thread_sync;
 
 const State = enum {
     pending,
@@ -9,8 +10,8 @@ const State = enum {
 /// One-shot gate that parks runtime workers until process construction either
 /// commits or aborts. All workers observe the same terminal decision.
 pub const Gate = struct {
-    condition: std.Thread.Condition = .{},
-    mutex: std.Thread.Mutex = .{},
+    condition: thread_sync.Condition = .{},
+    mutex: thread_sync.Mutex = .{},
     state: State = .pending,
 
     fn finish(self: *Gate, state: State) void {

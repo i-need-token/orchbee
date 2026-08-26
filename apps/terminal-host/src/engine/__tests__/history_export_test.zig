@@ -23,7 +23,7 @@ const gestureCancel = harness.gestureCancel;
 const readSingleRow = harness.readSingleRow;
 
 test "reflow generation preserves a valid tracked selection and cancels stale export bytes" {
-    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = 8,
         .rows = 2,
     });
@@ -45,7 +45,7 @@ test "reflow generation preserves a valid tracked selection and cancels stale ex
     });
     _ = try manager.startExport(&terminal, attachment, 9, .plain);
 
-    try terminal.resize(std.testing.allocator, 4, 2);
+    try terminal.resize(std.testing.allocator, .{ .cols = 4, .rows = 2 });
     manager.generationChanged(&terminal, 2, 2);
 
     const state = findState(&manager, attachment).?;
@@ -58,7 +58,7 @@ test "reflow generation preserves a valid tracked selection and cancels stale ex
     try std.testing.expect((try manager.takeSelectionExportCancellation(attachment)) != null);
 }
 test "selection eviction cancels an in-flight export" {
-    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = 8,
         .rows = 2,
     });
@@ -123,7 +123,7 @@ test "selection eviction cancels an in-flight export" {
     try std.testing.expect((try manager.exportChunkApplied(attachment, 10, 0)) == null);
 }
 test "repeated selection eviction preserves every queued export cancellation" {
-    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = 8,
         .rows = 2,
     });
@@ -174,7 +174,7 @@ test "repeated selection eviction preserves every queued export cancellation" {
     );
 }
 test "export sequences reject ABA acknowledgements and failed starts do not consume identity" {
-    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = 8,
         .rows = 2,
     });
@@ -227,7 +227,7 @@ test "export sequences reject ABA acknowledgements and failed starts do not cons
     _ = (try manager.exportChunkApplied(attachment, 8, 0)).?;
 }
 test "export acknowledgement requires the exact current chunk sequence" {
-    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = 8,
         .rows = 2,
     });
@@ -261,7 +261,7 @@ test "export acknowledgement requires the exact current chunk sequence" {
     try std.testing.expectEqual(@as(u64, 3), finished.export_sequence);
 }
 test "a final export chunk does not require another chunk sequence" {
-    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = 8,
         .rows = 2,
     });
@@ -292,7 +292,7 @@ test "a final export chunk does not require another chunk sequence" {
     try std.testing.expect(state.export_ledger.active == null);
 }
 test "failed replacement rollback restores full invalidation history and cancellation FIFO" {
-    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = 8,
         .rows = 2,
     });
@@ -411,7 +411,7 @@ test "failed replacement rollback restores full invalidation history and cancell
     try std.testing.expect((try manager.exportChunkApplied(attachment, second_started.export_sequence, 0)) == null);
 }
 test "THCR-013 re-entering viewing history after an acknowledgement reissues a distinct sequence" {
-    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = 8,
         .rows = 2,
     });
@@ -445,7 +445,7 @@ test "THCR-013 re-entering viewing history after an acknowledgement reissues a d
     try manager.historyObserved(attachment, third.sequence, third.revision, third.generation);
 }
 test "THCR-013 replaying an earlier acknowledgement never clears a newer same-revision flight" {
-    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = 8,
         .rows = 2,
     });
@@ -478,7 +478,7 @@ test "THCR-013 replaying an earlier acknowledgement never clears a newer same-re
     try manager.historyObserved(attachment, third.sequence, third.revision, third.generation);
 }
 test "THCR-029 replaying an earlier row acknowledgement is idempotent while a newer window is pending" {
-    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = 8,
         .rows = 2,
     });
@@ -534,7 +534,7 @@ test "THCR-029 replaying an earlier row acknowledgement is idempotent while a ne
     try std.testing.expectEqual(@as(u64, 2), state.committed.?.request_sequence);
 }
 test "THCR-029 row replay identity survives mutation-refreshed anchors" {
-    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = 8,
         .rows = 2,
     });
@@ -577,7 +577,7 @@ test "THCR-029 row replay identity survives mutation-refreshed anchors" {
     try std.testing.expectEqual(anchor_before.pin, state.committed.?.pin);
 }
 test "THCR-029 replaying a completed export acknowledgement leaves a newer export untouched" {
-    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = 8,
         .rows = 2,
     });

@@ -105,6 +105,9 @@ const row_window_conformance_case_names = [_][]const u8{
     "obrw-optional-header-flag-01",
     "obrw-optional-header-flags-7f",
     "obrw-unknown-required-header-flag-80",
+    "obrw-projection-section-length-mismatch",
+    "obrw-graphics-section-length-mismatch",
+    "obrw-graphics-update-not-snapshot",
 };
 
 const packed_projection_conformance_case_count =
@@ -112,7 +115,7 @@ const packed_projection_conformance_case_count =
 
 comptime {
     if (projection_conformance_case_names.len != 23) @compileError("expected 23 OBPB cases");
-    if (row_window_conformance_case_names.len != 3) @compileError("expected 3 OBRW cases");
+    if (row_window_conformance_case_names.len != 6) @compileError("expected 6 OBRW cases");
 }
 
 const PackedProjectionCaseRoute = enum {
@@ -215,6 +218,7 @@ fn expectedPackedProjectionError(expected: PackedProjectionExpected) ?protocol.P
     const code = expected.code orelse return null;
     if (std.mem.eql(u8, code, "invalid-field")) return error.InvalidField;
     if (std.mem.eql(u8, code, "invalid-utf8")) return error.InvalidUtf8;
+    if (std.mem.eql(u8, code, "length-mismatch")) return error.LengthMismatch;
     if (std.mem.eql(u8, code, "unknown-required-flag")) return error.UnknownRequiredFlag;
     return null;
 }
@@ -276,7 +280,16 @@ fn expectedRowWindowSuccess(
 }
 
 fn buildRenderRowWindow(allocator: std.mem.Allocator, snapshot: []const u8) ![]u8 {
-    const total = protocol.terminal_row_window_header_bytes + snapshot.len;
+    var graphics: [protocol.terminal_graphics_header_bytes]u8 = @splat(0);
+    @memcpy(graphics[0..4], protocol.terminal_graphics_magic);
+    graphics[4] = protocol.terminal_graphics_format_major;
+    graphics[5] = protocol.terminal_graphics_format_minor;
+    graphics[6] = protocol.terminal_graphics_format_patch;
+    graphics[7] = @intFromEnum(protocol.TerminalGraphicsUpdateKind.snapshot);
+    std.mem.writeInt(u32, graphics[8..12], graphics.len, .little);
+
+    const body_length = snapshot.len + graphics.len;
+    const total = protocol.terminal_row_window_header_bytes + body_length;
     const bytes = try allocator.alloc(u8, total);
     @memcpy(bytes[0..4], protocol.terminal_row_window_magic);
     bytes[4] = protocol.terminal_row_window_format_major;
@@ -296,10 +309,13 @@ fn buildRenderRowWindow(allocator: std.mem.Allocator, snapshot: []const u8) ![]u
     std.mem.writeInt(u16, bytes[88..90], 2, .little); // row count
     std.mem.writeInt(u16, bytes[90..92], 0, .little); // reserved
     std.mem.writeInt(u32, bytes[92..96], 12, .little); // entry count
-    std.mem.writeInt(u32, bytes[96..100], @intCast(snapshot.len), .little); // body length
+    std.mem.writeInt(u32, bytes[96..100], @intCast(body_length), .little); // body length
     bytes[100] = protocol.terminal_row_window_format_patch;
-    @memset(bytes[101..112], 0); // reserved tail
-    @memcpy(bytes[112..], snapshot);
+    std.mem.writeInt(u32, bytes[101..105], @intCast(snapshot.len), .little);
+    std.mem.writeInt(u32, bytes[105..109], graphics.len, .little);
+    @memset(bytes[109..112], 0); // reserved tail
+    @memcpy(bytes[112..][0..snapshot.len], snapshot);
+    @memcpy(bytes[112 + snapshot.len ..], &graphics);
     return bytes;
 }
 
@@ -831,8 +847,8 @@ test "shared packed projection corpus drives both native strict validators" {
     );
     defer parsed.deinit();
     try std.testing.expectEqual(@as(u8, 1), parsed.value.schemaVersion);
-    try std.testing.expectEqualStrings("0.0.2", parsed.value.formatVersion);
-    try std.testing.expectEqual(@as(usize, 26), parsed.value.cases.len);
+    try std.testing.expectEqualStrings("0.0.3", parsed.value.formatVersion);
+    try std.testing.expectEqual(@as(usize, 29), parsed.value.cases.len);
 
     var inventory = PackedProjectionInventory{};
     for (parsed.value.cases) |case| {
@@ -975,13 +991,13 @@ test "canonical TypeScript envelope carries the exact canonical frame" {
     try std.testing.expectEqualSlices(u8, frame_fixture, summary.payload);
 }
 
-/// Hand-assembles a wire-valid OBTP transport envelope whose terminal-frame
-/// payload is exactly the frame bound, making the whole record equal the
-/// transport-record bound (64-byte header + 8 MiB payload). The payload is
+/// Hand-assembles a wire-valid OBTP transport envelope whose row-window
+/// payload is exactly the row-window bound, making the whole record equal the
+/// transport-record bound (64-byte header + 16 MiB payload). The payload is
 /// opaque to the envelope validator, so a zero-filled body is a valid
-/// terminal-frame payload declaration for envelope admission purposes.
+/// row-window payload declaration for envelope admission purposes.
 fn buildBoundaryEnvelopeRecord(allocator: std.mem.Allocator) ![]u8 {
-    const payload_length = protocol.Limits.frame_bytes;
+    const payload_length = protocol.Limits.row_window_bytes;
     const record_length = protocol.transport_envelope_header_bytes + payload_length;
     const bytes = try allocator.alloc(u8, record_length);
     errdefer allocator.free(bytes);
@@ -993,8 +1009,8 @@ fn buildBoundaryEnvelopeRecord(allocator: std.mem.Allocator) ![]u8 {
     std.mem.writeInt(u32, bytes[12..16], @intCast(payload_length), .little);
     std.mem.writeInt(u16, bytes[16..18], protocol.current_protocol_major, .little);
     std.mem.writeInt(u16, bytes[18..20], protocol.current_protocol_minor, .little);
-    std.mem.writeInt(u16, bytes[20..22], protocol.MessageKind.delta_frame, .little);
-    bytes[22] = @intFromEnum(protocol.PayloadEncoding.terminal_frame);
+    std.mem.writeInt(u16, bytes[20..22], protocol.MessageKind.rows_snapshot, .little);
+    bytes[22] = @intFromEnum(protocol.PayloadEncoding.row_window);
     std.mem.writeInt(u16, bytes[56..58], protocol.current_protocol_patch, .little);
     return bytes;
 }
@@ -1002,7 +1018,7 @@ fn buildBoundaryEnvelopeRecord(allocator: std.mem.Allocator) ![]u8 {
 test "envelope fixture cap is tied to the authoritative transport-record bound" {
     try std.testing.expectEqual(protocol.Limits.transport_record_bytes, envelope_fixture_max_bytes);
     try std.testing.expectEqual(
-        protocol.Limits.frame_bytes + protocol.transport_envelope_header_bytes,
+        protocol.Limits.row_window_bytes + protocol.transport_envelope_header_bytes,
         envelope_fixture_max_bytes,
     );
 }
@@ -1018,24 +1034,29 @@ test "envelope fixture admission admits a record at the transport-record bound" 
 
     const path = "envelope-at-record-bound.bin";
     {
-        const file = try tmp.dir.createFile(path, .{});
-        defer file.close();
-        try file.writeAll(record);
+        const file = try tmp.dir.createFile(std.testing.io, path, .{});
+        defer file.close(std.testing.io);
+        try file.writeStreamingAll(std.testing.io, record);
     }
-    const admitted = try tmp.dir.readFileAlloc(allocator, path, envelope_fixture_max_bytes);
+    const admitted = try tmp.dir.readFileAlloc(
+        std.testing.io,
+        path,
+        allocator,
+        .limited(envelope_fixture_max_bytes + 1),
+    );
     defer allocator.free(admitted);
     try std.testing.expectEqual(protocol.Limits.transport_record_bytes, admitted.len);
 
     const summary = try protocol.validateTransportEnvelope(admitted);
-    try std.testing.expectEqual(@as(usize, protocol.Limits.frame_bytes), summary.payload.len);
-    try std.testing.expectEqual(@as(u16, 42), summary.kind);
-    try std.testing.expectEqual(@as(u8, 3), summary.payload_encoding);
+    try std.testing.expectEqual(@as(usize, protocol.Limits.row_window_bytes), summary.payload.len);
+    try std.testing.expectEqual(protocol.MessageKind.rows_snapshot, summary.kind);
+    try std.testing.expectEqual(@intFromEnum(protocol.PayloadEncoding.row_window), summary.payload_encoding);
 
     // When the build is configured with a boundary-size envelope fixture, the
-    // fixture itself must validate to the frame-bound payload as well.
+    // fixture itself must validate to the row-window-bound payload as well.
     if (envelope_fixture.len == protocol.Limits.transport_record_bytes) {
         const fixture_summary = try protocol.validateTransportEnvelope(envelope_fixture);
-        try std.testing.expectEqual(@as(usize, protocol.Limits.frame_bytes), fixture_summary.payload.len);
+        try std.testing.expectEqual(@as(usize, protocol.Limits.row_window_bytes), fixture_summary.payload.len);
     }
 }
 
@@ -1053,13 +1074,18 @@ test "envelope fixture admission rejects one byte over the transport-record boun
 
     const path = "envelope-over-record-bound.bin";
     {
-        const file = try tmp.dir.createFile(path, .{});
-        defer file.close();
-        try file.writeAll(over);
+        const file = try tmp.dir.createFile(std.testing.io, path, .{});
+        defer file.close(std.testing.io);
+        try file.writeStreamingAll(std.testing.io, over);
     }
     try std.testing.expectError(
-        error.FileTooBig,
-        tmp.dir.readFileAlloc(allocator, path, envelope_fixture_max_bytes),
+        error.StreamTooLong,
+        tmp.dir.readFileAlloc(
+            std.testing.io,
+            path,
+            allocator,
+            .limited(envelope_fixture_max_bytes + 1),
+        ),
     );
 }
 
@@ -1406,7 +1432,7 @@ test "native control replies and events conform to TypeScript schemas" {
         .{
             .frame_bytes = 8 * 1024 * 1024,
             .input_bytes = 1024 * 1024,
-            .row_window_bytes = 2 * 1024 * 1024,
+            .row_window_bytes = 16 * 1024 * 1024,
         },
         host_epoch,
         "0.1.0",
@@ -2379,7 +2405,7 @@ test "native row-window decoder rejects non-canonical mappings, wrap, prompt, an
 
     const different_patch = try allocator.dupe(u8, row_window_fixture);
     defer allocator.free(different_patch);
-    different_patch[100] = 3;
+    different_patch[100] = protocol.terminal_row_window_format_patch + 1;
     try std.testing.expectError(
         error.UnsupportedVersion,
         protocol.validateTerminalRowWindow(allocator, different_patch),

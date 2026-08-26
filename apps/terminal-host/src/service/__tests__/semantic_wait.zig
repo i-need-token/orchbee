@@ -1,4 +1,7 @@
 const std = @import("std");
+const platform = @import("terminal-host-platform");
+const monotonic = platform.monotonic;
+const thread_sync = platform.thread_sync;
 
 const core_module = @import("terminal-host-core").state;
 const terminal_runtime = @import("terminal-host-engine").runtime;
@@ -11,20 +14,20 @@ const host_service = service_boundary.service;
 const semantic_wait_timeout_ns: u64 = 10 * std.time.ns_per_s;
 
 const Deadline = struct {
-    timer: std.time.Timer,
+    timer: monotonic.Timer,
     timeout_ns: u64,
 
     fn init(timeout_ns: u64) !Deadline {
         return .{
-            .timer = try std.time.Timer.start(),
+            .timer = try monotonic.Timer.start(),
             .timeout_ns = timeout_ns,
         };
     }
 
     fn wait(
         self: *Deadline,
-        condition: *std.Thread.Condition,
-        mutex: *std.Thread.Mutex,
+        condition: *thread_sync.Condition,
+        mutex: *thread_sync.Mutex,
     ) !void {
         const elapsed = self.timer.read();
         if (elapsed >= self.timeout_ns) return error.SemanticWaitTimeout;
@@ -113,8 +116,8 @@ pub fn terminalExits(
 }
 
 test "an exhausted semantic deadline fails without blocking" {
-    var condition: std.Thread.Condition = .{};
-    var mutex: std.Thread.Mutex = .{};
+    var condition: thread_sync.Condition = .{};
+    var mutex: thread_sync.Mutex = .{};
     var deadline = try Deadline.init(0);
     mutex.lock();
     defer mutex.unlock();

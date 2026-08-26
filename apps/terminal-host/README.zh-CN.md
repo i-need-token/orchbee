@@ -48,6 +48,7 @@ Terminal Host 拥有：
 - 大型投影和历史记录一次跨越引擎到出口所有权：生产者写入保留的响应存储或传输拥有的信封就绪分配，而不是将完整的有效负载复制到第二个缓冲区中。
 - 进入后回复丢失的输入具有未知的结果，并且不得自动重播。
 - 没有客户端收到原始 PTY 输出。客户端接收从规范终端状态派生的有界协议投影、历史行、选择状态、导出和生命周期事件。
+- Kitty 图形保留为有界本机状态。Ghostty 拥有 direct、普通文件、临时文件和受支持的 POSIX 共享内存媒体，以及 animation、virtual/relative 放置、裁剪、查询/删除与有符号 z 合成。Host 只通过 OBKG `0.0.2` 投影自有解码像素和已解析放置；render-detail OBRW `0.0.3` 包含图形快照，text detail 排除图形。macOS 与受支持、链接 libc 的 Linux 目标启用全部媒体；Windows 启用 direct、普通文件和临时文件媒体，但不支持 POSIX 共享内存。
 - 终端控制查询（包括 DECRQSS）读取相同的规范 Ghostty 状态，并通过主机拥有的有界终端回复路径将其回复排队；附件永远不会模拟第二个 VT 回复表面。
 - 附件大小调整和终端驱动的 80/132 列请求共享一个本机几何提交所有者。在客户端观察到变化之前，主机将 OS PTY 大小、Ghostty 尺寸、单元像素、修订、生成、核心观察和投影快照关联起来。
 - 正在运行的 terminal 最多有一个 attachment resize lease。具备 resize 能力的 observer
@@ -100,9 +101,9 @@ Desktop 从其产品用户数据范围派生运行时目录和端点标识符；
 
 | 输入           | 价值                                                             |
 | -------------- | ---------------------------------------------------------------- |
-| Zig            | 正是`0.15.2`                                                     |
-| Ghostty 修订版 | `91f66da24527fa02d92b5fd0b41cd020f553a64c`                       |
-| Ghostty 包哈希 | `ghostty-1.3.2-dev-5UdBCx16GwVpqni9yfmuNj13woRRCOiIvLQ64uB3CnbG` |
+| Zig            | 正是`0.16.0`                                                     |
+| Ghostty 修订版 | `9c3ec931d64561a8407dde7ac984ce156ae91539`                       |
+| Ghostty 包哈希 | `ghostty-1.3.2-dev-5UdBCzw0UwUUuHE16pHQg0d9Bplq2ccuQ2cmOJRYkd-y` |
 
 `build.zig.zon` 是依赖权限。该构建拒绝另一个 Zig 版本或 Ghostty 存档内容，并且不读取同级 Ghostty 签出。
 

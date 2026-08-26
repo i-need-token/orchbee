@@ -22,20 +22,22 @@ pub const Error = error{
 /// removal. Attachment indexes are intentionally not part of this owner: they
 /// belong to the active broker.
 pub const Registry = struct {
-    creations: std.AutoArrayHashMap(CreationId, TerminalId),
+    allocator: std.mem.Allocator,
+    creations: std.AutoArrayHashMapUnmanaged(CreationId, TerminalId),
     inventory_generation: u64 = 1,
-    terminals: std.AutoArrayHashMap(TerminalId, *Session),
+    terminals: std.AutoArrayHashMapUnmanaged(TerminalId, *Session),
 
     pub fn init(allocator: std.mem.Allocator) Registry {
         return .{
-            .creations = .init(allocator),
-            .terminals = .init(allocator),
+            .allocator = allocator,
+            .creations = .empty,
+            .terminals = .empty,
         };
     }
 
     pub fn deinit(self: *Registry) void {
-        self.creations.deinit();
-        self.terminals.deinit();
+        self.creations.deinit(self.allocator);
+        self.terminals.deinit(self.allocator);
         self.* = undefined;
     }
 
@@ -82,8 +84,8 @@ pub const Registry = struct {
         if (self.inventory_generation == std.math.maxInt(u64)) {
             return error.InventoryGenerationOverflow;
         }
-        try self.terminals.ensureUnusedCapacity(1);
-        try self.creations.ensureUnusedCapacity(1);
+        try self.terminals.ensureUnusedCapacity(self.allocator, 1);
+        try self.creations.ensureUnusedCapacity(self.allocator, 1);
     }
 
     pub fn validateAdmission(
@@ -166,7 +168,7 @@ pub const testing = if (@import("builtin").is_test) struct {
         creation_id: CreationId,
         terminal_id: TerminalId,
     ) !void {
-        try registry.creations.putNoClobber(creation_id, terminal_id);
+        try registry.creations.putNoClobber(registry.allocator, creation_id, terminal_id);
     }
 
     pub fn setInventoryGeneration(registry: *Registry, generation: u64) void {

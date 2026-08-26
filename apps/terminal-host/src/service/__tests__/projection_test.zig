@@ -5,6 +5,7 @@ const core_boundary = @import("terminal-host-core");
 const engine_boundary = @import("terminal-host-engine");
 const protocol = @import("terminal-protocol");
 const service_boundary = @import("terminal-host-service");
+const thread_sync = @import("terminal-host-platform").thread_sync;
 
 const core_module = core_boundary.state;
 const host_runtime_aggregate = service_boundary.testing.runtime_aggregate;
@@ -183,8 +184,8 @@ const ActivityQueryProbe = struct {
     read_commit_gate: ?*TestGate = null,
     results: []const Result,
     writer_accounted_calls: usize = 0,
-    writer_accounted_condition: std.Thread.Condition = .{},
-    writer_accounted_mutex: std.Thread.Mutex = .{},
+    writer_accounted_condition: thread_sync.Condition = .{},
+    writer_accounted_mutex: thread_sync.Mutex = .{},
     writer_copied_gate: ?*TestGate = null,
 
     fn hasActiveCommand(context: *anyopaque) anyerror!bool {

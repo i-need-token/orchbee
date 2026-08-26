@@ -96,7 +96,7 @@ describe('ProjectedSearchController', () => {
 			const start = Number(request.startRow);
 			const page = rows.slice(start, start + request.rowCount);
 			return {
-				byteLength: page.length * 1024,
+				byteLength: page.length * 8192,
 				detail: 'text',
 				generation: 2n,
 				kind: 'rows',

@@ -19,6 +19,7 @@ pub fn stopIoForShutdown(self: *state.State) void {
     self.writer_stop = true;
     self.input_condition.broadcast();
     self.input_mutex.unlock();
+    self.terminal_condition.broadcast();
     self.terminal_mutex.unlock();
 }
 
@@ -95,6 +96,7 @@ pub fn destroyAfterShutdown(self: *state.State) void {
     self.process.deinit();
     self.history.deinit(&self.terminal);
     self.terminal.deinit(self.allocator);
+    if (self.kitty_temp_directory) |path| self.allocator.free(path);
     self.input_mutex.lock();
     self.input_ownership.deinit();
     self.input_queue.deinit();
@@ -110,6 +112,7 @@ pub fn joinThreads(self: *state.State) void {
     if (self.threads_joined) return;
     if (self.wait_thread) |thread| thread.join();
     if (self.reader_thread) |thread| thread.join();
+    if (self.animation_thread) |thread| thread.join();
     self.input_mutex.lock();
     self.writer_stop = true;
     self.input_condition.broadcast();

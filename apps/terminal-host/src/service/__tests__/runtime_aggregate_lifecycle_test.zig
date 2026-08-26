@@ -426,7 +426,7 @@ test "termination dispatch failure fences input before Core publication and clea
     );
     var launch = validMissingExecutableLaunch();
     const windows_executable: ?[]u8 = if (builtin.os.tag == .windows)
-        try std.process.getEnvVarOwned(std.testing.allocator, "ComSpec")
+        try pty_process.environmentVariableOwned(std.testing.allocator, "ComSpec")
     else
         null;
     defer if (windows_executable) |value| std.testing.allocator.free(value);
@@ -591,7 +591,7 @@ test "engine failure between dispatch and Host fencing remains the Core primary 
     );
     var launch = validMissingExecutableLaunch();
     const windows_executable: ?[]u8 = if (builtin.os.tag == .windows)
-        try std.process.getEnvVarOwned(std.testing.allocator, "ComSpec")
+        try pty_process.environmentVariableOwned(std.testing.allocator, "ComSpec")
     else
         null;
     defer if (windows_executable) |value| std.testing.allocator.free(value);
@@ -1065,7 +1065,7 @@ test "Windows exit code 259 synchronizes as one TerminalExited with code 259 (TH
         connection_id,
         testId(core_module.ClientId, 0x51),
     );
-    const windows_executable = try std.process.getEnvVarOwned(
+    const windows_executable = try pty_process.environmentVariableOwned(
         std.testing.allocator,
         "ComSpec",
     );

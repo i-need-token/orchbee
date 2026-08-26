@@ -1,6 +1,8 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
+const posix_compat = @import("posix_compat.zig");
+const thread_sync = @import("thread_sync.zig");
 const windows_api = @import("windows_api.zig");
 
 extern "c" fn tcgetpgrp(handle: c_int) c_int;
@@ -35,7 +37,7 @@ const PosixPty = if (builtin.os.tag == .windows) void else struct {
         if (c.openpty(&master, &slave, null, null, &native_size) < 0) {
             return error.OpenPtyFailed;
         }
-        const abort_pipe = posix.pipe2(.{ .CLOEXEC = true }) catch |err| {
+        const abort_pipe = posix_compat.pipe2(.{ .CLOEXEC = true }) catch |err| {
             _ = posix.system.close(master);
             _ = posix.system.close(slave);
             return err;
@@ -72,7 +74,7 @@ const PosixPty = if (builtin.os.tag == .windows) void else struct {
     pub fn abortRead(self: *PosixPty) !void {
         if (self.read_aborted.load(.acquire)) return;
         const marker = [_]u8{1};
-        _ = try posix.write(self.abort_write_fd, &marker);
+        _ = try posix_compat.write(self.abort_write_fd, &marker);
         self.read_aborted.store(true, .release);
     }
 
@@ -109,7 +111,7 @@ const PosixPty = if (builtin.os.tag == .windows) void else struct {
             if (descriptors[1].revents != 0) return 0;
             if (descriptors[0].revents & (posix.POLL.IN | posix.POLL.HUP | posix.POLL.ERR) != 0) {
                 return posix.read(self.master, buffer) catch |err| switch (err) {
-                    error.BrokenPipe, error.InputOutput => 0,
+                    error.InputOutput => 0,
                     else => return err,
                 };
             }
@@ -119,7 +121,7 @@ const PosixPty = if (builtin.os.tag == .windows) void else struct {
     }
 
     pub fn write(self: *const PosixPty, bytes: []const u8) !usize {
-        return posix.write(self.master, bytes);
+        return posix_compat.write(self.master, bytes);
     }
 
     pub fn foregroundProcessGroup(self: *const PosixPty) !posix.pid_t {
@@ -147,17 +149,23 @@ const PosixPty = if (builtin.os.tag == .windows) void else struct {
     }
 
     fn setCloseOnExec(fd: posix.fd_t) !void {
-        const flags = try posix.fcntl(fd, posix.F.GETFD, 0);
-        _ = try posix.fcntl(fd, posix.F.SETFD, flags | posix.FD_CLOEXEC);
+        const flags = std.c.fcntl(fd, posix.F.GETFD, @as(c_int, 0));
+        if (flags < 0) return error.ConfigurePtyFailed;
+        if (std.c.fcntl(fd, posix.F.SETFD, flags | posix.FD_CLOEXEC) < 0) {
+            return error.ConfigurePtyFailed;
+        }
     }
 
     fn duplicateTo(source: posix.fd_t, target: posix.fd_t) !void {
         if (source == target) {
-            const flags = try posix.fcntl(source, posix.F.GETFD, 0);
-            _ = try posix.fcntl(source, posix.F.SETFD, flags & ~@as(usize, posix.FD_CLOEXEC));
+            const flags = std.c.fcntl(source, posix.F.GETFD, @as(c_int, 0));
+            if (flags < 0) return error.ConfigurePtyFailed;
+            if (std.c.fcntl(source, posix.F.SETFD, flags & ~@as(c_int, posix.FD_CLOEXEC)) < 0) {
+                return error.ConfigurePtyFailed;
+            }
             return;
         }
-        _ = try posix.dup2(source, target);
+        _ = try posix_compat.dup2(source, target);
     }
 };
 
@@ -166,12 +174,12 @@ const WindowsPty = if (builtin.os.tag != .windows) void else struct {
 
     console_closed: bool = false,
     input: windows.HANDLE,
-    lifecycle_mutex: std.Thread.Mutex = .{},
+    lifecycle_mutex: thread_sync.Mutex = .{},
     output: windows.HANDLE,
     pseudo_console: windows_api.HPCON,
     read_abort_requested: bool = false,
     read_active: bool = false,
-    read_condition: std.Thread.Condition = .{},
+    read_condition: thread_sync.Condition = .{},
     reader_thread: ?std.Thread.Handle = null,
 
     pub fn open(size: Size) !WindowsPty {
@@ -181,23 +189,27 @@ const WindowsPty = if (builtin.os.tag != .windows) void else struct {
         var input: windows.HANDLE = undefined;
         var output: windows.HANDLE = undefined;
         var output_console: windows.HANDLE = undefined;
-        if (windows_api.CreatePipe(&input_console, &input, null, 0) == 0) {
-            return windows.unexpectedError(windows.kernel32.GetLastError());
+        if (!windows_api.CreatePipe(&input_console, &input, null, 0).toBool()) {
+            return windows.unexpectedError(windows.GetLastError());
         }
         errdefer {
             _ = windows.CloseHandle(input_console);
             _ = windows.CloseHandle(input);
         }
-        if (windows_api.CreatePipe(&output, &output_console, null, 0) == 0) {
-            return windows.unexpectedError(windows.kernel32.GetLastError());
+        if (!windows_api.CreatePipe(&output, &output_console, null, 0).toBool()) {
+            return windows.unexpectedError(windows.GetLastError());
         }
         errdefer {
             _ = windows.CloseHandle(output);
             _ = windows.CloseHandle(output_console);
         }
 
-        try windows.SetHandleInformation(input, windows.HANDLE_FLAG_INHERIT, 0);
-        try windows.SetHandleInformation(output, windows.HANDLE_FLAG_INHERIT, 0);
+        if (!windows_api.SetHandleInformation(input, windows_api.HANDLE_FLAG_INHERIT, 0).toBool()) {
+            return windows.unexpectedError(windows.GetLastError());
+        }
+        if (!windows_api.SetHandleInformation(output, windows_api.HANDLE_FLAG_INHERIT, 0).toBool()) {
+            return windows.unexpectedError(windows.GetLastError());
+        }
         var pseudo_console: windows_api.HPCON = undefined;
         const result = windows_api.CreatePseudoConsole(
             .{ .X = columns, .Y = rows },
@@ -206,7 +218,7 @@ const WindowsPty = if (builtin.os.tag != .windows) void else struct {
             0,
             &pseudo_console,
         );
-        if (result != windows.S_OK) return error.OpenPtyFailed;
+        if (result != windows_api.S_OK) return error.OpenPtyFailed;
         _ = windows.CloseHandle(input_console);
         _ = windows.CloseHandle(output_console);
         return .{
@@ -242,9 +254,9 @@ const WindowsPty = if (builtin.os.tag != .windows) void else struct {
                 return error.MissingReaderThread;
             };
             self.lifecycle_mutex.unlock();
-            if (windows_api.CancelSynchronousIo(reader_thread) != 0) {
+            if (windows_api.CancelSynchronousIo(reader_thread).toBool()) {
                 cancellation_requested = true;
-            } else switch (windows.kernel32.GetLastError()) {
+            } else switch (windows.GetLastError()) {
                 // The reader marks itself active immediately before entering
                 // ReadFile. If cancellation wins that narrow gap, retry until
                 // either the read starts or the reader observes the abort.
@@ -293,13 +305,13 @@ const WindowsPty = if (builtin.os.tag != .windows) void else struct {
             self.lifecycle_mutex.unlock();
         }
         var read_bytes: windows.DWORD = 0;
-        if (windows.kernel32.ReadFile(
+        if (!windows_api.ReadFile(
             self.output,
             buffer.ptr,
             @intCast(@min(buffer.len, std.math.maxInt(windows.DWORD))),
             &read_bytes,
             null,
-        ) == 0) return switch (windows.kernel32.GetLastError()) {
+        ).toBool()) return switch (windows.GetLastError()) {
             .BROKEN_PIPE, .HANDLE_EOF, .OPERATION_ABORTED => 0,
             else => |err| windows.unexpectedError(err),
         };
@@ -307,7 +319,25 @@ const WindowsPty = if (builtin.os.tag != .windows) void else struct {
     }
 
     pub fn write(self: *const WindowsPty, bytes: []const u8) !usize {
-        return windows.WriteFile(self.input, bytes, null);
+        var written: windows.DWORD = 0;
+        if (!windows_api.WriteFile(
+            self.input,
+            bytes.ptr,
+            @intCast(@min(bytes.len, std.math.maxInt(windows.DWORD))),
+            &written,
+            null,
+        ).toBool()) return switch (windows.GetLastError()) {
+            .INVALID_USER_BUFFER, .NOT_ENOUGH_MEMORY, .NOT_ENOUGH_QUOTA, .WORKING_SET_QUOTA => error.SystemResources,
+            .OPERATION_ABORTED => error.OperationAborted,
+            .NO_DATA => error.BrokenPipe,
+            .INVALID_HANDLE => error.NotOpenForWriting,
+            .LOCK_VIOLATION => error.LockViolation,
+            .NETNAME_DELETED => error.ConnectionResetByPeer,
+            .ACCESS_DENIED => error.AccessDenied,
+            .IO_PENDING => unreachable,
+            else => |err| windows.unexpectedError(err),
+        };
+        return written;
     }
 
     pub fn setSize(self: *WindowsPty, size: Size) !void {
@@ -320,7 +350,7 @@ const WindowsPty = if (builtin.os.tag != .windows) void else struct {
             self.pseudo_console,
             .{ .X = columns, .Y = rows },
         );
-        if (result != windows.S_OK) return error.ResizePtyFailed;
+        if (result != windows_api.S_OK) return error.ResizePtyFailed;
     }
 
     fn checkedCoordinate(value: u16) !i16 {

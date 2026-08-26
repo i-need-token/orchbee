@@ -580,7 +580,7 @@ test "post-resize-effect barrier keeps normal completion pending through commit 
 test "force termination releases every engine-owned client input reservation" {
     const builtin = @import("builtin");
     const windows_executable: ?[]u8 = if (builtin.os.tag == .windows)
-        try std.process.getEnvVarOwned(std.testing.allocator, "ComSpec")
+        try pty_process.environmentVariableOwned(std.testing.allocator, "ComSpec")
     else
         null;
     defer if (windows_executable) |value| std.testing.allocator.free(value);
@@ -609,7 +609,7 @@ test "force termination releases every engine-owned client input reservation" {
 test "stopped writer rejects reservations even when queue capacity remains" {
     const builtin = @import("builtin");
     const windows_executable: ?[]u8 = if (builtin.os.tag == .windows)
-        try std.process.getEnvVarOwned(std.testing.allocator, "ComSpec")
+        try pty_process.environmentVariableOwned(std.testing.allocator, "ComSpec")
     else
         null;
     defer if (windows_executable) |value| std.testing.allocator.free(value);
@@ -642,7 +642,7 @@ test "stopped writer rejects reservations even when queue capacity remains" {
 test "resize counter exhaustion leaves process and terminal geometry unchanged" {
     const builtin = @import("builtin");
     const windows_executable: ?[]u8 = if (builtin.os.tag == .windows)
-        try std.process.getEnvVarOwned(std.testing.allocator, "ComSpec")
+        try pty_process.environmentVariableOwned(std.testing.allocator, "ComSpec")
     else
         null;
     defer if (windows_executable) |value| std.testing.allocator.free(value);
@@ -685,7 +685,7 @@ test "resize counter exhaustion leaves process and terminal geometry unchanged" 
 test "runtime can force the retained session after the root child exits" {
     const builtin = @import("builtin");
     if (builtin.os.tag != .windows) return error.SkipZigTest;
-    const executable = try std.process.getEnvVarOwned(std.testing.allocator, "ComSpec");
+    const executable = try pty_process.environmentVariableOwned(std.testing.allocator, "ComSpec");
     defer std.testing.allocator.free(executable);
     const arguments = [_][]const u8{
         "/D",

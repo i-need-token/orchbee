@@ -59,6 +59,7 @@ const createRuntimeWithHooks = harness.createRuntimeWithHooks;
 const createRuntimeWithHooksAndCommand = harness.createRuntimeWithHooksAndCommand;
 const waitForWriterStop = harness.waitForWriterStop;
 const createIdleRuntime = harness.createIdleRuntime;
+const destroyRuntimeWithIdentityRetry = harness.destroyRuntimeWithIdentityRetry;
 const createIdleRuntimeWithGeometry = harness.createIdleRuntimeWithGeometry;
 const parseTerminalInput = harness.parseTerminalInput;
 const WriterPause = harness.WriterPause;
@@ -224,7 +225,7 @@ test "pinned Ghostty OSC color updates and queries share one color state" {
 
         fn writePty(
             _: *ghostty_vt.TerminalStream.Handler,
-            data: [:0]const u8,
+            data: []const u8,
         ) void {
             if (data.len > bytes.len - length) @panic("color reply exceeds test buffer");
             @memcpy(bytes[length..][0..data.len], data);
@@ -233,7 +234,7 @@ test "pinned Ghostty OSC color updates and queries share one color state" {
     };
     Reply.reset();
 
-    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = 80,
         .rows = 24,
     });
@@ -262,7 +263,7 @@ test "pinned Ghostty OSC color updates and queries share one color state" {
 test "root child exit rejects new client input without stopping terminal replies" {
     const builtin = @import("builtin");
     const windows_executable: ?[]u8 = if (builtin.os.tag == .windows)
-        try std.process.getEnvVarOwned(std.testing.allocator, "ComSpec")
+        try pty_process.environmentVariableOwned(std.testing.allocator, "ComSpec")
     else
         null;
     defer if (windows_executable) |value| std.testing.allocator.free(value);
@@ -295,7 +296,7 @@ test "root child exit rejects new client input without stopping terminal replies
 test "runtime queue applies bounded backpressure before allocation" {
     const builtin = @import("builtin");
     const windows_executable: ?[]u8 = if (builtin.os.tag == .windows)
-        try std.process.getEnvVarOwned(std.testing.allocator, "ComSpec")
+        try pty_process.environmentVariableOwned(std.testing.allocator, "ComSpec")
     else
         null;
     defer if (windows_executable) |value| std.testing.allocator.free(value);
@@ -391,7 +392,7 @@ test "terminal reply burst enforces the exact yield bound and replies keep prior
 test "discarding prepared input releases its ordered queue reservation" {
     const builtin = @import("builtin");
     const windows_executable: ?[]u8 = if (builtin.os.tag == .windows)
-        try std.process.getEnvVarOwned(std.testing.allocator, "ComSpec")
+        try pty_process.environmentVariableOwned(std.testing.allocator, "ComSpec")
     else
         null;
     defer if (windows_executable) |value| std.testing.allocator.free(value);
@@ -681,7 +682,7 @@ test "a PTY batch winning terminal_mutex commits once and freezes at the later f
 test "zero-byte semantic encodings do not retain queue metadata" {
     const builtin = @import("builtin");
     const windows_executable: ?[]u8 = if (builtin.os.tag == .windows)
-        try std.process.getEnvVarOwned(std.testing.allocator, "ComSpec")
+        try pty_process.environmentVariableOwned(std.testing.allocator, "ComSpec")
     else
         null;
     defer if (windows_executable) |value| std.testing.allocator.free(value);
@@ -739,7 +740,7 @@ test "zero-byte semantic encodings do not retain queue metadata" {
 test "semantic input limits apply to encoded terminal bytes" {
     const builtin = @import("builtin");
     const windows_executable: ?[]u8 = if (builtin.os.tag == .windows)
-        try std.process.getEnvVarOwned(std.testing.allocator, "ComSpec")
+        try pty_process.environmentVariableOwned(std.testing.allocator, "ComSpec")
     else
         null;
     defer if (windows_executable) |value| std.testing.allocator.free(value);
@@ -1344,8 +1345,12 @@ test "attachment detach repair allocation failure fences the live runtime" {
     ));
 }
 test "attachment input reset allocation failure fences and clears retained ownership" {
-    const runtime = try createIdleRuntime(.{});
-    defer runtime.destroy();
+    var containment_probe: ContainmentProbe = .{ .pause_first_attempt = false };
+    const runtime = try createRuntimeWithHooks(containment_probe.hooks());
+    defer {
+        clearTestingHooks(runtime);
+        destroyRuntimeWithIdentityRetry(runtime);
+    }
     const attachment_id = AttachmentId.fromBytes([_]u8{0x37} ** 16);
     var attachment = try runtime.prepareAttachment(
         attachment_id,
@@ -1709,7 +1714,7 @@ test "every admitted mouse button has a normal SGR encoding" {
 test "input queue bounds entry metadata independently of byte charge" {
     const builtin = @import("builtin");
     const windows_executable: ?[]u8 = if (builtin.os.tag == .windows)
-        try std.process.getEnvVarOwned(std.testing.allocator, "ComSpec")
+        try pty_process.environmentVariableOwned(std.testing.allocator, "ComSpec")
     else
         null;
     defer if (windows_executable) |value| std.testing.allocator.free(value);
@@ -1742,7 +1747,7 @@ test "input queue bounds entry metadata independently of byte charge" {
 test "ordered input reservations prevent overtaking and cancellation leaves no gap" {
     const builtin = @import("builtin");
     const windows_executable: ?[]u8 = if (builtin.os.tag == .windows)
-        try std.process.getEnvVarOwned(std.testing.allocator, "ComSpec")
+        try pty_process.environmentVariableOwned(std.testing.allocator, "ComSpec")
     else
         null;
     defer if (windows_executable) |value| std.testing.allocator.free(value);

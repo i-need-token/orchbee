@@ -1,8 +1,9 @@
 const std = @import("std");
+const thread_sync = @import("terminal-host-platform").thread_sync;
 
 pub const Gate = struct {
-    condition: std.Thread.Condition = .{},
-    mutex: std.Thread.Mutex = .{},
+    condition: thread_sync.Condition = .{},
+    mutex: thread_sync.Mutex = .{},
     reached: bool = false,
     released: bool = false,
 
@@ -29,8 +30,8 @@ pub const Gate = struct {
 };
 
 pub const Signal = struct {
-    condition: std.Thread.Condition = .{},
-    mutex: std.Thread.Mutex = .{},
+    condition: thread_sync.Condition = .{},
+    mutex: thread_sync.Mutex = .{},
     reached: bool = false,
 
     pub fn notify(self: *Signal) void {
@@ -52,11 +53,11 @@ pub const Signal = struct {
 /// instead of being silently reordered by the host scheduler.
 pub fn Script(comptime Event: type) type {
     return struct {
-        condition: std.Thread.Condition = .{},
+        condition: thread_sync.Condition = .{},
         cursor: usize = 0,
         expected: []const Event,
         mismatch: bool = false,
-        mutex: std.Thread.Mutex = .{},
+        mutex: thread_sync.Mutex = .{},
 
         const Self = @This();
 

@@ -1,5 +1,6 @@
 const std = @import("std");
 const core_module = @import("terminal-host-core").state;
+const monotonic = @import("terminal-host-platform").monotonic;
 
 pub const max_runtime_sync_per_poll = 64;
 
@@ -78,8 +79,8 @@ pub const PendingOutcomeBatch = struct {
 /// monotonic time since the clock's first scheduling use and clamps readings so
 /// they never go backward; tests inject a logical clock.
 pub const CleanupClock = struct {
-    epoch: ?std.time.Instant = null,
-    previous: ?std.time.Instant = null,
+    timer: ?monotonic.Timer = null,
+    previous_ns: u64 = 0,
     context: ?*anyopaque = null,
     read_ns: *const fn (clock: *CleanupClock) i128 = readMonotonicNs,
 
@@ -88,17 +89,13 @@ pub const CleanupClock = struct {
     }
 
     fn readMonotonicNs(self: *CleanupClock) i128 {
-        const current = std.time.Instant.now() catch unreachable;
-        if (self.epoch) |epoch| {
-            var reading = current;
-            if (reading.order(self.previous.?) == .lt) {
-                reading = self.previous.?;
-            }
-            self.previous = reading;
-            return @as(i128, reading.since(epoch));
+        if (self.timer) |*timer| {
+            const reading = @max(timer.read(), self.previous_ns);
+            self.previous_ns = reading;
+            return reading;
         }
-        self.epoch = current;
-        self.previous = current;
+        self.timer = monotonic.Timer.start() catch unreachable;
+        self.previous_ns = 0;
         return 0;
     }
 };

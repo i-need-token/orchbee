@@ -64,6 +64,12 @@ The accepted contract requires these externally visible properties:
 - Large projection and history records cross engine-to-egress ownership once: producers write into reserved response storage or transfer an owned envelope-ready allocation instead of copying a complete payload into a second buffer.
 - Input whose reply is lost after admission has an unknown outcome and must not be automatically replayed.
 - No client receives raw PTY output. Clients receive bounded protocol projections, history rows, selection state, exports, and lifecycle events derived from canonical terminal state.
+- Kitty graphics remain bounded native state. Ghostty owns direct, regular-file, temporary-file,
+  and supported POSIX shared-memory media plus animation, virtual/relative placement, cropping,
+  query/delete, and signed-z composition. Host projects only owned decoded pixels and resolved
+  placements through OBKG `0.0.2`; render-detail OBRW `0.0.3` includes a graphics snapshot, while
+  text detail excludes graphics. macOS and supported libc-backed Linux targets enable every medium;
+  Windows enables direct, regular-file, and temporary-file media but not POSIX shared memory.
 - Terminal control queries, including DECRQSS, read that same canonical Ghostty state and enqueue their replies through the Host-owned bounded terminal-reply path; attachments never emulate a second VT reply surface.
 - Attachment resize and terminal-driven 80/132-column requests share one native geometry commit
   owner. The Host correlates OS PTY size, Ghostty dimensions, cell pixels, revision, generation, Core
@@ -144,9 +150,9 @@ inside its platform adapter, while Terminal Host remains a separately retained s
 
 | Input                | Value                                                            |
 | -------------------- | ---------------------------------------------------------------- |
-| Zig                  | `0.15.2` exactly                                                 |
-| Ghostty revision     | `91f66da24527fa02d92b5fd0b41cd020f553a64c`                       |
-| Ghostty package hash | `ghostty-1.3.2-dev-5UdBCx16GwVpqni9yfmuNj13woRRCOiIvLQ64uB3CnbG` |
+| Zig                  | `0.16.0` exactly                                                 |
+| Ghostty revision     | `9c3ec931d64561a8407dde7ac984ce156ae91539`                       |
+| Ghostty package hash | `ghostty-1.3.2-dev-5UdBCzw0UwUUuHE16pHQg0d9Bplq2ccuQ2cmOJRYkd-y` |
 
 `build.zig.zon` is the dependency authority. The build rejects another Zig version or Ghostty archive content and does not read a sibling Ghostty checkout.
 

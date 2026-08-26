@@ -2,14 +2,14 @@
 
 ## 适用范围
 
-依据固定版本的 Ghostty 渲染器、字体与整形器源码审计投影客户端渲染器。审计涵盖像素几何、字形约束、整形边界、光标呈现，以及其他存在直接对应关系的浏览器渲染行为。
+依据固定版本的 Ghostty 渲染器、字体与整形器源码审计投影客户端渲染器。审计涵盖像素几何、字形约束、整形边界、光标呈现、投影 Kitty 图像合成，以及其他存在直接对应关系的浏览器渲染行为。
 
 它明确排除 VT 解析、PTY 字节、终端模式、历史记录和选择权限、语义输入编码、搜索所有权、窗口、选项卡、拆分、更新和其他应用程序 UI。这些排除是架构边界：Ghostty VT 权限仅存在于 `apps/terminal-host` 中，而此包消耗打包的主机投影。
 
 | 基线         | 值                                         |
 | ------------ | ------------------------------------------ |
-| 已验证       | 2026-08-13                                 |
-| Ghostty 提交 | `91f66da24527fa02d92b5fd0b41cd020f553a64c` |
+| 已验证       | 2026-08-25                                 |
+| Ghostty 提交 | `9c3ec931d64561a8407dde7ac984ce156ae91539` |
 
 `pnpm audit:ghostty-panel` 报告已检查的 Ghostty 源的权威声明和处置计数。审核接受 `test {}`、`test name {}` 和 `test "name" {}` 并拒绝丢失、重复、过时或超出范围的清单映射。
 
@@ -27,16 +27,17 @@
 
 ## Orchbee 证据
 
-| 代码       | 证据                                                                                                         |
-| ---------- | ------------------------------------------------------------------------------------------------------------ |
-| `E-RENDER` | `src/rendering/__tests__/renderer.unit.test.ts` 和投影终端集成测试                                           |
-| `E-FIT`    | `src/__tests__/surface-size.unit.test.ts`                                                                    |
-| `E-SHAPE`  | `src/__tests__/buildTextShapingPlan.unit.test.ts` 和投影渲染器测试                                           |
-| `E-LINK`   | `src/__tests__/terminal-row-links.unit.test.ts`、投影终端测试和投影渲染器测试                                |
-| `E-IME`    | `src/input/__tests__/preedit.unit.test.ts` 和投影终端测试                                                    |
-| `E-SELECT` | `src/projected/__tests__/projected-terminal.unit.test.ts` 和投影渲染器测试                                   |
-| `E-FONT`   | 字体度量、字形约束、完整的 Ghostty sprite 路由、生成的光栅/约束数据、整形及投影渲染器测试                    |
-| `E-ENV`    | 精确的有界面 `terminal-parity/CF-03-visual-environment` 系统见证，以及每个具名视觉见证所断言的控制条件与限制 |
+| 代码         | 证据                                                                                                         |
+| ------------ | ------------------------------------------------------------------------------------------------------------ |
+| `E-RENDER`   | `src/rendering/__tests__/renderer.unit.test.ts` 和投影终端集成测试                                           |
+| `E-FIT`      | `src/__tests__/surface-size.unit.test.ts`                                                                    |
+| `E-SHAPE`    | `src/__tests__/buildTextShapingPlan.unit.test.ts` 和投影渲染器测试                                           |
+| `E-LINK`     | `src/__tests__/terminal-row-links.unit.test.ts`、投影终端测试和投影渲染器测试                                |
+| `E-IME`      | `src/input/__tests__/preedit.unit.test.ts` 和投影终端测试                                                    |
+| `E-SELECT`   | `src/projected/__tests__/projected-terminal.unit.test.ts` 和投影渲染器测试                                   |
+| `E-FONT`     | 字体度量、字形约束、完整的 Ghostty sprite 路由、生成的光栅/约束数据、整形及投影渲染器测试                    |
+| `E-GRAPHICS` | 严格 OBKG/OBRW store、`src/rendering/__tests__/renderer.unit.test.ts` 与 Terminal Host 投影/动画差分测试     |
+| `E-ENV`      | 精确的有界面 `terminal-parity/CF-03-visual-environment` 系统见证，以及每个具名视觉见证所断言的控制条件与限制 |
 
 下方每项声明恰有一种处置。`<unnamed@line>` 标识固定提交中未命名的上游测试。
 
@@ -65,9 +66,17 @@
 
 浏览器文本段规划器会把占多个单元格的 Host 字素排除在自然字宽整形段之外。每个宽字素锚定在其投影头单元格，间隔尾单元格不绘制，随后较窄的复杂文本段则正常开始。`anchors wide fallback graphemes to their Host cells and resumes shaping after tails` 回归同时覆盖累积后备漂移和 emoji 之后组合文本段丢失的问题。窄单元格文本段会按活动光栅尺度，将字体字宽与网格字宽之间的小数差作为 Canvas 字间距加入。选择与搜索覆盖层保留该文本段，仅对裁剪后的单元格对齐区域重新着色，不单独重新整形；`keeps grid-fitted shaping intact across selection boundaries` 与 `keeps a shaped run at the same horizontal origin when selection recolors it` 回归分别覆盖 Canvas 与 WebGPU 路径。WebGPU 图集还会让纹理四边形保持设备像素对齐，并把横向裁剪余数保留在光栅中；`keeps WebGPU run baselines on the cell anchor across cursor splits` 覆盖了光标切分后新首字形具有不同带符号墨迹边界的情况。
 
+## 投影 Kitty 图形
+
+固定 Ghostty 仍是解码图像、帧选择、virtual 与 relative 放置、源相交及 z 顺序的状态所有者。Terminal Host 把这些状态解析成有界 OBKG `0.0.2` 自有像素与绝对放置。路径、文件描述符、共享内存名称或映射、压缩流、编码容器及未解析 pin 都不会到达本包。
+
+打包 store 会原子提交图像资源、放置、资源修订与单调 animation tick。Canvas2D 和 WebGPU 对每项图像 generation 缓存一份转换后资源，使用相交的源矩形与目标几何，并在三个对应接缝绘制：`z < -1073741824` 位于单元格背景下方，`-1073741824 <= z < 0` 位于背景与文本之间，`z >= 0` 位于文本上方。替换与失败路径不能保留过时 Canvas 或 GPU 资源。Render-detail OBRW `0.0.3` 携带一份重定位到所选历史窗口的独立完整图形快照；text detail 不携带图形。
+
+上游 `src/renderer/image.zig` 声明共同映射到 Host 投影与客户端 renderer：源相交及 relative/virtual 放置在线协议前解析；pending/replaced 图像由原子 store 替换与资源清理覆盖；当前动画帧由 Host generation/tick 证据与按 generation 建键的 renderer cache 共同覆盖。包 renderer 不会成为第二个 Kitty 解析器或动画状态机。
+
 ## 宿主衍生的投影语料库
 
-`@orchbee/terminal-protocol/fixtures/ghostty-surface-v0.0.3.bin`、`ghostty-alternate-surface-v0.0.3.bin` 和 `ghostty-render-row-window-v0.0.2.bin` 共同组成一套由 Host 拥有的原生表面证据。`apps/terminal-host` 从一个固定版本的原生 Ghostty VT 和一个 Host Projection 生成 OBTF 夹具对：馈送主流、捕获快照、在同一终端进入备用屏幕，再捕获第二个快照。另一个原生终端会重放主流，追加 DECSCA 受保护哨兵和恢复未受保护后的哨兵，并通过生产 `row_encoding.encode` 到 `projection_buffer.encodeRenderSnapshot` 路径生成 render-detail OBRW。三个夹具均不由 TypeScript 编码器构造。
+`@orchbee/terminal-protocol/fixtures/ghostty-surface-v0.0.3.bin`、`ghostty-alternate-surface-v0.0.3.bin` 和 `ghostty-render-row-window-v0.0.3.bin` 共同组成一套由 Host 拥有的原生表面证据。`apps/terminal-host` 从一个固定版本的原生 Ghostty VT 和一个 Host Projection 生成 OBTF 夹具对：馈送主流、捕获快照、在同一终端进入备用屏幕，再捕获第二个快照。另一个原生终端会重放主流，追加 DECSCA 受保护哨兵和恢复未受保护后的哨兵，并通过生产 `row_encoding.encode` 到 `projection_buffer.encodeRenderSnapshot` 路径生成 render-detail OBRW。三个夹具均不由 TypeScript 编码器构造。
 
 Terminal Host 验证会重新生成并逐字节比较全部三个夹具。投影渲染器测试会解码主 OBTF 字节作为 Canvas 和 WebGPU 证据，再通过打包存储提交两个 OBTF 快照以获得转换证据。OBRW 消费者独立固定完整的六行乘八单元判定：行索引、标志、提示类、字素与超链接字符串及其原始字节范围、全部三个颜色列、每个样式标志和下划线类型、宽度拓扑、语义内容、受保护标志和提交元数据。它要求严格解码与可信结构视图匹配同一矩阵，通过 `replaceProjectionBufferSnapshot` 提交可信帧，并按相同语义列检查每一存储行。线协议有效的内存变异覆盖前景/背景交换、受支持样式变化、受支持语义变化、清除受保护单元、规范移除超链接、协调行换行和有效宽度拓扑替换。
 
@@ -163,11 +172,13 @@ Ghostty 拥有显式超链接和 shell 集成语义。 OSC 8 目标进入主机�
 ## 渲染器清单
 
 - `src/renderer/State.zig` — 覆盖 (`E-RENDER`)：`preedit range covers exact cell width`； `preedit range shifts left at right edge`。
-- `src/renderer/cell.zig` — 覆盖 (`E-RENDER`)：`Contents`； `Contents clear retains other content`; `Contents clear last added content`; `Contents with zero-sized screen`。
+- `src/renderer/cell.zig` — 覆盖 (`E-RENDER`)：`Contents`； `Contents resize grows and shrinks`； `Contents clear retains other content`; `Contents clear last added content`; `Contents with zero-sized screen`。
 - `src/renderer/cell.zig` — 覆盖 (`E-FONT`)：`Cell constraint widths`。
 - `src/renderer/cursor.zig` — 覆盖 (`E-RENDER`)：`cursor: default uses configured style`； `cursor: blinking disabled`; `cursor: explicitly not visible`; `cursor: always block with preedit`。
 - `src/renderer/link.zig` — 覆盖 (`E-LINK`)：`renderCellMap`； `renderCellMap hover links`; `renderCellMap mods no match`。
-- `src/renderer/metal/shaders.zig` — 浏览器产品：`<unnamed@283>`； WebGPU 着色器编译替换了 Metal 着色器编译。
+- `src/renderer/link.zig` — 浏览器产品：`renderCellMap inactive links don't allocate`；浏览器拥有的 link 索引与垃圾回收替代本机分配断言。
+- `src/renderer/image.zig` — 覆盖 (`E-GRAPHICS`)：`kitty renderer ignores pending payloads and removes replaced placements`； `kitty renderer uses the intersected source rectangle`； `kitty renderer positions relative placements from the parent pin`； `kitty renderer relative placement with negative offsets`； `kitty renderer positions relative placements from virtual parent placeholders`； `kitty renderer uploads the current animation frame`；Host 解析规范关系，打包 store 与两个 renderer 后端保留其有界呈现。
+- `src/renderer/metal/shaders.zig` — 浏览器产品：`<unnamed@278>`； WebGPU 着色器编译替换了 Metal 着色器编译。
 - `src/renderer/shadertoy.zig` — 间隙：`spirv`； `spirv invalid`； `shadertoy to msl`; `shadertoy to glsl`。
 - `src/renderer/size.zig` — 覆盖 (`E-FIT`)：`Size.balancePadding equal distributes whitespace equally`； `Size.balancePadding true shifts excess top to bottom`； `Padding balanced on zero`。
 - `src/renderer/size.zig` — 覆盖（`E-FIT`、`E-SELECT`）：`GridSize update exact`； `GridSize update rounding`； `coordinate conversion`。
@@ -180,7 +191,7 @@ Ghostty 拥有显式超链接和 shell 集成语义。 OSC 8 目标进入主机�
 - `src/font/CodepointMap.zig` — 浏览器产品：`codepointmap`。
 - `src/font/CodepointResolver.zig` — 浏览器产品：`getIndex`； `getIndex disabled font style`。
 - `src/font/CodepointResolver.zig` — 覆盖 (`E-FONT`)：`getIndex box glyph`； Orchbee 在浏览器字体回退之前路由固定的 Ghostty 精灵面声明的每个 Unicode 代码点范围。
-- `src/font/Collection.zig` — 上游内部：`<unnamed@929>`。
+- `src/font/Collection.zig` — 上游内部：`<unnamed@930>`。
 - `src/font/Collection.zig` — 浏览器产品：`init`； `add full`; `add deferred without loading options`; `getFace`； `getIndex`； `completeStyles`； `hasCodepoint`； `hasCodepoint emoji default graphical`; `face metrics`。
 - `src/font/Collection.zig` — 覆盖 (`E-FONT`)：`setSize`； `metrics`。
 - `src/font/Collection.zig` — 涵盖 (`E-FONT`)：`adjusted sizes`。
@@ -195,9 +206,9 @@ Ghostty 拥有显式超链接和 shell 集成语义。 OSC 8 目标进入主机�
 - `src/font/discovery.zig` — 浏览器产品：`descriptor hash`； `descriptor hash family names`; `fontconfig`； `fontconfig codepoint`； `coretext`; `coretext codepoint`； `coretext sorting`； `windows`。
 - `src/font/face.zig` — 上游内部：`<unnamed@96>`。
 - `src/font/face.zig` — 浏览器产品：`Variation.Id: wght should be 2003265652`； `Variation.Id: slnt should be 1936486004`；数字常规/粗体和斜体样式使用 CSS 字体选择，因此浏览器拥有可变字体轴标识符。任意轴保留在完整的八字段表示事务之外。
-- `src/font/face/coretext.zig` — 浏览器产品：`<unnamed@970>`； `name`； `emoji`; `in-memory`; `variable`； `variable set variation`; `svg font table`； `glyphIndex colored vs text`。
-- `src/font/face/freetype.zig` — 浏览器产品：`face name`； `<unnamed@1111>`; `color emoji`； `mono to bgra`； `svg font table`； `bitmap glyph`； `bitmap glyph BDF`; `bitmap glyph PCF`； `bitmap glyph OTB`。
-- `src/font/glyf_rasterize.zig` — 浏览器产品：`<unnamed@457>`； `glyf_rasterize: empty outline returns empty bitmap`； `glyf_rasterize: square fills bitmap center`； `glyf_rasterize: quadratic contour renders`； `glyf_rasterize: consecutive off-curve points render`; `glyf_rasterize: units per em controls baseline scale`; `glyf_rasterize: degenerate outline returns full empty bitmap`; `glyf_rasterize: contour can start off curve with final on curve point`； `glyf_rasterize: contour can start with implied midpoint`； `glyf_rasterize: multiple contours render independently`；浏览器字体光栅化取代了 Ghostty 的原生轮廓光栅化器。
+- `src/font/face/coretext.zig` — 浏览器产品：`<unnamed@971>`； `name`； `emoji`; `in-memory`; `variable`； `variable set variation`; `svg font table`； `glyphIndex colored vs text`。
+- `src/font/face/freetype.zig` — 浏览器产品：`face name`； `<unnamed@1112>`; `color emoji`； `mono to bgra`； `svg font table`； `bitmap glyph`； `bitmap glyph BDF`; `bitmap glyph PCF`； `bitmap glyph OTB`。
+- `src/font/glyf_rasterize.zig` — 浏览器产品：`<unnamed@459>`； `glyf_rasterize: empty outline returns empty bitmap`； `glyf_rasterize: square fills bitmap center`； `glyf_rasterize: quadratic contour renders`； `glyf_rasterize: consecutive off-curve points render`; `glyf_rasterize: units per em controls baseline scale`; `glyf_rasterize: degenerate outline returns full empty bitmap`; `glyf_rasterize: contour can start off curve with final on curve point`； `glyf_rasterize: contour can start with implied midpoint`； `glyf_rasterize: multiple contours render independently`；浏览器字体光栅化取代了 Ghostty 的原生轮廓光栅化器。
 - `src/font/glyf_rasterize.zig` — 覆盖 (`E-FONT`)：`glyf_rasterize: non-zero bearings preserve declared whitespace`； `glyf_rasterize: negative y coordinates descend below baseline`; `glyf_rasterize: two-cell bitmap and constraint render within width`； `glyf_rasterize: line height does not change unconstrained em scale`；带符号的 Canvas 墨水边界、终端基线和 Ghostty 派生的宽度约束保留相应的投影几何图形。
 - `src/font/glyf_rasterize_png_test.zig` — 间隙：`glyf_rasterize: bubbletea glyph protocol examples match reference image`； Ghostty 字形图形不由主机投影格式表示，并且客户端渲染器仍然不受支持。
 - `src/font/main.zig` — 上游内部：`<unnamed@75>`。
@@ -208,7 +219,7 @@ Ghostty 拥有显式超链接和 shell 集成语义。 OSC 8 目标进入主机�
 - `src/font/opentype/os2.zig` — 浏览器产品：`OS/2`。
 - `src/font/opentype/post.zig` — 浏览器产品：`post`。
 - `src/font/opentype/sfnt.zig` — 浏览器产品：`FixedPoint`； `parse font`； `get table`。
-- `src/font/opentype/svg.zig` — 浏览器产品：`SVG`。
+- `src/font/opentype/svg.zig` — 浏览器产品：`SVG`； `SVG document list offset past end`；浏览器字体加载与验证替代 Ghostty 的本机 SVG table parser。
 - `src/font/shape.zig` — 上游内部：`<unnamed@96>`。
 - `src/font/shaper/Cache.zig` — 覆盖 (`E-FONT`)：`Cache`。
 - `src/font/shaper/coretext.zig` — 覆盖（`E-SHAPE`、`E-FONT`）：`shape inconsolata ligs`； `shape monaspace ligs`； `shape emoji width`； `shape emoji width long`; `shape Combining characters`； `shape selection boundary`; `shape cursor boundary`; `shape cursor boundary and colored emoji`; `shape cell attribute change`; `shape nerd fonts`。
@@ -220,13 +231,14 @@ Ghostty 拥有显式超链接和 shell 集成语义。 OSC 8 目标进入主机�
 - `src/font/shaper/harfbuzz.zig` — 覆盖 (`E-SHAPE`)：`shape inconsolata ligs`； `shape monaspace ligs`; `shape emoji width`; `shape emoji width long`； `shape Combining characters`； `shape selection boundary`; `shape cursor boundary`； `shape cursor boundary and colored emoji`； `shape cell attribute change`。
 - `src/font/shaper/harfbuzz.zig` — 浏览器产品：`shape`； `shape variation selector VS15`; `shape variation selector VS16`。
 - `src/font/shaper/harfbuzz.zig` — 覆盖 (`E-SHAPE`)：`run iterator`； `run iterator: empty cells with background set`; `shape arabic forced LTR`; `shape with empty cells in between`;完整的行边界样式运行是从左到右显式光栅化的。
+- `src/font/shaper/harfbuzz.zig` — 覆盖（`E-SHAPE`、`E-FONT`）：`shaper selects font for entire grapheme`；每个 Host 投影字素跨浏览器字体回退保持为一个 shaping 单元。
 - `src/font/shaper/harfbuzz.zig` — 浏览器产品：`shape Devanagari string`； `shape Tai Tham vowels (position differs from advance)`; `shape Tibetan characters`; `shape Tai Tham letters (run_offset.y differs from zero)`; `shape Javanese ligatures`; `shape Chakma vowel sign with ligature (vowel sign renders first)`; `shape Bengali ligatures with out of order vowels`; Canvas 取代了有界运行内的 HarfBuzz 字形放置。
 - `src/font/shaper/harfbuzz.zig` — 覆盖 (`E-FONT`)：`shape box glyphs`；完整固定的 Unicode sprite-face 解析器绕过浏览器字体回退。
 - `src/font/shaper/noop.zig` — 上游内部：`<unnamed@141>`。
 - `src/font/sprite.zig` — 上游内部：`<unnamed@37>`； `<unnamed@43>`。
 - `src/font/sprite/Face.zig` — 覆盖 (`E-FONT`)：`sprite face render all sprites`；确定性生成的数据携带每个声明的 Unicode 精灵和所有四个完整的填充奇数/偶数单元大小和厚度参考栅格，而选定的框、块、三角形和电力线形状在参考几何图形之间保留其程序渲染器。
 - `src/font/sprite/Face.zig` — 覆盖 (`E-RENDER`)：`full height cursor sprites respect cursor height metric`；光标几何形状由渲染器拥有，并使用调整后的光标高度度量而不是 Unicode 精灵数据。
-- `src/font/sprite/Face.zig` — 上游内部：`<unnamed@664>`；编译时声明遍历没有浏览器类似的功能。
+- `src/font/sprite/Face.zig` — 上游内部：`<unnamed@666>`；编译时声明遍历没有浏览器类似的功能。
 
 ## 维持限制
 
@@ -236,7 +248,7 @@ Ghostty 拥有显式超链接和 shell 集成语义。 OSC 8 目标进入主机�
 - 一般复杂脚本字形放置委托给浏览器文本光栅化； Orchbee 拥有完整的行边界样式运行、终端边界、空单元保留和 forced-LTR 方向。
 - 固定的 Ghostty 范围的 Unicode 精灵覆盖范围已完成。为四个上游度量组合生成精确的填充参考像素和悬垂偏移；其他物理几何形状选择最近的参考并对其重新采样，而选定的程序形状继续直接缩放。
 
-Kitty 图形、VT 行为和终端查询响应不在此渲染器审核范围内。他们的缺席并不能证明 Terminal Host 的行为。
+Kitty 协议解析、VT 行为与终端查询响应不在此 renderer 审核范围内；上述有界 Host-to-client 图形投影与合成在范围内。未映射的本机行为不能作为 Terminal Host 行为的证据。
 
 ## 升级验证
 

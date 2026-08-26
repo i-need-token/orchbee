@@ -94,10 +94,11 @@ const matrix = [_]Entry{
 
 test "commit seam matrix is exhaustive unique documented and backed by named tests" {
     try std.testing.expectEqual(std.meta.fields(Seam).len, matrix.len);
-    const runtime_model = try std.fs.cwd().readFileAlloc(
-        std.testing.allocator,
+    const runtime_model = try std.Io.Dir.cwd().readFileAlloc(
+        std.testing.io,
         "docs/runtime-model.md",
-        2 * 1024 * 1024,
+        std.testing.allocator,
+        .limited(2 * 1024 * 1024),
     );
     defer std.testing.allocator.free(runtime_model);
 
@@ -156,10 +157,11 @@ fn entry(
 }
 
 fn expectNamedTest(evidence: Evidence) !void {
-    const source = try std.fs.cwd().readFileAlloc(
-        std.testing.allocator,
+    const source = try std.Io.Dir.cwd().readFileAlloc(
+        std.testing.io,
         evidence.source,
-        2 * 1024 * 1024,
+        std.testing.allocator,
+        .limited(2 * 1024 * 1024),
     );
     defer std.testing.allocator.free(source);
     const declaration = try std.fmt.allocPrint(

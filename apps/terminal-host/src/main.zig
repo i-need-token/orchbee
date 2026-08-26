@@ -5,27 +5,32 @@ const host_service = terminal_host.host_service;
 const launcher_arguments = terminal_host.launcher_arguments;
 const local_ipc = terminal_host.local_ipc;
 
-pub fn main() !void {
-    const allocator = std.heap.smp_allocator;
-    const arguments = try std.process.argsAlloc(allocator);
-    defer std.process.argsFree(allocator, arguments);
+pub fn main(init: std.process.Init) !void {
+    const allocator = init.gpa;
+    const arguments = try init.minimal.args.toSlice(init.arena.allocator());
     if (arguments.len == 0) return error.InvalidArguments;
 
     switch (try launcher_arguments.parse(allocator, arguments[1..])) {
-        .version => try writeVersion(),
-        .serve => |options| try serve(allocator, options),
+        .version => try writeVersion(init.io),
+        .serve => |options| try serve(allocator, init.io, init.environ_map, options),
     }
 }
 
-fn writeVersion() !void {
+fn writeVersion(io: std.Io) !void {
     var output_buffer: [128]u8 = undefined;
-    var stdout = std.fs.File.stdout().writerStreaming(&output_buffer);
+    var stdout = std.Io.File.stdout().writerStreaming(io, &output_buffer);
     try stdout.interface.writeAll("orchbee-terminal-host " ++ terminal_host.host_version ++ "\n");
     try stdout.interface.flush();
 }
 
-fn serve(allocator: std.mem.Allocator, options: launcher_arguments.ServeOptions) !void {
-    var server = try local_ipc.LocalServer.init(
+fn serve(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    environment: *const std.process.Environ.Map,
+    options: launcher_arguments.ServeOptions,
+) !void {
+    var server = try local_ipc.LocalServer.initWithIo(
+        io,
         allocator,
         options.runtime_directory,
         options.endpoint_id,
@@ -33,7 +38,7 @@ fn serve(allocator: std.mem.Allocator, options: launcher_arguments.ServeOptions)
     defer server.deinit();
     var service = host_service.HostService.initWithOptions(allocator, .{
         .terminal_defaults = options.terminal_defaults,
-        .trace_interactions = std.process.hasEnvVarConstant("ORCHBEE_TERMINAL_HOST_TRACE"),
+        .trace_interactions = environment.contains("ORCHBEE_TERMINAL_HOST_TRACE"),
     });
     const serve_result = server.serveUntilIdle(&service);
     const shutdown_failed = service.deinitChecked() catch |shutdown_error| teardown_failed: {

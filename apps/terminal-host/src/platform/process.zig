@@ -1,12 +1,14 @@
 const builtin = @import("builtin");
 
 const posix_process = @import("process_posix.zig");
+const process_common = @import("process_common.zig");
 const process_types = @import("process_types.zig");
 const windows_process = @import("process_windows.zig");
 
 pub const EnvironmentDelta = process_types.EnvironmentDelta;
 pub const Launch = process_types.Launch;
 pub const ExitResult = process_types.ExitResult;
+pub const environmentVariableOwned = process_common.environmentVariableOwned;
 
 /// Stable platform-process facade. Each operating-system implementation owns
 /// its launch, signaling, wait, containment, and resource-release details.

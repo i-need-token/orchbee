@@ -127,7 +127,14 @@ pub fn resizeGeometry(
         return error.RevisionOverflow;
     };
     if (cells_changed) {
-        self.terminal.resize(self.allocator, columns, rows) catch |err| {
+        self.terminal.resize(self.allocator, .{
+            .cell_size_px = .{
+                .height = cell_pixel_height,
+                .width = cell_pixel_width,
+            },
+            .cols = columns,
+            .rows = rows,
+        }) catch |err| {
             self.resize_fenced.store(true, .release);
             const won = failure_ops.closeFailureFenceLocked(self, .resize);
             self.terminal_mutex.unlock();

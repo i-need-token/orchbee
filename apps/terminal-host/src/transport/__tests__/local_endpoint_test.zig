@@ -52,7 +52,7 @@ test "private local endpoint owns one lifetime lock and serves a handshake" {
     );
     defer server.deinit();
     if (builtin.os.tag != .windows) {
-        try std.testing.expectEqual(std.posix.AF.UNIX, server.listener.listen_address.any.family);
+        try std.testing.expect(server.listener.socket.handle >= 0);
     }
     try std.testing.expectError(
         error.AlreadyRunning,

@@ -41,7 +41,6 @@ pub fn applyTerminalControl(
             mode_effects.resetLocked(self);
             terminal_stream.restoreColorDefaults(&self.terminal);
             self.profile.applyCursorDefaults(&self.terminal);
-            self.stream.handler.terminal_handler.default_cursor = true;
         },
     }
     self.generation += 1;
@@ -115,15 +114,7 @@ pub fn applyScrollbackBytes(terminal: *ghostty_vt.Terminal, scrollback_bytes: us
     const primary = terminal.screens.get(.primary).?;
     const previous_total_rows = primary.pages.total_rows;
     primary.no_scrollback = scrollback_bytes == 0;
-    primary.pages.explicit_max_size = scrollback_bytes;
-
-    while (primary.pages.total_rows > terminal.rows and
-        (scrollback_bytes == 0 or primary.pages.page_size > primary.pages.maxSize()))
-    {
-        const history_rows = primary.pages.total_rows - terminal.rows;
-        const first_page_rows = primary.pages.pages.first.?.data.size.rows;
-        const rows_to_erase = @min(history_rows, first_page_rows);
-        primary.pages.eraseHistory(.{ .history = .{ .y = rows_to_erase - 1 } });
-    }
+    primary.pages.setMaxBytes(scrollback_bytes);
+    if (scrollback_bytes == 0) primary.pages.eraseHistory(null);
     return @intCast(previous_total_rows - primary.pages.total_rows);
 }

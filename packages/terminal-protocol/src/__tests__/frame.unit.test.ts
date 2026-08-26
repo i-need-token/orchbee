@@ -254,6 +254,7 @@ describe('packed terminal frame', () => {
 		}
 
 		const graphics = encodeTerminalGraphics({
+			animationTick: 1n,
 			images: [
 				{
 					data: new Uint8Array([1, 2, 3]),
@@ -283,6 +284,7 @@ describe('packed terminal frame', () => {
 		);
 
 		const placementsOnly = encodeTerminalGraphics({
+			animationTick: 2n,
 			images: [],
 			kind: TerminalGraphicsUpdateKind.placements,
 			placements: [],

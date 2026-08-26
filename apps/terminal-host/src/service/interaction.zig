@@ -165,7 +165,6 @@ pub const Scheduler = struct {
                 error.TerminalResizeFailed, error.TerminalRuntimeUnavailable => {
                     continue :scan;
                 },
-                else => return err,
             };
             if (prepared_clipboard) |prepared| {
                 var request_committed = false;

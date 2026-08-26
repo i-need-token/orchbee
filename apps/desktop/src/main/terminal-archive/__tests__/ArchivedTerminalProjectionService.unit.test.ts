@@ -7,7 +7,9 @@ import {
 	CreationIdSchema,
 	CursorShape,
 	decodeTerminalFrame,
+	decodeTerminalGraphics,
 	decodeTerminalRowWindow,
+	encodeTerminalGraphics,
 	encodeTerminalProjectionBuffer,
 	encodeTerminalRowWindow,
 	HostEpochSchema,
@@ -15,7 +17,10 @@ import {
 	RowPromptClass,
 	SemanticContent,
 	TerminalColorKind,
+	TerminalFrameExtensionKind,
 	TerminalFrameKind,
+	TerminalGraphicsImageFormat,
+	TerminalGraphicsUpdateKind,
 	TerminalIdSchema,
 	TerminalRowWindowDetail,
 	TerminalThemeStateSchema,
@@ -38,6 +43,7 @@ import type { FileTerminalArchiveStore } from '../FileTerminalArchiveStore';
 import {
 	decodeTerminalArchive,
 	encodeTerminalArchive,
+	terminalArchiveGraphicsForRows,
 	terminalArchiveTextRows,
 	type TerminalArchive,
 } from '../terminal-archive-document';
@@ -62,6 +68,16 @@ vi.mock(import('@orchbee/terminal-protocol'), async (importOriginal) => {
 });
 
 const presentationId = terminalPresentationId('presentation-archived');
+const emptyGraphics = {
+	animationTick: 0n,
+	images: [],
+	kind: TerminalGraphicsUpdateKind.snapshot,
+	placements: [],
+	resourceRevision: 0n,
+} as const;
+const encodedEmptyGraphics = encodeTerminalGraphics(emptyGraphics);
+if (!encodedEmptyGraphics.ok) throw new Error(encodedEmptyGraphics.detail);
+const emptyGraphicsBytes = encodedEmptyGraphics.value;
 const attachmentId = '11'.repeat(16);
 const identity: TerminalIdentity = {
 	creationId: CreationIdSchema.parse('22'.repeat(16)),
@@ -238,6 +254,70 @@ describe('ArchivedTerminalProjectionService', () => {
 			operation: 'input',
 			retryable: false,
 		});
+
+		await lease.dispose();
+		await service.dispose();
+	});
+
+	it('preserves pixels and seam-spanning placements in live frames and render rows', async () => {
+		const archive = createArchive(true);
+		const channel = createChannel();
+		const service = new ArchivedTerminalProjectionService({
+			createMessageChannel: () => channel,
+			randomAttachmentId: () => '55'.repeat(16),
+			store: {
+				load: vi.fn<FileTerminalArchiveStore['load']>().mockResolvedValue(archive),
+			} as unknown as FileTerminalArchiveStore,
+			writeClipboardText:
+				vi.fn<ArchivedTerminalProjectionServiceDependencies['writeClipboardText']>(),
+		});
+		const lease = await service.open(presentationId);
+		if (lease === null) throw new Error('Expected an archived projection');
+
+		const frameEvent = nextEvent(channel.port1, (event) => (event.kind === 'frame' ? event : null));
+		channel.port1.postMessage({
+			kind: 'set-projection-demand',
+			payload: { attachmentId: lease.bootstrap.attachmentId, demand: 'active' },
+		});
+		const frame = decodeTerminalFrame(new Uint8Array((await frameEvent).frame));
+		if (!frame.ok) throw new Error(frame.detail);
+		const extension = frame.value.extensions.find(
+			(candidate) => candidate.kind === TerminalFrameExtensionKind.kittyGraphics,
+		);
+		if (extension === undefined) throw new Error('Expected archived Kitty graphics extension');
+		const frameGraphics = decodeTerminalGraphics(extension.data);
+		if (!frameGraphics.ok) throw new Error(frameGraphics.detail);
+		expect(Array.from(frameGraphics.value.images[0]?.data ?? [])).toEqual(
+			Array.from(graphicsPixels),
+		);
+		expect(frameGraphics.value.placements).toMatchObject([
+			{ offsetY: 9, row: -1, z: -0x4000_0000 },
+		]);
+
+		const rowsEvent = nextEvent(channel.port1, (event) => (event.kind === 'rows' ? event : null));
+		channel.port1.postMessage({
+			kind: 'read-rows',
+			payload: {
+				attachmentId: lease.bootstrap.attachmentId,
+				detail: 'render',
+				generation: archive.frame.generation.toString(),
+				maximumBytes: 2 * 1024 * 1024,
+				origin: { kind: 'absolute', row: '4' },
+				purpose: 'viewport',
+				requestSequence: '73',
+				revision: archive.frame.revision.toString(),
+				rowCount: 2,
+			},
+		});
+		const rows = decodeTerminalRowWindow(new Uint8Array((await rowsEvent).rows));
+		if (!rows.ok || rows.value.detail !== TerminalRowWindowDetail.render) {
+			throw new Error('Expected archived render rows');
+		}
+		expect(Array.from(rows.value.graphics.images[0]?.data ?? [])).toEqual(
+			Array.from(graphicsPixels),
+		);
+		expect(rows.value.graphics.placements).toHaveLength(1);
+		expect(rows.value.graphics.placements[0]).toMatchObject({ offsetY: 9, row: 1 });
 
 		await lease.dispose();
 		await service.dispose();
@@ -484,8 +564,52 @@ function nextEvent<Event extends ProjectedTerminalEvent>(
 	});
 }
 
-function createArchive() {
+const graphicsPixels = new Uint8Array([
+	0xff, 0x00, 0x00, 0xff, 0x00, 0xff, 0x00, 0xff, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0x80,
+]);
+
+function createGraphicsSnapshot(row: number | null) {
+	return {
+		animationTick: 17n,
+		images: [
+			{
+				data: graphicsPixels,
+				format: TerminalGraphicsImageFormat.rgba,
+				generation: 3n,
+				height: 2,
+				id: 7,
+				width: 2,
+			},
+		],
+		kind: TerminalGraphicsUpdateKind.snapshot,
+		placements:
+			row === null
+				? []
+				: [
+						{
+							column: 1,
+							destinationHeight: 27,
+							destinationWidth: 18,
+							imageId: 7,
+							internalId: true,
+							offsetX: 2,
+							offsetY: 9,
+							placementId: 13,
+							row,
+							sourceHeight: 2,
+							sourceWidth: 2,
+							sourceX: 0,
+							sourceY: 0,
+							z: -0x4000_0000,
+						},
+					],
+		resourceRevision: 9n,
+	} as const;
+}
+
+function createArchive(withGraphics = false) {
 	const frame = encodeTerminalProjectionBuffer(createFrame(6n, ['viewport-a', 'viewport-b']));
+	const viewportGraphics = withGraphics ? createGraphicsSnapshot(-1) : emptyGraphics;
 	const histories = [
 		{ rows: ['history-a'], sequence: 1n, startRow: 0n },
 		{ rows: ['history-b'], sequence: 2n, startRow: 1n },
@@ -502,6 +626,7 @@ function createArchive() {
 				wrap: startRow === 4n,
 				wrapContinuation: startRow === 5n,
 			}),
+			graphics: withGraphics ? createGraphicsSnapshot(startRow === 5n ? 0 : null) : emptyGraphics,
 			generation: 3n,
 			hostEpoch: identity.hostEpoch,
 			revision: 5n,
@@ -510,11 +635,13 @@ function createArchive() {
 			totalRows: 8n,
 		}),
 	);
-	if (!frame.ok || histories.some((history) => !history.ok)) {
+	const graphics = encodeTerminalGraphics(viewportGraphics);
+	if (!frame.ok || !graphics.ok || histories.some((history) => !history.ok)) {
 		throw new Error('Archive fixture failed to encode');
 	}
 	const encoded = encodeTerminalArchive({
 		frame: frame.value,
+		graphics: graphics.value,
 		identity,
 		presentationId,
 		rowWindows: histories.map((history) => {
@@ -545,6 +672,7 @@ function createArchiveWithSourceCount(sourceCount: number): TerminalArchive {
 				[`archive-row-${index.toString().padStart(3, '0')}`],
 				BigInt(index + 1),
 			),
+			graphics: emptyGraphics,
 			generation: 3n,
 			hostEpoch: identity.hostEpoch,
 			revision: 5n,
@@ -558,6 +686,7 @@ function createArchiveWithSourceCount(sourceCount: number): TerminalArchive {
 	}
 	const encoded = encodeTerminalArchive({
 		frame: frame.value,
+		graphics: emptyGraphicsBytes,
 		identity,
 		presentationId,
 		rowWindows: histories.map((history) => {
@@ -577,6 +706,7 @@ function createArchiveWithSharedHyperlink(): TerminalArchive {
 	if (!frame.ok) throw new Error(`${frame.code}: ${frame.detail}`);
 	const encoded = encodeTerminalArchive({
 		frame: frame.value,
+		graphics: emptyGraphicsBytes,
 		identity,
 		presentationId,
 		theme,
@@ -632,7 +762,7 @@ function encodeArchivedRows(
 ): Uint8Array {
 	const materialized = materializeTerminalProjectionFrame(
 		archive.frame,
-		[...archive.rowWindows, archive.frame],
+		[...archive.rowWindows.map((window) => window.frame), archive.frame],
 		{
 			attachmentId: projectedAttachmentId,
 			revealCursor: false,
@@ -653,18 +783,23 @@ function encodeArchivedRows(
 		startRow: 0n,
 		totalRows: BigInt(archive.retainedRows),
 	};
-	const encoded =
-		detail === TerminalRowWindowDetail.render
-			? encodeTerminalRowWindow({
-					...common,
-					detail: TerminalRowWindowDetail.render,
-					frame: materialized.value,
-				})
-			: encodeTerminalRowWindow({
-					...common,
-					detail: TerminalRowWindowDetail.text,
-					rows: terminalArchiveTextRows(materialized.value, 0n),
-				});
+	if (detail === TerminalRowWindowDetail.render) {
+		const graphics = terminalArchiveGraphicsForRows(archive, 0n, rowCount);
+		if (graphics === null) throw new Error('Expected archived graphics to materialize');
+		const encoded = encodeTerminalRowWindow({
+			...common,
+			detail: TerminalRowWindowDetail.render,
+			frame: materialized.value,
+			graphics,
+		});
+		if (!encoded.ok) throw new Error(encoded.detail);
+		return encoded.value;
+	}
+	const encoded = encodeTerminalRowWindow({
+		...common,
+		detail: TerminalRowWindowDetail.text,
+		rows: terminalArchiveTextRows(materialized.value, 0n),
+	});
 	if (!encoded.ok) throw new Error(encoded.detail);
 	return encoded.value;
 }

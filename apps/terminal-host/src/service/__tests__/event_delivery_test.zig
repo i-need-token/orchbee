@@ -317,7 +317,7 @@ test "full outgoing batch leaves a failed outcome pending for the next handoff" 
 }
 test "DisposeTerminal retains a native exit until its poll handoff commits" {
     const windows_executable: ?[]u8 = if (target_builtin.os.tag == .windows)
-        try std.process.getEnvVarOwned(std.testing.allocator, "ComSpec")
+        try pty_process.environmentVariableOwned(std.testing.allocator, "ComSpec")
     else
         null;
     defer if (windows_executable) |value| std.testing.allocator.free(value);
@@ -457,7 +457,7 @@ test "DisposeTerminal settles a skipped exact target through HostService" {
     try testHandshake(&service, &connection, "37373737373737373737373737373737");
     const active = try activeConnection(&connection);
     const windows_executable: ?[]u8 = if (target_builtin.os.tag == .windows)
-        try std.process.getEnvVarOwned(std.testing.allocator, "ComSpec")
+        try pty_process.environmentVariableOwned(std.testing.allocator, "ComSpec")
     else
         null;
     defer if (windows_executable) |value| std.testing.allocator.free(value);
@@ -566,7 +566,7 @@ test "one event lifecycle poll consumes one bounded runtime and cleanup scan" {
         testId(core_module.ClientId, 0x34, 0),
     );
     const windows_executable: ?[]u8 = if (target_builtin.os.tag == .windows)
-        try std.process.getEnvVarOwned(std.testing.allocator, "ComSpec")
+        try pty_process.environmentVariableOwned(std.testing.allocator, "ComSpec")
     else
         null;
     defer if (windows_executable) |value| std.testing.allocator.free(value);

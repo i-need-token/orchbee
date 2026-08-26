@@ -36,13 +36,20 @@ import {
 	viewTerminalProjectionBuffer,
 } from './projection-buffer';
 import type { DecodedTerminalProjectionBuffer } from './projection-buffer';
+import {
+	decodeTerminalGraphics,
+	encodeTerminalGraphics,
+	TERMINAL_GRAPHICS_HEADER_BYTES,
+	TerminalGraphicsUpdateKind,
+} from './terminal-graphics';
+import type { TerminalGraphics } from './terminal-graphics';
 import { utf8ByteLength } from './utf8';
 
 export const TERMINAL_ROW_WINDOW_HEADER_BYTES = 112;
 export const TERMINAL_ROW_WINDOW_MAGIC = new Uint8Array([0x4f, 0x42, 0x52, 0x57]);
 // Keep this synchronized with Zig. Released changes (>= 1.0.0) also update
 // docs/version-history.md in the same change.
-export const TERMINAL_ROW_WINDOW_FORMAT = { major: 0, minor: 0, patch: 2 } as const;
+export const TERMINAL_ROW_WINDOW_FORMAT = { major: 0, minor: 0, patch: 3 } as const;
 
 export const TerminalTextRowFlag = {
 	identityAscii: 0x04,
@@ -110,8 +117,16 @@ export const TerminalRenderRowWindowSchema = z
 		...rowWindowBaseShape,
 		detail: z.literal(TerminalRowWindowDetail.render),
 		frame: TerminalFrameSchema,
+		graphics: z.custom<TerminalGraphics>(),
 	})
 	.superRefine((window, context) => {
+		if (window.graphics.kind !== TerminalGraphicsUpdateKind.snapshot) {
+			context.addIssue({
+				code: 'custom',
+				message: 'Render row windows require a graphics resource snapshot',
+				path: ['graphics'],
+			});
+		}
 		if (
 			window.frame.kind !== TerminalFrameKind.snapshot ||
 			window.frame.attachmentId !== window.attachmentId ||
@@ -336,6 +351,7 @@ interface DecodedTerminalRowWindowBase {
 export interface DecodedTerminalRenderRowWindow extends DecodedTerminalRowWindowBase {
 	readonly detail: 'render';
 	readonly frame: DecodedTerminalProjectionBuffer;
+	readonly graphics: TerminalGraphics;
 }
 
 export interface DecodedTerminalTextRowWindow extends DecodedTerminalRowWindowBase {
@@ -351,6 +367,8 @@ interface RowWindowHeader extends DecodedTerminalRowWindowBase {
 	readonly bodyLength: number;
 	readonly detail: TerminalRowWindowDetail;
 	readonly entryCount: number;
+	readonly graphicsLength: number;
+	readonly projectionLength: number;
 	readonly rowCount: number;
 }
 
@@ -384,6 +402,8 @@ function encodeHeader(
 	body: Uint8Array,
 	entryCount: number,
 	rowCount: number,
+	projectionLength: number,
+	graphicsLength: number,
 ): ProtocolResult<Uint8Array> {
 	const totalLength = checkedAdd(TERMINAL_ROW_WINDOW_HEADER_BYTES, body.byteLength);
 	if (!totalLength.ok) return totalLength;
@@ -414,7 +434,9 @@ function encodeHeader(
 	writer.writeUint32(entryCount);
 	writer.writeUint32(body.byteLength);
 	writer.writeUint8(TERMINAL_ROW_WINDOW_FORMAT.patch);
-	writer.writeBytes(new Uint8Array(11));
+	writer.writeUint32(projectionLength);
+	writer.writeUint32(graphicsLength);
+	writer.writeBytes(new Uint8Array(3));
 	writer.writeBytes(body);
 	return protocolSuccess(writer.bytes());
 }
@@ -503,20 +525,29 @@ export function encodeTerminalRowWindow(value: unknown): ProtocolResult<Uint8Arr
 	if (window.detail === TerminalRowWindowDetail.render) {
 		const encoded = encodeTerminalProjectionBufferWithin(
 			window.frame,
-			PROTOCOL_LIMITS.maxRowWindowBytes - TERMINAL_ROW_WINDOW_HEADER_BYTES,
+			PROTOCOL_LIMITS.maxFrameBytes,
 		);
 		if (!encoded.ok) return encoded;
+		const graphics = encodeTerminalGraphics(window.graphics);
+		if (!graphics.ok) return graphics;
+		const bodyLength = checkedAdd(encoded.value.byteLength, graphics.value.byteLength);
+		if (!bodyLength.ok) return bodyLength;
+		const body = new Uint8Array(bodyLength.value);
+		body.set(encoded.value, 0);
+		body.set(graphics.value, encoded.value.byteLength);
 		return encodeHeader(
 			window,
-			encoded.value,
+			body,
 			window.frame.rows * window.frame.columns,
 			window.frame.rows,
+			encoded.value.byteLength,
+			graphics.value.byteLength,
 		);
 	}
 	const body = encodeTextBody(window);
 	if (!body.ok) return body;
 	const mappingCount = window.rows.reduce((total, row) => total + row.mappings.length, 0);
-	return encodeHeader(window, body.value, mappingCount, window.rows.length);
+	return encodeHeader(window, body.value, mappingCount, window.rows.length, 0, 0);
 }
 
 function isMagic(bytes: Uint8Array): boolean {
@@ -564,7 +595,9 @@ function decodeHeader(bytes: Uint8Array): ProtocolResult<RowWindowHeader> {
 	const entryCount = reader.readUint32();
 	const bodyLength = reader.readUint32();
 	const formatPatch = reader.readUint8();
-	const reservedTail = reader.readBytes(11);
+	const projectionLength = reader.readUint32();
+	const graphicsLength = reader.readUint32();
+	const reservedTail = reader.readBytes(3);
 	if (reader.failure) return reader.failure;
 
 	if (
@@ -601,6 +634,19 @@ function decodeHeader(bytes: Uint8Array): ProtocolResult<RowWindowHeader> {
 	}
 	const detail = detailFromCode(detailValue);
 	if (!detail.ok) return detail;
+	if (
+		(detail.value === TerminalRowWindowDetail.render &&
+			(projectionLength === 0 ||
+				graphicsLength < TERMINAL_GRAPHICS_HEADER_BYTES ||
+				projectionLength + graphicsLength !== bodyLength)) ||
+		(detail.value === TerminalRowWindowDetail.text &&
+			(projectionLength !== 0 || graphicsLength !== 0))
+	) {
+		return protocolFailure(
+			ProtocolErrorCode.lengthMismatch,
+			'Terminal row-window body sections disagree with the header',
+		);
+	}
 	const hostEpochText = identifierText(hostEpochBytes);
 	if (!hostEpochText.ok) return hostEpochText;
 	const hostEpoch = parseHostEpoch(hostEpochText.value);
@@ -616,10 +662,12 @@ function decodeHeader(bytes: Uint8Array): ProtocolResult<RowWindowHeader> {
 		detail: detail.value,
 		entryCount,
 		generation,
+		graphicsLength,
 		hostEpoch: hostEpoch.value,
 		ignoredOptionalFlags: flags & 0x7f,
 		revision,
 		rowCount,
+		projectionLength,
 		sequence,
 		startRow,
 		totalRows,
@@ -631,8 +679,18 @@ function decodeRenderWindow(
 	body: Uint8Array,
 	decodeProjection: (bytes: Uint8Array) => ProtocolResult<DecodedTerminalProjectionBuffer>,
 ): ProtocolResult<DecodedTerminalRenderRowWindow> {
-	const decoded = decodeProjection(body);
+	const decoded = decodeProjection(body.subarray(0, header.projectionLength));
 	if (!decoded.ok) return decoded;
+	const decodedGraphics = decodeTerminalGraphics(
+		body.subarray(header.projectionLength, header.projectionLength + header.graphicsLength),
+	);
+	if (!decodedGraphics.ok) return decodedGraphics;
+	if (decodedGraphics.value.kind !== TerminalGraphicsUpdateKind.snapshot) {
+		return protocolFailure(
+			ProtocolErrorCode.invalidField,
+			'Render row-window graphics must be a resource snapshot',
+		);
+	}
 	const frame = decoded.value;
 	if (
 		frame.kind !== TerminalFrameKind.snapshot ||
@@ -657,6 +715,7 @@ function decodeRenderWindow(
 		detail: TerminalRowWindowDetail.render,
 		frame,
 		generation: header.generation,
+		graphics: decodedGraphics.value,
 		hostEpoch: header.hostEpoch,
 		ignoredOptionalFlags: header.ignoredOptionalFlags,
 		revision: header.revision,

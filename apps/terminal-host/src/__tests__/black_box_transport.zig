@@ -1,5 +1,10 @@
 const std = @import("std");
 const builtin = @import("builtin");
+const platform_boundary = @import("terminal-host-platform");
+const monotonic = platform_boundary.monotonic;
+const posix_compat = platform_boundary.posix_compat;
+const pty_process = platform_boundary.process;
+const thread_sync = platform_boundary.thread_sync;
 const protocol = @import("terminal-protocol");
 
 const windows_c = if (builtin.os.tag == .windows) @cImport({
@@ -13,8 +18,9 @@ pub const RuntimeDirectory = struct {
     path_bytes: []u8,
 
     pub fn init(allocator: std.mem.Allocator) !RuntimeDirectory {
+        const io = thread_sync.io();
         var random: [8]u8 = undefined;
-        std.crypto.random.bytes(&random);
+        io.random(&random);
         const encoded = std.fmt.bytesToHex(random, .lower);
         const base = try temporaryRoot(allocator);
         defer allocator.free(base);
@@ -24,8 +30,8 @@ pub const RuntimeDirectory = struct {
             .{ base, std.fs.path.sep, encoded },
         );
         errdefer allocator.free(path_bytes);
-        try std.fs.makeDirAbsolute(path_bytes);
-        errdefer std.fs.deleteTreeAbsolute(path_bytes) catch {};
+        try std.Io.Dir.createDirAbsolute(io, path_bytes, @enumFromInt(0o700));
+        errdefer std.Io.Dir.cwd().deleteTree(io, path_bytes) catch {};
 
         if (builtin.os.tag == .windows) {
             const path_w = try std.unicode.utf8ToUtf16LeAllocZ(allocator, path_bytes);
@@ -34,15 +40,15 @@ pub const RuntimeDirectory = struct {
                 windows_c.ob_windows_local_test_make_directory_private(path_w.ptr),
             );
         } else {
-            var directory = try std.fs.openDirAbsolute(path_bytes, .{});
-            defer directory.close();
-            try directory.chmod(0o700);
+            var directory = try std.Io.Dir.openDirAbsolute(io, path_bytes, .{});
+            defer directory.close(io);
+            try directory.setPermissions(io, @enumFromInt(0o700));
         }
         return .{ .allocator = allocator, .path_bytes = path_bytes };
     }
 
     pub fn deinit(self: *RuntimeDirectory) void {
-        std.fs.deleteTreeAbsolute(self.path_bytes) catch {};
+        std.Io.Dir.cwd().deleteTree(thread_sync.io(), self.path_bytes) catch {};
         self.allocator.free(self.path_bytes);
         self.* = undefined;
     }
@@ -64,13 +70,13 @@ pub fn connectBefore(
     endpoint_id: []const u8,
     timeout_ns: u64,
 ) !Client {
-    var timer = try std.time.Timer.start();
+    var timer = try monotonic.Timer.start();
     while (true) {
         if (Client.connect(allocator, runtime_directory, endpoint_id)) |client| {
             return client;
         } else |_| {
             if (timer.read() >= timeout_ns) return error.EndpointStartupTimeout;
-            std.Thread.sleep(poll_interval_ms * std.time.ns_per_ms);
+            monotonic.sleep(poll_interval_ms * std.time.ns_per_ms);
         }
     }
 }
@@ -80,7 +86,7 @@ pub fn readRecordBefore(
     client: *Client,
     timeout_ns: u64,
 ) ![]u8 {
-    var timer = try std.time.Timer.start();
+    var timer = try monotonic.Timer.start();
     var header: [protocol.transport_envelope_header_bytes]u8 = undefined;
     try readExactlyBefore(client, &header, &timer, timeout_ns);
     const total_length = try protocol.transportRecordLength(&header);
@@ -93,22 +99,22 @@ pub fn readRecordBefore(
 
 fn temporaryRoot(allocator: std.mem.Allocator) ![]u8 {
     if (builtin.os.tag != .windows) return allocator.dupe(u8, "/tmp");
-    return std.process.getEnvVarOwned(allocator, "TEMP") catch
-        std.process.getEnvVarOwned(allocator, "TMP") catch
+    return pty_process.environmentVariableOwned(allocator, "TEMP") catch
+        pty_process.environmentVariableOwned(allocator, "TMP") catch
         error.MissingTemporaryDirectory;
 }
 
 fn readExactlyBefore(
     client: *Client,
     bytes: []u8,
-    timer: *std.time.Timer,
+    timer: *monotonic.Timer,
     timeout_ns: u64,
 ) !void {
     var offset: usize = 0;
     while (offset < bytes.len) {
         if (timer.read() >= timeout_ns) return error.RecordReadTimeout;
         if (!try client.waitReadable()) {
-            std.Thread.sleep(poll_interval_ms * std.time.ns_per_ms);
+            monotonic.sleep(poll_interval_ms * std.time.ns_per_ms);
             continue;
         }
         const length = try client.read(bytes[offset..]);
@@ -118,7 +124,8 @@ fn readExactlyBefore(
 }
 
 const PosixClient = if (builtin.os.tag == .windows) void else struct {
-    stream: std.net.Stream,
+    io: std.Io,
+    stream: std.Io.net.Stream,
 
     fn connect(
         allocator: std.mem.Allocator,
@@ -131,20 +138,22 @@ const PosixClient = if (builtin.os.tag == .windows) void else struct {
             .{ runtime_directory, std.fs.path.sep, endpoint_id },
         );
         defer allocator.free(path);
-        return .{ .stream = try std.net.connectUnixSocket(path) };
+        const io = thread_sync.io();
+        const address = try std.Io.net.UnixAddress.init(path);
+        return .{ .io = io, .stream = try address.connect(io) };
     }
 
     pub fn close(self: *PosixClient) void {
-        self.stream.close();
+        self.stream.close(self.io);
     }
 
     fn read(self: *PosixClient, bytes: []u8) !usize {
-        return self.stream.read(bytes);
+        return std.posix.read(self.stream.socket.handle, bytes);
     }
 
     fn waitReadable(self: *PosixClient) !bool {
         var descriptors = [_]std.posix.pollfd{.{
-            .fd = self.stream.handle,
+            .fd = self.stream.socket.handle,
             .events = std.posix.POLL.IN,
             .revents = 0,
         }};
@@ -158,7 +167,16 @@ const PosixClient = if (builtin.os.tag == .windows) void else struct {
     }
 
     pub fn writeAll(self: *PosixClient, bytes: []const u8) !void {
-        try self.stream.writeAll(bytes);
+        var offset: usize = 0;
+        while (offset < bytes.len) {
+            const written = try posix_compat.send(
+                self.stream.socket.handle,
+                bytes[offset..],
+                std.posix.MSG.NOSIGNAL,
+            );
+            if (written == 0) return error.ConnectionClosed;
+            offset += written;
+        }
     }
 };
 

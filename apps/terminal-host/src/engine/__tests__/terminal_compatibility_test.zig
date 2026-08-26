@@ -10,12 +10,12 @@ const ReplyCapture = struct {
     length: usize = 0,
 
     fn init(terminal: *ghostty_vt.Terminal) ReplyCapture {
-        return .{ .stream = .init(.init(terminal)) };
+        return .{ .stream = .init(.{ .handler = .init(terminal) }) };
     }
 
     fn writePty(
         terminal_handler: *ghostty_vt.TerminalStream.Handler,
-        bytes: [:0]const u8,
+        bytes: []const u8,
     ) void {
         const host_handler: *terminal_stream.Handler = @fieldParentPtr(
             "terminal_handler",
@@ -30,7 +30,7 @@ const ReplyCapture = struct {
 };
 
 test "Host disables Glyph Protocol until its graphics are projected" {
-    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = 80,
         .rows = 24,
     });
@@ -47,8 +47,8 @@ test "Host disables Glyph Protocol until its graphics are projected" {
     try std.testing.expect(!terminal.glyph_glossary.contains(0xE0A0));
 }
 
-test "Host XTGETTCAP returns one ordered xterm-256color response across chunks" {
-    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+test "Host XTGETTCAP returns ordered xterm-256color responses across chunks" {
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = 80,
         .rows = 24,
     });
@@ -63,19 +63,17 @@ test "Host XTGETTCAP returns one ordered xterm-256color response across chunks" 
     capture.stream.nextSlice("6b663132\x1b\\");
 
     try std.testing.expectEqualStrings(
-        "\x1bP1+r" ++
-            "544E=787465726D2D323536636F6C6F72;" ++
-            "436F=323536;" ++
-            "524742=38;" ++
-            "6B63757531=1B4F41;" ++
-            "6B663132=1B5B32347E" ++
-            "\x1b\\",
+        "\x1bP1+r544E=787465726D2D323536636F6C6F72\x1b\\" ++
+            "\x1bP1+r436F=323536\x1b\\" ++
+            "\x1bP1+r524742=38\x1b\\" ++
+            "\x1bP1+r6B63757531=1B4F41\x1b\\" ++
+            "\x1bP1+r6B663132=1B5B32347E\x1b\\",
         capture.bytes[0..capture.length],
     );
 }
 
-test "Host XTGETTCAP stops at unsupported names and rejects malformed first names" {
-    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+test "Host XTGETTCAP skips unsupported and malformed names" {
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = 80,
         .rows = 24,
     });
@@ -91,14 +89,14 @@ test "Host XTGETTCAP stops at unsupported names and rejects malformed first name
 
     try std.testing.expectEqualStrings(
         "\x1bP1+r544E=787465726D2D323536636F6C6F72\x1b\\" ++
-            "\x1bP0+r\x1b\\" ++
+            "\x1bP1+r436F=323536\x1b\\" ++
             "\x1bP1$r0m\x1b\\",
         capture.bytes[0..capture.length],
     );
 }
 
 test "Host XTGETTCAP bounds request retention" {
-    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = 80,
         .rows = 24,
     });
@@ -114,8 +112,5 @@ test "Host XTGETTCAP bounds request retention" {
     capture.stream.nextSlice(&over_limit);
     capture.stream.nextSlice("\x1b\\");
 
-    try std.testing.expectEqualStrings(
-        "\x1bP0+r\x1b\\",
-        capture.bytes[0..capture.length],
-    );
+    try std.testing.expectEqual(@as(usize, 0), capture.length);
 }

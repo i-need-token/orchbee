@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const ghostty_vt = @import("ghostty-vt");
 const protocol = @import("terminal-protocol");
 const engine_testing = @import("terminal-host-engine").testing;
@@ -35,7 +36,7 @@ test "no-demand projection owns no render state or frame allocation" {
 }
 
 test "projection captures Ghostty state into a valid OBTF 0.0.2 snapshot" {
-    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = 4,
         .rows = 2,
     });
@@ -70,7 +71,7 @@ test "projection captures Ghostty state into a valid OBTF 0.0.2 snapshot" {
 }
 
 test "projection emits a typed close-activity extension only for a known observation" {
-    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = 4,
         .rows = 2,
     });
@@ -94,21 +95,18 @@ test "projection emits a typed close-activity extension only for a known observa
 
     const summary = try protocol.validateTerminalFrame(std.testing.allocator, frame.bytes);
     try std.testing.expectEqual(@as(u16, 3), summary.extension_count);
-    try std.testing.expectEqualSlices(
-        u8,
-        &.{ 1, 0, 0, 0, 1, 0, 0, 0, 1 },
-        frame.bytes[frame.bytes.len - 59 .. frame.bytes.len - 50],
-    );
+    try std.testing.expectEqual(protocol.TerminalCloseActivity.idle, summary.close_activity.?);
 }
 
 test "projection snapshots Kitty resources and emits placement-only deltas" {
-    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = 20,
         .kitty_image_loading_limits = .direct,
         .kitty_image_storage_limit = protocol.Limits.terminal_graphics_resource_bytes,
         .rows = 4,
     });
     defer terminal.deinit(std.testing.allocator);
+    setTerminalCellSize(&terminal, 8, 16);
     var stream = terminal.vtStream();
     defer stream.deinit();
     stream.nextSlice(
@@ -167,7 +165,7 @@ test "projection snapshots Kitty resources and emits placement-only deltas" {
     try std.testing.expectEqual(@as(u16, 2), delta_summary.graphics.?.placement_count);
     try std.testing.expectEqual(@as(u64, 1), delta_summary.graphics.?.resource_revision);
 
-    stream.nextSlice("\x1b_Ga=t,t=d,f=24,i=1,s=1,v=2;AAAAAAAA\x1b\\");
+    stream.nextSlice("\x1b_Ga=T,t=d,f=24,i=1,p=1,s=1,v=2,c=10,r=1;AAAAAAAA\x1b\\");
     try projection.beginCapture(&terminal, 3, 1, 8, 16);
     projection.endCapture();
     const replacement = try projection.encode(.{
@@ -214,13 +212,14 @@ test "projection snapshots Kitty resources and emits placement-only deltas" {
 
 test "Host-installed decoder projects direct Kitty PNG transmissions" {
     png_decoder.install();
-    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = 4,
         .kitty_image_loading_limits = .direct,
         .kitty_image_storage_limit = protocol.Limits.terminal_graphics_resource_bytes,
         .rows = 2,
     });
     defer terminal.deinit(std.testing.allocator);
+    setTerminalCellSize(&terminal, 8, 16);
     var stream = terminal.vtStream();
     defer stream.deinit();
     stream.nextSlice(
@@ -244,7 +243,7 @@ test "Host-installed decoder projects direct Kitty PNG transmissions" {
 
 test "Host-installed decoder rejects direct PNG dimensions beyond the resource budget" {
     png_decoder.install();
-    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = 4,
         .kitty_image_loading_limits = .direct,
         .kitty_image_storage_limit = protocol.Limits.terminal_graphics_resource_bytes,
@@ -264,13 +263,14 @@ test "Host-installed decoder rejects direct PNG dimensions beyond the resource b
 }
 
 test "projection never aliases equal Kitty generations across primary and alternate screens" {
-    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = 4,
         .kitty_image_loading_limits = .direct,
         .kitty_image_storage_limit = protocol.Limits.terminal_graphics_resource_bytes,
         .rows = 2,
     });
     defer terminal.deinit(std.testing.allocator);
+    setTerminalCellSize(&terminal, 8, 16);
     var stream = terminal.vtStream();
     defer stream.deinit();
     stream.nextSlice("\x1b_Ga=T,t=d,f=24,i=1,p=1,s=1,v=1;/wAA\x1b\\");
@@ -289,7 +289,7 @@ test "projection never aliases equal Kitty generations across primary and altern
 }
 
 test "direct-only Kitty loading never reads file or shared-memory media" {
-    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = 4,
         .kitty_image_loading_limits = .direct,
         .kitty_image_storage_limit = protocol.Limits.terminal_graphics_resource_bytes,
@@ -312,6 +312,205 @@ test "direct-only Kitty loading never reads file or shared-memory media" {
     try std.testing.expectEqual(@as(usize, 0), terminal.screens.active.kitty_images.placements.count());
 }
 
+test "projection owns decoded pixels loaded through file and temporary-file media" {
+    var temporary = std.testing.tmpDir(.{});
+    defer temporary.cleanup();
+    try temporary.dir.writeFile(std.testing.io, .{
+        .sub_path = "regular-rgb.data",
+        .data = &.{ 0xff, 0, 0 },
+    });
+    try temporary.dir.writeFile(std.testing.io, .{
+        .sub_path = "tty-graphics-protocol-temporary-rgb.data",
+        .data = &.{ 0, 0xff, 0 },
+    });
+
+    var directory_buffer: [std.fs.max_path_bytes]u8 = undefined;
+    const directory = directory_buffer[0..try temporary.dir.realPath(
+        std.testing.io,
+        &directory_buffer,
+    )];
+    var regular_path_buffer: [std.fs.max_path_bytes]u8 = undefined;
+    const regular_path = regular_path_buffer[0..try temporary.dir.realPathFile(
+        std.testing.io,
+        "regular-rgb.data",
+        &regular_path_buffer,
+    )];
+    var temporary_path_buffer: [std.fs.max_path_bytes]u8 = undefined;
+    const temporary_path = temporary_path_buffer[0..try temporary.dir.realPathFile(
+        std.testing.io,
+        "tty-graphics-protocol-temporary-rgb.data",
+        &temporary_path_buffer,
+    )];
+
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
+        .cols = 4,
+        .kitty_image_loading_limits = .allWithTempDir(directory),
+        .kitty_image_storage_limit = protocol.Limits.terminal_graphics_resource_bytes,
+        .rows = 2,
+    });
+    defer terminal.deinit(std.testing.allocator);
+    setTerminalCellSize(&terminal, 8, 16);
+    var stream = terminal.vtStream();
+    defer stream.deinit();
+    try transmitPathGraphic(&stream, 'f', 1, regular_path);
+    try transmitPathGraphic(&stream, 't', 2, temporary_path);
+
+    try temporary.dir.access(std.testing.io, "regular-rgb.data", .{});
+    try std.testing.expectError(
+        error.FileNotFound,
+        temporary.dir.access(
+            std.testing.io,
+            "tty-graphics-protocol-temporary-rgb.data",
+            .{},
+        ),
+    );
+
+    var projection = Projection.init(std.testing.allocator);
+    defer projection.deinit();
+    try projection.beginCapture(&terminal, 1, 1, 8, 16);
+    projection.endCapture();
+    try std.testing.expectEqual(@as(usize, 2), projection.graphics.images.items.len);
+    try std.testing.expectEqualSlices(
+        u8,
+        &.{ 0xff, 0, 0 },
+        projection.graphics.images.items[0].data,
+    );
+    try std.testing.expectEqualSlices(
+        u8,
+        &.{ 0, 0xff, 0 },
+        projection.graphics.images.items[1].data,
+    );
+}
+
+test "projection owns decoded pixels loaded through POSIX shared memory" {
+    if (comptime @hasDecl(std.c, "shm_open") and builtin.os.tag != .windows) {
+        var name_buffer: [128]u8 = undefined;
+        const name = try std.fmt.bufPrintZ(
+            &name_buffer,
+            "/obkg-{x}",
+            .{@intFromPtr(&name_buffer)},
+        );
+        const descriptor = std.c.shm_open(
+            name,
+            @as(c_int, @bitCast(std.c.O{
+                .ACCMODE = .RDWR,
+                .CREAT = true,
+                .EXCL = true,
+            })),
+            @as(std.c.mode_t, 0o600),
+        );
+        try std.testing.expectEqual(std.posix.E.SUCCESS, std.posix.errno(descriptor));
+        defer _ = std.c.shm_unlink(name);
+        defer _ = std.c.close(descriptor);
+        const pixels = [_]u8{ 0, 0, 0xff };
+        try std.testing.expectEqual(
+            @as(c_int, 0),
+            std.c.ftruncate(descriptor, pixels.len),
+        );
+        const mapped = try std.posix.mmap(
+            null,
+            pixels.len,
+            .{ .READ = true, .WRITE = true },
+            std.c.MAP{ .TYPE = .SHARED },
+            descriptor,
+            0,
+        );
+        defer std.posix.munmap(mapped);
+        @memcpy(mapped, &pixels);
+
+        var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
+            .cols = 4,
+            .kitty_image_loading_limits = .{
+                .file = false,
+                .temporary_file = .disabled,
+                .shared_memory = true,
+            },
+            .kitty_image_storage_limit = protocol.Limits.terminal_graphics_resource_bytes,
+            .rows = 2,
+        });
+        defer terminal.deinit(std.testing.allocator);
+        setTerminalCellSize(&terminal, 8, 16);
+        var stream = terminal.vtStream();
+        defer stream.deinit();
+        try transmitPathGraphic(&stream, 's', 1, name);
+
+        var projection = Projection.init(std.testing.allocator);
+        defer projection.deinit();
+        try projection.beginCapture(&terminal, 1, 1, 8, 16);
+        projection.endCapture();
+        try std.testing.expectEqual(@as(usize, 1), projection.graphics.images.items.len);
+        try std.testing.expectEqualSlices(
+            u8,
+            &.{ 0, 0, 0xff },
+            projection.graphics.images.items[0].data,
+        );
+    } else {
+        return error.SkipZigTest;
+    }
+}
+
+test "projection resolves relative Kitty placement chains to canonical coordinates" {
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
+        .cols = 8,
+        .kitty_image_loading_limits = .direct,
+        .kitty_image_storage_limit = protocol.Limits.terminal_graphics_resource_bytes,
+        .rows = 4,
+    });
+    defer terminal.deinit(std.testing.allocator);
+    setTerminalCellSize(&terminal, 8, 16);
+    var stream = terminal.vtStream();
+    defer stream.deinit();
+    stream.nextSlice(
+        "\x1b_Ga=t,t=d,f=24,s=1,v=1,i=1;/wAA\x1b\\" ++
+            "\x1b_Ga=p,i=1,p=1,C=1,c=1,r=1\x1b\\" ++
+            "\x1b_Ga=p,i=1,p=2,P=1,Q=1,H=3,V=2,c=1,r=1\x1b\\",
+    );
+
+    var projection = Projection.init(std.testing.allocator);
+    defer projection.deinit();
+    try projection.beginCapture(&terminal, 1, 1, 8, 16);
+    projection.endCapture();
+    try std.testing.expectEqual(@as(usize, 2), projection.graphics.placements.items.len);
+    const parent = projection.graphics.placements.items[0];
+    const child = projection.graphics.placements.items[1];
+    try std.testing.expectEqual(@as(u32, 1), parent.placement_id);
+    try std.testing.expectEqual(@as(i32, 0), parent.column);
+    try std.testing.expectEqual(@as(i32, 0), parent.row);
+    try std.testing.expectEqual(@as(u32, 2), child.placement_id);
+    try std.testing.expectEqual(@as(i32, 3), child.column);
+    try std.testing.expectEqual(@as(i32, 2), child.row);
+}
+
+test "projection resolves virtual Kitty placeholders into owned canonical placements" {
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
+        .cols = 4,
+        .kitty_image_loading_limits = .direct,
+        .kitty_image_storage_limit = protocol.Limits.terminal_graphics_resource_bytes,
+        .rows = 2,
+    });
+    defer terminal.deinit(std.testing.allocator);
+    setTerminalCellSize(&terminal, 8, 16);
+    terminal.modes.set(.grapheme_cluster, true);
+    var stream = terminal.vtStream();
+    defer stream.deinit();
+    stream.nextSlice(
+        "\x1b_Ga=T,t=d,f=24,s=1,v=1,i=1,U=1,c=1,r=1;/wAA\x1b\\" ++
+            "\x1b[38;5;1m\u{10EEEE}\u{0305}\u{0305}\x1b[39m",
+    );
+
+    var projection = Projection.init(std.testing.allocator);
+    defer projection.deinit();
+    try projection.beginCapture(&terminal, 1, 1, 8, 16);
+    projection.endCapture();
+    try std.testing.expectEqual(@as(usize, 1), projection.graphics.images.items.len);
+    try std.testing.expectEqual(@as(usize, 1), projection.graphics.placements.items.len);
+    const placement = projection.graphics.placements.items[0];
+    try std.testing.expectEqual(@as(u32, 1), placement.image_id);
+    try std.testing.expectEqual(@as(i32, 0), placement.column);
+    try std.testing.expectEqual(@as(i32, 0), placement.row);
+    try std.testing.expectEqual(@as(i32, -1), placement.z);
+}
+
 test "projection ignores absent style data on background-only cells" {
     var cells: std.MultiArrayList(ghostty_vt.RenderState.Cell) = .{};
     defer cells.deinit(std.testing.allocator);
@@ -329,7 +528,7 @@ test "projection ignores absent style data on background-only cells" {
 }
 
 test "projection completes Ghostty render updates before exposing captured styles" {
-    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = 2,
         .rows = 1,
     });
@@ -357,7 +556,7 @@ test "projection completes Ghostty render updates before exposing captured style
 }
 
 test "projection capture deduplicates repeated hyperlink URIs" {
-    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = 4,
         .rows = 2,
     });
@@ -385,7 +584,7 @@ test "projection capture resolves one shared near-limit source hyperlink once" {
     defer std.testing.allocator.free(text);
     @memset(text, 'X');
 
-    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = columns,
         .rows = rows,
     });
@@ -440,7 +639,7 @@ test "projection frame resolves one captured LinkTable value across both passes"
     var target = [_]u8{'v'} ** (max_link_value_bytes - 64);
     var text = [_]u8{'Y'} ** (columns * rows);
 
-    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = columns,
         .rows = rows,
     });
@@ -472,18 +671,18 @@ test "projection frame resolves one captured LinkTable value across both passes"
 }
 
 test "projection source hyperlink cache includes page identity in its key" {
-    var first_terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+    var first_terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = 1,
         .rows = 1,
     });
     defer first_terminal.deinit(std.testing.allocator);
-    var second_terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+    var second_terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = 1,
         .rows = 1,
     });
     defer second_terminal.deinit(std.testing.allocator);
-    const first_page = &first_terminal.screens.active.cursor.page_pin.node.data;
-    const second_page = &second_terminal.screens.active.cursor.page_pin.node.data;
+    const first_page = first_terminal.screens.active.cursor.page_pin.node.page();
+    const second_page = second_terminal.screens.active.cursor.page_pin.node.page();
     var resolver_calls: usize = 0;
     const resolver: KeyedSourceLinkResolver = .{
         .calls = &resolver_calls,
@@ -577,7 +776,7 @@ test "projection link work releases every partial allocation" {
 }
 
 test "projection capture compacts a dirty linked row" {
-    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = 4,
         .rows = 2,
     });
@@ -603,7 +802,7 @@ test "projection dirty recapture compacts links and preserves delta first-use or
     const target_a = "https://a.example";
     const target_b = "https://b.example";
     const target_c = "https://c.example";
-    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = 5,
         .rows = 2,
     });
@@ -675,7 +874,7 @@ test "projection dirty recapture compacts links and preserves delta first-use or
 }
 
 test "projection resets all hyperlink state after an aggregate frame limit failure" {
-    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = 4,
         .rows = 2,
     });
@@ -704,7 +903,7 @@ test "projection resets all hyperlink state after an aggregate frame limit failu
 }
 
 test "projection release frees resident capture resources and recreates lazily" {
-    var terminal: ghostty_vt.Terminal = try .init(std.testing.allocator, .{
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = 4,
         .rows = 2,
     });
@@ -906,6 +1105,35 @@ fn decodeFrameLinks(
         .cell_links = cell_links,
         .strings = strings,
     };
+}
+
+fn transmitPathGraphic(
+    stream: anytype,
+    medium: u8,
+    image_id: u32,
+    path: []const u8,
+) !void {
+    var encoded_path_buffer: [std.base64.standard.Encoder.calcSize(std.fs.max_path_bytes)]u8 = undefined;
+    const encoded_path = std.base64.standard.Encoder.encode(
+        encoded_path_buffer[0..std.base64.standard.Encoder.calcSize(path.len)],
+        path,
+    );
+    var command_buffer: [encoded_path_buffer.len + 128]u8 = undefined;
+    const command = try std.fmt.bufPrint(
+        &command_buffer,
+        "\x1b_Ga=T,t={c},f=24,s=1,v=1,i={d},p=1,C=1;{s}\x1b\\",
+        .{ medium, image_id, encoded_path },
+    );
+    stream.nextSlice(command);
+}
+
+fn setTerminalCellSize(
+    terminal: *ghostty_vt.Terminal,
+    cell_pixel_width: u16,
+    cell_pixel_height: u16,
+) void {
+    terminal.width_px = @as(u32, terminal.cols) * cell_pixel_width;
+    terminal.height_px = @as(u32, terminal.rows) * cell_pixel_height;
 }
 
 fn readFrameInt(

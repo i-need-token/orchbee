@@ -7,7 +7,7 @@ imply endorsement by their creators.
 
 - Copyright notice: Copyright (c) 2024 Mitchell Hashimoto, Ghostty contributors
 - Source: <https://github.com/ghostty-org/ghostty>
-- Pinned revision: `91f66da24527fa02d92b5fd0b41cd020f553a64c`
+- Pinned revision: `9c3ec931d64561a8407dde7ac984ce156ae91539`
 - License: MIT
 - Use in Orchbee: terminal emulation for native and WebAssembly runtimes
 

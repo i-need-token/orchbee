@@ -1,4 +1,7 @@
 const std = @import("std");
+const platform = @import("terminal-host-platform");
+const monotonic = platform.monotonic;
+const thread_sync = platform.thread_sync;
 
 const terminal_runtime = @import("terminal-host-engine").runtime;
 const runtimeState = terminal_runtime.testing.stateForTesting;
@@ -6,20 +9,20 @@ const runtimeState = terminal_runtime.testing.stateForTesting;
 const semantic_wait_timeout_ns: u64 = 10 * std.time.ns_per_s;
 
 const Deadline = struct {
-    timer: std.time.Timer,
+    timer: monotonic.Timer,
     timeout_ns: u64,
 
     fn init(timeout_ns: u64) !Deadline {
         return .{
-            .timer = try std.time.Timer.start(),
+            .timer = try monotonic.Timer.start(),
             .timeout_ns = timeout_ns,
         };
     }
 
     fn wait(
         self: *Deadline,
-        condition: *std.Thread.Condition,
-        mutex: *std.Thread.Mutex,
+        condition: *thread_sync.Condition,
+        mutex: *thread_sync.Mutex,
     ) !void {
         const elapsed = self.timer.read();
         if (elapsed >= self.timeout_ns) return error.SemanticWaitTimeout;
@@ -29,9 +32,9 @@ const Deadline = struct {
 };
 
 pub const GenerationSignal = struct {
-    condition: std.Thread.Condition = .{},
+    condition: thread_sync.Condition = .{},
     generation: u64 = 0,
-    mutex: std.Thread.Mutex = .{},
+    mutex: thread_sync.Mutex = .{},
 
     pub fn notify(context: *anyopaque) void {
         const self: *GenerationSignal = @ptrCast(@alignCast(context));
@@ -85,8 +88,8 @@ pub fn writerQueueObservation(
 }
 
 test "an exhausted semantic deadline fails without blocking" {
-    var condition: std.Thread.Condition = .{};
-    var mutex: std.Thread.Mutex = .{};
+    var condition: thread_sync.Condition = .{};
+    var mutex: thread_sync.Mutex = .{};
     var deadline = try Deadline.init(0);
     mutex.lock();
     defer mutex.unlock();

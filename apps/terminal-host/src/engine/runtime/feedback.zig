@@ -1,4 +1,5 @@
 const std = @import("std");
+const thread_sync = @import("terminal-host-platform").thread_sync;
 const ghostty_vt = @import("ghostty-vt");
 const protocol = @import("terminal-protocol");
 const terminal_stream = @import("../terminal_stream.zig");
@@ -210,7 +211,10 @@ fn wallTimeMilliseconds(self: *state.State) ?u64 {
             return read(self.testing_hooks.context.?);
         }
     }
-    return std.math.cast(u64, std.time.milliTimestamp());
+    return std.math.cast(
+        u64,
+        std.Io.Timestamp.now(thread_sync.io(), .real).toMilliseconds(),
+    );
 }
 
 fn runtimeFromHandler(handler: *terminal_stream.Handler) *state.State {

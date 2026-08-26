@@ -12,16 +12,18 @@ import {
 	decodeTerminalProjectionBuffer,
 	decodeTerminalRowWindow,
 	encodeTerminalFrame,
+	encodeTerminalGraphics,
 	encodeTerminalProjectionBuffer,
 	encodeTerminalRowWindow,
 	HostEpochSchema,
 	materializeTerminalProjectionFrame,
 	PROTOCOL_LIMITS,
-	ProtocolErrorCode,
 	RowPromptClass,
 	SemanticContent,
 	TerminalColorKind,
 	TerminalFrameKind,
+	TerminalGraphicsImageFormat,
+	TerminalGraphicsUpdateKind,
 	TerminalIdSchema,
 	TERMINAL_ROW_WINDOW_HEADER_BYTES,
 	TerminalRowWindowDetail,
@@ -43,10 +45,21 @@ import { FileTerminalArchiveStore } from '../FileTerminalArchiveStore';
 import {
 	decodeTerminalArchive,
 	encodeTerminalArchive,
+	terminalArchiveGraphicsForRows,
 	type TerminalArchiveWrite,
 } from '../terminal-archive-document';
 
 const attachmentId = AttachmentIdSchema.parse('11'.repeat(16));
+const emptyGraphics = {
+	animationTick: 0n,
+	images: [],
+	kind: TerminalGraphicsUpdateKind.snapshot,
+	placements: [],
+	resourceRevision: 0n,
+} as const;
+const encodedEmptyGraphics = encodeTerminalGraphics(emptyGraphics);
+if (!encodedEmptyGraphics.ok) throw new Error(encodedEmptyGraphics.detail);
+const emptyGraphicsBytes = encodedEmptyGraphics.value;
 const identity: TerminalIdentity = {
 	creationId: CreationIdSchema.parse('22'.repeat(16)),
 	hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
@@ -139,6 +152,35 @@ describe('terminal archive document', () => {
 		expect(decoded.value.frame.scrollbackRows).toBe(9n);
 	});
 
+	it('round-trips graphics pixels and re-roots one placement spanning the history seam', () => {
+		const write = createGraphicsArchiveWrite(
+			terminalPresentationId('presentation-graphics-round-trip'),
+		);
+		const encoded = encodeTerminalArchive(write);
+		if (!encoded.ok) throw new Error(encoded.detail);
+		const decoded = decodeTerminalArchive(encoded.value);
+		if (!decoded.ok) throw new Error(decoded.detail);
+
+		expect(Array.from(decoded.value.graphics.images[0]?.data ?? [])).toEqual(
+			Array.from(graphicsPixels),
+		);
+		expect(decoded.value.graphics.placements).toMatchObject([{ row: -1 }]);
+		expect(decoded.value.rowWindows[0]?.graphics.placements).toMatchObject([{ row: 1 }]);
+
+		const materialized = terminalArchiveGraphicsForRows(decoded.value, 1n, 2);
+		if (materialized === null) throw new Error('Expected archived graphics to materialize');
+		expect(materialized.animationTick).toBe(17n);
+		expect(materialized.resourceRevision).toBe(9n);
+		expect(materialized.images).toHaveLength(1);
+		expect(Array.from(materialized.images[0]?.data ?? [])).toEqual(Array.from(graphicsPixels));
+		expect(materialized.placements).toHaveLength(1);
+		expect(materialized.placements[0]).toMatchObject({
+			offsetY: 9,
+			row: 0,
+			z: -0x4000_0000,
+		});
+	});
+
 	it.each(mismatchedCellPixelGeometries)(
 		'rejects a render row window mismatched only in $dimension at encode admission',
 		(geometry) => {
@@ -220,7 +262,7 @@ describe('terminal archive document', () => {
 		});
 	});
 
-	it('selects the deduplicated hyperlink-byte maximum across render windows', () => {
+	it('selects the deduplicated hyperlink-byte maximum under the expanded render-window budget', () => {
 		const boundary = createRenderWindowMaximumArchive(
 			terminalPresentationId('presentation-render-window-boundary'),
 			0,
@@ -238,23 +280,21 @@ describe('terminal archive document', () => {
 		);
 
 		const boundaryWindow = encodeRenderWindowMaximumCandidate(boundary.finalFrame);
+		const counterexampleWindow = encodeRenderWindowMaximumCandidate(counterexample.finalFrame);
 		expect(boundaryWindow).toMatchObject({ ok: true });
-		if (!boundaryWindow.ok) throw new Error(boundaryWindow.detail);
-		expect(boundaryWindow.value.byteLength).toBe(PROTOCOL_LIMITS.maxRowWindowBytes);
-		expect(encodeRenderWindowMaximumCandidate(counterexample.finalFrame)).toMatchObject({
-			code: ProtocolErrorCode.limitExceeded,
-			ok: false,
-		});
+		expect(counterexampleWindow).toMatchObject({ ok: true });
+		if (!boundaryWindow.ok || !counterexampleWindow.ok) {
+			throw new Error('Expected both expanded-budget render windows to encode');
+		}
+		expect(counterexampleWindow.value.byteLength).toBe(boundaryWindow.value.byteLength + 1);
+		expect(counterexampleWindow.value.byteLength).toBeLessThan(PROTOCOL_LIMITS.maxRowWindowBytes);
 		expect(encodeTerminalFrame(counterexample.finalFrame)).toMatchObject({ ok: true });
 
 		const admitted = encodeTerminalArchive(boundary.write);
 		expect(admitted).toMatchObject({ ok: true });
 		if (!admitted.ok) throw new Error(admitted.detail);
 		expect(decodeTerminalArchive(admitted.value)).toMatchObject({ ok: true });
-		expect(encodeTerminalArchive(counterexample.write)).toEqual({
-			detail: 'Terminal archive exceeds archived projection representability limits',
-			ok: false,
-		});
+		expect(encodeTerminalArchive(counterexample.write)).toMatchObject({ ok: true });
 	});
 
 	it.each([
@@ -480,9 +520,80 @@ function createArchiveWrite(
 	if (!frame.ok) throw new Error(frame.detail);
 	return {
 		frame: frame.value,
+		graphics: emptyGraphicsBytes,
 		identity,
 		presentationId,
 		rowWindows: [createRenderWindow(7n, ['history-a', 'history-b'])],
+		theme,
+	};
+}
+
+const graphicsPixels = new Uint8Array([
+	0xff, 0x00, 0x00, 0xff, 0x00, 0xff, 0x00, 0xff, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0x80,
+]);
+
+function createGraphicsSnapshot(row: number) {
+	return {
+		animationTick: 17n,
+		images: [
+			{
+				data: graphicsPixels,
+				format: TerminalGraphicsImageFormat.rgba,
+				generation: 3n,
+				height: 2,
+				id: 7,
+				width: 2,
+			},
+		],
+		kind: TerminalGraphicsUpdateKind.snapshot,
+		placements: [
+			{
+				column: 1,
+				destinationHeight: 27,
+				destinationWidth: 18,
+				imageId: 7,
+				internalId: true,
+				offsetX: 2,
+				offsetY: 9,
+				placementId: 13,
+				row,
+				sourceHeight: 2,
+				sourceWidth: 2,
+				sourceX: 0,
+				sourceY: 0,
+				z: -0x4000_0000,
+			},
+		],
+		resourceRevision: 9n,
+	} as const;
+}
+
+function createGraphicsArchiveWrite(presentationId: TerminalPresentationId): TerminalArchiveWrite {
+	const frame = encodeTerminalProjectionBuffer(createFrame(9n, ['viewport-a', 'viewport-b']));
+	const viewportGraphics = encodeTerminalGraphics(createGraphicsSnapshot(-1));
+	const historyFrame = createFrame(7n, ['history-a', 'history-b']);
+	const historyWindow = encodeTerminalRowWindow({
+		attachmentId,
+		columns: 2,
+		detail: TerminalRowWindowDetail.render,
+		frame: historyFrame,
+		graphics: createGraphicsSnapshot(1),
+		generation: 3n,
+		hostEpoch: identity.hostEpoch,
+		revision: 5n,
+		sequence: 4n,
+		startRow: 7n,
+		totalRows: 11n,
+	});
+	if (!frame.ok || !viewportGraphics.ok || !historyWindow.ok) {
+		throw new Error('Graphics archive fixture failed to encode');
+	}
+	return {
+		frame: frame.value,
+		graphics: viewportGraphics.value,
+		identity,
+		presentationId,
+		rowWindows: [historyWindow.value],
 		theme,
 	};
 }
@@ -498,6 +609,7 @@ function createRenderWindow(
 		columns: 2,
 		detail: TerminalRowWindowDetail.render,
 		frame,
+		graphics: emptyGraphics,
 		generation: 3n,
 		hostEpoch: identity.hostEpoch,
 		revision: 5n,
@@ -603,6 +715,7 @@ function createStructuralSeamArchive(
 			columns: 4,
 			detail: TerminalRowWindowDetail.render,
 			frame,
+			graphics: emptyGraphics,
 			generation: 3n,
 			hostEpoch: identity.hostEpoch,
 			revision: 5n,
@@ -615,7 +728,14 @@ function createStructuralSeamArchive(
 	});
 	const finalFrame = encodeTerminalProjectionBuffer(createStructuralFrame(6n, rows.slice(6), 7n));
 	if (!finalFrame.ok) throw new Error(finalFrame.detail);
-	return { frame: finalFrame.value, identity, presentationId, rowWindows, theme };
+	return {
+		frame: finalFrame.value,
+		graphics: emptyGraphicsBytes,
+		identity,
+		presentationId,
+		rowWindows,
+		theme,
+	};
 }
 
 function createStructuralFrame(
@@ -766,6 +886,7 @@ function createRenderWindowMaximumArchive(
 		columns: RENDER_ESTIMATOR_COLUMNS,
 		detail: TerminalRowWindowDetail.render,
 		frame: historyFrame,
+		graphics: emptyGraphics,
 		generation: historyFrame.generation,
 		hostEpoch: identity.hostEpoch,
 		revision: historyFrame.revision,
@@ -781,6 +902,7 @@ function createRenderWindowMaximumArchive(
 		finalFrame,
 		write: {
 			frame: encodedFinalFrame.value,
+			graphics: emptyGraphicsBytes,
 			identity,
 			presentationId,
 			rowWindows: [historyWindow.value],
@@ -823,6 +945,7 @@ function encodeRenderWindowMaximumCandidate(frame: TerminalFrame) {
 		columns: frame.columns,
 		detail: TerminalRowWindowDetail.render,
 		frame,
+		graphics: emptyGraphics,
 		generation: frame.generation,
 		hostEpoch: frame.hostEpoch,
 		revision: frame.revision,
@@ -875,7 +998,14 @@ function createStyleCardinalityArchive(
 		}),
 	);
 	if (!frame.ok) throw new Error(frame.detail);
-	return { frame: frame.value, identity, presentationId, rowWindows, theme };
+	return {
+		frame: frame.value,
+		graphics: emptyGraphicsBytes,
+		identity,
+		presentationId,
+		rowWindows,
+		theme,
+	};
 }
 
 function createStyleWindow(
@@ -956,7 +1086,14 @@ function createStringCardinalityArchive(
 		}),
 	);
 	if (!frame.ok) throw new Error(frame.detail);
-	return { frame: frame.value, identity, presentationId, rowWindows, theme };
+	return {
+		frame: frame.value,
+		graphics: emptyGraphicsBytes,
+		identity,
+		presentationId,
+		rowWindows,
+		theme,
+	};
 }
 
 function createStringWindow(
@@ -1013,6 +1150,7 @@ function encodeCardinalityWindow(value: {
 			styles: value.styles,
 			title: value.title,
 		}),
+		graphics: emptyGraphics,
 		generation: 3n,
 		hostEpoch: identity.hostEpoch,
 		revision: 5n,
@@ -1106,9 +1244,7 @@ function expectStrictAndIndividuallyRepresentableParts(
 	if (!metadata.ok) throw new Error(metadata.detail);
 	expect(write.rowWindows).toHaveLength(expectedWindowCount);
 	for (const encodedWindow of write.rowWindows) {
-		const projection = decodeTerminalProjectionBuffer(
-			encodedWindow.subarray(TERMINAL_ROW_WINDOW_HEADER_BYTES),
-		);
+		const projection = decodeTerminalProjectionBuffer(renderWindowProjectionBytes(encodedWindow));
 		const window = decodeTerminalRowWindow(encodedWindow);
 		expect(projection).toMatchObject({ ok: true });
 		expect(window).toMatchObject({ ok: true });
@@ -1133,9 +1269,7 @@ function expectDecodedRenderWindowGeometry(
 	encodedWindow: Uint8Array,
 	geometry: CellPixelGeometry,
 ): void {
-	const inner = decodeTerminalProjectionBuffer(
-		encodedWindow.subarray(TERMINAL_ROW_WINDOW_HEADER_BYTES),
-	);
+	const inner = decodeTerminalProjectionBuffer(renderWindowProjectionBytes(encodedWindow));
 	const outer = decodeTerminalRowWindow(encodedWindow);
 	expect(inner).toMatchObject({ ok: true });
 	expect(outer).toMatchObject({ ok: true });
@@ -1148,6 +1282,19 @@ function expectDecodedRenderWindowGeometry(
 	};
 	expect(inner.value).toMatchObject(expectedGeometry);
 	expect(outer.value.frame).toMatchObject(expectedGeometry);
+}
+
+function renderWindowProjectionBytes(encodedWindow: Uint8Array): Uint8Array {
+	const view = new DataView(
+		encodedWindow.buffer,
+		encodedWindow.byteOffset,
+		encodedWindow.byteLength,
+	);
+	const projectionLength = view.getUint32(101, true);
+	return encodedWindow.subarray(
+		TERMINAL_ROW_WINDOW_HEADER_BYTES,
+		TERMINAL_ROW_WINDOW_HEADER_BYTES + projectionLength,
+	);
 }
 
 function archiveWithReplacedRowWindow(
@@ -1173,9 +1320,11 @@ function archiveWithReplacedRowWindows(
 	const chunkLengths = headerValue['chunkLengths'];
 	const contentDigest = headerValue['contentDigest'];
 	const frameLength = headerValue['frameLength'];
+	const graphicsLength = headerValue['graphicsLength'];
 	if (
 		typeof contentDigest !== 'string' ||
 		typeof frameLength !== 'number' ||
+		typeof graphicsLength !== 'number' ||
 		!Array.isArray(chunkLengths)
 	) {
 		throw new Error('Archive fixture header is invalid');
@@ -1185,7 +1334,8 @@ function archiveWithReplacedRowWindows(
 		!chunkLengths.every(
 			(length, index) => typeof length === 'number' && length === replacements[index]?.byteLength,
 		) ||
-		frameLength !== write.frame.byteLength
+		frameLength !== write.frame.byteLength ||
+		graphicsLength !== write.graphics.byteLength
 	) {
 		throw new Error('Archive replacement must preserve the fixture layout');
 	}
@@ -1193,7 +1343,8 @@ function archiveWithReplacedRowWindows(
 	delete digestMetadata['contentDigest'];
 	const replacementDigest = createHash('sha256')
 		.update(JSON.stringify(digestMetadata), 'utf8')
-		.update(write.frame);
+		.update(write.frame)
+		.update(write.graphics);
 	for (const replacement of replacements) replacementDigest.update(replacement);
 	const digest = replacementDigest.digest('hex');
 	const digestMarker = `"contentDigest":"${contentDigest}"`;
@@ -1204,7 +1355,7 @@ function archiveWithReplacedRowWindows(
 		headerText.slice(0, digestTextOffset),
 	).byteLength;
 	encoded.set(new TextEncoder().encode(digest), 12 + digestByteOffset);
-	let payloadOffset = 12 + headerLength + write.frame.byteLength;
+	let payloadOffset = 12 + headerLength + write.frame.byteLength + write.graphics.byteLength;
 	for (const replacement of replacements) {
 		encoded.set(replacement, payloadOffset);
 		payloadOffset += replacement.byteLength;

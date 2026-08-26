@@ -347,7 +347,7 @@ test "first attachment allocation failures leave no broker commit" {
 test "populated attachment growth rolls back every allocation failure" {
     const connection_id: ConnectionId = 0xb0;
     const terminal_id = testId(TerminalId, 0xb1);
-    // Zig 0.15.2 gives an unmanaged ArrayList its first capacity from one
+    // Zig gives an unmanaged ArrayList its first capacity from one
     // cache line. Fill that capacity so the candidate append must grow the
     // per-terminal ID list; the allocator deltas below verify the growth.
     const populated_count = @max(1, std.atomic.cache_line / @sizeOf(AttachmentId));

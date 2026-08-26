@@ -1,6 +1,7 @@
 import {
 	decodeTerminalFrame,
 	decodeTerminalRowWindow,
+	encodeTerminalGraphics,
 	PROTOCOL_LIMITS,
 	TerminalFrameKind,
 	TerminalRowWindowDetail,
@@ -133,12 +134,16 @@ export class TerminalArchiveCaptureService {
 			});
 			const viewport = await viewportEvent;
 			const viewportBytes = copyBytes(viewport.frame.bytes);
+			const encodedGraphics = encodeTerminalGraphics(viewport.graphics);
+			if (!encodedGraphics.ok) throw new Error(encodedGraphics.detail);
+			const graphicsBytes = copyBytes(encodedGraphics.value);
 			const rowWindows: Uint8Array[] = [];
 			const initialArchive = archiveWrite(
 				presentationId,
 				identity,
 				lease,
 				viewportBytes,
+				graphicsBytes,
 				rowWindows,
 			);
 			const initialSizing = encodeTerminalArchiveForCaptureSizing(initialArchive);
@@ -233,7 +238,14 @@ export class TerminalArchiveCaptureService {
 			}
 			if (controller.signal.aborted) throw new Error('Terminal archive capture timed out.');
 			rowWindows.reverse();
-			const archive = archiveWrite(presentationId, identity, lease, viewportBytes, rowWindows);
+			const archive = archiveWrite(
+				presentationId,
+				identity,
+				lease,
+				viewportBytes,
+				graphicsBytes,
+				rowWindows,
+			);
 			const admission = encodeTerminalArchive(archive);
 			if (!admission.ok) throw new Error(admission.detail);
 			if (admission.value.byteLength !== encodedByteLength) {
@@ -287,10 +299,12 @@ function archiveWrite(
 	identity: TerminalIdentity,
 	lease: DesktopTerminalProjectionLease,
 	frame: Uint8Array,
+	graphics: Uint8Array,
 	rowWindows: readonly Uint8Array[],
 ): TerminalArchiveWrite {
 	return {
 		frame,
+		graphics,
 		identity,
 		presentationId,
 		rowWindows,

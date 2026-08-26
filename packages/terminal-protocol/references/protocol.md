@@ -1,12 +1,12 @@
 # Terminal Protocol Current Contract and Correctness Record
 
-| Field           | Current authority                                                                                                                                                        |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Status          | Current wire-contract and codec authority; this package implements no lifecycle state machine, PTY, IPC listener, renderer, Electron, recovery, or network behavior      |
-| Wire owner      | `@orchbee/terminal-protocol`                                                                                                                                             |
-| Native consumer | `apps/terminal-host` consumes declared schemas and fixture exports for bounded native dispatch and Zig conformance                                                       |
-| Reference scope | Exact protocol `0.0.19`; OBTF format `0.0.3`; OBPB and OBRW format `0.0.2`; OBKG format `0.0.1`; input/selection codecs; failure vocabulary; bounds; and pinned fixtures |
-| Change rule     | A changed field, message meaning, wire byte, bound, or fixture updates this record, both language implementations, every producer/consumer, and evidence                 |
+| Field           | Current authority                                                                                                                                                                    |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Status          | Current wire-contract and codec authority; this package implements no lifecycle state machine, PTY, IPC listener, renderer, Electron, recovery, or network behavior                  |
+| Wire owner      | `@orchbee/terminal-protocol`                                                                                                                                                         |
+| Native consumer | `apps/terminal-host` consumes declared schemas and fixture exports for bounded native dispatch and Zig conformance                                                                   |
+| Reference scope | Exact protocol `0.0.20`; OBTF format `0.0.3`; OBPB format `0.0.2`; OBRW format `0.0.3`; OBKG format `0.0.2`; input/selection codecs; failure vocabulary; bounds; and pinned fixtures |
+| Change rule     | A changed field, message meaning, wire byte, bound, or fixture updates this record, both language implementations, every producer/consumer, and evidence                             |
 
 ## Modeling record
 
@@ -40,11 +40,12 @@ identity and are rejected where an identity is required.
 | `TerminalThemeOperationId` | Application-created idempotency identity for one terminal-theme compare-and-set operation                                        |
 | `CorrelationId`            | Required on every request and response after `Hello`; all-zero envelope bytes mean absence only for handshake messages or events |
 
-The current protocol version is exactly `0.0.19`. `Hello`, `HelloAccepted`, and every transport
+The current protocol version is exactly `0.0.20`. `Hello`, `HelloAccepted`, and every transport
 envelope carry that exact version. A different major, minor, or patch is rejected; this pre-release
 contract contains no negotiated range, compatibility mode, or historical message shape. Packed
-OBTF frame format is exactly `0.0.3`; OBPB projection-buffer and OBRW row-window formats are exactly
-`0.0.2`; OBKG graphics-extension format is exactly `0.0.1`. Their decoders accept only those exact formats. While these contracts have
+OBTF frame format is exactly `0.0.3`; OBPB projection-buffer format is exactly `0.0.2`; OBRW
+row-window format is exactly `0.0.3`; and OBKG graphics-extension format is exactly `0.0.2`. Their
+decoders accept only those exact formats. While these contracts have
 major version `0`, the repository retains only the current unpublished contract and does not keep
 changelog entries for development revisions. The first public contract becomes `1.0.0`; every
 later externally observable contract change bumps the owning semantic version and records the
@@ -314,7 +315,7 @@ Initial resize-lease authority is returned by attachment admission; later owners
 the attachment-scoped claim and complete events.
 
 `MESSAGE_CONTRACTS` is the executable TypeScript registry behind this table. Its native mirror is
-checked field-for-field through `control-conformance-v0.0.19.json`. Adding or changing a kind therefore
+checked field-for-field through `control-conformance-v0.0.20.json`. Adding or changing a kind therefore
 requires one atomic protocol change to the registry, native mirror, codecs, fixture, and consumers.
 
 `TerminalBell` is an event-only control record containing `attachmentId` and a positive canonical
@@ -429,7 +430,7 @@ The current optional extension registry is:
 | Kind |       Bytes | Meaning                                                                                                                                                      |
 | ---: | ----------: | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 |  `1` |         `1` | Live close activity: `0=unknown`, `1=idle`, `2=active`. Terminal Host emits only `idle` or `active` and omits the extension when its observation is unknown. |
-|  `2` | `32..5 MiB` | One strictly decoded OBKG `0.0.1` Kitty graphics resource snapshot or placement-only update.                                                                 |
+|  `2` | `40..5 MiB` | One strictly decoded OBKG `0.0.2` Kitty graphics resource snapshot or placement-only update.                                                                 |
 |  `3` |         `2` | Current terminal progress: state byte plus percentage `0..100` or null sentinel `255`.                                                                       |
 |  `4` |        `25` | Latest semantic command completion: positive sequence, duration milliseconds, positive wall-clock completion milliseconds, and normalized exit code.         |
 
@@ -469,19 +470,20 @@ reject the complete frame. The payload intentionally carries no command text, ar
 environment, or output. It is a recent presentation fact; each client owns freshness, focus,
 permission, deduplication, rate limiting, and notification policy.
 
-OBKG begins with this fixed 32-byte header:
+OBKG begins with this fixed 40-byte header:
 
 | Offset | Bytes | Field                                                |
 | ------ | ----: | ---------------------------------------------------- |
 | `0`    |     4 | ASCII `OBKG`                                         |
-| `4`    |     3 | Format major, minor, and patch `0.0.1`               |
+| `4`    |     3 | Format major, minor, and patch `0.0.2`               |
 | `7`    |     1 | Resource snapshot `1` or placement-only update `2`   |
 | `8`    |     4 | Total OBKG bytes                                     |
 | `12`   |     8 | Resource revision reused by placement-only updates   |
-| `20`   |     2 | Image-record count; zero for a placement-only update |
-| `22`   |     2 | Placement-record count                               |
-| `24`   |     4 | Aggregate decoded pixel bytes                        |
-| `28`   |     4 | Reserved zero                                        |
+| `20`   |     8 | Monotonic Ghostty animation tick                     |
+| `28`   |     2 | Image-record count; zero for a placement-only update |
+| `30`   |     2 | Placement-record count                               |
+| `32`   |     4 | Aggregate decoded pixel bytes                        |
+| `36`   |     4 | Reserved zero                                        |
 
 Each snapshot image is a 32-byte record followed immediately by its raw pixel bytes: image ID
 `u32`, gray/gray-alpha/RGB/RGBA format `u8`, three reserved zero bytes, generation `u64`, width and
@@ -489,15 +491,21 @@ height `u32`, byte length `u32`, and reserved zero `u32`. Pixel length must exac
 times channels, image IDs are unique and nonzero, and all current placements must reference a
 snapshot image. Each 56-byte placement records image and placement IDs, signed grid column and row,
 pixel offsets, source crop, destination pixel size, signed `z`, and flags. Only the internal-ID flag
-bit is defined; accepted `z` is nonnegative. Snapshot crop rectangles are bounded by their image.
+bit is defined. Every signed 32-bit z value is valid; composition uses exactly three ordered layers:
+`z < -1073741824` below cell backgrounds, `-1073741824 <= z < 0` between cell backgrounds and text,
+and `z >= 0` above text. Snapshot crop rectangles are bounded by their image.
 
 The client retains at most 4 MiB across 256 visible decoded images and 1,024 visible placements.
 A placement-only update carries no image bytes and must name the exact retained resource revision;
 the consumer additionally validates every reference and crop against its retained image map before
-committing any text row. A terminal snapshot with kind-`2` extension data is invalid. Resource-set
-change, retransmission, deletion, reset, screen change, or an unconfirmed base promotes the Host's
-whole OBTF record to a snapshot. OBKG never carries paths, URLs, compressed containers, temporary
-files, shared memory, virtual placements, negative-z composition, glyph graphics, or animation.
+committing any text row. A terminal snapshot with placement-only extension data is invalid. Resource-set
+or displayed-animation-generation change, retransmission, deletion, reset, screen change, or an
+unconfirmed base promotes the Host's whole OBTF record to a snapshot. Direct, file, temporary-file,
+and supported POSIX shared-memory inputs, raw/PNG/zlib/chunk transport, animation, virtual and
+relative placements, cropping, signed-z composition, and historical intersection are resolved at
+the native boundary. OBKG carries only owned decoded pixels and resolved placements; it never
+carries a path, URL, handle, shared-memory name or mapping, encoded container, compressed stream,
+or unresolved Ghostty pin.
 
 A snapshot has no base and contains every visible row in canonical order. A delta names the exact
 acknowledged base and replaces complete, unique dirty rows in increasing row order; it never carries
@@ -525,7 +533,7 @@ the following row is present, it begins with the corresponding wide cell. These 
 validated before a frame is exposed or committed.
 
 The native surface evidence set contains exported `ghostty-surface-v0.0.3.bin`,
-`ghostty-alternate-surface-v0.0.3.bin`, and `ghostty-render-row-window-v0.0.2.bin`. Terminal Host
+`ghostty-alternate-surface-v0.0.3.bin`, and `ghostty-render-row-window-v0.0.3.bin`. Terminal Host
 generates the OBTF pair in sequence from one pinned native Ghostty VT and the real OBTF encoder. A
 separate pinned terminal replays the primary corpus, adds DECSCA protected and unprotected cells,
 and generates the render-detail OBRW only through `row_encoding.encode` and
@@ -639,7 +647,7 @@ order and names the exact acknowledged base. Snapshot consumers retain the immut
 delta consumers retain only buffers still referenced by dirty row ranges. Shared memory is not part
 of this version.
 
-The exported `packed-projection-conformance-v0.0.2.json` is the generated, tracked evidence authority for shared OBPB and OBRW strict-admission cases. Its 23 OBPB cases contain the 17 canonical mutation classes, accepted sparse delta row indices `[0, 2]` with duplicate and descending rejections, and optional/required header-flag partitions; its three OBRW cases cover the equivalent header-flag partitions. The fixture generator owns every complete canonical byte string and hard-codes each contract-authored outcome and success observation without asking either decoder for the oracle. `test:fixtures` rejects missing or byte-stale output. `decodeTerminalProjectionBuffer` and `decodeTerminalRowWindow` consume every matching case; the Host runner resolves the declared package export, supplies bounded corpus bytes, and makes both Zig strict validators consume the same cases while asserting only observations exposed by their public summaries.
+The exported `packed-projection-conformance-v0.0.3.json` is the generated, tracked evidence authority for shared OBPB and OBRW strict-admission cases. Its 23 OBPB cases contain the 17 canonical mutation classes, accepted sparse delta row indices `[0, 2]` with duplicate and descending rejections, and optional/required header-flag partitions; its six OBRW cases cover the equivalent header-flag partitions plus projection-section length, graphics-section length, and graphics-snapshot-kind failures. The fixture generator owns every complete canonical byte string and hard-codes each contract-authored outcome and success observation without asking either decoder for the oracle. `test:fixtures` rejects missing or byte-stale output. `decodeTerminalProjectionBuffer` and `decodeTerminalRowWindow` consume every matching case; the Host runner resolves the declared package export, supplies bounded corpus bytes, and makes both Zig strict validators consume the same cases while asserting only observations exposed by their public summaries.
 
 ## Current packed terminal row-window
 
@@ -690,12 +698,17 @@ Every row window begins with this fixed 112-byte little-endian header:
 | `90`   |     2 | Reserved zero                                                         |
 | `92`   |     4 | Cell count for render detail or logical mapping count for text detail |
 | `96`   |     4 | Body bytes                                                            |
-| `100`  |     1 | Format patch `2`                                                      |
-| `101`  |    11 | Reserved zero                                                         |
-| `112`  |     N | OBPB format `0.0.2` projection buffer or text rows                    |
+| `100`  |     1 | Format patch `3`                                                      |
+| `101`  |     4 | Render-detail OBPB projection length; zero for text detail            |
+| `105`  |     4 | Render-detail OBKG graphics length; zero for text detail              |
+| `109`  |     3 | Reserved zero                                                         |
+| `112`  |     N | Projection then graphics for render detail, or text rows              |
 
-Render detail nests one OBPB format `0.0.2` snapshot projection buffer whose identity, sequence, revision, generation,
-columns, rows, and scrollback-row origin agree with the outer window. Text detail stores each row as a 12-byte header followed by
+Render detail concatenates one OBPB format-`0.0.2` snapshot and one complete OBKG format-`0.0.2`
+graphics snapshot. The OBPB identity, sequence, revision, generation, columns, rows, and
+scrollback-row origin agree with the outer window. Every graphics placement intersects the selected
+row interval and is rebased to the window; every referenced image is included. Text detail requires
+both section lengths to be zero and stores each row as a 12-byte header followed by
 strict UTF-8 text and, when required, ordered 12-byte UTF-8/UTF-16/column/width mappings. Row flag
 bit `2` (`0x04`) requires zero serialized mappings and declares that
 every text byte is narrow ASCII whose UTF-8 byte offset, UTF-16 code-unit offset, and terminal
@@ -761,8 +774,8 @@ The handshake may select smaller transport payload bounds. It never raises these
 | All frame extensions / one OBKG record |              5 MiB |
 | Decoded Kitty resources                |              4 MiB |
 | Kitty images / placements              |         256 / 1024 |
-| Transport record                       |       8 MiB + 64 B |
-| Row-window payload                     |              2 MiB |
+| Transport record                       |      16 MiB + 64 B |
+| Row-window record                      |             16 MiB |
 | Search query at a client boundary      |             16 KiB |
 | Selection preview                      |              4 KiB |
 | Selection export / one chunk           |     16 MiB / 1 MiB |

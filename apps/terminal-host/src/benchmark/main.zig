@@ -3,6 +3,7 @@ const std = @import("std");
 
 const benchmark_options = @import("options.zig");
 const identifiers = @import("terminal-host-model").identifiers;
+const monotonic = @import("terminal-host-platform").monotonic;
 const terminal_runtime = @import("terminal-host-engine").runtime;
 
 const Config = benchmark_options.Config;
@@ -10,7 +11,7 @@ const display_interval_nanoseconds: u64 = 16 * std.time.ns_per_ms;
 
 const FixtureInput = struct {
     byte_count: u64,
-    file: std.fs.File,
+    file: std.Io.File,
 };
 
 const Usage = struct {
@@ -18,24 +19,28 @@ const Usage = struct {
     peak_rss_bytes: ?u64,
 };
 
-pub fn main() !void {
-    const allocator = std.heap.smp_allocator;
-    const arguments = try std.process.argsAlloc(allocator);
-    defer std.process.argsFree(allocator, arguments);
+pub fn main(init: std.process.Init) !void {
+    const allocator = init.gpa;
+    const arguments = try init.minimal.args.toSlice(init.arena.allocator());
     if (arguments.len == 0) return error.InvalidArguments;
     switch (try benchmark_options.parse(allocator, arguments[1..])) {
-        .emit => |byte_count| try emitGeneratedFixture(byte_count),
-        .benchmark => |config| try runBenchmark(allocator, config),
+        .emit => |byte_count| try emitGeneratedFixture(init.io, byte_count),
+        .benchmark => |config| try runBenchmark(
+            init.io,
+            init.environ_map,
+            allocator,
+            config,
+        ),
     }
 }
 
-fn emitGeneratedFixture(byte_count: u64) !void {
+fn emitGeneratedFixture(io: std.Io, byte_count: u64) !void {
     var output_buffer: [64 * 1024]u8 = undefined;
     for (&output_buffer, 0..) |*byte, index| {
         byte.* = if (index % 80 == 79) '\n' else @as(u8, 'a') + @as(u8, @intCast(index % 26));
     }
     var writer_buffer: [64 * 1024]u8 = undefined;
-    var file_writer = std.fs.File.stdout().writerStreaming(&writer_buffer);
+    var file_writer = std.Io.File.stdout().writerStreaming(io, &writer_buffer);
     var remaining = byte_count;
     while (remaining > 0) {
         const length: usize = @intCast(@min(remaining, output_buffer.len));
@@ -78,19 +83,24 @@ fn buildStartupPlan(
     };
 }
 
-fn runBenchmark(allocator: std.mem.Allocator, config: Config) !void {
+fn runBenchmark(
+    io: std.Io,
+    environment: *const std.process.Environ.Map,
+    allocator: std.mem.Allocator,
+    config: Config,
+) !void {
     if (config.file_path != null and builtin.os.tag == .windows) {
         return error.FileFixtureUnsupported;
     }
     if (config.file_path != null) {
-        try requireFileFixtureUtilities(allocator);
+        try requireFileFixtureUtilities(io, environment);
     }
-    const executable = try std.fs.selfExePathAlloc(allocator);
+    const executable = try std.process.executablePathAlloc(io, allocator);
     defer allocator.free(executable);
-    var fixture_input: ?std.fs.File = null;
-    defer if (fixture_input) |input| input.close();
+    var fixture_input: ?std.Io.File = null;
+    defer if (fixture_input) |input| input.close(io);
     const byte_count = if (config.file_path) |file_path| block: {
-        const fixture = try openRegularFixture(file_path);
+        const fixture = try openRegularFixture(io, file_path);
         fixture_input = fixture.file;
         break :block fixture.byte_count;
     } else config.bytes;
@@ -104,7 +114,7 @@ fn runBenchmark(allocator: std.mem.Allocator, config: Config) !void {
     else
         &file_arguments;
     const usage_before = processUsage();
-    var timer = try std.time.Timer.start();
+    var timer = try monotonic.Timer.startWithIo(io);
     const stdin_fd: ?isize = if (builtin.os.tag == .windows)
         null
     else if (fixture_input) |input|
@@ -150,7 +160,7 @@ fn runBenchmark(allocator: std.mem.Allocator, config: Config) !void {
                 next_display_deadline,
                 timer.read(),
             );
-            sleepUntil(&timer, next_display_deadline);
+            sleepUntil(io, &timer, next_display_deadline);
         }
         try runtime.shutdown();
     }
@@ -167,7 +177,7 @@ fn runBenchmark(allocator: std.mem.Allocator, config: Config) !void {
     const rss_delta = optionalDelta(usage_after.peak_rss_bytes, usage_before.peak_rss_bytes);
 
     var output_buffer: [4096]u8 = undefined;
-    var file_writer = std.fs.File.stdout().writerStreaming(&output_buffer);
+    var file_writer = std.Io.File.stdout().writerStreaming(io, &output_buffer);
     try std.json.Stringify.value(.{
         .bytes = byte_count,
         .captures = counters.captures,
@@ -198,24 +208,22 @@ fn nextDisplayDeadline(previous_deadline: u64, now: u64) u64 {
     return candidate +| skipped_intervals *| display_interval_nanoseconds;
 }
 
-fn sleepUntil(timer: *std.time.Timer, deadline: u64) void {
+fn sleepUntil(io: std.Io, timer: *monotonic.Timer, deadline: u64) void {
     while (true) {
         const now = timer.read();
         if (now >= deadline) return;
-        std.Thread.sleep(deadline - now);
+        std.Io.Timeout.sleep(.{ .duration = .{
+            .clock = .awake,
+            .raw = .fromNanoseconds(deadline - now),
+        } }, io) catch return;
     }
 }
 
-fn openRegularFixture(path: []const u8) !FixtureInput {
+fn openRegularFixture(io: std.Io, path: []const u8) !FixtureInput {
     if (builtin.os.tag == .windows) return error.FileFixtureUnsupported;
-    const fd = try std.posix.open(path, .{
-        .ACCMODE = .RDONLY,
-        .CLOEXEC = true,
-        .NONBLOCK = true,
-    }, 0);
-    var input: std.fs.File = .{ .handle = fd };
-    errdefer input.close();
-    const status = try input.stat();
+    const input = try std.Io.Dir.cwd().openFile(io, path, .{});
+    errdefer input.close(io);
+    const status = try input.stat(io);
     if (status.kind != .file) return error.InvalidFileFixture;
     if (status.size == 0) return error.EmptyFileFixture;
     return .{ .byte_count = status.size, .file = input };
@@ -229,14 +237,14 @@ const default_utility_search_path = "/usr/local/bin:/bin/:/usr/bin";
 /// True when `utility` resolves to an executable on the given PATH. Empty
 /// PATH components resolve against the current directory, matching the runtime
 /// platform's effective-PATH semantics.
-fn executableOnPath(path: []const u8, utility: []const u8) bool {
+fn executableOnPath(io: std.Io, path: []const u8, utility: []const u8) bool {
     var iterator = std.mem.splitScalar(u8, path, ':');
     while (iterator.next()) |directory| {
         const prefix = if (directory.len == 0) "." else directory;
         const separator = if (std.mem.endsWith(u8, prefix, "/")) "" else "/";
         var buffer: [std.posix.PATH_MAX]u8 = undefined;
         const candidate = std.fmt.bufPrint(&buffer, "{s}{s}{s}", .{ prefix, separator, utility }) catch continue;
-        if (std.posix.access(candidate, std.posix.X_OK)) |_| {
+        if (std.Io.Dir.cwd().access(io, candidate, .{ .execute = true })) |_| {
             return true;
         } else |_| {}
     }
@@ -247,17 +255,18 @@ fn executableOnPath(path: []const u8, utility: []const u8) bool {
 /// child's effective PATH rather than fixed FHS paths. Both utilities must be
 /// reachable on that PATH before any process or PTY effect so an unavailable
 /// utility fails with a clear, deterministic error.
-fn requireFileFixtureUtilitiesOnPath(path: []const u8) !void {
-    if (!executableOnPath(path, "time")) return error.BenchmarkUtilityUnavailable;
-    if (!executableOnPath(path, "cat")) return error.BenchmarkUtilityUnavailable;
+fn requireFileFixtureUtilitiesOnPath(io: std.Io, path: []const u8) !void {
+    if (!executableOnPath(io, path, "time")) return error.BenchmarkUtilityUnavailable;
+    if (!executableOnPath(io, path, "cat")) return error.BenchmarkUtilityUnavailable;
 }
 
-fn requireFileFixtureUtilities(allocator: std.mem.Allocator) !void {
+fn requireFileFixtureUtilities(
+    io: std.Io,
+    environment: *const std.process.Environ.Map,
+) !void {
     if (builtin.os.tag == .windows) return;
-    var environment = try std.process.getEnvMap(allocator);
-    defer environment.deinit();
     const path = environment.get("PATH") orelse default_utility_search_path;
-    try requireFileFixtureUtilitiesOnPath(path);
+    try requireFileFixtureUtilitiesOnPath(io, path);
 }
 
 /// Live runtime health while the active loop is still polling. `.pending` is

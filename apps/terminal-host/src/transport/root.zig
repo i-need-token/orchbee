@@ -20,6 +20,7 @@ pub const testing = if (builtin.is_test) struct {
     pub const readRecordWithTimeoutFn = connection.readRecordWithTimeout;
     pub const requireWindowsStatusFn = windows.requireStatus;
     pub const posixSendFlags = posix.send_flags;
+    pub const posixCompat = @import("terminal-host-platform").posix_compat;
     pub const posixEndpointSecurity = posix.endpoint_security;
     pub const serveAcceptedConnectionFn = connection.serveAcceptedConnection;
     pub const serveConnectionFn = connection.serveConnection;

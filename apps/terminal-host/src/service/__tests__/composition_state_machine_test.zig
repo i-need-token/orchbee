@@ -8,8 +8,8 @@ const property = @import("composition_property_harness.zig");
 // after every applied, replayed, or rejected action. A failure is delta-debugged
 // and emitted as an exact one-byte replay string.
 test "generated HostService traces refine the executable composition model" {
-    if (std.process.hasEnvVarConstant(property.replay_environment)) {
-        const encoded = try std.process.getEnvVarOwned(
+    if (std.testing.environ.containsConstant(property.replay_environment)) {
+        const encoded = try std.testing.environ.getAlloc(
             std.testing.allocator,
             property.replay_environment,
         );
@@ -19,8 +19,8 @@ test "generated HostService traces refine the executable composition model" {
         return runWithShrink(0, commands);
     }
 
-    if (std.process.hasEnvVarConstant(property.seed_environment)) {
-        const encoded_seed = try std.process.getEnvVarOwned(
+    if (std.testing.environ.containsConstant(property.seed_environment)) {
+        const encoded_seed = try std.testing.environ.getAlloc(
             std.testing.allocator,
             property.seed_environment,
         );

@@ -25,6 +25,15 @@ import {
 	viewTerminalRowWindow,
 } from '../row-window';
 import { decodeSelectionExportChunk, encodeSelectionExportChunk } from '../selection';
+import { TerminalGraphicsUpdateKind } from '../terminal-graphics';
+
+const emptyGraphics = {
+	animationTick: 0n,
+	images: [],
+	kind: TerminalGraphicsUpdateKind.snapshot,
+	placements: [],
+	resourceRevision: 0n,
+} as const;
 
 const interaction = {
 	applicationCursorKeys: false,
@@ -67,6 +76,7 @@ const renderWindow = {
 	attachmentId: '22222222222222222222222222222222',
 	columns: 1,
 	detail: TerminalRowWindowDetail.render,
+	graphics: emptyGraphics,
 	frame: {
 		activeScreen: ActiveScreen.primary,
 		attachmentId: '22222222222222222222222222222222',
@@ -258,6 +268,7 @@ function linkedRenderWindow(
 		attachmentId: '22222222222222222222222222222222',
 		columns,
 		detail: TerminalRowWindowDetail.render,
+		graphics: emptyGraphics,
 		frame: {
 			activeScreen: ActiveScreen.primary,
 			attachmentId: '22222222222222222222222222222222',
@@ -342,7 +353,7 @@ function countByteSequence(bytes: Uint8Array, value: Uint8Array): number {
 }
 
 describe('packed terminal row windows', () => {
-	it('round-trips a render window through the nested OBPB 0.0.1 projection buffer', () => {
+	it('round-trips a render window through nested OBPB 0.0.2 and snapshot OBKG 0.0.2', () => {
 		const bytes = encodedRenderWindow();
 		const decoded = decodeTerminalRowWindow(bytes);
 		if (!decoded.ok) throw new Error(decoded.detail);
@@ -359,6 +370,7 @@ describe('packed terminal row windows', () => {
 			),
 		).toBe('蜂');
 		expect(decoded.value).not.toHaveProperty('frameBytes');
+		expect(decoded.value.graphics).toEqual(emptyGraphics);
 
 		const mismatchedHistoryOrigin = bytes.slice();
 		new DataView(mismatchedHistoryOrigin.buffer).setBigUint64(80, 5n, true);
@@ -386,6 +398,33 @@ describe('packed terminal row windows', () => {
 		);
 	});
 
+	it('rejects mismatched render section lengths and non-snapshot OBKG updates', () => {
+		const bytes = encodedRenderWindow();
+		const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+		const projectionLength = view.getUint32(101, true);
+		const graphicsLength = view.getUint32(105, true);
+
+		const projectionSectionMismatch = bytes.slice();
+		const projectionSectionView = new DataView(projectionSectionMismatch.buffer);
+		projectionSectionView.setUint32(101, projectionLength - 1, true);
+		projectionSectionView.setUint32(105, graphicsLength + 1, true);
+		expect(decodeTerminalRowWindow(projectionSectionMismatch)).toEqual(
+			expect.objectContaining({ code: ProtocolErrorCode.lengthMismatch, ok: false }),
+		);
+
+		const graphicsSectionMismatch = bytes.slice();
+		new DataView(graphicsSectionMismatch.buffer).setUint32(105, graphicsLength - 1, true);
+		expect(decodeTerminalRowWindow(graphicsSectionMismatch)).toEqual(
+			expect.objectContaining({ code: ProtocolErrorCode.lengthMismatch, ok: false }),
+		);
+
+		const graphicsUpdateNotSnapshot = bytes.slice();
+		graphicsUpdateNotSnapshot[TERMINAL_ROW_WINDOW_HEADER_BYTES + projectionLength + 7] = 2;
+		expect(decodeTerminalRowWindow(graphicsUpdateNotSnapshot)).toEqual(
+			expect.objectContaining({ code: ProtocolErrorCode.invalidField, ok: false }),
+		);
+	});
+
 	it('stores one shared 1,061-byte hyperlink range for an 80-by-24 render window', () => {
 		const prefix = 'https://example.com/';
 		const hyperlink = prefix + 'a'.repeat(1_061 - prefix.length);
@@ -410,7 +449,7 @@ describe('packed terminal row windows', () => {
 		const encoded = encodeTerminalRowWindow(
 			linkedRenderWindow(64, 16, (cellOffset) => {
 				const prefix = `https://example.com/${cellOffset}/`;
-				return prefix + 'b'.repeat(2_100 - prefix.length);
+				return prefix + 'b'.repeat(9_000 - prefix.length);
 			}),
 		);
 		expect(encoded).toEqual(

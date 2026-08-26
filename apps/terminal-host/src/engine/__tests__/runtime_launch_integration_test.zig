@@ -5,6 +5,7 @@ const ghostty_vt = harness.ghostty_vt;
 const engine_boundary = harness.engine_boundary;
 const model_boundary = harness.model_boundary;
 const platform_boundary = harness.platform_boundary;
+const posix_compat = platform_boundary.posix_compat;
 const protocol = harness.protocol;
 const semantic_wait = harness.semantic_wait;
 const subject = harness.subject;
@@ -301,7 +302,7 @@ test "raw runtime creation rejects invalid launches before any thread or process
     }
 }
 test "raw runtime creation accepts the exact canonical maxima and reaches the process spawn seam" {
-    var spawner: FailingThreadSpawner = .{ .fail_at = 3 };
+    var spawner: FailingThreadSpawner = .{ .fail_at = 4 };
     // Maximum grid columns, exactly 262144 cells, and a cell-pixel geometry
     // whose total extents stay within the unsigned 16-bit PTY limit.
     try std.testing.expectError(
@@ -317,7 +318,7 @@ test "raw runtime creation accepts the exact canonical maxima and reaches the pr
             .rows = 64,
         }, .{}, &spawner),
     );
-    try std.testing.expectEqual(@as(usize, 3), spawner.attempts);
+    try std.testing.expectEqual(@as(usize, 4), spawner.attempts);
 }
 test "POSIX PTY child reads TIOCGWINSZ matching the canonical launch geometry" {
     if (target_builtin.os.tag == .windows) return error.SkipZigTest;
@@ -380,29 +381,29 @@ test "POSIX PTY child reads TIOCGWINSZ matching the canonical launch geometry" {
         .linux => 0x5413,
         else => @compileError("TIOCGWINSZ is not defined for this POSIX target"),
     };
-    const report = try posix.pipe2(.{ .CLOEXEC = true });
-    defer posix.close(report[0]);
-    const child_id = try posix.fork();
+    const report = try posix_compat.pipe2(.{ .CLOEXEC = true });
+    defer posix_compat.close(report[0]);
+    const child_id = try posix_compat.fork();
     if (child_id == 0) {
-        posix.close(report[0]);
+        posix_compat.close(report[0]);
         pty.childSetup() catch {
-            _ = posix.write(report[1], &.{0}) catch 0;
-            posix.exit(1);
+            _ = posix_compat.write(report[1], &.{0}) catch 0;
+            posix_compat.exit(1);
         };
         var winsize: posix.winsize = undefined;
         if (std.c.ioctl(posix.STDIN_FILENO, TIOCGWINSZ, @intFromPtr(&winsize)) < 0) {
-            _ = posix.write(report[1], &.{0}) catch 0;
-            posix.exit(1);
+            _ = posix_compat.write(report[1], &.{0}) catch 0;
+            posix_compat.exit(1);
         }
         var bytes: [8]u8 = undefined;
         std.mem.writeInt(u16, bytes[0..2], winsize.row, .little);
         std.mem.writeInt(u16, bytes[2..4], winsize.col, .little);
         std.mem.writeInt(u16, bytes[4..6], winsize.xpixel, .little);
         std.mem.writeInt(u16, bytes[6..8], winsize.ypixel, .little);
-        _ = posix.write(report[1], &bytes) catch 0;
-        posix.exit(0);
+        _ = posix_compat.write(report[1], &bytes) catch 0;
+        posix_compat.exit(0);
     }
-    posix.close(report[1]);
+    posix_compat.close(report[1]);
     var result: [8]u8 = undefined;
     var received: usize = 0;
     while (received < result.len) {
@@ -410,7 +411,7 @@ test "POSIX PTY child reads TIOCGWINSZ matching the canonical launch geometry" {
         if (length == 0) return error.ChildClosedReportPipe;
         received += length;
     }
-    _ = posix.waitpid(child_id, 0);
+    _ = posix_compat.waitpid(child_id, 0);
     const row = std.mem.readInt(u16, result[0..2], .little);
     const column = std.mem.readInt(u16, result[2..4], .little);
     const xpixel = std.mem.readInt(u16, result[4..6], .little);

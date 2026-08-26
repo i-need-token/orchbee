@@ -136,7 +136,7 @@ pub fn decode(
     const commands = try allocator.alloc(Command, bytes.len);
     errdefer allocator.free(commands);
     for (bytes, commands) |byte, *command| {
-        command.* = std.meta.intToEnum(Command, byte) catch return error.InvalidReplayCommand;
+        command.* = std.enums.fromInt(Command, byte) orelse return error.InvalidReplayCommand;
     }
     return commands;
 }
