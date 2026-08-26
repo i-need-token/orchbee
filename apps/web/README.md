@@ -15,6 +15,18 @@ Gateway projection command, then pins that presentation configuration for the fi
 resize observation or animation frame wakes an unmeasurable surface; release aborts that wait. No
 timer starts the child and no 80x24 visual fallback exists.
 
+The Desktop `MessagePort` projection adapter keeps each locally released request correlated until
+Main acknowledges cleanup. If asynchronous Main open completion crosses that release, the adapter
+closes only the late attachment port and keeps the shared projection control available; unrelated
+pending and future projections continue normally. Invalid schemas, identities, port cardinality, or
+duplicate opens still fail closed at the shared control boundary.
+
+A painted surface entering Workbench's managed `closing`, `close-failed`, or `closed` lifecycle is
+retained as a frozen, non-interactive frame instead of disposing its DOM. Entering that lifecycle
+releases the projection request, attachment, transport, input, and resize ownership without opening
+or retrying another attachment. The frozen renderer is disposed only when Workbench removes the
+surface after a surviving Tab crosses its display barrier, or clears the final Tab normally.
+
 A natural exit keeps its final frame readable only while Workbench's managed natural-exit removal
 awaits disposal; the projected attachment rejects further PTY input, resize, clear, and reset
 control, and the exited presentation is not retained as a Tab after disposal. Stopped presentations

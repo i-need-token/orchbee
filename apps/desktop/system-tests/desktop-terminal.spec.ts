@@ -1829,6 +1829,154 @@ test('projects native window drag regions without consuming title bar controls o
 	await expect(tabs.first()).toHaveAttribute('aria-selected', 'true');
 });
 
+test('keeps terminal presentation continuous through rapid Tab switching and active Tab closure', async () => {
+	test.setTimeout(60_000);
+	const application = electronApplication;
+	if (application === undefined) throw new Error('Electron application did not start.');
+	const page = await application.firstWindow();
+	const tabs = workbenchTabs(page);
+	const newTabButton = page.getByRole('button', { name: /^(?:New tab|新建标签页)$/u });
+	const primaryModifier = process.platform === 'darwin' ? 'Meta' : 'Control';
+
+	const firstRoot = projectedTerminal(page);
+	await expect(firstRoot).toHaveAttribute('data-projected-terminal-state', 'open');
+	await expect(firstRoot).toHaveAttribute('data-projected-terminal-rendered-revision', /^\d+$/u);
+	const firstPresentationId = await firstRoot.getAttribute('data-terminal-presentation-id');
+	const firstAttachmentId = await firstRoot.getAttribute('data-projected-terminal-attachment-id');
+	if (firstPresentationId === null || firstAttachmentId === null) {
+		throw new Error('First Tab terminal projection identity is unavailable.');
+	}
+
+	await newTabButton.click();
+	await expect(tabs).toHaveCount(2);
+	const secondRoot = projectedTerminal(page);
+	await expect(secondRoot).toHaveAttribute('data-projected-terminal-state', 'open');
+	await expect(secondRoot).toHaveAttribute('data-projected-terminal-rendered-revision', /^\d+$/u);
+	const secondPresentationId = await secondRoot.getAttribute('data-terminal-presentation-id');
+	const secondAttachmentId = await secondRoot.getAttribute('data-projected-terminal-attachment-id');
+	if (secondPresentationId === null || secondAttachmentId === null) {
+		throw new Error('Second Tab terminal projection identity is unavailable.');
+	}
+
+	for (let index = 0; index < 40; index += 1) {
+		await page.keyboard.press(`${primaryModifier}+Digit1`);
+		await page.keyboard.press(`${primaryModifier}+Digit2`);
+	}
+
+	await page.keyboard.press(`${primaryModifier}+Digit1`);
+	await expect(tabs.first()).toHaveAttribute('aria-selected', 'true');
+	const recoveredFirstRoot = projectedTerminalFor(page, firstPresentationId);
+	await expect(recoveredFirstRoot).toHaveAttribute('data-projected-terminal-state', 'open');
+	await expect(recoveredFirstRoot).toHaveAttribute(
+		'data-projected-terminal-rendered-revision',
+		/^\d+$/u,
+	);
+	expect(await recoveredFirstRoot.getAttribute('data-projected-terminal-attachment-id')).not.toBe(
+		firstAttachmentId,
+	);
+	const recoveredFirstInput = recoveredFirstRoot.getByRole('textbox');
+	await recoveredFirstInput.pressSequentially("printf 'rapid-tab-control-alive\\n'", { delay: 1 });
+	await recoveredFirstInput.press('Enter');
+	await expect(recoveredFirstRoot.locator('[role="list"]')).toContainText(
+		'rapid-tab-control-alive',
+	);
+
+	await page.keyboard.press(`${primaryModifier}+Digit2`);
+	await expect(tabs.nth(1)).toHaveAttribute('aria-selected', 'true');
+	const closingRoot = projectedTerminalFor(page, secondPresentationId);
+	await expect(closingRoot).toHaveAttribute('data-projected-terminal-state', 'open');
+	await expect(closingRoot).toHaveAttribute('data-projected-terminal-close-activity', 'idle');
+	await expect(closingRoot).toHaveAttribute('data-projected-terminal-rendered-revision', /^\d+$/u);
+	expect(await closingRoot.getAttribute('data-projected-terminal-attachment-id')).not.toBe(
+		secondAttachmentId,
+	);
+
+	const presentationTrace = await page.evaluateHandle(() => {
+		const entries: Array<{
+			readonly blankTop: boolean;
+			readonly modes: readonly string[];
+		}> = [];
+		const control = { animationFrame: 0, running: true };
+		const record = (): void => {
+			const workspace = document.querySelector('[data-slot="workbench-panel-workspace"]');
+			if (!(workspace instanceof HTMLElement)) {
+				entries.push({ blankTop: true, modes: [] });
+				return;
+			}
+			const layers = Array.from(workspace.children).filter(
+				(element): element is HTMLElement =>
+					element instanceof HTMLElement && element.dataset['presentationMode'] !== undefined,
+			);
+			const top =
+				layers.find((layer) => layer.dataset['presentationMode'] === 'retained') ??
+				layers.find((layer) => layer.dataset['presentationMode'] === 'incoming') ??
+				layers.find((layer) => layer.dataset['presentationMode'] === 'active');
+			const terminalRoots =
+				top === undefined
+					? []
+					: Array.from(top.querySelectorAll('[data-terminal-projection-state]')).filter(
+							(element): element is HTMLElement => element instanceof HTMLElement,
+						);
+			const meaningful =
+				terminalRoots.length > 0 &&
+				terminalRoots.every(
+					(root) =>
+						root.dataset['projectedTerminalCachedPresentation'] === 'true' ||
+						root.dataset['projectedTerminalRenderedRevision'] !== undefined,
+				);
+			entries.push({
+				blankTop: !meaningful,
+				modes: layers.flatMap((layer) => layer.dataset['presentationMode'] ?? []),
+			});
+		};
+		const observer = new MutationObserver(record);
+		observer.observe(document.body, {
+			attributeFilter: [
+				'data-presentation-mode',
+				'data-projected-terminal-cached-presentation',
+				'data-projected-terminal-rendered-revision',
+			],
+			attributes: true,
+			childList: true,
+			subtree: true,
+		});
+		const sampleFrame = (): void => {
+			if (!control.running) return;
+			record();
+			control.animationFrame = requestAnimationFrame(sampleFrame);
+		};
+		record();
+		control.animationFrame = requestAnimationFrame(sampleFrame);
+		return { control, entries, observer };
+	});
+
+	await tabs
+		.nth(1)
+		.getByRole('button', { name: /^(?:Close|关闭)$/u })
+		.click();
+	await expect(tabs).toHaveCount(1);
+	await expect(tabs.first()).toHaveAttribute('aria-selected', 'true');
+	await expect(recoveredFirstRoot).toHaveAttribute('data-projected-terminal-state', 'open');
+	await expect(recoveredFirstRoot.locator('[role="list"]')).toContainText(
+		'rapid-tab-control-alive',
+	);
+
+	const presentationEntries = await presentationTrace.evaluate((trace) => {
+		trace.control.running = false;
+		cancelAnimationFrame(trace.control.animationFrame);
+		trace.observer.disconnect();
+		return trace.entries;
+	});
+	await presentationTrace.dispose();
+	expect(presentationEntries.length).toBeGreaterThan(1);
+	expect(
+		presentationEntries.some(
+			(entry) => entry.modes.includes('incoming') && entry.modes.includes('retained'),
+		),
+	).toBe(true);
+	expect(presentationEntries.filter((entry) => entry.blankTop)).toEqual([]);
+});
+
 test('keeps the macOS window open when Command+W repeat outruns terminal close', async () => {
 	test.skip(process.platform !== 'darwin', 'The native Command+W accelerator is macOS-specific.');
 	const application = electronApplication;

@@ -455,7 +455,7 @@
 				"ServiceAttach",
 				"PublishOpen",
 				"DeliverExpectedOpen",
-				"RejectLateOpen",
+				"DiscardLateOpen",
 				"BeginDetach",
 				"DetachFails",
 				"DeliverCleanupFailure",

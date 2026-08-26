@@ -40,6 +40,8 @@ interface PresentationFileDropFailure {
 	readonly reason: TerminalFileDropRejectionReason | 'terminal-unavailable';
 }
 
+type ProjectedTerminalSessionPolicy = 'project' | 'retain';
+
 type ProjectedTerminalSurfaceWorkbenchHost = Pick<
 	WorkbenchTerminalSurfaceProps,
 	'actionRuntime' | 'actionScope' | 'admitBellEffect' | 'autoFocus' | 'bindActionContextProvider'
@@ -79,6 +81,15 @@ export function useProjectedTerminalSurface(
 		presentation.lifecycle.kind === 'exited' ||
 		presentation.lifecycle.kind === 'failed' ||
 		presentation.lifecycle.kind === 'stopped';
+	const closingPresentation =
+		presentation.lifecycle.kind === 'closing' ||
+		presentation.lifecycle.kind === 'close-failed' ||
+		presentation.lifecycle.kind === 'closed';
+	const sessionEligible = projectable || closingPresentation;
+	const sessionPolicy: ProjectedTerminalSessionPolicy =
+		closingPresentation || presentationMode === 'retained' ? 'retain' : 'project';
+	const sessionPolicyReference = React.useRef(sessionPolicy);
+	sessionPolicyReference.current = sessionPolicy;
 	const stopped = presentation.lifecycle.kind === 'stopped';
 	const currentRecovery =
 		presentationRecovery?.presentationId === presentation.presentationId
@@ -196,7 +207,7 @@ export function useProjectedTerminalSurface(
 	}
 
 	React.useEffect(() => {
-		if (!projectable) return;
+		if (!sessionEligible) return;
 		let cancelled = false;
 		let preparedProjectionRequest: MountedTerminalProjectionRequest | undefined;
 		const controller = new ProjectedTerminalRecoveryController({
@@ -260,7 +271,8 @@ export function useProjectedTerminalSurface(
 			},
 		});
 		recoveryController.current = { controller, presentationId: presentation.presentationId };
-		controller.start();
+		if (sessionPolicyReference.current === 'retain') controller.retain();
+		else controller.start();
 		return () => {
 			cancelled = true;
 			fileDropEpoch.current += 1;
@@ -277,17 +289,20 @@ export function useProjectedTerminalSurface(
 		bindActionContextProvider,
 		capability,
 		presentation.presentationId,
-		projectable,
 		reviewPaste,
 		reportPresentationReady,
+		sessionEligible,
 		settlePasteReview,
 	]);
 	React.useLayoutEffect(() => {
 		const recovery = recoveryController.current;
 		if (recovery?.presentationId !== presentation.presentationId) return;
-		if (presentationMode === 'retained') recovery.controller.retain();
-		else if (presentationMode === 'incoming') recovery.controller.resume();
-	}, [presentation.presentationId, presentationMode]);
+		if (sessionPolicy === 'retain') recovery.controller.retain();
+		else {
+			recovery.controller.resume();
+			recovery.controller.start();
+		}
+	}, [presentation.presentationId, sessionPolicy]);
 	React.useLayoutEffect(() => {
 		if (presentationMode !== 'incoming') return;
 		if (!projectable || stopped || currentRecovery?.kind === 'failed') {

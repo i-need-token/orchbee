@@ -12,9 +12,13 @@ interface ProjectedTerminalTabPresentationLayer {
 export function projectTerminalTabPresentationLayers(
 	tabs: readonly TabPanelWorkspace[],
 	state: TerminalTabPresentationHandoffState,
+	detachedDisplayedTab: TabPanelWorkspace | null = null,
 ): readonly ProjectedTerminalTabPresentationLayer[] {
 	const findTab = (tabId: string | null): TabPanelWorkspace | undefined =>
-		tabId === null ? undefined : tabs.find((tab) => tab.tabId === tabId);
+		tabId === null
+			? undefined
+			: (tabs.find((tab) => tab.tabId === tabId) ??
+				(detachedDisplayedTab?.tabId === tabId ? detachedDisplayedTab : undefined));
 	if (state.kind === 'settled') {
 		const tab = findTab(state.displayedTabId);
 		return tab === undefined ? [] : [{ epoch: state.epoch, mode: 'active', tab }];

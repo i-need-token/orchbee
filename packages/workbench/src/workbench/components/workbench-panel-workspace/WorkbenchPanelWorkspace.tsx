@@ -39,7 +39,11 @@ export function WorkbenchPanelWorkspace({
 		tabs: view.state.tabs,
 		terminalSurfaceAvailable: terminalSurface !== undefined,
 	});
-	const presentationLayers = projectTerminalTabPresentationLayers(view.state.tabs, handoff.state);
+	const presentationLayers = projectTerminalTabPresentationLayers(
+		view.state.tabs,
+		handoff.state,
+		handoff.displayedTab,
+	);
 
 	return (
 		<div

@@ -17,6 +17,7 @@
 功能故障在 Electron 和 Gateway 传输中保留其语义操作和可重试性。 Host 响应还保留其确切的相关性 ID，而客户端拥有的复制和链接效果保留其请求序列。这些值确定后果和诊断；他们从不授权自动重放输入或其他用户效果。
 
 附件流关闭后，Projection release 仍保持相关联。客户端会保留请求标识，直到 Main 返回 `terminal-projection-released` 或确切的类型化清理失败。成功确认不会传输任何端口；因此，迟到的清理结果只会结算其已释放请求，不会被误认为会使无关投影退役的未知消息。
+由于命令交付与异步 open 完成是独立调度的，相关联的 `terminal-projection-opened` 可能在客户端请求 release 后才到达。客户端只关闭被转移的 attachment 端口，保留已释放请求标识直到清理结算，并让共享控制传输与无关请求继续可用。缺失或多出的转移端口、冲突标识或重复 open 仍属于无效控制流量，并会退役受影响的控制传输。
 
 它不包含 Electron、DOM、UI、代理、协调器、传输生命周期、网络成帧、Gateway、身份验证、PTY 或 VT 实现。 Workbench 和 TerminalPresentation 语义保留为 `@orchbee/workbench`； Terminal Host 连线语义保留为 `@orchbee/terminal-protocol`。
 

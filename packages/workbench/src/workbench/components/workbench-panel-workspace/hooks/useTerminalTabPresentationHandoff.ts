@@ -17,6 +17,7 @@ interface UseTerminalTabPresentationHandoffOptions {
 }
 
 interface TerminalTabPresentationHandoffView {
+	readonly displayedTab: TabPanelWorkspace | null;
 	readonly state: TerminalTabPresentationHandoffState;
 	reportPresentationReady(
 		epoch: number,
@@ -36,25 +37,42 @@ export function useTerminalTabPresentationHandoff({
 		() => projectTerminalTabPresentationHandoffTarget(activeTab, terminalSurfaceAvailable),
 		[activeTab, terminalSurfaceAvailable],
 	);
-	const [state, setState] = React.useState<TerminalTabPresentationHandoffState>(() =>
-		transitionTerminalTabPresentationHandoff(null, {
+	const [presentation, setPresentation] = React.useState<{
+		readonly displayedTab: TabPanelWorkspace | null;
+		readonly state: TerminalTabPresentationHandoffState;
+	}>(() => ({
+		displayedTab: activeTab,
+		state: transitionTerminalTabPresentationHandoff(null, {
 			expectedPresentationIds,
 			outgoingAvailable: false,
 			targetTabId: activeTab?.tabId ?? null,
 			type: 'target-observed',
 		}),
-	);
+	}));
 	React.useLayoutEffect(() => {
-		setState((current) =>
-			transitionTerminalTabPresentationHandoff(current, {
+		setPresentation((current) => {
+			const currentDisplayedTab =
+				current.state.displayedTabId === null
+					? null
+					: (tabs.find((tab) => tab.tabId === current.state.displayedTabId) ??
+						(current.displayedTab?.tabId === current.state.displayedTabId
+							? current.displayedTab
+							: null));
+			const state = transitionTerminalTabPresentationHandoff(current.state, {
 				expectedPresentationIds,
-				outgoingAvailable:
-					current.displayedTabId !== null &&
-					tabs.some((tab) => tab.tabId === current.displayedTabId),
+				outgoingAvailable: currentDisplayedTab !== null,
 				targetTabId: activeTab?.tabId ?? null,
 				type: 'target-observed',
-			}),
-		);
+			});
+			const displayedTab =
+				state.displayedTabId === null
+					? null
+					: (tabs.find((tab) => tab.tabId === state.displayedTabId) ??
+						(currentDisplayedTab?.tabId === state.displayedTabId ? currentDisplayedTab : null));
+			return state === current.state && displayedTab === current.displayedTab
+				? current
+				: { displayedTab, state };
+		});
 	}, [activeTab?.tabId, expectedPresentationIds, tabs]);
 	const reportPresentationReady = useMemoizedFn(
 		(
@@ -63,17 +81,25 @@ export function useTerminalTabPresentationHandoff({
 			presentationId: TerminalPresentationId,
 			readiness: WorkbenchTerminalPresentationReadiness,
 		): void => {
-			setState((current) =>
-				transitionTerminalTabPresentationHandoff(current, {
+			setPresentation((current) => {
+				const state = transitionTerminalTabPresentationHandoff(current.state, {
 					epoch,
 					presentationId,
 					readiness,
 					targetTabId,
 					type: 'presentation-ready',
-				}),
-			);
+				});
+				const displayedTab =
+					state.displayedTabId === null
+						? null
+						: (tabs.find((tab) => tab.tabId === state.displayedTabId) ??
+							(current.displayedTab?.tabId === state.displayedTabId ? current.displayedTab : null));
+				return state === current.state && displayedTab === current.displayedTab
+					? current
+					: { displayedTab, state };
+			});
 		},
 	);
 
-	return { reportPresentationReady, state };
+	return { ...presentation, reportPresentationReady };
 }

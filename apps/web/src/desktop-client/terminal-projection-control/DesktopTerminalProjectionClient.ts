@@ -151,8 +151,12 @@ export class DesktopTerminalProjectionClient implements TerminalProjectionClient
 			return;
 		}
 		if (pending.released) {
+			if (message.ports.length !== 1 || pending.transport !== null) {
+				closePorts(message.ports);
+				this.dispose();
+				return;
+			}
 			closePorts(message.ports);
-			this.dispose();
 			return;
 		}
 		const rendererPort = message.ports[0];

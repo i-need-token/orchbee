@@ -10,6 +10,7 @@ MaxEpoch == 3
 
 VARIABLES
   phase,
+  liveTabs,
   displayedTab,
   targetTab,
   epoch,
@@ -20,6 +21,7 @@ VARIABLES
   interactiveTab,
   lastReportIgnored,
   previousPhase,
+  previousLiveTabs,
   previousDisplayedTab,
   previousTargetTab,
   previousEpoch,
@@ -30,9 +32,9 @@ VARIABLES
   previousInteractiveTab
 
 vars ==
-  <<phase, displayedTab, targetTab, epoch, expected, displayReady,
+  <<phase, liveTabs, displayedTab, targetTab, epoch, expected, displayReady,
     activationReady, targetDisplayCommitted, interactiveTab,
-    lastReportIgnored, previousPhase, previousDisplayedTab,
+    lastReportIgnored, previousPhase, previousLiveTabs, previousDisplayedTab,
     previousTargetTab, previousEpoch, previousExpected,
     previousDisplayReady, previousActivationReady,
     previousTargetDisplayCommitted, previousInteractiveTab>>
@@ -40,6 +42,7 @@ vars ==
 RecordNormal ==
   /\ lastReportIgnored' = FALSE
   /\ previousPhase' = phase
+  /\ previousLiveTabs' = liveTabs
   /\ previousDisplayedTab' = displayedTab
   /\ previousTargetTab' = targetTab
   /\ previousEpoch' = epoch
@@ -52,6 +55,7 @@ RecordNormal ==
 RecordIgnored ==
   /\ lastReportIgnored' = TRUE
   /\ previousPhase' = phase
+  /\ previousLiveTabs' = liveTabs
   /\ previousDisplayedTab' = displayedTab
   /\ previousTargetTab' = targetTab
   /\ previousEpoch' = epoch
@@ -63,6 +67,7 @@ RecordIgnored ==
 
 Init ==
   /\ phase = "settled"
+  /\ liveTabs = Tabs
   /\ displayedTab = "tab-a"
   /\ targetTab = "tab-a"
   /\ epoch = 0
@@ -73,6 +78,7 @@ Init ==
   /\ interactiveTab = "tab-a"
   /\ lastReportIgnored = FALSE
   /\ previousPhase = phase
+  /\ previousLiveTabs = liveTabs
   /\ previousDisplayedTab = displayedTab
   /\ previousTargetTab = targetTab
   /\ previousEpoch = epoch
@@ -84,7 +90,7 @@ Init ==
 
 BeginSwitch(nextTab, nextExpected) ==
   /\ phase = "settled"
-  /\ nextTab \in Tabs \ {displayedTab}
+  /\ nextTab \in liveTabs \ {displayedTab}
   /\ nextExpected \in ExpectedSets \ {{}}
   /\ epoch < MaxEpoch
   /\ phase' = "preparing"
@@ -95,15 +101,65 @@ BeginSwitch(nextTab, nextExpected) ==
   /\ activationReady' = {}
   /\ targetDisplayCommitted' = FALSE
   /\ interactiveTab' = None
-  /\ UNCHANGED displayedTab
+  /\ UNCHANGED <<liveTabs, displayedTab>>
   /\ RecordNormal
 
 Supersede(nextTab, nextExpected) ==
   /\ phase \in {"preparing", "activating"}
-  /\ nextTab \in Tabs \ {targetTab}
+  /\ nextTab \in liveTabs \ {targetTab}
   /\ nextExpected \in ExpectedSets \ {{}}
   /\ epoch < MaxEpoch
   /\ phase' = "preparing"
+  /\ targetTab' = nextTab
+  /\ epoch' = epoch + 1
+  /\ expected' = nextExpected
+  /\ displayReady' = {}
+  /\ activationReady' = {}
+  /\ targetDisplayCommitted' = FALSE
+  /\ interactiveTab' = None
+  /\ UNCHANGED <<liveTabs, displayedTab>>
+  /\ RecordNormal
+
+SupersedeWithoutSurface(nextTab) ==
+  /\ phase \in {"preparing", "activating"}
+  /\ nextTab \in liveTabs \ {targetTab}
+  /\ epoch < MaxEpoch
+  /\ phase' = "settled"
+  /\ displayedTab' = nextTab
+  /\ targetTab' = nextTab
+  /\ epoch' = epoch + 1
+  /\ expected' = {}
+  /\ displayReady' = {}
+  /\ activationReady' = {}
+  /\ targetDisplayCommitted' = TRUE
+  /\ interactiveTab' = nextTab
+  /\ UNCHANGED liveTabs
+  /\ RecordNormal
+
+SwitchWithoutSurface(nextTab) ==
+  /\ phase = "settled"
+  /\ nextTab \in liveTabs \ {displayedTab}
+  /\ epoch < MaxEpoch
+  /\ phase' = "settled"
+  /\ displayedTab' = nextTab
+  /\ targetTab' = nextTab
+  /\ epoch' = epoch + 1
+  /\ expected' = {}
+  /\ displayReady' = {}
+  /\ activationReady' = {}
+  /\ targetDisplayCommitted' = TRUE
+  /\ interactiveTab' = nextTab
+  /\ UNCHANGED liveTabs
+  /\ RecordNormal
+
+RemoveOutgoingAndSwitch(nextTab, nextExpected) ==
+  /\ phase = "settled"
+  /\ displayedTab \in liveTabs
+  /\ nextTab \in liveTabs \ {displayedTab}
+  /\ nextExpected \in ExpectedSets \ {{}}
+  /\ epoch < MaxEpoch
+  /\ phase' = "preparing"
+  /\ liveTabs' = liveTabs \ {displayedTab}
   /\ targetTab' = nextTab
   /\ epoch' = epoch + 1
   /\ expected' = nextExpected
@@ -112,52 +168,6 @@ Supersede(nextTab, nextExpected) ==
   /\ targetDisplayCommitted' = FALSE
   /\ interactiveTab' = None
   /\ UNCHANGED displayedTab
-  /\ RecordNormal
-
-SupersedeWithoutSurface(nextTab) ==
-  /\ phase \in {"preparing", "activating"}
-  /\ nextTab \in Tabs \ {targetTab}
-  /\ epoch < MaxEpoch
-  /\ phase' = "settled"
-  /\ displayedTab' = nextTab
-  /\ targetTab' = nextTab
-  /\ epoch' = epoch + 1
-  /\ expected' = {}
-  /\ displayReady' = {}
-  /\ activationReady' = {}
-  /\ targetDisplayCommitted' = TRUE
-  /\ interactiveTab' = nextTab
-  /\ RecordNormal
-
-SwitchWithoutSurface(nextTab) ==
-  /\ phase = "settled"
-  /\ nextTab \in Tabs \ {displayedTab}
-  /\ epoch < MaxEpoch
-  /\ phase' = "settled"
-  /\ displayedTab' = nextTab
-  /\ targetTab' = nextTab
-  /\ epoch' = epoch + 1
-  /\ expected' = {}
-  /\ displayReady' = {}
-  /\ activationReady' = {}
-  /\ targetDisplayCommitted' = TRUE
-  /\ interactiveTab' = nextTab
-  /\ RecordNormal
-
-RemoveOutgoingAndSwitch(nextTab, nextExpected) ==
-  /\ phase = "settled"
-  /\ nextTab \in Tabs \ {displayedTab}
-  /\ nextExpected \in ExpectedSets \ {{}}
-  /\ epoch < MaxEpoch
-  /\ phase' = "preparing"
-  /\ displayedTab' = None
-  /\ targetTab' = nextTab
-  /\ epoch' = epoch + 1
-  /\ expected' = nextExpected
-  /\ displayReady' = {}
-  /\ activationReady' = {}
-  /\ targetDisplayCommitted' = FALSE
-  /\ interactiveTab' = None
   /\ RecordNormal
 
 Retarget(nextExpected) ==
@@ -181,15 +191,15 @@ Retarget(nextExpected) ==
        /\ targetDisplayCommitted' = FALSE
        /\ interactiveTab' = None
        /\ UNCHANGED displayedTab
-  /\ UNCHANGED <<targetTab, epoch, displayReady, activationReady>>
+  /\ UNCHANGED <<liveTabs, targetTab, epoch, displayReady, activationReady>>
   /\ RecordNormal
 
 RemovePendingOutgoing ==
   /\ phase = "preparing"
-  /\ displayedTab \in Tabs \ {targetTab}
-  /\ displayedTab' = None
+  /\ displayedTab \in liveTabs \ {targetTab}
+  /\ liveTabs' = liveTabs \ {displayedTab}
   /\ UNCHANGED
-       <<phase, targetTab, epoch, expected, displayReady, activationReady,
+       <<phase, displayedTab, targetTab, epoch, expected, displayReady, activationReady,
          targetDisplayCommitted, interactiveTab>>
   /\ RecordNormal
 
@@ -216,7 +226,7 @@ ReportDisplay(presentation) ==
             /\ targetDisplayCommitted' = FALSE
             /\ interactiveTab' = None
             /\ UNCHANGED displayedTab
-  /\ UNCHANGED <<targetTab, epoch, expected, activationReady>>
+  /\ UNCHANGED <<liveTabs, targetTab, epoch, expected, activationReady>>
   /\ RecordNormal
 
 ReportActivation(presentation) ==
@@ -244,7 +254,7 @@ ReportActivation(presentation) ==
             /\ targetDisplayCommitted' = FALSE
             /\ interactiveTab' = None
             /\ UNCHANGED displayedTab
-  /\ UNCHANGED <<targetTab, epoch, expected>>
+  /\ UNCHANGED <<liveTabs, targetTab, epoch, expected>>
   /\ RecordNormal
 
 RejectStaleDisplay(presentation, candidateEpoch) ==
@@ -253,7 +263,7 @@ RejectStaleDisplay(presentation, candidateEpoch) ==
   /\ candidateEpoch \in 0..MaxEpoch
   /\ candidateEpoch # epoch
   /\ UNCHANGED
-       <<phase, displayedTab, targetTab, epoch, expected, displayReady,
+       <<phase, liveTabs, displayedTab, targetTab, epoch, expected, displayReady,
          activationReady, targetDisplayCommitted, interactiveTab>>
   /\ RecordIgnored
 
@@ -263,7 +273,7 @@ RejectStaleActivation(presentation, candidateEpoch) ==
   /\ candidateEpoch \in 0..MaxEpoch
   /\ candidateEpoch # epoch
   /\ UNCHANGED
-       <<phase, displayedTab, targetTab, epoch, expected, displayReady,
+       <<phase, liveTabs, displayedTab, targetTab, epoch, expected, displayReady,
          activationReady, targetDisplayCommitted, interactiveTab>>
   /\ RecordIgnored
 
@@ -272,7 +282,7 @@ RejectWrongTargetReport(presentation, candidateTab) ==
   /\ presentation \in Presentations
   /\ candidateTab \in Tabs \ {targetTab}
   /\ UNCHANGED
-       <<phase, displayedTab, targetTab, epoch, expected, displayReady,
+       <<phase, liveTabs, displayedTab, targetTab, epoch, expected, displayReady,
          activationReady, targetDisplayCommitted, interactiveTab>>
   /\ RecordIgnored
 
@@ -280,7 +290,7 @@ RejectDuplicateReport(presentation) ==
   /\ phase \in {"preparing", "activating"}
   /\ presentation \in displayReady \cup activationReady
   /\ UNCHANGED
-       <<phase, displayedTab, targetTab, epoch, expected, displayReady,
+       <<phase, liveTabs, displayedTab, targetTab, epoch, expected, displayReady,
          activationReady, targetDisplayCommitted, interactiveTab>>
   /\ RecordIgnored
 
@@ -309,6 +319,7 @@ Spec == Init /\ [][Next]_vars
 
 TypeOK ==
   /\ phase \in Phases
+  /\ liveTabs \subseteq Tabs
   /\ displayedTab \in Tabs \cup {None}
   /\ targetTab \in Tabs
   /\ epoch \in 0..MaxEpoch
@@ -319,6 +330,7 @@ TypeOK ==
   /\ interactiveTab \in Tabs \cup {None}
   /\ lastReportIgnored \in BOOLEAN
   /\ previousPhase \in Phases
+  /\ previousLiveTabs \subseteq Tabs
   /\ previousDisplayedTab \in Tabs \cup {None}
   /\ previousTargetTab \in Tabs
   /\ previousEpoch \in 0..MaxEpoch
@@ -329,6 +341,17 @@ TypeOK ==
   /\ previousInteractiveTab \in Tabs \cup {None}
 
 ActivationImpliesDisplay == activationReady \subseteq displayReady
+
+TargetRemainsCanonical == targetTab \in liveTabs
+
+PreparingRetainsMeaningfulOutgoing ==
+  phase = "preparing" => displayedTab # None
+
+DetachedDisplayIsInert ==
+  displayedTab \notin liveTabs =>
+    /\ phase = "preparing"
+    /\ interactiveTab = None
+    /\ ~targetDisplayCommitted
 
 VisualCommitRequiresDisplay ==
   targetDisplayCommitted /\ expected # {} => expected \subseteq displayReady
@@ -356,6 +379,7 @@ ActivationBarrierFollowsDisplayBarrier ==
 IgnoredReportsDoNotMutate ==
   lastReportIgnored =>
     /\ phase = previousPhase
+    /\ liveTabs = previousLiveTabs
     /\ displayedTab = previousDisplayedTab
     /\ targetTab = previousTargetTab
     /\ epoch = previousEpoch

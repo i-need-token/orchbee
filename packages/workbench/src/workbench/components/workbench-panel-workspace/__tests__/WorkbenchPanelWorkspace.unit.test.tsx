@@ -113,6 +113,80 @@ describe('WorkbenchPanelWorkspace', () => {
 		actionRuntime.dispose();
 	});
 
+	it('keeps a closed active Tab visible until its surviving replacement is display ready', () => {
+		const actionRuntime = new ActionRuntime();
+		const tabModel = new TabModel({
+			activeTabId: 'tab-a',
+			tabs: [
+				{ group: null, id: 'tab-a', pinned: false, title: 'Terminal A' },
+				{ group: null, id: 'tab-b', pinned: false, title: 'Terminal B' },
+			],
+		});
+		let sequence = 1;
+		const panelWorkspaceStore = new PanelWorkspaceStore(tabModel, {
+			composition: {
+				createPresentationId: () => terminalPresentationId(`terminal-close-${sequence++}`),
+				initialPresentationId: terminalPresentationId('terminal-a'),
+				kind: 'preview',
+			},
+		});
+		const tabA = panelWorkspaceStore.getSnapshot().tabs[0];
+		const tabB = panelWorkspaceStore.getSnapshot().tabs[1];
+		const tabAPanel = tabA === undefined ? undefined : collectPanelLeaves(tabA.root)[0];
+		const tabBPanel = tabB === undefined ? undefined : collectPanelLeaves(tabB.root)[0];
+		if (tabAPanel === undefined || tabBPanel === undefined) {
+			throw new Error('Expected both Tab workspaces.');
+		}
+		const tabAPresentationId = getDisplayedTerminal(tabAPanel).presentationId;
+		const tabBPresentationId = getDisplayedTerminal(tabBPanel).presentationId;
+		const rendered = render(
+			<OrchbeeI18nProvider locale='en-US'>
+				<TooltipProvider>
+					<WorkbenchPanelWorkspace
+						actionRuntime={actionRuntime}
+						panelWorkspaceStore={panelWorkspaceStore}
+						parentActionScope={actionRuntime.createScope('test.workbench')}
+						shortcutLabelForAction={() => undefined}
+						terminalSurface={TestTerminalSurface}
+					/>
+				</TooltipProvider>
+			</OrchbeeI18nProvider>,
+		);
+
+		act(() => tabModel.selectTab('tab-b'));
+		act(() => surfaces.get(tabBPresentationId)?.onPresentationReady('activation-ready'));
+		expect(
+			rendered.container
+				.querySelector('[data-terminal-tab-id="tab-b"]')
+				?.getAttribute('data-presentation-mode'),
+		).toBe('active');
+
+		act(() => panelWorkspaceStore.requestTabClose(['tab-b']));
+		expect(tabModel.getSnapshot().tabs.map((tab) => tab.id)).toEqual(['tab-a']);
+		expect(
+			rendered.container
+				.querySelector('[data-terminal-tab-id="tab-b"]')
+				?.getAttribute('data-presentation-mode'),
+		).toBe('retained');
+		expect(
+			rendered.container
+				.querySelector('[data-terminal-tab-id="tab-a"]')
+				?.getAttribute('data-presentation-mode'),
+		).toBe('incoming');
+		expect(surfaces.get(tabAPresentationId)?.autoFocus).toBe(false);
+
+		act(() => surfaces.get(tabAPresentationId)?.onPresentationReady('display-ready'));
+		expect(rendered.container.querySelector('[data-terminal-tab-id="tab-b"]')).toBeNull();
+		act(() => surfaces.get(tabAPresentationId)?.onPresentationReady('activation-ready'));
+		expect(
+			rendered.container
+				.querySelector('[data-terminal-tab-id="tab-a"]')
+				?.getAttribute('data-presentation-mode'),
+		).toBe('active');
+
+		actionRuntime.dispose();
+	});
+
 	it('commits only the maximized Panel when returning to a split Tab', () => {
 		const actionRuntime = new ActionRuntime();
 		const tabModel = new TabModel({

@@ -99,6 +99,120 @@ describe('DesktopTerminalProjectionClient', () => {
 		control.port2.close();
 	});
 
+	it('discards a released request late open without retiring unrelated or future requests', async () => {
+		const control = new MessageChannel();
+		const requestIds = [
+			TerminalProjectionRequestIdSchema.parse('projection-late'),
+			TerminalProjectionRequestIdSchema.parse('projection-unrelated'),
+			TerminalProjectionRequestIdSchema.parse('projection-future'),
+		];
+		const client = new DesktopTerminalProjectionClient(
+			control.port1,
+			() => requestIds.shift() ?? TerminalProjectionRequestIdSchema.parse('projection-fallback'),
+		);
+		const latePresentation = terminalPresentationId('presentation-late');
+		const unrelatedPresentation = terminalPresentationId('presentation-unrelated');
+		const futurePresentation = terminalPresentationId('presentation-future');
+		const commands: unknown[] = [];
+		control.port2.addEventListener('message', (event) => commands.push(event.data));
+		control.port2.start();
+		const late = client.open(latePresentation, mountedGeometry);
+		const unrelated = client.open(unrelatedPresentation, mountedGeometry);
+		late.release();
+
+		await expect(late.result).rejects.toMatchObject({
+			failure: { code: 'terminal-projection-released', retryable: false },
+		});
+		await vi.waitFor(() => expect(commands).toHaveLength(3));
+		const lateTerminal = new MessageChannel();
+		const unrelatedTerminal = new MessageChannel();
+		control.port2.postMessage(
+			{
+				bootstrap,
+				presentationId: latePresentation,
+				requestId: 'projection-late',
+				type: 'terminal-projection-opened',
+			},
+			[lateTerminal.port1],
+		);
+		control.port2.postMessage(
+			{
+				bootstrap: { ...bootstrap, attachmentId: '55'.repeat(16) },
+				presentationId: unrelatedPresentation,
+				requestId: 'projection-unrelated',
+				type: 'terminal-projection-opened',
+			},
+			[unrelatedTerminal.port1],
+		);
+
+		await expect(unrelated.result).resolves.toMatchObject({
+			bootstrap: { attachmentId: '55'.repeat(16) },
+		});
+		control.port2.postMessage({
+			presentationId: latePresentation,
+			requestId: 'projection-late',
+			type: 'terminal-projection-released',
+		});
+		const future = client.open(futurePresentation, mountedGeometry);
+		await vi.waitFor(() => expect(commands).toHaveLength(4));
+		const futureTerminal = new MessageChannel();
+		control.port2.postMessage(
+			{
+				bootstrap: { ...bootstrap, attachmentId: '66'.repeat(16) },
+				presentationId: futurePresentation,
+				requestId: 'projection-future',
+				type: 'terminal-projection-opened',
+			},
+			[futureTerminal.port1],
+		);
+		await expect(future.result).resolves.toMatchObject({
+			bootstrap: { attachmentId: '66'.repeat(16) },
+		});
+
+		unrelated.release();
+		future.release();
+		client.dispose();
+		control.port2.close();
+		lateTerminal.port2.close();
+		unrelatedTerminal.port2.close();
+		futureTerminal.port2.close();
+	});
+
+	it('retires the shared control for a released request late open without exactly one port', async () => {
+		const control = new MessageChannel();
+		const closeControl = vi.spyOn(control.port1, 'close');
+		const requestIds = [
+			TerminalProjectionRequestIdSchema.parse('projection-invalid-late'),
+			TerminalProjectionRequestIdSchema.parse('projection-after-invalid-late'),
+		];
+		const client = new DesktopTerminalProjectionClient(
+			control.port1,
+			() => requestIds.shift() ?? TerminalProjectionRequestIdSchema.parse('projection-fallback'),
+		);
+		const presentationId = terminalPresentationId('presentation-invalid-late');
+		const released = client.open(presentationId, mountedGeometry);
+		released.release();
+		await expect(released.result).rejects.toMatchObject({
+			failure: { code: 'terminal-projection-released', retryable: false },
+		});
+
+		control.port2.postMessage({
+			bootstrap,
+			presentationId,
+			requestId: 'projection-invalid-late',
+			type: 'terminal-projection-opened',
+		});
+		await vi.waitFor(() => expect(closeControl).toHaveBeenCalledOnce());
+
+		await expect(
+			client.open(terminalPresentationId('presentation-after-invalid-late'), mountedGeometry)
+				.result,
+		).rejects.toMatchObject({
+			failure: { code: 'terminal-projection-unavailable', retryable: true },
+		});
+		control.port2.close();
+	});
+
 	it('keeps unrelated requests correlated when Main completes them out of order', async () => {
 		const control = new MessageChannel();
 		const requestIds = [

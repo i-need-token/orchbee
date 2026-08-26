@@ -18,6 +18,8 @@ import type {
 import { DEFAULT_TERMINAL_INTERACTION_CONFIGURATION_SOURCE } from '@orchbee/terminal';
 import {
 	terminalPresentationId,
+	terminalPresentationOperationId,
+	terminalPresentationRemovalId,
 	type WorkbenchTerminalPresentation,
 	type WorkbenchTerminalSurfaceProps,
 } from '@orchbee/workbench';
@@ -379,6 +381,116 @@ describe('useProjectedTerminalSurface', () => {
 			container.remove();
 		},
 	);
+
+	it('freezes the painted frame while a managed terminal closes', async () => {
+		const mountedFrame = document.createElement('canvas');
+		const sessionDispose = vi.fn<() => void>(() => mountedFrame.remove());
+		const sessionFreeze = vi.fn<() => void>();
+		renderer.start.mockImplementationOnce(async (rootElement) => {
+			rootElement?.append(mountedFrame);
+			return {
+				dispose: sessionDispose,
+				focus: vi.fn<() => void>(),
+				freeze: sessionFreeze,
+				isTransportAvailable: () => true,
+				pasteFileDrop: vi.fn<ProjectedTerminalRendererSession['pasteFileDrop']>(),
+				presentationReady: Promise.resolve(),
+				transportUnavailable: new Promise<void>(() => undefined),
+				updatePresentationConfiguration: vi
+					.fn<ProjectedTerminalRendererSession['updatePresentationConfiguration']>()
+					.mockResolvedValue({
+						configuration: DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION_SOURCE.current(),
+						kind: 'completed',
+					}),
+			};
+		});
+		const release = vi.fn<() => void>();
+		const transport: ProjectedTerminalTransport = {
+			close: vi.fn<() => void>(),
+			projectionBufferTrust: 'external',
+			send: vi.fn<ProjectedTerminalTransport['send']>(),
+			subscribe: vi.fn<ProjectedTerminalTransport['subscribe']>(() => () => undefined),
+		};
+		const open = vi.fn<TerminalProjectionClient['open']>(() => ({
+			release,
+			result: Promise.resolve({
+				bootstrap: {
+					attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
+					canInput: true,
+					canResize: true,
+					capabilityRevision: CanonicalUint64TextSchema.parse('1'),
+					creationId: CreationIdSchema.parse('22'.repeat(16)),
+					hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
+					terminalId: TerminalIdSchema.parse('44'.repeat(16)),
+					terminalOutcome: null,
+					theme,
+				},
+				transport,
+			}),
+		}));
+		const runningPresentation: WorkbenchTerminalPresentation = {
+			closeActivity: 'idle',
+			currentCwd: '/workspace',
+			launchCwd: '/workspace',
+			lifecycle: { kind: 'running' },
+			naturalTitle: null,
+			presentationId: terminalPresentationId('presentation-closing-frame'),
+			title: 'Terminal Closing Frame',
+		};
+		const capability: ProjectedTerminalSurfaceCapability = {
+			documentElement: document.documentElement,
+			observeTerminalMetadata: () => undefined,
+			platformEffects: {},
+			preferredLocales: ['en-US'],
+			presentationConfigurationSource: DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION_SOURCE,
+			projectionClient: { open },
+			shortcutPlatform: 'apple',
+			startStoppedTerminalSession: () => ({ kind: 'unchanged' as const }),
+		};
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		const root = createRoot(container);
+		const renderPresentation = async (
+			presentation: WorkbenchTerminalPresentation,
+		): Promise<void> => {
+			await act(async () => {
+				root.render(
+					createElement(
+						ProjectedTerminalSurfaceCapabilityContext.Provider,
+						{ value: capability },
+						createElement(
+							OrchbeeI18nProvider,
+							{ locale: 'en-US' },
+							createElement(TestHarness, { presentation }),
+						),
+					),
+				);
+			});
+		};
+
+		await renderPresentation(runningPresentation);
+		await vi.waitFor(() => expect(renderer.start).toHaveBeenCalledOnce());
+		expect(container.contains(mountedFrame)).toBe(true);
+
+		await renderPresentation({
+			...runningPresentation,
+			lifecycle: {
+				kind: 'closing',
+				operationId: terminalPresentationOperationId('close-painted-frame'),
+				removalId: terminalPresentationRemovalId('remove-painted-frame'),
+			},
+		});
+
+		expect(sessionFreeze).toHaveBeenCalledOnce();
+		expect(release).toHaveBeenCalledOnce();
+		expect(sessionDispose).not.toHaveBeenCalled();
+		expect(container.contains(mountedFrame)).toBe(true);
+		expect(open).toHaveBeenCalledOnce();
+
+		await act(async () => root.unmount());
+		expect(sessionDispose).toHaveBeenCalledOnce();
+		container.remove();
+	});
 
 	it('waits for positive mounted geometry before opening the projection', async () => {
 		let notifyResize = (): void => undefined;

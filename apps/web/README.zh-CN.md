@@ -10,6 +10,10 @@ Orchbee 工作台的浏览器组合条目。
 
 对于主机支持的视觉终端，共享表面在加载当前配置的字体并测量正安装视口之前不会打开投影。它通过相同的 Electron 或网关投影命令发送生成的精确列、行、物理单元格大小、填充感知网格和文档 DPR，然后固定第一个渲染器的演示配置。调整大小的观察或动画帧会唤醒不可测量的表面；释放中止等待。没有计时器启动子进程，也不存在 80x24 视觉后备。
 
+Desktop `MessagePort` 投影适配器会让每项本地已释放请求保持关联，直到 Main 确认清理。如果异步 Main open 完成与该 release 交错，适配器只关闭迟到的 attachment 端口，并让共享投影控制保持可用；无关的 pending 与未来投影继续正常工作。无效 schema、标识、端口数量或重复 open 仍会在共享控制边界无法恢复。
+
+已经绘制的 surface 进入 Workbench 托管的 `closing`、`close-failed` 或 `closed` 生命周期时，会保留为冻结的不可交互帧，而不是 dispose 其 DOM。进入该生命周期会释放 projection request、attachment、transport、输入与 resize ownership，并且不会打开或重试另一项 attachment。只有在存活 Tab 跨过显示屏障后 Workbench 移除该 surface，或正常清除最后一个 Tab 时，才会 dispose 这个冻结 renderer。
+
 自然退出后，只有在 Workbench 的 managed 自然退出 removal 等待处置期间，最终帧仍可读取；投影附件会拒绝后续 PTY 输入、调整大小、clear 与 reset 控制，并且处置完成后不会把已退出 Presentation 保留为 Tab。已停止的 Presentation 仍是独立 Workbench 状态。其 Start New Session 控件通过共享组合返回 Workbench 转换结果；获准结果会经常规持久工作流替换 Presentation，拒绝或抛出异常的启动则保留当前已停止 Presentation，并显示局部失败反馈。
 
 意外的附件丢失会冻结最后完成的画布和可访问的行，同时释放其传输和交互所有权。共享表面会在 250、500 和 1,000 毫秒后重试新的附件，并且仅在候选者绘制其第一帧后才替换冻结的投影。耗尽预算后，诚实的最后一帧可见，并暴露了一个本地化的手动重试操作；每次尝试都拥有并释放一个投影请求。类型为 `renderer-backpressure`、`host-transport-backpressure` 或 `host-connection-unavailable` 故障在保留其原始操作和相关诊断后解决相同的附件本地传输不可用信号； Surface 永远不会重试被拒绝的命令或继续使用因果不完整的附件。传输丢失还会显式地与字体和 GPU 启动竞争：它在启动之前中止该候选者可能会拖延恢复，并且升级会在第一帧等待之前和之后检查候选者当前的传输可用性。

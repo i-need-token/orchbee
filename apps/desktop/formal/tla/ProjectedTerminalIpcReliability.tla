@@ -23,7 +23,7 @@ Actions == {
   "init",
   "begin-open", "client-release", "deliver-release-command",
   "service-attach", "publish-open", "deliver-expected-open",
-  "reject-late-open", "begin-detach", "detach-fails", "deliver-cleanup-failure",
+  "discard-late-open", "begin-detach", "detach-fails", "deliver-cleanup-failure",
   "retire-control", "retirement-cleanup-succeeds", "detach-succeeds",
   "deliver-release-ack", "service-open-fails-after-release",
   "end-request-transport", "settle-connection-cleanup",
@@ -97,11 +97,15 @@ Init ==
     selectionDeliveredAttempts |-> {},
     findSeedAttempt |-> NoAttempt,
     lastAction |-> "init",
-    lastAttempt |-> NoAttempt
+    lastAttempt |-> NoAttempt,
+    previousClientRequests |-> {}
   ]
 
 Record(next, action, attempt) ==
-  [next EXCEPT !.lastAction = action, !.lastAttempt = attempt]
+  [next EXCEPT
+    !.lastAction = action,
+    !.lastAttempt = attempt,
+    !.previousClientRequests = s.clientRequests]
 
 BeginOpen(attempt) ==
   /\ Scenario = "release-race"
@@ -166,18 +170,15 @@ DeliverExpectedOpen(attempt) ==
        "deliver-expected-open",
        attempt)
 
-RejectLateOpen(attempt) ==
+DiscardLateOpen(attempt) ==
   /\ Scenario = "release-race"
   /\ ~s.controlClosed
-  /\ attempt \in s.openEvents \cap s.clientReleased
+  /\ attempt \in s.openEvents \cap s.clientReleased \cap s.clientRequests
   /\ s' = Record(
        [s EXCEPT
          !.openEvents = @ \ {attempt},
-         !.latePortsClosed = @ \cup {attempt},
-         !.activated = {},
-         !.clientRequests = {},
-         !.controlClosed = TRUE],
-       "reject-late-open",
+         !.latePortsClosed = @ \cup {attempt}],
+       "discard-late-open",
        attempt)
 
 BeginDetach(attempt) ==
@@ -208,6 +209,7 @@ DeliverCleanupFailure(attempt) ==
   /\ Scenario = "release-race"
   /\ ~s.controlClosed
   /\ attempt \in s.cleanupFailureEvents \cap s.clientRequests
+  /\ attempt \notin s.openEvents
   /\ s' = Record(
        [s EXCEPT
          !.cleanupFailureEvents = @ \ {attempt},
@@ -266,6 +268,7 @@ DeliverReleaseAck(attempt) ==
   /\ Scenario = "release-race"
   /\ ~s.controlClosed
   /\ attempt \in s.releaseEvents \cap s.clientRequests
+  /\ attempt \notin s.openEvents
   /\ s' = Record(
        [s EXCEPT
          !.releaseEvents = @ \ {attempt},
@@ -687,7 +690,7 @@ Next ==
   \/ \E attempt \in Attempts: ServiceAttach(attempt)
   \/ \E attempt \in Attempts: PublishOpen(attempt)
   \/ \E attempt \in Attempts: DeliverExpectedOpen(attempt)
-  \/ \E attempt \in Attempts: RejectLateOpen(attempt)
+  \/ \E attempt \in Attempts: DiscardLateOpen(attempt)
   \/ \E attempt \in Attempts: BeginDetach(attempt)
   \/ \E attempt \in Attempts: DetachFails(attempt)
   \/ \E attempt \in Attempts: DeliverCleanupFailure(attempt)
@@ -790,6 +793,7 @@ TypeOK ==
   /\ s.findSeedAttempt \in Attempts \cup {NoAttempt}
   /\ s.lastAction \in Actions
   /\ s.lastAttempt \in Attempts \cup {NoAttempt}
+  /\ s.previousClientRequests \subseteq Attempts
 
 ClientReleasedIsNotActivated ==
   Scenario # "release-race" \/ s.activated \cap s.clientReleased = {}
@@ -800,11 +804,14 @@ ActivatedRequestHasOwnedLease ==
 ControlCloseRetiresActivation ==
   Scenario # "release-race" \/ ~s.controlClosed \/ s.activated = {}
 
-LateOpenFailsClosed ==
+LateOpenIsRequestLocal ==
   Scenario # "release-race" \/
     /\ s.latePortsClosed \subseteq s.clientReleased
-    /\ (s.latePortsClosed = {} \/ s.controlClosed)
     /\ s.latePortsClosed \cap s.activated = {}
+    /\ (s.lastAction = "discard-late-open" =>
+          /\ ~s.controlClosed
+          /\ s.clientRequests = s.previousClientRequests
+          /\ s.lastAttempt \in s.clientRequests)
 
 CleanupFailureRetainsServerOwnership ==
   Scenario # "release-race" \/

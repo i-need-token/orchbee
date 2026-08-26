@@ -48,6 +48,25 @@ describe('projectTerminalTabPresentationLayers', () => {
 		]);
 	});
 
+	it('retains a detached displayed Tab while its canonical replacement prepares', () => {
+		const detached = tab('tab-a');
+		const target = tab('tab-b');
+		const state: TerminalTabPresentationHandoffState = {
+			activationReadyPresentationIds: [],
+			displayReadyPresentationIds: [],
+			displayedTabId: 'tab-a',
+			epoch: 2,
+			expectedPresentationIds: ['tab-b-presentation'],
+			kind: 'preparing',
+			targetTabId: 'tab-b',
+		};
+
+		expect(projectTerminalTabPresentationLayers([target], state, detached)).toMatchObject([
+			{ epoch: 2, mode: 'incoming', tab: { tabId: 'tab-b' } },
+			{ epoch: 2, mode: 'retained', tab: { tabId: 'tab-a' } },
+		]);
+	});
+
 	it('projects only the inert target after its display barrier commits', () => {
 		const state: TerminalTabPresentationHandoffState = {
 			activationReadyPresentationIds: [],
