@@ -2,9 +2,11 @@
 EXTENDS Naturals, TLC
 
 \* Refines runtime-model claims TH-002, TH-006, TH-010, TH-011, TH-012, and TH-016.
-\* Row requests, history observation, selection, export handoff, search, and
-\* detach each preserve one authoritative interaction owner and one bounded
-\* acknowledgement-scoped flight, including the exact export/chunk identity.
+\* Current-view viewport row requests, history observation, selection, export
+\* handoff, search, and detach each preserve one authoritative interaction
+\* owner and one bounded acknowledgement-scoped flight, including the exact
+\* export/chunk identity. Mutate advances the content revision without
+\* cancelling a current-view row flight; exact-revision search is invalidated.
 \* ResizeScreenOrScrollbackEviction abstracts
 \* every generation-changing interaction invalidation, including application
 \* clear and reset, so stale row, anchor, selection, export, and search work can

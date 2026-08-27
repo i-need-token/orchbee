@@ -105,7 +105,7 @@ test "typed decoder rejects zero generation and attachment-local flight sequence
         ),
     );
     const zero_row_sequence = std.fmt.comptimePrint(
-        "{{\"attachmentId\":\"{s}\",\"detail\":\"text\",\"generation\":\"1\",\"maximumBytes\":1024,\"origin\":{{\"kind\":\"tail\",\"rowsBefore\":0}},\"purpose\":\"viewport\",\"requestSequence\":\"0\",\"revision\":\"0\",\"rowCount\":1}}",
+        "{{\"attachmentId\":\"{s}\",\"detail\":\"text\",\"generation\":\"1\",\"maximumBytes\":1024,\"origin\":{{\"kind\":\"tail\",\"rowsBefore\":0}},\"purpose\":\"viewport\",\"requestSequence\":\"0\",\"revision\":\"0\",\"revisionPolicy\":\"current-view\",\"rowCount\":1}}",
         .{attachment_id},
     );
     try std.testing.expectError(
@@ -147,22 +147,40 @@ test "selection export decoder admits only the plain product format" {
 
 test "typed decoder enforces discriminated row origins" {
     const valid_payload = std.fmt.comptimePrint(
-        "{{\"attachmentId\":\"{s}\",\"detail\":\"text\",\"generation\":\"1\",\"maximumBytes\":1024,\"origin\":{{\"kind\":\"tail\",\"rowsBefore\":4}},\"purpose\":\"viewport\",\"requestSequence\":\"2\",\"revision\":\"3\",\"rowCount\":12}}",
+        "{{\"attachmentId\":\"{s}\",\"detail\":\"text\",\"generation\":\"1\",\"maximumBytes\":1024,\"origin\":{{\"kind\":\"tail\",\"rowsBefore\":4}},\"purpose\":\"viewport\",\"requestSequence\":\"2\",\"revision\":\"3\",\"revisionPolicy\":\"current-view\",\"rowCount\":12}}",
         .{attachment_id},
     );
     var decoded = try subject.decodeReadRows(std.testing.allocator, valid_payload);
     defer decoded.deinit();
     try std.testing.expectEqual(@as(u16, 12), decoded.value.row_count);
     try std.testing.expectEqual(@as(u32, 4), decoded.value.origin.tail);
+    try std.testing.expectEqual(.current_view, decoded.value.revision_policy);
 
     const extra_variant_field = std.fmt.comptimePrint(
-        "{{\"attachmentId\":\"{s}\",\"detail\":\"text\",\"generation\":\"1\",\"maximumBytes\":1024,\"origin\":{{\"kind\":\"tail\",\"row\":\"4\",\"rowsBefore\":4}},\"purpose\":\"viewport\",\"requestSequence\":\"2\",\"revision\":\"3\",\"rowCount\":12}}",
+        "{{\"attachmentId\":\"{s}\",\"detail\":\"text\",\"generation\":\"1\",\"maximumBytes\":1024,\"origin\":{{\"kind\":\"tail\",\"row\":\"4\",\"rowsBefore\":4}},\"purpose\":\"viewport\",\"requestSequence\":\"2\",\"revision\":\"3\",\"revisionPolicy\":\"current-view\",\"rowCount\":12}}",
         .{attachment_id},
     );
     try std.testing.expectError(
         error.InvalidField,
         subject.decodeReadRows(std.testing.allocator, extra_variant_field),
     );
+
+    const current_view_absolute = std.fmt.comptimePrint(
+        "{{\"attachmentId\":\"{s}\",\"detail\":\"text\",\"generation\":\"1\",\"maximumBytes\":1024,\"origin\":{{\"kind\":\"absolute\",\"row\":\"0\"}},\"purpose\":\"viewport\",\"requestSequence\":\"2\",\"revision\":\"3\",\"revisionPolicy\":\"current-view\",\"rowCount\":1}}",
+        .{attachment_id},
+    );
+    try std.testing.expectError(
+        error.InvalidField,
+        subject.decodeReadRows(std.testing.allocator, current_view_absolute),
+    );
+
+    const exact_absolute = std.fmt.comptimePrint(
+        "{{\"attachmentId\":\"{s}\",\"detail\":\"text\",\"generation\":\"1\",\"maximumBytes\":1024,\"origin\":{{\"kind\":\"absolute\",\"row\":\"0\"}},\"purpose\":\"search\",\"requestSequence\":\"2\",\"revision\":\"3\",\"revisionPolicy\":\"exact\",\"rowCount\":1}}",
+        .{attachment_id},
+    );
+    var exact = try subject.decodeReadRows(std.testing.allocator, exact_absolute);
+    defer exact.deinit();
+    try std.testing.expectEqual(.exact, exact.value.revision_policy);
 
     const excessive_delta: wire.RowOrigin = .{
         .delta = .{ .value = 4097 },
@@ -173,7 +191,7 @@ test "typed decoder enforces discriminated row origins" {
 
 test "typed decoder closes native validation gaps from the TypeScript schema" {
     const zero_rows = std.fmt.comptimePrint(
-        "{{\"attachmentId\":\"{s}\",\"detail\":\"text\",\"generation\":\"1\",\"maximumBytes\":1024,\"origin\":{{\"kind\":\"tail\",\"rowsBefore\":0}},\"purpose\":\"viewport\",\"requestSequence\":\"2\",\"revision\":\"3\",\"rowCount\":0}}",
+        "{{\"attachmentId\":\"{s}\",\"detail\":\"text\",\"generation\":\"1\",\"maximumBytes\":1024,\"origin\":{{\"kind\":\"tail\",\"rowsBefore\":0}},\"purpose\":\"viewport\",\"requestSequence\":\"2\",\"revision\":\"3\",\"revisionPolicy\":\"current-view\",\"rowCount\":0}}",
         .{attachment_id},
     );
     try std.testing.expectError(
@@ -182,7 +200,7 @@ test "typed decoder closes native validation gaps from the TypeScript schema" {
     );
 
     const zero_clicks = std.fmt.comptimePrint(
-        "{{\"action\":\"start\",\"attachmentId\":\"{s}\",\"clickCount\":0,\"generation\":\"1\",\"point\":{{\"column\":0,\"row\":\"0\"}},\"position\":{{\"x\":1,\"y\":1}},\"revision\":\"1\",\"selectOutput\":false}}",
+        "{{\"action\":\"start\",\"attachmentId\":\"{s}\",\"clickCount\":0,\"generation\":\"1\",\"point\":{{\"column\":0,\"row\":0}},\"position\":{{\"x\":1,\"y\":1}},\"selectOutput\":false}}",
         .{attachment_id},
     );
     try std.testing.expectError(
@@ -191,7 +209,7 @@ test "typed decoder closes native validation gaps from the TypeScript schema" {
     );
 
     const wide_point = std.fmt.comptimePrint(
-        "{{\"action\":\"start\",\"attachmentId\":\"{s}\",\"clickCount\":1,\"generation\":\"1\",\"point\":{{\"column\":4096,\"row\":\"0\"}},\"position\":{{\"x\":1,\"y\":1}},\"revision\":\"1\",\"selectOutput\":false}}",
+        "{{\"action\":\"start\",\"attachmentId\":\"{s}\",\"clickCount\":1,\"generation\":\"1\",\"point\":{{\"column\":4096,\"row\":0}},\"position\":{{\"x\":1,\"y\":1}},\"selectOutput\":false}}",
         .{attachment_id},
     );
     try std.testing.expectError(
@@ -200,7 +218,7 @@ test "typed decoder closes native validation gaps from the TypeScript schema" {
     );
 
     const start_with_update_fields = std.fmt.comptimePrint(
-        "{{\"action\":\"start\",\"attachmentId\":\"{s}\",\"clickCount\":1,\"generation\":\"1\",\"geometry\":{{\"cellWidth\":8,\"columns\":80,\"paddingLeft\":0,\"screenHeight\":320}},\"point\":{{\"column\":0,\"row\":\"0\"}},\"position\":{{\"x\":1,\"y\":1}},\"revision\":\"1\",\"selectOutput\":false}}",
+        "{{\"action\":\"start\",\"attachmentId\":\"{s}\",\"clickCount\":1,\"generation\":\"1\",\"geometry\":{{\"cellWidth\":8,\"columns\":80,\"paddingLeft\":0,\"screenHeight\":320}},\"point\":{{\"column\":0,\"row\":0}},\"position\":{{\"x\":1,\"y\":1}},\"selectOutput\":false}}",
         .{attachment_id},
     );
     try std.testing.expectError(
@@ -209,7 +227,7 @@ test "typed decoder closes native validation gaps from the TypeScript schema" {
     );
 
     const cancel_with_point = std.fmt.comptimePrint(
-        "{{\"action\":\"cancel\",\"attachmentId\":\"{s}\",\"generation\":\"1\",\"point\":{{\"column\":0,\"row\":\"0\"}},\"revision\":\"1\"}}",
+        "{{\"action\":\"cancel\",\"attachmentId\":\"{s}\",\"generation\":\"1\",\"point\":{{\"column\":0,\"row\":0}}}}",
         .{attachment_id},
     );
     try std.testing.expectError(

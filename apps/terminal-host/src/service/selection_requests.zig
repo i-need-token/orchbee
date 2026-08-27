@@ -108,7 +108,6 @@ const Handler = struct {
         const snapshot = interaction.applySelectionGesture(.{
             .event = request.event,
             .generation = request.generation,
-            .revision = request.revision,
         }) catch |err| {
             response.commitFailure(interactionFailure(err, "SelectionGesture failed"));
             return;

@@ -136,6 +136,27 @@ function canonicalText(value: string): CanonicalUint64Text {
 	return CanonicalUint64TextSchema.parse(value);
 }
 
+function resolvedRowRequestStart(
+	command: Extract<ProjectedTerminalCommand, { readonly kind: 'read-rows' }>,
+	totalRows: bigint,
+): bigint {
+	const { origin, rowCount } = command.payload;
+	switch (origin.kind) {
+		case 'absolute':
+			return BigInt(origin.row);
+		case 'oldest':
+			return BigInt(origin.offset);
+		case 'tail': {
+			const rowsBefore = BigInt(origin.rowsBefore);
+			const end = totalRows - (rowsBefore < totalRows ? rowsBefore : totalRows);
+			const count = BigInt(rowCount);
+			return end - (count < end ? count : end);
+		}
+		case 'committed':
+			throw new Error('A committed row request requires a Host-owned anchor');
+	}
+}
+
 const hostEpoch = identifier(parseHostEpoch('11111111111111111111111111111111'));
 const attachmentId = identifier(parseAttachmentId('22222222222222222222222222222222'));
 const capabilityRevision = canonicalText('1');
@@ -1881,10 +1902,11 @@ describe('ProjectedTerminal', () => {
 		if (historyRequest?.kind !== 'read-rows') {
 			throw new Error('runtime presentation fixture did not request history rows');
 		}
-		if (historyRequest.payload.origin.kind !== 'absolute') {
-			throw new Error('runtime presentation fixture did not request an absolute history row');
-		}
-		const historyStart = BigInt(historyRequest.payload.origin.row);
+		expect(historyRequest.payload).toMatchObject({
+			origin: { kind: 'tail' },
+			revisionPolicy: 'current-view',
+		});
+		const historyStart = resolvedRowRequestStart(historyRequest, 12n);
 		terminal.applyRows(
 			renderRowWindow(
 				BigInt(historyRequest.payload.requestSequence),
@@ -4609,7 +4631,7 @@ describe('ProjectedTerminal', () => {
 		terminal.dispose();
 	});
 
-	it('commits one bounded history window and keeps it visible until a fresh bottom snapshot', async () => {
+	it('commits a current-view history response from a newer revision until a fresh bottom snapshot', async () => {
 		const browser = createFakeBrowser();
 		vi.stubGlobal('document', browser.document);
 		vi.stubGlobal('window', browser.document.defaultView);
@@ -4673,8 +4695,9 @@ describe('ProjectedTerminal', () => {
 			expect.objectContaining({
 				kind: 'read-rows',
 				payload: expect.objectContaining({
-					origin: { kind: 'absolute', row: '9' },
+					origin: { kind: 'tail', rowsBefore: 0 },
 					purpose: 'viewport',
+					revisionPolicy: 'current-view',
 					rowCount: 3,
 				}),
 			}),
@@ -4685,7 +4708,7 @@ describe('ProjectedTerminal', () => {
 			terminal.applyRows(
 				renderRowWindow(
 					BigInt(read.payload.requestSequence),
-					1n,
+					2n,
 					9n,
 					12n,
 					Array.from({ length: 3 }, (_, index) => {
@@ -4697,6 +4720,7 @@ describe('ProjectedTerminal', () => {
 			),
 		).toBe('committed');
 		expect(terminal.historyPhase).toBe(ProjectedHistoryPhase.viewingHistory);
+		expect(terminal.metadata?.revision).toBe(2n);
 		expect(terminal.metadata?.closeActivity).toBe('active');
 		expect(metadataChanges.at(-1)).toBe('active');
 		expect(accessibilityAnnouncement?.attributes.get('aria-live')).toBe('off');
@@ -4707,7 +4731,7 @@ describe('ProjectedTerminal', () => {
 				attachmentId,
 				generation: '1',
 				requestSequence: read.payload.requestSequence,
-				revision: '1',
+				revision: '2',
 			},
 		});
 
@@ -4921,10 +4945,9 @@ describe('ProjectedTerminal', () => {
 
 		terminal.scrollLines(-3);
 		const initialRead = commands.at(-1);
-		if (initialRead?.kind !== 'read-rows' || initialRead.payload.origin.kind !== 'absolute') {
-			throw new Error('initial history request was not absolute');
-		}
-		const initialStart = BigInt(initialRead.payload.origin.row);
+		if (initialRead?.kind !== 'read-rows') throw new Error('initial history request was not sent');
+		expect(initialRead.payload.revisionPolicy).toBe('current-view');
+		const initialStart = resolvedRowRequestStart(initialRead, 20n);
 		expect(
 			terminal.applyRows(
 				renderRowWindow(
@@ -4974,7 +4997,7 @@ describe('ProjectedTerminal', () => {
 		terminal.dispose();
 	});
 
-	it('refreshes a reflowed history viewport after its superseded row request fails', async () => {
+	it('refreshes a reflowed history viewport after its old generation request fails', async () => {
 		const browser = createFakeBrowser();
 		vi.stubGlobal('document', browser.document);
 		vi.stubGlobal('window', browser.document.defaultView);
@@ -4999,15 +5022,14 @@ describe('ProjectedTerminal', () => {
 
 		terminal.scrollLines(-3);
 		const initialRead = commands.at(-1);
-		if (initialRead?.kind !== 'read-rows' || initialRead.payload.origin.kind !== 'absolute') {
-			throw new Error('initial history request was not absolute');
-		}
+		if (initialRead?.kind !== 'read-rows') throw new Error('initial history request was not sent');
+		const initialStart = resolvedRowRequestStart(initialRead, 20n);
 		expect(
 			terminal.applyRows(
 				renderRowWindow(
 					BigInt(initialRead.payload.requestSequence),
 					1n,
-					BigInt(initialRead.payload.origin.row),
+					initialStart,
 					20n,
 					Array.from({ length: initialRead.payload.rowCount }, (_, index) => `before-${index}`),
 				),
@@ -5034,8 +5056,8 @@ describe('ProjectedTerminal', () => {
 			totalRows: canonicalText('20'),
 		});
 		terminal.notifyBrokerFailure({
-			code: 'stale-revision',
-			message: 'ReadRows failed because the resize advanced the revision',
+			code: 'stale-generation',
+			message: 'ReadRows failed because the resize advanced the generation',
 			operation: 'history',
 			requestSequence: supersededRead.payload.requestSequence,
 			retryable: true,
@@ -5061,7 +5083,7 @@ describe('ProjectedTerminal', () => {
 		terminal.dispose();
 	});
 
-	it('waits for the reflow event when a stale history failure arrives first', async () => {
+	it('waits for the reflow event when a stale-generation history failure arrives first', async () => {
 		const browser = createFakeBrowser();
 		vi.stubGlobal('document', browser.document);
 		vi.stubGlobal('window', browser.document.defaultView);
@@ -5086,15 +5108,14 @@ describe('ProjectedTerminal', () => {
 
 		terminal.scrollLines(-3);
 		const initialRead = commands.at(-1);
-		if (initialRead?.kind !== 'read-rows' || initialRead.payload.origin.kind !== 'absolute') {
-			throw new Error('initial history request was not absolute');
-		}
+		if (initialRead?.kind !== 'read-rows') throw new Error('initial history request was not sent');
+		const initialStart = resolvedRowRequestStart(initialRead, 20n);
 		expect(
 			terminal.applyRows(
 				renderRowWindow(
 					BigInt(initialRead.payload.requestSequence),
 					1n,
-					BigInt(initialRead.payload.origin.row),
+					initialStart,
 					20n,
 					Array.from({ length: initialRead.payload.rowCount }, (_, index) => `before-${index}`),
 				),
@@ -5106,8 +5127,8 @@ describe('ProjectedTerminal', () => {
 		if (read?.kind !== 'read-rows') throw new Error('superseded history request was not sent');
 		const readCount = commands.filter((command) => command.kind === 'read-rows').length;
 		terminal.notifyBrokerFailure({
-			code: 'stale-revision',
-			message: 'ReadRows failed because the resize advanced the revision',
+			code: 'stale-generation',
+			message: 'ReadRows failed because the resize advanced the generation',
 			operation: 'history',
 			requestSequence: read.payload.requestSequence,
 			retryable: true,
@@ -5165,18 +5186,15 @@ describe('ProjectedTerminal', () => {
 			);
 			terminal.scrollLines(-1);
 			const historyRead = commands.at(-1);
-			if (historyRead?.kind !== 'read-rows' || historyRead.payload.origin.kind !== 'absolute') {
-				throw new Error('history request was not absolute');
-			}
+			if (historyRead?.kind !== 'read-rows') throw new Error('history request was not sent');
+			const historyStart = resolvedRowRequestStart(historyRead, 12n);
 			expect(
 				terminal.applyRows(
-					renderRowWindow(
-						BigInt(historyRead.payload.requestSequence),
-						1n,
-						BigInt(historyRead.payload.origin.row),
-						12n,
-						['history-a', 'history-b', 'overscan'],
-					),
+					renderRowWindow(BigInt(historyRead.payload.requestSequence), 1n, historyStart, 12n, [
+						'history-a',
+						'history-b',
+						'overscan',
+					]),
 				),
 			).toBe('committed');
 			commands.length = 0;
@@ -5227,7 +5245,7 @@ describe('ProjectedTerminal', () => {
 		},
 	);
 
-	it('routes fixed scrollbar ownership through bounded absolute requests and latest-intent coalescing', async () => {
+	it('routes fixed scrollbar ownership through current-view requests and latest-intent coalescing', async () => {
 		const browser = createFakeBrowser();
 		vi.stubGlobal('document', browser.document);
 		vi.stubGlobal('window', browser.document.defaultView);
@@ -5338,10 +5356,12 @@ describe('ProjectedTerminal', () => {
 		const firstRead = commands.find((command) => command.kind === 'read-rows');
 		if (firstRead?.kind !== 'read-rows') throw new Error('scrollbar request was not sent');
 		expect(firstRead.payload).toMatchObject({
-			origin: { kind: 'absolute', row: '49' },
+			origin: { kind: 'tail' },
 			purpose: 'viewport',
+			revisionPolicy: 'current-view',
 			rowCount: 34,
 		});
+		expect(resolvedRowRequestStart(firstRead, 100n)).toBe(49n);
 
 		for (const clientY of [100, 260]) {
 			scrollbar.dispatch('pointermove', {
@@ -5373,11 +5393,16 @@ describe('ProjectedTerminal', () => {
 		).toBe('committed');
 		const reads = commands.filter((command) => command.kind === 'read-rows');
 		expect(reads).toHaveLength(2);
-		expect(reads.at(-1)?.payload).toMatchObject({
-			origin: { kind: 'absolute', row: '73' },
+		const latestRead = reads.at(-1);
+		if (latestRead?.kind !== 'read-rows')
+			throw new Error('coalesced scrollbar request was not sent');
+		expect(latestRead.payload).toMatchObject({
+			origin: { kind: 'tail' },
 			purpose: 'viewport',
+			revisionPolicy: 'current-view',
 			rowCount: 27,
 		});
+		expect(resolvedRowRequestStart(latestRead, 100n)).toBe(73n);
 		terminal.dispose();
 	});
 
@@ -5474,13 +5499,16 @@ describe('ProjectedTerminal', () => {
 				),
 			),
 		).toBe('committed');
-		expect(
-			commands.filter((command) => command.kind === 'read-rows').at(-1)?.payload,
-		).toMatchObject({
-			origin: { kind: 'absolute', row: '73' },
+		const latestRead = commands.filter((command) => command.kind === 'read-rows').at(-1);
+		if (latestRead?.kind !== 'read-rows')
+			throw new Error('coalesced scrollbar request was not sent');
+		expect(latestRead.payload).toMatchObject({
+			origin: { kind: 'tail' },
 			purpose: 'viewport',
+			revisionPolicy: 'current-view',
 			rowCount: 27,
 		});
+		expect(resolvedRowRequestStart(latestRead, 100n)).toBe(73n);
 		dispatchOwned('pointerup', { buttons: 0, pointerId: 41 });
 		expect(scrollbar.capturedPointers.has(41)).toBe(false);
 		terminal.dispose();
@@ -6271,8 +6299,7 @@ describe('ProjectedTerminal', () => {
 			if (
 				searchRead?.kind !== 'read-rows' ||
 				bufferRead?.kind !== 'read-rows' ||
-				viewportRead?.kind !== 'read-rows' ||
-				viewportRead.payload.origin.kind !== 'absolute'
+				viewportRead?.kind !== 'read-rows'
 			) {
 				throw new Error('three row lanes were not admitted');
 			}
@@ -6281,7 +6308,10 @@ describe('ProjectedTerminal', () => {
 					encodedTextRowWindow(BigInt(bufferRead.payload.requestSequence), 42n, 1n, 12n, ['b']),
 				),
 			).toBe('committed');
-			const viewportStart = BigInt(viewportRead.payload.origin.row);
+			expect(searchRead.payload.revisionPolicy).toBe('exact');
+			expect(bufferRead.payload.revisionPolicy).toBe('exact');
+			expect(viewportRead.payload.revisionPolicy).toBe('current-view');
+			const viewportStart = resolvedRowRequestStart(viewportRead, 12n);
 			expect(
 				terminal.applyRows(
 					renderRowWindow(
@@ -6858,7 +6888,8 @@ describe('ProjectedTerminal', () => {
 			expect.objectContaining({
 				kind: 'read-rows',
 				payload: expect.objectContaining({
-					origin: { kind: 'absolute', row: '9' },
+					origin: { kind: 'tail', rowsBefore: 1 },
+					revisionPolicy: 'current-view',
 					rowCount: 2,
 				}),
 			}),
@@ -10481,7 +10512,7 @@ describe('ProjectedTerminal', () => {
 		terminal.dispose();
 	});
 
-	it('cancels a revision-stale selection gesture without dispatching its pending end', async () => {
+	it('settles a selection gesture across continuous revision advancement', async () => {
 		const browser = createFakeBrowser();
 		vi.stubGlobal('document', browser.document);
 		vi.stubGlobal('window', browser.document.defaultView);
@@ -10513,26 +10544,67 @@ describe('ProjectedTerminal', () => {
 				.map((command) => command.payload.action),
 		).toEqual(['start']);
 
-		terminal.notifyHistoryChanged({
-			anchorStatus: 'none',
-			attachmentId,
-			generation: canonicalText('2'),
-			revision: canonicalText('2'),
-			sequence: canonicalText('1'),
-			totalRows: canonicalText('2'),
-		});
-		terminal.notifyBrokerFailure({
-			code: 'stale-revision',
-			message: 'SelectionGesture failed because the resize advanced the revision',
-			operation: 'selection',
-			retryable: true,
-		});
+		terminal.applyFrame(terminalFrame('snapshot', 2n, 2n, ['new-a', 'new-b']));
+		terminal.notifySelectionChanged({ attachmentId, state: 'none' });
 		browser.flushFrames();
 
 		const gestures = commands.filter((command) => command.kind === 'selection-gesture');
-		expect(gestures.map((command) => command.payload.action)).toEqual(['start']);
-		expect(commands.filter((command) => command.kind === 'selection-copy')).toHaveLength(0);
+		expect(gestures.map((command) => command.payload.action)).toEqual(['start', 'end']);
+		expect(gestures.every((command) => !('revision' in command.payload))).toBe(true);
+		expect(gestures.at(-1)?.payload).toMatchObject({ generation: '1', point: { row: 0 } });
+		terminal.notifySelectionChanged({
+			attachmentId,
+			end: { column: 1, row: canonicalText('0') },
+			preview: 'new',
+			rectangle: false,
+			start: { column: 0, row: canonicalText('0') },
+			state: 'active',
+		});
+		expect(commands.filter((command) => command.kind === 'selection-copy')).toHaveLength(1);
 		expect(errors).not.toHaveBeenCalled();
+		terminal.dispose();
+	});
+
+	it('retires a gesture when its tracked selection is evicted', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['a', 'b']));
+		const canvas = terminal.canvas as unknown as FakeElement;
+
+		canvas.dispatch('pointerdown', pointerEvent('pointerdown', 0, 1, 2, 2, { pointerId: 72 }));
+		canvas.dispatch('pointerup', pointerEvent('pointerup', 0, 0, 12, 2, { pointerId: 72 }));
+		expect(
+			commands
+				.filter((command) => command.kind === 'selection-gesture')
+				.map((command) => command.payload.action),
+		).toEqual(['start']);
+
+		terminal.notifySelectionChanged({ attachmentId, state: 'evicted' });
+		browser.flushFrames();
+
+		expect(terminal.selection).toEqual({ attachmentId, state: 'evicted' });
+		expect(
+			commands
+				.filter((command) => command.kind === 'selection-gesture')
+				.map((command) => command.payload.action),
+		).toEqual(['start']);
+		expect(commands.filter((command) => command.kind === 'selection-copy')).toHaveLength(0);
 		terminal.dispose();
 	});
 
@@ -10560,8 +10632,8 @@ describe('ProjectedTerminal', () => {
 		terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['a', 'b']));
 		const canvas = terminal.canvas as unknown as FakeElement;
 
-		canvas.dispatch('pointerdown', pointerEvent('pointerdown', 0, 1, 2, 2, { pointerId: 72 }));
-		expect(canvas.capturedPointers.has(72)).toBe(true);
+		canvas.dispatch('pointerdown', pointerEvent('pointerdown', 0, 1, 2, 2, { pointerId: 73 }));
+		expect(canvas.capturedPointers.has(73)).toBe(true);
 		terminal.notifyHistoryChanged({
 			anchorStatus: 'none',
 			attachmentId,
@@ -10577,9 +10649,9 @@ describe('ProjectedTerminal', () => {
 			retryable: true,
 		});
 
-		expect(canvas.capturedPointers.has(72)).toBe(false);
-		canvas.dispatch('pointermove', pointerEvent('pointermove', 0, 1, 12, 2, { pointerId: 72 }));
-		canvas.dispatch('pointerup', pointerEvent('pointerup', 0, 0, 12, 2, { pointerId: 72 }));
+		expect(canvas.capturedPointers.has(73)).toBe(false);
+		canvas.dispatch('pointermove', pointerEvent('pointermove', 0, 1, 12, 2, { pointerId: 73 }));
+		canvas.dispatch('pointerup', pointerEvent('pointerup', 0, 0, 12, 2, { pointerId: 73 }));
 		browser.flushFrames();
 		expect(
 			commands
@@ -10588,12 +10660,13 @@ describe('ProjectedTerminal', () => {
 		).toEqual(['start']);
 		expect(commands.filter((command) => command.kind === 'selection-copy')).toHaveLength(0);
 
-		canvas.dispatch('pointerdown', pointerEvent('pointerdown', 0, 1, 2, 2, { pointerId: 73 }));
+		canvas.dispatch('pointerdown', pointerEvent('pointerdown', 0, 1, 2, 2, { pointerId: 74 }));
 		const restartedGestures = commands.filter((command) => command.kind === 'selection-gesture');
 		expect(restartedGestures.map((command) => command.payload.action)).toEqual(['start', 'start']);
-		expect(restartedGestures.at(-1)?.payload).toMatchObject({ generation: '2', revision: '1' });
+		expect(restartedGestures.at(-1)?.payload).toMatchObject({ generation: '2' });
+		expect(restartedGestures.at(-1)?.payload).not.toHaveProperty('revision');
 		terminal.notifySelectionChanged({ attachmentId, state: 'none' });
-		canvas.dispatch('pointerup', pointerEvent('pointerup', 0, 0, 12, 2, { pointerId: 73 }));
+		canvas.dispatch('pointerup', pointerEvent('pointerup', 0, 0, 12, 2, { pointerId: 74 }));
 		browser.flushFrames();
 		terminal.notifySelectionChanged({
 			attachmentId,
@@ -11363,7 +11436,11 @@ describe('ProjectedTerminal', () => {
 		vi.advanceTimersByTime(16);
 		const read = commands.at(-1);
 		if (read?.kind !== 'read-rows') throw new Error('edge drag did not request history rows');
-		expect(read.payload.origin).toEqual({ kind: 'absolute', row: '9' });
+		expect(read.payload).toMatchObject({
+			origin: { kind: 'tail' },
+			revisionPolicy: 'current-view',
+		});
+		expect(resolvedRowRequestStart(read, 12n)).toBe(9n);
 		terminal.applyRows(
 			renderRowWindow(
 				BigInt(read.payload.requestSequence),
@@ -11378,7 +11455,7 @@ describe('ProjectedTerminal', () => {
 		const gestures = commands.filter((command) => command.kind === 'selection-gesture');
 		expect(gestures.at(-1)?.payload).toMatchObject({
 			action: 'update',
-			point: { column: 0, row: '9' },
+			point: { column: 0, row: 0 },
 		});
 		terminal.dispose();
 	});
@@ -11521,10 +11598,10 @@ describe('ProjectedTerminal', () => {
 		terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['?x', 'tail'], null, [0, 1], 6n));
 		terminal.scrollLines(-3);
 		const historyRead = commands.at(-1);
-		if (historyRead?.kind !== 'read-rows' || historyRead.payload.origin.kind !== 'absolute') {
-			throw new Error('history setup did not request absolute Host rows');
-		}
-		const historyStartRow = Number(historyRead.payload.origin.row);
+		if (historyRead?.kind !== 'read-rows')
+			throw new Error('history setup did not request Host rows');
+		expect(historyRead.payload.revisionPolicy).toBe('current-view');
+		const historyStartRow = Number(resolvedRowRequestStart(historyRead, 8n));
 		expect(historyStartRow).toBe(3);
 		expect(
 			terminal.applyRows(

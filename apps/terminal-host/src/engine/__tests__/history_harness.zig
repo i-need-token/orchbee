@@ -108,7 +108,7 @@ pub fn gestureStart(
     attachment: AttachmentId,
     click_count: u2,
     column: u16,
-    row: u64,
+    row: u16,
     select_output: bool,
 ) SelectionGesture {
     return .{
@@ -120,14 +120,13 @@ pub fn gestureStart(
             .select_output = select_output,
         } },
         .generation = 1,
-        .revision = 1,
     };
 }
 
 pub fn gestureUpdate(
     attachment: AttachmentId,
     column: u16,
-    row: u64,
+    row: u16,
     surface_x: i32,
     rectangle: bool,
 ) SelectionGesture {
@@ -145,16 +144,14 @@ pub fn gestureUpdate(
             .rectangle = rectangle,
         } },
         .generation = 1,
-        .revision = 1,
     };
 }
 
-pub fn gestureEnd(attachment: AttachmentId, column: u16, row: u64) SelectionGesture {
+pub fn gestureEnd(attachment: AttachmentId, column: u16, row: u16) SelectionGesture {
     return .{
         .attachment_id = attachment,
         .event = .{ .end = .{ .column = column, .row = row } },
         .generation = 1,
-        .revision = 1,
     };
 }
 
@@ -163,7 +160,6 @@ pub fn gestureCancel(attachment: AttachmentId) SelectionGesture {
         .attachment_id = attachment,
         .event = .cancel,
         .generation = 1,
-        .revision = 1,
     };
 }
 

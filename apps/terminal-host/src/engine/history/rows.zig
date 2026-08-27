@@ -104,7 +104,13 @@ pub fn readRowsTo(
     cell_pixel_height: u16,
     request: ReadRequest,
 ) (HistoryError || std.mem.Allocator.Error)!EncodedRows {
-    if (request.revision != current_revision) return error.StaleRevision;
+    switch (request.revision_policy) {
+        .exact => if (request.revision != current_revision) return error.StaleRevision,
+        .current_view => if (request.purpose != .viewport or switch (request.origin) {
+            .committed, .tail => false,
+            .absolute, .oldest => true,
+        }) return error.InvalidRequest,
+    }
     if (request.generation != current_generation) return error.StaleGeneration;
     if (request.request_sequence == 0 or request.row_count == 0 or
         request.row_count > max_row_window_rows or request.maximum_bytes < row_window_header_bytes or

@@ -1066,6 +1066,15 @@ completion. The optional OBTF command-completion extension lets a newly attached
 latest fact; the Host does not decide freshness, focus, notification permission, rate limiting, or
 whether a client should produce an effect.
 
+Every `ReadRows` request declares its revision policy. `exact` preserves captured-revision identity
+for absolute search, buffer access, and other deterministic reads. `current-view` is admitted only
+for a `viewport` request whose origin is `tail` or `committed`; the request revision is an observation
+cursor, not an admission fence. While holding the terminal mutex, the Host resolves that origin
+against the then-current screen or attachment-owned tracked anchor and encodes the current revision
+and row count. Both policies still require the exact current projection generation. Continuous PTY
+output can therefore advance revision without starving interactive viewport reads, while resize,
+screen replacement, and anchor eviction remain hard barriers.
+
 Every `HistoryChanged` event allocates a positive attachment-local monotonic event sequence
 transactionally with its handoff; the sequence is never reused or reset by a demand change, so a
 re-entered viewing-history session without a terminal mutation still publishes a distinct identity.
@@ -1090,15 +1099,20 @@ attempts emit none. Report admission uses the independent terminal-reply budget.
 required report is a typed `terminal_reply` integrity failure rather than a successful resize with
 an unreported geometry.
 
-Each attachment also owns one pinned Ghostty selection gesture. A start replaces the prior gesture
-only after its click behavior and selection can be installed, an update applies Ghostty's
-within-cell, rectangle, word-between, line, or semantic-output drag rule from bounded surface
-geometry, and an ordinary end releases pointer activity while retaining only the click-sequence
-anchor. Cancellation is point-free and idempotently resets the gesture and releases its tracked pin
-while preserving the latest selection snapshot; it never substitutes for an ordinary end. Selection
-commands, detach, generation or screen invalidation, and state teardown perform the same reset.
-Invalid action-specific gesture fields are rejected by the protocol adapter before the runtime
-mutation boundary.
+Each attachment also owns one pinned Ghostty selection gesture. Pointer actions carry one captured
+generation and viewport-relative numeric endpoints, but no revision identity. Under the terminal
+mutex, each action resolves its endpoint at processing time from the attachment's committed tracked
+anchor while viewing history, or from the current active viewport otherwise. A revision advance can
+therefore neither reject nor reinterpret the action outside that current view; generation mismatch,
+screen invalidation, and anchor eviction cancel it. A start replaces the prior gesture only after its
+click behavior and selection can be installed, an update applies Ghostty's within-cell, rectangle,
+word-between, line, or semantic-output drag rule from bounded surface geometry, and an ordinary end
+releases pointer activity while retaining only the click-sequence anchor. Cancellation is point-free
+and idempotently resets the gesture and releases its tracked pin while preserving the latest
+selection snapshot; it never substitutes for an ordinary end. Exact-revision selection commands,
+detach, generation or screen invalidation, and state teardown perform the same reset. Invalid
+action-specific gesture fields are rejected by the protocol adapter before the runtime mutation
+boundary.
 
 Selection commands preserve Ghostty's canonical content semantics. Select-all trims surrounding
 blank cells, excludes unused viewport rows, and leaves an empty screen unselected instead of
@@ -1420,7 +1434,7 @@ the terminal mutex, so a completion or failure that races after Core validation
 cannot admit stale input or resize authority.
 
 Core retains that admitted value as immutable attach-replay identity and initializes current
-capability revision `1`. Protocol `0.0.21` permits only the input bit to change live; read and resize
+capability revision `1`. Protocol `0.0.22` permits only the input bit to change live; read and resize
 remain equal to the admitted value. Every successful attach or update reply returns the complete
 current capabilities and revision.
 

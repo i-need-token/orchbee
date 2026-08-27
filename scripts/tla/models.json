@@ -1396,11 +1396,14 @@
 				"CoverageResolveViewport",
 				"CoverageResolveSearch",
 				"CoverageResolveBuffer",
+				"CoverageStaleSearch",
+				"CoverageStaleBuffer",
 				"CoverageFailViewport",
 				"CoverageFailSearch",
 				"CoverageFailBuffer",
 				"CoverageAbortSearch",
 				"CoverageAbortBuffer",
+				"AdvanceRevision",
 				"Dispose"
 			]
 		},
@@ -1420,7 +1423,6 @@
 				"CancelGesture",
 				"DispatchPending",
 				"AcceptSelection",
-				"RejectStaleRevision",
 				"RejectStaleGeneration",
 				"RejectSelection",
 				"AdvanceRevision",

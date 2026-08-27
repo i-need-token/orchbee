@@ -15,6 +15,7 @@ pub const Detail = protocol.RowWindowDetail;
 
 pub const Purpose = terminal_interaction.Purpose;
 pub const Origin = terminal_interaction.Origin;
+pub const RevisionPolicy = terminal_interaction.RevisionPolicy;
 
 pub const ReadRequest = struct {
     attachment_id: AttachmentId,
@@ -26,6 +27,7 @@ pub const ReadRequest = struct {
     purpose: Purpose,
     request_sequence: u64,
     revision: u64,
+    revision_policy: RevisionPolicy = .exact,
     theme_revision: u64 = 0,
     row_count: u16,
 };
@@ -58,10 +60,12 @@ pub const HistoryEvent = struct {
 };
 
 pub const SelectionPoint = terminal_selection.Point;
+pub const SelectionViewportPoint = terminal_selection.ViewportPoint;
 pub const SelectionGestureGeometry = terminal_selection.GestureGeometry;
 pub const SelectionGesturePosition = terminal_selection.GesturePosition;
 pub const SelectionGestureEvent = terminal_selection.GestureEvent;
 pub const SelectionGesture = terminal_selection.Gesture(AttachmentId);
+pub const ResolvedSelectionGesture = terminal_selection.ResolvedGesture;
 pub const SelectionCommand = terminal_selection.Command;
 pub const SelectionCommandRequest = terminal_selection.CommandRequest(AttachmentId);
 pub const SelectionSnapshot = terminal_selection.Snapshot;

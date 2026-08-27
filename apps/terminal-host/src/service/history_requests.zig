@@ -109,6 +109,7 @@ const Handler = struct {
                 .purpose = request.purpose,
                 .request_sequence = request.request_sequence,
                 .revision = request.revision,
+                .revision_policy = request.revision_policy,
                 .row_count = request.row_count,
                 .theme_revision = interaction.theme_revision,
             },

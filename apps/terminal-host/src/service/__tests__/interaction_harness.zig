@@ -431,7 +431,7 @@ pub fn requestRenderRows(
     var attachment_buffer: [32]u8 = undefined;
     const payload = try std.fmt.allocPrint(
         std.testing.allocator,
-        "{{\"attachmentId\":\"{s}\",\"detail\":\"render\",\"generation\":\"{d}\",\"maximumBytes\":{d},\"origin\":{{\"kind\":\"absolute\",\"row\":\"0\"}},\"purpose\":\"viewport\",\"requestSequence\":\"{d}\",\"revision\":\"{d}\",\"rowCount\":{d}}}",
+        "{{\"attachmentId\":\"{s}\",\"detail\":\"render\",\"generation\":\"{d}\",\"maximumBytes\":{d},\"origin\":{{\"kind\":\"absolute\",\"row\":\"0\"}},\"purpose\":\"viewport\",\"requestSequence\":\"{d}\",\"revision\":\"{d}\",\"revisionPolicy\":\"exact\",\"rowCount\":{d}}}",
         .{
             control_encode.identifierText(attachment_id, &attachment_buffer),
             geometry.generation,

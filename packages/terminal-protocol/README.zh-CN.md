@@ -9,7 +9,7 @@
 | 领域           | 公共契约                                                                                                                               |
 | -------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
 | 标识           | 严格非零的 128 位 Host、创建、终端、客户端、附件、关联及终端主题操作标识                                                               |
-| 兼容性         | 精确校验当前协议 `0.0.21`；拒绝不同版本，不做适配                                                                                      |
+| 兼容性         | 精确校验当前协议 `0.0.22`；拒绝不同版本，不做适配                                                                                      |
 | 消息注册表     | 当前版本中从每种 kind 到其合法角色、载荷编码及成功响应 kind 的唯一映射                                                                 |
 | 控制           | 由消息 kind 选择的请求编码，以及严格的握手、配置/主题、清单、生命周期、附件、投影/历史、响铃、剪贴板写入、选择和失败 Schema            |
 | 传输           | 有界的 64 字节信封；对于 JSON、输入、终端帧和行窗口，拒绝生产方的角色或编码不匹配                                                      |
@@ -79,27 +79,27 @@ if (envelope.value.payloadEncoding === PayloadEncoding.terminalFrame) {
 该包显式导出：
 
 - `@orchbee/terminal-protocol/fixtures/canonical.json`
-- `@orchbee/terminal-protocol/fixtures/control-conformance-v0.0.21.json`
-- `@orchbee/terminal-protocol/fixtures/focus-input-v0.0.21.bin`
+- `@orchbee/terminal-protocol/fixtures/control-conformance-v0.0.22.json`
+- `@orchbee/terminal-protocol/fixtures/focus-input-v0.0.22.bin`
 - `@orchbee/terminal-protocol/fixtures/malformed-frame-v0.0.3.json`
 - `@orchbee/terminal-protocol/fixtures/malformed-row-window-v0.0.3.json`
 - `@orchbee/terminal-protocol/fixtures/packed-projection-conformance-v0.0.3.json`
 - `@orchbee/terminal-protocol/fixtures/terminal-frame-v0.0.3.bin`
-- `@orchbee/terminal-protocol/fixtures/terminal-failed-v0.0.21.json`
+- `@orchbee/terminal-protocol/fixtures/terminal-failed-v0.0.22.json`
 - `@orchbee/terminal-protocol/fixtures/terminal-projection-buffer-v0.0.2.bin`
 - `@orchbee/terminal-protocol/fixtures/terminal-row-window-v0.0.3.bin`
-- `@orchbee/terminal-protocol/fixtures/transport-envelope-v0.0.21.bin`
-- `@orchbee/terminal-protocol/fixtures/write-input-v0.0.21.bin`
-- `@orchbee/terminal-protocol/fixtures/key-input-v0.0.21.bin`
-- `@orchbee/terminal-protocol/fixtures/text-input-v0.0.21.bin`
-- `@orchbee/terminal-protocol/fixtures/mouse-input-v0.0.21.bin`
-- `@orchbee/terminal-protocol/fixtures/paste-input-v0.0.21.bin`
-- `@orchbee/terminal-protocol/fixtures/utf8-bom-conformance-v0.0.21.json`
+- `@orchbee/terminal-protocol/fixtures/transport-envelope-v0.0.22.bin`
+- `@orchbee/terminal-protocol/fixtures/write-input-v0.0.22.bin`
+- `@orchbee/terminal-protocol/fixtures/key-input-v0.0.22.bin`
+- `@orchbee/terminal-protocol/fixtures/text-input-v0.0.22.bin`
+- `@orchbee/terminal-protocol/fixtures/mouse-input-v0.0.22.bin`
+- `@orchbee/terminal-protocol/fixtures/paste-input-v0.0.22.bin`
+- `@orchbee/terminal-protocol/fixtures/utf8-bom-conformance-v0.0.22.json`
 - `@orchbee/terminal-protocol/fixtures/ghostty-alternate-surface-v0.0.3.bin`
 - `@orchbee/terminal-protocol/fixtures/ghostty-render-row-window-v0.0.3.bin`
 - `@orchbee/terminal-protocol/fixtures/ghostty-surface-v0.0.3.bin`
 
-`canonical.json` 只是当前二进制格式的语言无关生成器输入，因此没有兼容版本。`control-conformance-v0.0.21.json` 包含由 Schema 生成的命令、回复、事件、可辨识联合、失败，以及原生类型适配器使用的完整 kind/role/encoding/success-response 契约。`fixtures:generate` 使用构建后的 TypeScript codec 和 Schema 生成这些已跟踪记录、权威 `TerminalFailed` 控制记录、当前 OBTF format-`0.0.3`、OBPB format-`0.0.2`、OBRW format-`0.0.3` 与 OBKG format-`0.0.2` 夹具、其严格一致性语料库，以及帧和行窗口畸形语料库。`test:fixtures` 会拒绝任何缺失或字节已过时的生成输出。每个兼容性夹具都携带其所属线协议或二进制格式的精确语义版本；不使用通配符或仅含主版本号的夹具名。
+`canonical.json` 只是当前二进制格式的语言无关生成器输入，因此没有兼容版本。`control-conformance-v0.0.22.json` 包含由 Schema 生成的命令、回复、事件、可辨识联合、失败，以及原生类型适配器使用的完整 kind/role/encoding/success-response 契约。`fixtures:generate` 使用构建后的 TypeScript codec 和 Schema 生成这些已跟踪记录、权威 `TerminalFailed` 控制记录、当前 OBTF format-`0.0.3`、OBPB format-`0.0.2`、OBRW format-`0.0.3` 与 OBKG format-`0.0.2` 夹具、其严格一致性语料库，以及帧和行窗口畸形语料库。`test:fixtures` 会拒绝任何缺失或字节已过时的生成输出。每个兼容性夹具都携带其所属线协议或二进制格式的精确语义版本；不使用通配符或仅含主版本号的夹具名。
 
 `packed-projection-conformance-v0.0.3.json` 是 OBPB format `0.0.2` 与 OBRW format `0.0.3` 的语言无关严格边界判定语料。每个命名用例都保存完整规范字节、负责该用例的严格边界以及依据契约编写的结果；被接受的用例还保存语料 Schema 要求的全部观察值。预期结果不由任一解码器生成。TypeScript 严格解码器会消费每个用例；`apps/terminal-host` 则解析已声明的包导出，把有界 JSON 字节传入 Zig 一致性测试，并通过匹配的原生严格验证器运行每个用例。
 
@@ -107,7 +107,7 @@ if (envelope.value.payloadEncoding === PayloadEncoding.terminalFrame) {
 
 `ghostty-surface-v0.0.3.bin`、`ghostty-alternate-surface-v0.0.3.bin` 和 `ghostty-render-row-window-v0.0.3.bin` 是 TypeScript 夹具生成流程的例外。Terminal Host 使用同一个固定版本的原生 Ghostty VT 及真实投影编码器生成 OBTF 夹具对；另一个原生终端会重放主语料，加入真实 DECSCA 受保护/未受保护单元，并通过 `row_encoding.encode` 和 `projection_buffer.encodeRenderSnapshot` 生成 OBRW 夹具。Host 一致性检查会重新生成并逐字节比较全部三个夹具。`@orchbee/terminal` 通过两个渲染器后端和打包存储消费 OBTF 夹具对，并通过严格解码器、可信结构视图和打包存储消费 OBRW 字节。其依据契约编写的 6x8 判定会检查每个行与单元列、原始字符串范围、解码字符串、颜色、样式标志、下划线类型、宽度、语义值、受保护标志和提交元数据；线协议有效的语义变异证明仅有严格准入无法满足该判定。协议包负责稳定字节及导出，Terminal Host 负责原生生产，terminal 包负责消费者语义。该证据不向协议包授予 VT、生命周期、历史或信任边界权威。
 
-实时 OBTF 快照和增量可能携带可选扩展类型 `1`，其一字节有效负载将关闭活动报告为 `idle=1` 或 `active=2`。当观察结果未知时，生产者会省略扩展。该扩展仅是瞬态投影元数据；生命周期和关闭策略仍然由消费者拥有。`NeedSnapshot` 原因 `activity-stale` 用于消费者已在本地使关闭活动观察失效、且无法证明在途帧晚于失效输入时，放弃精确的在途帧；替换帧为完整快照。这一顺序只证明替换帧反映失效后的 Host 缓存，不证明 Host 已接受输入，也不证明终端进程已消费输入。在协议 `0.0.21` 中，Host 接受的非焦点输入会立即使缓存观察失效。后续有界当前状态采样可以发布 `active`、`idle` 或 `unknown`，因此因果替换帧可以在同一终端生命周期内合法恢复新鲜的 `idle`。这不会改变任何线协议值或 codec。
+实时 OBTF 快照和增量可能携带可选扩展类型 `1`，其一字节有效负载将关闭活动报告为 `idle=1` 或 `active=2`。当观察结果未知时，生产者会省略扩展。该扩展仅是瞬态投影元数据；生命周期和关闭策略仍然由消费者拥有。`NeedSnapshot` 原因 `activity-stale` 用于消费者已在本地使关闭活动观察失效、且无法证明在途帧晚于失效输入时，放弃精确的在途帧；替换帧为完整快照。这一顺序只证明替换帧反映失效后的 Host 缓存，不证明 Host 已接受输入，也不证明终端进程已消费输入。在协议 `0.0.22` 中，Host 接受的非焦点输入会立即使缓存观察失效。后续有界当前状态采样可以发布 `active`、`idle` 或 `unknown`，因此因果替换帧可以在同一终端生命周期内合法恢复新鲜的 `idle`。这不会改变任何线协议值或 codec。
 
 可选扩展类型 `2` 是一个严格解码的 OBKG format-`0.0.2` 记录，用于有界 Kitty 图形投影。资源快照携带 Host 自有的已解码 gray、gray-alpha、RGB 或 RGBA 字节、单调 Ghostty 动画 tick，以及 Host 解析文件、临时文件、共享内存、virtual、relative、裁剪与历史关系后的当前放置。仅放置更新会命名其复用的精确图像修订。有符号 z 值选择背景下方、背景与文本之间或文本上方三个渲染层。重复记录、过时修订、错误像素长度、缺失图像引用、非规范标志或违反限制会拒绝整个 OBTF 帧。OBKG 不携带源路径、句柄、共享内存名称或映射、编码容器、压缩流或未解析 Ghostty pin。
 

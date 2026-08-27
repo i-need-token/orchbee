@@ -456,6 +456,8 @@ export const ProjectionBlockedSchema = z.strictObject({
 
 export const RowWindowPurposeSchema = z.enum(['buffer', 'search', 'viewport']);
 
+export const RowRevisionPolicySchema = z.enum(['current-view', 'exact']);
+
 export const RowWindowOriginSchema = z.discriminatedUnion('kind', [
 	z.strictObject({ kind: z.literal('absolute'), row: CanonicalUint64TextSchema }),
 	z.strictObject({ kind: z.literal('oldest'), offset: uint32Schema }),
@@ -470,17 +472,32 @@ export const RowWindowOriginSchema = z.discriminatedUnion('kind', [
 	z.strictObject({ kind: z.literal('tail'), rowsBefore: uint32Schema }),
 ]);
 
-export const ReadRowsSchema = z.strictObject({
-	attachmentId: AttachmentIdSchema,
-	detail: z.enum(TerminalRowWindowDetail),
-	generation: positiveCanonicalUint64TextSchema,
-	maximumBytes: boundedSizeSchema(PROTOCOL_LIMITS.maxRowWindowBytes),
-	origin: RowWindowOriginSchema,
-	purpose: RowWindowPurposeSchema,
-	requestSequence: positiveCanonicalUint64TextSchema,
-	revision: CanonicalUint64TextSchema,
-	rowCount: z.number().int().min(1).max(PROTOCOL_LIMITS.maxRowWindowRows),
-});
+export const ReadRowsSchema = z
+	.strictObject({
+		attachmentId: AttachmentIdSchema,
+		detail: z.enum(TerminalRowWindowDetail),
+		generation: positiveCanonicalUint64TextSchema,
+		maximumBytes: boundedSizeSchema(PROTOCOL_LIMITS.maxRowWindowBytes),
+		origin: RowWindowOriginSchema,
+		purpose: RowWindowPurposeSchema,
+		requestSequence: positiveCanonicalUint64TextSchema,
+		revision: CanonicalUint64TextSchema,
+		revisionPolicy: RowRevisionPolicySchema,
+		rowCount: z.number().int().min(1).max(PROTOCOL_LIMITS.maxRowWindowRows),
+	})
+	.superRefine((request, context) => {
+		if (
+			request.revisionPolicy === 'current-view' &&
+			(request.purpose !== 'viewport' ||
+				(request.origin.kind !== 'committed' && request.origin.kind !== 'tail'))
+		) {
+			context.addIssue({
+				code: 'custom',
+				message: 'Current-view row reads require a viewport purpose and relative origin',
+				path: ['revisionPolicy'],
+			});
+		}
+	});
 
 export const RowsAppliedSchema = z.strictObject({
 	attachmentId: AttachmentIdSchema,
@@ -555,10 +572,22 @@ export const SelectionPointSchema = z.strictObject({
 	row: CanonicalUint64TextSchema,
 });
 
+export const SelectionViewportPointSchema = z.strictObject({
+	column: z
+		.number()
+		.int()
+		.min(0)
+		.max(PROTOCOL_LIMITS.maxFrameColumns - 1),
+	row: z
+		.number()
+		.int()
+		.min(0)
+		.max(PROTOCOL_LIMITS.maxFrameRows - 1),
+});
+
 const selectionGestureShape = {
 	attachmentId: AttachmentIdSchema,
 	generation: positiveCanonicalUint64TextSchema,
-	revision: CanonicalUint64TextSchema,
 } as const;
 
 const selectionGesturePositionSchema = z.strictObject({
@@ -578,7 +607,7 @@ export const SelectionGestureSchema = z.discriminatedUnion('action', [
 		...selectionGestureShape,
 		action: z.literal('start'),
 		clickCount: z.number().int().min(1).max(3),
-		point: SelectionPointSchema,
+		point: SelectionViewportPointSchema,
 		position: selectionGesturePositionSchema,
 		selectOutput: z.boolean(),
 	}),
@@ -586,14 +615,14 @@ export const SelectionGestureSchema = z.discriminatedUnion('action', [
 		...selectionGestureShape,
 		action: z.literal('update'),
 		geometry: selectionGestureGeometrySchema,
-		point: SelectionPointSchema,
+		point: SelectionViewportPointSchema,
 		position: selectionGesturePositionSchema,
 		rectangle: z.boolean(),
 	}),
 	z.strictObject({
 		...selectionGestureShape,
 		action: z.literal('end'),
-		point: SelectionPointSchema,
+		point: SelectionViewportPointSchema,
 	}),
 	z.strictObject({ ...selectionGestureShape, action: z.literal('cancel') }),
 ]);
@@ -1080,6 +1109,7 @@ export type TerminalMetadataChanged = z.infer<typeof TerminalMetadataChangedSche
 export type TerminalClipboardWriteRequest = z.infer<typeof TerminalClipboardWriteRequestSchema>;
 export type RowWindowOrigin = z.infer<typeof RowWindowOriginSchema>;
 export type RowWindowPurpose = z.infer<typeof RowWindowPurposeSchema>;
+export type RowRevisionPolicy = z.infer<typeof RowRevisionPolicySchema>;
 export type RowsApplied = z.infer<typeof RowsAppliedSchema>;
 export type SelectionChanged = z.infer<typeof SelectionChangedSchema>;
 export type SelectionCommand = z.infer<typeof SelectionCommandSchema>;
@@ -1091,6 +1121,7 @@ export type SelectionExportFormat = z.infer<typeof SelectionExportFormatSchema>;
 export type SelectionExportStarted = z.infer<typeof SelectionExportStartedSchema>;
 export type SelectionGesture = z.infer<typeof SelectionGestureSchema>;
 export type SelectionPoint = z.infer<typeof SelectionPointSchema>;
+export type SelectionViewportPoint = z.infer<typeof SelectionViewportPointSchema>;
 export type SetHistoryDemand = z.infer<typeof SetHistoryDemandSchema>;
 export type TerminalAcknowledged = z.infer<typeof TerminalAcknowledgedSchema>;
 export type TerminalExited = z.infer<typeof TerminalExitedSchema>;

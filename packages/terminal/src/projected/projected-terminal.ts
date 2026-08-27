@@ -30,10 +30,12 @@ import {
 	type ResetTerminal,
 	type ResizeTerminal,
 	type RowsApplied,
+	type RowRevisionPolicy,
 	type SelectionChanged,
 	type SelectionCommand,
 	type SelectionGesture,
 	type SelectionPoint,
+	type SelectionViewportPoint,
 	type SetHistoryDemand,
 	type SetProjectionDemand,
 	type TerminalBell,
@@ -564,6 +566,7 @@ interface ViewportRowFlight {
 	readonly origin: ReadRows['origin'];
 	readonly overscanned: boolean;
 	readonly requestSequence: CanonicalUint64Text;
+	readonly revisionPolicy: RowRevisionPolicy;
 	smoothPresentation: boolean;
 	readonly visibleRowCount: number;
 }
@@ -573,7 +576,7 @@ type RowFlightLane = RowFlight['lane'];
 
 type PendingHistoryTransition = 'awaiting-change' | 'recover' | 'refresh';
 
-type SelectionGestureIdentity = 'attachmentId' | 'generation' | 'revision';
+type SelectionGestureIdentity = 'attachmentId';
 type PendingSelectionGesture =
 	| Omit<Extract<SelectionGesture, { readonly action: 'start' }>, SelectionGestureIdentity>
 	| Omit<Extract<SelectionGesture, { readonly action: 'update' }>, SelectionGestureIdentity>
@@ -582,6 +585,7 @@ type PendingSelectionGesture =
 
 interface SelectionGestureLocation {
 	readonly geometry: Extract<SelectionGesture, { readonly action: 'update' }>['geometry'];
+	readonly gesturePoint: SelectionViewportPoint;
 	readonly point: SelectionPoint;
 	readonly position: Extract<SelectionGesture, { readonly action: 'start' }>['position'];
 	readonly surfaceX: number;
@@ -906,7 +910,8 @@ export class ProjectedTerminal {
 	#selectionGestureActionInFlight: SelectionGesture['action'] | undefined;
 	#selectionGestureInFlight = false;
 	#selectionGestureActive = false;
-	#selectionGestureLast: SelectionPoint | undefined;
+	#selectionGestureGeneration: CanonicalUint64Text | undefined;
+	#selectionGestureLast: SelectionViewportPoint | undefined;
 	#selectionGesturePointerId: number | undefined;
 	#selectionClickSequence: SelectionClickSequence | undefined;
 	#selectionAutoscrollDirection: 'down' | 'up' | undefined;
@@ -1523,6 +1528,7 @@ export class ProjectedTerminal {
 					purpose: request.purpose ?? 'buffer',
 					requestSequence,
 					revision: CanonicalUint64TextSchema.parse(request.revision.toString()),
+					revisionPolicy: 'exact',
 					rowCount: request.rowCount,
 				},
 			});
@@ -1573,7 +1579,10 @@ export class ProjectedTerminal {
 		const window = decoded.value;
 		if (
 			window.generation !== this.#historyGeneration ||
-			window.revision !== this.#historyRevision
+			(flight.kind === 'buffer' && window.revision !== this.#historyRevision) ||
+			(flight.kind === 'viewport' &&
+				flight.revisionPolicy === 'exact' &&
+				window.revision !== this.#historyRevision)
 		) {
 			if (flight.kind === 'buffer') {
 				if (!flight.aborted) {
@@ -1657,11 +1666,13 @@ export class ProjectedTerminal {
 		this.#historyStore = viewport;
 		this.#invalidateLinkCache();
 		this.#historyGeneration = window.generation;
-		this.#historyRevision = window.revision;
+		if (window.revision >= this.#historyRevision) {
+			this.#historyRevision = window.revision;
+			this.#historyTotalRows = window.totalRows;
+		}
 		this.#historyStartRow = visibleStartRow;
-		this.#historyTotalRows = window.totalRows;
 		this.#historyRowsBefore = Number(
-			window.totalRows - (visibleStartRow + BigInt(flight.visibleRowCount)),
+			this.#historyTotalRows - (visibleStartRow + BigInt(flight.visibleRowCount)),
 		);
 		this.#historyPhase = ProjectedHistoryPhase.viewingHistory;
 		this.#syncPreeditPresentation();
@@ -1839,13 +1850,17 @@ export class ProjectedTerminal {
 			this.#searchOwnedSelection = null;
 		}
 		this.#searchController?.setNavigationAnchor(searchAnchorFromSelection(selection));
-		this.#selectionGestureActionInFlight = undefined;
-		this.#selectionGestureInFlight = false;
-		this.#suppressNextSelectionCopy = false;
+		if (selection.state === 'evicted') {
+			this.#retireStaleSelectionGesture();
+		} else {
+			this.#selectionGestureActionInFlight = undefined;
+			this.#selectionGestureInFlight = false;
+			this.#suppressNextSelectionCopy = false;
+		}
 		this.#selectionEmitter.fire(selection);
 		this.#updateAccessibilityDescription();
 		this.#syncAccessibilitySelection();
-		this.#scheduleSelectionGesture();
+		if (selection.state !== 'evicted') this.#scheduleSelectionGesture();
 		this.#scheduleRender();
 		if (
 			selection.state === 'active' &&
@@ -1875,7 +1890,7 @@ export class ProjectedTerminal {
 		const staleSelectionGestureFailure =
 			failure.operation === 'selection' &&
 			this.#selectionGestureActionInFlight !== undefined &&
-			(failure.code === 'stale-generation' || failure.code === 'stale-revision');
+			(failure.code === 'history-evicted' || failure.code === 'stale-generation');
 		const flight =
 			(failure.operation === undefined || failure.operation === 'history') &&
 			failure.requestSequence !== undefined &&
@@ -3060,13 +3075,8 @@ export class ProjectedTerminal {
 		}
 		const visibleRowCount = metadata.rows;
 		const visibleStartRow = this.#resolveHistoryVisibleStart(origin, visibleRowCount);
-		const requestOrigin: ReadRows['origin'] =
-			origin.kind === 'committed'
-				? origin
-				: {
-						kind: 'absolute',
-						row: CanonicalUint64TextSchema.parse(visibleStartRow.toString()),
-					};
+		const revisionPolicy: RowRevisionPolicy =
+			origin.kind === 'committed' || origin.kind === 'tail' ? 'current-view' : 'exact';
 		const maximumCacheRows = Math.max(
 			1,
 			Math.min(
@@ -3080,6 +3090,25 @@ export class ProjectedTerminal {
 			Number(this.#historyTotalRows - visibleStartRow),
 		);
 		if (cacheRowCount < visibleRowCount) return;
+		let requestOrigin: ReadRows['origin'];
+		if (origin.kind === 'tail') {
+			requestOrigin = {
+				kind: 'tail',
+				rowsBefore: Number(
+					minBigInt(
+						this.#historyTotalRows - (visibleStartRow + BigInt(cacheRowCount)),
+						0xffff_ffffn,
+					),
+				),
+			};
+		} else if (revisionPolicy === 'current-view') {
+			requestOrigin = origin;
+		} else {
+			requestOrigin = {
+				kind: 'absolute',
+				row: CanonicalUint64TextSchema.parse(visibleStartRow.toString()),
+			};
+		}
 		if (this.#historyPhase === ProjectedHistoryPhase.followingBottom) {
 			this.#send({
 				kind: 'set-history-demand',
@@ -3092,13 +3121,14 @@ export class ProjectedTerminal {
 		this.#syncPreeditPresentation();
 		const requestSequence = this.#nextRowRequestSequence();
 		this.#rowFlights.set('viewport', {
-			expectedStartRow: origin.kind === 'committed' ? null : visibleStartRow,
+			expectedStartRow: revisionPolicy === 'current-view' ? null : visibleStartRow,
 			kind: 'viewport',
 			lane: 'viewport',
 			maximumBytes: PROTOCOL_LIMITS.maxRowWindowBytes,
-			origin: requestOrigin,
+			origin,
 			overscanned: cacheRowCount > visibleRowCount,
 			requestSequence,
+			revisionPolicy,
 			smoothPresentation,
 			visibleRowCount,
 		});
@@ -3113,6 +3143,7 @@ export class ProjectedTerminal {
 				purpose: 'viewport',
 				requestSequence,
 				revision: CanonicalUint64TextSchema.parse(this.#historyRevision.toString()),
+				revisionPolicy,
 				rowCount: cacheRowCount,
 			},
 		});
@@ -3155,8 +3186,8 @@ export class ProjectedTerminal {
 			rowsBefore > BigInt(Number.MAX_SAFE_INTEGER) ? BigInt(Number.MAX_SAFE_INTEGER) : rowsBefore,
 		);
 		this.#requestHistoryRows({
-			kind: 'absolute',
-			row: CanonicalUint64TextSchema.parse(startRow.toString()),
+			kind: 'tail',
+			rowsBefore: Number(minBigInt(rowsBefore, 0xffff_ffffn)),
 		});
 	}
 
@@ -3894,8 +3925,6 @@ export class ProjectedTerminal {
 			payload: {
 				...gesture,
 				attachmentId: this.#attachmentId,
-				generation: CanonicalUint64TextSchema.parse(this.#historyGeneration.toString()),
-				revision: CanonicalUint64TextSchema.parse(this.#historyRevision.toString()),
 			},
 		});
 	}
@@ -3936,6 +3965,7 @@ export class ProjectedTerminal {
 				paddingLeft: 0,
 				screenHeight: clamp(Math.round(bounds.height), 1, MAX_PTY_PIXEL_DIMENSION),
 			},
+			gesturePoint: { column, row: viewportRow },
 			point: {
 				column,
 				row: CanonicalUint64TextSchema.parse((startRow + BigInt(viewportRow)).toString()),
@@ -4016,14 +4046,16 @@ export class ProjectedTerminal {
 
 	#continueSelectionAutoscrollGesture(): void {
 		const pointer = this.#selectionPointer;
-		if (!this.#selectionGestureActive || pointer === undefined) return;
+		const generation = this.#selectionGestureGeneration;
+		if (!this.#selectionGestureActive || pointer === undefined || generation === undefined) return;
 		const location = this.#selectionGestureLocationFromClient(pointer.clientX, pointer.clientY);
 		if (location === null) return;
-		this.#selectionGestureLast = location.point;
+		this.#selectionGestureLast = location.gesturePoint;
 		this.#queueSelectionGesture({
 			action: 'update',
+			generation,
 			geometry: location.geometry,
-			point: location.point,
+			point: location.gesturePoint,
 			position: location.position,
 			rectangle: pointer.rectangle,
 		});
@@ -5803,7 +5835,8 @@ export class ProjectedTerminal {
 		const gesture = {
 			action: 'start' as const,
 			clickCount,
-			point: location.point,
+			generation: CanonicalUint64TextSchema.parse(this.#historyGeneration.toString()),
+			point: location.gesturePoint,
 			position: location.position,
 			selectOutput: event.ctrlKey || event.metaKey,
 		};
@@ -5814,7 +5847,8 @@ export class ProjectedTerminal {
 		}
 		this.#clearOwnedAccessibilityDomSelection();
 		this.#selectionGestureActive = true;
-		this.#selectionGestureLast = location.point;
+		this.#selectionGestureGeneration = gesture.generation;
+		this.#selectionGestureLast = location.gesturePoint;
 		this.#selectionGesturePointerId = event.pointerId;
 		this.#selectionPointer = {
 			clientX: event.clientX,
@@ -5856,9 +5890,9 @@ export class ProjectedTerminal {
 			(this.#selectionGesturePointerId === undefined ||
 				this.#selectionGesturePointerId === event.pointerId)
 		) {
-			const point = this.#selectionPoint(event);
-			if (point !== null && this.#selectionGestureLast !== undefined) {
-				this.#selectionGestureLast = point;
+			const location = this.#selectionGestureLocation(event);
+			if (location !== null && this.#selectionGestureLast !== undefined) {
+				this.#selectionGestureLast = location.gesturePoint;
 			}
 			this.#completeSelectionGesture(true);
 			event.preventDefault();
@@ -5935,11 +5969,17 @@ export class ProjectedTerminal {
 			});
 			const location = this.#selectionGestureLocation(event);
 			if (location !== null) {
-				this.#selectionGestureLast = location.point;
+				const generation = this.#selectionGestureGeneration;
+				if (generation === undefined) {
+					this.#cancelSelectionGesture(true);
+					return;
+				}
+				this.#selectionGestureLast = location.gesturePoint;
 				this.#queueSelectionGesture({
 					action: 'update',
+					generation,
 					geometry: location.geometry,
-					point: location.point,
+					point: location.gesturePoint,
 					position: location.position,
 					rectangle: event.altKey,
 				});
@@ -6049,12 +6089,16 @@ export class ProjectedTerminal {
 		const canvas = this.#canvas;
 		const pointerId = this.#selectionGesturePointerId;
 		const gesture = this.#selectionGestureLast;
+		const generation = this.#selectionGestureGeneration;
 		this.#selectionGestureActive = false;
+		this.#selectionGestureGeneration = undefined;
 		this.#selectionGestureLast = undefined;
 		this.#selectionGesturePointerId = undefined;
 		this.#stopSelectionAutoscroll();
 		this.#updateSurfaceMouseCursor();
-		if (gesture !== undefined) this.#queueSelectionGesture({ action: 'end', point: gesture });
+		if (gesture !== undefined && generation !== undefined) {
+			this.#queueSelectionGesture({ action: 'end', generation, point: gesture });
+		}
 		if (!releaseCapture || pointerId === undefined) return;
 		try {
 			canvas?.releasePointerCapture(pointerId);
@@ -6067,13 +6111,15 @@ export class ProjectedTerminal {
 		if (!this.#selectionGestureActive) return;
 		const canvas = this.#canvas;
 		const pointerId = this.#selectionGesturePointerId;
+		const generation = this.#selectionGestureGeneration;
 		this.#selectionGestureActive = false;
+		this.#selectionGestureGeneration = undefined;
 		this.#selectionGestureLast = undefined;
 		this.#selectionGesturePointerId = undefined;
 		this.#selectionClickSequence = undefined;
 		this.#stopSelectionAutoscroll();
 		this.#updateSurfaceMouseCursor();
-		this.#queueSelectionGesture({ action: 'cancel' });
+		if (generation !== undefined) this.#queueSelectionGesture({ action: 'cancel', generation });
 		if (!releaseCapture || pointerId === undefined) return;
 		try {
 			canvas?.releasePointerCapture(pointerId);
@@ -6088,6 +6134,7 @@ export class ProjectedTerminal {
 		this.#selectionGestureActionInFlight = undefined;
 		this.#selectionGestureInFlight = false;
 		this.#selectionGestureActive = false;
+		this.#selectionGestureGeneration = undefined;
 		this.#selectionGestureLast = undefined;
 		this.#selectionGesturePointerId = undefined;
 		this.#selectionClickSequence = undefined;
@@ -6108,6 +6155,7 @@ export class ProjectedTerminal {
 		const canvas = this.#canvas;
 		const pointerId = this.#selectionGesturePointerId;
 		this.#selectionGestureActive = false;
+		this.#selectionGestureGeneration = undefined;
 		this.#selectionGestureLast = undefined;
 		this.#selectionGesturePointerId = undefined;
 		this.#selectionClickSequence = undefined;

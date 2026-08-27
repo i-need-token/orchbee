@@ -60,26 +60,72 @@ pub fn rollbackExportStart(
 pub fn applyGesture(
     self: anytype,
     terminal: *ghostty_vt.Terminal,
-    current_revision: u64,
     current_generation: u64,
     request: SelectionGesture,
 ) (HistoryError || std.mem.Allocator.Error)!SelectionSnapshot {
-    try terminal_selection.validateCurrent(
-        request.revision,
-        request.generation,
-        current_revision,
-        current_generation,
-    );
+    if (request.generation != current_generation) return error.StaleGeneration;
     const state = storage.find(self, request.attachment_id) orelse return error.MissingAttachment;
     const selection_was_active = state.selection_state.active();
-    const snapshot = try state.selection_state.applyGesture(
-        terminal,
-        current_revision,
-        current_generation,
-        request,
-    );
+    const snapshot = try state.selection_state.applyGesture(terminal, .{
+        .event = try resolveGestureEvent(terminal, state, request.event),
+    });
     storage.updateSelectionCount(self, selection_was_active, state.selection_state.active());
     return snapshot;
+}
+
+fn resolveGestureEvent(
+    terminal: *ghostty_vt.Terminal,
+    state: *AttachmentState,
+    event: SelectionGestureEvent,
+) HistoryError!terminal_selection.ResolvedGestureEvent {
+    return switch (event) {
+        .start => |start| .{ .start = .{
+            .click_count = start.click_count,
+            .point = try resolveViewportPoint(terminal, state, start.point),
+            .position = start.position,
+            .select_output = start.select_output,
+        } },
+        .update => |update| .{ .update = .{
+            .geometry = update.geometry,
+            .point = try resolveViewportPoint(terminal, state, update.point),
+            .position = update.position,
+            .rectangle = update.rectangle,
+        } },
+        .end => |point| .{ .end = try resolveViewportPoint(terminal, state, point) },
+        .cancel => .cancel,
+    };
+}
+
+fn resolveViewportPoint(
+    terminal: *ghostty_vt.Terminal,
+    state: *AttachmentState,
+    point: terminal_selection.ViewportPoint,
+) HistoryError!SelectionPoint {
+    const screen = terminal.screens.active;
+    if (point.column >= terminal.cols or point.row >= terminal.rows) return error.InvalidPoint;
+
+    if (state.demand == .viewing_history) {
+        if (state.committed) |anchor| {
+            if (anchor.screen_key != terminal.screens.active_key or
+                !storage.anchorValid(terminal, anchor))
+            {
+                return error.AnchorEvicted;
+            }
+            const top = screen.pages.pointFromPin(.screen, anchor.pin.*) orelse
+                return error.AnchorEvicted;
+            const row = std.math.add(u64, top.screen.y, point.row) catch
+                return error.InvalidPoint;
+            if (row >= screen.pages.total_rows) return error.InvalidPoint;
+            return .{ .column = point.column, .row = row };
+        }
+    }
+
+    const pin = screen.pages.pin(.{ .viewport = .{
+        .x = point.column,
+        .y = point.row,
+    } }) orelse return error.InvalidPoint;
+    const absolute = screen.pages.pointFromPin(.screen, pin) orelse return error.InvalidPoint;
+    return .{ .column = absolute.screen.x, .row = absolute.screen.y };
 }
 
 pub fn applySelectionCommand(

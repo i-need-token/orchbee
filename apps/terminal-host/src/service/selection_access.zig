@@ -6,7 +6,6 @@ const terminal_runtime = terminal_engine.runtime;
 pub const SelectionGestureRequest = struct {
     event: terminal_history.SelectionGestureEvent,
     generation: u64,
-    revision: u64,
 };
 
 pub const SelectionCommandRequest = struct {
@@ -44,7 +43,6 @@ pub const SelectionAccess = struct {
             .attachment_id = self.attachment_id,
             .event = request.event,
             .generation = request.generation,
-            .revision = request.revision,
         });
     }
 

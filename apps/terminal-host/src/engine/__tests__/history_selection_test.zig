@@ -66,13 +66,37 @@ test "invalid gesture start leaves tracked state unchanged" {
 
     try std.testing.expectError(
         error.InvalidRequest,
-        manager.applyGesture(&terminal, 1, 1, gestureStart(attachment, 0, 0, 0, false)),
+        manager.applyGesture(&terminal, 1, gestureStart(attachment, 0, 0, 0, false)),
+    );
+    try std.testing.expectError(
+        error.InvalidPoint,
+        manager.applyGesture(&terminal, 1, gestureStart(attachment, 1, 0, 2, false)),
     );
     const state = findState(&manager, attachment).?;
     try std.testing.expect(state.selection_state.gesture.left_click_pin == null);
     try std.testing.expect(!state.selection_state.gesture_active);
     try std.testing.expect(state.selection_state.selection == null);
     try std.testing.expectEqual(initial_pins, terminal.screens.active.pages.countTrackedPins());
+}
+
+test "pointer selection keeps generation as its hard identity barrier" {
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
+        .cols = 8,
+        .rows = 2,
+    });
+    defer terminal.deinit(std.testing.allocator);
+    var manager = Manager.init(std.testing.allocator);
+    defer manager.deinit(&terminal);
+    const attachment = attachmentId(0x30);
+    try manager.attach(attachment);
+
+    try std.testing.expectError(
+        error.StaleGeneration,
+        manager.applyGesture(&terminal, 2, gestureStart(attachment, 1, 0, 0, false)),
+    );
+    const state = findState(&manager, attachment).?;
+    try std.testing.expect(!state.selection_state.gesture_active);
+    try std.testing.expect(state.selection_state.selection == null);
 }
 test "selection validation precedes attachment lookup" {
     var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
@@ -108,12 +132,11 @@ test "single click release clears selection without creating a one-cell range" {
     const pressed = try manager.applyGesture(
         &terminal,
         1,
-        1,
         gestureStart(attachment, 1, 2, 0, false),
     );
     try std.testing.expectEqual(SelectionSnapshot.none, std.meta.activeTag(pressed));
 
-    const released = try manager.applyGesture(&terminal, 1, 1, gestureEnd(attachment, 2, 0));
+    const released = try manager.applyGesture(&terminal, 1, gestureEnd(attachment, 2, 0));
     try std.testing.expectEqual(SelectionSnapshot.none, std.meta.activeTag(released));
 }
 test "cell drag and repeated clicks retain terminal selection semantics" {
@@ -128,21 +151,19 @@ test "cell drag and repeated clicks retain terminal selection semantics" {
     const attachment = attachmentId(4);
     try manager.attach(attachment);
 
-    _ = try manager.applyGesture(&terminal, 1, 1, gestureStart(attachment, 1, 0, 0, false));
+    _ = try manager.applyGesture(&terminal, 1, gestureStart(attachment, 1, 0, 0, false));
     const dragged = try manager.applyGesture(
         &terminal,
-        1,
         1,
         gestureUpdate(attachment, 2, 0, 29, false),
     );
     try std.testing.expectEqual(SelectionSnapshot.active, std.meta.activeTag(dragged));
     try std.testing.expectEqual(@as(u16, 0), dragged.active.start.column);
     try std.testing.expectEqual(@as(u16, 2), dragged.active.end.column);
-    _ = try manager.applyGesture(&terminal, 1, 1, gestureEnd(attachment, 2, 0));
+    _ = try manager.applyGesture(&terminal, 1, gestureEnd(attachment, 2, 0));
 
     const word = try manager.applyGesture(
         &terminal,
-        1,
         1,
         gestureStart(attachment, 2, 7, 0, false),
     );
@@ -153,10 +174,75 @@ test "cell drag and repeated clicks retain terminal selection semantics" {
     const line = try manager.applyGesture(
         &terminal,
         1,
-        1,
         gestureStart(attachment, 3, 1, 0, false),
     );
     try std.testing.expectEqual(SelectionSnapshot.active, std.meta.activeTag(line));
+}
+
+test "pointer selection survives content revision advancement" {
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
+        .cols = 12,
+        .rows = 2,
+    });
+    defer terminal.deinit(std.testing.allocator);
+    try terminal.printString("alpha beta");
+    var manager = Manager.init(std.testing.allocator);
+    defer manager.deinit(&terminal);
+    const attachment = attachmentId(0x33);
+    try manager.attach(attachment);
+
+    _ = try manager.applyGesture(&terminal, 1, gestureStart(attachment, 1, 0, 0, false));
+    try terminal.printString("!");
+    manager.noteMutation(&terminal, 2, 1);
+    const selected = try manager.applyGesture(
+        &terminal,
+        1,
+        gestureUpdate(attachment, 2, 0, 29, false),
+    );
+
+    try std.testing.expectEqual(SelectionSnapshot.active, std.meta.activeTag(selected));
+    try std.testing.expectEqual(@as(u16, 0), selected.active.start.column);
+    try std.testing.expectEqual(@as(u16, 2), selected.active.end.column);
+}
+test "history pointer endpoints resolve from the committed viewport anchor" {
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
+        .cols = 8,
+        .rows = 2,
+    });
+    defer terminal.deinit(std.testing.allocator);
+    try terminal.printString("zero\r\none\r\ntwo\r\nthree");
+    var manager = Manager.init(std.testing.allocator);
+    defer manager.deinit(&terminal);
+    const attachment = attachmentId(0x34);
+    try manager.attach(attachment);
+    try manager.setDemand(&terminal, attachment, .viewing_history);
+
+    const rows = try manager.readRows(std.testing.allocator, &terminal, 1, 1, 8, 16, .{
+        .attachment_id = attachment,
+        .detail = .text,
+        .generation = 1,
+        .host_epoch = hostEpoch(1),
+        .maximum_bytes = max_row_window_bytes,
+        .origin = .{ .absolute = 0 },
+        .purpose = .viewport,
+        .request_sequence = 1,
+        .revision = 1,
+        .row_count = 2,
+    });
+    defer std.testing.allocator.free(rows.bytes);
+    try manager.rowsApplied(&terminal, attachment, 1, 1, 1);
+
+    try terminal.printString("\r\nfour");
+    manager.noteMutation(&terminal, 2, 1);
+    const selected = try manager.applyGesture(
+        &terminal,
+        1,
+        gestureStart(attachment, 3, 0, 1, false),
+    );
+
+    try std.testing.expectEqual(SelectionSnapshot.active, std.meta.activeTag(selected));
+    try std.testing.expectEqual(@as(u64, 1), selected.active.start.row);
+    try std.testing.expectEqual(@as(u64, 1), selected.active.end.row);
 }
 test "gesture cancellation preserves selection and is idempotent" {
     var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
@@ -170,16 +256,15 @@ test "gesture cancellation preserves selection and is idempotent" {
     const attachment = attachmentId(4);
     try manager.attach(attachment);
 
-    _ = try manager.applyGesture(&terminal, 1, 1, gestureStart(attachment, 1, 0, 0, false));
+    _ = try manager.applyGesture(&terminal, 1, gestureStart(attachment, 1, 0, 0, false));
     const selected = try manager.applyGesture(
         &terminal,
-        1,
         1,
         gestureUpdate(attachment, 2, 0, 29, false),
     );
     try std.testing.expectEqual(SelectionSnapshot.active, std.meta.activeTag(selected));
 
-    const cancelled = try manager.applyGesture(&terminal, 1, 1, gestureCancel(attachment));
+    const cancelled = try manager.applyGesture(&terminal, 1, gestureCancel(attachment));
     try std.testing.expectEqual(SelectionSnapshot.active, std.meta.activeTag(cancelled));
     try std.testing.expectEqual(selected.active.start.column, cancelled.active.start.column);
     try std.testing.expectEqual(selected.active.end.column, cancelled.active.end.column);
@@ -188,7 +273,7 @@ test "gesture cancellation preserves selection and is idempotent" {
     try std.testing.expect(!state.selection_state.gesture_active);
     const tracked_pins = terminal.screens.active.pages.countTrackedPins();
 
-    const repeated = try manager.applyGesture(&terminal, 1, 1, gestureCancel(attachment));
+    const repeated = try manager.applyGesture(&terminal, 1, gestureCancel(attachment));
     try std.testing.expectEqual(SelectionSnapshot.active, std.meta.activeTag(repeated));
     try std.testing.expectEqual(tracked_pins, terminal.screens.active.pages.countTrackedPins());
 }
@@ -204,10 +289,9 @@ test "cell drag applies the within-cell endpoint threshold and rectangle mode" {
     const attachment = attachmentId(4);
     try manager.attach(attachment);
 
-    _ = try manager.applyGesture(&terminal, 1, 1, gestureStart(attachment, 1, 2, 0, false));
+    _ = try manager.applyGesture(&terminal, 1, gestureStart(attachment, 1, 2, 0, false));
     const below_threshold = try manager.applyGesture(
         &terminal,
-        1,
         1,
         gestureUpdate(attachment, 2, 0, 25, false),
     );
@@ -216,18 +300,16 @@ test "cell drag applies the within-cell endpoint threshold and rectangle mode" {
     const at_threshold = try manager.applyGesture(
         &terminal,
         1,
-        1,
         gestureUpdate(attachment, 2, 0, 26, false),
     );
     try std.testing.expectEqual(SelectionSnapshot.active, std.meta.activeTag(at_threshold));
     try std.testing.expectEqual(@as(u16, 2), at_threshold.active.start.column);
     try std.testing.expectEqual(@as(u16, 2), at_threshold.active.end.column);
-    _ = try manager.applyGesture(&terminal, 1, 1, gestureEnd(attachment, 2, 0));
+    _ = try manager.applyGesture(&terminal, 1, gestureEnd(attachment, 2, 0));
 
-    _ = try manager.applyGesture(&terminal, 1, 1, gestureStart(attachment, 1, 1, 0, false));
+    _ = try manager.applyGesture(&terminal, 1, gestureStart(attachment, 1, 1, 0, false));
     const rectangle = try manager.applyGesture(
         &terminal,
-        1,
         1,
         gestureUpdate(attachment, 3, 0, 39, true),
     );
@@ -248,10 +330,9 @@ test "double click drag through empty cells uses the nearest word endpoints" {
     const attachment = attachmentId(4);
     try manager.attach(attachment);
 
-    _ = try manager.applyGesture(&terminal, 1, 1, gestureStart(attachment, 2, 1, 0, false));
+    _ = try manager.applyGesture(&terminal, 1, gestureStart(attachment, 2, 1, 0, false));
     const dragged = try manager.applyGesture(
         &terminal,
-        1,
         1,
         gestureUpdate(attachment, 15, 0, 159, false),
     );
@@ -282,7 +363,6 @@ test "modifier triple click drag expands across semantic output blocks" {
     const first = try manager.applyGesture(
         &terminal,
         1,
-        1,
         gestureStart(attachment, 3, 1, 0, true),
     );
     try std.testing.expectEqual(SelectionSnapshot.active, std.meta.activeTag(first));
@@ -291,7 +371,6 @@ test "modifier triple click drag expands across semantic output blocks" {
 
     const expanded = try manager.applyGesture(
         &terminal,
-        1,
         1,
         gestureUpdate(attachment, 1, 3, 19, false),
     );
@@ -343,7 +422,7 @@ test "gesture update and end require an active press" {
     }) |request| {
         try std.testing.expectError(
             error.InvalidRequest,
-            manager.applyGesture(&terminal, 1, 1, request),
+            manager.applyGesture(&terminal, 1, request),
         );
         const state = findState(&manager, attachment).?;
         try std.testing.expect(state.selection_state.gesture.left_click_pin == null);
@@ -492,7 +571,7 @@ test "invalid selection command preserves an active gesture" {
     defer manager.deinit(&terminal);
     const attachment = attachmentId(2);
     try manager.attach(attachment);
-    _ = try manager.applyGesture(&terminal, 1, 1, gestureStart(attachment, 1, 0, 0, false));
+    _ = try manager.applyGesture(&terminal, 1, gestureStart(attachment, 1, 0, 0, false));
     const gesture_anchor = findState(&manager, attachment).?.selection_state.gesture.left_click_pin.?;
     const tracked_pins = terminal.screens.active.pages.countTrackedPins();
 
@@ -538,7 +617,7 @@ test "screen changes invalidate anchors gesture selection and export" {
         .generation = 1,
         .host_epoch = hostEpoch(1),
         .maximum_bytes = 4096,
-        .origin = .{ .tail = 0 },
+        .origin = .{ .absolute = 0 },
         .purpose = .viewport,
         .request_sequence = 1,
         .revision = 1,
@@ -552,14 +631,14 @@ test "screen changes invalidate anchors gesture selection and export" {
         .generation = 1,
         .host_epoch = hostEpoch(1),
         .maximum_bytes = 4096,
-        .origin = .{ .tail = 0 },
+        .origin = .{ .absolute = 0 },
         .purpose = .viewport,
         .request_sequence = 2,
         .revision = 1,
         .row_count = 1,
     });
     defer std.testing.allocator.free(second_rows.bytes);
-    _ = try manager.applyGesture(&terminal, 1, 1, gestureStart(attachment, 2, 0, 0, false));
+    _ = try manager.applyGesture(&terminal, 1, gestureStart(attachment, 2, 0, 0, false));
     const started = try manager.startExport(&terminal, attachment, 7, .plain);
     const active_state = findState(&manager, attachment).?;
     try std.testing.expect(active_state.committed != null);

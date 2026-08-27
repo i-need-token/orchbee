@@ -75,6 +75,104 @@ test "text row window is bounded and cross-language valid" {
         protocol.validateTerminalRowWindow(std.testing.allocator, rows.bytes),
     );
 }
+
+test "current-view viewport rows survive revision churn while exact reads remain pinned" {
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
+        .cols = 8,
+        .rows = 2,
+    });
+    defer terminal.deinit(std.testing.allocator);
+    try terminal.printString("alpha\r\nbeta");
+    var manager = Manager.init(std.testing.allocator);
+    defer manager.deinit(&terminal);
+    const attachment = attachmentId(0x31);
+    try manager.attach(attachment);
+
+    const current = try manager.readRows(std.testing.allocator, &terminal, 2, 1, 8, 16, .{
+        .attachment_id = attachment,
+        .detail = .text,
+        .generation = 1,
+        .host_epoch = hostEpoch(1),
+        .maximum_bytes = max_row_window_bytes,
+        .origin = .{ .tail = 0 },
+        .purpose = .viewport,
+        .request_sequence = 1,
+        .revision = 1,
+        .revision_policy = .current_view,
+        .row_count = 2,
+    });
+    defer std.testing.allocator.free(current.bytes);
+    try std.testing.expectEqual(@as(u64, 2), current.revision);
+    try std.testing.expectEqual(@as(u64, 1), current.generation);
+    try manager.rowsApplied(&terminal, attachment, 1, 2, 1);
+
+    try std.testing.expectError(
+        error.StaleRevision,
+        manager.readRows(std.testing.allocator, &terminal, 2, 1, 8, 16, .{
+            .attachment_id = attachment,
+            .detail = .text,
+            .generation = 1,
+            .host_epoch = hostEpoch(1),
+            .maximum_bytes = max_row_window_bytes,
+            .origin = .{ .absolute = 0 },
+            .purpose = .search,
+            .request_sequence = 2,
+            .revision = 1,
+            .revision_policy = .exact,
+            .row_count = 1,
+        }),
+    );
+    try std.testing.expectError(
+        error.StaleGeneration,
+        manager.readRows(std.testing.allocator, &terminal, 2, 2, 8, 16, .{
+            .attachment_id = attachment,
+            .detail = .text,
+            .generation = 1,
+            .host_epoch = hostEpoch(1),
+            .maximum_bytes = max_row_window_bytes,
+            .origin = .{ .tail = 0 },
+            .purpose = .viewport,
+            .request_sequence = 2,
+            .revision = 1,
+            .revision_policy = .current_view,
+            .row_count = 1,
+        }),
+    );
+}
+
+test "current-view row policy rejects non-viewport and absolute origins" {
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
+        .cols = 8,
+        .rows = 2,
+    });
+    defer terminal.deinit(std.testing.allocator);
+    var manager = Manager.init(std.testing.allocator);
+    defer manager.deinit(&terminal);
+    const attachment = attachmentId(0x32);
+    try manager.attach(attachment);
+
+    inline for (.{
+        .{ .origin = subject.Origin{ .absolute = 0 }, .purpose = subject.Purpose.viewport },
+        .{ .origin = subject.Origin{ .tail = 0 }, .purpose = subject.Purpose.search },
+    }) |invalid| {
+        try std.testing.expectError(
+            error.InvalidRequest,
+            manager.readRows(std.testing.allocator, &terminal, 1, 1, 8, 16, .{
+                .attachment_id = attachment,
+                .detail = .text,
+                .generation = 1,
+                .host_epoch = hostEpoch(1),
+                .maximum_bytes = max_row_window_bytes,
+                .origin = invalid.origin,
+                .purpose = invalid.purpose,
+                .request_sequence = 1,
+                .revision = 1,
+                .revision_policy = .current_view,
+                .row_count = 1,
+            }),
+        );
+    }
+}
 test "render row window writes directly into caller-owned storage" {
     var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = 8,

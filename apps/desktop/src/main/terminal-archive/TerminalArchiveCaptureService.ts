@@ -129,6 +129,7 @@ export class TerminalArchiveCaptureService {
 					purpose: 'buffer',
 					requestSequence: requestSequence.toString(),
 					revision: finalFrame.revision.toString(),
+					revisionPolicy: 'exact',
 					rowCount: finalFrame.rows,
 				},
 			});
@@ -199,6 +200,7 @@ export class TerminalArchiveCaptureService {
 						purpose: 'buffer',
 						requestSequence: requestSequence.toString(),
 						revision: finalFrame.revision.toString(),
+						revisionPolicy: 'exact',
 						rowCount,
 					},
 				});

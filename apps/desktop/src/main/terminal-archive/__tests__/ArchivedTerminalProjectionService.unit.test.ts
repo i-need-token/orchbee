@@ -141,10 +141,11 @@ describe('ArchivedTerminalProjectionService', () => {
 				detail: 'render',
 				generation: frame.value.generation.toString(),
 				maximumBytes: 2 * 1024 * 1024,
-				origin: { kind: 'absolute', row: '4' },
+				origin: { kind: 'tail', rowsBefore: 2 },
 				purpose: 'viewport',
 				requestSequence: '7',
-				revision: frame.value.revision.toString(),
+				revision: '0',
+				revisionPolicy: 'current-view',
 				rowCount: 2,
 			},
 		});
@@ -153,6 +154,7 @@ describe('ArchivedTerminalProjectionService', () => {
 			throw new Error('Expected archived render rows');
 		}
 		expect(rendered.value.startRow).toBe(4n);
+		expect(rendered.value.revision).toBe(frame.value.revision);
 
 		const scrolledFrameEvent = nextEvent(port, (event) => (event.kind === 'frame' ? event : null));
 		port.postMessage({
@@ -180,6 +182,7 @@ describe('ArchivedTerminalProjectionService', () => {
 				purpose: 'search',
 				requestSequence: '8',
 				revision: frame.value.revision.toString(),
+				revisionPolicy: 'exact',
 				rowCount: 8,
 			},
 		});
@@ -197,6 +200,27 @@ describe('ArchivedTerminalProjectionService', () => {
 			'viewport-a',
 			'viewport-b',
 		]);
+
+		const gestureChanged = nextEvent(port, (event) =>
+			event.kind === 'selection-changed' ? event : null,
+		);
+		port.postMessage({
+			kind: 'selection-gesture',
+			payload: {
+				action: 'start',
+				attachmentId: lease.bootstrap.attachmentId,
+				clickCount: 1,
+				generation: frame.value.generation.toString(),
+				point: { column: 0, row: 1 },
+				position: { x: 0, y: 0 },
+				selectOutput: false,
+			},
+		});
+		expect((await gestureChanged).event).toMatchObject({
+			end: { column: 0, row: '5' },
+			start: { column: 0, row: '5' },
+			state: 'active',
+		});
 
 		const selectionChanged = nextEvent(port, (event) =>
 			event.kind === 'selection-changed' ? event : null,
@@ -306,6 +330,7 @@ describe('ArchivedTerminalProjectionService', () => {
 				purpose: 'viewport',
 				requestSequence: '73',
 				revision: archive.frame.revision.toString(),
+				revisionPolicy: 'exact',
 				rowCount: 2,
 			},
 		});
@@ -392,6 +417,7 @@ describe('ArchivedTerminalProjectionService', () => {
 					purpose: 'buffer',
 					requestSequence: requestSequence.toString(),
 					revision: archive.frame.revision.toString(),
+					revisionPolicy: 'exact',
 					rowCount: sourceCount,
 				},
 			});
@@ -455,6 +481,7 @@ describe('ArchivedTerminalProjectionService', () => {
 						purpose: 'buffer',
 						requestSequence: '91',
 						revision: archive.frame.revision.toString(),
+						revisionPolicy: 'exact',
 						rowCount: 24,
 					},
 				});
@@ -491,6 +518,7 @@ describe('ArchivedTerminalProjectionService', () => {
 				purpose: 'buffer',
 				requestSequence: '92',
 				revision: archive.frame.revision.toString(),
+				revisionPolicy: 'exact',
 				rowCount: 24,
 			},
 		});

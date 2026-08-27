@@ -15,6 +15,7 @@ import {
 	type DecodedTerminalProjectionBuffer,
 	type SelectionChanged,
 	type SelectionPoint,
+	type SelectionViewportPoint,
 	type TerminalFrame,
 	type TerminalGraphics,
 	type TerminalTextRow,
@@ -345,7 +346,11 @@ class ArchivedTerminalBroker {
 	}
 
 	#postRows(command: Extract<ProjectedTerminalCommand, { readonly kind: 'read-rows' }>): void {
-		this.#assertRevision(command.payload.generation, command.payload.revision);
+		if (command.payload.revisionPolicy === 'exact') {
+			this.#assertRevision(command.payload.generation, command.payload.revision);
+		} else {
+			this.#assertGeneration(command.payload.generation);
+		}
 		const resolved = this.#resolveRowRequest(command);
 		const minimumRows =
 			command.payload.purpose === 'viewport'
@@ -488,28 +493,42 @@ class ArchivedTerminalBroker {
 	#applySelectionGesture(
 		command: Extract<ProjectedTerminalCommand, { readonly kind: 'selection-gesture' }>,
 	): void {
-		this.#assertRevision(command.payload.generation, command.payload.revision);
+		this.#assertGeneration(command.payload.generation);
 		if (command.payload.action === 'cancel') {
 			this.#selection = { attachmentId: this.#attachmentId, state: 'none' };
 		} else if (command.payload.action === 'start') {
+			const point = this.#selectionGesturePoint(command.payload.point);
 			this.#selection = command.payload.selectOutput
 				? this.#activeSelection(
-						{ column: 0, row: command.payload.point.row },
+						{ column: 0, row: point.row },
 						{
 							column: this.#archive.frame.columns - 1,
-							row: command.payload.point.row,
+							row: point.row,
 						},
 						false,
 					)
-				: this.#activeSelection(command.payload.point, command.payload.point, false);
+				: this.#activeSelection(point, point, false);
 		} else if (this.#selection.state === 'active') {
+			const point = this.#selectionGesturePoint(command.payload.point);
 			this.#selection = this.#activeSelection(
 				this.#selection.start,
-				command.payload.point,
+				point,
 				command.payload.action === 'update' ? command.payload.rectangle : this.#selection.rectangle,
 			);
 		}
 		this.#post({ event: this.#selection, kind: 'selection-changed' });
+	}
+
+	#selectionGesturePoint(point: SelectionViewportPoint): SelectionPoint {
+		if (point.column >= this.#archive.frame.columns || point.row >= this.#archive.frame.rows) {
+			throw new Error('Archived terminal selection gesture is outside the current viewport.');
+		}
+		return {
+			column: point.column,
+			row: CanonicalUint64TextSchema.parse(
+				(this.#committedViewportStart + BigInt(point.row)).toString(),
+			),
+		};
 	}
 
 	#activeSelection(
@@ -596,6 +615,12 @@ class ArchivedTerminalBroker {
 			BigInt(revision) !== this.#archive.frame.revision
 		) {
 			throw new Error('Archived terminal command used a stale projection revision.');
+		}
+	}
+
+	#assertGeneration(generation: string): void {
+		if (BigInt(generation) !== this.#archive.frame.generation) {
+			throw new Error('Archived terminal command used a stale projection generation.');
 		}
 	}
 

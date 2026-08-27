@@ -244,11 +244,10 @@ pub const Manager = struct {
     pub fn applyGesture(
         self: *Manager,
         terminal: *ghostty_vt.Terminal,
-        current_revision: u64,
         current_generation: u64,
         request: SelectionGesture,
     ) (HistoryError || std.mem.Allocator.Error)!SelectionSnapshot {
-        return selection_ops.applyGesture(self, terminal, current_revision, current_generation, request);
+        return selection_ops.applyGesture(self, terminal, current_generation, request);
     }
 
     pub fn applySelectionCommand(

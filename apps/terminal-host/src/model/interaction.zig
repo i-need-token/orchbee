@@ -9,6 +9,11 @@ pub const Purpose = enum {
     viewport,
 };
 
+pub const RevisionPolicy = enum {
+    current_view,
+    exact,
+};
+
 pub const Origin = union(enum) {
     absolute: u64,
     committed: i32,
@@ -26,6 +31,11 @@ pub const Point = struct {
     row: u64,
 };
 
+pub const ViewportPoint = struct {
+    column: u16,
+    row: u16,
+};
+
 pub const GestureGeometry = struct {
     cell_width: u16,
     columns: u16,
@@ -41,17 +51,17 @@ pub const GesturePosition = struct {
 pub const GestureEvent = union(enum) {
     start: struct {
         click_count: u2,
-        point: Point,
+        point: ViewportPoint,
         position: GesturePosition,
         select_output: bool,
     },
     update: struct {
         geometry: GestureGeometry,
-        point: Point,
+        point: ViewportPoint,
         position: GesturePosition,
         rectangle: bool,
     },
-    end: Point,
+    end: ViewportPoint,
     cancel,
 };
 
@@ -73,6 +83,7 @@ pub const ExportFormat = enum {
 };
 
 pub const SelectionPoint = Point;
+pub const SelectionViewportPoint = ViewportPoint;
 pub const SelectionGestureGeometry = GestureGeometry;
 pub const SelectionGesturePosition = GesturePosition;
 pub const SelectionGestureEvent = GestureEvent;

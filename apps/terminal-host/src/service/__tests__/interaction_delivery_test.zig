@@ -492,7 +492,7 @@ test "read rows service boundary uses bounded scratch for an exact empty text ro
     var attachment_buffer: [32]u8 = undefined;
     const payload = try std.fmt.allocPrint(
         std.testing.allocator,
-        "{{\"attachmentId\":\"{s}\",\"detail\":\"text\",\"generation\":\"{d}\",\"maximumBytes\":124,\"origin\":{{\"kind\":\"absolute\",\"row\":\"0\"}},\"purpose\":\"search\",\"requestSequence\":\"1\",\"revision\":\"{d}\",\"rowCount\":1}}",
+        "{{\"attachmentId\":\"{s}\",\"detail\":\"text\",\"generation\":\"{d}\",\"maximumBytes\":124,\"origin\":{{\"kind\":\"absolute\",\"row\":\"0\"}},\"purpose\":\"search\",\"requestSequence\":\"1\",\"revision\":\"{d}\",\"revisionPolicy\":\"exact\",\"rowCount\":1}}",
         .{
             control_encode.identifierText(attachment_id, &attachment_buffer),
             geometry.generation,

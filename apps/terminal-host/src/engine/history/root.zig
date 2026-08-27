@@ -10,6 +10,7 @@ pub const HostEpoch = contracts.HostEpoch;
 pub const Detail = contracts.Detail;
 pub const Purpose = contracts.Purpose;
 pub const Origin = contracts.Origin;
+pub const RevisionPolicy = contracts.RevisionPolicy;
 pub const ReadRequest = contracts.ReadRequest;
 pub const EncodedRows = contracts.EncodedRows;
 pub const HistoryDemand = contracts.HistoryDemand;

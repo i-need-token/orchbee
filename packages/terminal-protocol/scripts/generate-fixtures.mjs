@@ -520,6 +520,8 @@ function createControlConformanceFixture() {
 	};
 	const attachment = { attachmentId, generation: '3', revision: '42' };
 	const point = { column: 4, row: '100' };
+	const gestureAttachment = { attachmentId, generation: '3' };
+	const viewportPoint = { column: 4, row: 10 };
 	const failure = (kind, stage) => ({ kind, stage });
 	const processObservation = (index) => {
 		if (index === 1) {
@@ -690,10 +692,30 @@ function createControlConformanceFixture() {
 		read_rows: controlRequestTexts(
 			MessageKind.readRows,
 			[
-				{ detail: 'text', origin: { kind: 'absolute', row: '10' }, purpose: 'buffer' },
-				{ detail: 'render', origin: { kind: 'oldest', offset: 2 }, purpose: 'search' },
-				{ detail: 'text', origin: { delta: -1, kind: 'committed' }, purpose: 'viewport' },
-				{ detail: 'render', origin: { kind: 'tail', rowsBefore: 3 }, purpose: 'buffer' },
+				{
+					detail: 'text',
+					origin: { kind: 'absolute', row: '10' },
+					purpose: 'buffer',
+					revisionPolicy: 'exact',
+				},
+				{
+					detail: 'render',
+					origin: { kind: 'oldest', offset: 2 },
+					purpose: 'search',
+					revisionPolicy: 'exact',
+				},
+				{
+					detail: 'text',
+					origin: { delta: -1, kind: 'committed' },
+					purpose: 'viewport',
+					revisionPolicy: 'current-view',
+				},
+				{
+					detail: 'render',
+					origin: { kind: 'tail', rowsBefore: 3 },
+					purpose: 'buffer',
+					revisionPolicy: 'exact',
+				},
 			].map((request, index) => ({
 				...attachment,
 				...request,
@@ -764,22 +786,22 @@ function createControlConformanceFixture() {
 			[
 				{
 					action: 'start',
-					...attachment,
+					...gestureAttachment,
 					clickCount: 2,
-					point,
+					point: viewportPoint,
 					position: { x: 36, y: 20 },
 					selectOutput: false,
 				},
 				{
 					action: 'update',
-					...attachment,
+					...gestureAttachment,
 					geometry: { cellWidth: 8, columns: 120, paddingLeft: 0, screenHeight: 640 },
-					point,
+					point: viewportPoint,
 					position: { x: 44, y: -1 },
 					rectangle: true,
 				},
-				{ action: 'end', ...attachment, point },
-				{ action: 'cancel', ...attachment },
+				{ action: 'end', ...gestureAttachment, point: viewportPoint },
+				{ action: 'cancel', ...gestureAttachment },
 			],
 			'SelectionGesture',
 		),

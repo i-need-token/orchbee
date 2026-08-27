@@ -279,9 +279,8 @@ describe('control schemas', () => {
 		const identity = {
 			attachmentId: '11'.repeat(16),
 			generation: '3',
-			revision: '9',
 		};
-		const point = { column: 2, row: '10' };
+		const point = { column: 2, row: 10 };
 		const start = {
 			...identity,
 			action: 'start',
@@ -315,6 +314,10 @@ describe('control schemas', () => {
 		expect(SelectionGestureSchema.safeParse({ ...update, clickCount: 2 }).success).toBe(false);
 		expect(
 			SelectionGestureSchema.safeParse({ ...update, position: { x: 65_536, y: 0 } }).success,
+		).toBe(false);
+		expect(SelectionGestureSchema.safeParse({ ...start, revision: '9' }).success).toBe(false);
+		expect(
+			SelectionGestureSchema.safeParse({ ...start, point: { column: 2, row: '10' } }).success,
 		).toBe(false);
 	});
 
@@ -665,10 +668,30 @@ describe('control schemas', () => {
 			purpose: 'viewport',
 			requestSequence: '1',
 			revision: '0',
+			revisionPolicy: 'current-view',
 			rowCount: 1,
 		};
 		expect(ReadRowsSchema.safeParse(readRows).success).toBe(true);
 		expect(ReadRowsSchema.safeParse({ ...readRows, requestSequence: '0' }).success).toBe(false);
+		expect(
+			ReadRowsSchema.safeParse({
+				...readRows,
+				origin: { kind: 'absolute', row: '0' },
+			}).success,
+		).toBe(false);
+		expect(
+			ReadRowsSchema.safeParse({
+				...readRows,
+				purpose: 'search',
+			}).success,
+		).toBe(false);
+		expect(
+			ReadRowsSchema.safeParse({
+				...readRows,
+				origin: { kind: 'absolute', row: '0' },
+				revisionPolicy: 'exact',
+			}).success,
+		).toBe(true);
 		expect(
 			RowsAppliedSchema.safeParse({
 				attachmentId,

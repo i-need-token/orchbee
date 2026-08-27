@@ -15,6 +15,7 @@ pub const ReadRows = struct {
     purpose: terminal_history.Purpose,
     request_sequence: u64,
     revision: u64,
+    revision_policy: terminal_history.RevisionPolicy,
     row_count: u16,
 };
 
@@ -37,44 +38,6 @@ pub const HistoryObserved = struct {
     sequence: u64,
 };
 
-pub const SelectionGesture = struct {
-    attachment_id: identifiers.AttachmentId,
-    event: terminal_history.SelectionGestureEvent,
-    generation: u64,
-    revision: u64,
-};
-
-pub const SelectionCommand = struct {
-    attachment_id: identifiers.AttachmentId,
-    command: terminal_history.SelectionCommand,
-    generation: u64,
-    revision: u64,
-};
-
-pub const SelectionExport = struct {
-    attachment_id: identifiers.AttachmentId,
-    export_sequence: u64,
-    format: terminal_history.ExportFormat,
-};
-
-pub const SelectionExportChunkApplied = struct {
-    attachment_id: identifiers.AttachmentId,
-    chunk_sequence: u32,
-    export_sequence: u64,
-};
-
-pub const ExportCancelReason = enum {
-    clipboard_failed,
-    disposed,
-    replaced,
-    user,
-};
-
-pub const SelectionExportCancel = struct {
-    attachment_id: identifiers.AttachmentId,
-    export_sequence: u64,
-    reason: ExportCancelReason,
-};
 pub fn decodeReadRows(
     allocator: std.mem.Allocator,
     payload: []const u8,
@@ -88,6 +51,17 @@ pub fn decodeReadRows(
     {
         return error.InvalidField;
     }
+    const origin = try parseRowOrigin(parsed.value.origin);
+    const purpose = try parseRowPurpose(parsed.value.purpose);
+    const revision_policy = try parseRowRevisionPolicy(parsed.value.revisionPolicy);
+    if (revision_policy == .current_view and
+        (purpose != .viewport or switch (origin) {
+            .committed, .tail => false,
+            .absolute, .oldest => true,
+        }))
+    {
+        return error.InvalidField;
+    }
     return .{
         .parsed = parsed,
         .value = .{
@@ -98,10 +72,11 @@ pub fn decodeReadRows(
             .detail = try parseRowDetail(parsed.value.detail),
             .generation = try decode_common.parsePositiveCanonicalU64(parsed.value.generation),
             .maximum_bytes = parsed.value.maximumBytes,
-            .origin = try parseRowOrigin(parsed.value.origin),
-            .purpose = try parseRowPurpose(parsed.value.purpose),
+            .origin = origin,
+            .purpose = purpose,
             .request_sequence = try decode_common.parsePositiveCanonicalU64(parsed.value.requestSequence),
             .revision = try decode_common.parseCanonicalU64(parsed.value.revision),
+            .revision_policy = revision_policy,
             .row_count = parsed.value.rowCount,
         },
     };
@@ -165,107 +140,6 @@ pub fn decodeHistoryObserved(
     };
 }
 
-pub fn decodeSelectionGesture(
-    allocator: std.mem.Allocator,
-    payload: []const u8,
-) decode_common.Error!decode_common.Decoded(control_wire.SelectionGesture, SelectionGesture) {
-    const parsed = try control_wire.decode(control_wire.SelectionGesture, allocator, payload);
-    errdefer parsed.deinit();
-    return .{
-        .parsed = parsed,
-        .value = .{
-            .attachment_id = try identifiers.parseLowerHex(
-                identifiers.AttachmentId,
-                parsed.value.attachmentId,
-            ),
-            .event = try parseSelectionGestureEvent(parsed.value),
-            .generation = try decode_common.parsePositiveCanonicalU64(parsed.value.generation),
-            .revision = try decode_common.parseCanonicalU64(parsed.value.revision),
-        },
-    };
-}
-
-pub fn decodeSelectionCommand(
-    allocator: std.mem.Allocator,
-    payload: []const u8,
-) decode_common.Error!decode_common.Decoded(control_wire.SelectionCommand, SelectionCommand) {
-    const parsed = try control_wire.decode(control_wire.SelectionCommand, allocator, payload);
-    errdefer parsed.deinit();
-    return .{
-        .parsed = parsed,
-        .value = .{
-            .attachment_id = try identifiers.parseLowerHex(
-                identifiers.AttachmentId,
-                parsed.value.attachmentId,
-            ),
-            .command = try parseSelectionCommand(parsed.value),
-            .generation = try decode_common.parsePositiveCanonicalU64(parsed.value.generation),
-            .revision = try decode_common.parseCanonicalU64(parsed.value.revision),
-        },
-    };
-}
-
-pub fn decodeSelectionExport(
-    allocator: std.mem.Allocator,
-    payload: []const u8,
-) decode_common.Error!decode_common.Decoded(control_wire.SelectionExport, SelectionExport) {
-    const parsed = try control_wire.decode(control_wire.SelectionExport, allocator, payload);
-    errdefer parsed.deinit();
-    return .{
-        .parsed = parsed,
-        .value = .{
-            .attachment_id = try identifiers.parseLowerHex(
-                identifiers.AttachmentId,
-                parsed.value.attachmentId,
-            ),
-            .export_sequence = try decode_common.parsePositiveCanonicalU64(parsed.value.exportSequence),
-            .format = try parseSelectionExportFormat(parsed.value.format),
-        },
-    };
-}
-
-pub fn decodeSelectionExportChunkApplied(
-    allocator: std.mem.Allocator,
-    payload: []const u8,
-) decode_common.Error!decode_common.Decoded(control_wire.SelectionExportChunkApplied, SelectionExportChunkApplied) {
-    const parsed = try control_wire.decode(
-        control_wire.SelectionExportChunkApplied,
-        allocator,
-        payload,
-    );
-    errdefer parsed.deinit();
-    return .{
-        .parsed = parsed,
-        .value = .{
-            .attachment_id = try identifiers.parseLowerHex(
-                identifiers.AttachmentId,
-                parsed.value.attachmentId,
-            ),
-            .chunk_sequence = parsed.value.chunkSequence,
-            .export_sequence = try decode_common.parsePositiveCanonicalU64(parsed.value.exportSequence),
-        },
-    };
-}
-
-pub fn decodeSelectionExportCancel(
-    allocator: std.mem.Allocator,
-    payload: []const u8,
-) decode_common.Error!decode_common.Decoded(control_wire.SelectionExportCancel, SelectionExportCancel) {
-    const parsed = try control_wire.decode(control_wire.SelectionExportCancel, allocator, payload);
-    errdefer parsed.deinit();
-    return .{
-        .parsed = parsed,
-        .value = .{
-            .attachment_id = try identifiers.parseLowerHex(
-                identifiers.AttachmentId,
-                parsed.value.attachmentId,
-            ),
-            .export_sequence = try decode_common.parsePositiveCanonicalU64(parsed.value.exportSequence),
-            .reason = try parseExportCancelReason(parsed.value.reason),
-        },
-    };
-}
-
 pub fn parseRowOrigin(value: control_wire.RowOrigin) error{InvalidField}!terminal_history.Origin {
     if (std.mem.eql(u8, value.kind, "absolute")) {
         if (value.delta != .missing or value.offset != .missing or value.rowsBefore != .missing) {
@@ -322,154 +196,16 @@ fn parseRowPurpose(value: []const u8) error{InvalidField}!terminal_history.Purpo
     return error.InvalidField;
 }
 
+fn parseRowRevisionPolicy(
+    value: []const u8,
+) error{InvalidField}!terminal_history.RevisionPolicy {
+    if (std.mem.eql(u8, value, "current-view")) return .current_view;
+    if (std.mem.eql(u8, value, "exact")) return .exact;
+    return error.InvalidField;
+}
+
 fn parseHistoryDemand(value: []const u8) error{InvalidField}!terminal_history.HistoryDemand {
     if (std.mem.eql(u8, value, "following-bottom")) return .following_bottom;
     if (std.mem.eql(u8, value, "viewing-history")) return .viewing_history;
-    return error.InvalidField;
-}
-
-fn parseSelectionGestureEvent(
-    value: control_wire.SelectionGesture,
-) error{InvalidField}!terminal_history.SelectionGestureEvent {
-    const point = switch (value.point) {
-        .value => |candidate| candidate,
-        .missing, .null_value => null,
-    };
-    const position = switch (value.position) {
-        .value => |candidate| candidate,
-        .missing, .null_value => null,
-    };
-    if (position) |candidate| {
-        if (candidate.x < -0xffff or candidate.x > 0xffff or
-            candidate.y < -0xffff or candidate.y > 0xffff)
-        {
-            return error.InvalidField;
-        }
-    }
-    if (std.mem.eql(u8, value.action, "start") and value.geometry == .missing and
-        value.rectangle == .missing)
-    {
-        const click_count = switch (value.clickCount) {
-            .value => |count| count,
-            .missing, .null_value => return error.InvalidField,
-        };
-        if (click_count == 0) return error.InvalidField;
-        return .{ .start = .{
-            .click_count = click_count,
-            .point = try parseSelectionPoint(point orelse return error.InvalidField),
-            .position = selectionGesturePosition(position orelse return error.InvalidField),
-            .select_output = switch (value.selectOutput) {
-                .value => |select_output| select_output,
-                .missing, .null_value => return error.InvalidField,
-            },
-        } };
-    }
-    if (std.mem.eql(u8, value.action, "update") and value.clickCount == .missing and
-        value.selectOutput == .missing)
-    {
-        const geometry = switch (value.geometry) {
-            .value => |candidate| candidate,
-            .missing, .null_value => return error.InvalidField,
-        };
-        if (geometry.columns == 0 or geometry.columns > protocol.Limits.frame_columns or
-            geometry.cellWidth == 0 or
-            geometry.cellWidth > protocol.Limits.cell_pixel_dimension or
-            geometry.screenHeight == 0)
-        {
-            return error.InvalidField;
-        }
-        return .{ .update = .{
-            .geometry = .{
-                .cell_width = geometry.cellWidth,
-                .columns = geometry.columns,
-                .padding_left = geometry.paddingLeft,
-                .screen_height = geometry.screenHeight,
-            },
-            .point = try parseSelectionPoint(point orelse return error.InvalidField),
-            .position = selectionGesturePosition(position orelse return error.InvalidField),
-            .rectangle = switch (value.rectangle) {
-                .value => |rectangle| rectangle,
-                .missing, .null_value => return error.InvalidField,
-            },
-        } };
-    }
-    if (std.mem.eql(u8, value.action, "end") and value.clickCount == .missing and
-        value.geometry == .missing and value.position == .missing and
-        value.rectangle == .missing and value.selectOutput == .missing)
-    {
-        return .{ .end = try parseSelectionPoint(point orelse return error.InvalidField) };
-    }
-    if (std.mem.eql(u8, value.action, "cancel") and value.clickCount == .missing and
-        value.geometry == .missing and value.point == .missing and value.position == .missing and
-        value.rectangle == .missing and value.selectOutput == .missing)
-    {
-        return .cancel;
-    }
-    return error.InvalidField;
-}
-
-fn selectionGesturePosition(
-    value: control_wire.SelectionGesturePosition,
-) terminal_history.SelectionGesturePosition {
-    return .{ .x = value.x, .y = value.y };
-}
-
-fn parseSelectionPoint(
-    value: control_wire.SelectionPoint,
-) error{InvalidField}!terminal_history.SelectionPoint {
-    if (value.column >= protocol.Limits.frame_columns) return error.InvalidField;
-    return .{
-        .column = value.column,
-        .row = try decode_common.parseCanonicalU64(value.row),
-    };
-}
-
-fn parseSelectionCommand(
-    value: control_wire.SelectionCommand,
-) error{InvalidField}!terminal_history.SelectionCommand {
-    const range_fields_missing = value.start == .missing and value.end == .missing and
-        value.rectangle == .missing;
-    if (std.mem.eql(u8, value.command, "clear") and value.point == .missing and
-        range_fields_missing) return .clear;
-    if (std.mem.eql(u8, value.command, "select-all") and value.point == .missing and
-        range_fields_missing)
-    {
-        return .select_all;
-    }
-    if (std.mem.eql(u8, value.command, "select-output") and range_fields_missing) {
-        return .{ .select_output = try parseSelectionPoint(switch (value.point) {
-            .value => |point| point,
-            .missing, .null_value => return error.InvalidField,
-        }) };
-    }
-    if (std.mem.eql(u8, value.command, "set-range") and value.point == .missing) {
-        return .{ .set_range = .{
-            .end = try parseSelectionPoint(switch (value.end) {
-                .value => |point| point,
-                .missing, .null_value => return error.InvalidField,
-            }),
-            .rectangle = switch (value.rectangle) {
-                .value => |rectangle| rectangle,
-                .missing, .null_value => return error.InvalidField,
-            },
-            .start = try parseSelectionPoint(switch (value.start) {
-                .value => |point| point,
-                .missing, .null_value => return error.InvalidField,
-            }),
-        } };
-    }
-    return error.InvalidField;
-}
-
-fn parseSelectionExportFormat(value: []const u8) error{InvalidField}!terminal_history.ExportFormat {
-    if (std.mem.eql(u8, value, "plain")) return .plain;
-    return error.InvalidField;
-}
-
-fn parseExportCancelReason(value: []const u8) error{InvalidField}!ExportCancelReason {
-    if (std.mem.eql(u8, value, "clipboard-failed")) return .clipboard_failed;
-    if (std.mem.eql(u8, value, "disposed")) return .disposed;
-    if (std.mem.eql(u8, value, "replaced")) return .replaced;
-    if (std.mem.eql(u8, value, "user")) return .user;
     return error.InvalidField;
 }

@@ -14,6 +14,7 @@ pub const ReadRowsRequest = struct {
     purpose: terminal_history.Purpose,
     request_sequence: u64,
     revision: u64,
+    revision_policy: terminal_history.RevisionPolicy,
     row_count: u16,
     theme_revision: u64,
 };
@@ -48,6 +49,7 @@ pub const HistoryAccess = struct {
             .purpose = request.purpose,
             .request_sequence = request.request_sequence,
             .revision = request.revision,
+            .revision_policy = request.revision_policy,
             .row_count = request.row_count,
             .theme_revision = self.theme_revision,
         });
@@ -69,6 +71,7 @@ pub const HistoryAccess = struct {
             .purpose = request.purpose,
             .request_sequence = request.request_sequence,
             .revision = request.revision,
+            .revision_policy = request.revision_policy,
             .row_count = request.row_count,
             .theme_revision = self.theme_revision,
         });

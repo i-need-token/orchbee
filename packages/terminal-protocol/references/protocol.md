@@ -5,7 +5,7 @@
 | Status          | Current wire-contract and codec authority; this package implements no lifecycle state machine, PTY, IPC listener, renderer, Electron, recovery, or network behavior                  |
 | Wire owner      | `@orchbee/terminal-protocol`                                                                                                                                                         |
 | Native consumer | `apps/terminal-host` consumes declared schemas and fixture exports for bounded native dispatch and Zig conformance                                                                   |
-| Reference scope | Exact protocol `0.0.21`; OBTF format `0.0.3`; OBPB format `0.0.2`; OBRW format `0.0.3`; OBKG format `0.0.2`; input/selection codecs; failure vocabulary; bounds; and pinned fixtures |
+| Reference scope | Exact protocol `0.0.22`; OBTF format `0.0.3`; OBPB format `0.0.2`; OBRW format `0.0.3`; OBKG format `0.0.2`; input/selection codecs; failure vocabulary; bounds; and pinned fixtures |
 | Change rule     | A changed field, message meaning, wire byte, bound, or fixture updates this record, both language implementations, every producer/consumer, and evidence                             |
 
 ## Modeling record
@@ -40,7 +40,7 @@ identity and are rejected where an identity is required.
 | `TerminalThemeOperationId` | Application-created idempotency identity for one terminal-theme compare-and-set operation                                        |
 | `CorrelationId`            | Required on every request and response after `Hello`; all-zero envelope bytes mean absence only for handshake messages or events |
 
-The current protocol version is exactly `0.0.21`. `Hello`, `HelloAccepted`, and every transport
+The current protocol version is exactly `0.0.22`. `Hello`, `HelloAccepted`, and every transport
 envelope carry that exact version. A different major, minor, or patch is rejected; this pre-release
 contract contains no negotiated range, compatibility mode, or historical message shape. Packed
 OBTF frame format is exactly `0.0.3`; OBPB projection-buffer format is exactly `0.0.2`; OBRW
@@ -315,7 +315,7 @@ Initial resize-lease authority is returned by attachment admission; later owners
 the attachment-scoped claim and complete events.
 
 `MESSAGE_CONTRACTS` is the executable TypeScript registry behind this table. Its native mirror is
-checked field-for-field through `control-conformance-v0.0.21.json`. Adding or changing a kind therefore
+checked field-for-field through `control-conformance-v0.0.22.json`. Adding or changing a kind therefore
 requires one atomic protocol change to the registry, native mirror, codecs, fixture, and consumers.
 
 `TerminalBell` is an event-only control record containing `attachmentId` and a positive canonical
@@ -653,14 +653,21 @@ The exported `packed-projection-conformance-v0.0.3.json` is the generated, track
 
 ## Current packed terminal row-window
 
-`ReadRows` is scoped by attachment, revision, generation, positive request
-sequence, requested row count, negotiated byte maximum, detail (`render` or `text`), purpose
-(`viewport`, `search`, or `buffer`), and one origin:
+`ReadRows` is scoped by attachment, observed revision, exact generation, positive request sequence,
+requested row count, negotiated byte maximum, detail (`render` or `text`), purpose (`viewport`,
+`search`, or `buffer`), revision policy (`exact` or `current-view`), and one origin:
 
 - `absolute` names a retained absolute row.
 - `oldest` names an unsigned offset from the oldest retained row.
 - `tail` names how many rows remain below the requested viewport.
 - `committed` applies a bounded signed delta to the attachment's last applied anchor.
+
+`exact` requires the requested revision to equal the current Host revision and is valid for every
+purpose and origin. `current-view` is valid only for a `viewport` request with `tail` or `committed`
+origin. Its revision is an observation cursor rather than request identity: under the terminal mutex,
+the Host resolves the origin against the then-current view and returns that captured current revision,
+generation, and total-row count. Both policies require the exact current generation, so a resize or
+screen-generation transition cannot reinterpret an old viewport request.
 
 The Host resolves the origin once and returns a contiguous `RowsSnapshot`. At most one row request
 is in flight per attachment and purpose lane; `viewport`, `search`, and `buffer` lanes progress
@@ -729,21 +736,27 @@ the projection-buffer structural view and does not perform a second per-cell sem
 
 ## Host-owned selection and export
 
-Selection gestures and commands always carry the attachment's current revision and
-generation. Gesture `start` carries the browser-classified click count, integer surface position,
-and whether a third click selects semantic output; `update` carries the current surface position,
-rectangle intent, and bounded cell geometry; `end` carries only its terminal point; and `cancel`
-carries no point or action-specific fields. The Host uses those facts with pinned Ghostty selection
-behavior to own word, line, output-block, rectangle, and within-cell endpoint semantics. `cancel`
-idempotently releases the pinned gesture while preserving the latest selection, whereas only `end`
-represents an ordinary pointer release. Endpoints are absolute row/column pairs; active state
-includes only endpoints, rectangle mode, and an optional 4 KiB preview. `none` and `evicted` are
-distinct so a client cannot silently copy replacement content after scrollback loss or a screen
-change.
+Pointer selection gestures carry the attachment's exact generation and bounded viewport-relative
+numeric row/column endpoints; they do not carry revision identity. Gesture `start` carries the
+browser-classified click count, integer surface position, and whether a third click selects semantic
+output; `update` carries the current surface position, rectangle intent, and bounded cell geometry;
+`end` carries only its viewport point; and `cancel` carries no point or action-specific fields. Under
+the terminal mutex, the Host resolves each point at processing time against the attachment's
+committed tracked history anchor while it is viewing history, or against the current active viewport
+otherwise. Ordinary output revision changes therefore do not cancel a drag; generation mismatch,
+screen replacement, or anchor eviction does.
 
-`SelectionCommand.set-range` carries explicit inclusive `start` and `end` cell endpoints plus
-rectangle mode. It is the non-pointer path for assistive technology and other programmatic
-selection; it does not synthesize click counts, drag thresholds, or pointer gesture state.
+The Host uses those facts with pinned Ghostty selection behavior to own word, line, output-block,
+rectangle, and within-cell endpoint semantics. `cancel` idempotently releases the pinned gesture
+while preserving the latest selection, whereas only `end` represents an ordinary pointer release.
+Published selection endpoints are absolute row/column pairs; active state includes only endpoints,
+rectangle mode, and an optional 4 KiB preview. `none` and `evicted` are distinct so a client cannot
+silently copy replacement content after scrollback loss or a screen change.
+
+Selection commands retain exact revision and generation identity. `SelectionCommand.set-range`
+carries explicit inclusive absolute `start` and `end` cell endpoints plus rectangle mode. It is the
+non-pointer path for assistive technology and other programmatic selection; it does not synthesize
+click counts, drag thresholds, or pointer gesture state.
 
 `SelectionExport` carries the literal `plain` format and an attachment-local export sequence that
 strictly increases for the attachment lifetime; HTML and raw VT are not admitted request or response

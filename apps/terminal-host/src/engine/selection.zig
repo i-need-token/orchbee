@@ -4,6 +4,7 @@ const ghostty_vt = @import("ghostty-vt");
 const terminal_interaction = @import("terminal-host-model").interaction;
 
 pub const Point = terminal_interaction.Point;
+pub const ViewportPoint = terminal_interaction.ViewportPoint;
 pub const GestureGeometry = terminal_interaction.GestureGeometry;
 pub const GesturePosition = terminal_interaction.GesturePosition;
 pub const GestureEvent = terminal_interaction.GestureEvent;
@@ -13,9 +14,29 @@ pub fn Gesture(comptime AttachmentId: type) type {
         attachment_id: AttachmentId,
         event: GestureEvent,
         generation: u64,
-        revision: u64,
     };
 }
+
+pub const ResolvedGestureEvent = union(enum) {
+    start: struct {
+        click_count: u2,
+        point: Point,
+        position: GesturePosition,
+        select_output: bool,
+    },
+    update: struct {
+        geometry: GestureGeometry,
+        point: Point,
+        position: GesturePosition,
+        rectangle: bool,
+    },
+    end: Point,
+    cancel,
+};
+
+pub const ResolvedGesture = struct {
+    event: ResolvedGestureEvent,
+};
 
 pub const Command = terminal_interaction.Command;
 
@@ -112,16 +133,8 @@ pub const State = struct {
     pub fn applyGesture(
         self: *State,
         terminal: *ghostty_vt.Terminal,
-        current_revision: u64,
-        current_generation: u64,
-        request: anytype,
+        request: ResolvedGesture,
     ) (Error || std.mem.Allocator.Error)!Snapshot {
-        try validateCurrent(
-            request.revision,
-            request.generation,
-            current_revision,
-            current_generation,
-        );
         switch (request.event) {
             .start => |start| {
                 if (start.click_count == 0) return error.InvalidRequest;

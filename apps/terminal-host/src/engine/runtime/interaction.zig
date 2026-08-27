@@ -177,7 +177,6 @@ pub fn applySelectionGesture(
     try failure_ops.ensureReadableStateAvailableLocked(self);
     return self.history.applyGesture(
         &self.terminal,
-        self.revision.load(.monotonic),
         self.generation,
         request,
     );

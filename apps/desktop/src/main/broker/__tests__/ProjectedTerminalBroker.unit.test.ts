@@ -345,8 +345,7 @@ describe('ProjectedTerminalBroker', () => {
 		const selection = {
 			attachmentId: bootstrap.attachmentId,
 			generation: '1',
-			point: { column: 0, row: '0' },
-			revision: '1',
+			point: { column: 0, row: 0 },
 		};
 
 		send({ kind: 'focus-input', payload: { ...authority, focused: true } });
@@ -1860,6 +1859,7 @@ describe('ProjectedTerminalBroker', () => {
 					purpose: 'buffer',
 					requestSequence: '1',
 					revision: '1',
+					revisionPolicy: 'exact',
 					rowCount: 1,
 				},
 			},
@@ -1903,8 +1903,8 @@ describe('ProjectedTerminalBroker', () => {
 			.mockRejectedValue(
 				new HostRequestError(
 					{
-						code: 'stale-revision',
-						message: 'ReadRows used a stale revision.',
+						code: 'stale-generation',
+						message: 'ReadRows used a stale generation.',
 						retryable: true,
 					},
 					correlationId,
@@ -1939,6 +1939,7 @@ describe('ProjectedTerminalBroker', () => {
 					purpose: 'viewport',
 					requestSequence: '7',
 					revision: '1',
+					revisionPolicy: 'current-view',
 					rowCount: 1,
 				},
 			},
@@ -1947,9 +1948,9 @@ describe('ProjectedTerminalBroker', () => {
 		await vi.waitFor(() => {
 			expect(postMessage).toHaveBeenCalledWith({
 				failure: {
-					code: 'stale-revision',
+					code: 'stale-generation',
 					correlationId,
-					message: 'ReadRows used a stale revision.',
+					message: 'ReadRows used a stale generation.',
 					operation: 'history',
 					requestSequence: '7',
 					retryable: true,

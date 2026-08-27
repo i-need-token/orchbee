@@ -344,6 +344,7 @@ pub const ReadRows = struct {
     purpose: []const u8,
     requestSequence: []const u8,
     revision: []const u8,
+    revisionPolicy: []const u8,
     rowCount: u16,
 };
 
@@ -371,6 +372,11 @@ pub const SelectionPoint = struct {
     row: []const u8,
 };
 
+pub const SelectionViewportPoint = struct {
+    column: u16,
+    row: u16,
+};
+
 pub const SelectionGestureGeometry = struct {
     cellWidth: u16,
     columns: u16,
@@ -389,10 +395,9 @@ pub const SelectionGesture = struct {
     clickCount: Present(u2) = .missing,
     generation: []const u8,
     geometry: Present(SelectionGestureGeometry) = .missing,
-    point: Present(SelectionPoint) = .missing,
+    point: Present(SelectionViewportPoint) = .missing,
     position: Present(SelectionGesturePosition) = .missing,
     rectangle: Present(bool) = .missing,
-    revision: []const u8,
     selectOutput: Present(bool) = .missing,
 };
 

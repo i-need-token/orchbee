@@ -155,57 +155,60 @@ native operating-system IME candidate UI.
 ## Row-flight coordination
 
 `tla/TerminalRowFlightCoordination.tla` models the independently ordered viewport, search, and
-general-buffer row-read lanes. Each lane admits at most one request, all three may coexist, and a
-request-sequence-correlated response settles only its owning lane. Abort remains local to search or
-general-buffer work; disposal closes every lane. The checked bound admits two successive requests
-per lane so settlement and later reuse are covered as well as initial admission.
+general-buffer row-read lanes. The viewport lane represents only the protocol-admitted
+`current-view` requests whose origins are `tail` or `committed`; search and general-buffer lanes
+retain exact-revision semantics. Each lane admits at most one request, all three may coexist, and a
+request-sequence-correlated response settles only its owning lane. The checked bound admits one
+request per lane and one revision advance; the transition invariants are independent of those
+finite exploration bounds.
 
-| Row-flight claim                               | Model property                                                      | TypeScript refinement                                                                                      |
-| ---------------------------------------------- | ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| Each purpose remains single-flight             | `AtMostOneFlightPerLane`, `AtMostThreeFlights`                      | `ProjectedTerminal` stores one viewport, search, and general-buffer flight, for a total bound of three.    |
-| Independently ordered replies cannot cross     | `InFlightSequencesAreDistinct`, `CrossLaneSettlementIsolation`      | `applyRows` selects the exact lane by the decoded request sequence before settling or applying its result. |
-| Abort cannot cancel another purpose            | `CrossLaneSettlementIsolation`, `SettledFlightHasExactlyOneOutcome` | Each auxiliary abort listener captures its lane and request sequence; viewport intent never cancels it.    |
-| Disposal and ordinary completion make progress | `DisposalClosesEveryLane`, `EveryAdmittedFlightEventuallySettles`   | Disposal settles auxiliary callers and drops viewport authority; otherwise a correlated reply settles it.  |
+| Row-flight claim                                   | Model property                                                            | TypeScript refinement                                                                                            |
+| -------------------------------------------------- | ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Each purpose remains single-flight                 | `AtMostOneFlightPerLane`, `AtMostThreeFlights`                            | `ProjectedTerminal` stores one viewport, search, and general-buffer flight, for a total bound of three.          |
+| Independently ordered replies cannot cross         | `InFlightSequencesAreDistinct`, `CrossLaneSettlementIsolation`            | `applyRows` selects the exact lane by decoded request sequence before settling or applying its result.           |
+| Revision churn cannot invalidate viewport work     | `RevisionAdvancePreservesFlights`, `EveryAdmittedFlightEventuallySettles` | A same-generation current-view response may commit after newer Host output; a correlated refresh then coalesces. |
+| Exact row results never cross a revision           | `ExactRowsResolveOnlyAtCapturedRevision`                                  | Search and general-buffer responses still require the captured generation and revision.                          |
+| Abort, disposal, and ordinary completion are local | `CrossLaneSettlementIsolation`, `DisposalClosesEveryLane`                 | Auxiliary aborts capture their lane and sequence; disposal closes all lanes without promoting viewport work.     |
 
-Weak fairness applies only to an already-admitted correlated reply. The model does not assume a
-Host response deadline, transport delivery, or a particular order among the three lanes; concrete
-stale-generation, byte-bound, and rendering behavior remains covered by TypeScript tests.
+Weak fairness applies only to consistency-appropriate settlement of already-admitted work. The
+model does not assume a Host response deadline, transport delivery, or a particular order among
+the lanes. The schema restriction to viewport plus `tail` or `committed`, generation invalidation,
+byte bounds, rendering, and correlated refresh are covered by protocol and TypeScript tests.
 
-## Selection-gesture stale cancellation
+## Selection-gesture current-view coordination
 
-`tla/TerminalSelectionGestureCoordination.tla` models a pointer gesture whose serialized Host
-command can become stale while a later update, end, or cancellation is still unsent. The client
-owns the active pointer, capture, autoscroll, one in-flight gesture command, and its bounded pending
-queue; Terminal Host owns selection content, gesture validation, and generation/revision authority.
-The absence value `none` means that no command occupies a modeled lane. A stale response is an
-expected cancellation outcome, while another rejection remains a visible typed failure.
+`tla/TerminalSelectionGestureCoordination.tla` models a serialized pointer gesture that captures
+one projection generation and carries viewport-relative endpoints. The client owns the active
+pointer, capture, autoscroll, one in-flight command, and one coalesced pending endpoint; Terminal
+Host resolves each endpoint against its current viewport or tracked attachment anchor. Content
+revision is deliberately absent from gesture identity, while generation remains a safety fence.
 
-| Event                         | Guard                                    | Client transition and observable result                                                                                       |
-| ----------------------------- | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| Pointer start                 | No prior gesture work                    | Capture the pointer and publish `start`.                                                                                      |
-| Pointer move, end, or cancel  | A local gesture is active                | Publish immediately or retain the latest bounded unsent endpoint; end and cancel retire local activity.                       |
-| Current Host acceptance       | Generation and revision still match      | Settle the flight; only an accepted `end` may request automatic copy.                                                         |
-| Generation or revision change | A command may still be in flight         | Make that command eligible for a stale rejection; generation change also retires Host gesture state.                          |
-| Stale rejection               | The serialized gesture flight is stale   | Retire the complete local gesture, drop unsent endpoints, preserve Host selection, copy nothing, and emit no feature failure. |
-| Other rejection               | The serialized gesture flight is current | Retain the existing visible failure behavior without automatic replay.                                                        |
-| Fresh pointer start           | Stale cancellation left no gesture work  | Start a new independent gesture using current generation and revision.                                                        |
+| Event                        | Guard                                        | Client transition and observable result                                                             |
+| ---------------------------- | -------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Pointer start                | No prior gesture work                        | Capture the current generation, capture the pointer, and publish `start`.                           |
+| Pointer move, end, or cancel | The local gesture owns a captured generation | Publish immediately or retain the latest bounded endpoint with that same generation.                |
+| Revision advancement         | Output changes while a command is in flight  | Preserve the gesture flight and pending endpoint; settlement remains enabled.                       |
+| Current Host acceptance      | The captured generation still matches        | Resolve the endpoint against current Host state; only an accepted `end` may request automatic copy. |
+| Generation rejection         | The captured viewport generation changed     | Retire all local gesture work, preserve Host selection, copy nothing, and emit no feature failure.  |
+| Other rejection              | The serialized command is current            | Retain visible typed-failure behavior without automatic replay.                                     |
+| Fresh pointer start          | Generation cancellation left no old work     | Start an independent gesture using the new current generation.                                      |
 
-| Selection-gesture claim                       | Model property                                                      | TypeScript refinement                                                                                                                         |
-| --------------------------------------------- | ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| Stale cancellation leaves no old gesture work | `StaleBarrierClearsGestureWork`, `StaleBarrierRecordsCancellation`  | `ProjectedTerminal.notifyBrokerFailure` clears the flight and queue, cancels scheduled dispatch and autoscroll, and releases pointer capture. |
-| Stale cancellation preserves Host selection   | `StaleBarrierPreservesSelection`                                    | Repair sends neither a selection endpoint nor a clear command; the latest Host-published selection remains projected.                         |
-| Stale cancellation performs no copy           | `StaleBarrierDoesNotCopy`                                           | The retired in-flight action cannot later be interpreted as an accepted `end`.                                                                |
-| Stale cancellation remains silent             | `StaleBarrierDoesNotSurfaceFailure`                                 | Only an in-flight `stale-generation` or `stale-revision` selection failure is absorbed.                                                       |
-| A later gesture starts independently          | Required action coverage for `RestartGesture` and `AcceptSelection` | The deterministic pointer trace cancels stale work, then completes a new gesture normally.                                                    |
-| Other selection failures remain visible       | Required action coverage for `RejectSelection`                      | Existing `onError` delivery remains unchanged for non-stale selection failures.                                                               |
+| Selection-gesture claim                        | Model property                                                               | TypeScript refinement                                                                                                           |
+| ---------------------------------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Every queued action keeps the start generation | `GestureWorkKeepsCapturedGeneration`, `FlightIdentityIsComplete`             | Pending update, end, and cancel commands carry the generation captured by pointer start instead of being restamped at dispatch. |
+| Revision churn cannot starve a gesture         | `EveryAdmittedFlightEventuallySettles`                                       | Revision-only history events neither retire pointer capture nor suppress the next serialized endpoint.                          |
+| Generation cancellation leaves no old work     | `GenerationBarrierClearsGestureWork`, `GenerationBarrierRecordsCancellation` | A stale-generation reply clears the flight and queue, cancels scheduled dispatch and autoscroll, and releases pointer capture.  |
+| Generation cancellation preserves selection    | `GenerationBarrierPreservesSelection`, `GenerationBarrierDoesNotCopy`        | Repair sends no replacement endpoint or clear command, and a retired `end` cannot trigger copy.                                 |
+| Generation cancellation remains silent         | `GenerationBarrierDoesNotSurfaceFailure`                                     | Only an in-flight `stale-generation` gesture failure is absorbed; stale revision is not a valid pointer-gesture result.         |
+| Other selection failures remain visible        | Required action coverage for `RejectSelection`                               | Existing `onError` delivery remains unchanged for non-generation failures.                                                      |
 
 TLC checks one current pointer gesture, one coalesced pending endpoint, two generations, two
-revisions, and bounded publication, selection, failure, and stale-cancellation counts. The concrete
-queue bound and pointer/capture effects are checked by deterministic `ProjectedTerminal` tests.
-The model assumes that a selection failure settles the current serialized gesture command because
-the protocol does not correlate selection gestures by request sequence. Concurrent programmatic
-selection commands, transport deadlines, Host text semantics, clipboard delivery, and automatic
-retry are excluded; their existing contracts are unchanged.
+revisions, and bounded publication, selection, failure, and generation-cancellation counts. Weak
+fairness is limited to settlement of an admitted gesture command and proves progress even while
+revision advancement remains independently enabled. Concrete viewport coordinate resolution,
+queue bounds, pointer/capture effects, and generation failure mapping are checked by deterministic
+client and Host tests. Concurrent programmatic exact-revision selection, transport deadlines,
+Host text semantics, clipboard delivery, and automatic retry remain excluded.
 
 ## Native input settlement
 
