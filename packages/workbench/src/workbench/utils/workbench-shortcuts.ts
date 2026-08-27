@@ -20,6 +20,8 @@ interface WorkbenchShortcutDefinition {
 		| typeof WORKBENCH_ACTION_IDS.focusActivePanelUp
 		| typeof WORKBENCH_ACTION_IDS.openSearch
 		| typeof WORKBENCH_ACTION_IDS.openSettings
+		| typeof WORKBENCH_ACTION_IDS.selectNextTab
+		| typeof WORKBENCH_ACTION_IDS.selectPreviousTab
 		| typeof WORKBENCH_ACTION_IDS.selectTabByPosition
 		| typeof WORKBENCH_ACTION_IDS.splitActivePanelBelow
 		| typeof WORKBENCH_ACTION_IDS.splitActivePanelRight
@@ -120,6 +122,24 @@ export const WORKBENCH_SHORTCUTS = {
 		input: { filter: 'all' },
 		shortcutId: 'workbench.search.all.open',
 	},
+	selectNextTab: {
+		defaults: {
+			apple: chord('BracketRight', ['mod', 'shift']),
+			standard: chord('PageDown', ['mod']),
+		},
+		id: WORKBENCH_ACTION_IDS.selectNextTab,
+		input: undefined,
+		shortcutId: WORKBENCH_ACTION_IDS.selectNextTab,
+	},
+	selectPreviousTab: {
+		defaults: {
+			apple: chord('BracketLeft', ['mod', 'shift']),
+			standard: chord('PageUp', ['mod']),
+		},
+		id: WORKBENCH_ACTION_IDS.selectPreviousTab,
+		input: undefined,
+		shortcutId: WORKBENCH_ACTION_IDS.selectPreviousTab,
+	},
 	selectTab1: positionalTabShortcut(1),
 	selectTab2: positionalTabShortcut(2),
 	selectTab3: positionalTabShortcut(3),
@@ -190,6 +210,8 @@ const WORKBENCH_SHORTCUT_ACTIONS = Object.freeze([
 	'maximizeActivePanel',
 	'newTerminal',
 	'search',
+	'selectNextTab',
+	'selectPreviousTab',
 	'selectTab1',
 	'selectTab2',
 	'selectTab3',
@@ -263,6 +285,10 @@ export function formatWorkbenchActionShortcut(
 			return formatWorkbenchShortcut('search', platform, bindings);
 		case WORKBENCH_ACTION_IDS.openSettings:
 			return formatWorkbenchShortcut('settings', platform, bindings);
+		case WORKBENCH_ACTION_IDS.selectNextTab:
+			return formatWorkbenchShortcut('selectNextTab', platform, bindings);
+		case WORKBENCH_ACTION_IDS.selectPreviousTab:
+			return formatWorkbenchShortcut('selectPreviousTab', platform, bindings);
 		case WORKBENCH_ACTION_IDS.splitActivePanelBelow:
 			return formatWorkbenchShortcut('splitActivePanelBelow', platform, bindings);
 		case WORKBENCH_ACTION_IDS.splitActivePanelRight:
@@ -315,6 +341,10 @@ function defaultBindingsFor(platform: WorkbenchShortcutPlatform): WorkbenchShort
 		[WORKBENCH_SHORTCUTS.newTerminal.shortcutId]:
 			WORKBENCH_SHORTCUTS.newTerminal.defaults[platform],
 		[WORKBENCH_SHORTCUTS.search.shortcutId]: WORKBENCH_SHORTCUTS.search.defaults[platform],
+		[WORKBENCH_SHORTCUTS.selectNextTab.shortcutId]:
+			WORKBENCH_SHORTCUTS.selectNextTab.defaults[platform],
+		[WORKBENCH_SHORTCUTS.selectPreviousTab.shortcutId]:
+			WORKBENCH_SHORTCUTS.selectPreviousTab.defaults[platform],
 		[WORKBENCH_SHORTCUTS.selectTab1.shortcutId]: WORKBENCH_SHORTCUTS.selectTab1.defaults[platform],
 		[WORKBENCH_SHORTCUTS.selectTab2.shortcutId]: WORKBENCH_SHORTCUTS.selectTab2.defaults[platform],
 		[WORKBENCH_SHORTCUTS.selectTab3.shortcutId]: WORKBENCH_SHORTCUTS.selectTab3.defaults[platform],

@@ -54,6 +54,12 @@ export function createKeyboardShortcutBindings(
 			WORKBENCH_SHORTCUTS.newTerminal.shortcutId,
 		),
 		[WORKBENCH_SHORTCUTS.search.shortcutId]: bindingFor(WORKBENCH_SHORTCUTS.search.shortcutId),
+		[WORKBENCH_SHORTCUTS.selectNextTab.shortcutId]: bindingFor(
+			WORKBENCH_SHORTCUTS.selectNextTab.shortcutId,
+		),
+		[WORKBENCH_SHORTCUTS.selectPreviousTab.shortcutId]: bindingFor(
+			WORKBENCH_SHORTCUTS.selectPreviousTab.shortcutId,
+		),
 		[WORKBENCH_SHORTCUTS.selectTab1.shortcutId]: bindingFor(
 			WORKBENCH_SHORTCUTS.selectTab1.shortcutId,
 		),

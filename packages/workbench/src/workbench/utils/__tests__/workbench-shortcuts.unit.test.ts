@@ -45,6 +45,16 @@ describe('Workbench shortcuts', () => {
 		);
 		expect(WORKBENCH_SHORTCUTS.newTerminal.id).toBe('workbench.terminal.create');
 		expect(WORKBENCH_SHORTCUTS.search.id).toBe('workbench.search.open');
+		expect(WORKBENCH_SHORTCUTS.selectNextTab).toMatchObject({
+			id: 'workbench.tab.select-next',
+			input: undefined,
+			shortcutId: 'workbench.tab.select-next',
+		});
+		expect(WORKBENCH_SHORTCUTS.selectPreviousTab).toMatchObject({
+			id: 'workbench.tab.select-previous',
+			input: undefined,
+			shortcutId: 'workbench.tab.select-previous',
+		});
 		expect(WORKBENCH_SHORTCUTS.selectTab1).toMatchObject({
 			id: 'workbench.tab.select-by-position',
 			input: { position: 1 },
@@ -68,6 +78,8 @@ describe('Workbench shortcuts', () => {
 		expect(formatWorkbenchShortcut('maximizeActivePanel', 'apple')).toBe('⇧⌘Enter');
 		expect(formatWorkbenchShortcut('newTerminal', 'apple')).toBe('⌘T');
 		expect(formatWorkbenchShortcut('search', 'apple')).toBe('⇧⌘F');
+		expect(formatWorkbenchShortcut('selectNextTab', 'apple')).toBe('⇧⌘]');
+		expect(formatWorkbenchShortcut('selectPreviousTab', 'apple')).toBe('⇧⌘[');
 		expect(formatWorkbenchShortcut('selectTab1', 'apple')).toBe('⌘1');
 		expect(formatWorkbenchShortcut('selectTab9', 'apple')).toBe('⌘9');
 		expect(formatWorkbenchShortcut('settings', 'apple')).toBe('⌘,');
@@ -83,6 +95,8 @@ describe('Workbench shortcuts', () => {
 		expect(formatWorkbenchShortcut('maximizeActivePanel', 'standard')).toBe('Ctrl+Shift+Enter');
 		expect(formatWorkbenchShortcut('newTerminal', 'standard')).toBe('Ctrl+Shift+T');
 		expect(formatWorkbenchShortcut('search', 'standard')).toBe('Ctrl+Shift+K');
+		expect(formatWorkbenchShortcut('selectNextTab', 'standard')).toBe('Ctrl+Page Down');
+		expect(formatWorkbenchShortcut('selectPreviousTab', 'standard')).toBe('Ctrl+Page Up');
 		expect(formatWorkbenchShortcut('selectTab1', 'standard')).toBe('Ctrl+1');
 		expect(formatWorkbenchShortcut('selectTab9', 'standard')).toBe('Ctrl+9');
 		expect(formatWorkbenchShortcut('settings', 'standard')).toBe('Ctrl+,');
@@ -90,6 +104,8 @@ describe('Workbench shortcuts', () => {
 		expect(formatWorkbenchShortcut('splitActivePanelRight', 'standard')).toBe('Ctrl+Shift+D');
 		expect(formatWorkbenchShortcut('toggleSidebar', 'standard')).toBe('Ctrl+Shift+B');
 		expect(formatWorkbenchActionShortcut('workbench.search.open', 'apple')).toBe('⇧⌘F');
+		expect(formatWorkbenchActionShortcut('workbench.tab.select-next', 'apple')).toBe('⇧⌘]');
+		expect(formatWorkbenchActionShortcut('workbench.tab.select-previous', 'apple')).toBe('⇧⌘[');
 		expect(formatWorkbenchActionShortcut('unknown.action', 'apple')).toBe(null);
 		expect(
 			new Set(
@@ -110,6 +126,8 @@ describe('Workbench shortcuts', () => {
 		['maximizeActivePanel', 'Enter', 'Enter'],
 		['newTerminal', 'KeyT', 'KeyT'],
 		['search', 'KeyF', 'KeyK'],
+		['selectNextTab', 'BracketRight', 'PageDown'],
+		['selectPreviousTab', 'BracketLeft', 'PageUp'],
 		['selectTab1', 'Digit1', 'Digit1'],
 		['selectTab2', 'Digit2', 'Digit2'],
 		['selectTab3', 'Digit3', 'Digit3'],

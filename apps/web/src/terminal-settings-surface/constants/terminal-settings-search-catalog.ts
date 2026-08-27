@@ -323,7 +323,9 @@ export const KEYBOARD_SHORTCUT_SEARCH_LABELS = {
 	'global-search': keyboardShortcutMessages.globalSearch,
 	'maximize-panel': keyboardShortcutMessages.maximizePanel,
 	'new-terminal': keyboardShortcutMessages.newTerminal,
+	'next-tab': keyboardShortcutMessages.nextTab,
 	paste: keyboardShortcutMessages.paste,
+	'previous-tab': keyboardShortcutMessages.previousTab,
 	'select-all': keyboardShortcutMessages.selectAll,
 	'select-tab': keyboardShortcutMessages.selectTab,
 	settings: keyboardShortcutMessages.settings,
@@ -349,5 +351,6 @@ export const KEYBOARD_SHORTCUT_SEARCH_AVAILABILITY = {
 	'focused-terminal-with-selection':
 		keyboardShortcutMessages.availabilityFocusedTerminalWithSelection,
 	'multiple-panels': keyboardShortcutMessages.availabilityMultiplePanels,
+	'multiple-tabs': keyboardShortcutMessages.availabilityMultipleTabs,
 	'tab-position': keyboardShortcutMessages.availabilityTabPosition,
 } as const;

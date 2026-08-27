@@ -86,4 +86,22 @@ describe('keyboard shortcut overrides', () => {
 			modifiers: ['mod'],
 		});
 	});
+
+	it('applies one adjacent Tab override without changing the opposite direction', () => {
+		const bindings = createKeyboardShortcutBindings('standard', [
+			{
+				chord: { code: 'BracketRight', modifiers: ['alt', 'mod'] },
+				shortcutId: 'workbench.tab.select-next',
+			},
+		]);
+
+		expect(bindings['workbench.tab.select-next']).toEqual({
+			code: 'BracketRight',
+			modifiers: ['alt', 'mod'],
+		});
+		expect(bindings['workbench.tab.select-previous']).toEqual({
+			code: 'PageUp',
+			modifiers: ['mod'],
+		});
+	});
 });

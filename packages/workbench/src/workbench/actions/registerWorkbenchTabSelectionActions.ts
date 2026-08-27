@@ -1,19 +1,25 @@
 import {
 	defineAction,
+	noActionInput,
 	type ActionAvailabilityContext,
 	type ActionDisposable,
 	type ActionExecutionContext,
 	type ActionInvocation,
+	type ActionMessageDescriptor,
 	type ActionRuntime,
 	type ActionScope,
 	type PreparedActionInvocation,
 	type TypedActionRuntime,
 } from '@orchbee/actions';
-import { TAB_STRIP_ACTION_IDS, type TabSelectionInput } from '@orchbee/tab-strip';
 import { workbenchMessages, workbenchTabMessages } from '@orchbee/i18n';
+import { TAB_STRIP_ACTION_IDS, type TabSelectionInput } from '@orchbee/tab-strip';
 
 import type { WorkbenchProjectWorkspaceRuntime } from '../model/WorkbenchProjectWorkspaceRuntime';
 import { executePreparedDescendantAction } from './executePreparedDescendantAction';
+import {
+	resolveAdjacentTabSelection,
+	type AdjacentTabSelectionInput,
+} from './resolveAdjacentTabSelection';
 import {
 	WORKBENCH_ACTION_IDS,
 	type WorkbenchActionCatalog,
@@ -37,6 +43,28 @@ export function registerWorkbenchTabSelectionActions({
 	return [
 		typedRuntime.register(
 			scope,
+			adjacentTabSelectionActionDefinition({
+				direction: 'previous',
+				id: WORKBENCH_ACTION_IDS.selectPreviousTab,
+				projectWorkspaceRuntime,
+				runtime,
+				scope,
+				title: workbenchTabMessages.selectPreviousTab,
+			}),
+		),
+		typedRuntime.register(
+			scope,
+			adjacentTabSelectionActionDefinition({
+				direction: 'next',
+				id: WORKBENCH_ACTION_IDS.selectNextTab,
+				projectWorkspaceRuntime,
+				runtime,
+				scope,
+				title: workbenchTabMessages.selectNextTab,
+			}),
+		),
+		typedRuntime.register(
+			scope,
 			defineAction({
 				category: {
 					id: 'navigation',
@@ -48,7 +76,7 @@ export function registerWorkbenchTabSelectionActions({
 					mode: 'foreground',
 				},
 				getAvailability: (context, input) =>
-					prepareTabSelection({
+					prepareTabPositionSelection({
 						context,
 						input,
 						projectWorkspaceRuntime,
@@ -59,7 +87,7 @@ export function registerWorkbenchTabSelectionActions({
 						: { kind: 'enabled' },
 				handler: {
 					execute: async (context, input) => {
-						const prepared = prepareTabSelection({
+						const prepared = prepareTabPositionSelection({
 							context,
 							input,
 							projectWorkspaceRuntime,
@@ -79,7 +107,85 @@ export function registerWorkbenchTabSelectionActions({
 	];
 }
 
-function prepareTabSelection({
+function adjacentTabSelectionActionDefinition<
+	Id extends
+		| typeof WORKBENCH_ACTION_IDS.selectNextTab
+		| typeof WORKBENCH_ACTION_IDS.selectPreviousTab,
+>({
+	direction,
+	id,
+	projectWorkspaceRuntime,
+	runtime,
+	scope,
+	title,
+}: Omit<RegisterWorkbenchTabSelectionActionsOptions, 'typedRuntime'> & {
+	readonly direction: AdjacentTabSelectionInput['direction'];
+	readonly id: Id;
+	readonly title: ActionMessageDescriptor;
+}) {
+	return defineAction({
+		category: {
+			id: 'navigation',
+			title: workbenchMessages.actionCategoryNavigation,
+		},
+		execution: {
+			concurrency: 'replace-latest',
+			concurrencyKey: () => 'adjacent-tab-selection',
+			mode: 'foreground',
+		},
+		getAvailability: (context) =>
+			prepareAdjacentTabSelection({
+				context,
+				direction,
+				projectWorkspaceRuntime,
+				runtime,
+				scope,
+			}) === null
+				? { kind: 'disabled', reason: workbenchMessages.actionUnavailable }
+				: { kind: 'enabled' },
+		handler: {
+			execute: async (context) => {
+				const prepared = prepareAdjacentTabSelection({
+					context,
+					direction,
+					projectWorkspaceRuntime,
+					runtime,
+					scope,
+				});
+				return prepared === null
+					? { code: 'adjacent-tab-unavailable', kind: 'blocked' }
+					: await executePreparedDescendantAction(context, runtime, prepared);
+			},
+		},
+		id,
+		input: noActionInput,
+		title,
+	});
+}
+
+function prepareAdjacentTabSelection({
+	context,
+	direction,
+	projectWorkspaceRuntime,
+	runtime,
+	scope,
+}: {
+	readonly context: ActionAvailabilityContext | ActionExecutionContext;
+	readonly direction: AdjacentTabSelectionInput['direction'];
+	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
+	readonly runtime: ActionRuntime;
+	readonly scope: ActionScope;
+}): PreparedActionInvocation | null {
+	const snapshot = projectWorkspaceRuntime.getActiveTerminalContext().tabModel.getSnapshot();
+	const tabId = resolveAdjacentTabSelection({
+		activeTabId: snapshot.activeTabId,
+		direction,
+		tabIds: snapshot.tabs.map((tab) => tab.id),
+	});
+	return tabId === null ? null : prepareTabIdSelection({ context, runtime, scope, tabId });
+}
+
+function prepareTabPositionSelection({
 	context,
 	input,
 	projectWorkspaceRuntime,
@@ -96,11 +202,31 @@ function prepareTabSelection({
 		input.position - 1
 	];
 	if (tab === undefined) return null;
-	const selectionInput: TabSelectionInput = { mode: 'replace', tabId: tab.id };
+	return prepareTabIdSelection({ context, runtime, scope, tabId: tab.id });
+}
+
+function prepareTabIdSelection({
+	context,
+	runtime,
+	scope,
+	tabId,
+}: {
+	readonly context: ActionAvailabilityContext | ActionExecutionContext;
+	readonly runtime: ActionRuntime;
+	readonly scope: ActionScope;
+	readonly tabId: string;
+}): PreparedActionInvocation | null {
+	const selectionInput: TabSelectionInput = { mode: 'replace', tabId };
 	const prepared = runtime
 		.discover(discoveryInvocation(context, scope), {
 			includeDescendants: true,
-			inputByActionId: { [TAB_STRIP_ACTION_IDS.selectTab]: selectionInput },
+			inputByActionId: {
+				// Composite void-input actions must not rediscover themselves while they
+				// resolve the descendant action that performs the actual selection.
+				[WORKBENCH_ACTION_IDS.selectNextTab]: null,
+				[WORKBENCH_ACTION_IDS.selectPreviousTab]: null,
+				[TAB_STRIP_ACTION_IDS.selectTab]: selectionInput,
+			},
 		})
 		.find(
 			(result) =>

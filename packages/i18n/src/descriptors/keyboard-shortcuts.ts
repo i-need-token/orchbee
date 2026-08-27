@@ -19,7 +19,9 @@ export const keyboardShortcutMessages = defineMessages({
 	globalSearch: message('keyboard.shortcuts.actions.globalSearch'),
 	maximizePanel: message('keyboard.shortcuts.actions.maximizePanel'),
 	newTerminal: message('keyboard.shortcuts.actions.newTerminal'),
+	nextTab: message('keyboard.shortcuts.actions.nextTab'),
 	paste: message('keyboard.shortcuts.actions.paste'),
+	previousTab: message('keyboard.shortcuts.actions.previousTab'),
 	reset: message('keyboard.shortcuts.actions.reset'),
 	selectAll: message('keyboard.shortcuts.actions.selectAll'),
 	selectTab: message(
@@ -39,6 +41,7 @@ export const keyboardShortcutMessages = defineMessages({
 	availabilityDirectionalPanel: message('keyboard.shortcuts.availability.directionalPanel'),
 	availabilityWorkbench: message('keyboard.shortcuts.availability.workbench'),
 	availabilityMultiplePanels: message('keyboard.shortcuts.availability.multiplePanels'),
+	availabilityMultipleTabs: message('keyboard.shortcuts.availability.multipleTabs'),
 	availabilityTabPosition: message('keyboard.shortcuts.availability.tabPosition'),
 	category: message('keyboard.shortcuts.category'),
 	conflict: message(

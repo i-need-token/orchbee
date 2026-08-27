@@ -1879,6 +1879,22 @@ test('projects native window drag regions without consuming title bar controls o
 	await expect(tabs.nth(1)).toHaveAttribute('aria-selected', 'true');
 	await page.keyboard.press(`${primaryModifier}+Digit1`);
 	await expect(tabs.first()).toHaveAttribute('aria-selected', 'true');
+	const nextTabShortcut =
+		process.platform === 'darwin'
+			? `${primaryModifier}+Shift+BracketRight`
+			: `${primaryModifier}+PageDown`;
+	const previousTabShortcut =
+		process.platform === 'darwin'
+			? `${primaryModifier}+Shift+BracketLeft`
+			: `${primaryModifier}+PageUp`;
+	await page.keyboard.press(nextTabShortcut);
+	await expect(tabs.nth(1)).toHaveAttribute('aria-selected', 'true');
+	await page.keyboard.press(nextTabShortcut);
+	await expect(tabs.first()).toHaveAttribute('aria-selected', 'true');
+	await page.keyboard.press(previousTabShortcut);
+	await expect(tabs.nth(1)).toHaveAttribute('aria-selected', 'true');
+	await page.keyboard.press(previousTabShortcut);
+	await expect(tabs.first()).toHaveAttribute('aria-selected', 'true');
 });
 
 test('keeps terminal presentation continuous through rapid Tab switching and active Tab closure', async () => {

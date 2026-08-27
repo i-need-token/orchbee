@@ -10,9 +10,9 @@ import {
 } from '../keyboard-shortcut-catalog';
 
 describe('keyboard shortcut catalog', () => {
-	it('combines the twenty-two Workbench and five terminal owner declarations once', () => {
-		expect(KEYBOARD_SHORTCUT_CATALOG).toHaveLength(27);
-		expect(new Set(KEYBOARD_SHORTCUT_IDS).size).toBe(27);
+	it('combines the twenty-four Workbench and five terminal owner declarations once', () => {
+		expect(KEYBOARD_SHORTCUT_CATALOG).toHaveLength(29);
+		expect(new Set(KEYBOARD_SHORTCUT_IDS).size).toBe(29);
 		expect(keyboardShortcutDeclaration('workbench.search.actions.open')).toMatchObject({
 			actionId: 'workbench.search.open',
 			actionInput: { filter: 'actions' },
@@ -39,6 +39,20 @@ describe('keyboard shortcut catalog', () => {
 			availability: 'tab-position',
 			name: 'select-tab',
 			position: 2,
+			scope: 'workbench',
+		});
+		expect(keyboardShortcutDeclaration('workbench.tab.select-next')).toMatchObject({
+			actionId: 'workbench.tab.select-next',
+			actionInput: undefined,
+			availability: 'multiple-tabs',
+			name: 'next-tab',
+			scope: 'workbench',
+		});
+		expect(keyboardShortcutDeclaration('workbench.tab.select-previous')).toMatchObject({
+			actionId: 'workbench.tab.select-previous',
+			actionInput: undefined,
+			availability: 'multiple-tabs',
+			name: 'previous-tab',
 			scope: 'workbench',
 		});
 		expect(keyboardShortcutDeclaration('terminal.clipboard.paste')).toMatchObject({
@@ -80,6 +94,16 @@ describe('keyboard shortcut catalog', () => {
 		);
 		expect(formatKeyboardShortcutChord(apple['terminal.clear'], 'apple')).toBe('⌘K');
 		expect(formatKeyboardShortcutChord(apple['workbench.tab.select.2'], 'apple')).toBe('⌘2');
+		expect(formatKeyboardShortcutChord(apple['workbench.tab.select-next'], 'apple')).toBe('⇧⌘]');
+		expect(formatKeyboardShortcutChord(apple['workbench.tab.select-previous'], 'apple')).toBe(
+			'⇧⌘[',
+		);
+		expect(formatKeyboardShortcutChord(standard['workbench.tab.select-next'], 'standard')).toBe(
+			'Ctrl+Page Down',
+		);
+		expect(formatKeyboardShortcutChord(standard['workbench.tab.select-previous'], 'standard')).toBe(
+			'Ctrl+Page Up',
+		);
 		expect(formatKeyboardShortcutChord(standard['workbench.tab.select.9'], 'standard')).toBe(
 			'Ctrl+9',
 		);

@@ -21,6 +21,7 @@ const KEYBOARD_SHORTCUT_STORAGE_V1_KEY = 'orchbee:web:keyboard-shortcuts:v1';
 const KEYBOARD_SHORTCUT_STORAGE_V2_KEY = 'orchbee:web:keyboard-shortcuts:v2';
 const KEYBOARD_SHORTCUT_STORAGE_V3_KEY = 'orchbee:web:keyboard-shortcuts:v3';
 const KEYBOARD_SHORTCUT_STORAGE_V4_KEY = 'orchbee:web:keyboard-shortcuts:v4';
+const KEYBOARD_SHORTCUT_STORAGE_V5_KEY = 'orchbee:web:keyboard-shortcuts:v5';
 
 const LEGACY_V1_KEYBOARD_SHORTCUT_IDS = Object.freeze([
 	'terminal.search.open',
@@ -75,6 +76,38 @@ const LEGACY_V3_KEYBOARD_SHORTCUT_IDS = Object.freeze([
 ] as const satisfies readonly (typeof KEYBOARD_SHORTCUT_IDS)[number][]);
 
 type LegacyV3KeyboardShortcutId = (typeof LEGACY_V3_KEYBOARD_SHORTCUT_IDS)[number];
+
+const LEGACY_V4_KEYBOARD_SHORTCUT_IDS = Object.freeze([
+	'terminal.clear',
+	'terminal.clipboard.paste',
+	'terminal.search.open',
+	'terminal.selection.copy',
+	'terminal.selection.select-all',
+	'workbench.panel.active.focus-down',
+	'workbench.panel.active.focus-left',
+	'workbench.panel.active.focus-right',
+	'workbench.panel.active.focus-up',
+	'workbench.panel.active.maximization.toggle',
+	'workbench.panel.active.split-below',
+	'workbench.panel.active.split-right',
+	'workbench.search.actions.open',
+	'workbench.search.all.open',
+	'workbench.settings.open',
+	'workbench.sidebar.toggle',
+	'workbench.tab.select.1',
+	'workbench.tab.select.2',
+	'workbench.tab.select.3',
+	'workbench.tab.select.4',
+	'workbench.tab.select.5',
+	'workbench.tab.select.6',
+	'workbench.tab.select.7',
+	'workbench.tab.select.8',
+	'workbench.tab.select.9',
+	'workbench.terminal.active.close',
+	'workbench.terminal.create',
+] as const satisfies readonly (typeof KEYBOARD_SHORTCUT_IDS)[number][]);
+
+type LegacyV4KeyboardShortcutId = (typeof LEGACY_V4_KEYBOARD_SHORTCUT_IDS)[number];
 
 const legacyChord = (
 	code: string,
@@ -195,6 +228,38 @@ const LEGACY_V3_DEFAULT_BINDINGS = Object.freeze({
 	>
 >);
 
+const LEGACY_V4_DEFAULT_BINDINGS = Object.freeze({
+	apple: Object.freeze({
+		...LEGACY_V3_DEFAULT_BINDINGS.apple,
+		'workbench.tab.select.1': legacyChord('Digit1', ['mod']),
+		'workbench.tab.select.2': legacyChord('Digit2', ['mod']),
+		'workbench.tab.select.3': legacyChord('Digit3', ['mod']),
+		'workbench.tab.select.4': legacyChord('Digit4', ['mod']),
+		'workbench.tab.select.5': legacyChord('Digit5', ['mod']),
+		'workbench.tab.select.6': legacyChord('Digit6', ['mod']),
+		'workbench.tab.select.7': legacyChord('Digit7', ['mod']),
+		'workbench.tab.select.8': legacyChord('Digit8', ['mod']),
+		'workbench.tab.select.9': legacyChord('Digit9', ['mod']),
+	}),
+	standard: Object.freeze({
+		...LEGACY_V3_DEFAULT_BINDINGS.standard,
+		'workbench.tab.select.1': legacyChord('Digit1', ['mod']),
+		'workbench.tab.select.2': legacyChord('Digit2', ['mod']),
+		'workbench.tab.select.3': legacyChord('Digit3', ['mod']),
+		'workbench.tab.select.4': legacyChord('Digit4', ['mod']),
+		'workbench.tab.select.5': legacyChord('Digit5', ['mod']),
+		'workbench.tab.select.6': legacyChord('Digit6', ['mod']),
+		'workbench.tab.select.7': legacyChord('Digit7', ['mod']),
+		'workbench.tab.select.8': legacyChord('Digit8', ['mod']),
+		'workbench.tab.select.9': legacyChord('Digit9', ['mod']),
+	}),
+} satisfies Readonly<
+	Record<
+		KeyboardShortcutPlatform,
+		Readonly<Record<LegacyV4KeyboardShortcutId, KeyboardShortcutChord>>
+	>
+>);
+
 export type KeyboardShortcutPersistenceIssue = 'invalid-record' | 'read-failed' | 'write-failed';
 
 export interface KeyboardShortcutStorage {
@@ -204,7 +269,7 @@ export interface KeyboardShortcutStorage {
 
 export interface KeyboardShortcutStorageReadResult {
 	readonly issue: Exclude<KeyboardShortcutPersistenceIssue, 'write-failed'> | null;
-	readonly migration: 'v1' | 'v2' | 'v3' | null;
+	readonly migration: 'v1' | 'v2' | 'v3' | 'v4' | null;
 	readonly overrides: readonly KeyboardShortcutOverride[];
 }
 
@@ -256,8 +321,19 @@ const storedKeyboardShortcutOverridesV4Schema = z.strictObject({
 				shortcutId: z.string(),
 			}),
 		)
-		.max(KEYBOARD_SHORTCUT_IDS.length),
+		.max(LEGACY_V4_KEYBOARD_SHORTCUT_IDS.length),
 	version: z.literal(4),
+});
+const storedKeyboardShortcutOverridesV5Schema = z.strictObject({
+	overrides: z
+		.array(
+			z.strictObject({
+				chord: chordSchema,
+				shortcutId: z.string(),
+			}),
+		)
+		.max(KEYBOARD_SHORTCUT_IDS.length),
+	version: z.literal(5),
 });
 
 interface StoredKeyboardShortcutOverride {
@@ -269,13 +345,21 @@ export function readKeyboardShortcutOverrides(
 	storage: KeyboardShortcutStorage,
 	platform: KeyboardShortcutPlatform,
 ): KeyboardShortcutStorageReadResult {
+	let versionFive: string | null;
+	try {
+		versionFive = storage.getItem(KEYBOARD_SHORTCUT_STORAGE_V5_KEY);
+	} catch {
+		return defaultReadResult('read-failed');
+	}
+	if (versionFive !== null) return readVersionFive(versionFive, platform);
+
 	let versionFour: string | null;
 	try {
 		versionFour = storage.getItem(KEYBOARD_SHORTCUT_STORAGE_V4_KEY);
 	} catch {
 		return defaultReadResult('read-failed');
 	}
-	if (versionFour !== null) return readVersionFour(versionFour, platform);
+	if (versionFour !== null) return migrateVersionFour(versionFour, platform);
 
 	let versionThree: string | null;
 	try {
@@ -309,13 +393,13 @@ export function writeKeyboardShortcutOverrides(
 ): boolean {
 	try {
 		storage.setItem(
-			KEYBOARD_SHORTCUT_STORAGE_V4_KEY,
+			KEYBOARD_SHORTCUT_STORAGE_V5_KEY,
 			JSON.stringify({
 				overrides: overrides.map((override) => ({
 					chord: override.chord,
 					shortcutId: override.shortcutId,
 				})),
-				version: 4,
+				version: 5,
 			}),
 		);
 		return true;
@@ -324,17 +408,38 @@ export function writeKeyboardShortcutOverrides(
 	}
 }
 
-function readVersionFour(
+function readVersionFive(
+	serialized: string,
+	platform: KeyboardShortcutPlatform,
+): KeyboardShortcutStorageReadResult {
+	try {
+		const parsed = storedKeyboardShortcutOverridesV5Schema.safeParse(JSON.parse(serialized));
+		if (!parsed.success) return defaultReadResult('invalid-record');
+		const overrides = validateCurrentOverrides(parsed.data.overrides, platform);
+		return overrides === null
+			? defaultReadResult('invalid-record')
+			: { issue: null, migration: null, overrides };
+	} catch {
+		return defaultReadResult('invalid-record');
+	}
+}
+
+function migrateVersionFour(
 	serialized: string,
 	platform: KeyboardShortcutPlatform,
 ): KeyboardShortcutStorageReadResult {
 	try {
 		const parsed = storedKeyboardShortcutOverridesV4Schema.safeParse(JSON.parse(serialized));
 		if (!parsed.success) return defaultReadResult('invalid-record');
-		const overrides = validateCurrentOverrides(parsed.data.overrides, platform);
-		return overrides === null
+		const legacyOverrides = validateLegacyOverrides(
+			parsed.data.overrides,
+			platform,
+			LEGACY_V4_KEYBOARD_SHORTCUT_IDS,
+			LEGACY_V4_DEFAULT_BINDINGS,
+		);
+		return legacyOverrides === null
 			? defaultReadResult('invalid-record')
-			: { issue: null, migration: null, overrides };
+			: migrateLegacyOverrides(legacyOverrides, platform, 'v4');
 	} catch {
 		return defaultReadResult('invalid-record');
 	}

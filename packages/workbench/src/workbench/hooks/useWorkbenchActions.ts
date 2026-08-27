@@ -337,6 +337,8 @@ export function useWorkbenchActions({
 				case 'focusActivePanelRight':
 				case 'focusActivePanelUp':
 				case 'maximizeActivePanel':
+				case 'selectNextTab':
+				case 'selectPreviousTab':
 				case 'splitActivePanelBelow':
 				case 'splitActivePanelRight':
 				case 'toggleSidebar': {

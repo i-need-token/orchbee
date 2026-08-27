@@ -42,6 +42,8 @@ describe('workbench action contracts', () => {
 			reorderProject: 'workbench.project.reorder',
 			reorderWorkspace: 'workbench.workspace.reorder',
 			selectTabByPosition: 'workbench.tab.select-by-position',
+			selectNextTab: 'workbench.tab.select-next',
+			selectPreviousTab: 'workbench.tab.select-previous',
 			splitActivePanelBelow: 'workbench.panel.active.split-below',
 			splitActivePanelRight: 'workbench.panel.active.split-right',
 			setTabStripOrientation: 'workbench.tab-strip.orientation.set',

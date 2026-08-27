@@ -12,7 +12,9 @@ export const enUSKeyboardShortcutMessages = {
 	'keyboard.shortcuts.actions.globalSearch': 'Search everything',
 	'keyboard.shortcuts.actions.maximizePanel': 'Toggle panel maximization',
 	'keyboard.shortcuts.actions.newTerminal': 'New terminal',
+	'keyboard.shortcuts.actions.nextTab': 'Select next tab',
 	'keyboard.shortcuts.actions.paste': 'Paste into terminal',
+	'keyboard.shortcuts.actions.previousTab': 'Select previous tab',
 	'keyboard.shortcuts.actions.reset': 'Restore default',
 	'keyboard.shortcuts.actions.selectAll': 'Select all terminal text',
 	'keyboard.shortcuts.actions.selectTab': 'Select tab {position}',
@@ -28,6 +30,8 @@ export const enUSKeyboardShortcutMessages = {
 	'keyboard.shortcuts.availability.focusedTerminalWithSelection':
 		'When a focused terminal has a selection',
 	'keyboard.shortcuts.availability.multiplePanels': 'When the active tab has multiple panels',
+	'keyboard.shortcuts.availability.multipleTabs':
+		'When the active terminal context has multiple tabs',
 	'keyboard.shortcuts.availability.tabPosition': 'When that tab position exists',
 	'keyboard.shortcuts.availability.workbench': 'While the Workbench is active',
 	'keyboard.shortcuts.category': 'Keyboard shortcuts',

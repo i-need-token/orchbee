@@ -45,6 +45,12 @@ describe('buildTerminalSettingsSearchCatalog', () => {
 			label: 'Select tab 2',
 			sectionLabel: 'Workbench',
 		});
+		expect(
+			entries.find((entry) => entry.id === 'keyboard-shortcuts.workbench.tab.select-next'),
+		).toMatchObject({
+			label: 'Select next tab',
+			sectionLabel: 'Workbench',
+		});
 	});
 
 	it('omits unavailable categories and capability-gated settings', () => {

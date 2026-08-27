@@ -35,6 +35,7 @@ export type KeyboardShortcutAvailability =
 	| 'focused-terminal'
 	| 'focused-terminal-with-selection'
 	| 'multiple-panels'
+	| 'multiple-tabs'
 	| 'directional-panel'
 	| 'tab-position';
 
@@ -61,7 +62,9 @@ type KeyboardShortcutName =
 	| 'global-search'
 	| 'maximize-panel'
 	| 'new-terminal'
+	| 'next-tab'
 	| 'paste'
+	| 'previous-tab'
 	| 'select-all'
 	| 'settings'
 	| 'split-below'
@@ -139,6 +142,26 @@ export const KEYBOARD_SHORTCUT_CATALOG = Object.freeze([
 		name: 'new-terminal',
 		scope: 'workbench',
 		shortcutId: WORKBENCH_SHORTCUTS.newTerminal.shortcutId,
+	}),
+	Object.freeze({
+		actionId: WORKBENCH_SHORTCUTS.selectPreviousTab.id,
+		actionInput: WORKBENCH_SHORTCUTS.selectPreviousTab.input,
+		availability: 'multiple-tabs',
+		defaults: WORKBENCH_SHORTCUTS.selectPreviousTab.defaults,
+		feature: 'workbench',
+		name: 'previous-tab',
+		scope: 'workbench',
+		shortcutId: WORKBENCH_SHORTCUTS.selectPreviousTab.shortcutId,
+	}),
+	Object.freeze({
+		actionId: WORKBENCH_SHORTCUTS.selectNextTab.id,
+		actionInput: WORKBENCH_SHORTCUTS.selectNextTab.input,
+		availability: 'multiple-tabs',
+		defaults: WORKBENCH_SHORTCUTS.selectNextTab.defaults,
+		feature: 'workbench',
+		name: 'next-tab',
+		scope: 'workbench',
+		shortcutId: WORKBENCH_SHORTCUTS.selectNextTab.shortcutId,
 	}),
 	...POSITIONAL_TAB_SHORTCUT_DECLARATIONS,
 	Object.freeze({

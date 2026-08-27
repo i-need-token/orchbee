@@ -14,6 +14,8 @@ those surfaces owns another binding copy.
 | `workbench.search.actions.open`              | Workbench                         | `Cmd+Shift+P`      | `Ctrl+Shift+P`      |
 | `workbench.terminal.create`                  | Workbench                         | `Cmd+T`            | `Ctrl+Shift+T`      |
 | `workbench.tab.select.1` … `.9`              | Workbench                         | `Cmd+1` … `Cmd+9`  | `Ctrl+1` … `Ctrl+9` |
+| `workbench.tab.select-previous`              | Workbench                         | `Cmd+Shift+[`      | `Ctrl+PageUp`       |
+| `workbench.tab.select-next`                  | Workbench                         | `Cmd+Shift+]`      | `Ctrl+PageDown`     |
 | `workbench.terminal.active.close`            | Active terminal                   | `Cmd+W`            | `Ctrl+Shift+W`      |
 | `workbench.panel.active.focus-down`          | Active panel                      | `Cmd+Option+Down`  | `Ctrl+Alt+Down`     |
 | `workbench.panel.active.focus-left`          | Active panel                      | `Cmd+Option+Left`  | `Ctrl+Alt+Left`     |
@@ -34,11 +36,13 @@ those surfaces owns another binding copy.
 The new-Tab, active-terminal close, active-panel maximization, right-split, down-split, and paste
 defaults adopt Warp's [documented desktop conventions](https://docs.warp.dev/getting-started/keyboard-shortcuts)
 as observed on 2026-08-22; this is a pinned default-key selection, not a broader behavior or
-visual-parity claim. Apple All search uses `Cmd+Shift+F`, leaving the familiar `Cmd+K` to clear only
-the focused terminal. Standard Clear uses `Ctrl+Shift+L`; Standard defaults deliberately leave
-unshifted `Ctrl+B/T/W/K/F/D/E/V/A/L` and `Ctrl+C` available to the shell, terminal applications,
-and multiplexers. A user may deliberately record another supported custom chord. Product
-conflicts remain prohibited even when an Action is temporarily unavailable.
+visual-parity claim. Previous- and next-Tab defaults use the corresponding Warp bindings at
+revision `086dade63ff7327426d6276d57f85b3f2f313af0`. Apple All search uses `Cmd+Shift+F`, leaving
+the familiar `Cmd+K` to clear only the focused terminal. Standard Clear uses `Ctrl+Shift+L`;
+Standard defaults deliberately leave unshifted `Ctrl+B/T/W/K/F/D/E/V/A/L` and `Ctrl+C` available
+to the shell, terminal applications, and multiplexers. A user may deliberately record another
+supported custom chord. Product conflicts remain prohibited even when an Action is temporarily
+unavailable.
 
 ## Terminal paste routing
 
@@ -118,6 +122,29 @@ collapsed group still occupy positions, and the delegated `tabs.tab.select` Acti
 selected Tab's group through the ordinary selection transition. A missing position is unavailable
 and leaves the event untouched. `Mod+9` means the ninth Tab, never the last Tab.
 
+### Adjacent Tab selection model
+
+- **Problem and inputs:** A person needs to traverse the active terminal context without knowing a
+  Tab position. Trusted input is the latest canonical `TabModel` snapshot plus the semantic
+  `previous` or `next` direction; the Action accepts no dynamic input.
+- **Data, model, and ownership:** Workbench resolves one adjacent Tab ID from the ordered
+  `TabModel.tabs` projection. `@orchbee/tab-strip` remains the sole selection-state owner and the
+  existing prepared `tabs.tab.select` Action remains the only writer.
+- **Outputs and transitions:** Zero or one Tab, a missing active Tab, or a missing lower Action is
+  unavailable and preserves the key event. With at least two Tabs, previous selects index `i - 1`
+  and next selects `i + 1`; crossing either boundary wraps to the opposite end. Selection uses
+  `replace`, so grouped, collapsed, pinned, focus, and navigation behavior stay with the ordinary
+  Tab-selection transition.
+- **Invariants and revalidation:** The target differs from the active Tab, belongs to the same
+  active terminal context, and follows canonical order rather than MRU order. Availability and
+  execution each resolve from a current snapshot; a removed target or replaced lower registration
+  blocks without direct mutation.
+- **Verification and exclusions:** Pure resolver tests cover empty, singleton, interior, both wrap
+  boundaries, reversed direction, and a missing active identity. Action tests cover grouped and
+  pinned order, lower registration removal, and execution-time re-resolution. Shortcut tests cover
+  both platforms, extra modifiers, repeat, composition, disabled fallthrough, and custom bindings.
+  Reordering, cross-Workspace traversal, cross-window traversal, and MRU traversal are excluded.
+
 ## Active-target command model
 
 The eight `workbench.*.active.*` Actions are context commands. Their Action invocation may carry an
@@ -178,11 +205,11 @@ terminal Actions discovered from descendant scopes.
 
 ## Persistence and recovery
 
-New writes use `orchbee:web:keyboard-shortcuts:v4` and a strict record:
+New writes use `orchbee:web:keyboard-shortcuts:v5` and a strict record:
 
 ```json
 {
-	"version": 4,
+	"version": 5,
 	"overrides": [
 		{
 			"shortcutId": "workbench.search.all.open",
@@ -194,18 +221,18 @@ New writes use `orchbee:web:keyboard-shortcuts:v4` and a strict record:
 
 Only Custom values are stored, ordered by shortcut ID. Unknown fields or IDs, duplicates, unsorted
 entries, noncanonical modifiers, unsupported codes, stored defaults, excessive entries, and an
-effective conflict invalidate the complete v4 record and restore platform defaults. A write
+effective conflict invalidate the complete v5 record and restore platform defaults. A write
 failure keeps the immutable session binding active, reports that it was not saved, and retries on
 the next legal change. Restoring one item removes its override.
 
-When v4 is absent, Web first reads `orchbee:web:keyboard-shortcuts:v3` with its exact prior catalog
-and defaults. If v3 is also absent, it tries v2 and then v1. Every migration carries explicit
+When v5 is absent, Web first reads `orchbee:web:keyboard-shortcuts:v4` with its exact prior catalog
+and defaults. If v4 is also absent, it tries v3, v2, and then v1. Every migration carries explicit
 overrides into the expanded catalog, removes an override equivalent to a current default, rejects
-any resulting conflict, and writes the canonical v4 record. The v1, v2, and v3 values remain
+any resulting conflict, and writes the canonical v5 record. The v1, v2, v3, and v4 values remain
 unchanged as rollback snapshots. An invalid current record never falls back to an older record, and
 an invalid migration source never falls through to the next older version, because either fallback
 would hide data corruption. Rolling back restores the latest record that the older build
-understands; edits made only in v4 are intentionally unavailable to it.
+understands; edits made only in v5 are intentionally unavailable to it.
 
 Browser Preview, Gateway Browser, and Electron each create and dispose one controller against their
 own origin-local storage. Gateway and Electron pass the controller's narrow binding source through
@@ -214,21 +241,22 @@ change does not remount Workbench, replace an attachment, or reopen a Host or Ga
 
 ## Claims and evidence
 
-| Claim                                                                            | Deterministic evidence                                                                                                  |
-| -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| One valid target produces exactly one child, panel, or Tab close operation       | Active-target resolver decision-table tests                                                                             |
-| Confirmation, cancellation, and commit remain owned by the prepared lower Action | Workbench Action integration tests with panel and Tab registrations                                                     |
-| Active Workbench bindings do not depend on a surviving focused descendant        | Document-capture lifecycle and Web application integration tests                                                        |
-| Empty-Tab New Tab creates and focuses the new terminal; Settings suppresses it   | Web application focus and Settings-scope integration trace                                                              |
-| Apple and Standard defaults match the catalog and custom edits affect dispatch   | Shortcut definition, resolver, and controller tests                                                                     |
-| Idle platform-default terminal Paste preserves MIME-aware native delivery        | Shortcut routing and installer tests, terminal image-paste tests, and exact Desktop `terminal-parity/IN-03-image-paste` |
-| Active ordinary terminal selection preserves native paste and input ownership    | Projected-terminal selection/paste tests and exact Desktop `terminal-parity/IN-18-native-selection-paste`               |
-| Pending Copy and Paste work cannot admit stale or duplicate shortcut input       | Clipboard coordinator and Action tests plus exact Desktop `terminal-parity/IN-13-selection-copy-paste`                  |
-| Directional focus selects a spatial neighbor and falls through at outer edges    | Four-Panel resolver, Action, and shortcut dispatch tests                                                                |
-| Positional selection follows canonical Tab order and falls through out of range  | Grouped and pinned Action integration plus shortcut dispatch tests                                                      |
-| Menus, Action search, and settings display the same current binding              | Projection and rendered-surface tests                                                                                   |
-| Valid v1, v2, and v3 records migrate without losing explicit legacy overrides    | Storage migration tests, including new-default conflicts                                                                |
-| Invalid current or migration-source data does not consult an older record        | Storage corruption and precedence tests                                                                                 |
+| Claim                                                                             | Deterministic evidence                                                                                                  |
+| --------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| One valid target produces exactly one child, panel, or Tab close operation        | Active-target resolver decision-table tests                                                                             |
+| Confirmation, cancellation, and commit remain owned by the prepared lower Action  | Workbench Action integration tests with panel and Tab registrations                                                     |
+| Active Workbench bindings do not depend on a surviving focused descendant         | Document-capture lifecycle and Web application integration tests                                                        |
+| Empty-Tab New Tab creates and focuses the new terminal; Settings suppresses it    | Web application focus and Settings-scope integration trace                                                              |
+| Apple and Standard defaults match the catalog and custom edits affect dispatch    | Shortcut definition, resolver, and controller tests                                                                     |
+| Idle platform-default terminal Paste preserves MIME-aware native delivery         | Shortcut routing and installer tests, terminal image-paste tests, and exact Desktop `terminal-parity/IN-03-image-paste` |
+| Active ordinary terminal selection preserves native paste and input ownership     | Projected-terminal selection/paste tests and exact Desktop `terminal-parity/IN-18-native-selection-paste`               |
+| Pending Copy and Paste work cannot admit stale or duplicate shortcut input        | Clipboard coordinator and Action tests plus exact Desktop `terminal-parity/IN-13-selection-copy-paste`                  |
+| Directional focus selects a spatial neighbor and falls through at outer edges     | Four-Panel resolver, Action, and shortcut dispatch tests                                                                |
+| Positional selection follows canonical Tab order and falls through out of range   | Grouped and pinned Action integration plus shortcut dispatch tests                                                      |
+| Adjacent selection follows canonical Tab order and wraps only with multiple Tabs  | Pure resolver, prepared Action integration, and shortcut fallthrough tests                                              |
+| Menus, Action search, and settings display the same current binding               | Projection and rendered-surface tests                                                                                   |
+| Valid v1, v2, v3, and v4 records migrate without losing explicit legacy overrides | Storage migration tests, including new-default conflicts                                                                |
+| Invalid current or migration-source data does not consult an older record         | Storage corruption and precedence tests                                                                                 |
 
 The tests use synthetic platform flags, Action scopes, storage, document capture, injected terminal
 focus, and keyboard events. They do not claim operating-system global-shortcut behavior or full

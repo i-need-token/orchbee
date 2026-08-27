@@ -9,6 +9,8 @@
 | `workbench.search.actions.open`              | Workbench              | `Cmd+Shift+P`      | `Ctrl+Shift+P`      |
 | `workbench.terminal.create`                  | Workbench              | `Cmd+T`            | `Ctrl+Shift+T`      |
 | `workbench.tab.select.1` … `.9`              | Workbench              | `Cmd+1` … `Cmd+9`  | `Ctrl+1` … `Ctrl+9` |
+| `workbench.tab.select-previous`              | Workbench              | `Cmd+Shift+[`      | `Ctrl+PageUp`       |
+| `workbench.tab.select-next`                  | Workbench              | `Cmd+Shift+]`      | `Ctrl+PageDown`     |
 | `workbench.terminal.active.close`            | 活动终端               | `Cmd+W`            | `Ctrl+Shift+W`      |
 | `workbench.panel.active.focus-down`          | 活动面板               | `Cmd+Option+Down`  | `Ctrl+Alt+Down`     |
 | `workbench.panel.active.focus-left`          | 活动面板               | `Cmd+Option+Left`  | `Ctrl+Alt+Left`     |
@@ -26,7 +28,7 @@
 | `terminal.selection.select-all`              | 聚焦终端               | `Cmd+A`            | `Ctrl+Shift+A`      |
 | `terminal.clear`                             | 聚焦终端               | `Cmd+K`            | `Ctrl+Shift+L`      |
 
-新建标签页、关闭活动终端、活动面板最大化、向右分屏、向下分屏和粘贴的默认键采用 2026-08-22 观察到的 Warp [桌面端文档约定](https://docs.warp.dev/getting-started/keyboard-shortcuts)；这里只固定选择默认按键，不主张更广泛的行为或视觉一致性。Apple 的全部搜索使用 `Cmd+Shift+F`，把熟悉的 `Cmd+K` 留给且只留给已聚焦终端的清除操作。标准平台的清除使用 `Ctrl+Shift+L`；标准默认值特意保留未加 Shift 的 `Ctrl+B/T/W/K/F/D/E/V/A/L` 与 `Ctrl+C`，供 shell、终端应用和多路复用器使用。用户可以主动录入其他受支持的自定义组合键。即使某个 Action 暂时不可用，产品内冲突仍然不允许出现。
+新建标签页、关闭活动终端、活动面板最大化、向右分屏、向下分屏和粘贴的默认键采用 2026-08-22 观察到的 Warp [桌面端文档约定](https://docs.warp.dev/getting-started/keyboard-shortcuts)；这里只固定选择默认按键，不主张更广泛的行为或视觉一致性。上一个和下一个标签页的默认键使用 Warp 修订版 `086dade63ff7327426d6276d57f85b3f2f313af0` 中的对应绑定。Apple 的全部搜索使用 `Cmd+Shift+F`，把熟悉的 `Cmd+K` 留给且只留给已聚焦终端的清除操作。标准平台的清除使用 `Ctrl+Shift+L`；标准默认值特意保留未加 Shift 的 `Ctrl+B/T/W/K/F/D/E/V/A/L` 与 `Ctrl+C`，供 shell、终端应用和多路复用器使用。用户可以主动录入其他受支持的自定义组合键。即使某个 Action 暂时不可用，产品内冲突仍然不允许出现。
 
 ## 终端粘贴路由
 
@@ -80,6 +82,14 @@ Web 发布 Workbench 是否为当前活动产品表面。已挂载的 Workbench 
 
 `Mod+1` 到 `Mod+9` 会用相应的一基位置调用 `workbench.tab.select-by-position`。位置取自活动终端上下文的规范 `TabModel.tabs` 顺序：固定 Tab 前缀在最前，之后是当前的分组与未分组顺序。折叠组中的 Tab 仍会占据位置；委托的 `tabs.tab.select` Action 会通过普通选择转换展开所选 Tab 所在的组。缺少对应位置时 Action 不可用，按键事件保持不变。`Mod+9` 表示第九个 Tab，绝不表示最后一个 Tab。
 
+### 相邻标签页选择模型
+
+- **问题与输入：** 用户需要在不知道标签页位置的情况下遍历活动终端上下文。可信输入是最新的规范 `TabModel` 快照以及语义化的 `previous` 或 `next` 方向；Action 不接受动态输入。
+- **数据、模型与所有权：** Workbench 从有序的 `TabModel.tabs` 投影中解析一个相邻标签页 ID。`@orchbee/tab-strip` 仍是选择状态的唯一所有者，已有的预备 `tabs.tab.select` Action 仍是唯一写入者。
+- **输出与转换：** 零个或一个标签页、缺失的活动标签页或缺失的下层 Action 都不可用，并保留按键事件。至少有两个标签页时，previous 选择索引 `i - 1`，next 选择索引 `i + 1`；越过任一边界时回绕到另一端。选择使用 `replace`，因此分组、折叠、固定、焦点与导航行为仍归普通标签页选择转换所有。
+- **不变量与重新校验：** 目标不同于活动标签页，属于同一个活动终端上下文，并遵循规范顺序而非 MRU 顺序。可用性与执行都会从当前快照解析；目标被移除或下层注册被替换时会阻止操作，不执行直接修改。
+- **验证与排除项：** 纯解析器测试覆盖空、单例、中间位置、两个回绕边界、反向方向及缺失的活动标识。Action 测试覆盖分组与固定顺序、下层注册移除及执行时重新解析。快捷键测试覆盖两个平台、额外修饰键、重复、输入法组合、禁用时继续传递和自定义绑定。重排、跨 Workspace 遍历、跨窗口遍历及 MRU 遍历不在范围内。
+
 ## 活动目标命令模型
 
 八个 `workbench.*.active.*` Action 是上下文命令。菜单发起的 Action 调用可以携带显式面板目标；否则使用活动标签页中聚焦的面板。执行开始时会重新解析目标，因此陈旧或缺失的目标不可用，也不会吞掉键盘事件。
@@ -109,11 +119,11 @@ Workbench 负责格式化自身绑定。投影终端负责其绑定默认值与�
 
 ## 持久化与恢复
 
-新写入使用 `orchbee:web:keyboard-shortcuts:v4` 严格记录：
+新写入使用 `orchbee:web:keyboard-shortcuts:v5` 严格记录：
 
 ```json
 {
-	"version": 4,
+	"version": 5,
 	"overrides": [
 		{
 			"shortcutId": "workbench.search.all.open",
@@ -123,9 +133,9 @@ Workbench 负责格式化自身绑定。投影终端负责其绑定默认值与�
 }
 ```
 
-只存储自定义值，并按快捷键 ID 排序。未知字段或 ID、重复项、未排序条目、非规范修饰符、不支持的代码、已存储默认值、过多条目以及有效冲突都会使完整 v4 记录无效，并恢复平台默认值。写入失败时，不可变的会话绑定仍保持活动，同时报告尚未保存，并在下一次合法修改时重试。恢复单项会移除其覆盖。
+只存储自定义值，并按快捷键 ID 排序。未知字段或 ID、重复项、未排序条目、非规范修饰符、不支持的代码、已存储默认值、过多条目以及有效冲突都会使完整 v5 记录无效，并恢复平台默认值。写入失败时，不可变的会话绑定仍保持活动，同时报告尚未保存，并在下一次合法修改时重试。恢复单项会移除其覆盖。
 
-当 v4 不存在时，Web 会先按准确的旧目录与旧默认值读取 `orchbee:web:keyboard-shortcuts:v3`；如果 v3 也不存在，则依次尝试 v2 和 v1。每次迁移都会把显式覆盖带入扩展后的目录，移除与当前默认值等价的覆盖，拒绝迁移后产生的冲突，并写入规范 v4 记录。v1、v2 与 v3 值原样保留，作为回滚快照。无效当前记录绝不回退到更旧记录，无效迁移源也绝不继续读取下一个更旧版本，因为任一回退都会掩盖数据损坏。回滚时会恢复旧版本能够理解的最新记录；只在 v4 中做出的编辑有意不对旧版本可用。
+当 v5 不存在时，Web 会先按准确的旧目录与旧默认值读取 `orchbee:web:keyboard-shortcuts:v4`；如果 v4 也不存在，则依次尝试 v3、v2 和 v1。每次迁移都会把显式覆盖带入扩展后的目录，移除与当前默认值等价的覆盖，拒绝迁移后产生的冲突，并写入规范 v5 记录。v1、v2、v3 与 v4 值原样保留，作为回滚快照。无效当前记录绝不回退到更旧记录，无效迁移源也绝不继续读取下一个更旧版本，因为任一回退都会掩盖数据损坏。回滚时会恢复旧版本能够理解的最新记录；只在 v5 中做出的编辑有意不对旧版本可用。
 
 Browser Preview、Gateway Browser 和 Electron 各自针对自己的源本地存储创建并销毁一个控制器。Gateway 与 Electron 通过 `ProjectedTerminalSurfaceCapability` 传递控制器的窄绑定来源。事件处理器在分发时读取当前表，因此修改不会重新挂载 Workbench、替换附件，也不会重新打开 Host 或 Gateway 连接。
 
@@ -143,8 +153,9 @@ Browser Preview、Gateway Browser 和 Electron 各自针对自己的源本地存
 | 等待中的 Copy 与 Paste 工作不会接纳陈旧或重复快捷键输入 | 剪贴板协调器与 Action 测试及精确 Desktop `terminal-parity/IN-13-selection-copy-paste`      |
 | 方向聚焦会选择空间邻居，并在外边缘继续传递事件          | 四面板解析器、Action 与快捷键分发测试                                                      |
 | 按位置选择遵循规范 Tab 顺序并在越界时继续传递事件       | 分组与固定 Action 集成测试及快捷键分发测试                                                 |
+| 相邻选择遵循规范 Tab 顺序，且仅在存在多个 Tab 时回绕    | 纯解析器、预备 Action 集成与快捷键继续传递测试                                             |
 | 菜单、Action 搜索和设置显示同一个当前绑定               | 投影与渲染界面测试                                                                         |
-| 有效 v1、v2 与 v3 记录迁移时不会丢失显式旧覆盖          | 存储迁移测试，包括与新默认值的冲突                                                         |
+| 有效 v1、v2、v3 与 v4 记录迁移时不会丢失显式旧覆盖      | 存储迁移测试，包括与新默认值的冲突                                                         |
 | 无效当前记录或迁移源数据不会读取更旧记录                | 存储损坏与优先级测试                                                                       |
 
 测试使用合成的平台标志、Action 作用域、存储、document 捕获、注入终端焦点与键盘事件。它们不主张操作系统全局快捷键行为或完整 Warp 兼容性。手动 Desktop 原生窗口焦点测试不包含在自动验证中。

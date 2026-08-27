@@ -62,6 +62,10 @@ export function useKeyboardShortcutSettingsView({
 				return intl.formatMessage(keyboardShortcutMessages.closeTerminal);
 			case 'new-terminal':
 				return intl.formatMessage(keyboardShortcutMessages.newTerminal);
+			case 'next-tab':
+				return intl.formatMessage(keyboardShortcutMessages.nextTab);
+			case 'previous-tab':
+				return intl.formatMessage(keyboardShortcutMessages.previousTab);
 			case 'global-search':
 				return intl.formatMessage(keyboardShortcutMessages.globalSearch);
 			case 'maximize-panel':
@@ -128,6 +132,8 @@ export function useKeyboardShortcutSettingsView({
 				return intl.formatMessage(keyboardShortcutMessages.availabilityDirectionalPanel);
 			case 'multiple-panels':
 				return intl.formatMessage(keyboardShortcutMessages.availabilityMultiplePanels);
+			case 'multiple-tabs':
+				return intl.formatMessage(keyboardShortcutMessages.availabilityMultipleTabs);
 			case 'tab-position':
 				return intl.formatMessage(keyboardShortcutMessages.availabilityTabPosition);
 		}

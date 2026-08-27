@@ -51,6 +51,14 @@ export const workbenchTabMessages = defineMessages({
 		id: 'workbench.tabs.actions.select',
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.select'],
 	},
+	selectNextTab: {
+		id: 'workbench.tabs.actions.selectNext',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.selectNext'],
+	},
+	selectPreviousTab: {
+		id: 'workbench.tabs.actions.selectPrevious',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.selectPrevious'],
+	},
 	moveTab: {
 		id: 'workbench.tabs.actions.move',
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.move'],

@@ -182,6 +182,8 @@ export const zhCNWorkbenchMessages = {
 	'workbench.tabs.actions.closeVertical': '关闭垂直标签页',
 	'workbench.tabs.actions.duplicate': '复制标签页',
 	'workbench.tabs.actions.select': '选择标签页',
+	'workbench.tabs.actions.selectNext': '选择下一个标签页',
+	'workbench.tabs.actions.selectPrevious': '选择上一个标签页',
 	'workbench.tabs.actions.move': '移动标签页',
 	'workbench.tabs.actions.moveGroup': '移动标签页组',
 	'workbench.tabs.actions.setGroupCollapsed': '设置标签页组折叠状态',

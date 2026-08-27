@@ -194,6 +194,8 @@ export const enUSWorkbenchMessages = {
 	'workbench.tabs.actions.closeVertical': 'Close vertical tabs',
 	'workbench.tabs.actions.duplicate': 'Duplicate',
 	'workbench.tabs.actions.select': 'Select tab',
+	'workbench.tabs.actions.selectNext': 'Select next tab',
+	'workbench.tabs.actions.selectPrevious': 'Select previous tab',
 	'workbench.tabs.actions.move': 'Move tab',
 	'workbench.tabs.actions.moveGroup': 'Move tab group',
 	'workbench.tabs.actions.setGroupCollapsed': 'Set tab group collapsed state',
