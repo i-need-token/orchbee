@@ -6,6 +6,7 @@ import { TerminalLaunchSchema } from '@orchbee/terminal-protocol';
 import { describe, expect, it } from 'vitest';
 
 import { createDefaultTerminalProfile } from '../../host';
+import type { AutomaticShellIntegrationConfiguration } from '../resolveAutomaticShellIntegration';
 import { resolveTerminalLaunchProfile } from '../resolveTerminalLaunchProfile';
 
 const baseLaunch = TerminalLaunchSchema.parse({
@@ -23,6 +24,15 @@ const baseLaunch = TerminalLaunchSchema.parse({
 	rows: 24,
 	terminalProfile: createDefaultTerminalProfile(),
 });
+
+const automaticShellIntegration: AutomaticShellIntegrationConfiguration = {
+	availableShells: ['bash', 'fish', 'zsh'],
+	directory: '/app/shell-integration',
+	inheritedEnvironment: {
+		xdgDataDirectories: null,
+		zdotdir: null,
+	},
+};
 
 describe('resolveTerminalLaunchProfile', () => {
 	it('keeps the complete trusted launch for the normal system shell', () => {
@@ -87,6 +97,59 @@ describe('resolveTerminalLaunchProfile', () => {
 				environment: baseLaunch.environment,
 				executable: '/opt/example/bin/tool',
 				terminalProfile: baseLaunch.terminalProfile,
+			},
+		});
+	});
+
+	it('applies automatic integration only after the profile selects a supported shell', () => {
+		const result = resolveTerminalLaunchProfile(
+			baseLaunch,
+			{
+				command: {
+					arguments: ['-i'],
+					executable: '/opt/homebrew/bin/zsh',
+					kind: 'custom-executable',
+				},
+				id: DesktopTerminalLaunchProfileIdSchema.parse('profile-zsh'),
+				name: 'Zsh',
+			},
+			'darwin',
+			automaticShellIntegration,
+		);
+
+		expect(result).toMatchObject({
+			kind: 'resolved',
+			launch: {
+				arguments: ['-i'],
+				executable: '/opt/homebrew/bin/zsh',
+			},
+		});
+		if (result.kind !== 'resolved') throw new Error('Expected a resolved Zsh profile.');
+		expect(result.launch.environment).toContainEqual({
+			name: 'ZDOTDIR',
+			value: '/app/shell-integration/automatic/zsh',
+		});
+
+		const unsupported = resolveTerminalLaunchProfile(
+			baseLaunch,
+			{
+				command: {
+					arguments: ['--name', 'two words'],
+					executable: '/opt/example/bin/tool',
+					kind: 'custom-executable',
+				},
+				id: DesktopTerminalLaunchProfileIdSchema.parse('profile-tool'),
+				name: 'Tool',
+			},
+			'darwin',
+			automaticShellIntegration,
+		);
+		expect(unsupported).toMatchObject({
+			kind: 'resolved',
+			launch: {
+				arguments: ['--name', 'two words'],
+				environment: baseLaunch.environment,
+				executable: '/opt/example/bin/tool',
 			},
 		});
 	});

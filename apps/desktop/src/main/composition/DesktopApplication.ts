@@ -322,6 +322,7 @@ export interface DesktopApplicationDependencies {
 	}) => DesktopTerminalDefaultSettingsControllerHandle;
 	readonly createTerminalLaunchProfileController: (options: {
 		readonly allocateProfileId: () => string;
+		readonly automaticShellIntegration: DesktopRuntimeConfiguration['automaticShellIntegration'];
 		readonly baseLaunch: TerminalLaunch;
 		readonly platform: NodeJS.Platform;
 		readonly storePath: string;
@@ -415,6 +416,7 @@ const defaultDependencies: DesktopApplicationDependencies = {
 	createTerminalLaunchProfileController: (options) =>
 		new DesktopTerminalLaunchProfileController({
 			allocateProfileId: options.allocateProfileId,
+			automaticShellIntegration: options.automaticShellIntegration,
 			baseLaunch: options.baseLaunch,
 			platform: options.platform,
 			store: new FileTerminalLaunchProfileStore(options.storePath),
@@ -553,6 +555,7 @@ export class DesktopApplication {
 		);
 		this.#terminalLaunchProfileController = dependencies.createTerminalLaunchProfileController({
 			allocateProfileId: () => `profile-${dependencies.randomIdentifier()}`,
+			automaticShellIntegration: options.runtime.automaticShellIntegration,
 			baseLaunch: options.runtime.terminalLaunch,
 			platform: options.platform,
 			storePath: options.runtime.terminalLaunchProfileStorePath,

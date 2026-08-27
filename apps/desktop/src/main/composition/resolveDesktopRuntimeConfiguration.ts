@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { accessSync, constants as fileSystemConstants } from 'node:fs';
 import path from 'node:path';
 
 import {
@@ -10,6 +11,10 @@ import {
 } from '@orchbee/terminal-protocol';
 
 import { createDefaultTerminalProfile, POSIX_HOST_ENDPOINT_ADDON_NAME } from '../host';
+import type {
+	AutomaticShellIntegrationConfiguration,
+	AutomaticShellIntegrationShell,
+} from '../terminal-launch-profiles';
 
 export interface DesktopRuntimeEnvironment {
 	readonly FORCE_COLOR?: string;
@@ -29,6 +34,8 @@ export interface DesktopRuntimeEnvironment {
 	readonly ORCHBEE_TERMINAL_SCROLLBACK_BYTES?: string;
 	readonly ORCHBEE_WEB_RENDERER_ROOT?: string;
 	readonly SHELL?: string;
+	readonly XDG_DATA_DIRS?: string;
+	readonly ZDOTDIR?: string;
 	readonly ComSpec?: string;
 }
 
@@ -58,6 +65,7 @@ export interface DesktopRuntimeConfigurationInput {
 }
 
 export interface DesktopRuntimeConfiguration {
+	readonly automaticShellIntegration: AutomaticShellIntegrationConfiguration | null;
 	readonly binaryPath: string;
 	readonly browserAccess: DesktopBrowserAccessRuntimeConfiguration;
 	readonly endpointId: string;
@@ -226,6 +234,10 @@ export function resolveDesktopRuntimeConfiguration(
 	}
 
 	return {
+		automaticShellIntegration: resolveAutomaticShellIntegrationConfiguration(
+			shellIntegrationDirectory,
+			input.environment,
+		),
 		binaryPath,
 		browserAccess,
 		endpointId,
@@ -280,6 +292,45 @@ export function resolveDesktopRuntimeConfiguration(
 		windowStateStorePath: path.join(input.userDataPath, 'window-state-v1.json'),
 		workbenchDocumentStorePath: path.join(recoveryDirectory, 'workbench-shared-document-v1.json'),
 	};
+}
+
+function resolveAutomaticShellIntegrationConfiguration(
+	directory: string | null,
+	environment: DesktopRuntimeEnvironment,
+): AutomaticShellIntegrationConfiguration | null {
+	if (directory === null) return null;
+	const resourcePaths = {
+		bash: ['orchbee.bash', path.join('automatic', 'bash', 'orchbee.bash')],
+		fish: [
+			'orchbee.fish',
+			path.join('automatic', 'fish', 'fish', 'vendor_conf.d', 'orchbee-shell-integration.fish'),
+		],
+		zsh: ['orchbee.zsh', path.join('automatic', 'zsh', '.zshenv')],
+	} satisfies Record<AutomaticShellIntegrationShell, readonly string[]>;
+	const supportedShells: readonly AutomaticShellIntegrationShell[] = ['bash', 'fish', 'zsh'];
+	const availableShells = supportedShells.filter((shell) =>
+		resourcePaths[shell].every((relativePath) =>
+			isReadableResource(path.join(directory, relativePath)),
+		),
+	);
+	if (availableShells.length === 0) return null;
+	return {
+		availableShells,
+		directory,
+		inheritedEnvironment: {
+			xdgDataDirectories: environment.XDG_DATA_DIRS ?? null,
+			zdotdir: environment.ZDOTDIR ?? null,
+		},
+	};
+}
+
+function isReadableResource(filePath: string): boolean {
+	try {
+		accessSync(filePath, fileSystemConstants.R_OK);
+		return true;
+	} catch {
+		return false;
+	}
 }
 
 function resolveTerminalLocaleEnvironment(

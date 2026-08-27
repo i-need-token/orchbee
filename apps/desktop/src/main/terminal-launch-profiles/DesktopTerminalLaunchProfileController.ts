@@ -21,6 +21,7 @@ import {
 	type TerminalLaunchProfileCatalogMutation,
 	type TerminalLaunchProfileCatalogValidation,
 } from './terminal-launch-profile-catalog';
+import type { AutomaticShellIntegrationConfiguration } from './resolveAutomaticShellIntegration';
 import { resolveTerminalLaunchProfile } from './resolveTerminalLaunchProfile';
 import type { TerminalLaunchProfileStore } from './terminal-launch-profile-store';
 
@@ -45,6 +46,7 @@ export type DesktopTerminalLaunchProfileMutationResult =
 
 export interface DesktopTerminalLaunchProfileControllerOptions {
 	readonly allocateProfileId: () => string;
+	readonly automaticShellIntegration: AutomaticShellIntegrationConfiguration | null;
 	readonly baseLaunch: TerminalLaunch;
 	readonly platform: NodeJS.Platform;
 	readonly store: TerminalLaunchProfileStore;
@@ -52,6 +54,7 @@ export interface DesktopTerminalLaunchProfileControllerOptions {
 
 export class DesktopTerminalLaunchProfileController {
 	readonly #allocateProfileId: () => string;
+	readonly #automaticShellIntegration: AutomaticShellIntegrationConfiguration | null;
 	readonly #baseLaunch: TerminalLaunch;
 	#initialization: Promise<DesktopTerminalLaunchProfileSnapshot> | undefined;
 	#mutationTail = Promise.resolve();
@@ -61,6 +64,7 @@ export class DesktopTerminalLaunchProfileController {
 
 	constructor(options: DesktopTerminalLaunchProfileControllerOptions) {
 		this.#allocateProfileId = options.allocateProfileId;
+		this.#automaticShellIntegration = options.automaticShellIntegration;
 		this.#baseLaunch = TerminalLaunchSchema.parse(options.baseLaunch);
 		this.#platform = options.platform;
 		this.#store = options.store;
@@ -86,7 +90,12 @@ export class DesktopTerminalLaunchProfileController {
 		if (profile === undefined) {
 			throw new Error('The terminal launch-profile catalog has no default profile.');
 		}
-		const resolution = resolveTerminalLaunchProfile(this.#baseLaunch, profile, this.#platform);
+		const resolution = resolveTerminalLaunchProfile(
+			this.#baseLaunch,
+			profile,
+			this.#platform,
+			this.#automaticShellIntegration,
+		);
 		if (resolution.kind === 'rejected') {
 			throw new Error(`The default terminal launch profile is invalid: ${resolution.reason}.`);
 		}
@@ -116,6 +125,7 @@ export class DesktopTerminalLaunchProfileController {
 		if (loaded.kind === 'available') {
 			const validation = validateLaunchableTerminalLaunchProfileCatalog(
 				loaded.catalog,
+				this.#automaticShellIntegration,
 				this.#baseLaunch,
 				this.#platform,
 			);
@@ -155,6 +165,7 @@ export class DesktopTerminalLaunchProfileController {
 		}
 		const launchValidation = validateLaunchableTerminalLaunchProfileCatalog(
 			transition.catalog,
+			this.#automaticShellIntegration,
 			this.#baseLaunch,
 			this.#platform,
 		);
@@ -204,13 +215,19 @@ const PROFILE_VALIDATION_CREATION_ID = CreationIdSchema.parse('11111111111111111
 
 function validateLaunchableTerminalLaunchProfileCatalog(
 	input: unknown,
+	automaticShellIntegration: AutomaticShellIntegrationConfiguration | null,
 	baseLaunch: TerminalLaunch,
 	platform: NodeJS.Platform,
 ): TerminalLaunchProfileCatalogValidation {
 	const validation = validateTerminalLaunchProfileCatalog(input, platform);
 	if (validation.kind === 'invalid') return validation;
 	for (const profile of validation.catalog.profiles) {
-		const resolution = resolveTerminalLaunchProfile(baseLaunch, profile, platform);
+		const resolution = resolveTerminalLaunchProfile(
+			baseLaunch,
+			profile,
+			platform,
+			automaticShellIntegration,
+		);
 		if (resolution.kind === 'rejected') {
 			return { kind: 'invalid', reason: resolution.reason };
 		}

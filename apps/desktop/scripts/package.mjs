@@ -57,6 +57,18 @@ await Promise.all([
 	access(path.join(shellIntegrationResources, 'orchbee.zsh')),
 	access(path.join(shellIntegrationResources, 'orchbee.bash')),
 	access(path.join(shellIntegrationResources, 'orchbee.fish')),
+	access(path.join(shellIntegrationResources, 'automatic', 'zsh', '.zshenv')),
+	access(path.join(shellIntegrationResources, 'automatic', 'bash', 'orchbee.bash')),
+	access(
+		path.join(
+			shellIntegrationResources,
+			'automatic',
+			'fish',
+			'fish',
+			'vendor_conf.d',
+			'orchbee-shell-integration.fish',
+		),
+	),
 ]);
 
 const stagingRoot = await mkdtemp(path.join(tmpdir(), 'orchbee-desktop-package-'));

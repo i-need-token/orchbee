@@ -76,7 +76,7 @@ export const EnglishLight: Story = {
 		docs: {
 			description: {
 				story:
-					'Inspect the grouped Application, Terminal, Workspace, Integrations, and Data & Access rail; inspect live padding, weights, ligatures, copy-on-select, and the Desktop scrollback default with its future-terminal notice. Open Profiles to manage the local system and Fish launches, literal ordered arguments, future-terminal boundary, and confirmed destructive actions. Type font to see global Text results without blanking General, then activate Terminal font family to restore the rail and reveal the row. Neutral setting groups have no outer stroke, future controls are clearly marked Planned and disabled, Shell integration remains manual-only, Remote development remains read-only, and Ghostty migration remains a paste-only dry-run.',
+					'Inspect the grouped Application, Terminal, Workspace, Integrations, and Data & Access rail; inspect live padding, weights, ligatures, copy-on-select, and the Desktop scrollback default with its future-terminal notice. Open Profiles to manage the local system and Fish launches, literal ordered arguments, future-terminal boundary, and confirmed destructive actions. Type font to see global Text results without blanking General, then activate Terminal font family to restore the rail and reveal the row. Neutral setting groups have no outer stroke, future controls are clearly marked Planned and disabled, Shell integration explains automatic Desktop scope and exact manual fallbacks, Remote development remains read-only, and Ghostty migration remains a paste-only dry-run.',
 			},
 		},
 	},

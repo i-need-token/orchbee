@@ -126,7 +126,7 @@ AttachmentId ── one disposable projection capability
 
 `TerminalPresentationId` 由 Workbench 创建并停用。 Main 保持对 `TerminalBindingId` 的严格内存中双射；它从不通过生命周期控制公开绑定、创建、主机、终端或附件身份。主机仍然是该过程和 VT 的真实来源。
 
-版本 3 绑定存储包含规范的 BindingId-ordered 集合。每条记录都有唯一的 BindingId、PresentationId、CreationId、有界启动配置文件以及一个持久状态：`planned`、`create-requested`、`retained`、`exited`、`closing` 或 `lost`。保留的身份是唯一的，并且必须重复其所属的 CreationId。该文件被解析为不受信任的输入，通过仅所有者可用的原子替换进行更新，并且在无效或不可读时绝不自动重写。启动环境值绝不进入诊断。每个默认启动都声明 `TERM=xterm-256color`、`COLORTERM=truecolor` 和 Ghostty 兼容身份 `TERM_PROGRAM=ghostty`，并在 Host 创建 PTY 进程前删除继承的 `NO_COLOR`、`FORCE_COLOR` 和 `NODE_DISABLE_COLORS` 策略。Desktop 不安装 `xterm-ghostty` terminfo，因此 `TERM` 仍保持可移植基线；该兼容身份使应用可以选择 Orchbee 通过固定 Ghostty VT 实现的 Kitty graphics 和 Kitty keyboard 协议，而不声称 Ghostty 应用版本。新的 POSIX 终端还从代码解析的应用资源路径接收 `ORCHBEE_SHELL_INTEGRATION_DIR`：开发环境相对构建后的 Main 入口解析它，打包应用则在 `process.resourcesPath` 下解析它。环境中的值无法替换该路径。Desktop 将自己的 Zsh、Bash 和 Fish 脚本作为包资源提供，但绝不自动 source 它们或修改启动文件；Settings 公开确切的手动命令。
+版本 3 绑定存储包含规范的 BindingId-ordered 集合。每条记录都有唯一的 BindingId、PresentationId、CreationId、有界启动配置文件以及一个持久状态：`planned`、`create-requested`、`retained`、`exited`、`closing` 或 `lost`。保留的身份是唯一的，并且必须重复其所属的 CreationId。该文件被解析为不受信任的输入，通过仅所有者可用的原子替换进行更新，并且在无效或不可读时绝不自动重写。启动环境值绝不进入诊断。每个默认启动都声明 `TERM=xterm-256color`、`COLORTERM=truecolor` 和 Ghostty 兼容身份 `TERM_PROGRAM=ghostty`，并在 Host 创建 PTY 进程前删除继承的 `NO_COLOR`、`FORCE_COLOR` 和 `NODE_DISABLE_COLORS` 策略。Desktop 不安装 `xterm-ghostty` terminfo，因此 `TERM` 仍保持可移植基线；该兼容身份使应用可以选择 Orchbee 通过固定 Ghostty VT 实现的 Kitty graphics 和 Kitty keyboard 协议，而不声称 Ghostty 应用版本。新的 POSIX 终端还从代码解析的应用资源路径接收 `ORCHBEE_SHELL_INTEGRATION_DIR`：开发环境相对构建后的 Main 入口解析它，打包应用则在 `process.resourcesPath` 下解析它。环境中的值无法替换该路径。Desktop 将自己的 Zsh、Bash、Fish 脚本及一次性 loader 作为包资源提供。profile 选择后，新建且受支持的本地 Zsh、非登录 Bash 和 Fish launch 会自动加载共享集成，而 Main 不读取或修改启动文件；不受支持的启动形式保持不变，Settings 仍公开精确的手动回退命令。运行中、恢复的、Windows 和远程终端不在该细化范围内。参见 [`docs/kitty-automatic-shell-integration-alignment.md`](docs/kitty-automatic-shell-integration-alignment.zh-CN.md)。
 
 启动 locale resolver 是一个确定性策略，其输入为目标平台、Desktop 继承的 `LC_ALL`、`LANG` 和 `LC_CTYPE`、Darwin 系统 locale 以及 Darwin 已安装 locale inventory。它只生成由新终端启动记录捕获的环境 delta。在 Darwin 上，该 delta 会显式设置或删除全部三个 locale 变量，因此 PTY locale 不会依赖单独受监督 Host 的环境。已保留的启动记录和正在运行的 PTY 永远不会被追溯修改。
 
@@ -265,6 +265,9 @@ Workbench `terminal-presentation-event-published` 消息是 Main 拥有的单一
 - 沙盒端到端输入、输出、历史记录、搜索、选择、复制、链接、退出、渲染器重新加载和 Electron Main 重新启动；
 - 开发和打包的 Shell 资源解析、资源存在和隐私检查、真正的 Zsh OSC 133 输出以及一个 macOS Electron 从手动设置策略到长命令完成提醒的路径，无需替换预计的附件；
 - 精确的 `terminal-parity/SI-02-prompt-navigation` real-PTY/Electron 证据表明，三个显式 OSC 133 提示符行会到达生产 Host 投影，并且重复按下 `Ctrl+Shift+Z`、再按下 `Ctrl+Shift+X` 会在两个方向上选择最近的行，而不替换附件。该见证不声明自动注入 Shell Integration；
+- 精确的 `terminal-parity/SI-03-automatic-shell-integration` real-PTY/Electron 证据表明，全新的
+  本地 Desktop Zsh 会保留用户 `.zshenv`、`.zprofile`、`.zshrc` 与 `ZDOTDIR` 状态，清除一次性
+  marker，并在无需手动设置或替换附件的情况下发出命令完成事实；
 - 精确的 `terminal-parity/HS-11-keyboard-scrollback` real-PTY/Electron 证据表明，
   `Ctrl+Shift+Arrow`、`Ctrl+Shift+PageUp/PageDown` 和 `Ctrl+Shift+Home/End` 会让一个生产保留历史
   视口逐行、按重叠页面、到顶部和到底部移动，且不会替换附件。该见证不声明 Kitty 的次要别名、

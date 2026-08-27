@@ -391,18 +391,23 @@ are not remote-identity authority and do not alter this policy.
 
 ## Shell integration and completion reminders
 
-The Shell integration category presents exact manual `source` commands for the Orchbee-owned Zsh,
-Bash, and Fish resources shipped by Desktop. It never reads, creates, edits, or backs up a shell
-startup file and never executes a displayed command. Zsh uses `preexec` and `precmd`; Fish uses
-`fish_preexec` and `fish_postexec`; Bash requires version 4.4 or newer. The Bash 3.2 shipped by
-macOS is explicitly unsupported. Removing the user-added `source` line and starting a new shell is
-the complete rollback.
+The Shell integration category explains that Desktop automatically loads the Orchbee-owned
+integration for supported new local Zsh, non-login Bash, and Fish terminals. Exact `source`
+commands remain available as a manual fallback for unsupported launch forms and other clients. The
+surface never reads, creates, edits, or backs up a shell startup file and never executes a displayed
+command. Zsh uses `preexec` and `precmd`; Fish uses `fish_preexec` and `fish_postexec`; Bash requires
+version 4.4 or newer. The Bash 3.2 shipped by macOS is explicitly unsupported. Removing a
+user-added `source` line and starting a new shell rolls back only that manual fallback.
 
 Desktop supplies `ORCHBEE_SHELL_INTEGRATION_DIR` from its trusted application-resource path for
-new POSIX terminals. The scripts emit standard OSC 133 command boundaries and OSC 7 current
-directory state. Orchbee does not accept an ambient override for this path, auto-source a script,
-or transport command text. Terminal Host projects only the latest positive sequence, duration,
-completion timestamp, and normalized exit code.
+new POSIX terminals. After launch-profile selection, supported local launch forms use a one-shot
+Zsh, Bash, or Fish loader that restores the shell's normal startup path before sourcing the shared
+integration; unsupported forms continue unchanged with the manual fallback available. The scripts
+emit standard OSC 133 command boundaries and OSC 7 current-directory state without transporting
+command text. Ambient environment cannot replace the resource path, and automatic loading never
+changes running or restored terminals, Windows terminals, remote connections, or user startup
+files. Terminal Host projects only the latest positive sequence, duration, completion timestamp,
+and normalized exit code.
 
 Completion reminders use the separate key `orchbee:web:terminal-feedback:v1`, whose strict JSON
 value contains `completionReminderMode` (`never`, `unfocused`, or `always`) and

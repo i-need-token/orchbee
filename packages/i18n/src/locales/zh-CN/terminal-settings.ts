@@ -193,7 +193,7 @@ export const zhCNTerminalSettingsMessages = {
 	'terminal.settings.shellIntegration.description': '为命令完成提醒和终端语义提供可靠的命令边界。',
 	'terminal.settings.shellIntegration.fish.title': 'Fish',
 	'terminal.settings.shellIntegration.manualNotice':
-		'Orchbee 永远不会编辑 Shell 启动文件。请自行添加一行 source；删除或注释该行即可停用集成。',
+		'Desktop 会为新建且受支持的本地 Zsh、非登录 Bash 和 Fish 终端自动加载集成。Orchbee 永远不会编辑 Shell 启动文件。不受支持的启动形式或其他客户端可使用下方 source 命令手动回退。',
 	'terminal.settings.shellIntegration.notification.description':
 		'只有点击这里的按钮才会请求系统通知权限；终端输出永远不会触发权限请求。',
 	'terminal.settings.shellIntegration.notification.request': '允许系统通知',
@@ -219,7 +219,7 @@ export const zhCNTerminalSettingsMessages = {
 	'terminal.settings.shellIntegration.reminder.unfocused': '当前终端失去焦点时',
 	'terminal.settings.shellIntegration.reset.description':
 		'关闭命令完成提醒，并把最短时长恢复为五秒。',
-	'terminal.settings.shellIntegration.setupCommand.label': '手动 source 命令',
+	'terminal.settings.shellIntegration.setupCommand.label': '手动回退 source 命令',
 	'terminal.settings.shellIntegration.title': 'Shell 集成',
 	'terminal.settings.shellIntegration.zsh.title': 'Zsh',
 	'terminal.settings.sections.applicationAppearance': '应用外观',

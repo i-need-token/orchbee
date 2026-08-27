@@ -6,6 +6,11 @@ import {
 } from '@orchbee/desktop-client-protocol';
 import { TerminalLaunchSchema, type TerminalLaunch } from '@orchbee/terminal-protocol';
 
+import {
+	resolveAutomaticShellIntegration,
+	type AutomaticShellIntegrationConfiguration,
+} from './resolveAutomaticShellIntegration';
+
 export type TerminalLaunchProfileResolution =
 	| { readonly kind: 'resolved'; readonly launch: TerminalLaunch }
 	| { readonly kind: 'rejected'; readonly reason: 'invalid-profile' | 'unsupported-platform' };
@@ -14,6 +19,7 @@ export function resolveTerminalLaunchProfile(
 	baseLaunch: TerminalLaunch,
 	profile: DesktopTerminalLaunchProfile,
 	platform: NodeJS.Platform,
+	automaticShellIntegration: AutomaticShellIntegrationConfiguration | null = null,
 ): TerminalLaunchProfileResolution {
 	const trustedBase = TerminalLaunchSchema.parse(baseLaunch);
 	const parsedProfile = DesktopTerminalLaunchProfileSchema.safeParse(profile);
@@ -23,13 +29,14 @@ export function resolveTerminalLaunchProfile(
 		if (platform === 'win32' && command.login) {
 			return { kind: 'rejected', reason: 'unsupported-platform' };
 		}
-		return {
-			kind: 'resolved',
-			launch: TerminalLaunchSchema.parse({
+		return resolved(
+			TerminalLaunchSchema.parse({
 				...trustedBase,
 				arguments: command.login ? ['-l'] : [],
 			}),
-		};
+			platform,
+			automaticShellIntegration,
+		);
 	}
 	const pathImplementation = platform === 'win32' ? path.win32 : path.posix;
 	if (!pathImplementation.isAbsolute(command.executable)) {
@@ -41,6 +48,17 @@ export function resolveTerminalLaunchProfile(
 		executable: command.executable,
 	});
 	return launch.success
-		? { kind: 'resolved', launch: launch.data }
+		? resolved(launch.data, platform, automaticShellIntegration)
 		: { kind: 'rejected', reason: 'invalid-profile' };
+}
+
+function resolved(
+	launch: TerminalLaunch,
+	platform: NodeJS.Platform,
+	automaticShellIntegration: AutomaticShellIntegrationConfiguration | null,
+): TerminalLaunchProfileResolution {
+	return {
+		kind: 'resolved',
+		launch: resolveAutomaticShellIntegration(launch, platform, automaticShellIntegration).launch,
+	};
 }

@@ -45,6 +45,7 @@ const serverMain = path.join(repositoryRoot, 'apps', 'server', 'dist', 'main', '
 const webRoot = path.join(repositoryRoot, 'apps', 'web');
 const webDist = path.join(repositoryRoot, 'apps', 'web', 'dist');
 const launchEnvironmentWitnessTitle = 'terminal-parity/LC-04-environment';
+const automaticShellIntegrationWitnessTitle = 'terminal-parity/SI-03-automatic-shell-integration';
 const sshEnvironmentWitnessTitle =
 	'runs an ordinary SSH PTY with a diagnosable TERM and no implicit Orchbee environment forwarding';
 const startupGeometryWitnessTitle = 'terminal-parity/SU-16-startup-geometry';
@@ -113,6 +114,29 @@ test.beforeEach(async ({ browserName }, testInfo) => {
 		{ mode: 0o600 },
 	);
 	let shell = '/bin/sh';
+	let automaticShellIntegrationZdotdir: string | undefined;
+	if (testInfo.title === automaticShellIntegrationWitnessTitle && process.platform === 'darwin') {
+		automaticShellIntegrationZdotdir = path.join(runtimeDirectory, 'zsh-config');
+		await mkdir(automaticShellIntegrationZdotdir, { mode: 0o700 });
+		await Promise.all([
+			writeFile(
+				path.join(automaticShellIntegrationZdotdir, '.zshenv'),
+				'typeset -gx ORCHBEE_SI_ZSHENV_WITNESS=preserved\n',
+				{ mode: 0o600 },
+			),
+			writeFile(
+				path.join(automaticShellIntegrationZdotdir, '.zprofile'),
+				'typeset -gx ORCHBEE_SI_ZPROFILE_WITNESS=preserved\n',
+				{ mode: 0o600 },
+			),
+			writeFile(
+				path.join(automaticShellIntegrationZdotdir, '.zshrc'),
+				"typeset -gx ORCHBEE_SI_ZSHRC_WITNESS=preserved\nPS1='orchbee-si03% '\n",
+				{ mode: 0o600 },
+			),
+		]);
+		shell = '/bin/zsh';
+	}
 	if (testInfo.title === startupGeometryWitnessTitle && process.platform !== 'win32') {
 		const witnessPath = path.join(runtimeDirectory, 'startup-geometry.txt');
 		const witnessShell = path.join(runtimeDirectory, 'startup-geometry-shell.sh');
@@ -157,6 +181,9 @@ test.beforeEach(async ({ browserName }, testInfo) => {
 		ORCHBEE_SERVER_ENTRY_PATH: serverMain,
 		ORCHBEE_WEB_RENDERER_ROOT: webDist,
 		SHELL: process.platform === 'win32' ? (environment['ComSpec'] ?? 'cmd.exe') : shell,
+		...(automaticShellIntegrationZdotdir === undefined
+			? {}
+			: { ZDOTDIR: automaticShellIntegrationZdotdir }),
 	};
 	electronApplication = await launchDesktop();
 });
@@ -1980,6 +2007,45 @@ test('terminal-parity/SI-02-prompt-navigation', async () => {
 	await pressPromptShortcut('KeyX');
 	await expect(accessibleRows.first()).toContainText('si02-prompt-three');
 	await expect.poll(firstVisibleRow).toBe(thirdPromptStart);
+	expect(await root.getAttribute('data-projected-terminal-attachment-id')).toBe(attachmentId);
+});
+
+test(automaticShellIntegrationWitnessTitle, async () => {
+	test.skip(
+		process.platform !== 'darwin',
+		'The current automatic Zsh witness is verified on macOS.',
+	);
+	const application = electronApplication;
+	const currentZdotdir = runtimeDirectory && path.join(runtimeDirectory, 'zsh-config');
+	if (application === undefined || currentZdotdir === undefined) {
+		throw new Error('Desktop automatic shell-integration witness is unavailable.');
+	}
+	const page = await application.firstWindow();
+	const root = projectedTerminal(page);
+	await expect(root).toHaveAttribute('data-projected-terminal-state', 'open');
+	const attachmentId = await root.getAttribute('data-projected-terminal-attachment-id');
+
+	const settingsSurface = await openDesktopSettingsCategory(page, 'shell-integration');
+	await expect(settingsSurface).toContainText(/automatically loads integration|自动加载集成/u);
+	await expect(settingsSurface).toContainText(
+		/manual fallback source command|手动回退 source 命令/u,
+	);
+	await page.keyboard.press('Escape');
+	await expect(settingsSurface).not.toBeVisible();
+
+	const input = page.getByRole('textbox');
+	await input.pressSequentially(
+		'printf \'si03-state=%s:%s:%s:%s:%s\\n\' "$ORCHBEE_SI_ZSHENV_WITNESS" "$ORCHBEE_SI_ZPROFILE_WITNESS" "$ORCHBEE_SI_ZSHRC_WITNESS" "$ZDOTDIR" "${ORCHBEE_SHELL_INTEGRATION_ORIGINAL_ZDOTDIR-unset}"',
+		{ delay: 1 },
+	);
+	await input.press('Enter');
+	await expect(root.locator('[role="list"]')).toContainText(
+		`si03-state=preserved:preserved:preserved:${currentZdotdir}:unset`,
+	);
+	await expect(root).toHaveAttribute(
+		'data-projected-terminal-command-completion-observed-sequence',
+		/\d+/u,
+	);
 	expect(await root.getAttribute('data-projected-terminal-attachment-id')).toBe(attachmentId);
 });
 

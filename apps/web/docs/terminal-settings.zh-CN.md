@@ -214,9 +214,18 @@ Orchbee 不会包装系统 SSH 客户端、添加 `SendEnv` 规则、保留远�
 
 ## Shell 集成与完成提醒
 
-Shell 集成类别为 Desktop 提供的 Orchbee 拥有的 Zsh、Bash 和 Fish 资源提供了精确的手动 `source` 命令。它从不读取、创建、编辑或备份 shell 启动文件，也从不执行显示的命令。 zsh使用`preexec`和`precmd`；鱼用`fish_preexec`和`fish_postexec`； Bash 需要 4.4 或更高版本。 macOS 附带的 Bash 3.2 明确不受支持。删除用户添加的 `source` 行并启动新的 shell 就是完全回滚。
+Shell 集成类别说明 Desktop 会为新建且受支持的本地 Zsh、非登录 Bash 和 Fish 终端自动加载
+Orchbee 拥有的集成。精确的 `source` 命令仍作为不受支持的启动形式及其他客户端的手动回退。该界面
+绝不读取、创建、编辑或备份 Shell 启动文件，也绝不执行显示的命令。Zsh 使用 `preexec` 和
+`precmd`；Fish 使用 `fish_preexec` 和 `fish_postexec`；Bash 需要 4.4 或更高版本。macOS 自带的
+Bash 3.2 明确不受支持。删除用户添加的 `source` 行并启动新 Shell，只会撤销该手动回退。
 
-Desktop 从其可信应用程序资源路径为新的 POSIX 终端提供 `ORCHBEE_SHELL_INTEGRATION_DIR`。脚本发出标准 OSC 133 命令边界和 OSC 7 当前目录状态。 Orchbee 不接受此路径的环境覆盖、自动源脚本或传输命令文本。 Terminal Host 仅投影最新的正序列、持续时间、完成时间戳和标准化退出代码。
+Desktop 从可信的应用资源路径为新的 POSIX 终端提供 `ORCHBEE_SHELL_INTEGRATION_DIR`。launch
+profile 选择完成后，受支持的本地启动形式会使用一次性 Zsh、Bash 或 Fish loader；loader 会先恢复
+Shell 的正常启动路径，再 source 共享集成。不受支持的形式保持不变，并仍可使用手动回退。脚本发出
+标准 OSC 133 命令边界和 OSC 7 当前目录状态，但不传输命令文本。环境变量不能替换该资源路径；自动
+加载也绝不改变运行中或恢复的终端、Windows 终端、远程连接或用户启动文件。Terminal Host 只投影
+最新的正序列、持续时间、完成时间戳和标准化退出代码。
 
 完成提醒使用单独的密钥 `orchbee:web:terminal-feedback:v1`，其严格的 JSON 值包含 `completionReminderMode`（`never`、`unfocused` 或 `always`）和`completionReminderMinimumSeconds`（1 到 3,600 之间的整数）。默认值为 `never` 和 5 秒。无效或不可读的存储会回退到完全默认值，并显示可恢复的警告；失败的写入保留当前会话值并报告它未保存。重置可恢复两个默认值。
 

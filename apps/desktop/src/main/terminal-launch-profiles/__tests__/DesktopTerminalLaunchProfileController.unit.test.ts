@@ -7,6 +7,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { createDefaultTerminalProfile } from '../../host';
 import { DesktopTerminalLaunchProfileController } from '../DesktopTerminalLaunchProfileController';
+import type { AutomaticShellIntegrationConfiguration } from '../resolveAutomaticShellIntegration';
 import { createBuiltInTerminalLaunchProfileCatalog } from '../terminal-launch-profile-catalog';
 import type {
 	TerminalLaunchProfileStore,
@@ -25,6 +26,15 @@ const baseLaunch = TerminalLaunchSchema.parse({
 	rows: 24,
 	terminalProfile: createDefaultTerminalProfile(),
 });
+
+const automaticShellIntegration: AutomaticShellIntegrationConfiguration = {
+	availableShells: ['zsh'],
+	directory: '/app/shell-integration',
+	inheritedEnvironment: {
+		xdgDataDirectories: null,
+		zdotdir: null,
+	},
+};
 
 describe('DesktopTerminalLaunchProfileController', () => {
 	it.each([
@@ -66,6 +76,23 @@ describe('DesktopTerminalLaunchProfileController', () => {
 		});
 		expect(controller.resolveDefaultLaunch()).toEqual(baseLaunch);
 		expect(replace).not.toHaveBeenCalled();
+	});
+
+	it('uses the startup-captured automatic integration policy for every new default launch', async () => {
+		const controller = createController(
+			storeWith({ kind: 'missing' }),
+			'darwin',
+			() => 'profile-created',
+			automaticShellIntegration,
+		);
+		await controller.initialize();
+
+		const resolved = controller.resolveDefaultLaunch();
+		expect(resolved.arguments).toEqual(['-l']);
+		expect(resolved.environment).toContainEqual({
+			name: 'ZDOTDIR',
+			value: '/app/shell-integration/automatic/zsh',
+		});
 	});
 
 	it('resets a Darwin catalog to the login System shell only after persistence commits', async () => {
@@ -238,9 +265,11 @@ function createController(
 	store: TerminalLaunchProfileStore,
 	platform: NodeJS.Platform = 'darwin',
 	allocateProfileId: () => string = () => 'profile-created',
+	automaticIntegration: AutomaticShellIntegrationConfiguration | null = null,
 ): DesktopTerminalLaunchProfileController {
 	return new DesktopTerminalLaunchProfileController({
 		allocateProfileId,
+		automaticShellIntegration: automaticIntegration,
 		baseLaunch,
 		platform,
 		store,

@@ -4,8 +4,10 @@
 
 Desktop Main owns one device-local catalog of local process launch profiles. The catalog controls
 the executable and literal argument vector captured for a newly provisioned terminal. It does not
-own terminal CWD selection, environment policy, terminal appearance, PTY state, or the launch of an
-already durable binding.
+own terminal CWD selection, product-managed environment policy, terminal appearance, PTY state, or
+the launch of an already durable binding. After profile resolution, Desktop applies the bounded
+[automatic shell-integration refinement](kitty-automatic-shell-integration-alignment.md) before a
+new binding captures the complete launch.
 
 The local Desktop renderer may manage the catalog through the dedicated sandboxed capability port.
 Gateway and ordinary Browser clients receive no catalog-management capability. The first delivery
@@ -85,6 +87,8 @@ renderer.
   before deleting the previous one.
 - Duplicate profile names never merge identities or change selection.
 - A profile changes only `executable` and `arguments` in the trusted base `TerminalLaunch`.
+- Automatic shell integration may refine that resolved launch only after the profile operation has
+  completed; it never changes the selected executable or user-owned literal arguments.
 - Every profile resolves against the trusted base and fits the Terminal Host control boundary before
   the complete catalog is admitted or committed.
 - Product-managed environment entries, terminal profile, configuration, geometry, and base CWD
@@ -136,15 +140,16 @@ Desktop never silently falls back to another profile.
 
 ## Ownership and dependencies
 
-| Responsibility                                      | Owner                              |
-| --------------------------------------------------- | ---------------------------------- |
-| Catalog state, transitions, persistence, and launch | `apps/desktop`                     |
-| Sandboxed wire schemas and fixed port role          | `@orchbee/desktop-client-protocol` |
-| Local settings presentation and request client      | `apps/web`                         |
-| Product messages and translations                   | `@orchbee/i18n`                    |
-| CWD and terminal-presentation intent                | `@orchbee/workbench`               |
-| Concrete durable binding launch                     | Desktop terminal binding store     |
-| PTY creation and executable availability            | Terminal Host                      |
+| Responsibility                                                         | Owner                              |
+| ---------------------------------------------------------------------- | ---------------------------------- |
+| Catalog state, transitions, persistence, and profile launch resolution | `apps/desktop`                     |
+| Post-profile automatic shell-integration refinement                    | `apps/desktop`                     |
+| Sandboxed wire schemas and fixed port role                             | `@orchbee/desktop-client-protocol` |
+| Local settings presentation and request client                         | `apps/web`                         |
+| Product messages and translations                                      | `@orchbee/i18n`                    |
+| CWD and terminal-presentation intent                                   | `@orchbee/workbench`               |
+| Concrete durable binding launch                                        | Desktop terminal binding store     |
+| PTY creation and executable availability                               | Terminal Host                      |
 
 The catalog store requires only load and atomic replace. The controller requires platform,
 trusted base launch, stable ID allocation, and the store. Platform is an explicit input to both
@@ -153,19 +158,20 @@ perform no filesystem, process, transport, localization, or React work.
 
 ## Verification and traceability
 
-| Claim                                                            | Executable evidence                                                               |
-| ---------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| Darwin login default and non-Darwin defaults                     | Platform-matrix catalog and Main controller unit tests                            |
-| Stored login choice remains authoritative                        | Main controller load and resolution unit tests                                    |
-| Catalog invariants and transition rejections                     | Deterministic catalog unit tests                                                  |
-| Missing, invalid, bounded, atomic, and failed I/O                | File-store unit tests with isolated temporary directories                         |
-| Exact launch refinement, Host encoding, and platform login rules | Resolver and Main controller unit tests                                           |
-| Commit ordering and failure preservation                         | Main controller unit tests                                                        |
-| Wire validation, correlation, busy, and disposal                 | Protocol, Main broker, preload, and renderer-client unit tests                    |
-| First provision captures; retry/restore retain                   | `DesktopTerminalLifecycleAdapter` unit tests                                      |
-| Local-only capability allocation and cleanup                     | `DesktopApplication` and Desktop Web composition unit tests                       |
-| Localized management, validation, and failure UI                 | Settings controller/component tests plus both-locale deterministic Story evidence |
-| Real new-terminal launch                                         | Desktop system test excluding the manual native-window test                       |
+| Claim                                                                       | Executable evidence                                                               |
+| --------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| Darwin login default and non-Darwin defaults                                | Platform-matrix catalog and Main controller unit tests                            |
+| Stored login choice remains authoritative                                   | Main controller load and resolution unit tests                                    |
+| Catalog invariants and transition rejections                                | Deterministic catalog unit tests                                                  |
+| Missing, invalid, bounded, atomic, and failed I/O                           | File-store unit tests with isolated temporary directories                         |
+| Exact profile refinement, Host encoding, and platform login rules           | Resolver and Main controller unit tests                                           |
+| Automatic shell detection, launch refinement, fallback, and loader behavior | Automatic shell-integration resolver, resource, and Desktop system tests          |
+| Commit ordering and failure preservation                                    | Main controller unit tests                                                        |
+| Wire validation, correlation, busy, and disposal                            | Protocol, Main broker, preload, and renderer-client unit tests                    |
+| First provision captures; retry/restore retain                              | `DesktopTerminalLifecycleAdapter` unit tests                                      |
+| Local-only capability allocation and cleanup                                | `DesktopApplication` and Desktop Web composition unit tests                       |
+| Localized management, validation, and failure UI                            | Settings controller/component tests plus both-locale deterministic Story evidence |
+| Real new-terminal launch                                                    | Desktop system test excluding the manual native-window test                       |
 
 The tests control storage results, request order, IDs, platform, and process launch payloads. They
 do not prove that an arbitrary user executable exists or behaves correctly. Native platform tests

@@ -247,6 +247,52 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 		});
 	});
 
+	it('admits only readable automatic loaders and captures the Main environment exactly', () => {
+		const shellIntegrationDirectory = path.resolve(
+			import.meta.dirname,
+			'../../../../resources/shell-integration',
+		);
+		const configuration = resolveDesktopRuntimeConfiguration({
+			applicationPath: path.resolve('/repo/apps/desktop'),
+			developmentShellIntegrationDirectory: shellIntegrationDirectory,
+			environment: {
+				XDG_DATA_DIRS: '/opt/share:/usr/share',
+				ZDOTDIR: '/users/orchbee/.config/zsh',
+			},
+			homeDirectory: path.resolve('/users/orchbee'),
+			platform: 'darwin',
+			posixRuntimeBaseDirectory: path.resolve('/private/var/folders/user/T'),
+			userDataPath: path.resolve('/users/orchbee/library/orchbee'),
+		});
+
+		expect(configuration.automaticShellIntegration).toEqual({
+			availableShells: ['bash', 'fish', 'zsh'],
+			directory: shellIntegrationDirectory,
+			inheritedEnvironment: {
+				xdgDataDirectories: '/opt/share:/usr/share',
+				zdotdir: '/users/orchbee/.config/zsh',
+			},
+		});
+	});
+
+	it('keeps automatic integration disabled when the trusted loaders are unavailable', () => {
+		const configuration = resolveDesktopRuntimeConfiguration({
+			applicationPath: path.resolve('/repo/apps/desktop'),
+			developmentShellIntegrationDirectory: path.resolve('/missing/shell-integration'),
+			environment: {},
+			homeDirectory: path.resolve('/users/orchbee'),
+			platform: 'linux',
+			posixRuntimeBaseDirectory: path.resolve('/run/user/501'),
+			userDataPath: path.resolve('/users/orchbee/.config/orchbee'),
+		});
+
+		expect(configuration.automaticShellIntegration).toBeNull();
+		expect(configuration.terminalLaunch.environment).toContainEqual({
+			name: 'ORCHBEE_SHELL_INTEGRATION_DIR',
+			value: path.resolve('/missing/shell-integration'),
+		});
+	});
+
 	it('projects an authoritative Darwin UTF-8 locale when the Desktop locale is absent', () => {
 		const configuration = resolveDesktopRuntimeConfiguration({
 			applicationPath: path.resolve('/repo/apps/desktop'),

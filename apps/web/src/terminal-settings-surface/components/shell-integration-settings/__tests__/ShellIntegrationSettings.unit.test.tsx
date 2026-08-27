@@ -25,18 +25,20 @@ afterAll(() => {
 describe('ShellIntegrationSettings', () => {
 	it.each([
 		{
+			automatic: 'automatically loads integration',
 			locale: 'en-US' as const,
 			manual: 'never edits shell startup files',
 			reminder: 'Command completion reminders',
 		},
 		{
+			automatic: '自动加载集成',
 			locale: 'zh-CN' as const,
 			manual: '永远不会编辑 Shell 启动文件',
 			reminder: '命令完成提醒',
 		},
 	])(
-		'renders manual setup and device-local reminder controls in $locale',
-		async ({ locale, manual, reminder }) => {
+		'renders automatic scope, manual fallback, and device-local reminder controls in $locale',
+		async ({ automatic, locale, manual, reminder }) => {
 			const container = document.createElement('div');
 			document.body.append(container);
 			const requestPermission = vi.fn<() => Promise<'granted'>>(() => Promise.resolve('granted'));
@@ -55,6 +57,7 @@ describe('ShellIntegrationSettings', () => {
 			});
 
 			expect(container.textContent).toContain(reminder);
+			expect(container.textContent).toContain(automatic);
 			expect(container.textContent).toContain(manual);
 			expect(container.textContent).toContain('Bash 3.2');
 			expect(container.textContent).toContain(

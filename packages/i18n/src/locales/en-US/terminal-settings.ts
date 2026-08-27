@@ -208,7 +208,7 @@ export const enUSTerminalSettingsMessages = {
 		'Expose reliable command boundaries for completion reminders and terminal semantics.',
 	'terminal.settings.shellIntegration.fish.title': 'Fish',
 	'terminal.settings.shellIntegration.manualNotice':
-		'Orchbee never edits shell startup files. Add one source line yourself, and remove or comment out that line to disable the integration.',
+		'Desktop automatically loads integration for supported new local Zsh, non-login Bash, and Fish terminals. Orchbee never edits shell startup files. Use these source commands as a manual fallback for unsupported launch forms and other clients.',
 	'terminal.settings.shellIntegration.notification.description':
 		'System notification permission is requested only from this button. Terminal output never requests permission.',
 	'terminal.settings.shellIntegration.notification.request': 'Allow system notifications',
@@ -234,7 +234,7 @@ export const enUSTerminalSettingsMessages = {
 	'terminal.settings.shellIntegration.reminder.unfocused': 'When this terminal is unfocused',
 	'terminal.settings.shellIntegration.reset.description':
 		'Restore completion reminders to off and the minimum duration to five seconds.',
-	'terminal.settings.shellIntegration.setupCommand.label': 'Manual source command',
+	'terminal.settings.shellIntegration.setupCommand.label': 'Manual fallback source command',
 	'terminal.settings.shellIntegration.title': 'Shell integration',
 	'terminal.settings.shellIntegration.zsh.title': 'Zsh',
 	'terminal.settings.sections.applicationAppearance': 'Application appearance',

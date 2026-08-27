@@ -4,7 +4,7 @@
 	"kind": "business",
 	"status": "canonical",
 	"name": "Terminal Settings Surface",
-	"description": "Owns the grouped Settings information architecture, global category-and-setting discovery, Desktop-local shell-profile and scrollback-default management, an explicitly noninteractive future terminal-settings catalog, client-local application appearance, terminal typography, padding, copy-on-select, terminal display and macOS Option-as-Alt preferences, frequent keyboard-shortcut overrides, manual Shell-integration guidance and completion-reminder policy, a read-only remote-shell diagnostic, and an ephemeral Ghostty configuration migration report without unmounting the Workbench or projected terminal attachments.",
+	"description": "Owns the grouped Settings information architecture, global category-and-setting discovery, Desktop-local shell-profile and scrollback-default management, an explicitly noninteractive future terminal-settings catalog, client-local application appearance, terminal typography, padding, copy-on-select, terminal display and macOS Option-as-Alt preferences, frequent keyboard-shortcut overrides, automatic Desktop Shell-integration scope, manual fallback guidance and completion-reminder policy, a read-only remote-shell diagnostic, and an ephemeral Ghostty configuration migration report without unmounting the Workbench or projected terminal attachments.",
 	"owner": "@orchbee/web",
 	"visibility": "private",
 	"intents": [
@@ -54,7 +54,7 @@
 			"id": "applications-web-terminal-settings-surface--english-light",
 			"states": [
 				"Inspect the light English Desktop surface with five labeled navigation groups, focused search, borderless neutral setting groups, stable section and row rhythm, right-aligned immediate controls, and explicitly disabled Planned rows. Inspect terminal padding, regular and bold weights, ligatures, copy-on-select, and the Desktop scrollback default with its future-terminal notice. Open Profiles to inspect local launch selection, literal ordered arguments, the future-terminal boundary, and confirmed destructive actions. Type font to inspect global Text results while General remains complete, then activate Terminal font family to restore the rail and reveal its row.",
-				"Open Shell integration to inspect exact manual Zsh, Bash, and Fish source commands, the Bash 4.4 boundary, completion-reminder policy, explicit notification-permission control, and reset.",
+				"Open Shell integration to inspect automatic Desktop scope, exact manual-fallback Zsh, Bash, and Fish source commands, the Bash 4.4 boundary, completion-reminder policy, explicit notification-permission control, and reset.",
 				"Open Remote development to inspect the xterm-256color baseline, complete read-only diagnostic command, result explanation, and explicit absence of automatic remote changes.",
 				"Open Ghostty migration to inspect the paste-only dry-run notice, bounded source field, explicit analysis action, four result dispositions, and absence of an Apply or Import action."
 			]
@@ -77,7 +77,7 @@
 		"A macOS Desktop client chooses whether the left, right, both, or neither Option key acts as terminal Alt.",
 		"A Desktop client creates, edits, selects, or removes device-local system-shell and custom-executable launch profiles for future terminals.",
 		"A Desktop client changes the Host scrollback default captured only by future terminals.",
-		"A user wants exact manual setup for the shipped Zsh, Bash, or Fish integration, or device-local long-command completion reminders.",
+		"A user wants to understand automatic Desktop setup, use an exact manual fallback for the shipped Zsh, Bash, or Fish integration, or configure device-local long-command completion reminders.",
 		"A user needs to inspect the TERM and terminfo state visible after an ordinary SSH connection without allowing Orchbee to change the remote host.",
 		"A user moving from Ghostty needs a source-ordered dry-run that explains which common pasted settings have a lossless Orchbee target and which require review or will not migrate.",
 		"Desktop exposes its Browser-access capability through the common Settings information architecture."
@@ -98,7 +98,7 @@
 		"Option-as-Alt defaults to off, remains device-local, resolves the selected physical Option side per key event, and updates every mounted projected terminal without replacing its attachment.",
 		"Desktop shell profiles remain device-local, change only executable and literal ordered arguments, and affect only terminals provisioned after the successful Main-owned catalog commit; running and restored terminals retain their captured launch.",
 		"Desktop scrollback defaults commit to Host before Main accepts the session value, preserve prior state on Host rejection, keep a visible session value on storage failure, and affect only future terminals without live eviction; Browser and Gateway retain the row as Planned.",
-		"Shell integration is manual-only: the surface never reads or edits a startup file, executes a source command, or requests notification permission without the settings-page button.",
+		"The surface explains automatic integration for supported new local Desktop shells and offers exact manual fallbacks; it never reads or edits a startup file, executes a source command, or requests notification permission without the settings-page button.",
 		"Completion-reminder preferences stay device-local, default to off, and never include command text; qualifying events retain a localized terminal status when system notification is unavailable.",
 		"Remote development exposes one constant read-only command and explanation; opening, searching, and switching categories starts no process, writes no terminal input, persists no remote data, and performs no remote installation.",
 		"Ghostty migration analyzes pasted text only, emits one visible source-ordered finding per assignment, never applies or persists a value, and clears its source and report when its category unmounts.",
