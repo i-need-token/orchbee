@@ -11,7 +11,12 @@ export const TERMINAL_ACTION_IDS = {
 	promptNext: 'terminal.history.prompt-next',
 	promptPrevious: 'terminal.history.prompt-previous',
 	reset: 'terminal.reset',
+	scrollLineDown: 'terminal.history.scroll-line-down',
+	scrollLineUp: 'terminal.history.scroll-line-up',
+	scrollPageDown: 'terminal.history.scroll-page-down',
+	scrollPageUp: 'terminal.history.scroll-page-up',
 	scrollToBottom: 'terminal.history.scroll-bottom',
+	scrollToTop: 'terminal.history.scroll-top',
 	selectAll: 'terminal.selection.select-all',
 } as const;
 
@@ -44,10 +49,15 @@ export interface WorkbenchTerminalLinkActionInput {
 export interface WorkbenchTerminalActionCatalog {
 	readonly 'terminal.clear': ActionSignature<void>;
 	readonly 'terminal.clipboard.paste': ActionSignature<void>;
-	readonly 'terminal.history.scroll-bottom': ActionSignature<void>;
-	readonly 'terminal.link.open': ActionSignature<WorkbenchTerminalLinkActionInput>;
 	readonly 'terminal.history.prompt-next': ActionSignature<void>;
 	readonly 'terminal.history.prompt-previous': ActionSignature<void>;
+	readonly 'terminal.history.scroll-line-down': ActionSignature<void>;
+	readonly 'terminal.history.scroll-line-up': ActionSignature<void>;
+	readonly 'terminal.history.scroll-page-down': ActionSignature<void>;
+	readonly 'terminal.history.scroll-page-up': ActionSignature<void>;
+	readonly 'terminal.history.scroll-bottom': ActionSignature<void>;
+	readonly 'terminal.history.scroll-top': ActionSignature<void>;
+	readonly 'terminal.link.open': ActionSignature<WorkbenchTerminalLinkActionInput>;
 	readonly 'terminal.reset': ActionSignature<void>;
 	readonly 'terminal.search.next': ActionSignature<void>;
 	readonly 'terminal.search.open': ActionSignature<void>;

@@ -4837,6 +4837,85 @@ describe('ProjectedTerminal', () => {
 		terminal.dispose();
 	});
 
+	it('admits bounded line, page, top, and bottom history intents only on the primary screen', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['live-a', 'live-b'], null, [0, 1], 10n));
+
+		expect(terminal.canScrollHistory).toBe(true);
+		expect(terminal.scrollLines(0)).toBe(false);
+		expect(terminal.scrollLines(1)).toBe(false);
+		expect(terminal.scrollPages(-1)).toBe(true);
+		const pageRead = commands.at(-1);
+		if (pageRead?.kind !== 'read-rows') throw new Error('page history request was not sent');
+		expect(pageRead.payload.origin).toEqual({ kind: 'absolute', row: '9' });
+		expect(
+			terminal.applyRows(
+				renderRowWindow(
+					BigInt(pageRead.payload.requestSequence),
+					1n,
+					9n,
+					12n,
+					Array.from({ length: pageRead.payload.rowCount }, (_, index) => `page-${index}`),
+				),
+			),
+		).toBe('committed');
+
+		expect(terminal.scrollToTop()).toBe(true);
+		const topRead = commands.at(-1);
+		if (topRead?.kind !== 'read-rows') throw new Error('top history request was not sent');
+		expect(topRead.payload.origin).toEqual({ kind: 'absolute', row: '0' });
+		expect(
+			terminal.applyRows(
+				renderRowWindow(
+					BigInt(topRead.payload.requestSequence),
+					1n,
+					0n,
+					12n,
+					Array.from({ length: topRead.payload.rowCount }, (_, index) => `top-${index}`),
+				),
+			),
+		).toBe('committed');
+		expect(terminal.scrollToTop()).toBe(false);
+		expect(terminal.scrollToBottom()).toBe(true);
+
+		terminal.applyFrame(
+			terminalFrame(
+				'snapshot',
+				2n,
+				2n,
+				['alternate-a', 'alternate-b'],
+				null,
+				[0, 1],
+				0n,
+				interaction,
+				{ column: 0, row: 0 },
+				1n,
+				2,
+				ActiveScreen.alternate,
+			),
+		);
+		expect(terminal.canScrollHistory).toBe(false);
+		terminal.dispose();
+		expect(terminal.canScrollHistory).toBe(false);
+	});
+
 	it('smooths wheel history motion, reverses on a committed target, and cancels when hidden', async () => {
 		const browser = createFakeBrowser();
 		vi.stubGlobal('document', browser.document);
@@ -9735,7 +9814,7 @@ describe('ProjectedTerminal', () => {
 		});
 		await terminal.open(browser.root);
 		terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['a', 'b'], null, [0, 1], 10n));
-		const scrollLines = vi.spyOn(terminal, 'scrollLines').mockImplementation(() => undefined);
+		const scrollLines = vi.spyOn(terminal, 'scrollLines').mockImplementation(() => false);
 		const canvas = terminal.canvas as unknown as FakeElement;
 
 		canvas.dispatch('wheel', wheelEvent(0, 8));

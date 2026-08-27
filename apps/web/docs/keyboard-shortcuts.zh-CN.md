@@ -4,35 +4,47 @@
 
 ## 初始目录
 
-| 快捷方式 ID                                  | 适用范围               | 苹果默认           | 标准默认值          |
-| -------------------------------------------- | ---------------------- | ------------------ | ------------------- |
-| `workbench.search.actions.open`              | Workbench              | `Cmd+Shift+P`      | `Ctrl+Shift+P`      |
-| `workbench.terminal.create`                  | Workbench              | `Cmd+T`            | `Ctrl+Shift+T`      |
-| `workbench.tab.select.1` … `.9`              | Workbench              | `Cmd+1` … `Cmd+9`  | `Ctrl+1` … `Ctrl+9` |
-| `workbench.tab.select-previous`              | Workbench              | `Cmd+Shift+[`      | `Ctrl+PageUp`       |
-| `workbench.tab.select-next`                  | Workbench              | `Cmd+Shift+]`      | `Ctrl+PageDown`     |
-| `workbench.terminal.active.close`            | 活动终端               | `Cmd+W`            | `Ctrl+Shift+W`      |
-| `workbench.panel.active.focus-down`          | 活动面板               | `Cmd+Option+Down`  | `Ctrl+Alt+Down`     |
-| `workbench.panel.active.focus-left`          | 活动面板               | `Cmd+Option+Left`  | `Ctrl+Alt+Left`     |
-| `workbench.panel.active.focus-right`         | 活动面板               | `Cmd+Option+Right` | `Ctrl+Alt+Right`    |
-| `workbench.panel.active.focus-up`            | 活动面板               | `Cmd+Option+Up`    | `Ctrl+Alt+Up`       |
-| `workbench.panel.active.maximization.toggle` | 活动面板               | `Cmd+Shift+Enter`  | `Ctrl+Shift+Enter`  |
-| `workbench.panel.active.split-right`         | 活动面板               | `Cmd+D`            | `Ctrl+Shift+D`      |
-| `workbench.panel.active.split-below`         | 活动面板               | `Cmd+Shift+D`      | `Ctrl+Shift+E`      |
-| `workbench.search.all.open`                  | Workbench              | `Cmd+Shift+F`      | `Ctrl+Shift+K`      |
-| `workbench.settings.open`                    | Workbench              | `Cmd+,`            | `Ctrl+,`            |
-| `workbench.sidebar.toggle`                   | Workbench              | `Cmd+B`            | `Ctrl+Shift+B`      |
-| `terminal.search.open`                       | 聚焦终端或查找         | `Cmd+F`            | `Ctrl+Shift+F`      |
-| `terminal.selection.copy`                    | 具有选择功能的聚焦终端 | `Cmd+C`            | `Ctrl+Shift+C`      |
-| `terminal.clipboard.paste`                   | 聚焦终端               | `Cmd+V`            | `Ctrl+Shift+V`      |
-| `terminal.history.prompt-previous`           | 聚焦终端               | `Ctrl+Shift+Z`     | `Ctrl+Shift+Z`      |
-| `terminal.history.prompt-next`               | 聚焦终端               | `Ctrl+Shift+X`     | `Ctrl+Shift+X`      |
-| `terminal.selection.select-all`              | 聚焦终端               | `Cmd+A`            | `Ctrl+Shift+A`      |
-| `terminal.clear`                             | 聚焦终端               | `Cmd+K`            | `Ctrl+Shift+L`      |
+| 快捷方式 ID                                  | 适用范围               | 苹果默认              | 标准默认值            |
+| -------------------------------------------- | ---------------------- | --------------------- | --------------------- |
+| `workbench.search.actions.open`              | Workbench              | `Cmd+Shift+P`         | `Ctrl+Shift+P`        |
+| `workbench.terminal.create`                  | Workbench              | `Cmd+T`               | `Ctrl+Shift+T`        |
+| `workbench.tab.select.1` … `.9`              | Workbench              | `Cmd+1` … `Cmd+9`     | `Ctrl+1` … `Ctrl+9`   |
+| `workbench.tab.select-previous`              | Workbench              | `Cmd+Shift+[`         | `Ctrl+PageUp`         |
+| `workbench.tab.select-next`                  | Workbench              | `Cmd+Shift+]`         | `Ctrl+PageDown`       |
+| `workbench.terminal.active.close`            | 活动终端               | `Cmd+W`               | `Ctrl+Shift+W`        |
+| `workbench.panel.active.focus-down`          | 活动面板               | `Cmd+Option+Down`     | `Ctrl+Alt+Down`       |
+| `workbench.panel.active.focus-left`          | 活动面板               | `Cmd+Option+Left`     | `Ctrl+Alt+Left`       |
+| `workbench.panel.active.focus-right`         | 活动面板               | `Cmd+Option+Right`    | `Ctrl+Alt+Right`      |
+| `workbench.panel.active.focus-up`            | 活动面板               | `Cmd+Option+Up`       | `Ctrl+Alt+Up`         |
+| `workbench.panel.active.maximization.toggle` | 活动面板               | `Cmd+Shift+Enter`     | `Ctrl+Shift+Enter`    |
+| `workbench.panel.active.split-right`         | 活动面板               | `Cmd+D`               | `Ctrl+Shift+D`        |
+| `workbench.panel.active.split-below`         | 活动面板               | `Cmd+Shift+D`         | `Ctrl+Shift+E`        |
+| `workbench.search.all.open`                  | Workbench              | `Cmd+Shift+F`         | `Ctrl+Shift+K`        |
+| `workbench.settings.open`                    | Workbench              | `Cmd+,`               | `Ctrl+,`              |
+| `workbench.sidebar.toggle`                   | Workbench              | `Cmd+B`               | `Ctrl+Shift+B`        |
+| `terminal.search.open`                       | 聚焦终端或查找         | `Cmd+F`               | `Ctrl+Shift+F`        |
+| `terminal.selection.copy`                    | 具有选择功能的聚焦终端 | `Cmd+C`               | `Ctrl+Shift+C`        |
+| `terminal.clipboard.paste`                   | 聚焦终端               | `Cmd+V`               | `Ctrl+Shift+V`        |
+| `terminal.history.prompt-previous`           | 聚焦终端               | `Ctrl+Shift+Z`        | `Ctrl+Shift+Z`        |
+| `terminal.history.prompt-next`               | 聚焦终端               | `Ctrl+Shift+X`        | `Ctrl+Shift+X`        |
+| `terminal.history.scroll-line-up`            | 聚焦终端               | `Ctrl+Shift+Up`       | `Ctrl+Shift+Up`       |
+| `terminal.history.scroll-line-down`          | 聚焦终端               | `Ctrl+Shift+Down`     | `Ctrl+Shift+Down`     |
+| `terminal.history.scroll-page-up`            | 聚焦终端               | `Ctrl+Shift+PageUp`   | `Ctrl+Shift+PageUp`   |
+| `terminal.history.scroll-page-down`          | 聚焦终端               | `Ctrl+Shift+PageDown` | `Ctrl+Shift+PageDown` |
+| `terminal.history.scroll-top`                | 聚焦终端               | `Ctrl+Shift+Home`     | `Ctrl+Shift+Home`     |
+| `terminal.history.scroll-bottom`             | 聚焦终端               | `Ctrl+Shift+End`      | `Ctrl+Shift+End`      |
+| `terminal.selection.select-all`              | 聚焦终端               | `Cmd+A`               | `Ctrl+Shift+A`        |
+| `terminal.clear`                             | 聚焦终端               | `Cmd+K`               | `Ctrl+Shift+L`        |
 
 新建标签页、关闭活动终端、活动面板最大化、向右分屏、向下分屏和粘贴的默认键采用 2026-08-22 观察到的 Warp [桌面端文档约定](https://docs.warp.dev/getting-started/keyboard-shortcuts)；这里只固定选择默认按键，不主张更广泛的行为或视觉一致性。上一个和下一个标签页的默认键使用 Warp 修订版 `086dade63ff7327426d6276d57f85b3f2f313af0` 中的对应绑定。Apple 的全部搜索使用 `Cmd+Shift+F`，把熟悉的 `Cmd+K` 留给且只留给已聚焦终端的清除操作。标准平台的清除使用 `Ctrl+Shift+L`；标准默认值特意保留未加 Shift 的 `Ctrl+B/T/W/K/F/D/E/V/A/L` 与 `Ctrl+C`，供 shell、终端应用和多路复用器使用。用户可以主动录入其他受支持的自定义组合键。即使某个 Action 暂时不可用，产品内冲突仍然不允许出现。
 
 上一个和下一个提示符导航保留 Kitty 修订版 `6d5d0c440603ad9bdf6dcd599f73f6dde21acb44` 的精确默认键 `Ctrl+Shift+Z` 与 `Ctrl+Shift+X`。Apple 与标准平台都使用显式 Control，而不是平台 `Mod` 抽象。行为与有界 Host 行契约由终端包的 [Kitty 提示符导航对齐](../../../packages/terminal/docs/kitty-prompt-navigation-alignment.zh-CN.md)所有。
+
+逐行、逐页、顶部和底部历史导航同样保留该修订版中 Kitty 的主要
+`kitty_mod+Arrow/Page/Home/End` 绑定。两个平台都使用显式 `Ctrl+Shift`；因为本目录为每个 Action
+拥有一个绑定，Kitty 额外的 macOS Command 和 `J`/`K` 别名只能通过替换有效自定义绑定来使用。翻页
+保留 Kitty 的一行重叠。行为与有界 Host 行契约由终端包的
+[Kitty 键盘回滚对齐](../../../packages/terminal/docs/kitty-keyboard-scrollback-alignment.zh-CN.md)所有。
 
 ## 终端粘贴路由
 
@@ -69,7 +81,7 @@ Promise 结算前始终处于等待状态。Paste Action 会快照并等待该 P
 
 方向面板聚焦采用 Ghostty 在修订版 `91f66da24527fa02d92b5fd0b41cd020f553a64c` 中的 Apple `Command+Option+Arrow` 与标准平台 `Control+Alt+Arrow` 约定，并与 Warp 修订版 `086dade63ff7327426d6276d57f85b3f2f313af0` 交叉核对。此处只负责应用层绑定选择；空间邻居解析由 Workbench 所有。
 
-没有有效绑定的命令不渲染空的快捷键提示。“重置”“滚动到底部”“新建子终端”“向左分屏”和“向上分屏”在本目录中仍然有意保持未绑定。允许用户为初始未绑定命令创建可空绑定不在本模型范围内。
+没有有效绑定的命令不渲染空的快捷键提示。“重置”“新建子终端”“向左分屏”和“向上分屏”在本目录中仍然有意保持未绑定。允许用户为初始未绑定命令创建可空绑定不在本模型范围内。
 
 ## Workbench 分发作用域
 
@@ -123,11 +135,11 @@ Workbench 负责格式化自身绑定。投影终端负责其绑定默认值与�
 
 ## 持久化与恢复
 
-新写入使用 `orchbee:web:keyboard-shortcuts:v6` 严格记录：
+新写入使用 `orchbee:web:keyboard-shortcuts:v7` 严格记录：
 
 ```json
 {
-	"version": 6,
+	"version": 7,
 	"overrides": [
 		{
 			"shortcutId": "workbench.search.all.open",
@@ -137,30 +149,30 @@ Workbench 负责格式化自身绑定。投影终端负责其绑定默认值与�
 }
 ```
 
-只存储自定义值，并按快捷键 ID 排序。未知字段或 ID、重复项、未排序条目、非规范修饰符、不支持的代码、已存储默认值、过多条目以及有效冲突都会使完整 v6 记录无效，并恢复平台默认值。写入失败时，不可变的会话绑定仍保持活动，同时报告尚未保存，并在下一次合法修改时重试。恢复单项会移除其覆盖。
+只存储自定义值，并按快捷键 ID 排序。未知字段或 ID、重复项、未排序条目、非规范修饰符、不支持的代码、已存储默认值、过多条目以及有效冲突都会使完整 v7 记录无效，并恢复平台默认值。写入失败时，不可变的会话绑定仍保持活动，同时报告尚未保存，并在下一次合法修改时重试。恢复单项会移除其覆盖。
 
-当 v6 不存在时，Web 会先按准确的旧目录与旧默认值读取 `orchbee:web:keyboard-shortcuts:v5`；如果 v5 也不存在，则依次尝试 v4、v3、v2 和 v1。每次迁移都会把显式覆盖带入扩展后的目录，移除与当前默认值等价的覆盖，拒绝迁移后产生的冲突，并写入规范 v6 记录。v1、v2、v3、v4 与 v5 值原样保留，作为回滚快照。无效当前记录绝不回退到更旧记录，无效迁移源也绝不继续读取下一个更旧版本，因为任一回退都会掩盖数据损坏。回滚时会恢复旧版本能够理解的最新记录；只在 v6 中做出的编辑有意不对旧版本可用。
+当 v7 不存在时，Web 会先按准确的旧目录与旧默认值读取 `orchbee:web:keyboard-shortcuts:v6`；如果 v6 也不存在，则依次尝试 v5、v4、v3、v2 和 v1。每次迁移都会把显式覆盖带入扩展后的目录，移除与当前默认值等价的覆盖，拒绝迁移后产生的冲突，并写入规范 v7 记录。v1、v2、v3、v4、v5 与 v6 值原样保留，作为回滚快照。无效当前记录绝不回退到更旧记录，无效迁移源也绝不继续读取下一个更旧版本，因为任一回退都会掩盖数据损坏。回滚时会恢复旧版本能够理解的最新记录；只在 v7 中做出的编辑有意不对旧版本可用。
 
 Browser Preview、Gateway Browser 和 Electron 各自针对自己的源本地存储创建并销毁一个控制器。Gateway 与 Electron 通过 `ProjectedTerminalSurfaceCapability` 传递控制器的窄绑定来源。事件处理器在分发时读取当前表，因此修改不会重新挂载 Workbench、替换附件，也不会重新打开 Host 或 Gateway 连接。
 
 ## 声明与证据
 
-| 声明                                                    | 确定性证据                                                                                 |
-| ------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| 一个有效目标只产生一个子终端、面板或标签页关闭操作      | 活动目标解析器决策表测试                                                                   |
-| 确认、取消与提交继续由准备好的下层 Action 所有          | 同时注册面板与标签页 Action 的 Workbench Action 集成测试                                   |
-| 活动 Workbench 绑定不依赖仍然存在的聚焦后代             | document 捕获生命周期与 Web 应用集成测试                                                   |
-| 空 Tab 状态下新建 Tab 会创建并聚焦新终端，设置会抑制它  | Web 应用焦点与设置作用域集成轨迹                                                           |
-| Apple 与标准平台默认值符合目录，且自定义编辑会影响分发  | 快捷键定义、解析器与控制器测试                                                             |
-| 空闲的平台默认终端 Paste 保留感知 MIME 的原生投递       | 快捷键路由与安装器测试、终端图片粘贴测试及精确 Desktop `terminal-parity/IN-03-image-paste` |
-| 活动的普通终端选择会保留原生粘贴与输入所有权            | 投影终端选择/粘贴测试及精确 Desktop `terminal-parity/IN-18-native-selection-paste`         |
-| 等待中的 Copy 与 Paste 工作不会接纳陈旧或重复快捷键输入 | 剪贴板协调器与 Action 测试及精确 Desktop `terminal-parity/IN-13-selection-copy-paste`      |
-| 方向聚焦会选择空间邻居，并在外边缘继续传递事件          | 四面板解析器、Action 与快捷键分发测试                                                      |
-| 按位置选择遵循规范 Tab 顺序并在越界时继续传递事件       | 分组与固定 Action 集成测试及快捷键分发测试                                                 |
-| 相邻选择遵循规范 Tab 顺序，且仅在存在多个 Tab 时回绕    | 纯解析器、预备 Action 集成与快捷键继续传递测试                                             |
-| 菜单、Action 搜索和设置显示同一个当前绑定               | 投影与渲染界面测试                                                                         |
-| 有效 v1、v2、v3、v4 与 v5 记录迁移时不会丢失显式旧覆盖  | 存储迁移测试，包括与新默认值的冲突                                                         |
-| 无效当前记录或迁移源数据不会读取更旧记录                | 存储损坏与优先级测试                                                                       |
+| 声明                                                       | 确定性证据                                                                                 |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| 一个有效目标只产生一个子终端、面板或标签页关闭操作         | 活动目标解析器决策表测试                                                                   |
+| 确认、取消与提交继续由准备好的下层 Action 所有             | 同时注册面板与标签页 Action 的 Workbench Action 集成测试                                   |
+| 活动 Workbench 绑定不依赖仍然存在的聚焦后代                | document 捕获生命周期与 Web 应用集成测试                                                   |
+| 空 Tab 状态下新建 Tab 会创建并聚焦新终端，设置会抑制它     | Web 应用焦点与设置作用域集成轨迹                                                           |
+| Apple 与标准平台默认值符合目录，且自定义编辑会影响分发     | 快捷键定义、解析器与控制器测试                                                             |
+| 空闲的平台默认终端 Paste 保留感知 MIME 的原生投递          | 快捷键路由与安装器测试、终端图片粘贴测试及精确 Desktop `terminal-parity/IN-03-image-paste` |
+| 活动的普通终端选择会保留原生粘贴与输入所有权               | 投影终端选择/粘贴测试及精确 Desktop `terminal-parity/IN-18-native-selection-paste`         |
+| 等待中的 Copy 与 Paste 工作不会接纳陈旧或重复快捷键输入    | 剪贴板协调器与 Action 测试及精确 Desktop `terminal-parity/IN-13-selection-copy-paste`      |
+| 方向聚焦会选择空间邻居，并在外边缘继续传递事件             | 四面板解析器、Action 与快捷键分发测试                                                      |
+| 按位置选择遵循规范 Tab 顺序并在越界时继续传递事件          | 分组与固定 Action 集成测试及快捷键分发测试                                                 |
+| 相邻选择遵循规范 Tab 顺序，且仅在存在多个 Tab 时回绕       | 纯解析器、预备 Action 集成与快捷键继续传递测试                                             |
+| 菜单、Action 搜索和设置显示同一个当前绑定                  | 投影与渲染界面测试                                                                         |
+| 有效 v1、v2、v3、v4、v5 与 v6 记录迁移时不会丢失显式旧覆盖 | 存储迁移测试，包括与新默认值的冲突                                                         |
+| 无效当前记录或迁移源数据不会读取更旧记录                   | 存储损坏与优先级测试                                                                       |
 
 测试使用合成的平台标志、Action 作用域、存储、document 捕获、注入终端焦点与键盘事件。它们不主张操作系统全局快捷键行为或完整 Warp 兼容性。手动 Desktop 原生窗口焦点测试不包含在自动验证中。
 

@@ -32,6 +32,7 @@ import {
 export interface ProjectedTerminalActionTarget {
 	readonly canControlTerminal: boolean;
 	readonly canNavigatePrompts: boolean;
+	readonly canScrollHistory: boolean;
 	readonly selection: SelectionChanged;
 	clear(): boolean;
 	copySelectionAsync(): Promise<ProjectedTerminalSideEffectResult>;
@@ -41,9 +42,12 @@ export interface ProjectedTerminalActionTarget {
 	openLinkAsync(target: string): Promise<ProjectedTerminalSideEffectResult>;
 	paste(text: string, source: 'clipboard'): Promise<ProjectedPasteResult>;
 	reset(): void;
+	scrollLines(amount: number): boolean;
+	scrollPages(amount: number): boolean;
 	scrollToNextPrompt(signal: AbortSignal): Promise<boolean>;
 	scrollToBottom(): boolean;
 	scrollToPreviousPrompt(signal: AbortSignal): Promise<boolean>;
+	scrollToTop(): boolean;
 	selectAll(): void;
 }
 
@@ -93,6 +97,18 @@ export function registerProjectedTerminalActions({
 					reason: projectedTerminalMessages.actionUnavailable,
 				} as const);
 	const promptNavigationCoordinator = createProjectedTerminalPromptNavigationCoordinator();
+	const historyScrollExecution = {
+		concurrency: 'replace-latest' as const,
+		concurrencyKey: () => 'terminal-history-scroll',
+		mode: 'foreground' as const,
+	};
+	const historyScrollAvailable = () =>
+		terminal.canScrollHistory
+			? ({ kind: 'enabled' } as const)
+			: ({
+					kind: 'disabled',
+					reason: projectedTerminalMessages.actionUnavailable,
+				} as const);
 	return [
 		promptNavigationCoordinator,
 		typedRuntime.register(
@@ -127,6 +143,90 @@ export function registerProjectedTerminalActions({
 				id: PROJECTED_TERMINAL_ACTION_IDS.promptNext,
 				input: noActionInput,
 				title: projectedTerminalMessages.promptNextAction,
+			}),
+		),
+		typedRuntime.register(
+			scope,
+			defineAction({
+				category,
+				execution: historyScrollExecution,
+				getAvailability: historyScrollAvailable,
+				handler: {
+					execute: (context) => commitBooleanResult(context, terminal.scrollLines(-1)),
+				},
+				id: PROJECTED_TERMINAL_ACTION_IDS.scrollLineUp,
+				input: noActionInput,
+				title: projectedTerminalMessages.scrollLineUpAction,
+			}),
+		),
+		typedRuntime.register(
+			scope,
+			defineAction({
+				category,
+				execution: historyScrollExecution,
+				getAvailability: historyScrollAvailable,
+				handler: {
+					execute: (context) => commitBooleanResult(context, terminal.scrollLines(1)),
+				},
+				id: PROJECTED_TERMINAL_ACTION_IDS.scrollLineDown,
+				input: noActionInput,
+				title: projectedTerminalMessages.scrollLineDownAction,
+			}),
+		),
+		typedRuntime.register(
+			scope,
+			defineAction({
+				category,
+				execution: historyScrollExecution,
+				getAvailability: historyScrollAvailable,
+				handler: {
+					execute: (context) => commitBooleanResult(context, terminal.scrollPages(-1)),
+				},
+				id: PROJECTED_TERMINAL_ACTION_IDS.scrollPageUp,
+				input: noActionInput,
+				title: projectedTerminalMessages.scrollPageUpAction,
+			}),
+		),
+		typedRuntime.register(
+			scope,
+			defineAction({
+				category,
+				execution: historyScrollExecution,
+				getAvailability: historyScrollAvailable,
+				handler: {
+					execute: (context) => commitBooleanResult(context, terminal.scrollPages(1)),
+				},
+				id: PROJECTED_TERMINAL_ACTION_IDS.scrollPageDown,
+				input: noActionInput,
+				title: projectedTerminalMessages.scrollPageDownAction,
+			}),
+		),
+		typedRuntime.register(
+			scope,
+			defineAction({
+				category,
+				execution: historyScrollExecution,
+				getAvailability: historyScrollAvailable,
+				handler: {
+					execute: (context) => commitBooleanResult(context, terminal.scrollToTop()),
+				},
+				id: PROJECTED_TERMINAL_ACTION_IDS.scrollToTop,
+				input: noActionInput,
+				title: projectedTerminalMessages.scrollToTopAction,
+			}),
+		),
+		typedRuntime.register(
+			scope,
+			defineAction({
+				category,
+				execution: historyScrollExecution,
+				getAvailability: historyScrollAvailable,
+				handler: {
+					execute: (context) => commitBooleanResult(context, terminal.scrollToBottom()),
+				},
+				id: PROJECTED_TERMINAL_ACTION_IDS.scrollToBottom,
+				input: noActionInput,
+				title: projectedTerminalMessages.scrollToBottomAction,
 			}),
 		),
 		typedRuntime.register(
@@ -209,24 +309,6 @@ export function registerProjectedTerminalActions({
 				id: PROJECTED_TERMINAL_ACTION_IDS.clear,
 				input: noActionInput,
 				title: projectedTerminalMessages.clearAction,
-			}),
-		),
-		typedRuntime.register(
-			scope,
-			defineAction({
-				category,
-				execution: {
-					concurrency: 'replace-latest',
-					concurrencyKey: () => 'terminal-history-scroll',
-					mode: 'foreground',
-				},
-				getAvailability: () => ({ kind: 'enabled' }),
-				handler: {
-					execute: (context) => commitBooleanResult(context, terminal.scrollToBottom()),
-				},
-				id: PROJECTED_TERMINAL_ACTION_IDS.scrollToBottom,
-				input: noActionInput,
-				title: projectedTerminalMessages.scrollToBottomAction,
 			}),
 		),
 		typedRuntime.register(

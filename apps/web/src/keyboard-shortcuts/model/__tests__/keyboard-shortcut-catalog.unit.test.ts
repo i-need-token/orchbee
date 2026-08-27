@@ -10,9 +10,9 @@ import {
 } from '../keyboard-shortcut-catalog';
 
 describe('keyboard shortcut catalog', () => {
-	it('combines the twenty-four Workbench and seven terminal owner declarations once', () => {
-		expect(KEYBOARD_SHORTCUT_CATALOG).toHaveLength(31);
-		expect(new Set(KEYBOARD_SHORTCUT_IDS).size).toBe(31);
+	it('combines the twenty-four Workbench and thirteen terminal owner declarations once', () => {
+		expect(KEYBOARD_SHORTCUT_CATALOG).toHaveLength(37);
+		expect(new Set(KEYBOARD_SHORTCUT_IDS).size).toBe(37);
 		expect(keyboardShortcutDeclaration('workbench.search.actions.open')).toMatchObject({
 			actionId: 'workbench.search.open',
 			actionInput: { filter: 'actions' },
@@ -70,6 +70,12 @@ describe('keyboard shortcut catalog', () => {
 			name: 'previous-prompt',
 			scope: 'focused-terminal',
 		});
+		expect(keyboardShortcutDeclaration('terminal.history.scroll-page-up')).toMatchObject({
+			actionId: 'terminal.history.scroll-page-up',
+			availability: 'focused-terminal',
+			name: 'scroll-page-up',
+			scope: 'focused-terminal',
+		});
 	});
 
 	it('provides conflict-free platform defaults with terminal-safe Standard bindings', () => {
@@ -122,6 +128,12 @@ describe('keyboard shortcut catalog', () => {
 		expect(formatKeyboardShortcutChord(standard['terminal.history.prompt-next'], 'standard')).toBe(
 			'Ctrl+Shift+X',
 		);
+		expect(formatKeyboardShortcutChord(apple['terminal.history.scroll-line-up'], 'apple')).toBe(
+			'⌃⇧↑',
+		);
+		expect(
+			formatKeyboardShortcutChord(standard['terminal.history.scroll-page-down'], 'standard'),
+		).toBe('Ctrl+Shift+Page Down');
 		expect(formatKeyboardShortcutChord(standard['workbench.settings.open'], 'standard')).toBe(
 			'Ctrl+,',
 		);

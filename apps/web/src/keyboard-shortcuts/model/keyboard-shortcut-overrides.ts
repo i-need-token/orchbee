@@ -115,6 +115,24 @@ export function createKeyboardShortcutBindings(
 		[PROJECTED_TERMINAL_SHORTCUTS.promptPrevious.shortcutId]: bindingFor(
 			PROJECTED_TERMINAL_SHORTCUTS.promptPrevious.shortcutId,
 		),
+		[PROJECTED_TERMINAL_SHORTCUTS.scrollLineDown.shortcutId]: bindingFor(
+			PROJECTED_TERMINAL_SHORTCUTS.scrollLineDown.shortcutId,
+		),
+		[PROJECTED_TERMINAL_SHORTCUTS.scrollLineUp.shortcutId]: bindingFor(
+			PROJECTED_TERMINAL_SHORTCUTS.scrollLineUp.shortcutId,
+		),
+		[PROJECTED_TERMINAL_SHORTCUTS.scrollPageDown.shortcutId]: bindingFor(
+			PROJECTED_TERMINAL_SHORTCUTS.scrollPageDown.shortcutId,
+		),
+		[PROJECTED_TERMINAL_SHORTCUTS.scrollPageUp.shortcutId]: bindingFor(
+			PROJECTED_TERMINAL_SHORTCUTS.scrollPageUp.shortcutId,
+		),
+		[PROJECTED_TERMINAL_SHORTCUTS.scrollToBottom.shortcutId]: bindingFor(
+			PROJECTED_TERMINAL_SHORTCUTS.scrollToBottom.shortcutId,
+		),
+		[PROJECTED_TERMINAL_SHORTCUTS.scrollToTop.shortcutId]: bindingFor(
+			PROJECTED_TERMINAL_SHORTCUTS.scrollToTop.shortcutId,
+		),
 		[PROJECTED_TERMINAL_SHORTCUTS.selectAll.shortcutId]: bindingFor(
 			PROJECTED_TERMINAL_SHORTCUTS.selectAll.shortcutId,
 		),

@@ -18,8 +18,8 @@
 			"zhCnSha256": "2afc317d019dbf2e2e66361ee355e94c1c5dd0bef44c3ee9f499cd3a5bf40058"
 		},
 		"apps/desktop/README.md": {
-			"englishSha256": "07bec524bdec955005d270dff65e8dff5a57720aad232fd13408786b08608ea0",
-			"zhCnSha256": "a39ddf6644e3f804903590569ccb0a22b2d3b466c1c4d7917aba3be8b37a6e3e"
+			"englishSha256": "f9356c40fb1859c351fdb84d691048f6e89a654b36981160115d9c64a7f3dd2e",
+			"zhCnSha256": "26814de1af28a85ea0fba3a9cf58b392f60fbbae12150ce4be66c1d042fe33c2"
 		},
 		"apps/desktop/docs/data-root.md": {
 			"englishSha256": "70b2836c182df8c32456081cc30682ecd9bb4bb2d6bf3409bb3f9853ad23490e",
@@ -86,8 +86,8 @@
 			"zhCnSha256": "c2dda1a79846880ad2b1b70e85bfa587ef12e5958fe1f3ee56cc98e6b78b40c0"
 		},
 		"apps/web/docs/keyboard-shortcuts.md": {
-			"englishSha256": "b7d9c2071084e0bb5525f24dc3b3254d9e2cf39b7f839bb3b28c723bcfc7fd97",
-			"zhCnSha256": "568b84283576a9182439c0a3dc2026c72000d29520c3cd279faa42d843019762"
+			"englishSha256": "1ffeca14161a024619f220b65d803e1ac93901e5bccf704306241408c2efbd4a",
+			"zhCnSha256": "cabbb8c2a076c1f8f93a702244c04e74204eb20cdfd2542b0c176bb1c273c33f"
 		},
 		"apps/web/docs/navigation-routing.md": {
 			"englishSha256": "cd5dec1d6effde16a6f3e1f5f9c756c1b7601ff22afb44a422eba59cb775c0bd",
@@ -270,12 +270,16 @@
 			"zhCnSha256": "1cc0850fc5f8aae29734edaae364de39f27fa399994efb852abe72aad7d9e0be"
 		},
 		"packages/terminal/README.md": {
-			"englishSha256": "0153a7af8005728766f04fbb73ac6a49299ec35ce6b771050456fe23d234b5c2",
-			"zhCnSha256": "66494be3a122c9f47eb090226c0b04856a8518fbff6947c98dddded9ba80e3ef"
+			"englishSha256": "7b1fc19603c5bf659a1093154b99ed7536b5ce9643ccc6da80e5ba44d1d9fec0",
+			"zhCnSha256": "e6956a32ca92cc9a28c9f363c8ef88145c38caa986c742374bf269f1607c67c0"
 		},
 		"packages/terminal/docs/ghostty-surface-test-provenance.md": {
 			"englishSha256": "c3fa251874939bdae471915e05fac4136244c6f35eb0bf41d3c7f3f0bb176cc6",
 			"zhCnSha256": "63188c57bce2cefbaee66e406a14e68377ae2fc7aab494f57b5641d50fecb169"
+		},
+		"packages/terminal/docs/kitty-keyboard-scrollback-alignment.md": {
+			"englishSha256": "62701deccf9ac28be79936fa875619c3a9fd0efab9aedfd476ca207d3d3aa4e6",
+			"zhCnSha256": "2530d935564a2ef6b4411e4d0b07e0fbca9e4f771f21f7b6f4bf736f0d388592"
 		},
 		"packages/terminal/docs/kitty-prompt-navigation-alignment.md": {
 			"englishSha256": "84e0f93f2985b05589314c63b5f0f1321d2f3c6170aabd1631c4610870f77ba0",

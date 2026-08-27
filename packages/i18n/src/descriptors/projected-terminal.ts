@@ -326,9 +326,29 @@ export const projectedTerminalMessages = defineMessages({
 		defaultMessage: 'Selected all retained terminal output.',
 		id: 'terminal.projected.selectAll.completed',
 	},
+	scrollLineDownAction: {
+		defaultMessage: 'Scroll down one line',
+		id: 'terminal.projected.action.scrollLineDown',
+	},
+	scrollLineUpAction: {
+		defaultMessage: 'Scroll up one line',
+		id: 'terminal.projected.action.scrollLineUp',
+	},
+	scrollPageDownAction: {
+		defaultMessage: 'Scroll down one page',
+		id: 'terminal.projected.action.scrollPageDown',
+	},
+	scrollPageUpAction: {
+		defaultMessage: 'Scroll up one page',
+		id: 'terminal.projected.action.scrollPageUp',
+	},
 	scrollToBottomAction: {
 		defaultMessage: 'Scroll to bottom',
 		id: 'terminal.projected.action.scrollToBottom',
+	},
+	scrollToTopAction: {
+		defaultMessage: 'Scroll to top',
+		id: 'terminal.projected.action.scrollToTop',
 	},
 	scrollToBottomCompleted: {
 		defaultMessage: 'Scrolled to the latest terminal output.',

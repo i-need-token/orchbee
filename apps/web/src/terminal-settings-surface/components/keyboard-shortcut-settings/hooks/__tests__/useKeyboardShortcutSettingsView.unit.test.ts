@@ -28,7 +28,7 @@ describe('useKeyboardShortcutSettingsView', () => {
 				}),
 			{ wrapper: I18nWrapper },
 		);
-		expect(allRows.result.current.rows).toHaveLength(31);
+		expect(allRows.result.current.rows).toHaveLength(37);
 		expect(allRows.result.current.rows[0]).toMatchObject({
 			actionName: 'Search actions',
 			chord: 'Ctrl+Shift+P',
@@ -37,7 +37,7 @@ describe('useKeyboardShortcutSettingsView', () => {
 		});
 		expect(
 			allRows.result.current.rows.filter((row) => row.scope === 'Focused terminal'),
-		).toHaveLength(6);
+		).toHaveLength(12);
 		expect(
 			allRows.result.current.rows.find(
 				(row) => row.actionName === 'Scroll to previous shell prompt',
@@ -45,6 +45,13 @@ describe('useKeyboardShortcutSettingsView', () => {
 		).toMatchObject({
 			availability: 'When a terminal is focused',
 			chord: 'Ctrl+Shift+Z',
+			scope: 'Focused terminal',
+		});
+		expect(
+			allRows.result.current.rows.find((row) => row.actionName === 'Scroll up one page'),
+		).toMatchObject({
+			availability: 'When a terminal is focused',
+			chord: 'Ctrl+Shift+Page Up',
 			scope: 'Focused terminal',
 		});
 		expect(

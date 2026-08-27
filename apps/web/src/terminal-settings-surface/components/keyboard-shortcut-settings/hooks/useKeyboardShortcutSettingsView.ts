@@ -70,6 +70,18 @@ export function useKeyboardShortcutSettingsView({
 				return intl.formatMessage(keyboardShortcutMessages.previousPrompt);
 			case 'previous-tab':
 				return intl.formatMessage(keyboardShortcutMessages.previousTab);
+			case 'scroll-line-down':
+				return intl.formatMessage(keyboardShortcutMessages.scrollLineDown);
+			case 'scroll-line-up':
+				return intl.formatMessage(keyboardShortcutMessages.scrollLineUp);
+			case 'scroll-page-down':
+				return intl.formatMessage(keyboardShortcutMessages.scrollPageDown);
+			case 'scroll-page-up':
+				return intl.formatMessage(keyboardShortcutMessages.scrollPageUp);
+			case 'scroll-to-bottom':
+				return intl.formatMessage(keyboardShortcutMessages.scrollToBottom);
+			case 'scroll-to-top':
+				return intl.formatMessage(keyboardShortcutMessages.scrollToTop);
 			case 'global-search':
 				return intl.formatMessage(keyboardShortcutMessages.globalSearch);
 			case 'maximize-panel':

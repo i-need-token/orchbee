@@ -477,6 +477,11 @@ Focused traces cover:
   OSC 133 prompt rows reach the production Host projection and that repeated `Ctrl+Shift+Z`, then
   `Ctrl+Shift+X`, select the nearest rows in both directions without replacing the attachment. The
   witness does not claim automatic Shell Integration injection;
+- exact `terminal-parity/HS-11-keyboard-scrollback` real-PTY/Electron evidence that
+  `Ctrl+Shift+Arrow`, `Ctrl+Shift+PageUp/PageDown`, and `Ctrl+Shift+Home/End` move one production
+  retained-history viewport by line, overlapping page, top, and bottom without replacing the
+  attachment. The witness does not claim Kitty's secondary aliases, alternate-screen behavior, or
+  keyboard smooth-animation timing;
 - one Electron renderer and two ordinary Browser pages sharing canonical Workbench and terminal state while retaining fresh page sessions, Client Views, and attachment identities, including Browser copy, link, disconnect, rejection, and reconnect behavior;
 - user-quit preserve/cancel/stop, automatic preserve for idle running terminals, exact reuse of Panel-close protection, hidden-terminal stop, failed-CAS suppression, partial-stop retry, unreferenced-binding drain, unknown-Host-orphan refusal, update-restart preserve, development Host stop/stage/ready ordering, and fresh identity after explicitly starting a stopped session.
 

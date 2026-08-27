@@ -67,6 +67,12 @@ type KeyboardShortcutName =
 	| 'paste'
 	| 'previous-prompt'
 	| 'previous-tab'
+	| 'scroll-line-down'
+	| 'scroll-line-up'
+	| 'scroll-page-down'
+	| 'scroll-page-up'
+	| 'scroll-to-bottom'
+	| 'scroll-to-top'
 	| 'select-all'
 	| 'settings'
 	| 'split-below'
@@ -325,6 +331,66 @@ export const KEYBOARD_SHORTCUT_CATALOG = Object.freeze([
 		name: 'next-prompt',
 		scope: 'focused-terminal',
 		shortcutId: PROJECTED_TERMINAL_SHORTCUTS.promptNext.shortcutId,
+	}),
+	Object.freeze({
+		actionId: PROJECTED_TERMINAL_SHORTCUTS.scrollLineUp.actionId,
+		actionInput: undefined,
+		availability: 'focused-terminal',
+		defaults: PROJECTED_TERMINAL_SHORTCUTS.scrollLineUp.defaults,
+		feature: 'terminal',
+		name: 'scroll-line-up',
+		scope: 'focused-terminal',
+		shortcutId: PROJECTED_TERMINAL_SHORTCUTS.scrollLineUp.shortcutId,
+	}),
+	Object.freeze({
+		actionId: PROJECTED_TERMINAL_SHORTCUTS.scrollLineDown.actionId,
+		actionInput: undefined,
+		availability: 'focused-terminal',
+		defaults: PROJECTED_TERMINAL_SHORTCUTS.scrollLineDown.defaults,
+		feature: 'terminal',
+		name: 'scroll-line-down',
+		scope: 'focused-terminal',
+		shortcutId: PROJECTED_TERMINAL_SHORTCUTS.scrollLineDown.shortcutId,
+	}),
+	Object.freeze({
+		actionId: PROJECTED_TERMINAL_SHORTCUTS.scrollPageUp.actionId,
+		actionInput: undefined,
+		availability: 'focused-terminal',
+		defaults: PROJECTED_TERMINAL_SHORTCUTS.scrollPageUp.defaults,
+		feature: 'terminal',
+		name: 'scroll-page-up',
+		scope: 'focused-terminal',
+		shortcutId: PROJECTED_TERMINAL_SHORTCUTS.scrollPageUp.shortcutId,
+	}),
+	Object.freeze({
+		actionId: PROJECTED_TERMINAL_SHORTCUTS.scrollPageDown.actionId,
+		actionInput: undefined,
+		availability: 'focused-terminal',
+		defaults: PROJECTED_TERMINAL_SHORTCUTS.scrollPageDown.defaults,
+		feature: 'terminal',
+		name: 'scroll-page-down',
+		scope: 'focused-terminal',
+		shortcutId: PROJECTED_TERMINAL_SHORTCUTS.scrollPageDown.shortcutId,
+	}),
+	Object.freeze({
+		actionId: PROJECTED_TERMINAL_SHORTCUTS.scrollToTop.actionId,
+		actionInput: undefined,
+		availability: 'focused-terminal',
+		defaults: PROJECTED_TERMINAL_SHORTCUTS.scrollToTop.defaults,
+		feature: 'terminal',
+		name: 'scroll-to-top',
+		scope: 'focused-terminal',
+		shortcutId: PROJECTED_TERMINAL_SHORTCUTS.scrollToTop.shortcutId,
+	}),
+	Object.freeze({
+		actionId: PROJECTED_TERMINAL_SHORTCUTS.scrollToBottom.actionId,
+		actionInput: undefined,
+		availability: 'focused-terminal',
+		defaults: PROJECTED_TERMINAL_SHORTCUTS.scrollToBottom.defaults,
+		feature: 'terminal',
+		name: 'scroll-to-bottom',
+		scope: 'focused-terminal',
+		shortcutId: PROJECTED_TERMINAL_SHORTCUTS.scrollToBottom.shortcutId,
 	}),
 	Object.freeze({
 		actionId: PROJECTED_TERMINAL_SHORTCUTS.selectAll.actionId,

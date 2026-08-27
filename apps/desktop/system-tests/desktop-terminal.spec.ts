@@ -1024,6 +1024,11 @@ test('terminal-parity/IN-12-actions', async () => {
 				'terminal.search.previous',
 				'terminal.history.prompt-previous',
 				'terminal.history.prompt-next',
+				'terminal.history.scroll-line-up',
+				'terminal.history.scroll-line-down',
+				'terminal.history.scroll-page-up',
+				'terminal.history.scroll-page-down',
+				'terminal.history.scroll-top',
 				'terminal.history.scroll-bottom',
 				'terminal.clear',
 				'terminal.reset',
@@ -1040,6 +1045,11 @@ test('terminal-parity/IN-12-actions', async () => {
 				'terminal.search.previous:disabled',
 				'terminal.history.prompt-previous:enabled',
 				'terminal.history.prompt-next:enabled',
+				'terminal.history.scroll-line-up:enabled',
+				'terminal.history.scroll-line-down:enabled',
+				'terminal.history.scroll-page-up:enabled',
+				'terminal.history.scroll-page-down:enabled',
+				'terminal.history.scroll-top:enabled',
 				'terminal.history.scroll-bottom:enabled',
 				'terminal.clear:enabled',
 				'terminal.reset:enabled',
@@ -1869,6 +1879,61 @@ test('terminal-parity/SI-02-prompt-navigation', async () => {
 	await pressPromptShortcut('KeyX');
 	await expect(accessibleRows.first()).toContainText('si02-prompt-three');
 	await expect.poll(firstVisibleRow).toBe(thirdPromptStart);
+	expect(await root.getAttribute('data-projected-terminal-attachment-id')).toBe(attachmentId);
+});
+
+test('terminal-parity/HS-11-keyboard-scrollback', async () => {
+	test.setTimeout(45_000);
+	const application = electronApplication;
+	if (application === undefined) throw new Error('Electron application did not start.');
+	const page = await application.firstWindow();
+	const root = projectedTerminal(page);
+	await expect(root).toHaveAttribute('data-projected-terminal-state', 'open');
+	const attachmentId = await root.getAttribute('data-projected-terminal-attachment-id');
+	const input = page.getByRole('textbox');
+	const accessibility = root.locator('[role="list"]');
+	const accessibleRows = accessibility.locator(':scope > div');
+	const firstVisibleRow = async (): Promise<bigint> =>
+		BigInt((await accessibleRows.first().getAttribute('data-terminal-absolute-row')) ?? '0');
+	const pressHistoryShortcut = async (shortcut: string, actionId: string): Promise<void> => {
+		await root.evaluate((element) => {
+			delete (element as HTMLElement).dataset['projectedTerminalActionId'];
+			delete (element as HTMLElement).dataset['projectedTerminalActionResult'];
+		});
+		await page.keyboard.press(shortcut);
+		await expect(root).toHaveAttribute('data-projected-terminal-action-id', actionId);
+		await expect(root).toHaveAttribute('data-projected-terminal-action-result', 'completed');
+	};
+
+	await input.pressSequentially(
+		`i=1; while [ "$i" -le 180 ]; do printf 'in15-history-%03d\\n' "$i"; i=$((i+1)); done; printf 'in15-tail-marker\\n'; exec sleep 60`,
+		{ delay: 1 },
+	);
+	await input.press('Enter');
+	await expect(accessibility).toContainText('in15-tail-marker');
+	await waitForTerminalPresentationStability(root);
+	await expect(input).toBeFocused();
+	const bottomStart = await firstVisibleRow();
+
+	await pressHistoryShortcut('Control+Shift+PageUp', 'terminal.history.scroll-page-up');
+	await expect.poll(firstVisibleRow).toBeLessThan(bottomStart);
+	const pageStart = await firstVisibleRow();
+
+	await pressHistoryShortcut('Control+Shift+ArrowUp', 'terminal.history.scroll-line-up');
+	await expect.poll(firstVisibleRow).toBeLessThan(pageStart);
+
+	await pressHistoryShortcut('Control+Shift+ArrowDown', 'terminal.history.scroll-line-down');
+	await expect.poll(firstVisibleRow).toBe(pageStart);
+
+	await pressHistoryShortcut('Control+Shift+Home', 'terminal.history.scroll-top');
+	await expect.poll(firstVisibleRow).toBe(0n);
+
+	await pressHistoryShortcut('Control+Shift+PageDown', 'terminal.history.scroll-page-down');
+	await expect.poll(firstVisibleRow).toBeGreaterThan(0n);
+
+	await pressHistoryShortcut('Control+Shift+End', 'terminal.history.scroll-bottom');
+	await expect.poll(firstVisibleRow).toBe(bottomStart);
+	await expect(input).toBeFocused();
 	expect(await root.getAttribute('data-projected-terminal-attachment-id')).toBe(attachmentId);
 });
 

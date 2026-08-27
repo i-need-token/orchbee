@@ -1019,7 +1019,7 @@ export class ProjectedTerminal {
 		return !this.#isDisposed() && this.#inputEnabled;
 	}
 
-	get canNavigatePrompts(): boolean {
+	get canScrollHistory(): boolean {
 		const metadata = this.#store.metadata;
 		return (
 			!this.#isDisposed() &&
@@ -1027,6 +1027,10 @@ export class ProjectedTerminal {
 			metadata.activeScreen === ActiveScreen.primary &&
 			this.#historyPhase !== ProjectedHistoryPhase.disposed
 		);
+	}
+
+	get canNavigatePrompts(): boolean {
+		return this.canScrollHistory;
 	}
 
 	/** Capture only the exact semantic source represented by the most recently painted frame. */
@@ -1772,19 +1776,20 @@ export class ProjectedTerminal {
 		}
 	}
 
-	scrollLines(amount: number): void {
-		this.#scrollHistoryLines(amount, this.#wheelHistoryPresentation);
+	scrollLines(amount: number): boolean {
+		return this.#scrollHistoryLines(amount, this.#wheelHistoryPresentation);
 	}
 
-	#scrollHistoryLines(amount: number, smoothPresentation: boolean): void {
+	#scrollHistoryLines(amount: number, smoothPresentation: boolean): boolean {
 		if (
 			!Number.isFinite(amount) ||
 			amount === 0 ||
 			this.#phase === ProjectedTerminalPhase.disposed
 		) {
-			return;
+			return false;
 		}
 		const rows = Math.trunc(amount);
+		if (rows === 0) return false;
 		this.#historyIntentEpoch += 1n;
 		this.#historyScrollPresentation?.cancel();
 		this.#showHistoryScrollbar();
@@ -1796,7 +1801,7 @@ export class ProjectedTerminal {
 				-PROTOCOL_LIMITS.maxRowWindowRows,
 				PROTOCOL_LIMITS.maxRowWindowRows,
 			);
-			return;
+			return true;
 		}
 		const viewportFlight = this.#rowFlights.get('viewport');
 		if (viewportFlight?.kind === 'viewport') {
@@ -1809,23 +1814,25 @@ export class ProjectedTerminal {
 				-PROTOCOL_LIMITS.maxRowWindowRows,
 				PROTOCOL_LIMITS.maxRowWindowRows,
 			);
-			return;
+			return true;
 		}
 		if (this.#historyPhase === ProjectedHistoryPhase.followingBottom) {
-			if (rows > 0 || this.#historyTotalRows <= BigInt(this.#store.metadata?.rows ?? 0)) return;
+			if (rows > 0 || this.#historyTotalRows <= BigInt(this.#store.metadata?.rows ?? 0)) {
+				return false;
+			}
 			this.#historyRowsBefore = Math.min(Number(this.#historyTotalRows), -rows);
 			this.#requestHistoryRows(
 				{ kind: 'tail', rowsBefore: this.#historyRowsBefore },
 				HISTORY_OVERSCAN_ROWS,
 				smoothPresentation,
 			);
-			return;
+			return true;
 		}
-		if (this.#historyPhase === ProjectedHistoryPhase.recovering) return;
+		if (this.#historyPhase === ProjectedHistoryPhase.recovering) return false;
 		const nextRowsBefore = Math.max(0, this.#historyRowsBefore - rows);
 		if (nextRowsBefore === 0) {
 			this.#recoverHistory(smoothPresentation);
-			return;
+			return true;
 		}
 		this.#historyRowsBefore = Math.min(Number(this.#historyTotalRows), nextRowsBefore);
 		this.#requestHistoryRows(
@@ -1836,10 +1843,23 @@ export class ProjectedTerminal {
 			HISTORY_OVERSCAN_ROWS,
 			smoothPresentation,
 		);
+		return true;
 	}
 
-	scrollPages(amount: number): void {
-		this.scrollLines(amount * (this.metadata?.rows ?? 1));
+	scrollPages(amount: number): boolean {
+		const visibleRows = this.metadata?.rows ?? 0;
+		return this.scrollLines(amount * Math.max(visibleRows - 1, 0));
+	}
+
+	scrollToTop(): boolean {
+		this.#promptNavigationIntentAnchor = undefined;
+		const metadata = this.metadata ?? this.#store.metadata;
+		if (metadata === null || !this.canScrollHistory || this.#historyVisibleStart(metadata) === 0n) {
+			return false;
+		}
+		this.#showHistoryScrollbar();
+		this.#requestHistoryStartRow(0n);
+		return true;
 	}
 
 	scrollToBottom(): boolean {

@@ -102,6 +102,41 @@ describe('projected terminal shortcuts', () => {
 		expect(harness.invoke).toHaveBeenCalledTimes(2);
 	});
 
+	it('routes Kitty-aligned history scrolling and leaves unavailable bindings unconsumed', () => {
+		const harness = shortcutHarness('standard');
+		const shortcuts = [
+			['ArrowUp', 'terminal.history.scroll-line-up'],
+			['ArrowDown', 'terminal.history.scroll-line-down'],
+			['PageUp', 'terminal.history.scroll-page-up'],
+			['PageDown', 'terminal.history.scroll-page-down'],
+			['Home', 'terminal.history.scroll-top'],
+			['End', 'terminal.history.scroll-bottom'],
+		] as const;
+		for (const [code] of shortcuts) {
+			const event = harness.keyDown(
+				{ ...baseEvent, code, ctrlKey: true, shiftKey: true },
+				harness.terminalNode,
+			);
+			expect(event.preventDefault).toHaveBeenCalledOnce();
+		}
+		expect(harness.invoke.mock.calls.map(([actionId]) => actionId)).toEqual(
+			shortcuts.map(([, actionId]) => actionId),
+		);
+
+		const unavailable = shortcutHarness('standard', false);
+		const declined = unavailable.keyDown(
+			{ ...baseEvent, code: 'PageUp', ctrlKey: true, shiftKey: true },
+			unavailable.terminalNode,
+		);
+		expect(unavailable.invoke).toHaveBeenCalledWith(
+			'terminal.history.scroll-page-up',
+			undefined,
+			unavailable.terminalScope,
+		);
+		expect(declined.preventDefault).not.toHaveBeenCalled();
+		expect(declined.stopPropagation).not.toHaveBeenCalled();
+	});
+
 	it('keeps unshifted Standard Ctrl+C, Ctrl+A, Ctrl+F, Ctrl+L, and Ctrl+V available to the PTY', () => {
 		const harness = shortcutHarness('standard');
 		for (const code of ['KeyC', 'KeyA', 'KeyF', 'KeyL', 'KeyV']) {

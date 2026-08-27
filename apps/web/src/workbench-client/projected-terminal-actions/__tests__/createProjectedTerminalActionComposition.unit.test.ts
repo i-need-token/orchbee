@@ -208,6 +208,7 @@ function terminalTarget(
 	return {
 		canControlTerminal: true,
 		canNavigatePrompts: true,
+		canScrollHistory: true,
 		clear: vi.fn<ProjectedTerminalActionTarget['clear']>(() => true),
 		copySelectionAsync: vi
 			.fn<ProjectedTerminalActionTarget['copySelectionAsync']>()
@@ -222,6 +223,8 @@ function terminalTarget(
 			.mockResolvedValue({ kind: 'completed' }),
 		paste: vi.fn<ProjectedTerminalActionTarget['paste']>().mockResolvedValue({ kind: 'empty' }),
 		reset: vi.fn<ProjectedTerminalActionTarget['reset']>(),
+		scrollLines: vi.fn<ProjectedTerminalActionTarget['scrollLines']>(() => true),
+		scrollPages: vi.fn<ProjectedTerminalActionTarget['scrollPages']>(() => true),
 		scrollToNextPrompt: vi
 			.fn<ProjectedTerminalActionTarget['scrollToNextPrompt']>()
 			.mockResolvedValue(true),
@@ -229,6 +232,7 @@ function terminalTarget(
 		scrollToPreviousPrompt: vi
 			.fn<ProjectedTerminalActionTarget['scrollToPreviousPrompt']>()
 			.mockResolvedValue(true),
+		scrollToTop: vi.fn<ProjectedTerminalActionTarget['scrollToTop']>(() => true),
 		selectAll: vi.fn<ProjectedTerminalActionTarget['selectAll']>(),
 		selection: {
 			attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),

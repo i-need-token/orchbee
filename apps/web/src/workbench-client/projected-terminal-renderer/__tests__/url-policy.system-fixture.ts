@@ -16,6 +16,7 @@ import {
 	SemanticContent,
 	TerminalColorKind,
 	TerminalFrameKind,
+	TerminalGraphicsUpdateKind,
 	TerminalIdSchema,
 	TerminalRowWindowDetail,
 	TerminalThemeStateSchema,
@@ -65,6 +66,13 @@ const scenarios: readonly LinkScenario[] = [
 	{ id: 'detected-path', permitted: false, text: './private/file.txt' },
 ];
 const attachmentId = AttachmentIdSchema.parse('91'.repeat(16));
+const emptyGraphics = {
+	animationTick: 0n,
+	images: [],
+	kind: TerminalGraphicsUpdateKind.snapshot,
+	placements: [],
+	resourceRevision: 0n,
+} as const;
 const creationId = CreationIdSchema.parse('92'.repeat(16));
 const hostEpoch = HostEpochSchema.parse('93'.repeat(16));
 const terminalId = TerminalIdSchema.parse('94'.repeat(16));
@@ -346,6 +354,7 @@ function terminalRows(
 			scrollbackRows: startRow,
 		},
 		generation,
+		graphics: emptyGraphics,
 		hostEpoch,
 		revision: 1n,
 		sequence: requestSequence,

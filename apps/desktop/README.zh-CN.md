@@ -261,6 +261,10 @@ Workbench `terminal-presentation-event-published` 消息是 Main 拥有的单一
 - 沙盒端到端输入、输出、历史记录、搜索、选择、复制、链接、退出、渲染器重新加载和 Electron Main 重新启动；
 - 开发和打包的 Shell 资源解析、资源存在和隐私检查、真正的 Zsh OSC 133 输出以及一个 macOS Electron 从手动设置策略到长命令完成提醒的路径，无需替换预计的附件；
 - 精确的 `terminal-parity/SI-02-prompt-navigation` real-PTY/Electron 证据表明，三个显式 OSC 133 提示符行会到达生产 Host 投影，并且重复按下 `Ctrl+Shift+Z`、再按下 `Ctrl+Shift+X` 会在两个方向上选择最近的行，而不替换附件。该见证不声明自动注入 Shell Integration；
+- 精确的 `terminal-parity/HS-11-keyboard-scrollback` real-PTY/Electron 证据表明，
+  `Ctrl+Shift+Arrow`、`Ctrl+Shift+PageUp/PageDown` 和 `Ctrl+Shift+Home/End` 会让一个生产保留历史
+  视口逐行、按重叠页面、到顶部和到底部移动，且不会替换附件。该见证不声明 Kitty 的次要别名、
+  备用屏幕行为或键盘平滑动画时序；
 - 一个 Electron 渲染器和两个普通浏览器页面共享规范工作台和终端状态，同时保留新页面会话、Client View 和附件标识，包括浏览器复制、链接、断开连接、拒绝和重新连接行为；
 - 用户退出保留/取消/停止、空闲运行终端的自动保留、面板关闭保护的精确重用、隐藏终端停止、failed-CAS 抑制、部分停止重试、未引用绑定耗尽、unknown-Host-orphan 拒绝、更新重新启动保留、开发主机停止/阶段/就绪排序以及显式启动停止会话后的新身份。
 

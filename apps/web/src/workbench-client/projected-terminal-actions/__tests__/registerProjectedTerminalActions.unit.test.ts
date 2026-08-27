@@ -244,7 +244,12 @@ describe('registerProjectedTerminalActions', () => {
 				PROJECTED_TERMINAL_ACTION_IDS.promptNext,
 				PROJECTED_TERMINAL_ACTION_IDS.promptPrevious,
 				PROJECTED_TERMINAL_ACTION_IDS.reset,
+				PROJECTED_TERMINAL_ACTION_IDS.scrollLineDown,
+				PROJECTED_TERMINAL_ACTION_IDS.scrollLineUp,
+				PROJECTED_TERMINAL_ACTION_IDS.scrollPageDown,
+				PROJECTED_TERMINAL_ACTION_IDS.scrollPageUp,
 				PROJECTED_TERMINAL_ACTION_IDS.scrollToBottom,
+				PROJECTED_TERMINAL_ACTION_IDS.scrollToTop,
 				PROJECTED_TERMINAL_ACTION_IDS.selectAll,
 			].sort(),
 		);
@@ -261,6 +266,53 @@ describe('registerProjectedTerminalActions', () => {
 		expect(terminal.paste).toHaveBeenCalledWith('clipboard text', 'clipboard');
 		expect(terminal.scrollToBottom).toHaveBeenCalledOnce();
 		expect(terminal.clear).toHaveBeenCalledOnce();
+		for (const registration of registrations) registration.dispose();
+		runtime.dispose();
+	});
+
+	it('projects every bounded history scroll intent and disables them outside the primary screen', async () => {
+		const runtime = new ActionRuntime();
+		const scope = runtime.createScope('terminal.projected');
+		const controller = new TerminalFindController({
+			clearSearch: vi.fn<() => void>(),
+			updateSearch: vi.fn<(query: string, options: TerminalSearchOptions) => void>(),
+		});
+		let canScrollHistory = false;
+		const terminal = terminalTarget();
+		Object.defineProperty(terminal, 'canScrollHistory', { get: () => canScrollHistory });
+		const registrations = registerProjectedTerminalActions({
+			findController: controller,
+			scope,
+			terminal,
+			typedRuntime: createTypedActionRuntime<ProjectedTerminalActionCatalog>(runtime),
+		});
+		const actions = [
+			PROJECTED_TERMINAL_ACTION_IDS.scrollLineUp,
+			PROJECTED_TERMINAL_ACTION_IDS.scrollLineDown,
+			PROJECTED_TERMINAL_ACTION_IDS.scrollPageUp,
+			PROJECTED_TERMINAL_ACTION_IDS.scrollPageDown,
+			PROJECTED_TERMINAL_ACTION_IDS.scrollToTop,
+			PROJECTED_TERMINAL_ACTION_IDS.scrollToBottom,
+		] as const;
+
+		for (const actionId of actions) {
+			expect(
+				runtime.resolveAction(actionId, undefined, { scope, source: 'keyboard' })?.availability,
+			).toMatchObject({ kind: 'disabled' });
+		}
+
+		canScrollHistory = true;
+		for (const actionId of actions) {
+			await expect(
+				runtime.execute(actionId, undefined, { scope, source: 'keyboard' }).completion,
+			).resolves.toEqual({ kind: 'completed' });
+		}
+		expect(terminal.scrollLines).toHaveBeenNthCalledWith(1, -1);
+		expect(terminal.scrollLines).toHaveBeenNthCalledWith(2, 1);
+		expect(terminal.scrollPages).toHaveBeenNthCalledWith(1, -1);
+		expect(terminal.scrollPages).toHaveBeenNthCalledWith(2, 1);
+		expect(terminal.scrollToTop).toHaveBeenCalledOnce();
+		expect(terminal.scrollToBottom).toHaveBeenCalledOnce();
 		for (const registration of registrations) registration.dispose();
 		runtime.dispose();
 	});
@@ -510,6 +562,7 @@ function terminalTarget(
 	return {
 		canControlTerminal: true,
 		canNavigatePrompts: true,
+		canScrollHistory: true,
 		clear: vi.fn<ProjectedTerminalActionTarget['clear']>(() => true),
 		copySelectionAsync: vi
 			.fn<ProjectedTerminalActionTarget['copySelectionAsync']>()
@@ -524,6 +577,8 @@ function terminalTarget(
 			.mockResolvedValue({ kind: 'completed' }),
 		paste: vi.fn<ProjectedTerminalActionTarget['paste']>().mockResolvedValue({ kind: 'empty' }),
 		reset: vi.fn<ProjectedTerminalActionTarget['reset']>(),
+		scrollLines: vi.fn<ProjectedTerminalActionTarget['scrollLines']>(() => true),
+		scrollPages: vi.fn<ProjectedTerminalActionTarget['scrollPages']>(() => true),
 		scrollToNextPrompt: vi
 			.fn<ProjectedTerminalActionTarget['scrollToNextPrompt']>()
 			.mockResolvedValue(true),
@@ -531,6 +586,7 @@ function terminalTarget(
 		scrollToPreviousPrompt: vi
 			.fn<ProjectedTerminalActionTarget['scrollToPreviousPrompt']>()
 			.mockResolvedValue(true),
+		scrollToTop: vi.fn<ProjectedTerminalActionTarget['scrollToTop']>(() => true),
 		selectAll: vi.fn<ProjectedTerminalActionTarget['selectAll']>(),
 		selection,
 	};

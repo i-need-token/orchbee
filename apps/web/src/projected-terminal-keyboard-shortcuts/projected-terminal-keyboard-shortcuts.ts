@@ -15,6 +15,12 @@ export const PROJECTED_TERMINAL_SHORTCUT_ACTION_IDS = Object.freeze({
 	paste: 'terminal.clipboard.paste',
 	promptNext: 'terminal.history.prompt-next',
 	promptPrevious: 'terminal.history.prompt-previous',
+	scrollLineDown: 'terminal.history.scroll-line-down',
+	scrollLineUp: 'terminal.history.scroll-line-up',
+	scrollPageDown: 'terminal.history.scroll-page-down',
+	scrollPageUp: 'terminal.history.scroll-page-up',
+	scrollToBottom: 'terminal.history.scroll-bottom',
+	scrollToTop: 'terminal.history.scroll-top',
 	selectAll: 'terminal.selection.select-all',
 } as const);
 
@@ -81,6 +87,60 @@ export const PROJECTED_TERMINAL_SHORTCUTS = {
 		focus: 'terminal',
 		shortcutId: 'terminal.history.prompt-previous',
 	},
+	scrollLineDown: {
+		actionId: PROJECTED_TERMINAL_SHORTCUT_ACTION_IDS.scrollLineDown,
+		defaults: {
+			apple: chord('ArrowDown', ['control', 'shift']),
+			standard: chord('ArrowDown', ['control', 'shift']),
+		},
+		focus: 'terminal',
+		shortcutId: 'terminal.history.scroll-line-down',
+	},
+	scrollLineUp: {
+		actionId: PROJECTED_TERMINAL_SHORTCUT_ACTION_IDS.scrollLineUp,
+		defaults: {
+			apple: chord('ArrowUp', ['control', 'shift']),
+			standard: chord('ArrowUp', ['control', 'shift']),
+		},
+		focus: 'terminal',
+		shortcutId: 'terminal.history.scroll-line-up',
+	},
+	scrollPageDown: {
+		actionId: PROJECTED_TERMINAL_SHORTCUT_ACTION_IDS.scrollPageDown,
+		defaults: {
+			apple: chord('PageDown', ['control', 'shift']),
+			standard: chord('PageDown', ['control', 'shift']),
+		},
+		focus: 'terminal',
+		shortcutId: 'terminal.history.scroll-page-down',
+	},
+	scrollPageUp: {
+		actionId: PROJECTED_TERMINAL_SHORTCUT_ACTION_IDS.scrollPageUp,
+		defaults: {
+			apple: chord('PageUp', ['control', 'shift']),
+			standard: chord('PageUp', ['control', 'shift']),
+		},
+		focus: 'terminal',
+		shortcutId: 'terminal.history.scroll-page-up',
+	},
+	scrollToBottom: {
+		actionId: PROJECTED_TERMINAL_SHORTCUT_ACTION_IDS.scrollToBottom,
+		defaults: {
+			apple: chord('End', ['control', 'shift']),
+			standard: chord('End', ['control', 'shift']),
+		},
+		focus: 'terminal',
+		shortcutId: 'terminal.history.scroll-bottom',
+	},
+	scrollToTop: {
+		actionId: PROJECTED_TERMINAL_SHORTCUT_ACTION_IDS.scrollToTop,
+		defaults: {
+			apple: chord('Home', ['control', 'shift']),
+			standard: chord('Home', ['control', 'shift']),
+		},
+		focus: 'terminal',
+		shortcutId: 'terminal.history.scroll-top',
+	},
 	selectAll: {
 		actionId: PROJECTED_TERMINAL_SHORTCUT_ACTION_IDS.selectAll,
 		defaults: {
@@ -119,6 +179,12 @@ const PROJECTED_TERMINAL_SHORTCUT_ACTIONS = Object.freeze([
 	'paste',
 	'promptPrevious',
 	'promptNext',
+	'scrollLineUp',
+	'scrollLineDown',
+	'scrollPageUp',
+	'scrollPageDown',
+	'scrollToTop',
+	'scrollToBottom',
 	'selectAll',
 ] as const satisfies readonly ProjectedTerminalShortcutAction[]);
 
@@ -179,6 +245,18 @@ function defaultBindingsFor(
 			PROJECTED_TERMINAL_SHORTCUTS.promptNext.defaults[platform],
 		[PROJECTED_TERMINAL_SHORTCUTS.promptPrevious.shortcutId]:
 			PROJECTED_TERMINAL_SHORTCUTS.promptPrevious.defaults[platform],
+		[PROJECTED_TERMINAL_SHORTCUTS.scrollLineDown.shortcutId]:
+			PROJECTED_TERMINAL_SHORTCUTS.scrollLineDown.defaults[platform],
+		[PROJECTED_TERMINAL_SHORTCUTS.scrollLineUp.shortcutId]:
+			PROJECTED_TERMINAL_SHORTCUTS.scrollLineUp.defaults[platform],
+		[PROJECTED_TERMINAL_SHORTCUTS.scrollPageDown.shortcutId]:
+			PROJECTED_TERMINAL_SHORTCUTS.scrollPageDown.defaults[platform],
+		[PROJECTED_TERMINAL_SHORTCUTS.scrollPageUp.shortcutId]:
+			PROJECTED_TERMINAL_SHORTCUTS.scrollPageUp.defaults[platform],
+		[PROJECTED_TERMINAL_SHORTCUTS.scrollToBottom.shortcutId]:
+			PROJECTED_TERMINAL_SHORTCUTS.scrollToBottom.defaults[platform],
+		[PROJECTED_TERMINAL_SHORTCUTS.scrollToTop.shortcutId]:
+			PROJECTED_TERMINAL_SHORTCUTS.scrollToTop.defaults[platform],
 		[PROJECTED_TERMINAL_SHORTCUTS.selectAll.shortcutId]:
 			PROJECTED_TERMINAL_SHORTCUTS.selectAll.defaults[platform],
 	});

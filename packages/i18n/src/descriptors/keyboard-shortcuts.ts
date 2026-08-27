@@ -25,6 +25,12 @@ export const keyboardShortcutMessages = defineMessages({
 	previousPrompt: message('keyboard.shortcuts.actions.previousPrompt'),
 	previousTab: message('keyboard.shortcuts.actions.previousTab'),
 	reset: message('keyboard.shortcuts.actions.reset'),
+	scrollLineDown: message('keyboard.shortcuts.actions.scrollLineDown'),
+	scrollLineUp: message('keyboard.shortcuts.actions.scrollLineUp'),
+	scrollPageDown: message('keyboard.shortcuts.actions.scrollPageDown'),
+	scrollPageUp: message('keyboard.shortcuts.actions.scrollPageUp'),
+	scrollToBottom: message('keyboard.shortcuts.actions.scrollToBottom'),
+	scrollToTop: message('keyboard.shortcuts.actions.scrollToTop'),
 	selectAll: message('keyboard.shortcuts.actions.selectAll'),
 	selectTab: message(
 		'keyboard.shortcuts.actions.selectTab',

@@ -16,6 +16,7 @@ import {
 	SemanticContent,
 	TerminalColorKind,
 	TerminalFrameKind,
+	TerminalGraphicsUpdateKind,
 	TerminalIdSchema,
 	TerminalRowWindowDetail,
 	TerminalThemeStateSchema,
@@ -43,6 +44,13 @@ const creationId = CreationIdSchema.parse('a2'.repeat(16));
 const hostEpoch = HostEpochSchema.parse('a3'.repeat(16));
 const terminalId = TerminalIdSchema.parse('a4'.repeat(16));
 const capabilityRevision = CanonicalUint64TextSchema.parse('1');
+const emptyGraphics = {
+	animationTick: 0n,
+	images: [],
+	kind: TerminalGraphicsUpdateKind.snapshot,
+	placements: [],
+	resourceRevision: 0n,
+} as const;
 const selectionText = 'LAN Browser selection';
 const theme = TerminalThemeStateSchema.parse({
 	operationId: null,
@@ -338,6 +346,7 @@ function terminalRows(
 			scrollbackRows: startRow,
 		},
 		generation: 1n,
+		graphics: emptyGraphics,
 		hostEpoch,
 		revision: 1n,
 		sequence: requestSequence,

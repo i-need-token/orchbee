@@ -9,7 +9,7 @@ import {
 } from '../projected-terminal-keyboard-shortcuts';
 
 describe('projected terminal shortcut declarations', () => {
-	it('owns seven unique Apple and terminal-safe Standard defaults', () => {
+	it('owns thirteen unique Apple and terminal-safe Standard defaults', () => {
 		const apple = defaultProjectedTerminalShortcutBindings('apple');
 		const standard = defaultProjectedTerminalShortcutBindings('standard');
 		expect(formatKeyboardShortcutChord(apple['terminal.clear'], 'apple')).toBe('⌘K');
@@ -21,6 +21,18 @@ describe('projected terminal shortcut declarations', () => {
 			'⌃⇧Z',
 		);
 		expect(formatKeyboardShortcutChord(apple['terminal.history.prompt-next'], 'apple')).toBe('⌃⇧X');
+		expect(apple['terminal.history.scroll-line-up']).toEqual({
+			code: 'ArrowUp',
+			modifiers: ['control', 'shift'],
+		});
+		expect(apple['terminal.history.scroll-page-down']).toEqual({
+			code: 'PageDown',
+			modifiers: ['control', 'shift'],
+		});
+		expect(apple['terminal.history.scroll-top']).toEqual({
+			code: 'Home',
+			modifiers: ['control', 'shift'],
+		});
 		expect(formatKeyboardShortcutChord(standard['terminal.search.open'], 'standard')).toBe(
 			'Ctrl+Shift+F',
 		);
@@ -43,18 +55,52 @@ describe('projected terminal shortcut declarations', () => {
 			'Ctrl+Shift+X',
 		);
 		expect(
+			formatKeyboardShortcutChord(standard['terminal.history.scroll-line-down'], 'standard'),
+		).toBe('Ctrl+Shift+↓');
+		expect(
+			formatKeyboardShortcutChord(standard['terminal.history.scroll-page-up'], 'standard'),
+		).toBe('Ctrl+Shift+Page Up');
+		expect(
+			formatKeyboardShortcutChord(standard['terminal.history.scroll-bottom'], 'standard'),
+		).toBe('Ctrl+Shift+End');
+		expect(
 			new Set(
 				Object.values(PROJECTED_TERMINAL_SHORTCUTS).map((definition) =>
 					keyboardShortcutChordKey(definition.defaults.standard, 'standard'),
 				),
 			).size,
-		).toBe(7);
+		).toBe(13);
 		expect(formatProjectedTerminalActionShortcut('terminal.clear', 'apple')).toBe('⌘K');
 		expect(formatProjectedTerminalActionShortcut('terminal.clipboard.paste', 'apple')).toBe('⌘V');
 		expect(formatProjectedTerminalActionShortcut('terminal.history.prompt-previous', 'apple')).toBe(
 			'⌃⇧Z',
 		);
 		expect(formatProjectedTerminalActionShortcut('unknown', 'apple')).toBeNull();
+	});
+
+	it.each([
+		['ArrowUp', 'scrollLineUp', 'terminal.history.scroll-line-up'],
+		['ArrowDown', 'scrollLineDown', 'terminal.history.scroll-line-down'],
+		['PageUp', 'scrollPageUp', 'terminal.history.scroll-page-up'],
+		['PageDown', 'scrollPageDown', 'terminal.history.scroll-page-down'],
+		['Home', 'scrollToTop', 'terminal.history.scroll-top'],
+		['End', 'scrollToBottom', 'terminal.history.scroll-bottom'],
+	] as const)('resolves Kitty-aligned %s history scrolling', (code, action, actionId) => {
+		expect(
+			resolveProjectedTerminalShortcut(
+				{
+					altKey: false,
+					code,
+					ctrlKey: true,
+					isComposing: false,
+					metaKey: false,
+					repeat: false,
+					shiftKey: true,
+				},
+				'apple',
+				'terminal',
+			),
+		).toMatchObject({ action, actionId });
 	});
 
 	it('resolves Kitty-aligned prompt navigation only for terminal focus', () => {
