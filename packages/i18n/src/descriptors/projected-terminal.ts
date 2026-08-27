@@ -105,6 +105,14 @@ export const projectedTerminalMessages = defineMessages({
 		defaultMessage: 'Find previous match',
 		id: 'terminal.projected.action.findPrevious',
 	},
+	promptNextAction: {
+		defaultMessage: 'Scroll to next shell prompt',
+		id: 'terminal.projected.action.promptNext',
+	},
+	promptPreviousAction: {
+		defaultMessage: 'Scroll to previous shell prompt',
+		id: 'terminal.projected.action.promptPrevious',
+	},
 	findResult: {
 		defaultMessage: '{current, number} of {total, number} matches',
 		id: 'terminal.projected.find.result',

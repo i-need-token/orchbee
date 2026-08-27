@@ -64,6 +64,10 @@ export function useKeyboardShortcutSettingsView({
 				return intl.formatMessage(keyboardShortcutMessages.newTerminal);
 			case 'next-tab':
 				return intl.formatMessage(keyboardShortcutMessages.nextTab);
+			case 'next-prompt':
+				return intl.formatMessage(keyboardShortcutMessages.nextPrompt);
+			case 'previous-prompt':
+				return intl.formatMessage(keyboardShortcutMessages.previousPrompt);
 			case 'previous-tab':
 				return intl.formatMessage(keyboardShortcutMessages.previousTab);
 			case 'global-search':

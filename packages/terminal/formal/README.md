@@ -175,6 +175,31 @@ model does not assume a Host response deadline, transport delivery, or a particu
 the lanes. The schema restriction to viewport plus `tail` or `committed`, generation invalidation,
 byte bounds, rendering, and correlated refresh are covered by protocol and TypeScript tests.
 
+## Prompt-navigation commit authority
+
+`tla/TerminalPromptNavigation.tla` models two replaceable previous/next prompt-navigation requests,
+an independently advancing Host revision, a separately advancing local viewport-intent epoch,
+target discovery, cancellation, and disposal. A discovered target belongs to one request epoch and
+can publish a viewport change only while both captured authorities remain current. Replacement
+starts a fresh request without retaining the older target. Weak fairness applies only after a
+target becomes ready, so a current target commits and a stale target retires; no Host row-read
+deadline is assumed. The concrete adapter selects either an exact physical visible anchor or a
+same-intent transient repair anchor before admission; the model treats that selected anchor as part
+of the captured viewport-intent authority. A repair admission captures the latest Host revision and
+does not preserve an older scan result.
+
+| Prompt-navigation claim                            | Model property                                                  | TypeScript refinement                                                                                                                                                                       |
+| -------------------------------------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Only current source and viewport intent can commit | `CommitRequiresCurrentAuthority`, `ViewportChangesOnlyOnCommit` | `ProjectedTerminal` rechecks generation, revision, total rows, primary screen, history-intent epoch, and its selected exact-visible or same-intent repair anchor before revealing a target. |
+| Replacement cannot publish an older target         | `ReplacementStartsFresh`, `TargetBelongsToCurrentRequest`       | Replace-latest Actions abort the older general-buffer read; each invocation owns one captured scan and commit guard.                                                                        |
+| Cancellation and disposal cannot commit            | `TerminalPhaseCannotCommit`, `ViewportChangesOnlyOnCommit`      | An aborted row read returns cancellation and disposal settles auxiliary flights before any reveal.                                                                                          |
+| One invocation publishes at most once              | `AtMostOneCommitPerAdmission`, `TargetReadyEventuallyRetires`   | The prompt locator returns one target and the owning method issues at most one retained-history start-row intent.                                                                           |
+
+The model abstracts prompt-row contents, direction, pagination, and the 16 MiB source budget; the
+deterministic prompt-navigation tests own those decisions. It does not claim transport delivery,
+automatic shell integration, alternate-screen navigation, or success when retained history changes
+during the scan.
+
 ## Selection-gesture current-view coordination
 
 `tla/TerminalSelectionGestureCoordination.tla` models a serialized pointer gesture that captures
@@ -248,7 +273,7 @@ pnpm --filter @orchbee/terminal test:tla
 ```
 
 The shared repository runner executes the renderer-initialization, presentation, row-flight,
-selection-gesture, and native-settlement models once and the input-repair model through nine fixed
+prompt-navigation, selection-gesture, and native-settlement models once and the input-repair model through nine fixed
 semantic scenarios: composition, key, mouse, focus, review-key, review-mouse, review-focus,
 review-composition, and lifecycle. `review-composition`
 combines a stalled review, queued focus-in, reset invalidation, a deliberately failed first

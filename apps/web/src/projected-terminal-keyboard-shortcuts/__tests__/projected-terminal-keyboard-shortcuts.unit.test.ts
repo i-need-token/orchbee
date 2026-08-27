@@ -9,7 +9,7 @@ import {
 } from '../projected-terminal-keyboard-shortcuts';
 
 describe('projected terminal shortcut declarations', () => {
-	it('owns five unique Apple and terminal-safe Standard defaults', () => {
+	it('owns seven unique Apple and terminal-safe Standard defaults', () => {
 		const apple = defaultProjectedTerminalShortcutBindings('apple');
 		const standard = defaultProjectedTerminalShortcutBindings('standard');
 		expect(formatKeyboardShortcutChord(apple['terminal.clear'], 'apple')).toBe('⌘K');
@@ -17,6 +17,10 @@ describe('projected terminal shortcut declarations', () => {
 		expect(formatKeyboardShortcutChord(apple['terminal.selection.copy'], 'apple')).toBe('⌘C');
 		expect(formatKeyboardShortcutChord(apple['terminal.clipboard.paste'], 'apple')).toBe('⌘V');
 		expect(formatKeyboardShortcutChord(apple['terminal.selection.select-all'], 'apple')).toBe('⌘A');
+		expect(formatKeyboardShortcutChord(apple['terminal.history.prompt-previous'], 'apple')).toBe(
+			'⌃⇧Z',
+		);
+		expect(formatKeyboardShortcutChord(apple['terminal.history.prompt-next'], 'apple')).toBe('⌃⇧X');
 		expect(formatKeyboardShortcutChord(standard['terminal.search.open'], 'standard')).toBe(
 			'Ctrl+Shift+F',
 		);
@@ -33,15 +37,57 @@ describe('projected terminal shortcut declarations', () => {
 			'Ctrl+Shift+A',
 		);
 		expect(
+			formatKeyboardShortcutChord(standard['terminal.history.prompt-previous'], 'standard'),
+		).toBe('Ctrl+Shift+Z');
+		expect(formatKeyboardShortcutChord(standard['terminal.history.prompt-next'], 'standard')).toBe(
+			'Ctrl+Shift+X',
+		);
+		expect(
 			new Set(
 				Object.values(PROJECTED_TERMINAL_SHORTCUTS).map((definition) =>
 					keyboardShortcutChordKey(definition.defaults.standard, 'standard'),
 				),
 			).size,
-		).toBe(5);
+		).toBe(7);
 		expect(formatProjectedTerminalActionShortcut('terminal.clear', 'apple')).toBe('⌘K');
 		expect(formatProjectedTerminalActionShortcut('terminal.clipboard.paste', 'apple')).toBe('⌘V');
+		expect(formatProjectedTerminalActionShortcut('terminal.history.prompt-previous', 'apple')).toBe(
+			'⌃⇧Z',
+		);
 		expect(formatProjectedTerminalActionShortcut('unknown', 'apple')).toBeNull();
+	});
+
+	it('resolves Kitty-aligned prompt navigation only for terminal focus', () => {
+		expect(
+			resolveProjectedTerminalShortcut(
+				{
+					altKey: false,
+					code: 'KeyZ',
+					ctrlKey: true,
+					isComposing: false,
+					metaKey: false,
+					repeat: false,
+					shiftKey: true,
+				},
+				'apple',
+				'terminal',
+			),
+		).toMatchObject({ action: 'promptPrevious', actionId: 'terminal.history.prompt-previous' });
+		expect(
+			resolveProjectedTerminalShortcut(
+				{
+					altKey: false,
+					code: 'KeyX',
+					ctrlKey: true,
+					isComposing: false,
+					metaKey: false,
+					repeat: false,
+					shiftKey: true,
+				},
+				'standard',
+				'find',
+			),
+		).toBeNull();
 	});
 
 	it.each(['KeyF', 'KeyL'])('does not intercept unshifted Standard Control+%s', (code) => {

@@ -146,10 +146,25 @@ import {
 	type ProjectedTerminalMetadata,
 	type ProjectedTerminalPresentationSnapshot,
 } from './packed-terminal-store';
+import {
+	locateProjectedPrompt,
+	PROJECTED_PROMPT_NAVIGATION_PAGE_ROWS,
+	type ProjectedPromptNavigationDirection,
+} from './projected-prompt-navigation';
 
 const terminalKeyCodes: ReadonlyMap<string, TerminalKeyCodeValue> = new Map(
 	TerminalKeyCode.map((code) => [code, code]),
 );
+const terminalModifierKeyCodes: ReadonlySet<TerminalKeyCodeValue> = new Set([
+	'AltLeft',
+	'AltRight',
+	'ControlLeft',
+	'ControlRight',
+	'MetaLeft',
+	'MetaRight',
+	'ShiftLeft',
+	'ShiftRight',
+]);
 const LEGACY_KEY_CODE_ALIASES: ReadonlyMap<string, TerminalKeyCodeValue> = new Map([
 	['OSLeft', 'MetaLeft'],
 	['OSRight', 'MetaRight'],
@@ -657,6 +672,21 @@ interface ProjectedLinkWindow {
 	readonly rows: TerminalBufferRow[];
 }
 
+interface PromptNavigationIntentAnchor {
+	readonly epoch: bigint;
+	readonly generation: bigint;
+	readonly row: bigint;
+	readonly totalRows: bigint;
+}
+
+type PromptNavigationAnchorAuthority =
+	| { readonly kind: 'visible'; readonly row: bigint }
+	| {
+			readonly anchor: PromptNavigationIntentAnchor;
+			readonly kind: 'intent';
+			readonly row: bigint;
+	  };
+
 type ScheduledFrame =
 	| { readonly kind: 'animation-frame'; readonly value: number }
 	| { readonly kind: 'timeout'; readonly value: ReturnType<typeof setTimeout> };
@@ -815,6 +845,7 @@ export class ProjectedTerminal {
 	#frameHandle: ScheduledFrame | undefined;
 	#scheduledRenderForceAll = false;
 	#historyGeneration = 1n;
+	#historyIntentEpoch = 0n;
 	#historyPhase: ProjectedHistoryPhase = ProjectedHistoryPhase.followingBottom;
 	#historyRecoverySmoothPresentation = false;
 	#historyRevision = 0n;
@@ -879,6 +910,7 @@ export class ProjectedTerminal {
 	#pendingHistoryTargetRow: bigint | undefined;
 	#pendingHistoryWheelRows = 0;
 	#wheelHistoryPresentation = false;
+	#promptNavigationIntentAnchor: PromptNavigationIntentAnchor | undefined;
 	#pendingOpeningFrameAcknowledgement: FrameApplied | undefined;
 	#pendingSelectionGestures: PendingSelectionGesture[] = [];
 	#ownsResizeLease: boolean;
@@ -985,6 +1017,16 @@ export class ProjectedTerminal {
 
 	get canControlTerminal(): boolean {
 		return !this.#isDisposed() && this.#inputEnabled;
+	}
+
+	get canNavigatePrompts(): boolean {
+		const metadata = this.#store.metadata;
+		return (
+			!this.#isDisposed() &&
+			metadata !== null &&
+			metadata.activeScreen === ActiveScreen.primary &&
+			this.#historyPhase !== ProjectedHistoryPhase.disposed
+		);
 	}
 
 	/** Capture only the exact semantic source represented by the most recently painted frame. */
@@ -1743,6 +1785,7 @@ export class ProjectedTerminal {
 			return;
 		}
 		const rows = Math.trunc(amount);
+		this.#historyIntentEpoch += 1n;
 		this.#historyScrollPresentation?.cancel();
 		this.#showHistoryScrollbar();
 		this.#invalidateLinkCache();
@@ -1800,11 +1843,132 @@ export class ProjectedTerminal {
 	}
 
 	scrollToBottom(): boolean {
-		this.#historyScrollPresentation?.cancel();
+		this.#promptNavigationIntentAnchor = undefined;
 		if (this.#historyPhase === ProjectedHistoryPhase.followingBottom) return false;
+		this.#historyIntentEpoch += 1n;
+		this.#historyScrollPresentation?.cancel();
 		this.#showHistoryScrollbar();
 		this.#recoverHistory();
 		return true;
+	}
+
+	scrollToPreviousPrompt(signal: AbortSignal): Promise<boolean> {
+		return this.#scrollToPrompt('previous', signal);
+	}
+
+	scrollToNextPrompt(signal: AbortSignal): Promise<boolean> {
+		return this.#scrollToPrompt('next', signal);
+	}
+
+	async #scrollToPrompt(
+		direction: ProjectedPromptNavigationDirection,
+		signal: AbortSignal,
+	): Promise<boolean> {
+		const visibleMetadata = this.metadata;
+		const liveMetadata = this.#store.metadata;
+		if (liveMetadata === null || !this.canNavigatePrompts) return false;
+		const snapshot = this.getBufferRowsSnapshot();
+		const promptIntentAnchor = this.#promptNavigationIntentAnchor;
+		let anchorAuthority: PromptNavigationAnchorAuthority;
+		if (visibleMetadata !== null && this.#promptNavigationIsReady(visibleMetadata, snapshot)) {
+			anchorAuthority = { kind: 'visible', row: this.#historyVisibleStart(visibleMetadata) };
+		} else if (
+			this.#promptNavigationIntentAnchorIsCurrent(promptIntentAnchor, snapshot, liveMetadata.rows)
+		) {
+			anchorAuthority = {
+				anchor: promptIntentAnchor,
+				kind: 'intent',
+				row: promptIntentAnchor.row,
+			};
+		} else {
+			return false;
+		}
+		const anchorRow = anchorAuthority.row;
+		const historyIntentEpoch = this.#historyIntentEpoch;
+		const maximumPageRows = Math.max(
+			1,
+			Math.min(
+				PROJECTED_PROMPT_NAVIGATION_PAGE_ROWS,
+				PROTOCOL_LIMITS.maxRowWindowRows,
+				Math.floor(PROTOCOL_LIMITS.maxFrameCells / liveMetadata.columns),
+			),
+		);
+		const result = await locateProjectedPrompt({
+			anchorRow,
+			direction,
+			maximumPageRows,
+			reader: this,
+			signal,
+			snapshot,
+		});
+		if (result.kind !== 'target' || signal.aborted) return false;
+		const currentSnapshot = this.getBufferRowsSnapshot();
+		const currentMetadata = this.metadata;
+		const currentLiveMetadata = this.#store.metadata;
+		const anchorIsCurrent =
+			anchorAuthority.kind === 'visible'
+				? currentMetadata !== null &&
+					this.#promptNavigationIsReady(currentMetadata, currentSnapshot) &&
+					this.#historyVisibleStart(currentMetadata) === anchorRow
+				: this.#promptNavigationIntentAnchor === anchorAuthority.anchor &&
+					this.#promptNavigationIntentAnchorIsCurrent(
+						anchorAuthority.anchor,
+						currentSnapshot,
+						currentLiveMetadata?.rows,
+					);
+		if (
+			currentLiveMetadata === null ||
+			!this.canNavigatePrompts ||
+			!anchorIsCurrent ||
+			this.#historyIntentEpoch !== historyIntentEpoch ||
+			currentSnapshot.generation !== snapshot.generation ||
+			currentSnapshot.revision !== snapshot.revision ||
+			currentSnapshot.totalRows !== snapshot.totalRows
+		) {
+			return false;
+		}
+		const visibleRows = BigInt(currentLiveMetadata.rows);
+		const maximumStart =
+			currentSnapshot.totalRows > visibleRows ? currentSnapshot.totalRows - visibleRows : 0n;
+		const targetStart = minBigInt(result.row, maximumStart);
+		if (targetStart === anchorRow) return false;
+		this.#showHistoryScrollbar();
+		this.#requestHistoryStartRow(targetStart);
+		this.#promptNavigationIntentAnchor = {
+			epoch: this.#historyIntentEpoch,
+			generation: currentSnapshot.generation,
+			row: targetStart,
+			totalRows: currentSnapshot.totalRows,
+		};
+		return true;
+	}
+
+	#promptNavigationIsReady(
+		visibleMetadata: ProjectedTerminalMetadata,
+		snapshot: TerminalBufferRowsSnapshot,
+	): boolean {
+		return (
+			this.canNavigatePrompts &&
+			visibleMetadata.generation === snapshot.generation &&
+			visibleMetadata.revision === snapshot.revision
+		);
+	}
+
+	#promptNavigationIntentAnchorIsCurrent(
+		anchor: PromptNavigationIntentAnchor | undefined,
+		snapshot: TerminalBufferRowsSnapshot,
+		visibleRows: number | undefined,
+	): anchor is PromptNavigationIntentAnchor {
+		if (anchor === undefined || visibleRows === undefined) return false;
+		const maximumStart =
+			snapshot.totalRows > BigInt(visibleRows) ? snapshot.totalRows - BigInt(visibleRows) : 0n;
+		return (
+			anchor.epoch === this.#historyIntentEpoch &&
+			anchor.generation === snapshot.generation &&
+			anchor.totalRows === snapshot.totalRows &&
+			anchor.row >= 0n &&
+			anchor.row <= maximumStart
+		);
 	}
 
 	notifyHistoryChanged(event: HistoryChanged): void {
@@ -3149,10 +3313,11 @@ export class ProjectedTerminal {
 		});
 	}
 
-	#requestHistoryStartRow(requestedStartRow: bigint): void {
+	#requestHistoryStartRow(requestedStartRow: bigint, advanceIntent = true): void {
 		this.#historyScrollPresentation?.cancel();
 		const metadata = this.metadata ?? this.#store.metadata;
 		if (metadata === null || this.#phase === ProjectedTerminalPhase.disposed) return;
+		if (advanceIntent) this.#historyIntentEpoch += 1n;
 		const visibleRows = BigInt(metadata.rows);
 		const maximumStart =
 			this.#historyTotalRows > visibleRows ? this.#historyTotalRows - visibleRows : 0n;
@@ -3233,7 +3398,7 @@ export class ProjectedTerminal {
 		const startRow = this.#pendingHistoryStartRow;
 		this.#pendingHistoryStartRow = undefined;
 		if (startRow !== undefined) {
-			this.#requestHistoryStartRow(startRow);
+			this.#requestHistoryStartRow(startRow, false);
 			return;
 		}
 		const targetRow = this.#pendingHistoryTargetRow;
@@ -3371,6 +3536,7 @@ export class ProjectedTerminal {
 			this.#scheduleRender();
 			return;
 		}
+		this.#historyIntentEpoch += 1n;
 		this.#showHistoryScrollbar();
 		const viewportFlight = this.#rowFlights.get('viewport');
 		if (viewportFlight !== undefined || this.#pendingHistoryTransition !== undefined) {
@@ -4542,7 +4708,7 @@ export class ProjectedTerminal {
 			},
 			intent,
 			onRejected,
-			action === KeyAction.release,
+			action === KeyAction.release || terminalModifierKeyCodes.has(facts.key),
 		);
 	}
 

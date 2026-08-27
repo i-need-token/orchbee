@@ -10,9 +10,9 @@ import {
 } from '../keyboard-shortcut-catalog';
 
 describe('keyboard shortcut catalog', () => {
-	it('combines the twenty-four Workbench and five terminal owner declarations once', () => {
-		expect(KEYBOARD_SHORTCUT_CATALOG).toHaveLength(29);
-		expect(new Set(KEYBOARD_SHORTCUT_IDS).size).toBe(29);
+	it('combines the twenty-four Workbench and seven terminal owner declarations once', () => {
+		expect(KEYBOARD_SHORTCUT_CATALOG).toHaveLength(31);
+		expect(new Set(KEYBOARD_SHORTCUT_IDS).size).toBe(31);
 		expect(keyboardShortcutDeclaration('workbench.search.actions.open')).toMatchObject({
 			actionId: 'workbench.search.open',
 			actionInput: { filter: 'actions' },
@@ -64,6 +64,12 @@ describe('keyboard shortcut catalog', () => {
 			availability: 'focused-terminal',
 			scope: 'focused-terminal',
 		});
+		expect(keyboardShortcutDeclaration('terminal.history.prompt-previous')).toMatchObject({
+			actionId: 'terminal.history.prompt-previous',
+			availability: 'focused-terminal',
+			name: 'previous-prompt',
+			scope: 'focused-terminal',
+		});
 	});
 
 	it('provides conflict-free platform defaults with terminal-safe Standard bindings', () => {
@@ -109,6 +115,12 @@ describe('keyboard shortcut catalog', () => {
 		);
 		expect(formatKeyboardShortcutChord(standard['terminal.clear'], 'standard')).toBe(
 			'Ctrl+Shift+L',
+		);
+		expect(formatKeyboardShortcutChord(apple['terminal.history.prompt-previous'], 'apple')).toBe(
+			'⌃⇧Z',
+		);
+		expect(formatKeyboardShortcutChord(standard['terminal.history.prompt-next'], 'standard')).toBe(
+			'Ctrl+Shift+X',
 		);
 		expect(formatKeyboardShortcutChord(standard['workbench.settings.open'], 'standard')).toBe(
 			'Ctrl+,',

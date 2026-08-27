@@ -29,7 +29,7 @@ import {
 } from '@orchbee/terminal-protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { TerminalBufferRow } from '../../buffer-rows';
+import type { BufferRowsResult, TerminalBufferRow } from '../../buffer-rows';
 import { DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION } from '../../presentation-configuration';
 import { WebGPURenderer } from '../../rendering';
 import type { ProjectedSearchWorkerLike } from '../../search';
@@ -164,6 +164,22 @@ const creationId = identifier(parseCreationId('33333333333333333333333333333333'
 const otherCreationId = identifier(parseCreationId('55555555555555555555555555555555'));
 const terminalId = identifier(parseTerminalId('44444444444444444444444444444444'));
 const otherAttachmentId = identifier(parseAttachmentId('66666666666666666666666666666666'));
+
+function promptNavigationRow(
+	index: bigint,
+	promptClass: TerminalBufferRow['promptClass'],
+): TerminalBufferRow {
+	return {
+		cells: null,
+		identityAscii: true,
+		index,
+		mappings: [],
+		promptClass,
+		text: '',
+		wrap: false,
+		wrapContinuation: false,
+	};
+}
 
 afterEach(() => {
 	vi.useRealTimers();
@@ -3326,6 +3342,72 @@ describe('ProjectedTerminal', () => {
 		},
 	);
 
+	it('preserves history and selection while publishing physical modifier keys', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['a', 'b'], null, [0, 1], 10n));
+		terminal.scrollLines(-1);
+		terminal.notifySelectionChanged({
+			attachmentId,
+			end: { column: 1, row: canonicalText('10') },
+			preview: 'ab',
+			rectangle: false,
+			start: { column: 0, row: canonicalText('10') },
+			state: 'active',
+		});
+		const historyPhaseBeforeModifiers = terminal.historyPhase;
+		commands.length = 0;
+		const input = terminal.textarea as unknown as FakeElement;
+
+		input.dispatch(
+			'keydown',
+			keyboardEvent('keydown', 'ControlLeft', 'Control', 17, { ctrlKey: true }),
+		);
+		input.dispatch(
+			'keydown',
+			keyboardEvent('keydown', 'ShiftLeft', 'Shift', 16, {
+				ctrlKey: true,
+				shiftKey: true,
+			}),
+		);
+
+		expect(
+			commands.flatMap((command) =>
+				command.kind === 'key-input' ? [`${command.payload.action}:${command.payload.key}`] : [],
+			),
+		).toEqual(['press:ControlLeft', 'press:ShiftLeft']);
+		expect(
+			commands.some(
+				(command) =>
+					command.kind === 'set-history-demand' && command.payload.demand === 'following-bottom',
+			),
+		).toBe(false);
+		expect(commands.some((command) => command.kind === 'selection-command')).toBe(false);
+		expect(terminal.historyPhase).toBe(historyPhaseBeforeModifiers);
+		expect(terminal.getSelectionRange()).toEqual({
+			end: { column: 1, row: 10n },
+			rectangle: false,
+			start: { column: 0, row: 10n },
+		});
+		terminal.dispose();
+	});
+
 	it('preserves history and selection while reporting buttonless application mouse motion', async () => {
 		const browser = createFakeBrowser();
 		vi.stubGlobal('document', browser.document);
@@ -5754,6 +5836,241 @@ describe('ProjectedTerminal', () => {
 		expect(thumb.style['opacity']).toBe('0');
 		expect(canvas.attributes.get('aria-hidden')).toBe('true');
 		expect(canvas.getAttribute('role')).toBeNull();
+		terminal.dispose();
+	});
+
+	it('continues previous-prompt navigation across a revision-only viewport refresh', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['a', 'b'], null, [0, 1], 98n));
+		commands.length = 0;
+		const readBufferRows = vi
+			.spyOn(terminal, 'readBufferRows')
+			.mockImplementation(async (request) => ({
+				byteLength: 4_096,
+				detail: request.detail,
+				generation: request.generation,
+				kind: 'rows',
+				revision: request.revision,
+				rows: Array.from({ length: request.rowCount }, (_, offset) => {
+					const index = request.startRow + BigInt(offset);
+					return promptNavigationRow(
+						index,
+						index === (request.revision === 1n ? 80n : 40n)
+							? RowPromptClass.prompt
+							: RowPromptClass.none,
+					);
+				}),
+				startRow: request.startRow,
+				totalRows: 100n,
+			}));
+
+		expect(terminal.canNavigatePrompts).toBe(true);
+		await expect(terminal.scrollToPreviousPrompt(new AbortController().signal)).resolves.toBe(true);
+		expect(readBufferRows).toHaveBeenCalledWith(
+			expect.objectContaining({
+				generation: 1n,
+				purpose: 'buffer',
+				revision: 1n,
+				rowCount: 98,
+				startRow: 0n,
+			}),
+			expect.any(AbortSignal),
+		);
+		expect(
+			commands.find(
+				(command) => command.kind === 'read-rows' && command.payload.purpose === 'viewport',
+			)?.payload,
+		).toMatchObject({ origin: { kind: 'absolute', row: '80' }, purpose: 'viewport' });
+		expect(terminal.canNavigatePrompts).toBe(true);
+		terminal.notifyHistoryChanged({
+			anchorStatus: 'valid',
+			attachmentId,
+			generation: canonicalText('1'),
+			revision: canonicalText('2'),
+			sequence: canonicalText('1'),
+			totalRows: canonicalText('100'),
+		});
+		await expect(terminal.scrollToPreviousPrompt(new AbortController().signal)).resolves.toBe(true);
+		expect(readBufferRows).toHaveBeenCalledTimes(2);
+		expect(readBufferRows).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				generation: 1n,
+				revision: 2n,
+				rowCount: 80,
+				startRow: 0n,
+			}),
+			expect.any(AbortSignal),
+		);
+		expect(
+			commands.filter(
+				(command) => command.kind === 'read-rows' && command.payload.purpose === 'viewport',
+			),
+		).toHaveLength(1);
+		terminal.dispose();
+	});
+
+	it('retires the transient prompt anchor after another local history intent', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: { send: () => undefined },
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['a', 'b'], null, [0, 1], 98n));
+		const readBufferRows = vi
+			.spyOn(terminal, 'readBufferRows')
+			.mockImplementation(async (request) => ({
+				byteLength: 4_096,
+				detail: request.detail,
+				generation: request.generation,
+				kind: 'rows',
+				revision: request.revision,
+				rows: Array.from({ length: request.rowCount }, (_, offset) => {
+					const index = request.startRow + BigInt(offset);
+					return promptNavigationRow(
+						index,
+						index === 80n ? RowPromptClass.prompt : RowPromptClass.none,
+					);
+				}),
+				startRow: request.startRow,
+				totalRows: 100n,
+			}));
+
+		await expect(terminal.scrollToPreviousPrompt(new AbortController().signal)).resolves.toBe(true);
+		terminal.notifyHistoryChanged({
+			anchorStatus: 'valid',
+			attachmentId,
+			generation: canonicalText('1'),
+			revision: canonicalText('2'),
+			sequence: canonicalText('1'),
+			totalRows: canonicalText('100'),
+		});
+		terminal.scrollLines(-1);
+
+		await expect(terminal.scrollToPreviousPrompt(new AbortController().signal)).resolves.toBe(
+			false,
+		);
+		expect(readBufferRows).toHaveBeenCalledOnce();
+		terminal.dispose();
+	});
+
+	it('retires a discovered prompt after a newer local history intent', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['a', 'b'], null, [0, 1], 98n));
+		commands.length = 0;
+		let resolveRows: ((result: BufferRowsResult) => void) | undefined;
+		vi.spyOn(terminal, 'readBufferRows').mockImplementation(
+			(request) =>
+				new Promise((resolve) => {
+					resolveRows = (result) => resolve(result);
+					void request;
+				}),
+		);
+
+		const navigation = terminal.scrollToPreviousPrompt(new AbortController().signal);
+		await Promise.resolve();
+		terminal.scrollLines(-1);
+		resolveRows?.({
+			byteLength: 4_096,
+			detail: 'text',
+			generation: 1n,
+			kind: 'rows',
+			revision: 1n,
+			rows: Array.from({ length: 98 }, (_, index) =>
+				promptNavigationRow(
+					BigInt(index),
+					index === 80 ? RowPromptClass.prompt : RowPromptClass.none,
+				),
+			),
+			startRow: 0n,
+			totalRows: 100n,
+		});
+
+		await expect(navigation).resolves.toBe(false);
+		expect(
+			commands.filter(
+				(command) => command.kind === 'read-rows' && command.payload.purpose === 'viewport',
+			),
+		).toHaveLength(1);
+		terminal.dispose();
+	});
+
+	it('keeps prompt navigation unavailable on the alternate screen', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: { send: () => undefined },
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(
+			terminalFrame(
+				'snapshot',
+				1n,
+				1n,
+				['a', 'b'],
+				null,
+				[0, 1],
+				0n,
+				interaction,
+				{ column: 0, row: 0 },
+				1n,
+				2,
+				ActiveScreen.alternate,
+			),
+		);
+		const readBufferRows = vi.spyOn(terminal, 'readBufferRows');
+
+		expect(terminal.canNavigatePrompts).toBe(false);
+		await expect(terminal.scrollToNextPrompt(new AbortController().signal)).resolves.toBe(false);
+		expect(readBufferRows).not.toHaveBeenCalled();
 		terminal.dispose();
 	});
 

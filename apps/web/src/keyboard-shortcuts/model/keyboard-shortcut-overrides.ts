@@ -109,6 +109,12 @@ export function createKeyboardShortcutBindings(
 		[PROJECTED_TERMINAL_SHORTCUTS.paste.shortcutId]: bindingFor(
 			PROJECTED_TERMINAL_SHORTCUTS.paste.shortcutId,
 		),
+		[PROJECTED_TERMINAL_SHORTCUTS.promptNext.shortcutId]: bindingFor(
+			PROJECTED_TERMINAL_SHORTCUTS.promptNext.shortcutId,
+		),
+		[PROJECTED_TERMINAL_SHORTCUTS.promptPrevious.shortcutId]: bindingFor(
+			PROJECTED_TERMINAL_SHORTCUTS.promptPrevious.shortcutId,
+		),
 		[PROJECTED_TERMINAL_SHORTCUTS.selectAll.shortcutId]: bindingFor(
 			PROJECTED_TERMINAL_SHORTCUTS.selectAll.shortcutId,
 		),

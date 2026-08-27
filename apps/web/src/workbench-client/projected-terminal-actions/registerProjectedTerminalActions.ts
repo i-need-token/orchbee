@@ -22,6 +22,7 @@ import {
 	createProjectedTerminalClipboardActionCoordinator,
 	type ProjectedTerminalClipboardActionCoordinator,
 } from './createProjectedTerminalClipboardActionCoordinator';
+import { createProjectedTerminalPromptNavigationCoordinator } from './createProjectedTerminalPromptNavigationCoordinator';
 import {
 	PROJECTED_TERMINAL_ACTION_IDS,
 	type ProjectedTerminalActionCatalog,
@@ -30,6 +31,7 @@ import {
 
 export interface ProjectedTerminalActionTarget {
 	readonly canControlTerminal: boolean;
+	readonly canNavigatePrompts: boolean;
 	readonly selection: SelectionChanged;
 	clear(): boolean;
 	copySelectionAsync(): Promise<ProjectedTerminalSideEffectResult>;
@@ -39,7 +41,9 @@ export interface ProjectedTerminalActionTarget {
 	openLinkAsync(target: string): Promise<ProjectedTerminalSideEffectResult>;
 	paste(text: string, source: 'clipboard'): Promise<ProjectedPasteResult>;
 	reset(): void;
+	scrollToNextPrompt(signal: AbortSignal): Promise<boolean>;
 	scrollToBottom(): boolean;
+	scrollToPreviousPrompt(signal: AbortSignal): Promise<boolean>;
 	selectAll(): void;
 }
 
@@ -76,7 +80,55 @@ export function registerProjectedTerminalActions({
 					kind: 'disabled',
 					reason: projectedTerminalMessages.actionUnavailable,
 				} as const);
+	const promptNavigationExecution = {
+		concurrency: 'replace-latest' as const,
+		concurrencyKey: () => 'terminal-prompt-navigation',
+		mode: 'foreground' as const,
+	};
+	const promptNavigationAvailable = () =>
+		terminal.canNavigatePrompts
+			? ({ kind: 'enabled' } as const)
+			: ({
+					kind: 'disabled',
+					reason: projectedTerminalMessages.actionUnavailable,
+				} as const);
+	const promptNavigationCoordinator = createProjectedTerminalPromptNavigationCoordinator();
 	return [
+		promptNavigationCoordinator,
+		typedRuntime.register(
+			scope,
+			defineAction({
+				category,
+				execution: promptNavigationExecution,
+				getAvailability: promptNavigationAvailable,
+				handler: {
+					execute: (context) =>
+						navigatePrompt(context, promptNavigationCoordinator, (signal) =>
+							terminal.scrollToPreviousPrompt(signal),
+						),
+				},
+				id: PROJECTED_TERMINAL_ACTION_IDS.promptPrevious,
+				input: noActionInput,
+				title: projectedTerminalMessages.promptPreviousAction,
+			}),
+		),
+		typedRuntime.register(
+			scope,
+			defineAction({
+				category,
+				execution: promptNavigationExecution,
+				getAvailability: promptNavigationAvailable,
+				handler: {
+					execute: (context) =>
+						navigatePrompt(context, promptNavigationCoordinator, (signal) =>
+							terminal.scrollToNextPrompt(signal),
+						),
+				},
+				id: PROJECTED_TERMINAL_ACTION_IDS.promptNext,
+				input: noActionInput,
+				title: projectedTerminalMessages.promptNextAction,
+			}),
+		),
 		typedRuntime.register(
 			scope,
 			defineAction({
@@ -336,6 +388,16 @@ export function registerProjectedTerminalActions({
 
 function navigateSearch(context: ActionExecutionContext, moved: boolean) {
 	return commitBooleanResult(context, moved);
+}
+
+async function navigatePrompt(
+	context: ActionExecutionContext,
+	coordinator: ReturnType<typeof createProjectedTerminalPromptNavigationCoordinator>,
+	navigate: (signal: AbortSignal) => Promise<boolean>,
+) {
+	const result = await coordinator.run(context.signal, navigate);
+	if (result === 'cancelled') return { kind: 'cancelled' as const };
+	return commitBooleanResult(context, result === 'moved');
 }
 
 function commitBooleanResult(context: ActionExecutionContext, committed: boolean) {

@@ -28,7 +28,7 @@ describe('useKeyboardShortcutSettingsView', () => {
 				}),
 			{ wrapper: I18nWrapper },
 		);
-		expect(allRows.result.current.rows).toHaveLength(29);
+		expect(allRows.result.current.rows).toHaveLength(31);
 		expect(allRows.result.current.rows[0]).toMatchObject({
 			actionName: 'Search actions',
 			chord: 'Ctrl+Shift+P',
@@ -37,7 +37,16 @@ describe('useKeyboardShortcutSettingsView', () => {
 		});
 		expect(
 			allRows.result.current.rows.filter((row) => row.scope === 'Focused terminal'),
-		).toHaveLength(4);
+		).toHaveLength(6);
+		expect(
+			allRows.result.current.rows.find(
+				(row) => row.actionName === 'Scroll to previous shell prompt',
+			),
+		).toMatchObject({
+			availability: 'When a terminal is focused',
+			chord: 'Ctrl+Shift+Z',
+			scope: 'Focused terminal',
+		});
 		expect(
 			allRows.result.current.rows.find((row) => row.actionName === 'Clear terminal'),
 		).toMatchObject({

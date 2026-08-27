@@ -9,6 +9,8 @@ export const zhCNProjectedTerminalMessages = {
 	'terminal.projected.action.findPrevious': '查找上一个匹配项',
 	'terminal.projected.action.openLink': '打开终端链接',
 	'terminal.projected.action.paste': '粘贴',
+	'terminal.projected.action.promptNext': '滚动到下一个 Shell 提示符',
+	'terminal.projected.action.promptPrevious': '滚动到上一个 Shell 提示符',
 	'terminal.projected.action.reset': '重置终端',
 	'terminal.projected.action.scrollToBottom': '滚动到底部',
 	'terminal.projected.action.selectAll': '选择所有保留的终端输出',

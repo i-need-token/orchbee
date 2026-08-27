@@ -7,6 +7,8 @@ export const enUSProjectedTerminalMessages = {
 	'terminal.projected.action.findPrevious': 'Find previous match',
 	'terminal.projected.action.openLink': 'Open terminal link',
 	'terminal.projected.action.paste': 'Paste',
+	'terminal.projected.action.promptNext': 'Scroll to next shell prompt',
+	'terminal.projected.action.promptPrevious': 'Scroll to previous shell prompt',
 	'terminal.projected.action.reset': 'Reset terminal',
 	'terminal.projected.action.scrollToBottom': 'Scroll to bottom',
 	'terminal.projected.action.selectAll': 'Select all retained terminal output',

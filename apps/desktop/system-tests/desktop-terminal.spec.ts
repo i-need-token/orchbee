@@ -1022,6 +1022,8 @@ test('terminal-parity/IN-12-actions', async () => {
 				'terminal.search.open',
 				'terminal.search.next',
 				'terminal.search.previous',
+				'terminal.history.prompt-previous',
+				'terminal.history.prompt-next',
 				'terminal.history.scroll-bottom',
 				'terminal.clear',
 				'terminal.reset',
@@ -1036,6 +1038,8 @@ test('terminal-parity/IN-12-actions', async () => {
 				'terminal.search.open:enabled',
 				'terminal.search.next:disabled',
 				'terminal.search.previous:disabled',
+				'terminal.history.prompt-previous:enabled',
+				'terminal.history.prompt-next:enabled',
 				'terminal.history.scroll-bottom:enabled',
 				'terminal.clear:enabled',
 				'terminal.reset:enabled',
@@ -1802,6 +1806,69 @@ test('terminal-parity/SI-01-manual-shell-integration-completion-reminder', async
 	await expect(root.locator('[data-projected-terminal-status="true"]')).toContainText(
 		/completed|完成/u,
 	);
+	expect(await root.getAttribute('data-projected-terminal-attachment-id')).toBe(attachmentId);
+});
+
+test('terminal-parity/SI-02-prompt-navigation', async () => {
+	const application = electronApplication;
+	if (application === undefined) throw new Error('Electron application did not start.');
+	const page = await application.firstWindow();
+	const root = projectedTerminal(page);
+	await expect(root).toHaveAttribute('data-projected-terminal-state', 'open');
+	const attachmentId = await root.getAttribute('data-projected-terminal-attachment-id');
+	const input = page.getByRole('textbox');
+	const accessibility = root.locator('[role="list"]');
+	const accessibleRows = accessibility.locator(':scope > div');
+	const firstVisibleRow = async (): Promise<bigint> =>
+		BigInt((await accessibleRows.first().getAttribute('data-terminal-absolute-row')) ?? '0');
+	const pressPromptShortcut = async (key: 'KeyX' | 'KeyZ'): Promise<void> => {
+		await root.evaluate((element) => {
+			delete (element as HTMLElement).dataset['projectedTerminalActionId'];
+			delete (element as HTMLElement).dataset['projectedTerminalActionResult'];
+		});
+		await page.keyboard.press(`Control+Shift+${key}`);
+		await expect(root).toHaveAttribute(
+			'data-projected-terminal-action-id',
+			key === 'KeyZ' ? 'terminal.history.prompt-previous' : 'terminal.history.prompt-next',
+		);
+		await expect(root).toHaveAttribute('data-projected-terminal-action-result', 'completed');
+	};
+
+	await input.pressSequentially(
+		[
+			"printf '\\033]133;A\\007si02-prompt-one\\033]133;B\\007\\n\\033]133;C\\007'",
+			'i=1; while [ "$i" -le 36 ]; do printf \'si02-one-%03d\\n\' "$i"; i=$((i+1)); done',
+			"printf '\\033]133;D;0\\007\\033]133;A\\007si02-prompt-two\\033]133;B\\007\\n\\033]133;C\\007'",
+			'i=1; while [ "$i" -le 36 ]; do printf \'si02-two-%03d\\n\' "$i"; i=$((i+1)); done',
+			"printf '\\033]133;D;0\\007\\033]133;A\\007si02-prompt-three\\033]133;B\\007\\n\\033]133;C\\007'",
+			'i=1; while [ "$i" -le 48 ]; do printf \'si02-tail-%03d\\n\' "$i"; i=$((i+1)); done',
+			"printf '\\033]133;D;0\\007\\033]133;B\\007'",
+			'exec sleep 60',
+		].join('; '),
+		{ delay: 1 },
+	);
+	await input.press('Enter');
+	await expect(accessibility).toContainText('si02-tail-048');
+	await expect(root).toHaveAttribute('data-projected-terminal-close-activity', 'idle');
+	await page.waitForTimeout(1_000);
+	await waitForTerminalPresentationStability(root);
+	await expect(input).toBeFocused();
+	const bottomStart = await firstVisibleRow();
+
+	await pressPromptShortcut('KeyZ');
+	await expect(accessibleRows.first()).toContainText('si02-prompt-three');
+	await expect.poll(firstVisibleRow).toBeLessThan(bottomStart);
+	const thirdPromptStart = await firstVisibleRow();
+	await expect(input).toBeFocused();
+
+	await pressPromptShortcut('KeyZ');
+	await expect(accessibleRows.first()).toContainText('si02-prompt-two');
+	await expect.poll(firstVisibleRow).toBeLessThan(thirdPromptStart);
+	await expect(input).toBeFocused();
+
+	await pressPromptShortcut('KeyX');
+	await expect(accessibleRows.first()).toContainText('si02-prompt-three');
+	await expect.poll(firstVisibleRow).toBe(thirdPromptStart);
 	expect(await root.getAttribute('data-projected-terminal-attachment-id')).toBe(attachmentId);
 });
 

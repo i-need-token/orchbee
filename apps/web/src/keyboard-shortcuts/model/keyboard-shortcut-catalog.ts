@@ -62,8 +62,10 @@ type KeyboardShortcutName =
 	| 'global-search'
 	| 'maximize-panel'
 	| 'new-terminal'
+	| 'next-prompt'
 	| 'next-tab'
 	| 'paste'
+	| 'previous-prompt'
 	| 'previous-tab'
 	| 'select-all'
 	| 'settings'
@@ -303,6 +305,26 @@ export const KEYBOARD_SHORTCUT_CATALOG = Object.freeze([
 		name: 'paste',
 		scope: 'focused-terminal',
 		shortcutId: PROJECTED_TERMINAL_SHORTCUTS.paste.shortcutId,
+	}),
+	Object.freeze({
+		actionId: PROJECTED_TERMINAL_SHORTCUTS.promptPrevious.actionId,
+		actionInput: undefined,
+		availability: 'focused-terminal',
+		defaults: PROJECTED_TERMINAL_SHORTCUTS.promptPrevious.defaults,
+		feature: 'terminal',
+		name: 'previous-prompt',
+		scope: 'focused-terminal',
+		shortcutId: PROJECTED_TERMINAL_SHORTCUTS.promptPrevious.shortcutId,
+	}),
+	Object.freeze({
+		actionId: PROJECTED_TERMINAL_SHORTCUTS.promptNext.actionId,
+		actionInput: undefined,
+		availability: 'focused-terminal',
+		defaults: PROJECTED_TERMINAL_SHORTCUTS.promptNext.defaults,
+		feature: 'terminal',
+		name: 'next-prompt',
+		scope: 'focused-terminal',
+		shortcutId: PROJECTED_TERMINAL_SHORTCUTS.promptNext.shortcutId,
 	}),
 	Object.freeze({
 		actionId: PROJECTED_TERMINAL_SHORTCUTS.selectAll.actionId,

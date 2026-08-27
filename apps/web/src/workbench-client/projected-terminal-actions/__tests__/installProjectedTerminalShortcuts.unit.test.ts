@@ -69,6 +69,39 @@ describe('projected terminal shortcuts', () => {
 		);
 	});
 
+	it('routes Kitty-aligned prompt navigation from terminal focus', () => {
+		const harness = shortcutHarness('apple');
+		const previous = harness.keyDown(
+			{ ...baseEvent, code: 'KeyZ', ctrlKey: true, shiftKey: true },
+			harness.terminalNode,
+		);
+		const next = harness.keyDown(
+			{ ...baseEvent, code: 'KeyX', ctrlKey: true, shiftKey: true },
+			harness.terminalNode,
+		);
+
+		expect(harness.invoke).toHaveBeenNthCalledWith(
+			1,
+			'terminal.history.prompt-previous',
+			undefined,
+			harness.terminalScope,
+		);
+		expect(harness.invoke).toHaveBeenNthCalledWith(
+			2,
+			'terminal.history.prompt-next',
+			undefined,
+			harness.terminalScope,
+		);
+		expect(previous.preventDefault).toHaveBeenCalledOnce();
+		expect(next.preventDefault).toHaveBeenCalledOnce();
+
+		harness.keyDown(
+			{ ...baseEvent, code: 'KeyZ', ctrlKey: true, shiftKey: true },
+			harness.findNode,
+		);
+		expect(harness.invoke).toHaveBeenCalledTimes(2);
+	});
+
 	it('keeps unshifted Standard Ctrl+C, Ctrl+A, Ctrl+F, Ctrl+L, and Ctrl+V available to the PTY', () => {
 		const harness = shortcutHarness('standard');
 		for (const code of ['KeyC', 'KeyA', 'KeyF', 'KeyL', 'KeyV']) {

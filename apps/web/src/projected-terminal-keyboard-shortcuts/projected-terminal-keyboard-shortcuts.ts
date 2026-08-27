@@ -13,6 +13,8 @@ export const PROJECTED_TERMINAL_SHORTCUT_ACTION_IDS = Object.freeze({
 	copySelection: 'terminal.selection.copy',
 	findOpen: 'terminal.search.open',
 	paste: 'terminal.clipboard.paste',
+	promptNext: 'terminal.history.prompt-next',
+	promptPrevious: 'terminal.history.prompt-previous',
 	selectAll: 'terminal.selection.select-all',
 } as const);
 
@@ -61,6 +63,24 @@ export const PROJECTED_TERMINAL_SHORTCUTS = {
 		focus: 'terminal',
 		shortcutId: 'terminal.clipboard.paste',
 	},
+	promptNext: {
+		actionId: PROJECTED_TERMINAL_SHORTCUT_ACTION_IDS.promptNext,
+		defaults: {
+			apple: chord('KeyX', ['control', 'shift']),
+			standard: chord('KeyX', ['control', 'shift']),
+		},
+		focus: 'terminal',
+		shortcutId: 'terminal.history.prompt-next',
+	},
+	promptPrevious: {
+		actionId: PROJECTED_TERMINAL_SHORTCUT_ACTION_IDS.promptPrevious,
+		defaults: {
+			apple: chord('KeyZ', ['control', 'shift']),
+			standard: chord('KeyZ', ['control', 'shift']),
+		},
+		focus: 'terminal',
+		shortcutId: 'terminal.history.prompt-previous',
+	},
 	selectAll: {
 		actionId: PROJECTED_TERMINAL_SHORTCUT_ACTION_IDS.selectAll,
 		defaults: {
@@ -97,6 +117,8 @@ const PROJECTED_TERMINAL_SHORTCUT_ACTIONS = Object.freeze([
 	'copySelection',
 	'findOpen',
 	'paste',
+	'promptPrevious',
+	'promptNext',
 	'selectAll',
 ] as const satisfies readonly ProjectedTerminalShortcutAction[]);
 
@@ -153,6 +175,10 @@ function defaultBindingsFor(
 			PROJECTED_TERMINAL_SHORTCUTS.findOpen.defaults[platform],
 		[PROJECTED_TERMINAL_SHORTCUTS.paste.shortcutId]:
 			PROJECTED_TERMINAL_SHORTCUTS.paste.defaults[platform],
+		[PROJECTED_TERMINAL_SHORTCUTS.promptNext.shortcutId]:
+			PROJECTED_TERMINAL_SHORTCUTS.promptNext.defaults[platform],
+		[PROJECTED_TERMINAL_SHORTCUTS.promptPrevious.shortcutId]:
+			PROJECTED_TERMINAL_SHORTCUTS.promptPrevious.defaults[platform],
 		[PROJECTED_TERMINAL_SHORTCUTS.selectAll.shortcutId]:
 			PROJECTED_TERMINAL_SHORTCUTS.selectAll.defaults[platform],
 	});

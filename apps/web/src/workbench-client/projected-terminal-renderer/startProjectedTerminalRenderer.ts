@@ -66,6 +66,7 @@ type ProjectedTerminalDriver = Pick<
 	| 'applyInputCapability'
 	| 'applyRows'
 	| 'canControlTerminal'
+	| 'canNavigatePrompts'
 	| 'captureActionContext'
 	| 'clear'
 	| 'clearSearch'
@@ -103,7 +104,9 @@ type ProjectedTerminalDriver = Pick<
 	| 'open'
 	| 'paste'
 	| 'reset'
+	| 'scrollToNextPrompt'
 	| 'scrollToBottom'
+	| 'scrollToPreviousPrompt'
 	| 'selectAll'
 	| 'selection'
 	| 'setOptionAsAltMode'
@@ -1427,6 +1430,8 @@ function projectedTerminalActionResultPresentation(
 		event.actionId === PROJECTED_TERMINAL_ACTION_IDS.findOpen ||
 		event.actionId === PROJECTED_TERMINAL_ACTION_IDS.findNext ||
 		event.actionId === PROJECTED_TERMINAL_ACTION_IDS.findPrevious ||
+		event.actionId === PROJECTED_TERMINAL_ACTION_IDS.promptNext ||
+		event.actionId === PROJECTED_TERMINAL_ACTION_IDS.promptPrevious ||
 		event.result.kind === 'cancelled'
 	) {
 		return null;

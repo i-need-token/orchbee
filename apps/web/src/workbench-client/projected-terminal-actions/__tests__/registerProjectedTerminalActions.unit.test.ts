@@ -63,6 +63,52 @@ describe('registerProjectedTerminalActions', () => {
 		runtime.dispose();
 	});
 
+	it('routes replace-latest prompt navigation with cancellation and no-op semantics', async () => {
+		const runtime = new ActionRuntime();
+		const scope = runtime.createScope('terminal.projected');
+		const controller = new TerminalFindController({
+			clearSearch: vi.fn<() => void>(),
+			updateSearch: vi.fn<(query: string, options: TerminalSearchOptions) => void>(),
+		});
+		const terminal = terminalTarget();
+		let previousSignal: AbortSignal | undefined;
+		vi.mocked(terminal.scrollToPreviousPrompt).mockImplementation(
+			(signal) =>
+				new Promise((resolve) => {
+					previousSignal = signal;
+					signal.addEventListener('abort', () => resolve(false), { once: true });
+				}),
+		);
+		vi.mocked(terminal.scrollToNextPrompt).mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+		const registrations = registerProjectedTerminalActions({
+			findController: controller,
+			scope,
+			terminal,
+			typedRuntime: createTypedActionRuntime<ProjectedTerminalActionCatalog>(runtime),
+		});
+
+		const previous = runtime.execute(PROJECTED_TERMINAL_ACTION_IDS.promptPrevious, undefined, {
+			scope,
+			source: 'keyboard',
+		});
+		const next = runtime.execute(PROJECTED_TERMINAL_ACTION_IDS.promptNext, undefined, {
+			scope,
+			source: 'keyboard',
+		});
+		await expect(previous.completion).resolves.toEqual({ kind: 'cancelled' });
+		await expect(next.completion).resolves.toEqual({ kind: 'completed' });
+		expect(previousSignal?.aborted).toBe(true);
+		await expect(
+			runtime.execute(PROJECTED_TERMINAL_ACTION_IDS.promptNext, undefined, {
+				scope,
+				source: 'keyboard',
+			}).completion,
+		).resolves.toEqual({ kind: 'unchanged' });
+
+		for (const registration of registrations) registration.dispose();
+		runtime.dispose();
+	});
+
 	it('seeds find from the bounded active selection preview', async () => {
 		const runtime = new ActionRuntime();
 		const scope = runtime.createScope('terminal.projected');
@@ -195,6 +241,8 @@ describe('registerProjectedTerminalActions', () => {
 				PROJECTED_TERMINAL_ACTION_IDS.findOpen,
 				PROJECTED_TERMINAL_ACTION_IDS.findPrevious,
 				PROJECTED_TERMINAL_ACTION_IDS.paste,
+				PROJECTED_TERMINAL_ACTION_IDS.promptNext,
+				PROJECTED_TERMINAL_ACTION_IDS.promptPrevious,
 				PROJECTED_TERMINAL_ACTION_IDS.reset,
 				PROJECTED_TERMINAL_ACTION_IDS.scrollToBottom,
 				PROJECTED_TERMINAL_ACTION_IDS.selectAll,
@@ -461,6 +509,7 @@ function terminalTarget(
 ): ProjectedTerminalActionTarget {
 	return {
 		canControlTerminal: true,
+		canNavigatePrompts: true,
 		clear: vi.fn<ProjectedTerminalActionTarget['clear']>(() => true),
 		copySelectionAsync: vi
 			.fn<ProjectedTerminalActionTarget['copySelectionAsync']>()
@@ -475,7 +524,13 @@ function terminalTarget(
 			.mockResolvedValue({ kind: 'completed' }),
 		paste: vi.fn<ProjectedTerminalActionTarget['paste']>().mockResolvedValue({ kind: 'empty' }),
 		reset: vi.fn<ProjectedTerminalActionTarget['reset']>(),
+		scrollToNextPrompt: vi
+			.fn<ProjectedTerminalActionTarget['scrollToNextPrompt']>()
+			.mockResolvedValue(true),
 		scrollToBottom: vi.fn<ProjectedTerminalActionTarget['scrollToBottom']>(() => true),
+		scrollToPreviousPrompt: vi
+			.fn<ProjectedTerminalActionTarget['scrollToPreviousPrompt']>()
+			.mockResolvedValue(true),
 		selectAll: vi.fn<ProjectedTerminalActionTarget['selectAll']>(),
 		selection,
 	};

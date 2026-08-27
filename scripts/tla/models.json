@@ -1355,6 +1355,36 @@
 			]
 		},
 		{
+			"id": "terminal-prompt-navigation",
+			"owner": "@orchbee/terminal",
+			"workspace": "packages/terminal",
+			"module": "packages/terminal/formal/tla/TerminalPromptNavigation.tla",
+			"config": "packages/terminal/formal/tla/TerminalPromptNavigation.cfg",
+			"claims": [
+				"packages/terminal/docs/kitty-prompt-navigation-alignment.md",
+				"packages/terminal/formal/README.md",
+				"packages/terminal/README.md"
+			],
+			"triggers": [
+				"packages/terminal/src/projected/projected-prompt-navigation.ts",
+				"packages/terminal/src/projected/projected-terminal.ts"
+			],
+			"requiredCoverage": [
+				"CoverageStartPrevious",
+				"CoverageStartNext",
+				"ReadTarget",
+				"ReadNotFound",
+				"AdvanceRevision",
+				"MoveViewport",
+				"Cancel",
+				"CoverageReplacePrevious",
+				"CoverageReplaceNext",
+				"Commit",
+				"RejectStaleTarget",
+				"Dispose"
+			]
+		},
+		{
 			"id": "terminal-renderer-initialization",
 			"owner": "@orchbee/terminal",
 			"workspace": "packages/terminal",

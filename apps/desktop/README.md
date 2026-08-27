@@ -473,6 +473,10 @@ Focused traces cover:
 - development and packaged Shell-resource resolution, resource presence and privacy checks, real Zsh
   OSC 133 output, and one macOS Electron path from manual Settings policy through a long-command
   completion reminder without replacing the projected attachment;
+- exact `terminal-parity/SI-02-prompt-navigation` real-PTY/Electron evidence that three explicit
+  OSC 133 prompt rows reach the production Host projection and that repeated `Ctrl+Shift+Z`, then
+  `Ctrl+Shift+X`, select the nearest rows in both directions without replacing the attachment. The
+  witness does not claim automatic Shell Integration injection;
 - one Electron renderer and two ordinary Browser pages sharing canonical Workbench and terminal state while retaining fresh page sessions, Client Views, and attachment identities, including Browser copy, link, disconnect, rejection, and reconnect behavior;
 - user-quit preserve/cancel/stop, automatic preserve for idle running terminals, exact reuse of Panel-close protection, hidden-terminal stop, failed-CAS suppression, partial-stop retry, unreferenced-binding drain, unknown-Host-orphan refusal, update-restart preserve, development Host stop/stage/ready ordering, and fresh identity after explicitly starting a stopped session.
 

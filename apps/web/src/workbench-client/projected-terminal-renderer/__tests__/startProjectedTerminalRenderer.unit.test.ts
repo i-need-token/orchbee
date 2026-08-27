@@ -166,6 +166,7 @@ describe('startProjectedTerminalRenderer', () => {
 						applyInputCapability,
 						applyRows,
 						canControlTerminal: true,
+						canNavigatePrompts: true,
 						capturePresentationSnapshot: () => nextOptions.presentationSnapshot ?? null,
 						captureActionContext,
 						clear: clearTerminal,
@@ -250,7 +251,13 @@ describe('startProjectedTerminalRenderer', () => {
 						open: openTerminal,
 						paste: pasteTerminal,
 						reset: vi.fn<ProjectedTerminal['reset']>(),
+						scrollToNextPrompt: vi
+							.fn<ProjectedTerminal['scrollToNextPrompt']>()
+							.mockResolvedValue(true),
 						scrollToBottom: vi.fn<ProjectedTerminal['scrollToBottom']>(() => true),
+						scrollToPreviousPrompt: vi
+							.fn<ProjectedTerminal['scrollToPreviousPrompt']>()
+							.mockResolvedValue(true),
 						selectAll: vi.fn<ProjectedTerminal['selectAll']>(),
 						selection: {
 							attachmentId: bootstrap.attachmentId,

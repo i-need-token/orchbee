@@ -18,8 +18,8 @@
 			"zhCnSha256": "2afc317d019dbf2e2e66361ee355e94c1c5dd0bef44c3ee9f499cd3a5bf40058"
 		},
 		"apps/desktop/README.md": {
-			"englishSha256": "60513eed7f9cf2986ddd3a6a8ebba83e2e3c5d9609f0a88237b6d3d8154ee7f3",
-			"zhCnSha256": "a2156dc67cf8499f11505231b99b56a9fba5d09c319091439a059593e0bb37c0"
+			"englishSha256": "07bec524bdec955005d270dff65e8dff5a57720aad232fd13408786b08608ea0",
+			"zhCnSha256": "a39ddf6644e3f804903590569ccb0a22b2d3b466c1c4d7917aba3be8b37a6e3e"
 		},
 		"apps/desktop/docs/data-root.md": {
 			"englishSha256": "70b2836c182df8c32456081cc30682ecd9bb4bb2d6bf3409bb3f9853ad23490e",
@@ -86,8 +86,8 @@
 			"zhCnSha256": "c2dda1a79846880ad2b1b70e85bfa587ef12e5958fe1f3ee56cc98e6b78b40c0"
 		},
 		"apps/web/docs/keyboard-shortcuts.md": {
-			"englishSha256": "b727f3e9ac5372902d29e8103d24e7c86072249fc1d4d9f84f78fbd59e2da9d0",
-			"zhCnSha256": "cbb92403210942c2745d6a465685411dcf7ddcda5a2ec3b95878ccc9482552c7"
+			"englishSha256": "b7d9c2071084e0bb5525f24dc3b3254d9e2cf39b7f839bb3b28c723bcfc7fd97",
+			"zhCnSha256": "568b84283576a9182439c0a3dc2026c72000d29520c3cd279faa42d843019762"
 		},
 		"apps/web/docs/navigation-routing.md": {
 			"englishSha256": "cd5dec1d6effde16a6f3e1f5f9c756c1b7601ff22afb44a422eba59cb775c0bd",
@@ -270,20 +270,24 @@
 			"zhCnSha256": "1cc0850fc5f8aae29734edaae364de39f27fa399994efb852abe72aad7d9e0be"
 		},
 		"packages/terminal/README.md": {
-			"englishSha256": "c41732848b52478307986aa13c0e58815f3f1bbe1c4210868c20d430680eb929",
-			"zhCnSha256": "3f000632a970f7b8f87878fdc088d11e79a4dd40d23639e3ae6788d12cbb70bc"
+			"englishSha256": "0153a7af8005728766f04fbb73ac6a49299ec35ce6b771050456fe23d234b5c2",
+			"zhCnSha256": "66494be3a122c9f47eb090226c0b04856a8518fbff6947c98dddded9ba80e3ef"
 		},
 		"packages/terminal/docs/ghostty-surface-test-provenance.md": {
 			"englishSha256": "c3fa251874939bdae471915e05fac4136244c6f35eb0bf41d3c7f3f0bb176cc6",
 			"zhCnSha256": "63188c57bce2cefbaee66e406a14e68377ae2fc7aab494f57b5641d50fecb169"
+		},
+		"packages/terminal/docs/kitty-prompt-navigation-alignment.md": {
+			"englishSha256": "84e0f93f2985b05589314c63b5f0f1321d2f3c6170aabd1631c4610870f77ba0",
+			"zhCnSha256": "9b74a1938f14295f04c9b8153ca2c2046ac063ab4db2218aa0a24c56b0e9b257"
 		},
 		"packages/terminal/docs/vscode-search-alignment.md": {
 			"englishSha256": "4dadba59dabc92a0a00ff5a81fc8505923b22b63ee4eb0986277cd9454bd4b74",
 			"zhCnSha256": "55bb23f74b53ea11ad11aec4ca31c99053c1621d49ea0ae74848435bccb83810"
 		},
 		"packages/terminal/formal/README.md": {
-			"englishSha256": "c75c7431b9e763ff4edf6236a44b158a2f9db53bad3a44cef4bdacb740960629",
-			"zhCnSha256": "8ffd4de499cec62e3ee2e94b711ebcf25198be80d07f171c874c0d44ccfcbe2e"
+			"englishSha256": "9d4b5ee10564c571542465328d804a9ffa437ff7140854e5d66652baa3f6501e",
+			"zhCnSha256": "b17bf3b2733408f8fc52dadb8a83d1176ac42208359e20634449eacfdcfcb2ba"
 		},
 		"packages/ui/README.md": {
 			"englishSha256": "e845c57f8558047a1198fd9f12c075fb2cec4496e3121a4703b42d6fe8beda21",

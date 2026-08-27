@@ -189,11 +189,14 @@ application-mouse motion shares one ordered surface transition: it first request
 when history is visible, then clears an active Host selection, and only then publishes the semantic
 key press or repeat, text, approved paste, or application-mouse input. An eligible buttonless motion
 report admitted by any-event mouse tracking is published to the Host without changing the retained
-history position or active Host selection. Composition activation performs the shared transition
-before presenting preedit. A physical or synthetic key release closes existing Host input ownership
-without starting that transition, so a selection established between its press and release remains
-visible. Focus reports, lifecycle and pointer-gesture repair, rejected or aborted paste review, and
-local history navigation preserve the current history and selection surface.
+history position and active Host selection. Physical modifier-only presses and repeats likewise
+preserve that surface while maintaining Host key ownership, so an application shortcut can resolve
+without first dismissing retained history; the first unclaimed non-modifier input still performs the
+shared transition. Composition activation performs the transition before presenting preedit. A
+physical or synthetic key release closes existing Host input ownership without starting that
+transition, so a selection established between its press and release remains visible. Focus reports,
+lifecycle and pointer-gesture repair, rejected or aborted paste review, and local history navigation
+preserve the current history and selection surface.
 
 `terminal-parity/IN-07-pre-input` drives a real buttonless `PointerEvent` through the headed Canvas
 surface while retained history and a Host selection are active. It requires one application motion
@@ -471,8 +474,12 @@ Search is client-side. The first non-empty query lazily creates a Worker and str
 
 Incremental query changes have one visual commit boundary. A `searching` event updates status but does not replace the renderer's last committed decorations or its search-owned active selection. The next complete result replaces both in one JavaScript turn; a complete no-match result, invalid query, timeout, unavailable search, explicit clear, or disposal removes them. This prevents the 200-millisecond debounce and asynchronous Worker scan from presenting an empty highlight frame between adjacent query strings while keeping status and result-count events tied to the requested query.
 
+Previous- and next-prompt navigation follows the bounded [Kitty alignment contract](docs/kitty-prompt-navigation-alignment.md). It scans Host-authored OSC 133 row classes from the current visible top through the general-buffer lane, nearest first, and commits only while the primary screen, pinned snapshot, selected visible or same-intent revision-lag repair anchor, and local history intent remain current. Each invocation admits at most 16 MiB of encoded row windows. Missing marks, alternate-screen use, bounds, source exhaustion, replacement, cancellation, and stale or unavailable reads leave the viewport unchanged. The package does not inject shell integration or infer prompts from terminal text.
+
 ```ts
 terminal.scrollLines(-1);
+await terminal.scrollToPreviousPrompt(signal);
+await terminal.scrollToNextPrompt(signal);
 terminal.updateSearch('failed', { caseSensitive: false, wholeWord: true });
 terminal.findNext();
 ```
