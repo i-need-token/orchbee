@@ -404,6 +404,7 @@ describe('Workbench Project and Workspace management', () => {
 						repositoryId: 'repository-orchbee',
 						sourceDirectoryId: 'directory-orchbee',
 						suggestedBranchName: 'orchbee/workspace-1',
+						worktreeInventory: { kind: 'available', worktrees: [] },
 					},
 				],
 			},
@@ -414,13 +415,18 @@ describe('Workbench Project and Workspace management', () => {
 			kind: 'created',
 			workspaceId: 'workspace-2',
 		}));
+		const adopt = vi.fn<WorkbenchProjectWorktreeCapability['adopt']>(async () => ({
+			directoryId: 'discovered-worktree-1',
+			kind: 'adopted',
+			workspaceId: 'workspace-2',
+		}));
 		render(
 			<OrchbeeI18nProvider locale='en-US'>
 				<TooltipProvider>
 					<Workbench
 						actionRuntime={new ActionRuntime()}
 						projectWorkspaceRuntime={projectWorkspaceRuntime}
-						projectWorktree={{ create, discover }}
+						projectWorktree={{ adopt, create, discover }}
 						shortcutPlatform='apple'
 					/>
 				</TooltipProvider>
@@ -507,6 +513,7 @@ describe('Workbench Project and Workspace management', () => {
 						repositoryId: 'repository-orchbee',
 						sourceDirectoryId: 'directory-orchbee',
 						suggestedBranchName: 'orchbee/workspace-1',
+						worktreeInventory: { kind: 'available', worktrees: [] },
 					},
 					{
 						defaultBaseRef: 'stable',
@@ -515,6 +522,7 @@ describe('Workbench Project and Workspace management', () => {
 						repositoryId: 'repository-ghostty',
 						sourceDirectoryId: 'directory-ghostty',
 						suggestedBranchName: 'ghostty/workspace-1',
+						worktreeInventory: { kind: 'available', worktrees: [] },
 					},
 				],
 			},
@@ -542,6 +550,120 @@ describe('Workbench Project and Workspace management', () => {
 			'value',
 			'stable',
 		);
+	});
+
+	it('groups existing Worktrees by Project repository and adopts one directly from New Workspace', async () => {
+		const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
+			standaloneCwd: '/system',
+			standaloneTerminalTitle: 'Terminal',
+			terminalPresentation: createTestTerminalPresentationComposition('existing-worktree-menu'),
+		});
+		projectWorkspaceRuntime.transition({
+			directory: {
+				available: true,
+				git: null,
+				id: 'directory-folder-1',
+				kind: 'folder',
+				name: 'folder-1',
+				path: '/projects/folder-1',
+				source: 'selected',
+			},
+			launchConfigurations: [],
+			primaryWorkspaceLaunchConfigurationId: null,
+			primaryWorkspaceName: 'Primary',
+			projectName: 'project',
+			terminalTitle: 'Terminal',
+			type: 'project-created',
+		});
+		projectWorkspaceRuntime.transition({
+			directory: {
+				available: true,
+				git: null,
+				id: 'directory-folder-2',
+				kind: 'folder',
+				name: 'folder-2',
+				path: '/projects/folder-2',
+				source: 'selected',
+			},
+			projectId: 'project-1',
+			type: 'directory-added',
+		});
+		const adopt = vi.fn<WorkbenchProjectWorktreeCapability['adopt']>(async () => ({
+			directoryId: 'discovered-worktree-folder-2-1',
+			kind: 'adopted',
+			workspaceId: 'workspace-2',
+		}));
+		const discover = vi.fn<WorkbenchProjectWorktreeCapability['discover']>(async () => ({
+			discovery: {
+				managedRoot: '/managed/worktrees',
+				repositories: [
+					{
+						defaultBaseRef: 'main',
+						label: 'folder-1',
+						localBaseRefs: ['main'],
+						repositoryId: 'repository-folder-1',
+						sourceDirectoryId: 'directory-folder-1',
+						suggestedBranchName: 'folder-1/workspace-1',
+						worktreeInventory: {
+							kind: 'available',
+							worktrees: [{ label: 'feature/folder-1', worktreeId: 'worktree-folder-1' }],
+						},
+					},
+					{
+						defaultBaseRef: 'main',
+						label: 'folder-2',
+						localBaseRefs: ['main'],
+						repositoryId: 'repository-folder-2',
+						sourceDirectoryId: 'directory-folder-2',
+						suggestedBranchName: 'folder-2/workspace-1',
+						worktreeInventory: {
+							kind: 'available',
+							worktrees: [
+								{ label: 'feature/folder-2-1', worktreeId: 'worktree-folder-2-1' },
+								{ label: 'feature/folder-2-2', worktreeId: 'worktree-folder-2-2' },
+							],
+						},
+					},
+				],
+			},
+			kind: 'discovered',
+		}));
+		render(
+			<OrchbeeI18nProvider locale='en-US'>
+				<TooltipProvider>
+					<Workbench
+						actionRuntime={new ActionRuntime()}
+						projectWorkspaceRuntime={projectWorkspaceRuntime}
+						projectWorktree={{
+							adopt,
+							create: vi.fn<WorkbenchProjectWorktreeCapability['create']>(),
+							discover,
+						}}
+						shortcutPlatform='apple'
+					/>
+				</TooltipProvider>
+			</OrchbeeI18nProvider>,
+		);
+
+		fireEvent.click(screen.getByRole('button', { name: 'Project options: project' }));
+		await waitFor(() => expect(discover).toHaveBeenCalledOnce());
+		const rootMenu = await screen.findByRole('menu');
+		fireEvent.click(within(rootMenu).getByRole('menuitem', { name: 'New Workspace' }));
+		const worktree = await screen.findByRole('menuitem', { name: 'feature/folder-2-1' });
+		const submenu = worktree.closest('[role="menu"]');
+		if (!(submenu instanceof HTMLElement)) throw new Error('Expected the New Workspace submenu.');
+		expect(within(submenu).getAllByText('folder-1')).toHaveLength(2);
+		expect(within(submenu).getAllByText('folder-2')).toHaveLength(2);
+		expect(within(submenu).getByRole('menuitem', { name: 'feature/folder-1' })).toBeDefined();
+		expect(within(submenu).getByRole('menuitem', { name: 'feature/folder-2-2' })).toBeDefined();
+
+		fireEvent.click(worktree);
+		expect(adopt).toHaveBeenCalledWith({
+			projectId: 'project-1',
+			repositoryId: 'repository-folder-2',
+			sourceDirectoryId: 'directory-folder-2',
+			worktreeId: 'worktree-folder-2-1',
+		});
 	});
 
 	it('omits redundant primary controls when a Project has one Folder', async () => {

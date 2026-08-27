@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 
 const tabs = (page: Page) => page.locator('[data-tab-id]');
 const activeTab = (page: Page) => page.locator('[data-tab-id][data-active]');
@@ -8,6 +8,28 @@ async function addTabs(page: Page, count: number): Promise<void> {
 	const initialCount = await tabs(page).count();
 	for (let index = 0; index < count; index += 1) await button.click();
 	await expect(tabs(page)).toHaveCount(initialCount + count);
+}
+
+async function expectStyleToMatchToken(
+	locator: Locator,
+	propertyName: 'background-color' | 'color',
+	tokenName: string,
+): Promise<void> {
+	await expect
+		.poll(() =>
+			locator.evaluate(
+				(element, input) => {
+					const probe = document.createElement('span');
+					probe.style.setProperty(input.propertyName, `var(${input.tokenName})`);
+					document.body.append(probe);
+					const expected = getComputedStyle(probe).getPropertyValue(input.propertyName);
+					probe.remove();
+					return getComputedStyle(element).getPropertyValue(input.propertyName) === expected;
+				},
+				{ propertyName, tokenName },
+			),
+		)
+		.toBe(true);
 }
 
 test.beforeEach(async ({ page }) => {
@@ -39,6 +61,31 @@ test('keeps the horizontal strip and its controls centered in a 36px row', async
 	expect(groupChipBox.y - stripBox.y).toBe(8);
 	expect(newTabButtonBox.height).toBe(28);
 	expect(newTabButtonBox.y - stripBox.y).toBe(4);
+});
+
+test('uses product icons and system compact-control presentation', async ({ page }) => {
+	const newTabButton = page.getByRole('button', { name: 'New tab', exact: true });
+	const newTabTarget = newTabButton.locator('[data-tab-strip-control-target]');
+	const closeButton = activeTab(page).getByRole('button', { name: 'Close', exact: true });
+	const closeTarget = closeButton.locator('[data-tab-close-target]');
+
+	await expect(newTabTarget).toHaveCSS('width', '28px');
+	await expect(newTabTarget).toHaveCSS('height', '28px');
+	await expect(newTabTarget).toHaveCSS('border-radius', '6px');
+	await expect(newTabTarget.locator('[data-icon="add"]')).toHaveCSS('font-size', '14px');
+	await expect(closeTarget).toHaveCSS('width', '24px');
+	await expect(closeTarget).toHaveCSS('height', '24px');
+	await expect(closeTarget).toHaveCSS('border-radius', '6px');
+	await expect(closeTarget.locator('[data-icon="close"]')).toHaveCSS('font-size', '14px');
+	await expectStyleToMatchToken(newTabTarget, 'color', '--ob-sys-color-icon-secondary');
+	await expectStyleToMatchToken(closeTarget, 'color', '--ob-sys-color-icon-secondary');
+
+	await newTabButton.hover();
+	await expectStyleToMatchToken(newTabTarget, 'color', '--ob-sys-color-icon-hover');
+	await expectStyleToMatchToken(newTabTarget, 'background-color', '--ob-sys-color-surface-hovered');
+	await closeButton.hover();
+	await expectStyleToMatchToken(closeTarget, 'color', '--ob-sys-color-icon-hover');
+	await expectStyleToMatchToken(closeTarget, 'background-color', '--ob-sys-color-surface-hovered');
 });
 
 test('renders one shared separator between adjacent inactive tabs', async ({ page }) => {

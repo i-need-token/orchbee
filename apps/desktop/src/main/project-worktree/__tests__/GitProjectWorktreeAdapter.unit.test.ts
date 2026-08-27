@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -78,6 +78,47 @@ describe('GitProjectWorktreeAdapter', () => {
 			code: 'base-not-found',
 			kind: 'failed',
 		});
+	});
+
+	it('lists attached and detached Worktrees with stable opaque identities and omits prunable paths', async () => {
+		const root = temporaryDirectory();
+		const repository = createRepository(root);
+		const attached = path.join(root, 'attached');
+		const detached = path.join(root, 'detached');
+		const stale = path.join(root, 'stale');
+		git(repository, ['worktree', 'add', '-b', 'feature/attached', attached, 'main']);
+		git(repository, ['worktree', 'add', '--detach', detached, 'main']);
+		git(repository, ['worktree', 'add', '-b', 'feature/stale', stale, 'main']);
+		rmSync(stale, { force: true, recursive: true });
+		const adapter = new GitProjectWorktreeAdapter();
+
+		const first = await adapter.listWorktrees(repository);
+		const second = await adapter.listWorktrees(repository);
+
+		expect(first).toEqual(second);
+		expect(first).toMatchObject({
+			kind: 'listed',
+			worktrees: [
+				{
+					branch: 'main',
+					id: expect.stringMatching(/^worktree-[0-9a-f]{32}$/u),
+					path: realpathSync(repository),
+				},
+				{
+					branch: 'feature/attached',
+					id: expect.stringMatching(/^worktree-[0-9a-f]{32}$/u),
+					path: realpathSync(attached),
+				},
+				{
+					branch: null,
+					id: expect.stringMatching(/^worktree-[0-9a-f]{32}$/u),
+					path: realpathSync(detached),
+				},
+			],
+		});
+		if (first.kind !== 'listed') throw new Error('Expected a Worktree listing.');
+		expect(new Set(first.worktrees.map((worktree) => worktree.id)).size).toBe(3);
+		expect(first.worktrees.some((worktree) => worktree.path === stale)).toBe(false);
 	});
 
 	it('retains recovery responsibility for an unowned branch that appears after validation', async () => {

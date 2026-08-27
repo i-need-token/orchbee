@@ -1,8 +1,8 @@
+import { ProductIcon } from '@orchbee/ui/components';
 import styles from './VerticalTabStripBottomContainer.module.css';
 import type { CSSProperties, MouseEvent as ReactMouseEvent, ReactNode } from 'react';
 import type { VerticalTabStripCollapseState } from '../../../../../../types/tab-strip-types';
 import { getVerticalBottomContainerPresentation } from './utils/vertical-tab-strip-bottom-container';
-import { TabStripIcon } from '../../../tab-strip-icon/TabStripIcon';
 import { FlatEdgeButton } from '../flat-edge-button/FlatEdgeButton';
 import { useTabStripMessages } from '../../../../../../hooks/useTabStripMessages';
 
@@ -39,7 +39,7 @@ export function VerticalTabStripBottomContainer({
 				variantClass='ct-vertical-new-tab'
 				type='button'
 				aria-label={messages.newTab}
-				icon={<TabStripIcon name='plus' />}
+				icon={<ProductIcon name='add' />}
 				label={messages.newTab}
 				expansionOrientation={presentation.orientation}
 				onClick={onNewTab}

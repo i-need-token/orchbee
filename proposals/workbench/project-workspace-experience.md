@@ -1,11 +1,11 @@
 # Project and Workspace Platform Effects
 
-| Field             | Value                                                                                                                                                                                                             |
-| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Status            | Current model, browser preview, native existing-Folder selection, local shared-document persistence, and the accepted managed-Worktree creation contract are owned; launch and cross-device effects remain future |
-| Owner             | Workbench product maintainers and platform application owners                                                                                                                                                     |
-| Current authority | [`packages/workbench/docs/project-workspace.md`](../../packages/workbench/docs/project-workspace.md)                                                                                                              |
-| Exit condition    | Implement separately accepted platform slices, move maintained facts into their owning application and package guides, then delete this proposal                                                                  |
+| Field             | Value                                                                                                                                                                                                                                             |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Status            | Current model, browser preview, native existing-Folder selection, local shared-document persistence, and the accepted managed-Worktree creation and existing-Worktree adoption contracts are owned; launch and cross-device effects remain future |
+| Owner             | Workbench product maintainers and platform application owners                                                                                                                                                                                     |
+| Current authority | [`packages/workbench/docs/project-workspace.md`](../../packages/workbench/docs/project-workspace.md)                                                                                                                                              |
+| Exit condition    | Implement separately accepted platform slices, move maintained facts into their owning application and package guides, then delete this proposal                                                                                                  |
 
 Simplified Chinese review translation:
 [project-workspace-experience.zh-CN.md](project-workspace-experience.zh-CN.md). English remains
@@ -54,11 +54,15 @@ The accepted Desktop creation slice is maintained by
 [`apps/desktop/docs/project-worktree-creation.md`](../../apps/desktop/docs/project-worktree-creation.md),
 with its environment-isolated default path maintained by
 [`apps/desktop/docs/data-root.md`](../../apps/desktop/docs/data-root.md).
+Read-only discovery and adoption of existing Worktrees are maintained by
+[`apps/desktop/docs/project-worktree-adoption.md`](../../apps/desktop/docs/project-worktree-adoption.md).
 
 The accepted product direction is:
 
 - creating a Worktree is a Project-level operation and may optionally create a Workspace using that
   Directory;
+- existing Worktrees are grouped by represented repository in New Workspace and are adopted only
+  after point-in-time Main revalidation, without Git mutation;
 - the create-Workspace option defaults to enabled;
 - creation uses Desktop's environment-isolated fixed managed root; application-level and
   Project-level location overrides require a later accepted settings slice;
@@ -86,8 +90,9 @@ recovery evidence.
 
 ## Exclusions
 
-Except for the accepted existing-Folder picker and managed-Worktree creation contracts, this
-proposal does not authorize other filesystem mutation or Git implementation, generic renderer
-access to native capabilities, remote Folder connections, automatic deletion of source data, PTY
-ownership in Workbench, or cross-device synchronization. Each additional effectful platform slice
-still requires its own bounded authorization and verification.
+Except for the accepted existing-Folder picker, managed-Worktree creation, and existing-Worktree
+adoption contracts, this proposal does not authorize other filesystem mutation or Git
+implementation, generic renderer access to native capabilities, remote Folder connections,
+automatic deletion of source data, PTY ownership in Workbench, or cross-device synchronization.
+Each additional effectful platform slice still requires its own bounded authorization and
+verification.

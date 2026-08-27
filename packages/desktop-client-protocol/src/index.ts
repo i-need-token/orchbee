@@ -78,6 +78,8 @@ export {
 	DesktopProjectFolderPathSchema,
 } from './desktop-project-folder-acquisition-contract';
 export {
+	DesktopProjectExistingWorktreeSchema,
+	DesktopProjectWorktreeAdoptionResultSchema,
 	DesktopProjectWorktreeCreationResultSchema,
 	DesktopProjectWorktreeDiscoverySchema,
 	DesktopProjectWorktreeFailureCodeSchema,
@@ -85,8 +87,10 @@ export {
 	DesktopProjectWorktreeRendererCommandSchema,
 	DesktopProjectWorktreeRepositorySchema,
 	DesktopProjectWorktreeRequestIdSchema,
+	DesktopProjectWorktreeInventorySchema,
 } from './desktop-project-worktree-contract';
 export type {
+	DesktopProjectWorktreeAdoptionResult,
 	DesktopProjectWorktreeCreationResult,
 	DesktopProjectWorktreeDiscovery,
 	DesktopProjectWorktreeFailureCode,

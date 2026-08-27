@@ -41,6 +41,27 @@ const model = new TabModel({
 	selectedTabIds: ['terminal'],
 });
 
+const compactControlsModel = new TabModel({
+	tabs: [
+		{
+			id: 'terminal-one',
+			title: 'Terminal one',
+			url: 'https://orchbee.dev/terminal/one',
+			pinned: false,
+			group: null,
+		},
+		{
+			id: 'terminal-two',
+			title: 'Terminal two',
+			url: 'https://orchbee.dev/terminal/two',
+			pinned: false,
+			group: null,
+		},
+	],
+	activeTabId: 'terminal-two',
+	selectedTabIds: ['terminal-two'],
+});
+
 const meta = {
 	title: 'TabStrip',
 	component: TabStrip,
@@ -58,6 +79,15 @@ export const Default: Story = {
 		model,
 		orientation: TabStripOrientation.Horizontal,
 		ariaLabel: 'Browser tabs',
+		showNewTabButton: true,
+	},
+};
+
+export const CompactControls: Story = {
+	args: {
+		model: compactControlsModel,
+		orientation: TabStripOrientation.Horizontal,
+		ariaLabel: 'Terminal tabs',
 		showNewTabButton: true,
 	},
 };

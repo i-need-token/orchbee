@@ -23,6 +23,7 @@ independent Tab and Panel contexts or determine their default CWD from a Project
 | Project, Directory, Workspace, and terminal-context IDs | Stable opaque strings; missing or stale IDs reject                              |
 | Directory descriptor                                    | A host-normalized local location with one canonical Folder or Worktree kind     |
 | Managed Worktree commit                                 | One host-validated created Worktree and one current source Directory            |
+| Existing Worktree adoption                              | One host-revalidated discovered Worktree and one current source Directory       |
 | Browser-entered Folder path                             | Trimmed, non-empty user input; otherwise preserved and not filesystem-verified  |
 | Display name                                            | User or localized product input; duplicate names are allowed                    |
 | Launch-configuration reference                          | Stable Project-local ID and display name; executable payload remains host-owned |
@@ -153,25 +154,26 @@ trusted command or SSH fact; this policy does not guess either state.
 
 ## Decisions and transitions
 
-| Intent                       | Guard                                                        | Result                                                                | Terminal-context command                                              |
-| ---------------------------- | ------------------------------------------------------------ | --------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| Activate standalone terminal | None                                                         | Standalone becomes active                                             | None                                                                  |
-| Toggle Project expansion     | Known Project                                                | Only disclosure changes                                               | None                                                                  |
-| Reorder Project              | Known Project and optional known following Project           | Project moves before that Project, or to the end when absent          | None                                                                  |
-| Reorder Workspace            | Known Project, source Workspace, and optional sibling target | Workspace moves within that Project, or to the end when absent        | None                                                                  |
-| Activate Workspace           | Known Project and Workspace membership                       | Workspace becomes active and Project expands                          | None                                                                  |
-| Create Project               | One normalized available Directory                           | Project, Primary Workspace, and active location are created           | Create one context with one Tab, Panel, and shell projection          |
-| Add Directory                | Known Project; location not already present                  | Directory appends to stable order                                     | None                                                                  |
-| Register created Worktree    | Known Project and available source; unique valid Worktree    | Directory appends; optional Workspace appends, expands, and activates | Create one context only when the Workspace option is enabled          |
-| Refresh Directory            | Known identity; unchanged kind and source; unique path       | Host observations update in place; order and references remain        | None                                                                  |
-| Remove Directories           | At least one Directory survives; only Folder kinds requested | Referencing primaries use circular next-survivor selection            | None                                                                  |
-| Reconcile launch references  | Known Project; unique non-empty reference IDs                | Catalog replaces; removed Workspace selections become `null`          | None                                                                  |
-| Set Project primary          | Available Project Directory                                  | Future Project defaults change                                        | None                                                                  |
-| Create Workspace             | Available Project Directory                                  | Workspace appends, Project expands, Workspace becomes active          | Create one context with one Tab, Panel, and shell projection          |
-| Edit Workspace               | Known Workspace and available Project Directory              | Name or future default changes                                        | None                                                                  |
-| Duplicate Workspace          | Known Workspace                                              | Copy appends and becomes active                                       | Clone layout and names into fresh Tab, Panel, and Terminal identities |
-| Delete Workspace             | Known Workspace                                              | Workspace is removed; active deletion falls back to standalone        | Dispose its context                                                   |
-| Remove Project               | Known Project                                                | Project and its Workspace metadata are removed; disk locations remain | Dispose every Project Workspace context                               |
+| Intent                       | Guard                                                          | Result                                                                | Terminal-context command                                              |
+| ---------------------------- | -------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| Activate standalone terminal | None                                                           | Standalone becomes active                                             | None                                                                  |
+| Toggle Project expansion     | Known Project                                                  | Only disclosure changes                                               | None                                                                  |
+| Reorder Project              | Known Project and optional known following Project             | Project moves before that Project, or to the end when absent          | None                                                                  |
+| Reorder Workspace            | Known Project, source Workspace, and optional sibling target   | Workspace moves within that Project, or to the end when absent        | None                                                                  |
+| Activate Workspace           | Known Project and Workspace membership                         | Workspace becomes active and Project expands                          | None                                                                  |
+| Create Project               | One normalized available Directory                             | Project, Primary Workspace, and active location are created           | Create one context with one Tab, Panel, and shell projection          |
+| Add Directory                | Known Project; location not already present                    | Directory appends to stable order                                     | None                                                                  |
+| Register created Worktree    | Known Project and available source; unique valid Worktree      | Directory appends; optional Workspace appends, expands, and activates | Create one context only when the Workspace option is enabled          |
+| Adopt existing Worktree      | Known Project and available source; unique discovered Worktree | Directory and Workspace append, expand, and activate                  | Create one context rooted at the adopted Worktree                     |
+| Refresh Directory            | Known identity; unchanged kind and source; unique path         | Host observations update in place; order and references remain        | None                                                                  |
+| Remove Directories           | At least one Directory survives; only Folder kinds requested   | Referencing primaries use circular next-survivor selection            | None                                                                  |
+| Reconcile launch references  | Known Project; unique non-empty reference IDs                  | Catalog replaces; removed Workspace selections become `null`          | None                                                                  |
+| Set Project primary          | Available Project Directory                                    | Future Project defaults change                                        | None                                                                  |
+| Create Workspace             | Available Project Directory                                    | Workspace appends, Project expands, Workspace becomes active          | Create one context with one Tab, Panel, and shell projection          |
+| Edit Workspace               | Known Workspace and available Project Directory                | Name or future default changes                                        | None                                                                  |
+| Duplicate Workspace          | Known Workspace                                                | Copy appends and becomes active                                       | Clone layout and names into fresh Tab, Panel, and Terminal identities |
+| Delete Workspace             | Known Workspace                                                | Workspace is removed; active deletion falls back to standalone        | Dispose its context                                                   |
+| Remove Project               | Known Project                                                  | Project and its Workspace metadata are removed; disk locations remain | Dispose every Project Workspace context                               |
 
 The runtime's optional transition commit callback runs only for an `applied` result, immediately
 before any terminal-context command or authoritative state replacement. Action adapters use it to
@@ -262,6 +264,21 @@ compensation, and recovery. Its maintained contract is
 Existing Folder or Worktree choices remain available to the ordinary Workspace-create transition,
 so several Workspaces may reference one Directory.
 
+## Existing Worktree adoption
+
+Workbench accepts a host-revalidated existing Worktree through `project-worktree-adopted`. The pure
+transition requires an available source Directory, a valid available Worktree descriptor with
+`source: discovered`, repository consistency, and unique Directory identity and path. It atomically
+appends the Directory and one Workspace, expands the Project, activates that Workspace, and creates
+one terminal context rooted at the Worktree. A detached Worktree keeps `branch: null` and its exact
+`HEAD`.
+
+Desktop owns read-only Git discovery, opaque Worktree selection, point-in-time revalidation, and the
+canonical-document commit. If the selected path became represented after discovery, Desktop uses
+the ordinary `workspace-created` transition against that equivalent Directory instead of adding a
+duplicate. Git is never changed. The maintained platform contract and evidence limits live in
+[`apps/desktop/docs/project-worktree-adoption.md`](../../../apps/desktop/docs/project-worktree-adoption.md).
+
 ## Project navigation action menus
 
 Each Project row and Workspace row owns one ordered action-menu model. The row's ellipsis button
@@ -274,6 +291,14 @@ Opening either menu does not activate a Workspace, toggle Project disclosure, or
 Project and Workspace state. Dismissal invokes no action. The product suppresses the native browser
 context menu only inside a row that owns this product Context Menu. Selecting an entry through
 either projection invokes the same callback exactly once.
+
+The New Workspace submenu first presents Project Folder choices. When the host supplies Worktree
+discovery, each represented Git repository with existing Worktrees contributes a later group labeled
+by its source Project Directory; multiple repositories remain separate groups. Worktrees already in
+the Project and newly discovered external Worktrees share their repository group. Reopening a
+Project menu refreshes this point-in-time projection. Selecting a current Directory invokes ordinary
+Workspace creation; selecting an external Worktree invokes host adoption and creates the Workspace
+only after revalidation and canonical commit.
 
 ## Project and Workspace reorder gestures
 
@@ -337,9 +362,10 @@ mutation.
 | Browser and Gateway path-entry presentation and synthetic Folder projection                | `@orchbee/workbench`                 |
 | Existing-Folder native picker, path normalization, and point-in-time validation            | `apps/desktop`                       |
 | Typed platform Folder-acquisition capability                                               | `@orchbee/workbench`                 |
-| Typed platform managed-Worktree capability                                                 | `@orchbee/workbench`                 |
-| Electron managed-Worktree data contract                                                    | `@orchbee/desktop-client-protocol`   |
+| Typed platform Worktree discovery, creation, and adoption capability                       | `@orchbee/workbench`                 |
+| Electron Worktree discovery, creation, and adoption data contract                          | `@orchbee/desktop-client-protocol`   |
 | Managed Worktree Git observation, creation, compensation, recovery, and fixed path         | `apps/desktop`                       |
+| Existing Worktree discovery, revalidation, and canonical registration                      | `apps/desktop`                       |
 | Launch-configuration executable payload                                                    | Future application or runtime owner  |
 | Other filesystem mutation, Git effects, PTY, synchronization, and recovery                 | Future application or runtime owner  |
 | Locale and platform adapter selection                                                      | Composition application              |
@@ -369,15 +395,17 @@ Action availability.
 | Desktop selection commits only one validated selected result; cancel and failure never mutate              | Main runtime, broker, client, Hook, and integration tests | `DesktopLifecycle` Folder scenario            | Injected dialog adapter; real picker is manual evidence |
 | A retired renderer or stale/duplicate Add target cannot accept a late native completion                    | Broker lifecycle and Workbench state-machine tests        | `DesktopLifecycle` safety and progress checks | Bounded model and controlled event loop                 |
 | A managed Worktree commit adds its Directory and optional Workspace atomically                             | Transition and managed-runtime tests                      | Desktop creation transaction model            | Git and filesystem refinement remain Desktop-owned      |
+| Existing Worktree adoption groups repository inventories and atomically creates one Workspace              | Transition, runtime, protocol, Hook, and component tests  | Real-repository Git adapter test              | Point-in-time local inventory; no Git mutation          |
 | Ellipsis and row context gestures expose one action-menu model                                             | Component parity and invocation tests                     | Pointer interaction review                    | Project and Workspace rows only                         |
 
 TLA+ is not required for the synchronous in-memory transition and browser path-entry set. The
 asynchronous existing-Folder adapter is covered by the `project-folder-acquisition` configuration
 of `DesktopLifecycle`, including selection, cancellation, failure, stale targets, renderer
 retirement, and late native completion. Managed Worktree Git/product parity and recovery are covered
-by Desktop's separately registered `ProjectWorktreeCreation` model. Real operating-system picker
-behavior, Git command refinement, other filesystem mutation, and cross-device synchronization remain
-outside those model claims.
+by Desktop's separately registered `ProjectWorktreeCreation` model. Existing Worktree discovery and
+adoption use the bounded transition and adversarial scenarios documented by Desktop; they do not add
+a Git mutation or recovery obligation. Real operating-system picker behavior, Git command refinement,
+other filesystem mutation, and cross-device synchronization remain outside those model claims.
 
 ## Delivery and recovery
 
@@ -389,6 +417,8 @@ The browser delivery performs no disk or process effect. The Desktop existing-Fo
 filesystem data; only the selected path may enter the existing canonical Project document through
 the normal Workbench Action and shared-document commit. Desktop managed-Worktree creation is the
 only current Git mutation slice and enters product state through the atomic transition above.
-Rollback of either adapter does not invalidate already committed Project records. New Folder,
-Worktree deletion or movement, and other platform effects remain outside current authority until
-separately accepted, implemented, and documented by their semantic owners.
+Existing-Worktree discovery is read-only; adoption revalidates the opaque selection and atomically
+registers the Directory and Workspace without changing Git. Rollback of any adapter does not
+invalidate already committed Project records. New Folder, Worktree deletion or movement, and other
+platform effects remain outside current authority until separately accepted, implemented, and
+documented by their semantic owners.

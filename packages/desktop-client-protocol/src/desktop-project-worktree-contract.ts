@@ -39,6 +39,14 @@ export const DesktopProjectWorktreeRendererCommandSchema = z.discriminatedUnion(
 		sourceDirectoryId: identifierSchema,
 		type: z.literal('desktop-project-worktree-creation-requested'),
 	}),
+	z.strictObject({
+		projectId: identifierSchema,
+		repositoryId: identifierSchema,
+		requestId: DesktopProjectWorktreeRequestIdSchema,
+		sourceDirectoryId: identifierSchema,
+		type: z.literal('desktop-project-worktree-adoption-requested'),
+		worktreeId: identifierSchema,
+	}),
 ]);
 
 export const DesktopProjectWorktreeFailureCodeSchema = z.enum([
@@ -57,6 +65,20 @@ export const DesktopProjectWorktreeFailureCodeSchema = z.enum([
 	'repository-not-found',
 	'source-unavailable',
 	'target-conflict',
+	'worktree-not-found',
+]);
+
+export const DesktopProjectExistingWorktreeSchema = z.strictObject({
+	label: z.string().min(1).max(512),
+	worktreeId: identifierSchema,
+});
+
+export const DesktopProjectWorktreeInventorySchema = z.discriminatedUnion('kind', [
+	z.strictObject({
+		kind: z.literal('available'),
+		worktrees: z.array(DesktopProjectExistingWorktreeSchema).max(10_000),
+	}),
+	z.strictObject({ kind: z.literal('unavailable') }),
 ]);
 
 export const DesktopProjectWorktreeRepositorySchema = z.strictObject({
@@ -66,6 +88,7 @@ export const DesktopProjectWorktreeRepositorySchema = z.strictObject({
 	repositoryId: identifierSchema,
 	sourceDirectoryId: identifierSchema,
 	suggestedBranchName: gitValueSchema,
+	worktreeInventory: DesktopProjectWorktreeInventorySchema,
 });
 
 export const DesktopProjectWorktreeDiscoverySchema = z.strictObject({
@@ -76,6 +99,11 @@ export const DesktopProjectWorktreeDiscoverySchema = z.strictObject({
 export const DesktopProjectWorktreeCreationResultSchema = z.strictObject({
 	directoryId: identifierSchema,
 	workspaceId: identifierSchema.nullable(),
+});
+
+export const DesktopProjectWorktreeAdoptionResultSchema = z.strictObject({
+	directoryId: identifierSchema,
+	workspaceId: identifierSchema,
 });
 
 export const DesktopProjectWorktreeMainEventSchema = z.discriminatedUnion('type', [
@@ -90,8 +118,13 @@ export const DesktopProjectWorktreeMainEventSchema = z.discriminatedUnion('type'
 		type: z.literal('desktop-project-worktree-creation-completed'),
 	}),
 	z.strictObject({
+		requestId: DesktopProjectWorktreeRequestIdSchema,
+		result: DesktopProjectWorktreeAdoptionResultSchema,
+		type: z.literal('desktop-project-worktree-adoption-completed'),
+	}),
+	z.strictObject({
 		code: DesktopProjectWorktreeFailureCodeSchema,
-		operation: z.enum(['creation', 'discovery']),
+		operation: z.enum(['adoption', 'creation', 'discovery']),
 		requestId: DesktopProjectWorktreeRequestIdSchema,
 		type: z.literal('desktop-project-worktree-failed'),
 	}),
@@ -99,6 +132,9 @@ export const DesktopProjectWorktreeMainEventSchema = z.discriminatedUnion('type'
 
 export type DesktopProjectWorktreeCreationResult = z.infer<
 	typeof DesktopProjectWorktreeCreationResultSchema
+>;
+export type DesktopProjectWorktreeAdoptionResult = z.infer<
+	typeof DesktopProjectWorktreeAdoptionResultSchema
 >;
 export type DesktopProjectWorktreeDiscovery = z.infer<typeof DesktopProjectWorktreeDiscoverySchema>;
 export type DesktopProjectWorktreeFailureCode = z.infer<

@@ -6,10 +6,6 @@
 	composes: ct-group-header__chevron from '../../../../TabStripView.module.css';
 }
 
-.ct-new-tab {
-	composes: ct-new-tab from '../../../../TabStripView.module.css';
-}
-
 .ct-tab-icon__crashed {
 	composes: ct-tab-icon__crashed from '../../../../TabStripView.module.css';
 }
@@ -20,8 +16,4 @@
 
 .ct-tab-icon__spinner {
 	composes: ct-tab-icon__spinner from '../../../../TabStripView.module.css';
-}
-
-.ct-vertical-new-tab {
-	composes: ct-vertical-new-tab from '../../../../TabStripView.module.css';
 }

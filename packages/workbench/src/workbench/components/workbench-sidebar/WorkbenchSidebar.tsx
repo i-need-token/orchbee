@@ -25,6 +25,7 @@ import { useWorkbenchSidebar } from './hooks/useWorkbenchSidebar';
 import { useNavigationReorderDrag } from './hooks/useNavigationReorderDrag';
 import { useProjectFolderAcquisition } from './hooks/useProjectFolderAcquisition';
 import { useProjectWorktreeCreation } from './hooks/useProjectWorktreeCreation';
+import { useProjectWorktreeMenu } from './hooks/useProjectWorktreeMenu';
 import type { WorkbenchProjectNavigationMessages } from './types/workbench-sidebar-types';
 import styles from './WorkbenchSidebar.module.css';
 
@@ -118,6 +119,10 @@ export function WorkbenchSidebar({
 		capability: projectWorktree,
 		projectWorkspaceState,
 	});
+	const worktreeMenu = useProjectWorktreeMenu({
+		capability: projectWorktree,
+		projectWorkspaceState,
+	});
 	return (
 		<>
 			<aside aria-label={label} className={styles['root']} data-slot='workbench-sidebar'>
@@ -185,6 +190,7 @@ export function WorkbenchSidebar({
 									key={project.id}
 									activateWorkspace={activateWorkspace}
 									activeLocation={projectWorkspaceState.activeLocation}
+									adoptWorktree={projectWorktree === undefined ? undefined : worktreeMenu.adopt}
 									createWorkspace={createWorkspace}
 									createWorktree={projectWorktree === undefined ? undefined : worktreeCreation.open}
 									deleteWorkspace={deleteWorkspace}
@@ -201,6 +207,11 @@ export function WorkbenchSidebar({
 									dragging={projectReorder.draggingItemId === project.id}
 									messages={projectNavigationMessages}
 									project={project}
+									refreshWorktrees={
+										projectWorktree === undefined
+											? undefined
+											: () => worktreeMenu.refresh(project.id)
+									}
 									onPointerDown={projectReorder.onItemPointerDown}
 									reorderActive={projectReorder.draggingItemId !== null}
 									reorderWorkspace={reorderWorkspace}
@@ -208,6 +219,9 @@ export function WorkbenchSidebar({
 									showProjectManager={view.showProjectManager}
 									showWorkspaceManager={view.showWorkspaceManager}
 									toggleProjectExpansion={toggleProjectExpansion}
+									worktreeDiscovery={worktreeMenu.discoveryByProject.get(project.id) ?? null}
+									worktreeDiscoveryFailed={worktreeMenu.discoveryFailureProjectIds.has(project.id)}
+									worktreeOperationPending={worktreeMenu.busy}
 								/>
 							))}
 						</ul>
@@ -332,6 +346,30 @@ export function WorkbenchSidebar({
 						<AlertDialogFooter>
 							<AlertDialogAction onClick={folderAcquisition.dismissFailure}>
 								{projectNavigationMessages.folderAcquisitionFailureDismiss}
+							</AlertDialogAction>
+						</AlertDialogFooter>
+					</AlertDialogContent>
+				</AlertDialog>
+			)}
+			{worktreeMenu.failure === null ? null : (
+				<AlertDialog
+					onOpenChange={(open) => {
+						if (!open) worktreeMenu.dismissFailure();
+					}}
+					open
+				>
+					<AlertDialogContent data-slot='workbench-project-worktree-adoption-failure'>
+						<AlertDialogHeader>
+							<AlertDialogTitle>
+								{projectNavigationMessages.projectWorktreeFailureTitle}
+							</AlertDialogTitle>
+							<AlertDialogDescription>
+								{projectNavigationMessages.projectWorktreeFailureMessages[worktreeMenu.failure]}
+							</AlertDialogDescription>
+						</AlertDialogHeader>
+						<AlertDialogFooter>
+							<AlertDialogAction onClick={worktreeMenu.dismissFailure}>
+								{projectNavigationMessages.close}
 							</AlertDialogAction>
 						</AlertDialogFooter>
 					</AlertDialogContent>

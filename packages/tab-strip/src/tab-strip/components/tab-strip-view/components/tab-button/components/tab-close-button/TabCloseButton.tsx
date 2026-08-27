@@ -1,6 +1,6 @@
+import { ProductIcon } from '@orchbee/ui/components';
 import styles from './TabCloseButton.module.css';
 import type { MouseEvent, ReactNode } from 'react';
-import { TabStripIcon } from '../../../tab-strip-icon/TabStripIcon';
 
 import { useTabCloseButton } from './hooks/useTabCloseButton';
 import { useTabStripMessages } from '../../../../../../hooks/useTabStripMessages';
@@ -23,8 +23,8 @@ export function TabCloseButton(props: TabCloseButtonProps): ReactNode {
 			onPointerDown={view.onPointerDown}
 			onClick={view.onClick}
 		>
-			<span className={styles['ct-tab__close-target']}>
-				<TabStripIcon name='close' />
+			<span className={styles['ct-tab__close-target']} data-tab-close-target=''>
+				<ProductIcon name='close' />
 			</span>
 		</button>
 	);

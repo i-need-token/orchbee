@@ -1,31 +1,38 @@
 import { cleanup, render, screen } from '@testing-library/react';
+import { ProductIcon } from '@orchbee/ui/components';
 import { afterEach, describe, expect, it } from 'vitest';
-import { TabStripControlButtonEdge } from '../utils/tab-strip-control-button';
 import { TabStripControlButton } from '../TabStripControlButton';
 
 afterEach(cleanup);
 
 describe('TabStripControlButton', () => {
-	it('renders the computed animated edge radii', () => {
+	it('renders one stable system visual target without Chromium corner geometry', () => {
 		render(
 			<TabStripControlButton
 				aria-label='Control'
-				animatedFlatEdge={TabStripControlButtonEdge.Right}
-				flatEdgeFactor={0.5}
+				icon={<ProductIcon name='add' />}
+				inlineStart={12}
 			/>,
 		);
 		const button = screen.getByRole('button', { name: 'Control' });
+		const target = button.querySelector('[data-tab-strip-control-target]');
 		expect(button.getAttribute('tabindex')).toBe('-1');
-		expect(button.style.getPropertyValue('--ob-comp-tab-strip-corner-top-left')).toBe('14px');
-		expect(button.style.getPropertyValue('--ob-comp-tab-strip-corner-top-right')).toBe('7px');
-		expect(button.style.getPropertyValue('--ob-comp-tab-strip-corner-bottom-right')).toBe('7px');
+		expect(button.style.getPropertyValue('--ob-comp-tab-strip-inline-start')).toBe('12px');
+		expect(button.style.getPropertyValue('--ob-comp-tab-strip-corner-top-left')).toBe('');
+		expect(target).not.toBeNull();
+		expect(target?.querySelector('[data-icon="add"]')).not.toBeNull();
 	});
 
-	it('renders the condensed top edge as square', () => {
-		render(<TabStripControlButton aria-label='Control' frameCondensed />);
+	it('keeps the same visual target inside the condensed frame hit area', () => {
+		render(
+			<TabStripControlButton
+				aria-label='Control'
+				frameCondensed
+				icon={<ProductIcon name='add' />}
+			/>,
+		);
 		const button = screen.getByRole('button', { name: 'Control' });
-		expect(button.style.getPropertyValue('--ob-comp-tab-strip-corner-top-left')).toBe('0px');
-		expect(button.style.getPropertyValue('--ob-comp-tab-strip-corner-top-right')).toBe('0px');
 		expect(button.getAttribute('data-frame-condensed')).toBe('true');
+		expect(button.querySelectorAll('[data-tab-strip-control-target]')).toHaveLength(1);
 	});
 });

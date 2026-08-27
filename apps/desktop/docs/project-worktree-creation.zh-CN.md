@@ -7,8 +7,9 @@
 规范文档提交、补偿和崩溃恢复。Electron renderer 拥有本地化表单并调用类型化能力，但不会获得
 文件系统或进程权限。
 
-删除、移动、导入外部 Worktree、检出现有分支、自动 fetch、重写 base、用户可选存储位置和跨设备
-路径同步均不在范围内。
+删除、移动、检出现有分支、自动 fetch、重写 base、用户可选存储位置和跨设备路径同步均不在
+范围内。外部 Worktree 的只读发现与接纳由
+[`project-worktree-adoption.md`](project-worktree-adoption.zh-CN.md) 单独负责。
 
 ## 领域契约
 

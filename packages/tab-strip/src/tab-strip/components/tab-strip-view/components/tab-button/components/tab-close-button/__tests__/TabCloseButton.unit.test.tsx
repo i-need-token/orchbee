@@ -3,11 +3,13 @@ import { describe, expect, it, vi } from 'vitest';
 import { TabCloseButton } from '../TabCloseButton';
 
 describe('TabCloseButton', () => {
-	it('closes on a primary click and exposes Chromium naming', () => {
+	it('closes on a primary click and renders the product close icon', () => {
 		const onClose = vi.fn<() => void>();
 		render(<TabCloseButton tabTitle='Docs' onClose={onClose} />);
 		const close = screen.getByRole('button', { name: 'Close' });
 		expect(close.getAttribute('tabindex')).toBe('-1');
+		expect(close.querySelector('[data-icon="close"]')).not.toBeNull();
+		expect(close.querySelector('[data-tab-strip-icon="close"]')).toBeNull();
 		fireEvent.click(close);
 		expect(onClose).toHaveBeenCalledOnce();
 	});

@@ -117,6 +117,14 @@ export type ProjectWorkspaceEvent =
 			readonly workspaceName: string;
 	  }
 	| {
+			readonly directory: WorkbenchWorktreeDirectory;
+			readonly projectId: string;
+			readonly sourceDirectoryId: string;
+			readonly terminalTitle: string;
+			readonly type: 'project-worktree-adopted';
+			readonly workspaceName: string;
+	  }
+	| {
 			readonly directory: WorkbenchDirectory;
 			readonly projectId: string;
 			readonly type: 'directory-updated';
@@ -259,6 +267,9 @@ export function transitionProjectWorkspace(
 			break;
 		case 'project-worktree-created':
 			result = createProjectWorktree(state, event);
+			break;
+		case 'project-worktree-adopted':
+			result = adoptProjectWorktree(state, event);
 			break;
 		case 'directory-updated':
 			result = updateDirectory(state, event.projectId, event.directory);
@@ -434,24 +445,65 @@ function createProjectWorktree(
 	state: ProjectWorkspaceState,
 	event: Extract<ProjectWorkspaceEvent, { type: 'project-worktree-created' }>,
 ): ProjectWorkspaceTransition {
-	const project = findProject(state, event.projectId);
+	return registerProjectWorktree(state, {
+		createWorkspace: event.createWorkspace,
+		directory: event.directory,
+		projectId: event.projectId,
+		requireAttachedBranch: true,
+		requiredSource: 'created',
+		sourceDirectoryId: event.sourceDirectoryId,
+		terminalTitle: event.terminalTitle,
+		workspaceName: event.workspaceName,
+	});
+}
+
+function adoptProjectWorktree(
+	state: ProjectWorkspaceState,
+	event: Extract<ProjectWorkspaceEvent, { type: 'project-worktree-adopted' }>,
+): ProjectWorkspaceTransition {
+	return registerProjectWorktree(state, {
+		createWorkspace: true,
+		directory: event.directory,
+		projectId: event.projectId,
+		requireAttachedBranch: false,
+		requiredSource: 'discovered',
+		sourceDirectoryId: event.sourceDirectoryId,
+		terminalTitle: event.terminalTitle,
+		workspaceName: event.workspaceName,
+	});
+}
+
+function registerProjectWorktree(
+	state: ProjectWorkspaceState,
+	input: {
+		readonly createWorkspace: boolean;
+		readonly directory: WorkbenchWorktreeDirectory;
+		readonly projectId: string;
+		readonly requireAttachedBranch: boolean;
+		readonly requiredSource: 'created' | 'discovered';
+		readonly sourceDirectoryId: string;
+		readonly terminalTitle: string;
+		readonly workspaceName: string;
+	},
+): ProjectWorkspaceTransition {
+	const project = findProject(state, input.projectId);
 	if (project === null) return rejected(state, 'project-not-found');
-	const sourceDirectory = findDirectory(project, event.sourceDirectoryId);
+	const sourceDirectory = findDirectory(project, input.sourceDirectoryId);
 	if (sourceDirectory === null) return rejected(state, 'directory-not-found');
 	if (!sourceDirectory.available) return rejected(state, 'directory-unavailable');
 	if (
-		!isValidDirectoryDescriptor(event.directory) ||
-		!event.directory.available ||
-		event.directory.source !== 'created' ||
-		event.directory.git.branch === null ||
+		!isValidDirectoryDescriptor(input.directory) ||
+		!input.directory.available ||
+		input.directory.source !== input.requiredSource ||
+		(input.requireAttachedBranch && input.directory.git.branch === null) ||
 		(sourceDirectory.git !== null &&
-			event.directory.git.repositoryId !== sourceDirectory.git.repositoryId)
+			input.directory.git.repositoryId !== sourceDirectory.git.repositoryId)
 	) {
 		return rejected(state, 'directory-invalid');
 	}
 	if (
 		project.directories.some(
-			(candidate) => candidate.id === event.directory.id || candidate.path === event.directory.path,
+			(candidate) => candidate.id === input.directory.id || candidate.path === input.directory.path,
 		)
 	) {
 		return rejected(state, 'directory-already-exists');
@@ -461,37 +513,37 @@ function createProjectWorktree(
 	const workspace: WorkbenchWorkspace = {
 		id: workspaceId,
 		launchConfigurationId: null,
-		name: event.workspaceName,
-		primaryDirectoryId: event.directory.id,
+		name: input.workspaceName,
+		primaryDirectoryId: input.directory.id,
 		terminalContextId,
 	};
 	const update = requireProjectUpdate(
-		updateKnownProject(state, event.projectId, (currentProject) => ({
+		updateKnownProject(state, input.projectId, (currentProject) => ({
 			...currentProject,
-			directories: [...currentProject.directories, event.directory],
-			workspaces: event.createWorkspace
+			directories: [...currentProject.directories, input.directory],
+			workspaces: input.createWorkspace
 				? [...currentProject.workspaces, workspace]
 				: currentProject.workspaces,
 		})),
 	);
-	if (!event.createWorkspace) return applied(update.state);
+	if (!input.createWorkspace) return applied(update.state);
 	return applied(
 		{
 			...update.state,
 			activeLocation: {
 				kind: 'workspace',
-				projectId: event.projectId,
+				projectId: input.projectId,
 				workspaceId,
 			},
-			expandedProjectIds: includeExpandedProject(update.state, event.projectId),
+			expandedProjectIds: includeExpandedProject(update.state, input.projectId),
 			nextTerminalContextSequence: state.nextTerminalContextSequence + 1,
 			nextWorkspaceSequence: state.nextWorkspaceSequence + 1,
 		},
 		[
 			{
-				cwd: event.directory.path,
+				cwd: input.directory.path,
 				terminalContextId,
-				terminalTitle: event.terminalTitle,
+				terminalTitle: input.terminalTitle,
 				type: 'terminal-context-created',
 			},
 		],

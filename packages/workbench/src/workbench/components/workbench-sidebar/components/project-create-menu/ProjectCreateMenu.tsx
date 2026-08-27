@@ -1,7 +1,5 @@
 import {
 	Button,
-	DropdownMenu,
-	DropdownMenuTrigger,
 	ProductIcon,
 	Tooltip,
 	TooltipContent,
@@ -9,9 +7,9 @@ import {
 } from '@orchbee/ui/components';
 import * as React from 'react';
 
-import { WorkbenchActionDropdownMenuContent } from '../../../workbench-action-dropdown-menu-content/WorkbenchActionDropdownMenuContent';
 import type { WorkbenchActionMenuEntry } from '../../../../types/workbench-action-menu';
 import type { WorkbenchProjectNavigationMessages } from '../../types/workbench-sidebar-types';
+import { WorkbenchSidebarDropdownMenu } from '../workbench-sidebar-dropdown-menu/WorkbenchSidebarDropdownMenu';
 import styles from './ProjectCreateMenu.module.css';
 
 interface ProjectCreateMenuProps {
@@ -47,25 +45,22 @@ export function ProjectCreateMenu({
 
 	return (
 		<Tooltip>
-			<DropdownMenu>
-				<DropdownMenuTrigger
-					render={
-						<TooltipTrigger
-							render={
-								<Button
-									aria-label={messages.projectCreate}
-									className={styles['trigger']}
-									size='icon-xs'
-									variant='ghost'
-								/>
-							}
-						/>
-					}
-				>
-					<ProductIcon name='add' size='section-action' />
-				</DropdownMenuTrigger>
-				<WorkbenchActionDropdownMenuContent entries={entries} />
-			</DropdownMenu>
+			<WorkbenchSidebarDropdownMenu
+				entries={entries}
+				trigger={
+					<TooltipTrigger
+						render={
+							<Button
+								aria-label={messages.projectCreate}
+								className={styles['trigger']}
+								size='icon-xs'
+								variant='ghost'
+							/>
+						}
+					/>
+				}
+				triggerContent={<ProductIcon name='add' size='section-action' />}
+			/>
 			<TooltipContent side='top'>{messages.projectCreate}</TooltipContent>
 		</Tooltip>
 	);

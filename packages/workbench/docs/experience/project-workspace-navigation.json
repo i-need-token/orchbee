@@ -8,6 +8,7 @@
 	"owner": "@orchbee/workbench",
 	"visibility": "private",
 	"intents": [
+		"create-workspace-from-worktree",
 		"navigate-workspace",
 		"reorder-project",
 		"reorder-workspace",
@@ -25,6 +26,7 @@
 			"states": [
 				"Inspect expanded and collapsed Projects, active and default Workspace rows, and the nested hierarchy guide line.",
 				"Hover Project and Workspace rows, open their menus, right-click them, and inspect retained owner-row interaction states.",
+				"Open New Workspace and inspect existing Worktrees grouped under each represented Project repository before selecting one for direct Workspace creation.",
 				"Drag a Project between siblings and verify the pointer-following row, midpoint-driven sibling squeeze motion, edge scrolling, temporary collapse, and restoration after the drop.",
 				"Drag a Workspace between siblings inside one expanded Project and verify the same pointer-following, midpoint squeeze, release settlement, and cancellation behavior without changing Workspace activation or Project disclosure."
 			]
@@ -48,6 +50,7 @@
 		"Selecting a Workspace changes the active terminal context while Project disclosure alone never changes it.",
 		"Active and hovered rows share the strong foreground role while default rows use the quieter foreground role.",
 		"An open row menu keeps the entire owner row highlighted without introducing a second trigger background.",
+		"Existing Worktree choices remain grouped by their represented repository, and selecting one creates no Workspace until host revalidation and canonical commit succeed.",
 		"Project and Workspace drag order is persisted only on release; the source row follows the pointer while crossed siblings squeeze into its vacated slot, and completion does not replay the previous displacement.",
 		"Workspace reordering remains inside the source Project and preserves active location, terminal ownership, Workspace identity, and Project disclosure."
 	],

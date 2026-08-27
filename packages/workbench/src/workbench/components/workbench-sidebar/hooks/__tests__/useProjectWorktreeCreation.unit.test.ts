@@ -19,6 +19,7 @@ afterEach(cleanup);
 describe('useProjectWorktreeCreation', () => {
 	it('discovers editable defaults and submits the selected repository without a path', async () => {
 		const capability: WorkbenchProjectWorktreeCapability = {
+			adopt: vi.fn<WorkbenchProjectWorktreeCapability['adopt']>(),
 			create: vi.fn<WorkbenchProjectWorktreeCapability['create']>(async () => ({
 				directoryId: 'managed-worktree-1',
 				kind: 'created',
@@ -35,6 +36,7 @@ describe('useProjectWorktreeCreation', () => {
 							repositoryId: 'repository-1',
 							sourceDirectoryId: 'directory-1',
 							suggestedBranchName: 'orchbee/workspace-1',
+							worktreeInventory: { kind: 'available', worktrees: [] },
 						},
 					],
 				},
@@ -84,6 +86,7 @@ describe('useProjectWorktreeCreation', () => {
 	it('ignores discovery that settles after the dialog closes', async () => {
 		let settleDiscovery: ((result: WorkbenchProjectWorktreeDiscoveryResult) => void) | undefined;
 		const capability: WorkbenchProjectWorktreeCapability = {
+			adopt: vi.fn<WorkbenchProjectWorktreeCapability['adopt']>(),
 			create: vi.fn<WorkbenchProjectWorktreeCapability['create']>(),
 			discover: vi.fn<WorkbenchProjectWorktreeCapability['discover']>(
 				() =>

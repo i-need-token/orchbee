@@ -1972,6 +1972,9 @@ function createHarness(
 		DesktopApplicationDependencies['createProjectWorktreeRuntime']
 	>;
 	const projectWorktreeRuntime: ProjectWorktreeRuntime = {
+		adopt: vi
+			.fn<ProjectWorktreeRuntime['adopt']>()
+			.mockResolvedValue({ code: 'control-unavailable', kind: 'failed' }),
 		create: vi
 			.fn<ProjectWorktreeRuntime['create']>()
 			.mockResolvedValue({ code: 'control-unavailable', kind: 'failed' }),

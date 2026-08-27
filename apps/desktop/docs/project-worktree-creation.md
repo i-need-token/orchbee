@@ -8,8 +8,10 @@ the managed path, canonical-document commit, compensation, and crash recovery. T
 owns the localized form and invokes the typed capability without receiving filesystem or process
 authority.
 
-Deletion, movement, import of external Worktrees, existing-branch checkout, automatic fetch, base
-rewriting, user-selectable storage locations, and cross-device path synchronization are excluded.
+Deletion, movement, existing-branch checkout, automatic fetch, base rewriting, user-selectable
+storage locations, and cross-device path synchronization are excluded. Read-only discovery and
+adoption of external Worktrees are separately owned by
+[`project-worktree-adoption.md`](project-worktree-adoption.md).
 
 ## Domain contract
 

@@ -33,6 +33,8 @@ import '@orchbee/tab-strip/styles.css';
 
 水平主机可以为必须共享选项卡条表面的控件提供 `horizontalLeadingActions`。选项卡轨道仅消耗剩余宽度，因此托管控件永远不会与第一个选项卡重叠或需要单独绘制的同级区域。横向布局为标签条、项目与拖动边界统一采用 `36px`；`28px` 的新建标签控件以及 `20px` 的分组芯片和分隔线均在该行内垂直居中。纵向几何保持独立。
 
+“新建标签页”和“关闭”使用共享的 `ProductIcon` 字形及紧凑型系统控件状态。源自 Chromium 的布局和交互几何不会决定它们的产品图标尺寸、语义颜色或悬停形状。
+
 支持两种方向的主机都会传递受控的 `orientation` 值和 `onOrientationChange`。右键单击空白条空间，然后显示打开或关闭垂直选项卡的本地化操作；选项卡、组和新选项卡控件保留自己的上下文菜单。
 
 包 API 故意没有 React 或浏览器供应商子路径。桌面组合从包根导入跨窗口合约：`CrossWindowTabDragRuntime` 拥有模型切换、取消恢复、附加模型活性和目标布局排序； `DomTabDragRegistry` 适应主机提供的实时边界、z 顺序、活性和兼容性决策。 `TabStrip` 接受 `createCrossWindowDragRuntime` 工厂，而本机窗口创建、移动、捕获、移动循环和源窗口处理仍然是主机职责。浏览器应用程序不会综合这些操作系统功能。上游来源归属和许可义务记录在 [`NOTICE.reference`](NOTICE.reference) 中。

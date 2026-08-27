@@ -10,9 +10,13 @@ import { DesktopProjectWorktreeBroker } from '../DesktopProjectWorktreeBroker';
 type BrokerRuntime = ConstructorParameters<typeof DesktopProjectWorktreeBroker>[1];
 
 describe('DesktopProjectWorktreeBroker', () => {
-	it('publishes correlated discovery and creation results', async () => {
+	it('publishes correlated discovery, creation, and adoption results', async () => {
 		const port = new FakeMessagePort();
 		const runtime: BrokerRuntime = {
+			adopt: vi.fn<BrokerRuntime['adopt']>(async () => ({
+				kind: 'completed' as const,
+				value: { directoryId: 'discovered-worktree-1', workspaceId: 'workspace-3' },
+			})),
 			create: vi.fn<BrokerRuntime['create']>(async () => ({
 				kind: 'completed' as const,
 				value: { directoryId: 'managed-worktree-1', workspaceId: 'workspace-2' },
@@ -40,12 +44,21 @@ describe('DesktopProjectWorktreeBroker', () => {
 			result: { directoryId: 'managed-worktree-1', workspaceId: 'workspace-2' },
 			type: 'desktop-project-worktree-creation-completed',
 		});
+
+		port.emit(adoptionRequest('worktree-request-3'));
+		await vi.waitFor(() => expect(port.messages).toHaveLength(3));
+		expect(DesktopProjectWorktreeMainEventSchema.parse(port.messages[2])).toMatchObject({
+			requestId: 'worktree-request-3',
+			result: { directoryId: 'discovered-worktree-1', workspaceId: 'workspace-3' },
+			type: 'desktop-project-worktree-adoption-completed',
+		});
 	});
 
 	it('rejects a concurrent request and suppresses completion after retirement', async () => {
 		const port = new FakeMessagePort();
 		let finish: (() => void) | undefined;
 		const runtime: BrokerRuntime = {
+			adopt: vi.fn<BrokerRuntime['adopt']>(),
 			create: vi.fn<BrokerRuntime['create']>(
 				() =>
 					new Promise<{ readonly code: 'creation-failed'; readonly kind: 'failed' }>((resolve) => {
@@ -81,6 +94,7 @@ describe('DesktopProjectWorktreeBroker', () => {
 		]) {
 			const port = new FakeMessagePort();
 			const broker = new DesktopProjectWorktreeBroker(port.asMessagePortMain(), {
+				adopt: vi.fn<BrokerRuntime['adopt']>(),
 				create: vi.fn<BrokerRuntime['create']>(),
 				discover: vi.fn<BrokerRuntime['discover']>(),
 			});
@@ -90,6 +104,17 @@ describe('DesktopProjectWorktreeBroker', () => {
 		}
 	});
 });
+
+function adoptionRequest(requestId: string): unknown {
+	return DesktopProjectWorktreeRendererCommandSchema.parse({
+		projectId: 'project-1',
+		repositoryId: 'repository-1',
+		requestId,
+		sourceDirectoryId: 'directory-1',
+		type: 'desktop-project-worktree-adoption-requested',
+		worktreeId: 'worktree-1',
+	});
+}
 
 function discoveryRequest(requestId: string): unknown {
 	return DesktopProjectWorktreeRendererCommandSchema.parse({

@@ -1,10 +1,10 @@
+import { ProductIcon } from '@orchbee/ui/components';
 import styles from './HorizontalContents.module.css';
 import { type CSSProperties, type ReactNode } from 'react';
 import { calculateTabContainerZValue } from '../../../../layout/z-orderable-tab-container-element';
 import { requireDefined } from '../../../../utils/requireDefined';
 import { calculateHorizontalTabGroupUnderlineBounds } from '../../../../layout/tab-group-style';
 import { TAB_SURFACE_HORIZONTAL_INSET } from '../../../../layout/tab-style-views';
-import { TabStripIcon } from '../tab-strip-icon/TabStripIcon';
 import { TabStripControlButton } from './components/tab-strip-control-button/TabStripControlButton';
 import {
 	calculateHorizontalDragPresentation,
@@ -443,7 +443,7 @@ export function HorizontalContents({
 						variantClass='ct-new-tab'
 						type='button'
 						aria-label={messages.newTab}
-						icon={<TabStripIcon name='plus' />}
+						icon={<ProductIcon name='add' />}
 						frameCondensed={horizontalFrameCondensed}
 						onClick={addTab}
 						onContextMenu={(event) => {

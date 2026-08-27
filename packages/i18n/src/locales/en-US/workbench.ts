@@ -76,11 +76,12 @@ export const enUSWorkbenchMessages = {
 	'workbench.projects.worktree.failure.compensationFailed':
 		'Orchbee could not fully roll back the failed operation. Restart Orchbee before trying this repository again.',
 	'workbench.projects.worktree.failure.generic':
-		'The Worktree could not be created. Check the repository and try again.',
+		'The Worktree is no longer available or could not be used. Check the repository and try again.',
 	'workbench.projects.worktree.failure.invalidBranch': 'Enter a valid new Git branch name.',
 	'workbench.projects.worktree.failure.recoveryRequired':
 		'This repository has an unfinished Worktree recovery. Restart Orchbee and try again.',
-	'workbench.projects.worktree.failure.title': 'Worktree Could Not Be Created',
+	'workbench.projects.worktree.failure.title': 'Worktree Could Not Be Used',
+	'workbench.projects.worktree.inventoryUnavailable': 'Worktrees unavailable',
 	'workbench.projects.worktree.loading': 'Reading local Git repositories…',
 	'workbench.projects.worktree.location': 'Managed location',
 	'workbench.projects.worktree.locationAutomatic': '{root}/managed-worktree-…',

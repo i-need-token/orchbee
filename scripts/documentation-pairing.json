@@ -37,9 +37,13 @@
 			"englishSha256": "b7f3003f88b19e8437cfd656153a3a2c31fa0cd7a4df8c61f1b164d6016bde69",
 			"zhCnSha256": "c2296efc76d6cb999813122d41ce60990b0159d337a2dadb60a6e01395026d91"
 		},
+		"apps/desktop/docs/project-worktree-adoption.md": {
+			"englishSha256": "47c2263748ac86365e01c90a5780c6a70d9cade161f32a9ddfdfc9872295e005",
+			"zhCnSha256": "a6fd1888d01772452c5b6f058ed6ea1e090928920455175f8768edc8234b933c"
+		},
 		"apps/desktop/docs/project-worktree-creation.md": {
-			"englishSha256": "6362a7cfb8e528f861a086735ad43ce131405cfb82e6d10a7e15985562544a06",
-			"zhCnSha256": "15fd064eca2e072e3008efa88b5b44f4507b1a66419a64ae0aebc60df3d3d2d6"
+			"englishSha256": "f300d8e665a52a54a830fa23e0239e8b6dffca924561490accb81a7948a21b5e",
+			"zhCnSha256": "90da626a0829a69e8c9229402596ccfaf9114ef28b64c31ab32256b1e6caea69"
 		},
 		"apps/desktop/docs/terminal-launch-profiles.md": {
 			"englishSha256": "592dda1750555455d86a088f46c387b6c3da5f11af72775cfe10048775a00cd9",
@@ -178,8 +182,8 @@
 			"zhCnSha256": "1c3ffbca8d72abdfc6c6c03dfa659c5efbaa729b934f0b4878338b703fca4353"
 		},
 		"docs/frontend/menus.md": {
-			"englishSha256": "5579814506be23519882ccb48bdabd72199229637382bbfc8d6a5f6773a3f18d",
-			"zhCnSha256": "b08bac0df65a86042d26fedbc09dee7937d55c6395edd58d5fa41a1a3a84e28e"
+			"englishSha256": "273905c24db9830c525b83b64e460966451478243dad295914810d6dfc728592",
+			"zhCnSha256": "e35385aa325143799d07e5c57305c1885c0d547db93357d5c9829dbbeaeaa6b9"
 		},
 		"docs/frontend/package-boundaries.md": {
 			"englishSha256": "594df0f6673b7bcec3f564c5c5d94a560b321a26eda663884c2d72ab90601a58",
@@ -214,8 +218,8 @@
 			"zhCnSha256": "8c2923204c6468f50f87eadc78721e9dcacd015eb9e440f7abd90c6445a6c578"
 		},
 		"packages/desktop-client-protocol/README.md": {
-			"englishSha256": "bd222731203b6e432d426c472922015561569d426aba697da478e3dee0ce9cc9",
-			"zhCnSha256": "955ae123876a2625ae071b05269218c3ce29838cf39878e36a8a98853b0ffb86"
+			"englishSha256": "d085791d9b23cfba67b5daa6d24a3a4d12e3e985b844fa7f9449eeb0ce8b7cb0",
+			"zhCnSha256": "1e2095364c0f1ca6c0b568f24534475407c8c0765f1353e8cc302eeb1eb45ffa"
 		},
 		"packages/foundation/README.md": {
 			"englishSha256": "fef97cd4e2c12ec171b4731026830debabc7f248d26c8f113d46abf2f8cbcb84",
@@ -238,8 +242,8 @@
 			"zhCnSha256": "791d414c05e05a1cd96efc97e3d7081ea2cc690d3043a97d458cb6595b700117"
 		},
 		"packages/tab-strip/README.md": {
-			"englishSha256": "46cadf973e3766171b5a87905a2b49534f4b97606702bb6fa868dc6fbde97ba0",
-			"zhCnSha256": "a8bbab40499ced018bfba2134169c390a0fae1e13f7dac86b61dc3b803684f1d"
+			"englishSha256": "8b3da0ba7e89ef98a4a454681bd07ff60d08c71a8da102775c09d442444fd1a3",
+			"zhCnSha256": "a297d44eb05f72f49073ccae8d1561a60ac59442084be052bd49d36d7edb4730"
 		},
 		"packages/tab-strip/docs/horizontal-group-drag.md": {
 			"englishSha256": "fc90b535669852a51bba00a02ab9a10befbcdfcbd002d504433a2c44a7b42249",
@@ -290,8 +294,8 @@
 			"zhCnSha256": "b217e4f87de4b492dbca8abf16916c839513e824562b0198d330d2bc2964ba6c"
 		},
 		"packages/workbench/docs/project-workspace.md": {
-			"englishSha256": "da2ca92f77fe8662d43ec965f7d91f4ef69edc8c33188bf2da444b8330a741bc",
-			"zhCnSha256": "1f55e41b8dd822094923b688248ac1716d6acf7b35640dc8949af65ae24aff24"
+			"englishSha256": "7735b6ba0a702e8c85156b9b479faa4af4b666da46d3bc24a832cf841ef39cd7",
+			"zhCnSha256": "8b805e8da1e23e4b6f4f89c6d190f35a57b161819e62aeac2594c98a6bee6974"
 		},
 		"packages/workbench/docs/shared-workbench-document.md": {
 			"englishSha256": "98fc4d8deedeab7d29e3ac192a5e8be0077f73e77828754320cf0ed1045bdc33",
@@ -314,8 +318,8 @@
 			"zhCnSha256": "2d039a8bfc92e106c97e61375a8926e3ea73d9a3b1885f0b58d958b07794c22f"
 		},
 		"proposals/workbench/project-workspace-experience.md": {
-			"englishSha256": "0cb106f1a09eaf4a80a3b7e1ee96da83d0be2ec3295f1b6cb88a369520d8728c",
-			"zhCnSha256": "3b8c0e834065c5dde96b29edb5b81ce47cd376064e8ab3a2c10638458fe5de48"
+			"englishSha256": "0e7918345e79179ef62d6a0dbc7a8bbeefa37680c534190cc10ad6d15d0f6c74",
+			"zhCnSha256": "edca7ca1557c2e0b3284c6c7b95a6eb4b6629d1a71d4c6470910a7de426e91a5"
 		},
 		"proposals/workbench/unified-search-surface.md": {
 			"englishSha256": "d2d218daa25eb082ad10a216780b5352000af10d2cbeb01343e204557d7d946b",

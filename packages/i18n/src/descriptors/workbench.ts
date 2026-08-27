@@ -427,6 +427,11 @@ export const workbenchMessages = defineMessages({
 		defaultMessage: enUSWorkbenchMessages['workbench.projects.worktree.failure.title'],
 		description: 'Title for a managed Worktree failure.',
 	},
+	projectWorktreeInventoryUnavailable: {
+		id: 'workbench.projects.worktree.inventoryUnavailable',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.worktree.inventoryUnavailable'],
+		description: 'Menu status shown when existing Worktrees cannot be read for a repository.',
+	},
 	projectWorktreeLoading: {
 		id: 'workbench.projects.worktree.loading',
 		defaultMessage: enUSWorkbenchMessages['workbench.projects.worktree.loading'],

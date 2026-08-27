@@ -9,12 +9,24 @@ export interface GitProjectRepositoryObservation {
 	readonly localBaseRefs: readonly string[];
 	readonly repositoryId: string;
 	readonly repositoryPath: string;
+	readonly worktreeId: string;
 }
 
 export type GitProjectRepositoryObservationResult =
 	| { readonly kind: 'not-repository' }
 	| { readonly code: 'discovery-failed' | 'git-unavailable'; readonly kind: 'failed' }
 	| { readonly kind: 'observed'; readonly repository: GitProjectRepositoryObservation };
+
+export interface GitProjectWorktreeObservation {
+	readonly branch: string | null;
+	readonly head: string;
+	readonly id: string;
+	readonly path: string;
+}
+
+export type GitProjectWorktreeListingResult =
+	| { readonly code: 'discovery-failed' | 'git-unavailable'; readonly kind: 'failed' }
+	| { readonly kind: 'listed'; readonly worktrees: readonly GitProjectWorktreeObservation[] };
 
 export type GitProjectWorktreeValidationResult =
 	| { readonly baseCommit: string; readonly kind: 'ready' }
@@ -71,7 +83,7 @@ export class GitProjectWorktreeAdapter {
 		} catch {
 			return { code: 'discovery-failed', kind: 'failed' };
 		}
-		const [headResult, branchResult, refsResult] = await Promise.all([
+		const [headResult, branchResult, refsResult, worktreePathResult] = await Promise.all([
 			this.#dependencies.run(directoryPath, ['rev-parse', '--verify', 'HEAD']),
 			this.#dependencies.run(directoryPath, ['symbolic-ref', '--quiet', '--short', 'HEAD']),
 			this.#dependencies.run(directoryPath, [
@@ -79,29 +91,86 @@ export class GitProjectWorktreeAdapter {
 				'--format=%(refname:short)',
 				'refs/heads',
 			]),
+			this.#dependencies.run(directoryPath, ['rev-parse', '--show-toplevel']),
 		]);
 		if (
 			headResult.spawnErrorCode !== null ||
 			branchResult.spawnErrorCode !== null ||
-			refsResult.spawnErrorCode !== null
+			refsResult.spawnErrorCode !== null ||
+			worktreePathResult.spawnErrorCode !== null
 		) {
 			return { code: 'git-unavailable', kind: 'failed' };
 		}
 		const head = oneLine(headResult.stdout);
-		if (headResult.exitCode !== 0 || head === null || refsResult.exitCode !== 0) {
+		const worktreePathValue = oneLine(worktreePathResult.stdout);
+		if (
+			headResult.exitCode !== 0 ||
+			head === null ||
+			refsResult.exitCode !== 0 ||
+			worktreePathResult.exitCode !== 0 ||
+			worktreePathValue === null
+		) {
+			return { code: 'discovery-failed', kind: 'failed' };
+		}
+		let worktreePath: string;
+		try {
+			worktreePath = await this.#dependencies.realpath(worktreePathValue);
+		} catch {
 			return { code: 'discovery-failed', kind: 'failed' };
 		}
 		const branch = branchResult.exitCode === 0 ? oneLine(branchResult.stdout) : null;
+		const repositoryIdentity = repositoryId(repositoryPath);
 		return {
 			kind: 'observed',
 			repository: {
 				branch,
 				head,
 				localBaseRefs: uniqueNonEmptyLines(refsResult.stdout),
-				repositoryId: repositoryId(repositoryPath),
+				repositoryId: repositoryIdentity,
 				repositoryPath,
+				worktreeId: worktreeId(repositoryIdentity, worktreePath),
 			},
 		};
+	}
+
+	async listWorktrees(directoryPath: string): Promise<GitProjectWorktreeListingResult> {
+		const [commonDirectory, listing] = await Promise.all([
+			this.#dependencies.run(directoryPath, ['rev-parse', '--git-common-dir']),
+			this.#dependencies.run(directoryPath, ['worktree', 'list', '--porcelain', '-z']),
+		]);
+		if (commonDirectory.spawnErrorCode !== null || listing.spawnErrorCode !== null) {
+			return { code: 'git-unavailable', kind: 'failed' };
+		}
+		if (commonDirectory.exitCode !== 0 || listing.exitCode !== 0) {
+			return { code: 'discovery-failed', kind: 'failed' };
+		}
+		const commonValue = oneLine(commonDirectory.stdout);
+		if (commonValue === null) return { code: 'discovery-failed', kind: 'failed' };
+		let repositoryPath: string;
+		try {
+			repositoryPath = await this.#dependencies.realpath(path.resolve(directoryPath, commonValue));
+		} catch {
+			return { code: 'discovery-failed', kind: 'failed' };
+		}
+		const parsed = parseWorktreeListing(listing.stdout);
+		if (parsed === null) return { code: 'discovery-failed', kind: 'failed' };
+		const repositoryIdentity = repositoryId(repositoryPath);
+		const worktrees: GitProjectWorktreeObservation[] = [];
+		for (const worktree of parsed) {
+			let canonicalPath: string;
+			try {
+				canonicalPath = await this.#dependencies.realpath(worktree.path);
+			} catch {
+				continue;
+			}
+			worktrees.push({
+				branch: worktree.branch,
+				head: worktree.head,
+				id: worktreeId(repositoryIdentity, canonicalPath),
+				path: canonicalPath,
+			});
+		}
+		return { kind: 'listed', worktrees };
 	}
 
 	async validateCreation(
@@ -302,6 +371,54 @@ export class GitProjectWorktreeAdapter {
 
 function repositoryId(repositoryPath: string): string {
 	return `repository-${createHash('sha256').update(repositoryPath).digest('hex').slice(0, 32)}`;
+}
+
+function worktreeId(repositoryIdentity: string, worktreePath: string): string {
+	return `worktree-${createHash('sha256')
+		.update(repositoryIdentity)
+		.update('\0')
+		.update(worktreePath)
+		.digest('hex')
+		.slice(0, 32)}`;
+}
+
+function parseWorktreeListing(
+	value: string,
+): readonly Omit<GitProjectWorktreeObservation, 'id'>[] | null {
+	const parsed: Omit<GitProjectWorktreeObservation, 'id'>[] = [];
+	for (const encodedRecord of value.split('\0\0').filter(Boolean)) {
+		const fields = encodedRecord.split('\0');
+		if (
+			fields.includes('bare') ||
+			fields.some((field) => field === 'prunable' || field.startsWith('prunable '))
+		) {
+			continue;
+		}
+		const pathField = fields.find((field) => field.startsWith('worktree '));
+		const headField = fields.find((field) => field.startsWith('HEAD '));
+		const branchField = fields.find((field) => field.startsWith('branch '));
+		const detached = fields.includes('detached');
+		if (
+			pathField === undefined ||
+			headField === undefined ||
+			(branchField === undefined) === !detached
+		) {
+			return null;
+		}
+		const worktreePath = pathField.slice('worktree '.length);
+		const head = headField.slice('HEAD '.length);
+		const branch = branchField?.slice('branch refs/heads/'.length) ?? null;
+		if (
+			worktreePath.length === 0 ||
+			head.length === 0 ||
+			(branchField !== undefined &&
+				(!branchField.startsWith('branch refs/heads/') || branch?.length === 0))
+		) {
+			return null;
+		}
+		parsed.push({ branch, head, path: worktreePath });
+	}
+	return parsed;
 }
 
 function oneLine(value: string): string | null {

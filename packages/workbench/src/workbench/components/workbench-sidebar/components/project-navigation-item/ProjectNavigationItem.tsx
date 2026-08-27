@@ -1,27 +1,27 @@
-import {
-	Button,
-	ContextMenu,
-	ContextMenuTrigger,
-	DropdownMenu,
-	DropdownMenuTrigger,
-	ProductIcon,
-} from '@orchbee/ui/components';
+import { Button, ContextMenu, ContextMenuTrigger, ProductIcon } from '@orchbee/ui/components';
 import * as React from 'react';
 
 import type { ProjectWorkspaceState, WorkbenchProject } from '../../../../../project-workspace';
 import { WorkbenchActionContextMenuContent } from '../../../workbench-action-context-menu-content/WorkbenchActionContextMenuContent';
-import { WorkbenchActionDropdownMenuContent } from '../../../workbench-action-dropdown-menu-content/WorkbenchActionDropdownMenuContent';
 import type {
 	WorkbenchActionMenuCommand,
 	WorkbenchActionMenuEntry,
 } from '../../../../types/workbench-action-menu';
+import type {
+	WorkbenchProjectWorktreeCapability,
+	WorkbenchProjectWorktreeDiscovery,
+} from '../../../../types/workbench-project-worktree';
 import { useNavigationReorderDrag } from '../../hooks/useNavigationReorderDrag';
 import type { WorkbenchProjectNavigationMessages } from '../../types/workbench-sidebar-types';
+import { WorkbenchSidebarDropdownMenu } from '../workbench-sidebar-dropdown-menu/WorkbenchSidebarDropdownMenu';
 import styles from './ProjectNavigationItem.module.css';
 
 interface ProjectNavigationItemProps {
 	readonly activateWorkspace: (projectId: string, workspaceId: string) => void;
 	readonly activeLocation: ProjectWorkspaceState['activeLocation'];
+	readonly adoptWorktree?:
+		| ((input: Parameters<WorkbenchProjectWorktreeCapability['adopt']>[0]) => void)
+		| undefined;
 	readonly createWorkspace: (projectId: string, directoryId: string) => void;
 	readonly createWorktree?: ((projectId: string) => void) | undefined;
 	readonly deleteWorkspace: (projectId: string, workspaceId: string) => void;
@@ -31,6 +31,7 @@ interface ProjectNavigationItemProps {
 	readonly expanded: boolean;
 	readonly messages: WorkbenchProjectNavigationMessages;
 	readonly project: WorkbenchProject;
+	readonly refreshWorktrees?: (() => void) | undefined;
 	readonly onPointerDown: (projectId: string, event: React.PointerEvent<HTMLDivElement>) => void;
 	readonly reorderActive: boolean;
 	readonly reorderWorkspace: (
@@ -42,11 +43,15 @@ interface ProjectNavigationItemProps {
 	readonly showProjectManager: (projectId: string) => void;
 	readonly showWorkspaceManager: (projectId: string, workspaceId: string) => void;
 	readonly toggleProjectExpansion: (projectId: string) => void;
+	readonly worktreeDiscovery: WorkbenchProjectWorktreeDiscovery | null;
+	readonly worktreeDiscoveryFailed: boolean;
+	readonly worktreeOperationPending: boolean;
 }
 
 export function ProjectNavigationItem({
 	activateWorkspace,
 	activeLocation,
+	adoptWorktree,
 	createWorkspace,
 	createWorktree,
 	deleteWorkspace,
@@ -56,6 +61,7 @@ export function ProjectNavigationItem({
 	expanded,
 	messages,
 	project,
+	refreshWorktrees,
 	onPointerDown,
 	reorderActive,
 	reorderWorkspace,
@@ -63,12 +69,105 @@ export function ProjectNavigationItem({
 	showProjectManager,
 	showWorkspaceManager,
 	toggleProjectExpansion,
+	worktreeDiscovery,
+	worktreeDiscoveryFailed,
+	worktreeOperationPending,
 }: ProjectNavigationItemProps): React.ReactNode {
 	const workspaceReorder = useNavigationReorderDrag(project.workspaces, (workspaceId, beforeId) =>
 		reorderWorkspace(project.id, workspaceId, beforeId),
 	);
 	const projectFolders = project.directories.filter((directory) => directory.kind === 'folder');
 	const worktrees = project.directories.filter((directory) => directory.kind === 'worktree');
+	const groupedDirectoryIds = new Set<string>();
+	const repositoryWorktreeGroups = (worktreeDiscovery?.repositories ?? []).flatMap((repository) => {
+		const representedWorktrees = worktrees.filter(
+			(directory) => directory.git.repositoryId === repository.repositoryId,
+		);
+		for (const directory of representedWorktrees) groupedDirectoryIds.add(directory.id);
+		const commands: WorkbenchActionMenuCommand[] = representedWorktrees.map((directory) => ({
+			disabled: !directory.available,
+			icon: 'git-branch',
+			id: `worktree-${directory.id}`,
+			kind: 'command',
+			label: directory.name,
+			onSelect: () => createWorkspace(project.id, directory.id),
+		}));
+		if (repository.worktreeInventory.kind === 'available') {
+			commands.push(
+				...repository.worktreeInventory.worktrees.map((worktree) => ({
+					disabled: worktreeOperationPending,
+					icon: 'git-branch' as const,
+					id: `discovered-${repository.repositoryId}-${worktree.worktreeId}`,
+					kind: 'command' as const,
+					label: worktree.label,
+					onSelect: () =>
+						adoptWorktree?.({
+							projectId: project.id,
+							repositoryId: repository.repositoryId,
+							sourceDirectoryId: repository.sourceDirectoryId,
+							worktreeId: worktree.worktreeId,
+						}),
+				})),
+			);
+		} else {
+			commands.push({
+				disabled: true,
+				icon: 'git-branch',
+				id: `worktree-inventory-unavailable-${repository.repositoryId}`,
+				kind: 'command',
+				label: messages.projectWorktreeInventoryUnavailable,
+				onSelect: () => undefined,
+			});
+		}
+		return commands.length === 0
+			? []
+			: [
+					{
+						commands,
+						id: `repository-worktrees-${repository.repositoryId}`,
+						label: repository.label,
+					},
+				];
+	});
+	const ungroupedWorktrees = worktrees.filter(
+		(directory) => !groupedDirectoryIds.has(directory.id),
+	);
+	const worktreeStatusGroups = (() => {
+		if (refreshWorktrees === undefined || worktreeDiscovery !== null) return [];
+		if (worktreeOperationPending) {
+			return [
+				{
+					commands: [
+						{
+							disabled: true,
+							icon: 'git-branch' as const,
+							id: 'worktree-inventory-loading',
+							kind: 'command' as const,
+							label: messages.projectWorktreeLoading,
+							onSelect: () => undefined,
+						},
+					],
+					id: 'worktree-inventory-status',
+				},
+			];
+		}
+		if (!worktreeDiscoveryFailed) return [];
+		return [
+			{
+				commands: [
+					{
+						disabled: true,
+						icon: 'git-branch' as const,
+						id: 'worktree-inventory-failed',
+						kind: 'command' as const,
+						label: messages.projectWorktreeInventoryUnavailable,
+						onSelect: () => undefined,
+					},
+				],
+				id: 'worktree-inventory-status',
+			},
+		];
+	})();
 	const projectMenuEntries: readonly WorkbenchActionMenuEntry[] = [
 		{
 			groups: [
@@ -82,6 +181,7 @@ export function ProjectNavigationItem({
 										id: 'new-managed-worktree',
 										kind: 'command',
 										label: messages.newWorktree,
+										disabled: worktreeOperationPending,
 										onSelect: () => createWorktree(project.id),
 									} satisfies WorkbenchActionMenuCommand,
 								],
@@ -102,20 +202,26 @@ export function ProjectNavigationItem({
 					id: 'project-folders',
 					label: messages.projectFolders,
 				},
-				{
-					commands: worktrees.map(
-						(directory): WorkbenchActionMenuCommand => ({
-							disabled: !directory.available,
-							icon: 'git-branch',
-							id: `worktree-${directory.id}`,
-							kind: 'command',
-							label: directory.name,
-							onSelect: () => createWorkspace(project.id, directory.id),
-						}),
-					),
-					id: 'project-worktrees',
-					label: messages.projectWorktrees,
-				},
+				...repositoryWorktreeGroups,
+				...(ungroupedWorktrees.length === 0
+					? []
+					: [
+							{
+								commands: ungroupedWorktrees.map(
+									(directory): WorkbenchActionMenuCommand => ({
+										disabled: !directory.available,
+										icon: 'git-branch',
+										id: `worktree-${directory.id}`,
+										kind: 'command',
+										label: directory.name,
+										onSelect: () => createWorkspace(project.id, directory.id),
+									}),
+								),
+								id: 'project-worktrees',
+								label: messages.projectWorktrees,
+							},
+						]),
+				...worktreeStatusGroups,
 			].filter((group) => group.commands.length > 0),
 			icon: 'add',
 			id: 'create-workspace',
@@ -149,13 +255,18 @@ export function ProjectNavigationItem({
 			data-project-reorder-active={reorderActive || undefined}
 			data-project-reorder-displacement={displacement ?? undefined}
 		>
-			<ContextMenu>
+			<ContextMenu
+				onOpenChange={(open) => {
+					if (open) refreshWorktrees?.();
+				}}
+			>
 				<ContextMenuTrigger
 					render={
 						<div
 							className={styles['projectRow']}
 							data-navigation-reorder-row='true'
 							data-project-reorder-row='true'
+							onContextMenu={() => refreshWorktrees?.()}
 							onPointerDown={(event) => onPointerDown(project.id, event)}
 						/>
 					}
@@ -181,22 +292,27 @@ export function ProjectNavigationItem({
 							<ProductIcon name='chevron-right' />
 						</span>
 					</Button>
-					<DropdownMenu>
-						<DropdownMenuTrigger
-							render={
-								<Button
-									aria-label={`${messages.projectOptions}: ${project.name}`}
-									className={styles['rowMenu']}
-									data-navigation-reorder-excluded='true'
-									size='icon-xs'
-									variant='ghost'
-								/>
-							}
-						>
-							<ProductIcon name='ellipsis' />
-						</DropdownMenuTrigger>
-						<WorkbenchActionDropdownMenuContent align='start' entries={projectMenuEntries} />
-					</DropdownMenu>
+					<WorkbenchSidebarDropdownMenu
+						entries={projectMenuEntries}
+						onOpenChange={(open) => {
+							if (open) refreshWorktrees?.();
+						}}
+						trigger={
+							<Button
+								aria-label={`${messages.projectOptions}: ${project.name}`}
+								className={styles['rowMenu']}
+								data-navigation-reorder-excluded='true'
+								size='icon-xs'
+								variant='ghost'
+								onClick={(event) => {
+									if (event.currentTarget.getAttribute('aria-expanded') !== 'true') {
+										refreshWorktrees?.();
+									}
+								}}
+							/>
+						}
+						triggerContent={<ProductIcon name='ellipsis' />}
+					/>
 				</ContextMenuTrigger>
 				<WorkbenchActionContextMenuContent entries={projectMenuEntries} />
 			</ContextMenu>
@@ -278,22 +394,19 @@ export function ProjectNavigationItem({
 											</span>
 											<span className={styles['workspaceName']}>{workspace.name}</span>
 										</Button>
-										<DropdownMenu>
-											<DropdownMenuTrigger
-												render={
-													<Button
-														aria-label={`${messages.workspaceOptions}: ${workspace.name}`}
-														className={styles['rowMenu']}
-														data-navigation-reorder-excluded='true'
-														size='icon-xs'
-														variant='ghost'
-													/>
-												}
-											>
-												<ProductIcon name='ellipsis' />
-											</DropdownMenuTrigger>
-											<WorkbenchActionDropdownMenuContent entries={workspaceMenuEntries} />
-										</DropdownMenu>
+										<WorkbenchSidebarDropdownMenu
+											entries={workspaceMenuEntries}
+											trigger={
+												<Button
+													aria-label={`${messages.workspaceOptions}: ${workspace.name}`}
+													className={styles['rowMenu']}
+													data-navigation-reorder-excluded='true'
+													size='icon-xs'
+													variant='ghost'
+												/>
+											}
+											triggerContent={<ProductIcon name='ellipsis' />}
+										/>
 									</ContextMenuTrigger>
 									<WorkbenchActionContextMenuContent entries={workspaceMenuEntries} />
 								</ContextMenu>

@@ -15,10 +15,13 @@ export type {
 } from './types/workbench-project-folder-acquisition';
 export type {
 	WorkbenchProjectWorktreeCapability,
+	WorkbenchProjectWorktreeAdoptionResult,
 	WorkbenchProjectWorktreeCreationResult,
 	WorkbenchProjectWorktreeDiscovery,
 	WorkbenchProjectWorktreeDiscoveryResult,
+	WorkbenchProjectExistingWorktree,
 	WorkbenchProjectWorktreeFailureCode,
+	WorkbenchProjectWorktreeInventory,
 	WorkbenchProjectWorktreeRepository,
 } from './types/workbench-project-worktree';
 export { WORKBENCH_SHORTCUTS, defaultWorkbenchShortcutBindings } from './utils/workbench-shortcuts';

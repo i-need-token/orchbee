@@ -24,6 +24,8 @@ describe('VerticalTabStripBottomContainer', () => {
 		expect(onNewTab).toHaveBeenCalledOnce();
 		expect(onContextMenu).toHaveBeenCalledOnce();
 		expect(container.firstElementChild?.getAttribute('data-orientation')).toBe('vertical');
+		expect(button.querySelector('[data-icon="add"]')).not.toBeNull();
+		expect(button.querySelector('[data-tab-strip-icon="plus"]')).toBeNull();
 		expect(button.querySelector('[data-flat-edge-label]')).toBeNull();
 	});
 });

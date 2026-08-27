@@ -13,7 +13,20 @@ export type WorkbenchProjectWorktreeFailureCode =
 	| 'recovery-required'
 	| 'repository-not-found'
 	| 'source-unavailable'
-	| 'target-conflict';
+	| 'target-conflict'
+	| 'worktree-not-found';
+
+export interface WorkbenchProjectExistingWorktree {
+	readonly label: string;
+	readonly worktreeId: string;
+}
+
+export type WorkbenchProjectWorktreeInventory =
+	| {
+			readonly kind: 'available';
+			readonly worktrees: readonly WorkbenchProjectExistingWorktree[];
+	  }
+	| { readonly kind: 'unavailable' };
 
 export interface WorkbenchProjectWorktreeRepository {
 	readonly defaultBaseRef: string;
@@ -22,6 +35,7 @@ export interface WorkbenchProjectWorktreeRepository {
 	readonly repositoryId: string;
 	readonly sourceDirectoryId: string;
 	readonly suggestedBranchName: string;
+	readonly worktreeInventory: WorkbenchProjectWorktreeInventory;
 }
 
 export interface WorkbenchProjectWorktreeDiscovery {
@@ -41,7 +55,21 @@ export type WorkbenchProjectWorktreeCreationResult =
 	  }
 	| { readonly code: WorkbenchProjectWorktreeFailureCode; readonly kind: 'failed' };
 
+export type WorkbenchProjectWorktreeAdoptionResult =
+	| {
+			readonly directoryId: string;
+			readonly kind: 'adopted';
+			readonly workspaceId: string;
+	  }
+	| { readonly code: WorkbenchProjectWorktreeFailureCode; readonly kind: 'failed' };
+
 export interface WorkbenchProjectWorktreeCapability {
+	adopt(input: {
+		readonly projectId: string;
+		readonly repositoryId: string;
+		readonly sourceDirectoryId: string;
+		readonly worktreeId: string;
+	}): Promise<WorkbenchProjectWorktreeAdoptionResult>;
 	create(input: {
 		readonly baseRef: string;
 		readonly branchName: string;

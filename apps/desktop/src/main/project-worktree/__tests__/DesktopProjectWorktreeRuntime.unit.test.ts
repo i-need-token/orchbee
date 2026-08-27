@@ -36,6 +36,10 @@ describe('DesktopProjectWorktreeRuntime', () => {
 						repositoryId: 'repository-1',
 						sourceDirectoryId: 'directory-1',
 						suggestedBranchName: 'orchbee/workspace-2',
+						worktreeInventory: {
+							kind: 'available',
+							worktrees: [{ label: 'feature/external', worktreeId: 'worktree-external' }],
+						},
 					},
 				],
 			},
@@ -88,6 +92,139 @@ describe('DesktopProjectWorktreeRuntime', () => {
 		});
 		expect(fixture.operations).toEqual([]);
 		expect(fixture.git.compensateWorktree).not.toHaveBeenCalled();
+	});
+
+	it('revalidates and adopts an existing Worktree without mutating Git', async () => {
+		const fixture = await createFixture();
+
+		expect(
+			await fixture.runtime.adopt({
+				projectId: 'project-1',
+				repositoryId: 'repository-1',
+				sourceDirectoryId: 'directory-1',
+				worktreeId: 'worktree-external',
+			}),
+		).toEqual({
+			kind: 'completed',
+			value: {
+				directoryId: 'discovered-worktree-external',
+				workspaceId: 'workspace-2',
+			},
+		});
+		expect(fixture.coordinator.canonicalDocument?.projectWorkspace.projects[0]).toMatchObject({
+			directories: [
+				{ id: 'directory-1' },
+				{
+					git: {
+						branch: 'feature/external',
+						head: 'def456',
+						repositoryId: 'repository-1',
+						worktree: true,
+					},
+					id: 'discovered-worktree-external',
+					path: '/external/feature-external',
+					source: 'discovered',
+				},
+			],
+			workspaces: [
+				{ id: 'workspace-1' },
+				{
+					id: 'workspace-2',
+					name: 'feature/external',
+					primaryDirectoryId: 'discovered-worktree-external',
+				},
+			],
+		});
+		expect(fixture.git.createWorktree).not.toHaveBeenCalled();
+		expect(fixture.git.compensateWorktree).not.toHaveBeenCalled();
+		expect(fixture.operations).toEqual([]);
+	});
+
+	it('rejects a stale Worktree identity without changing the canonical document', async () => {
+		const fixture = await createFixture();
+		const original = fixture.coordinator.canonicalDocument;
+
+		expect(
+			await fixture.runtime.adopt({
+				projectId: 'project-1',
+				repositoryId: 'repository-1',
+				sourceDirectoryId: 'directory-1',
+				worktreeId: 'worktree-stale',
+			}),
+		).toEqual({ code: 'worktree-not-found', kind: 'failed' });
+		expect(fixture.coordinator.canonicalDocument).toBe(original);
+		expect(fixture.git.createWorktree).not.toHaveBeenCalled();
+		expect(fixture.operations).toEqual([]);
+	});
+
+	it('leaves Git and the canonical document unchanged when adoption commit fails', async () => {
+		const fixture = await createFixture({ failDocumentCommit: true });
+		const original = fixture.coordinator.canonicalDocument;
+
+		expect(
+			await fixture.runtime.adopt({
+				projectId: 'project-1',
+				repositoryId: 'repository-1',
+				sourceDirectoryId: 'directory-1',
+				worktreeId: 'worktree-external',
+			}),
+		).toEqual({ code: 'control-unavailable', kind: 'failed' });
+		expect(fixture.coordinator.canonicalDocument).toBe(original);
+		expect(fixture.git.createWorktree).not.toHaveBeenCalled();
+		expect(fixture.git.compensateWorktree).not.toHaveBeenCalled();
+		expect(fixture.operations).toEqual([]);
+	});
+
+	it('keeps existing Worktree inventories grouped by each represented repository', async () => {
+		const fixture = await createFixture({ secondRepository: true });
+
+		const discovery = await fixture.runtime.discover('project-1', 'directory-1');
+
+		expect(discovery).toMatchObject({
+			kind: 'completed',
+			value: {
+				repositories: [
+					{
+						label: 'repository',
+						repositoryId: 'repository-1',
+						worktreeInventory: {
+							kind: 'available',
+							worktrees: [{ label: 'feature/external' }],
+						},
+					},
+					{
+						label: 'ghostty',
+						repositoryId: 'repository-2',
+						worktreeInventory: {
+							kind: 'available',
+							worktrees: [{ label: 'feature/ghostty' }],
+						},
+					},
+				],
+			},
+		});
+	});
+
+	it('reuses an equivalent Directory that became represented before adoption commits', async () => {
+		const fixture = await createFixture({ existingExternalDirectory: true });
+
+		expect(
+			await fixture.runtime.adopt({
+				projectId: 'project-1',
+				repositoryId: 'repository-1',
+				sourceDirectoryId: 'directory-1',
+				worktreeId: 'worktree-external',
+			}),
+		).toEqual({
+			kind: 'completed',
+			value: { directoryId: 'existing-external', workspaceId: 'workspace-2' },
+		});
+		expect(
+			fixture.coordinator.canonicalDocument?.projectWorkspace.projects[0]?.directories,
+		).toHaveLength(2);
+		expect(
+			fixture.coordinator.canonicalDocument?.projectWorkspace.projects[0]?.workspaces[1],
+		).toMatchObject({ primaryDirectoryId: 'existing-external' });
 	});
 
 	it('compensates the exact Git mutation when canonical document commit fails', async () => {
@@ -171,12 +308,17 @@ describe('DesktopProjectWorktreeRuntime', () => {
 async function createFixture(
 	options: {
 		readonly allocateIdentifier?: () => string;
+		readonly existingExternalDirectory?: boolean;
 		readonly failDocumentCommit?: boolean;
 		readonly pending?: ProjectWorktreeOperationRecord;
 		readonly recoveryFails?: boolean;
+		readonly secondRepository?: boolean;
 	} = {},
 ) {
-	const initialDocument = projectDocument();
+	const initialDocument = projectDocument(
+		options.secondRepository === true,
+		options.existingExternalDirectory === true,
+	);
 	const store: WorkbenchDocumentStore = {
 		commit: vi.fn<WorkbenchDocumentStore['commit']>(async (_expected, document) =>
 			options.failDocumentCommit === true
@@ -218,18 +360,44 @@ async function createFixture(
 		createWorktree: vi
 			.fn<DesktopProjectWorktreeRuntimeDependencies['git']['createWorktree']>()
 			.mockResolvedValue('created'),
+		listWorktrees: vi
+			.fn<DesktopProjectWorktreeRuntimeDependencies['git']['listWorktrees']>()
+			.mockImplementation(async (directoryPath) => ({
+				kind: 'listed',
+				worktrees: [
+					{
+						branch: directoryPath.includes('ghostty') ? 'stable' : 'main',
+						head: 'abc123',
+						id: directoryPath.includes('ghostty') ? 'worktree-ghostty-main' : 'worktree-main',
+						path: directoryPath,
+					},
+					{
+						branch: directoryPath.includes('ghostty') ? 'feature/ghostty' : 'feature/external',
+						head: 'def456',
+						id: directoryPath.includes('ghostty')
+							? 'worktree-ghostty-external'
+							: 'worktree-external',
+						path: directoryPath.includes('ghostty')
+							? '/external/feature-ghostty'
+							: '/external/feature-external',
+					},
+				],
+			})),
 		observeRepository: vi
 			.fn<DesktopProjectWorktreeRuntimeDependencies['git']['observeRepository']>()
-			.mockResolvedValue({
+			.mockImplementation(async (directoryPath) => ({
 				kind: 'observed',
 				repository: {
-					branch: 'main',
+					branch: directoryPath.includes('ghostty') ? 'stable' : 'main',
 					head: 'abc123',
-					localBaseRefs: ['main', 'orchbee/workspace-1'],
-					repositoryId: 'repository-1',
-					repositoryPath: '/projects/repository/.git',
+					localBaseRefs: directoryPath.includes('ghostty')
+						? ['stable']
+						: ['main', 'orchbee/workspace-1'],
+					repositoryId: directoryPath.includes('ghostty') ? 'repository-2' : 'repository-1',
+					repositoryPath: `${directoryPath}/.git`,
+					worktreeId: directoryPath.includes('ghostty') ? 'worktree-ghostty-main' : 'worktree-main',
 				},
-			}),
+			})),
 		validateCreation: vi
 			.fn<DesktopProjectWorktreeRuntimeDependencies['git']['validateCreation']>()
 			.mockResolvedValue({ baseCommit: 'abc123', kind: 'ready' }),
@@ -265,7 +433,7 @@ async function createFixture(
 	};
 }
 
-function projectDocument() {
+function projectDocument(secondRepository = false, existingExternalDirectory = false) {
 	let identity = 0;
 	const runtime = new WorkbenchProjectWorkspaceRuntime({
 		standaloneCwd: '/system',
@@ -296,5 +464,40 @@ function projectDocument() {
 		terminalTitle: 'Terminal',
 		type: 'project-created',
 	});
+	if (secondRepository) {
+		runtime.transition({
+			directory: {
+				available: true,
+				git: null,
+				id: 'directory-2',
+				kind: 'folder',
+				name: 'ghostty',
+				path: '/projects/ghostty',
+				source: 'selected',
+			},
+			projectId: 'project-1',
+			type: 'directory-added',
+		});
+	}
+	if (existingExternalDirectory) {
+		runtime.transition({
+			directory: {
+				available: true,
+				git: {
+					branch: 'feature/external',
+					head: 'def456',
+					repositoryId: 'repository-1',
+					worktree: true,
+				},
+				id: 'existing-external',
+				kind: 'worktree',
+				name: 'feature/external',
+				path: '/external/feature-external',
+				source: 'discovered',
+			},
+			projectId: 'project-1',
+			type: 'directory-added',
+		});
+	}
 	return runtime.getSharedDocument(workbenchSharedDocumentRevision('1'));
 }

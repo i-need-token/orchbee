@@ -2,6 +2,7 @@ import { chmod, lstat, mkdir } from 'node:fs/promises';
 import path from 'node:path';
 
 import type {
+	DesktopProjectWorktreeAdoptionResult,
 	DesktopProjectWorktreeCreationResult,
 	DesktopProjectWorktreeDiscovery,
 	DesktopProjectWorktreeFailureCode,
@@ -18,6 +19,7 @@ import type { DesktopClientSessionCoordinator } from '../client-session';
 import {
 	GitProjectWorktreeAdapter,
 	type GitProjectRepositoryObservation,
+	type GitProjectWorktreeObservation,
 } from './GitProjectWorktreeAdapter';
 import type {
 	ProjectWorktreeOperationRecord,
@@ -41,7 +43,11 @@ export interface DesktopProjectWorktreeRuntimeDependencies {
 	readonly chmod: (filePath: string, mode: number) => Promise<void>;
 	readonly git: Pick<
 		GitProjectWorktreeAdapter,
-		'compensateWorktree' | 'createWorktree' | 'observeRepository' | 'validateCreation'
+		| 'compensateWorktree'
+		| 'createWorktree'
+		| 'listWorktrees'
+		| 'observeRepository'
+		| 'validateCreation'
 	>;
 	readonly lstat: (filePath: string) => Promise<unknown>;
 	readonly mkdir: (
@@ -130,7 +136,11 @@ export class DesktopProjectWorktreeRuntime {
 			string,
 			{
 				readonly label: string;
+				readonly listing: Awaited<
+					ReturnType<DesktopProjectWorktreeRuntimeDependencies['git']['listWorktrees']>
+				>;
 				readonly observation: GitProjectRepositoryObservation;
+				readonly representedWorktreeIds: Set<string>;
 				readonly sourceDirectoryId: string;
 			}
 		>();
@@ -141,12 +151,18 @@ export class DesktopProjectWorktreeRuntime {
 				return failed('git-unavailable');
 			}
 			if (observation.kind !== 'observed') continue;
-			if (!repositories.has(observation.repository.repositoryId)) {
-				repositories.set(observation.repository.repositoryId, {
+			const repositoryId = observation.repository.repositoryId;
+			const existingRepository = repositories.get(repositoryId);
+			if (existingRepository === undefined) {
+				repositories.set(repositoryId, {
 					label: directory.name,
+					listing: await this.#dependencies.git.listWorktrees(directory.path),
 					observation: observation.repository,
+					representedWorktreeIds: new Set([observation.repository.worktreeId]),
 					sourceDirectoryId: directory.id,
 				});
+			} else {
+				existingRepository.representedWorktreeIds.add(observation.repository.worktreeId);
 			}
 		}
 		return {
@@ -154,17 +170,41 @@ export class DesktopProjectWorktreeRuntime {
 			value: {
 				managedRoot: this.#options.managedRoot,
 				repositories: [...repositories.values()].map(
-					({ label, observation, sourceDirectoryId }) => ({
+					({ label, listing, observation, representedWorktreeIds, sourceDirectoryId }) => ({
 						defaultBaseRef: observation.branch ?? observation.head,
 						label,
 						localBaseRefs: [...observation.localBaseRefs],
 						repositoryId: observation.repositoryId,
 						sourceDirectoryId,
 						suggestedBranchName: suggestedBranchName(observation.localBaseRefs),
+						worktreeInventory:
+							listing.kind === 'failed'
+								? { kind: 'unavailable' as const }
+								: {
+										kind: 'available' as const,
+										worktrees: listing.worktrees
+											.filter((worktree) => !representedWorktreeIds.has(worktree.id))
+											.map((worktree) => ({
+												label: worktreeLabel(worktree),
+												worktreeId: worktree.id,
+											})),
+									},
 					}),
 				),
 			},
 		};
+	}
+
+	adopt(input: {
+		readonly projectId: string;
+		readonly repositoryId: string;
+		readonly sourceDirectoryId: string;
+		readonly worktreeId: string;
+	}): Promise<DesktopProjectWorktreeRuntimeResult<DesktopProjectWorktreeAdoptionResult>> {
+		if (this.#startResult !== 'ready' || this.#disposed) {
+			return Promise.resolve(failed('control-unavailable'));
+		}
+		return this.#enqueueRepository(input.repositoryId, async () => this.#adoptOwned(input));
 	}
 
 	create(input: {
@@ -184,6 +224,151 @@ export class DesktopProjectWorktreeRuntime {
 	async dispose(): Promise<void> {
 		this.#disposed = true;
 		await Promise.allSettled(this.#repositoryTails.values());
+	}
+
+	async #adoptOwned(input: {
+		readonly projectId: string;
+		readonly repositoryId: string;
+		readonly sourceDirectoryId: string;
+		readonly worktreeId: string;
+	}): Promise<DesktopProjectWorktreeRuntimeResult<DesktopProjectWorktreeAdoptionResult>> {
+		if (
+			[...this.#operations.values()].some(
+				(operation) => operation.repositoryId === input.repositoryId,
+			)
+		) {
+			return failed('recovery-required');
+		}
+		const document = this.#options.coordinator.canonicalDocument;
+		const project = document?.projectWorkspace.projects.find(
+			(candidate) => candidate.id === input.projectId,
+		);
+		if (project === undefined) return failed('project-not-found');
+		const sourceDirectory = project.directories.find(
+			(directory) => directory.id === input.sourceDirectoryId,
+		);
+		if (sourceDirectory === undefined || !sourceDirectory.available) {
+			return failed('source-unavailable');
+		}
+		const sourceObservation = await this.#dependencies.git.observeRepository(sourceDirectory.path);
+		if (sourceObservation.kind === 'failed') return failed(sourceObservation.code);
+		if (
+			sourceObservation.kind !== 'observed' ||
+			sourceObservation.repository.repositoryId !== input.repositoryId
+		) {
+			return failed('repository-not-found');
+		}
+		if (sourceObservation.repository.worktreeId === input.worktreeId) {
+			return failed('worktree-not-found');
+		}
+		const listing = await this.#dependencies.git.listWorktrees(sourceDirectory.path);
+		if (listing.kind === 'failed') return failed(listing.code);
+		const selectedWorktree = listing.worktrees.find((worktree) => worktree.id === input.worktreeId);
+		if (selectedWorktree === undefined) return failed('worktree-not-found');
+
+		let equivalentDirectory = project.directories.find(
+			(directory) => directory.path === selectedWorktree.path,
+		);
+		if (equivalentDirectory === undefined) {
+			for (const directory of project.directories) {
+				if (!directory.available || directory.id === sourceDirectory.id) continue;
+				const observation = await this.#dependencies.git.observeRepository(directory.path);
+				if (
+					observation.kind === 'observed' &&
+					observation.repository.repositoryId === input.repositoryId &&
+					observation.repository.worktreeId === selectedWorktree.id
+				) {
+					equivalentDirectory = directory;
+					break;
+				}
+			}
+		}
+
+		let directoryId = `discovered-${selectedWorktree.id}`;
+		let workspaceId = '';
+		let mutation: Awaited<ReturnType<DesktopClientSessionCoordinator['mutateCanonicalDocument']>>;
+		try {
+			mutation = await this.#options.coordinator.mutateCanonicalDocument((canonical) => {
+				const currentProject = canonical.projectWorkspace.projects.find(
+					(candidate) => candidate.id === input.projectId,
+				);
+				const currentSource = currentProject?.directories.find(
+					(directory) => directory.id === input.sourceDirectoryId,
+				);
+				if (
+					currentProject === undefined ||
+					currentSource === undefined ||
+					!currentSource.available ||
+					currentSource.path !== sourceDirectory.path
+				) {
+					return { kind: 'rejected', reason: 'source-unavailable' };
+				}
+				const exactEquivalent = currentProject.directories.find(
+					(directory) => directory.path === selectedWorktree.path,
+				);
+				const previousEquivalent =
+					equivalentDirectory === undefined
+						? undefined
+						: currentProject.directories.find(
+								(directory) =>
+									directory.id === equivalentDirectory.id &&
+									directory.path === equivalentDirectory.path,
+							);
+				const currentEquivalent = exactEquivalent ?? previousEquivalent;
+				if (currentEquivalent !== undefined && !currentEquivalent.available) {
+					return { kind: 'rejected', reason: 'source-unavailable' };
+				}
+				const runtime = this.#documentRuntime(canonical);
+				workspaceId = `workspace-${runtime.getSnapshot().nextWorkspaceSequence}`;
+				directoryId = currentEquivalent?.id ?? directoryId;
+				const transition =
+					currentEquivalent === undefined
+						? runtime.transition({
+								directory: {
+									available: true,
+									git: {
+										branch: selectedWorktree.branch,
+										head: selectedWorktree.head,
+										repositoryId: input.repositoryId,
+										worktree: true,
+									},
+									id: directoryId,
+									kind: 'worktree',
+									name: worktreeLabel(selectedWorktree),
+									path: selectedWorktree.path,
+									source: 'discovered',
+								},
+								projectId: input.projectId,
+								sourceDirectoryId: input.sourceDirectoryId,
+								terminalTitle: this.#options.terminalTitle,
+								type: 'project-worktree-adopted',
+								workspaceName: worktreeLabel(selectedWorktree),
+							})
+						: runtime.transition({
+								directoryId: currentEquivalent.id,
+								launchConfigurationId: null,
+								name: worktreeLabel(selectedWorktree),
+								projectId: input.projectId,
+								terminalTitle: this.#options.terminalTitle,
+								type: 'workspace-created',
+							});
+				if (transition.outcome !== 'applied') {
+					return { kind: 'rejected', reason: transition.rejection ?? 'document-conflict' };
+				}
+				return {
+					document: runtime.getSharedDocument(
+						workbenchSharedDocumentRevision((BigInt(canonical.revision) + 1n).toString()),
+					),
+					kind: 'commit',
+				};
+			});
+		} catch {
+			return failed('document-conflict');
+		}
+		if (mutation.kind !== 'committed') {
+			return failed(mutation.kind === 'unavailable' ? 'control-unavailable' : 'document-conflict');
+		}
+		return { kind: 'completed', value: { directoryId, workspaceId } };
 	}
 
 	async #createOwned(input: {
@@ -482,6 +667,12 @@ function suggestedBranchName(localBaseRefs: readonly string[]): string {
 	let sequence = 1;
 	while (existing.has(`orchbee/workspace-${sequence}`)) sequence += 1;
 	return `orchbee/workspace-${sequence}`;
+}
+
+function worktreeLabel(
+	worktree: Pick<GitProjectWorktreeObservation, 'branch' | 'id' | 'path'>,
+): string {
+	return (worktree.branch ?? path.basename(worktree.path)) || worktree.id;
 }
 
 function failed(code: DesktopProjectWorktreeFailureCode) {

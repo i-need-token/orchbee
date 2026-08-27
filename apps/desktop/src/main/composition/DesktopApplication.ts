@@ -186,7 +186,7 @@ interface DesktopProjectWorktreeBrokerHandle {
 
 type DesktopProjectWorktreeRuntimeHandle = Pick<
 	DesktopProjectWorktreeRuntime,
-	'create' | 'discover' | 'dispose' | 'start'
+	'adopt' | 'create' | 'discover' | 'dispose' | 'start'
 >;
 
 interface DesktopTerminalLaunchProfileBrokerHandle {

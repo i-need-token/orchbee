@@ -67,11 +67,12 @@ export const zhCNWorkbenchMessages = {
 	'workbench.projects.worktree.failure.branchAlreadyExists': '该分支已存在。',
 	'workbench.projects.worktree.failure.compensationFailed':
 		'Orchbee 未能完整回滚失败的操作。请重启 Orchbee 后再操作此仓库。',
-	'workbench.projects.worktree.failure.generic': '无法创建 Worktree。请检查仓库后重试。',
+	'workbench.projects.worktree.failure.generic': 'Worktree 已不可用或无法使用。请检查仓库后重试。',
 	'workbench.projects.worktree.failure.invalidBranch': '请输入有效的新 Git 分支名。',
 	'workbench.projects.worktree.failure.recoveryRequired':
 		'此仓库存在未完成的 Worktree 恢复。请重启 Orchbee 后重试。',
-	'workbench.projects.worktree.failure.title': '无法创建 Worktree',
+	'workbench.projects.worktree.failure.title': '无法使用 Worktree',
+	'workbench.projects.worktree.inventoryUnavailable': '无法读取 Worktree',
 	'workbench.projects.worktree.loading': '正在读取本地 Git 仓库…',
 	'workbench.projects.worktree.location': '托管位置',
 	'workbench.projects.worktree.locationAutomatic': '{root}/managed-worktree-…',

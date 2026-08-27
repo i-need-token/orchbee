@@ -6,12 +6,18 @@ import {
 } from '@orchbee/desktop-client-protocol';
 import type {
 	WorkbenchProjectWorktreeCapability,
+	WorkbenchProjectWorktreeAdoptionResult,
 	WorkbenchProjectWorktreeCreationResult,
 	WorkbenchProjectWorktreeDiscoveryResult,
 	WorkbenchProjectWorktreeFailureCode,
 } from '@orchbee/workbench';
 
 type PendingRequest =
+	| {
+			readonly kind: 'adoption';
+			readonly requestId: DesktopProjectWorktreeRequestId;
+			resolve(result: WorkbenchProjectWorktreeAdoptionResult): void;
+	  }
 	| {
 			readonly kind: 'creation';
 			readonly requestId: DesktopProjectWorktreeRequestId;
@@ -43,6 +49,29 @@ export class DesktopProjectWorktreeClient implements WorkbenchProjectWorktreeCap
 				));
 		this.#port.addEventListener('message', this.#handleMessage);
 		this.#port.start();
+	}
+
+	adopt(
+		input: Parameters<WorkbenchProjectWorktreeCapability['adopt']>[0],
+	): Promise<WorkbenchProjectWorktreeAdoptionResult> {
+		if (this.#disposed) return Promise.resolve(failed('control-unavailable'));
+		if (this.#pending !== undefined) return Promise.resolve(failed('busy'));
+		const requestId = this.#createRequestId();
+		const result = new Promise<WorkbenchProjectWorktreeAdoptionResult>((resolve) => {
+			this.#pending = { kind: 'adoption', requestId, resolve };
+		});
+		try {
+			this.#port.postMessage(
+				DesktopProjectWorktreeRendererCommandSchema.parse({
+					...input,
+					requestId,
+					type: 'desktop-project-worktree-adoption-requested',
+				}),
+			);
+		} catch {
+			this.#settleFailed('control-unavailable');
+		}
+		return result;
 	}
 
 	create(
@@ -114,6 +143,13 @@ export class DesktopProjectWorktreeClient implements WorkbenchProjectWorktreeCap
 		this.#pending = undefined;
 		if (parsed.data.type === 'desktop-project-worktree-failed') {
 			pending.resolve(failed(parsed.data.code));
+			return;
+		}
+		if (
+			parsed.data.type === 'desktop-project-worktree-adoption-completed' &&
+			pending.kind === 'adoption'
+		) {
+			pending.resolve({ ...parsed.data.result, kind: 'adopted' });
 			return;
 		}
 		if (

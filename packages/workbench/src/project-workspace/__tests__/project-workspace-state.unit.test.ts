@@ -6,8 +6,12 @@ import {
 	transitionProjectWorkspace,
 	type ProjectWorkspaceState,
 	type WorkbenchDirectory,
+	type WorkbenchFolderDirectory,
+	type WorkbenchWorktreeDirectory,
 } from '../project-workspace-state';
 
+function directory(id: string, kind: 'worktree'): WorkbenchWorktreeDirectory;
+function directory(id: string, kind?: 'folder'): WorkbenchFolderDirectory;
 function directory(id: string, kind: WorkbenchDirectory['kind'] = 'folder'): WorkbenchDirectory {
 	const base = {
 		available: true,
@@ -31,7 +35,7 @@ function directory(id: string, kind: WorkbenchDirectory['kind'] = 'folder'): Wor
 		: { ...base, git: null, kind };
 }
 
-function repositoryDirectory(id: string): WorkbenchDirectory {
+function repositoryDirectory(id: string): WorkbenchFolderDirectory {
 	return {
 		available: true,
 		git: {
@@ -48,7 +52,10 @@ function repositoryDirectory(id: string): WorkbenchDirectory {
 	};
 }
 
-function createProject(state: ProjectWorkspaceState, primaryDirectory = directory('directory-a')) {
+function createProject(
+	state: ProjectWorkspaceState,
+	primaryDirectory: WorkbenchDirectory = directory('directory-a'),
+) {
 	return transitionProjectWorkspace(state, {
 		directory: primaryDirectory,
 		launchConfigurations: [],
@@ -201,6 +208,103 @@ describe('project-workspace-state', () => {
 			rejection: 'directory-invalid',
 			state,
 		});
+	});
+
+	it('adopts a detached existing Worktree and creates its Workspace atomically', () => {
+		const sourceDirectory = repositoryDirectory('directory-a');
+		const state = createProject(createProjectWorkspaceState(), sourceDirectory);
+		const result = transitionProjectWorkspace(state, {
+			directory: {
+				available: true,
+				git: {
+					branch: null,
+					head: 'def456',
+					repositoryId: 'repository-1',
+					worktree: true,
+				},
+				id: 'discovered-worktree-1',
+				kind: 'worktree',
+				name: 'detached-checkout',
+				path: '/external/detached-checkout',
+				source: 'discovered',
+			},
+			projectId: 'project-1',
+			sourceDirectoryId: 'directory-a',
+			terminalTitle: 'Terminal 2',
+			type: 'project-worktree-adopted',
+			workspaceName: 'detached-checkout',
+		});
+
+		expect(result).toMatchObject({
+			commands: [
+				{
+					cwd: '/external/detached-checkout',
+					terminalContextId: 'terminal-context-3',
+					terminalTitle: 'Terminal 2',
+					type: 'terminal-context-created',
+				},
+			],
+			outcome: 'applied',
+		});
+		expect(result.state).toMatchObject({
+			activeLocation: {
+				kind: 'workspace',
+				projectId: 'project-1',
+				workspaceId: 'workspace-2',
+			},
+			projects: [
+				{
+					directories: [
+						{ id: 'directory-a' },
+						{ id: 'discovered-worktree-1', source: 'discovered' },
+					],
+					workspaces: [
+						{ id: 'workspace-1' },
+						{
+							id: 'workspace-2',
+							name: 'detached-checkout',
+							primaryDirectoryId: 'discovered-worktree-1',
+						},
+					],
+				},
+			],
+		});
+	});
+
+	it('rejects an adopted Worktree with a created source or another repository', () => {
+		const sourceDirectory = repositoryDirectory('directory-a');
+		const state = createProject(createProjectWorkspaceState(), sourceDirectory);
+		for (const candidateDirectory of [
+			{
+				...directory('discovered-worktree-1', 'worktree'),
+				source: 'created' as const,
+			},
+			{
+				...directory('discovered-worktree-2', 'worktree'),
+				git: {
+					branch: 'feature/two',
+					head: 'def456',
+					repositoryId: 'repository-2',
+					worktree: true as const,
+				},
+			},
+		]) {
+			expect(
+				transitionProjectWorkspace(state, {
+					directory: candidateDirectory,
+					projectId: 'project-1',
+					sourceDirectoryId: 'directory-a',
+					terminalTitle: 'Terminal 2',
+					type: 'project-worktree-adopted',
+					workspaceName: candidateDirectory.name,
+				}),
+			).toEqual({
+				commands: [],
+				outcome: 'rejected',
+				rejection: 'directory-invalid',
+				state,
+			});
+		}
 	});
 
 	it('creates a Project, Primary Workspace, active context, and shell command atomically', () => {

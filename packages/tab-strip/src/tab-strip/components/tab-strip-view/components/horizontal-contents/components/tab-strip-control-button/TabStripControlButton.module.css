@@ -2,6 +2,10 @@
 	composes: ct-tab-strip-control-button from '../../../../TabStripView.module.css';
 }
 
+.ct-tab-strip-control-button__target {
+	composes: ct-tab-strip-control-button__target from '../../../../TabStripView.module.css';
+}
+
 .ct-tab-strip-control-button__icon {
 	composes: ct-tab-strip-control-button__icon from '../../../../TabStripView.module.css';
 }

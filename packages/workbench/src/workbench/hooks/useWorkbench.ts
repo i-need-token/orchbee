@@ -522,9 +522,13 @@ export function useWorkbench({
 				'repository-not-found': intl.formatMessage(workbenchMessages.projectWorktreeFailureGeneric),
 				'source-unavailable': intl.formatMessage(workbenchMessages.projectWorktreeFailureGeneric),
 				'target-conflict': intl.formatMessage(workbenchMessages.projectWorktreeFailureGeneric),
+				'worktree-not-found': intl.formatMessage(workbenchMessages.projectWorktreeFailureGeneric),
 			},
 			projectWorktreeFailureTitle: intl.formatMessage(
 				workbenchMessages.projectWorktreeFailureTitle,
+			),
+			projectWorktreeInventoryUnavailable: intl.formatMessage(
+				workbenchMessages.projectWorktreeInventoryUnavailable,
 			),
 			projectWorktreeLoading: intl.formatMessage(workbenchMessages.projectWorktreeLoading),
 			projectWorktreeLocation: intl.formatMessage(workbenchMessages.projectWorktreeLocation),

@@ -7,16 +7,26 @@ import { describe, expect, it } from 'vitest';
 import { DesktopProjectWorktreeClient } from '../DesktopProjectWorktreeClient';
 
 describe('DesktopProjectWorktreeClient', () => {
-	it('discovers and creates through typed request identities', async () => {
+	it('discovers, creates, and adopts through typed request identities', async () => {
 		const channel = new MessageChannel();
 		channel.port2.addEventListener('message', (event) => {
 			const command = DesktopProjectWorktreeRendererCommandSchema.parse(event.data);
+			if (command.type === 'desktop-project-worktree-discovery-requested') {
+				channel.port2.postMessage(
+					DesktopProjectWorktreeMainEventSchema.parse({
+						discovery: { managedRoot: '/managed', repositories: [] },
+						requestId: command.requestId,
+						type: 'desktop-project-worktree-discovery-completed',
+					}),
+				);
+				return;
+			}
 			channel.port2.postMessage(
-				command.type === 'desktop-project-worktree-discovery-requested'
+				command.type === 'desktop-project-worktree-adoption-requested'
 					? DesktopProjectWorktreeMainEventSchema.parse({
-							discovery: { managedRoot: '/managed', repositories: [] },
 							requestId: command.requestId,
-							type: 'desktop-project-worktree-discovery-completed',
+							result: { directoryId: 'directory-3', workspaceId: 'workspace-3' },
+							type: 'desktop-project-worktree-adoption-completed',
 						})
 					: DesktopProjectWorktreeMainEventSchema.parse({
 							requestId: command.requestId,
@@ -51,6 +61,18 @@ describe('DesktopProjectWorktreeClient', () => {
 			directoryId: 'directory-2',
 			kind: 'created',
 			workspaceId: 'workspace-2',
+		});
+		await expect(
+			client.adopt({
+				projectId: 'project-1',
+				repositoryId: 'repository-1',
+				sourceDirectoryId: 'directory-1',
+				worktreeId: 'worktree-1',
+			}),
+		).resolves.toEqual({
+			directoryId: 'directory-3',
+			kind: 'adopted',
+			workspaceId: 'workspace-3',
 		});
 		client.dispose();
 		channel.port2.close();

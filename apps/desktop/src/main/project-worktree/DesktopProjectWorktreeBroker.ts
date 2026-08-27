@@ -9,7 +9,7 @@ import type { DesktopProjectWorktreeRuntime } from './DesktopProjectWorktreeRunt
 
 type DesktopProjectWorktreeBrokerRuntime = Pick<
 	DesktopProjectWorktreeRuntime,
-	'create' | 'discover'
+	'adopt' | 'create' | 'discover'
 >;
 
 export class DesktopProjectWorktreeBroker {
@@ -49,7 +49,12 @@ export class DesktopProjectWorktreeBroker {
 			return;
 		}
 		const command = parsed.data;
-		const operation = command.type.includes('discovery') ? 'discovery' : 'creation';
+		let operation: 'adoption' | 'creation' | 'discovery' = 'creation';
+		if (command.type === 'desktop-project-worktree-discovery-requested') {
+			operation = 'discovery';
+		} else if (command.type === 'desktop-project-worktree-adoption-requested') {
+			operation = 'adoption';
+		}
 		if (this.#activeRequestId !== undefined) {
 			if (this.#activeRequestId !== command.requestId) {
 				this.#post({
@@ -84,6 +89,26 @@ export class DesktopProjectWorktreeBroker {
 					: {
 							code: result.code,
 							operation: 'discovery',
+							requestId: command.requestId,
+							type: 'desktop-project-worktree-failed',
+						},
+			);
+			return;
+		}
+		if (command.type === 'desktop-project-worktree-adoption-requested') {
+			const result = await this.#runtime
+				.adopt(command)
+				.catch(() => ({ code: 'document-conflict' as const, kind: 'failed' as const }));
+			this.#post(
+				result.kind === 'completed'
+					? {
+							requestId: command.requestId,
+							result: result.value,
+							type: 'desktop-project-worktree-adoption-completed',
+						}
+					: {
+							code: result.code,
+							operation: 'adoption',
 							requestId: command.requestId,
 							type: 'desktop-project-worktree-failed',
 						},

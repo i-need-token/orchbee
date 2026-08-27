@@ -5,7 +5,6 @@ export type TabStripIconName =
 	| 'bluetooth'
 	| 'camera'
 	| 'chevron'
-	| 'close'
 	| 'collapse-sidebar'
 	| 'default-favicon'
 	| 'desktop-capture'
@@ -17,7 +16,6 @@ export type TabStripIconName =
 	| 'more-vertical'
 	| 'muted'
 	| 'picture-in-picture'
-	| 'plus'
 	| 'sad-tab'
 	| 'search'
 	| 'spinner'
@@ -30,18 +28,6 @@ export interface TabStripIconProps {
 	variantClass?: TabStripIconVariantClass | undefined;
 }
 export function TabStripIcon({ name, variantClass }: TabStripIconProps): ReactNode {
-	if (name === 'close')
-		return (
-			<TabStripIconSvg iconName={name} variantClass={variantClass}>
-				<path d='M6 6l12 12M18 6 6 18' />
-			</TabStripIconSvg>
-		);
-	if (name === 'plus')
-		return (
-			<TabStripIconSvg iconName={name} variantClass={variantClass}>
-				<path d='M12 5v14M5 12h14' />
-			</TabStripIconSvg>
-		);
 	if (name === 'volume')
 		return (
 			<TabStripIconSvg iconName={name} variantClass={variantClass}>

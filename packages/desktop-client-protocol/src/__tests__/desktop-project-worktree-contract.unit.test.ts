@@ -6,7 +6,7 @@ import {
 } from '../desktop-project-worktree-contract';
 
 describe('Desktop Project Worktree contract', () => {
-	it('accepts discovery and creation messages without renderer filesystem paths', () => {
+	it('accepts discovery, creation, and adoption messages without renderer filesystem paths', () => {
 		expect(
 			DesktopProjectWorktreeRendererCommandSchema.parse({
 				preferredDirectoryId: 'directory-1',
@@ -27,6 +27,16 @@ describe('Desktop Project Worktree contract', () => {
 				type: 'desktop-project-worktree-creation-requested',
 			}),
 		).not.toHaveProperty('path');
+		expect(
+			DesktopProjectWorktreeRendererCommandSchema.parse({
+				projectId: 'project-1',
+				repositoryId: 'repository-1',
+				requestId: 'worktree:3',
+				sourceDirectoryId: 'directory-1',
+				type: 'desktop-project-worktree-adoption-requested',
+				worktreeId: 'worktree-1',
+			}),
+		).not.toHaveProperty('path');
 	});
 
 	it('accepts a discovered multi-repository catalog and a typed failure', () => {
@@ -42,11 +52,22 @@ describe('Desktop Project Worktree contract', () => {
 							repositoryId: 'repository-1',
 							sourceDirectoryId: 'directory-1',
 							suggestedBranchName: 'orchbee/workspace-1',
+							worktreeInventory: {
+								kind: 'available',
+								worktrees: [{ label: 'feature/one', worktreeId: 'worktree-1' }],
+							},
 						},
 					],
 				},
 				requestId: 'worktree:1',
 				type: 'desktop-project-worktree-discovery-completed',
+			}).success,
+		).toBe(true);
+		expect(
+			DesktopProjectWorktreeMainEventSchema.safeParse({
+				requestId: 'worktree:3',
+				result: { directoryId: 'discovered-worktree-1', workspaceId: 'workspace-2' },
+				type: 'desktop-project-worktree-adoption-completed',
 			}).success,
 		).toBe(true);
 		expect(
@@ -70,6 +91,17 @@ describe('Desktop Project Worktree contract', () => {
 				requestId: 'worktree:2',
 				sourceDirectoryId: 'directory-1',
 				type: 'desktop-project-worktree-creation-requested',
+			}).success,
+		).toBe(false);
+		expect(
+			DesktopProjectWorktreeRendererCommandSchema.safeParse({
+				path: '/renderer/must-not-submit-this',
+				projectId: 'project-1',
+				repositoryId: 'repository-1',
+				requestId: 'worktree:3',
+				sourceDirectoryId: 'directory-1',
+				type: 'desktop-project-worktree-adoption-requested',
+				worktreeId: 'worktree-1',
 			}).success,
 		).toBe(false);
 	});

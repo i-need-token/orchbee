@@ -45,6 +45,7 @@ export interface WorkbenchProjectNavigationMessages {
 		Record<WorkbenchProjectWorktreeFailureCode, string>
 	>;
 	readonly projectWorktreeFailureTitle: string;
+	readonly projectWorktreeInventoryUnavailable: string;
 	readonly projectWorktreeLoading: string;
 	readonly projectWorktreeLocation: string;
 	readonly projectWorktreeLocationAutomatic: (root: string) => string;
