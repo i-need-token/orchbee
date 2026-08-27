@@ -14,12 +14,15 @@ interface WorkbenchShortcutDefinition {
 	readonly id:
 		| typeof WORKBENCH_ACTION_IDS.closeActiveTerminal
 		| typeof WORKBENCH_ACTION_IDS.createTerminal
+		| typeof WORKBENCH_ACTION_IDS.decreaseTerminalFontSize
 		| typeof WORKBENCH_ACTION_IDS.focusActivePanelDown
 		| typeof WORKBENCH_ACTION_IDS.focusActivePanelLeft
 		| typeof WORKBENCH_ACTION_IDS.focusActivePanelRight
 		| typeof WORKBENCH_ACTION_IDS.focusActivePanelUp
+		| typeof WORKBENCH_ACTION_IDS.increaseTerminalFontSize
 		| typeof WORKBENCH_ACTION_IDS.openSearch
 		| typeof WORKBENCH_ACTION_IDS.openSettings
+		| typeof WORKBENCH_ACTION_IDS.resetTerminalFontSize
 		| typeof WORKBENCH_ACTION_IDS.selectNextTab
 		| typeof WORKBENCH_ACTION_IDS.selectPreviousTab
 		| typeof WORKBENCH_ACTION_IDS.selectTabByPosition
@@ -59,6 +62,15 @@ export const WORKBENCH_SHORTCUTS = {
 		input: undefined,
 		shortcutId: WORKBENCH_ACTION_IDS.closeActiveTerminal,
 	},
+	decreaseTerminalFontSize: {
+		defaults: {
+			apple: chord('Minus', ['mod']),
+			standard: chord('Minus', ['mod']),
+		},
+		id: WORKBENCH_ACTION_IDS.decreaseTerminalFontSize,
+		input: undefined,
+		shortcutId: WORKBENCH_ACTION_IDS.decreaseTerminalFontSize,
+	},
 	focusActivePanelDown: {
 		defaults: {
 			apple: chord('ArrowDown', ['alt', 'mod']),
@@ -95,6 +107,15 @@ export const WORKBENCH_SHORTCUTS = {
 		input: undefined,
 		shortcutId: WORKBENCH_ACTION_IDS.focusActivePanelUp,
 	},
+	increaseTerminalFontSize: {
+		defaults: {
+			apple: chord('Equal', ['mod']),
+			standard: chord('Equal', ['mod']),
+		},
+		id: WORKBENCH_ACTION_IDS.increaseTerminalFontSize,
+		input: undefined,
+		shortcutId: WORKBENCH_ACTION_IDS.increaseTerminalFontSize,
+	},
 	maximizeActivePanel: {
 		defaults: {
 			apple: chord('Enter', ['mod', 'shift']),
@@ -121,6 +142,15 @@ export const WORKBENCH_SHORTCUTS = {
 		id: WORKBENCH_ACTION_IDS.openSearch,
 		input: { filter: 'all' },
 		shortcutId: 'workbench.search.all.open',
+	},
+	resetTerminalFontSize: {
+		defaults: {
+			apple: chord('Digit0', ['mod']),
+			standard: chord('Digit0', ['mod']),
+		},
+		id: WORKBENCH_ACTION_IDS.resetTerminalFontSize,
+		input: undefined,
+		shortcutId: WORKBENCH_ACTION_IDS.resetTerminalFontSize,
 	},
 	selectNextTab: {
 		defaults: {
@@ -203,13 +233,16 @@ export interface WorkbenchShortcutBinding {
 const WORKBENCH_SHORTCUT_ACTIONS = Object.freeze([
 	'actionsSearch',
 	'closeActiveTerminal',
+	'decreaseTerminalFontSize',
 	'focusActivePanelDown',
 	'focusActivePanelLeft',
 	'focusActivePanelRight',
 	'focusActivePanelUp',
+	'increaseTerminalFontSize',
 	'maximizeActivePanel',
 	'newTerminal',
 	'search',
+	'resetTerminalFontSize',
 	'selectNextTab',
 	'selectPreviousTab',
 	'selectTab1',
@@ -281,6 +314,12 @@ export function formatWorkbenchActionShortcut(
 			return formatWorkbenchShortcut('focusActivePanelRight', platform, bindings);
 		case WORKBENCH_ACTION_IDS.focusActivePanelUp:
 			return formatWorkbenchShortcut('focusActivePanelUp', platform, bindings);
+		case WORKBENCH_ACTION_IDS.increaseTerminalFontSize:
+			return formatWorkbenchShortcut('increaseTerminalFontSize', platform, bindings);
+		case WORKBENCH_ACTION_IDS.decreaseTerminalFontSize:
+			return formatWorkbenchShortcut('decreaseTerminalFontSize', platform, bindings);
+		case WORKBENCH_ACTION_IDS.resetTerminalFontSize:
+			return formatWorkbenchShortcut('resetTerminalFontSize', platform, bindings);
 		case WORKBENCH_ACTION_IDS.openSearch:
 			return formatWorkbenchShortcut('search', platform, bindings);
 		case WORKBENCH_ACTION_IDS.openSettings:
@@ -328,6 +367,8 @@ function defaultBindingsFor(platform: WorkbenchShortcutPlatform): WorkbenchShort
 			WORKBENCH_SHORTCUTS.actionsSearch.defaults[platform],
 		[WORKBENCH_SHORTCUTS.closeActiveTerminal.shortcutId]:
 			WORKBENCH_SHORTCUTS.closeActiveTerminal.defaults[platform],
+		[WORKBENCH_SHORTCUTS.decreaseTerminalFontSize.shortcutId]:
+			WORKBENCH_SHORTCUTS.decreaseTerminalFontSize.defaults[platform],
 		[WORKBENCH_SHORTCUTS.focusActivePanelDown.shortcutId]:
 			WORKBENCH_SHORTCUTS.focusActivePanelDown.defaults[platform],
 		[WORKBENCH_SHORTCUTS.focusActivePanelLeft.shortcutId]:
@@ -336,11 +377,15 @@ function defaultBindingsFor(platform: WorkbenchShortcutPlatform): WorkbenchShort
 			WORKBENCH_SHORTCUTS.focusActivePanelRight.defaults[platform],
 		[WORKBENCH_SHORTCUTS.focusActivePanelUp.shortcutId]:
 			WORKBENCH_SHORTCUTS.focusActivePanelUp.defaults[platform],
+		[WORKBENCH_SHORTCUTS.increaseTerminalFontSize.shortcutId]:
+			WORKBENCH_SHORTCUTS.increaseTerminalFontSize.defaults[platform],
 		[WORKBENCH_SHORTCUTS.maximizeActivePanel.shortcutId]:
 			WORKBENCH_SHORTCUTS.maximizeActivePanel.defaults[platform],
 		[WORKBENCH_SHORTCUTS.newTerminal.shortcutId]:
 			WORKBENCH_SHORTCUTS.newTerminal.defaults[platform],
 		[WORKBENCH_SHORTCUTS.search.shortcutId]: WORKBENCH_SHORTCUTS.search.defaults[platform],
+		[WORKBENCH_SHORTCUTS.resetTerminalFontSize.shortcutId]:
+			WORKBENCH_SHORTCUTS.resetTerminalFontSize.defaults[platform],
 		[WORKBENCH_SHORTCUTS.selectNextTab.shortcutId]:
 			WORKBENCH_SHORTCUTS.selectNextTab.defaults[platform],
 		[WORKBENCH_SHORTCUTS.selectPreviousTab.shortcutId]:

@@ -240,6 +240,7 @@ Workbench `terminal-presentation-event-published` 消息是 Main 拥有的单一
 - 不相关的终端并发、精确关闭定位、保留原生窗口的自然退出 Tab 移除、Tab 关闭结果排序和过时结果拒绝；
 - 两个恢复的 Workbench Tab，其中两个生命周期记录一致，但只有活动可见 Tab 具有 attachment，随后执行 Tab 切换时的精确 release/open 行为；单独的受控 trace 会驱动 80 次快速第一/第二 Tab 快捷键、通过新 attachment 证明后续输入、关闭活动第二 Tab，并逐帧采样 presentation，断言请求局部的控制存活且顶层从不为空；
 - 确切的 `terminal-parity/SU-16-startup-geometry` 真实 Electron/主机证据：受控 POSIX shell 在将控制权交给 `/bin/sh` 之前记录其 PTY 大小，并且第一个子几何体与独立派生的安装网格和唯一的第一个客户端框架匹配，无需中间`80x24` 框架；所有者本地跟踪涵盖无子延迟创建、附加前启动排序、重复/冲突启动、失败启动和待处理处理。系统见证仅是 POSIX，不会声明 Windows ConPTY 启动或以后的大小调整；
+- 精确的 `terminal-parity/SU-18-font-size-shortcuts` 真实 Electron/Host 证据：平台 `Mod` 增大、减小和重置组合键会按产品两点步长更新两个已挂载 Panel 终端、恢复默认值，并保留两个 attachment 身份。该见证只覆盖当前运行器平台，不声明已排除的小键盘或 Shift 加号别名；
 - 明确的块/非闪烁配置文件默认值、闪烁条 DECSCUSR 覆盖和 RIS 恢复的精确 `terminal-parity/SU-13-cursor-defaults` real-PTY 投影证据。主机运行时测试还涵盖应用程序重置和非默认配置文件；系统见证人观察规范的投影元数据，而不是将平台屏幕截图视为光标权限；
 - 并发查看者只有一个调整大小所有者、last-meaningful-activity handoff、recency fallback、动态渲染器所有权以及序列化发布/开放排序；
 - deferred-Host 调整轨迹大小，证明每个附件有一个活动请求，中间测量的恒定空间替换，以及结算后立即发送最新的几何图形；

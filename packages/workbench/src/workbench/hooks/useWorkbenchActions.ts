@@ -33,6 +33,8 @@ import type { WorkbenchProjectWorkspaceRuntime } from '../model/WorkbenchProject
 import type {
 	WorkbenchHostActionCallback,
 	WorkbenchNavigationPort,
+	WorkbenchTerminalFontSizeChange,
+	WorkbenchTerminalFontSizeChangeCallback,
 	WorkbenchTerminalCreateCallback,
 } from '../types/workbench-host-actions';
 import { WORKBENCH_SHORTCUTS, type WorkbenchShortcutBinding } from '../utils/workbench-shortcuts';
@@ -43,6 +45,7 @@ interface UseWorkbenchActionsOptions {
 	readonly onNewTerminal: WorkbenchTerminalCreateCallback | undefined;
 	readonly openSearch: (input: WorkbenchSearchOpenInput) => void;
 	readonly onSettings: WorkbenchHostActionCallback | undefined;
+	readonly onTerminalFontSizeChange?: WorkbenchTerminalFontSizeChangeCallback | undefined;
 	readonly primaryWorkspaceName: string;
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
 	readonly projectWorkspaceState: ProjectWorkspaceState;
@@ -74,6 +77,7 @@ export function useWorkbenchActions({
 	onNewTerminal,
 	openSearch,
 	onSettings,
+	onTerminalFontSizeChange,
 	primaryWorkspaceName,
 	projectWorkspaceRuntime,
 	projectWorkspaceState,
@@ -123,6 +127,14 @@ export function useWorkbenchActions({
 				return callback(context);
 			},
 		});
+		const terminalFontSizeHandlerFor = (change: WorkbenchTerminalFontSizeChange) => ({
+			execute: (context: Parameters<WorkbenchTerminalFontSizeChangeCallback>[0]) => {
+				if (onTerminalFontSizeChange === undefined) {
+					return { kind: 'blocked' as const, code: 'host-capability-unavailable' };
+				}
+				return onTerminalFontSizeChange(context, change);
+			},
+		});
 		const registrations = [
 			...registerWorkbenchActiveTerminalActions({
 				projectWorkspaceRuntime,
@@ -169,6 +181,42 @@ export function useWorkbenchActions({
 					id: WORKBENCH_ACTION_IDS.createTerminal,
 					input: workbenchTerminalCreateInput,
 					title: workbenchMessages.newTerminal,
+				}),
+			),
+			typedRuntime.register(
+				scope,
+				defineAction({
+					category: categoryTerminal,
+					execution,
+					getAvailability: availabilityFor(onTerminalFontSizeChange),
+					handler: terminalFontSizeHandlerFor('increase'),
+					id: WORKBENCH_ACTION_IDS.increaseTerminalFontSize,
+					input: noActionInput,
+					title: workbenchMessages.terminalFontSizeIncrease,
+				}),
+			),
+			typedRuntime.register(
+				scope,
+				defineAction({
+					category: categoryTerminal,
+					execution,
+					getAvailability: availabilityFor(onTerminalFontSizeChange),
+					handler: terminalFontSizeHandlerFor('decrease'),
+					id: WORKBENCH_ACTION_IDS.decreaseTerminalFontSize,
+					input: noActionInput,
+					title: workbenchMessages.terminalFontSizeDecrease,
+				}),
+			),
+			typedRuntime.register(
+				scope,
+				defineAction({
+					category: categoryTerminal,
+					execution,
+					getAvailability: availabilityFor(onTerminalFontSizeChange),
+					handler: terminalFontSizeHandlerFor('reset'),
+					id: WORKBENCH_ACTION_IDS.resetTerminalFontSize,
+					input: noActionInput,
+					title: workbenchMessages.terminalFontSizeReset,
 				}),
 			),
 			typedRuntime.register(
@@ -261,6 +309,7 @@ export function useWorkbenchActions({
 		navigation,
 		onNewTerminal,
 		onSettings,
+		onTerminalFontSizeChange,
 		openSearch,
 		primaryWorkspaceName,
 		projectWorkspaceRuntime,
@@ -332,13 +381,16 @@ export function useWorkbenchActions({
 				}
 				case 'settings':
 				case 'closeActiveTerminal':
+				case 'decreaseTerminalFontSize':
 				case 'focusActivePanelDown':
 				case 'focusActivePanelLeft':
 				case 'focusActivePanelRight':
 				case 'focusActivePanelUp':
+				case 'increaseTerminalFontSize':
 				case 'maximizeActivePanel':
 				case 'selectNextTab':
 				case 'selectPreviousTab':
+				case 'resetTerminalFontSize':
 				case 'splitActivePanelBelow':
 				case 'splitActivePanelRight':
 				case 'toggleSidebar': {

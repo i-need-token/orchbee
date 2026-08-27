@@ -408,6 +408,24 @@ describe('TerminalSettingsController', () => {
 		expect(healthyStorage.setItem).not.toHaveBeenCalled();
 	});
 
+	it('changes only the font size by the product step and clamps at both bounds', () => {
+		const storage = createStorage(
+			JSON.stringify({ ...DEFAULT_TERMINAL_APPEARANCE_PREFERENCES, fontSize: 47 }),
+		);
+		const controller = new TerminalSettingsController({
+			storage,
+			themeTarget: document.createElement('div'),
+		});
+
+		expect(controller.changeFontSize('increase')).toEqual({ kind: 'applied-and-saved' });
+		expect(controller.getSnapshot().preferences.fontSize).toBe(48);
+		expect(controller.changeFontSize('increase')).toEqual({ kind: 'unchanged' });
+		expect(controller.changeFontSize('decrease')).toEqual({ kind: 'applied-and-saved' });
+		expect(controller.getSnapshot().preferences.fontSize).toBe(46);
+		expect(controller.changeFontSize('reset')).toEqual({ kind: 'applied-and-saved' });
+		expect(controller.getSnapshot().preferences).toEqual(DEFAULT_TERMINAL_APPEARANCE_PREFERENCES);
+	});
+
 	it('opens and closes idempotently without publishing a terminal configuration', () => {
 		const controller = new TerminalSettingsController({
 			storage: createStorage(null),
@@ -440,6 +458,7 @@ describe('TerminalSettingsController', () => {
 		controller.dispose();
 
 		expect(controller.update({ fontSize: 14 })).toEqual({ kind: 'disposed' });
+		expect(controller.changeFontSize('increase')).toEqual({ kind: 'disposed' });
 		expect(controller.open()).toEqual({ kind: 'disposed' });
 		expect(controller.close()).toEqual({ kind: 'disposed' });
 		expect(storage.setItem).not.toHaveBeenCalled();

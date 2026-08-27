@@ -9,6 +9,7 @@ export const WORKBENCH_ACTION_IDS = {
 	addProjectFolder: 'workbench.project.directory.add',
 	createProject: 'workbench.project.create',
 	createTerminal: 'workbench.terminal.create',
+	decreaseTerminalFontSize: 'workbench.terminal.font-size.decrease',
 	createWorkspace: 'workbench.workspace.create',
 	deleteWorkspace: 'workbench.workspace.delete',
 	duplicateWorkspace: 'workbench.workspace.duplicate',
@@ -16,10 +17,12 @@ export const WORKBENCH_ACTION_IDS = {
 	focusActivePanelLeft: 'workbench.panel.active.focus-left',
 	focusActivePanelRight: 'workbench.panel.active.focus-right',
 	focusActivePanelUp: 'workbench.panel.active.focus-up',
+	increaseTerminalFontSize: 'workbench.terminal.font-size.increase',
 	openSearch: 'workbench.search.open',
 	openSettings: 'workbench.settings.open',
 	removeProject: 'workbench.project.remove',
 	removeProjectDirectory: 'workbench.project.directory.remove',
+	resetTerminalFontSize: 'workbench.terminal.font-size.reset',
 	renameProject: 'workbench.project.rename',
 	reorderProject: 'workbench.project.reorder',
 	reorderWorkspace: 'workbench.workspace.reorder',
@@ -104,6 +107,7 @@ export interface WorkbenchActionCatalog {
 	readonly [WORKBENCH_ACTION_IDS.addProjectFolder]: ActionSignature<WorkbenchProjectFolderAddInput>;
 	readonly [WORKBENCH_ACTION_IDS.createProject]: ActionSignature<WorkbenchProjectCreateInput>;
 	readonly [WORKBENCH_ACTION_IDS.createTerminal]: ActionSignature<WorkbenchTerminalCreateInput>;
+	readonly [WORKBENCH_ACTION_IDS.decreaseTerminalFontSize]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.createWorkspace]: ActionSignature<WorkbenchWorkspaceCreateInput>;
 	readonly [WORKBENCH_ACTION_IDS.deleteWorkspace]: ActionSignature<WorkbenchWorkspaceInput>;
 	readonly [WORKBENCH_ACTION_IDS.duplicateWorkspace]: ActionSignature<WorkbenchWorkspaceInput>;
@@ -111,10 +115,12 @@ export interface WorkbenchActionCatalog {
 	readonly [WORKBENCH_ACTION_IDS.focusActivePanelLeft]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.focusActivePanelRight]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.focusActivePanelUp]: ActionSignature<void>;
+	readonly [WORKBENCH_ACTION_IDS.increaseTerminalFontSize]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.openSearch]: ActionSignature<WorkbenchSearchOpenInput>;
 	readonly [WORKBENCH_ACTION_IDS.openSettings]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.removeProject]: ActionSignature<WorkbenchProjectInput>;
 	readonly [WORKBENCH_ACTION_IDS.removeProjectDirectory]: ActionSignature<WorkbenchProjectDirectoryInput>;
+	readonly [WORKBENCH_ACTION_IDS.resetTerminalFontSize]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.renameProject]: ActionSignature<WorkbenchProjectRenameInput>;
 	readonly [WORKBENCH_ACTION_IDS.reorderProject]: ActionSignature<WorkbenchProjectReorderInput>;
 	readonly [WORKBENCH_ACTION_IDS.reorderWorkspace]: ActionSignature<WorkbenchWorkspaceReorderInput>;

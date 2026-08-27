@@ -1,5 +1,8 @@
 import { useMemoizedFn } from '@orchbee/foundation/react';
-import type { WorkbenchHostActionCallback } from '@orchbee/workbench';
+import type {
+	WorkbenchHostActionCallback,
+	WorkbenchTerminalFontSizeChangeCallback,
+} from '@orchbee/workbench';
 import { useLayoutEffect, useRef, type RefObject } from 'react';
 
 import { type TerminalSettingsController, useTerminalSettings } from '../../terminal-settings';
@@ -12,6 +15,7 @@ interface WebApplicationView {
 	readonly applicationReference: RefObject<HTMLDivElement | null>;
 	readonly closeSettings: () => void;
 	readonly onSettings: WorkbenchHostActionCallback;
+	readonly onTerminalFontSizeChange: WorkbenchTerminalFontSizeChangeCallback;
 	readonly settingsOpen: boolean;
 	readonly workbenchReference: RefObject<HTMLDivElement | null>;
 }
@@ -78,11 +82,33 @@ export function useWebApplication({
 			return { kind: 'completed' };
 		},
 	);
+	const onTerminalFontSizeChange: WorkbenchTerminalFontSizeChangeCallback = useMemoizedFn(
+		(context, change) => {
+			if (context.signal.aborted) return { kind: 'cancelled' };
+			const result = terminalSettingsController.changeFontSize(change);
+			switch (result.kind) {
+				case 'applied-and-saved':
+				case 'applied-session-only':
+					context.markCommitted();
+					return { kind: 'completed' };
+				case 'unchanged':
+					return { kind: 'unchanged' };
+				case 'disposed':
+					return { code: 'terminal-settings-unavailable', kind: 'blocked' };
+				case 'invalid':
+					return {
+						failure: { code: 'terminal-font-size-invalid' },
+						kind: 'failed',
+					};
+			}
+		},
+	);
 
 	return {
 		applicationReference,
 		closeSettings,
 		onSettings,
+		onTerminalFontSizeChange,
 		settingsOpen: settings.open,
 		workbenchReference,
 	};

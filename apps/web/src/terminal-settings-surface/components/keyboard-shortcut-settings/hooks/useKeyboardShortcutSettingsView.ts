@@ -106,10 +106,16 @@ export function useKeyboardShortcutSettingsView({
 				return intl.formatMessage(keyboardShortcutMessages.focusPanelUp);
 			case 'copy-selection':
 				return intl.formatMessage(keyboardShortcutMessages.copySelection);
+			case 'decrease-terminal-font-size':
+				return intl.formatMessage(keyboardShortcutMessages.decreaseTerminalFontSize);
+			case 'increase-terminal-font-size':
+				return intl.formatMessage(keyboardShortcutMessages.increaseTerminalFontSize);
 			case 'paste':
 				return intl.formatMessage(keyboardShortcutMessages.paste);
 			case 'select-all':
 				return intl.formatMessage(keyboardShortcutMessages.selectAll);
+			case 'reset-terminal-font-size':
+				return intl.formatMessage(keyboardShortcutMessages.resetTerminalFontSize);
 			case 'select-tab':
 				return intl.formatMessage(keyboardShortcutMessages.selectTab, {
 					position: declaration.position,

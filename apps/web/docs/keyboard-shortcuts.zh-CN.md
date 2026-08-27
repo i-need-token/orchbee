@@ -8,6 +8,9 @@
 | -------------------------------------------- | ---------------------- | --------------------- | --------------------- |
 | `workbench.search.actions.open`              | Workbench              | `Cmd+Shift+P`         | `Ctrl+Shift+P`        |
 | `workbench.terminal.create`                  | Workbench              | `Cmd+T`               | `Ctrl+Shift+T`        |
+| `workbench.terminal.font-size.increase`      | Workbench              | `Cmd+=`               | `Ctrl+=`              |
+| `workbench.terminal.font-size.decrease`      | Workbench              | `Cmd+-`               | `Ctrl+-`              |
+| `workbench.terminal.font-size.reset`         | Workbench              | `Cmd+0`               | `Ctrl+0`              |
 | `workbench.tab.select.1` … `.9`              | Workbench              | `Cmd+1` … `Cmd+9`     | `Ctrl+1` … `Ctrl+9`   |
 | `workbench.tab.select-previous`              | Workbench              | `Cmd+Shift+[`         | `Ctrl+PageUp`         |
 | `workbench.tab.select-next`                  | Workbench              | `Cmd+Shift+]`         | `Ctrl+PageDown`       |
@@ -45,6 +48,11 @@
 拥有一个绑定，Kitty 额外的 macOS Command 和 `J`/`K` 别名只能通过替换有效自定义绑定来使用。翻页
 保留 Kitty 的一行重叠。行为与有界 Host 行契约由终端包的
 [Kitty 键盘回滚对齐](../../../packages/terminal/docs/kitty-keyboard-scrollback-alignment.zh-CN.md)所有。
+
+三个应用范围字号默认值投影自 Kitty 修订版 `6d5d0c440603ad9bdf6dcd599f73f6dde21acb44`
+中的 macOS `cmd+equal`、`cmd+minus` 和 `cmd+0` 入口。标准平台通过 `Mod` 使用相同物理按键，
+得到 `Ctrl+=`、`Ctrl+-` 和 `Ctrl+0`。这是有意限定的常用按键投影：在快捷键模型能够为每个
+Action 保留多个绑定之前，不包含 Kitty 的小键盘、Shift 加号和 Backspace 别名。
 
 ## 终端粘贴路由
 
@@ -106,6 +114,14 @@ Web 发布 Workbench 是否为当前活动产品表面。已挂载的 Workbench 
 - **不变量与重新校验：** 目标不同于活动标签页，属于同一个活动终端上下文，并遵循规范顺序而非 MRU 顺序。可用性与执行都会从当前快照解析；目标被移除或下层注册被替换时会阻止操作，不执行直接修改。
 - **验证与排除项：** 纯解析器测试覆盖空、单例、中间位置、两个回绕边界、反向方向及缺失的活动标识。Action 测试覆盖分组与固定顺序、下层注册移除及执行时重新解析。快捷键测试覆盖两个平台、额外修饰键、重复、输入法组合、禁用时继续传递和自定义绑定。重排、跨 Workspace 遍历、跨窗口遍历及 MRU 遍历不在范围内。
 
+### 终端字号转换模型
+
+- **问题与输入：** 用户需要在不打开设置的情况下调整每个终端的大小。输入是在 Workbench 快捷键作用域活动时触发的一个语义 `increase`、`decrease` 或 `reset` Action；不要求终端焦点或 Panel 身份。
+- **数据、模型与所有权：** Web 的 `TerminalSettingsController` 仍是设备本地外观快照的唯一写入者。增大和减小使用两点步长并限制在现有的 `8`–`48` 闭区间内；重置只恢复产品默认字号。
+- **输出与转换：** 发生变化的值会向每个已挂载终端发布一份完整呈现配置，并持久化到现有外观记录。持久化失败时保留会话值。边界请求或已经是默认值的请求返回 `unchanged`。
+- **不变量与重新验证：** 所有已挂载终端观察同一个应用范围值；无关外观首选项绝不改变。即使边界结果未变化，获准的精确组合键也会被消费，因此不会转化为浏览器页面缩放。设置界面会停用 Workbench 快捷键作用域并保留自己的编辑按键。
+- **验证与排除项：** 纯测试覆盖步长、限制、重置、发布、持久化和处置。Action 与应用测试覆盖三个意图、物理按键分发和设置界面继续传递。每个 Panel 的缩放、浏览器页面缩放、小键盘别名、Shift 加号别名及多个同时生效的绑定不在范围内。
+
 ## 活动目标命令模型
 
 八个 `workbench.*.active.*` Action 是上下文命令。菜单发起的 Action 调用可以携带显式面板目标；否则使用活动标签页中聚焦的面板。执行开始时会重新解析目标，因此陈旧或缺失的目标不可用，也不会吞掉键盘事件。
@@ -135,11 +151,11 @@ Workbench 负责格式化自身绑定。投影终端负责其绑定默认值与�
 
 ## 持久化与恢复
 
-新写入使用 `orchbee:web:keyboard-shortcuts:v7` 严格记录：
+新写入使用 `orchbee:web:keyboard-shortcuts:v8` 严格记录：
 
 ```json
 {
-	"version": 7,
+	"version": 8,
 	"overrides": [
 		{
 			"shortcutId": "workbench.search.all.open",
@@ -149,9 +165,9 @@ Workbench 负责格式化自身绑定。投影终端负责其绑定默认值与�
 }
 ```
 
-只存储自定义值，并按快捷键 ID 排序。未知字段或 ID、重复项、未排序条目、非规范修饰符、不支持的代码、已存储默认值、过多条目以及有效冲突都会使完整 v7 记录无效，并恢复平台默认值。写入失败时，不可变的会话绑定仍保持活动，同时报告尚未保存，并在下一次合法修改时重试。恢复单项会移除其覆盖。
+只存储自定义值，并按快捷键 ID 排序。未知字段或 ID、重复项、未排序条目、非规范修饰符、不支持的代码、已存储默认值、过多条目以及有效冲突都会使完整 v8 记录无效，并恢复平台默认值。写入失败时，不可变的会话绑定仍保持活动，同时报告尚未保存，并在下一次合法修改时重试。恢复单项会移除其覆盖。
 
-当 v7 不存在时，Web 会先按准确的旧目录与旧默认值读取 `orchbee:web:keyboard-shortcuts:v6`；如果 v6 也不存在，则依次尝试 v5、v4、v3、v2 和 v1。每次迁移都会把显式覆盖带入扩展后的目录，移除与当前默认值等价的覆盖，拒绝迁移后产生的冲突，并写入规范 v7 记录。v1、v2、v3、v4、v5 与 v6 值原样保留，作为回滚快照。无效当前记录绝不回退到更旧记录，无效迁移源也绝不继续读取下一个更旧版本，因为任一回退都会掩盖数据损坏。回滚时会恢复旧版本能够理解的最新记录；只在 v7 中做出的编辑有意不对旧版本可用。
+当 v8 不存在时，Web 会先按准确的旧目录与旧默认值读取 `orchbee:web:keyboard-shortcuts:v7`；如果 v7 也不存在，则依次尝试 v6、v5、v4、v3、v2 和 v1。每次迁移都会把显式覆盖带入扩展后的目录，移除与当前默认值等价的覆盖，拒绝迁移后产生的冲突，并写入规范 v8 记录。v1、v2、v3、v4、v5、v6 与 v7 值原样保留，作为回滚快照。无效当前记录绝不回退到更旧记录，无效迁移源也绝不继续读取下一个更旧版本，因为任一回退都会掩盖数据损坏。回滚时会恢复旧版本能够理解的最新记录；只在 v8 中做出的编辑有意不对旧版本可用。
 
 Browser Preview、Gateway Browser 和 Electron 各自针对自己的源本地存储创建并销毁一个控制器。Gateway 与 Electron 通过 `ProjectedTerminalSurfaceCapability` 传递控制器的窄绑定来源。事件处理器在分发时读取当前表，因此修改不会重新挂载 Workbench、替换附件，也不会重新打开 Host 或 Gateway 连接。
 

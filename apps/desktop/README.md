@@ -416,6 +416,10 @@ Focused traces cover:
   intermediate `80x24` frame; owner-local traces cover no-child deferred creation,
   start-before-attach ordering, duplicate/conflicting start, failed start, and pending disposal.
   The system witness is POSIX-only and does not claim Windows ConPTY startup or a later resize;
+- exact `terminal-parity/SU-18-font-size-shortcuts` real Electron/Host evidence: the platform `Mod`
+  increase, decrease, and reset chords update two mounted Panel terminals by the two-point product
+  step, restore the default, and preserve both attachment identities. The witness exercises the
+  current runner platform and does not claim excluded keypad or shifted-plus aliases;
 - exact `terminal-parity/SU-13-cursor-defaults` real-PTY projection evidence for the explicit
   block/non-blinking profile default, a blinking-bar DECSCUSR override, and RIS restoration. Host
   runtime tests additionally cover application Reset and non-default profiles; the system witness

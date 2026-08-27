@@ -36,15 +36,22 @@ describe('Workbench shortcuts', () => {
 	it('owns stable semantic actions and platform displays', () => {
 		expect(WORKBENCH_SHORTCUTS.actionsSearch.id).toBe('workbench.search.open');
 		expect(WORKBENCH_SHORTCUTS.closeActiveTerminal.id).toBe('workbench.terminal.active.close');
+		expect(WORKBENCH_SHORTCUTS.decreaseTerminalFontSize.id).toBe(
+			'workbench.terminal.font-size.decrease',
+		);
 		expect(WORKBENCH_SHORTCUTS.focusActivePanelDown.id).toBe('workbench.panel.active.focus-down');
 		expect(WORKBENCH_SHORTCUTS.focusActivePanelLeft.id).toBe('workbench.panel.active.focus-left');
 		expect(WORKBENCH_SHORTCUTS.focusActivePanelRight.id).toBe('workbench.panel.active.focus-right');
 		expect(WORKBENCH_SHORTCUTS.focusActivePanelUp.id).toBe('workbench.panel.active.focus-up');
+		expect(WORKBENCH_SHORTCUTS.increaseTerminalFontSize.id).toBe(
+			'workbench.terminal.font-size.increase',
+		);
 		expect(WORKBENCH_SHORTCUTS.maximizeActivePanel.id).toBe(
 			'workbench.panel.active.maximization.toggle',
 		);
 		expect(WORKBENCH_SHORTCUTS.newTerminal.id).toBe('workbench.terminal.create');
 		expect(WORKBENCH_SHORTCUTS.search.id).toBe('workbench.search.open');
+		expect(WORKBENCH_SHORTCUTS.resetTerminalFontSize.id).toBe('workbench.terminal.font-size.reset');
 		expect(WORKBENCH_SHORTCUTS.selectNextTab).toMatchObject({
 			id: 'workbench.tab.select-next',
 			input: undefined,
@@ -71,13 +78,16 @@ describe('Workbench shortcuts', () => {
 		expect(WORKBENCH_SHORTCUTS.toggleSidebar.id).toBe('workbench.sidebar.toggle');
 		expect(formatWorkbenchShortcut('actionsSearch', 'apple')).toBe('⇧⌘P');
 		expect(formatWorkbenchShortcut('closeActiveTerminal', 'apple')).toBe('⌘W');
+		expect(formatWorkbenchShortcut('decreaseTerminalFontSize', 'apple')).toBe('⌘-');
 		expect(formatWorkbenchShortcut('focusActivePanelDown', 'apple')).toBe('⌥⌘↓');
 		expect(formatWorkbenchShortcut('focusActivePanelLeft', 'apple')).toBe('⌥⌘←');
 		expect(formatWorkbenchShortcut('focusActivePanelRight', 'apple')).toBe('⌥⌘→');
 		expect(formatWorkbenchShortcut('focusActivePanelUp', 'apple')).toBe('⌥⌘↑');
+		expect(formatWorkbenchShortcut('increaseTerminalFontSize', 'apple')).toBe('⌘=');
 		expect(formatWorkbenchShortcut('maximizeActivePanel', 'apple')).toBe('⇧⌘Enter');
 		expect(formatWorkbenchShortcut('newTerminal', 'apple')).toBe('⌘T');
 		expect(formatWorkbenchShortcut('search', 'apple')).toBe('⇧⌘F');
+		expect(formatWorkbenchShortcut('resetTerminalFontSize', 'apple')).toBe('⌘0');
 		expect(formatWorkbenchShortcut('selectNextTab', 'apple')).toBe('⇧⌘]');
 		expect(formatWorkbenchShortcut('selectPreviousTab', 'apple')).toBe('⇧⌘[');
 		expect(formatWorkbenchShortcut('selectTab1', 'apple')).toBe('⌘1');
@@ -88,13 +98,16 @@ describe('Workbench shortcuts', () => {
 		expect(formatWorkbenchShortcut('toggleSidebar', 'apple')).toBe('⌘B');
 		expect(formatWorkbenchShortcut('actionsSearch', 'standard')).toBe('Ctrl+Shift+P');
 		expect(formatWorkbenchShortcut('closeActiveTerminal', 'standard')).toBe('Ctrl+Shift+W');
+		expect(formatWorkbenchShortcut('decreaseTerminalFontSize', 'standard')).toBe('Ctrl+-');
 		expect(formatWorkbenchShortcut('focusActivePanelDown', 'standard')).toBe('Ctrl+Alt+↓');
 		expect(formatWorkbenchShortcut('focusActivePanelLeft', 'standard')).toBe('Ctrl+Alt+←');
 		expect(formatWorkbenchShortcut('focusActivePanelRight', 'standard')).toBe('Ctrl+Alt+→');
 		expect(formatWorkbenchShortcut('focusActivePanelUp', 'standard')).toBe('Ctrl+Alt+↑');
+		expect(formatWorkbenchShortcut('increaseTerminalFontSize', 'standard')).toBe('Ctrl+=');
 		expect(formatWorkbenchShortcut('maximizeActivePanel', 'standard')).toBe('Ctrl+Shift+Enter');
 		expect(formatWorkbenchShortcut('newTerminal', 'standard')).toBe('Ctrl+Shift+T');
 		expect(formatWorkbenchShortcut('search', 'standard')).toBe('Ctrl+Shift+K');
+		expect(formatWorkbenchShortcut('resetTerminalFontSize', 'standard')).toBe('Ctrl+0');
 		expect(formatWorkbenchShortcut('selectNextTab', 'standard')).toBe('Ctrl+Page Down');
 		expect(formatWorkbenchShortcut('selectPreviousTab', 'standard')).toBe('Ctrl+Page Up');
 		expect(formatWorkbenchShortcut('selectTab1', 'standard')).toBe('Ctrl+1');
@@ -104,6 +117,9 @@ describe('Workbench shortcuts', () => {
 		expect(formatWorkbenchShortcut('splitActivePanelRight', 'standard')).toBe('Ctrl+Shift+D');
 		expect(formatWorkbenchShortcut('toggleSidebar', 'standard')).toBe('Ctrl+Shift+B');
 		expect(formatWorkbenchActionShortcut('workbench.search.open', 'apple')).toBe('⇧⌘F');
+		expect(formatWorkbenchActionShortcut('workbench.terminal.font-size.increase', 'apple')).toBe(
+			'⌘=',
+		);
 		expect(formatWorkbenchActionShortcut('workbench.tab.select-next', 'apple')).toBe('⇧⌘]');
 		expect(formatWorkbenchActionShortcut('workbench.tab.select-previous', 'apple')).toBe('⇧⌘[');
 		expect(formatWorkbenchActionShortcut('unknown.action', 'apple')).toBe(null);
@@ -119,13 +135,16 @@ describe('Workbench shortcuts', () => {
 	it.each([
 		['actionsSearch', 'KeyP', 'KeyP'],
 		['closeActiveTerminal', 'KeyW', 'KeyW'],
+		['decreaseTerminalFontSize', 'Minus', 'Minus'],
 		['focusActivePanelDown', 'ArrowDown', 'ArrowDown'],
 		['focusActivePanelLeft', 'ArrowLeft', 'ArrowLeft'],
 		['focusActivePanelRight', 'ArrowRight', 'ArrowRight'],
 		['focusActivePanelUp', 'ArrowUp', 'ArrowUp'],
+		['increaseTerminalFontSize', 'Equal', 'Equal'],
 		['maximizeActivePanel', 'Enter', 'Enter'],
 		['newTerminal', 'KeyT', 'KeyT'],
 		['search', 'KeyF', 'KeyK'],
+		['resetTerminalFontSize', 'Digit0', 'Digit0'],
 		['selectNextTab', 'BracketRight', 'PageDown'],
 		['selectPreviousTab', 'BracketLeft', 'PageUp'],
 		['selectTab1', 'Digit1', 'Digit1'],

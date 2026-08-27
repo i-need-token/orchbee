@@ -105,6 +105,8 @@ export type {
 	WorkbenchSearchProviderSection,
 	WorkbenchTerminalCreateCallback,
 	WorkbenchTerminalCreateInput,
+	WorkbenchTerminalFontSizeChange,
+	WorkbenchTerminalFontSizeChangeCallback,
 	WorkbenchTerminalActionCatalog,
 	WorkbenchTerminalActionId,
 	WorkbenchTerminalActionShortcutLabels,

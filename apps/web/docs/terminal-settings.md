@@ -77,6 +77,12 @@ The complete product default is:
 | Background opacity     | `100`                                                              |
 | Copy on select         | `true`                                                             |
 
+Workbench exposes increase, decrease, and reset font-size Actions through the same controller.
+Increase and decrease apply a two-point step and clamp at `8` and `48`; reset restores only the
+default `13` font size and preserves every other preference. A changed Action follows the ordinary
+complete-snapshot publication and persistence workflow, while a boundary or already-default
+request is unchanged. The behavior is application-wide rather than per Panel.
+
 Terminal display themes derive one complete candidate from the latest reconciled Host state without
 modifying the stored custom pair:
 

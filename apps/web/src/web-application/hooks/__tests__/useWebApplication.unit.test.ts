@@ -13,7 +13,10 @@ import { act, createElement, useEffect, useLayoutEffect, useRef, type ReactNode 
 import { createRoot } from 'react-dom/client';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
-import { TerminalSettingsController } from '../../../terminal-settings';
+import {
+	DEFAULT_TERMINAL_APPEARANCE_PREFERENCES,
+	TerminalSettingsController,
+} from '../../../terminal-settings';
 import { KeyboardShortcutSettingsController } from '../../../keyboard-shortcuts';
 import { WebApplication } from '../../WebApplication';
 
@@ -171,6 +174,12 @@ describe('useWebApplication', () => {
 			container.querySelector('[data-test-terminal-input="true"]'),
 		);
 		expect(document.activeElement).toBe(recreatedInput);
+		const increaseFontSize = appleCommand('Equal');
+		await act(async () => recreatedInput.dispatchEvent(increaseFontSize));
+		expect(increaseFontSize.defaultPrevented).toBe(true);
+		expect(terminalSettingsController.getSnapshot().preferences.fontSize).toBe(
+			DEFAULT_TERMINAL_APPEARANCE_PREFERENCES.fontSize + 2,
+		);
 
 		const settingsAction = requiredElement<HTMLButtonElement>(
 			container.querySelector("[data-slot='workbench-sidebar-settings']"),
@@ -182,6 +191,12 @@ describe('useWebApplication', () => {
 			),
 		);
 		expect(document.activeElement).toBe(settingsInput);
+		const decreaseFontSizeFromSettings = appleCommand('Minus');
+		await act(async () => settingsInput.dispatchEvent(decreaseFontSizeFromSettings));
+		expect(decreaseFontSizeFromSettings.defaultPrevented).toBe(false);
+		expect(terminalSettingsController.getSnapshot().preferences.fontSize).toBe(
+			DEFAULT_TERMINAL_APPEARANCE_PREFERENCES.fontSize + 2,
+		);
 		const createFromSettings = appleCommand('KeyT');
 		await act(async () => settingsInput.dispatchEvent(createFromSettings));
 		expect(createFromSettings.defaultPrevented).toBe(false);
@@ -198,6 +213,12 @@ describe('useWebApplication', () => {
 			expect(container.querySelector('[data-slot="terminal-settings-surface"]')).toBeNull(),
 		);
 		await vi.waitFor(() => expect(document.activeElement).toBe(recreatedInput));
+		const resetFontSize = appleCommand('Digit0');
+		await act(async () => recreatedInput.dispatchEvent(resetFontSize));
+		expect(resetFontSize.defaultPrevented).toBe(true);
+		expect(terminalSettingsController.getSnapshot().preferences.fontSize).toBe(
+			DEFAULT_TERMINAL_APPEARANCE_PREFERENCES.fontSize,
+		);
 		recreatedInput.blur();
 		const createAfterSettings = appleCommand('KeyT');
 		await act(async () => document.body.dispatchEvent(createAfterSettings));

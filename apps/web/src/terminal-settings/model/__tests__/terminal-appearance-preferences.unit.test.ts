@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest';
 
 import {
 	DEFAULT_TERMINAL_APPEARANCE_PREFERENCES,
+	MAXIMUM_TERMINAL_FONT_SIZE,
+	MINIMUM_TERMINAL_FONT_SIZE,
 	normalizeTerminalHexColor,
+	resolveTerminalFontSizeChange,
 	terminalAppearancePreferencesEqual,
 	terminalDerivedPreferencesEqual,
 	terminalPresentationConfigurationFromPreferences,
@@ -10,6 +13,20 @@ import {
 } from '../terminal-appearance-preferences';
 
 describe('terminal appearance preferences', () => {
+	it('applies the Kitty-compatible two-point font-size policy within product bounds', () => {
+		expect(resolveTerminalFontSizeChange(13, 'increase')).toBe(15);
+		expect(resolveTerminalFontSizeChange(13, 'decrease')).toBe(11);
+		expect(resolveTerminalFontSizeChange(MAXIMUM_TERMINAL_FONT_SIZE - 1, 'increase')).toBe(
+			MAXIMUM_TERMINAL_FONT_SIZE,
+		);
+		expect(resolveTerminalFontSizeChange(MINIMUM_TERMINAL_FONT_SIZE + 1, 'decrease')).toBe(
+			MINIMUM_TERMINAL_FONT_SIZE,
+		);
+		expect(resolveTerminalFontSizeChange(31, 'reset')).toBe(
+			DEFAULT_TERMINAL_APPEARANCE_PREFERENCES.fontSize,
+		);
+	});
+
 	it('normalizes only a complete hexadecimal terminal color', () => {
 		expect(normalizeTerminalHexColor('#ABCDEF')).toBe('#abcdef');
 		expect(normalizeTerminalHexColor('#abc')).toBeNull();

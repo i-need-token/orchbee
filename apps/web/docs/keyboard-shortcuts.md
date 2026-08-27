@@ -13,6 +13,9 @@ those surfaces owns another binding copy.
 | -------------------------------------------- | --------------------------------- | --------------------- | --------------------- |
 | `workbench.search.actions.open`              | Workbench                         | `Cmd+Shift+P`         | `Ctrl+Shift+P`        |
 | `workbench.terminal.create`                  | Workbench                         | `Cmd+T`               | `Ctrl+Shift+T`        |
+| `workbench.terminal.font-size.increase`      | Workbench                         | `Cmd+=`               | `Ctrl+=`              |
+| `workbench.terminal.font-size.decrease`      | Workbench                         | `Cmd+-`               | `Ctrl+-`              |
+| `workbench.terminal.font-size.reset`         | Workbench                         | `Cmd+0`               | `Ctrl+0`              |
 | `workbench.tab.select.1` … `.9`              | Workbench                         | `Cmd+1` … `Cmd+9`     | `Ctrl+1` … `Ctrl+9`   |
 | `workbench.tab.select-previous`              | Workbench                         | `Cmd+Shift+[`         | `Ctrl+PageUp`         |
 | `workbench.tab.select-next`                  | Workbench                         | `Cmd+Shift+]`         | `Ctrl+PageDown`       |
@@ -65,6 +68,12 @@ replacing an effective custom binding because this catalog owns one binding per 
 movement retains Kitty's one-row overlap. The behavior and bounded Host-row contract are owned by
 the terminal package's
 [Kitty keyboard-scrollback alignment](../../../packages/terminal/docs/kitty-keyboard-scrollback-alignment.md).
+
+The three application-wide font-size defaults project Kitty's macOS `cmd+equal`, `cmd+minus`, and
+`cmd+0` entry points from revision `6d5d0c440603ad9bdf6dcd599f73f6dde21acb44`. Standard
+platforms use the same physical keys through `Mod`, producing `Ctrl+=`, `Ctrl+-`, and `Ctrl+0`.
+This is a deliberately bounded common-key projection: Kitty's keypad, shifted-plus, and Backspace
+aliases are excluded until the shortcut model can retain more than one binding per Action.
 
 ## Terminal paste routing
 
@@ -166,6 +175,26 @@ and leaves the event untouched. `Mod+9` means the ninth Tab, never the last Tab.
   both platforms, extra modifiers, repeat, composition, disabled fallthrough, and custom bindings.
   Reordering, cross-Workspace traversal, cross-window traversal, and MRU traversal are excluded.
 
+### Terminal font-size transition model
+
+- **Problem and inputs:** A person needs to resize every terminal without opening Settings. Input
+  is one semantic `increase`, `decrease`, or `reset` Action while the Workbench shortcut scope is
+  active; no terminal focus or Panel identity is required.
+- **Data, model, and ownership:** Web's `TerminalSettingsController` remains the sole writer for
+  the device-local appearance snapshot. Increase and decrease use a two-point step, clamp to the
+  existing inclusive `8`–`48` range, and reset restores only the product-default font size.
+- **Outputs and transitions:** A changed value publishes one complete presentation configuration
+  to every mounted terminal and persists the existing appearance record. A persistence failure
+  keeps the session value. A boundary or already-default request is `unchanged`.
+- **Invariants and revalidation:** All mounted terminals observe one application-wide value;
+  unrelated appearance preferences never change. An admitted exact chord is consumed even for an
+  unchanged boundary result, so it cannot become browser page zoom. Settings deactivates the
+  Workbench shortcut scope and preserves its own editing keys.
+- **Verification and exclusions:** Pure tests cover step, clamp, reset, publication, persistence,
+  and disposal. Action and application tests cover all three intents, physical dispatch, and
+  Settings fallthrough. Per-Panel zoom, browser-page zoom, keypad aliases, shifted-plus aliases,
+  and multiple simultaneous bindings are excluded.
+
 ## Active-target command model
 
 The eight `workbench.*.active.*` Actions are context commands. Their Action invocation may carry an
@@ -226,11 +255,11 @@ terminal Actions discovered from descendant scopes.
 
 ## Persistence and recovery
 
-New writes use `orchbee:web:keyboard-shortcuts:v7` and a strict record:
+New writes use `orchbee:web:keyboard-shortcuts:v8` and a strict record:
 
 ```json
 {
-	"version": 7,
+	"version": 8,
 	"overrides": [
 		{
 			"shortcutId": "workbench.search.all.open",
@@ -242,18 +271,18 @@ New writes use `orchbee:web:keyboard-shortcuts:v7` and a strict record:
 
 Only Custom values are stored, ordered by shortcut ID. Unknown fields or IDs, duplicates, unsorted
 entries, noncanonical modifiers, unsupported codes, stored defaults, excessive entries, and an
-effective conflict invalidate the complete v7 record and restore platform defaults. A write
+effective conflict invalidate the complete v8 record and restore platform defaults. A write
 failure keeps the immutable session binding active, reports that it was not saved, and retries on
 the next legal change. Restoring one item removes its override.
 
-When v7 is absent, Web first reads `orchbee:web:keyboard-shortcuts:v6` with its exact prior catalog
-and defaults. If v6 is also absent, it tries v5, v4, v3, v2, and then v1. Every migration carries
+When v8 is absent, Web first reads `orchbee:web:keyboard-shortcuts:v7` with its exact prior catalog
+and defaults. If v7 is also absent, it tries v6, v5, v4, v3, v2, and then v1. Every migration carries
 explicit overrides into the expanded catalog, removes an override equivalent to a current default,
-rejects any resulting conflict, and writes the canonical v7 record. The v1, v2, v3, v4, v5, and v6
-values remain unchanged as rollback snapshots. An invalid current record never falls back to an
+rejects any resulting conflict, and writes the canonical v8 record. The v1, v2, v3, v4, v5, v6,
+and v7 values remain unchanged as rollback snapshots. An invalid current record never falls back to an
 older record, and an invalid migration source never falls through to the next older version,
 because either fallback would hide data corruption. Rolling back restores the latest record that
-the older build understands; edits made only in v7 are intentionally unavailable to it.
+the older build understands; edits made only in v8 are intentionally unavailable to it.
 
 Browser Preview, Gateway Browser, and Electron each create and dispose one controller against their
 own origin-local storage. Gateway and Electron pass the controller's narrow binding source through

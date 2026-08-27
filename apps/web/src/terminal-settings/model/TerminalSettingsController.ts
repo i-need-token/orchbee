@@ -2,11 +2,13 @@ import type { TerminalPresentationConfiguration } from '@orchbee/terminal';
 
 import {
 	DEFAULT_TERMINAL_APPEARANCE_PREFERENCES,
+	resolveTerminalFontSizeChange,
 	terminalAppearancePreferencesEqual,
 	terminalDerivedPreferencesEqual,
 	terminalPresentationConfigurationFromPreferences,
 	terminalThemePreferencesEqual,
 	type TerminalAppearancePreferences,
+	type TerminalFontSizeChange,
 	type TerminalAppearancePresentationSource,
 } from './terminal-appearance-preferences';
 import {
@@ -150,6 +152,12 @@ export class TerminalSettingsController
 
 	reset(): TerminalSettingsUpdateResult {
 		return this.update(DEFAULT_TERMINAL_APPEARANCE_PREFERENCES);
+	}
+
+	changeFontSize(change: TerminalFontSizeChange): TerminalSettingsUpdateResult {
+		return this.update({
+			fontSize: resolveTerminalFontSizeChange(this.#snapshot.preferences.fontSize, change),
+		});
 	}
 
 	dispose(): void {

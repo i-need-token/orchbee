@@ -35,6 +35,9 @@ export function createKeyboardShortcutBindings(
 		[WORKBENCH_SHORTCUTS.closeActiveTerminal.shortcutId]: bindingFor(
 			WORKBENCH_SHORTCUTS.closeActiveTerminal.shortcutId,
 		),
+		[WORKBENCH_SHORTCUTS.decreaseTerminalFontSize.shortcutId]: bindingFor(
+			WORKBENCH_SHORTCUTS.decreaseTerminalFontSize.shortcutId,
+		),
 		[WORKBENCH_SHORTCUTS.focusActivePanelDown.shortcutId]: bindingFor(
 			WORKBENCH_SHORTCUTS.focusActivePanelDown.shortcutId,
 		),
@@ -47,6 +50,9 @@ export function createKeyboardShortcutBindings(
 		[WORKBENCH_SHORTCUTS.focusActivePanelUp.shortcutId]: bindingFor(
 			WORKBENCH_SHORTCUTS.focusActivePanelUp.shortcutId,
 		),
+		[WORKBENCH_SHORTCUTS.increaseTerminalFontSize.shortcutId]: bindingFor(
+			WORKBENCH_SHORTCUTS.increaseTerminalFontSize.shortcutId,
+		),
 		[WORKBENCH_SHORTCUTS.maximizeActivePanel.shortcutId]: bindingFor(
 			WORKBENCH_SHORTCUTS.maximizeActivePanel.shortcutId,
 		),
@@ -54,6 +60,9 @@ export function createKeyboardShortcutBindings(
 			WORKBENCH_SHORTCUTS.newTerminal.shortcutId,
 		),
 		[WORKBENCH_SHORTCUTS.search.shortcutId]: bindingFor(WORKBENCH_SHORTCUTS.search.shortcutId),
+		[WORKBENCH_SHORTCUTS.resetTerminalFontSize.shortcutId]: bindingFor(
+			WORKBENCH_SHORTCUTS.resetTerminalFontSize.shortcutId,
+		),
 		[WORKBENCH_SHORTCUTS.selectNextTab.shortcutId]: bindingFor(
 			WORKBENCH_SHORTCUTS.selectNextTab.shortcutId,
 		),

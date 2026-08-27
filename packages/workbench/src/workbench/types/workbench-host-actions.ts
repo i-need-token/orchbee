@@ -27,6 +27,13 @@ export type WorkbenchHostActionCallback = (
 	context: ActionExecutionContext,
 ) => WorkbenchHostActionResult;
 
+export type WorkbenchTerminalFontSizeChange = 'decrease' | 'increase' | 'reset';
+
+export type WorkbenchTerminalFontSizeChangeCallback = (
+	context: ActionExecutionContext,
+	change: WorkbenchTerminalFontSizeChange,
+) => WorkbenchHostActionResult;
+
 export type WorkbenchTerminalCreateCallback = (
 	context: ActionExecutionContext,
 	input: WorkbenchTerminalCreateInput,

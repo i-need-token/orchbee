@@ -54,12 +54,14 @@ type KeyboardShortcutName =
 	| 'clear-terminal'
 	| 'close-terminal'
 	| 'copy-selection'
+	| 'decrease-terminal-font-size'
 	| 'find'
 	| 'focus-panel-down'
 	| 'focus-panel-left'
 	| 'focus-panel-right'
 	| 'focus-panel-up'
 	| 'global-search'
+	| 'increase-terminal-font-size'
 	| 'maximize-panel'
 	| 'new-terminal'
 	| 'next-prompt'
@@ -67,6 +69,7 @@ type KeyboardShortcutName =
 	| 'paste'
 	| 'previous-prompt'
 	| 'previous-tab'
+	| 'reset-terminal-font-size'
 	| 'scroll-line-down'
 	| 'scroll-line-up'
 	| 'scroll-page-down'
@@ -150,6 +153,36 @@ export const KEYBOARD_SHORTCUT_CATALOG = Object.freeze([
 		name: 'new-terminal',
 		scope: 'workbench',
 		shortcutId: WORKBENCH_SHORTCUTS.newTerminal.shortcutId,
+	}),
+	Object.freeze({
+		actionId: WORKBENCH_SHORTCUTS.increaseTerminalFontSize.id,
+		actionInput: undefined,
+		availability: 'always-in-workbench',
+		defaults: WORKBENCH_SHORTCUTS.increaseTerminalFontSize.defaults,
+		feature: 'terminal',
+		name: 'increase-terminal-font-size',
+		scope: 'workbench',
+		shortcutId: WORKBENCH_SHORTCUTS.increaseTerminalFontSize.shortcutId,
+	}),
+	Object.freeze({
+		actionId: WORKBENCH_SHORTCUTS.decreaseTerminalFontSize.id,
+		actionInput: undefined,
+		availability: 'always-in-workbench',
+		defaults: WORKBENCH_SHORTCUTS.decreaseTerminalFontSize.defaults,
+		feature: 'terminal',
+		name: 'decrease-terminal-font-size',
+		scope: 'workbench',
+		shortcutId: WORKBENCH_SHORTCUTS.decreaseTerminalFontSize.shortcutId,
+	}),
+	Object.freeze({
+		actionId: WORKBENCH_SHORTCUTS.resetTerminalFontSize.id,
+		actionInput: undefined,
+		availability: 'always-in-workbench',
+		defaults: WORKBENCH_SHORTCUTS.resetTerminalFontSize.defaults,
+		feature: 'terminal',
+		name: 'reset-terminal-font-size',
+		scope: 'workbench',
+		shortcutId: WORKBENCH_SHORTCUTS.resetTerminalFontSize.shortcutId,
 	}),
 	Object.freeze({
 		actionId: WORKBENCH_SHORTCUTS.selectPreviousTab.id,

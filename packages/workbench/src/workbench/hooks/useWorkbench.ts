@@ -29,6 +29,7 @@ import type {
 	WorkbenchHostActionCallback,
 	WorkbenchNavigationPort,
 	WorkbenchTerminalCreateCallback,
+	WorkbenchTerminalFontSizeChangeCallback,
 } from '../types/workbench-host-actions';
 import type { WorkbenchSearchFilter } from '../types/workbench-search';
 import type { WorkbenchProjectNavigationMessages } from '../components/workbench-sidebar/types/workbench-sidebar-types';
@@ -140,6 +141,7 @@ interface UseWorkbenchOptions {
 	readonly isShortcutScopeActive: boolean;
 	readonly navigation?: WorkbenchNavigationPort | undefined;
 	readonly onSettings: WorkbenchHostActionCallback | undefined;
+	readonly onTerminalFontSizeChange?: WorkbenchTerminalFontSizeChangeCallback | undefined;
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
 	readonly shortcutBindings: WorkbenchShortcutBindings;
 	readonly shortcutPlatform: WorkbenchShortcutPlatform;
@@ -151,6 +153,7 @@ export function useWorkbench({
 	isShortcutScopeActive,
 	navigation,
 	onSettings,
+	onTerminalFontSizeChange,
 	projectWorkspaceRuntime,
 	shortcutBindings,
 	shortcutPlatform,
@@ -291,6 +294,7 @@ export function useWorkbench({
 		navigation,
 		onNewTerminal: createTerminal,
 		onSettings,
+		onTerminalFontSizeChange,
 		openSearch,
 		primaryWorkspaceName: intl.formatMessage(workbenchMessages.workspacePrimaryName),
 		projectWorkspaceRuntime,

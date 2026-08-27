@@ -35,6 +35,7 @@ import type { WorkbenchTerminalActionShortcutLabels } from './types/workbench-te
 import type {
 	WorkbenchHostActionCallback,
 	WorkbenchNavigationPort,
+	WorkbenchTerminalFontSizeChangeCallback,
 } from './types/workbench-host-actions';
 import type { WorkbenchShortcutPlatform } from './types/workbench-shortcut-platform';
 import type { WorkbenchSearchProvider } from './types/workbench-search-provider';
@@ -55,6 +56,7 @@ export interface WorkbenchProps {
 	readonly layoutStorage?: WorkbenchLayoutStorage | undefined;
 	readonly navigation?: WorkbenchNavigationPort | undefined;
 	readonly onSettings?: WorkbenchHostActionCallback | undefined;
+	readonly onTerminalFontSizeChange?: WorkbenchTerminalFontSizeChangeCallback | undefined;
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
 	readonly projectFolderAcquisition?: WorkbenchProjectFolderAcquisition | undefined;
 	readonly projectWorktree?: WorkbenchProjectWorktreeCapability | undefined;
@@ -72,6 +74,7 @@ export function Workbench({
 	layoutStorage,
 	navigation,
 	onSettings,
+	onTerminalFontSizeChange,
 	projectWorkspaceRuntime,
 	projectFolderAcquisition,
 	projectWorktree,
@@ -94,6 +97,7 @@ export function Workbench({
 		isShortcutScopeActive,
 		navigation,
 		onSettings,
+		onTerminalFontSizeChange,
 		projectWorkspaceRuntime,
 		shortcutBindings: effectiveShortcutBindings,
 		shortcutPlatform,

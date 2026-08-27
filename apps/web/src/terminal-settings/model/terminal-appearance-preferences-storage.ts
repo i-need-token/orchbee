@@ -2,6 +2,8 @@ import { z } from 'zod';
 
 import {
 	DEFAULT_TERMINAL_APPEARANCE_PREFERENCES,
+	MAXIMUM_TERMINAL_FONT_SIZE,
+	MINIMUM_TERMINAL_FONT_SIZE,
 	TERMINAL_FONT_WEIGHT_OPTIONS,
 	type TerminalAppearancePreferences,
 } from './terminal-appearance-preferences';
@@ -32,7 +34,7 @@ const legacyTerminalAppearancePreferencesSchema = z.strictObject({
 	customBackground: hexColorSchema,
 	customForeground: hexColorSchema,
 	fontFamily: z.string().trim().min(1).max(256),
-	fontSize: z.number().int().min(8).max(48),
+	fontSize: z.number().int().min(MINIMUM_TERMINAL_FONT_SIZE).max(MAXIMUM_TERMINAL_FONT_SIZE),
 	terminalDisplayTheme: z.enum(['host', 'light', 'dark', 'custom']),
 });
 

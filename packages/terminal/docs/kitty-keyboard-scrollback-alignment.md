@@ -70,16 +70,16 @@ replace-latest history-scroll concurrency key and projects the same binding tabl
 Action search, labels, and Settings. Synchronous availability is checked before execution and key
 consumption.
 
-Adding the six shortcut IDs extends Web's strict durable keyboard catalog to version 7. An exact
-valid v6 record is migrated against its prior catalog and defaults, overrides equal to current
-defaults are removed, migration conflicts are rejected, and v6 remains unchanged as the rollback
-snapshot. Invalid current records do not fall back to older versions.
+Adding the six shortcut IDs originally extended Web's strict durable keyboard catalog to version 7. The current version-8 writer still reads an exact v7 record against that prior catalog and
+defaults before adding later font-size shortcuts; it removes overrides equal to current defaults,
+rejects migration conflicts, and leaves v7 unchanged as the rollback snapshot. Invalid current
+records do not fall back to older versions.
 
 ## Verification
 
-| Claim                                                                  | Evidence                                                  | Limit                                                               |
-| ---------------------------------------------------------------------- | --------------------------------------------------------- | ------------------------------------------------------------------- |
-| Line, overlapping-page, top, bottom, boundary, and screen admission    | `src/projected/__tests__/projected-terminal.unit.test.ts` | Deterministic projected-terminal and mocked Host row windows        |
-| Action availability, typed results, shared concurrency, and dispatch   | Web projected-terminal Action and shortcut unit tests     | In-process Action runtime and synthetic keyboard events             |
-| Catalog labels, conflict freedom, customization, and v6-to-v7 recovery | Web catalog, Settings, controller, and storage unit tests | Synthetic device-local storage                                      |
-| Six physical chords move one production retained-history viewport      | `terminal-parity/HS-11-keyboard-scrollback`               | One real Desktop attachment and Terminal Host on the primary screen |
+| Claim                                                                | Evidence                                                  | Limit                                                               |
+| -------------------------------------------------------------------- | --------------------------------------------------------- | ------------------------------------------------------------------- |
+| Line, overlapping-page, top, bottom, boundary, and screen admission  | `src/projected/__tests__/projected-terminal.unit.test.ts` | Deterministic projected-terminal and mocked Host row windows        |
+| Action availability, typed results, shared concurrency, and dispatch | Web projected-terminal Action and shortcut unit tests     | In-process Action runtime and synthetic keyboard events             |
+| Catalog labels, conflict freedom, customization, and v7 recovery     | Web catalog, Settings, controller, and storage unit tests | Synthetic device-local storage                                      |
+| Six physical chords move one production retained-history viewport    | `terminal-parity/HS-11-keyboard-scrollback`               | One real Desktop attachment and Terminal Host on the primary screen |

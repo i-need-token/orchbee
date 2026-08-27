@@ -8,6 +8,9 @@ export const enUSWorkbenchMessages = {
 	'workbench.actions.states.unavailable':
 		'This action is not available in the current application.',
 	'workbench.terminal.actions.closeActive': 'Close Active Terminal',
+	'workbench.terminal.actions.fontSize.decrease': 'Decrease Terminal Font Size',
+	'workbench.terminal.actions.fontSize.increase': 'Increase Terminal Font Size',
+	'workbench.terminal.actions.fontSize.reset': 'Reset Terminal Font Size',
 	'workbench.sidebar.label': 'Workbench navigation',
 	'workbench.sidebar.actions.hide': 'Hide Sidebar',
 	'workbench.sidebar.actions.show': 'Show Sidebar',

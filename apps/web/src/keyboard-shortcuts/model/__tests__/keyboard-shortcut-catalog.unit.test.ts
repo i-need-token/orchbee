@@ -10,9 +10,9 @@ import {
 } from '../keyboard-shortcut-catalog';
 
 describe('keyboard shortcut catalog', () => {
-	it('combines the twenty-four Workbench and thirteen terminal owner declarations once', () => {
-		expect(KEYBOARD_SHORTCUT_CATALOG).toHaveLength(37);
-		expect(new Set(KEYBOARD_SHORTCUT_IDS).size).toBe(37);
+	it('combines the twenty-seven Workbench and thirteen projected-terminal declarations once', () => {
+		expect(KEYBOARD_SHORTCUT_CATALOG).toHaveLength(40);
+		expect(new Set(KEYBOARD_SHORTCUT_IDS).size).toBe(40);
 		expect(keyboardShortcutDeclaration('workbench.search.actions.open')).toMatchObject({
 			actionId: 'workbench.search.open',
 			actionInput: { filter: 'actions' },
@@ -53,6 +53,12 @@ describe('keyboard shortcut catalog', () => {
 			actionInput: undefined,
 			availability: 'multiple-tabs',
 			name: 'previous-tab',
+			scope: 'workbench',
+		});
+		expect(keyboardShortcutDeclaration('workbench.terminal.font-size.increase')).toMatchObject({
+			actionId: 'workbench.terminal.font-size.increase',
+			availability: 'always-in-workbench',
+			name: 'increase-terminal-font-size',
 			scope: 'workbench',
 		});
 		expect(keyboardShortcutDeclaration('terminal.clipboard.paste')).toMatchObject({
@@ -105,6 +111,15 @@ describe('keyboard shortcut catalog', () => {
 			'Ctrl+Shift+F',
 		);
 		expect(formatKeyboardShortcutChord(apple['terminal.clear'], 'apple')).toBe('⌘K');
+		expect(
+			formatKeyboardShortcutChord(apple['workbench.terminal.font-size.increase'], 'apple'),
+		).toBe('⌘=');
+		expect(
+			formatKeyboardShortcutChord(standard['workbench.terminal.font-size.decrease'], 'standard'),
+		).toBe('Ctrl+-');
+		expect(
+			formatKeyboardShortcutChord(standard['workbench.terminal.font-size.reset'], 'standard'),
+		).toBe('Ctrl+0');
 		expect(formatKeyboardShortcutChord(apple['workbench.tab.select.2'], 'apple')).toBe('⌘2');
 		expect(formatKeyboardShortcutChord(apple['workbench.tab.select-next'], 'apple')).toBe('⇧⌘]');
 		expect(formatKeyboardShortcutChord(apple['workbench.tab.select-previous'], 'apple')).toBe(

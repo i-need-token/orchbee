@@ -111,6 +111,7 @@ export function WebApplication({
 					layoutStorage={layoutStorage}
 					navigation={navigation}
 					onSettings={view.onSettings}
+					onTerminalFontSizeChange={view.onTerminalFontSizeChange}
 					projectWorkspaceRuntime={projectWorkspaceRuntime}
 					projectFolderAcquisition={projectFolderAcquisition}
 					projectWorktree={projectWorktree}

@@ -53,6 +53,21 @@ export const workbenchMessages = defineMessages({
 		defaultMessage: enUSWorkbenchMessages['workbench.terminal.actions.closeActive'],
 		description: 'Action that closes the active child terminal, panel, or terminal Tab.',
 	},
+	terminalFontSizeDecrease: {
+		id: 'workbench.terminal.actions.fontSize.decrease',
+		defaultMessage: enUSWorkbenchMessages['workbench.terminal.actions.fontSize.decrease'],
+		description: 'Action that decreases the application-wide terminal font size.',
+	},
+	terminalFontSizeIncrease: {
+		id: 'workbench.terminal.actions.fontSize.increase',
+		defaultMessage: enUSWorkbenchMessages['workbench.terminal.actions.fontSize.increase'],
+		description: 'Action that increases the application-wide terminal font size.',
+	},
+	terminalFontSizeReset: {
+		id: 'workbench.terminal.actions.fontSize.reset',
+		defaultMessage: enUSWorkbenchMessages['workbench.terminal.actions.fontSize.reset'],
+		description: 'Action that restores the application-wide terminal font size.',
+	},
 	panelCancel: {
 		id: 'workbench.panels.actions.cancel',
 		defaultMessage: enUSWorkbenchMessages['workbench.panels.actions.cancel'],

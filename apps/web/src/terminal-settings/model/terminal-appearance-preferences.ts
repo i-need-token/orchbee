@@ -8,8 +8,12 @@ import {
 type ApplicationTheme = 'dark' | 'light';
 type TerminalDisplayTheme = 'custom' | 'dark' | 'host' | 'light';
 export type TerminalHexColor = `#${string}`;
+export const MINIMUM_TERMINAL_FONT_SIZE = 8;
+export const MAXIMUM_TERMINAL_FONT_SIZE = 48;
+const TERMINAL_FONT_SIZE_STEP = 2;
 export const TERMINAL_FONT_WEIGHT_OPTIONS = [100, 200, 300, 400, 500, 600, 700, 800, 900] as const;
 export type TerminalFontWeight = (typeof TERMINAL_FONT_WEIGHT_OPTIONS)[number];
+export type TerminalFontSizeChange = 'decrease' | 'increase' | 'reset';
 
 export interface TerminalAppearancePreferences {
 	readonly applicationTheme: ApplicationTheme;
@@ -114,6 +118,16 @@ export function normalizeTerminalHexColor(value: string): TerminalHexColor | nul
 	if (!/^#[\da-fA-F]{6}$/u.test(value)) return null;
 	const normalized: TerminalHexColor = `#${value.slice(1).toLowerCase()}`;
 	return normalized;
+}
+
+export function resolveTerminalFontSizeChange(
+	currentFontSize: number,
+	change: TerminalFontSizeChange,
+): number {
+	if (change === 'reset') return DEFAULT_TERMINAL_APPEARANCE_PREFERENCES.fontSize;
+	const candidate =
+		currentFontSize + (change === 'increase' ? TERMINAL_FONT_SIZE_STEP : -TERMINAL_FONT_SIZE_STEP);
+	return Math.min(MAXIMUM_TERMINAL_FONT_SIZE, Math.max(MINIMUM_TERMINAL_FONT_SIZE, candidate));
 }
 
 export type TerminalAppearancePresentationSource = TerminalPresentationConfigurationSource;

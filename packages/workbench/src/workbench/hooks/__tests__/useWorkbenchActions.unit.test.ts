@@ -10,6 +10,7 @@ import { WORKBENCH_ACTION_IDS } from '../../actions/workbench-action-ids';
 import { createWorkbenchPreviewTerminalPresentationComposition } from '../../model/createWorkbenchPreviewTerminalPresentationComposition';
 import type {
 	WorkbenchNavigationPort,
+	WorkbenchTerminalFontSizeChangeCallback,
 	WorkbenchTerminalCreateCallback,
 } from '../../types/workbench-host-actions';
 import { WorkbenchProjectWorkspaceRuntime } from '../../model/WorkbenchProjectWorkspaceRuntime';
@@ -26,6 +27,7 @@ function createTestTerminalPresentationComposition(scope: string) {
 interface WorkbenchActionsHarnessProps {
 	readonly captureScope?: ((scope: ReturnType<ActionRuntime['createScope']>) => void) | undefined;
 	readonly onNewTerminal?: WorkbenchTerminalCreateCallback | undefined;
+	readonly onTerminalFontSizeChange?: WorkbenchTerminalFontSizeChangeCallback | undefined;
 	readonly navigation?: WorkbenchNavigationPort | undefined;
 	readonly projectWorkspaceRuntime?: WorkbenchProjectWorkspaceRuntime | undefined;
 	readonly runtime: ActionRuntime;
@@ -35,6 +37,7 @@ function WorkbenchActionsHarness({
 	captureScope,
 	navigation,
 	onNewTerminal,
+	onTerminalFontSizeChange,
 	projectWorkspaceRuntime: providedProjectWorkspaceRuntime,
 	runtime,
 }: WorkbenchActionsHarnessProps): React.ReactNode {
@@ -58,6 +61,7 @@ function WorkbenchActionsHarness({
 		navigation,
 		onNewTerminal,
 		onSettings: undefined,
+		onTerminalFontSizeChange,
 		openSearch: () => undefined,
 		primaryWorkspaceName: 'Primary',
 		projectWorkspaceRuntime,
@@ -308,6 +312,43 @@ describe('useWorkbenchActions', () => {
 		).toMatchObject({
 			availability: { kind: 'disabled' },
 		});
+	});
+
+	it('routes the three terminal font-size actions through one host capability', async () => {
+		const runtime = new ActionRuntime();
+		const changes: string[] = [];
+		const onTerminalFontSizeChange = vi.fn<WorkbenchTerminalFontSizeChangeCallback>(
+			(context, change) => {
+				changes.push(change);
+				context.markCommitted();
+				return { kind: 'completed' };
+			},
+		);
+		let actionScope: ReturnType<ActionRuntime['createScope']> | undefined;
+		render(
+			React.createElement(WorkbenchActionsHarness, {
+				captureScope: (scope) => {
+					actionScope = scope;
+				},
+				onTerminalFontSizeChange,
+				runtime,
+			}),
+		);
+		if (actionScope === undefined) throw new Error('Expected the Workbench action scope.');
+
+		for (const actionId of [
+			WORKBENCH_ACTION_IDS.increaseTerminalFontSize,
+			WORKBENCH_ACTION_IDS.decreaseTerminalFontSize,
+			WORKBENCH_ACTION_IDS.resetTerminalFontSize,
+		]) {
+			await runtime.execute(actionId, undefined, {
+				scope: actionScope,
+				source: 'keyboard',
+			}).completion;
+		}
+
+		expect(changes).toEqual(['increase', 'decrease', 'reset']);
+		expect(onTerminalFontSizeChange).toHaveBeenCalledTimes(3);
 	});
 
 	it('routes Project and Workspace intents through stable actions', async () => {

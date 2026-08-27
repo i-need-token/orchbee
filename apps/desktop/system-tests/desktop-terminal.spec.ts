@@ -2453,6 +2453,49 @@ test('applies a custom shortcut without recreating the mounted terminal', async 
 	);
 });
 
+test('terminal-parity/SU-18-font-size-shortcuts', async () => {
+	test.setTimeout(45_000);
+	const application = electronApplication;
+	if (application === undefined) throw new Error('Electron application did not start.');
+	const page = await application.firstWindow();
+	const terminals = projectedTerminals(page);
+	await expect(terminals).toHaveCount(1);
+	await expect(terminals.first()).toHaveAttribute('data-projected-terminal-state', 'open');
+
+	await page.keyboard.press(process.platform === 'darwin' ? 'Meta+KeyD' : 'Control+Shift+KeyD');
+	await expect(terminals).toHaveCount(2);
+	const attachmentIds = await terminals.evaluateAll((elements) =>
+		elements.map((element) => element.getAttribute('data-projected-terminal-attachment-id')),
+	);
+	const fontSizes = async (): Promise<readonly number[]> =>
+		await terminals.locator('textarea').evaluateAll((elements) =>
+			elements.map((element) => {
+				if (!(element instanceof HTMLTextAreaElement)) {
+					throw new Error('Projected terminal input witness is not a textarea.');
+				}
+				return Number.parseFloat(element.style.fontSize);
+			}),
+		);
+	const initialFontSizes = await fontSizes();
+	expect(initialFontSizes).toHaveLength(2);
+	expect(new Set(initialFontSizes).size).toBe(1);
+
+	await page.keyboard.press(process.platform === 'darwin' ? 'Meta+Equal' : 'Control+Equal');
+	await expect.poll(fontSizes).toEqual(initialFontSizes.map((fontSize) => fontSize + 2));
+	expect(
+		await terminals.evaluateAll((elements) =>
+			elements.map((element) => element.getAttribute('data-projected-terminal-attachment-id')),
+		),
+	).toEqual(attachmentIds);
+
+	await page.keyboard.press(process.platform === 'darwin' ? 'Meta+Minus' : 'Control+Minus');
+	await expect.poll(fontSizes).toEqual(initialFontSizes);
+	await page.keyboard.press(process.platform === 'darwin' ? 'Meta+Equal' : 'Control+Equal');
+	await expect.poll(fontSizes).toEqual(initialFontSizes.map((fontSize) => fontSize + 2));
+	await page.keyboard.press(process.platform === 'darwin' ? 'Meta+Digit0' : 'Control+Digit0');
+	await expect.poll(fontSizes).toEqual(initialFontSizes);
+});
+
 test('launches only future terminals with the committed local shell profile', async () => {
 	test.skip(process.platform === 'win32', 'The native witness uses a POSIX shell executable.');
 	test.setTimeout(45_000);
