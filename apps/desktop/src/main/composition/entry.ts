@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { hostname } from 'node:os';
 
 import {
@@ -39,6 +40,8 @@ let desktopSecureKeyboardEntryFocusListener: (() => void) | undefined;
 let desktopWindowActions: DesktopWindowActions | undefined;
 let developmentRestartPlanStore: DesktopDevelopmentRestartPlanStore | undefined;
 let bypassQuitGate = false;
+const DARWIN_LOCALE_INVENTORY_MAX_BYTES = 64 * 1024;
+const DARWIN_LOCALE_INVENTORY_TIMEOUT_MILLISECONDS = 1_000;
 registerDesktopRendererScheme(protocol);
 const desktopDataRoot = prepareDesktopDataRoot({
 	environment: process.env,
@@ -64,6 +67,19 @@ if (!singleInstanceLockOwned) {
 	void app
 		.whenReady()
 		.then(async () => {
+			let darwinSupportedLocales: readonly string[] | undefined;
+			if (process.platform === 'darwin') {
+				const inventory = spawnSync('/usr/bin/locale', ['-a'], {
+					encoding: 'utf8',
+					env: { LANG: 'C', LC_ALL: 'C', LC_CTYPE: 'C' },
+					maxBuffer: DARWIN_LOCALE_INVENTORY_MAX_BYTES,
+					timeout: DARWIN_LOCALE_INVENTORY_TIMEOUT_MILLISECONDS,
+				});
+				darwinSupportedLocales =
+					inventory.status === 0 && typeof inventory.stdout === 'string'
+						? inventory.stdout.split(/\r?\n/u).filter((locale) => locale.length > 0)
+						: [];
+			}
 			let rendererUrl: string;
 			if (app.isPackaged) {
 				await installDesktopRendererScheme(
@@ -91,6 +107,12 @@ if (!singleInstanceLockOwned) {
 			}
 			const runtime = resolveDesktopRuntimeConfiguration({
 				applicationPath: app.getAppPath(),
+				...(process.platform === 'darwin'
+					? {
+							darwinSupportedLocales: darwinSupportedLocales ?? [],
+							darwinSystemLocale: app.getSystemLocale(),
+						}
+					: {}),
 				...(app.isPackaged
 					? {}
 					: {

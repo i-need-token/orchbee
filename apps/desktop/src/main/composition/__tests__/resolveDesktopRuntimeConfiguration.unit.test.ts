@@ -241,6 +241,120 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 		});
 	});
 
+	it('projects an authoritative Darwin UTF-8 locale when the Desktop locale is absent', () => {
+		const configuration = resolveDesktopRuntimeConfiguration({
+			applicationPath: path.resolve('/repo/apps/desktop'),
+			environment: {},
+			homeDirectory: path.resolve('/users/orchbee'),
+			platform: 'darwin',
+			posixRuntimeBaseDirectory: path.resolve('/private/var/folders/user/T'),
+			userDataPath: path.resolve('/users/orchbee/library/orchbee'),
+		});
+
+		expect(
+			configuration.terminalLaunch.environment.filter(
+				(entry) => entry.name === 'LANG' || entry.name.startsWith('LC_'),
+			),
+		).toEqual([
+			{ name: 'LC_ALL', value: null },
+			{ name: 'LANG', value: 'en_US.UTF-8' },
+			{ name: 'LC_CTYPE', value: null },
+		]);
+	});
+
+	it('derives a Darwin LANG from the native system locale', () => {
+		const configuration = resolveDesktopRuntimeConfiguration({
+			applicationPath: path.resolve('/repo/apps/desktop'),
+			darwinSupportedLocales: ['en_US.UTF-8', 'zh_CN.UTF-8'],
+			darwinSystemLocale: 'zh-Hans-CN',
+			environment: {},
+			homeDirectory: path.resolve('/users/orchbee'),
+			platform: 'darwin',
+			posixRuntimeBaseDirectory: path.resolve('/private/var/folders/user/T'),
+			userDataPath: path.resolve('/users/orchbee/library/orchbee'),
+		});
+
+		expect(configuration.terminalLaunch.environment).toContainEqual({
+			name: 'LANG',
+			value: 'zh_CN.UTF-8',
+		});
+	});
+
+	it('falls back when the derived Darwin locale is not installed', () => {
+		const configuration = resolveDesktopRuntimeConfiguration({
+			applicationPath: path.resolve('/repo/apps/desktop'),
+			darwinSupportedLocales: ['en_US.UTF-8', 'zh_CN.UTF-8'],
+			darwinSystemLocale: 'zh-US',
+			environment: {},
+			homeDirectory: path.resolve('/users/orchbee'),
+			platform: 'darwin',
+			posixRuntimeBaseDirectory: path.resolve('/private/var/folders/user/T'),
+			userDataPath: path.resolve('/users/orchbee/library/orchbee'),
+		});
+
+		expect(configuration.terminalLaunch.environment).toContainEqual({
+			name: 'LANG',
+			value: 'en_US.UTF-8',
+		});
+	});
+
+	it('falls back when the Darwin system locale has no usable country', () => {
+		const configuration = resolveDesktopRuntimeConfiguration({
+			applicationPath: path.resolve('/repo/apps/desktop'),
+			darwinSystemLocale: 'en',
+			environment: {},
+			homeDirectory: path.resolve('/users/orchbee'),
+			platform: 'darwin',
+			posixRuntimeBaseDirectory: path.resolve('/private/var/folders/user/T'),
+			userDataPath: path.resolve('/users/orchbee/library/orchbee'),
+		});
+
+		expect(configuration.terminalLaunch.environment).toContainEqual({
+			name: 'LANG',
+			value: 'en_US.UTF-8',
+		});
+	});
+
+	it('supplies a Darwin LANG even when a valid LC_ALL controls the local locale', () => {
+		const configuration = resolveDesktopRuntimeConfiguration({
+			applicationPath: path.resolve('/repo/apps/desktop'),
+			darwinSupportedLocales: ['en_US.UTF-8'],
+			darwinSystemLocale: 'en-US',
+			environment: { LC_ALL: 'zh_CN.UTF-8' },
+			homeDirectory: path.resolve('/users/orchbee'),
+			platform: 'darwin',
+			posixRuntimeBaseDirectory: path.resolve('/private/var/folders/user/T'),
+			userDataPath: path.resolve('/users/orchbee/library/orchbee'),
+		});
+
+		expect(
+			configuration.terminalLaunch.environment.filter(
+				(entry) => entry.name === 'LANG' || entry.name.startsWith('LC_'),
+			),
+		).toEqual([
+			{ name: 'LC_ALL', value: 'zh_CN.UTF-8' },
+			{ name: 'LANG', value: 'en_US.UTF-8' },
+			{ name: 'LC_CTYPE', value: null },
+		]);
+	});
+
+	it('keeps the Linux UTF-8 character-type fallback without inventing LANG', () => {
+		const configuration = resolveDesktopRuntimeConfiguration({
+			applicationPath: path.resolve('/repo/apps/desktop'),
+			environment: {},
+			homeDirectory: path.resolve('/users/orchbee'),
+			platform: 'linux',
+			posixRuntimeBaseDirectory: path.resolve('/run/user/501'),
+			userDataPath: path.resolve('/users/orchbee/.config/orchbee'),
+		});
+
+		expect(
+			configuration.terminalLaunch.environment.filter(
+				(entry) => entry.name === 'LANG' || entry.name.startsWith('LC_'),
+			),
+		).toEqual([{ name: 'LC_CTYPE', value: 'C.UTF-8' }]);
+	});
+
 	it('repairs an unsupported Darwin UTF-8 locale before launching the shell', () => {
 		const configuration = resolveDesktopRuntimeConfiguration({
 			applicationPath: path.resolve('/repo/apps/desktop'),
@@ -267,6 +381,7 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 			{ name: 'FORCE_COLOR', value: null },
 			{ name: 'NODE_DISABLE_COLORS', value: null },
 			{ name: 'LC_ALL', value: null },
+			{ name: 'LANG', value: 'en_US.UTF-8' },
 			{ name: 'LC_CTYPE', value: 'en_US.UTF-8' },
 		]);
 	});
@@ -292,8 +407,9 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 			{ name: 'NO_COLOR', value: null },
 			{ name: 'FORCE_COLOR', value: null },
 			{ name: 'NODE_DISABLE_COLORS', value: null },
+			{ name: 'LC_ALL', value: null },
 			{ name: 'LANG', value: 'en_US.UTF-8' },
-			{ name: 'LC_CTYPE', value: 'en_US.UTF-8' },
+			{ name: 'LC_CTYPE', value: null },
 		]);
 	});
 
@@ -322,6 +438,9 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 			{ name: 'NO_COLOR', value: null },
 			{ name: 'FORCE_COLOR', value: null },
 			{ name: 'NODE_DISABLE_COLORS', value: null },
+			{ name: 'LC_ALL', value: 'zh_CN.UTF-8' },
+			{ name: 'LANG', value: 'en_US.UTF-8' },
+			{ name: 'LC_CTYPE', value: 'en_US.UTF-8' },
 		]);
 	});
 

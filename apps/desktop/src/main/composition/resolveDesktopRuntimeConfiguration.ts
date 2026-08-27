@@ -43,6 +43,8 @@ export type DesktopBrowserAccessRuntimeConfiguration =
 
 export interface DesktopRuntimeConfigurationInput {
 	readonly applicationPath: string;
+	readonly darwinSupportedLocales?: readonly string[] | undefined;
+	readonly darwinSystemLocale?: string | undefined;
 	readonly developmentPosixHostEndpointAddonPath?: string | undefined;
 	readonly developmentShellIntegrationDirectory?: string | undefined;
 	readonly environment: DesktopRuntimeEnvironment;
@@ -192,6 +194,8 @@ export function resolveDesktopRuntimeConfiguration(
 	const terminalLocaleEnvironment = resolveTerminalLocaleEnvironment(
 		input.environment,
 		input.platform,
+		input.darwinSupportedLocales,
+		input.darwinSystemLocale,
 	);
 	const supervisedHostFlag = input.environment.ORCHBEE_TERMINAL_HOST_SUPERVISED;
 	if (
@@ -276,14 +280,44 @@ export function resolveDesktopRuntimeConfiguration(
 function resolveTerminalLocaleEnvironment(
 	environment: DesktopRuntimeEnvironment,
 	platform: NodeJS.Platform,
+	darwinSupportedLocales: readonly string[] | undefined,
+	darwinSystemLocale: string | undefined,
 ): TerminalLaunch['environment'] {
 	if (platform === 'win32') return [];
 
 	const lcAll = nonEmpty(environment.LC_ALL);
-	if (lcAll !== undefined && isSupportedUtf8Locale(lcAll, platform)) return [];
-	const lcCtype = nonEmpty(environment.LC_CTYPE);
 	const lang = nonEmpty(environment.LANG);
-	const fallbackLocale = platform === 'darwin' ? 'en_US.UTF-8' : 'C.UTF-8';
+	const lcCtype = nonEmpty(environment.LC_CTYPE);
+	if (platform === 'darwin') {
+		const fallbackLocale = resolveDarwinUtf8Locale(darwinSystemLocale, darwinSupportedLocales);
+		const resolvedLcAll =
+			lcAll !== undefined && isSupportedUtf8Locale(lcAll, platform) ? lcAll : null;
+		const resolvedLocale =
+			[lcCtype, lang].find(
+				(value): value is string => value !== undefined && isSupportedUtf8Locale(value, platform),
+			) ?? fallbackLocale;
+		let resolvedLang = fallbackLocale;
+		if (lang !== undefined && isSupportedUtf8Locale(lang, platform)) {
+			resolvedLang = lang;
+		} else if (resolvedLcAll === null) {
+			resolvedLang = resolvedLocale;
+		}
+		let resolvedLcCtype: string | null = null;
+		if (lcCtype !== undefined) {
+			resolvedLcCtype = isSupportedUtf8Locale(lcCtype, platform) ? lcCtype : resolvedLocale;
+		}
+
+		return [
+			{ name: 'LC_ALL', value: resolvedLcAll },
+			{ name: 'LANG', value: resolvedLang },
+			{ name: 'LC_CTYPE', value: resolvedLcCtype },
+		];
+	}
+
+	const fallbackLocale = 'C.UTF-8';
+	if (lcAll !== undefined && isSupportedUtf8Locale(lcAll, platform)) {
+		return [];
+	}
 	const resolvedLocale =
 		[lcCtype, lang].find(
 			(value): value is string => value !== undefined && isSupportedUtf8Locale(value, platform),
@@ -299,6 +333,36 @@ function resolveTerminalLocaleEnvironment(
 		...(langNeedsRepair ? [{ name: 'LANG', value: resolvedLocale } as const] : []),
 		...(lcCtypeNeedsRepair ? [{ name: 'LC_CTYPE', value: resolvedLocale } as const] : []),
 	];
+}
+
+function resolveDarwinUtf8Locale(
+	systemLocale: string | undefined,
+	supportedLocales: readonly string[] | undefined,
+): string {
+	if (systemLocale !== undefined && systemLocale.length > 0) {
+		try {
+			const locale = new Intl.Locale(systemLocale);
+			const region = locale.region;
+			if (
+				/^[a-z]{2,3}$/u.test(locale.language) &&
+				region !== undefined &&
+				/^[A-Z]{2}$/u.test(region)
+			) {
+				const candidate = `${locale.language}_${region}.UTF-8`;
+				const normalizedCandidate = candidate.toLowerCase();
+				if (
+					supportedLocales?.some(
+						(supportedLocale) => supportedLocale.toLowerCase() === normalizedCandidate,
+					) === true
+				) {
+					return candidate;
+				}
+			}
+		} catch {
+			// Electron can return an empty or non-BCP-47 value when the native locale is unavailable.
+		}
+	}
+	return 'en_US.UTF-8';
 }
 
 function nonEmpty(value: string | undefined): string | undefined {

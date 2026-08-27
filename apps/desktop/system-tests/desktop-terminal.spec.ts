@@ -44,6 +44,9 @@ const gatewayMain = path.join(repositoryRoot, 'apps', 'gateway', 'dist', 'main',
 const serverMain = path.join(repositoryRoot, 'apps', 'server', 'dist', 'main', 'server.cjs');
 const webRoot = path.join(repositoryRoot, 'apps', 'web');
 const webDist = path.join(repositoryRoot, 'apps', 'web', 'dist');
+const launchEnvironmentWitnessTitle = 'terminal-parity/LC-04-environment';
+const sshEnvironmentWitnessTitle =
+	'runs an ordinary SSH PTY with a diagnosable TERM and no implicit Orchbee environment forwarding';
 const startupGeometryWitnessTitle = 'terminal-parity/SU-16-startup-geometry';
 const MANUAL_NATIVE_WINDOW_TEST_TAG = '@manual-native-window';
 const MANUAL_NATIVE_WINDOW_TEST_APPROVAL = 'I_ACKNOWLEDGE_FOCUS_INTERRUPTION';
@@ -117,9 +120,15 @@ test.beforeEach(async ({ browserName }, testInfo) => {
 	const endpointId = randomBytes(16).toString('hex');
 	hostProcess = await startHost(runtimeDirectory, endpointId);
 
+	const clearInheritedLocale =
+		testInfo.title === launchEnvironmentWitnessTitle ||
+		testInfo.title === sshEnvironmentWitnessTitle;
 	const environment = Object.fromEntries(
 		Object.entries(process.env).filter(
-			(entry): entry is [string, string] => entry[1] !== undefined,
+			(entry): entry is [string, string] =>
+				entry[1] !== undefined &&
+				(!clearInheritedLocale ||
+					(entry[0] !== 'LANG' && entry[0] !== 'LC_ALL' && entry[0] !== 'LC_CTYPE')),
 		),
 	);
 	const currentRendererUrl = rendererUrl;
@@ -2358,7 +2367,7 @@ test('terminal-parity/IN-08-drop', async () => {
 	await expect(page.locator('[role="list"]')).toContainText('desktop-file-drop-executed');
 });
 
-test('terminal-parity/LC-04-environment', async () => {
+test(launchEnvironmentWitnessTitle, async () => {
 	test.skip(process.platform === 'win32', 'The launch-locale witness is POSIX-only.');
 	const application = electronApplication;
 	if (application === undefined) throw new Error('Electron application did not start.');
@@ -2368,15 +2377,15 @@ test('terminal-parity/LC-04-environment', async () => {
 
 	const input = root.getByRole('textbox');
 	const command =
-		'printf \'orchbee-launch-env TERM=%s COLORTERM=%s TERM_PROGRAM=%s NO_COLOR=%s FORCE_COLOR=%s NODE_DISABLE_COLORS=%s CHARMAP=%s\\n\' "$TERM" "$COLORTERM" "$TERM_PROGRAM" "${NO_COLOR-unset}" "${FORCE_COLOR-unset}" "${NODE_DISABLE_COLORS-unset}" "$(locale charmap 2>/dev/null || printf unknown)"';
+		'printf \'orchbee-launch-env LANG=%s TERM=%s COLORTERM=%s TERM_PROGRAM=%s NO_COLOR=%s FORCE_COLOR=%s NODE_DISABLE_COLORS=%s CHARMAP=%s\\n\' "$LANG" "$TERM" "$COLORTERM" "$TERM_PROGRAM" "${NO_COLOR-unset}" "${FORCE_COLOR-unset}" "${NODE_DISABLE_COLORS-unset}" "$(locale charmap 2>/dev/null || printf unknown)"';
 	await input.pressSequentially(command, { delay: 1 });
 	await input.press('Enter');
 	await expect(root.locator('[role="list"]')).toContainText(
-		/orchbee-launch-env TERM=xterm-256color COLORTERM=truecolor TERM_PROGRAM=ghostty NO_COLOR=unset FORCE_COLOR=unset NODE_DISABLE_COLORS=unset CHARMAP=UTF-?8/u,
+		/orchbee-launch-env LANG=[^ ]+\.UTF-?8 TERM=xterm-256color COLORTERM=truecolor TERM_PROGRAM=ghostty NO_COLOR=unset FORCE_COLOR=unset NODE_DISABLE_COLORS=unset CHARMAP=UTF-?8/u,
 	);
 });
 
-test('runs an ordinary SSH PTY with a diagnosable TERM and no implicit Orchbee environment forwarding', async () => {
+test(sshEnvironmentWitnessTitle, async () => {
 	test.skip(process.platform !== 'darwin', 'The current real SSH baseline is verified on macOS.');
 	test.setTimeout(45_000);
 	const application = electronApplication;
@@ -2431,6 +2440,40 @@ test('runs an ordinary SSH PTY with a diagnosable TERM and no implicit Orchbee e
 		await expect(accessibility).toContainText('COLORTERM=unset');
 		await expect(accessibility).toContainText('TERM_PROGRAM=unset');
 		await expect(accessibility).toContainText('TERMINFO=available');
+
+		const localeCommand =
+			'printf \'ORCHBEE_REMOTE_LOCALE LANG=%s CHARMAP=%s\\n\' "${LANG-unset}" "$(locale charmap 2>/dev/null || printf unknown)"';
+		const localeSshCommand = [
+			'/usr/bin/ssh',
+			'-F',
+			'/dev/null',
+			'-tt',
+			'-o',
+			'BatchMode=yes',
+			'-o',
+			'IdentitiesOnly=yes',
+			'-o',
+			'LogLevel=ERROR',
+			'-o',
+			'SendEnv=LANG',
+			'-o',
+			'StrictHostKeyChecking=no',
+			'-o',
+			'UserKnownHostsFile=/dev/null',
+			'-i',
+			sshFixture.clientKey,
+			'-p',
+			String(sshFixture.port),
+			`${sshFixture.username}@127.0.0.1`,
+			localeCommand,
+		]
+			.map(quotePosixShellWord)
+			.join(' ');
+		await input.pressSequentially(localeSshCommand, { delay: 1 });
+		await input.press('Enter');
+		await expect(accessibility).toContainText(
+			/ORCHBEE_REMOTE_LOCALE LANG=[^ ]+\.UTF-?8 CHARMAP=UTF-?8/u,
+		);
 	} finally {
 		await stopChildProcess(sshFixture.server);
 	}
@@ -4158,6 +4201,7 @@ async function startLoopbackSshFixture(directory: string): Promise<{
 			`AuthorizedKeysFile ${authorizedKeys}`,
 			'PasswordAuthentication no',
 			'KbdInteractiveAuthentication no',
+			'AcceptEnv LANG',
 			'UsePAM no',
 			'PermitRootLogin no',
 			'StrictModes no',
