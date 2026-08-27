@@ -147,6 +147,31 @@ describe('useWorkbenchShortcuts', () => {
 		expect(accepted.defaultPrevented).toBe(true);
 	});
 
+	it('captures active Tab movement before focused terminal input', () => {
+		const invokeIfEnabled = vi.fn<
+			(binding: WorkbenchShortcutBinding, source: 'keyboard') => boolean
+		>(() => true);
+		render(createElement(WorkbenchShortcutsHarness, { invokeIfEnabled }));
+		const input = screen.getByRole('textbox', { name: 'Terminal input' });
+		const accepted = new KeyboardEvent('keydown', {
+			cancelable: true,
+			code: 'Period',
+			ctrlKey: true,
+			shiftKey: true,
+		});
+
+		input.dispatchEvent(accepted);
+
+		expect(invokeIfEnabled).toHaveBeenCalledWith(
+			expect.objectContaining({
+				action: 'moveActiveTabForward',
+				shortcutId: 'workbench.tab.active.move-forward',
+			}),
+			'keyboard',
+		);
+		expect(accepted.defaultPrevented).toBe(true);
+	});
+
 	it('does not participate while its semantic scope is inactive', () => {
 		const invokeIfEnabled = vi.fn<
 			(binding: WorkbenchShortcutBinding, source: 'keyboard') => boolean

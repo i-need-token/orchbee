@@ -2287,6 +2287,74 @@ test('projects native window drag regions without consuming title bar controls o
 	await expect(tabs.first()).toHaveAttribute('aria-selected', 'true');
 });
 
+test('terminal-parity/FS-10-active-tab-movement', async () => {
+	test.setTimeout(60_000);
+	const application = electronApplication;
+	if (application === undefined) throw new Error('Electron application did not start.');
+	const page = await application.firstWindow();
+	const tabs = workbenchTabs(page);
+	const newTabButton = page.getByRole('button', { name: /^(?:New tab|新建标签页)$/u });
+	const tabOrder = async (): Promise<readonly string[]> =>
+		await tabs.evaluateAll((elements) =>
+			elements.map((element) => element.getAttribute('data-tab-id') ?? ''),
+		);
+
+	await expect(tabs).toHaveCount(1);
+	const firstTabId = await tabs.first().getAttribute('data-tab-id');
+	if (firstTabId === null) throw new Error('The initial Tab has no stable identity.');
+	await newTabButton.click();
+	await expect(tabs).toHaveCount(2);
+	const secondTabId = await tabs.nth(1).getAttribute('data-tab-id');
+	if (secondTabId === null) throw new Error('The second Tab has no stable identity.');
+
+	await tabs.first().click();
+	await expect(tabs.first()).toHaveAttribute('aria-selected', 'true');
+	const activeRoot = projectedTerminal(page);
+	const presentationId = await activeRoot.getAttribute('data-terminal-presentation-id');
+	if (presentationId === null) throw new Error('The active terminal has no presentation identity.');
+	const activeInput = activeRoot.getByRole('textbox');
+	await activeInput.focus();
+
+	await page.keyboard.press('Control+Shift+Period');
+	await expect.poll(tabOrder).toEqual([secondTabId, firstTabId]);
+	await expect(tabs.nth(1)).toHaveAttribute('aria-selected', 'true');
+	await expect(activeInput).toBeFocused();
+
+	await page.keyboard.press('Control+Shift+Period');
+	await expect.poll(tabOrder).toEqual([firstTabId, secondTabId]);
+	await expect(tabs.first()).toHaveAttribute('aria-selected', 'true');
+
+	await page.keyboard.press('Control+Shift+Comma');
+	await expect.poll(tabOrder).toEqual([secondTabId, firstTabId]);
+	await expect(tabs.nth(1)).toHaveAttribute('aria-selected', 'true');
+
+	const primaryModifier = process.platform === 'darwin' ? 'Meta' : 'Control';
+	await page.keyboard.press(`${primaryModifier}+Shift+KeyP`);
+	const searchSurface = page.locator('[data-slot="workbench-search-surface"]');
+	await expect(searchSurface).toBeVisible();
+	const searchInput = searchSurface.getByRole('combobox');
+	await searchInput.fill(
+		(await searchInput.getAttribute('placeholder')) === '搜索操作…'
+			? '向前移动活动标签页'
+			: 'Move active tab forward',
+	);
+	const moveForwardOption = searchSurface.getByRole('option', {
+		name: /(?:Move active tab forward|向前移动活动标签页)/u,
+	});
+	await expect(moveForwardOption).toHaveAttribute('aria-disabled', 'false');
+	await moveForwardOption.click();
+	await expect(searchSurface).not.toBeAttached();
+	await expect.poll(tabOrder).toEqual([firstTabId, secondTabId]);
+	await expect(tabs.first()).toHaveAttribute('aria-selected', 'true');
+
+	const recoveredRoot = projectedTerminalFor(page, presentationId);
+	const recoveredInput = recoveredRoot.getByRole('textbox');
+	await recoveredInput.focus();
+	await recoveredInput.pressSequentially("printf 'active-tab-movement-alive\\n'", { delay: 1 });
+	await recoveredInput.press('Enter');
+	await expect(recoveredRoot.locator('[role="list"]')).toContainText('active-tab-movement-alive');
+});
+
 test('keeps terminal presentation continuous through rapid Tab switching and active Tab closure', async () => {
 	test.setTimeout(60_000);
 	const application = electronApplication;

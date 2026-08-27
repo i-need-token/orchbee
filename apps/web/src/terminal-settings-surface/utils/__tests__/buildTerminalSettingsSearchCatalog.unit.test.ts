@@ -51,6 +51,12 @@ describe('buildTerminalSettingsSearchCatalog', () => {
 			label: 'Select next tab',
 			sectionLabel: 'Workbench',
 		});
+		expect(
+			entries.find((entry) => entry.id === 'keyboard-shortcuts.workbench.tab.active.move-forward'),
+		).toMatchObject({
+			label: 'Move active tab forward',
+			sectionLabel: 'Workbench',
+		});
 	});
 
 	it('omits unavailable categories and capability-gated settings', () => {

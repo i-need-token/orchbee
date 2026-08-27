@@ -20,6 +20,8 @@ interface WorkbenchShortcutDefinition {
 		| typeof WORKBENCH_ACTION_IDS.focusActivePanelRight
 		| typeof WORKBENCH_ACTION_IDS.focusActivePanelUp
 		| typeof WORKBENCH_ACTION_IDS.increaseTerminalFontSize
+		| typeof WORKBENCH_ACTION_IDS.moveActiveTabBackward
+		| typeof WORKBENCH_ACTION_IDS.moveActiveTabForward
 		| typeof WORKBENCH_ACTION_IDS.openSearch
 		| typeof WORKBENCH_ACTION_IDS.openSettings
 		| typeof WORKBENCH_ACTION_IDS.resetTerminalFontSize
@@ -124,6 +126,24 @@ export const WORKBENCH_SHORTCUTS = {
 		id: WORKBENCH_ACTION_IDS.toggleActivePanelMaximization,
 		input: undefined,
 		shortcutId: WORKBENCH_ACTION_IDS.toggleActivePanelMaximization,
+	},
+	moveActiveTabBackward: {
+		defaults: {
+			apple: chord('Comma', ['control', 'shift']),
+			standard: chord('Comma', ['control', 'shift']),
+		},
+		id: WORKBENCH_ACTION_IDS.moveActiveTabBackward,
+		input: undefined,
+		shortcutId: WORKBENCH_ACTION_IDS.moveActiveTabBackward,
+	},
+	moveActiveTabForward: {
+		defaults: {
+			apple: chord('Period', ['control', 'shift']),
+			standard: chord('Period', ['control', 'shift']),
+		},
+		id: WORKBENCH_ACTION_IDS.moveActiveTabForward,
+		input: undefined,
+		shortcutId: WORKBENCH_ACTION_IDS.moveActiveTabForward,
 	},
 	newTerminal: {
 		defaults: {
@@ -240,6 +260,8 @@ const WORKBENCH_SHORTCUT_ACTIONS = Object.freeze([
 	'focusActivePanelUp',
 	'increaseTerminalFontSize',
 	'maximizeActivePanel',
+	'moveActiveTabBackward',
+	'moveActiveTabForward',
 	'newTerminal',
 	'search',
 	'resetTerminalFontSize',
@@ -316,6 +338,10 @@ export function formatWorkbenchActionShortcut(
 			return formatWorkbenchShortcut('focusActivePanelUp', platform, bindings);
 		case WORKBENCH_ACTION_IDS.increaseTerminalFontSize:
 			return formatWorkbenchShortcut('increaseTerminalFontSize', platform, bindings);
+		case WORKBENCH_ACTION_IDS.moveActiveTabBackward:
+			return formatWorkbenchShortcut('moveActiveTabBackward', platform, bindings);
+		case WORKBENCH_ACTION_IDS.moveActiveTabForward:
+			return formatWorkbenchShortcut('moveActiveTabForward', platform, bindings);
 		case WORKBENCH_ACTION_IDS.decreaseTerminalFontSize:
 			return formatWorkbenchShortcut('decreaseTerminalFontSize', platform, bindings);
 		case WORKBENCH_ACTION_IDS.resetTerminalFontSize:
@@ -381,6 +407,10 @@ function defaultBindingsFor(platform: WorkbenchShortcutPlatform): WorkbenchShort
 			WORKBENCH_SHORTCUTS.increaseTerminalFontSize.defaults[platform],
 		[WORKBENCH_SHORTCUTS.maximizeActivePanel.shortcutId]:
 			WORKBENCH_SHORTCUTS.maximizeActivePanel.defaults[platform],
+		[WORKBENCH_SHORTCUTS.moveActiveTabBackward.shortcutId]:
+			WORKBENCH_SHORTCUTS.moveActiveTabBackward.defaults[platform],
+		[WORKBENCH_SHORTCUTS.moveActiveTabForward.shortcutId]:
+			WORKBENCH_SHORTCUTS.moveActiveTabForward.defaults[platform],
 		[WORKBENCH_SHORTCUTS.newTerminal.shortcutId]:
 			WORKBENCH_SHORTCUTS.newTerminal.defaults[platform],
 		[WORKBENCH_SHORTCUTS.search.shortcutId]: WORKBENCH_SHORTCUTS.search.defaults[platform],

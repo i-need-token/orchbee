@@ -188,6 +188,8 @@ export const zhCNWorkbenchMessages = {
 	'workbench.tabs.actions.selectNext': '选择下一个标签页',
 	'workbench.tabs.actions.selectPrevious': '选择上一个标签页',
 	'workbench.tabs.actions.move': '移动标签页',
+	'workbench.tabs.actions.moveBackward': '向后移动活动标签页',
+	'workbench.tabs.actions.moveForward': '向前移动活动标签页',
 	'workbench.tabs.actions.moveGroup': '移动标签页组',
 	'workbench.tabs.actions.setGroupCollapsed': '设置标签页组折叠状态',
 	'workbench.tabs.actions.pin': '固定',

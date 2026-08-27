@@ -21,6 +21,8 @@ export const keyboardShortcutMessages = defineMessages({
 	hints: message('keyboard.shortcuts.actions.hints'),
 	increaseTerminalFontSize: message('keyboard.shortcuts.actions.increaseTerminalFontSize'),
 	maximizePanel: message('keyboard.shortcuts.actions.maximizePanel'),
+	moveTabBackward: message('keyboard.shortcuts.actions.moveTabBackward'),
+	moveTabForward: message('keyboard.shortcuts.actions.moveTabForward'),
 	newTerminal: message('keyboard.shortcuts.actions.newTerminal'),
 	nextTab: message('keyboard.shortcuts.actions.nextTab'),
 	nextPrompt: message('keyboard.shortcuts.actions.nextPrompt'),
@@ -56,6 +58,7 @@ export const keyboardShortcutMessages = defineMessages({
 	availabilityWorkbench: message('keyboard.shortcuts.availability.workbench'),
 	availabilityMultiplePanels: message('keyboard.shortcuts.availability.multiplePanels'),
 	availabilityMultipleTabs: message('keyboard.shortcuts.availability.multipleTabs'),
+	availabilityMovableTab: message('keyboard.shortcuts.availability.movableTab'),
 	availabilityTabPosition: message('keyboard.shortcuts.availability.tabPosition'),
 	category: message('keyboard.shortcuts.category'),
 	conflict: message(

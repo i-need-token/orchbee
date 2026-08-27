@@ -14,6 +14,8 @@ export const enUSKeyboardShortcutMessages = {
 	'keyboard.shortcuts.actions.hints': 'Show terminal hints',
 	'keyboard.shortcuts.actions.increaseTerminalFontSize': 'Increase terminal font size',
 	'keyboard.shortcuts.actions.maximizePanel': 'Toggle panel maximization',
+	'keyboard.shortcuts.actions.moveTabBackward': 'Move active tab backward',
+	'keyboard.shortcuts.actions.moveTabForward': 'Move active tab forward',
 	'keyboard.shortcuts.actions.newTerminal': 'New terminal',
 	'keyboard.shortcuts.actions.nextTab': 'Select next tab',
 	'keyboard.shortcuts.actions.nextPrompt': 'Scroll to next shell prompt',
@@ -46,6 +48,8 @@ export const enUSKeyboardShortcutMessages = {
 	'keyboard.shortcuts.availability.multiplePanels': 'When the active tab has multiple panels',
 	'keyboard.shortcuts.availability.multipleTabs':
 		'When the active terminal context has multiple tabs',
+	'keyboard.shortcuts.availability.movableTab':
+		'When the active tab can move inside its pinned or unpinned section',
 	'keyboard.shortcuts.availability.tabPosition': 'When that tab position exists',
 	'keyboard.shortcuts.availability.workbench': 'While the Workbench is active',
 	'keyboard.shortcuts.category': 'Keyboard shortcuts',

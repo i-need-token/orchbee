@@ -26,6 +26,8 @@ export const WORKBENCH_ACTION_IDS = {
 	renameProject: 'workbench.project.rename',
 	reorderProject: 'workbench.project.reorder',
 	reorderWorkspace: 'workbench.workspace.reorder',
+	moveActiveTabBackward: 'workbench.tab.active.move-backward',
+	moveActiveTabForward: 'workbench.tab.active.move-forward',
 	selectNextTab: 'workbench.tab.select-next',
 	selectPreviousTab: 'workbench.tab.select-previous',
 	selectTabByPosition: 'workbench.tab.select-by-position',
@@ -124,6 +126,8 @@ export interface WorkbenchActionCatalog {
 	readonly [WORKBENCH_ACTION_IDS.renameProject]: ActionSignature<WorkbenchProjectRenameInput>;
 	readonly [WORKBENCH_ACTION_IDS.reorderProject]: ActionSignature<WorkbenchProjectReorderInput>;
 	readonly [WORKBENCH_ACTION_IDS.reorderWorkspace]: ActionSignature<WorkbenchWorkspaceReorderInput>;
+	readonly [WORKBENCH_ACTION_IDS.moveActiveTabBackward]: ActionSignature<void>;
+	readonly [WORKBENCH_ACTION_IDS.moveActiveTabForward]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.selectNextTab]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.selectPreviousTab]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.selectTabByPosition]: ActionSignature<WorkbenchTabPositionInput>;

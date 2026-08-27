@@ -43,6 +43,8 @@ describe('workbench action contracts', () => {
 			renameProject: 'workbench.project.rename',
 			reorderProject: 'workbench.project.reorder',
 			reorderWorkspace: 'workbench.workspace.reorder',
+			moveActiveTabBackward: 'workbench.tab.active.move-backward',
+			moveActiveTabForward: 'workbench.tab.active.move-forward',
 			resetTerminalFontSize: 'workbench.terminal.font-size.reset',
 			selectTabByPosition: 'workbench.tab.select-by-position',
 			selectNextTab: 'workbench.tab.select-next',

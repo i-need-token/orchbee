@@ -28,7 +28,7 @@ describe('useKeyboardShortcutSettingsView', () => {
 				}),
 			{ wrapper: I18nWrapper },
 		);
-		expect(allRows.result.current.rows).toHaveLength(43);
+		expect(allRows.result.current.rows).toHaveLength(45);
 		expect(allRows.result.current.rows[0]).toMatchObject({
 			actionName: 'Search actions',
 			chord: 'Ctrl+Shift+P',
@@ -108,6 +108,13 @@ describe('useKeyboardShortcutSettingsView', () => {
 		).toMatchObject({
 			availability: 'When the active terminal context has multiple tabs',
 			chord: 'Ctrl+Page Down',
+			scope: 'Workbench',
+		});
+		expect(
+			allRows.result.current.rows.find((row) => row.actionName === 'Move active tab forward'),
+		).toMatchObject({
+			availability: 'When the active tab can move inside its pinned or unpinned section',
+			chord: 'Ctrl+Shift+.',
 			scope: 'Workbench',
 		});
 		controller.dispose();

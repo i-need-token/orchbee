@@ -20,6 +20,7 @@ import {
 	resolveAdjacentTabSelection,
 	type AdjacentTabSelectionInput,
 } from './resolveAdjacentTabSelection';
+import { WORKBENCH_DESCENDANT_ACTION_DISCOVERY_INPUTS } from './workbench-descendant-action-discovery';
 import {
 	WORKBENCH_ACTION_IDS,
 	type WorkbenchActionCatalog,
@@ -221,10 +222,7 @@ function prepareTabIdSelection({
 		.discover(discoveryInvocation(context, scope), {
 			includeDescendants: true,
 			inputByActionId: {
-				// Composite void-input actions must not rediscover themselves while they
-				// resolve the descendant action that performs the actual selection.
-				[WORKBENCH_ACTION_IDS.selectNextTab]: null,
-				[WORKBENCH_ACTION_IDS.selectPreviousTab]: null,
+				...WORKBENCH_DESCENDANT_ACTION_DISCOVERY_INPUTS,
 				[TAB_STRIP_ACTION_IDS.selectTab]: selectionInput,
 			},
 		})

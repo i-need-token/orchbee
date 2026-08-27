@@ -10,9 +10,9 @@ import {
 } from '../keyboard-shortcut-catalog';
 
 describe('keyboard shortcut catalog', () => {
-	it('combines the twenty-seven Workbench and sixteen projected-terminal declarations once', () => {
-		expect(KEYBOARD_SHORTCUT_CATALOG).toHaveLength(43);
-		expect(new Set(KEYBOARD_SHORTCUT_IDS).size).toBe(43);
+	it('combines the twenty-nine Workbench and sixteen projected-terminal declarations once', () => {
+		expect(KEYBOARD_SHORTCUT_CATALOG).toHaveLength(45);
+		expect(new Set(KEYBOARD_SHORTCUT_IDS).size).toBe(45);
 		expect(keyboardShortcutDeclaration('workbench.search.actions.open')).toMatchObject({
 			actionId: 'workbench.search.open',
 			actionInput: { filter: 'actions' },
@@ -53,6 +53,20 @@ describe('keyboard shortcut catalog', () => {
 			actionInput: undefined,
 			availability: 'multiple-tabs',
 			name: 'previous-tab',
+			scope: 'workbench',
+		});
+		expect(keyboardShortcutDeclaration('workbench.tab.active.move-backward')).toMatchObject({
+			actionId: 'workbench.tab.active.move-backward',
+			actionInput: undefined,
+			availability: 'movable-tab',
+			name: 'move-tab-backward',
+			scope: 'workbench',
+		});
+		expect(keyboardShortcutDeclaration('workbench.tab.active.move-forward')).toMatchObject({
+			actionId: 'workbench.tab.active.move-forward',
+			actionInput: undefined,
+			availability: 'movable-tab',
+			name: 'move-tab-forward',
 			scope: 'workbench',
 		});
 		expect(keyboardShortcutDeclaration('workbench.terminal.font-size.increase')).toMatchObject({
@@ -145,6 +159,12 @@ describe('keyboard shortcut catalog', () => {
 		expect(formatKeyboardShortcutChord(apple['workbench.tab.select-next'], 'apple')).toBe('⇧⌘]');
 		expect(formatKeyboardShortcutChord(apple['workbench.tab.select-previous'], 'apple')).toBe(
 			'⇧⌘[',
+		);
+		expect(formatKeyboardShortcutChord(apple['workbench.tab.active.move-backward'], 'apple')).toBe(
+			'⌃⇧,',
+		);
+		expect(formatKeyboardShortcutChord(apple['workbench.tab.active.move-forward'], 'apple')).toBe(
+			'⌃⇧.',
 		);
 		expect(formatKeyboardShortcutChord(standard['workbench.tab.select-next'], 'standard')).toBe(
 			'Ctrl+Page Down',

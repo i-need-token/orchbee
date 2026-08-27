@@ -56,6 +56,12 @@ export function createKeyboardShortcutBindings(
 		[WORKBENCH_SHORTCUTS.maximizeActivePanel.shortcutId]: bindingFor(
 			WORKBENCH_SHORTCUTS.maximizeActivePanel.shortcutId,
 		),
+		[WORKBENCH_SHORTCUTS.moveActiveTabBackward.shortcutId]: bindingFor(
+			WORKBENCH_SHORTCUTS.moveActiveTabBackward.shortcutId,
+		),
+		[WORKBENCH_SHORTCUTS.moveActiveTabForward.shortcutId]: bindingFor(
+			WORKBENCH_SHORTCUTS.moveActiveTabForward.shortcutId,
+		),
 		[WORKBENCH_SHORTCUTS.newTerminal.shortcutId]: bindingFor(
 			WORKBENCH_SHORTCUTS.newTerminal.shortcutId,
 		),

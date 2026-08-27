@@ -104,4 +104,22 @@ describe('keyboard shortcut overrides', () => {
 			modifiers: ['mod'],
 		});
 	});
+
+	it('applies one active Tab movement override without changing the opposite direction', () => {
+		const bindings = createKeyboardShortcutBindings('apple', [
+			{
+				chord: { code: 'KeyM', modifiers: ['alt', 'mod'] },
+				shortcutId: 'workbench.tab.active.move-forward',
+			},
+		]);
+
+		expect(bindings['workbench.tab.active.move-forward']).toEqual({
+			code: 'KeyM',
+			modifiers: ['alt', 'mod'],
+		});
+		expect(bindings['workbench.tab.active.move-backward']).toEqual({
+			code: 'Comma',
+			modifiers: ['control', 'shift'],
+		});
+	});
 });

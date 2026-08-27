@@ -34,6 +34,7 @@ export type KeyboardShortcutAvailability =
 	| 'always-in-workbench'
 	| 'focused-terminal'
 	| 'focused-terminal-with-selection'
+	| 'movable-tab'
 	| 'multiple-panels'
 	| 'multiple-tabs'
 	| 'directional-panel'
@@ -64,6 +65,8 @@ type KeyboardShortcutName =
 	| 'hints'
 	| 'increase-terminal-font-size'
 	| 'maximize-panel'
+	| 'move-tab-backward'
+	| 'move-tab-forward'
 	| 'new-terminal'
 	| 'next-prompt'
 	| 'next-tab'
@@ -186,6 +189,26 @@ export const KEYBOARD_SHORTCUT_CATALOG = Object.freeze([
 		name: 'reset-terminal-font-size',
 		scope: 'workbench',
 		shortcutId: WORKBENCH_SHORTCUTS.resetTerminalFontSize.shortcutId,
+	}),
+	Object.freeze({
+		actionId: WORKBENCH_SHORTCUTS.moveActiveTabBackward.id,
+		actionInput: WORKBENCH_SHORTCUTS.moveActiveTabBackward.input,
+		availability: 'movable-tab',
+		defaults: WORKBENCH_SHORTCUTS.moveActiveTabBackward.defaults,
+		feature: 'workbench',
+		name: 'move-tab-backward',
+		scope: 'workbench',
+		shortcutId: WORKBENCH_SHORTCUTS.moveActiveTabBackward.shortcutId,
+	}),
+	Object.freeze({
+		actionId: WORKBENCH_SHORTCUTS.moveActiveTabForward.id,
+		actionInput: WORKBENCH_SHORTCUTS.moveActiveTabForward.input,
+		availability: 'movable-tab',
+		defaults: WORKBENCH_SHORTCUTS.moveActiveTabForward.defaults,
+		feature: 'workbench',
+		name: 'move-tab-forward',
+		scope: 'workbench',
+		shortcutId: WORKBENCH_SHORTCUTS.moveActiveTabForward.shortcutId,
 	}),
 	Object.freeze({
 		actionId: WORKBENCH_SHORTCUTS.selectPreviousTab.id,

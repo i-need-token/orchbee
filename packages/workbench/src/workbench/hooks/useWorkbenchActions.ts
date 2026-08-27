@@ -19,6 +19,7 @@ import * as React from 'react';
 import type { ProjectWorkspaceState } from '../../project-workspace';
 import { registerWorkbenchProjectWorkspaceActions } from '../actions/registerWorkbenchProjectWorkspaceActions';
 import { registerWorkbenchActiveTerminalActions } from '../actions/registerWorkbenchActiveTerminalActions';
+import { registerWorkbenchActiveTabMovementActions } from '../actions/registerWorkbenchActiveTabMovementActions';
 import { registerWorkbenchTabSelectionActions } from '../actions/registerWorkbenchTabSelectionActions';
 import {
 	WORKBENCH_ACTION_IDS,
@@ -136,6 +137,12 @@ export function useWorkbenchActions({
 			},
 		});
 		const registrations = [
+			...registerWorkbenchActiveTabMovementActions({
+				projectWorkspaceRuntime,
+				runtime,
+				scope,
+				typedRuntime,
+			}),
 			...registerWorkbenchActiveTerminalActions({
 				projectWorkspaceRuntime,
 				runtime,
@@ -388,6 +395,8 @@ export function useWorkbenchActions({
 				case 'focusActivePanelUp':
 				case 'increaseTerminalFontSize':
 				case 'maximizeActivePanel':
+				case 'moveActiveTabBackward':
+				case 'moveActiveTabForward':
 				case 'selectNextTab':
 				case 'selectPreviousTab':
 				case 'resetTerminalFontSize':

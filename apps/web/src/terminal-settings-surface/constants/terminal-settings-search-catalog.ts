@@ -325,6 +325,8 @@ export const KEYBOARD_SHORTCUT_SEARCH_LABELS = {
 	hints: keyboardShortcutMessages.hints,
 	'increase-terminal-font-size': keyboardShortcutMessages.increaseTerminalFontSize,
 	'maximize-panel': keyboardShortcutMessages.maximizePanel,
+	'move-tab-backward': keyboardShortcutMessages.moveTabBackward,
+	'move-tab-forward': keyboardShortcutMessages.moveTabForward,
 	'new-terminal': keyboardShortcutMessages.newTerminal,
 	'next-prompt': keyboardShortcutMessages.nextPrompt,
 	'next-tab': keyboardShortcutMessages.nextTab,
@@ -366,5 +368,6 @@ export const KEYBOARD_SHORTCUT_SEARCH_AVAILABILITY = {
 		keyboardShortcutMessages.availabilityFocusedTerminalWithSelection,
 	'multiple-panels': keyboardShortcutMessages.availabilityMultiplePanels,
 	'multiple-tabs': keyboardShortcutMessages.availabilityMultipleTabs,
+	'movable-tab': keyboardShortcutMessages.availabilityMovableTab,
 	'tab-position': keyboardShortcutMessages.availabilityTabPosition,
 } as const;

@@ -63,6 +63,14 @@ export const workbenchTabMessages = defineMessages({
 		id: 'workbench.tabs.actions.move',
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.move'],
 	},
+	moveActiveTabBackward: {
+		id: 'workbench.tabs.actions.moveBackward',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.moveBackward'],
+	},
+	moveActiveTabForward: {
+		id: 'workbench.tabs.actions.moveForward',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.moveForward'],
+	},
 	moveGroup: {
 		id: 'workbench.tabs.actions.moveGroup',
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.moveGroup'],

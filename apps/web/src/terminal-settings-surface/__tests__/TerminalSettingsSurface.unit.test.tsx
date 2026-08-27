@@ -640,7 +640,7 @@ describe('TerminalSettingsSurface', () => {
 			),
 		);
 		await act(async () => keyboardCategory.click());
-		expect(container.querySelectorAll('[data-shortcut-id]')).toHaveLength(43);
+		expect(container.querySelectorAll('[data-shortcut-id]')).toHaveLength(45);
 		expect(container.textContent).toContain('Ctrl+Shift+T');
 		expect(container.textContent).toContain('Ctrl+Shift+W');
 		expect(container.textContent).toContain('Clear terminal');
@@ -648,6 +648,8 @@ describe('TerminalSettingsSurface', () => {
 		expect(container.textContent).toContain('Ctrl+Alt+←');
 		expect(container.textContent).toContain('Select next tab');
 		expect(container.textContent).toContain('Ctrl+Page Down');
+		expect(container.textContent).toContain('Move active tab forward');
+		expect(container.textContent).toContain('Ctrl+Shift+.');
 		expect(container.textContent).toContain('Scroll up one page');
 		expect(container.textContent).toContain('Ctrl+Shift+Page Up');
 		expect(container.textContent).toContain('Show terminal hints');
@@ -663,7 +665,7 @@ describe('TerminalSettingsSurface', () => {
 			setInputValue(search, 'Focused terminal');
 			search.dispatchEvent(new Event('input', { bubbles: true }));
 		});
-		expect(container.querySelectorAll('[data-shortcut-id]')).toHaveLength(43);
+		expect(container.querySelectorAll('[data-shortcut-id]')).toHaveLength(45);
 		expect(
 			container.querySelectorAll('[data-settings-search-result]').length,
 		).toBeGreaterThanOrEqual(3);

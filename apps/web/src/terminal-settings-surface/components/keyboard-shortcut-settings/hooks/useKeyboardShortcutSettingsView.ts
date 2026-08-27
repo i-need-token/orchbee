@@ -64,6 +64,10 @@ export function useKeyboardShortcutSettingsView({
 				return intl.formatMessage(keyboardShortcutMessages.newTerminal);
 			case 'next-tab':
 				return intl.formatMessage(keyboardShortcutMessages.nextTab);
+			case 'move-tab-backward':
+				return intl.formatMessage(keyboardShortcutMessages.moveTabBackward);
+			case 'move-tab-forward':
+				return intl.formatMessage(keyboardShortcutMessages.moveTabForward);
 			case 'next-prompt':
 				return intl.formatMessage(keyboardShortcutMessages.nextPrompt);
 			case 'show-last-command-output':
@@ -162,6 +166,8 @@ export function useKeyboardShortcutSettingsView({
 				return intl.formatMessage(keyboardShortcutMessages.availabilityMultiplePanels);
 			case 'multiple-tabs':
 				return intl.formatMessage(keyboardShortcutMessages.availabilityMultipleTabs);
+			case 'movable-tab':
+				return intl.formatMessage(keyboardShortcutMessages.availabilityMovableTab);
 			case 'tab-position':
 				return intl.formatMessage(keyboardShortcutMessages.availabilityTabPosition);
 		}

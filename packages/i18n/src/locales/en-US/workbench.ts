@@ -200,6 +200,8 @@ export const enUSWorkbenchMessages = {
 	'workbench.tabs.actions.selectNext': 'Select next tab',
 	'workbench.tabs.actions.selectPrevious': 'Select previous tab',
 	'workbench.tabs.actions.move': 'Move tab',
+	'workbench.tabs.actions.moveBackward': 'Move active tab backward',
+	'workbench.tabs.actions.moveForward': 'Move active tab forward',
 	'workbench.tabs.actions.moveGroup': 'Move tab group',
 	'workbench.tabs.actions.setGroupCollapsed': 'Set tab group collapsed state',
 	'workbench.tabs.actions.pin': 'Pin',

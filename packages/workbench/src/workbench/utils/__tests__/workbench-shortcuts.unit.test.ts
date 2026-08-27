@@ -51,6 +51,16 @@ describe('Workbench shortcuts', () => {
 		);
 		expect(WORKBENCH_SHORTCUTS.newTerminal.id).toBe('workbench.terminal.create');
 		expect(WORKBENCH_SHORTCUTS.search.id).toBe('workbench.search.open');
+		expect(WORKBENCH_SHORTCUTS.moveActiveTabBackward).toMatchObject({
+			id: 'workbench.tab.active.move-backward',
+			input: undefined,
+			shortcutId: 'workbench.tab.active.move-backward',
+		});
+		expect(WORKBENCH_SHORTCUTS.moveActiveTabForward).toMatchObject({
+			id: 'workbench.tab.active.move-forward',
+			input: undefined,
+			shortcutId: 'workbench.tab.active.move-forward',
+		});
 		expect(WORKBENCH_SHORTCUTS.resetTerminalFontSize.id).toBe('workbench.terminal.font-size.reset');
 		expect(WORKBENCH_SHORTCUTS.selectNextTab).toMatchObject({
 			id: 'workbench.tab.select-next',
@@ -85,6 +95,8 @@ describe('Workbench shortcuts', () => {
 		expect(formatWorkbenchShortcut('focusActivePanelUp', 'apple')).toBe('⌥⌘↑');
 		expect(formatWorkbenchShortcut('increaseTerminalFontSize', 'apple')).toBe('⌘=');
 		expect(formatWorkbenchShortcut('maximizeActivePanel', 'apple')).toBe('⇧⌘Enter');
+		expect(formatWorkbenchShortcut('moveActiveTabBackward', 'apple')).toBe('⌃⇧,');
+		expect(formatWorkbenchShortcut('moveActiveTabForward', 'apple')).toBe('⌃⇧.');
 		expect(formatWorkbenchShortcut('newTerminal', 'apple')).toBe('⌘T');
 		expect(formatWorkbenchShortcut('search', 'apple')).toBe('⇧⌘F');
 		expect(formatWorkbenchShortcut('resetTerminalFontSize', 'apple')).toBe('⌘0');
@@ -105,6 +117,8 @@ describe('Workbench shortcuts', () => {
 		expect(formatWorkbenchShortcut('focusActivePanelUp', 'standard')).toBe('Ctrl+Alt+↑');
 		expect(formatWorkbenchShortcut('increaseTerminalFontSize', 'standard')).toBe('Ctrl+=');
 		expect(formatWorkbenchShortcut('maximizeActivePanel', 'standard')).toBe('Ctrl+Shift+Enter');
+		expect(formatWorkbenchShortcut('moveActiveTabBackward', 'standard')).toBe('Ctrl+Shift+,');
+		expect(formatWorkbenchShortcut('moveActiveTabForward', 'standard')).toBe('Ctrl+Shift+.');
 		expect(formatWorkbenchShortcut('newTerminal', 'standard')).toBe('Ctrl+Shift+T');
 		expect(formatWorkbenchShortcut('search', 'standard')).toBe('Ctrl+Shift+K');
 		expect(formatWorkbenchShortcut('resetTerminalFontSize', 'standard')).toBe('Ctrl+0');
@@ -117,6 +131,10 @@ describe('Workbench shortcuts', () => {
 		expect(formatWorkbenchShortcut('splitActivePanelRight', 'standard')).toBe('Ctrl+Shift+D');
 		expect(formatWorkbenchShortcut('toggleSidebar', 'standard')).toBe('Ctrl+Shift+B');
 		expect(formatWorkbenchActionShortcut('workbench.search.open', 'apple')).toBe('⇧⌘F');
+		expect(formatWorkbenchActionShortcut('workbench.tab.active.move-backward', 'apple')).toBe(
+			'⌃⇧,',
+		);
+		expect(formatWorkbenchActionShortcut('workbench.tab.active.move-forward', 'apple')).toBe('⌃⇧.');
 		expect(formatWorkbenchActionShortcut('workbench.terminal.font-size.increase', 'apple')).toBe(
 			'⌘=',
 		);
@@ -142,6 +160,8 @@ describe('Workbench shortcuts', () => {
 		['focusActivePanelUp', 'ArrowUp', 'ArrowUp'],
 		['increaseTerminalFontSize', 'Equal', 'Equal'],
 		['maximizeActivePanel', 'Enter', 'Enter'],
+		['moveActiveTabBackward', 'Comma', 'Comma'],
+		['moveActiveTabForward', 'Period', 'Period'],
 		['newTerminal', 'KeyT', 'KeyT'],
 		['search', 'KeyF', 'KeyK'],
 		['resetTerminalFontSize', 'Digit0', 'Digit0'],
@@ -160,41 +180,40 @@ describe('Workbench shortcuts', () => {
 		['splitActivePanelBelow', 'KeyD', 'KeyE'],
 		['splitActivePanelRight', 'KeyD', 'KeyD'],
 		['toggleSidebar', 'KeyB', 'KeyB'],
-	] as const)(
-		'resolves the exact platform primary modifier for %s',
-		(action, appleCode, standardCode) => {
-			const appleModifiers = WORKBENCH_SHORTCUTS[action].defaults.apple.modifiers;
-			const standardModifiers = WORKBENCH_SHORTCUTS[action].defaults.standard.modifiers;
-			expect(
-				resolveWorkbenchShortcut(
-					shortcutEvent({
-						code: appleCode,
-						altKey: appleModifiers.includes('alt'),
-						metaKey: true,
-						shiftKey: appleModifiers.includes('shift'),
-					}),
-					'apple',
-				),
-			).toMatchObject({ action, shortcutId: WORKBENCH_SHORTCUTS[action].shortcutId });
-			expect(
-				resolveWorkbenchShortcut(
-					shortcutEvent({
-						code: standardCode,
-						altKey: standardModifiers.includes('alt'),
-						ctrlKey: true,
-						shiftKey: standardModifiers.includes('shift'),
-					}),
-					'standard',
-				),
-			).toMatchObject({ action, shortcutId: WORKBENCH_SHORTCUTS[action].shortcutId });
-			expect(
-				resolveWorkbenchShortcut(shortcutEvent({ code: appleCode, ctrlKey: true }), 'apple'),
-			).toBe(null);
-			expect(
-				resolveWorkbenchShortcut(shortcutEvent({ code: standardCode, metaKey: true }), 'standard'),
-			).toBe(null);
-		},
-	);
+	] as const)('resolves the exact platform modifiers for %s', (action, appleCode, standardCode) => {
+		const appleModifiers = WORKBENCH_SHORTCUTS[action].defaults.apple.modifiers;
+		const standardModifiers = WORKBENCH_SHORTCUTS[action].defaults.standard.modifiers;
+		expect(
+			resolveWorkbenchShortcut(
+				shortcutEvent({
+					code: appleCode,
+					altKey: appleModifiers.includes('alt'),
+					ctrlKey: appleModifiers.includes('control'),
+					metaKey: appleModifiers.includes('meta') || appleModifiers.includes('mod'),
+					shiftKey: appleModifiers.includes('shift'),
+				}),
+				'apple',
+			),
+		).toMatchObject({ action, shortcutId: WORKBENCH_SHORTCUTS[action].shortcutId });
+		expect(
+			resolveWorkbenchShortcut(
+				shortcutEvent({
+					code: standardCode,
+					altKey: standardModifiers.includes('alt'),
+					ctrlKey: standardModifiers.includes('control') || standardModifiers.includes('mod'),
+					metaKey: standardModifiers.includes('meta'),
+					shiftKey: standardModifiers.includes('shift'),
+				}),
+				'standard',
+			),
+		).toMatchObject({ action, shortcutId: WORKBENCH_SHORTCUTS[action].shortcutId });
+		expect(
+			resolveWorkbenchShortcut(shortcutEvent({ code: appleCode, ctrlKey: true }), 'apple'),
+		).toBe(null);
+		expect(
+			resolveWorkbenchShortcut(shortcutEvent({ code: standardCode, metaKey: true }), 'standard'),
+		).toBe(null);
+	});
 
 	it('rejects ambiguous, composing, repeated, and unrelated key events', () => {
 		for (const event of [
