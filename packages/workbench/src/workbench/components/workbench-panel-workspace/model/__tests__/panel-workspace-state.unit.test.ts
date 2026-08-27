@@ -1580,7 +1580,7 @@ describe('panel workspace state', () => {
 				requireDefined(findPanel(requireDefined(restarted.state.tabs[0]).root, 'panel-1')),
 			),
 		).toMatchObject({
-			closeActivity: 'unknown',
+			closeActivity: 'idle',
 			currentCwd: '/launch',
 			naturalTitle: null,
 			presentationId: 'presentation-2',

@@ -356,6 +356,57 @@ describe('WorkbenchProjectWorkspaceRuntime', () => {
 		expect(commands.some((command) => command.type === 'tab-close-ready')).toBe(false);
 	});
 
+	it('does not protect a fresh managed shell until activity becomes uncertain', () => {
+		const runtime = createManagedRuntime();
+		const context = runtime.getActiveTerminalContext();
+		const tab = context.panelWorkspaceStore.getSnapshot().tabs[0];
+		if (tab === undefined || tab.root.kind !== 'panel') {
+			throw new Error('Expected one initial terminal panel.');
+		}
+		const presentationId = tab.root.primaryPresentation.presentationId;
+
+		expect(runtime.getActiveTerminalTabsCloseConfirmationCount([tab.tabId])).toBe(0);
+		expect(
+			runtime.applyTerminalMetadataObservation(presentationId, {
+				closeActivity: 'unknown',
+				currentDirectory: { kind: 'ignored' },
+				naturalTitle: null,
+			}),
+		).toEqual({ kind: 'applied' });
+		expect(runtime.getActiveTerminalTabsCloseConfirmationCount([tab.tabId])).toBe(1);
+		expect(
+			runtime.applyTerminalMetadataObservation(presentationId, {
+				closeActivity: 'idle',
+				currentDirectory: { kind: 'ignored' },
+				naturalTitle: null,
+			}),
+		).toEqual({ kind: 'applied' });
+		expect(runtime.getActiveTerminalTabsCloseConfirmationCount([tab.tabId])).toBe(0);
+		expect(
+			runtime.applyTerminalPresentationEvent({
+				operationId: terminalPresentationOperationId('managed:operation:1'),
+				presentationId,
+				type: 'terminal-provision-completed',
+			}),
+		).toEqual({ kind: 'applied' });
+		expect(runtime.getActiveTerminalTabsCloseConfirmationCount([tab.tabId])).toBe(0);
+
+		for (const [closeActivity, expectedCount] of [
+			['unknown', 1],
+			['idle', 0],
+			['active', 1],
+		] as const) {
+			expect(
+				runtime.applyTerminalMetadataObservation(presentationId, {
+					closeActivity,
+					currentDirectory: { kind: 'ignored' },
+					naturalTitle: null,
+				}),
+			).toEqual({ kind: 'applied' });
+			expect(runtime.getActiveTerminalTabsCloseConfirmationCount([tab.tabId])).toBe(expectedCount);
+		}
+	});
+
 	it('counts close protection across every panel and child terminal in a Tab', () => {
 		const runtime = createManagedRuntime();
 		const context = runtime.getActiveTerminalContext();
@@ -408,10 +459,10 @@ describe('WorkbenchProjectWorkspaceRuntime', () => {
 				}),
 			).toEqual({ kind: 'applied' });
 		}
-		for (const [presentationId, closeActivity] of [
-			[initialPresentationId, 'idle'],
-			[splitPresentation.presentationId, 'active'],
-			[childPresentation.presentationId, 'active'],
+		for (const [presentationId, closeActivity, resultKind] of [
+			[initialPresentationId, 'idle', 'unchanged'],
+			[splitPresentation.presentationId, 'active', 'applied'],
+			[childPresentation.presentationId, 'active', 'applied'],
 		] as const) {
 			expect(
 				runtime.applyTerminalMetadataObservation(presentationId, {
@@ -419,7 +470,7 @@ describe('WorkbenchProjectWorkspaceRuntime', () => {
 					currentDirectory: { kind: 'ignored' },
 					naturalTitle: null,
 				}),
-			).toEqual({ kind: 'applied' });
+			).toEqual({ kind: resultKind });
 		}
 
 		expect(runtime.getActiveTerminalTabsCloseConfirmationCount([tabId])).toBe(2);

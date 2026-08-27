@@ -394,9 +394,38 @@ export class PanelWorkspaceStore {
 		}
 
 		this.state = nextState;
-		this.emit();
+		const selectedReplacement = this.selectReplacementForPendingActiveTab();
+		if (!selectedReplacement || this.unsubscribeTabModel === null) this.emit();
 		this.dispatchCommands(commands);
 		return { commands, outcome: 'applied', rejection: null, state: nextState };
+	}
+
+	private selectReplacementForPendingActiveTab(): boolean {
+		const snapshot = this.tabModel.getSnapshot();
+		if (snapshot.activeTabId === null) return false;
+		const pendingTabIds = new Set(
+			this.state.pendingRemovals.flatMap((removal) =>
+				removal.kind === 'tab' ? [removal.tabId] : [],
+			),
+		);
+		if (!pendingTabIds.has(snapshot.activeTabId)) return false;
+		const activeIndex = snapshot.tabs.findIndex((tab) => tab.id === snapshot.activeTabId);
+		if (activeIndex === -1) return false;
+		for (let index = activeIndex + 1; index < snapshot.tabs.length; index += 1) {
+			const tab = snapshot.tabs[index];
+			if (tab !== undefined && !pendingTabIds.has(tab.id)) {
+				this.tabModel.selectTab(tab.id);
+				return true;
+			}
+		}
+		for (let index = activeIndex - 1; index >= 0; index -= 1) {
+			const tab = snapshot.tabs[index];
+			if (tab !== undefined && !pendingTabIds.has(tab.id)) {
+				this.tabModel.selectTab(tab.id);
+				return true;
+			}
+		}
+		return false;
 	}
 
 	public prepareTabCwd(tabId: string, cwd: string | null): void {

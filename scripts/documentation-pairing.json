@@ -26,8 +26,8 @@
 			"zhCnSha256": "27677c38376c4ece6d408b8cb8385ee8bdec1c855fc5b165eb9703318a2f3e13"
 		},
 		"apps/desktop/docs/multi-client-session-coordinator.md": {
-			"englishSha256": "6f07ec622e55d7bd99e0b89df0a6dc24aeaddccc0382348ddb09f1f74254970f",
-			"zhCnSha256": "7ef9f9e4276eddf65996305d52ebaf80a4ed1396be1843cf915fee851dbd713f"
+			"englishSha256": "94ed4f658be0d4c2c082ef1dbec5956903b37b8e3e6bb3781d664a20c8ed520a",
+			"zhCnSha256": "fc88ec57563a7dc8aa05d824f760f3d01620514ce35e18b6fdf78637cf58f283"
 		},
 		"apps/desktop/docs/posix-host-endpoint.md": {
 			"englishSha256": "15b0f07557b1373bc23d72ff51893b9fdcb52cafe6b89ec8787f69f5f9082ad1",
@@ -294,8 +294,8 @@
 			"zhCnSha256": "48ca773dc61815ae61bb2940b15b8f0f84135965c9ed1b9d06afb6a0cac15ff3"
 		},
 		"packages/workbench/README.md": {
-			"englishSha256": "e6cc053f1eaf40554d684baabd2efabdfea00bbf5e3d6407bbdbcbfaf94088e9",
-			"zhCnSha256": "b217e4f87de4b492dbca8abf16916c839513e824562b0198d330d2bc2964ba6c"
+			"englishSha256": "7b2f60570c576d88708b54dacb998663d2d8619b78b70a6b4847c256e92fc92c",
+			"zhCnSha256": "ebcadb26c9e1a282ca197ebc8e5b1e2c6ffa8c5fafa4c6e93c69b4110cd8dea7"
 		},
 		"packages/workbench/docs/project-workspace.md": {
 			"englishSha256": "7735b6ba0a702e8c85156b9b479faa4af4b666da46d3bc24a832cf841ef39cd7",

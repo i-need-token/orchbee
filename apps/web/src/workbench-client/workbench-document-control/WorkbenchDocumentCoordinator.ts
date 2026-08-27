@@ -54,6 +54,7 @@ type DocumentRuntime = Pick<
 >;
 
 export class WorkbenchDocumentCoordinator {
+	#activeProposalDocument: WorkbenchSharedDocument | null = null;
 	#committedDocument: WorkbenchSharedDocument | null = null;
 	#documentPublicationGeneration = 0;
 	#disposed = false;
@@ -141,12 +142,18 @@ export class WorkbenchDocumentCoordinator {
 	): void => {
 		if (this.#disposed || this.#failedReason !== null) return;
 		switch (publication.type) {
-			case 'shared-document-published':
+			case 'shared-document-published': {
+				const acknowledgesActiveProposal =
+					this.#activeProposalDocument !== null &&
+					sameSharedDocument(publication.document, this.#activeProposalDocument);
 				this.#committedDocument = publication.document;
 				this.#documentPublicationGeneration += 1;
-				this.#documentRuntime.applySharedDocument(publication.document);
+				if (!acknowledgesActiveProposal) {
+					this.#documentRuntime.applySharedDocument(publication.document);
+				}
 				this.#schedule();
 				break;
+			}
 			case 'terminal-presentation-event-published': {
 				const result = this.#documentRuntime.applyTerminalPresentationEvent(publication.event);
 				if (result.kind === 'rejected') this.#fail('projection-mismatch');
@@ -189,26 +196,33 @@ export class WorkbenchDocumentCoordinator {
 					break;
 				}
 				const publicationGeneration = this.#documentPublicationGeneration;
-				const result = await this.#session.propose(committed?.revision ?? null, candidate);
-				if (this.#disposed) return;
-				switch (result.kind) {
-					case 'committed':
-					case 'converged':
-					case 'stale': {
-						const resultWasPublishedDuringProposal =
-							this.#documentPublicationGeneration !== publicationGeneration &&
-							this.#committedDocument !== null &&
-							sameSharedDocument(this.#committedDocument, result.document);
-						this.#committedDocument = result.document;
-						if (!resultWasPublishedDuringProposal) {
-							this.#documentRuntime.applySharedDocument(result.document);
+				this.#activeProposalDocument = candidate;
+				try {
+					const result = await this.#session.propose(committed?.revision ?? null, candidate);
+					if (this.#disposed) return;
+					switch (result.kind) {
+						case 'committed':
+						case 'converged':
+						case 'stale': {
+							const resultWasPublishedDuringProposal =
+								this.#documentPublicationGeneration !== publicationGeneration &&
+								this.#committedDocument !== null &&
+								sameSharedDocument(this.#committedDocument, result.document);
+							const acknowledgesCandidate =
+								result.kind !== 'stale' && sameSharedDocument(result.document, candidate);
+							this.#committedDocument = result.document;
+							if (!resultWasPublishedDuringProposal && !acknowledgesCandidate) {
+								this.#documentRuntime.applySharedDocument(result.document);
+							}
+							continue;
 						}
-						continue;
+						case 'rejected':
+						case 'unavailable':
+							this.#fail(result.reason);
+							return;
 					}
-					case 'rejected':
-					case 'unavailable':
-						this.#fail(result.reason);
-						return;
+				} finally {
+					this.#activeProposalDocument = null;
 				}
 			}
 		} finally {

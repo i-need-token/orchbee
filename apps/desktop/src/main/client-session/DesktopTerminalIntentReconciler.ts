@@ -136,6 +136,7 @@ export class DesktopTerminalIntentReconciler {
 			}
 		}
 
+		const reconciliations: Promise<void>[] = [];
 		for (const presentation of presentations) {
 			if (presentation.intent.kind === 'stopped') {
 				this.#events.delete(presentation.presentationId);
@@ -143,18 +144,26 @@ export class DesktopTerminalIntentReconciler {
 				continue;
 			}
 			if (presentation.intent.kind === 'retain') {
-				await this.#reconcileRetain(presentation, publish);
+				reconciliations.push(this.#reconcileRetain(presentation, publish));
 				continue;
 			}
 			const command = commandForPresentation(presentation);
 			if (this.#operations.has(command.operationId)) continue;
-			const result = await this.#executeCommand(command);
-			this.#operations.set(command.operationId, {
-				fingerprint: commandFingerprint(command),
-				result,
-			});
-			this.#recordAndPublishResult(result, publish);
+			reconciliations.push(this.#reconcileDurableCommand(command, publish));
 		}
+		await Promise.all(reconciliations);
+	}
+
+	async #reconcileDurableCommand(
+		command: TerminalPresentationCommand,
+		publish: (event: TerminalPresentationEvent) => unknown,
+	): Promise<void> {
+		const result = await this.#executeCommand(command);
+		this.#operations.set(command.operationId, {
+			fingerprint: commandFingerprint(command),
+			result,
+		});
+		this.#recordAndPublishResult(result, publish);
 	}
 
 	async #reconcileRetain(

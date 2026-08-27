@@ -379,7 +379,7 @@ function createTerminal(
 					}
 				: null,
 		terminal: {
-			closeActivity: 'unknown',
+			closeActivity: presentation.kind === 'managed' ? 'idle' : 'unknown',
 			currentCwd: cwd,
 			launchCwd: cwd,
 			lifecycle:
@@ -554,7 +554,7 @@ function restartedTerminal(
 ): TerminalPresentation {
 	return {
 		...terminal,
-		closeActivity: 'unknown',
+		closeActivity: 'idle',
 		currentCwd: terminal.launchCwd,
 		lifecycle: { kind: 'provisioning', operationId: presentation.operationId },
 		naturalTitle: null,
@@ -1222,10 +1222,11 @@ export function collectPanelLeaves(root: PanelLayoutNode): readonly PanelLeaf[] 
 }
 
 export function terminalRequiresCloseConfirmation(terminal: TerminalPresentation): boolean {
-	if (terminal.lifecycle.kind === 'running') return terminal.closeActivity !== 'idle';
+	if (terminal.lifecycle.kind === 'provisioning' || terminal.lifecycle.kind === 'running') {
+		return terminal.closeActivity !== 'idle';
+	}
 	return (
 		terminal.lifecycle.kind === 'preview' ||
-		terminal.lifecycle.kind === 'provisioning' ||
 		terminal.lifecycle.kind === 'restoring' ||
 		terminal.lifecycle.kind === 'reconciling'
 	);

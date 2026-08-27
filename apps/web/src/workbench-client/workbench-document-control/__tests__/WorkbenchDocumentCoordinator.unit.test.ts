@@ -123,13 +123,89 @@ describe('WorkbenchDocumentCoordinator', () => {
 
 		expect(await coordinator.start()).toEqual({ kind: 'ready', revision: '1' });
 		expect(runtime.applyTerminalPresentationEvent).toHaveBeenCalledWith(event);
-		expect(
-			runtime.applySharedDocument.mock.calls.filter(
-				([applied]) =>
-					applied.revision === '0' && applied.terminalContexts[0]?.nextTabSequence === 1,
-			),
-		).toHaveLength(1);
+		expect(runtime.applySharedDocument).not.toHaveBeenCalled();
 		expect(runtime.current.terminalContexts[0]?.nextTabSequence).toBe(2);
+	});
+
+	it('preserves a burst of later local Tab intent when an active proposal is acknowledged', async () => {
+		const initial = document('0', 1);
+		const firstResult = createDeferred<WorkbenchDocumentProposalResult>();
+		const secondResult = createDeferred<WorkbenchDocumentProposalResult>();
+		const propose = vi
+			.fn<
+				(
+					expectedRevision: WorkbenchSharedDocument['revision'] | null,
+					candidate: WorkbenchSharedDocument,
+				) => Promise<WorkbenchDocumentProposalResult>
+			>()
+			.mockImplementationOnce(() => firstResult.promise)
+			.mockImplementationOnce(() => secondResult.promise);
+		const runtime = runtimeWith(initial);
+		const session = sessionWith(
+			bootstrapWith({ document: initial, kind: 'available' }, initial),
+			propose,
+		);
+		const coordinator = new WorkbenchDocumentCoordinator(runtime, session);
+		await coordinator.start();
+
+		runtime.mutate(document('1', 2));
+		await vi.waitFor(() => expect(propose).toHaveBeenCalledOnce());
+		const firstCandidate = propose.mock.calls[0]?.[1];
+		if (firstCandidate === undefined) throw new Error('Expected the first proposal candidate.');
+		for (let nextTabSequence = 3; nextTabSequence <= 33; nextTabSequence += 1) {
+			runtime.mutate(document('2', nextTabSequence));
+		}
+		session.publish({
+			document: firstCandidate,
+			sequence: '1',
+			type: 'shared-document-published',
+		});
+		firstResult.resolve({ document: firstCandidate, kind: 'committed' });
+
+		await vi.waitFor(() => expect(propose).toHaveBeenCalledTimes(2));
+		expect(runtime.applySharedDocument).not.toHaveBeenCalled();
+		expect(runtime.current.terminalContexts[0]?.nextTabSequence).toBe(33);
+		const secondCandidate = propose.mock.calls[1]?.[1];
+		if (secondCandidate === undefined) throw new Error('Expected the second proposal candidate.');
+		expect(secondCandidate.terminalContexts[0]?.nextTabSequence).toBe(33);
+		const flush = coordinator.flush();
+		session.publish({
+			document: secondCandidate,
+			sequence: '2',
+			type: 'shared-document-published',
+		});
+		secondResult.resolve({ document: secondCandidate, kind: 'committed' });
+
+		await expect(flush).resolves.toEqual({ kind: 'flushed', revision: '2' });
+		expect(runtime.current.terminalContexts[0]?.nextTabSequence).toBe(33);
+	});
+
+	it('applies a divergent publication while a local proposal is active', async () => {
+		const initial = document('0', 1);
+		const proposalResult = createDeferred<WorkbenchDocumentProposalResult>();
+		const runtime = runtimeWith(initial);
+		const session = sessionWith(
+			bootstrapWith({ document: initial, kind: 'available' }, initial),
+			() => proposalResult.promise,
+		);
+		const coordinator = new WorkbenchDocumentCoordinator(runtime, session);
+		await coordinator.start();
+
+		runtime.mutate(document('1', 2));
+		await vi.waitFor(() => expect(session.propose).toHaveBeenCalledOnce());
+		runtime.mutate(document('2', 3));
+		const divergent = document('1', 9);
+		session.publish({
+			document: divergent,
+			sequence: '1',
+			type: 'shared-document-published',
+		});
+		proposalResult.resolve({ document: divergent, kind: 'stale' });
+
+		await expect(coordinator.flush()).resolves.toEqual({ kind: 'flushed', revision: '1' });
+		expect(runtime.applySharedDocument).toHaveBeenCalledOnce();
+		expect(runtime.applySharedDocument).toHaveBeenCalledWith(divergent);
+		expect(runtime.current).toEqual(divergent);
 	});
 
 	it('applies ordered document and terminal publications from another client', async () => {
@@ -284,4 +360,15 @@ function document(revision: string, nextTabSequence: number): WorkbenchSharedDoc
 			},
 		],
 	});
+}
+
+function createDeferred<Value>(): {
+	readonly promise: Promise<Value>;
+	readonly resolve: (value: Value) => void;
+} {
+	let resolve = (_value: Value): void => undefined;
+	const promise = new Promise<Value>((nextResolve) => {
+		resolve = nextResolve;
+	});
+	return { promise, resolve };
 }

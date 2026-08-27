@@ -1,9 +1,19 @@
 import { TabModel } from '@orchbee/tab-strip';
 import { describe, expect, it, vi } from 'vitest';
 
-import { terminalPresentationId } from '../../../../../terminal-presentation';
+import {
+	terminalPresentationId,
+	terminalPresentationOperationId,
+	terminalPresentationRemovalId,
+} from '../../../../../terminal-presentation';
 import { findPanel } from '../panel-workspace-state';
 import { PanelWorkspaceStore } from '../PanelWorkspaceStore';
+
+type ManagedComposition = Extract<
+	ConstructorParameters<typeof PanelWorkspaceStore>[1]['composition'],
+	{ readonly kind: 'managed' }
+>;
+type ManagedCommand = Parameters<ManagedComposition['dispatchCommands']>[0][number];
 
 function createPreviewComposition(scope: string) {
 	let sequence = 1;
@@ -11,6 +21,22 @@ function createPreviewComposition(scope: string) {
 		createPresentationId: () => terminalPresentationId(`${scope}:dynamic:${sequence++}`),
 		initialPresentationId: terminalPresentationId(`${scope}:initial`),
 		kind: 'preview' as const,
+	};
+}
+
+function createManagedComposition(scope: string, dispatched: ManagedCommand[]): ManagedComposition {
+	let operationSequence = 1;
+	let presentationSequence = 1;
+	let removalSequence = 1;
+	return {
+		createOperationId: () =>
+			terminalPresentationOperationId(`${scope}:operation:${operationSequence++}`),
+		createPresentationId: () =>
+			terminalPresentationId(`${scope}:dynamic:${presentationSequence++}`),
+		createRemovalId: () => terminalPresentationRemovalId(`${scope}:removal:${removalSequence++}`),
+		dispatchCommands: (commands) => dispatched.push(...commands),
+		initialPresentationId: terminalPresentationId(`${scope}:initial`),
+		kind: 'managed',
 	};
 }
 
@@ -111,5 +137,46 @@ describe('PanelWorkspaceStore', () => {
 			kind: 'panel',
 			primaryPresentation: { currentCwd: '/feature', launchCwd: '/feature' },
 		});
+	});
+
+	it('advances across dozens of pending managed Tab closes without Host completion', () => {
+		const tabCount = 32;
+		const tabModel = new TabModel({
+			activeTabId: `tab-${tabCount}`,
+			tabs: Array.from({ length: tabCount }, (_, index) => ({
+				group: null,
+				id: `tab-${index + 1}`,
+				pinned: false,
+				title: `Terminal ${index + 1}`,
+			})),
+		});
+		const dispatched: ManagedCommand[] = [];
+		const store = new PanelWorkspaceStore(tabModel, {
+			composition: createManagedComposition('rapid-close', dispatched),
+		});
+		dispatched.length = 0;
+		const unsubscribe = store.subscribe(() => undefined);
+
+		for (let tabSequence = tabCount; tabSequence >= 1; tabSequence -= 1) {
+			expect(store.requestTabClose([`tab-${tabSequence}`]).outcome).toBe('applied');
+			expect(tabModel.getSnapshot().activeTabId).toBe(
+				tabSequence === 1 ? 'tab-1' : `tab-${tabSequence - 1}`,
+			);
+		}
+		expect(store.getSnapshot().tabs).toHaveLength(tabCount);
+		expect(store.getSnapshot().pendingRemovals).toHaveLength(tabCount);
+		expect(
+			dispatched
+				.filter((command) => command.type === 'terminal-close-requested')
+				.map((command) => command.presentationId),
+		).toEqual([
+			...Array.from(
+				{ length: tabCount - 1 },
+				(_, index) => `rapid-close:dynamic:${tabCount - index - 1}`,
+			),
+			'rapid-close:initial',
+		]);
+
+		unsubscribe();
 	});
 });

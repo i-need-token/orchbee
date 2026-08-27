@@ -113,6 +113,13 @@ document does not carry enough semantic intent to safely merge Panel/Split hiera
 removal lifecycles. The losing client applies the returned canonical document, reconciles its local
 Client View, discards unaccepted shared effects, and remains connected.
 
+While one proposal is in flight, the proposing page may continue accepting local semantic actions.
+An exact publication of that proposal acknowledges its submitted candidate but does not replace a
+newer local projection; the page advances its committed base and proposes the newer complete
+document against the next revision. A divergent publication or `stale` result still replaces the
+local projection with Main's canonical document. This preserves same-page shortcut bursts without
+adding semantic merge, Action replay, or an exception to first-writer-wins conflict handling.
+
 One accepted proposal advances through its matching durable-effect publication before the queue
 accepts another commit that could supersede that intent. Stale, malformed, and rejected proposals
 may settle without waiting because they cannot change canonical state. This ordering prevents a
@@ -143,6 +150,12 @@ presentation after recovery, allocates a transient operation identity, and publi
 observation. Retain never creates a replacement terminal. Current operation results remain cached
 only while their matching durable intent is current; removed or superseded intents retire the
 cache without retaining an unbounded tombstone set.
+
+Reconciliation starts every not-yet-dispatched presentation operation in the committed document
+before awaiting their results. Operations for different PresentationIds may therefore complete and
+publish in either order. One PresentationId still has one current durable intent, and Main does not
+accept a later superseding commit until every operation derived from the current commit has settled,
+so this concurrency never overlaps two durable intents for the same presentation.
 
 ## Publication and catch-up
 
@@ -270,7 +283,9 @@ application. An ordinary page close is never application quit.
 | Claim                                                                                  | Deterministic evidence                                    | Formal/system evidence                                    | Limits                                                    |
 | -------------------------------------------------------------------------------------- | --------------------------------------------------------- | --------------------------------------------------------- | --------------------------------------------------------- |
 | One exact revision chain has one Main writer                                           | Proposal decision and queue tests                         | `DesktopMultiClientSession` canonical/revision invariants | Complete-document first-writer-wins policy                |
+| An acknowledged local proposal never erases later same-page intent                     | In-flight proposal/publication coordinator traces         | `WorkbenchDocumentProposalAcknowledgement` preservation   | Exact acknowledgement only; divergent writes roll back    |
 | A terminal effect follows matching durable intent                                      | Intent reconciler traces                                  | TLA+ `EffectRequiresPublishedIntent`                      | Host/ledger idempotency trusted                           |
+| Independent presentation effects do not wait for one another                           | Deferred two-presentation reconciler trace                | `DesktopTerminalIntentReconciliation` batch/progress      | A later commit waits for the current effect set           |
 | Equivalent races converge and divergent stale writes preserve canonical state          | Two-client and stateful property tests                    | TLA+ stale/converged actions                              | No semantic merge                                         |
 | Every connected fair session can catch up in publication order                         | Session bootstrap/broadcast tests                         | TLA+ publication progress                                 | No progress through suspended/broken transport            |
 | Page disconnect releases only its attachments                                          | Session disposal and concurrent projection tests          | TLA+ attachment/session invariant                         | OS/process crash cleanup delegated to existing boundaries |
@@ -281,13 +296,18 @@ application. An ordinary page close is never application quit.
 | An opening frame is acknowledged only after renderer readiness admits its draw         | Slow-start frame/transport tests                          | TLA+ ready-frame acknowledgement invariant                | Client commit acknowledgement, not completed paint        |
 | Recovery replaces an honest frozen frame only with a painted fresh attachment          | Projected-surface recovery tests                          | TLA+ recovery and operation-identity invariants           | Two attempts; transport progress is not assumed           |
 
-The TLA+ configuration checks two clients, two document values, one attachment, both missing and
-empty available initialization, equivalent and divergent proposals, reordered disconnect/commit/effect
-completion, quiescing and disconnected-owner handoff, publication, and two bounded revisions (`0`
-and `1`). `provision` represents
-an effect that leaves a terminal alive, `stop` represents terminal-ending effects including close,
-and `none` represents a document-only change. Each abstract client identity connects and proposes at
-most once; a reconnect is a fresh identity, as required by the production contract. Stateful
+The multi-client TLA+ configuration checks two clients, two document values, one attachment, both
+missing and empty available initialization, equivalent and divergent proposals, reordered
+disconnect/commit/effect completion, quiescing and disconnected-owner handoff, publication, and two
+bounded revisions (`0` and `1`). `provision` represents effects that leave terminals alive, `stop`
+represents terminal-ending effects including close, and `none` represents a document-only change.
+Each abstract client identity connects and proposes at most once; a reconnect is a fresh identity, as
+required by the production contract. `WorkbenchDocumentProposalAcknowledgement` separately checks
+local edits before and after an exact publication, exact result acknowledgement without publication,
+divergent publication, stale result, and reproposal of preserved intent through revisions `0`, `1`,
+and `2`. `DesktopTerminalIntentReconciliation` separately checks one two-presentation batch, atomic
+dispatch before any result, either completion/publication order, and the later-commit barrier through
+the same three revisions. Stateful
 property tests use fixed seeds and generated client actions. The real
 Electron-plus-two-Browser trace covers Gateway authentication, independent page sessions, shared
 canonical state, attachment disconnect/reconnect, Browser effects, and exact attachment

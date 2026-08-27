@@ -275,6 +275,17 @@
 			]
 		},
 		{
+			"id": "desktop-terminal-intent-reconciliation",
+			"owner": "@orchbee/desktop",
+			"workspace": "apps/desktop",
+			"module": "apps/desktop/formal/tla/DesktopTerminalIntentReconciliation.tla",
+			"config": "apps/desktop/formal/tla/DesktopTerminalIntentReconciliation.cfg",
+			"claims": ["apps/desktop/docs/multi-client-session-coordinator.md"],
+			"triggers": ["apps/desktop/src/main/client-session/DesktopTerminalIntentReconciler.ts"],
+			"timeoutMilliseconds": 180000,
+			"requiredCoverage": ["CommitBatch", "DispatchBatch", "CompleteAndPublish", "CommitNext"]
+		},
+		{
 			"id": "desktop-terminal-lifecycle-adapter",
 			"owner": "@orchbee/desktop",
 			"workspace": "apps/desktop",
@@ -387,6 +398,28 @@
 						"Scenario": "broker-serialization"
 					}
 				}
+			]
+		},
+		{
+			"id": "desktop-workbench-document-proposal-acknowledgement",
+			"owner": "@orchbee/desktop",
+			"workspace": "apps/desktop",
+			"module": "apps/desktop/formal/tla/WorkbenchDocumentProposalAcknowledgement.tla",
+			"config": "apps/desktop/formal/tla/WorkbenchDocumentProposalAcknowledgement.cfg",
+			"claims": ["apps/desktop/docs/multi-client-session-coordinator.md"],
+			"triggers": [
+				"apps/web/src/workbench-client/workbench-document-control/WorkbenchDocumentCoordinator.ts"
+			],
+			"timeoutMilliseconds": 180000,
+			"requiredCoverage": [
+				"BeginFirstProposal",
+				"LocalEdit",
+				"PublishExact",
+				"PublishDivergent",
+				"SettleExactWithoutPublication",
+				"SettleStaleWithoutPublication",
+				"SettlePublished",
+				"BeginNextProposal"
 			]
 		},
 		{

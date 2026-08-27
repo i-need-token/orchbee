@@ -43,6 +43,48 @@ describe('DesktopTerminalIntentReconciler', () => {
 		expect(reconciler.getTerminalEvents()).toEqual(published);
 	});
 
+	it('starts independent presentation effects without waiting for earlier completions', async () => {
+		const primaryResult = createDeferred<TerminalPresentationEvent>();
+		const childResult = createDeferred<TerminalPresentationEvent>();
+		const execute = vi.fn<
+			(command: TerminalPresentationCommand) => Promise<TerminalPresentationEvent>
+		>((command) =>
+			command.presentationId === terminalPresentationId('presentation-1')
+				? primaryResult.promise
+				: childResult.promise,
+		);
+		const reconciler = reconcilerWith(execute);
+		const published: TerminalPresentationEvent[] = [];
+		const reconciliation = reconciler.reconcileDocument(
+			document('0', provisionIntent('operation-1'), {
+				child: presentation('presentation-2', provisionIntent('operation-2'), '/workspace'),
+			}),
+			(event) => published.push(event),
+		);
+
+		expect(execute.mock.calls.map(([command]) => command.presentationId)).toEqual([
+			'presentation-1',
+			'presentation-2',
+		]);
+		childResult.resolve({
+			operationId: terminalPresentationOperationId('operation-2'),
+			presentationId: terminalPresentationId('presentation-2'),
+			type: 'terminal-provision-completed',
+		});
+		await vi.waitFor(() => expect(published).toHaveLength(1));
+		primaryResult.resolve({
+			operationId: terminalPresentationOperationId('operation-1'),
+			presentationId: terminalPresentationId('presentation-1'),
+			type: 'terminal-provision-completed',
+		});
+		await reconciliation;
+
+		expect(published.map((event) => event.presentationId)).toEqual([
+			'presentation-2',
+			'presentation-1',
+		]);
+	});
+
 	it('rejects operation identity reuse with different durable content', async () => {
 		const execute = vi
 			.fn<(command: TerminalPresentationCommand) => Promise<TerminalPresentationEvent>>()
@@ -291,4 +333,15 @@ function document(
 			},
 		],
 	});
+}
+
+function createDeferred<Value>(): {
+	readonly promise: Promise<Value>;
+	readonly resolve: (value: Value) => void;
+} {
+	let resolve = (_value: Value): void => undefined;
+	const promise = new Promise<Value>((nextResolve) => {
+		resolve = nextResolve;
+	});
+	return { promise, resolve };
 }
