@@ -6,8 +6,11 @@ import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
-import { TerminalCommandOutputViewer } from '../TerminalCommandOutputViewer';
-import { TerminalCommandOutputViewerController } from '../model/terminal-command-output-viewer-controller';
+import { TerminalTextViewer } from '../TerminalTextViewer';
+import {
+	TerminalTextViewerController,
+	type TerminalTextViewerSource,
+} from '../model/terminal-text-viewer-controller';
 
 beforeAll(() => {
 	Object.defineProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT', {
@@ -23,19 +26,17 @@ afterAll(() => {
 	});
 });
 
-describe('TerminalCommandOutputViewer', () => {
+describe('TerminalTextViewer', () => {
 	it('searches immutable output, cycles matches, copies, traps focus, and restores focus on close', async () => {
-		const controller = new TerminalCommandOutputViewerController();
-		const onCopy = vi.fn<() => void>();
+		const controller = new TerminalTextViewerController();
+		const onCopy = vi.fn<(source: TerminalTextViewerSource) => void>();
 		const restoreFocus = vi.fn<() => void>();
 		controller.open({
-			endRow: 11n,
-			generation: 2n,
-			kind: 'output',
-			revision: 7n,
-			startRow: 8n,
+			initialTopOffset: null,
+			kind: 'text',
+			notice: 'truncated-start',
+			source: 'command-output',
 			text: 'Alpha beta\nsecond ALPHA',
-			truncatedStart: true,
 		});
 		const mounted = await renderViewer(controller, { onCopy, restoreFocus });
 
@@ -95,7 +96,7 @@ describe('TerminalCommandOutputViewer', () => {
 			mounted.container.querySelector('button[aria-label="Copy command output"]'),
 		);
 		await act(async () => copy.click());
-		expect(onCopy).toHaveBeenCalledOnce();
+		expect(onCopy).toHaveBeenCalledWith('command-output');
 
 		await act(async () => {
 			input.dispatchEvent(
@@ -109,8 +110,8 @@ describe('TerminalCommandOutputViewer', () => {
 	});
 
 	it('localizes an unavailable document and focuses its only close action', async () => {
-		const controller = new TerminalCommandOutputViewerController();
-		controller.open({ kind: 'empty', reason: 'no-shell-integration' });
+		const controller = new TerminalTextViewerController();
+		controller.open({ kind: 'empty', reason: 'no-shell-integration', source: 'command-output' });
 		const mounted = await renderViewer(controller, { locale: 'zh-CN' });
 
 		const close = requiredElement<HTMLButtonElement>(
@@ -122,16 +123,45 @@ describe('TerminalCommandOutputViewer', () => {
 		expect(mounted.container.querySelector('button[aria-label="复制命令输出"]')).toBeNull();
 		await mounted.dispose();
 	});
+
+	it('positions scrollback at its immutable visible-top anchor and copies through its source Action', async () => {
+		const scrollIntoView = vi.fn<() => void>();
+		const original = HTMLElement.prototype.scrollIntoView;
+		HTMLElement.prototype.scrollIntoView = scrollIntoView;
+		const controller = new TerminalTextViewerController();
+		const onCopy = vi.fn<(source: TerminalTextViewerSource) => void>();
+		controller.open({
+			initialTopOffset: 6,
+			kind: 'text',
+			notice: null,
+			source: 'scrollback',
+			text: 'older\nvisible\nnewer',
+		});
+		const mounted = await renderViewer(controller, { onCopy });
+
+		expect(scrollIntoView).toHaveBeenCalledWith({ block: 'start' });
+		expect(
+			mounted.container.querySelector('[data-initial-scrollback-anchor="true"]'),
+		).not.toBeNull();
+		const copy = requiredElement<HTMLButtonElement>(
+			mounted.container.querySelector('button[aria-label="Copy scrollback"]'),
+		);
+		await act(async () => copy.click());
+		expect(onCopy).toHaveBeenCalledWith('scrollback');
+
+		await mounted.dispose();
+		HTMLElement.prototype.scrollIntoView = original;
+	});
 });
 
 interface RenderViewerOptions {
 	readonly locale?: OrchbeeLocale;
-	readonly onCopy?: () => void;
+	readonly onCopy?: (source: TerminalTextViewerSource) => void;
 	readonly restoreFocus?: () => void;
 }
 
 async function renderViewer(
-	controller: TerminalCommandOutputViewerController,
+	controller: TerminalTextViewerController,
 	{
 		locale = 'en-US',
 		onCopy = () => undefined,
@@ -149,7 +179,7 @@ async function renderViewer(
 				createElement(
 					TooltipProvider,
 					undefined,
-					createElement(TerminalCommandOutputViewer, {
+					createElement(TerminalTextViewer, {
 						controller,
 						onCopy,
 						platform: 'apple',
@@ -172,7 +202,7 @@ async function disposeViewer(root: Root, container: HTMLElement): Promise<void> 
 }
 
 function requiredElement<ElementType extends Element>(element: ElementType | null): ElementType {
-	if (element === null) throw new Error('Expected command-output viewer element.');
+	if (element === null) throw new Error('Expected terminal-text viewer element.');
 	return element;
 }
 

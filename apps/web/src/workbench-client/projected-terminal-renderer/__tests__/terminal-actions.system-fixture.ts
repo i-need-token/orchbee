@@ -1,3 +1,5 @@
+import '@orchbee/ui/styles.css';
+
 import { ActionRuntime, type ActionDiscoveryResult } from '@orchbee/actions';
 import { ProjectedTerminal, type ProjectedTerminalOptions } from '@orchbee/terminal';
 import type { WorkbenchTerminalActionContextProvider } from '@orchbee/workbench';
@@ -30,9 +32,9 @@ import {
 	type MountTerminalFindSurfaceOptions,
 } from '../../terminal-find-surface';
 import {
-	mountTerminalCommandOutputViewer,
-	type MountTerminalCommandOutputViewerOptions,
-} from '../../terminal-command-output-viewer';
+	mountTerminalTextViewer,
+	type MountTerminalTextViewerOptions,
+} from '../../terminal-text-viewer';
 import {
 	installProjectedTerminalShortcuts,
 	PROJECTED_TERMINAL_ACTION_IDS,
@@ -57,7 +59,18 @@ const emptyGraphics = {
 } as const;
 const linkUrl = 'https://orchbee.dev/pinned-context';
 const historyRowText = Array.from({ length: 10 }, (_, index) => `history row ${index}`);
-const rowText = ['linked context', 'terminal actions', 'localized feedback', 'native command'];
+const rowText = [
+	'linked context',
+	'terminal actions',
+	'localized feedback',
+	'native command',
+	'visible row 4',
+	'visible row 5',
+	'visible row 6',
+	'visible row 7',
+	'visible row 8',
+	'visible row 9',
+];
 const theme = TerminalThemeStateSchema.parse({
 	operationId: null,
 	revision: '0',
@@ -78,6 +91,8 @@ const minimalActionIds = [
 	PROJECTED_TERMINAL_ACTION_IDS.findPrevious,
 	PROJECTED_TERMINAL_ACTION_IDS.outputShowLast,
 	PROJECTED_TERMINAL_ACTION_IDS.outputCopy,
+	PROJECTED_TERMINAL_ACTION_IDS.historyShow,
+	PROJECTED_TERMINAL_ACTION_IDS.historyCopy,
 	PROJECTED_TERMINAL_ACTION_IDS.promptPrevious,
 	PROJECTED_TERMINAL_ACTION_IDS.promptNext,
 	PROJECTED_TERMINAL_ACTION_IDS.scrollLineUp,
@@ -121,8 +136,7 @@ const dependencies: ProjectedTerminalRendererDependencies = {
 	},
 	installShortcuts: installProjectedTerminalShortcuts,
 	mountFindSurface: (options: MountTerminalFindSurfaceOptions) => mountTerminalFindSurface(options),
-	mountOutputViewer: (options: MountTerminalCommandOutputViewerOptions) =>
-		mountTerminalCommandOutputViewer(options),
+	mountTextViewer: (options: MountTerminalTextViewerOptions) => mountTerminalTextViewer(options),
 };
 const transport: ProjectedTerminalTransport = {
 	close: () => undefined,
@@ -135,6 +149,11 @@ const transport: ProjectedTerminalTransport = {
 		root.dataset['witnessOutputShortcutKeyInputCount'] = String(
 			commands.filter(
 				(candidate) => candidate.kind === 'key-input' && candidate.payload.key === 'KeyG',
+			).length,
+		);
+		root.dataset['witnessScrollbackShortcutKeyInputCount'] = String(
+			commands.filter(
+				(candidate) => candidate.kind === 'key-input' && candidate.payload.key === 'KeyH',
 			).length,
 		);
 		if (command.kind !== 'read-rows' || suppressRowResponses) return;
@@ -181,6 +200,8 @@ async function runWitness(): Promise<void> {
 					outputClipboardWriteCount += 1;
 					root.dataset['witnessOutputClipboardWriteCount'] = String(outputClipboardWriteCount);
 					root.dataset['witnessOutputCopiedText'] = text;
+					root.dataset['witnessScrollbackClipboardWriteCount'] = String(outputClipboardWriteCount);
+					root.dataset['witnessScrollbackCopiedText'] = text;
 					return { kind: 'completed' };
 				},
 			},
@@ -411,6 +432,7 @@ async function runWitness(): Promise<void> {
 		].join(',');
 		root.dataset['witnessReady'] = 'true';
 		root.dataset['witnessOutputReady'] = 'true';
+		root.dataset['witnessScrollbackReady'] = 'true';
 	} catch (error) {
 		root.dataset['witnessFailure'] = error instanceof Error ? error.message : String(error);
 	}
@@ -469,6 +491,37 @@ function terminalRows(
 	const revision = BigInt(command.payload.revision);
 	const sequence = BigInt(command.payload.requestSequence);
 	const generation = BigInt(command.payload.generation);
+	if (command.payload.detail === TerminalRowWindowDetail.text) {
+		const encoded = encodeTerminalRowWindow({
+			attachmentId,
+			columns: 24,
+			detail: TerminalRowWindowDetail.text,
+			generation,
+			hostEpoch,
+			revision,
+			rows: selectedRows.map((text, offset) => ({
+				index: startRow + BigInt(offset),
+				mappings: [...text].map((_, index) => ({
+					byteOffset: index,
+					column: index,
+					utf16Offset: index,
+					width: 1,
+				})),
+				promptClass:
+					startRow + BigInt(offset) === 7n || startRow + BigInt(offset) === 10n
+						? RowPromptClass.prompt
+						: RowPromptClass.none,
+				text,
+				wrap: false,
+				wrapContinuation: false,
+			})),
+			sequence,
+			startRow,
+			totalRows: BigInt(retainedRows.length),
+		});
+		if (!encoded.ok) throw new Error(encoded.detail);
+		return encoded.value;
+	}
 	const frame = terminalFrame(revision, sequence, true, startRow);
 	const linkRow = Number(scrollbackRows - startRow);
 	const encoded = encodeTerminalRowWindow({

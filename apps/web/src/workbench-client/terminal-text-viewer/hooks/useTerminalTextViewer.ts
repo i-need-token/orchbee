@@ -3,19 +3,19 @@ import type { KeyboardShortcutPlatform } from '@orchbee/keyboard-shortcuts';
 import * as React from 'react';
 
 import {
-	projectTerminalCommandOutputSegments,
-	type TerminalCommandOutputSegment,
-	type TerminalCommandOutputViewerController,
-	type TerminalCommandOutputViewerSnapshot,
-} from '../model/terminal-command-output-viewer-controller';
+	projectTerminalTextViewerSegments,
+	type TerminalTextViewerController,
+	type TerminalTextViewerSegment,
+	type TerminalTextViewerSnapshot,
+} from '../model/terminal-text-viewer-controller';
 
-interface UseTerminalCommandOutputViewerOptions {
-	readonly controller: TerminalCommandOutputViewerController;
+interface UseTerminalTextViewerOptions {
+	readonly controller: TerminalTextViewerController;
 	readonly platform: KeyboardShortcutPlatform;
 	readonly restoreFocus: () => void;
 }
 
-interface TerminalCommandOutputViewerView {
+interface TerminalTextViewerView {
 	readonly closeLabel: string;
 	readonly contentLabel: string;
 	readonly contentReference: React.RefObject<HTMLDivElement | null>;
@@ -29,8 +29,8 @@ interface TerminalCommandOutputViewerView {
 	readonly previousLabel: string;
 	readonly rootReference: React.RefObject<HTMLElement | null>;
 	readonly searchLabel: string;
-	readonly segments: readonly TerminalCommandOutputSegment[];
-	readonly snapshot: TerminalCommandOutputViewerSnapshot;
+	readonly segments: readonly TerminalTextViewerSegment[];
+	readonly snapshot: TerminalTextViewerSnapshot;
 	readonly statusText: string;
 	readonly statusId: string;
 	readonly title: string;
@@ -38,11 +38,26 @@ interface TerminalCommandOutputViewerView {
 	readonly truncatedText: string | null;
 }
 
-export function useTerminalCommandOutputViewer({
+const unavailableViewerMessages = {
+	'command-output': {
+		'alternate-screen': projectedTerminalMessages.outputViewerAlternateScreen,
+		'source-limit': projectedTerminalMessages.outputViewerSourceLimit,
+		stale: projectedTerminalMessages.outputViewerStale,
+		unavailable: projectedTerminalMessages.outputViewerUnavailable,
+	},
+	scrollback: {
+		'alternate-screen': projectedTerminalMessages.scrollbackViewerAlternateScreen,
+		'source-limit': projectedTerminalMessages.scrollbackViewerSourceLimit,
+		stale: projectedTerminalMessages.scrollbackViewerStale,
+		unavailable: projectedTerminalMessages.scrollbackViewerUnavailable,
+	},
+} as const;
+
+export function useTerminalTextViewer({
 	controller,
 	platform,
 	restoreFocus,
-}: UseTerminalCommandOutputViewerOptions): TerminalCommandOutputViewerView {
+}: UseTerminalTextViewerOptions): TerminalTextViewerView {
 	const intl = useOrchbeeIntl();
 	const snapshot = React.useSyncExternalStore(
 		controller.subscribe,
@@ -57,11 +72,12 @@ export function useTerminalCommandOutputViewer({
 	const document = snapshot.document;
 	const segments = React.useMemo(
 		() =>
-			document?.kind === 'output'
-				? projectTerminalCommandOutputSegments(
+			document?.kind === 'text'
+				? projectTerminalTextViewerSegments(
 						document.text,
 						snapshot.matches,
 						snapshot.activeMatchIndex,
+						document.initialTopOffset,
 					)
 				: [],
 		[document, snapshot.activeMatchIndex, snapshot.matches],
@@ -79,6 +95,14 @@ export function useTerminalCommandOutputViewer({
 		input.focus({ preventScroll: true });
 		input.select();
 	}, [snapshot.focusRequest, snapshot.isOpen]);
+
+	React.useLayoutEffect(() => {
+		if (document?.kind !== 'text' || document.source !== 'scrollback') return;
+		const anchor = contentReference.current?.querySelector<HTMLElement>(
+			'[data-initial-scrollback-anchor="true"]',
+		);
+		anchor?.scrollIntoView?.({ block: 'start' });
+	}, [document]);
 
 	React.useEffect(() => {
 		if (snapshot.activeMatchIndex < 0) return;
@@ -139,28 +163,26 @@ export function useTerminalCommandOutputViewer({
 
 	let emptyText: string | null = null;
 	if (document?.kind === 'empty') {
-		emptyText = intl.formatMessage(
-			document.reason === 'no-shell-integration'
-				? projectedTerminalMessages.outputViewerNoShellIntegration
-				: projectedTerminalMessages.outputViewerNoOutput,
-		);
-	} else if (document?.kind === 'unavailable') {
-		if (document.reason === 'alternate-screen') {
-			emptyText = intl.formatMessage(projectedTerminalMessages.outputViewerAlternateScreen);
-		} else if (document.reason === 'source-limit') {
-			emptyText = intl.formatMessage(projectedTerminalMessages.outputViewerSourceLimit);
-		} else if (document.reason === 'stale') {
-			emptyText = intl.formatMessage(projectedTerminalMessages.outputViewerStale);
+		if (document.reason === 'no-shell-integration') {
+			emptyText = intl.formatMessage(projectedTerminalMessages.outputViewerNoShellIntegration);
+		} else if (document.reason === 'no-output') {
+			emptyText = intl.formatMessage(projectedTerminalMessages.outputViewerNoOutput);
 		} else {
-			emptyText = intl.formatMessage(projectedTerminalMessages.outputViewerUnavailable);
+			emptyText = intl.formatMessage(projectedTerminalMessages.scrollbackViewerNoScrollback);
 		}
+	} else if (document?.kind === 'unavailable') {
+		emptyText = intl.formatMessage(unavailableViewerMessages[document.source][document.reason]);
 	}
 
 	let statusText = '';
 	if (snapshot.query !== '') {
 		statusText =
 			snapshot.matches.length === 0
-				? intl.formatMessage(projectedTerminalMessages.outputViewerNoMatches)
+				? intl.formatMessage(
+						document?.source === 'scrollback'
+							? projectedTerminalMessages.scrollbackViewerNoMatches
+							: projectedTerminalMessages.outputViewerNoMatches,
+					)
 				: intl.formatMessage(projectedTerminalMessages.findResult, {
 						current: snapshot.activeMatchIndex + 1,
 						total: snapshot.matches.length,
@@ -173,10 +195,22 @@ export function useTerminalCommandOutputViewer({
 	}
 
 	return {
-		closeLabel: intl.formatMessage(projectedTerminalMessages.outputViewerClose),
-		contentLabel: intl.formatMessage(projectedTerminalMessages.outputViewerContent),
+		closeLabel: intl.formatMessage(
+			document?.source === 'scrollback'
+				? projectedTerminalMessages.scrollbackViewerClose
+				: projectedTerminalMessages.outputViewerClose,
+		),
+		contentLabel: intl.formatMessage(
+			document?.source === 'scrollback'
+				? projectedTerminalMessages.scrollbackViewerContent
+				: projectedTerminalMessages.outputViewerContent,
+		),
 		contentReference,
-		copyLabel: intl.formatMessage(projectedTerminalMessages.outputCopyAction),
+		copyLabel: intl.formatMessage(
+			document?.source === 'scrollback'
+				? projectedTerminalMessages.scrollbackCopyAction
+				: projectedTerminalMessages.outputCopyAction,
+		),
 		emptyText,
 		inputReference,
 		nextLabel: intl.formatMessage(projectedTerminalMessages.findNextAction),
@@ -185,15 +219,23 @@ export function useTerminalCommandOutputViewer({
 		onQueryChange: (event) => controller.setQuery(event.currentTarget.value),
 		previousLabel: intl.formatMessage(projectedTerminalMessages.findPreviousAction),
 		rootReference,
-		searchLabel: intl.formatMessage(projectedTerminalMessages.outputViewerSearch),
+		searchLabel: intl.formatMessage(
+			document?.source === 'scrollback'
+				? projectedTerminalMessages.scrollbackViewerSearch
+				: projectedTerminalMessages.outputViewerSearch,
+		),
 		segments,
 		snapshot,
 		statusText,
 		statusId,
-		title: intl.formatMessage(projectedTerminalMessages.outputViewerTitle),
+		title: intl.formatMessage(
+			document?.source === 'scrollback'
+				? projectedTerminalMessages.scrollbackViewerTitle
+				: projectedTerminalMessages.outputViewerTitle,
+		),
 		titleId,
 		truncatedText:
-			document?.kind === 'output' && document.truncatedStart
+			document?.kind === 'text' && document.notice === 'truncated-start'
 				? intl.formatMessage(projectedTerminalMessages.outputViewerTruncated)
 				: null,
 	};

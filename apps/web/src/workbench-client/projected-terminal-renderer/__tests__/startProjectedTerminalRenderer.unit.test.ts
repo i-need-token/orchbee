@@ -61,7 +61,7 @@ describe('startProjectedTerminalRenderer', () => {
 			dataset: {},
 			remove: vi.fn<ChildNode['remove']>(),
 		};
-		const outputRoot = {
+		const textViewerRoot = {
 			contains: vi.fn<HTMLElement['contains']>(() => false),
 			dataset: {},
 			remove: vi.fn<ChildNode['remove']>(),
@@ -96,13 +96,13 @@ describe('startProjectedTerminalRenderer', () => {
 							| typeof progress
 							| typeof progressIndicator
 							| typeof findRoot
-							| typeof outputRoot
+							| typeof textViewerRoot
 					>()
 					.mockReturnValueOnce(status)
 					.mockReturnValueOnce(progress)
 					.mockReturnValueOnce(progressIndicator)
 					.mockReturnValueOnce(findRoot)
-					.mockReturnValueOnce(outputRoot),
+					.mockReturnValueOnce(textViewerRoot),
 				hasFocus: vi.fn<() => boolean>(() => false),
 			},
 			style: {},
@@ -180,6 +180,7 @@ describe('startProjectedTerminalRenderer', () => {
 						canNavigatePrompts: true,
 						canScrollHistory: true,
 						canShowCommandOutput: true,
+						canShowScrollback: true,
 						canShowHints: true,
 						capturePresentationSnapshot: () => nextOptions.presentationSnapshot ?? null,
 						captureActionContext,
@@ -270,6 +271,9 @@ describe('startProjectedTerminalRenderer', () => {
 						readLastCommandOutput: vi
 							.fn<ProjectedTerminal['readLastCommandOutput']>()
 							.mockResolvedValue({ kind: 'empty', reason: 'no-output' }),
+						readScrollback: vi
+							.fn<ProjectedTerminal['readScrollback']>()
+							.mockResolvedValue({ kind: 'empty', reason: 'no-scrollback' }),
 						reset: vi.fn<ProjectedTerminal['reset']>(),
 						scrollLines: vi.fn<ProjectedTerminal['scrollLines']>(() => true),
 						scrollPages: vi.fn<ProjectedTerminal['scrollPages']>(() => true),
@@ -304,7 +308,7 @@ describe('startProjectedTerminalRenderer', () => {
 			mountFindSurface: vi.fn<ProjectedTerminalRendererDependencies['mountFindSurface']>(() => ({
 				dispose: vi.fn<() => void>(),
 			})),
-			mountOutputViewer: vi.fn<ProjectedTerminalRendererDependencies['mountOutputViewer']>(() => ({
+			mountTextViewer: vi.fn<ProjectedTerminalRendererDependencies['mountTextViewer']>(() => ({
 				dispose: vi.fn<() => void>(),
 			})),
 		};

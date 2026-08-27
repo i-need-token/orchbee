@@ -10,30 +10,29 @@ import {
 } from '@orchbee/ui/components';
 import * as React from 'react';
 
-import { useTerminalCommandOutputViewer } from './hooks/useTerminalCommandOutputViewer';
-import styles from './TerminalCommandOutputViewer.module.css';
+import { useTerminalTextViewer } from './hooks/useTerminalTextViewer';
+import styles from './TerminalTextViewer.module.css';
 import {
-	MAX_TERMINAL_COMMAND_OUTPUT_QUERY_LENGTH,
-	type TerminalCommandOutputViewerController,
-} from './model/terminal-command-output-viewer-controller';
+	MAX_TERMINAL_TEXT_VIEWER_QUERY_LENGTH,
+	type TerminalTextViewerController,
+	type TerminalTextViewerSource,
+} from './model/terminal-text-viewer-controller';
 
-export interface TerminalCommandOutputViewerProps {
-	readonly controller: TerminalCommandOutputViewerController;
-	readonly onCopy: () => void;
+export interface TerminalTextViewerProps {
+	readonly controller: TerminalTextViewerController;
+	readonly onCopy: (source: TerminalTextViewerSource) => void;
 	readonly platform: KeyboardShortcutPlatform;
 	readonly restoreFocus: () => void;
 }
 
-export function TerminalCommandOutputViewer(
-	props: TerminalCommandOutputViewerProps,
-): React.ReactNode {
-	const view = useTerminalCommandOutputViewer(props);
+export function TerminalTextViewer(props: TerminalTextViewerProps): React.ReactNode {
+	const view = useTerminalTextViewer(props);
 	if (!view.snapshot.isOpen || view.snapshot.document === null) return null;
 	const document = view.snapshot.document;
-	const output = document.kind === 'output';
+	const text = document.kind === 'text';
 
 	return (
-		<div className={styles['backdrop']} data-slot='terminal-command-output-viewer'>
+		<div className={styles['backdrop']} data-slot='terminal-text-viewer'>
 			<section
 				aria-labelledby={view.titleId}
 				aria-modal='true'
@@ -49,13 +48,13 @@ export function TerminalCommandOutputViewer(
 							{view.title}
 						</h2>
 					</div>
-					{output ? (
+					{text ? (
 						<div className={styles['search']}>
 							<Input
 								aria-describedby={view.statusId}
 								aria-label={view.searchLabel}
 								className={styles['input']}
-								maxLength={MAX_TERMINAL_COMMAND_OUTPUT_QUERY_LENGTH}
+								maxLength={MAX_TERMINAL_TEXT_VIEWER_QUERY_LENGTH}
 								onChange={view.onQueryChange}
 								placeholder={view.searchLabel}
 								ref={view.inputReference}
@@ -109,13 +108,13 @@ export function TerminalCommandOutputViewer(
 						</div>
 					) : null}
 					<div className={styles['headerActions']}>
-						{output ? (
+						{text ? (
 							<Tooltip>
 								<TooltipTrigger
 									render={
 										<Button
 											aria-label={view.copyLabel}
-											onClick={props.onCopy}
+											onClick={() => props.onCopy(document.source)}
 											size='icon-sm'
 											variant='ghost'
 										/>
@@ -150,7 +149,7 @@ export function TerminalCommandOutputViewer(
 					{view.statusText}
 				</p>
 				<div className={styles['body']}>
-					{output ? (
+					{text ? (
 						<>
 							{view.truncatedText === null ? null : (
 								<p className={styles['notice']}>{view.truncatedText}</p>
@@ -163,19 +162,29 @@ export function TerminalCommandOutputViewer(
 								tabIndex={0}
 							>
 								<pre className={styles['pre']}>
-									{view.segments.map((segment, index) =>
-										segment.kind === 'text' ? (
-											<React.Fragment key={`text-${index}`}>{segment.text}</React.Fragment>
-										) : (
+									{view.segments.map((segment, index) => {
+										if (segment.kind === 'anchor') {
+											return (
+												<span
+													aria-hidden='true'
+													data-initial-scrollback-anchor='true'
+													key={`anchor-${index}`}
+												/>
+											);
+										}
+										if (segment.kind === 'text') {
+											return <React.Fragment key={`text-${index}`}>{segment.text}</React.Fragment>;
+										}
+										return (
 											<mark
 												className={styles['match']}
 												data-active={segment.active}
-												key={`match-${segment.matchIndex}`}
+												key={`match-${segment.matchIndex}-${index}`}
 											>
 												{segment.text}
 											</mark>
-										),
-									)}
+										);
+									})}
 								</pre>
 							</div>
 						</>

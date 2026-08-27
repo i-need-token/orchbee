@@ -115,6 +115,9 @@ export function createKeyboardShortcutBindings(
 		[PROJECTED_TERMINAL_SHORTCUTS.hintsOpen.shortcutId]: bindingFor(
 			PROJECTED_TERMINAL_SHORTCUTS.hintsOpen.shortcutId,
 		),
+		[PROJECTED_TERMINAL_SHORTCUTS.historyShow.shortcutId]: bindingFor(
+			PROJECTED_TERMINAL_SHORTCUTS.historyShow.shortcutId,
+		),
 		[PROJECTED_TERMINAL_SHORTCUTS.outputShowLast.shortcutId]: bindingFor(
 			PROJECTED_TERMINAL_SHORTCUTS.outputShowLast.shortcutId,
 		),

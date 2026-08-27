@@ -33,6 +33,7 @@ those surfaces owns another binding copy.
 | `terminal.search.open`                       | Focused terminal or Find          | `Cmd+F`               | `Ctrl+Shift+F`        |
 | `terminal.hints.open`                        | Focused terminal                  | `Cmd+Shift+O`         | `Ctrl+Shift+O`        |
 | `terminal.output.show-last`                  | Focused terminal                  | `Ctrl+Shift+G`        | `Ctrl+Shift+G`        |
+| `terminal.history.show`                      | Focused terminal                  | `Ctrl+Shift+H`        | `Ctrl+Shift+H`        |
 | `terminal.selection.copy`                    | Focused terminal with a selection | `Cmd+C`               | `Ctrl+Shift+C`        |
 | `terminal.clipboard.paste`                   | Focused terminal                  | `Cmd+V`               | `Ctrl+Shift+V`        |
 | `terminal.history.prompt-previous`           | Focused terminal                  | `Ctrl+Shift+Z`        | `Ctrl+Shift+Z`        |
@@ -88,6 +89,12 @@ Show Last Command Output preserves Kitty's `Ctrl+Shift+G` default at revision
 for the latest bounded shell-integration output; the extraction, search, copying, cancellation,
 and exclusion contracts are owned by the terminal package's
 [Kitty command-output-viewer alignment](../../../packages/terminal/docs/kitty-command-output-viewer-alignment.md).
+
+Show Scrollback preserves Kitty's `Ctrl+Shift+H` default at the same revision on both platforms.
+It opens one immutable document containing the complete retained primary-screen history and starts
+at the terminal's captured visible top. Exact extraction, wrap projection, search, source-specific
+copying, cancellation, and exclusions are owned by the terminal package's
+[Kitty scrollback-viewer alignment](../../../packages/terminal/docs/kitty-scrollback-viewer-alignment.md).
 
 ## Terminal paste routing
 
@@ -269,11 +276,11 @@ terminal Actions discovered from descendant scopes.
 
 ## Persistence and recovery
 
-New writes use `orchbee:web:keyboard-shortcuts:v10` and a strict record:
+New writes use `orchbee:web:keyboard-shortcuts:v11` and a strict record:
 
 ```json
 {
-	"version": 10,
+	"version": 11,
 	"overrides": [
 		{
 			"shortcutId": "workbench.search.all.open",
@@ -285,18 +292,18 @@ New writes use `orchbee:web:keyboard-shortcuts:v10` and a strict record:
 
 Only Custom values are stored, ordered by shortcut ID. Unknown fields or IDs, duplicates, unsorted
 entries, noncanonical modifiers, unsupported codes, stored defaults, excessive entries, and an
-effective conflict invalidate the complete v10 record and restore platform defaults. A write
+effective conflict invalidate the complete v11 record and restore platform defaults. A write
 failure keeps the immutable session binding active, reports that it was not saved, and retries on
 the next legal change. Restoring one item removes its override.
 
-When v10 is absent, Web first reads `orchbee:web:keyboard-shortcuts:v9` with its exact prior catalog
-and defaults. If v9 is also absent, it tries v8, v7, v6, v5, v4, v3, v2, and then v1. Every migration carries
+When v11 is absent, Web first reads `orchbee:web:keyboard-shortcuts:v10` with its exact prior catalog
+and defaults. If v10 is also absent, it tries v9, v8, v7, v6, v5, v4, v3, v2, and then v1. Every migration carries
 explicit overrides into the expanded catalog, removes an override equivalent to a current default,
-rejects any resulting conflict, and writes the canonical v10 record. The v1, v2, v3, v4, v5, v6,
-v7, v8, and v9 values remain unchanged as rollback snapshots. An invalid current record never falls back to an
+rejects any resulting conflict, and writes the canonical v11 record. The v1, v2, v3, v4, v5, v6,
+v7, v8, v9, and v10 values remain unchanged as rollback snapshots. An invalid current record never falls back to an
 older record, and an invalid migration source never falls through to the next older version,
 because either fallback would hide data corruption. Rolling back restores the latest record that
-the older build understands; edits made only in v10 are intentionally unavailable to it.
+the older build understands; edits made only in v11 are intentionally unavailable to it.
 
 Browser Preview, Gateway Browser, and Electron each create and dispose one controller against their
 own origin-local storage. Gateway and Electron pass the controller's narrow binding source through
@@ -319,8 +326,9 @@ change does not remount Workbench, replace an attachment, or reopen a Host or Ga
 | Positional selection follows canonical Tab order and falls through out of range       | Grouped and pinned Action integration plus shortcut dispatch tests                                                      |
 | Adjacent selection follows canonical Tab order and wraps only with multiple Tabs      | Pure resolver, prepared Action integration, and shortcut fallthrough tests                                              |
 | Visible Hints consume one focused binding and never leak label keys to terminal input | Terminal, Action, shortcut, Settings, and exact Desktop `terminal-parity/FS-07-keyboard-hints`                          |
+| Show Scrollback consumes one focused binding and opens the exact immutable viewer     | Terminal, Action, shortcut, Settings, and exact Desktop `terminal-parity/FS-09-scrollback-viewer`                       |
 | Menus, Action search, and settings display the same current binding                   | Projection and rendered-surface tests                                                                                   |
-| Valid v1 through v8 records migrate without losing explicit legacy overrides          | Storage migration tests, including new-default conflicts                                                                |
+| Valid v1 through v10 records migrate without losing explicit legacy overrides         | Storage migration tests, including new-default conflicts                                                                |
 | Invalid current or migration-source data does not consult an older record             | Storage corruption and precedence tests                                                                                 |
 
 The tests use synthetic platform flags, Action scopes, storage, document capture, injected terminal

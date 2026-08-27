@@ -11,6 +11,7 @@ import {
 	normalizePermittedExternalTerminalUrl,
 	type ProjectedPasteResult,
 	type ProjectedCommandOutputReadResult,
+	type ProjectedScrollbackReadResult,
 	type TerminalHintChoiceResult,
 	type ProjectedTerminalLinkOpenRequest,
 	type ProjectedTerminalSideEffectResult,
@@ -19,13 +20,18 @@ import {
 import type { SelectionChanged } from '@orchbee/terminal-protocol';
 
 import type { TerminalFindController } from '../terminal-find-surface';
-import { TerminalCommandOutputViewerController } from '../terminal-command-output-viewer';
+import {
+	commandOutputViewerDocument,
+	scrollbackViewerDocument,
+	TerminalTextViewerController,
+} from '../terminal-text-viewer';
 import type { ProjectedTerminalPlatformEffects } from '../projected-terminal-platform-effects';
 import {
 	createProjectedTerminalClipboardActionCoordinator,
 	type ProjectedTerminalClipboardActionCoordinator,
 } from './createProjectedTerminalClipboardActionCoordinator';
 import { createProjectedTerminalPromptNavigationCoordinator } from './createProjectedTerminalPromptNavigationCoordinator';
+import { createProjectedTerminalTextViewerPreparationCoordinator } from './createProjectedTerminalTextViewerPreparationCoordinator';
 import {
 	PROJECTED_TERMINAL_ACTION_IDS,
 	type ProjectedTerminalActionCatalog,
@@ -37,6 +43,7 @@ export interface ProjectedTerminalActionTarget {
 	readonly canShowHints: boolean;
 	readonly canNavigatePrompts: boolean;
 	readonly canShowCommandOutput: boolean;
+	readonly canShowScrollback: boolean;
 	readonly canScrollHistory: boolean;
 	readonly selection: SelectionChanged;
 	clear(): boolean;
@@ -49,6 +56,7 @@ export interface ProjectedTerminalActionTarget {
 	paste(text: string, source: 'api' | 'clipboard'): Promise<ProjectedPasteResult>;
 	reset(): void;
 	readLastCommandOutput(signal: AbortSignal): Promise<ProjectedCommandOutputReadResult>;
+	readScrollback(signal: AbortSignal): Promise<ProjectedScrollbackReadResult>;
 	scrollLines(amount: number): boolean;
 	scrollPages(amount: number): boolean;
 	scrollToNextPrompt(signal: AbortSignal): Promise<boolean>;
@@ -61,7 +69,7 @@ export interface ProjectedTerminalActionTarget {
 export interface RegisterProjectedTerminalActionsOptions {
 	readonly clipboardActionCoordinator?: ProjectedTerminalClipboardActionCoordinator;
 	readonly findController: TerminalFindController;
-	readonly outputController?: TerminalCommandOutputViewerController;
+	readonly textViewerController?: TerminalTextViewerController;
 	readonly platformEffects?: ProjectedTerminalPlatformEffects;
 	readonly scope: ActionScope;
 	readonly terminal: ProjectedTerminalActionTarget;
@@ -71,7 +79,7 @@ export interface RegisterProjectedTerminalActionsOptions {
 export function registerProjectedTerminalActions({
 	clipboardActionCoordinator = createProjectedTerminalClipboardActionCoordinator(),
 	findController,
-	outputController = new TerminalCommandOutputViewerController(),
+	textViewerController = new TerminalTextViewerController(),
 	platformEffects = {},
 	scope,
 	terminal,
@@ -106,6 +114,8 @@ export function registerProjectedTerminalActions({
 					reason: projectedTerminalMessages.actionUnavailable,
 				} as const);
 	const promptNavigationCoordinator = createProjectedTerminalPromptNavigationCoordinator();
+	const textViewerPreparationCoordinator =
+		createProjectedTerminalTextViewerPreparationCoordinator();
 	const historyScrollExecution = {
 		concurrency: 'replace-latest' as const,
 		concurrencyKey: () => 'terminal-history-scroll',
@@ -120,13 +130,14 @@ export function registerProjectedTerminalActions({
 				} as const);
 	return [
 		promptNavigationCoordinator,
+		textViewerPreparationCoordinator,
 		typedRuntime.register(
 			scope,
 			defineAction({
 				category,
 				execution: {
 					concurrency: 'replace-latest',
-					concurrencyKey: () => 'terminal-command-output',
+					concurrencyKey: () => 'terminal-text-viewer',
 					mode: 'foreground',
 				},
 				getAvailability: () =>
@@ -135,12 +146,15 @@ export function registerProjectedTerminalActions({
 						: { kind: 'disabled', reason: projectedTerminalMessages.actionUnavailable },
 				handler: {
 					execute: async (context) => {
-						const result = await terminal.readLastCommandOutput(context.signal);
-						if (context.signal.aborted || result.kind === 'cancelled') {
+						const prepared = await textViewerPreparationCoordinator.run(context.signal, (signal) =>
+							terminal.readLastCommandOutput(signal),
+						);
+						if (prepared.kind === 'cancelled' || prepared.value.kind === 'cancelled') {
 							return { kind: 'cancelled' };
 						}
+						const result = prepared.value;
 						findController.close();
-						outputController.open(result);
+						textViewerController.open(commandOutputViewerDocument(result));
 						context.markCommitted();
 						return { kind: 'completed' };
 					},
@@ -155,12 +169,46 @@ export function registerProjectedTerminalActions({
 			defineAction({
 				category,
 				execution: {
+					concurrency: 'replace-latest',
+					concurrencyKey: () => 'terminal-text-viewer',
+					mode: 'foreground',
+				},
+				getAvailability: () =>
+					terminal.canShowScrollback
+						? { kind: 'enabled' }
+						: { kind: 'disabled', reason: projectedTerminalMessages.actionUnavailable },
+				handler: {
+					execute: async (context) => {
+						const prepared = await textViewerPreparationCoordinator.run(context.signal, (signal) =>
+							terminal.readScrollback(signal),
+						);
+						if (prepared.kind === 'cancelled' || prepared.value.kind === 'cancelled') {
+							return { kind: 'cancelled' };
+						}
+						const result = prepared.value;
+						findController.close();
+						textViewerController.open(scrollbackViewerDocument(result));
+						context.markCommitted();
+						return { kind: 'completed' };
+					},
+				},
+				id: PROJECTED_TERMINAL_ACTION_IDS.historyShow,
+				input: noActionInput,
+				title: projectedTerminalMessages.scrollbackShowAction,
+			}),
+		),
+		typedRuntime.register(
+			scope,
+			defineAction({
+				category,
+				execution: {
 					concurrency: 'reject-duplicate',
 					concurrencyKey: () => 'terminal-command-output-copy',
 					mode: 'foreground',
 				},
 				getAvailability: () =>
-					outputController.getSnapshot().document?.kind === 'output' &&
+					textViewerController.getSnapshot().document?.kind === 'text' &&
+					textViewerController.getSnapshot().document?.source === 'command-output' &&
 					platformEffects.writeClipboardText !== undefined &&
 					clipboardWriteIsAvailable(platformEffects)
 						? { kind: 'enabled' }
@@ -168,9 +216,13 @@ export function registerProjectedTerminalActions({
 				handler: {
 					execute: async (context) => {
 						if (context.signal.aborted) return { kind: 'cancelled' };
-						const document = outputController.getSnapshot().document;
+						const document = textViewerController.getSnapshot().document;
 						const writeClipboardText = platformEffects.writeClipboardText;
-						if (document?.kind !== 'output' || writeClipboardText === undefined) {
+						if (
+							document?.kind !== 'text' ||
+							document.source !== 'command-output' ||
+							writeClipboardText === undefined
+						) {
 							return { code: 'command-output-unavailable', kind: 'blocked' };
 						}
 						let result: ProjectedTerminalSideEffectResult;
@@ -194,6 +246,57 @@ export function registerProjectedTerminalActions({
 				id: PROJECTED_TERMINAL_ACTION_IDS.outputCopy,
 				input: noActionInput,
 				title: projectedTerminalMessages.outputCopyAction,
+			}),
+		),
+		typedRuntime.register(
+			scope,
+			defineAction({
+				category,
+				execution: {
+					concurrency: 'reject-duplicate',
+					concurrencyKey: () => 'terminal-scrollback-copy',
+					mode: 'foreground',
+				},
+				getAvailability: () =>
+					textViewerController.getSnapshot().document?.kind === 'text' &&
+					textViewerController.getSnapshot().document?.source === 'scrollback' &&
+					platformEffects.writeClipboardText !== undefined &&
+					clipboardWriteIsAvailable(platformEffects)
+						? { kind: 'enabled' }
+						: { kind: 'disabled', reason: projectedTerminalMessages.actionUnavailable },
+				handler: {
+					execute: async (context) => {
+						if (context.signal.aborted) return { kind: 'cancelled' };
+						const document = textViewerController.getSnapshot().document;
+						const writeClipboardText = platformEffects.writeClipboardText;
+						if (
+							document?.kind !== 'text' ||
+							document.source !== 'scrollback' ||
+							writeClipboardText === undefined
+						) {
+							return { code: 'scrollback-unavailable', kind: 'blocked' };
+						}
+						let result: ProjectedTerminalSideEffectResult;
+						try {
+							result = await writeClipboardText(document.text);
+						} catch {
+							result = {
+								code: 'client-clipboard-failed',
+								kind: 'failed',
+								retryable: false,
+							};
+						}
+						if (result.kind === 'completed') {
+							context.markCommitted();
+							return { kind: 'completed' };
+						}
+						if (result.kind === 'cancelled') return { kind: 'cancelled' };
+						return { failure: { code: result.code }, kind: 'failed' };
+					},
+				},
+				id: PROJECTED_TERMINAL_ACTION_IDS.historyCopy,
+				input: noActionInput,
+				title: projectedTerminalMessages.scrollbackCopyAction,
 			}),
 		),
 		typedRuntime.register(
@@ -388,7 +491,7 @@ export function registerProjectedTerminalActions({
 				getAvailability: () => ({ kind: 'enabled' }),
 				handler: {
 					execute: (context) => {
-						outputController.close();
+						textViewerController.close();
 						findController.open(
 							terminal.selection.state === 'active'
 								? (terminal.selection.preview ?? undefined)

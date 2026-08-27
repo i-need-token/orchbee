@@ -20,6 +20,7 @@ export const zhCNKeyboardShortcutMessages = {
 	'keyboard.shortcuts.actions.nextTab': '选择下一个标签页',
 	'keyboard.shortcuts.actions.nextPrompt': '滚动到下一个 Shell 提示符',
 	'keyboard.shortcuts.actions.outputShowLast': '显示上一条命令输出',
+	'keyboard.shortcuts.actions.scrollbackShow': '显示回滚缓冲区',
 	'keyboard.shortcuts.actions.paste': '粘贴到终端',
 	'keyboard.shortcuts.actions.previousPrompt': '滚动到上一个 Shell 提示符',
 	'keyboard.shortcuts.actions.previousTab': '选择上一个标签页',

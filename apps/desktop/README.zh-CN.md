@@ -254,6 +254,9 @@ Workbench `terminal-presentation-event-published` 消息是 Main 拥有的单一
   `terminal-parity/FS-07-keyboard-hints` 浏览器组合见证，覆盖禁用文件系统激活、共享的
   `http`/`https`/`mailto` 检测/悬停/上下文/激活边界，以及可见 URL/路径/文件位置/hash 标签的
   精确插入、捕获 URL 打开、取消与标签按键零终端输入；
+- 精确的 `terminal-parity/FS-08-command-output-viewer` 与
+  `terminal-parity/FS-09-scrollback-viewer` 浏览器组合见证，覆盖生产共享不可变 terminal-text viewer、
+  精确保留快照、可见顶部锚定、有界搜索、按来源复制 Action、焦点恢复与不变的 attachment identity；
 - 用于每次操作安全上下文、瞬时用户激活和 API 检查的精确标题 `terminal-parity/LC-05-lan-capability` 浏览器组合证据；同步复制可用性；一位被录取的作家来电；拒绝而不重试；局部故障；并且没有特权 insecure-LAN 路径；
 - 确切的 `terminal-parity/HS-07-selection-export` real-PTY/Electron 证据表明，样式化终端选择以精确可见的纯文本形式到达平台剪贴板，与不公开 HTML 或原始 VT 格式的协议、主机和投影命令回归配对；
 - 精确的 `terminal-parity/IN-03-image-paste` 真实 PTY/Electron 证据证明，空闲的默认粘贴组合键会保留原生仅图片事件，并向子进程精确发布一个 `Control+V` 字节，且不产生剪贴板文本 Action 或失败横幅；

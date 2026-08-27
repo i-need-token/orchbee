@@ -9,13 +9,14 @@ import {
 } from '../projected-terminal-keyboard-shortcuts';
 
 describe('projected terminal shortcut declarations', () => {
-	it('owns fifteen unique Apple and terminal-safe Standard defaults', () => {
+	it('owns sixteen unique Apple and terminal-safe Standard defaults', () => {
 		const apple = defaultProjectedTerminalShortcutBindings('apple');
 		const standard = defaultProjectedTerminalShortcutBindings('standard');
 		expect(formatKeyboardShortcutChord(apple['terminal.clear'], 'apple')).toBe('⌘K');
 		expect(formatKeyboardShortcutChord(apple['terminal.search.open'], 'apple')).toBe('⌘F');
 		expect(formatKeyboardShortcutChord(apple['terminal.hints.open'], 'apple')).toBe('⇧⌘O');
 		expect(formatKeyboardShortcutChord(apple['terminal.output.show-last'], 'apple')).toBe('⌃⇧G');
+		expect(formatKeyboardShortcutChord(apple['terminal.history.show'], 'apple')).toBe('⌃⇧H');
 		expect(formatKeyboardShortcutChord(apple['terminal.selection.copy'], 'apple')).toBe('⌘C');
 		expect(formatKeyboardShortcutChord(apple['terminal.clipboard.paste'], 'apple')).toBe('⌘V');
 		expect(formatKeyboardShortcutChord(apple['terminal.selection.select-all'], 'apple')).toBe('⌘A');
@@ -71,13 +72,31 @@ describe('projected terminal shortcut declarations', () => {
 					keyboardShortcutChordKey(definition.defaults.standard, 'standard'),
 				),
 			).size,
-		).toBe(15);
+		).toBe(16);
 		expect(formatProjectedTerminalActionShortcut('terminal.clear', 'apple')).toBe('⌘K');
 		expect(formatProjectedTerminalActionShortcut('terminal.clipboard.paste', 'apple')).toBe('⌘V');
 		expect(formatProjectedTerminalActionShortcut('terminal.history.prompt-previous', 'apple')).toBe(
 			'⌃⇧Z',
 		);
 		expect(formatProjectedTerminalActionShortcut('unknown', 'apple')).toBeNull();
+	});
+
+	it('resolves Kitty-aligned scrollback only while the terminal is focused', () => {
+		const event = {
+			altKey: false,
+			code: 'KeyH',
+			ctrlKey: true,
+			isComposing: false,
+			metaKey: false,
+			repeat: false,
+			shiftKey: true,
+		};
+
+		expect(resolveProjectedTerminalShortcut(event, 'apple', 'terminal')).toMatchObject({
+			action: 'historyShow',
+			actionId: 'terminal.history.show',
+		});
+		expect(resolveProjectedTerminalShortcut(event, 'apple', 'viewer')).toBeNull();
 	});
 
 	it('resolves Kitty-aligned command output only while the terminal is focused', () => {
@@ -95,7 +114,7 @@ describe('projected terminal shortcut declarations', () => {
 			action: 'outputShowLast',
 			actionId: 'terminal.output.show-last',
 		});
-		expect(resolveProjectedTerminalShortcut(event, 'apple', 'output')).toBeNull();
+		expect(resolveProjectedTerminalShortcut(event, 'apple', 'viewer')).toBeNull();
 	});
 
 	it('resolves terminal hints only while the terminal is focused', () => {

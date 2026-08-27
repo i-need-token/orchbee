@@ -165,6 +165,13 @@ WebGPU 初始化、可见性恢复与 device-loss 恢复会同时按生命周期
 缺少 Shell Integration、备用屏幕使用、畸形页面、传输失败与 16 MiB 聚合来源上限都保持为类型化结果，
 且绝不发布局部内容。应用拥有查看器、搜索、复制 Action 与剪贴板效果。
 
+完整保留历史的准备遵循有界的
+[Kitty 回滚历史查看器对齐](docs/kitty-scrollback-viewer-alignment.zh-CN.md)。一次主屏幕调用会从一个精确
+generation 与 revision 开始，按从旧到新顺序读取 text-detail 行、连接软换行、保留硬边界，并返回一份
+带有捕获可见顶部精确 UTF-16 偏移的不可变纯文本 document。取消、过时、淘汰、备用屏幕使用、畸形页面、
+传输失败与 16 MiB 聚合来源上限都不会发布前缀。应用拥有的 terminal-text viewer 提供搜索、初始定位、
+按来源复制 Action 与焦点恢复，且不改变实时终端历史。
+
 ```ts
 terminal.scrollLines(-1);
 terminal.scrollPages(-1);
@@ -174,6 +181,7 @@ await terminal.scrollToPreviousPrompt(signal);
 await terminal.scrollToNextPrompt(signal);
 await terminal.chooseVisibleHint(signal);
 await terminal.readLastCommandOutput(signal);
+await terminal.readScrollback(signal);
 terminal.updateSearch('failed', { caseSensitive: false, wholeWord: true });
 terminal.findNext();
 ```
@@ -348,6 +356,7 @@ Ghostty 仍然是选定字体规格、形状边界、完整 Unicode sprite-face 
 | `terminal-parity/FS-03-links`、`terminal-parity/FS-04-link-invalidation`                                                                                                                                                    | [`src/__tests__/terminal-row-links.unit.test.ts`](src/__tests__/terminal-row-links.unit.test.ts) 和 [`src/projected/__tests__/projected-terminal.unit.test.ts`](src/projected/__tests__/projected-terminal.unit.test.ts) 覆盖完整有界逻辑行、优先级、精确单元格映射、悬停退役及激活重校验。                                                                                                                                                                                                                                    |
 | `terminal-parity/FS-07-keyboard-hints`                                                                                                                                                                                      | [`src/__tests__/terminal-hints.unit.test.ts`](src/__tests__/terminal-hints.unit.test.ts)、投影终端、Web Action、快捷键、Settings、storage 与精确 headed Desktop 证据覆盖可见目标检测、overlay 所有权、取消、效果、迁移及不变的 attachment identity。                                                                                                                                                                                                                                                                           |
 | `terminal-parity/FS-08-command-output-viewer`                                                                                                                                                                               | [`src/projected/__tests__/projected-command-output.unit.test.ts`](src/projected/__tests__/projected-command-output.unit.test.ts)、投影终端、Web 查看器、Action、快捷键、Settings、storage 与精确 headed Desktop 证据覆盖 OSC 133 边界、精确快照、不可变搜索、复制、焦点、边界、迁移及不变的 attachment identity。                                                                                                                                                                                                              |
+| `terminal-parity/FS-09-scrollback-viewer`                                                                                                                                                                                   | [`src/projected/__tests__/projected-scrollback.unit.test.ts`](src/projected/__tests__/projected-scrollback.unit.test.ts)、投影终端、Web 查看器、Action、快捷键、Settings、storage 与精确 headed Desktop 证据覆盖完整保留行投影、换行边界、可见顶部锚点、不可变搜索、复制、取消、边界、迁移及不变的 attachment identity。                                                                                                                                                                                                       |
 | `terminal-parity/AC-01-accessible-rows`、`terminal-parity/AC-02-dom-selection`、`terminal-parity/AC-03-announcements`、`terminal-parity/AC-04-deletion`                                                                     | [`src/accessibility/__tests__/accessible-text-model.unit.test.ts`](src/accessibility/__tests__/accessible-text-model.unit.test.ts) 与 [`src/projected/__tests__/projected-terminal.unit.test.ts`](src/projected/__tests__/projected-terminal.unit.test.ts) 覆盖有效行结构、普通 Host 选择隔离、辅助技术来源且字素安全的双向 Range 映射、有序实时输出、历史抑制和原子删除播报。                                                                                                                                                 |
 | `terminal-parity/CF-01-host-authority`                                                                                                                                                                                      | 这是有理由的架构负向见证：[`project.json`](project.json)、依赖边界检查及 [`scripts/check-public-api.mjs`](scripts/check-public-api.mjs) 仅准入投影 API，不准入 PTY 字节写入器、浏览器 VT 或同步全缓冲区权威。由于不存在第二个 VT 转换系统，差分运行时轨迹不适用。                                                                                                                                                                                                                                                              |
 | `terminal-parity/CF-02-bounds`                                                                                                                                                                                              | 上述 packed-store、projected-terminal、搜索、链接、无障碍、协议限制及 Host 背压套件共同执行每项保留投影、行、字节、结果、flight 和 revision 边界；Host 运行时合约拥有原生分配与队列限制。                                                                                                                                                                                                                                                                                                                                      |

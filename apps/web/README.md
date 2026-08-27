@@ -80,7 +80,7 @@ drawn epochs on the same surface. They distinguish independently ordered font pr
 single local commit and completed current repaint without creating another attachment lifecycle.
 
 Mounting a projected renderer never moves DOM focus. Workbench retains the active product control;
-pointer activation, an explicit terminal focus request, and closing the Find or command-output
+pointer activation, an explicit terminal focus request, and closing the Find or terminal-text viewer
 surface are the only adapter paths that move focus into the hidden terminal input. The projected
 root contains that input and both surfaces, so moving among them does not publish a terminal focus
 transition.
@@ -104,7 +104,14 @@ case-insensitive search, Enter/Shift+Enter navigation, native text selection, an
 `terminal.output.copy` Action operate locally. The viewer traps focus, restores terminal focus on
 close, and deliberately does not launch an external pager or re-render ANSI styling. See the
 [Kitty alignment contract](../../packages/terminal/docs/kitty-command-output-viewer-alignment.md)
-and the `projected-terminal.command-output-viewer` experience component.
+and the `projected-terminal.text-viewer` experience component.
+
+`Ctrl+Shift+H` opens the complete retained primary-screen history through that same private viewer.
+The exact snapshot projector joins soft wraps, preserves hard row boundaries, records the captured
+visible-top offset, and publishes either one complete document or a typed empty/unavailable result.
+Command-output and scrollback preparation replace each other before publication; their immutable
+documents retain source-specific copy Actions. See the
+[Kitty scrollback-viewer contract](../../packages/terminal/docs/kitty-scrollback-viewer-alignment.md).
 
 After a projected frame commits, the renderer forwards its complete nullable title,
 current-directory metadata, and transient `idle`/`active`/`unknown` close activity with the exact
@@ -123,7 +130,8 @@ Terminal Host rejects a mode change before encoding or queue admission.
 
 Each projected surface registers the Workbench-owned minimal terminal Action catalog into the
 viewport's application runtime and scope: Copy, Paste, Select All, Find, Find Next, Find Previous,
-Show Last Command Output, Copy Command Output, Scroll to Bottom, Clear, and Reset. Availability is
+Show Last Command Output, Copy Command Output, Show Scrollback, Copy Scrollback, Scroll to Bottom,
+Clear, and Reset. Availability is
 synchronous and remains authoritative when a prepared invocation executes. Context-menu and custom-shortcut Paste read text only through an
 injected client capability. An idle platform-default paste chord preserves native DOM delivery so
 the terminal adapter can apply its plain-text-first and image-only `Control+V` policy without
@@ -196,7 +204,7 @@ All three compositions use one TanStack Browser Router and the same path contrac
 
 ## Settings
 
-The common Settings action opens an application-owned full-window overlay rather than navigating to another route. The Workbench subtree becomes inert, but its React tree and every projected terminal attachment remain mounted. Client-local application theme, terminal font, effective default terminal colors, and default-background opacity apply immediately and persist as one strict versioned record for the current browser origin. On macOS Desktop, a separate strict local record selects whether neither, left, right, or both Option keys act as terminal Alt; the default is off and accepted changes update every mounted projected terminal without replacing its attachment. Forty-two frequent Workbench and focused-terminal shortcuts, including application-wide font-size increase/decrease/reset, four directional Panel-focus commands, visible terminal Hints, and Show Last Command Output, use a separate strict local override record; accepted changes update the mounted Workbench and every projected terminal without replacing an attachment or connection. Standard defaults reserve unshifted terminal control sequences, while runtime Action availability remains authoritative before any key is consumed. Application theme remains separate from terminal display theme, and terminal overrides never mutate Host metadata, palette, cursor, VT, or OSC state. Local Desktop additionally injects a semantic shell-profile control. Its explicit editor can create, rename, select a system or custom executable, preserve literal argument order, select the default, delete, and confirm reset; every accepted change affects only terminals created after the Main-owned catalog commits. Gateway and Browser compositions receive no profile capability. Desktop automatically loads Shell integration for supported new local Zsh, non-login Bash, and Fish terminals without editing startup files; Settings explains that boundary, shows exact shipped source commands as manual fallbacks, and owns a separate default-off device-local completion-reminder policy whose notifications never include command text. A paste-only Ghostty migration dry-run reports lossless current targets, manual-review cases, ignored keys, and invalid lines without reading files, applying values, or persisting source text. The Remote development category is another read-only projection: it explains the `xterm-256color` baseline, exposes one constant shell diagnostic, distinguishes observed environment and terminfo outcomes, and states that Orchbee does not silently forward extra environment variables or modify the remote host. Opening, searching, or switching to this category starts no process, writes no terminal input, and persists no remote data. Desktop also injects a semantic Browser-access entry that creates or resets the Personal Access Token, reveals a newly issued token once, and stops active Browser access before reset without exposing Electron ports or controllers to the generic Settings module. See [`docs/terminal-settings.md`](docs/terminal-settings.md) and [`docs/keyboard-shortcuts.md`](docs/keyboard-shortcuts.md).
+The common Settings action opens an application-owned full-window overlay rather than navigating to another route. The Workbench subtree becomes inert, but its React tree and every projected terminal attachment remain mounted. Client-local application theme, terminal font, effective default terminal colors, and default-background opacity apply immediately and persist as one strict versioned record for the current browser origin. On macOS Desktop, a separate strict local record selects whether neither, left, right, or both Option keys act as terminal Alt; the default is off and accepted changes update every mounted projected terminal without replacing its attachment. Forty-three frequent Workbench and focused-terminal shortcuts, including application-wide font-size increase/decrease/reset, four directional Panel-focus commands, visible terminal Hints, Show Last Command Output, and Show Scrollback, use a separate strict local override record; accepted changes update the mounted Workbench and every projected terminal without replacing an attachment or connection. Standard defaults reserve unshifted terminal control sequences, while runtime Action availability remains authoritative before any key is consumed. Application theme remains separate from terminal display theme, and terminal overrides never mutate Host metadata, palette, cursor, VT, or OSC state. Local Desktop additionally injects a semantic shell-profile control. Its explicit editor can create, rename, select a system or custom executable, preserve literal argument order, select the default, delete, and confirm reset; every accepted change affects only terminals created after the Main-owned catalog commits. Gateway and Browser compositions receive no profile capability. Desktop automatically loads Shell integration for supported new local Zsh, non-login Bash, and Fish terminals without editing startup files; Settings explains that boundary, shows exact shipped source commands as manual fallbacks, and owns a separate default-off device-local completion-reminder policy whose notifications never include command text. A paste-only Ghostty migration dry-run reports lossless current targets, manual-review cases, ignored keys, and invalid lines without reading files, applying values, or persisting source text. The Remote development category is another read-only projection: it explains the `xterm-256color` baseline, exposes one constant shell diagnostic, distinguishes observed environment and terminfo outcomes, and states that Orchbee does not silently forward extra environment variables or modify the remote host. Opening, searching, or switching to this category starts no process, writes no terminal input, and persists no remote data. Desktop also injects a semantic Browser-access entry that creates or resets the Personal Access Token, reveals a newly issued token once, and stops active Browser access before reset without exposing Electron ports or controllers to the generic Settings module. See [`docs/terminal-settings.md`](docs/terminal-settings.md) and [`docs/keyboard-shortcuts.md`](docs/keyboard-shortcuts.md).
 
 The exact headed `terminal-parity/SU-09-theme` witness holds a prepared Host result and its
 revision-tagged frame before one release, then observes the terminal defaults, palette, cursor,
@@ -262,6 +270,13 @@ search and visible match navigation stay inside the immutable document, Copy rea
 plain-text writer with the same content, and Escape restores terminal input focus. The witness does
 not claim external-pager execution, ANSI preservation, complete scrollback, or operating-system
 clipboard mutation.
+
+The headed Canvas 2D witness `terminal-parity/FS-09-scrollback-viewer` uses the production surface
+with a bounded synthetic retained-history snapshot. `Ctrl+Shift+H` opens all retained primary-screen
+text at the captured visible top; search, match navigation, source-specific Copy, Escape focus
+restoration, and unchanged attachment identity use the production viewer and Actions. The witness
+does not claim history beyond Host retention, ANSI preservation, an external pager, or operating-
+system clipboard mutation.
 
 The headed Canvas 2D witness `terminal-parity/LC-05-lan-capability` composes the production
 projected surface, Workbench Copy Action, Host-selection-content path, and Browser effect. On the

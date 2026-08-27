@@ -4,30 +4,33 @@ import { TooltipProvider } from '@orchbee/ui/components';
 import { createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 
-import { TerminalCommandOutputViewer } from '../TerminalCommandOutputViewer';
-import type { TerminalCommandOutputViewerController } from '../model/terminal-command-output-viewer-controller';
+import { TerminalTextViewer } from '../TerminalTextViewer';
+import type {
+	TerminalTextViewerController,
+	TerminalTextViewerSource,
+} from '../model/terminal-text-viewer-controller';
 
-export interface MountTerminalCommandOutputViewerOptions {
-	readonly controller: TerminalCommandOutputViewerController;
+export interface MountTerminalTextViewerOptions {
+	readonly controller: TerminalTextViewerController;
 	readonly locale: OrchbeeLocale;
-	readonly onCopy: () => void;
+	readonly onCopy: (source: TerminalTextViewerSource) => void;
 	readonly platform: KeyboardShortcutPlatform;
 	readonly restoreFocus: () => void;
 	readonly root: HTMLElement;
 }
 
-export interface TerminalCommandOutputViewerMount {
+export interface TerminalTextViewerMount {
 	dispose(): void;
 }
 
-export function mountTerminalCommandOutputViewer({
+export function mountTerminalTextViewer({
 	controller,
 	locale,
 	onCopy,
 	platform,
 	restoreFocus,
 	root,
-}: MountTerminalCommandOutputViewerOptions): TerminalCommandOutputViewerMount {
+}: MountTerminalTextViewerOptions): TerminalTextViewerMount {
 	const reactRoot = createRoot(root);
 	reactRoot.render(
 		createElement(
@@ -36,7 +39,7 @@ export function mountTerminalCommandOutputViewer({
 			createElement(
 				TooltipProvider,
 				undefined,
-				createElement(TerminalCommandOutputViewer, {
+				createElement(TerminalTextViewer, {
 					controller,
 					onCopy,
 					platform,

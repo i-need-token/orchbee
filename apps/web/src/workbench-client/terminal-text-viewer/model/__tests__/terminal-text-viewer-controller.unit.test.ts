@@ -1,16 +1,18 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import {
-	MAX_TERMINAL_COMMAND_OUTPUT_QUERY_LENGTH,
-	projectTerminalCommandOutputSegments,
-	TerminalCommandOutputViewerController,
-} from '../terminal-command-output-viewer-controller';
+	commandOutputViewerDocument,
+	MAX_TERMINAL_TEXT_VIEWER_QUERY_LENGTH,
+	projectTerminalTextViewerSegments,
+	scrollbackViewerDocument,
+	TerminalTextViewerController,
+} from '../terminal-text-viewer-controller';
 
 const maximumMatches = 1_000;
 
-describe('TerminalCommandOutputViewerController', () => {
+describe('TerminalTextViewerController', () => {
 	it('opens one immutable output document and searches it case-insensitively', () => {
-		const controller = new TerminalCommandOutputViewerController();
+		const controller = new TerminalTextViewerController();
 		const document = output('Alpha beta ALPHA');
 		controller.open(document);
 		controller.setQuery('alpha');
@@ -30,7 +32,7 @@ describe('TerminalCommandOutputViewerController', () => {
 	});
 
 	it('cycles matches in both directions and can explicitly request query focus', () => {
-		const controller = new TerminalCommandOutputViewerController();
+		const controller = new TerminalTextViewerController();
 		controller.open(output('one one'));
 		controller.setQuery('one');
 
@@ -45,10 +47,10 @@ describe('TerminalCommandOutputViewerController', () => {
 	});
 
 	it('bounds the query and rendered matches without hiding that the cap was reached', () => {
-		const controller = new TerminalCommandOutputViewerController();
+		const controller = new TerminalTextViewerController();
 		controller.open(output('x '.repeat(maximumMatches + 1)));
-		controller.setQuery(`x${'y'.repeat(MAX_TERMINAL_COMMAND_OUTPUT_QUERY_LENGTH)}`);
-		expect(controller.getSnapshot().query).toHaveLength(MAX_TERMINAL_COMMAND_OUTPUT_QUERY_LENGTH);
+		controller.setQuery(`x${'y'.repeat(MAX_TERMINAL_TEXT_VIEWER_QUERY_LENGTH)}`);
+		expect(controller.getSnapshot().query).toHaveLength(MAX_TERMINAL_TEXT_VIEWER_QUERY_LENGTH);
 
 		controller.setQuery('x');
 		expect(controller.getSnapshot()).toMatchObject({
@@ -59,32 +61,34 @@ describe('TerminalCommandOutputViewerController', () => {
 	});
 
 	it('keeps empty and unavailable results distinct and non-searchable', () => {
-		const controller = new TerminalCommandOutputViewerController();
-		controller.open({ kind: 'empty', reason: 'no-shell-integration' });
+		const controller = new TerminalTextViewerController();
+		controller.open({ kind: 'empty', reason: 'no-shell-integration', source: 'command-output' });
 		controller.setQuery('ignored');
 		expect(controller.getSnapshot()).toMatchObject({
 			activeMatchIndex: -1,
-			document: { kind: 'empty', reason: 'no-shell-integration' },
+			document: { kind: 'empty', reason: 'no-shell-integration', source: 'command-output' },
 			matches: [],
 			query: '',
 		});
 
-		controller.open({ kind: 'unavailable', reason: 'source-limit' });
+		controller.open({ kind: 'unavailable', reason: 'source-limit', source: 'scrollback' });
 		expect(controller.getSnapshot().document).toEqual({
 			kind: 'unavailable',
 			reason: 'source-limit',
+			source: 'scrollback',
 		});
 	});
 
 	it('projects complete text segments and identifies only the active match', () => {
 		expect(
-			projectTerminalCommandOutputSegments(
+			projectTerminalTextViewerSegments(
 				'a-one-b-one-c',
 				[
 					{ end: 5, start: 2 },
 					{ end: 11, start: 8 },
 				],
 				1,
+				null,
 			),
 		).toEqual([
 			{ kind: 'text', text: 'a-' },
@@ -95,8 +99,41 @@ describe('TerminalCommandOutputViewerController', () => {
 		]);
 	});
 
+	it('splits text at an exact scrollback anchor without changing match ownership', () => {
+		expect(
+			projectTerminalTextViewerSegments('prefix-match-tail', [{ end: 12, start: 7 }], 0, 9),
+		).toEqual([
+			{ kind: 'text', text: 'prefix-' },
+			{ active: true, kind: 'match', matchIndex: 0, text: 'ma' },
+			{ kind: 'anchor' },
+			{ active: true, kind: 'match', matchIndex: 0, text: 'tch' },
+			{ kind: 'text', text: '-tail' },
+		]);
+	});
+
+	it('adapts command output and scrollback into tagged immutable viewer documents', () => {
+		expect(commandOutputViewerDocument(commandOutput('result'))).toEqual(output('result'));
+		expect(
+			scrollbackViewerDocument({
+				endRow: 4n,
+				generation: 1n,
+				initialTopOffset: 6,
+				kind: 'scrollback',
+				revision: 2n,
+				startRow: 0n,
+				text: 'older\nvisible',
+			}),
+		).toEqual({
+			initialTopOffset: 6,
+			kind: 'text',
+			notice: null,
+			source: 'scrollback',
+			text: 'older\nvisible',
+		});
+	});
+
 	it('notifies subscribers, closes idempotently, and rejects work after disposal', () => {
-		const controller = new TerminalCommandOutputViewerController();
+		const controller = new TerminalTextViewerController();
 		const listener = vi.fn<() => void>();
 		const unsubscribe = controller.subscribe(listener);
 		controller.open(output('value'));
@@ -113,6 +150,16 @@ describe('TerminalCommandOutputViewerController', () => {
 });
 
 function output(text: string) {
+	return {
+		initialTopOffset: null,
+		kind: 'text' as const,
+		notice: null,
+		source: 'command-output' as const,
+		text,
+	};
+}
+
+function commandOutput(text: string) {
 	return {
 		endRow: 4n,
 		generation: 1n,

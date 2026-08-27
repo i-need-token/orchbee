@@ -28,7 +28,7 @@ describe('useKeyboardShortcutSettingsView', () => {
 				}),
 			{ wrapper: I18nWrapper },
 		);
-		expect(allRows.result.current.rows).toHaveLength(42);
+		expect(allRows.result.current.rows).toHaveLength(43);
 		expect(allRows.result.current.rows[0]).toMatchObject({
 			actionName: 'Search actions',
 			chord: 'Ctrl+Shift+P',
@@ -37,7 +37,7 @@ describe('useKeyboardShortcutSettingsView', () => {
 		});
 		expect(
 			allRows.result.current.rows.filter((row) => row.scope === 'Focused terminal'),
-		).toHaveLength(14);
+		).toHaveLength(15);
 		expect(
 			allRows.result.current.rows.find((row) => row.actionName === 'Show last command output'),
 		).toMatchObject({
@@ -50,6 +50,13 @@ describe('useKeyboardShortcutSettingsView', () => {
 		).toMatchObject({
 			availability: 'When a terminal is focused',
 			chord: 'Ctrl+Shift+O',
+			scope: 'Focused terminal',
+		});
+		expect(
+			allRows.result.current.rows.find((row) => row.actionName === 'Show scrollback'),
+		).toMatchObject({
+			availability: 'When a terminal is focused',
+			chord: 'Ctrl+Shift+H',
 			scope: 'Focused terminal',
 		});
 		expect(

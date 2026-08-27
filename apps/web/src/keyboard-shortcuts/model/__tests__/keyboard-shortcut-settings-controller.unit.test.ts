@@ -5,9 +5,9 @@ import {
 	keyboardShortcutBindingSource,
 } from '../keyboard-shortcut-settings-controller';
 
-const CURRENT_STORAGE_KEY = 'orchbee:web:keyboard-shortcuts:v10';
+const CURRENT_STORAGE_KEY = 'orchbee:web:keyboard-shortcuts:v11';
 const CURRENT_OVERRIDE_RECORD =
-	'{"overrides":[{"chord":{"code":"KeyY","modifiers":["mod","shift"]},"shortcutId":"workbench.search.all.open"}],"version":10}';
+	'{"overrides":[{"chord":{"code":"KeyY","modifiers":["mod","shift"]},"shortcutId":"workbench.search.all.open"}],"version":11}';
 
 describe('KeyboardShortcutSettingsController', () => {
 	it('publishes one immutable effective snapshot and persists a custom binding', () => {
@@ -86,7 +86,7 @@ describe('KeyboardShortcutSettingsController', () => {
 			modifiers: ['mod'],
 		});
 		expect(controller.getSnapshot().overrides).toEqual([]);
-		expect(records.at(-1)).toBe('{"overrides":[],"version":10}');
+		expect(records.at(-1)).toBe('{"overrides":[],"version":11}');
 		expect(controller.resetShortcut('terminal.search.open')).toEqual({ kind: 'unchanged' });
 	});
 
@@ -115,8 +115,8 @@ describe('KeyboardShortcutSettingsController', () => {
 		expect(writes).toBe(2);
 	});
 
-	it.each([1, 2, 3, 4, 5, 6, 7, 8, 9] as const)(
-		'writes a canonical v10 migration while retaining the v%s rollback record',
+	it.each([1, 2, 3, 4, 5, 6, 7, 8, 9, 10] as const)(
+		'writes a canonical v11 migration while retaining the v%s rollback record',
 		(version) => {
 			const legacy = JSON.stringify({
 				overrides: [

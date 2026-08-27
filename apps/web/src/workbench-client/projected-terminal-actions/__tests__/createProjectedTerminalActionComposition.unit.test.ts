@@ -210,6 +210,7 @@ function terminalTarget(
 		canNavigatePrompts: true,
 		canScrollHistory: true,
 		canShowCommandOutput: true,
+		canShowScrollback: true,
 		canShowHints: true,
 		chooseVisibleHint: vi
 			.fn<ProjectedTerminalActionTarget['chooseVisibleHint']>()
@@ -230,6 +231,9 @@ function terminalTarget(
 		readLastCommandOutput: vi
 			.fn<ProjectedTerminalActionTarget['readLastCommandOutput']>()
 			.mockResolvedValue({ kind: 'empty', reason: 'no-output' }),
+		readScrollback: vi
+			.fn<ProjectedTerminalActionTarget['readScrollback']>()
+			.mockResolvedValue({ kind: 'empty', reason: 'no-scrollback' }),
 		reset: vi.fn<ProjectedTerminalActionTarget['reset']>(),
 		scrollLines: vi.fn<ProjectedTerminalActionTarget['scrollLines']>(() => true),
 		scrollPages: vi.fn<ProjectedTerminalActionTarget['scrollPages']>(() => true),

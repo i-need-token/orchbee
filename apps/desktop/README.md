@@ -452,6 +452,10 @@ Focused traces cover:
   activation; the shared `http`/`https`/`mailto` detection, hover, context, and activation boundary;
   and visible URL/path/file-location/hash labels with exact insertion, captured URL opening,
   cancellation, and zero label-key terminal input;
+- exact headed `terminal-parity/FS-08-command-output-viewer` and
+  `terminal-parity/FS-09-scrollback-viewer` Browser-composition witnesses for the production shared
+  immutable terminal-text viewer, exact retained snapshots, visible-top anchoring, bounded search,
+  source-specific Copy Actions, focus restoration, and unchanged attachment identity;
 - exact headed `terminal-parity/LC-05-lan-capability` Browser-composition evidence for per-operation secure-context, transient-user-activation, and API checks; synchronous Copy availability; one admitted writer call; rejection without retry; localized failure; and no privileged insecure-LAN path;
 - exact `terminal-parity/HS-07-selection-export` real-PTY/Electron evidence that styled terminal
   selection reaches the platform clipboard as the exact visible plain text, paired with protocol,

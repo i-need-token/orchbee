@@ -329,6 +329,7 @@ export const KEYBOARD_SHORTCUT_SEARCH_LABELS = {
 	'next-prompt': keyboardShortcutMessages.nextPrompt,
 	'next-tab': keyboardShortcutMessages.nextTab,
 	'show-last-command-output': keyboardShortcutMessages.outputShowLast,
+	'show-scrollback': keyboardShortcutMessages.scrollbackShow,
 	paste: keyboardShortcutMessages.paste,
 	'previous-prompt': keyboardShortcutMessages.previousPrompt,
 	'previous-tab': keyboardShortcutMessages.previousTab,

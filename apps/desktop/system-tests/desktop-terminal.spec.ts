@@ -1051,6 +1051,8 @@ test('terminal-parity/IN-12-actions', async () => {
 				'terminal.search.previous',
 				'terminal.output.show-last',
 				'terminal.output.copy',
+				'terminal.history.show',
+				'terminal.history.copy',
 				'terminal.history.prompt-previous',
 				'terminal.history.prompt-next',
 				'terminal.history.scroll-line-up',
@@ -1074,6 +1076,8 @@ test('terminal-parity/IN-12-actions', async () => {
 				'terminal.search.previous:disabled',
 				'terminal.output.show-last:enabled',
 				'terminal.output.copy:disabled',
+				'terminal.history.show:enabled',
+				'terminal.history.copy:disabled',
 				'terminal.history.prompt-previous:enabled',
 				'terminal.history.prompt-next:enabled',
 				'terminal.history.scroll-line-up:enabled',
@@ -1140,6 +1144,93 @@ test('terminal-parity/FS-08-command-output-viewer', async () => {
 		await page.keyboard.press('Escape');
 		await expect(viewer).toHaveCount(0);
 		await expect(input).toBeFocused();
+	} finally {
+		await page.context().browser()?.close();
+	}
+});
+
+test('terminal-parity/FS-09-scrollback-viewer', async () => {
+	test.setTimeout(45_000);
+	const page = await openTerminalActionsWitness();
+	try {
+		const root = page.locator('#terminal-actions-witness');
+		await expect(root).toHaveAttribute('data-witness-ready', 'true');
+		await expect(root).toHaveAttribute('data-witness-scrollback-ready', 'true');
+		await expect(root).not.toHaveAttribute('data-witness-failure', /.+/u);
+		await expect(root).toHaveAttribute('data-projected-terminal-attachment-id', '55'.repeat(16));
+		const input = page.getByRole('textbox', { name: '终端输入' });
+		await input.focus();
+		const shortcutKeyInputCount = await root.getAttribute(
+			'data-witness-scrollback-shortcut-key-input-count',
+		);
+		await page.keyboard.press('Control+Shift+KeyH');
+
+		const viewer = page.getByRole('dialog', { name: '回滚缓冲区' });
+		await expect(viewer).toBeVisible();
+		const scrollbackText = [
+			...Array.from({ length: 10 }, (_, index) => `history row ${index}`),
+			'linked context',
+			'terminal actions',
+			'localized feedback',
+			'native command',
+			'visible row 4',
+			'visible row 5',
+			'visible row 6',
+			'visible row 7',
+			'visible row 8',
+			'visible row 9',
+		].join('\n');
+		await expect(viewer.locator('pre')).toHaveText(scrollbackText);
+		expect(await root.getAttribute('data-witness-scrollback-shortcut-key-input-count')).toBe(
+			shortcutKeyInputCount,
+		);
+
+		const content = page.getByRole('region', { name: '保留的终端回滚缓冲区' });
+		const anchor = content.locator('[data-initial-scrollback-anchor="true"]');
+		await expect(anchor).toHaveCount(1);
+		expect(
+			await anchor.evaluate((element) =>
+				element.nextSibling?.textContent?.startsWith('linked context'),
+			),
+		).toBe(true);
+		const scrollGeometry = await content.evaluate((element) => {
+			const anchorElement = element.querySelector<HTMLElement>(
+				'[data-initial-scrollback-anchor="true"]',
+			);
+			return {
+				anchorTop: anchorElement?.getBoundingClientRect().top ?? null,
+				clientHeight: element.clientHeight,
+				contentTop: element.getBoundingClientRect().top,
+				scrollHeight: element.scrollHeight,
+				scrollTop: element.scrollTop,
+			};
+		});
+		if (scrollGeometry.anchorTop === null) throw new Error('FS-09 scrollback anchor is missing.');
+		expect(scrollGeometry.scrollHeight).toBeGreaterThan(scrollGeometry.clientHeight);
+		expect(scrollGeometry.scrollTop).toBeGreaterThan(0);
+		expect(scrollGeometry.anchorTop).toBeGreaterThanOrEqual(scrollGeometry.contentTop);
+		expect(scrollGeometry.anchorTop - scrollGeometry.contentTop).toBeLessThan(32);
+
+		const query = page.getByRole('textbox', { name: '在回滚缓冲区中查找' });
+		await expect(query).toBeFocused();
+		await query.fill('history row');
+		const matches = viewer.locator('mark');
+		await expect(matches).toHaveCount(10);
+		await expect(matches.nth(0)).toHaveAttribute('data-active', 'true');
+		await page.getByRole('button', { name: '查找下一个匹配项' }).click();
+		await expect(matches.nth(1)).toHaveAttribute('data-active', 'true');
+
+		await page.getByRole('button', { name: '复制回滚缓冲区' }).click();
+		await expect(root).toHaveAttribute('data-witness-scrollback-clipboard-write-count', '1');
+		await expect(root).toHaveAttribute('data-witness-scrollback-copied-text', scrollbackText);
+		await expect(root.locator('[data-projected-terminal-status="true"]')).toHaveText(
+			'已复制回滚缓冲区。',
+		);
+
+		await page.keyboard.press('Escape');
+		await expect(viewer).toHaveCount(0);
+		await expect(input).toBeFocused();
+		await expect(root).toHaveAttribute('data-projected-terminal-attachment-id', '55'.repeat(16));
 	} finally {
 		await page.context().browser()?.close();
 	}

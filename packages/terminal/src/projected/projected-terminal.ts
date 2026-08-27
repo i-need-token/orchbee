@@ -151,6 +151,11 @@ import {
 	type ProjectedCommandOutputReadResult,
 } from './projected-command-output';
 import {
+	PROJECTED_SCROLLBACK_PAGE_ROWS,
+	readProjectedScrollback,
+	type ProjectedScrollbackReadResult,
+} from './projected-scrollback';
+import {
 	PackedTerminalStore,
 	PackedTerminalViewport,
 	projectedCellDisplayWidth,
@@ -1054,6 +1059,10 @@ export class ProjectedTerminal {
 		return this.canScrollHistory;
 	}
 
+	get canShowScrollback(): boolean {
+		return this.canScrollHistory;
+	}
+
 	get canShowHints(): boolean {
 		return (
 			this.canControlTerminal &&
@@ -1941,6 +1950,48 @@ export class ProjectedTerminal {
 			const current = this.getBufferRowsSnapshot();
 			if (
 				!this.canShowCommandOutput ||
+				current.generation !== snapshot.generation ||
+				current.revision !== snapshot.revision ||
+				current.totalRows !== snapshot.totalRows
+			) {
+				return { kind: 'unavailable', reason: 'stale' };
+			}
+		}
+		return result;
+	}
+
+	async readScrollback(signal: AbortSignal): Promise<ProjectedScrollbackReadResult> {
+		const liveMetadata = this.#store.metadata;
+		const visibleMetadata = this.metadata;
+		if (signal.aborted) return { kind: 'cancelled' };
+		if (liveMetadata === null || visibleMetadata === null || this.#isDisposed()) {
+			return { kind: 'unavailable', reason: 'unavailable' };
+		}
+		if (liveMetadata.activeScreen !== ActiveScreen.primary) {
+			return { kind: 'unavailable', reason: 'alternate-screen' };
+		}
+		const snapshot = this.getBufferRowsSnapshot();
+		const initialTopRow = this.#historyVisibleStart(visibleMetadata);
+		const maximumPageRows = Math.max(
+			1,
+			Math.min(
+				PROJECTED_SCROLLBACK_PAGE_ROWS,
+				PROTOCOL_LIMITS.maxRowWindowRows,
+				Math.floor(PROTOCOL_LIMITS.maxFrameCells / liveMetadata.columns),
+			),
+		);
+		const result = await readProjectedScrollback({
+			initialTopRow,
+			maximumPageRows,
+			reader: this,
+			signal,
+			snapshot,
+		});
+		if (signal.aborted || result.kind === 'cancelled') return { kind: 'cancelled' };
+		if (result.kind === 'scrollback' || result.kind === 'empty') {
+			const current = this.getBufferRowsSnapshot();
+			if (
+				!this.canShowScrollback ||
 				current.generation !== snapshot.generation ||
 				current.revision !== snapshot.revision ||
 				current.totalRows !== snapshot.totalRows

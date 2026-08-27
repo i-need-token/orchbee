@@ -18,6 +18,7 @@ export const enUSKeyboardShortcutMessages = {
 	'keyboard.shortcuts.actions.nextTab': 'Select next tab',
 	'keyboard.shortcuts.actions.nextPrompt': 'Scroll to next shell prompt',
 	'keyboard.shortcuts.actions.outputShowLast': 'Show last command output',
+	'keyboard.shortcuts.actions.scrollbackShow': 'Show scrollback',
 	'keyboard.shortcuts.actions.paste': 'Paste into terminal',
 	'keyboard.shortcuts.actions.previousPrompt': 'Scroll to previous shell prompt',
 	'keyboard.shortcuts.actions.previousTab': 'Select previous tab',

@@ -125,6 +125,62 @@ export const projectedTerminalMessages = defineMessages({
 		defaultMessage: 'Command output is temporarily unavailable.',
 		id: 'terminal.projected.output.unavailable',
 	},
+	scrollbackCopyAction: {
+		defaultMessage: 'Copy scrollback',
+		id: 'terminal.projected.action.scrollbackCopy',
+	},
+	scrollbackCopyCompleted: {
+		defaultMessage: 'Scrollback copied.',
+		id: 'terminal.projected.scrollback.copyCompleted',
+	},
+	scrollbackCopyFailed: {
+		defaultMessage: 'The scrollback could not be copied.',
+		id: 'terminal.projected.scrollback.copyFailed',
+	},
+	scrollbackShowAction: {
+		defaultMessage: 'Show scrollback',
+		id: 'terminal.projected.action.scrollbackShow',
+	},
+	scrollbackViewerAlternateScreen: {
+		defaultMessage: 'Scrollback is unavailable on the alternate screen.',
+		id: 'terminal.projected.scrollback.alternateScreen',
+	},
+	scrollbackViewerClose: {
+		defaultMessage: 'Close scrollback',
+		id: 'terminal.projected.scrollback.close',
+	},
+	scrollbackViewerContent: {
+		defaultMessage: 'Retained terminal scrollback',
+		id: 'terminal.projected.scrollback.content',
+	},
+	scrollbackViewerNoMatches: {
+		defaultMessage: 'No matches in this scrollback.',
+		id: 'terminal.projected.scrollback.noMatches',
+	},
+	scrollbackViewerNoScrollback: {
+		defaultMessage: 'No terminal scrollback is currently retained.',
+		id: 'terminal.projected.scrollback.noScrollback',
+	},
+	scrollbackViewerSearch: {
+		defaultMessage: 'Find in scrollback',
+		id: 'terminal.projected.scrollback.search',
+	},
+	scrollbackViewerSourceLimit: {
+		defaultMessage: 'The retained scrollback is larger than the viewer limit.',
+		id: 'terminal.projected.scrollback.sourceLimit',
+	},
+	scrollbackViewerStale: {
+		defaultMessage: 'Terminal output changed before the scrollback could be prepared.',
+		id: 'terminal.projected.scrollback.stale',
+	},
+	scrollbackViewerTitle: {
+		defaultMessage: 'Scrollback',
+		id: 'terminal.projected.scrollback.title',
+	},
+	scrollbackViewerUnavailable: {
+		defaultMessage: 'Scrollback is temporarily unavailable.',
+		id: 'terminal.projected.scrollback.unavailable',
+	},
 	clearAction: {
 		defaultMessage: 'Clear terminal',
 		id: 'terminal.projected.action.clear',

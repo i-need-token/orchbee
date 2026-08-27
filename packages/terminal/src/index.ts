@@ -7,6 +7,8 @@ export type {
 	ProjectedBrokerFailure,
 	ProjectedCommandOutput,
 	ProjectedCommandOutputReadResult,
+	ProjectedScrollback,
+	ProjectedScrollbackReadResult,
 	ProjectedFrameResult,
 	ProjectedHistoryPhaseValue,
 	ProjectedPasteResult,

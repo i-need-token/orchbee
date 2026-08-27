@@ -4,7 +4,11 @@ import { AttachmentIdSchema, CanonicalUint64TextSchema } from '@orchbee/terminal
 import { describe, expect, it, vi } from 'vitest';
 
 import { TerminalFindController } from '../../terminal-find-surface';
-import { TerminalCommandOutputViewerController } from '../../terminal-command-output-viewer';
+import {
+	commandOutputViewerDocument,
+	scrollbackViewerDocument,
+	TerminalTextViewerController,
+} from '../../terminal-text-viewer';
 import type { ProjectedTerminalPlatformEffects } from '../../projected-terminal-platform-effects';
 import {
 	PROJECTED_TERMINAL_ACTION_IDS,
@@ -287,7 +291,7 @@ describe('registerProjectedTerminalActions', () => {
 			updateSearch: vi.fn<(query: string, options: TerminalSearchOptions) => void>(),
 		});
 		findController.open();
-		const outputController = new TerminalCommandOutputViewerController();
+		const textViewerController = new TerminalTextViewerController();
 		const terminal = terminalTarget();
 		let firstSignal: AbortSignal | undefined;
 		vi.mocked(terminal.readLastCommandOutput)
@@ -303,7 +307,7 @@ describe('registerProjectedTerminalActions', () => {
 			.mockResolvedValueOnce(commandOutput('latest output'));
 		const registrations = registerProjectedTerminalActions({
 			findController,
-			outputController,
+			textViewerController,
 			scope,
 			terminal,
 			typedRuntime: createTypedActionRuntime<ProjectedTerminalActionCatalog>(runtime),
@@ -322,13 +326,13 @@ describe('registerProjectedTerminalActions', () => {
 		await expect(replacement.completion).resolves.toEqual({ kind: 'completed' });
 		expect(firstSignal?.aborted).toBe(true);
 		expect(findController.getSnapshot().isOpen).toBe(false);
-		expect(outputController.getSnapshot()).toMatchObject({
-			document: commandOutput('latest output'),
+		expect(textViewerController.getSnapshot()).toMatchObject({
+			document: commandOutputViewerDocument(commandOutput('latest output')),
 			isOpen: true,
 		});
 
 		for (const registration of registrations) registration.dispose();
-		outputController.dispose();
+		textViewerController.dispose();
 		runtime.dispose();
 	});
 
@@ -339,8 +343,8 @@ describe('registerProjectedTerminalActions', () => {
 			clearSearch: vi.fn<() => void>(),
 			updateSearch: vi.fn<(query: string, options: TerminalSearchOptions) => void>(),
 		});
-		const outputController = new TerminalCommandOutputViewerController();
-		outputController.open(commandOutput('copy this exact output'));
+		const textViewerController = new TerminalTextViewerController();
+		textViewerController.open(commandOutputViewerDocument(commandOutput('copy this exact output')));
 		let clipboardAvailable = false;
 		const writeClipboardText = vi
 			.fn<NonNullable<ProjectedTerminalPlatformEffects['writeClipboardText']>>()
@@ -348,7 +352,7 @@ describe('registerProjectedTerminalActions', () => {
 			.mockResolvedValueOnce({ code: 'denied', kind: 'failed', retryable: false });
 		const registrations = registerProjectedTerminalActions({
 			findController,
-			outputController,
+			textViewerController,
 			platformEffects: {
 				isClipboardWriteAvailable: () => clipboardAvailable,
 				writeClipboardText,
@@ -374,13 +378,86 @@ describe('registerProjectedTerminalActions', () => {
 				.completion,
 		).resolves.toEqual({ failure: { code: 'denied' }, kind: 'failed' });
 
-		outputController.close();
+		textViewerController.close();
 		expect(
 			runtime.resolveAction(PROJECTED_TERMINAL_ACTION_IDS.outputCopy, undefined, actionContext)
 				?.availability,
 		).toMatchObject({ kind: 'disabled' });
 		for (const registration of registrations) registration.dispose();
-		outputController.dispose();
+		textViewerController.dispose();
+		runtime.dispose();
+	});
+
+	it('replaces command-output preparation with scrollback and copies only the active source', async () => {
+		const runtime = new ActionRuntime();
+		const scope = runtime.createScope('terminal.projected');
+		const findController = new TerminalFindController({
+			clearSearch: vi.fn<() => void>(),
+			updateSearch: vi.fn<(query: string, options: TerminalSearchOptions) => void>(),
+		});
+		const textViewerController = new TerminalTextViewerController();
+		const terminal = terminalTarget();
+		let outputSignal: AbortSignal | undefined;
+		vi.mocked(terminal.readLastCommandOutput).mockImplementationOnce(
+			(signal) =>
+				new Promise((resolve) => {
+					outputSignal = signal;
+					signal.addEventListener('abort', () => resolve({ kind: 'cancelled' }), { once: true });
+				}),
+		);
+		const scrollback = {
+			endRow: 5n,
+			generation: 2n,
+			initialTopOffset: 6,
+			kind: 'scrollback' as const,
+			revision: 4n,
+			startRow: 0n as const,
+			text: 'older\nvisible',
+		};
+		vi.mocked(terminal.readScrollback).mockResolvedValueOnce(scrollback);
+		const writeClipboardText = vi
+			.fn<NonNullable<ProjectedTerminalPlatformEffects['writeClipboardText']>>()
+			.mockResolvedValue({ kind: 'completed' });
+		const registrations = registerProjectedTerminalActions({
+			findController,
+			platformEffects: { writeClipboardText },
+			scope,
+			terminal,
+			textViewerController,
+			typedRuntime: createTypedActionRuntime<ProjectedTerminalActionCatalog>(runtime),
+		});
+
+		const output = runtime.execute(PROJECTED_TERMINAL_ACTION_IDS.outputShowLast, undefined, {
+			scope,
+			source: 'keyboard',
+		});
+		await vi.waitFor(() => expect(terminal.readLastCommandOutput).toHaveBeenCalledOnce());
+		const showScrollback = runtime.execute(PROJECTED_TERMINAL_ACTION_IDS.historyShow, undefined, {
+			scope,
+			source: 'keyboard',
+		});
+		await expect(output.completion).resolves.toEqual({ kind: 'cancelled' });
+		await expect(showScrollback.completion).resolves.toEqual({ kind: 'completed' });
+		expect(outputSignal?.aborted).toBe(true);
+		expect(textViewerController.getSnapshot().document).toEqual(
+			scrollbackViewerDocument(scrollback),
+		);
+		expect(
+			runtime.resolveAction(PROJECTED_TERMINAL_ACTION_IDS.outputCopy, undefined, {
+				scope,
+				source: 'button',
+			})?.availability,
+		).toMatchObject({ kind: 'disabled' });
+		await expect(
+			runtime.execute(PROJECTED_TERMINAL_ACTION_IDS.historyCopy, undefined, {
+				scope,
+				source: 'button',
+			}).completion,
+		).resolves.toEqual({ kind: 'completed' });
+		expect(writeClipboardText).toHaveBeenCalledWith('older\nvisible');
+
+		for (const registration of registrations) registration.dispose();
+		textViewerController.dispose();
 		runtime.dispose();
 	});
 
@@ -516,6 +593,8 @@ describe('registerProjectedTerminalActions', () => {
 				PROJECTED_TERMINAL_ACTION_IDS.findOpen,
 				PROJECTED_TERMINAL_ACTION_IDS.findPrevious,
 				PROJECTED_TERMINAL_ACTION_IDS.hintsOpen,
+				PROJECTED_TERMINAL_ACTION_IDS.historyCopy,
+				PROJECTED_TERMINAL_ACTION_IDS.historyShow,
 				PROJECTED_TERMINAL_ACTION_IDS.outputCopy,
 				PROJECTED_TERMINAL_ACTION_IDS.outputShowLast,
 				PROJECTED_TERMINAL_ACTION_IDS.paste,
@@ -842,6 +921,7 @@ function terminalTarget(
 		canNavigatePrompts: true,
 		canScrollHistory: true,
 		canShowCommandOutput: true,
+		canShowScrollback: true,
 		canShowHints: true,
 		chooseVisibleHint: vi
 			.fn<ProjectedTerminalActionTarget['chooseVisibleHint']>()
@@ -862,6 +942,9 @@ function terminalTarget(
 		readLastCommandOutput: vi
 			.fn<ProjectedTerminalActionTarget['readLastCommandOutput']>()
 			.mockResolvedValue({ kind: 'empty', reason: 'no-output' }),
+		readScrollback: vi
+			.fn<ProjectedTerminalActionTarget['readScrollback']>()
+			.mockResolvedValue({ kind: 'empty', reason: 'no-scrollback' }),
 		reset: vi.fn<ProjectedTerminalActionTarget['reset']>(),
 		scrollLines: vi.fn<ProjectedTerminalActionTarget['scrollLines']>(() => true),
 		scrollPages: vi.fn<ProjectedTerminalActionTarget['scrollPages']>(() => true),

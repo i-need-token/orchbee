@@ -37,9 +37,10 @@ detail 与字节额度。编码来源总额度为 16 MiB；当较低的语义边
 
 ## 查看器与 Action 模型
 
-Web 为每个投影终端挂载拥有一个私有命令输出查看器。查看器只拥有不可变的已准备结果与可逆的查询/
-导航状态。打开新结果会替换旧快照、重置查询并聚焦查询字段。Escape 或可见的关闭控件会关闭查看器
-并恢复终端焦点。关闭绝不会取消、清除、选择或滚动 Terminal Host 状态。
+Web 为每个投影终端挂载拥有一个私有 terminal-text viewer。其不可变 document 会标记为命令输出或
+回滚历史，共享 controller 只拥有可逆的查询与导航状态。打开新结果会替换旧快照、重置查询并聚焦
+查询字段。Escape 或可见的关闭控件会关闭查看器并恢复终端焦点。关闭绝不会取消、清除、选择或滚动
+Terminal Host 状态。
 
 字面搜索不区分大小写，按 UTF-16 来源 offset 排序、互不重叠，并把渲染匹配限制为 1,000 个。
 Enter 与 Shift+Enter 循环向前和向后导航。当查看器拥有焦点时，`Mod+F` 会聚焦并选中查看器查询。
@@ -49,8 +50,8 @@ Enter 与 Shift+Enter 循环向前和向后导航。当查看器拥有焦点时�
 Workbench 拥有 `terminal.output.show-last` 与 `terminal.output.copy`。Web 在已挂载终端 scope 中注册
 两者。显示上一条命令输出使用 replace-latest 并发：替换会取消较旧的精确行读取，handler 在发布
 已准备结果前再次检查取消。复制输出只在打开的非空结果与可用 clipboard writer 同时存在时启用。
-查看器是新的私有 business component，因为规范终端 Find Surface 搜索实时 Host 缓冲区，不能拥有
-不可变的已准备输出快照。
+共享查看器仍是私有 business component，因为规范终端 Find Surface 搜索实时 Host 缓冲区，不能
+拥有不可变的已准备文本快照。
 
 ## 绑定与持久化
 

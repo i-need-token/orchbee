@@ -51,3 +51,4 @@ export type {
 	ProjectedCommandOutput,
 	ProjectedCommandOutputReadResult,
 } from './projected-command-output';
+export type { ProjectedScrollback, ProjectedScrollbackReadResult } from './projected-scrollback';

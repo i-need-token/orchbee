@@ -15,9 +15,11 @@
 
 .root {
 	display: grid;
+	height: 100%;
 	width: 100%;
 	min-width: var(--ob-ref-space-0);
 	min-height: var(--ob-ref-space-0);
+	overflow: hidden;
 	grid-template-rows: auto minmax(0, 1fr);
 }
 
@@ -26,6 +28,7 @@
 	min-width: var(--ob-ref-space-0);
 	min-height: var(--ob-ref-space-0);
 	flex-direction: column;
+	overflow: hidden;
 }
 
 .header {
@@ -115,6 +118,10 @@
 	font: var(--ob-sys-typography-code-md);
 	tab-size: 8;
 	white-space: pre;
+}
+
+.pre [data-initial-scrollback-anchor='true'] {
+	display: inline;
 }
 
 .match {

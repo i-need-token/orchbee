@@ -315,7 +315,7 @@ function shortcutHarness(
 		contains: (node: Node) => node === terminalNode,
 		ownerDocument,
 	} as unknown as HTMLElement;
-	const outputRoot = {
+	const textViewerRoot = {
 		contains: (node: Node) => node === outputNode,
 		ownerDocument,
 	} as unknown as HTMLElement;
@@ -335,7 +335,7 @@ function shortcutHarness(
 		findRoot,
 		findScope,
 		invoke,
-		outputRoot,
+		textViewerRoot,
 		platform,
 		...(currentBindings === undefined
 			? {}

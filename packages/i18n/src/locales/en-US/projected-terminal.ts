@@ -9,6 +9,8 @@ export const enUSProjectedTerminalMessages = {
 	'terminal.projected.action.openLink': 'Open terminal link',
 	'terminal.projected.action.outputCopy': 'Copy command output',
 	'terminal.projected.action.outputShowLast': 'Show last command output',
+	'terminal.projected.action.scrollbackCopy': 'Copy scrollback',
+	'terminal.projected.action.scrollbackShow': 'Show scrollback',
 	'terminal.projected.action.paste': 'Paste',
 	'terminal.projected.action.promptNext': 'Scroll to next shell prompt',
 	'terminal.projected.action.promptPrevious': 'Scroll to previous shell prompt',
@@ -91,6 +93,21 @@ export const enUSProjectedTerminalMessages = {
 	'terminal.projected.output.title': 'Last command output',
 	'terminal.projected.output.truncated': 'Earlier lines were evicted from retained history.',
 	'terminal.projected.output.unavailable': 'Command output is temporarily unavailable.',
+	'terminal.projected.scrollback.alternateScreen':
+		'Scrollback is unavailable on the alternate screen.',
+	'terminal.projected.scrollback.close': 'Close scrollback',
+	'terminal.projected.scrollback.content': 'Retained terminal scrollback',
+	'terminal.projected.scrollback.copyCompleted': 'Scrollback copied.',
+	'terminal.projected.scrollback.copyFailed': 'The scrollback could not be copied.',
+	'terminal.projected.scrollback.noMatches': 'No matches in this scrollback.',
+	'terminal.projected.scrollback.noScrollback': 'No terminal scrollback is currently retained.',
+	'terminal.projected.scrollback.search': 'Find in scrollback',
+	'terminal.projected.scrollback.sourceLimit':
+		'The retained scrollback is larger than the viewer limit.',
+	'terminal.projected.scrollback.stale':
+		'Terminal output changed before the scrollback could be prepared.',
+	'terminal.projected.scrollback.title': 'Scrollback',
+	'terminal.projected.scrollback.unavailable': 'Scrollback is temporarily unavailable.',
 	'terminal.projected.fileDrop.failure.invalid': 'The dropped paths could not be prepared safely.',
 	'terminal.projected.fileDrop.failure.inputTooLarge':
 		'The generated terminal input exceeds the {maximum, number}-character limit.',

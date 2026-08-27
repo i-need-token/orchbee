@@ -10,7 +10,7 @@ import {
 } from '@orchbee/actions';
 
 import type { TerminalFindController } from '../terminal-find-surface';
-import { TerminalCommandOutputViewerController } from '../terminal-command-output-viewer';
+import { TerminalTextViewerController } from '../terminal-text-viewer';
 import type { ProjectedTerminalPlatformEffects } from '../projected-terminal-platform-effects';
 import {
 	PROJECTED_TERMINAL_ACTION_IDS,
@@ -47,7 +47,7 @@ export interface ProjectedTerminalActionResultEvent {
 }
 
 interface ProjectedTerminalActionCompositionOptions {
-	readonly outputController?: TerminalCommandOutputViewerController | undefined;
+	readonly textViewerController?: TerminalTextViewerController | undefined;
 	readonly platformEffects?: ProjectedTerminalPlatformEffects | undefined;
 	readonly reportResult?: ((event: ProjectedTerminalActionResultEvent) => void) | undefined;
 	readonly runtime: ActionRuntime;
@@ -61,7 +61,7 @@ export function createProjectedTerminalActionComposition(
 	options: ProjectedTerminalActionCompositionOptions,
 ): ProjectedTerminalActionComposition {
 	const {
-		outputController = new TerminalCommandOutputViewerController(),
+		textViewerController = new TerminalTextViewerController(),
 		platformEffects = {},
 		reportResult,
 		runtime,
@@ -75,7 +75,7 @@ export function createProjectedTerminalActionComposition(
 	const registrations = registerProjectedTerminalActions({
 		clipboardActionCoordinator,
 		findController,
-		outputController,
+		textViewerController,
 		platformEffects,
 		scope: terminalScope,
 		terminal,
@@ -88,7 +88,7 @@ export function createProjectedTerminalActionComposition(
 			disposed = true;
 			for (const execution of activeExecutions) execution.cancel();
 			for (const registration of registrations) registration.dispose();
-			outputController.dispose();
+			textViewerController.dispose();
 		},
 		execute: (actionId, input, scope, source) => {
 			const execution = typedRuntime.execute(actionId, input, { scope, source });

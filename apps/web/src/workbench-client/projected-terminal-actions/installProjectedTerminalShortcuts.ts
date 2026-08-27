@@ -19,7 +19,7 @@ export interface InstallProjectedTerminalShortcutsOptions {
 		options?: { readonly nativePasteFallback: true },
 	) => boolean;
 	readonly findScope: ActionScope;
-	readonly outputRoot: HTMLElement;
+	readonly textViewerRoot: HTMLElement;
 	readonly platform: ProjectedTerminalShortcutPlatform;
 	readonly shortcutBindingSource?: ProjectedTerminalShortcutBindingSource | undefined;
 	readonly terminalRoot: HTMLElement;
@@ -31,7 +31,7 @@ export function installProjectedTerminalShortcuts({
 	findRoot,
 	findScope,
 	invoke,
-	outputRoot,
+	textViewerRoot,
 	platform,
 	shortcutBindingSource,
 	terminalRoot,
@@ -41,7 +41,7 @@ export function installProjectedTerminalShortcuts({
 		const NodeConstructor = findRoot.ownerDocument.defaultView?.Node;
 		if (NodeConstructor === undefined || !(target instanceof NodeConstructor)) return 'outside';
 		if (findRoot.contains(target)) return 'find';
-		if (outputRoot.contains(target)) return 'output';
+		if (textViewerRoot.contains(target)) return 'viewer';
 		return terminalRoot.contains(target) ? 'terminal' : 'outside';
 	};
 	const handleKeyDown = (event: KeyboardEvent): void => {

@@ -46,11 +46,11 @@ never reuse a prior result.
 
 ## Viewer and Action model
 
-Web owns one private command-output viewer per projected terminal mount. The viewer owns only its
-immutable prepared result and reversible query/navigation state. Opening a new result replaces the
-old snapshot, resets the query, and focuses the query field. Escape or the visible Close control
-closes the viewer and restores terminal focus. Closing never cancels, clears, selects, or scrolls
-Terminal Host state.
+Web owns one private terminal-text viewer per projected terminal mount. Its immutable document is
+tagged as command output or scrollback, while the shared controller owns only reversible query and
+navigation state. Opening a new result replaces the old snapshot, resets the query, and focuses the
+query field. Escape or the visible Close control closes the viewer and restores terminal focus.
+Closing never cancels, clears, selects, or scrolls Terminal Host state.
 
 Literal search is case-insensitive, ordered by UTF-16 source offset, non-overlapping, and capped at
 1,000 rendered matches. Enter and Shift+Enter cycle forward and backward. `Mod+F` focuses and selects
@@ -62,8 +62,8 @@ Workbench owns `terminal.output.show-last` and `terminal.output.copy`. Web regis
 mounted terminal scope. Show Last Command Output uses replace-latest concurrency: a replacement
 cancels the older exact row read, and the handler rechecks cancellation before publishing the
 prepared result. Copy Output is enabled only for an open non-empty result and an available clipboard
-writer. The viewer is a new private business component because the canonical terminal Find Surface
-searches a live Host buffer and cannot own an immutable prepared output snapshot.
+writer. The shared viewer remains a private business component because the canonical terminal Find
+Surface searches a live Host buffer and cannot own an immutable prepared text snapshot.
 
 ## Binding and persistence
 
