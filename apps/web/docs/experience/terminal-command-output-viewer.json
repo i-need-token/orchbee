@@ -1,0 +1,56 @@
+{
+	"$schema": "../../../../schemas/experience-component.schema.json",
+	"id": "projected-terminal.command-output-viewer",
+	"kind": "business",
+	"status": "canonical",
+	"name": "Projected Terminal Command Output Viewer",
+	"description": "Provides a bounded, keyboard-first read view for the last shell-marked command output owned by one projected terminal client.",
+	"owner": "@orchbee/web",
+	"visibility": "private",
+	"intents": ["view-last-command-output", "search-command-output", "copy-command-output"],
+	"implementation": [
+		"apps/web/src/workbench-client/terminal-command-output-viewer/TerminalCommandOutputViewer.tsx",
+		"apps/web/src/workbench-client/terminal-command-output-viewer/model/terminal-command-output-viewer-controller.ts"
+	],
+	"stories": [
+		{
+			"exportName": "Output",
+			"file": "apps/web/stories/terminal-command-output-viewer.stories.tsx",
+			"id": "applications-web-projected-terminal-command-output-viewer--output",
+			"states": [
+				"Inspect immutable plain-text output, the retained-history notice, literal search highlights, match navigation, copy, close, and terminal-focus restoration.",
+				"Use Control+Shift+G to open from terminal focus, Command+F or Control+F to return to the query, Enter and Shift+Enter to cycle, and Escape to close."
+			]
+		},
+		{
+			"exportName": "NoOutput",
+			"file": "apps/web/stories/terminal-command-output-viewer.stories.tsx",
+			"id": "applications-web-projected-terminal-command-output-viewer--no-output",
+			"states": [
+				"Inspect the localized no-output result with the close action focused and search and copy controls absent."
+			]
+		},
+		{
+			"exportName": "Unavailable",
+			"file": "apps/web/stories/terminal-command-output-viewer.stories.tsx",
+			"id": "applications-web-projected-terminal-command-output-viewer--unavailable",
+			"states": ["Inspect the bounded source-limit result without exposing partial command output."]
+		}
+	],
+	"uses": [],
+	"useWhen": [
+		"One projected terminal client must inspect, search, or copy the most recent output delimited by retained shell markers."
+	],
+	"avoidWhen": [
+		"The task needs arbitrary external pagers, ANSI re-rendering, complete scrollback, or output from more than one command or terminal."
+	],
+	"invariants": [
+		"The viewer opens only from an exact generation-and-revision extraction and never renders partial content after cancellation, staleness, eviction, or the source limit.",
+		"The prepared plain-text document remains immutable while open; search state never triggers another terminal-history read.",
+		"Literal case-insensitive search is bounded to 1,024 query characters and 1,000 non-overlapping matches.",
+		"Copy executes the terminal.output.copy Action and never writes the clipboard directly from the presentational component.",
+		"The modal focus cycle remains inside the viewer, terminal shortcuts fall through while it owns focus, and close restores terminal focus.",
+		"No-output, missing-shell-integration, alternate-screen, stale, source-limit, and unavailable outcomes remain localized and disclose no partial output."
+	],
+	"references": ["apps/web/README.md"]
+}

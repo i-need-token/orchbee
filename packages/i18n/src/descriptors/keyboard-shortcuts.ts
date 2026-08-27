@@ -24,6 +24,7 @@ export const keyboardShortcutMessages = defineMessages({
 	newTerminal: message('keyboard.shortcuts.actions.newTerminal'),
 	nextTab: message('keyboard.shortcuts.actions.nextTab'),
 	nextPrompt: message('keyboard.shortcuts.actions.nextPrompt'),
+	outputShowLast: message('keyboard.shortcuts.actions.outputShowLast'),
 	paste: message('keyboard.shortcuts.actions.paste'),
 	previousPrompt: message('keyboard.shortcuts.actions.previousPrompt'),
 	previousTab: message('keyboard.shortcuts.actions.previousTab'),

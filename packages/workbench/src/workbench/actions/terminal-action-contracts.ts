@@ -8,6 +8,8 @@ export const TERMINAL_ACTION_IDS = {
 	findPrevious: 'terminal.search.previous',
 	hintsOpen: 'terminal.hints.open',
 	openLink: 'terminal.link.open',
+	outputCopy: 'terminal.output.copy',
+	outputShowLast: 'terminal.output.show-last',
 	paste: 'terminal.clipboard.paste',
 	promptNext: 'terminal.history.prompt-next',
 	promptPrevious: 'terminal.history.prompt-previous',
@@ -60,6 +62,8 @@ export interface WorkbenchTerminalActionCatalog {
 	readonly 'terminal.history.scroll-top': ActionSignature<void>;
 	readonly 'terminal.hints.open': ActionSignature<void>;
 	readonly 'terminal.link.open': ActionSignature<WorkbenchTerminalLinkActionInput>;
+	readonly 'terminal.output.copy': ActionSignature<void>;
+	readonly 'terminal.output.show-last': ActionSignature<void>;
 	readonly 'terminal.reset': ActionSignature<void>;
 	readonly 'terminal.search.next': ActionSignature<void>;
 	readonly 'terminal.search.open': ActionSignature<void>;

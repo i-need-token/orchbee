@@ -15,6 +15,8 @@ export const PROJECTED_TERMINAL_ACTION_IDS = {
 	findPrevious: TERMINAL_ACTION_IDS.findPrevious,
 	hintsOpen: PROJECTED_TERMINAL_SHORTCUT_ACTION_IDS.hintsOpen,
 	openLink: TERMINAL_ACTION_IDS.openLink,
+	outputCopy: TERMINAL_ACTION_IDS.outputCopy,
+	outputShowLast: PROJECTED_TERMINAL_SHORTCUT_ACTION_IDS.outputShowLast,
 	paste: TERMINAL_ACTION_IDS.paste,
 	promptNext: PROJECTED_TERMINAL_SHORTCUT_ACTION_IDS.promptNext,
 	promptPrevious: PROJECTED_TERMINAL_SHORTCUT_ACTION_IDS.promptPrevious,

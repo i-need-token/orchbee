@@ -1022,6 +1022,8 @@ test('terminal-parity/IN-12-actions', async () => {
 				'terminal.search.open',
 				'terminal.search.next',
 				'terminal.search.previous',
+				'terminal.output.show-last',
+				'terminal.output.copy',
 				'terminal.history.prompt-previous',
 				'terminal.history.prompt-next',
 				'terminal.history.scroll-line-up',
@@ -1043,6 +1045,8 @@ test('terminal-parity/IN-12-actions', async () => {
 				'terminal.search.open:enabled',
 				'terminal.search.next:disabled',
 				'terminal.search.previous:disabled',
+				'terminal.output.show-last:enabled',
+				'terminal.output.copy:disabled',
 				'terminal.history.prompt-previous:enabled',
 				'terminal.history.prompt-next:enabled',
 				'terminal.history.scroll-line-up:enabled',
@@ -1060,6 +1064,55 @@ test('terminal-parity/IN-12-actions', async () => {
 			'已将剪贴板文本粘贴到终端。|已清除终端输出。|终端链接已发生变化，无法打开。',
 		);
 		await expect(root).toHaveAttribute('data-witness-confirmation-count', '0');
+	} finally {
+		await page.context().browser()?.close();
+	}
+});
+
+test('terminal-parity/FS-08-command-output-viewer', async () => {
+	test.setTimeout(45_000);
+	const page = await openTerminalActionsWitness();
+	try {
+		const root = page.locator('#terminal-actions-witness');
+		await expect(root).toHaveAttribute('data-witness-ready', 'true');
+		await expect(root).toHaveAttribute('data-witness-output-ready', 'true');
+		await expect(root).not.toHaveAttribute('data-witness-failure', /.+/u);
+		const input = page.getByRole('textbox', { name: '终端输入' });
+		await input.focus();
+		const shortcutKeyInputCount = await root.getAttribute(
+			'data-witness-output-shortcut-key-input-count',
+		);
+		await page.keyboard.press('Control+Shift+KeyG');
+
+		const viewer = page.getByRole('dialog', { name: '上一条命令输出' });
+		await expect(viewer).toBeVisible();
+		await expect(viewer.locator('pre')).toHaveText('history row 8\nhistory row 9');
+		expect(await root.getAttribute('data-witness-output-shortcut-key-input-count')).toBe(
+			shortcutKeyInputCount,
+		);
+
+		const query = page.getByRole('textbox', { name: '在命令输出中查找' });
+		await expect(query).toBeFocused();
+		await query.fill('row');
+		const matches = viewer.locator('mark');
+		await expect(matches).toHaveCount(2);
+		await expect(matches.nth(0)).toHaveAttribute('data-active', 'true');
+		await page.getByRole('button', { name: '查找下一个匹配项' }).click();
+		await expect(matches.nth(1)).toHaveAttribute('data-active', 'true');
+
+		await page.getByRole('button', { name: '复制命令输出' }).click();
+		await expect(root).toHaveAttribute('data-witness-output-clipboard-write-count', '1');
+		await expect(root).toHaveAttribute(
+			'data-witness-output-copied-text',
+			'history row 8\nhistory row 9',
+		);
+		await expect(root.locator('[data-projected-terminal-status="true"]')).toHaveText(
+			'已复制命令输出。',
+		);
+
+		await page.keyboard.press('Escape');
+		await expect(viewer).toHaveCount(0);
+		await expect(input).toBeFocused();
 	} finally {
 		await page.context().browser()?.close();
 	}

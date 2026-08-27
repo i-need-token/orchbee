@@ -5,6 +5,8 @@
 export { ProjectedHistoryPhase, ProjectedTerminal, ProjectedTerminalPhase } from './projected';
 export type {
 	ProjectedBrokerFailure,
+	ProjectedCommandOutput,
+	ProjectedCommandOutputReadResult,
 	ProjectedFrameResult,
 	ProjectedHistoryPhaseValue,
 	ProjectedPasteResult,

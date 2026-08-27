@@ -32,6 +32,7 @@ those surfaces owns another binding copy.
 | `workbench.sidebar.toggle`                   | Workbench                         | `Cmd+B`               | `Ctrl+Shift+B`        |
 | `terminal.search.open`                       | Focused terminal or Find          | `Cmd+F`               | `Ctrl+Shift+F`        |
 | `terminal.hints.open`                        | Focused terminal                  | `Cmd+Shift+O`         | `Ctrl+Shift+O`        |
+| `terminal.output.show-last`                  | Focused terminal                  | `Ctrl+Shift+G`        | `Ctrl+Shift+G`        |
 | `terminal.selection.copy`                    | Focused terminal with a selection | `Cmd+C`               | `Ctrl+Shift+C`        |
 | `terminal.clipboard.paste`                   | Focused terminal                  | `Cmd+V`               | `Ctrl+Shift+V`        |
 | `terminal.history.prompt-previous`           | Focused terminal                  | `Ctrl+Shift+Z`        | `Ctrl+Shift+Z`        |
@@ -81,6 +82,12 @@ Visible keyboard Hints use `Mod+Shift+O` on both platforms. The unified binding 
 Kitty's frequent visible URL, path, file-location, and hash selection workflow. Detection, effects,
 cancellation, and exclusions are owned by the terminal package's
 [Kitty keyboard-hints alignment](../../../packages/terminal/docs/kitty-keyboard-hints-alignment.md).
+
+Show Last Command Output preserves Kitty's `Ctrl+Shift+G` default at revision
+`6d5d0c440603ad9bdf6dcd599f73f6dde21acb44` on both platforms. It opens an immutable viewer
+for the latest bounded shell-integration output; the extraction, search, copying, cancellation,
+and exclusion contracts are owned by the terminal package's
+[Kitty command-output-viewer alignment](../../../packages/terminal/docs/kitty-command-output-viewer-alignment.md).
 
 ## Terminal paste routing
 
@@ -262,15 +269,15 @@ terminal Actions discovered from descendant scopes.
 
 ## Persistence and recovery
 
-New writes use `orchbee:web:keyboard-shortcuts:v9` and a strict record:
+New writes use `orchbee:web:keyboard-shortcuts:v10` and a strict record:
 
 ```json
 {
-	"version": 9,
+	"version": 10,
 	"overrides": [
 		{
 			"shortcutId": "workbench.search.all.open",
-			"chord": { "code": "KeyG", "modifiers": ["mod", "shift"] }
+			"chord": { "code": "KeyY", "modifiers": ["mod", "shift"] }
 		}
 	]
 }
@@ -278,18 +285,18 @@ New writes use `orchbee:web:keyboard-shortcuts:v9` and a strict record:
 
 Only Custom values are stored, ordered by shortcut ID. Unknown fields or IDs, duplicates, unsorted
 entries, noncanonical modifiers, unsupported codes, stored defaults, excessive entries, and an
-effective conflict invalidate the complete v9 record and restore platform defaults. A write
+effective conflict invalidate the complete v10 record and restore platform defaults. A write
 failure keeps the immutable session binding active, reports that it was not saved, and retries on
 the next legal change. Restoring one item removes its override.
 
-When v9 is absent, Web first reads `orchbee:web:keyboard-shortcuts:v8` with its exact prior catalog
-and defaults. If v8 is also absent, it tries v7, v6, v5, v4, v3, v2, and then v1. Every migration carries
+When v10 is absent, Web first reads `orchbee:web:keyboard-shortcuts:v9` with its exact prior catalog
+and defaults. If v9 is also absent, it tries v8, v7, v6, v5, v4, v3, v2, and then v1. Every migration carries
 explicit overrides into the expanded catalog, removes an override equivalent to a current default,
-rejects any resulting conflict, and writes the canonical v9 record. The v1, v2, v3, v4, v5, v6,
-v7, and v8 values remain unchanged as rollback snapshots. An invalid current record never falls back to an
+rejects any resulting conflict, and writes the canonical v10 record. The v1, v2, v3, v4, v5, v6,
+v7, v8, and v9 values remain unchanged as rollback snapshots. An invalid current record never falls back to an
 older record, and an invalid migration source never falls through to the next older version,
 because either fallback would hide data corruption. Rolling back restores the latest record that
-the older build understands; edits made only in v9 are intentionally unavailable to it.
+the older build understands; edits made only in v10 are intentionally unavailable to it.
 
 Browser Preview, Gateway Browser, and Electron each create and dispose one controller against their
 own origin-local storage. Gateway and Electron pass the controller's narrow binding source through

@@ -10,6 +10,7 @@ import { projectedTerminalMessages } from '@orchbee/i18n';
 import {
 	normalizePermittedExternalTerminalUrl,
 	type ProjectedPasteResult,
+	type ProjectedCommandOutputReadResult,
 	type TerminalHintChoiceResult,
 	type ProjectedTerminalLinkOpenRequest,
 	type ProjectedTerminalSideEffectResult,
@@ -18,6 +19,7 @@ import {
 import type { SelectionChanged } from '@orchbee/terminal-protocol';
 
 import type { TerminalFindController } from '../terminal-find-surface';
+import { TerminalCommandOutputViewerController } from '../terminal-command-output-viewer';
 import type { ProjectedTerminalPlatformEffects } from '../projected-terminal-platform-effects';
 import {
 	createProjectedTerminalClipboardActionCoordinator,
@@ -34,6 +36,7 @@ export interface ProjectedTerminalActionTarget {
 	readonly canControlTerminal: boolean;
 	readonly canShowHints: boolean;
 	readonly canNavigatePrompts: boolean;
+	readonly canShowCommandOutput: boolean;
 	readonly canScrollHistory: boolean;
 	readonly selection: SelectionChanged;
 	clear(): boolean;
@@ -45,6 +48,7 @@ export interface ProjectedTerminalActionTarget {
 	openLinkAsync(target: string): Promise<ProjectedTerminalSideEffectResult>;
 	paste(text: string, source: 'api' | 'clipboard'): Promise<ProjectedPasteResult>;
 	reset(): void;
+	readLastCommandOutput(signal: AbortSignal): Promise<ProjectedCommandOutputReadResult>;
 	scrollLines(amount: number): boolean;
 	scrollPages(amount: number): boolean;
 	scrollToNextPrompt(signal: AbortSignal): Promise<boolean>;
@@ -57,6 +61,7 @@ export interface ProjectedTerminalActionTarget {
 export interface RegisterProjectedTerminalActionsOptions {
 	readonly clipboardActionCoordinator?: ProjectedTerminalClipboardActionCoordinator;
 	readonly findController: TerminalFindController;
+	readonly outputController?: TerminalCommandOutputViewerController;
 	readonly platformEffects?: ProjectedTerminalPlatformEffects;
 	readonly scope: ActionScope;
 	readonly terminal: ProjectedTerminalActionTarget;
@@ -66,6 +71,7 @@ export interface RegisterProjectedTerminalActionsOptions {
 export function registerProjectedTerminalActions({
 	clipboardActionCoordinator = createProjectedTerminalClipboardActionCoordinator(),
 	findController,
+	outputController = new TerminalCommandOutputViewerController(),
 	platformEffects = {},
 	scope,
 	terminal,
@@ -114,6 +120,82 @@ export function registerProjectedTerminalActions({
 				} as const);
 	return [
 		promptNavigationCoordinator,
+		typedRuntime.register(
+			scope,
+			defineAction({
+				category,
+				execution: {
+					concurrency: 'replace-latest',
+					concurrencyKey: () => 'terminal-command-output',
+					mode: 'foreground',
+				},
+				getAvailability: () =>
+					terminal.canShowCommandOutput
+						? { kind: 'enabled' }
+						: { kind: 'disabled', reason: projectedTerminalMessages.actionUnavailable },
+				handler: {
+					execute: async (context) => {
+						const result = await terminal.readLastCommandOutput(context.signal);
+						if (context.signal.aborted || result.kind === 'cancelled') {
+							return { kind: 'cancelled' };
+						}
+						findController.close();
+						outputController.open(result);
+						context.markCommitted();
+						return { kind: 'completed' };
+					},
+				},
+				id: PROJECTED_TERMINAL_ACTION_IDS.outputShowLast,
+				input: noActionInput,
+				title: projectedTerminalMessages.outputShowLastAction,
+			}),
+		),
+		typedRuntime.register(
+			scope,
+			defineAction({
+				category,
+				execution: {
+					concurrency: 'reject-duplicate',
+					concurrencyKey: () => 'terminal-command-output-copy',
+					mode: 'foreground',
+				},
+				getAvailability: () =>
+					outputController.getSnapshot().document?.kind === 'output' &&
+					platformEffects.writeClipboardText !== undefined &&
+					clipboardWriteIsAvailable(platformEffects)
+						? { kind: 'enabled' }
+						: { kind: 'disabled', reason: projectedTerminalMessages.actionUnavailable },
+				handler: {
+					execute: async (context) => {
+						if (context.signal.aborted) return { kind: 'cancelled' };
+						const document = outputController.getSnapshot().document;
+						const writeClipboardText = platformEffects.writeClipboardText;
+						if (document?.kind !== 'output' || writeClipboardText === undefined) {
+							return { code: 'command-output-unavailable', kind: 'blocked' };
+						}
+						let result: ProjectedTerminalSideEffectResult;
+						try {
+							result = await writeClipboardText(document.text);
+						} catch {
+							result = {
+								code: 'client-clipboard-failed',
+								kind: 'failed',
+								retryable: false,
+							};
+						}
+						if (result.kind === 'completed') {
+							context.markCommitted();
+							return { kind: 'completed' };
+						}
+						if (result.kind === 'cancelled') return { kind: 'cancelled' };
+						return { failure: { code: result.code }, kind: 'failed' };
+					},
+				},
+				id: PROJECTED_TERMINAL_ACTION_IDS.outputCopy,
+				input: noActionInput,
+				title: projectedTerminalMessages.outputCopyAction,
+			}),
+		),
 		typedRuntime.register(
 			scope,
 			defineAction({
@@ -306,6 +388,7 @@ export function registerProjectedTerminalActions({
 				getAvailability: () => ({ kind: 'enabled' }),
 				handler: {
 					execute: (context) => {
+						outputController.close();
 						findController.open(
 							terminal.selection.state === 'active'
 								? (terminal.selection.preview ?? undefined)

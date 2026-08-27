@@ -29,7 +29,11 @@ import {
 } from '@orchbee/terminal-protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { BufferRowsResult, TerminalBufferRow } from '../../buffer-rows';
+import type {
+	BufferRowsResult,
+	TerminalBufferRenderCell,
+	TerminalBufferRow,
+} from '../../buffer-rows';
 import { DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION } from '../../presentation-configuration';
 import { WebGPURenderer } from '../../rendering';
 import type { ProjectedSearchWorkerLike } from '../../search';
@@ -190,6 +194,34 @@ function terminalHintRow(index: bigint, text: string): TerminalBufferRow {
 		index,
 		mappings: [],
 		promptClass: RowPromptClass.none,
+		text,
+		wrap: false,
+		wrapContinuation: false,
+	};
+}
+
+function commandOutputRow(
+	index: bigint,
+	text: string,
+	semanticContent: TerminalBufferRenderCell['semanticContent'] = SemanticContent.output,
+	promptClass: TerminalBufferRow['promptClass'] = RowPromptClass.none,
+): TerminalBufferRow {
+	return {
+		cells:
+			text === ''
+				? []
+				: [
+						{
+							column: 0,
+							grapheme: text,
+							hyperlink: null,
+							semanticContent,
+							width: 1,
+						},
+					],
+		index,
+		mappings: [],
+		promptClass,
 		text,
 		wrap: false,
 		wrapContinuation: false,
@@ -6193,6 +6225,157 @@ describe('ProjectedTerminal', () => {
 
 		expect(terminal.canNavigatePrompts).toBe(false);
 		await expect(terminal.scrollToNextPrompt(new AbortController().signal)).resolves.toBe(false);
+		expect(readBufferRows).not.toHaveBeenCalled();
+		terminal.dispose();
+	});
+
+	it('reads the last command output from one exact primary-screen snapshot', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: { send: () => undefined },
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['a', 'b'], null, [0, 1], 4n));
+		const rows = [
+			commandOutputRow(0n, '$', SemanticContent.prompt, RowPromptClass.prompt),
+			commandOutputRow(1n, 'old'),
+			commandOutputRow(2n, '$', SemanticContent.prompt, RowPromptClass.prompt),
+			commandOutputRow(3n, 'latest'),
+			commandOutputRow(4n, 'output'),
+			commandOutputRow(5n, '$', SemanticContent.prompt, RowPromptClass.prompt),
+		];
+		const readBufferRows = vi
+			.spyOn(terminal, 'readBufferRows')
+			.mockImplementation(async (request) => ({
+				byteLength: 4_096,
+				detail: request.detail,
+				generation: request.generation,
+				kind: 'rows',
+				revision: request.revision,
+				rows: rows.slice(Number(request.startRow), Number(request.startRow) + request.rowCount),
+				startRow: request.startRow,
+				totalRows: 6n,
+			}));
+
+		expect(terminal.canShowCommandOutput).toBe(true);
+		await expect(terminal.readLastCommandOutput(new AbortController().signal)).resolves.toEqual({
+			endRow: 4n,
+			generation: 1n,
+			kind: 'output',
+			revision: 1n,
+			startRow: 3n,
+			text: 'latest\noutput',
+			truncatedStart: false,
+		});
+		expect(readBufferRows).toHaveBeenCalledWith(
+			expect.objectContaining({
+				detail: 'render',
+				generation: 1n,
+				purpose: 'buffer',
+				revision: 1n,
+				rowCount: 6,
+				startRow: 0n,
+			}),
+			expect.any(AbortSignal),
+		);
+		terminal.dispose();
+	});
+
+	it('does not publish command output after its exact snapshot becomes stale', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: { send: () => undefined },
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['a', 'b']));
+		let resolveRows: ((result: BufferRowsResult) => void) | undefined;
+		vi.spyOn(terminal, 'readBufferRows').mockImplementation(
+			() =>
+				new Promise((resolve) => {
+					resolveRows = resolve;
+				}),
+		);
+		const output = terminal.readLastCommandOutput(new AbortController().signal);
+		await Promise.resolve();
+		terminal.notifyHistoryChanged({
+			anchorStatus: 'valid',
+			attachmentId,
+			generation: canonicalText('1'),
+			revision: canonicalText('2'),
+			sequence: canonicalText('1'),
+			totalRows: canonicalText('2'),
+		});
+		resolveRows?.({
+			byteLength: 4_096,
+			detail: 'render',
+			generation: 1n,
+			kind: 'rows',
+			revision: 1n,
+			rows: [
+				commandOutputRow(0n, '$', SemanticContent.prompt, RowPromptClass.prompt),
+				commandOutputRow(1n, 'late'),
+			],
+			startRow: 0n,
+			totalRows: 2n,
+		});
+
+		await expect(output).resolves.toEqual({ kind: 'unavailable', reason: 'stale' });
+		terminal.dispose();
+	});
+
+	it('keeps command-output reading unavailable on the alternate screen', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: { send: () => undefined },
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(
+			terminalFrame(
+				'snapshot',
+				1n,
+				1n,
+				['a', 'b'],
+				null,
+				[0, 1],
+				0n,
+				interaction,
+				{ column: 0, row: 0 },
+				1n,
+				2,
+				ActiveScreen.alternate,
+			),
+		);
+		const readBufferRows = vi.spyOn(terminal, 'readBufferRows');
+
+		expect(terminal.canShowCommandOutput).toBe(false);
+		await expect(terminal.readLastCommandOutput(new AbortController().signal)).resolves.toEqual({
+			kind: 'unavailable',
+			reason: 'alternate-screen',
+		});
 		expect(readBufferRows).not.toHaveBeenCalled();
 		terminal.dispose();
 	});

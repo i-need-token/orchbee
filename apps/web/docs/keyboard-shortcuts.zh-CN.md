@@ -27,6 +27,7 @@
 | `workbench.sidebar.toggle`                   | Workbench              | `Cmd+B`               | `Ctrl+Shift+B`        |
 | `terminal.search.open`                       | 聚焦终端或查找         | `Cmd+F`               | `Ctrl+Shift+F`        |
 | `terminal.hints.open`                        | 聚焦终端               | `Cmd+Shift+O`         | `Ctrl+Shift+O`        |
+| `terminal.output.show-last`                  | 聚焦终端               | `Ctrl+Shift+G`        | `Ctrl+Shift+G`        |
 | `terminal.selection.copy`                    | 具有选择功能的聚焦终端 | `Cmd+C`               | `Ctrl+Shift+C`        |
 | `terminal.clipboard.paste`                   | 聚焦终端               | `Cmd+V`               | `Ctrl+Shift+V`        |
 | `terminal.history.prompt-previous`           | 聚焦终端               | `Ctrl+Shift+Z`        | `Ctrl+Shift+Z`        |
@@ -59,6 +60,11 @@ Action 保留多个绑定之前，不包含 Kitty 的小键盘、Shift 加号和
 `Ctrl+Shift+E`，同时为 Kitty 常用的可见 URL、路径、文件位置与 hash 选择工作流保留一个可发现
 Action。检测、效果、取消与排除项由终端包的
 [Kitty 键盘 Hints 对齐](../../../packages/terminal/docs/kitty-keyboard-hints-alignment.zh-CN.md)所有。
+
+“显示上一条命令输出”在两个平台都保留 Kitty 修订版
+`6d5d0c440603ad9bdf6dcd599f73f6dde21acb44` 的 `Ctrl+Shift+G` 默认键。它会为最新的有界
+shell 集成输出打开不可变查看器；提取、搜索、复制、取消与排除契约由终端包的
+[Kitty 命令输出查看器对齐](../../../packages/terminal/docs/kitty-command-output-viewer-alignment.zh-CN.md)所有。
 
 ## 终端粘贴路由
 
@@ -157,23 +163,23 @@ Workbench 负责格式化自身绑定。投影终端负责其绑定默认值与�
 
 ## 持久化与恢复
 
-新写入使用 `orchbee:web:keyboard-shortcuts:v9` 严格记录：
+新写入使用 `orchbee:web:keyboard-shortcuts:v10` 严格记录：
 
 ```json
 {
-	"version": 9,
+	"version": 10,
 	"overrides": [
 		{
 			"shortcutId": "workbench.search.all.open",
-			"chord": { "code": "KeyG", "modifiers": ["mod", "shift"] }
+			"chord": { "code": "KeyY", "modifiers": ["mod", "shift"] }
 		}
 	]
 }
 ```
 
-只存储自定义值，并按快捷键 ID 排序。未知字段或 ID、重复项、未排序条目、非规范修饰符、不支持的代码、已存储默认值、过多条目以及有效冲突都会使完整 v9 记录无效，并恢复平台默认值。写入失败时，不可变的会话绑定仍保持活动，同时报告尚未保存，并在下一次合法修改时重试。恢复单项会移除其覆盖。
+只存储自定义值，并按快捷键 ID 排序。未知字段或 ID、重复项、未排序条目、非规范修饰符、不支持的代码、已存储默认值、过多条目以及有效冲突都会使完整 v10 记录无效，并恢复平台默认值。写入失败时，不可变的会话绑定仍保持活动，同时报告尚未保存，并在下一次合法修改时重试。恢复单项会移除其覆盖。
 
-当 v9 不存在时，Web 会先按准确的旧目录与旧默认值读取 `orchbee:web:keyboard-shortcuts:v8`；如果 v8 也不存在，则依次尝试 v7、v6、v5、v4、v3、v2 和 v1。每次迁移都会把显式覆盖带入扩展后的目录，移除与当前默认值等价的覆盖，拒绝迁移后产生的冲突，并写入规范 v9 记录。v1、v2、v3、v4、v5、v6、v7 与 v8 值原样保留，作为回滚快照。无效当前记录绝不回退到更旧记录，无效迁移源也绝不继续读取下一个更旧版本，因为任一回退都会掩盖数据损坏。回滚时会恢复旧版本能够理解的最新记录；只在 v9 中做出的编辑有意不对旧版本可用。
+当 v10 不存在时，Web 会先按准确的旧目录与旧默认值读取 `orchbee:web:keyboard-shortcuts:v9`；如果 v9 也不存在，则依次尝试 v8、v7、v6、v5、v4、v3、v2 和 v1。每次迁移都会把显式覆盖带入扩展后的目录，移除与当前默认值等价的覆盖，拒绝迁移后产生的冲突，并写入规范 v10 记录。v1、v2、v3、v4、v5、v6、v7、v8 与 v9 值原样保留，作为回滚快照。无效当前记录绝不回退到更旧记录，无效迁移源也绝不继续读取下一个更旧版本，因为任一回退都会掩盖数据损坏。回滚时会恢复旧版本能够理解的最新记录；只在 v10 中做出的编辑有意不对旧版本可用。
 
 Browser Preview、Gateway Browser 和 Electron 各自针对自己的源本地存储创建并销毁一个控制器。Gateway 与 Electron 通过 `ProjectedTerminalSurfaceCapability` 传递控制器的窄绑定来源。事件处理器在分发时读取当前表，因此修改不会重新挂载 Workbench、替换附件，也不会重新打开 Host 或 Gateway 连接。
 

@@ -66,6 +66,8 @@ export function useKeyboardShortcutSettingsView({
 				return intl.formatMessage(keyboardShortcutMessages.nextTab);
 			case 'next-prompt':
 				return intl.formatMessage(keyboardShortcutMessages.nextPrompt);
+			case 'show-last-command-output':
+				return intl.formatMessage(keyboardShortcutMessages.outputShowLast);
 			case 'previous-prompt':
 				return intl.formatMessage(keyboardShortcutMessages.previousPrompt);
 			case 'previous-tab':

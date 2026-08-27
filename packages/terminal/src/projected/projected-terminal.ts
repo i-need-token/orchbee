@@ -146,6 +146,11 @@ import type { ILink, RendererOptions, SurfacePadding } from '../types';
 import { HistoryScrollPresentationTransaction } from './HistoryScrollPresentationTransaction';
 import { TerminalHintSession } from './TerminalHintSession';
 import {
+	PROJECTED_COMMAND_OUTPUT_PAGE_ROWS,
+	readProjectedLastCommandOutput,
+	type ProjectedCommandOutputReadResult,
+} from './projected-command-output';
+import {
 	PackedTerminalStore,
 	PackedTerminalViewport,
 	projectedCellDisplayWidth,
@@ -1045,6 +1050,10 @@ export class ProjectedTerminal {
 		return this.canScrollHistory;
 	}
 
+	get canShowCommandOutput(): boolean {
+		return this.canScrollHistory;
+	}
+
 	get canShowHints(): boolean {
 		return (
 			this.canControlTerminal &&
@@ -1901,6 +1910,45 @@ export class ProjectedTerminal {
 
 	scrollToNextPrompt(signal: AbortSignal): Promise<boolean> {
 		return this.#scrollToPrompt('next', signal);
+	}
+
+	async readLastCommandOutput(signal: AbortSignal): Promise<ProjectedCommandOutputReadResult> {
+		const metadata = this.#store.metadata;
+		if (signal.aborted) return { kind: 'cancelled' };
+		if (metadata === null || this.#isDisposed()) {
+			return { kind: 'unavailable', reason: 'unavailable' };
+		}
+		if (metadata.activeScreen !== ActiveScreen.primary) {
+			return { kind: 'unavailable', reason: 'alternate-screen' };
+		}
+		const snapshot = this.getBufferRowsSnapshot();
+		const maximumPageRows = Math.max(
+			1,
+			Math.min(
+				PROJECTED_COMMAND_OUTPUT_PAGE_ROWS,
+				PROTOCOL_LIMITS.maxRowWindowRows,
+				Math.floor(PROTOCOL_LIMITS.maxFrameCells / metadata.columns),
+			),
+		);
+		const result = await readProjectedLastCommandOutput({
+			maximumPageRows,
+			reader: this,
+			signal,
+			snapshot,
+		});
+		if (signal.aborted || result.kind === 'cancelled') return { kind: 'cancelled' };
+		if (result.kind === 'output' || result.kind === 'empty') {
+			const current = this.getBufferRowsSnapshot();
+			if (
+				!this.canShowCommandOutput ||
+				current.generation !== snapshot.generation ||
+				current.revision !== snapshot.revision ||
+				current.totalRows !== snapshot.totalRows
+			) {
+				return { kind: 'unavailable', reason: 'stale' };
+			}
+		}
+		return result;
 	}
 
 	async #scrollToPrompt(

@@ -30,6 +30,10 @@ import {
 	type MountTerminalFindSurfaceOptions,
 } from '../../terminal-find-surface';
 import {
+	mountTerminalCommandOutputViewer,
+	type MountTerminalCommandOutputViewerOptions,
+} from '../../terminal-command-output-viewer';
+import {
 	installProjectedTerminalShortcuts,
 	PROJECTED_TERMINAL_ACTION_IDS,
 } from '../../projected-terminal-actions';
@@ -72,6 +76,8 @@ const minimalActionIds = [
 	PROJECTED_TERMINAL_ACTION_IDS.findOpen,
 	PROJECTED_TERMINAL_ACTION_IDS.findNext,
 	PROJECTED_TERMINAL_ACTION_IDS.findPrevious,
+	PROJECTED_TERMINAL_ACTION_IDS.outputShowLast,
+	PROJECTED_TERMINAL_ACTION_IDS.outputCopy,
 	PROJECTED_TERMINAL_ACTION_IDS.promptPrevious,
 	PROJECTED_TERMINAL_ACTION_IDS.promptNext,
 	PROJECTED_TERMINAL_ACTION_IDS.scrollLineUp,
@@ -103,6 +109,7 @@ const workbenchScope = actionRuntime.createScope('workbench.fixture.terminal');
 const commands: ProjectedTerminalCommand[] = [];
 let contextProvider: WorkbenchTerminalActionContextProvider | undefined;
 let externalOpenCount = 0;
+let outputClipboardWriteCount = 0;
 let terminal: ProjectedTerminal | undefined;
 let transportListener: (value: unknown) => void = () => undefined;
 let suppressRowResponses = false;
@@ -114,12 +121,22 @@ const dependencies: ProjectedTerminalRendererDependencies = {
 	},
 	installShortcuts: installProjectedTerminalShortcuts,
 	mountFindSurface: (options: MountTerminalFindSurfaceOptions) => mountTerminalFindSurface(options),
+	mountOutputViewer: (options: MountTerminalCommandOutputViewerOptions) =>
+		mountTerminalCommandOutputViewer(options),
 };
 const transport: ProjectedTerminalTransport = {
 	close: () => undefined,
 	projectionBufferTrust: 'local-host',
 	send: (command) => {
 		commands.push(command);
+		root.dataset['witnessKeyInputCount'] = String(
+			commands.filter((candidate) => candidate.kind === 'key-input').length,
+		);
+		root.dataset['witnessOutputShortcutKeyInputCount'] = String(
+			commands.filter(
+				(candidate) => candidate.kind === 'key-input' && candidate.payload.key === 'KeyG',
+			).length,
+		);
 		if (command.kind !== 'read-rows' || suppressRowResponses) return;
 		const scrollbackRows = projectedScrollbackRows;
 		queueMicrotask(() => {
@@ -136,7 +153,7 @@ void runWitness();
 
 async function runWitness(): Promise<void> {
 	try {
-		const session = await startProjectedTerminalRenderer(
+		await startProjectedTerminalRenderer(
 			root,
 			document.documentElement,
 			['zh-CN'],
@@ -160,6 +177,12 @@ async function runWitness(): Promise<void> {
 					return { kind: 'completed' };
 				},
 				readClipboardText: () => ({ kind: 'completed', text: 'fixture clipboard text' }),
+				writeClipboardText: (text) => {
+					outputClipboardWriteCount += 1;
+					root.dataset['witnessOutputClipboardWriteCount'] = String(outputClipboardWriteCount);
+					root.dataset['witnessOutputCopiedText'] = text;
+					return { kind: 'completed' };
+				},
 			},
 			undefined,
 			undefined,
@@ -387,8 +410,7 @@ async function runWitness(): Promise<void> {
 			}`,
 		].join(',');
 		root.dataset['witnessReady'] = 'true';
-		session.dispose();
-		actionRuntime.dispose();
+		root.dataset['witnessOutputReady'] = 'true';
 	} catch (error) {
 		root.dataset['witnessFailure'] = error instanceof Error ? error.message : String(error);
 	}
@@ -456,7 +478,7 @@ function terminalRows(
 		frame: {
 			...frame,
 			generation,
-			rowData: terminalRowData(selectedRows, linkRow),
+			rowData: terminalRowData(selectedRows, linkRow, startRow),
 			rows: selectedRows.length,
 			scrollbackRows: startRow,
 		},
@@ -541,7 +563,7 @@ function terminalFrame(
 		},
 		kind: TerminalFrameKind.snapshot,
 		revision,
-		rowData: terminalRowData(rowText, link ? 0 : -1),
+		rowData: terminalRowData(rowText, link ? 0 : -1, scrollbackRows),
 		rows: rowText.length,
 		scrollbackRows,
 		sequence,
@@ -551,20 +573,31 @@ function terminalFrame(
 	};
 }
 
-function terminalRowData(texts: readonly string[], linkRow: number): TerminalFrame['rowData'] {
-	return texts.map((text, row) => ({
-		cells: Array.from({ length: 24 }, (_, column) => ({
-			grapheme: text[column] ?? '',
-			protected: false,
-			semanticContent: SemanticContent.output,
-			style: row === linkRow && column < text.length ? 1 : 0,
-			width: CellWidth.narrow,
-		})),
-		index: row,
-		promptClass: RowPromptClass.none,
-		wrap: false,
-		wrapContinuation: false,
-	}));
+function terminalRowData(
+	texts: readonly string[],
+	linkRow: number,
+	absoluteStartRow: bigint,
+): TerminalFrame['rowData'] {
+	return texts.map((text, row) => {
+		const absoluteRow = absoluteStartRow + BigInt(row);
+		const prompt = absoluteRow === 7n || absoluteRow === 10n;
+		let semanticContent: SemanticContent = SemanticContent.output;
+		if (prompt) semanticContent = SemanticContent.prompt;
+		else if (absoluteRow > 10n) semanticContent = SemanticContent.input;
+		return {
+			cells: Array.from({ length: 24 }, (_, column) => ({
+				grapheme: text[column] ?? '',
+				protected: false,
+				semanticContent,
+				style: row === linkRow && column < text.length ? 1 : 0,
+				width: CellWidth.narrow,
+			})),
+			index: row,
+			promptClass: prompt ? RowPromptClass.prompt : RowPromptClass.none,
+			wrap: false,
+			wrapContinuation: false,
+		};
+	});
 }
 
 async function nextPaint(): Promise<void> {

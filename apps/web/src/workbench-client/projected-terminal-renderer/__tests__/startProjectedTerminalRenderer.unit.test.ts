@@ -61,6 +61,11 @@ describe('startProjectedTerminalRenderer', () => {
 			dataset: {},
 			remove: vi.fn<ChildNode['remove']>(),
 		};
+		const outputRoot = {
+			contains: vi.fn<HTMLElement['contains']>(() => false),
+			dataset: {},
+			remove: vi.fn<ChildNode['remove']>(),
+		};
 		const progressIndicator = {
 			setAttribute: vi.fn<Element['setAttribute']>(),
 		};
@@ -86,12 +91,18 @@ describe('startProjectedTerminalRenderer', () => {
 					.fn<
 						(
 							tagName: string,
-						) => typeof status | typeof progress | typeof progressIndicator | typeof findRoot
+						) =>
+							| typeof status
+							| typeof progress
+							| typeof progressIndicator
+							| typeof findRoot
+							| typeof outputRoot
 					>()
 					.mockReturnValueOnce(status)
 					.mockReturnValueOnce(progress)
 					.mockReturnValueOnce(progressIndicator)
-					.mockReturnValueOnce(findRoot),
+					.mockReturnValueOnce(findRoot)
+					.mockReturnValueOnce(outputRoot),
 				hasFocus: vi.fn<() => boolean>(() => false),
 			},
 			style: {},
@@ -168,6 +179,7 @@ describe('startProjectedTerminalRenderer', () => {
 						canControlTerminal: true,
 						canNavigatePrompts: true,
 						canScrollHistory: true,
+						canShowCommandOutput: true,
 						canShowHints: true,
 						capturePresentationSnapshot: () => nextOptions.presentationSnapshot ?? null,
 						captureActionContext,
@@ -255,6 +267,9 @@ describe('startProjectedTerminalRenderer', () => {
 							.mockResolvedValue({ kind: 'completed' }),
 						open: openTerminal,
 						paste: pasteTerminal,
+						readLastCommandOutput: vi
+							.fn<ProjectedTerminal['readLastCommandOutput']>()
+							.mockResolvedValue({ kind: 'empty', reason: 'no-output' }),
 						reset: vi.fn<ProjectedTerminal['reset']>(),
 						scrollLines: vi.fn<ProjectedTerminal['scrollLines']>(() => true),
 						scrollPages: vi.fn<ProjectedTerminal['scrollPages']>(() => true),
@@ -287,6 +302,9 @@ describe('startProjectedTerminalRenderer', () => {
 				vi.fn<() => void>(),
 			),
 			mountFindSurface: vi.fn<ProjectedTerminalRendererDependencies['mountFindSurface']>(() => ({
+				dispose: vi.fn<() => void>(),
+			})),
+			mountOutputViewer: vi.fn<ProjectedTerminalRendererDependencies['mountOutputViewer']>(() => ({
 				dispose: vi.fn<() => void>(),
 			})),
 		};
@@ -838,6 +856,11 @@ describe('startProjectedTerminalRenderer', () => {
 					dataset: {},
 					remove: vi.fn<ChildNode['remove']>(),
 				};
+				const additionalOutputRoot = {
+					contains: vi.fn<HTMLElement['contains']>(() => false),
+					dataset: {},
+					remove: vi.fn<ChildNode['remove']>(),
+				};
 				const additionalProgressIndicator = {
 					setAttribute: vi.fn<Element['setAttribute']>(),
 				};
@@ -867,11 +890,13 @@ describe('startProjectedTerminalRenderer', () => {
 									| typeof additionalProgress
 									| typeof additionalProgressIndicator
 									| typeof additionalFindRoot
+									| typeof additionalOutputRoot
 							>()
 							.mockReturnValueOnce(additionalStatus)
 							.mockReturnValueOnce(additionalProgress)
 							.mockReturnValueOnce(additionalProgressIndicator)
-							.mockReturnValueOnce(additionalFindRoot),
+							.mockReturnValueOnce(additionalFindRoot)
+							.mockReturnValueOnce(additionalOutputRoot),
 					},
 					style: {},
 				} as unknown as HTMLElement;

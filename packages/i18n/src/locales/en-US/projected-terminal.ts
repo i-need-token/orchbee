@@ -7,6 +7,8 @@ export const enUSProjectedTerminalMessages = {
 	'terminal.projected.action.findPrevious': 'Find previous match',
 	'terminal.projected.action.hintsOpen': 'Show terminal hints',
 	'terminal.projected.action.openLink': 'Open terminal link',
+	'terminal.projected.action.outputCopy': 'Copy command output',
+	'terminal.projected.action.outputShowLast': 'Show last command output',
 	'terminal.projected.action.paste': 'Paste',
 	'terminal.projected.action.promptNext': 'Scroll to next shell prompt',
 	'terminal.projected.action.promptPrevious': 'Scroll to previous shell prompt',
@@ -72,6 +74,23 @@ export const enUSProjectedTerminalMessages = {
 	'terminal.projected.hints.noMatches': 'No supported targets are visible in the terminal.',
 	'terminal.projected.hints.stale': 'Terminal output changed before the hint could be selected.',
 	'terminal.projected.hints.unavailable': 'Terminal hints are unavailable for the visible output.',
+	'terminal.projected.output.alternateScreen':
+		'Command output is unavailable on the alternate screen.',
+	'terminal.projected.output.close': 'Close command output',
+	'terminal.projected.output.content': 'Last command output',
+	'terminal.projected.output.copyCompleted': 'Command output copied.',
+	'terminal.projected.output.copyFailed': 'The command output could not be copied.',
+	'terminal.projected.output.noMatches': 'No matches in this command output.',
+	'terminal.projected.output.noOutput': 'The last command produced no output.',
+	'terminal.projected.output.noShellIntegration':
+		'No shell command markers are available for this terminal.',
+	'terminal.projected.output.search': 'Find in command output',
+	'terminal.projected.output.sourceLimit': 'The command output is larger than the viewer limit.',
+	'terminal.projected.output.stale':
+		'Terminal output changed before the command output could be prepared.',
+	'terminal.projected.output.title': 'Last command output',
+	'terminal.projected.output.truncated': 'Earlier lines were evicted from retained history.',
+	'terminal.projected.output.unavailable': 'Command output is temporarily unavailable.',
 	'terminal.projected.fileDrop.failure.invalid': 'The dropped paths could not be prepared safely.',
 	'terminal.projected.fileDrop.failure.inputTooLarge':
 		'The generated terminal input exceeds the {maximum, number}-character limit.',

@@ -640,7 +640,7 @@ describe('TerminalSettingsSurface', () => {
 			),
 		);
 		await act(async () => keyboardCategory.click());
-		expect(container.querySelectorAll('[data-shortcut-id]')).toHaveLength(41);
+		expect(container.querySelectorAll('[data-shortcut-id]')).toHaveLength(42);
 		expect(container.textContent).toContain('Ctrl+Shift+T');
 		expect(container.textContent).toContain('Ctrl+Shift+W');
 		expect(container.textContent).toContain('Clear terminal');
@@ -652,6 +652,8 @@ describe('TerminalSettingsSurface', () => {
 		expect(container.textContent).toContain('Ctrl+Shift+Page Up');
 		expect(container.textContent).toContain('Show terminal hints');
 		expect(container.textContent).toContain('Ctrl+Shift+O');
+		expect(container.textContent).toContain('Show last command output');
+		expect(container.textContent).toContain('Ctrl+Shift+G');
 		expect(container.textContent).toContain('Focused terminal');
 
 		const search = requiredElement<HTMLInputElement>(
@@ -661,7 +663,7 @@ describe('TerminalSettingsSurface', () => {
 			setInputValue(search, 'Focused terminal');
 			search.dispatchEvent(new Event('input', { bubbles: true }));
 		});
-		expect(container.querySelectorAll('[data-shortcut-id]')).toHaveLength(41);
+		expect(container.querySelectorAll('[data-shortcut-id]')).toHaveLength(42);
 		expect(
 			container.querySelectorAll('[data-settings-search-result]').length,
 		).toBeGreaterThanOrEqual(3);
@@ -679,15 +681,15 @@ describe('TerminalSettingsSurface', () => {
 				new KeyboardEvent('keydown', {
 					bubbles: true,
 					cancelable: true,
-					code: 'KeyG',
+					code: 'KeyY',
 					ctrlKey: true,
-					key: 'G',
+					key: 'Y',
 					shiftKey: true,
 				}),
 			);
 		});
 		expect(keyboardShortcutController.current()['workbench.search.all.open']).toEqual({
-			code: 'KeyG',
+			code: 'KeyY',
 			modifiers: ['mod', 'shift'],
 		});
 		expect(
@@ -703,9 +705,9 @@ describe('TerminalSettingsSurface', () => {
 				new KeyboardEvent('keydown', {
 					bubbles: true,
 					cancelable: true,
-					code: 'KeyG',
+					code: 'KeyY',
 					ctrlKey: true,
-					key: 'G',
+					key: 'Y',
 					shiftKey: true,
 				}),
 			);

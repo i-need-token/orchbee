@@ -30,6 +30,10 @@ import {
 	type MountTerminalFindSurfaceOptions,
 } from '../../terminal-find-surface';
 import {
+	mountTerminalCommandOutputViewer,
+	type MountTerminalCommandOutputViewerOptions,
+} from '../../terminal-command-output-viewer';
+import {
 	installProjectedTerminalShortcuts,
 	PROJECTED_TERMINAL_ACTION_IDS,
 } from '../../projected-terminal-actions';
@@ -128,6 +132,8 @@ const dependencies: ProjectedTerminalRendererDependencies = {
 	},
 	installShortcuts: installProjectedTerminalShortcuts,
 	mountFindSurface: (options: MountTerminalFindSurfaceOptions) => mountTerminalFindSurface(options),
+	mountOutputViewer: (options: MountTerminalCommandOutputViewerOptions) =>
+		mountTerminalCommandOutputViewer(options),
 };
 const transport: ProjectedTerminalTransport = {
 	close: () => undefined,

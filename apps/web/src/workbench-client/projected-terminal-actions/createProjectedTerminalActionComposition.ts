@@ -10,6 +10,7 @@ import {
 } from '@orchbee/actions';
 
 import type { TerminalFindController } from '../terminal-find-surface';
+import { TerminalCommandOutputViewerController } from '../terminal-command-output-viewer';
 import type { ProjectedTerminalPlatformEffects } from '../projected-terminal-platform-effects';
 import {
 	PROJECTED_TERMINAL_ACTION_IDS,
@@ -46,6 +47,7 @@ export interface ProjectedTerminalActionResultEvent {
 }
 
 interface ProjectedTerminalActionCompositionOptions {
+	readonly outputController?: TerminalCommandOutputViewerController | undefined;
 	readonly platformEffects?: ProjectedTerminalPlatformEffects | undefined;
 	readonly reportResult?: ((event: ProjectedTerminalActionResultEvent) => void) | undefined;
 	readonly runtime: ActionRuntime;
@@ -58,7 +60,13 @@ export function createProjectedTerminalActionComposition(
 	findController: TerminalFindController,
 	options: ProjectedTerminalActionCompositionOptions,
 ): ProjectedTerminalActionComposition {
-	const { platformEffects = {}, reportResult, runtime, terminalScope } = options;
+	const {
+		outputController = new TerminalCommandOutputViewerController(),
+		platformEffects = {},
+		reportResult,
+		runtime,
+		terminalScope,
+	} = options;
 	const findScope = runtime.createScope('workbench.terminal.find', terminalScope);
 	const typedRuntime = createTypedActionRuntime<ProjectedTerminalActionCatalog>(runtime);
 	const activeExecutions = new Set<ActionExecution>();
@@ -67,6 +75,7 @@ export function createProjectedTerminalActionComposition(
 	const registrations = registerProjectedTerminalActions({
 		clipboardActionCoordinator,
 		findController,
+		outputController,
 		platformEffects,
 		scope: terminalScope,
 		terminal,
@@ -79,6 +88,7 @@ export function createProjectedTerminalActionComposition(
 			disposed = true;
 			for (const execution of activeExecutions) execution.cancel();
 			for (const registration of registrations) registration.dispose();
+			outputController.dispose();
 		},
 		execute: (actionId, input, scope, source) => {
 			const execution = typedRuntime.execute(actionId, input, { scope, source });

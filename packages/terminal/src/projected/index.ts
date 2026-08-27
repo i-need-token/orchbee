@@ -47,3 +47,7 @@ export {
 	type ProjectedRowsResult,
 } from './projected-terminal';
 export type { ProjectedTerminalSearchEvent } from '../search';
+export type {
+	ProjectedCommandOutput,
+	ProjectedCommandOutputReadResult,
+} from './projected-command-output';

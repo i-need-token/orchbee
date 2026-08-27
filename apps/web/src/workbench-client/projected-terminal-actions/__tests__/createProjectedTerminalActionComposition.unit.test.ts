@@ -209,6 +209,7 @@ function terminalTarget(
 		canControlTerminal: true,
 		canNavigatePrompts: true,
 		canScrollHistory: true,
+		canShowCommandOutput: true,
 		canShowHints: true,
 		chooseVisibleHint: vi
 			.fn<ProjectedTerminalActionTarget['chooseVisibleHint']>()
@@ -226,6 +227,9 @@ function terminalTarget(
 			.fn<ProjectedTerminalActionTarget['openLinkAsync']>()
 			.mockResolvedValue({ kind: 'completed' }),
 		paste: vi.fn<ProjectedTerminalActionTarget['paste']>().mockResolvedValue({ kind: 'empty' }),
+		readLastCommandOutput: vi
+			.fn<ProjectedTerminalActionTarget['readLastCommandOutput']>()
+			.mockResolvedValue({ kind: 'empty', reason: 'no-output' }),
 		reset: vi.fn<ProjectedTerminalActionTarget['reset']>(),
 		scrollLines: vi.fn<ProjectedTerminalActionTarget['scrollLines']>(() => true),
 		scrollPages: vi.fn<ProjectedTerminalActionTarget['scrollPages']>(() => true),

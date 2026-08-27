@@ -45,6 +45,12 @@ import {
 	type MountTerminalFindSurfaceOptions,
 } from '../terminal-find-surface';
 import {
+	mountTerminalCommandOutputViewer,
+	TerminalCommandOutputViewerController,
+	type MountTerminalCommandOutputViewerOptions,
+	type TerminalCommandOutputViewerMount,
+} from '../terminal-command-output-viewer';
+import {
 	createProjectedTerminalActionComposition,
 	PROJECTED_TERMINAL_ACTION_IDS,
 	installProjectedTerminalShortcuts,
@@ -69,6 +75,7 @@ type ProjectedTerminalDriver = Pick<
 	| 'canNavigatePrompts'
 	| 'canScrollHistory'
 	| 'canShowHints'
+	| 'canShowCommandOutput'
 	| 'captureActionContext'
 	| 'chooseVisibleHint'
 	| 'clear'
@@ -107,6 +114,7 @@ type ProjectedTerminalDriver = Pick<
 	| 'open'
 	| 'paste'
 	| 'reset'
+	| 'readLastCommandOutput'
 	| 'scrollLines'
 	| 'scrollPages'
 	| 'scrollToNextPrompt'
@@ -168,6 +176,9 @@ export interface ProjectedTerminalRendererDependencies {
 	readonly createTerminal: (options: ProjectedTerminalOptions) => ProjectedTerminalDriver;
 	readonly installShortcuts: typeof installProjectedTerminalShortcuts;
 	readonly mountFindSurface: (options: MountTerminalFindSurfaceOptions) => TerminalFindSurfaceMount;
+	readonly mountOutputViewer: (
+		options: MountTerminalCommandOutputViewerOptions,
+	) => TerminalCommandOutputViewerMount;
 }
 
 export interface ProjectedTerminalRendererSession {
@@ -190,6 +201,7 @@ const defaultDependencies: ProjectedTerminalRendererDependencies = {
 	createTerminal: (options) => new ProjectedTerminal(options),
 	installShortcuts: installProjectedTerminalShortcuts,
 	mountFindSurface: mountTerminalFindSurface,
+	mountOutputViewer: mountTerminalCommandOutputViewer,
 };
 
 export async function startProjectedTerminalRenderer(
@@ -723,7 +735,7 @@ export async function startProjectedTerminalRenderer(
 		});
 		updateFinalPresentation();
 	};
-	const { actions, disposeActions, findController, subscriptions } = (() => {
+	const { actions, disposeActions, findController, outputController, subscriptions } = (() => {
 		const ownedActionRuntime = workbenchHost === undefined ? new ActionRuntime() : undefined;
 		const actionRuntime = workbenchHost?.runtime ?? ownedActionRuntime;
 		if (actionRuntime === undefined) throw new Error('The terminal action runtime is unavailable.');
@@ -733,6 +745,7 @@ export async function startProjectedTerminalRenderer(
 		let pendingActions: ReturnType<typeof createProjectedTerminalActionComposition> | undefined;
 		let pendingContextRegistration: ActionDisposable | undefined;
 		let pendingFindController: TerminalFindController | undefined;
+		let pendingOutputController: TerminalCommandOutputViewerController | undefined;
 		const pendingSubscriptions: Array<ReturnType<ProjectedTerminalDriver['onBell']>> = [];
 		const disposePendingActions = (): void => {
 			pendingContextRegistration?.dispose();
@@ -744,7 +757,9 @@ export async function startProjectedTerminalRenderer(
 				terminal,
 				terminal.getBufferRowsSnapshot().totalRows,
 			);
+			pendingOutputController = new TerminalCommandOutputViewerController();
 			pendingActions = createProjectedTerminalActionComposition(terminal, pendingFindController, {
+				outputController: pendingOutputController,
 				platformEffects,
 				reportResult: reportActionResult,
 				runtime: actionRuntime,
@@ -983,6 +998,7 @@ export async function startProjectedTerminalRenderer(
 				actions: activeActions,
 				disposeActions: disposePendingActions,
 				findController: activeFindController,
+				outputController: pendingOutputController,
 				subscriptions: pendingSubscriptions,
 			};
 		} catch (error) {
@@ -992,6 +1008,7 @@ export async function startProjectedTerminalRenderer(
 				...pendingSubscriptions.map((subscription) => () => subscription.dispose()),
 				disposePendingActions,
 				() => pendingFindController?.dispose(),
+				() => pendingOutputController?.dispose(),
 				() => terminal.dispose(),
 				() => progress.remove(),
 				() => status.remove(),
@@ -1139,10 +1156,14 @@ export async function startProjectedTerminalRenderer(
 
 	let findRoot: HTMLElement | undefined;
 	let findSurface: TerminalFindSurfaceMount | undefined;
+	let outputRoot: HTMLElement | undefined;
+	let outputViewer: TerminalCommandOutputViewerMount | undefined;
 	let disposeShortcuts: (() => void) | undefined;
 	try {
 		findRoot = rootElement.ownerDocument.createElement('div');
 		findRoot.dataset['projectedTerminalFindSurface'] = 'true';
+		outputRoot = rootElement.ownerDocument.createElement('div');
+		outputRoot.dataset['projectedTerminalCommandOutputViewer'] = 'true';
 		if (!transportAvailable) {
 			throw new Error('Projected terminal transport became unavailable during renderer startup.');
 		}
@@ -1206,12 +1227,29 @@ export async function startProjectedTerminalRenderer(
 			restoreFocus: () => terminal.focus(),
 			root: findRoot,
 		});
+		rootElement.appendChild(outputRoot);
+		outputViewer = dependencies.mountOutputViewer({
+			controller: outputController,
+			locale,
+			onCopy: () => {
+				void actions.execute(
+					PROJECTED_TERMINAL_ACTION_IDS.outputCopy,
+					undefined,
+					actions.terminalScope,
+					'button',
+				).completion;
+			},
+			platform: shortcutPlatform,
+			restoreFocus: () => terminal.focus(),
+			root: outputRoot,
+		});
 		disposeShortcuts = dependencies.installShortcuts({
 			document: rootElement.ownerDocument,
 			findRoot,
 			findScope: actions.findScope,
 			invoke: (actionId, input, scope, options) =>
 				actions.invokeShortcut(actionId, input, scope, options),
+			outputRoot,
 			platform: shortcutPlatform,
 			shortcutBindingSource,
 			terminalRoot: rootElement,
@@ -1223,7 +1261,9 @@ export async function startProjectedTerminalRenderer(
 			unsubscribeConfigurationSources,
 			disposeThemeParticipant,
 			() => disposeShortcuts?.(),
+			() => outputViewer?.dispose(),
 			() => findSurface?.dispose(),
+			() => outputRoot?.remove(),
 			() => findRoot?.remove(),
 			unsubscribeTransport,
 			...subscriptions.map((subscription) => () => subscription.dispose()),
@@ -1255,6 +1295,7 @@ export async function startProjectedTerminalRenderer(
 					() => terminal.dispose(),
 					() => status.remove(),
 					() => progress.remove(),
+					() => outputRoot?.remove(),
 					() => findRoot?.remove(),
 				]);
 				return;
@@ -1263,6 +1304,7 @@ export async function startProjectedTerminalRenderer(
 				unsubscribeConfigurationSources,
 				disposeThemeParticipant,
 				() => disposeShortcuts?.(),
+				() => outputViewer?.dispose(),
 				() => findSurface?.dispose(),
 				unsubscribeTransport,
 				...subscriptions.map((subscription) => () => subscription.dispose()),
@@ -1272,6 +1314,7 @@ export async function startProjectedTerminalRenderer(
 				() => transport.close(),
 				() => status.remove(),
 				() => progress.remove(),
+				() => outputRoot?.remove(),
 				() => findRoot?.remove(),
 			]);
 		},
@@ -1293,6 +1336,7 @@ export async function startProjectedTerminalRenderer(
 				unsubscribeConfigurationSources,
 				disposeThemeParticipant,
 				() => disposeShortcuts?.(),
+				() => outputViewer?.dispose(),
 				() => findSurface?.dispose(),
 				unsubscribeTransport,
 				...subscriptions.map((subscription) => () => subscription.dispose()),
@@ -1302,6 +1346,7 @@ export async function startProjectedTerminalRenderer(
 				() => transport.close(),
 				() => status.remove(),
 				() => progress.remove(),
+				() => outputRoot?.remove(),
 				() => findRoot?.remove(),
 			]);
 		},
@@ -1439,6 +1484,7 @@ function projectedTerminalActionResultPresentation(
 		event.actionId === PROJECTED_TERMINAL_ACTION_IDS.findOpen ||
 		event.actionId === PROJECTED_TERMINAL_ACTION_IDS.findNext ||
 		event.actionId === PROJECTED_TERMINAL_ACTION_IDS.findPrevious ||
+		event.actionId === PROJECTED_TERMINAL_ACTION_IDS.outputShowLast ||
 		event.actionId === PROJECTED_TERMINAL_ACTION_IDS.promptNext ||
 		event.actionId === PROJECTED_TERMINAL_ACTION_IDS.promptPrevious ||
 		event.result.kind === 'cancelled'
@@ -1462,6 +1508,11 @@ function projectedTerminalActionResultPresentation(
 			};
 		}
 		return { message: projectedTerminalMessages.hintsFailed, role: 'alert' };
+	}
+	if (event.actionId === PROJECTED_TERMINAL_ACTION_IDS.outputCopy) {
+		return event.result.kind === 'completed'
+			? { message: projectedTerminalMessages.outputCopyCompleted, role: 'status' }
+			: { message: projectedTerminalMessages.outputCopyFailed, role: 'alert' };
 	}
 	if (event.result.kind === 'completed') {
 		switch (event.actionId) {

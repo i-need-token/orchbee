@@ -61,6 +61,70 @@ export const projectedTerminalMessages = defineMessages({
 		defaultMessage: 'The terminal selection could not be copied.',
 		id: 'terminal.projected.copy.failed',
 	},
+	outputCopyAction: {
+		defaultMessage: 'Copy command output',
+		id: 'terminal.projected.action.outputCopy',
+	},
+	outputCopyCompleted: {
+		defaultMessage: 'Command output copied.',
+		id: 'terminal.projected.output.copyCompleted',
+	},
+	outputCopyFailed: {
+		defaultMessage: 'The command output could not be copied.',
+		id: 'terminal.projected.output.copyFailed',
+	},
+	outputShowLastAction: {
+		defaultMessage: 'Show last command output',
+		id: 'terminal.projected.action.outputShowLast',
+	},
+	outputViewerAlternateScreen: {
+		defaultMessage: 'Command output is unavailable on the alternate screen.',
+		id: 'terminal.projected.output.alternateScreen',
+	},
+	outputViewerClose: {
+		defaultMessage: 'Close command output',
+		id: 'terminal.projected.output.close',
+	},
+	outputViewerContent: {
+		defaultMessage: 'Last command output',
+		id: 'terminal.projected.output.content',
+	},
+	outputViewerNoMatches: {
+		defaultMessage: 'No matches in this command output.',
+		id: 'terminal.projected.output.noMatches',
+	},
+	outputViewerNoOutput: {
+		defaultMessage: 'The last command produced no output.',
+		id: 'terminal.projected.output.noOutput',
+	},
+	outputViewerNoShellIntegration: {
+		defaultMessage: 'No shell command markers are available for this terminal.',
+		id: 'terminal.projected.output.noShellIntegration',
+	},
+	outputViewerSearch: {
+		defaultMessage: 'Find in command output',
+		id: 'terminal.projected.output.search',
+	},
+	outputViewerSourceLimit: {
+		defaultMessage: 'The command output is larger than the viewer limit.',
+		id: 'terminal.projected.output.sourceLimit',
+	},
+	outputViewerStale: {
+		defaultMessage: 'Terminal output changed before the command output could be prepared.',
+		id: 'terminal.projected.output.stale',
+	},
+	outputViewerTitle: {
+		defaultMessage: 'Last command output',
+		id: 'terminal.projected.output.title',
+	},
+	outputViewerTruncated: {
+		defaultMessage: 'Earlier lines were evicted from retained history.',
+		id: 'terminal.projected.output.truncated',
+	},
+	outputViewerUnavailable: {
+		defaultMessage: 'Command output is temporarily unavailable.',
+		id: 'terminal.projected.output.unavailable',
+	},
 	clearAction: {
 		defaultMessage: 'Clear terminal',
 		id: 'terminal.projected.action.clear',
