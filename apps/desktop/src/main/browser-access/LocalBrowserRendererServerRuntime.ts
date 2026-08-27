@@ -1,6 +1,10 @@
 import { createInterface } from 'node:readline';
 
 import type { GatewayBindHost } from '@orchbee/gateway-protocol';
+import type {
+	BrowserSessionSigningKey,
+	PersonalAccessTokenVerifier,
+} from '@orchbee/remote-client-protocol';
 import { utilityProcess } from 'electron';
 import { z } from 'zod';
 
@@ -17,6 +21,10 @@ interface DesktopServerUtilityProcess {
 }
 
 interface LocalBrowserRendererServerRuntimeOptions {
+	readonly authentication: {
+		readonly personalAccessTokenVerifier: PersonalAccessTokenVerifier;
+		readonly sessionSigningKey: BrowserSessionSigningKey;
+	};
 	readonly bindHost: GatewayBindHost;
 	readonly entryPath: string;
 	readonly rendererRoot: string;
@@ -40,8 +48,11 @@ const defaultDependencies: LocalBrowserRendererServerRuntimeDependencies = {
 		const child = utilityProcess.fork(options.entryPath, [], {
 			env: {
 				ORCHBEE_SERVER_HOST: options.bindHost,
+				ORCHBEE_SERVER_PERSONAL_ACCESS_TOKEN_VERIFIER:
+					options.authentication.personalAccessTokenVerifier,
 				ORCHBEE_SERVER_PORT: '0',
 				ORCHBEE_SERVER_RENDERER_ROOT: options.rendererRoot,
+				ORCHBEE_SERVER_SESSION_SIGNING_KEY: options.authentication.sessionSigningKey,
 			},
 			serviceName: 'Orchbee Browser Renderer Server',
 			stdio: 'pipe',

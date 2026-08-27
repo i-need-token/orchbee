@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
 	DesktopBrowserAccessMainEventSchema,
 	DesktopBrowserAccessRendererCommandSchema,
+	DesktopBrowserAccessSnapshotSchema,
 	DesktopBrowserAccessStateSchema,
 } from '../desktop-browser-access-contract';
 
@@ -57,17 +58,41 @@ describe('Desktop Browser access contract', () => {
 			DesktopBrowserAccessMainEventSchema.parse({
 				code: 'network-address-unavailable',
 				requestId: 'browser-access:request:2',
-				state: { phase: 'stopped' },
+				snapshot: { access: { phase: 'stopped' }, personalAccessToken: 'missing' },
 				type: 'desktop-browser-access-failed',
 			}),
-		).toMatchObject({ code: 'network-address-unavailable', state: { phase: 'stopped' } });
+		).toMatchObject({
+			code: 'network-address-unavailable',
+			snapshot: { access: { phase: 'stopped' }, personalAccessToken: 'missing' },
+		});
 		expect(
 			DesktopBrowserAccessMainEventSchema.safeParse({
 				code: 'raw-node-error',
 				requestId: 'browser-access:request:2',
-				state: { phase: 'stopped' },
+				snapshot: { access: { phase: 'stopped' }, personalAccessToken: 'missing' },
 				type: 'desktop-browser-access-failed',
 			}).success,
 		).toBe(false);
+	});
+
+	it('delivers a newly issued Personal Access Token only in its correlated event', () => {
+		const snapshot = DesktopBrowserAccessSnapshotSchema.parse({
+			access: { phase: 'stopped' },
+			personalAccessToken: 'configured',
+		});
+		const event = DesktopBrowserAccessMainEventSchema.parse({
+			personalAccessToken: 't'.repeat(43),
+			requestId: 'browser-access:request:3',
+			snapshot,
+			type: 'desktop-browser-access-personal-access-token-issued',
+		});
+
+		expect(event).toMatchObject({ personalAccessToken: 't'.repeat(43), snapshot });
+		expect(
+			DesktopBrowserAccessRendererCommandSchema.parse({
+				requestId: 'browser-access:request:3',
+				type: 'desktop-browser-access-personal-access-token-issue-requested',
+			}),
+		).toBeDefined();
 	});
 });

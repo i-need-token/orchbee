@@ -3,7 +3,7 @@
 	"domain": "gateway-protocol",
 	"runtime": ["universal"],
 	"stability": "experimental",
-	"responsibility": "Strict authentication, Desktop-to-Gateway bootstrap, WebSocket channel-role, and binary attachment framing contracts for the local Browser Gateway.",
+	"responsibility": "Strict Desktop-to-Gateway Browser-session admission configuration, page protocol handshake, WebSocket channel-role, one-time attachment authentication, and binary attachment framing contracts for the local Browser Gateway.",
 	"nonGoals": [
 		"Owning WebSocket, Electron Utility Process, Browser, Desktop Main, Terminal Host, or UI implementations.",
 		"Owning Workbench document, client-view, terminal presentation, PTY, VT, process, persistence, or application-lifetime semantics.",

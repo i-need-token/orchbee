@@ -11,7 +11,13 @@ export interface RunningOrchbeeServer {
 export async function startOrchbeeServer(
 	configuration: ServerConfiguration,
 ): Promise<RunningOrchbeeServer> {
-	const server = createOrchbeeServer({ rendererRoot: configuration.rendererRoot });
+	const server = createOrchbeeServer({
+		authentication: {
+			personalAccessTokenVerifier: configuration.personalAccessTokenVerifier,
+			sessionSigningKey: configuration.sessionSigningKey,
+		},
+		rendererRoot: configuration.rendererRoot,
+	});
 	const origin = await server.listen({
 		host: configuration.host,
 		port: configuration.port,

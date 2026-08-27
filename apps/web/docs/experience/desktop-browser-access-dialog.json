@@ -4,10 +4,16 @@
 	"kind": "business",
 	"status": "canonical",
 	"name": "Desktop Browser Access Dialog",
-	"description": "Owns explicit process-lifetime loopback and trusted-local-network Browser access controls without exposing capability links to renderer state.",
+	"description": "Owns installation-scoped Personal Access Token creation and reset together with explicit loopback and trusted-local-network Browser access controls.",
 	"owner": "@orchbee/web",
 	"visibility": "private",
-	"intents": ["open-browser-access", "share-trusted-local-network-access", "stop-browser-access"],
+	"intents": [
+		"create-personal-access-token",
+		"open-browser-access",
+		"reset-personal-access-token",
+		"share-trusted-local-network-access",
+		"stop-browser-access"
+	],
 	"implementation": [
 		"apps/web/src/desktop-client/desktop-browser-access-dialog/DesktopBrowserAccessDialog.tsx",
 		"apps/web/src/desktop-client/desktop-browser-access-dialog/model/DesktopBrowserAccessController.ts"
@@ -18,25 +24,43 @@
 			"file": "apps/web/stories/browser-access-dialog.stories.tsx",
 			"id": "applications-web-desktop-browser-access-dialog--stopped",
 			"states": [
-				"Inspect the stopped state, local-only primary action, and the full-control HTTP warning before enabling local-network preview.",
-				"Inspect the active trusted-LAN state with one loopback address, multiple private IPv4 addresses, per-address copy actions, revocation, and both shipped locales."
+				"Inspect the stopped state, missing-token creation action, and the unencrypted HTTP warning before enabling local-network preview."
+			]
+		},
+		{
+			"exportName": "LocalNetworkReady",
+			"file": "apps/web/stories/browser-access-dialog.stories.tsx",
+			"id": "applications-web-desktop-browser-access-dialog--local-network-ready",
+			"states": [
+				"Inspect active trusted-LAN access with a configured token, exact origins, per-address copy actions, and immediate revocation."
+			]
+		},
+		{
+			"exportName": "NewlyIssuedPersonalAccessToken",
+			"file": "apps/web/stories/browser-access-dialog.stories.tsx",
+			"id": "applications-web-desktop-browser-access-dialog--newly-issued-personal-access-token",
+			"states": [
+				"Inspect the one-time Personal Access Token disclosure, explicit copy action, and reset affordance."
 			]
 		}
 	],
 	"uses": [],
 	"useWhen": [
 		"The Desktop process must explicitly start, inspect, switch, or revoke process-lifetime Browser access.",
-		"A trusted local network needs an HTTP preview link with full terminal control and an explicit warning."
+		"A user needs to create or reset the Personal Access Token used by Browser sign-in.",
+		"A trusted local network needs an HTTP preview address with full terminal control and an explicit warning."
 	],
 	"avoidWhen": [
 		"A Browser-connected Gateway page is already consuming access and must not gain listener lifecycle authority.",
-		"Internet exposure, TLS, account authentication, public IP publication, or a background service is required."
+		"Internet exposure, TLS termination, multi-user accounts, public IP publication, or a background service is required."
 	],
 	"invariants": [
 		"Browser access begins stopped and loopback is the default start mode; local-network binding requires an explicit user action.",
-		"The dialog receives only sanitized origins and bounded failure codes, never a capability fragment or complete access URL.",
-		"Capability copy and system-Browser open effects remain Main-owned and are available only for active exact origins.",
-		"Local-network preview always presents the HTTP and full-terminal-control warning and offers immediate revocation."
+		"Browser access cannot start until an installation-scoped Personal Access Token has been created.",
+		"A new Personal Access Token is shown once; reset stops access and invalidates every Browser session before replacing the verifier.",
+		"The dialog receives only sanitized origins, bounded failure codes, and the one-time issued token, never a signed session credential or complete access URL.",
+		"Access-link copy and system-Browser open effects remain Main-owned and are available only for active exact origins.",
+		"Local-network preview always presents the unencrypted HTTP and full-terminal-control warning and offers immediate revocation."
 	],
 	"references": ["apps/web/README.md"]
 }

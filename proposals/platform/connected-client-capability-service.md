@@ -1,11 +1,11 @@
 # Orchbee Server, Connected Clients, and Capability Nodes
 
-| Field             | Value                                                                                                                                 |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| Status            | Product direction, Server naming, and initial ingress foundation accepted; trust model and remote execution contracts remain reserved |
-| Owner             | Product architecture, Desktop service, network ingress, and future capability-node maintainers                                        |
-| Current authority | [`docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md) and the owning Desktop, Gateway, Web, and Terminal Host guides                   |
-| Exit condition    | Accept and implement bounded owner-specific slices, move maintained facts into their owning guides and tests, then delete proposal    |
+| Field             | Value                                                                                                                                                                                 |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Status            | Product direction, initial ingress, and bounded Personal-Access-Token-to-Cookie preview accepted and delivered; production trust model and remote execution contracts remain reserved |
+| Owner             | Product architecture, Desktop service, network ingress, and future capability-node maintainers                                                                                        |
+| Current authority | [`docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md) and the owning Desktop, Gateway, Web, and Terminal Host guides                                                                   |
+| Exit condition    | Accept and implement bounded owner-specific slices, move maintained facts into their owning guides and tests, then delete proposal                                                    |
 
 Simplified Chinese review translation:
 [connected-client-capability-service.zh-CN.md](connected-client-capability-service.zh-CN.md).
@@ -37,12 +37,12 @@ requires that process. `Server` names the complete product backend process; it d
 network ingress, authentication, coordination, device identity, scheduling, and execution into one
 undifferentiated module.
 
-Two future protocol boundaries have accepted names but must not be created as empty packages:
+Two protocol boundaries have accepted names and are created only with concrete consumers:
 
-| Package                             | Creation trigger and responsibility                                                                                                                                                                                                             |
-| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `packages/remote-client-protocol`   | Create with the accepted external Browser/mobile access slice. Own network authentication/session establishment, transport framing, negotiation, limits, and errors; reuse rather than redefine `@orchbee/workbench-client-protocol` semantics. |
-| `packages/capability-node-protocol` | Create with the first accepted concrete remote capability. Own node enrollment and identity exchange, capability/version advertisement, lease, heartbeat, progress, result, failure, cancellation, fencing, limits, and errors.                 |
+| Package                             | Creation trigger and responsibility                                                                                                                                                                                                        |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `packages/remote-client-protocol`   | Created by the accepted human Browser authentication slice. Currently owns Personal Access Token exchange and signed Cookie session-establishment contracts; broader production transport, negotiation, and authorization remain reserved. |
+| `packages/capability-node-protocol` | Create with the first accepted concrete remote capability. Own node enrollment and identity exchange, capability/version advertisement, lease, heartbeat, progress, result, failure, cancellation, fencing, limits, and errors.            |
 
 The two protocols remain separate because a human product client and a capability node have
 different identities, credentials, authorities, revocation scopes, and compatibility lifecycles.
@@ -50,10 +50,11 @@ Neither package is a Server implementation, owns product state, or grants a gene
 
 The current `apps/gateway` and `@orchbee/gateway-protocol` remain explicitly preview-only Browser
 transport until a production external-client slice migrates or retires them. They may bind loopback
-or an explicitly selected trusted-LAN interface, depend on a process-lifetime URL capability, and
-use `apps/server` only for renderer delivery. They must not be renamed to `server` or treated as the
-production external-client contract. The production migration must avoid maintaining two competing
-external-client network contracts indefinitely.
+or an explicitly selected trusted-LAN interface. `apps/server` exchanges the Personal Access Token
+for a signed session Cookie, and Gateway admits the exact-Origin control connection with that same
+session; no credential appears in the access URL. They must not be renamed to `server` or treated as
+the production external-client contract. The production migration must avoid maintaining two
+competing external-client network contracts indefinitely.
 
 ## Accepted initial ingress foundation
 
@@ -66,20 +67,21 @@ The initial route namespaces are reserved as follows:
 | `/api/*`            | Application HTTP API namespace, initially versioned under `/api/v1`; an unimplemented endpoint returns JSON and never renderer HTML |
 | `/ws/*`             | Application WebSocket namespace, initially versioned under `/ws/v1`; an ordinary HTTP request or unknown upgrade fails closed       |
 | `/static/*`         | Immutable renderer assets; a missing asset returns `404` and never falls through to the Browser Router                              |
-| Other product paths | `GET` and `HEAD` HTML navigations receive the renderer entry so the Browser Router resolves the URL                                 |
+| Other product paths | Authenticated `GET` and `HEAD` HTML navigations receive the renderer entry; unauthenticated navigation redirects to `/login`        |
 
 Fastify owns HTTP lifecycle, routing, and plugin composition. Its official WebSocket and static
 plugins provide Upgrade handling and renderer delivery; application schemas remain Zod-owned at
-their trust boundaries. This foundation deliberately defines no external API or WebSocket message
-contract and therefore does not trigger either future protocol package.
+their trust boundaries. The initial foundation defined no external API or WebSocket message
+contract. The later bounded human Browser authentication slice created
+`@orchbee/remote-client-protocol` without creating a general product API.
 
 Loopback remains the standalone Server default. The accepted Desktop-owned trusted-LAN preview is
 the only pre-production exception: an explicit UI action binds Server and Gateway to `0.0.0.0`,
-publishes only enumerated RFC 1918 IPv4 Origins, authenticates each exact-Origin Gateway connection
-with a process-lifetime capability, warns that HTTP is unencrypted and link possession grants full
-terminal control, and revokes access on stop, mode change, or process exit. This exception is not
-the production human-access design below and does not reserve token, Cookie, TLS, discovery, or
-Internet behavior. Starting the Server entry by itself is not equivalent to enabling sharing.
+publishes only enumerated RFC 1918 IPv4 Origins, requires a Personal Access Token exchange, admits
+each exact-Origin Gateway control connection with the resulting signed Cookie, warns that HTTP can
+expose credentials and terminal traffic, and revokes sessions on stop, mode change, token reset, or
+process exit. This exception is not a production Internet deployment or multi-user account design.
+Starting the Server entry by itself is not equivalent to enabling sharing.
 
 ## Human Web access direction
 
@@ -91,9 +93,15 @@ and session capabilities never belong in the shared query string or fragment.
 An unauthenticated Browser request retains its intended product path while entering a login flow.
 The person enters a separately issued access token; a successful exchange creates a bounded,
 revocable human session represented by an appropriately scoped Cookie, then resumes the intended
-route. Cookie attributes, TLS requirements, token issuance and rotation, brute-force protection,
-session duration, and account recovery remain reserved security decisions. This human login flow
-never enrolls a capability node and never grants device credentials.
+route. This human login flow never enrolls a capability node and never grants device credentials.
+
+The delivered preview uses one installation-scoped 256-bit Personal Access Token, persists only its
+verifier, reveals plaintext only after create or reset, and exchanges it under an in-memory
+per-source failure limit. Its session Cookie contains a signed random identity, is `HttpOnly`,
+`SameSite=Strict`, `Path=/`, and lasts for the Browser session. Each Browser-access activation uses
+a fresh signing key; stop, mode switch, reset, and exit invalidate earlier sessions. Exact Origin is
+required for token exchange and Gateway control admission. TLS requirements, production session
+duration and revocation storage, multi-user authorization, and account recovery remain reserved.
 
 ## Candidate responsibility split
 
@@ -191,16 +199,18 @@ Implementation remains blocked on separate acceptance of:
 - offline behavior for clients, coordinator, and nodes; and
 - service installation, automatic start, update continuity, backup, and uninstall behavior.
 
-Do not create an empty `remote-client-protocol` or `capability-node-protocol` workspace, and do not
-extend `@orchbee/gateway-protocol` into the production contract, before one bounded slice has a
-concrete consumer and accepted contract. The accepted Server ingress foundation is the concrete
-creation trigger for `apps/server`; it does not authorize any of those protocol contracts.
+Do not create an empty `capability-node-protocol` workspace, broaden
+`@orchbee/remote-client-protocol` beyond its accepted human Browser authentication contracts, or
+extend `@orchbee/gateway-protocol` into the production contract before another bounded slice has a
+concrete consumer and accepted contract. The delivered Server and Browser authentication slices do
+not authorize capability-node or production remote-execution protocols.
 
 ## Delivery order
 
-1. Establish the default-loopback Orchbee Server ingress foundation and the separately explicit,
-   process-lifetime trusted-LAN preview described above.
-2. Implement opt-in Web ingress and human token-to-Cookie authentication as one bounded slice.
+1. Delivered: establish the default-loopback Orchbee Server ingress foundation and the separately
+   explicit trusted-LAN preview described above.
+2. Delivered: implement opt-in Web ingress and human Personal-Access-Token-to-Cookie authentication
+   as one bounded slice.
 3. Implement device enrollment and a read-only typed capability inventory without remote work.
 4. Select one concrete compute capability and model its lease, cancellation, failure, data, and
    fencing semantics.

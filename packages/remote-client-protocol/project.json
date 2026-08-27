@@ -1,0 +1,12 @@
+{
+	"$schema": "../../schemas/project-contract.schema.json",
+	"domain": "remote-client-protocol",
+	"runtime": ["universal"],
+	"stability": "experimental",
+	"responsibility": "Strict human Browser authentication, Personal Access Token exchange, and Cookie session-establishment contracts for remote Orchbee clients.",
+	"nonGoals": [
+		"Owning HTTP, WebSocket, Electron, Browser, Desktop Main, persistence, or product-interface implementations.",
+		"Owning user accounts, multi-user authorization, TLS, Internet exposure, rate-limit storage, account recovery, or device enrollment.",
+		"Owning Workbench, terminal, Gateway attachment, capability-node, or product-state semantics."
+	]
+}

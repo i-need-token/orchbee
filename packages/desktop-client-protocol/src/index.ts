@@ -4,7 +4,9 @@ export {
 	DesktopBrowserAccessModeSchema,
 	DesktopBrowserAccessRendererCommandSchema,
 	DesktopBrowserAccessRequestIdSchema,
+	DesktopBrowserAccessSnapshotSchema,
 	DesktopBrowserAccessStateSchema,
+	DesktopPersonalAccessTokenStatusSchema,
 } from './desktop-browser-access-contract';
 export type {
 	DesktopBrowserAccessFailureCode,
@@ -12,7 +14,9 @@ export type {
 	DesktopBrowserAccessMode,
 	DesktopBrowserAccessRendererCommand,
 	DesktopBrowserAccessRequestId,
+	DesktopBrowserAccessSnapshot,
 	DesktopBrowserAccessState,
+	DesktopPersonalAccessTokenStatus,
 } from './desktop-browser-access-contract';
 export {
 	DesktopClipboardFailureCodeSchema,

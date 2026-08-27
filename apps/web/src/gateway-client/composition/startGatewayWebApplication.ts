@@ -21,6 +21,7 @@ import {
 import { connectGatewayControlConnection, type GatewayControlConnection } from '../connection';
 import { createBrowserTerminalPlatformEffects } from '../platform-effects';
 import { GatewayTerminalProjectionClient } from '../terminal-projection';
+import { createGatewayRoutingHistory } from './createGatewayRoutingHistory';
 
 export interface GatewayWebApplicationSession {
 	dispose(): void;
@@ -38,6 +39,7 @@ export interface GatewayWebApplicationDependencies {
 	) => GatewayTerminalProjectionClient;
 	readonly createReactRoot: (element: Element) => Root;
 	readonly createRouting: typeof createWebApplicationRouting;
+	readonly createRoutingHistory: typeof createGatewayRoutingHistory;
 	readonly createRuntime: typeof createWorkbenchClientRuntime;
 }
 
@@ -47,6 +49,7 @@ const defaultDependencies: GatewayWebApplicationDependencies = {
 		new GatewayTerminalProjectionClient(control, connection, hostname),
 	createReactRoot: (element) => createRoot(element),
 	createRouting: createWebApplicationRouting,
+	createRoutingHistory: createGatewayRoutingHistory,
 	createRuntime: createWorkbenchClientRuntime,
 };
 
@@ -160,17 +163,27 @@ export function startGatewayWebApplication(
 			return runtimeStart;
 		}
 		if (disposed) return { kind: 'unavailable', reason: 'control-unavailable' };
-		const nextRouting = dependencies.createRouting({
-			actionRuntime: nextRuntime.actionRuntime,
-			keyboardShortcutSettingsController,
-			layoutStorage: storage,
-			projectWorkspaceRuntime: nextRuntime.projectWorkspaceRuntime,
-			shortcutPlatform,
-			terminalSettingsController,
-			terminalInteractionSettingsController,
-			terminalFeedbackSettingsController,
-			terminalSurface: ProjectedTerminalSurface,
-		});
+		const routingHistory = dependencies.createRoutingHistory(targetWindow, connection);
+		let nextRouting: WebApplicationRouting;
+		try {
+			nextRouting = dependencies.createRouting(
+				{
+					actionRuntime: nextRuntime.actionRuntime,
+					keyboardShortcutSettingsController,
+					layoutStorage: storage,
+					projectWorkspaceRuntime: nextRuntime.projectWorkspaceRuntime,
+					shortcutPlatform,
+					terminalSettingsController,
+					terminalInteractionSettingsController,
+					terminalFeedbackSettingsController,
+					terminalSurface: ProjectedTerminalSurface,
+				},
+				routingHistory,
+			);
+		} catch (error: unknown) {
+			routingHistory.destroy();
+			throw error;
+		}
 		routing = nextRouting;
 		reactRoot = dependencies.createReactRoot(applicationRoot);
 		reactRoot.render(

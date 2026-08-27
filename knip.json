@@ -95,6 +95,15 @@
 			],
 			"project": ["src/**/*.{ts,tsx}!", "*.ts!"]
 		},
+		"packages/remote-client-protocol": {
+			"entry": [
+				"src/index.ts!",
+				"src/**/*.unit.test.{ts,tsx}!",
+				"rslib.config.ts!",
+				"vitest.config.ts!"
+			],
+			"project": ["src/**/*.{ts,tsx}!", "*.ts!"]
+		},
 		"packages/terminal": {
 			"entry": [
 				"src/index.ts",

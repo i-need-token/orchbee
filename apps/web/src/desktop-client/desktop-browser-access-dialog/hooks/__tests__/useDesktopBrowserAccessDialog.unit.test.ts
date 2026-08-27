@@ -30,7 +30,7 @@ function TestHarness({
 	readonly controller: DesktopBrowserAccessDialogController;
 }): ReactNode {
 	const state = useDesktopBrowserAccessDialog(controller);
-	return createElement('div', { 'data-browser-access-phase': state.runtime.phase });
+	return createElement('div', { 'data-browser-access-phase': state.snapshot.access.phase });
 }
 
 describe('useDesktopBrowserAccessDialog', () => {
@@ -38,18 +38,29 @@ describe('useDesktopBrowserAccessDialog', () => {
 		let listener: (() => void) | undefined;
 		let state: DesktopBrowserAccessDialogState = {
 			copiedOrigin: null,
+			copiedPersonalAccessToken: false,
 			error: null,
+			issuedPersonalAccessToken: null,
 			open: true,
 			pendingAction: null,
-			runtime: { phase: 'stopped' },
+			resetConfirmationOpen: false,
+			snapshot: { access: { phase: 'stopped' }, personalAccessToken: 'configured' },
 		};
 		const controller: DesktopBrowserAccessDialogController = {
+			cancelPersonalAccessTokenReset:
+				vi.fn<DesktopBrowserAccessDialogController['cancelPersonalAccessTokenReset']>(),
 			close: vi.fn<DesktopBrowserAccessDialogController['close']>(),
+			confirmPersonalAccessTokenReset:
+				vi.fn<DesktopBrowserAccessDialogController['confirmPersonalAccessTokenReset']>(),
 			copyAccessLink: vi.fn<DesktopBrowserAccessDialogController['copyAccessLink']>(),
+			copyPersonalAccessToken:
+				vi.fn<DesktopBrowserAccessDialogController['copyPersonalAccessToken']>(),
 			dispose: vi.fn<DesktopBrowserAccessDialogController['dispose']>(),
 			getSnapshot: () => state,
 			open: vi.fn<DesktopBrowserAccessDialogController['open']>(),
 			openLocalBrowser: vi.fn<DesktopBrowserAccessDialogController['openLocalBrowser']>(),
+			requestPersonalAccessTokenIssue:
+				vi.fn<DesktopBrowserAccessDialogController['requestPersonalAccessTokenIssue']>(),
 			start: vi.fn<DesktopBrowserAccessDialogController['start']>(),
 			stop: vi.fn<DesktopBrowserAccessDialogController['stop']>(),
 			subscribe: (nextListener) => {
@@ -67,11 +78,14 @@ describe('useDesktopBrowserAccessDialog', () => {
 		await act(async () => {
 			state = {
 				...state,
-				runtime: {
-					localOrigin: 'http://127.0.0.1:43110',
-					mode: 'loopback',
-					networkOrigins: [],
-					phase: 'ready',
+				snapshot: {
+					access: {
+						localOrigin: 'http://127.0.0.1:43110',
+						mode: 'loopback',
+						networkOrigins: [],
+						phase: 'ready',
+					},
+					personalAccessToken: 'configured',
 				},
 			};
 			listener?.();

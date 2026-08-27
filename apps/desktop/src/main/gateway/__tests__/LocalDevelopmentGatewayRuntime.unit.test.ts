@@ -1,9 +1,9 @@
 import {
-	decodeGatewayBrowserFragment,
-	GatewayCapabilitySchema,
+	decodeGatewayBrowserSearch,
 	GatewayClientConnectionIdSchema,
 	GatewayDesktopCommandSchema,
 } from '@orchbee/gateway-protocol';
+import { BrowserSessionSigningKeySchema } from '@orchbee/remote-client-protocol';
 import {
 	WORKBENCH_CLIENT_SESSION_BOOTSTRAP,
 	WorkbenchClientSessionBootstrapSchema,
@@ -69,9 +69,9 @@ describe('LocalDevelopmentGatewayRuntime', () => {
 				bindHost: '127.0.0.1',
 				entryPath: '/repo/apps/gateway/dist/main/gateway.cjs',
 				rendererOrigins: ['http://127.0.0.1:3000'],
+				sessionSigningKey: BrowserSessionSigningKeySchema.parse('s'.repeat(43)),
 			},
 			{
-				createCapability: () => GatewayCapabilitySchema.parse('a'.repeat(43)),
 				createProcess: () => process,
 				openClient: async () => ({
 					bootstrap,
@@ -96,7 +96,8 @@ describe('LocalDevelopmentGatewayRuntime', () => {
 		const { browserUrl } = await started;
 		const location = new URL(browserUrl);
 		expect(location.searchParams.get('orchbee-runtime')).toBe('gateway');
-		expect(decodeGatewayBrowserFragment(location.hash)).toMatchObject({ port: 42_000 });
+		expect(decodeGatewayBrowserSearch(location.search)).toMatchObject({ port: 42_000 });
+		expect(location.hash).toBe('');
 
 		const connectionId = GatewayClientConnectionIdSchema.parse('gateway:client:1');
 		process.emitMessage({ connectionId, type: 'gateway-client-open-requested' });
@@ -285,9 +286,9 @@ function createRuntime(
 			bindHost: '127.0.0.1',
 			entryPath: '/repo/apps/gateway/dist/main/gateway.cjs',
 			rendererOrigins: ['http://127.0.0.1:3000'],
+			sessionSigningKey: BrowserSessionSigningKeySchema.parse('s'.repeat(43)),
 		},
 		{
-			createCapability: () => GatewayCapabilitySchema.parse('a'.repeat(43)),
 			createProcess: () => process,
 			openClient,
 		},

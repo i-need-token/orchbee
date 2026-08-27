@@ -7,6 +7,7 @@ import {
 	DesktopTerminalDefaultSettingsSnapshotSchema,
 	DesktopTerminalLaunchProfileSnapshotSchema,
 } from '@orchbee/desktop-client-protocol';
+import { PersonalAccessTokenSchema } from '@orchbee/remote-client-protocol';
 import {
 	CanonicalUint64TextSchema,
 	CreationIdSchema,
@@ -510,6 +511,8 @@ describe('DesktopApplication', () => {
 		expect(harness.createBrowserAccessRuntime).toHaveBeenCalledWith(
 			{
 				gatewayEntryPath: '/repo/apps/gateway/dist/main/gateway.cjs',
+				personalAccessTokenStorePath:
+					'/users/orchbee/.config/orchbee/personal-access-token-v1.json',
 				rendererRoot: '/repo/apps/web/dist',
 				serverEntryPath: '/repo/apps/server/dist/main/server.cjs',
 			},
@@ -1903,17 +1906,32 @@ function createHarness(
 	type BrowserAccessRuntime = ReturnType<
 		DesktopApplicationDependencies['createBrowserAccessRuntime']
 	>;
+	const browserAccessSnapshot = {
+		access: { phase: 'stopped' },
+		personalAccessToken: 'configured',
+	} as const;
 	const browserAccessRuntime = {
 		copyAccessLink: vi
 			.fn<BrowserAccessRuntime['copyAccessLink']>()
-			.mockResolvedValue({ phase: 'stopped' }),
+			.mockResolvedValue(browserAccessSnapshot),
 		dispose: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
-		getSnapshot: vi.fn<BrowserAccessRuntime['getSnapshot']>().mockReturnValue({ phase: 'stopped' }),
+		getSnapshot: vi
+			.fn<BrowserAccessRuntime['getSnapshot']>()
+			.mockReturnValue(browserAccessSnapshot),
+		initialize: vi
+			.fn<BrowserAccessRuntime['initialize']>()
+			.mockResolvedValue(browserAccessSnapshot),
+		issuePersonalAccessToken: vi
+			.fn<BrowserAccessRuntime['issuePersonalAccessToken']>()
+			.mockResolvedValue({
+				personalAccessToken: PersonalAccessTokenSchema.parse('t'.repeat(43)),
+				snapshot: browserAccessSnapshot,
+			}),
 		openLocalBrowser: vi
 			.fn<BrowserAccessRuntime['openLocalBrowser']>()
-			.mockResolvedValue({ phase: 'stopped' }),
-		start: vi.fn<BrowserAccessRuntime['start']>().mockResolvedValue({ phase: 'stopped' }),
-		stop: vi.fn<BrowserAccessRuntime['stop']>().mockResolvedValue({ phase: 'stopped' }),
+			.mockResolvedValue(browserAccessSnapshot),
+		start: vi.fn<BrowserAccessRuntime['start']>().mockResolvedValue(browserAccessSnapshot),
+		stop: vi.fn<BrowserAccessRuntime['stop']>().mockResolvedValue(browserAccessSnapshot),
 	} satisfies ReturnType<DesktopApplicationDependencies['createBrowserAccessRuntime']>;
 	const createBrowserAccessRuntime = vi
 		.fn<DesktopApplicationDependencies['createBrowserAccessRuntime']>()

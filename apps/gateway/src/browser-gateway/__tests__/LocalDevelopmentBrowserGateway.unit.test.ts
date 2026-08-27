@@ -1,11 +1,19 @@
 import {
 	encodeGatewayControlClientMessage,
+	GATEWAY_PROTOCOL_VERSION,
 	GATEWAY_LIMITS,
 	GatewayControlClientMessageSchema,
 	GatewayDesktopCommandSchema,
 	GatewayUtilityEventSchema,
 	type GatewayUtilityEvent,
 } from '@orchbee/gateway-protocol';
+import {
+	BROWSER_SESSION_COOKIE_NAME,
+	BrowserSessionIdSchema,
+	BrowserSessionSigningKeySchema,
+	createBrowserSessionCredential,
+} from '@orchbee/remote-client-protocol';
+import { createHmac } from 'node:crypto';
 import { createServer, type Server } from 'node:http';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { WebSocket } from 'ws';
@@ -18,7 +26,15 @@ import {
 } from '../LocalDevelopmentBrowserGateway';
 
 const allowedOrigin = 'http://127.0.0.1:3000';
-const capability = 'a'.repeat(43);
+const sessionSigningKey = BrowserSessionSigningKeySchema.parse('s'.repeat(43));
+const browserSessionCredential = createBrowserSessionCredential(
+	BrowserSessionIdSchema.parse('i'.repeat(43)),
+	(payload) =>
+		createHmac('sha256', Buffer.from(sessionSigningKey, 'base64url'))
+			.update(payload, 'utf8')
+			.digest('base64url'),
+);
+const browserSessionCookie = `${BROWSER_SESSION_COOKIE_NAME}=${browserSessionCredential}`;
 
 let gateway: LocalDevelopmentBrowserGateway | undefined;
 
@@ -30,7 +46,7 @@ afterEach(async () => {
 });
 
 describe('LocalDevelopmentBrowserGateway', () => {
-	it('binds loopback, rejects the wrong Origin, and authenticates before requesting Main ports', async () => {
+	it('binds loopback, requires an exact Origin and signed session Cookie, then performs the protocol handshake', async () => {
 		const parent = new FakeParentPort();
 		gateway = new LocalDevelopmentBrowserGateway(parent);
 		gateway.start();
@@ -38,7 +54,7 @@ describe('LocalDevelopmentBrowserGateway', () => {
 			GatewayDesktopCommandSchema.parse({
 				allowedOrigins: [allowedOrigin],
 				bindHost: '127.0.0.1',
-				capability,
+				sessionSigningKey,
 				type: 'gateway-start',
 			}),
 		);
@@ -46,28 +62,22 @@ describe('LocalDevelopmentBrowserGateway', () => {
 		if (listening.type !== 'gateway-listening') throw new Error('Gateway did not listen.');
 		const url = `ws://127.0.0.1:${listening.port}/v1/control`;
 
-		await expect(rejectedUpgrade(url, 'http://127.0.0.1:3001')).resolves.toBe(403);
-		const rejected = await openWebSocket(url, allowedOrigin);
-		rejected.send(
-			encodeGatewayControlClientMessage(
-				GatewayControlClientMessageSchema.parse({
-					capability: 'b'.repeat(43),
-					protocolVersion: '1.2',
-					type: 'gateway-control-authenticate',
-				}),
-			),
+		await expect(rejectedUpgrade(url, 'http://127.0.0.1:3001', browserSessionCookie)).resolves.toBe(
+			403,
 		);
-		await waitForClose(rejected);
+		await expect(rejectedUpgrade(url, allowedOrigin)).resolves.toBe(401);
+		await expect(rejectedUpgrade(url, allowedOrigin, `${browserSessionCookie}a`)).resolves.toBe(
+			401,
+		);
 		expect(
 			parent.events.filter((event) => event.type === 'gateway-client-open-requested'),
 		).toHaveLength(0);
 
-		const accepted = await openWebSocket(url, allowedOrigin);
+		const accepted = await openWebSocket(url, allowedOrigin, browserSessionCookie);
 		accepted.send(
 			encodeGatewayControlClientMessage(
 				GatewayControlClientMessageSchema.parse({
-					capability,
-					protocolVersion: '1.2',
+					protocolVersion: GATEWAY_PROTOCOL_VERSION,
 					type: 'gateway-control-authenticate',
 				}),
 			),
@@ -94,7 +104,7 @@ describe('LocalDevelopmentBrowserGateway', () => {
 			GatewayDesktopCommandSchema.parse({
 				allowedOrigins: [allowedOrigin, 'http://192.168.1.14:3000'],
 				bindHost: '0.0.0.0',
-				capability,
+				sessionSigningKey,
 				type: 'gateway-start',
 			}),
 		);
@@ -103,7 +113,7 @@ describe('LocalDevelopmentBrowserGateway', () => {
 		const url = `ws://127.0.0.1:${listening.port}/v1/control`;
 
 		await expect(rejectedUpgrade(url, 'http://192.168.1.15:3000')).resolves.toBe(403);
-		const accepted = await openWebSocket(url, 'http://192.168.1.14:3000');
+		const accepted = await openWebSocket(url, 'http://192.168.1.14:3000', browserSessionCookie);
 		accepted.close();
 		await waitForClose(accepted);
 	});
@@ -116,7 +126,7 @@ describe('LocalDevelopmentBrowserGateway', () => {
 			GatewayDesktopCommandSchema.parse({
 				allowedOrigins: [allowedOrigin],
 				bindHost: '127.0.0.1',
-				capability,
+				sessionSigningKey,
 				type: 'gateway-start',
 			}),
 		);
@@ -147,7 +157,7 @@ describe('LocalDevelopmentBrowserGateway', () => {
 			GatewayDesktopCommandSchema.parse({
 				allowedOrigins: [allowedOrigin],
 				bindHost: '127.0.0.1',
-				capability,
+				sessionSigningKey,
 				type: 'gateway-start',
 			}),
 		);
@@ -175,7 +185,7 @@ describe('LocalDevelopmentBrowserGateway', () => {
 			GatewayDesktopCommandSchema.parse({
 				allowedOrigins: [allowedOrigin],
 				bindHost: '127.0.0.1',
-				capability,
+				sessionSigningKey,
 				type: 'gateway-start',
 			}),
 		);
@@ -196,7 +206,7 @@ describe('LocalDevelopmentBrowserGateway', () => {
 			GatewayDesktopCommandSchema.parse({
 				allowedOrigins: [allowedOrigin],
 				bindHost: '127.0.0.1',
-				capability,
+				sessionSigningKey,
 				type: 'gateway-start',
 			}),
 		);
@@ -206,6 +216,7 @@ describe('LocalDevelopmentBrowserGateway', () => {
 		const socket = await openWebSocket(
 			`ws://127.0.0.1:${listening.port}/v1/control`,
 			allowedOrigin,
+			browserSessionCookie,
 		);
 		const closed = waitForClose(socket);
 
@@ -226,7 +237,7 @@ describe('LocalDevelopmentBrowserGateway', () => {
 			GatewayDesktopCommandSchema.parse({
 				allowedOrigins: [allowedOrigin],
 				bindHost: '127.0.0.1',
-				capability,
+				sessionSigningKey,
 				type: 'gateway-start',
 			}),
 		);
@@ -235,12 +246,12 @@ describe('LocalDevelopmentBrowserGateway', () => {
 		const socket = await openWebSocket(
 			`ws://127.0.0.1:${listening.port}/v1/control`,
 			allowedOrigin,
+			browserSessionCookie,
 		);
 		socket.send(
 			encodeGatewayControlClientMessage(
 				GatewayControlClientMessageSchema.parse({
-					capability,
-					protocolVersion: '1.2',
+					protocolVersion: GATEWAY_PROTOCOL_VERSION,
 					type: 'gateway-control-authenticate',
 				}),
 			),
@@ -298,17 +309,23 @@ class FakeParentPort implements GatewayParentPort {
 	}
 }
 
-function openWebSocket(url: string, origin: string): Promise<WebSocket> {
+function openWebSocket(url: string, origin: string, cookie?: string): Promise<WebSocket> {
 	return new Promise((resolve, reject) => {
-		const socket = new WebSocket(url, { origin });
+		const socket = new WebSocket(
+			url,
+			cookie === undefined ? { origin } : { headers: { Cookie: cookie }, origin },
+		);
 		socket.once('open', () => resolve(socket));
 		socket.once('error', reject);
 	});
 }
 
-function rejectedUpgrade(url: string, origin: string): Promise<number> {
+function rejectedUpgrade(url: string, origin: string, cookie?: string): Promise<number> {
 	return new Promise((resolve, reject) => {
-		const socket = new WebSocket(url, { origin });
+		const socket = new WebSocket(
+			url,
+			cookie === undefined ? { origin } : { headers: { Cookie: cookie }, origin },
+		);
 		socket.once('unexpected-response', (_request, response) => {
 			resolve(response.statusCode ?? 0);
 			socket.terminate();

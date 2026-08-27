@@ -92,6 +92,9 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 		expect(configuration.browserAccess).toEqual({
 			gatewayEntryPath: path.resolve('/private/gateway.cjs'),
 			kind: 'enabled',
+			personalAccessTokenStorePath: path.resolve(
+				'/users/orchbee/library/orchbee/personal-access-token-v1.json',
+			),
 			rendererRoot: path.resolve('/private/web'),
 			serverEntryPath: path.resolve('/private/server.cjs'),
 		});
@@ -205,6 +208,9 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 				'/Applications/Orchbee.app/Contents/Resources/orchbee-gateway.cjs',
 			),
 			kind: 'enabled',
+			personalAccessTokenStorePath: path.resolve(
+				'/users/orchbee/library/orchbee/personal-access-token-v1.json',
+			),
 			rendererRoot: path.resolve('/Applications/Orchbee.app/Contents/Resources/dist'),
 			serverEntryPath: path.resolve(
 				'/Applications/Orchbee.app/Contents/Resources/orchbee-server.cjs',

@@ -304,6 +304,7 @@ export const TERMINAL_SETTINGS_SEARCH_ITEMS: readonly TerminalSettingsSearchItem
 		category: 'browser-access',
 		description: terminalSettingsMessages.browserAccessDescription,
 		id: 'browser-access.open',
+		keywords: ['Personal Access Token', '个人访问令牌', 'token'],
 		label: terminalSettingsMessages.openBrowserAccess,
 		targetId: 'browser-access.open',
 	},

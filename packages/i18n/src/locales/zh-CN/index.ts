@@ -1,4 +1,5 @@
 export { zhCNApplicationRoutingMessages } from './application-routing';
+export { zhCNBrowserAuthenticationMessages } from './browser-authentication';
 export { zhCNDesktopApplicationLifetimeMessages } from './desktop-application-lifetime';
 export { zhCNDesktopBrowserAccessMessages } from './desktop-browser-access';
 export { zhCNDesktopSecureKeyboardEntryMessages } from './desktop-secure-keyboard-entry';

@@ -1,5 +1,10 @@
 import type { NetworkInterfaceInfo } from 'node:os';
 
+import {
+	BrowserSessionSigningKeySchema,
+	PersonalAccessTokenSchema,
+	PersonalAccessTokenVerifierSchema,
+} from '@orchbee/remote-client-protocol';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { LocalDevelopmentGatewayRuntimeOptions } from '../../gateway';
@@ -26,19 +31,22 @@ describe('DesktopBrowserAccessRuntime', () => {
 		await runtime.copyAccessLink('http://127.0.0.1:43110');
 
 		expect(state).toEqual({
-			localOrigin: 'http://127.0.0.1:43110',
-			mode: 'loopback',
-			networkOrigins: [],
-			phase: 'ready',
+			access: {
+				localOrigin: 'http://127.0.0.1:43110',
+				mode: 'loopback',
+				networkOrigins: [],
+				phase: 'ready',
+			},
+			personalAccessToken: 'configured',
 		});
 		expect(JSON.stringify(runtime.getSnapshot())).not.toContain('secret-capability');
 		expect(harness.createServer).toHaveBeenCalledOnce();
 		expect(harness.createGateway).toHaveBeenCalledOnce();
 		expect(harness.openExternal).toHaveBeenCalledWith(
-			'http://127.0.0.1:43110/?orchbee-runtime=gateway#secret-capability',
+			'http://127.0.0.1:43110/?orchbee-runtime=gateway&orchbee-gateway-version=1.3&orchbee-gateway-port=42000',
 		);
 		expect(harness.writeClipboardText).toHaveBeenCalledWith(
-			'http://127.0.0.1:43110/?orchbee-runtime=gateway#secret-capability',
+			'http://127.0.0.1:43110/?orchbee-runtime=gateway&orchbee-gateway-version=1.3&orchbee-gateway-port=42000',
 		);
 		await expect(runtime.copyAccessLink('http://127.0.0.1:9999')).rejects.toMatchObject({
 			code: 'invalid-origin',
@@ -60,10 +68,13 @@ describe('DesktopBrowserAccessRuntime', () => {
 		const state = await harness.runtime.start('local-network');
 
 		expect(state).toEqual({
-			localOrigin: 'http://127.0.0.1:43110',
-			mode: 'local-network',
-			networkOrigins: ['http://10.1.2.3:43110', 'http://192.168.50.12:43110'],
-			phase: 'ready',
+			access: {
+				localOrigin: 'http://127.0.0.1:43110',
+				mode: 'local-network',
+				networkOrigins: ['http://10.1.2.3:43110', 'http://192.168.50.12:43110'],
+				phase: 'ready',
+			},
+			personalAccessToken: 'configured',
 		});
 		expect(harness.createServer.mock.calls[1]?.[0]).toMatchObject({ bindHost: '0.0.0.0' });
 		expect(harness.createGateway.mock.calls[1]?.[0]).toEqual({
@@ -74,6 +85,7 @@ describe('DesktopBrowserAccessRuntime', () => {
 				'http://10.1.2.3:43110',
 				'http://192.168.50.12:43110',
 			],
+			sessionSigningKey: 's'.repeat(43),
 		});
 		expect(lifecycle.indexOf('gateway:dispose:0')).toBeLessThan(
 			lifecycle.indexOf('server:create:1'),
@@ -96,7 +108,9 @@ describe('DesktopBrowserAccessRuntime', () => {
 		expect(harness.servers[0]?.dispose).toHaveBeenCalledOnce();
 		expect(harness.gateways[0]?.dispose).toHaveBeenCalledOnce();
 
-		await expect(harness.runtime.start('loopback')).resolves.toMatchObject({ phase: 'ready' });
+		await expect(harness.runtime.start('loopback')).resolves.toMatchObject({
+			access: { phase: 'ready' },
+		});
 		expect(harness.createGateway).toHaveBeenCalledTimes(2);
 	});
 
@@ -124,7 +138,31 @@ describe('DesktopBrowserAccessRuntime', () => {
 		await disposal;
 		expect(server.dispose).toHaveBeenCalledOnce();
 		expect(harness.createGateway).not.toHaveBeenCalled();
-		expect(harness.runtime.getSnapshot()).toEqual({ phase: 'stopped' });
+		expect(harness.runtime.getSnapshot()).toEqual({
+			access: { phase: 'stopped' },
+			personalAccessToken: 'configured',
+		});
+	});
+
+	it('requires a Personal Access Token and stops access before committing a reset', async () => {
+		const harness = createHarness({});
+		harness.personalAccessTokenController.getVerifier.mockReturnValueOnce(null);
+
+		await expect(harness.runtime.start('loopback')).rejects.toMatchObject({
+			code: 'personal-access-token-required',
+		});
+		harness.personalAccessTokenController.getVerifier.mockReturnValue(
+			PersonalAccessTokenVerifierSchema.parse('v'.repeat(43)),
+		);
+		await harness.runtime.start('loopback');
+		const issued = await harness.runtime.issuePersonalAccessToken();
+
+		expect(harness.gateways[0]?.dispose).toHaveBeenCalledOnce();
+		expect(harness.servers[0]?.dispose).toHaveBeenCalledOnce();
+		expect(issued).toMatchObject({
+			personalAccessToken: 't'.repeat(43),
+			snapshot: { access: { phase: 'stopped' }, personalAccessToken: 'configured' },
+		});
 	});
 });
 
@@ -140,6 +178,12 @@ function createHarness(
 	readonly createServer: ReturnType<typeof vi.fn>;
 	readonly gateways: ReturnType<typeof createGateway>[];
 	readonly openExternal: ReturnType<typeof vi.fn>;
+	readonly personalAccessTokenController: {
+		readonly getStatus: ReturnType<typeof vi.fn>;
+		readonly getVerifier: ReturnType<typeof vi.fn>;
+		readonly initialize: ReturnType<typeof vi.fn>;
+		readonly issue: ReturnType<typeof vi.fn>;
+	};
 	readonly runtime: DesktopBrowserAccessRuntime;
 	readonly servers: ReturnType<typeof createServer>[];
 	readonly writeClipboardText: ReturnType<typeof vi.fn>;
@@ -171,13 +215,25 @@ function createHarness(
 	});
 	const openExternal = vi.fn<(url: string) => Promise<void>>(async () => undefined);
 	const writeClipboardText = vi.fn<(text: string) => void>();
+	const personalAccessTokenController = {
+		getStatus: vi.fn<() => 'configured' | 'missing'>(() => 'configured'),
+		getVerifier: vi.fn<() => ReturnType<typeof PersonalAccessTokenVerifierSchema.parse> | null>(
+			() => PersonalAccessTokenVerifierSchema.parse('v'.repeat(43)),
+		),
+		initialize: vi.fn<() => Promise<'configured' | 'missing'>>(async () => 'configured'),
+		issue: vi.fn<() => Promise<ReturnType<typeof PersonalAccessTokenSchema.parse>>>(async () =>
+			PersonalAccessTokenSchema.parse('t'.repeat(43)),
+		),
+	};
 	const runtime = new DesktopBrowserAccessRuntime(
 		{
 			gatewayEntryPath: '/resources/orchbee-gateway.cjs',
+			personalAccessTokenStorePath: '/data/personal-access-token-v1.json',
 			rendererRoot: '/resources/dist',
 			serverEntryPath: '/resources/orchbee-server.cjs',
 		},
 		{
+			createSessionSigningKey: () => BrowserSessionSigningKeySchema.parse('s'.repeat(43)),
 			createGateway: createGatewayMock,
 			createServer: createServerMock,
 			getNetworkInterfaces: () => interfaces,
@@ -185,6 +241,7 @@ function createHarness(
 				throw new Error('No Browser page was opened by this lifecycle test.');
 			},
 			openExternal,
+			personalAccessTokenController,
 			writeClipboardText,
 		},
 	);
@@ -193,6 +250,7 @@ function createHarness(
 		createServer: createServerMock,
 		gateways,
 		openExternal,
+		personalAccessTokenController,
 		runtime,
 		servers,
 		writeClipboardText,
@@ -221,7 +279,7 @@ function createGateway(lifecycle: string[], origins: readonly string[], index: n
 }
 
 function browserUrl(origin: string): string {
-	return `${origin}/?orchbee-runtime=gateway#secret-capability`;
+	return `${origin}/?orchbee-runtime=gateway&orchbee-gateway-version=1.3&orchbee-gateway-port=42000`;
 }
 
 function address(value: string): NetworkInterfaceInfo {

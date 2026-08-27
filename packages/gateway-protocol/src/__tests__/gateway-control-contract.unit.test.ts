@@ -11,11 +11,10 @@ describe('Gateway control contract', () => {
 	it('accepts one loopback connection descriptor shape without embedding a host name', () => {
 		expect(
 			GatewayBrowserConnectionSchema.parse({
-				capability: 'a'.repeat(43),
 				port: 42_000,
-				protocolVersion: '1.2',
+				protocolVersion: '1.3',
 			}),
-		).toMatchObject({ port: 42_000, protocolVersion: '1.2' });
+		).toMatchObject({ port: 42_000, protocolVersion: '1.3' });
 	});
 
 	it('bounds the trusted Desktop listener and Origin configuration', () => {
@@ -23,7 +22,7 @@ describe('Gateway control contract', () => {
 			GatewayDesktopCommandSchema.parse({
 				allowedOrigins: ['http://127.0.0.1:3000'],
 				bindHost: '127.0.0.1',
-				capability: 'a'.repeat(43),
+				sessionSigningKey: 's'.repeat(43),
 				type: 'gateway-start',
 			}),
 		).toMatchObject({ bindHost: '127.0.0.1' });
@@ -31,7 +30,7 @@ describe('Gateway control contract', () => {
 			GatewayDesktopCommandSchema.safeParse({
 				allowedOrigins: [],
 				bindHost: '0.0.0.0',
-				capability: 'a'.repeat(43),
+				sessionSigningKey: 's'.repeat(43),
 				type: 'gateway-start',
 			}).success,
 		).toBe(false);

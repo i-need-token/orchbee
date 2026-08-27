@@ -37,6 +37,7 @@ export type DesktopBrowserAccessRuntimeConfiguration =
 	| {
 			readonly gatewayEntryPath: string;
 			readonly kind: 'enabled';
+			readonly personalAccessTokenStorePath: string;
 			readonly rendererRoot: string;
 			readonly serverEntryPath: string;
 	  };
@@ -177,6 +178,10 @@ export function resolveDesktopRuntimeConfiguration(
 							: path.join(input.packagedResourcesPath, 'orchbee-gateway.cjs')),
 				),
 				kind: 'enabled',
+				personalAccessTokenStorePath: path.join(
+					input.userDataPath,
+					'personal-access-token-v1.json',
+				),
 				rendererRoot: path.resolve(
 					input.environment.ORCHBEE_WEB_RENDERER_ROOT ??
 						(input.packagedResourcesPath === undefined

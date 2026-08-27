@@ -1,4 +1,8 @@
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import {
+	BrowserSessionSigningKeySchema,
+	PersonalAccessTokenVerifierSchema,
+} from '@orchbee/remote-client-protocol';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -8,6 +12,10 @@ import { startOrchbeeServer } from '../startOrchbeeServer';
 
 let rendererRoot = '';
 let runningServer: RunningOrchbeeServer | undefined;
+const authentication = {
+	personalAccessTokenVerifier: PersonalAccessTokenVerifierSchema.parse('v'.repeat(43)),
+	sessionSigningKey: BrowserSessionSigningKeySchema.parse('s'.repeat(43)),
+};
 
 afterEach(async () => {
 	await runningServer?.close();
@@ -22,12 +30,13 @@ describe('startOrchbeeServer', () => {
 		await mkdir(join(rendererRoot, 'static'));
 		await writeFile(join(rendererRoot, 'index.html'), '<main>running</main>');
 		runningServer = await startOrchbeeServer({
+			...authentication,
 			host: '127.0.0.1',
 			port: 0,
 			rendererRoot,
 		});
 
-		const response = await fetch(`${runningServer.origin}/settings`, {
+		const response = await fetch(`${runningServer.origin}/login`, {
 			headers: { accept: 'text/html' },
 		});
 
@@ -45,12 +54,13 @@ describe('startOrchbeeServer', () => {
 		await mkdir(join(rendererRoot, 'static'));
 		await writeFile(join(rendererRoot, 'index.html'), '<main>lan-preview</main>');
 		runningServer = await startOrchbeeServer({
+			...authentication,
 			host: '0.0.0.0',
 			port: 0,
 			rendererRoot,
 		});
 
-		const response = await fetch(`http://127.0.0.1:${runningServer.port}/`, {
+		const response = await fetch(`http://127.0.0.1:${runningServer.port}/login`, {
 			headers: { accept: 'text/html' },
 		});
 

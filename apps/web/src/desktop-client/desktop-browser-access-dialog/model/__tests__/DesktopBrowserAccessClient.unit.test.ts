@@ -9,18 +9,21 @@ import { describe, expect, it } from 'vitest';
 import { DesktopBrowserAccessClient } from '../DesktopBrowserAccessClient';
 
 describe('DesktopBrowserAccessClient', () => {
-	it('correlates sanitized states without exposing a capability link', async () => {
+	it('correlates sanitized states without exposing Browser authentication secrets', async () => {
 		const channel = new MessageChannel();
 		channel.port2.addEventListener('message', (event) => {
 			const command = DesktopBrowserAccessRendererCommandSchema.parse(event.data);
 			channel.port2.postMessage(
 				DesktopBrowserAccessMainEventSchema.parse({
 					requestId: command.requestId,
-					state: {
-						localOrigin: 'http://127.0.0.1:43110',
-						mode: 'loopback',
-						networkOrigins: [],
-						phase: 'ready',
+					snapshot: {
+						access: {
+							localOrigin: 'http://127.0.0.1:43110',
+							mode: 'loopback',
+							networkOrigins: [],
+							phase: 'ready',
+						},
+						personalAccessToken: 'configured',
 					},
 					type: 'desktop-browser-access-completed',
 				}),
@@ -29,15 +32,18 @@ describe('DesktopBrowserAccessClient', () => {
 		channel.port2.start();
 		const client = new DesktopBrowserAccessClient(channel.port1, () => 'request');
 
-		const state = await client.start('loopback');
+		const snapshot = await client.start('loopback');
 
-		expect(state).toEqual({
-			localOrigin: 'http://127.0.0.1:43110',
-			mode: 'loopback',
-			networkOrigins: [],
-			phase: 'ready',
+		expect(snapshot).toEqual({
+			access: {
+				localOrigin: 'http://127.0.0.1:43110',
+				mode: 'loopback',
+				networkOrigins: [],
+				phase: 'ready',
+			},
+			personalAccessToken: 'configured',
 		});
-		expect(JSON.stringify(state)).not.toContain('#');
+		expect(JSON.stringify(snapshot)).not.toContain('#');
 		client.dispose();
 		channel.port2.close();
 	});
@@ -50,7 +56,10 @@ describe('DesktopBrowserAccessClient', () => {
 				DesktopBrowserAccessMainEventSchema.parse({
 					code: 'network-address-unavailable',
 					requestId: command.requestId,
-					state: { phase: 'stopped' },
+					snapshot: {
+						access: { phase: 'stopped' },
+						personalAccessToken: 'configured',
+					},
 					type: 'desktop-browser-access-failed',
 				}),
 			);
@@ -61,9 +70,39 @@ describe('DesktopBrowserAccessClient', () => {
 		await expect(client.start('local-network')).rejects.toEqual(
 			expect.objectContaining({
 				code: 'network-address-unavailable',
-				state: { phase: 'stopped' },
+				snapshot: {
+					access: { phase: 'stopped' },
+					personalAccessToken: 'configured',
+				},
 			}),
 		);
+		client.dispose();
+		channel.port2.close();
+	});
+
+	it('delivers a newly issued Personal Access Token only to the matching one-time request', async () => {
+		const channel = new MessageChannel();
+		channel.port2.addEventListener('message', (event) => {
+			const command = DesktopBrowserAccessRendererCommandSchema.parse(event.data);
+			channel.port2.postMessage(
+				DesktopBrowserAccessMainEventSchema.parse({
+					personalAccessToken: 'p'.repeat(43),
+					requestId: command.requestId,
+					snapshot: {
+						access: { phase: 'stopped' },
+						personalAccessToken: 'configured',
+					},
+					type: 'desktop-browser-access-personal-access-token-issued',
+				}),
+			);
+		});
+		channel.port2.start();
+		const client = new DesktopBrowserAccessClient(channel.port1, () => 'request');
+
+		const result = await client.issuePersonalAccessToken();
+
+		expect(result.personalAccessToken).toBe('p'.repeat(43));
+		expect(result.snapshot.personalAccessToken).toBe('configured');
 		client.dispose();
 		channel.port2.close();
 	});

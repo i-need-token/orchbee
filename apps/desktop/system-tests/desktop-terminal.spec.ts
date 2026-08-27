@@ -26,7 +26,7 @@ import {
 import {
 	decodeGatewayAttachmentClientFrame,
 	decodeGatewayAttachmentServerFrame,
-	decodeGatewayBrowserFragment,
+	decodeGatewayBrowserSearch,
 	GATEWAY_CONTROL_PATH,
 } from '@orchbee/gateway-protocol';
 
@@ -56,6 +56,7 @@ const applicationOutput = new WeakMap<ElectronApplication, string[]>();
 
 let electronApplication: ElectronApplication | undefined;
 let desktopEnvironment: Record<string, string> | undefined;
+let desktopMainEntry: string | undefined;
 let developmentRendererServer: RsbuildDevServer | undefined;
 let developmentRendererUrl: string | undefined;
 let hostProcess: ChildProcessWithoutNullStreams | undefined;
@@ -105,6 +106,12 @@ test.beforeEach(async ({ browserName }, testInfo) => {
 	}
 	const temporaryRoot = process.platform === 'win32' ? tmpdir() : '/tmp';
 	runtimeDirectory = await mkdtemp(path.join(temporaryRoot, 'orchbee-desktop-system-'));
+	desktopMainEntry = path.join(runtimeDirectory, 'desktop-system-main.cjs');
+	await writeFile(
+		desktopMainEntry,
+		`const { app } = require('electron');\napp.setPath('home', ${JSON.stringify(runtimeDirectory)});\nrequire(${JSON.stringify(desktopMain)});\n`,
+		{ mode: 0o600 },
+	);
 	let shell = '/bin/sh';
 	if (testInfo.title === startupGeometryWitnessTitle && process.platform !== 'win32') {
 		const witnessPath = path.join(runtimeDirectory, 'startup-geometry.txt');
@@ -168,6 +175,7 @@ test.afterEach(async () => {
 	}
 	electronApplication = undefined;
 	desktopEnvironment = undefined;
+	desktopMainEntry = undefined;
 	const runningHost = hostProcess;
 	if (runningHost !== undefined && runningHost.exitCode === null) {
 		runningHost.kill();
@@ -3138,7 +3146,7 @@ test('routes a real sandboxed Host terminal through Main and Preload to the rend
 });
 
 test('terminal-parity/LC-08-browser-access', async () => {
-	test.setTimeout(60_000);
+	test.setTimeout(90_000);
 	const application = electronApplication;
 	if (application === undefined) throw new Error('Electron application did not start.');
 	const desktopPage = await application.firstWindow();
@@ -3156,6 +3164,24 @@ test('terminal-parity/LC-08-browser-access', async () => {
 	await openBrowserAccess.click();
 	const dialog = desktopPage.locator('[data-slot="desktop-browser-access-dialog"]');
 	await expect(dialog).toBeVisible();
+	const createPersonalAccessToken = dialog.locator(
+		'[data-browser-access-action="create-personal-access-token"]',
+	);
+	await expect
+		.poll(async () => ({
+			enabled: await createPersonalAccessToken.isEnabled(),
+			status: await dialog.locator('[data-status]').getAttribute('data-status'),
+		}))
+		.toEqual({ enabled: true, status: 'missing' });
+	await createPersonalAccessToken.click();
+	const personalAccessTokenValue = dialog.locator(
+		'[data-slot="desktop-personal-access-token-value"]',
+	);
+	await expect(personalAccessTokenValue).toBeVisible();
+	const personalAccessToken = await personalAccessTokenValue.textContent();
+	if (personalAccessToken === null || personalAccessToken.length === 0) {
+		throw new Error('Desktop did not issue a Personal Access Token.');
+	}
 	const layers = await desktopPage.evaluate(() => {
 		const dialogElement = document.querySelector('[data-slot="desktop-browser-access-dialog"]');
 		const settingsElement = document.querySelector('[data-slot="terminal-settings-surface"]');
@@ -3175,7 +3201,9 @@ test('terminal-parity/LC-08-browser-access', async () => {
 	let origins: readonly string[] = [];
 	await expect
 		.poll(async () => {
-			origins = await dialog.locator('code').allTextContents();
+			origins = await dialog
+				.locator('[data-slot="desktop-browser-access-addresses"] code')
+				.allTextContents();
 			return origins.length;
 		})
 		.toBeGreaterThan(1);
@@ -3200,12 +3228,81 @@ test('terminal-parity/LC-08-browser-access', async () => {
 	try {
 		const browserPage = await browser.newPage();
 		const browserSockets = trackGatewaySockets(browserPage);
-		await browserPage.goto(browserUrl);
+		await signInToBrowserAccess(browserPage, browserUrl, personalAccessToken);
 		expect(new URL(browserPage.url()).origin).toBe(networkOrigin);
 		try {
 			const browserRoot = projectedTerminal(browserPage);
 			await expect(browserRoot).toHaveAttribute('data-projected-terminal-state', 'open');
 			await expectTerminalSurfaceAppearance(browserRoot);
+			expect(new URL(browserPage.url()).searchParams.get('orchbee-runtime')).toBe('gateway');
+			await browserPage.reload();
+			expect(new URL(browserPage.url()).pathname).not.toBe('/login');
+			expect(new URL(browserPage.url()).searchParams.get('orchbee-runtime')).toBe('gateway');
+			await expect(projectedTerminal(browserPage)).toHaveAttribute(
+				'data-projected-terminal-state',
+				'open',
+			);
+
+			await dialog.locator('[data-browser-access-action="reset-personal-access-token"]').click();
+			const resetConfirmation = desktopPage.locator(
+				'[data-slot="desktop-personal-access-token-reset-confirmation"]',
+			);
+			await expect(resetConfirmation).toBeVisible();
+			await resetConfirmation
+				.locator('[data-browser-access-action="confirm-reset-personal-access-token"]')
+				.click();
+			await expect(dialog.locator('[data-slot="desktop-browser-access-addresses"]')).toHaveCount(0);
+			await expect(personalAccessTokenValue).toBeVisible();
+			let resetPersonalAccessToken = '';
+			await expect
+				.poll(async () => {
+					resetPersonalAccessToken = (await personalAccessTokenValue.textContent()) ?? '';
+					return resetPersonalAccessToken;
+				})
+				.toMatch(/^[A-Za-z0-9_-]{43}$/u);
+			expect(resetPersonalAccessToken).not.toBe(personalAccessToken);
+
+			await dialog.locator('[data-browser-access-action="start-local-network"]').click();
+			let resetNetworkOrigin = '';
+			await expect
+				.poll(async () => {
+					const resetOrigins = await dialog
+						.locator('[data-slot="desktop-browser-access-addresses"] code')
+						.allTextContents();
+					resetNetworkOrigin =
+						resetOrigins.find((origin) => new URL(origin).hostname !== '127.0.0.1') ?? '';
+					return resetNetworkOrigin;
+				})
+				.not.toBe('');
+			await dialog
+				.locator('li')
+				.filter({ hasText: resetNetworkOrigin })
+				.getByRole('button')
+				.click();
+			let resetBrowserUrl = '';
+			await expect
+				.poll(async () => {
+					resetBrowserUrl = await application.evaluate(({ clipboard }) => clipboard.readText());
+					return resetBrowserUrl === '' ? '' : new URL(resetBrowserUrl).origin;
+				})
+				.toBe(resetNetworkOrigin);
+
+			await browserPage.goto(resetBrowserUrl);
+			await expect.poll(() => new URL(browserPage.url()).pathname).toBe('/login');
+			await browserPage.locator('#personal-access-token').fill(personalAccessToken);
+			await browserPage.locator('[data-browser-authentication-action="submit"]').click();
+			await expect(browserPage.locator('#personal-access-token')).toHaveAttribute(
+				'aria-invalid',
+				'true',
+			);
+			expect(new URL(browserPage.url()).pathname).toBe('/login');
+			await browserPage.locator('#personal-access-token').fill(resetPersonalAccessToken);
+			await browserPage.locator('[data-browser-authentication-action="submit"]').click();
+			await expect.poll(() => new URL(browserPage.url()).pathname).not.toBe('/login');
+			await expect(projectedTerminal(browserPage)).toHaveAttribute(
+				'data-projected-terminal-state',
+				'open',
+			);
 		} catch (error: unknown) {
 			throw new Error(`LAN Browser access failed: ${browserSockets.events.join(' | ')}`, {
 				cause: error,
@@ -3215,7 +3312,7 @@ test('terminal-parity/LC-08-browser-access', async () => {
 		await browser.close();
 	}
 	await dialog.locator('[data-browser-access-action="stop"]').click();
-	await expect(dialog.locator('code')).toHaveCount(0);
+	await expect(dialog.locator('[data-slot="desktop-browser-access-addresses"]')).toHaveCount(0);
 	await desktopPage.keyboard.press('Escape');
 	await expect(dialog).not.toBeVisible();
 	await expect(settingsSurface).toBeVisible();
@@ -3275,14 +3372,15 @@ test('terminal-parity/LC-09-client-isolation', async () => {
 		throw new Error('Desktop terminal presentation identity is unavailable.');
 	}
 
-	const gatewayUrl = await openLoopbackBrowserAccess(developmentApplication, desktopPage);
+	const browserAccess = await openLoopbackBrowserAccess(developmentApplication, desktopPage);
+	const gatewayUrl = browserAccess.browserUrl;
 	const browser = await chromium.launch();
 	try {
 		const context = await browser.newContext({ viewport: { height: 720, width: 1_280 } });
 		const browserPage = await context.newPage();
 		browserPage.setDefaultTimeout(10_000);
 		const browserSockets = trackGatewaySockets(browserPage);
-		await browserPage.goto(gatewayUrl);
+		await signInToBrowserAccess(browserPage, gatewayUrl, browserAccess.personalAccessToken);
 		expect(new URL(browserPage.url()).origin).toBe(new URL(gatewayUrl).origin);
 		expect(new URL(browserPage.url()).searchParams.get('orchbee-runtime')).toBe('gateway');
 		await expect
@@ -3425,7 +3523,8 @@ test('terminal-parity/LC-03-dual-client', async () => {
 	const currentRendererUrl = rendererUrl;
 	if (currentRendererUrl === undefined) throw new Error('Web renderer server is unavailable.');
 	const desktopPage = await application.firstWindow();
-	const gatewayUrl = await openLoopbackBrowserAccess(application, desktopPage);
+	const browserAccess = await openLoopbackBrowserAccess(application, desktopPage);
+	const gatewayUrl = browserAccess.browserUrl;
 	const desktopRoot = projectedTerminal(desktopPage);
 	await expect(desktopRoot).toHaveAttribute('data-projected-terminal-state', 'open');
 	const desktopIdentity = await terminalDocumentIdentity(desktopRoot);
@@ -3448,7 +3547,7 @@ test('terminal-parity/LC-03-dual-client', async () => {
 		await firstBrowserPage.setViewportSize({ height: 760, width: 430 });
 		const firstSockets = trackGatewaySockets(firstBrowserPage);
 		const secondSockets = trackGatewaySockets(secondBrowserPage);
-		await firstBrowserPage.goto(gatewayUrl);
+		await signInToBrowserAccess(firstBrowserPage, gatewayUrl, browserAccess.personalAccessToken);
 		const firstRoot = projectedTerminal(firstBrowserPage);
 		const secondRoot = projectedTerminal(secondBrowserPage);
 		await expect(firstRoot)
@@ -3645,19 +3744,17 @@ test('terminal-parity/LC-03-dual-client', async () => {
 		expect(new URL(popup.url()).pathname).toBe('/gateway-link-target');
 		await popup.close();
 
-		const rejectedPage = await context.newPage();
-		let rejectedControlClosed = false;
-		rejectedPage.on('websocket', (socket) => {
-			if (new URL(socket.url()).pathname === '/v1/control') {
-				socket.on('close', () => {
-					rejectedControlClosed = true;
-				});
-			}
-		});
-		const rejectedUrl = withGatewayCapability(gatewayUrl, 'b'.repeat(43));
-		await rejectedPage.goto(rejectedUrl);
-		await expect.poll(() => rejectedControlClosed).toBe(true);
-		await expect(projectedTerminal(rejectedPage)).toHaveCount(0);
+		const unauthenticatedContext = await browser.newContext();
+		try {
+			const rejectedPage = await unauthenticatedContext.newPage();
+			const rejectedSockets = trackGatewaySockets(rejectedPage);
+			await rejectedPage.goto(gatewayUrl);
+			expect(new URL(rejectedPage.url()).pathname).toBe('/login');
+			await expect(projectedTerminal(rejectedPage)).toHaveCount(0);
+			expect(gatewaySocketCount(rejectedSockets, '/v1/control')).toBe(0);
+		} finally {
+			await unauthenticatedContext.close();
+		}
 	} finally {
 		await browser.close();
 	}
@@ -3673,7 +3770,8 @@ test('runs the complete shared Project, Workspace, Tab, Panel, and terminal flow
 	}
 	const projectName = path.basename(currentRuntimeDirectory);
 	let desktopPage = await application.firstWindow();
-	const gatewayUrl = await openLoopbackBrowserAccess(application, desktopPage);
+	const browserAccess = await openLoopbackBrowserAccess(application, desktopPage);
+	const gatewayUrl = browserAccess.browserUrl;
 	desktopPage.setDefaultTimeout(10_000);
 	const browser = await chromium.launch();
 	let browserContext = await browser.newContext();
@@ -3682,7 +3780,7 @@ test('runs the complete shared Project, Workspace, Tab, Panel, and terminal flow
 	const browserSockets = trackGatewaySockets(browserPage);
 
 	try {
-		await browserPage.goto(gatewayUrl);
+		await signInToBrowserAccess(browserPage, gatewayUrl, browserAccess.personalAccessToken);
 		await expect(projectedTerminal(browserPage)).toHaveAttribute(
 			'data-projected-terminal-state',
 			'open',
@@ -3981,11 +4079,20 @@ test('runs the complete shared Project, Workspace, Tab, Panel, and terminal flow
 			terminalId: secondaryIdentity.terminalId,
 		});
 
-		const restartedGatewayUrl = await openLoopbackBrowserAccess(application, desktopPage);
+		const restartedBrowserAccess = await openLoopbackBrowserAccess(
+			application,
+			desktopPage,
+			browserAccess.personalAccessToken,
+		);
+		const restartedGatewayUrl = restartedBrowserAccess.browserUrl;
 		browserContext = await browser.newContext();
 		browserPage = await browserContext.newPage();
 		browserPage.setDefaultTimeout(10_000);
-		await browserPage.goto(restartedGatewayUrl);
+		await signInToBrowserAccess(
+			browserPage,
+			restartedGatewayUrl,
+			restartedBrowserAccess.personalAccessToken,
+		);
 		await expandProject(browserPage, projectName);
 		await expect(browserPage.locator('[data-slot="workbench-sidebar-workspace"]')).toHaveCount(2);
 		await workbenchWorkspace(browserPage, 'Primary').click();
@@ -4101,8 +4208,12 @@ test('stops Host sessions while retaining topology and starts a fresh session ex
 async function launchDesktop(): Promise<ElectronApplication> {
 	if (desktopEnvironment === undefined) throw new Error('Desktop test environment is unavailable.');
 	if (runtimeDirectory === undefined) throw new Error('Desktop runtime directory is unavailable.');
+	if (desktopMainEntry === undefined) throw new Error('Desktop test Main entry is unavailable.');
 	const application = await electron.launch({
-		args: [`--user-data-dir=${path.join(runtimeDirectory, 'electron-user-data')}`, desktopMain],
+		args: [
+			`--user-data-dir=${path.join(runtimeDirectory, 'electron-user-data')}`,
+			desktopMainEntry,
+		],
 		env: desktopEnvironment,
 	});
 	const output: string[] = [];
@@ -4145,7 +4256,8 @@ async function invokeDesktopWindowMenuItem(
 async function openLoopbackBrowserAccess(
 	application: ElectronApplication,
 	page: Page,
-): Promise<string> {
+	existingPersonalAccessToken?: string,
+): Promise<{ readonly browserUrl: string; readonly personalAccessToken: string }> {
 	const terminalRoot = projectedTerminal(page);
 	const attachmentId = await terminalRoot.getAttribute('data-projected-terminal-attachment-id');
 	await application.evaluate(({ shell }) => {
@@ -4164,6 +4276,23 @@ async function openLoopbackBrowserAccess(
 	await openBrowserAccess.click();
 	const dialog = page.locator('[data-slot="desktop-browser-access-dialog"]');
 	await expect(dialog).toBeVisible();
+	const personalAccessTokenAction = dialog.locator(
+		'[data-browser-access-action="create-personal-access-token"], [data-browser-access-action="reset-personal-access-token"]',
+	);
+	await expect(personalAccessTokenAction).toBeEnabled();
+	let personalAccessToken = existingPersonalAccessToken;
+	if (
+		(await personalAccessTokenAction.getAttribute('data-browser-access-action')) ===
+		'create-personal-access-token'
+	) {
+		await personalAccessTokenAction.click();
+		const tokenValue = dialog.locator('[data-slot="desktop-personal-access-token-value"]');
+		await expect(tokenValue).toBeVisible();
+		personalAccessToken = (await tokenValue.textContent()) ?? undefined;
+	}
+	if (personalAccessToken === undefined || personalAccessToken.length === 0) {
+		throw new Error('Desktop did not expose a new Personal Access Token.');
+	}
 	await dialog.locator('[data-browser-access-action="open-local"]').click();
 	let browserUrl: string | null = null;
 	await expect
@@ -4185,7 +4314,20 @@ async function openLoopbackBrowserAccess(
 		attachmentId,
 	);
 	if (browserUrl === null) throw new Error('Desktop did not open a Browser access URL.');
-	return browserUrl;
+	return { browserUrl, personalAccessToken };
+}
+
+async function signInToBrowserAccess(
+	page: Page,
+	browserUrl: string,
+	personalAccessToken: string,
+): Promise<void> {
+	await page.goto(browserUrl);
+	await expect.poll(() => new URL(page.url()).pathname).toBe('/login');
+	await page.locator('#personal-access-token').fill(personalAccessToken);
+	await page.locator('[data-browser-authentication-action="submit"]').click();
+	await expect.poll(() => new URL(page.url()).pathname).not.toBe('/login');
+	expect(new URL(page.url()).searchParams.get('orchbee-runtime')).toBe('gateway');
 }
 
 async function openDesktopSettingsCategory(
@@ -5031,7 +5173,7 @@ function socketUsesRendererOrigin(socketUrl: string, rendererSourceUrl: string):
 function socketUsesGatewayConnection(socketUrl: string, rendererSourceUrl: string): boolean {
 	const socket = new URL(socketUrl);
 	const renderer = new URL(rendererSourceUrl);
-	const connection = decodeGatewayBrowserFragment(renderer.hash);
+	const connection = decodeGatewayBrowserSearch(renderer.search);
 	return (
 		connection !== null &&
 		socket.hostname === renderer.hostname &&
@@ -5087,14 +5229,6 @@ function gatewayFrameShape(payload: string | Buffer): string {
 		return `text:${Buffer.byteLength(payload)}:invalid-json`;
 	}
 	return `text:${Buffer.byteLength(payload)}`;
-}
-
-function withGatewayCapability(browserUrl: string, capability: string): string {
-	const url = new URL(browserUrl);
-	const fragment = new URLSearchParams(url.hash.slice(1));
-	fragment.set('orchbee-gateway-capability', capability);
-	url.hash = fragment.toString();
-	return url.href;
 }
 
 async function terminalDocumentIdentity(root: Locator): Promise<{

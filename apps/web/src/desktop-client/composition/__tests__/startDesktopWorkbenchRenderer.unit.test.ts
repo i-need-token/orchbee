@@ -385,7 +385,9 @@ describe('startDesktopWorkbenchRenderer', () => {
 		await vi.waitFor(() => {
 			expect(document.querySelector('[data-slot="desktop-browser-access-dialog"]')).not.toBeNull();
 		});
-		expect(document.body.textContent).toContain('Full terminal control on trusted networks only');
+		expect(document.body.textContent).toContain(
+			'Unencrypted terminal access on trusted networks only',
+		);
 		await act(async () => {
 			document.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Escape' }));
 		});

@@ -19,36 +19,36 @@ Desktop Main (Workbench, TerminalPresentation, and lifecycle authority)
 apps/terminal-host (PTY, process, VT, history, and TerminalId authority)
 ```
 
-The Utility Process never imports or connects to Terminal Host. It has no shared-document writer, binding registry, application-lifetime port, filesystem capability, Client View storage, product settings, or terminal count policy. Desktop starts it only after an explicit Browser-access action and kills it when access stops, changes mode, or Desktop shuts down; each transition revokes the lifetime capability.
+The Utility Process never imports or connects to Terminal Host. It has no shared-document writer, binding registry, application-lifetime port, filesystem capability, Client View storage, product settings, or terminal count policy. Desktop starts it only after an explicit Browser-access action and kills it when access stops, changes mode, or Desktop shuts down; each transition discards the active Browser-session signing key and revokes every admitted page.
 
 ## Page and attachment lifecycle
 
-| Transition                              | Effect                                                                                                                                          |
-| --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| Utility start                           | Bind an ephemeral loopback port, or `0.0.0.0` only for explicit trusted-LAN preview, and accept only Desktop's exact renderer Origin allowlist. |
-| Socket awaits authentication            | Authenticate within 10 seconds or terminate the exact socket without allocating Desktop authority.                                              |
-| Page authentication succeeds            | Request one fresh Desktop ClientSession and projection-control pair.                                                                            |
-| Page authentication fails               | Close the socket without allocating Desktop authority.                                                                                          |
-| Authenticated socket remains connected  | Ping every 30 seconds; terminate the exact socket when the preceding ping received no pong.                                                     |
-| Projection opens                        | Register one derived attachment capability and transfer only the matching attachment stream.                                                    |
-| Attachment queue exceeds its byte bound | Retire the exact attachment and release its projection; retain correlation until Main acknowledges cleanup, then reopen from a full snapshot.   |
-| Page control closes                     | Release every page attachment and the page session; preserve shared Workbench state and Host terminals.                                         |
-| Utility stops                           | Terminate sockets still awaiting authentication, then close listeners, pages, attachments, and transferred ports before reporting stopped.      |
+| Transition                              | Effect                                                                                                                                             |
+| --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Utility start                           | Bind an ephemeral loopback port, or `0.0.0.0` only for explicit trusted-LAN preview, and accept only Desktop's exact renderer Origin allowlist.    |
+| Control Upgrade arrives                 | Require an exact allowed Origin and a valid signed Browser session Cookie before accepting the WebSocket; otherwise allocate no Desktop authority. |
+| Page protocol handshake arrives         | Require the protocol-version handshake within 10 seconds, then request one fresh Desktop ClientSession and projection-control pair.                |
+| Attachment handshake arrives            | Require one page-derived, one-time attachment capability within 10 seconds and transfer only the matching attachment stream.                       |
+| Authenticated socket remains connected  | Ping every 30 seconds; terminate the exact socket when the preceding ping received no pong.                                                        |
+| Projection opens                        | Register one derived attachment capability and transfer only the matching attachment stream.                                                       |
+| Attachment queue exceeds its byte bound | Retire the exact attachment and release its projection; retain correlation until Main acknowledges cleanup, then reopen from a full snapshot.      |
+| Page control closes                     | Release every page attachment and the page session; preserve shared Workbench state and Host terminals.                                            |
+| Utility stops                           | Terminate sockets still awaiting a handshake, then close listeners, pages, attachments, and transferred ports before reporting stopped.            |
 
 Control and attachment messages are parsed at every process or network boundary with `@orchbee/gateway-protocol`. Terminal frame and row payloads stay binary; the Gateway performs no VT parsing, row reconstruction, base64 conversion, or per-cell work. Transport byte limits protect one connection and do not impose a product count ceiling.
 
-## Capability delivery and trusted-LAN preview
+## Session admission and trusted-LAN preview
 
-Desktop Main retains every complete access URL and exposes only sanitized HTTP Origins to its sandboxed renderer. Copy Link and Open Browser are Main-owned effects confined to currently active exact Origins. The high-entropy capability remains in the URL fragment, so it is not sent in the renderer HTTP request. It is never placed in renderer state, diagnostics, telemetry, files, or readiness output; the Gateway itself emits no capability-bearing diagnostic.
+Browser access URLs contain only the renderer route, Gateway port, and protocol version. Desktop Main confines Copy Link and Open Browser effects to currently active exact Origins; no reusable credential appears in the URL, renderer state, diagnostics, telemetry, or readiness output. The Server exchanges the installation-scoped Personal Access Token for an `HttpOnly` signed session Cookie. Gateway validates that Cookie with the same activation-scoped signing key before accepting a control WebSocket. Desktop persists only the token verifier, and a reset stops Browser access before replacing the verifier, so the old signing key and every active Browser session are retired.
 
-Loopback is the default. Trusted-LAN preview binds both the renderer Server and Gateway to `0.0.0.0`, but publishes only enumerated RFC 1918 IPv4 Origins. It uses unencrypted HTTP, has no account login or TLS, and grants full terminal control to anyone holding a link until access is stopped or Desktop exits. The Desktop UI presents that warning before activation and provides immediate revocation.
+Loopback is the default. Trusted-LAN preview binds both the renderer Server and Gateway to `0.0.0.0`, but publishes only enumerated RFC 1918 IPv4 Origins. It uses unencrypted HTTP and has no TLS, Internet-ingress, or multi-user account claim. A network observer may read the token, Cookie, and terminal traffic. The Desktop UI presents that warning, requires an explicit Personal Access Token, and provides immediate revocation by stopping access or resetting the token.
 
 ## Correctness evidence
 
 | Claim                                                 | Evidence                                                                                                              |
 | ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| Authentication precedes Desktop page allocation       | Pure lifecycle transition tests and real loopback WebSocket tests.                                                    |
-| Wrong Origin or capability creates no page authority  | Real loopback and trusted-LAN-style exact-Origin WebSocket rejection tests and the Desktop-plus-Browser system trace. |
+| Cookie admission precedes Desktop page allocation     | Pure lifecycle transition tests and real loopback WebSocket tests.                                                    |
+| Wrong Origin or Cookie creates no page authority      | Real loopback and trusted-LAN-style exact-Origin WebSocket rejection tests and the Desktop-plus-Browser system trace. |
 | Disconnect affects only one page                      | Lifecycle tests, scoped-port tests, and multi-client system reconnection.                                             |
 | Utility stop cannot wait on an unauthenticated socket | Real loopback attachment shutdown regression.                                                                         |
 | Listener cancellation always settles                  | Deterministic listen/dispose ordering tests plus the bounded Gateway transport model.                                 |

@@ -1,15 +1,13 @@
-import { randomBytes } from 'node:crypto';
-
 import {
-	encodeGatewayBrowserFragment,
+	encodeGatewayBrowserSearch,
 	GATEWAY_PROTOCOL_VERSION,
 	GatewayBrowserConnectionSchema,
 	type GatewayBindHost,
-	GatewayCapabilitySchema,
 	GatewayDesktopCommandSchema,
 	GatewayUtilityEventSchema,
 	type GatewayClientConnectionId,
 } from '@orchbee/gateway-protocol';
+import type { BrowserSessionSigningKey } from '@orchbee/remote-client-protocol';
 import type { WorkbenchClientSessionBootstrap } from '@orchbee/workbench-client-protocol';
 import { utilityProcess, type MessagePortMain } from 'electron';
 
@@ -32,10 +30,10 @@ export interface LocalDevelopmentGatewayRuntimeOptions {
 	readonly bindHost: GatewayBindHost;
 	readonly entryPath: string;
 	readonly rendererOrigins: readonly string[];
+	readonly sessionSigningKey: BrowserSessionSigningKey;
 }
 
 export interface LocalDevelopmentGatewayRuntimeDependencies {
-	readonly createCapability: () => ReturnType<typeof GatewayCapabilitySchema.parse>;
 	readonly createProcess: (entryPath: string) => DesktopGatewayUtilityProcess;
 	readonly openClient: (
 		connectionId: GatewayClientConnectionId,
@@ -57,7 +55,6 @@ export interface LocalDevelopmentGatewayStartResult {
 }
 
 const defaultDependencies: Omit<LocalDevelopmentGatewayRuntimeDependencies, 'openClient'> = {
-	createCapability: () => GatewayCapabilitySchema.parse(randomBytes(32).toString('base64url')),
 	createProcess: (entryPath) => {
 		const child = utilityProcess.fork(entryPath, [], {
 			serviceName: 'Orchbee Local Browser Gateway',
@@ -87,7 +84,6 @@ const defaultDependencies: Omit<LocalDevelopmentGatewayRuntimeDependencies, 'ope
 
 export class LocalDevelopmentGatewayRuntime {
 	readonly #browserBaseUrls: readonly URL[];
-	readonly #capability: ReturnType<typeof GatewayCapabilitySchema.parse>;
 	readonly #clients = new Map<GatewayClientConnectionId, GatewayClientRecord>();
 	readonly #clientOperationTails = new Map<GatewayClientConnectionId, Promise<void>>();
 	readonly #clientRetryTimers = new Map<GatewayClientConnectionId, ReturnType<typeof setTimeout>>();
@@ -109,7 +105,6 @@ export class LocalDevelopmentGatewayRuntime {
 	) {
 		this.#options = options;
 		this.#dependencies = { ...defaultDependencies, ...dependencies };
-		this.#capability = this.#dependencies.createCapability();
 		this.#browserBaseUrls = validateRendererOrigins(options.rendererOrigins);
 	}
 
@@ -142,7 +137,7 @@ export class LocalDevelopmentGatewayRuntime {
 				GatewayDesktopCommandSchema.parse({
 					allowedOrigins: this.#browserBaseUrls.map((url) => url.origin),
 					bindHost: this.#options.bindHost,
-					capability: this.#capability,
+					sessionSigningKey: this.#options.sessionSigningKey,
 					type: 'gateway-start',
 				}),
 			);
@@ -162,14 +157,14 @@ export class LocalDevelopmentGatewayRuntime {
 		switch (event.type) {
 			case 'gateway-listening': {
 				const connection = GatewayBrowserConnectionSchema.parse({
-					capability: this.#capability,
 					port: event.port,
 					protocolVersion: GATEWAY_PROTOCOL_VERSION,
 				});
 				const browserUrls = this.#browserBaseUrls.map((baseUrl) => {
 					const browserUrl = new URL(baseUrl.href);
 					browserUrl.searchParams.set('orchbee-runtime', 'gateway');
-					browserUrl.hash = encodeGatewayBrowserFragment(connection);
+					const connectionSearch = new URLSearchParams(encodeGatewayBrowserSearch(connection));
+					for (const [key, value] of connectionSearch) browserUrl.searchParams.set(key, value);
 					return { origin: baseUrl.origin, url: browserUrl.href };
 				});
 				const primary = browserUrls[0];
@@ -324,7 +319,7 @@ export class LocalDevelopmentGatewayRuntime {
 			try {
 				process.postMessage(GatewayDesktopCommandSchema.parse({ type: 'gateway-stop' }));
 			} catch (error: unknown) {
-				// The process may already be gone; killing remains the final capability revocation.
+				// The process may already be gone; killing remains the final session revocation.
 				failures.push(error);
 			}
 			try {

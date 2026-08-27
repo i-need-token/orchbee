@@ -9,6 +9,7 @@ import {
 	type DesktopApplicationExitFailure,
 	type DesktopApplicationExitReason,
 	type DesktopApplicationExitRequestId,
+	type DesktopBrowserAccessSnapshot,
 	type DesktopTerminalDefaultSettingsSnapshot,
 	type DesktopTerminalLaunchProfileSnapshot,
 } from '@orchbee/desktop-client-protocol';
@@ -172,6 +173,7 @@ interface DesktopClipboardBrokerHandle {
 
 interface DesktopBrowserAccessRuntimeHandle extends DesktopBrowserAccessBrokerRuntime {
 	dispose(): Promise<void>;
+	initialize(): Promise<DesktopBrowserAccessSnapshot>;
 }
 
 interface DesktopProjectFolderAcquisitionBrokerHandle {
@@ -452,7 +454,11 @@ const defaultDependencies: DesktopApplicationDependencies = {
 
 const unavailableBrowserAccessRuntime: DesktopBrowserAccessBrokerRuntime = {
 	copyAccessLink: async () => unavailableBrowserAccess(),
-	getSnapshot: () => ({ phase: 'stopped' }),
+	getSnapshot: () => ({
+		access: { phase: 'stopped' },
+		personalAccessToken: 'unavailable',
+	}),
+	issuePersonalAccessToken: async () => unavailableBrowserAccess(),
 	openLocalBrowser: async () => unavailableBrowserAccess(),
 	start: async () => unavailableBrowserAccess(),
 	stop: async () => unavailableBrowserAccess(),
@@ -772,11 +778,14 @@ export class DesktopApplication {
 				this.#browserAccessRuntime = this.#dependencies.createBrowserAccessRuntime(
 					{
 						gatewayEntryPath: this.#options.runtime.browserAccess.gatewayEntryPath,
+						personalAccessTokenStorePath:
+							this.#options.runtime.browserAccess.personalAccessTokenStorePath,
 						rendererRoot: this.#options.runtime.browserAccess.rendererRoot,
 						serverEntryPath: this.#options.runtime.browserAccess.serverEntryPath,
 					},
 					() => this.#openGatewayClient(),
 				);
+				await this.#browserAccessRuntime.initialize();
 			}
 			await this.openWindow();
 		} catch (error) {

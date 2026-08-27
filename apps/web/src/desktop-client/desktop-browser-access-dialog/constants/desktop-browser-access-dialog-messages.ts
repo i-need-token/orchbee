@@ -8,5 +8,8 @@ export const DESKTOP_BROWSER_ACCESS_ERROR_MESSAGES = {
 	'gateway-unavailable': desktopBrowserAccessMessages.gatewayUnavailable,
 	'invalid-origin': desktopBrowserAccessMessages.invalidOrigin,
 	'network-address-unavailable': desktopBrowserAccessMessages.networkAddressUnavailable,
+	'personal-access-token-required': desktopBrowserAccessMessages.personalAccessTokenRequired,
+	'personal-access-token-store-unavailable':
+		desktopBrowserAccessMessages.personalAccessTokenStoreUnavailable,
 	'server-unavailable': desktopBrowserAccessMessages.serverUnavailable,
 } as const satisfies Readonly<Record<DesktopBrowserAccessFailureCode, MessageDescriptor>>;

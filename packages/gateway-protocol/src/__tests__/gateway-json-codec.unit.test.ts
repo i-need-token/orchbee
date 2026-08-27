@@ -14,11 +14,10 @@ import {
 const capability = 'a'.repeat(43);
 
 describe('Gateway JSON codec', () => {
-	it('round-trips strict control authentication without weakening the capability', () => {
+	it('round-trips strict control protocol authentication without a reusable credential', () => {
 		const encoded = encodeGatewayControlClientMessage(
 			GatewayControlClientMessageSchema.parse({
-				capability,
-				protocolVersion: '1.2',
+				protocolVersion: '1.3',
 				type: 'gateway-control-authenticate',
 			}),
 		);
@@ -26,8 +25,7 @@ describe('Gateway JSON codec', () => {
 		expect(decodeGatewayControlClientMessage(encoded)).toEqual({
 			ok: true,
 			value: {
-				capability,
-				protocolVersion: '1.2',
+				protocolVersion: '1.3',
 				type: 'gateway-control-authenticate',
 			},
 		});
@@ -38,7 +36,7 @@ describe('Gateway JSON codec', () => {
 			GatewayAttachmentClientMessageSchema.parse({
 				attachmentCapability: capability,
 				attachmentSocketId: 'gateway:attachment:1',
-				protocolVersion: '1.2',
+				protocolVersion: '1.3',
 				type: 'gateway-attachment-authenticate',
 			}),
 		);
@@ -50,7 +48,7 @@ describe('Gateway JSON codec', () => {
 					attachmentCapability: capability,
 					attachmentSocketId: 'gateway:attachment:1',
 					lifetime: 'quit',
-					protocolVersion: '1.2',
+					protocolVersion: '1.3',
 					type: 'gateway-attachment-authenticate',
 				}),
 			).ok,
@@ -64,7 +62,7 @@ describe('Gateway JSON codec', () => {
 				JSON.stringify({
 					attachmentCapability: capability,
 					attachmentSocketId: 'gateway:attachment:1',
-					protocolVersion: '1.2',
+					protocolVersion: '1.3',
 					type: 'gateway-attachment-authenticate',
 				}),
 			).ok,

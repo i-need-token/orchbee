@@ -1,4 +1,8 @@
-import type { DesktopBrowserAccessState } from '@orchbee/desktop-client-protocol';
+import type {
+	DesktopBrowserAccessSnapshot,
+	DesktopBrowserAccessState,
+} from '@orchbee/desktop-client-protocol';
+import { PersonalAccessTokenSchema } from '@orchbee/remote-client-protocol';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { DesktopBrowserAccessClientPort } from '../DesktopBrowserAccessClient';
@@ -19,7 +23,10 @@ describe('DesktopBrowserAccessController', () => {
 		expect(client.start.mock.invocationCallOrder[0]).toBeLessThan(
 			client.openLocalBrowser.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY,
 		);
-		expect(controller.getSnapshot().runtime).toMatchObject({ mode: 'loopback', phase: 'ready' });
+		expect(controller.getSnapshot().snapshot.access).toMatchObject({
+			mode: 'loopback',
+			phase: 'ready',
+		});
 		controller.dispose();
 	});
 
@@ -28,7 +35,7 @@ describe('DesktopBrowserAccessController', () => {
 		client.start.mockRejectedValueOnce(
 			Object.assign(new Error('network address unavailable'), {
 				code: 'network-address-unavailable' as const,
-				state: { phase: 'stopped' } as const,
+				snapshot: configuredSnapshot(),
 			}),
 		);
 		const controller = new DesktopBrowserAccessController(client);
@@ -38,13 +45,16 @@ describe('DesktopBrowserAccessController', () => {
 
 		expect(controller.getSnapshot()).toMatchObject({
 			error: 'network-address-unavailable',
-			runtime: { phase: 'stopped' },
+			snapshot: { access: { phase: 'stopped' } },
 		});
 		controller.dispose();
 	});
 
 	it('records only the copied origin after Main performs the clipboard effect', async () => {
-		const client = createClient(readyState('local-network'));
+		const client = createClient({
+			access: readyState('local-network'),
+			personalAccessToken: 'configured',
+		});
 		const controller = new DesktopBrowserAccessController(client);
 
 		controller.copyAccessLink('http://192.168.50.12:43110');
@@ -54,25 +64,62 @@ describe('DesktopBrowserAccessController', () => {
 		expect(JSON.stringify(controller.getSnapshot())).not.toContain('#');
 		controller.dispose();
 	});
+
+	it('creates, copies, and confirms reset of the Personal Access Token', async () => {
+		const client = createClient({ access: { phase: 'stopped' }, personalAccessToken: 'missing' });
+		const writeClipboardText = vi.fn<(text: string) => Promise<void>>(async () => undefined);
+		const controller = new DesktopBrowserAccessController(client, writeClipboardText);
+
+		controller.requestPersonalAccessTokenIssue();
+		await vi.waitFor(() => expect(controller.getSnapshot().pendingAction).toBeNull());
+		expect(controller.getSnapshot().issuedPersonalAccessToken).toBe('p'.repeat(43));
+
+		controller.copyPersonalAccessToken();
+		await vi.waitFor(() => expect(controller.getSnapshot().copiedPersonalAccessToken).toBe(true));
+		expect(writeClipboardText).toHaveBeenCalledWith('p'.repeat(43));
+
+		controller.requestPersonalAccessTokenIssue();
+		expect(controller.getSnapshot().resetConfirmationOpen).toBe(true);
+		controller.confirmPersonalAccessTokenReset();
+		await vi.waitFor(() => expect(controller.getSnapshot().pendingAction).toBeNull());
+		expect(client.issuePersonalAccessToken).toHaveBeenCalledTimes(2);
+		controller.dispose();
+		expect(controller.getSnapshot().issuedPersonalAccessToken).toBeNull();
+	});
 });
 
-function createClient(initial: DesktopBrowserAccessState = { phase: 'stopped' }) {
-	let state = initial;
+function createClient(initial: DesktopBrowserAccessSnapshot = configuredSnapshot()) {
+	let snapshot = initial;
 	const client = {
-		copyAccessLink: vi.fn<DesktopBrowserAccessClientPort['copyAccessLink']>(async () => state),
+		copyAccessLink: vi.fn<DesktopBrowserAccessClientPort['copyAccessLink']>(async () => snapshot),
 		dispose: vi.fn<() => void>(),
-		getState: vi.fn<DesktopBrowserAccessClientPort['getState']>(async () => state),
-		openLocalBrowser: vi.fn<DesktopBrowserAccessClientPort['openLocalBrowser']>(async () => state),
+		getState: vi.fn<DesktopBrowserAccessClientPort['getState']>(async () => snapshot),
+		issuePersonalAccessToken: vi.fn<DesktopBrowserAccessClientPort['issuePersonalAccessToken']>(
+			async () => {
+				snapshot = configuredSnapshot();
+				return {
+					personalAccessToken: PersonalAccessTokenSchema.parse('p'.repeat(43)),
+					snapshot,
+				};
+			},
+		),
+		openLocalBrowser: vi.fn<DesktopBrowserAccessClientPort['openLocalBrowser']>(
+			async () => snapshot,
+		),
 		start: vi.fn<DesktopBrowserAccessClientPort['start']>(async (mode) => {
-			state = readyState(mode);
-			return state;
+			snapshot = { access: readyState(mode), personalAccessToken: 'configured' };
+			return snapshot;
 		}),
 		stop: vi.fn<DesktopBrowserAccessClientPort['stop']>(async () => {
-			state = { phase: 'stopped' };
-			return state;
+			snapshot = configuredSnapshot();
+			return snapshot;
 		}),
 	} satisfies DesktopBrowserAccessClientPort;
 	return client;
+}
+
+function configuredSnapshot(): DesktopBrowserAccessSnapshot {
+	return { access: { phase: 'stopped' }, personalAccessToken: 'configured' };
 }
 
 function readyState(mode: 'local-network' | 'loopback'): DesktopBrowserAccessState {

@@ -11,7 +11,7 @@ Main starts without creating a fixed terminal, opening an attachment, or startin
 - client-session control delivers one atomic document/terminal-observation bootstrap, accepts complete exact-next shared-document proposals, and publishes one ordered canonical event stream;
 - projection control opens and releases scoped Host attachments only for displayed terminal viewports;
 - application-lifetime control carries only exit reason, user choice, quiescing acknowledgement, shared-document revision, aggregate progress, typed failures, and the Workbench presentation identities needed to resume an in-progress development Host restart;
-- Browser-access control carries only explicit start, mode-switch, open, copy, stop, sanitized Origin state, and bounded failures. It never carries the capability-bearing URL;
+- Browser-access control carries explicit start, mode-switch, open, copy, stop, sanitized Origin state, Personal Access Token status, correlated create/reset requests, one-time issued-token delivery, and bounded failures. It never carries the token verifier, session-signing key, Gateway port, or child-process handle;
 - Project Folder acquisition requests one native existing-directory selection and returns only a correlated selected path, cancellation, or bounded failure;
 - Project Worktree control discovers repositories only from current canonical Project Directories and creates one managed Worktree from repository, base, branch, and Workspace-option values; renderer commands never carry a target path;
 - terminal-launch-profile control projects and mutates one bounded device-local catalog of system-shell or explicit-executable launch choices. It carries no environment, CWD, secret, project payload, or generic filesystem capability;
@@ -28,7 +28,7 @@ OSC 52 clipboard writes use the existing projection port rather than a generic p
 
 Main loads and validates the shared document once before admitting clients. An available document restores Project, Workspace, Tab, Group, durable fallback/custom Tab titles, Panel/Split structure, presentation placement, and lifecycle intent; every page derives a fresh in-memory Client View. The Desktop Web composition may seed only the focused Panel and displayed child from one exact surviving `TerminalPresentationId` stored for that Electron page session. Active navigation, disclosure, focus, maximization, active child, natural terminal title, current CWD, and Split weights do not enter the shared file. A missing document projects every recovered binding as a standalone `retain` Tab and gives each joining page the same revision-`0` initialization seed. The first accepted proposal persists that seed before Main performs restore/provision effects. An unavailable load or failed first commit creates no replacement document or terminal effect. Unreferenced technical bindings remain preserved but are not silently adopted into the shared document.
 
-The coordinator is transport-neutral and supports independent page sessions without a product count ceiling. Electron uses a direct `MessagePort` adapter. Explicit Browser access starts `apps/server` and `apps/gateway` as on-demand Utility Processes; Desktop owns both lifetimes and allocates exactly one client-session/projection port pair per authenticated page. Server owns static renderer delivery, while Gateway owns exact-Origin admission, capability authentication, framing, and transport backpressure on loopback or an explicitly selected trusted LAN. Gateway never receives an application-lifetime port or a Host connection. `apps/web` owns the platform-neutral Workbench client runtime and the single renderer application used in an ordinary browser, a Gateway Browser client, and Electron. Development Electron is discovered from its User-Agent on the loopback Web origin. Packaged Desktop registers the standard secure `orchbee:` scheme before Electron becomes ready, serves the Web build from `orchbee://app`, and falls back to `index.html` for Browser Router document requests. Desktop owns renderer resource delivery, not another renderer source tree. See [`docs/multi-client-session-coordinator.md`](docs/multi-client-session-coordinator.md) and [`../web/docs/navigation-routing.md`](../web/docs/navigation-routing.md).
+The coordinator is transport-neutral and supports independent page sessions without a product count ceiling. Electron uses a direct `MessagePort` adapter. Explicit Browser access starts `apps/server` and `apps/gateway` as on-demand Utility Processes; Desktop owns both lifetimes and allocates exactly one client-session/projection port pair per authenticated page. Server owns renderer delivery, Personal Access Token verification, and signed session Cookie issuance, while Gateway owns signed-Cookie and exact-Origin admission, framing, and transport backpressure on loopback or an explicitly selected trusted LAN. Gateway never receives an application-lifetime port or a Host connection. `apps/web` owns the platform-neutral Workbench client runtime and the single renderer application used in an ordinary browser, a Gateway Browser client, and Electron. Development Electron is discovered from its User-Agent on the loopback Web origin. Packaged Desktop registers the standard secure `orchbee:` scheme before Electron becomes ready, serves the Web build from `orchbee://app`, and falls back to `index.html` for Browser Router document requests. Desktop owns renderer resource delivery, not another renderer source tree. See [`docs/multi-client-session-coordinator.md`](docs/multi-client-session-coordinator.md) and [`../web/docs/navigation-routing.md`](../web/docs/navigation-routing.md).
 
 Desktop requires the single current Host protocol `0.0.21` exactly; pre-release builds do not negotiate or document historical protocol variants. Electron uses `42.8.0`, the final release in the major immediately preceding the current Electron major selected for this repository.
 
@@ -121,14 +121,26 @@ publishing only detected RFC 1918 IPv4 origins. The unspecified listener address
 URL. Public interface addresses, IPv6, hostnames, discovery, Internet ingress, and background
 service installation are outside this preview.
 
-The complete access URL contains one process-lifetime high-entropy capability in its fragment.
-Desktop Main owns that secret and performs copy and system-Browser effects itself. The sandboxed
-renderer receives only the selected mode, lifecycle phase, and non-secret HTTP origins; it never
-receives the fragment, Gateway port, capability, child-process handle, or arbitrary clipboard and
-URL capabilities. Anyone who obtains a copied preview link can observe and control the shared
-Workbench and terminals until Browser access stops. HTTP traffic is unencrypted. The UI labels and
-warns about that accepted preview boundary; TLS, login, durable credentials, revocation finer than
-process lifetime, and production remote-client protocol are non-goals.
+**Settings → Browser access** creates one installation-scoped 256-bit Personal Access Token before
+access can start. The plaintext token is delivered to the trusted renderer only once for display
+and explicit copy; Desktop persists only its SHA-256 verifier in an owner-only, atomically replaced
+`personal-access-token-v1.json` file. A Browser enters that token on `/login`. Server exchanges it
+for a signed `HttpOnly`, `SameSite=Strict`, host-only session Cookie, and refresh retains login while
+the current Browser-access activation remains alive. Access URLs contain only normal product route,
+Gateway port, and protocol version values. Desktop Main confines link copy and system-Browser
+effects to active exact Origins; the renderer never receives the verifier, signing key, Gateway
+port, child-process handle, or arbitrary URL capability.
+
+Each activation creates one fresh session-signing key shared only with its Server and Gateway.
+Server authenticates product documents; Gateway requires the exact Origin and signed Cookie before
+accepting a control WebSocket. Reset first stops Browser access, then atomically replaces the token
+verifier and reveals the new token once. Stopping, switching mode, resetting the token, or exiting
+Desktop closes active connections and invalidates all earlier Browser session Cookies.
+
+HTTP traffic is unencrypted. Trusted-LAN preview can expose the token, Cookie, and terminal traffic
+to a network observer; the UI labels that boundary before activation. TLS, Internet ingress,
+multi-user accounts, token recovery, device credentials, and background-service operation remain
+non-goals.
 
 The workflow has one authoritative Desktop Main owner and the following serialized transitions:
 
@@ -137,7 +149,7 @@ The workflow has one authoritative Desktop Main owner and the following serializ
 | `stopped`          | Start one selected mode          | `server-starting`                                    |
 | `server-starting`  | Server owns an ephemeral port    | `gateway-starting`, or `stopping` if intent changed  |
 | `gateway-starting` | Gateway owns an ephemeral port   | `ready`, or `stopping` if intent changed             |
-| `ready`            | Same-mode start                  | No-op; reuse the capability and listeners            |
+| `ready`            | Same-mode start                  | No-op; reuse the signing key and listeners           |
 | `ready`            | Stop or choose the other mode    | `stopping`                                           |
 | Any starting phase | Allocation or validation failure | `stopping`                                           |
 | `stopping`         | Both owned resources are retired | `stopped`, then start a queued mode when one remains |
@@ -145,17 +157,19 @@ The workflow has one authoritative Desktop Main owner and the following serializ
 
 At most one Server and one Gateway belong to a Desktop process. A ready Gateway always has its
 matching Server. Failed or superseded starts clean partial resources before another start, and
-Desktop shutdown revokes the capability even if a renderer page has disappeared. The Server owns
-static HTTP delivery only. The Gateway owns exact-Origin admission, capability authentication,
-framing, and page sockets. Desktop Main remains the only writer of shared product state and grants a
-fresh page-scoped client-session/projection pair only after authentication.
+Desktop shutdown discards the signing key even if a renderer page has disappeared. The Server owns
+renderer delivery, login, Personal Access Token verification, and Cookie issuance. The Gateway owns
+exact-Origin and Cookie admission, framing, and page sockets. Desktop Main remains the only writer
+of shared product state and grants a fresh page-scoped client-session/projection pair only after
+authentication.
 
 The `browser-access` configuration of `DesktopLifecycle` checks resource ownership, single-mode readiness, cleanup, and
-eventual capability revocation under fair completion of owned process effects. Deterministic unit
+eventual session revocation under fair completion of owned process effects. Deterministic unit
 tests cover address policy, same-mode coalescing, mode replacement, partial-start compensation,
-copy/open confinement, and shutdown. Real Server/Gateway tests cover both bind modes, exact-Origin
-rejection, wrong-capability rejection, and remote-host WebSocket construction. The packaged system
-path verifies the four required resources and one Electron plus Browser shared-session trace.
+token persistence and rotation, copy/open confinement, and shutdown. Real Server/Gateway tests cover
+both bind modes, login redirects and exchange, signed-Cookie and exact-Origin rejection, and
+remote-host WebSocket construction. The packaged system path verifies login, refresh persistence,
+reset revocation, and one Electron plus Browser shared-session trace.
 
 ## Lifecycle and identity ownership
 
@@ -385,7 +399,7 @@ limits; none authorizes the separate manual focus-stealing native-window test.
 | `terminal-parity/LC-03-dual-client`, `terminal-parity/LC-09-client-isolation`                                    | The exact headed tests with those titles plus [`formal/tla/DesktopMultiClientSession.tla`](formal/tla/DesktopMultiClientSession.tla) execute one canonical checkpoint across Electron and authenticated Browser clients, fresh page sessions/attachments, full-snapshot reopen, disconnect, and independent disposal.                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | `terminal-parity/LC-04-environment`                                                                              | [`src/main/composition/__tests__/resolveDesktopRuntimeConfiguration.unit.test.ts`](src/main/composition/__tests__/resolveDesktopRuntimeConfiguration.unit.test.ts) covers every platform branch and inherited-locale decision; the exact POSIX headed witness gives the supervised Host a conflicting ambient locale, then observes exported UTF-8 `LANG`, the effective character map, `TERM`, `COLORTERM`, `TERM_PROGRAM`, and removed parent-only color policy through a real Desktop → Host → PTY path. The macOS SSH witness separately proves that the system client can forward this `LANG` only when explicitly configured and the loopback server accepts it. These bounded witnesses do not claim a Windows locale shell or automatic remote environment forwarding. |
 | `terminal-parity/LC-06-metadata-bridge`                                                                          | The exact headed OSC title/current-directory witness, Workbench metadata-resolution tests, Desktop client-session tests, and [`formal/tla/DesktopTerminalMetadataDelivery.tla`](formal/tla/DesktopTerminalMetadataDelivery.tla) execute frame correlation, natural/custom title policy, background delivery, stale rejection, and fresh-session clearing.                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| `terminal-parity/LC-08-browser-access`                                                                           | The exact headed LAN workflow, `src/main/browser-access/__tests__`, Gateway/Server integration tests, and the `browser-access` configuration in [`formal/tla/DesktopLifecycle.tla`](formal/tla/DesktopLifecycle.tla) execute loopback default, explicit LAN binding, capability confinement, failed-start cleanup, and revocation on stop.                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `terminal-parity/LC-08-browser-access`                                                                           | The exact headed LAN workflow, `src/main/browser-access/__tests__`, Gateway/Server integration tests, and the `browser-access` configuration in [`formal/tla/DesktopLifecycle.tla`](formal/tla/DesktopLifecycle.tla) execute loopback default, explicit LAN binding, Personal Access Token login, Cookie persistence across refresh, failed-start cleanup, unauthenticated rejection, and session revocation on stop or token reset.                                                                                                                                                                                                                                                                                                                                           |
 | `terminal-parity/LC-12-feature-failures`                                                                         | Desktop Host/broker error tests, Gateway codec tests, Workbench client-contract tests, and projected-renderer/surface tests execute exact operation/correlation identity, retryability, transport preservation, terminal-control sealing, and localized user consequence.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 
 Focused traces cover:
@@ -521,7 +535,7 @@ Start the canonical Web development server and Desktop together:
 pnpm desktop
 ```
 
-`pnpm desktop` builds the Browser-access Server, Gateway, and static Web resources, then runs the Web development server and the Desktop-owned native/Electron development lifecycle. Electron defaults to `http://127.0.0.1:3000/`; an explicit loopback Web server can be selected with `ORCHBEE_DESKTOP_RENDERER_URL`. Open **Settings → Browser access** to start loopback access or explicitly enable trusted-LAN preview. Desktop never prints or returns the capability-bearing URL to renderer state; its Main process performs the Copy Link and Open Browser effects. Set `ORCHBEE_DESKTOP_GATEWAY=0` to remove Browser-access resources from a development launch.
+`pnpm desktop` builds the Browser-access Server, Gateway, and static Web resources, then runs the Web development server and the Desktop-owned native/Electron development lifecycle. Electron defaults to `http://127.0.0.1:3000/`; an explicit loopback Web server can be selected with `ORCHBEE_DESKTOP_RENDERER_URL`. Open **Settings → Browser access** to create or reset the Personal Access Token, start loopback access, or explicitly enable trusted-LAN preview. Access links contain no credential; Desktop Main performs the Copy Link and Open Browser effects. Set `ORCHBEE_DESKTOP_GATEWAY=0` to remove Browser-access resources from a development launch.
 
 Build an unsigned current-platform application bundle with:
 

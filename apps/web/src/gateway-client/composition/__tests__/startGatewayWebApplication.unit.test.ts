@@ -10,6 +10,7 @@ import {
 	workbenchSharedDocumentRevision,
 } from '@orchbee/workbench/document';
 import type { Root } from 'react-dom/client';
+import { createMemoryHistory } from '@tanstack/react-router';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { WebApplicationRouting } from '../../../application-routing';
@@ -118,9 +119,8 @@ describe('startGatewayWebApplication', () => {
 		const render = vi.fn<Root['render']>();
 		const unmount = vi.fn<Root['unmount']>();
 		const connection = GatewayBrowserConnectionSchema.parse({
-			capability: 'a'.repeat(43),
 			port: 42_000,
-			protocolVersion: '1.2',
+			protocolVersion: '1.3',
 		});
 		const rootElement = document.createElement('div');
 		const session = startGatewayWebApplication(
@@ -140,6 +140,7 @@ describe('startGatewayWebApplication', () => {
 					}) as unknown as GatewayTerminalProjectionClient,
 				createReactRoot: () => ({ render, unmount }) as unknown as Root,
 				createRouting,
+				createRoutingHistory: () => createMemoryHistory({ initialEntries: ['/'] }),
 				createRuntime,
 			},
 		);
@@ -181,6 +182,7 @@ describe('startGatewayWebApplication', () => {
 		});
 		expect(createRouting).toHaveBeenCalledWith(
 			expect.objectContaining({ terminalSettingsController: configurationSource }),
+			expect.any(Object),
 		);
 		expect(render).toHaveBeenCalledOnce();
 		session.dispose();

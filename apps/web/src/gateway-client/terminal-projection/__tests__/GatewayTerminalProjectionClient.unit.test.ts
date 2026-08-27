@@ -43,9 +43,8 @@ describe('GatewayTerminalProjectionClient', () => {
 		const control = new FakeControlConnection();
 		const socket = new FakeWebSocket();
 		const connection = GatewayBrowserConnectionSchema.parse({
-			capability: 'a'.repeat(43),
 			port: 42_000,
-			protocolVersion: '1.2',
+			protocolVersion: '1.3',
 		});
 		const presentationId = terminalPresentationId('presentation-1');
 		const requestId = TerminalProjectionRequestIdSchema.parse('gateway:projection:1');
@@ -137,9 +136,8 @@ describe('GatewayTerminalProjectionClient', () => {
 		const secondSocket = new FakeWebSocket();
 		const sockets = [firstSocket, secondSocket];
 		const connection = GatewayBrowserConnectionSchema.parse({
-			capability: 'a'.repeat(43),
 			port: 42_000,
-			protocolVersion: '1.2',
+			protocolVersion: '1.3',
 		});
 		const firstPresentationId = terminalPresentationId('presentation-bootstrap-failure');
 		const secondPresentationId = terminalPresentationId('presentation-still-live');
@@ -240,9 +238,8 @@ describe('GatewayTerminalProjectionClient', () => {
 	it('releases an opened projection when its attachment socket cannot be constructed', async () => {
 		const control = new FakeControlConnection();
 		const connection = GatewayBrowserConnectionSchema.parse({
-			capability: 'a'.repeat(43),
 			port: 42_000,
-			protocolVersion: '1.2',
+			protocolVersion: '1.3',
 		});
 		const presentationId = terminalPresentationId('presentation-socket-construction-failure');
 		const requestId = TerminalProjectionRequestIdSchema.parse(
@@ -305,9 +302,8 @@ describe('GatewayTerminalProjectionClient', () => {
 		const socket = new FakeWebSocket();
 		socket.sendFailure = new Error('injected attachment authentication send failure');
 		const connection = GatewayBrowserConnectionSchema.parse({
-			capability: 'a'.repeat(43),
 			port: 42_000,
-			protocolVersion: '1.2',
+			protocolVersion: '1.3',
 		});
 		const presentationId = terminalPresentationId('presentation-authentication-send-failure');
 		const requestId = TerminalProjectionRequestIdSchema.parse(
@@ -369,9 +365,8 @@ describe('GatewayTerminalProjectionClient', () => {
 		const control = new FakeControlConnection();
 		const socket = new FakeWebSocket();
 		const connection = GatewayBrowserConnectionSchema.parse({
-			capability: 'a'.repeat(43),
 			port: 42_000,
-			protocolVersion: '1.2',
+			protocolVersion: '1.3',
 		});
 		const presentationId = terminalPresentationId('presentation-release-before-ready');
 		const requestId = TerminalProjectionRequestIdSchema.parse('gateway:projection:early-release');
@@ -432,9 +427,8 @@ describe('GatewayTerminalProjectionClient', () => {
 		const control = new FakeControlConnection();
 		const socket = new FakeWebSocket();
 		const connection = GatewayBrowserConnectionSchema.parse({
-			capability: 'a'.repeat(43),
 			port: 42_000,
-			protocolVersion: '1.2',
+			protocolVersion: '1.3',
 		});
 		const presentationId = terminalPresentationId('presentation-buffered-disconnect');
 		const requestId = TerminalProjectionRequestIdSchema.parse(

@@ -4,10 +4,7 @@ export {
 	encodeGatewayAttachmentClientFrame,
 	encodeGatewayAttachmentServerFrame,
 } from './gateway-attachment-codec';
-export {
-	decodeGatewayBrowserFragment,
-	encodeGatewayBrowserFragment,
-} from './gateway-browser-location';
+export { decodeGatewayBrowserSearch, encodeGatewayBrowserSearch } from './gateway-browser-location';
 export {
 	GATEWAY_ATTACHMENT_PATH,
 	GATEWAY_CONTROL_PATH,

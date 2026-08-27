@@ -75,6 +75,11 @@ export function startDesktopWorkbenchRenderer(
 	const projectionClient = new DesktopTerminalProjectionClient(projectionPort);
 	const browserAccessController = new DesktopBrowserAccessController(
 		new DesktopBrowserAccessClient(browserAccessPort),
+		async (text) => {
+			const clipboard = applicationRoot.ownerDocument.defaultView?.navigator.clipboard;
+			if (clipboard === undefined) throw new Error('The Browser clipboard is unavailable.');
+			await clipboard.writeText(text);
+		},
 	);
 	const projectFolderAcquisitionClient = new DesktopProjectFolderAcquisitionClient(
 		projectFolderAcquisitionPort,

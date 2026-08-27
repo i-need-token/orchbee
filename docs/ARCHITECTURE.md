@@ -24,8 +24,10 @@ flowchart TB
 	Web -->|"runs as"| Browser["Browser page"]
 
 	Electron <-->|"@orchbee/desktop-client-protocol<br/>+ @orchbee/workbench-client-protocol<br/>through preload MessagePorts"| Desktop["apps/desktop<br/>Electron Main, session coordination,<br/>bindings, and application lifetime"]
-	Browser <-->|"@orchbee/gateway-protocol<br/>over WebSocket"| Gateway["apps/gateway<br/>local development browser bridge"]
-	Gateway <-->|"@orchbee/workbench-client-protocol<br/>over scoped MessagePorts"| Desktop
+	Browser <-->|"@orchbee/remote-client-protocol<br/>over HTTP + signed Cookie"| Server["apps/server<br/>renderer and Browser-session ingress"]
+	Browser <-->|"@orchbee/gateway-protocol<br/>over Cookie-admitted WebSocket"| Gateway["apps/gateway<br/>local development browser bridge"]
+	Desktop -->|"activation-scoped verifier<br/>and session-signing key"| Server
+	Gateway <-->|"@orchbee/gateway-protocol start<br/>+ @orchbee/workbench-client-protocol<br/>over scoped MessagePorts"| Desktop
 	Desktop <-->|"@orchbee/terminal-protocol<br/>over private local IPC"| Host["apps/terminal-host<br/>PTY / process / Ghostty VT / history authority"]
 ```
 

@@ -2,7 +2,7 @@
 	"name": "@orchbee/gateway-protocol",
 	"version": "0.1.0",
 	"private": true,
-	"description": "Strict local Browser Gateway authentication and framing contracts",
+	"description": "Strict local Browser Gateway session-admission and framing contracts",
 	"files": [
 		"dist",
 		"README.md"
@@ -29,6 +29,7 @@
 		"test:exports": "node ../../scripts/check-package-exports.mjs ."
 	},
 	"dependencies": {
+		"@orchbee/remote-client-protocol": "workspace:^",
 		"@orchbee/terminal-protocol": "workspace:^",
 		"@orchbee/workbench": "workspace:^",
 		"@orchbee/workbench-client-protocol": "workspace:^",

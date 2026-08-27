@@ -27,6 +27,7 @@
 		"@orchbee/desktop-client-protocol": "workspace:^",
 		"@orchbee/gateway-protocol": "workspace:^",
 		"@orchbee/i18n": "workspace:^",
+		"@orchbee/remote-client-protocol": "workspace:^",
 		"@orchbee/terminal-protocol": "workspace:^",
 		"@orchbee/workbench": "workspace:^",
 		"@orchbee/workbench-client-protocol": "workspace:^",

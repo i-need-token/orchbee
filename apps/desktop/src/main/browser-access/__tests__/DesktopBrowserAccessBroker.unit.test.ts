@@ -1,7 +1,8 @@
 import {
 	DesktopBrowserAccessMainEventSchema,
-	type DesktopBrowserAccessState,
+	type DesktopBrowserAccessSnapshot,
 } from '@orchbee/desktop-client-protocol';
+import { PersonalAccessTokenSchema } from '@orchbee/remote-client-protocol';
 import type { MessageEvent, MessagePortMain } from 'electron';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -13,16 +14,22 @@ import {
 describe('DesktopBrowserAccessBroker', () => {
 	it('routes bounded requests and returns only the non-secret state projection', async () => {
 		const port = new FakeMessagePort();
-		let state: DesktopBrowserAccessState = { phase: 'stopped' };
-		const runtime = createRuntime(() => state);
+		let snapshot: DesktopBrowserAccessSnapshot = {
+			access: { phase: 'stopped' },
+			personalAccessToken: 'configured',
+		};
+		const runtime = createRuntime(() => snapshot);
 		runtime.start.mockImplementation(async (mode) => {
-			state = {
-				localOrigin: 'http://127.0.0.1:43110',
-				mode,
-				networkOrigins: [],
-				phase: 'ready',
+			snapshot = {
+				...snapshot,
+				access: {
+					localOrigin: 'http://127.0.0.1:43110',
+					mode,
+					networkOrigins: [],
+					phase: 'ready',
+				},
 			};
-			return state;
+			return snapshot;
 		});
 		const broker = new DesktopBrowserAccessBroker(port.asMessagePortMain(), runtime);
 		broker.start();
@@ -37,7 +44,7 @@ describe('DesktopBrowserAccessBroker', () => {
 		const response = DesktopBrowserAccessMainEventSchema.parse(port.messages[0]);
 		expect(response).toMatchObject({
 			requestId: 'browser-access:request:1',
-			state: { mode: 'loopback', phase: 'ready' },
+			snapshot: { access: { mode: 'loopback', phase: 'ready' } },
 			type: 'desktop-browser-access-completed',
 		});
 		expect(JSON.stringify(response)).not.toContain('capability');
@@ -45,8 +52,11 @@ describe('DesktopBrowserAccessBroker', () => {
 
 	it('maps privileged failures to bounded codes and preserves current state', async () => {
 		const port = new FakeMessagePort();
-		const state = { phase: 'stopped' } as const;
-		const runtime = createRuntime(() => state);
+		const snapshot = {
+			access: { phase: 'stopped' },
+			personalAccessToken: 'configured',
+		} as const satisfies DesktopBrowserAccessSnapshot;
+		const runtime = createRuntime(() => snapshot);
 		runtime.start.mockRejectedValueOnce(
 			Object.assign(new Error('raw network interface detail'), {
 				code: 'network-address-unavailable' as const,
@@ -65,7 +75,7 @@ describe('DesktopBrowserAccessBroker', () => {
 		expect(DesktopBrowserAccessMainEventSchema.parse(port.messages[0])).toEqual({
 			code: 'network-address-unavailable',
 			requestId: 'browser-access:request:2',
-			state,
+			snapshot,
 			type: 'desktop-browser-access-failed',
 		});
 		expect(JSON.stringify(port.messages[0])).not.toContain('raw network');
@@ -73,7 +83,10 @@ describe('DesktopBrowserAccessBroker', () => {
 
 	it('retires the renderer capability on malformed input without stopping shared access', () => {
 		const port = new FakeMessagePort();
-		const runtime = createRuntime(() => ({ phase: 'stopped' }));
+		const runtime = createRuntime(() => ({
+			access: { phase: 'stopped' },
+			personalAccessToken: 'configured',
+		}));
 		const broker = new DesktopBrowserAccessBroker(port.asMessagePortMain(), runtime);
 		broker.start();
 
@@ -85,7 +98,7 @@ describe('DesktopBrowserAccessBroker', () => {
 });
 
 function createRuntime(
-	getSnapshot: () => DesktopBrowserAccessState,
+	getSnapshot: () => DesktopBrowserAccessSnapshot,
 ): DesktopBrowserAccessBrokerRuntime & {
 	readonly copyAccessLink: ReturnType<typeof vi.fn>;
 	readonly openLocalBrowser: ReturnType<typeof vi.fn>;
@@ -97,6 +110,12 @@ function createRuntime(
 			getSnapshot(),
 		),
 		getSnapshot,
+		issuePersonalAccessToken: vi.fn<DesktopBrowserAccessBrokerRuntime['issuePersonalAccessToken']>(
+			async () => ({
+				personalAccessToken: PersonalAccessTokenSchema.parse('t'.repeat(43)),
+				snapshot: getSnapshot(),
+			}),
+		),
 		openLocalBrowser: vi.fn<DesktopBrowserAccessBrokerRuntime['openLocalBrowser']>(async () =>
 			getSnapshot(),
 		),

@@ -1,5 +1,6 @@
 import {
 	encodeGatewayControlServerMessage,
+	GATEWAY_PROTOCOL_VERSION,
 	GatewayBrowserConnectionSchema,
 	GatewayControlServerMessageSchema,
 } from '@orchbee/gateway-protocol';
@@ -56,9 +57,8 @@ describe('connectGatewayControlConnection', () => {
 	it('authenticates before exposing bootstrap and routes channel-scoped events', async () => {
 		const socket = new FakeWebSocket();
 		const connection = GatewayBrowserConnectionSchema.parse({
-			capability: 'a'.repeat(43),
 			port: 42_000,
-			protocolVersion: '1.2',
+			protocolVersion: GATEWAY_PROTOCOL_VERSION,
 		});
 		const connecting = connectGatewayControlConnection(connection, '192.168.1.14', (url) => {
 			expect(url).toBe('ws://192.168.1.14:42000/v1/control');
@@ -102,9 +102,8 @@ describe('connectGatewayControlConnection', () => {
 	it('rejects bootstrap when the authentication send fails', async () => {
 		const socket = new FakeWebSocket();
 		const connection = GatewayBrowserConnectionSchema.parse({
-			capability: 'a'.repeat(43),
 			port: 42_000,
-			protocolVersion: '1.2',
+			protocolVersion: GATEWAY_PROTOCOL_VERSION,
 		});
 		const connecting = connectGatewayControlConnection(connection, '192.168.1.14', () =>
 			socket.asWebSocket(),

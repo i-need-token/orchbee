@@ -11,7 +11,7 @@ Main 启动时无需创建固定终端、打开附件或启动 Web 侦听器。�
 - 客户端会话控制提供一个原子文档/终端观察引导程序，接受完整的精确下一个共享文档提案，并发布一个有序的规范事件流；
 - 投影控件仅为显示的终端视口打开并释放范围内的主机附件；
 - 应用程序生命周期控制仅包含退出原因、用户选择、静默确认、共享文档修订、聚合进度、类型化故障以及恢复正在进行的开发主机重启所需的工作台表示标识；
-- 浏览器访问控制仅包含显式启动、模式切换、打开、复制、停止、净化的原始状态和有限故障。它从不携带能力承载URL；
+- 浏览器访问控制只携带显式启动、模式切换、打开、复制、停止、净化的 Origin 状态、个人访问令牌状态、相关的创建/重置请求、一次性已签发令牌交付和有界错误。它绝不携带令牌 verifier、session 签名密钥、Gateway 端口或子进程句柄；
 - 项目文件夹获取请求一个本机现有目录选择，并仅返回相关的选定路径、取消或有限失败；
 - Project Worktree 控制只从当前规范 Project Directory 发现 repository，并根据 repository、base、branch 与 Workspace 选项创建一个托管 Worktree；renderer 命令绝不携带目标路径；
 - Terminal-launch-profile 控制投影并改变系统 shell 或显式可执行启动选择的一个有界设备本地目录。它不携带环境、CWD、机密、项目有效负载或通用文件系统功能；
@@ -28,7 +28,7 @@ OSC 52 剪贴板写入使用现有投影端口，而不是通用 preload 剪贴�
 
 Main 在允许客户端之前加载并验证共享文档一次。可用的文档可恢复项目、工作区、选项卡、组、持久后备/自定义选项卡标题、面板/拆分结构、Presentation 布局和生命周期意图；每个页面都会在内存中派生一个新的 Client View。Desktop Web 组合可以从该 Electron 页面会话存储的一个精确且仍存活的 `TerminalPresentationId` 中，只恢复焦点 Panel 与显示的子 Presentation。主动导航、披露、焦点、最大化、主动子项、自然终端标题、当前 CWD 和 Split 权重不进入共享文件。丢失的文档将每个恢复的绑定投影为独立的 `retain` 选项卡，并为每个加入页面提供相同的 revision-`0` 初始化种子。第一个接受的提案会在 Main 执行恢复/配置效果之前持久化该种子。不可用的加载或失败的首次提交不会创建替换文档或终端效果。未引用的技术绑定仍然保留，但不会默默加入共享文档。
 
-协调器是传输中立的，支持独立的页面会话，没有产品数量上限。 Electron 使用直接 `MessagePort` 适配器。显式浏览器访问启动 `apps/server` 和 `apps/gateway` 作为按需实用程序进程； Desktop 拥有这两个生命周期，并为每个经过身份验证的页面分配一对客户端会话/投影端口。服务器拥有静态渲染器交付，而网关拥有 exact-Origin 准入、能力认证、成帧和环回上的传输背压或显式选择的可信 LAN。网关永远不会接收应用程序生命周期端口或主机连接。 `apps/web` 拥有平台中立的 Workbench 客户端运行时和普通浏览器中使用的单个渲染器应用程序、网关浏览器客户端和 Electron。开发Electron是从环回Web来源上的User-Agent发现的。 Packaged Desktop 在 Electron 准备就绪之前注册标准安全 `orchbee:` 方案，为 `orchbee://app` 的 Web 构建提供服务，并回退到 `index.html` 来处理浏览器路由器文档请求。桌面拥有渲染器资源交付，而不是另一个渲染器源树。请参见 [`docs/multi-client-session-coordinator.md`](docs/multi-client-session-coordinator.md) 和 [`../web/docs/navigation-routing.md`](../web/docs/navigation-routing.md)。
+Coordinator 与 transport 无关，支持独立 page session，并且没有产品数量上限。Electron 使用直接 `MessagePort` adapter。显式 Browser 访问把 `apps/server` 与 `apps/gateway` 启动为按需 Utility Process；Desktop 拥有两者的 lifecycle，并为每个已鉴权页面分配恰好一对 client-session/projection port。Server 负责 renderer 交付、个人访问令牌校验与签名 session Cookie 签发；Gateway 负责签名 Cookie 与 exact-Origin 准入、framing，以及 loopback 或显式选择 trusted LAN 上的 transport backpressure。Gateway 绝不接收 application-lifetime port 或 Host connection。`apps/web` 负责与 platform 无关的 Workbench client runtime，以及普通 Browser、Gateway Browser client 与 Electron 使用的唯一 renderer application。开发 Electron 通过 loopback Web origin 上的 User-Agent discovery。Packaged Desktop 在 Electron ready 前注册标准 secure `orchbee:` scheme，从 `orchbee://app` 提供 Web build，并对 Browser Router document request 回退到 `index.html`。Desktop 负责 renderer resource 交付，而不是另一套 renderer source tree。参见 [`docs/multi-client-session-coordinator.md`](docs/multi-client-session-coordinator.md) 与 [`../web/docs/navigation-routing.md`](../web/docs/navigation-routing.md)。
 
 Desktop 严格要求唯一的当前 Host 协议 `0.0.21`；预发布版本既不协商，也不记录历史协议变体。Electron 使用 `42.8.0`，即本仓库所选当前 Electron 主版本中的最新次版本。
 
@@ -84,7 +84,11 @@ Desktop 是当前唯一注入托管 Worktree 创建能力的组合。Main 从目
 
 Desktop 拥有针对相同规范工作台和终端会话的选择加入浏览器访问工作流程。浏览器访问在进程启动时停止。选择 **此计算机** 在临时 `127.0.0.1` 端口上启动受信任的 Web 呈现器服务器和经过身份验证的网关。选择 **本地网络预览** 是一个单独的显式操作，它将两个侦听器绑定到 `0.0.0.0`，同时发布仅检测到的 RFC 1918 IPv4 源。未指定的侦听器地址永远不是客户端 URL。公共接口地址、IPv6、主机名、发现、Internet 入口和后台服务安装不在此预览范围内。
 
-完整的访问URL在其片段中包含一种进程生命周期的高熵能力。 Desktop Main 拥有该秘密并自行执行复制和 system-Browser 效果。沙盒渲染器仅接收选定的模式、生命周期阶段和非秘密 HTTP 来源；它永远不会接收片段、网关端口、功能、子进程句柄或任意剪贴板和 URL 功能。获得复制的预览链接的任何人都可以观察和控制共享的工作台和终端，直到浏览器访问停止。 HTTP 流量未加密。 UI 标记并警告接受的预览边界； TLS、登录、持久凭证、比进程生命周期更精细的撤销以及生产远程客户端协议都不是目标。
+必须先在 **设置 → 浏览器访问** 中创建一个安装范围的 256 位个人访问令牌，才能启动访问。明文令牌只向受信任 renderer 交付一次，供用户查看并显式复制；Desktop 只把 SHA-256 verifier 持久化到 owner-only、原子替换的 `personal-access-token-v1.json` 文件。Browser 用户在 `/login` 输入该令牌。Server 使用令牌换取签名的 `HttpOnly`、`SameSite=Strict`、仅限当前 host 的 session Cookie；当前 Browser 访问 activation 存活期间，刷新页面会保持登录。访问 URL 只包含普通产品路由、Gateway 端口和协议版本。Desktop Main 把链接复制与 system-Browser effect 限制在活动的精确 Origin；renderer 绝不接收 verifier、签名密钥、Gateway 端口、子进程句柄或任意 URL capability。
+
+每次 activation 都创建一个新 session 签名密钥，只向匹配的 Server 和 Gateway 共享。Server 认证产品 document；Gateway 要求精确 Origin 与签名 Cookie 后才接受 control WebSocket。重置会先停止 Browser 访问，再原子替换令牌 verifier，并只展示一次新令牌。停止访问、切换模式、重置令牌或退出 Desktop 都会关闭活动连接，并使之前的全部 Browser session Cookie 失效。
+
+HTTP 流量未加密。Trusted-LAN 预览可能向网络观察者暴露令牌、Cookie 与终端流量；UI 会在 activation 前标记这一边界。TLS、Internet 入口、多用户账号、令牌恢复、设备 credential 和后台服务运行仍不在目标范围内。
 
 该工作流程有一个权威的桌面主所有者和以下序列化转换：
 
@@ -93,15 +97,15 @@ Desktop 拥有针对相同规范工作台和终端会话的选择加入浏览器
 | `stopped`          | 启动一种选定的模式     | `server-starting`                                 |
 | `server-starting`  | 服务器拥有一个临时端口 | `gateway-starting`，或 `stopping`（如果意图改变） |
 | `gateway-starting` | 网关拥有一个临时端口   | `ready`，或 `stopping`（如果意图改变）            |
-| `ready`            | 同模式启动             | 无操作；重用功能和监听器                          |
+| `ready`            | 同模式启动             | 无操作；重用签名密钥和监听器                      |
 | `ready`            | 停止或选择其他模式     | `stopping`                                        |
 | 任何起始阶段       | 分配或验证失败         | `stopping`                                        |
 | `stopping`         | 两个拥有的资源均已停用 | `stopped`，剩余1个时启动排队模式                  |
 | 任何直播阶段       | 桌面关闭               | `stopping`，接终端`disposed`                      |
 
-一个Desktop进程最多有一台Server和一台Gateway。一个准备好的网关总是有其匹配的服务器。失败或被取代的启动会在下次启动之前清理部分资源，并且即使渲染器页面消失，桌面关闭也会撤销该功能。服务器仅拥有静态 HTTP 传递。网关拥有exact-Origin准入、能力认证、成帧和页面套接字。 Desktop Main 仍然是共享产品状态的唯一写入者，并且仅在身份验证后才授予新的页面范围的客户端会话/投影对。
+一个 Desktop 进程最多拥有一个 Server 和一个 Gateway。就绪 Gateway 始终拥有匹配的 Server。失败或被取代的启动会在下次启动前清理部分资源；即使 renderer 页面已经消失，Desktop shutdown 也会丢弃签名密钥。Server 负责 renderer 交付、登录、个人访问令牌校验和 Cookie 签发。Gateway 负责 exact-Origin 与 Cookie 准入、framing 和页面 socket。Desktop Main 仍是共享产品 state 的唯一 writer，并且只在鉴权后授予新的页面范围 client-session/projection pair。
 
-`browser-access` 的 `DesktopLifecycle` 配置在公平完成拥有的流程效果的情况下检查资源所有权、单模式准备情况、清理和最终能力撤销。确定性单元测试涵盖地址策略、同模式合并、模式替换、部分启动补偿、复制/开放限制和关闭。真实服务器/网关测试涵盖两种绑定模式、exact-Origin 拒绝、错误能力拒绝和远程主机 WebSocket 构造。打包的系统路径验证四个所需资源和一个 Electron 以及浏览器共享会话跟踪。
+`browser-access` 的 `DesktopLifecycle` 配置在公平完成所拥有 process effect 的情况下检查资源 ownership、单模式 readiness、cleanup 和最终 session 撤销。确定性单元测试覆盖地址策略、同模式合并、模式替换、部分启动补偿、令牌持久化与轮换、复制/打开限制以及 shutdown。真实 Server/Gateway 测试覆盖两种 bind mode、登录重定向与交换、签名 Cookie 和 exact-Origin 拒绝，以及 remote-host WebSocket 构造。打包系统路径验证登录、刷新保持登录、重置撤销，以及一个 Electron 与 Browser 的共享 session trace。
 
 ## 生命周期和身份所有权
 
@@ -224,7 +228,7 @@ Workbench `terminal-presentation-event-published` 消息是 Main 拥有的单一
 | `terminal-parity/LC-03-dual-client`、`terminal-parity/LC-09-client-isolation`                                    | 同名精确有界面测试及 [`formal/tla/DesktopMultiClientSession.tla`](formal/tla/DesktopMultiClientSession.tla) 执行 Electron 与认证 Browser 客户端共享一个规范 checkpoint、新页面 session/attachment、全快照重开、断开及独立处置。                                                                                                                                                                                                                                                                                                                                   |
 | `terminal-parity/LC-04-environment`                                                                              | [`src/main/composition/__tests__/resolveDesktopRuntimeConfiguration.unit.test.ts`](src/main/composition/__tests__/resolveDesktopRuntimeConfiguration.unit.test.ts) 覆盖每个平台分支和继承 locale 决策；精确 POSIX 有界面见证先为受监督 Host 提供冲突的环境 locale，再通过真实 Desktop → Host → PTY 路径观察导出的 UTF-8 `LANG`、有效字符集、`TERM`、`COLORTERM`、`TERM_PROGRAM` 及已移除的仅父进程颜色策略。macOS SSH 见证另行证明，仅当系统客户端被显式配置且回环服务器接受时，它才能转发该 `LANG`。这些有界见证不声明 Windows locale shell 或自动远端环境转发。 |
 | `terminal-parity/LC-06-metadata-bridge`                                                                          | 精确有界面 OSC 标题/当前目录见证、Workbench 元数据解析测试、Desktop 客户端会话测试及 [`formal/tla/DesktopTerminalMetadataDelivery.tla`](formal/tla/DesktopTerminalMetadataDelivery.tla) 执行帧关联、自然/自定义标题策略、后台交付、过时拒绝及新会话清理。                                                                                                                                                                                                                                                                                                         |
-| `terminal-parity/LC-08-browser-access`                                                                           | 精确有界面 LAN 工作流、`src/main/browser-access/__tests__`、Gateway/Server 集成测试及 [`formal/tla/DesktopLifecycle.tla`](formal/tla/DesktopLifecycle.tla) 的 `browser-access` 配置执行默认 loopback、显式 LAN 绑定、能力限制、启动失败清理和停止撤销。                                                                                                                                                                                                                                                                                                           |
+| `terminal-parity/LC-08-browser-access`                                                                           | 精确有界面 LAN 工作流、`src/main/browser-access/__tests__`、Gateway/Server 集成测试及 [`formal/tla/DesktopLifecycle.tla`](formal/tla/DesktopLifecycle.tla) 的 `browser-access` 配置执行默认 loopback、显式 LAN 绑定、个人访问令牌登录、刷新时 Cookie 保持、启动失败清理、未鉴权拒绝，以及停止访问或重置令牌时的 session 撤销。                                                                                                                                                                                                                                    |
 | `terminal-parity/LC-12-feature-failures`                                                                         | Desktop Host/Broker 错误测试、Gateway codec 测试、Workbench 客户端合约测试及投影渲染器/表面测试执行精确操作/关联标识、可重试性、传输保留、终端控制封闭和本地化用户后果。                                                                                                                                                                                                                                                                                                                                                                                          |
 
 重点跟踪范围包括：
@@ -289,7 +293,7 @@ Electron 或 Host 编译失败不会影响最后运行的进程。只有新二�
 pnpm desktop
 ```
 
-`pnpm desktop` 构建浏览器访问服务器、网关和静态 Web 资源，然后运行 Web 开发服务器和桌面拥有的本机/Electron 开发生命周期。 Electron 默认为 `http://127.0.0.1:3000/`；可以使用 `ORCHBEE_DESKTOP_RENDERER_URL` 选择显式环回 Web 服务器。打开 **设置 → 浏览器访问** 以启动环回访问或显式启用 trusted-LAN 预览。 Desktop 永远不会打印承载能力的 URL 或将其返回到渲染器状态；它的主进程执行复制链接和打开浏览器效果。设置 `ORCHBEE_DESKTOP_GATEWAY=0` 以从开发启动中删除浏览器访问资源。
+`pnpm desktop` 构建 Browser 访问 Server、Gateway 和静态 Web 资源，然后运行 Web 开发 Server 和 Desktop 拥有的 native/Electron 开发生命周期。Electron 默认为 `http://127.0.0.1:3000/`；可以使用 `ORCHBEE_DESKTOP_RENDERER_URL` 选择显式 loopback Web Server。打开 **设置 → 浏览器访问** 可以创建或重置个人访问令牌、启动 loopback 访问，或显式启用 trusted-LAN 预览。访问链接不含 credential；Desktop Main 执行复制链接与打开 Browser effect。设置 `ORCHBEE_DESKTOP_GATEWAY=0` 可从开发启动中移除 Browser 访问资源。
 
 使用以下命令构建未签名的当前平台应用程序包：
 

@@ -2,7 +2,7 @@
 	"name": "@orchbee/server",
 	"version": "0.1.0",
 	"private": true,
-	"description": "HTTP renderer server for loopback and explicit trusted-LAN Orchbee access",
+	"description": "Authenticated HTTP renderer server for loopback and trusted-LAN Orchbee access",
 	"type": "module",
 	"main": "./dist/main/server.cjs",
 	"scripts": {
@@ -16,6 +16,7 @@
 	"dependencies": {
 		"@fastify/static": "catalog:",
 		"@fastify/websocket": "catalog:",
+		"@orchbee/remote-client-protocol": "workspace:*",
 		"fastify": "catalog:",
 		"zod": "catalog:"
 	},

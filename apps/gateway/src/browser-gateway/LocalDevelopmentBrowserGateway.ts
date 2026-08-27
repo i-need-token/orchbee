@@ -26,6 +26,11 @@ import {
 	type GatewayUtilityEvent,
 } from '@orchbee/gateway-protocol';
 import {
+	readBrowserSessionCredential,
+	verifyBrowserSessionCredential,
+	type BrowserSessionSigningKey,
+} from '@orchbee/remote-client-protocol';
+import {
 	ProjectedTerminalCommandSchema,
 	ProjectedTerminalEventSchema,
 	TerminalProjectionControlEventSchema,
@@ -174,7 +179,6 @@ class GatewayAuthenticationDeadline {
 
 interface GatewayPageConnectionDependencies {
 	readonly authenticated: (socket: NodeWebSocket) => void;
-	readonly capability: GatewayCapability;
 	readonly createAttachmentSocketId: () => ReturnType<typeof GatewayAttachmentSocketIdSchema.parse>;
 	readonly deriveAttachmentCapability: (
 		socketId: ReturnType<typeof GatewayAttachmentSocketIdSchema.parse>,
@@ -203,7 +207,6 @@ interface PendingProjection {
 export class LocalDevelopmentBrowserGateway {
 	readonly #allowedOrigins = new Set<string>();
 	readonly #attachments = new Map<string, AttachmentRegistration>();
-	#capability: GatewayCapability | undefined;
 	#disposePromise: Promise<void> | undefined;
 	#disposed = false;
 	readonly #pages = new Map<GatewayClientConnectionId, GatewayPageConnection>();
@@ -212,6 +215,7 @@ export class LocalDevelopmentBrowserGateway {
 	readonly #createServer: (requestListener: RequestListener) => Server;
 	#server: Server | undefined;
 	#serverErrorListener: ((error: Error) => void) | undefined;
+	#sessionSigningKey: Buffer | undefined;
 	#socketHeartbeat: GatewaySocketHeartbeat | undefined;
 	#started = false;
 	#webSocketServer: WebSocketServer | undefined;
@@ -255,7 +259,7 @@ export class LocalDevelopmentBrowserGateway {
 					void this.dispose();
 					return;
 				}
-				void this.#startServer(command.bindHost, command.allowedOrigins, command.capability);
+				void this.#startServer(command.bindHost, command.allowedOrigins, command.sessionSigningKey);
 				return;
 			case 'gateway-client-opened': {
 				const page = this.#pages.get(command.connectionId);
@@ -291,7 +295,7 @@ export class LocalDevelopmentBrowserGateway {
 	async #startServer(
 		bindHost: GatewayBindHost,
 		allowedOrigins: readonly string[],
-		capability: GatewayCapability,
+		sessionSigningKey: BrowserSessionSigningKey,
 	): Promise<void> {
 		if (!isAllowedOriginConfiguration(bindHost, allowedOrigins)) {
 			this.#postParent({ code: 'invalid-configuration', type: 'gateway-failed' });
@@ -299,7 +303,7 @@ export class LocalDevelopmentBrowserGateway {
 			return;
 		}
 		for (const origin of allowedOrigins) this.#allowedOrigins.add(origin);
-		this.#capability = capability;
+		this.#sessionSigningKey = Buffer.from(sessionSigningKey, 'base64url');
 		const server = this.#createServer((_request, response) => {
 			response.statusCode = 404;
 			response.end();
@@ -318,7 +322,14 @@ export class LocalDevelopmentBrowserGateway {
 				!this.#allowedOrigins.has(request.headers.origin ?? '') ||
 				(pathname !== GATEWAY_CONTROL_PATH && pathname !== GATEWAY_ATTACHMENT_PATH)
 			) {
-				rejectUpgrade(socket);
+				rejectUpgrade(socket, 403);
+				return;
+			}
+			if (
+				pathname === GATEWAY_CONTROL_PATH &&
+				!isAuthenticatedBrowserSession(request.headers.cookie, this.#sessionSigningKey)
+			) {
+				rejectUpgrade(socket, 401);
 				return;
 			}
 			webSocketServer.handleUpgrade(request, socket, head, (webSocket) => {
@@ -358,8 +369,8 @@ export class LocalDevelopmentBrowserGateway {
 	}
 
 	#acceptControlSocket(socket: NodeWebSocket): void {
-		const capability = this.#capability;
-		if (capability === undefined || this.#disposed) {
+		const sessionSigningKey = this.#sessionSigningKey;
+		if (sessionSigningKey === undefined || this.#disposed) {
 			socket.close(1011, 'Gateway unavailable.');
 			return;
 		}
@@ -369,14 +380,13 @@ export class LocalDevelopmentBrowserGateway {
 		const page = new GatewayPageConnection(socket, connectionId, {
 			authenticated: (authenticatedSocket) =>
 				this.#socketHeartbeat?.authenticate(authenticatedSocket),
-			capability,
 			createAttachmentSocketId: () =>
 				GatewayAttachmentSocketIdSchema.parse(
 					`gateway:attachment:${randomBytes(16).toString('hex')}`,
 				),
 			deriveAttachmentCapability: (socketId) =>
 				GatewayCapabilitySchema.parse(
-					createHmac('sha256', capability).update(socketId).digest('base64url'),
+					createHmac('sha256', sessionSigningKey).update(socketId).digest('base64url'),
 				),
 			postParent: (event) => this.#postParent(event),
 			registerAttachment: (socketId, registration) => {
@@ -559,7 +569,7 @@ class GatewayPageConnection {
 				this.#rejectProtocol();
 				return;
 			}
-			const accepted = capabilitiesEqual(message.capability, this.#dependencies.capability);
+			const accepted = true;
 			this.#authenticationDeadline?.dispose();
 			this.#authenticationDeadline = undefined;
 			if (accepted) this.#dependencies.authenticated(this.#socket);
@@ -1075,8 +1085,28 @@ function requestPathname(value: string | undefined): string | null {
 	}
 }
 
-function rejectUpgrade(socket: Duplex): void {
-	socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n');
+function isAuthenticatedBrowserSession(
+	cookieHeader: string | undefined,
+	sessionSigningKey: Buffer | undefined,
+): boolean {
+	if (sessionSigningKey === undefined) return false;
+	const credential = readBrowserSessionCredential(cookieHeader);
+	if (credential === null) return false;
+	return verifyBrowserSessionCredential(credential, (payload, signature) => {
+		const expected = createHmac('sha256', sessionSigningKey)
+			.update(payload, 'utf8')
+			.digest('base64url');
+		const expectedBytes = Buffer.from(expected, 'ascii');
+		const candidate = Buffer.from(signature, 'ascii');
+		return (
+			candidate.byteLength === expectedBytes.byteLength && timingSafeEqual(candidate, expectedBytes)
+		);
+	});
+}
+
+function rejectUpgrade(socket: Duplex, statusCode: 401 | 403): void {
+	const reason = statusCode === 401 ? 'Unauthorized' : 'Forbidden';
+	socket.end(`HTTP/1.1 ${statusCode} ${reason}\r\nConnection: close\r\n\r\n`);
 }
 
 function listen(server: Server, host: GatewayBindHost): Promise<void> {

@@ -1,5 +1,7 @@
 export { enUSApplicationRoutingMessages } from './application-routing';
 export type { ApplicationRoutingMessageId } from './application-routing';
+export { enUSBrowserAuthenticationMessages } from './browser-authentication';
+export type { BrowserAuthenticationMessageId } from './browser-authentication';
 export { enUSDesktopApplicationLifetimeMessages } from './desktop-application-lifetime';
 export type { DesktopApplicationLifetimeMessageId } from './desktop-application-lifetime';
 export { enUSDesktopBrowserAccessMessages } from './desktop-browser-access';

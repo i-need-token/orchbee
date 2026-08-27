@@ -164,6 +164,9 @@ importers:
       '@orchbee/i18n':
         specifier: workspace:^
         version: link:../../packages/i18n
+      '@orchbee/remote-client-protocol':
+        specifier: workspace:^
+        version: link:../../packages/remote-client-protocol
       '@orchbee/terminal-protocol':
         specifier: workspace:^
         version: link:../../packages/terminal-protocol
@@ -207,6 +210,9 @@ importers:
       '@orchbee/gateway-protocol':
         specifier: workspace:^
         version: link:../../packages/gateway-protocol
+      '@orchbee/remote-client-protocol':
+        specifier: workspace:*
+        version: link:../../packages/remote-client-protocol
       '@orchbee/workbench':
         specifier: workspace:^
         version: link:../../packages/workbench
@@ -241,6 +247,9 @@ importers:
       '@fastify/websocket':
         specifier: 'catalog:'
         version: 11.3.0
+      '@orchbee/remote-client-protocol':
+        specifier: workspace:*
+        version: link:../../packages/remote-client-protocol
       fastify:
         specifier: 'catalog:'
         version: 5.11.3
@@ -345,6 +354,9 @@ importers:
       '@orchbee/keyboard-shortcuts':
         specifier: workspace:^
         version: link:../../packages/keyboard-shortcuts
+      '@orchbee/remote-client-protocol':
+        specifier: workspace:*
+        version: link:../../packages/remote-client-protocol
       '@orchbee/tab-strip':
         specifier: workspace:^
         version: link:../../packages/tab-strip
@@ -439,6 +451,9 @@ importers:
 
   packages/desktop-client-protocol:
     dependencies:
+      '@orchbee/remote-client-protocol':
+        specifier: workspace:^
+        version: link:../remote-client-protocol
       '@orchbee/terminal-protocol':
         specifier: workspace:^
         version: link:../terminal-protocol
@@ -485,6 +500,9 @@ importers:
 
   packages/gateway-protocol:
     dependencies:
+      '@orchbee/remote-client-protocol':
+        specifier: workspace:^
+        version: link:../remote-client-protocol
       '@orchbee/terminal-protocol':
         specifier: workspace:^
         version: link:../terminal-protocol
@@ -534,6 +552,19 @@ importers:
         version: 4.1.10(@types/node@26.1.1)(jsdom@29.1.1)(vite@8.1.4(@types/node@26.1.1)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(yaml@2.9.0))
 
   packages/keyboard-shortcuts:
+    devDependencies:
+      '@rslib/core':
+        specifier: 'catalog:'
+        version: 0.23.2(typescript@7.0.2)
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.10(@types/node@26.1.1)(jsdom@29.1.1)(vite@8.1.4(@types/node@26.1.1)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(yaml@2.9.0))
+
+  packages/remote-client-protocol:
+    dependencies:
+      zod:
+        specifier: 'catalog:'
+        version: 4.4.3
     devDependencies:
       '@rslib/core':
         specifier: 'catalog:'

@@ -1,10 +1,19 @@
+import { randomBytes } from 'node:crypto';
 import { networkInterfaces, type NetworkInterfaceInfo } from 'node:os';
 
 import {
 	type DesktopBrowserAccessFailureCode,
 	type DesktopBrowserAccessMode,
+	type DesktopBrowserAccessSnapshot,
 	type DesktopBrowserAccessState,
 } from '@orchbee/desktop-client-protocol';
+import { decodeGatewayBrowserSearch } from '@orchbee/gateway-protocol';
+import {
+	BrowserSessionSigningKeySchema,
+	type BrowserSessionSigningKey,
+	type PersonalAccessToken,
+	type PersonalAccessTokenVerifier,
+} from '@orchbee/remote-client-protocol';
 import { clipboard, shell } from 'electron';
 
 import {
@@ -12,6 +21,8 @@ import {
 	type DesktopGatewayClientHandle,
 	type LocalDevelopmentGatewayRuntimeOptions,
 } from '../gateway';
+import { DesktopPersonalAccessTokenController } from './DesktopPersonalAccessTokenController';
+import { FileDesktopPersonalAccessTokenStore } from './FileDesktopPersonalAccessTokenStore';
 import { LocalBrowserRendererServerRuntime } from './LocalBrowserRendererServerRuntime';
 import { resolveDesktopBrowserAccessEndpoints } from './resolveDesktopBrowserAccessEndpoints';
 
@@ -32,16 +43,22 @@ interface DesktopBrowserAccessGatewayHandle {
 
 export interface DesktopBrowserAccessRuntimeOptions {
 	readonly gatewayEntryPath: string;
+	readonly personalAccessTokenStorePath: string;
 	readonly rendererRoot: string;
 	readonly serverEntryPath: string;
 }
 
 interface DesktopBrowserAccessRuntimeDependencies {
+	readonly createSessionSigningKey: () => BrowserSessionSigningKey;
 	readonly createGateway: (
 		options: LocalDevelopmentGatewayRuntimeOptions,
 		openClient: () => Promise<DesktopGatewayClientHandle>,
 	) => DesktopBrowserAccessGatewayHandle;
 	readonly createServer: (options: {
+		readonly authentication: {
+			readonly personalAccessTokenVerifier: PersonalAccessTokenVerifier;
+			readonly sessionSigningKey: BrowserSessionSigningKey;
+		};
 		readonly bindHost: '0.0.0.0' | '127.0.0.1';
 		readonly entryPath: string;
 		readonly rendererRoot: string;
@@ -51,7 +68,16 @@ interface DesktopBrowserAccessRuntimeDependencies {
 	>;
 	readonly openClient: () => Promise<DesktopGatewayClientHandle>;
 	readonly openExternal: (url: string) => Promise<void>;
+	readonly personalAccessTokenController: Pick<
+		DesktopPersonalAccessTokenController,
+		'getStatus' | 'getVerifier' | 'initialize' | 'issue'
+	>;
 	readonly writeClipboardText: (text: string) => void;
+}
+
+export interface DesktopPersonalAccessTokenIssueResult {
+	readonly personalAccessToken: PersonalAccessToken;
+	readonly snapshot: DesktopBrowserAccessSnapshot;
 }
 
 class DesktopBrowserAccessError extends Error {
@@ -77,6 +103,8 @@ export class DesktopBrowserAccessRuntime {
 	#disposeRequested = false;
 	readonly #options: DesktopBrowserAccessRuntimeOptions;
 	#operationTail = Promise.resolve();
+	#personalAccessTokenAvailable = false;
+	#personalAccessTokenInitialized = false;
 	#ready: ReadyBrowserAccess | undefined;
 	#state: DesktopBrowserAccessState = { phase: 'stopped' };
 
@@ -86,35 +114,65 @@ export class DesktopBrowserAccessRuntime {
 			Pick<DesktopBrowserAccessRuntimeDependencies, 'openClient'>,
 	) {
 		this.#options = options;
+		const personalAccessTokenController =
+			dependencies.personalAccessTokenController ??
+			new DesktopPersonalAccessTokenController(
+				new FileDesktopPersonalAccessTokenStore(options.personalAccessTokenStorePath),
+			);
 		this.#dependencies = {
+			createSessionSigningKey: () =>
+				BrowserSessionSigningKeySchema.parse(randomBytes(32).toString('base64url')),
 			createGateway: (gatewayOptions, openClient) =>
 				new LocalDevelopmentGatewayRuntime(gatewayOptions, { openClient }),
 			createServer: (serverOptions) => new LocalBrowserRendererServerRuntime(serverOptions),
 			getNetworkInterfaces: networkInterfaces,
 			openExternal: (url) => shell.openExternal(url),
+			personalAccessTokenController,
 			writeClipboardText: (text) => clipboard.writeText(text),
 			...dependencies,
 		};
 	}
 
-	getSnapshot(): DesktopBrowserAccessState {
-		return this.#state;
-	}
-
-	start(mode: DesktopBrowserAccessMode): Promise<DesktopBrowserAccessState> {
-		if (this.#disposeRequested) return Promise.reject(quiescingError());
-		return this.#enqueue(() => this.#start(mode));
-	}
-
-	stop(): Promise<DesktopBrowserAccessState> {
+	initialize(): Promise<DesktopBrowserAccessSnapshot> {
 		if (this.#disposeRequested) return Promise.reject(quiescingError());
 		return this.#enqueue(async () => {
-			await this.#stopReady();
-			return this.#state;
+			try {
+				await this.#ensurePersonalAccessTokenInitialized();
+			} catch (error: unknown) {
+				if (!(error instanceof DesktopBrowserAccessError)) throw error;
+				if (error.code !== 'personal-access-token-store-unavailable') throw error;
+			}
+			return this.getSnapshot();
 		});
 	}
 
-	openLocalBrowser(): Promise<DesktopBrowserAccessState> {
+	getSnapshot(): DesktopBrowserAccessSnapshot {
+		return {
+			access: this.#state,
+			personalAccessToken: this.#personalAccessTokenAvailable
+				? this.#dependencies.personalAccessTokenController.getStatus()
+				: 'unavailable',
+		};
+	}
+
+	start(mode: DesktopBrowserAccessMode): Promise<DesktopBrowserAccessSnapshot> {
+		if (this.#disposeRequested) return Promise.reject(quiescingError());
+		return this.#enqueue(async () => {
+			await this.#ensurePersonalAccessTokenInitialized();
+			await this.#start(mode);
+			return this.getSnapshot();
+		});
+	}
+
+	stop(): Promise<DesktopBrowserAccessSnapshot> {
+		if (this.#disposeRequested) return Promise.reject(quiescingError());
+		return this.#enqueue(async () => {
+			await this.#stopReady();
+			return this.getSnapshot();
+		});
+	}
+
+	openLocalBrowser(): Promise<DesktopBrowserAccessSnapshot> {
 		if (this.#disposeRequested) return Promise.reject(quiescingError());
 		return this.#enqueue(async () => {
 			const ready = this.#requireReady();
@@ -129,11 +187,11 @@ export class DesktopBrowserAccessRuntime {
 					{ cause: error },
 				);
 			}
-			return this.#state;
+			return this.getSnapshot();
 		});
 	}
 
-	copyAccessLink(origin: string): Promise<DesktopBrowserAccessState> {
+	copyAccessLink(origin: string): Promise<DesktopBrowserAccessSnapshot> {
 		if (this.#disposeRequested) return Promise.reject(quiescingError());
 		return this.#enqueue(async () => {
 			const ready = this.#requireReady();
@@ -148,7 +206,23 @@ export class DesktopBrowserAccessRuntime {
 					{ cause: error },
 				);
 			}
-			return this.#state;
+			return this.getSnapshot();
+		});
+	}
+
+	issuePersonalAccessToken(): Promise<DesktopPersonalAccessTokenIssueResult> {
+		if (this.#disposeRequested) return Promise.reject(quiescingError());
+		return this.#enqueue(async () => {
+			await this.#ensurePersonalAccessTokenInitialized();
+			this.#requirePersonalAccessTokenAvailable();
+			await this.#stopReady();
+			let personalAccessToken: PersonalAccessToken;
+			try {
+				personalAccessToken = await this.#dependencies.personalAccessTokenController.issue();
+			} catch (error: unknown) {
+				throw personalAccessTokenStoreError(error);
+			}
+			return { personalAccessToken, snapshot: this.getSnapshot() };
 		});
 	}
 
@@ -163,6 +237,7 @@ export class DesktopBrowserAccessRuntime {
 
 	async #start(mode: DesktopBrowserAccessMode): Promise<DesktopBrowserAccessState> {
 		if (this.#disposeRequested) throw quiescingError();
+		const personalAccessTokenVerifier = this.#requirePersonalAccessTokenVerifier();
 		const current = this.#ready;
 		if (
 			current !== undefined &&
@@ -186,7 +261,9 @@ export class DesktopBrowserAccessRuntime {
 		let gateway: DesktopBrowserAccessGatewayHandle | undefined;
 		let stage: 'gateway' | 'server' = 'server';
 		try {
+			const sessionSigningKey = this.#dependencies.createSessionSigningKey();
 			server = this.#dependencies.createServer({
+				authentication: { personalAccessTokenVerifier, sessionSigningKey },
 				bindHost: provisionalBindHost,
 				entryPath: this.#options.serverEntryPath,
 				rendererRoot: this.#options.rendererRoot,
@@ -206,6 +283,7 @@ export class DesktopBrowserAccessRuntime {
 					bindHost: endpoints.bindHost,
 					entryPath: this.#options.gatewayEntryPath,
 					rendererOrigins: origins,
+					sessionSigningKey,
 				},
 				this.#dependencies.openClient,
 			);
@@ -245,6 +323,37 @@ export class DesktopBrowserAccessRuntime {
 				{ cause: failures.length === 0 ? error : new AggregateError([error, ...failures]) },
 			);
 		}
+	}
+
+	async #ensurePersonalAccessTokenInitialized(): Promise<void> {
+		if (this.#personalAccessTokenInitialized) {
+			this.#requirePersonalAccessTokenAvailable();
+			return;
+		}
+		this.#personalAccessTokenInitialized = true;
+		try {
+			await this.#dependencies.personalAccessTokenController.initialize();
+			this.#personalAccessTokenAvailable = true;
+		} catch (error: unknown) {
+			this.#personalAccessTokenAvailable = false;
+			throw personalAccessTokenStoreError(error);
+		}
+	}
+
+	#requirePersonalAccessTokenAvailable(): void {
+		if (!this.#personalAccessTokenAvailable) throw personalAccessTokenStoreError();
+	}
+
+	#requirePersonalAccessTokenVerifier(): PersonalAccessTokenVerifier {
+		this.#requirePersonalAccessTokenAvailable();
+		const verifier = this.#dependencies.personalAccessTokenController.getVerifier();
+		if (verifier === null) {
+			throw new DesktopBrowserAccessError(
+				'personal-access-token-required',
+				'Browser access requires a configured Personal Access Token.',
+			);
+		}
+		return verifier;
 	}
 
 	async #stopReady(): Promise<void> {
@@ -307,7 +416,13 @@ function validateBrowserLinks(
 			throw new Error('The Gateway returned an unexpected Browser Origin.');
 		}
 		const url = new URL(link.url);
-		if (url.origin !== link.origin || url.hash.length <= 1) {
+		if (
+			url.origin !== link.origin ||
+			url.hash !== '' ||
+			new URLSearchParams(url.search).getAll('orchbee-runtime').length !== 1 ||
+			new URLSearchParams(url.search).get('orchbee-runtime') !== 'gateway' ||
+			decodeGatewayBrowserSearch(url.search) === null
+		) {
 			throw new Error('The Gateway returned an invalid Browser access link.');
 		}
 		result.set(link.origin, link.url);
@@ -332,4 +447,12 @@ function mapNetworkError(error: unknown): DesktopBrowserAccessError {
 
 function quiescingError(): DesktopBrowserAccessError {
 	return new DesktopBrowserAccessError('desktop-quiescing', 'Desktop Browser access is quiescing.');
+}
+
+function personalAccessTokenStoreError(cause?: unknown): DesktopBrowserAccessError {
+	return new DesktopBrowserAccessError(
+		'personal-access-token-store-unavailable',
+		'The Personal Access Token verifier store is unavailable.',
+		cause === undefined ? undefined : { cause },
+	);
 }

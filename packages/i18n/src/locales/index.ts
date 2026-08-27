@@ -1,5 +1,6 @@
 export {
 	enUSApplicationRoutingMessages,
+	enUSBrowserAuthenticationMessages,
 	enUSDesktopApplicationLifetimeMessages,
 	enUSDesktopBrowserAccessMessages,
 	enUSDesktopSecureKeyboardEntryMessages,
@@ -13,6 +14,7 @@ export {
 } from './en-US';
 export type {
 	ApplicationRoutingMessageId,
+	BrowserAuthenticationMessageId,
 	DesktopApplicationLifetimeMessageId,
 	DesktopBrowserAccessMessageId,
 	DesktopSecureKeyboardEntryMessageId,
@@ -26,6 +28,7 @@ export type {
 } from './en-US';
 export {
 	zhCNApplicationRoutingMessages,
+	zhCNBrowserAuthenticationMessages,
 	zhCNDesktopApplicationLifetimeMessages,
 	zhCNDesktopBrowserAccessMessages,
 	zhCNDesktopSecureKeyboardEntryMessages,

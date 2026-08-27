@@ -2,7 +2,7 @@
 
 | 字段     | 内容                                                                                                      |
 | -------- | --------------------------------------------------------------------------------------------------------- |
-| 状态     | 产品方向、Server 命名与初始入口基础已接受；信任模型与远程执行契约仍是保留决策                             |
+| 状态     | 产品方向、初始入口与有界的个人访问令牌换 Cookie 预览已接受并交付；生产信任模型与远程执行契约仍是保留决策  |
 | Owner    | 产品架构、Desktop 服务、网络入口与未来 capability-node 维护者                                             |
 | 当前权威 | [`docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md) 以及 Desktop、Gateway、Web、Terminal Host 的所属指南 |
 | 退出条件 | 接受并实现边界清晰的 owner-specific 切片，把维护事实迁入所属指南和测试，然后删除本提案                    |
@@ -30,20 +30,21 @@
 workspace 使用 `apps/server`，package identity 使用 `@orchbee/server`。`Server` 表示完整的产品后端
 进程，但不会把网络入口、鉴权、协调、设备 identity、调度和执行混成一个没有内部边界的模块。
 
-两个未来协议边界的名字已经接受，但不得先创建空 package：
+两个协议边界的名字已经接受，并且只能随具体 consumer 创建：
 
-| Package                             | 创建时机与职责                                                                                                                                                                    |
-| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `packages/remote-client-protocol`   | 在已接受的外部 Browser/手机端访问切片中创建。拥有网络鉴权/session 建立、transport framing、协商、限制和错误；复用而不重新定义 `@orchbee/workbench-client-protocol` 的语义。       |
-| `packages/capability-node-protocol` | 在第一个已接受的具体远程 capability 中创建。拥有 node 登记和 identity 交换、capability/版本声明、lease、heartbeat、progress、result、failure、cancellation、fencing、限制与错误。 |
+| Package                             | 创建时机与职责                                                                                                                                                                  |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/remote-client-protocol`   | 已由接受的人类 Browser 鉴权切片创建。当前负责个人访问令牌交换与签名 Cookie session 建立契约；更广泛的生产 transport、协商与授权仍为保留决策。                                   |
+| `packages/capability-node-protocol` | 随第一个已接受的具体远程 capability 创建。负责 node 登记与 identity 交换、capability/版本声明、lease、heartbeat、progress、result、failure、cancellation、fencing、限制与错误。 |
 
 两个协议必须分开，因为人类产品客户端与 capability node 具有不同的 identity、credential、authority、撤销范围和
 兼容性生命周期。两个 package 都不是 Server 实现，不拥有产品 state，也不能授予通用远程 shell。
 
 当前 `apps/gateway` 与 `@orchbee/gateway-protocol` 继续明确作为仅限预览的 Browser transport，直到
-生产 external-client 切片迁移或淘汰它们。它们可以绑定 loopback 或用户明确选择的可信局域网接口，依赖
-process-lifetime URL capability，并且只使用 `apps/server` 交付 renderer。它们不得改名为 `server`，也
-不得被视为生产 external-client 契约。生产迁移不能长期维护两套相互竞争的外部客户端网络契约。
+生产 external-client 切片迁移或淘汰它们。它们可以绑定 loopback 或用户明确选择的 trusted-LAN interface。
+`apps/server` 使用个人访问令牌换取签名 session Cookie，Gateway 使用同一个 session 准入 exact-Origin
+control connection；访问 URL 不含 credential。它们不得改名为 `server`，也不得被视为生产
+external-client 契约。生产迁移不能长期维护两套相互竞争的外部客户端网络契约。
 
 ## 已接受的初始入口基础
 
@@ -55,17 +56,18 @@ process-lifetime URL capability，并且只使用 `apps/server` 交付 renderer�
 | `/api/*`      | 应用 HTTP API namespace，初始版本位于 `/api/v1`；未实现的 endpoint 返回 JSON，绝不返回 renderer HTML |
 | `/ws/*`       | 应用 WebSocket namespace，初始版本位于 `/ws/v1`；普通 HTTP 请求或未知 Upgrade fail closed            |
 | `/static/*`   | 不可变 renderer asset；缺失 asset 返回 `404`，绝不落入 Browser Router fallback                       |
-| 其他产品 path | 对 `GET` 与 `HEAD` HTML navigation 返回 renderer entry，再由 Browser Router 解析 URL                 |
+| 其他产品 path | 已鉴权的 `GET` 与 `HEAD` HTML navigation 返回 renderer entry；未鉴权 navigation 重定向到 `/login`    |
 
 Fastify 拥有 HTTP lifecycle、路由与 plugin composition。其官方 WebSocket 和 static plugin 分别处理
-Upgrade 与 renderer 交付；应用 schema 继续在各自信任边界由 Zod 拥有。这个基础刻意不定义外部 API 或
-WebSocket message contract，因此不会触发任何未来协议 package。
+Upgrade 与 renderer 交付；应用 schema 继续在各自信任边界由 Zod 拥有。初始基础不定义外部 API 或
+WebSocket message contract。后续有界的人类 Browser 鉴权切片创建了
+`@orchbee/remote-client-protocol`，但没有创建通用产品 API。
 
-loopback 仍是独立 Server 的默认值。已接受的 Desktop 所属可信局域网预览是唯一的生产前例外：用户必须
-在界面中明确操作，Server 与 Gateway 才绑定 `0.0.0.0`；产品只发布枚举得到的 RFC 1918 IPv4 Origin；
-每个精确 Origin 的 Gateway 连接都由 process-lifetime capability 鉴权；界面明确警告 HTTP 未加密且持有
-链接即可完整控制终端；停止、切换模式或退出进程都会撤销访问。这个例外不是下文的生产人类访问设计，也不
-预留 token、Cookie、TLS、发现或 Internet 行为。单独启动 Server entry 不等于启用共享。
+loopback 仍是独立 Server 的默认值。已接受的 Desktop 所属 trusted-LAN 预览是唯一的生产前例外：用户必须
+在 UI 中明确操作，Server 与 Gateway 才绑定 `0.0.0.0`；产品只发布枚举得到的 RFC 1918 IPv4 Origin；
+系统要求交换个人访问令牌，并使用得到的签名 Cookie 准入每个 exact-Origin Gateway control connection；
+UI 明确警告 HTTP 可能暴露 credential 与终端流量；停止、切换模式、重置令牌或退出进程都会撤销 session。
+这个例外不是生产 Internet 部署或多用户账号设计。单独启动 Server entry 不等于启用共享。
 
 ## 人类用户的 Web 访问方向
 
@@ -74,9 +76,14 @@ loopback 仍是独立 Server 的默认值。已接受的 Desktop 所属可信局
 session capability 绝不能出现在被分享的 query string 或 fragment 中。
 
 未鉴权的 Browser 请求保留其原本要访问的产品 path，同时进入登录流程。用户输入单独签发的 access token；
-交换成功后，系统创建有界且可撤销的人类 session，通过范围适当的 Cookie 表示，然后恢复原目标路由。
-Cookie 属性、TLS 要求、token 签发与轮换、防暴力破解、session 时长和账户恢复仍是保留的安全决策。这个人类
-登录流程绝不能登记 capability node，也不能授予设备 credential。
+交换成功后，系统创建有界且可撤销的人类 session，通过范围适当的 Cookie 表示，然后恢复原目标路由。这个
+人类登录流程绝不能登记 capability node，也不能授予设备 credential。
+
+已交付预览使用一个安装范围的 256 位个人访问令牌，只持久化其 verifier，只在创建或重置后展示明文，并在
+内存中按来源限制失败尝试后交换令牌。Session Cookie 包含签名随机 identity，使用 `HttpOnly`、
+`SameSite=Strict`、`Path=/`，并持续到 Browser session 结束。每次 Browser 访问 activation 使用新签名密钥；
+停止、切换模式、重置和退出都会使之前的 session 失效。令牌交换与 Gateway control 准入都要求精确 Origin。
+TLS 要求、生产 session duration 与 revocation storage、多用户授权和账号恢复仍为保留决策。
 
 ## 候选职责拆分
 
@@ -165,15 +172,15 @@ LAN 发现、Internet relay、NAT 穿透、公共 DNS 与云端 rendezvous 是�
 - 客户端、coordinator 与 node 的离线行为；
 - 服务安装、自动启动、更新连续性、备份与卸载行为。
 
-在一个边界清晰的切片拥有具体 consumer 和已接受 contract 之前，不得创建空的
-`remote-client-protocol` 或 `capability-node-protocol` workspace，也不得把
-`@orchbee/gateway-protocol` 扩展成生产契约。已经接受的 Server 入口基础是创建 `apps/server` 的具体
-触发条件，但不授权创建任何上述协议契约。
+在另一个边界清晰的切片拥有具体 consumer 和已接受 contract 之前，不得创建空的
+`capability-node-protocol` workspace，不得把 `@orchbee/remote-client-protocol` 扩展到已接受的人类
+Browser 鉴权契约之外，也不得把 `@orchbee/gateway-protocol` 扩展成生产契约。已交付的 Server 与 Browser
+鉴权切片不授权 capability-node 或生产远程执行协议。
 
 ## 交付顺序
 
-1. 建立默认绑定 loopback 的 Orchbee Server 入口基础，以及上文单独明确启用、随进程生存的可信局域网预览。
-2. 把 opt-in Web 入口和人类 token-to-Cookie 鉴权作为一个边界清晰的切片实现。
+1. 已交付：建立默认绑定 loopback 的 Orchbee Server 入口基础，以及上文单独明确启用的 trusted-LAN 预览。
+2. 已交付：把 opt-in Web 入口和人类个人访问令牌换 Cookie 鉴权作为一个边界清晰的切片实现。
 3. 实现设备登记与只读 typed capability inventory，不执行远程工作。
 4. 选择一个具体 compute capability，并建模它的 lease、取消、失败、数据与 fencing 语义。
 5. 在引入第二种 capability 之前，为第一种 capability 的调度和远程执行提供 deterministic、

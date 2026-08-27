@@ -1,15 +1,18 @@
 import {
 	DesktopBrowserAccessFailureCodeSchema,
-	DesktopBrowserAccessStateSchema,
+	DesktopBrowserAccessSnapshotSchema,
 	type DesktopBrowserAccessFailureCode,
 	type DesktopBrowserAccessMode,
-	type DesktopBrowserAccessState,
+	type DesktopBrowserAccessSnapshot,
 } from '@orchbee/desktop-client-protocol';
+import type { PersonalAccessToken } from '@orchbee/remote-client-protocol';
 
 import type { DesktopBrowserAccessClientPort } from './DesktopBrowserAccessClient';
 
 export type DesktopBrowserAccessPendingAction =
 	| 'copy-link'
+	| 'copy-personal-access-token'
+	| 'issue-personal-access-token'
 	| 'open-browser'
 	| 'refresh'
 	| 'start-local-network'
@@ -18,21 +21,28 @@ export type DesktopBrowserAccessPendingAction =
 
 export interface DesktopBrowserAccessDialogState {
 	readonly copiedOrigin: string | null;
+	readonly copiedPersonalAccessToken: boolean;
 	readonly error: DesktopBrowserAccessFailureCode | null;
+	readonly issuedPersonalAccessToken: PersonalAccessToken | null;
 	readonly open: boolean;
 	readonly pendingAction: DesktopBrowserAccessPendingAction | null;
-	readonly runtime: DesktopBrowserAccessState;
+	readonly resetConfirmationOpen: boolean;
+	readonly snapshot: DesktopBrowserAccessSnapshot;
 }
 
 type Listener = () => void;
 
 export interface DesktopBrowserAccessDialogController {
 	close(): void;
+	cancelPersonalAccessTokenReset(): void;
+	confirmPersonalAccessTokenReset(): void;
 	copyAccessLink(origin: string): void;
+	copyPersonalAccessToken(): void;
 	dispose(): void;
 	getSnapshot(): DesktopBrowserAccessDialogState;
 	open(): void;
 	openLocalBrowser(): void;
+	requestPersonalAccessTokenIssue(): void;
 	start(mode: DesktopBrowserAccessMode): void;
 	stop(): void;
 	subscribe(listener: Listener): () => void;
@@ -43,16 +53,24 @@ export class DesktopBrowserAccessController implements DesktopBrowserAccessDialo
 	#disposed = false;
 	readonly #listeners = new Set<Listener>();
 	#operationGeneration = 0;
+	readonly #writeClipboardText: (text: string) => Promise<void>;
 	#state: DesktopBrowserAccessDialogState = {
 		copiedOrigin: null,
+		copiedPersonalAccessToken: false,
 		error: null,
+		issuedPersonalAccessToken: null,
 		open: false,
 		pendingAction: null,
-		runtime: { phase: 'stopped' },
+		resetConfirmationOpen: false,
+		snapshot: { access: { phase: 'stopped' }, personalAccessToken: 'missing' },
 	};
 
-	constructor(client: DesktopBrowserAccessClientPort) {
+	constructor(
+		client: DesktopBrowserAccessClientPort,
+		writeClipboardText: (text: string) => Promise<void> = () => Promise.reject(new Error()),
+	) {
 		this.#client = client;
+		this.#writeClipboardText = writeClipboardText;
 	}
 
 	getSnapshot = (): DesktopBrowserAccessDialogState => this.#state;
@@ -65,13 +83,28 @@ export class DesktopBrowserAccessController implements DesktopBrowserAccessDialo
 
 	open(): void {
 		if (this.#disposed) return;
-		this.#setState({ ...this.#state, error: null, open: true });
+		this.#setState({
+			...this.#state,
+			copiedPersonalAccessToken: false,
+			error: null,
+			issuedPersonalAccessToken: null,
+			open: true,
+			resetConfirmationOpen: false,
+		});
 		void this.#run('refresh', () => this.#client.getState());
 	}
 
 	close(): void {
 		if (this.#disposed) return;
-		this.#setState({ ...this.#state, copiedOrigin: null, error: null, open: false });
+		this.#setState({
+			...this.#state,
+			copiedOrigin: null,
+			copiedPersonalAccessToken: false,
+			error: null,
+			issuedPersonalAccessToken: null,
+			open: false,
+			resetConfirmationOpen: false,
+		});
 	}
 
 	start(mode: DesktopBrowserAccessMode): void {
@@ -82,17 +115,73 @@ export class DesktopBrowserAccessController implements DesktopBrowserAccessDialo
 
 	openLocalBrowser(): void {
 		void this.#run('open-browser', async () => {
-			if (this.#state.runtime.phase !== 'ready') await this.#client.start('loopback');
+			if (this.#state.snapshot.access.phase !== 'ready') await this.#client.start('loopback');
 			return this.#client.openLocalBrowser();
 		});
 	}
 
 	copyAccessLink(origin: string): void {
 		void this.#run('copy-link', async () => {
-			const state = await this.#client.copyAccessLink(origin);
-			this.#setState({ ...this.#state, copiedOrigin: origin, runtime: state });
-			return state;
+			const snapshot = await this.#client.copyAccessLink(origin);
+			this.#setState({ ...this.#state, copiedOrigin: origin, snapshot });
+			return snapshot;
 		});
+	}
+
+	requestPersonalAccessTokenIssue(): void {
+		if (this.#disposed || this.#state.pendingAction !== null) return;
+		if (this.#state.snapshot.personalAccessToken === 'configured') {
+			this.#setState({ ...this.#state, resetConfirmationOpen: true });
+			return;
+		}
+		void this.#issuePersonalAccessToken();
+	}
+
+	cancelPersonalAccessTokenReset(): void {
+		if (this.#disposed || this.#state.pendingAction !== null) return;
+		this.#setState({ ...this.#state, resetConfirmationOpen: false });
+	}
+
+	confirmPersonalAccessTokenReset(): void {
+		if (
+			this.#disposed ||
+			this.#state.pendingAction !== null ||
+			!this.#state.resetConfirmationOpen
+		) {
+			return;
+		}
+		this.#setState({ ...this.#state, resetConfirmationOpen: false });
+		void this.#issuePersonalAccessToken();
+	}
+
+	copyPersonalAccessToken(): void {
+		const token = this.#state.issuedPersonalAccessToken;
+		if (this.#disposed || this.#state.pendingAction !== null || token === null) return;
+		const generation = ++this.#operationGeneration;
+		this.#setState({
+			...this.#state,
+			copiedPersonalAccessToken: false,
+			error: null,
+			pendingAction: 'copy-personal-access-token',
+		});
+		void this.#writeClipboardText(token).then(
+			() => {
+				if (this.#disposed || generation !== this.#operationGeneration) return;
+				this.#setState({
+					...this.#state,
+					copiedPersonalAccessToken: true,
+					pendingAction: null,
+				});
+			},
+			() => {
+				if (this.#disposed || generation !== this.#operationGeneration) return;
+				this.#setState({
+					...this.#state,
+					error: 'clipboard-write-failed',
+					pendingAction: null,
+				});
+			},
+		);
 	}
 
 	stop(): void {
@@ -103,34 +192,75 @@ export class DesktopBrowserAccessController implements DesktopBrowserAccessDialo
 		if (this.#disposed) return;
 		this.#disposed = true;
 		this.#operationGeneration += 1;
+		this.#state = {
+			...this.#state,
+			copiedPersonalAccessToken: false,
+			issuedPersonalAccessToken: null,
+			open: false,
+			pendingAction: null,
+			resetConfirmationOpen: false,
+		};
 		this.#listeners.clear();
 		this.#client.dispose();
 	}
 
 	async #run(
 		action: DesktopBrowserAccessPendingAction,
-		operation: () => Promise<DesktopBrowserAccessState>,
+		operation: () => Promise<DesktopBrowserAccessSnapshot>,
 	): Promise<void> {
 		if (this.#disposed || this.#state.pendingAction !== null) return;
 		const generation = ++this.#operationGeneration;
 		this.#setState({
 			...this.#state,
 			copiedOrigin: action === 'copy-link' ? this.#state.copiedOrigin : null,
+			copiedPersonalAccessToken: false,
 			error: null,
 			pendingAction: action,
 		});
 		try {
-			const runtime = await operation();
+			const snapshot = await operation();
 			if (this.#disposed || generation !== this.#operationGeneration) return;
-			this.#setState({ ...this.#state, pendingAction: null, runtime });
+			this.#setState({ ...this.#state, pendingAction: null, snapshot });
 		} catch (error: unknown) {
 			if (this.#disposed || generation !== this.#operationGeneration) return;
-			const clientError = parseClientError(error, this.#state.runtime);
+			const clientError = parseClientError(error, this.#state.snapshot);
 			this.#setState({
 				...this.#state,
 				error: clientError.code,
 				pendingAction: null,
-				runtime: clientError.state,
+				snapshot: clientError.snapshot,
+			});
+		}
+	}
+
+	async #issuePersonalAccessToken(): Promise<void> {
+		if (this.#disposed || this.#state.pendingAction !== null) return;
+		const generation = ++this.#operationGeneration;
+		this.#setState({
+			...this.#state,
+			copiedOrigin: null,
+			copiedPersonalAccessToken: false,
+			error: null,
+			issuedPersonalAccessToken: null,
+			pendingAction: 'issue-personal-access-token',
+		});
+		try {
+			const result = await this.#client.issuePersonalAccessToken();
+			if (this.#disposed || generation !== this.#operationGeneration) return;
+			this.#setState({
+				...this.#state,
+				issuedPersonalAccessToken: result.personalAccessToken,
+				pendingAction: null,
+				snapshot: result.snapshot,
+			});
+		} catch (error: unknown) {
+			if (this.#disposed || generation !== this.#operationGeneration) return;
+			const clientError = parseClientError(error, this.#state.snapshot);
+			this.#setState({
+				...this.#state,
+				error: clientError.code,
+				pendingAction: null,
+				snapshot: clientError.snapshot,
 			});
 		}
 	}
@@ -143,19 +273,22 @@ export class DesktopBrowserAccessController implements DesktopBrowserAccessDialo
 
 function parseClientError(
 	error: unknown,
-	fallbackState: DesktopBrowserAccessState,
-): { readonly code: DesktopBrowserAccessFailureCode; readonly state: DesktopBrowserAccessState } {
+	fallbackSnapshot: DesktopBrowserAccessSnapshot,
+): {
+	readonly code: DesktopBrowserAccessFailureCode;
+	readonly snapshot: DesktopBrowserAccessSnapshot;
+} {
 	if (typeof error !== 'object' || error === null) {
-		return { code: 'gateway-unavailable', state: fallbackState };
+		return { code: 'gateway-unavailable', snapshot: fallbackSnapshot };
 	}
 	const code = DesktopBrowserAccessFailureCodeSchema.safeParse(
 		'code' in error ? error.code : undefined,
 	);
-	const state = DesktopBrowserAccessStateSchema.safeParse(
-		'state' in error ? error.state : undefined,
+	const snapshot = DesktopBrowserAccessSnapshotSchema.safeParse(
+		'snapshot' in error ? error.snapshot : undefined,
 	);
 	return {
 		code: code.success ? code.data : 'gateway-unavailable',
-		state: state.success ? state.data : fallbackState,
+		snapshot: snapshot.success ? snapshot.data : fallbackSnapshot,
 	};
 }

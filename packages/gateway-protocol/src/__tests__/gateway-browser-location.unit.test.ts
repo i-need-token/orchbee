@@ -1,30 +1,28 @@
 import { GatewayBrowserConnectionSchema } from '../gateway-control-contract';
 import {
-	decodeGatewayBrowserFragment,
-	encodeGatewayBrowserFragment,
+	decodeGatewayBrowserSearch,
+	encodeGatewayBrowserSearch,
 } from '../gateway-browser-location';
 import { describe, expect, it } from 'vitest';
 
 describe('Gateway Browser location', () => {
-	it('round-trips the capability only through the URL fragment', () => {
+	it('round-trips only non-secret Gateway bootstrap data through URL search', () => {
 		const connection = GatewayBrowserConnectionSchema.parse({
-			capability: 'a'.repeat(43),
 			port: 42_000,
-			protocolVersion: '1.2',
+			protocolVersion: '1.3',
 		});
-		const fragment = encodeGatewayBrowserFragment(connection);
+		const search = encodeGatewayBrowserSearch(connection);
 
-		expect(fragment).not.toContain('?');
-		expect(decodeGatewayBrowserFragment(`#${fragment}`)).toEqual(connection);
+		expect(search).toBe('orchbee-gateway-version=1.3&orchbee-gateway-port=42000');
+		expect(search).not.toContain('capability');
+		expect(decodeGatewayBrowserSearch(`?orchbee-runtime=gateway&${search}`)).toEqual(connection);
 	});
 
-	it('rejects duplicates, unknown fields, noncanonical ports, and protocol drift', () => {
-		const capability = 'a'.repeat(43);
-		const base = `orchbee-gateway-version=1.2&orchbee-gateway-port=42000&orchbee-gateway-capability=${capability}`;
+	it('rejects duplicates, noncanonical ports, and protocol drift', () => {
+		const base = 'orchbee-gateway-version=1.3&orchbee-gateway-port=42000';
 
-		expect(decodeGatewayBrowserFragment(`${base}&unexpected=true`)).toBeNull();
-		expect(decodeGatewayBrowserFragment(`${base}&orchbee-gateway-port=42001`)).toBeNull();
-		expect(decodeGatewayBrowserFragment(base.replace('42000', '042000'))).toBeNull();
-		expect(decodeGatewayBrowserFragment(base.replace('1.2', '2.0'))).toBeNull();
+		expect(decodeGatewayBrowserSearch(`${base}&orchbee-gateway-port=42001`)).toBeNull();
+		expect(decodeGatewayBrowserSearch(base.replace('42000', '042000'))).toBeNull();
+		expect(decodeGatewayBrowserSearch(base.replace('1.3', '2.0'))).toBeNull();
 	});
 });

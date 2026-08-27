@@ -18,6 +18,7 @@
 		"@orchbee/gateway-protocol": "workspace:^",
 		"@orchbee/i18n": "workspace:^",
 		"@orchbee/keyboard-shortcuts": "workspace:^",
+		"@orchbee/remote-client-protocol": "workspace:*",
 		"@orchbee/tab-strip": "workspace:^",
 		"@orchbee/terminal": "workspace:^",
 		"@orchbee/terminal-protocol": "workspace:^",

@@ -16,22 +16,23 @@
 
 ## 产品术语
 
-| 概念              | `en-US`           | `zh-CN`    | 用法                                                    | 避免用作同义词              |
-| ----------------- | ----------------- | ---------- | ------------------------------------------------------- | --------------------------- |
-| Orchbee           | Orchbee           | Orchbee    | 产品名称                                                | 音译或翻译的产品名称        |
-| Browser access    | Browser access    | 浏览器访问 | Desktop 中用于通过浏览器使用终端的界面                  | Web 访问、浏览器连接        |
-| Host              | Host              | 主机       | 保留 Host 投影颜色的终端显示选项                        | Server、设备                |
-| Keyboard shortcut | Keyboard shortcut | 键盘快捷键 | 绑定到一个产品语义 Action 的物理组合键                  | 热键、快捷方式              |
-| Planned           | Planned           | 规划中     | 明确不可用且不产生行为的可见未来设置                    | Coming soon、即将推出、未来 |
-| Project           | Project           | 项目       | 导航中表示的产品项目                                    | 工程                        |
-| Settings          | Settings          | 设置       | 产品配置入口或界面                                      | 偏好设置、配置              |
-| Sidebar           | Sidebar           | 边栏       | 位于边缘、用于辅助导航或工具的界面                      | 侧边栏、侧栏                |
-| Tab               | Tab               | 标签页     | 可选择的项目及其关联内容界面                            | 选项卡、页签                |
-| Tab group         | Tab group         | 标签页组   | 拥有一个或多个标签页的集合                              | 标签组、分组                |
-| Tab strip         | Tab strip         | 标签栏     | 呈现和管理标签页的容器                                  | 标签页栏、选项卡栏          |
-| Terminal          | Terminal          | 终端       | 终端会话或终端界面                                      | 控制台、命令行              |
-| Terminal session  | Terminal session  | 终端会话   | 由一个 Terminal 呈现所拥有的单次 shell/进程运行生命周期 | 控制台会话、命令行会话      |
-| Window            | Window            | 窗口       | 原生 Desktop 应用窗口                                   | 页面、视图                  |
+| 概念                  | `en-US`               | `zh-CN`      | 用法                                                    | 避免用作同义词                    |
+| --------------------- | --------------------- | ------------ | ------------------------------------------------------- | --------------------------------- |
+| Orchbee               | Orchbee               | Orchbee      | 产品名称                                                | 音译或翻译的产品名称              |
+| Browser access        | Browser access        | 浏览器访问   | Desktop 中用于通过浏览器使用终端的界面                  | Web 访问、浏览器连接              |
+| Host                  | Host                  | 主机         | 保留 Host 投影颜色的终端显示选项                        | Server、设备                      |
+| Keyboard shortcut     | Keyboard shortcut     | 键盘快捷键   | 绑定到一个产品语义 Action 的物理组合键                  | 热键、快捷方式                    |
+| Personal Access Token | Personal Access Token | 个人访问令牌 | 用于登录浏览器访问的安装级机密                          | Access token、API token、个人令牌 |
+| Planned               | Planned               | 规划中       | 明确不可用且不产生行为的可见未来设置                    | Coming soon、即将推出、未来       |
+| Project               | Project               | 项目         | 导航中表示的产品项目                                    | 工程                              |
+| Settings              | Settings              | 设置         | 产品配置入口或界面                                      | 偏好设置、配置                    |
+| Sidebar               | Sidebar               | 边栏         | 位于边缘、用于辅助导航或工具的界面                      | 侧边栏、侧栏                      |
+| Tab                   | Tab                   | 标签页       | 可选择的项目及其关联内容界面                            | 选项卡、页签                      |
+| Tab group             | Tab group             | 标签页组     | 拥有一个或多个标签页的集合                              | 标签组、分组                      |
+| Tab strip             | Tab strip             | 标签栏       | 呈现和管理标签页的容器                                  | 标签页栏、选项卡栏                |
+| Terminal              | Terminal              | 终端         | 终端会话或终端界面                                      | 控制台、命令行                    |
+| Terminal session      | Terminal session      | 终端会话     | 由一个 Terminal 呈现所拥有的单次 shell/进程运行生命周期 | 控制台会话、命令行会话            |
+| Window                | Window                | 窗口         | 原生 Desktop 应用窗口                                   | 页面、视图                        |
 
 不要仅为扩充表格而加入通用词汇。只记录稳定翻译确实能避免歧义的产品术语。
 

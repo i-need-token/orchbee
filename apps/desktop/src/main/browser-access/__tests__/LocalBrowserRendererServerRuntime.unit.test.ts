@@ -1,3 +1,7 @@
+import {
+	BrowserSessionSigningKeySchema,
+	PersonalAccessTokenVerifierSchema,
+} from '@orchbee/remote-client-protocol';
 import { describe, expect, it, vi } from 'vitest';
 
 import { LocalBrowserRendererServerRuntime } from '../LocalBrowserRendererServerRuntime';
@@ -6,12 +10,17 @@ type RuntimeDependencies = NonNullable<
 	ConstructorParameters<typeof LocalBrowserRendererServerRuntime>[1]
 >;
 type DesktopServerUtilityProcess = ReturnType<NonNullable<RuntimeDependencies['createProcess']>>;
+const authentication = {
+	personalAccessTokenVerifier: PersonalAccessTokenVerifierSchema.parse('v'.repeat(43)),
+	sessionSigningKey: BrowserSessionSigningKeySchema.parse('s'.repeat(43)),
+};
 
 describe('LocalBrowserRendererServerRuntime', () => {
 	it('accepts one exact readiness record and coalesces start', async () => {
 		const process = new FakeServerProcess();
 		const runtime = new LocalBrowserRendererServerRuntime(
 			{
+				authentication,
 				bindHost: '0.0.0.0',
 				entryPath: '/resources/orchbee-server.cjs',
 				rendererRoot: '/resources/dist',
@@ -37,6 +46,7 @@ describe('LocalBrowserRendererServerRuntime', () => {
 		const process = new FakeServerProcess();
 		const runtime = new LocalBrowserRendererServerRuntime(
 			{
+				authentication,
 				bindHost: '127.0.0.1',
 				entryPath: '/resources/orchbee-server.cjs',
 				rendererRoot: '/resources/dist',
@@ -58,6 +68,7 @@ describe('LocalBrowserRendererServerRuntime', () => {
 		const process = new FakeServerProcess();
 		const runtime = new LocalBrowserRendererServerRuntime(
 			{
+				authentication,
 				bindHost: '127.0.0.1',
 				entryPath: '/resources/orchbee-server.cjs',
 				rendererRoot: '/resources/dist',

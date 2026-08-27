@@ -1,4 +1,5 @@
 import { PROTOCOL_LIMITS } from '@orchbee/terminal-protocol';
+import { BrowserSessionSigningKeySchema } from '@orchbee/remote-client-protocol';
 import {
 	TerminalProjectionControlCommandSchema,
 	TerminalProjectionControlEventSchema,
@@ -11,7 +12,7 @@ import { z } from 'zod';
 
 import { GATEWAY_ATTACHMENT_MAX_FRAME_OVERHEAD_BYTES } from './gateway-attachment-wire-contract';
 
-export const GATEWAY_PROTOCOL_VERSION = '1.2';
+export const GATEWAY_PROTOCOL_VERSION = '1.3';
 export const GATEWAY_CONTROL_PATH = '/v1/control';
 export const GATEWAY_ATTACHMENT_PATH = '/v1/attachment';
 
@@ -48,7 +49,6 @@ export const GatewayAttachmentSocketIdSchema = z
 export const GatewayBindHostSchema = z.enum(['127.0.0.1', '0.0.0.0']);
 
 export const GatewayBrowserConnectionSchema = z.strictObject({
-	capability: GatewayCapabilitySchema,
 	port: z.number().int().min(1).max(65_535),
 	protocolVersion: z.literal(GATEWAY_PROTOCOL_VERSION),
 });
@@ -61,7 +61,7 @@ export const GatewayDesktopCommandSchema = z.discriminatedUnion('type', [
 	z.strictObject({
 		allowedOrigins: z.array(z.string().min(1).max(2048)).min(1).max(32),
 		bindHost: GatewayBindHostSchema,
-		capability: GatewayCapabilitySchema,
+		sessionSigningKey: BrowserSessionSigningKeySchema,
 		type: z.literal('gateway-start'),
 	}),
 	z.strictObject({
@@ -99,7 +99,6 @@ export const GatewayUtilityEventSchema = z.discriminatedUnion('type', [
 
 export const GatewayControlClientMessageSchema = z.discriminatedUnion('type', [
 	z.strictObject({
-		capability: GatewayCapabilitySchema,
 		protocolVersion: z.literal(GATEWAY_PROTOCOL_VERSION),
 		type: z.literal('gateway-control-authenticate'),
 	}),

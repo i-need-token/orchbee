@@ -1,4 +1,5 @@
 import { enUSApplicationRoutingMessages } from './application-routing';
+import { enUSBrowserAuthenticationMessages } from './browser-authentication';
 import { enUSDesktopApplicationLifetimeMessages } from './desktop-application-lifetime';
 import { enUSDesktopBrowserAccessMessages } from './desktop-browser-access';
 import { enUSDesktopSecureKeyboardEntryMessages } from './desktop-secure-keyboard-entry';
@@ -11,6 +12,7 @@ import { enUSWorkbenchMessages } from './workbench';
 
 export const enUSMessages = {
 	...enUSApplicationRoutingMessages,
+	...enUSBrowserAuthenticationMessages,
 	...enUSDesktopApplicationLifetimeMessages,
 	...enUSDesktopBrowserAccessMessages,
 	...enUSDesktopSecureKeyboardEntryMessages,

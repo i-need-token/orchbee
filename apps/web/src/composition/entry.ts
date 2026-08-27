@@ -2,11 +2,13 @@ import '@orchbee/ui/styles.css';
 import '@orchbee/tab-strip/styles.css';
 import '@orchbee/workbench/styles.css';
 
-import { decodeGatewayBrowserFragment } from '@orchbee/gateway-protocol';
+import { decodeGatewayBrowserSearch } from '@orchbee/gateway-protocol';
+import { BROWSER_AUTHENTICATION_LOGIN_PATH } from '@orchbee/remote-client-protocol';
 import { startDesktopWebApplication } from '../desktop-client';
 import { startGatewayWebApplication } from '../gateway-client';
 import { registerTerminalProductFonts } from '../workbench-client';
 import { resolveShortcutPlatform } from './resolveShortcutPlatform';
+import { startBrowserAuthenticationApplication } from './startBrowserAuthenticationApplication';
 import { startWebApplication } from './startWebApplication';
 import { resolveWebRuntimeMode } from './resolveWebRuntimeMode';
 
@@ -19,7 +21,15 @@ const runtimeMode = resolveWebRuntimeMode({
 	userAgent: navigator.userAgent,
 });
 
-if (runtimeMode === 'browser') {
+if (window.location.pathname === BROWSER_AUTHENTICATION_LOGIN_PATH) {
+	const session = startBrowserAuthenticationApplication(
+		window,
+		rootElement,
+		document.documentElement,
+		navigator.languages,
+	);
+	window.addEventListener('unload', () => session.dispose(), { once: true });
+} else if (runtimeMode === 'browser') {
 	const session = startWebApplication(
 		rootElement,
 		document.documentElement,
@@ -47,7 +57,7 @@ if (runtimeMode === 'browser') {
 		},
 	);
 } else if (runtimeMode === 'gateway') {
-	const connection = decodeGatewayBrowserFragment(window.location.hash);
+	const connection = decodeGatewayBrowserSearch(window.location.search);
 	if (connection !== null) {
 		const session = startGatewayWebApplication(
 			window,

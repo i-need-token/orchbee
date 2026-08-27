@@ -5,16 +5,21 @@ import {
 	type DesktopBrowserAccessFailureCode,
 	type DesktopBrowserAccessMode,
 	type DesktopBrowserAccessRequestId,
-	type DesktopBrowserAccessState,
+	type DesktopBrowserAccessSnapshot,
 } from '@orchbee/desktop-client-protocol';
+import type { PersonalAccessToken } from '@orchbee/remote-client-protocol';
 import type { MessageEvent, MessagePortMain } from 'electron';
 
 export interface DesktopBrowserAccessBrokerRuntime {
-	copyAccessLink(origin: string): Promise<DesktopBrowserAccessState>;
-	getSnapshot(): DesktopBrowserAccessState;
-	openLocalBrowser(): Promise<DesktopBrowserAccessState>;
-	start(mode: DesktopBrowserAccessMode): Promise<DesktopBrowserAccessState>;
-	stop(): Promise<DesktopBrowserAccessState>;
+	copyAccessLink(origin: string): Promise<DesktopBrowserAccessSnapshot>;
+	getSnapshot(): DesktopBrowserAccessSnapshot;
+	issuePersonalAccessToken(): Promise<{
+		readonly personalAccessToken: PersonalAccessToken;
+		readonly snapshot: DesktopBrowserAccessSnapshot;
+	}>;
+	openLocalBrowser(): Promise<DesktopBrowserAccessSnapshot>;
+	start(mode: DesktopBrowserAccessMode): Promise<DesktopBrowserAccessSnapshot>;
+	stop(): Promise<DesktopBrowserAccessSnapshot>;
 }
 
 export class DesktopBrowserAccessBroker {
@@ -79,6 +84,17 @@ export class DesktopBrowserAccessBroker {
 					break;
 				case 'desktop-browser-access-stop-requested':
 					await this.#runtime.stop();
+					break;
+				case 'desktop-browser-access-personal-access-token-issue-requested': {
+					const result = await this.#runtime.issuePersonalAccessToken();
+					this.#post({
+						personalAccessToken: result.personalAccessToken,
+						requestId: command.requestId,
+						snapshot: result.snapshot,
+						type: 'desktop-browser-access-personal-access-token-issued',
+					});
+					return;
+				}
 			}
 			this.#postCompleted(command.requestId);
 		} catch (error: unknown) {
@@ -89,7 +105,7 @@ export class DesktopBrowserAccessBroker {
 	#postCompleted(requestId: DesktopBrowserAccessRequestId): void {
 		this.#post({
 			requestId,
-			state: this.#runtime.getSnapshot(),
+			snapshot: this.#runtime.getSnapshot(),
 			type: 'desktop-browser-access-completed',
 		});
 	}
@@ -101,7 +117,7 @@ export class DesktopBrowserAccessBroker {
 		this.#post({
 			code,
 			requestId,
-			state: this.#runtime.getSnapshot(),
+			snapshot: this.#runtime.getSnapshot(),
 			type: 'desktop-browser-access-failed',
 		});
 	}
