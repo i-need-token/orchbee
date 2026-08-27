@@ -4864,7 +4864,10 @@ describe('ProjectedTerminal', () => {
 		expect(terminal.scrollPages(-1)).toBe(true);
 		const pageRead = commands.at(-1);
 		if (pageRead?.kind !== 'read-rows') throw new Error('page history request was not sent');
-		expect(pageRead.payload.origin).toEqual({ kind: 'absolute', row: '9' });
+		expect(pageRead.payload).toMatchObject({
+			origin: { kind: 'tail', rowsBefore: 0 },
+			revisionPolicy: 'current-view',
+		});
 		expect(
 			terminal.applyRows(
 				renderRowWindow(
@@ -4880,7 +4883,10 @@ describe('ProjectedTerminal', () => {
 		expect(terminal.scrollToTop()).toBe(true);
 		const topRead = commands.at(-1);
 		if (topRead?.kind !== 'read-rows') throw new Error('top history request was not sent');
-		expect(topRead.payload.origin).toEqual({ kind: 'absolute', row: '0' });
+		expect(topRead.payload).toMatchObject({
+			origin: { kind: 'tail', rowsBefore: 0 },
+			revisionPolicy: 'current-view',
+		});
 		expect(
 			terminal.applyRows(
 				renderRowWindow(
@@ -5976,7 +5982,11 @@ describe('ProjectedTerminal', () => {
 			commands.find(
 				(command) => command.kind === 'read-rows' && command.payload.purpose === 'viewport',
 			)?.payload,
-		).toMatchObject({ origin: { kind: 'absolute', row: '80' }, purpose: 'viewport' });
+		).toMatchObject({
+			origin: { kind: 'tail', rowsBefore: 0 },
+			purpose: 'viewport',
+			revisionPolicy: 'current-view',
+		});
 		expect(terminal.canNavigatePrompts).toBe(true);
 		terminal.notifyHistoryChanged({
 			anchorStatus: 'valid',
