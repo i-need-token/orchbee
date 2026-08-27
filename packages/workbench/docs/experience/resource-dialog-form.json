@@ -9,7 +9,7 @@
 	"visibility": "private",
 	"intents": ["confirm-form", "edit-resource", "manage-resource"],
 	"implementation": [
-		"packages/workbench/src/workbench/components/workbench-sidebar/components/resource-dialog-form/ResourceDialogForm.tsx"
+		"packages/workbench/src/workbench/components/resource-dialog-form/ResourceDialogForm.tsx"
 	],
 	"stories": [
 		{

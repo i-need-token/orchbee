@@ -18,6 +18,7 @@ export const zhCNKeyboardShortcutMessages = {
 	'keyboard.shortcuts.actions.maximizePanel': '切换面板最大化',
 	'keyboard.shortcuts.actions.moveTabBackward': '向后移动活动标签页',
 	'keyboard.shortcuts.actions.moveTabForward': '向前移动活动标签页',
+	'keyboard.shortcuts.actions.setTabTitle': '设置标签页标题',
 	'keyboard.shortcuts.actions.newTerminal': '新建终端',
 	'keyboard.shortcuts.actions.nextTab': '选择下一个标签页',
 	'keyboard.shortcuts.actions.nextPrompt': '滚动到下一个 Shell 提示符',

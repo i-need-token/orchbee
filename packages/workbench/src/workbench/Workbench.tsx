@@ -26,6 +26,7 @@ import { WorkbenchSidebar } from './components/workbench-sidebar/WorkbenchSideba
 import { WorkbenchPanelWorkspace } from './components/workbench-panel-workspace/WorkbenchPanelWorkspace';
 import { WorkbenchSearchSurface } from './components/workbench-search-surface/WorkbenchSearchSurface';
 import { WorkbenchTabBar } from './components/workbench-tab-bar/WorkbenchTabBar';
+import { WorkbenchTabTitleDialog } from './components/workbench-tab-title-dialog/WorkbenchTabTitleDialog';
 import { WORKBENCH_ACTION_IDS } from './actions/workbench-action-ids';
 import { EMPTY_WORKBENCH_SEARCH_PROVIDERS } from './constants/search-providers';
 import { useWorkbench } from './hooks/useWorkbench';
@@ -148,6 +149,17 @@ export function Workbench({
 				</AlertDialogContent>
 			</AlertDialog>
 		);
+	const tabTitleEditorSurface =
+		view.tabTitleEditor === null ? null : (
+			<WorkbenchTabTitleDialog
+				finalFocus={view.tabTitleEditorFinalFocus}
+				messages={view.tabTitleEditorMessages}
+				onCancel={view.cancelTabTitleEditor}
+				onSubmit={view.submitTabTitleEditor}
+				onTitleChange={view.updateTabTitleEditor}
+				title={view.tabTitleEditor.draftTitle}
+			/>
+		);
 
 	return (
 		<div className={styles['root']} ref={view.shortcutScopeReference}>
@@ -230,11 +242,13 @@ export function Workbench({
 								onCloseTabs={view.onCloseTabs}
 								getCloseTabsConfirmation={view.getCloseTabsConfirmation}
 								onSelectTab={navigation?.selectTab}
+								onSetTabTitle={view.setTabTitle}
 								parentActionScope={view.actionScope}
 								reserveSidebarToggleSpace={!view.isSidebarVisible}
 								shortcutLabels={{
 									closeTab: shortcutLabelForAction(WORKBENCH_ACTION_IDS.closeActiveTerminal),
 									newTab: shortcutLabelForAction(WORKBENCH_ACTION_IDS.createTerminal),
+									setTabTitle: shortcutLabelForAction(WORKBENCH_ACTION_IDS.setTabTitle),
 								}}
 								tabModel={view.terminalContext.tabModel}
 								tabStripMessages={tabStripMessages}
@@ -264,6 +278,7 @@ export function Workbench({
 				/>
 			)}
 			{projectWorkspaceConfirmationSurface}
+			{tabTitleEditorSurface}
 		</div>
 	);
 }

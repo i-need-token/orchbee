@@ -36,6 +36,7 @@ interface TabStripContextMenuProps {
 	tabSearchPinned: boolean;
 	moveGroupToNewWindowAvailable: boolean;
 	moveTabsToNewWindowAvailable: boolean;
+	onSetTabTitle: ((tabId: string) => void) | undefined;
 	shortcutLabels: TabStripShortcutLabels | undefined;
 	onClose: () => void;
 }
@@ -52,6 +53,7 @@ export function TabStripContextMenu({
 	tabSearchPinned,
 	moveGroupToNewWindowAvailable,
 	moveTabsToNewWindowAvailable,
+	onSetTabTitle,
 	shortcutLabels,
 	onClose,
 }: TabStripContextMenuProps): ReactNode {
@@ -351,6 +353,14 @@ export function TabStripContextMenu({
 					<ContextMenuShortcut>{shortcutLabels.newTab}</ContextMenuShortcut>
 				)}
 			</ContextMenuItem>
+			{onSetTabTitle === undefined ? null : (
+				<ContextMenuItem onClick={run(() => onSetTabTitle(tab.id))}>
+					{messages.setTabTitle}
+					{shortcutLabels?.setTabTitle === undefined ? null : (
+						<ContextMenuShortcut>{shortcutLabels.setTabTitle}</ContextMenuShortcut>
+					)}
+				</ContextMenuItem>
+			)}
 			<ContextMenuSub>
 				<ContextMenuSubTrigger>
 					{menuDisplayTabCount === 1 ? messages.addTabToGroup : messages.addTabsToGroup}

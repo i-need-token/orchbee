@@ -257,6 +257,10 @@ Workbench `terminal-presentation-event-published` 消息是 Main 拥有的单一
 - 精确的 `terminal-parity/FS-08-command-output-viewer` 与
   `terminal-parity/FS-09-scrollback-viewer` 浏览器组合见证，覆盖生产共享不可变 terminal-text viewer、
   精确保留快照、可见顶部锚定、有界搜索、按来源复制 Action、焦点恢复与不变的 attachment identity；
+- 精确的 `terminal-parity/FS-10-active-tab-movement` 与
+  `terminal-parity/FS-11-tab-title` 浏览器组合见证，覆盖 Kitty 对齐的固定分区内活动 Tab 循环移动、
+  稳定显式 Tab 标题定位、预填自定义标题编辑、在自定义值下保留动态标题、空值重置为最新自然标题、
+  Action 搜索发现、焦点恢复与不变的终端输入标识；
 - 用于每次操作安全上下文、瞬时用户激活和 API 检查的精确标题 `terminal-parity/LC-05-lan-capability` 浏览器组合证据；同步复制可用性；一位被录取的作家来电；拒绝而不重试；局部故障；并且没有特权 insecure-LAN 路径；
 - 确切的 `terminal-parity/HS-07-selection-export` real-PTY/Electron 证据表明，样式化终端选择以精确可见的纯文本形式到达平台剪贴板，与不公开 HTML 或原始 VT 格式的协议、主机和投影命令回归配对；
 - 精确的 `terminal-parity/IN-03-image-paste` 真实 PTY/Electron 证据证明，空闲的默认粘贴组合键会保留原生仅图片事件，并向子进程精确发布一个 `Control+V` 字节，且不产生剪贴板文本 Action 或失败横幅；

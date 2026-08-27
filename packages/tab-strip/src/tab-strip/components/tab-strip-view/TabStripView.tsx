@@ -43,6 +43,7 @@ export function TabStripView({
 		onTabKeyboardFocusChanged,
 		onMoveTabsToNewWindow,
 		onMoveGroupToNewWindow,
+		onSetTabTitle,
 		shortcutLabels,
 		ariaLabel,
 		snapshot,
@@ -327,6 +328,7 @@ export function TabStripView({
 					onVerticalExpandOnHoverChange={onVerticalExpandOnHoverChange}
 					moveTabsToNewWindowAvailable={onMoveTabsToNewWindow !== undefined}
 					moveGroupToNewWindowAvailable={onMoveGroupToNewWindow !== undefined}
+					onSetTabTitle={onSetTabTitle}
 					shortcutLabels={shortcutLabels}
 					onClose={closeMenu}
 				/>

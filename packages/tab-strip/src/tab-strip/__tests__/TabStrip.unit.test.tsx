@@ -874,6 +874,29 @@ describe('TabStrip', () => {
 		expect(screen.getByRole('menuitem', { name: 'Pin' }).textContent).toBe('Pin');
 	});
 
+	it('requests title editing for only the invoked Tab and renders its current shortcut', () => {
+		const model = createModel();
+		const onSetTabTitle = vi.fn<(tabId: string) => void>();
+		render(
+			<TabStrip
+				model={model}
+				onSetTabTitle={onSetTabTitle}
+				shortcutLabels={{ setTabTitle: '⇧⌘I' }}
+			/>,
+		);
+
+		fireEvent.contextMenu(screen.getByRole('tab', { name: /^Loose/ }), {
+			clientX: 50,
+			clientY: 30,
+		});
+		const menuItem = screen.getByRole('menuitem', { name: /^Set tab title…/ });
+		expect(menuItem.textContent).toBe('Set tab title…⇧⌘I');
+		fireEvent.click(menuItem);
+
+		expect(onSetTabTitle).toHaveBeenCalledExactlyOnceWith('loose');
+		expect(screen.queryByRole('menu')).toBeNull();
+	});
+
 	it('requests the opposite orientation from the blank tab-strip context menu', () => {
 		const model = createModel();
 		const onOrientationChange = vi.fn<(orientation: TabStripOrientation) => void>();

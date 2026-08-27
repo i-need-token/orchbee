@@ -83,6 +83,7 @@ type KeyboardShortcutName =
 	| 'scroll-to-bottom'
 	| 'scroll-to-top'
 	| 'select-all'
+	| 'set-tab-title'
 	| 'settings'
 	| 'split-below'
 	| 'split-right'
@@ -209,6 +210,16 @@ export const KEYBOARD_SHORTCUT_CATALOG = Object.freeze([
 		name: 'move-tab-forward',
 		scope: 'workbench',
 		shortcutId: WORKBENCH_SHORTCUTS.moveActiveTabForward.shortcutId,
+	}),
+	Object.freeze({
+		actionId: WORKBENCH_SHORTCUTS.setTabTitle.id,
+		actionInput: WORKBENCH_SHORTCUTS.setTabTitle.input,
+		availability: 'active-terminal',
+		defaults: WORKBENCH_SHORTCUTS.setTabTitle.defaults,
+		feature: 'workbench',
+		name: 'set-tab-title',
+		scope: 'workbench',
+		shortcutId: WORKBENCH_SHORTCUTS.setTabTitle.shortcutId,
 	}),
 	Object.freeze({
 		actionId: WORKBENCH_SHORTCUTS.selectPreviousTab.id,

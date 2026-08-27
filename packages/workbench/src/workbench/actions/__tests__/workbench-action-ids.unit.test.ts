@@ -10,6 +10,7 @@ import {
 	workbenchProjectReorderInput,
 	workbenchSearchOpenInput,
 	workbenchTabPositionInput,
+	workbenchTabTitleInput,
 	workbenchTabStripOrientationInput,
 	workbenchTerminalCreateInput,
 	workbenchWorkspaceCreateInput,
@@ -45,6 +46,7 @@ describe('workbench action contracts', () => {
 			reorderWorkspace: 'workbench.workspace.reorder',
 			moveActiveTabBackward: 'workbench.tab.active.move-backward',
 			moveActiveTabForward: 'workbench.tab.active.move-forward',
+			setTabTitle: 'workbench.tab.title.set',
 			resetTerminalFontSize: 'workbench.terminal.font-size.reset',
 			selectTabByPosition: 'workbench.tab.select-by-position',
 			selectNextTab: 'workbench.tab.select-next',
@@ -70,6 +72,35 @@ describe('workbench action contracts', () => {
 		for (const position of [0, 10, 1.5, '2']) {
 			expect(workbenchTabPositionInput.parse({ position })).toEqual({
 				code: 'expected-workbench-tab-position-input',
+				success: false,
+			});
+		}
+	});
+
+	it('accepts discovery, explicit open, and nullable commit Tab-title inputs', () => {
+		expect(workbenchTabTitleInput.parse(undefined)).toEqual({ data: undefined, success: true });
+		expect(
+			workbenchTabTitleInput.parse({
+				kind: 'open',
+				tabId: 'tab-2',
+				terminalContextId: 'terminal-context-1',
+			}),
+		).toMatchObject({ success: true });
+		expect(
+			workbenchTabTitleInput.parse({
+				kind: 'commit',
+				tabId: 'tab-2',
+				terminalContextId: 'terminal-context-1',
+				title: null,
+			}),
+		).toMatchObject({ success: true });
+		for (const input of [
+			{ kind: 'open', tabId: '', terminalContextId: 'terminal-context-1' },
+			{ kind: 'commit', tabId: 'tab-2', terminalContextId: '', title: 'Title' },
+			{ kind: 'commit', tabId: 'tab-2', terminalContextId: 'terminal-context-1' },
+		]) {
+			expect(workbenchTabTitleInput.parse(input)).toEqual({
+				code: 'expected-workbench-tab-title-input',
 				success: false,
 			});
 		}

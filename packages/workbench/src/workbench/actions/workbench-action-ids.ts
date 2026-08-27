@@ -28,6 +28,7 @@ export const WORKBENCH_ACTION_IDS = {
 	reorderWorkspace: 'workbench.workspace.reorder',
 	moveActiveTabBackward: 'workbench.tab.active.move-backward',
 	moveActiveTabForward: 'workbench.tab.active.move-forward',
+	setTabTitle: 'workbench.tab.title.set',
 	selectNextTab: 'workbench.tab.select-next',
 	selectPreviousTab: 'workbench.tab.select-previous',
 	selectTabByPosition: 'workbench.tab.select-by-position',
@@ -93,6 +94,20 @@ export interface WorkbenchTabPositionInput {
 	readonly position: WorkbenchTabPosition;
 }
 
+export type WorkbenchTabTitleInput =
+	| undefined
+	| {
+			readonly kind: 'open';
+			readonly tabId: string;
+			readonly terminalContextId: string;
+	  }
+	| {
+			readonly kind: 'commit';
+			readonly tabId: string;
+			readonly terminalContextId: string;
+			readonly title: string | null;
+	  };
+
 export interface WorkbenchTerminalCreateInput {
 	readonly directoryId?: string | undefined;
 	readonly groupId: string | null;
@@ -128,6 +143,7 @@ export interface WorkbenchActionCatalog {
 	readonly [WORKBENCH_ACTION_IDS.reorderWorkspace]: ActionSignature<WorkbenchWorkspaceReorderInput>;
 	readonly [WORKBENCH_ACTION_IDS.moveActiveTabBackward]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.moveActiveTabForward]: ActionSignature<void>;
+	readonly [WORKBENCH_ACTION_IDS.setTabTitle]: ActionSignature<WorkbenchTabTitleInput>;
 	readonly [WORKBENCH_ACTION_IDS.selectNextTab]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.selectPreviousTab]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.selectTabByPosition]: ActionSignature<WorkbenchTabPositionInput>;
@@ -203,6 +219,45 @@ export const workbenchTabPositionInput: ActionInputValidation<WorkbenchTabPositi
 					success: true,
 				}
 			: { code: 'expected-workbench-tab-position-input', success: false },
+};
+
+export const workbenchTabTitleInput: ActionInputValidation<WorkbenchTabTitleInput> = {
+	name: 'WorkbenchTabTitleInput',
+	parse: (input) => {
+		if (input === undefined) return { data: undefined, success: true };
+		if (
+			!isRecord(input) ||
+			(input['kind'] !== 'open' && input['kind'] !== 'commit') ||
+			typeof input['tabId'] !== 'string' ||
+			input['tabId'].length === 0 ||
+			typeof input['terminalContextId'] !== 'string' ||
+			input['terminalContextId'].length === 0
+		) {
+			return { code: 'expected-workbench-tab-title-input', success: false };
+		}
+		if (input['kind'] === 'open') {
+			return {
+				data: {
+					kind: 'open' as const,
+					tabId: input['tabId'],
+					terminalContextId: input['terminalContextId'],
+				},
+				success: true,
+			};
+		}
+		if (!(input['title'] === null || typeof input['title'] === 'string')) {
+			return { code: 'expected-workbench-tab-title-input', success: false };
+		}
+		return {
+			data: {
+				kind: 'commit' as const,
+				tabId: input['tabId'],
+				terminalContextId: input['terminalContextId'],
+				title: input['title'],
+			},
+			success: true,
+		};
+	},
 };
 
 function isWorkbenchTabPosition(input: unknown): input is WorkbenchTabPosition {

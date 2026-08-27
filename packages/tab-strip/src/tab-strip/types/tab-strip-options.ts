@@ -66,6 +66,7 @@ export type TabStripSelectCallback = (
 export interface TabStripShortcutLabels {
 	readonly closeTab?: string | undefined;
 	readonly newTab?: string | undefined;
+	readonly setTabTitle?: string | undefined;
 }
 
 export interface TabStripOptions {
@@ -114,6 +115,7 @@ export interface TabStripOptions {
 	onCloseTabs?: TabStripCloseCallback | undefined;
 	getCloseTabsConfirmation?: TabStripCloseConfirmation | undefined;
 	onSelectTab?: TabStripSelectCallback | undefined;
+	onSetTabTitle?: ((tabId: string) => void) | undefined;
 	onNewTabButtonPressed?: () => void;
 	/** Current platform-formatted bindings supplied by the composing application. */
 	shortcutLabels?: TabStripShortcutLabels | undefined;

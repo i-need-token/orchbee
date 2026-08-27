@@ -164,6 +164,7 @@ export function useWorkbenchTabStripMessages(): TabStripMessages {
 			removeFromGroup: format(workbenchTabMessages.removeFromGroup),
 			searchTabs: format(workbenchTabMessages.searchTabs),
 			searchTabsMenu: format(workbenchTabMessages.searchTabsMenu),
+			setTabTitle: format(workbenchTabMessages.setTabTitleMenu),
 			tabCrashed: format(workbenchTabMessages.tabCrashed),
 			tabGroups: format(workbenchTabMessages.tabGroups),
 			tabMoveCanceled: format(workbenchTabMessages.tabMoveCanceled),

@@ -70,6 +70,7 @@ export const DEFAULT_TAB_STRIP_MESSAGES: TabStripMessages = {
 	removeFromGroup: 'Remove from group',
 	searchTabs: 'Search tabs',
 	searchTabsMenu: 'Search tabs menu',
+	setTabTitle: 'Set tab title…',
 	tabCrashed: 'This tab has crashed',
 	tabGroups: 'Tab groups',
 	tabMoveCanceled: 'Tab move canceled',

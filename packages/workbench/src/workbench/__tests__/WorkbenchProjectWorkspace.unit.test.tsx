@@ -15,6 +15,7 @@ import {
 	defaultWorkbenchShortcutBindings,
 	type WorkbenchShortcutBindings,
 } from '../utils/workbench-shortcuts';
+import { findActiveTerminalFocusTarget } from '../utils/findActiveTerminalFocusTarget';
 
 function createTestTerminalPresentationComposition(scope: string) {
 	let sequence = 0;
@@ -102,7 +103,95 @@ describe('Workbench Project and Workspace management', () => {
 			Array.from(menu.querySelectorAll('[data-slot="context-menu-shortcut"]')).map(
 				(shortcut) => shortcut.textContent,
 			),
-		).toEqual(['⇧⌘N', '⌘Q']);
+		).toEqual(['⇧⌘N', '⇧⌘I', '⌘Q']);
+	});
+
+	it('sets and restores the captured Tab title from the shortcut and context menu', async () => {
+		const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
+			standaloneCwd: '/system',
+			standaloneTerminalTitle: 'Terminal 1',
+			terminalPresentation: createTestTerminalPresentationComposition('tab-title'),
+		});
+		const terminalContext = projectWorkspaceRuntime.getActiveTerminalContext();
+		const firstTabId = terminalContext.tabModel.getSnapshot().activeTabId;
+		const creation = projectWorkspaceRuntime.createTerminal({
+			groupId: null,
+			source: 'button',
+			title: 'Terminal 2',
+		});
+		if (firstTabId === null || creation.kind !== 'created') {
+			throw new Error('Expected two terminal Tabs.');
+		}
+		terminalContext.tabModel.selectTab(firstTabId);
+		render(
+			<OrchbeeI18nProvider locale='en-US'>
+				<TooltipProvider>
+					<Workbench
+						actionRuntime={new ActionRuntime()}
+						projectWorkspaceRuntime={projectWorkspaceRuntime}
+						shortcutPlatform='apple'
+					/>
+				</TooltipProvider>
+			</OrchbeeI18nProvider>,
+		);
+		const activeViewport = document.querySelector<HTMLElement>(
+			'[data-slot="workbench-terminal-viewport"]',
+		);
+		expect(activeViewport).not.toBeNull();
+		if (activeViewport === null) throw new Error('Expected the active terminal viewport.');
+		activeViewport.focus();
+		activeViewport.dispatchEvent(
+			new KeyboardEvent('keydown', {
+				bubbles: true,
+				cancelable: true,
+				code: 'KeyI',
+				metaKey: true,
+				shiftKey: true,
+			}),
+		);
+
+		let dialog = await screen.findByRole('dialog', { name: 'Set Tab Title' });
+		let titleInput = within(dialog).getByLabelText<HTMLInputElement>('Tab title');
+		expect(titleInput.value).toBe('system');
+		expect(document.activeElement).toBe(titleInput);
+		expect(titleInput.selectionStart).toBe(0);
+		expect(titleInput.selectionEnd).toBe(titleInput.value.length);
+
+		terminalContext.tabModel.selectTab(creation.tabId);
+		fireEvent.change(titleInput, { target: { value: '  Focus work  ' } });
+		let form = dialog.querySelector('form');
+		expect(form).not.toBeNull();
+		if (form === null) throw new Error('Expected the Tab title form.');
+		fireEvent.submit(form);
+		await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+		expect(
+			terminalContext.tabModel.getSnapshot().tabs.find((tab) => tab.id === firstTabId)?.title,
+		).toBe('Focus work');
+		expect(
+			terminalContext.tabModel.getSnapshot().tabs.find((tab) => tab.id === creation.tabId)?.title,
+		).not.toBe('Focus work');
+
+		const titleReturnFocus = findActiveTerminalFocusTarget(projectWorkspaceRuntime);
+		expect(titleReturnFocus).not.toBeNull();
+		const firstTab = screen.getByRole('tab', { name: /^Focus work/ });
+		fireEvent.contextMenu(firstTab, { clientX: 120, clientY: 20 });
+		const menu = await screen.findByRole('menu', { name: 'Tab options' });
+		const titleMenuItem = within(menu).getByRole('menuitem', { name: /^Set Tab Title…/ });
+		expect(titleMenuItem.textContent).toBe('Set Tab Title…⇧⌘I');
+		fireEvent.click(titleMenuItem);
+		dialog = await screen.findByRole('dialog', { name: 'Set Tab Title' });
+		titleInput = within(dialog).getByLabelText<HTMLInputElement>('Tab title');
+		expect(titleInput.value).toBe('Focus work');
+		fireEvent.change(titleInput, { target: { value: '   ' } });
+		form = dialog.querySelector('form');
+		expect(form).not.toBeNull();
+		if (form === null) throw new Error('Expected the Tab title form.');
+		fireEvent.submit(form);
+		await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+		expect(
+			terminalContext.tabModel.getSnapshot().tabs.find((tab) => tab.id === firstTabId)?.title,
+		).toBe('system');
+		expect(document.activeElement).toBe(titleReturnFocus);
 	});
 
 	it('projects terminal context commands through the shared icon-bearing action menu', async () => {

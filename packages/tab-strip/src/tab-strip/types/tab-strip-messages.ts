@@ -72,6 +72,7 @@ export interface TabStripMessages {
 	readonly removeFromGroup: string;
 	readonly searchTabs: string;
 	readonly searchTabsMenu: string;
+	readonly setTabTitle: string;
 	readonly tabCrashed: string;
 	readonly tabGroups: string;
 	readonly tabMoveCanceled: string;

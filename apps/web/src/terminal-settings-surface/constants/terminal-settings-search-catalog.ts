@@ -327,6 +327,7 @@ export const KEYBOARD_SHORTCUT_SEARCH_LABELS = {
 	'maximize-panel': keyboardShortcutMessages.maximizePanel,
 	'move-tab-backward': keyboardShortcutMessages.moveTabBackward,
 	'move-tab-forward': keyboardShortcutMessages.moveTabForward,
+	'set-tab-title': keyboardShortcutMessages.setTabTitle,
 	'new-terminal': keyboardShortcutMessages.newTerminal,
 	'next-prompt': keyboardShortcutMessages.nextPrompt,
 	'next-tab': keyboardShortcutMessages.nextTab,

@@ -22,6 +22,7 @@ interface WorkbenchShortcutDefinition {
 		| typeof WORKBENCH_ACTION_IDS.increaseTerminalFontSize
 		| typeof WORKBENCH_ACTION_IDS.moveActiveTabBackward
 		| typeof WORKBENCH_ACTION_IDS.moveActiveTabForward
+		| typeof WORKBENCH_ACTION_IDS.setTabTitle
 		| typeof WORKBENCH_ACTION_IDS.openSearch
 		| typeof WORKBENCH_ACTION_IDS.openSettings
 		| typeof WORKBENCH_ACTION_IDS.resetTerminalFontSize
@@ -145,6 +146,15 @@ export const WORKBENCH_SHORTCUTS = {
 		input: undefined,
 		shortcutId: WORKBENCH_ACTION_IDS.moveActiveTabForward,
 	},
+	setTabTitle: {
+		defaults: {
+			apple: chord('KeyI', ['mod', 'shift']),
+			standard: chord('KeyT', ['mod', 'alt', 'shift']),
+		},
+		id: WORKBENCH_ACTION_IDS.setTabTitle,
+		input: undefined,
+		shortcutId: WORKBENCH_ACTION_IDS.setTabTitle,
+	},
 	newTerminal: {
 		defaults: {
 			apple: chord('KeyT', ['mod']),
@@ -262,6 +272,7 @@ const WORKBENCH_SHORTCUT_ACTIONS = Object.freeze([
 	'maximizeActivePanel',
 	'moveActiveTabBackward',
 	'moveActiveTabForward',
+	'setTabTitle',
 	'newTerminal',
 	'search',
 	'resetTerminalFontSize',
@@ -342,6 +353,8 @@ export function formatWorkbenchActionShortcut(
 			return formatWorkbenchShortcut('moveActiveTabBackward', platform, bindings);
 		case WORKBENCH_ACTION_IDS.moveActiveTabForward:
 			return formatWorkbenchShortcut('moveActiveTabForward', platform, bindings);
+		case WORKBENCH_ACTION_IDS.setTabTitle:
+			return formatWorkbenchShortcut('setTabTitle', platform, bindings);
 		case WORKBENCH_ACTION_IDS.decreaseTerminalFontSize:
 			return formatWorkbenchShortcut('decreaseTerminalFontSize', platform, bindings);
 		case WORKBENCH_ACTION_IDS.resetTerminalFontSize:
@@ -411,6 +424,8 @@ function defaultBindingsFor(platform: WorkbenchShortcutPlatform): WorkbenchShort
 			WORKBENCH_SHORTCUTS.moveActiveTabBackward.defaults[platform],
 		[WORKBENCH_SHORTCUTS.moveActiveTabForward.shortcutId]:
 			WORKBENCH_SHORTCUTS.moveActiveTabForward.defaults[platform],
+		[WORKBENCH_SHORTCUTS.setTabTitle.shortcutId]:
+			WORKBENCH_SHORTCUTS.setTabTitle.defaults[platform],
 		[WORKBENCH_SHORTCUTS.newTerminal.shortcutId]:
 			WORKBENCH_SHORTCUTS.newTerminal.defaults[platform],
 		[WORKBENCH_SHORTCUTS.search.shortcutId]: WORKBENCH_SHORTCUTS.search.defaults[platform],

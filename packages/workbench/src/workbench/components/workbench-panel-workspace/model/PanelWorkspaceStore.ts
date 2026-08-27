@@ -120,7 +120,7 @@ export class PanelWorkspaceStore {
 			this.tabTitlePolicies.set(tabId, { ...policy, customTitle: null });
 		} else {
 			const normalized = customTitle.trim();
-			if (normalized.length === 0 || this.resolveTabTitle(tabId) === normalized) {
+			if (normalized.length === 0 || policy.customTitle === normalized) {
 				return { kind: 'unchanged' };
 			}
 			this.tabTitlePolicies.set(tabId, { ...policy, customTitle: normalized });

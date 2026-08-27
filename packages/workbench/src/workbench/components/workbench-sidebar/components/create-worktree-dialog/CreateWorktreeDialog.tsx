@@ -27,7 +27,7 @@ import type {
 	WorkbenchProjectWorktreeFailureCode,
 } from '../../../../types/workbench-project-worktree';
 import type { WorkbenchProjectNavigationMessages } from '../../types/workbench-sidebar-types';
-import { ResourceDialogForm } from '../resource-dialog-form/ResourceDialogForm';
+import { ResourceDialogForm } from '../../../resource-dialog-form/ResourceDialogForm';
 import styles from './CreateWorktreeDialog.module.css';
 
 interface CreateWorktreeDialogProps {

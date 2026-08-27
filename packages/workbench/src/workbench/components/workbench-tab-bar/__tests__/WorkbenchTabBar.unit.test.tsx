@@ -48,6 +48,7 @@ function VerticalWorkbenchTabBar({
 			getCloseTabsConfirmation={() => null}
 			onNewTerminal={undefined}
 			onOrientationChange={() => undefined}
+			onSetTabTitle={() => undefined}
 			onVerticalCollapsedChange={setVerticalCollapsed}
 			orientation={TabStripOrientation.Vertical}
 			parentActionScope={parentActionScope}

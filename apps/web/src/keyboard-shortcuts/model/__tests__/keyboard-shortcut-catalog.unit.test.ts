@@ -10,9 +10,9 @@ import {
 } from '../keyboard-shortcut-catalog';
 
 describe('keyboard shortcut catalog', () => {
-	it('combines the twenty-nine Workbench and sixteen projected-terminal declarations once', () => {
-		expect(KEYBOARD_SHORTCUT_CATALOG).toHaveLength(45);
-		expect(new Set(KEYBOARD_SHORTCUT_IDS).size).toBe(45);
+	it('combines the thirty Workbench and sixteen projected-terminal declarations once', () => {
+		expect(KEYBOARD_SHORTCUT_CATALOG).toHaveLength(46);
+		expect(new Set(KEYBOARD_SHORTCUT_IDS).size).toBe(46);
 		expect(keyboardShortcutDeclaration('workbench.search.actions.open')).toMatchObject({
 			actionId: 'workbench.search.open',
 			actionInput: { filter: 'actions' },
@@ -67,6 +67,13 @@ describe('keyboard shortcut catalog', () => {
 			actionInput: undefined,
 			availability: 'movable-tab',
 			name: 'move-tab-forward',
+			scope: 'workbench',
+		});
+		expect(keyboardShortcutDeclaration('workbench.tab.title.set')).toMatchObject({
+			actionId: 'workbench.tab.title.set',
+			actionInput: undefined,
+			availability: 'active-terminal',
+			name: 'set-tab-title',
 			scope: 'workbench',
 		});
 		expect(keyboardShortcutDeclaration('workbench.terminal.font-size.increase')).toMatchObject({

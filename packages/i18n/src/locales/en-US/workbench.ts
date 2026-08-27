@@ -202,6 +202,13 @@ export const enUSWorkbenchMessages = {
 	'workbench.tabs.actions.move': 'Move tab',
 	'workbench.tabs.actions.moveBackward': 'Move active tab backward',
 	'workbench.tabs.actions.moveForward': 'Move active tab forward',
+	'workbench.tabs.actions.setTitle': 'Set Tab Title',
+	'workbench.tabs.actions.setTitleMenu': 'Set Tab Title…',
+	'workbench.tabs.titleEditor.description': 'Choose a custom label for this terminal tab.',
+	'workbench.tabs.titleEditor.field': 'Tab title',
+	'workbench.tabs.titleEditor.placeholder': 'Enter a title',
+	'workbench.tabs.titleEditor.restoreDescription':
+		'Leave empty to restore the title reported by the terminal.',
 	'workbench.tabs.actions.moveGroup': 'Move tab group',
 	'workbench.tabs.actions.setGroupCollapsed': 'Set tab group collapsed state',
 	'workbench.tabs.actions.pin': 'Pin',

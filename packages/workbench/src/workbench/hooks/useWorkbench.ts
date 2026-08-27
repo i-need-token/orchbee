@@ -45,10 +45,12 @@ import {
 	type WorkbenchShortcutBindings,
 } from '../utils/workbench-shortcuts';
 import { WORKBENCH_ACTION_IDS } from '../actions/workbench-action-ids';
+import type { WorkbenchTabTitleEditorRequest } from '../actions/registerWorkbenchTabTitleAction';
 import type {
 	WorkbenchProjectWorkspaceRuntime,
 	WorkbenchTerminalContext,
 } from '../model/WorkbenchProjectWorkspaceRuntime';
+import { findActiveTerminalFocusTarget } from '../utils/findActiveTerminalFocusTarget';
 import { useWorkbenchActions } from './useWorkbenchActions';
 import { useWorkbenchShortcuts } from './useWorkbenchShortcuts';
 
@@ -118,6 +120,24 @@ interface WorkbenchView {
 	readonly settings: (() => void) | undefined;
 	readonly settingsShortcutId: string;
 	readonly settingsShortcutLabel: string;
+	readonly setTabTitle: (tabId: string) => void;
+	readonly tabTitleEditor:
+		| (WorkbenchTabTitleEditorRequest & { readonly draftTitle: string })
+		| null;
+	readonly tabTitleEditorFinalFocus: () => HTMLElement | null;
+	readonly tabTitleEditorMessages: {
+		readonly cancel: string;
+		readonly close: string;
+		readonly description: string;
+		readonly field: string;
+		readonly placeholder: string;
+		readonly restoreDescription: string;
+		readonly save: string;
+		readonly title: string;
+	};
+	readonly cancelTabTitleEditor: () => void;
+	readonly submitTabTitleEditor: () => void;
+	readonly updateTabTitleEditor: (title: string) => void;
 	readonly terminalContext: WorkbenchTerminalContext;
 	readonly terminalLabel: string;
 	readonly tabStripOrientation: TabStripOrientation;
@@ -191,6 +211,10 @@ export function useWorkbench({
 	);
 	const searchHasOpened = React.useRef(false);
 	const searchReturnFocus = React.useRef<HTMLElement | null>(null);
+	const tabTitleReturnFocus = React.useRef<HTMLElement | null>(null);
+	const [tabTitleEditor, setTabTitleEditor] = React.useState<
+		(WorkbenchTabTitleEditorRequest & { readonly draftTitle: string }) | null
+	>(null);
 	const openSearch = useMemoizedFn((input: { readonly filter: WorkbenchSearchFilter }) => {
 		searchHasOpened.current = true;
 		if (
@@ -222,6 +246,16 @@ export function useWorkbench({
 		searchReturnFocus.current = null;
 		returnFocus?.focus();
 	}, [searchState.kind]);
+	const openTabTitleEditor = useMemoizedFn((request: WorkbenchTabTitleEditorRequest) => {
+		tabTitleReturnFocus.current = findActiveTerminalFocusTarget(projectWorkspaceRuntime);
+		setTabTitleEditor({ ...request, draftTitle: request.title });
+	});
+	const tabTitleEditorFinalFocus = useMemoizedFn(() => {
+		const capturedTarget = tabTitleReturnFocus.current;
+		return capturedTarget?.isConnected === true
+			? capturedTarget
+			: findActiveTerminalFocusTarget(projectWorkspaceRuntime);
+	});
 	const toggleSidebar = useMemoizedFn(() => {
 		setIsSidebarVisible((currentVisibility) => {
 			const nextVisibility = !currentVisibility;
@@ -296,6 +330,7 @@ export function useWorkbench({
 		onSettings,
 		onTerminalFontSizeChange,
 		openSearch,
+		openTabTitleEditor,
 		primaryWorkspaceName: intl.formatMessage(workbenchMessages.workspacePrimaryName),
 		projectWorkspaceRuntime,
 		projectWorkspaceState,
@@ -607,6 +642,44 @@ export function useWorkbench({
 		settingsLabel: intl.formatMessage(workbenchMessages.settings),
 		settingsShortcutId: WORKBENCH_SHORTCUTS.settings.id,
 		settingsShortcutLabel: formatWorkbenchShortcut('settings', shortcutPlatform, shortcutBindings),
+		setTabTitle: (tabId) => {
+			const terminalContext = projectWorkspaceRuntime.getActiveTerminalContext();
+			actions.invoke(
+				WORKBENCH_ACTION_IDS.setTabTitle,
+				{ kind: 'open', tabId, terminalContextId: terminalContext.terminalContextId },
+				'context-menu',
+			);
+		},
+		tabTitleEditor,
+		tabTitleEditorFinalFocus,
+		tabTitleEditorMessages: {
+			cancel: intl.formatMessage(workbenchMessages.resourceCancel),
+			close: intl.formatMessage(workbenchMessages.resourceClose),
+			description: intl.formatMessage(workbenchTabMessages.tabTitleDescription),
+			field: intl.formatMessage(workbenchTabMessages.tabTitleField),
+			placeholder: intl.formatMessage(workbenchTabMessages.tabTitlePlaceholder),
+			restoreDescription: intl.formatMessage(workbenchTabMessages.tabTitleRestoreDescription),
+			save: intl.formatMessage(workbenchMessages.resourceSave),
+			title: intl.formatMessage(workbenchTabMessages.setTabTitle),
+		},
+		cancelTabTitleEditor: () => setTabTitleEditor(null),
+		submitTabTitleEditor: () => {
+			if (tabTitleEditor === null) return;
+			actions.invoke(
+				WORKBENCH_ACTION_IDS.setTabTitle,
+				{
+					kind: 'commit',
+					tabId: tabTitleEditor.tabId,
+					terminalContextId: tabTitleEditor.terminalContextId,
+					title: tabTitleEditor.draftTitle,
+				},
+				'button',
+			);
+			setTabTitleEditor(null);
+		},
+		updateTabTitleEditor: (title) => {
+			setTabTitleEditor((current) => (current === null ? null : { ...current, draftTitle: title }));
+		},
 		terminalContext: projectWorkspaceRuntime.getActiveTerminalContext(),
 		terminalLabel: intl.formatMessage(workbenchMessages.terminal),
 		tabStripOrientation,

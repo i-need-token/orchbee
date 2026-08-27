@@ -571,6 +571,19 @@ describe('WorkbenchProjectWorkspaceRuntime', () => {
 		).toEqual({ kind: 'applied' });
 		expect(context.tabModel.getSnapshot().tabs[0]?.title).toBe('vim');
 		expect(tab.root.primaryPresentation.launchCwd).toBe('/system');
+		expect(context.panelWorkspaceStore.setTabCustomTitle(tabId, 'vim')).toEqual({
+			kind: 'applied',
+		});
+		runtime.applyTerminalMetadataObservation(presentationId, {
+			closeActivity: 'idle',
+			currentDirectory: { kind: 'ignored' },
+			naturalTitle: 'shell after equal override',
+		});
+		expect(context.tabModel.getSnapshot().tabs[0]?.title).toBe('vim');
+		expect(context.panelWorkspaceStore.setTabCustomTitle(tabId, null)).toEqual({
+			kind: 'applied',
+		});
+		expect(context.tabModel.getSnapshot().tabs[0]?.title).toBe('shell after equal override');
 
 		expect(context.panelWorkspaceStore.setTabCustomTitle(tabId, '  Custom title  ')).toEqual({
 			kind: 'applied',

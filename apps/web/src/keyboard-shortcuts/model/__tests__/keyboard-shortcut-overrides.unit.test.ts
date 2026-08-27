@@ -122,4 +122,22 @@ describe('keyboard shortcut overrides', () => {
 			modifiers: ['control', 'shift'],
 		});
 	});
+
+	it('applies a custom Tab title binding without changing its platform default elsewhere', () => {
+		const bindings = createKeyboardShortcutBindings('apple', [
+			{
+				chord: { code: 'KeyY', modifiers: ['mod', 'shift'] },
+				shortcutId: 'workbench.tab.title.set',
+			},
+		]);
+
+		expect(bindings['workbench.tab.title.set']).toEqual({
+			code: 'KeyY',
+			modifiers: ['mod', 'shift'],
+		});
+		expect(createKeyboardShortcutBindings('standard', [])['workbench.tab.title.set']).toEqual({
+			code: 'KeyT',
+			modifiers: ['mod', 'alt', 'shift'],
+		});
+	});
 });

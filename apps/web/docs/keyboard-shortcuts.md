@@ -21,6 +21,7 @@ those surfaces owns another binding copy.
 | `workbench.tab.select-next`                  | Workbench                         | `Cmd+Shift+]`         | `Ctrl+PageDown`       |
 | `workbench.tab.active.move-backward`         | Workbench                         | `Ctrl+Shift+,`        | `Ctrl+Shift+,`        |
 | `workbench.tab.active.move-forward`          | Workbench                         | `Ctrl+Shift+.`        | `Ctrl+Shift+.`        |
+| `workbench.tab.title.set`                    | Workbench                         | `Cmd+Shift+I`         | `Ctrl+Alt+Shift+T`    |
 | `workbench.terminal.active.close`            | Active terminal                   | `Cmd+W`               | `Ctrl+Shift+W`        |
 | `workbench.panel.active.focus-down`          | Active panel                      | `Cmd+Option+Down`     | `Ctrl+Alt+Down`       |
 | `workbench.panel.active.focus-left`          | Active panel                      | `Cmd+Option+Left`     | `Ctrl+Alt+Left`       |
@@ -102,6 +103,11 @@ Active-Tab movement preserves Kitty's `Ctrl+Shift+,` and `Ctrl+Shift+.` defaults
 `6d5d0c440603ad9bdf6dcd599f73f6dde21acb44` on both platforms. Workbench keeps explicit
 Control on Apple because Kitty's `kitty_mod` default is Control+Shift there too; the movement
 model below defines the adopted behavior beyond the key selection.
+
+Set Tab Title preserves Kitty's `Shift+Cmd+I` Apple default and `Ctrl+Shift+Alt+T` Standard
+default at that revision. Workbench uses one semantic Action for shortcut dispatch, Action search,
+and the invoked Tab's context menu; the title model below defines the adopted editor and reset
+behavior.
 
 ## Terminal paste routing
 
@@ -233,6 +239,34 @@ and leaves the event untouched. `Mod+9` means the ninth Tab, never the last Tab.
   Shortcut, settings, Action-search, and Desktop traces cover both defaults, disabled fallthrough,
   custom bindings, visible discovery, final order, focus, and terminal input continuity.
 
+### Tab title model
+
+- **Problem and inputs:** A person needs to give the active or pointer-invoked Tab a stable name
+  without losing the terminal's newer dynamic title. Opening accepts either no input, which resolves
+  the active Tab, or an explicit trusted terminal-context/Tab identity captured by the menu. Commit
+  carries that same identity pair and a string or reset intent.
+- **Data, model, and ownership:** Workbench owns the exact `terminalContextId`/`tabId` target and
+  `PanelWorkspaceState` remains the sole writer of the Tab's durable nullable custom title. Natural
+  OSC title, current/launch CWD, and localized fallback continue to update independently beneath it.
+- **Outputs and transitions:** Opening pre-fills the effective displayed title and selects it. A
+  trimmed non-empty submission sets the custom title, including when it equals the current natural
+  title; an empty or whitespace-only submission clears it and reveals the newest
+  natural/CWD/fallback projection. Save and cancel close the modal and restore prior terminal focus.
+- **Invariants and revalidation:** Opening and commit independently resolve the exact context and Tab
+  from the current snapshot. Switching active Tabs while the editor is open cannot redirect the
+  write; removal of either identity blocks it. Dynamic metadata remains recorded while custom text
+  is visible, and reset never manufactures a fallback or writes terminal-owned metadata.
+- **Decisions and reference scope:** This adopts Kitty revision
+  `6d5d0c440603ad9bdf6dcd599f73f6dde21acb44` for the two exact defaults, editing initialized with
+  the current title, and blank reset. Orchbee uses its shared localized modal and durable shared
+  document rather than Kitty's native dialog; window-title editing, remote control, multiple
+  simultaneous bindings, and visual parity are excluded.
+- **Verification:** Model tests cover custom/natural priority, equal-value custom locking, reset, and
+  shared-document persistence. Action and React tests cover active and explicit targets, stale
+  rejection, keyboard/context/Action-search entry points, blank reset, focus restoration, and
+  unchanged terminal input. Settings, storage migration, and the exact Desktop
+  `terminal-parity/FS-11-tab-title` trace cover both defaults and user overrides.
+
 ### Terminal font-size transition model
 
 - **Problem and inputs:** A person needs to resize every terminal without opening Settings. Input
@@ -313,11 +347,11 @@ terminal Actions discovered from descendant scopes.
 
 ## Persistence and recovery
 
-New writes use `orchbee:web:keyboard-shortcuts:v12` and a strict record:
+New writes use `orchbee:web:keyboard-shortcuts:v13` and a strict record:
 
 ```json
 {
-	"version": 12,
+	"version": 13,
 	"overrides": [
 		{
 			"shortcutId": "workbench.search.all.open",
@@ -329,18 +363,18 @@ New writes use `orchbee:web:keyboard-shortcuts:v12` and a strict record:
 
 Only Custom values are stored, ordered by shortcut ID. Unknown fields or IDs, duplicates, unsorted
 entries, noncanonical modifiers, unsupported codes, stored defaults, excessive entries, and an
-effective conflict invalidate the complete v12 record and restore platform defaults. A write
+effective conflict invalidate the complete v13 record and restore platform defaults. A write
 failure keeps the immutable session binding active, reports that it was not saved, and retries on
 the next legal change. Restoring one item removes its override.
 
-When v12 is absent, Web first reads `orchbee:web:keyboard-shortcuts:v11` with its exact prior catalog
-and defaults. If v11 is also absent, it tries v10, v9, v8, v7, v6, v5, v4, v3, v2, and then v1. Every migration carries
+When v13 is absent, Web first reads `orchbee:web:keyboard-shortcuts:v12` with its exact prior catalog
+and defaults. If v12 is also absent, it tries v11, v10, v9, v8, v7, v6, v5, v4, v3, v2, and then v1. Every migration carries
 explicit overrides into the expanded catalog, removes an override equivalent to a current default,
-rejects any resulting conflict, and writes the canonical v12 record. The v1, v2, v3, v4, v5, v6,
-v7, v8, v9, v10, and v11 values remain unchanged as rollback snapshots. An invalid current record never falls back to an
+rejects any resulting conflict, and writes the canonical v13 record. The v1, v2, v3, v4, v5, v6,
+v7, v8, v9, v10, v11, and v12 values remain unchanged as rollback snapshots. An invalid current record never falls back to an
 older record, and an invalid migration source never falls through to the next older version,
 because either fallback would hide data corruption. Rolling back restores the latest record that
-the older build understands; edits made only in v12 are intentionally unavailable to it.
+the older build understands; edits made only in v13 are intentionally unavailable to it.
 
 Browser Preview, Gateway Browser, and Electron each create and dispose one controller against their
 own origin-local storage. Gateway and Electron pass the controller's narrow binding source through
@@ -363,10 +397,11 @@ change does not remount Workbench, replace an attachment, or reopen a Host or Ga
 | Positional selection follows canonical Tab order and falls through out of range       | Grouped and pinned Action integration plus shortcut dispatch tests                                                      |
 | Adjacent selection follows canonical Tab order and wraps only with multiple Tabs      | Pure resolver, prepared Action integration, and shortcut fallthrough tests                                              |
 | Active-Tab movement wraps within its pin partition through one lower Action           | Pure resolver, prepared Action integration, shortcut/settings tests, and Desktop system trace                           |
+| Tab-title editing preserves dynamic metadata and revalidates the exact invoked Tab    | Workbench model/Action/React tests, storage migration, and exact Desktop `terminal-parity/FS-11-tab-title`              |
 | Visible Hints consume one focused binding and never leak label keys to terminal input | Terminal, Action, shortcut, Settings, and exact Desktop `terminal-parity/FS-07-keyboard-hints`                          |
 | Show Scrollback consumes one focused binding and opens the exact immutable viewer     | Terminal, Action, shortcut, Settings, and exact Desktop `terminal-parity/FS-09-scrollback-viewer`                       |
 | Menus, Action search, and settings display the same current binding                   | Projection and rendered-surface tests                                                                                   |
-| Valid v1 through v11 records migrate without losing explicit legacy overrides         | Storage migration tests, including new-default conflicts                                                                |
+| Valid v1 through v12 records migrate without losing explicit legacy overrides         | Storage migration tests, including new-default conflicts                                                                |
 | Invalid current or migration-source data does not consult an older record             | Storage corruption and precedence tests                                                                                 |
 
 The tests use synthetic platform flags, Action scopes, storage, document capture, injected terminal

@@ -68,6 +68,8 @@ export function useKeyboardShortcutSettingsView({
 				return intl.formatMessage(keyboardShortcutMessages.moveTabBackward);
 			case 'move-tab-forward':
 				return intl.formatMessage(keyboardShortcutMessages.moveTabForward);
+			case 'set-tab-title':
+				return intl.formatMessage(keyboardShortcutMessages.setTabTitle);
 			case 'next-prompt':
 				return intl.formatMessage(keyboardShortcutMessages.nextPrompt);
 			case 'show-last-command-output':

@@ -12,7 +12,7 @@ import {
 import * as React from 'react';
 
 import type { WorkbenchProjectNavigationMessages } from '../../types/workbench-sidebar-types';
-import { ResourceDialogForm } from '../resource-dialog-form/ResourceDialogForm';
+import { ResourceDialogForm } from '../../../resource-dialog-form/ResourceDialogForm';
 
 interface CreateProjectDialogProps {
 	readonly messages: WorkbenchProjectNavigationMessages;

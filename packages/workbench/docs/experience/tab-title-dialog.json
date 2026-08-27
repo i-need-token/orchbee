@@ -1,0 +1,41 @@
+{
+	"$schema": "../../../../schemas/experience-component.schema.json",
+	"id": "workbench.tab-title-dialog",
+	"kind": "business",
+	"status": "canonical",
+	"name": "Workbench Tab Title Dialog",
+	"description": "Edits one stable terminal Tab title and exposes the empty-title restore behavior through the shared Workbench resource form.",
+	"owner": "@orchbee/workbench",
+	"visibility": "private",
+	"intents": ["rename-tab", "restore-tab-title", "set-tab-title"],
+	"implementation": [
+		"packages/workbench/src/workbench/components/workbench-tab-title-dialog/WorkbenchTabTitleDialog.tsx"
+	],
+	"stories": [
+		{
+			"exportName": "TabTitleEditing",
+			"file": "packages/workbench/stories/workbench.stories.tsx",
+			"id": "packages-workbench-workbench--tab-title-editing",
+			"states": [
+				"Use the active Tab shortcut to inspect the prefilled and selected current title.",
+				"Submit a custom title, then reopen, clear, and submit to restore the terminal title."
+			]
+		}
+	],
+	"uses": ["workbench.resource-dialog-form"],
+	"useWhen": [
+		"A Workbench terminal Tab needs a user-owned title override that survives terminal title updates.",
+		"A person needs to clear the override and return ownership to terminal-reported title metadata."
+	],
+	"avoidWhen": [
+		"The editable identity belongs to a Project, Workspace, Tab group, or terminal process rather than one terminal Tab.",
+		"The caller cannot preserve and revalidate a stable terminal-context and Tab identity through submission."
+	],
+	"invariants": [
+		"Opening captures the exact terminal-context and Tab identity together with the effective title shown at that moment.",
+		"Submitting revalidates the captured target and never redirects the edit to a newly active Tab.",
+		"An empty or whitespace-only submission clears the custom title and restores the latest terminal-reported fallback title.",
+		"Canceling closes the editor without mutating title policy, and focus returns through the modal lifecycle."
+	],
+	"references": ["packages/workbench/README.md"]
+}

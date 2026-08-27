@@ -20,6 +20,10 @@ import type { ProjectWorkspaceState } from '../../project-workspace';
 import { registerWorkbenchProjectWorkspaceActions } from '../actions/registerWorkbenchProjectWorkspaceActions';
 import { registerWorkbenchActiveTerminalActions } from '../actions/registerWorkbenchActiveTerminalActions';
 import { registerWorkbenchActiveTabMovementActions } from '../actions/registerWorkbenchActiveTabMovementActions';
+import {
+	registerWorkbenchTabTitleAction,
+	type WorkbenchTabTitleEditorRequest,
+} from '../actions/registerWorkbenchTabTitleAction';
 import { registerWorkbenchTabSelectionActions } from '../actions/registerWorkbenchTabSelectionActions';
 import {
 	WORKBENCH_ACTION_IDS,
@@ -45,6 +49,7 @@ interface UseWorkbenchActionsOptions {
 	readonly navigation?: WorkbenchNavigationPort | undefined;
 	readonly onNewTerminal: WorkbenchTerminalCreateCallback | undefined;
 	readonly openSearch: (input: WorkbenchSearchOpenInput) => void;
+	readonly openTabTitleEditor: (request: WorkbenchTabTitleEditorRequest) => void;
 	readonly onSettings: WorkbenchHostActionCallback | undefined;
 	readonly onTerminalFontSizeChange?: WorkbenchTerminalFontSizeChangeCallback | undefined;
 	readonly primaryWorkspaceName: string;
@@ -77,6 +82,7 @@ export function useWorkbenchActions({
 	navigation,
 	onNewTerminal,
 	openSearch,
+	openTabTitleEditor,
 	onSettings,
 	onTerminalFontSizeChange,
 	primaryWorkspaceName,
@@ -137,6 +143,12 @@ export function useWorkbenchActions({
 			},
 		});
 		const registrations = [
+			registerWorkbenchTabTitleAction({
+				openEditor: openTabTitleEditor,
+				projectWorkspaceRuntime,
+				scope,
+				typedRuntime,
+			}),
 			...registerWorkbenchActiveTabMovementActions({
 				projectWorkspaceRuntime,
 				runtime,
@@ -318,6 +330,7 @@ export function useWorkbenchActions({
 		onSettings,
 		onTerminalFontSizeChange,
 		openSearch,
+		openTabTitleEditor,
 		primaryWorkspaceName,
 		projectWorkspaceRuntime,
 		projectWorkspaceState,
@@ -400,6 +413,7 @@ export function useWorkbenchActions({
 				case 'selectNextTab':
 				case 'selectPreviousTab':
 				case 'resetTerminalFontSize':
+				case 'setTabTitle':
 				case 'splitActivePanelBelow':
 				case 'splitActivePanelRight':
 				case 'toggleSidebar': {

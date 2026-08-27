@@ -24,6 +24,7 @@ interface WorkbenchTabBarProps {
 	readonly getCloseTabsConfirmation: TabStripCloseConfirmation;
 	readonly onOrientationChange: (orientation: TabStripOrientation) => void;
 	readonly onSelectTab?: TabStripSelectCallback | undefined;
+	readonly onSetTabTitle: (tabId: string) => void;
 	readonly onVerticalCollapsedChange: (collapsed: boolean) => void;
 	readonly orientation: TabStripOrientation;
 	readonly reserveSidebarToggleSpace: boolean;
@@ -41,6 +42,7 @@ export function WorkbenchTabBar({
 	getCloseTabsConfirmation,
 	onOrientationChange,
 	onSelectTab,
+	onSetTabTitle,
 	onVerticalCollapsedChange,
 	orientation,
 	parentActionScope,
@@ -75,6 +77,7 @@ export function WorkbenchTabBar({
 				getCloseTabsConfirmation={getCloseTabsConfirmation}
 				onOrientationChange={onOrientationChange}
 				onSelectTab={onSelectTab}
+				onSetTabTitle={onSetTabTitle}
 				orientation={orientation}
 				parentActionScope={parentActionScope}
 				showGroupHoverCards={false}

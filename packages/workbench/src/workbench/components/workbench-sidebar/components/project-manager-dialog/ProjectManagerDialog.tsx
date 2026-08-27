@@ -11,8 +11,8 @@ import {
 import * as React from 'react';
 
 import type { WorkbenchProject } from '../../../../../project-workspace';
+import { ResourceDialogForm } from '../../../resource-dialog-form/ResourceDialogForm';
 import type { WorkbenchProjectNavigationMessages } from '../../types/workbench-sidebar-types';
-import { ResourceDialogForm } from '../resource-dialog-form/ResourceDialogForm';
 import { ProjectDirectoryList } from './components/project-directory-list/ProjectDirectoryList';
 import { useProjectManagerDialog } from './hooks/useProjectManagerDialog';
 

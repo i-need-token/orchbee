@@ -2355,6 +2355,84 @@ test('terminal-parity/FS-10-active-tab-movement', async () => {
 	await expect(recoveredRoot.locator('[role="list"]')).toContainText('active-tab-movement-alive');
 });
 
+test('terminal-parity/FS-11-tab-title', async () => {
+	test.setTimeout(60_000);
+	const application = electronApplication;
+	if (application === undefined) throw new Error('Electron application did not start.');
+	const page = await application.firstWindow();
+	const root = projectedTerminal(page);
+	const input = root.getByRole('textbox');
+	const selectedTab = page.locator(
+		'[data-slot="workbench-tab-bar"] [role="tab"][aria-selected="true"]',
+	);
+	const titleShortcut =
+		process.platform === 'darwin' ? 'Meta+Shift+KeyI' : 'Control+Alt+Shift+KeyT';
+
+	await input.focus();
+	await input.pressSequentially(
+		"printf '\\033]0;fs11-natural-1\\007'; printf 'fs11-title-ready-1\\n'; sleep 30",
+		{ delay: 1 },
+	);
+	await input.press('Enter');
+	await expect(root.locator('[role="list"]')).toContainText('fs11-title-ready-1');
+	await expect(selectedTab).toContainText('fs11-natural-1');
+
+	await page.keyboard.press(titleShortcut);
+	let dialog = page.getByRole('dialog', { name: /^(?:Set Tab Title|设置标签页标题)$/u });
+	await expect(dialog).toBeVisible();
+	let titleInput = dialog.getByRole('textbox', { name: /^(?:Tab title|标签页标题)$/u });
+	await expect(titleInput).toHaveValue('fs11-natural-1');
+	await titleInput.fill('FS11 custom title');
+	await dialog.getByRole('button', { name: /^(?:Save|保存)$/u }).click();
+	await expect(dialog).not.toBeAttached();
+	await expect(selectedTab).toContainText('FS11 custom title');
+	await expect(input).toBeFocused();
+
+	await input.press('Control+C');
+	await input.pressSequentially(
+		"printf '\\033]0;fs11-natural-2\\007'; printf 'fs11-title-ready-2\\n'; sleep 30",
+		{ delay: 1 },
+	);
+	await input.press('Enter');
+	await expect(root.locator('[role="list"]')).toContainText('fs11-title-ready-2');
+	await expect(selectedTab).toContainText('FS11 custom title');
+
+	await selectedTab.click({ button: 'right' });
+	const tabMenu = page.getByRole('menu', { name: /^(?:Tab options|标签页选项)$/u });
+	await expect(tabMenu).toBeVisible();
+	await tabMenu.getByRole('menuitem', { name: /^(?:Set Tab Title…|设置标签页标题…)/u }).click();
+	dialog = page.getByRole('dialog', { name: /^(?:Set Tab Title|设置标签页标题)$/u });
+	await expect(dialog).toBeVisible();
+	titleInput = dialog.getByRole('textbox', { name: /^(?:Tab title|标签页标题)$/u });
+	await expect(titleInput).toHaveValue('FS11 custom title');
+	await titleInput.fill('');
+	await dialog.getByRole('button', { name: /^(?:Save|保存)$/u }).click();
+	await expect(dialog).not.toBeAttached();
+	await expect(selectedTab).toContainText('fs11-natural-2');
+	await expect(input).toBeFocused();
+
+	const primaryModifier = process.platform === 'darwin' ? 'Meta' : 'Control';
+	await page.keyboard.press(`${primaryModifier}+Shift+KeyP`);
+	const searchSurface = page.locator('[data-slot="workbench-search-surface"]');
+	await expect(searchSurface).toBeVisible();
+	const searchInput = searchSurface.getByRole('combobox');
+	await searchInput.fill(
+		(await searchInput.getAttribute('placeholder')) === '搜索操作…'
+			? '设置标签页标题'
+			: 'Set Tab Title',
+	);
+	await searchSurface.getByRole('option', { name: /(?:Set Tab Title|设置标签页标题)/u }).click();
+	dialog = page.getByRole('dialog', { name: /^(?:Set Tab Title|设置标签页标题)$/u });
+	await expect(dialog).toBeVisible();
+	await expect(dialog.getByRole('textbox', { name: /^(?:Tab title|标签页标题)$/u })).toHaveValue(
+		'fs11-natural-2',
+	);
+	await dialog.getByRole('button', { name: /^(?:Cancel|取消)$/u }).click();
+	await expect(dialog).not.toBeAttached();
+	await expect(input).toBeFocused();
+	await input.press('Control+C');
+});
+
 test('keeps terminal presentation continuous through rapid Tab switching and active Tab closure', async () => {
 	test.setTimeout(60_000);
 	const application = electronApplication;

@@ -16,6 +16,7 @@
 | `workbench.tab.select-next`                  | Workbench              | `Cmd+Shift+]`         | `Ctrl+PageDown`       |
 | `workbench.tab.active.move-backward`         | Workbench              | `Ctrl+Shift+,`        | `Ctrl+Shift+,`        |
 | `workbench.tab.active.move-forward`          | Workbench              | `Ctrl+Shift+.`        | `Ctrl+Shift+.`        |
+| `workbench.tab.title.set`                    | Workbench              | `Cmd+Shift+I`         | `Ctrl+Alt+Shift+T`    |
 | `workbench.terminal.active.close`            | 活动终端               | `Cmd+W`               | `Ctrl+Shift+W`        |
 | `workbench.panel.active.focus-down`          | 活动面板               | `Cmd+Option+Down`     | `Ctrl+Alt+Down`       |
 | `workbench.panel.active.focus-left`          | 活动面板               | `Cmd+Option+Left`     | `Ctrl+Alt+Left`       |
@@ -78,6 +79,10 @@ shell 集成输出打开不可变查看器；提取、搜索、复制、取消�
 `6d5d0c440603ad9bdf6dcd599f73f6dde21acb44` 的 `Ctrl+Shift+,` 与 `Ctrl+Shift+.` 默认键。
 Workbench 在 Apple 平台仍使用显式 Control，因为 Kitty 的 `kitty_mod` 默认值在该平台同样是
 Control+Shift；按键选择以外采用的行为由下方移动模型定义。
+
+设置 Tab 标题保留该修订版中 Apple 的 `Shift+Cmd+I` 默认键与标准平台的
+`Ctrl+Shift+Alt+T` 默认键。Workbench 使用同一个语义 Action 处理快捷键分发、Action 搜索和被调用
+Tab 的上下文菜单；下方标题模型定义采纳的编辑器与重置行为。
 
 ## 终端粘贴路由
 
@@ -161,6 +166,29 @@ Web 发布 Workbench 是否为当前活动产品表面。已挂载的 Workbench 
   Action 搜索及 Desktop 轨迹覆盖两个默认键、禁用时继续传递、自定义绑定、可见发现、最终顺序、焦点
   与终端输入连续性。
 
+### 标签页标题模型
+
+- **问题与输入：** 用户需要为活动或指针调用的 Tab 设置稳定名称，同时不丢失终端更新的动态标题。
+  打开操作可以不带输入并解析活动 Tab，也可以接收菜单捕获的可信显式终端上下文/Tab 标识。提交携带
+  同一标识对以及字符串或重置意图。
+- **数据、模型与所有权：** Workbench 拥有精确的 `terminalContextId`/`tabId` 目标，
+  `PanelWorkspaceState` 仍是 Tab 持久可空自定义标题的唯一写入者。自然 OSC 标题、当前/启动 CWD 与
+  本地化后备值继续在其下独立更新。
+- **输出与转换：** 打开时预填并选中当前生效标题。去除首尾空白后的非空提交会设置自定义标题，包括
+  该值与当前自然标题相同时；空值或仅含空白的提交会清除它，并显示最新的自然标题、CWD 或后备投影。
+  保存和取消都会关闭模态框，并恢复此前的终端焦点。
+- **不变量与重新校验：** 打开与提交都会分别从当前快照解析精确上下文和 Tab。编辑器打开期间切换活动
+  Tab 不会重定向写入；任一标识被移除都会阻止操作。自定义文本可见时仍会记录动态元数据，重置绝不会
+  制造后备值或写入终端拥有的元数据。
+- **决策与参考范围：** 这里采用 Kitty 修订版
+  `6d5d0c440603ad9bdf6dcd599f73f6dde21acb44` 的两个精确默认键、以当前标题初始化编辑及空值重置。
+  Orchbee 使用共享本地化模态框与持久共享文档，而不是 Kitty 原生对话框；窗口标题编辑、远程控制、
+  多个同时生效的绑定及视觉一致性不在范围内。
+- **验证：** 模型测试覆盖自定义/自然标题优先级、等值自定义锁定、重置与共享文档持久化。Action 与
+  React 测试覆盖活动和显式目标、陈旧拒绝、快捷键/上下文菜单/Action 搜索入口、空值重置、焦点恢复及
+  终端输入不变。设置、存储迁移和精确 Desktop `terminal-parity/FS-11-tab-title` 轨迹覆盖两个默认键与
+  用户覆盖。
+
 ### 终端字号转换模型
 
 - **问题与输入：** 用户需要在不打开设置的情况下调整每个终端的大小。输入是在 Workbench 快捷键作用域活动时触发的一个语义 `increase`、`decrease` 或 `reset` Action；不要求终端焦点或 Panel 身份。
@@ -198,11 +226,11 @@ Workbench 负责格式化自身绑定。投影终端负责其绑定默认值与�
 
 ## 持久化与恢复
 
-新写入使用 `orchbee:web:keyboard-shortcuts:v12` 严格记录：
+新写入使用 `orchbee:web:keyboard-shortcuts:v13` 严格记录：
 
 ```json
 {
-	"version": 12,
+	"version": 13,
 	"overrides": [
 		{
 			"shortcutId": "workbench.search.all.open",
@@ -212,9 +240,9 @@ Workbench 负责格式化自身绑定。投影终端负责其绑定默认值与�
 }
 ```
 
-只存储自定义值，并按快捷键 ID 排序。未知字段或 ID、重复项、未排序条目、非规范修饰符、不支持的代码、已存储默认值、过多条目以及有效冲突都会使完整 v12 记录无效，并恢复平台默认值。写入失败时，不可变的会话绑定仍保持活动，同时报告尚未保存，并在下一次合法修改时重试。恢复单项会移除其覆盖。
+只存储自定义值，并按快捷键 ID 排序。未知字段或 ID、重复项、未排序条目、非规范修饰符、不支持的代码、已存储默认值、过多条目以及有效冲突都会使完整 v13 记录无效，并恢复平台默认值。写入失败时，不可变的会话绑定仍保持活动，同时报告尚未保存，并在下一次合法修改时重试。恢复单项会移除其覆盖。
 
-当 v12 不存在时，Web 会先按准确的旧目录与旧默认值读取 `orchbee:web:keyboard-shortcuts:v11`；如果 v11 也不存在，则依次尝试 v10、v9、v8、v7、v6、v5、v4、v3、v2 和 v1。每次迁移都会把显式覆盖带入扩展后的目录，移除与当前默认值等价的覆盖，拒绝迁移后产生的冲突，并写入规范 v12 记录。v1、v2、v3、v4、v5、v6、v7、v8、v9、v10 与 v11 值原样保留，作为回滚快照。无效当前记录绝不回退到更旧记录，无效迁移源也绝不继续读取下一个更旧版本，因为任一回退都会掩盖数据损坏。回滚时会恢复旧版本能够理解的最新记录；只在 v12 中做出的编辑有意不对旧版本可用。
+当 v13 不存在时，Web 会先按准确的旧目录与旧默认值读取 `orchbee:web:keyboard-shortcuts:v12`；如果 v12 也不存在，则依次尝试 v11、v10、v9、v8、v7、v6、v5、v4、v3、v2 和 v1。每次迁移都会把显式覆盖带入扩展后的目录，移除与当前默认值等价的覆盖，拒绝迁移后产生的冲突，并写入规范 v13 记录。v1、v2、v3、v4、v5、v6、v7、v8、v9、v10、v11 与 v12 值原样保留，作为回滚快照。无效当前记录绝不回退到更旧记录，无效迁移源也绝不继续读取下一个更旧版本，因为任一回退都会掩盖数据损坏。回滚时会恢复旧版本能够理解的最新记录；只在 v13 中做出的编辑有意不对旧版本可用。
 
 Browser Preview、Gateway Browser 和 Electron 各自针对自己的源本地存储创建并销毁一个控制器。Gateway 与 Electron 通过 `ProjectedTerminalSurfaceCapability` 传递控制器的窄绑定来源。事件处理器在分发时读取当前表，因此修改不会重新挂载 Workbench、替换附件，也不会重新打开 Host 或 Gateway 连接。
 
@@ -234,10 +262,11 @@ Browser Preview、Gateway Browser 和 Electron 各自针对自己的源本地存
 | 按位置选择遵循规范 Tab 顺序并在越界时继续传递事件           | 分组与固定 Action 集成测试及快捷键分发测试                                                 |
 | 相邻选择遵循规范 Tab 顺序，且仅在存在多个 Tab 时回绕        | 纯解析器、预备 Action 集成与快捷键继续传递测试                                             |
 | 活动 Tab 移动通过一个下层 Action 在其固定分区内循环         | 纯解析器、预备 Action 集成、快捷键/设置测试及 Desktop 系统轨迹                             |
+| Tab 标题编辑保留动态元数据，并重新校验精确的被调用 Tab      | Workbench 模型/Action/React 测试、存储迁移及精确 Desktop `terminal-parity/FS-11-tab-title` |
 | 可见 Hints 消费一个聚焦绑定，且标签按键绝不会泄漏到终端输入 | 终端、Action、快捷键、Settings 与精确 Desktop `terminal-parity/FS-07-keyboard-hints`       |
 | 显示回滚历史消费一个聚焦绑定并打开精确不可变查看器          | 终端、Action、快捷键、Settings 与精确 Desktop `terminal-parity/FS-09-scrollback-viewer`    |
 | 菜单、Action 搜索和设置显示同一个当前绑定                   | 投影与渲染界面测试                                                                         |
-| 有效 v1 到 v11 记录迁移时不会丢失显式旧覆盖                 | 存储迁移测试，包括与新默认值的冲突                                                         |
+| 有效 v1 到 v12 记录迁移时不会丢失显式旧覆盖                 | 存储迁移测试，包括与新默认值的冲突                                                         |
 | 无效当前记录或迁移源数据不会读取更旧记录                    | 存储损坏与优先级测试                                                                       |
 
 测试使用合成的平台标志、Action 作用域、存储、document 捕获、注入终端焦点与键盘事件。它们不主张操作系统全局快捷键行为或完整 Warp 兼容性。手动 Desktop 原生窗口焦点测试不包含在自动验证中。

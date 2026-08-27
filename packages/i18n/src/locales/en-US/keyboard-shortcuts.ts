@@ -16,6 +16,7 @@ export const enUSKeyboardShortcutMessages = {
 	'keyboard.shortcuts.actions.maximizePanel': 'Toggle panel maximization',
 	'keyboard.shortcuts.actions.moveTabBackward': 'Move active tab backward',
 	'keyboard.shortcuts.actions.moveTabForward': 'Move active tab forward',
+	'keyboard.shortcuts.actions.setTabTitle': 'Set tab title',
 	'keyboard.shortcuts.actions.newTerminal': 'New terminal',
 	'keyboard.shortcuts.actions.nextTab': 'Select next tab',
 	'keyboard.shortcuts.actions.nextPrompt': 'Scroll to next shell prompt',

@@ -62,6 +62,9 @@ export function createKeyboardShortcutBindings(
 		[WORKBENCH_SHORTCUTS.moveActiveTabForward.shortcutId]: bindingFor(
 			WORKBENCH_SHORTCUTS.moveActiveTabForward.shortcutId,
 		),
+		[WORKBENCH_SHORTCUTS.setTabTitle.shortcutId]: bindingFor(
+			WORKBENCH_SHORTCUTS.setTabTitle.shortcutId,
+		),
 		[WORKBENCH_SHORTCUTS.newTerminal.shortcutId]: bindingFor(
 			WORKBENCH_SHORTCUTS.newTerminal.shortcutId,
 		),

@@ -50,6 +50,7 @@ type Listener = () => void;
 export interface WorkbenchTerminalContext {
 	readonly panelWorkspaceStore: PanelWorkspaceStore;
 	readonly tabModel: TabModel;
+	readonly terminalContextId: string;
 }
 
 interface MutableWorkbenchTerminalContext extends WorkbenchTerminalContext {
@@ -150,6 +151,7 @@ export class WorkbenchProjectWorkspaceRuntime {
 						initialTabTitlePolicies: terminalContext.tabTitlePolicies,
 					}),
 					tabModel,
+					terminalContextId: terminalContext.terminalContextId,
 				});
 			}
 			return;
@@ -219,6 +221,7 @@ export class WorkbenchProjectWorkspaceRuntime {
 					initialTabTitlePolicies: terminalContext.tabTitlePolicies,
 				}),
 				tabModel,
+				terminalContextId: terminalContext.terminalContextId,
 			});
 		}
 		this.emit();
@@ -843,6 +846,7 @@ export class WorkbenchProjectWorkspaceRuntime {
 				})),
 			}),
 			tabModel,
+			terminalContextId,
 		};
 	}
 
@@ -915,6 +919,7 @@ export class WorkbenchProjectWorkspaceRuntime {
 				initialTabTitlePolicies,
 			}),
 			tabModel,
+			terminalContextId: targetTerminalContextId,
 		};
 	}
 

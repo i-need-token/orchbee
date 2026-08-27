@@ -71,6 +71,30 @@ export const workbenchTabMessages = defineMessages({
 		id: 'workbench.tabs.actions.moveForward',
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.moveForward'],
 	},
+	setTabTitle: {
+		id: 'workbench.tabs.actions.setTitle',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.setTitle'],
+	},
+	setTabTitleMenu: {
+		id: 'workbench.tabs.actions.setTitleMenu',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.setTitleMenu'],
+	},
+	tabTitleDescription: {
+		id: 'workbench.tabs.titleEditor.description',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.titleEditor.description'],
+	},
+	tabTitleField: {
+		id: 'workbench.tabs.titleEditor.field',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.titleEditor.field'],
+	},
+	tabTitlePlaceholder: {
+		id: 'workbench.tabs.titleEditor.placeholder',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.titleEditor.placeholder'],
+	},
+	tabTitleRestoreDescription: {
+		id: 'workbench.tabs.titleEditor.restoreDescription',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.titleEditor.restoreDescription'],
+	},
 	moveGroup: {
 		id: 'workbench.tabs.actions.moveGroup',
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.moveGroup'],

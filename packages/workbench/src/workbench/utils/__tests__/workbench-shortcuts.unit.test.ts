@@ -61,6 +61,11 @@ describe('Workbench shortcuts', () => {
 			input: undefined,
 			shortcutId: 'workbench.tab.active.move-forward',
 		});
+		expect(WORKBENCH_SHORTCUTS.setTabTitle).toMatchObject({
+			id: 'workbench.tab.title.set',
+			input: undefined,
+			shortcutId: 'workbench.tab.title.set',
+		});
 		expect(WORKBENCH_SHORTCUTS.resetTerminalFontSize.id).toBe('workbench.terminal.font-size.reset');
 		expect(WORKBENCH_SHORTCUTS.selectNextTab).toMatchObject({
 			id: 'workbench.tab.select-next',
@@ -97,6 +102,7 @@ describe('Workbench shortcuts', () => {
 		expect(formatWorkbenchShortcut('maximizeActivePanel', 'apple')).toBe('⇧⌘Enter');
 		expect(formatWorkbenchShortcut('moveActiveTabBackward', 'apple')).toBe('⌃⇧,');
 		expect(formatWorkbenchShortcut('moveActiveTabForward', 'apple')).toBe('⌃⇧.');
+		expect(formatWorkbenchShortcut('setTabTitle', 'apple')).toBe('⇧⌘I');
 		expect(formatWorkbenchShortcut('newTerminal', 'apple')).toBe('⌘T');
 		expect(formatWorkbenchShortcut('search', 'apple')).toBe('⇧⌘F');
 		expect(formatWorkbenchShortcut('resetTerminalFontSize', 'apple')).toBe('⌘0');
@@ -119,6 +125,7 @@ describe('Workbench shortcuts', () => {
 		expect(formatWorkbenchShortcut('maximizeActivePanel', 'standard')).toBe('Ctrl+Shift+Enter');
 		expect(formatWorkbenchShortcut('moveActiveTabBackward', 'standard')).toBe('Ctrl+Shift+,');
 		expect(formatWorkbenchShortcut('moveActiveTabForward', 'standard')).toBe('Ctrl+Shift+.');
+		expect(formatWorkbenchShortcut('setTabTitle', 'standard')).toBe('Ctrl+Alt+Shift+T');
 		expect(formatWorkbenchShortcut('newTerminal', 'standard')).toBe('Ctrl+Shift+T');
 		expect(formatWorkbenchShortcut('search', 'standard')).toBe('Ctrl+Shift+K');
 		expect(formatWorkbenchShortcut('resetTerminalFontSize', 'standard')).toBe('Ctrl+0');
@@ -135,6 +142,7 @@ describe('Workbench shortcuts', () => {
 			'⌃⇧,',
 		);
 		expect(formatWorkbenchActionShortcut('workbench.tab.active.move-forward', 'apple')).toBe('⌃⇧.');
+		expect(formatWorkbenchActionShortcut('workbench.tab.title.set', 'apple')).toBe('⇧⌘I');
 		expect(formatWorkbenchActionShortcut('workbench.terminal.font-size.increase', 'apple')).toBe(
 			'⌘=',
 		);
@@ -162,6 +170,7 @@ describe('Workbench shortcuts', () => {
 		['maximizeActivePanel', 'Enter', 'Enter'],
 		['moveActiveTabBackward', 'Comma', 'Comma'],
 		['moveActiveTabForward', 'Period', 'Period'],
+		['setTabTitle', 'KeyI', 'KeyT'],
 		['newTerminal', 'KeyT', 'KeyT'],
 		['search', 'KeyF', 'KeyK'],
 		['resetTerminalFontSize', 'Digit0', 'Digit0'],

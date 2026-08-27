@@ -286,3 +286,27 @@ export const UnifiedSearchProviderFailure: Story = {
 		</OrchbeeI18nProvider>
 	),
 };
+
+export const TabTitleEditing: Story = {
+	args: {
+		actionRuntime: new ActionRuntime(),
+		onSettings: () => ({ kind: 'unchanged' }),
+		projectWorkspaceRuntime: createProjectWorkspaceRuntime(['Terminal 1', 'Terminal 2']),
+		shortcutPlatform: 'apple',
+	},
+	play: () => {
+		document.body.dispatchEvent(
+			new KeyboardEvent('keydown', {
+				bubbles: true,
+				code: 'KeyI',
+				metaKey: true,
+				shiftKey: true,
+			}),
+		);
+	},
+	render: (arguments_) => (
+		<OrchbeeI18nProvider locale='en-US'>
+			<Workbench {...arguments_} />
+		</OrchbeeI18nProvider>
+	),
+};
