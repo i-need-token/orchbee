@@ -24,6 +24,11 @@ pub const Reservation = struct {
     reserved_bytes: usize,
 };
 
+pub const Delivery = union(enum) {
+    ordered,
+    mouse_hover: u64,
+};
+
 pub const WriterSlice = struct {
     identifier: u64,
     length: usize,
@@ -37,12 +42,20 @@ pub const AccountOutcome = enum {
     ownership_lost,
 };
 
+pub const StartOutcome = enum {
+    started,
+    retired,
+    ownership_lost,
+};
+
 const Entry = struct {
     bytes: ?[]u8 = null,
+    delivery: Delivery = .ordered,
     identifier: u64,
     offset: usize = 0,
     reserved_bytes: usize,
     source: Source,
+    write_started: bool = false,
 };
 
 /// Owns the two bounded PTY-write queues and their reservation accounting.
@@ -89,7 +102,23 @@ pub const Queue = struct {
         if (!self.hasCapacity(byte_count, source, repair_charge)) {
             return error.InputBackpressure;
         }
-        return self.reserveAssumeCapacity(byte_count, source);
+        return self.reserveAssumeCapacity(byte_count, source, .ordered);
+    }
+
+    pub fn reserveMouseHover(
+        self: *Queue,
+        byte_count: usize,
+        mouse_input_epoch: u64,
+        repair_charge: Charge,
+    ) !Reservation {
+        if (!self.hasCapacity(byte_count, .client, repair_charge)) {
+            return error.InputBackpressure;
+        }
+        return self.reserveAssumeCapacity(
+            byte_count,
+            .client,
+            .{ .mouse_hover = mouse_input_epoch },
+        );
     }
 
     /// Converts capacity already charged to an attachment cleanup ledger into
@@ -98,7 +127,7 @@ pub const Queue = struct {
     pub fn reservePrechargedClient(self: *Queue, byte_count: usize) !Reservation {
         std.debug.assert(self.client_charge.bytes <= client_capacity_bytes -| byte_count);
         std.debug.assert(self.client_charge.entries < client_capacity_entries);
-        return self.reserveAssumeCapacity(byte_count, .client);
+        return self.reserveAssumeCapacity(byte_count, .client, .ordered);
     }
 
     pub fn reservationSource(self: *const Queue, identifier: u64) ?Source {
@@ -214,6 +243,36 @@ pub const Queue = struct {
             slice.length <= bytes.len - entry.offset;
     }
 
+    /// Revalidates the copied entry at the exact platform-write start point.
+    /// Only a wholly unstarted stale hover may be removed; a started entry is
+    /// permanently ordered through all of its remaining partial slices.
+    pub fn startWriterSlice(
+        self: *Queue,
+        slice: WriterSlice,
+        mouse_input_epoch: u64,
+    ) StartOutcome {
+        const index = self.entryIndex(slice.identifier) orelse return .ownership_lost;
+        const entry = &self.entries.items[index];
+        const bytes = entry.bytes orelse return .ownership_lost;
+        if (entry.offset != slice.offset or entry.source != slice.source or
+            entry.offset > bytes.len or slice.length == 0 or
+            slice.length > bytes.len - entry.offset)
+        {
+            return .ownership_lost;
+        }
+        if (!entry.write_started) switch (entry.delivery) {
+            .ordered => {},
+            .mouse_hover => |prepared_epoch| if (prepared_epoch != mouse_input_epoch) {
+                self.releaseCharge(entry.*);
+                self.allocator.free(bytes);
+                _ = self.entries.orderedRemove(index);
+                return .retired;
+            },
+        };
+        entry.write_started = true;
+        return .started;
+    }
+
     pub fn accountWriterSlice(
         self: *Queue,
         slice: WriterSlice,
@@ -247,11 +306,17 @@ pub const Queue = struct {
         return if (completed) .completed else .advanced;
     }
 
-    fn reserveAssumeCapacity(self: *Queue, byte_count: usize, source: Source) !Reservation {
+    fn reserveAssumeCapacity(
+        self: *Queue,
+        byte_count: usize,
+        source: Source,
+        delivery: Delivery,
+    ) !Reservation {
         const identifier = self.next_identifier;
         if (identifier == std.math.maxInt(u64)) return error.InputSequenceExhausted;
         try self.entries.ensureUnusedCapacity(self.allocator, 1);
         self.entries.appendAssumeCapacity(.{
+            .delivery = delivery,
             .identifier = identifier,
             .reserved_bytes = byte_count,
             .source = source,

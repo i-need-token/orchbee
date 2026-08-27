@@ -29,6 +29,15 @@ pub fn forceTerminate(self: *state.State) !void {
     try self.process.forceTerminate();
 }
 
+pub fn hasActiveCommand(self: *state.State) !bool {
+    if (comptime target_builtin.is_test) {
+        if (self.testing_hooks.has_active_command) |observe| {
+            return observe(self.testing_hooks.context.?);
+        }
+    }
+    return self.process.hasActiveCommand();
+}
+
 pub fn readPty(self: *state.State, buffer: []u8) !usize {
     if (comptime target_builtin.is_test) {
         if (self.testing_hooks.read_pty) |read| {

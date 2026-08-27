@@ -82,7 +82,9 @@ pub fn waitForReaderCommitLocked(self: *state.State) void {
 pub fn ensureRuntimeWorkAvailableLocked(self: *state.State) !void {
     waitForReaderCommitLocked(self);
     if (isResizeFenced(self)) return error.TerminalResizeFailed;
-    if (self.failure_fenced) return error.TerminalRuntimeUnavailable;
+    if (self.failure_fenced or self.mouse_input_epoch_exhausted) {
+        return error.TerminalRuntimeUnavailable;
+    }
     switch (self.completion_classification.load()) {
         .pending => {},
         .normal, .failed => return error.TerminalRuntimeUnavailable,

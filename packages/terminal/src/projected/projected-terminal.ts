@@ -165,6 +165,20 @@ const SELECTION_CLICK_REPEAT_INTERVAL_MS = 500;
 const MAX_PENDING_SELECTION_GESTURES = 64;
 const RESIZE_REENTRY_MS = 50;
 const NATIVE_INPUT_SETTLEMENT_DELAY_MS = 30;
+
+function applicationMouseModeKey(interaction: ProjectedTerminalMetadata['interaction']): number {
+	return (
+		Number(interaction.mouseAny) |
+		(Number(interaction.mouseButton) << 1) |
+		(Number(interaction.mouseNormal) << 2) |
+		(Number(interaction.mouseX10) << 3) |
+		(Number(interaction.mouseSgr) << 4) |
+		(Number(interaction.mouseSgrPixels) << 5) |
+		(Number(interaction.mouseUtf8) << 6) |
+		(Number(interaction.mouseUrxvt) << 7)
+	);
+}
+
 function cssPixels(value: string): number {
 	const parsed = Number.parseFloat(value);
 	return Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
@@ -849,6 +863,8 @@ export class ProjectedTerminal {
 	#themePresentationStage: ThemePresentationStage | undefined;
 	#latestBellSequence = 0n;
 	#latestClipboardWriteSequence = 0n;
+	#applicationMouseModeKey: number | undefined;
+	#lastApplicationMouseCell: { readonly column: number; readonly row: number } | undefined;
 	#pendingAlternateWheelRows = 0;
 	#pendingApplicationWheelX = 0;
 	#pendingApplicationWheelY = 0;
@@ -1168,6 +1184,7 @@ export class ProjectedTerminal {
 				this.#lastPresentedMetadata = openingPresentationSnapshot.metadata;
 				this.#lastPresentedSnapshot = openingPresentationSnapshot;
 				this.#lastPresentedSource = undefined;
+				this.#updateInputPosition(true);
 			}
 			this.#installDevicePixelRatioListeners(view);
 			this.#installResizeObserver(root);
@@ -2050,6 +2067,7 @@ export class ProjectedTerminal {
 		const encodedPoint = this.#selectionPointForCurrentBuffer(point);
 		if (encodedPoint === null) return false;
 		this.#selectionClickSequence = undefined;
+		this.#clearOwnedAccessibilityDomSelection();
 		return this.#send({
 			kind: 'selection-command',
 			payload: {
@@ -2592,6 +2610,7 @@ export class ProjectedTerminal {
 					this.#lastPresentedMetadata = openingPresentationSnapshot.metadata;
 					this.#lastPresentedSnapshot = openingPresentationSnapshot;
 					this.#lastPresentedSource = undefined;
+					this.#updateInputPosition(true);
 				} else {
 					if (visibleStore.metadata !== null) this.#openingPresentationSnapshot = undefined;
 					this.#renderingLiveMetadata = visibleStore.metadata ?? undefined;
@@ -2776,6 +2795,11 @@ export class ProjectedTerminal {
 	): void {
 		const metadata = this.#store.metadata;
 		if (metadata) {
+			const mouseModeKey = applicationMouseModeKey(metadata.interaction);
+			if (mouseModeKey !== this.#applicationMouseModeKey) {
+				this.#applicationMouseModeKey = mouseModeKey;
+				this.#lastApplicationMouseCell = undefined;
+			}
 			if (
 				this.#closeActivityPendingEpoch !== undefined &&
 				closeActivityFreshnessEpoch === this.#closeActivityPendingEpoch
@@ -3261,10 +3285,10 @@ export class ProjectedTerminal {
 		this.#searchController ??= new ProjectedSearchController({
 			createWorker: this.#options.searchWorkerFactory ?? createProjectedSearchWorker,
 			onChange: (event) => {
-				if (event.state !== 'searching' && event.activeMatch === null) {
-					this.#clearOwnedSearchSelection();
+				if (event.state !== 'searching') {
+					if (event.activeMatch === null) this.#clearOwnedSearchSelection();
+					this.#renderer?.setSearchMatches(event.matches, event.activeMatch);
 				}
-				this.#renderer?.setSearchMatches(event.matches, event.activeMatch);
 				this.#searchEmitter.fire(event);
 			},
 			onReveal: (match, source) => this.#activateSearchMatch(match, source),
@@ -3731,6 +3755,7 @@ export class ProjectedTerminal {
 
 	#sendSelectionCommand(command: 'clear' | 'select-all'): void {
 		this.#selectionClickSequence = undefined;
+		this.#clearOwnedAccessibilityDomSelection();
 		this.#send({
 			kind: 'selection-command',
 			payload: {
@@ -3770,8 +3795,14 @@ export class ProjectedTerminal {
 		return parsed.data;
 	}
 
-	#sendSelectionRange(start: SelectionPoint, end: SelectionPoint, rectangle = false): boolean {
+	#sendSelectionRange(
+		start: SelectionPoint,
+		end: SelectionPoint,
+		rectangle = false,
+		preserveAccessibilityDomSelection = false,
+	): boolean {
 		this.#selectionClickSequence = undefined;
+		if (!preserveAccessibilityDomSelection) this.#clearOwnedAccessibilityDomSelection();
 		return this.#send({
 			kind: 'selection-command',
 			payload: {
@@ -4265,6 +4296,7 @@ export class ProjectedTerminal {
 		this.#listen(input, 'compositionupdate', this.#handleCompositionUpdate);
 		this.#listen(input, 'compositionend', this.#handleCompositionEnd);
 		this.#listen(input, 'paste', this.#handlePaste);
+		this.#listen(root, 'paste', this.#handleSurfacePaste);
 		this.#listen(root, 'dragover', this.#handleDragOver);
 		this.#listen(root, 'drop', this.#handleDrop);
 		this.#listen(input, 'focus', this.#handleFocus);
@@ -4319,9 +4351,11 @@ export class ProjectedTerminal {
 
 	readonly #handleKeyDown = (event: KeyboardEvent): void => {
 		if (!this.#inputAdmissionIsOpen()) return;
-		this.#updateInputPosition();
-		if (this.#inputEnabled && !this.#canAdmitInput()) return;
 		const trackedCode = normalizedKeyboardCode(event.code);
+		const preserveNativeDefault = this.#shouldPreserveMacOsShiftDefault(event, trackedCode);
+		if (preserveNativeDefault) this.#synchronizeNativeInputAnchor();
+		else this.#updateInputPosition();
+		if (this.#inputEnabled && !this.#canAdmitInput()) return;
 		this.#trackModifier(event.code, true);
 		this.#refreshHoveredLinkModifiers(event);
 		if (!this.#inputEnabled) {
@@ -4354,7 +4388,7 @@ export class ProjectedTerminal {
 		if ((event.ctrlKey || event.metaKey) && event.code === 'KeyV') return;
 		if (this.#surfaceMousePlatform === 'macos' && event.metaKey) return;
 		if (!this.#inputOperationIsCurrent(inputOperationEpoch)) {
-			event.preventDefault();
+			if (!preserveNativeDefault) event.preventDefault();
 			event.stopPropagation();
 			return;
 		}
@@ -4381,13 +4415,15 @@ export class ProjectedTerminal {
 				if (this.#inputState === stagedInputState) this.#inputState = previousInputState;
 			},
 		);
-		event.preventDefault();
+		if (!preserveNativeDefault) event.preventDefault();
 		event.stopPropagation();
 	};
 
 	readonly #handleKeyUp = (event: KeyboardEvent): void => {
 		if (!this.#inputAdmissionIsOpen()) return;
 		const trackedCode = normalizedKeyboardCode(event.code);
+		const preserveNativeDefault = this.#shouldPreserveMacOsShiftDefault(event, trackedCode);
+		if (preserveNativeDefault) this.#synchronizeNativeInputAnchor();
 		const pressedFacts = this.#pressedKeys.get(trackedCode);
 		const eventKey = terminalKeyCode(trackedCode, keyboardKeyText(event.key));
 		const ownedFacts =
@@ -4408,10 +4444,21 @@ export class ProjectedTerminal {
 						}
 					: { ...eventFacts, key: ownedFacts.key };
 			this.#publishOrDeferKeyRelease(facts);
-			event.preventDefault();
+			if (!preserveNativeDefault) event.preventDefault();
 			event.stopPropagation();
 		}
 	};
+
+	#shouldPreserveMacOsShiftDefault(event: KeyboardEvent, trackedCode: string): boolean {
+		return (
+			this.#surfaceMousePlatform === 'macos' &&
+			(trackedCode === 'ShiftLeft' || trackedCode === 'ShiftRight') &&
+			event.key === 'Shift' &&
+			!event.altKey &&
+			!event.ctrlKey &&
+			!event.metaKey
+		);
+	}
 
 	#handleLocalHistoryKey(event: KeyboardEvent, code: string): boolean {
 		if (!event.shiftKey || event.altKey || event.ctrlKey || event.metaKey) return false;
@@ -4881,13 +4928,27 @@ export class ProjectedTerminal {
 		);
 	}
 
+	#inputAnchorMetadata(): ProjectedTerminalMetadata | null {
+		if (this.#historyPhase !== ProjectedHistoryPhase.followingBottom) return null;
+		const liveMetadata = this.#store.metadata;
+		if (liveMetadata !== null) return liveMetadata.cursor.visible ? liveMetadata : null;
+		const presentedMetadata = this.#lastPresentedMetadata;
+		return presentedMetadata?.cursor.visible === true ? presentedMetadata : null;
+	}
+
+	#synchronizeNativeInputAnchor(): void {
+		this.#updateInputPosition(true);
+		// Commit the moved textarea before macOS continues the modifier event into NSTextInputClient.
+		this.#input?.getBoundingClientRect();
+	}
+
 	#updateInputPosition(measureSurface = false): void {
 		const input = this.#input;
 		const root = this.#root;
 		const canvas = this.#canvas;
 		const renderer = this.#renderer;
 		if (!input || !root || !canvas || !renderer) return;
-		const metadata = this.#canPresentLiveCursor() ? this.#store.metadata : null;
+		const metadata = this.#inputAnchorMetadata();
 		if (metadata === null) {
 			input.style.left = '0px';
 			input.style.top = '0px';
@@ -5076,6 +5137,25 @@ export class ProjectedTerminal {
 		};
 		this.#sendKey(facts, KeyAction.press, ProjectedInputPublicationIntent.held);
 		this.#sendKey(facts, KeyAction.release, ProjectedInputPublicationIntent.held);
+	}
+
+	readonly #handleSurfacePaste = (event: ClipboardEvent): void => {
+		if (!this.#terminalPasteTargetIsOwned(event.target)) return;
+		this.#handlePaste(event);
+	};
+
+	#terminalPasteTargetIsOwned(target: EventTarget | null): boolean {
+		const root = this.#root;
+		if (root === undefined || target === null) return false;
+		if (target === root) return true;
+		const NodeConstructor = root.ownerDocument.defaultView?.Node;
+		if (NodeConstructor === undefined || !(target instanceof NodeConstructor)) return false;
+		return [
+			this.#canvas,
+			this.#input?.parentElement,
+			this.#accessibilityRoot,
+			this.#historyScrollbar,
+		].some((element) => element?.contains(target) === true);
 	}
 
 	readonly #handlePaste = (event: ClipboardEvent): void => {
@@ -5470,6 +5550,7 @@ export class ProjectedTerminal {
 
 	#repairTransientInputState(dispose = false): void {
 		this.#cancelNativeInputChange();
+		this.#lastApplicationMouseCell = undefined;
 		const repair = dispose
 			? disposeTerminalInputState(this.#inputState)
 			: repairTerminalInputState(this.#inputState);
@@ -5731,6 +5812,7 @@ export class ProjectedTerminal {
 			event.preventDefault();
 			return;
 		}
+		this.#clearOwnedAccessibilityDomSelection();
 		this.#selectionGestureActive = true;
 		this.#selectionGestureLast = location.point;
 		this.#selectionGesturePointerId = event.pointerId;
@@ -6276,12 +6358,27 @@ export class ProjectedTerminal {
 			activeButton,
 			mouseButtonSetMask(this.#pressedMouseButtons),
 		);
-		if (payload === null) {
+		const metadata = this.#store.metadata;
+		if (payload === null || metadata === null) {
 			if (activeButtonWasPressed) this.#pressedMouseButtons.add(activeButton);
 			else if (activeButton !== null) this.#pressedMouseButtons.delete(activeButton);
 			onRejected?.();
 			return;
 		}
+		const cell = {
+			column: clamp(Math.floor(payload.x / metadata.cellPixelWidth), 0, metadata.columns - 1),
+			row: clamp(Math.floor(payload.y / metadata.cellPixelHeight), 0, metadata.rows - 1),
+		};
+		if (
+			action === MouseAction.motion &&
+			activeButton === null &&
+			!metadata.interaction.mouseSgrPixels &&
+			this.#lastApplicationMouseCell?.column === cell.column &&
+			this.#lastApplicationMouseCell.row === cell.row
+		) {
+			return;
+		}
+		this.#lastApplicationMouseCell = cell;
 		if (intent === ProjectedInputPublicationIntent.held) {
 			this.#inputState = recordTerminalMouseSample(
 				this.#inputState,
@@ -6296,17 +6393,20 @@ export class ProjectedTerminal {
 				payload,
 			},
 			intent,
-			action === MouseAction.press && activeButton !== null
-				? () => {
-						if (!this.#inputOperationIsCurrent(inputOperationEpoch)) return;
-						if (activeButtonWasPressed) this.#pressedMouseButtons.add(activeButton);
-						else this.#pressedMouseButtons.delete(activeButton);
-						if (this.#inputState === stagedInputState) {
-							this.#inputState = previousInputState;
-						}
-						onRejected?.();
+			() => {
+				if (!this.#inputOperationIsCurrent(inputOperationEpoch)) return;
+				if (this.#lastApplicationMouseCell === cell) {
+					this.#lastApplicationMouseCell = undefined;
+				}
+				if (action === MouseAction.press && activeButton !== null) {
+					if (activeButtonWasPressed) this.#pressedMouseButtons.add(activeButton);
+					else this.#pressedMouseButtons.delete(activeButton);
+					if (this.#inputState === stagedInputState) {
+						this.#inputState = previousInputState;
 					}
-				: undefined,
+					onRejected?.();
+				}
+			},
 			preserveSurfaceState,
 		);
 	}
@@ -6717,7 +6817,7 @@ export class ProjectedTerminal {
 		const end = this.#accessibilitySelectionPoint(terminalRange.end);
 		if (start === null || end === null) return;
 		this.#accessibilityOwnsDomSelection = true;
-		this.#sendSelectionRange(start, end);
+		this.#sendSelectionRange(start, end, false, true);
 	};
 
 	#clearAccessibilitySelectionFromDom(): void {
@@ -6759,6 +6859,7 @@ export class ProjectedTerminal {
 
 	#syncAccessibilitySelection(): void {
 		const root = this.#accessibilityRoot;
+		if (!this.#accessibilityOwnsDomSelection) return;
 		const selection = this.#selection;
 		if (
 			root === undefined ||

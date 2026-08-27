@@ -55,7 +55,7 @@ pub fn modeChangedEffect(
 }
 
 pub fn fullResetEffect(handler: *terminal_stream.Handler) void {
-    mode_effects.resetLocked(runtimeFromHostHandler(handler));
+    _ = mode_effects.resetLocked(runtimeFromHostHandler(handler));
 }
 
 pub fn colorSchemeEffect(
@@ -279,6 +279,7 @@ fn commitObservedReaderBatch(
     std.debug.assert(!self.reply_failure_pending);
     std.debug.assert(!self.bell_sequence_overflow_pending);
     std.debug.assert(!self.feedback_sequence_overflow_pending);
+    std.debug.assert(!self.mouse_input_epoch_exhausted);
     std.debug.assert(!self.terminal_resize_failure_pending);
     std.debug.assert(self.terminal_driven_resize_target == null);
     self.stream.handler.beginBatch();
@@ -352,11 +353,14 @@ fn commitObservedReaderBatch(
     self.bell_sequence_overflow_pending = false;
     const feedback_sequence_overflowed = self.feedback_sequence_overflow_pending;
     self.feedback_sequence_overflow_pending = false;
+    const mouse_input_epoch_exhausted = self.mouse_input_epoch_exhausted;
     const failure_won = if (reply_failed)
         failure_ops.closeFailureFenceLocked(self, .terminal_reply)
     else if (bell_sequence_overflowed)
         failure_ops.closeFailureFenceLocked(self, .worker_integrity)
     else if (feedback_sequence_overflowed)
+        failure_ops.closeFailureFenceLocked(self, .worker_integrity)
+    else if (mouse_input_epoch_exhausted)
         failure_ops.closeFailureFenceLocked(self, .worker_integrity)
     else
         false;
@@ -365,7 +369,8 @@ fn commitObservedReaderBatch(
     self.terminal_mutex.unlock();
 
     const outcome: contracts.ReaderBatchOutcome = if (reply_failed or
-        bell_sequence_overflowed or feedback_sequence_overflowed)
+        bell_sequence_overflowed or feedback_sequence_overflowed or
+        mouse_input_epoch_exhausted)
         .runtime_failed
     else
         .committed;

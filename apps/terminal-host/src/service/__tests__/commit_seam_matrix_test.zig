@@ -30,6 +30,7 @@ const Seam = enum(u8) {
     mode_effect_reply_admission,
     focus_mode_revalidation,
     synchronized_output_deadline_release,
+    mouse_input_epoch_retirement,
 };
 
 const Disposition = enum {
@@ -90,6 +91,7 @@ const matrix = [_]Entry{
     entry(.mode_effect_reply_admission, "CS-026", "ModeEffectReplyAdmission", .contain_and_retain, .single_owner, "src/engine/__tests__/runtime_input_test.zig", "mode-effect reply exhaustion fences reader and attachment resize commits"),
     entry(.focus_mode_revalidation, "CS-027", "FocusModeRevalidation", .reject_without_commit, .deterministic_interleaving, "src/engine/__tests__/runtime_input_test.zig", "focus mode reports the aggregate immediately and rejects stale preparation"),
     entry(.synchronized_output_deadline_release, "CS-028", "SynchronizedOutputDeadlineRelease", .preserve_for_retry, .deterministic_interleaving, "src/engine/__tests__/runtime_state_test.zig", "synchronized output suppresses capture only until its monotonic deadline"),
+    entry(.mouse_input_epoch_retirement, "CS-029", "MouseInputEpochRetirement", .reject_without_commit, .deterministic_interleaving, "src/engine/__tests__/runtime_input_test.zig", "mouse input epoch rejects stale preparation and retires only unstarted hover"),
 };
 
 test "commit seam matrix is exhaustive unique documented and backed by named tests" {

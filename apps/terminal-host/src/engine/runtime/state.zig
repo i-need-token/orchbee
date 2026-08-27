@@ -81,6 +81,12 @@ pub const State = struct {
     metadata_published_connection_id: ?u64 = null,
     metadata_published_revision: u64 = 0,
     metadata_revision: u64 = 0,
+    // terminal_mutex and input_mutex jointly protect this monotonic epoch and
+    // its irreversible exhaustion marker. Mouse preparation reads it under
+    // terminal_mutex, while final publication and writer start read it under
+    // both locks; every joint access follows terminal -> input order.
+    mouse_input_epoch: u64 = 1,
+    mouse_input_epoch_exhausted: bool = false,
     // Distinguishes an owner-requested read interruption from a normal PTY EOF.
     // Only the reader may publish pty_drained, and only after a non-aborted EOF.
     output_abort_requested: std.atomic.Value(bool) = .init(false),

@@ -22,7 +22,7 @@ The client-session and projection payloads are platform-neutral contracts from `
 
 The renderer has no Node integration, generic Electron IPC, filesystem read capability, Host inventory, or raw terminal-lifetime authority. It cannot invoke provision, restore, close, or storage CAS effects directly. Preload accepts exactly one bootstrap, verifies all nine ports together, preserves their fixed client-session/projection/application-lifetime/Browser-access/Project-Folder-acquisition/Project-Worktree/terminal-launch-profiles/terminal-default-settings/clipboard-read order, and attests context isolation and sandboxing. The Project Folder port accepts no renderer path and exposes no enumeration or mutation primitive. The Project Worktree port accepts no source or target path: discovery derives repositories from canonical Project state, while creation accepts only returned opaque identities and Git values. A separate context-isolated file-drop adapter exposes only the current platform and Electron's `File`-scoped backing-path lookup; it cannot accept an arbitrary path string, read file contents, enumerate a directory, or perform an IPC request. One dropped disk `File` may carry a file or directory backing path without granting child enumeration. The Web renderer admits that adapter only for a user drop, applies bounded Ghostty-compatible POSIX live-buffer escaping, publishes the prepared text directly, and never appends Enter. A partial or malformed bootstrap starts no renderer runtime.
 
-Desktop context-menu and custom-shortcut Paste use the Main-owned clipboard-read port. An idle platform-default paste chord preserves native editable-element delivery, allowing the shared terminal adapter to distinguish plain text from an image-only clipboard and emit the Agent-compatible `Control+V` pair without reading or transferring image bytes. When a manual selection Copy or another Paste Action is still committing, the default chord uses the Action path; Paste waits for that exact Copy operation to settle before it requests current plain text, then reuses the shared terminal paste sanitation, review, return-to-bottom, and selection-clear path. A failed Copy does not synthesize text or retry: Paste reads whatever plain text the platform clipboard contains after settlement. Browser Preview and Gateway pages receive no Desktop clipboard-read port and retain their existing local Browser policy.
+Desktop context-menu and custom-shortcut Paste use the Main-owned clipboard-read port. An idle platform-default paste chord preserves native editable-element delivery, allowing the shared terminal adapter to distinguish plain text from an image-only clipboard and emit the Agent-compatible `Control+V` pair without reading or transferring image bytes. An ordinary terminal selection remains Host/Canvas state and does not occupy a document-global DOM Range, so the hidden textarea stays the sole native input and IME owner. A bounded terminal-root fallback admits paste only from package-owned presentation descendants; application-owned controls such as the Find input retain native editing. When a manual selection Copy or another Paste Action is still committing, the default chord uses the Action path; Paste waits for that exact Copy operation to settle before it requests current plain text, then reuses the shared terminal paste sanitation, review, return-to-bottom, and selection-clear path. A failed Copy does not synthesize text or retry: Paste reads whatever plain text the platform clipboard contains after settlement. Browser Preview and Gateway pages receive no Desktop clipboard-read port and retain their existing local Browser policy.
 
 OSC 52 clipboard writes use the existing projection port rather than a generic preload clipboard API. Main remembers only the exact first Host request forwarded to an attachment; the renderer's automatic commit decision must repeat its attachment, sequence, and bounded text exactly. A matching positive decision performs one Desktop-owned plain-text write and consumes the pending request, while mismatch, duplication, broker backpressure, page retirement, and attachment disposal perform no write. Gateway Browser attachments attempt the request through their local Clipboard API and send the same exact decision only to consume Main's pending record, so Electron cannot repeat that client-local effect.
 
@@ -421,7 +421,8 @@ Focused traces cover:
   `terminal-parity/IN-09-action-scope`, `terminal-parity/IN-11-context`, and
   `terminal-parity/IN-12-actions` Canvas evidence for the shared bell coordinator, preservation of
   history and selection during reported buttonless application motion, Host-selection preservation
-  when window focus loss collapses its accessible DOM mirror, containing-Workbench Action scope,
+  when window focus loss collapses an explicit assistive-technology-origin accessibility Range,
+  containing-Workbench Action scope,
   pinned/revalidated semantic context, synchronous availability, typed execution, and localized
   feedback. Captured effects do not claim native audio, notification, URL-handler, or clipboard
   delivery;
@@ -439,7 +440,12 @@ Focused traces cover:
 - exact `terminal-parity/IN-13-selection-copy-paste` real-PTY/Electron evidence that an active
   selection followed by immediate Copy then Paste waits for the Main-owned copy commit, reads the
   newly selected text instead of a deliberately installed stale clipboard sentinel, clears the
-  selection through the shared paste path, and executes the resulting shell input;
+  selection through the shared paste path, and appends the copied token to live terminal input
+  without manually restoring focus;
+- exact `terminal-parity/IN-18-native-selection-paste` real-PTY/Electron evidence that an active
+  ordinary pointer selection leaves the hidden textarea focused and creates no non-collapsed
+  terminal DOM Range, then an idle default native Paste clears the Host selection and appends the
+  preexisting clipboard payload without a manual Copy or focus repair;
 - fixed-header frame routing to only the matching AttachmentId, with exact-size structured-clone payload isolation;
 - complete theme bootstrap, identity-scoped apply/reconcile forwarding, lifecycle refresh,
   unknown-outcome preservation, and exact headed `terminal-parity/SU-09-theme` hold/release

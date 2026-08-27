@@ -72,6 +72,7 @@ interface FakeElement {
 	contains(node: unknown): boolean;
 	dispatch(type: string, event: Event): void;
 	getAttribute(name: string): string | null;
+	getBoundingClientRect(): DOMRect;
 	releasePointerCapture(pointerId: number): void;
 	removeAttribute(name: string): void;
 	remove(): void;
@@ -836,13 +837,17 @@ function createFakeBrowser(): FakeBrowser {
 			const startElement = accessibilityRoot?.children[startRow];
 			const endElement = accessibilityRoot?.children[endRow];
 			if (!startElement || !endElement) throw new Error('accessibility row is unavailable');
-			const startContainer = { nodeType: 3, parentElement: startElement } as unknown as Node;
-			const endContainer = { nodeType: 3, parentElement: endElement } as unknown as Node;
-			selection = {
-				getRangeAt: () => ({ endContainer, endOffset, startContainer, startOffset }),
-				isCollapsed: false,
-				rangeCount: 1,
-			} as unknown as Selection;
+			const startContainer = startElement.firstChild;
+			const endContainer = endElement.firstChild;
+			if (startContainer === null || endContainer === null) {
+				throw new Error('accessibility row text is unavailable');
+			}
+			const range = document.createRange();
+			range.setStart(startContainer, startOffset);
+			range.setEnd(endContainer, endOffset);
+			domSelection.removeAllRanges();
+			domSelection.addRange(range);
+			selection = domSelection;
 			for (const listener of documentListeners.get('selectionchange') ?? []) {
 				listener({ type: 'selectionchange' } as Event);
 			}
@@ -2293,11 +2298,185 @@ describe('ProjectedTerminal', () => {
 		terminal.dispose();
 	});
 
-	it('refreshes a stale native IME anchor before a modifier key reaches the platform', async () => {
+	it('anchors native IME geometry to an injected presentation before a live frame arrives', async () => {
+		const sourceBrowser = createFakeBrowser();
+		vi.stubGlobal('document', sourceBrowser.document);
+		vi.stubGlobal('window', sourceBrowser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const sourceTerminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: { send: () => undefined },
+			terminalId,
+		});
+		await sourceTerminal.open(sourceBrowser.root);
+		sourceTerminal.applyFrame(
+			terminalFrame('snapshot', 1n, 1n, ['a', 'b'], null, [0, 1], 0n, interaction, {
+				column: 1,
+				row: 1,
+			}),
+		);
+		sourceBrowser.flushFrames();
+		const presentationSnapshot = sourceTerminal.capturePresentationSnapshot();
+		if (presentationSnapshot === null) throw new Error('Expected a painted presentation snapshot');
+		sourceTerminal.dispose();
+
 		const browser = createFakeBrowser();
 		vi.stubGlobal('document', browser.document);
 		vi.stubGlobal('window', browser.document.defaultView);
-		vi.stubGlobal('navigator', {});
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: { send: () => undefined },
+			presentationSnapshot,
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		expect(terminal.metadata).toBeNull();
+		const expectedAnchor = {
+			height: '16px',
+			left: '12px',
+			lineHeight: '16px',
+			top: '16px',
+			width: '8px',
+		};
+		expect(terminal.textarea?.style).toMatchObject(expectedAnchor);
+		terminal.focus();
+		expect(terminal.textarea?.style).toMatchObject(expectedAnchor);
+		terminal.dispose();
+	});
+
+	it.each(['ShiftLeft', 'ShiftRight'] as const)(
+		'leaves macOS %s switching native while resynchronizing its release anchor',
+		async (shiftCode) => {
+			const browser = createFakeBrowser();
+			vi.stubGlobal('document', browser.document);
+			vi.stubGlobal('window', browser.document.defaultView);
+			vi.stubGlobal('navigator', { platform: 'MacIntel' });
+			const commands: ProjectedTerminalCommand[] = [];
+			const terminal = new ProjectedTerminal({
+				attachmentId,
+				creationId,
+				hostEpoch,
+				labels: { input: 'input', screen: 'screen' },
+				port: {
+					send: (command) => {
+						commands.push(command);
+					},
+				},
+				terminalId,
+			});
+			await terminal.open(browser.root);
+			terminal.applyFrame(
+				terminalFrame('snapshot', 1n, 1n, ['a', 'b'], null, [0, 1], 0n, interaction, {
+					column: 1,
+					row: 1,
+				}),
+			);
+			terminal.notifySelectionChanged({
+				attachmentId,
+				end: { column: 0, row: canonicalText('0') },
+				preview: 'a',
+				rectangle: false,
+				start: { column: 0, row: canonicalText('0') },
+				state: 'active',
+			});
+			expect(browser.document.getSelection()?.rangeCount).toBe(0);
+			const input = terminal.textarea as unknown as FakeElement;
+			input.style['left'] = '0px';
+			input.style['top'] = '0px';
+			input.style['width'] = '1px';
+			input.style['height'] = '1px';
+			input.style['lineHeight'] = '1px';
+			const rootBounds = vi.spyOn(browser.root, 'getBoundingClientRect');
+			const canvas = terminal.canvas;
+			if (canvas === undefined) throw new Error('Projected terminal canvas is unavailable');
+			const canvasBounds = vi.spyOn(canvas, 'getBoundingClientRect');
+			const inputBounds = vi.spyOn(input, 'getBoundingClientRect');
+			let canvasOffset = 0;
+			rootBounds.mockImplementation(
+				() =>
+					({
+						bottom: 460,
+						height: 360,
+						left: 100,
+						right: 820,
+						top: 100,
+						width: 720,
+						x: 100,
+						y: 100,
+						toJSON: () => ({}),
+					}) as DOMRect,
+			);
+			canvasBounds.mockImplementation(
+				() =>
+					({
+						bottom: 460,
+						height: 360,
+						left: 100 + canvasOffset,
+						right: 820 + canvasOffset,
+						top: 100,
+						width: 720,
+						x: 100 + canvasOffset,
+						y: 100,
+						toJSON: () => ({}),
+					}) as DOMRect,
+			);
+			const keyDownPreventDefault = vi.fn<() => void>();
+			const keyDownStopPropagation = vi.fn<() => void>();
+			const keyUpPreventDefault = vi.fn<() => void>();
+			const keyUpStopPropagation = vi.fn<() => void>();
+
+			input.dispatch(
+				'keydown',
+				keyboardEvent('keydown', shiftCode, 'Shift', 16, {
+					preventDefault: keyDownPreventDefault,
+					shiftKey: true,
+					stopPropagation: keyDownStopPropagation,
+				}),
+			);
+			expect(input.style).toMatchObject({
+				height: '16px',
+				left: '12px',
+				lineHeight: '16px',
+				top: '16px',
+				width: '8px',
+			});
+			canvasOffset = 20;
+			input.dispatch(
+				'keyup',
+				keyboardEvent('keyup', shiftCode, 'Shift', 16, {
+					preventDefault: keyUpPreventDefault,
+					stopPropagation: keyUpStopPropagation,
+				}),
+			);
+
+			expect(input.style).toMatchObject({ left: '32px', top: '16px' });
+			expect(inputBounds).toHaveBeenCalledTimes(2);
+			expect(rootBounds).toHaveBeenCalledTimes(2);
+			expect(canvasBounds).toHaveBeenCalledTimes(2);
+			expect(keyDownPreventDefault).not.toHaveBeenCalled();
+			expect(keyUpPreventDefault).not.toHaveBeenCalled();
+			expect(keyDownStopPropagation).toHaveBeenCalledOnce();
+			expect(keyUpStopPropagation).toHaveBeenCalledOnce();
+			expect(
+				commands.flatMap((command) =>
+					command.kind === 'key-input' ? [`${command.payload.action}:${command.payload.key}`] : [],
+				),
+			).toEqual([`press:${shiftCode}`, `release:${shiftCode}`]);
+			terminal.dispose();
+		},
+	);
+
+	it('continues to own Shift defaults outside macOS', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', { platform: 'Linux x86_64' });
 		const terminal = new ProjectedTerminal({
 			attachmentId,
 			creationId,
@@ -2307,31 +2486,26 @@ describe('ProjectedTerminal', () => {
 			terminalId,
 		});
 		await terminal.open(browser.root);
-		terminal.applyFrame(
-			terminalFrame('snapshot', 1n, 1n, ['a', 'b'], null, [0, 1], 0n, interaction, {
-				column: 1,
-				row: 1,
-			}),
-		);
 		const input = terminal.textarea as unknown as FakeElement;
-		input.style['left'] = '0px';
-		input.style['top'] = '0px';
-		input.style['width'] = '1px';
-		input.style['height'] = '1px';
-		input.style['lineHeight'] = '1px';
+		const keyDownPreventDefault = vi.fn<() => void>();
+		const keyUpPreventDefault = vi.fn<() => void>();
 
 		input.dispatch(
 			'keydown',
-			keyboardEvent('keydown', 'ShiftLeft', 'Shift', 16, { shiftKey: true }),
+			keyboardEvent('keydown', 'ShiftLeft', 'Shift', 16, {
+				preventDefault: keyDownPreventDefault,
+				shiftKey: true,
+			}),
+		);
+		input.dispatch(
+			'keyup',
+			keyboardEvent('keyup', 'ShiftLeft', 'Shift', 16, {
+				preventDefault: keyUpPreventDefault,
+			}),
 		);
 
-		expect(input.style).toMatchObject({
-			height: '16px',
-			left: '12px',
-			lineHeight: '16px',
-			top: '16px',
-			width: '8px',
-		});
+		expect(keyDownPreventDefault).toHaveBeenCalledOnce();
+		expect(keyUpPreventDefault).toHaveBeenCalledOnce();
 		terminal.dispose();
 	});
 
@@ -6185,7 +6359,7 @@ describe('ProjectedTerminal', () => {
 		terminal.dispose();
 	});
 
-	it('mirrors forward and reverse Host selections into the accessible DOM', async () => {
+	it('keeps ordinary Host selections out of the document DOM selection', async () => {
 		const browser = createFakeBrowser();
 		vi.stubGlobal('document', browser.document);
 		vi.stubGlobal('window', browser.document.defaultView);
@@ -6200,7 +6374,61 @@ describe('ProjectedTerminal', () => {
 		});
 		await terminal.open(browser.root);
 		terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['a', 'b'], null, [0, 1], 10n));
+		terminal.focus();
 
+		terminal.notifySelectionChanged({
+			attachmentId,
+			end: { column: 0, row: CanonicalUint64TextSchema.parse('11') },
+			preview: null,
+			rectangle: false,
+			start: { column: 0, row: CanonicalUint64TextSchema.parse('10') },
+			state: 'active',
+		});
+
+		const selection = browser.document.getSelection();
+		expect(selection?.rangeCount).toBe(0);
+		expect(browser.document.activeElement).toBe(terminal.textarea);
+
+		terminal.notifySelectionChanged({
+			attachmentId,
+			end: { column: 0, row: CanonicalUint64TextSchema.parse('10') },
+			preview: null,
+			rectangle: false,
+			start: { column: 0, row: CanonicalUint64TextSchema.parse('11') },
+			state: 'active',
+		});
+
+		expect(selection?.rangeCount).toBe(0);
+		expect(browser.document.activeElement).toBe(terminal.textarea);
+		terminal.dispose();
+	});
+
+	it('reconciles only an assistive-technology DOM range from Host selection', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['a', 'b'], null, [0, 1], 10n));
+
+		browser.selectAccessibilityText(0, 0, 1, 1);
+		expect(commands.at(-1)).toMatchObject({
+			kind: 'selection-command',
+			payload: { command: 'set-range' },
+		});
 		terminal.notifySelectionChanged({
 			attachmentId,
 			end: { column: 0, row: CanonicalUint64TextSchema.parse('11') },
@@ -6217,32 +6445,12 @@ describe('ProjectedTerminal', () => {
 		expect(
 			(range?.startContainer as unknown as { readonly parentElement?: FakeElement })?.parentElement,
 		).toBe(accessibilityRoot?.children[0]);
-		expect(range?.startOffset).toBe(0);
 		expect(
 			(range?.endContainer as unknown as { readonly parentElement?: FakeElement })?.parentElement,
 		).toBe(accessibilityRoot?.children[1]);
-		expect(range?.endOffset).toBe(1);
 
-		terminal.notifySelectionChanged({
-			attachmentId,
-			end: { column: 0, row: CanonicalUint64TextSchema.parse('10') },
-			preview: null,
-			rectangle: false,
-			start: { column: 0, row: CanonicalUint64TextSchema.parse('11') },
-			state: 'active',
-		});
-
-		const reverseRange = selection?.getRangeAt(0);
-		expect(
-			(reverseRange?.startContainer as unknown as { readonly parentElement?: FakeElement })
-				?.parentElement,
-		).toBe(accessibilityRoot?.children[0]);
-		expect(reverseRange?.startOffset).toBe(0);
-		expect(
-			(reverseRange?.endContainer as unknown as { readonly parentElement?: FakeElement })
-				?.parentElement,
-		).toBe(accessibilityRoot?.children[1]);
-		expect(reverseRange?.endOffset).toBe(1);
+		expect(terminal.setSelectionRange({ column: 0, row: 10n }, { column: 1, row: 10n })).toBe(true);
+		expect(selection?.rangeCount).toBe(0);
 		terminal.dispose();
 	});
 
@@ -6324,6 +6532,78 @@ describe('ProjectedTerminal', () => {
 		terminal.dispose();
 	});
 
+	it('retains committed search decorations while an incremental query is pending', async () => {
+		vi.useFakeTimers();
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const setSearchMatches = vi.spyOn(WebGPURenderer.prototype, 'setSearchMatches');
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: { send: () => undefined },
+			searchWorkerFactory: () => searchWorkerWithMatch(0),
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['12', '']));
+		const rows: TerminalBufferRow[] = [
+			{
+				cells: null,
+				identityAscii: true,
+				index: 0n,
+				mappings: [],
+				promptClass: RowPromptClass.none,
+				text: '12',
+				wrap: false,
+				wrapContinuation: false,
+			},
+			{
+				cells: null,
+				identityAscii: true,
+				index: 1n,
+				mappings: [],
+				promptClass: RowPromptClass.none,
+				text: '',
+				wrap: false,
+				wrapContinuation: false,
+			},
+		];
+		vi.spyOn(terminal, 'readBufferRows').mockImplementation(async (request) => ({
+			byteLength: rows.length,
+			detail: request.detail,
+			generation: request.generation,
+			kind: 'rows',
+			revision: request.revision,
+			rows,
+			startRow: request.startRow,
+			totalRows: 2n,
+		}));
+
+		terminal.updateSearch('1');
+		await vi.advanceTimersByTimeAsync(200);
+		expect(setSearchMatches).toHaveBeenLastCalledWith(
+			expect.arrayContaining([expect.objectContaining({ text: 'needle' })]),
+			expect.objectContaining({ text: 'needle' }),
+		);
+
+		setSearchMatches.mockClear();
+		terminal.updateSearch('12');
+		expect(setSearchMatches).not.toHaveBeenCalled();
+		await vi.advanceTimersByTimeAsync(199);
+		expect(setSearchMatches).not.toHaveBeenCalled();
+		await vi.advanceTimersByTimeAsync(1);
+		expect(setSearchMatches).toHaveBeenCalledOnce();
+		expect(setSearchMatches).toHaveBeenLastCalledWith(
+			expect.arrayContaining([expect.objectContaining({ text: 'needle' })]),
+			expect.objectContaining({ text: 'needle' }),
+		);
+		terminal.dispose();
+	});
+
 	it('keeps Host selection when the document selection leaves the terminal surface', async () => {
 		const browser = createFakeBrowser();
 		vi.stubGlobal('document', browser.document);
@@ -6390,7 +6670,7 @@ describe('ProjectedTerminal', () => {
 	});
 
 	it.each(['surface blur', 'window blur'] as const)(
-		'keeps Host selection when %s collapses its accessible DOM mirror',
+		'keeps Host selection when %s collapses an assistive-technology DOM range',
 		async (focusLoss) => {
 			const browser = createFakeBrowser();
 			vi.stubGlobal('document', browser.document);
@@ -6419,6 +6699,8 @@ describe('ProjectedTerminal', () => {
 				start: { column: 0, row: CanonicalUint64TextSchema.parse('0') },
 				state: 'active' as const,
 			};
+			terminal.notifySelectionChanged(hostSelection);
+			browser.selectAccessibilityText(0, 0, 1, 9);
 			terminal.notifySelectionChanged(hostSelection);
 
 			commands.length = 0;
@@ -6660,6 +6942,97 @@ describe('ProjectedTerminal', () => {
 			expect.any(AbortSignal),
 		);
 		expect(commands.filter((command) => command.kind === 'paste-input')).toHaveLength(1);
+		terminal.dispose();
+	});
+
+	it('routes native paste once from terminal-owned targets and preserves application editing', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['one', 'two']));
+		const root = browser.root as unknown as FakeElement;
+		const input = terminal.textarea as unknown as FakeElement;
+		const accessibilityRow = root.children[2]?.children[0];
+		if (accessibilityRow === undefined) throw new Error('accessibility row is unavailable');
+
+		const dispatchPaste = (target: FakeElement, text: string) => {
+			let propagationStopped = false;
+			const preventDefault = vi.fn<() => void>();
+			const stopPropagation = vi.fn<() => void>(() => {
+				propagationStopped = true;
+			});
+			target.dispatch('paste', {
+				bubbles: true,
+				clipboardData: {
+					getData: (type: string) => (type === 'text/plain' ? text : ''),
+					items: [],
+				},
+				get cancelBubble() {
+					return propagationStopped;
+				},
+				preventDefault,
+				stopPropagation,
+				target,
+				type: 'paste',
+			} as unknown as ClipboardEvent);
+			return { preventDefault, stopPropagation };
+		};
+
+		commands.length = 0;
+		const textareaEvent = dispatchPaste(input, 'textarea paste');
+		await vi.waitFor(() =>
+			expect(commands.filter((command) => command.kind === 'paste-input')).toHaveLength(1),
+		);
+		expect(textareaEvent.preventDefault).toHaveBeenCalledOnce();
+		expect(textareaEvent.stopPropagation).toHaveBeenCalledOnce();
+
+		terminal.notifySelectionChanged({
+			attachmentId,
+			end: { column: 0, row: canonicalText('0') },
+			preview: 'one',
+			rectangle: false,
+			start: { column: 0, row: canonicalText('0') },
+			state: 'active',
+		});
+		commands.length = 0;
+		const projectionEvent = dispatchPaste(accessibilityRow, 'projection paste');
+		await vi.waitFor(() =>
+			expect(commands.filter((command) => command.kind === 'paste-input')).toHaveLength(1),
+		);
+		expect(
+			commands
+				.filter((command) => command.kind === 'selection-command' || command.kind === 'paste-input')
+				.map((command) =>
+					command.kind === 'selection-command'
+						? `${command.kind}:${command.payload.command}`
+						: `${command.kind}:${command.payload.text}`,
+				),
+		).toEqual(['selection-command:clear', 'paste-input:projection paste']);
+		expect(projectionEvent.preventDefault).toHaveBeenCalledOnce();
+		expect(projectionEvent.stopPropagation).toHaveBeenCalledOnce();
+
+		const applicationInput = browser.document.createElement('input') as unknown as FakeElement;
+		root.appendChild(applicationInput);
+		commands.length = 0;
+		const applicationEvent = dispatchPaste(applicationInput, 'application paste');
+		expect(applicationEvent.preventDefault).not.toHaveBeenCalled();
+		expect(applicationEvent.stopPropagation).not.toHaveBeenCalled();
+		expect(commands).toEqual([]);
 		terminal.dispose();
 	});
 
@@ -7678,6 +8051,176 @@ describe('ProjectedTerminal', () => {
 				.filter((command) => command.kind === 'mouse-input')
 				.map((command) => command.payload.action),
 		).toEqual([MouseAction.press, MouseAction.motion, MouseAction.release]);
+		terminal.dispose();
+	});
+
+	it('coalesces non-pixel application mouse motion within one terminal cell', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(
+			terminalFrame('snapshot', 1n, 1n, ['a', 'b'], null, [0, 1], 0n, {
+				...interaction,
+				mouseAny: true,
+			}),
+		);
+		const canvas = terminal.canvas as unknown as FakeElement;
+		canvas.dispatch('pointermove', pointerEvent('pointermove', 0, 0, 2, 2));
+		canvas.dispatch('pointermove', pointerEvent('pointermove', 0, 0, 3, 3));
+		canvas.dispatch('pointermove', pointerEvent('pointermove', 0, 0, 12, 3));
+
+		expect(
+			commands.filter(
+				(command) =>
+					command.kind === 'mouse-input' && command.payload.action === MouseAction.motion,
+			),
+		).toHaveLength(2);
+		terminal.dispose();
+	});
+
+	it('retries same-cell hover after synchronous rejection', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		let rejectNextHover = true;
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					if (
+						rejectNextHover &&
+						command.kind === 'mouse-input' &&
+						command.payload.action === MouseAction.motion
+					) {
+						rejectNextHover = false;
+						throw new Error('reject hover');
+					}
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(
+			terminalFrame('snapshot', 1n, 1n, ['a', 'b'], null, [0, 1], 0n, {
+				...interaction,
+				mouseAny: true,
+			}),
+		);
+		const canvas = terminal.canvas as unknown as FakeElement;
+		canvas.dispatch('pointermove', pointerEvent('pointermove', 0, 0, 2, 2));
+		canvas.dispatch('pointermove', pointerEvent('pointermove', 0, 0, 3, 3));
+
+		expect(
+			commands.filter(
+				(command) =>
+					command.kind === 'mouse-input' && command.payload.action === MouseAction.motion,
+			),
+		).toHaveLength(1);
+		terminal.dispose();
+	});
+
+	it('publishes the first same-cell hover after mouse tracking is re-enabled', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(
+			terminalFrame('snapshot', 1n, 1n, ['a', 'b'], null, [0, 1], 0n, {
+				...interaction,
+				mouseAny: true,
+			}),
+		);
+		const canvas = terminal.canvas as unknown as FakeElement;
+		canvas.dispatch('pointermove', pointerEvent('pointermove', 0, 0, 2, 2));
+		terminal.applyFrame(terminalFrame('delta', 2n, 2n, ['a', 'b'], 1n, [0, 1], 0n, interaction));
+		terminal.applyFrame(
+			terminalFrame('delta', 3n, 3n, ['a', 'b'], 2n, [0, 1], 0n, {
+				...interaction,
+				mouseAny: true,
+			}),
+		);
+		canvas.dispatch('pointermove', pointerEvent('pointermove', 0, 0, 3, 3));
+
+		expect(
+			commands.filter(
+				(command) =>
+					command.kind === 'mouse-input' && command.payload.action === MouseAction.motion,
+			),
+		).toHaveLength(2);
+		terminal.dispose();
+	});
+
+	it('preserves every same-cell application mouse motion in SGR pixel mode', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(
+			terminalFrame('snapshot', 1n, 1n, ['a', 'b'], null, [0, 1], 0n, {
+				...interaction,
+				mouseAny: true,
+				mouseSgrPixels: true,
+			}),
+		);
+		const canvas = terminal.canvas as unknown as FakeElement;
+		canvas.dispatch('pointermove', pointerEvent('pointermove', 0, 0, 2, 2));
+		canvas.dispatch('pointermove', pointerEvent('pointermove', 0, 0, 3, 3));
+
+		expect(
+			commands.filter(
+				(command) =>
+					command.kind === 'mouse-input' && command.payload.action === MouseAction.motion,
+			),
+		).toHaveLength(2);
 		terminal.dispose();
 	});
 

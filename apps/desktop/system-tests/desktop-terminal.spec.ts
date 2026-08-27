@@ -324,15 +324,22 @@ test('terminal-parity/SU-14-runtime-presentation', async () => {
 			};
 			const beforeModifier = inputGeometry();
 			invalidateInputGeometry();
-			input.dispatchEvent(
-				new KeyboardEvent('keydown', {
-					bubbles: true,
-					code: 'ShiftLeft',
-					key: 'Shift',
-					shiftKey: true,
-				}),
-			);
+			const keyDown = new KeyboardEvent('keydown', {
+				bubbles: true,
+				cancelable: true,
+				code: 'ShiftLeft',
+				key: 'Shift',
+				shiftKey: true,
+			});
+			input.dispatchEvent(keyDown);
 			const afterModifier = inputGeometry();
+			const keyUp = new KeyboardEvent('keyup', {
+				bubbles: true,
+				cancelable: true,
+				code: 'ShiftLeft',
+				key: 'Shift',
+			});
+			input.dispatchEvent(keyUp);
 			window.dispatchEvent(new Event('blur'));
 			const beforeWindowFocus = inputGeometry();
 			const activeElementRetained = document.activeElement === input;
@@ -344,6 +351,9 @@ test('terminal-parity/SU-14-runtime-presentation', async () => {
 				afterWindowFocus: inputGeometry(),
 				beforeModifier,
 				beforeWindowFocus,
+				keyDownDefaultPrevented: keyDown.defaultPrevented,
+				keyUpDefaultPrevented: keyUp.defaultPrevented,
+				macOs: /Mac|iPhone|iPad/u.test(navigator.platform),
 			};
 		});
 		expect(inputAnchorRecovery.beforeModifier.width).not.toBe('1px');
@@ -351,6 +361,8 @@ test('terminal-parity/SU-14-runtime-presentation', async () => {
 		expect(inputAnchorRecovery.activeElementRetained).toBe(true);
 		expect(inputAnchorRecovery.beforeWindowFocus.width).not.toBe('1px');
 		expect(inputAnchorRecovery.afterWindowFocus).toEqual(inputAnchorRecovery.beforeWindowFocus);
+		expect(inputAnchorRecovery.keyDownDefaultPrevented).toBe(!inputAnchorRecovery.macOs);
+		expect(inputAnchorRecovery.keyUpDefaultPrevented).toBe(!inputAnchorRecovery.macOs);
 	} finally {
 		await browser.close();
 	}
@@ -1483,53 +1495,76 @@ test('terminal-parity/IN-03-image-paste', async () => {
 
 test('terminal-parity/IN-13-selection-copy-paste', async () => {
 	const application = electronApplication;
-	const directory = runtimeDirectory;
 	if (application === undefined) throw new Error('Electron application did not start.');
-	if (directory === undefined) throw new Error('Desktop runtime directory is unavailable.');
 	const page = await application.firstWindow();
 	const root = projectedTerminal(page);
 	await expect(root).toHaveAttribute('data-projected-terminal-state', 'open');
 	const input = root.getByRole('textbox');
-	await input.pressSequentially(`printf '\\033[2J\\033[Htouch\\n'`, { delay: 1 });
-	await input.press('Enter');
+	const selectionText = 'selectioncopytoken';
+	await application.evaluate(({ clipboard }) => clipboard.writeText('stale clipboard sentinel'));
+	await input.pressSequentially(selectionText, { delay: 1 });
 	const accessibility = root.locator('[role="list"]');
-	await expect(accessibility).toContainText('touch');
+	const accessibilityRows = accessibility.locator(':scope > div');
+	await expect(accessibility).toContainText(selectionText);
 	await waitForTerminalPresentationStability(root);
 	const word = await terminalCellPoint(
 		root,
 		root.locator('canvas'),
-		accessibility.locator(':scope > div'),
-		'touch',
-		2,
+		accessibilityRows,
+		selectionText,
+		Math.floor(selectionText.length / 2),
 	);
 	await page.mouse.click(word.x, word.y, { clickCount: 2 });
 	await expect(root).toHaveAttribute('data-projected-terminal-selection-state', 'active');
+	await expect(input).toBeFocused();
+	await expect.poll(async () => terminalDocumentSelectionState(root)).not.toBe('terminal-range');
 	await expect
 		.poll(async () => application.evaluate(({ clipboard }) => clipboard.readText()))
-		.toBe('touch');
+		.toBe(selectionText);
 	await application.evaluate(({ clipboard }) => clipboard.writeText('stale clipboard sentinel'));
 
-	await input.focus();
 	await page.keyboard.press(process.platform === 'darwin' ? 'Meta+KeyC' : 'Control+Shift+KeyC');
 	await page.keyboard.press(process.platform === 'darwin' ? 'Meta+KeyV' : 'Control+Shift+KeyV');
 	await expect(root).toHaveAttribute('data-projected-terminal-selection-state', 'none');
-	const witnessPath = path.join(directory, 'selection-copy-paste-witness');
-	await input.pressSequentially(` ${quotePosixShellWord(witnessPath)}`, { delay: 1 });
-	await input.press('Enter');
-
-	await expect
-		.poll(async () => {
-			try {
-				await access(witnessPath);
-				return true;
-			} catch {
-				return false;
-			}
-		})
-		.toBe(true);
+	await expect(accessibility).toContainText(`${selectionText}${selectionText}`);
 	await expect
 		.poll(async () => application.evaluate(({ clipboard }) => clipboard.readText()))
-		.toBe('touch');
+		.toBe(selectionText);
+});
+
+test('terminal-parity/IN-18-native-selection-paste', async () => {
+	const application = electronApplication;
+	if (application === undefined) throw new Error('Electron application did not start.');
+	const page = await application.firstWindow();
+	const root = projectedTerminal(page);
+	await expect(root).toHaveAttribute('data-projected-terminal-state', 'open');
+	const input = root.getByRole('textbox');
+	const selectionText = 'nativeselectiontoken';
+	await input.pressSequentially(selectionText, { delay: 1 });
+	const accessibility = root.locator('[role="list"]');
+	const accessibilityRows = accessibility.locator(':scope > div');
+	await expect(accessibility).toContainText(selectionText);
+	await waitForTerminalPresentationStability(root);
+	const word = await terminalCellPoint(
+		root,
+		root.locator('canvas'),
+		accessibilityRows,
+		selectionText,
+		Math.floor(selectionText.length / 2),
+	);
+	await page.mouse.click(word.x, word.y, { clickCount: 2 });
+	await expect(root).toHaveAttribute('data-projected-terminal-selection-state', 'active');
+	await expect(input).toBeFocused();
+	await expect.poll(async () => terminalDocumentSelectionState(root)).not.toBe('terminal-range');
+	await expect
+		.poll(async () => application.evaluate(({ clipboard }) => clipboard.readText()))
+		.toBe(selectionText);
+
+	const clipboardText = 'nativepastepayload';
+	await application.evaluate(({ clipboard }, text) => clipboard.writeText(text), clipboardText);
+	await page.keyboard.press(process.platform === 'darwin' ? 'Meta+KeyV' : 'Control+Shift+KeyV');
+	await expect(root).toHaveAttribute('data-projected-terminal-selection-state', 'none');
+	await expect(accessibility).toContainText(`${selectionText}${clipboardText}`);
 });
 
 test('terminal-parity/SU-02-font-metrics', async () => {
@@ -5103,6 +5138,22 @@ async function terminalCellPoint(
 		x: bounds.x + (location.column + columnOffset + horizontalFraction) * (bounds.width / columns),
 		y: bounds.y + (location.row + 0.5) * (bounds.height / visibleRows),
 	};
+}
+
+async function terminalDocumentSelectionState(
+	root: Locator,
+): Promise<'collapsed' | 'none' | 'outside' | 'terminal-range'> {
+	return root.evaluate((element) => {
+		const selection = element.ownerDocument.getSelection();
+		if (selection === null || selection.rangeCount === 0) return 'none';
+		if (selection.isCollapsed) return 'collapsed';
+		const accessibility = element.querySelector('[role="list"]');
+		const range = selection.getRangeAt(0);
+		return accessibility?.contains(range.startContainer) === true ||
+			accessibility?.contains(range.endContainer) === true
+			? 'terminal-range'
+			: 'outside';
+	});
 }
 
 async function waitForTerminalPresentationStability(root: Locator): Promise<void> {

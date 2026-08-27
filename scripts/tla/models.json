@@ -1022,6 +1022,30 @@
 			]
 		},
 		{
+			"id": "terminal-mouse-input-boundary",
+			"owner": "@orchbee/terminal-host",
+			"workspace": "apps/terminal-host",
+			"module": "apps/terminal-host/formal/tla/TerminalMouseInputBoundary.tla",
+			"config": "apps/terminal-host/formal/tla/TerminalMouseInputBoundary.cfg",
+			"claims": ["apps/terminal-host/docs/runtime-model.md"],
+			"triggers": ["apps/terminal-host/src/**", "apps/terminal-host/build.zig"],
+			"requiredCoverage": [
+				"PrepareHover",
+				"PrepareOrdered",
+				"CommitPrepared",
+				"RejectStalePrepared",
+				"ChangeMouseMode",
+				"FullReset",
+				"PromptRecoverLocal",
+				"PromptPreserveActive",
+				"PromptPreserveUnknown",
+				"EnableMouseAfterPrompt",
+				"WriterStartOrRetire",
+				"WriterFinish",
+				"ExhaustMouseEpoch"
+			]
+		},
+		{
 			"id": "action-execution",
 			"owner": "@orchbee/actions",
 			"workspace": "packages/actions",

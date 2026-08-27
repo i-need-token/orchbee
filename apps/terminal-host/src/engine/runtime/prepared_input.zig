@@ -16,6 +16,7 @@ pub fn Type(comptime Runtime: type) type {
         affects_close_activity: bool = false,
         bytes: ?[]u8,
         focus_reporting_enabled: ?bool = null,
+        mouse_input_epoch: ?u64 = null,
         ownership: ?contracts.PreparedInputOwnership = null,
         reservation: ?contracts.InputReservation,
         runtime: *Runtime,
@@ -42,10 +43,12 @@ pub fn Type(comptime Runtime: type) type {
             const byte_count = self.byteCount();
             const bytes = self.bytes;
             const focus_reporting_enabled = self.focus_reporting_enabled;
+            const mouse_input_epoch = self.mouse_input_epoch;
             var ownership = self.ownership;
             const reservation = self.reservation;
             self.bytes = null;
             self.focus_reporting_enabled = null;
+            self.mouse_input_epoch = null;
             self.ownership = null;
             self.reservation = null;
             self.state = .consumed;
@@ -58,6 +61,7 @@ pub fn Type(comptime Runtime: type) type {
                     &ownership,
                     self.affects_close_activity,
                     focus_reporting_enabled,
+                    mouse_input_epoch,
                 ) catch |err| {
                     if (ownership) |*pending| input_commit_ops.cancelPreparedInputOwnership(runtime, pending);
                     return err;
@@ -69,6 +73,7 @@ pub fn Type(comptime Runtime: type) type {
                     &ownership,
                     self.affects_close_activity,
                     focus_reporting_enabled,
+                    mouse_input_epoch,
                 ) catch |err| {
                     if (ownership) |*pending| input_commit_ops.cancelPreparedInputOwnership(runtime, pending);
                     return err;

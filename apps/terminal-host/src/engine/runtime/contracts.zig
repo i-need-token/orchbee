@@ -122,6 +122,7 @@ pub const RuntimeTestingHooks = if (target_builtin.is_test) struct {
     writer_waiting_for_input: ?*const fn (*anyopaque) void = null,
     writer_slice_accounted: ?*const fn (*anyopaque) void = null,
     writer_slice_copied: ?*const fn (*anyopaque) void = null,
+    writer_slice_retired: ?*const fn (*anyopaque) void = null,
     writer_slice_started: ?*const fn (*anyopaque) void = null,
     wall_time_milliseconds: ?*const fn (*anyopaque) u64 = null,
 } else struct {};
@@ -129,6 +130,8 @@ pub const RuntimeTestingHooks = if (target_builtin.is_test) struct {
 pub const WriterSlice = terminal_input_queue.WriterSlice;
 
 pub const WriterSliceStart = enum {
+    integrity_failure,
+    retired,
     started,
     stopped,
     ownership_lost,

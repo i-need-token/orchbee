@@ -36,6 +36,14 @@ pub fn notifyWriterSliceStarted(self: *state.State) void {
     }
 }
 
+pub fn notifyWriterSliceRetired(self: *state.State) void {
+    if (comptime target_builtin.is_test) {
+        if (self.testing_hooks.writer_slice_retired) |notify| {
+            notify(self.testing_hooks.context.?);
+        }
+    }
+}
+
 pub fn notifyWriterSliceAccounted(self: *state.State) void {
     if (comptime target_builtin.is_test) {
         if (self.testing_hooks.writer_slice_accounted) |notify| {
@@ -48,17 +56,25 @@ pub fn startWriterSlice(
     self: *state.State,
     slice: contracts.WriterSlice,
 ) contracts.WriterSliceStart {
+    self.terminal_mutex.lock();
+    defer self.terminal_mutex.unlock();
     self.input_mutex.lock();
     defer self.input_mutex.unlock();
     if (self.failure_fenced or self.writer_stop) {
         input_commit_ops.clearInputQueueLocked(self);
         return .stopped;
     }
-    if (!self.input_queue.ownsWriterSlice(slice)) return .ownership_lost;
+    if (self.mouse_input_epoch_exhausted) return .integrity_failure;
+    const outcome = self.input_queue.startWriterSlice(slice, self.mouse_input_epoch);
+    if (outcome == .retired) self.input_condition.broadcast();
     // This successful recheck is the write-start linearization point. A
     // later fence may stop the next slice, but this exact bounded platform
     // call is allowed to complete and is accounted once.
-    return .started;
+    return switch (outcome) {
+        .started => .started,
+        .retired => .retired,
+        .ownership_lost => .ownership_lost,
+    };
 }
 
 pub fn accountWriterSlice(
@@ -115,7 +131,15 @@ pub fn writerThread(self: *state.State) void {
         notifyWriterSliceCopied(self);
         switch (startWriterSlice(self, slice)) {
             .started => {},
+            .retired => {
+                notifyWriterSliceRetired(self);
+                continue;
+            },
             .stopped => return,
+            .integrity_failure => {
+                stopWriterAfterOwnershipLoss(self);
+                return;
+            },
             .ownership_lost => {
                 stopWriterAfterOwnershipLoss(self);
                 return;

@@ -29,6 +29,13 @@ pub fn applyTerminalControl(
         self.terminal_mutex.unlock();
         return error.RevisionOverflow;
     }
+    if (operation == .reset and !mode_effects.canAdvanceMouseInputEpochLocked(self)) {
+        _ = mode_effects.advanceMouseInputEpochLocked(self);
+        const won = failure_ops.closeFailureFenceLocked(self, .worker_integrity);
+        self.terminal_mutex.unlock();
+        if (won) failure_ops.finishFailureFence(self);
+        return error.TerminalRuntimeUnavailable;
+    }
 
     const had_metadata = self.terminal.getTitle() != null or self.terminal.getPwd() != null;
     switch (operation) {
@@ -38,7 +45,7 @@ pub fn applyTerminalControl(
         },
         .reset => {
             self.terminal.fullReset();
-            mode_effects.resetLocked(self);
+            std.debug.assert(mode_effects.resetLocked(self));
             terminal_stream.restoreColorDefaults(&self.terminal);
             self.profile.applyCursorDefaults(&self.terminal);
         },

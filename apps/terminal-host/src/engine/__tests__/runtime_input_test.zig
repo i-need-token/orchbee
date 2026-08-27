@@ -1880,6 +1880,168 @@ test "focus mode reports the aggregate immediately and rejects stale preparation
     try std.testing.expect(subject.testing.attachmentFocusClaim(runtime, attachment_id));
 }
 
+test "mouse input epoch rejects stale preparation and retires only unstarted hover" {
+    {
+        const runtime = try createIdleRuntime(.{});
+        defer runtime.destroy();
+        var stale = try runtime.prepareMouseInput(.{
+            .action = .{ .motion = .hover },
+            .modifiers = .{},
+            .pressed_buttons = .{},
+            .x = 0,
+            .y = 0,
+        }, std.math.maxInt(usize));
+        defer stale.deinit();
+        try std.testing.expectEqual(@as(usize, 0), stale.byteCount());
+        try std.testing.expectEqual(
+            ReaderBatchOutcome.committed,
+            commitReaderBatch(runtime, "\x1b[?1003h\x1b[?1006h"),
+        );
+        try std.testing.expectError(error.MouseModeChanged, stale.commit());
+        try std.testing.expectEqual(@as(usize, 0), runtime.pendingInputBytes());
+    }
+
+    {
+        const runtime = try createIdleRuntime(.{});
+        defer runtime.destroy();
+        try std.testing.expectEqual(
+            ReaderBatchOutcome.committed,
+            commitReaderBatch(runtime, "\x1b[?1003h\x1b[?1006h"),
+        );
+        var stale = try runtime.prepareMouseInput(.{
+            .action = .{ .motion = .hover },
+            .modifiers = .{},
+            .pressed_buttons = .{},
+            .x = 0,
+            .y = 0,
+        }, std.math.maxInt(usize));
+        defer stale.deinit();
+        try std.testing.expect(stale.byteCount() != 0);
+        try std.testing.expectEqual(
+            ReaderBatchOutcome.committed,
+            commitReaderBatch(runtime, "\x1b[?1003l"),
+        );
+        try std.testing.expectError(error.MouseModeChanged, stale.commit());
+        try std.testing.expectEqual(@as(usize, 0), runtime.pendingInputBytes());
+    }
+
+    {
+        var probe: WriterProbe = .{ .pause_at = .copied };
+        const runtime = try createRuntimeWithHooks(probe.hooks());
+        defer {
+            probe.copied.release();
+            clearTestingHooks(runtime);
+            runtime.destroy();
+        }
+        try std.testing.expectEqual(
+            ReaderBatchOutcome.committed,
+            commitReaderBatch(runtime, "\x1b[?1003h\x1b[?1006h"),
+        );
+        try std.testing.expect((try runtime.enqueueMouseInput(.{
+            .action = .{ .motion = .hover },
+            .modifiers = .{},
+            .pressed_buttons = .{},
+            .x = 0,
+            .y = 0,
+        })) != 0);
+        probe.copied.wait();
+        try std.testing.expectEqual(
+            ReaderBatchOutcome.committed,
+            commitReaderBatch(runtime, "\x1b[?1003l"),
+        );
+        try std.testing.expectEqual(@as(usize, 1), try runtime.enqueueTextInput("x"));
+        probe.copied.release();
+        probe.retired.wait();
+        probe.accounted.wait();
+        const counts = probe.counts();
+        try std.testing.expectEqual(@as(usize, 1), counts.calls);
+        try std.testing.expectEqual(@as(usize, 1), counts.bytes);
+        try std.testing.expectEqual(@as(usize, 0), runtime.pendingInputBytes());
+    }
+}
+
+test "started mouse hover completes across a later mode change" {
+    var probe: WriterProbe = .{ .pause_at = .started };
+    const runtime = try createRuntimeWithHooks(probe.hooks());
+    defer {
+        probe.started.release();
+        clearTestingHooks(runtime);
+        runtime.destroy();
+    }
+    try std.testing.expectEqual(
+        ReaderBatchOutcome.committed,
+        commitReaderBatch(runtime, "\x1b[?1003h\x1b[?1006h"),
+    );
+    var hover = try runtime.prepareMouseInput(.{
+        .action = .{ .motion = .hover },
+        .modifiers = .{},
+        .pressed_buttons = .{},
+        .x = 0,
+        .y = 0,
+    }, std.math.maxInt(usize));
+    defer hover.deinit();
+    const hover_bytes = hover.byteCount();
+    try std.testing.expect(hover_bytes != 0);
+    try std.testing.expectEqual(hover_bytes, try hover.commit());
+    probe.started.wait();
+    try std.testing.expectEqual(
+        ReaderBatchOutcome.committed,
+        commitReaderBatch(runtime, "\x1b[?1003l"),
+    );
+    probe.started.release();
+    probe.accounted.wait();
+    const counts = probe.counts();
+    try std.testing.expectEqual(@as(usize, 1), counts.calls);
+    try std.testing.expectEqual(hover_bytes, counts.bytes);
+    try std.testing.expectEqual(@as(usize, 0), runtime.pendingInputBytes());
+}
+
+test "confirmed local prompt clears orphaned mouse tracking without crossing process authority" {
+    const cases = [_]struct {
+        observation: ActiveCommandObservation,
+        expect_enabled: bool,
+    }{
+        .{ .observation = .inactive, .expect_enabled = false },
+        .{ .observation = .active, .expect_enabled = true },
+        .{ .observation = .failed, .expect_enabled = true },
+    };
+    for ([_][]const u8{ "\x1b]133;A\x07", "\x1b]133;P\x07" }) |prompt_marker| {
+        for (cases) |case| {
+            var probe: ActiveCommandProbe = .{ .observation = case.observation };
+            const runtime = try createRuntimeWithHooks(probe.hooks());
+            defer {
+                clearTestingHooks(runtime);
+                runtime.destroy();
+            }
+            try std.testing.expectEqual(
+                ReaderBatchOutcome.committed,
+                commitReaderBatch(runtime, "\x1b[?1003h\x1b[?1006h"),
+            );
+            try std.testing.expectEqual(
+                ReaderBatchOutcome.committed,
+                commitReaderBatch(runtime, prompt_marker),
+            );
+            try expectMouseTrackingEnabled(runtime, case.expect_enabled);
+            try std.testing.expectEqual(@as(usize, 1), probe.calls);
+        }
+    }
+
+    var probe: ActiveCommandProbe = .{ .observation = .inactive };
+    const runtime = try createRuntimeWithHooks(probe.hooks());
+    defer {
+        clearTestingHooks(runtime);
+        runtime.destroy();
+    }
+    try std.testing.expectEqual(
+        ReaderBatchOutcome.committed,
+        commitReaderBatch(
+            runtime,
+            "\x1b[?1003h\x1b[?1006h\x1b]133;A\x07\x1b[?1003h\x1b[?1006h",
+        ),
+    );
+    try expectMouseTrackingEnabled(runtime, true);
+}
+
 test "in-band size mode reports enable and both geometry commit paths" {
     var probe: WriterProbe = .{ .pause_at = .copied };
     const runtime = try createRuntimeWithHooks(probe.hooks());
@@ -2023,4 +2185,47 @@ fn inBandSizeReport(buffer: []u8, geometry: anytype) ![]const u8 {
         @as(u64, geometry.rows) * geometry.cell_pixel_height,
         @as(u64, geometry.columns) * geometry.cell_pixel_width,
     });
+}
+
+const ActiveCommandObservation = enum {
+    active,
+    failed,
+    inactive,
+};
+
+const ActiveCommandProbe = struct {
+    calls: usize = 0,
+    observation: ActiveCommandObservation,
+
+    fn hooks(self: *ActiveCommandProbe) RuntimeTestingHooks {
+        return .{
+            .context = self,
+            .has_active_command = hasActiveCommand,
+        };
+    }
+
+    fn hasActiveCommand(context: *anyopaque) anyerror!bool {
+        const self: *ActiveCommandProbe = @ptrCast(@alignCast(context));
+        self.calls += 1;
+        return switch (self.observation) {
+            .active => true,
+            .inactive => false,
+            .failed => error.InjectedProcessObservationFailure,
+        };
+    }
+};
+
+fn expectMouseTrackingEnabled(runtime: *TerminalRuntime, enabled: bool) !void {
+    const runtime_state = runtimeState(runtime);
+    runtime_state.terminal_mutex.lock();
+    defer runtime_state.terminal_mutex.unlock();
+    try std.testing.expectEqual(enabled, runtime_state.terminal.modes.get(.mouse_event_any));
+    try std.testing.expectEqual(enabled, runtime_state.terminal.modes.get(.mouse_format_sgr));
+    if (enabled) {
+        try std.testing.expectEqual(.any, runtime_state.terminal.flags.mouse_event);
+        try std.testing.expectEqual(.sgr, runtime_state.terminal.flags.mouse_format);
+    } else {
+        try std.testing.expectEqual(.none, runtime_state.terminal.flags.mouse_event);
+        try std.testing.expectEqual(.x10, runtime_state.terminal.flags.mouse_format);
+    }
 }

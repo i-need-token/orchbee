@@ -48,6 +48,13 @@ present, while an image-only event emits exactly one synthetic `Control+V` press
 the running Agent without reading image bytes. A custom paste chord cannot cause that browser
 event and therefore invokes the Paste Action.
 
+The terminal's hidden textarea remains the sole browser-editing and IME owner while an ordinary
+Host selection is active; Canvas and accessibility descriptions project that selection without
+creating a document-global DOM Range. Native paste may arrive at the textarea or at a
+package-owned terminal-presentation descendant, so the terminal root provides a bounded fallback
+that runs the shared paste path exactly once. Application-owned descendants such as the Find input
+retain their own native editing behavior and are never consumed by that fallback.
+
 The projected-terminal clipboard Action coordinator owns whether one exact selection Copy or Paste
 Action is pending. Shortcut resolution combines the normalized chord with that synchronous state:
 
@@ -215,6 +222,7 @@ change does not remount Workbench, replace an attachment, or reopen a Host or Ga
 | Empty-Tab New Tab creates and focuses the new terminal; Settings suppresses it   | Web application focus and Settings-scope integration trace                                                              |
 | Apple and Standard defaults match the catalog and custom edits affect dispatch   | Shortcut definition, resolver, and controller tests                                                                     |
 | Idle platform-default terminal Paste preserves MIME-aware native delivery        | Shortcut routing and installer tests, terminal image-paste tests, and exact Desktop `terminal-parity/IN-03-image-paste` |
+| Active ordinary terminal selection preserves native paste and input ownership    | Projected-terminal selection/paste tests and exact Desktop `terminal-parity/IN-18-native-selection-paste`               |
 | Pending Copy and Paste work cannot admit stale or duplicate shortcut input       | Clipboard coordinator and Action tests plus exact Desktop `terminal-parity/IN-13-selection-copy-paste`                  |
 | Directional focus selects a spatial neighbor and falls through at outer edges    | Four-Panel resolver, Action, and shortcut dispatch tests                                                                |
 | Positional selection follows canonical Tab order and falls through out of range  | Grouped and pinned Action integration plus shortcut dispatch tests                                                      |

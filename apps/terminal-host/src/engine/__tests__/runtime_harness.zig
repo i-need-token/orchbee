@@ -340,9 +340,11 @@ pub const WriterPause = enum {
 };
 
 pub const WriterProbe = struct {
+    accounted: TestSignal = .{},
     copied: TestGate = .{},
     mutex: thread_sync.Mutex = .{},
     pause_at: WriterPause,
+    retired: TestSignal = .{},
     started: TestGate = .{},
     write_bytes: usize = 0,
     write_calls: usize = 0,
@@ -361,6 +363,14 @@ pub const WriterProbe = struct {
         if (self.pause_at == .started) self.started.pause();
     }
 
+    pub fn sliceAccounted(context: *anyopaque) void {
+        fromContext(context).accounted.notify();
+    }
+
+    pub fn sliceRetired(context: *anyopaque) void {
+        fromContext(context).retired.notify();
+    }
+
     pub fn write(context: *anyopaque, bytes: []const u8) anyerror!usize {
         const self = fromContext(context);
         self.mutex.lock();
@@ -374,7 +384,9 @@ pub const WriterProbe = struct {
         return .{
             .context = self,
             .write_pty = write,
+            .writer_slice_accounted = sliceAccounted,
             .writer_slice_copied = sliceCopied,
+            .writer_slice_retired = sliceRetired,
             .writer_slice_started = sliceStarted,
         };
     }

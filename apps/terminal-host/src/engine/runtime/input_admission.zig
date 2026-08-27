@@ -151,7 +151,7 @@ pub fn prepareMouseInput(
         self.cell_pixel_height,
         input,
     );
-    return prepareEncodedInputLocked(self, encoded, true, max_output_bytes);
+    return prepareMouseEncodedInputLocked(self, input, encoded, max_output_bytes);
 }
 
 pub fn enqueueFocusInput(self: *state.State, focused: bool) !usize {
@@ -299,6 +299,57 @@ pub fn prepareEncodedInputLocked(
     };
 }
 
+fn prepareMouseEncodedInputLocked(
+    self: *state.State,
+    input: contracts.MouseInput,
+    bytes: []const u8,
+    maximum_bytes: usize,
+) !prepared_input.Internal {
+    try failure_ops.ensureRuntimeWorkAvailableLocked(self);
+    if (self.child_exited.load(.acquire)) return error.TerminalExited;
+    const mouse_input_epoch = self.mouse_input_epoch;
+    if (bytes.len == 0) return .{
+        .affects_close_activity = true,
+        .bytes = null,
+        .mouse_input_epoch = mouse_input_epoch,
+        .reservation = null,
+        .runtime = self,
+    };
+    const byte_count = try expandedInputLengthLocked(self, bytes, maximum_bytes);
+    const reservation = try reserveMouseInput(
+        self,
+        byte_count,
+        mouse_input_epoch,
+        isTransientMouseHover(input),
+    );
+    errdefer input_commit_ops.cancelInput(self, reservation.identifier);
+    const copy = try linefeed.duplicateExpanded(
+        self.allocator,
+        bytes,
+        self.terminal.modes.get(.linefeed),
+        byte_count,
+    );
+    scrollback_compression_ops.noteInteractionLocked(self);
+    return .{
+        .affects_close_activity = true,
+        .bytes = copy,
+        .mouse_input_epoch = mouse_input_epoch,
+        .reservation = reservation,
+        .runtime = self,
+    };
+}
+
+fn isTransientMouseHover(input: contracts.MouseInput) bool {
+    if (input.pressed_buttons.any()) return false;
+    return switch (input.action) {
+        .motion => |motion| switch (motion) {
+            .hover => true,
+            .drag => false,
+        },
+        .press, .release => false,
+    };
+}
+
 pub fn prepareOwnedInputLocked(
     self: *state.State,
     bytes: []u8,
@@ -373,7 +424,9 @@ pub fn reserveInput(
 ) !contracts.InputReservation {
     self.input_mutex.lock();
     defer self.input_mutex.unlock();
-    if (self.failure_fenced) return error.TerminalRuntimeUnavailable;
+    if (self.failure_fenced or self.mouse_input_epoch_exhausted) {
+        return error.TerminalRuntimeUnavailable;
+    }
     if (self.writer_stop) return error.TerminalExited;
     if (source == .client and self.client_input_closed) return error.TerminalExited;
     while (!self.input_queue.hasCapacity(
@@ -383,7 +436,9 @@ pub fn reserveInput(
     )) {
         if (!wait) return error.InputBackpressure;
         self.input_condition.wait(&self.input_mutex);
-        if (self.failure_fenced) return error.TerminalRuntimeUnavailable;
+        if (self.failure_fenced or self.mouse_input_epoch_exhausted) {
+            return error.TerminalRuntimeUnavailable;
+        }
         if (self.writer_stop) return error.TerminalExited;
         if (source == .client and self.client_input_closed) return error.TerminalExited;
     }
@@ -392,4 +447,27 @@ pub fn reserveInput(
         source,
         input_commit_ops.inputRepairCharge(self, source),
     );
+}
+
+fn reserveMouseInput(
+    self: *state.State,
+    byte_count: usize,
+    mouse_input_epoch: u64,
+    transient_hover: bool,
+) !contracts.InputReservation {
+    self.input_mutex.lock();
+    defer self.input_mutex.unlock();
+    if (self.failure_fenced or self.mouse_input_epoch_exhausted) {
+        return error.TerminalRuntimeUnavailable;
+    }
+    if (self.writer_stop or self.client_input_closed) return error.TerminalExited;
+    const repair_charge = input_commit_ops.inputRepairCharge(self, .client);
+    return if (transient_hover)
+        self.input_queue.reserveMouseHover(
+            byte_count,
+            mouse_input_epoch,
+            repair_charge,
+        )
+    else
+        self.input_queue.reserve(byte_count, .client, repair_charge);
 }

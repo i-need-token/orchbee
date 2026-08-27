@@ -32,7 +32,7 @@ pub fn fromRuntimeError(err: anyerror) Rejection {
         error.MissingAttachment, error.TerminalExited => .terminal_exited,
         error.TerminalResizeFailed, error.TerminalRuntimeUnavailable => .terminal_runtime_unavailable,
         error.InputLimitExceeded => .input_limit_exceeded,
-        error.FocusModeChanged, error.PasteModeChanged => .input_mode_changed,
+        error.FocusModeChanged, error.MouseModeChanged, error.PasteModeChanged => .input_mode_changed,
         error.InvalidKey, error.EmptyInput => .invalid_input,
         else => .encoding_failed,
     };

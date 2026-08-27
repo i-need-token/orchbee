@@ -17,6 +17,7 @@ import {
 	SemanticContent,
 	TerminalColorKind,
 	TerminalFrameKind,
+	TerminalGraphicsUpdateKind,
 	TerminalIdSchema,
 	TerminalRowWindowDetail,
 	TerminalThemeStateSchema,
@@ -43,7 +44,15 @@ const creationId = CreationIdSchema.parse('66'.repeat(16));
 const hostEpoch = HostEpochSchema.parse('77'.repeat(16));
 const terminalId = TerminalIdSchema.parse('88'.repeat(16));
 const capabilityRevision = CanonicalUint64TextSchema.parse('1');
+const emptyGraphics = {
+	animationTick: 0n,
+	images: [],
+	kind: TerminalGraphicsUpdateKind.snapshot,
+	placements: [],
+	resourceRevision: 0n,
+} as const;
 const linkUrl = 'https://orchbee.dev/pinned-context';
+const historyRowText = Array.from({ length: 10 }, (_, index) => `history row ${index}`);
 const rowText = ['linked context', 'terminal actions', 'localized feedback', 'native command'];
 const theme = TerminalThemeStateSchema.parse({
 	operationId: null,
@@ -90,6 +99,7 @@ let externalOpenCount = 0;
 let terminal: ProjectedTerminal | undefined;
 let transportListener: (value: unknown) => void = () => undefined;
 let suppressRowResponses = false;
+let projectedScrollbackRows = 0n;
 const dependencies: ProjectedTerminalRendererDependencies = {
 	createTerminal: (options: ProjectedTerminalOptions) => {
 		terminal = new ProjectedTerminal(options);
@@ -104,8 +114,9 @@ const transport: ProjectedTerminalTransport = {
 	send: (command) => {
 		commands.push(command);
 		if (command.kind !== 'read-rows' || suppressRowResponses) return;
+		const scrollbackRows = projectedScrollbackRows;
 		queueMicrotask(() => {
-			transportListener({ kind: 'rows', rows: terminalRows(command) });
+			transportListener({ kind: 'rows', rows: terminalRows(command, scrollbackRows) });
 		});
 	},
 	subscribe: (listener) => {
@@ -168,6 +179,7 @@ async function runWitness(): Promise<void> {
 		if (activeTerminal === undefined || activeProvider === undefined) {
 			throw new Error('Terminal Action composition did not bind to its Workbench scope.');
 		}
+		projectedScrollbackRows = 0n;
 		transportListener({ frame: terminalSnapshot(1n, 1n), kind: 'frame' });
 		await nextPaint();
 		const canvas = activeTerminal.canvas;
@@ -257,13 +269,15 @@ async function runWitness(): Promise<void> {
 		if (linkAction?.kind !== 'ready' || linkAction.availability.kind !== 'enabled') {
 			throw new Error('Pinned terminal link context was not discoverable.');
 		}
+		projectedScrollbackRows = 0n;
 		transportListener({ frame: terminalSnapshot(2n, 2n), kind: 'frame' });
 		await nextPaint();
 		const staleLinkResult = await activeProvider.executePrepared(linkAction.invocation).completion;
 		await until(() => terminalStatusText() === '终端链接已发生变化，无法打开。');
 		const staleFeedback = terminalStatusText();
 
-		transportListener({ frame: terminalSnapshot(3n, 3n, 10n), kind: 'frame' });
+		projectedScrollbackRows = 10n;
+		transportListener({ frame: terminalSnapshot(3n, 3n, projectedScrollbackRows), kind: 'frame' });
 		await nextPaint();
 		suppressRowResponses = true;
 		activeTerminal.scrollLines(-1);
@@ -276,6 +290,21 @@ async function runWitness(): Promise<void> {
 			start: { column: 0, row: CanonicalUint64TextSchema.parse('10') },
 			state: 'active',
 		});
+		const accessibilityRow = root.querySelector('[data-terminal-absolute-row="10"]');
+		const accessibilityText = accessibilityRow?.firstChild;
+		const accessibilitySelection = document.getSelection();
+		if (accessibilityText === null || accessibilityText === undefined) {
+			throw new Error('Pre-input witness could not resolve the accessibility row text.');
+		}
+		if (accessibilitySelection === null) {
+			throw new Error('Pre-input witness could not resolve the document selection.');
+		}
+		const accessibilityRange = document.createRange();
+		accessibilityRange.setStart(accessibilityText, 0);
+		accessibilityRange.setEnd(accessibilityText, 6);
+		accessibilitySelection.removeAllRanges();
+		accessibilitySelection.addRange(accessibilityRange);
+		document.dispatchEvent(new Event('selectionchange'));
 		const buttonlessMotionCommandStart = commands.length;
 		canvas.dispatchEvent(
 			new PointerEvent('pointermove', {
@@ -397,29 +426,40 @@ function terminalStatusText(): string | null {
 
 function terminalRows(
 	command: Extract<ProjectedTerminalCommand, { readonly kind: 'read-rows' }>,
+	scrollbackRows: bigint,
 ): Uint8Array {
 	if (command.payload.origin.kind !== 'absolute') {
 		throw new Error('Terminal link witness requested a non-absolute row window.');
 	}
 	const startRow = BigInt(command.payload.origin.row);
-	const selectedRows = rowText.slice(Number(startRow), Number(startRow) + command.payload.rowCount);
-	const frame = terminalFrame(1n, BigInt(command.payload.requestSequence), true);
+	const retainedRows = [...historyRowText.slice(0, Number(scrollbackRows)), ...rowText];
+	const selectedRows = retainedRows.slice(
+		Number(startRow),
+		Number(startRow) + command.payload.rowCount,
+	);
+	const revision = BigInt(command.payload.revision);
+	const sequence = BigInt(command.payload.requestSequence);
+	const generation = BigInt(command.payload.generation);
+	const frame = terminalFrame(revision, sequence, true, startRow);
+	const linkRow = Number(scrollbackRows - startRow);
 	const encoded = encodeTerminalRowWindow({
 		attachmentId,
 		columns: frame.columns,
 		detail: TerminalRowWindowDetail.render,
 		frame: {
 			...frame,
-			rowData: frame.rowData.slice(Number(startRow), Number(startRow) + selectedRows.length),
+			generation,
+			rowData: terminalRowData(selectedRows, linkRow),
 			rows: selectedRows.length,
 			scrollbackRows: startRow,
 		},
-		generation: 1n,
+		generation,
+		graphics: emptyGraphics,
 		hostEpoch,
-		revision: 1n,
-		sequence: BigInt(command.payload.requestSequence),
+		revision,
+		sequence,
 		startRow,
-		totalRows: BigInt(rowText.length),
+		totalRows: BigInt(retainedRows.length),
 	});
 	if (!encoded.ok) throw new Error(encoded.detail);
 	return encoded.value;
@@ -494,19 +534,7 @@ function terminalFrame(
 		},
 		kind: TerminalFrameKind.snapshot,
 		revision,
-		rowData: rowText.map((text, row) => ({
-			cells: Array.from({ length: 24 }, (_, column) => ({
-				grapheme: text[column] ?? '',
-				protected: false,
-				semanticContent: SemanticContent.output,
-				style: link && row === 0 && column < text.length ? 1 : 0,
-				width: CellWidth.narrow,
-			})),
-			index: row,
-			promptClass: RowPromptClass.none,
-			wrap: false,
-			wrapContinuation: false,
-		})),
+		rowData: terminalRowData(rowText, link ? 0 : -1),
 		rows: rowText.length,
 		scrollbackRows,
 		sequence,
@@ -514,6 +542,22 @@ function terminalFrame(
 		themeRevision: 0n,
 		title: 'IN-09 IN-11 IN-12 terminal Actions witness',
 	};
+}
+
+function terminalRowData(texts: readonly string[], linkRow: number): TerminalFrame['rowData'] {
+	return texts.map((text, row) => ({
+		cells: Array.from({ length: 24 }, (_, column) => ({
+			grapheme: text[column] ?? '',
+			protected: false,
+			semanticContent: SemanticContent.output,
+			style: row === linkRow && column < text.length ? 1 : 0,
+			width: CellWidth.narrow,
+		})),
+		index: row,
+		promptClass: RowPromptClass.none,
+		wrap: false,
+		wrapContinuation: false,
+	}));
 }
 
 async function nextPaint(): Promise<void> {

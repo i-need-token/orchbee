@@ -7,6 +7,7 @@ const contracts = @import("contracts.zig");
 const state = @import("state.zig");
 const clock = @import("clock.zig");
 const failure_ops = @import("failure.zig");
+const mode_effects = @import("mode_effects.zig");
 
 const max_clipboard_text_bytes = protocol.Limits.clipboard_text_bytes;
 
@@ -85,12 +86,13 @@ pub fn semanticPromptEffect(
                 .sequence = self.command_sequence_staged,
             };
         },
+        .fresh_line_new_prompt,
+        .prompt_start,
+        => mode_effects.recoverMouseTrackingAtPromptLocked(self),
         .end_prompt_start_input,
         .end_prompt_start_input_terminate_eol,
         .fresh_line,
-        .fresh_line_new_prompt,
         .new_command,
-        .prompt_start,
         => {},
     }
 }

@@ -5,6 +5,7 @@ const state = @import("state.zig");
 const read_commit_guard = @import("read_commit_guard.zig");
 const failure_ops = @import("failure.zig");
 const mode_effects = @import("mode_effects.zig");
+const process_io_ops = @import("process_io.zig");
 
 pub fn bellSequence(self: *state.State) u64 {
     self.terminal_mutex.lock();
@@ -121,7 +122,7 @@ pub fn sampleCloseActivity(
     }
     self.projection_mutex.unlock();
 
-    const platform_command_active: ?bool = observeActiveCommand(self) catch null;
+    const platform_command_active: ?bool = process_io_ops.hasActiveCommand(self) catch null;
 
     self.projection_mutex.lock();
     defer self.projection_mutex.unlock();
@@ -272,15 +273,6 @@ pub fn encodeProjectionFrameOwned(
     frame.close_activity_epoch = close_activity_epoch;
     frame.close_activity_epoch_exhausted = close_activity_epoch_exhausted;
     return .{ .frame = frame };
-}
-
-fn observeActiveCommand(self: *state.State) !bool {
-    if (comptime target_builtin.is_test) {
-        if (self.testing_hooks.has_active_command) |observe| {
-            return observe(self.testing_hooks.context.?);
-        }
-    }
-    return self.process.hasActiveCommand();
 }
 
 pub fn projectionBlockReason(err: anyerror) contracts.ProjectionBlockReason {

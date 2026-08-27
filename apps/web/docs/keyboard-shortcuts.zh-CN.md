@@ -35,6 +35,12 @@
 运行的 Agent 精确发送一对合成 `Control+V` 按下/释放事件，并且不读取图片字节。自定义
 粘贴组合键无法触发该浏览器事件，因此会调用 Paste Action。
 
+普通 Host 选择处于活动状态时，终端的隐藏 textarea 仍是唯一的浏览器编辑与 IME 所有者；
+Canvas 与无障碍描述会投影该选择，但不会创建文档全局 DOM Range。原生粘贴可能投递到
+textarea，也可能投递到 package 自有的终端 Presentation 后代，因此终端 root 提供有界后备，
+精确执行一次共享粘贴路径。查找输入框等应用自有后代保留自己的原生编辑行为，该后备绝不
+消费其事件。
+
 投影终端剪贴板 Action 协调器负责记录是否有一个精确的选择 Copy 或 Paste Action 正在
 等待。快捷键解析把规范化组合键与该同步状态结合起来：
 
@@ -133,6 +139,7 @@ Browser Preview、Gateway Browser 和 Electron 各自针对自己的源本地存
 | 空 Tab 状态下新建 Tab 会创建并聚焦新终端，设置会抑制它  | Web 应用焦点与设置作用域集成轨迹                                                           |
 | Apple 与标准平台默认值符合目录，且自定义编辑会影响分发  | 快捷键定义、解析器与控制器测试                                                             |
 | 空闲的平台默认终端 Paste 保留感知 MIME 的原生投递       | 快捷键路由与安装器测试、终端图片粘贴测试及精确 Desktop `terminal-parity/IN-03-image-paste` |
+| 活动的普通终端选择会保留原生粘贴与输入所有权            | 投影终端选择/粘贴测试及精确 Desktop `terminal-parity/IN-18-native-selection-paste`         |
 | 等待中的 Copy 与 Paste 工作不会接纳陈旧或重复快捷键输入 | 剪贴板协调器与 Action 测试及精确 Desktop `terminal-parity/IN-13-selection-copy-paste`      |
 | 方向聚焦会选择空间邻居，并在外边缘继续传递事件          | 四面板解析器、Action 与快捷键分发测试                                                      |
 | 按位置选择遵循规范 Tab 顺序并在越界时继续传递事件       | 分组与固定 Action 集成测试及快捷键分发测试                                                 |
