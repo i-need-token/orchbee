@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -100,15 +100,15 @@ describe('Desktop shell integration resources', () => {
 				);
 				expect(resolution.kind).toBe('injected');
 				if (resolution.kind !== 'injected') throw new Error('Expected Zsh injection.');
-				const output = execFileSync(resolution.launch.executable, resolution.launch.arguments, {
-					env: applyLaunchEnvironment(resolution.launch, { HOME: temporaryHome }),
-					input: [
+				const output = await executeInteractiveShell(
+					resolution.launch,
+					applyLaunchEnvironment(resolution.launch, { HOME: temporaryHome }),
+					[
 						'printf \'SI_AUTO_ZSH=%s:%s:%s:%s\\n\' "$ORCHBEE_ZSHENV_WITNESS" "$ORCHBEE_ZSHRC_WITNESS" "$ZDOTDIR" "${ORCHBEE_SHELL_INTEGRATION_ORIGINAL_ZDOTDIR-unset}"',
 						'exit',
 						'',
 					].join('\n'),
-					timeout: 5_000,
-				});
+				);
 				const text = output.toString('utf8');
 				expect(text).toContain(`SI_AUTO_ZSH=preserved:preserved:${originalZdotdir}:unset`);
 				expect(output.toString('hex')).toContain('1b5d3133333b41');
@@ -136,19 +136,19 @@ describe('Desktop shell integration resources', () => {
 				);
 				expect(resolution.kind).toBe('injected');
 				if (resolution.kind !== 'injected') throw new Error('Expected Bash injection.');
-				const output = execFileSync(resolution.launch.executable, resolution.launch.arguments, {
-					env: applyLaunchEnvironment(resolution.launch, {
+				const output = await executeInteractiveShell(
+					resolution.launch,
+					applyLaunchEnvironment(resolution.launch, {
 						ENV: '/original/posix-env',
 						HISTFILE: '/original/history',
 						HOME: temporaryHome,
 					}),
-					input: [
+					[
 						'printf \'SI_AUTO_BASH=%s:%s:%s:%s:%s\\n\' "$ORCHBEE_BASHRC_WITNESS" "$ENV" "$HISTFILE" "${ORCHBEE_SHELL_INTEGRATION_BASH_RCFILE-unset}" "${ORCHBEE_SHELL_INTEGRATION_BASH_INJECT-unset}"',
 						'exit',
 						'',
 					].join('\n'),
-					timeout: 5_000,
-				});
+				);
 				expect(output.toString('utf8')).toContain(
 					'SI_AUTO_BASH=preserved:/original/posix-env:/original/history:unset:unset',
 				);
@@ -201,6 +201,55 @@ function applyLaunchEnvironment(
 		else environment[entry.name] = entry.value;
 	}
 	return environment;
+}
+
+async function executeInteractiveShell(
+	launch: TerminalLaunch,
+	environment: NodeJS.ProcessEnv,
+	input: string,
+): Promise<Buffer> {
+	const child = spawn(launch.executable, launch.arguments, {
+		detached: true,
+		env: environment,
+	});
+	const stdout: Buffer[] = [];
+	const stderr: Buffer[] = [];
+	child.stdout.on('data', (chunk: Buffer) => stdout.push(chunk));
+	child.stderr.on('data', (chunk: Buffer) => stderr.push(chunk));
+
+	return await new Promise((resolve, reject) => {
+		let timedOut = false;
+		const timeout = setTimeout(() => {
+			timedOut = true;
+			child.kill('SIGKILL');
+		}, 3_000);
+		child.once('error', (error) => {
+			clearTimeout(timeout);
+			reject(error);
+		});
+		child.stdin.once('error', (error) => {
+			clearTimeout(timeout);
+			child.kill('SIGKILL');
+			reject(error);
+		});
+		child.once('close', (code, signal) => {
+			clearTimeout(timeout);
+			if (timedOut) {
+				reject(new Error('Interactive shell exceeded the 3000 ms witness deadline.'));
+				return;
+			}
+			if (code !== 0) {
+				reject(
+					new Error(
+						`Interactive shell exited with status ${String(code)} (${String(signal)}): ${Buffer.concat(stderr).toString('utf8')}`,
+					),
+				);
+				return;
+			}
+			resolve(Buffer.concat(stdout));
+		});
+		child.stdin.end(input);
+	});
 }
 
 function shellQuote(value: string): string {
