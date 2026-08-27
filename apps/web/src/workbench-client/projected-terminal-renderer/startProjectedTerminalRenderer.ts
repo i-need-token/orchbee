@@ -68,7 +68,9 @@ type ProjectedTerminalDriver = Pick<
 	| 'canControlTerminal'
 	| 'canNavigatePrompts'
 	| 'canScrollHistory'
+	| 'canShowHints'
 	| 'captureActionContext'
+	| 'chooseVisibleHint'
 	| 'clear'
 	| 'clearSearch'
 	| 'copySelectionAsync'
@@ -547,6 +549,9 @@ export async function startProjectedTerminalRenderer(
 			labels: {
 				deleted: (text) =>
 					intl.formatMessage(projectedTerminalMessages.accessibilityDeleted, { text }),
+				hintsActive: (count) =>
+					intl.formatMessage(projectedTerminalMessages.hintsActive, { count }),
+				hintsLoading: intl.formatMessage(projectedTerminalMessages.hintsLoading),
 				historyRange: (start, end, total) =>
 					intl.formatMessage(projectedTerminalMessages.historyRange, {
 						end: end.toString(),
@@ -1439,6 +1444,24 @@ function projectedTerminalActionResultPresentation(
 		event.result.kind === 'cancelled'
 	) {
 		return null;
+	}
+	if (event.actionId === PROJECTED_TERMINAL_ACTION_IDS.hintsOpen) {
+		if (event.result.kind === 'completed') {
+			return { message: projectedTerminalMessages.hintsCompleted, role: 'status' };
+		}
+		if (event.result.kind === 'unchanged') {
+			return { message: projectedTerminalMessages.hintsNoMatches, role: 'status' };
+		}
+		if (event.result.kind === 'blocked') {
+			return {
+				message:
+					event.result.code === 'stale-terminal-hints'
+						? projectedTerminalMessages.hintsStale
+						: projectedTerminalMessages.hintsUnavailable,
+				role: 'alert',
+			};
+		}
+		return { message: projectedTerminalMessages.hintsFailed, role: 'alert' };
 	}
 	if (event.result.kind === 'completed') {
 		switch (event.actionId) {

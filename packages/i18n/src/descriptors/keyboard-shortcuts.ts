@@ -18,6 +18,7 @@ export const keyboardShortcutMessages = defineMessages({
 	focusPanelRight: message('keyboard.shortcuts.actions.focusPanelRight'),
 	focusPanelUp: message('keyboard.shortcuts.actions.focusPanelUp'),
 	globalSearch: message('keyboard.shortcuts.actions.globalSearch'),
+	hints: message('keyboard.shortcuts.actions.hints'),
 	increaseTerminalFontSize: message('keyboard.shortcuts.actions.increaseTerminalFontSize'),
 	maximizePanel: message('keyboard.shortcuts.actions.maximizePanel'),
 	newTerminal: message('keyboard.shortcuts.actions.newTerminal'),

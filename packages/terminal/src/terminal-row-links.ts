@@ -4,8 +4,9 @@ import type { ILink, ILinkRange } from './types';
 
 const PATH_COMPONENT = String.raw`[\p{L}\p{N}\p{M}_.@%+,-]+`;
 const PATH_SEPARATOR = String.raw`[\\/]`;
+const BARE_FILE = String.raw`[\p{L}\p{N}\p{M}_@%+,-][\p{L}\p{N}\p{M}_.@%+,-]*\.(?:[\p{L}\p{N}]{2,7}|[ahcmo])`;
 const PATH_REGEX = new RegExp(
-	String.raw`(?:file:\/\/(?:[A-Za-z]:|${PATH_COMPONENT})?(?:${PATH_SEPARATOR}${PATH_COMPONENT})+|[A-Za-z]:${PATH_SEPARATOR}(?:${PATH_COMPONENT}${PATH_SEPARATOR})*${PATH_COMPONENT}|(?:~|\.{1,2})?${PATH_SEPARATOR}(?:${PATH_COMPONENT}${PATH_SEPARATOR})*${PATH_COMPONENT}|(?:${PATH_COMPONENT}${PATH_SEPARATOR})+${PATH_COMPONENT})(?::(\d+)(?::(\d+))?)?`,
+	String.raw`(?:file:\/\/(?:[A-Za-z]:|${PATH_COMPONENT})?(?:${PATH_SEPARATOR}${PATH_COMPONENT})+|[A-Za-z]:${PATH_SEPARATOR}(?:${PATH_COMPONENT}${PATH_SEPARATOR})*${PATH_COMPONENT}|(?:~|\.{1,2})?${PATH_SEPARATOR}(?:${PATH_COMPONENT}${PATH_SEPARATOR})*${PATH_COMPONENT}|(?:${PATH_COMPONENT}${PATH_SEPARATOR})+${PATH_COMPONENT}|${BARE_FILE})(?::(\d+)(?::(\d+))?)?`,
 	'gu',
 );
 const TRAILING_PATH_PUNCTUATION = /[.,;!?)\]，。！？）】]+$/u;
@@ -13,7 +14,7 @@ const TRAILING_URL_PUNCTUATION = /[.,;!?)\]]+$/u;
 const URL_REGEX =
 	/(?:https?:\/\/|mailto:|ftp:\/\/|ssh:\/\/|git:\/\/|tel:|magnet:|gemini:\/\/|gopher:\/\/|news:)[\w\-.~:/?#@!$&*+,;=%]+/giu;
 
-interface LogicalTerminalText {
+export interface LogicalTerminalText {
 	readonly positions: readonly { readonly x: number; readonly y: number }[];
 	readonly rows: readonly TerminalBufferRow[];
 	readonly text: string;
@@ -26,7 +27,7 @@ export function detectTerminalRowLinks(
 ): readonly ILink[] {
 	if (rows.length === 0) return [];
 	const explicit = detectExplicitLinks(rows);
-	const logicalLines = buildLogicalTexts(rows);
+	const logicalLines = buildLogicalTerminalTexts(rows);
 	const urls = logicalLines
 		.flatMap(detectUrlLinks)
 		.filter(isPermittedExternalTerminalTarget)
@@ -51,7 +52,9 @@ export function isPermittedExternalTerminalTarget(link: ILink): boolean {
 	return target?.kind === 'url' && normalizePermittedExternalTerminalUrl(target.url) !== null;
 }
 
-function buildLogicalTexts(rows: readonly TerminalBufferRow[]): readonly LogicalTerminalText[] {
+export function buildLogicalTerminalTexts(
+	rows: readonly TerminalBufferRow[],
+): readonly LogicalTerminalText[] {
 	const logicalLines: LogicalTerminalText[] = [];
 	let text = '';
 	const positions: Array<{ readonly x: number; readonly y: number }> = [];

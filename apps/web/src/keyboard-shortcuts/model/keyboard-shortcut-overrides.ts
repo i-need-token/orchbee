@@ -112,6 +112,9 @@ export function createKeyboardShortcutBindings(
 		[PROJECTED_TERMINAL_SHORTCUTS.findOpen.shortcutId]: bindingFor(
 			PROJECTED_TERMINAL_SHORTCUTS.findOpen.shortcutId,
 		),
+		[PROJECTED_TERMINAL_SHORTCUTS.hintsOpen.shortcutId]: bindingFor(
+			PROJECTED_TERMINAL_SHORTCUTS.hintsOpen.shortcutId,
+		),
 		[PROJECTED_TERMINAL_SHORTCUTS.copySelection.shortcutId]: bindingFor(
 			PROJECTED_TERMINAL_SHORTCUTS.copySelection.shortcutId,
 		),

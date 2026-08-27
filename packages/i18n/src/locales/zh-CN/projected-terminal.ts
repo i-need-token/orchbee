@@ -7,6 +7,7 @@ export const zhCNProjectedTerminalMessages = {
 	'terminal.projected.action.findNext': '查找下一个匹配项',
 	'terminal.projected.action.findOpen': '在终端中查找',
 	'terminal.projected.action.findPrevious': '查找上一个匹配项',
+	'terminal.projected.action.hintsOpen': '显示终端提示标签',
 	'terminal.projected.action.openLink': '打开终端链接',
 	'terminal.projected.action.paste': '粘贴',
 	'terminal.projected.action.promptNext': '滚动到下一个 Shell 提示符',
@@ -61,6 +62,14 @@ export const zhCNProjectedTerminalMessages = {
 	'terminal.projected.history.evicted': '更早的终端输出已从保留历史中逐出。',
 	'terminal.projected.history.range': '正在显示终端第 {start} 至 {end} 行，共 {total} 行。',
 	'terminal.projected.history.unavailable': '当前连接不支持保留的终端历史。',
+	'terminal.projected.hints.active':
+		'已有 {count, number} 个终端提示标签。请输入标签，或按 Escape 取消。',
+	'terminal.projected.hints.completed': '已选择终端提示目标。',
+	'terminal.projected.hints.failed': '无法使用所选的终端提示目标。',
+	'terminal.projected.hints.loading': '正在查找终端提示目标…',
+	'terminal.projected.hints.noMatches': '终端可见输出中没有支持的目标。',
+	'terminal.projected.hints.stale': '选择提示目标前，终端输出已发生变化。',
+	'terminal.projected.hints.unavailable': '终端可见输出当前无法使用提示功能。',
 	'terminal.projected.fileDrop.failure.invalid': '无法安全地准备拖入的路径。',
 	'terminal.projected.fileDrop.failure.inputTooLarge':
 		'生成的终端输入超过 {maximum, number} 个字符的上限。',

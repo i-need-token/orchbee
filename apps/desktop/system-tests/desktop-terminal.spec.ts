@@ -1122,6 +1122,54 @@ test('terminal-parity/FS-06-url-policy', async () => {
 	}
 });
 
+test('terminal-parity/FS-07-keyboard-hints', async () => {
+	test.setTimeout(45_000);
+	const page = await openTerminalUrlPolicyWitness();
+	try {
+		const root = page.locator('#terminal-url-policy-witness');
+		await expect(root).toHaveAttribute('data-witness-ready', 'true');
+		await expect(root).toHaveAttribute('data-witness-hints-ready', 'true');
+		await expect(root).not.toHaveAttribute('data-witness-failure', /.+/u);
+		const input = page.getByRole('textbox', { name: 'Terminal input' });
+		await input.focus();
+		await page.keyboard.press('Meta+Shift+KeyO');
+		const hints = root.locator('[data-projected-terminal-hint="true"]');
+		await expect(hints).toHaveCount(4);
+		expect(
+			await hints.evaluateAll((elements) =>
+				elements.map((element) => element.getAttribute('data-projected-terminal-hint-kind')),
+			),
+		).toEqual(['url', 'path', 'file-line', 'hash']);
+
+		const hashHint = root.locator('[data-projected-terminal-hint-kind="hash"]');
+		const resolvedHashLabel = await hashHint.getAttribute('data-projected-terminal-hint-label');
+		if (resolvedHashLabel === null) throw new Error('FS-07 hash hint has no keyboard label.');
+		await page.keyboard.press(resolvedHashLabel);
+		await expect(root).toHaveAttribute('data-witness-hint-insertions', 'deadbee');
+		await expect(root).toHaveAttribute('data-witness-hint-key-inputs', '0');
+		await expect(hints).toHaveCount(0);
+
+		await page.keyboard.press('Meta+Shift+KeyO');
+		await expect(hints).toHaveCount(4);
+		const urlHint = root.locator('[data-projected-terminal-hint-kind="url"]');
+		const urlLabel = await urlHint.getAttribute('data-projected-terminal-hint-label');
+		if (urlLabel === null) throw new Error('FS-07 URL hint has no keyboard label.');
+		await page.keyboard.press(urlLabel);
+		await expect(root).toHaveAttribute('data-witness-opened-targets', /\|https:\/\/o\.dev\/?$/u);
+		await expect(root).toHaveAttribute('data-witness-hint-key-inputs', '0');
+		await expect(hints).toHaveCount(0);
+
+		await page.keyboard.press('Meta+Shift+KeyO');
+		await expect(hints).toHaveCount(4);
+		await page.keyboard.press('Escape');
+		await expect(hints).toHaveCount(0);
+		await expect(root).toHaveAttribute('data-witness-hint-insertions', 'deadbee');
+		await expect(root).toHaveAttribute('data-witness-hint-key-inputs', '0');
+	} finally {
+		await page.context().browser()?.close();
+	}
+});
+
 test('terminal-parity/LC-05-lan-capability', async () => {
 	test.setTimeout(45_000);
 	const page = await openTerminalClipboardCapabilityWitness();

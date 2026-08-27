@@ -1,5 +1,5 @@
 import { ActionRuntime, createTypedActionRuntime } from '@orchbee/actions';
-import type { TerminalSearchOptions } from '@orchbee/terminal';
+import type { ProjectedPasteResult, TerminalSearchOptions } from '@orchbee/terminal';
 import { AttachmentIdSchema, CanonicalUint64TextSchema } from '@orchbee/terminal-protocol';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -59,6 +59,175 @@ describe('registerProjectedTerminalActions', () => {
 		expect(terminal.findNext).toHaveBeenCalledOnce();
 		expect(terminal.reset).toHaveBeenCalledOnce();
 		expect(terminal.selectAll).toHaveBeenCalledOnce();
+		for (const registration of registrations) registration.dispose();
+		runtime.dispose();
+	});
+
+	it('opens URL hints and inserts file and hash hints through bounded terminal effects', async () => {
+		const runtime = new ActionRuntime();
+		const scope = runtime.createScope('terminal.projected');
+		const controller = new TerminalFindController({
+			clearSearch: vi.fn<() => void>(),
+			updateSearch: vi.fn<(query: string, options: TerminalSearchOptions) => void>(),
+		});
+		const terminal = terminalTarget();
+		const chooseVisibleHint = vi.mocked(terminal.chooseVisibleHint);
+		chooseVisibleHint
+			.mockResolvedValueOnce({
+				hint: {
+					kind: 'url',
+					range: { end: { x: 20, y: 0 }, start: { x: 0, y: 0 } },
+					target: { kind: 'url', url: 'https://orchbee.dev/终端' },
+					text: 'https://orchbee.dev/终端',
+				},
+				kind: 'selected',
+			})
+			.mockResolvedValueOnce({
+				hint: {
+					kind: 'file-line',
+					range: { end: { x: 13, y: 0 }, start: { x: 0, y: 0 } },
+					target: { kind: 'file', line: 42, path: '/workspace/src/main.ts' },
+					text: 'src/main.ts:42',
+				},
+				kind: 'selected',
+			})
+			.mockResolvedValueOnce({
+				hint: {
+					kind: 'hash',
+					range: { end: { x: 6, y: 0 }, start: { x: 0, y: 0 } },
+					target: { kind: 'unknown', value: 'deadbee' },
+					text: 'deadbee',
+				},
+				kind: 'selected',
+			});
+		vi.mocked(terminal.paste).mockResolvedValue({
+			kind: 'sent',
+			review: {
+				bracketed: false,
+				embeddedBracketTerminator: false,
+				multiline: false,
+				originalText: 'hint',
+				replacedControlCharacters: 0,
+				source: 'api',
+				text: 'hint',
+			},
+		});
+		const openExternal = vi.fn<NonNullable<ProjectedTerminalPlatformEffects['openExternal']>>(
+			() => ({ kind: 'completed' }),
+		);
+		const registrations = registerProjectedTerminalActions({
+			findController: controller,
+			platformEffects: { openExternal },
+			scope,
+			terminal,
+			typedRuntime: createTypedActionRuntime<ProjectedTerminalActionCatalog>(runtime),
+		});
+
+		for (let invocation = 0; invocation < 3; invocation += 1) {
+			await expect(
+				runtime.execute(PROJECTED_TERMINAL_ACTION_IDS.hintsOpen, undefined, {
+					scope,
+					source: 'keyboard',
+				}).completion,
+			).resolves.toEqual({ kind: 'completed' });
+		}
+
+		expect(openExternal).toHaveBeenCalledWith('https://orchbee.dev/%E7%BB%88%E7%AB%AF');
+		expect(terminal.paste).toHaveBeenNthCalledWith(1, 'src/main.ts:42', 'api');
+		expect(terminal.paste).toHaveBeenNthCalledWith(2, 'deadbee', 'api');
+		for (const registration of registrations) registration.dispose();
+		runtime.dispose();
+	});
+
+	it('preserves hint cancellation, empty, stale, and unavailable outcomes', async () => {
+		const runtime = new ActionRuntime();
+		const scope = runtime.createScope('terminal.projected');
+		const controller = new TerminalFindController({
+			clearSearch: vi.fn<() => void>(),
+			updateSearch: vi.fn<(query: string, options: TerminalSearchOptions) => void>(),
+		});
+		const terminal = terminalTarget();
+		vi.mocked(terminal.chooseVisibleHint)
+			.mockResolvedValueOnce({ kind: 'cancelled' })
+			.mockResolvedValueOnce({ kind: 'empty' })
+			.mockResolvedValueOnce({ kind: 'stale' })
+			.mockResolvedValueOnce({ kind: 'unavailable' });
+		const registrations = registerProjectedTerminalActions({
+			findController: controller,
+			scope,
+			terminal,
+			typedRuntime: createTypedActionRuntime<ProjectedTerminalActionCatalog>(runtime),
+		});
+		const execute = () =>
+			runtime.execute(PROJECTED_TERMINAL_ACTION_IDS.hintsOpen, undefined, {
+				scope,
+				source: 'keyboard',
+			}).completion;
+
+		await expect(execute()).resolves.toEqual({ kind: 'cancelled' });
+		await expect(execute()).resolves.toEqual({ kind: 'unchanged' });
+		await expect(execute()).resolves.toEqual({ code: 'stale-terminal-hints', kind: 'blocked' });
+		await expect(execute()).resolves.toEqual({
+			code: 'terminal-hints-unavailable',
+			kind: 'blocked',
+		});
+		expect(terminal.paste).not.toHaveBeenCalled();
+		for (const registration of registrations) registration.dispose();
+		runtime.dispose();
+	});
+
+	it('commits a hint insertion that crosses its effect boundary before replacement', async () => {
+		const runtime = new ActionRuntime();
+		const scope = runtime.createScope('terminal.projected');
+		const controller = new TerminalFindController({
+			clearSearch: vi.fn<() => void>(),
+			updateSearch: vi.fn<(query: string, options: TerminalSearchOptions) => void>(),
+		});
+		const terminal = terminalTarget();
+		vi.mocked(terminal.chooseVisibleHint)
+			.mockResolvedValueOnce({
+				hint: {
+					kind: 'hash',
+					range: { end: { x: 6, y: 0 }, start: { x: 0, y: 0 } },
+					target: { kind: 'unknown', value: 'deadbee' },
+					text: 'deadbee',
+				},
+				kind: 'selected',
+			})
+			.mockResolvedValueOnce({ kind: 'empty' });
+		const pasteCompletion = deferred<ProjectedPasteResult>();
+		vi.mocked(terminal.paste).mockReturnValue(pasteCompletion.promise);
+		const registrations = registerProjectedTerminalActions({
+			findController: controller,
+			scope,
+			terminal,
+			typedRuntime: createTypedActionRuntime<ProjectedTerminalActionCatalog>(runtime),
+		});
+
+		const first = runtime.execute(PROJECTED_TERMINAL_ACTION_IDS.hintsOpen, undefined, {
+			scope,
+			source: 'keyboard',
+		});
+		await vi.waitFor(() => expect(terminal.paste).toHaveBeenCalledOnce());
+		const replacement = runtime.execute(PROJECTED_TERMINAL_ACTION_IDS.hintsOpen, undefined, {
+			scope,
+			source: 'keyboard',
+		});
+		pasteCompletion.resolve({
+			kind: 'sent',
+			review: {
+				bracketed: false,
+				embeddedBracketTerminator: false,
+				multiline: false,
+				originalText: 'deadbee',
+				replacedControlCharacters: 0,
+				source: 'api',
+				text: 'deadbee',
+			},
+		});
+
+		await expect(first.completion).resolves.toEqual({ kind: 'completed' });
+		await expect(replacement.completion).resolves.toEqual({ kind: 'unchanged' });
 		for (const registration of registrations) registration.dispose();
 		runtime.dispose();
 	});
@@ -240,6 +409,7 @@ describe('registerProjectedTerminalActions', () => {
 				PROJECTED_TERMINAL_ACTION_IDS.findNext,
 				PROJECTED_TERMINAL_ACTION_IDS.findOpen,
 				PROJECTED_TERMINAL_ACTION_IDS.findPrevious,
+				PROJECTED_TERMINAL_ACTION_IDS.hintsOpen,
 				PROJECTED_TERMINAL_ACTION_IDS.paste,
 				PROJECTED_TERMINAL_ACTION_IDS.promptNext,
 				PROJECTED_TERMINAL_ACTION_IDS.promptPrevious,
@@ -563,6 +733,10 @@ function terminalTarget(
 		canControlTerminal: true,
 		canNavigatePrompts: true,
 		canScrollHistory: true,
+		canShowHints: true,
+		chooseVisibleHint: vi
+			.fn<ProjectedTerminalActionTarget['chooseVisibleHint']>()
+			.mockResolvedValue({ kind: 'empty' }),
 		clear: vi.fn<ProjectedTerminalActionTarget['clear']>(() => true),
 		copySelectionAsync: vi
 			.fn<ProjectedTerminalActionTarget['copySelectionAsync']>()
@@ -589,5 +763,19 @@ function terminalTarget(
 		scrollToTop: vi.fn<ProjectedTerminalActionTarget['scrollToTop']>(() => true),
 		selectAll: vi.fn<ProjectedTerminalActionTarget['selectAll']>(),
 		selection,
+	};
+}
+
+function deferred<Value>(): {
+	readonly promise: Promise<Value>;
+	resolve(value: Value): void;
+} {
+	let resolvePromise: ((value: Value) => void) | undefined;
+	const promise = new Promise<Value>((resolve) => {
+		resolvePromise = resolve;
+	});
+	return {
+		promise,
+		resolve: (value) => resolvePromise?.(value),
 	};
 }

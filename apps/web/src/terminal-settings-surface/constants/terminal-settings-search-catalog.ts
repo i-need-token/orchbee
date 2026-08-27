@@ -322,6 +322,7 @@ export const KEYBOARD_SHORTCUT_SEARCH_LABELS = {
 	'focus-panel-right': keyboardShortcutMessages.focusPanelRight,
 	'focus-panel-up': keyboardShortcutMessages.focusPanelUp,
 	'global-search': keyboardShortcutMessages.globalSearch,
+	hints: keyboardShortcutMessages.hints,
 	'increase-terminal-font-size': keyboardShortcutMessages.increaseTerminalFontSize,
 	'maximize-panel': keyboardShortcutMessages.maximizePanel,
 	'new-terminal': keyboardShortcutMessages.newTerminal,

@@ -5,6 +5,7 @@ export const enUSProjectedTerminalMessages = {
 	'terminal.projected.action.findNext': 'Find next match',
 	'terminal.projected.action.findOpen': 'Find in terminal',
 	'terminal.projected.action.findPrevious': 'Find previous match',
+	'terminal.projected.action.hintsOpen': 'Show terminal hints',
 	'terminal.projected.action.openLink': 'Open terminal link',
 	'terminal.projected.action.paste': 'Paste',
 	'terminal.projected.action.promptNext': 'Scroll to next shell prompt',
@@ -63,6 +64,14 @@ export const enUSProjectedTerminalMessages = {
 	'terminal.projected.history.range': 'Showing terminal rows {start} through {end} of {total}.',
 	'terminal.projected.history.unavailable':
 		'Retained terminal history is unavailable for this connection.',
+	'terminal.projected.hints.active':
+		'{count, plural, one {One terminal hint is active.} other {# terminal hints are active.}} Type a label or press Escape to cancel.',
+	'terminal.projected.hints.completed': 'Terminal hint selected.',
+	'terminal.projected.hints.failed': 'The selected terminal hint could not be used.',
+	'terminal.projected.hints.loading': 'Finding terminal hints…',
+	'terminal.projected.hints.noMatches': 'No supported targets are visible in the terminal.',
+	'terminal.projected.hints.stale': 'Terminal output changed before the hint could be selected.',
+	'terminal.projected.hints.unavailable': 'Terminal hints are unavailable for the visible output.',
 	'terminal.projected.fileDrop.failure.invalid': 'The dropped paths could not be prepared safely.',
 	'terminal.projected.fileDrop.failure.inputTooLarge':
 		'The generated terminal input exceeds the {maximum, number}-character limit.',

@@ -447,7 +447,11 @@ Focused traces cover:
 - exact `terminal-parity/IN-08-drop` protected file-marker admission, Desktop backing-path
   resolution, bounded Ghostty-compatible POSIX escaping, direct middle-of-line insertion, and no
   review or implicit Enter;
-- exact headed `terminal-parity/FS-05-file-links` and `terminal-parity/FS-06-url-policy` Browser-composition witnesses for disabled filesystem activation and the shared `http`/`https`/`mailto` detection, hover, context, and activation boundary;
+- exact headed `terminal-parity/FS-05-file-links`, `terminal-parity/FS-06-url-policy`, and
+  `terminal-parity/FS-07-keyboard-hints` Browser-composition witnesses for disabled filesystem
+  activation; the shared `http`/`https`/`mailto` detection, hover, context, and activation boundary;
+  and visible URL/path/file-location/hash labels with exact insertion, captured URL opening,
+  cancellation, and zero label-key terminal input;
 - exact headed `terminal-parity/LC-05-lan-capability` Browser-composition evidence for per-operation secure-context, transient-user-activation, and API checks; synchronous Copy availability; one admitted writer call; rejection without retry; localized failure; and no privileged insecure-LAN path;
 - exact `terminal-parity/HS-07-selection-export` real-PTY/Electron evidence that styled terminal
   selection reaches the platform clipboard as the exact visible plain text, paired with protocol,

@@ -11,6 +11,7 @@ export const enUSKeyboardShortcutMessages = {
 	'keyboard.shortcuts.actions.focusPanelRight': 'Focus panel right',
 	'keyboard.shortcuts.actions.focusPanelUp': 'Focus panel above',
 	'keyboard.shortcuts.actions.globalSearch': 'Search everything',
+	'keyboard.shortcuts.actions.hints': 'Show terminal hints',
 	'keyboard.shortcuts.actions.increaseTerminalFontSize': 'Increase terminal font size',
 	'keyboard.shortcuts.actions.maximizePanel': 'Toggle panel maximization',
 	'keyboard.shortcuts.actions.newTerminal': 'New terminal',

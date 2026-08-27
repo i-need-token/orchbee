@@ -10,6 +10,7 @@ import { projectedTerminalMessages } from '@orchbee/i18n';
 import {
 	normalizePermittedExternalTerminalUrl,
 	type ProjectedPasteResult,
+	type TerminalHintChoiceResult,
 	type ProjectedTerminalLinkOpenRequest,
 	type ProjectedTerminalSideEffectResult,
 	type TerminalOpenTarget,
@@ -31,6 +32,7 @@ import {
 
 export interface ProjectedTerminalActionTarget {
 	readonly canControlTerminal: boolean;
+	readonly canShowHints: boolean;
 	readonly canNavigatePrompts: boolean;
 	readonly canScrollHistory: boolean;
 	readonly selection: SelectionChanged;
@@ -38,9 +40,10 @@ export interface ProjectedTerminalActionTarget {
 	copySelectionAsync(): Promise<ProjectedTerminalSideEffectResult>;
 	findNext(): boolean;
 	findPrevious(): boolean;
+	chooseVisibleHint(signal: AbortSignal): Promise<TerminalHintChoiceResult>;
 	linkOpenRequestIsCurrent(request: ProjectedTerminalLinkOpenRequest): boolean;
 	openLinkAsync(target: string): Promise<ProjectedTerminalSideEffectResult>;
-	paste(text: string, source: 'clipboard'): Promise<ProjectedPasteResult>;
+	paste(text: string, source: 'api' | 'clipboard'): Promise<ProjectedPasteResult>;
 	reset(): void;
 	scrollLines(amount: number): boolean;
 	scrollPages(amount: number): boolean;
@@ -126,6 +129,33 @@ export function registerProjectedTerminalActions({
 				id: PROJECTED_TERMINAL_ACTION_IDS.promptPrevious,
 				input: noActionInput,
 				title: projectedTerminalMessages.promptPreviousAction,
+			}),
+		),
+		typedRuntime.register(
+			scope,
+			defineAction({
+				category,
+				execution: {
+					concurrency: 'replace-latest',
+					concurrencyKey: () => 'terminal-hints',
+					mode: 'foreground',
+				},
+				getAvailability: () =>
+					terminal.canShowHints
+						? { kind: 'enabled' }
+						: { kind: 'disabled', reason: projectedTerminalMessages.actionUnavailable },
+				handler: {
+					execute: async (context) =>
+						completeTerminalHintChoice(
+							context,
+							await terminal.chooseVisibleHint(context.signal),
+							terminal,
+							platformEffects,
+						),
+				},
+				id: PROJECTED_TERMINAL_ACTION_IDS.hintsOpen,
+				input: noActionInput,
+				title: projectedTerminalMessages.hintsOpenAction,
 			}),
 		),
 		typedRuntime.register(
@@ -515,4 +545,48 @@ function terminalLinkOpenRequest(
 
 function normalizedExternalTarget(target: TerminalOpenTarget): string | null {
 	return target.kind === 'url' ? normalizePermittedExternalTerminalUrl(target.url) : null;
+}
+
+async function completeTerminalHintChoice(
+	context: ActionExecutionContext,
+	choice: TerminalHintChoiceResult,
+	terminal: ProjectedTerminalActionTarget,
+	platformEffects: ProjectedTerminalPlatformEffects,
+) {
+	switch (choice.kind) {
+		case 'cancelled':
+			return { kind: 'cancelled' as const };
+		case 'empty':
+			return { kind: 'unchanged' as const };
+		case 'stale':
+			return { code: 'stale-terminal-hints', kind: 'blocked' as const };
+		case 'unavailable':
+			return { code: 'terminal-hints-unavailable', kind: 'blocked' as const };
+		case 'selected': {
+			if (context.signal.aborted) return { kind: 'cancelled' as const };
+			const target = normalizedExternalTarget(choice.hint.target);
+			if (choice.hint.kind === 'url') {
+				if (target === null) {
+					return { code: 'terminal-hint-policy-blocked', kind: 'blocked' as const };
+				}
+				const result = await (platformEffects.openExternal?.(target) ??
+					terminal.openLinkAsync(target));
+				if (result.kind === 'cancelled') {
+					return { kind: 'cancelled' as const };
+				}
+				if (result.kind === 'failed') {
+					return { failure: { code: result.code }, kind: 'failed' as const };
+				}
+				context.markCommitted();
+				return { kind: 'completed' as const };
+			}
+			const result = await terminal.paste(choice.hint.text, 'api');
+			if (result.kind === 'empty') return { kind: 'unchanged' as const };
+			if (result.kind === 'blocked') {
+				return { code: 'terminal-hint-insert-blocked', kind: 'blocked' as const };
+			}
+			context.markCommitted();
+			return { kind: 'completed' as const };
+		}
+	}
 }

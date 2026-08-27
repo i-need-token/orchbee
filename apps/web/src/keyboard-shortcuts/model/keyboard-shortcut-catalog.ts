@@ -61,6 +61,7 @@ type KeyboardShortcutName =
 	| 'focus-panel-right'
 	| 'focus-panel-up'
 	| 'global-search'
+	| 'hints'
 	| 'increase-terminal-font-size'
 	| 'maximize-panel'
 	| 'new-terminal'
@@ -324,6 +325,16 @@ export const KEYBOARD_SHORTCUT_CATALOG = Object.freeze([
 		name: 'find',
 		scope: 'focused-terminal-or-find',
 		shortcutId: PROJECTED_TERMINAL_SHORTCUTS.findOpen.shortcutId,
+	}),
+	Object.freeze({
+		actionId: PROJECTED_TERMINAL_SHORTCUTS.hintsOpen.actionId,
+		actionInput: undefined,
+		availability: 'focused-terminal',
+		defaults: PROJECTED_TERMINAL_SHORTCUTS.hintsOpen.defaults,
+		feature: 'terminal',
+		name: 'hints',
+		scope: 'focused-terminal',
+		shortcutId: PROJECTED_TERMINAL_SHORTCUTS.hintsOpen.shortcutId,
 	}),
 	Object.freeze({
 		actionId: PROJECTED_TERMINAL_SHORTCUTS.copySelection.actionId,

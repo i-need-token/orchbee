@@ -133,6 +133,39 @@ export const projectedTerminalMessages = defineMessages({
 		defaultMessage: 'Retained terminal output could not be searched.',
 		id: 'terminal.projected.find.unavailable',
 	},
+	hintsActive: {
+		defaultMessage:
+			'{count, plural, one {One terminal hint is active.} other {# terminal hints are active.}} Type a label or press Escape to cancel.',
+		id: 'terminal.projected.hints.active',
+	},
+	hintsCompleted: {
+		defaultMessage: 'Terminal hint selected.',
+		id: 'terminal.projected.hints.completed',
+	},
+	hintsFailed: {
+		defaultMessage: 'The selected terminal hint could not be used.',
+		id: 'terminal.projected.hints.failed',
+	},
+	hintsLoading: {
+		defaultMessage: 'Finding terminal hints…',
+		id: 'terminal.projected.hints.loading',
+	},
+	hintsNoMatches: {
+		defaultMessage: 'No supported targets are visible in the terminal.',
+		id: 'terminal.projected.hints.noMatches',
+	},
+	hintsOpenAction: {
+		defaultMessage: 'Show terminal hints',
+		id: 'terminal.projected.action.hintsOpen',
+	},
+	hintsStale: {
+		defaultMessage: 'Terminal output changed before the hint could be selected.',
+		id: 'terminal.projected.hints.stale',
+	},
+	hintsUnavailable: {
+		defaultMessage: 'Terminal hints are unavailable for the visible output.',
+		id: 'terminal.projected.hints.unavailable',
+	},
 	historyEvicted: {
 		defaultMessage: 'Earlier terminal output was evicted from retained history.',
 		id: 'terminal.projected.history.evicted',

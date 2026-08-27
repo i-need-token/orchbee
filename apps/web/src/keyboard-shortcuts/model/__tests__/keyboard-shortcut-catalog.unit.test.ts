@@ -10,9 +10,9 @@ import {
 } from '../keyboard-shortcut-catalog';
 
 describe('keyboard shortcut catalog', () => {
-	it('combines the twenty-seven Workbench and thirteen projected-terminal declarations once', () => {
-		expect(KEYBOARD_SHORTCUT_CATALOG).toHaveLength(40);
-		expect(new Set(KEYBOARD_SHORTCUT_IDS).size).toBe(40);
+	it('combines the twenty-seven Workbench and fourteen projected-terminal declarations once', () => {
+		expect(KEYBOARD_SHORTCUT_CATALOG).toHaveLength(41);
+		expect(new Set(KEYBOARD_SHORTCUT_IDS).size).toBe(41);
 		expect(keyboardShortcutDeclaration('workbench.search.actions.open')).toMatchObject({
 			actionId: 'workbench.search.open',
 			actionInput: { filter: 'actions' },
@@ -70,6 +70,12 @@ describe('keyboard shortcut catalog', () => {
 			availability: 'focused-terminal',
 			scope: 'focused-terminal',
 		});
+		expect(keyboardShortcutDeclaration('terminal.hints.open')).toMatchObject({
+			actionId: 'terminal.hints.open',
+			availability: 'focused-terminal',
+			name: 'hints',
+			scope: 'focused-terminal',
+		});
 		expect(keyboardShortcutDeclaration('terminal.history.prompt-previous')).toMatchObject({
 			actionId: 'terminal.history.prompt-previous',
 			availability: 'focused-terminal',
@@ -111,6 +117,7 @@ describe('keyboard shortcut catalog', () => {
 			'Ctrl+Shift+F',
 		);
 		expect(formatKeyboardShortcutChord(apple['terminal.clear'], 'apple')).toBe('⌘K');
+		expect(formatKeyboardShortcutChord(apple['terminal.hints.open'], 'apple')).toBe('⇧⌘O');
 		expect(
 			formatKeyboardShortcutChord(apple['workbench.terminal.font-size.increase'], 'apple'),
 		).toBe('⌘=');

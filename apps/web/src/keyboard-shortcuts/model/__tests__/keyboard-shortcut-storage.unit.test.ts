@@ -13,18 +13,19 @@ const VERSION_FIVE_KEY = 'orchbee:web:keyboard-shortcuts:v5';
 const VERSION_SIX_KEY = 'orchbee:web:keyboard-shortcuts:v6';
 const VERSION_SEVEN_KEY = 'orchbee:web:keyboard-shortcuts:v7';
 const VERSION_EIGHT_KEY = 'orchbee:web:keyboard-shortcuts:v8';
+const VERSION_NINE_KEY = 'orchbee:web:keyboard-shortcuts:v9';
 
 describe('keyboard shortcut storage', () => {
-	it('restores one strict, sorted, canonical v8 override record', () => {
+	it('restores one strict, sorted, canonical v9 override record', () => {
 		const storage = storageWith({
-			[VERSION_EIGHT_KEY]: JSON.stringify({
+			[VERSION_NINE_KEY]: JSON.stringify({
 				overrides: [
 					{
 						chord: { code: 'KeyG', modifiers: ['mod', 'shift'] },
 						shortcutId: 'workbench.search.all.open',
 					},
 				],
-				version: 8,
+				version: 9,
 			}),
 		});
 
@@ -42,12 +43,12 @@ describe('keyboard shortcut storage', () => {
 
 	it.each([
 		['malformed JSON', '{'],
-		['unknown record field', JSON.stringify({ overrides: [], unexpected: true, version: 8 })],
+		['unknown record field', JSON.stringify({ overrides: [], unexpected: true, version: 9 })],
 		[
 			'unknown shortcut ID',
 			JSON.stringify({
 				overrides: [{ chord: { code: 'KeyG', modifiers: ['mod'] }, shortcutId: 'unknown' }],
-				version: 8,
+				version: 9,
 			}),
 		],
 		[
@@ -63,7 +64,7 @@ describe('keyboard shortcut storage', () => {
 						shortcutId: 'workbench.search.all.open',
 					},
 				],
-				version: 8,
+				version: 9,
 			}),
 		],
 		[
@@ -79,7 +80,7 @@ describe('keyboard shortcut storage', () => {
 						shortcutId: 'terminal.search.open',
 					},
 				],
-				version: 8,
+				version: 9,
 			}),
 		],
 		[
@@ -91,7 +92,7 @@ describe('keyboard shortcut storage', () => {
 						shortcutId: 'workbench.search.all.open',
 					},
 				],
-				version: 8,
+				version: 9,
 			}),
 		],
 		[
@@ -103,7 +104,7 @@ describe('keyboard shortcut storage', () => {
 						shortcutId: 'workbench.search.all.open',
 					},
 				],
-				version: 8,
+				version: 9,
 			}),
 		],
 		[
@@ -115,12 +116,53 @@ describe('keyboard shortcut storage', () => {
 						shortcutId: 'workbench.search.all.open',
 					},
 				],
-				version: 8,
+				version: 9,
 			}),
 		],
-	] as const)('rejects the whole v8 record for %s', (_case, serialized) => {
+	] as const)('rejects the whole v9 record for %s', (_case, serialized) => {
 		expect(
-			readKeyboardShortcutOverrides(storageWith({ [VERSION_EIGHT_KEY]: serialized }), 'standard'),
+			readKeyboardShortcutOverrides(storageWith({ [VERSION_NINE_KEY]: serialized }), 'standard'),
+		).toEqual({ issue: 'invalid-record', migration: null, overrides: [] });
+	});
+
+	it('migrates a valid v8 override into the terminal-hints catalog', () => {
+		const versionEight = JSON.stringify({
+			overrides: [
+				{
+					chord: { code: 'KeyG', modifiers: ['mod', 'shift'] },
+					shortcutId: 'workbench.search.all.open',
+				},
+			],
+			version: 8,
+		});
+
+		expect(
+			readKeyboardShortcutOverrides(storageWith({ [VERSION_EIGHT_KEY]: versionEight }), 'standard'),
+		).toEqual({
+			issue: null,
+			migration: 'v8',
+			overrides: [
+				{
+					chord: { code: 'KeyG', modifiers: ['mod', 'shift'] },
+					shortcutId: 'workbench.search.all.open',
+				},
+			],
+		});
+	});
+
+	it('rejects a v8 override that conflicts with the new terminal-hints default', () => {
+		const versionEight = JSON.stringify({
+			overrides: [
+				{
+					chord: { code: 'KeyO', modifiers: ['mod', 'shift'] },
+					shortcutId: 'workbench.search.all.open',
+				},
+			],
+			version: 8,
+		});
+
+		expect(
+			readKeyboardShortcutOverrides(storageWith({ [VERSION_EIGHT_KEY]: versionEight }), 'standard'),
 		).toEqual({ issue: 'invalid-record', migration: null, overrides: [] });
 	});
 
@@ -419,9 +461,9 @@ describe('keyboard shortcut storage', () => {
 		).toEqual({ issue: 'invalid-record', migration: null, overrides: [] });
 	});
 
-	it('never consults older records when an invalid v8 record exists', () => {
+	it('never consults older records when an invalid v9 record exists', () => {
 		const getItem = vi.fn<(key: string) => string | null>((key) =>
-			key === VERSION_EIGHT_KEY ? '{' : JSON.stringify({ overrides: [], version: 7 }),
+			key === VERSION_NINE_KEY ? '{' : JSON.stringify({ overrides: [], version: 8 }),
 		);
 
 		expect(readKeyboardShortcutOverrides({ getItem, setItem: () => undefined }, 'apple')).toEqual({
@@ -430,11 +472,12 @@ describe('keyboard shortcut storage', () => {
 			overrides: [],
 		});
 		expect(getItem).toHaveBeenCalledTimes(1);
-		expect(getItem).toHaveBeenCalledWith(VERSION_EIGHT_KEY);
+		expect(getItem).toHaveBeenCalledWith(VERSION_NINE_KEY);
 	});
 
 	it('never consults v5 when an invalid v6 migration source exists', () => {
 		const getItem = vi.fn<(key: string) => string | null>((key) => {
+			if (key === VERSION_NINE_KEY) return null;
 			if (key === VERSION_EIGHT_KEY) return null;
 			if (key === VERSION_SEVEN_KEY) return null;
 			if (key === VERSION_SIX_KEY) return '{';
@@ -446,12 +489,13 @@ describe('keyboard shortcut storage', () => {
 			migration: null,
 			overrides: [],
 		});
-		expect(getItem).toHaveBeenCalledTimes(3);
+		expect(getItem).toHaveBeenCalledTimes(4);
 		expect(getItem).not.toHaveBeenCalledWith(VERSION_FIVE_KEY);
 	});
 
 	it('never consults v4 when an invalid v5 migration source exists', () => {
 		const getItem = vi.fn<(key: string) => string | null>((key) => {
+			if (key === VERSION_NINE_KEY) return null;
 			if (key === VERSION_EIGHT_KEY) return null;
 			if (key === VERSION_SEVEN_KEY) return null;
 			if (key === VERSION_SIX_KEY) return null;
@@ -464,12 +508,13 @@ describe('keyboard shortcut storage', () => {
 			migration: null,
 			overrides: [],
 		});
-		expect(getItem).toHaveBeenCalledTimes(4);
+		expect(getItem).toHaveBeenCalledTimes(5);
 		expect(getItem).not.toHaveBeenCalledWith(VERSION_FOUR_KEY);
 	});
 
 	it('never consults v3 when an invalid v4 migration source exists', () => {
 		const getItem = vi.fn<(key: string) => string | null>((key) => {
+			if (key === VERSION_NINE_KEY) return null;
 			if (key === VERSION_EIGHT_KEY) return null;
 			if (key === VERSION_SEVEN_KEY) return null;
 			if (key === VERSION_SIX_KEY) return null;
@@ -483,12 +528,13 @@ describe('keyboard shortcut storage', () => {
 			migration: null,
 			overrides: [],
 		});
-		expect(getItem).toHaveBeenCalledTimes(5);
+		expect(getItem).toHaveBeenCalledTimes(6);
 		expect(getItem).not.toHaveBeenCalledWith(VERSION_THREE_KEY);
 	});
 
 	it('never consults v2 when an invalid v3 migration source exists', () => {
 		const getItem = vi.fn<(key: string) => string | null>((key) => {
+			if (key === VERSION_NINE_KEY) return null;
 			if (key === VERSION_EIGHT_KEY) return null;
 			if (key === VERSION_SEVEN_KEY) return null;
 			if (key === VERSION_SIX_KEY) return null;
@@ -503,12 +549,13 @@ describe('keyboard shortcut storage', () => {
 			migration: null,
 			overrides: [],
 		});
-		expect(getItem).toHaveBeenCalledTimes(6);
+		expect(getItem).toHaveBeenCalledTimes(7);
 		expect(getItem).not.toHaveBeenCalledWith(VERSION_TWO_KEY);
 	});
 
 	it('never consults v1 when an invalid v2 migration source exists', () => {
 		const getItem = vi.fn<(key: string) => string | null>((key) => {
+			if (key === VERSION_NINE_KEY) return null;
 			if (key === VERSION_EIGHT_KEY) return null;
 			if (key === VERSION_SEVEN_KEY) return null;
 			if (key === VERSION_SIX_KEY) return null;
@@ -524,11 +571,11 @@ describe('keyboard shortcut storage', () => {
 			migration: null,
 			overrides: [],
 		});
-		expect(getItem).toHaveBeenCalledTimes(7);
+		expect(getItem).toHaveBeenCalledTimes(8);
 		expect(getItem).not.toHaveBeenCalledWith(VERSION_ONE_KEY);
 	});
 
-	it('reports read failures and writes one stable complete v8 record', () => {
+	it('reports read failures and writes one stable complete v9 record', () => {
 		expect(
 			readKeyboardShortcutOverrides(
 				{
@@ -551,8 +598,8 @@ describe('keyboard shortcut storage', () => {
 			]),
 		).toBe(true);
 		expect(setItem).toHaveBeenCalledWith(
-			VERSION_EIGHT_KEY,
-			'{"overrides":[{"chord":{"code":"KeyG","modifiers":["mod","shift"]},"shortcutId":"workbench.search.all.open"}],"version":8}',
+			VERSION_NINE_KEY,
+			'{"overrides":[{"chord":{"code":"KeyG","modifiers":["mod","shift"]},"shortcutId":"workbench.search.all.open"}],"version":9}',
 		);
 	});
 });

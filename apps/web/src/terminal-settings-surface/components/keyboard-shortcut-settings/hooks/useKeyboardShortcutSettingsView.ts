@@ -84,6 +84,8 @@ export function useKeyboardShortcutSettingsView({
 				return intl.formatMessage(keyboardShortcutMessages.scrollToTop);
 			case 'global-search':
 				return intl.formatMessage(keyboardShortcutMessages.globalSearch);
+			case 'hints':
+				return intl.formatMessage(keyboardShortcutMessages.hints);
 			case 'maximize-panel':
 				return intl.formatMessage(keyboardShortcutMessages.maximizePanel);
 			case 'settings':

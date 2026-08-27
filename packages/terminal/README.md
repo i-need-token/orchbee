@@ -482,6 +482,13 @@ admits them only on the primary screen, preserves Kitty's one-row overlap for pa
 delegates every request to the existing Host-authoritative history-intent workflow. A boundary is
 an unchanged local result; alternate-screen shortcuts remain available to the terminal application.
 
+Visible keyboard Hints follow the bounded
+[Kitty keyboard-hints alignment](docs/kitty-keyboard-hints-alignment.md). One invocation reads only
+the pinned visible row window, excludes logical lines clipped by a viewport edge, and labels at most
+512 permitted URLs, paths, file locations, and lowercase hexadecimal hashes. The overlay owns label
+key events until selection or cancellation. `ProjectedTerminal` returns the selected typed target;
+the application owns URL opening or exact-text insertion through the normal paste boundary.
+
 ```ts
 terminal.scrollLines(-1);
 terminal.scrollPages(-1);
@@ -489,6 +496,7 @@ terminal.scrollToTop();
 terminal.scrollToBottom();
 await terminal.scrollToPreviousPrompt(signal);
 await terminal.scrollToNextPrompt(signal);
+await terminal.chooseVisibleHint(signal);
 terminal.updateSearch('failed', { caseSensitive: false, wholeWord: true });
 terminal.findNext();
 ```
@@ -761,7 +769,9 @@ and localized perceivable feedback. `terminal-parity/FS-05-file-links` checks th
 metadata, detected paths, and a direct Browser-effect request remain inactive.
 `terminal-parity/FS-06-url-policy` checks the same real surface's hover, context, and direct
 activation path for exactly `http`, `https`, and `mailto`, including unsupported automatic and
-explicit URL cases. Owner-local unit tests additionally cover malformed context, exact-input
+explicit URL cases. `terminal-parity/FS-07-keyboard-hints` checks the bounded visible-row read,
+four target kinds, prefix-free labels, exact hash insertion, URL opening, Escape cancellation, and
+zero label-key input through the same production surface. Owner-local unit tests additionally cover malformed context, exact-input
 copying, normalization, automatic-detection filtering, and revalidation immediately before
 execution.
 
@@ -867,6 +877,7 @@ stated by their owning guides.
 | `terminal-parity/HS-04-selection-gesture`, `terminal-parity/HS-05-selection-cancel`, `terminal-parity/HS-06-selection-eviction`, `terminal-parity/HS-08-selection-commands`, `terminal-parity/HS-10-copy`                   | The [selection-gesture model](formal/README.md#selection-gesture-stale-cancellation), [`src/projected/__tests__/projected-terminal.unit.test.ts`](src/projected/__tests__/projected-terminal.unit.test.ts), Host selection/export tests, Web clipboard-result tests, and exact headed `terminal-parity/HS-04-selection-gesture` cover gesture derivation, stale retirement, cancellation, pinned export, absolute endpoints, and one perceivable copy outcome.                                                                                        |
 | `terminal-parity/FS-01-search`, `terminal-parity/FS-02-search-scheduling`                                                                                                                                                   | [`src/search/__tests__/projected-search-controller.unit.test.ts`](src/search/__tests__/projected-search-controller.unit.test.ts), [`src/search/__tests__/projected-search-worker.unit.test.ts`](src/search/__tests__/projected-search-worker.unit.test.ts), and [`src/search/__tests__/ProjectedSearchAccumulator.unit.test.ts`](src/search/__tests__/ProjectedSearchAccumulator.unit.test.ts) cover bounded results, independent navigation, invalidation, cancellation, progress, and reveal.                                                       |
 | `terminal-parity/FS-03-links`, `terminal-parity/FS-04-link-invalidation`                                                                                                                                                    | [`src/__tests__/terminal-row-links.unit.test.ts`](src/__tests__/terminal-row-links.unit.test.ts) and [`src/projected/__tests__/projected-terminal.unit.test.ts`](src/projected/__tests__/projected-terminal.unit.test.ts) cover complete bounded logical lines, precedence, exact cell mapping, hover retirement, and activation revalidation.                                                                                                                                                                                                        |
+| `terminal-parity/FS-07-keyboard-hints`                                                                                                                                                                                      | [`src/__tests__/terminal-hints.unit.test.ts`](src/__tests__/terminal-hints.unit.test.ts), projected-terminal, Web Action, shortcut, Settings, storage, and exact headed Desktop evidence cover visible target detection, overlay ownership, cancellation, effects, migration, and unchanged attachment identity.                                                                                                                                                                                                                                      |
 | `terminal-parity/AC-01-accessible-rows`, `terminal-parity/AC-02-dom-selection`, `terminal-parity/AC-03-announcements`, `terminal-parity/AC-04-deletion`                                                                     | [`src/accessibility/__tests__/accessible-text-model.unit.test.ts`](src/accessibility/__tests__/accessible-text-model.unit.test.ts) and [`src/projected/__tests__/projected-terminal.unit.test.ts`](src/projected/__tests__/projected-terminal.unit.test.ts) cover valid row structure, ordinary Host-selection isolation, assistive-technology-origin grapheme-safe bidirectional Range mapping, ordered live output, history suppression, and atomic deletion announcements.                                                                         |
 | `terminal-parity/CF-01-host-authority`                                                                                                                                                                                      | This is a justified architecture-negative witness: [`project.json`](project.json), dependency-boundary checks, and [`scripts/check-public-api.mjs`](scripts/check-public-api.mjs) admit only the projected API and no PTY-byte writer, browser VT, or synchronous whole-buffer authority. A differential runtime trace is not applicable because no second VT transition system exists.                                                                                                                                                               |
 | `terminal-parity/CF-02-bounds`                                                                                                                                                                                              | The packed-store, projected-terminal, search, link, accessibility, protocol-limit, and Host backpressure suites named above collectively execute every retained projection, row, byte, result, flight, and revision bound; the Host runtime contract owns native allocation and queue limits.                                                                                                                                                                                                                                                         |

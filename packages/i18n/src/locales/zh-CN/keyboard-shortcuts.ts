@@ -13,6 +13,7 @@ export const zhCNKeyboardShortcutMessages = {
 	'keyboard.shortcuts.actions.focusPanelRight': '聚焦右侧面板',
 	'keyboard.shortcuts.actions.focusPanelUp': '聚焦上方面板',
 	'keyboard.shortcuts.actions.globalSearch': '搜索全部内容',
+	'keyboard.shortcuts.actions.hints': '显示终端提示标签',
 	'keyboard.shortcuts.actions.increaseTerminalFontSize': '增大终端字号',
 	'keyboard.shortcuts.actions.maximizePanel': '切换面板最大化',
 	'keyboard.shortcuts.actions.newTerminal': '新建终端',

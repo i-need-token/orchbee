@@ -77,6 +77,17 @@ describe('source-neutral terminal row links', () => {
 		expect(isPermittedExternalTerminalTarget(file ?? unreachableLink())).toBe(false);
 	});
 
+	it('detects a bare filename with a common extension', () => {
+		const links = detectTerminalRowLinks([row(3n, 'README.md')], '/workspace');
+
+		expect(links).toEqual([
+			expect.objectContaining({
+				target: { kind: 'file', path: '/workspace/README.md' },
+				text: 'README.md',
+			}),
+		]);
+	});
+
 	it('maps URLs in implicit narrow ASCII rows', () => {
 		const text = 'https://example.com/path';
 		const links = detectTerminalRowLinks([

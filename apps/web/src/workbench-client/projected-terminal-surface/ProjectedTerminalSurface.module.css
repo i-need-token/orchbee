@@ -78,6 +78,40 @@
 	background: var(--ob-sys-color-status-warning-text);
 }
 
+.terminalSurface > [data-projected-terminal-hints='true'] {
+	z-index: var(--ob-ref-layer-raised);
+	overflow: hidden;
+	pointer-events: none;
+}
+
+.terminalSurface [data-projected-terminal-hints-loading='true'] {
+	position: absolute;
+	inset-block-start: var(--ob-ref-space-2);
+	inset-inline-end: var(--ob-ref-space-2);
+	padding: var(--ob-ref-space-1) var(--ob-ref-space-2);
+	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-status-info-border);
+	border-radius: var(--ob-ref-radius-ui-sm);
+	background: var(--ob-sys-color-status-info-surface);
+	color: var(--ob-sys-color-status-info-text);
+	font: var(--ob-sys-typography-label-sm);
+}
+
+.terminalSurface [data-projected-terminal-hint='true'] {
+	position: absolute;
+	box-sizing: border-box;
+	display: grid;
+	place-items: center;
+	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-status-warning-border);
+	border-radius: var(--ob-ref-radius-xs);
+	background: var(--ob-sys-color-status-warning);
+	color: var(--ob-sys-color-text-inverse);
+	font: var(--ob-sys-typography-label-sm);
+}
+
+.terminalSurface [data-projected-terminal-hint='true'][hidden] {
+	display: none;
+}
+
 .terminalSurface > [data-projected-terminal-progress='true'][data-state='indeterminate'] > span {
 	animation: projected-terminal-progress-indeterminate calc(var(--ob-sys-motion-duration-slow) * 4)
 		var(--ob-sys-motion-easing-standard) infinite alternate;

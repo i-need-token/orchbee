@@ -73,7 +73,9 @@ interface FakeElement {
 	dispatch(type: string, event: Event): void;
 	getAttribute(name: string): string | null;
 	getBoundingClientRect(): DOMRect;
+	querySelectorAll<T extends Element>(selector: string): NodeListOf<T>;
 	releasePointerCapture(pointerId: number): void;
+	replaceChildren(...nodes: FakeElement[]): void;
 	removeAttribute(name: string): void;
 	remove(): void;
 	setPointerCapture(pointerId: number): void;
@@ -176,6 +178,19 @@ function promptNavigationRow(
 		mappings: [],
 		promptClass,
 		text: '',
+		wrap: false,
+		wrapContinuation: false,
+	};
+}
+
+function terminalHintRow(index: bigint, text: string): TerminalBufferRow {
+	return {
+		cells: null,
+		identityAscii: true,
+		index,
+		mappings: [],
+		promptClass: RowPromptClass.none,
+		text,
 		wrap: false,
 		wrapContinuation: false,
 	};
@@ -746,6 +761,20 @@ function createFakeBrowser(): FakeBrowser {
 				toJSON: () => ({}),
 			}),
 			getContext: tagName === 'canvas' ? () => context : undefined,
+			querySelectorAll: <T extends Element>(selector: string): NodeListOf<T> => {
+				const matches: FakeElement[] = [];
+				const visit = (candidate: FakeElement): void => {
+					if (
+						selector === '[data-projected-terminal-hint="true"]' &&
+						candidate.dataset['projectedTerminalHint'] === 'true'
+					) {
+						matches.push(candidate);
+					}
+					for (const child of candidate.children) visit(child);
+				};
+				for (const child of element.children) visit(child);
+				return matches as unknown as NodeListOf<T>;
+			},
 			remove: () => {
 				const parent = element.parentElement;
 				if (parent) parent.children.splice(parent.children.indexOf(element), 1);
@@ -753,6 +782,11 @@ function createFakeBrowser(): FakeBrowser {
 			},
 			removeAttribute: (name: string) => element.attributes.delete(name),
 			releasePointerCapture: (pointerId: number) => element.capturedPointers.delete(pointerId),
+			replaceChildren: (...nodes: FakeElement[]) => {
+				for (const child of element.children) child.parentElement = null;
+				element.children.length = 0;
+				for (const child of nodes) element.appendChild(child);
+			},
 			removeEventListener: (type: string, listener: EventListener) => {
 				listeners.get(type)?.delete(listener);
 			},
@@ -11976,6 +12010,131 @@ describe('ProjectedTerminal', () => {
 
 		expect(errors).toHaveBeenCalledOnce();
 		expect(terminal.canControlTerminal).toBe(true);
+		terminal.dispose();
+	});
+
+	it('labels visible URL, file, and hash hints without forwarding label keys', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: {
+				hintsActive: (count) => `${count} hints`,
+				hintsLoading: 'Finding hints',
+				input: 'input',
+				screen: 'screen',
+			},
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(
+			terminalFrame(
+				'snapshot',
+				1n,
+				1n,
+				['visible output', ''],
+				null,
+				[0, 1],
+				0n,
+				interaction,
+				{
+					column: 0,
+					row: 0,
+				},
+				1n,
+				80,
+			),
+		);
+		const visibleRows = [
+			terminalHintRow(0n, 'https://orchbee.dev README.md src/main.ts:42:7 deadbee'),
+			terminalHintRow(1n, ''),
+		];
+		vi.spyOn(terminal, 'readBufferRows').mockImplementation(async (request) => ({
+			byteLength: visibleRows[0]?.text.length ?? 0,
+			detail: request.detail,
+			generation: request.generation,
+			kind: 'rows',
+			revision: request.revision,
+			rows: visibleRows,
+			startRow: request.startRow,
+			totalRows: 2n,
+		}));
+
+		const choice = terminal.chooseVisibleHint(new AbortController().signal);
+		await vi.waitFor(() => {
+			const overlay = (browser.root as unknown as FakeElement).children.find(
+				(element) => element.dataset['projectedTerminalHints'] === 'true',
+			);
+			expect(overlay?.dataset['state']).toBe('active');
+		});
+		const overlay = (browser.root as unknown as FakeElement).children.find(
+			(element) => element.dataset['projectedTerminalHints'] === 'true',
+		);
+		if (overlay === undefined) throw new Error('terminal hint overlay is unavailable');
+		expect(overlay.children.map((element) => element.dataset['projectedTerminalHintKind'])).toEqual(
+			['url', 'path', 'file-line', 'hash'],
+		);
+		const hash = overlay.children.find(
+			(element) => element.dataset['projectedTerminalHintKind'] === 'hash',
+		);
+		const label = hash?.dataset['projectedTerminalHintLabel'];
+		if (label === undefined) throw new Error('hash hint label is unavailable');
+		const preventDefault = vi.fn<() => void>();
+		const stopPropagation = vi.fn<() => void>();
+		(terminal.textarea as unknown as FakeElement).dispatch(
+			'keydown',
+			keyboardEvent('keydown', `Digit${label}`, label, label.codePointAt(0) ?? 0, {
+				preventDefault,
+				stopPropagation,
+			}),
+		);
+
+		await expect(choice).resolves.toMatchObject({
+			hint: { kind: 'hash', text: 'deadbee' },
+			kind: 'selected',
+		});
+		expect(preventDefault).toHaveBeenCalledOnce();
+		expect(stopPropagation).toHaveBeenCalledOnce();
+		expect(commands.some((command) => command.kind === 'key-input')).toBe(false);
+		expect(overlay.parentElement).toBeNull();
+
+		const staleChoice = terminal.chooseVisibleHint(new AbortController().signal);
+		await vi.waitFor(() =>
+			expect(
+				(browser.root as unknown as FakeElement).children.some(
+					(element) => element.dataset['state'] === 'active',
+				),
+			).toBe(true),
+		);
+		terminal.applyFrame(
+			terminalFrame(
+				'snapshot',
+				2n,
+				2n,
+				['changed output', ''],
+				null,
+				[0, 1],
+				0n,
+				interaction,
+				{
+					column: 0,
+					row: 0,
+				},
+				1n,
+				80,
+			),
+		);
+		await expect(staleChoice).resolves.toEqual({ kind: 'stale' });
 		terminal.dispose();
 	});
 

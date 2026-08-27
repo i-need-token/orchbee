@@ -250,7 +250,10 @@ Workbench `terminal-presentation-event-published` 消息是 Main 拥有的单一
 - 精确的 `terminal-parity/IN-08-drop` protected file-marker admission、Desktop backing-path
   resolution、有界 Ghostty-compatible POSIX escaping、直接插入 line middle，以及不打开 review
   或追加隐式 Enter；
-- 精确的 `terminal-parity/FS-05-file-links` 和 `terminal-parity/FS-06-url-policy` 用于禁用文件系统激活和共享 `http`/`https`/`mailto` 检测、悬停、上下文和激活边界的浏览器组合见证；
+- 精确的 `terminal-parity/FS-05-file-links`、`terminal-parity/FS-06-url-policy` 与
+  `terminal-parity/FS-07-keyboard-hints` 浏览器组合见证，覆盖禁用文件系统激活、共享的
+  `http`/`https`/`mailto` 检测/悬停/上下文/激活边界，以及可见 URL/路径/文件位置/hash 标签的
+  精确插入、捕获 URL 打开、取消与标签按键零终端输入；
 - 用于每次操作安全上下文、瞬时用户激活和 API 检查的精确标题 `terminal-parity/LC-05-lan-capability` 浏览器组合证据；同步复制可用性；一位被录取的作家来电；拒绝而不重试；局部故障；并且没有特权 insecure-LAN 路径；
 - 确切的 `terminal-parity/HS-07-selection-export` real-PTY/Electron 证据表明，样式化终端选择以精确可见的纯文本形式到达平台剪贴板，与不公开 HTML 或原始 VT 格式的协议、主机和投影命令回归配对；
 - 精确的 `terminal-parity/IN-03-image-paste` 真实 PTY/Electron 证据证明，空闲的默认粘贴组合键会保留原生仅图片事件，并向子进程精确发布一个 `Control+V` 字节，且不产生剪贴板文本 Action 或失败横幅；

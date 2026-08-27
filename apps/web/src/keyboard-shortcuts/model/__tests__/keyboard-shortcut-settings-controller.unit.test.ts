@@ -30,7 +30,7 @@ describe('KeyboardShortcutSettingsController', () => {
 		).toBe('custom');
 		expect(listener).toHaveBeenCalledOnce();
 		expect(setItem).toHaveBeenCalledOnce();
-		expect(setItem.mock.calls[0]?.[0]).toBe('orchbee:web:keyboard-shortcuts:v8');
+		expect(setItem.mock.calls[0]?.[0]).toBe('orchbee:web:keyboard-shortcuts:v9');
 	});
 
 	it('rejects a global cross-scope conflict without changing, writing, or publishing', () => {
@@ -82,7 +82,7 @@ describe('KeyboardShortcutSettingsController', () => {
 			modifiers: ['mod'],
 		});
 		expect(controller.getSnapshot().overrides).toEqual([]);
-		expect(records.at(-1)).toBe('{"overrides":[],"version":8}');
+		expect(records.at(-1)).toBe('{"overrides":[],"version":9}');
 		expect(controller.resetShortcut('terminal.search.open')).toEqual({ kind: 'unchanged' });
 	});
 
@@ -111,7 +111,7 @@ describe('KeyboardShortcutSettingsController', () => {
 		expect(writes).toBe(2);
 	});
 
-	it('writes a canonical v8 migration while retaining the v1 rollback record', () => {
+	it('writes a canonical v9 migration while retaining the v1 rollback record', () => {
 		const versionOne = JSON.stringify({
 			overrides: [
 				{
@@ -134,8 +134,8 @@ describe('KeyboardShortcutSettingsController', () => {
 		expect(controller.getSnapshot().persistenceIssue).toBeNull();
 		expect(controller.getSnapshot().overrides).toHaveLength(1);
 		expect(setItem).toHaveBeenCalledWith(
-			'orchbee:web:keyboard-shortcuts:v8',
-			'{"overrides":[{"chord":{"code":"KeyG","modifiers":["mod","shift"]},"shortcutId":"workbench.search.all.open"}],"version":8}',
+			'orchbee:web:keyboard-shortcuts:v9',
+			'{"overrides":[{"chord":{"code":"KeyG","modifiers":["mod","shift"]},"shortcutId":"workbench.search.all.open"}],"version":9}',
 		);
 		expect(getItem).toHaveBeenCalledWith('orchbee:web:keyboard-shortcuts:v1');
 		expect(setItem).not.toHaveBeenCalledWith(
@@ -144,7 +144,7 @@ describe('KeyboardShortcutSettingsController', () => {
 		);
 	});
 
-	it('writes a canonical v8 migration while retaining the v2 rollback record', () => {
+	it('writes a canonical v9 migration while retaining the v2 rollback record', () => {
 		const versionTwo = JSON.stringify({
 			overrides: [
 				{
@@ -167,8 +167,8 @@ describe('KeyboardShortcutSettingsController', () => {
 		expect(controller.getSnapshot().persistenceIssue).toBeNull();
 		expect(controller.getSnapshot().overrides).toHaveLength(1);
 		expect(setItem).toHaveBeenCalledWith(
-			'orchbee:web:keyboard-shortcuts:v8',
-			'{"overrides":[{"chord":{"code":"KeyG","modifiers":["mod","shift"]},"shortcutId":"workbench.search.all.open"}],"version":8}',
+			'orchbee:web:keyboard-shortcuts:v9',
+			'{"overrides":[{"chord":{"code":"KeyG","modifiers":["mod","shift"]},"shortcutId":"workbench.search.all.open"}],"version":9}',
 		);
 		expect(getItem).toHaveBeenCalledWith('orchbee:web:keyboard-shortcuts:v2');
 		expect(setItem).not.toHaveBeenCalledWith(
@@ -177,7 +177,7 @@ describe('KeyboardShortcutSettingsController', () => {
 		);
 	});
 
-	it('writes a canonical v8 migration while retaining the v3 rollback record', () => {
+	it('writes a canonical v9 migration while retaining the v3 rollback record', () => {
 		const versionThree = JSON.stringify({
 			overrides: [
 				{
@@ -200,8 +200,8 @@ describe('KeyboardShortcutSettingsController', () => {
 		expect(controller.getSnapshot().persistenceIssue).toBeNull();
 		expect(controller.getSnapshot().overrides).toHaveLength(1);
 		expect(setItem).toHaveBeenCalledWith(
-			'orchbee:web:keyboard-shortcuts:v8',
-			'{"overrides":[{"chord":{"code":"KeyG","modifiers":["mod","shift"]},"shortcutId":"workbench.search.all.open"}],"version":8}',
+			'orchbee:web:keyboard-shortcuts:v9',
+			'{"overrides":[{"chord":{"code":"KeyG","modifiers":["mod","shift"]},"shortcutId":"workbench.search.all.open"}],"version":9}',
 		);
 		expect(getItem).toHaveBeenCalledWith('orchbee:web:keyboard-shortcuts:v3');
 		expect(setItem).not.toHaveBeenCalledWith(
@@ -210,7 +210,7 @@ describe('KeyboardShortcutSettingsController', () => {
 		);
 	});
 
-	it('writes a canonical v8 migration while retaining the v4 rollback record', () => {
+	it('writes a canonical v9 migration while retaining the v4 rollback record', () => {
 		const versionFour = JSON.stringify({
 			overrides: [
 				{
@@ -233,8 +233,8 @@ describe('KeyboardShortcutSettingsController', () => {
 		expect(controller.getSnapshot().persistenceIssue).toBeNull();
 		expect(controller.getSnapshot().overrides).toHaveLength(1);
 		expect(setItem).toHaveBeenCalledWith(
-			'orchbee:web:keyboard-shortcuts:v8',
-			'{"overrides":[{"chord":{"code":"KeyG","modifiers":["mod","shift"]},"shortcutId":"workbench.search.all.open"}],"version":8}',
+			'orchbee:web:keyboard-shortcuts:v9',
+			'{"overrides":[{"chord":{"code":"KeyG","modifiers":["mod","shift"]},"shortcutId":"workbench.search.all.open"}],"version":9}',
 		);
 		expect(getItem).toHaveBeenCalledWith('orchbee:web:keyboard-shortcuts:v4');
 		expect(setItem).not.toHaveBeenCalledWith(
@@ -243,7 +243,7 @@ describe('KeyboardShortcutSettingsController', () => {
 		);
 	});
 
-	it('writes a canonical v8 migration while retaining the v5 rollback record', () => {
+	it('writes a canonical v9 migration while retaining the v5 rollback record', () => {
 		const versionFive = JSON.stringify({
 			overrides: [
 				{
@@ -266,8 +266,8 @@ describe('KeyboardShortcutSettingsController', () => {
 		expect(controller.getSnapshot().persistenceIssue).toBeNull();
 		expect(controller.getSnapshot().overrides).toHaveLength(1);
 		expect(setItem).toHaveBeenCalledWith(
-			'orchbee:web:keyboard-shortcuts:v8',
-			'{"overrides":[{"chord":{"code":"KeyG","modifiers":["mod","shift"]},"shortcutId":"workbench.search.all.open"}],"version":8}',
+			'orchbee:web:keyboard-shortcuts:v9',
+			'{"overrides":[{"chord":{"code":"KeyG","modifiers":["mod","shift"]},"shortcutId":"workbench.search.all.open"}],"version":9}',
 		);
 		expect(getItem).toHaveBeenCalledWith('orchbee:web:keyboard-shortcuts:v5');
 		expect(setItem).not.toHaveBeenCalledWith(
@@ -276,7 +276,7 @@ describe('KeyboardShortcutSettingsController', () => {
 		);
 	});
 
-	it('writes a canonical v8 migration while retaining the v6 rollback record', () => {
+	it('writes a canonical v9 migration while retaining the v6 rollback record', () => {
 		const versionSix = JSON.stringify({
 			overrides: [
 				{
@@ -299,8 +299,8 @@ describe('KeyboardShortcutSettingsController', () => {
 		expect(controller.getSnapshot().persistenceIssue).toBeNull();
 		expect(controller.getSnapshot().overrides).toHaveLength(1);
 		expect(setItem).toHaveBeenCalledWith(
-			'orchbee:web:keyboard-shortcuts:v8',
-			'{"overrides":[{"chord":{"code":"KeyG","modifiers":["mod","shift"]},"shortcutId":"workbench.search.all.open"}],"version":8}',
+			'orchbee:web:keyboard-shortcuts:v9',
+			'{"overrides":[{"chord":{"code":"KeyG","modifiers":["mod","shift"]},"shortcutId":"workbench.search.all.open"}],"version":9}',
 		);
 		expect(getItem).toHaveBeenCalledWith('orchbee:web:keyboard-shortcuts:v6');
 		expect(setItem).not.toHaveBeenCalledWith(
@@ -308,6 +308,40 @@ describe('KeyboardShortcutSettingsController', () => {
 			expect.anything(),
 		);
 	});
+
+	it.each([7, 8] as const)(
+		'writes a canonical v9 migration while retaining the v%s rollback record',
+		(version) => {
+			const legacy = JSON.stringify({
+				overrides: [
+					{
+						chord: { code: 'KeyG', modifiers: ['mod', 'shift'] },
+						shortcutId: 'workbench.search.all.open',
+					},
+				],
+				version,
+			});
+			const sourceKey = `orchbee:web:keyboard-shortcuts:v${version}`;
+			const setItem = vi.fn<(key: string, value: string) => void>();
+			const getItem = vi.fn<(key: string) => string | null>((key) =>
+				key === sourceKey ? legacy : null,
+			);
+
+			const controller = new KeyboardShortcutSettingsController({
+				platform: 'standard',
+				storage: { getItem, setItem },
+			});
+
+			expect(controller.getSnapshot().persistenceIssue).toBeNull();
+			expect(controller.getSnapshot().overrides).toHaveLength(1);
+			expect(setItem).toHaveBeenCalledWith(
+				'orchbee:web:keyboard-shortcuts:v9',
+				'{"overrides":[{"chord":{"code":"KeyG","modifiers":["mod","shift"]},"shortcutId":"workbench.search.all.open"}],"version":9}',
+			);
+			expect(getItem).toHaveBeenCalledWith(sourceKey);
+			expect(setItem).not.toHaveBeenCalledWith(sourceKey, expect.anything());
+		},
+	);
 
 	it('falls back after an invalid stored record and stops writes and notifications after disposal', () => {
 		const setItem = vi.fn<(key: string, value: string) => void>();

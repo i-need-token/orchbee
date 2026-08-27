@@ -136,8 +136,15 @@ import {
 	isPermittedExternalTerminalTarget,
 	terminalLinkContains,
 } from '../terminal-row-links';
+import {
+	completeTerminalHintRows,
+	detectTerminalHints,
+	terminalHintLabels,
+	type TerminalHintChoiceResult,
+} from '../terminal-hints';
 import type { ILink, RendererOptions, SurfacePadding } from '../types';
 import { HistoryScrollPresentationTransaction } from './HistoryScrollPresentationTransaction';
+import { TerminalHintSession } from './TerminalHintSession';
 import {
 	PackedTerminalStore,
 	PackedTerminalViewport,
@@ -302,6 +309,10 @@ export interface ProjectedTerminalLabels {
 	readonly deleted?: (text: string) => string;
 	/** Localized current/retained row-range description for assistive technology. */
 	readonly historyRange?: (start: bigint, end: bigint, total: bigint) => string;
+	/** Localized announcement after visible keyboard hints become selectable. */
+	readonly hintsActive?: (count: number) => string;
+	/** Localized loading label while the visible row window is being inspected. */
+	readonly hintsLoading?: string;
 	/** Localized label for the hidden keyboard/IME input. */
 	readonly input: string;
 	/** Localized label for one absolute terminal row; row is one-based. */
@@ -856,6 +867,7 @@ export class ProjectedTerminal {
 	#historyScrollbarOpacity = 0;
 	#historyScrollbar: HTMLDivElement | undefined;
 	#historyScrollbarThumb: HTMLDivElement | undefined;
+	#hintSession: TerminalHintSession | undefined;
 	#historyStartRow = 0n;
 	#historyStore: PackedTerminalViewport | undefined;
 	#historyTotalRows = 0n;
@@ -1031,6 +1043,17 @@ export class ProjectedTerminal {
 
 	get canNavigatePrompts(): boolean {
 		return this.canScrollHistory;
+	}
+
+	get canShowHints(): boolean {
+		return (
+			this.canControlTerminal &&
+			this.#phase === ProjectedTerminalPhase.open &&
+			this.metadata !== null &&
+			this.#root !== undefined &&
+			this.#canvas !== undefined &&
+			this.#renderer !== undefined
+		);
 	}
 
 	/** Capture only the exact semantic source represented by the most recently painted frame. */
@@ -2361,6 +2384,103 @@ export class ProjectedTerminal {
 		);
 	}
 
+	async chooseVisibleHint(signal: AbortSignal): Promise<TerminalHintChoiceResult> {
+		if (!this.canShowHints || signal.aborted) {
+			return { kind: signal.aborted ? 'cancelled' : 'unavailable' };
+		}
+		this.#cancelHintSession('cancelled');
+		const root = this.#root;
+		const canvas = this.#canvas;
+		const renderer = this.#renderer;
+		const metadata = this.metadata;
+		if (root === undefined || canvas === undefined || renderer === undefined || metadata === null) {
+			return { kind: 'unavailable' };
+		}
+		const visibleStartRow = this.#historyVisibleStart(metadata);
+		if (visibleStartRow > BigInt(Number.MAX_SAFE_INTEGER - metadata.rows)) {
+			return { kind: 'unavailable' };
+		}
+		const snapshot = this.getBufferRowsSnapshot();
+		const availableRows = snapshot.totalRows - visibleStartRow;
+		const rowCount = Number(
+			minBigInt(availableRows, BigInt(Math.min(metadata.rows, PROTOCOL_LIMITS.maxRowWindowRows))),
+		);
+		const session = new TerminalHintSession({
+			canvas,
+			externalSignal: signal,
+			loadingText: this.#options.labels.hintsLoading,
+			root,
+		});
+		this.#hintSession = session;
+		try {
+			if (rowCount < 1) {
+				session.finish({ kind: 'empty' });
+				return await session.completion;
+			}
+			const result = await this.readBufferRows(
+				{
+					detail: 'render',
+					generation: snapshot.generation,
+					maximumBytes: PROTOCOL_LIMITS.maxRowWindowBytes,
+					revision: snapshot.revision,
+					rowCount,
+					startRow: visibleStartRow,
+				},
+				session.signal,
+			);
+			if (!session.active) return await session.completion;
+			if (result.kind !== 'rows') {
+				if (result.kind === 'cancelled') session.cancel('cancelled');
+				else if (result.kind === 'stale' || result.kind === 'evicted') session.cancel('stale');
+				else session.finish({ kind: 'unavailable' });
+				return await session.completion;
+			}
+			const currentMetadata = this.metadata;
+			const currentSnapshot = this.getBufferRowsSnapshot();
+			if (
+				currentMetadata === null ||
+				currentSnapshot.generation !== snapshot.generation ||
+				currentSnapshot.revision !== snapshot.revision ||
+				this.#historyVisibleStart(currentMetadata) !== visibleStartRow ||
+				currentMetadata.columns !== metadata.columns ||
+				currentMetadata.rows !== metadata.rows
+			) {
+				session.cancel('stale');
+				return await session.completion;
+			}
+			const hints = detectTerminalHints(
+				completeTerminalHintRows(result.rows),
+				currentMetadata.currentDirectory ?? '',
+			);
+			if (hints.length === 0) {
+				session.finish({ kind: 'empty' });
+				return await session.completion;
+			}
+			const metrics = renderer.getMetrics();
+			if (
+				!session.present({
+					cellHeight: metrics.height,
+					cellWidth: metrics.width,
+					fontFamily: this.#presentationConfiguration.fontFamily,
+					fontSize: this.#presentationConfiguration.fontSize,
+					hints,
+					labels: terminalHintLabels(hints.length),
+					visibleStartRow,
+				})
+			) {
+				session.finish({ kind: 'unavailable' });
+				return await session.completion;
+			}
+			const announcement = this.#options.labels.hintsActive?.(hints.length);
+			if (announcement !== undefined && this.#accessibilityAnnouncement !== undefined) {
+				this.#accessibilityAnnouncement.textContent = announcement;
+			}
+			return await session.completion;
+		} finally {
+			if (this.#hintSession === session) this.#hintSession = undefined;
+		}
+	}
+
 	updateSearch(query: string, options: TerminalSearchOptions = {}): void {
 		if (this.#phase === ProjectedTerminalPhase.disposed) return;
 		this.#getSearchController().update(query, options, searchAnchorFromSelection(this.#selection));
@@ -2749,6 +2869,7 @@ export class ProjectedTerminal {
 	}
 
 	#releaseSurfaceDom(): void {
+		this.#cancelHintSession('cancelled');
 		this.#cancelNativeInputChange();
 		this.#clearNativeInputTextMarker();
 		this.#historyScrollPresentation?.dispose();
@@ -3965,9 +4086,14 @@ export class ProjectedTerminal {
 	}
 
 	#invalidateLinkCache(): void {
+		this.#cancelHintSession('stale');
 		this.#linkEpoch += 1n;
 		this.#linkCache = undefined;
 		this.#clearHoveredLink();
+	}
+
+	#cancelHintSession(kind: 'cancelled' | 'stale'): void {
+		this.#hintSession?.cancel(kind);
 	}
 
 	#sendSelectionCommand(command: 'clear' | 'select-all'): void {
@@ -4568,6 +4694,7 @@ export class ProjectedTerminal {
 	}
 
 	readonly #handleKeyDown = (event: KeyboardEvent): void => {
+		if (this.#hintSession?.handleKeyDown(event) === true) return;
 		if (!this.#inputAdmissionIsOpen()) return;
 		const trackedCode = normalizedKeyboardCode(event.code);
 		const preserveNativeDefault = this.#shouldPreserveMacOsShiftDefault(event, trackedCode);
@@ -4638,6 +4765,7 @@ export class ProjectedTerminal {
 	};
 
 	readonly #handleKeyUp = (event: KeyboardEvent): void => {
+		if (this.#hintSession?.handleKeyUp(event) === true) return;
 		if (!this.#inputAdmissionIsOpen()) return;
 		const trackedCode = normalizedKeyboardCode(event.code);
 		const preserveNativeDefault = this.#shouldPreserveMacOsShiftDefault(event, trackedCode);
@@ -5474,6 +5602,7 @@ export class ProjectedTerminal {
 
 	readonly #handleBlur = (event: FocusEvent): void => {
 		if (this.#focusTargetIsWithinSurface(event.relatedTarget)) return;
+		this.#cancelHintSession('cancelled');
 		this.#relinquishAccessibilitySelectionOwnership();
 		this.#renderer?.setFocused(false);
 		this.#repairInputState();
@@ -5494,6 +5623,7 @@ export class ProjectedTerminal {
 	};
 
 	readonly #handleWindowBlur = (): void => {
+		this.#cancelHintSession('cancelled');
 		this.#relinquishAccessibilitySelectionOwnership();
 		this.#renderer?.setFocused(false);
 		this.#repairInputState();

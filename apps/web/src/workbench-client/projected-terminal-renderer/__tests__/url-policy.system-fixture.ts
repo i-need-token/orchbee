@@ -65,6 +65,11 @@ const scenarios: readonly LinkScenario[] = [
 	},
 	{ id: 'detected-path', permitted: false, text: './private/file.txt' },
 ];
+const hintsScenario: LinkScenario = {
+	id: 'hints',
+	permitted: true,
+	text: 'https://o.dev README.md src/a.ts:42:7 deadbee',
+};
 const attachmentId = AttachmentIdSchema.parse('91'.repeat(16));
 const emptyGraphics = {
 	animationTick: 0n,
@@ -104,6 +109,8 @@ root.dataset['witnessForcedCanvas'] = 'true';
 const actionRuntime = new ActionRuntime();
 const workbenchScope = actionRuntime.createScope('workbench.fixture.url-policy');
 const openedTargets: string[] = [];
+const insertedHints: string[] = [];
+let terminalKeyInputs = 0;
 const initialScenario = scenarios[0];
 if (initialScenario === undefined) throw new Error('URL policy witness has no scenarios.');
 let contextProvider: WorkbenchTerminalActionContextProvider | undefined;
@@ -126,6 +133,16 @@ const transport: ProjectedTerminalTransport = {
 	close: () => undefined,
 	projectionBufferTrust: 'local-host',
 	send: (command) => {
+		if (command.kind === 'key-input') {
+			terminalKeyInputs += 1;
+			root.dataset['witnessHintKeyInputs'] = String(terminalKeyInputs);
+			return;
+		}
+		if (command.kind === 'paste-input') {
+			insertedHints.push(command.payload.text);
+			root.dataset['witnessHintInsertions'] = insertedHints.join('|');
+			return;
+		}
 		if (command.kind !== 'read-rows') return;
 		queueMicrotask(() => {
 			transportListener({ kind: 'rows', rows: terminalRows(command) });
@@ -146,7 +163,10 @@ async function runWitness(): Promise<void> {
 			getClipboardTextWriter: () => undefined,
 			hasTransientUserActivation: () => navigator.userActivation?.isActive === true,
 			isSecureContext: () => window.isSecureContext,
-			openExternal: (target) => openedTargets.push(target),
+			openExternal: (target) => {
+				openedTargets.push(target);
+				root.dataset['witnessOpenedTargets'] = openedTargets.join('|');
+			},
 		});
 		const blockedFileEffect = await platformEffects.openExternal?.('file:///tmp/direct-effect');
 		if (blockedFileEffect?.kind !== 'failed' || blockedFileEffect.code !== 'link-policy-blocked') {
@@ -290,9 +310,22 @@ async function runWitness(): Promise<void> {
 		root.dataset['witnessBlockedActivation'] = blockedActivation.join(',');
 		root.dataset['witnessOpenedTargets'] = openedTargets.join('|');
 		root.dataset['witnessDirectFileEffect'] = `${blockedFileEffect.kind}:${blockedFileEffect.code}`;
+		root.dataset['witnessHintKeyInputs'] = String(terminalKeyInputs);
+		currentScenario = hintsScenario;
+		generation += 1n;
+		sequence += 1n;
+		transportListener({ frame: terminalSnapshot(), kind: 'frame' });
+		await nextPaint();
+		root.dataset['witnessHintsReady'] = 'true';
 		root.dataset['witnessReady'] = 'true';
-		session.dispose();
-		actionRuntime.dispose();
+		window.addEventListener(
+			'pagehide',
+			() => {
+				session.dispose();
+				actionRuntime.dispose();
+			},
+			{ once: true },
+		);
 	} catch (error) {
 		root.dataset['witnessFailure'] = error instanceof Error ? error.message : String(error);
 	}
@@ -451,7 +484,7 @@ function terminalFrame(linkDetail: boolean, frameSequence = sequence): TerminalF
 		sequence: frameSequence,
 		styles: [regularStyle, { ...regularStyle, hyperlink }],
 		themeRevision: 0n,
-		title: 'FS-05 FS-06 URL policy witness',
+		title: 'FS-05 FS-06 FS-07 URL policy and hints witness',
 	};
 }
 

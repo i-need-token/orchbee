@@ -209,6 +209,10 @@ function terminalTarget(
 		canControlTerminal: true,
 		canNavigatePrompts: true,
 		canScrollHistory: true,
+		canShowHints: true,
+		chooseVisibleHint: vi
+			.fn<ProjectedTerminalActionTarget['chooseVisibleHint']>()
+			.mockResolvedValue({ kind: 'empty' }),
 		clear: vi.fn<ProjectedTerminalActionTarget['clear']>(() => true),
 		copySelectionAsync: vi
 			.fn<ProjectedTerminalActionTarget['copySelectionAsync']>()

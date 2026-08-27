@@ -84,6 +84,7 @@ export type {
 
 export type { IDisposable, IEvent } from './EventEmitter';
 export type { TerminalOpenTarget } from './terminal-contracts';
+export type { TerminalHint, TerminalHintChoiceResult, TerminalHintKind } from './terminal-hints';
 export { normalizePermittedExternalTerminalUrl } from './normalizePermittedExternalTerminalUrl';
 
 export { measureMountedTerminalGeometry } from './measureMountedTerminalGeometry';

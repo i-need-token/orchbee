@@ -168,8 +168,12 @@ describe('startProjectedTerminalRenderer', () => {
 						canControlTerminal: true,
 						canNavigatePrompts: true,
 						canScrollHistory: true,
+						canShowHints: true,
 						capturePresentationSnapshot: () => nextOptions.presentationSnapshot ?? null,
 						captureActionContext,
+						chooseVisibleHint: vi
+							.fn<ProjectedTerminal['chooseVisibleHint']>()
+							.mockResolvedValue({ kind: 'empty' }),
 						clear: clearTerminal,
 						clearSearch: vi.fn<ProjectedTerminal['clearSearch']>(),
 						copySelectionAsync: vi
