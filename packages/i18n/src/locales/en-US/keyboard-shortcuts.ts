@@ -27,6 +27,7 @@ export const enUSKeyboardShortcutMessages = {
 	'keyboard.shortcuts.actions.previousTab': 'Select previous tab',
 	'keyboard.shortcuts.actions.reset': 'Restore default',
 	'keyboard.shortcuts.actions.resetTerminalFontSize': 'Reset terminal font size',
+	'keyboard.shortcuts.actions.resizePanel': 'Resize active panel',
 	'keyboard.shortcuts.actions.scrollLineDown': 'Scroll down one line',
 	'keyboard.shortcuts.actions.scrollLineUp': 'Scroll up one line',
 	'keyboard.shortcuts.actions.scrollPageDown': 'Scroll down one page',

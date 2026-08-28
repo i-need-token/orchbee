@@ -1,0 +1,25 @@
+.options {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: var(--ob-ref-space-2);
+}
+
+.option {
+	justify-content: space-between;
+}
+
+.option:last-child {
+	grid-column: 1 / -1;
+}
+
+.status {
+	margin: 0;
+	color: var(--ob-sys-color-text-muted);
+	font: var(--ob-sys-typography-label-sm);
+}
+
+.doneShortcut {
+	color: currentColor;
+	background: transparent;
+	opacity: var(--ob-sys-opacity-muted);
+}

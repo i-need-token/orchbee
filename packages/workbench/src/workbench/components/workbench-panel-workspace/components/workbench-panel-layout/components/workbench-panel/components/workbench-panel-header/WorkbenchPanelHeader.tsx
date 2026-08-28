@@ -35,6 +35,14 @@ export function WorkbenchPanelHeader({ panel, view }: WorkbenchPanelHeaderProps)
 	const closeShortcut = view.shortcutLabelForAction(WORKBENCH_ACTION_IDS.closeActiveTerminal);
 	const panelMenuEntries: readonly WorkbenchActionMenuEntry[] = [
 		{
+			icon: 'panels',
+			id: 'resize-panel',
+			kind: 'command',
+			label: view.messages.resize,
+			onSelect: () => view.startPanelResize(panel.id, 'menu'),
+			shortcut: view.shortcutLabelForAction(WORKBENCH_ACTION_IDS.resizeActivePanel),
+		},
+		{
 			icon: isMaximized ? 'screen-normal' : 'screen-full',
 			id: 'toggle-panel-maximization',
 			kind: 'command',

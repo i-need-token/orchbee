@@ -34,6 +34,7 @@ export const keyboardShortcutMessages = defineMessages({
 	previousTab: message('keyboard.shortcuts.actions.previousTab'),
 	reset: message('keyboard.shortcuts.actions.reset'),
 	resetTerminalFontSize: message('keyboard.shortcuts.actions.resetTerminalFontSize'),
+	resizePanel: message('keyboard.shortcuts.actions.resizePanel'),
 	scrollLineDown: message('keyboard.shortcuts.actions.scrollLineDown'),
 	scrollLineUp: message('keyboard.shortcuts.actions.scrollLineUp'),
 	scrollPageDown: message('keyboard.shortcuts.actions.scrollPageDown'),

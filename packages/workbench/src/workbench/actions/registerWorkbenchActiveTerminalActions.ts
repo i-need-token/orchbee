@@ -78,6 +78,22 @@ export function registerWorkbenchActiveTerminalActions({
 				category: panelCategory,
 				execution: {
 					concurrency: 'parallel',
+					concurrencyKey: () => 'active-panel-resize',
+					mode: 'foreground',
+				},
+				getAvailability: availabilityFor('start-resize'),
+				handler: { execute: execute('start-resize') },
+				id: WORKBENCH_ACTION_IDS.resizeActivePanel,
+				input: noActionInput,
+				title: workbenchMessages.panelResize,
+			}),
+		),
+		typedRuntime.register(
+			scope,
+			defineAction({
+				category: panelCategory,
+				execution: {
+					concurrency: 'parallel',
 					concurrencyKey: () => 'active-panel-focus-down',
 					mode: 'foreground',
 				},

@@ -28,6 +28,7 @@ those surfaces owns another binding copy.
 | `workbench.panel.active.focus-right`         | Active panel                      | `Cmd+Option+Right`    | `Ctrl+Alt+Right`      |
 | `workbench.panel.active.focus-up`            | Active panel                      | `Cmd+Option+Up`       | `Ctrl+Alt+Up`         |
 | `workbench.panel.active.maximization.toggle` | Active panel                      | `Cmd+Shift+Enter`     | `Ctrl+Shift+Enter`    |
+| `workbench.panel.active.resize`              | Active panel                      | `Cmd+R`               | `Ctrl+Shift+R`        |
 | `workbench.panel.active.split-right`         | Active panel                      | `Cmd+D`               | `Ctrl+Shift+D`        |
 | `workbench.panel.active.split-below`         | Active panel                      | `Cmd+Shift+D`         | `Ctrl+Shift+E`        |
 | `workbench.search.all.open`                  | Workbench                         | `Cmd+Shift+F`         | `Ctrl+Shift+K`        |
@@ -108,6 +109,13 @@ Set Tab Title preserves Kitty's `Shift+Cmd+I` Apple default and `Ctrl+Shift+Alt+
 default at that revision. Workbench uses one semantic Action for shortcut dispatch, Action search,
 and the invoked Tab's context menu; the title model below defines the adopted editor and reset
 behavior.
+
+Resize Active Panel preserves Kitty's macOS `cmd+r` resize-mode entry point at revision
+`6d5d0c440603ad9bdf6dcd599f73f6dde21acb44`; Standard uses `Ctrl+Shift+R` so the unshifted
+shell chord remains available. The shared modal adopts Kitty's `W` wider, `N` narrower, `T`
+taller, `S` shorter, `R` reset, Control-modified larger step, and Escape exit vocabulary. Orchbee
+uses geometry-independent five-percentage-point steps, doubles that step with Control, retains at
+least five percent for each branch, and resets every split in the captured Tab to equal weights.
 
 ## Terminal paste routing
 
@@ -289,7 +297,7 @@ and leaves the event untouched. `Mod+9` means the ninth Tab, never the last Tab.
 
 ## Active-target command model
 
-The eight `workbench.*.active.*` Actions are context commands. Their Action invocation may carry an
+The nine `workbench.*.active.*` Actions are context commands. Their Action invocation may carry an
 explicit panel target from a menu; otherwise the active Tab's focused panel is the target. The
 target is resolved again when execution starts, so a stale or absent target is unavailable and
 does not consume the keyboard event.
@@ -323,6 +331,14 @@ on the perpendicular axis, never wraps at an outer edge, and delegates the resul
 existing Panel focus Action. A missing directional neighbor leaves the shortcut event available to
 the terminal or browser.
 
+Resize mode captures the exact active Tab and Panel when it opens. Every resize key revalidates that
+identity, delegates one mutation through the lower Panel Action, and adjusts the nearest ancestor
+whose split axis matches the requested direction. A missing axis or reached boundary is unchanged;
+maximized Panels reject mutations; switching or removing the captured Tab or Panel closes the mode.
+The menu, terminal context menu, Action search, and current configurable shortcut all open the same
+mode. Electron keeps native Reload and Force Reload menu commands clickable but does not register
+their accelerators, allowing the renderer-owned current binding to resolve first.
+
 ## Chord and conflict model
 
 `@orchbee/keyboard-shortcuts` provides only the pure physical-chord mechanism. A chord contains one
@@ -347,11 +363,11 @@ terminal Actions discovered from descendant scopes.
 
 ## Persistence and recovery
 
-New writes use `orchbee:web:keyboard-shortcuts:v13` and a strict record:
+New writes use `orchbee:web:keyboard-shortcuts:v14` and a strict record:
 
 ```json
 {
-	"version": 13,
+	"version": 14,
 	"overrides": [
 		{
 			"shortcutId": "workbench.search.all.open",
@@ -363,18 +379,18 @@ New writes use `orchbee:web:keyboard-shortcuts:v13` and a strict record:
 
 Only Custom values are stored, ordered by shortcut ID. Unknown fields or IDs, duplicates, unsorted
 entries, noncanonical modifiers, unsupported codes, stored defaults, excessive entries, and an
-effective conflict invalidate the complete v13 record and restore platform defaults. A write
+effective conflict invalidate the complete v14 record and restore platform defaults. A write
 failure keeps the immutable session binding active, reports that it was not saved, and retries on
 the next legal change. Restoring one item removes its override.
 
-When v13 is absent, Web first reads `orchbee:web:keyboard-shortcuts:v12` with its exact prior catalog
-and defaults. If v12 is also absent, it tries v11, v10, v9, v8, v7, v6, v5, v4, v3, v2, and then v1. Every migration carries
+When v14 is absent, Web first reads `orchbee:web:keyboard-shortcuts:v13` with its exact prior catalog
+and defaults. If v13 is also absent, it tries v12, v11, v10, v9, v8, v7, v6, v5, v4, v3, v2, and then v1. Every migration carries
 explicit overrides into the expanded catalog, removes an override equivalent to a current default,
-rejects any resulting conflict, and writes the canonical v13 record. The v1, v2, v3, v4, v5, v6,
-v7, v8, v9, v10, v11, and v12 values remain unchanged as rollback snapshots. An invalid current record never falls back to an
+rejects any resulting conflict, and writes the canonical v14 record. The v1 through v13 values
+remain unchanged as rollback snapshots. An invalid current record never falls back to an
 older record, and an invalid migration source never falls through to the next older version,
 because either fallback would hide data corruption. Rolling back restores the latest record that
-the older build understands; edits made only in v13 are intentionally unavailable to it.
+the older build understands; edits made only in v14 are intentionally unavailable to it.
 
 Browser Preview, Gateway Browser, and Electron each create and dispose one controller against their
 own origin-local storage. Gateway and Electron pass the controller's narrow binding source through
@@ -394,6 +410,7 @@ change does not remount Workbench, replace an attachment, or reopen a Host or Ga
 | Active ordinary terminal selection preserves native paste and input ownership         | Projected-terminal selection/paste tests and exact Desktop `terminal-parity/IN-18-native-selection-paste`               |
 | Pending Copy and Paste work cannot admit stale or duplicate shortcut input            | Clipboard coordinator and Action tests plus exact Desktop `terminal-parity/IN-13-selection-copy-paste`                  |
 | Directional focus selects a spatial neighbor and falls through at outer edges         | Four-Panel resolver, Action, and shortcut dispatch tests                                                                |
+| Keyboard resize targets the nearest matching split and revalidates captured identity  | Resolver, state, Action, React, Settings, migration, menu, and Desktop system tests                                     |
 | Positional selection follows canonical Tab order and falls through out of range       | Grouped and pinned Action integration plus shortcut dispatch tests                                                      |
 | Adjacent selection follows canonical Tab order and wraps only with multiple Tabs      | Pure resolver, prepared Action integration, and shortcut fallthrough tests                                              |
 | Active-Tab movement wraps within its pin partition through one lower Action           | Pure resolver, prepared Action integration, shortcut/settings tests, and Desktop system trace                           |
@@ -401,7 +418,7 @@ change does not remount Workbench, replace an attachment, or reopen a Host or Ga
 | Visible Hints consume one focused binding and never leak label keys to terminal input | Terminal, Action, shortcut, Settings, and exact Desktop `terminal-parity/FS-07-keyboard-hints`                          |
 | Show Scrollback consumes one focused binding and opens the exact immutable viewer     | Terminal, Action, shortcut, Settings, and exact Desktop `terminal-parity/FS-09-scrollback-viewer`                       |
 | Menus, Action search, and settings display the same current binding                   | Projection and rendered-surface tests                                                                                   |
-| Valid v1 through v12 records migrate without losing explicit legacy overrides         | Storage migration tests, including new-default conflicts                                                                |
+| Valid v1 through v13 records migrate without losing explicit legacy overrides         | Storage migration tests, including new-default conflicts                                                                |
 | Invalid current or migration-source data does not consult an older record             | Storage corruption and precedence tests                                                                                 |
 
 The tests use synthetic platform flags, Action scopes, storage, document capture, injected terminal

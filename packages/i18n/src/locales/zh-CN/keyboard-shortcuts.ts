@@ -29,6 +29,7 @@ export const zhCNKeyboardShortcutMessages = {
 	'keyboard.shortcuts.actions.previousTab': '选择上一个标签页',
 	'keyboard.shortcuts.actions.reset': '恢复默认',
 	'keyboard.shortcuts.actions.resetTerminalFontSize': '重置终端字号',
+	'keyboard.shortcuts.actions.resizePanel': '调整活动面板大小',
 	'keyboard.shortcuts.actions.scrollLineDown': '向下滚动一行',
 	'keyboard.shortcuts.actions.scrollLineUp': '向上滚动一行',
 	'keyboard.shortcuts.actions.scrollPageDown': '向下滚动一页',

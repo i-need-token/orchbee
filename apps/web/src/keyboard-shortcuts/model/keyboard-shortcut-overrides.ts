@@ -72,6 +72,9 @@ export function createKeyboardShortcutBindings(
 		[WORKBENCH_SHORTCUTS.resetTerminalFontSize.shortcutId]: bindingFor(
 			WORKBENCH_SHORTCUTS.resetTerminalFontSize.shortcutId,
 		),
+		[WORKBENCH_SHORTCUTS.resizeActivePanel.shortcutId]: bindingFor(
+			WORKBENCH_SHORTCUTS.resizeActivePanel.shortcutId,
+		),
 		[WORKBENCH_SHORTCUTS.selectNextTab.shortcutId]: bindingFor(
 			WORKBENCH_SHORTCUTS.selectNextTab.shortcutId,
 		),

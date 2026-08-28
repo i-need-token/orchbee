@@ -5,6 +5,7 @@ import {
 	type TerminalPresentationId,
 } from '../../../../terminal-presentation';
 import type { PanelSplitDirection } from '../model/panel-workspace-state';
+import type { PanelResizeAdjustment, PanelResizeMultiplier } from '../model/resolvePanelResize';
 
 export const PANEL_ACTION_IDS = {
 	activateChildTerminal: 'workbench.panel.child-terminal.activate',
@@ -12,8 +13,10 @@ export const PANEL_ACTION_IDS = {
 	createChildTerminal: 'workbench.panel.child-terminal.create',
 	focus: 'workbench.panel.focus',
 	move: 'workbench.panel.move',
+	resize: 'workbench.panel.resize',
 	showPrimaryTerminal: 'workbench.panel.primary-terminal.show',
 	split: 'workbench.panel.split',
+	startResize: 'workbench.panel.resize.start',
 	toggleMaximization: 'workbench.panel.maximization.toggle',
 } as const;
 
@@ -39,14 +42,21 @@ export interface PanelMoveInput extends PanelTargetInput {
 	readonly targetPanelId: string;
 }
 
+export interface PanelResizeInput extends PanelTargetInput {
+	readonly adjustment: PanelResizeAdjustment;
+	readonly multiplier: PanelResizeMultiplier;
+}
+
 export interface PanelActionCatalog {
 	readonly [PANEL_ACTION_IDS.activateChildTerminal]: ActionSignature<PanelChildTerminalInput>;
 	readonly [PANEL_ACTION_IDS.close]: ActionSignature<PanelCloseInput>;
 	readonly [PANEL_ACTION_IDS.createChildTerminal]: ActionSignature<PanelTargetInput>;
 	readonly [PANEL_ACTION_IDS.focus]: ActionSignature<PanelTargetInput>;
 	readonly [PANEL_ACTION_IDS.move]: ActionSignature<PanelMoveInput>;
+	readonly [PANEL_ACTION_IDS.resize]: ActionSignature<PanelResizeInput>;
 	readonly [PANEL_ACTION_IDS.showPrimaryTerminal]: ActionSignature<PanelTargetInput>;
 	readonly [PANEL_ACTION_IDS.split]: ActionSignature<PanelSplitInput, string>;
+	readonly [PANEL_ACTION_IDS.startResize]: ActionSignature<PanelTargetInput>;
 	readonly [PANEL_ACTION_IDS.toggleMaximization]: ActionSignature<PanelTargetInput>;
 }
 
@@ -56,6 +66,16 @@ function isRecord(input: unknown): input is Readonly<Record<string, unknown>> {
 
 function isDirection(input: unknown): input is PanelSplitDirection {
 	return input === 'above' || input === 'below' || input === 'left' || input === 'right';
+}
+
+function isResizeAdjustment(input: unknown): input is PanelResizeAdjustment {
+	return (
+		input === 'narrower' ||
+		input === 'reset' ||
+		input === 'shorter' ||
+		input === 'taller' ||
+		input === 'wider'
+	);
 }
 
 export const panelTargetInput: ActionInputValidation<PanelTargetInput> = {
@@ -142,4 +162,22 @@ export const panelMoveInput: ActionInputValidation<PanelMoveInput> = {
 					},
 				}
 			: { success: false, code: 'expected-panel-move' },
+};
+
+export const panelResizeInput: ActionInputValidation<PanelResizeInput> = {
+	name: 'PanelResizeInput',
+	parse: (input) =>
+		isRecord(input) &&
+		typeof input['panelId'] === 'string' &&
+		isResizeAdjustment(input['adjustment']) &&
+		(input['multiplier'] === 1 || input['multiplier'] === 2)
+			? {
+					data: {
+						adjustment: input['adjustment'],
+						multiplier: input['multiplier'],
+						panelId: input['panelId'],
+					},
+					success: true,
+				}
+			: { success: false, code: 'expected-panel-resize' },
 };

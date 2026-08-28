@@ -22,6 +22,7 @@ export type ActiveTerminalCommand =
 	| 'focus-left'
 	| 'focus-right'
 	| 'focus-up'
+	| 'start-resize'
 	| 'split-below'
 	| 'split-right'
 	| 'toggle-maximization';
@@ -58,6 +59,12 @@ export type ActiveTerminalCommandResolution =
 	| {
 			readonly actionId: typeof PANEL_ACTION_IDS.split;
 			readonly input: PanelSplitInput;
+			readonly kind: 'ready';
+			readonly panelId: string;
+	  }
+	| {
+			readonly actionId: typeof PANEL_ACTION_IDS.startResize;
+			readonly input: PanelTargetInput;
 			readonly kind: 'ready';
 			readonly panelId: string;
 	  }
@@ -136,6 +143,13 @@ export function resolveActiveTerminalCommand({
 			return {
 				actionId: PANEL_ACTION_IDS.split,
 				input: { direction: 'right', panelId },
+				kind: 'ready',
+				panelId,
+			};
+		case 'start-resize':
+			return {
+				actionId: PANEL_ACTION_IDS.startResize,
+				input: { panelId },
 				kind: 'ready',
 				panelId,
 			};

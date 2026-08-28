@@ -23,6 +23,7 @@ export const WORKBENCH_ACTION_IDS = {
 	removeProject: 'workbench.project.remove',
 	removeProjectDirectory: 'workbench.project.directory.remove',
 	resetTerminalFontSize: 'workbench.terminal.font-size.reset',
+	resizeActivePanel: 'workbench.panel.active.resize',
 	renameProject: 'workbench.project.rename',
 	reorderProject: 'workbench.project.reorder',
 	reorderWorkspace: 'workbench.workspace.reorder',
@@ -138,6 +139,7 @@ export interface WorkbenchActionCatalog {
 	readonly [WORKBENCH_ACTION_IDS.removeProject]: ActionSignature<WorkbenchProjectInput>;
 	readonly [WORKBENCH_ACTION_IDS.removeProjectDirectory]: ActionSignature<WorkbenchProjectDirectoryInput>;
 	readonly [WORKBENCH_ACTION_IDS.resetTerminalFontSize]: ActionSignature<void>;
+	readonly [WORKBENCH_ACTION_IDS.resizeActivePanel]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.renameProject]: ActionSignature<WorkbenchProjectRenameInput>;
 	readonly [WORKBENCH_ACTION_IDS.reorderProject]: ActionSignature<WorkbenchProjectReorderInput>;
 	readonly [WORKBENCH_ACTION_IDS.reorderWorkspace]: ActionSignature<WorkbenchWorkspaceReorderInput>;

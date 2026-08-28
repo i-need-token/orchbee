@@ -63,6 +63,14 @@ export function WorkbenchTerminalViewport({
 			onSelect: () => view.createChildTerminal(panelId, 'context-menu'),
 		},
 		{
+			icon: 'panels',
+			id: 'resize-panel',
+			kind: 'command',
+			label: view.messages.resize,
+			onSelect: () => view.startPanelResize(panelId, 'context-menu'),
+			shortcut: view.shortcutLabelForAction(WORKBENCH_ACTION_IDS.resizeActivePanel),
+		},
+		{
 			disabled: view.panelCount < 2,
 			icon: view.maximizedPanelId === panelId ? 'screen-normal' : 'screen-full',
 			id: 'toggle-panel-maximization',

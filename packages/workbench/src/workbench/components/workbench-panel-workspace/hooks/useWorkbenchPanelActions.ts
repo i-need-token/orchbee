@@ -19,6 +19,7 @@ import {
 	panelChildTerminalInput,
 	panelCloseInput,
 	panelMoveInput,
+	panelResizeInput,
 	panelSplitInput,
 	panelTargetInput,
 	type PanelActionCatalog,
@@ -44,11 +45,17 @@ interface PanelActionOperations {
 		targetPanelId: string,
 		direction: 'above' | 'below' | 'left' | 'right',
 	) => PanelWorkspaceTransition | null;
+	readonly resizePanel: (
+		panelId: string,
+		adjustment: 'narrower' | 'reset' | 'shorter' | 'taller' | 'wider',
+		multiplier: 1 | 2,
+	) => PanelWorkspaceTransition | null;
 	readonly showPrimaryTerminal: (panelId: string) => PanelWorkspaceTransition | null;
 	readonly splitPanel: (
 		panelId: string,
 		direction: 'above' | 'below' | 'left' | 'right',
 	) => { readonly panelId: string; readonly transition: PanelWorkspaceTransition } | null;
+	readonly startPanelResize: (panelId: string) => boolean;
 	readonly togglePanelMaximization: (panelId: string) => PanelWorkspaceTransition | null;
 }
 
@@ -159,6 +166,36 @@ export function useWorkbenchPanelActions({
 				scope,
 				defineAction({
 					category,
+					execution,
+					getAvailability: (_context, input) => {
+						if (activeTab?.maximizedPanelId !== null) {
+							return {
+								kind: 'disabled',
+								reason: workbenchMessages.actionUnavailable,
+							};
+						}
+						return targetAvailability(input.panelId);
+					},
+					handler: {
+						execute: (context, input) => {
+							const result = resultFor(
+								operations.resizePanel(input.panelId, input.adjustment, input.multiplier),
+							);
+							if (result.kind === 'completed') {
+								context.markCommitted();
+							}
+							return result;
+						},
+					},
+					id: PANEL_ACTION_IDS.resize,
+					input: panelResizeInput,
+					title: workbenchMessages.panelResize,
+				}),
+			),
+			typedRuntime.register(
+				scope,
+				defineAction({
+					category,
 					confirmation: (input) => {
 						const runningCount = runningTerminalCount(input);
 						return runningCount === 0
@@ -204,6 +241,23 @@ export function useWorkbenchPanelActions({
 					id: PANEL_ACTION_IDS.close,
 					input: panelCloseInput,
 					title: workbenchMessages.panelClose,
+				}),
+			),
+			typedRuntime.register(
+				scope,
+				defineAction({
+					category,
+					execution,
+					getAvailability: (_context, input) => targetAvailability(input.panelId),
+					handler: {
+						execute: (_context, input) =>
+							operations.startPanelResize(input.panelId)
+								? { kind: 'completed' }
+								: { code: 'stale-target', kind: 'blocked' },
+					},
+					id: PANEL_ACTION_IDS.startResize,
+					input: panelTargetInput,
+					title: workbenchMessages.panelResize,
 				}),
 			),
 			typedRuntime.register(

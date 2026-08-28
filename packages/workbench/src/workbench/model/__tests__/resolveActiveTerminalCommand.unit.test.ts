@@ -99,6 +99,24 @@ describe('resolveActiveTerminalCommand', () => {
 		});
 	});
 
+	it('opens resize mode for the exact active or explicit panel target', () => {
+		expect(resolve(initialState(), 'start-resize')).toEqual({
+			actionId: PANEL_ACTION_IDS.startResize,
+			input: { panelId: 'panel-1' },
+			kind: 'ready',
+			panelId: 'panel-1',
+		});
+		const split = splitRight(initialState());
+		expect(
+			resolveActiveTerminalCommand({
+				activeTabId: 'tab-1',
+				command: 'start-resize',
+				state: split,
+				targetPanelId: 'panel-1',
+			}),
+		).toMatchObject({ input: { panelId: 'panel-1' }, panelId: 'panel-1' });
+	});
+
 	it('resolves directional focus to the neighboring Panel and rejects outer edges', () => {
 		const split = splitRight(initialState());
 		expect(resolve(split, 'focus-left')).toEqual({

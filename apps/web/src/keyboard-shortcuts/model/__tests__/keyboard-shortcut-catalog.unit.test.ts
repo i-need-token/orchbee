@@ -10,9 +10,9 @@ import {
 } from '../keyboard-shortcut-catalog';
 
 describe('keyboard shortcut catalog', () => {
-	it('combines the thirty Workbench and sixteen projected-terminal declarations once', () => {
-		expect(KEYBOARD_SHORTCUT_CATALOG).toHaveLength(46);
-		expect(new Set(KEYBOARD_SHORTCUT_IDS).size).toBe(46);
+	it('combines the thirty-one Workbench and sixteen projected-terminal declarations once', () => {
+		expect(KEYBOARD_SHORTCUT_CATALOG).toHaveLength(47);
+		expect(new Set(KEYBOARD_SHORTCUT_IDS).size).toBe(47);
 		expect(keyboardShortcutDeclaration('workbench.search.actions.open')).toMatchObject({
 			actionId: 'workbench.search.open',
 			actionInput: { filter: 'actions' },
@@ -31,6 +31,12 @@ describe('keyboard shortcut catalog', () => {
 			actionId: 'workbench.panel.active.focus-left',
 			availability: 'directional-panel',
 			name: 'focus-panel-left',
+			scope: 'active-panel',
+		});
+		expect(keyboardShortcutDeclaration('workbench.panel.active.resize')).toMatchObject({
+			actionId: 'workbench.panel.active.resize',
+			availability: 'active-panel',
+			name: 'resize-panel',
 			scope: 'active-panel',
 		});
 		expect(keyboardShortcutDeclaration('workbench.tab.select.2')).toMatchObject({

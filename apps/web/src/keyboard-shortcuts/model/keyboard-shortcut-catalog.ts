@@ -76,6 +76,7 @@ type KeyboardShortcutName =
 	| 'previous-prompt'
 	| 'previous-tab'
 	| 'reset-terminal-font-size'
+	| 'resize-panel'
 	| 'scroll-line-down'
 	| 'scroll-line-up'
 	| 'scroll-page-down'
@@ -301,6 +302,16 @@ export const KEYBOARD_SHORTCUT_CATALOG = Object.freeze([
 		name: 'maximize-panel',
 		scope: 'active-panel',
 		shortcutId: WORKBENCH_SHORTCUTS.maximizeActivePanel.shortcutId,
+	}),
+	Object.freeze({
+		actionId: WORKBENCH_SHORTCUTS.resizeActivePanel.id,
+		actionInput: WORKBENCH_SHORTCUTS.resizeActivePanel.input,
+		availability: 'active-panel',
+		defaults: WORKBENCH_SHORTCUTS.resizeActivePanel.defaults,
+		feature: 'workbench',
+		name: 'resize-panel',
+		scope: 'active-panel',
+		shortcutId: WORKBENCH_SHORTCUTS.resizeActivePanel.shortcutId,
 	}),
 	Object.freeze({
 		actionId: WORKBENCH_SHORTCUTS.splitActivePanelRight.id,

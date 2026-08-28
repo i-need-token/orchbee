@@ -337,6 +337,7 @@ export const KEYBOARD_SHORTCUT_SEARCH_LABELS = {
 	'previous-prompt': keyboardShortcutMessages.previousPrompt,
 	'previous-tab': keyboardShortcutMessages.previousTab,
 	'reset-terminal-font-size': keyboardShortcutMessages.resetTerminalFontSize,
+	'resize-panel': keyboardShortcutMessages.resizePanel,
 	'scroll-line-down': keyboardShortcutMessages.scrollLineDown,
 	'scroll-line-up': keyboardShortcutMessages.scrollLineUp,
 	'scroll-page-down': keyboardShortcutMessages.scrollPageDown,

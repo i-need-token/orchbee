@@ -11,6 +11,8 @@ import {
 
 const ITEM_IDS = {
 	closeWindow: 'desktop-window-close',
+	forceReload: 'desktop-view-force-reload',
+	reload: 'desktop-view-reload',
 	secureKeyboardEntry: 'desktop-secure-keyboard-entry',
 	toggleFullScreen: 'desktop-window-toggle-full-screen',
 	toggleMaximized: 'desktop-window-toggle-maximized',
@@ -33,7 +35,12 @@ describe('installDesktopApplicationMenu', () => {
 		const viewRoot = fakeMenuItem({
 			role: 'viewMenu',
 			submenu: fakeMenu([
-				fakeMenuItem({ role: 'reload' }),
+				fakeMenuItem({ accelerator: 'CommandOrControl+R', label: 'Reload', role: 'reload' }),
+				fakeMenuItem({
+					accelerator: 'CommandOrControl+Shift+R',
+					label: 'Force Reload',
+					role: 'forceReload',
+				}),
 				fakeMenuItem({ role: 'togglefullscreen' }),
 			]),
 		});
@@ -57,6 +64,16 @@ describe('installDesktopApplicationMenu', () => {
 		]);
 		expect(fullScreenItem?.accelerator).toBe('Control+Command+F');
 		expect(maximizedItem?.accelerator).toBe('CommandOrControl+Shift+M');
+		expect(installedMenu?.getMenuItemById(ITEM_IDS.reload)).toMatchObject({
+			accelerator: 'CommandOrControl+R',
+			registerAccelerator: false,
+			role: 'reload',
+		});
+		expect(installedMenu?.getMenuItemById(ITEM_IDS.forceReload)).toMatchObject({
+			accelerator: 'CommandOrControl+Shift+R',
+			registerAccelerator: false,
+			role: 'forceReload',
+		});
 		secureItem?.click({ triggeredByAccelerator: false }, undefined, undefined);
 		fullScreenItem?.click({ triggeredByAccelerator: true }, undefined, undefined);
 		maximizedItem?.click({ triggeredByAccelerator: false }, undefined, undefined);

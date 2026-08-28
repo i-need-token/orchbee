@@ -246,6 +246,60 @@ describe('useWorkbenchPanelWorkspace', () => {
 		expect(releasePointerCapture).toHaveBeenCalledWith(7);
 	});
 
+	it('captures one resize target, commits through the Action, and closes on a Tab change', () => {
+		const runtime = new ActionRuntime();
+		const parentScope = runtime.createScope('workbench');
+		const model = new TabModel({
+			activeTabId: 'tab-a',
+			tabs: [
+				{ group: null, id: 'tab-a', pinned: false, title: 'Terminal A' },
+				{ group: null, id: 'tab-b', pinned: false, title: 'Terminal B' },
+			],
+		});
+		let view: WorkbenchPanelWorkspaceView | undefined;
+		render(
+			createElement(
+				OrchbeeI18nProvider,
+				{ locale: 'en-US' },
+				createElement(InteractiveHarness, {
+					actionRuntime: runtime,
+					capture: (candidate) => {
+						view = candidate;
+					},
+					parentActionScope: parentScope,
+					panelWorkspaceStore: new PanelWorkspaceStore(model, {
+						composition: createPreviewComposition('resize-target'),
+					}),
+				}),
+			),
+		);
+		if (view === undefined) throw new Error('Expected the panel workspace view to be captured');
+
+		let panelId: string | null = null;
+		act(() => {
+			panelId = view?.splitPanel('panel-1', 'right') ?? null;
+		});
+		if (panelId === null) throw new Error('Expected a split panel');
+		const resizePanelId = panelId;
+		act(() => view?.startPanelResize(resizePanelId));
+		expect(view.pendingResize).toEqual({ panelId: resizePanelId, tabId: 'tab-a' });
+		expect(view.canResizePanel(resizePanelId, 'wider')).toBe(true);
+
+		let resized = false;
+		act(() => {
+			resized = view?.resizePanel(resizePanelId, 'wider', 1) ?? false;
+		});
+		expect(resized).toBe(true);
+		expect(view.activeTab?.root).toMatchObject({
+			children: [{ weight: 45 }, { weight: 55 }],
+			kind: 'split',
+		});
+
+		act(() => model.selectTab('tab-b'));
+		expect(view.pendingResize).toBeNull();
+		expect(view.resizePanel(resizePanelId, 'wider', 1)).toBe(false);
+	});
+
 	it('shares one terminal bell admission ledger across the panel workspace lifetime', () => {
 		const runtime = new ActionRuntime();
 		const parentScope = runtime.createScope('workbench');

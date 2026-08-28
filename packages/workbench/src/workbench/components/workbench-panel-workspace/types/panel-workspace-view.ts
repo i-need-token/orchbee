@@ -8,6 +8,7 @@ import type {
 	PanelWorkspaceState,
 	TabPanelWorkspace,
 } from '../model/panel-workspace-state';
+import type { PanelResizeAdjustment, PanelResizeMultiplier } from '../model/resolvePanelResize';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 
 export interface PanelDropTarget {
@@ -39,6 +40,16 @@ export interface PanelWorkspaceMessages {
 	readonly newChildTerminal: string;
 	readonly newTab: string;
 	readonly returnToPrimary: string;
+	readonly resize: string;
+	readonly resizeDescription: string;
+	readonly resizeDone: string;
+	readonly resizeNarrower: string;
+	readonly resizeReset: string;
+	readonly resizeShorter: string;
+	readonly resizeTaller: string;
+	readonly resizeTitle: string;
+	readonly resizeUnavailable: string;
+	readonly resizeWider: string;
 	readonly split: string;
 	readonly splitAbove: string;
 	readonly splitBelow: string;
@@ -51,6 +62,11 @@ export interface PendingPanelClose {
 	readonly runningCount: number;
 }
 
+export interface PendingPanelResize {
+	readonly panelId: string;
+	readonly tabId: string;
+}
+
 export interface WorkbenchPanelWorkspaceView {
 	readonly actionRuntime: ActionRuntime;
 	readonly actionScope: ActionScope;
@@ -61,6 +77,12 @@ export interface WorkbenchPanelWorkspaceView {
 		source?: ActionInvocationSource,
 	) => void;
 	readonly activeTab: TabPanelWorkspace | null;
+	readonly cancelPanelResize: () => void;
+	readonly canResizePanel: (
+		panelId: string,
+		adjustment: PanelResizeAdjustment,
+		multiplier?: PanelResizeMultiplier,
+	) => boolean;
 	readonly cancelClose: () => void;
 	readonly closeActiveTerminal: (panelId: string, source?: ActionInvocationSource) => void;
 	readonly confirmClose: () => void;
@@ -78,12 +100,19 @@ export interface WorkbenchPanelWorkspaceView {
 		readonly previewRoot: PanelLayoutNode | null;
 	};
 	readonly pendingClose: PendingPanelClose | null;
+	readonly pendingResize: PendingPanelResize | null;
 	readonly requestClose: (panelId: string, source?: ActionInvocationSource) => void;
 	readonly resizeAdjacentPanels: (
 		splitId: string,
 		separatorIndex: number,
 		leadingWeight: number,
 	) => void;
+	readonly resizePanel: (
+		panelId: string,
+		adjustment: PanelResizeAdjustment,
+		multiplier: PanelResizeMultiplier,
+		source?: ActionInvocationSource,
+	) => boolean;
 	readonly showPrimaryTerminal: (panelId: string, source?: ActionInvocationSource) => void;
 	readonly shortcutLabelForAction: (actionId: string) => string | undefined;
 	readonly splitPanel: (
@@ -92,6 +121,7 @@ export interface WorkbenchPanelWorkspaceView {
 		source?: ActionInvocationSource,
 	) => string | null;
 	readonly startPanelDrag: (panelId: string, event: ReactPointerEvent<HTMLElement>) => void;
+	readonly startPanelResize: (panelId: string, source?: ActionInvocationSource) => void;
 	readonly state: PanelWorkspaceState;
 	readonly togglePanelMaximization: (panelId: string, source?: ActionInvocationSource) => void;
 }

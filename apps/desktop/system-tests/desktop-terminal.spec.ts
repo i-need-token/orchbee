@@ -2433,6 +2433,122 @@ test('terminal-parity/FS-11-tab-title', async () => {
 	await input.press('Control+C');
 });
 
+test('terminal-parity/FS-12-panel-resize', async () => {
+	test.setTimeout(60_000);
+	const application = electronApplication;
+	if (application === undefined) throw new Error('Electron application did not start.');
+	const page = await application.firstWindow();
+	const primaryModifier = process.platform === 'darwin' ? 'Meta' : 'Control';
+	const splitRightShortcut = process.platform === 'darwin' ? 'Meta+KeyD' : 'Control+Shift+KeyD';
+	const splitBelowShortcut =
+		process.platform === 'darwin' ? 'Meta+Shift+KeyD' : 'Control+Shift+KeyE';
+	const resizeShortcut = process.platform === 'darwin' ? 'Meta+KeyR' : 'Control+Shift+KeyR';
+	const activeLayer = page.locator('[data-presentation-mode="active"]');
+	const panels = activeLayer.locator('[data-slot="workbench-panel"]');
+
+	await projectedTerminal(page).getByRole('textbox').focus();
+	await page.keyboard.press(splitRightShortcut);
+	await expect(panels).toHaveCount(2);
+	await page.keyboard.press(splitBelowShortcut);
+	await expect(panels).toHaveCount(3);
+
+	const activePanel = activeLayer.locator('[data-slot="workbench-panel"][data-focused="true"]');
+	const activePanelId = await activePanel.getAttribute('data-panel-id');
+	if (activePanelId === null) throw new Error('The resize target Panel has no stable identity.');
+	const activeInput = activePanel.getByRole('textbox');
+	const presentationIds = await activeLayer
+		.locator('[data-slot="workbench-terminal-viewport"]')
+		.evaluateAll((elements) =>
+			elements.map((element) => element.getAttribute('data-terminal-presentation-id') ?? ''),
+		);
+	const attachmentByPresentation = new Map<string, string | null>();
+	const identityByPresentation = new Map<
+		string,
+		Awaited<ReturnType<typeof terminalDocumentIdentity>>
+	>();
+	for (const presentationId of presentationIds) {
+		const terminalRoot = projectedTerminalFor(page, presentationId);
+		attachmentByPresentation.set(
+			presentationId,
+			await terminalRoot.getAttribute('data-projected-terminal-attachment-id'),
+		);
+		identityByPresentation.set(presentationId, await terminalDocumentIdentity(terminalRoot));
+	}
+	const panelBox = async () => {
+		const box = await activePanel.boundingBox();
+		if (box === null) throw new Error('The active Panel has no layout box.');
+		return box;
+	};
+	const initialBox = await panelBox();
+
+	await activeInput.focus();
+	await page.keyboard.press(resizeShortcut);
+	let dialog = page.getByRole('dialog', { name: /^(?:Resize Panel|调整面板大小)$/u });
+	await expect(dialog).toBeVisible();
+	await page.keyboard.press('KeyW');
+	await expect.poll(async () => (await panelBox()).width).toBeGreaterThan(initialBox.width + 10);
+	const normalWidth = (await panelBox()).width;
+	await page.keyboard.press('Control+KeyW');
+	await expect.poll(async () => (await panelBox()).width).toBeGreaterThan(normalWidth + 20);
+	await page.keyboard.press('KeyT');
+	await expect.poll(async () => (await panelBox()).height).toBeGreaterThan(initialBox.height + 10);
+	await page.keyboard.press('KeyR');
+	await expect
+		.poll(async () => {
+			const box = await panelBox();
+			return { height: Math.round(box.height), width: Math.round(box.width) };
+		})
+		.toEqual({ height: Math.round(initialBox.height), width: Math.round(initialBox.width) });
+	await dialog.getByRole('button', { name: /^(?:Done|完成)/u }).click();
+	await expect(dialog).not.toBeAttached();
+	await expect(activeInput).toBeFocused();
+	for (const presentationId of presentationIds) {
+		expect(
+			await projectedTerminalFor(page, presentationId).getAttribute(
+				'data-projected-terminal-attachment-id',
+			),
+		).toBe(attachmentByPresentation.get(presentationId));
+	}
+
+	const activeViewport = activePanel.locator('[data-slot="workbench-terminal-viewport"]');
+	await activeViewport.click({ button: 'right' });
+	await page.getByRole('menuitem', { name: /^(?:Resize Panel…|调整面板大小…)/u }).click();
+	dialog = page.getByRole('dialog', { name: /^(?:Resize Panel|调整面板大小)$/u });
+	await expect(dialog).toBeVisible();
+	await page.keyboard.press('Escape');
+	await expect(dialog).not.toBeAttached();
+	await expect(activeInput).toBeFocused();
+
+	await page.keyboard.press(`${primaryModifier}+Shift+KeyP`);
+	const searchSurface = page.locator('[data-slot="workbench-search-surface"]');
+	await expect(searchSurface).toBeVisible();
+	const searchInput = searchSurface.getByRole('combobox');
+	await searchInput.fill(
+		(await searchInput.getAttribute('placeholder')) === '搜索操作…'
+			? '调整面板大小'
+			: 'Resize Panel',
+	);
+	await searchSurface.getByRole('option', { name: /(?:Resize Panel|调整面板大小)/u }).click();
+	dialog = page.getByRole('dialog', { name: /^(?:Resize Panel|调整面板大小)$/u });
+	await expect(dialog).toBeVisible();
+
+	await page.keyboard.press(process.platform === 'darwin' ? 'Meta+KeyT' : 'Control+Shift+KeyT');
+	await expect(workbenchTabs(page)).toHaveCount(2);
+	await expect(dialog).not.toBeAttached();
+	await workbenchTabs(page).first().click();
+	await expect(panels).toHaveCount(3);
+	for (const presentationId of presentationIds) {
+		const originalIdentity = identityByPresentation.get(presentationId);
+		if (originalIdentity === undefined) throw new Error('Missing terminal identity witness.');
+		expect(
+			await terminalDocumentIdentity(projectedTerminalFor(page, presentationId)),
+		).toMatchObject({
+			creationId: originalIdentity.creationId,
+			terminalId: originalIdentity.terminalId,
+		});
+	}
+});
+
 test('keeps terminal presentation continuous through rapid Tab switching and active Tab closure', async () => {
 	test.setTimeout(60_000);
 	const application = electronApplication;

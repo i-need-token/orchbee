@@ -11,42 +11,27 @@ import type {
 	TerminalPresentationRemovalId,
 } from '../../../../terminal-presentation';
 import type { WorkbenchTerminalPresentationCommand } from '../../../model/createWorkbenchPreviewTerminalPresentationComposition';
+import {
+	resolvePanelResize,
+	type PanelResizeAdjustment,
+	type PanelResizeMultiplier,
+} from './resolvePanelResize';
+import type {
+	PanelLayoutNode,
+	PanelLeaf,
+	PanelSplit,
+	PanelSplitDirection,
+	PanelSplitOrientation,
+	TerminalPresentation,
+} from './panel-layout-types';
 
-export type PanelSplitDirection = 'above' | 'below' | 'left' | 'right';
-type PanelSplitOrientation = 'horizontal' | 'vertical';
-
-export interface TerminalPresentation {
-	readonly closeActivity: TerminalPresentationCloseActivity;
-	readonly currentCwd: string | null;
-	readonly launchCwd: string | null;
-	readonly lifecycle: TerminalPresentationLifecycle;
-	readonly naturalTitle: string | null;
-	readonly presentationId: TerminalPresentationId;
-	readonly title: string;
-}
-
-export interface PanelLeaf {
-	readonly activeChildPresentationId: TerminalPresentationId | null;
-	readonly childPresentations: readonly TerminalPresentation[];
-	readonly id: string;
-	readonly kind: 'panel';
-	readonly primaryPresentation: TerminalPresentation;
-}
-
-interface PanelSplitChild {
-	readonly id: string;
-	readonly node: PanelLayoutNode;
-	readonly weight: number;
-}
-
-export interface PanelSplit {
-	readonly children: readonly PanelSplitChild[];
-	readonly id: string;
-	readonly kind: 'split';
-	readonly orientation: PanelSplitOrientation;
-}
-
-export type PanelLayoutNode = PanelLeaf | PanelSplit;
+export type {
+	PanelLayoutNode,
+	PanelLeaf,
+	PanelSplit,
+	PanelSplitDirection,
+	TerminalPresentation,
+} from './panel-layout-types';
 
 export interface TabPanelWorkspace {
 	readonly focusedPanelId: string;
@@ -136,6 +121,13 @@ export type PanelWorkspaceEvent =
 			readonly splitId: string;
 			readonly tabId: string;
 			readonly type: 'adjacent-panels-resized';
+	  }
+	| {
+			readonly adjustment: PanelResizeAdjustment;
+			readonly multiplier: PanelResizeMultiplier;
+			readonly panelId: string;
+			readonly tabId: string;
+			readonly type: 'panel-size-adjusted';
 	  }
 	| {
 			readonly newTerminalTitle: string;
@@ -316,6 +308,7 @@ type PanelWorkspaceRejection =
 	| 'invalid-close-operations'
 	| 'invalid-resize'
 	| 'last-panel'
+	| 'panel-maximized'
 	| 'panel-not-found'
 	| 'stale-operation'
 	| 'split-not-found'
@@ -2005,6 +1998,22 @@ export function transitionPanelWorkspace(
 			return splitExists ? unchanged(state) : rejected(state, 'split-not-found');
 		}
 		return applied(replaceTab(state, tabIndex, { ...tab, root: result.node }));
+	}
+
+	if (event.type === 'panel-size-adjusted') {
+		if (tab.maximizedPanelId !== null) {
+			return rejected(state, 'panel-maximized');
+		}
+		const result = resolvePanelResize(tab.root, event.panelId, event.adjustment, event.multiplier);
+		if (result.kind === 'rejected') {
+			return rejected(
+				state,
+				result.reason === 'panel-not-found' ? 'panel-not-found' : 'invalid-resize',
+			);
+		}
+		return result.kind === 'unchanged'
+			? unchanged(state)
+			: applied(replaceTab(state, tabIndex, { ...tab, root: result.root }));
 	}
 
 	const panel = findPanelInNode(tab.root, event.panelId);

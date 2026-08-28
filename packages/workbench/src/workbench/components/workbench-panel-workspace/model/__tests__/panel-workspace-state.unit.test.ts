@@ -1979,11 +1979,13 @@ describe('panel workspace state', () => {
 
 	it('preserves all invariants through generated stateful action sequences', () => {
 		const actionArbitrary = record({
+			adjustment: constantFrom('narrower', 'reset', 'shorter', 'taller', 'wider'),
 			direction: constantFrom<PanelSplitDirection>('above', 'below', 'left', 'right'),
 			kind: constantFrom(
 				'split',
 				'move',
 				'resize',
+				'keyboard-resize',
 				'create-child',
 				'activate-child',
 				'close-child',
@@ -1995,6 +1997,7 @@ describe('panel workspace state', () => {
 			),
 			primaryIndex: nat(),
 			secondaryIndex: nat(),
+			multiplier: constantFrom<1 | 2>(1, 2),
 			weight: double({ min: -100, max: 200, noNaN: true }),
 		});
 
@@ -2093,6 +2096,14 @@ describe('panel workspace state', () => {
 							splitId: tab.root.id,
 							tabId: tab.tabId,
 							type: 'adjacent-panels-resized',
+						});
+					} else if (action.kind === 'keyboard-resize' && tab.maximizedPanelId === null) {
+						state = apply(state, {
+							adjustment: action.adjustment,
+							multiplier: action.multiplier,
+							panelId: panel.id,
+							tabId: tab.tabId,
+							type: 'panel-size-adjusted',
 						});
 					}
 					expect(state.tabs).toHaveLength(1);
@@ -2248,6 +2259,23 @@ describe('panel workspace state', () => {
 					exploredActionCount += 1;
 				}
 
+				for (const adjustment of ['narrower', 'reset', 'shorter', 'taller', 'wider'] as const) {
+					for (const multiplier of [1, 2] as const) {
+						const keyboardResizeResult = transitionPanelWorkspace(state, {
+							adjustment,
+							multiplier,
+							panelId: panel.id,
+							tabId: tab.tabId,
+							type: 'panel-size-adjusted',
+						});
+						expect(keyboardResizeResult.rejection).toBeNull();
+						expect(
+							hasPanelMembership(requireTab(keyboardResizeResult.state).root, originalPanelIds),
+						).toBe(true);
+						exploredActionCount += 1;
+					}
+				}
+
 				const closeResult = transitionPanelWorkspace(state, {
 					panelId: panel.id,
 					tabId: tab.tabId,
@@ -2314,7 +2342,7 @@ describe('panel workspace state', () => {
 		}
 
 		expect(states).toHaveLength(384);
-		expect(exploredActionCount).toBe(25_728);
+		expect(exploredActionCount).toBe(41_088);
 	});
 
 	it('keeps generated split layouts valid across every possible panel move', () => {

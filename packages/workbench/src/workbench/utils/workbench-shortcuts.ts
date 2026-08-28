@@ -26,6 +26,7 @@ interface WorkbenchShortcutDefinition {
 		| typeof WORKBENCH_ACTION_IDS.openSearch
 		| typeof WORKBENCH_ACTION_IDS.openSettings
 		| typeof WORKBENCH_ACTION_IDS.resetTerminalFontSize
+		| typeof WORKBENCH_ACTION_IDS.resizeActivePanel
 		| typeof WORKBENCH_ACTION_IDS.selectNextTab
 		| typeof WORKBENCH_ACTION_IDS.selectPreviousTab
 		| typeof WORKBENCH_ACTION_IDS.selectTabByPosition
@@ -182,6 +183,15 @@ export const WORKBENCH_SHORTCUTS = {
 		input: undefined,
 		shortcutId: WORKBENCH_ACTION_IDS.resetTerminalFontSize,
 	},
+	resizeActivePanel: {
+		defaults: {
+			apple: chord('KeyR', ['mod']),
+			standard: chord('KeyR', ['mod', 'shift']),
+		},
+		id: WORKBENCH_ACTION_IDS.resizeActivePanel,
+		input: undefined,
+		shortcutId: WORKBENCH_ACTION_IDS.resizeActivePanel,
+	},
 	selectNextTab: {
 		defaults: {
 			apple: chord('BracketRight', ['mod', 'shift']),
@@ -276,6 +286,7 @@ const WORKBENCH_SHORTCUT_ACTIONS = Object.freeze([
 	'newTerminal',
 	'search',
 	'resetTerminalFontSize',
+	'resizeActivePanel',
 	'selectNextTab',
 	'selectPreviousTab',
 	'selectTab1',
@@ -359,6 +370,8 @@ export function formatWorkbenchActionShortcut(
 			return formatWorkbenchShortcut('decreaseTerminalFontSize', platform, bindings);
 		case WORKBENCH_ACTION_IDS.resetTerminalFontSize:
 			return formatWorkbenchShortcut('resetTerminalFontSize', platform, bindings);
+		case WORKBENCH_ACTION_IDS.resizeActivePanel:
+			return formatWorkbenchShortcut('resizeActivePanel', platform, bindings);
 		case WORKBENCH_ACTION_IDS.openSearch:
 			return formatWorkbenchShortcut('search', platform, bindings);
 		case WORKBENCH_ACTION_IDS.openSettings:
@@ -431,6 +444,8 @@ function defaultBindingsFor(platform: WorkbenchShortcutPlatform): WorkbenchShort
 		[WORKBENCH_SHORTCUTS.search.shortcutId]: WORKBENCH_SHORTCUTS.search.defaults[platform],
 		[WORKBENCH_SHORTCUTS.resetTerminalFontSize.shortcutId]:
 			WORKBENCH_SHORTCUTS.resetTerminalFontSize.defaults[platform],
+		[WORKBENCH_SHORTCUTS.resizeActivePanel.shortcutId]:
+			WORKBENCH_SHORTCUTS.resizeActivePanel.defaults[platform],
 		[WORKBENCH_SHORTCUTS.selectNextTab.shortcutId]:
 			WORKBENCH_SHORTCUTS.selectNextTab.defaults[platform],
 		[WORKBENCH_SHORTCUTS.selectPreviousTab.shortcutId]:

@@ -461,6 +461,11 @@ Focused traces cover:
   movement inside the pinned partition, stable explicit tab-title targeting, pre-filled custom-title
   editing, dynamic-title preservation beneath the custom value, blank reset to the latest natural
   title, Action-search discovery, focus restoration, and unchanged terminal input identity;
+- exact headed `terminal-parity/FS-12-panel-resize` Browser-composition witness for the Kitty-aligned
+  resize-mode entry key and `W`/`N`/`T`/`S`/`R` vocabulary, Control-modified larger steps, nearest
+  matching split-axis mutation, whole-Tab equal-weight reset, menu and Action-search discovery,
+  stale-target closure, focus restoration, unchanged attachment identity during resize, and stable
+  terminal/creation identity across Tab handoff;
 - exact headed `terminal-parity/LC-05-lan-capability` Browser-composition evidence for per-operation secure-context, transient-user-activation, and API checks; synchronous Copy availability; one admitted writer call; rejection without retry; localized failure; and no privileged insecure-LAN path;
 - exact `terminal-parity/HS-07-selection-export` real-PTY/Electron evidence that styled terminal
   selection reaches the platform clipboard as the exact visible plain text, paired with protocol,

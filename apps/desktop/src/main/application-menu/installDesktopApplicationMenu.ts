@@ -6,6 +6,8 @@ import type { DesktopWindowActionSource } from '../window-actions';
 
 const DESKTOP_APPLICATION_MENU_ITEM_IDS = {
 	closeWindow: 'desktop-window-close',
+	forceReload: 'desktop-view-force-reload',
+	reload: 'desktop-view-reload',
 	secureKeyboardEntry: 'desktop-secure-keyboard-entry',
 	toggleFullScreen: 'desktop-window-toggle-full-screen',
 	toggleMaximized: 'desktop-window-toggle-maximized',
@@ -72,6 +74,31 @@ export function installDesktopApplicationMenu(
 	};
 	const rootPlans = new Map<MenuItem, RootPlan>();
 	const appendedRoots: MenuItemConstructorOptions[] = [];
+	const viewMenu = viewRoot?.submenu;
+	if (viewRoot !== undefined && viewMenu !== null && viewMenu !== undefined) {
+		for (const [role, id] of [
+			['reload', DESKTOP_APPLICATION_MENU_ITEM_IDS.reload],
+			['forceReload', DESKTOP_APPLICATION_MENU_ITEM_IDS.forceReload],
+		] as const) {
+			const nativeItem = findRole(viewMenu, role);
+			if (nativeItem === undefined) continue;
+			planRoot(
+				rootPlans,
+				viewRoot,
+				{
+					...(nativeItem.accelerator === null ? {} : { accelerator: nativeItem.accelerator }),
+					enabled: nativeItem.enabled,
+					id,
+					label: nativeItem.label,
+					registerAccelerator: false,
+					role,
+					type: nativeItem.type,
+					visible: nativeItem.visible,
+				},
+				role,
+			);
+		}
+	}
 	const fileMenu = fileRoot?.submenu;
 	if (
 		platform === 'darwin' &&

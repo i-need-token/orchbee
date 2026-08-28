@@ -28,12 +28,19 @@ describe('useKeyboardShortcutSettingsView', () => {
 				}),
 			{ wrapper: I18nWrapper },
 		);
-		expect(allRows.result.current.rows).toHaveLength(46);
+		expect(allRows.result.current.rows).toHaveLength(47);
 		expect(allRows.result.current.rows[0]).toMatchObject({
 			actionName: 'Search actions',
 			chord: 'Ctrl+Shift+P',
 			scope: 'Workbench',
 			source: 'Default',
+		});
+		expect(
+			allRows.result.current.rows.find((row) => row.actionName === 'Resize active panel'),
+		).toMatchObject({
+			availability: 'When an active terminal panel is available',
+			chord: 'Ctrl+Shift+R',
+			scope: 'Active panel',
 		});
 		expect(
 			allRows.result.current.rows.filter((row) => row.scope === 'Focused terminal'),

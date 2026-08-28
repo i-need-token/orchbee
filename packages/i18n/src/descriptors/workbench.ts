@@ -148,6 +148,56 @@ export const workbenchMessages = defineMessages({
 		defaultMessage: enUSWorkbenchMessages['workbench.panels.actions.move'],
 		description: 'Action that moves a Workbench panel relative to another panel.',
 	},
+	panelResize: {
+		id: 'workbench.panels.actions.resize',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.actions.resize'],
+		description: 'Action that opens keyboard resizing for the active Workbench panel.',
+	},
+	panelResizeDescription: {
+		id: 'workbench.panels.resize.description',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.resize.description'],
+		description: 'Keyboard instructions shown while resizing a Workbench panel.',
+	},
+	panelResizeDone: {
+		id: 'workbench.panels.resize.done',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.resize.done'],
+		description: 'Action that leaves Workbench panel keyboard resize mode.',
+	},
+	panelResizeNarrower: {
+		id: 'workbench.panels.resize.narrower',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.resize.narrower'],
+		description: 'Action that makes the active Workbench panel narrower.',
+	},
+	panelResizeReset: {
+		id: 'workbench.panels.resize.reset',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.resize.reset'],
+		description: 'Action that restores equal Workbench panel split weights.',
+	},
+	panelResizeShorter: {
+		id: 'workbench.panels.resize.shorter',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.resize.shorter'],
+		description: 'Action that makes the active Workbench panel shorter.',
+	},
+	panelResizeTaller: {
+		id: 'workbench.panels.resize.taller',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.resize.taller'],
+		description: 'Action that makes the active Workbench panel taller.',
+	},
+	panelResizeTitle: {
+		id: 'workbench.panels.resize.title',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.resize.title'],
+		description: 'Title for Workbench panel keyboard resize mode.',
+	},
+	panelResizeUnavailable: {
+		id: 'workbench.panels.resize.unavailable',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.resize.unavailable'],
+		description: 'Status shown when a Workbench panel cannot be resized in one direction.',
+	},
+	panelResizeWider: {
+		id: 'workbench.panels.resize.wider',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.resize.wider'],
+		description: 'Action that makes the active Workbench panel wider.',
+	},
 	panelMore: {
 		id: 'workbench.panels.actions.more',
 		defaultMessage: enUSWorkbenchMessages['workbench.panels.actions.more'],

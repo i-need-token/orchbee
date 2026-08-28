@@ -640,7 +640,7 @@ describe('TerminalSettingsSurface', () => {
 			),
 		);
 		await act(async () => keyboardCategory.click());
-		expect(container.querySelectorAll('[data-shortcut-id]')).toHaveLength(46);
+		expect(container.querySelectorAll('[data-shortcut-id]')).toHaveLength(47);
 		expect(container.textContent).toContain('Ctrl+Shift+T');
 		expect(container.textContent).toContain('Ctrl+Shift+W');
 		expect(container.textContent).toContain('Clear terminal');
@@ -665,7 +665,7 @@ describe('TerminalSettingsSurface', () => {
 			setInputValue(search, 'Focused terminal');
 			search.dispatchEvent(new Event('input', { bubbles: true }));
 		});
-		expect(container.querySelectorAll('[data-shortcut-id]')).toHaveLength(46);
+		expect(container.querySelectorAll('[data-shortcut-id]')).toHaveLength(47);
 		expect(
 			container.querySelectorAll('[data-settings-search-result]').length,
 		).toBeGreaterThanOrEqual(3);

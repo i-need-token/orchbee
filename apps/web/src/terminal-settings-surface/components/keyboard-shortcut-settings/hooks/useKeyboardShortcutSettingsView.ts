@@ -128,6 +128,8 @@ export function useKeyboardShortcutSettingsView({
 				return intl.formatMessage(keyboardShortcutMessages.selectAll);
 			case 'reset-terminal-font-size':
 				return intl.formatMessage(keyboardShortcutMessages.resetTerminalFontSize);
+			case 'resize-panel':
+				return intl.formatMessage(keyboardShortcutMessages.resizePanel);
 			case 'select-tab':
 				return intl.formatMessage(keyboardShortcutMessages.selectTab, {
 					position: declaration.position,
