@@ -288,7 +288,7 @@ describe('WebGPURenderer recovery retirement', () => {
 		expect(observeLoss).toHaveBeenCalledOnce();
 		first.dispose();
 		expect(firstAtlas).toMatchObject({ height: 0, width: 0 });
-		expect(secondAtlas).toMatchObject({ height: 2_048, width: 2_048 });
+		expect(secondAtlas).toMatchObject({ height: 1_024, width: 1_024 });
 		expect(rendering.destroy).not.toHaveBeenCalled();
 		second.dispose();
 		expect(secondAtlas).toMatchObject({ height: 0, width: 0 });
@@ -336,7 +336,7 @@ describe('WebGPURenderer recovery retirement', () => {
 		expect(context.unconfigure).toHaveBeenCalledOnce();
 		expect(firstTextureDestroy).toHaveBeenCalled();
 		expect(firstRendering.destroy).toHaveBeenCalledOnce();
-		expect(atlas).toMatchObject({ height: 2_048, width: 2_048 });
+		expect(atlas).toMatchObject({ height: 1_024, width: 1_024 });
 		expect(glyphMap.size).toBeGreaterThan(0);
 
 		await expect(renderer.setDocumentHidden(false)).resolves.toBe(true);
@@ -2437,7 +2437,7 @@ describe('projected terminal renderer', () => {
 		expect(disposalOrder).toEqual(['unconfigure-canvas', 'destroy-device']);
 	});
 
-	it('reuses bounded WebGPU vertex staging storage across sustained output frames', async () => {
+	it('reuses prepared WebGPU rows and skips unchanged vertex uploads', async () => {
 		vi.stubGlobal('window', { devicePixelRatio: 1 });
 		vi.stubGlobal('document', { createElement: () => createCanvas() });
 		vi.stubGlobal('GPUTextureUsage', { TEXTURE_BINDING: 1, COPY_DST: 2, RENDER_ATTACHMENT: 4 });
@@ -2459,7 +2459,7 @@ describe('projected terminal renderer', () => {
 		const source = createPackedSource(['sustained output']);
 		expect(rendering.createBindGroup).toHaveBeenCalledTimes(2);
 
-		for (let frame = 0; frame < 8; frame++) renderer.renderPacked(source, true);
+		for (let frame = 0; frame < 8; frame++) renderer.renderPacked(source);
 
 		const textUploads = rendering.writeBuffer.mock.calls.flatMap((call) => {
 			const value = call[2];
@@ -2467,9 +2467,97 @@ describe('projected terminal renderer', () => {
 				? [value]
 				: [];
 		});
-		expect(textUploads).toHaveLength(8);
-		expect(new Set(textUploads.map((upload) => upload.buffer))).toHaveLength(1);
+		expect(textUploads).toHaveLength(1);
+		expect(renderer.getLastFrameTelemetry()).toMatchObject({
+			cellsVisited: 0,
+			rowsRendered: 0,
+			vertexUploadBytes: 16,
+		});
 		expect(rendering.createBindGroup).toHaveBeenCalledTimes(2);
+		renderer.dispose();
+	});
+
+	it('uploads only one dirty row while compact text offsets remain stable', async () => {
+		vi.stubGlobal('window', { devicePixelRatio: 1 });
+		vi.stubGlobal('document', { createElement: () => createCanvas() });
+		vi.stubGlobal('GPUTextureUsage', { TEXTURE_BINDING: 1, COPY_DST: 2, RENDER_ATTACHMENT: 4 });
+		vi.stubGlobal('GPUBufferUsage', { UNIFORM: 1, COPY_DST: 2, VERTEX: 4 });
+		const rendering = createSubmittingDevice();
+		vi.stubGlobal('navigator', {
+			gpu: {
+				requestAdapter: async () =>
+					({ requestDevice: async () => rendering.device }) as unknown as GPUAdapter,
+				getPreferredCanvasFormat: () => 'bgra8unorm',
+			},
+		});
+		const context = {
+			configure: () => undefined,
+			getCurrentTexture: () => ({ createView: () => ({}) }),
+		} as unknown as GPUCanvasContext;
+		const renderer = new WebGPURenderer(createWebGPUCanvas(context));
+		await renderer.initGPU();
+		const source = createPackedSource(['AB', 'CD', 'EF']);
+		renderer.renderPacked(source);
+		const dirtyRow = source.rows[1];
+		if (dirtyRow === undefined) throw new Error('Missing dirty-row fixture');
+		dirtyRow.foregroundColors.fill(0xff_00_00);
+		source.dirtyRows.add(1);
+		rendering.writeBuffer.mockClear();
+
+		renderer.renderPacked(source);
+
+		const textWrites = rendering.writeBuffer.mock.calls.flatMap((call) => {
+			const value = call[2];
+			return value instanceof Float32Array && value.length === 13
+				? [{ offset: call[1], value }]
+				: [];
+		});
+		expect(textWrites).toHaveLength(1);
+		expect(textWrites[0]?.offset).toBe(13 * Float32Array.BYTES_PER_ELEMENT);
+		expect(renderer.getLastFrameTelemetry()).toMatchObject({
+			cellsVisited: 2,
+			rowsRendered: 1,
+			vertexUploadBytes: 16 + 13 * Float32Array.BYTES_PER_ELEMENT,
+		});
+		renderer.dispose();
+	});
+
+	it('rebuilds only the cursor row when a block cursor moves within it', async () => {
+		vi.stubGlobal('window', { devicePixelRatio: 1 });
+		vi.stubGlobal('document', { createElement: () => createCanvas() });
+		vi.stubGlobal('GPUTextureUsage', { TEXTURE_BINDING: 1, COPY_DST: 2, RENDER_ATTACHMENT: 4 });
+		vi.stubGlobal('GPUBufferUsage', { UNIFORM: 1, COPY_DST: 2, VERTEX: 4 });
+		const rendering = createSubmittingDevice();
+		vi.stubGlobal('navigator', {
+			gpu: {
+				requestAdapter: async () =>
+					({ requestDevice: async () => rendering.device }) as unknown as GPUAdapter,
+				getPreferredCanvasFormat: () => 'bgra8unorm',
+			},
+		});
+		const context = {
+			configure: () => undefined,
+			getCurrentTexture: () => ({ createView: () => ({}) }),
+		} as unknown as GPUCanvasContext;
+		const renderer = new WebGPURenderer(createWebGPUCanvas(context));
+		renderer.setFocused(true);
+		await renderer.initGPU();
+		const source = createPackedSource(['AB', 'CD', 'EF'], {
+			cursor: { column: 0, row: 1, visible: true },
+		});
+		renderer.renderPacked(source);
+		const metadata = source.metadata;
+		if (metadata === null) throw new Error('Missing cursor fixture metadata');
+		(metadata.cursor as { column: number }).column = 1;
+		rendering.writeBuffer.mockClear();
+
+		renderer.renderPacked(source);
+
+		expect(renderer.getLastFrameTelemetry()).toMatchObject({
+			cellsVisited: 2,
+			rowsRendered: 1,
+		});
+		expect(renderer.getLastFrameTelemetry()?.vertexUploadBytes).toBeGreaterThan(16);
 		renderer.dispose();
 	});
 
@@ -2772,7 +2860,7 @@ describe('projected terminal renderer', () => {
 		expect(textUpload).toBeInstanceOf(Float32Array);
 		expect((textUpload as Float32Array).length / 13).toBe(shapingRasters.length);
 		expect(renderer.getLastFrameTelemetry()).toMatchObject({
-			atlasHeight: 2_048,
+			atlasHeight: 1_024,
 			atlasWidth: 8_192,
 		});
 		renderer.dispose();

@@ -635,4 +635,16 @@ pnpm --filter @orchbee/desktop benchmark -- \
 
 Keep `pnpm web` running while using the benchmark, or set `ORCHBEE_DESKTOP_RENDERER_URL` to another loopback Web development server.
 
+Interaction targets stay scoped to the same terminal presentation. The harness positions the
+pointer from the stable presentation-root geometry and observes wheel start there, so transient
+history snapshot canvases and canvas transforms are measured behavior rather than actionability
+prerequisites. Its output command keeps the shell open behind a rendered completion marker until
+history, search, and copy measurements finish; process exit therefore cannot replace the live
+terminal with a stopped presentation during those interactions. After the terminal-exit trace is
+captured, the harness terminates its isolated temporary Electron instance without exercising the
+product's interactive user-quit workflow. The report summarizes Browser, renderer (`Tab`), GPU,
+and aggregate Electron working sets from `app.getAppMetrics()` in KiB. Those process figures
+support same-machine comparisons; they do not account for every driver-owned GPU allocation or
+define whole-system RSS.
+
 It can also collect controlled Ghostty and Host-only references. Results are diagnostic evidence; they are not a merge or slice-completion gate in the current development phase.

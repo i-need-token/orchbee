@@ -252,11 +252,15 @@ const rows = await terminal.readBufferRows(
 
 同一 `Document` 中的渲染器共享 WebGPU adapter 获取、device 创建、首选 format，以及不可变的背景/文本 pipeline 对。每个已配置 renderer 拥有自己的 glyph atlas texture、sampler、uniform/vertex buffer、bind group、Kitty texture、可重建 CPU staging，以及一项可分离的共享 runtime lease。文档隐藏会解除该 Canvas 的配置、销毁这些每 surface GPU 资源、清空峰值大小的 staging array 并释放 lease；renderer 保留 packed source、原始图形数据、glyph map 与 CPU atlas Canvas，因此恢复可见性时可以重建而不改变终端状态。同一可见性 epoch 也会退役挂起的初始化。`freeze()` 的语义不同：它为应用恢复切换保留已绘制 Canvas 及其资源。device 丢失会使 document generation 失效；每个受影响的可见 renderer 都会针对下一共享 generation 走类型化恢复路径，Canvas 2D 仍是可观察后备。共享 runtime 拥有该 generation 唯一待定的 `GPUDevice.lost` reaction。释放 lease 时会先移除 subscriber，再减少引用计数；释放最后一个可见或冻结 lease 会销毁 device 并丢弃共享 pipeline。按 `Document` 索引的 weak map 只负责并发发现，因此隐藏或非活动终端既不保留 GPU surface，也不保留原本空闲的 device。
 
-WebGPU 路径为背景、文本和覆盖层三种流分别保留并清空一个实例数组，以及一个按几何级数增长的 `Float32Array` 上传缓冲区。当某个流达到其最大已准备帧所需的容量后，后续不超过该尺寸的帧会复用同一底层 CPU 存储，而不再分配另一个帧大小的缓冲区。文档隐藏停车与销毁都会释放保留的暂存空间；下一次可见的完整绘制会重建它。逐单元格的前景色/背景色解析也会复用一个由渲染器拥有的暂存投影，调用方只复制必须比当前单元格存活更久的值。这些规则把两个全视口分配热点限制在已准备视口内容的峰值容量内；它们不定义 GPU 驱动、浏览器或整个进程的 RSS 上限。
+打包来源仍是唯一的终端内容权威。WebGPU 行准备只为当前可见网格保留可重建的 shaping 以及背景、文本和覆盖层实例分段。只有当打包行并非 dirty，来源 identity、shaping 输入、已解析默认颜色、atlas generation 与该行局部的光标投影仍一致，且没有待处理的全局呈现失效时，条目才可复用。dirty 行会从打包来源重建；移动光标会重建旧行和当前行。完整 Host 重绘、surface 或字体几何变化、主题发布、设备像素变化、选择、搜索、preedit、文本闪烁或链接悬停变化，都会保守地使所有受影响的已准备分段失效。atlas 重置或增长会使全部缓存文本 UV 失效。缓存范围由可见行及其当前紧凑实例载荷限定，并且绝不参与 `markRendered()` 权威。
+
+每个 WebGPU 实例流都会保留行分段 identity 与长度、一个按几何级数增长的 `Float32Array` 镜像，以及一个按几何级数增长的 GPU vertex buffer。当变化的行分段长度保持不变时，只会复制并通过 `writeBuffer` 提交对应的精确紧凑区间。第一次长度变化会移动后续紧凑偏移，因此该流会从该行开始重写后缀；新建或增长的 GPU buffer 会接收一次完整上传。未变化的流不会上传 vertex 数据，但 render pass 仍会把其完整紧凑实例数量绘制到当前 swapchain texture。device 丢失会销毁 GPU buffer，因此即使 CPU 行准备仍然存在，下一次可见绘制也会完整上传。文档隐藏停车与处置都会释放全部行准备和峰值大小的 staging 存储；下一次可见完整绘制会重建它们。
+
+逐单元格的前景色/背景色解析会复用一个 renderer 自有的暂存投影，行准备只复制必须比当前单元格存活更久的值。这些规则把保留的 CPU staging 限制在已准备视口内容的峰值内，并在不改变绘制顺序、像素、Canvas fallback 行为或 device-loss 恢复的前提下减少准备与上传工作。它们不定义 GPU 驱动、浏览器、真实 GPU 执行时间或整个进程的 RSS 上限。
 
 脏字形图集矩形会直接从 Canvas 图集传输到 WebGPU 纹理，因此增量上传不会具体化中间 CPU 像素数组。帧遥测会在接纳或重置字形时维护图集占用量，而不是重新扫描字形映射。隐藏的 IME textarea 会在几何变化之间复用 Canvas 相对于界面的偏移。当注入的仅展示快照仍是已绘制来源且尚无实时 Host 帧时，该快照只为其已绘制光标提供锚点几何，仍不授予输入权威。界面会在调整大小、设备像素比或呈现配置变化后，以及 macOS Shift 原生输入模式处理前重新测量该偏移。
 
-字形图集的两个轴都从 2048 个物理像素开始。接纳一个完整光栅预留时，只会分别倍增当前边界不足的轴，并以设备纹理上限为界；因此，整行塑形可以使用更多宽度，而不会同时倍增未使用的高度。缓存重置会清空条目但保留当前图集尺寸。文档隐藏停车会保留 CPU atlas 与 glyph state，但销毁其 GPU texture；恢复时把整个 atlas 标记为 dirty 并上传到新 texture。冻结会保留最后呈现的 Canvas 与资源；处置则会解除 WebGPU Canvas 配置、销毁每 surface GPU 资源、清除 glyph state，并把 renderer 自有 atlas Canvas backing 重置为零像素。这些约束只限定图集与生命周期分配，并不构成 GPU 驱动、浏览器或整个进程的 RSS 上限。
+字形图集的两个轴都从 1024 个物理像素开始。因此，在浏览器和驱动开销之外，它的 CPU Canvas backing 与配套 RGBA8 GPU texture 具有 8 MiB 的名义像素载荷。接纳一个完整光栅预留时，只会分别倍增当前边界不足的轴，并以设备纹理上限为界；因此，整行塑形可以使用更多宽度，而不会同时倍增未使用的高度。2048×1024 图集的合计名义像素载荷为 16 MiB。缓存重置会清空条目但保留当前图集尺寸。文档隐藏停车会保留 CPU atlas 与 glyph state，但销毁其 GPU texture；恢复时把整个 atlas 标记为 dirty 并上传到新 texture。冻结会保留最后呈现的 Canvas 与资源；处置则会解除 WebGPU Canvas 配置、销毁每 surface GPU 资源、清除 glyph state，并把 renderer 自有 atlas Canvas backing 重置为零像素。这些约束只限定图集与生命周期分配，并不构成 GPU 驱动、浏览器或整个进程的 RSS 上限。
 
 用于 uniform 和图集资源的 WebGPU bind group 会持续存活到其所属设备或图集被重新创建，而不是随每个提交帧重建。打包行视图还会在当前 backing 的生命周期内缓存已解码的非空字素，让无障碍与渲染共享一次 UTF-8 解码；替换行 backing 时会清除该缓存。缓存范围由当前保留网格中的单元格数量限定。
 
@@ -369,11 +373,14 @@ Ghostty 仍然是选定字体规格、形状边界、完整 Unicode sprite-face 
 pnpm --filter @orchbee/terminal typecheck
 pnpm --filter @orchbee/terminal build
 pnpm --filter @orchbee/terminal test
+pnpm --filter @orchbee/terminal benchmark:renderer
 pnpm --filter @orchbee/terminal test:tla
 pnpm --filter @orchbee/terminal test:exports
 pnpm verify
 ```
 
 `test:tla` 检查 [`formal/README.md`](formal/README.md) 中记录的包拥有的运行时表示和输入修复模型。它们是更改触发的正确性证据，不是普通包测试命令的一部分。
+
+`benchmark:renderer` 会针对稳定帧、单个变化行与移动光标，测量确定性的 JavaScript WebGPU 行准备和模拟队列提交。它是用于同一机器前后对比的诊断工具；不测量真实 GPU 执行、浏览器调度、字体光栅化、驱动内存或整个进程的 RSS。
 
 当 `../ghostty` 或 `GHOSTTY_SOURCE` 可用时，`pnpm audit:ghostty-panel` 将维护的渲染器/字体出处和生成的数据与固定的 Ghostty 源进行比较。仅当固定的 Nerd Font 约束、精灵范围或精灵参考栅格更改时才运行 `pnpm generate:ghostty-panel-data`。

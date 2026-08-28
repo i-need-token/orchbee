@@ -18,8 +18,8 @@
 			"zhCnSha256": "2afc317d019dbf2e2e66361ee355e94c1c5dd0bef44c3ee9f499cd3a5bf40058"
 		},
 		"apps/desktop/README.md": {
-			"englishSha256": "8aa07cf02a83d9472655104736025b5a7bc0fc29b4bcf71e98aa1d46bdd85e0a",
-			"zhCnSha256": "9c21db7dc617587427cd0fce2f3e6166b1adb9ed12f7dc2f9e4f63bc0609b075"
+			"englishSha256": "ccafa159d69c1d4ca622cf9b93b1ffcc71e7a6ec10ececb3f88dda1a3c67718f",
+			"zhCnSha256": "b785639c250d6cbd8b8c61cd2c8144647b003055c2252e59603480d1e139ffc4"
 		},
 		"apps/desktop/docs/data-root.md": {
 			"englishSha256": "70b2836c182df8c32456081cc30682ecd9bb4bb2d6bf3409bb3f9853ad23490e",
@@ -274,8 +274,8 @@
 			"zhCnSha256": "1cc0850fc5f8aae29734edaae364de39f27fa399994efb852abe72aad7d9e0be"
 		},
 		"packages/terminal/README.md": {
-			"englishSha256": "866ca74baacaab93c954fa16308dc45483ef262b528758d5e21d54cc234a64a9",
-			"zhCnSha256": "a98a19eb9085e0aa45a4a8941f85b824aa8ea1e9290e3a75b2cfc355c01cf569"
+			"englishSha256": "91172a0b15ecf4427e3b6afe0440a0cb425158f7fdb89158777a82e1d6c3d0ef",
+			"zhCnSha256": "df04b293b0591f183e86469300fe3a1bb19c35280df076df69eeb89dca0dce50"
 		},
 		"packages/terminal/docs/ghostty-surface-test-provenance.md": {
 			"englishSha256": "c3fa251874939bdae471915e05fac4136244c6f35eb0bf41d3c7f3f0bb176cc6",

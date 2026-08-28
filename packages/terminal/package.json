@@ -32,6 +32,7 @@
 		"access": "public"
 	},
 	"scripts": {
+		"benchmark:renderer": "vitest bench --run src/rendering/__tests__/renderer.bench.ts",
 		"build": "rslib build --log-level error",
 		"dev": "rslib build --watch",
 		"typecheck": "tsc --noEmit",

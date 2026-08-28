@@ -64,6 +64,7 @@ import type {
 	SelectionCoordinates,
 	SurfacePadding,
 } from '../types';
+import { CompactWebGPUVertexStream } from './CompactWebGPUVertexStream';
 import { resolvePackedCursorPresentation } from './resolvePackedCursorPresentation';
 
 export type RendererHealthEvent =
@@ -270,6 +271,51 @@ interface PackedRowTextShaping {
 	readonly plan: TextShapingPlan;
 }
 
+type PreparedPackedRowTextShaping = PackedRowTextShaping & { readonly codepoints: Uint32Array };
+
+interface WebGPUShapingInputs {
+	readonly columns: number;
+	readonly cursorColumn: number;
+	readonly cursorWidth: number;
+	readonly fontLigatures: boolean;
+	readonly maximumRunColumns: number;
+	readonly preeditEnd: number;
+	readonly preeditStart: number;
+	readonly source: PackedRendererRow;
+	readonly textBlinkVisible: boolean;
+}
+
+interface PreparedWebGPURow {
+	readonly atlasGeneration: number;
+	readonly backgroundData: readonly number[];
+	readonly cellsVisited: number;
+	readonly columns: number;
+	readonly cursorKey: string;
+	readonly defaultColorsKey: string;
+	readonly hasBlinkingCells: boolean;
+	readonly overlayData: readonly number[];
+	readonly shaping: PreparedPackedRowTextShaping;
+	readonly shapingInputs: WebGPUShapingInputs;
+	readonly shapingRuns: number;
+	readonly source: PackedRendererRow;
+	readonly textData: readonly number[];
+}
+
+interface PreparedWebGPURowData {
+	readonly backgroundData: number[];
+	readonly cellsVisited: number;
+	readonly hasBlinkingCells: boolean;
+	readonly overlayData: number[];
+	readonly shapingRuns: number;
+	readonly textData: number[];
+}
+
+interface WebGPUFrameExtras {
+	readonly backgroundData: readonly number[];
+	readonly overlayData: readonly number[];
+	readonly textData: readonly number[];
+}
+
 type RenderedCursorStyle = 'block' | 'block_hollow' | 'underline' | 'bar';
 
 interface RectangleGeometry {
@@ -281,8 +327,14 @@ interface RectangleGeometry {
 
 const COLOR_GLYPH_CANDIDATE = /[\p{Extended_Pictographic}\p{Regional_Indicator}\u{FE0F}\u{20E3}]/u;
 const CURSOR_BLINK_INTERVAL_MS = 530;
-const INITIAL_GLYPH_ATLAS_DIMENSION = 2_048;
+const INITIAL_GLYPH_ATLAS_DIMENSION = 1_024;
 const MAX_CACHED_SHAPING_RASTER_PIXELS = 8 * 1024 * 1024;
+const EMPTY_WEBGPU_VERTEX_DATA: readonly number[] = Object.freeze([]);
+const EMPTY_WEBGPU_FRAME_EXTRAS: WebGPUFrameExtras = Object.freeze({
+	backgroundData: EMPTY_WEBGPU_VERTEX_DATA,
+	overlayData: EMPTY_WEBGPU_VERTEX_DATA,
+	textData: EMPTY_WEBGPU_VERTEX_DATA,
+});
 // ============================================================================
 // Color Helpers
 // ============================================================================
@@ -943,6 +995,7 @@ export class WebGPURenderer {
 	private shapingGlyphKeys = new Set<string>();
 	private shapingRasterPixels = 0;
 	private atlasUsedPixels = 0;
+	private atlasGeneration = 0;
 	private atlasX = 0;
 	private atlasY = 0;
 	private atlasRowHeight = 0;
@@ -953,24 +1006,16 @@ export class WebGPURenderer {
 	private bgPipeline: GPURenderPipeline | null = null;
 	private textPipeline: GPURenderPipeline | null = null;
 	private uniformBuffer: GPUBuffer | null = null;
-	private bgVertexBuffer: GPUBuffer | null = null;
-	private bgVertexBufferSize = 0;
-	private textVertexBuffer: GPUBuffer | null = null;
-	private textVertexBufferSize = 0;
-	private overlayVertexBuffer: GPUBuffer | null = null;
-	private overlayVertexBufferSize = 0;
+	private readonly backgroundVertexStream = new CompactWebGPUVertexStream();
+	private readonly textVertexStream = new CompactWebGPUVertexStream();
+	private readonly overlayVertexStream = new CompactWebGPUVertexStream();
 	private graphicsVertexBuffer: GPUBuffer | null = null;
 	private graphicsVertexBufferSize = 0;
 	private backgroundBindGroup: GPUBindGroup | null = null;
 	private textBindGroup: GPUBindGroup | null = null;
 	private graphicsResources = new Map<number, WebGPUGraphicsResource>();
-	private backgroundVertexData: number[] = [];
-	private textVertexData: number[] = [];
-	private overlayVertexData: number[] = [];
+	private webGPURowPreparations: Array<PreparedWebGPURow | undefined> = [];
 	private graphicsVertexData: number[] = [];
-	private backgroundVertexUpload = new Float32Array(0);
-	private textVertexUpload = new Float32Array(0);
-	private overlayVertexUpload = new Float32Array(0);
 	private graphicsVertexUpload = new Float32Array(0);
 	private readonly uniformUpload = new Float32Array(4);
 	private readonly cellPresentationScratch: {
@@ -1187,24 +1232,18 @@ export class WebGPURenderer {
 		for (const resource of this.graphicsResources.values()) resource.texture.destroy();
 		this.graphicsResources.clear();
 		this.uniformBuffer?.destroy();
-		this.bgVertexBuffer?.destroy();
-		this.textVertexBuffer?.destroy();
-		this.overlayVertexBuffer?.destroy();
+		this.backgroundVertexStream.releaseGPUBuffer();
+		this.textVertexStream.releaseGPUBuffer();
+		this.overlayVertexStream.releaseGPUBuffer();
 		this.graphicsVertexBuffer?.destroy();
 		this.atlasTexture = null;
 		this.atlasSampler = null;
 		this.uniformBuffer = null;
-		this.bgVertexBuffer = null;
-		this.textVertexBuffer = null;
-		this.overlayVertexBuffer = null;
 		this.graphicsVertexBuffer = null;
 		this.backgroundBindGroup = null;
 		this.textBindGroup = null;
 		this.sharedWebGPULease?.release();
 		this.sharedWebGPULease = null;
-		this.bgVertexBufferSize = 0;
-		this.textVertexBufferSize = 0;
-		this.overlayVertexBufferSize = 0;
 		this.graphicsVertexBufferSize = 0;
 		this.bgPipeline = null;
 		this.textPipeline = null;
@@ -1212,13 +1251,11 @@ export class WebGPURenderer {
 	}
 
 	private releaseReconstructibleFrameStaging(): void {
-		this.backgroundVertexData = [];
-		this.textVertexData = [];
-		this.overlayVertexData = [];
+		this.backgroundVertexStream.releaseStaging();
+		this.textVertexStream.releaseStaging();
+		this.overlayVertexStream.releaseStaging();
+		this.webGPURowPreparations = [];
 		this.graphicsVertexData = [];
-		this.backgroundVertexUpload = new Float32Array(0);
-		this.textVertexUpload = new Float32Array(0);
-		this.overlayVertexUpload = new Float32Array(0);
 		this.graphicsVertexUpload = new Float32Array(0);
 	}
 
@@ -1309,36 +1346,12 @@ export class WebGPURenderer {
 		});
 	}
 
-	private uploadVertexData(
-		kind: 'background' | 'text' | 'overlay' | 'graphics',
-		data: readonly number[],
-	): GPUBuffer | null {
+	private uploadGraphicsVertexData(data: readonly number[]): GPUBuffer | null {
 		if (!this.device || data.length === 0) return null;
 
 		const requiredSize = data.length * Float32Array.BYTES_PER_ELEMENT;
-		let currentBuffer: GPUBuffer | null;
-		let currentSize: number;
-		let upload: Float32Array<ArrayBuffer>;
-		if (kind === 'background') {
-			currentBuffer = this.bgVertexBuffer;
-			currentSize = this.bgVertexBufferSize;
-			upload = this.backgroundVertexUpload;
-		} else if (kind === 'text') {
-			currentBuffer = this.textVertexBuffer;
-			currentSize = this.textVertexBufferSize;
-			upload = this.textVertexUpload;
-		} else if (kind === 'overlay') {
-			currentBuffer = this.overlayVertexBuffer;
-			currentSize = this.overlayVertexBufferSize;
-			upload = this.overlayVertexUpload;
-		} else {
-			currentBuffer = this.graphicsVertexBuffer;
-			currentSize = this.graphicsVertexBufferSize;
-			upload = this.graphicsVertexUpload;
-		}
-
-		let buffer = currentBuffer;
-		let size = currentSize;
+		let buffer = this.graphicsVertexBuffer;
+		let size = this.graphicsVertexBufferSize;
 		if (!buffer || size < requiredSize) {
 			buffer?.destroy();
 			size = 256;
@@ -1347,29 +1360,16 @@ export class WebGPURenderer {
 				size,
 				usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
 			});
-			if (kind === 'background') {
-				this.bgVertexBuffer = buffer;
-				this.bgVertexBufferSize = size;
-			} else if (kind === 'text') {
-				this.textVertexBuffer = buffer;
-				this.textVertexBufferSize = size;
-			} else if (kind === 'overlay') {
-				this.overlayVertexBuffer = buffer;
-				this.overlayVertexBufferSize = size;
-			} else {
-				this.graphicsVertexBuffer = buffer;
-				this.graphicsVertexBufferSize = size;
-			}
+			this.graphicsVertexBuffer = buffer;
+			this.graphicsVertexBufferSize = size;
 		}
 
+		let upload = this.graphicsVertexUpload;
 		if (upload.length < data.length) {
 			let capacity = 64;
 			while (capacity < data.length) capacity *= 2;
 			upload = new Float32Array(capacity);
-			if (kind === 'background') this.backgroundVertexUpload = upload;
-			else if (kind === 'text') this.textVertexUpload = upload;
-			else if (kind === 'overlay') this.overlayVertexUpload = upload;
-			else this.graphicsVertexUpload = upload;
+			this.graphicsVertexUpload = upload;
 		}
 		upload.set(data);
 		// WebGPU snapshots writeBuffer input before returning, so the backing store is reusable on the
@@ -1650,6 +1650,7 @@ export class WebGPURenderer {
 		this.atlasCtx = context;
 		this.atlasTexture?.destroy();
 		this.atlasTexture = null;
+		this.atlasGeneration += 1;
 		this.createAtlasTexture();
 		return true;
 	}
@@ -1705,6 +1706,7 @@ export class WebGPURenderer {
 	}
 
 	private resetAtlas(): void {
+		this.atlasGeneration += 1;
 		this.clearGlyphAtlasState();
 		this.atlasCtx.clearRect(0, 0, this.atlasCanvas.width, this.atlasCanvas.height);
 		this.markEntireAtlasDirty();
@@ -1862,7 +1864,7 @@ export class WebGPURenderer {
 
 		const redrawAll = forceAll || this.surfaceDirty || graphicsChanged;
 		this.resetFrameCounters();
-		if (this.useWebGPU) this.renderPackedWebGPU(buffer, metadata);
+		if (this.useWebGPU) this.renderPackedWebGPU(buffer, metadata, forceAll);
 		else this.renderPackedCanvas2D(buffer, metadata, redrawAll);
 		this.previousGraphics = buffer.graphics;
 		this.fontDirty = false;
@@ -2344,20 +2346,28 @@ export class WebGPURenderer {
 		return false;
 	}
 
-	private hasPackedBlinkingCells(buffer: PackedRendererSource): boolean {
-		for (const row of buffer.rows) {
-			for (const flags of row.styleFlags) {
-				if ((flags & TerminalStyleFlag.blink) !== 0) return true;
+	private hasPackedBlinkingCells(buffer: PackedRendererSource, forceAll = false): boolean {
+		for (const [rowIndex, row] of buffer.rows.entries()) {
+			const cached = this.webGPURowPreparations[rowIndex];
+			if (!forceAll && !row.dirty && cached?.source === row) {
+				if (cached.hasBlinkingCells) return true;
+				continue;
 			}
+			if (packedRowHasBlinkingCells(row)) return true;
 		}
 		return false;
 	}
 
-	private renderPackedWebGPU(buffer: PackedRendererSource, metadata: PackedRendererMetadata): void {
+	private renderPackedWebGPU(
+		buffer: PackedRendererSource,
+		metadata: PackedRendererMetadata,
+		forceAll: boolean,
+	): void {
 		if (!this.device || !this.context || !this.bgPipeline || !this.textPipeline) return;
 		const { columns, rows } = metadata;
 		const cursor = metadata.cursor;
-		this.syncTextBlink(this.hasPackedBlinkingCells(buffer));
+		const forceShaping = forceAll || buffer.needsFullRedraw;
+		this.syncTextBlink(this.hasPackedBlinkingCells(buffer, forceShaping));
 		const physicalWidth = Math.round(columns * this.metrics.width * this.devicePixelRatio);
 		const physicalHeight = Math.round(rows * this.metrics.height * this.devicePixelRatio);
 		const needsResize =
@@ -2372,14 +2382,48 @@ export class WebGPURenderer {
 			cursor,
 			buffer.rows[cursor.row]?.widths,
 		);
-		const shapings: Array<(PackedRowTextShaping & { readonly codepoints: Uint32Array }) | null> =
-			Array.from({ length: rows }, () => null);
+		const shapings: Array<PreparedPackedRowTextShaping | null> = Array.from(
+			{ length: rows },
+			() => null,
+		);
+		const shapingInputs: Array<WebGPUShapingInputs | null> = Array.from(
+			{ length: rows },
+			() => null,
+		);
+		const shapingChanged = new Uint8Array(rows);
 		const maximumShapingRunColumns = this.maximumWebGPUShapingRunColumns();
 
 		for (let y = 0; y < rows; y++) {
 			const row = buffer.rows[y];
 			if (!row) continue;
-			const shaping = this.buildPackedRowTextShaping(
+			const cached = this.webGPURowPreparations[y];
+			const hasBlinkingCells =
+				!forceShaping && !row.dirty && cached?.source === row
+					? cached.hasBlinkingCells
+					: packedRowHasBlinkingCells(row);
+			const preeditRow = preeditLayoutRow(preeditLayout, y);
+			const inputs: WebGPUShapingInputs = {
+				columns,
+				cursorColumn: cursorEnabled && cursor.row === y ? cursorPresentation.column : -1,
+				cursorWidth: cursorEnabled && cursor.row === y ? cursorPresentation.width : 0,
+				fontLigatures: this.presentationConfiguration.fontLigatures,
+				maximumRunColumns: maximumShapingRunColumns,
+				preeditEnd: preeditRow?.end ?? -1,
+				preeditStart: preeditRow?.start ?? -1,
+				source: row,
+				textBlinkVisible: hasBlinkingCells ? this.textBlinkVisible : true,
+			};
+			shapingInputs[y] = inputs;
+			if (
+				!forceShaping &&
+				!row.dirty &&
+				cached !== undefined &&
+				sameWebGPUShapingInputs(cached.shapingInputs, inputs)
+			) {
+				shapings[y] = cached.shaping;
+				continue;
+			}
+			shapings[y] = this.buildPackedRowTextShaping(
 				row,
 				columns,
 				y,
@@ -2388,35 +2432,17 @@ export class WebGPURenderer {
 				preeditLayout,
 				maximumShapingRunColumns,
 			);
-			shapings[y] = shaping;
+			shapingChanged[y] = 1;
 		}
-		if (this.shouldResetShapingCache(buffer, shapings, columns)) this.resetAtlas();
 
+		const atlasGenerationBeforePreparation = this.atlasGeneration;
+		if (this.shouldResetShapingCache(buffer, shapings, columns)) this.resetAtlas();
+		const ensureEveryRow = this.atlasGeneration !== atlasGenerationBeforePreparation;
 		for (let y = 0; y < rows; y++) {
 			const row = buffer.rows[y];
 			const shaping = shapings[y];
-			if (!row || !shaping) continue;
-			for (let x = 0; x < columns; x++) {
-				const width = packedCellWidth(row.widths[x] ?? TerminalCellWidthCode.spacerTail);
-				const flags = row.styleFlags[x] ?? 0;
-				if (
-					width === 0 ||
-					(flags & TerminalStyleFlag.invisible) !== 0 ||
-					((flags & TerminalStyleFlag.blink) !== 0 && !this.textBlinkVisible)
-				)
-					continue;
-				const span = shaping.plan[x];
-				if (span && span.start !== x) continue;
-				const text = span?.text ?? shaping.texts[x] ?? '';
-				if (text.length === 0) continue;
-				this.ensureGlyph(
-					text,
-					flags,
-					span?.columns ?? width,
-					span ? 0 : (shaping.codepoints[x] ?? 0),
-					this.packedConstraintWidth(row, shaping, x, columns),
-				);
-			}
+			if (!row || !shaping || (!ensureEveryRow && shapingChanged[y] === 0)) continue;
+			this.ensurePackedRowGlyphs(row, shaping, columns);
 		}
 		if (preeditLayout) {
 			for (const preeditRow of preeditLayout.rows) {
@@ -2424,130 +2450,264 @@ export class WebGPURenderer {
 			}
 		}
 
-		const bgData = this.backgroundVertexData;
-		const textData = this.textVertexData;
-		const overlayData = this.overlayVertexData;
-		bgData.length = 0;
-		textData.length = 0;
-		overlayData.length = 0;
 		const presentation = resolvePackedPresentationColors(
 			metadata.defaultColors,
 			this.theme,
 			this.cursorAccentOverride,
 			this.presentationConfiguration.defaultColorOverride,
 		);
-		const defaultBackground = presentation.background;
-		const defaultForeground = presentation.foreground;
+		const defaultColorsKey = `${metadata.defaultColors.backgroundRgb}:${metadata.defaultColors.cursorRgb ?? -1}:${metadata.defaultColors.foregroundRgb}`;
+		const forcePreparedRows =
+			forceAll ||
+			buffer.needsFullRedraw ||
+			needsResize ||
+			this.surfaceDirty ||
+			this.fontDirty ||
+			this.searchDirty ||
+			this.preeditDirty;
+		const backgroundSegments: Array<readonly number[]> = Array.from(
+			{ length: rows },
+			() => EMPTY_WEBGPU_VERTEX_DATA,
+		);
+		const textSegments: Array<readonly number[]> = Array.from(
+			{ length: rows },
+			() => EMPTY_WEBGPU_VERTEX_DATA,
+		);
+		const overlaySegments: Array<readonly number[]> = Array.from(
+			{ length: rows },
+			() => EMPTY_WEBGPU_VERTEX_DATA,
+		);
+		this.webGPURowPreparations.length = rows;
+		for (let y = 0; y < rows; y++) {
+			const row = buffer.rows[y];
+			const shaping = shapings[y];
+			const inputs = shapingInputs[y];
+			if (!row || !shaping || !inputs) {
+				this.webGPURowPreparations[y] = undefined;
+				continue;
+			}
+			const cursorKey =
+				cursorEnabled && cursor.row === y
+					? `${renderedCursorStyle}:${cursorPresentation.column}:${cursorPresentation.width}`
+					: '';
+			const previous = this.webGPURowPreparations[y];
+			const rebuild =
+				forcePreparedRows ||
+				row.dirty ||
+				previous === undefined ||
+				previous.source !== row ||
+				previous.columns !== columns ||
+				previous.shaping !== shaping ||
+				previous.atlasGeneration !== this.atlasGeneration ||
+				previous.cursorKey !== cursorKey ||
+				previous.defaultColorsKey !== defaultColorsKey;
+			let prepared = previous;
+			if (rebuild) {
+				const data = this.preparePackedWebGPURow(
+					row,
+					shaping,
+					y,
+					columns,
+					metadata,
+					presentation,
+					preeditLayoutRow(preeditLayout, y),
+					cursor,
+					cursorEnabled,
+					renderedCursorStyle,
+					cursorPresentation,
+				);
+				prepared = {
+					atlasGeneration: this.atlasGeneration,
+					backgroundData: retainEqualVertexData(previous?.backgroundData, data.backgroundData),
+					cellsVisited: data.cellsVisited,
+					columns,
+					cursorKey,
+					defaultColorsKey,
+					hasBlinkingCells: data.hasBlinkingCells,
+					overlayData: retainEqualVertexData(previous?.overlayData, data.overlayData),
+					shaping,
+					shapingInputs: inputs,
+					shapingRuns: data.shapingRuns,
+					source: row,
+					textData: retainEqualVertexData(previous?.textData, data.textData),
+				};
+				this.webGPURowPreparations[y] = prepared;
+				this.frameRowsRendered += 1;
+				this.frameCellsVisited += data.cellsVisited;
+			}
+			if (prepared === undefined) continue;
+			backgroundSegments[y] = prepared.backgroundData;
+			textSegments[y] = prepared.textData;
+			overlaySegments[y] = prepared.overlayData;
+			this.frameShapingRuns += prepared.shapingRuns;
+		}
+
+		const extras = this.prepareWebGPUFrameExtras(
+			preeditLayout,
+			cursor,
+			cursorEnabled,
+			renderedCursorStyle,
+			cursorPresentation,
+			presentation,
+		);
+		if (extras.backgroundData.length > 0) backgroundSegments.push(extras.backgroundData);
+		if (extras.textData.length > 0) textSegments.push(extras.textData);
+		if (extras.overlayData.length > 0) overlaySegments.push(extras.overlayData);
+
+		const graphicsDraws = this.prepareWebGPUGraphics(buffer.graphics, metadata);
+		this.submitWebGPUFrame(
+			backgroundSegments,
+			textSegments,
+			overlaySegments,
+			graphicsDraws,
+			columns,
+			rows,
+			presentation.background,
+		);
+		this.lastCursorPosition = { x: cursor.column, y: cursor.row };
+		this.lastCursorEnabled = cursorEnabled;
+		this.preeditDirty = false;
+		this.textBlinkDirty = false;
+		buffer.markRendered();
+	}
+
+	private ensurePackedRowGlyphs(
+		row: PackedRendererRow,
+		shaping: PreparedPackedRowTextShaping,
+		columns: number,
+	): void {
+		for (let x = 0; x < columns; x++) {
+			const width = packedCellWidth(row.widths[x] ?? TerminalCellWidthCode.spacerTail);
+			const flags = row.styleFlags[x] ?? 0;
+			if (
+				width === 0 ||
+				(flags & TerminalStyleFlag.invisible) !== 0 ||
+				((flags & TerminalStyleFlag.blink) !== 0 && !this.textBlinkVisible)
+			)
+				continue;
+			const span = shaping.plan[x];
+			if (span && span.start !== x) continue;
+			const text = span?.text ?? shaping.texts[x] ?? '';
+			if (text.length === 0) continue;
+			this.ensureGlyph(
+				text,
+				flags,
+				span?.columns ?? width,
+				span ? 0 : (shaping.codepoints[x] ?? 0),
+				this.packedConstraintWidth(row, shaping, x, columns),
+			);
+		}
+	}
+
+	private preparePackedWebGPURow(
+		row: PackedRendererRow,
+		shaping: PreparedPackedRowTextShaping,
+		rowIndex: number,
+		columns: number,
+		metadata: PackedRendererMetadata,
+		presentation: PackedPresentationColors,
+		preeditRow: PreeditLayoutRow | undefined,
+		cursor: PackedRendererMetadata['cursor'],
+		cursorEnabled: boolean,
+		renderedCursorStyle: RenderedCursorStyle,
+		cursorPresentation: ReturnType<typeof resolvePackedCursorPresentation>,
+	): PreparedWebGPURowData {
+		const backgroundData: number[] = [];
+		const textData: number[] = [];
+		const overlayData: number[] = [];
 		const cursorColor = presentation.cursor;
 		const cursorAccent = presentation.cursorAccent;
 		const atlasWidth = this.atlasCanvas.width;
 		const atlasHeight = this.atlasCanvas.height;
+		let cellsVisited = 0;
+		let hasBlinkingCells = false;
+		let shapingRuns = 0;
 
-		for (let y = 0; y < rows; y++) {
-			const row = buffer.rows[y];
-			const shaping = shapings[y];
-			if (!row || !shaping) continue;
-			const preeditRow = preeditLayoutRow(preeditLayout, y);
-			this.frameRowsRendered++;
-			for (let x = 0; x < columns; x++) {
-				const width = packedCellWidth(row.widths[x] ?? TerminalCellWidthCode.spacerTail);
-				if (width === 0) continue;
-				this.frameCellsVisited++;
-				const flags = row.styleFlags[x] ?? 0;
-				const cellX = x * this.metrics.width;
-				const cellY = y * this.metrics.height;
-				const cellWidth = width * this.metrics.width;
-				const isBlockCursor =
-					cursorEnabled &&
-					renderedCursorStyle === 'block' &&
-					cursorPresentation.column === x &&
-					cursor.row === y;
-				const isFullBlockCursor =
-					isBlockCursor && this.detailedMetrics.cursorHeight === this.detailedMetrics.cellHeight;
-				const cellPresentation = this.packedCellPresentation(row, x, metadata, presentation);
-				let foreground: readonly [number, number, number] = cellPresentation.foreground;
-				let background: readonly [number, number, number] = cellPresentation.background;
-				const selected = this.isCoordinateInSelection(x, y);
-				const search = this.getSearchHighlight(x, y);
-				if (selected) {
-					background = presentation.selectionBackground;
-					foreground = presentation.selectionForeground;
-				} else if (search !== null) {
-					background =
-						search === 'active'
-							? presentation.searchActiveBackground
-							: presentation.searchBackground;
-					foreground =
-						search === 'active'
-							? presentation.searchActiveForeground
-							: presentation.searchForeground;
-				}
-				if (isFullBlockCursor) background = cursorColor;
-				if (
-					cellPresentation.requiresBackgroundFill ||
-					isFullBlockCursor ||
-					selected ||
-					search !== null
-				) {
-					pushRect(bgData, cellX, cellY, cellWidth, this.metrics.height, background);
-				}
-				if (isBlockCursor && !isFullBlockCursor) {
-					const geometry = cursorBlockGeometry(
-						x,
-						y,
-						this.detailedMetrics,
-						cursorPresentation.width,
-					);
-					pushRect(bgData, geometry.x, geometry.y, geometry.width, geometry.height, cursorColor);
-				}
-				if (preeditRow && x >= preeditRow.start && x < preeditRow.end) continue;
-				if ((flags & TerminalStyleFlag.invisible) !== 0) continue;
-				if ((flags & TerminalStyleFlag.blink) !== 0 && !this.textBlinkVisible) continue;
+		for (let x = 0; x < columns; x++) {
+			const width = packedCellWidth(row.widths[x] ?? TerminalCellWidthCode.spacerTail);
+			const flags = row.styleFlags[x] ?? 0;
+			if ((flags & TerminalStyleFlag.blink) !== 0) hasBlinkingCells = true;
+			if (width === 0) continue;
+			cellsVisited += 1;
+			const cellX = x * this.metrics.width;
+			const cellY = rowIndex * this.metrics.height;
+			const cellWidth = width * this.metrics.width;
+			const isBlockCursor =
+				cursorEnabled &&
+				renderedCursorStyle === 'block' &&
+				cursorPresentation.column === x &&
+				cursor.row === rowIndex;
+			const isFullBlockCursor =
+				isBlockCursor && this.detailedMetrics.cursorHeight === this.detailedMetrics.cellHeight;
+			const cellPresentation = this.packedCellPresentation(row, x, metadata, presentation);
+			let foreground: readonly [number, number, number] = cellPresentation.foreground;
+			let background: readonly [number, number, number] = cellPresentation.background;
+			const selected = this.isCoordinateInSelection(x, rowIndex);
+			const search = this.getSearchHighlight(x, rowIndex);
+			if (selected) {
+				background = presentation.selectionBackground;
+				foreground = presentation.selectionForeground;
+			} else if (search !== null) {
+				background =
+					search === 'active' ? presentation.searchActiveBackground : presentation.searchBackground;
+				foreground =
+					search === 'active' ? presentation.searchActiveForeground : presentation.searchForeground;
+			}
+			if (isFullBlockCursor) background = cursorColor;
+			if (
+				cellPresentation.requiresBackgroundFill ||
+				isFullBlockCursor ||
+				selected ||
+				search !== null
+			) {
+				pushRect(backgroundData, cellX, cellY, cellWidth, this.metrics.height, background);
+			}
+			if (isBlockCursor && !isFullBlockCursor) {
+				const geometry = cursorBlockGeometry(
+					x,
+					rowIndex,
+					this.detailedMetrics,
+					cursorPresentation.width,
+				);
+				pushRect(
+					backgroundData,
+					geometry.x,
+					geometry.y,
+					geometry.width,
+					geometry.height,
+					cursorColor,
+				);
+			}
+			if (preeditRow && x >= preeditRow.start && x < preeditRow.end) continue;
+			if ((flags & TerminalStyleFlag.invisible) !== 0) continue;
+			if ((flags & TerminalStyleFlag.blink) !== 0 && !this.textBlinkVisible) continue;
 
-				if (isBlockCursor) foreground = cursorAccent;
-				const alpha = (flags & TerminalStyleFlag.faint) !== 0 ? 0.5 : 1;
-				const span = shaping.plan[x];
-				let text = shaping.texts[x] ?? '';
-				if (span) text = span.start === x ? span.text : '';
-				if (text.length > 0) {
-					if (span) this.frameShapingRuns++;
-					const glyph = this.ensureGlyph(
-						text,
-						flags,
-						span?.columns ?? width,
-						span ? 0 : (shaping.codepoints[x] ?? 0),
-						this.packedConstraintWidth(row, shaping, x, columns),
-					);
-					if (glyph) {
-						const glyphX = cellX + glyph.offsetX;
-						const glyphY = cellY + glyph.offsetY;
-						if (span) {
-							for (const segment of this.packedTextPaintSegments(
-								span.start,
-								span.end,
-								row,
-								metadata,
-								y,
-								presentation,
-							)) {
-								pushGlyph(
-									textData,
-									glyph,
-									glyphX,
-									glyphY,
-									atlasWidth,
-									atlasHeight,
-									segment.foreground,
-									alpha,
-									segment.startColumn === span.start
-										? glyphX
-										: segment.startColumn * this.metrics.width,
-									segment.endColumn === span.end
-										? glyphX + glyph.renderWidth
-										: segment.endColumn * this.metrics.width,
-								);
-							}
-						} else {
+			if (isBlockCursor) foreground = cursorAccent;
+			const alpha = (flags & TerminalStyleFlag.faint) !== 0 ? 0.5 : 1;
+			const span = shaping.plan[x];
+			let text = shaping.texts[x] ?? '';
+			if (span) text = span.start === x ? span.text : '';
+			if (text.length > 0) {
+				if (span) shapingRuns += 1;
+				const glyph = this.ensureGlyph(
+					text,
+					flags,
+					span?.columns ?? width,
+					span ? 0 : (shaping.codepoints[x] ?? 0),
+					this.packedConstraintWidth(row, shaping, x, columns),
+				);
+				if (glyph) {
+					const glyphX = cellX + glyph.offsetX;
+					const glyphY = cellY + glyph.offsetY;
+					if (span) {
+						for (const segment of this.packedTextPaintSegments(
+							span.start,
+							span.end,
+							row,
+							metadata,
+							rowIndex,
+							presentation,
+						)) {
 							pushGlyph(
 								textData,
 								glyph,
@@ -2555,57 +2715,90 @@ export class WebGPURenderer {
 								glyphY,
 								atlasWidth,
 								atlasHeight,
-								foreground,
+								segment.foreground,
 								alpha,
+								segment.startColumn === span.start
+									? glyphX
+									: segment.startColumn * this.metrics.width,
+								segment.endColumn === span.end
+									? glyphX + glyph.renderWidth
+									: segment.endColumn * this.metrics.width,
 							);
 						}
+					} else {
+						pushGlyph(textData, glyph, glyphX, glyphY, atlasWidth, atlasHeight, foreground, alpha);
 					}
 				}
+			}
 
-				const underline = row.underlineKinds[x] ?? TerminalUnderlineKindCode.none;
-				const underlineRgb = packedOptionalColorRgb(
-					row.underlineColors[x] ?? TerminalColorEncoding.none,
-					metadata.defaultColors.foregroundRgb,
-					rgbValue(presentation.foreground),
-				);
-				const decorationColor = foreground;
-				const underlineColor = underlineRgb === null ? decorationColor : rgbChannels(underlineRgb);
-				this.pushPackedDecorations(
+			const underline = row.underlineKinds[x] ?? TerminalUnderlineKindCode.none;
+			const underlineRgb = packedOptionalColorRgb(
+				row.underlineColors[x] ?? TerminalColorEncoding.none,
+				metadata.defaultColors.foregroundRgb,
+				rgbValue(presentation.foreground),
+			);
+			const decorationColor = foreground;
+			const underlineColor = underlineRgb === null ? decorationColor : rgbChannels(underlineRgb);
+			this.pushPackedDecorations(
+				overlayData,
+				cellX,
+				cellY,
+				cellWidth,
+				flags,
+				underline,
+				decorationColor,
+				underlineColor,
+				alpha,
+			);
+			if (this.hoveredLinkRange && isCellInRange(x, rowIndex, this.hoveredLinkRange)) {
+				pushRect(
 					overlayData,
 					cellX,
-					cellY,
+					cellY + this.detailedMetrics.underlinePosition,
 					cellWidth,
-					flags,
-					underline,
-					decorationColor,
-					underlineColor,
+					this.detailedMetrics.underlineThickness,
+					[74, 144, 226],
 					alpha,
 				);
-				if (this.hoveredLinkRange && isCellInRange(x, y, this.hoveredLinkRange)) {
-					pushRect(
-						overlayData,
-						cellX,
-						cellY + this.detailedMetrics.underlinePosition,
-						cellWidth,
-						this.detailedMetrics.underlineThickness,
-						[74, 144, 226],
-						alpha,
-					);
-				}
 			}
 		}
+		return {
+			backgroundData,
+			cellsVisited,
+			hasBlinkingCells,
+			overlayData,
+			shapingRuns,
+			textData,
+		};
+	}
 
+	private prepareWebGPUFrameExtras(
+		preeditLayout: PreeditLayout | null,
+		cursor: PackedRendererMetadata['cursor'],
+		cursorEnabled: boolean,
+		renderedCursorStyle: RenderedCursorStyle,
+		cursorPresentation: ReturnType<typeof resolvePackedCursorPresentation>,
+		presentation: PackedPresentationColors,
+	): WebGPUFrameExtras {
+		if (preeditLayout === null && (!cursorEnabled || renderedCursorStyle === 'block')) {
+			return EMPTY_WEBGPU_FRAME_EXTRAS;
+		}
+		const backgroundData: number[] = [];
+		const textData: number[] = [];
+		const overlayData: number[] = [];
+		const atlasWidth = this.atlasCanvas.width;
+		const atlasHeight = this.atlasCanvas.height;
 		if (preeditLayout) {
 			for (const preeditRow of preeditLayout.rows) {
 				const cellY = preeditRow.row * this.metrics.height;
 				const startX = preeditRow.start * this.metrics.width;
 				pushRect(
-					bgData,
+					backgroundData,
 					startX,
 					cellY,
 					preeditRow.width * this.metrics.width,
 					this.metrics.height,
-					defaultBackground,
+					presentation.background,
 				);
 				let column = preeditRow.start;
 				for (const cell of preeditRow.cells) {
@@ -2620,9 +2813,9 @@ export class WebGPURenderer {
 							glyph.y / atlasHeight,
 							glyph.w / atlasWidth,
 							glyph.h / atlasHeight,
-							defaultForeground[0] / 255,
-							defaultForeground[1] / 255,
-							defaultForeground[2] / 255,
+							presentation.foreground[0] / 255,
+							presentation.foreground[1] / 255,
+							presentation.foreground[2] / 255,
 							1,
 							glyph.colored ? 1 : 0,
 						);
@@ -2635,7 +2828,7 @@ export class WebGPURenderer {
 					cellY + this.detailedMetrics.underlinePosition,
 					preeditRow.width * this.metrics.width,
 					this.detailedMetrics.underlineThickness,
-					defaultForeground,
+					presentation.foreground,
 				);
 			}
 		}
@@ -2658,24 +2851,17 @@ export class WebGPURenderer {
 							),
 						];
 			for (const geometry of geometries) {
-				pushRect(overlayData, geometry.x, geometry.y, geometry.width, geometry.height, cursorColor);
+				pushRect(
+					overlayData,
+					geometry.x,
+					geometry.y,
+					geometry.width,
+					geometry.height,
+					presentation.cursor,
+				);
 			}
 		}
-		const graphicsDraws = this.prepareWebGPUGraphics(buffer.graphics, metadata);
-		this.submitWebGPUFrame(
-			bgData,
-			textData,
-			overlayData,
-			graphicsDraws,
-			columns,
-			rows,
-			defaultBackground,
-		);
-		this.lastCursorPosition = { x: cursor.column, y: cursor.row };
-		this.lastCursorEnabled = cursorEnabled;
-		this.preeditDirty = false;
-		this.textBlinkDirty = false;
-		buffer.markRendered();
+		return { backgroundData, overlayData, textData };
 	}
 
 	private pushPackedDecorations(
@@ -2768,9 +2954,9 @@ export class WebGPURenderer {
 	}
 
 	private submitWebGPUFrame(
-		backgroundData: number[],
-		textData: number[],
-		overlayData: number[],
+		backgroundSegments: readonly (readonly number[])[],
+		textSegments: readonly (readonly number[])[],
+		overlaySegments: readonly (readonly number[])[],
 		graphicsDraws: readonly WebGPUGraphicsDraw[],
 		columns: number,
 		rows: number,
@@ -2779,9 +2965,14 @@ export class WebGPURenderer {
 		const textPipeline = this.textPipeline;
 		if (!this.device || !this.context || !this.bgPipeline || !textPipeline) return;
 		this.uploadAtlas();
-		this.frameBackgroundInstances = backgroundData.length / 8;
-		this.frameGlyphInstances = textData.length / 13;
-		this.frameOverlayInstances = overlayData.length / 8 + graphicsDraws.length;
+		const background = this.backgroundVertexStream.update(this.device, backgroundSegments);
+		const text = this.textVertexStream.update(this.device, textSegments);
+		const overlay = this.overlayVertexStream.update(this.device, overlaySegments);
+		this.frameVertexUploadBytes +=
+			background.uploadedBytes + text.uploadedBytes + overlay.uploadedBytes;
+		this.frameBackgroundInstances = background.floatCount / 8;
+		this.frameGlyphInstances = text.floatCount / 13;
+		this.frameOverlayInstances = overlay.floatCount / 8 + graphicsDraws.length;
 		if (this.uniformBuffer) {
 			this.uniformUpload[0] = columns * this.metrics.width * this.devicePixelRatio;
 			this.uniformUpload[1] = rows * this.metrics.height * this.devicePixelRatio;
@@ -2808,8 +2999,7 @@ export class WebGPURenderer {
 		});
 		const backgroundBindGroup = this.backgroundBindGroup;
 		if (this.uniformBuffer && backgroundBindGroup) {
-			const backgroundBuffer = this.uploadVertexData('background', backgroundData);
-			const graphicsBuffer = this.uploadVertexData('graphics', this.graphicsVertexData);
+			const graphicsBuffer = this.uploadGraphicsVertexData(this.graphicsVertexData);
 			const drawGraphicsLayer = (layer: KittyGraphicsLayer): void => {
 				if (!graphicsBuffer) return;
 				for (const draw of graphicsDraws) {
@@ -2822,31 +3012,27 @@ export class WebGPURenderer {
 				}
 			};
 			drawGraphicsLayer('below-background');
-			if (backgroundBuffer) {
+			if (background.buffer) {
 				renderPass.setPipeline(this.bgPipeline);
-				renderPass.setVertexBuffer(0, backgroundBuffer);
+				renderPass.setVertexBuffer(0, background.buffer);
 				renderPass.setBindGroup(0, backgroundBindGroup);
-				renderPass.draw(6, backgroundData.length / 8);
+				renderPass.draw(6, background.floatCount / 8);
 				this.frameGpuDrawCalls++;
 			}
 			drawGraphicsLayer('below-text');
-			if (textData.length > 0 && this.textBindGroup) {
-				const textBuffer = this.uploadVertexData('text', textData);
-				if (textBuffer) {
-					renderPass.setPipeline(textPipeline);
-					renderPass.setVertexBuffer(0, textBuffer);
-					renderPass.setBindGroup(0, this.textBindGroup);
-					renderPass.draw(6, textData.length / 13);
-					this.frameGpuDrawCalls++;
-				}
+			if (text.buffer && this.textBindGroup) {
+				renderPass.setPipeline(textPipeline);
+				renderPass.setVertexBuffer(0, text.buffer);
+				renderPass.setBindGroup(0, this.textBindGroup);
+				renderPass.draw(6, text.floatCount / 13);
+				this.frameGpuDrawCalls++;
 			}
 			drawGraphicsLayer('above-text');
-			const overlayBuffer = this.uploadVertexData('overlay', overlayData);
-			if (overlayBuffer) {
+			if (overlay.buffer) {
 				renderPass.setPipeline(this.bgPipeline);
-				renderPass.setVertexBuffer(0, overlayBuffer);
+				renderPass.setVertexBuffer(0, overlay.buffer);
 				renderPass.setBindGroup(0, backgroundBindGroup);
-				renderPass.draw(6, overlayData.length / 8);
+				renderPass.draw(6, overlay.floatCount / 8);
 				this.frameGpuDrawCalls++;
 			}
 		}
@@ -3801,6 +3987,38 @@ function rendererNow(): number {
 	return typeof performance !== 'undefined' && typeof performance.now === 'function'
 		? performance.now()
 		: Date.now();
+}
+
+function sameWebGPUShapingInputs(left: WebGPUShapingInputs, right: WebGPUShapingInputs): boolean {
+	return (
+		left.columns === right.columns &&
+		left.cursorColumn === right.cursorColumn &&
+		left.cursorWidth === right.cursorWidth &&
+		left.fontLigatures === right.fontLigatures &&
+		left.maximumRunColumns === right.maximumRunColumns &&
+		left.preeditEnd === right.preeditEnd &&
+		left.preeditStart === right.preeditStart &&
+		left.source === right.source &&
+		left.textBlinkVisible === right.textBlinkVisible
+	);
+}
+
+function packedRowHasBlinkingCells(row: PackedRendererRow): boolean {
+	for (const flags of row.styleFlags) {
+		if ((flags & TerminalStyleFlag.blink) !== 0) return true;
+	}
+	return false;
+}
+
+function retainEqualVertexData(
+	previous: readonly number[] | undefined,
+	next: number[],
+): readonly number[] {
+	if (previous === undefined || previous.length !== next.length) return next;
+	for (const [index, value] of next.entries()) {
+		if (previous[index] !== value) return next;
+	}
+	return previous;
 }
 
 function isCellInRange(

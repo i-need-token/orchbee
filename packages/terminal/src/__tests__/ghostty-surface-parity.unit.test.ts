@@ -1493,25 +1493,29 @@ describe('Ghostty surface parity', () => {
 		rendering.writeBuffer.mockClear();
 		vi.advanceTimersByTime(530);
 		renderer.renderPacked(store);
-		expect(floatUploads(rendering.writeBuffer).some(({ length }) => length === 24 * 13)).toBe(true);
-		expect(renderer.getLastFrameTelemetry()).toMatchObject({
+		const blinkTelemetry = renderer.getLastFrameTelemetry();
+		expect(blinkTelemetry).toMatchObject({
 			glyphInstances: 24,
+			rowsRendered: 1,
 			shapingRuns: 0,
 		});
+		expect(blinkTelemetry?.vertexUploadBytes).toBeGreaterThan(16);
 
 		rendering.writeBuffer.mockClear();
 		renderer.setFocused(true);
 		renderer.renderPacked(surfaceSourceWithVisibleCursor(store));
-		const cursorBackgroundUpload = floatUploads(rendering.writeBuffer).find(
-			({ length }) => length === 4 * 8,
-		);
-		if (cursorBackgroundUpload === undefined) throw new Error('Expected WebGPU cursor background');
-		const cursorColors = Array.from({ length: 4 }, (_value, index) =>
-			Array.from(cursorBackgroundUpload.slice(index * 8 + 4, index * 8 + 7), (value) =>
-				Math.round(value * 255),
-			),
-		);
-		expect(cursorColors).toContainEqual([245, 169, 127]);
+		const cursorColorSubmitted = floatUploads(rendering.writeBuffer).some((upload) => {
+			if (upload.length % 8 !== 0) return false;
+			for (let offset = 4; offset < upload.length; offset += 8) {
+				const color = Array.from(upload.slice(offset, offset + 3), (value) =>
+					Math.round(value * 255),
+				);
+				if (color[0] === 245 && color[1] === 169 && color[2] === 127) return true;
+			}
+			return false;
+		});
+		expect(cursorColorSubmitted).toBe(true);
+		expect(renderer.getLastFrameTelemetry()).toMatchObject({ backgroundInstances: 4 });
 		renderer.dispose();
 	});
 

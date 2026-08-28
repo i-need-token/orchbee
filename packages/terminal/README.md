@@ -652,15 +652,33 @@ decrementing the reference count; releasing the final visible-or-frozen lease de
 and discards shared pipelines. The `Document`-keyed weak map is only the concurrent discovery
 boundary, so hidden or inactive terminals retain neither GPU surfaces nor an otherwise idle device.
 
-The WebGPU path retains and clears one instance array plus one geometrically grown `Float32Array`
-upload buffer for each background, text, and overlay stream. Once a stream reaches the capacity of
-its largest prepared frame, later frames at or below that size reuse the same underlying CPU
-storage instead of allocating another frame-sized buffer. Document-hidden parking and disposal
-release the retained staging storage; the next visible full draw reconstructs it. Per-cell
-foreground/background resolution also reuses one renderer-owned scratch
-projection while callers copy only values that must outlive the current cell. These rules bound the
-two full-viewport allocation hot paths by peak prepared viewport content; they do not define a
-GPU-driver, browser, or whole-process RSS ceiling.
+The packed source remains the only terminal-content authority. WebGPU row preparation retains only
+reconstructible shaping and background, text, and overlay instance segments for the current visible
+grid. An entry is reusable only while its packed row is not dirty and its source identity, shaping
+inputs, resolved default colors, atlas generation, and row-local cursor projection still agree, and
+no global presentation invalidation is pending.
+Dirty rows rebuild from the packed source; moving the cursor rebuilds its previous and current rows.
+A complete Host redraw, surface or font geometry change, theme publication, device-pixel change,
+selection, search, preedit, text-blink, or link-hover change conservatively invalidates every
+affected prepared segment. Atlas reset or growth invalidates every cached text UV. The cache is
+bounded by the visible rows and their current compact instance payload and never participates in
+`markRendered()` ownership.
+
+Each WebGPU instance stream retains the row-segment identities and lengths, one geometrically grown
+`Float32Array` mirror, and one geometrically grown GPU vertex buffer. When changed row segments keep
+their prior lengths, only their exact compact ranges are copied and submitted with `writeBuffer`.
+The first length change moves later compact offsets, so that stream rewrites the suffix from that
+row; a new or grown GPU buffer receives one complete upload. An unchanged stream performs no vertex
+upload while the render pass still draws its complete compact instance count into the current
+swapchain texture. Device loss destroys the GPU buffer, making the next visible draw a complete
+upload even when CPU row preparation survived. Document-hidden parking and disposal release all
+row preparation and peak-sized staging storage; the next visible full draw reconstructs it.
+
+Per-cell foreground/background resolution reuses one renderer-owned scratch projection while row
+preparation copies only values that outlive the current cell. These rules bound retained CPU staging
+by peak prepared viewport content and reduce preparation and upload work without changing draw
+order, pixels, Canvas fallback behavior, or device-loss recovery. They do not define a GPU-driver,
+browser, real-GPU execution-time, or whole-process RSS ceiling.
 
 Dirty glyph-atlas rectangles transfer directly from the Canvas atlas into the WebGPU texture, so
 incremental uploads do not materialize an intermediate CPU pixel array. Frame telemetry maintains
@@ -671,13 +689,15 @@ only the anchor geometry for its painted cursor and still grants no input author
 remeasures the offset after resize, device-pixel-ratio, or presentation-configuration changes and
 before native macOS Shift input-mode handling.
 
-The glyph atlas starts at 2048 physical pixels on each axis. Admitting a complete raster reservation
-independently doubles only the axis whose current bound is too small, up to the device texture limit;
-row-wide shaping can therefore consume additional width without multiplying unused height. A cache
-reset clears entries while retaining the current atlas dimensions. Document-hidden parking retains
-that CPU atlas and glyph state but destroys its GPU texture; restoration marks the entire atlas dirty
-and uploads it into the newly created texture. Freezing retains the last presented canvas and
-resources, while disposal unconfigures the WebGPU canvas, destroys its per-surface GPU resources,
+The glyph atlas starts at 1024 physical pixels on each axis. Its CPU Canvas backing plus matching
+RGBA8 GPU texture therefore has an 8 MiB nominal pixel payload before browser and driver overhead.
+Admitting a complete raster reservation independently doubles only the axis whose current bound is
+too small, up to the device texture limit; row-wide shaping can therefore consume additional width
+without multiplying unused height. A 2048-by-1024 atlas has a 16 MiB nominal combined pixel payload.
+A cache reset clears entries while retaining the current atlas dimensions. Document-hidden parking
+retains that CPU atlas and glyph state but destroys its GPU texture; restoration marks the entire
+atlas dirty and uploads it into the newly created texture. Freezing retains the last presented canvas
+and resources, while disposal unconfigures the WebGPU canvas, destroys its per-surface GPU resources,
 clears glyph state, and resets the renderer-owned atlas Canvas backing to zero pixels.
 These are atlas and lifecycle allocation bounds, not a GPU-driver, browser, or whole-process RSS
 ceiling.
@@ -912,6 +932,7 @@ Run from the repository root:
 pnpm --filter @orchbee/terminal typecheck
 pnpm --filter @orchbee/terminal build
 pnpm --filter @orchbee/terminal test
+pnpm --filter @orchbee/terminal benchmark:renderer
 pnpm --filter @orchbee/terminal test:tla
 pnpm --filter @orchbee/terminal test:exports
 pnpm verify
@@ -920,5 +941,10 @@ pnpm verify
 `test:tla` checks the package-owned runtime-presentation and input-repair models documented in
 [`formal/README.md`](formal/README.md). They are change-triggered correctness evidence and are not
 part of the ordinary package test command.
+
+`benchmark:renderer` measures deterministic JavaScript WebGPU row preparation and mocked queue
+submission for a stable frame, one changing row, and a moving cursor. It is a same-machine
+diagnostic for before/after comparisons; it does not measure real GPU execution, browser scheduling,
+font rasterization, driver memory, or whole-process RSS.
 
 `pnpm audit:ghostty-panel` compares the maintained renderer/font provenance and generated data with the pinned Ghostty source when `../ghostty` or `GHOSTTY_SOURCE` is available. Run `pnpm generate:ghostty-panel-data` only when the pinned Nerd Font constraints, sprite ranges, or sprite reference rasters change.

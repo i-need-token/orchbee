@@ -9,6 +9,15 @@ import { fileURLToPath } from 'node:url';
 
 import { _electron as electron, expect } from '@playwright/test';
 
+import {
+	buildTerminalBenchmarkCommand,
+	positionTerminalBenchmarkPointer,
+	resolveTerminalBenchmarkInteractions,
+	summarizeElectronProcessMemory,
+	summarizeProjectionBrokerMetrics,
+	terminateBenchmarkApplication,
+} from './terminal-benchmark-interactions.mjs';
+
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(scriptDirectory, '..', '..', '..');
 const hostBinary = path.join(
@@ -107,10 +116,6 @@ function summary(values) {
 		ninetyFifthPercentile: sorted[Math.max(0, Math.ceil(sorted.length * 0.95) - 1)],
 		runs: values,
 	};
-}
-
-function shellQuote(value) {
-	return `'${value.replaceAll("'", `'\\''`)}'`;
 }
 
 async function waitForEndpoint(runtimeDirectory, endpointId, hostProcess, stderr) {
@@ -369,21 +374,16 @@ async function withHostRssSampling(hostProcess, operation) {
 	}
 }
 
-function mainProcessPeakWorkingSetKiB(metrics) {
-	return metrics.find((metric) => metric.type === 'Browser')?.memory?.peakWorkingSetSize ?? null;
-}
-
 async function measureDesktopInteractions(page, root, application, hostProcess) {
-	const input = page.getByRole('textbox').first();
-	const canvas = page.locator('canvas');
-	const accessibility = page.locator('[role="log"]');
+	const { accessibilityAnnouncement, input, measurementTarget } =
+		resolveTerminalBenchmarkInteractions(root);
 	let workerStarts = 0;
 	page.on('worker', () => {
 		workerStarts += 1;
 	});
 	const workersBefore = page.workers().length;
 
-	await canvas.hover();
+	await positionTerminalBenchmarkPointer(page, root);
 	const renderedFramesBeforeHistory = Number(
 		await root.getAttribute('data-projected-terminal-rendered-frames'),
 	);
@@ -391,7 +391,7 @@ async function measureDesktopInteractions(page, root, application, hostProcess) 
 		page,
 		async () => {
 			await page.mouse.wheel(0, -2_000);
-			await expect(accessibility).toHaveAttribute('aria-live', 'off');
+			await expect(accessibilityAnnouncement).toHaveAttribute('aria-live', 'off');
 			await expect
 				.poll(async () =>
 					Number(await root.getAttribute('data-projected-terminal-rendered-frames')),
@@ -399,7 +399,7 @@ async function measureDesktopInteractions(page, root, application, hostProcess) 
 				.toBeGreaterThan(renderedFramesBeforeHistory);
 			return Number(await root.getAttribute('data-projected-terminal-rendered-at-milliseconds'));
 		},
-		{ eventType: 'wheel', locator: canvas },
+		{ eventType: 'wheel', locator: measurementTarget },
 	);
 
 	const primaryModifier = process.platform === 'darwin' ? 'Meta' : 'Control';
@@ -424,9 +424,9 @@ async function measureDesktopInteractions(page, root, application, hostProcess) 
 	await findInput.press('Escape');
 	await expect(findSurface).not.toBeAttached();
 
-	await canvas.hover();
+	await positionTerminalBenchmarkPointer(page, root);
 	await page.mouse.wheel(0, 100_000);
-	await expect(accessibility).toHaveAttribute('aria-live', 'polite');
+	await expect(accessibilityAnnouncement).toHaveAttribute('aria-live', 'polite');
 
 	let copy = null;
 	if (process.platform === 'darwin') {
@@ -467,7 +467,7 @@ async function measureDesktopInteractions(page, root, application, hostProcess) 
 		copy,
 		electronProcesses,
 		history,
-		mainPeakWorkingSetKiB: mainProcessPeakWorkingSetKiB(electronProcesses),
+		...summarizeElectronProcessMemory(electronProcesses),
 		search,
 		workers: {
 			liveAfter: page.workers().length,
@@ -524,16 +524,14 @@ async function runDesktopBenchmark(file, runNumber) {
 		await wait(1_000);
 		const idleElectronProcesses = await application.evaluate(({ app }) => app.getAppMetrics());
 		const idleHost = readHostProcessMetrics(hostProcess);
-		const command = `time -p cat -n ${shellQuote(file)}; exit`;
-		const input = page.getByRole('textbox');
+		const completionMarker = `orchbee-benchmark-complete-${randomBytes(16).toString('hex')}`;
+		const command = buildTerminalBenchmarkCommand(file, completionMarker);
+		const { accessibilityScreen, input } = resolveTerminalBenchmarkInteractions(root);
 		await input.pressSequentially(command);
 		const started = performance.now();
 		await input.press('Enter');
-		await expect(root).toHaveAttribute('data-projected-terminal-state', 'exited', {
+		await expect(accessibilityScreen).toContainText(completionMarker, {
 			timeout: 180_000,
-		});
-		await expect(root).toHaveAttribute('data-projected-terminal-final-frame-presented', 'true', {
-			timeout: 10_000,
 		});
 		const wallSeconds = (performance.now() - started) / 1000;
 		const renderer = await root.evaluate((element) => ({
@@ -546,6 +544,9 @@ async function runDesktopBenchmark(file, runNumber) {
 			renderer: element.getAttribute('data-projected-terminal-renderer'),
 			rows: Number(element.getAttribute('data-projected-terminal-rows')),
 		}));
+		const interactions = await measureDesktopInteractions(page, root, application, hostProcess);
+		await input.focus();
+		await input.press('Enter');
 		await expect
 			.poll(() =>
 				parseJsonLines(traces).some(
@@ -554,36 +555,32 @@ async function runDesktopBenchmark(file, runNumber) {
 				),
 			)
 			.toBe(true);
-		const idleFeatureTrace = parseJsonLines(traces)
+		const completionFeatureTrace = parseJsonLines(traces)
 			.filter(
 				(value) => value.type === 'orchbee.desktop.copy-path' && value.reason === 'terminal-exited',
 			)
 			.at(-1);
-		const interactions = await measureDesktopInteractions(page, root, application, hostProcess);
-		await application.close();
+		const copyPath =
+			completionFeatureTrace === undefined
+				? undefined
+				: {
+						...completionFeatureTrace,
+						broker: summarizeProjectionBrokerMetrics(completionFeatureTrace.brokers),
+					};
+		if ((copyPath?.broker?.clipboardCommits ?? 0) <= 0) {
+			throw new Error('Terminal exit trace did not include the completed clipboard interaction.');
+		}
+		await terminateBenchmarkApplication(application);
 		application = undefined;
-		await expect
-			.poll(() =>
-				parseJsonLines(traces).some(
-					(value) =>
-						value.type === 'orchbee.desktop.copy-path' && value.broker?.clipboardCommits > 0,
-				),
-			)
-			.toBe(true);
-		const trace = parseJsonLines(traces)
-			.filter(
-				(value) => value.type === 'orchbee.desktop.copy-path' && value.broker?.clipboardCommits > 0,
-			)
-			.at(-1);
 		const hostSelectionExport = parseJsonLines(stderr)
 			.filter((value) => value.type === 'orchbee.terminal-host.selection-export')
 			.at(-1);
 		return {
-			copyPath: trace,
+			copyPath,
+			completion: { featureTrace: copyPath },
 			hostSelectionExport,
 			idle: {
 				electronProcesses: idleElectronProcesses,
-				featureTrace: idleFeatureTrace,
 				host: idleHost,
 			},
 			interactions,
@@ -592,7 +589,9 @@ async function runDesktopBenchmark(file, runNumber) {
 			wallSeconds,
 		};
 	} finally {
-		await application?.close().catch(() => undefined);
+		if (application !== undefined) {
+			await terminateBenchmarkApplication(application).catch(() => undefined);
+		}
 		await stopHost(hostProcess);
 		await rm(runtimeDirectory, { force: true, recursive: true });
 	}
@@ -678,7 +677,19 @@ const hostSampledPeakRssKiB = finiteSummary(
 	results.map((result) => result.interactions.copy?.hostSampledPeakRssKiB),
 );
 const mainPeakWorkingSetKiB = finiteSummary(
-	results.map((result) => result.interactions.mainPeakWorkingSetKiB),
+	results.map((result) => result.interactions.browserPeakWorkingSetKiB),
+);
+const rendererPeakWorkingSetKiB = finiteSummary(
+	results.map((result) => result.interactions.rendererPeakWorkingSetKiB),
+);
+const gpuPeakWorkingSetKiB = finiteSummary(
+	results.map((result) => result.interactions.gpuPeakWorkingSetKiB),
+);
+const electronCurrentWorkingSetKiB = finiteSummary(
+	results.map((result) => result.interactions.electronCurrentWorkingSetKiB),
+);
+const electronPeakWorkingSetKiB = finiteSummary(
+	results.map((result) => result.interactions.electronPeakWorkingSetKiB),
 );
 const longTaskObservationAvailable = results.every(
 	(result) =>
@@ -686,15 +697,17 @@ const longTaskObservationAvailable = results.every(
 		result.interactions.search.longTaskObserverSupported &&
 		(result.interactions.copy?.longTaskObserverSupported ?? false),
 );
-const idleFeaturePathInactive = results.every((result) => {
-	const metrics = result.idle.featureTrace?.broker;
+const interactionFeaturePathObserved = results.every((result) => {
+	const metrics = result.completion.featureTrace?.broker;
 	return (
-		result.interactions.workers.workersBefore === 0 &&
-		metrics?.rowWindowsForwarded === 0 &&
-		metrics?.selectionExportChunksForwarded === 0 &&
-		metrics?.clipboardCommits === 0
+		metrics?.rowWindowsForwarded > 0 &&
+		metrics?.selectionExportChunksForwarded > 0 &&
+		metrics?.clipboardCommits > 0
 	);
 });
+const workersIdleBeforeInteractions = results.every(
+	(result) => result.interactions.workers.workersBefore === 0,
+);
 const searchWorkerLifecycleCompleted = results.every(
 	(result) =>
 		result.interactions.workers.started === 1 && result.interactions.workers.liveAfter === 0,
@@ -721,9 +734,10 @@ const report = {
 		workers: results.map((result) => result.interactions.workers),
 	},
 	diagnosticObservations: {
-		idleFeaturePathInactive,
+		interactionFeaturePathObserved,
 		longTaskObservationAvailable,
 		searchWorkerLifecycleCompleted,
+		workersIdleBeforeInteractions,
 	},
 	desktop,
 	file: { bytes: file.size, path: options.file },
@@ -732,6 +746,13 @@ const report = {
 	ghosttyRatio,
 	hostOnly,
 	hostOnlyIncrementalSeconds: hostOnly === null ? null : desktop.median - hostOnly.median,
+	memory: {
+		browserPeakWorkingSetKiB: mainPeakWorkingSetKiB,
+		electronCurrentWorkingSetKiB,
+		electronPeakWorkingSetKiB,
+		gpuPeakWorkingSetKiB,
+		rendererPeakWorkingSetKiB,
+	},
 	samplingOrder: options.measureGhostty ? 'paired-alternating-after-desktop-bootstrap' : null,
 	type: 'orchbee.desktop.benchmark-summary',
 };
