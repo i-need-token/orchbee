@@ -1493,6 +1493,33 @@
 			]
 		},
 		{
+			"id": "panel-broadcast-input-coordination",
+			"owner": "@orchbee/workbench",
+			"workspace": "packages/workbench",
+			"module": "packages/workbench/formal/tla/PanelBroadcastInputCoordination.tla",
+			"config": "packages/workbench/formal/tla/PanelBroadcastInputCoordination.cfg",
+			"claims": ["packages/workbench/docs/panel-broadcast-input.md"],
+			"triggers": [
+				"packages/workbench/src/workbench/components/workbench-panel-workspace/**",
+				"packages/workbench/src/workbench/types/workbench-terminal-surface.ts",
+				"apps/web/src/workbench-client/projected-terminal-renderer/**",
+				"apps/web/src/workbench-client/projected-terminal-surface/**",
+				"packages/terminal/src/projected/projected-terminal.ts"
+			],
+			"requiredCoverage": [
+				"Start",
+				"Enqueue",
+				"Dispatch",
+				"CompleteSuccess",
+				"CompletePartial",
+				"ToggleHidden",
+				"End",
+				"Invalidate",
+				"DismissStopped",
+				"RejectStaleCompletion"
+			]
+		},
+		{
 			"id": "search-provider-coordination",
 			"owner": "@orchbee/workbench",
 			"workspace": "packages/workbench",

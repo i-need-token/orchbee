@@ -47,6 +47,15 @@ Transport loss also races font and GPU startup explicitly: it aborts that candid
 can stall recovery, and promotion checks the candidate's current transport availability both before
 and after its first-frame wait.
 
+Each projected surface binds one transient broadcast-input sink to its exact Workbench
+Presentation. The sink reports ready only while the recovery controller owns an active transport
+and the projected terminal exposes the matching attachment capability revision. Capability change,
+retention, transport loss, candidate replacement, freeze, and disposal notify the Workbench before
+later input can reuse that sink. One accepted send delegates once to the projected terminal's
+attachment-local injection path with the snapshot revision as a compare-and-send guard; unavailable
+legacy or test renderers and a changed revision fail closed. The adapter does not coordinate
+targets, retry, roll back, or replay a multi-terminal delivery.
+
 Active-Tab handoff uses the same frozen-session discipline without keeping inactive terminal DOM or
 attachments mounted. When a surface becomes retained, it captures only its exact last-painted
 semantic presentation, freezes the canvas, and releases transport, input, resize, request, and

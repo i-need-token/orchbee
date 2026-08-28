@@ -369,6 +369,40 @@ export type ProjectedTerminalInputCapabilityUpdateResult =
 				| 'terminal-sealed';
 	  };
 
+export interface ProjectedTerminalInjectedKeyModifiers {
+	readonly alt: boolean;
+	readonly altLeft: boolean;
+	readonly altRight: boolean;
+	readonly altGraph: boolean;
+	readonly capsLock: boolean;
+	readonly control: boolean;
+	readonly controlRight: boolean;
+	readonly meta: boolean;
+	readonly metaRight: boolean;
+	readonly numLock: boolean;
+	readonly shift: boolean;
+	readonly shiftRight: boolean;
+}
+
+export type ProjectedTerminalInjectedInput =
+	| {
+			readonly code: string;
+			readonly key: string;
+			readonly kind: 'key';
+			readonly modifiers: ProjectedTerminalInjectedKeyModifiers;
+			readonly repeat: boolean;
+	  }
+	| { readonly kind: 'text'; readonly text: string };
+
+export type ProjectedTerminalInjectedInputReadiness =
+	| { readonly kind: 'ready'; readonly revision: string }
+	| { readonly kind: 'unavailable' };
+
+export type ProjectedTerminalInjectedInputResult =
+	| { readonly kind: 'blocked' }
+	| { readonly kind: 'failed' }
+	| { readonly kind: 'sent' };
+
 export type ProjectedPasteResult =
 	| { readonly kind: 'blocked'; readonly review: ProjectedPasteReview }
 	| { readonly kind: 'empty' }
@@ -819,6 +853,9 @@ export class ProjectedTerminal {
 	readonly #inputDispatcher = new OrderedInputDispatcher((error) =>
 		this.#errorEmitter.fire({ error, operation: 'command' }),
 	);
+	readonly #injectedInputReadinessEmitter =
+		new EventEmitter<ProjectedTerminalInjectedInputReadiness>();
+	#lastPublishedInjectedInputReadiness: ProjectedTerminalInjectedInputReadiness | undefined;
 	readonly #metadataEmitter = new EventEmitter<ProjectedTerminalMetadata>();
 	readonly #linkOpenEmitter = new EventEmitter<ProjectedTerminalLinkOpenRequest>();
 	readonly #linkCompletions = new Map<
@@ -1041,6 +1078,33 @@ export class ProjectedTerminal {
 		return !this.#isDisposed() && this.#inputEnabled;
 	}
 
+	get injectedInputReadiness(): ProjectedTerminalInjectedInputReadiness {
+		return this.#phase === ProjectedTerminalPhase.open &&
+			this.#inputEnabled &&
+			!this.#terminalControlSealed &&
+			this.#inputAdmission !== ProjectedInputAdmission.disposed &&
+			!this.#disposalStarted &&
+			!this.#disposeAfterRepair
+			? {
+					kind: 'ready',
+					revision: `${this.#attachmentId}:${this.#capabilityRevision}`,
+				}
+			: { kind: 'unavailable' };
+	}
+
+	#publishInjectedInputReadiness(): void {
+		const next = this.injectedInputReadiness;
+		const previous = this.#lastPublishedInjectedInputReadiness;
+		if (
+			(previous?.kind === 'unavailable' && next.kind === 'unavailable') ||
+			(previous?.kind === 'ready' && next.kind === 'ready' && previous.revision === next.revision)
+		) {
+			return;
+		}
+		this.#lastPublishedInjectedInputReadiness = next;
+		this.#injectedInputReadinessEmitter.fire(next);
+	}
+
 	get canScrollHistory(): boolean {
 		const metadata = this.#store.metadata;
 		return (
@@ -1108,6 +1172,8 @@ export class ProjectedTerminal {
 	readonly onMetadataChange: IEvent<ProjectedTerminalMetadata> = this.#metadataEmitter.event;
 	readonly onRendererHealth: IEvent<RendererHealthEvent> = this.#healthEmitter.event;
 	readonly onHistoryChange: IEvent<HistoryChanged> = this.#historyEmitter.event;
+	readonly onInjectedInputReadinessChange: IEvent<ProjectedTerminalInjectedInputReadiness> =
+		this.#injectedInputReadinessEmitter.event;
 	readonly onLinkOpenRequest: IEvent<ProjectedTerminalLinkOpenRequest> =
 		this.#linkOpenEmitter.event;
 	readonly onSelectionChange: IEvent<SelectionChanged> = this.#selectionEmitter.event;
@@ -1281,6 +1347,7 @@ export class ProjectedTerminal {
 			this.#installDevicePixelRatioListeners(view);
 			this.#installResizeObserver(root);
 			this.#phase = ProjectedTerminalPhase.open;
+			this.#publishInjectedInputReadiness();
 			this.#updateSurfaceMouseCursor();
 			this.#syncRendererSuspension();
 			this.#flushOpeningFrameAcknowledgement();
@@ -2359,6 +2426,7 @@ export class ProjectedTerminal {
 		}
 		this.#inputEnabled = true;
 		this.#input?.removeAttribute('readonly');
+		this.#publishInjectedInputReadiness();
 		return { kind: 'applied' };
 	}
 
@@ -2607,6 +2675,27 @@ export class ProjectedTerminal {
 		this.#input?.focus({ preventScroll: true });
 	}
 
+	/** Publishes trusted, attachment-local input captured by an application-owned live input surface. */
+	async injectInput(
+		input: ProjectedTerminalInjectedInput,
+		expectedRevision: string,
+	): Promise<ProjectedTerminalInjectedInputResult> {
+		const prepared = this.#prepareInjectedInput(input);
+		if (prepared === null || !this.#injectedInputRevisionIsCurrent(expectedRevision)) {
+			return { kind: 'blocked' };
+		}
+		this.#sealNativeInputSettlement();
+		return await this.#inputDispatcher.dispatch(
+			async (signal) => await this.#performInjectedInput(prepared, expectedRevision, signal),
+			() => ({ kind: 'blocked' }),
+		);
+	}
+
+	#injectedInputRevisionIsCurrent(expectedRevision: string): boolean {
+		const readiness = this.injectedInputReadiness;
+		return readiness.kind === 'ready' && readiness.revision === expectedRevision;
+	}
+
 	async paste(text: string, source: ProjectedPasteSource = 'api'): Promise<ProjectedPasteResult> {
 		const admitted = this.#canAdmitInput();
 		if (admitted) this.#sealNativeInputSettlement();
@@ -2614,6 +2703,184 @@ export class ProjectedTerminal {
 			(signal) => this.#performPaste(text, source, admitted, signal),
 			() => this.#cancelledPasteResult(text, source),
 		);
+	}
+
+	#prepareInjectedInput(
+		input: ProjectedTerminalInjectedInput,
+	):
+		| { readonly kind: 'key'; readonly facts: KeyFacts; readonly repeat: boolean }
+		| TextInput
+		| null {
+		if (input.kind === 'text') {
+			if (
+				input.text === '' ||
+				textEncoder.encode(input.text).byteLength > PROTOCOL_LIMITS.maxInputBytes
+			) {
+				return null;
+			}
+			return {
+				attachmentId: this.#attachmentId,
+				capabilityRevision: this.#capabilityRevision,
+				text: input.text,
+			};
+		}
+		if (input.code === '' || input.code === 'Unidentified') return null;
+		const trackedCode = normalizedKeyboardCode(input.code);
+		const text = keyboardKeyText(input.key);
+		const key = terminalKeyCode(trackedCode, text);
+		if (key === null) return null;
+		const modifiers: TerminalModifiers = {
+			alt: input.modifiers.alt,
+			altRight: input.modifiers.altRight,
+			capsLock: input.modifiers.capsLock,
+			control: input.modifiers.control,
+			controlRight: input.modifiers.controlRight,
+			meta: input.modifiers.meta,
+			metaRight: input.modifiers.metaRight,
+			numLock: input.modifiers.numLock,
+			shift: input.modifiers.shift,
+			shiftRight: input.modifiers.shiftRight,
+		};
+		const unshiftedCodepoint = unshiftedCharacter(trackedCode)?.codePointAt(0) ?? 0;
+		const consumedModifiers = emptyModifiers();
+		if (input.modifiers.shift && text && unshiftedCodepoint !== text.codePointAt(0)) {
+			consumedModifiers.shift = true;
+			consumedModifiers.shiftRight = input.modifiers.shiftRight;
+		}
+		if (text && input.modifiers.altGraph) {
+			consumedModifiers.alt = modifiers.alt;
+			consumedModifiers.altRight = modifiers.altRight;
+			consumedModifiers.control = modifiers.control;
+			consumedModifiers.controlRight = modifiers.controlRight;
+		}
+		return {
+			facts: {
+				composing: false,
+				consumedModifiers,
+				key,
+				modifiers,
+				optionAsAlt: this.#injectedOptionIsAlt(modifiers, input.modifiers.altLeft),
+				text,
+				unshiftedCodepoint,
+			},
+			kind: 'key',
+			repeat: input.repeat,
+		};
+	}
+
+	async #performInjectedInput(
+		prepared:
+			| { readonly kind: 'key'; readonly facts: KeyFacts; readonly repeat: boolean }
+			| TextInput,
+		expectedRevision: string,
+		signal: AbortSignal,
+	): Promise<ProjectedTerminalInjectedInputResult> {
+		if (
+			signal.aborted ||
+			!this.#injectedInputRevisionIsCurrent(expectedRevision) ||
+			!this.#canAdmitInput()
+		) {
+			return { kind: 'blocked' };
+		}
+		const inputOperationEpoch = this.#inputRepairEpoch;
+		if (
+			!this.#transitionSurfaceBeforeInput(() => this.#inputOperationIsCurrent(inputOperationEpoch))
+		) {
+			return { kind: 'blocked' };
+		}
+		if ('text' in prepared) {
+			return await this.#publishInjectedInputCommand(
+				{ kind: 'text-input', payload: prepared },
+				ProjectedInputPublicationIntent.stateless,
+				inputOperationEpoch,
+				signal,
+			);
+		}
+		const action = prepared.repeat ? KeyAction.repeat : KeyAction.press;
+		const pressed = await this.#publishInjectedInputCommand(
+			{
+				kind: 'key-input',
+				payload: {
+					action,
+					attachmentId: this.#attachmentId,
+					capabilityRevision: this.#capabilityRevision,
+					...prepared.facts,
+				},
+			},
+			prepared.repeat
+				? ProjectedInputPublicationIntent.stateless
+				: ProjectedInputPublicationIntent.held,
+			inputOperationEpoch,
+			signal,
+		);
+		if (pressed.kind !== 'sent' || prepared.repeat) return pressed;
+		const released = await this.#publishInjectedInputCommand(
+			{
+				kind: 'key-input',
+				payload: {
+					action: KeyAction.release,
+					attachmentId: this.#attachmentId,
+					capabilityRevision: this.#capabilityRevision,
+					...prepared.facts,
+				},
+			},
+			ProjectedInputPublicationIntent.held,
+			inputOperationEpoch,
+			signal,
+		);
+		if (released.kind === 'failed') this.#repairInputState();
+		return released;
+	}
+
+	async #publishInjectedInputCommand(
+		command: ProjectedTerminalCommand,
+		intent: ProjectedInputPublicationIntent,
+		inputOperationEpoch: number,
+		signal: AbortSignal,
+	): Promise<ProjectedTerminalInjectedInputResult> {
+		if (
+			signal.aborted ||
+			!this.#inputOperationIsCurrent(inputOperationEpoch) ||
+			!this.#inputEnabled ||
+			this.#inputPublicationActive
+		) {
+			return { kind: 'blocked' };
+		}
+		if (
+			intent === ProjectedInputPublicationIntent.held &&
+			!this.#heldInputCommandIsPublishable(command)
+		) {
+			return { kind: 'sent' };
+		}
+		this.#inputPublicationActive = true;
+		try {
+			await this.#options.port.send(command);
+			this.#invalidateCloseActivityAfterAcceptedInput(command);
+			if (this.#inputEnabled && intent === ProjectedInputPublicationIntent.held) {
+				this.#commitPublishedInputOwnership(command);
+			}
+			return { kind: 'sent' };
+		} catch (error) {
+			this.#reportCommandFailure(command, error);
+			return { kind: 'failed' };
+		} finally {
+			this.#inputPublicationActive = false;
+			this.#resumeDeferredInputRepair();
+		}
+	}
+
+	#injectedOptionIsAlt(modifiers: TerminalModifiers, altLeft: boolean): boolean {
+		if (this.#surfaceMousePlatform !== 'macos' || !modifiers.alt) return false;
+		switch (this.#optionAsAltMode) {
+			case 'both':
+				return true;
+			case 'left':
+				return altLeft || !modifiers.altRight;
+			case 'off':
+				return false;
+			case 'right':
+				return modifiers.altRight;
+		}
 	}
 
 	async #performPaste(
@@ -2785,6 +3052,7 @@ export class ProjectedTerminal {
 		this.#pressedModifierCodes.clear();
 		this.#resetSurfaceMouseModifiers();
 		this.#clearApplicationMouseClickSuppression();
+		this.#publishInjectedInputReadiness();
 	}
 
 	dispose(): void {
@@ -2796,6 +3064,7 @@ export class ProjectedTerminal {
 		if (this.#inputAdmission === ProjectedInputAdmission.disposed) return;
 		if (this.#inputRepairTransaction !== undefined) {
 			this.#inputAdmission = ProjectedInputAdmission.disposed;
+			this.#publishInjectedInputReadiness();
 			this.#inputRepairEpoch++;
 			this.#inputDispatcher.invalidate();
 			this.#disposeAfterRepair = true;
@@ -2803,6 +3072,7 @@ export class ProjectedTerminal {
 			return;
 		}
 		this.#inputAdmission = ProjectedInputAdmission.disposed;
+		this.#publishInjectedInputReadiness();
 		this.#inputRepairEpoch++;
 		this.#inputDispatcher.invalidate();
 		if (this.#inputPublicationActive) {
@@ -2834,6 +3104,7 @@ export class ProjectedTerminal {
 		this.#cancelThemePresentationStage('disposed');
 		this.#prepareFocusLossInputRepair(true);
 		this.#phase = ProjectedTerminalPhase.frozen;
+		this.#publishInjectedInputReadiness();
 		this.#historyPhase = ProjectedHistoryPhase.disposed;
 		this.#historyRecoverySmoothPresentation = false;
 		this.#pendingHistorySmoothPresentation = false;
@@ -2879,6 +3150,7 @@ export class ProjectedTerminal {
 		this.#presentationSuspended = false;
 		this.#demandSent = undefined;
 		this.#phase = ProjectedTerminalPhase.constructed;
+		this.#publishInjectedInputReadiness();
 	}
 
 	#performDispose(inputCleanupAttempted = false, publishLifecycle = true): void {
@@ -2898,6 +3170,7 @@ export class ProjectedTerminal {
 			this.#sendDemandIfNeeded();
 		}
 		this.#phase = ProjectedTerminalPhase.disposed;
+		this.#publishInjectedInputReadiness();
 		this.#historyPhase = ProjectedHistoryPhase.disposed;
 		if (publishLifecycle) this.#dispatchDisposedInputCleanup(inputCleanup);
 		this.#cancelAuxiliaryRowFlights();
@@ -2940,6 +3213,7 @@ export class ProjectedTerminal {
 		this.#frameTelemetryEmitter.dispose();
 		this.#healthEmitter.dispose();
 		this.#historyEmitter.dispose();
+		this.#injectedInputReadinessEmitter.dispose();
 		this.#linkOpenEmitter.dispose();
 		this.#metadataEmitter.dispose();
 		this.#selectionEmitter.dispose();

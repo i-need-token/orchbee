@@ -18,6 +18,8 @@ Desktop `MessagePort` 投影适配器会让每项本地已释放请求保持关�
 
 意外的附件丢失会冻结最后完成的画布和可访问的行，同时释放其传输和交互所有权。共享表面会在 250、500 和 1,000 毫秒后重试新的附件，并且仅在候选者绘制其第一帧后才替换冻结的投影。耗尽预算后，诚实的最后一帧可见，并暴露了一个本地化的手动重试操作；每次尝试都拥有并释放一个投影请求。类型为 `renderer-backpressure`、`host-transport-backpressure` 或 `host-connection-unavailable` 故障在保留其原始操作和相关诊断后解决相同的附件本地传输不可用信号； Surface 永远不会重试被拒绝的命令或继续使用因果不完整的附件。传输丢失还会显式地与字体和 GPU 启动竞争：它在启动之前中止该候选者可能会拖延恢复，并且升级会在第一帧等待之前和之后检查候选者当前的传输可用性。
 
+每个投影表面都会把一个瞬态广播输入 sink 绑定到其精确 Workbench Presentation。只有恢复控制器拥有活动传输，且投影终端公开匹配的附件能力修订时，该 sink 才报告就绪。能力变化、保留、传输丢失、候选替换、冻结与处置都会在后续输入能够复用该 sink 前通知 Workbench。一次获准发送只会把快照修订作为 compare-and-send 守卫，委托一次投影终端的附件本地注入路径；缺少此能力的旧版或测试渲染器及修订变化都会失败关闭。适配器不协调目标，也不重试、回滚或重放多终端投递。
+
 活动 Tab 交接复用同一套 frozen-session 规则，同时不让非活动终端 DOM 或 attachment 保持挂载。surface 进入 retained 状态时，只捕获精确的最后已绘制语义呈现、冻结 canvas，并释放 transport、输入、resize、request 与 attachment 所有权。应用级 `TerminalPresentationSnapshotCache` 以按字节计量的 `32 MiB` least-recently-used 预算保留这些仅显示快照，并在共享客户端 runtime 处置时清空。incoming surface 可以在新实时 attachment 产出帧前绘制缓存快照；该缓存绘制只满足 Workbench 的 display-ready 屏障，输入、指针交互与 `autoFocus` 仍保持禁用，直到候选者绘制首个实时帧并满足 activation-ready。缓存 miss 或快照过大时，退出的冻结层会保持可见，直至实时、stopped 或真实失败内容就绪。返回仍被冻结的 surface 时，会复用其 canvas 满足显示屏障，同时在其后方连接新候选者。被取代或不活动的 session 不能确认帧或发布元数据，并且每个 surface 仍会在交接后释放其逐终端 Canvas、atlas、buffer 与 renderer。
 
 附件能力失败不同于传输丢失与最终结果。共享表面把操作、代码、可重试性、Host 关联 ID 或客户端请求序列保留为有界诊断，并应用匹配的终端结果。后台输入确认、历史与调整大小失败绝不产生全局终端内容通知：被拒绝的输入仍留在有界诊断与必要的传输恢复路径中，历史反馈属于查找表面，调整大小仍留在其有界重试与诊断路径。连接、运行时及显式用户 Action 失败会保留本地可见反馈。应用不会自动重放终端输入、控制、剪贴板或导航效果。

@@ -41,6 +41,7 @@ interface PanelActionOperations {
 		childPresentationId: TerminalPresentationId,
 	) => PanelWorkspaceTransition | null;
 	readonly closeDisplayedTerminal: (input: PanelCloseInput) => PanelWorkspaceTransition | null;
+	readonly canStartBroadcastInput: (panelId: string) => boolean;
 	readonly createChildTerminal: (panelId: string) => PanelWorkspaceTransition | null;
 	readonly equalizePanels: (panelId: string) => PanelWorkspaceTransition | null;
 	readonly focusPanel: (panelId: string) => PanelWorkspaceTransition | null;
@@ -60,6 +61,7 @@ interface PanelActionOperations {
 		direction: 'above' | 'below' | 'left' | 'right',
 	) => { readonly panelId: string; readonly transition: PanelWorkspaceTransition } | null;
 	readonly startPanelResize: (panelId: string) => boolean;
+	readonly startBroadcastInput: (panelId: string) => boolean;
 	readonly startPanelVisualSelection: (
 		panelId: string,
 		mode: PanelVisualSelectionInput['mode'],
@@ -152,6 +154,33 @@ export function useWorkbenchPanelActions({
 				: { kind: 'completed' as const };
 		};
 		const registrations = [
+			typedRuntime.register(
+				scope,
+				defineAction({
+					category,
+					execution: {
+						concurrency: 'serialize',
+						concurrencyKey: () => 'panel-broadcast-input',
+						mode: 'foreground',
+					},
+					getAvailability: (_context, input) =>
+						operations.canStartBroadcastInput(input.panelId)
+							? { kind: 'enabled' }
+							: { kind: 'disabled', reason: workbenchMessages.actionUnavailable },
+					handler: {
+						execute: (context, input) => {
+							if (!operations.startBroadcastInput(input.panelId)) {
+								return { code: 'broadcast-target-unavailable', kind: 'blocked' };
+							}
+							context.markCommitted();
+							return { kind: 'completed' };
+						},
+					},
+					id: PANEL_ACTION_IDS.startBroadcastInput,
+					input: panelTargetInput,
+					title: workbenchMessages.panelBroadcastInputStart,
+				}),
+			),
 			typedRuntime.register(
 				scope,
 				defineAction({

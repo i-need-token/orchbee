@@ -26,6 +26,7 @@ export const WORKBENCH_ACTION_IDS = {
 	focusActivePanelVisible: 'workbench.panel.active.focus-visible',
 	increaseTerminalFontSize: 'workbench.terminal.font-size.increase',
 	openSearch: 'workbench.search.open',
+	openPanelBroadcastInput: 'workbench.panel.active.broadcast-input.open',
 	openSettings: 'workbench.settings.open',
 	removeProject: 'workbench.project.remove',
 	removeProjectDirectory: 'workbench.project.directory.remove',
@@ -159,6 +160,7 @@ export interface WorkbenchActionCatalog {
 	readonly [WORKBENCH_ACTION_IDS.focusActivePanelVisible]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.increaseTerminalFontSize]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.openSearch]: ActionSignature<WorkbenchSearchOpenInput>;
+	readonly [WORKBENCH_ACTION_IDS.openPanelBroadcastInput]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.openSettings]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.removeProject]: ActionSignature<WorkbenchProjectInput>;
 	readonly [WORKBENCH_ACTION_IDS.removeProjectDirectory]: ActionSignature<WorkbenchProjectDirectoryInput>;

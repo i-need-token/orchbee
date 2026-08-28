@@ -2,6 +2,12 @@ import type {
 	ProjectedPasteResult,
 	ProjectedTerminalPresentationSnapshot,
 } from '@orchbee/terminal';
+import type {
+	WorkbenchTerminalBroadcastInput,
+	WorkbenchTerminalBroadcastInputReadiness,
+	WorkbenchTerminalBroadcastInputResult,
+	WorkbenchTerminalBroadcastInputSink,
+} from '@orchbee/workbench';
 
 import type { ProjectedTerminalRendererSession } from '../../projected-terminal-renderer';
 import type { TerminalProjection, TerminalProjectionRequest } from '../../terminal-projection';
@@ -43,7 +49,7 @@ export type ProjectedTerminalRecoveryFileDropResult =
 type RecoveryAttemptSource = 'automatic' | 'initial' | 'manual';
 
 /** Owns one bounded projected-attachment recovery sequence for a mounted terminal surface. */
-export class ProjectedTerminalRecoveryController {
+export class ProjectedTerminalRecoveryController implements WorkbenchTerminalBroadcastInputSink {
 	readonly #onActivationReady: () => void;
 	readonly #onDisplayReady: () => void;
 	readonly #onRetainedSnapshot: (snapshot: ProjectedTerminalPresentationSnapshot) => void;
@@ -51,7 +57,9 @@ export class ProjectedTerminalRecoveryController {
 	readonly #open: ProjectedTerminalRecoveryControllerOptions['open'];
 	readonly #startRenderer: ProjectedTerminalRecoveryControllerOptions['startRenderer'];
 	#active: ManagedProjectedTerminalSession | undefined;
+	#activeBroadcastInputSubscription: { dispose(): void } | undefined;
 	#automaticRetryIndex = 0;
+	readonly #broadcastInputReadinessListeners = new Set<() => void>();
 	#candidate: ManagedProjectedTerminalSession | undefined;
 	#disposed = false;
 	readonly #disposedPromise: Promise<void>;
@@ -93,7 +101,9 @@ export class ProjectedTerminalRecoveryController {
 			this.#freezeForRetention(candidate);
 		} else if (this.#active !== undefined) {
 			const active = this.#active;
+			this.#unbindActiveBroadcastInput();
 			this.#active = undefined;
+			this.#notifyBroadcastInputReadiness();
 			this.#freezeForRetention(active);
 		} else {
 			this.#pending?.release();
@@ -132,6 +142,36 @@ export class ProjectedTerminalRecoveryController {
 		return true;
 	}
 
+	getReadiness(): WorkbenchTerminalBroadcastInputReadiness {
+		return this.#disposed
+			? { kind: 'unavailable' }
+			: (this.#active?.session.getBroadcastInputReadiness?.() ?? { kind: 'unavailable' });
+	}
+
+	async send(
+		input: WorkbenchTerminalBroadcastInput,
+		expectedRevision: string,
+	): Promise<WorkbenchTerminalBroadcastInputResult> {
+		const active = this.#active;
+		if (this.#disposed || active === undefined) return { kind: 'blocked' };
+		const readiness = active.session.getBroadcastInputReadiness?.();
+		if (readiness?.kind !== 'ready' || readiness.revision !== expectedRevision) {
+			return { kind: 'blocked' };
+		}
+		return (
+			(await active.session.sendBroadcastInput?.(input, expectedRevision)) ?? {
+				kind: 'blocked',
+			}
+		);
+	}
+
+	subscribe(listener: () => void): { dispose(): void } {
+		if (!this.#disposed) this.#broadcastInputReadinessListeners.add(listener);
+		return {
+			dispose: () => this.#broadcastInputReadinessListeners.delete(listener),
+		};
+	}
+
 	async pasteFileDrop(text: string): Promise<ProjectedTerminalRecoveryFileDropResult> {
 		if (this.#disposed || this.#active === undefined) return { kind: 'unavailable' };
 		return await this.#active.session.pasteFileDrop(text);
@@ -140,6 +180,9 @@ export class ProjectedTerminalRecoveryController {
 	dispose(): void {
 		if (this.#disposed) return;
 		this.#disposed = true;
+		this.#unbindActiveBroadcastInput();
+		this.#notifyBroadcastInputReadiness();
+		this.#broadcastInputReadinessListeners.clear();
 		this.#resolveDisposed?.();
 		this.#resolveDisposed = undefined;
 		if (this.#retryTimer !== undefined) globalThis.clearTimeout(this.#retryTimer);
@@ -249,6 +292,7 @@ export class ProjectedTerminalRecoveryController {
 		this.#frozen?.release();
 		this.#frozen = undefined;
 		this.#active = managed;
+		this.#bindActiveBroadcastInput(managed);
 		this.#automaticRetryIndex = 0;
 		this.#onStateChange({ kind: 'ready' });
 		this.#onDisplayReady();
@@ -258,7 +302,9 @@ export class ProjectedTerminalRecoveryController {
 
 	#handleTransportUnavailable(managed: ManagedProjectedTerminalSession): void {
 		if (this.#disposed || this.#active !== managed) return;
+		this.#unbindActiveBroadcastInput();
 		this.#active = undefined;
+		this.#notifyBroadcastInputReadiness();
 		managed.session.freeze();
 		managed.release();
 		this.#frozen?.session.dispose();
@@ -310,6 +356,23 @@ export class ProjectedTerminalRecoveryController {
 		this.#frozen?.session.dispose();
 		this.#frozen?.release();
 		this.#frozen = managed;
+	}
+
+	#bindActiveBroadcastInput(managed: ManagedProjectedTerminalSession): void {
+		this.#unbindActiveBroadcastInput();
+		this.#activeBroadcastInputSubscription = managed.session.subscribeBroadcastInputReadiness?.(
+			() => this.#notifyBroadcastInputReadiness(),
+		);
+		this.#notifyBroadcastInputReadiness();
+	}
+
+	#unbindActiveBroadcastInput(): void {
+		this.#activeBroadcastInputSubscription?.dispose();
+		this.#activeBroadcastInputSubscription = undefined;
+	}
+
+	#notifyBroadcastInputReadiness(): void {
+		for (const listener of this.#broadcastInputReadinessListeners) listener();
 	}
 }
 

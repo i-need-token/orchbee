@@ -46,7 +46,12 @@ type ProjectedTerminalSurfaceWorkbenchHost = Pick<
 	WorkbenchTerminalSurfaceProps,
 	'actionRuntime' | 'actionScope' | 'admitBellEffect' | 'autoFocus' | 'bindActionContextProvider'
 > &
-	Partial<Pick<WorkbenchTerminalSurfaceProps, 'onPresentationReady' | 'presentationMode'>>;
+	Partial<
+		Pick<
+			WorkbenchTerminalSurfaceProps,
+			'bindBroadcastInputSink' | 'onPresentationReady' | 'presentationMode'
+		>
+	>;
 
 export function useProjectedTerminalSurface(
 	presentation: WorkbenchTerminalPresentation,
@@ -57,6 +62,7 @@ export function useProjectedTerminalSurface(
 	const admitBellEffect = workbenchHost?.admitBellEffect;
 	const autoFocus = workbenchHost?.autoFocus ?? false;
 	const bindActionContextProvider = workbenchHost?.bindActionContextProvider;
+	const bindBroadcastInputSink = workbenchHost?.bindBroadcastInputSink;
 	const onPresentationReady = workbenchHost?.onPresentationReady;
 	const presentationMode = workbenchHost?.presentationMode ?? 'active';
 	const capability = React.useContext(ProjectedTerminalSurfaceCapabilityContext);
@@ -271,6 +277,7 @@ export function useProjectedTerminalSurface(
 			},
 		});
 		recoveryController.current = { controller, presentationId: presentation.presentationId };
+		const broadcastInputRegistration = bindBroadcastInputSink?.(controller);
 		if (sessionPolicyReference.current === 'retain') controller.retain();
 		else controller.start();
 		return () => {
@@ -280,6 +287,7 @@ export function useProjectedTerminalSurface(
 			if (recoveryController.current?.controller === controller) {
 				recoveryController.current = null;
 			}
+			broadcastInputRegistration?.dispose();
 			controller.dispose();
 		};
 	}, [
@@ -287,6 +295,7 @@ export function useProjectedTerminalSurface(
 		actionScope,
 		admitBellEffect,
 		bindActionContextProvider,
+		bindBroadcastInputSink,
 		capability,
 		presentation.presentationId,
 		reviewPaste,

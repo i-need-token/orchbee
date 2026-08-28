@@ -20,6 +20,7 @@
 | --------------------- | --------------------- | ------------ | ------------------------------------------------------- | --------------------------------- |
 | Orchbee               | Orchbee               | Orchbee      | 产品名称                                                | 音译或翻译的产品名称              |
 | Browser access        | Browser access        | 浏览器访问   | Desktop 中用于通过浏览器使用终端的界面                  | Web 访问、浏览器连接              |
+| Broadcast input       | Broadcast input       | 广播输入     | 发送到一组精确已显示面板的专用实时输入                  | 同步输入、批量输入                |
 | Command output        | Command output        | 命令输出     | 由一条命令产生且以 Shell 标记划分的文本                 | Terminal output、日志             |
 | Host                  | Host                  | 主机         | 保留 Host 投影颜色的终端显示选项                        | Server、设备                      |
 | Keyboard shortcut     | Keyboard shortcut     | 键盘快捷键   | 绑定到一个产品语义 Action 的物理组合键                  | 热键、快捷方式                    |

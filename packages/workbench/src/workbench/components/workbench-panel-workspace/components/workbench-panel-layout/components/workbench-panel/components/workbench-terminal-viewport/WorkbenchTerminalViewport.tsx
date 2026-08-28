@@ -1,4 +1,5 @@
 import { ContextMenu, ContextMenuTrigger } from '@orchbee/ui/components';
+import { useMemoizedFn } from '@orchbee/foundation/react';
 import * as React from 'react';
 
 import { WorkbenchActionContextMenuContent } from '../../../../../../../workbench-action-context-menu-content/WorkbenchActionContextMenuContent';
@@ -11,7 +12,10 @@ import {
 } from '../../../../../../model/panel-workspace-state';
 import type { WorkbenchPanelWorkspaceView } from '../../../../../../types/panel-workspace-view';
 import type { TerminalTabPresentationLayer } from '../../../../../../types/terminal-tab-presentation-layer';
-import type { WorkbenchTerminalSurface } from '../../../../../../../../types/workbench-terminal-surface';
+import type {
+	WorkbenchTerminalSurface,
+	WorkbenchTerminalSurfaceProps,
+} from '../../../../../../../../types/workbench-terminal-surface';
 import { useWorkbenchTerminalContextMenu } from './hooks/useWorkbenchTerminalContextMenu';
 import { useWorkbenchTerminalActions } from './hooks/useWorkbenchTerminalActions';
 import styles from './WorkbenchTerminalViewport.module.css';
@@ -46,6 +50,10 @@ export function WorkbenchTerminalViewport({
 		shortcutLabelForAction: view.shortcutLabelForAction,
 	});
 	const split = (direction: PanelSplitDirection): void => contextMenu.split(direction);
+	const bindBroadcastInputSink = useMemoizedFn(
+		(sink: Parameters<WorkbenchTerminalSurfaceProps['bindBroadcastInputSink']>[0]) =>
+			view.bindBroadcastInputSink(terminal.presentationId, sink),
+	);
 	const structuralEntries: readonly WorkbenchActionMenuEntry[] = [
 		{
 			icon: 'tabs',
@@ -78,6 +86,14 @@ export function WorkbenchTerminalViewport({
 			label: view.messages.resize,
 			onSelect: () => view.startPanelResize(panelId, 'context-menu'),
 			shortcut: view.shortcutLabelForAction(WORKBENCH_ACTION_IDS.resizeActivePanel),
+		},
+		{
+			disabled: !view.canStartBroadcastInput(panelId),
+			icon: 'terminal',
+			id: 'broadcast-panel-input',
+			kind: 'command',
+			label: view.messages.broadcastStart,
+			onSelect: () => view.startBroadcastInput(panelId, 'context-menu'),
 		},
 		{
 			disabled: view.panelCount < 2 || view.maximizedPanelId !== null,
@@ -185,9 +201,13 @@ export function WorkbenchTerminalViewport({
 						actionScope={terminalActions.scope}
 						admitBellEffect={view.admitTerminalBellEffect}
 						autoFocus={
-							layoutSettled && layer.mode === 'active' && view.activeTab?.focusedPanelId === panelId
+							view.broadcastInput.kind === 'idle' &&
+							layoutSettled &&
+							layer.mode === 'active' &&
+							view.activeTab?.focusedPanelId === panelId
 						}
 						bindActionContextProvider={terminalActions.bindActionContextProvider}
+						bindBroadcastInputSink={bindBroadcastInputSink}
 						onPresentationReady={(readiness) =>
 							layer.reportPresentationReady(terminal.presentationId, readiness)
 						}

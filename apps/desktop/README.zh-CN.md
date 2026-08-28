@@ -281,6 +281,9 @@ Workbench `terminal-presentation-event-published` 消息是 Main 拥有的单一
 - 精确的 `terminal-parity/FS-17-panel-position-focus` Browser 组合见证，覆盖规范深度优先 Panel
   编号、物理 `Ctrl+Shift+1/2/3/0` 分发、当前位置目标消费、缺失位置与最大化布局透传、聚焦
   textbox 恢复、稳定的 Panel/Presentation/document 标识，以及位置一与位置十的 Settings 发现；
+- 精确的 `terminal-parity/FS-18-panel-broadcast-input` Browser 组合见证，覆盖一个不可变的三 Panel
+  目标集、恰好一次的已提交 IME 文本、粘贴排除、串行 FIFO 文本、未修饰 Escape 投递、可见性与
+  结束控件、可见目标 shield，以及会停止且不重试或重放的非原子部分投递；
 - 用于每次操作安全上下文、瞬时用户激活和 API 检查的精确标题 `terminal-parity/LC-05-lan-capability` 浏览器组合证据；同步复制可用性；一位被录取的作家来电；拒绝而不重试；局部故障；并且没有特权 insecure-LAN 路径；
 - 确切的 `terminal-parity/HS-07-selection-export` real-PTY/Electron 证据表明，样式化终端选择以精确可见的纯文本形式到达平台剪贴板，与不公开 HTML 或原始 VT 格式的协议、主机和投影命令回归配对；
 - 精确的 `terminal-parity/IN-03-image-paste` 真实 PTY/Electron 证据证明，空闲的默认粘贴组合键会保留原生仅图片事件，并向子进程精确发布一个 `Control+V` 字节，且不产生剪贴板文本 Action 或失败横幅；

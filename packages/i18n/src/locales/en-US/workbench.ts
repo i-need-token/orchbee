@@ -11,6 +11,21 @@ export const enUSWorkbenchMessages = {
 	'workbench.terminal.actions.fontSize.decrease': 'Decrease Terminal Font Size',
 	'workbench.terminal.actions.fontSize.increase': 'Increase Terminal Font Size',
 	'workbench.terminal.actions.fontSize.reset': 'Reset Terminal Font Size',
+	'workbench.panels.broadcastInput.actions.start': 'Broadcast Input',
+	'workbench.panels.broadcastInput.actions.dismiss': 'Dismiss',
+	'workbench.panels.broadcastInput.actions.end': 'End Broadcast',
+	'workbench.panels.broadcastInput.actions.hide': 'Hide Input',
+	'workbench.panels.broadcastInput.actions.show': 'Show Input',
+	'workbench.panels.broadcastInput.label': 'Broadcast input',
+	'workbench.panels.broadcastInput.placeholder': 'Type to every Panel…',
+	'workbench.panels.broadcastInput.targetCount':
+		'{count, plural, one {# target terminal} other {# target terminals}}',
+	'workbench.panels.broadcastInput.failure.targetInvalidated':
+		'Broadcasting stopped because the Panel targets changed or became unavailable. An input already in progress may have reached some terminals; nothing was retried.',
+	'workbench.panels.broadcastInput.failure.partialDelivery':
+		'Broadcasting stopped after this input was confirmed by {delivered} of {total} terminals. Delivery to other terminals may be uncertain. It was not retried or rolled back.',
+	'workbench.panels.broadcastInput.failure.deliveryFailed':
+		'Broadcasting stopped because no terminal confirmed this input. Delivery may still be uncertain. It was not retried.',
 	'workbench.sidebar.label': 'Workbench navigation',
 	'workbench.sidebar.actions.hide': 'Hide Sidebar',
 	'workbench.sidebar.actions.show': 'Show Sidebar',

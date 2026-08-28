@@ -40,6 +40,50 @@ export interface WorkbenchTerminalActionContextProvider {
 	executePrepared(invocation: PreparedActionInvocation): ActionExecution;
 }
 
+export interface WorkbenchTerminalBroadcastKeyModifiers {
+	readonly alt: boolean;
+	readonly altLeft: boolean;
+	readonly altRight: boolean;
+	readonly altGraph: boolean;
+	readonly capsLock: boolean;
+	readonly control: boolean;
+	readonly controlRight: boolean;
+	readonly meta: boolean;
+	readonly metaRight: boolean;
+	readonly numLock: boolean;
+	readonly shift: boolean;
+	readonly shiftRight: boolean;
+}
+
+export type WorkbenchTerminalBroadcastInput =
+	| {
+			readonly kind: 'key';
+			readonly code: string;
+			readonly key: string;
+			readonly modifiers: WorkbenchTerminalBroadcastKeyModifiers;
+			readonly repeat: boolean;
+	  }
+	| { readonly kind: 'text'; readonly text: string };
+
+export type WorkbenchTerminalBroadcastInputReadiness =
+	| { readonly kind: 'ready'; readonly revision: string }
+	| { readonly kind: 'unavailable' };
+
+export type WorkbenchTerminalBroadcastInputResult =
+	| { readonly kind: 'blocked' }
+	| { readonly kind: 'failed' }
+	| { readonly kind: 'sent' };
+
+/** A transient capability owned by one mounted terminal surface and its current attachment. */
+export interface WorkbenchTerminalBroadcastInputSink {
+	getReadiness(): WorkbenchTerminalBroadcastInputReadiness;
+	send(
+		input: WorkbenchTerminalBroadcastInput,
+		expectedRevision: string,
+	): Promise<WorkbenchTerminalBroadcastInputResult>;
+	subscribe(listener: () => void): ActionDisposable;
+}
+
 export interface WorkbenchTerminalSurfaceProps {
 	readonly actionRuntime: ActionRuntime;
 	readonly actionScope: ActionScope;
@@ -48,6 +92,7 @@ export interface WorkbenchTerminalSurfaceProps {
 	readonly bindActionContextProvider: (
 		provider: WorkbenchTerminalActionContextProvider,
 	) => ActionDisposable;
+	readonly bindBroadcastInputSink: (sink: WorkbenchTerminalBroadcastInputSink) => ActionDisposable;
 	readonly onPresentationReady: (readiness: WorkbenchTerminalPresentationReadiness) => void;
 	readonly presentation: WorkbenchTerminalPresentation;
 	readonly presentationMode: WorkbenchTerminalPresentationMode;

@@ -5,8 +5,16 @@ import {
 	WorkbenchProjectWorkspaceRuntime,
 	createWorkbenchPreviewTerminalPresentationComposition,
 	terminalPresentationId,
+	terminalPresentationOperationId,
+	terminalPresentationRemovalId,
 } from '@orchbee/workbench';
-import type { WorkbenchSearchProvider } from '@orchbee/workbench';
+import type {
+	WorkbenchSearchProvider,
+	WorkbenchTerminalBroadcastInput,
+	WorkbenchTerminalPresentationCommand,
+	WorkbenchTerminalSurfaceProps,
+} from '@orchbee/workbench';
+import { useEffect, useMemo, useState } from 'react';
 import type { Meta, StoryObj } from 'storybook-react-rsbuild';
 
 const meta = {
@@ -124,6 +132,97 @@ const createVisualPanelSelectionRuntime = () => {
 	return runtime;
 };
 
+const createBroadcastPanelRuntime = () => {
+	let operationSequence = 0;
+	let presentationSequence = 0;
+	let removalSequence = 0;
+	const pendingCommands: WorkbenchTerminalPresentationCommand[] = [];
+	const runtime = new WorkbenchProjectWorkspaceRuntime({
+		standaloneCwd: '/workspace/orchbee',
+		standaloneTerminalTitle: 'Terminal 1',
+		terminalPresentation: {
+			createOperationId: () =>
+				terminalPresentationOperationId(`storybook:broadcast:operation:${++operationSequence}`),
+			createPresentationId: () =>
+				terminalPresentationId(`storybook:broadcast:terminal:${++presentationSequence}`),
+			createRemovalId: () =>
+				terminalPresentationRemovalId(`storybook:broadcast:removal:${++removalSequence}`),
+			dispatchCommands: (commands) => pendingCommands.push(...commands),
+			initialPresentationId: terminalPresentationId('storybook:broadcast:terminal:initial'),
+			kind: 'managed',
+		},
+	});
+	const settleProvisioning = (): void => {
+		for (const command of pendingCommands.splice(0)) {
+			if (command.type !== 'terminal-provision-requested') continue;
+			runtime.applyTerminalPresentationEvent({
+				operationId: command.operationId,
+				presentationId: command.presentationId,
+				type: 'terminal-provision-completed',
+			});
+		}
+	};
+	settleProvisioning();
+	const store = runtime.getActiveTerminalContext().panelWorkspaceStore;
+	const tabId = store.getActiveTabId();
+	if (tabId === null) throw new Error('Expected an active terminal Tab.');
+	for (let index = 0; index < 2; index += 1) {
+		const tab = store.getSnapshot().tabs.find((candidate) => candidate.tabId === tabId);
+		if (tab === undefined) throw new Error('Expected the active terminal Tab.');
+		store.transition({
+			direction: 'right',
+			newTerminalTitle: `Terminal ${index + 2}`,
+			panelId: tab.focusedPanelId,
+			presentation: store.createTerminalPresentation(),
+			tabId,
+			type: 'panel-split',
+		});
+		settleProvisioning();
+	}
+	return runtime;
+};
+
+function BroadcastStoryTerminalSurface({
+	bindBroadcastInputSink,
+	presentation,
+}: WorkbenchTerminalSurfaceProps) {
+	const [received, setReceived] = useState('Waiting for broadcast input');
+	const sink = useMemo(
+		() => ({
+			getReadiness: () => ({
+				kind: 'ready' as const,
+				revision: `${presentation.presentationId}:storybook-ready`,
+			}),
+			send: async (input: WorkbenchTerminalBroadcastInput) => {
+				setReceived(input.kind === 'text' ? input.text : `[${input.key}]`);
+				return { kind: 'sent' as const };
+			},
+			subscribe: () => ({ dispose: () => undefined }),
+		}),
+		[presentation.presentationId],
+	);
+	useEffect(() => {
+		const registration = bindBroadcastInputSink(sink);
+		return () => registration.dispose();
+	}, [bindBroadcastInputSink, sink]);
+	return (
+		<div
+			style={{
+				background: '#10151d',
+				color: '#cdd6e0',
+				display: 'grid',
+				fontFamily: 'monospace',
+				height: '100%',
+				padding: '1rem',
+				placeContent: 'center',
+			}}
+		>
+			<div>{presentation.title}</div>
+			<div>{received}</div>
+		</div>
+	);
+}
+
 export const PanelWorkspace: Story = {
 	args: {
 		actionRuntime: new ActionRuntime(),
@@ -182,6 +281,40 @@ export const PanelVisualSwapSelection: Story = {
 				shiftKey: true,
 			}),
 		);
+	},
+	render: (arguments_) => (
+		<OrchbeeI18nProvider locale='en-US'>
+			<Workbench {...arguments_} />
+		</OrchbeeI18nProvider>
+	),
+};
+
+export const PanelBroadcastInput: Story = {
+	args: {
+		actionRuntime: new ActionRuntime(),
+		onSettings: () => ({ kind: 'unchanged' }),
+		projectWorkspaceRuntime: createBroadcastPanelRuntime(),
+		shortcutPlatform: 'apple',
+		terminalSurface: BroadcastStoryTerminalSurface,
+	},
+	play: async ({ canvasElement }) => {
+		const viewport = canvasElement.querySelector<HTMLElement>(
+			'[data-focused="true"] [data-slot="workbench-terminal-viewport"]',
+		);
+		viewport?.focus();
+		viewport?.dispatchEvent(
+			new MouseEvent('contextmenu', {
+				bubbles: true,
+				cancelable: true,
+				clientX: 40,
+				clientY: 40,
+			}),
+		);
+		await new Promise((resolve) => globalThis.setTimeout(resolve, 50));
+		const broadcastItem = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(
+			(item) => item.textContent?.includes('Broadcast Input') === true,
+		);
+		broadcastItem?.click();
 	},
 	render: (arguments_) => (
 		<OrchbeeI18nProvider locale='en-US'>

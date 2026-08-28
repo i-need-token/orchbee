@@ -8,6 +8,7 @@ import { WorkbenchChildTerminalStrip } from './components/workbench-child-termin
 import { WorkbenchPanelDropPlaceholder } from './components/workbench-panel-drop-placeholder/WorkbenchPanelDropPlaceholder';
 import { WorkbenchPanelFocusScrim } from './components/workbench-panel-focus-scrim/WorkbenchPanelFocusScrim';
 import { WorkbenchPanelHeader } from './components/workbench-panel-header/WorkbenchPanelHeader';
+import { WorkbenchPanelBroadcastTarget } from './components/workbench-panel-broadcast-target/WorkbenchPanelBroadcastTarget';
 import { WorkbenchPanelVisualSelectionTarget } from './components/workbench-panel-visual-selection-target/WorkbenchPanelVisualSelectionTarget';
 import { WorkbenchTerminalViewport } from './components/workbench-terminal-viewport/WorkbenchTerminalViewport';
 import styles from './WorkbenchPanel.module.css';
@@ -35,6 +36,9 @@ export function WorkbenchPanel({
 	const visualSelectionTarget = view.panelVisualSelection?.targets.find(
 		(target) => target.panelId === panel.id,
 	);
+	const isBroadcastTarget =
+		view.broadcastInput.kind === 'active' &&
+		view.broadcastInput.snapshot.targets.some((target) => target.panelId === panel.id);
 
 	if (isDropPlaceholder) {
 		return (
@@ -84,6 +88,7 @@ export function WorkbenchPanel({
 					prefix={view.panelVisualSelection.prefix}
 				/>
 			)}
+			{isBroadcastTarget && <WorkbenchPanelBroadcastTarget />}
 		</section>
 	);
 }

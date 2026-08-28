@@ -4,7 +4,7 @@
 	"kind": "business",
 	"status": "canonical",
 	"name": "Panel Workspace",
-	"description": "Renders deterministic terminal panel layouts, directional, cyclic, positional, and visible focus or swap selection, child-terminal navigation, exact-current-directory Tab creation, directional keyboard movement, proportional equalization, resize, split, drag, and close behavior.",
+	"description": "Renders deterministic terminal panel layouts, directional, cyclic, positional, and visible focus or swap selection, child-terminal navigation, exact-current-directory Tab creation, snapshot-bound broadcast input, directional keyboard movement, proportional equalization, resize, split, drag, and close behavior.",
 	"owner": "@orchbee/workbench",
 	"visibility": "private",
 	"intents": [
@@ -14,6 +14,7 @@
 		"focus-panel-by-position",
 		"manage-panel",
 		"move-panel",
+		"broadcast-panel-input",
 		"resize-panel",
 		"split-panel",
 		"visually-select-panel",
@@ -37,6 +38,14 @@
 				"Split four Panels into a nested layout, then move the active Panel with Shift plus the directional-focus chord and inspect exact leaf exchange without topology or terminal-identity changes.",
 				"Split three Panels along one axis, resize them unevenly, then invoke Equalize Panels and inspect proportional thirds without topology, focus, or terminal-identity changes.",
 				"Split the active terminal, press Command+R, then use W, N, T, S, Control-modified steps, and R reset in keyboard resize mode."
+			]
+		},
+		{
+			"exportName": "PanelBroadcastInput",
+			"file": "packages/workbench/stories/workbench.stories.tsx",
+			"id": "packages-workbench-workbench--panel-broadcast-input",
+			"states": [
+				"Inspect a live three-Panel broadcast session, its dedicated input bar, exact target shields, hidden-input control, explicit end control, and each target's delivered text."
 			]
 		},
 		{
@@ -75,6 +84,7 @@
 		"Directional keyboard movement swaps complete neighboring Panel leaves while preserving split topology, weights, slot identities, terminal identities, and focus on the moved source Panel.",
 		"Panel equalization recursively assigns same-axis child weights by descendant Panel units while preserving topology, order, identities, membership, and focus.",
 		"Keyboard resize mode captures one exact Tab and Panel, mutates the nearest matching split axis, preserves a visible branch floor, and closes when its target becomes stale.",
+		"Broadcast input captures every displayed running terminal in one active, non-maximized Tab, requires exact write-readiness revisions, sends FIFO to the immutable snapshot, and stops visibly on invalidation or any non-atomic partial failure without retry, rollback, or replay.",
 		"Closing running or provisioning logical terminals requires localized confirmation before mutation.",
 		"Managed close retains topology until every exact presentation close completes; partial failure remains retryable without rollback.",
 		"Host PTY and process lifecycle remain outside the Panel workspace owner."

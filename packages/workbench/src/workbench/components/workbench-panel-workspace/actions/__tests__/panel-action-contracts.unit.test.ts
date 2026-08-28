@@ -24,6 +24,7 @@ describe('panel action contracts', () => {
 			resize: 'workbench.panel.resize',
 			showPrimaryTerminal: 'workbench.panel.primary-terminal.show',
 			split: 'workbench.panel.split',
+			startBroadcastInput: 'workbench.panel.broadcast-input.start',
 			startResize: 'workbench.panel.resize.start',
 			startVisualSelection: 'workbench.panel.visual-selection.start',
 			swap: 'workbench.panel.swap',

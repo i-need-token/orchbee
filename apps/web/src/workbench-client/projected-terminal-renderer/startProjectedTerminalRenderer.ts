@@ -30,6 +30,9 @@ import {
 import type {
 	WorkbenchTerminalActionContextProvider,
 	WorkbenchTerminalBellEffect,
+	WorkbenchTerminalBroadcastInput,
+	WorkbenchTerminalBroadcastInputReadiness,
+	WorkbenchTerminalBroadcastInputResult,
 } from '@orchbee/workbench';
 
 import type { TerminalCompletionReminderObserver } from '../../terminal-feedback-settings';
@@ -131,7 +134,15 @@ type ProjectedTerminalDriver = Pick<
 	| 'updatePresentationConfiguration'
 	| 'updateSearch'
 > &
-	Partial<Pick<ProjectedTerminal, 'capturePresentationSnapshot'>>;
+	Partial<
+		Pick<
+			ProjectedTerminal,
+			| 'capturePresentationSnapshot'
+			| 'injectInput'
+			| 'injectedInputReadiness'
+			| 'onInjectedInputReadinessChange'
+		>
+	>;
 
 export interface ProjectedTerminalWorkbenchHost {
 	readonly admitBellEffect: (event: WorkbenchTerminalBellEffect) => boolean;
@@ -174,6 +185,20 @@ function isProjectedTerminalSnapshotDriver(
 	return typeof Reflect.get(terminal, 'capturePresentationSnapshot') === 'function';
 }
 
+function isProjectedTerminalBroadcastInputDriver(
+	terminal: ProjectedTerminalDriver,
+): terminal is ProjectedTerminalDriver &
+	Pick<
+		ProjectedTerminal,
+		'injectInput' | 'injectedInputReadiness' | 'onInjectedInputReadinessChange'
+	> {
+	return (
+		typeof Reflect.get(terminal, 'injectInput') === 'function' &&
+		Reflect.has(terminal, 'injectedInputReadiness') &&
+		typeof Reflect.get(terminal, 'onInjectedInputReadinessChange') === 'function'
+	);
+}
+
 export interface ProjectedTerminalRendererDependencies {
 	readonly createTerminal: (options: ProjectedTerminalOptions) => ProjectedTerminalDriver;
 	readonly installShortcuts: typeof installProjectedTerminalShortcuts;
@@ -186,12 +211,18 @@ export interface ProjectedTerminalRendererSession {
 	dispose(): void;
 	readonly displayReady?: Promise<void> | undefined;
 	focus(): void;
+	getBroadcastInputReadiness?(): WorkbenchTerminalBroadcastInputReadiness;
 	isTransportAvailable(): boolean;
 	pasteFileDrop(text: string): Promise<ProjectedPasteResult>;
 	readonly presentationReady: Promise<void>;
 	readonly transportUnavailable: Promise<void>;
 	/** Retire transport and interaction while retaining the already painted frame DOM. */
 	freeze(): void;
+	sendBroadcastInput?(
+		input: WorkbenchTerminalBroadcastInput,
+		expectedRevision: string,
+	): Promise<WorkbenchTerminalBroadcastInputResult>;
+	subscribeBroadcastInputReadiness?(listener: () => void): ActionDisposable;
 	updatePresentationConfiguration(
 		configuration: TerminalPresentationConfiguration,
 	): Promise<TerminalPresentationConfigurationUpdateResult>;
@@ -317,6 +348,7 @@ export async function startProjectedTerminalRenderer(
 	let terminalOutcomeKind: 'exited' | 'failed' | undefined;
 	let pendingPresentationConfiguration: TerminalPresentationConfiguration | undefined;
 	let transportAvailable = true;
+	const broadcastInputReadinessListeners = new Set<() => void>();
 	let activationPresentationDrawn = false;
 	let displayPresentationDrawn = false;
 	let presentationVisible = terminalThemeSource === undefined;
@@ -346,6 +378,7 @@ export async function startProjectedTerminalRenderer(
 	const reportTransportUnavailable = (): void => {
 		if (!transportAvailable) return;
 		transportAvailable = false;
+		for (const listener of broadcastInputReadinessListeners) listener();
 		resolveTransportUnavailable?.();
 		resolveTransportUnavailable = undefined;
 	};
@@ -905,6 +938,13 @@ export async function startProjectedTerminalRenderer(
 			pendingSubscriptions.push(
 				terminal.onHistoryChange((event) => activeFindController.applyHistoryEvent(event)),
 			);
+			if (isProjectedTerminalBroadcastInputDriver(terminal)) {
+				pendingSubscriptions.push(
+					terminal.onInjectedInputReadinessChange(() => {
+						for (const listener of broadcastInputReadinessListeners) listener();
+					}),
+				);
+			}
 			pendingSubscriptions.push(
 				terminal.onLinkOpenRequest((event) => {
 					void activeActions.execute(
@@ -1325,6 +1365,13 @@ export async function startProjectedTerminalRenderer(
 			if (disposed || frozen) return;
 			terminal.focus();
 		},
+		getBroadcastInputReadiness: () =>
+			disposed ||
+			frozen ||
+			!transportAvailable ||
+			!isProjectedTerminalBroadcastInputDriver(terminal)
+				? { kind: 'unavailable' }
+				: terminal.injectedInputReadiness,
 		freeze: () => {
 			if (disposed || frozen) return;
 			frozen = true;
@@ -1355,6 +1402,25 @@ export async function startProjectedTerminalRenderer(
 		isTransportAvailable: () => transportAvailable,
 		pasteFileDrop: async (text) => await terminal.paste(text, 'file-drop'),
 		presentationReady,
+		sendBroadcastInput: async (input, expectedRevision) => {
+			if (
+				disposed ||
+				frozen ||
+				!transportAvailable ||
+				!isProjectedTerminalBroadcastInputDriver(terminal) ||
+				terminal.injectedInputReadiness.kind !== 'ready' ||
+				terminal.injectedInputReadiness.revision !== expectedRevision
+			) {
+				return { kind: 'blocked' };
+			}
+			return await terminal.injectInput(input, expectedRevision);
+		},
+		subscribeBroadcastInputReadiness: (listener) => {
+			if (!disposed) broadcastInputReadinessListeners.add(listener);
+			return {
+				dispose: () => broadcastInputReadinessListeners.delete(listener),
+			};
+		},
 		transportUnavailable,
 		updatePresentationConfiguration,
 	};

@@ -3,6 +3,10 @@ import type { ActionInvocationSource, ActionRuntime, ActionScope } from '@orchbe
 import type { TerminalPresentationId } from '../../../../terminal-presentation';
 import type { WorkbenchTerminalBellEffect } from '../../../model/WorkbenchTerminalBellEffectCoordinator';
 import type {
+	WorkbenchTerminalBroadcastInput,
+	WorkbenchTerminalBroadcastInputSink,
+} from '../../../types/workbench-terminal-surface';
+import type {
 	PanelLayoutNode,
 	PanelSplitDirection,
 	PanelWorkspaceState,
@@ -10,6 +14,7 @@ import type {
 } from '../model/panel-workspace-state';
 import type { PanelResizeAdjustment, PanelResizeMultiplier } from '../model/resolvePanelResize';
 import type { PanelVisualSelectionSession } from '../model/panel-visual-selection';
+import type { PanelBroadcastSessionState } from '../model/panel-broadcast-input';
 import type {
 	KeyboardEvent as ReactKeyboardEvent,
 	PointerEvent as ReactPointerEvent,
@@ -33,6 +38,17 @@ export interface PanelDragGhost {
 }
 
 export interface PanelWorkspaceMessages {
+	readonly broadcastDeliveryFailed: string;
+	readonly broadcastDismiss: string;
+	readonly broadcastEnd: string;
+	readonly broadcastHideInput: string;
+	readonly broadcastInputLabel: string;
+	readonly broadcastInputPlaceholder: string;
+	readonly broadcastPartialDelivery: (delivered: number, total: number) => string;
+	readonly broadcastShowInput: string;
+	readonly broadcastStart: string;
+	readonly broadcastTargetCount: (count: number) => string;
+	readonly broadcastTargetInvalidated: string;
 	readonly cancel: string;
 	readonly childPresentationsLabel: string;
 	readonly close: string;
@@ -88,6 +104,12 @@ export interface WorkbenchPanelWorkspaceView {
 		source?: ActionInvocationSource,
 	) => void;
 	readonly activeTab: TabPanelWorkspace | null;
+	readonly bindBroadcastInputSink: (
+		presentationId: TerminalPresentationId,
+		sink: WorkbenchTerminalBroadcastInputSink,
+	) => { dispose(): void };
+	readonly broadcastInput: PanelBroadcastSessionState;
+	readonly canStartBroadcastInput: (panelId: string) => boolean;
 	readonly cancelPanelVisualSelection: (restoreSourceFocus: boolean) => void;
 	readonly cancelPanelResize: () => void;
 	readonly canResizePanel: (
@@ -107,6 +129,8 @@ export interface WorkbenchPanelWorkspaceView {
 	) => void;
 	readonly displayedRoot: PanelLayoutNode | null;
 	readonly equalizePanels: (panelId: string, source?: ActionInvocationSource) => void;
+	readonly enqueueBroadcastInput: (input: WorkbenchTerminalBroadcastInput) => void;
+	readonly endBroadcastInput: () => void;
 	readonly focusPanel: (panelId: string, source?: ActionInvocationSource) => void;
 	readonly handlePanelVisualSelectionKeyDown: (event: ReactKeyboardEvent<HTMLDivElement>) => void;
 	readonly handlePanelVisualSelectionPointerDown: (
@@ -126,6 +150,7 @@ export interface WorkbenchPanelWorkspaceView {
 	readonly pendingClose: PendingPanelClose | null;
 	readonly pendingResize: PendingPanelResize | null;
 	readonly requestClose: (panelId: string, source?: ActionInvocationSource) => void;
+	readonly dismissBroadcastInput: () => void;
 	readonly resizeAdjacentPanels: (
 		splitId: string,
 		separatorIndex: number,
@@ -145,8 +170,10 @@ export interface WorkbenchPanelWorkspaceView {
 		source?: ActionInvocationSource,
 	) => string | null;
 	readonly startPanelDrag: (panelId: string, event: ReactPointerEvent<HTMLElement>) => void;
+	readonly startBroadcastInput: (panelId: string, source?: ActionInvocationSource) => void;
 	readonly startPanelResize: (panelId: string, source?: ActionInvocationSource) => void;
 	readonly state: PanelWorkspaceState;
 	readonly togglePanelMaximization: (panelId: string, source?: ActionInvocationSource) => void;
+	readonly toggleBroadcastInputVisibility: () => void;
 	readonly workspaceReference: RefObject<HTMLDivElement | null>;
 }

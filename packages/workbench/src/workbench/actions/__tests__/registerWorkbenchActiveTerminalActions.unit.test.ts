@@ -27,6 +27,37 @@ import { registerWorkbenchActiveTerminalActions } from '../registerWorkbenchActi
 import { WORKBENCH_ACTION_IDS, type WorkbenchActionCatalog } from '../workbench-action-ids';
 
 describe('registerWorkbenchActiveTerminalActions', () => {
+	it('discovers and executes broadcast input without recursively rediscovering its composite', async () => {
+		const harness = createHarness();
+		const store = harness.projectWorkspaceRuntime.getActiveTerminalContext().panelWorkspaceStore;
+		const tabId = store.getActiveTabId();
+		if (tabId === null) throw new Error('Expected an active Tab.');
+		store.transition({
+			direction: 'right',
+			newTerminalTitle: 'Terminal 2',
+			panelId: 'panel-1',
+			presentation: store.createTerminalPresentation(),
+			tabId,
+			type: 'panel-split',
+		});
+		const lowerExecute = vi.fn<(input: PanelTargetInput) => void>();
+		registerPanelTargetAction(harness, PANEL_ACTION_IDS.startBroadcastInput, (context, input) => {
+			lowerExecute(input);
+			context.markCommitted();
+			return { kind: 'completed' };
+		});
+
+		expect(
+			harness.runtime
+				.discover({ scope: harness.scope, source: 'command-surface' }, { includeDescendants: true })
+				.find((result) => result.descriptor.id === WORKBENCH_ACTION_IDS.openPanelBroadcastInput),
+		).toMatchObject({ availability: { kind: 'enabled' }, kind: 'ready' });
+		await expect(harness.execute(WORKBENCH_ACTION_IDS.openPanelBroadcastInput)).resolves.toEqual({
+			kind: 'completed',
+		});
+		expect(lowerExecute).toHaveBeenCalledExactlyOnceWith({ panelId: 'panel-2' });
+	});
+
 	it('executes the prepared Tab close Action for a singleton primary terminal', async () => {
 		const harness = createHarness();
 		const lowerExecute = vi.fn<(input: TabCloseInput) => void>();
@@ -675,6 +706,7 @@ function registerPanelTargetAction(
 	actionId:
 		| typeof PANEL_ACTION_IDS.equalize
 		| typeof PANEL_ACTION_IDS.focus
+		| typeof PANEL_ACTION_IDS.startBroadcastInput
 		| typeof PANEL_ACTION_IDS.startResize,
 	execute: (
 		context: ActionExecutionContext,

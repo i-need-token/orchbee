@@ -16,6 +16,7 @@ export const PANEL_ACTION_IDS = {
 	focus: 'workbench.panel.focus',
 	move: 'workbench.panel.move',
 	resize: 'workbench.panel.resize',
+	startBroadcastInput: 'workbench.panel.broadcast-input.start',
 	showPrimaryTerminal: 'workbench.panel.primary-terminal.show',
 	split: 'workbench.panel.split',
 	startResize: 'workbench.panel.resize.start',
@@ -67,6 +68,7 @@ export interface PanelActionCatalog {
 	readonly [PANEL_ACTION_IDS.focus]: ActionSignature<PanelTargetInput>;
 	readonly [PANEL_ACTION_IDS.move]: ActionSignature<PanelMoveInput>;
 	readonly [PANEL_ACTION_IDS.resize]: ActionSignature<PanelResizeInput>;
+	readonly [PANEL_ACTION_IDS.startBroadcastInput]: ActionSignature<PanelTargetInput>;
 	readonly [PANEL_ACTION_IDS.showPrimaryTerminal]: ActionSignature<PanelTargetInput>;
 	readonly [PANEL_ACTION_IDS.split]: ActionSignature<PanelSplitInput, string>;
 	readonly [PANEL_ACTION_IDS.startResize]: ActionSignature<PanelTargetInput>;

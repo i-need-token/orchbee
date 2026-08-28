@@ -146,6 +146,66 @@ describe('ProjectedTerminalRecoveryController', () => {
 		});
 	});
 
+	it('exposes broadcast input only for the exact active attachment and revokes it on recovery', async () => {
+		const transportUnavailable = deferred<void>();
+		const sendBroadcastInput = vi
+			.fn<NonNullable<ProjectedTerminalRendererSession['sendBroadcastInput']>>()
+			.mockResolvedValue({ kind: 'sent' });
+		let emitReadiness = (): void => undefined;
+		const disposeReadiness = vi.fn<() => void>();
+		const active = rendererSession({
+			getBroadcastInputReadiness: () => ({ kind: 'ready', revision: 'attachment-a:7' }),
+			sendBroadcastInput,
+			subscribeBroadcastInputReadiness: (listener) => {
+				emitReadiness = listener;
+				return { dispose: disposeReadiness };
+			},
+			transportUnavailable: transportUnavailable.promise,
+		});
+		const request = projectionRequest();
+		const states: ProjectedTerminalRecoveryState[] = [];
+		const controller = new ProjectedTerminalRecoveryController({
+			onStateChange: (state) => states.push(state),
+			open: () => request.request,
+			startRenderer: async () => active.session,
+		});
+		const readinessChanged = vi.fn<() => void>();
+		controller.subscribe(readinessChanged);
+
+		expect(controller.getReadiness()).toEqual({ kind: 'unavailable' });
+		await expect(
+			controller.send({ kind: 'text', text: 'before' }, 'attachment-a:7'),
+		).resolves.toEqual({ kind: 'blocked' });
+		controller.start();
+		request.resolve();
+		await vi.waitFor(() => expect(states.at(-1)).toEqual({ kind: 'ready' }));
+		expect(controller.getReadiness()).toEqual({
+			kind: 'ready',
+			revision: 'attachment-a:7',
+		});
+		await expect(controller.send({ kind: 'text', text: 'now' }, 'attachment-a:7')).resolves.toEqual(
+			{
+				kind: 'sent',
+			},
+		);
+		expect(sendBroadcastInput).toHaveBeenCalledExactlyOnceWith(
+			{ kind: 'text', text: 'now' },
+			'attachment-a:7',
+		);
+		emitReadiness();
+		expect(readinessChanged).toHaveBeenCalledTimes(2);
+
+		transportUnavailable.resolve();
+		await drainMicrotasks();
+		expect(disposeReadiness).toHaveBeenCalledOnce();
+		expect(controller.getReadiness()).toEqual({ kind: 'unavailable' });
+		await expect(
+			controller.send({ kind: 'text', text: 'after' }, 'attachment-a:7'),
+		).resolves.toEqual({ kind: 'blocked' });
+		expect(readinessChanged).toHaveBeenCalledTimes(3);
+		controller.dispose();
+	});
+
 	it('retains the active frame across bounded recovery and replaces it only after a painted frame', async () => {
 		vi.useFakeTimers();
 		const states: ProjectedTerminalRecoveryState[] = [];

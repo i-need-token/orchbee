@@ -4,12 +4,16 @@ import { ActionRuntime, createTypedActionRuntime } from '@orchbee/actions';
 import { OrchbeeI18nProvider } from '@orchbee/i18n';
 import { TabModel } from '@orchbee/tab-strip';
 import { TooltipProvider } from '@orchbee/ui/components';
-import { act, cleanup, fireEvent, render } from '@testing-library/react';
-import type { ReactNode } from 'react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { useEffect, useMemo, type ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { terminalPresentationId } from '../../../../terminal-presentation';
-import type { WorkbenchTerminalSurfaceProps } from '../../../types/workbench-terminal-surface';
+import type {
+	WorkbenchTerminalBroadcastInput,
+	WorkbenchTerminalBroadcastInputResult,
+	WorkbenchTerminalSurfaceProps,
+} from '../../../types/workbench-terminal-surface';
 import { registerWorkbenchActiveTerminalActions } from '../../../actions/registerWorkbenchActiveTerminalActions';
 import {
 	WORKBENCH_ACTION_IDS,
@@ -17,10 +21,34 @@ import {
 } from '../../../actions/workbench-action-ids';
 import { WorkbenchProjectWorkspaceRuntime } from '../../../model/WorkbenchProjectWorkspaceRuntime';
 import { PanelWorkspaceStore } from '../model/PanelWorkspaceStore';
-import { collectPanelLeaves, getDisplayedTerminal } from '../model/panel-workspace-state';
+import {
+	collectPanelLeaves,
+	getDisplayedTerminal,
+	type PanelLayoutNode,
+	type PanelWorkspaceState,
+} from '../model/panel-workspace-state';
 import { WorkbenchPanelWorkspace } from '../WorkbenchPanelWorkspace';
 
 const surfaces = new Map<string, WorkbenchTerminalSurfaceProps>();
+const broadcastInputs = new Map<string, WorkbenchTerminalBroadcastInput[]>();
+const broadcastSendHandlers = new Map<
+	string,
+	(input: WorkbenchTerminalBroadcastInput) => Promise<WorkbenchTerminalBroadcastInputResult>
+>();
+
+function deferred<Value>(): {
+	readonly promise: Promise<Value>;
+	resolve(value: Value): void;
+} {
+	let resolvePromise: ((value: Value) => void) | undefined;
+	const promise = new Promise<Value>((resolve) => {
+		resolvePromise = resolve;
+	});
+	return {
+		promise,
+		resolve: (value) => resolvePromise?.(value),
+	};
+}
 
 class TestResizeObserver {
 	public constructor(_callback: ResizeObserverCallback) {}
@@ -31,6 +59,27 @@ class TestResizeObserver {
 
 function TestTerminalSurface(properties: WorkbenchTerminalSurfaceProps): ReactNode {
 	surfaces.set(properties.presentation.presentationId, properties);
+	const bindBroadcastInputSink = properties.bindBroadcastInputSink;
+	const presentationId = properties.presentation.presentationId;
+	const sink = useMemo(
+		() => ({
+			getReadiness: () => ({ kind: 'ready' as const, revision: `${presentationId}:ready` }),
+			send: async (input: WorkbenchTerminalBroadcastInput) => {
+				const inputs = broadcastInputs.get(presentationId) ?? [];
+				inputs.push(input);
+				broadcastInputs.set(presentationId, inputs);
+				return (
+					(await broadcastSendHandlers.get(presentationId)?.(input)) ?? { kind: 'sent' as const }
+				);
+			},
+			subscribe: () => ({ dispose: () => undefined }),
+		}),
+		[presentationId],
+	);
+	useEffect(() => {
+		const registration = bindBroadcastInputSink(sink);
+		return () => registration.dispose();
+	}, [bindBroadcastInputSink, sink]);
 	return (
 		<div
 			data-auto-focus={properties.autoFocus}
@@ -38,6 +87,33 @@ function TestTerminalSurface(properties: WorkbenchTerminalSurfaceProps): ReactNo
 			data-surface-presentation-id={properties.presentation.presentationId}
 		/>
 	);
+}
+
+function runningLayout(node: PanelLayoutNode): PanelLayoutNode {
+	if (node.kind === 'panel') {
+		return {
+			...node,
+			childPresentations: node.childPresentations.map((terminal) => ({
+				...terminal,
+				lifecycle: { kind: 'running' },
+			})),
+			primaryPresentation: {
+				...node.primaryPresentation,
+				lifecycle: { kind: 'running' },
+			},
+		};
+	}
+	return {
+		...node,
+		children: node.children.map((child) => ({ ...child, node: runningLayout(child.node) })),
+	};
+}
+
+function runningWorkspaceState(state: PanelWorkspaceState): PanelWorkspaceState {
+	return {
+		...state,
+		tabs: state.tabs.map((tab) => ({ ...tab, root: runningLayout(tab.root) })),
+	};
 }
 
 function renderThreePanelWorkspace() {
@@ -93,6 +169,52 @@ function renderThreePanelWorkspace() {
 	return { actionRuntime, panelWorkspaceStore, parentActionScope, rendered };
 }
 
+function renderRunningThreePanelWorkspace() {
+	const actionRuntime = new ActionRuntime();
+	const parentActionScope = actionRuntime.createScope('test.broadcast-workbench');
+	const tabModel = new TabModel({
+		activeTabId: 'tab-broadcast',
+		tabs: [{ group: null, id: 'tab-broadcast', pinned: false, title: 'Broadcast' }],
+	});
+	let sequence = 1;
+	const composition = {
+		createPresentationId: () => terminalPresentationId(`terminal-broadcast-${sequence++}`),
+		initialPresentationId: terminalPresentationId('terminal-broadcast-initial'),
+		kind: 'preview' as const,
+	};
+	const layoutBuilder = new PanelWorkspaceStore(tabModel, { composition });
+	for (let index = 0; index < 2; index += 1) {
+		const tab = layoutBuilder.getSnapshot().tabs[0];
+		if (tab === undefined) throw new Error('Expected the broadcast terminal Tab.');
+		layoutBuilder.transition({
+			direction: 'right',
+			newTerminalTitle: `Terminal ${index + 2}`,
+			panelId: tab.focusedPanelId,
+			presentation: layoutBuilder.createTerminalPresentation(),
+			tabId: tab.tabId,
+			type: 'panel-split',
+		});
+	}
+	const panelWorkspaceStore = new PanelWorkspaceStore(tabModel, {
+		composition,
+		initialState: runningWorkspaceState(layoutBuilder.getSnapshot()),
+	});
+	const rendered = render(
+		<OrchbeeI18nProvider locale='en-US'>
+			<TooltipProvider>
+				<WorkbenchPanelWorkspace
+					actionRuntime={actionRuntime}
+					panelWorkspaceStore={panelWorkspaceStore}
+					parentActionScope={parentActionScope}
+					shortcutLabelForAction={() => undefined}
+					terminalSurface={TestTerminalSurface}
+				/>
+			</TooltipProvider>
+		</OrchbeeI18nProvider>,
+	);
+	return { actionRuntime, panelWorkspaceStore, rendered };
+}
+
 beforeEach(() => {
 	vi.stubGlobal('ResizeObserver', TestResizeObserver);
 });
@@ -100,10 +222,99 @@ beforeEach(() => {
 afterEach(() => {
 	cleanup();
 	surfaces.clear();
+	broadcastInputs.clear();
+	broadcastSendHandlers.clear();
 	vi.unstubAllGlobals();
 });
 
 describe('WorkbenchPanelWorkspace', () => {
+	it('broadcasts committed text and key taps to exactly three displayed Panels in FIFO order', async () => {
+		const { actionRuntime, panelWorkspaceStore, rendered } = renderRunningThreePanelWorkspace();
+		const tab = panelWorkspaceStore.getSnapshot().tabs[0];
+		if (tab === undefined) throw new Error('Expected the broadcast terminal Tab.');
+		const targets = collectPanelLeaves(tab.root).map(
+			(panel) => getDisplayedTerminal(panel).presentationId,
+		);
+		const firstDelivery = deferred<void>();
+		for (const presentationId of targets) {
+			broadcastSendHandlers.set(presentationId, async (input) => {
+				if (input.kind === 'text' && input.text === 'first') await firstDelivery.promise;
+				return { kind: 'sent' };
+			});
+		}
+		const sourceViewport = rendered.container.querySelector<HTMLElement>(
+			`[data-panel-id="${tab.focusedPanelId}"][data-slot="workbench-terminal-viewport"]`,
+		);
+		if (sourceViewport === null) throw new Error('Expected the focused terminal viewport.');
+
+		sourceViewport.focus();
+		fireEvent.contextMenu(sourceViewport, { clientX: 20, clientY: 20 });
+		fireEvent.click(screen.getByRole('menuitem', { name: 'Broadcast Input' }));
+		const input = await screen.findByRole('textbox', { name: 'Broadcast input' });
+		expect(
+			rendered.container.querySelectorAll('[data-panel-broadcast-target="true"]'),
+		).toHaveLength(3);
+
+		fireEvent.input(input, { target: { value: 'first' } });
+		fireEvent.input(input, { target: { value: 'second' } });
+		await vi.waitFor(() =>
+			expect(targets.map((presentationId) => broadcastInputs.get(presentationId)?.[0])).toEqual(
+				targets.map(() => ({ kind: 'text', text: 'first' })),
+			),
+		);
+		expect(
+			targets.flatMap((presentationId) => broadcastInputs.get(presentationId)?.slice(1) ?? []),
+		).toEqual([]);
+
+		firstDelivery.resolve();
+		await vi.waitFor(() =>
+			expect(targets.map((presentationId) => broadcastInputs.get(presentationId)?.[1])).toEqual(
+				targets.map(() => ({ kind: 'text', text: 'second' })),
+			),
+		);
+		fireEvent.keyDown(input, { code: 'Escape', key: 'Escape' });
+		await vi.waitFor(() =>
+			expect(targets.map((presentationId) => broadcastInputs.get(presentationId)?.[2])).toEqual(
+				targets.map(() => expect.objectContaining({ code: 'Escape', key: 'Escape', kind: 'key' })),
+			),
+		);
+		fireEvent.keyDown(input, { code: 'Escape', ctrlKey: true, key: 'Escape' });
+		await vi.waitFor(() =>
+			expect(screen.queryByRole('textbox', { name: 'Broadcast input' })).toBeNull(),
+		);
+		expect(rendered.container.querySelector('[data-panel-broadcast-target="true"]')).toBeNull();
+
+		actionRuntime.dispose();
+	});
+
+	it('ends visibly after a non-atomic partial broadcast delivery and never replays it', async () => {
+		const { actionRuntime, panelWorkspaceStore, rendered } = renderRunningThreePanelWorkspace();
+		const tab = panelWorkspaceStore.getSnapshot().tabs[0];
+		if (tab === undefined) throw new Error('Expected the broadcast terminal Tab.');
+		const targets = collectPanelLeaves(tab.root).map(
+			(panel) => getDisplayedTerminal(panel).presentationId,
+		);
+		broadcastSendHandlers.set(targets[1] ?? targets[0] ?? '', async () => ({ kind: 'failed' }));
+		const sourceViewport = rendered.container.querySelector<HTMLElement>(
+			`[data-panel-id="${tab.focusedPanelId}"][data-slot="workbench-terminal-viewport"]`,
+		);
+		if (sourceViewport === null) throw new Error('Expected the focused terminal viewport.');
+
+		sourceViewport.focus();
+		fireEvent.contextMenu(sourceViewport, { clientX: 20, clientY: 20 });
+		fireEvent.click(screen.getByRole('menuitem', { name: 'Broadcast Input' }));
+		const input = await screen.findByRole('textbox', { name: 'Broadcast input' });
+		fireEvent.input(input, { target: { value: 'unsafe-to-retry' } });
+
+		await screen.findByRole('alert');
+		expect(screen.getByRole('alert').textContent).toContain('confirmed by 2 of 3 terminals');
+		expect(screen.queryByRole('textbox', { name: 'Broadcast input' })).toBeNull();
+		expect(targets.map((presentationId) => broadcastInputs.get(presentationId))).toEqual(
+			targets.map(() => [{ kind: 'text', text: 'unsafe-to-retry' }]),
+		);
+
+		actionRuntime.dispose();
+	});
 	it('owns keyboard selection exclusively and focuses the physically labeled target', async () => {
 		const { actionRuntime, panelWorkspaceStore, parentActionScope, rendered } =
 			renderThreePanelWorkspace();

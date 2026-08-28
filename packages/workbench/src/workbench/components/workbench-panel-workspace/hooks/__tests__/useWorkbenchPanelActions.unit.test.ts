@@ -80,6 +80,7 @@ function Harness({
 		activeTab: activeTabOverride,
 		operations: {
 			activateChildTerminal: () => appliedTransition,
+			canStartBroadcastInput: () => true,
 			closeDisplayedTerminal,
 			createChildTerminal,
 			equalizePanels,
@@ -89,6 +90,7 @@ function Harness({
 			showPrimaryTerminal: () => appliedTransition,
 			splitPanel: () => ({ panelId: 'panel-2', transition: appliedTransition }),
 			startPanelResize: () => true,
+			startBroadcastInput: () => true,
 			startPanelVisualSelection,
 			swapPanels,
 			togglePanelMaximization: () => appliedTransition,
@@ -132,6 +134,7 @@ describe('useWorkbenchPanelActions', () => {
 					activeTab: candidateTab,
 					operations: {
 						activateChildTerminal: () => appliedTransition,
+						canStartBroadcastInput: () => true,
 						closeDisplayedTerminal,
 						createChildTerminal: () => appliedTransition,
 						equalizePanels: () => appliedTransition,
@@ -141,6 +144,7 @@ describe('useWorkbenchPanelActions', () => {
 						showPrimaryTerminal: () => appliedTransition,
 						splitPanel: () => ({ panelId: 'panel-2', transition: appliedTransition }),
 						startPanelResize: () => true,
+						startBroadcastInput: () => true,
 						startPanelVisualSelection: () => true,
 						swapPanels: () => appliedTransition,
 						togglePanelMaximization: () => appliedTransition,
@@ -443,6 +447,7 @@ describe('useWorkbenchPanelActions', () => {
 								direction: 'right',
 								panelId: 'panel-1',
 							},
+							[PANEL_ACTION_IDS.startBroadcastInput]: { panelId: 'panel-1' },
 							[PANEL_ACTION_IDS.startResize]: { panelId: 'panel-1' },
 							[PANEL_ACTION_IDS.startVisualSelection]: {
 								mode: 'focus',

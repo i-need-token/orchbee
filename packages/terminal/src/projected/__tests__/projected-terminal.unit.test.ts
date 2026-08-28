@@ -1174,6 +1174,137 @@ describe('ProjectedTerminal', () => {
 		expect(requests).toHaveBeenCalledTimes(2);
 	});
 
+	it('injects one attachment-local broadcast input at a time and revokes it with capability changes', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		let failPublication = false;
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+					if (failPublication) throw new Error('transport unavailable');
+				},
+			},
+			terminalId,
+		});
+		const readinessChanges =
+			vi.fn<Parameters<ProjectedTerminal['onInjectedInputReadinessChange']>[0]>();
+		terminal.onInjectedInputReadinessChange(readinessChanges);
+
+		expect(terminal.injectedInputReadiness).toEqual({ kind: 'unavailable' });
+		await terminal.open(browser.root);
+		expect(terminal.injectedInputReadiness).toEqual({
+			kind: 'ready',
+			revision: `${attachmentId}:1`,
+		});
+		await expect(
+			terminal.injectInput({ kind: 'text', text: '部署' }, `${attachmentId}:1`),
+		).resolves.toEqual({
+			kind: 'sent',
+		});
+		await expect(
+			terminal.injectInput(
+				{
+					code: 'KeyC',
+					key: 'c',
+					kind: 'key',
+					modifiers: {
+						alt: false,
+						altGraph: false,
+						altLeft: false,
+						altRight: false,
+						capsLock: false,
+						control: true,
+						controlRight: false,
+						meta: false,
+						metaRight: false,
+						numLock: false,
+						shift: false,
+						shiftRight: false,
+					},
+					repeat: false,
+				},
+				`${attachmentId}:1`,
+			),
+		).resolves.toEqual({ kind: 'sent' });
+		await expect(
+			terminal.injectInput(
+				{
+					code: 'ArrowUp',
+					key: 'ArrowUp',
+					kind: 'key',
+					modifiers: {
+						alt: false,
+						altGraph: false,
+						altLeft: false,
+						altRight: false,
+						capsLock: false,
+						control: false,
+						controlRight: false,
+						meta: false,
+						metaRight: false,
+						numLock: false,
+						shift: false,
+						shiftRight: false,
+					},
+					repeat: true,
+				},
+				`${attachmentId}:1`,
+			),
+		).resolves.toEqual({ kind: 'sent' });
+		expect(
+			commands.flatMap((command) => {
+				if (command.kind === 'text-input') return [`text:${command.payload.text}`];
+				if (command.kind === 'key-input') {
+					return [`key:${command.payload.action}:${command.payload.key}`];
+				}
+				return [];
+			}),
+		).toEqual(['text:部署', 'key:press:KeyC', 'key:release:KeyC', 'key:repeat:ArrowUp']);
+
+		expect(
+			terminal.applyInputCapability({
+				attachmentId,
+				capabilityRevision: canonicalText('2'),
+				input: false,
+				terminalId,
+			}),
+		).toEqual({ kind: 'applied' });
+		expect(terminal.injectedInputReadiness).toEqual({ kind: 'unavailable' });
+		await expect(
+			terminal.injectInput({ kind: 'text', text: 'blocked' }, `${attachmentId}:1`),
+		).resolves.toEqual({ kind: 'blocked' });
+		expect(
+			terminal.applyInputCapability({
+				attachmentId,
+				capabilityRevision: canonicalText('3'),
+				input: true,
+				terminalId,
+			}),
+		).toEqual({ kind: 'applied' });
+		expect(terminal.injectedInputReadiness).toEqual({
+			kind: 'ready',
+			revision: `${attachmentId}:3`,
+		});
+		await expect(
+			terminal.injectInput({ kind: 'text', text: 'stale' }, `${attachmentId}:1`),
+		).resolves.toEqual({ kind: 'blocked' });
+		failPublication = true;
+		await expect(
+			terminal.injectInput({ kind: 'text', text: 'uncertain' }, `${attachmentId}:3`),
+		).resolves.toEqual({ kind: 'failed' });
+		terminal.dispose();
+		expect(readinessChanges).toHaveBeenCalledTimes(4);
+		expect(readinessChanges).toHaveBeenLastCalledWith({ kind: 'unavailable' });
+	});
+
 	it('waits for the configured font and keeps the IME textarea font in sync', async () => {
 		const browser = createFakeBrowser();
 		const finishFontLoads: Array<() => void> = [];

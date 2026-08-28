@@ -41,6 +41,7 @@ export type ActiveTerminalCommand =
 	| 'move-left'
 	| 'move-right'
 	| 'move-up'
+	| 'open-broadcast-input'
 	| 'start-resize'
 	| 'split-below'
 	| 'split-right'
@@ -90,6 +91,12 @@ interface ResolveActiveTerminalCommandOptions {
 }
 
 export type ActiveTerminalCommandResolution =
+	| {
+			readonly actionId: typeof PANEL_ACTION_IDS.startBroadcastInput;
+			readonly input: PanelTargetInput;
+			readonly kind: 'ready';
+			readonly panelId: string;
+	  }
 	| {
 			readonly actionId: typeof PANEL_ACTION_IDS.equalize;
 			readonly input: PanelTargetInput;
@@ -174,6 +181,18 @@ export function resolveActiveTerminalCommand({
 	}
 
 	switch (command) {
+		case 'open-broadcast-input':
+			if (activeTab.maximizedPanelId !== null) {
+				return { kind: 'unavailable', reason: 'panel-maximized' };
+			}
+			return collectPanelLeaves(activeTab.root).length < 2
+				? { kind: 'unavailable', reason: 'requires-multiple-panels' }
+				: {
+						actionId: PANEL_ACTION_IDS.startBroadcastInput,
+						input: { panelId },
+						kind: 'ready',
+						panelId,
+					};
 		case 'close':
 			if (
 				panel.activeChildPresentationId !== null ||

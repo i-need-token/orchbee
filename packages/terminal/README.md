@@ -244,6 +244,19 @@ If the projected client disappears before this cleanup completes, Terminal Host 
 attachment's accepted key, application-mouse, and focus ownership before revoking its capability;
 another attachment is unaffected.
 
+`injectInput(...)` is the narrow bridge for a trusted, application-owned live input surface. It
+accepts either committed text or one physical key tap together with the exact opaque revision
+previously read from `injectedInputReadiness`. The revision must still match both at admission and
+when the ordered dispatcher executes; a read-only-to-write-ready cycle therefore cannot revive
+queued input from an older authority. Accepted input then uses terminal-local key normalization,
+Option-as-Alt policy, and the shared pre-input surface transition. The readiness event changes
+across attachment authority, opening, capability revocation, freeze, and disposal. Injection does
+not accept paste, drop, mouse, history, or replay semantics.
+A `sent` result means the command port accepted the attempted command, `failed` means delivery may
+be uncertain, and `blocked` means this surface did not publish it. Multi-terminal target capture,
+FIFO fan-out, partial-delivery policy, and user warnings remain application responsibilities above
+this package because command-port sends are not atomic across attachments.
+
 A blur, visibility loss, or disposal that reenters while reset is staging or sending cleanup is
 coalesced into the same transaction; the transaction drains key release, mouse release, and any
 newly required focus-out before it reopens admission or disposes. The Host reset follows that

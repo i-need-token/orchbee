@@ -68,6 +68,63 @@ export const workbenchMessages = defineMessages({
 		defaultMessage: enUSWorkbenchMessages['workbench.terminal.actions.fontSize.reset'],
 		description: 'Action that restores the application-wide terminal font size.',
 	},
+	panelBroadcastInputStart: {
+		id: 'workbench.panels.broadcastInput.actions.start',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.broadcastInput.actions.start'],
+		description: 'Action that opens live input broadcasting for every displayed Panel terminal.',
+	},
+	panelBroadcastInputDismiss: {
+		id: 'workbench.panels.broadcastInput.actions.dismiss',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.broadcastInput.actions.dismiss'],
+		description: 'Action that dismisses a stopped Panel broadcast input notice.',
+	},
+	panelBroadcastInputEnd: {
+		id: 'workbench.panels.broadcastInput.actions.end',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.broadcastInput.actions.end'],
+		description: 'Action that ends live Panel input broadcasting.',
+	},
+	panelBroadcastInputHide: {
+		id: 'workbench.panels.broadcastInput.actions.hide',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.broadcastInput.actions.hide'],
+		description: 'Action that masks the live Panel broadcast input surface.',
+	},
+	panelBroadcastInputShow: {
+		id: 'workbench.panels.broadcastInput.actions.show',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.broadcastInput.actions.show'],
+		description: 'Action that reveals the live Panel broadcast input surface.',
+	},
+	panelBroadcastInputLabel: {
+		id: 'workbench.panels.broadcastInput.label',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.broadcastInput.label'],
+		description: 'Accessible label for the live Panel broadcast input surface.',
+	},
+	panelBroadcastInputPlaceholder: {
+		id: 'workbench.panels.broadcastInput.placeholder',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.broadcastInput.placeholder'],
+		description: 'Placeholder for the live Panel broadcast input field.',
+	},
+	panelBroadcastInputTargetCount: {
+		id: 'workbench.panels.broadcastInput.targetCount',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.broadcastInput.targetCount'],
+		description: 'Status describing how many Panel terminals receive broadcast input.',
+	},
+	panelBroadcastInputTargetInvalidated: {
+		id: 'workbench.panels.broadcastInput.failure.targetInvalidated',
+		defaultMessage:
+			enUSWorkbenchMessages['workbench.panels.broadcastInput.failure.targetInvalidated'],
+		description: 'Warning shown when the captured Panel broadcast target set becomes stale.',
+	},
+	panelBroadcastInputPartialDelivery: {
+		id: 'workbench.panels.broadcastInput.failure.partialDelivery',
+		defaultMessage:
+			enUSWorkbenchMessages['workbench.panels.broadcastInput.failure.partialDelivery'],
+		description: 'Warning shown after non-atomic Panel broadcast input reaches only some targets.',
+	},
+	panelBroadcastInputDeliveryFailed: {
+		id: 'workbench.panels.broadcastInput.failure.deliveryFailed',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.broadcastInput.failure.deliveryFailed'],
+		description: 'Warning shown when a Panel broadcast input could not reach any target.',
+	},
 	panelCancel: {
 		id: 'workbench.panels.actions.cancel',
 		defaultMessage: enUSWorkbenchMessages['workbench.panels.actions.cancel'],

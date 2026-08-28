@@ -305,6 +305,7 @@ describe('Workbench Project and Workspace management', () => {
 			{ icon: 'tabs', label: 'New tab in current directory⌥⌘Enter' },
 			{ icon: 'terminal', label: 'New child terminal' },
 			{ icon: 'panels', label: 'Resize Panel…⌘R' },
+			{ icon: 'terminal', label: 'Broadcast Input' },
 			{ icon: 'panels', label: 'Equalize Panels⌃⌘=' },
 			{ icon: 'screen-full', label: 'Maximize Panel⇧⌘Enter' },
 			{ icon: 'panels', label: 'Split panel' },

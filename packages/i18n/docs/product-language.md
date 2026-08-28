@@ -20,6 +20,7 @@ Grammar may vary with a complete message, but the underlying product concept and
 | --------------------- | --------------------- | ------------ | ------------------------------------------------------------------- | ------------------------------------------ |
 | Orchbee               | Orchbee               | Orchbee      | Product name                                                        | Transliterated or translated product names |
 | Browser access        | Browser access        | 浏览器访问   | Desktop surface for using a terminal from a browser                 | Web access、浏览器连接                     |
+| Broadcast input       | Broadcast input       | 广播输入     | Dedicated live input sent to an exact set of displayed Panels       | Synchronized input、bulk input             |
 | Command output        | Command output        | 命令输出     | Shell-marked text produced by one command                           | Terminal output、log                       |
 | Host                  | Host                  | 主机         | Terminal display option that preserves Host-projected colors        | Server、设备                               |
 | Keyboard shortcut     | Keyboard shortcut     | 键盘快捷键   | Physical chord bound to one semantic product action                 | Hotkey、快捷方式                           |

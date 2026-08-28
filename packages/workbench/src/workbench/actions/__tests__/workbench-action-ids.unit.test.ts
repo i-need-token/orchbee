@@ -58,6 +58,7 @@ describe('workbench action contracts', () => {
 			moveActivePanelRight: 'workbench.panel.active.move-right',
 			moveActivePanelUp: 'workbench.panel.active.move-up',
 			setTabTitle: 'workbench.tab.title.set',
+			openPanelBroadcastInput: 'workbench.panel.active.broadcast-input.open',
 			resetTerminalFontSize: 'workbench.terminal.font-size.reset',
 			resizeActivePanel: 'workbench.panel.active.resize',
 			selectTabByPosition: 'workbench.tab.select-by-position',

@@ -53,6 +53,7 @@ import type {
 import { createPanelDragSnapshot } from '../utils/createPanelDragSnapshot';
 import { getPanelDropDirection } from '../utils/getPanelDropDirection';
 import { useWorkbenchPanelActions } from './useWorkbenchPanelActions';
+import { useWorkbenchPanelBroadcastInput } from './useWorkbenchPanelBroadcastInput';
 
 interface UseWorkbenchPanelWorkspaceOptions {
 	readonly actionRuntime: ActionRuntime;
@@ -129,6 +130,17 @@ export function useWorkbenchPanelWorkspace({
 	const activeTab = state.tabs.find((tab) => tab.tabId === activeTabId) ?? null;
 	const panelCount = activeTab === null ? 0 : collectPanelLeaves(activeTab.root).length;
 	const displayedRoot = panelDrag.previewRoot ?? activeTab?.root ?? null;
+	const panelBroadcastInput = useWorkbenchPanelBroadcastInput({
+		activeTabId,
+		conflictingInteraction:
+			pendingClose !== null ||
+			pendingResize !== null ||
+			panelDragSession !== null ||
+			panelVisualSelection !== null,
+		store,
+		workspaceReference,
+		workspaceState: state,
+	});
 	React.useLayoutEffect(() => {
 		if (panelDragSession === null || panelDragSession.tabId === activeTabId) return;
 		setPanelDragSession(null);
@@ -147,6 +159,28 @@ export function useWorkbenchPanelWorkspace({
 	}, [activeTabId, pendingResize, state.tabs]);
 	const messages = React.useMemo<PanelWorkspaceMessages>(
 		() => ({
+			broadcastDeliveryFailed: intl.formatMessage(
+				workbenchMessages.panelBroadcastInputDeliveryFailed,
+			),
+			broadcastDismiss: intl.formatMessage(workbenchMessages.panelBroadcastInputDismiss),
+			broadcastEnd: intl.formatMessage(workbenchMessages.panelBroadcastInputEnd),
+			broadcastHideInput: intl.formatMessage(workbenchMessages.panelBroadcastInputHide),
+			broadcastInputLabel: intl.formatMessage(workbenchMessages.panelBroadcastInputLabel),
+			broadcastInputPlaceholder: intl.formatMessage(
+				workbenchMessages.panelBroadcastInputPlaceholder,
+			),
+			broadcastPartialDelivery: (delivered, total) =>
+				intl.formatMessage(workbenchMessages.panelBroadcastInputPartialDelivery, {
+					delivered,
+					total,
+				}),
+			broadcastShowInput: intl.formatMessage(workbenchMessages.panelBroadcastInputShow),
+			broadcastStart: intl.formatMessage(workbenchMessages.panelBroadcastInputStart),
+			broadcastTargetCount: (count) =>
+				intl.formatMessage(workbenchMessages.panelBroadcastInputTargetCount, { count }),
+			broadcastTargetInvalidated: intl.formatMessage(
+				workbenchMessages.panelBroadcastInputTargetInvalidated,
+			),
 			cancel: intl.formatMessage(workbenchMessages.panelCancel),
 			childPresentationsLabel: intl.formatMessage(workbenchMessages.panelChildTerminalsLabel),
 			close: intl.formatMessage(workbenchMessages.panelClose),
@@ -246,6 +280,7 @@ export function useWorkbenchPanelWorkspace({
 							},
 				);
 			},
+			canStartBroadcastInput: panelBroadcastInput.canStart,
 			createChildTerminal: (panelId: string) =>
 				transitionForActiveTab({
 					newTerminalTitle: createTerminalTitle(),
@@ -289,7 +324,7 @@ export function useWorkbenchPanelWorkspace({
 				};
 			},
 			startPanelResize: (panelId: string) => {
-				if (panelVisualSelection !== null) {
+				if (panelVisualSelection !== null || panelBroadcastInput.state.kind !== 'idle') {
 					return false;
 				}
 				const tabId = store.getActiveTabId();
@@ -302,6 +337,7 @@ export function useWorkbenchPanelWorkspace({
 			},
 			startPanelVisualSelection: (panelId: string, mode: PanelVisualSelectionInput['mode']) => {
 				if (
+					panelBroadcastInput.state.kind !== 'idle' ||
 					pendingClose !== null ||
 					pendingResize !== null ||
 					panelDragSession !== null ||
@@ -327,6 +363,7 @@ export function useWorkbenchPanelWorkspace({
 				setPanelVisualSelection(result.session);
 				return true;
 			},
+			startBroadcastInput: panelBroadcastInput.start,
 			swapPanels: (panelId: string, targetPanelId: string) =>
 				transitionForActiveTab({
 					panelId,
@@ -340,6 +377,9 @@ export function useWorkbenchPanelWorkspace({
 			commitMovePanel,
 			createTerminalTitle,
 			panelDragSession,
+			panelBroadcastInput.canStart,
+			panelBroadcastInput.start,
+			panelBroadcastInput.state.kind,
 			panelVisualSelection,
 			pendingClose,
 			pendingResize,
@@ -594,6 +634,7 @@ export function useWorkbenchPanelWorkspace({
 			if (
 				event.button !== 0 ||
 				panelDragSession !== null ||
+				panelBroadcastInput.state.kind !== 'idle' ||
 				panelVisualSelection !== null ||
 				activeTab === null ||
 				activeTab.maximizedPanelId !== null ||
@@ -811,8 +852,11 @@ export function useWorkbenchPanelWorkspace({
 			);
 		},
 		activeTab,
+		bindBroadcastInputSink: panelBroadcastInput.bindSink,
+		broadcastInput: panelBroadcastInput.state,
 		cancelPanelVisualSelection,
 		cancelPanelResize: () => setPendingResize(null),
+		canStartBroadcastInput: panelBroadcastInput.canStart,
 		canResizePanel: (panelId, adjustment, multiplier = 1) => {
 			const tabId = store.getActiveTabId();
 			const tab = store.getSnapshot().tabs.find((candidate) => candidate.tabId === tabId);
@@ -868,9 +912,12 @@ export function useWorkbenchPanelWorkspace({
 			});
 		},
 		displayedRoot,
+		dismissBroadcastInput: panelBroadcastInput.dismiss,
 		equalizePanels: (panelId, source: ActionInvocationSource = 'programmatic') => {
 			executePanelAction(PANEL_ACTION_IDS.equalize, { panelId } satisfies PanelTargetInput, source);
 		},
+		endBroadcastInput: panelBroadcastInput.end,
+		enqueueBroadcastInput: panelBroadcastInput.enqueue,
 		focusPanel: (panelId, source: ActionInvocationSource = 'programmatic') => {
 			executePanelAction(PANEL_ACTION_IDS.focus, { panelId } satisfies PanelTargetInput, source);
 		},
@@ -942,6 +989,13 @@ export function useWorkbenchPanelWorkspace({
 			return result?.kind === 'completed' && typeof result.value === 'string' ? result.value : null;
 		},
 		startPanelDrag,
+		startBroadcastInput: (panelId, source: ActionInvocationSource = 'programmatic') => {
+			executePanelAction(
+				PANEL_ACTION_IDS.startBroadcastInput,
+				{ panelId } satisfies PanelTargetInput,
+				source,
+			);
+		},
 		startPanelResize: (panelId, source: ActionInvocationSource = 'programmatic') => {
 			executePanelAction(
 				PANEL_ACTION_IDS.startResize,
@@ -950,6 +1004,7 @@ export function useWorkbenchPanelWorkspace({
 			);
 		},
 		state,
+		toggleBroadcastInputVisibility: panelBroadcastInput.toggleVisibility,
 		togglePanelMaximization: (panelId, source: ActionInvocationSource = 'programmatic') => {
 			executePanelAction(
 				PANEL_ACTION_IDS.toggleMaximization,

@@ -13,6 +13,7 @@ export function ProjectedTerminalSurface({
 	admitBellEffect,
 	autoFocus,
 	bindActionContextProvider,
+	bindBroadcastInputSink,
 	onPresentationReady,
 	presentation,
 	presentationMode,
@@ -23,6 +24,7 @@ export function ProjectedTerminalSurface({
 		admitBellEffect,
 		autoFocus,
 		bindActionContextProvider,
+		bindBroadcastInputSink,
 		onPresentationReady,
 		presentationMode,
 	});
