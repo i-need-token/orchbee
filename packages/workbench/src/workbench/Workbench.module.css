@@ -86,3 +86,9 @@
 	flex: 1;
 	overflow: hidden;
 }
+
+.emptyWindow {
+	display: grid;
+	height: 100%;
+	place-items: center;
+}

@@ -7,6 +7,7 @@ import {
 	AlertDialogFooter,
 	AlertDialogHeader,
 	AlertDialogTitle,
+	Button,
 	Kbd,
 	ResizableHandle,
 	ResizablePanel,
@@ -32,6 +33,7 @@ import { EMPTY_WORKBENCH_SEARCH_PROVIDERS } from './constants/search-providers';
 import { useWorkbench } from './hooks/useWorkbench';
 import { useWorkbenchActionShortcutLabel } from './hooks/useWorkbenchActionShortcutLabel';
 import { useWorkbenchTabStripMessages } from './hooks/useWorkbenchTabStripMessages';
+import { useWorkbenchTabWindowControl } from './hooks/useWorkbenchTabWindowControl';
 import type { WorkbenchTerminalActionShortcutLabels } from './types/workbench-terminal-action-shortcut-labels';
 import type {
 	WorkbenchHostActionCallback,
@@ -43,6 +45,8 @@ import type { WorkbenchSearchProvider } from './types/workbench-search-provider'
 import type { WorkbenchTerminalSurface } from './types/workbench-terminal-surface';
 import type { WorkbenchProjectFolderAcquisition } from './types/workbench-project-folder-acquisition';
 import type { WorkbenchProjectWorktreeCapability } from './types/workbench-project-worktree';
+import type { WorkbenchTabScopeSource } from './types/workbench-tab-scope';
+import type { WorkbenchTabWindowControl } from './types/workbench-tab-window-control';
 import type { WorkbenchProjectWorkspaceRuntime } from './model/WorkbenchProjectWorkspaceRuntime';
 import {
 	defaultWorkbenchShortcutBindings,
@@ -66,6 +70,8 @@ export interface WorkbenchProps {
 	readonly shortcutPlatform: WorkbenchShortcutPlatform;
 	readonly terminalActionShortcutLabels?: WorkbenchTerminalActionShortcutLabels | undefined;
 	readonly terminalSurface?: WorkbenchTerminalSurface | undefined;
+	readonly tabScope?: WorkbenchTabScopeSource | undefined;
+	readonly tabWindowControl?: WorkbenchTabWindowControl | undefined;
 }
 
 export function Workbench({
@@ -84,6 +90,8 @@ export function Workbench({
 	shortcutPlatform,
 	terminalActionShortcutLabels,
 	terminalSurface,
+	tabScope,
+	tabWindowControl,
 }: WorkbenchProps): React.ReactNode {
 	const tabStripMessages = useWorkbenchTabStripMessages();
 	const effectiveShortcutBindings =
@@ -103,7 +111,16 @@ export function Workbench({
 		shortcutBindings: effectiveShortcutBindings,
 		shortcutPlatform,
 		storage: layoutStorage,
+		tabScope,
 	});
+	const windowIntegration = useWorkbenchTabWindowControl({
+		control: tabWindowControl,
+		formatWindowLabel: tabStripMessages.formatWindowLabel,
+		model: view.tabModel,
+		terminalContextId: view.terminalContext.terminalContextId,
+	});
+	const effectiveCrossWindowDragRuntime =
+		createCrossWindowDragRuntime ?? windowIntegration.createCrossWindowDragRuntime;
 	const sidebarToggle = (
 		<WorkbenchSidebarToggle
 			isSidebarVisible={view.isSidebarVisible}
@@ -234,7 +251,9 @@ export function Workbench({
 						>
 							<WorkbenchTabBar
 								actionRuntime={actionRuntime}
-								createCrossWindowDragRuntime={createCrossWindowDragRuntime}
+								createCrossWindowDragRuntime={effectiveCrossWindowDragRuntime}
+								onMoveGroupToWindow={windowIntegration.moveGroupToWindow}
+								onMoveTabsToWindow={windowIntegration.moveTabsToWindow}
 								onNewTerminal={view.newTab}
 								onOrientationChange={view.onTabStripOrientationChange}
 								onVerticalCollapsedChange={view.onVerticalTabStripCollapsedChange}
@@ -250,18 +269,27 @@ export function Workbench({
 									newTab: shortcutLabelForAction(WORKBENCH_ACTION_IDS.createTerminal),
 									setTabTitle: shortcutLabelForAction(WORKBENCH_ACTION_IDS.setTabTitle),
 								}}
-								tabModel={view.terminalContext.tabModel}
+								tabModel={view.tabModel}
 								tabStripMessages={tabStripMessages}
 								verticalCollapsed={view.verticalTabStripCollapsed}
+								windowTargets={windowIntegration.windowTargets}
 							/>
 							<div className={styles['tabContent']} data-slot='workbench-tab-content'>
-								<WorkbenchPanelWorkspace
-									actionRuntime={actionRuntime}
-									panelWorkspaceStore={view.terminalContext.panelWorkspaceStore}
-									parentActionScope={view.actionScope}
-									shortcutLabelForAction={shortcutLabelForAction}
-									terminalSurface={terminalSurface}
-								/>
+								{view.hasVisibleTerminalTabs ? (
+									<WorkbenchPanelWorkspace
+										actionRuntime={actionRuntime}
+										panelWorkspaceStore={view.terminalContext.panelWorkspaceStore}
+										parentActionScope={view.actionScope}
+										shortcutLabelForAction={shortcutLabelForAction}
+										terminalSurface={terminalSurface}
+									/>
+								) : (
+									<div className={styles['emptyWindow']} data-slot='workbench-empty-window'>
+										<Button disabled={view.newTerminal === undefined} onClick={view.newTerminal}>
+											{view.newTerminalLabel}
+										</Button>
+									</div>
+								)}
 							</div>
 						</div>
 					</ResizablePanel>

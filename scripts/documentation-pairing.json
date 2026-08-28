@@ -58,8 +58,8 @@
 			"zhCnSha256": "9a3856ec81e12af28c6ad1aa740bfa80dac9394c580dc5be05424936f5649f23"
 		},
 		"apps/desktop/docs/window-lifecycle.md": {
-			"englishSha256": "fe179b487f81332b935db57defa2466ec14a7006e2cde91bcfc16ea2a6bececd",
-			"zhCnSha256": "ced0671cc6b8d41ba552161ecaece87ef026c8e046b2b28b083d06e59ec7186d"
+			"englishSha256": "60332f1891e24ca20657d0a7536950115506629fcd20f302afe0c6b41ed4dc14",
+			"zhCnSha256": "a904a48f78939fd52f8277d7e60242cf5165b8c8ac0e7b5265d3ca6b0edcd632"
 		},
 		"apps/desktop/docs/workbench-shared-document-storage.md": {
 			"englishSha256": "c5aa88933e0f5a3c8f8d3ac4ec32157147b63c6ee445a7d6b7396a528337d81a",
@@ -222,8 +222,8 @@
 			"zhCnSha256": "8c2923204c6468f50f87eadc78721e9dcacd015eb9e440f7abd90c6445a6c578"
 		},
 		"packages/desktop-client-protocol/README.md": {
-			"englishSha256": "6f7f5fbcd4cd85a7eefa738185cd9d1b7d3b4adfdfc0a7324afd540167e86235",
-			"zhCnSha256": "b1e906f4b215651e5c56cbd1896ca856b4d29f48396eb168f676a04a69e5938e"
+			"englishSha256": "ff0741630eec0c9b62caf94b9a7d9b0b0c4d2ce05eece28bcd389e88f09bb72f",
+			"zhCnSha256": "27872d39b001a931b73f0d5ac812a6e5f885ea39091018efc07eaea48d5e5cd8"
 		},
 		"packages/foundation/README.md": {
 			"englishSha256": "fef97cd4e2c12ec171b4731026830debabc7f248d26c8f113d46abf2f8cbcb84",
@@ -318,8 +318,8 @@
 			"zhCnSha256": "48ca773dc61815ae61bb2940b15b8f0f84135965c9ed1b9d06afb6a0cac15ff3"
 		},
 		"packages/workbench/README.md": {
-			"englishSha256": "1be7c251ec89bb080f2bd3abfdfdf77e8d6581759e6bd2db699fe364614464cb",
-			"zhCnSha256": "aa1f0798cbb2d7805ccab5c2de5a40ec7fb399fe288e456b821ac719a410cafc"
+			"englishSha256": "29eb05471bc0c8f45bb5d3ab2864093f72fcf8492bcc1ba4a77e73cdec168076",
+			"zhCnSha256": "6736c524821058cd6f091ea002efb1654989a282ae47c692a86112d81714e7f8"
 		},
 		"packages/workbench/docs/project-workspace.md": {
 			"englishSha256": "7735b6ba0a702e8c85156b9b479faa4af4b666da46d3bc24a832cf841ef39cd7",

@@ -1,4 +1,8 @@
-import type { WorkbenchShortcutPlatform } from '@orchbee/workbench';
+import {
+	DesktopWindowLayoutDestinationSchema,
+	DesktopWindowLayoutDragSessionIdSchema,
+} from '@orchbee/desktop-client-protocol';
+import type { WorkbenchShortcutPlatform, WorkbenchTabWindowControl } from '@orchbee/workbench';
 import type { WorkbenchClientSessionBootstrap } from '@orchbee/workbench-client-protocol';
 import { createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
@@ -34,6 +38,7 @@ import { DesktopProjectFolderAcquisitionClient } from '../project-folder-acquisi
 import { DesktopProjectWorktreeClient } from '../project-worktree';
 import { DesktopTerminalLaunchProfileClient } from '../terminal-launch-profiles';
 import { DesktopTerminalDefaultSettingsClient } from '../terminal-default-settings';
+import { DesktopWindowLayoutClient } from '../window-layout';
 import type { TerminalFileDropCapability } from '../../terminal-file-drop';
 
 export interface DesktopWorkbenchRendererSession {
@@ -64,6 +69,7 @@ export function startDesktopWorkbenchRenderer(
 	terminalLaunchProfilePort: MessagePort,
 	terminalDefaultSettingsPort: MessagePort,
 	clipboardReadPort: MessagePort,
+	windowLayoutPort: MessagePort,
 	terminalFileDropCapability?: TerminalFileDropCapability,
 ): DesktopWorkbenchRendererSession {
 	if (!(rootElement instanceof HTMLElement)) {
@@ -91,6 +97,7 @@ export function startDesktopWorkbenchRenderer(
 	const terminalDefaultSettingsClient = new DesktopTerminalDefaultSettingsClient(
 		terminalDefaultSettingsPort,
 	);
+	const windowLayoutClient = new DesktopWindowLayoutClient(windowLayoutPort);
 	const keyboardShortcutSettingsController = new KeyboardShortcutSettingsController({
 		platform: shortcutPlatform,
 		storage: storage.preferences,
@@ -131,6 +138,7 @@ export function startDesktopWorkbenchRenderer(
 		...(terminalFileDropCapability === undefined ? {} : { terminalFileDropCapability }),
 	});
 	let applicationLifetimeCoordinator: DesktopApplicationLifetimeCoordinator | undefined;
+	let activeContextUnsubscribe: (() => void) | undefined;
 	let browserAccessReturnFocus: HTMLElement | null = null;
 	let disposed = false;
 	let lifetimeClient: DesktopApplicationLifetimeClient | undefined;
@@ -142,6 +150,8 @@ export function startDesktopWorkbenchRenderer(
 		disposed = true;
 		applicationLifetimeCoordinator?.dispose();
 		applicationLifetimeCoordinator = undefined;
+		activeContextUnsubscribe?.();
+		activeContextUnsubscribe = undefined;
 		browserAccessController.dispose();
 		clipboardClient.dispose();
 		reactRoot?.unmount();
@@ -150,6 +160,7 @@ export function startDesktopWorkbenchRenderer(
 		projectWorktreeClient.dispose();
 		terminalLaunchProfileClient.dispose();
 		terminalDefaultSettingsClient.dispose();
+		windowLayoutClient.dispose();
 		routing?.dispose();
 		routing = undefined;
 		runtime.dispose();
@@ -173,17 +184,38 @@ export function startDesktopWorkbenchRenderer(
 	): Promise<
 		{ readonly kind: 'ready' } | { readonly kind: 'unavailable'; readonly reason: string }
 	> {
-		const [runtimeStart, terminalLaunchProfilesStart, terminalDefaultSettingsStart] =
-			await Promise.all([
-				workbenchClientRuntime.ready,
-				terminalLaunchProfileClient.initialize(),
-				terminalDefaultSettingsClient.initialize(),
-			]);
+		const [
+			runtimeStart,
+			terminalLaunchProfilesStart,
+			terminalDefaultSettingsStart,
+			windowLayoutStart,
+		] = await Promise.all([
+			workbenchClientRuntime.ready,
+			terminalLaunchProfileClient.initialize(),
+			terminalDefaultSettingsClient.initialize(),
+			windowLayoutClient.initialize(),
+		]);
 		if (runtimeStart.kind === 'unavailable') {
 			dispose();
 			return runtimeStart;
 		}
+		if (windowLayoutStart.kind === 'unavailable') {
+			dispose();
+			return { kind: 'unavailable', reason: 'window-layout-unavailable' };
+		}
 		if (disposed) return { kind: 'unavailable', reason: 'control-unavailable' };
+		let activeTerminalContextId: string | undefined;
+		const publishActiveTerminalContext = () => {
+			const nextTerminalContextId =
+				workbenchClientRuntime.projectWorkspaceRuntime.getActiveTerminalContext().terminalContextId;
+			if (nextTerminalContextId === activeTerminalContextId) return;
+			activeTerminalContextId = nextTerminalContextId;
+			windowLayoutClient.setActiveTerminalContext(nextTerminalContextId);
+		};
+		publishActiveTerminalContext();
+		activeContextUnsubscribe = workbenchClientRuntime.projectWorkspaceRuntime.subscribe(
+			publishActiveTerminalContext,
+		);
 		lifetimeClient = new DesktopApplicationLifetimeClient(lifetimePort);
 		applicationLifetimeCoordinator = new DesktopApplicationLifetimeCoordinator(
 			workbenchClientRuntime.projectWorkspaceRuntime,
@@ -211,6 +243,37 @@ export function startDesktopWorkbenchRenderer(
 				? { terminalDefaultSettingsControl: terminalDefaultSettingsClient }
 				: {}),
 			terminalSurface: ProjectedTerminalSurface,
+			tabScope: windowLayoutClient,
+			tabWindowControl: {
+				finishDrag: (sessionId, input) =>
+					windowLayoutClient.finishDrag(
+						DesktopWindowLayoutDragSessionIdSchema.parse(sessionId),
+						input,
+					),
+				getDragTarget: (sessionId) =>
+					windowLayoutClient.getDragTarget(DesktopWindowLayoutDragSessionIdSchema.parse(sessionId)),
+				getSnapshot: windowLayoutClient.getSnapshot,
+				moveGroup: (terminalContextId, groupId, destination) =>
+					windowLayoutClient.moveGroup(
+						terminalContextId,
+						groupId,
+						DesktopWindowLayoutDestinationSchema.parse(destination),
+					),
+				moveTabs: (terminalContextId, tabIds, destination) =>
+					windowLayoutClient.moveTabs(
+						terminalContextId,
+						tabIds,
+						DesktopWindowLayoutDestinationSchema.parse(destination),
+					),
+				startDrag: (terminalContextId, tabIds) =>
+					windowLayoutClient.startDrag(terminalContextId, tabIds),
+				subscribe: windowLayoutClient.subscribe,
+				updateDrag: (sessionId, point) =>
+					windowLayoutClient.updateDrag(
+						DesktopWindowLayoutDragSessionIdSchema.parse(sessionId),
+						point,
+					),
+			} satisfies WorkbenchTabWindowControl,
 		});
 		routing = nextRouting;
 		reactRoot = createRoot(applicationRoot);

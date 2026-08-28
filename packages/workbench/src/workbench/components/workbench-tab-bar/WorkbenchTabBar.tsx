@@ -6,10 +6,13 @@ import {
 	type TabStripCloseCallback,
 	type TabStripCloseConfirmation,
 	type TabStripMessages,
+	type TabStripMoveGroupToWindowCallback,
+	type TabStripMoveTabsToWindowCallback,
 	type TabStripNewTabRequest,
 	type TabStripOrientation,
 	type TabStripSelectCallback,
 	type TabStripShortcutLabels,
+	type TabStripWindowTarget,
 } from '@orchbee/tab-strip';
 import type { ReactNode } from 'react';
 
@@ -20,6 +23,8 @@ interface WorkbenchTabBarProps {
 	readonly parentActionScope: ActionScope;
 	readonly createCrossWindowDragRuntime: TabStripCrossWindowDragRuntimeFactory | undefined;
 	readonly onNewTerminal: ((request: TabStripNewTabRequest) => ActionExecution) | undefined;
+	readonly onMoveGroupToWindow?: TabStripMoveGroupToWindowCallback | undefined;
+	readonly onMoveTabsToWindow?: TabStripMoveTabsToWindowCallback | undefined;
 	readonly onCloseTabs?: TabStripCloseCallback | undefined;
 	readonly getCloseTabsConfirmation: TabStripCloseConfirmation;
 	readonly onOrientationChange: (orientation: TabStripOrientation) => void;
@@ -32,12 +37,15 @@ interface WorkbenchTabBarProps {
 	readonly tabModel: TabModel;
 	readonly tabStripMessages: TabStripMessages;
 	readonly verticalCollapsed: boolean;
+	readonly windowTargets?: readonly TabStripWindowTarget[] | undefined;
 }
 
 export function WorkbenchTabBar({
 	actionRuntime,
 	createCrossWindowDragRuntime,
 	onNewTerminal,
+	onMoveGroupToWindow,
+	onMoveTabsToWindow,
 	onCloseTabs,
 	getCloseTabsConfirmation,
 	onOrientationChange,
@@ -51,6 +59,7 @@ export function WorkbenchTabBar({
 	tabModel,
 	tabStripMessages,
 	verticalCollapsed,
+	windowTargets = [],
 }: WorkbenchTabBarProps): ReactNode {
 	return (
 		<div
@@ -73,6 +82,8 @@ export function WorkbenchTabBar({
 				messages={tabStripMessages}
 				model={tabModel}
 				onNewTab={onNewTerminal}
+				onMoveGroupToWindow={onMoveGroupToWindow}
+				onMoveTabsToWindow={onMoveTabsToWindow}
 				onCloseTabs={onCloseTabs}
 				getCloseTabsConfirmation={getCloseTabsConfirmation}
 				onOrientationChange={onOrientationChange}
@@ -86,6 +97,7 @@ export function WorkbenchTabBar({
 				shortcutLabels={shortcutLabels}
 				verticalCollapsed={verticalCollapsed}
 				onVerticalCollapsedChange={onVerticalCollapsedChange}
+				windowTargets={windowTargets}
 			/>
 		</div>
 	);

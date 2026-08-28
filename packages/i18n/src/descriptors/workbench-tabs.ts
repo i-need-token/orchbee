@@ -171,17 +171,33 @@ export const workbenchTabMessages = defineMessages({
 		id: 'workbench.tabs.menus.group',
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.menus.group'],
 	},
+	windowLabel: {
+		id: 'workbench.tabs.windowLabel',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.windowLabel'],
+	},
 	moveGroupToNewWindow: {
 		id: 'workbench.tabs.actions.moveGroupToWindow',
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.moveGroupToWindow'],
+	},
+	moveGroupToWindow: {
+		id: 'workbench.tabs.actions.moveGroupToExistingWindow',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.moveGroupToExistingWindow'],
 	},
 	moveTabToNewWindow: {
 		id: 'workbench.tabs.actions.moveTabToWindow',
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.moveTabToWindow'],
 	},
+	moveTabToWindow: {
+		id: 'workbench.tabs.actions.moveTabToExistingWindow',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.moveTabToExistingWindow'],
+	},
 	moveTabsToNewWindow: {
 		id: 'workbench.tabs.actions.moveTabsToWindow',
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.moveTabsToWindow'],
+	},
+	moveTabsToWindow: {
+		id: 'workbench.tabs.actions.moveTabsToExistingWindow',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.moveTabsToExistingWindow'],
 	},
 	moveTabsToGroup: {
 		id: 'workbench.tabs.actions.moveToGroup',

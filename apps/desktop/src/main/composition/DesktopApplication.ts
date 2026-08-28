@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { constants } from 'node:os';
 
 import { createOrchbeeIntl, resolveOrchbeeLocale, workbenchTabMessages } from '@orchbee/i18n';
+import { WorkbenchProjectWorkspaceRuntime } from '@orchbee/workbench';
 import {
 	DESKTOP_RENDERER_BOOTSTRAP_IPC_CHANNEL,
 	DesktopApplicationExitRequestIdSchema,
@@ -39,10 +40,11 @@ import {
 	type TerminalPresentationId,
 	type TerminalPresentationEvent,
 } from '@orchbee/workbench/terminal-presentation';
-import type {
-	WorkbenchSharedDocument,
-	WorkbenchSharedPanelNode,
-	WorkbenchSharedDocumentRevision,
+import {
+	workbenchSharedDocumentRevision,
+	type WorkbenchSharedDocument,
+	type WorkbenchSharedPanelNode,
+	type WorkbenchSharedDocumentRevision,
 } from '@orchbee/workbench/document';
 import type {
 	ProjectedAttachmentBootstrap,
@@ -120,10 +122,22 @@ import type { DesktopTerminalExitRecordResult } from '../terminal-document-contr
 import {
 	DesktopWindowStateOwner,
 	FileDesktopWindowStateStore,
+	resolveDesktopWindowLaunchState,
+	type DesktopWindowBounds,
 	type DesktopWindowDisplayTopology,
 	type DesktopWindowStateAttachment,
 	type DesktopWindowStateStore,
 } from '../window-state';
+import {
+	DesktopWindowLayoutBroker,
+	DesktopWindowLayoutCoordinator,
+	FileDesktopWindowLayoutStore,
+	loadDesktopWindowLayoutOwner,
+	type DesktopWindowLayoutHost,
+	type DesktopWindowLayoutProductDocument,
+	type DesktopWindowLayoutStore,
+	type DesktopWindowLayoutWindow,
+} from '../window-layout';
 import { FileWorkbenchDocumentStore, type WorkbenchDocumentStore } from '../workbench-document';
 import {
 	composeDesktopTerminalRuntime,
@@ -214,6 +228,21 @@ interface DesktopTerminalLaunchProfileControllerHandle extends DesktopTerminalLa
 
 interface GatewayClientResourceOwner {
 	dispose(): Promise<void>;
+}
+
+interface DesktopRendererDocumentHandle {
+	readonly cleanup: () => Promise<void>;
+	readonly lifetimeBroker: DesktopApplicationLifetimeBrokerHandle;
+}
+
+interface DesktopNativeWindowRecord {
+	geometryCaptureScheduled: boolean;
+	layoutCommitted: boolean;
+	loading: Promise<void> | undefined;
+	pendingRendererGeneration: number | undefined;
+	retiring: boolean;
+	readonly window: BrowserWindow;
+	readonly windowId: string;
 }
 
 type TerminalExitPublicationResult = 'already-committed' | 'committed' | 'pending';
@@ -344,6 +373,7 @@ export interface DesktopApplicationDependencies {
 	) => DesktopTerminalIntentReconciler;
 	readonly createWorkbenchDocumentStore: (filePath: string) => WorkbenchDocumentStore;
 	readonly createWindow: (options: BrowserWindowConstructorOptions) => BrowserWindow;
+	readonly createWindowLayoutStore?: (filePath: string) => DesktopWindowLayoutStore;
 	readonly createWindowStateStore: (filePath: string) => DesktopWindowStateStore;
 	readonly getWindowDisplayTopology: () => DesktopWindowDisplayTopology;
 	readonly getPreferredLocales: () => readonly string[];
@@ -443,6 +473,7 @@ const defaultDependencies: DesktopApplicationDependencies = {
 	createTerminalExitPublicationLedger: (filePath) => new TerminalExitPublicationLedger(filePath),
 	createWorkbenchDocumentStore: (filePath) => new FileWorkbenchDocumentStore(filePath),
 	createWindow: (options) => new BrowserWindow(options),
+	createWindowLayoutStore: (filePath) => new FileDesktopWindowLayoutStore(filePath),
 	createWindowStateStore: (filePath) => new FileDesktopWindowStateStore(filePath),
 	getPreferredLocales: () => app.getPreferredSystemLanguages(),
 	getWindowDisplayTopology: () => ({
@@ -475,24 +506,18 @@ function unavailableBrowserAccess(): never {
 export class DesktopApplication {
 	#applicationLifetimeBroker: DesktopApplicationLifetimeBrokerHandle | undefined;
 	#applicationLifetimeRecovery: Promise<boolean> | undefined;
-	#browserAccessBroker: DesktopBrowserAccessBrokerHandle | undefined;
 	#browserAccessRuntime: DesktopBrowserAccessRuntimeHandle | undefined;
-	#clipboardBroker: DesktopClipboardBrokerHandle | undefined;
-	#clientSessionBroker: DesktopClientSessionBrokerHandle | undefined;
 	#clientSessionCoordinator: DesktopClientSessionCoordinator | undefined;
 	readonly #dependencies: DesktopApplicationDependencies;
 	readonly #options: DesktopApplicationOptions;
 	#connection: HostConnection | undefined;
 	#documentFailure: Error | undefined;
 	#documentGeneration = 0;
+	readonly #documentGenerations = new Map<BrowserWindow, number>();
 	#documentTransition = Promise.resolve();
 	#developmentHostRestartPresentationIds: readonly TerminalPresentationId[] | undefined;
 	#exitRequest: Promise<DesktopApplicationLifetimeExitResult> | undefined;
 	readonly #pendingGatewayClientCleanups = new Set<GatewayClientResourceOwner>();
-	#pendingRendererBootstrapCleanup: (() => Promise<void>) | undefined;
-	#projectionControlBroker: DesktopProjectionControlBrokerHandle | undefined;
-	#projectFolderAcquisitionBroker: DesktopProjectFolderAcquisitionBrokerHandle | undefined;
-	#projectWorktreeBroker: DesktopProjectWorktreeBrokerHandle | undefined;
 	#projectWorktreeRuntime: DesktopProjectWorktreeRuntimeHandle | undefined;
 	#quitPrepared = false;
 	#removeHostListener: (() => void) | undefined;
@@ -500,9 +525,7 @@ export class DesktopApplication {
 	#shutdownPromise: Promise<void> | undefined;
 	#terminalRuntime: DesktopTerminalRuntime | undefined;
 	#terminalIntentReconciler: DesktopTerminalIntentReconciler | undefined;
-	#terminalDefaultSettingsBroker: DesktopTerminalDefaultSettingsBrokerHandle | undefined;
 	#terminalDefaultSettingsController: DesktopTerminalDefaultSettingsControllerHandle | undefined;
-	#terminalLaunchProfileBroker: DesktopTerminalLaunchProfileBrokerHandle | undefined;
 	readonly #terminalLaunchProfileController: DesktopTerminalLaunchProfileControllerHandle;
 	readonly #pendingTerminalExits = new Map<string, TerminalExited>();
 	readonly #pendingTerminalMetadata = new Map<string, TerminalMetadataChanged>();
@@ -524,9 +547,15 @@ export class DesktopApplication {
 	readonly #terminalExitSpillStore: TerminalExitSpillStore;
 	readonly #terminalExitPublicationLedger: TerminalExitPublicationLedger;
 	#terminalExitSpillReady = false;
-	#pendingRendererDocumentRetirement: (() => Promise<void>) | undefined;
+	readonly #rendererDocuments = new Map<BrowserWindow, DesktopRendererDocumentHandle>();
+	readonly #rendererDocumentRetirements = new Map<BrowserWindow, DesktopRendererDocumentHandle>();
 	#window: BrowserWindow | undefined;
+	readonly #windows = new Map<string, DesktopNativeWindowRecord>();
+	readonly #windowIds = new Map<BrowserWindow, string>();
+	#windowLayoutCoordinator: DesktopWindowLayoutCoordinator | undefined;
+	#windowLayoutOwner: Awaited<ReturnType<typeof loadDesktopWindowLayoutOwner>> | undefined;
 	#windowStateAttachment: DesktopWindowStateAttachment | undefined;
+	#windowStateAttachmentWindow: BrowserWindow | undefined;
 	readonly #windowStateOwner: DesktopWindowStateOwner;
 	readonly #workbenchDocumentStore: WorkbenchDocumentStore;
 
@@ -563,15 +592,107 @@ export class DesktopApplication {
 	}
 
 	get hasWindow(): boolean {
-		return this.#window !== undefined && !this.#window.isDestroyed();
+		return [...this.#windows.values()].some((record) => !record.window.isDestroyed());
 	}
 
 	get quitPrepared(): boolean {
 		return this.#quitPrepared;
 	}
 
+	canCreateWindow(): boolean {
+		return (
+			!this.#quitPrepared &&
+			!this.#shuttingDown &&
+			this.#connection !== undefined &&
+			this.#clientSessionCoordinator !== undefined &&
+			this.#windowLayoutCoordinator !== undefined &&
+			this.#options.runtime.terminalLaunch.currentDirectory !== null
+		);
+	}
+
+	async createWindow(): Promise<boolean> {
+		const clientSessionCoordinator = this.#clientSessionCoordinator;
+		const windowLayoutCoordinator = this.#windowLayoutCoordinator;
+		const defaultCwd = this.#options.runtime.terminalLaunch.currentDirectory;
+		if (
+			!this.canCreateWindow() ||
+			clientSessionCoordinator === undefined ||
+			windowLayoutCoordinator === undefined ||
+			defaultCwd === null
+		) {
+			return false;
+		}
+		const terminalTitle = createOrchbeeIntl(
+			resolveOrchbeeLocale(this.#dependencies.getPreferredLocales()),
+		).formatMessage(workbenchTabMessages.terminalTitle);
+		let created: { readonly tabId: string; readonly terminalContextId: string } | undefined;
+		const mutation = await clientSessionCoordinator
+			.mutateCanonicalDocument((canonical) => {
+				const runtime = new WorkbenchProjectWorkspaceRuntime({
+					initialDocument: canonical,
+					standaloneCwd: defaultCwd,
+					standaloneTerminalTitle: terminalTitle,
+					terminalPresentation: {
+						createOperationId: () =>
+							terminalPresentationOperationId(
+								`desktop:new-window:operation:${this.#dependencies.randomIdentifier()}`,
+							),
+						createPresentationId: () =>
+							terminalPresentationId(
+								`desktop:new-window:presentation:${this.#dependencies.randomIdentifier()}`,
+							),
+						createRemovalId: () =>
+							terminalPresentationRemovalId(
+								`desktop:new-window:removal:${this.#dependencies.randomIdentifier()}`,
+							),
+						dispatchCommands: () => undefined,
+						initialPresentationId: terminalPresentationId(
+							`desktop:new-window:initial:${this.#dependencies.randomIdentifier()}`,
+						),
+						kind: 'managed',
+					},
+				});
+				const creation = runtime.createTerminalAtCwd({
+					cwd: defaultCwd,
+					groupId: null,
+					source: 'programmatic',
+					title: terminalTitle,
+				});
+				if (creation.kind !== 'created') {
+					return { kind: 'rejected', reason: creation.reason };
+				}
+				const document = runtime.getSharedDocument(
+					workbenchSharedDocumentRevision((BigInt(canonical.revision) + 1n).toString()),
+				);
+				const terminalContext = document.terminalContexts.find((candidate) =>
+					candidate.tabCollection.tabs.some((tab) => tab.id === creation.tabId),
+				);
+				if (terminalContext === undefined) {
+					return { kind: 'rejected', reason: 'terminal-context-unavailable' };
+				}
+				created = {
+					tabId: creation.tabId,
+					terminalContextId: terminalContext.terminalContextId,
+				};
+				return { document, kind: 'commit' };
+			})
+			.catch(() => ({ kind: 'rejected' as const, reason: 'document-mutation-failed' }));
+		if (mutation.kind !== 'committed' || created === undefined) return false;
+		const sourceWindowId = windowLayoutCoordinator.layout.activationOrder.at(-1);
+		if (sourceWindowId === undefined) return false;
+		const result = await windowLayoutCoordinator.moveTabsToNewWindow(
+			sourceWindowId,
+			created.terminalContextId,
+			[created.tabId],
+		);
+		return result.kind === 'completed';
+	}
+
 	focusWindow(): void {
-		const window = this.#window;
+		const window =
+			this.#window === undefined || this.#window.isDestroyed()
+				? this.#mostRecentNativeWindow()
+				: this.#window;
 		if (window === undefined || window.isDestroyed()) return;
 		if (window.isMinimized()) window.restore();
 		window.show();
@@ -736,6 +857,14 @@ export class DesktopApplication {
 				getTerminalEvents: () => terminalIntentReconciler.getTerminalEvents(),
 				initialPresentationId,
 				initializationDocument,
+				onCanonicalDocumentChanged: async (document) => {
+					const coordinator = this.#windowLayoutCoordinator;
+					if (coordinator === undefined) return;
+					await coordinator.reconcileDocument(
+						toDesktopWindowLayoutDocument(document),
+						this.#fallbackWindowBounds(),
+					);
+				},
 				reconcileDocument: (document, publish) =>
 					terminalIntentReconciler.reconcileDocument(document, (event) => {
 						if (event.type === 'terminal-exited') {
@@ -762,6 +891,33 @@ export class DesktopApplication {
 					`Desktop client session coordinator stopped with ${coordinatorStart.reason}.`,
 				);
 			}
+			const displayTopology = this.#dependencies.getWindowDisplayTopology();
+			const legacyLaunchState = await this.#windowStateOwner.loadLaunchState(displayTopology);
+			const canonicalDocument =
+				clientSessionCoordinator.canonicalDocument ?? initializationDocument;
+			const windowLayoutStore =
+				this.#dependencies.createWindowLayoutStore?.(this.#options.runtime.windowLayoutStorePath) ??
+				new FileDesktopWindowLayoutStore(this.#options.runtime.windowLayoutStorePath);
+			const windowLayoutOwner = await loadDesktopWindowLayoutOwner(
+				windowLayoutStore,
+				toDesktopWindowLayoutDocument(canonicalDocument),
+				completeDesktopWindowBounds(legacyLaunchState.bounds, displayTopology),
+				legacyLaunchState.maximized,
+			);
+			this.#windowLayoutOwner = windowLayoutOwner;
+			const windowLayoutHost: DesktopWindowLayoutHost = {
+				activateWindow: this.#activateNativeWindow,
+				discardPreparedWindow: this.#discardPreparedNativeWindow,
+				getNewWindowBounds: this.#getNewWindowBounds,
+				getWindowIdAtPoint: this.#getWindowIdAtPoint,
+				prepareWindow: this.#prepareNativeWindow,
+				retireWindow: this.#retireNativeWindow,
+			};
+			this.#windowLayoutCoordinator = new DesktopWindowLayoutCoordinator(
+				windowLayoutOwner,
+				toDesktopWindowLayoutDocument(canonicalDocument),
+				windowLayoutHost,
+			);
 			const projectWorktreeRuntime = this.#dependencies.createProjectWorktreeRuntime({
 				allocateIdentifier: this.#dependencies.randomIdentifier,
 				coordinator: clientSessionCoordinator,
@@ -815,6 +971,15 @@ export class DesktopApplication {
 				cleanupFailure ??= cleanupError;
 			}
 			try {
+				this.#windowLayoutCoordinator?.dispose();
+				this.#windowLayoutCoordinator = undefined;
+				await this.#windowLayoutOwner?.flush();
+				this.#windowLayoutOwner?.dispose();
+				this.#windowLayoutOwner = undefined;
+			} catch (cleanupError: unknown) {
+				cleanupFailure ??= cleanupError;
+			}
+			try {
 				const coordinator = this.#clientSessionCoordinator;
 				await coordinator?.dispose();
 				if (this.#clientSessionCoordinator === coordinator) {
@@ -842,40 +1007,99 @@ export class DesktopApplication {
 			this.focusWindow();
 			return;
 		}
-		if (this.#connection === undefined || this.#terminalRuntime === undefined) {
+		const coordinator = this.#windowLayoutCoordinator;
+		if (
+			this.#connection === undefined ||
+			this.#terminalRuntime === undefined ||
+			coordinator === undefined
+		) {
 			throw new Error('Desktop application must start before opening a window.');
 		}
-		const rendererUrl = new URL(this.#options.rendererUrl);
-		if (!isPermittedDesktopRendererUrl(rendererUrl)) {
-			throw new Error('Desktop renderer URL must use loopback HTTP or the packaged origin.');
-		}
 		this.#documentFailure = undefined;
-		const launchState = await this.#windowStateOwner.loadLaunchState(
+		for (const layoutWindow of coordinator.layout.windows) {
+			if (!(await this.#createNativeWindow(layoutWindow, true))) {
+				throw new Error(`Desktop native window ${layoutWindow.windowId} could not be created.`);
+			}
+		}
+		const loading = [...this.#windows.values()].flatMap((record) => {
+			const operation = this.#loadNativeWindow(record);
+			return operation === undefined ? [] : [operation];
+		});
+		await Promise.all(loading);
+		const activeWindowId = coordinator.layout.activationOrder.at(-1);
+		if (activeWindowId !== undefined) this.#activateNativeWindow(activeWindowId);
+		await this.#documentTransition;
+		if (this.#documentFailure !== undefined) throw this.#documentFailure;
+	}
+
+	readonly #prepareNativeWindow = async (
+		layoutWindow: DesktopWindowLayoutWindow,
+	): Promise<boolean> => {
+		if (!(await this.#createNativeWindow(layoutWindow, false))) return false;
+		const record = this.#windows.get(layoutWindow.windowId);
+		if (record === undefined) return false;
+		try {
+			await this.#loadNativeWindow(record);
+			return true;
+		} catch {
+			this.#retireNativeWindow(layoutWindow.windowId);
+			await this.#documentTransition;
+			return false;
+		}
+	};
+
+	readonly #createNativeWindow = async (
+		layoutWindow: DesktopWindowLayoutWindow,
+		layoutCommitted: boolean,
+	): Promise<boolean> => {
+		if (this.#windows.has(layoutWindow.windowId) || this.#shuttingDown) return false;
+		const rendererUrl = new URL(this.#options.rendererUrl);
+		if (!isPermittedDesktopRendererUrl(rendererUrl)) return false;
+		const launchState = resolveDesktopWindowLaunchState(
+			{ bounds: layoutWindow.bounds, maximized: layoutWindow.maximized, version: 1 },
 			this.#dependencies.getWindowDisplayTopology(),
 		);
-		const window = this.#dependencies.createWindow({
-			backgroundColor: terminalRgbCss(
-				this.#options.runtime.terminalLaunch.terminalProfile.defaultBackgroundRgb,
-			),
-			...launchState.bounds,
-			show: false,
-			...(this.#options.platform === 'darwin'
-				? { trafficLightPosition: MACOS_TRAFFIC_LIGHT_POSITION }
-				: { titleBarOverlay: true }),
-			titleBarStyle: 'hidden',
-			webPreferences: {
-				allowRunningInsecureContent: false,
-				contextIsolation: true,
-				nodeIntegration: false,
-				preload: this.#options.preloadPath,
-				sandbox: true,
-				spellcheck: false,
-				webSecurity: true,
-			},
-		});
-		this.#window = window;
-		const windowStateAttachment = this.#windowStateOwner.attach(window);
-		this.#windowStateAttachment = windowStateAttachment;
+		let window: BrowserWindow;
+		try {
+			window = this.#dependencies.createWindow({
+				backgroundColor: terminalRgbCss(
+					this.#options.runtime.terminalLaunch.terminalProfile.defaultBackgroundRgb,
+				),
+				...launchState.bounds,
+				show: false,
+				...(this.#options.platform === 'darwin'
+					? { trafficLightPosition: MACOS_TRAFFIC_LIGHT_POSITION }
+					: { titleBarOverlay: true }),
+				titleBarStyle: 'hidden',
+				webPreferences: {
+					allowRunningInsecureContent: false,
+					contextIsolation: true,
+					nodeIntegration: false,
+					preload: this.#options.preloadPath,
+					sandbox: true,
+					spellcheck: false,
+					webSecurity: true,
+				},
+			});
+		} catch {
+			return false;
+		}
+		const record: DesktopNativeWindowRecord = {
+			geometryCaptureScheduled: false,
+			layoutCommitted,
+			loading: undefined,
+			pendingRendererGeneration: undefined,
+			retiring: false,
+			window,
+			windowId: layoutWindow.windowId,
+		};
+		this.#windows.set(record.windowId, record);
+		this.#windowIds.set(window, record.windowId);
+		this.#window ??= window;
+		if (this.#windowStateAttachment === undefined) {
+			this.#windowStateAttachment = this.#windowStateOwner.attach(window);
+			this.#windowStateAttachmentWindow = window;
+		}
 		if (launchState.maximized) window.maximize();
 		let loadingGeneration = 0;
 		window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
@@ -884,42 +1108,190 @@ export class DesktopApplication {
 		});
 		window.webContents.on('did-start-navigation', (navigation) => {
 			if (!startsDesktopRendererDocument(navigation)) return;
-			loadingGeneration = this.#beginRendererDocument();
+			loadingGeneration = this.#beginRendererDocument(window);
 		});
 		window.webContents.on('did-finish-load', () => {
 			const generation =
-				loadingGeneration === 0 ? this.#beginRendererDocument() : loadingGeneration;
+				loadingGeneration === 0 ? this.#beginRendererDocument(window) : loadingGeneration;
 			loadingGeneration = 0;
-			this.#queueRendererDocument(window, generation);
+			if (record.layoutCommitted) this.#queueRendererDocument(window, generation);
+			else record.pendingRendererGeneration = generation;
 		});
 		window.webContents.on('render-process-gone', () => {
-			this.#beginRendererDocument();
+			this.#beginRendererDocument(window);
 			void this.#documentTransition.then(() => {
-				if (this.#window === window && !window.isDestroyed() && !this.#shuttingDown) {
+				if (this.#windowIds.has(window) && !window.isDestroyed() && !this.#shuttingDown) {
 					window.reload();
 				}
 			});
 		});
 		window.on('close', (event) => {
-			if (this.#options.platform !== 'darwin' && !this.#quitPrepared && !this.#shuttingDown) {
-				event.preventDefault();
-				void this.requestExitAndQuit('user-quit');
-			}
+			if (record.retiring || this.#quitPrepared || this.#shuttingDown) return;
+			event.preventDefault();
+			void this.#requestNativeWindowClose(record.windowId);
 		});
+		window.on('focus', () => {
+			this.#window = window;
+			this.#selectApplicationLifetimeBroker(window);
+			void this.#windowLayoutCoordinator?.focusWindow(record.windowId);
+		});
+		const scheduleGeometryCapture = () => this.#scheduleWindowGeometryCapture(record);
+		window.on('maximize', scheduleGeometryCapture);
+		window.on('move', scheduleGeometryCapture);
+		window.on('resize', scheduleGeometryCapture);
+		window.on('unmaximize', scheduleGeometryCapture);
 		window.once('ready-to-show', () => window.show());
 		window.once('closed', () => {
-			windowStateAttachment.dispose();
-			if (this.#windowStateAttachment === windowStateAttachment) {
+			if (
+				this.#windowStateAttachmentWindow === window &&
+				this.#windowStateAttachment !== undefined
+			) {
+				this.#windowStateAttachment.dispose();
 				this.#windowStateAttachment = undefined;
+				this.#windowStateAttachmentWindow = undefined;
 			}
 			this.#writeCopyPathTrace('window-closed');
-			this.#beginRendererDocument();
-			if (this.#window === window) this.#window = undefined;
+			this.#beginRendererDocument(window);
+			this.#windows.delete(record.windowId);
+			this.#windowIds.delete(window);
+			if (this.#window === window) {
+				this.#window = this.#mostRecentNativeWindow();
+				this.#selectApplicationLifetimeBroker(this.#window);
+			}
 		});
+		return true;
+	};
 
-		await window.loadURL(rendererUrl.href);
+	#loadNativeWindow(record: DesktopNativeWindowRecord): Promise<void> | undefined {
+		if (record.window.isDestroyed()) return undefined;
+		if (record.loading !== undefined) return record.loading;
+		const operation = record.window.loadURL(this.#options.rendererUrl).then(async () => {
+			await this.#documentTransition;
+			if (this.#documentFailure !== undefined) throw this.#documentFailure;
+		});
+		record.loading = operation.catch((error: unknown) => {
+			record.loading = undefined;
+			throw error;
+		});
+		return record.loading;
+	}
+
+	readonly #activateNativeWindow = (windowId: string): void => {
+		const record = this.#windows.get(windowId);
+		if (record === undefined || record.window.isDestroyed()) return;
+		record.layoutCommitted = true;
+		const pendingRendererGeneration = record.pendingRendererGeneration;
+		record.pendingRendererGeneration = undefined;
+		if (pendingRendererGeneration !== undefined) {
+			this.#queueRendererDocument(record.window, pendingRendererGeneration);
+		}
+		this.#window = record.window;
+		this.#selectApplicationLifetimeBroker(record.window);
+		const loading = this.#loadNativeWindow(record);
+		void loading
+			?.then(async () => {
+				await this.#documentTransition;
+				if (this.#documentFailure !== undefined) throw this.#documentFailure;
+				if (record.window.isDestroyed()) return;
+				if (record.window.isMinimized()) record.window.restore();
+				record.window.show();
+				record.window.focus();
+			})
+			.catch(() => undefined);
+	};
+
+	readonly #discardPreparedNativeWindow = async (windowId: string): Promise<void> => {
+		this.#retireNativeWindow(windowId);
 		await this.#documentTransition;
-		if (this.#documentFailure !== undefined) throw this.#documentFailure;
+	};
+
+	readonly #retireNativeWindow = (windowId: string): void => {
+		const record = this.#windows.get(windowId);
+		if (record === undefined || record.window.isDestroyed()) return;
+		record.retiring = true;
+		record.window.destroy();
+	};
+
+	async #requestNativeWindowClose(windowId: string): Promise<void> {
+		const coordinator = this.#windowLayoutCoordinator;
+		if (coordinator === undefined) return;
+		if (coordinator.layout.windows.length === 1) {
+			await this.requestExitAndQuit('user-quit');
+			return;
+		}
+		const result = await coordinator.requestWindowClose(windowId);
+		if (result.kind === 'last-window') await this.requestExitAndQuit('user-quit');
+	}
+
+	#scheduleWindowGeometryCapture(record: DesktopNativeWindowRecord): void {
+		if (record.geometryCaptureScheduled || record.retiring || record.window.isDestroyed()) return;
+		record.geometryCaptureScheduled = true;
+		queueMicrotask(() => {
+			record.geometryCaptureScheduled = false;
+			if (record.retiring || record.window.isDestroyed()) return;
+			void this.#windowLayoutCoordinator?.captureGeometry(
+				record.windowId,
+				record.window.getNormalBounds(),
+				record.window.isMaximized(),
+			);
+		});
+	}
+
+	readonly #getWindowIdAtPoint = (point: Readonly<{ x: number; y: number }>): string | null => {
+		for (const [windowId, record] of [...this.#windows].reverse()) {
+			if (record.retiring || record.window.isDestroyed()) continue;
+			const bounds = record.window.getNormalBounds();
+			if (
+				point.x >= bounds.x &&
+				point.x < bounds.x + bounds.width &&
+				point.y >= bounds.y &&
+				point.y < bounds.y + bounds.height
+			) {
+				return windowId;
+			}
+		}
+		return null;
+	};
+
+	readonly #getNewWindowBounds = (
+		sourceWindowId: string,
+		point: Readonly<{ x: number; y: number }> | undefined,
+	): ReturnType<DesktopNativeWindowRecord['window']['getNormalBounds']> => {
+		const source =
+			this.#windows.get(sourceWindowId)?.window.getNormalBounds() ?? this.#fallbackWindowBounds();
+		const candidate = {
+			height: source.height,
+			width: source.width,
+			x: point === undefined ? source.x + 32 : Math.round(point.x - source.width / 2),
+			y: point === undefined ? source.y + 32 : Math.round(point.y - 24),
+		};
+		const launch = resolveDesktopWindowLaunchState(
+			{ bounds: candidate, maximized: false, version: 1 },
+			this.#dependencies.getWindowDisplayTopology(),
+		);
+		return completeDesktopWindowBounds(
+			launch.bounds,
+			this.#dependencies.getWindowDisplayTopology(),
+		);
+	};
+
+	#fallbackWindowBounds(): ReturnType<BrowserWindow['getNormalBounds']> {
+		const topology = this.#dependencies.getWindowDisplayTopology();
+		return completeDesktopWindowBounds({ height: 720, width: 1_024 }, topology);
+	}
+
+	#mostRecentNativeWindow(): BrowserWindow | undefined {
+		const activationOrder = this.#windowLayoutCoordinator?.layout.activationOrder ?? [];
+		for (const windowId of [...activationOrder].reverse()) {
+			const window = this.#windows.get(windowId)?.window;
+			if (window !== undefined && !window.isDestroyed()) return window;
+		}
+		return undefined;
+	}
+
+	#selectApplicationLifetimeBroker(window: BrowserWindow | undefined): void {
+		this.#applicationLifetimeBroker =
+			window === undefined ? undefined : this.#rendererDocuments.get(window)?.lifetimeBroker;
 	}
 
 	async shutdown(): Promise<void> {
@@ -934,6 +1306,18 @@ export class DesktopApplication {
 	}
 
 	async #shutdownInternal(): Promise<void> {
+		for (const record of this.#windows.values()) {
+			if (!record.window.isDestroyed()) {
+				await this.#windowLayoutCoordinator?.captureGeometry(
+					record.windowId,
+					record.window.getNormalBounds(),
+					record.window.isMaximized(),
+				);
+			}
+		}
+		await this.#windowLayoutOwner?.flush().catch(() => {
+			this.#writeCopyPathTrace('window-layout-flush-failed-during-shutdown');
+		});
 		this.#windowStateAttachment?.capture();
 		await this.#windowStateOwner.flush().catch(() => {
 			this.#writeCopyPathTrace('window-state-flush-failed-during-shutdown');
@@ -949,7 +1333,9 @@ export class DesktopApplication {
 		}
 		try {
 			this.#writeCopyPathTrace('main-shutdown');
-			this.#beginRendererDocument();
+			for (const record of this.#windows.values()) {
+				this.#beginRendererDocument(record.window);
+			}
 			await this.#documentTransition;
 		} catch (error: unknown) {
 			firstFailure ??= error;
@@ -988,6 +1374,10 @@ export class DesktopApplication {
 		} catch (error: unknown) {
 			firstFailure ??= error;
 		}
+		this.#windowLayoutCoordinator?.dispose();
+		this.#windowLayoutCoordinator = undefined;
+		this.#windowLayoutOwner?.dispose();
+		this.#windowLayoutOwner = undefined;
 		try {
 			const terminalRuntime = this.#terminalRuntime;
 			await terminalRuntime?.dispose();
@@ -1034,81 +1424,21 @@ export class DesktopApplication {
 		}
 	}
 
-	#beginRendererDocument(): number {
+	#beginRendererDocument(window: BrowserWindow): number {
 		const generation = ++this.#documentGeneration;
-		this.#applicationLifetimeBroker?.dispose();
-		this.#applicationLifetimeBroker = undefined;
-		this.#browserAccessBroker?.dispose();
-		this.#browserAccessBroker = undefined;
-		this.#clipboardBroker?.dispose();
-		this.#clipboardBroker = undefined;
-		this.#projectFolderAcquisitionBroker?.dispose();
-		this.#projectFolderAcquisitionBroker = undefined;
-		this.#projectWorktreeBroker?.dispose();
-		this.#projectWorktreeBroker = undefined;
-		this.#terminalDefaultSettingsBroker?.dispose();
-		this.#terminalDefaultSettingsBroker = undefined;
-		this.#terminalLaunchProfileBroker?.dispose();
-		this.#terminalLaunchProfileBroker = undefined;
-		const clientSessionBroker = this.#clientSessionBroker;
-		this.#clientSessionBroker = undefined;
-		const projectionBroker = this.#projectionControlBroker;
-		this.#projectionControlBroker = undefined;
-		let retirementPromise: Promise<void> | undefined;
-		const retire = async (): Promise<void> => {
-			if (retirementPromise !== undefined) return retirementPromise;
-			const operation = (async () => {
-				let firstFailure: unknown;
-				let clientDisposeFailed = false;
-				try {
-					await clientSessionBroker?.dispose();
-				} catch (error: unknown) {
-					clientDisposeFailed = true;
-					firstFailure = error;
-				}
-				if (clientSessionBroker === undefined || clientDisposeFailed) {
-					try {
-						await projectionBroker?.dispose();
-					} catch (error: unknown) {
-						firstFailure ??= error;
-					}
-				}
-				if (firstFailure !== undefined) throw firstFailure;
-			})();
-			retirementPromise = operation.catch((error: unknown) => {
-				retirementPromise = undefined;
-				throw error;
-			});
-			return retirementPromise;
-		};
-		if (clientSessionBroker !== undefined || projectionBroker !== undefined) {
-			this.#pendingRendererDocumentRetirement ??= retire;
+		this.#documentGenerations.set(window, generation);
+		const handle = this.#rendererDocuments.get(window);
+		this.#rendererDocuments.delete(window);
+		if (handle !== undefined) this.#rendererDocumentRetirements.set(window, handle);
+		if (this.#applicationLifetimeBroker === handle?.lifetimeBroker) {
+			this.#applicationLifetimeBroker = undefined;
 		}
 		const transition = this.#documentTransition.then(async () => {
-			let firstFailure: unknown;
-			if (this.#pendingRendererBootstrapCleanup !== undefined) {
-				const cleanup = this.#pendingRendererBootstrapCleanup;
-				try {
-					await cleanup();
-					if (this.#pendingRendererBootstrapCleanup === cleanup) {
-						this.#pendingRendererBootstrapCleanup = undefined;
-					}
-				} catch (error: unknown) {
-					firstFailure = error;
-				}
+			const retirement = this.#rendererDocumentRetirements.get(window);
+			await retirement?.cleanup();
+			if (this.#rendererDocumentRetirements.get(window) === retirement) {
+				this.#rendererDocumentRetirements.delete(window);
 			}
-			const retirement = this.#pendingRendererDocumentRetirement;
-			if (retirement !== undefined) {
-				try {
-					await retirement();
-					if (this.#pendingRendererDocumentRetirement === retirement) {
-						this.#pendingRendererDocumentRetirement = undefined;
-					}
-				} catch (error: unknown) {
-					firstFailure ??= error;
-				}
-			}
-			if (firstFailure !== undefined) throw firstFailure;
 			this.#documentFailure = undefined;
 		});
 		this.#documentTransition = transition.catch((error: unknown) => {
@@ -1176,15 +1506,19 @@ export class DesktopApplication {
 		const terminalRuntime = this.#terminalRuntime;
 		const clientSessionCoordinator = this.#clientSessionCoordinator;
 		const terminalDefaultSettingsController = this.#terminalDefaultSettingsController;
+		const windowLayoutCoordinator = this.#windowLayoutCoordinator;
+		const windowId = this.#windowIds.get(window);
+		const windowRecord = windowId === undefined ? undefined : this.#windows.get(windowId);
 		if (
 			terminalRuntime === undefined ||
 			clientSessionCoordinator === undefined ||
 			terminalDefaultSettingsController === undefined ||
-			this.#pendingRendererDocumentRetirement !== undefined ||
-			this.#pendingRendererBootstrapCleanup !== undefined ||
-			this.#window !== window ||
+			windowLayoutCoordinator === undefined ||
+			windowId === undefined ||
+			windowRecord?.layoutCommitted !== true ||
+			this.#rendererDocumentRetirements.has(window) ||
 			window.isDestroyed() ||
-			generation !== this.#documentGeneration ||
+			generation !== this.#documentGenerations.get(window) ||
 			this.#shuttingDown
 		) {
 			return;
@@ -1216,6 +1550,9 @@ export class DesktopApplication {
 		let terminalDefaultSettingsChannel:
 			| { readonly port1: MessagePortMain; readonly port2: MessagePortMain }
 			| undefined;
+		let windowLayoutChannel:
+			| { readonly port1: MessagePortMain; readonly port2: MessagePortMain }
+			| undefined;
 		let projectionBroker: DesktopProjectionControlBrokerHandle | undefined;
 		let clientSessionBroker: DesktopClientSessionBrokerHandle | undefined;
 		let lifetimeBroker: DesktopApplicationLifetimeBrokerHandle | undefined;
@@ -1225,67 +1562,62 @@ export class DesktopApplication {
 		let projectWorktreeBroker: DesktopProjectWorktreeBrokerHandle | undefined;
 		let terminalLaunchProfileBroker: DesktopTerminalLaunchProfileBrokerHandle | undefined;
 		let terminalDefaultSettingsBroker: DesktopTerminalDefaultSettingsBrokerHandle | undefined;
+		let windowLayoutBroker: DesktopWindowLayoutBroker | undefined;
+		let cleanupComplete = false;
+		let cleanupPromise: Promise<void> | undefined;
 		const cleanup = async (): Promise<void> => {
-			let firstFailure: unknown;
-			try {
-				lifetimeBroker?.dispose();
-			} catch (error: unknown) {
-				firstFailure ??= error;
-			}
-			try {
-				browserAccessBroker?.dispose();
-			} catch (error: unknown) {
-				firstFailure ??= error;
-			}
-			try {
-				clipboardBroker?.dispose();
-			} catch (error: unknown) {
-				firstFailure ??= error;
-			}
-			try {
-				projectFolderAcquisitionBroker?.dispose();
-			} catch (error: unknown) {
-				firstFailure ??= error;
-			}
-			try {
-				projectWorktreeBroker?.dispose();
-			} catch (error: unknown) {
-				firstFailure ??= error;
-			}
-			try {
-				terminalDefaultSettingsBroker?.dispose();
-			} catch (error: unknown) {
-				firstFailure ??= error;
-			}
-			try {
-				terminalLaunchProfileBroker?.dispose();
-			} catch (error: unknown) {
-				firstFailure ??= error;
-			}
-			let clientDisposeFailed = false;
-			try {
-				await clientSessionBroker?.dispose();
-			} catch (error: unknown) {
-				clientDisposeFailed = true;
-				firstFailure ??= error;
-			}
-			if (clientSessionBroker === undefined || clientDisposeFailed) {
+			if (cleanupComplete) return;
+			if (cleanupPromise !== undefined) return cleanupPromise;
+			const operation = (async () => {
+				let firstFailure: unknown;
+				for (const dispose of [
+					() => lifetimeBroker?.dispose(),
+					() => browserAccessBroker?.dispose(),
+					() => clipboardBroker?.dispose(),
+					() => projectFolderAcquisitionBroker?.dispose(),
+					() => projectWorktreeBroker?.dispose(),
+					() => terminalDefaultSettingsBroker?.dispose(),
+					() => terminalLaunchProfileBroker?.dispose(),
+					() => windowLayoutBroker?.dispose(),
+				]) {
+					try {
+						dispose();
+					} catch (error: unknown) {
+						firstFailure ??= error;
+					}
+				}
+				let clientDisposeFailed = false;
 				try {
-					await projectionBroker?.dispose();
+					await clientSessionBroker?.dispose();
 				} catch (error: unknown) {
+					clientDisposeFailed = true;
 					firstFailure ??= error;
 				}
-			}
-			closeRendererChannel(lifetimeChannel);
-			closeRendererChannel(browserAccessChannel);
-			closeRendererChannel(clipboardChannel);
-			closeRendererChannel(clientSessionChannel);
-			closeRendererChannel(projectionChannel);
-			closeRendererChannel(projectFolderAcquisitionChannel);
-			closeRendererChannel(projectWorktreeChannel);
-			closeRendererChannel(terminalLaunchProfileChannel);
-			closeRendererChannel(terminalDefaultSettingsChannel);
-			if (firstFailure !== undefined) throw firstFailure;
+				if (clientSessionBroker === undefined || clientDisposeFailed) {
+					try {
+						await projectionBroker?.dispose();
+					} catch (error: unknown) {
+						firstFailure ??= error;
+					}
+				}
+				closeRendererChannel(lifetimeChannel);
+				closeRendererChannel(browserAccessChannel);
+				closeRendererChannel(clipboardChannel);
+				closeRendererChannel(clientSessionChannel);
+				closeRendererChannel(projectionChannel);
+				closeRendererChannel(projectFolderAcquisitionChannel);
+				closeRendererChannel(projectWorktreeChannel);
+				closeRendererChannel(terminalLaunchProfileChannel);
+				closeRendererChannel(terminalDefaultSettingsChannel);
+				closeRendererChannel(windowLayoutChannel);
+				if (firstFailure !== undefined) throw firstFailure;
+				cleanupComplete = true;
+			})();
+			cleanupPromise = operation.catch((error: unknown) => {
+				cleanupPromise = undefined;
+				throw error;
+			});
+			return cleanupPromise;
 		};
 		try {
 			lifetimeChannel = this.#dependencies.createMessageChannel();
@@ -1297,6 +1629,7 @@ export class DesktopApplication {
 			terminalLaunchProfileChannel = this.#dependencies.createMessageChannel();
 			terminalDefaultSettingsChannel = this.#dependencies.createMessageChannel();
 			clipboardChannel = this.#dependencies.createMessageChannel();
+			windowLayoutChannel = this.#dependencies.createMessageChannel();
 			projectionBroker = this.#dependencies.createProjectionControlBroker(
 				projectionChannel.port2,
 				terminalRuntime,
@@ -1363,6 +1696,10 @@ export class DesktopApplication {
 				terminalDefaultSettingsChannel.port2,
 				terminalDefaultSettingsController,
 			);
+			windowLayoutBroker = new DesktopWindowLayoutBroker(
+				windowLayoutChannel.port2,
+				windowLayoutCoordinator.createBrokerController(windowId),
+			);
 			clientSessionBroker.start();
 			browserAccessBroker.start();
 			clipboardBroker.start();
@@ -1372,6 +1709,7 @@ export class DesktopApplication {
 			projectWorktreeBroker.start();
 			terminalLaunchProfileBroker.start();
 			terminalDefaultSettingsBroker.start();
+			windowLayoutBroker.start();
 			window.webContents.postMessage(
 				DESKTOP_RENDERER_BOOTSTRAP_IPC_CHANNEL,
 				DesktopRendererBootstrapSchema.parse({
@@ -1388,23 +1726,13 @@ export class DesktopApplication {
 					terminalLaunchProfileChannel.port1,
 					terminalDefaultSettingsChannel.port1,
 					clipboardChannel.port1,
+					windowLayoutChannel.port1,
 				],
 			);
-			this.#applicationLifetimeBroker = lifetimeBroker;
-			this.#browserAccessBroker = browserAccessBroker;
-			this.#clipboardBroker = clipboardBroker;
-			this.#clientSessionBroker = clientSessionBroker;
-			this.#projectionControlBroker = projectionBroker;
-			this.#projectFolderAcquisitionBroker = projectFolderAcquisitionBroker;
-			this.#projectWorktreeBroker = projectWorktreeBroker;
-			this.#terminalLaunchProfileBroker = terminalLaunchProfileBroker;
-			this.#terminalDefaultSettingsBroker = terminalDefaultSettingsBroker;
+			this.#rendererDocuments.set(window, { cleanup, lifetimeBroker });
+			if (this.#window === window) this.#applicationLifetimeBroker = lifetimeBroker;
 		} catch (error: unknown) {
-			this.#pendingRendererBootstrapCleanup = cleanup;
 			await cleanup();
-			if (this.#pendingRendererBootstrapCleanup === cleanup) {
-				this.#pendingRendererBootstrapCleanup = undefined;
-			}
 			throw error;
 		}
 	}
@@ -2088,6 +2416,32 @@ function isPermittedDesktopRendererUrl(url: URL): boolean {
 		(url.protocol === 'http:' && url.hostname === '127.0.0.1') ||
 		(url.protocol === 'orchbee:' && url.hostname === 'app' && url.port === '')
 	);
+}
+
+function toDesktopWindowLayoutDocument(
+	document: WorkbenchSharedDocument,
+): DesktopWindowLayoutProductDocument {
+	return {
+		terminalContexts: document.terminalContexts.map((context) => ({
+			tabIds: context.tabCollection.tabs.map((tab) => tab.id),
+			tabs: context.tabCollection.tabs.map((tab) => ({ group: tab.group, id: tab.id })),
+			terminalContextId: context.terminalContextId,
+		})),
+	};
+}
+
+function completeDesktopWindowBounds(
+	bounds: DesktopWindowBounds | Readonly<{ height: number; width: number }>,
+	topology: DesktopWindowDisplayTopology,
+): DesktopWindowBounds {
+	if ('x' in bounds && 'y' in bounds) return bounds;
+	const workArea = topology.primaryWorkArea;
+	return {
+		height: bounds.height,
+		width: bounds.width,
+		x: Math.round(workArea.x + (workArea.width - bounds.width) / 2),
+		y: Math.round(workArea.y + (workArea.height - bounds.height) / 2),
+	};
 }
 
 function isSameDesktopRendererOrigin(value: string, rendererUrl: URL): boolean {

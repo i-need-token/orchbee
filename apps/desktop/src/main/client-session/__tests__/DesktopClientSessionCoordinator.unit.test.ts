@@ -77,6 +77,36 @@ describe('DesktopClientSessionCoordinator', () => {
 		expect(reconcileDocument).toHaveBeenCalledWith(candidate, expect.any(Function));
 	});
 
+	it('establishes revision zero before an owned mutation wins the cold-start race', async () => {
+		const store = storeWith({ kind: 'missing' });
+		store.commit.mockImplementation((_expectedRevision, candidate) =>
+			Promise.resolve({ kind: 'committed', revision: candidate.revision }),
+		);
+		const reconcileDocument = vi.fn<() => Promise<void>>(async () => undefined);
+		const coordinator = coordinatorWith(store, { reconcileDocument });
+		await coordinator.start();
+		const publications: DesktopClientSessionPublication[] = [];
+		register(coordinator, publisher(publications));
+		const candidate = document('1', 'Owned cold-start mutation');
+
+		await expect(
+			coordinator.mutateCanonicalDocument((canonical) => {
+				expect(canonical).toEqual(document('0', 'Initial'));
+				return { document: candidate, kind: 'commit' };
+			}),
+		).resolves.toEqual({ document: candidate, kind: 'committed' });
+
+		expect(store.commit.mock.calls).toEqual([
+			[null, document('0', 'Initial')],
+			[workbenchSharedDocumentRevision('0'), candidate],
+		]);
+		expect(publications).toMatchObject([
+			{ document: document('0', 'Initial'), sequence: '1', type: 'shared-document-published' },
+			{ document: candidate, sequence: '2', type: 'shared-document-published' },
+		]);
+		expect(reconcileDocument).toHaveBeenCalledTimes(2);
+	});
+
 	it('keeps canonical state unchanged when an owned mutation is rejected', async () => {
 		const current = document('4', 'Canonical');
 		const store = storeWith({ document: current, kind: 'available' });

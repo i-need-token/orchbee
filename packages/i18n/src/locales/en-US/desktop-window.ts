@@ -1,4 +1,5 @@
 export const enUSDesktopWindowMessages = {
+	'desktop.window.action.create': 'New Window',
 	'desktop.window.action.toggleFullScreen': 'Enter / Exit Full Screen',
 	'desktop.window.action.toggleMaximized': 'Maximize / Restore Window',
 	'desktop.window.actionUnavailable': 'No desktop window is available.',

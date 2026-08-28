@@ -99,6 +99,11 @@ export type WorkbenchRuntimeTerminalCreateInput = TabStripNewTabRequest & {
 		  }
 	);
 
+export type WorkbenchRuntimeTerminalCreateAtCwdInput = TabStripNewTabRequest & {
+	readonly cwd: string;
+	readonly title: string;
+};
+
 export type WorkbenchRuntimeTerminalCreateResult =
 	| {
 			readonly kind: 'created';
@@ -824,10 +829,27 @@ export class WorkbenchProjectWorkspaceRuntime {
 		if (cwdResult.kind === 'rejected' || cwdResult.kind === 'unavailable') {
 			return { kind: 'rejected', reason: cwdResult.reason };
 		}
+		return this.#createTerminalAtCwd(input, cwdResult.cwd);
+	}
+
+	public createTerminalAtCwd(
+		input: WorkbenchRuntimeTerminalCreateAtCwdInput,
+	): WorkbenchRuntimeTerminalCreateResult {
+		if (this.terminalCreationSealed) {
+			return { kind: 'rejected', reason: 'terminal-creation-sealed' };
+		}
+		if (input.cwd.length === 0) return { kind: 'rejected', reason: 'panel-unavailable' };
+		return this.#createTerminalAtCwd(input, input.cwd);
+	}
+
+	#createTerminalAtCwd(
+		input: TabStripNewTabRequest & { readonly title: string },
+		cwd: string,
+	): WorkbenchRuntimeTerminalCreateResult {
 		const context = this.getActiveMutableContext();
 		const tabId = `${this.activeTerminalContextId()}-tab-${context.nextTabSequence}`;
 		context.nextTabSequence += 1;
-		context.panelWorkspaceStore.prepareTabCwd(tabId, cwdResult.cwd);
+		context.panelWorkspaceStore.prepareTabCwd(tabId, cwd);
 		context.tabModel.addTab(
 			{
 				group: input.groupId,

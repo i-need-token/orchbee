@@ -10,7 +10,9 @@ describe('DesktopWindowActions', () => {
 
 		expect(actions.invokeToggleMaximized('menu')).toBe(true);
 		expect(actions.invokeToggleFullScreen('keyboard')).toBe(true);
+		expect(actions.invokeCreateWindow('keyboard')).toBe(true);
 		await vi.waitFor(() => {
+			expect(target.createWindow).toHaveBeenCalledOnce();
 			expect(target.toggleWindowMaximized).toHaveBeenCalledOnce();
 			expect(target.toggleWindowFullScreen).toHaveBeenCalledOnce();
 		});
@@ -39,6 +41,12 @@ describe('DesktopWindowActions', () => {
 		const actions = new DesktopWindowActions(target);
 
 		target.getWindowState.mockReturnValue('unavailable');
+		target.canCreateWindow.mockReturnValue(false);
+		expect(actions.getCreateWindowAvailability()).toEqual({
+			kind: 'disabled',
+			reason: desktopWindowMessages.unavailable,
+		});
+		expect(actions.invokeCreateWindow('keyboard')).toBe(false);
 		expect(actions.getToggleFullScreenAvailability()).toEqual({
 			kind: 'disabled',
 			reason: desktopWindowMessages.unavailable,
@@ -69,6 +77,8 @@ describe('DesktopWindowActions', () => {
 
 function createTarget() {
 	return {
+		canCreateWindow: vi.fn<DesktopWindowActionTarget['canCreateWindow']>().mockReturnValue(true),
+		createWindow: vi.fn<DesktopWindowActionTarget['createWindow']>().mockResolvedValue(true),
 		getWindowState: vi.fn<DesktopWindowActionTarget['getWindowState']>().mockReturnValue('normal'),
 		toggleWindowFullScreen: vi
 			.fn<DesktopWindowActionTarget['toggleWindowFullScreen']>()

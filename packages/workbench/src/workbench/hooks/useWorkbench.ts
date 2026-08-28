@@ -6,11 +6,13 @@ import type {
 	ActionScope,
 } from '@orchbee/actions';
 import { useMemoizedFn } from '@orchbee/foundation/react';
-import type {
-	TabStripCloseCallback,
-	TabStripCloseConfirmation,
-	TabStripNewTabRequest,
-	TabStripOrientation,
+import {
+	ScopedTabModel,
+	type TabModel,
+	type TabStripCloseCallback,
+	type TabStripCloseConfirmation,
+	type TabStripNewTabRequest,
+	type TabStripOrientation,
 } from '@orchbee/tab-strip';
 import * as React from 'react';
 
@@ -32,6 +34,7 @@ import type {
 	WorkbenchTerminalFontSizeChangeCallback,
 } from '../types/workbench-host-actions';
 import type { WorkbenchSearchFilter } from '../types/workbench-search';
+import type { WorkbenchTabScopeSource } from '../types/workbench-tab-scope';
 import type { WorkbenchProjectNavigationMessages } from '../components/workbench-sidebar/types/workbench-sidebar-types';
 import {
 	createWorkbenchSearchState,
@@ -139,6 +142,8 @@ interface WorkbenchView {
 	readonly submitTabTitleEditor: () => void;
 	readonly updateTabTitleEditor: (title: string) => void;
 	readonly terminalContext: WorkbenchTerminalContext;
+	readonly tabModel: TabModel;
+	readonly hasVisibleTerminalTabs: boolean;
 	readonly terminalLabel: string;
 	readonly tabStripOrientation: TabStripOrientation;
 	readonly onTabStripOrientationChange: (orientation: TabStripOrientation) => void;
@@ -166,6 +171,7 @@ interface UseWorkbenchOptions {
 	readonly shortcutBindings: WorkbenchShortcutBindings;
 	readonly shortcutPlatform: WorkbenchShortcutPlatform;
 	readonly storage: WorkbenchLayoutStorage | undefined;
+	readonly tabScope?: WorkbenchTabScopeSource | undefined;
 }
 
 export function useWorkbench({
@@ -178,6 +184,7 @@ export function useWorkbench({
 	shortcutBindings,
 	shortcutPlatform,
 	storage,
+	tabScope,
 }: UseWorkbenchOptions): WorkbenchView {
 	const intl = useOrchbeeIntl();
 	const pendingProjectWorkspaceConfirmation = React.useRef<((accepted: boolean) => void) | null>(
@@ -194,6 +201,42 @@ export function useWorkbench({
 		projectWorkspaceRuntime.subscribe,
 		projectWorkspaceRuntime.getSnapshot,
 		projectWorkspaceRuntime.getSnapshot,
+	);
+	const terminalContext = projectWorkspaceRuntime.getActiveTerminalContext();
+	const scopedTabModel = React.useMemo(
+		() =>
+			tabScope === undefined
+				? null
+				: new ScopedTabModel(terminalContext.tabModel, {
+						visibleTabIds:
+							tabScope
+								.getSnapshot()
+								.terminalContexts.find(
+									(context) => context.terminalContextId === terminalContext.terminalContextId,
+								)?.tabIds ?? [],
+					}),
+		[tabScope, terminalContext.tabModel, terminalContext.terminalContextId],
+	);
+	React.useEffect(() => {
+		if (tabScope === undefined || scopedTabModel === null) return undefined;
+		const synchronize = () => {
+			scopedTabModel.setVisibleTabIds(
+				tabScope
+					.getSnapshot()
+					.terminalContexts.find(
+						(context) => context.terminalContextId === terminalContext.terminalContextId,
+					)?.tabIds ?? [],
+			);
+		};
+		synchronize();
+		return tabScope.subscribe(synchronize);
+	}, [scopedTabModel, tabScope, terminalContext.terminalContextId]);
+	React.useEffect(() => () => scopedTabModel?.dispose(), [scopedTabModel]);
+	const tabModel = scopedTabModel ?? terminalContext.tabModel;
+	const tabModelSnapshot = React.useSyncExternalStore(
+		tabModel.subscribe,
+		tabModel.getSnapshot,
+		tabModel.getSnapshot,
 	);
 	const [isSidebarVisible, setIsSidebarVisible] = React.useState(() =>
 		readWorkbenchSidebarVisibility(storage),
@@ -302,6 +345,7 @@ export function useWorkbench({
 		if (creation.kind === 'rejected') {
 			throw new Error('A resolved terminal Directory became invalid during synchronous creation.');
 		}
+		scopedTabModel?.includeTabOptimistically(creation.tabId, true);
 		return { kind: 'completed' };
 	});
 	const closeTabs = useMemoizedFn<
@@ -351,6 +395,7 @@ export function useWorkbench({
 		runtime: actionRuntime,
 		setTabStripOrientation,
 		tabStripOrientation,
+		tabModel,
 		toggleSidebar,
 		workspaceCopySuffix: intl.formatMessage(workbenchMessages.workspaceCopySuffix),
 		workspaceTerminalTitle: intl.formatMessage(workbenchTabMessages.terminalTitle),
@@ -657,10 +702,10 @@ export function useWorkbench({
 		settingsShortcutId: WORKBENCH_SHORTCUTS.settings.id,
 		settingsShortcutLabel: formatWorkbenchShortcut('settings', shortcutPlatform, shortcutBindings),
 		setTabTitle: (tabId) => {
-			const terminalContext = projectWorkspaceRuntime.getActiveTerminalContext();
+			const activeTerminalContext = projectWorkspaceRuntime.getActiveTerminalContext();
 			actions.invoke(
 				WORKBENCH_ACTION_IDS.setTabTitle,
-				{ kind: 'open', tabId, terminalContextId: terminalContext.terminalContextId },
+				{ kind: 'open', tabId, terminalContextId: activeTerminalContext.terminalContextId },
 				'context-menu',
 			);
 		},
@@ -694,7 +739,9 @@ export function useWorkbench({
 		updateTabTitleEditor: (title) => {
 			setTabTitleEditor((current) => (current === null ? null : { ...current, draftTitle: title }));
 		},
-		terminalContext: projectWorkspaceRuntime.getActiveTerminalContext(),
+		terminalContext,
+		tabModel,
+		hasVisibleTerminalTabs: tabModelSnapshot.tabs.length > 0,
 		terminalLabel: intl.formatMessage(workbenchMessages.terminal),
 		tabStripOrientation,
 		onTabStripOrientationChange: (orientation) => {

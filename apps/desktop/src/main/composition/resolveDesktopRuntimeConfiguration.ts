@@ -84,6 +84,7 @@ export interface DesktopRuntimeConfiguration {
 	readonly terminalLaunch: TerminalLaunch;
 	readonly terminalLaunchProfileStorePath: string;
 	readonly windowStateStorePath: string;
+	readonly windowLayoutStorePath: string;
 	readonly workbenchDocumentStorePath: string;
 }
 
@@ -290,6 +291,7 @@ export function resolveDesktopRuntimeConfiguration(
 			'terminal-launch-profiles-v1.json',
 		),
 		windowStateStorePath: path.join(input.userDataPath, 'window-state-v1.json'),
+		windowLayoutStorePath: path.join(input.userDataPath, 'window-layout-v1.json'),
 		workbenchDocumentStorePath: path.join(recoveryDirectory, 'workbench-shared-document-v1.json'),
 	};
 }

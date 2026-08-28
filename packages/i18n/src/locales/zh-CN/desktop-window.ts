@@ -1,6 +1,7 @@
 import type { DesktopWindowMessageId } from '../en-US';
 
 export const zhCNDesktopWindowMessages = {
+	'desktop.window.action.create': '新建窗口',
 	'desktop.window.action.toggleFullScreen': '进入 / 退出全屏',
 	'desktop.window.action.toggleMaximized': '最大化 / 还原窗口',
 	'desktop.window.actionUnavailable': '当前没有可用的桌面窗口。',

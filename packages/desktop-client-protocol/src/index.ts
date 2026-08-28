@@ -57,6 +57,28 @@ export {
 } from './desktop-renderer-bootstrap-contract';
 export type { DesktopRendererBootstrap } from './desktop-renderer-bootstrap-contract';
 export {
+	DesktopWindowLayoutDestinationSchema,
+	DesktopWindowLayoutDragSessionIdSchema,
+	DesktopWindowLayoutFailureCodeSchema,
+	DesktopWindowLayoutMainEventSchema,
+	DesktopWindowLayoutOperationResultSchema,
+	DesktopWindowLayoutRendererCommandSchema,
+	DesktopWindowLayoutRequestIdSchema,
+	DesktopWindowLayoutSnapshotSchema,
+	DesktopWindowLayoutWindowIdSchema,
+} from './desktop-window-layout-contract';
+export type {
+	DesktopWindowLayoutDestination,
+	DesktopWindowLayoutDragSessionId,
+	DesktopWindowLayoutFailureCode,
+	DesktopWindowLayoutMainEvent,
+	DesktopWindowLayoutOperationResult,
+	DesktopWindowLayoutRendererCommand,
+	DesktopWindowLayoutRequestId,
+	DesktopWindowLayoutSnapshot,
+	DesktopWindowLayoutWindowId,
+} from './desktop-window-layout-contract';
+export {
 	DesktopTerminalDefaultSettingsFailureCodeSchema,
 	DesktopTerminalDefaultSettingsMainEventSchema,
 	DesktopTerminalDefaultSettingsPersistenceIssueSchema,

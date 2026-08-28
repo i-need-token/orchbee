@@ -15,9 +15,12 @@ export type {
 	TabStripCloseRequest,
 	TabStripMessages,
 	TabStripNewTabRequest,
+	TabStripMoveGroupToWindowCallback,
+	TabStripMoveTabsToWindowCallback,
 	TabStripProps,
 	TabStripSelectCallback,
 	TabStripShortcutLabels,
+	TabStripWindowTarget,
 } from './TabStrip';
 export { TabStripOrientation, VerticalTabStripCollapseState } from './types/tab-strip-types';
 export {
@@ -39,6 +42,7 @@ export {
 	type TabModelSnapshot,
 	type TabDragRestoreState,
 } from './model/tab-model';
+export { ScopedTabModel, type ScopedTabModelOptions } from './model/ScopedTabModel';
 export {
 	CrossWindowDragState,
 	CrossWindowTabDragRuntime,

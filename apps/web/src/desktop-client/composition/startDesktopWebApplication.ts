@@ -68,6 +68,7 @@ export function startDesktopWebApplication(
 		const terminalLaunchProfilePort = event.ports[6];
 		const terminalDefaultSettingsPort = event.ports[7];
 		const clipboardReadPort = event.ports[8];
+		const windowLayoutPort = event.ports[9];
 		if (
 			!message.success ||
 			!message.data.security.contextIsolated ||
@@ -80,7 +81,8 @@ export function startDesktopWebApplication(
 			projectWorktreePort === undefined ||
 			terminalLaunchProfilePort === undefined ||
 			terminalDefaultSettingsPort === undefined ||
-			clipboardReadPort === undefined
+			clipboardReadPort === undefined ||
+			windowLayoutPort === undefined
 		) {
 			closeMessagePorts(event.ports);
 			dispose();
@@ -104,6 +106,7 @@ export function startDesktopWebApplication(
 				terminalLaunchProfilePort,
 				terminalDefaultSettingsPort,
 				clipboardReadPort,
+				windowLayoutPort,
 				terminalFileDropCapability,
 			);
 			if (rootElement instanceof HTMLElement) {

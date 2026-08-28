@@ -27,6 +27,7 @@ import {
 	DesktopTerminalDefaultSettingsRendererCommandSchema,
 	DesktopTerminalLaunchProfileMainEventSchema,
 	DesktopTerminalLaunchProfileRendererCommandSchema,
+	DesktopWindowLayoutMainEventSchema,
 } from '@orchbee/desktop-client-protocol';
 import { startDesktopWorkbenchRenderer } from '../startDesktopWorkbenchRenderer';
 
@@ -205,6 +206,20 @@ function serveTerminalDefaultSettings(port: TestMessagePort): void {
 	});
 }
 
+function serveWindowLayout(port: TestMessagePort, tabIds: readonly string[]): void {
+	port.postMessage(
+		DesktopWindowLayoutMainEventSchema.parse({
+			snapshot: {
+				currentWindowId: 'desktop-window-1',
+				revision: '1',
+				terminalContexts: [{ tabIds, terminalContextId: 'terminal-context-1' }],
+				windows: [{ ordinal: 1, windowId: 'desktop-window-1' }],
+			},
+			type: 'desktop-window-layout-snapshot-published',
+		}),
+	);
+}
+
 describe('startDesktopWorkbenchRenderer', () => {
 	it('fails closed without rendering when the initial shared-document commit is unavailable', async () => {
 		const lifetimeChannel = createTestChannel();
@@ -216,8 +231,10 @@ describe('startDesktopWorkbenchRenderer', () => {
 		const terminalLaunchProfileChannel = createTestChannel();
 		const terminalDefaultSettingsChannel = createTestChannel();
 		const clipboardReadChannel = createTestChannel();
+		const windowLayoutChannel = createTestChannel();
 		serveTerminalLaunchProfiles(terminalLaunchProfileChannel.port2);
 		serveTerminalDefaultSettings(terminalDefaultSettingsChannel.port2);
+		serveWindowLayout(windowLayoutChannel.port2, ['tab-1']);
 		const initializationDocument = provisionDocument('0', ['Terminal 1']);
 		const commands: WorkbenchClientSessionCommand[] = [];
 		clientSessionChannel.port2.addEventListener('message', (event) => {
@@ -251,6 +268,7 @@ describe('startDesktopWorkbenchRenderer', () => {
 				terminalLaunchProfileChannel.port1,
 				terminalDefaultSettingsChannel.port1,
 				clipboardReadChannel.port1,
+				windowLayoutChannel.port1,
 			);
 			await expect(session.ready).resolves.toEqual({ kind: 'unavailable', reason: 'read-failed' });
 		});
@@ -266,6 +284,7 @@ describe('startDesktopWorkbenchRenderer', () => {
 		expect((terminalLaunchProfileChannel.port1 as unknown as TestMessagePort).closed).toBe(true);
 		expect((terminalDefaultSettingsChannel.port1 as unknown as TestMessagePort).closed).toBe(true);
 		expect((clipboardReadChannel.port1 as unknown as TestMessagePort).closed).toBe(true);
+		expect((windowLayoutChannel.port1 as unknown as TestMessagePort).closed).toBe(true);
 		root.remove();
 	});
 
@@ -279,8 +298,10 @@ describe('startDesktopWorkbenchRenderer', () => {
 		const terminalLaunchProfileChannel = createTestChannel();
 		const terminalDefaultSettingsChannel = createTestChannel();
 		const clipboardReadChannel = createTestChannel();
+		const windowLayoutChannel = createTestChannel();
 		serveTerminalLaunchProfiles(terminalLaunchProfileChannel.port2);
 		serveTerminalDefaultSettings(terminalDefaultSettingsChannel.port2);
+		serveWindowLayout(windowLayoutChannel.port2, ['tab-1', 'tab-2']);
 		const sharedDocument = provisionDocument('4', ['Terminal 1', 'Terminal 2']);
 		const sessionCommands = serveSuccessfulClientSession(clientSessionChannel.port2);
 		const projectionCommands: Array<{ presentationId?: string; type?: string }> = [];
@@ -326,6 +347,7 @@ describe('startDesktopWorkbenchRenderer', () => {
 				terminalLaunchProfileChannel.port1,
 				terminalDefaultSettingsChannel.port1,
 				clipboardReadChannel.port1,
+				windowLayoutChannel.port1,
 			);
 			session = started;
 			await expect(started.ready).resolves.toEqual({ kind: 'ready' });
@@ -442,8 +464,10 @@ describe('startDesktopWorkbenchRenderer', () => {
 		const terminalLaunchProfileChannel = createTestChannel();
 		const terminalDefaultSettingsChannel = createTestChannel();
 		const clipboardReadChannel = createTestChannel();
+		const windowLayoutChannel = createTestChannel();
 		serveTerminalLaunchProfiles(terminalLaunchProfileChannel.port2);
 		serveTerminalDefaultSettings(terminalDefaultSettingsChannel.port2);
+		serveWindowLayout(windowLayoutChannel.port2, ['tab-1']);
 		const sharedDocument = retainedDocument('4');
 		const sessionCommands = serveSuccessfulClientSession(clientSessionChannel.port2);
 		const root = document.createElement('div');
@@ -473,6 +497,7 @@ describe('startDesktopWorkbenchRenderer', () => {
 				terminalLaunchProfileChannel.port1,
 				terminalDefaultSettingsChannel.port1,
 				clipboardReadChannel.port1,
+				windowLayoutChannel.port1,
 			);
 			session = started;
 			await expect(started.ready).resolves.toEqual({ kind: 'ready' });

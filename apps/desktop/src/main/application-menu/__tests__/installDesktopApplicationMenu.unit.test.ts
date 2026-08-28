@@ -11,6 +11,7 @@ import {
 
 const ITEM_IDS = {
 	closeWindow: 'desktop-window-close',
+	createWindow: 'desktop-window-new',
 	forceReload: 'desktop-view-force-reload',
 	reload: 'desktop-view-reload',
 	secureKeyboardEntry: 'desktop-secure-keyboard-entry',
@@ -19,6 +20,7 @@ const ITEM_IDS = {
 } as const;
 
 const labels = {
+	createWindow: 'New Window',
 	secureKeyboardEntry: 'Secure Keyboard Entry',
 	securityCategory: 'Input Security',
 	toggleFullScreen: 'Enter / Exit Full Screen',
@@ -55,9 +57,14 @@ describe('installDesktopApplicationMenu', () => {
 		const installation = installDesktopApplicationMenu(actions, labels, 'darwin', menuApi);
 		const installedMenu = menuApi.setApplicationMenu.mock.calls[0]?.[0];
 		const secureItem = installedMenu?.getMenuItemById(ITEM_IDS.secureKeyboardEntry);
+		const createWindowItem = installedMenu?.getMenuItemById(ITEM_IDS.createWindow);
 		const fullScreenItem = installedMenu?.getMenuItemById(ITEM_IDS.toggleFullScreen);
 		const maximizedItem = installedMenu?.getMenuItemById(ITEM_IDS.toggleMaximized);
 		expect(secureItem?.label).toBe('Secure Keyboard Entry');
+		expect(createWindowItem).toMatchObject({
+			accelerator: 'CommandOrControl+N',
+			label: 'New Window',
+		});
 		expect(installedMenu?.items[0]?.submenu?.items.map((item) => item.role ?? item.id)).toEqual([
 			'about',
 			ITEM_IDS.secureKeyboardEntry,
@@ -75,9 +82,11 @@ describe('installDesktopApplicationMenu', () => {
 			role: 'forceReload',
 		});
 		secureItem?.click({ triggeredByAccelerator: false }, undefined, undefined);
+		createWindowItem?.click({ triggeredByAccelerator: true }, undefined, undefined);
 		fullScreenItem?.click({ triggeredByAccelerator: true }, undefined, undefined);
 		maximizedItem?.click({ triggeredByAccelerator: false }, undefined, undefined);
 		expect(actions.invokeToggleSecureKeyboardEntry).toHaveBeenCalledWith('menu');
+		expect(actions.invokeCreateWindow).toHaveBeenCalledWith('keyboard');
 		expect(actions.invokeToggleFullScreen).toHaveBeenCalledWith('keyboard');
 		expect(actions.invokeToggleMaximized).toHaveBeenCalledWith('menu');
 
@@ -143,6 +152,9 @@ describe('installDesktopApplicationMenu', () => {
 
 function createActions() {
 	return {
+		getCreateWindowAvailability: vi
+			.fn<DesktopApplicationMenuTarget['getCreateWindowAvailability']>()
+			.mockReturnValue(enabledAvailability()),
 		getSecureKeyboardEntryAvailability: vi
 			.fn<DesktopApplicationMenuTarget['getSecureKeyboardEntryAvailability']>()
 			.mockReturnValue(enabledAvailability()),
@@ -152,6 +164,9 @@ function createActions() {
 		getToggleMaximizedAvailability: vi
 			.fn<DesktopApplicationMenuTarget['getToggleMaximizedAvailability']>()
 			.mockReturnValue(enabledAvailability()),
+		invokeCreateWindow: vi
+			.fn<DesktopApplicationMenuTarget['invokeCreateWindow']>()
+			.mockReturnValue(true),
 		invokeToggleFullScreen: vi
 			.fn<DesktopApplicationMenuTarget['invokeToggleFullScreen']>()
 			.mockReturnValue(true),

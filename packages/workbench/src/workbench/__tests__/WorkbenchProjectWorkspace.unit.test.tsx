@@ -11,6 +11,7 @@ import { Workbench } from '../Workbench';
 import { createWorkbenchPreviewTerminalPresentationComposition } from '../model/createWorkbenchPreviewTerminalPresentationComposition';
 import { WorkbenchProjectWorkspaceRuntime } from '../model/WorkbenchProjectWorkspaceRuntime';
 import type { WorkbenchProjectWorktreeCapability } from '../types/workbench-project-worktree';
+import type { WorkbenchTabWindowControl } from '../types/workbench-tab-window-control';
 import {
 	defaultWorkbenchShortcutBindings,
 	type WorkbenchShortcutBindings,
@@ -64,6 +65,77 @@ function getActionableMenuPresentation(menu: HTMLElement): readonly {
 }
 
 describe('Workbench Project and Workspace management', () => {
+	it('projects native windows and routes a tab move through the host control', async () => {
+		const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
+			standaloneCwd: '/system',
+			standaloneTerminalTitle: 'Terminal 1',
+			terminalPresentation: createTestTerminalPresentationComposition('native-window-menu'),
+		});
+		projectWorkspaceRuntime.createTerminal({
+			groupId: null,
+			source: 'button',
+			title: 'Terminal 2',
+		});
+		const tabIds = projectWorkspaceRuntime
+			.getActiveTerminalContext()
+			.tabModel.getSnapshot()
+			.tabs.map((tab) => tab.id);
+		const snapshot = {
+			currentWindowId: 'desktop-window-1',
+			revision: '1',
+			terminalContexts: [{ tabIds, terminalContextId: 'terminal-context-1' }],
+			windows: [
+				{ ordinal: 1, windowId: 'desktop-window-1' },
+				{ ordinal: 2, windowId: 'desktop-window-2' },
+			],
+		} as const;
+		const tabWindowControl = {
+			finishDrag: vi
+				.fn<WorkbenchTabWindowControl['finishDrag']>()
+				.mockResolvedValue({ kind: 'unchanged' }),
+			getDragTarget: vi.fn<WorkbenchTabWindowControl['getDragTarget']>().mockReturnValue(null),
+			getSnapshot: vi.fn<WorkbenchTabWindowControl['getSnapshot']>().mockReturnValue(snapshot),
+			moveGroup: vi
+				.fn<WorkbenchTabWindowControl['moveGroup']>()
+				.mockResolvedValue({ kind: 'unchanged' }),
+			moveTabs: vi
+				.fn<WorkbenchTabWindowControl['moveTabs']>()
+				.mockResolvedValue({ destinationWindowId: 'desktop-window-2', kind: 'completed' }),
+			startDrag: vi.fn<WorkbenchTabWindowControl['startDrag']>().mockReturnValue(null),
+			subscribe: vi.fn<WorkbenchTabWindowControl['subscribe']>(() => () => undefined),
+			updateDrag: vi.fn<WorkbenchTabWindowControl['updateDrag']>(),
+		} satisfies WorkbenchTabWindowControl;
+		render(
+			<OrchbeeI18nProvider locale='en-US'>
+				<TooltipProvider>
+					<Workbench
+						actionRuntime={new ActionRuntime()}
+						projectWorkspaceRuntime={projectWorkspaceRuntime}
+						shortcutPlatform='apple'
+						tabWindowControl={tabWindowControl}
+					/>
+				</TooltipProvider>
+			</OrchbeeI18nProvider>,
+		);
+
+		const sourceTab = screen.getAllByRole('tab', { name: 'system' })[0];
+		if (sourceTab === undefined) throw new Error('Expected the first terminal Tab.');
+		fireEvent.contextMenu(sourceTab, {
+			clientX: 120,
+			clientY: 20,
+		});
+		const moveTrigger = await screen.findByRole('menuitem', { name: 'Move tab to window' });
+		fireEvent.keyDown(moveTrigger, { key: 'ArrowRight' });
+		fireEvent.click(await screen.findByRole('menuitem', { name: 'Window 2' }));
+
+		await waitFor(() =>
+			expect(tabWindowControl.moveTabs).toHaveBeenCalledWith('terminal-context-1', [tabIds[0]], {
+				kind: 'existing',
+				windowId: 'desktop-window-2',
+			}),
+		);
+	});
+
 	it('projects current configured bindings into the tab context menu', async () => {
 		const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
 			standaloneCwd: '/system',

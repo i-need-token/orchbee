@@ -12,8 +12,11 @@ import type {
 	TabStripCloseRequest,
 	TabStripNewTabRequest,
 	TabStripOptions,
+	TabStripMoveGroupToWindowCallback,
+	TabStripMoveTabsToWindowCallback,
 	TabStripSelectCallback,
 	TabStripShortcutLabels,
+	TabStripWindowTarget,
 } from './types/tab-strip-options';
 
 export interface TabStripProps extends TabStripOptions {
@@ -28,8 +31,11 @@ export type {
 	TabStripCloseConfirmation,
 	TabStripCloseRequest,
 	TabStripNewTabRequest,
+	TabStripMoveGroupToWindowCallback,
+	TabStripMoveTabsToWindowCallback,
 	TabStripSelectCallback,
 	TabStripShortcutLabels,
+	TabStripWindowTarget,
 	TabStripMessages,
 };
 

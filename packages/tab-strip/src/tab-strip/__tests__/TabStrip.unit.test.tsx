@@ -7,6 +7,10 @@ import { DRAG_START_ANIMATION_DURATION_MS } from '../dragging/dragged-tabs-conta
 import { requireDefined } from '../utils/requireDefined';
 import { TabStripOrientation } from '../types/tab-strip-types';
 import type { DragSessionData } from '../dragging/drag-session-data';
+import type {
+	TabStripMoveGroupToWindowCallback,
+	TabStripMoveTabsToWindowCallback,
+} from '../types/tab-strip-options';
 import { ThumbnailCaptureReadiness } from '../components/tab-strip-view/components/hover-card/model/tab-hover-card-controller';
 import type {
 	HoverCardThumbnailSource,
@@ -852,6 +856,57 @@ describe('TabStrip', () => {
 
 		expect(model.getSnapshot().tabs.filter((tab) => tab.title === 'Loose')).toHaveLength(2);
 		expect(screen.queryByRole('menu')).toBeNull();
+	});
+
+	it('routes selected tabs and complete groups to an existing native window', async () => {
+		const model = createModel();
+		model.setSelection(['research-a', 'research-b'], 'research-a');
+		const onMoveTabsToWindow = vi.fn<TabStripMoveTabsToWindowCallback>((context, _input) => {
+			context.markCommitted();
+			return Promise.resolve({ kind: 'completed' as const });
+		});
+		const onMoveGroupToWindow = vi.fn<TabStripMoveGroupToWindowCallback>((context, _input) => {
+			context.markCommitted();
+			return Promise.resolve({ kind: 'completed' as const });
+		});
+		render(
+			<TabStrip
+				model={model}
+				onMoveGroupToWindow={onMoveGroupToWindow}
+				onMoveTabsToWindow={onMoveTabsToWindow}
+				windowTargets={[{ label: 'Window 2', windowId: 'desktop-window-2' }]}
+			/>,
+		);
+
+		fireEvent.contextMenu(screen.getByRole('tab', { name: /^Research A/ }), {
+			clientX: 50,
+			clientY: 30,
+		});
+		fireEvent.keyDown(screen.getByRole('menuitem', { name: 'Move tabs to window' }), {
+			key: 'ArrowRight',
+		});
+		fireEvent.click(screen.getByRole('menuitem', { name: 'Window 2' }));
+		await vi.waitFor(() =>
+			expect(onMoveTabsToWindow).toHaveBeenCalledWith(expect.anything(), {
+				destinationWindowId: 'desktop-window-2',
+				tabIds: ['research-a', 'research-b'],
+			}),
+		);
+
+		fireEvent.contextMenu(screen.getByRole('tablist', { name: /^Research, 2 tabs/ }), {
+			clientX: 80,
+			clientY: 20,
+		});
+		fireEvent.keyDown(screen.getByRole('menuitem', { name: 'Move group to window' }), {
+			key: 'ArrowRight',
+		});
+		fireEvent.click(screen.getByRole('menuitem', { name: 'Window 2' }));
+		await vi.waitFor(() =>
+			expect(onMoveGroupToWindow).toHaveBeenCalledWith(expect.anything(), {
+				destinationWindowId: 'desktop-window-2',
+				groupId: 'research',
+			}),
+		);
 	});
 
 	it('renders only host-supplied shortcuts in the tab context menu trailing slot', () => {

@@ -12,7 +12,7 @@ import {
 	type TypedActionRuntime,
 } from '@orchbee/actions';
 import { workbenchMessages, workbenchTabMessages } from '@orchbee/i18n';
-import { TAB_STRIP_ACTION_IDS, type TabSelectionInput } from '@orchbee/tab-strip';
+import { TAB_STRIP_ACTION_IDS, type TabModel, type TabSelectionInput } from '@orchbee/tab-strip';
 
 import type { WorkbenchProjectWorkspaceRuntime } from '../model/WorkbenchProjectWorkspaceRuntime';
 import { executePreparedDescendantAction } from './executePreparedDescendantAction';
@@ -32,6 +32,7 @@ interface RegisterWorkbenchTabSelectionActionsOptions {
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
 	readonly runtime: ActionRuntime;
 	readonly scope: ActionScope;
+	readonly tabModel?: TabModel | undefined;
 	readonly typedRuntime: TypedActionRuntime<WorkbenchActionCatalog>;
 }
 
@@ -39,6 +40,7 @@ export function registerWorkbenchTabSelectionActions({
 	projectWorkspaceRuntime,
 	runtime,
 	scope,
+	tabModel,
 	typedRuntime,
 }: RegisterWorkbenchTabSelectionActionsOptions): readonly ActionDisposable[] {
 	return [
@@ -50,6 +52,7 @@ export function registerWorkbenchTabSelectionActions({
 				projectWorkspaceRuntime,
 				runtime,
 				scope,
+				tabModel,
 				title: workbenchTabMessages.selectPreviousTab,
 			}),
 		),
@@ -61,6 +64,7 @@ export function registerWorkbenchTabSelectionActions({
 				projectWorkspaceRuntime,
 				runtime,
 				scope,
+				tabModel,
 				title: workbenchTabMessages.selectNextTab,
 			}),
 		),
@@ -83,6 +87,7 @@ export function registerWorkbenchTabSelectionActions({
 						projectWorkspaceRuntime,
 						runtime,
 						scope,
+						tabModel,
 					}) === null
 						? { kind: 'disabled', reason: workbenchMessages.actionUnavailable }
 						: { kind: 'enabled' },
@@ -94,6 +99,7 @@ export function registerWorkbenchTabSelectionActions({
 							projectWorkspaceRuntime,
 							runtime,
 							scope,
+							tabModel,
 						});
 						return prepared === null
 							? { code: 'tab-position-unavailable', kind: 'blocked' }
@@ -118,6 +124,7 @@ function adjacentTabSelectionActionDefinition<
 	projectWorkspaceRuntime,
 	runtime,
 	scope,
+	tabModel,
 	title,
 }: Omit<RegisterWorkbenchTabSelectionActionsOptions, 'typedRuntime'> & {
 	readonly direction: AdjacentTabSelectionInput['direction'];
@@ -141,6 +148,7 @@ function adjacentTabSelectionActionDefinition<
 				projectWorkspaceRuntime,
 				runtime,
 				scope,
+				tabModel,
 			}) === null
 				? { kind: 'disabled', reason: workbenchMessages.actionUnavailable }
 				: { kind: 'enabled' },
@@ -152,6 +160,7 @@ function adjacentTabSelectionActionDefinition<
 					projectWorkspaceRuntime,
 					runtime,
 					scope,
+					tabModel,
 				});
 				return prepared === null
 					? { code: 'adjacent-tab-unavailable', kind: 'blocked' }
@@ -170,14 +179,18 @@ function prepareAdjacentTabSelection({
 	projectWorkspaceRuntime,
 	runtime,
 	scope,
+	tabModel,
 }: {
 	readonly context: ActionAvailabilityContext | ActionExecutionContext;
 	readonly direction: AdjacentTabSelectionInput['direction'];
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
 	readonly runtime: ActionRuntime;
 	readonly scope: ActionScope;
+	readonly tabModel: TabModel | undefined;
 }): PreparedActionInvocation | null {
-	const snapshot = projectWorkspaceRuntime.getActiveTerminalContext().tabModel.getSnapshot();
+	const snapshot = (
+		tabModel ?? projectWorkspaceRuntime.getActiveTerminalContext().tabModel
+	).getSnapshot();
 	const tabId = resolveAdjacentTabSelection({
 		activeTabId: snapshot.activeTabId,
 		direction,
@@ -192,16 +205,18 @@ function prepareTabPositionSelection({
 	projectWorkspaceRuntime,
 	runtime,
 	scope,
+	tabModel,
 }: {
 	readonly context: ActionAvailabilityContext | ActionExecutionContext;
 	readonly input: WorkbenchTabPositionInput;
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
 	readonly runtime: ActionRuntime;
 	readonly scope: ActionScope;
+	readonly tabModel: TabModel | undefined;
 }): PreparedActionInvocation | null {
-	const tab = projectWorkspaceRuntime.getActiveTerminalContext().tabModel.getSnapshot().tabs[
-		input.position - 1
-	];
+	const tab = (
+		tabModel ?? projectWorkspaceRuntime.getActiveTerminalContext().tabModel
+	).getSnapshot().tabs[input.position - 1];
 	if (tab === undefined) return null;
 	return prepareTabIdSelection({ context, runtime, scope, tabId: tab.id });
 }

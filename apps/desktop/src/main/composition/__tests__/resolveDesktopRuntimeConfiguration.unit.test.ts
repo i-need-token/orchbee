@@ -60,6 +60,9 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 		expect(first.windowStateStorePath).toBe(
 			path.resolve('/users/orchbee/library/orchbee/window-state-v1.json'),
 		);
+		expect(first.windowLayoutStorePath).toBe(
+			path.resolve('/users/orchbee/library/orchbee/window-layout-v1.json'),
+		);
 		expect(first.terminalLaunch).toMatchObject({
 			cellPixelHeight: null,
 			cellPixelWidth: null,

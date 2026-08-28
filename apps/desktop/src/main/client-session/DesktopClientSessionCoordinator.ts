@@ -115,6 +115,9 @@ export interface DesktopClientSessionCoordinatorDependencies {
 	readonly getTerminalEvents: () => readonly TerminalPresentationEvent[];
 	readonly initialPresentationId: TerminalPresentationId;
 	readonly initializationDocument: WorkbenchSharedDocument;
+	readonly onCanonicalDocumentChanged?:
+		| ((document: WorkbenchSharedDocument) => Promise<void>)
+		| undefined;
 	readonly reconcileDocument: (
 		document: WorkbenchSharedDocument,
 		publish: (event: TerminalPresentationEvent) => void,
@@ -188,8 +191,35 @@ export class DesktopClientSessionCoordinator {
 			if (this.#startResult?.kind !== 'ready' || this.#phase.kind !== 'accepting') {
 				return { kind: 'rejected', reason: 'control-unavailable' };
 			}
-			const canonical = this.#canonicalDocument;
-			if (canonical === null) return { kind: 'rejected', reason: 'document-missing' };
+			let canonical = this.#canonicalDocument;
+			if (canonical === null) {
+				const initializationDocument = this.#dependencies.initializationDocument;
+				const initialized = await this.#dependencies.store.commit(null, initializationDocument);
+				if (
+					initialized.kind !== 'committed' ||
+					initialized.revision !== initializationDocument.revision
+				) {
+					const reason = initialized.kind === 'unavailable' ? initialized.reason : 'write-failed';
+					this.#becomeUnavailable(reason);
+					return { kind: 'unavailable', reason };
+				}
+				this.#canonicalDocument = initializationDocument;
+				canonical = initializationDocument;
+				await this.#dependencies
+					.onCanonicalDocumentChanged?.(initializationDocument)
+					.catch(() => undefined);
+				await this.#dependencies
+					.reconcileTerminalArchives?.(initializationDocument)
+					.catch(() => undefined);
+				this.#broadcast({
+					document: initializationDocument,
+					sequence: this.#nextSequence(),
+					type: 'shared-document-published',
+				});
+				await this.#dependencies
+					.reconcileDocument(initializationDocument, this.publishTerminalEvent)
+					.catch(() => undefined);
+			}
 			const decision = mutation(canonical);
 			if (decision.kind === 'rejected') return decision;
 			const document = decision.document;
@@ -206,6 +236,7 @@ export class DesktopClientSessionCoordinator {
 				return { kind: 'unavailable', reason };
 			}
 			this.#canonicalDocument = document;
+			await this.#dependencies.onCanonicalDocumentChanged?.(document).catch(() => undefined);
 			await this.#dependencies.reconcileTerminalArchives?.(document).catch(() => undefined);
 			this.#broadcast({
 				document,
@@ -479,6 +510,7 @@ export class DesktopClientSessionCoordinator {
 		}
 		if (committed.revision !== document.revision) return this.#becomeUnavailable('write-failed');
 		this.#canonicalDocument = document;
+		await this.#dependencies.onCanonicalDocumentChanged?.(document).catch(() => undefined);
 		await this.#dependencies.reconcileTerminalArchives?.(document).catch(() => undefined);
 		this.#broadcast({
 			document,

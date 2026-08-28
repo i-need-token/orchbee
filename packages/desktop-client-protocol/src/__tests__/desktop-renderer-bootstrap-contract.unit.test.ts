@@ -71,6 +71,7 @@ describe('Desktop renderer bootstrap contract', () => {
 			'terminal-launch-profiles',
 			'terminal-default-settings',
 			'clipboard-read',
+			'window-layout',
 		]);
 		expect(
 			DesktopRendererBootstrapWindowMessageSchema.parse({

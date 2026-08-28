@@ -53,6 +53,9 @@ export interface TabStripViewModel {
 	readonly onTabKeyboardFocusChanged: TabStripOptions['onTabKeyboardFocusChanged'];
 	readonly onMoveTabsToNewWindow: TabStripOptions['onMoveTabsToNewWindow'];
 	readonly onMoveGroupToNewWindow: TabStripOptions['onMoveGroupToNewWindow'];
+	readonly onMoveTabsToWindow: TabStripOptions['onMoveTabsToWindow'];
+	readonly onMoveGroupToWindow: TabStripOptions['onMoveGroupToWindow'];
+	readonly windowTargets: NonNullable<TabStripOptions['windowTargets']>;
 	readonly onSetTabTitle: TabStripOptions['onSetTabTitle'];
 	readonly shortcutLabels: TabStripOptions['shortcutLabels'];
 	readonly ariaLabel: string;
