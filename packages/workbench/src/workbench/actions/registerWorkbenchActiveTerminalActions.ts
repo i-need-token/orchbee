@@ -78,6 +78,70 @@ export function registerWorkbenchActiveTerminalActions({
 				category: panelCategory,
 				execution: {
 					concurrency: 'parallel',
+					concurrencyKey: () => 'active-panel-move-down',
+					mode: 'foreground',
+				},
+				getAvailability: availabilityFor('move-down'),
+				handler: { execute: execute('move-down') },
+				id: WORKBENCH_ACTION_IDS.moveActivePanelDown,
+				input: noActionInput,
+				title: workbenchMessages.panelMoveDown,
+			}),
+		),
+		typedRuntime.register(
+			scope,
+			defineAction({
+				category: panelCategory,
+				execution: {
+					concurrency: 'parallel',
+					concurrencyKey: () => 'active-panel-move-left',
+					mode: 'foreground',
+				},
+				getAvailability: availabilityFor('move-left'),
+				handler: { execute: execute('move-left') },
+				id: WORKBENCH_ACTION_IDS.moveActivePanelLeft,
+				input: noActionInput,
+				title: workbenchMessages.panelMoveLeft,
+			}),
+		),
+		typedRuntime.register(
+			scope,
+			defineAction({
+				category: panelCategory,
+				execution: {
+					concurrency: 'parallel',
+					concurrencyKey: () => 'active-panel-move-right',
+					mode: 'foreground',
+				},
+				getAvailability: availabilityFor('move-right'),
+				handler: { execute: execute('move-right') },
+				id: WORKBENCH_ACTION_IDS.moveActivePanelRight,
+				input: noActionInput,
+				title: workbenchMessages.panelMoveRight,
+			}),
+		),
+		typedRuntime.register(
+			scope,
+			defineAction({
+				category: panelCategory,
+				execution: {
+					concurrency: 'parallel',
+					concurrencyKey: () => 'active-panel-move-up',
+					mode: 'foreground',
+				},
+				getAvailability: availabilityFor('move-up'),
+				handler: { execute: execute('move-up') },
+				id: WORKBENCH_ACTION_IDS.moveActivePanelUp,
+				input: noActionInput,
+				title: workbenchMessages.panelMoveUp,
+			}),
+		),
+		typedRuntime.register(
+			scope,
+			defineAction({
+				category: panelCategory,
+				execution: {
+					concurrency: 'parallel',
 					concurrencyKey: () => 'active-panel-resize',
 					mode: 'foreground',
 				},

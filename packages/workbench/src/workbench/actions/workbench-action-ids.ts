@@ -29,6 +29,10 @@ export const WORKBENCH_ACTION_IDS = {
 	reorderWorkspace: 'workbench.workspace.reorder',
 	moveActiveTabBackward: 'workbench.tab.active.move-backward',
 	moveActiveTabForward: 'workbench.tab.active.move-forward',
+	moveActivePanelDown: 'workbench.panel.active.move-down',
+	moveActivePanelLeft: 'workbench.panel.active.move-left',
+	moveActivePanelRight: 'workbench.panel.active.move-right',
+	moveActivePanelUp: 'workbench.panel.active.move-up',
 	setTabTitle: 'workbench.tab.title.set',
 	selectNextTab: 'workbench.tab.select-next',
 	selectPreviousTab: 'workbench.tab.select-previous',
@@ -145,6 +149,10 @@ export interface WorkbenchActionCatalog {
 	readonly [WORKBENCH_ACTION_IDS.reorderWorkspace]: ActionSignature<WorkbenchWorkspaceReorderInput>;
 	readonly [WORKBENCH_ACTION_IDS.moveActiveTabBackward]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.moveActiveTabForward]: ActionSignature<void>;
+	readonly [WORKBENCH_ACTION_IDS.moveActivePanelDown]: ActionSignature<void>;
+	readonly [WORKBENCH_ACTION_IDS.moveActivePanelLeft]: ActionSignature<void>;
+	readonly [WORKBENCH_ACTION_IDS.moveActivePanelRight]: ActionSignature<void>;
+	readonly [WORKBENCH_ACTION_IDS.moveActivePanelUp]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.setTabTitle]: ActionSignature<WorkbenchTabTitleInput>;
 	readonly [WORKBENCH_ACTION_IDS.selectNextTab]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.selectPreviousTab]: ActionSignature<void>;

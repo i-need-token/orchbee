@@ -65,6 +65,10 @@ type KeyboardShortcutName =
 	| 'hints'
 	| 'increase-terminal-font-size'
 	| 'maximize-panel'
+	| 'move-panel-down'
+	| 'move-panel-left'
+	| 'move-panel-right'
+	| 'move-panel-up'
 	| 'move-tab-backward'
 	| 'move-tab-forward'
 	| 'new-terminal'
@@ -292,6 +296,46 @@ export const KEYBOARD_SHORTCUT_CATALOG = Object.freeze([
 		name: 'focus-panel-up',
 		scope: 'active-panel',
 		shortcutId: WORKBENCH_SHORTCUTS.focusActivePanelUp.shortcutId,
+	}),
+	Object.freeze({
+		actionId: WORKBENCH_SHORTCUTS.moveActivePanelDown.id,
+		actionInput: WORKBENCH_SHORTCUTS.moveActivePanelDown.input,
+		availability: 'directional-panel',
+		defaults: WORKBENCH_SHORTCUTS.moveActivePanelDown.defaults,
+		feature: 'workbench',
+		name: 'move-panel-down',
+		scope: 'active-panel',
+		shortcutId: WORKBENCH_SHORTCUTS.moveActivePanelDown.shortcutId,
+	}),
+	Object.freeze({
+		actionId: WORKBENCH_SHORTCUTS.moveActivePanelLeft.id,
+		actionInput: WORKBENCH_SHORTCUTS.moveActivePanelLeft.input,
+		availability: 'directional-panel',
+		defaults: WORKBENCH_SHORTCUTS.moveActivePanelLeft.defaults,
+		feature: 'workbench',
+		name: 'move-panel-left',
+		scope: 'active-panel',
+		shortcutId: WORKBENCH_SHORTCUTS.moveActivePanelLeft.shortcutId,
+	}),
+	Object.freeze({
+		actionId: WORKBENCH_SHORTCUTS.moveActivePanelRight.id,
+		actionInput: WORKBENCH_SHORTCUTS.moveActivePanelRight.input,
+		availability: 'directional-panel',
+		defaults: WORKBENCH_SHORTCUTS.moveActivePanelRight.defaults,
+		feature: 'workbench',
+		name: 'move-panel-right',
+		scope: 'active-panel',
+		shortcutId: WORKBENCH_SHORTCUTS.moveActivePanelRight.shortcutId,
+	}),
+	Object.freeze({
+		actionId: WORKBENCH_SHORTCUTS.moveActivePanelUp.id,
+		actionInput: WORKBENCH_SHORTCUTS.moveActivePanelUp.input,
+		availability: 'directional-panel',
+		defaults: WORKBENCH_SHORTCUTS.moveActivePanelUp.defaults,
+		feature: 'workbench',
+		name: 'move-panel-up',
+		scope: 'active-panel',
+		shortcutId: WORKBENCH_SHORTCUTS.moveActivePanelUp.shortcutId,
 	}),
 	Object.freeze({
 		actionId: WORKBENCH_SHORTCUTS.maximizeActivePanel.id,

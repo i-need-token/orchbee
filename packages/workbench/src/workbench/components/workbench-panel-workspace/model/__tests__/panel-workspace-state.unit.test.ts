@@ -1984,6 +1984,7 @@ describe('panel workspace state', () => {
 			kind: constantFrom(
 				'split',
 				'move',
+				'swap',
 				'resize',
 				'keyboard-resize',
 				'create-child',
@@ -2029,6 +2030,19 @@ describe('panel workspace state', () => {
 							tabId: tab.tabId,
 							targetPanelId: targetPanel.id,
 							type: 'panel-moved',
+						});
+					} else if (action.kind === 'swap' && panels.length > 1 && tab.maximizedPanelId === null) {
+						const targetPanel = requireDefined(
+							panels[
+								(action.primaryIndex + 1 + (action.secondaryIndex % (panels.length - 1))) %
+									panels.length
+							],
+						);
+						state = apply(state, {
+							panelId: panel.id,
+							tabId: tab.tabId,
+							targetPanelId: targetPanel.id,
+							type: 'panels-swapped',
 						});
 					} else if (action.kind === 'create-child' && panel.childPresentations.length < 4) {
 						state = apply(state, {
@@ -2150,7 +2164,7 @@ describe('panel workspace state', () => {
 		expect(exploredEquivalentMoveCount).toBeGreaterThan(0);
 	});
 
-	it('exhausts panel, presentation, focus, maximize, close, and resize actions across bounded layouts', () => {
+	it('exhausts panel, presentation, focus, maximize, close, swap, and resize actions across bounded layouts', () => {
 		const states = enumerateSplitLayouts(4);
 		const terminalCwds = ['/a', '/b', '/c', '/d', '/e'] as const;
 		let exploredActionCount = 0;
@@ -2276,6 +2290,41 @@ describe('panel workspace state', () => {
 					}
 				}
 
+				for (const targetPanel of panels) {
+					if (targetPanel.id === panel.id) continue;
+					const swapResult = transitionPanelWorkspace(state, {
+						panelId: panel.id,
+						tabId: tab.tabId,
+						targetPanelId: targetPanel.id,
+						type: 'panels-swapped',
+					});
+					const swappedTab = requireTab(swapResult.state);
+					expect(swapResult).toMatchObject({ outcome: 'applied', rejection: null });
+					expect(hasPanelMembership(swappedTab.root, originalPanelIds)).toBe(true);
+					expect(findPanel(swappedTab.root, panel.id)).toBe(panel);
+					expect(findPanel(swappedTab.root, targetPanel.id)).toBe(targetPanel);
+					expect(swappedTab.focusedPanelId).toBe(panel.id);
+					expect({
+						panel: swapResult.state.nextPanelSequence,
+						slot: swapResult.state.nextPanelSlotSequence,
+						split: swapResult.state.nextSplitSequence,
+						terminal: swapResult.state.nextTerminalSequence,
+					}).toEqual({
+						panel: state.nextPanelSequence,
+						slot: state.nextPanelSlotSequence,
+						split: state.nextSplitSequence,
+						terminal: state.nextTerminalSequence,
+					});
+					const roundTrip = transitionPanelWorkspace(swapResult.state, {
+						panelId: panel.id,
+						tabId: tab.tabId,
+						targetPanelId: targetPanel.id,
+						type: 'panels-swapped',
+					});
+					expect(requireTab(roundTrip.state).root).toEqual(tab.root);
+					exploredActionCount += 1;
+				}
+
 				const closeResult = transitionPanelWorkspace(state, {
 					panelId: panel.id,
 					tabId: tab.tabId,
@@ -2342,7 +2391,7 @@ describe('panel workspace state', () => {
 		}
 
 		expect(states).toHaveLength(384);
-		expect(exploredActionCount).toBe(41_088);
+		expect(exploredActionCount).toBe(45_696);
 	});
 
 	it('keeps generated split layouts valid across every possible panel move', () => {

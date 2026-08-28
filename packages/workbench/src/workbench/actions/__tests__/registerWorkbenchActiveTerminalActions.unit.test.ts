@@ -12,8 +12,10 @@ import { terminalPresentationId } from '../../../terminal-presentation';
 import {
 	PANEL_ACTION_IDS,
 	panelCloseInput,
+	panelSwapInput,
 	panelTargetInput,
 	type PanelCloseInput,
+	type PanelSwapInput,
 	type PanelTargetInput,
 } from '../../components/workbench-panel-workspace/actions/panel-action-contracts';
 import { createWorkbenchPreviewTerminalPresentationComposition } from '../../model/createWorkbenchPreviewTerminalPresentationComposition';
@@ -198,6 +200,63 @@ describe('registerWorkbenchActiveTerminalActions', () => {
 		const harness = createHarness();
 		expect(
 			harness.runtime.resolveAction(WORKBENCH_ACTION_IDS.focusActivePanelLeft, undefined, {
+				scope: harness.scope,
+				source: 'keyboard',
+			}),
+		).toMatchObject({ availability: { kind: 'disabled' } });
+	});
+
+	it('executes the prepared Panel swap Action for a directional neighbor', async () => {
+		const harness = createHarness();
+		const store = harness.projectWorkspaceRuntime.getActiveTerminalContext().panelWorkspaceStore;
+		const tabId = store.getActiveTabId();
+		if (tabId === null) throw new Error('Expected an active Tab.');
+		store.transition({
+			direction: 'right',
+			newTerminalTitle: 'Terminal 2',
+			panelId: 'panel-1',
+			presentation: store.createTerminalPresentation(),
+			tabId,
+			type: 'panel-split',
+		});
+		const lowerExecute = vi.fn<(input: PanelSwapInput) => void>();
+		const panelScope = harness.runtime.createScope('panel-workspace', harness.scope);
+		harness.runtime.register(
+			panelScope,
+			defineAction({
+				category: { id: 'panels', title: { defaultMessage: 'Panels' } },
+				execution: {
+					concurrency: 'parallel',
+					concurrencyKey: (input) => input.panelId,
+					mode: 'foreground',
+				},
+				getAvailability: () => ({ kind: 'enabled' }),
+				handler: {
+					execute: (context, input) => {
+						lowerExecute(input);
+						context.markCommitted();
+						return { kind: 'completed' };
+					},
+				},
+				id: PANEL_ACTION_IDS.swap,
+				input: panelSwapInput,
+				title: { defaultMessage: 'Move panel' },
+			}),
+		);
+
+		await expect(harness.execute(WORKBENCH_ACTION_IDS.moveActivePanelLeft)).resolves.toEqual({
+			kind: 'completed',
+		});
+		expect(lowerExecute).toHaveBeenCalledExactlyOnceWith({
+			panelId: 'panel-2',
+			targetPanelId: 'panel-1',
+		});
+	});
+
+	it('keeps an outer-edge directional movement Action unavailable', () => {
+		const harness = createHarness();
+		expect(
+			harness.runtime.resolveAction(WORKBENCH_ACTION_IDS.moveActivePanelLeft, undefined, {
 				scope: harness.scope,
 				source: 'keyboard',
 			}),

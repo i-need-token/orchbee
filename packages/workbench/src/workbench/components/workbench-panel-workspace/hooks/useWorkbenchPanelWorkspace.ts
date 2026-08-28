@@ -272,6 +272,12 @@ export function useWorkbenchPanelWorkspace({
 				setPendingResize({ panelId, tabId });
 				return true;
 			},
+			swapPanels: (panelId: string, targetPanelId: string) =>
+				transitionForActiveTab({
+					panelId,
+					targetPanelId,
+					type: 'panels-swapped',
+				}),
 			togglePanelMaximization: (panelId: string) =>
 				transitionForActiveTab({ panelId, type: 'panel-maximization-toggled' }),
 		}),

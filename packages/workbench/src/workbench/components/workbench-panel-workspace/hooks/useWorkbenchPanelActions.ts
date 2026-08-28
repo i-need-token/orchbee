@@ -21,6 +21,7 @@ import {
 	panelMoveInput,
 	panelResizeInput,
 	panelSplitInput,
+	panelSwapInput,
 	panelTargetInput,
 	type PanelActionCatalog,
 	type PanelCloseInput,
@@ -56,6 +57,7 @@ interface PanelActionOperations {
 		direction: 'above' | 'below' | 'left' | 'right',
 	) => { readonly panelId: string; readonly transition: PanelWorkspaceTransition } | null;
 	readonly startPanelResize: (panelId: string) => boolean;
+	readonly swapPanels: (panelId: string, targetPanelId: string) => PanelWorkspaceTransition | null;
 	readonly togglePanelMaximization: (panelId: string) => PanelWorkspaceTransition | null;
 }
 
@@ -160,6 +162,39 @@ export function useWorkbenchPanelActions({
 					id: PANEL_ACTION_IDS.activateChildTerminal,
 					input: panelChildTerminalInput,
 					title: workbenchMessages.panelActivateChild,
+				}),
+			),
+			typedRuntime.register(
+				scope,
+				defineAction({
+					category,
+					execution,
+					getAvailability: (_context, input) => {
+						const sourcePanel = findTarget(input.panelId);
+						const targetPanel = findTarget(input.targetPanelId);
+						return activeTab?.maximizedPanelId !== null ||
+							panelCount < 2 ||
+							sourcePanel === null ||
+							targetPanel === null ||
+							input.panelId === input.targetPanelId
+							? {
+									kind: 'disabled',
+									reason: workbenchMessages.actionUnavailable,
+								}
+							: { kind: 'enabled' };
+					},
+					handler: {
+						execute: (context, input) => {
+							const result = resultFor(operations.swapPanels(input.panelId, input.targetPanelId));
+							if (result.kind === 'completed') {
+								context.markCommitted();
+							}
+							return result;
+						},
+					},
+					id: PANEL_ACTION_IDS.swap,
+					input: panelSwapInput,
+					title: workbenchMessages.panelMove,
 				}),
 			),
 			typedRuntime.register(

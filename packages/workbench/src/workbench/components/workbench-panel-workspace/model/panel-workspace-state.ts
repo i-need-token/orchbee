@@ -16,6 +16,7 @@ import {
 	type PanelResizeAdjustment,
 	type PanelResizeMultiplier,
 } from './resolvePanelResize';
+import { resolvePanelSwap } from './resolvePanelSwap';
 import type {
 	PanelLayoutNode,
 	PanelLeaf,
@@ -114,6 +115,12 @@ export type PanelWorkspaceEvent =
 			readonly tabId: string;
 			readonly targetPanelId: string;
 			readonly type: 'panel-moved';
+	  }
+	| {
+			readonly panelId: string;
+			readonly tabId: string;
+			readonly targetPanelId: string;
+			readonly type: 'panels-swapped';
 	  }
 	| {
 			readonly leadingWeight: number;
@@ -1540,6 +1547,25 @@ export function transitionPanelWorkspace(
 			nextPanelSlotSequence: state.nextPanelSlotSequence + 2,
 			nextSplitSequence: state.nextSplitSequence + 1,
 		});
+	}
+
+	if (event.type === 'panels-swapped') {
+		if (tab.maximizedPanelId !== null) {
+			return rejected(state, 'panel-maximized');
+		}
+		const result = resolvePanelSwap(tab.root, event.panelId, event.targetPanelId);
+		if (result.kind === 'rejected') {
+			return rejected(state, result.reason);
+		}
+		return result.kind === 'unchanged'
+			? unchanged(state)
+			: applied(
+					replaceTab(state, tabIndex, {
+						...focusPanelInTab(tab, event.panelId),
+						maximizedPanelId: null,
+						root: result.root,
+					}),
+				);
 	}
 
 	if (event.type === 'terminal-metadata-changed') {

@@ -466,6 +466,11 @@ Focused traces cover:
   matching split-axis mutation, whole-Tab equal-weight reset, menu and Action-search discovery,
   stale-target closure, focus restoration, unchanged attachment identity during resize, and stable
   terminal/creation identity across Tab handoff;
+- exact headed `terminal-parity/FS-13-directional-panel-movement` Browser-composition witness for
+  Kitty-aligned directional neighbor selection and leaf exchange across a nested four-Panel layout,
+  all four movement directions, outer-edge event fallthrough, moved-source focus restoration,
+  invariant Panel/presentation/terminal identity, and Action-search plus Settings
+  discovery;
 - exact headed `terminal-parity/LC-05-lan-capability` Browser-composition evidence for per-operation secure-context, transient-user-activation, and API checks; synchronous Copy availability; one admitted writer call; rejection without retry; localized failure; and no privileged insecure-LAN path;
 - exact `terminal-parity/HS-07-selection-export` real-PTY/Electron evidence that styled terminal
   selection reaches the platform clipboard as the exact visible plain text, paired with protocol,

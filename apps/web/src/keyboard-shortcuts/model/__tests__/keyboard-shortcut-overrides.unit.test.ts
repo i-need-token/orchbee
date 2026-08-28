@@ -69,6 +69,24 @@ describe('keyboard shortcut overrides', () => {
 		});
 	});
 
+	it('applies a custom directional Panel movement binding without changing the other directions', () => {
+		const bindings = createKeyboardShortcutBindings('standard', [
+			{
+				chord: { code: 'KeyH', modifiers: ['alt', 'mod', 'shift'] },
+				shortcutId: 'workbench.panel.active.move-left',
+			},
+		]);
+
+		expect(bindings['workbench.panel.active.move-left']).toEqual({
+			code: 'KeyH',
+			modifiers: ['alt', 'mod', 'shift'],
+		});
+		expect(bindings['workbench.panel.active.move-right']).toEqual({
+			code: 'ArrowRight',
+			modifiers: ['mod', 'alt', 'shift'],
+		});
+	});
+
 	it('applies one positional Tab override without changing the other positions', () => {
 		const bindings = createKeyboardShortcutBindings('apple', [
 			{

@@ -17,6 +17,7 @@ export const PANEL_ACTION_IDS = {
 	showPrimaryTerminal: 'workbench.panel.primary-terminal.show',
 	split: 'workbench.panel.split',
 	startResize: 'workbench.panel.resize.start',
+	swap: 'workbench.panel.swap',
 	toggleMaximization: 'workbench.panel.maximization.toggle',
 } as const;
 
@@ -47,6 +48,10 @@ export interface PanelResizeInput extends PanelTargetInput {
 	readonly multiplier: PanelResizeMultiplier;
 }
 
+export interface PanelSwapInput extends PanelTargetInput {
+	readonly targetPanelId: string;
+}
+
 export interface PanelActionCatalog {
 	readonly [PANEL_ACTION_IDS.activateChildTerminal]: ActionSignature<PanelChildTerminalInput>;
 	readonly [PANEL_ACTION_IDS.close]: ActionSignature<PanelCloseInput>;
@@ -57,6 +62,7 @@ export interface PanelActionCatalog {
 	readonly [PANEL_ACTION_IDS.showPrimaryTerminal]: ActionSignature<PanelTargetInput>;
 	readonly [PANEL_ACTION_IDS.split]: ActionSignature<PanelSplitInput, string>;
 	readonly [PANEL_ACTION_IDS.startResize]: ActionSignature<PanelTargetInput>;
+	readonly [PANEL_ACTION_IDS.swap]: ActionSignature<PanelSwapInput>;
 	readonly [PANEL_ACTION_IDS.toggleMaximization]: ActionSignature<PanelTargetInput>;
 }
 
@@ -180,4 +186,20 @@ export const panelResizeInput: ActionInputValidation<PanelResizeInput> = {
 					success: true,
 				}
 			: { success: false, code: 'expected-panel-resize' },
+};
+
+export const panelSwapInput: ActionInputValidation<PanelSwapInput> = {
+	name: 'PanelSwapInput',
+	parse: (input) =>
+		isRecord(input) &&
+		typeof input['panelId'] === 'string' &&
+		typeof input['targetPanelId'] === 'string'
+			? {
+					data: {
+						panelId: input['panelId'],
+						targetPanelId: input['targetPanelId'],
+					},
+					success: true,
+				}
+			: { success: false, code: 'expected-panel-swap' },
 };

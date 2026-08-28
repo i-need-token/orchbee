@@ -98,6 +98,14 @@ export function useKeyboardShortcutSettingsView({
 				return intl.formatMessage(keyboardShortcutMessages.hints);
 			case 'maximize-panel':
 				return intl.formatMessage(keyboardShortcutMessages.maximizePanel);
+			case 'move-panel-down':
+				return intl.formatMessage(keyboardShortcutMessages.movePanelDown);
+			case 'move-panel-left':
+				return intl.formatMessage(keyboardShortcutMessages.movePanelLeft);
+			case 'move-panel-right':
+				return intl.formatMessage(keyboardShortcutMessages.movePanelRight);
+			case 'move-panel-up':
+				return intl.formatMessage(keyboardShortcutMessages.movePanelUp);
 			case 'settings':
 				return intl.formatMessage(keyboardShortcutMessages.settings);
 			case 'split-below':

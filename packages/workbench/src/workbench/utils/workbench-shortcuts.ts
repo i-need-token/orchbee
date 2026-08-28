@@ -20,6 +20,10 @@ interface WorkbenchShortcutDefinition {
 		| typeof WORKBENCH_ACTION_IDS.focusActivePanelRight
 		| typeof WORKBENCH_ACTION_IDS.focusActivePanelUp
 		| typeof WORKBENCH_ACTION_IDS.increaseTerminalFontSize
+		| typeof WORKBENCH_ACTION_IDS.moveActivePanelDown
+		| typeof WORKBENCH_ACTION_IDS.moveActivePanelLeft
+		| typeof WORKBENCH_ACTION_IDS.moveActivePanelRight
+		| typeof WORKBENCH_ACTION_IDS.moveActivePanelUp
 		| typeof WORKBENCH_ACTION_IDS.moveActiveTabBackward
 		| typeof WORKBENCH_ACTION_IDS.moveActiveTabForward
 		| typeof WORKBENCH_ACTION_IDS.setTabTitle
@@ -128,6 +132,42 @@ export const WORKBENCH_SHORTCUTS = {
 		id: WORKBENCH_ACTION_IDS.toggleActivePanelMaximization,
 		input: undefined,
 		shortcutId: WORKBENCH_ACTION_IDS.toggleActivePanelMaximization,
+	},
+	moveActivePanelDown: {
+		defaults: {
+			apple: chord('ArrowDown', ['mod', 'alt', 'shift']),
+			standard: chord('ArrowDown', ['mod', 'alt', 'shift']),
+		},
+		id: WORKBENCH_ACTION_IDS.moveActivePanelDown,
+		input: undefined,
+		shortcutId: WORKBENCH_ACTION_IDS.moveActivePanelDown,
+	},
+	moveActivePanelLeft: {
+		defaults: {
+			apple: chord('ArrowLeft', ['mod', 'alt', 'shift']),
+			standard: chord('ArrowLeft', ['mod', 'alt', 'shift']),
+		},
+		id: WORKBENCH_ACTION_IDS.moveActivePanelLeft,
+		input: undefined,
+		shortcutId: WORKBENCH_ACTION_IDS.moveActivePanelLeft,
+	},
+	moveActivePanelRight: {
+		defaults: {
+			apple: chord('ArrowRight', ['mod', 'alt', 'shift']),
+			standard: chord('ArrowRight', ['mod', 'alt', 'shift']),
+		},
+		id: WORKBENCH_ACTION_IDS.moveActivePanelRight,
+		input: undefined,
+		shortcutId: WORKBENCH_ACTION_IDS.moveActivePanelRight,
+	},
+	moveActivePanelUp: {
+		defaults: {
+			apple: chord('ArrowUp', ['mod', 'alt', 'shift']),
+			standard: chord('ArrowUp', ['mod', 'alt', 'shift']),
+		},
+		id: WORKBENCH_ACTION_IDS.moveActivePanelUp,
+		input: undefined,
+		shortcutId: WORKBENCH_ACTION_IDS.moveActivePanelUp,
 	},
 	moveActiveTabBackward: {
 		defaults: {
@@ -280,6 +320,10 @@ const WORKBENCH_SHORTCUT_ACTIONS = Object.freeze([
 	'focusActivePanelUp',
 	'increaseTerminalFontSize',
 	'maximizeActivePanel',
+	'moveActivePanelDown',
+	'moveActivePanelLeft',
+	'moveActivePanelRight',
+	'moveActivePanelUp',
 	'moveActiveTabBackward',
 	'moveActiveTabForward',
 	'setTabTitle',
@@ -360,6 +404,14 @@ export function formatWorkbenchActionShortcut(
 			return formatWorkbenchShortcut('focusActivePanelUp', platform, bindings);
 		case WORKBENCH_ACTION_IDS.increaseTerminalFontSize:
 			return formatWorkbenchShortcut('increaseTerminalFontSize', platform, bindings);
+		case WORKBENCH_ACTION_IDS.moveActivePanelDown:
+			return formatWorkbenchShortcut('moveActivePanelDown', platform, bindings);
+		case WORKBENCH_ACTION_IDS.moveActivePanelLeft:
+			return formatWorkbenchShortcut('moveActivePanelLeft', platform, bindings);
+		case WORKBENCH_ACTION_IDS.moveActivePanelRight:
+			return formatWorkbenchShortcut('moveActivePanelRight', platform, bindings);
+		case WORKBENCH_ACTION_IDS.moveActivePanelUp:
+			return formatWorkbenchShortcut('moveActivePanelUp', platform, bindings);
 		case WORKBENCH_ACTION_IDS.moveActiveTabBackward:
 			return formatWorkbenchShortcut('moveActiveTabBackward', platform, bindings);
 		case WORKBENCH_ACTION_IDS.moveActiveTabForward:
@@ -433,6 +485,14 @@ function defaultBindingsFor(platform: WorkbenchShortcutPlatform): WorkbenchShort
 			WORKBENCH_SHORTCUTS.increaseTerminalFontSize.defaults[platform],
 		[WORKBENCH_SHORTCUTS.maximizeActivePanel.shortcutId]:
 			WORKBENCH_SHORTCUTS.maximizeActivePanel.defaults[platform],
+		[WORKBENCH_SHORTCUTS.moveActivePanelDown.shortcutId]:
+			WORKBENCH_SHORTCUTS.moveActivePanelDown.defaults[platform],
+		[WORKBENCH_SHORTCUTS.moveActivePanelLeft.shortcutId]:
+			WORKBENCH_SHORTCUTS.moveActivePanelLeft.defaults[platform],
+		[WORKBENCH_SHORTCUTS.moveActivePanelRight.shortcutId]:
+			WORKBENCH_SHORTCUTS.moveActivePanelRight.defaults[platform],
+		[WORKBENCH_SHORTCUTS.moveActivePanelUp.shortcutId]:
+			WORKBENCH_SHORTCUTS.moveActivePanelUp.defaults[platform],
 		[WORKBENCH_SHORTCUTS.moveActiveTabBackward.shortcutId]:
 			WORKBENCH_SHORTCUTS.moveActiveTabBackward.defaults[platform],
 		[WORKBENCH_SHORTCUTS.moveActiveTabForward.shortcutId]:

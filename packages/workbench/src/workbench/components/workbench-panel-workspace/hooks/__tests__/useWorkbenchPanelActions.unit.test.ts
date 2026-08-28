@@ -59,6 +59,7 @@ interface HarnessProps {
 	readonly panelCount?: number;
 	readonly parentScope: ActionScope;
 	readonly runtime: ActionRuntime;
+	readonly swapPanels?: (panelId: string, targetPanelId: string) => PanelWorkspaceTransition;
 }
 
 function Harness({
@@ -69,6 +70,7 @@ function Harness({
 	panelCount = 1,
 	parentScope,
 	runtime,
+	swapPanels = () => appliedTransition,
 }: HarnessProps): ReactNode {
 	const actions = useWorkbenchPanelActions({
 		activeTab: activeTabOverride,
@@ -82,6 +84,7 @@ function Harness({
 			showPrimaryTerminal: () => appliedTransition,
 			splitPanel: () => ({ panelId: 'panel-2', transition: appliedTransition }),
 			startPanelResize: () => true,
+			swapPanels,
 			togglePanelMaximization: () => appliedTransition,
 		},
 		panelCount,
@@ -131,6 +134,7 @@ describe('useWorkbenchPanelActions', () => {
 						showPrimaryTerminal: () => appliedTransition,
 						splitPanel: () => ({ panelId: 'panel-2', transition: appliedTransition }),
 						startPanelResize: () => true,
+						swapPanels: () => appliedTransition,
 						togglePanelMaximization: () => appliedTransition,
 					},
 					panelCount: 2,
@@ -214,10 +218,58 @@ describe('useWorkbenchPanelActions', () => {
 		expect(closeDisplayedTerminal).toHaveBeenCalledOnce();
 	});
 
+	it('swaps two exact live Panels through the lower Panel Action', async () => {
+		const splitState = transitionPanelWorkspace(appliedTransition.state, {
+			direction: 'right',
+			newTerminalTitle: 'Terminal 2',
+			panelId: 'panel-1',
+			presentation: {
+				kind: 'preview',
+				presentationId: terminalPresentationId('terminal-2'),
+			},
+			tabId: 'tab-1',
+			type: 'panel-split',
+		}).state;
+		const splitTab = splitState.tabs[0];
+		if (splitTab === undefined) throw new Error('Expected a split Tab fixture');
+		const runtime = new ActionRuntime();
+		const parentScope = runtime.createScope('workbench');
+		const swapPanels = vi.fn<(panelId: string, targetPanelId: string) => PanelWorkspaceTransition>(
+			() => appliedTransition,
+		);
+		let scope: ActionScope | undefined;
+		render(
+			createElement(Harness, {
+				activeTab: splitTab,
+				captureScope: (candidate) => {
+					scope = candidate;
+				},
+				createChildTerminal: () => appliedTransition,
+				panelCount: 2,
+				parentScope,
+				runtime,
+				swapPanels,
+			}),
+		);
+		if (scope === undefined) throw new Error('Expected the panel action scope to be captured');
+
+		const execution = runtime.execute(
+			PANEL_ACTION_IDS.swap,
+			{ panelId: 'panel-1', targetPanelId: 'panel-2' },
+			{ scope, source: 'keyboard' },
+		);
+
+		await expect(execution.completion).resolves.toEqual({ kind: 'completed' });
+		expect(swapPanels).toHaveBeenCalledWith('panel-1', 'panel-2');
+	});
+
 	it('registers panel semantics, calls the domain writer, and disposes with its owner', async () => {
 		const runtime = new ActionRuntime();
 		const parentScope = runtime.createScope('workbench');
 		const createChildTerminal = vi.fn<(panelId: string) => PanelWorkspaceTransition>(
+			() => appliedTransition,
+		);
+		const swapPanels = vi.fn<(panelId: string, targetPanelId: string) => PanelWorkspaceTransition>(
 			() => appliedTransition,
 		);
 		let scope: ActionScope | undefined;
@@ -229,6 +281,7 @@ describe('useWorkbenchPanelActions', () => {
 				createChildTerminal,
 				parentScope,
 				runtime,
+				swapPanels,
 			}),
 		);
 		expect(scope).toBeDefined();
@@ -269,6 +322,10 @@ describe('useWorkbenchPanelActions', () => {
 								panelId: 'panel-1',
 							},
 							[PANEL_ACTION_IDS.startResize]: { panelId: 'panel-1' },
+							[PANEL_ACTION_IDS.swap]: {
+								panelId: 'panel-1',
+								targetPanelId: 'panel-2',
+							},
 							[PANEL_ACTION_IDS.toggleMaximization]: { panelId: 'panel-1' },
 						},
 					)
@@ -284,6 +341,17 @@ describe('useWorkbenchPanelActions', () => {
 
 		await expect(execution.completion).resolves.toEqual({ kind: 'completed' });
 		expect(createChildTerminal).toHaveBeenCalledWith('panel-1');
+
+		const swapExecution = runtime.execute(
+			PANEL_ACTION_IDS.swap,
+			{ panelId: 'panel-1', targetPanelId: 'panel-2' },
+			{ scope, source: 'keyboard' },
+		);
+		await expect(swapExecution.completion).resolves.toMatchObject({
+			code: 'action-unavailable',
+			kind: 'blocked',
+		});
+		expect(swapPanels).not.toHaveBeenCalled();
 		rendered.unmount();
 		expect(
 			runtime

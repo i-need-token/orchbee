@@ -4,6 +4,7 @@ import {
 	PANEL_ACTION_IDS,
 	type PanelCloseInput,
 	type PanelSplitInput,
+	type PanelSwapInput,
 	type PanelTargetInput,
 } from '../components/workbench-panel-workspace/actions/panel-action-contracts';
 import {
@@ -22,6 +23,10 @@ export type ActiveTerminalCommand =
 	| 'focus-left'
 	| 'focus-right'
 	| 'focus-up'
+	| 'move-down'
+	| 'move-left'
+	| 'move-right'
+	| 'move-up'
 	| 'start-resize'
 	| 'split-below'
 	| 'split-right'
@@ -34,6 +39,15 @@ const PANEL_FOCUS_DIRECTION_BY_COMMAND = {
 	'focus-up': 'up',
 } as const satisfies Readonly<
 	Record<Extract<ActiveTerminalCommand, `focus-${string}`>, PanelFocusDirection>
+>;
+
+const PANEL_MOVE_DIRECTION_BY_COMMAND = {
+	'move-down': 'down',
+	'move-left': 'left',
+	'move-right': 'right',
+	'move-up': 'up',
+} as const satisfies Readonly<
+	Record<Extract<ActiveTerminalCommand, `move-${string}`>, PanelFocusDirection>
 >;
 
 interface ResolveActiveTerminalCommandOptions {
@@ -65,6 +79,12 @@ export type ActiveTerminalCommandResolution =
 	| {
 			readonly actionId: typeof PANEL_ACTION_IDS.startResize;
 			readonly input: PanelTargetInput;
+			readonly kind: 'ready';
+			readonly panelId: string;
+	  }
+	| {
+			readonly actionId: typeof PANEL_ACTION_IDS.swap;
+			readonly input: PanelSwapInput;
 			readonly kind: 'ready';
 			readonly panelId: string;
 	  }
@@ -181,6 +201,27 @@ export function resolveActiveTerminalCommand({
 						input: { panelId: targetId },
 						kind: 'ready',
 						panelId: targetId,
+					};
+		}
+		case 'move-down':
+		case 'move-left':
+		case 'move-right':
+		case 'move-up': {
+			if (activeTab.maximizedPanelId !== null) {
+				return { kind: 'unavailable', reason: 'panel-maximized' };
+			}
+			const directionalTargetPanelId = resolveDirectionalPanelFocus(
+				activeTab.root,
+				panelId,
+				PANEL_MOVE_DIRECTION_BY_COMMAND[command],
+			);
+			return directionalTargetPanelId === null
+				? { kind: 'unavailable', reason: 'directional-neighbor-unavailable' }
+				: {
+						actionId: PANEL_ACTION_IDS.swap,
+						input: { panelId, targetPanelId: directionalTargetPanelId },
+						kind: 'ready',
+						panelId,
 					};
 		}
 	}

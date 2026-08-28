@@ -408,6 +408,10 @@ export function useWorkbenchActions({
 				case 'focusActivePanelUp':
 				case 'increaseTerminalFontSize':
 				case 'maximizeActivePanel':
+				case 'moveActivePanelDown':
+				case 'moveActivePanelLeft':
+				case 'moveActivePanelRight':
+				case 'moveActivePanelUp':
 				case 'moveActiveTabBackward':
 				case 'moveActiveTabForward':
 				case 'selectNextTab':

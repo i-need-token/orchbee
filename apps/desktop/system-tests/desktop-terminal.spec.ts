@@ -2549,6 +2549,173 @@ test('terminal-parity/FS-12-panel-resize', async () => {
 	}
 });
 
+test('terminal-parity/FS-13-directional-panel-movement', async () => {
+	test.setTimeout(60_000);
+	const application = electronApplication;
+	if (application === undefined) throw new Error('Electron application did not start.');
+	const page = await application.firstWindow();
+	const splitRightShortcut = process.platform === 'darwin' ? 'Meta+KeyD' : 'Control+Shift+KeyD';
+	const splitBelowShortcut =
+		process.platform === 'darwin' ? 'Meta+Shift+KeyD' : 'Control+Shift+KeyE';
+	const moveModifier = process.platform === 'darwin' ? 'Meta+Alt+Shift' : 'Control+Alt+Shift';
+	const activeLayer = page.locator('[data-presentation-mode="active"]');
+	const panels = activeLayer.locator('[data-slot="workbench-panel"]');
+	const focusedPanel = activeLayer.locator('[data-slot="workbench-panel"][data-focused="true"]');
+	const focusedPanelId = async (): Promise<string> => {
+		const panelId = await focusedPanel.getAttribute('data-panel-id');
+		if (panelId === null) throw new Error('The focused Panel has no stable identity.');
+		return panelId;
+	};
+	const panelFor = (panelId: string): Locator =>
+		activeLayer.locator(`[data-slot="workbench-panel"][data-panel-id="${panelId}"]`);
+	const panelRect = async (panelId: string) => {
+		const box = await panelFor(panelId).boundingBox();
+		if (box === null) throw new Error(`Panel ${panelId} has no layout box.`);
+		return {
+			height: Math.round(box.height),
+			width: Math.round(box.width),
+			x: Math.round(box.x),
+			y: Math.round(box.y),
+		};
+	};
+	const expectPanelAt = async (panelId: string, expectedPanelId: string): Promise<void> => {
+		const expected = initialRects.get(expectedPanelId);
+		if (expected === undefined) throw new Error('Missing an initial Panel geometry witness.');
+		await expect.poll(() => panelRect(panelId)).toEqual(expected);
+	};
+	const recordNextKeyDefault = async (code: string): Promise<void> => {
+		await page.evaluate((expectedCode) => {
+			document.documentElement.removeAttribute('data-fs13-key-default-prevented');
+			const record = (event: KeyboardEvent): void => {
+				if (event.code !== expectedCode) return;
+				document.documentElement.dataset['fs13KeyDefaultPrevented'] = String(
+					event.defaultPrevented,
+				);
+				document.removeEventListener('keydown', record, true);
+			};
+			document.addEventListener('keydown', record, true);
+		}, code);
+	};
+
+	await projectedTerminal(page).getByRole('textbox').focus();
+	const firstPanelId = await focusedPanelId();
+	await page.keyboard.press(splitRightShortcut);
+	await expect(panels).toHaveCount(2);
+	const secondPanelId = await focusedPanelId();
+	await page.keyboard.press(splitBelowShortcut);
+	await expect(panels).toHaveCount(3);
+	const thirdPanelId = await focusedPanelId();
+	await page.keyboard.press(splitRightShortcut);
+	await expect(panels).toHaveCount(4);
+	const movedPanelId = await focusedPanelId();
+	const panelIds = [firstPanelId, secondPanelId, thirdPanelId, movedPanelId];
+	expect(new Set(panelIds).size).toBe(4);
+
+	const initialRects = new Map<string, Awaited<ReturnType<typeof panelRect>>>();
+	const presentationByPanel = new Map<string, string>();
+	const identityByPresentation = new Map<
+		string,
+		Awaited<ReturnType<typeof terminalDocumentIdentity>>
+	>();
+	for (const panelId of panelIds) {
+		initialRects.set(panelId, await panelRect(panelId));
+		const presentationId = await panelFor(panelId)
+			.locator('[data-slot="workbench-terminal-viewport"]')
+			.getAttribute('data-terminal-presentation-id');
+		if (presentationId === null) throw new Error('A Panel has no terminal presentation identity.');
+		presentationByPanel.set(panelId, presentationId);
+		const terminalRoot = projectedTerminalFor(page, presentationId);
+		identityByPresentation.set(presentationId, await terminalDocumentIdentity(terminalRoot));
+	}
+
+	await recordNextKeyDefault('ArrowLeft');
+	await page.keyboard.press(`${moveModifier}+ArrowLeft`);
+	await expectPanelAt(movedPanelId, thirdPanelId);
+	await expectPanelAt(thirdPanelId, movedPanelId);
+	await expect(focusedPanel).toHaveAttribute('data-panel-id', movedPanelId);
+	await expect(panelFor(movedPanelId).getByRole('textbox')).toBeFocused();
+	await expect(page.locator('html')).toHaveAttribute('data-fs13-key-default-prevented', 'true');
+
+	await page.keyboard.press(`${moveModifier}+ArrowUp`);
+	await expectPanelAt(movedPanelId, secondPanelId);
+	await expectPanelAt(secondPanelId, thirdPanelId);
+	await expect(focusedPanel).toHaveAttribute('data-panel-id', movedPanelId);
+	await expect(panelFor(movedPanelId).getByRole('textbox')).toBeFocused();
+
+	await page.keyboard.press(`${moveModifier}+ArrowLeft`);
+	await expectPanelAt(movedPanelId, firstPanelId);
+	await expectPanelAt(firstPanelId, secondPanelId);
+	await expect(focusedPanel).toHaveAttribute('data-panel-id', movedPanelId);
+	await expect(panelFor(movedPanelId).getByRole('textbox')).toBeFocused();
+
+	await recordNextKeyDefault('ArrowLeft');
+	const edgeRects = new Map(
+		await Promise.all(
+			panelIds.map(async (panelId) => [panelId, await panelRect(panelId)] as const),
+		),
+	);
+	await page.keyboard.press(`${moveModifier}+ArrowLeft`);
+	await expect(page.locator('html')).toHaveAttribute('data-fs13-key-default-prevented', 'false');
+	for (const panelId of panelIds) {
+		expect(await panelRect(panelId)).toEqual(edgeRects.get(panelId));
+	}
+	await expect(focusedPanel).toHaveAttribute('data-panel-id', movedPanelId);
+
+	await page.keyboard.press(`${moveModifier}+ArrowRight`);
+	await expectPanelAt(movedPanelId, secondPanelId);
+	await page.keyboard.press(`${moveModifier}+ArrowDown`);
+	await expectPanelAt(movedPanelId, thirdPanelId);
+	await page.keyboard.press(`${moveModifier}+ArrowUp`);
+	await expectPanelAt(movedPanelId, secondPanelId);
+	await expect(focusedPanel).toHaveAttribute('data-panel-id', movedPanelId);
+	await expect(panelFor(movedPanelId).getByRole('textbox')).toBeFocused();
+
+	for (const [panelId, presentationId] of presentationByPanel) {
+		await expect(
+			panelFor(panelId).locator('[data-slot="workbench-terminal-viewport"]'),
+		).toHaveAttribute('data-terminal-presentation-id', presentationId);
+		const terminalRoot = projectedTerminalFor(page, presentationId);
+		await expect(terminalRoot).toHaveAttribute('data-projected-terminal-state', 'open');
+		await expect(terminalRoot).toHaveAttribute(
+			'data-projected-terminal-rendered-revision',
+			/^\d+$/u,
+		);
+		const originalIdentity = identityByPresentation.get(presentationId);
+		if (originalIdentity === undefined) throw new Error('Missing terminal identity witness.');
+		expect(await terminalDocumentIdentity(terminalRoot)).toMatchObject({
+			creationId: originalIdentity.creationId,
+			terminalId: originalIdentity.terminalId,
+		});
+	}
+
+	const primaryModifier = process.platform === 'darwin' ? 'Meta' : 'Control';
+	await page.keyboard.press(`${primaryModifier}+Shift+KeyP`);
+	const searchSurface = page.locator('[data-slot="workbench-search-surface"]');
+	await expect(searchSurface).toBeVisible();
+	const searchInput = searchSurface.getByRole('combobox');
+	await searchInput.fill(
+		(await searchInput.getAttribute('placeholder')) === '搜索操作…'
+			? '向左移动面板'
+			: 'Move Panel Left',
+	);
+	await expect(
+		searchSurface.getByRole('option', { name: /(?:Move Panel Left|向左移动面板)/u }),
+	).toBeVisible();
+	await page.keyboard.press('Escape');
+	await expect(searchSurface).not.toBeAttached();
+
+	const settingsSurface = await openDesktopSettingsCategory(page, 'keyboard-shortcuts');
+	const movementShortcutRow = settingsSurface.locator(
+		'[data-shortcut-id="workbench.panel.active.move-left"]',
+	);
+	await expect(movementShortcutRow).toContainText(/(?:Move active panel left|向左移动活动面板)/u);
+	await expect(movementShortcutRow).toContainText(
+		process.platform === 'darwin' ? '⌥⇧⌘←' : 'Ctrl+Alt+Shift+←',
+	);
+	await page.keyboard.press('Escape');
+	await expect(settingsSurface).not.toBeVisible();
+});
+
 test('keeps terminal presentation continuous through rapid Tab switching and active Tab closure', async () => {
 	test.setTimeout(60_000);
 	const application = electronApplication;

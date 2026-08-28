@@ -148,6 +148,26 @@ export const workbenchMessages = defineMessages({
 		defaultMessage: enUSWorkbenchMessages['workbench.panels.actions.move'],
 		description: 'Action that moves a Workbench panel relative to another panel.',
 	},
+	panelMoveDown: {
+		id: 'workbench.panels.actions.moveDown',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.actions.moveDown'],
+		description: 'Action that moves the active Workbench panel toward the panel below it.',
+	},
+	panelMoveLeft: {
+		id: 'workbench.panels.actions.moveLeft',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.actions.moveLeft'],
+		description: 'Action that moves the active Workbench panel toward the panel to its left.',
+	},
+	panelMoveRight: {
+		id: 'workbench.panels.actions.moveRight',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.actions.moveRight'],
+		description: 'Action that moves the active Workbench panel toward the panel to its right.',
+	},
+	panelMoveUp: {
+		id: 'workbench.panels.actions.moveUp',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.actions.moveUp'],
+		description: 'Action that moves the active Workbench panel toward the panel above it.',
+	},
 	panelResize: {
 		id: 'workbench.panels.actions.resize',
 		defaultMessage: enUSWorkbenchMessages['workbench.panels.actions.resize'],
