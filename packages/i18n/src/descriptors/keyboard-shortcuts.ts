@@ -16,6 +16,8 @@ export const keyboardShortcutMessages = defineMessages({
 	find: message('keyboard.shortcuts.actions.find'),
 	focusPanelDown: message('keyboard.shortcuts.actions.focusPanelDown'),
 	focusPanelLeft: message('keyboard.shortcuts.actions.focusPanelLeft'),
+	focusPanelNext: message('keyboard.shortcuts.actions.focusPanelNext'),
+	focusPanelPrevious: message('keyboard.shortcuts.actions.focusPanelPrevious'),
 	focusPanelRight: message('keyboard.shortcuts.actions.focusPanelRight'),
 	focusPanelUp: message('keyboard.shortcuts.actions.focusPanelUp'),
 	globalSearch: message('keyboard.shortcuts.actions.globalSearch'),

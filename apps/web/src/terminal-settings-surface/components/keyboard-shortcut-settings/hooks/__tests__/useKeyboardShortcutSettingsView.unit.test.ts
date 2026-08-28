@@ -28,7 +28,7 @@ describe('useKeyboardShortcutSettingsView', () => {
 				}),
 			{ wrapper: I18nWrapper },
 		);
-		expect(allRows.result.current.rows).toHaveLength(53);
+		expect(allRows.result.current.rows).toHaveLength(55);
 		expect(allRows.result.current.rows[0]).toMatchObject({
 			actionName: 'Search actions',
 			chord: 'Ctrl+Shift+P',

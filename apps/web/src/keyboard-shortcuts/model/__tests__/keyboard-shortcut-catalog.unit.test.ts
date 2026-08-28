@@ -10,9 +10,9 @@ import {
 } from '../keyboard-shortcut-catalog';
 
 describe('keyboard shortcut catalog', () => {
-	it('combines the thirty-seven Workbench and sixteen projected-terminal declarations once', () => {
-		expect(KEYBOARD_SHORTCUT_CATALOG).toHaveLength(53);
-		expect(new Set(KEYBOARD_SHORTCUT_IDS).size).toBe(53);
+	it('combines the thirty-nine Workbench and sixteen projected-terminal declarations once', () => {
+		expect(KEYBOARD_SHORTCUT_CATALOG).toHaveLength(55);
+		expect(new Set(KEYBOARD_SHORTCUT_IDS).size).toBe(55);
 		expect(keyboardShortcutDeclaration('workbench.search.actions.open')).toMatchObject({
 			actionId: 'workbench.search.open',
 			actionInput: { filter: 'actions' },
@@ -39,6 +39,18 @@ describe('keyboard shortcut catalog', () => {
 			actionId: 'workbench.panel.active.focus-left',
 			availability: 'directional-panel',
 			name: 'focus-panel-left',
+			scope: 'active-panel',
+		});
+		expect(keyboardShortcutDeclaration('workbench.panel.active.focus-next')).toMatchObject({
+			actionId: 'workbench.panel.active.focus-next',
+			availability: 'multiple-panels',
+			name: 'focus-panel-next',
+			scope: 'active-panel',
+		});
+		expect(keyboardShortcutDeclaration('workbench.panel.active.focus-previous')).toMatchObject({
+			actionId: 'workbench.panel.active.focus-previous',
+			availability: 'multiple-panels',
+			name: 'focus-panel-previous',
 			scope: 'active-panel',
 		});
 		expect(keyboardShortcutDeclaration('workbench.panel.active.resize')).toMatchObject({
@@ -172,6 +184,12 @@ describe('keyboard shortcut catalog', () => {
 		expect(formatKeyboardShortcutChord(apple['workbench.panel.active.focus-left'], 'apple')).toBe(
 			'⌥⌘←',
 		);
+		expect(formatKeyboardShortcutChord(apple['workbench.panel.active.focus-next'], 'apple')).toBe(
+			'⌃⇧]',
+		);
+		expect(
+			formatKeyboardShortcutChord(standard['workbench.panel.active.focus-previous'], 'standard'),
+		).toBe('Ctrl+Shift+[');
 		expect(
 			formatKeyboardShortcutChord(standard['workbench.panel.active.focus-right'], 'standard'),
 		).toBe('Ctrl+Alt+→');

@@ -147,6 +147,66 @@ describe('useWorkbenchShortcuts', () => {
 		expect(accepted.defaultPrevented).toBe(true);
 	});
 
+	it('captures cyclic Panel focus and preserves unavailable chords for terminal input', () => {
+		const available = vi.fn<(binding: WorkbenchShortcutBinding, source: 'keyboard') => boolean>(
+			() => true,
+		);
+		const rendered = render(
+			createElement(WorkbenchShortcutsHarness, {
+				invokeIfEnabled: available,
+			}),
+		);
+		const input = screen.getByRole('textbox', { name: 'Terminal input' });
+		const accepted = new KeyboardEvent('keydown', {
+			cancelable: true,
+			code: 'BracketRight',
+			ctrlKey: true,
+			shiftKey: true,
+		});
+
+		input.dispatchEvent(accepted);
+
+		expect(available).toHaveBeenCalledWith(
+			expect.objectContaining({
+				action: 'focusActivePanelNext',
+				shortcutId: 'workbench.panel.active.focus-next',
+			}),
+			'keyboard',
+		);
+		expect(accepted.defaultPrevented).toBe(true);
+
+		rendered.unmount();
+		const unavailable = vi.fn<(binding: WorkbenchShortcutBinding, source: 'keyboard') => boolean>(
+			() => false,
+		);
+		render(
+			createElement(WorkbenchShortcutsHarness, {
+				invokeIfEnabled: unavailable,
+			}),
+		);
+		const currentInput = screen.getByRole('textbox', { name: 'Terminal input' });
+		const terminalKeyDown = vi.fn<(event: Event) => void>();
+		currentInput.addEventListener('keydown', terminalKeyDown);
+		const preserved = new KeyboardEvent('keydown', {
+			cancelable: true,
+			code: 'BracketLeft',
+			ctrlKey: true,
+			shiftKey: true,
+		});
+
+		currentInput.dispatchEvent(preserved);
+
+		expect(unavailable).toHaveBeenCalledWith(
+			expect.objectContaining({
+				action: 'focusActivePanelPrevious',
+				shortcutId: 'workbench.panel.active.focus-previous',
+			}),
+			'keyboard',
+		);
+		expect(preserved.defaultPrevented).toBe(false);
+		expect(terminalKeyDown).toHaveBeenCalledOnce();
+	});
+
 	it('captures active Tab movement before focused terminal input', () => {
 		const invokeIfEnabled = vi.fn<
 			(binding: WorkbenchShortcutBinding, source: 'keyboard') => boolean

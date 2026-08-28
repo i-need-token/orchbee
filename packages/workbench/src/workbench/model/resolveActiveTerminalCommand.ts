@@ -16,12 +16,18 @@ import {
 	resolveDirectionalPanelFocus,
 	type PanelFocusDirection,
 } from '../components/workbench-panel-workspace/model/resolveDirectionalPanelFocus';
+import {
+	resolveCyclicPanelFocus,
+	type PanelFocusCycleDirection,
+} from '../components/workbench-panel-workspace/model/resolveCyclicPanelFocus';
 
 export type ActiveTerminalCommand =
 	| 'close'
 	| 'equalize'
 	| 'focus-down'
 	| 'focus-left'
+	| 'focus-next'
+	| 'focus-previous'
 	| 'focus-right'
 	| 'focus-up'
 	| 'move-down'
@@ -39,7 +45,7 @@ const PANEL_FOCUS_DIRECTION_BY_COMMAND = {
 	'focus-right': 'right',
 	'focus-up': 'up',
 } as const satisfies Readonly<
-	Record<Extract<ActiveTerminalCommand, `focus-${string}`>, PanelFocusDirection>
+	Record<'focus-down' | 'focus-left' | 'focus-right' | 'focus-up', PanelFocusDirection>
 >;
 
 const PANEL_MOVE_DIRECTION_BY_COMMAND = {
@@ -50,6 +56,11 @@ const PANEL_MOVE_DIRECTION_BY_COMMAND = {
 } as const satisfies Readonly<
 	Record<Extract<ActiveTerminalCommand, `move-${string}`>, PanelFocusDirection>
 >;
+
+const PANEL_FOCUS_CYCLE_DIRECTION_BY_COMMAND = {
+	'focus-next': 'next',
+	'focus-previous': 'previous',
+} as const satisfies Readonly<Record<'focus-next' | 'focus-previous', PanelFocusCycleDirection>>;
 
 interface ResolveActiveTerminalCommandOptions {
 	readonly activeTabId: string | null;
@@ -215,6 +226,26 @@ export function resolveActiveTerminalCommand({
 			);
 			return targetId === null
 				? { kind: 'unavailable', reason: 'directional-neighbor-unavailable' }
+				: {
+						actionId: PANEL_ACTION_IDS.focus,
+						input: { panelId: targetId },
+						kind: 'ready',
+						panelId: targetId,
+					};
+		}
+		case 'focus-next':
+		case 'focus-previous': {
+			if (activeTab.maximizedPanelId !== null) {
+				return { kind: 'unavailable', reason: 'panel-maximized' };
+			}
+			const targetId = resolveCyclicPanelFocus({
+				direction: PANEL_FOCUS_CYCLE_DIRECTION_BY_COMMAND[command],
+				maximizedPanelId: activeTab.maximizedPanelId,
+				root: activeTab.root,
+				sourcePanelId: panelId,
+			});
+			return targetId === null
+				? { kind: 'unavailable', reason: 'requires-multiple-panels' }
 				: {
 						actionId: PANEL_ACTION_IDS.focus,
 						input: { panelId: targetId },

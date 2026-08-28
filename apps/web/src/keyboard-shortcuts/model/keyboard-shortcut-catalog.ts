@@ -60,6 +60,8 @@ type KeyboardShortcutName =
 	| 'find'
 	| 'focus-panel-down'
 	| 'focus-panel-left'
+	| 'focus-panel-next'
+	| 'focus-panel-previous'
 	| 'focus-panel-right'
 	| 'focus-panel-up'
 	| 'global-search'
@@ -288,6 +290,26 @@ export const KEYBOARD_SHORTCUT_CATALOG = Object.freeze([
 		name: 'focus-panel-left',
 		scope: 'active-panel',
 		shortcutId: WORKBENCH_SHORTCUTS.focusActivePanelLeft.shortcutId,
+	}),
+	Object.freeze({
+		actionId: WORKBENCH_SHORTCUTS.focusActivePanelNext.id,
+		actionInput: WORKBENCH_SHORTCUTS.focusActivePanelNext.input,
+		availability: 'multiple-panels',
+		defaults: WORKBENCH_SHORTCUTS.focusActivePanelNext.defaults,
+		feature: 'workbench',
+		name: 'focus-panel-next',
+		scope: 'active-panel',
+		shortcutId: WORKBENCH_SHORTCUTS.focusActivePanelNext.shortcutId,
+	}),
+	Object.freeze({
+		actionId: WORKBENCH_SHORTCUTS.focusActivePanelPrevious.id,
+		actionInput: WORKBENCH_SHORTCUTS.focusActivePanelPrevious.input,
+		availability: 'multiple-panels',
+		defaults: WORKBENCH_SHORTCUTS.focusActivePanelPrevious.defaults,
+		feature: 'workbench',
+		name: 'focus-panel-previous',
+		scope: 'active-panel',
+		shortcutId: WORKBENCH_SHORTCUTS.focusActivePanelPrevious.shortcutId,
 	}),
 	Object.freeze({
 		actionId: WORKBENCH_SHORTCUTS.focusActivePanelRight.id,

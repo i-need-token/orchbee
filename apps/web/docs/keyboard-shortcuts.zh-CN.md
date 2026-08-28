@@ -21,6 +21,8 @@
 | `workbench.terminal.active.close`             | 活动终端               | `Cmd+W`                  | `Ctrl+Shift+W`         |
 | `workbench.panel.active.focus-down`           | 活动面板               | `Cmd+Option+Down`        | `Ctrl+Alt+Down`        |
 | `workbench.panel.active.focus-left`           | 活动面板               | `Cmd+Option+Left`        | `Ctrl+Alt+Left`        |
+| `workbench.panel.active.focus-next`           | 活动面板               | `Ctrl+Shift+]`           | `Ctrl+Shift+]`         |
+| `workbench.panel.active.focus-previous`       | 活动面板               | `Ctrl+Shift+[`           | `Ctrl+Shift+[`         |
 | `workbench.panel.active.focus-right`          | 活动面板               | `Cmd+Option+Right`       | `Ctrl+Alt+Right`       |
 | `workbench.panel.active.focus-up`             | 活动面板               | `Cmd+Option+Up`          | `Ctrl+Alt+Up`          |
 | `workbench.panel.active.move-down`            | 活动面板               | `Cmd+Option+Shift+Down`  | `Ctrl+Alt+Shift+Down`  |
@@ -87,6 +89,10 @@ shell 集成输出打开不可变查看器；提取、搜索、复制、取消�
 Workbench 在 Apple 平台仍使用显式 Control，因为 Kitty 的 `kitty_mod` 默认值在该平台同样是
 Control+Shift；按键选择以外采用的行为由下方移动模型定义。
 
+Panel 循环聚焦在两个平台都保留该修订版中“下一个”的 `Ctrl+Shift+]` 与“上一个”的
+`Ctrl+Shift+[` 默认键。Workbench 在 Apple 平台仍使用显式 Control，只遍历当前 Tab 的规范深度优先
+Panel 叶节点顺序，并且仅在至少存在两个 Panel 时回绕。
+
 设置 Tab 标题保留该修订版中 Apple 的 `Shift+Cmd+I` 默认键与标准平台的
 `Ctrl+Shift+Alt+T` 默认键。Workbench 使用同一个语义 Action 处理快捷键分发、Action 搜索和被调用
 Tab 的上下文菜单；下方标题模型定义采纳的编辑器与重置行为。
@@ -139,7 +145,7 @@ Promise 结算前始终处于等待状态。Paste Action 会快照并等待该 P
 
 方向面板聚焦采用 Ghostty 在修订版 `91f66da24527fa02d92b5fd0b41cd020f553a64c` 中的 Apple `Command+Option+Arrow` 与标准平台 `Control+Alt+Arrow` 约定，并与 Warp 修订版 `086dade63ff7327426d6276d57f85b3f2f313af0` 交叉核对。此处只负责应用层绑定选择；空间邻居解析由 Workbench 所有。
 
-方向 Panel 移动采用 Kitty 修订版 `6d5d0c440603ad9bdf6dcd599f73f6dde21acb44` 的当前布局邻居选择、外侧边缘空操作和 Splits 叶节点交换。Orchbee 在现有焦点组合键上增加 Shift，形成 Apple `Command+Option+Shift+Arrow` 与标准平台 `Ctrl+Alt+Shift+Arrow`。无修饰的 `Shift+Arrow` 仍供 shell 选择使用；Kitty 的默认 forward/backward 组合键与现有 Find 和边栏绑定冲突。forward/backward/to-top 循环与数值移动不在范围内。
+方向 Panel 移动采用 Kitty 修订版 `6d5d0c440603ad9bdf6dcd599f73f6dde21acb44` 的当前布局邻居选择、外侧边缘空操作和 Splits 叶节点交换。Orchbee 在现有焦点组合键上增加 Shift，形成 Apple `Command+Option+Shift+Arrow` 与标准平台 `Ctrl+Alt+Shift+Arrow`。无修饰的 `Shift+Arrow` 仍供 shell 选择使用。Kitty 的 forward/backward 默认键保留给循环聚焦，而不是移动；forward/backward/to-top 移动循环与数值移动不在范围内。
 
 没有有效绑定的命令不渲染空的快捷键提示。“重置”“新建子终端”“向左分屏”和“向上分屏”在本目录中仍然有意保持未绑定。允许用户为初始未绑定命令创建可空绑定不在本模型范围内。
 
@@ -229,7 +235,7 @@ Web 发布 Workbench 是否为当前活动产品表面。已挂载的 Workbench 
 
 ## 活动目标命令模型
 
-十四个 `workbench.*.active.*` Action 是上下文命令。菜单发起的 Action 调用可以携带显式面板目标；否则使用活动标签页中聚焦的面板。执行开始时会重新解析目标，因此陈旧或缺失的目标不可用，也不会吞掉键盘事件。
+十六个 `workbench.*.active.*` Action 是上下文命令。菜单发起的 Action 调用可以携带显式面板目标；否则使用活动标签页中聚焦的面板。执行开始时会重新解析目标，因此陈旧或缺失的目标不可用，也不会吞掉键盘事件。
 
 `workbench.terminal.active.close` 精确解析为一个下层关闭操作：
 
@@ -245,6 +251,10 @@ Web 发布 Workbench 是否为当前活动产品表面。已挂载的 Workbench 
 最大化只在活动标签页至少有两个面板时可解析。向右和向下分屏 Action 在存在有效目标面板时可解析。每个命令都准备并执行现有面板 Action，因此菜单、键盘分发和 Action 搜索界面共享同一个状态转换与可用性结果。不可用命令既不会执行，也不会触发 `preventDefault()`。
 
 四个方向聚焦 Action 仅在没有面板最大化时根据加权拆分布局解析。Workbench 要求所请求方向存在一个在垂直于移动方向的轴上具有正重叠的相邻面板，在外边缘绝不循环，并通过现有面板聚焦 Action 委托结果。方向上没有邻居时，快捷键事件仍可交给终端或浏览器处理。
+
+上一个与下一个聚焦 Action 只把当前 Tab 的规范布局展平为深度优先叶节点顺序，选择相邻 Panel，在两个
+边界回绕，并通过同一个 Panel 聚焦 Action 委托该精确目标。单 Panel、陈旧源或 Panel 最大化时不可用，
+因此组合键会继续传递，且不会跨 Tab、终端上下文或窗口。
 
 四个方向移动 Action 复用完全相同的邻居解析器，再准备一个精确源/目标 `workbench.panel.swap` Action。底层转换交换完整 Panel 叶节点，同时保留 split 拓扑、权重、slot ID、终端标识、计数器与 Panel 成员关系；移动源保持聚焦。缺少邻居、单 Panel 布局、Panel 最大化、目标陈旧或底层注册缺失时不会发生变更，并保留按键事件。
 
@@ -269,11 +279,11 @@ Workbench 负责格式化自身绑定。投影终端负责其绑定默认值与�
 
 ## 持久化与恢复
 
-新写入使用 `orchbee:web:keyboard-shortcuts:v17` 严格记录：
+新写入使用 `orchbee:web:keyboard-shortcuts:v18` 严格记录：
 
 ```json
 {
-	"version": 17,
+	"version": 18,
 	"overrides": [
 		{
 			"shortcutId": "workbench.search.all.open",
@@ -283,9 +293,9 @@ Workbench 负责格式化自身绑定。投影终端负责其绑定默认值与�
 }
 ```
 
-只存储自定义值，并按快捷键 ID 排序。未知字段或 ID、重复项、未排序条目、非规范修饰符、不支持的代码、已存储默认值、过多条目以及有效冲突都会使完整 v17 记录无效，并恢复平台默认值。写入失败时，不可变的会话绑定仍保持活动，同时报告尚未保存，并在下一次合法修改时重试。恢复单项会移除其覆盖。
+只存储自定义值，并按快捷键 ID 排序。未知字段或 ID、重复项、未排序条目、非规范修饰符、不支持的代码、已存储默认值、过多条目以及有效冲突都会使完整 v18 记录无效，并恢复平台默认值。写入失败时，不可变的会话绑定仍保持活动，同时报告尚未保存，并在下一次合法修改时重试。恢复单项会移除其覆盖。
 
-当 v17 不存在时，Web 会先按准确的旧目录与旧默认值读取 `orchbee:web:keyboard-shortcuts:v16`；如果 v16 也不存在，则依次尝试 v15、v14、v13、v12、v11、v10、v9、v8、v7、v6、v5、v4、v3、v2 和 v1。每次迁移都会把显式覆盖带入扩展后的目录，移除与当前默认值等价的覆盖，拒绝迁移后产生的冲突，并写入规范 v17 记录。v1 到 v16 的值原样保留，作为回滚快照。无效当前记录绝不回退到更旧记录，无效迁移源也绝不继续读取下一个更旧版本，因为任一回退都会掩盖数据损坏。回滚时会恢复旧版本能够理解的最新记录；只在 v17 中做出的编辑有意不对旧版本可用。
+当 v18 不存在时，Web 会先按准确的旧目录与旧默认值读取 `orchbee:web:keyboard-shortcuts:v17`；如果 v17 也不存在，则依次尝试 v16、v15、v14、v13、v12、v11、v10、v9、v8、v7、v6、v5、v4、v3、v2 和 v1。每次迁移都会把显式覆盖带入扩展后的目录，移除与当前默认值等价的覆盖，拒绝迁移后产生的冲突，并写入规范 v18 记录。v1 到 v17 的值原样保留，作为回滚快照。无效当前记录绝不回退到更旧记录，无效迁移源也绝不继续读取下一个更旧版本，因为任一回退都会掩盖数据损坏。回滚时会恢复旧版本能够理解的最新记录；只在 v18 中做出的编辑有意不对旧版本可用。
 
 Browser Preview、Gateway Browser 和 Electron 各自针对自己的源本地存储创建并销毁一个控制器。Gateway 与 Electron 通过 `ProjectedTerminalSurfaceCapability` 传递控制器的窄绑定来源。事件处理器在分发时读取当前表，因此修改不会重新挂载 Workbench、替换附件，也不会重新打开 Host 或 Gateway 连接。
 
@@ -303,6 +313,7 @@ Browser Preview、Gateway Browser 和 Electron 各自针对自己的源本地存
 | 活动的普通终端选择会保留原生粘贴与输入所有权                | 投影终端选择/粘贴测试及精确 Desktop `terminal-parity/IN-18-native-selection-paste`                                    |
 | 等待中的 Copy 与 Paste 工作不会接纳陈旧或重复快捷键输入     | 剪贴板协调器与 Action 测试及精确 Desktop `terminal-parity/IN-13-selection-copy-paste`                                 |
 | 方向聚焦会选择空间邻居，并在外边缘继续传递事件              | 四面板解析器、Action 与快捷键分发测试                                                                                 |
+| 循环聚焦遵循规范 Panel 顺序、回绕，并在不可用时继续传递     | 生成式解析器、预备 Action、快捷键分发、Settings 与 v17 迁移测试                                                       |
 | 方向移动会交换精确相邻叶节点并保留源焦点                    | 模型、有界探索、Action、快捷键、设置及精确 Desktop `terminal-parity/FS-13-directional-panel-movement`                 |
 | 均分按同轴 Panel 比例分配范围且不改变标识                   | 模型、生成布局、Action、菜单、快捷键、设置、v15 迁移及精确 Desktop `terminal-parity/FS-14-panel-equalization`         |
 | 键盘调整大小定位最近匹配分割并重新验证捕获标识              | 解析器、状态、Action、React、设置、迁移、菜单与 Desktop 系统测试                                                      |
@@ -313,7 +324,7 @@ Browser Preview、Gateway Browser 和 Electron 各自针对自己的源本地存
 | 可见 Hints 消费一个聚焦绑定，且标签按键绝不会泄漏到终端输入 | 终端、Action、快捷键、Settings 与精确 Desktop `terminal-parity/FS-07-keyboard-hints`                                  |
 | 显示回滚历史消费一个聚焦绑定并打开精确不可变查看器          | 终端、Action、快捷键、Settings 与精确 Desktop `terminal-parity/FS-09-scrollback-viewer`                               |
 | 菜单、Action 搜索和设置显示同一个当前绑定                   | 投影与渲染界面测试                                                                                                    |
-| 有效 v1 到 v16 记录迁移时不会丢失显式旧覆盖                 | 存储迁移测试，包括与新默认值的冲突                                                                                    |
+| 有效 v1 到 v17 记录迁移时不会丢失显式旧覆盖                 | 存储迁移测试，包括与新默认值的冲突                                                                                    |
 | 无效当前记录或迁移源数据不会读取更旧记录                    | 存储损坏与优先级测试                                                                                                  |
 
 测试使用合成的平台标志、Action 作用域、存储、document 捕获、注入终端焦点与键盘事件。它们不主张操作系统全局快捷键行为或完整 Warp 兼容性。手动 Desktop 原生窗口焦点测试不包含在自动验证中。

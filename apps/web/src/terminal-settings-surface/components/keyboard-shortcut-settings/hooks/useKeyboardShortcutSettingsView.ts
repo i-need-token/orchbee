@@ -124,6 +124,10 @@ export function useKeyboardShortcutSettingsView({
 				return intl.formatMessage(keyboardShortcutMessages.focusPanelDown);
 			case 'focus-panel-left':
 				return intl.formatMessage(keyboardShortcutMessages.focusPanelLeft);
+			case 'focus-panel-next':
+				return intl.formatMessage(keyboardShortcutMessages.focusPanelNext);
+			case 'focus-panel-previous':
+				return intl.formatMessage(keyboardShortcutMessages.focusPanelPrevious);
 			case 'focus-panel-right':
 				return intl.formatMessage(keyboardShortcutMessages.focusPanelRight);
 			case 'focus-panel-up':

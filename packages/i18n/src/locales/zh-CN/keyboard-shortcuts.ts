@@ -11,6 +11,8 @@ export const zhCNKeyboardShortcutMessages = {
 	'keyboard.shortcuts.actions.find': '在终端中查找',
 	'keyboard.shortcuts.actions.focusPanelDown': '聚焦下方面板',
 	'keyboard.shortcuts.actions.focusPanelLeft': '聚焦左侧面板',
+	'keyboard.shortcuts.actions.focusPanelNext': '聚焦下一个面板',
+	'keyboard.shortcuts.actions.focusPanelPrevious': '聚焦上一个面板',
 	'keyboard.shortcuts.actions.focusPanelRight': '聚焦右侧面板',
 	'keyboard.shortcuts.actions.focusPanelUp': '聚焦上方面板',
 	'keyboard.shortcuts.actions.globalSearch': '搜索全部内容',

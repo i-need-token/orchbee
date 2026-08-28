@@ -36,6 +36,8 @@ describe('workbench action contracts', () => {
 			equalizeActivePanels: 'workbench.panel.active.equalize',
 			focusActivePanelDown: 'workbench.panel.active.focus-down',
 			focusActivePanelLeft: 'workbench.panel.active.focus-left',
+			focusActivePanelNext: 'workbench.panel.active.focus-next',
+			focusActivePanelPrevious: 'workbench.panel.active.focus-previous',
 			focusActivePanelRight: 'workbench.panel.active.focus-right',
 			focusActivePanelUp: 'workbench.panel.active.focus-up',
 			increaseTerminalFontSize: 'workbench.terminal.font-size.increase',

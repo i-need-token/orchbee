@@ -270,6 +270,53 @@ describe('registerWorkbenchActiveTerminalActions', () => {
 		).toMatchObject({ availability: { kind: 'disabled' } });
 	});
 
+	it('cycles focus through the prepared exact Panel Action and revalidates availability', async () => {
+		const harness = createHarness();
+		const invocation = {
+			scope: harness.scope,
+			source: 'keyboard' as const,
+		};
+		expect(
+			harness.runtime.resolveAction(
+				WORKBENCH_ACTION_IDS.focusActivePanelNext,
+				undefined,
+				invocation,
+			),
+		).toMatchObject({ availability: { kind: 'disabled' } });
+
+		const store = harness.projectWorkspaceRuntime.getActiveTerminalContext().panelWorkspaceStore;
+		const tabId = store.getActiveTabId();
+		if (tabId === null) throw new Error('Expected an active Tab.');
+		store.transition({
+			direction: 'right',
+			newTerminalTitle: 'Terminal 2',
+			panelId: 'panel-1',
+			presentation: store.createTerminalPresentation(),
+			tabId,
+			type: 'panel-split',
+		});
+		const lowerExecute = vi.fn<(input: PanelTargetInput) => void>();
+		registerPanelFocus(harness, (context, input) => {
+			lowerExecute(input);
+			context.markCommitted();
+			return { kind: 'completed' };
+		});
+
+		await expect(harness.execute(WORKBENCH_ACTION_IDS.focusActivePanelNext)).resolves.toEqual({
+			kind: 'completed',
+		});
+		expect(lowerExecute).toHaveBeenCalledExactlyOnceWith({ panelId: 'panel-1' });
+
+		store.transition({ panelId: 'panel-1', tabId, type: 'panel-maximization-toggled' });
+		expect(
+			harness.runtime.resolveAction(
+				WORKBENCH_ACTION_IDS.focusActivePanelPrevious,
+				undefined,
+				invocation,
+			),
+		).toMatchObject({ availability: { kind: 'disabled' } });
+	});
+
 	it('executes the prepared Panel swap Action for a directional neighbor', async () => {
 		const harness = createHarness();
 		const store = harness.projectWorkspaceRuntime.getActiveTerminalContext().panelWorkspaceStore;

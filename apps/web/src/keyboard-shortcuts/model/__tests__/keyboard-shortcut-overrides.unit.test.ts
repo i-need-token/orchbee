@@ -69,6 +69,24 @@ describe('keyboard shortcut overrides', () => {
 		});
 	});
 
+	it('applies one cyclic Panel focus override without changing the opposite direction', () => {
+		const bindings = createKeyboardShortcutBindings('apple', [
+			{
+				chord: { code: 'KeyN', modifiers: ['control', 'shift'] },
+				shortcutId: 'workbench.panel.active.focus-next',
+			},
+		]);
+
+		expect(bindings['workbench.panel.active.focus-next']).toEqual({
+			code: 'KeyN',
+			modifiers: ['control', 'shift'],
+		});
+		expect(bindings['workbench.panel.active.focus-previous']).toEqual({
+			code: 'BracketLeft',
+			modifiers: ['control', 'shift'],
+		});
+	});
+
 	it('applies a custom directional Panel movement binding without changing the other directions', () => {
 		const bindings = createKeyboardShortcutBindings('standard', [
 			{

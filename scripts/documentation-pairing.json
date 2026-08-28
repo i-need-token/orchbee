@@ -86,12 +86,12 @@
 			"zhCnSha256": "3b6dcd91526fb20e8d97b2e8dda693c5cf8805c92d9d2b5602e7a779c7556cc4"
 		},
 		"apps/web/README.md": {
-			"englishSha256": "7794763dd00cadf3310ca06fdcf9c0fdb5a4d79ca84f114f5b4471615c401c65",
-			"zhCnSha256": "20ca1baf2c4c770d3490549b2f5a003a96c1d446ff280c1e2eb7bdb2a07cb55f"
+			"englishSha256": "169f31a3cda7e715053cfa2bade70bc436a0ce5515ef7323accd6f60c452f951",
+			"zhCnSha256": "c5616033c34511d3eca851694c3b6ca43ba2a792ebc997c8eaeae903c1afd72b"
 		},
 		"apps/web/docs/keyboard-shortcuts.md": {
-			"englishSha256": "d1b2decb2dc8bc81a9640bf91aedeb62a3a76898618ffe6a67763f692fc5968b",
-			"zhCnSha256": "8e3d89591cf3f9083a917376d11ff72637ec316d14717ee809fabdad8736fea5"
+			"englishSha256": "5a1c1d9d00ab3acf9606d7d1f2461dfed649be6a3288caf9018642b693650ff1",
+			"zhCnSha256": "58197c5b4547dc936aecfebdcce073f94716111eec2fb61594b86e76b5b9087e"
 		},
 		"apps/web/docs/navigation-routing.md": {
 			"englishSha256": "cd5dec1d6effde16a6f3e1f5f9c756c1b7601ff22afb44a422eba59cb775c0bd",
@@ -318,8 +318,8 @@
 			"zhCnSha256": "48ca773dc61815ae61bb2940b15b8f0f84135965c9ed1b9d06afb6a0cac15ff3"
 		},
 		"packages/workbench/README.md": {
-			"englishSha256": "29eb05471bc0c8f45bb5d3ab2864093f72fcf8492bcc1ba4a77e73cdec168076",
-			"zhCnSha256": "6736c524821058cd6f091ea002efb1654989a282ae47c692a86112d81714e7f8"
+			"englishSha256": "e0f2b59adca57d022ffa3894d5cbc9766a332508302b9b460c34f289f49f5196",
+			"zhCnSha256": "e9222caa9f8138ba0752fefb1cd2f5c861210e56675ed5ed4b07d77af0cc0738"
 		},
 		"packages/workbench/docs/project-workspace.md": {
 			"englishSha256": "7735b6ba0a702e8c85156b9b479faa4af4b666da46d3bc24a832cf841ef39cd7",

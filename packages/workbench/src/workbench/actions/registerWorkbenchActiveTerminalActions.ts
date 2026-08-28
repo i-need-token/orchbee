@@ -78,6 +78,38 @@ export function registerWorkbenchActiveTerminalActions({
 				category: panelCategory,
 				execution: {
 					concurrency: 'parallel',
+					concurrencyKey: () => 'active-panel-focus-next',
+					mode: 'foreground',
+				},
+				getAvailability: availabilityFor('focus-next'),
+				handler: { execute: execute('focus-next') },
+				id: WORKBENCH_ACTION_IDS.focusActivePanelNext,
+				input: noActionInput,
+				title: workbenchMessages.panelFocusNext,
+			}),
+		),
+		typedRuntime.register(
+			scope,
+			defineAction({
+				category: panelCategory,
+				execution: {
+					concurrency: 'parallel',
+					concurrencyKey: () => 'active-panel-focus-previous',
+					mode: 'foreground',
+				},
+				getAvailability: availabilityFor('focus-previous'),
+				handler: { execute: execute('focus-previous') },
+				id: WORKBENCH_ACTION_IDS.focusActivePanelPrevious,
+				input: noActionInput,
+				title: workbenchMessages.panelFocusPrevious,
+			}),
+		),
+		typedRuntime.register(
+			scope,
+			defineAction({
+				category: panelCategory,
+				execution: {
+					concurrency: 'parallel',
 					concurrencyKey: () => 'active-panel-equalize',
 					mode: 'foreground',
 				},

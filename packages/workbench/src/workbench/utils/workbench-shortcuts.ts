@@ -19,6 +19,8 @@ interface WorkbenchShortcutDefinition {
 		| typeof WORKBENCH_ACTION_IDS.equalizeActivePanels
 		| typeof WORKBENCH_ACTION_IDS.focusActivePanelDown
 		| typeof WORKBENCH_ACTION_IDS.focusActivePanelLeft
+		| typeof WORKBENCH_ACTION_IDS.focusActivePanelNext
+		| typeof WORKBENCH_ACTION_IDS.focusActivePanelPrevious
 		| typeof WORKBENCH_ACTION_IDS.focusActivePanelRight
 		| typeof WORKBENCH_ACTION_IDS.focusActivePanelUp
 		| typeof WORKBENCH_ACTION_IDS.increaseTerminalFontSize
@@ -107,6 +109,24 @@ export const WORKBENCH_SHORTCUTS = {
 		id: WORKBENCH_ACTION_IDS.focusActivePanelLeft,
 		input: undefined,
 		shortcutId: WORKBENCH_ACTION_IDS.focusActivePanelLeft,
+	},
+	focusActivePanelNext: {
+		defaults: {
+			apple: chord('BracketRight', ['control', 'shift']),
+			standard: chord('BracketRight', ['control', 'shift']),
+		},
+		id: WORKBENCH_ACTION_IDS.focusActivePanelNext,
+		input: undefined,
+		shortcutId: WORKBENCH_ACTION_IDS.focusActivePanelNext,
+	},
+	focusActivePanelPrevious: {
+		defaults: {
+			apple: chord('BracketLeft', ['control', 'shift']),
+			standard: chord('BracketLeft', ['control', 'shift']),
+		},
+		id: WORKBENCH_ACTION_IDS.focusActivePanelPrevious,
+		input: undefined,
+		shortcutId: WORKBENCH_ACTION_IDS.focusActivePanelPrevious,
 	},
 	focusActivePanelRight: {
 		defaults: {
@@ -337,6 +357,8 @@ const WORKBENCH_SHORTCUT_ACTIONS = Object.freeze([
 	'equalizePanels',
 	'focusActivePanelDown',
 	'focusActivePanelLeft',
+	'focusActivePanelNext',
+	'focusActivePanelPrevious',
 	'focusActivePanelRight',
 	'focusActivePanelUp',
 	'increaseTerminalFontSize',
@@ -424,6 +446,10 @@ export function formatWorkbenchActionShortcut(
 			return formatWorkbenchShortcut('focusActivePanelDown', platform, bindings);
 		case WORKBENCH_ACTION_IDS.focusActivePanelLeft:
 			return formatWorkbenchShortcut('focusActivePanelLeft', platform, bindings);
+		case WORKBENCH_ACTION_IDS.focusActivePanelNext:
+			return formatWorkbenchShortcut('focusActivePanelNext', platform, bindings);
+		case WORKBENCH_ACTION_IDS.focusActivePanelPrevious:
+			return formatWorkbenchShortcut('focusActivePanelPrevious', platform, bindings);
 		case WORKBENCH_ACTION_IDS.focusActivePanelRight:
 			return formatWorkbenchShortcut('focusActivePanelRight', platform, bindings);
 		case WORKBENCH_ACTION_IDS.focusActivePanelUp:
@@ -505,6 +531,10 @@ function defaultBindingsFor(platform: WorkbenchShortcutPlatform): WorkbenchShort
 			WORKBENCH_SHORTCUTS.focusActivePanelDown.defaults[platform],
 		[WORKBENCH_SHORTCUTS.focusActivePanelLeft.shortcutId]:
 			WORKBENCH_SHORTCUTS.focusActivePanelLeft.defaults[platform],
+		[WORKBENCH_SHORTCUTS.focusActivePanelNext.shortcutId]:
+			WORKBENCH_SHORTCUTS.focusActivePanelNext.defaults[platform],
+		[WORKBENCH_SHORTCUTS.focusActivePanelPrevious.shortcutId]:
+			WORKBENCH_SHORTCUTS.focusActivePanelPrevious.defaults[platform],
 		[WORKBENCH_SHORTCUTS.focusActivePanelRight.shortcutId]:
 			WORKBENCH_SHORTCUTS.focusActivePanelRight.defaults[platform],
 		[WORKBENCH_SHORTCUTS.focusActivePanelUp.shortcutId]:

@@ -133,6 +133,16 @@ export const workbenchMessages = defineMessages({
 		defaultMessage: enUSWorkbenchMessages['workbench.panels.actions.focusLeft'],
 		description: 'Action that focuses the neighboring Workbench panel to the left.',
 	},
+	panelFocusNext: {
+		id: 'workbench.panels.actions.focusNext',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.actions.focusNext'],
+		description: 'Action that focuses the next Workbench panel in canonical layout order.',
+	},
+	panelFocusPrevious: {
+		id: 'workbench.panels.actions.focusPrevious',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.actions.focusPrevious'],
+		description: 'Action that focuses the previous Workbench panel in canonical layout order.',
+	},
 	panelFocusRight: {
 		id: 'workbench.panels.actions.focusRight',
 		defaultMessage: enUSWorkbenchMessages['workbench.panels.actions.focusRight'],

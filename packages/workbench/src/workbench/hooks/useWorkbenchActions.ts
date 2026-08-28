@@ -451,6 +451,8 @@ export function useWorkbenchActions({
 				case 'equalizePanels':
 				case 'focusActivePanelDown':
 				case 'focusActivePanelLeft':
+				case 'focusActivePanelNext':
+				case 'focusActivePanelPrevious':
 				case 'focusActivePanelRight':
 				case 'focusActivePanelUp':
 				case 'increaseTerminalFontSize':

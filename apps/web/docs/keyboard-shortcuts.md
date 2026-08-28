@@ -26,6 +26,8 @@ those surfaces owns another binding copy.
 | `workbench.terminal.active.close`             | Active terminal                   | `Cmd+W`                  | `Ctrl+Shift+W`         |
 | `workbench.panel.active.focus-down`           | Active panel                      | `Cmd+Option+Down`        | `Ctrl+Alt+Down`        |
 | `workbench.panel.active.focus-left`           | Active panel                      | `Cmd+Option+Left`        | `Ctrl+Alt+Left`        |
+| `workbench.panel.active.focus-next`           | Active panel                      | `Ctrl+Shift+]`           | `Ctrl+Shift+]`         |
+| `workbench.panel.active.focus-previous`       | Active panel                      | `Ctrl+Shift+[`           | `Ctrl+Shift+[`         |
 | `workbench.panel.active.focus-right`          | Active panel                      | `Cmd+Option+Right`       | `Ctrl+Alt+Right`       |
 | `workbench.panel.active.focus-up`             | Active panel                      | `Cmd+Option+Up`          | `Ctrl+Alt+Up`          |
 | `workbench.panel.active.move-down`            | Active panel                      | `Cmd+Option+Shift+Down`  | `Ctrl+Alt+Shift+Down`  |
@@ -111,6 +113,10 @@ Active-Tab movement preserves Kitty's `Ctrl+Shift+,` and `Ctrl+Shift+.` defaults
 Control on Apple because Kitty's `kitty_mod` default is Control+Shift there too; the movement
 model below defines the adopted behavior beyond the key selection.
 
+Cyclic Panel focus preserves Kitty's `Ctrl+Shift+]` next and `Ctrl+Shift+[` previous defaults at
+that revision on both platforms. Workbench keeps explicit Control on Apple, traverses canonical
+depth-first Panel-leaf order inside the current Tab, and wraps only when at least two Panels exist.
+
 Set Tab Title preserves Kitty's `Shift+Cmd+I` Apple default and `Ctrl+Shift+Alt+T` Standard
 default at that revision. Workbench uses one semantic Action for shortcut dispatch, Action search,
 and the invoked Tab's context menu; the title model below defines the adopted editor and reset
@@ -178,8 +184,8 @@ Directional Panel movement adopts Kitty revision
 `6d5d0c440603ad9bdf6dcd599f73f6dde21acb44`'s current-layout neighbor selection, outer-edge
 no-op, and Splits leaf exchange. Orchbee adds Shift to its existing focus chord, producing Apple
 `Command+Option+Shift+Arrow` and Standard `Ctrl+Alt+Shift+Arrow`. Bare `Shift+Arrow` remains
-available to shell selection; Kitty's default forward/backward chords conflict with existing Find
-and sidebar bindings. Forward/backward/to-top cycles and numeric movement are excluded.
+available to shell selection. Kitty's forward/backward defaults are reserved for cyclic focus rather
+than movement; forward/backward/to-top movement cycles and numeric movement are excluded.
 
 Commands without an effective binding do not render an empty shortcut affordance. Reset,
 new-child-terminal, split-left, and split-above remain intentionally unbound in this catalog.
@@ -342,7 +348,7 @@ and leaves the event untouched. `Mod+9` means the ninth Tab, never the last Tab.
 
 ## Active-target command model
 
-The fourteen `workbench.*.active.*` Actions are context commands. Their Action invocation may carry an
+The sixteen `workbench.*.active.*` Actions are context commands. Their Action invocation may carry an
 explicit panel target from a menu; otherwise the active Tab's focused panel is the target. The
 target is resolved again when execution starts, so a stale or absent target is unavailable and
 does not consume the keyboard event.
@@ -375,6 +381,11 @@ maximized. Workbench requires a neighboring Panel in the requested direction wit
 on the perpendicular axis, never wraps at an outer edge, and delegates the result through the
 existing Panel focus Action. A missing directional neighbor leaves the shortcut event available to
 the terminal or browser.
+
+The previous and next focus Actions flatten only the current Tab's canonical layout in depth-first
+leaf order, choose the adjacent Panel, wrap at both boundaries, and delegate that exact target
+through the same Panel focus Action. A singleton, stale source, or maximized Panel is unavailable,
+so its chord falls through without crossing a Tab, terminal context, or window.
 
 The four directional movement Actions reuse that exact neighbor resolver, then prepare one exact
 source/target `workbench.panel.swap` Action. The lower transition exchanges the complete Panel
@@ -421,11 +432,11 @@ terminal Actions discovered from descendant scopes.
 
 ## Persistence and recovery
 
-New writes use `orchbee:web:keyboard-shortcuts:v17` and a strict record:
+New writes use `orchbee:web:keyboard-shortcuts:v18` and a strict record:
 
 ```json
 {
-	"version": 17,
+	"version": 18,
 	"overrides": [
 		{
 			"shortcutId": "workbench.search.all.open",
@@ -437,18 +448,18 @@ New writes use `orchbee:web:keyboard-shortcuts:v17` and a strict record:
 
 Only Custom values are stored, ordered by shortcut ID. Unknown fields or IDs, duplicates, unsorted
 entries, noncanonical modifiers, unsupported codes, stored defaults, excessive entries, and an
-effective conflict invalidate the complete v17 record and restore platform defaults. A write
+effective conflict invalidate the complete v18 record and restore platform defaults. A write
 failure keeps the immutable session binding active, reports that it was not saved, and retries on
 the next legal change. Restoring one item removes its override.
 
-When v17 is absent, Web first reads `orchbee:web:keyboard-shortcuts:v16` with its exact prior catalog
-and defaults. If v16 is also absent, it tries v15, v14, v13, v12, v11, v10, v9, v8, v7, v6, v5, v4, v3, v2, and then v1. Every migration carries
+When v18 is absent, Web first reads `orchbee:web:keyboard-shortcuts:v17` with its exact prior catalog
+and defaults. If v17 is also absent, it tries v16, v15, v14, v13, v12, v11, v10, v9, v8, v7, v6, v5, v4, v3, v2, and then v1. Every migration carries
 explicit overrides into the expanded catalog, removes an override equivalent to a current default,
-rejects any resulting conflict, and writes the canonical v17 record. The v1 through v16 values
+rejects any resulting conflict, and writes the canonical v18 record. The v1 through v17 values
 remain unchanged as rollback snapshots. An invalid current record never falls back to an
 older record, and an invalid migration source never falls through to the next older version,
 because either fallback would hide data corruption. Rolling back restores the latest record that
-the older build understands; edits made only in v17 are intentionally unavailable to it.
+the older build understands; edits made only in v18 are intentionally unavailable to it.
 
 Browser Preview, Gateway Browser, and Electron each create and dispose one controller against their
 own origin-local storage. Gateway and Electron pass the controller's narrow binding source through
@@ -469,6 +480,7 @@ change does not remount Workbench, replace an attachment, or reopen a Host or Ga
 | Active ordinary terminal selection preserves native paste and input ownership                | Projected-terminal selection/paste tests and exact Desktop `terminal-parity/IN-18-native-selection-paste`                               |
 | Pending Copy and Paste work cannot admit stale or duplicate shortcut input                   | Clipboard coordinator and Action tests plus exact Desktop `terminal-parity/IN-13-selection-copy-paste`                                  |
 | Directional focus selects a spatial neighbor and falls through at outer edges                | Four-Panel resolver, Action, and shortcut dispatch tests                                                                                |
+| Cyclic focus follows canonical Panel order, wraps, and falls through when unavailable        | Generated resolver, prepared Action, shortcut dispatch, Settings, and v17 migration tests                                               |
 | Directional movement swaps exact neighboring leaves and retains source focus                 | Model, bounded exploration, Action, shortcut, Settings, and exact Desktop `terminal-parity/FS-13-directional-panel-movement`            |
 | Equalization assigns proportional same-axis Panel extents without identity changes           | Model, generated layouts, Action, menu, shortcut, Settings, v15 migration, and exact Desktop `terminal-parity/FS-14-panel-equalization` |
 | Keyboard resize targets the nearest matching split and revalidates captured identity         | Resolver, state, Action, React, Settings, migration, menu, and Desktop system tests                                                     |
@@ -479,7 +491,7 @@ change does not remount Workbench, replace an attachment, or reopen a Host or Ga
 | Visible Hints consume one focused binding and never leak label keys to terminal input        | Terminal, Action, shortcut, Settings, and exact Desktop `terminal-parity/FS-07-keyboard-hints`                                          |
 | Show Scrollback consumes one focused binding and opens the exact immutable viewer            | Terminal, Action, shortcut, Settings, and exact Desktop `terminal-parity/FS-09-scrollback-viewer`                                       |
 | Menus, Action search, and settings display the same current binding                          | Projection and rendered-surface tests                                                                                                   |
-| Valid v1 through v16 records migrate without losing explicit legacy overrides                | Storage migration tests, including new-default conflicts                                                                                |
+| Valid v1 through v17 records migrate without losing explicit legacy overrides                | Storage migration tests, including new-default conflicts                                                                                |
 | Invalid current or migration-source data does not consult an older record                    | Storage corruption and precedence tests                                                                                                 |
 
 The tests use synthetic platform flags, Action scopes, storage, document capture, injected terminal

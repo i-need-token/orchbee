@@ -4,11 +4,12 @@
 	"kind": "business",
 	"status": "canonical",
 	"name": "Panel Workspace",
-	"description": "Renders deterministic terminal panel layouts, focus, child-terminal navigation, exact-current-directory Tab creation, directional keyboard movement, proportional equalization, resize, split, drag, and close behavior.",
+	"description": "Renders deterministic terminal panel layouts, directional and cyclic focus, child-terminal navigation, exact-current-directory Tab creation, directional keyboard movement, proportional equalization, resize, split, drag, and close behavior.",
 	"owner": "@orchbee/workbench",
 	"visibility": "private",
 	"intents": [
 		"create-current-directory-tab",
+		"cycle-panel-focus",
 		"equalize-panel",
 		"manage-panel",
 		"move-panel",
@@ -26,6 +27,7 @@
 			"id": "packages-workbench-workbench--panel-workspace",
 			"states": [
 				"Split the active terminal into multiple panels and inspect headers, inactive masks, separators, and menu actions.",
+				"Split three Panels into a nested layout, cycle focus forward and backward through canonical leaf order, and inspect both wrap boundaries and terminal-input continuity.",
 				"Create and select a child terminal, then inspect the return, title, close, and child-strip presentation.",
 				"Open a primary or child terminal context menu, create a Tab in that exact displayed terminal's current directory, and inspect source identity preservation.",
 				"Drag a primary panel header across directional targets and inspect reversible projection and cancellation.",
@@ -38,7 +40,7 @@
 	"uses": ["workbench.action-menu"],
 	"useWhen": [
 		"A Workbench terminal tab needs the reviewed multi-panel model and its complete interaction projection.",
-		"Panel identity, focus, layout, terminal children, exact-current-directory Tab creation, equalization, resize, drag, split, and close must remain coordinated."
+		"Panel identity, directional and cyclic focus, layout, terminal children, exact-current-directory Tab creation, equalization, resize, drag, split, and close must remain coordinated."
 	],
 	"avoidWhen": [
 		"The layout is generic resizable application chrome with no terminal or Workbench panel semantics.",
@@ -47,6 +49,7 @@
 	"invariants": [
 		"Every tab retains at least one Panel and exactly one focused Panel resolves inside that tab.",
 		"Current-directory Tab creation revalidates the exact displayed Presentation and uses only its trusted current or launch CWD without mutating the source terminal.",
+		"Cyclic focus follows canonical depth-first Panel-leaf order, wraps only within the active Tab, and delegates the exact target through the existing focus transition.",
 		"Dragging changes only reversible projection state until a valid directional drop commits the move.",
 		"Directional keyboard movement swaps complete neighboring Panel leaves while preserving split topology, weights, slot identities, terminal identities, and focus on the moved source Panel.",
 		"Panel equalization recursively assigns same-axis child weights by descendant Panel units while preserving topology, order, identities, membership, and focus.",

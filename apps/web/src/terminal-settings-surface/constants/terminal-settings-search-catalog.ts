@@ -320,6 +320,8 @@ export const KEYBOARD_SHORTCUT_SEARCH_LABELS = {
 	find: keyboardShortcutMessages.find,
 	'focus-panel-down': keyboardShortcutMessages.focusPanelDown,
 	'focus-panel-left': keyboardShortcutMessages.focusPanelLeft,
+	'focus-panel-next': keyboardShortcutMessages.focusPanelNext,
+	'focus-panel-previous': keyboardShortcutMessages.focusPanelPrevious,
 	'focus-panel-right': keyboardShortcutMessages.focusPanelRight,
 	'focus-panel-up': keyboardShortcutMessages.focusPanelUp,
 	'global-search': keyboardShortcutMessages.globalSearch,

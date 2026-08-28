@@ -9,6 +9,8 @@ export const enUSKeyboardShortcutMessages = {
 	'keyboard.shortcuts.actions.find': 'Find in terminal',
 	'keyboard.shortcuts.actions.focusPanelDown': 'Focus panel below',
 	'keyboard.shortcuts.actions.focusPanelLeft': 'Focus panel left',
+	'keyboard.shortcuts.actions.focusPanelNext': 'Focus next panel',
+	'keyboard.shortcuts.actions.focusPanelPrevious': 'Focus previous panel',
 	'keyboard.shortcuts.actions.focusPanelRight': 'Focus panel right',
 	'keyboard.shortcuts.actions.focusPanelUp': 'Focus panel above',
 	'keyboard.shortcuts.actions.globalSearch': 'Search everything',

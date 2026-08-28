@@ -179,6 +179,49 @@ describe('resolveActiveTerminalCommand', () => {
 		});
 	});
 
+	it('cycles focus in canonical Panel order and wraps both boundaries', () => {
+		const split = splitRight(initialState());
+
+		expect(resolve(split, 'focus-next')).toEqual({
+			actionId: PANEL_ACTION_IDS.focus,
+			input: { panelId: 'panel-1' },
+			kind: 'ready',
+			panelId: 'panel-1',
+		});
+		expect(resolve(split, 'focus-previous')).toEqual({
+			actionId: PANEL_ACTION_IDS.focus,
+			input: { panelId: 'panel-1' },
+			kind: 'ready',
+			panelId: 'panel-1',
+		});
+
+		const refocused = transitionPanelWorkspace(split, {
+			panelId: 'panel-1',
+			tabId: 'tab-1',
+			type: 'panel-focused',
+		}).state;
+		expect(resolve(refocused, 'focus-next')).toMatchObject({ panelId: 'panel-2' });
+		expect(resolve(refocused, 'focus-previous')).toMatchObject({ panelId: 'panel-2' });
+	});
+
+	it('keeps cyclic focus unavailable for singleton and maximized layouts', () => {
+		expect(resolve(initialState(), 'focus-next')).toEqual({
+			kind: 'unavailable',
+			reason: 'requires-multiple-panels',
+		});
+
+		const split = splitRight(initialState());
+		const maximized = transitionPanelWorkspace(split, {
+			panelId: 'panel-2',
+			tabId: 'tab-1',
+			type: 'panel-maximization-toggled',
+		}).state;
+		expect(resolve(maximized, 'focus-previous')).toEqual({
+			kind: 'unavailable',
+			reason: 'panel-maximized',
+		});
+	});
+
 	it('resolves directional movement to an exact source and neighboring Panel swap', () => {
 		const split = splitRight(initialState());
 

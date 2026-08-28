@@ -17,6 +17,8 @@ export const WORKBENCH_ACTION_IDS = {
 	equalizeActivePanels: 'workbench.panel.active.equalize',
 	focusActivePanelDown: 'workbench.panel.active.focus-down',
 	focusActivePanelLeft: 'workbench.panel.active.focus-left',
+	focusActivePanelNext: 'workbench.panel.active.focus-next',
+	focusActivePanelPrevious: 'workbench.panel.active.focus-previous',
 	focusActivePanelRight: 'workbench.panel.active.focus-right',
 	focusActivePanelUp: 'workbench.panel.active.focus-up',
 	increaseTerminalFontSize: 'workbench.terminal.font-size.increase',
@@ -139,6 +141,8 @@ export interface WorkbenchActionCatalog {
 	readonly [WORKBENCH_ACTION_IDS.equalizeActivePanels]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.focusActivePanelDown]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.focusActivePanelLeft]: ActionSignature<void>;
+	readonly [WORKBENCH_ACTION_IDS.focusActivePanelNext]: ActionSignature<void>;
+	readonly [WORKBENCH_ACTION_IDS.focusActivePanelPrevious]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.focusActivePanelRight]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.focusActivePanelUp]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.increaseTerminalFontSize]: ActionSignature<void>;
