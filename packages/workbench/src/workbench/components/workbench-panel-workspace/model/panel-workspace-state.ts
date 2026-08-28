@@ -11,6 +11,7 @@ import type {
 	TerminalPresentationRemovalId,
 } from '../../../../terminal-presentation';
 import type { WorkbenchTerminalPresentationCommand } from '../../../model/createWorkbenchPreviewTerminalPresentationComposition';
+import { resolvePanelEqualization } from './resolvePanelEqualization';
 import {
 	resolvePanelResize,
 	type PanelResizeAdjustment,
@@ -121,6 +122,11 @@ export type PanelWorkspaceEvent =
 			readonly tabId: string;
 			readonly targetPanelId: string;
 			readonly type: 'panels-swapped';
+	  }
+	| {
+			readonly panelId: string;
+			readonly tabId: string;
+			readonly type: 'panels-equalized';
 	  }
 	| {
 			readonly leadingWeight: number;
@@ -317,6 +323,7 @@ type PanelWorkspaceRejection =
 	| 'last-panel'
 	| 'panel-maximized'
 	| 'panel-not-found'
+	| 'requires-multiple-panels'
 	| 'stale-operation'
 	| 'split-not-found'
 	| 'tab-not-found'
@@ -1566,6 +1573,22 @@ export function transitionPanelWorkspace(
 						root: result.root,
 					}),
 				);
+	}
+
+	if (event.type === 'panels-equalized') {
+		if (findPanelInNode(tab.root, event.panelId) === null) {
+			return rejected(state, 'panel-not-found');
+		}
+		if (tab.maximizedPanelId !== null) {
+			return rejected(state, 'panel-maximized');
+		}
+		if (collectPanelLeaves(tab.root).length < 2) {
+			return rejected(state, 'requires-multiple-panels');
+		}
+		const result = resolvePanelEqualization(tab.root);
+		return result.kind === 'unchanged'
+			? unchanged(state)
+			: applied(replaceTab(state, tabIndex, { ...tab, root: result.root }));
 	}
 
 	if (event.type === 'terminal-metadata-changed') {

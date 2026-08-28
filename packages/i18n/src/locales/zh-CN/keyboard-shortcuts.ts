@@ -7,6 +7,7 @@ export const zhCNKeyboardShortcutMessages = {
 	'keyboard.shortcuts.actions.closeTerminal': '关闭活动终端',
 	'keyboard.shortcuts.actions.copySelection': '复制终端选区',
 	'keyboard.shortcuts.actions.decreaseTerminalFontSize': '减小终端字号',
+	'keyboard.shortcuts.actions.equalizePanels': '均分面板',
 	'keyboard.shortcuts.actions.find': '在终端中查找',
 	'keyboard.shortcuts.actions.focusPanelDown': '聚焦下方面板',
 	'keyboard.shortcuts.actions.focusPanelLeft': '聚焦左侧面板',

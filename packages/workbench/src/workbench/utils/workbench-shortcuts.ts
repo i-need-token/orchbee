@@ -15,6 +15,7 @@ interface WorkbenchShortcutDefinition {
 		| typeof WORKBENCH_ACTION_IDS.closeActiveTerminal
 		| typeof WORKBENCH_ACTION_IDS.createTerminal
 		| typeof WORKBENCH_ACTION_IDS.decreaseTerminalFontSize
+		| typeof WORKBENCH_ACTION_IDS.equalizeActivePanels
 		| typeof WORKBENCH_ACTION_IDS.focusActivePanelDown
 		| typeof WORKBENCH_ACTION_IDS.focusActivePanelLeft
 		| typeof WORKBENCH_ACTION_IDS.focusActivePanelRight
@@ -78,6 +79,15 @@ export const WORKBENCH_SHORTCUTS = {
 		id: WORKBENCH_ACTION_IDS.decreaseTerminalFontSize,
 		input: undefined,
 		shortcutId: WORKBENCH_ACTION_IDS.decreaseTerminalFontSize,
+	},
+	equalizePanels: {
+		defaults: {
+			apple: chord('Equal', ['control', 'mod']),
+			standard: chord('Equal', ['alt', 'mod']),
+		},
+		id: WORKBENCH_ACTION_IDS.equalizeActivePanels,
+		input: undefined,
+		shortcutId: WORKBENCH_ACTION_IDS.equalizeActivePanels,
 	},
 	focusActivePanelDown: {
 		defaults: {
@@ -314,6 +324,7 @@ const WORKBENCH_SHORTCUT_ACTIONS = Object.freeze([
 	'actionsSearch',
 	'closeActiveTerminal',
 	'decreaseTerminalFontSize',
+	'equalizePanels',
 	'focusActivePanelDown',
 	'focusActivePanelLeft',
 	'focusActivePanelRight',
@@ -394,6 +405,8 @@ export function formatWorkbenchActionShortcut(
 			return formatWorkbenchShortcut('newTerminal', platform, bindings);
 		case WORKBENCH_ACTION_IDS.closeActiveTerminal:
 			return formatWorkbenchShortcut('closeActiveTerminal', platform, bindings);
+		case WORKBENCH_ACTION_IDS.equalizeActivePanels:
+			return formatWorkbenchShortcut('equalizePanels', platform, bindings);
 		case WORKBENCH_ACTION_IDS.focusActivePanelDown:
 			return formatWorkbenchShortcut('focusActivePanelDown', platform, bindings);
 		case WORKBENCH_ACTION_IDS.focusActivePanelLeft:
@@ -473,6 +486,8 @@ function defaultBindingsFor(platform: WorkbenchShortcutPlatform): WorkbenchShort
 			WORKBENCH_SHORTCUTS.closeActiveTerminal.defaults[platform],
 		[WORKBENCH_SHORTCUTS.decreaseTerminalFontSize.shortcutId]:
 			WORKBENCH_SHORTCUTS.decreaseTerminalFontSize.defaults[platform],
+		[WORKBENCH_SHORTCUTS.equalizePanels.shortcutId]:
+			WORKBENCH_SHORTCUTS.equalizePanels.defaults[platform],
 		[WORKBENCH_SHORTCUTS.focusActivePanelDown.shortcutId]:
 			WORKBENCH_SHORTCUTS.focusActivePanelDown.defaults[platform],
 		[WORKBENCH_SHORTCUTS.focusActivePanelLeft.shortcutId]:

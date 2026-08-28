@@ -13,6 +13,7 @@ export const WORKBENCH_ACTION_IDS = {
 	createWorkspace: 'workbench.workspace.create',
 	deleteWorkspace: 'workbench.workspace.delete',
 	duplicateWorkspace: 'workbench.workspace.duplicate',
+	equalizeActivePanels: 'workbench.panel.active.equalize',
 	focusActivePanelDown: 'workbench.panel.active.focus-down',
 	focusActivePanelLeft: 'workbench.panel.active.focus-left',
 	focusActivePanelRight: 'workbench.panel.active.focus-right',
@@ -133,6 +134,7 @@ export interface WorkbenchActionCatalog {
 	readonly [WORKBENCH_ACTION_IDS.createWorkspace]: ActionSignature<WorkbenchWorkspaceCreateInput>;
 	readonly [WORKBENCH_ACTION_IDS.deleteWorkspace]: ActionSignature<WorkbenchWorkspaceInput>;
 	readonly [WORKBENCH_ACTION_IDS.duplicateWorkspace]: ActionSignature<WorkbenchWorkspaceInput>;
+	readonly [WORKBENCH_ACTION_IDS.equalizeActivePanels]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.focusActivePanelDown]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.focusActivePanelLeft]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.focusActivePanelRight]: ActionSignature<void>;

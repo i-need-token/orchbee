@@ -113,6 +113,7 @@ function renderPanel(
 		createChildTerminal: () => undefined,
 		createTerminalTab: () => undefined,
 		displayedRoot: panel,
+		equalizePanels: () => undefined,
 		focusPanel: () => undefined,
 		maximizedPanelId: null,
 		messages: {
@@ -122,6 +123,7 @@ function renderPanel(
 			closeAnyway: 'Close anyway',
 			closeRunningDescription: () => 'Running',
 			closeRunningTitle: 'Close running terminal?',
+			equalize: 'Equalize Panels',
 			maximize: 'Maximize Panel',
 			minimize: 'Minimize Panel',
 			more: 'Panel options',

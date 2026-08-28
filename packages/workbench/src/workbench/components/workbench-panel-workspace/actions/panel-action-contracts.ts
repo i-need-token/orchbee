@@ -11,6 +11,7 @@ export const PANEL_ACTION_IDS = {
 	activateChildTerminal: 'workbench.panel.child-terminal.activate',
 	close: 'workbench.panel.close',
 	createChildTerminal: 'workbench.panel.child-terminal.create',
+	equalize: 'workbench.panel.equalize',
 	focus: 'workbench.panel.focus',
 	move: 'workbench.panel.move',
 	resize: 'workbench.panel.resize',
@@ -56,6 +57,7 @@ export interface PanelActionCatalog {
 	readonly [PANEL_ACTION_IDS.activateChildTerminal]: ActionSignature<PanelChildTerminalInput>;
 	readonly [PANEL_ACTION_IDS.close]: ActionSignature<PanelCloseInput>;
 	readonly [PANEL_ACTION_IDS.createChildTerminal]: ActionSignature<PanelTargetInput>;
+	readonly [PANEL_ACTION_IDS.equalize]: ActionSignature<PanelTargetInput>;
 	readonly [PANEL_ACTION_IDS.focus]: ActionSignature<PanelTargetInput>;
 	readonly [PANEL_ACTION_IDS.move]: ActionSignature<PanelMoveInput>;
 	readonly [PANEL_ACTION_IDS.resize]: ActionSignature<PanelResizeInput>;

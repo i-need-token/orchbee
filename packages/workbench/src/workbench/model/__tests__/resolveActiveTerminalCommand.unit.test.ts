@@ -117,6 +117,40 @@ describe('resolveActiveTerminalCommand', () => {
 		).toMatchObject({ input: { panelId: 'panel-1' }, panelId: 'panel-1' });
 	});
 
+	it('resolves whole-Tab equalization through one exact live Panel target', () => {
+		const single = initialState();
+		expect(resolve(single, 'equalize')).toEqual({
+			kind: 'unavailable',
+			reason: 'requires-multiple-panels',
+		});
+
+		const split = splitRight(single);
+		expect(resolve(split, 'equalize')).toEqual({
+			actionId: PANEL_ACTION_IDS.equalize,
+			input: { panelId: 'panel-2' },
+			kind: 'ready',
+			panelId: 'panel-2',
+		});
+		expect(
+			resolveActiveTerminalCommand({
+				activeTabId: 'tab-1',
+				command: 'equalize',
+				state: split,
+				targetPanelId: 'panel-1',
+			}),
+		).toMatchObject({ input: { panelId: 'panel-1' }, kind: 'ready', panelId: 'panel-1' });
+
+		const maximized = transitionPanelWorkspace(split, {
+			panelId: 'panel-2',
+			tabId: 'tab-1',
+			type: 'panel-maximization-toggled',
+		}).state;
+		expect(resolve(maximized, 'equalize')).toEqual({
+			kind: 'unavailable',
+			reason: 'panel-maximized',
+		});
+	});
+
 	it('resolves directional focus to the neighboring Panel and rejects outer edges', () => {
 		const split = splitRight(initialState());
 		expect(resolve(split, 'focus-left')).toEqual({

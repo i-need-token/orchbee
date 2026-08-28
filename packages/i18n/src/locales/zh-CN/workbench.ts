@@ -146,6 +146,7 @@ export const zhCNWorkbenchMessages = {
 	'workbench.panels.actions.cancel': '取消',
 	'workbench.panels.actions.close': '关闭',
 	'workbench.panels.actions.closeAnyway': '仍然关闭',
+	'workbench.panels.actions.equalize': '均分面板',
 	'workbench.panels.actions.maximize': '最大化面板',
 	'workbench.panels.actions.minimize': '最小化面板',
 	'workbench.panels.actions.activateChild': '激活子终端',

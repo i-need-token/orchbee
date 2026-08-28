@@ -2716,6 +2716,178 @@ test('terminal-parity/FS-13-directional-panel-movement', async () => {
 	await expect(settingsSurface).not.toBeVisible();
 });
 
+test('terminal-parity/FS-14-panel-equalization', async () => {
+	test.setTimeout(60_000);
+	const application = electronApplication;
+	if (application === undefined) throw new Error('Electron application did not start.');
+	const page = await application.firstWindow();
+	const primaryModifier = process.platform === 'darwin' ? 'Meta' : 'Control';
+	const splitRightShortcut = process.platform === 'darwin' ? 'Meta+KeyD' : 'Control+Shift+KeyD';
+	const equalizeShortcut =
+		process.platform === 'darwin' ? 'Control+Meta+Equal' : 'Control+Alt+Equal';
+	const maximizeShortcut =
+		process.platform === 'darwin' ? 'Meta+Shift+Enter' : 'Control+Shift+Enter';
+	const activeLayer = page.locator('[data-presentation-mode="active"]');
+	const panels = activeLayer.locator('[data-slot="workbench-panel"]');
+	const focusedPanel = activeLayer.locator('[data-slot="workbench-panel"][data-focused="true"]');
+	const focusedPanelId = async (): Promise<string> => {
+		const panelId = await focusedPanel.getAttribute('data-panel-id');
+		if (panelId === null) throw new Error('The focused Panel has no stable identity.');
+		return panelId;
+	};
+	const panelFor = (panelId: string): Locator =>
+		activeLayer.locator(`[data-slot="workbench-panel"][data-panel-id="${panelId}"]`);
+	const panelRect = async (panelId: string) => {
+		const box = await panelFor(panelId).boundingBox();
+		if (box === null) throw new Error(`Panel ${panelId} has no layout box.`);
+		return {
+			height: Math.round(box.height),
+			width: Math.round(box.width),
+			x: Math.round(box.x),
+			y: Math.round(box.y),
+		};
+	};
+	const recordNextEqualizeDefault = async (): Promise<void> => {
+		await page.evaluate(() => {
+			document.documentElement.removeAttribute('data-fs14-key-default-prevented');
+			const record = (event: KeyboardEvent): void => {
+				if (event.code !== 'Equal') return;
+				document.documentElement.dataset['fs14KeyDefaultPrevented'] = String(
+					event.defaultPrevented,
+				);
+				document.removeEventListener('keydown', record, true);
+			};
+			document.addEventListener('keydown', record, true);
+		});
+	};
+
+	const singletonInput = projectedTerminal(page).getByRole('textbox');
+	await singletonInput.focus();
+	await recordNextEqualizeDefault();
+	await page.keyboard.press(equalizeShortcut);
+	await expect(page.locator('html')).toHaveAttribute('data-fs14-key-default-prevented', 'false');
+
+	const firstPanelId = await focusedPanelId();
+	await page.keyboard.press(splitRightShortcut);
+	await expect(panels).toHaveCount(2);
+	const secondPanelId = await focusedPanelId();
+	await page.keyboard.press(splitRightShortcut);
+	await expect(panels).toHaveCount(3);
+	const thirdPanelId = await focusedPanelId();
+	const panelIds = [firstPanelId, secondPanelId, thirdPanelId];
+	expect(new Set(panelIds).size).toBe(3);
+	await expect
+		.poll(async () => {
+			const [first, second, third] = await Promise.all(panelIds.map(panelRect));
+			if (first === undefined || second === undefined || third === undefined) {
+				throw new Error('Missing initial Panel geometry.');
+			}
+			return {
+				firstIsDouble: first.width > second.width * 1.7,
+				nestedAreEqual: Math.abs(second.width - third.width) <= 4,
+				sameRow: first.y === second.y && second.y === third.y,
+			};
+		})
+		.toEqual({ firstIsDouble: true, nestedAreEqual: true, sameRow: true });
+
+	const presentationByPanel = new Map<string, string>();
+	const attachmentByPresentation = new Map<string, string>();
+	const identityByPresentation = new Map<
+		string,
+		Awaited<ReturnType<typeof terminalDocumentIdentity>>
+	>();
+	for (const panelId of panelIds) {
+		const presentationId = await panelFor(panelId)
+			.locator('[data-slot="workbench-terminal-viewport"]')
+			.getAttribute('data-terminal-presentation-id');
+		if (presentationId === null) throw new Error('A Panel has no terminal presentation identity.');
+		presentationByPanel.set(panelId, presentationId);
+		const terminalRoot = projectedTerminalFor(page, presentationId);
+		const attachmentId = await terminalRoot.getAttribute('data-projected-terminal-attachment-id');
+		if (attachmentId === null) throw new Error('A terminal has no projection attachment identity.');
+		attachmentByPresentation.set(presentationId, attachmentId);
+		identityByPresentation.set(presentationId, await terminalDocumentIdentity(terminalRoot));
+	}
+
+	const activeInput = focusedPanel.getByRole('textbox');
+	await activeInput.focus();
+	await activeInput.click({ button: 'right' });
+	await page.getByRole('menuitem', { name: /^(?:Equalize Panels|均分面板)/u }).click();
+	await expect
+		.poll(async () => {
+			const widths = await Promise.all(
+				panelIds.map(async (panelId) => (await panelRect(panelId)).width),
+			);
+			return Math.max(...widths) - Math.min(...widths);
+		})
+		.toBeLessThanOrEqual(4);
+	await expect(activeInput).toBeFocused();
+	const equalizedOrder = (
+		await Promise.all(
+			panelIds.map(async (panelId) => [panelId, (await panelRect(panelId)).x] as const),
+		)
+	)
+		.sort((left, right) => left[1] - right[1])
+		.map(([panelId]) => panelId);
+	expect(equalizedOrder).toEqual(panelIds);
+
+	await recordNextEqualizeDefault();
+	await page.keyboard.press(equalizeShortcut);
+	await expect(page.locator('html')).toHaveAttribute('data-fs14-key-default-prevented', 'true');
+	await expect(activeInput).toBeFocused();
+
+	await page.keyboard.press(maximizeShortcut);
+	await recordNextEqualizeDefault();
+	await page.keyboard.press(equalizeShortcut);
+	await expect(page.locator('html')).toHaveAttribute('data-fs14-key-default-prevented', 'false');
+	await page.keyboard.press(maximizeShortcut);
+	await expect.poll(async () => (await panelRect(firstPanelId)).width).toBeGreaterThan(0);
+
+	await page.keyboard.press(`${primaryModifier}+Shift+KeyP`);
+	const searchSurface = page.locator('[data-slot="workbench-search-surface"]');
+	await expect(searchSurface).toBeVisible();
+	const searchInput = searchSurface.getByRole('combobox');
+	await searchInput.fill(
+		(await searchInput.getAttribute('placeholder')) === '搜索操作…'
+			? '均分面板'
+			: 'Equalize Panels',
+	);
+	await searchSurface.getByRole('option', { name: /(?:Equalize Panels|均分面板)/u }).click();
+	await expect(searchSurface).not.toBeAttached();
+	await expect(activeInput).toBeFocused();
+
+	const settingsSurface = await openDesktopSettingsCategory(page, 'keyboard-shortcuts');
+	const equalizeShortcutRow = settingsSurface.locator(
+		'[data-shortcut-id="workbench.panel.active.equalize"]',
+	);
+	await expect(equalizeShortcutRow).toContainText(/(?:Equalize panels|均分面板)/u);
+	await expect(equalizeShortcutRow).toContainText(
+		process.platform === 'darwin' ? '⌃⌘=' : 'Ctrl+Alt+=',
+	);
+	await page.keyboard.press('Escape');
+	await expect(settingsSurface).not.toBeVisible();
+
+	for (const [panelId, presentationId] of presentationByPanel) {
+		await expect(
+			panelFor(panelId).locator('[data-slot="workbench-terminal-viewport"]'),
+		).toHaveAttribute('data-terminal-presentation-id', presentationId);
+		const terminalRoot = projectedTerminalFor(page, presentationId);
+		const originalAttachmentId = attachmentByPresentation.get(presentationId);
+		if (originalAttachmentId === undefined) throw new Error('Missing attachment identity witness.');
+		await expect(terminalRoot).toHaveAttribute(
+			'data-projected-terminal-attachment-id',
+			originalAttachmentId,
+		);
+		const originalIdentity = identityByPresentation.get(presentationId);
+		if (originalIdentity === undefined) throw new Error('Missing terminal identity witness.');
+		expect(await terminalDocumentIdentity(terminalRoot)).toMatchObject({
+			creationId: originalIdentity.creationId,
+			terminalId: originalIdentity.terminalId,
+		});
+	}
+	await expect(focusedPanel).toHaveAttribute('data-panel-id', thirdPanelId);
+});
+
 test('keeps terminal presentation continuous through rapid Tab switching and active Tab closure', async () => {
 	test.setTimeout(60_000);
 	const application = electronApplication;

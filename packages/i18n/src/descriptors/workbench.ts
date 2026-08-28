@@ -113,6 +113,11 @@ export const workbenchMessages = defineMessages({
 		defaultMessage: enUSWorkbenchMessages['workbench.panels.actions.maximize'],
 		description: 'Action that expands one Workbench panel to the tab content area.',
 	},
+	panelEqualize: {
+		id: 'workbench.panels.actions.equalize',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.actions.equalize'],
+		description: 'Action that redistributes Workbench panels into equal axis shares.',
+	},
 	panelFocus: {
 		id: 'workbench.panels.actions.focus',
 		defaultMessage: enUSWorkbenchMessages['workbench.panels.actions.focus'],

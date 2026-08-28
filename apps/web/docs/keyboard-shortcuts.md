@@ -31,6 +31,7 @@ those surfaces owns another binding copy.
 | `workbench.panel.active.move-left`           | Active panel                      | `Cmd+Option+Shift+Left`  | `Ctrl+Alt+Shift+Left`  |
 | `workbench.panel.active.move-right`          | Active panel                      | `Cmd+Option+Shift+Right` | `Ctrl+Alt+Shift+Right` |
 | `workbench.panel.active.move-up`             | Active panel                      | `Cmd+Option+Shift+Up`    | `Ctrl+Alt+Shift+Up`    |
+| `workbench.panel.active.equalize`            | Active panel                      | `Ctrl+Cmd+=`             | `Ctrl+Alt+=`           |
 | `workbench.panel.active.maximization.toggle` | Active panel                      | `Cmd+Shift+Enter`        | `Ctrl+Shift+Enter`     |
 | `workbench.panel.active.resize`              | Active panel                      | `Cmd+R`                  | `Ctrl+Shift+R`         |
 | `workbench.panel.active.split-right`         | Active panel                      | `Cmd+D`                  | `Ctrl+Shift+D`         |
@@ -120,6 +121,14 @@ shell chord remains available. The shared modal adopts Kitty's `W` wider, `N` na
 taller, `S` shorter, `R` reset, Control-modified larger step, and Escape exit vocabulary. Orchbee
 uses geometry-independent five-percentage-point steps, doubles that step with Control, retains at
 least five percent for each branch, and resets every split in the captured Tab to equal weights.
+
+Equalize Panels adopts Kitty revision `6d5d0c440603ad9bdf6dcd599f73f6dde21acb44`'s
+`splits.py::equalize_biases` semantics: same-axis nested Panels receive equal normalized extents,
+while a perpendicular subtree counts as one unit on its parent's axis and is equalized recursively
+on its own axis. Apple uses Ghostty's `Control+Command+=` convention at revision
+`9c3ec931d64561a8407dde7ac984ce156ae91539`; Standard uses `Ctrl+Alt+=` because Kitty's example
+`Ctrl+Shift+E` already belongs to Split Below. This one-shot operation is distinct from resize
+mode's `R`, which resets each binary split to equal child weights.
 
 ## Terminal paste routing
 
@@ -308,7 +317,7 @@ and leaves the event untouched. `Mod+9` means the ninth Tab, never the last Tab.
 
 ## Active-target command model
 
-The thirteen `workbench.*.active.*` Actions are context commands. Their Action invocation may carry an
+The fourteen `workbench.*.active.*` Actions are context commands. Their Action invocation may carry an
 explicit panel target from a menu; otherwise the active Tab's focused panel is the target. The
 target is resolved again when execution starts, so a stale or absent target is unavailable and
 does not consume the keyboard event.
@@ -348,6 +357,13 @@ leaves while preserving split topology, weights, slot IDs, terminal identities, 
 membership; the moved source remains focused. A missing neighbor, singleton layout, maximized Panel,
 stale target, or missing lower registration performs no mutation and preserves the key event.
 
+Panel equalization resolves only for an exact live target in a multi-Panel active Tab with no
+maximized Panel, then prepares the lower `workbench.panel.equalize` Action. Its recursive unit model
+preserves topology, order, Panel, Split, slot and terminal identities, membership, focus, counters,
+and maximization state while assigning proportional weights at every split. An already equal layout
+is an intentional available `unchanged` result and still consumes the admitted invocation; a
+singleton, maximized, stale, or missing lower target is unavailable and preserves the key event.
+
 Resize mode captures the exact active Tab and Panel when it opens. Every resize key revalidates that
 identity, delegates one mutation through the lower Panel Action, and adjusts the nearest ancestor
 whose split axis matches the requested direction. A missing axis or reached boundary is unchanged;
@@ -380,11 +396,11 @@ terminal Actions discovered from descendant scopes.
 
 ## Persistence and recovery
 
-New writes use `orchbee:web:keyboard-shortcuts:v15` and a strict record:
+New writes use `orchbee:web:keyboard-shortcuts:v16` and a strict record:
 
 ```json
 {
-	"version": 15,
+	"version": 16,
 	"overrides": [
 		{
 			"shortcutId": "workbench.search.all.open",
@@ -396,18 +412,18 @@ New writes use `orchbee:web:keyboard-shortcuts:v15` and a strict record:
 
 Only Custom values are stored, ordered by shortcut ID. Unknown fields or IDs, duplicates, unsorted
 entries, noncanonical modifiers, unsupported codes, stored defaults, excessive entries, and an
-effective conflict invalidate the complete v15 record and restore platform defaults. A write
+effective conflict invalidate the complete v16 record and restore platform defaults. A write
 failure keeps the immutable session binding active, reports that it was not saved, and retries on
 the next legal change. Restoring one item removes its override.
 
-When v15 is absent, Web first reads `orchbee:web:keyboard-shortcuts:v14` with its exact prior catalog
-and defaults. If v14 is also absent, it tries v13, v12, v11, v10, v9, v8, v7, v6, v5, v4, v3, v2, and then v1. Every migration carries
+When v16 is absent, Web first reads `orchbee:web:keyboard-shortcuts:v15` with its exact prior catalog
+and defaults. If v15 is also absent, it tries v14, v13, v12, v11, v10, v9, v8, v7, v6, v5, v4, v3, v2, and then v1. Every migration carries
 explicit overrides into the expanded catalog, removes an override equivalent to a current default,
-rejects any resulting conflict, and writes the canonical v15 record. The v1 through v14 values
+rejects any resulting conflict, and writes the canonical v16 record. The v1 through v15 values
 remain unchanged as rollback snapshots. An invalid current record never falls back to an
 older record, and an invalid migration source never falls through to the next older version,
 because either fallback would hide data corruption. Rolling back restores the latest record that
-the older build understands; edits made only in v15 are intentionally unavailable to it.
+the older build understands; edits made only in v16 are intentionally unavailable to it.
 
 Browser Preview, Gateway Browser, and Electron each create and dispose one controller against their
 own origin-local storage. Gateway and Electron pass the controller's narrow binding source through
@@ -416,28 +432,29 @@ change does not remount Workbench, replace an attachment, or reopen a Host or Ga
 
 ## Claims and evidence
 
-| Claim                                                                                 | Deterministic evidence                                                                                                       |
-| ------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| One valid target produces exactly one child, panel, or Tab close operation            | Active-target resolver decision-table tests                                                                                  |
-| Confirmation, cancellation, and commit remain owned by the prepared lower Action      | Workbench Action integration tests with panel and Tab registrations                                                          |
-| Active Workbench bindings do not depend on a surviving focused descendant             | Document-capture lifecycle and Web application integration tests                                                             |
-| Empty-Tab New Tab creates and focuses the new terminal; Settings suppresses it        | Web application focus and Settings-scope integration trace                                                                   |
-| Apple and Standard defaults match the catalog and custom edits affect dispatch        | Shortcut definition, resolver, and controller tests                                                                          |
-| Idle platform-default terminal Paste preserves MIME-aware native delivery             | Shortcut routing and installer tests, terminal image-paste tests, and exact Desktop `terminal-parity/IN-03-image-paste`      |
-| Active ordinary terminal selection preserves native paste and input ownership         | Projected-terminal selection/paste tests and exact Desktop `terminal-parity/IN-18-native-selection-paste`                    |
-| Pending Copy and Paste work cannot admit stale or duplicate shortcut input            | Clipboard coordinator and Action tests plus exact Desktop `terminal-parity/IN-13-selection-copy-paste`                       |
-| Directional focus selects a spatial neighbor and falls through at outer edges         | Four-Panel resolver, Action, and shortcut dispatch tests                                                                     |
-| Directional movement swaps exact neighboring leaves and retains source focus          | Model, bounded exploration, Action, shortcut, Settings, and exact Desktop `terminal-parity/FS-13-directional-panel-movement` |
-| Keyboard resize targets the nearest matching split and revalidates captured identity  | Resolver, state, Action, React, Settings, migration, menu, and Desktop system tests                                          |
-| Positional selection follows canonical Tab order and falls through out of range       | Grouped and pinned Action integration plus shortcut dispatch tests                                                           |
-| Adjacent selection follows canonical Tab order and wraps only with multiple Tabs      | Pure resolver, prepared Action integration, and shortcut fallthrough tests                                                   |
-| Active-Tab movement wraps within its pin partition through one lower Action           | Pure resolver, prepared Action integration, shortcut/settings tests, and Desktop system trace                                |
-| Tab-title editing preserves dynamic metadata and revalidates the exact invoked Tab    | Workbench model/Action/React tests, storage migration, and exact Desktop `terminal-parity/FS-11-tab-title`                   |
-| Visible Hints consume one focused binding and never leak label keys to terminal input | Terminal, Action, shortcut, Settings, and exact Desktop `terminal-parity/FS-07-keyboard-hints`                               |
-| Show Scrollback consumes one focused binding and opens the exact immutable viewer     | Terminal, Action, shortcut, Settings, and exact Desktop `terminal-parity/FS-09-scrollback-viewer`                            |
-| Menus, Action search, and settings display the same current binding                   | Projection and rendered-surface tests                                                                                        |
-| Valid v1 through v14 records migrate without losing explicit legacy overrides         | Storage migration tests, including new-default conflicts                                                                     |
-| Invalid current or migration-source data does not consult an older record             | Storage corruption and precedence tests                                                                                      |
+| Claim                                                                                 | Deterministic evidence                                                                                                                  |
+| ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| One valid target produces exactly one child, panel, or Tab close operation            | Active-target resolver decision-table tests                                                                                             |
+| Confirmation, cancellation, and commit remain owned by the prepared lower Action      | Workbench Action integration tests with panel and Tab registrations                                                                     |
+| Active Workbench bindings do not depend on a surviving focused descendant             | Document-capture lifecycle and Web application integration tests                                                                        |
+| Empty-Tab New Tab creates and focuses the new terminal; Settings suppresses it        | Web application focus and Settings-scope integration trace                                                                              |
+| Apple and Standard defaults match the catalog and custom edits affect dispatch        | Shortcut definition, resolver, and controller tests                                                                                     |
+| Idle platform-default terminal Paste preserves MIME-aware native delivery             | Shortcut routing and installer tests, terminal image-paste tests, and exact Desktop `terminal-parity/IN-03-image-paste`                 |
+| Active ordinary terminal selection preserves native paste and input ownership         | Projected-terminal selection/paste tests and exact Desktop `terminal-parity/IN-18-native-selection-paste`                               |
+| Pending Copy and Paste work cannot admit stale or duplicate shortcut input            | Clipboard coordinator and Action tests plus exact Desktop `terminal-parity/IN-13-selection-copy-paste`                                  |
+| Directional focus selects a spatial neighbor and falls through at outer edges         | Four-Panel resolver, Action, and shortcut dispatch tests                                                                                |
+| Directional movement swaps exact neighboring leaves and retains source focus          | Model, bounded exploration, Action, shortcut, Settings, and exact Desktop `terminal-parity/FS-13-directional-panel-movement`            |
+| Equalization assigns proportional same-axis Panel extents without identity changes    | Model, generated layouts, Action, menu, shortcut, Settings, v15 migration, and exact Desktop `terminal-parity/FS-14-panel-equalization` |
+| Keyboard resize targets the nearest matching split and revalidates captured identity  | Resolver, state, Action, React, Settings, migration, menu, and Desktop system tests                                                     |
+| Positional selection follows canonical Tab order and falls through out of range       | Grouped and pinned Action integration plus shortcut dispatch tests                                                                      |
+| Adjacent selection follows canonical Tab order and wraps only with multiple Tabs      | Pure resolver, prepared Action integration, and shortcut fallthrough tests                                                              |
+| Active-Tab movement wraps within its pin partition through one lower Action           | Pure resolver, prepared Action integration, shortcut/settings tests, and Desktop system trace                                           |
+| Tab-title editing preserves dynamic metadata and revalidates the exact invoked Tab    | Workbench model/Action/React tests, storage migration, and exact Desktop `terminal-parity/FS-11-tab-title`                              |
+| Visible Hints consume one focused binding and never leak label keys to terminal input | Terminal, Action, shortcut, Settings, and exact Desktop `terminal-parity/FS-07-keyboard-hints`                                          |
+| Show Scrollback consumes one focused binding and opens the exact immutable viewer     | Terminal, Action, shortcut, Settings, and exact Desktop `terminal-parity/FS-09-scrollback-viewer`                                       |
+| Menus, Action search, and settings display the same current binding                   | Projection and rendered-surface tests                                                                                                   |
+| Valid v1 through v15 records migrate without losing explicit legacy overrides         | Storage migration tests, including new-default conflicts                                                                                |
+| Invalid current or migration-source data does not consult an older record             | Storage corruption and precedence tests                                                                                                 |
 
 The tests use synthetic platform flags, Action scopes, storage, document capture, injected terminal
 focus, and keyboard events. They do not claim operating-system global-shortcut behavior or full

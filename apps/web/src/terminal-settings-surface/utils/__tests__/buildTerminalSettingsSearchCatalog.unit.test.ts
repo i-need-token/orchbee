@@ -57,6 +57,12 @@ describe('buildTerminalSettingsSearchCatalog', () => {
 			label: 'Move active tab forward',
 			sectionLabel: 'Workbench',
 		});
+		expect(
+			entries.find((entry) => entry.id === 'keyboard-shortcuts.workbench.panel.active.equalize'),
+		).toMatchObject({
+			label: 'Equalize panels',
+			sectionLabel: 'Active panel',
+		});
 	});
 
 	it('omits unavailable categories and capability-gated settings', () => {

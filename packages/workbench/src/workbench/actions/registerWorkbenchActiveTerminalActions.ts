@@ -78,6 +78,22 @@ export function registerWorkbenchActiveTerminalActions({
 				category: panelCategory,
 				execution: {
 					concurrency: 'parallel',
+					concurrencyKey: () => 'active-panel-equalize',
+					mode: 'foreground',
+				},
+				getAvailability: availabilityFor('equalize'),
+				handler: { execute: execute('equalize') },
+				id: WORKBENCH_ACTION_IDS.equalizeActivePanels,
+				input: noActionInput,
+				title: workbenchMessages.panelEqualize,
+			}),
+		),
+		typedRuntime.register(
+			scope,
+			defineAction({
+				category: panelCategory,
+				execution: {
+					concurrency: 'parallel',
 					concurrencyKey: () => 'active-panel-move-down',
 					mode: 'foreground',
 				},

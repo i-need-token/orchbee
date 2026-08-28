@@ -71,6 +71,15 @@ export function WorkbenchTerminalViewport({
 			shortcut: view.shortcutLabelForAction(WORKBENCH_ACTION_IDS.resizeActivePanel),
 		},
 		{
+			disabled: view.panelCount < 2 || view.maximizedPanelId !== null,
+			icon: 'panels',
+			id: 'equalize-panels',
+			kind: 'command',
+			label: view.messages.equalize,
+			onSelect: () => view.equalizePanels(panelId, 'context-menu'),
+			shortcut: view.shortcutLabelForAction(WORKBENCH_ACTION_IDS.equalizeActivePanels),
+		},
+		{
 			disabled: view.panelCount < 2,
 			icon: view.maximizedPanelId === panelId ? 'screen-normal' : 'screen-full',
 			id: 'toggle-panel-maximization',

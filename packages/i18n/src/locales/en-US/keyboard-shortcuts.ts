@@ -5,6 +5,7 @@ export const enUSKeyboardShortcutMessages = {
 	'keyboard.shortcuts.actions.closeTerminal': 'Close active terminal',
 	'keyboard.shortcuts.actions.copySelection': 'Copy terminal selection',
 	'keyboard.shortcuts.actions.decreaseTerminalFontSize': 'Decrease terminal font size',
+	'keyboard.shortcuts.actions.equalizePanels': 'Equalize panels',
 	'keyboard.shortcuts.actions.find': 'Find in terminal',
 	'keyboard.shortcuts.actions.focusPanelDown': 'Focus panel below',
 	'keyboard.shortcuts.actions.focusPanelLeft': 'Focus panel left',

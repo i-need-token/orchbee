@@ -17,6 +17,7 @@ describe('panel action contracts', () => {
 			activateChildTerminal: 'workbench.panel.child-terminal.activate',
 			close: 'workbench.panel.close',
 			createChildTerminal: 'workbench.panel.child-terminal.create',
+			equalize: 'workbench.panel.equalize',
 			focus: 'workbench.panel.focus',
 			move: 'workbench.panel.move',
 			resize: 'workbench.panel.resize',

@@ -87,9 +87,11 @@ function createView(actionRuntime: ActionRuntime): WorkbenchPanelWorkspaceView {
 		closeActiveTerminal: () => undefined,
 		createChildTerminal: () => undefined,
 		createTerminalTab: () => undefined,
+		equalizePanels: () => undefined,
 		maximizedPanelId: null,
 		messages: {
 			close: 'Close',
+			equalize: 'Equalize Panels',
 			maximize: 'Maximize Panel',
 			minimize: 'Minimize Panel',
 			newChildTerminal: 'New child terminal',

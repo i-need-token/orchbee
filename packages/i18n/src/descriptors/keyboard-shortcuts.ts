@@ -12,6 +12,7 @@ export const keyboardShortcutMessages = defineMessages({
 	closeTerminal: message('keyboard.shortcuts.actions.closeTerminal'),
 	copySelection: message('keyboard.shortcuts.actions.copySelection'),
 	decreaseTerminalFontSize: message('keyboard.shortcuts.actions.decreaseTerminalFontSize'),
+	equalizePanels: message('keyboard.shortcuts.actions.equalizePanels'),
 	find: message('keyboard.shortcuts.actions.find'),
 	focusPanelDown: message('keyboard.shortcuts.actions.focusPanelDown'),
 	focusPanelLeft: message('keyboard.shortcuts.actions.focusPanelLeft'),

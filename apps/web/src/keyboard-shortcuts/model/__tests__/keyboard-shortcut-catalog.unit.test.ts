@@ -10,9 +10,9 @@ import {
 } from '../keyboard-shortcut-catalog';
 
 describe('keyboard shortcut catalog', () => {
-	it('combines the thirty-five Workbench and sixteen projected-terminal declarations once', () => {
-		expect(KEYBOARD_SHORTCUT_CATALOG).toHaveLength(51);
-		expect(new Set(KEYBOARD_SHORTCUT_IDS).size).toBe(51);
+	it('combines the thirty-six Workbench and sixteen projected-terminal declarations once', () => {
+		expect(KEYBOARD_SHORTCUT_CATALOG).toHaveLength(52);
+		expect(new Set(KEYBOARD_SHORTCUT_IDS).size).toBe(52);
 		expect(keyboardShortcutDeclaration('workbench.search.actions.open')).toMatchObject({
 			actionId: 'workbench.search.open',
 			actionInput: { filter: 'actions' },
@@ -37,6 +37,12 @@ describe('keyboard shortcut catalog', () => {
 			actionId: 'workbench.panel.active.resize',
 			availability: 'active-panel',
 			name: 'resize-panel',
+			scope: 'active-panel',
+		});
+		expect(keyboardShortcutDeclaration('workbench.panel.active.equalize')).toMatchObject({
+			actionId: 'workbench.panel.active.equalize',
+			availability: 'multiple-panels',
+			name: 'equalize-panels',
 			scope: 'active-panel',
 		});
 		expect(keyboardShortcutDeclaration('workbench.panel.active.move-left')).toMatchObject({
@@ -155,6 +161,12 @@ describe('keyboard shortcut catalog', () => {
 		expect(formatKeyboardShortcutChord(apple['workbench.panel.active.move-left'], 'apple')).toBe(
 			'⌥⇧⌘←',
 		);
+		expect(formatKeyboardShortcutChord(apple['workbench.panel.active.equalize'], 'apple')).toBe(
+			'⌃⌘=',
+		);
+		expect(
+			formatKeyboardShortcutChord(standard['workbench.panel.active.equalize'], 'standard'),
+		).toBe('Ctrl+Alt+=');
 		expect(
 			formatKeyboardShortcutChord(standard['workbench.panel.active.move-right'], 'standard'),
 		).toBe('Ctrl+Alt+Shift+→');

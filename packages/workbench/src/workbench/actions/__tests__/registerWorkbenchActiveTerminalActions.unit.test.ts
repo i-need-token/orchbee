@@ -170,6 +170,70 @@ describe('registerWorkbenchActiveTerminalActions', () => {
 		expect(lowerExecute).toHaveBeenCalledExactlyOnceWith({ panelId: 'panel-1' });
 	});
 
+	it('routes equalization to the exact active Panel and preserves an unchanged result', async () => {
+		const harness = createHarness();
+		const store = harness.projectWorkspaceRuntime.getActiveTerminalContext().panelWorkspaceStore;
+		const tabId = store.getActiveTabId();
+		if (tabId === null) throw new Error('Expected an active Tab.');
+		store.transition({
+			direction: 'right',
+			newTerminalTitle: 'Terminal 2',
+			panelId: 'panel-1',
+			presentation: store.createTerminalPresentation(),
+			tabId,
+			type: 'panel-split',
+		});
+		const lowerExecute = vi.fn<(input: PanelTargetInput) => void>();
+		registerPanelTargetAction(harness, PANEL_ACTION_IDS.equalize, (_context, input) => {
+			lowerExecute(input);
+			return { kind: 'unchanged' };
+		});
+
+		await expect(harness.execute(WORKBENCH_ACTION_IDS.equalizeActivePanels)).resolves.toEqual({
+			kind: 'unchanged',
+		});
+		expect(lowerExecute).toHaveBeenCalledExactlyOnceWith({ panelId: 'panel-2' });
+	});
+
+	it('keeps equalization unavailable for singleton and maximized active Tabs', () => {
+		const harness = createHarness();
+		const invocation = {
+			scope: harness.scope,
+			source: 'keyboard' as const,
+		};
+		expect(
+			harness.runtime.resolveAction(
+				WORKBENCH_ACTION_IDS.equalizeActivePanels,
+				undefined,
+				invocation,
+			),
+		).toMatchObject({ availability: { kind: 'disabled' } });
+
+		const store = harness.projectWorkspaceRuntime.getActiveTerminalContext().panelWorkspaceStore;
+		const tabId = store.getActiveTabId();
+		if (tabId === null) throw new Error('Expected an active Tab.');
+		store.transition({
+			direction: 'right',
+			newTerminalTitle: 'Terminal 2',
+			panelId: 'panel-1',
+			presentation: store.createTerminalPresentation(),
+			tabId,
+			type: 'panel-split',
+		});
+		store.transition({
+			panelId: 'panel-2',
+			tabId,
+			type: 'panel-maximization-toggled',
+		});
+		expect(
+			harness.runtime.resolveAction(
+				WORKBENCH_ACTION_IDS.equalizeActivePanels,
+				undefined,
+				invocation,
+			),
+		).toMatchObject({ availability: { kind: 'disabled' } });
+	});
+
 	it('executes the prepared focus Action for a directional neighbor', async () => {
 		const harness = createHarness();
 		const store = harness.projectWorkspaceRuntime.getActiveTerminalContext().panelWorkspaceStore;
@@ -347,7 +411,10 @@ function registerPanelFocus(
 
 function registerPanelTargetAction(
 	harness: Harness,
-	actionId: typeof PANEL_ACTION_IDS.focus | typeof PANEL_ACTION_IDS.startResize,
+	actionId:
+		| typeof PANEL_ACTION_IDS.equalize
+		| typeof PANEL_ACTION_IDS.focus
+		| typeof PANEL_ACTION_IDS.startResize,
 	execute: (
 		context: ActionExecutionContext,
 		input: PanelTargetInput,

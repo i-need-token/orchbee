@@ -32,6 +32,7 @@ describe('workbench action contracts', () => {
 			decreaseTerminalFontSize: 'workbench.terminal.font-size.decrease',
 			deleteWorkspace: 'workbench.workspace.delete',
 			duplicateWorkspace: 'workbench.workspace.duplicate',
+			equalizeActivePanels: 'workbench.panel.active.equalize',
 			focusActivePanelDown: 'workbench.panel.active.focus-down',
 			focusActivePanelLeft: 'workbench.panel.active.focus-left',
 			focusActivePanelRight: 'workbench.panel.active.focus-right',

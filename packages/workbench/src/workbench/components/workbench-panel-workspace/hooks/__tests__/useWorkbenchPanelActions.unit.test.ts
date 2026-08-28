@@ -56,6 +56,7 @@ interface HarnessProps {
 	readonly captureScope: (scope: ActionScope) => void;
 	readonly closeDisplayedTerminal?: () => PanelWorkspaceTransition;
 	readonly createChildTerminal: (panelId: string) => PanelWorkspaceTransition | null;
+	readonly equalizePanels?: (panelId: string) => PanelWorkspaceTransition;
 	readonly panelCount?: number;
 	readonly parentScope: ActionScope;
 	readonly runtime: ActionRuntime;
@@ -67,6 +68,7 @@ function Harness({
 	captureScope,
 	closeDisplayedTerminal = () => appliedTransition,
 	createChildTerminal,
+	equalizePanels = () => appliedTransition,
 	panelCount = 1,
 	parentScope,
 	runtime,
@@ -78,6 +80,7 @@ function Harness({
 			activateChildTerminal: () => appliedTransition,
 			closeDisplayedTerminal,
 			createChildTerminal,
+			equalizePanels,
 			focusPanel: () => appliedTransition,
 			movePanel: () => appliedTransition,
 			resizePanel: () => appliedTransition,
@@ -128,6 +131,7 @@ describe('useWorkbenchPanelActions', () => {
 						activateChildTerminal: () => appliedTransition,
 						closeDisplayedTerminal,
 						createChildTerminal: () => appliedTransition,
+						equalizePanels: () => appliedTransition,
 						focusPanel: () => appliedTransition,
 						movePanel: () => appliedTransition,
 						resizePanel: () => appliedTransition,
@@ -263,6 +267,88 @@ describe('useWorkbenchPanelActions', () => {
 		expect(swapPanels).toHaveBeenCalledWith('panel-1', 'panel-2');
 	});
 
+	it('equalizes one exact live Tab target and preserves an idempotent unchanged result', async () => {
+		const runtime = new ActionRuntime();
+		const parentScope = runtime.createScope('workbench');
+		const unchangedTransition: PanelWorkspaceTransition = {
+			...appliedTransition,
+			outcome: 'unchanged',
+		};
+		const equalizePanels = vi
+			.fn<(panelId: string) => PanelWorkspaceTransition>()
+			.mockReturnValueOnce(appliedTransition)
+			.mockReturnValueOnce(unchangedTransition);
+		let scope: ActionScope | undefined;
+		render(
+			createElement(Harness, {
+				captureScope: (candidate) => {
+					scope = candidate;
+				},
+				createChildTerminal: () => appliedTransition,
+				equalizePanels,
+				panelCount: 2,
+				parentScope,
+				runtime,
+			}),
+		);
+		if (scope === undefined) throw new Error('Expected the panel action scope to be captured');
+
+		const first = runtime.execute(
+			PANEL_ACTION_IDS.equalize,
+			{ panelId: 'panel-1' },
+			{ scope, source: 'keyboard' },
+		);
+		const second = runtime.execute(
+			PANEL_ACTION_IDS.equalize,
+			{ panelId: 'panel-1' },
+			{ scope, source: 'menu' },
+		);
+
+		await expect(first.completion).resolves.toEqual({ kind: 'completed' });
+		await expect(second.completion).resolves.toEqual({ kind: 'unchanged' });
+		expect(equalizePanels).toHaveBeenNthCalledWith(1, 'panel-1');
+		expect(equalizePanels).toHaveBeenNthCalledWith(2, 'panel-1');
+	});
+
+	it.each([
+		{ label: 'singleton', panelCount: 1, tab: activeTab },
+		{
+			label: 'maximized',
+			panelCount: 2,
+			tab: { ...activeTab, maximizedPanelId: 'panel-1' },
+		},
+	])('keeps Panel equalization disabled for a $label Tab', async ({ panelCount, tab }) => {
+		const runtime = new ActionRuntime();
+		const parentScope = runtime.createScope('workbench');
+		const equalizePanels = vi.fn<(panelId: string) => PanelWorkspaceTransition>(
+			() => appliedTransition,
+		);
+		let scope: ActionScope | undefined;
+		render(
+			createElement(Harness, {
+				activeTab: tab,
+				captureScope: (candidate) => {
+					scope = candidate;
+				},
+				createChildTerminal: () => appliedTransition,
+				equalizePanels,
+				panelCount,
+				parentScope,
+				runtime,
+			}),
+		);
+		if (scope === undefined) throw new Error('Expected the panel action scope to be captured');
+
+		await expect(
+			runtime.execute(
+				PANEL_ACTION_IDS.equalize,
+				{ panelId: 'panel-1' },
+				{ scope, source: 'keyboard' },
+			).completion,
+		).resolves.toMatchObject({ code: 'action-unavailable', kind: 'blocked' });
+		expect(equalizePanels).not.toHaveBeenCalled();
+	});
+
 	it('registers panel semantics, calls the domain writer, and disposes with its owner', async () => {
 		const runtime = new ActionRuntime();
 		const parentScope = runtime.createScope('workbench');
@@ -305,6 +391,7 @@ describe('useWorkbenchPanelActions', () => {
 								tabId: 'tab-1',
 							},
 							[PANEL_ACTION_IDS.createChildTerminal]: { panelId: 'panel-1' },
+							[PANEL_ACTION_IDS.equalize]: { panelId: 'panel-1' },
 							[PANEL_ACTION_IDS.focus]: { panelId: 'panel-1' },
 							[PANEL_ACTION_IDS.move]: {
 								direction: 'right',

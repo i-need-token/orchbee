@@ -471,6 +471,10 @@ Focused traces cover:
   all four movement directions, outer-edge event fallthrough, moved-source focus restoration,
   invariant Panel/presentation/terminal identity, and Action-search plus Settings
   discovery;
+- exact headed `terminal-parity/FS-14-panel-equalization` Browser-composition witness for Kitty's
+  proportional same-axis Panel-unit semantics across three nested columns, menu and Action-search
+  discovery, configurable shortcut presentation, available-versus-unavailable event prevention,
+  stable Panel ordering, terminal identity, attachment identity, and input focus;
 - exact headed `terminal-parity/LC-05-lan-capability` Browser-composition evidence for per-operation secure-context, transient-user-activation, and API checks; synchronous Copy availability; one admitted writer call; rejection without retry; localized failure; and no privileged insecure-LAN path;
 - exact `terminal-parity/HS-07-selection-export` real-PTY/Electron evidence that styled terminal
   selection reaches the platform clipboard as the exact visible plain text, paired with protocol,

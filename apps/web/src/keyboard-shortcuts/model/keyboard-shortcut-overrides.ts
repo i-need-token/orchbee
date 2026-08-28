@@ -38,6 +38,9 @@ export function createKeyboardShortcutBindings(
 		[WORKBENCH_SHORTCUTS.decreaseTerminalFontSize.shortcutId]: bindingFor(
 			WORKBENCH_SHORTCUTS.decreaseTerminalFontSize.shortcutId,
 		),
+		[WORKBENCH_SHORTCUTS.equalizePanels.shortcutId]: bindingFor(
+			WORKBENCH_SHORTCUTS.equalizePanels.shortcutId,
+		),
 		[WORKBENCH_SHORTCUTS.focusActivePanelDown.shortcutId]: bindingFor(
 			WORKBENCH_SHORTCUTS.focusActivePanelDown.shortcutId,
 		),

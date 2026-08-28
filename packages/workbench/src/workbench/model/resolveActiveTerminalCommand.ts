@@ -19,6 +19,7 @@ import {
 
 export type ActiveTerminalCommand =
 	| 'close'
+	| 'equalize'
 	| 'focus-down'
 	| 'focus-left'
 	| 'focus-right'
@@ -58,6 +59,12 @@ interface ResolveActiveTerminalCommandOptions {
 }
 
 export type ActiveTerminalCommandResolution =
+	| {
+			readonly actionId: typeof PANEL_ACTION_IDS.equalize;
+			readonly input: PanelTargetInput;
+			readonly kind: 'ready';
+			readonly panelId: string;
+	  }
 	| {
 			readonly actionId: typeof PANEL_ACTION_IDS.focus;
 			readonly input: PanelTargetInput;
@@ -166,6 +173,18 @@ export function resolveActiveTerminalCommand({
 				kind: 'ready',
 				panelId,
 			};
+		case 'equalize':
+			if (activeTab.maximizedPanelId !== null) {
+				return { kind: 'unavailable', reason: 'panel-maximized' };
+			}
+			return collectPanelLeaves(activeTab.root).length < 2
+				? { kind: 'unavailable', reason: 'requires-multiple-panels' }
+				: {
+						actionId: PANEL_ACTION_IDS.equalize,
+						input: { panelId },
+						kind: 'ready',
+						panelId,
+					};
 		case 'start-resize':
 			return {
 				actionId: PANEL_ACTION_IDS.startResize,

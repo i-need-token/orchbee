@@ -40,6 +40,7 @@ interface PanelActionOperations {
 	) => PanelWorkspaceTransition | null;
 	readonly closeDisplayedTerminal: (input: PanelCloseInput) => PanelWorkspaceTransition | null;
 	readonly createChildTerminal: (panelId: string) => PanelWorkspaceTransition | null;
+	readonly equalizePanels: (panelId: string) => PanelWorkspaceTransition | null;
 	readonly focusPanel: (panelId: string) => PanelWorkspaceTransition | null;
 	readonly movePanel: (
 		panelId: string,
@@ -162,6 +163,32 @@ export function useWorkbenchPanelActions({
 					id: PANEL_ACTION_IDS.activateChildTerminal,
 					input: panelChildTerminalInput,
 					title: workbenchMessages.panelActivateChild,
+				}),
+			),
+			typedRuntime.register(
+				scope,
+				defineAction({
+					category,
+					execution,
+					getAvailability: (_context, input) =>
+						activeTab?.maximizedPanelId !== null || panelCount < 2
+							? {
+									kind: 'disabled',
+									reason: workbenchMessages.actionUnavailable,
+								}
+							: targetAvailability(input.panelId),
+					handler: {
+						execute: (context, input) => {
+							const result = resultFor(operations.equalizePanels(input.panelId));
+							if (result.kind === 'completed') {
+								context.markCommitted();
+							}
+							return result;
+						},
+					},
+					id: PANEL_ACTION_IDS.equalize,
+					input: panelTargetInput,
+					title: workbenchMessages.panelEqualize,
 				}),
 			),
 			typedRuntime.register(

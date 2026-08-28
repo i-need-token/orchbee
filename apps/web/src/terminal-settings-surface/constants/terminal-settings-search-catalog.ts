@@ -316,6 +316,7 @@ export const KEYBOARD_SHORTCUT_SEARCH_LABELS = {
 	'close-terminal': keyboardShortcutMessages.closeTerminal,
 	'copy-selection': keyboardShortcutMessages.copySelection,
 	'decrease-terminal-font-size': keyboardShortcutMessages.decreaseTerminalFontSize,
+	'equalize-panels': keyboardShortcutMessages.equalizePanels,
 	find: keyboardShortcutMessages.find,
 	'focus-panel-down': keyboardShortcutMessages.focusPanelDown,
 	'focus-panel-left': keyboardShortcutMessages.focusPanelLeft,

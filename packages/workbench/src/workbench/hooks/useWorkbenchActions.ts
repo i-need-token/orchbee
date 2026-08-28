@@ -402,6 +402,7 @@ export function useWorkbenchActions({
 				case 'settings':
 				case 'closeActiveTerminal':
 				case 'decreaseTerminalFontSize':
+				case 'equalizePanels':
 				case 'focusActivePanelDown':
 				case 'focusActivePanelLeft':
 				case 'focusActivePanelRight':

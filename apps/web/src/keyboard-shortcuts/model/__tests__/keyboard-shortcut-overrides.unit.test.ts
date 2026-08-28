@@ -87,6 +87,26 @@ describe('keyboard shortcut overrides', () => {
 		});
 	});
 
+	it('applies a custom Panel equalization binding without changing its platform default elsewhere', () => {
+		const bindings = createKeyboardShortcutBindings('apple', [
+			{
+				chord: { code: 'KeyE', modifiers: ['control', 'mod'] },
+				shortcutId: 'workbench.panel.active.equalize',
+			},
+		]);
+
+		expect(bindings['workbench.panel.active.equalize']).toEqual({
+			code: 'KeyE',
+			modifiers: ['control', 'mod'],
+		});
+		expect(
+			createKeyboardShortcutBindings('standard', [])['workbench.panel.active.equalize'],
+		).toEqual({
+			code: 'Equal',
+			modifiers: ['alt', 'mod'],
+		});
+	});
+
 	it('applies one positional Tab override without changing the other positions', () => {
 		const bindings = createKeyboardShortcutBindings('apple', [
 			{

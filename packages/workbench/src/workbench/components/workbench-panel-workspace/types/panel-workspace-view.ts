@@ -34,6 +34,7 @@ export interface PanelWorkspaceMessages {
 	readonly closeAnyway: string;
 	readonly closeRunningDescription: (count: number) => string;
 	readonly closeRunningTitle: string;
+	readonly equalize: string;
 	readonly maximize: string;
 	readonly minimize: string;
 	readonly more: string;
@@ -89,6 +90,7 @@ export interface WorkbenchPanelWorkspaceView {
 	readonly createChildTerminal: (panelId: string, source?: ActionInvocationSource) => void;
 	readonly createTerminalTab: (source?: ActionInvocationSource) => void;
 	readonly displayedRoot: PanelLayoutNode | null;
+	readonly equalizePanels: (panelId: string, source?: ActionInvocationSource) => void;
 	readonly focusPanel: (panelId: string, source?: ActionInvocationSource) => void;
 	readonly maximizedPanelId: string | null;
 	readonly messages: PanelWorkspaceMessages;

@@ -141,6 +141,7 @@ export function useWorkbenchPanelWorkspace({
 			closeRunningDescription: (count) =>
 				intl.formatMessage(workbenchMessages.panelCloseRunningDescription, { count }),
 			closeRunningTitle: intl.formatMessage(workbenchMessages.panelCloseRunningTitle),
+			equalize: intl.formatMessage(workbenchMessages.panelEqualize),
 			maximize: intl.formatMessage(workbenchMessages.panelMaximize),
 			minimize: intl.formatMessage(workbenchMessages.panelMinimize),
 			more: intl.formatMessage(workbenchMessages.panelMore),
@@ -230,6 +231,8 @@ export function useWorkbenchPanelWorkspace({
 					presentation: store.createTerminalPresentation(),
 					type: 'child-terminal-created',
 				}),
+			equalizePanels: (panelId: string) =>
+				transitionForActiveTab({ panelId, type: 'panels-equalized' }),
 			focusPanel: (panelId: string) => transitionForActiveTab({ panelId, type: 'panel-focused' }),
 			movePanel: commitMovePanel,
 			resizePanel: (
@@ -587,6 +590,9 @@ export function useWorkbenchPanelWorkspace({
 			);
 		},
 		displayedRoot,
+		equalizePanels: (panelId, source: ActionInvocationSource = 'programmatic') => {
+			executePanelAction(PANEL_ACTION_IDS.equalize, { panelId } satisfies PanelTargetInput, source);
+		},
 		focusPanel: (panelId, source: ActionInvocationSource = 'programmatic') => {
 			executePanelAction(PANEL_ACTION_IDS.focus, { panelId } satisfies PanelTargetInput, source);
 		},

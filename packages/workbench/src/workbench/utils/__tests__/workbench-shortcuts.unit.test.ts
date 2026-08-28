@@ -39,6 +39,7 @@ describe('Workbench shortcuts', () => {
 		expect(WORKBENCH_SHORTCUTS.decreaseTerminalFontSize.id).toBe(
 			'workbench.terminal.font-size.decrease',
 		);
+		expect(WORKBENCH_SHORTCUTS.equalizePanels.id).toBe('workbench.panel.active.equalize');
 		expect(WORKBENCH_SHORTCUTS.focusActivePanelDown.id).toBe('workbench.panel.active.focus-down');
 		expect(WORKBENCH_SHORTCUTS.focusActivePanelLeft.id).toBe('workbench.panel.active.focus-left');
 		expect(WORKBENCH_SHORTCUTS.focusActivePanelRight.id).toBe('workbench.panel.active.focus-right');
@@ -99,6 +100,7 @@ describe('Workbench shortcuts', () => {
 		expect(formatWorkbenchShortcut('actionsSearch', 'apple')).toBe('⇧⌘P');
 		expect(formatWorkbenchShortcut('closeActiveTerminal', 'apple')).toBe('⌘W');
 		expect(formatWorkbenchShortcut('decreaseTerminalFontSize', 'apple')).toBe('⌘-');
+		expect(formatWorkbenchShortcut('equalizePanels', 'apple')).toBe('⌃⌘=');
 		expect(formatWorkbenchShortcut('focusActivePanelDown', 'apple')).toBe('⌥⌘↓');
 		expect(formatWorkbenchShortcut('focusActivePanelLeft', 'apple')).toBe('⌥⌘←');
 		expect(formatWorkbenchShortcut('focusActivePanelRight', 'apple')).toBe('⌥⌘→');
@@ -128,6 +130,7 @@ describe('Workbench shortcuts', () => {
 		expect(formatWorkbenchShortcut('actionsSearch', 'standard')).toBe('Ctrl+Shift+P');
 		expect(formatWorkbenchShortcut('closeActiveTerminal', 'standard')).toBe('Ctrl+Shift+W');
 		expect(formatWorkbenchShortcut('decreaseTerminalFontSize', 'standard')).toBe('Ctrl+-');
+		expect(formatWorkbenchShortcut('equalizePanels', 'standard')).toBe('Ctrl+Alt+=');
 		expect(formatWorkbenchShortcut('focusActivePanelDown', 'standard')).toBe('Ctrl+Alt+↓');
 		expect(formatWorkbenchShortcut('focusActivePanelLeft', 'standard')).toBe('Ctrl+Alt+←');
 		expect(formatWorkbenchShortcut('focusActivePanelRight', 'standard')).toBe('Ctrl+Alt+→');
@@ -153,6 +156,7 @@ describe('Workbench shortcuts', () => {
 		expect(formatWorkbenchShortcut('splitActivePanelRight', 'standard')).toBe('Ctrl+Shift+D');
 		expect(formatWorkbenchShortcut('toggleSidebar', 'standard')).toBe('Ctrl+Shift+B');
 		expect(formatWorkbenchActionShortcut('workbench.search.open', 'apple')).toBe('⇧⌘F');
+		expect(formatWorkbenchActionShortcut('workbench.panel.active.equalize', 'apple')).toBe('⌃⌘=');
 		expect(formatWorkbenchActionShortcut('workbench.panel.active.move-left', 'apple')).toBe('⌥⇧⌘←');
 		expect(formatWorkbenchActionShortcut('workbench.tab.active.move-backward', 'apple')).toBe(
 			'⌃⇧,',
@@ -178,6 +182,7 @@ describe('Workbench shortcuts', () => {
 		['actionsSearch', 'KeyP', 'KeyP'],
 		['closeActiveTerminal', 'KeyW', 'KeyW'],
 		['decreaseTerminalFontSize', 'Minus', 'Minus'],
+		['equalizePanels', 'Equal', 'Equal'],
 		['focusActivePanelDown', 'ArrowDown', 'ArrowDown'],
 		['focusActivePanelLeft', 'ArrowLeft', 'ArrowLeft'],
 		['focusActivePanelRight', 'ArrowRight', 'ArrowRight'],

@@ -158,6 +158,7 @@ export const enUSWorkbenchMessages = {
 	'workbench.panels.actions.cancel': 'Cancel',
 	'workbench.panels.actions.close': 'Close',
 	'workbench.panels.actions.closeAnyway': 'Close anyway',
+	'workbench.panels.actions.equalize': 'Equalize Panels',
 	'workbench.panels.actions.maximize': 'Maximize Panel',
 	'workbench.panels.actions.minimize': 'Minimize Panel',
 	'workbench.panels.actions.activateChild': 'Activate child terminal',

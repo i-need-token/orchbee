@@ -56,6 +56,7 @@ type KeyboardShortcutName =
 	| 'close-terminal'
 	| 'copy-selection'
 	| 'decrease-terminal-font-size'
+	| 'equalize-panels'
 	| 'find'
 	| 'focus-panel-down'
 	| 'focus-panel-left'
@@ -336,6 +337,16 @@ export const KEYBOARD_SHORTCUT_CATALOG = Object.freeze([
 		name: 'move-panel-up',
 		scope: 'active-panel',
 		shortcutId: WORKBENCH_SHORTCUTS.moveActivePanelUp.shortcutId,
+	}),
+	Object.freeze({
+		actionId: WORKBENCH_SHORTCUTS.equalizePanels.id,
+		actionInput: WORKBENCH_SHORTCUTS.equalizePanels.input,
+		availability: 'multiple-panels',
+		defaults: WORKBENCH_SHORTCUTS.equalizePanels.defaults,
+		feature: 'workbench',
+		name: 'equalize-panels',
+		scope: 'active-panel',
+		shortcutId: WORKBENCH_SHORTCUTS.equalizePanels.shortcutId,
 	}),
 	Object.freeze({
 		actionId: WORKBENCH_SHORTCUTS.maximizeActivePanel.id,

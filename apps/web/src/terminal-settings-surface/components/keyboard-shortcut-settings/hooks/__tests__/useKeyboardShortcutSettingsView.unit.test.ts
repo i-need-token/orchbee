@@ -28,7 +28,7 @@ describe('useKeyboardShortcutSettingsView', () => {
 				}),
 			{ wrapper: I18nWrapper },
 		);
-		expect(allRows.result.current.rows).toHaveLength(51);
+		expect(allRows.result.current.rows).toHaveLength(52);
 		expect(allRows.result.current.rows[0]).toMatchObject({
 			actionName: 'Search actions',
 			chord: 'Ctrl+Shift+P',
@@ -40,6 +40,13 @@ describe('useKeyboardShortcutSettingsView', () => {
 		).toMatchObject({
 			availability: 'When an active terminal panel is available',
 			chord: 'Ctrl+Shift+R',
+			scope: 'Active panel',
+		});
+		expect(
+			allRows.result.current.rows.find((row) => row.actionName === 'Equalize panels'),
+		).toMatchObject({
+			availability: 'When the active tab has multiple panels',
+			chord: 'Ctrl+Alt+=',
 			scope: 'Active panel',
 		});
 		expect(

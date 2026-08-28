@@ -1985,6 +1985,7 @@ describe('panel workspace state', () => {
 				'split',
 				'move',
 				'swap',
+				'equalize',
 				'resize',
 				'keyboard-resize',
 				'create-child',
@@ -2043,6 +2044,16 @@ describe('panel workspace state', () => {
 							tabId: tab.tabId,
 							targetPanelId: targetPanel.id,
 							type: 'panels-swapped',
+						});
+					} else if (
+						action.kind === 'equalize' &&
+						panels.length > 1 &&
+						tab.maximizedPanelId === null
+					) {
+						state = apply(state, {
+							panelId: panel.id,
+							tabId: tab.tabId,
+							type: 'panels-equalized',
 						});
 					} else if (action.kind === 'create-child' && panel.childPresentations.length < 4) {
 						state = apply(state, {
@@ -2164,7 +2175,7 @@ describe('panel workspace state', () => {
 		expect(exploredEquivalentMoveCount).toBeGreaterThan(0);
 	});
 
-	it('exhausts panel, presentation, focus, maximize, close, swap, and resize actions across bounded layouts', () => {
+	it('exhausts panel, presentation, focus, maximize, close, swap, equalize, and resize actions across bounded layouts', () => {
 		const states = enumerateSplitLayouts(4);
 		const terminalCwds = ['/a', '/b', '/c', '/d', '/e'] as const;
 		let exploredActionCount = 0;
@@ -2325,6 +2336,18 @@ describe('panel workspace state', () => {
 					exploredActionCount += 1;
 				}
 
+				const equalizeResult = transitionPanelWorkspace(state, {
+					panelId: panel.id,
+					tabId: tab.tabId,
+					type: 'panels-equalized',
+				});
+				expect(equalizeResult.rejection).toBeNull();
+				expect(hasPanelMembership(requireTab(equalizeResult.state).root, originalPanelIds)).toBe(
+					true,
+				);
+				expect(requireTab(equalizeResult.state).focusedPanelId).toBe(tab.focusedPanelId);
+				exploredActionCount += 1;
+
 				const closeResult = transitionPanelWorkspace(state, {
 					panelId: panel.id,
 					tabId: tab.tabId,
@@ -2391,7 +2414,7 @@ describe('panel workspace state', () => {
 		}
 
 		expect(states).toHaveLength(384);
-		expect(exploredActionCount).toBe(45_696);
+		expect(exploredActionCount).toBe(47_232);
 	});
 
 	it('keeps generated split layouts valid across every possible panel move', () => {
