@@ -269,6 +269,53 @@ describe('useWorkbenchActions', () => {
 		await act(async () => undefined);
 	});
 
+	it('captures the exact displayed terminal when creating a Tab in its current directory', async () => {
+		const runtime = new ActionRuntime();
+		const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
+			standaloneCwd: '/system',
+			standaloneTerminalTitle: 'Terminal 1',
+			terminalPresentation: createTestTerminalPresentationComposition('current-directory-action'),
+		});
+		const targetResolution = projectWorkspaceRuntime.resolveActiveTerminalCurrentDirectoryTarget();
+		if (targetResolution.kind !== 'ready') throw new Error('Expected a current-directory target.');
+		const onNewTerminal = vi.fn<WorkbenchTerminalCreateCallback>(() => ({ kind: 'completed' }));
+		let actionScope: ReturnType<ActionRuntime['createScope']> | undefined;
+		render(
+			React.createElement(WorkbenchActionsHarness, {
+				captureScope: (scope) => {
+					actionScope = scope;
+				},
+				onNewTerminal,
+				projectWorkspaceRuntime,
+				runtime,
+			}),
+		);
+		if (actionScope === undefined) throw new Error('Expected the Workbench action scope.');
+		const invocation = {
+			scope: actionScope,
+			source: 'context-menu' as const,
+			target: { id: targetResolution.target.panelId, type: 'panel' as const },
+		};
+		expect(
+			runtime.resolveAction(
+				WORKBENCH_ACTION_IDS.createTerminalInCurrentDirectory,
+				undefined,
+				invocation,
+			)?.availability,
+		).toEqual({ kind: 'enabled' });
+
+		await runtime.execute(
+			WORKBENCH_ACTION_IDS.createTerminalInCurrentDirectory,
+			undefined,
+			invocation,
+		).completion;
+
+		expect(onNewTerminal).toHaveBeenCalledWith(expect.any(Object), {
+			currentDirectoryTarget: targetResolution.target,
+			groupId: null,
+		});
+	});
+
 	it('keeps missing host capabilities disabled for shortcut resolution', () => {
 		const runtime = new ActionRuntime();
 		let capturedScope: ReturnType<typeof runtime.createScope> | undefined;

@@ -18,8 +18,8 @@
 			"zhCnSha256": "2afc317d019dbf2e2e66361ee355e94c1c5dd0bef44c3ee9f499cd3a5bf40058"
 		},
 		"apps/desktop/README.md": {
-			"englishSha256": "7d21780a1205b646e7f122118f73b76ef849c85f4ea40f77a514dffe32e66ede",
-			"zhCnSha256": "38c6cf24e36b5528e13536b8519184f1ba47cd625977c4363ee6a6e2dc87940a"
+			"englishSha256": "8aa07cf02a83d9472655104736025b5a7bc0fc29b4bcf71e98aa1d46bdd85e0a",
+			"zhCnSha256": "9c21db7dc617587427cd0fce2f3e6166b1adb9ed12f7dc2f9e4f63bc0609b075"
 		},
 		"apps/desktop/docs/data-root.md": {
 			"englishSha256": "70b2836c182df8c32456081cc30682ecd9bb4bb2d6bf3409bb3f9853ad23490e",
@@ -86,12 +86,12 @@
 			"zhCnSha256": "3b6dcd91526fb20e8d97b2e8dda693c5cf8805c92d9d2b5602e7a779c7556cc4"
 		},
 		"apps/web/README.md": {
-			"englishSha256": "523dcf8c9ccb3de1477d8bd1c7b28ee4b32ca40930c6f7a565216b1700375dad",
-			"zhCnSha256": "7a8a93523f5bb3328723da33572c845d5e53ff0b763e3681d28fe81bde42755c"
+			"englishSha256": "7794763dd00cadf3310ca06fdcf9c0fdb5a4d79ca84f114f5b4471615c401c65",
+			"zhCnSha256": "20ca1baf2c4c770d3490549b2f5a003a96c1d446ff280c1e2eb7bdb2a07cb55f"
 		},
 		"apps/web/docs/keyboard-shortcuts.md": {
-			"englishSha256": "3934ef30f894fb13d99397d36dbcd710e4d5c2c8d7bc5eece9badd04045592aa",
-			"zhCnSha256": "84dc5dfb395afd4ff5606ff103c3b3f8b6a4923630d18e3ba44e09448f01a311"
+			"englishSha256": "d1b2decb2dc8bc81a9640bf91aedeb62a3a76898618ffe6a67763f692fc5968b",
+			"zhCnSha256": "8e3d89591cf3f9083a917376d11ff72637ec316d14717ee809fabdad8736fea5"
 		},
 		"apps/web/docs/navigation-routing.md": {
 			"englishSha256": "cd5dec1d6effde16a6f3e1f5f9c756c1b7601ff22afb44a422eba59cb775c0bd",
@@ -318,8 +318,8 @@
 			"zhCnSha256": "48ca773dc61815ae61bb2940b15b8f0f84135965c9ed1b9d06afb6a0cac15ff3"
 		},
 		"packages/workbench/README.md": {
-			"englishSha256": "34c2256f8004ba0b6d18e341788c38cc6bd8879e452b425a9ec77b26132679ff",
-			"zhCnSha256": "afc070c25358a8e0b1c00d868496bd1695f55920587062f5d7139bee99c6d70e"
+			"englishSha256": "1be7c251ec89bb080f2bd3abfdfdf77e8d6581759e6bd2db699fe364614464cb",
+			"zhCnSha256": "aa1f0798cbb2d7805ccab5c2de5a40ec7fb399fe288e456b821ac719a410cafc"
 		},
 		"packages/workbench/docs/project-workspace.md": {
 			"englishSha256": "7735b6ba0a702e8c85156b9b479faa4af4b666da46d3bc24a832cf841ef39cd7",

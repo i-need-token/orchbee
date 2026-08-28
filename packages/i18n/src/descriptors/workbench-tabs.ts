@@ -199,6 +199,10 @@ export const workbenchTabMessages = defineMessages({
 		id: 'workbench.tabs.actions.new',
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.new'],
 	},
+	newTabCurrentDirectory: {
+		id: 'workbench.tabs.actions.newCurrentDirectory',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.newCurrentDirectory'],
+	},
 	newTabBelow: {
 		id: 'workbench.tabs.actions.newBelow',
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.actions.newBelow'],

@@ -2,6 +2,7 @@ import type { ActionExecutionContext, ActionResult } from '@orchbee/actions';
 import type { TabStripSelectCallback } from '@orchbee/tab-strip';
 
 import type { WorkbenchTerminalCreateInput } from '../actions/workbench-action-ids';
+import type { CurrentDirectoryTerminalTarget } from '../model/resolve-current-directory-terminal-target';
 
 export type WorkbenchHostActionResult<Output = void> =
 	| ActionResult<Output>
@@ -34,7 +35,14 @@ export type WorkbenchTerminalFontSizeChangeCallback = (
 	change: WorkbenchTerminalFontSizeChange,
 ) => WorkbenchHostActionResult;
 
+export type WorkbenchTerminalCreateRequest =
+	| (WorkbenchTerminalCreateInput & { readonly currentDirectoryTarget?: never })
+	| (Omit<WorkbenchTerminalCreateInput, 'directoryId'> & {
+			readonly currentDirectoryTarget: CurrentDirectoryTerminalTarget;
+			readonly directoryId?: never;
+	  });
+
 export type WorkbenchTerminalCreateCallback = (
 	context: ActionExecutionContext,
-	input: WorkbenchTerminalCreateInput,
+	input: WorkbenchTerminalCreateRequest,
 ) => WorkbenchHostActionResult;

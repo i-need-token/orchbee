@@ -200,6 +200,7 @@ export const enUSWorkbenchMessages = {
 	'workbench.tabs.titles.new': 'New Tab',
 	'workbench.tabs.titles.terminal': 'Terminal',
 	'workbench.tabs.actions.new': 'New tab',
+	'workbench.tabs.actions.newCurrentDirectory': 'New tab in current directory',
 	'workbench.tabs.actions.newBelow': 'New tab below',
 	'workbench.tabs.actions.newToRight': 'New tab to the right',
 	'workbench.tabs.actions.openVertical': 'Open vertical tabs',

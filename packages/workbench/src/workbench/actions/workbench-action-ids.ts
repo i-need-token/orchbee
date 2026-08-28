@@ -9,6 +9,7 @@ export const WORKBENCH_ACTION_IDS = {
 	addProjectFolder: 'workbench.project.directory.add',
 	createProject: 'workbench.project.create',
 	createTerminal: 'workbench.terminal.create',
+	createTerminalInCurrentDirectory: 'workbench.terminal.create-current-directory',
 	decreaseTerminalFontSize: 'workbench.terminal.font-size.decrease',
 	createWorkspace: 'workbench.workspace.create',
 	deleteWorkspace: 'workbench.workspace.delete',
@@ -130,6 +131,7 @@ export interface WorkbenchActionCatalog {
 	readonly [WORKBENCH_ACTION_IDS.addProjectFolder]: ActionSignature<WorkbenchProjectFolderAddInput>;
 	readonly [WORKBENCH_ACTION_IDS.createProject]: ActionSignature<WorkbenchProjectCreateInput>;
 	readonly [WORKBENCH_ACTION_IDS.createTerminal]: ActionSignature<WorkbenchTerminalCreateInput>;
+	readonly [WORKBENCH_ACTION_IDS.createTerminalInCurrentDirectory]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.decreaseTerminalFontSize]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.createWorkspace]: ActionSignature<WorkbenchWorkspaceCreateInput>;
 	readonly [WORKBENCH_ACTION_IDS.deleteWorkspace]: ActionSignature<WorkbenchWorkspaceInput>;

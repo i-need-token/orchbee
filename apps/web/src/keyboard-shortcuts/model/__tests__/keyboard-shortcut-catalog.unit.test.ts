@@ -10,9 +10,9 @@ import {
 } from '../keyboard-shortcut-catalog';
 
 describe('keyboard shortcut catalog', () => {
-	it('combines the thirty-six Workbench and sixteen projected-terminal declarations once', () => {
-		expect(KEYBOARD_SHORTCUT_CATALOG).toHaveLength(52);
-		expect(new Set(KEYBOARD_SHORTCUT_IDS).size).toBe(52);
+	it('combines the thirty-seven Workbench and sixteen projected-terminal declarations once', () => {
+		expect(KEYBOARD_SHORTCUT_CATALOG).toHaveLength(53);
+		expect(new Set(KEYBOARD_SHORTCUT_IDS).size).toBe(53);
 		expect(keyboardShortcutDeclaration('workbench.search.actions.open')).toMatchObject({
 			actionId: 'workbench.search.open',
 			actionInput: { filter: 'actions' },
@@ -25,6 +25,14 @@ describe('keyboard shortcut catalog', () => {
 		expect(keyboardShortcutDeclaration('workbench.terminal.active.close')).toMatchObject({
 			actionId: 'workbench.terminal.active.close',
 			availability: 'active-terminal',
+			scope: 'active-terminal',
+		});
+		expect(
+			keyboardShortcutDeclaration('workbench.terminal.create-current-directory'),
+		).toMatchObject({
+			actionId: 'workbench.terminal.create-current-directory',
+			availability: 'active-terminal',
+			name: 'new-terminal-current-directory',
 			scope: 'active-terminal',
 		});
 		expect(keyboardShortcutDeclaration('workbench.panel.active.focus-left')).toMatchObject({
@@ -149,6 +157,15 @@ describe('keyboard shortcut catalog', () => {
 		expect(formatKeyboardShortcutChord(standard['workbench.terminal.create'], 'standard')).toBe(
 			'Ctrl+Shift+T',
 		);
+		expect(
+			formatKeyboardShortcutChord(
+				standard['workbench.terminal.create-current-directory'],
+				'standard',
+			),
+		).toBe('Ctrl+Alt+Enter');
+		expect(
+			formatKeyboardShortcutChord(apple['workbench.terminal.create-current-directory'], 'apple'),
+		).toBe('⌥⌘Enter');
 		expect(formatKeyboardShortcutChord(apple['workbench.terminal.active.close'], 'apple')).toBe(
 			'⌘W',
 		);

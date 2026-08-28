@@ -147,6 +147,7 @@ export function useWorkbenchPanelWorkspace({
 			more: intl.formatMessage(workbenchMessages.panelMore),
 			newChildTerminal: intl.formatMessage(workbenchMessages.panelNewChildTerminal),
 			newTab: intl.formatMessage(workbenchTabMessages.newTab),
+			newTabCurrentDirectory: intl.formatMessage(workbenchTabMessages.newTabCurrentDirectory),
 			returnToPrimary: intl.formatMessage(workbenchMessages.panelReturnToPrimary),
 			resize: intl.formatMessage(workbenchMessages.panelResize),
 			resizeDescription: intl.formatMessage(workbenchMessages.panelResizeDescription),
@@ -564,6 +565,16 @@ export function useWorkbenchPanelWorkspace({
 				resolvePanelResize(tab.root, panelId, adjustment, multiplier).kind === 'applied'
 			);
 		},
+		canCreateTerminalTabInCurrentDirectory: (panelId) =>
+			actionRuntime.resolveAction(
+				WORKBENCH_ACTION_IDS.createTerminalInCurrentDirectory,
+				undefined,
+				{
+					scope: panelActions.scope,
+					source: 'programmatic',
+					target: { id: panelId, type: 'panel' },
+				},
+			)?.availability.kind === 'enabled',
 		cancelClose: () => pendingConfirmationRef.current?.(false),
 		closeActiveTerminal: (panelId, source: ActionInvocationSource = 'programmatic') => {
 			actionRuntime.execute(WORKBENCH_ACTION_IDS.closeActiveTerminal, undefined, {
@@ -588,6 +599,16 @@ export function useWorkbenchPanelWorkspace({
 				{ groupId: null },
 				{ scope: panelActions.scope, source },
 			);
+		},
+		createTerminalTabInCurrentDirectory: (
+			panelId,
+			source: ActionInvocationSource = 'programmatic',
+		) => {
+			actionRuntime.execute(WORKBENCH_ACTION_IDS.createTerminalInCurrentDirectory, undefined, {
+				scope: panelActions.scope,
+				source,
+				target: { id: panelId, type: 'panel' },
+			});
 		},
 		displayedRoot,
 		equalizePanels: (panelId, source: ActionInvocationSource = 'programmatic') => {

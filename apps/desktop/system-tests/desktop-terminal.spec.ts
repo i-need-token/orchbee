@@ -2888,6 +2888,118 @@ test('terminal-parity/FS-14-panel-equalization', async () => {
 	await expect(focusedPanel).toHaveAttribute('data-panel-id', thirdPanelId);
 });
 
+test('terminal-parity/FS-15-current-directory-tab', async () => {
+	test.skip(
+		process.platform === 'win32',
+		'The exact current-directory witness uses a POSIX shell.',
+	);
+	test.setTimeout(60_000);
+	const application = electronApplication;
+	const directoryRoot = runtimeDirectory;
+	if (application === undefined || directoryRoot === undefined) {
+		throw new Error('Electron application did not start with a runtime directory.');
+	}
+	const page = await application.firstWindow();
+	const currentDirectory = path.join(directoryRoot, 'fs15-current-directory');
+	await mkdir(currentDirectory, { mode: 0o700 });
+	const tabs = workbenchTabs(page);
+	const sourceRoot = projectedTerminal(page);
+	await expect(sourceRoot).toHaveAttribute('data-projected-terminal-state', 'open');
+	const sourcePresentationId = await sourceRoot.getAttribute('data-terminal-presentation-id');
+	if (sourcePresentationId === null) throw new Error('The source terminal has no presentation ID.');
+	const sourceIdentity = await terminalDocumentIdentity(sourceRoot);
+	const sourceInput = sourceRoot.getByRole('textbox');
+	await sourceInput.focus();
+	await sourceInput.pressSequentially(
+		`cd ${quotePosixShellWord(currentDirectory)} && printf '\\033]7;file://%s%s\\007' "$(hostname)" "$PWD" && printf 'fs15-source-ready\\n'`,
+		{ delay: 1 },
+	);
+	await sourceInput.press('Enter');
+	await expect(sourceRoot.locator('[role="list"]')).toContainText('fs15-source-ready');
+	await expect(tabs.first()).toContainText('fs15-current-directory');
+
+	await sourceInput.click({ button: 'right' });
+	const currentDirectoryMenuItem = page.getByRole('menuitem', {
+		name: /^(?:New tab in current directory|在当前目录新建标签页)/u,
+	});
+	await expect(currentDirectoryMenuItem).toBeVisible();
+	await expect(currentDirectoryMenuItem).toContainText(
+		process.platform === 'darwin' ? '⌥⌘Enter' : 'Ctrl+Alt+Enter',
+	);
+	await page.keyboard.press('Escape');
+
+	const primaryModifier = process.platform === 'darwin' ? 'Meta' : 'Control';
+	await page.keyboard.press(`${primaryModifier}+Shift+KeyP`);
+	const searchSurface = page.locator('[data-slot="workbench-search-surface"]');
+	await expect(searchSurface).toBeVisible();
+	const searchInput = searchSurface.getByRole('combobox');
+	await searchInput.fill(
+		(await searchInput.getAttribute('placeholder')) === '搜索操作…'
+			? '在当前目录新建标签页'
+			: 'New tab in current directory',
+	);
+	await expect(
+		searchSurface.getByRole('option', {
+			name: /(?:New tab in current directory|在当前目录新建标签页)/u,
+		}),
+	).toBeVisible();
+	await page.keyboard.press('Escape');
+	await expect(searchSurface).not.toBeAttached();
+
+	await page.evaluate(() => {
+		document.documentElement.removeAttribute('data-fs15-key-default-prevented');
+		const record = (event: KeyboardEvent): void => {
+			if (event.code !== 'Enter') return;
+			document.documentElement.dataset['fs15KeyDefaultPrevented'] = String(event.defaultPrevented);
+			document.removeEventListener('keydown', record, true);
+		};
+		document.addEventListener('keydown', record, true);
+	});
+	await page.keyboard.press(process.platform === 'darwin' ? 'Meta+Alt+Enter' : 'Control+Alt+Enter');
+	await expect(page.locator('html')).toHaveAttribute('data-fs15-key-default-prevented', 'true');
+	await expect(tabs).toHaveCount(2);
+	await expect(tabs.nth(1)).toHaveAttribute('aria-selected', 'true');
+	const createdRoot = page
+		.locator(
+			'[data-presentation-mode="active"] [data-terminal-presentation-id][data-projected-terminal-state]',
+		)
+		.first();
+	await expect(createdRoot).toHaveAttribute('data-projected-terminal-state', 'open');
+	const createdPresentationId = await createdRoot.getAttribute('data-terminal-presentation-id');
+	if (createdPresentationId === null || createdPresentationId === sourcePresentationId) {
+		throw new Error('The current-directory Action did not create a distinct terminal.');
+	}
+	const createdInput = createdRoot.getByRole('textbox');
+	await expect(createdInput).toBeFocused();
+	await createdInput.pressSequentially("pwd; printf 'fs15-created-ready\\n'", { delay: 1 });
+	await createdInput.press('Enter');
+	await expect(createdRoot.locator('[role="list"]')).toContainText(currentDirectory);
+	await expect(createdRoot.locator('[role="list"]')).toContainText('fs15-created-ready');
+
+	await tabs.first().click();
+	await expect(tabs.first()).toHaveAttribute('aria-selected', 'true');
+	const restoredSourceRoot = projectedTerminalFor(page, sourcePresentationId);
+	await expect(restoredSourceRoot).toHaveAttribute('data-projected-terminal-state', 'open');
+	expect(await terminalDocumentIdentity(restoredSourceRoot)).toMatchObject({
+		creationId: sourceIdentity.creationId,
+		terminalId: sourceIdentity.terminalId,
+	});
+	await expect(restoredSourceRoot.getByRole('textbox')).toBeFocused();
+
+	const settingsSurface = await openDesktopSettingsCategory(page, 'keyboard-shortcuts');
+	const currentDirectoryShortcutRow = settingsSurface.locator(
+		'[data-shortcut-id="workbench.terminal.create-current-directory"]',
+	);
+	await expect(currentDirectoryShortcutRow).toContainText(
+		/(?:New terminal in current directory|在当前目录新建终端)/u,
+	);
+	await expect(currentDirectoryShortcutRow).toContainText(
+		process.platform === 'darwin' ? '⌥⌘Enter' : 'Ctrl+Alt+Enter',
+	);
+	await page.keyboard.press('Escape');
+	await expect(settingsSurface).not.toBeVisible();
+});
+
 test('keeps terminal presentation continuous through rapid Tab switching and active Tab closure', async () => {
 	test.setTimeout(60_000);
 	const application = electronApplication;

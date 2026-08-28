@@ -23,6 +23,7 @@ export const enUSKeyboardShortcutMessages = {
 	'keyboard.shortcuts.actions.moveTabForward': 'Move active tab forward',
 	'keyboard.shortcuts.actions.setTabTitle': 'Set tab title',
 	'keyboard.shortcuts.actions.newTerminal': 'New terminal',
+	'keyboard.shortcuts.actions.newTerminalCurrentDirectory': 'New terminal in current directory',
 	'keyboard.shortcuts.actions.nextTab': 'Select next tab',
 	'keyboard.shortcuts.actions.nextPrompt': 'Scroll to next shell prompt',
 	'keyboard.shortcuts.actions.outputShowLast': 'Show last command output',

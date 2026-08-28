@@ -44,6 +44,12 @@ import {
 	projectWorkbenchSharedDocument,
 } from './workbench-document-runtime';
 import type { WorkbenchTerminalMetadataObservation } from './resolve-terminal-metadata-observation';
+import {
+	revalidateCurrentDirectoryTerminalTarget,
+	resolveCurrentDirectoryTerminalTarget,
+	type CurrentDirectoryTerminalTarget,
+	type CurrentDirectoryTerminalTargetResolution,
+} from './resolve-current-directory-terminal-target';
 
 type Listener = () => void;
 
@@ -80,10 +86,18 @@ export type WorkbenchSharedDocumentApplyResult =
 	| { readonly kind: 'applied'; readonly clientView: WorkbenchClientView }
 	| { readonly kind: 'unchanged' };
 
-export interface WorkbenchRuntimeTerminalCreateInput extends TabStripNewTabRequest {
-	readonly directoryId?: string | undefined;
+export type WorkbenchRuntimeTerminalCreateInput = TabStripNewTabRequest & {
 	readonly title: string;
-}
+} & (
+		| {
+				readonly currentDirectoryTarget?: never;
+				readonly directoryId?: string | undefined;
+		  }
+		| {
+				readonly currentDirectoryTarget: CurrentDirectoryTerminalTarget;
+				readonly directoryId?: never;
+		  }
+	);
 
 export type WorkbenchRuntimeTerminalCreateResult =
 	| {
@@ -91,7 +105,15 @@ export type WorkbenchRuntimeTerminalCreateResult =
 			readonly tabId: string;
 	  }
 	| Extract<ResolveTerminalCwdResult, { kind: 'rejected' }>
-	| { readonly kind: 'rejected'; readonly reason: 'terminal-creation-sealed' };
+	| {
+			readonly kind: 'rejected';
+			readonly reason:
+				| 'active-tab-unavailable'
+				| 'panel-unavailable'
+				| 'terminal-creation-sealed'
+				| 'terminal-current-directory-unavailable'
+				| 'terminal-target-stale';
+	  };
 
 export interface WorkbenchTerminalSessionStopFailure {
 	readonly failure: TerminalPresentationFailure;
@@ -578,6 +600,30 @@ export class WorkbenchProjectWorkspaceRuntime {
 		return result.cwd;
 	}
 
+	public resolveActiveTerminalCurrentDirectoryTarget(
+		targetPanelId?: string,
+	): CurrentDirectoryTerminalTargetResolution {
+		const context = this.getActiveMutableContext();
+		return resolveCurrentDirectoryTerminalTarget({
+			activeTabId: context.tabModel.getSnapshot().activeTabId,
+			state: context.panelWorkspaceStore.getSnapshot(),
+			targetPanelId: targetPanelId ?? null,
+			terminalContextId: context.terminalContextId,
+		});
+	}
+
+	public resolveTerminalCurrentDirectoryTarget(
+		target: CurrentDirectoryTerminalTarget,
+	): CurrentDirectoryTerminalTargetResolution {
+		const context = this.getActiveMutableContext();
+		return revalidateCurrentDirectoryTerminalTarget({
+			activeTabId: context.tabModel.getSnapshot().activeTabId,
+			state: context.panelWorkspaceStore.getSnapshot(),
+			target,
+			terminalContextId: context.terminalContextId,
+		});
+	}
+
 	public resolveActiveTerminalCwd(directoryId?: string): ResolveTerminalCwdResult {
 		if (this.state.activeLocation.kind === 'standalone') {
 			return resolveTerminalCwd({
@@ -771,8 +817,13 @@ export class WorkbenchProjectWorkspaceRuntime {
 		if (this.terminalCreationSealed) {
 			return { kind: 'rejected', reason: 'terminal-creation-sealed' };
 		}
-		const cwdResult = this.resolveActiveTerminalCwd(input.directoryId);
-		if (cwdResult.kind === 'rejected') return cwdResult;
+		const cwdResult =
+			input.currentDirectoryTarget === undefined
+				? this.resolveActiveTerminalCwd(input.directoryId)
+				: this.resolveTerminalCurrentDirectoryTarget(input.currentDirectoryTarget);
+		if (cwdResult.kind === 'rejected' || cwdResult.kind === 'unavailable') {
+			return { kind: 'rejected', reason: cwdResult.reason };
+		}
 		const context = this.getActiveMutableContext();
 		const tabId = `${this.activeTerminalContextId()}-tab-${context.nextTabSequence}`;
 		context.nextTabSequence += 1;

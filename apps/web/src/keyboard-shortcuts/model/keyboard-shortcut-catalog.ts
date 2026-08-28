@@ -73,6 +73,7 @@ type KeyboardShortcutName =
 	| 'move-tab-backward'
 	| 'move-tab-forward'
 	| 'new-terminal'
+	| 'new-terminal-current-directory'
 	| 'next-prompt'
 	| 'next-tab'
 	| 'show-last-command-output'
@@ -166,6 +167,16 @@ export const KEYBOARD_SHORTCUT_CATALOG = Object.freeze([
 		name: 'new-terminal',
 		scope: 'workbench',
 		shortcutId: WORKBENCH_SHORTCUTS.newTerminal.shortcutId,
+	}),
+	Object.freeze({
+		actionId: WORKBENCH_SHORTCUTS.newTerminalInCurrentDirectory.id,
+		actionInput: WORKBENCH_SHORTCUTS.newTerminalInCurrentDirectory.input,
+		availability: 'active-terminal',
+		defaults: WORKBENCH_SHORTCUTS.newTerminalInCurrentDirectory.defaults,
+		feature: 'workbench',
+		name: 'new-terminal-current-directory',
+		scope: 'active-terminal',
+		shortcutId: WORKBENCH_SHORTCUTS.newTerminalInCurrentDirectory.shortcutId,
 	}),
 	Object.freeze({
 		actionId: WORKBENCH_SHORTCUTS.increaseTerminalFontSize.id,

@@ -56,6 +56,15 @@ export function WorkbenchTerminalViewport({
 			shortcut: view.shortcutLabelForAction(WORKBENCH_ACTION_IDS.createTerminal),
 		},
 		{
+			disabled: !view.canCreateTerminalTabInCurrentDirectory(panelId),
+			icon: 'tabs',
+			id: 'new-terminal-tab-current-directory',
+			kind: 'command',
+			label: view.messages.newTabCurrentDirectory,
+			onSelect: () => view.createTerminalTabInCurrentDirectory(panelId, 'context-menu'),
+			shortcut: view.shortcutLabelForAction(WORKBENCH_ACTION_IDS.createTerminalInCurrentDirectory),
+		},
+		{
 			icon: 'terminal',
 			id: 'new-child-terminal',
 			kind: 'command',

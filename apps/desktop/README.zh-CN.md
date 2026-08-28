@@ -271,6 +271,9 @@ Workbench `terminal-presentation-event-published` 消息是 Main 拥有的单一
 - 精确的 `terminal-parity/FS-14-panel-equalization` 浏览器组合见证，覆盖 Kitty 在三个嵌套列上的
   同轴 Panel 单元比例语义、菜单与 Action 搜索发现、可配置快捷键呈现、可用与不可用状态下的事件
   阻止、稳定的 Panel 顺序、终端标识、attachment 标识及输入焦点；
+- 精确的 `terminal-parity/FS-15-current-directory-tab` 真实 PTY/Electron 见证，覆盖可信 OSC 7
+  当前目录投递、终端上下文菜单与 Action 搜索发现、可配置快捷键分发、新 Tab 中精确继承的 `pwd`，
+  以及不变的源终端标识、session、焦点恢复和 Settings 投影；
 - 用于每次操作安全上下文、瞬时用户激活和 API 检查的精确标题 `terminal-parity/LC-05-lan-capability` 浏览器组合证据；同步复制可用性；一位被录取的作家来电；拒绝而不重试；局部故障；并且没有特权 insecure-LAN 路径；
 - 确切的 `terminal-parity/HS-07-selection-export` real-PTY/Electron 证据表明，样式化终端选择以精确可见的纯文本形式到达平台剪贴板，与不公开 HTML 或原始 VT 格式的协议、主机和投影命令回归配对；
 - 精确的 `terminal-parity/IN-03-image-paste` 真实 PTY/Electron 证据证明，空闲的默认粘贴组合键会保留原生仅图片事件，并向子进程精确发布一个 `Control+V` 字节，且不产生剪贴板文本 Action 或失败横幅；

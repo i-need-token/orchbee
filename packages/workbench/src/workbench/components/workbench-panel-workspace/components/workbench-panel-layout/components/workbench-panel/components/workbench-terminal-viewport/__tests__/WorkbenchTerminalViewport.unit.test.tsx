@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { terminalPresentationId } from '../../../../../../../../../../terminal-presentation';
 import { TERMINAL_ACTION_IDS } from '../../../../../../../../../actions/terminal-action-contracts';
+import { WORKBENCH_ACTION_IDS } from '../../../../../../../../../actions/workbench-action-ids';
 import type { WorkbenchTerminalSurfaceProps } from '../../../../../../../../../types/workbench-terminal-surface';
 import type { TerminalPresentation } from '../../../../../../../model/panel-workspace-state';
 import type { WorkbenchPanelWorkspaceView } from '../../../../../../../types/panel-workspace-view';
@@ -15,6 +16,7 @@ import type { TerminalTabPresentationLayer } from '../../../../../../../types/te
 import { WorkbenchTerminalViewport } from '../WorkbenchTerminalViewport';
 
 const clearTerminal = vi.fn<() => void>();
+const createCurrentDirectoryTab = vi.fn<() => void>();
 const terminal: TerminalPresentation = {
 	closeActivity: 'unknown',
 	currentCwd: null,
@@ -84,9 +86,11 @@ function createView(actionRuntime: ActionRuntime): WorkbenchPanelWorkspaceView {
 		actionScope: actionRuntime.createScope('test.workbench'),
 		admitTerminalBellEffect: () => true,
 		activeTab: { focusedPanelId: 'panel-1' },
+		canCreateTerminalTabInCurrentDirectory: () => true,
 		closeActiveTerminal: () => undefined,
 		createChildTerminal: () => undefined,
 		createTerminalTab: () => undefined,
+		createTerminalTabInCurrentDirectory: createCurrentDirectoryTab,
 		equalizePanels: () => undefined,
 		maximizedPanelId: null,
 		messages: {
@@ -96,6 +100,7 @@ function createView(actionRuntime: ActionRuntime): WorkbenchPanelWorkspaceView {
 			minimize: 'Minimize Panel',
 			newChildTerminal: 'New child terminal',
 			newTab: 'New tab',
+			newTabCurrentDirectory: 'New tab in current directory',
 			split: 'Split panel',
 			splitAbove: 'Split above',
 			splitBelow: 'Split below',
@@ -103,8 +108,11 @@ function createView(actionRuntime: ActionRuntime): WorkbenchPanelWorkspaceView {
 			splitRight: 'Split right',
 		},
 		panelCount: 1,
-		shortcutLabelForAction: (actionId: string) =>
-			actionId === TERMINAL_ACTION_IDS.clear ? '⌘K' : undefined,
+		shortcutLabelForAction: (actionId: string) => {
+			if (actionId === TERMINAL_ACTION_IDS.clear) return '⌘K';
+			if (actionId === WORKBENCH_ACTION_IDS.createTerminalInCurrentDirectory) return '⌥⌘Enter';
+			return undefined;
+		},
 		splitPanel: () => null,
 		togglePanelMaximization: () => undefined,
 	} as unknown as WorkbenchPanelWorkspaceView;
@@ -113,6 +121,7 @@ function createView(actionRuntime: ActionRuntime): WorkbenchPanelWorkspaceView {
 afterEach(() => {
 	cleanup();
 	clearTerminal.mockReset();
+	createCurrentDirectoryTab.mockReset();
 });
 
 describe('WorkbenchTerminalViewport', () => {
@@ -145,6 +154,34 @@ describe('WorkbenchTerminalViewport', () => {
 
 		await waitFor(() => expect(input.ownerDocument.activeElement).toBe(input));
 		expect(clearTerminal).toHaveBeenCalledOnce();
+		rendered.unmount();
+		actionRuntime.dispose();
+	});
+
+	it('creates a Tab from the clicked Panel current directory through the structural menu', async () => {
+		const actionRuntime = new ActionRuntime();
+		const rendered = render(
+			<OrchbeeI18nProvider locale='en-US'>
+				<WorkbenchTerminalViewport
+					layer={layer}
+					layoutSettled
+					panelId='panel-1'
+					terminal={terminal}
+					terminalRole='primary'
+					terminalSurface={TestTerminalSurface}
+					view={createView(actionRuntime)}
+				/>
+			</OrchbeeI18nProvider>,
+		);
+
+		fireEvent.contextMenu(screen.getByRole('textbox', { name: 'Terminal input' }));
+		const item = await screen.findByRole('menuitem', {
+			name: /New tab in current directory/u,
+		});
+		expect(item.textContent).toContain('⌥⌘Enter');
+		fireEvent.click(item);
+
+		expect(createCurrentDirectoryTab).toHaveBeenCalledWith('panel-1', 'context-menu');
 		rendered.unmount();
 		actionRuntime.dispose();
 	});

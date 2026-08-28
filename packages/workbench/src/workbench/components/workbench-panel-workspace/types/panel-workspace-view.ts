@@ -40,6 +40,7 @@ export interface PanelWorkspaceMessages {
 	readonly more: string;
 	readonly newChildTerminal: string;
 	readonly newTab: string;
+	readonly newTabCurrentDirectory: string;
 	readonly returnToPrimary: string;
 	readonly resize: string;
 	readonly resizeDescription: string;
@@ -84,11 +85,16 @@ export interface WorkbenchPanelWorkspaceView {
 		adjustment: PanelResizeAdjustment,
 		multiplier?: PanelResizeMultiplier,
 	) => boolean;
+	readonly canCreateTerminalTabInCurrentDirectory: (panelId: string) => boolean;
 	readonly cancelClose: () => void;
 	readonly closeActiveTerminal: (panelId: string, source?: ActionInvocationSource) => void;
 	readonly confirmClose: () => void;
 	readonly createChildTerminal: (panelId: string, source?: ActionInvocationSource) => void;
 	readonly createTerminalTab: (source?: ActionInvocationSource) => void;
+	readonly createTerminalTabInCurrentDirectory: (
+		panelId: string,
+		source?: ActionInvocationSource,
+	) => void;
 	readonly displayedRoot: PanelLayoutNode | null;
 	readonly equalizePanels: (panelId: string, source?: ActionInvocationSource) => void;
 	readonly focusPanel: (panelId: string, source?: ActionInvocationSource) => void;

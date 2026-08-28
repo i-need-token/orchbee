@@ -28,7 +28,7 @@ describe('useKeyboardShortcutSettingsView', () => {
 				}),
 			{ wrapper: I18nWrapper },
 		);
-		expect(allRows.result.current.rows).toHaveLength(52);
+		expect(allRows.result.current.rows).toHaveLength(53);
 		expect(allRows.result.current.rows[0]).toMatchObject({
 			actionName: 'Search actions',
 			chord: 'Ctrl+Shift+P',
@@ -48,6 +48,15 @@ describe('useKeyboardShortcutSettingsView', () => {
 			availability: 'When the active tab has multiple panels',
 			chord: 'Ctrl+Alt+=',
 			scope: 'Active panel',
+		});
+		expect(
+			allRows.result.current.rows.find(
+				(row) => row.actionName === 'New terminal in current directory',
+			),
+		).toMatchObject({
+			availability: 'When a terminal tab is active',
+			chord: 'Ctrl+Alt+Enter',
+			scope: 'Active terminal',
 		});
 		expect(
 			allRows.result.current.rows.filter((row) => row.scope === 'Focused terminal'),

@@ -1,6 +1,7 @@
 export { Workbench } from './Workbench';
 export type { WorkbenchProps } from './Workbench';
 export { WorkbenchProjectWorkspaceRuntime } from './model/WorkbenchProjectWorkspaceRuntime';
+export type { CurrentDirectoryTerminalTarget } from './model/resolve-current-directory-terminal-target';
 export { createWorkbenchPreviewTerminalPresentationComposition } from './model/createWorkbenchPreviewTerminalPresentationComposition';
 export {
 	resolveTerminalMetadataObservation,
@@ -75,6 +76,7 @@ export type {
 	WorkbenchNavigationPort,
 	WorkbenchNavigationTarget,
 	WorkbenchTerminalCreateCallback,
+	WorkbenchTerminalCreateRequest,
 	WorkbenchTerminalFontSizeChange,
 	WorkbenchTerminalFontSizeChangeCallback,
 } from './types/workbench-host-actions';

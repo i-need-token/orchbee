@@ -27,6 +27,7 @@ describe('workbench action contracts', () => {
 			addProjectFolder: 'workbench.project.directory.add',
 			createProject: 'workbench.project.create',
 			createTerminal: 'workbench.terminal.create',
+			createTerminalInCurrentDirectory: 'workbench.terminal.create-current-directory',
 			createWorkspace: 'workbench.workspace.create',
 			closeActiveTerminal: 'workbench.terminal.active.close',
 			decreaseTerminalFontSize: 'workbench.terminal.font-size.decrease',

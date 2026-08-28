@@ -55,6 +55,11 @@ describe('Workbench shortcuts', () => {
 		expect(WORKBENCH_SHORTCUTS.moveActivePanelRight.id).toBe('workbench.panel.active.move-right');
 		expect(WORKBENCH_SHORTCUTS.moveActivePanelUp.id).toBe('workbench.panel.active.move-up');
 		expect(WORKBENCH_SHORTCUTS.newTerminal.id).toBe('workbench.terminal.create');
+		expect(WORKBENCH_SHORTCUTS.newTerminalInCurrentDirectory).toMatchObject({
+			id: 'workbench.terminal.create-current-directory',
+			input: undefined,
+			shortcutId: 'workbench.terminal.create-current-directory',
+		});
 		expect(WORKBENCH_SHORTCUTS.search.id).toBe('workbench.search.open');
 		expect(WORKBENCH_SHORTCUTS.moveActiveTabBackward).toMatchObject({
 			id: 'workbench.tab.active.move-backward',
@@ -115,6 +120,7 @@ describe('Workbench shortcuts', () => {
 		expect(formatWorkbenchShortcut('moveActiveTabForward', 'apple')).toBe('⌃⇧.');
 		expect(formatWorkbenchShortcut('setTabTitle', 'apple')).toBe('⇧⌘I');
 		expect(formatWorkbenchShortcut('newTerminal', 'apple')).toBe('⌘T');
+		expect(formatWorkbenchShortcut('newTerminalInCurrentDirectory', 'apple')).toBe('⌥⌘Enter');
 		expect(formatWorkbenchShortcut('search', 'apple')).toBe('⇧⌘F');
 		expect(formatWorkbenchShortcut('resetTerminalFontSize', 'apple')).toBe('⌘0');
 		expect(formatWorkbenchShortcut('resizeActivePanel', 'apple')).toBe('⌘R');
@@ -145,6 +151,9 @@ describe('Workbench shortcuts', () => {
 		expect(formatWorkbenchShortcut('moveActiveTabForward', 'standard')).toBe('Ctrl+Shift+.');
 		expect(formatWorkbenchShortcut('setTabTitle', 'standard')).toBe('Ctrl+Alt+Shift+T');
 		expect(formatWorkbenchShortcut('newTerminal', 'standard')).toBe('Ctrl+Shift+T');
+		expect(formatWorkbenchShortcut('newTerminalInCurrentDirectory', 'standard')).toBe(
+			'Ctrl+Alt+Enter',
+		);
 		expect(formatWorkbenchShortcut('search', 'standard')).toBe('Ctrl+Shift+K');
 		expect(formatWorkbenchShortcut('resetTerminalFontSize', 'standard')).toBe('Ctrl+0');
 		expect(formatWorkbenchShortcut('selectNextTab', 'standard')).toBe('Ctrl+Page Down');
@@ -163,6 +172,9 @@ describe('Workbench shortcuts', () => {
 		);
 		expect(formatWorkbenchActionShortcut('workbench.tab.active.move-forward', 'apple')).toBe('⌃⇧.');
 		expect(formatWorkbenchActionShortcut('workbench.tab.title.set', 'apple')).toBe('⇧⌘I');
+		expect(
+			formatWorkbenchActionShortcut('workbench.terminal.create-current-directory', 'apple'),
+		).toBe('⌥⌘Enter');
 		expect(formatWorkbenchActionShortcut('workbench.terminal.font-size.increase', 'apple')).toBe(
 			'⌘=',
 		);
@@ -197,6 +209,7 @@ describe('Workbench shortcuts', () => {
 		['moveActiveTabForward', 'Period', 'Period'],
 		['setTabTitle', 'KeyI', 'KeyT'],
 		['newTerminal', 'KeyT', 'KeyT'],
+		['newTerminalInCurrentDirectory', 'Enter', 'Enter'],
 		['search', 'KeyF', 'KeyK'],
 		['resetTerminalFontSize', 'Digit0', 'Digit0'],
 		['selectNextTab', 'BracketRight', 'PageDown'],

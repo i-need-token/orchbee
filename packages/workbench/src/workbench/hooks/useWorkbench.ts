@@ -273,18 +273,32 @@ export function useWorkbench({
 		ReturnType<WorkbenchTerminalCreateCallback>
 	>((context, input) => {
 		if (context.signal.aborted) return { kind: 'cancelled' };
-		const cwdResult = projectWorkspaceRuntime.resolveActiveTerminalCwd(input.directoryId);
-		if (cwdResult.kind === 'rejected') {
+		const cwdResult =
+			input.currentDirectoryTarget === undefined
+				? projectWorkspaceRuntime.resolveActiveTerminalCwd(input.directoryId)
+				: projectWorkspaceRuntime.resolveTerminalCurrentDirectoryTarget(
+						input.currentDirectoryTarget,
+					);
+		if (cwdResult.kind === 'rejected' || cwdResult.kind === 'unavailable') {
 			return { code: cwdResult.reason, kind: 'blocked' };
 		}
 		context.markCommitted();
-		const creation = projectWorkspaceRuntime.createTerminal({
-			...(input.directoryId === undefined ? {} : { directoryId: input.directoryId }),
+		const commonInput = {
 			groupId: input.groupId,
 			...(input.index === undefined ? {} : { index: input.index }),
 			source: context.source,
 			title: intl.formatMessage(workbenchTabMessages.terminalTitle),
-		});
+		};
+		const creation =
+			input.currentDirectoryTarget === undefined
+				? projectWorkspaceRuntime.createTerminal({
+						...commonInput,
+						...(input.directoryId === undefined ? {} : { directoryId: input.directoryId }),
+					})
+				: projectWorkspaceRuntime.createTerminal({
+						...commonInput,
+						currentDirectoryTarget: input.currentDirectoryTarget,
+					});
 		if (creation.kind === 'rejected') {
 			throw new Error('A resolved terminal Directory became invalid during synchronous creation.');
 		}

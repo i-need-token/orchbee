@@ -187,6 +187,7 @@ export const zhCNWorkbenchMessages = {
 	'workbench.tabs.titles.new': '新标签页',
 	'workbench.tabs.titles.terminal': '终端',
 	'workbench.tabs.actions.new': '新建标签页',
+	'workbench.tabs.actions.newCurrentDirectory': '在当前目录新建标签页',
 	'workbench.tabs.actions.newBelow': '在下方新建标签页',
 	'workbench.tabs.actions.newToRight': '在右侧新建标签页',
 	'workbench.tabs.actions.openVertical': '打开垂直标签页',

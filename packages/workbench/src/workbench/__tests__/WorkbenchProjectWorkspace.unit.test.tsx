@@ -230,6 +230,7 @@ describe('Workbench Project and Workspace management', () => {
 		expectActionableMenuItemsToHaveIcons(menu);
 		expect(getActionableMenuPresentation(menu)).toEqual([
 			{ icon: 'tabs', label: 'New tab⌘T' },
+			{ icon: 'tabs', label: 'New tab in current directory⌥⌘Enter' },
 			{ icon: 'terminal', label: 'New child terminal' },
 			{ icon: 'panels', label: 'Resize Panel…⌘R' },
 			{ icon: 'panels', label: 'Equalize Panels⌃⌘=' },

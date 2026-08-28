@@ -928,6 +928,66 @@ describe('WorkbenchProjectWorkspaceRuntime', () => {
 		});
 	});
 
+	it('creates a Tab from the exact displayed terminal CWD without changing ordinary defaults', () => {
+		const runtime = createRuntime();
+		const context = runtime.getActiveTerminalContext();
+		const sourceTab = context.panelWorkspaceStore.getSnapshot().tabs[0];
+		if (sourceTab?.root.kind !== 'panel') throw new Error('Expected the initial terminal Panel.');
+		const sourcePresentationId = sourceTab.root.primaryPresentation.presentationId;
+		runtime.applyTerminalMetadataObservation(sourcePresentationId, {
+			closeActivity: 'idle',
+			currentDirectory: { currentCwd: '/projects/current', kind: 'reported' },
+			naturalTitle: null,
+		});
+		const resolution = runtime.resolveActiveTerminalCurrentDirectoryTarget();
+		if (resolution.kind !== 'ready')
+			throw new Error(`Expected a current CWD: ${resolution.reason}`);
+
+		const creation = runtime.createTerminal({
+			currentDirectoryTarget: resolution.target,
+			groupId: null,
+			source: 'keyboard',
+			title: 'Current directory',
+		});
+		if (creation.kind !== 'created')
+			throw new Error(`Terminal creation failed: ${creation.reason}`);
+		expect(
+			context.panelWorkspaceStore.getSnapshot().tabs.find((tab) => tab.tabId === creation.tabId)
+				?.root,
+		).toMatchObject({
+			kind: 'panel',
+			primaryPresentation: {
+				currentCwd: '/projects/current',
+				launchCwd: '/projects/current',
+			},
+		});
+		expect(
+			runtime.createTerminal({
+				currentDirectoryTarget: resolution.target,
+				groupId: null,
+				source: 'keyboard',
+				title: 'Stale',
+			}),
+		).toEqual({ kind: 'rejected', reason: 'terminal-target-stale' });
+
+		const ordinaryCreation = runtime.createTerminal({
+			groupId: null,
+			source: 'button',
+			title: 'Default directory',
+		});
+		if (ordinaryCreation.kind !== 'created') {
+			throw new Error(`Terminal creation failed: ${ordinaryCreation.reason}`);
+		}
+		expect(
+			context.panelWorkspaceStore
+				.getSnapshot()
+				.tabs.find((tab) => tab.tabId === ordinaryCreation.tabId)?.root,
+		).toMatchObject({
+			kind: 'panel',
+			primaryPresentation: { launchCwd: '/system' },
+		});
+	});
+
 	it('resolves explicit Directory membership and refreshed availability before creating a Tab', () => {
 		const runtime = createRuntime();
 		runtime.transition({

@@ -64,6 +64,8 @@ export function useKeyboardShortcutSettingsView({
 				return intl.formatMessage(keyboardShortcutMessages.closeTerminal);
 			case 'new-terminal':
 				return intl.formatMessage(keyboardShortcutMessages.newTerminal);
+			case 'new-terminal-current-directory':
+				return intl.formatMessage(keyboardShortcutMessages.newTerminalCurrentDirectory);
 			case 'next-tab':
 				return intl.formatMessage(keyboardShortcutMessages.nextTab);
 			case 'move-tab-backward':

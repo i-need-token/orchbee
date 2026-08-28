@@ -14,6 +14,7 @@ interface WorkbenchShortcutDefinition {
 	readonly id:
 		| typeof WORKBENCH_ACTION_IDS.closeActiveTerminal
 		| typeof WORKBENCH_ACTION_IDS.createTerminal
+		| typeof WORKBENCH_ACTION_IDS.createTerminalInCurrentDirectory
 		| typeof WORKBENCH_ACTION_IDS.decreaseTerminalFontSize
 		| typeof WORKBENCH_ACTION_IDS.equalizeActivePanels
 		| typeof WORKBENCH_ACTION_IDS.focusActivePanelDown
@@ -215,6 +216,15 @@ export const WORKBENCH_SHORTCUTS = {
 		input: { groupId: null },
 		shortcutId: 'workbench.terminal.create',
 	},
+	newTerminalInCurrentDirectory: {
+		defaults: {
+			apple: chord('Enter', ['alt', 'mod']),
+			standard: chord('Enter', ['alt', 'mod']),
+		},
+		id: WORKBENCH_ACTION_IDS.createTerminalInCurrentDirectory,
+		input: undefined,
+		shortcutId: WORKBENCH_ACTION_IDS.createTerminalInCurrentDirectory,
+	},
 	search: {
 		defaults: {
 			apple: chord('KeyF', ['mod', 'shift']),
@@ -339,6 +349,7 @@ const WORKBENCH_SHORTCUT_ACTIONS = Object.freeze([
 	'moveActiveTabForward',
 	'setTabTitle',
 	'newTerminal',
+	'newTerminalInCurrentDirectory',
 	'search',
 	'resetTerminalFontSize',
 	'resizeActivePanel',
@@ -403,6 +414,8 @@ export function formatWorkbenchActionShortcut(
 	switch (actionId) {
 		case WORKBENCH_ACTION_IDS.createTerminal:
 			return formatWorkbenchShortcut('newTerminal', platform, bindings);
+		case WORKBENCH_ACTION_IDS.createTerminalInCurrentDirectory:
+			return formatWorkbenchShortcut('newTerminalInCurrentDirectory', platform, bindings);
 		case WORKBENCH_ACTION_IDS.closeActiveTerminal:
 			return formatWorkbenchShortcut('closeActiveTerminal', platform, bindings);
 		case WORKBENCH_ACTION_IDS.equalizeActivePanels:
@@ -516,6 +529,8 @@ function defaultBindingsFor(platform: WorkbenchShortcutPlatform): WorkbenchShort
 			WORKBENCH_SHORTCUTS.setTabTitle.defaults[platform],
 		[WORKBENCH_SHORTCUTS.newTerminal.shortcutId]:
 			WORKBENCH_SHORTCUTS.newTerminal.defaults[platform],
+		[WORKBENCH_SHORTCUTS.newTerminalInCurrentDirectory.shortcutId]:
+			WORKBENCH_SHORTCUTS.newTerminalInCurrentDirectory.defaults[platform],
 		[WORKBENCH_SHORTCUTS.search.shortcutId]: WORKBENCH_SHORTCUTS.search.defaults[platform],
 		[WORKBENCH_SHORTCUTS.resetTerminalFontSize.shortcutId]:
 			WORKBENCH_SHORTCUTS.resetTerminalFontSize.defaults[platform],

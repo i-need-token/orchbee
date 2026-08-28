@@ -334,6 +334,7 @@ export const KEYBOARD_SHORTCUT_SEARCH_LABELS = {
 	'move-tab-forward': keyboardShortcutMessages.moveTabForward,
 	'set-tab-title': keyboardShortcutMessages.setTabTitle,
 	'new-terminal': keyboardShortcutMessages.newTerminal,
+	'new-terminal-current-directory': keyboardShortcutMessages.newTerminalCurrentDirectory,
 	'next-prompt': keyboardShortcutMessages.nextPrompt,
 	'next-tab': keyboardShortcutMessages.nextTab,
 	'show-last-command-output': keyboardShortcutMessages.outputShowLast,

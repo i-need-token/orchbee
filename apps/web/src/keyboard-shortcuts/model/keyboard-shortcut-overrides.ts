@@ -83,6 +83,9 @@ export function createKeyboardShortcutBindings(
 		[WORKBENCH_SHORTCUTS.newTerminal.shortcutId]: bindingFor(
 			WORKBENCH_SHORTCUTS.newTerminal.shortcutId,
 		),
+		[WORKBENCH_SHORTCUTS.newTerminalInCurrentDirectory.shortcutId]: bindingFor(
+			WORKBENCH_SHORTCUTS.newTerminalInCurrentDirectory.shortcutId,
+		),
 		[WORKBENCH_SHORTCUTS.search.shortcutId]: bindingFor(WORKBENCH_SHORTCUTS.search.shortcutId),
 		[WORKBENCH_SHORTCUTS.resetTerminalFontSize.shortcutId]: bindingFor(
 			WORKBENCH_SHORTCUTS.resetTerminalFontSize.shortcutId,

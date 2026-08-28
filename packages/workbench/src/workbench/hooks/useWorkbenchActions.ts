@@ -12,7 +12,7 @@ import {
 	type ActionScope,
 } from '@orchbee/actions';
 import { useMemoizedFn } from '@orchbee/foundation/react';
-import { workbenchMessages } from '@orchbee/i18n';
+import { workbenchMessages, workbenchTabMessages } from '@orchbee/i18n';
 import type { TabStripOrientation } from '@orchbee/tab-strip';
 import * as React from 'react';
 
@@ -102,6 +102,13 @@ export function useWorkbenchActions({
 	);
 
 	React.useEffect(() => {
+		const captureCurrentDirectoryTarget = (context: Pick<ActionInvocation, 'target'>) => {
+			if (context.target !== undefined && context.target.type !== 'panel') return null;
+			const resolution = projectWorkspaceRuntime.resolveActiveTerminalCurrentDirectoryTarget(
+				context.target?.id,
+			);
+			return resolution.kind === 'ready' ? resolution.target : null;
+		};
 		const categoryNavigation = {
 			id: 'navigation',
 			title: workbenchMessages.actionCategoryNavigation,
@@ -200,6 +207,39 @@ export function useWorkbenchActions({
 					id: WORKBENCH_ACTION_IDS.createTerminal,
 					input: workbenchTerminalCreateInput,
 					title: workbenchMessages.newTerminal,
+				}),
+			),
+			typedRuntime.register(
+				scope,
+				defineAction({
+					category: categoryTerminal,
+					execution: {
+						concurrency: 'serialize',
+						concurrencyKey: () => 'current-directory-terminal-creation',
+						mode: 'foreground',
+					},
+					getAvailability: (context) =>
+						onNewTerminal !== undefined && captureCurrentDirectoryTarget(context) !== null
+							? { kind: 'enabled' }
+							: { kind: 'disabled', reason: workbenchMessages.actionUnavailable },
+					handler: {
+						execute: (context) => {
+							if (onNewTerminal === undefined) {
+								return { code: 'host-capability-unavailable', kind: 'blocked' };
+							}
+							const target = captureCurrentDirectoryTarget(context);
+							if (target === null) {
+								return { code: 'terminal-current-directory-unavailable', kind: 'blocked' };
+							}
+							return onNewTerminal(context, {
+								currentDirectoryTarget: target,
+								groupId: null,
+							});
+						},
+					},
+					id: WORKBENCH_ACTION_IDS.createTerminalInCurrentDirectory,
+					input: noActionInput,
+					title: workbenchTabMessages.newTabCurrentDirectory,
 				}),
 			),
 			typedRuntime.register(
@@ -401,6 +441,7 @@ export function useWorkbenchActions({
 				}
 				case 'settings':
 				case 'closeActiveTerminal':
+				case 'newTerminalInCurrentDirectory':
 				case 'decreaseTerminalFontSize':
 				case 'equalizePanels':
 				case 'focusActivePanelDown':
