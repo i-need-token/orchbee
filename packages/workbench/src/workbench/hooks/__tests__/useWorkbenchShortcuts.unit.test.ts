@@ -30,6 +30,11 @@ function WorkbenchShortcutsHarness({
 		'div',
 		{ ref: rootReference },
 		createElement('textarea', { 'aria-label': 'Terminal input' }),
+		createElement(
+			'div',
+			{ 'data-workbench-keyboard-capture': 'true' },
+			createElement('button', { 'aria-label': 'Exclusive keyboard capture' }),
+		),
 	);
 }
 
@@ -75,6 +80,25 @@ describe('useWorkbenchShortcuts', () => {
 		);
 		expect(accepted.defaultPrevented).toBe(true);
 		expect(terminalKeyDown).not.toHaveBeenCalled();
+	});
+
+	it('leaves events inside an exclusive keyboard scope to that scope', () => {
+		const invokeIfEnabled = vi.fn<
+			(binding: WorkbenchShortcutBinding, source: 'keyboard') => boolean
+		>(() => true);
+		render(createElement(WorkbenchShortcutsHarness, { invokeIfEnabled }));
+		const capture = screen.getByRole('button', { name: 'Exclusive keyboard capture' });
+		const event = new KeyboardEvent('keydown', {
+			bubbles: true,
+			cancelable: true,
+			code: 'KeyT',
+			metaKey: true,
+		});
+
+		capture.dispatchEvent(event);
+
+		expect(invokeIfEnabled).not.toHaveBeenCalled();
+		expect(event.defaultPrevented).toBe(false);
 	});
 
 	it('captures an active Workbench shortcut when no focused descendant survives', () => {

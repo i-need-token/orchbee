@@ -132,6 +132,8 @@ export function useKeyboardShortcutSettingsView({
 				return intl.formatMessage(keyboardShortcutMessages.focusPanelRight);
 			case 'focus-panel-up':
 				return intl.formatMessage(keyboardShortcutMessages.focusPanelUp);
+			case 'focus-panel-visible':
+				return intl.formatMessage(keyboardShortcutMessages.focusPanelVisible);
 			case 'copy-selection':
 				return intl.formatMessage(keyboardShortcutMessages.copySelection);
 			case 'decrease-terminal-font-size':
@@ -146,6 +148,8 @@ export function useKeyboardShortcutSettingsView({
 				return intl.formatMessage(keyboardShortcutMessages.resetTerminalFontSize);
 			case 'resize-panel':
 				return intl.formatMessage(keyboardShortcutMessages.resizePanel);
+			case 'swap-panel-visible':
+				return intl.formatMessage(keyboardShortcutMessages.swapPanelVisible);
 			case 'select-tab':
 				return intl.formatMessage(keyboardShortcutMessages.selectTab, {
 					position: declaration.position,

@@ -1,15 +1,21 @@
 // @vitest-environment jsdom
 
-import { ActionRuntime } from '@orchbee/actions';
+import { ActionRuntime, createTypedActionRuntime } from '@orchbee/actions';
 import { OrchbeeI18nProvider } from '@orchbee/i18n';
 import { TabModel } from '@orchbee/tab-strip';
 import { TooltipProvider } from '@orchbee/ui/components';
-import { act, cleanup, render } from '@testing-library/react';
+import { act, cleanup, fireEvent, render } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { terminalPresentationId } from '../../../../terminal-presentation';
 import type { WorkbenchTerminalSurfaceProps } from '../../../types/workbench-terminal-surface';
+import { registerWorkbenchActiveTerminalActions } from '../../../actions/registerWorkbenchActiveTerminalActions';
+import {
+	WORKBENCH_ACTION_IDS,
+	type WorkbenchActionCatalog,
+} from '../../../actions/workbench-action-ids';
+import { WorkbenchProjectWorkspaceRuntime } from '../../../model/WorkbenchProjectWorkspaceRuntime';
 import { PanelWorkspaceStore } from '../model/PanelWorkspaceStore';
 import { collectPanelLeaves, getDisplayedTerminal } from '../model/panel-workspace-state';
 import { WorkbenchPanelWorkspace } from '../WorkbenchPanelWorkspace';
@@ -34,6 +40,59 @@ function TestTerminalSurface(properties: WorkbenchTerminalSurfaceProps): ReactNo
 	);
 }
 
+function renderThreePanelWorkspace() {
+	const actionRuntime = new ActionRuntime();
+	const parentActionScope = actionRuntime.createScope('test.workbench');
+	let sequence = 1;
+	const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
+		standaloneCwd: '/workspace',
+		standaloneTerminalTitle: 'Terminal A',
+		terminalPresentation: {
+			createPresentationId: () => terminalPresentationId(`terminal-visual-${sequence++}`),
+			initialPresentationId: terminalPresentationId('terminal-visual-initial'),
+			kind: 'preview',
+		},
+	});
+	const panelWorkspaceStore =
+		projectWorkspaceRuntime.getActiveTerminalContext().panelWorkspaceStore;
+	const tabId = panelWorkspaceStore.getActiveTabId();
+	if (tabId === null) throw new Error('Expected an active terminal Tab.');
+	for (let index = 0; index < 2; index += 1) {
+		const tab = panelWorkspaceStore
+			.getSnapshot()
+			.tabs.find((candidate) => candidate.tabId === tabId);
+		if (tab === undefined) throw new Error('Expected the active terminal Tab.');
+		panelWorkspaceStore.transition({
+			direction: 'right',
+			newTerminalTitle: 'Terminal',
+			panelId: tab.focusedPanelId,
+			presentation: panelWorkspaceStore.createTerminalPresentation(),
+			tabId,
+			type: 'panel-split',
+		});
+	}
+	registerWorkbenchActiveTerminalActions({
+		projectWorkspaceRuntime,
+		runtime: actionRuntime,
+		scope: parentActionScope,
+		typedRuntime: createTypedActionRuntime<WorkbenchActionCatalog>(actionRuntime),
+	});
+	const rendered = render(
+		<OrchbeeI18nProvider locale='en-US'>
+			<TooltipProvider>
+				<WorkbenchPanelWorkspace
+					actionRuntime={actionRuntime}
+					panelWorkspaceStore={panelWorkspaceStore}
+					parentActionScope={parentActionScope}
+					shortcutLabelForAction={() => undefined}
+					terminalSurface={TestTerminalSurface}
+				/>
+			</TooltipProvider>
+		</OrchbeeI18nProvider>,
+	);
+	return { actionRuntime, panelWorkspaceStore, parentActionScope, rendered };
+}
+
 beforeEach(() => {
 	vi.stubGlobal('ResizeObserver', TestResizeObserver);
 });
@@ -45,6 +104,108 @@ afterEach(() => {
 });
 
 describe('WorkbenchPanelWorkspace', () => {
+	it('owns keyboard selection exclusively and focuses the physically labeled target', async () => {
+		const { actionRuntime, panelWorkspaceStore, parentActionScope, rendered } =
+			renderThreePanelWorkspace();
+		await act(async () => {
+			await actionRuntime.execute(WORKBENCH_ACTION_IDS.focusActivePanelVisible, undefined, {
+				scope: parentActionScope,
+				source: 'keyboard',
+			}).completion;
+		});
+		const workspace = rendered.container.querySelector<HTMLElement>(
+			'[data-slot="workbench-panel-workspace"]',
+		);
+		if (workspace === null) throw new Error('Expected the Panel workspace.');
+		expect(workspace.getAttribute('data-workbench-keyboard-capture')).toBe('true');
+		expect(workspace.getAttribute('aria-label')).toContain('Choose a panel');
+		expect(
+			[...rendered.container.querySelectorAll('[data-panel-visual-selection-target="true"]')].map(
+				(target) => target.getAttribute('data-label'),
+			),
+		).toEqual(['1', '2']);
+
+		const invalid = new KeyboardEvent('keydown', {
+			bubbles: true,
+			cancelable: true,
+			code: 'Slash',
+		});
+		workspace.dispatchEvent(invalid);
+		expect(invalid.defaultPrevented).toBe(true);
+		expect(workspace.getAttribute('data-workbench-keyboard-capture')).toBe('true');
+
+		fireEvent.keyDown(workspace, { code: 'Digit1', ctrlKey: true, shiftKey: true });
+		expect(panelWorkspaceStore.getSnapshot().tabs[0]?.focusedPanelId).toBe('panel-1');
+		expect(workspace.hasAttribute('data-workbench-keyboard-capture')).toBe(false);
+		expect(
+			rendered.container.querySelector('[data-panel-visual-selection-target="true"]'),
+		).toBeNull();
+		expect((document.activeElement as HTMLElement | null)?.dataset['panelId']).toBe('panel-1');
+
+		actionRuntime.dispose();
+	});
+
+	it('swaps with a primary-click target through the exact lower Panel Action', async () => {
+		const { actionRuntime, panelWorkspaceStore, parentActionScope, rendered } =
+			renderThreePanelWorkspace();
+		await act(async () => {
+			await actionRuntime.execute(WORKBENCH_ACTION_IDS.swapActivePanelVisible, undefined, {
+				scope: parentActionScope,
+				source: 'keyboard',
+			}).completion;
+		});
+		const target = rendered.container.querySelector<HTMLElement>(
+			'[data-panel-visual-selection-target="true"][data-panel-id="panel-2"]',
+		);
+		if (target === null) throw new Error('Expected the Panel swap target.');
+
+		fireEvent.pointerDown(target, { button: 0 });
+
+		const tab = panelWorkspaceStore.getSnapshot().tabs[0];
+		expect(tab === undefined ? [] : collectPanelLeaves(tab.root).map((panel) => panel.id)).toEqual([
+			'panel-1',
+			'panel-3',
+			'panel-2',
+		]);
+		expect(tab?.focusedPanelId).toBe('panel-3');
+		expect(
+			rendered.container.querySelector('[data-panel-visual-selection-target="true"]'),
+		).toBeNull();
+
+		actionRuntime.dispose();
+	});
+
+	it('closes without restoring focus when the captured Panel workspace becomes stale', async () => {
+		const { actionRuntime, panelWorkspaceStore, parentActionScope, rendered } =
+			renderThreePanelWorkspace();
+		await act(async () => {
+			await actionRuntime.execute(WORKBENCH_ACTION_IDS.focusActivePanelVisible, undefined, {
+				scope: parentActionScope,
+				source: 'keyboard',
+			}).completion;
+		});
+		expect(
+			rendered.container.querySelector('[data-panel-visual-selection-target="true"]'),
+		).not.toBeNull();
+		const tabId = panelWorkspaceStore.getActiveTabId();
+		if (tabId === null) throw new Error('Expected an active terminal Tab.');
+
+		act(() => {
+			panelWorkspaceStore.transition({
+				panelId: 'panel-1',
+				tabId,
+				type: 'panel-focused',
+			});
+		});
+
+		expect(
+			rendered.container.querySelector('[data-panel-visual-selection-target="true"]'),
+		).toBeNull();
+		expect(panelWorkspaceStore.getSnapshot().tabs[0]?.focusedPanelId).toBe('panel-1');
+
+		actionRuntime.dispose();
+	});
+
 	it('keeps the outgoing frame until display readiness and delays focus until activation', () => {
 		const actionRuntime = new ActionRuntime();
 		const tabModel = new TabModel({

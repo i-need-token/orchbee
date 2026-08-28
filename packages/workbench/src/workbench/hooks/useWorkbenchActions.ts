@@ -455,6 +455,7 @@ export function useWorkbenchActions({
 				case 'focusActivePanelPrevious':
 				case 'focusActivePanelRight':
 				case 'focusActivePanelUp':
+				case 'focusActivePanelVisible':
 				case 'increaseTerminalFontSize':
 				case 'maximizeActivePanel':
 				case 'moveActivePanelDown':
@@ -470,6 +471,7 @@ export function useWorkbenchActions({
 				case 'setTabTitle':
 				case 'splitActivePanelBelow':
 				case 'splitActivePanelRight':
+				case 'swapActivePanelVisible':
 				case 'toggleSidebar': {
 					const definition = WORKBENCH_SHORTCUTS[binding.action];
 					if (

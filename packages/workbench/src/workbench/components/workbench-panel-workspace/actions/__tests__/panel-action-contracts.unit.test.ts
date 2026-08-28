@@ -9,6 +9,7 @@ import {
 	panelSplitInput,
 	panelSwapInput,
 	panelTargetInput,
+	panelVisualSelectionInput,
 } from '../panel-action-contracts';
 
 describe('panel action contracts', () => {
@@ -24,6 +25,7 @@ describe('panel action contracts', () => {
 			showPrimaryTerminal: 'workbench.panel.primary-terminal.show',
 			split: 'workbench.panel.split',
 			startResize: 'workbench.panel.resize.start',
+			startVisualSelection: 'workbench.panel.visual-selection.start',
 			swap: 'workbench.panel.swap',
 			toggleMaximization: 'workbench.panel.maximization.toggle',
 		});
@@ -77,6 +79,10 @@ describe('panel action contracts', () => {
 			data: { panelId: 'panel-1', targetPanelId: 'panel-2' },
 			success: true,
 		});
+		expect(panelVisualSelectionInput.parse({ mode: 'swap', panelId: 'panel-1' })).toEqual({
+			data: { mode: 'swap', panelId: 'panel-1' },
+			success: true,
+		});
 	});
 
 	it('rejects stale shapes and unsupported directions', () => {
@@ -103,5 +109,8 @@ describe('panel action contracts', () => {
 			}),
 		).toMatchObject({ success: false });
 		expect(panelSwapInput.parse({ panelId: 'panel-1' })).toMatchObject({ success: false });
+		expect(panelVisualSelectionInput.parse({ mode: 'move', panelId: 'panel-1' })).toMatchObject({
+			success: false,
+		});
 	});
 });

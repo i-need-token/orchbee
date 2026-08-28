@@ -23,8 +23,10 @@ import {
 	panelSplitInput,
 	panelSwapInput,
 	panelTargetInput,
+	panelVisualSelectionInput,
 	type PanelActionCatalog,
 	type PanelCloseInput,
+	type PanelVisualSelectionInput,
 } from '../actions/panel-action-contracts';
 import {
 	findPanel,
@@ -58,6 +60,10 @@ interface PanelActionOperations {
 		direction: 'above' | 'below' | 'left' | 'right',
 	) => { readonly panelId: string; readonly transition: PanelWorkspaceTransition } | null;
 	readonly startPanelResize: (panelId: string) => boolean;
+	readonly startPanelVisualSelection: (
+		panelId: string,
+		mode: PanelVisualSelectionInput['mode'],
+	) => boolean;
 	readonly swapPanels: (panelId: string, targetPanelId: string) => PanelWorkspaceTransition | null;
 	readonly togglePanelMaximization: (panelId: string) => PanelWorkspaceTransition | null;
 }
@@ -163,6 +169,29 @@ export function useWorkbenchPanelActions({
 					id: PANEL_ACTION_IDS.activateChildTerminal,
 					input: panelChildTerminalInput,
 					title: workbenchMessages.panelActivateChild,
+				}),
+			),
+			typedRuntime.register(
+				scope,
+				defineAction({
+					category,
+					execution,
+					getAvailability: (_context, input) =>
+						activeTab === null || activeTab.maximizedPanelId !== null || panelCount < 3
+							? {
+									kind: 'disabled',
+									reason: workbenchMessages.actionUnavailable,
+								}
+							: targetAvailability(input.panelId),
+					handler: {
+						execute: (_context, input) =>
+							operations.startPanelVisualSelection(input.panelId, input.mode)
+								? { kind: 'completed' }
+								: { code: 'stale-target', kind: 'blocked' },
+					},
+					id: PANEL_ACTION_IDS.startVisualSelection,
+					input: panelVisualSelectionInput,
+					title: workbenchMessages.panelVisualSelectionStart,
 				}),
 			),
 			typedRuntime.register(

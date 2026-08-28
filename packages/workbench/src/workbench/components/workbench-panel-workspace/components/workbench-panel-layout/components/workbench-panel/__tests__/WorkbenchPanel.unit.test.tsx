@@ -1,7 +1,7 @@
 import { ActionRuntime } from '@orchbee/actions';
 import { OrchbeeI18nProvider } from '@orchbee/i18n';
 import { TooltipProvider } from '@orchbee/ui/components';
-import { createElement } from 'react';
+import { createElement, createRef } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
@@ -105,6 +105,7 @@ function renderPanel(
 		admitTerminalBellEffect: () => true,
 		activateChildTerminal: () => undefined,
 		activeTab: tab,
+		cancelPanelVisualSelection: () => undefined,
 		cancelPanelResize: () => undefined,
 		canCreateTerminalTabInCurrentDirectory: () => true,
 		canResizePanel: () => false,
@@ -117,6 +118,8 @@ function renderPanel(
 		displayedRoot: panel,
 		equalizePanels: () => undefined,
 		focusPanel: () => undefined,
+		handlePanelVisualSelectionKeyDown: () => undefined,
+		handlePanelVisualSelectionPointerDown: () => undefined,
 		maximizedPanelId: null,
 		messages: {
 			cancel: 'Cancel',
@@ -148,6 +151,10 @@ function renderPanel(
 			splitBelow: 'Split below',
 			splitLeft: 'Split left',
 			splitRight: 'Split right',
+			visualSelectionFocusLabel: 'Choose a panel to focus.',
+			visualSelectionFocusTarget: (label) => `Focus panel ${label}`,
+			visualSelectionSwapLabel: 'Choose a panel to swap.',
+			visualSelectionSwapTarget: (label) => `Swap with panel ${label}`,
 		},
 		panelCount,
 		panelDrag: {
@@ -156,6 +163,8 @@ function renderPanel(
 			ghost: null,
 			previewRoot: options.dragging === true ? panel : null,
 		},
+		panelVisualSelection: null,
+		panelVisualSelectionLabel: undefined,
 		pendingClose: null,
 		pendingResize: null,
 		requestClose: () => undefined,
@@ -175,6 +184,7 @@ function renderPanel(
 			tabs: [tab],
 		},
 		togglePanelMaximization: () => undefined,
+		workspaceReference: createRef<HTMLDivElement>(),
 	};
 	return renderToStaticMarkup(
 		createElement(

@@ -1,5 +1,5 @@
 import type { ActionRuntime, ActionScope } from '@orchbee/actions';
-import * as React from 'react';
+import type { ReactNode } from 'react';
 
 import type { PanelWorkspaceStore } from './model/PanelWorkspaceStore';
 import type { WorkbenchTerminalSurface } from '../../types/workbench-terminal-surface';
@@ -28,7 +28,7 @@ export function WorkbenchPanelWorkspace({
 	parentActionScope,
 	shortcutLabelForAction,
 	terminalSurface,
-}: WorkbenchPanelWorkspaceProps): React.ReactNode {
+}: WorkbenchPanelWorkspaceProps): ReactNode {
 	const view = useWorkbenchPanelWorkspace({
 		actionRuntime,
 		panelWorkspaceStore,
@@ -48,9 +48,25 @@ export function WorkbenchPanelWorkspace({
 
 	return (
 		<div
+			aria-label={view.panelVisualSelectionLabel}
 			className={styles['root']}
 			data-dragging={view.panelDrag.draggingPanelId !== null || undefined}
+			data-panel-visual-selection-mode={view.panelVisualSelection?.mode}
 			data-slot='workbench-panel-workspace'
+			data-workbench-keyboard-capture={view.panelVisualSelection === null ? undefined : 'true'}
+			onBlurCapture={(event) => {
+				if (
+					view.panelVisualSelection !== null &&
+					(!(event.relatedTarget instanceof Node) ||
+						!event.currentTarget.contains(event.relatedTarget))
+				) {
+					view.cancelPanelVisualSelection(false);
+				}
+			}}
+			onKeyDownCapture={view.handlePanelVisualSelectionKeyDown}
+			onPointerDownCapture={view.handlePanelVisualSelectionPointerDown}
+			ref={view.workspaceReference}
+			tabIndex={-1}
 		>
 			{presentationLayers.map(({ epoch, mode, tab }) => {
 				const layer: TerminalTabPresentationLayer = {

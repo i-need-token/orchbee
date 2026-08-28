@@ -10,9 +10,9 @@ import {
 } from '../keyboard-shortcut-catalog';
 
 describe('keyboard shortcut catalog', () => {
-	it('combines the thirty-nine Workbench and sixteen projected-terminal declarations once', () => {
-		expect(KEYBOARD_SHORTCUT_CATALOG).toHaveLength(55);
-		expect(new Set(KEYBOARD_SHORTCUT_IDS).size).toBe(55);
+	it('combines the forty-one Workbench and sixteen projected-terminal declarations once', () => {
+		expect(KEYBOARD_SHORTCUT_CATALOG).toHaveLength(57);
+		expect(new Set(KEYBOARD_SHORTCUT_IDS).size).toBe(57);
 		expect(keyboardShortcutDeclaration('workbench.search.actions.open')).toMatchObject({
 			actionId: 'workbench.search.open',
 			actionInput: { filter: 'actions' },
@@ -51,6 +51,18 @@ describe('keyboard shortcut catalog', () => {
 			actionId: 'workbench.panel.active.focus-previous',
 			availability: 'multiple-panels',
 			name: 'focus-panel-previous',
+			scope: 'active-panel',
+		});
+		expect(keyboardShortcutDeclaration('workbench.panel.active.focus-visible')).toMatchObject({
+			actionId: 'workbench.panel.active.focus-visible',
+			availability: 'multiple-panels',
+			name: 'focus-panel-visible',
+			scope: 'active-panel',
+		});
+		expect(keyboardShortcutDeclaration('workbench.panel.active.swap-visible')).toMatchObject({
+			actionId: 'workbench.panel.active.swap-visible',
+			availability: 'multiple-panels',
+			name: 'swap-panel-visible',
 			scope: 'active-panel',
 		});
 		expect(keyboardShortcutDeclaration('workbench.panel.active.resize')).toMatchObject({

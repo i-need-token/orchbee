@@ -9,7 +9,12 @@ import type {
 	TabPanelWorkspace,
 } from '../model/panel-workspace-state';
 import type { PanelResizeAdjustment, PanelResizeMultiplier } from '../model/resolvePanelResize';
-import type { PointerEvent as ReactPointerEvent } from 'react';
+import type { PanelVisualSelectionSession } from '../model/panel-visual-selection';
+import type {
+	KeyboardEvent as ReactKeyboardEvent,
+	PointerEvent as ReactPointerEvent,
+	RefObject,
+} from 'react';
 
 export interface PanelDropTarget {
 	readonly direction: PanelSplitDirection;
@@ -57,6 +62,10 @@ export interface PanelWorkspaceMessages {
 	readonly splitBelow: string;
 	readonly splitLeft: string;
 	readonly splitRight: string;
+	readonly visualSelectionFocusLabel: string;
+	readonly visualSelectionFocusTarget: (label: string) => string;
+	readonly visualSelectionSwapLabel: string;
+	readonly visualSelectionSwapTarget: (label: string) => string;
 }
 
 export interface PendingPanelClose {
@@ -79,6 +88,7 @@ export interface WorkbenchPanelWorkspaceView {
 		source?: ActionInvocationSource,
 	) => void;
 	readonly activeTab: TabPanelWorkspace | null;
+	readonly cancelPanelVisualSelection: (restoreSourceFocus: boolean) => void;
 	readonly cancelPanelResize: () => void;
 	readonly canResizePanel: (
 		panelId: string,
@@ -98,6 +108,10 @@ export interface WorkbenchPanelWorkspaceView {
 	readonly displayedRoot: PanelLayoutNode | null;
 	readonly equalizePanels: (panelId: string, source?: ActionInvocationSource) => void;
 	readonly focusPanel: (panelId: string, source?: ActionInvocationSource) => void;
+	readonly handlePanelVisualSelectionKeyDown: (event: ReactKeyboardEvent<HTMLDivElement>) => void;
+	readonly handlePanelVisualSelectionPointerDown: (
+		event: ReactPointerEvent<HTMLDivElement>,
+	) => void;
 	readonly maximizedPanelId: string | null;
 	readonly messages: PanelWorkspaceMessages;
 	readonly panelCount: number;
@@ -107,6 +121,8 @@ export interface WorkbenchPanelWorkspaceView {
 		readonly ghost: PanelDragGhost | null;
 		readonly previewRoot: PanelLayoutNode | null;
 	};
+	readonly panelVisualSelection: PanelVisualSelectionSession | null;
+	readonly panelVisualSelectionLabel: string | undefined;
 	readonly pendingClose: PendingPanelClose | null;
 	readonly pendingResize: PendingPanelResize | null;
 	readonly requestClose: (panelId: string, source?: ActionInvocationSource) => void;
@@ -132,4 +148,5 @@ export interface WorkbenchPanelWorkspaceView {
 	readonly startPanelResize: (panelId: string, source?: ActionInvocationSource) => void;
 	readonly state: PanelWorkspaceState;
 	readonly togglePanelMaximization: (panelId: string, source?: ActionInvocationSource) => void;
+	readonly workspaceReference: RefObject<HTMLDivElement | null>;
 }

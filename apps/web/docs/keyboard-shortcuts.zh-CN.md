@@ -93,6 +93,11 @@ Panel 循环聚焦在两个平台都保留该修订版中“下一个”的 `Ctr
 `Ctrl+Shift+[` 默认键。Workbench 在 Apple 平台仍使用显式 Control，只遍历当前 Tab 的规范深度优先
 Panel 叶节点顺序，并且仅在至少存在两个 Panel 时回绕。
 
+Panel 可视聚焦与交换在两个平台都保留该修订版的 `Ctrl+Shift+F7` 与 `Ctrl+Shift+F8` 默认键。
+双 Panel Tab 会立即选择唯一的另一 Panel。三个或更多 Panel 会进入 Workbench 的精确、排除源的
+字母数字选择器；目标顺序、多字符标签、陈旧会话取消，以及对现有聚焦与交换 Action 的委托均由
+Workbench 拥有。
+
 设置 Tab 标题保留该修订版中 Apple 的 `Shift+Cmd+I` 默认键与标准平台的
 `Ctrl+Shift+Alt+T` 默认键。Workbench 使用同一个语义 Action 处理快捷键分发、Action 搜索和被调用
 Tab 的上下文菜单；下方标题模型定义采纳的编辑器与重置行为。
@@ -161,6 +166,11 @@ Web 发布 Workbench 是否为当前活动产品表面。已挂载的 Workbench 
 | Workbench 已卸载       | 没有 Workbench 监听器或绑定参与                        |
 
 解析出的绑定仍然只在对应 Action 启用时运行。成功执行新建 Tab 后，新 Tab 成为活动 Tab，其第一个 Panel 终端被投影为唯一的 `autoFocus` 目标；注入的终端表面会在就绪时取得真实输入焦点。活动终端与活动 Panel 命令从活动 Tab 记住的聚焦 Panel 解析，而不是从键盘事件目标解析，因此边栏或 document body 的焦点不会把命令重定向。不可用 Action 会保留状态且不调用 `preventDefault()`。
+
+Panel 可视选择器活动期间，其工作区根节点拥有 DOM 焦点，并发布独占键盘捕获标记。document 级
+Workbench 快捷键监听器会跳过该标记内的事件，随后工作区会消费每个物理标签、Backspace、Escape、
+输入法组合、重复、仍按修饰键与无效按键事件。这样既防止递归快捷键分发与终端输入，也让工作区外的
+指针取消继续到达预期目标。
 
 `Mod+1` 到 `Mod+9` 会用相应的一基位置调用 `workbench.tab.select-by-position`。位置取自活动终端上下文的规范 `TabModel.tabs` 顺序：固定 Tab 前缀在最前，之后是当前的分组与未分组顺序。折叠组中的 Tab 仍会占据位置；委托的 `tabs.tab.select` Action 会通过普通选择转换展开所选 Tab 所在的组。缺少对应位置时 Action 不可用，按键事件保持不变。`Mod+9` 表示第九个 Tab，绝不表示最后一个 Tab。
 
@@ -279,11 +289,11 @@ Workbench 负责格式化自身绑定。投影终端负责其绑定默认值与�
 
 ## 持久化与恢复
 
-新写入使用 `orchbee:web:keyboard-shortcuts:v18` 严格记录：
+新写入使用 `orchbee:web:keyboard-shortcuts:v19` 严格记录：
 
 ```json
 {
-	"version": 18,
+	"version": 19,
 	"overrides": [
 		{
 			"shortcutId": "workbench.search.all.open",
@@ -293,9 +303,9 @@ Workbench 负责格式化自身绑定。投影终端负责其绑定默认值与�
 }
 ```
 
-只存储自定义值，并按快捷键 ID 排序。未知字段或 ID、重复项、未排序条目、非规范修饰符、不支持的代码、已存储默认值、过多条目以及有效冲突都会使完整 v18 记录无效，并恢复平台默认值。写入失败时，不可变的会话绑定仍保持活动，同时报告尚未保存，并在下一次合法修改时重试。恢复单项会移除其覆盖。
+只存储自定义值，并按快捷键 ID 排序。未知字段或 ID、重复项、未排序条目、非规范修饰符、不支持的代码、已存储默认值、过多条目以及有效冲突都会使完整 v19 记录无效，并恢复平台默认值。写入失败时，不可变的会话绑定仍保持活动，同时报告尚未保存，并在下一次合法修改时重试。恢复单项会移除其覆盖。
 
-当 v18 不存在时，Web 会先按准确的旧目录与旧默认值读取 `orchbee:web:keyboard-shortcuts:v17`；如果 v17 也不存在，则依次尝试 v16、v15、v14、v13、v12、v11、v10、v9、v8、v7、v6、v5、v4、v3、v2 和 v1。每次迁移都会把显式覆盖带入扩展后的目录，移除与当前默认值等价的覆盖，拒绝迁移后产生的冲突，并写入规范 v18 记录。v1 到 v17 的值原样保留，作为回滚快照。无效当前记录绝不回退到更旧记录，无效迁移源也绝不继续读取下一个更旧版本，因为任一回退都会掩盖数据损坏。回滚时会恢复旧版本能够理解的最新记录；只在 v18 中做出的编辑有意不对旧版本可用。
+当 v19 不存在时，Web 会先按准确的旧目录与旧默认值读取 `orchbee:web:keyboard-shortcuts:v18`；如果 v18 也不存在，则依次尝试 v17、v16、v15、v14、v13、v12、v11、v10、v9、v8、v7、v6、v5、v4、v3、v2 和 v1。每次迁移都会把显式覆盖带入扩展后的目录，移除与当前默认值等价的覆盖，拒绝迁移后产生的冲突，并写入规范 v19 记录。v1 到 v18 的值原样保留，作为回滚快照。无效当前记录绝不回退到更旧记录，无效迁移源也绝不继续读取下一个更旧版本，因为任一回退都会掩盖数据损坏。回滚时会恢复旧版本能够理解的最新记录；只在 v19 中做出的编辑有意不对旧版本可用。
 
 Browser Preview、Gateway Browser 和 Electron 各自针对自己的源本地存储创建并销毁一个控制器。Gateway 与 Electron 通过 `ProjectedTerminalSurfaceCapability` 传递控制器的窄绑定来源。事件处理器在分发时读取当前表，因此修改不会重新挂载 Workbench、替换附件，也不会重新打开 Host 或 Gateway 连接。
 

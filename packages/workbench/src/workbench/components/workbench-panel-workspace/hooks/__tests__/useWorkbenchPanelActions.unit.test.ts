@@ -61,6 +61,7 @@ interface HarnessProps {
 	readonly parentScope: ActionScope;
 	readonly runtime: ActionRuntime;
 	readonly swapPanels?: (panelId: string, targetPanelId: string) => PanelWorkspaceTransition;
+	readonly startPanelVisualSelection?: (panelId: string, mode: 'focus' | 'swap') => boolean;
 }
 
 function Harness({
@@ -72,6 +73,7 @@ function Harness({
 	panelCount = 1,
 	parentScope,
 	runtime,
+	startPanelVisualSelection = () => true,
 	swapPanels = () => appliedTransition,
 }: HarnessProps): ReactNode {
 	const actions = useWorkbenchPanelActions({
@@ -87,6 +89,7 @@ function Harness({
 			showPrimaryTerminal: () => appliedTransition,
 			splitPanel: () => ({ panelId: 'panel-2', transition: appliedTransition }),
 			startPanelResize: () => true,
+			startPanelVisualSelection,
 			swapPanels,
 			togglePanelMaximization: () => appliedTransition,
 		},
@@ -138,6 +141,7 @@ describe('useWorkbenchPanelActions', () => {
 						showPrimaryTerminal: () => appliedTransition,
 						splitPanel: () => ({ panelId: 'panel-2', transition: appliedTransition }),
 						startPanelResize: () => true,
+						startPanelVisualSelection: () => true,
 						swapPanels: () => appliedTransition,
 						togglePanelMaximization: () => appliedTransition,
 					},
@@ -265,6 +269,37 @@ describe('useWorkbenchPanelActions', () => {
 
 		await expect(execution.completion).resolves.toEqual({ kind: 'completed' });
 		expect(swapPanels).toHaveBeenCalledWith('panel-1', 'panel-2');
+	});
+
+	it('starts visual selection for an exact source when at least three Panels are visible', async () => {
+		const runtime = new ActionRuntime();
+		const parentScope = runtime.createScope('workbench');
+		const startPanelVisualSelection = vi.fn<(panelId: string, mode: 'focus' | 'swap') => boolean>(
+			() => true,
+		);
+		let scope: ActionScope | undefined;
+		render(
+			createElement(Harness, {
+				captureScope: (candidate) => {
+					scope = candidate;
+				},
+				createChildTerminal: () => appliedTransition,
+				panelCount: 3,
+				parentScope,
+				runtime,
+				startPanelVisualSelection,
+			}),
+		);
+		if (scope === undefined) throw new Error('Expected the panel action scope to be captured');
+
+		await expect(
+			runtime.execute(
+				PANEL_ACTION_IDS.startVisualSelection,
+				{ mode: 'focus', panelId: 'panel-1' },
+				{ scope, source: 'keyboard' },
+			).completion,
+		).resolves.toEqual({ kind: 'completed' });
+		expect(startPanelVisualSelection).toHaveBeenCalledWith('panel-1', 'focus');
 	});
 
 	it('equalizes one exact live Tab target and preserves an idempotent unchanged result', async () => {
@@ -409,6 +444,10 @@ describe('useWorkbenchPanelActions', () => {
 								panelId: 'panel-1',
 							},
 							[PANEL_ACTION_IDS.startResize]: { panelId: 'panel-1' },
+							[PANEL_ACTION_IDS.startVisualSelection]: {
+								mode: 'focus',
+								panelId: 'panel-1',
+							},
 							[PANEL_ACTION_IDS.swap]: {
 								panelId: 'panel-1',
 								targetPanelId: 'panel-2',

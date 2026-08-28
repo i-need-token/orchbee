@@ -157,6 +157,7 @@ export const zhCNWorkbenchMessages = {
 	'workbench.panels.actions.focusPrevious': '聚焦上一个面板',
 	'workbench.panels.actions.focusRight': '聚焦右侧面板',
 	'workbench.panels.actions.focusUp': '聚焦上方面板',
+	'workbench.panels.actions.focusVisible': '可视聚焦面板',
 	'workbench.panels.actions.move': '移动面板',
 	'workbench.panels.actions.moveDown': '向下移动面板',
 	'workbench.panels.actions.moveLeft': '向左移动面板',
@@ -171,7 +172,15 @@ export const zhCNWorkbenchMessages = {
 	'workbench.panels.actions.splitBelow': '向下分割',
 	'workbench.panels.actions.splitLeft': '向左分割',
 	'workbench.panels.actions.splitRight': '向右分割',
+	'workbench.panels.actions.swapVisible': '可视交换面板',
 	'workbench.panels.actions.toggleMaximization': '切换面板最大化',
+	'workbench.panels.visualSelection.focusLabel':
+		'选择要聚焦的面板。输入面板标签，或按 Escape 取消。',
+	'workbench.panels.visualSelection.focusTarget': '聚焦面板 {label}',
+	'workbench.panels.visualSelection.start': '可视选择面板',
+	'workbench.panels.visualSelection.swapLabel':
+		'选择要交换的面板。输入面板标签，或按 Escape 取消。',
+	'workbench.panels.visualSelection.swapTarget': '与面板 {label} 交换',
 	'workbench.panels.resize.description': '使用 W、N、T 或 S 调整大小。按住 Control 可增大步幅。',
 	'workbench.panels.resize.done': '完成',
 	'workbench.panels.resize.narrower': '变窄',

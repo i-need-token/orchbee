@@ -7,6 +7,10 @@
 	background: var(--ob-sys-color-surface-canvas);
 }
 
+.root:focus {
+	outline: none;
+}
+
 .presentationLayer {
 	position: absolute;
 	inset: 0;

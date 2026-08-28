@@ -3000,6 +3000,173 @@ test('terminal-parity/FS-15-current-directory-tab', async () => {
 	await expect(settingsSurface).not.toBeVisible();
 });
 
+test('terminal-parity/FS-16-visible-panel-selection', async () => {
+	test.setTimeout(60_000);
+	const application = electronApplication;
+	if (application === undefined) throw new Error('Electron application did not start.');
+	const page = await application.firstWindow();
+	const splitRightShortcut = process.platform === 'darwin' ? 'Meta+KeyD' : 'Control+Shift+KeyD';
+	const activeLayer = page.locator('[data-presentation-mode="active"]');
+	const workspace = page.locator('[data-slot="workbench-panel-workspace"]');
+	const panels = activeLayer.locator('[data-slot="workbench-panel"]');
+	const focusedPanel = activeLayer.locator('[data-slot="workbench-panel"][data-focused="true"]');
+	const focusedPanelId = async (): Promise<string> => {
+		const panelId = await focusedPanel.getAttribute('data-panel-id');
+		if (panelId === null) throw new Error('The focused Panel has no stable identity.');
+		return panelId;
+	};
+	const panelFor = (panelId: string): Locator =>
+		activeLayer.locator(`[data-slot="workbench-panel"][data-panel-id="${panelId}"]`);
+	const panelOrder = async (): Promise<readonly string[]> =>
+		await panels.evaluateAll((elements) =>
+			elements.map((element) => element.getAttribute('data-panel-id') ?? ''),
+		);
+	const selectionTargets = workspace.locator('[data-panel-visual-selection-target="true"]');
+
+	const firstInput = projectedTerminal(page).getByRole('textbox');
+	await firstInput.focus();
+	const firstPanelId = await focusedPanelId();
+	await page.keyboard.press(splitRightShortcut);
+	await expect(panels).toHaveCount(2);
+	const secondPanelId = await focusedPanelId();
+	expect(secondPanelId).not.toBe(firstPanelId);
+
+	await page.keyboard.press('Control+Shift+F7');
+	await expect(selectionTargets).toHaveCount(0);
+	await expect(focusedPanel).toHaveAttribute('data-panel-id', firstPanelId);
+	await expect(panelFor(firstPanelId).getByRole('textbox')).toBeFocused();
+
+	await page.keyboard.press('Control+Shift+F8');
+	await expect(selectionTargets).toHaveCount(0);
+	await expect.poll(panelOrder).toEqual([secondPanelId, firstPanelId]);
+	await expect(focusedPanel).toHaveAttribute('data-panel-id', firstPanelId);
+	await expect(panelFor(firstPanelId).getByRole('textbox')).toBeFocused();
+
+	await page.keyboard.press(splitRightShortcut);
+	await expect(panels).toHaveCount(3);
+	const thirdPanelId = await focusedPanelId();
+	expect(new Set([firstPanelId, secondPanelId, thirdPanelId]).size).toBe(3);
+	await expect.poll(panelOrder).toEqual([secondPanelId, firstPanelId, thirdPanelId]);
+
+	const presentationByPanel = new Map<string, string>();
+	const identityByPresentation = new Map<
+		string,
+		Awaited<ReturnType<typeof terminalDocumentIdentity>>
+	>();
+	for (const panelId of [firstPanelId, secondPanelId, thirdPanelId]) {
+		const presentationId = await panelFor(panelId)
+			.locator('[data-slot="workbench-terminal-viewport"]')
+			.getAttribute('data-terminal-presentation-id');
+		if (presentationId === null) throw new Error('A Panel has no terminal presentation identity.');
+		presentationByPanel.set(panelId, presentationId);
+		const terminalRoot = projectedTerminalFor(page, presentationId);
+		await expect(terminalRoot).toHaveAttribute('data-projected-terminal-state', 'open');
+		identityByPresentation.set(presentationId, await terminalDocumentIdentity(terminalRoot));
+	}
+
+	await page.keyboard.press('Control+Shift+F7');
+	await expect(workspace).toHaveAttribute('data-panel-visual-selection-mode', 'focus');
+	await expect(workspace).toHaveAttribute('data-workbench-keyboard-capture', 'true');
+	await expect(workspace).toBeFocused();
+	await expect(selectionTargets).toHaveCount(2);
+	expect(
+		await selectionTargets.evaluateAll((elements) =>
+			elements.map((element) => ({
+				label: element.getAttribute('data-label'),
+				panelId: element.getAttribute('data-panel-id'),
+			})),
+		),
+	).toEqual([
+		{ label: '1', panelId: secondPanelId },
+		{ label: '2', panelId: firstPanelId },
+	]);
+	await page.keyboard.press('Slash');
+	await expect(workspace).toHaveAttribute('data-panel-visual-selection-mode', 'focus');
+	await expect(workspace).toBeFocused();
+
+	await page.keyboard.press('Control+Shift+Digit1');
+	await expect(selectionTargets).toHaveCount(0);
+	await expect(focusedPanel).toHaveAttribute('data-panel-id', secondPanelId);
+	await expect(panelFor(secondPanelId).getByRole('textbox')).toBeFocused();
+
+	await page.keyboard.press('Control+Shift+F8');
+	await expect(workspace).toHaveAttribute('data-panel-visual-selection-mode', 'swap');
+	await expect(selectionTargets).toHaveCount(2);
+	expect(
+		await selectionTargets.evaluateAll((elements) =>
+			elements.map((element) => ({
+				label: element.getAttribute('data-label'),
+				panelId: element.getAttribute('data-panel-id'),
+			})),
+		),
+	).toEqual([
+		{ label: '1', panelId: firstPanelId },
+		{ label: '2', panelId: thirdPanelId },
+	]);
+	const pointerTarget = workspace.locator(
+		`[data-panel-visual-selection-target="true"][data-panel-id="${thirdPanelId}"]`,
+	);
+	const pointerTargetBox = await pointerTarget.boundingBox();
+	if (pointerTargetBox === null) throw new Error('The visual Panel target has no pointer box.');
+	await page.mouse.click(
+		pointerTargetBox.x + pointerTargetBox.width / 2,
+		pointerTargetBox.y + pointerTargetBox.height / 2,
+	);
+	await expect(selectionTargets).toHaveCount(0);
+	await expect.poll(panelOrder).toEqual([thirdPanelId, firstPanelId, secondPanelId]);
+	await expect(focusedPanel).toHaveAttribute('data-panel-id', secondPanelId);
+	await expect(panelFor(secondPanelId).getByRole('textbox')).toBeFocused();
+
+	for (const [panelId, presentationId] of presentationByPanel) {
+		await expect(
+			panelFor(panelId).locator('[data-slot="workbench-terminal-viewport"]'),
+		).toHaveAttribute('data-terminal-presentation-id', presentationId);
+		const terminalRoot = projectedTerminalFor(page, presentationId);
+		await expect(terminalRoot).toHaveAttribute('data-projected-terminal-state', 'open');
+		const originalIdentity = identityByPresentation.get(presentationId);
+		if (originalIdentity === undefined) throw new Error('Missing terminal identity witness.');
+		expect(await terminalDocumentIdentity(terminalRoot)).toMatchObject({
+			creationId: originalIdentity.creationId,
+			terminalId: originalIdentity.terminalId,
+		});
+	}
+
+	const primaryModifier = process.platform === 'darwin' ? 'Meta' : 'Control';
+	await page.keyboard.press(`${primaryModifier}+Shift+KeyP`);
+	const searchSurface = page.locator('[data-slot="workbench-search-surface"]');
+	await expect(searchSurface).toBeVisible();
+	const searchInput = searchSurface.getByRole('combobox');
+	const chinese = (await searchInput.getAttribute('placeholder')) === '搜索操作…';
+	await searchInput.fill(chinese ? '可视聚焦面板' : 'Visually Focus Panel');
+	await expect(
+		searchSurface.getByRole('option', { name: /(?:Visually Focus Panel|可视聚焦面板)/u }),
+	).toBeVisible();
+	await searchInput.fill(chinese ? '可视交换面板' : 'Visually Swap Panel');
+	await expect(
+		searchSurface.getByRole('option', { name: /(?:Visually Swap Panel|可视交换面板)/u }),
+	).toBeVisible();
+	await page.keyboard.press('Escape');
+	await expect(searchSurface).not.toBeAttached();
+
+	const settingsSurface = await openDesktopSettingsCategory(page, 'keyboard-shortcuts');
+	const focusShortcutRow = settingsSurface.locator(
+		'[data-shortcut-id="workbench.panel.active.focus-visible"]',
+	);
+	const swapShortcutRow = settingsSurface.locator(
+		'[data-shortcut-id="workbench.panel.active.swap-visible"]',
+	);
+	await expect(focusShortcutRow).toContainText(/(?:Visually focus panel|可视聚焦面板)/u);
+	await expect(focusShortcutRow).toContainText(
+		process.platform === 'darwin' ? '⌃⇧F7' : 'Ctrl+Shift+F7',
+	);
+	await expect(swapShortcutRow).toContainText(/(?:Visually swap panel|可视交换面板)/u);
+	await expect(swapShortcutRow).toContainText(
+		process.platform === 'darwin' ? '⌃⇧F8' : 'Ctrl+Shift+F8',
+	);
+	await page.keyboard.press('Escape');
+	await expect(settingsSurface).not.toBeVisible();
+});
+
 test('keeps terminal presentation continuous through rapid Tab switching and active Tab closure', async () => {
 	test.setTimeout(60_000);
 	const application = electronApplication;

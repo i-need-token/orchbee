@@ -6,6 +6,7 @@ import {
 	type PanelSplitInput,
 	type PanelSwapInput,
 	type PanelTargetInput,
+	type PanelVisualSelectionInput,
 } from '../components/workbench-panel-workspace/actions/panel-action-contracts';
 import {
 	collectPanelLeaves,
@@ -20,6 +21,11 @@ import {
 	resolveCyclicPanelFocus,
 	type PanelFocusCycleDirection,
 } from '../components/workbench-panel-workspace/model/resolveCyclicPanelFocus';
+import {
+	startPanelVisualSelection,
+	type PanelVisualSelectionMode,
+	type PanelVisualSelectionStartResult,
+} from '../components/workbench-panel-workspace/model/panel-visual-selection';
 
 export type ActiveTerminalCommand =
 	| 'close'
@@ -30,6 +36,7 @@ export type ActiveTerminalCommand =
 	| 'focus-previous'
 	| 'focus-right'
 	| 'focus-up'
+	| 'focus-visible'
 	| 'move-down'
 	| 'move-left'
 	| 'move-right'
@@ -37,6 +44,7 @@ export type ActiveTerminalCommand =
 	| 'start-resize'
 	| 'split-below'
 	| 'split-right'
+	| 'swap-visible'
 	| 'toggle-maximization';
 
 const PANEL_FOCUS_DIRECTION_BY_COMMAND = {
@@ -61,6 +69,18 @@ const PANEL_FOCUS_CYCLE_DIRECTION_BY_COMMAND = {
 	'focus-next': 'next',
 	'focus-previous': 'previous',
 } as const satisfies Readonly<Record<'focus-next' | 'focus-previous', PanelFocusCycleDirection>>;
+
+const PANEL_VISUAL_SELECTION_UNAVAILABLE_REASON_BY_REASON = {
+	'invalid-panel-order': 'panel-unavailable',
+	'panel-maximized': 'panel-maximized',
+	'requires-multiple-panels': 'requires-multiple-panels',
+	'source-panel-unavailable': 'panel-unavailable',
+} as const satisfies Readonly<
+	Record<
+		Extract<PanelVisualSelectionStartResult, { kind: 'unavailable' }>['reason'],
+		'panel-maximized' | 'panel-unavailable' | 'requires-multiple-panels'
+	>
+>;
 
 interface ResolveActiveTerminalCommandOptions {
 	readonly activeTabId: string | null;
@@ -97,6 +117,12 @@ export type ActiveTerminalCommandResolution =
 	| {
 			readonly actionId: typeof PANEL_ACTION_IDS.startResize;
 			readonly input: PanelTargetInput;
+			readonly kind: 'ready';
+			readonly panelId: string;
+	  }
+	| {
+			readonly actionId: typeof PANEL_ACTION_IDS.startVisualSelection;
+			readonly input: PanelVisualSelectionInput;
 			readonly kind: 'ready';
 			readonly panelId: string;
 	  }
@@ -252,6 +278,47 @@ export function resolveActiveTerminalCommand({
 						kind: 'ready',
 						panelId: targetId,
 					};
+		}
+		case 'focus-visible':
+		case 'swap-visible': {
+			const mode: PanelVisualSelectionMode = command === 'focus-visible' ? 'focus' : 'swap';
+			const selection = startPanelVisualSelection({
+				maximizedPanelId: activeTab.maximizedPanelId,
+				mode,
+				root: activeTab.root,
+				sourcePanelId: panelId,
+				tabId: activeTabId,
+			});
+			if (selection.kind === 'unavailable') {
+				return {
+					kind: 'unavailable',
+					reason: PANEL_VISUAL_SELECTION_UNAVAILABLE_REASON_BY_REASON[selection.reason],
+				};
+			}
+			if (selection.kind === 'direct') {
+				return selection.command.kind === 'focus'
+					? {
+							actionId: PANEL_ACTION_IDS.focus,
+							input: { panelId: selection.command.targetPanelId },
+							kind: 'ready',
+							panelId: selection.command.targetPanelId,
+						}
+					: {
+							actionId: PANEL_ACTION_IDS.swap,
+							input: {
+								panelId: selection.command.sourcePanelId,
+								targetPanelId: selection.command.targetPanelId,
+							},
+							kind: 'ready',
+							panelId: selection.command.sourcePanelId,
+						};
+			}
+			return {
+				actionId: PANEL_ACTION_IDS.startVisualSelection,
+				input: { mode, panelId },
+				kind: 'ready',
+				panelId,
+			};
 		}
 		case 'move-down':
 		case 'move-left':

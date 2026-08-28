@@ -14,9 +14,11 @@ import {
 	panelCloseInput,
 	panelSwapInput,
 	panelTargetInput,
+	panelVisualSelectionInput,
 	type PanelCloseInput,
 	type PanelSwapInput,
 	type PanelTargetInput,
+	type PanelVisualSelectionInput,
 } from '../../components/workbench-panel-workspace/actions/panel-action-contracts';
 import { createWorkbenchPreviewTerminalPresentationComposition } from '../../model/createWorkbenchPreviewTerminalPresentationComposition';
 import { WorkbenchProjectWorkspaceRuntime } from '../../model/WorkbenchProjectWorkspaceRuntime';
@@ -317,6 +319,74 @@ describe('registerWorkbenchActiveTerminalActions', () => {
 		).toMatchObject({ availability: { kind: 'disabled' } });
 	});
 
+	it('directly focuses or swaps the sole other visible Panel through lower Actions', async () => {
+		const harness = createHarness();
+		const store = harness.projectWorkspaceRuntime.getActiveTerminalContext().panelWorkspaceStore;
+		const tabId = store.getActiveTabId();
+		if (tabId === null) throw new Error('Expected an active Tab.');
+		store.transition({
+			direction: 'right',
+			newTerminalTitle: 'Terminal 2',
+			panelId: 'panel-1',
+			presentation: store.createTerminalPresentation(),
+			tabId,
+			type: 'panel-split',
+		});
+		const focus = vi.fn<(input: PanelTargetInput) => void>();
+		const swap = vi.fn<(input: PanelSwapInput) => void>();
+		registerPanelFocus(harness, (context, input) => {
+			focus(input);
+			context.markCommitted();
+			return { kind: 'completed' };
+		});
+		registerPanelSwap(harness, (context, input) => {
+			swap(input);
+			context.markCommitted();
+			return { kind: 'completed' };
+		});
+
+		await expect(harness.execute(WORKBENCH_ACTION_IDS.focusActivePanelVisible)).resolves.toEqual({
+			kind: 'completed',
+		});
+		await expect(harness.execute(WORKBENCH_ACTION_IDS.swapActivePanelVisible)).resolves.toEqual({
+			kind: 'completed',
+		});
+		expect(focus).toHaveBeenCalledExactlyOnceWith({ panelId: 'panel-1' });
+		expect(swap).toHaveBeenCalledExactlyOnceWith({ panelId: 'panel-2', targetPanelId: 'panel-1' });
+	});
+
+	it('starts lower visual selection with the exact active Panel when three are visible', async () => {
+		const harness = createHarness();
+		const store = harness.projectWorkspaceRuntime.getActiveTerminalContext().panelWorkspaceStore;
+		const tabId = store.getActiveTabId();
+		if (tabId === null) throw new Error('Expected an active Tab.');
+		for (const panelId of ['panel-1', 'panel-2']) {
+			store.transition({
+				direction: 'right',
+				newTerminalTitle: 'Terminal',
+				panelId,
+				presentation: store.createTerminalPresentation(),
+				tabId,
+				type: 'panel-split',
+			});
+		}
+		const start = vi.fn<(input: PanelVisualSelectionInput) => void>();
+		registerPanelVisualSelection(harness, (context, input) => {
+			start(input);
+			context.markCommitted();
+			return { kind: 'completed' };
+		});
+
+		await expect(harness.execute(WORKBENCH_ACTION_IDS.focusActivePanelVisible)).resolves.toEqual({
+			kind: 'completed',
+		});
+		await expect(harness.execute(WORKBENCH_ACTION_IDS.swapActivePanelVisible)).resolves.toEqual({
+			kind: 'completed',
+		});
+		expect(start).toHaveBeenNthCalledWith(1, { mode: 'focus', panelId: 'panel-3' });
+		expect(start).toHaveBeenNthCalledWith(2, { mode: 'swap', panelId: 'panel-3' });
+	});
+
 	it('executes the prepared Panel swap Action for a directional neighbor', async () => {
 		const harness = createHarness();
 		const store = harness.projectWorkspaceRuntime.getActiveTerminalContext().panelWorkspaceStore;
@@ -454,6 +524,58 @@ function registerPanelFocus(
 	) => ActionResult | Promise<ActionResult>,
 ): void {
 	registerPanelTargetAction(harness, PANEL_ACTION_IDS.focus, execute);
+}
+
+function registerPanelSwap(
+	harness: Harness,
+	execute: (
+		context: ActionExecutionContext,
+		input: PanelSwapInput,
+	) => ActionResult | Promise<ActionResult>,
+): void {
+	const panelScope = harness.runtime.createScope('panel-workspace', harness.scope);
+	harness.runtime.register(
+		panelScope,
+		defineAction({
+			category: { id: 'panels', title: { defaultMessage: 'Panels' } },
+			execution: {
+				concurrency: 'parallel',
+				concurrencyKey: (input) => input.panelId,
+				mode: 'foreground',
+			},
+			getAvailability: () => ({ kind: 'enabled' }),
+			handler: { execute },
+			id: PANEL_ACTION_IDS.swap,
+			input: panelSwapInput,
+			title: { defaultMessage: 'Swap panel' },
+		}),
+	);
+}
+
+function registerPanelVisualSelection(
+	harness: Harness,
+	execute: (
+		context: ActionExecutionContext,
+		input: PanelVisualSelectionInput,
+	) => ActionResult | Promise<ActionResult>,
+): void {
+	const panelScope = harness.runtime.createScope('panel-workspace', harness.scope);
+	harness.runtime.register(
+		panelScope,
+		defineAction({
+			category: { id: 'panels', title: { defaultMessage: 'Panels' } },
+			execution: {
+				concurrency: 'parallel',
+				concurrencyKey: (input) => input.panelId,
+				mode: 'foreground',
+			},
+			getAvailability: () => ({ kind: 'enabled' }),
+			handler: { execute },
+			id: PANEL_ACTION_IDS.startVisualSelection,
+			input: panelVisualSelectionInput,
+			title: { defaultMessage: 'Select panel visually' },
+		}),
+	);
 }
 
 function registerPanelTargetAction(

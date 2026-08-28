@@ -479,6 +479,11 @@ Focused traces cover:
   OSC 7 current-directory delivery, terminal context-menu and Action-search discovery, configurable
   shortcut dispatch, exact `pwd` inheritance in the new Tab, and unchanged source terminal identity,
   session, focus restoration, and Settings projection;
+- exact headed `terminal-parity/FS-16-visible-panel-selection` Browser-composition witness for
+  two-Panel direct focus and swap, three-Panel source-excluding labels, invalid-key containment,
+  modifier-held physical selection, primary-pointer swap, Action-search and Settings discovery,
+  source/target focus restoration, canonical leaf exchange, and unchanged Panel, terminal
+  presentation, creation, and Host terminal identities;
 - exact headed `terminal-parity/LC-05-lan-capability` Browser-composition evidence for per-operation secure-context, transient-user-activation, and API checks; synchronous Copy availability; one admitted writer call; rejection without retry; localized failure; and no privileged insecure-LAN path;
 - exact `terminal-parity/HS-07-selection-export` real-PTY/Electron evidence that styled terminal
   selection reaches the platform clipboard as the exact visible plain text, paired with protocol,

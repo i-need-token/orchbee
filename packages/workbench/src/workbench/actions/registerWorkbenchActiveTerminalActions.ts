@@ -78,6 +78,22 @@ export function registerWorkbenchActiveTerminalActions({
 				category: panelCategory,
 				execution: {
 					concurrency: 'parallel',
+					concurrencyKey: () => 'active-panel-focus-visible',
+					mode: 'foreground',
+				},
+				getAvailability: availabilityFor('focus-visible'),
+				handler: { execute: execute('focus-visible') },
+				id: WORKBENCH_ACTION_IDS.focusActivePanelVisible,
+				input: noActionInput,
+				title: workbenchMessages.panelFocusVisible,
+			}),
+		),
+		typedRuntime.register(
+			scope,
+			defineAction({
+				category: panelCategory,
+				execution: {
+					concurrency: 'parallel',
 					concurrencyKey: () => 'active-panel-focus-next',
 					mode: 'foreground',
 				},
@@ -86,6 +102,22 @@ export function registerWorkbenchActiveTerminalActions({
 				id: WORKBENCH_ACTION_IDS.focusActivePanelNext,
 				input: noActionInput,
 				title: workbenchMessages.panelFocusNext,
+			}),
+		),
+		typedRuntime.register(
+			scope,
+			defineAction({
+				category: panelCategory,
+				execution: {
+					concurrency: 'parallel',
+					concurrencyKey: () => 'active-panel-swap-visible',
+					mode: 'foreground',
+				},
+				getAvailability: availabilityFor('swap-visible'),
+				handler: { execute: execute('swap-visible') },
+				id: WORKBENCH_ACTION_IDS.swapActivePanelVisible,
+				input: noActionInput,
+				title: workbenchMessages.panelSwapVisible,
 			}),
 		),
 		typedRuntime.register(

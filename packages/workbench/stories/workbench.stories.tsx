@@ -104,6 +104,26 @@ const createPopulatedProjectWorkspaceRuntime = () => {
 	return runtime;
 };
 
+const createVisualPanelSelectionRuntime = () => {
+	const runtime = createProjectWorkspaceRuntime(['Terminal 1']);
+	const store = runtime.getActiveTerminalContext().panelWorkspaceStore;
+	const tabId = store.getActiveTabId();
+	if (tabId === null) throw new Error('Expected an active terminal Tab.');
+	for (let index = 0; index < 2; index += 1) {
+		const tab = store.getSnapshot().tabs.find((candidate) => candidate.tabId === tabId);
+		if (tab === undefined) throw new Error('Expected the active terminal Tab.');
+		store.transition({
+			direction: 'right',
+			newTerminalTitle: `Terminal ${index + 2}`,
+			panelId: tab.focusedPanelId,
+			presentation: store.createTerminalPresentation(),
+			tabId,
+			type: 'panel-split',
+		});
+	}
+	return runtime;
+};
+
 export const PanelWorkspace: Story = {
 	args: {
 		actionRuntime: new ActionRuntime(),
@@ -114,6 +134,54 @@ export const PanelWorkspace: Story = {
 			'Terminal 3',
 		]),
 		shortcutPlatform: 'apple',
+	},
+	render: (arguments_) => (
+		<OrchbeeI18nProvider locale='en-US'>
+			<Workbench {...arguments_} />
+		</OrchbeeI18nProvider>
+	),
+};
+
+export const PanelVisualSelection: Story = {
+	args: {
+		actionRuntime: new ActionRuntime(),
+		onSettings: () => ({ kind: 'unchanged' }),
+		projectWorkspaceRuntime: createVisualPanelSelectionRuntime(),
+		shortcutPlatform: 'apple',
+	},
+	play: () => {
+		document.body.dispatchEvent(
+			new KeyboardEvent('keydown', {
+				bubbles: true,
+				code: 'F7',
+				ctrlKey: true,
+				shiftKey: true,
+			}),
+		);
+	},
+	render: (arguments_) => (
+		<OrchbeeI18nProvider locale='en-US'>
+			<Workbench {...arguments_} />
+		</OrchbeeI18nProvider>
+	),
+};
+
+export const PanelVisualSwapSelection: Story = {
+	args: {
+		actionRuntime: new ActionRuntime(),
+		onSettings: () => ({ kind: 'unchanged' }),
+		projectWorkspaceRuntime: createVisualPanelSelectionRuntime(),
+		shortcutPlatform: 'apple',
+	},
+	play: () => {
+		document.body.dispatchEvent(
+			new KeyboardEvent('keydown', {
+				bubbles: true,
+				code: 'F8',
+				ctrlKey: true,
+				shiftKey: true,
+			}),
+		);
 	},
 	render: (arguments_) => (
 		<OrchbeeI18nProvider locale='en-US'>

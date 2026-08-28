@@ -153,6 +153,11 @@ export const workbenchMessages = defineMessages({
 		defaultMessage: enUSWorkbenchMessages['workbench.panels.actions.focusUp'],
 		description: 'Action that focuses the neighboring Workbench panel above the active panel.',
 	},
+	panelFocusVisible: {
+		id: 'workbench.panels.actions.focusVisible',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.actions.focusVisible'],
+		description: 'Action that visibly labels and focuses another Workbench panel.',
+	},
 	panelMinimize: {
 		id: 'workbench.panels.actions.minimize',
 		defaultMessage: enUSWorkbenchMessages['workbench.panels.actions.minimize'],
@@ -232,6 +237,36 @@ export const workbenchMessages = defineMessages({
 		id: 'workbench.panels.resize.wider',
 		defaultMessage: enUSWorkbenchMessages['workbench.panels.resize.wider'],
 		description: 'Action that makes the active Workbench panel wider.',
+	},
+	panelSwapVisible: {
+		id: 'workbench.panels.actions.swapVisible',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.actions.swapVisible'],
+		description: 'Action that visibly labels and swaps the active Workbench panel.',
+	},
+	panelVisualSelectionFocusLabel: {
+		id: 'workbench.panels.visualSelection.focusLabel',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.visualSelection.focusLabel'],
+		description: 'Accessible instructions while choosing a Workbench panel to focus.',
+	},
+	panelVisualSelectionFocusTarget: {
+		id: 'workbench.panels.visualSelection.focusTarget',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.visualSelection.focusTarget'],
+		description: 'Accessible label for one visibly labeled Workbench panel focus target.',
+	},
+	panelVisualSelectionStart: {
+		id: 'workbench.panels.visualSelection.start',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.visualSelection.start'],
+		description: 'Internal action that starts visible Workbench panel selection.',
+	},
+	panelVisualSelectionSwapLabel: {
+		id: 'workbench.panels.visualSelection.swapLabel',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.visualSelection.swapLabel'],
+		description: 'Accessible instructions while choosing a Workbench panel to swap.',
+	},
+	panelVisualSelectionSwapTarget: {
+		id: 'workbench.panels.visualSelection.swapTarget',
+		defaultMessage: enUSWorkbenchMessages['workbench.panels.visualSelection.swapTarget'],
+		description: 'Accessible label for one visibly labeled Workbench panel swap target.',
 	},
 	panelMore: {
 		id: 'workbench.panels.actions.more',

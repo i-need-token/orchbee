@@ -117,6 +117,12 @@ Cyclic Panel focus preserves Kitty's `Ctrl+Shift+]` next and `Ctrl+Shift+[` prev
 that revision on both platforms. Workbench keeps explicit Control on Apple, traverses canonical
 depth-first Panel-leaf order inside the current Tab, and wraps only when at least two Panels exist.
 
+Visible Panel focus and swap preserve Kitty's `Ctrl+Shift+F7` and `Ctrl+Shift+F8` defaults at that
+revision on both platforms. A two-Panel Tab selects its sole other Panel immediately. Three or more
+Panels enter Workbench's exact source-excluding alphanumeric selector; Workbench owns target order,
+multi-character labels, stale-session cancellation, and delegation to its existing focus and swap
+Actions.
+
 Set Tab Title preserves Kitty's `Shift+Cmd+I` Apple default and `Ctrl+Shift+Alt+T` Standard
 default at that revision. Workbench uses one semantic Action for shortcut dispatch, Action search,
 and the invoked Tab's context menu; the title model below defines the adopted editor and reset
@@ -213,6 +219,13 @@ injected terminal surface claims real input when ready. Active-terminal and acti
 resolve from the active Tab's remembered focused Panel rather than the keyboard event target, so a
 sidebar or document-body focus does not redirect them. An unavailable Action preserves state and
 does not call `preventDefault()`.
+
+While a visible Panel selector is active, its workspace root owns DOM focus and publishes an
+exclusive keyboard-capture marker. The document-level Workbench shortcut listener skips events
+inside that marker, then the workspace consumes every physical label, Backspace, Escape,
+composition, repeat, modifier-held, and invalid key event. This prevents recursive shortcut
+dispatch and terminal input while leaving outside-pointer cancellation available to the intended
+destination.
 
 `Mod+1` through `Mod+9` invoke `workbench.tab.select-by-position` with the matching one-based
 position. Position is resolved from the active terminal context's canonical `TabModel.tabs` order:
@@ -432,11 +445,11 @@ terminal Actions discovered from descendant scopes.
 
 ## Persistence and recovery
 
-New writes use `orchbee:web:keyboard-shortcuts:v18` and a strict record:
+New writes use `orchbee:web:keyboard-shortcuts:v19` and a strict record:
 
 ```json
 {
-	"version": 18,
+	"version": 19,
 	"overrides": [
 		{
 			"shortcutId": "workbench.search.all.open",
@@ -448,18 +461,18 @@ New writes use `orchbee:web:keyboard-shortcuts:v18` and a strict record:
 
 Only Custom values are stored, ordered by shortcut ID. Unknown fields or IDs, duplicates, unsorted
 entries, noncanonical modifiers, unsupported codes, stored defaults, excessive entries, and an
-effective conflict invalidate the complete v18 record and restore platform defaults. A write
+effective conflict invalidate the complete v19 record and restore platform defaults. A write
 failure keeps the immutable session binding active, reports that it was not saved, and retries on
 the next legal change. Restoring one item removes its override.
 
-When v18 is absent, Web first reads `orchbee:web:keyboard-shortcuts:v17` with its exact prior catalog
-and defaults. If v17 is also absent, it tries v16, v15, v14, v13, v12, v11, v10, v9, v8, v7, v6, v5, v4, v3, v2, and then v1. Every migration carries
+When v19 is absent, Web first reads `orchbee:web:keyboard-shortcuts:v18` with its exact prior catalog
+and defaults. If v18 is also absent, it tries v17, v16, v15, v14, v13, v12, v11, v10, v9, v8, v7, v6, v5, v4, v3, v2, and then v1. Every migration carries
 explicit overrides into the expanded catalog, removes an override equivalent to a current default,
-rejects any resulting conflict, and writes the canonical v18 record. The v1 through v17 values
+rejects any resulting conflict, and writes the canonical v19 record. The v1 through v18 values
 remain unchanged as rollback snapshots. An invalid current record never falls back to an
 older record, and an invalid migration source never falls through to the next older version,
 because either fallback would hide data corruption. Rolling back restores the latest record that
-the older build understands; edits made only in v18 are intentionally unavailable to it.
+the older build understands; edits made only in v19 are intentionally unavailable to it.
 
 Browser Preview, Gateway Browser, and Electron each create and dispose one controller against their
 own origin-local storage. Gateway and Electron pass the controller's narrow binding source through

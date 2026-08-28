@@ -169,6 +169,7 @@ export const enUSWorkbenchMessages = {
 	'workbench.panels.actions.focusPrevious': 'Focus Previous Panel',
 	'workbench.panels.actions.focusRight': 'Focus Panel Right',
 	'workbench.panels.actions.focusUp': 'Focus Panel Above',
+	'workbench.panels.actions.focusVisible': 'Visually Focus Panel',
 	'workbench.panels.actions.move': 'Move panel',
 	'workbench.panels.actions.moveDown': 'Move Panel Down',
 	'workbench.panels.actions.moveLeft': 'Move Panel Left',
@@ -183,7 +184,15 @@ export const enUSWorkbenchMessages = {
 	'workbench.panels.actions.splitBelow': 'Split below',
 	'workbench.panels.actions.splitLeft': 'Split left',
 	'workbench.panels.actions.splitRight': 'Split right',
+	'workbench.panels.actions.swapVisible': 'Visually Swap Panel',
 	'workbench.panels.actions.toggleMaximization': 'Toggle Panel Maximization',
+	'workbench.panels.visualSelection.focusLabel':
+		'Choose a panel to focus. Type its label or press Escape to cancel.',
+	'workbench.panels.visualSelection.focusTarget': 'Focus panel {label}',
+	'workbench.panels.visualSelection.start': 'Select Panel Visually',
+	'workbench.panels.visualSelection.swapLabel':
+		'Choose a panel to swap. Type its label or press Escape to cancel.',
+	'workbench.panels.visualSelection.swapTarget': 'Swap with panel {label}',
 	'workbench.panels.resize.description':
 		'Use W, N, T, or S to resize. Hold Control for a larger step.',
 	'workbench.panels.resize.done': 'Done',

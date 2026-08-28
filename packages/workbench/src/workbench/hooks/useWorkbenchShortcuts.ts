@@ -17,6 +17,12 @@ export function useWorkbenchShortcuts(
 	const rootReference = React.useRef<HTMLDivElement>(null);
 	const handleKeyDown = useMemoizedFn((event: KeyboardEvent): void => {
 		if (!active) return;
+		if (
+			event.target instanceof Element &&
+			event.target.closest('[data-workbench-keyboard-capture="true"]') !== null
+		) {
+			return;
+		}
 		const binding = resolveWorkbenchShortcut(event, platform, bindings);
 		if (binding === null || !invokeShortcut(binding, 'keyboard')) return;
 		event.preventDefault();

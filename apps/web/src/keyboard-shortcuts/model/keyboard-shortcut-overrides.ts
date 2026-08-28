@@ -59,6 +59,9 @@ export function createKeyboardShortcutBindings(
 		[WORKBENCH_SHORTCUTS.focusActivePanelUp.shortcutId]: bindingFor(
 			WORKBENCH_SHORTCUTS.focusActivePanelUp.shortcutId,
 		),
+		[WORKBENCH_SHORTCUTS.focusActivePanelVisible.shortcutId]: bindingFor(
+			WORKBENCH_SHORTCUTS.focusActivePanelVisible.shortcutId,
+		),
 		[WORKBENCH_SHORTCUTS.increaseTerminalFontSize.shortcutId]: bindingFor(
 			WORKBENCH_SHORTCUTS.increaseTerminalFontSize.shortcutId,
 		),
@@ -138,6 +141,9 @@ export function createKeyboardShortcutBindings(
 		),
 		[WORKBENCH_SHORTCUTS.splitActivePanelRight.shortcutId]: bindingFor(
 			WORKBENCH_SHORTCUTS.splitActivePanelRight.shortcutId,
+		),
+		[WORKBENCH_SHORTCUTS.swapActivePanelVisible.shortcutId]: bindingFor(
+			WORKBENCH_SHORTCUTS.swapActivePanelVisible.shortcutId,
 		),
 		[WORKBENCH_SHORTCUTS.toggleSidebar.shortcutId]: bindingFor(
 			WORKBENCH_SHORTCUTS.toggleSidebar.shortcutId,

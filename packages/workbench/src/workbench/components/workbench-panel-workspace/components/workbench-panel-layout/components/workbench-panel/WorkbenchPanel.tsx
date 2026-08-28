@@ -8,6 +8,7 @@ import { WorkbenchChildTerminalStrip } from './components/workbench-child-termin
 import { WorkbenchPanelDropPlaceholder } from './components/workbench-panel-drop-placeholder/WorkbenchPanelDropPlaceholder';
 import { WorkbenchPanelFocusScrim } from './components/workbench-panel-focus-scrim/WorkbenchPanelFocusScrim';
 import { WorkbenchPanelHeader } from './components/workbench-panel-header/WorkbenchPanelHeader';
+import { WorkbenchPanelVisualSelectionTarget } from './components/workbench-panel-visual-selection-target/WorkbenchPanelVisualSelectionTarget';
 import { WorkbenchTerminalViewport } from './components/workbench-terminal-viewport/WorkbenchTerminalViewport';
 import styles from './WorkbenchPanel.module.css';
 
@@ -31,6 +32,9 @@ export function WorkbenchPanel({
 	const isDropPlaceholder = view.panelDrag.draggingPanelId === panel.id;
 	const isInactive =
 		view.panelCount > 1 && view.activeTab !== null && view.activeTab.focusedPanelId !== panel.id;
+	const visualSelectionTarget = view.panelVisualSelection?.targets.find(
+		(target) => target.panelId === panel.id,
+	);
 
 	if (isDropPlaceholder) {
 		return (
@@ -71,6 +75,15 @@ export function WorkbenchPanel({
 				<WorkbenchChildTerminalStrip panel={panel} view={view} />
 			)}
 			{isInactive && <WorkbenchPanelFocusScrim />}
+			{view.panelVisualSelection !== null && visualSelectionTarget !== undefined && (
+				<WorkbenchPanelVisualSelectionTarget
+					label={visualSelectionTarget.label}
+					messages={view.messages}
+					mode={view.panelVisualSelection.mode}
+					panelId={panel.id}
+					prefix={view.panelVisualSelection.prefix}
+				/>
+			)}
 		</section>
 	);
 }

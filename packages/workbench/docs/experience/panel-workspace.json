@@ -4,7 +4,7 @@
 	"kind": "business",
 	"status": "canonical",
 	"name": "Panel Workspace",
-	"description": "Renders deterministic terminal panel layouts, directional and cyclic focus, child-terminal navigation, exact-current-directory Tab creation, directional keyboard movement, proportional equalization, resize, split, drag, and close behavior.",
+	"description": "Renders deterministic terminal panel layouts, directional, cyclic, and visible focus or swap selection, child-terminal navigation, exact-current-directory Tab creation, directional keyboard movement, proportional equalization, resize, split, drag, and close behavior.",
 	"owner": "@orchbee/workbench",
 	"visibility": "private",
 	"intents": [
@@ -15,6 +15,7 @@
 		"move-panel",
 		"resize-panel",
 		"split-panel",
+		"visually-select-panel",
 		"switch-terminal"
 	],
 	"implementation": [
@@ -35,12 +36,28 @@
 				"Split three Panels along one axis, resize them unevenly, then invoke Equalize Panels and inspect proportional thirds without topology, focus, or terminal-identity changes.",
 				"Split the active terminal, press Command+R, then use W, N, T, S, Control-modified steps, and R reset in keyboard resize mode."
 			]
+		},
+		{
+			"exportName": "PanelVisualSelection",
+			"file": "packages/workbench/stories/workbench.stories.tsx",
+			"id": "packages-workbench-workbench--panel-visual-selection",
+			"states": [
+				"Inspect a three-Panel visible focus-selection session, physical labels, inactive targeting surfaces, and the exclusive keyboard scope."
+			]
+		},
+		{
+			"exportName": "PanelVisualSwapSelection",
+			"file": "packages/workbench/stories/workbench.stories.tsx",
+			"id": "packages-workbench-workbench--panel-visual-swap-selection",
+			"states": [
+				"Inspect a three-Panel visible swap-selection session, source exclusion, pointer targets, and source-focus preservation after commit."
+			]
 		}
 	],
 	"uses": ["workbench.action-menu"],
 	"useWhen": [
 		"A Workbench terminal tab needs the reviewed multi-panel model and its complete interaction projection.",
-		"Panel identity, directional and cyclic focus, layout, terminal children, exact-current-directory Tab creation, equalization, resize, drag, split, and close must remain coordinated."
+		"Panel identity, directional, cyclic, and visible focus or swap selection, layout, terminal children, exact-current-directory Tab creation, equalization, resize, drag, split, and close must remain coordinated."
 	],
 	"avoidWhen": [
 		"The layout is generic resizable application chrome with no terminal or Workbench panel semantics.",
@@ -50,6 +67,7 @@
 		"Every tab retains at least one Panel and exactly one focused Panel resolves inside that tab.",
 		"Current-directory Tab creation revalidates the exact displayed Presentation and uses only its trusted current or launch CWD without mutating the source terminal.",
 		"Cyclic focus follows canonical depth-first Panel-leaf order, wraps only within the active Tab, and delegates the exact target through the existing focus transition.",
+		"Visible focus or swap selection captures exact Tab, source focus, maximization, and canonical Panel order; physical labels remain complete beyond one character, and commits delegate only to existing focus or swap Actions.",
 		"Dragging changes only reversible projection state until a valid directional drop commits the move.",
 		"Directional keyboard movement swaps complete neighboring Panel leaves while preserving split topology, weights, slot identities, terminal identities, and focus on the moved source Panel.",
 		"Panel equalization recursively assigns same-axis child weights by descendant Panel units while preserving topology, order, identities, membership, and focus.",

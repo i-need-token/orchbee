@@ -21,6 +21,7 @@ export const WORKBENCH_ACTION_IDS = {
 	focusActivePanelPrevious: 'workbench.panel.active.focus-previous',
 	focusActivePanelRight: 'workbench.panel.active.focus-right',
 	focusActivePanelUp: 'workbench.panel.active.focus-up',
+	focusActivePanelVisible: 'workbench.panel.active.focus-visible',
 	increaseTerminalFontSize: 'workbench.terminal.font-size.increase',
 	openSearch: 'workbench.search.open',
 	openSettings: 'workbench.settings.open',
@@ -44,6 +45,7 @@ export const WORKBENCH_ACTION_IDS = {
 	closeActiveTerminal: 'workbench.terminal.active.close',
 	splitActivePanelBelow: 'workbench.panel.active.split-below',
 	splitActivePanelRight: 'workbench.panel.active.split-right',
+	swapActivePanelVisible: 'workbench.panel.active.swap-visible',
 	setTabStripOrientation: 'workbench.tab-strip.orientation.set',
 	setProjectPrimaryDirectory: 'workbench.project.primary-directory.set',
 	toggleActivePanelMaximization: 'workbench.panel.active.maximization.toggle',
@@ -145,6 +147,7 @@ export interface WorkbenchActionCatalog {
 	readonly [WORKBENCH_ACTION_IDS.focusActivePanelPrevious]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.focusActivePanelRight]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.focusActivePanelUp]: ActionSignature<void>;
+	readonly [WORKBENCH_ACTION_IDS.focusActivePanelVisible]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.increaseTerminalFontSize]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.openSearch]: ActionSignature<WorkbenchSearchOpenInput>;
 	readonly [WORKBENCH_ACTION_IDS.openSettings]: ActionSignature<void>;
@@ -168,6 +171,7 @@ export interface WorkbenchActionCatalog {
 	readonly [WORKBENCH_ACTION_IDS.closeActiveTerminal]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.splitActivePanelBelow]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.splitActivePanelRight]: ActionSignature<void>;
+	readonly [WORKBENCH_ACTION_IDS.swapActivePanelVisible]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.setTabStripOrientation]: ActionSignature<WorkbenchTabStripOrientationInput>;
 	readonly [WORKBENCH_ACTION_IDS.setProjectPrimaryDirectory]: ActionSignature<WorkbenchProjectDirectoryInput>;
 	readonly [WORKBENCH_ACTION_IDS.toggleActivePanelMaximization]: ActionSignature<void>;

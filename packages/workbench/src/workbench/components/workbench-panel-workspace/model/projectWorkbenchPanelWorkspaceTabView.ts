@@ -19,5 +19,6 @@ export function projectWorkbenchPanelWorkspaceTabView(
 			ghost: null,
 			previewRoot: null,
 		},
+		panelVisualSelection: null,
 	};
 }

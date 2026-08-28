@@ -5,6 +5,7 @@ import {
 	type TerminalPresentationId,
 } from '../../../../terminal-presentation';
 import type { PanelSplitDirection } from '../model/panel-workspace-state';
+import type { PanelVisualSelectionMode } from '../model/panel-visual-selection';
 import type { PanelResizeAdjustment, PanelResizeMultiplier } from '../model/resolvePanelResize';
 
 export const PANEL_ACTION_IDS = {
@@ -18,6 +19,7 @@ export const PANEL_ACTION_IDS = {
 	showPrimaryTerminal: 'workbench.panel.primary-terminal.show',
 	split: 'workbench.panel.split',
 	startResize: 'workbench.panel.resize.start',
+	startVisualSelection: 'workbench.panel.visual-selection.start',
 	swap: 'workbench.panel.swap',
 	toggleMaximization: 'workbench.panel.maximization.toggle',
 } as const;
@@ -53,6 +55,10 @@ export interface PanelSwapInput extends PanelTargetInput {
 	readonly targetPanelId: string;
 }
 
+export interface PanelVisualSelectionInput extends PanelTargetInput {
+	readonly mode: PanelVisualSelectionMode;
+}
+
 export interface PanelActionCatalog {
 	readonly [PANEL_ACTION_IDS.activateChildTerminal]: ActionSignature<PanelChildTerminalInput>;
 	readonly [PANEL_ACTION_IDS.close]: ActionSignature<PanelCloseInput>;
@@ -64,6 +70,7 @@ export interface PanelActionCatalog {
 	readonly [PANEL_ACTION_IDS.showPrimaryTerminal]: ActionSignature<PanelTargetInput>;
 	readonly [PANEL_ACTION_IDS.split]: ActionSignature<PanelSplitInput, string>;
 	readonly [PANEL_ACTION_IDS.startResize]: ActionSignature<PanelTargetInput>;
+	readonly [PANEL_ACTION_IDS.startVisualSelection]: ActionSignature<PanelVisualSelectionInput>;
 	readonly [PANEL_ACTION_IDS.swap]: ActionSignature<PanelSwapInput>;
 	readonly [PANEL_ACTION_IDS.toggleMaximization]: ActionSignature<PanelTargetInput>;
 }
@@ -92,6 +99,16 @@ export const panelTargetInput: ActionInputValidation<PanelTargetInput> = {
 		isRecord(input) && typeof input['panelId'] === 'string'
 			? { success: true, data: { panelId: input['panelId'] } }
 			: { success: false, code: 'expected-panel-target' },
+};
+
+export const panelVisualSelectionInput: ActionInputValidation<PanelVisualSelectionInput> = {
+	name: 'PanelVisualSelectionInput',
+	parse: (input) =>
+		isRecord(input) &&
+		typeof input['panelId'] === 'string' &&
+		(input['mode'] === 'focus' || input['mode'] === 'swap')
+			? { success: true, data: { mode: input['mode'], panelId: input['panelId'] } }
+			: { success: false, code: 'expected-panel-visual-selection' },
 };
 
 export const panelCloseInput: ActionInputValidation<PanelCloseInput> = {

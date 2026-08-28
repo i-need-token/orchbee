@@ -222,6 +222,58 @@ describe('resolveActiveTerminalCommand', () => {
 		});
 	});
 
+	it('focuses or swaps the sole other Panel directly without starting a visual session', () => {
+		const split = splitRight(initialState());
+
+		expect(resolve(split, 'focus-visible')).toEqual({
+			actionId: PANEL_ACTION_IDS.focus,
+			input: { panelId: 'panel-1' },
+			kind: 'ready',
+			panelId: 'panel-1',
+		});
+		expect(resolve(split, 'swap-visible')).toEqual({
+			actionId: PANEL_ACTION_IDS.swap,
+			input: { panelId: 'panel-2', targetPanelId: 'panel-1' },
+			kind: 'ready',
+			panelId: 'panel-2',
+		});
+	});
+
+	it('starts a labeled visual session for three or more Panels', () => {
+		const threePanels = splitRight(splitRight(initialState()));
+
+		expect(resolve(threePanels, 'focus-visible')).toEqual({
+			actionId: PANEL_ACTION_IDS.startVisualSelection,
+			input: { mode: 'focus', panelId: 'panel-3' },
+			kind: 'ready',
+			panelId: 'panel-3',
+		});
+		expect(resolve(threePanels, 'swap-visible')).toEqual({
+			actionId: PANEL_ACTION_IDS.startVisualSelection,
+			input: { mode: 'swap', panelId: 'panel-3' },
+			kind: 'ready',
+			panelId: 'panel-3',
+		});
+	});
+
+	it('keeps visual selection unavailable for singleton and maximized layouts', () => {
+		expect(resolve(initialState(), 'focus-visible')).toEqual({
+			kind: 'unavailable',
+			reason: 'requires-multiple-panels',
+		});
+
+		const split = splitRight(initialState());
+		const maximized = transitionPanelWorkspace(split, {
+			panelId: 'panel-2',
+			tabId: 'tab-1',
+			type: 'panel-maximization-toggled',
+		}).state;
+		expect(resolve(maximized, 'swap-visible')).toEqual({
+			kind: 'unavailable',
+			reason: 'panel-maximized',
+		});
+	});
+
 	it('resolves directional movement to an exact source and neighboring Panel swap', () => {
 		const split = splitRight(initialState());
 
@@ -308,11 +360,11 @@ function resolve(
 function splitRight(state: PanelWorkspaceState): PanelWorkspaceState {
 	return transitionPanelWorkspace(state, {
 		direction: 'right',
-		newTerminalTitle: 'Terminal 2',
-		panelId: 'panel-1',
+		newTerminalTitle: `Terminal ${state.nextTerminalSequence}`,
+		panelId: `panel-${state.nextPanelSequence - 1}`,
 		presentation: {
 			kind: 'preview',
-			presentationId: terminalPresentationId('terminal-2'),
+			presentationId: terminalPresentationId(`terminal-${state.nextTerminalSequence}`),
 		},
 		tabId: 'tab-1',
 		type: 'panel-split',

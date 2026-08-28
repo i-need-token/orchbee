@@ -1,0 +1,27 @@
+.root {
+	position: absolute;
+	z-index: var(--ob-ref-layer-overlay);
+	inset: 0;
+	display: grid;
+	padding: 0;
+	border: none;
+	place-items: center;
+	background: var(--ob-sys-color-surface-inactive);
+	cursor: pointer;
+}
+
+.badge {
+	display: inline-flex;
+	min-width: var(--ob-ref-size-control-md);
+	justify-content: center;
+	padding: var(--ob-ref-space-2) var(--ob-ref-space-4);
+	border-radius: var(--ob-ref-radius-ui-md);
+	background: var(--ob-sys-color-border-focus);
+	box-shadow: var(--ob-sys-shadow-overlay);
+	color: var(--ob-sys-color-text-inverse);
+	font: var(--ob-sys-typography-label-lg);
+}
+
+.remainder {
+	opacity: var(--ob-sys-opacity-muted);
+}

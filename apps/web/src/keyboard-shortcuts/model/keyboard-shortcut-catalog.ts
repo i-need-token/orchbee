@@ -64,6 +64,7 @@ type KeyboardShortcutName =
 	| 'focus-panel-previous'
 	| 'focus-panel-right'
 	| 'focus-panel-up'
+	| 'focus-panel-visible'
 	| 'global-search'
 	| 'hints'
 	| 'increase-terminal-font-size'
@@ -96,6 +97,7 @@ type KeyboardShortcutName =
 	| 'settings'
 	| 'split-below'
 	| 'split-right'
+	| 'swap-panel-visible'
 	| 'toggle-sidebar';
 
 export type KeyboardShortcutDeclaration = KeyboardShortcutDeclarationBase &
@@ -332,6 +334,16 @@ export const KEYBOARD_SHORTCUT_CATALOG = Object.freeze([
 		shortcutId: WORKBENCH_SHORTCUTS.focusActivePanelUp.shortcutId,
 	}),
 	Object.freeze({
+		actionId: WORKBENCH_SHORTCUTS.focusActivePanelVisible.id,
+		actionInput: WORKBENCH_SHORTCUTS.focusActivePanelVisible.input,
+		availability: 'multiple-panels',
+		defaults: WORKBENCH_SHORTCUTS.focusActivePanelVisible.defaults,
+		feature: 'workbench',
+		name: 'focus-panel-visible',
+		scope: 'active-panel',
+		shortcutId: WORKBENCH_SHORTCUTS.focusActivePanelVisible.shortcutId,
+	}),
+	Object.freeze({
 		actionId: WORKBENCH_SHORTCUTS.moveActivePanelDown.id,
 		actionInput: WORKBENCH_SHORTCUTS.moveActivePanelDown.input,
 		availability: 'directional-panel',
@@ -420,6 +432,16 @@ export const KEYBOARD_SHORTCUT_CATALOG = Object.freeze([
 		name: 'split-below',
 		scope: 'active-panel',
 		shortcutId: WORKBENCH_SHORTCUTS.splitActivePanelBelow.shortcutId,
+	}),
+	Object.freeze({
+		actionId: WORKBENCH_SHORTCUTS.swapActivePanelVisible.id,
+		actionInput: WORKBENCH_SHORTCUTS.swapActivePanelVisible.input,
+		availability: 'multiple-panels',
+		defaults: WORKBENCH_SHORTCUTS.swapActivePanelVisible.defaults,
+		feature: 'workbench',
+		name: 'swap-panel-visible',
+		scope: 'active-panel',
+		shortcutId: WORKBENCH_SHORTCUTS.swapActivePanelVisible.shortcutId,
 	}),
 	Object.freeze({
 		actionId: WORKBENCH_SHORTCUTS.search.id,

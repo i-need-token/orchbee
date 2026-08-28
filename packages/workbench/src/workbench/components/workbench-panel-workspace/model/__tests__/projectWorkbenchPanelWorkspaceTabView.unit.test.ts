@@ -41,6 +41,14 @@ describe('projectWorkbenchPanelWorkspaceTabView', () => {
 				ghost: {},
 				previewRoot: active.root,
 			},
+			panelVisualSelection: {
+				mode: 'focus',
+				panelIds: ['active-panel', 'other-panel'],
+				prefix: '',
+				sourcePanelId: 'active-panel',
+				tabId: 'active',
+				targets: [{ label: '1', panelId: 'other-panel' }],
+			},
 		} as unknown as WorkbenchPanelWorkspaceView;
 
 		const projected = projectWorkbenchPanelWorkspaceTabView(view, retained);
@@ -56,6 +64,7 @@ describe('projectWorkbenchPanelWorkspaceTabView', () => {
 				ghost: null,
 				previewRoot: null,
 			},
+			panelVisualSelection: null,
 		});
 		expect(projectWorkbenchPanelWorkspaceTabView(view, active)).toBe(view);
 	});

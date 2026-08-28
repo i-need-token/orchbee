@@ -23,6 +23,7 @@ interface WorkbenchShortcutDefinition {
 		| typeof WORKBENCH_ACTION_IDS.focusActivePanelPrevious
 		| typeof WORKBENCH_ACTION_IDS.focusActivePanelRight
 		| typeof WORKBENCH_ACTION_IDS.focusActivePanelUp
+		| typeof WORKBENCH_ACTION_IDS.focusActivePanelVisible
 		| typeof WORKBENCH_ACTION_IDS.increaseTerminalFontSize
 		| typeof WORKBENCH_ACTION_IDS.moveActivePanelDown
 		| typeof WORKBENCH_ACTION_IDS.moveActivePanelLeft
@@ -40,6 +41,7 @@ interface WorkbenchShortcutDefinition {
 		| typeof WORKBENCH_ACTION_IDS.selectTabByPosition
 		| typeof WORKBENCH_ACTION_IDS.splitActivePanelBelow
 		| typeof WORKBENCH_ACTION_IDS.splitActivePanelRight
+		| typeof WORKBENCH_ACTION_IDS.swapActivePanelVisible
 		| typeof WORKBENCH_ACTION_IDS.toggleActivePanelMaximization
 		| typeof WORKBENCH_ACTION_IDS.toggleSidebar;
 	readonly input:
@@ -145,6 +147,15 @@ export const WORKBENCH_SHORTCUTS = {
 		id: WORKBENCH_ACTION_IDS.focusActivePanelUp,
 		input: undefined,
 		shortcutId: WORKBENCH_ACTION_IDS.focusActivePanelUp,
+	},
+	focusActivePanelVisible: {
+		defaults: {
+			apple: chord('F7', ['control', 'shift']),
+			standard: chord('F7', ['control', 'shift']),
+		},
+		id: WORKBENCH_ACTION_IDS.focusActivePanelVisible,
+		input: undefined,
+		shortcutId: WORKBENCH_ACTION_IDS.focusActivePanelVisible,
 	},
 	increaseTerminalFontSize: {
 		defaults: {
@@ -326,6 +337,15 @@ export const WORKBENCH_SHORTCUTS = {
 		input: undefined,
 		shortcutId: WORKBENCH_ACTION_IDS.splitActivePanelRight,
 	},
+	swapActivePanelVisible: {
+		defaults: {
+			apple: chord('F8', ['control', 'shift']),
+			standard: chord('F8', ['control', 'shift']),
+		},
+		id: WORKBENCH_ACTION_IDS.swapActivePanelVisible,
+		input: undefined,
+		shortcutId: WORKBENCH_ACTION_IDS.swapActivePanelVisible,
+	},
 	toggleSidebar: {
 		defaults: {
 			apple: chord('KeyB', ['mod']),
@@ -361,6 +381,7 @@ const WORKBENCH_SHORTCUT_ACTIONS = Object.freeze([
 	'focusActivePanelPrevious',
 	'focusActivePanelRight',
 	'focusActivePanelUp',
+	'focusActivePanelVisible',
 	'increaseTerminalFontSize',
 	'maximizeActivePanel',
 	'moveActivePanelDown',
@@ -389,6 +410,7 @@ const WORKBENCH_SHORTCUT_ACTIONS = Object.freeze([
 	'settings',
 	'splitActivePanelBelow',
 	'splitActivePanelRight',
+	'swapActivePanelVisible',
 	'toggleSidebar',
 ] as const satisfies readonly WorkbenchShortcutAction[]);
 
@@ -454,6 +476,8 @@ export function formatWorkbenchActionShortcut(
 			return formatWorkbenchShortcut('focusActivePanelRight', platform, bindings);
 		case WORKBENCH_ACTION_IDS.focusActivePanelUp:
 			return formatWorkbenchShortcut('focusActivePanelUp', platform, bindings);
+		case WORKBENCH_ACTION_IDS.focusActivePanelVisible:
+			return formatWorkbenchShortcut('focusActivePanelVisible', platform, bindings);
 		case WORKBENCH_ACTION_IDS.increaseTerminalFontSize:
 			return formatWorkbenchShortcut('increaseTerminalFontSize', platform, bindings);
 		case WORKBENCH_ACTION_IDS.moveActivePanelDown:
@@ -488,6 +512,8 @@ export function formatWorkbenchActionShortcut(
 			return formatWorkbenchShortcut('splitActivePanelBelow', platform, bindings);
 		case WORKBENCH_ACTION_IDS.splitActivePanelRight:
 			return formatWorkbenchShortcut('splitActivePanelRight', platform, bindings);
+		case WORKBENCH_ACTION_IDS.swapActivePanelVisible:
+			return formatWorkbenchShortcut('swapActivePanelVisible', platform, bindings);
 		case WORKBENCH_ACTION_IDS.toggleActivePanelMaximization:
 			return formatWorkbenchShortcut('maximizeActivePanel', platform, bindings);
 		case WORKBENCH_ACTION_IDS.toggleSidebar:
@@ -539,6 +565,8 @@ function defaultBindingsFor(platform: WorkbenchShortcutPlatform): WorkbenchShort
 			WORKBENCH_SHORTCUTS.focusActivePanelRight.defaults[platform],
 		[WORKBENCH_SHORTCUTS.focusActivePanelUp.shortcutId]:
 			WORKBENCH_SHORTCUTS.focusActivePanelUp.defaults[platform],
+		[WORKBENCH_SHORTCUTS.focusActivePanelVisible.shortcutId]:
+			WORKBENCH_SHORTCUTS.focusActivePanelVisible.defaults[platform],
 		[WORKBENCH_SHORTCUTS.increaseTerminalFontSize.shortcutId]:
 			WORKBENCH_SHORTCUTS.increaseTerminalFontSize.defaults[platform],
 		[WORKBENCH_SHORTCUTS.maximizeActivePanel.shortcutId]:
@@ -584,6 +612,8 @@ function defaultBindingsFor(platform: WorkbenchShortcutPlatform): WorkbenchShort
 			WORKBENCH_SHORTCUTS.splitActivePanelBelow.defaults[platform],
 		[WORKBENCH_SHORTCUTS.splitActivePanelRight.shortcutId]:
 			WORKBENCH_SHORTCUTS.splitActivePanelRight.defaults[platform],
+		[WORKBENCH_SHORTCUTS.swapActivePanelVisible.shortcutId]:
+			WORKBENCH_SHORTCUTS.swapActivePanelVisible.defaults[platform],
 		[WORKBENCH_SHORTCUTS.toggleSidebar.shortcutId]:
 			WORKBENCH_SHORTCUTS.toggleSidebar.defaults[platform],
 	});

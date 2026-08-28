@@ -13,11 +13,13 @@ import type { PanelWorkspaceStore } from '../model/PanelWorkspaceStore';
 import {
 	PANEL_ACTION_IDS,
 	type PanelCloseInput,
+	type PanelChildTerminalInput,
 	type PanelMoveInput,
 	type PanelResizeInput,
 	type PanelSplitInput,
+	type PanelSwapInput,
 	type PanelTargetInput,
-	type PanelChildTerminalInput,
+	type PanelVisualSelectionInput,
 } from '../actions/panel-action-contracts';
 import {
 	collectPanelLeaves,
@@ -28,6 +30,13 @@ import {
 	type PanelWorkspaceTransition,
 	projectPanelDrag,
 } from '../model/panel-workspace-state';
+import {
+	startPanelVisualSelection,
+	transitionPanelVisualSelection,
+	type PanelVisualSelectionCommand,
+	type PanelVisualSelectionSession,
+	type PanelVisualSelectionTransition,
+} from '../model/panel-visual-selection';
 import {
 	resolvePanelResize,
 	type PanelResizeAdjustment,
@@ -94,6 +103,7 @@ export function useWorkbenchPanelWorkspace({
 	shortcutLabelForAction,
 }: UseWorkbenchPanelWorkspaceOptions): WorkbenchPanelWorkspaceView {
 	const intl = useOrchbeeIntl();
+	const workspaceReference = React.useRef<HTMLDivElement>(null);
 	const [terminalBellEffectCoordinator] = React.useState(
 		() => new WorkbenchTerminalBellEffectCoordinator(),
 	);
@@ -106,6 +116,9 @@ export function useWorkbenchPanelWorkspace({
 	);
 	const [pendingClose, setPendingClose] = React.useState<PendingPanelClose | null>(null);
 	const [pendingResize, setPendingResize] = React.useState<PendingPanelResize | null>(null);
+	const [panelVisualSelection, setPanelVisualSelection] =
+		React.useState<PanelVisualSelectionSession | null>(null);
+	const pendingPanelFocusRestoreIdRef = React.useRef<string | null>(null);
 	const pendingConfirmationRef = React.useRef<((accepted: boolean) => void) | null>(null);
 	const [panelDragSession, setPanelDragSession] = React.useState<PanelDragSession | null>(null);
 	const [panelDrag, setPanelDrag] =
@@ -164,6 +177,14 @@ export function useWorkbenchPanelWorkspace({
 			splitBelow: intl.formatMessage(workbenchMessages.panelSplitBelow),
 			splitLeft: intl.formatMessage(workbenchMessages.panelSplitLeft),
 			splitRight: intl.formatMessage(workbenchMessages.panelSplitRight),
+			visualSelectionFocusLabel: intl.formatMessage(
+				workbenchMessages.panelVisualSelectionFocusLabel,
+			),
+			visualSelectionFocusTarget: (label) =>
+				intl.formatMessage(workbenchMessages.panelVisualSelectionFocusTarget, { label }),
+			visualSelectionSwapLabel: intl.formatMessage(workbenchMessages.panelVisualSelectionSwapLabel),
+			visualSelectionSwapTarget: (label) =>
+				intl.formatMessage(workbenchMessages.panelVisualSelectionSwapTarget, { label }),
 		}),
 		[intl],
 	);
@@ -268,12 +289,42 @@ export function useWorkbenchPanelWorkspace({
 				};
 			},
 			startPanelResize: (panelId: string) => {
+				if (panelVisualSelection !== null) {
+					return false;
+				}
 				const tabId = store.getActiveTabId();
 				const tab = store.getSnapshot().tabs.find((candidate) => candidate.tabId === tabId);
 				if (tabId === null || tab === undefined || findPanel(tab.root, panelId) === null) {
 					return false;
 				}
 				setPendingResize({ panelId, tabId });
+				return true;
+			},
+			startPanelVisualSelection: (panelId: string, mode: PanelVisualSelectionInput['mode']) => {
+				if (
+					pendingClose !== null ||
+					pendingResize !== null ||
+					panelDragSession !== null ||
+					panelVisualSelection !== null
+				) {
+					return false;
+				}
+				const tabId = store.getActiveTabId();
+				const tab = store.getSnapshot().tabs.find((candidate) => candidate.tabId === tabId);
+				if (tabId === null || tab === undefined) {
+					return false;
+				}
+				const result = startPanelVisualSelection({
+					maximizedPanelId: tab.maximizedPanelId,
+					mode,
+					root: tab.root,
+					sourcePanelId: panelId,
+					tabId,
+				});
+				if (result.kind !== 'started') {
+					return false;
+				}
+				setPanelVisualSelection(result.session);
 				return true;
 			},
 			swapPanels: (panelId: string, targetPanelId: string) =>
@@ -285,7 +336,16 @@ export function useWorkbenchPanelWorkspace({
 			togglePanelMaximization: (panelId: string) =>
 				transitionForActiveTab({ panelId, type: 'panel-maximization-toggled' }),
 		}),
-		[commitMovePanel, createTerminalTitle, store, transitionForActiveTab],
+		[
+			commitMovePanel,
+			createTerminalTitle,
+			panelDragSession,
+			panelVisualSelection,
+			pendingClose,
+			pendingResize,
+			store,
+			transitionForActiveTab,
+		],
 	);
 	const panelActions = useWorkbenchPanelActions({
 		activeTab,
@@ -295,6 +355,195 @@ export function useWorkbenchPanelWorkspace({
 		runtime: actionRuntime,
 	});
 	const executePanelAction = panelActions.execute;
+	const revalidatePanelVisualSelection = useMemoizedFn(
+		(session: PanelVisualSelectionSession): PanelVisualSelectionTransition => {
+			const currentActiveTabId = store.getActiveTabId();
+			const tab = store
+				.getSnapshot()
+				.tabs.find((candidate) => candidate.tabId === currentActiveTabId);
+			return transitionPanelVisualSelection(session, {
+				activeTabId: currentActiveTabId,
+				focusedPanelId: tab?.focusedPanelId ?? null,
+				maximizedPanelId: tab?.maximizedPanelId ?? null,
+				root: tab?.root ?? null,
+				type: 'workspace-revalidated',
+			});
+		},
+	);
+	const executePanelVisualSelectionCommand = useMemoizedFn(
+		(command: PanelVisualSelectionCommand, source: 'keyboard' | 'pointer'): boolean => {
+			const execution =
+				command.kind === 'focus'
+					? executePanelAction(
+							PANEL_ACTION_IDS.focus,
+							{ panelId: command.targetPanelId } satisfies PanelTargetInput,
+							source,
+						)
+					: executePanelAction(
+							PANEL_ACTION_IDS.swap,
+							{
+								panelId: command.sourcePanelId,
+								targetPanelId: command.targetPanelId,
+							} satisfies PanelSwapInput,
+							source,
+						);
+			const result = execution.getSnapshot().result;
+			return result?.kind === 'completed' || result?.kind === 'unchanged';
+		},
+	);
+	const applyPanelVisualSelectionTransition = useMemoizedFn(
+		(
+			session: PanelVisualSelectionSession,
+			transition: PanelVisualSelectionTransition,
+			source: 'keyboard' | 'pointer',
+		): void => {
+			if (transition.kind === 'active') {
+				if (transition.outcome === 'updated') {
+					setPanelVisualSelection(transition.session);
+				}
+				return;
+			}
+
+			let restorePanelId = transition.restorePanelId;
+			if (transition.command !== null) {
+				const revalidation = revalidatePanelVisualSelection(session);
+				if (
+					revalidation.kind === 'closed' ||
+					!executePanelVisualSelectionCommand(transition.command, source)
+				) {
+					restorePanelId = null;
+				}
+			}
+			pendingPanelFocusRestoreIdRef.current = restorePanelId;
+			setPanelVisualSelection(null);
+		},
+	);
+	const cancelPanelVisualSelection = useMemoizedFn((restoreSourceFocus: boolean): void => {
+		if (panelVisualSelection === null) {
+			return;
+		}
+		applyPanelVisualSelectionTransition(
+			panelVisualSelection,
+			transitionPanelVisualSelection(panelVisualSelection, {
+				restoreSourceFocus,
+				type: 'cancelled',
+			}),
+			'keyboard',
+		);
+	});
+	const handlePanelVisualSelectionKeyDown = useMemoizedFn(
+		(event: React.KeyboardEvent<HTMLDivElement>): void => {
+			if (panelVisualSelection === null) {
+				return;
+			}
+			event.preventDefault();
+			event.stopPropagation();
+			applyPanelVisualSelectionTransition(
+				panelVisualSelection,
+				transitionPanelVisualSelection(panelVisualSelection, {
+					code: event.code,
+					isComposing: event.nativeEvent.isComposing,
+					repeat: event.repeat,
+					type: 'key-pressed',
+				}),
+				'keyboard',
+			);
+		},
+	);
+	const handlePanelVisualSelectionPointerDown = useMemoizedFn(
+		(event: React.PointerEvent<HTMLDivElement>): void => {
+			if (panelVisualSelection === null) {
+				return;
+			}
+			event.preventDefault();
+			event.stopPropagation();
+			const targetElement =
+				event.target instanceof Element
+					? event.target.closest('[data-panel-visual-selection-target="true"]')
+					: null;
+			const targetPanelId =
+				targetElement instanceof HTMLElement ? targetElement.dataset['panelId'] : undefined;
+			const transition =
+				event.button === 0 && targetPanelId !== undefined
+					? transitionPanelVisualSelection(panelVisualSelection, {
+							panelId: targetPanelId,
+							type: 'target-selected',
+						})
+					: transitionPanelVisualSelection(panelVisualSelection, {
+							restoreSourceFocus: true,
+							type: 'cancelled',
+						});
+			applyPanelVisualSelectionTransition(panelVisualSelection, transition, 'pointer');
+		},
+	);
+
+	React.useLayoutEffect(() => {
+		if (panelVisualSelection === null) {
+			return;
+		}
+		if (pendingClose !== null || pendingResize !== null || panelDragSession !== null) {
+			setPanelVisualSelection(null);
+			return;
+		}
+		const revalidation = revalidatePanelVisualSelection(panelVisualSelection);
+		if (revalidation.kind === 'closed') {
+			setPanelVisualSelection(null);
+		}
+	}, [
+		activeTabId,
+		panelDragSession,
+		panelVisualSelection,
+		pendingClose,
+		pendingResize,
+		revalidatePanelVisualSelection,
+		state.tabs,
+	]);
+	React.useLayoutEffect(() => {
+		if (panelVisualSelection !== null) {
+			workspaceReference.current?.focus({ preventScroll: true });
+		}
+	}, [panelVisualSelection, workspaceReference]);
+	React.useLayoutEffect(() => {
+		const panelId = pendingPanelFocusRestoreIdRef.current;
+		if (panelVisualSelection !== null || panelId === null) {
+			return;
+		}
+		pendingPanelFocusRestoreIdRef.current = null;
+		const workspaceElement = workspaceReference.current;
+		if (workspaceElement === null) {
+			return;
+		}
+		const viewports = workspaceElement.querySelectorAll<HTMLElement>(
+			'[data-presentation-mode="active"] [data-slot="workbench-terminal-viewport"]',
+		);
+		const viewport = [...viewports].find((element) => element.dataset['panelId'] === panelId);
+		const focusTarget =
+			viewport?.querySelector<HTMLElement>('textarea, [role="textbox"]') ?? viewport;
+		focusTarget?.focus({ preventScroll: true });
+	}, [panelVisualSelection, workspaceReference]);
+	React.useEffect(() => {
+		if (panelVisualSelection === null) {
+			return;
+		}
+		const workspaceElement = workspaceReference.current;
+		if (workspaceElement === null) {
+			return;
+		}
+		const ownerDocument = workspaceElement.ownerDocument;
+		const handlePointerDown = (event: PointerEvent) => {
+			if (!(event.target instanceof Node) || workspaceElement.contains(event.target)) {
+				return;
+			}
+			cancelPanelVisualSelection(false);
+		};
+		const handleWindowBlur = () => cancelPanelVisualSelection(false);
+		ownerDocument.addEventListener('pointerdown', handlePointerDown, true);
+		ownerDocument.defaultView?.addEventListener('blur', handleWindowBlur);
+		return () => {
+			ownerDocument.removeEventListener('pointerdown', handlePointerDown, true);
+			ownerDocument.defaultView?.removeEventListener('blur', handleWindowBlur);
+		};
+	}, [cancelPanelVisualSelection, panelVisualSelection, workspaceReference]);
 	React.useEffect(() => {
 		const registration = actionRuntime.registerConfirmationPresenter(
 			panelActions.scope,
@@ -345,6 +594,7 @@ export function useWorkbenchPanelWorkspace({
 			if (
 				event.button !== 0 ||
 				panelDragSession !== null ||
+				panelVisualSelection !== null ||
 				activeTab === null ||
 				activeTab.maximizedPanelId !== null ||
 				panelCount < 2
@@ -538,6 +788,12 @@ export function useWorkbenchPanelWorkspace({
 			}
 		};
 	}, [movePanel, panelDragSession, store]);
+	let panelVisualSelectionLabel: string | undefined;
+	if (panelVisualSelection?.mode === 'focus') {
+		panelVisualSelectionLabel = messages.visualSelectionFocusLabel;
+	} else if (panelVisualSelection?.mode === 'swap') {
+		panelVisualSelectionLabel = messages.visualSelectionSwapLabel;
+	}
 
 	return {
 		actionRuntime,
@@ -555,6 +811,7 @@ export function useWorkbenchPanelWorkspace({
 			);
 		},
 		activeTab,
+		cancelPanelVisualSelection,
 		cancelPanelResize: () => setPendingResize(null),
 		canResizePanel: (panelId, adjustment, multiplier = 1) => {
 			const tabId = store.getActiveTabId();
@@ -617,10 +874,14 @@ export function useWorkbenchPanelWorkspace({
 		focusPanel: (panelId, source: ActionInvocationSource = 'programmatic') => {
 			executePanelAction(PANEL_ACTION_IDS.focus, { panelId } satisfies PanelTargetInput, source);
 		},
+		handlePanelVisualSelectionKeyDown,
+		handlePanelVisualSelectionPointerDown,
 		maximizedPanelId: activeTab?.maximizedPanelId ?? null,
 		messages,
 		panelCount,
 		panelDrag,
+		panelVisualSelection,
+		panelVisualSelectionLabel,
 		pendingClose,
 		pendingResize,
 		requestClose: (panelId, source: ActionInvocationSource = 'programmatic') => {
@@ -696,5 +957,6 @@ export function useWorkbenchPanelWorkspace({
 				source,
 			);
 		},
+		workspaceReference,
 	};
 }

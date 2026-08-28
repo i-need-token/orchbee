@@ -28,7 +28,7 @@ describe('useKeyboardShortcutSettingsView', () => {
 				}),
 			{ wrapper: I18nWrapper },
 		);
-		expect(allRows.result.current.rows).toHaveLength(55);
+		expect(allRows.result.current.rows).toHaveLength(57);
 		expect(allRows.result.current.rows[0]).toMatchObject({
 			actionName: 'Search actions',
 			chord: 'Ctrl+Shift+P',
@@ -47,6 +47,20 @@ describe('useKeyboardShortcutSettingsView', () => {
 		).toMatchObject({
 			availability: 'When the active tab has multiple panels',
 			chord: 'Ctrl+Alt+=',
+			scope: 'Active panel',
+		});
+		expect(
+			allRows.result.current.rows.find((row) => row.actionName === 'Visually focus panel'),
+		).toMatchObject({
+			availability: 'When the active tab has multiple panels',
+			chord: 'Ctrl+Shift+F7',
+			scope: 'Active panel',
+		});
+		expect(
+			allRows.result.current.rows.find((row) => row.actionName === 'Visually swap panel'),
+		).toMatchObject({
+			availability: 'When the active tab has multiple panels',
+			chord: 'Ctrl+Shift+F8',
 			scope: 'Active panel',
 		});
 		expect(

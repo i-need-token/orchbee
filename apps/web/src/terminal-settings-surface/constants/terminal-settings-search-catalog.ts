@@ -324,6 +324,7 @@ export const KEYBOARD_SHORTCUT_SEARCH_LABELS = {
 	'focus-panel-previous': keyboardShortcutMessages.focusPanelPrevious,
 	'focus-panel-right': keyboardShortcutMessages.focusPanelRight,
 	'focus-panel-up': keyboardShortcutMessages.focusPanelUp,
+	'focus-panel-visible': keyboardShortcutMessages.focusPanelVisible,
 	'global-search': keyboardShortcutMessages.globalSearch,
 	hints: keyboardShortcutMessages.hints,
 	'increase-terminal-font-size': keyboardShortcutMessages.increaseTerminalFontSize,
@@ -357,6 +358,7 @@ export const KEYBOARD_SHORTCUT_SEARCH_LABELS = {
 	settings: keyboardShortcutMessages.settings,
 	'split-below': keyboardShortcutMessages.splitBelow,
 	'split-right': keyboardShortcutMessages.splitRight,
+	'swap-panel-visible': keyboardShortcutMessages.swapPanelVisible,
 	'toggle-sidebar': keyboardShortcutMessages.toggleSidebar,
 } as const;
 
