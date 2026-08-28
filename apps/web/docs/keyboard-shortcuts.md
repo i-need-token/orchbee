@@ -494,6 +494,7 @@ change does not remount Workbench, replace an attachment, or reopen a Host or Ga
 | Pending Copy and Paste work cannot admit stale or duplicate shortcut input                   | Clipboard coordinator and Action tests plus exact Desktop `terminal-parity/IN-13-selection-copy-paste`                                  |
 | Directional focus selects a spatial neighbor and falls through at outer edges                | Four-Panel resolver, Action, and shortcut dispatch tests                                                                                |
 | Cyclic focus follows canonical Panel order, wraps, and falls through when unavailable        | Generated resolver, prepared Action, shortcut dispatch, Settings, and v17 migration tests                                               |
+| Visible focus and swap select one exact other Panel without leaking owned input              | Model, Action, React, shortcut, Settings, v19 migration, and exact Desktop `terminal-parity/FS-16-visible-panel-selection`              |
 | Directional movement swaps exact neighboring leaves and retains source focus                 | Model, bounded exploration, Action, shortcut, Settings, and exact Desktop `terminal-parity/FS-13-directional-panel-movement`            |
 | Equalization assigns proportional same-axis Panel extents without identity changes           | Model, generated layouts, Action, menu, shortcut, Settings, v15 migration, and exact Desktop `terminal-parity/FS-14-panel-equalization` |
 | Keyboard resize targets the nearest matching split and revalidates captured identity         | Resolver, state, Action, React, Settings, migration, menu, and Desktop system tests                                                     |
@@ -504,7 +505,7 @@ change does not remount Workbench, replace an attachment, or reopen a Host or Ga
 | Visible Hints consume one focused binding and never leak label keys to terminal input        | Terminal, Action, shortcut, Settings, and exact Desktop `terminal-parity/FS-07-keyboard-hints`                                          |
 | Show Scrollback consumes one focused binding and opens the exact immutable viewer            | Terminal, Action, shortcut, Settings, and exact Desktop `terminal-parity/FS-09-scrollback-viewer`                                       |
 | Menus, Action search, and settings display the same current binding                          | Projection and rendered-surface tests                                                                                                   |
-| Valid v1 through v17 records migrate without losing explicit legacy overrides                | Storage migration tests, including new-default conflicts                                                                                |
+| Valid v1 through v18 records migrate without losing explicit legacy overrides                | Storage migration tests, including new-default conflicts                                                                                |
 | Invalid current or migration-source data does not consult an older record                    | Storage corruption and precedence tests                                                                                                 |
 
 The tests use synthetic platform flags, Action scopes, storage, document capture, injected terminal
