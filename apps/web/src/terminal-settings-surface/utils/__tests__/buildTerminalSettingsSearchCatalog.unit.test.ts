@@ -63,6 +63,12 @@ describe('buildTerminalSettingsSearchCatalog', () => {
 			label: 'Equalize panels',
 			sectionLabel: 'Active panel',
 		});
+		expect(
+			entries.find((entry) => entry.id === 'keyboard-shortcuts.workbench.panel.focus.10'),
+		).toMatchObject({
+			label: 'Focus panel 10',
+			sectionLabel: 'Active panel',
+		});
 	});
 
 	it('omits unavailable categories and capability-gated settings', () => {

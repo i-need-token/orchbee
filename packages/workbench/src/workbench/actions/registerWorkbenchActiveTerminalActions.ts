@@ -7,10 +7,16 @@ import {
 	type ActionResult,
 	type ActionRuntime,
 	type ActionScope,
+	type PreparedActionInvocation,
 	type TypedActionRuntime,
 } from '@orchbee/actions';
 import { workbenchMessages } from '@orchbee/i18n';
 
+import { PANEL_ACTION_IDS } from '../components/workbench-panel-workspace/actions/panel-action-contracts';
+import {
+	resolvePanelFocusByPosition,
+	type PanelFocusByPositionResolution,
+} from '../components/workbench-panel-workspace/model/resolvePanelFocusByPosition';
 import {
 	resolveActiveTerminalCommand,
 	type ActiveTerminalCommand,
@@ -18,7 +24,12 @@ import {
 } from '../model/resolveActiveTerminalCommand';
 import type { WorkbenchProjectWorkspaceRuntime } from '../model/WorkbenchProjectWorkspaceRuntime';
 import { executePreparedDescendantAction } from './executePreparedDescendantAction';
-import { WORKBENCH_ACTION_IDS, type WorkbenchActionCatalog } from './workbench-action-ids';
+import {
+	WORKBENCH_ACTION_IDS,
+	type WorkbenchActionCatalog,
+	type WorkbenchPanelPositionInput,
+	workbenchPanelPositionInput,
+} from './workbench-action-ids';
 
 interface RegisterWorkbenchActiveTerminalActionsOptions {
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
@@ -56,6 +67,44 @@ export function registerWorkbenchActiveTerminalActions({
 		});
 
 	return [
+		typedRuntime.register(
+			scope,
+			defineAction({
+				category: panelCategory,
+				execution: {
+					concurrency: 'parallel',
+					concurrencyKey: () => 'active-panel-focus-by-position',
+					mode: 'foreground',
+				},
+				getAvailability: (context, input) =>
+					preparePanelPositionFocus({
+						context,
+						input,
+						projectWorkspaceRuntime,
+						runtime,
+						scope,
+					}).kind === 'ready'
+						? { kind: 'enabled' }
+						: { kind: 'disabled', reason: workbenchMessages.actionUnavailable },
+				handler: {
+					execute: async (context, input) => {
+						const prepared = preparePanelPositionFocus({
+							context,
+							input,
+							projectWorkspaceRuntime,
+							runtime,
+							scope,
+						});
+						return prepared.kind === 'unavailable'
+							? { code: prepared.reason, kind: 'blocked' }
+							: await executePreparedDescendantAction(context, runtime, prepared.invocation);
+					},
+				},
+				id: WORKBENCH_ACTION_IDS.focusActivePanelByPosition,
+				input: workbenchPanelPositionInput,
+				title: workbenchMessages.panelFocusByPosition,
+			}),
+		),
 		typedRuntime.register(
 			scope,
 			defineAction({
@@ -345,6 +394,90 @@ export function registerWorkbenchActiveTerminalActions({
 			}),
 		),
 	];
+}
+
+type PreparedPanelPositionFocus =
+	| {
+			readonly invocation: PreparedActionInvocation;
+			readonly kind: 'ready';
+	  }
+	| {
+			readonly kind: 'unavailable';
+			readonly reason:
+				| Extract<PanelFocusByPositionResolution, { kind: 'unavailable' }>['reason']
+				| 'active-command-target-unavailable'
+				| 'active-tab-unavailable'
+				| 'panel-unavailable';
+	  };
+
+function preparePanelPositionFocus({
+	context,
+	input,
+	projectWorkspaceRuntime,
+	runtime,
+	scope,
+}: {
+	readonly context: ActionAvailabilityContext | ActionExecutionContext;
+	readonly input: WorkbenchPanelPositionInput;
+	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
+	readonly runtime: ActionRuntime;
+	readonly scope: ActionScope;
+}): PreparedPanelPositionFocus {
+	const resolution = resolvePanelPositionForContext(projectWorkspaceRuntime, input, context);
+	if (resolution.kind === 'unavailable') return resolution;
+
+	const actionId = PANEL_ACTION_IDS.focus;
+	const inputByActionId = { [actionId]: { panelId: resolution.panelId } };
+	const prepared = runtime
+		.discover(
+			{
+				scope,
+				source: context.source,
+				target: { id: resolution.panelId, type: 'panel' },
+			},
+			{ includeDescendants: true, inputByActionId },
+		)
+		.find(
+			(result) =>
+				result.kind === 'ready' &&
+				result.descriptor.id === actionId &&
+				result.availability.kind === 'enabled',
+		);
+	return prepared?.kind === 'ready'
+		? { invocation: prepared.invocation, kind: 'ready' }
+		: { kind: 'unavailable', reason: 'active-command-target-unavailable' };
+}
+
+function resolvePanelPositionForContext(
+	projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime,
+	input: WorkbenchPanelPositionInput,
+	context: ActionAvailabilityContext | ActionExecutionContext,
+):
+	| PanelFocusByPositionResolution
+	| {
+			readonly kind: 'unavailable';
+			readonly reason: 'active-tab-unavailable' | 'panel-unavailable';
+	  } {
+	if (context.target !== undefined && context.target.type !== 'panel') {
+		return { kind: 'unavailable', reason: 'panel-unavailable' };
+	}
+	const terminalContext = projectWorkspaceRuntime.getActiveTerminalContext();
+	const activeTabId = terminalContext.panelWorkspaceStore.getActiveTabId();
+	if (activeTabId === null) {
+		return { kind: 'unavailable', reason: 'active-tab-unavailable' };
+	}
+	const activeTab = terminalContext.panelWorkspaceStore
+		.getSnapshot()
+		.tabs.find((tab) => tab.tabId === activeTabId);
+	if (activeTab === undefined) {
+		return { kind: 'unavailable', reason: 'active-tab-unavailable' };
+	}
+	return resolvePanelFocusByPosition({
+		maximizedPanelId: activeTab.maximizedPanelId,
+		position: input.position,
+		root: activeTab.root,
+		sourcePanelId: context.target?.id ?? activeTab.focusedPanelId,
+	});
 }
 
 function resolveForContext(

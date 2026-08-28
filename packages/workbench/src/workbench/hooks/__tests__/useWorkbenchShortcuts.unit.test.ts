@@ -146,6 +146,62 @@ describe('useWorkbenchShortcuts', () => {
 		expect(accepted.defaultPrevented).toBe(true);
 	});
 
+	it('captures exact positional Panel focus and preserves unavailable positions for terminal input', () => {
+		const available = vi.fn<(binding: WorkbenchShortcutBinding, source: 'keyboard') => boolean>(
+			() => true,
+		);
+		const rendered = render(
+			createElement(WorkbenchShortcutsHarness, {
+				invokeIfEnabled: available,
+			}),
+		);
+		const input = screen.getByRole('textbox', { name: 'Terminal input' });
+		const accepted = new KeyboardEvent('keydown', {
+			cancelable: true,
+			code: 'Digit0',
+			ctrlKey: true,
+			shiftKey: true,
+		});
+
+		input.dispatchEvent(accepted);
+
+		expect(available).toHaveBeenCalledWith(
+			expect.objectContaining({
+				action: 'focusPanel10',
+				shortcutId: 'workbench.panel.focus.10',
+			}),
+			'keyboard',
+		);
+		expect(accepted.defaultPrevented).toBe(true);
+
+		rendered.unmount();
+		const unavailable = vi.fn<(binding: WorkbenchShortcutBinding, source: 'keyboard') => boolean>(
+			() => false,
+		);
+		render(createElement(WorkbenchShortcutsHarness, { invokeIfEnabled: unavailable }));
+		const currentInput = screen.getByRole('textbox', { name: 'Terminal input' });
+		const terminalKeyDown = vi.fn<(event: Event) => void>();
+		currentInput.addEventListener('keydown', terminalKeyDown);
+		const preserved = new KeyboardEvent('keydown', {
+			cancelable: true,
+			code: 'Digit9',
+			ctrlKey: true,
+			shiftKey: true,
+		});
+
+		currentInput.dispatchEvent(preserved);
+
+		expect(unavailable).toHaveBeenCalledWith(
+			expect.objectContaining({
+				action: 'focusPanel9',
+				shortcutId: 'workbench.panel.focus.9',
+			}),
+			'keyboard',
+		);
+		expect(preserved.defaultPrevented).toBe(false);
+		expect(terminalKeyDown).toHaveBeenCalledOnce();
+	});
+
 	it('captures adjacent Tab selection before focused terminal input', () => {
 		const invokeIfEnabled = vi.fn<
 			(binding: WorkbenchShortcutBinding, source: 'keyboard') => boolean

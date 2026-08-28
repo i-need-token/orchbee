@@ -117,6 +117,12 @@ Cyclic Panel focus preserves Kitty's `Ctrl+Shift+]` next and `Ctrl+Shift+[` prev
 that revision on both platforms. Workbench keeps explicit Control on Apple, traverses canonical
 depth-first Panel-leaf order inside the current Tab, and wraps only when at least two Panels exist.
 
+Positional Panel focus preserves Kitty's physical `Ctrl+Shift+1` through `Ctrl+Shift+0` defaults at
+that revision on both platforms, where `0` means position ten. Workbench maps them to exact
+one-based canonical depth-first Panel-leaf positions inside the current Tab. It deliberately omits
+Kitty's macOS `Command+digit` aliases because those remain Tab-selection bindings, and it does not
+clamp a missing position to the last Panel.
+
 Visible Panel focus and swap preserve Kitty's `Ctrl+Shift+F7` and `Ctrl+Shift+F8` defaults at that
 revision on both platforms. A two-Panel Tab selects its sole other Panel immediately. Three or more
 Panels enter Workbench's exact source-excluding alphanumeric selector; Workbench owns target order,
@@ -233,6 +239,13 @@ the pinned prefix comes first, followed by the current grouped and ungrouped ord
 collapsed group still occupy positions, and the delegated `tabs.tab.select` Action expands the
 selected Tab's group through the ordinary selection transition. A missing position is unavailable
 and leaves the event untouched. `Mod+9` means the ninth Tab, never the last Tab.
+
+`Ctrl+Shift+1` through `Ctrl+Shift+9`, plus `Ctrl+Shift+0`, invoke
+`workbench.panel.active.focus-by-position` with exact semantic positions one through ten. The
+position is resolved from the active Tab's canonical depth-first Panel-leaf order. An existing
+target delegates to the ordinary Panel focus Action; the already-focused target is an intentional
+available `unchanged` result and still consumes the event. A missing position, maximized layout,
+stale source, invalid order, or missing lower Action is unavailable and leaves the event untouched.
 
 ### Current-directory Tab creation model
 
@@ -361,7 +374,7 @@ and leaves the event untouched. `Mod+9` means the ninth Tab, never the last Tab.
 
 ## Active-target command model
 
-The sixteen `workbench.*.active.*` Actions are context commands. Their Action invocation may carry an
+The nineteen `workbench.*.active.*` Actions are context commands. Their Action invocation may carry an
 explicit panel target from a menu; otherwise the active Tab's focused panel is the target. The
 target is resolved again when execution starts, so a stale or absent target is unavailable and
 does not consume the keyboard event.
@@ -399,6 +412,13 @@ The previous and next focus Actions flatten only the current Tab's canonical lay
 leaf order, choose the adjacent Panel, wrap at both boundaries, and delegate that exact target
 through the same Panel focus Action. A singleton, stale source, or maximized Panel is unavailable,
 so its chord falls through without crossing a Tab, terminal context, or window.
+
+The positional focus Action validates one exact input from `1` through `10`, flattens only the
+current Tab into canonical depth-first Panel-leaf order, and prepares the ordinary Panel focus
+Action for the leaf at `position - 1`. It never clamps. Selecting the current Panel remains
+available and returns the lower Action's `unchanged` result, including position one in a singleton;
+a missing position, stale source, duplicate Panel identity, maximized layout, or missing lower
+registration preserves state and the key event.
 
 The four directional movement Actions reuse that exact neighbor resolver, then prepare one exact
 source/target `workbench.panel.swap` Action. The lower transition exchanges the complete Panel
@@ -445,11 +465,11 @@ terminal Actions discovered from descendant scopes.
 
 ## Persistence and recovery
 
-New writes use `orchbee:web:keyboard-shortcuts:v19` and a strict record:
+New writes use `orchbee:web:keyboard-shortcuts:v20` and a strict record:
 
 ```json
 {
-	"version": 19,
+	"version": 20,
 	"overrides": [
 		{
 			"shortcutId": "workbench.search.all.open",
@@ -461,18 +481,18 @@ New writes use `orchbee:web:keyboard-shortcuts:v19` and a strict record:
 
 Only Custom values are stored, ordered by shortcut ID. Unknown fields or IDs, duplicates, unsorted
 entries, noncanonical modifiers, unsupported codes, stored defaults, excessive entries, and an
-effective conflict invalidate the complete v19 record and restore platform defaults. A write
+effective conflict invalidate the complete v20 record and restore platform defaults. A write
 failure keeps the immutable session binding active, reports that it was not saved, and retries on
 the next legal change. Restoring one item removes its override.
 
-When v19 is absent, Web first reads `orchbee:web:keyboard-shortcuts:v18` with its exact prior catalog
-and defaults. If v18 is also absent, it tries v17, v16, v15, v14, v13, v12, v11, v10, v9, v8, v7, v6, v5, v4, v3, v2, and then v1. Every migration carries
+When v20 is absent, Web first reads `orchbee:web:keyboard-shortcuts:v19` with its exact prior catalog
+and defaults. If v19 is also absent, it tries v18, v17, v16, v15, v14, v13, v12, v11, v10, v9, v8, v7, v6, v5, v4, v3, v2, and then v1. Every migration carries
 explicit overrides into the expanded catalog, removes an override equivalent to a current default,
-rejects any resulting conflict, and writes the canonical v19 record. The v1 through v18 values
+rejects any resulting conflict, and writes the canonical v20 record. The v1 through v19 values
 remain unchanged as rollback snapshots. An invalid current record never falls back to an
 older record, and an invalid migration source never falls through to the next older version,
 because either fallback would hide data corruption. Rolling back restores the latest record that
-the older build understands; edits made only in v19 are intentionally unavailable to it.
+the older build understands; edits made only in v20 are intentionally unavailable to it.
 
 Browser Preview, Gateway Browser, and Electron each create and dispose one controller against their
 own origin-local storage. Gateway and Electron pass the controller's narrow binding source through
@@ -494,6 +514,7 @@ change does not remount Workbench, replace an attachment, or reopen a Host or Ga
 | Pending Copy and Paste work cannot admit stale or duplicate shortcut input                   | Clipboard coordinator and Action tests plus exact Desktop `terminal-parity/IN-13-selection-copy-paste`                                  |
 | Directional focus selects a spatial neighbor and falls through at outer edges                | Four-Panel resolver, Action, and shortcut dispatch tests                                                                                |
 | Cyclic focus follows canonical Panel order, wraps, and falls through when unavailable        | Generated resolver, prepared Action, shortcut dispatch, Settings, and v17 migration tests                                               |
+| Positional focus selects one exact canonical Panel and never clamps a missing position       | Generated resolver, prepared Action, shortcut/Settings, v19 migration, and exact Desktop `terminal-parity/FS-17-panel-position-focus`   |
 | Visible focus and swap select one exact other Panel without leaking owned input              | Model, Action, React, shortcut, Settings, v19 migration, and exact Desktop `terminal-parity/FS-16-visible-panel-selection`              |
 | Directional movement swaps exact neighboring leaves and retains source focus                 | Model, bounded exploration, Action, shortcut, Settings, and exact Desktop `terminal-parity/FS-13-directional-panel-movement`            |
 | Equalization assigns proportional same-axis Panel extents without identity changes           | Model, generated layouts, Action, menu, shortcut, Settings, v15 migration, and exact Desktop `terminal-parity/FS-14-panel-equalization` |
@@ -505,7 +526,7 @@ change does not remount Workbench, replace an attachment, or reopen a Host or Ga
 | Visible Hints consume one focused binding and never leak label keys to terminal input        | Terminal, Action, shortcut, Settings, and exact Desktop `terminal-parity/FS-07-keyboard-hints`                                          |
 | Show Scrollback consumes one focused binding and opens the exact immutable viewer            | Terminal, Action, shortcut, Settings, and exact Desktop `terminal-parity/FS-09-scrollback-viewer`                                       |
 | Menus, Action search, and settings display the same current binding                          | Projection and rendered-surface tests                                                                                                   |
-| Valid v1 through v18 records migrate without losing explicit legacy overrides                | Storage migration tests, including new-default conflicts                                                                                |
+| Valid v1 through v19 records migrate without losing explicit legacy overrides                | Storage migration tests, including new-default conflicts                                                                                |
 | Invalid current or migration-source data does not consult an older record                    | Storage corruption and precedence tests                                                                                                 |
 
 The tests use synthetic platform flags, Action scopes, storage, document capture, injected terminal

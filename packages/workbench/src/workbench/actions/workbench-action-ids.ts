@@ -1,6 +1,7 @@
 import type { ActionInputValidation, ActionSignature } from '@orchbee/actions';
 import type { TabStripOrientation } from '@orchbee/tab-strip';
 
+import type { PanelFocusPosition } from '../components/workbench-panel-workspace/model/resolvePanelFocusByPosition';
 import type { WorkbenchSearchFilter } from '../types/workbench-search';
 
 export const WORKBENCH_ACTION_IDS = {
@@ -17,6 +18,7 @@ export const WORKBENCH_ACTION_IDS = {
 	equalizeActivePanels: 'workbench.panel.active.equalize',
 	focusActivePanelDown: 'workbench.panel.active.focus-down',
 	focusActivePanelLeft: 'workbench.panel.active.focus-left',
+	focusActivePanelByPosition: 'workbench.panel.active.focus-by-position',
 	focusActivePanelNext: 'workbench.panel.active.focus-next',
 	focusActivePanelPrevious: 'workbench.panel.active.focus-previous',
 	focusActivePanelRight: 'workbench.panel.active.focus-right',
@@ -99,6 +101,12 @@ export interface WorkbenchTabStripOrientationInput {
 	readonly orientation: TabStripOrientation;
 }
 
+export type WorkbenchPanelPosition = PanelFocusPosition;
+
+export interface WorkbenchPanelPositionInput {
+	readonly position: WorkbenchPanelPosition;
+}
+
 export type WorkbenchTabPosition = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
 
 export interface WorkbenchTabPositionInput {
@@ -143,6 +151,7 @@ export interface WorkbenchActionCatalog {
 	readonly [WORKBENCH_ACTION_IDS.equalizeActivePanels]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.focusActivePanelDown]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.focusActivePanelLeft]: ActionSignature<void>;
+	readonly [WORKBENCH_ACTION_IDS.focusActivePanelByPosition]: ActionSignature<WorkbenchPanelPositionInput>;
 	readonly [WORKBENCH_ACTION_IDS.focusActivePanelNext]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.focusActivePanelPrevious]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.focusActivePanelRight]: ActionSignature<void>;
@@ -232,6 +241,17 @@ export const workbenchSearchOpenInput: ActionInputValidation<WorkbenchSearchOpen
 			: { success: false, code: 'expected-workbench-search-filter' },
 };
 
+export const workbenchPanelPositionInput: ActionInputValidation<WorkbenchPanelPositionInput> = {
+	name: 'WorkbenchPanelPositionInput',
+	parse: (input) =>
+		isRecord(input) && isWorkbenchPanelPosition(input['position'])
+			? {
+					data: { position: input['position'] },
+					success: true,
+				}
+			: { code: 'expected-workbench-panel-position-input', success: false },
+};
+
 export const workbenchTabPositionInput: ActionInputValidation<WorkbenchTabPositionInput> = {
 	name: 'WorkbenchTabPositionInput',
 	parse: (input) =>
@@ -281,6 +301,21 @@ export const workbenchTabTitleInput: ActionInputValidation<WorkbenchTabTitleInpu
 		};
 	},
 };
+
+function isWorkbenchPanelPosition(input: unknown): input is WorkbenchPanelPosition {
+	return (
+		input === 1 ||
+		input === 2 ||
+		input === 3 ||
+		input === 4 ||
+		input === 5 ||
+		input === 6 ||
+		input === 7 ||
+		input === 8 ||
+		input === 9 ||
+		input === 10
+	);
+}
 
 function isWorkbenchTabPosition(input: unknown): input is WorkbenchTabPosition {
 	return (

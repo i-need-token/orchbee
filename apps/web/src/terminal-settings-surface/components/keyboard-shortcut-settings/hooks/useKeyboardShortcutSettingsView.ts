@@ -124,6 +124,10 @@ export function useKeyboardShortcutSettingsView({
 				return intl.formatMessage(keyboardShortcutMessages.focusPanelDown);
 			case 'focus-panel-left':
 				return intl.formatMessage(keyboardShortcutMessages.focusPanelLeft);
+			case 'focus-panel-position':
+				return intl.formatMessage(keyboardShortcutMessages.focusPanelPosition, {
+					position: declaration.position,
+				});
 			case 'focus-panel-next':
 				return intl.formatMessage(keyboardShortcutMessages.focusPanelNext);
 			case 'focus-panel-previous':
@@ -192,6 +196,8 @@ export function useKeyboardShortcutSettingsView({
 				return intl.formatMessage(keyboardShortcutMessages.availabilityMultipleTabs);
 			case 'movable-tab':
 				return intl.formatMessage(keyboardShortcutMessages.availabilityMovableTab);
+			case 'panel-position':
+				return intl.formatMessage(keyboardShortcutMessages.availabilityPanelPosition);
 			case 'tab-position':
 				return intl.formatMessage(keyboardShortcutMessages.availabilityTabPosition);
 		}

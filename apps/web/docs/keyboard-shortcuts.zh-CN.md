@@ -93,6 +93,11 @@ Panel 循环聚焦在两个平台都保留该修订版中“下一个”的 `Ctr
 `Ctrl+Shift+[` 默认键。Workbench 在 Apple 平台仍使用显式 Control，只遍历当前 Tab 的规范深度优先
 Panel 叶节点顺序，并且仅在至少存在两个 Panel 时回绕。
 
+Panel 按位置聚焦在两个平台都保留该修订版的物理 `Ctrl+Shift+1` 到 `Ctrl+Shift+0` 默认键，其中
+`0` 表示位置十。Workbench 把它们映射到当前 Tab 内规范深度优先 Panel 叶节点顺序的一基精确位置。
+它刻意省略 Kitty 的 macOS `Command+digit` 别名，因为这些组合键继续用于选择 Tab，也不会把缺失位置
+钳制到最后一个 Panel。
+
 Panel 可视聚焦与交换在两个平台都保留该修订版的 `Ctrl+Shift+F7` 与 `Ctrl+Shift+F8` 默认键。
 双 Panel Tab 会立即选择唯一的另一 Panel。三个或更多 Panel 会进入 Workbench 的精确、排除源的
 字母数字选择器；目标顺序、多字符标签、陈旧会话取消，以及对现有聚焦与交换 Action 的委托均由
@@ -174,6 +179,12 @@ Workbench 快捷键监听器会跳过该标记内的事件，随后工作区会�
 
 `Mod+1` 到 `Mod+9` 会用相应的一基位置调用 `workbench.tab.select-by-position`。位置取自活动终端上下文的规范 `TabModel.tabs` 顺序：固定 Tab 前缀在最前，之后是当前的分组与未分组顺序。折叠组中的 Tab 仍会占据位置；委托的 `tabs.tab.select` Action 会通过普通选择转换展开所选 Tab 所在的组。缺少对应位置时 Action 不可用，按键事件保持不变。`Mod+9` 表示第九个 Tab，绝不表示最后一个 Tab。
 
+`Ctrl+Shift+1` 到 `Ctrl+Shift+9`，以及 `Ctrl+Shift+0`，会调用
+`workbench.panel.active.focus-by-position`，并传入一到十的精确语义位置。位置根据活动 Tab 的规范
+深度优先 Panel 叶节点顺序解析。目标存在时委托普通 Panel 聚焦 Action；目标已经聚焦时是刻意可用的
+`unchanged` 结果，仍会消费事件。位置缺失、布局最大化、源陈旧、顺序无效或下层 Action 缺失时不可用，
+事件保持不变。
+
 ### 当前目录 Tab 创建模型
 
 - **问题与输入：** 用户需要一个以实际正在查看的终端目录为根的新 Tab。调用可以不携带目标，从而解析活动 Tab 的聚焦 Panel；也可以携带终端上下文菜单捕获的一个精确 Panel 目标。
@@ -245,7 +256,7 @@ Workbench 快捷键监听器会跳过该标记内的事件，随后工作区会�
 
 ## 活动目标命令模型
 
-十六个 `workbench.*.active.*` Action 是上下文命令。菜单发起的 Action 调用可以携带显式面板目标；否则使用活动标签页中聚焦的面板。执行开始时会重新解析目标，因此陈旧或缺失的目标不可用，也不会吞掉键盘事件。
+十九个 `workbench.*.active.*` Action 是上下文命令。菜单发起的 Action 调用可以携带显式面板目标；否则使用活动标签页中聚焦的面板。执行开始时会重新解析目标，因此陈旧或缺失的目标不可用，也不会吞掉键盘事件。
 
 `workbench.terminal.active.close` 精确解析为一个下层关闭操作：
 
@@ -265,6 +276,11 @@ Workbench 快捷键监听器会跳过该标记内的事件，随后工作区会�
 上一个与下一个聚焦 Action 只把当前 Tab 的规范布局展平为深度优先叶节点顺序，选择相邻 Panel，在两个
 边界回绕，并通过同一个 Panel 聚焦 Action 委托该精确目标。单 Panel、陈旧源或 Panel 最大化时不可用，
 因此组合键会继续传递，且不会跨 Tab、终端上下文或窗口。
+
+按位置聚焦 Action 校验一个 `1` 到 `10` 的精确输入，只把当前 Tab 展平为规范深度优先 Panel 叶节点
+顺序，并为 `position - 1` 处的叶节点准备普通 Panel 聚焦 Action。它绝不钳制。选择当前 Panel 仍然可用，
+并返回下层 Action 的 `unchanged` 结果，包括单例中的位置一；位置缺失、源陈旧、Panel 标识重复、布局
+最大化或下层注册缺失时，状态与按键事件都保持不变。
 
 四个方向移动 Action 复用完全相同的邻居解析器，再准备一个精确源/目标 `workbench.panel.swap` Action。底层转换交换完整 Panel 叶节点，同时保留 split 拓扑、权重、slot ID、终端标识、计数器与 Panel 成员关系；移动源保持聚焦。缺少邻居、单 Panel 布局、Panel 最大化、目标陈旧或底层注册缺失时不会发生变更，并保留按键事件。
 
@@ -289,11 +305,11 @@ Workbench 负责格式化自身绑定。投影终端负责其绑定默认值与�
 
 ## 持久化与恢复
 
-新写入使用 `orchbee:web:keyboard-shortcuts:v19` 严格记录：
+新写入使用 `orchbee:web:keyboard-shortcuts:v20` 严格记录：
 
 ```json
 {
-	"version": 19,
+	"version": 20,
 	"overrides": [
 		{
 			"shortcutId": "workbench.search.all.open",
@@ -303,9 +319,9 @@ Workbench 负责格式化自身绑定。投影终端负责其绑定默认值与�
 }
 ```
 
-只存储自定义值，并按快捷键 ID 排序。未知字段或 ID、重复项、未排序条目、非规范修饰符、不支持的代码、已存储默认值、过多条目以及有效冲突都会使完整 v19 记录无效，并恢复平台默认值。写入失败时，不可变的会话绑定仍保持活动，同时报告尚未保存，并在下一次合法修改时重试。恢复单项会移除其覆盖。
+只存储自定义值，并按快捷键 ID 排序。未知字段或 ID、重复项、未排序条目、非规范修饰符、不支持的代码、已存储默认值、过多条目以及有效冲突都会使完整 v20 记录无效，并恢复平台默认值。写入失败时，不可变的会话绑定仍保持活动，同时报告尚未保存，并在下一次合法修改时重试。恢复单项会移除其覆盖。
 
-当 v19 不存在时，Web 会先按准确的旧目录与旧默认值读取 `orchbee:web:keyboard-shortcuts:v18`；如果 v18 也不存在，则依次尝试 v17、v16、v15、v14、v13、v12、v11、v10、v9、v8、v7、v6、v5、v4、v3、v2 和 v1。每次迁移都会把显式覆盖带入扩展后的目录，移除与当前默认值等价的覆盖，拒绝迁移后产生的冲突，并写入规范 v19 记录。v1 到 v18 的值原样保留，作为回滚快照。无效当前记录绝不回退到更旧记录，无效迁移源也绝不继续读取下一个更旧版本，因为任一回退都会掩盖数据损坏。回滚时会恢复旧版本能够理解的最新记录；只在 v19 中做出的编辑有意不对旧版本可用。
+当 v20 不存在时，Web 会先按准确的旧目录与旧默认值读取 `orchbee:web:keyboard-shortcuts:v19`；如果 v19 也不存在，则依次尝试 v18、v17、v16、v15、v14、v13、v12、v11、v10、v9、v8、v7、v6、v5、v4、v3、v2 和 v1。每次迁移都会把显式覆盖带入扩展后的目录，移除与当前默认值等价的覆盖，拒绝迁移后产生的冲突，并写入规范 v20 记录。v1 到 v19 的值原样保留，作为回滚快照。无效当前记录绝不回退到更旧记录，无效迁移源也绝不继续读取下一个更旧版本，因为任一回退都会掩盖数据损坏。回滚时会恢复旧版本能够理解的最新记录；只在 v20 中做出的编辑有意不对旧版本可用。
 
 Browser Preview、Gateway Browser 和 Electron 各自针对自己的源本地存储创建并销毁一个控制器。Gateway 与 Electron 通过 `ProjectedTerminalSurfaceCapability` 传递控制器的窄绑定来源。事件处理器在分发时读取当前表，因此修改不会重新挂载 Workbench、替换附件，也不会重新打开 Host 或 Gateway 连接。
 
@@ -324,6 +340,7 @@ Browser Preview、Gateway Browser 和 Electron 各自针对自己的源本地存
 | 等待中的 Copy 与 Paste 工作不会接纳陈旧或重复快捷键输入        | 剪贴板协调器与 Action 测试及精确 Desktop `terminal-parity/IN-13-selection-copy-paste`                                 |
 | 方向聚焦会选择空间邻居，并在外边缘继续传递事件                 | 四面板解析器、Action 与快捷键分发测试                                                                                 |
 | 循环聚焦遵循规范 Panel 顺序、回绕，并在不可用时继续传递        | 生成式解析器、预备 Action、快捷键分发、Settings 与 v17 迁移测试                                                       |
+| 按位置聚焦选择一个精确规范 Panel，且绝不钳制缺失位置           | 生成式解析器、预备 Action、快捷键/Settings、v19 迁移及精确 Desktop `terminal-parity/FS-17-panel-position-focus`       |
 | 可视聚焦与交换会选中一个精确的其他 Panel，且不泄漏已接管的输入 | 模型、Action、React、快捷键、Settings、v19 迁移及精确 Desktop `terminal-parity/FS-16-visible-panel-selection`         |
 | 方向移动会交换精确相邻叶节点并保留源焦点                       | 模型、有界探索、Action、快捷键、设置及精确 Desktop `terminal-parity/FS-13-directional-panel-movement`                 |
 | 均分按同轴 Panel 比例分配范围且不改变标识                      | 模型、生成布局、Action、菜单、快捷键、设置、v15 迁移及精确 Desktop `terminal-parity/FS-14-panel-equalization`         |
@@ -335,7 +352,7 @@ Browser Preview、Gateway Browser 和 Electron 各自针对自己的源本地存
 | 可见 Hints 消费一个聚焦绑定，且标签按键绝不会泄漏到终端输入    | 终端、Action、快捷键、Settings 与精确 Desktop `terminal-parity/FS-07-keyboard-hints`                                  |
 | 显示回滚历史消费一个聚焦绑定并打开精确不可变查看器             | 终端、Action、快捷键、Settings 与精确 Desktop `terminal-parity/FS-09-scrollback-viewer`                               |
 | 菜单、Action 搜索和设置显示同一个当前绑定                      | 投影与渲染界面测试                                                                                                    |
-| 有效 v1 到 v18 记录迁移时不会丢失显式旧覆盖                    | 存储迁移测试，包括与新默认值的冲突                                                                                    |
+| 有效 v1 到 v19 记录迁移时不会丢失显式旧覆盖                    | 存储迁移测试，包括与新默认值的冲突                                                                                    |
 | 无效当前记录或迁移源数据不会读取更旧记录                       | 存储损坏与优先级测试                                                                                                  |
 
 测试使用合成的平台标志、Action 作用域、存储、document 捕获、注入终端焦点与键盘事件。它们不主张操作系统全局快捷键行为或完整 Warp 兼容性。手动 Desktop 原生窗口焦点测试不包含在自动验证中。

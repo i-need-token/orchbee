@@ -47,6 +47,36 @@ export function createKeyboardShortcutBindings(
 		[WORKBENCH_SHORTCUTS.focusActivePanelLeft.shortcutId]: bindingFor(
 			WORKBENCH_SHORTCUTS.focusActivePanelLeft.shortcutId,
 		),
+		[WORKBENCH_SHORTCUTS.focusPanel1.shortcutId]: bindingFor(
+			WORKBENCH_SHORTCUTS.focusPanel1.shortcutId,
+		),
+		[WORKBENCH_SHORTCUTS.focusPanel2.shortcutId]: bindingFor(
+			WORKBENCH_SHORTCUTS.focusPanel2.shortcutId,
+		),
+		[WORKBENCH_SHORTCUTS.focusPanel3.shortcutId]: bindingFor(
+			WORKBENCH_SHORTCUTS.focusPanel3.shortcutId,
+		),
+		[WORKBENCH_SHORTCUTS.focusPanel4.shortcutId]: bindingFor(
+			WORKBENCH_SHORTCUTS.focusPanel4.shortcutId,
+		),
+		[WORKBENCH_SHORTCUTS.focusPanel5.shortcutId]: bindingFor(
+			WORKBENCH_SHORTCUTS.focusPanel5.shortcutId,
+		),
+		[WORKBENCH_SHORTCUTS.focusPanel6.shortcutId]: bindingFor(
+			WORKBENCH_SHORTCUTS.focusPanel6.shortcutId,
+		),
+		[WORKBENCH_SHORTCUTS.focusPanel7.shortcutId]: bindingFor(
+			WORKBENCH_SHORTCUTS.focusPanel7.shortcutId,
+		),
+		[WORKBENCH_SHORTCUTS.focusPanel8.shortcutId]: bindingFor(
+			WORKBENCH_SHORTCUTS.focusPanel8.shortcutId,
+		),
+		[WORKBENCH_SHORTCUTS.focusPanel9.shortcutId]: bindingFor(
+			WORKBENCH_SHORTCUTS.focusPanel9.shortcutId,
+		),
+		[WORKBENCH_SHORTCUTS.focusPanel10.shortcutId]: bindingFor(
+			WORKBENCH_SHORTCUTS.focusPanel10.shortcutId,
+		),
 		[WORKBENCH_SHORTCUTS.focusActivePanelNext.shortcutId]: bindingFor(
 			WORKBENCH_SHORTCUTS.focusActivePanelNext.shortcutId,
 		),

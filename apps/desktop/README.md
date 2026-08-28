@@ -484,6 +484,10 @@ Focused traces cover:
   modifier-held physical selection, primary-pointer swap, Action-search and Settings discovery,
   source/target focus restoration, canonical leaf exchange, and unchanged Panel, terminal
   presentation, creation, and Host terminal identities;
+- exact headed `terminal-parity/FS-17-panel-position-focus` Browser-composition witness for
+  canonical depth-first Panel numbering, physical `Ctrl+Shift+1/2/3/0` dispatch, current-target
+  consumption, missing-position and maximized-layout fallthrough, focused-textbox restoration,
+  stable Panel/presentation/document identities, and Settings discovery of positions one and ten;
 - exact headed `terminal-parity/LC-05-lan-capability` Browser-composition evidence for per-operation secure-context, transient-user-activation, and API checks; synchronous Copy availability; one admitted writer call; rejection without retry; localized failure; and no privileged insecure-LAN path;
 - exact `terminal-parity/HS-07-selection-export` real-PTY/Electron evidence that styled terminal
   selection reaches the platform clipboard as the exact visible plain text, paired with protocol,

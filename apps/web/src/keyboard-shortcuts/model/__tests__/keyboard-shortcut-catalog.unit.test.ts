@@ -10,9 +10,9 @@ import {
 } from '../keyboard-shortcut-catalog';
 
 describe('keyboard shortcut catalog', () => {
-	it('combines the forty-one Workbench and sixteen projected-terminal declarations once', () => {
-		expect(KEYBOARD_SHORTCUT_CATALOG).toHaveLength(57);
-		expect(new Set(KEYBOARD_SHORTCUT_IDS).size).toBe(57);
+	it('combines the fifty-one Workbench and sixteen projected-terminal declarations once', () => {
+		expect(KEYBOARD_SHORTCUT_CATALOG).toHaveLength(67);
+		expect(new Set(KEYBOARD_SHORTCUT_IDS).size).toBe(67);
 		expect(keyboardShortcutDeclaration('workbench.search.actions.open')).toMatchObject({
 			actionId: 'workbench.search.open',
 			actionInput: { filter: 'actions' },
@@ -39,6 +39,22 @@ describe('keyboard shortcut catalog', () => {
 			actionId: 'workbench.panel.active.focus-left',
 			availability: 'directional-panel',
 			name: 'focus-panel-left',
+			scope: 'active-panel',
+		});
+		expect(keyboardShortcutDeclaration('workbench.panel.focus.1')).toMatchObject({
+			actionId: 'workbench.panel.active.focus-by-position',
+			actionInput: { position: 1 },
+			availability: 'panel-position',
+			name: 'focus-panel-position',
+			position: 1,
+			scope: 'active-panel',
+		});
+		expect(keyboardShortcutDeclaration('workbench.panel.focus.10')).toMatchObject({
+			actionId: 'workbench.panel.active.focus-by-position',
+			actionInput: { position: 10 },
+			availability: 'panel-position',
+			name: 'focus-panel-position',
+			position: 10,
 			scope: 'active-panel',
 		});
 		expect(keyboardShortcutDeclaration('workbench.panel.active.focus-next')).toMatchObject({
@@ -195,6 +211,11 @@ describe('keyboard shortcut catalog', () => {
 		);
 		expect(formatKeyboardShortcutChord(apple['workbench.panel.active.focus-left'], 'apple')).toBe(
 			'⌥⌘←',
+		);
+		expect(formatKeyboardShortcutChord(apple['workbench.panel.focus.1'], 'apple')).toBe('⌃⇧1');
+		expect(formatKeyboardShortcutChord(apple['workbench.panel.focus.10'], 'apple')).toBe('⌃⇧0');
+		expect(formatKeyboardShortcutChord(standard['workbench.panel.focus.10'], 'standard')).toBe(
+			'Ctrl+Shift+0',
 		);
 		expect(formatKeyboardShortcutChord(apple['workbench.panel.active.focus-next'], 'apple')).toBe(
 			'⌃⇧]',

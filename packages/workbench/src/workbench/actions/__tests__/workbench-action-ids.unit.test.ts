@@ -8,6 +8,7 @@ import {
 	workbenchProjectInput,
 	workbenchProjectRenameInput,
 	workbenchProjectReorderInput,
+	workbenchPanelPositionInput,
 	workbenchSearchOpenInput,
 	workbenchTabPositionInput,
 	workbenchTabTitleInput,
@@ -34,6 +35,7 @@ describe('workbench action contracts', () => {
 			deleteWorkspace: 'workbench.workspace.delete',
 			duplicateWorkspace: 'workbench.workspace.duplicate',
 			equalizeActivePanels: 'workbench.panel.active.equalize',
+			focusActivePanelByPosition: 'workbench.panel.active.focus-by-position',
 			focusActivePanelDown: 'workbench.panel.active.focus-down',
 			focusActivePanelLeft: 'workbench.panel.active.focus-left',
 			focusActivePanelNext: 'workbench.panel.active.focus-next',
@@ -71,6 +73,21 @@ describe('workbench action contracts', () => {
 			toggleSidebar: 'workbench.sidebar.toggle',
 			updateWorkspace: 'workbench.workspace.update',
 		});
+	});
+
+	it('accepts only the first ten one-based Panel positions', () => {
+		for (let position = 1; position <= 10; position += 1) {
+			expect(workbenchPanelPositionInput.parse({ position })).toEqual({
+				data: { position },
+				success: true,
+			});
+		}
+		for (const position of [0, 11, 1.5, '2']) {
+			expect(workbenchPanelPositionInput.parse({ position })).toEqual({
+				code: 'expected-workbench-panel-position-input',
+				success: false,
+			});
+		}
 	});
 
 	it('accepts only the first nine one-based Tab positions', () => {

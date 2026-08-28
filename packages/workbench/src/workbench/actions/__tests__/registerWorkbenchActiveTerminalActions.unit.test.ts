@@ -2,6 +2,7 @@ import {
 	ActionRuntime,
 	createTypedActionRuntime,
 	defineAction,
+	type ActionDisposable,
 	type ActionExecutionContext,
 	type ActionResult,
 } from '@orchbee/actions';
@@ -319,6 +320,97 @@ describe('registerWorkbenchActiveTerminalActions', () => {
 		).toMatchObject({ availability: { kind: 'disabled' } });
 	});
 
+	it('focuses an exact canonical Panel position and preserves a current-target unchanged result', async () => {
+		const harness = createHarness();
+		const store = harness.projectWorkspaceRuntime.getActiveTerminalContext().panelWorkspaceStore;
+		const tabId = store.getActiveTabId();
+		if (tabId === null) throw new Error('Expected an active Tab.');
+		for (const panelId of ['panel-1', 'panel-2']) {
+			store.transition({
+				direction: 'right',
+				newTerminalTitle: 'Terminal',
+				panelId,
+				presentation: store.createTerminalPresentation(),
+				tabId,
+				type: 'panel-split',
+			});
+		}
+		const lowerExecute = vi.fn<(input: PanelTargetInput) => void>();
+		registerPanelFocus(harness, (context, input) => {
+			lowerExecute(input);
+			if (input.panelId === 'panel-3') return { kind: 'unchanged' };
+			context.markCommitted();
+			return { kind: 'completed' };
+		});
+
+		await expect(
+			harness.execute(WORKBENCH_ACTION_IDS.focusActivePanelByPosition, { position: 1 }),
+		).resolves.toEqual({ kind: 'completed' });
+		await expect(
+			harness.execute(WORKBENCH_ACTION_IDS.focusActivePanelByPosition, { position: 3 }),
+		).resolves.toEqual({ kind: 'unchanged' });
+		expect(lowerExecute).toHaveBeenNthCalledWith(1, { panelId: 'panel-1' });
+		expect(lowerExecute).toHaveBeenNthCalledWith(2, { panelId: 'panel-3' });
+	});
+
+	it('keeps missing, maximized, stale-source, and unregistered positional focus unavailable', () => {
+		const harness = createHarness();
+		const store = harness.projectWorkspaceRuntime.getActiveTerminalContext().panelWorkspaceStore;
+		const tabId = store.getActiveTabId();
+		if (tabId === null) throw new Error('Expected an active Tab.');
+		store.transition({
+			direction: 'right',
+			newTerminalTitle: 'Terminal 2',
+			panelId: 'panel-1',
+			presentation: store.createTerminalPresentation(),
+			tabId,
+			type: 'panel-split',
+		});
+		const lowerRegistration = registerPanelFocus(harness, () => ({ kind: 'unchanged' }));
+		const invocation = { scope: harness.scope, source: 'keyboard' as const };
+
+		expect(
+			harness.runtime.resolveAction(
+				WORKBENCH_ACTION_IDS.focusActivePanelByPosition,
+				{ position: 2 },
+				invocation,
+			),
+		).toMatchObject({ availability: { kind: 'enabled' } });
+		expect(
+			harness.runtime.resolveAction(
+				WORKBENCH_ACTION_IDS.focusActivePanelByPosition,
+				{ position: 3 },
+				invocation,
+			),
+		).toMatchObject({ availability: { kind: 'disabled' } });
+		expect(
+			harness.runtime.resolveAction(
+				WORKBENCH_ACTION_IDS.focusActivePanelByPosition,
+				{ position: 1 },
+				{ ...invocation, target: { id: 'missing-panel', type: 'panel' } },
+			),
+		).toMatchObject({ availability: { kind: 'disabled' } });
+
+		store.transition({ panelId: 'panel-2', tabId, type: 'panel-maximization-toggled' });
+		expect(
+			harness.runtime.resolveAction(
+				WORKBENCH_ACTION_IDS.focusActivePanelByPosition,
+				{ position: 1 },
+				invocation,
+			),
+		).toMatchObject({ availability: { kind: 'disabled' } });
+		store.transition({ panelId: 'panel-2', tabId, type: 'panel-maximization-toggled' });
+
+		lowerRegistration.dispose();
+		expect(
+			harness.runtime.resolveAction(
+				WORKBENCH_ACTION_IDS.focusActivePanelByPosition,
+				{ position: 1 },
+				invocation,
+			),
+		).toMatchObject({ availability: { kind: 'disabled' } });
+	});
+
 	it('directly focuses or swaps the sole other visible Panel through lower Actions', async () => {
 		const harness = createHarness();
 		const store = harness.projectWorkspaceRuntime.getActiveTerminalContext().panelWorkspaceStore;
@@ -449,7 +541,7 @@ interface Harness {
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
 	readonly runtime: ActionRuntime;
 	readonly scope: ReturnType<ActionRuntime['createScope']>;
-	execute(actionId: string): Promise<unknown>;
+	execute(actionId: string, input?: unknown): Promise<unknown>;
 }
 
 function createHarness(confirm?: () => boolean): Harness {
@@ -471,8 +563,8 @@ function createHarness(confirm?: () => boolean): Harness {
 		typedRuntime: createTypedActionRuntime<WorkbenchActionCatalog>(runtime),
 	});
 	return {
-		execute: async (actionId) =>
-			await runtime.execute(actionId, undefined, { scope, source: 'keyboard' }).completion,
+		execute: async (actionId, input) =>
+			await runtime.execute(actionId, input, { scope, source: 'keyboard' }).completion,
 		projectWorkspaceRuntime,
 		runtime,
 		scope,
@@ -522,8 +614,8 @@ function registerPanelFocus(
 		context: ActionExecutionContext,
 		input: PanelTargetInput,
 	) => ActionResult | Promise<ActionResult>,
-): void {
-	registerPanelTargetAction(harness, PANEL_ACTION_IDS.focus, execute);
+): ActionDisposable {
+	return registerPanelTargetAction(harness, PANEL_ACTION_IDS.focus, execute);
 }
 
 function registerPanelSwap(
@@ -588,9 +680,9 @@ function registerPanelTargetAction(
 		context: ActionExecutionContext,
 		input: PanelTargetInput,
 	) => ActionResult | Promise<ActionResult>,
-): void {
+): ActionDisposable {
 	const panelScope = harness.runtime.createScope('panel-workspace', harness.scope);
-	harness.runtime.register(
+	return harness.runtime.register(
 		panelScope,
 		defineAction({
 			category: { id: 'panels', title: { defaultMessage: 'Panels' } },

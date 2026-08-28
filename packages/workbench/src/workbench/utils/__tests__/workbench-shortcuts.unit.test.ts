@@ -42,6 +42,16 @@ describe('Workbench shortcuts', () => {
 		expect(WORKBENCH_SHORTCUTS.equalizePanels.id).toBe('workbench.panel.active.equalize');
 		expect(WORKBENCH_SHORTCUTS.focusActivePanelDown.id).toBe('workbench.panel.active.focus-down');
 		expect(WORKBENCH_SHORTCUTS.focusActivePanelLeft.id).toBe('workbench.panel.active.focus-left');
+		expect(WORKBENCH_SHORTCUTS.focusPanel1).toMatchObject({
+			id: 'workbench.panel.active.focus-by-position',
+			input: { position: 1 },
+			shortcutId: 'workbench.panel.focus.1',
+		});
+		expect(WORKBENCH_SHORTCUTS.focusPanel10).toMatchObject({
+			id: 'workbench.panel.active.focus-by-position',
+			input: { position: 10 },
+			shortcutId: 'workbench.panel.focus.10',
+		});
 		expect(WORKBENCH_SHORTCUTS.focusActivePanelNext.id).toBe('workbench.panel.active.focus-next');
 		expect(WORKBENCH_SHORTCUTS.focusActivePanelPrevious.id).toBe(
 			'workbench.panel.active.focus-previous',
@@ -118,6 +128,8 @@ describe('Workbench shortcuts', () => {
 		expect(formatWorkbenchShortcut('equalizePanels', 'apple')).toBe('⌃⌘=');
 		expect(formatWorkbenchShortcut('focusActivePanelDown', 'apple')).toBe('⌥⌘↓');
 		expect(formatWorkbenchShortcut('focusActivePanelLeft', 'apple')).toBe('⌥⌘←');
+		expect(formatWorkbenchShortcut('focusPanel1', 'apple')).toBe('⌃⇧1');
+		expect(formatWorkbenchShortcut('focusPanel10', 'apple')).toBe('⌃⇧0');
 		expect(formatWorkbenchShortcut('focusActivePanelNext', 'apple')).toBe('⌃⇧]');
 		expect(formatWorkbenchShortcut('focusActivePanelPrevious', 'apple')).toBe('⌃⇧[');
 		expect(formatWorkbenchShortcut('focusActivePanelRight', 'apple')).toBe('⌥⌘→');
@@ -153,6 +165,8 @@ describe('Workbench shortcuts', () => {
 		expect(formatWorkbenchShortcut('equalizePanels', 'standard')).toBe('Ctrl+Alt+=');
 		expect(formatWorkbenchShortcut('focusActivePanelDown', 'standard')).toBe('Ctrl+Alt+↓');
 		expect(formatWorkbenchShortcut('focusActivePanelLeft', 'standard')).toBe('Ctrl+Alt+←');
+		expect(formatWorkbenchShortcut('focusPanel1', 'standard')).toBe('Ctrl+Shift+1');
+		expect(formatWorkbenchShortcut('focusPanel10', 'standard')).toBe('Ctrl+Shift+0');
 		expect(formatWorkbenchShortcut('focusActivePanelNext', 'standard')).toBe('Ctrl+Shift+]');
 		expect(formatWorkbenchShortcut('focusActivePanelPrevious', 'standard')).toBe('Ctrl+Shift+[');
 		expect(formatWorkbenchShortcut('focusActivePanelRight', 'standard')).toBe('Ctrl+Alt+→');
@@ -185,6 +199,9 @@ describe('Workbench shortcuts', () => {
 		expect(formatWorkbenchActionShortcut('workbench.search.open', 'apple')).toBe('⇧⌘F');
 		expect(formatWorkbenchActionShortcut('workbench.panel.active.equalize', 'apple')).toBe('⌃⌘=');
 		expect(formatWorkbenchActionShortcut('workbench.panel.active.focus-next', 'apple')).toBe('⌃⇧]');
+		expect(
+			formatWorkbenchActionShortcut('workbench.panel.active.focus-by-position', 'apple'),
+		).toBeNull();
 		expect(formatWorkbenchActionShortcut('workbench.panel.active.focus-visible', 'apple')).toBe(
 			'⌃⇧F7',
 		);
@@ -225,6 +242,16 @@ describe('Workbench shortcuts', () => {
 		['equalizePanels', 'Equal', 'Equal'],
 		['focusActivePanelDown', 'ArrowDown', 'ArrowDown'],
 		['focusActivePanelLeft', 'ArrowLeft', 'ArrowLeft'],
+		['focusPanel1', 'Digit1', 'Digit1'],
+		['focusPanel2', 'Digit2', 'Digit2'],
+		['focusPanel3', 'Digit3', 'Digit3'],
+		['focusPanel4', 'Digit4', 'Digit4'],
+		['focusPanel5', 'Digit5', 'Digit5'],
+		['focusPanel6', 'Digit6', 'Digit6'],
+		['focusPanel7', 'Digit7', 'Digit7'],
+		['focusPanel8', 'Digit8', 'Digit8'],
+		['focusPanel9', 'Digit9', 'Digit9'],
+		['focusPanel10', 'Digit0', 'Digit0'],
 		['focusActivePanelNext', 'BracketRight', 'BracketRight'],
 		['focusActivePanelPrevious', 'BracketLeft', 'BracketLeft'],
 		['focusActivePanelRight', 'ArrowRight', 'ArrowRight'],

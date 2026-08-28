@@ -9,6 +9,7 @@ export const enUSKeyboardShortcutMessages = {
 	'keyboard.shortcuts.actions.find': 'Find in terminal',
 	'keyboard.shortcuts.actions.focusPanelDown': 'Focus panel below',
 	'keyboard.shortcuts.actions.focusPanelLeft': 'Focus panel left',
+	'keyboard.shortcuts.actions.focusPanelPosition': 'Focus panel {position}',
 	'keyboard.shortcuts.actions.focusPanelNext': 'Focus next panel',
 	'keyboard.shortcuts.actions.focusPanelPrevious': 'Focus previous panel',
 	'keyboard.shortcuts.actions.focusPanelRight': 'Focus panel right',
@@ -62,6 +63,7 @@ export const enUSKeyboardShortcutMessages = {
 		'When the active terminal context has multiple tabs',
 	'keyboard.shortcuts.availability.movableTab':
 		'When the active tab can move inside its pinned or unpinned section',
+	'keyboard.shortcuts.availability.panelPosition': 'When that panel position exists',
 	'keyboard.shortcuts.availability.tabPosition': 'When that tab position exists',
 	'keyboard.shortcuts.availability.workbench': 'While the Workbench is active',
 	'keyboard.shortcuts.category': 'Keyboard shortcuts',

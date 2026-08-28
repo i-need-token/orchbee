@@ -74,6 +74,8 @@ export type {
 	WorkbenchProjectFolderAddInput,
 	WorkbenchProjectInput,
 	WorkbenchProjectRenameInput,
+	WorkbenchPanelPosition,
+	WorkbenchPanelPositionInput,
 	WorkbenchRuntimeTerminalCreateInput,
 	WorkbenchRuntimeTerminalCreateAtCwdInput,
 	WorkbenchRuntimeTerminalCreateResult,

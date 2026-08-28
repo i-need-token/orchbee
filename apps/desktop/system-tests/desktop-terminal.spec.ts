@@ -3167,6 +3167,138 @@ test('terminal-parity/FS-16-visible-panel-selection', async () => {
 	await expect(settingsSurface).not.toBeVisible();
 });
 
+test('terminal-parity/FS-17-panel-position-focus', async () => {
+	test.setTimeout(60_000);
+	const application = electronApplication;
+	if (application === undefined) throw new Error('Electron application did not start.');
+	const page = await application.firstWindow();
+	const splitRightShortcut = process.platform === 'darwin' ? 'Meta+KeyD' : 'Control+Shift+KeyD';
+	const maximizeShortcut =
+		process.platform === 'darwin' ? 'Meta+Shift+Enter' : 'Control+Shift+Enter';
+	const activeLayer = page.locator('[data-presentation-mode="active"]');
+	const workspace = page.locator('[data-slot="workbench-panel-workspace"]');
+	const panels = activeLayer.locator('[data-slot="workbench-panel"]');
+	const focusedPanel = activeLayer.locator('[data-slot="workbench-panel"][data-focused="true"]');
+	const focusedPanelId = async (): Promise<string> => {
+		const panelId = await focusedPanel.getAttribute('data-panel-id');
+		if (panelId === null) throw new Error('The focused Panel has no stable identity.');
+		return panelId;
+	};
+	const panelFor = (panelId: string): Locator =>
+		activeLayer.locator(`[data-slot="workbench-panel"][data-panel-id="${panelId}"]`);
+	const recordDefaultPrevention = async (code: string): Promise<void> => {
+		await page.evaluate((expectedCode) => {
+			document.documentElement.removeAttribute('data-fs17-key-default-prevented');
+			const record = (event: KeyboardEvent): void => {
+				if (event.code !== expectedCode) return;
+				document.documentElement.dataset['fs17KeyDefaultPrevented'] = String(
+					event.defaultPrevented,
+				);
+				document.removeEventListener('keydown', record, true);
+			};
+			document.addEventListener('keydown', record, true);
+		}, code);
+	};
+
+	const firstInput = projectedTerminal(page).getByRole('textbox');
+	await firstInput.focus();
+	const firstPanelId = await focusedPanelId();
+	await page.keyboard.press(splitRightShortcut);
+	await expect(panels).toHaveCount(2);
+	const secondPanelId = await focusedPanelId();
+	await page.keyboard.press(splitRightShortcut);
+	await expect(panels).toHaveCount(3);
+	const thirdPanelId = await focusedPanelId();
+	const canonicalPanelIds = [firstPanelId, secondPanelId, thirdPanelId] as const;
+	expect(new Set(canonicalPanelIds).size).toBe(3);
+	await expect
+		.poll(
+			async () =>
+				await panels.evaluateAll((elements) =>
+					elements.map((element) => element.getAttribute('data-panel-id') ?? ''),
+				),
+		)
+		.toEqual(canonicalPanelIds);
+
+	const presentationByPanel = new Map<string, string>();
+	const identityByPresentation = new Map<
+		string,
+		Awaited<ReturnType<typeof terminalDocumentIdentity>>
+	>();
+	for (const panelId of canonicalPanelIds) {
+		const presentationId = await panelFor(panelId)
+			.locator('[data-slot="workbench-terminal-viewport"]')
+			.getAttribute('data-terminal-presentation-id');
+		if (presentationId === null) throw new Error('A Panel has no terminal presentation identity.');
+		presentationByPanel.set(panelId, presentationId);
+		const terminalRoot = projectedTerminalFor(page, presentationId);
+		await expect(terminalRoot).toHaveAttribute('data-projected-terminal-state', 'open');
+		identityByPresentation.set(presentationId, await terminalDocumentIdentity(terminalRoot));
+	}
+
+	for (const [position, panelId] of canonicalPanelIds.entries()) {
+		const semanticPosition = position + 1;
+		await recordDefaultPrevention(`Digit${semanticPosition}`);
+		await page.keyboard.press(`Control+Shift+Digit${semanticPosition}`);
+		await expect(page.locator('html')).toHaveAttribute('data-fs17-key-default-prevented', 'true');
+		await expect(focusedPanel).toHaveAttribute('data-panel-id', panelId);
+		await expect(panelFor(panelId).getByRole('textbox')).toBeFocused();
+	}
+
+	await recordDefaultPrevention('Digit3');
+	await page.keyboard.press('Control+Shift+Digit3');
+	await expect(page.locator('html')).toHaveAttribute('data-fs17-key-default-prevented', 'true');
+	await expect(focusedPanel).toHaveAttribute('data-panel-id', thirdPanelId);
+	await expect(panelFor(thirdPanelId).getByRole('textbox')).toBeFocused();
+
+	await workspace.focus();
+	await expect(workspace).toBeFocused();
+	await recordDefaultPrevention('Digit0');
+	await page.keyboard.press('Control+Shift+Digit0');
+	await expect(page.locator('html')).toHaveAttribute('data-fs17-key-default-prevented', 'false');
+	await expect(focusedPanel).toHaveAttribute('data-panel-id', thirdPanelId);
+
+	await page.keyboard.press(maximizeShortcut);
+	await expect(panelFor(firstPanelId)).toBeHidden();
+	await expect(panelFor(secondPanelId)).toBeHidden();
+	await expect(panelFor(thirdPanelId)).toBeVisible();
+	await workspace.focus();
+	await recordDefaultPrevention('Digit1');
+	await page.keyboard.press('Control+Shift+Digit1');
+	await expect(page.locator('html')).toHaveAttribute('data-fs17-key-default-prevented', 'false');
+	await expect(focusedPanel).toHaveAttribute('data-panel-id', thirdPanelId);
+	await page.keyboard.press(maximizeShortcut);
+	for (const panelId of canonicalPanelIds) await expect(panelFor(panelId)).toBeVisible();
+
+	for (const [panelId, presentationId] of presentationByPanel) {
+		await expect(
+			panelFor(panelId).locator('[data-slot="workbench-terminal-viewport"]'),
+		).toHaveAttribute('data-terminal-presentation-id', presentationId);
+		const originalIdentity = identityByPresentation.get(presentationId);
+		if (originalIdentity === undefined) throw new Error('Missing terminal identity witness.');
+		expect(
+			await terminalDocumentIdentity(projectedTerminalFor(page, presentationId)),
+		).toMatchObject({
+			creationId: originalIdentity.creationId,
+			terminalId: originalIdentity.terminalId,
+		});
+	}
+
+	const settingsSurface = await openDesktopSettingsCategory(page, 'keyboard-shortcuts');
+	const firstPositionRow = settingsSurface.locator('[data-shortcut-id="workbench.panel.focus.1"]');
+	const tenthPositionRow = settingsSurface.locator('[data-shortcut-id="workbench.panel.focus.10"]');
+	await expect(firstPositionRow).toContainText(/(?:Focus panel 1|聚焦第 1 个面板)/u);
+	await expect(firstPositionRow).toContainText(
+		process.platform === 'darwin' ? '⌃⇧1' : 'Ctrl+Shift+1',
+	);
+	await expect(tenthPositionRow).toContainText(/(?:Focus panel 10|聚焦第 10 个面板)/u);
+	await expect(tenthPositionRow).toContainText(
+		process.platform === 'darwin' ? '⌃⇧0' : 'Ctrl+Shift+0',
+	);
+	await page.keyboard.press('Escape');
+	await expect(settingsSurface).not.toBeVisible();
+});
+
 test('keeps terminal presentation continuous through rapid Tab switching and active Tab closure', async () => {
 	test.setTimeout(60_000);
 	const application = electronApplication;

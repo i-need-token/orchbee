@@ -8,6 +8,7 @@ import {
 	defaultWorkbenchShortcutBindings,
 	type WorkbenchShortcutBindings,
 	type WorkbenchShortcutId,
+	type WorkbenchPanelPosition,
 	type WorkbenchTabPosition,
 } from '@orchbee/workbench';
 
@@ -37,6 +38,7 @@ export type KeyboardShortcutAvailability =
 	| 'movable-tab'
 	| 'multiple-panels'
 	| 'multiple-tabs'
+	| 'panel-position'
 	| 'directional-panel'
 	| 'tab-position';
 
@@ -103,6 +105,10 @@ type KeyboardShortcutName =
 export type KeyboardShortcutDeclaration = KeyboardShortcutDeclarationBase &
 	(
 		| {
+				readonly name: 'focus-panel-position';
+				readonly position: WorkbenchPanelPosition;
+		  }
+		| {
 				readonly name: 'select-tab';
 				readonly position: WorkbenchTabPosition;
 		  }
@@ -111,6 +117,47 @@ export type KeyboardShortcutDeclaration = KeyboardShortcutDeclarationBase &
 				readonly position?: undefined;
 		  }
 	);
+
+const POSITIONAL_PANEL_SHORTCUT_DECLARATIONS = Object.freeze(
+	[
+		WORKBENCH_SHORTCUTS.focusPanel1,
+		WORKBENCH_SHORTCUTS.focusPanel2,
+		WORKBENCH_SHORTCUTS.focusPanel3,
+		WORKBENCH_SHORTCUTS.focusPanel4,
+		WORKBENCH_SHORTCUTS.focusPanel5,
+		WORKBENCH_SHORTCUTS.focusPanel6,
+		WORKBENCH_SHORTCUTS.focusPanel7,
+		WORKBENCH_SHORTCUTS.focusPanel8,
+		WORKBENCH_SHORTCUTS.focusPanel9,
+		WORKBENCH_SHORTCUTS.focusPanel10,
+	].map(positionalPanelDeclaration),
+);
+
+function positionalPanelDeclaration(
+	shortcut:
+		| typeof WORKBENCH_SHORTCUTS.focusPanel1
+		| typeof WORKBENCH_SHORTCUTS.focusPanel2
+		| typeof WORKBENCH_SHORTCUTS.focusPanel3
+		| typeof WORKBENCH_SHORTCUTS.focusPanel4
+		| typeof WORKBENCH_SHORTCUTS.focusPanel5
+		| typeof WORKBENCH_SHORTCUTS.focusPanel6
+		| typeof WORKBENCH_SHORTCUTS.focusPanel7
+		| typeof WORKBENCH_SHORTCUTS.focusPanel8
+		| typeof WORKBENCH_SHORTCUTS.focusPanel9
+		| typeof WORKBENCH_SHORTCUTS.focusPanel10,
+): KeyboardShortcutDeclaration {
+	return Object.freeze({
+		actionId: shortcut.id,
+		actionInput: shortcut.input,
+		availability: 'panel-position',
+		defaults: shortcut.defaults,
+		feature: 'workbench',
+		name: 'focus-panel-position',
+		position: shortcut.input.position,
+		scope: 'active-panel',
+		shortcutId: shortcut.shortcutId,
+	});
+}
 
 const POSITIONAL_TAB_SHORTCUT_DECLARATIONS = Object.freeze(
 	[
@@ -273,6 +320,7 @@ export const KEYBOARD_SHORTCUT_CATALOG = Object.freeze([
 		scope: 'active-terminal',
 		shortcutId: WORKBENCH_SHORTCUTS.closeActiveTerminal.shortcutId,
 	}),
+	...POSITIONAL_PANEL_SHORTCUT_DECLARATIONS,
 	Object.freeze({
 		actionId: WORKBENCH_SHORTCUTS.focusActivePanelDown.id,
 		actionInput: WORKBENCH_SHORTCUTS.focusActivePanelDown.input,

@@ -16,6 +16,10 @@ export const keyboardShortcutMessages = defineMessages({
 	find: message('keyboard.shortcuts.actions.find'),
 	focusPanelDown: message('keyboard.shortcuts.actions.focusPanelDown'),
 	focusPanelLeft: message('keyboard.shortcuts.actions.focusPanelLeft'),
+	focusPanelPosition: message(
+		'keyboard.shortcuts.actions.focusPanelPosition',
+		'Numbered Panel-focus action. position is the one-based Panel position.',
+	),
 	focusPanelNext: message('keyboard.shortcuts.actions.focusPanelNext'),
 	focusPanelPrevious: message('keyboard.shortcuts.actions.focusPanelPrevious'),
 	focusPanelRight: message('keyboard.shortcuts.actions.focusPanelRight'),
@@ -71,6 +75,7 @@ export const keyboardShortcutMessages = defineMessages({
 	availabilityMultiplePanels: message('keyboard.shortcuts.availability.multiplePanels'),
 	availabilityMultipleTabs: message('keyboard.shortcuts.availability.multipleTabs'),
 	availabilityMovableTab: message('keyboard.shortcuts.availability.movableTab'),
+	availabilityPanelPosition: message('keyboard.shortcuts.availability.panelPosition'),
 	availabilityTabPosition: message('keyboard.shortcuts.availability.tabPosition'),
 	category: message('keyboard.shortcuts.category'),
 	conflict: message(

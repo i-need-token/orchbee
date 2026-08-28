@@ -68,6 +68,8 @@ export type {
 	WorkbenchProjectFolderAddInput,
 	WorkbenchProjectInput,
 	WorkbenchProjectRenameInput,
+	WorkbenchPanelPosition,
+	WorkbenchPanelPositionInput,
 	WorkbenchSearchOpenInput,
 	WorkbenchTabPosition,
 	WorkbenchTabPositionInput,

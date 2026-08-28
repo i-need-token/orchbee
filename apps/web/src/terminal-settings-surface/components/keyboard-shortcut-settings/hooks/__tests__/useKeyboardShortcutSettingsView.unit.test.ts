@@ -28,7 +28,7 @@ describe('useKeyboardShortcutSettingsView', () => {
 				}),
 			{ wrapper: I18nWrapper },
 		);
-		expect(allRows.result.current.rows).toHaveLength(57);
+		expect(allRows.result.current.rows).toHaveLength(67);
 		expect(allRows.result.current.rows[0]).toMatchObject({
 			actionName: 'Search actions',
 			chord: 'Ctrl+Shift+P',
@@ -131,6 +131,20 @@ describe('useKeyboardShortcutSettingsView', () => {
 		).toMatchObject({
 			availability: 'When an adjacent panel exists in that direction',
 			chord: 'Ctrl+Alt+←',
+			scope: 'Active panel',
+		});
+		expect(
+			allRows.result.current.rows.find((row) => row.actionName === 'Focus panel 1'),
+		).toMatchObject({
+			availability: 'When that panel position exists',
+			chord: 'Ctrl+Shift+1',
+			scope: 'Active panel',
+		});
+		expect(
+			allRows.result.current.rows.find((row) => row.actionName === 'Focus panel 10'),
+		).toMatchObject({
+			availability: 'When that panel position exists',
+			chord: 'Ctrl+Shift+0',
 			scope: 'Active panel',
 		});
 		expect(

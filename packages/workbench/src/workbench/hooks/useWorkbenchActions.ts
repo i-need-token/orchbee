@@ -433,7 +433,17 @@ export function useWorkbenchActions({
 				case 'selectTab6':
 				case 'selectTab7':
 				case 'selectTab8':
-				case 'selectTab9': {
+				case 'selectTab9':
+				case 'focusPanel1':
+				case 'focusPanel2':
+				case 'focusPanel3':
+				case 'focusPanel4':
+				case 'focusPanel5':
+				case 'focusPanel6':
+				case 'focusPanel7':
+				case 'focusPanel8':
+				case 'focusPanel9':
+				case 'focusPanel10': {
 					const definition = WORKBENCH_SHORTCUTS[binding.action];
 					if (
 						typedRuntime.resolveAction(definition.id, definition.input, invocation)?.availability

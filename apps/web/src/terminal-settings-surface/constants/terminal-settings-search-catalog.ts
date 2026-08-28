@@ -320,6 +320,7 @@ export const KEYBOARD_SHORTCUT_SEARCH_LABELS = {
 	find: keyboardShortcutMessages.find,
 	'focus-panel-down': keyboardShortcutMessages.focusPanelDown,
 	'focus-panel-left': keyboardShortcutMessages.focusPanelLeft,
+	'focus-panel-position': keyboardShortcutMessages.focusPanelPosition,
 	'focus-panel-next': keyboardShortcutMessages.focusPanelNext,
 	'focus-panel-previous': keyboardShortcutMessages.focusPanelPrevious,
 	'focus-panel-right': keyboardShortcutMessages.focusPanelRight,
@@ -381,5 +382,6 @@ export const KEYBOARD_SHORTCUT_SEARCH_AVAILABILITY = {
 	'multiple-panels': keyboardShortcutMessages.availabilityMultiplePanels,
 	'multiple-tabs': keyboardShortcutMessages.availabilityMultipleTabs,
 	'movable-tab': keyboardShortcutMessages.availabilityMovableTab,
+	'panel-position': keyboardShortcutMessages.availabilityPanelPosition,
 	'tab-position': keyboardShortcutMessages.availabilityTabPosition,
 } as const;

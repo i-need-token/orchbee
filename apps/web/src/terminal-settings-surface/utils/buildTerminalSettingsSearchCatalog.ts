@@ -101,7 +101,9 @@ export function buildTerminalSettingsSearchCatalog({
 						kind: 'setting',
 						label: formatMessage(
 							KEYBOARD_SHORTCUT_SEARCH_LABELS[declaration.name],
-							declaration.name === 'select-tab' ? { position: declaration.position } : undefined,
+							declaration.name === 'select-tab' || declaration.name === 'focus-panel-position'
+								? { position: declaration.position }
+								: undefined,
 						),
 						sectionLabel: formatMessage(KEYBOARD_SHORTCUT_SEARCH_SCOPES[declaration.scope]),
 						targetId: `keyboard-shortcuts.${declaration.shortcutId}`,

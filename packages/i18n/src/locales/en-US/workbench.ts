@@ -165,6 +165,7 @@ export const enUSWorkbenchMessages = {
 	'workbench.panels.actions.focus': 'Focus panel',
 	'workbench.panels.actions.focusDown': 'Focus Panel Below',
 	'workbench.panels.actions.focusLeft': 'Focus Panel Left',
+	'workbench.panels.actions.focusByPosition': 'Focus Panel by Position',
 	'workbench.panels.actions.focusNext': 'Focus Next Panel',
 	'workbench.panels.actions.focusPrevious': 'Focus Previous Panel',
 	'workbench.panels.actions.focusRight': 'Focus Panel Right',

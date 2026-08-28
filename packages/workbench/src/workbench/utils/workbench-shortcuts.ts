@@ -6,7 +6,10 @@ import {
 } from '@orchbee/keyboard-shortcuts';
 
 import { WORKBENCH_ACTION_IDS } from '../actions/workbench-action-ids';
-import type { WorkbenchTabPositionInput } from '../actions/workbench-action-ids';
+import type {
+	WorkbenchPanelPositionInput,
+	WorkbenchTabPositionInput,
+} from '../actions/workbench-action-ids';
 import type { WorkbenchShortcutPlatform } from '../types/workbench-shortcut-platform';
 
 interface WorkbenchShortcutDefinition {
@@ -19,6 +22,7 @@ interface WorkbenchShortcutDefinition {
 		| typeof WORKBENCH_ACTION_IDS.equalizeActivePanels
 		| typeof WORKBENCH_ACTION_IDS.focusActivePanelDown
 		| typeof WORKBENCH_ACTION_IDS.focusActivePanelLeft
+		| typeof WORKBENCH_ACTION_IDS.focusActivePanelByPosition
 		| typeof WORKBENCH_ACTION_IDS.focusActivePanelNext
 		| typeof WORKBENCH_ACTION_IDS.focusActivePanelPrevious
 		| typeof WORKBENCH_ACTION_IDS.focusActivePanelRight
@@ -47,6 +51,7 @@ interface WorkbenchShortcutDefinition {
 	readonly input:
 		| { readonly filter: 'actions' | 'all' }
 		| { readonly groupId: null }
+		| WorkbenchPanelPositionInput
 		| WorkbenchTabPositionInput
 		| undefined;
 	readonly shortcutId: string;
@@ -112,6 +117,16 @@ export const WORKBENCH_SHORTCUTS = {
 		input: undefined,
 		shortcutId: WORKBENCH_ACTION_IDS.focusActivePanelLeft,
 	},
+	focusPanel1: positionalPanelShortcut(1),
+	focusPanel2: positionalPanelShortcut(2),
+	focusPanel3: positionalPanelShortcut(3),
+	focusPanel4: positionalPanelShortcut(4),
+	focusPanel5: positionalPanelShortcut(5),
+	focusPanel6: positionalPanelShortcut(6),
+	focusPanel7: positionalPanelShortcut(7),
+	focusPanel8: positionalPanelShortcut(8),
+	focusPanel9: positionalPanelShortcut(9),
+	focusPanel10: positionalPanelShortcut(10),
 	focusActivePanelNext: {
 		defaults: {
 			apple: chord('BracketRight', ['control', 'shift']),
@@ -377,6 +392,16 @@ const WORKBENCH_SHORTCUT_ACTIONS = Object.freeze([
 	'equalizePanels',
 	'focusActivePanelDown',
 	'focusActivePanelLeft',
+	'focusPanel1',
+	'focusPanel2',
+	'focusPanel3',
+	'focusPanel4',
+	'focusPanel5',
+	'focusPanel6',
+	'focusPanel7',
+	'focusPanel8',
+	'focusPanel9',
+	'focusPanel10',
 	'focusActivePanelNext',
 	'focusActivePanelPrevious',
 	'focusActivePanelRight',
@@ -413,6 +438,21 @@ const WORKBENCH_SHORTCUT_ACTIONS = Object.freeze([
 	'swapActivePanelVisible',
 	'toggleSidebar',
 ] as const satisfies readonly WorkbenchShortcutAction[]);
+
+function positionalPanelShortcut<const Position extends WorkbenchPanelPositionInput['position']>(
+	position: Position,
+) {
+	const code = position === 10 ? 'Digit0' : `Digit${position}`;
+	return {
+		defaults: {
+			apple: chord(code, ['control', 'shift']),
+			standard: chord(code, ['control', 'shift']),
+		},
+		id: WORKBENCH_ACTION_IDS.focusActivePanelByPosition,
+		input: { position },
+		shortcutId: `workbench.panel.focus.${position}`,
+	} as const;
+}
 
 function positionalTabShortcut<const Position extends WorkbenchTabPositionInput['position']>(
 	position: Position,
@@ -557,6 +597,26 @@ function defaultBindingsFor(platform: WorkbenchShortcutPlatform): WorkbenchShort
 			WORKBENCH_SHORTCUTS.focusActivePanelDown.defaults[platform],
 		[WORKBENCH_SHORTCUTS.focusActivePanelLeft.shortcutId]:
 			WORKBENCH_SHORTCUTS.focusActivePanelLeft.defaults[platform],
+		[WORKBENCH_SHORTCUTS.focusPanel1.shortcutId]:
+			WORKBENCH_SHORTCUTS.focusPanel1.defaults[platform],
+		[WORKBENCH_SHORTCUTS.focusPanel2.shortcutId]:
+			WORKBENCH_SHORTCUTS.focusPanel2.defaults[platform],
+		[WORKBENCH_SHORTCUTS.focusPanel3.shortcutId]:
+			WORKBENCH_SHORTCUTS.focusPanel3.defaults[platform],
+		[WORKBENCH_SHORTCUTS.focusPanel4.shortcutId]:
+			WORKBENCH_SHORTCUTS.focusPanel4.defaults[platform],
+		[WORKBENCH_SHORTCUTS.focusPanel5.shortcutId]:
+			WORKBENCH_SHORTCUTS.focusPanel5.defaults[platform],
+		[WORKBENCH_SHORTCUTS.focusPanel6.shortcutId]:
+			WORKBENCH_SHORTCUTS.focusPanel6.defaults[platform],
+		[WORKBENCH_SHORTCUTS.focusPanel7.shortcutId]:
+			WORKBENCH_SHORTCUTS.focusPanel7.defaults[platform],
+		[WORKBENCH_SHORTCUTS.focusPanel8.shortcutId]:
+			WORKBENCH_SHORTCUTS.focusPanel8.defaults[platform],
+		[WORKBENCH_SHORTCUTS.focusPanel9.shortcutId]:
+			WORKBENCH_SHORTCUTS.focusPanel9.defaults[platform],
+		[WORKBENCH_SHORTCUTS.focusPanel10.shortcutId]:
+			WORKBENCH_SHORTCUTS.focusPanel10.defaults[platform],
 		[WORKBENCH_SHORTCUTS.focusActivePanelNext.shortcutId]:
 			WORKBENCH_SHORTCUTS.focusActivePanelNext.defaults[platform],
 		[WORKBENCH_SHORTCUTS.focusActivePanelPrevious.shortcutId]:
