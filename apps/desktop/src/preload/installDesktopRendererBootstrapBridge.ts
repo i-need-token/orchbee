@@ -37,6 +37,8 @@ export function installDesktopRendererBootstrapBridge(
 		const terminalDefaultSettingsPort = event.ports[7];
 		const clipboardReadPort = event.ports[8];
 		const windowLayoutPort = event.ports[9];
+		const remoteTerminalCreationPort = event.ports[10];
+		const sshProjectEnrollmentPort = event.ports[11];
 		if (
 			clientSessionPort === undefined ||
 			terminalProjectionPort === undefined ||
@@ -47,7 +49,9 @@ export function installDesktopRendererBootstrapBridge(
 			terminalLaunchProfilesPort === undefined ||
 			terminalDefaultSettingsPort === undefined ||
 			clipboardReadPort === undefined ||
-			windowLayoutPort === undefined
+			windowLayoutPort === undefined ||
+			remoteTerminalCreationPort === undefined ||
+			sshProjectEnrollmentPort === undefined
 		) {
 			closeTransferredPorts(event.ports);
 			return;
@@ -71,6 +75,8 @@ export function installDesktopRendererBootstrapBridge(
 					terminalDefaultSettingsPort,
 					clipboardReadPort,
 					windowLayoutPort,
+					remoteTerminalCreationPort,
+					sshProjectEnrollmentPort,
 				],
 			);
 		} catch {

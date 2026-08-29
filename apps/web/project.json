@@ -3,7 +3,7 @@
 	"domain": "web",
 	"runtime": ["browser", "electron"],
 	"stability": "experimental",
-	"responsibility": "Sole Workbench product renderer for browser and Electron clients, including the Browser Router and URL-to-Client-View coordination, localized Personal Access Token login and same-origin session-establishment client, client-local application and terminal-display settings, Desktop-local shell-profile settings presentation and unprivileged command client, platform-neutral page-client runtime, Electron and local Gateway transport adapters, Desktop Browser-access and Personal Access Token settings presentation and unprivileged command client, Desktop managed-Worktree form and unprivileged command client, and explicit Browser platform-effect adapters.",
+	"responsibility": "Sole Workbench product renderer for browser and Electron clients, including the Browser Router and URL-to-Client-View coordination, localized Personal Access Token login and same-origin session-establishment client, client-local application and terminal-display settings, Desktop-local shell-profile settings presentation and unprivileged command client, platform-neutral page-client runtime, Electron and local Gateway transport adapters, Desktop Browser-access and Personal Access Token settings presentation and unprivileged command client, Desktop managed-Worktree form and unprivileged command client, the Desktop-owned localized POSIX SSH Project enrollment dialog and unprivileged correlated client, and explicit Browser platform-effect adapters.",
 	"nonGoals": [
 		"Owning reusable product interface behavior or reusable UI primitives.",
 		"Owning the supported-locale contract, product message descriptors, or translation catalogs.",

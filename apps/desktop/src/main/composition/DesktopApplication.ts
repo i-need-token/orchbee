@@ -127,6 +127,15 @@ import {
 	type DesktopSshEnvironmentRemoteTerminalResult,
 } from '../remote-terminal';
 import {
+	DesktopRemoteTerminalCreationBroker,
+	type DesktopRemoteTerminalCreationBrokerRuntime,
+} from '../remote-terminal-creation';
+import {
+	DesktopSshProjectEnrollmentBroker,
+	DesktopSshProjectEnrollmentRuntime,
+	type DesktopSshProjectEnrollmentBrokerRuntime,
+} from '../ssh-project-enrollment';
+import {
 	createDesktopWorkbenchReadOperations,
 	createDesktopWorkbenchTerminalCreateOperation,
 	DesktopSemanticCommandCatalog,
@@ -261,6 +270,16 @@ interface DesktopProjectFolderAcquisitionBrokerHandle {
 }
 
 interface DesktopProjectWorktreeBrokerHandle {
+	dispose(): void;
+	start(): void;
+}
+
+interface DesktopRemoteTerminalCreationBrokerHandle {
+	dispose(): void;
+	start(): void;
+}
+
+interface DesktopSshProjectEnrollmentBrokerHandle {
 	dispose(): void;
 	start(): void;
 }
@@ -407,6 +426,14 @@ export interface DesktopApplicationDependencies {
 		port: MessagePortMain,
 		runtime: DesktopProjectWorktreeRuntimeHandle,
 	) => DesktopProjectWorktreeBrokerHandle;
+	readonly createRemoteTerminalCreationBroker: (
+		port: MessagePortMain,
+		runtime: DesktopRemoteTerminalCreationBrokerRuntime,
+	) => DesktopRemoteTerminalCreationBrokerHandle;
+	readonly createSshProjectEnrollmentBroker: (
+		port: MessagePortMain,
+		runtime: DesktopSshProjectEnrollmentBrokerRuntime,
+	) => DesktopSshProjectEnrollmentBrokerHandle;
 	readonly createProjectWorktreeRuntime: (options: {
 		readonly allocateIdentifier: () => string;
 		readonly coordinator: DesktopClientSessionCoordinator;
@@ -543,6 +570,10 @@ const defaultDependencies: DesktopApplicationDependencies = {
 			new DesktopProjectFolderAcquisitionRuntime(window),
 		),
 	createProjectWorktreeBroker: (port, runtime) => new DesktopProjectWorktreeBroker(port, runtime),
+	createRemoteTerminalCreationBroker: (port, runtime) =>
+		new DesktopRemoteTerminalCreationBroker(port, runtime),
+	createSshProjectEnrollmentBroker: (port, runtime) =>
+		new DesktopSshProjectEnrollmentBroker(port, runtime),
 	createProjectWorktreeRuntime: (options) =>
 		new DesktopProjectWorktreeRuntime({
 			allocateIdentifier: options.allocateIdentifier,
@@ -647,6 +678,7 @@ export class DesktopApplication {
 	#exitRequest: Promise<DesktopApplicationLifetimeExitResult> | undefined;
 	readonly #pendingGatewayClientCleanups = new Set<GatewayClientResourceOwner>();
 	#projectWorktreeRuntime: DesktopProjectWorktreeRuntimeHandle | undefined;
+	#sshProjectEnrollmentRuntime: DesktopSshProjectEnrollmentRuntime | undefined;
 	#quitPrepared = false;
 	#removeHostListener: (() => void) | undefined;
 	#semanticCommandLocalEndpoint: DesktopSemanticCommandLocalEndpointHandle | undefined;
@@ -1368,6 +1400,29 @@ export class DesktopApplication {
 				toDesktopWindowLayoutDocument(canonicalDocument),
 				windowLayoutHost,
 			);
+			this.#sshProjectEnrollmentRuntime = new DesktopSshProjectEnrollmentRuntime({
+				admitProject: (environmentId, requestedPath, signal) =>
+					this.admitSshEnvironmentRemoteProject(environmentId, requestedPath, signal),
+				allocateIdentifier: this.#dependencies.randomIdentifier,
+				connections: {
+					claimInteractionLease: (environmentId, interaction) =>
+						this.#sshEnvironmentConnections.claimInteractionLease(environmentId, interaction),
+					connect: (environmentId) => this.#sshEnvironmentConnections.connect(environmentId),
+					disconnect: (environmentId) => this.disconnectSshEnvironment(environmentId),
+					inspectProjectRoot: (environmentId, path, signal) =>
+						this.#sshEnvironmentConnections.inspectProjectRoot(environmentId, path, signal),
+					observation: (environmentId) =>
+						this.#sshEnvironmentConnections.observation(environmentId),
+					subscribe: (environmentId, listener) =>
+						this.#sshEnvironmentConnections.subscribe(environmentId, listener),
+				},
+				getDocument: () => clientSessionCoordinator.canonicalDocument,
+				registry: {
+					create: (environment) => this.createEnvironment(environment),
+					list: () => this.listEnvironments(),
+				},
+				resolveTarget: (target) => this.#dependencies.sshEnvironmentTargetResolver.resolve(target),
+			});
 			const semanticCommandCoordinatorGeneration = SemanticCommandCoordinatorGenerationSchema.parse(
 				`desktop:semantic-generation:${this.#dependencies.randomIdentifier()}`,
 			);
@@ -1467,6 +1522,8 @@ export class DesktopApplication {
 			} catch (cleanupError: unknown) {
 				cleanupFailure ??= cleanupError;
 			}
+			this.#sshProjectEnrollmentRuntime?.dispose();
+			this.#sshProjectEnrollmentRuntime = undefined;
 			try {
 				this.#windowLayoutCoordinator?.dispose();
 				this.#windowLayoutCoordinator = undefined;
@@ -1831,6 +1888,8 @@ export class DesktopApplication {
 		this.#removeHostListener?.();
 		this.#removeHostListener = undefined;
 		let firstFailure: unknown;
+		this.#sshProjectEnrollmentRuntime?.dispose();
+		this.#sshProjectEnrollmentRuntime = undefined;
 		try {
 			const remoteTerminalRuntimeOwner = this.#sshEnvironmentTerminalRuntimeOwner;
 			await remoteTerminalRuntimeOwner?.dispose();
@@ -2045,6 +2104,7 @@ export class DesktopApplication {
 	async #attachRendererDocument(window: BrowserWindow, generation: number): Promise<void> {
 		const terminalRuntime = this.#terminalRuntime;
 		const sshEnvironmentTerminalRuntimeOwner = this.#sshEnvironmentTerminalRuntimeOwner;
+		const sshProjectEnrollmentRuntime = this.#sshProjectEnrollmentRuntime;
 		const clientSessionCoordinator = this.#clientSessionCoordinator;
 		const terminalDefaultSettingsController = this.#terminalDefaultSettingsController;
 		const windowLayoutCoordinator = this.#windowLayoutCoordinator;
@@ -2053,6 +2113,7 @@ export class DesktopApplication {
 		if (
 			terminalRuntime === undefined ||
 			sshEnvironmentTerminalRuntimeOwner === undefined ||
+			sshProjectEnrollmentRuntime === undefined ||
 			clientSessionCoordinator === undefined ||
 			terminalDefaultSettingsController === undefined ||
 			windowLayoutCoordinator === undefined ||
@@ -2086,6 +2147,12 @@ export class DesktopApplication {
 		let projectWorktreeChannel:
 			| { readonly port1: MessagePortMain; readonly port2: MessagePortMain }
 			| undefined;
+		let remoteTerminalCreationChannel:
+			| { readonly port1: MessagePortMain; readonly port2: MessagePortMain }
+			| undefined;
+		let sshProjectEnrollmentChannel:
+			| { readonly port1: MessagePortMain; readonly port2: MessagePortMain }
+			| undefined;
 		let terminalLaunchProfileChannel:
 			| { readonly port1: MessagePortMain; readonly port2: MessagePortMain }
 			| undefined;
@@ -2102,6 +2169,8 @@ export class DesktopApplication {
 		let clipboardBroker: DesktopClipboardBrokerHandle | undefined;
 		let projectFolderAcquisitionBroker: DesktopProjectFolderAcquisitionBrokerHandle | undefined;
 		let projectWorktreeBroker: DesktopProjectWorktreeBrokerHandle | undefined;
+		let remoteTerminalCreationBroker: DesktopRemoteTerminalCreationBrokerHandle | undefined;
+		let sshProjectEnrollmentBroker: DesktopSshProjectEnrollmentBrokerHandle | undefined;
 		let terminalLaunchProfileBroker: DesktopTerminalLaunchProfileBrokerHandle | undefined;
 		let terminalDefaultSettingsBroker: DesktopTerminalDefaultSettingsBrokerHandle | undefined;
 		let windowLayoutBroker: DesktopWindowLayoutBroker | undefined;
@@ -2118,6 +2187,8 @@ export class DesktopApplication {
 					() => clipboardBroker?.dispose(),
 					() => projectFolderAcquisitionBroker?.dispose(),
 					() => projectWorktreeBroker?.dispose(),
+					() => remoteTerminalCreationBroker?.dispose(),
+					() => sshProjectEnrollmentBroker?.dispose(),
 					() => terminalDefaultSettingsBroker?.dispose(),
 					() => terminalLaunchProfileBroker?.dispose(),
 					() => windowLayoutBroker?.dispose(),
@@ -2149,6 +2220,8 @@ export class DesktopApplication {
 				closeRendererChannel(projectionChannel);
 				closeRendererChannel(projectFolderAcquisitionChannel);
 				closeRendererChannel(projectWorktreeChannel);
+				closeRendererChannel(remoteTerminalCreationChannel);
+				closeRendererChannel(sshProjectEnrollmentChannel);
 				closeRendererChannel(terminalLaunchProfileChannel);
 				closeRendererChannel(terminalDefaultSettingsChannel);
 				closeRendererChannel(windowLayoutChannel);
@@ -2173,6 +2246,8 @@ export class DesktopApplication {
 			projectionChannel = this.#dependencies.createMessageChannel();
 			projectFolderAcquisitionChannel = this.#dependencies.createMessageChannel();
 			projectWorktreeChannel = this.#dependencies.createMessageChannel();
+			remoteTerminalCreationChannel = this.#dependencies.createMessageChannel();
+			sshProjectEnrollmentChannel = this.#dependencies.createMessageChannel();
 			terminalLaunchProfileChannel = this.#dependencies.createMessageChannel();
 			terminalDefaultSettingsChannel = this.#dependencies.createMessageChannel();
 			clipboardChannel = this.#dependencies.createMessageChannel();
@@ -2235,6 +2310,17 @@ export class DesktopApplication {
 				projectWorktreeChannel.port2,
 				projectWorktreeRuntime,
 			);
+			remoteTerminalCreationBroker = this.#dependencies.createRemoteTerminalCreationBroker(
+				remoteTerminalCreationChannel.port2,
+				{
+					create: (projectId, workspaceId, signal) =>
+						this.createSshEnvironmentRemoteTerminalForWorkspace(projectId, workspaceId, signal),
+				},
+			);
+			sshProjectEnrollmentBroker = this.#dependencies.createSshProjectEnrollmentBroker(
+				sshProjectEnrollmentChannel.port2,
+				sshProjectEnrollmentRuntime,
+			);
 			terminalLaunchProfileBroker = this.#dependencies.createTerminalLaunchProfileBroker(
 				terminalLaunchProfileChannel.port2,
 				this.#terminalLaunchProfileController,
@@ -2254,6 +2340,8 @@ export class DesktopApplication {
 			projectionBroker.start();
 			projectFolderAcquisitionBroker.start();
 			projectWorktreeBroker.start();
+			remoteTerminalCreationBroker.start();
+			sshProjectEnrollmentBroker.start();
 			terminalLaunchProfileBroker.start();
 			terminalDefaultSettingsBroker.start();
 			windowLayoutBroker.start();
@@ -2274,6 +2362,8 @@ export class DesktopApplication {
 					terminalDefaultSettingsChannel.port1,
 					clipboardChannel.port1,
 					windowLayoutChannel.port1,
+					remoteTerminalCreationChannel.port1,
+					sshProjectEnrollmentChannel.port1,
 				],
 			);
 			this.#rendererDocuments.set(window, { cleanup, lifetimeBroker });

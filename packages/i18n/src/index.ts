@@ -7,6 +7,7 @@ export {
 	desktopApplicationLifetimeMessages,
 	desktopBrowserAccessMessages,
 	desktopSecureKeyboardEntryMessages,
+	desktopSshProjectMessages,
 	desktopWindowMessages,
 	keyboardShortcutMessages,
 	projectedTerminalMessages,

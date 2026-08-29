@@ -41,6 +41,8 @@ export const zhCNWorkbenchMessages = {
 	'workbench.sidebar.items.settings': '设置',
 	'workbench.sidebar.sections.project': '项目',
 	'workbench.projects.actions.collapse': '折叠项目',
+	'workbench.projects.actions.connect': '连接',
+	'workbench.projects.actions.connectViaSsh': '通过 SSH 连接…',
 	'workbench.projects.actions.create': '创建项目',
 	'workbench.projects.actions.disconnect': '断开连接',
 	'workbench.projects.actions.addFolder': '添加文件夹',

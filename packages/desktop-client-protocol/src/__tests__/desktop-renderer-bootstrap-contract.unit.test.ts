@@ -72,6 +72,8 @@ describe('Desktop renderer bootstrap contract', () => {
 			'terminal-default-settings',
 			'clipboard-read',
 			'window-layout',
+			'remote-terminal-creation',
+			'ssh-project-enrollment',
 		]);
 		expect(
 			DesktopRendererBootstrapWindowMessageSchema.parse({

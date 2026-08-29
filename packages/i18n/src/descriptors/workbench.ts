@@ -410,6 +410,61 @@ export const workbenchMessages = defineMessages({
 		defaultMessage: enUSWorkbenchMessages['workbench.projects.actions.collapse'],
 		description: 'Action that collapses a Project in the Workbench sidebar.',
 	},
+	projectConnect: {
+		id: 'workbench.projects.actions.connect',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.actions.connect'],
+		description: 'Action that connects an Environment-backed Project.',
+	},
+	projectConnectViaSsh: {
+		id: 'workbench.projects.actions.connectViaSsh',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.actions.connectViaSsh'],
+		description: 'Action that starts Desktop SSH Project enrollment.',
+	},
+	projectDisconnect: {
+		id: 'workbench.projects.actions.disconnect',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.actions.disconnect'],
+		description: 'Action that disconnects an Environment-backed Project.',
+	},
+	projectRetryConnection: {
+		id: 'workbench.projects.actions.retryConnection',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.actions.retryConnection'],
+		description: 'Action that retries an Environment-backed Project connection.',
+	},
+	projectConnectionBlocked: {
+		id: 'workbench.projects.connection.blocked',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.connection.blocked'],
+		description: 'Status for a Project connection that needs user action.',
+	},
+	projectConnectionConnected: {
+		id: 'workbench.projects.connection.connected',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.connection.connected'],
+		description: 'Status for a connected Environment-backed Project.',
+	},
+	projectConnectionConnecting: {
+		id: 'workbench.projects.connection.connecting',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.connection.connecting'],
+		description: 'Status for an Environment-backed Project being connected.',
+	},
+	projectConnectionDisconnected: {
+		id: 'workbench.projects.connection.disconnected',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.connection.disconnected'],
+		description: 'Status for a disconnected Environment-backed Project.',
+	},
+	projectConnectionInteractionRequired: {
+		id: 'workbench.projects.connection.interactionRequired',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.connection.interactionRequired'],
+		description: 'Status for a Project connection waiting for authentication.',
+	},
+	projectConnectionRetrying: {
+		id: 'workbench.projects.connection.retrying',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.connection.retrying'],
+		description: 'Status for an Environment-backed Project reconnecting automatically.',
+	},
+	projectConnectionUnavailable: {
+		id: 'workbench.projects.connection.unavailable',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.connection.unavailable'],
+		description: 'Status for an unavailable Environment-backed Project connection.',
+	},
 	projectAddFolder: {
 		id: 'workbench.projects.actions.addFolder',
 		defaultMessage: enUSWorkbenchMessages['workbench.projects.actions.addFolder'],

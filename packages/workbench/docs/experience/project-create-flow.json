@@ -4,7 +4,7 @@
 	"kind": "business",
 	"status": "canonical",
 	"name": "Project Create Flow",
-	"description": "Creates a Project from the shared Folder acquisition menu through either manual path entry or one injected native existing-Folder capability.",
+	"description": "Creates a local Project from shared Folder acquisition or delegates an optional host-owned remote Project enrollment entry such as Desktop SSH.",
 	"owner": "@orchbee/workbench",
 	"visibility": "private",
 	"intents": ["acquire-folder", "connect-project-via-ssh", "create-project", "enter-folder-path"],
@@ -30,12 +30,21 @@
 				"Open the Project section add menu, choose Select Folder, and confirm that the injected native capability creates the Project without rendering the manual path dialog.",
 				"Inspect the resulting Project, first Folder, Primary Workspace, and terminal projection while New Folder remains disabled."
 			]
+		},
+		{
+			"exportName": "SshProjectConnection",
+			"file": "packages/workbench/stories/workbench.stories.tsx",
+			"id": "packages-workbench-workbench--ssh-project-connection",
+			"states": [
+				"Open the Project section add menu and inspect the host-injected Connect via SSH entry alongside the canonical local Folder choices."
+			]
 		}
 	],
 	"uses": ["workbench.action-menu", "workbench.resource-dialog-form"],
 	"useWhen": [
 		"A Workbench host starts Project creation from a selected Folder or an equivalent platform folder capability.",
-		"Browser and desktop hosts must share one entry menu and diverge only at the Folder acquisition boundary."
+		"Browser and desktop hosts must share one entry menu and diverge only at the Folder acquisition boundary.",
+		"A host exposes a separately owned remote Project enrollment flow without giving Workbench transport or credential authority."
 	],
 	"avoidWhen": [
 		"An existing Project is gaining another Folder; use the Project manager flow instead.",
@@ -45,6 +54,7 @@
 		"The Project add trigger always opens the shared Folder acquisition menu before any platform-specific input.",
 		"Browser composition accepts a manually entered absolute path without claiming that the path was verified.",
 		"Desktop composition uses one injected existing-Folder capability, renders no parallel manual path dialog, and admits at most one selection.",
+		"A remote enrollment entry is absent unless the host injects it, and selection delegates to the host without collecting SSH details in Workbench.",
 		"Cancellation, bounded failure, unmount, and late completion after disposal cannot create a Project.",
 		"Successful creation atomically creates the Project, first Folder, Primary Workspace, and terminal projection."
 	],

@@ -1,11 +1,13 @@
 import type { ActionRuntime } from '@orchbee/actions';
 import {
 	Workbench,
+	type WorkbenchEnvironmentProjectConnectionCapability,
 	type WorkbenchLayoutStorage,
 	type WorkbenchNavigationPort,
 	type WorkbenchProjectWorkspaceRuntime,
 	type WorkbenchProjectFolderAcquisition,
 	type WorkbenchProjectWorktreeCapability,
+	type WorkbenchRemoteTerminalCreationCapability,
 	type WorkbenchShortcutPlatform,
 	type WorkbenchTabScopeSource,
 	type WorkbenchTabWindowControl,
@@ -34,13 +36,18 @@ import styles from './WebApplication.module.css';
 
 export interface WebApplicationProps {
 	readonly actionRuntime: ActionRuntime;
+	readonly environmentProjectConnection?:
+		| WorkbenchEnvironmentProjectConnectionCapability
+		| undefined;
 	readonly keyboardShortcutSettingsController: KeyboardShortcutSettingsController;
 	readonly layoutStorage?: WorkbenchLayoutStorage | undefined;
 	readonly macosTerminalInputSettingsController?: MacosTerminalInputSettingsController | undefined;
 	readonly navigation?: WorkbenchNavigationPort | undefined;
+	readonly onConnectViaSsh?: (() => void) | undefined;
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
 	readonly projectFolderAcquisition?: WorkbenchProjectFolderAcquisition | undefined;
 	readonly projectWorktree?: WorkbenchProjectWorktreeCapability | undefined;
+	readonly remoteTerminalCreation?: WorkbenchRemoteTerminalCreationCapability | undefined;
 	readonly requestBrowserAccess?: ((returnFocus: HTMLElement) => void) | undefined;
 	readonly shortcutPlatform: WorkbenchShortcutPlatform;
 	readonly terminalSettingsController: TerminalSettingsController;
@@ -57,13 +64,16 @@ export interface WebApplicationProps {
 
 export function WebApplication({
 	actionRuntime,
+	environmentProjectConnection,
 	keyboardShortcutSettingsController,
 	layoutStorage,
 	macosTerminalInputSettingsController,
 	navigation,
+	onConnectViaSsh,
 	projectWorkspaceRuntime,
 	projectFolderAcquisition,
 	projectWorktree,
+	remoteTerminalCreation,
 	requestBrowserAccess,
 	shortcutPlatform,
 	terminalSettingsController,
@@ -113,14 +123,17 @@ export function WebApplication({
 			>
 				<Workbench
 					actionRuntime={actionRuntime}
+					environmentProjectConnection={environmentProjectConnection}
 					isShortcutScopeActive={!view.settingsOpen}
 					layoutStorage={layoutStorage}
 					navigation={navigation}
+					onConnectViaSsh={onConnectViaSsh}
 					onSettings={view.onSettings}
 					onTerminalFontSizeChange={view.onTerminalFontSizeChange}
 					projectWorkspaceRuntime={projectWorkspaceRuntime}
 					projectFolderAcquisition={projectFolderAcquisition}
 					projectWorktree={projectWorktree}
+					remoteTerminalCreation={remoteTerminalCreation}
 					shortcutBindings={keyboardShortcuts.bindings}
 					shortcutPlatform={shortcutPlatform}
 					terminalActionShortcutLabels={terminalActionShortcutLabels}

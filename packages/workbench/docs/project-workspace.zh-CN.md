@@ -223,6 +223,27 @@ Desktop 在同一适配点注入窄 existing-Folder 采集能力。它的 Electr
 
 一台安装的工作台最多允许一种本地选择。成功的选择将调用与浏览器条目相同的项目创建或项目目录添加操作。取消是无效操作。有界选择器或验证失败会打开一个本地化诊断并且不执行任何项目变更。在添加选定的文件夹之前，Workbench 会重新检查最新的项目快照：已删除的项目或已添加的另一个操作拒绝的确切路径，而不改变另一个目标。卸载、渲染器文档替换、端口退役、窗口关闭和应用程序处置撤销请求；稍后的本机完成无法提交。维护的桌面策略和证据限制位于 [`apps/desktop/docs/project-folder-acquisition.md`](../../../apps/desktop/docs/project-folder-acquisition.md) 中。
 
+## SSH Project enrollment 与连接控件
+
+Workbench 接受一项用于 Environment-placed Project 的可选平台 capability。Host 提供该 capability 时，
+Project-create menu 会增加 **通过 SSH 连接…**；capability 缺失时，该入口会完全消失。Callback 只打开
+application-owned workflow，不会通过 Workbench 携带 Project、Environment、path、SSH 或 credential
+payload。因此 Browser Preview 与 Gateway 保留共享 Project menu，但不会宣称拥有这项 effect。
+
+每个已准入 Environment Project 可以拥有一项进程内 connection status：`blocked`、`connected`、
+`connecting`、`disconnected`、`interaction-required`、`retrying` 或 `unavailable`。Workbench 把该 status
+投影为 Project row 上的安静 indicator，并把其本地化含义加入 row 的 accessible name。Project action menu
+仅在 connected 时提供 Disconnect；在 disconnected 时提供 Connect；在 blocked 或 unavailable 时提供
+Retry；在 connecting、retrying 或等待 interaction 时提供 disabled status item。调用只向注入的 capability
+携带 canonical Project identity。Workbench 不会因这些 control 而在 mount 时启动 SSH、持久化 status、回答
+prompt、改变 Project document、导航或创建 terminal。
+
+组合层 Electron application 负责 enrollment input、prompt correlation 与 secrecy、progress、cancellation、
+connection effect、canonical Project/Workspace admission、publication waiting 与 initiating-client navigation。
+成功 enrollment 会先通过普通 canonical Workbench document 出现；它不会创建第二套 remote-Project model。
+持续维护的平台契约与 evidence 限制位于
+[`apps/desktop/docs/ssh-environment-connection.md`](../../../apps/desktop/docs/ssh-environment-connection.zh-CN.md)。
+
 ## 托管 Worktree 产品提交
 
 Workbench 把 Git Worktree 与 Workspace 保持为不同的领域对象。平台 owner 只有在验证并创建一个 Git
@@ -275,52 +296,62 @@ repository 保持为独立分组。Project 中已有的 Worktree 和新发现的
 
 ## 依赖性和所有权
 
-| 责任                                               | 业主                               |
-| -------------------------------------------------- | ---------------------------------- |
-| 项目、目录、工作区、活动位置模型、不变量和产品演示 | `@orchbee/workbench`               |
-| 选项卡排序、分组、选择和选项卡交互                 | `@orchbee/tab-strip`               |
-| 面板布局加上终端呈现标识、生命周期和命令投影       | `@orchbee/workbench` 面板工作区    |
-| 产品描述符和 `en-US` / `zh-CN` 目录                | `@orchbee/i18n`                    |
-| 浏览器和网关路径条目呈现和合成文件夹投影           | `@orchbee/workbench`               |
-| Existing-Folder 本机选择器、路径规范化和时间点验证 | `apps/desktop`                     |
-| 类型化平台文件夹获取功能                           | `@orchbee/workbench`               |
-| 类型化平台 Worktree 发现、创建与采用 capability    | `@orchbee/workbench`               |
-| Electron Worktree 发现、创建与采用数据契约         | `@orchbee/desktop-client-protocol` |
-| 托管 Worktree Git 观察、创建、补偿、恢复与固定路径 | `apps/desktop`                     |
-| 现有 Worktree 发现、重验证与规范注册               | `apps/desktop`                     |
-| 启动配置可执行有效负载                             | 未来的应用程序或运行时所有者       |
-| 其他文件系统突变、Git effect、PTY、同步与恢复      | 未来的应用程序或运行时所有者       |
-| locale 与平台适配器选择                            | 组合应用                           |
+| 责任                                                                                      | 业主                               |
+| ----------------------------------------------------------------------------------------- | ---------------------------------- |
+| 项目、目录、工作区、活动位置模型、不变量和产品演示                                        | `@orchbee/workbench`               |
+| 选项卡排序、分组、选择和选项卡交互                                                        | `@orchbee/tab-strip`               |
+| 面板布局加上终端呈现标识、生命周期和命令投影                                              | `@orchbee/workbench` 面板工作区    |
+| 产品描述符和 `en-US` / `zh-CN` 目录                                                       | `@orchbee/i18n`                    |
+| 浏览器和网关路径条目呈现和合成文件夹投影                                                  | `@orchbee/workbench`               |
+| Existing-Folder 本机选择器、路径规范化和时间点验证                                        | `apps/desktop`                     |
+| 类型化平台文件夹获取功能                                                                  | `@orchbee/workbench`               |
+| 类型化平台 Worktree 发现、创建与采用 capability                                           | `@orchbee/workbench`               |
+| Electron Worktree 发现、创建与采用数据契约                                                | `@orchbee/desktop-client-protocol` |
+| 托管 Worktree Git 观察、创建、补偿、恢复与固定路径                                        | `apps/desktop`                     |
+| 现有 Worktree 发现、重验证与规范注册                                                      | `apps/desktop`                     |
+| SSH Project-create 入口、status indicator 与连接 Action presentation                      | `@orchbee/workbench`               |
+| Electron enrollment dialog、prompt UI、publication wait 与发起 client navigation          | `apps/web`                         |
+| Electron SSH enrollment 与 connection-control data contract                               | `@orchbee/desktop-client-protocol` |
+| Target resolution、interaction lease、connection、inspection、admission 与 reconciliation | `apps/desktop`                     |
+| 启动配置可执行有效负载                                                                    | 未来的应用程序或运行时所有者       |
+| 其他文件系统突变、Git effect、PTY、同步与恢复                                             | 未来的应用程序或运行时所有者       |
+| locale 与平台适配器选择                                                                   | 组合应用                           |
 
 `@orchbee/workbench` 暴露了一种产品能力边界。第一次交付不会创建新的无头程序包，并通过其拥有的操作可用性隐藏或禁用不可用的平台操作。
 
 ## 正确性和验证
 
-| 声明                                                             | 确定性证据                                 | 补充证据                          | 限制                                       |
-| ---------------------------------------------------------------- | ------------------------------------------ | --------------------------------- | ------------------------------------------ |
-| 会员资格和主要参考资料仍然有效                                   | 转换示例和不变断言                         | 固定种子状态属性测试              | 生成有限迹线                               |
-| Directory 后备选择循环到下一个存续项                             | 边界与移除集合示例                         | 生成顺序的属性校验器              | Host 路径标识可信                          |
-| 目录刷新保留身份、顺序和引用                                     | 转换和运行时测试                           | 不适用                            | 主机观察值得信赖                           |
-| 活动位置始终解析                                                 | 转换和删除测试                             | 有状态属性测试                    | 仅内存状态                                 |
-| CWD 遵循公认的优先级                                             | 决策表单元测试                             | 不适用                            | 仅本地路径投影                             |
-| 语义读取会解析精确的规范资源，且不回退到 Client View             | 有序读取投影及过时/cross-Project 测试      | 共享文档 Schema 验证              | 完整内存快照；无分页                       |
-| 精确终端创建只改变一个目标上下文，并保留已有选择或唯一有效后备项 | 拒绝矩阵、空 context 与产品 Action 测试    | 固定种子状态属性迹线              | 持久提交和修订仍由应用拥有                 |
-| 预计标题和 CWD 遵循声明的 Warp 范围                              | 标准化和运行时投影场景                     | Web 桥和引导适配器测试            | 无带内命令或 SSH-state 奇偶校验            |
-| 工作区副本重置运行时状态并保留布局投影                           | 上下文运行时和集成测试                     | 组件场景                          | 无过程或输出奇偶校验声明                   |
-| 项目披露不会切换终端上下文                                       | 减速机和部件测试                           | 键盘和指针交互                    | 受控的浏览器环境                           |
-| 项目重新排序保留身份、活动位置和披露                             | 转移边界和排列测试                         | 确定性指针时间线测试              | 主要鼠标和笔指针                           |
-| 工作区重新排序保留在一个项目内，并保留身份、活动位置和终端所有权 | 转移边界和固定种子排列测试                 | 确定性作用域指针时间线测试        | 主要鼠标和笔指针；无 cross-Project 移动    |
-| 拖动完成和取消恢复公开和激活意图                                 | 手势机器阶段测试                           | 确定性指针时间线测试              | 受控的指针和滚动几何形状                   |
-| 产品行为在两个区域设置中发布                                     | 目录奇偶性和组件测试                       | 故事书评论                        | 仅限 `en-US` 和 `zh-CN`                    |
-| 浏览器路径条目创建一个原子项目或无状态                           | 操作、组件和 Web 集成测试                  | 不适用                            | 仅合成内存预览                             |
-| 浏览器路径条目附加一个唯一的文件夹或保持状态不变                 | 操作、组件和 Web 集成测试                  | 不适用                            | 精确路径比较；没有 FS 呼叫                 |
-| 桌面选择仅提交一个经过验证的选定结果；取消和失败永远不会改变     | 主要运行时、代理、客户端、Hook 和集成测试  | `DesktopLifecycle` 文件夹场景     | 注入的对话框适配器；真正的选择器是人工证据 |
-| 已停用的渲染器或陈旧/重复的添加目标无法接受延迟的本机完成        | Broker 生命周期和 Workbench 状态机测试     | `DesktopLifecycle` 安全和进度检查 | 有界模型和受控事件循环                     |
-| 托管 Worktree 提交会原子添加 Directory 与可选 Workspace          | Transition 与 managed-runtime 测试         | Desktop 创建 transaction 模型     | Git 与文件系统细化仍由 Desktop 拥有        |
-| 现有 Worktree 采用会按仓库分组清单并原子创建一个 Workspace       | Transition、runtime、协议、Hook 与组件测试 | 真实仓库 Git adapter 测试         | 时间点本地清单；不修改 Git                 |
-| 省略号和行上下文手势公开一个操作菜单模型                         | 组件奇偶校验和调用测试                     | 指针交互回顾                      | 仅项目和工作区行                           |
+| 声明                                                                                                        | 确定性证据                                                              | 补充证据                                                                                      | 限制                                                      |
+| ----------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| 会员资格和主要参考资料仍然有效                                                                              | 转换示例和不变断言                                                      | 固定种子状态属性测试                                                                          | 生成有限迹线                                              |
+| Directory 后备选择循环到下一个存续项                                                                        | 边界与移除集合示例                                                      | 生成顺序的属性校验器                                                                          | Host 路径标识可信                                         |
+| 目录刷新保留身份、顺序和引用                                                                                | 转换和运行时测试                                                        | 不适用                                                                                        | 主机观察值得信赖                                          |
+| Remote registration 收敛到一个 Project、Workspace 与 empty context，且无 terminal effect                    | 确定性 transition、document 与 runtime test                             | Desktop remote-admission TLA+ 与 authority test                                               | 有界 trace；Environment reference 为 opaque               |
+| 首个 remote-terminal provision 只填充精确 empty remote context，且绝不使用 local fallback                   | exact-context、mismatch 与 non-empty rejection test                     | Desktop provision TLA+、commit/effect、target-routing 与 forgery test                         | 一个顶层 terminal；runtime availability 仍由 Desktop 拥有 |
+| Electron 首个 remote-terminal Action 等待 canonical publication 并保留 Client View                          | route、Action、availability 与 Tab Strip test                           | Desktop creation-surface TLA+、protocol、broker 与 composition test                           | 仅 default singleton；仅 Electron capability              |
+| Electron SSH enrollment 与 Project connection control 保持 capability-scoped 且 canonical-publication-first | Workbench surface、localized dialog、client、controller 与 routing test | Desktop enrollment TLA+、protocol、broker、owner、composition 与 signed loopback SSH evidence | 仅 POSIX Electron；enrollment 不创建 terminal             |
+| 活动位置始终解析                                                                                            | 转换和删除测试                                                          | 有状态属性测试                                                                                | 仅内存状态                                                |
+| CWD 遵循公认的优先级                                                                                        | 决策表单元测试                                                          | 不适用                                                                                        | 仅本地路径投影                                            |
+| 语义读取会解析精确的规范资源，且不回退到 Client View                                                        | 有序读取投影及过时/cross-Project 测试                                   | 共享文档 Schema 验证                                                                          | 完整内存快照；无分页                                      |
+| 精确终端创建只改变一个目标上下文，并保留已有选择或唯一有效后备项                                            | 拒绝矩阵、空 context 与产品 Action 测试                                 | 固定种子状态属性迹线                                                                          | 持久提交和修订仍由应用拥有                                |
+| 预计标题和 CWD 遵循声明的 Warp 范围                                                                         | 标准化和运行时投影场景                                                  | Web 桥和引导适配器测试                                                                        | 无带内命令或 SSH-state 奇偶校验                           |
+| 工作区副本重置运行时状态并保留布局投影                                                                      | 上下文运行时和集成测试                                                  | 组件场景                                                                                      | 无过程或输出奇偶校验声明                                  |
+| 项目披露不会切换终端上下文                                                                                  | 减速机和部件测试                                                        | 键盘和指针交互                                                                                | 受控的浏览器环境                                          |
+| 项目重新排序保留身份、活动位置和披露                                                                        | 转移边界和排列测试                                                      | 确定性指针时间线测试                                                                          | 主要鼠标和笔指针                                          |
+| 工作区重新排序保留在一个项目内，并保留身份、活动位置和终端所有权                                            | 转移边界和固定种子排列测试                                              | 确定性作用域指针时间线测试                                                                    | 主要鼠标和笔指针；无 cross-Project 移动                   |
+| 拖动完成和取消恢复公开和激活意图                                                                            | 手势机器阶段测试                                                        | 确定性指针时间线测试                                                                          | 受控的指针和滚动几何形状                                  |
+| 产品行为在两个区域设置中发布                                                                                | 目录奇偶性和组件测试                                                    | 故事书评论                                                                                    | 仅限 `en-US` 和 `zh-CN`                                   |
+| 浏览器路径条目创建一个原子项目或无状态                                                                      | 操作、组件和 Web 集成测试                                               | 不适用                                                                                        | 仅合成内存预览                                            |
+| 浏览器路径条目附加一个唯一的文件夹或保持状态不变                                                            | 操作、组件和 Web 集成测试                                               | 不适用                                                                                        | 精确路径比较；没有 FS 呼叫                                |
+| 桌面选择仅提交一个经过验证的选定结果；取消和失败永远不会改变                                                | 主要运行时、代理、客户端、Hook 和集成测试                               | `DesktopLifecycle` 文件夹场景                                                                 | 注入的对话框适配器；真正的选择器是人工证据                |
+| 已停用的渲染器或陈旧/重复的添加目标无法接受延迟的本机完成                                                   | Broker 生命周期和 Workbench 状态机测试                                  | `DesktopLifecycle` 安全和进度检查                                                             | 有界模型和受控事件循环                                    |
+| 托管 Worktree 提交会原子添加 Directory 与可选 Workspace                                                     | Transition 与 managed-runtime 测试                                      | Desktop 创建 transaction 模型                                                                 | Git 与文件系统细化仍由 Desktop 拥有                       |
+| 现有 Worktree 采用会按仓库分组清单并原子创建一个 Workspace                                                  | Transition、runtime、协议、Hook 与组件测试                              | 真实仓库 Git adapter 测试                                                                     | 时间点本地清单；不修改 Git                                |
+| 省略号和行上下文手势公开一个操作菜单模型                                                                    | 组件奇偶校验和调用测试                                                  | 指针交互回顾                                                                                  | 仅项目和工作区行                                          |
 
-同步内存转换、语义投影与终端创建以及浏览器路径条目集合不需要 TLA+。异步 existing-Folder Desktop adapter 由
+同步内存转换、语义投影与终端创建以及浏览器路径条目集合不需要 TLA+。Remote admission ordering、
+cancellation、idempotency 与单向 document migration 由 Desktop 已登记的 admission 与 migration model
+覆盖。异步 existing-Folder Desktop adapter 由
 `DesktopLifecycle` 的 `project-folder-acquisition` 配置覆盖，包括选择、取消、失败、过时目标、
 renderer 退役及延迟原生完成。托管 Worktree 的 Git/产品一致性与恢复由 Desktop 单独注册的
 `ProjectWorktreeCreation` 模型覆盖。现有 Worktree 的发现与采用使用 Desktop 文档中的有界

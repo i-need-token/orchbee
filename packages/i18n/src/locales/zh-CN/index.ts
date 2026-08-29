@@ -3,6 +3,7 @@ export { zhCNBrowserAuthenticationMessages } from './browser-authentication';
 export { zhCNDesktopApplicationLifetimeMessages } from './desktop-application-lifetime';
 export { zhCNDesktopBrowserAccessMessages } from './desktop-browser-access';
 export { zhCNDesktopSecureKeyboardEntryMessages } from './desktop-secure-keyboard-entry';
+export { zhCNDesktopSshProjectMessages } from './desktop-ssh-project';
 export { zhCNDesktopWindowMessages } from './desktop-window';
 export { zhCNKeyboardShortcutMessages } from './keyboard-shortcuts';
 export { zhCNProjectedTerminalMessages } from './projected-terminal';

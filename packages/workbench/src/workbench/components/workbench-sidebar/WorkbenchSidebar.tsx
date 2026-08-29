@@ -10,9 +10,10 @@ import {
 	Kbd,
 	ProductIcon,
 } from '@orchbee/ui/components';
-import * as React from 'react';
+import type { ReactNode } from 'react';
 
 import type { ProjectWorkspaceState } from '../../../project-workspace';
+import type { WorkbenchEnvironmentProjectConnectionCapability } from '../../types/workbench-environment-project-connection';
 import type { WorkbenchProjectFolderAcquisition } from '../../types/workbench-project-folder-acquisition';
 import type { WorkbenchProjectWorktreeCapability } from '../../types/workbench-project-worktree';
 import { CreateWorktreeDialog } from './components/create-worktree-dialog/CreateWorktreeDialog';
@@ -39,9 +40,13 @@ interface WorkbenchSidebarProps {
 	readonly deleteWorkspace: (projectId: string, workspaceId: string) => void;
 	readonly duplicateWorkspace: (projectId: string, workspaceId: string) => void;
 	readonly focusRequest: number;
+	readonly environmentProjectConnection?:
+		| WorkbenchEnvironmentProjectConnectionCapability
+		| undefined;
 	readonly label: string;
 	readonly onSearch: (returnFocus: HTMLElement) => void;
 	readonly onSettings?: (() => void) | undefined;
+	readonly onConnectViaSsh?: (() => void) | undefined;
 	readonly projectLabel: string;
 	readonly projectNavigationMessages: WorkbenchProjectNavigationMessages;
 	readonly projectFolderAcquisition?: WorkbenchProjectFolderAcquisition | undefined;
@@ -82,9 +87,11 @@ export function WorkbenchSidebar({
 	deleteWorkspace,
 	duplicateWorkspace,
 	focusRequest,
+	environmentProjectConnection,
 	label,
 	onSearch,
 	onSettings,
+	onConnectViaSsh,
 	projectLabel,
 	projectNavigationMessages,
 	projectFolderAcquisition,
@@ -105,9 +112,9 @@ export function WorkbenchSidebar({
 	terminalLabel,
 	toggleProjectExpansion,
 	updateWorkspace,
-}: WorkbenchSidebarProps): React.ReactNode {
+}: WorkbenchSidebarProps): ReactNode {
 	const rootReference = useWorkbenchSidebarFocusRequest(focusRequest);
-	const view = useWorkbenchSidebar(projectWorkspaceState);
+	const view = useWorkbenchSidebar(projectWorkspaceState, environmentProjectConnection);
 	const folderAcquisition = useProjectFolderAcquisition({
 		acquisition: projectFolderAcquisition,
 		addProjectDirectory,
@@ -181,6 +188,7 @@ export function WorkbenchSidebar({
 								<ProjectCreateMenu
 									selectionPending={folderAcquisition.selecting}
 									messages={projectNavigationMessages}
+									onConnectViaSsh={onConnectViaSsh}
 									onSelectFolder={
 										projectFolderAcquisition === undefined
 											? view.showProjectCreation
@@ -209,6 +217,9 @@ export function WorkbenchSidebar({
 											: null
 									}
 									duplicateWorkspace={duplicateWorkspace}
+									environmentConnection={view.connectionStatusByProjectId.get(project.id) ?? null}
+									connectEnvironment={environmentProjectConnection?.connect}
+									disconnectEnvironment={environmentProjectConnection?.disconnect}
 									expanded={
 										projectWorkspaceState.expandedProjectIds.includes(project.id) &&
 										projectReorder.draggingItemId !== project.id

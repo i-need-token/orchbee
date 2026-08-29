@@ -23,6 +23,7 @@
 		"test:tla": "node ../../scripts/tla/run-models.mjs --workspace apps/desktop",
 		"test:watch": "vitest",
 		"test:system": "playwright test --config playwright.config.ts",
+		"test:system:ssh-project-enrollment": "node scripts/run-ssh-project-enrollment-system-test.mjs",
 		"test:system:manual:native-window": "playwright test --config playwright.manual-native-window.config.ts"
 	},
 	"dependencies": {

@@ -32,6 +32,15 @@
 				"Drag a Project between siblings and verify the pointer-following row, midpoint-driven sibling squeeze motion, edge scrolling, temporary collapse, and restoration after the drop.",
 				"Drag a Workspace between siblings inside one expanded Project and verify the same pointer-following, midpoint squeeze, release settlement, and cancellation behavior without changing Workspace activation or Project disclosure."
 			]
+		},
+		{
+			"exportName": "SshProjectConnection",
+			"file": "packages/workbench/stories/workbench.stories.tsx",
+			"id": "packages-workbench-workbench--ssh-project-connection",
+			"states": [
+				"Inspect a remote Project connection indicator and accessible status, then open Project options to inspect the explicit Connect action.",
+				"Change the deterministic capability state when exercising the component test to inspect pending, connected, retry, and disconnect projections."
+			]
 		}
 	],
 	"uses": [

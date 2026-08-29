@@ -1,0 +1,80 @@
+{
+	"$schema": "../../../../schemas/experience-component.schema.json",
+	"id": "desktop.ssh-project-enrollment-dialog",
+	"kind": "business",
+	"status": "canonical",
+	"name": "Desktop SSH Project Enrollment Dialog",
+	"description": "Owns explicit SSH Environment enrollment, remote Project validation, transient host and authentication prompts, progress, cancellation, and bounded recovery.",
+	"owner": "@orchbee/web",
+	"visibility": "private",
+	"intents": [
+		"connect-project-via-ssh",
+		"enroll-ssh-environment",
+		"recover-remote-project-connection",
+		"respond-to-ssh-prompt"
+	],
+	"implementation": [
+		"apps/web/src/desktop-client/desktop-ssh-project-enrollment-dialog/model/DesktopSshProjectEnrollmentController.ts",
+		"apps/web/src/desktop-client/desktop-ssh-project-enrollment-dialog/DesktopSshProjectEnrollmentDialog.tsx"
+	],
+	"stories": [
+		{
+			"exportName": "Enrollment",
+			"file": "apps/web/stories/ssh-project-enrollment-dialog.stories.tsx",
+			"id": "applications-web-desktop-ssh-project-enrollment-dialog--enrollment",
+			"states": [
+				"Inspect the bounded Environment name, SSH destination, optional absolute SSH configuration path, and absolute remote Project path fields."
+			]
+		},
+		{
+			"exportName": "HostVerification",
+			"file": "apps/web/stories/ssh-project-enrollment-dialog.stories.tsx",
+			"id": "applications-web-desktop-ssh-project-enrollment-dialog--host-verification",
+			"states": [
+				"Inspect the exact host-verification prompt, explicit continuation, and cancellation boundary owned by the initiating Desktop client."
+			]
+		},
+		{
+			"exportName": "Authentication",
+			"file": "apps/web/stories/ssh-project-enrollment-dialog.stories.tsx",
+			"id": "applications-web-desktop-ssh-project-enrollment-dialog--authentication",
+			"states": [
+				"Inspect the password input and the explanation that the response is sent directly to the active SSH process and is never saved."
+			]
+		},
+		{
+			"exportName": "ConnectionFailure",
+			"file": "apps/web/stories/ssh-project-enrollment-dialog.stories.tsx",
+			"id": "applications-web-desktop-ssh-project-enrollment-dialog--connection-failure",
+			"states": [
+				"Inspect bounded recovery copy with Retry and Cancel after an explicit remote connection fails."
+			]
+		},
+		{
+			"exportName": "SimplifiedChineseEnrollment",
+			"file": "apps/web/stories/ssh-project-enrollment-dialog.stories.tsx",
+			"id": "applications-web-desktop-ssh-project-enrollment-dialog--simplified-chinese-enrollment",
+			"states": ["Inspect the complete enrollment form and actions in Simplified Chinese."]
+		}
+	],
+	"uses": [],
+	"useWhen": [
+		"Electron Desktop explicitly enrolls a Project that belongs to an SSH Environment.",
+		"An explicit remote Project connection or retry needs the initiating client to own one transient SSH interaction lease."
+	],
+	"avoidWhen": [
+		"A local Folder is being selected; use the Workbench Project create flow.",
+		"A terminal is being created inside an already connected remote Workspace; use the remote terminal creation capability.",
+		"A Browser, Gateway, CLI, Skill, or Agent surface asks to gain SSH enrollment authority."
+	],
+	"invariants": [
+		"The renderer supplies only bounded user intent; Main resolves OpenSSH configuration and allocates every durable identity.",
+		"Only one exact initiating-client interaction lease exists per Environment, and port loss or cancellation revokes it without reassignment.",
+		"Authentication responses remain in password input state only until direct submission and never enter the controller snapshot, durable storage, diagnostics, or shared Workbench document.",
+		"Enrollment progress follows resolve, durable Environment recording, connection, canonical Project inspection, and Workbench commit order.",
+		"A successful enrollment activates only the initiating client after canonical publication and creates no terminal.",
+		"Cancellation before a possible Workbench commit may release only the operation-owned unreferenced connection; the durable Environment identity remains recorded.",
+		"Once Workbench commit may have happened, failure is outcome-unknown and never rolls back the remote connection automatically."
+	],
+	"references": ["apps/web/README.md"]
+}

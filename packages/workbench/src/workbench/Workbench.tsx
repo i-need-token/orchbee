@@ -43,6 +43,7 @@ import type { WorkbenchShortcutPlatform } from './types/workbench-shortcut-platf
 import type { WorkbenchSearchProvider } from './types/workbench-search-provider';
 import type { WorkbenchTerminalSurface } from './types/workbench-terminal-surface';
 import type { WorkbenchProjectFolderAcquisition } from './types/workbench-project-folder-acquisition';
+import type { WorkbenchEnvironmentProjectConnectionCapability } from './types/workbench-environment-project-connection';
 import type { WorkbenchProjectWorktreeCapability } from './types/workbench-project-worktree';
 import type { WorkbenchTabScopeSource } from './types/workbench-tab-scope';
 import type { WorkbenchTabWindowControl } from './types/workbench-tab-window-control';
@@ -57,11 +58,15 @@ import styles from './Workbench.module.css';
 export interface WorkbenchProps {
 	readonly actionRuntime: ActionRuntime;
 	readonly createCrossWindowDragRuntime?: TabStripCrossWindowDragRuntimeFactory | undefined;
+	readonly environmentProjectConnection?:
+		| WorkbenchEnvironmentProjectConnectionCapability
+		| undefined;
 	readonly isShortcutScopeActive?: boolean | undefined;
 	readonly layoutStorage?: WorkbenchLayoutStorage | undefined;
 	readonly navigation?: WorkbenchNavigationPort | undefined;
 	readonly onSettings?: WorkbenchHostActionCallback | undefined;
 	readonly onTerminalFontSizeChange?: WorkbenchTerminalFontSizeChangeCallback | undefined;
+	readonly onConnectViaSsh?: (() => void) | undefined;
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
 	readonly projectFolderAcquisition?: WorkbenchProjectFolderAcquisition | undefined;
 	readonly projectWorktree?: WorkbenchProjectWorktreeCapability | undefined;
@@ -78,11 +83,13 @@ export interface WorkbenchProps {
 export function Workbench({
 	actionRuntime,
 	createCrossWindowDragRuntime,
+	environmentProjectConnection,
 	isShortcutScopeActive = true,
 	layoutStorage,
 	navigation,
 	onSettings,
 	onTerminalFontSizeChange,
+	onConnectViaSsh,
 	projectWorkspaceRuntime,
 	projectFolderAcquisition,
 	projectWorktree,
@@ -222,9 +229,11 @@ export function Workbench({
 										createWorkspace={view.createWorkspace}
 										deleteWorkspace={view.deleteWorkspace}
 										duplicateWorkspace={view.duplicateWorkspace}
+										environmentProjectConnection={environmentProjectConnection}
 										label={view.sidebarLabel}
 										onSearch={view.search}
 										onSettings={view.settings}
+										onConnectViaSsh={onConnectViaSsh}
 										projectLabel={view.projectLabel}
 										projectNavigationMessages={view.projectNavigationMessages}
 										projectFolderAcquisition={projectFolderAcquisition}

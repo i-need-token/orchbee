@@ -8,6 +8,7 @@ import {
 	DesktopTerminalLaunchProfileSnapshotSchema,
 } from '@orchbee/desktop-client-protocol';
 import { PersonalAccessTokenSchema } from '@orchbee/remote-client-protocol';
+import { SshProjectRootPathSchema } from '@orchbee/ssh-environment-protocol';
 import {
 	CanonicalUint64TextSchema,
 	CreationIdSchema,
@@ -46,6 +47,7 @@ import {
 	DesktopTerminalIntentReconciler,
 } from '../../client-session';
 import { DesktopEnvironmentRegistry, EnvironmentRecordSchema } from '../../environment';
+import { SshEnvironmentTargetReferenceSchema } from '../../ssh-environment';
 import type { WorkbenchDocumentStore } from '../../workbench-document';
 import type { DesktopWindowLayoutStore } from '../../window-layout';
 import type { DesktopWindowStateStore } from '../../window-state';
@@ -114,6 +116,102 @@ describe('DesktopApplication', () => {
 		});
 		expect(harness.sshEnvironmentTargetResolver.resolve).not.toHaveBeenCalled();
 		expect(harness.sshEnvironmentConnectionOwner.connect).not.toHaveBeenCalled();
+		await application.shutdown();
+	});
+
+	it('registers an enrolled SSH Environment before admitting its canonical remote Project', async () => {
+		const harness = createHarness();
+		const application = createApplication(harness.dependencies);
+		const resolvedTarget = {
+			destination: SshEnvironmentTargetReferenceSchema.parse({
+				configurationFilePath: null,
+				destination: 'build-host',
+			}).destination,
+			hostKeyLookupName: 'build-host',
+			hostKeyPolicy: 'ask' as const,
+			hostname: 'build-host',
+			port: 22,
+			user: 'builder',
+		};
+		let connectedObservation:
+			| ReturnType<DesktopApplication['observeSshEnvironmentConnection']>
+			| undefined;
+		harness.sshEnvironmentTargetResolver.resolve.mockResolvedValue({
+			kind: 'resolved',
+			target: resolvedTarget,
+		});
+		harness.sshEnvironmentConnectionOwner.claimInteractionLease.mockReturnValue({
+			kind: 'claimed',
+			lease: { release: vi.fn<() => void>() },
+		});
+		harness.sshEnvironmentConnectionOwner.connect.mockImplementation(async (environmentId) => {
+			const stopped = application.createSshEnvironmentConnectionState({
+				connectionId: environmentId,
+				target: { configurationFilePath: null, destination: 'build-host' },
+			});
+			const started = application.transitionSshEnvironmentConnection(stopped, {
+				type: 'start-requested',
+			});
+			const resolving = application.transitionSshEnvironmentConnection(started.state, {
+				generation: 1,
+				resolvedTarget,
+				type: 'target-resolved',
+			});
+			const ready = application.transitionSshEnvironmentConnection(resolving.state, {
+				generation: 1,
+				runtimeEpoch: 'a'.repeat(32),
+				runtimeInstanceId: 'b'.repeat(32),
+				type: 'remote-runtime-ready',
+			});
+			connectedObservation = application.observeSshEnvironmentConnection(ready.state);
+			return {
+				activation: 'started' as const,
+				kind: 'ready' as const,
+				observation: connectedObservation,
+			};
+		});
+		harness.sshEnvironmentConnectionOwner.inspectProjectRoot.mockResolvedValue({
+			canonicalPath: SshProjectRootPathSchema.parse('/srv/orchbee'),
+			kind: 'resolved',
+		});
+		harness.sshEnvironmentConnectionOwner.observation.mockImplementation(() =>
+			connectedObservation === undefined
+				? { kind: 'inactive' }
+				: { kind: 'ready', observation: connectedObservation },
+		);
+		harness.sshEnvironmentConnectionOwner.subscribe.mockReturnValue(() => undefined);
+		harness.workbenchDocumentStore.commit.mockImplementation(async (_revision, document) => ({
+			kind: 'committed',
+			revision: document.revision,
+		}));
+
+		await application.start();
+		await proposeInitializationDocument(harness, 'initialize-for-ssh-enrollment');
+		const enrollmentRuntime = harness.sshProjectEnrollmentBrokers[0]?.runtime;
+		if (enrollmentRuntime === undefined) throw new Error('Expected the SSH enrollment runtime.');
+		const result = await enrollmentRuntime.enroll(
+			{
+				configurationFilePath: null,
+				destination: 'build-host',
+				name: 'Build machine',
+				projectPath: '/srv/orchbee-alias',
+			},
+			{ interact: async () => ({ kind: 'cancelled' }), progress: () => undefined },
+			new AbortController().signal,
+		);
+		expect(result).toEqual({
+			canonicalPath: '/srv/orchbee',
+			kind: 'created',
+			projectId: 'project-1',
+			workspaceId: 'workspace-1',
+		});
+		await expect(application.listEnvironments()).resolves.toMatchObject({
+			kind: 'ready',
+			value: [expect.objectContaining({ name: 'Build machine' })],
+		});
+		expect(enrollmentRuntime.statuses()).toEqual([
+			{ blockedReason: null, projectId: 'project-1', state: 'connected' },
+		]);
 		await application.shutdown();
 	});
 
@@ -598,7 +696,7 @@ describe('DesktopApplication', () => {
 			expect.anything(),
 			expect.any(Array),
 		);
-		expect(second.webContents.postMessage.mock.calls[0]?.[2]).toHaveLength(10);
+		expect(second.webContents.postMessage.mock.calls[0]?.[2]).toHaveLength(12);
 		const finalLayout = harness.persistedWindowLayouts.at(-1);
 		expect(finalLayout?.windows).toHaveLength(2);
 		expect(
@@ -814,7 +912,7 @@ describe('DesktopApplication', () => {
 		await application.shutdown();
 	});
 
-	it('starts without creating an attachment and atomically transfers ten scoped controls', async () => {
+	it('starts without creating an attachment and atomically transfers twelve scoped controls', async () => {
 		const harness = createHarness();
 		const application = createApplication(harness.dependencies);
 
@@ -851,6 +949,8 @@ describe('DesktopApplication', () => {
 				expect.anything(),
 				expect.anything(),
 				expect.anything(),
+				expect.anything(),
+				expect.anything(),
 			],
 		);
 		expect(harness.clientSessionPorts[0]?.start).toHaveBeenCalledOnce();
@@ -859,6 +959,8 @@ describe('DesktopApplication', () => {
 		expect(harness.projectionBrokers[0]?.start).toHaveBeenCalledOnce();
 		expect(harness.projectFolderAcquisitionBrokers[0]?.start).toHaveBeenCalledOnce();
 		expect(harness.projectWorktreeBrokers[0]?.start).toHaveBeenCalledOnce();
+		expect(harness.remoteTerminalCreationBrokers[0]?.start).toHaveBeenCalledOnce();
+		expect(harness.sshProjectEnrollmentBrokers[0]?.start).toHaveBeenCalledOnce();
 		expect(harness.terminalLaunchProfileBrokers[0]?.start).toHaveBeenCalledOnce();
 		expect(harness.terminalDefaultSettingsBrokers[0]?.start).toHaveBeenCalledOnce();
 		expect(harness.terminalDefaultSettingsController.initialize).toHaveBeenCalledOnce();
@@ -965,7 +1067,7 @@ describe('DesktopApplication', () => {
 		const application = createApplication(harness.dependencies);
 
 		await expect(application.start()).rejects.toThrow('renderer projection broker factory failed');
-		expect(harness.messageChannels).toHaveLength(10);
+		expect(harness.messageChannels).toHaveLength(12);
 		for (const channel of harness.messageChannels) {
 			expect(channel.port1.close).toHaveBeenCalledOnce();
 			expect(channel.port2.close).toHaveBeenCalledOnce();
@@ -1092,8 +1194,8 @@ describe('DesktopApplication', () => {
 			throw new Error('gateway projection factory failed');
 		});
 		await expect(factoryOpenClient()).rejects.toThrow('gateway projection factory failed');
-		expect(factoryHarness.messageChannels).toHaveLength(12);
-		for (const channel of factoryHarness.messageChannels.slice(10)) {
+		expect(factoryHarness.messageChannels).toHaveLength(14);
+		for (const channel of factoryHarness.messageChannels.slice(12)) {
 			expect(channel.port1.close).toHaveBeenCalledOnce();
 			expect(channel.port2.close).toHaveBeenCalledOnce();
 		}
@@ -1121,7 +1223,7 @@ describe('DesktopApplication', () => {
 		});
 		await expect(startOpenClient()).rejects.toThrow('gateway projection start failed');
 		expect(startHarness.projectionBrokers[1]?.dispose).toHaveBeenCalledOnce();
-		for (const channel of startHarness.messageChannels.slice(10)) {
+		for (const channel of startHarness.messageChannels.slice(12)) {
 			expect(channel.port1.close).toHaveBeenCalledOnce();
 			expect(channel.port2.close).toHaveBeenCalled();
 		}
@@ -1174,7 +1276,7 @@ describe('DesktopApplication', () => {
 
 		expect(harness.clientSessionPorts[0]?.close).not.toHaveBeenCalled();
 		expect(harness.projectionBrokers[0]?.dispose).not.toHaveBeenCalled();
-		expect(harness.messageChannels).toHaveLength(10);
+		expect(harness.messageChannels).toHaveLength(12);
 		expect(harness.webContents.postMessage).toHaveBeenCalledOnce();
 		await application.shutdown();
 	});
@@ -1193,12 +1295,12 @@ describe('DesktopApplication', () => {
 		await vi.waitFor(() => expect(projectionDispose).toHaveBeenCalledTimes(2));
 		await Promise.resolve();
 		expect(harness.webContents.postMessage).toHaveBeenCalledOnce();
-		expect(harness.messageChannels).toHaveLength(10);
+		expect(harness.messageChannels).toHaveLength(12);
 		expect(harness.projectionBrokers).toHaveLength(1);
 
 		emitRendererDocumentLoad(harness.webContents);
 		await vi.waitFor(() => expect(harness.webContents.postMessage).toHaveBeenCalledTimes(2));
-		expect(harness.messageChannels).toHaveLength(20);
+		expect(harness.messageChannels).toHaveLength(24);
 		expect(harness.projectionBrokers).toHaveLength(2);
 		await application.shutdown();
 	});
@@ -2273,6 +2375,17 @@ function createHarness(
 		readonly dispose: ReturnType<typeof vi.fn<() => void>>;
 		readonly start: ReturnType<typeof vi.fn<() => void>>;
 	}> = [];
+	const remoteTerminalCreationBrokers: Array<{
+		readonly dispose: ReturnType<typeof vi.fn<() => void>>;
+		readonly start: ReturnType<typeof vi.fn<() => void>>;
+	}> = [];
+	const sshProjectEnrollmentBrokers: Array<{
+		readonly dispose: ReturnType<typeof vi.fn<() => void>>;
+		readonly runtime: Parameters<
+			DesktopApplicationDependencies['createSshProjectEnrollmentBroker']
+		>[1];
+		readonly start: ReturnType<typeof vi.fn<() => void>>;
+	}> = [];
 	const terminalLaunchProfileBrokers: Array<{
 		readonly dispose: ReturnType<typeof vi.fn<() => void>>;
 		readonly start: ReturnType<typeof vi.fn<() => void>>;
@@ -2757,6 +2870,27 @@ function createHarness(
 			projectWorktreeBrokers.push(broker);
 			return broker;
 		}),
+		createRemoteTerminalCreationBroker: vi.fn<
+			DesktopApplicationDependencies['createRemoteTerminalCreationBroker']
+		>(() => {
+			const broker = {
+				dispose: vi.fn<() => void>(),
+				start: vi.fn<() => void>(),
+			};
+			remoteTerminalCreationBrokers.push(broker);
+			return broker;
+		}),
+		createSshProjectEnrollmentBroker: vi.fn<
+			DesktopApplicationDependencies['createSshProjectEnrollmentBroker']
+		>((_port, runtime) => {
+			const broker = {
+				dispose: vi.fn<() => void>(),
+				runtime,
+				start: vi.fn<() => void>(),
+			};
+			sshProjectEnrollmentBrokers.push(broker);
+			return broker;
+		}),
 		createProjectWorktreeRuntime: vi
 			.fn<DesktopApplicationDependencies['createProjectWorktreeRuntime']>()
 			.mockReturnValue(projectWorktreeRuntime),
@@ -2858,6 +2992,8 @@ function createHarness(
 		projectFolderAcquisitionBrokers,
 		projectWorktreeBrokers,
 		projectWorktreeRuntime,
+		remoteTerminalCreationBrokers,
+		sshProjectEnrollmentBrokers,
 		terminalLaunchProfileBrokers,
 		terminalLaunchProfileController,
 		terminalDefaultSettingsBrokers,

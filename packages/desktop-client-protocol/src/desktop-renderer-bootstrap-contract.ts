@@ -15,6 +15,8 @@ export const DESKTOP_RENDERER_PORT_ROLES = [
 	'terminal-default-settings',
 	'clipboard-read',
 	'window-layout',
+	'remote-terminal-creation',
+	'ssh-project-enrollment',
 ] as const;
 
 export const DesktopRendererBootstrapSchema = z.strictObject({

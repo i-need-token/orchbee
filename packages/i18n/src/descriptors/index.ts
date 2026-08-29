@@ -3,6 +3,7 @@ export { browserAuthenticationMessages } from './browser-authentication';
 export { desktopApplicationLifetimeMessages } from './desktop-application-lifetime';
 export { desktopBrowserAccessMessages } from './desktop-browser-access';
 export { desktopSecureKeyboardEntryMessages } from './desktop-secure-keyboard-entry';
+export { desktopSshProjectMessages } from './desktop-ssh-project';
 export { desktopWindowMessages } from './desktop-window';
 export { keyboardShortcutMessages } from './keyboard-shortcuts';
 export { projectedTerminalMessages } from './projected-terminal';

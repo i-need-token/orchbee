@@ -14,12 +14,14 @@ import styles from './ProjectCreateMenu.module.css';
 
 interface ProjectCreateMenuProps {
 	readonly messages: WorkbenchProjectNavigationMessages;
+	readonly onConnectViaSsh?: (() => void) | undefined;
 	readonly onSelectFolder: () => void;
 	readonly selectionPending?: boolean | undefined;
 }
 
 export function ProjectCreateMenu({
 	messages,
+	onConnectViaSsh,
 	onSelectFolder,
 	selectionPending = false,
 }: ProjectCreateMenuProps): React.ReactNode {
@@ -32,6 +34,17 @@ export function ProjectCreateMenu({
 			label: messages.selectFolder,
 			onSelect: onSelectFolder,
 		},
+		...(onConnectViaSsh === undefined
+			? []
+			: [
+					{
+						icon: 'terminal' as const,
+						id: 'connect-project-via-ssh',
+						kind: 'command' as const,
+						label: messages.connectViaSsh,
+						onSelect: onConnectViaSsh,
+					},
+				]),
 		{ id: 'project-folder-actions', kind: 'separator' },
 		{
 			disabled: true,

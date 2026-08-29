@@ -232,6 +232,8 @@ describe('startDesktopWorkbenchRenderer', () => {
 		const terminalDefaultSettingsChannel = createTestChannel();
 		const clipboardReadChannel = createTestChannel();
 		const windowLayoutChannel = createTestChannel();
+		const remoteTerminalCreationChannel = createTestChannel();
+		const sshProjectEnrollmentChannel = createTestChannel();
 		serveTerminalLaunchProfiles(terminalLaunchProfileChannel.port2);
 		serveTerminalDefaultSettings(terminalDefaultSettingsChannel.port2);
 		serveWindowLayout(windowLayoutChannel.port2, ['tab-1']);
@@ -269,6 +271,8 @@ describe('startDesktopWorkbenchRenderer', () => {
 				terminalDefaultSettingsChannel.port1,
 				clipboardReadChannel.port1,
 				windowLayoutChannel.port1,
+				remoteTerminalCreationChannel.port1,
+				sshProjectEnrollmentChannel.port1,
 			);
 			await expect(session.ready).resolves.toEqual({ kind: 'unavailable', reason: 'read-failed' });
 		});
@@ -285,6 +289,8 @@ describe('startDesktopWorkbenchRenderer', () => {
 		expect((terminalDefaultSettingsChannel.port1 as unknown as TestMessagePort).closed).toBe(true);
 		expect((clipboardReadChannel.port1 as unknown as TestMessagePort).closed).toBe(true);
 		expect((windowLayoutChannel.port1 as unknown as TestMessagePort).closed).toBe(true);
+		expect((remoteTerminalCreationChannel.port1 as unknown as TestMessagePort).closed).toBe(true);
+		expect((sshProjectEnrollmentChannel.port1 as unknown as TestMessagePort).closed).toBe(true);
 		root.remove();
 	});
 
@@ -299,6 +305,8 @@ describe('startDesktopWorkbenchRenderer', () => {
 		const terminalDefaultSettingsChannel = createTestChannel();
 		const clipboardReadChannel = createTestChannel();
 		const windowLayoutChannel = createTestChannel();
+		const remoteTerminalCreationChannel = createTestChannel();
+		const sshProjectEnrollmentChannel = createTestChannel();
 		serveTerminalLaunchProfiles(terminalLaunchProfileChannel.port2);
 		serveTerminalDefaultSettings(terminalDefaultSettingsChannel.port2);
 		serveWindowLayout(windowLayoutChannel.port2, ['tab-1', 'tab-2']);
@@ -348,6 +356,8 @@ describe('startDesktopWorkbenchRenderer', () => {
 				terminalDefaultSettingsChannel.port1,
 				clipboardReadChannel.port1,
 				windowLayoutChannel.port1,
+				remoteTerminalCreationChannel.port1,
+				sshProjectEnrollmentChannel.port1,
 			);
 			session = started;
 			await expect(started.ready).resolves.toEqual({ kind: 'ready' });
@@ -465,6 +475,8 @@ describe('startDesktopWorkbenchRenderer', () => {
 		const terminalDefaultSettingsChannel = createTestChannel();
 		const clipboardReadChannel = createTestChannel();
 		const windowLayoutChannel = createTestChannel();
+		const remoteTerminalCreationChannel = createTestChannel();
+		const sshProjectEnrollmentChannel = createTestChannel();
 		serveTerminalLaunchProfiles(terminalLaunchProfileChannel.port2);
 		serveTerminalDefaultSettings(terminalDefaultSettingsChannel.port2);
 		serveWindowLayout(windowLayoutChannel.port2, ['tab-1']);
@@ -498,6 +510,8 @@ describe('startDesktopWorkbenchRenderer', () => {
 				terminalDefaultSettingsChannel.port1,
 				clipboardReadChannel.port1,
 				windowLayoutChannel.port1,
+				remoteTerminalCreationChannel.port1,
+				sshProjectEnrollmentChannel.port1,
 			);
 			session = started;
 			await expect(started.ready).resolves.toEqual({ kind: 'ready' });

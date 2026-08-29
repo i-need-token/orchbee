@@ -9,6 +9,7 @@ import {
 	terminalPresentationRemovalId,
 } from '@orchbee/workbench';
 import type {
+	WorkbenchEnvironmentProjectConnectionCapability,
 	WorkbenchSearchProvider,
 	WorkbenchTerminalBroadcastInput,
 	WorkbenchTerminalPresentationCommand,
@@ -225,6 +226,41 @@ function BroadcastStoryTerminalSurface({
 	);
 }
 
+const createRemoteProjectWorkspaceRuntime = () => {
+	const runtime = createProjectWorkspaceRuntime(['Terminal 1']);
+	runtime.transition({
+		directory: {
+			available: false,
+			git: null,
+			id: 'directory-remote-orchbee',
+			kind: 'folder',
+			name: 'orchbee',
+			path: '/srv/orchbee',
+			placement: {
+				environmentId: 'environment:00000000000000000000000000000001',
+				kind: 'environment',
+			},
+			source: 'selected',
+		},
+		projectName: 'Remote orchbee',
+		type: 'environment-project-registered',
+	});
+	runtime.transition({
+		directoryId: 'directory-remote-orchbee',
+		projectId: 'project-1',
+		type: 'environment-workspace-registered',
+		workspaceName: 'Primary',
+	});
+	return runtime;
+};
+
+const disconnectedRemoteProject: WorkbenchEnvironmentProjectConnectionCapability = {
+	connect: () => undefined,
+	disconnect: () => undefined,
+	getSnapshot: () => [{ projectId: 'project-1', state: 'disconnected' }],
+	subscribe: () => () => undefined,
+};
+
 export const PanelWorkspace: Story = {
 	args: {
 		actionRuntime: new ActionRuntime(),
@@ -362,6 +398,22 @@ export const ProjectWorkspaceNavigation: Story = {
 		actionRuntime: new ActionRuntime({ confirm: () => true }),
 		onSettings: () => ({ kind: 'unchanged' }),
 		projectWorkspaceRuntime: createPopulatedProjectWorkspaceRuntime(),
+		shortcutPlatform: 'apple',
+	},
+	render: (arguments_) => (
+		<OrchbeeI18nProvider locale='en-US'>
+			<Workbench {...arguments_} />
+		</OrchbeeI18nProvider>
+	),
+};
+
+export const SshProjectConnection: Story = {
+	args: {
+		actionRuntime: new ActionRuntime({ confirm: () => true }),
+		environmentProjectConnection: disconnectedRemoteProject,
+		onConnectViaSsh: () => undefined,
+		onSettings: () => ({ kind: 'unchanged' }),
+		projectWorkspaceRuntime: createRemoteProjectWorkspaceRuntime(),
 		shortcutPlatform: 'apple',
 	},
 	render: (arguments_) => (

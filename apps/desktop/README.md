@@ -16,11 +16,15 @@ Main starts without creating a fixed terminal, opening an attachment, starting S
 - Project Worktree control discovers repositories only from current canonical Project Directories and creates one managed Worktree from repository, base, branch, and Workspace-option values; renderer commands never carry a target path;
 - terminal-launch-profile control projects and mutates one bounded device-local catalog of system-shell or explicit-executable launch choices. It carries no environment, CWD, secret, project payload, or generic filesystem capability;
 - terminal-default-settings control projects and mutates only the bounded device-local default scrollback byte count. It carries no running-terminal, Host, or filesystem authority; and
-- clipboard-read control accepts only correlated plain-text read requests and returns one terminal-input-bounded text value or typed failure. It exposes no write, alternate format, image, history, or generic Electron capability.
+- clipboard-read control accepts only correlated plain-text read requests and returns one terminal-input-bounded text value or typed failure. It exposes no write, alternate format, image, history, or generic Electron capability; and
+- remote-terminal-creation control accepts only correlated Project and Workspace identities for the exact default first singleton in an empty remote Workspace. Main derives and revalidates Environment placement, requires an existing connection, and exposes no path, SSH activation, alternate placement, additional-terminal, Gateway, CLI, or general lifecycle authority; and
+- ssh-project-enrollment control accepts bounded enrollment, Connect, Retry, Disconnect, cancellation, exact prompt-response, and status requests. Main derives every identity and resolved target, and the port exposes no SSH arguments, Host connection, release bytes, persisted credential, or general Environment authority.
 
-The client-session and projection payloads are platform-neutral contracts from `@orchbee/workbench-client-protocol`. `@orchbee/desktop-client-protocol` owns the atomic Electron renderer bootstrap, Electron application-lifetime contract, narrow Browser-access command contract, typed Project Folder-acquisition and Project Worktree contracts, terminal-launch-profile command contract, terminal-default-settings command contract, and clipboard-read command contract. Desktop Main and the Web renderer each adapt the generic contracts to their end of a `MessagePort`; neither transport detail enters the shared Workbench client runtime.
+The client-session and projection payloads are platform-neutral contracts from `@orchbee/workbench-client-protocol`. `@orchbee/desktop-client-protocol` owns the atomic Electron renderer bootstrap, Electron application-lifetime contract, narrow Browser-access command contract, typed Project Folder-acquisition and Project Worktree contracts, terminal-launch-profile command contract, terminal-default-settings command contract, clipboard-read command contract, remote-terminal-creation command contract, and SSH Project enrollment command contract. Desktop Main and the Web renderer each adapt the generic contracts to their end of a `MessagePort`; neither transport detail enters the shared Workbench client runtime.
 
-The renderer has no Node integration, generic Electron IPC, filesystem read capability, Host inventory, or raw terminal-lifetime authority. It cannot invoke provision, restore, close, or storage CAS effects directly. Preload accepts exactly one bootstrap, verifies all nine ports together, preserves their fixed client-session/projection/application-lifetime/Browser-access/Project-Folder-acquisition/Project-Worktree/terminal-launch-profiles/terminal-default-settings/clipboard-read order, and attests context isolation and sandboxing. The Project Folder port accepts no renderer path and exposes no enumeration or mutation primitive. The Project Worktree port accepts no source or target path: discovery derives repositories from canonical Project state, while creation accepts only returned opaque identities and Git values. A separate context-isolated file-drop adapter exposes only the current platform and Electron's `File`-scoped backing-path lookup; it cannot accept an arbitrary path string, read file contents, enumerate a directory, or perform an IPC request. One dropped disk `File` may carry a file or directory backing path without granting child enumeration. The Web renderer admits that adapter only for a user drop, applies bounded Ghostty-compatible POSIX live-buffer escaping, publishes the prepared text directly, and never appends Enter. A partial or malformed bootstrap starts no renderer runtime.
+Projection target selection is Main-owned and transport-neutral. A request carries only a `TerminalPresentationId` and viewport geometry; Main resolves canonical Presentation containment through Terminal Context, Workspace, primary Directory, and placement. Local placement reaches only the local runtime. Environment placement reaches only the already prepared runtime for that exact Environment, with no SSH activation, reconnect wait, local binding lookup, or local archive fallback. Main rechecks the target after open and disposes a provisional attachment rather than publishing it when canonical authority changed. Electron and authenticated Gateway pages reuse the same attachment protocol, input/search/selection behavior, resize-lease arbitration, and client-specific clipboard/link effect target.
+
+The renderer has no Node integration, generic Electron IPC, filesystem read capability, Host inventory, or raw terminal-lifetime authority. It cannot invoke raw provision, restore, close, or storage CAS effects directly. Preload accepts exactly one bootstrap, verifies all eleven ports together, preserves their fixed client-session/projection/application-lifetime/Browser-access/Project-Folder-acquisition/Project-Worktree/terminal-launch-profiles/terminal-default-settings/clipboard-read/remote-terminal-creation/ssh-project-enrollment order, and attests context isolation and sandboxing. The two dedicated remote ports are consumed only by Electron Workbench host capabilities; they are not preload globals or Gateway paths. The Project Folder port accepts no renderer path and exposes no enumeration or mutation primitive. The Project Worktree port accepts no source or target path: discovery derives repositories from canonical Project state, while creation accepts only returned opaque identities and Git values. A separate context-isolated file-drop adapter exposes only the current platform and Electron's `File`-scoped backing-path lookup; it cannot accept an arbitrary path string, read file contents, enumerate a directory, or perform an IPC request. One dropped disk `File` may carry a file or directory backing path without granting child enumeration. The Web renderer admits that adapter only for a user drop, applies bounded Ghostty-compatible POSIX live-buffer escaping, publishes the prepared text directly, and never appends Enter. A partial or malformed bootstrap starts no renderer runtime.
 
 Desktop context-menu and custom-shortcut Paste use the Main-owned clipboard-read port. An idle platform-default paste chord preserves native editable-element delivery, allowing the shared terminal adapter to distinguish plain text from an image-only clipboard and emit the Agent-compatible `Control+V` pair without reading or transferring image bytes. An ordinary terminal selection remains Host/Canvas state and does not occupy a document-global DOM Range, so the hidden textarea stays the sole native input and IME owner. A bounded terminal-root fallback admits paste only from package-owned presentation descendants; application-owned controls such as the Find input retain native editing. When a manual selection Copy or another Paste Action is still committing, the default chord uses the Action path; Paste waits for that exact Copy operation to settle before it requests current plain text, then reuses the shared terminal paste sanitation, review, return-to-bottom, and selection-clear path. A failed Copy does not synthesize text or retry: Paste reads whatever plain text the platform clipboard contains after settlement. Browser Preview and Gateway pages receive no Desktop clipboard-read port and retain their existing local Browser policy.
 
@@ -475,21 +479,46 @@ state machine fences generations, admits `connected` only after exact Runtime id
 verification, and retries a lost attachment only after one proven connection. Stopping the local
 attachment does not stop the remote daemon or imply Project deletion.
 
-The exact `0.1.0` protocol advertises only `project-root-v1`. Through the connected Environment
-owner, Desktop Main can inspect one explicit absolute POSIX Project-root candidate and receive its
-canonical directory path or a bounded failure. The call never connects or waits for reconnection,
-is capped at four concurrent calls and 30 seconds per Environment, and is cancelled without replay
-on caller cancellation or attachment loss. It grants no retained filesystem handle or Project,
-Checkout, Workspace, listing, file-byte, watch, or mutation authority.
+The exact `0.2.0` protocol advertises `project-root-v1` and `terminal-host-v1`. Through the connected
+Environment owner, Desktop Main can inspect one explicit absolute POSIX Project-root candidate and
+receive its canonical directory path or a bounded failure. The call never connects or waits for
+reconnection, is capped at four concurrent calls and 30 seconds per Environment, and is cancelled
+without replay on caller cancellation or attachment loss. The opaque Terminal Host relay uses the
+same attachment with bounded credit and exposes one negotiated process-local `HostConnection`; it
+does not add a generic command or filesystem protocol.
+
+Main can admit the inspected root as one durable Environment-placed Project and inactive Workspace,
+then explicitly provision the first terminal after the canonical Presentation intent commits. The
+remote runtime, binding ledger, archive namespace, exit pending/rejection journal, and publication
+ledger are isolated under that Environment identity. Electron and authenticated Gateway clients can
+interactively project the existing terminal through canonical Presentation routing. Metadata and
+runtime failure publish only through the exact remote binding and current canonical target. Every
+remote exit is synchronously journaled before the Host listener returns and advances through binding,
+reservation, publication evidence, Client broadcast, and journal compaction. Disconnect or restart
+retains admitted exit recovery, but recovery alone never activates or reconnects SSH.
+
+On POSIX Electron Desktop, Workbench exposes **Connect via SSH…**, remote status, and Connect, Retry,
+and Disconnect controls through the eleventh bootstrap port. The Desktop-owned dialog submits only
+a bounded Environment display name, destination or alias, optional absolute SSH configuration path,
+and absolute POSIX Project path. Main resolves the target, allocates opaque identities or reuses the
+exact admitted target, establishes one request-scoped interaction lease, and forwards only the exact
+generation and prompt handle to transient AskPass UI. Enrollment orders the durable Environment,
+connection readiness, canonical root inspection, and canonical Workbench commit; after publication,
+only the initiating client navigates to the new Workspace. Enrollment creates no terminal. A
+confirmed pre-commit cancellation preserves any registry identity, and an outcome that may have
+committed fails closed for reload or restart reconciliation instead of rolling back durable state.
 
 `DesktopApplication` composes the registry with one process-local, explicitly activated connection
 owner keyed by Environment identity. It never auto-connects, serializes repeated connect and
-disconnect, and disposes all active supervisors on shutdown. There is no renderer API or prompt UI,
-automatic record creation, Runtime network feed, Project or Workspace projection, remote directory
-listing, file access, filesystem watch or mutation, terminal channel, Git operation, Agent execution,
-service installation, Windows activation, or real-SSH test. Release inputs exist only in the
-explicit package command; release-free packages block activation. The maintained connection
-contract, transition table, security boundary, formal claims, and exact limitations live in
+disconnect, and disposes all active supervisors on shutdown. Desktop restart and Project projection
+never activate SSH; an explicit enrollment, Connect, or Retry supplies the interaction lease when
+needed, while proven live-connection loss may use generation-fenced automatic retry. The product
+surface exposes no general Environment editing or removal, Runtime network feed, remote directory
+listing, file access, filesystem watch or mutation, additional remote terminal, terminal
+close/restart/split/archive command, Git operation, Agent execution, service installation, Windows
+activation, Gateway enrollment, or CLI enrollment. Release inputs exist only in the explicit package
+command; release-free packages block activation. The maintained connection contract, transition
+table, security boundary, formal claims, and exact limitations live in
 [`docs/ssh-environment-connection.md`](docs/ssh-environment-connection.md).
 
 ## Correctness evidence
@@ -762,6 +791,17 @@ pnpm --filter @orchbee/web build
 pnpm --filter @orchbee/desktop build
 pnpm --filter @orchbee/desktop test:system
 ```
+
+Run the explicit signed loopback SSH Project enrollment witness separately:
+
+```sh
+pnpm --filter @orchbee/desktop test:system:ssh-project-enrollment
+```
+
+It prepares and signs an ephemeral two-platform release cohort, packages Desktop through the normal
+release path, and exercises host-key confirmation, encrypted-key AskPass, remote installation,
+Project admission, terminal I/O, connection loss, Retry, and Disconnect against a controlled local
+`sshd`. It is not part of ordinary `test:system` and does not invoke the manual native-window test.
 
 ### Manual native-window test
 

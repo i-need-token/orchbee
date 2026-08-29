@@ -11,6 +11,7 @@ import type {
 	WorkbenchProjectWorktreeCapability,
 	WorkbenchProjectWorktreeDiscovery,
 } from '../../../../types/workbench-project-worktree';
+import type { WorkbenchEnvironmentProjectConnectionStatus } from '../../../../types/workbench-environment-project-connection';
 import { useNavigationReorderDrag } from '../../hooks/useNavigationReorderDrag';
 import type { WorkbenchProjectNavigationMessages } from '../../types/workbench-sidebar-types';
 import { WorkbenchSidebarDropdownMenu } from '../workbench-sidebar-dropdown-menu/WorkbenchSidebarDropdownMenu';
@@ -23,12 +24,15 @@ interface ProjectNavigationItemProps {
 		| ((input: Parameters<WorkbenchProjectWorktreeCapability['adopt']>[0]) => void)
 		| undefined;
 	readonly createWorkspace: (projectId: string, directoryId: string) => void;
+	readonly connectEnvironment?: ((projectId: string) => void) | undefined;
 	readonly createWorktree?: ((projectId: string) => void) | undefined;
 	readonly deleteWorkspace: (projectId: string, workspaceId: string) => void;
 	readonly displacement: 'down' | 'up' | null;
+	readonly disconnectEnvironment?: ((projectId: string) => void) | undefined;
 	readonly duplicateWorkspace: (projectId: string, workspaceId: string) => void;
 	readonly dragging: boolean;
 	readonly expanded: boolean;
+	readonly environmentConnection: WorkbenchEnvironmentProjectConnectionStatus | null;
 	readonly messages: WorkbenchProjectNavigationMessages;
 	readonly project: WorkbenchProject;
 	readonly refreshWorktrees?: (() => void) | undefined;
@@ -53,12 +57,15 @@ export function ProjectNavigationItem({
 	activeLocation,
 	adoptWorktree,
 	createWorkspace,
+	connectEnvironment,
 	createWorktree,
 	deleteWorkspace,
 	displacement,
+	disconnectEnvironment,
 	duplicateWorkspace,
 	dragging,
 	expanded,
+	environmentConnection,
 	messages,
 	project,
 	refreshWorktrees,
@@ -168,7 +175,56 @@ export function ProjectNavigationItem({
 			},
 		];
 	})();
+	const environmentConnectionEntries: readonly WorkbenchActionMenuEntry[] = (() => {
+		if (environmentConnection === null) return [];
+		const statusLabel = messages.projectConnectionStatus[environmentConnection.state];
+		if (environmentConnection.state === 'connected') {
+			return [
+				{
+					disabled: disconnectEnvironment === undefined,
+					icon: 'close',
+					id: 'disconnect-environment-project',
+					kind: 'command',
+					label: messages.disconnectProject,
+					onSelect: () => disconnectEnvironment?.(project.id),
+				},
+				{ id: 'environment-connection-separator', kind: 'separator' },
+			];
+		}
+		if (
+			environmentConnection.state === 'connecting' ||
+			environmentConnection.state === 'interaction-required' ||
+			environmentConnection.state === 'retrying'
+		) {
+			return [
+				{
+					disabled: true,
+					icon: 'terminal',
+					id: 'environment-connection-pending',
+					kind: 'command',
+					label: statusLabel,
+					onSelect: () => undefined,
+				},
+				{ id: 'environment-connection-separator', kind: 'separator' },
+			];
+		}
+		return [
+			{
+				disabled: connectEnvironment === undefined,
+				icon: 'terminal',
+				id: 'connect-environment-project',
+				kind: 'command',
+				label:
+					environmentConnection.state === 'disconnected'
+						? messages.connectProject
+						: messages.retryProjectConnection,
+				onSelect: () => connectEnvironment?.(project.id),
+			},
+			{ id: 'environment-connection-separator', kind: 'separator' },
+		];
+	})();
 	const projectMenuEntries: readonly WorkbenchActionMenuEntry[] = [
+		...environmentConnectionEntries,
 		{
 			groups: [
 				...(createWorktree === undefined
@@ -273,7 +329,7 @@ export function ProjectNavigationItem({
 				>
 					<Button
 						aria-expanded={expanded}
-						aria-label={`${expanded ? messages.collapseProject : messages.expandProject}: ${project.name}`}
+						aria-label={`${expanded ? messages.collapseProject : messages.expandProject}: ${project.name}${environmentConnection === null ? '' : `. ${messages.projectConnectionStatus[environmentConnection.state]}`}`}
 						className={styles['projectItem']}
 						data-slot='workbench-sidebar-project'
 						size='sm'
@@ -284,6 +340,14 @@ export function ProjectNavigationItem({
 							<ProductIcon name='folder' />
 						</span>
 						<span className={styles['projectName']}>{project.name}</span>
+						{environmentConnection === null ? null : (
+							<span
+								aria-hidden='true'
+								className={styles['connectionStatus']}
+								data-state={environmentConnection.state}
+								title={messages.projectConnectionStatus[environmentConnection.state]}
+							/>
+						)}
 						<span
 							aria-hidden='true'
 							className={styles['disclosure']}

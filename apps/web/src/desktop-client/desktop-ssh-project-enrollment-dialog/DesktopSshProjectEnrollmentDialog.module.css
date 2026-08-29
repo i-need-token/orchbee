@@ -1,0 +1,41 @@
+.fields,
+.prompt {
+	display: grid;
+	gap: var(--ob-ref-space-4);
+}
+
+.progress,
+.promptDescription {
+	margin: 0;
+	color: var(--ob-sys-color-text-muted);
+	font: var(--ob-sys-typography-body-sm);
+}
+
+.failure {
+	display: grid;
+	gap: var(--ob-ref-space-1);
+	padding: var(--ob-ref-space-3);
+	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-status-danger-border);
+	border-radius: var(--ob-ref-radius-ui-md);
+	color: var(--ob-sys-color-status-danger-text);
+	font: var(--ob-sys-typography-body-sm);
+}
+
+.prompt h3 {
+	margin: 0 0 var(--ob-ref-space-1);
+	color: var(--ob-sys-color-text-primary);
+	font: var(--ob-sys-typography-heading-sm);
+}
+
+.promptText {
+	max-block-size: var(--ob-ref-container-xs);
+	margin: 0;
+	padding: var(--ob-ref-space-3);
+	overflow: auto;
+	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-subtle);
+	border-radius: var(--ob-ref-radius-ui-md);
+	background: var(--ob-sys-color-surface-subtle);
+	color: var(--ob-sys-color-text-secondary);
+	font: var(--ob-sys-typography-code-sm);
+	white-space: pre-wrap;
+}

@@ -41,6 +41,8 @@ export const enUSWorkbenchMessages = {
 	'workbench.sidebar.items.settings': 'Settings',
 	'workbench.sidebar.sections.project': 'Project',
 	'workbench.projects.actions.collapse': 'Collapse project',
+	'workbench.projects.actions.connect': 'Connect',
+	'workbench.projects.actions.connectViaSsh': 'Connect via SSH…',
 	'workbench.projects.actions.create': 'Create Project',
 	'workbench.projects.actions.disconnect': 'Disconnect',
 	'workbench.projects.actions.addFolder': 'Add Folder',

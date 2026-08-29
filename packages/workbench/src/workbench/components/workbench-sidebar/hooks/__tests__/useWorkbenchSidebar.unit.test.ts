@@ -8,6 +8,10 @@ import {
 	transitionProjectWorkspace,
 	type ProjectWorkspaceState,
 } from '../../../../../project-workspace';
+import type {
+	WorkbenchEnvironmentProjectConnectionCapability,
+	WorkbenchEnvironmentProjectConnectionStatus,
+} from '../../../../types/workbench-environment-project-connection';
 import { useWorkbenchSidebar } from '../useWorkbenchSidebar';
 
 afterEach(cleanup);
@@ -51,6 +55,38 @@ describe('useWorkbenchSidebar', () => {
 		expect(rendered.result.current.workspaceManagement?.name).toBe('Feature');
 		act(() => rendered.result.current.workspaceManagement?.close());
 		expect(rendered.result.current.workspaceManagement).toBeNull();
+	});
+
+	it('subscribes to the optional Environment Project connection source', () => {
+		let listener: (() => void) | undefined;
+		let statuses: readonly WorkbenchEnvironmentProjectConnectionStatus[] = [
+			{ projectId: 'project-1', state: 'disconnected' },
+		];
+		const connection: WorkbenchEnvironmentProjectConnectionCapability = {
+			connect: () => undefined,
+			disconnect: () => undefined,
+			getSnapshot: () => statuses,
+			subscribe: (nextListener) => {
+				listener = nextListener;
+				return () => {
+					listener = undefined;
+				};
+			},
+		};
+		const rendered = renderHook(() => useWorkbenchSidebar(projectState(), connection));
+
+		expect(rendered.result.current.connectionStatusByProjectId.get('project-1')).toEqual({
+			projectId: 'project-1',
+			state: 'disconnected',
+		});
+		act(() => {
+			statuses = [{ projectId: 'project-1', state: 'connected' }];
+			listener?.();
+		});
+		expect(rendered.result.current.connectionStatusByProjectId.get('project-1')).toEqual({
+			projectId: 'project-1',
+			state: 'connected',
+		});
 	});
 });
 

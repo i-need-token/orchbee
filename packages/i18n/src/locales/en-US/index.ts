@@ -8,6 +8,8 @@ export { enUSDesktopBrowserAccessMessages } from './desktop-browser-access';
 export type { DesktopBrowserAccessMessageId } from './desktop-browser-access';
 export { enUSDesktopSecureKeyboardEntryMessages } from './desktop-secure-keyboard-entry';
 export type { DesktopSecureKeyboardEntryMessageId } from './desktop-secure-keyboard-entry';
+export { enUSDesktopSshProjectMessages } from './desktop-ssh-project';
+export type { DesktopSshProjectMessageId } from './desktop-ssh-project';
 export { enUSDesktopWindowMessages } from './desktop-window';
 export type { DesktopWindowMessageId } from './desktop-window';
 export { enUSKeyboardShortcutMessages } from './keyboard-shortcuts';

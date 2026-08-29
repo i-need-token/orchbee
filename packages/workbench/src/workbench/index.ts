@@ -42,6 +42,11 @@ export type {
 	WorkbenchRemoteTerminalCreationFailureReason,
 	WorkbenchRemoteTerminalCreationResult,
 } from './types/workbench-remote-terminal-creation';
+export type {
+	WorkbenchEnvironmentProjectConnectionCapability,
+	WorkbenchEnvironmentProjectConnectionState,
+	WorkbenchEnvironmentProjectConnectionStatus,
+} from './types/workbench-environment-project-connection';
 export { WORKBENCH_SHORTCUTS, defaultWorkbenchShortcutBindings } from './utils/workbench-shortcuts';
 export type {
 	WorkbenchActiveTerminalCreationRoute,

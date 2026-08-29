@@ -3,7 +3,11 @@ import {
 	DesktopWindowLayoutDragSessionIdSchema,
 } from '@orchbee/desktop-client-protocol';
 import { createOrchbeeIntl, workbenchTabMessages } from '@orchbee/i18n';
-import type { WorkbenchShortcutPlatform, WorkbenchTabWindowControl } from '@orchbee/workbench';
+import type {
+	WorkbenchProjectWorkspaceRuntime,
+	WorkbenchShortcutPlatform,
+	WorkbenchTabWindowControl,
+} from '@orchbee/workbench';
 import type { WorkbenchClientSessionBootstrap } from '@orchbee/workbench-client-protocol';
 import { createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
@@ -40,6 +44,11 @@ import { DesktopProjectWorktreeClient } from '../project-worktree';
 import { DesktopTerminalLaunchProfileClient } from '../terminal-launch-profiles';
 import { DesktopTerminalDefaultSettingsClient } from '../terminal-default-settings';
 import { DesktopWindowLayoutClient } from '../window-layout';
+import { DesktopRemoteTerminalCreationClient } from '../remote-terminal-creation';
+import {
+	DesktopSshProjectEnrollmentClient,
+	DesktopSshProjectEnrollmentController,
+} from '../desktop-ssh-project-enrollment-dialog';
 import type { TerminalFileDropCapability } from '../../terminal-file-drop';
 
 export interface DesktopWorkbenchRendererSession {
@@ -71,6 +80,8 @@ export function startDesktopWorkbenchRenderer(
 	terminalDefaultSettingsPort: MessagePort,
 	clipboardReadPort: MessagePort,
 	windowLayoutPort: MessagePort,
+	remoteTerminalCreationPort: MessagePort,
+	sshProjectEnrollmentPort: MessagePort,
 	terminalFileDropCapability?: TerminalFileDropCapability,
 ): DesktopWorkbenchRendererSession {
 	if (!(rootElement instanceof HTMLElement)) {
@@ -99,6 +110,12 @@ export function startDesktopWorkbenchRenderer(
 		terminalDefaultSettingsPort,
 	);
 	const windowLayoutClient = new DesktopWindowLayoutClient(windowLayoutPort);
+	const remoteTerminalCreationClient = new DesktopRemoteTerminalCreationClient(
+		remoteTerminalCreationPort,
+	);
+	const sshProjectEnrollmentClient = new DesktopSshProjectEnrollmentClient(
+		sshProjectEnrollmentPort,
+	);
 	const keyboardShortcutSettingsController = new KeyboardShortcutSettingsController({
 		platform: shortcutPlatform,
 		storage: storage.preferences,
@@ -145,6 +162,27 @@ export function startDesktopWorkbenchRenderer(
 	let lifetimeClient: DesktopApplicationLifetimeClient | undefined;
 	let reactRoot: Root | undefined;
 	let routing: WebApplicationRouting | undefined;
+	const sshProjectEnrollmentController = new DesktopSshProjectEnrollmentController({
+		client: sshProjectEnrollmentClient,
+		onEnrollmentCommitted: async (result) => {
+			if (
+				!(await waitForEnrollmentPublication(
+					runtime.projectWorkspaceRuntime,
+					result.projectId,
+					result.workspaceId,
+				)) ||
+				disposed
+			) {
+				return false;
+			}
+			routing?.coordinator.navigateTo({
+				kind: 'workspace',
+				projectId: result.projectId,
+				workspaceId: result.workspaceId,
+			});
+			return routing !== undefined;
+		},
+	});
 
 	const dispose = (): void => {
 		if (disposed) return;
@@ -159,6 +197,8 @@ export function startDesktopWorkbenchRenderer(
 		reactRoot = undefined;
 		projectFolderAcquisitionClient.dispose();
 		projectWorktreeClient.dispose();
+		remoteTerminalCreationClient.dispose();
+		sshProjectEnrollmentController.dispose();
 		terminalLaunchProfileClient.dispose();
 		terminalDefaultSettingsClient.dispose();
 		windowLayoutClient.dispose();
@@ -229,12 +269,15 @@ export function startDesktopWorkbenchRenderer(
 		const nextRouting = createWebApplicationRouting({
 			actionRuntime: workbenchClientRuntime.actionRuntime,
 			initialTerminalTitle,
+			environmentProjectConnection: sshProjectEnrollmentController,
 			keyboardShortcutSettingsController,
 			layoutStorage: storage.preferences,
 			macosTerminalInputSettingsController,
+			onConnectViaSsh: () => sshProjectEnrollmentController.openEnrollment(),
 			projectWorkspaceRuntime: workbenchClientRuntime.projectWorkspaceRuntime,
 			projectFolderAcquisition: projectFolderAcquisitionClient,
 			projectWorktree: projectWorktreeClient,
+			remoteTerminalCreation: remoteTerminalCreationClient,
 			requestBrowserAccess: (returnFocus) => {
 				browserAccessReturnFocus = returnFocus;
 				browserAccessController.open();
@@ -293,10 +336,41 @@ export function startDesktopWorkbenchRenderer(
 				browserAccessController,
 				locale: workbenchClientRuntime.locale,
 				router: nextRouting.router,
+				sshProjectEnrollmentController,
 				terminalSurfaceCapability: workbenchClientRuntime.terminalSurfaceCapability,
 				windowControls: shortcutPlatform === 'apple' ? 'leading' : 'trailing',
 			}),
 		);
 		return { kind: 'ready' };
 	}
+}
+
+function waitForEnrollmentPublication(
+	runtime: WorkbenchProjectWorkspaceRuntime,
+	projectId: string,
+	workspaceId: string,
+): Promise<boolean> {
+	const published = (): boolean =>
+		runtime
+			.getSnapshot()
+			.projects.find((project) => project.id === projectId)
+			?.workspaces.some((workspace) => workspace.id === workspaceId) ?? false;
+	if (published()) return Promise.resolve(true);
+	return new Promise((resolve) => {
+		let settled = false;
+		let timeout: ReturnType<typeof setTimeout> | undefined;
+		let unsubscribe = (): void => undefined;
+		const settle = (result: boolean): void => {
+			if (settled) return;
+			settled = true;
+			if (timeout !== undefined) clearTimeout(timeout);
+			unsubscribe();
+			resolve(result);
+		};
+		unsubscribe = runtime.subscribe(() => {
+			if (published()) settle(true);
+		});
+		timeout = setTimeout(() => settle(false), 5_000);
+		if (published()) settle(true);
+	});
 }

@@ -146,6 +146,32 @@ export type {
 	DesktopRemoteTerminalCreationResult,
 } from './desktop-remote-terminal-creation-contract';
 export {
+	DesktopSshProjectConnectionBlockedReasonSchema,
+	DesktopSshProjectConnectionResultSchema,
+	DesktopSshProjectConnectionStatusSchema,
+	DesktopSshProjectEnrollmentFailureReasonSchema,
+	DesktopSshProjectEnrollmentInputSchema,
+	DesktopSshProjectEnrollmentMainEventSchema,
+	DesktopSshProjectEnrollmentProgressStageSchema,
+	DesktopSshProjectEnrollmentRendererCommandSchema,
+	DesktopSshProjectEnrollmentRequestIdSchema,
+	DesktopSshProjectEnrollmentResultSchema,
+	DesktopSshProjectInteractionHandleSchema,
+	DesktopSshProjectInteractionResultSchema,
+} from './desktop-ssh-project-enrollment-contract';
+export type {
+	DesktopSshProjectConnectionResult,
+	DesktopSshProjectConnectionStatus,
+	DesktopSshProjectEnrollmentFailureReason,
+	DesktopSshProjectEnrollmentInput,
+	DesktopSshProjectEnrollmentMainEvent,
+	DesktopSshProjectEnrollmentProgressStage,
+	DesktopSshProjectEnrollmentRendererCommand,
+	DesktopSshProjectEnrollmentRequestId,
+	DesktopSshProjectEnrollmentResult,
+	DesktopSshProjectInteractionResult,
+} from './desktop-ssh-project-enrollment-contract';
+export {
 	DESKTOP_BUILT_IN_TERMINAL_LAUNCH_PROFILE_ID,
 	DESKTOP_TERMINAL_LAUNCH_PROFILE_LIMITS,
 	DesktopTerminalLaunchProfileCatalogSchema,
