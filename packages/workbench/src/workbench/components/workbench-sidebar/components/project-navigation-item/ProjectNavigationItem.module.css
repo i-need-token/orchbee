@@ -111,6 +111,7 @@
 	color: var(--ob-sys-color-text-primary);
 }
 
+.projectItem[data-active],
 .workspaceItem[data-active] {
 	background: var(--ob-sys-color-surface-selected);
 	color: var(--ob-sys-color-text-primary);
@@ -124,6 +125,10 @@
 	color: var(--ob-sys-color-text-primary);
 }
 
+.projectRow:hover .projectItem[data-active],
+.projectRow:has(:focus-visible) .projectItem[data-active],
+.projectRow[data-popup-open] .projectItem[data-active],
+.projectRow:has(.rowMenu[aria-expanded='true']) .projectItem[data-active],
 .workspaceRow:hover .workspaceItem[data-active],
 .workspaceRow:has(:focus-visible) .workspaceItem[data-active],
 .workspaceRow[data-popup-open] .workspaceItem[data-active],
@@ -140,6 +145,8 @@
 .workspaceRow:hover .icon,
 .workspaceRow:has(:focus-visible) .icon,
 .workspaceRow[data-popup-open] .icon,
+.projectItem[data-active] .icon,
+.projectItem[data-active] .disclosure,
 .workspaceItem[data-active] .icon,
 .projectRow:has(.rowMenu[aria-expanded='true']) .icon,
 .projectRow:has(.rowMenu[aria-expanded='true']) .disclosure,

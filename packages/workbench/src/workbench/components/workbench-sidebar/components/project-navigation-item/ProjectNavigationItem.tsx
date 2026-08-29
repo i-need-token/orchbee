@@ -80,6 +80,8 @@ export function ProjectNavigationItem({
 	worktreeDiscoveryFailed,
 	worktreeOperationPending,
 }: ProjectNavigationItemProps): React.ReactNode {
+	const representsActiveWorkspace =
+		!expanded && activeLocation.kind === 'workspace' && activeLocation.projectId === project.id;
 	const workspaceReorder = useNavigationReorderDrag(project.workspaces, (workspaceId, beforeId) =>
 		reorderWorkspace(project.id, workspaceId, beforeId),
 	);
@@ -331,6 +333,7 @@ export function ProjectNavigationItem({
 						aria-expanded={expanded}
 						aria-label={`${expanded ? messages.collapseProject : messages.expandProject}: ${project.name}${environmentConnection === null ? '' : `. ${messages.projectConnectionStatus[environmentConnection.state]}`}`}
 						className={styles['projectItem']}
+						data-active={representsActiveWorkspace || undefined}
 						data-slot='workbench-sidebar-project'
 						size='sm'
 						variant='ghost'

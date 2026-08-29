@@ -23,6 +23,8 @@ function renderWorkbench(
 	locale: OrchbeeLocale = 'en-US',
 	withProject = false,
 	visibleTabIds?: readonly string[],
+	collapseProject = false,
+	activateStandalone = false,
 ): string {
 	const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
 		standaloneCwd: '/system',
@@ -53,6 +55,15 @@ function renderWorkbench(
 			terminalTitle: 'Terminal 1',
 			type: 'project-created',
 		});
+		if (collapseProject) {
+			projectWorkspaceRuntime.transition({
+				projectId: 'project-1',
+				type: 'project-expansion-toggled',
+			});
+		}
+		if (activateStandalone) {
+			projectWorkspaceRuntime.transition({ type: 'standalone-activated' });
+		}
 	}
 	return renderToStaticMarkup(
 		createElement(
@@ -198,9 +209,32 @@ describe('Workbench', () => {
 		expect(markup).toContain('aria-expanded="true"');
 		expect(markup).toContain('data-icon="folder"');
 		expect(markup).toContain('data-icon="layout"');
+		expect(markup).not.toMatch(
+			/<button(?=[^>]*data-slot="workbench-sidebar-project")(?=[^>]*data-active="true")[^>]*>/,
+		);
+		expect(markup).toMatch(
+			/<button(?=[^>]*data-slot="workbench-sidebar-workspace")(?=[^>]*data-active="true")[^>]*>/,
+		);
 		expect(markup).toContain('orchbee');
 		expect(markup).toContain('Primary');
 		expect(markup).not.toContain('data-empty="true"');
+	});
+
+	it('projects active Workspace selection onto only its collapsed Project row', () => {
+		const activeMarkup = renderWorkbench(() => null, 'en-US', true, undefined, true);
+		const standaloneMarkup = renderWorkbench(() => null, 'en-US', true, undefined, true, true);
+
+		expect(activeMarkup).toContain('aria-label="Expand project: orchbee"');
+		expect(activeMarkup).toMatch(
+			/<button(?=[^>]*data-slot="workbench-sidebar-project")(?=[^>]*data-active="true")[^>]*>/,
+		);
+		expect(activeMarkup).not.toContain('data-slot="workbench-sidebar-workspace"');
+		expect(standaloneMarkup).not.toMatch(
+			/<button(?=[^>]*data-slot="workbench-sidebar-project")(?=[^>]*data-active="true")[^>]*>/,
+		);
+		expect(standaloneMarkup).toMatch(
+			/<button(?=[^>]*data-slot="workbench-sidebar-terminal")(?=[^>]*data-active="true")[^>]*>/,
+		);
 	});
 
 	it('restores the vertical tab-strip layout from host-provided storage', () => {
