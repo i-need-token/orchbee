@@ -5,7 +5,7 @@ Orchbee 工作台的浏览器组合条目。
 ## 组合边界
 
 Electron-only capability set 还包括来自 `@orchbee/desktop-client-protocol` 的严格
-`agent-integration-management` port。它投影一个只读的六 Agent 本地 inventory，并且只接受
+`agent-integration-management` port。它投影一个只读的十 Agent 本地 inventory，并且只接受
 Settings 中显式的 refresh、enable 与 disable request；Browser 与 Gateway composition 不提供它。
 
 Electron Desktop 还会在固定 bootstrap bundle 中提供 Agent-observation 与

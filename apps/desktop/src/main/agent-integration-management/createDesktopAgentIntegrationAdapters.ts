@@ -11,15 +11,18 @@ import {
 	CliAgentIntegrationAdapter,
 	type CliAgentIntegrationOperationContext,
 } from './CliAgentIntegrationAdapter';
+import { ClineAgentIntegrationAdapter } from './ClineAgentIntegrationAdapter';
 import { SymlinkAgentIntegrationAdapter } from './SymlinkAgentIntegrationAdapter';
 import { commandAttempt, runCommandSequence } from './agent-integration-command-operations';
 import {
 	CLAUDE_PLUGIN_ID,
 	CODEX_PLUGIN_ID,
+	GITHUB_COPILOT_PLUGIN_ID,
 	GROK_PLUGIN_NAME,
 	parseClaudeState,
 	parseCodexState,
 	parseGrokState,
+	parseGitHubCopilotState,
 	parseJsonRecord,
 	parseRecordArray,
 	readRecord,
@@ -85,6 +88,7 @@ export function createDesktopAgentIntegrationAdapters(
 			executableName: 'opencode',
 			integrationId: 'opencode',
 			managementMode,
+			sourceKind: 'file',
 			sourcePath: path.join(bundleRoot, 'opencode', 'orchbee-agent-observation.mjs'),
 			targetPath: path.join(
 				options.homeDirectory,
@@ -99,6 +103,7 @@ export function createDesktopAgentIntegrationAdapters(
 			executableName: 'pi',
 			integrationId: 'pi',
 			managementMode,
+			sourceKind: 'file',
 			sourcePath: path.join(bundleRoot, 'pi', 'orchbee-agent-observation.cjs'),
 			targetPath: path.join(
 				options.homeDirectory,
@@ -113,6 +118,7 @@ export function createDesktopAgentIntegrationAdapters(
 			executableName: 'omp',
 			integrationId: 'omp',
 			managementMode,
+			sourceKind: 'file',
 			sourcePath: path.join(bundleRoot, 'omp', 'orchbee-agent-observation.cjs'),
 			targetPath: path.join(
 				options.homeDirectory,
@@ -120,6 +126,51 @@ export function createDesktopAgentIntegrationAdapters(
 				'agent',
 				'extensions',
 				'orchbee-agent-observation.cjs',
+			),
+		}),
+		new SymlinkAgentIntegrationAdapter({
+			commandRunner: options.commandRunner,
+			executableName: 'gemini',
+			integrationId: 'gemini',
+			managementMode,
+			sourceKind: 'directory',
+			sourcePath: path.join(bundleRoot, 'gemini'),
+			targetPath: path.join(
+				options.homeDirectory,
+				'.gemini',
+				'extensions',
+				'orchbee-agent-observation',
+			),
+		}),
+		new CliAgentIntegrationAdapter({
+			commandRunner: options.commandRunner,
+			disable: disableGitHubCopilot,
+			enable: enableGitHubCopilot,
+			executableName: 'copilot',
+			inspectArguments: ['plugins', 'list', '--kind', 'plugin', '--json'],
+			integrationId: 'github-copilot',
+			managementMode,
+			parseState: (stdout) => parseGitHubCopilotState(stdout, options.resourceRoot),
+			resourceRoot: options.resourceRoot,
+		}),
+		new ClineAgentIntegrationAdapter({
+			commandRunner: options.commandRunner,
+			homeDirectory: options.homeDirectory,
+			managementMode,
+			resourceRoot: options.resourceRoot,
+		}),
+		new SymlinkAgentIntegrationAdapter({
+			commandRunner: options.commandRunner,
+			executableName: 'qwen',
+			integrationId: 'qwen-code',
+			managementMode,
+			sourceKind: 'directory',
+			sourcePath: path.join(bundleRoot, 'qwen-code'),
+			targetPath: path.join(
+				options.homeDirectory,
+				'.qwen',
+				'extensions',
+				'orchbee-agent-observation',
 			),
 		}),
 	];
@@ -254,6 +305,62 @@ async function disableGrok(
 	);
 }
 
+async function enableGitHubCopilot(
+	context: CliAgentIntegrationOperationContext,
+): Promise<AgentIntegrationMutationAttempt> {
+	const parseState = (stdout: string) => parseGitHubCopilotState(stdout, context.resourceRoot);
+	const state = await inspectState(
+		context,
+		['plugins', 'list', '--kind', 'plugin', '--json'],
+		parseState,
+	);
+	if (state === null) return { kind: 'failed' };
+	if (state === 'enabled') return { kind: 'attempted' };
+	if (state === 'conflict') return { kind: 'conflict' };
+	if (state === 'disabled') {
+		return commandAttempt(
+			await context.commandRunner.run(context.executablePath, [
+				'plugins',
+				'enable',
+				GITHUB_COPILOT_PLUGIN_ID,
+				'--plugin',
+			]),
+		);
+	}
+	if (state !== 'not-installed') return { kind: 'failed' };
+	const marketplace = await ensureGitHubCopilotMarketplace(context);
+	if (marketplace.kind !== 'attempted') return marketplace;
+	return commandAttempt(
+		await context.commandRunner.run(context.executablePath, [
+			'plugins',
+			'install',
+			GITHUB_COPILOT_PLUGIN_ID,
+		]),
+	);
+}
+
+async function disableGitHubCopilot(
+	context: CliAgentIntegrationOperationContext,
+): Promise<AgentIntegrationMutationAttempt> {
+	const state = await inspectState(
+		context,
+		['plugins', 'list', '--kind', 'plugin', '--json'],
+		(stdout) => parseGitHubCopilotState(stdout, context.resourceRoot),
+	);
+	if (state === null) return { kind: 'failed' };
+	if (state === 'not-installed' || state === 'disabled') return { kind: 'attempted' };
+	if (state === 'conflict') return { kind: 'conflict' };
+	if (state !== 'enabled') return { kind: 'failed' };
+	return commandAttempt(
+		await context.commandRunner.run(context.executablePath, [
+			'plugins',
+			'disable',
+			GITHUB_COPILOT_PLUGIN_ID,
+			'--plugin',
+		]),
+	);
+}
+
 async function ensureClaudeMarketplace(
 	context: CliAgentIntegrationOperationContext,
 ): Promise<AgentIntegrationMutationAttempt> {
@@ -319,6 +426,38 @@ async function ensureCodexMarketplace(
 			'add',
 			context.resourceRoot,
 			'--json',
+		]),
+	);
+}
+
+async function ensureGitHubCopilotMarketplace(
+	context: CliAgentIntegrationOperationContext,
+): Promise<AgentIntegrationMutationAttempt> {
+	const result = await context.commandRunner.run(context.executablePath, [
+		'plugins',
+		'marketplace',
+		'list',
+		'--json',
+	]);
+	if (result.kind !== 'completed') return commandAttempt(result);
+	const entries = parseRecordArray(result.stdout);
+	if (entries === null) return { kind: 'failed' };
+	const existing = entries.find((entry) => readString(entry, 'name') === MARKETPLACE_NAME);
+	if (existing !== undefined) {
+		const source = readString(existing, 'source');
+		const prefix = 'Local: ';
+		return source !== null &&
+			source.startsWith(prefix) &&
+			path.resolve(source.slice(prefix.length)) === path.resolve(context.resourceRoot)
+			? { kind: 'attempted' }
+			: { kind: 'conflict' };
+	}
+	return commandAttempt(
+		await context.commandRunner.run(context.executablePath, [
+			'plugins',
+			'marketplace',
+			'add',
+			context.resourceRoot,
 		]),
 	);
 }

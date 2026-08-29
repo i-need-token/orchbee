@@ -2,7 +2,7 @@
 
 | Field             | Value                                                                                                                                                                                                                                                                                                                                |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Status            | Phase-one core, local observation, the accepted SSH, tmux, and Zellij topology, the explicit multi-Agent adapters, and explicit local integration management for Claude Code, Codex, Grok, OpenCode, Pi, and OMP are authorized; later reserved decisions remain unresolved                                                          |
+| Status            | Phase-one core, local observation, the accepted SSH, tmux, and Zellij topology, the explicit multi-Agent adapters, and explicit local integration management for Claude Code, Codex, Grok, OpenCode, Pi, OMP, Gemini CLI, GitHub Copilot CLI, Cline, and Qwen Code are authorized; later reserved decisions remain unresolved        |
 | Decision owner    | The active requester acting as Orchbee product and architecture decision owner for the accepted phase-one authorization; each reserved decision still requires explicit acceptance by its required owner                                                                                                                             |
 | Semantic owners   | Agent capability, application runtime, Workbench application composition, and platform notification adapters                                                                                                                                                                                                                         |
 | Current authority | [`docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md), [`@orchbee/agent`](../../packages/agent/README.md), [`@orchbee/terminal-protocol`](../../packages/terminal-protocol/README.md), [`@orchbee/workbench`](../../packages/workbench/README.md), and the [unified-search contract](../../packages/workbench/docs/unified-search.md) |
@@ -14,15 +14,15 @@ canonical.
 
 ## Change authorization
 
-| Field             | Proposed authorization                                                                                                                                                                                                                                                                                                                                                                                   |
-| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Tier              | Modeled because the feature owns asynchronous state, ordering, hierarchy, cancellation, and multi-client projections; Consequential because it introduces cross-workspace contracts, consumes untrusted process events, and can cause operating-system notifications                                                                                                                                     |
-| Problem           | A user can leave a terminal-backed Agent running without Orchbee reliably distinguishing work, idle time, a question, an approval request, completion, failure, or lost observation. Inactive terminal surfaces can be unmounted, so renderer-local observation cannot provide complete background attention or completion feedback.                                                                     |
-| Phase-one outcome | Observe terminal-bound Claude Code, Codex, Grok, OpenCode, Pi, and OMP sessions through explicitly installed, capability-bounded adapters, including a local Orchbee tab connected by SSH to a remote tmux or Zellij client; maintain one canonical observed-session model outside renderer lifetime; and project truthful state into every exact attached presentation, Tab, and eligible notification. |
-| Non-goals         | Launching Agents, owning prompts or submission, orchestrating work, parsing terminal text as semantic authority, responding to questions or approvals inline, modifying PTY or Agent process authority, durable transcript or prompt history, real-time delivery after every SSH attachment is disconnected, mobile push, or cross-device exactly-once notification delivery                             |
-| Compatibility     | Existing terminals, shell integration, command-completion reminders, OSC title, progress, close activity, and terminal lifecycle continue unchanged when Agent observation is absent, disabled, unsupported, stale, or failed.                                                                                                                                                                           |
-| Delivery          | Each accepted slice has one owner and evidence boundary. The domain model precedes adapters, transports, UI, and notification effects.                                                                                                                                                                                                                                                                   |
-| Recovery          | Disable or remove an Agent adapter without stopping its terminal. Adapter or monitor failure degrades the displayed observation to stale or unknown and never invents idle, success, approval, or process termination.                                                                                                                                                                                   |
+| Field             | Proposed authorization                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Tier              | Modeled because the feature owns asynchronous state, ordering, hierarchy, cancellation, and multi-client projections; Consequential because it introduces cross-workspace contracts, consumes untrusted process events, and can cause operating-system notifications                                                                                                                                                                                       |
+| Problem           | A user can leave a terminal-backed Agent running without Orchbee reliably distinguishing work, idle time, a question, an approval request, completion, failure, or lost observation. Inactive terminal surfaces can be unmounted, so renderer-local observation cannot provide complete background attention or completion feedback.                                                                                                                       |
+| Phase-one outcome | Observe terminal-bound Claude Code, Codex, Grok, OpenCode, Pi, OMP, Gemini CLI, GitHub Copilot CLI, Cline, and Qwen Code sessions through explicitly installed, capability-bounded adapters, including a local Orchbee tab connected by SSH to a remote tmux or Zellij client; maintain one canonical observed-session model outside renderer lifetime; and project truthful state into every exact attached presentation, Tab, and eligible notification. |
+| Non-goals         | Launching Agents, owning prompts or submission, orchestrating work, parsing terminal text as semantic authority, responding to questions or approvals inline, modifying PTY or Agent process authority, durable transcript or prompt history, real-time delivery after every SSH attachment is disconnected, mobile push, or cross-device exactly-once notification delivery                                                                               |
+| Compatibility     | Existing terminals, shell integration, command-completion reminders, OSC title, progress, close activity, and terminal lifecycle continue unchanged when Agent observation is absent, disabled, unsupported, stale, or failed.                                                                                                                                                                                                                             |
+| Delivery          | Each accepted slice has one owner and evidence boundary. The domain model precedes adapters, transports, UI, and notification effects.                                                                                                                                                                                                                                                                                                                     |
+| Recovery          | Disable or remove an Agent adapter without stopping its terminal. Adapter or monitor failure degrades the displayed observation to stale or unknown and never invents idle, success, approval, or process termination.                                                                                                                                                                                                                                     |
 
 Current terminal progress, close activity, and command completion are bounded presentation facts,
 not Agent lifecycle authority. They remain useful only as low-fidelity fallback evidence. The
@@ -344,15 +344,16 @@ independent.
 
 ### Accepted explicit multi-Agent adapter setup
 
-On 2026-08-29, the active requester acting as product and architecture decision owner accepted an
-explicit installed-adapter slice for Claude Code, Codex, Grok, OpenCode, Pi, and OMP. The adapter is
-installed on every execution host where the Agent runs, including a remote host behind SSH, tmux,
-or Zellij. Orchbee may package the adapter and show reviewed installation instructions, but it does
-not silently modify global Agent configuration, copy an adapter to a remote host, or enable it
-without the user's action. Disabling or uninstalling the plugin or extension is the rollback, and
-every callback remains fail-open so observation cannot block Agent work.
+On 2026-08-29, the active requester acting as product and architecture decision owner accepted
+explicit installed-adapter slices for Claude Code, Codex, Grok, OpenCode, Pi, OMP, Gemini CLI,
+GitHub Copilot CLI, Cline, and Qwen Code. The adapter is installed on every execution host where the
+Agent runs, including a remote host behind SSH, tmux, or Zellij. Orchbee may package the adapter and
+show reviewed installation instructions, but it does not silently modify global Agent
+configuration, copy an adapter to a remote host, or enable it without the user's action. Disabling
+or uninstalling the plugin or extension is the rollback, and every callback remains fail-open so
+observation cannot block Agent work.
 
-The application owns a closed adapter registry. A rich envelope carries one of six fixed adapter
+The application owns a closed adapter registry. A rich envelope carries one of ten fixed adapter
 IDs, never a provider-supplied capability list. Desktop maps that ID to a curated provider ID, an
 allowlist of accepted normalized events, and the maximum canonical capabilities below. Unknown
 adapter IDs, unsupported normalized events, malformed identities, and observations exceeding that
@@ -360,21 +361,27 @@ maximum are rejected. Provider session keys, operation keys, subagent keys, and 
 are namespaced by adapter ID before they enter shared ingress state, so equal upstream strings from
 different Agents cannot alias.
 
-| Adapter ID    | Reference contract                        | Maximum accepted capabilities                                                          | Exact upstream evidence used by the adapter                                                   |
-| ------------- | ----------------------------------------- | -------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| `claude-code` | Claude Code Hooks reviewed 2026-08-29     | `sessionLifecycle`, `turnLifecycle`, `questions`, `approvals`, `activity`, `subagents` | Session, prompt, tool, permission, compaction, subagent, stop, failure, and session-end hooks |
-| `codex`       | Codex CLI `0.150.1` hooks/plugin contract | `sessionLifecycle`, `turnLifecycle`, `questions`, `approvals`, `activity`, `subagents` | Session, prompt, tool, permission, compaction, subagent, stop, and session-end hooks          |
-| `grok`        | Grok CLI `1.0.5` hooks/plugin contract    | `sessionLifecycle`, `turnLifecycle`, `approvals`, `activity`, `subagents`              | Session, prompt, tool, subagent, stop/failure/cancel, and typed `Notification` hooks          |
-| `opencode`    | OpenCode `1.18.25` plugin event contract  | `sessionLifecycle`, `turnLifecycle`, `questions`, `approvals`, `activity`              | `session.*`, `question.*`, `permission.*`, tool, and error events                             |
-| `pi`          | Pi `0.84.4` extension contract            | `sessionLifecycle`, `turnLifecycle`, `questions`, `activity`                           | Session, agent/settled, blocking UI-prompt, turn, and tool-execution events                   |
-| `omp`         | OMP `18.0.10` extension contract          | `sessionLifecycle`, `turnLifecycle`, `questions`, `approvals`, `activity`              | Session, agent/turn, Ask-tool execution, exact tool-approval, and tool-execution events       |
+| Adapter ID       | Reference contract                                | Maximum accepted capabilities                                                          | Exact upstream evidence used by the adapter                                                           |
+| ---------------- | ------------------------------------------------- | -------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `claude-code`    | Claude Code Hooks reviewed 2026-08-29             | `sessionLifecycle`, `turnLifecycle`, `questions`, `approvals`, `activity`, `subagents` | Session, prompt, tool, permission, compaction, subagent, stop, failure, and session-end hooks         |
+| `codex`          | Codex CLI `0.150.1` hooks/plugin contract         | `sessionLifecycle`, `turnLifecycle`, `questions`, `approvals`, `activity`, `subagents` | Session, prompt, tool, permission, compaction, subagent, stop, and session-end hooks                  |
+| `grok`           | Grok CLI `1.0.5` hooks/plugin contract            | `sessionLifecycle`, `turnLifecycle`, `approvals`, `activity`, `subagents`              | Session, prompt, tool, subagent, stop/failure/cancel, and typed `Notification` hooks                  |
+| `opencode`       | OpenCode `1.18.25` plugin event contract          | `sessionLifecycle`, `turnLifecycle`, `questions`, `approvals`, `activity`              | `session.*`, `question.*`, `permission.*`, tool, and error events                                     |
+| `pi`             | Pi `0.84.4` extension contract                    | `sessionLifecycle`, `turnLifecycle`, `questions`, `activity`                           | Session, agent/settled, blocking UI-prompt, turn, and tool-execution events                           |
+| `omp`            | OMP `18.0.10` extension contract                  | `sessionLifecycle`, `turnLifecycle`, `questions`, `approvals`, `activity`              | Session, agent/turn, Ask-tool execution, exact tool-approval, and tool-execution events               |
+| `gemini`         | Gemini CLI `0.57.0` hooks contract                | `sessionLifecycle`, `turnLifecycle`, `questions`, `approvals`, `activity`              | Session, before/after Agent, tool, permission notification, compaction, and session-end hooks         |
+| `github-copilot` | GitHub Copilot CLI `1.0.81` hooks/plugin contract | `sessionLifecycle`, `turnLifecycle`, `questions`, `approvals`, `activity`              | Session, user-prompt, tool-result, attention notification, compaction, stop, and error hooks          |
+| `cline`          | Cline CLI `3.0.60` plugin runtime contract        | `turnLifecycle`, `questions`, `activity`                                               | Run, turn, tool, completion, abort, and failure runtime events                                        |
+| `qwen-code`      | Qwen Code `0.22.3` hooks contract                 | `sessionLifecycle`, `turnLifecycle`, `questions`, `approvals`, `activity`, `subagents` | Session, submitted-prompt provenance, tool, permission, compaction, subagent, stop, and failure hooks |
 
-Codex and Grok use reviewed command-hook plugins; OpenCode uses its documented JavaScript plugin
-event surface; Pi and OMP use their documented extension APIs. Each provider entry point validates
-and sanitizes its own raw payload before calling a shared nonblocking Unix-socket and OSC transport
-library. Raw prompts, messages, tool arguments and results, commands, paths, error text, and
-arbitrary provider metadata never cross that boundary. Sharing transport code does not make one
-provider's event names or payload interpretation authoritative for another provider.
+Claude Code, Codex, Grok, Gemini CLI, GitHub Copilot CLI, and Qwen Code use reviewed command-hook
+plugins or extensions; OpenCode uses its documented JavaScript plugin event surface; Pi and OMP use
+their documented extension APIs; Cline uses its documented in-process plugin runtime. Each provider
+entry point validates and sanitizes its own raw payload before calling a shared nonblocking
+Unix-socket and OSC transport library. Raw prompts, messages, tool arguments and results, commands,
+paths, error text, and arbitrary provider metadata never cross that boundary. Sharing transport
+code does not make one provider's event names or payload interpretation authoritative for another
+provider.
 
 These reference versions and checked fixtures define the compatibility claim; upstream branding or
 API resemblance does not. Pi `0.84.4` is the first claimed Pi contract in this slice because its
@@ -384,7 +391,7 @@ parity claim until their adapter fixtures and capability grant are reviewed. A p
 that lacks an exact event degrades to the capabilities it can prove; absence of an event never
 means idle, success, failure, approval, or question resolution.
 
-All six adapters reuse the accepted local or SSH reverse-forwarded Unix socket plus exact outer-TTY
+All ten adapters reuse the accepted local or SSH reverse-forwarded Unix socket plus exact outer-TTY
 OSC 777 correlation join. They add no ACP, App Server, HTTP listener, TCP port, screen scraping, or
 process-name authority. The same multi-attachment, hidden mux pane, generation fencing,
 deduplication, notification eligibility, and disconnected-route exclusions apply unchanged.
@@ -420,9 +427,10 @@ oldest first instead of choosing an arbitrary request kind.
 - A remote mux execution is projected through its matched local presentation attachments. Switching
   the remote client away from the Agent pane changes attachment visibility, not attachment identity;
   the local Tab icon therefore continues to show running, attention, completion, or failure.
-- Curated provider presentation identifies Claude Code, Codex, Grok, OpenCode, Pi, or OMP and
-  falls back to a generic Agent for unknown provenance. A separate standard overlay conveys
-  attention, failure, completion, work, or degraded health consistently across providers.
+- Curated provider presentation identifies Claude Code, Codex, Grok, OpenCode, Pi, OMP, Gemini CLI,
+  GitHub Copilot CLI, Cline, or Qwen Code and falls back to a generic Agent for unknown provenance.
+  A separate standard overlay conveys attention, failure, completion, work, or degraded health
+  consistently across providers.
 - Existing generic Tab fields such as `loading` and `crashed` must not be reinterpreted as Agent
   work or Turn failure. A reviewed status-adornment composition should carry the richer projection.
 - The Activity surface groups Needs attention, Running, and Recent. It is the durable in-product
@@ -587,7 +595,7 @@ Selected correctness evidence:
 4. Completed: the canonical model separates one opaque execution location from multiple
    generation-fenced presentation attachments, with reducer, projection, property, and TLA+
    evidence ahead of application consumers.
-5. Completed for all six explicit adapters: the user-private Unix-socket listener, managed SSH
+5. Completed for the original six explicit adapters: the user-private Unix-socket listener, managed SSH
    reverse forwarding, strict two-half join, tmux and Zellij outer-TTY resolution, nested-mux
    traversal, expiry, deduplication, closed capability registry, provider-specific sanitization,
    and nonblocking failure paths are implemented.
@@ -676,7 +684,7 @@ while acting as Orchbee product and architecture decision owner:
    operation; disable or uninstall is the rollback.
 3. Provider-specific code validates and removes content before using one shared nonblocking UDS and
    OSC transport. The accepted SSH reverse forwarding and tmux/Zellij outer-TTY correlation apply
-   to all six adapters without a new HTTP, ACP, App Server, screen-parsing, or process-heuristic path.
+   to those original six adapters without a new HTTP, ACP, App Server, screen-parsing, or process-heuristic path.
 4. A closed Desktop registry, not adapter input, grants provider identity, accepted event kinds, and
    maximum capabilities. Unknown adapters and over-capability events are rejected, and all external
    identities are adapter-namespaced before shared correlation or domain reduction.
@@ -714,6 +722,31 @@ modeled slice while acting as Orchbee product and architecture decision owner:
    and operating-system notification permission.
 8. This slice adds no background updater and makes no compatibility claim beyond the reviewed
    fixture matrix. A later bundled adapter may be offered only through another explicit user action.
+
+## Accepted first adapter-expansion authorization
+
+On 2026-08-29, the same active requester explicitly accepted this consequential and modeled slice
+while acting as Orchbee product and architecture decision owner:
+
+1. The closed adapter and local-integration registries add Gemini CLI, GitHub Copilot CLI, Cline,
+   and Qwen Code while every domain state, projection, setting contract, and notification policy
+   remains provider-neutral.
+2. Compatibility is bounded to Gemini CLI `0.57.0`, GitHub Copilot CLI `1.0.81`, Cline CLI `3.0.60`,
+   and Qwen Code `0.22.3`. Each adapter receives only capabilities demonstrated by its fixed
+   upstream contract and sanitized fixtures.
+3. One explicit local Settings action may create an exact Orchbee-owned Gemini or Qwen extension
+   directory symlink, or invoke the official Copilot or Cline local plugin command. Inspection is
+   read-only, conflicting entries are never overwritten, and no trust prompt is answered by Orchbee.
+4. All four adapters reuse the nonblocking Unix-socket and OSC 777 correlation transport, including
+   the accepted SSH, tmux, and Zellij topology. They add no HTTP callback, ACP dependency, TCP
+   listener, screen parsing, or process-name authority.
+5. Copilot approval state comes only from its actual `permission_prompt` notification, not the
+   earlier `permissionRequest` policy hook. Qwen starts a user turn only when its hook carries
+   interactive submitted-prompt provenance. Cline claims no approval or session-end capability,
+   because its reviewed runtime contract exposes neither fact precisely.
+6. Remote installation remains manual-only. Disable removes only the exact Orchbee-owned symlink or
+   plugin installation; unsupported versions and missing events degrade without inventing state or
+   affecting Agent execution.
 
 ## Reserved decisions
 

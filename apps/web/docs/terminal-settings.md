@@ -366,7 +366,7 @@ ranking ties are explicitly excluded.
 Only a local Electron composition injects `AgentIntegrationManagementControl` and
 `AgentIntegrationReminderController`. Browser Preview and authenticated Gateway clients omit the
 Agent Integrations category, its search entries, and the reminder. The renderer consumes one
-canonical six-entry snapshot and displays curated Agent names, bounded states and failures, and the
+canonical ten-entry snapshot and displays curated Agent names, bounded states and failures, and the
 shared privacy explanation. It receives no Agent command output, executable path, adapter resource
 path, filesystem capability, or remote-host authority.
 

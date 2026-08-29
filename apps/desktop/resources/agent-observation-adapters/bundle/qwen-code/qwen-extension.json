@@ -1,0 +1,12 @@
+{
+	"description": {
+		"en": "Locally sanitizes Qwen Code lifecycle hooks for Orchbee Agent status observation",
+		"zh": "在本地清理 Qwen Code 生命周期 Hook，用于 Orchbee Agent 状态观测"
+	},
+	"displayName": {
+		"en": "Orchbee Agent Observation",
+		"zh": "Orchbee Agent 状态观测"
+	},
+	"name": "orchbee-agent-observation",
+	"version": "0.3.0"
+}

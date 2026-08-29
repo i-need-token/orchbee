@@ -1,24 +1,29 @@
 # Agent observation adapter
 
-该打包资源包含六个需要显式安装、与 provider 绑定的 observation adapter，分别用于 Claude Code、
-Codex、Grok、OpenCode、Pi 与 OMP。每个 adapter 校验自己的 upstream event contract，再通过 Orchbee
-共享的 Unix socket 加 OSC 777 correlation transport 发出同一组不含内容的 normalized fact。Provider
-identity、accepted event 与 maximum capability 由 Desktop 的 closed registry 授予，而不是由 adapter
-payload 声明。
+该打包资源包含十个需要显式安装、与 provider 绑定的 observation adapter，分别用于 Claude Code、
+Codex、Grok、OpenCode、Pi、OMP、Gemini CLI、GitHub Copilot CLI、Cline 与 Qwen Code。每个 adapter
+校验自己的 upstream event contract，再通过 Orchbee 共享的 Unix socket 加 OSC 777 correlation
+transport 发出同一组不含内容的 normalized fact。Provider identity、accepted event 与 maximum
+capability 由 Desktop 的 closed registry 授予，而不是由 adapter payload 声明。
 
 ## 支持的 contract
 
-| Adapter     | Reference version               | Integration surface     | Maximum status evidence                                                                                    |
-| ----------- | ------------------------------- | ----------------------- | ---------------------------------------------------------------------------------------------------------- |
-| Claude Code | 当前文档化 hook/plugin contract | Command-hook plugin     | Session、Turn、tool、question、approval、compaction、subagent、completion、failure                         |
-| Codex       | `0.150.1`                       | Command-hook plugin     | Session、Turn、tool、question、approval、compaction、subagent、completion                                  |
-| Grok        | `1.0.5`                         | Command-hook plugin     | Session、Turn、tool、approval、compaction、subagent、idle、completion、failure、cancellation、interruption |
-| OpenCode    | `1.18.25`                       | JavaScript plugin event | Session、busy/retry/idle、tool、question、approval、error                                                  |
-| Pi          | `0.84.4`                        | Extension API           | Session、Agent start/settled、blocking UI prompt、tool、compaction                                         |
-| OMP         | `18.0.10`                       | Extension API           | Session、Agent start/end、Ask tool、tool approval、tool、compaction、retry                                 |
+| Adapter            | Reference version               | Integration surface     | Maximum status evidence                                                                                    |
+| ------------------ | ------------------------------- | ----------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Claude Code        | 当前文档化 hook/plugin contract | Command-hook plugin     | Session、Turn、tool、question、approval、compaction、subagent、completion、failure                         |
+| Codex              | `0.150.1`                       | Command-hook plugin     | Session、Turn、tool、question、approval、compaction、subagent、completion                                  |
+| Grok               | `1.0.5`                         | Command-hook plugin     | Session、Turn、tool、approval、compaction、subagent、idle、completion、failure、cancellation、interruption |
+| OpenCode           | `1.18.25`                       | JavaScript plugin event | Session、busy/retry/idle、tool、question、approval、error                                                  |
+| Pi                 | `0.84.4`                        | Extension API           | Session、Agent start/settled、blocking UI prompt、tool、compaction                                         |
+| OMP                | `18.0.10`                       | Extension API           | Session、Agent start/end、Ask tool、tool approval、tool、compaction、retry                                 |
+| Gemini CLI         | `0.57.0`                        | Command-hook extension  | Session、Agent start/end、tool、question、permission、compaction、completion                               |
+| GitHub Copilot CLI | `1.0.81`                        | Command-hook plugin     | Session、Turn、实际 question/permission prompt、tool result、compaction、completion、不可恢复 failure      |
+| Cline              | `3.0.60`                        | Plugin runtime API      | Run/Turn、tool、question、completion、failure、interruption                                                |
+| Qwen Code          | `0.22.3`                        | Command-hook extension  | Session、Turn、tool、question、permission、compaction、subagent、completion、failure                       |
 
-这些是彼此独立的 compatibility contract。Pi 与 OMP 有意不共享 adapter。Matrix 以外的版本在 event
-fixture 与 capability grant 通过 review 前都不受支持。
+这些是彼此独立的 compatibility contract。Pi 与 OMP 有意不共享 adapter；Gemini CLI 与 Qwen Code
+同样保留独立 manifest 与 event interpretation。Matrix 以外的版本在 event fixture 与 capability grant
+通过 review 前都不受支持。
 
 ## 显式设置
 
@@ -92,13 +97,61 @@ omp --extension <adapter-root>/bundle/omp/orchbee-agent-observation.cjs
 
 如需持久 opt-in，把该 absolute entry 加入 OMP configured extension。移除 configured path 即可回滚。
 
+### Gemini CLI
+
+确认 target 尚不存在后，创建准确的 extension-directory symlink：
+
+```sh
+mkdir -p ~/.gemini/extensions
+ln -s <adapter-root>/bundle/gemini ~/.gemini/extensions/orchbee-agent-observation
+```
+
+回滚时只移除该 symlink。Extension 会从相邻 bundle directory 导入 shared transport，因此应让完整
+adapter root 保留在原始路径。
+
+### GitHub Copilot CLI
+
+```sh
+copilot plugins marketplace add <adapter-root>
+copilot plugins install orchbee-agent-observation@orchbee-local
+```
+
+使用 `copilot plugins disable orchbee-agent-observation@orchbee-local --plugin` 关闭，并用对应的
+`enable` command 恢复。Orchbee 不注册 `PreToolUse` 或 `PermissionRequest`：这些 hook 在 Copilot
+permission policy 得出结果前运行，因而不能证明实际发生了面向用户的等待。
+
+### Cline
+
+```sh
+cline plugin install <adapter-root>/bundle --json
+```
+
+使用 `cline plugin uninstall orchbee-agent-observation --json` 回滚。只读检查被限定在 Cline 官方
+local-install layout，并要求 Orchbee 准确 package marker；没有 marker 的同名 entry 属于 conflict，
+而不是 Orchbee 拥有的 installation。
+
+### Qwen Code
+
+确认 target 尚不存在后，创建准确的 extension-directory symlink：
+
+```sh
+mkdir -p ~/.qwen/extensions
+ln -s <adapter-root>/bundle/qwen-code ~/.qwen/extensions/orchbee-agent-observation
+```
+
+回滚时只移除该 symlink。Extension 会从相邻 bundle directory 导入 shared transport，因此应让完整
+adapter root 保留在原始路径。
+
 ## 状态 fidelity
 
 Adapter 只发出其 upstream surface 实际提供的 evidence。OpenCode、Pi 与 OMP 的 settlement 会成为
-肯定的 `Ready`，但不会伪造 successful outcome，因此不会发出 success notification。有精确 error
-时仍会保留 failure。Grok cancellation 用 `promptId` 限定 scope，避免延迟到达的 cancellation report
-结束更新的 Turn。Event 缺失、hook 被禁用、版本不受支持、transport failure 与 SSH 完全断开都会
-降级为 stale 或 unknown，而不是猜测 completion。
+肯定的 `Ready`，但不会伪造 successful outcome，因此不会发出 success notification。Copilot 只在
+收到实际 `permission_prompt` 或 `elicitation_dialog` notification 时进入 attention。Qwen 只有在
+`submitted_prompt` 证明 user provenance 时才启动 user Turn，其 continuation callback 会被忽略。Cline
+plugin runtime 无法证明 session、approval 或 subagent fact，因此有意不声明这些 capability。有精确
+error 时仍会保留 failure。Grok cancellation 用 `promptId` 限定 scope，避免延迟到达的 cancellation
+report 结束更新的 Turn。Event 缺失、hook 被禁用、版本不受支持、transport failure 与 SSH 完全断开
+都会降级为 stale 或 unknown，而不是猜测 completion。
 
 ## 安全与失败边界
 

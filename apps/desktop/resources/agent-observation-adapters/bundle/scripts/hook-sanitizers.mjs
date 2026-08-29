@@ -9,6 +9,12 @@ export function sanitizeAgentHookInput(adapterId, value) {
 			return sanitizeCodexHook(value);
 		case 'grok':
 			return sanitizeGrokHook(value);
+		case 'gemini':
+			return sanitizeGeminiHook(value);
+		case 'github-copilot':
+			return sanitizeGitHubCopilotHook(value);
+		case 'qwen-code':
+			return sanitizeQwenCodeHook(value);
 		default:
 			return null;
 	}
@@ -205,6 +211,144 @@ export function sanitizeGrokHook(value) {
 	}
 }
 
+export function sanitizeGeminiHook(value) {
+	if (!isRecord(value)) return null;
+	const sessionKey = identity(value.session_id);
+	const eventName = hookEventName(value.hook_event_name);
+	if (sessionKey === null || eventName === null) return null;
+	const toolName = identity(value.tool_name);
+	const operationKey = sessionKey;
+
+	switch (eventName) {
+		case 'sessionstart':
+			return observation(sessionKey, 'session-started');
+		case 'beforeagent':
+			return observation(sessionKey, 'turn-started', { activity: 'thinking' });
+		case 'beforetool':
+			if (toolName === 'ask_user') {
+				return observation(sessionKey, 'question-requested', { operationKey });
+			}
+			return observation(sessionKey, 'tool-started', {
+				activity: geminiToolActivity(toolName),
+				operationKey,
+			});
+		case 'aftertool':
+			return observation(sessionKey, 'tool-finished', { operationKey });
+		case 'notification':
+			return value.notification_type === 'ToolPermission'
+				? observation(sessionKey, 'approval-requested', { operationKey })
+				: null;
+		case 'precompress':
+			return observation(sessionKey, 'compaction-started');
+		case 'afteragent':
+			return observation(sessionKey, 'turn-stopped');
+		case 'sessionend':
+			return observation(sessionKey, 'session-ended');
+		default:
+			return null;
+	}
+}
+
+export function sanitizeGitHubCopilotHook(value) {
+	if (!isRecord(value)) return null;
+	const sessionKey = identity(value.session_id);
+	const eventName = hookEventName(value.hook_event_name);
+	if (sessionKey === null || eventName === null) return null;
+	const operationKey = sessionKey;
+
+	switch (eventName) {
+		case 'sessionstart':
+			return observation(sessionKey, 'session-started');
+		case 'userpromptsubmit':
+			return observation(sessionKey, 'turn-started', { activity: 'thinking' });
+		case 'posttooluse':
+			return observation(sessionKey, 'tool-finished', { operationKey });
+		case 'posttoolusefailure':
+			return observation(sessionKey, 'tool-failed', { operationKey });
+		case 'notification':
+			switch (value.notification_type) {
+				case 'permission_prompt':
+					return observation(sessionKey, 'approval-requested', { operationKey });
+				case 'elicitation_dialog':
+					return observation(sessionKey, 'question-requested', { operationKey });
+				default:
+					return null;
+			}
+		case 'precompact':
+			return observation(sessionKey, 'compaction-started');
+		case 'stop':
+			return observation(sessionKey, 'turn-stopped');
+		case 'erroroccurred':
+			return value.recoverable === false ? observation(sessionKey, 'turn-failed') : null;
+		case 'sessionend':
+			return observation(sessionKey, 'session-ended');
+		default:
+			return null;
+	}
+}
+
+export function sanitizeQwenCodeHook(value) {
+	if (!isRecord(value)) return null;
+	const sessionKey = identity(value.session_id);
+	const eventName = hookEventName(value.hook_event_name);
+	if (sessionKey === null || eventName === null) return null;
+	const toolName = identity(value.tool_name);
+	const operationKey = sessionKey;
+	const agentKey = identity(value.agent_id);
+
+	switch (eventName) {
+		case 'sessionstart':
+			return value.source === 'compact' ? null : observation(sessionKey, 'session-started');
+		case 'userpromptsubmit':
+			return typeof value.submitted_prompt === 'string'
+				? observation(sessionKey, 'turn-started', { activity: 'thinking' })
+				: null;
+		case 'pretooluse':
+			if (toolName === 'ask_user_question') {
+				return observation(sessionKey, 'question-requested', { operationKey });
+			}
+			return observation(sessionKey, 'tool-started', {
+				activity: qwenCodeToolActivity(toolName),
+				operationKey,
+			});
+		case 'posttooluse':
+			return observation(sessionKey, 'tool-finished', { operationKey });
+		case 'posttoolusefailure':
+			return observation(sessionKey, 'tool-failed', { operationKey });
+		case 'permissionrequest':
+			return observation(sessionKey, 'approval-requested', { operationKey: sessionKey });
+		case 'permissiondenied':
+			return observation(sessionKey, 'attention-resolved', { operationKey: sessionKey });
+		case 'notification':
+			switch (value.notification_type) {
+				case 'permission_prompt':
+					return observation(sessionKey, 'approval-requested', {
+						operationKey: sessionKey,
+					});
+				case 'idle_prompt':
+					return observation(sessionKey, 'session-idle');
+				default:
+					return null;
+			}
+		case 'precompact':
+			return observation(sessionKey, 'compaction-started');
+		case 'postcompact':
+			return observation(sessionKey, 'compaction-finished');
+		case 'subagentstart':
+			return observation(sessionKey, 'subagent-started', { agentKey });
+		case 'subagentstop':
+			return observation(sessionKey, 'subagent-stopped', { agentKey });
+		case 'stop':
+			return observation(sessionKey, 'turn-stopped');
+		case 'stopfailure':
+			return observation(sessionKey, 'turn-failed');
+		case 'sessionend':
+			return observation(sessionKey, 'session-ended');
+		default:
+			return null;
+	}
+}
+
 function observation(sessionKey, event, fields = {}) {
 	return {
 		activity: fields.activity ?? null,
@@ -235,6 +379,20 @@ function grokToolActivity(toolName) {
 	if (toolName === 'run_terminal_command') return 'command';
 	if (toolName === 'search_replace' || toolName === 'write_file') return 'editing';
 	if (toolName === 'spawn_subagent') return 'subagent';
+	return 'tool';
+}
+
+function geminiToolActivity(toolName) {
+	if (toolName === 'run_shell_command') return 'command';
+	if (toolName === 'replace' || toolName === 'write_file') return 'editing';
+	if (toolName === 'delegate_to_agent') return 'subagent';
+	return 'tool';
+}
+
+function qwenCodeToolActivity(toolName) {
+	if (toolName === 'run_shell_command') return 'command';
+	if (toolName === 'edit' || toolName === 'write_file') return 'editing';
+	if (toolName === 'task') return 'subagent';
 	return 'tool';
 }
 

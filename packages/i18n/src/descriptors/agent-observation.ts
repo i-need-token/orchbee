@@ -58,6 +58,21 @@ export const agentObservationMessages = defineMessages({
 		defaultMessage: enUSAgentObservationMessages['agent.observation.provider.grok'],
 		description: 'Curated product name for the Grok Agent provider.',
 	},
+	providerGeminiCli: {
+		id: 'agent.observation.provider.geminiCli',
+		defaultMessage: enUSAgentObservationMessages['agent.observation.provider.geminiCli'],
+		description: 'Curated product name for the Gemini CLI Agent.',
+	},
+	providerGitHubCopilotCli: {
+		id: 'agent.observation.provider.githubCopilotCli',
+		defaultMessage: enUSAgentObservationMessages['agent.observation.provider.githubCopilotCli'],
+		description: 'Curated product name for the GitHub Copilot CLI Agent.',
+	},
+	providerCline: {
+		id: 'agent.observation.provider.cline',
+		defaultMessage: enUSAgentObservationMessages['agent.observation.provider.cline'],
+		description: 'Curated product name for the Cline CLI Agent.',
+	},
 	providerOmp: {
 		id: 'agent.observation.provider.omp',
 		defaultMessage: enUSAgentObservationMessages['agent.observation.provider.omp'],
@@ -72,6 +87,11 @@ export const agentObservationMessages = defineMessages({
 		id: 'agent.observation.provider.pi',
 		defaultMessage: enUSAgentObservationMessages['agent.observation.provider.pi'],
 		description: 'Curated product name for the Pi Agent provider.',
+	},
+	providerQwenCode: {
+		id: 'agent.observation.provider.qwenCode',
+		defaultMessage: enUSAgentObservationMessages['agent.observation.provider.qwenCode'],
+		description: 'Curated product name for the Qwen Code Agent.',
 	},
 	statusCanceled: {
 		id: 'agent.observation.status.canceled',

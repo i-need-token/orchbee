@@ -13,7 +13,18 @@ const transportIdentitySchema = z
 	.max(64)
 	.regex(/^[A-Za-z0-9_-]+$/u);
 
-const AgentHookAdapterIdSchema = z.enum(['claude-code', 'codex', 'grok', 'opencode', 'pi', 'omp']);
+const AgentHookAdapterIdSchema = z.enum([
+	'claude-code',
+	'codex',
+	'grok',
+	'opencode',
+	'pi',
+	'omp',
+	'gemini',
+	'github-copilot',
+	'cline',
+	'qwen-code',
+]);
 
 const AgentHookObservationEventSchema = z.enum([
 	'session-started',

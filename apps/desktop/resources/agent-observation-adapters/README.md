@@ -1,25 +1,30 @@
 # Agent observation adapters
 
-This packaged resource contains six explicitly installed, provider-bound observation adapters for
-Claude Code, Codex, Grok, OpenCode, Pi, and OMP. Each adapter validates its own upstream event
-contract and emits the same content-free normalized facts through Orchbee's shared Unix-socket plus
-OSC 777 correlation transport. Desktop's closed registry, not an adapter payload, grants provider
-identity, accepted events, and maximum capabilities.
+This packaged resource contains ten explicitly installed, provider-bound observation adapters for
+Claude Code, Codex, Grok, OpenCode, Pi, OMP, Gemini CLI, GitHub Copilot CLI, Cline, and Qwen Code.
+Each adapter validates its own upstream event contract and emits the same content-free normalized
+facts through Orchbee's shared Unix-socket plus OSC 777 correlation transport. Desktop's closed
+registry, not an adapter payload, grants provider identity, accepted events, and maximum
+capabilities.
 
 ## Supported contracts
 
-| Adapter     | Reference version                       | Integration surface      | Maximum status evidence                                                                                    |
-| ----------- | --------------------------------------- | ------------------------ | ---------------------------------------------------------------------------------------------------------- |
-| Claude Code | Current documented hook/plugin contract | Command-hook plugin      | Session, Turn, tool, question, approval, compaction, subagent, completion, failure                         |
-| Codex       | `0.150.1`                               | Command-hook plugin      | Session, Turn, tool, question, approval, compaction, subagent, completion                                  |
-| Grok        | `1.0.5`                                 | Command-hook plugin      | Session, Turn, tool, approval, compaction, subagent, idle, completion, failure, cancellation, interruption |
-| OpenCode    | `1.18.25`                               | JavaScript plugin events | Session, busy/retry/idle, tool, question, approval, error                                                  |
-| Pi          | `0.84.4`                                | Extension API            | Session, Agent start/settled, blocking UI prompt, tool, compaction                                         |
-| OMP         | `18.0.10`                               | Extension API            | Session, Agent start/end, Ask tool, tool approval, tool, compaction, retry                                 |
+| Adapter            | Reference version                       | Integration surface      | Maximum status evidence                                                                                      |
+| ------------------ | --------------------------------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| Claude Code        | Current documented hook/plugin contract | Command-hook plugin      | Session, Turn, tool, question, approval, compaction, subagent, completion, failure                           |
+| Codex              | `0.150.1`                               | Command-hook plugin      | Session, Turn, tool, question, approval, compaction, subagent, completion                                    |
+| Grok               | `1.0.5`                                 | Command-hook plugin      | Session, Turn, tool, approval, compaction, subagent, idle, completion, failure, cancellation, interruption   |
+| OpenCode           | `1.18.25`                               | JavaScript plugin events | Session, busy/retry/idle, tool, question, approval, error                                                    |
+| Pi                 | `0.84.4`                                | Extension API            | Session, Agent start/settled, blocking UI prompt, tool, compaction                                           |
+| OMP                | `18.0.10`                               | Extension API            | Session, Agent start/end, Ask tool, tool approval, tool, compaction, retry                                   |
+| Gemini CLI         | `0.57.0`                                | Command-hook extension   | Session, Agent start/end, tool, question, permission, compaction, completion                                 |
+| GitHub Copilot CLI | `1.0.81`                                | Command-hook plugin      | Session, Turn, actual question/permission prompt, tool result, compaction, completion, unrecoverable failure |
+| Cline              | `3.0.60`                                | Plugin runtime API       | Run/Turn, tool, question, completion, failure, interruption                                                  |
+| Qwen Code          | `0.22.3`                                | Command-hook extension   | Session, Turn, tool, question, permission, compaction, subagent, completion, failure                         |
 
-These are separate compatibility contracts. Pi and OMP deliberately do not share an adapter.
-Versions outside the matrix are unsupported until their event fixtures and capability grants are
-reviewed.
+These are separate compatibility contracts. Pi and OMP deliberately do not share an adapter;
+Gemini CLI and Qwen Code likewise retain separate manifests and event interpretation. Versions
+outside the matrix are unsupported until their event fixtures and capability grants are reviewed.
 
 ## Explicit setup
 
@@ -97,14 +102,66 @@ omp --extension <adapter-root>/bundle/omp/orchbee-agent-observation.cjs
 For persistent opt-in, add that absolute entry to OMP's configured extensions. Remove the
 configured path to roll back.
 
+### Gemini CLI
+
+Create an exact extension-directory symlink after confirming that the target does not already
+exist:
+
+```sh
+mkdir -p ~/.gemini/extensions
+ln -s <adapter-root>/bundle/gemini ~/.gemini/extensions/orchbee-agent-observation
+```
+
+Remove only that symlink to roll back. Keep the full adapter root at its original path because the
+extension imports the shared transport from the adjacent bundle directory.
+
+### GitHub Copilot CLI
+
+```sh
+copilot plugins marketplace add <adapter-root>
+copilot plugins install orchbee-agent-observation@orchbee-local
+```
+
+Use `copilot plugins disable orchbee-agent-observation@orchbee-local --plugin` to disable, and the
+matching `enable` command to restore it. Orchbee does not register `PreToolUse` or
+`PermissionRequest`: those hooks run before Copilot's permission policy is resolved and therefore
+cannot prove that a user-facing wait occurred.
+
+### Cline
+
+```sh
+cline plugin install <adapter-root>/bundle --json
+```
+
+Use `cline plugin uninstall orchbee-agent-observation --json` to roll back. Read-only inspection is
+bounded to Cline's official local-install layout and requires Orchbee's exact package marker; an
+unmarked same-named entry is a conflict, not an Orchbee-owned installation.
+
+### Qwen Code
+
+Create an exact extension-directory symlink after confirming that the target does not already
+exist:
+
+```sh
+mkdir -p ~/.qwen/extensions
+ln -s <adapter-root>/bundle/qwen-code ~/.qwen/extensions/orchbee-agent-observation
+```
+
+Remove only that symlink to roll back. Keep the full adapter root at its original path because the
+extension imports the shared transport from the adjacent bundle directory.
+
 ## Status fidelity
 
 An adapter emits only evidence its upstream surface actually provides. OpenCode, Pi, and OMP
 settlement becomes affirmative `Ready` without inventing a successful outcome, so it emits no
-success notification. Exact errors remain failures where available. Grok cancellation is scoped by
-`promptId`, preventing a delayed cancellation report from ending a newer Turn. Missing events,
-disabled hooks, unsupported versions, transport failure, and a fully disconnected SSH path degrade
-to stale or unknown rather than guessed completion.
+success notification. Copilot enters attention only for its actual `permission_prompt` or
+`elicitation_dialog` notifications. Qwen starts a user Turn only when `submitted_prompt` proves user
+provenance; its continuation callbacks are ignored. Cline intentionally claims no session,
+approval, or subagent capability because its plugin runtime does not prove those facts. Exact
+errors remain failures where available. Grok cancellation is scoped by `promptId`, preventing a
+delayed cancellation report from ending a newer Turn. Missing events, disabled hooks, unsupported
+versions, transport failure, and a fully disconnected SSH path degrade to stale or unknown rather
+than guessed completion.
 
 ## Security and failure boundary
 

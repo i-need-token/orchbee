@@ -1,0 +1,94 @@
+{
+	"hooks": {
+		"SessionStart": [
+			{
+				"hooks": [
+					{
+						"command": "node \"${extensionPath}/../scripts/forward-hook.mjs\" gemini",
+						"timeout": 2000,
+						"type": "command"
+					}
+				]
+			}
+		],
+		"BeforeAgent": [
+			{
+				"hooks": [
+					{
+						"command": "node \"${extensionPath}/../scripts/forward-hook.mjs\" gemini",
+						"timeout": 2000,
+						"type": "command"
+					}
+				]
+			}
+		],
+		"BeforeTool": [
+			{
+				"matcher": ".*",
+				"hooks": [
+					{
+						"command": "node \"${extensionPath}/../scripts/forward-hook.mjs\" gemini",
+						"timeout": 2000,
+						"type": "command"
+					}
+				]
+			}
+		],
+		"AfterTool": [
+			{
+				"matcher": ".*",
+				"hooks": [
+					{
+						"command": "node \"${extensionPath}/../scripts/forward-hook.mjs\" gemini",
+						"timeout": 2000,
+						"type": "command"
+					}
+				]
+			}
+		],
+		"Notification": [
+			{
+				"hooks": [
+					{
+						"command": "node \"${extensionPath}/../scripts/forward-hook.mjs\" gemini",
+						"timeout": 2000,
+						"type": "command"
+					}
+				]
+			}
+		],
+		"PreCompress": [
+			{
+				"hooks": [
+					{
+						"command": "node \"${extensionPath}/../scripts/forward-hook.mjs\" gemini",
+						"timeout": 2000,
+						"type": "command"
+					}
+				]
+			}
+		],
+		"AfterAgent": [
+			{
+				"hooks": [
+					{
+						"command": "node \"${extensionPath}/../scripts/forward-hook.mjs\" gemini",
+						"timeout": 2000,
+						"type": "command"
+					}
+				]
+			}
+		],
+		"SessionEnd": [
+			{
+				"hooks": [
+					{
+						"command": "node \"${extensionPath}/../scripts/forward-hook.mjs\" gemini",
+						"timeout": 1000,
+						"type": "command"
+					}
+				]
+			}
+		]
+	}
+}

@@ -7,6 +7,10 @@ export const DESKTOP_AGENT_INTEGRATION_IDS = [
 	'opencode',
 	'pi',
 	'omp',
+	'gemini',
+	'github-copilot',
+	'cline',
+	'qwen-code',
 ] as const;
 
 export const DesktopAgentIntegrationIdSchema = z.enum(DESKTOP_AGENT_INTEGRATION_IDS);

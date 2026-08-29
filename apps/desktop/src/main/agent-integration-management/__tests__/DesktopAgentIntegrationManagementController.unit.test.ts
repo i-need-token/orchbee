@@ -122,7 +122,9 @@ describe('DesktopAgentIntegrationManagementController', () => {
 
 		const snapshot = await controller.initialize();
 
-		expect(snapshot.integrations[snapshot.integrations.length - 1]).toMatchObject({
+		expect(
+			snapshot.integrations.find(({ integrationId }) => integrationId === 'omp'),
+		).toMatchObject({
 			integrationId: 'omp',
 			issue: 'inspection-failed',
 			managementMode: 'manual-only',

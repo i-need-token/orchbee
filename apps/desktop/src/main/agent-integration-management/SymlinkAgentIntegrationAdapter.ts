@@ -1,5 +1,4 @@
-import { constants } from 'node:fs';
-import { access, lstat, mkdir, readlink, symlink, unlink } from 'node:fs/promises';
+import { lstat, mkdir, readlink, stat, symlink, unlink } from 'node:fs/promises';
 import path from 'node:path';
 
 import type {
@@ -19,6 +18,7 @@ export interface SymlinkAgentIntegrationAdapterOptions {
 	readonly executableName: string;
 	readonly integrationId: DesktopAgentIntegrationId;
 	readonly managementMode: DesktopAgentIntegrationManagementMode;
+	readonly sourceKind: 'directory' | 'file';
 	readonly sourcePath: string;
 	readonly targetPath: string;
 }
@@ -28,6 +28,7 @@ export class SymlinkAgentIntegrationAdapter implements AgentIntegrationAdapter {
 	readonly #executableName: string;
 	readonly integrationId: DesktopAgentIntegrationId;
 	readonly managementMode: DesktopAgentIntegrationManagementMode;
+	readonly #sourceKind: SymlinkAgentIntegrationAdapterOptions['sourceKind'];
 	readonly #sourcePath: string;
 	readonly #targetPath: string;
 
@@ -36,14 +37,15 @@ export class SymlinkAgentIntegrationAdapter implements AgentIntegrationAdapter {
 		this.#executableName = options.executableName;
 		this.integrationId = options.integrationId;
 		this.managementMode = options.managementMode;
+		this.#sourceKind = options.sourceKind;
 		this.#sourcePath = path.resolve(options.sourcePath);
 		this.#targetPath = path.resolve(options.targetPath);
 	}
 
 	async inspect(): Promise<DesktopAgentIntegrationSnapshotItem> {
-		const [executablePath, sourceAvailable, targetState] = await Promise.all([
+		const [executablePath, sourceReady, targetState] = await Promise.all([
 			this.#commandRunner.resolveExecutable(this.#executableName),
-			fileAvailable(this.#sourcePath),
+			sourceAvailable(this.#sourcePath, this.#sourceKind),
 			inspectExactSymlink(this.#targetPath, this.#sourcePath),
 		]);
 		const platformIssue =
@@ -56,8 +58,7 @@ export class SymlinkAgentIntegrationAdapter implements AgentIntegrationAdapter {
 			availability: executablePath === null ? 'not-found' : 'available',
 			integrationId: this.integrationId,
 			issue:
-				platformIssue ??
-				(sourceAvailable && targetState !== 'unknown' ? null : 'inspection-failed'),
+				platformIssue ?? (sourceReady && targetState !== 'unknown' ? null : 'inspection-failed'),
 			managementMode: this.managementMode,
 			state,
 		};
@@ -65,13 +66,17 @@ export class SymlinkAgentIntegrationAdapter implements AgentIntegrationAdapter {
 
 	async enable(): Promise<AgentIntegrationMutationAttempt> {
 		if (this.managementMode === 'manual-only') return { kind: 'manual-action-required' };
-		if (!(await fileAvailable(this.#sourcePath))) return { kind: 'failed' };
+		if (!(await sourceAvailable(this.#sourcePath, this.#sourceKind))) return { kind: 'failed' };
 		const state = await inspectExactSymlink(this.#targetPath, this.#sourcePath);
 		if (state === 'exact') return { kind: 'attempted' };
 		if (state !== 'missing') return { kind: state === 'conflict' ? 'conflict' : 'failed' };
 		try {
 			await mkdir(path.dirname(this.#targetPath), { mode: 0o700, recursive: true });
-			await symlink(this.#sourcePath, this.#targetPath, 'file');
+			await symlink(
+				this.#sourcePath,
+				this.#targetPath,
+				this.#sourceKind === 'file' ? 'file' : 'dir',
+			);
 			return { kind: 'attempted' };
 		} catch (error: unknown) {
 			return { kind: isFileExistsError(error) ? 'conflict' : 'failed' };
@@ -109,10 +114,13 @@ async function inspectExactSymlink(
 	}
 }
 
-async function fileAvailable(filePath: string): Promise<boolean> {
+async function sourceAvailable(
+	sourcePath: string,
+	sourceKind: SymlinkAgentIntegrationAdapterOptions['sourceKind'],
+): Promise<boolean> {
 	try {
-		await access(filePath, constants.R_OK);
-		return true;
+		const metadata = await stat(sourcePath);
+		return sourceKind === 'file' ? metadata.isFile() : metadata.isDirectory();
 	} catch {
 		return false;
 	}

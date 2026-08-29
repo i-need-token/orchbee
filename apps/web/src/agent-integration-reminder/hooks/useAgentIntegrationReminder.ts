@@ -16,11 +16,15 @@ import type { AgentIntegrationReminderView } from '../types/agent-integration-re
 
 const AGENT_NAME_MESSAGES: Readonly<Record<DesktopAgentIntegrationId, MessageDescriptor>> = {
 	'claude-code': agentObservationMessages.providerClaudeCode,
+	cline: agentObservationMessages.providerCline,
 	codex: agentObservationMessages.providerCodex,
+	gemini: agentObservationMessages.providerGeminiCli,
+	'github-copilot': agentObservationMessages.providerGitHubCopilotCli,
 	grok: agentObservationMessages.providerGrok,
 	omp: agentObservationMessages.providerOmp,
 	opencode: agentObservationMessages.providerOpenCode,
 	pi: agentObservationMessages.providerPi,
+	'qwen-code': agentObservationMessages.providerQwenCode,
 };
 
 export function useAgentIntegrationReminder(

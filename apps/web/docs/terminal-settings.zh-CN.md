@@ -203,7 +203,7 @@ Host 运行时主题替换是该设置功能使用的唯一颜色变更路径。
 
 只有本地 Electron composition 会注入 `AgentIntegrationManagementControl` 与
 `AgentIntegrationReminderController`。Browser Preview 与已鉴权 Gateway client 会省略 Agent 集成
-category、对应 search entry 与 reminder。Renderer 消费一个规范的六 entry snapshot，并显示 curated
+category、对应 search entry 与 reminder。Renderer 消费一个规范的十 entry snapshot，并显示 curated
 Agent name、bounded state/failure 与共享隐私说明。它不会收到 Agent command output、executable path、
 adapter resource path、filesystem capability 或 remote-host authority。
 

@@ -4,6 +4,7 @@ import {
 	parseClaudeState,
 	parseCodexState,
 	parseGrokState,
+	parseGitHubCopilotState,
 } from '../agent-integration-state-parsers';
 
 describe('Agent integration state parsers', () => {
@@ -32,5 +33,32 @@ describe('Agent integration state parsers', () => {
 			parseGrokState(JSON.stringify([{ name: 'orchbee-agent-observation', status: 'disabled' }])),
 		).toBe('disabled');
 		expect(parseClaudeState('{"not":"an array"}')).toBeNull();
+	});
+
+	it('accepts only the exact enabled GitHub Copilot marketplace installation', () => {
+		const resourceRoot = '/application/agent-observation-adapters';
+		const exact = {
+			plugins: [
+				{
+					enabled: true,
+					installedFrom: resourceRoot,
+					name: 'orchbee-agent-observation',
+					source: 'live-marketplace:orchbee-local',
+				},
+			],
+		};
+		expect(parseGitHubCopilotState(JSON.stringify(exact), resourceRoot)).toBe('enabled');
+		expect(
+			parseGitHubCopilotState(
+				JSON.stringify({
+					plugins: [{ ...exact.plugins[0], installedFrom: '/different/resource' }],
+				}),
+				resourceRoot,
+			),
+		).toBe('conflict');
+		expect(parseGitHubCopilotState(JSON.stringify({ plugins: [] }), resourceRoot)).toBe(
+			'not-installed',
+		);
+		expect(parseGitHubCopilotState('[]', resourceRoot)).toBeNull();
 	});
 });

@@ -1078,10 +1078,10 @@ export class DesktopApplication {
 
 	inspectSshEnvironmentProjectRoot(
 		environmentId: EnvironmentId,
-		path: string,
+		requestedPath: string,
 		signal?: AbortSignal,
 	): Promise<SshProjectRootInspectionOutcome> {
-		return this.#sshEnvironmentConnections.inspectProjectRoot(environmentId, path, signal);
+		return this.#sshEnvironmentConnections.inspectProjectRoot(environmentId, requestedPath, signal);
 	}
 
 	openSshEnvironmentTerminalHost(
@@ -1593,8 +1593,12 @@ export class DesktopApplication {
 						this.#sshEnvironmentConnections.claimInteractionLease(environmentId, interaction),
 					connect: (environmentId) => this.#sshEnvironmentConnections.connect(environmentId),
 					disconnect: (environmentId) => this.disconnectSshEnvironment(environmentId),
-					inspectProjectRoot: (environmentId, path, signal) =>
-						this.#sshEnvironmentConnections.inspectProjectRoot(environmentId, path, signal),
+					inspectProjectRoot: (environmentId, requestedPath, signal) =>
+						this.#sshEnvironmentConnections.inspectProjectRoot(
+							environmentId,
+							requestedPath,
+							signal,
+						),
 					observation: (environmentId) =>
 						this.#sshEnvironmentConnections.observation(environmentId),
 					subscribe: (environmentId, listener) =>

@@ -11,6 +11,7 @@ const piUrl = resourceUrl('pi/orchbee-agent-observation.mjs');
 const piEntryUrl = resourceUrl('pi/orchbee-agent-observation.cjs');
 const ompUrl = resourceUrl('omp/orchbee-agent-observation.mjs');
 const ompEntryUrl = resourceUrl('omp/orchbee-agent-observation.cjs');
+const clineUrl = resourceUrl('cline/orchbee-agent-observation.js');
 
 describe('Agent observation adapter resources', () => {
 	it('emits only an allowlisted Claude Code envelope plus one hint per resolved TTY', async () => {
@@ -150,6 +151,84 @@ describe('Agent observation adapter resources', () => {
 				subagentType: 'explore',
 			}),
 		).toBeNull();
+	});
+
+	it('maps Gemini, Copilot, and Qwen without promoting ambiguous upstream events', async () => {
+		const sanitizers = await import(sanitizersUrl);
+		const gemini = sanitizers.sanitizeAgentHookInput('gemini', {
+			hook_event_name: 'BeforeTool',
+			session_id: 'gemini-session-1',
+			tool_input: { command: 'PRIVATE' },
+			tool_name: 'run_shell_command',
+		});
+		const copilotPolicyCheck = sanitizers.sanitizeAgentHookInput('github-copilot', {
+			hook_event_name: 'PermissionRequest',
+			permission: 'PRIVATE',
+			session_id: 'copilot-session-1',
+		});
+		const copilotActualPrompt = sanitizers.sanitizeAgentHookInput('github-copilot', {
+			hook_event_name: 'Notification',
+			message: 'PRIVATE',
+			notification_type: 'permission_prompt',
+			session_id: 'copilot-session-1',
+		});
+		const qwenContinuation = sanitizers.sanitizeAgentHookInput('qwen-code', {
+			hook_event_name: 'UserPromptSubmit',
+			session_id: 'qwen-session-1',
+		});
+		const qwenUserTurn = sanitizers.sanitizeAgentHookInput('qwen-code', {
+			hook_event_name: 'UserPromptSubmit',
+			session_id: 'qwen-session-1',
+			submitted_prompt: 'PRIVATE',
+		});
+
+		expect(gemini).toMatchObject({
+			activity: 'command',
+			event: 'tool-started',
+			operationKey: 'gemini-session-1',
+		});
+		expect(copilotPolicyCheck).toBeNull();
+		expect(copilotActualPrompt).toMatchObject({
+			event: 'approval-requested',
+			operationKey: 'copilot-session-1',
+		});
+		expect(qwenContinuation).toBeNull();
+		expect(qwenUserTurn).toMatchObject({ event: 'turn-started', sessionKey: 'qwen-session-1' });
+		expect(JSON.stringify({ copilotActualPrompt, gemini, qwenUserTurn })).not.toContain('PRIVATE');
+	});
+
+	it('projects only Cline lifecycle identities and bounded result status', async () => {
+		const cline = await import(clineUrl);
+		expect(cline.plugin).toMatchObject({
+			manifest: { capabilities: ['hooks'] },
+			name: 'orchbee-agent-observation',
+		});
+		const question = cline.sanitizeClineRuntimeEvent({
+			snapshot: { conversationId: 'cline-session-1', runId: 'cline-turn-1' },
+			toolCall: {
+				arguments: { question: 'PRIVATE' },
+				toolCallId: 'cline-tool-1',
+				toolName: 'ask_question',
+			},
+			type: 'tool-started',
+		});
+		const failed = cline.sanitizeClineRuntimeEvent({
+			result: { error: 'PRIVATE', status: 'failed' },
+			snapshot: { conversationId: 'cline-session-1', runId: 'cline-turn-1' },
+			type: 'run-finished',
+		});
+
+		expect(question).toEqual({
+			activity: null,
+			agentKey: null,
+			event: 'question-requested',
+			operationKey: 'cline-tool-1',
+			sessionKey: 'cline-session-1',
+			turnKey: 'cline-turn-1',
+			version: 1,
+		});
+		expect(failed).toMatchObject({ event: 'turn-failed', turnKey: 'cline-turn-1' });
+		expect(JSON.stringify({ failed, question })).not.toContain('PRIVATE');
 	});
 
 	it('maps OpenCode event objects without retaining questions, permissions, or tool data', async () => {

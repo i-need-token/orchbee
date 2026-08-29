@@ -15,11 +15,23 @@ describe('formatWorkbenchAgentProvider', () => {
 			'Codex',
 		);
 		expect(formatWorkbenchAgentProvider(intl, [AgentProviderIdSchema.parse('grok')])).toBe('Grok');
+		expect(formatWorkbenchAgentProvider(intl, [AgentProviderIdSchema.parse('gemini')])).toBe(
+			'Gemini CLI',
+		);
+		expect(
+			formatWorkbenchAgentProvider(intl, [AgentProviderIdSchema.parse('github-copilot')]),
+		).toBe('GitHub Copilot CLI');
+		expect(formatWorkbenchAgentProvider(intl, [AgentProviderIdSchema.parse('cline')])).toBe(
+			'Cline',
+		);
 		expect(formatWorkbenchAgentProvider(intl, [AgentProviderIdSchema.parse('opencode')])).toBe(
 			'OpenCode',
 		);
 		expect(formatWorkbenchAgentProvider(intl, [AgentProviderIdSchema.parse('pi')])).toBe('Pi');
 		expect(formatWorkbenchAgentProvider(intl, [AgentProviderIdSchema.parse('omp')])).toBe('OMP');
+		expect(formatWorkbenchAgentProvider(intl, [AgentProviderIdSchema.parse('qwen-code')])).toBe(
+			'Qwen Code',
+		);
 		expect(
 			formatWorkbenchAgentProvider(intl, [AgentProviderIdSchema.parse('private-adapter')]),
 		).toBe('Agent');

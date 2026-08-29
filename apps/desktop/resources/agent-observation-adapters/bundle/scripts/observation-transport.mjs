@@ -14,7 +14,18 @@ const IDENTITY_PATTERN = /^[A-Za-z0-9._:-]{1,128}$/u;
 const PRIVATE_SOCKET_NAME_PATTERN = /^orchbee-agent-v2-[A-Za-z0-9_-]{16,64}\.sock$/u;
 const OBSERVATION_SOCKET_ENVIRONMENT_NAME = 'ORCHBEE_AGENT_OBSERVATION_SOCKET';
 const OSC_CHANNEL = 'orchbee.agent.v1';
-const ADAPTER_IDS = new Set(['claude-code', 'codex', 'grok', 'opencode', 'pi', 'omp']);
+const ADAPTER_IDS = new Set([
+	'claude-code',
+	'codex',
+	'grok',
+	'opencode',
+	'pi',
+	'omp',
+	'gemini',
+	'github-copilot',
+	'cline',
+	'qwen-code',
+]);
 const ACTIVITIES = new Set([
 	'thinking',
 	'tool',

@@ -52,14 +52,36 @@ describe('SymlinkAgentIntegrationAdapter', () => {
 			await rm(root, { force: true, recursive: true });
 		}
 	});
+
+	it('manages an exact extension-directory symlink without copying packaged resources', async () => {
+		const root = await mkdtemp(path.join(tmpdir(), 'orchbee-agent-integration-'));
+		try {
+			const sourcePath = path.join(root, 'bundle', 'gemini');
+			const targetPath = path.join(root, '.gemini', 'extensions', 'orchbee-agent-observation');
+			await mkdir(sourcePath, { recursive: true });
+			const adapter = createAdapter(sourcePath, targetPath, 'directory');
+
+			await expect(adapter.enable()).resolves.toEqual({ kind: 'attempted' });
+			expect(path.resolve(path.dirname(targetPath), await readlink(targetPath))).toBe(sourcePath);
+			await expect(adapter.inspect()).resolves.toMatchObject({ issue: null, state: 'enabled' });
+			await expect(adapter.disable()).resolves.toEqual({ kind: 'attempted' });
+		} finally {
+			await rm(root, { force: true, recursive: true });
+		}
+	});
 });
 
-function createAdapter(sourcePath: string, targetPath: string): SymlinkAgentIntegrationAdapter {
+function createAdapter(
+	sourcePath: string,
+	targetPath: string,
+	sourceKind: 'directory' | 'file' = 'file',
+): SymlinkAgentIntegrationAdapter {
 	return new SymlinkAgentIntegrationAdapter({
 		commandRunner: new AvailableRunner(),
 		executableName: 'opencode',
 		integrationId: 'opencode',
 		managementMode: 'managed-local',
+		sourceKind,
 		sourcePath,
 		targetPath,
 	});

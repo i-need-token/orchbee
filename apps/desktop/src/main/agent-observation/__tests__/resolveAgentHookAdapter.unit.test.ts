@@ -14,6 +14,16 @@ describe('resolveAgentHookAdapter', () => {
 		expect(resolveAgentHookAdapter('omp', 'approval-requested')).toMatchObject({
 			providerId: 'omp',
 		});
+		expect(resolveAgentHookAdapter('gemini', 'approval-requested')).toMatchObject({
+			providerId: 'gemini',
+		});
+		expect(resolveAgentHookAdapter('github-copilot', 'approval-requested')).toMatchObject({
+			providerId: 'github-copilot',
+		});
+		expect(resolveAgentHookAdapter('cline', 'approval-requested')).toBeNull();
+		expect(resolveAgentHookAdapter('qwen-code', 'subagent-started')).toMatchObject({
+			providerId: 'qwen-code',
+		});
 	});
 
 	it('keeps provider contracts independent even when normalized events overlap', () => {
@@ -24,5 +34,6 @@ describe('resolveAgentHookAdapter', () => {
 		expect(resolveAgentHookAdapter('grok', 'turn-canceled')).toMatchObject({
 			providerId: 'grok',
 		});
+		expect(resolveAgentHookAdapter('github-copilot', 'subagent-started')).toBeNull();
 	});
 });

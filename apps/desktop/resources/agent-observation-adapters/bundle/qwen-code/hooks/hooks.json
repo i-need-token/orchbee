@@ -1,0 +1,177 @@
+{
+	"hooks": {
+		"SessionStart": [
+			{
+				"hooks": [
+					{
+						"command": "node \"${extensionPath}/../scripts/forward-hook.mjs\" qwen-code",
+						"timeout": 2000,
+						"type": "command"
+					}
+				]
+			}
+		],
+		"UserPromptSubmit": [
+			{
+				"hooks": [
+					{
+						"command": "node \"${extensionPath}/../scripts/forward-hook.mjs\" qwen-code",
+						"timeout": 2000,
+						"type": "command"
+					}
+				]
+			}
+		],
+		"PreToolUse": [
+			{
+				"matcher": ".*",
+				"hooks": [
+					{
+						"command": "node \"${extensionPath}/../scripts/forward-hook.mjs\" qwen-code",
+						"timeout": 2000,
+						"type": "command"
+					}
+				]
+			}
+		],
+		"PostToolUse": [
+			{
+				"matcher": ".*",
+				"hooks": [
+					{
+						"command": "node \"${extensionPath}/../scripts/forward-hook.mjs\" qwen-code",
+						"timeout": 2000,
+						"type": "command"
+					}
+				]
+			}
+		],
+		"PostToolUseFailure": [
+			{
+				"matcher": ".*",
+				"hooks": [
+					{
+						"command": "node \"${extensionPath}/../scripts/forward-hook.mjs\" qwen-code",
+						"timeout": 2000,
+						"type": "command"
+					}
+				]
+			}
+		],
+		"PermissionRequest": [
+			{
+				"matcher": ".*",
+				"hooks": [
+					{
+						"command": "node \"${extensionPath}/../scripts/forward-hook.mjs\" qwen-code",
+						"timeout": 2000,
+						"type": "command"
+					}
+				]
+			}
+		],
+		"PermissionDenied": [
+			{
+				"matcher": ".*",
+				"hooks": [
+					{
+						"command": "node \"${extensionPath}/../scripts/forward-hook.mjs\" qwen-code",
+						"timeout": 2000,
+						"type": "command"
+					}
+				]
+			}
+		],
+		"Notification": [
+			{
+				"matcher": "permission_prompt|idle_prompt",
+				"hooks": [
+					{
+						"command": "node \"${extensionPath}/../scripts/forward-hook.mjs\" qwen-code",
+						"timeout": 2000,
+						"type": "command"
+					}
+				]
+			}
+		],
+		"PreCompact": [
+			{
+				"hooks": [
+					{
+						"command": "node \"${extensionPath}/../scripts/forward-hook.mjs\" qwen-code",
+						"timeout": 2000,
+						"type": "command"
+					}
+				]
+			}
+		],
+		"PostCompact": [
+			{
+				"hooks": [
+					{
+						"command": "node \"${extensionPath}/../scripts/forward-hook.mjs\" qwen-code",
+						"timeout": 2000,
+						"type": "command"
+					}
+				]
+			}
+		],
+		"SubagentStart": [
+			{
+				"matcher": ".*",
+				"hooks": [
+					{
+						"command": "node \"${extensionPath}/../scripts/forward-hook.mjs\" qwen-code",
+						"timeout": 2000,
+						"type": "command"
+					}
+				]
+			}
+		],
+		"SubagentStop": [
+			{
+				"hooks": [
+					{
+						"command": "node \"${extensionPath}/../scripts/forward-hook.mjs\" qwen-code",
+						"timeout": 2000,
+						"type": "command"
+					}
+				]
+			}
+		],
+		"Stop": [
+			{
+				"hooks": [
+					{
+						"command": "node \"${extensionPath}/../scripts/forward-hook.mjs\" qwen-code",
+						"timeout": 2000,
+						"type": "command"
+					}
+				]
+			}
+		],
+		"StopFailure": [
+			{
+				"matcher": ".*",
+				"hooks": [
+					{
+						"command": "node \"${extensionPath}/../scripts/forward-hook.mjs\" qwen-code",
+						"timeout": 2000,
+						"type": "command"
+					}
+				]
+			}
+		],
+		"SessionEnd": [
+			{
+				"hooks": [
+					{
+						"command": "node \"${extensionPath}/../scripts/forward-hook.mjs\" qwen-code",
+						"timeout": 1000,
+						"type": "command"
+					}
+				]
+			}
+		]
+	}
+}

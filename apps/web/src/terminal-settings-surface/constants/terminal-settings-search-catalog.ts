@@ -32,11 +32,15 @@ export const TERMINAL_SETTINGS_SEARCH_ITEMS: readonly TerminalSettingsSearchItem
 	...(
 		[
 			['claude-code', agentObservationMessages.providerClaudeCode],
+			['cline', agentObservationMessages.providerCline],
 			['codex', agentObservationMessages.providerCodex],
+			['gemini', agentObservationMessages.providerGeminiCli],
+			['github-copilot', agentObservationMessages.providerGitHubCopilotCli],
 			['grok', agentObservationMessages.providerGrok],
 			['opencode', agentObservationMessages.providerOpenCode],
 			['pi', agentObservationMessages.providerPi],
 			['omp', agentObservationMessages.providerOmp],
+			['qwen-code', agentObservationMessages.providerQwenCode],
 		] as const
 	).map(([integrationId, label]) => ({
 		capability: 'desktop-agent-integrations' as const,

@@ -2,7 +2,7 @@
 
 | 字段       | 内容                                                                                                                                                                                                                                                                                                                                                        |
 | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 状态       | 第一阶段 core、本地 observation、已接受的 SSH、tmux、Zellij 拓扑、显式 multi-Agent adapter，以及 Claude Code、Codex、Grok、OpenCode、Pi 与 OMP 的显式本地集成管理已获授权；后续保留决策仍未解决                                                                                                                                                             |
+| 状态       | 第一阶段 core、本地 observation、已接受的 SSH、tmux、Zellij 拓扑、显式 multi-Agent adapter，以及 Claude Code、Codex、Grok、OpenCode、Pi、OMP、Gemini CLI、GitHub Copilot CLI、Cline 与 Qwen Code 的显式本地集成管理已获授权；后续保留决策仍未解决                                                                                                           |
 | 决策 Owner | Active requester 以 Orchbee 产品与架构 decision owner 身份接受了第一阶段授权；每项保留决策仍需其所需 owner 明确接受                                                                                                                                                                                                                                         |
 | 语义 Owner | Agent capability、应用运行时、Workbench 应用组合层与平台通知 adapter                                                                                                                                                                                                                                                                                        |
 | 当前权威   | [`docs/ARCHITECTURE.md`](../../docs/zh-CN/ARCHITECTURE.md)、[`@orchbee/agent`](../../packages/agent/README.zh-CN.md)、[`@orchbee/terminal-protocol`](../../packages/terminal-protocol/README.zh-CN.md)、[`@orchbee/workbench`](../../packages/workbench/README.zh-CN.md)，以及 [unified-search 契约](../../packages/workbench/docs/unified-search.zh-CN.md) |
@@ -12,15 +12,15 @@
 
 ## 变更授权
 
-| 字段         | 建议授权                                                                                                                                                                                                                                                                                                              |
-| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 分级         | 该能力拥有异步状态、顺序、层级、取消与多客户端投影，因此属于 Modeled；它引入跨 workspace 契约、消费不可信进程事件且可产生操作系统通知，因此同时属于 Consequential                                                                                                                                                     |
-| 问题         | 用户可以让 terminal-backed Agent 持续运行，但 Orchbee 无法可靠区分工作、空闲、提问、批准请求、完成、失败或观测丢失。非活动终端 surface 可能被卸载，因此 renderer-local 观测不能提供完整的后台待处理事项或完成反馈。                                                                                                   |
-| 第一阶段结果 | 通过显式安装且 capability-bounded 的 adapter 观测 terminal-bound Claude Code、Codex、Grok、OpenCode、Pi 与 OMP session，包括本地 Orchbee Tab 通过 SSH 连接远端 tmux 或 Zellij client；在 renderer 生命周期之外维护一个 canonical observed-session 模型；并把可信状态投影到每个精确 attachment、Tab 与符合条件的通知。 |
-| 非目标       | 启动 Agent、拥有 prompt 或提交、编排工作、把终端文本解析为语义权威、在界面内回答问题或批准、修改 PTY 或 Agent 进程权威、持久 transcript 或 prompt 历史、所有 SSH attachment 断开后的实时交付、移动端推送，或跨设备 exactly-once 通知交付                                                                              |
-| 兼容性       | Agent 观测缺失、禁用、不支持、过期或失败时，现有 terminal、shell integration、命令完成提醒、OSC title、progress、close activity 与 terminal lifecycle 均保持不变。                                                                                                                                                    |
-| 交付         | 每个已接受切片只有一个 owner 和证据边界。领域模型先于 adapter、transport、UI 与通知 effect。                                                                                                                                                                                                                          |
-| 恢复         | 可以禁用或移除 Agent adapter，而不停止其 terminal。Adapter 或 monitor 失败时，显示的观测降级为 stale 或 unknown，绝不凭空产生 idle、success、approval 或进程终止。                                                                                                                                                    |
+| 字段         | 建议授权                                                                                                                                                                                                                                                                                                                                                                |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 分级         | 该能力拥有异步状态、顺序、层级、取消与多客户端投影，因此属于 Modeled；它引入跨 workspace 契约、消费不可信进程事件且可产生操作系统通知，因此同时属于 Consequential                                                                                                                                                                                                       |
+| 问题         | 用户可以让 terminal-backed Agent 持续运行，但 Orchbee 无法可靠区分工作、空闲、提问、批准请求、完成、失败或观测丢失。非活动终端 surface 可能被卸载，因此 renderer-local 观测不能提供完整的后台待处理事项或完成反馈。                                                                                                                                                     |
+| 第一阶段结果 | 通过显式安装且 capability-bounded 的 adapter 观测 terminal-bound Claude Code、Codex、Grok、OpenCode、Pi、OMP、Gemini CLI、GitHub Copilot CLI、Cline 与 Qwen Code session，包括本地 Orchbee Tab 通过 SSH 连接远端 tmux 或 Zellij client；在 renderer 生命周期之外维护一个 canonical observed-session 模型；并把可信状态投影到每个精确 attachment、Tab 与符合条件的通知。 |
+| 非目标       | 启动 Agent、拥有 prompt 或提交、编排工作、把终端文本解析为语义权威、在界面内回答问题或批准、修改 PTY 或 Agent 进程权威、持久 transcript 或 prompt 历史、所有 SSH attachment 断开后的实时交付、移动端推送，或跨设备 exactly-once 通知交付                                                                                                                                |
+| 兼容性       | Agent 观测缺失、禁用、不支持、过期或失败时，现有 terminal、shell integration、命令完成提醒、OSC title、progress、close activity 与 terminal lifecycle 均保持不变。                                                                                                                                                                                                      |
+| 交付         | 每个已接受切片只有一个 owner 和证据边界。领域模型先于 adapter、transport、UI 与通知 effect。                                                                                                                                                                                                                                                                            |
+| 恢复         | 可以禁用或移除 Agent adapter，而不停止其 terminal。Adapter 或 monitor 失败时，显示的观测降级为 stale 或 unknown，绝不凭空产生 idle、success、approval 或进程终止。                                                                                                                                                                                                      |
 
 当前 terminal progress、close activity 与命令完成都是有界的呈现事实，而不是 Agent lifecycle
 权威。它们只能继续作为低保真 fallback 证据使用。当前全 Tab 监控限制由
@@ -318,32 +318,38 @@ Code；Orchbee 只显示 limited、stale 或 unknown state。Terminal input/outp
 ### 已接受的显式 multi-Agent adapter setup
 
 2026-08-29，active requester 以产品与架构 decision owner 身份接受 Claude Code、Codex、Grok、OpenCode、
-Pi 与 OMP 的显式 installed-adapter 切片。每台实际运行 Agent 的 execution host 都要安装 adapter，包括位于
-SSH、tmux 或 Zellij 后面的远端 host。Orchbee 可以打包 adapter 并展示经评审的安装说明，但不会静默修改
-全局 Agent configuration、把 adapter 复制到远端 host，或在没有用户操作时启用它。禁用或卸载 plugin 或
-extension 即为 rollback，且每个 callback 都保持 fail-open，因此 observation 不能阻塞 Agent 工作。
+Pi、OMP、Gemini CLI、GitHub Copilot CLI、Cline 与 Qwen Code 的显式 installed-adapter 切片。每台实际运行
+Agent 的 execution host 都要安装 adapter，包括位于 SSH、tmux 或 Zellij 后面的远端 host。Orchbee 可以
+打包 adapter 并展示经评审的安装说明，但不会静默修改全局 Agent configuration、把 adapter 复制到远端
+host，或在没有用户操作时启用它。禁用或卸载 plugin 或 extension 即为 rollback，且每个 callback 都保持
+fail-open，因此 observation 不能阻塞 Agent 工作。
 
-Application 拥有一个封闭 adapter registry。Rich envelope 只携带六个固定 adapter ID 之一，绝不携带
+Application 拥有一个封闭 adapter registry。Rich envelope 只携带十个固定 adapter ID 之一，绝不携带
 provider 自行提供的 capability list。Desktop 把该 ID 映射到 curated provider ID、已接受 normalized event
 allowlist 和下表 canonical capability 上限。Unknown adapter ID、不支持的 normalized event、malformed
 identity 以及超过该上限的 observation 都会被拒绝。Provider session key、operation key、subagent key 与
 external event ID 在进入共享 ingress state 前都按 adapter ID namespace，因而不同 Agent 的相同 upstream
 string 不会 alias。
 
-| Adapter ID    | Reference contract                        | 接受的最大 capability                                                                  | Adapter 使用的精确 upstream 证据                                                           |
-| ------------- | ----------------------------------------- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| `claude-code` | 2026-08-29 评审的 Claude Code Hooks       | `sessionLifecycle`、`turnLifecycle`、`questions`、`approvals`、`activity`、`subagents` | Session、prompt、tool、permission、compaction、subagent、stop、failure 与 session-end hook |
-| `codex`       | Codex CLI `0.150.1` hooks/plugin contract | `sessionLifecycle`、`turnLifecycle`、`questions`、`approvals`、`activity`、`subagents` | Session、prompt、tool、permission、compaction、subagent、stop 与 session-end hook          |
-| `grok`        | Grok CLI `1.0.5` hooks/plugin contract    | `sessionLifecycle`、`turnLifecycle`、`approvals`、`activity`、`subagents`              | Session、prompt、tool、subagent、stop/failure/cancel 与 typed `Notification` hook          |
-| `opencode`    | OpenCode `1.18.25` plugin event contract  | `sessionLifecycle`、`turnLifecycle`、`questions`、`approvals`、`activity`              | `session.*`、`question.*`、`permission.*`、tool 与 error event                             |
-| `pi`          | Pi `0.84.4` extension contract            | `sessionLifecycle`、`turnLifecycle`、`questions`、`activity`                           | Session、agent/settled、blocking UI-prompt、turn 与 tool-execution event                   |
-| `omp`         | OMP `18.0.10` extension contract          | `sessionLifecycle`、`turnLifecycle`、`questions`、`approvals`、`activity`              | Session、agent/turn、Ask-tool execution、精确 tool-approval 与 tool-execution event        |
+| Adapter ID       | Reference contract                                | 接受的最大 capability                                                                  | Adapter 使用的精确 upstream 证据                                                                   |
+| ---------------- | ------------------------------------------------- | -------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `claude-code`    | 2026-08-29 评审的 Claude Code Hooks               | `sessionLifecycle`、`turnLifecycle`、`questions`、`approvals`、`activity`、`subagents` | Session、prompt、tool、permission、compaction、subagent、stop、failure 与 session-end hook         |
+| `codex`          | Codex CLI `0.150.1` hooks/plugin contract         | `sessionLifecycle`、`turnLifecycle`、`questions`、`approvals`、`activity`、`subagents` | Session、prompt、tool、permission、compaction、subagent、stop 与 session-end hook                  |
+| `grok`           | Grok CLI `1.0.5` hooks/plugin contract            | `sessionLifecycle`、`turnLifecycle`、`approvals`、`activity`、`subagents`              | Session、prompt、tool、subagent、stop/failure/cancel 与 typed `Notification` hook                  |
+| `opencode`       | OpenCode `1.18.25` plugin event contract          | `sessionLifecycle`、`turnLifecycle`、`questions`、`approvals`、`activity`              | `session.*`、`question.*`、`permission.*`、tool 与 error event                                     |
+| `pi`             | Pi `0.84.4` extension contract                    | `sessionLifecycle`、`turnLifecycle`、`questions`、`activity`                           | Session、agent/settled、blocking UI-prompt、turn 与 tool-execution event                           |
+| `omp`            | OMP `18.0.10` extension contract                  | `sessionLifecycle`、`turnLifecycle`、`questions`、`approvals`、`activity`              | Session、agent/turn、Ask-tool execution、精确 tool-approval 与 tool-execution event                |
+| `gemini`         | Gemini CLI `0.57.0` hooks contract                | `sessionLifecycle`、`turnLifecycle`、`questions`、`approvals`、`activity`              | Session、before/after Agent、tool、permission notification、compaction 与 session-end hook         |
+| `github-copilot` | GitHub Copilot CLI `1.0.81` hooks/plugin contract | `sessionLifecycle`、`turnLifecycle`、`questions`、`approvals`、`activity`              | Session、user-prompt、tool-result、attention notification、compaction、stop 与 error hook          |
+| `cline`          | Cline CLI `3.0.60` plugin runtime contract        | `turnLifecycle`、`questions`、`activity`                                               | Run、turn、tool、completion、abort 与 failure runtime event                                        |
+| `qwen-code`      | Qwen Code `0.22.3` hooks contract                 | `sessionLifecycle`、`turnLifecycle`、`questions`、`approvals`、`activity`、`subagents` | Session、submitted-prompt provenance、tool、permission、compaction、subagent、stop 与 failure hook |
 
-Codex 与 Grok 使用经评审的 command-hook plugin；OpenCode 使用其 documented JavaScript plugin event
-surface；Pi 与 OMP 使用各自 documented extension API。每个 provider entry point 都先校验和 sanitize 自己
-的 raw payload，再调用共享的 nonblocking Unix-socket 与 OSC transport library。Raw prompt、message、tool
-argument/result、command、path、error text 与 arbitrary provider metadata 绝不越过该边界。共享 transport
-code 不会让一个 provider 的 event name 或 payload interpretation 对另一个 provider 具有权威。
+Claude Code、Codex、Grok、Gemini CLI、GitHub Copilot CLI 与 Qwen Code 使用经评审的 command-hook plugin
+或 extension；OpenCode 使用其 documented JavaScript plugin event surface；Pi 与 OMP 使用各自 documented
+extension API；Cline 使用其 documented in-process plugin runtime。每个 provider entry point 都先校验和
+sanitize 自己的 raw payload，再调用共享的 nonblocking Unix-socket 与 OSC transport library。Raw prompt、
+message、tool argument/result、command、path、error text 与 arbitrary provider metadata 绝不越过该边界。
+共享 transport code 不会让一个 provider 的 event name 或 payload interpretation 对另一个 provider 具有权威。
 
 这些 reference version 与已检查 fixture 定义 compatibility claim；upstream branding 或 API 相似性不能
 定义它。Pi `0.84.4` 是本切片第一个声明支持的 Pi contract，因为其当前 package 与 settled/UI-prompt
@@ -351,7 +357,7 @@ event 不同于旧 package line 和 OMP。Matrix 外版本仍可正常作为 Age
 capability grant 经过评审前，Orchbee 不声明 rich-state parity。缺少精确 event 的 provider callback 会
 降级为其可以证明的 capability；event 缺失绝不表示 idle、success、failure、approval 或 question 已解决。
 
-全部六个 adapter 复用已接受的 local 或 SSH reverse-forwarded Unix socket，加 exact outer-TTY OSC 777
+全部十个 adapter 复用已接受的 local 或 SSH reverse-forwarded Unix socket，加 exact outer-TTY OSC 777
 correlation join。它们不增加 ACP、App Server、HTTP listener、TCP port、screen scraping 或 process-name
 authority。同一 multi-attachment、hidden mux Pane、generation fencing、deduplication、notification
 eligibility 与 disconnected-route 排除项保持不变。
@@ -385,9 +391,9 @@ stable event identity 从旧到新排列，而不是任意选择一种 request k
 - Remote mux execution 通过匹配的本地 presentation attachment 投影。把 remote client 切换离开 Agent
   Pane 只改变 attachment visibility，不改变 attachment identity；因此本地 Tab icon 会继续显示 running、
   attention、completion 或 failure。
-- Curated provider presentation 标识 Claude Code、Codex、Grok、OpenCode、Pi 或 OMP，并对未知
-  provenance 回退为 generic Agent。独立的标准 overlay 在不同 provider 之间一致表达 attention、
-  failure、completion、work 或 degraded health。
+- Curated provider presentation 标识 Claude Code、Codex、Grok、OpenCode、Pi、OMP、Gemini CLI、GitHub
+  Copilot CLI、Cline 或 Qwen Code，并对未知 provenance 回退为 generic Agent。独立的标准 overlay 在不同
+  provider 之间一致表达 attention、failure、completion、work 或 degraded health。
 - `loading`、`crashed` 等现有 generic Tab field 不能被重新解释为 Agent work 或 Turn failure。经过
   评审的 status-adornment composition 应承载更丰富的投影。
 - Activity 界面按 Needs attention、Running 与 Recent 分组。操作系统通知被关闭或无法导航时，它是
@@ -530,7 +536,7 @@ device-scoped notification command。
    非持久 generation overlay 只携带 Unix-socket path，且未削弱 terminal launch 或 recovery compatibility。
 4. 已完成：canonical 模型把一个 opaque execution location 与多个受 generation fencing 的 presentation
    attachment 分离，并在 application consumer 前具备 reducer、projection、property 与 TLA+ 证据。
-5. 六个显式 adapter 均已完成：user-private Unix-socket listener、managed SSH reverse forwarding、
+5. 最初六个显式 adapter 均已完成：user-private Unix-socket listener、managed SSH reverse forwarding、
    严格 two-half join、tmux 与 Zellij outer-TTY resolution、nested-mux traversal、expiry、
    deduplication、封闭 capability registry、provider-specific sanitization 与 nonblocking failure
    path 均已实现。
@@ -607,7 +613,7 @@ Consequential 与 Modeled 切片：
 2. Adapter 由用户安装在 Agent execution host。Orchbee 不静默编辑全局 configuration、不 bootstrap
    远端 machine，也不让 observation 成为 Agent operation 的前置条件；禁用或卸载即为 rollback。
 3. Provider-specific code 在使用一个共享 nonblocking UDS 与 OSC transport 前校验并移除 content。已接受
-   SSH reverse forwarding 与 tmux/Zellij outer-TTY correlation 适用于全部六个 adapter，不增加 HTTP、
+   SSH reverse forwarding 与 tmux/Zellij outer-TTY correlation 适用于最初这六个 adapter，不增加 HTTP、
    ACP、App Server、screen-parsing 或 process-heuristic path。
 4. 由封闭 Desktop registry 而不是 adapter input 授予 provider identity、已接受 event kind 与最大
    capability。Unknown adapter 与 over-capability event 会被拒绝，所有 external identity 在共享
@@ -643,6 +649,27 @@ Consequential 与 Modeled 切片：
    operating-system notification permission 相互独立。
 8. 此切片不增加 background updater，也不在已审阅的 fixture matrix 之外作 compatibility claim。
    后续随应用捆绑的 adapter 只能通过另一次显式用户操作提供。
+
+## 已接受的第一批 adapter 扩展授权
+
+2026-08-29，同一 active requester 以 Orchbee 产品与架构 decision owner 身份明确接受了这一 Consequential
+与 Modeled 切片：
+
+1. 封闭 adapter 与本地 integration registry 增加 Gemini CLI、GitHub Copilot CLI、Cline 与 Qwen Code；
+   所有领域状态、projection、setting contract 与 notification policy 仍保持 provider-neutral。
+2. Compatibility 仅覆盖 Gemini CLI `0.57.0`、GitHub Copilot CLI `1.0.81`、Cline CLI `3.0.60` 与 Qwen
+   Code `0.22.3`。每个 adapter 只获得其固定 upstream contract 与 sanitized fixture 能证明的 capability。
+3. Settings 中的一次显式本地操作可以创建准确的 Orchbee-owned Gemini 或 Qwen extension directory
+   symlink，或调用 Copilot 或 Cline 官方本地 plugin command。检查保持只读，绝不覆盖冲突条目，也不由
+   Orchbee 回答 trust prompt。
+4. 四个 adapter 全部复用 nonblocking Unix-socket 与 OSC 777 correlation transport，包括已接受的 SSH、
+   tmux 与 Zellij topology。它们不增加 HTTP callback、ACP dependency、TCP listener、screen parsing 或
+   process-name authority。
+5. Copilot approval state 只来自实际 `permission_prompt` notification，而不是更早的 `permissionRequest`
+   policy hook。Qwen 只在 hook 携带 interactive submitted-prompt provenance 时开始用户 Turn。Cline 不声明
+   approval 或 session-end capability，因为已评审 runtime contract 无法准确提供这两个事实。
+6. Remote installation 始终只能手动完成。关闭只移除准确的 Orchbee-owned symlink 或 plugin installation；
+   unsupported version 与 missing event 只会降级，不会虚构状态或影响 Agent 执行。
 
 ## 保留决策
 

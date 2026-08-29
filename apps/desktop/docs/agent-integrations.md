@@ -13,21 +13,29 @@ Settings. Browser and Gateway compositions receive no management control.
 
 ## Local integration registry
 
-The registry is closed and ordered as Claude Code, Codex, Grok, OpenCode, Pi, and OMP. Each entry
-projects only availability, management mode, integration state, and a bounded issue.
+The registry is closed and ordered as Claude Code, Codex, Grok, OpenCode, Pi, OMP, Gemini CLI,
+GitHub Copilot CLI, Cline, and Qwen Code. Each entry projects only availability, management mode,
+integration state, and a bounded issue.
 
-| Agent       | Read-only inspection                     | Explicit enable effect                                                                                     | Explicit disable effect                                            |
-| ----------- | ---------------------------------------- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
-| Claude Code | `claude plugin list --json`              | Verify or add exact local `orchbee-local` marketplace, then install and enable `orchbee-agent-observation` | Disable `orchbee-agent-observation@orchbee-local`                  |
-| Codex       | `codex plugin list --json`               | Verify or add exact local `orchbee-local` marketplace, then add `orchbee-agent-observation`                | Remove `orchbee-agent-observation@orchbee-local`                   |
-| Grok        | `grok plugin list --json`                | Install the packaged Orchbee bundle with trust only after the button click, or enable its exact plugin     | Disable exact plugin `orchbee-agent-observation`                   |
-| OpenCode    | Exact target-path and symlink inspection | Add exact symlink `~/.config/opencode/plugins/orchbee-agent-observation.mjs`                               | Remove that symlink only when it still points to the packaged file |
-| Pi          | Exact target-path and symlink inspection | Add exact symlink `~/.pi/agent/extensions/orchbee-agent-observation.cjs`                                   | Remove that symlink only when it still points to the packaged file |
-| OMP         | Exact target-path and symlink inspection | Add exact symlink `~/.omp/agent/extensions/orchbee-agent-observation.cjs`                                  | Remove that symlink only when it still points to the packaged file |
+| Agent              | Read-only inspection                                                           | Explicit enable effect                                                                                        | Explicit disable effect                                                 |
+| ------------------ | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| Claude Code        | `claude plugin list --json`                                                    | Verify or add exact local `orchbee-local` marketplace, then install and enable `orchbee-agent-observation`    | Disable `orchbee-agent-observation@orchbee-local`                       |
+| Codex              | `codex plugin list --json`                                                     | Verify or add exact local `orchbee-local` marketplace, then add `orchbee-agent-observation`                   | Remove `orchbee-agent-observation@orchbee-local`                        |
+| Grok               | `grok plugin list --json`                                                      | Install the packaged Orchbee bundle with trust only after the button click, or enable its exact plugin        | Disable exact plugin `orchbee-agent-observation`                        |
+| OpenCode           | Exact target-path and symlink inspection                                       | Add exact symlink `~/.config/opencode/plugins/orchbee-agent-observation.mjs`                                  | Remove that symlink only when it still points to the packaged file      |
+| Pi                 | Exact target-path and symlink inspection                                       | Add exact symlink `~/.pi/agent/extensions/orchbee-agent-observation.cjs`                                      | Remove that symlink only when it still points to the packaged file      |
+| OMP                | Exact target-path and symlink inspection                                       | Add exact symlink `~/.omp/agent/extensions/orchbee-agent-observation.cjs`                                     | Remove that symlink only when it still points to the packaged file      |
+| Gemini CLI         | Exact target-path and symlink inspection                                       | Add exact directory symlink `~/.gemini/extensions/orchbee-agent-observation`                                  | Remove that symlink only when it still points to the packaged directory |
+| GitHub Copilot CLI | `copilot plugins list --kind plugin --json`                                    | Verify or add the exact local `orchbee-local` marketplace, then install or enable `orchbee-agent-observation` | Disable `orchbee-agent-observation@orchbee-local`                       |
+| Cline              | Bounded scan of Cline's official local-install layout and exact Orchbee marker | Run `cline plugin install` against the packaged bundle                                                        | Run `cline plugin uninstall orchbee-agent-observation`                  |
+| Qwen Code          | Exact target-path and symlink inspection                                       | Add exact directory symlink `~/.qwen/extensions/orchbee-agent-observation`                                    | Remove that symlink only when it still points to the packaged directory |
 
-Claude Code and Codex disable retain the exact local marketplace because another explicitly
-installed Orchbee plugin may use it. Grok disable retains the installed plugin. Orchbee performs no
-background update. Windows projects every entry as `manual-only`; no managed local mutation runs.
+Claude Code, Codex, and GitHub Copilot CLI disable retain the exact local marketplace because
+another explicitly installed Orchbee plugin may use it. Grok disable retains the installed plugin.
+Cline inspection does not run a mutation or trust an arbitrary same-named entry: only one package
+under its official local-install layout with Orchbee's exact contract marker is enabled. Orchbee
+performs no background update. Windows projects every entry as `manual-only`; no managed local
+mutation runs.
 
 The packaged adapter contracts, compatibility floors, manual commands, and observation privacy
 boundary are authoritative in the [adapter guide](../resources/agent-observation-adapters/README.md).
@@ -59,13 +67,14 @@ bound stdout to 256 KiB, and time out after three seconds. A timeout that may in
 interactive trust or review step becomes `manual-action-required`. No command output crosses the
 renderer boundary.
 
-Symlink enable creates only the parent directory and exact link. A regular file, directory, broken
-foreign link, or link to another source is a conflict and remains unchanged. Disable unlinks only a
-link whose resolved source exactly equals the current packaged adapter file.
+Symlink enable creates only the parent directory and exact file or directory link. A regular file,
+directory, broken foreign link, or link to another source is a conflict and remains unchanged.
+Disable unlinks only a link whose resolved source exactly equals the current packaged adapter
+entry.
 
 ## Settings and reminder policy
 
-Settings uses explicit buttons rather than optimistic switches. It shows all six local entries,
+Settings uses explicit buttons rather than optimistic switches. It shows all ten local entries,
 refresh, bounded failures, the no-auto-install disclosure, and the remote manual-only boundary. A
 user-requested disable records that Agent's device-local reminder dismissal before attempting the
 effect. A verified successful enable clears that dismissal so a later external removal can be

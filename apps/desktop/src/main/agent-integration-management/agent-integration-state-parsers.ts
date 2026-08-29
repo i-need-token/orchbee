@@ -1,8 +1,11 @@
+import path from 'node:path';
+
 import type { DesktopAgentIntegrationState } from '@orchbee/desktop-client-protocol';
 
 export const CLAUDE_PLUGIN_ID = 'orchbee-agent-observation@orchbee-local';
 export const CODEX_PLUGIN_ID = 'orchbee-agent-observation@orchbee-local';
 export const GROK_PLUGIN_NAME = 'orchbee-agent-observation';
+export const GITHUB_COPILOT_PLUGIN_ID = 'orchbee-agent-observation@orchbee-local';
 
 export function parseClaudeState(stdout: string): DesktopAgentIntegrationState | null {
 	const entries = parseRecordArray(stdout);
@@ -33,6 +36,34 @@ export function parseGrokState(stdout: string): DesktopAgentIntegrationState | n
 	const enabled = readBoolean(plugin, 'enabled');
 	if (enabled !== null) return enabled ? 'enabled' : 'disabled';
 	return readString(plugin, 'status') === 'disabled' ? 'disabled' : 'enabled';
+}
+
+export function parseGitHubCopilotState(
+	stdout: string,
+	expectedResourceRoot: string,
+): DesktopAgentIntegrationState | null {
+	const root = parseJsonRecord(stdout);
+	const entries = root === null ? null : readRecordArray(root, 'plugins');
+	if (entries === null) return null;
+	const matches = entries.filter(
+		(entry) => readString(entry, 'name') === 'orchbee-agent-observation',
+	);
+	if (matches.length === 0) return 'not-installed';
+	if (matches.length !== 1) return 'conflict';
+	const [plugin] = matches;
+	if (plugin === undefined) return null;
+	const source = readString(plugin, 'source');
+	const installedFrom = readString(plugin, 'installedFrom');
+	if (
+		source !== 'live-marketplace:orchbee-local' ||
+		installedFrom === null ||
+		path.resolve(installedFrom) !== path.resolve(expectedResourceRoot)
+	) {
+		return 'conflict';
+	}
+	const enabled = readBoolean(plugin, 'enabled');
+	if (enabled === null) return null;
+	return enabled ? 'enabled' : 'disabled';
 }
 
 type JsonRecord = Record<string, unknown>;
