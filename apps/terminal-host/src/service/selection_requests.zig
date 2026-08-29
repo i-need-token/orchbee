@@ -117,6 +117,7 @@ const Handler = struct {
             &output,
             request.attachment_id,
             snapshot,
+            snapshot.previewText(),
         ) catch unreachable;
         _ = response.commitControlSuccess(success, &output);
     }
@@ -155,6 +156,7 @@ const Handler = struct {
             &output,
             request.attachment_id,
             snapshot,
+            snapshot.previewText(),
         ) catch unreachable;
         _ = response.commitControlSuccess(success, &output);
     }

@@ -197,15 +197,31 @@ test "retained exited terminals still project and export selection" {
     try std.testing.expect(projected);
 
     const geometry = runtime.geometry();
-    const selection = try runtime.applySelectionCommand(.{
-        .attachment_id = attachment_id,
-        .command = .select_all,
-        .generation = geometry.generation,
-        .revision = geometry.revision,
-    });
-    try std.testing.expectEqual(
-        terminal_runtime.SelectionSnapshot.active,
-        std.meta.activeTag(selection),
+    var selection_attachment_buffer: [32]u8 = undefined;
+    const selection_payload = try std.fmt.allocPrint(
+        std.testing.allocator,
+        "{{\"attachmentId\":\"{s}\",\"command\":\"select-all\",\"generation\":\"{d}\",\"revision\":\"{d}\"}}",
+        .{
+            identifierText(attachment_id, &selection_attachment_buffer),
+            geometry.generation,
+            geometry.revision,
+        },
+    );
+    defer std.testing.allocator.free(selection_payload);
+    var selected = try testRequest(
+        &service,
+        &connection,
+        MessageKind.selection_command,
+        .control_json,
+        selection_payload,
+        [_]u8{0x87} ** 16,
+    );
+    defer selected.deinit();
+    try std.testing.expectEqual(@as(usize, 1), selected.records().len);
+    const selection_envelope = try protocol.validateTransportEnvelope(selected.records()[0]);
+    try std.testing.expectEqual(MessageKind.selection_changed, selection_envelope.kind);
+    try std.testing.expect(
+        std.mem.indexOf(u8, selection_envelope.payload, "\"preview\":\"selected\"") != null,
     );
     var export_attachment_buffer: [32]u8 = undefined;
     const export_payload = try std.fmt.allocPrint(
@@ -220,7 +236,7 @@ test "retained exited terminals still project and export selection" {
         MessageKind.selection_export,
         .control_json,
         export_payload,
-        [_]u8{0x87} ** 16,
+        [_]u8{0x88} ** 16,
     );
     defer exported.deinit();
     var started = false;

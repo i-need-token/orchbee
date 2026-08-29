@@ -21,7 +21,7 @@ afterEach(() => {
 });
 
 describe('ProjectedSearchController', () => {
-	it('creates the Worker lazily, pages one immutable revision, and reveals the first result', async () => {
+	it('starts the lazy Worker after a 50-millisecond incremental-input debounce', async () => {
 		vi.useFakeTimers();
 		const worker = createFakeWorker(true);
 		const createWorker = vi.fn<ProjectedSearchControllerOptions['createWorker']>(
@@ -29,11 +29,11 @@ describe('ProjectedSearchController', () => {
 		);
 		const reader = createReader([bufferRow(0n, 'alpha'), bufferRow(1n, 'needle')]);
 		const changes = vi.fn<ProjectedSearchControllerOptions['onChange']>();
-		const reveal = vi.fn<ProjectedSearchControllerOptions['onReveal']>();
+		const activate = vi.fn<ProjectedSearchControllerOptions['onActivate']>();
 		const controller = new ProjectedSearchController({
 			createWorker,
+			onActivate: activate,
 			onChange: changes,
-			onReveal: reveal,
 			reader,
 		});
 
@@ -41,7 +41,9 @@ describe('ProjectedSearchController', () => {
 		expect(createWorker).not.toHaveBeenCalled();
 		expect(changes).toHaveBeenLastCalledWith(expect.objectContaining({ state: 'searching' }));
 
-		await vi.advanceTimersByTimeAsync(200);
+		await vi.advanceTimersByTimeAsync(49);
+		expect(createWorker).not.toHaveBeenCalled();
+		await vi.advanceTimersByTimeAsync(1);
 
 		expect(createWorker).toHaveBeenCalledOnce();
 		expect(reader.readBufferRows).toHaveBeenCalledOnce();
@@ -52,10 +54,14 @@ describe('ProjectedSearchController', () => {
 			revision: '7',
 		});
 		expect(worker.messages[1]).toMatchObject({ final: true, kind: 'page' });
-		expect(reveal).toHaveBeenCalledWith(expect.objectContaining({ start: { column: 0, row: 1 } }), {
-			generation: 2n,
-			revision: 7n,
-		});
+		expect(activate).toHaveBeenCalledWith(
+			expect.objectContaining({ start: { column: 0, row: 1 } }),
+			{
+				generation: 2n,
+				revision: 7n,
+			},
+			true,
+		);
 		expect(changes).toHaveBeenLastCalledWith(
 			expect.objectContaining({ activeIndex: 0, state: 'complete' }),
 		);
@@ -75,8 +81,8 @@ describe('ProjectedSearchController', () => {
 		});
 		const controller = new ProjectedSearchController({
 			createWorker: () => worker.value,
+			onActivate: () => {},
 			onChange: () => {},
-			onReveal: () => {},
 			reader,
 		});
 
@@ -108,8 +114,8 @@ describe('ProjectedSearchController', () => {
 		});
 		const controller = new ProjectedSearchController({
 			createWorker: () => worker.value,
+			onActivate: () => {},
 			onChange: () => {},
-			onReveal: () => {},
 			reader: {
 				getBufferRowsSnapshot: () => ({
 					generation: 2n,
@@ -150,8 +156,8 @@ describe('ProjectedSearchController', () => {
 		});
 		const controller = new ProjectedSearchController({
 			createWorker: () => worker.value,
+			onActivate: () => {},
 			onChange: () => {},
-			onReveal: () => {},
 			reader: {
 				getBufferRowsSnapshot: () => ({
 					generation: 2n,
@@ -177,8 +183,8 @@ describe('ProjectedSearchController', () => {
 		const changes = vi.fn<ProjectedSearchControllerOptions['onChange']>();
 		const controller = new ProjectedSearchController({
 			createWorker: () => worker.value,
+			onActivate: () => {},
 			onChange: changes,
-			onReveal: () => {},
 			reader: createReader([bufferRow(0n, 'value')]),
 		});
 
@@ -198,29 +204,31 @@ describe('ProjectedSearchController', () => {
 			.fn<ProjectedSearchControllerOptions['createWorker']>()
 			.mockReturnValueOnce(debounceWorker.value)
 			.mockReturnValueOnce(scanWorker.value);
-		const reveal = vi.fn<ProjectedSearchControllerOptions['onReveal']>();
+		const activate = vi.fn<ProjectedSearchControllerOptions['onActivate']>();
 		const controller = new ProjectedSearchController({
 			createWorker,
+			onActivate: activate,
 			onChange: () => {},
-			onReveal: reveal,
 			reader: createReader([bufferRow(0n, 'needle'), bufferRow(1n, 'needle')]),
 		});
 
 		controller.update('needle');
 		expect(controller.next(false)).toBe(true);
 		await vi.advanceTimersByTimeAsync(200);
-		expect(reveal).toHaveBeenLastCalledWith(
+		expect(activate).toHaveBeenLastCalledWith(
 			expect.objectContaining({ start: { column: 0, row: 1 } }),
 			expect.anything(),
+			true,
 		);
 
 		controller.update('needle');
 		await vi.advanceTimersByTimeAsync(200);
 		expect(controller.next(false)).toBe(true);
 		scanWorker.respond(0, [0, 1]);
-		expect(reveal).toHaveBeenLastCalledWith(
+		expect(activate).toHaveBeenLastCalledWith(
 			expect.objectContaining({ start: { column: 0, row: 1 } }),
 			expect.anything(),
+			true,
 		);
 	});
 
@@ -232,11 +240,11 @@ describe('ProjectedSearchController', () => {
 			.fn<ProjectedSearchControllerOptions['createWorker']>()
 			.mockReturnValueOnce(staleWorker.value)
 			.mockReturnValueOnce(replacementWorker.value);
-		const reveal = vi.fn<ProjectedSearchControllerOptions['onReveal']>();
+		const activate = vi.fn<ProjectedSearchControllerOptions['onActivate']>();
 		const controller = new ProjectedSearchController({
 			createWorker,
+			onActivate: activate,
 			onChange: () => {},
-			onReveal: reveal,
 			reader: createReader([bufferRow(0n, 'needle'), bufferRow(1n, 'needle')]),
 		});
 
@@ -247,9 +255,51 @@ describe('ProjectedSearchController', () => {
 		await vi.advanceTimersByTimeAsync(200);
 
 		expect(staleWorker.terminated).toBe(true);
-		expect(reveal).toHaveBeenLastCalledWith(
+		expect(activate).toHaveBeenLastCalledWith(
 			expect.objectContaining({ start: { column: 0, row: 1 } }),
 			expect.anything(),
+			true,
+		);
+	});
+
+	it('refreshes invalidated results without revealing the active match again', async () => {
+		vi.useFakeTimers();
+		const initialWorker = createFakeWorker(true, 0, [0, 1]);
+		const replacementWorker = createFakeWorker(true, 0, [0, 1]);
+		const createWorker = vi
+			.fn<ProjectedSearchControllerOptions['createWorker']>()
+			.mockReturnValueOnce(initialWorker.value)
+			.mockReturnValueOnce(replacementWorker.value);
+		const activate = vi.fn<ProjectedSearchControllerOptions['onActivate']>();
+		const changes = vi.fn<ProjectedSearchControllerOptions['onChange']>();
+		const controller = new ProjectedSearchController({
+			createWorker,
+			onActivate: activate,
+			onChange: changes,
+			reader: createReader([bufferRow(0n, 'needle'), bufferRow(1n, 'needle')]),
+		});
+
+		controller.update('needle');
+		await vi.advanceTimersByTimeAsync(200);
+		expect(activate).toHaveBeenCalledOnce();
+
+		activate.mockClear();
+		controller.invalidate();
+		await vi.advanceTimersByTimeAsync(199);
+		expect(createWorker).toHaveBeenCalledOnce();
+		await vi.advanceTimersByTimeAsync(1);
+
+		expect(createWorker).toHaveBeenCalledTimes(2);
+		expect(activate).toHaveBeenCalledWith(
+			expect.objectContaining({ start: { column: 0, row: 0 } }),
+			expect.anything(),
+			false,
+		);
+		expect(changes).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				activeMatch: expect.objectContaining({ start: { column: 0, row: 0 } }),
+				state: 'complete',
+			}),
 		);
 	});
 
@@ -267,8 +317,8 @@ describe('ProjectedSearchController', () => {
 		);
 		const controller = new ProjectedSearchController({
 			createWorker: () => worker.value,
+			onActivate: () => {},
 			onChange: changes,
-			onReveal: () => {},
 			reader: {
 				getBufferRowsSnapshot: () => ({ generation: 2n, revision: 7n, totalRows: 1n }),
 				readBufferRows,
@@ -294,8 +344,8 @@ describe('ProjectedSearchController', () => {
 		);
 		const controller = new ProjectedSearchController({
 			createWorker: () => worker.value,
+			onActivate: () => {},
 			onChange: changes,
-			onReveal: () => {},
 			reader: {
 				getBufferRowsSnapshot: () => ({ generation: 2n, revision: 7n, totalRows: 1n }),
 				readBufferRows,
@@ -332,8 +382,8 @@ describe('ProjectedSearchController', () => {
 		});
 		const controller = new ProjectedSearchController({
 			createWorker: () => worker.value,
+			onActivate: () => {},
 			onChange: () => {},
-			onReveal: () => {},
 			reader: {
 				getBufferRowsSnapshot: () => ({
 					generation: 2n,
@@ -360,11 +410,11 @@ describe('ProjectedSearchController', () => {
 			.mockReturnValueOnce(firstWorker.value)
 			.mockReturnValueOnce(nextWorker.value);
 		const changes = vi.fn<ProjectedSearchControllerOptions['onChange']>();
-		const reveal = vi.fn<ProjectedSearchControllerOptions['onReveal']>();
+		const activate = vi.fn<ProjectedSearchControllerOptions['onActivate']>();
 		const controller = new ProjectedSearchController({
 			createWorker,
+			onActivate: activate,
 			onChange: changes,
-			onReveal: reveal,
 			reader: createReader([
 				bufferRow(0n, 'needle'),
 				bufferRow(1n, 'needle'),

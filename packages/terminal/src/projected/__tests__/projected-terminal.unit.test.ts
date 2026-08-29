@@ -6943,6 +6943,112 @@ describe('ProjectedTerminal', () => {
 		readBufferRows.mockRestore();
 	});
 
+	it('keeps the live bottom stable while invalidated search results refresh', async () => {
+		vi.useFakeTimers();
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			searchWorkerFactory: () => searchWorkerWithMatch(1),
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['live-a', 'live-b'], null, [0, 1], 98n));
+		browser.flushFrames();
+
+		commands.length = 0;
+		terminal.scrollToTop();
+		const historyRead = commands.find(
+			(command) => command.kind === 'read-rows' && command.payload.purpose === 'viewport',
+		);
+		if (historyRead?.kind !== 'read-rows') throw new Error('history request was not sent');
+		terminal.applyRows(
+			renderRowWindow(
+				BigInt(historyRead.payload.requestSequence),
+				1n,
+				resolvedRowRequestStart(historyRead, 100n),
+				100n,
+				Array.from({ length: historyRead.payload.rowCount }, (_, index) =>
+					index === 1 ? 'needle' : `history-${index}`,
+				),
+			),
+		);
+		expect(terminal.historyPhase).toBe(ProjectedHistoryPhase.viewingHistory);
+
+		const rows: TerminalBufferRow[] = Array.from({ length: 100 }, (_, index) => ({
+			cells: null,
+			identityAscii: true,
+			index: BigInt(index),
+			mappings: [],
+			promptClass: RowPromptClass.none,
+			text: index === 1 ? 'needle' : '',
+			wrap: false,
+			wrapContinuation: false,
+		}));
+		const readBufferRows = vi
+			.spyOn(terminal, 'readBufferRows')
+			.mockImplementation(async (request) => {
+				const start = Number(request.startRow);
+				const page = rows.slice(start, start + request.rowCount);
+				return {
+					byteLength: page.length,
+					detail: request.detail,
+					generation: request.generation,
+					kind: 'rows',
+					revision: request.revision,
+					rows: page,
+					startRow: request.startRow,
+					totalRows: 100n,
+				};
+			});
+		const searchEvents = vi.fn<Parameters<ProjectedTerminal['onSearchResults']>[0]>();
+		terminal.onSearchResults(searchEvents);
+		terminal.updateSearch('needle');
+		await vi.advanceTimersByTimeAsync(200);
+		expect(searchEvents.mock.calls.at(-1)?.[0]).toMatchObject({
+			activeMatch: { start: { row: 1 } },
+			state: 'complete',
+		});
+
+		commands.length = 0;
+		terminal.scrollToBottom();
+		expect(terminal.historyPhase).toBe(ProjectedHistoryPhase.recovering);
+		terminal.applyFrame(terminalFrame('snapshot', 2n, 2n, ['new-a', 'new-b'], null, [0, 1], 98n));
+		expect(terminal.historyPhase).toBe(ProjectedHistoryPhase.followingBottom);
+		await vi.advanceTimersByTimeAsync(200);
+
+		expect(searchEvents.mock.calls.at(-1)?.[0]).toMatchObject({
+			activeMatch: { start: { row: 1 } },
+			revision: 2n,
+			state: 'complete',
+		});
+		expect(terminal.historyPhase).toBe(ProjectedHistoryPhase.followingBottom);
+		expect(
+			commands.some(
+				(command) => command.kind === 'read-rows' && command.payload.purpose === 'viewport',
+			),
+		).toBe(false);
+		expect(
+			commands.find(
+				(command) =>
+					command.kind === 'selection-command' && command.payload.command === 'set-range',
+			)?.payload,
+		).toMatchObject({ revision: '2' });
+		terminal.dispose();
+		readBufferRows.mockRestore();
+	});
+
 	it('defers search and navigation fade until an active scrollbar drag ends', async () => {
 		vi.useFakeTimers();
 		const browser = createFakeBrowser();
@@ -7697,7 +7803,7 @@ describe('ProjectedTerminal', () => {
 		}));
 
 		terminal.updateSearch('1');
-		await vi.advanceTimersByTimeAsync(200);
+		await vi.advanceTimersByTimeAsync(50);
 		expect(setSearchMatches).toHaveBeenLastCalledWith(
 			expect.arrayContaining([expect.objectContaining({ text: 'needle' })]),
 			expect.objectContaining({ text: 'needle' }),
@@ -7706,7 +7812,7 @@ describe('ProjectedTerminal', () => {
 		setSearchMatches.mockClear();
 		terminal.updateSearch('12');
 		expect(setSearchMatches).not.toHaveBeenCalled();
-		await vi.advanceTimersByTimeAsync(199);
+		await vi.advanceTimersByTimeAsync(49);
 		expect(setSearchMatches).not.toHaveBeenCalled();
 		await vi.advanceTimersByTimeAsync(1);
 		expect(setSearchMatches).toHaveBeenCalledOnce();

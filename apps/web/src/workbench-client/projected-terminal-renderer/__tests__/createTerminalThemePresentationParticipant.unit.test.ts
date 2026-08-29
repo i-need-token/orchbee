@@ -87,6 +87,13 @@ describe('createTerminalThemePresentationParticipant', () => {
 				defaultForegroundRgb: 0xd4_d4_d4,
 			},
 		});
+		expect(terminal.prepareThemePresentation).toHaveBeenCalledWith(
+			'55'.repeat(16),
+			expect.objectContaining({
+				selectionBackgroundRgb: 0x41_55_76,
+				selectionForegroundRgb: 0xd4_d4_d4,
+			}),
+		);
 
 		expect(
 			participant.handleEvent({
@@ -141,6 +148,32 @@ describe('createTerminalThemePresentationParticipant', () => {
 		});
 		expect(transport.send).not.toHaveBeenCalled();
 		expect(terminal.abortThemePresentation).toHaveBeenCalledWith('66'.repeat(16));
+	});
+
+	it('composites the selection accent over the effective light terminal background', async () => {
+		const terminal = terminalDriver();
+		const participant = createTerminalThemePresentationParticipant({
+			bootstrap,
+			createOperationId: () => '77'.repeat(16),
+			onPresented: () => undefined,
+			terminal,
+			transport: transportFixture(),
+		});
+
+		const preparation = participant.prepareThemePresentation({
+			...DEFAULT_TERMINAL_APPEARANCE_PREFERENCES,
+			applicationTheme: 'dark',
+		});
+		expect(terminal.prepareThemePresentation).toHaveBeenCalledWith(
+			'77'.repeat(16),
+			expect.objectContaining({
+				selectionBackgroundRgb: 0xc6_da_fb,
+				selectionForegroundRgb: 0x14_14_14,
+			}),
+		);
+
+		participant.dispose();
+		await expect(preparation).resolves.toEqual({ kind: 'cancelled' });
 	});
 });
 

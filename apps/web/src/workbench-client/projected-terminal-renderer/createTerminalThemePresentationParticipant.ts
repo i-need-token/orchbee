@@ -48,18 +48,12 @@ interface PendingPreparation {
 	settled: boolean;
 }
 
-const CLIENT_THEME_OVERLAYS: TerminalThemeOverlayPresentation = Object.freeze({
-	cursorAccentRgb: 0xfc_fc_fc,
-	searchActiveMatchBackgroundRgb: 0xf5_a9_7f,
-	searchActiveMatchForegroundRgb: 0x1e_1e_1e,
-	searchMatchBackgroundRgb: 0x51_5c_6a,
-	searchMatchForegroundRgb: 0xff_ff_ff,
-	selectionBackgroundRgb: 0xd4_d4_d4,
-	selectionForegroundRgb: 0x1e_1e_1e,
-});
-
 const LIGHT_DEFAULTS = Object.freeze({ background: 0xfc_fc_fc, foreground: 0x14_14_14 });
 const DARK_DEFAULTS = Object.freeze({ background: 0x1e_1e_1e, foreground: 0xd4_d4_d4 });
+const SELECTION_ACCENT_RGB = 0x76_a7_fa;
+const SELECTION_ACCENT_WEIGHT = 2;
+const SELECTION_BACKGROUND_WEIGHT = 3;
+const SELECTION_BLEND_WEIGHT = SELECTION_ACCENT_WEIGHT + SELECTION_BACKGROUND_WEIGHT;
 
 export function createTerminalThemePresentationParticipant(options: {
 	readonly bootstrap: ProjectedAttachmentBootstrap;
@@ -70,7 +64,7 @@ export function createTerminalThemePresentationParticipant(options: {
 }): TerminalThemePresentationParticipantSession {
 	const baselineSnapshot = normalizeTerminalThemeSnapshot({
 		application: { colorScheme: options.bootstrap.theme.terminal.colorScheme },
-		overlays: CLIENT_THEME_OVERLAYS,
+		overlays: clientThemeOverlays(options.bootstrap.theme.terminal),
 		terminal: options.bootstrap.theme.terminal,
 	});
 	let state = createTerminalThemeRevisionStateFromHost(
@@ -444,9 +438,42 @@ function snapshotFromPreferences(
 	}
 	return normalizeTerminalThemeSnapshot({
 		application: { colorScheme: preferences.applicationTheme },
-		overlays: CLIENT_THEME_OVERLAYS,
+		overlays: clientThemeOverlays(terminal),
 		terminal,
 	});
+}
+
+function clientThemeOverlays(
+	terminal: Pick<
+		TerminalThemeSnapshot['terminal'],
+		'defaultBackgroundRgb' | 'defaultForegroundRgb'
+	>,
+): TerminalThemeOverlayPresentation {
+	return Object.freeze({
+		cursorAccentRgb: 0xfc_fc_fc,
+		searchActiveMatchBackgroundRgb: 0xf5_a9_7f,
+		searchActiveMatchForegroundRgb: 0x1e_1e_1e,
+		searchMatchBackgroundRgb: 0x51_5c_6a,
+		searchMatchForegroundRgb: 0xff_ff_ff,
+		selectionBackgroundRgb: compositeSelectionBackground(terminal.defaultBackgroundRgb),
+		selectionForegroundRgb: terminal.defaultForegroundRgb,
+	});
+}
+
+function compositeSelectionBackground(backgroundRgb: number): number {
+	const red = compositeSelectionChannel(SELECTION_ACCENT_RGB >>> 16, backgroundRgb >>> 16);
+	const green = compositeSelectionChannel(SELECTION_ACCENT_RGB >>> 8, backgroundRgb >>> 8);
+	const blue = compositeSelectionChannel(SELECTION_ACCENT_RGB, backgroundRgb);
+	return (red << 16) | (green << 8) | blue;
+}
+
+function compositeSelectionChannel(accentRgb: number, backgroundRgb: number): number {
+	const accent = accentRgb & 0xff;
+	const background = backgroundRgb & 0xff;
+	return Math.round(
+		(accent * SELECTION_ACCENT_WEIGHT + background * SELECTION_BACKGROUND_WEIGHT) /
+			SELECTION_BLEND_WEIGHT,
+	);
 }
 
 function hexRgb(value: string): number {

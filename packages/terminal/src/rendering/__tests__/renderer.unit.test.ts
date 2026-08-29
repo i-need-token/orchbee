@@ -1835,7 +1835,7 @@ describe('projected terminal renderer', () => {
 		renderer.dispose();
 	});
 
-	it('indexes projected search rows without a legacy buffer and redraws selection and link hover', async () => {
+	it('indexes projected search rows and prioritizes every search match over selection', async () => {
 		vi.stubGlobal('window', { devicePixelRatio: 1 });
 		vi.stubGlobal('navigator', {});
 		const paints: string[] = [];
@@ -1854,11 +1854,14 @@ describe('projected terminal renderer', () => {
 		const renderer = new WebGPURenderer(createCanvas(undefined, {}, undefined, fillRect, stroke));
 		await renderer.initGPU();
 		const source = createPackedSource(['A']);
+		const searchMatch = {
+			end: { column: 0, row: 10 },
+			start: { column: 0, row: 10 },
+			text: 'A',
+		};
 
 		renderer.setProjectedViewportState(10, null);
-		renderer.setSearchMatches([
-			{ text: 'A', start: { column: 0, row: 10 }, end: { column: 0, row: 10 } },
-		]);
+		renderer.setSearchMatches([searchMatch]);
 		renderer.renderPacked(source);
 		expect(paints).toContain('rgb(81, 92, 106)');
 
@@ -1872,7 +1875,19 @@ describe('projected terminal renderer', () => {
 			rectangle: false,
 		});
 		renderer.renderPacked(source);
-		expect(paints).toContain('rgb(212, 212, 212)');
+		expect(paints).toContain('rgb(65, 85, 118)');
+
+		paints.length = 0;
+		renderer.setSearchMatches([searchMatch]);
+		renderer.renderPacked(source);
+		expect(paints).toContain('rgb(81, 92, 106)');
+		expect(paints).not.toContain('rgb(65, 85, 118)');
+
+		paints.length = 0;
+		renderer.setSearchMatches([searchMatch], searchMatch);
+		renderer.renderPacked(source);
+		expect(paints).toContain('rgb(245, 169, 127)');
+		expect(paints).not.toContain('rgb(65, 85, 118)');
 
 		renderer.setHoveredLinkRange({ startX: 0, startY: 0, endX: 0, endY: 0 });
 		renderer.renderPacked(source);
@@ -2214,7 +2229,7 @@ describe('projected terminal renderer', () => {
 			width,
 			height,
 		) {
-			if (this.fillStyle === 'rgb(212, 212, 212)') selected.push([x, y, width, height]);
+			if (this.fillStyle === 'rgb(65, 85, 118)') selected.push([x, y, width, height]);
 		};
 		vi.stubGlobal('document', {
 			createElement: () => createCanvas(undefined, {}, undefined, fillRect),

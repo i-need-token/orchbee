@@ -4159,6 +4159,7 @@ export class ProjectedTerminal {
 	#getSearchController(): ProjectedSearchController {
 		this.#searchController ??= new ProjectedSearchController({
 			createWorker: this.#options.searchWorkerFactory ?? createProjectedSearchWorker,
+			onActivate: (match, source, reveal) => this.#activateSearchMatch(match, source, reveal),
 			onChange: (event) => {
 				if (event.state !== 'searching') {
 					if (event.activeMatch === null) this.#clearOwnedSearchSelection();
@@ -4166,7 +4167,6 @@ export class ProjectedTerminal {
 				}
 				this.#searchEmitter.fire(event);
 			},
-			onReveal: (match, source) => this.#activateSearchMatch(match, source),
 			reader: this,
 		});
 		return this.#searchController;
@@ -4175,6 +4175,7 @@ export class ProjectedTerminal {
 	#activateSearchMatch(
 		match: TerminalSearchMatch,
 		source: { readonly generation: bigint; readonly revision: bigint },
+		reveal: boolean,
 	): void {
 		if (
 			source.generation !== this.#historyGeneration ||
@@ -4192,7 +4193,7 @@ export class ProjectedTerminal {
 		);
 		if (!selected) return;
 		this.#searchOwnedSelection = match;
-		this.#revealSearchRow(BigInt(match.start.row));
+		if (reveal) this.#revealSearchRow(BigInt(match.start.row));
 	}
 
 	#clearOwnedSearchSelection(): void {

@@ -19,6 +19,7 @@ import {
 } from './projected-search-protocol';
 
 const SEARCH_WATCHDOG_MILLISECONDS = 10_000;
+const SEARCH_REVISION_REFRESH_DEBOUNCE_MILLISECONDS = 200;
 const SEARCH_INITIAL_PAGE_ROWS = 1400;
 const SEARCH_PAGE_BYTE_TARGET = Math.floor(
 	Math.min(PROTOCOL_LIMITS.maxRowWindowBytes, PROJECTED_SEARCH_SOURCE_BYTE_LIMIT) * 0.95,
@@ -40,11 +41,12 @@ export interface ProjectedTerminalSearchEvent {
 
 export interface ProjectedSearchControllerOptions {
 	readonly createWorker: ProjectedSearchWorkerFactory;
-	readonly onChange: (event: ProjectedTerminalSearchEvent) => void;
-	readonly onReveal: (
+	readonly onActivate: (
 		match: TerminalSearchMatch,
 		source: { readonly generation: bigint; readonly revision: bigint },
+		reveal: boolean,
 	) => void;
+	readonly onChange: (event: ProjectedTerminalSearchEvent) => void;
 	readonly reader: TerminalBufferRowReader;
 }
 
@@ -52,6 +54,11 @@ interface WorkerProgressWaiter {
 	readonly nextRow: bigint;
 	readonly resolve: (progressed: boolean) => void;
 	readonly searchId: number;
+}
+
+interface SearchRestartPolicy {
+	readonly debounceMilliseconds: number;
+	readonly revealActiveMatch: boolean;
 }
 
 type SearchPageResult = Awaited<ReturnType<TerminalBufferRowReader['readBufferRows']>>;
@@ -96,40 +103,19 @@ export class ProjectedSearchController {
 		options: TerminalSearchOptions = {},
 		anchor: TerminalSearchPosition | undefined = this.#navigationAnchor,
 	): void {
-		if (this.#disposed) return;
-		this.#query = query;
-		this.#searchOptions = { ...options };
-		this.#navigationAnchor = anchor === undefined ? undefined : { ...anchor };
-		this.#cancelScan();
-		this.#inFlightNavigationStep = 0;
-		this.#matches = [];
-		this.#pendingNavigationOffset = 0;
-		this.#activeMatch = null;
-		this.#activeIndex = -1;
-		if (!query) {
-			this.#emit('idle', null);
-			return;
-		}
-		const regexError = validateTerminalSearchQuery(query, options);
-		if (regexError !== null) {
-			this.#emit('error', regexError, 'invalid-query');
-			return;
-		}
-		if (new TextEncoder().encode(query).byteLength > PROTOCOL_LIMITS.maxSearchQueryBytes) {
-			this.#emit('error', 'Search query exceeds its bounded limit.', 'invalid-query');
-			return;
-		}
-		this.#emit('searching', null);
-		this.#debounce = setTimeout(() => {
-			this.#debounce = undefined;
-			void this.#run(this.#initialNavigation());
-		}, TERMINAL_SEARCH_DEBOUNCE_MS);
+		this.#restart(query, options, anchor, {
+			debounceMilliseconds: TERMINAL_SEARCH_DEBOUNCE_MS,
+			revealActiveMatch: true,
+		});
 	}
 
 	invalidate(): void {
 		if (this.#disposed || !this.#query) return;
 		const pendingNavigation = this.#pendingNavigationOffset + this.#inFlightNavigationStep;
-		this.update(this.#query, this.#searchOptions);
+		this.#restart(this.#query, this.#searchOptions, this.#navigationAnchor, {
+			debounceMilliseconds: SEARCH_REVISION_REFRESH_DEBOUNCE_MILLISECONDS,
+			revealActiveMatch: false,
+		});
 		this.#pendingNavigationOffset = pendingNavigation;
 	}
 
@@ -162,7 +148,47 @@ export class ProjectedSearchController {
 		this.#activeMatch = null;
 	}
 
-	async #run(navigation: TerminalDirectionalSearchOptions, preserveResults = false): Promise<void> {
+	#restart(
+		query: string,
+		options: TerminalSearchOptions,
+		anchor: TerminalSearchPosition | undefined,
+		policy: SearchRestartPolicy,
+	): void {
+		if (this.#disposed) return;
+		this.#query = query;
+		this.#searchOptions = { ...options };
+		this.#navigationAnchor = anchor === undefined ? undefined : { ...anchor };
+		this.#cancelScan();
+		this.#inFlightNavigationStep = 0;
+		this.#matches = [];
+		this.#pendingNavigationOffset = 0;
+		this.#activeMatch = null;
+		this.#activeIndex = -1;
+		if (!query) {
+			this.#emit('idle', null);
+			return;
+		}
+		const regexError = validateTerminalSearchQuery(query, options);
+		if (regexError !== null) {
+			this.#emit('error', regexError, 'invalid-query');
+			return;
+		}
+		if (new TextEncoder().encode(query).byteLength > PROTOCOL_LIMITS.maxSearchQueryBytes) {
+			this.#emit('error', 'Search query exceeds its bounded limit.', 'invalid-query');
+			return;
+		}
+		this.#emit('searching', null);
+		this.#debounce = setTimeout(() => {
+			this.#debounce = undefined;
+			void this.#run(this.#initialNavigation(), false, policy.revealActiveMatch);
+		}, policy.debounceMilliseconds);
+	}
+
+	async #run(
+		navigation: TerminalDirectionalSearchOptions,
+		preserveResults = false,
+		revealActiveMatch = true,
+	): Promise<void> {
 		if (this.#disposed || !this.#query) return;
 		const snapshot = this.#options.reader.getBufferRowsSnapshot();
 		const searchId = ++this.#searchId;
@@ -187,7 +213,9 @@ export class ProjectedSearchController {
 			return;
 		}
 		this.#worker = worker;
-		worker.addEventListener('message', (event) => this.#receive(searchId, event.data));
+		worker.addEventListener('message', (event) =>
+			this.#receive(searchId, event.data, revealActiveMatch),
+		);
 		worker.addEventListener('error', (event) => {
 			this.#completeError(searchId, event.message || 'Terminal search Worker failed.');
 		});
@@ -291,7 +319,11 @@ export class ProjectedSearchController {
 		}
 	}
 
-	#receive(searchId: number, response: ProjectedSearchWorkerResponse): void {
+	#receive(
+		searchId: number,
+		response: ProjectedSearchWorkerResponse,
+		revealActiveMatch: boolean,
+	): void {
 		if (this.#disposed || this.#searchId !== searchId || response.searchId !== searchId) return;
 		if (response.kind === 'error') {
 			this.#completeError(searchId, response.message);
@@ -322,10 +354,14 @@ export class ProjectedSearchController {
 		this.#abortController = undefined;
 		this.#cancelWorker();
 		if (response.activeMatch !== null) {
-			this.#options.onReveal(response.activeMatch, {
-				generation: this.#generation,
-				revision: this.#revision,
-			});
+			this.#options.onActivate(
+				response.activeMatch,
+				{
+					generation: this.#generation,
+					revision: this.#revision,
+				},
+				revealActiveMatch,
+			);
 		}
 		this.#emit('complete', null);
 		this.#drainNavigation();
@@ -372,10 +408,14 @@ export class ProjectedSearchController {
 		this.#activeMatch = match;
 		this.#activeIndex = findMatchIndex(this.#matches, match);
 		this.#navigationAnchor = { ...match.start };
-		this.#options.onReveal(match, {
-			generation: this.#generation,
-			revision: this.#revision,
-		});
+		this.#options.onActivate(
+			match,
+			{
+				generation: this.#generation,
+				revision: this.#revision,
+			},
+			true,
+		);
 		this.#emit('complete', null);
 	}
 

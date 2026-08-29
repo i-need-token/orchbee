@@ -545,13 +545,18 @@ class ArchivedTerminalBroker {
 	): Extract<SelectionChanged, { readonly state: 'active' }> {
 		this.#assertSelectionPoint(start);
 		this.#assertSelectionPoint(end);
-		return {
+		const selection = {
 			attachmentId: this.#attachmentId,
 			end,
 			preview: null,
 			rectangle,
 			start,
 			state: 'active',
+		} as const;
+		return {
+			...selection,
+			preview:
+				this.#selectionText(selection, PROTOCOL_LIMITS.maxSelectionPreviewBytes)?.text ?? null,
 		};
 	}
 
@@ -565,19 +570,33 @@ class ArchivedTerminalBroker {
 			this.#post({ byteLength: 0, kind: 'selection-copied', requestSequence });
 			return;
 		}
-		const text = this.#selectionText(this.#selection);
-		const bytes = new TextEncoder().encode(text);
-		if (bytes.byteLength > PROTOCOL_LIMITS.maxSelectionExportBytes) {
+		const content = this.#selectionText(this.#selection, PROTOCOL_LIMITS.maxSelectionExportBytes);
+		if (content === null) {
 			throw new Error('Archived terminal selection exceeds the copy limit.');
 		}
-		await this.#writeClipboardText(text);
+		await this.#writeClipboardText(content.text);
 		this.#clipboardCommits += 1;
-		this.#post({ byteLength: bytes.byteLength, kind: 'selection-copied', requestSequence });
+		this.#post({
+			byteLength: content.byteLength,
+			kind: 'selection-copied',
+			requestSequence,
+		});
 	}
 
-	#selectionText(selection: Extract<SelectionChanged, { readonly state: 'active' }>): string {
+	#selectionText(
+		selection: Extract<SelectionChanged, { readonly state: 'active' }>,
+		maximumBytes: number,
+	): { readonly byteLength: number; readonly text: string } | null {
 		const [start, end] = orderedPoints(selection.start, selection.end);
 		const output: string[] = [];
+		let byteLength = 0;
+		const append = (text: string): boolean => {
+			const nextByteLength = textEncoder.encode(text).byteLength;
+			if (nextByteLength > maximumBytes - byteLength) return false;
+			byteLength += nextByteLength;
+			output.push(text);
+			return true;
+		};
 		let row = BigInt(start.row);
 		const lastRow = BigInt(end.row);
 		const maximumChunkRows = Math.max(
@@ -599,12 +618,14 @@ class ArchivedTerminalBroker {
 					selection.rectangle || absoluteRow === BigInt(end.row)
 						? end.column
 						: this.#archive.frame.columns - 1;
-				output.push(rowText(rowData, firstColumn, lastColumn));
-				if (absoluteRow < lastRow && (selection.rectangle || !rowData.wrap)) output.push('\n');
+				if (!append(rowText(rowData, firstColumn, lastColumn))) return null;
+				if (absoluteRow < lastRow && (selection.rectangle || !rowData.wrap) && !append('\n')) {
+					return null;
+				}
 			}
 			row += BigInt(rowCount);
 		}
-		return output.join('');
+		return { byteLength, text: output.join('') };
 	}
 
 	#assertSelectionPoint(point: SelectionPoint): void {

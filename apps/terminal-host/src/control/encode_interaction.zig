@@ -109,10 +109,11 @@ pub fn selectionChanged(
     allocator: std.mem.Allocator,
     attachment_id: anytype,
     snapshot: anytype,
+    preview: ?[]const u8,
 ) ![]u8 {
     var writer: std.Io.Writer.Allocating = .init(allocator);
     defer writer.deinit();
-    try writeSelectionChanged(&writer.writer, attachment_id, snapshot);
+    try writeSelectionChanged(&writer.writer, attachment_id, snapshot, preview);
     return writer.toOwnedSlice();
 }
 
@@ -120,6 +121,7 @@ pub fn writeSelectionChanged(
     writer: *std.Io.Writer,
     attachment_id: anytype,
     snapshot: anytype,
+    preview: ?[]const u8,
 ) !void {
     var attachment_buffer: [32]u8 = undefined;
     const attachment_text = common.identifierText(attachment_id, &attachment_buffer);
@@ -132,17 +134,29 @@ pub fn writeSelectionChanged(
             "{{\"attachmentId\":\"{s}\",\"state\":\"evicted\"}}",
             .{attachment_text},
         ),
-        .active => |active| try writer.print(
-            "{{\"attachmentId\":\"{s}\",\"end\":{{\"column\":{d},\"row\":\"{d}\"}},\"preview\":null,\"rectangle\":{},\"start\":{{\"column\":{d},\"row\":\"{d}\"}},\"state\":\"active\"}}",
-            .{
-                attachment_text,
-                active.end.column,
-                active.end.row,
-                active.rectangle,
-                active.start.column,
-                active.start.row,
-            },
-        ),
+        .active => |active| {
+            try writer.print(
+                "{{\"attachmentId\":\"{s}\",\"end\":{{\"column\":{d},\"row\":\"{d}\"}},\"preview\":",
+                .{
+                    attachment_text,
+                    active.end.column,
+                    active.end.row,
+                },
+            );
+            if (preview) |text| {
+                try std.json.Stringify.value(text, .{}, writer);
+            } else {
+                try writer.writeAll("null");
+            }
+            try writer.print(
+                ",\"rectangle\":{},\"start\":{{\"column\":{d},\"row\":\"{d}\"}},\"state\":\"active\"}}",
+                .{
+                    active.rectangle,
+                    active.start.column,
+                    active.start.row,
+                },
+            );
+        },
     }
 }
 

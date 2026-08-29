@@ -318,8 +318,8 @@
 			"zhCnSha256": "5bd27bbf14f2a78b40fe094367953bc6561c9d06570d409500892ea63ec4933a"
 		},
 		"packages/terminal/README.md": {
-			"englishSha256": "986a15d6c8982e73e564584856ed5a7b0429a948030ca29fb512d76318113c51",
-			"zhCnSha256": "4bf2cdbedede4b018ea1ea0ae6a519c64a6a6ee319e9fbb19abee2db321db3d5"
+			"englishSha256": "dc017457e931f43e9b47a252ab7690d40ecbe3e7e54b01cc71a4188fc3a5fda3",
+			"zhCnSha256": "fb8d7650c7161689b8dbdc6712455a9d33ce72a9ed6e885d00a4a5d506be48f4"
 		},
 		"packages/terminal/docs/ghostty-surface-test-provenance.md": {
 			"englishSha256": "8073cbd8759fef614f4162689fa989f180426a9a4e6431c50fefe7425244530f",
@@ -346,8 +346,8 @@
 			"zhCnSha256": "ebfd84c6572f26b7aef3af95f4cefc1ae49c6f3c7f20d16165baea58282be4ab"
 		},
 		"packages/terminal/docs/vscode-search-alignment.md": {
-			"englishSha256": "4dadba59dabc92a0a00ff5a81fc8505923b22b63ee4eb0986277cd9454bd4b74",
-			"zhCnSha256": "55bb23f74b53ea11ad11aec4ca31c99053c1621d49ea0ae74848435bccb83810"
+			"englishSha256": "d9af02a0e23114bf43195af3df9a4b4750ef4be59ab1a4c4c143c900dfca1470",
+			"zhCnSha256": "10fbd379d7d4c2ca9e0281439baeaae305f7a94ae88e52e209cd4c8f60fff903"
 		},
 		"packages/terminal/formal/README.md": {
 			"englishSha256": "d4193142faa9362327a6b47ebf33f26c902be3c6f078a47cbf48203f5915dd9f",

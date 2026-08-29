@@ -1779,6 +1779,7 @@ test "native control replies and events conform to TypeScript schemas" {
             allocator,
             attachment_id,
             snapshot,
+            null,
         ));
     }
     const formats = [_]TestExportFormat{.plain};

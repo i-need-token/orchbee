@@ -53,6 +53,37 @@ test "select all uses Ghostty content bounds instead of viewport bounds" {
     try std.testing.expectEqual(@as(u64, 0), snapshot.active.start.row);
     try std.testing.expectEqual(@as(u16, 6), snapshot.active.end.column);
     try std.testing.expectEqual(@as(u64, 0), snapshot.active.end.row);
+    try std.testing.expectEqualStrings("alpha", snapshot.previewText().?);
+}
+
+test "selection snapshot publishes only a complete bounded preview" {
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
+        .cols = @intCast(selection.max_preview_bytes),
+        .rows = 2,
+    });
+    defer terminal.deinit(std.testing.allocator);
+    const text = [_]u8{'x'} ** selection.max_preview_bytes;
+    try terminal.printString(&text);
+
+    var state: selection.State = .{};
+    defer state.clear(&terminal);
+    const at_limit = try state.applyCommand(&terminal, 1, 1, .{
+        .command = selection.Command.select_all,
+        .generation = 1,
+        .revision = 1,
+    });
+    try std.testing.expectEqual(
+        selection.max_preview_bytes,
+        at_limit.previewText().?.len,
+    );
+
+    try terminal.printString("x");
+    const above_limit = try state.applyCommand(&terminal, 1, 1, .{
+        .command = selection.Command.select_all,
+        .generation = 1,
+        .revision = 1,
+    });
+    try std.testing.expect(above_limit.previewText() == null);
 }
 
 test "select all leaves an empty terminal unselected" {

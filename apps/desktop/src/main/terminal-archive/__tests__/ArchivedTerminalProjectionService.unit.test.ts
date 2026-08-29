@@ -234,7 +234,11 @@ describe('ArchivedTerminalProjectionService', () => {
 				revision: frame.value.revision.toString(),
 			},
 		});
-		expect((await selectionChanged).event.state).toBe('active');
+		expect((await selectionChanged).event).toMatchObject({
+			preview:
+				'history-a\nhistory-b\nhistory-c\nhistory-d\nhistory-ehistory-f\nviewport-a\nviewport-b',
+			state: 'active',
+		});
 
 		const copied = nextEvent(port, (event) => (event.kind === 'selection-copied' ? event : null));
 		port.postMessage({

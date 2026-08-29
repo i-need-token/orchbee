@@ -200,8 +200,8 @@ export const DEFAULT_THEME: Required<ITheme> = {
 	background: '#1e1e1e',
 	cursor: '#ffffff',
 	cursorAccent: '#1e1e1e',
-	selectionBackground: '#d4d4d4',
-	selectionForeground: '#1e1e1e',
+	selectionBackground: '#415576',
+	selectionForeground: '#d4d4d4',
 	searchMatchBackground: '#515c6a',
 	searchMatchForeground: '#ffffff',
 	searchActiveMatchBackground: '#f5a97f',
@@ -2247,11 +2247,10 @@ export class WebGPURenderer {
 		baseForegroundRgb: number,
 		presentation: PackedPresentationColors,
 	): number {
-		if (this.isCoordinateInSelection(column, row))
-			return rgbValue(presentation.selectionForeground);
-		const search = this.getSearchHighlight(column, row);
-		if (search === 'active') return rgbValue(presentation.searchActiveForeground);
-		if (search === 'match') return rgbValue(presentation.searchForeground);
+		const overlay = this.getCellOverlay(column, row);
+		if (overlay === 'active-search') return rgbValue(presentation.searchActiveForeground);
+		if (overlay === 'selection') return rgbValue(presentation.selectionForeground);
+		if (overlay === 'search') return rgbValue(presentation.searchForeground);
 		return baseForegroundRgb;
 	}
 
@@ -2642,24 +2641,19 @@ export class WebGPURenderer {
 			const cellPresentation = this.packedCellPresentation(row, x, metadata, presentation);
 			let foreground: readonly [number, number, number] = cellPresentation.foreground;
 			let background: readonly [number, number, number] = cellPresentation.background;
-			const selected = this.isCoordinateInSelection(x, rowIndex);
-			const search = this.getSearchHighlight(x, rowIndex);
-			if (selected) {
+			const overlay = this.getCellOverlay(x, rowIndex);
+			if (overlay === 'active-search') {
+				background = presentation.searchActiveBackground;
+				foreground = presentation.searchActiveForeground;
+			} else if (overlay === 'selection') {
 				background = presentation.selectionBackground;
 				foreground = presentation.selectionForeground;
-			} else if (search !== null) {
-				background =
-					search === 'active' ? presentation.searchActiveBackground : presentation.searchBackground;
-				foreground =
-					search === 'active' ? presentation.searchActiveForeground : presentation.searchForeground;
+			} else if (overlay === 'search') {
+				background = presentation.searchBackground;
+				foreground = presentation.searchForeground;
 			}
 			if (isFullBlockCursor) background = cursorColor;
-			if (
-				cellPresentation.requiresBackgroundFill ||
-				isFullBlockCursor ||
-				selected ||
-				search !== null
-			) {
+			if (cellPresentation.requiresBackgroundFill || isFullBlockCursor || overlay !== null) {
 				pushRect(backgroundData, cellX, cellY, cellWidth, this.metrics.height, background);
 			}
 			if (isBlockCursor && !isFullBlockCursor) {
@@ -3141,17 +3135,15 @@ export class WebGPURenderer {
 				this.frameCellsVisited++;
 				const cellPresentation = this.packedCellPresentation(row, x, metadata, presentation);
 				let background: readonly [number, number, number] = cellPresentation.background;
-				const selected = this.isCoordinateInSelection(x, y);
-				const search = this.getSearchHighlight(x, y);
-				if (selected) {
+				const overlay = this.getCellOverlay(x, y);
+				if (overlay === 'active-search') {
+					background = presentation.searchActiveBackground;
+				} else if (overlay === 'selection') {
 					background = presentation.selectionBackground;
-				} else if (search !== null) {
-					background =
-						search === 'active'
-							? presentation.searchActiveBackground
-							: presentation.searchBackground;
+				} else if (overlay === 'search') {
+					background = presentation.searchBackground;
 				}
-				if (cellPresentation.requiresBackgroundFill || selected || search !== null) {
+				if (cellPresentation.requiresBackgroundFill || overlay !== null) {
 					ctx.fillStyle = `rgb(${background[0]}, ${background[1]}, ${background[2]})`;
 					ctx.fillRect(
 						x * this.metrics.width,
@@ -3549,17 +3541,23 @@ export class WebGPURenderer {
 		return false;
 	}
 
-	private getSearchHighlight(x: number, viewportRow: number): 'active' | 'match' | null {
+	private getCellOverlay(
+		x: number,
+		viewportRow: number,
+	): 'active-search' | 'search' | 'selection' | null {
 		const row = this.currentAbsoluteTop + viewportRow;
 		if (this.activeSearchMatch && searchMatchContainsCell(this.activeSearchMatch, x, row)) {
-			return 'active';
+			return 'active-search';
 		}
 		this.indexVisibleSearchMatches();
-		return (this.searchMatchesByRow.get(row) ?? []).some((match) =>
-			searchMatchContainsCell(match, x, row),
-		)
-			? 'match'
-			: null;
+		if (
+			(this.searchMatchesByRow.get(row) ?? []).some((match) =>
+				searchMatchContainsCell(match, x, row),
+			)
+		) {
+			return 'search';
+		}
+		return this.isCoordinateInSelection(x, viewportRow) ? 'selection' : null;
 	}
 
 	private indexVisibleSearchMatches(): void {

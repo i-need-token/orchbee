@@ -2,6 +2,10 @@ const std = @import("std");
 
 const ghostty_vt = @import("ghostty-vt");
 const terminal_interaction = @import("terminal-host-model").interaction;
+const protocol = @import("terminal-protocol");
+
+pub const max_preview_bytes = protocol.Limits.selection_preview_bytes;
+const max_preview_scan_cells = max_preview_bytes * 16;
 
 pub const Point = terminal_interaction.Point;
 pub const ViewportPoint = terminal_interaction.ViewportPoint;
@@ -52,11 +56,28 @@ pub fn CommandRequest(comptime AttachmentId: type) type {
 pub const Snapshot = union(enum) {
     active: struct {
         end: Point,
+        preview: ?SelectionPreview = null,
         rectangle: bool,
         start: Point,
     },
     evicted,
     none,
+
+    pub fn previewText(self: *const Snapshot) ?[]const u8 {
+        return switch (self.*) {
+            .active => |*active| if (active.preview) |*preview| preview.slice() else null,
+            .evicted, .none => null,
+        };
+    }
+};
+
+pub const SelectionPreview = struct {
+    bytes: [max_preview_bytes]u8 = undefined,
+    length: usize = 0,
+
+    pub fn slice(self: *const SelectionPreview) []const u8 {
+        return self.bytes[0..self.length];
+    }
 };
 
 pub const Error = error{
@@ -246,6 +267,7 @@ pub const State = struct {
         const end = screen.pages.pointFromPin(.screen, selection.end()) orelse return .evicted;
         return .{ .active = .{
             .end = .{ .column = end.screen.x, .row = end.screen.y },
+            .preview = selectionPreview(terminal, screen, selection, start.screen, end.screen),
             .rectangle = selection.rectangle,
             .start = .{ .column = start.screen.x, .row = start.screen.y },
         } };
@@ -332,4 +354,37 @@ fn gestureAnchorValid(
 ) bool {
     const pin = gesture.validatedLeftClickPin(&terminal.screens) orelse return false;
     return !pin.garbage and terminal.screens.active.pages.pointFromPin(.screen, pin.*) != null;
+}
+
+fn selectionPreview(
+    terminal: *const ghostty_vt.Terminal,
+    screen: *const ghostty_vt.Screen,
+    selection: ghostty_vt.Selection,
+    start: anytype,
+    end: anytype,
+) ?SelectionPreview {
+    // A fixed output writer bounds emitted bytes, but Ghostty may still inspect
+    // blank cells while trimming. Bound that scan before formatting a snapshot.
+    const row_count = @max(start.y, end.y) - @min(start.y, end.y) + 1;
+    const column_count = if (selection.rectangle or row_count == 1)
+        @max(start.x, end.x) - @min(start.x, end.x) + 1
+    else
+        screen.pages.cols;
+    if (column_count == 0 or row_count > max_preview_scan_cells / column_count) return null;
+
+    var preview: SelectionPreview = .{};
+    var writer = std.Io.Writer.fixed(&preview.bytes);
+    var formatter: ghostty_vt.formatter.ScreenFormatter = .init(
+        screen,
+        .{
+            .emit = .plain,
+            .palette = &terminal.colors.palette.current,
+            .trim = true,
+            .unwrap = true,
+        },
+    );
+    formatter.content = .{ .selection = selection };
+    formatter.format(&writer) catch return null;
+    preview.length = writer.buffered().len;
+    return preview;
 }

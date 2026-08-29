@@ -3,8 +3,8 @@ import type { TerminalBufferRow } from '../buffer-rows';
 /** Match-count cap used by VS Code's integrated terminal find widget. */
 export const TERMINAL_SEARCH_RESULT_LIMIT = 20_000;
 
-/** Trailing-edge delay used for incremental input and terminal-output refreshes. */
-export const TERMINAL_SEARCH_DEBOUNCE_MS = 200;
+/** Trailing-edge delay used for incremental query input. */
+export const TERMINAL_SEARCH_DEBOUNCE_MS = 50;
 
 export interface TerminalSearchOptions {
 	readonly caseSensitive?: boolean;

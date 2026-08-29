@@ -407,7 +407,12 @@ pub fn appendSelectionChanged(
     snapshot: terminal_runtime.SelectionSnapshot,
     delivery: host_outgoing.Delivery,
 ) !host_outgoing.AppendOutcome {
-    const payload = try control_encode.selectionChanged(allocator, attachment_id, snapshot);
+    const payload = try control_encode.selectionChanged(
+        allocator,
+        attachment_id,
+        snapshot,
+        snapshot.previewText(),
+    );
     defer allocator.free(payload);
     return outgoing.append(
         MessageKind.selection_changed,
