@@ -13,6 +13,7 @@ import {
 import type { ReactNode } from 'react';
 
 import type { ProjectWorkspaceState } from '../../../project-workspace';
+import type { WorkbenchStandaloneTerminalActivationOrigin } from '../../model/workbench-standalone-terminal-activation';
 import type { WorkbenchEnvironmentProjectConnectionCapability } from '../../types/workbench-environment-project-connection';
 import type { WorkbenchProjectFolderAcquisition } from '../../types/workbench-project-folder-acquisition';
 import type { WorkbenchProjectWorktreeCapability } from '../../types/workbench-project-worktree';
@@ -28,11 +29,12 @@ import { useProjectFolderAcquisition } from './hooks/useProjectFolderAcquisition
 import { useProjectWorktreeCreation } from './hooks/useProjectWorktreeCreation';
 import { useProjectWorktreeMenu } from './hooks/useProjectWorktreeMenu';
 import { useWorkbenchSidebarFocusRequest } from './hooks/useWorkbenchSidebarFocusRequest';
+import { useWorkspaceCreationActivation } from './hooks/useWorkspaceCreationActivation';
 import type { WorkbenchProjectNavigationMessages } from './types/workbench-sidebar-types';
 import styles from './WorkbenchSidebar.module.css';
 
 interface WorkbenchSidebarProps {
-	readonly activateStandalone: () => void;
+	readonly activateStandalone: (origin: WorkbenchStandaloneTerminalActivationOrigin) => void;
 	readonly activateWorkspace: (projectId: string, workspaceId: string) => void;
 	readonly addProjectDirectory: (projectId: string, path: string) => void;
 	readonly createWorkspace: (projectId: string, directoryId: string) => void;
@@ -126,13 +128,19 @@ export function WorkbenchSidebar({
 	const projectCreation = view.projectCreation;
 	const projectManagement = view.projectManagement;
 	const workspaceManagement = view.workspaceManagement;
+	const requestWorkspaceActivation = useWorkspaceCreationActivation({
+		activateWorkspace,
+		projectWorkspaceState,
+	});
 	const worktreeCreation = useProjectWorktreeCreation({
 		capability: projectWorktree,
 		projectWorkspaceState,
+		requestWorkspaceActivation,
 	});
 	const worktreeMenu = useProjectWorktreeMenu({
 		capability: projectWorktree,
 		projectWorkspaceState,
+		requestWorkspaceActivation,
 	});
 	return (
 		<>
@@ -151,7 +159,7 @@ export function WorkbenchSidebar({
 							data-slot='workbench-sidebar-terminal'
 							size='sm'
 							variant='ghost'
-							onClick={activateStandalone}
+							onClick={(event) => activateStandalone(event.detail > 0 ? 'pointer' : 'other')}
 						>
 							<span className={styles['icon']}>
 								<ProductIcon name='terminal' />

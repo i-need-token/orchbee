@@ -12,6 +12,7 @@ import { describe, expect, it } from 'vitest';
 
 import { TerminalSettingsController } from '../../terminal-settings';
 import { KeyboardShortcutSettingsController } from '../../keyboard-shortcuts';
+import { ApplicationLocaleController } from '../../application-locale';
 import { WebApplication } from '../WebApplication';
 
 describe('WebApplication', () => {
@@ -43,6 +44,7 @@ describe('WebApplication', () => {
 					undefined,
 					createElement(WebApplication, {
 						actionRuntime,
+						applicationLocaleController: createApplicationLocaleController(),
 						keyboardShortcutSettingsController,
 						layoutStorage: {
 							getItem: () => '{"width":320}',
@@ -73,3 +75,11 @@ describe('WebApplication', () => {
 		terminalSettingsController.dispose();
 	});
 });
+
+function createApplicationLocaleController(): ApplicationLocaleController {
+	return new ApplicationLocaleController({
+		documentElement: { dir: '', lang: '' },
+		preferredLocales: ['en-US'],
+		storage: { getItem: () => null, setItem: () => undefined },
+	});
+}

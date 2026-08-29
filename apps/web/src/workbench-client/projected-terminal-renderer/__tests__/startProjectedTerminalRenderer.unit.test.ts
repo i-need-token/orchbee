@@ -24,6 +24,7 @@ import type {
 import { DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION } from '@orchbee/terminal';
 import { describe, expect, it, vi } from 'vitest';
 
+import { ApplicationLocaleController } from '../../../application-locale';
 import type { ProjectedTerminalTransport } from '../../terminal-projection';
 import type { ProjectedTerminalPlatformEffects } from '../../projected-terminal-platform-effects';
 import type { TerminalCompletionReminderObserver } from '../../../terminal-feedback-settings';
@@ -108,6 +109,11 @@ describe('startProjectedTerminalRenderer', () => {
 			style: {},
 		} as unknown as HTMLElement;
 		const documentElement = { dir: '', lang: '' };
+		const applicationLocaleSource = new ApplicationLocaleController({
+			documentElement,
+			preferredLocales: ['zh-CN'],
+			storage: { getItem: () => null, setItem: () => undefined },
+		});
 		const applyFrame = vi.fn<ProjectedTerminal['applyFrame']>(() => 'committed');
 		const applyImagePreviewContent = vi.fn<ProjectedTerminal['applyImagePreviewContent']>();
 		const applyImagePreviewUnavailable = vi.fn<ProjectedTerminal['applyImagePreviewUnavailable']>();
@@ -468,6 +474,7 @@ describe('startProjectedTerminalRenderer', () => {
 				interactionConfigurationSource,
 				undefined,
 				observeImagePreview,
+				applicationLocaleSource,
 			);
 			const broadcastReadinessChanged = vi.fn<() => void>();
 			const broadcastReadinessSubscription =
@@ -530,6 +537,10 @@ describe('startProjectedTerminalRenderer', () => {
 			await contextProvider?.executePrepared(clearAction.invocation).completion;
 			expect(clearTerminal).toHaveBeenCalledOnce();
 			await vi.waitFor(() => expect(status.textContent).toBe('已清除终端输出。'));
+			applicationLocaleSource.select('en-US');
+			expect(status.textContent).toBe('Terminal output cleared.');
+			applicationLocaleSource.select('zh-CN');
+			expect(status.textContent).toBe('已清除终端输出。');
 			emitTransportMessage({ frame: new Uint8Array([1, 2, 3]).buffer, kind: 'frame' });
 			emitTransportMessage({
 				event: { attachmentId: bootstrap.attachmentId, sequence: '5' },
@@ -939,6 +950,7 @@ describe('startProjectedTerminalRenderer', () => {
 			expect(unsubscribeInputConfiguration).toHaveBeenCalledOnce();
 			expect(unsubscribeInteractionConfiguration).toHaveBeenCalledOnce();
 			expect(disposeTerminal).toHaveBeenCalledOnce();
+			applicationLocaleSource.dispose();
 
 			const createAdditionalRoot = () => {
 				const additionalStatus = {

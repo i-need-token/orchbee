@@ -3,15 +3,26 @@
 import { ActionRuntime } from '@orchbee/actions';
 import { OrchbeeI18nProvider } from '@orchbee/i18n';
 import { TooltipProvider } from '@orchbee/ui/components';
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { useEffect, useLayoutEffect, useRef, type ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { terminalPresentationId } from '../../terminal-presentation';
+import {
+	terminalPresentationId,
+	terminalPresentationOperationId,
+	terminalPresentationRemovalId,
+} from '../../terminal-presentation';
+import { workbenchSharedDocumentRevision } from '../document';
 import { Workbench } from '../Workbench';
 import { createWorkbenchPreviewTerminalPresentationComposition } from '../model/createWorkbenchPreviewTerminalPresentationComposition';
 import { WorkbenchProjectWorkspaceRuntime } from '../model/WorkbenchProjectWorkspaceRuntime';
-import type { WorkbenchProjectWorktreeCapability } from '../types/workbench-project-worktree';
+import type { WorkbenchNavigationPort } from '../types/workbench-host-actions';
+import type {
+	WorkbenchProjectWorktreeAdoptionResult,
+	WorkbenchProjectWorktreeCapability,
+} from '../types/workbench-project-worktree';
 import type { WorkbenchTabWindowControl } from '../types/workbench-tab-window-control';
+import type { WorkbenchTerminalSurfaceProps } from '../types/workbench-terminal-surface';
 import {
 	defaultWorkbenchShortcutBindings,
 	type WorkbenchShortcutBindings,
@@ -23,6 +34,95 @@ function createTestTerminalPresentationComposition(scope: string) {
 	return createWorkbenchPreviewTerminalPresentationComposition(
 		terminalPresentationId(`${scope}:initial`),
 		() => terminalPresentationId(`${scope}:dynamic:${(sequence += 1)}`),
+	);
+}
+
+function createTestManagedTerminalPresentationComposition(scope: string) {
+	let sequence = 0;
+	return {
+		createOperationId: () =>
+			terminalPresentationOperationId(`${scope}:operation:${(sequence += 1)}`),
+		createPresentationId: () => terminalPresentationId(`${scope}:presentation:${(sequence += 1)}`),
+		createRemovalId: () => terminalPresentationRemovalId(`${scope}:removal:${(sequence += 1)}`),
+		dispatchCommands: () => undefined,
+		initialPresentationId: terminalPresentationId(`${scope}:initial`),
+		kind: 'managed' as const,
+	};
+}
+
+function FocusTestTerminalSurface({
+	autoFocus,
+	focusRequest,
+	onPresentationReady,
+	presentation,
+	presentationMode,
+}: WorkbenchTerminalSurfaceProps): ReactNode {
+	const inputReference = useRef<HTMLTextAreaElement>(null);
+	useLayoutEffect(() => {
+		if (presentationMode !== 'incoming') return;
+		onPresentationReady('display-ready');
+		onPresentationReady('activation-ready');
+	}, [onPresentationReady, presentationMode]);
+	useEffect(() => {
+		if (autoFocus || focusRequest > 0) inputReference.current?.focus();
+	}, [autoFocus, focusRequest, presentation.presentationId]);
+	return (
+		<textarea
+			aria-label={`Terminal input: ${presentation.title}`}
+			data-test-terminal-input={presentation.presentationId}
+			ref={inputReference}
+		/>
+	);
+}
+
+function createTerminalFocusProjectWorkspaceRuntime(scope: string) {
+	const runtime = new WorkbenchProjectWorkspaceRuntime({
+		standaloneCwd: '/system',
+		standaloneTerminalTitle: 'Standalone Terminal',
+		terminalPresentation: createTestTerminalPresentationComposition(scope),
+	});
+	runtime.transition({
+		directory: {
+			available: true,
+			git: null,
+			id: 'directory-orchbee',
+			kind: 'folder',
+			name: 'orchbee',
+			path: '/workspace/orchbee',
+			placement: { kind: 'local' },
+			source: 'selected',
+		},
+		launchConfigurations: [],
+		primaryWorkspaceLaunchConfigurationId: null,
+		primaryWorkspaceName: 'Primary',
+		projectName: 'orchbee',
+		terminalTitle: 'Workspace Terminal',
+		type: 'project-created',
+	});
+	return runtime;
+}
+
+function publishWorkspace(
+	rendererRuntime: WorkbenchProjectWorkspaceRuntime,
+	input: { readonly directoryId: string; readonly name: string },
+): void {
+	const ownerRuntime = new WorkbenchProjectWorkspaceRuntime({
+		initialDocument: rendererRuntime.getSharedDocument(workbenchSharedDocumentRevision('0')),
+		standaloneCwd: '/system',
+		standaloneTerminalTitle: 'Terminal',
+		terminalPresentation: createTestManagedTerminalPresentationComposition('workspace-publication'),
+	});
+	const transition = ownerRuntime.transition({
+		directoryId: input.directoryId,
+		launchConfigurationId: null,
+		name: input.name,
+		projectId: 'project-1',
+		terminalTitle: 'Terminal',
+		type: 'workspace-created',
+	});
+	if (transition.outcome !== 'applied') throw new Error('Expected Workspace publication to apply.');
+	rendererRuntime.applySharedDocument(
+		ownerRuntime.getSharedDocument(workbenchSharedDocumentRevision('1')),
 	);
 }
 
@@ -65,6 +165,112 @@ function getActionableMenuPresentation(menu: HTMLElement): readonly {
 }
 
 describe('Workbench Project and Workspace management', () => {
+	it('focuses the standalone terminal only after pointer-click navigation is published', async () => {
+		const projectWorkspaceRuntime = createTerminalFocusProjectWorkspaceRuntime('pointer-focus');
+		const navigate = vi.fn<WorkbenchNavigationPort['navigate']>((context) => {
+			context.markCommitted();
+			return { kind: 'completed' };
+		});
+		render(
+			<OrchbeeI18nProvider locale='en-US'>
+				<TooltipProvider>
+					<Workbench
+						actionRuntime={new ActionRuntime()}
+						navigation={{ navigate, selectTab: () => ({ kind: 'unchanged' }) }}
+						projectWorkspaceRuntime={projectWorkspaceRuntime}
+						shortcutPlatform='apple'
+						terminalSurface={FocusTestTerminalSurface}
+					/>
+				</TooltipProvider>
+			</OrchbeeI18nProvider>,
+		);
+
+		const terminalButton = screen.getByRole('button', { name: 'Terminal' });
+		act(() => terminalButton.focus());
+		expect(document.activeElement).toBe(terminalButton);
+		fireEvent.click(terminalButton, { detail: 1 });
+		await waitFor(() =>
+			expect(navigate).toHaveBeenCalledWith(expect.anything(), { kind: 'standalone' }),
+		);
+		expect(projectWorkspaceRuntime.getSnapshot().activeLocation.kind).toBe('workspace');
+		expect(document.activeElement).toBe(terminalButton);
+
+		act(() => {
+			projectWorkspaceRuntime.transition({ type: 'standalone-activated' });
+		});
+		await waitFor(() => {
+			const standaloneInput = document.querySelector<HTMLTextAreaElement>(
+				'[data-test-terminal-input="pointer-focus:initial"]',
+			);
+			expect(standaloneInput).not.toBeNull();
+			expect(document.activeElement).toBe(standaloneInput);
+		});
+	});
+
+	it('keeps keyboard activation of the Terminal button focus-neutral', async () => {
+		const projectWorkspaceRuntime = createTerminalFocusProjectWorkspaceRuntime('keyboard-focus');
+		const navigate = vi.fn<WorkbenchNavigationPort['navigate']>((context) => {
+			context.markCommitted();
+			return { kind: 'completed' };
+		});
+		render(
+			<OrchbeeI18nProvider locale='en-US'>
+				<TooltipProvider>
+					<Workbench
+						actionRuntime={new ActionRuntime()}
+						navigation={{ navigate, selectTab: () => ({ kind: 'unchanged' }) }}
+						projectWorkspaceRuntime={projectWorkspaceRuntime}
+						shortcutPlatform='apple'
+						terminalSurface={FocusTestTerminalSurface}
+					/>
+				</TooltipProvider>
+			</OrchbeeI18nProvider>,
+		);
+
+		const terminalButton = screen.getByRole('button', { name: 'Terminal' });
+		act(() => terminalButton.focus());
+		fireEvent.click(terminalButton, { detail: 0 });
+		await waitFor(() => expect(navigate).toHaveBeenCalledOnce());
+		act(() => {
+			projectWorkspaceRuntime.transition({ type: 'standalone-activated' });
+		});
+		await waitFor(() =>
+			expect(
+				document.querySelector('[data-test-terminal-input="keyboard-focus:initial"]'),
+			).not.toBeNull(),
+		);
+		expect(document.activeElement).toBe(terminalButton);
+	});
+
+	it('keeps pointer Workspace navigation focus in the sidebar', async () => {
+		const projectWorkspaceRuntime = createTerminalFocusProjectWorkspaceRuntime('workspace-focus');
+		projectWorkspaceRuntime.transition({ type: 'standalone-activated' });
+		render(
+			<OrchbeeI18nProvider locale='en-US'>
+				<TooltipProvider>
+					<Workbench
+						actionRuntime={new ActionRuntime()}
+						projectWorkspaceRuntime={projectWorkspaceRuntime}
+						shortcutPlatform='apple'
+						terminalSurface={FocusTestTerminalSurface}
+					/>
+				</TooltipProvider>
+			</OrchbeeI18nProvider>,
+		);
+
+		const workspaceButton = screen.getByRole('button', { name: 'Primary' });
+		act(() => workspaceButton.focus());
+		fireEvent.click(workspaceButton, { detail: 1 });
+		await waitFor(() =>
+			expect(projectWorkspaceRuntime.getSnapshot().activeLocation).toEqual({
+				kind: 'workspace',
+				projectId: 'project-1',
+				workspaceId: 'workspace-1',
+			}),
+		);
+		expect(document.activeElement).toBe(workspaceButton);
+	});
+
 	it('projects native windows and routes a tab move through the host control', async () => {
 		const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
 			standaloneCwd: '/system',
@@ -606,7 +812,7 @@ describe('Workbench Project and Workspace management', () => {
 		const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
 			standaloneCwd: '/system',
 			standaloneTerminalTitle: 'Terminal 1',
-			terminalPresentation: createTestTerminalPresentationComposition('managed-worktree'),
+			terminalPresentation: createTestManagedTerminalPresentationComposition('managed-worktree'),
 		});
 		projectWorkspaceRuntime.transition({
 			directory: {
@@ -643,21 +849,32 @@ describe('Workbench Project and Workspace management', () => {
 			},
 			kind: 'discovered',
 		}));
-		const create = vi.fn<WorkbenchProjectWorktreeCapability['create']>(async () => ({
-			directoryId: 'managed-worktree-1',
-			kind: 'created',
-			workspaceId: 'workspace-2',
-		}));
+		const create = vi.fn<WorkbenchProjectWorktreeCapability['create']>(async () => {
+			publishWorkspace(projectWorkspaceRuntime, {
+				directoryId: 'directory-orchbee',
+				name: 'feature/worktree-ui',
+			});
+			return {
+				directoryId: 'managed-worktree-1',
+				kind: 'created',
+				workspaceId: 'workspace-2',
+			};
+		});
 		const adopt = vi.fn<WorkbenchProjectWorktreeCapability['adopt']>(async () => ({
 			directoryId: 'discovered-worktree-1',
 			kind: 'adopted',
 			workspaceId: 'workspace-2',
 		}));
+		const navigate = vi.fn<WorkbenchNavigationPort['navigate']>((context) => {
+			context.markCommitted();
+			return { kind: 'completed' };
+		});
 		render(
 			<OrchbeeI18nProvider locale='en-US'>
 				<TooltipProvider>
 					<Workbench
 						actionRuntime={new ActionRuntime()}
+						navigation={{ navigate, selectTab: () => ({ kind: 'unchanged' }) }}
 						projectWorkspaceRuntime={projectWorkspaceRuntime}
 						projectWorktree={{ adopt, create, discover }}
 						shortcutPlatform='apple'
@@ -734,6 +951,13 @@ describe('Workbench Project and Workspace management', () => {
 			}),
 		);
 		await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+		await waitFor(() =>
+			expect(navigate).toHaveBeenCalledWith(expect.anything(), {
+				kind: 'workspace',
+				projectId: 'project-1',
+				workspaceId: 'workspace-2',
+			}),
+		);
 
 		discover.mockResolvedValue({
 			discovery: {
@@ -789,7 +1013,8 @@ describe('Workbench Project and Workspace management', () => {
 		const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
 			standaloneCwd: '/system',
 			standaloneTerminalTitle: 'Terminal',
-			terminalPresentation: createTestTerminalPresentationComposition('existing-worktree-menu'),
+			terminalPresentation:
+				createTestManagedTerminalPresentationComposition('existing-worktree-menu'),
 		});
 		projectWorkspaceRuntime.transition({
 			directory: {
@@ -823,11 +1048,13 @@ describe('Workbench Project and Workspace management', () => {
 			projectId: 'project-1',
 			type: 'directory-added',
 		});
-		const adopt = vi.fn<WorkbenchProjectWorktreeCapability['adopt']>(async () => ({
-			directoryId: 'discovered-worktree-folder-2-1',
-			kind: 'adopted',
-			workspaceId: 'workspace-2',
-		}));
+		let settleAdoption: ((result: WorkbenchProjectWorktreeAdoptionResult) => void) | undefined;
+		const adopt = vi.fn<WorkbenchProjectWorktreeCapability['adopt']>(
+			() =>
+				new Promise<WorkbenchProjectWorktreeAdoptionResult>((resolve) => {
+					settleAdoption = resolve;
+				}),
+		);
 		const discover = vi.fn<WorkbenchProjectWorktreeCapability['discover']>(async () => ({
 			discovery: {
 				managedRoot: '/managed/worktrees',
@@ -863,11 +1090,16 @@ describe('Workbench Project and Workspace management', () => {
 			},
 			kind: 'discovered',
 		}));
+		const navigate = vi.fn<WorkbenchNavigationPort['navigate']>((context) => {
+			context.markCommitted();
+			return { kind: 'completed' };
+		});
 		render(
 			<OrchbeeI18nProvider locale='en-US'>
 				<TooltipProvider>
 					<Workbench
 						actionRuntime={new ActionRuntime()}
+						navigation={{ navigate, selectTab: () => ({ kind: 'unchanged' }) }}
 						projectWorkspaceRuntime={projectWorkspaceRuntime}
 						projectWorktree={{
 							adopt,
@@ -899,6 +1131,85 @@ describe('Workbench Project and Workspace management', () => {
 			sourceDirectoryId: 'directory-folder-2',
 			worktreeId: 'worktree-folder-2-1',
 		});
+		await act(async () => {
+			settleAdoption?.({
+				directoryId: 'discovered-worktree-folder-2-1',
+				kind: 'adopted',
+				workspaceId: 'workspace-2',
+			});
+			await Promise.resolve();
+		});
+		expect(navigate).not.toHaveBeenCalled();
+
+		act(() => {
+			publishWorkspace(projectWorkspaceRuntime, {
+				directoryId: 'directory-folder-2',
+				name: 'feature/folder-2-1',
+			});
+		});
+		await waitFor(() =>
+			expect(navigate).toHaveBeenCalledWith(expect.anything(), {
+				kind: 'workspace',
+				projectId: 'project-1',
+				workspaceId: 'workspace-2',
+			}),
+		);
+	});
+
+	it('selects the Workspace created from a current Project Folder', async () => {
+		const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
+			standaloneCwd: '/system',
+			standaloneTerminalTitle: 'Terminal',
+			terminalPresentation: createTestTerminalPresentationComposition('folder-workspace'),
+		});
+		projectWorkspaceRuntime.transition({
+			directory: {
+				available: true,
+				git: null,
+				id: 'directory-orchbee',
+				kind: 'folder',
+				name: 'orchbee',
+				path: '/workspace/orchbee',
+				placement: { kind: 'local' },
+				source: 'selected',
+			},
+			launchConfigurations: [],
+			primaryWorkspaceLaunchConfigurationId: null,
+			primaryWorkspaceName: 'Primary',
+			projectName: 'orchbee',
+			terminalTitle: 'Terminal',
+			type: 'project-created',
+		});
+		render(
+			<OrchbeeI18nProvider locale='en-US'>
+				<TooltipProvider>
+					<Workbench
+						actionRuntime={new ActionRuntime()}
+						projectWorkspaceRuntime={projectWorkspaceRuntime}
+						shortcutPlatform='apple'
+					/>
+				</TooltipProvider>
+			</OrchbeeI18nProvider>,
+		);
+
+		fireEvent.click(screen.getByRole('button', { name: 'Project options: orchbee' }));
+		const projectMenu = await screen.findByRole('menu');
+		fireEvent.click(within(projectMenu).getByRole('menuitem', { name: 'New Workspace' }));
+		fireEvent.click(await screen.findByRole('menuitem', { name: 'orchbee' }));
+
+		await waitFor(() =>
+			expect(projectWorkspaceRuntime.getSnapshot().activeLocation).toEqual({
+				kind: 'workspace',
+				projectId: 'project-1',
+				workspaceId: 'workspace-2',
+			}),
+		);
+		const workspace = document.querySelector<HTMLElement>('[data-workspace-id="workspace-2"]');
+		expect(
+			workspace
+				?.querySelector('[data-slot="workbench-sidebar-workspace"]')
+				?.getAttribute('aria-current'),
+		).toBe('page');
 	});
 
 	it('omits redundant primary controls when a Project has one Folder', async () => {

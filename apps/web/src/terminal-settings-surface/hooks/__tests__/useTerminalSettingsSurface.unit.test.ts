@@ -4,6 +4,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
 import { KeyboardShortcutSettingsController } from '../../../keyboard-shortcuts';
+import { ApplicationLocaleController } from '../../../application-locale';
 import {
 	DEFAULT_TERMINAL_APPEARANCE_PREFERENCES,
 	TerminalSettingsController,
@@ -25,13 +26,16 @@ describe('useTerminalSettingsSurface', () => {
 });
 
 function SurfaceProbe({
+	applicationLocaleController,
 	controller,
 	keyboardShortcutController,
 }: {
+	readonly applicationLocaleController: ApplicationLocaleController;
 	readonly controller: TerminalSettingsController;
 	readonly keyboardShortcutController: KeyboardShortcutSettingsController;
 }): ReactNode {
 	const view = useTerminalSettingsSurface({
+		applicationLocaleController,
 		controller,
 		keyboardShortcutController,
 		keyboardShortcutPlatform: 'apple',
@@ -59,11 +63,20 @@ function renderView(controller: TerminalSettingsController, locale: 'en-US' | 'z
 		platform: 'apple',
 		storage: { getItem: () => null, setItem: () => undefined },
 	});
+	const applicationLocaleController = new ApplicationLocaleController({
+		documentElement: { dir: '', lang: '' },
+		preferredLocales: [locale],
+		storage: { getItem: () => null, setItem: () => undefined },
+	});
 	return renderToStaticMarkup(
 		createElement(
 			OrchbeeI18nProvider,
 			{ locale },
-			createElement(SurfaceProbe, { controller, keyboardShortcutController }),
+			createElement(SurfaceProbe, {
+				applicationLocaleController,
+				controller,
+				keyboardShortcutController,
+			}),
 		),
 	);
 }

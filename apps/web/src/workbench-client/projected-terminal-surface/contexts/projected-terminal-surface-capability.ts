@@ -9,6 +9,7 @@ import type {
 } from '@orchbee/terminal';
 import { createContext } from 'react';
 
+import type { ApplicationLocaleSource } from '../../../application-locale';
 import type {
 	ProjectedTerminalShortcutBindingSource,
 	ProjectedTerminalShortcutPlatform,
@@ -21,6 +22,7 @@ import type { TerminalCompletionReminderObserver } from '../../../terminal-feedb
 import type { TerminalInputConfigurationSource } from '../../../terminal-input-configuration';
 
 export interface ProjectedTerminalSurfaceCapability {
+	readonly applicationLocaleSource?: ApplicationLocaleSource | undefined;
 	readonly documentElement: Pick<HTMLElement, 'dir' | 'lang'>;
 	readonly preferredLocales: readonly string[];
 	readonly platformEffects: ProjectedTerminalPlatformEffects;

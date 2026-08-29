@@ -1,8 +1,8 @@
 import { ActionRuntime, type ActionDisposable, type ActionScope } from '@orchbee/actions';
 import {
 	createOrchbeeIntl,
-	projectedTerminalMessages,
 	getOrchbeeTextDirection,
+	projectedTerminalMessages,
 	resolveOrchbeeLocale,
 } from '@orchbee/i18n';
 import {
@@ -37,6 +37,7 @@ import type {
 } from '@orchbee/workbench';
 
 import type { TerminalCompletionReminderObserver } from '../../terminal-feedback-settings';
+import type { ApplicationLocaleSource } from '../../application-locale';
 import { isTerminalThemePresentationSource } from '../../terminal-settings';
 import {
 	DEFAULT_TERMINAL_INPUT_CONFIGURATION_SOURCE,
@@ -299,12 +300,13 @@ export async function startProjectedTerminalRenderer(
 	interactionConfigurationSource: TerminalInteractionConfigurationSource = DEFAULT_TERMINAL_INTERACTION_CONFIGURATION_SOURCE,
 	presentationSnapshot?: ProjectedTerminalPresentationSnapshot,
 	observeImagePreview?: (presentation: TerminalImagePreviewPresentation) => void,
+	applicationLocaleSource?: ApplicationLocaleSource,
 ): Promise<ProjectedTerminalRendererSession> {
 	if (!(rootElement instanceof HTMLElement)) {
 		throw new Error('The Orchbee projected terminal root element is missing.');
 	}
-	const locale = resolveOrchbeeLocale(preferredLocales);
-	const intl = createOrchbeeIntl(locale);
+	const locale = applicationLocaleSource?.current() ?? resolveOrchbeeLocale(preferredLocales);
+	let intl = createOrchbeeIntl(locale);
 	documentElement.lang = locale;
 	documentElement.dir = getOrchbeeTextDirection(locale);
 	const terminalThemeSource = isTerminalThemePresentationSource(presentationConfigurationSource)
@@ -385,6 +387,7 @@ export async function startProjectedTerminalRenderer(
 		| 'feature-failure'
 		| 'runtime-failure'
 		| undefined;
+	let renderStatus: (() => string) | undefined;
 	let terminalOpened = false;
 	let bellTimer: ReturnType<typeof setTimeout> | undefined;
 	let bellVisualPhase: 'a' | 'b' | undefined;
@@ -452,6 +455,7 @@ export async function startProjectedTerminalRenderer(
 		status.textContent = null;
 		status.hidden = true;
 		statusKind = undefined;
+		renderStatus = undefined;
 	};
 	const clearVisualBell = (): void => {
 		if (bellTimer !== undefined) clearTimeout(bellTimer);
@@ -489,7 +493,8 @@ export async function startProjectedTerminalRenderer(
 		clearActionStatusTimer();
 		statusKind = 'action';
 		status.setAttribute('role', presentation.role);
-		status.textContent = intl.formatMessage(presentation.message);
+		renderStatus = () => intl.formatMessage(presentation.message);
+		status.textContent = renderStatus();
 		status.hidden = false;
 		actionStatusTimer = setTimeout(() => {
 			actionStatusTimer = undefined;
@@ -511,10 +516,12 @@ export async function startProjectedTerminalRenderer(
 			completion.sequence.toString();
 		const duration =
 			Math.min(Number(completion.durationMilliseconds), Number.MAX_SAFE_INTEGER) / 1000;
-		const message = intl.formatMessage(projectedTerminalMessages.commandCompletedBody, {
-			duration,
-			exitCode: completion.exitCode,
-		});
+		const renderCompletionStatus = () =>
+			intl.formatMessage(projectedTerminalMessages.commandCompletedBody, {
+				duration,
+				exitCode: completion.exitCode,
+			});
+		const message = renderCompletionStatus();
 		const ownerDocument = rootElement.ownerDocument;
 		const result = completionReminderObserver.observeCompletion({
 			completion,
@@ -532,7 +539,8 @@ export async function startProjectedTerminalRenderer(
 		clearCompletionStatusTimer();
 		statusKind = 'command-completion';
 		status.setAttribute('role', 'status');
-		status.textContent = message;
+		renderStatus = renderCompletionStatus;
+		status.textContent = renderStatus();
 		status.hidden = false;
 		rootElement.dataset['projectedTerminalCommandCompletionSequence'] =
 			completion.sequence.toString();
@@ -571,7 +579,8 @@ export async function startProjectedTerminalRenderer(
 		rootElement.dataset['projectedTerminalState'] = 'failed';
 		statusKind = 'connection-failure';
 		status.setAttribute('role', 'alert');
-		status.textContent = intl.formatMessage(projectedTerminalMessages.connectionFailure);
+		renderStatus = () => intl.formatMessage(projectedTerminalMessages.connectionFailure);
+		status.textContent = renderStatus();
 		status.hidden = false;
 	};
 	const reportFeatureFailure = (failure: ProjectedTerminalFailure): void => {
@@ -607,10 +616,12 @@ export async function startProjectedTerminalRenderer(
 		) {
 			return;
 		}
-		const consequence = intl.formatMessage(projectedTerminalFailureMessage(failure));
-		const message = failure.retryable
-			? intl.formatMessage(projectedTerminalMessages.retryableFailure, { consequence })
-			: consequence;
+		const renderFeatureFailure = (): string => {
+			const consequence = intl.formatMessage(projectedTerminalFailureMessage(failure));
+			return failure.retryable
+				? intl.formatMessage(projectedTerminalMessages.retryableFailure, { consequence })
+				: consequence;
+		};
 		if (
 			!failure.retryable &&
 			(failure.operation === undefined ||
@@ -623,8 +634,36 @@ export async function startProjectedTerminalRenderer(
 			statusKind = 'feature-failure';
 		}
 		status.setAttribute('role', 'alert');
-		status.textContent = message;
+		renderStatus = renderFeatureFailure;
+		status.textContent = renderStatus();
 		status.hidden = false;
+	};
+	const terminalLabels = {
+		deleted: (text: string) =>
+			intl.formatMessage(projectedTerminalMessages.accessibilityDeleted, { text }),
+		hintsActive: (count: number) =>
+			intl.formatMessage(projectedTerminalMessages.hintsActive, { count }),
+		hintsLoading: intl.formatMessage(projectedTerminalMessages.hintsLoading),
+		historyRange: (start: bigint, end: bigint, total: bigint) =>
+			intl.formatMessage(projectedTerminalMessages.historyRange, {
+				end: end.toString(),
+				start: start.toString(),
+				total: total.toString(),
+			}),
+		input: intl.formatMessage(projectedTerminalMessages.input),
+		row: (row: bigint, text: string) =>
+			intl.formatMessage(projectedTerminalMessages.accessibilityRow, {
+				row: row.toString(),
+				text,
+			}),
+		screen: intl.formatMessage(projectedTerminalMessages.screen),
+		screenCursor: (row: bigint, column: number) =>
+			intl.formatMessage(projectedTerminalMessages.accessibilityScreenCursor, {
+				column,
+				row: row.toString(),
+			}),
+		selectedText: (text: string) =>
+			intl.formatMessage(projectedTerminalMessages.accessibilitySelection, { text }),
 	};
 	let terminal: ProjectedTerminalDriver;
 	try {
@@ -637,33 +676,7 @@ export async function startProjectedTerminalRenderer(
 			inputConfiguration: initialInputConfiguration,
 			copyOnSelect: initialInteractionConfiguration.copyOnSelect,
 			inputEnabled: bootstrap.canInput !== false,
-			labels: {
-				deleted: (text) =>
-					intl.formatMessage(projectedTerminalMessages.accessibilityDeleted, { text }),
-				hintsActive: (count) =>
-					intl.formatMessage(projectedTerminalMessages.hintsActive, { count }),
-				hintsLoading: intl.formatMessage(projectedTerminalMessages.hintsLoading),
-				historyRange: (start, end, total) =>
-					intl.formatMessage(projectedTerminalMessages.historyRange, {
-						end: end.toString(),
-						start: start.toString(),
-						total: total.toString(),
-					}),
-				input: intl.formatMessage(projectedTerminalMessages.input),
-				row: (row, text) =>
-					intl.formatMessage(projectedTerminalMessages.accessibilityRow, {
-						row: row.toString(),
-						text,
-					}),
-				screen: intl.formatMessage(projectedTerminalMessages.screen),
-				screenCursor: (row, column) =>
-					intl.formatMessage(projectedTerminalMessages.accessibilityScreenCursor, {
-						column,
-						row: row.toString(),
-					}),
-				selectedText: (text) =>
-					intl.formatMessage(projectedTerminalMessages.accessibilitySelection, { text }),
-			},
+			labels: terminalLabels,
 			localFileEffects: bootstrap.localFileEffects === true,
 			port: {
 				send: (command) => transport.send(command),
@@ -740,9 +753,34 @@ export async function startProjectedTerminalRenderer(
 	};
 	let unsubscribeInputConfiguration = (): void => undefined;
 	let unsubscribeInteractionConfiguration = (): void => undefined;
+	let unsubscribeApplicationLocale = (): void => undefined;
 	let unsubscribePresentationConfiguration = (): void => undefined;
 	let unregisterThemeParticipant = (): void => undefined;
 	try {
+		const applyApplicationLocale = (): void => {
+			if (applicationLocaleSource === undefined) return;
+			const nextLocale = applicationLocaleSource.current();
+			intl = createOrchbeeIntl(nextLocale);
+			documentElement.lang = nextLocale;
+			documentElement.dir = getOrchbeeTextDirection(nextLocale);
+			progress.setAttribute(
+				'aria-label',
+				intl.formatMessage(projectedTerminalMessages.progressLabel),
+			);
+			terminalLabels.hintsLoading = intl.formatMessage(projectedTerminalMessages.hintsLoading);
+			terminalLabels.input = intl.formatMessage(projectedTerminalMessages.input);
+			terminalLabels.screen = intl.formatMessage(projectedTerminalMessages.screen);
+			terminal.textarea?.setAttribute('aria-label', terminalLabels.input);
+			if (!status.hidden && renderStatus !== undefined) status.textContent = renderStatus();
+		};
+		if (applicationLocaleSource !== undefined) {
+			applyApplicationLocale();
+			const unsubscribeLocale = applicationLocaleSource.subscribe(applyApplicationLocale);
+			if (typeof unsubscribeLocale !== 'function') {
+				throw new TypeError('The application locale source did not unsubscribe.');
+			}
+			unsubscribeApplicationLocale = unsubscribeLocale;
+		}
 		const unsubscribe = presentationConfigurationSource.subscribe((configuration) => {
 			if (!terminalOpened) {
 				pendingPresentationConfiguration = configuration;
@@ -770,6 +808,7 @@ export async function startProjectedTerminalRenderer(
 		unsubscribeInteractionConfiguration = unsubscribeInteraction;
 	} catch (error) {
 		runCleanup([
+			unsubscribeApplicationLocale,
 			unsubscribeInputConfiguration,
 			unsubscribeInteractionConfiguration,
 			unsubscribePresentationConfiguration,
@@ -782,6 +821,7 @@ export async function startProjectedTerminalRenderer(
 		throw error;
 	}
 	const unsubscribeConfigurationSources = (): void => {
+		unsubscribeApplicationLocale();
 		unsubscribeInputConfiguration();
 		unsubscribeInteractionConfiguration();
 		unsubscribePresentationConfiguration();
@@ -802,10 +842,12 @@ export async function startProjectedTerminalRenderer(
 		rootElement.dataset['projectedTerminalFailureStage'] = event.failure.stage;
 		rootElement.dataset['projectedTerminalFinalRevision'] = event.finalRevision;
 		finalRevision = BigInt(event.finalRevision);
-		const message = intl.formatMessage(projectedTerminalMessages.runtimeFailure);
+		const renderRuntimeFailure = () => intl.formatMessage(projectedTerminalMessages.runtimeFailure);
+		const message = renderRuntimeFailure();
 		statusKind = 'runtime-failure';
 		status.setAttribute('role', 'alert');
-		status.textContent = message;
+		renderStatus = renderRuntimeFailure;
+		status.textContent = renderStatus();
 		status.hidden = false;
 		terminal.notifyBrokerFailure({
 			code: `terminal-${event.failure.kind}`,
@@ -1069,14 +1111,15 @@ export async function startProjectedTerminalRenderer(
 					if (event.result.kind === 'completed') {
 						delete rootElement.dataset['projectedTerminalCopyFailure'];
 						status.setAttribute('role', 'status');
-						status.textContent = intl.formatMessage(projectedTerminalMessages.copyCompleted, {
-							byteLength: event.result.byteLength ?? 0,
-						});
+						const byteLength = event.result.byteLength ?? 0;
+						renderStatus = () =>
+							intl.formatMessage(projectedTerminalMessages.copyCompleted, { byteLength });
 					} else {
 						rootElement.dataset['projectedTerminalCopyFailure'] = event.result.code;
 						status.setAttribute('role', 'alert');
-						status.textContent = intl.formatMessage(projectedTerminalMessages.copyFailed);
+						renderStatus = () => intl.formatMessage(projectedTerminalMessages.copyFailed);
 					}
+					status.textContent = renderStatus();
 					status.hidden = false;
 				}),
 			);
@@ -1321,6 +1364,7 @@ export async function startProjectedTerminalRenderer(
 		}
 		rootElement.appendChild(findRoot);
 		findSurface = dependencies.mountFindSurface({
+			...(applicationLocaleSource === undefined ? {} : { applicationLocaleSource }),
 			controller: findController,
 			locale,
 			onNext: () => {
@@ -1344,6 +1388,7 @@ export async function startProjectedTerminalRenderer(
 		});
 		rootElement.appendChild(textViewerRoot);
 		textViewer = dependencies.mountTextViewer({
+			...(applicationLocaleSource === undefined ? {} : { applicationLocaleSource }),
 			controller: textViewerController,
 			locale,
 			onCopy: (source) => {

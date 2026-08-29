@@ -4,10 +4,11 @@
 	"kind": "business",
 	"status": "canonical",
 	"name": "Terminal Settings Surface",
-	"description": "Owns the grouped Settings information architecture, global category-and-setting discovery, explicit Desktop-local Agent-integration, shell-profile and scrollback-default management, an explicitly noninteractive future terminal-settings catalog, client-local application appearance, terminal typography, padding, copy-on-select, terminal display and macOS Option-as-Alt preferences, frequent keyboard-shortcut discovery and overrides, automatic Desktop Shell-integration scope, manual fallback guidance and completion-reminder policy, a read-only remote-shell diagnostic, and an ephemeral Ghostty configuration migration report without unmounting the Workbench or projected terminal attachments.",
+	"description": "Owns the grouped Settings information architecture, global category-and-setting discovery, explicit English or Simplified-Chinese display-language selection, Desktop-local Agent-integration, shell-profile and scrollback-default management, an explicitly noninteractive future terminal-settings catalog, client-local application appearance, terminal typography, padding, copy-on-select, terminal display and macOS Option-as-Alt preferences, frequent keyboard-shortcut discovery and overrides, automatic Desktop Shell-integration scope, manual fallback guidance and completion-reminder policy, a read-only remote-shell diagnostic, and an ephemeral Ghostty configuration migration report without unmounting the Workbench or projected terminal attachments.",
 	"owner": "@orchbee/web",
 	"visibility": "private",
 	"intents": [
+		"choose-application-display-language",
 		"configure-application-appearance",
 		"configure-terminal-display",
 		"configure-terminal-interaction",
@@ -23,8 +24,10 @@
 		"search-terminal-settings"
 	],
 	"implementation": [
+		"apps/web/src/application-locale/model/ApplicationLocaleController.ts",
 		"apps/web/src/terminal-settings-surface/TerminalSettingsSurface.tsx",
 		"apps/web/src/terminal-settings-surface/components/agent-integration-settings/AgentIntegrationSettings.tsx",
+		"apps/web/src/terminal-settings-surface/components/application-language-settings/ApplicationLanguageSettings.tsx",
 		"apps/web/src/terminal-settings-surface/components/ghostty-migration-settings/GhosttyMigrationSettings.tsx",
 		"apps/web/src/terminal-settings-surface/components/keyboard-shortcut-settings/KeyboardShortcutSettings.tsx",
 		"apps/web/src/terminal-settings-surface/components/macos-terminal-input-settings/MacosTerminalInputSettings.tsx",
@@ -56,7 +59,7 @@
 			"file": "apps/web/stories/terminal-settings-surface.stories.tsx",
 			"id": "applications-web-terminal-settings-surface--english-light",
 			"states": [
-				"Inspect the light English Desktop surface with five labeled navigation groups, focused search, borderless neutral setting groups, stable section and row rhythm, compact right-aligned immediate controls, and explicitly disabled Planned rows. Inspect terminal padding, regular and bold weights, ligatures, copy-on-select, and the Desktop scrollback default with its future-terminal notice. Open Profiles to inspect local launch selection, literal ordered arguments, the future-terminal boundary, and confirmed destructive actions. Type font to inspect global Text results while General remains complete, then activate Terminal font family to restore the rail and reveal its row.",
+				"Inspect the light English Desktop surface with five labeled navigation groups, focused search, borderless neutral setting groups, stable section and row rhythm, compact right-aligned immediate controls, and explicitly disabled Planned rows. Switch Display language to Simplified Chinese and back to verify immediate mounted-copy replacement and explicit persistence, then inspect terminal padding, regular and bold weights, ligatures, copy-on-select, and the Desktop scrollback default with its future-terminal notice. Open Profiles to inspect local launch selection, literal ordered arguments, the future-terminal boundary, and confirmed destructive actions. Type language or font to inspect the available General or Text result without a Planned duplicate while the current page remains complete, then activate a setting to restore the rail and reveal its row.",
 				"Open Keyboard shortcuts to inspect localized text filtering, current Apple chord aliases, a zero-result state, polite result counts, and Record keys as an exact lookup that never edits or persists a binding.",
 				"Open Agent integrations to inspect the ten Agent-labeled local adapter states, the explicit no-auto-install disclosure, privacy boundary, refresh and snapshot-controlled enablement switches, conflict-safe failures, and manual-only remote-host explanation.",
 				"Open Shell integration to inspect automatic Desktop scope, exact manual-fallback Zsh, Bash, and Fish source commands, the Bash 4.4 boundary, completion-reminder policy, explicit notification-permission control, and reset.",
@@ -76,6 +79,7 @@
 	],
 	"uses": [],
 	"useWhen": [
+		"A user explicitly chooses English or Simplified Chinese after automatic system or Browser locale resolution.",
 		"A client changes local Orchbee appearance, terminal font, font weights, ligatures, padding, copy-on-select, effective default terminal colors, or default-background opacity.",
 		"A user searches all available Settings categories and rows without first knowing their owning category.",
 		"A product contributor needs the stable category and section destination for a future terminal preference before implementing its behavior.",
@@ -96,6 +100,7 @@
 	],
 	"invariants": [
 		"Opening Settings keeps the Workbench and projected terminal attachments mounted while the Workbench subtree is inert.",
+		"A missing valid language record uses ordered system or Browser locale resolution without writing a default; either explicit language selection persists and immediately takes precedence for mounted product copy, while user data and existing shared titles remain unchanged.",
 		"An empty search shows grouped categories; a non-empty search replaces only the rail with globally ranked category and setting results while the current content page remains complete and preferences remain unchanged.",
 		"Search activation clears the query, restores grouped navigation, selects the owning category, and reveals the stable category or setting target; Arrow keys and Enter operate the same result projection, while Escape clears search before it can close Settings.",
 		"Application theme, terminal display theme, overlays, cursor presentation, and every mounted projected terminal publish through one exact Host-theme-revision barrier; data-theme changes only after all participants synchronously commit.",

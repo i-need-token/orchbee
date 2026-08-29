@@ -2315,6 +2315,65 @@
 				"Suspend",
 				"Resume"
 			]
+		},
+		{
+			"id": "workbench-standalone-terminal-activation",
+			"owner": "@orchbee/workbench",
+			"workspace": "packages/workbench",
+			"module": "packages/workbench/formal/tla/WorkbenchStandaloneTerminalActivation.tla",
+			"config": "packages/workbench/formal/tla/WorkbenchStandaloneTerminalActivation.cfg",
+			"claims": ["packages/workbench/README.md"],
+			"triggers": [
+				"packages/workbench/src/workbench/model/workbench-standalone-terminal-activation.ts",
+				"packages/workbench/src/workbench/model/__tests__/workbench-standalone-terminal-activation.unit.test.ts",
+				"packages/workbench/src/workbench/hooks/useWorkbenchStandaloneTerminalActivation.ts",
+				"packages/workbench/src/workbench/hooks/__tests__/useWorkbenchStandaloneTerminalActivation.unit.test.ts",
+				"packages/workbench/src/workbench/hooks/useWorkbench.ts",
+				"packages/workbench/src/workbench/components/workbench-sidebar/WorkbenchSidebar.tsx",
+				"packages/workbench/src/workbench/__tests__/WorkbenchProjectWorkspace.unit.test.tsx",
+				"packages/workbench/stories/workbench.stories.tsx",
+				"packages/workbench/README.md",
+				"packages/workbench/README.zh-CN.md"
+			],
+			"requiredCoverage": [
+				"Mount",
+				"PointerActivate",
+				"NonPointerActivate",
+				"SettleAccepted",
+				"SettleRejected",
+				"RejectStaleSettlement",
+				"ObserveOrigin",
+				"ObserveUnavailable",
+				"ObserveReady",
+				"ObserveSuperseded",
+				"Focus",
+				"Dispose"
+			]
+		},
+		{
+			"id": "workspace-creation-activation",
+			"owner": "@orchbee/workbench",
+			"workspace": "packages/workbench",
+			"module": "packages/workbench/formal/tla/WorkspaceCreationActivation.tla",
+			"config": "packages/workbench/formal/tla/WorkspaceCreationActivation.cfg",
+			"claims": ["packages/workbench/README.md", "packages/workbench/docs/project-workspace.md"],
+			"triggers": [
+				"packages/workbench/src/workbench/components/workbench-sidebar/**",
+				"packages/workbench/README.md",
+				"packages/workbench/README.zh-CN.md",
+				"packages/workbench/docs/project-workspace.md",
+				"packages/workbench/docs/project-workspace.zh-CN.md"
+			],
+			"requiredCoverage": [
+				"Mount",
+				"Request",
+				"RepeatRequest",
+				"Publish",
+				"IgnoreAbsentResult",
+				"ObserveWaiting",
+				"ObserveActivate",
+				"Dispose"
+			]
 		}
 	]
 }

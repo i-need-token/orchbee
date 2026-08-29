@@ -28,6 +28,7 @@ if (window.location.pathname === BROWSER_AUTHENTICATION_LOGIN_PATH) {
 		rootElement,
 		document.documentElement,
 		navigator.languages,
+		window.localStorage,
 	);
 	window.addEventListener('unload', () => session.dispose(), { once: true });
 } else if (runtimeMode === 'browser') {

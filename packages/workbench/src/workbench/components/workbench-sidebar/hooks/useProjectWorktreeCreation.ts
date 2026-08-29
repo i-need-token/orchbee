@@ -22,6 +22,7 @@ interface ProjectWorktreeDialogState {
 interface UseProjectWorktreeCreationOptions {
 	readonly capability: WorkbenchProjectWorktreeCapability | undefined;
 	readonly projectWorkspaceState: ProjectWorkspaceState;
+	readonly requestWorkspaceActivation: (projectId: string, workspaceId: string) => void;
 }
 
 interface ProjectWorktreeCreationView {
@@ -38,6 +39,7 @@ interface ProjectWorktreeCreationView {
 export function useProjectWorktreeCreation({
 	capability,
 	projectWorkspaceState,
+	requestWorkspaceActivation,
 }: UseProjectWorktreeCreationOptions): ProjectWorktreeCreationView {
 	const requestGeneration = React.useRef(0);
 	const [dialog, setDialog] = React.useState<ProjectWorktreeDialogState | null>(null);
@@ -125,7 +127,11 @@ export function useProjectWorktreeCreation({
 			.catch(() => ({ code: 'control-unavailable' as const, kind: 'failed' as const }))
 			.then((result) => {
 				if (result.kind === 'created') {
-					if (requestGeneration.current === generation) close();
+					if (requestGeneration.current !== generation) return;
+					close();
+					if (result.workspaceId !== null) {
+						requestWorkspaceActivation(submitted.projectId, result.workspaceId);
+					}
 					return;
 				}
 				if (requestGeneration.current !== generation) return;

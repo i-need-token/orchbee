@@ -7,6 +7,15 @@ export const zhCNTerminalSettingsMessages = {
 	'terminal.settings.applicationTheme.description': '选择 Orchbee 的浅色或深色外观。',
 	'terminal.settings.applicationTheme.label': '应用主题',
 	'terminal.settings.applicationTheme.light': '浅色',
+	'terminal.settings.language.automaticFallbackNotice':
+		'在你于此处选择之前，Orchbee 会使用系统或浏览器语言。你的选择会保存在此设备上。',
+	'terminal.settings.language.english': 'English',
+	'terminal.settings.language.simplifiedChinese': '简体中文',
+	'terminal.settings.localePersistence.invalidWarning':
+		'保存的显示语言无效，目前使用系统或浏览器语言；请选择一种语言以替换该记录。',
+	'terminal.settings.localePersistence.readWarning':
+		'无法读取保存的显示语言，目前使用系统或浏览器语言；请选择一种语言以重试保存。',
+	'terminal.settings.localePersistence.writeWarning': '显示语言已在本次会话中生效，但无法保存。',
 	'terminal.settings.appearance.terminalPadding.description':
 		'在终端文本四周添加相同的 CSS 像素间距；现有终端会立即更新。',
 	'terminal.settings.appearance.terminalPadding.invalid':
@@ -226,6 +235,7 @@ export const zhCNTerminalSettingsMessages = {
 	'terminal.settings.shellIntegration.title': 'Shell 集成',
 	'terminal.settings.shellIntegration.zsh.title': 'Zsh',
 	'terminal.settings.sections.applicationAppearance': '应用外观',
+	'terminal.settings.sections.language': '语言',
 	'terminal.settings.sections.terminalClipboard': '选择与剪贴板',
 	'terminal.settings.sections.terminalColors': '终端颜色',
 	'terminal.settings.sections.terminalHistory': '历史记录',

@@ -15,6 +15,7 @@ import type { MacosTerminalInputSettingsController } from '../../macos-terminal-
 import type { DesktopTerminalLaunchProfileControl } from '../../terminal-launch-profile-control';
 import type { DesktopTerminalDefaultSettingsControl } from '../../terminal-default-settings-control';
 import type { TerminalInteractionSettingsController } from '../../terminal-interaction-settings';
+import type { ApplicationLocaleController } from '../../application-locale';
 
 export type TerminalSettingsCategory =
 	| 'agent-integrations'
@@ -130,6 +131,9 @@ export interface TerminalSettingsSurfaceMessages {
 	readonly keyboardShortcutsCategory: string;
 	readonly keyboardShortcutsDescription: string;
 	readonly keyboardShortcutsTitle: string;
+	readonly localePersistenceInvalidWarning: string;
+	readonly localePersistenceReadWarning: string;
+	readonly localePersistenceWriteWarning: string;
 	readonly macosInputCategory: string;
 	readonly macosInputDescription: string;
 	readonly macosInputTitle: string;
@@ -187,6 +191,7 @@ export interface TerminalSettingsSurfaceMessages {
 export interface UseTerminalSettingsSurfaceOptions {
 	readonly agentIntegrationManagementControl?: AgentIntegrationManagementControl | undefined;
 	readonly agentIntegrationReminderController?: AgentIntegrationReminderController | undefined;
+	readonly applicationLocaleController: ApplicationLocaleController;
 	readonly controller: TerminalSettingsController;
 	readonly keyboardShortcutController: KeyboardShortcutSettingsController;
 	readonly keyboardShortcutPlatform: KeyboardShortcutPlatform;
@@ -228,6 +233,7 @@ export interface TerminalSettingsSurfaceView {
 	readonly foregroundVisible: boolean;
 	readonly inputReference: React.RefObject<HTMLInputElement | null>;
 	readonly macosInputVisible: boolean;
+	readonly localePersistenceWarning: string | null;
 	readonly messages: TerminalSettingsSurfaceMessages;
 	readonly navigationGroups: readonly TerminalSettingsNavigationGroupView[];
 	readonly onApplicationThemeChange: React.ChangeEventHandler<HTMLSelectElement>;

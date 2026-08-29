@@ -2,7 +2,20 @@ import type { KeyboardShortcutPlatform } from '@orchbee/keyboard-shortcuts';
 import { Button, Input, ProductIcon } from '@orchbee/ui/components';
 import * as React from 'react';
 
+import type {
+	AgentIntegrationManagementControl,
+	AgentIntegrationReminderController,
+} from '../agent-integration-management';
+import type { ApplicationLocaleController } from '../application-locale';
+import type { KeyboardShortcutSettingsController } from '../keyboard-shortcuts';
+import type { MacosTerminalInputSettingsController } from '../macos-terminal-input-settings';
+import type { DesktopTerminalDefaultSettingsControl } from '../terminal-default-settings-control';
+import type { TerminalFeedbackSettingsController } from '../terminal-feedback-settings';
+import type { TerminalInteractionSettingsController } from '../terminal-interaction-settings';
+import type { DesktopTerminalLaunchProfileControl } from '../terminal-launch-profile-control';
+import type { TerminalSettingsController } from '../terminal-settings';
 import { AgentIntegrationSettings } from './components/agent-integration-settings/AgentIntegrationSettings';
+import { ApplicationLanguageSettings } from './components/application-language-settings/ApplicationLanguageSettings';
 import { GhosttyMigrationSettings } from './components/ghostty-migration-settings/GhosttyMigrationSettings';
 import { KeyboardShortcutSettings } from './components/keyboard-shortcut-settings/KeyboardShortcutSettings';
 import { MacosTerminalInputSettings } from './components/macos-terminal-input-settings/MacosTerminalInputSettings';
@@ -13,22 +26,12 @@ import { TerminalSettingsSections } from './components/terminal-settings-section
 import { TerminalLaunchProfileSettings } from './components/terminal-launch-profile-settings/TerminalLaunchProfileSettings';
 import { useTerminalSettingsSurface } from './hooks/useTerminalSettingsSurface';
 import type { TerminalSettingsCategory } from './types/terminal-settings-surface';
-import type { TerminalSettingsController } from '../terminal-settings';
-import type { TerminalInteractionSettingsController } from '../terminal-interaction-settings';
-import type { KeyboardShortcutSettingsController } from '../keyboard-shortcuts';
-import type {
-	AgentIntegrationManagementControl,
-	AgentIntegrationReminderController,
-} from '../agent-integration-management';
-import type { TerminalFeedbackSettingsController } from '../terminal-feedback-settings';
-import type { MacosTerminalInputSettingsController } from '../macos-terminal-input-settings';
-import type { DesktopTerminalLaunchProfileControl } from '../terminal-launch-profile-control';
-import type { DesktopTerminalDefaultSettingsControl } from '../terminal-default-settings-control';
 import styles from './TerminalSettingsSurface.module.css';
 
 export interface TerminalSettingsSurfaceProps {
 	readonly agentIntegrationManagementControl?: AgentIntegrationManagementControl | undefined;
 	readonly agentIntegrationReminderController?: AgentIntegrationReminderController | undefined;
+	readonly applicationLocaleController: ApplicationLocaleController;
 	readonly controller: TerminalSettingsController;
 	readonly keyboardShortcutController: KeyboardShortcutSettingsController;
 	readonly keyboardShortcutPlatform: KeyboardShortcutPlatform;
@@ -114,7 +117,11 @@ export function TerminalSettingsSurface(props: TerminalSettingsSurfaceProps): Re
 		);
 		mainContent = (
 			<div className={styles['settingsStack']}>
-				{view.category === 'general' ? null : actualSettings}
+				{view.category === 'general' ? (
+					<ApplicationLanguageSettings controller={props.applicationLocaleController} />
+				) : (
+					actualSettings
+				)}
 				<PlannedTerminalSettings notice={view.plannedNotice} sections={view.plannedSections} />
 				{view.category === 'general' ? actualSettings : null}
 			</div>
@@ -266,6 +273,11 @@ export function TerminalSettingsSurface(props: TerminalSettingsSurfaceProps): Re
 					{!appearancePreferenceCategory || view.persistenceWarning === null ? null : (
 						<div className={styles['warning']} role='alert'>
 							{view.persistenceWarning}
+						</div>
+					)}
+					{view.category !== 'general' || view.localePersistenceWarning === null ? null : (
+						<div className={styles['warning']} role='alert'>
+							{view.localePersistenceWarning}
 						</div>
 					)}
 					{view.category !== 'terminal' || view.terminalDefaultSettingsWarning === null ? null : (

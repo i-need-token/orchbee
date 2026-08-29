@@ -13,6 +13,7 @@ import { createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 
 import { createWebApplicationRouting, type WebApplicationRouting } from '../../application-routing';
+import { ApplicationLocaleController } from '../../application-locale';
 import { AgentIntegrationReminderController } from '../../agent-integration-management';
 import { KeyboardShortcutSettingsController } from '../../keyboard-shortcuts';
 import { MacosTerminalInputSettingsController } from '../../macos-terminal-input-settings';
@@ -93,6 +94,11 @@ export function startDesktopWorkbenchRenderer(
 		throw new Error('The Orchbee Desktop application root element is missing.');
 	}
 	const applicationRoot = rootElement;
+	const applicationLocaleController = new ApplicationLocaleController({
+		documentElement,
+		preferredLocales,
+		storage: storage.preferences,
+	});
 	const clientSession = new DesktopClientSessionClient(clientSessionPort, bootstrap);
 	const agentIntegrationManagementClient = new DesktopAgentIntegrationManagementClient(
 		agentIntegrationManagementPort,
@@ -151,6 +157,7 @@ export function startDesktopWorkbenchRenderer(
 		storage: storage.preferences,
 	});
 	const runtime = createWorkbenchClientRuntime({
+		applicationLocaleSource: applicationLocaleController,
 		clientSession,
 		documentElement,
 		...(storage.focusRecovery === undefined ? {} : { focusRecoveryStorage: storage.focusRecovery }),
@@ -225,6 +232,7 @@ export function startDesktopWorkbenchRenderer(
 		terminalInteractionSettingsController.dispose();
 		terminalFeedbackSettingsController.dispose();
 		macosTerminalInputSettingsController?.dispose();
+		applicationLocaleController.dispose();
 		if (lifetimeClient === undefined) lifetimePort.close();
 		else lifetimeClient.dispose();
 	};
@@ -282,11 +290,13 @@ export function startDesktopWorkbenchRenderer(
 			workbenchClientRuntime.documentCoordinator,
 			lifetimeClient,
 		);
-		const initialTerminalTitle = createOrchbeeIntl(workbenchClientRuntime.locale).formatMessage(
-			workbenchTabMessages.terminalTitle,
-		);
+		const getInitialTerminalTitle = (): string =>
+			createOrchbeeIntl(applicationLocaleController.current()).formatMessage(
+				workbenchTabMessages.terminalTitle,
+			);
 		const nextRouting = createWebApplicationRouting({
 			actionRuntime: workbenchClientRuntime.actionRuntime,
+			applicationLocaleController,
 			...(agentIntegrationManagementStart.kind === 'ready'
 				? {
 						agentIntegrationManagementControl: agentIntegrationManagementClient,
@@ -296,7 +306,7 @@ export function startDesktopWorkbenchRenderer(
 			...(agentObservationStart.kind === 'ready'
 				? { agentObservationSource: agentObservationClient }
 				: {}),
-			initialTerminalTitle,
+			getInitialTerminalTitle,
 			environmentProjectConnection: sshProjectEnrollmentController,
 			keyboardShortcutSettingsController,
 			layoutStorage: storage.preferences,
@@ -356,13 +366,13 @@ export function startDesktopWorkbenchRenderer(
 		reactRoot.render(
 			createElement(DesktopWorkbench, {
 				applicationLifetimeCoordinator,
+				applicationLocaleSource: applicationLocaleController,
 				browserAccessFinalFocus: () => {
 					const returnFocus = browserAccessReturnFocus;
 					browserAccessReturnFocus = null;
 					return returnFocus?.isConnected === true ? returnFocus : null;
 				},
 				browserAccessController,
-				locale: workbenchClientRuntime.locale,
 				router: nextRouting.router,
 				sshProjectEnrollmentController,
 				terminalSurfaceCapability: workbenchClientRuntime.terminalSurfaceCapability,

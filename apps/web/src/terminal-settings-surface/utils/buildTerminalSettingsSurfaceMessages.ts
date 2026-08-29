@@ -70,6 +70,15 @@ export function buildTerminalSettingsSurfaceMessages(
 		keyboardShortcutsCategory: formatMessage(keyboardShortcutMessages.category),
 		keyboardShortcutsDescription: formatMessage(keyboardShortcutMessages.description),
 		keyboardShortcutsTitle: formatMessage(keyboardShortcutMessages.title),
+		localePersistenceInvalidWarning: formatMessage(
+			terminalSettingsMessages.localePersistenceInvalidWarning,
+		),
+		localePersistenceReadWarning: formatMessage(
+			terminalSettingsMessages.localePersistenceReadWarning,
+		),
+		localePersistenceWriteWarning: formatMessage(
+			terminalSettingsMessages.localePersistenceWriteWarning,
+		),
 		macosInputCategory: formatMessage(terminalSettingsMessages.macosInputCategory),
 		macosInputDescription: formatMessage(terminalSettingsMessages.macosInputDescription),
 		macosInputTitle: formatMessage(terminalSettingsMessages.macosInputTitle),

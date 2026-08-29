@@ -1,0 +1,19 @@
+.control {
+	display: flex;
+	width: 100%;
+	min-width: var(--ob-ref-space-0);
+	flex-direction: column;
+	align-items: stretch;
+	gap: var(--ob-ref-space-1);
+}
+
+.select,
+.select > :global([data-slot='native-select']) {
+	width: 100%;
+}
+
+.notice {
+	color: var(--ob-sys-color-text-muted);
+	font: var(--ob-sys-typography-label-sm);
+	text-align: start;
+}

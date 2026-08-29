@@ -100,9 +100,9 @@ describe('startGatewayWebApplication', () => {
 		const runtimeDispose = vi.fn<() => void>();
 		const runtime = {
 			actionRuntime: {},
+			applicationLocaleSource: {},
 			dispose: runtimeDispose,
 			documentCoordinator: {},
-			locale: 'en-US',
 			projectWorkspaceRuntime: {},
 			ready: Promise.resolve({ kind: 'ready' as const }),
 			terminalSurfaceCapability: {},
@@ -182,11 +182,13 @@ describe('startGatewayWebApplication', () => {
 		});
 		expect(createRouting).toHaveBeenCalledWith(
 			expect.objectContaining({
-				initialTerminalTitle: 'Terminal',
+				getInitialTerminalTitle: expect.any(Function),
 				terminalSettingsController: configurationSource,
 			}),
 			expect.any(Object),
 		);
+		const routingInput = createRouting.mock.calls[0]?.[0];
+		expect(routingInput?.getInitialTerminalTitle()).toBe('Terminal');
 		expect(render).toHaveBeenCalledOnce();
 		session.dispose();
 		expect(routingDispose).toHaveBeenCalledOnce();

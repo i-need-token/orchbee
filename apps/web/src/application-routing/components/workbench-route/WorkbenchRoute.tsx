@@ -11,6 +11,7 @@ export function WorkbenchRoute(): ReactNode {
 			agentIntegrationManagementControl={application.agentIntegrationManagementControl}
 			agentIntegrationReminderController={application.agentIntegrationReminderController}
 			agentObservationSource={application.agentObservationSource}
+			applicationLocaleController={application.applicationLocaleController}
 			environmentProjectConnection={application.environmentProjectConnection}
 			keyboardShortcutSettingsController={application.keyboardShortcutSettingsController}
 			layoutStorage={application.layoutStorage}

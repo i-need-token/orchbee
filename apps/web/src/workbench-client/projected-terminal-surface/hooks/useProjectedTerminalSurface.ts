@@ -335,6 +335,7 @@ export function useProjectedTerminalSurface(
 							current?.presentationId === presentation.presentationId ? null : current,
 						);
 					},
+					capability.applicationLocaleSource,
 				);
 			},
 		});

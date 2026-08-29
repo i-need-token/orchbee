@@ -7,6 +7,7 @@ import {
 	useKeyboardShortcutSettings,
 	type KeyboardShortcutId,
 } from '../../keyboard-shortcuts';
+import { useApplicationLocale } from '../../application-locale';
 import { useTerminalInteractionSettings } from '../../terminal-interaction-settings';
 import type { DesktopTerminalDefaultSettingsClientSnapshot } from '../../terminal-default-settings-control';
 import { normalizeTerminalHexColor, useTerminalSettings } from '../../terminal-settings';
@@ -30,7 +31,11 @@ import {
 	parseTerminalPadding,
 } from '../utils/terminal-settings-draft-parsing';
 
-const DESKTOP_TERMINAL_DEFAULT_SETTING_IDS: ReadonlySet<string> = new Set(['terminal.scrollback']);
+const APPLICATION_SETTING_IDS: ReadonlySet<string> = new Set(['general.language']);
+const APPLICATION_AND_DESKTOP_TERMINAL_DEFAULT_SETTING_IDS: ReadonlySet<string> = new Set([
+	'general.language',
+	'terminal.scrollback',
+]);
 const UNAVAILABLE_TERMINAL_DEFAULT_SETTINGS_SNAPSHOT: DesktopTerminalDefaultSettingsClientSnapshot =
 	{
 		configuration: { scrollbackBytes: 10_000_000 },
@@ -42,6 +47,7 @@ const UNAVAILABLE_TERMINAL_DEFAULT_SETTINGS_SNAPSHOT: DesktopTerminalDefaultSett
 
 export function useTerminalSettingsSurface({
 	agentIntegrationManagementControl,
+	applicationLocaleController,
 	controller,
 	keyboardShortcutController,
 	keyboardShortcutPlatform,
@@ -55,6 +61,7 @@ export function useTerminalSettingsSurface({
 	terminalLaunchProfileClient,
 }: UseTerminalSettingsSurfaceOptions): TerminalSettingsSurfaceView {
 	const intl = useOrchbeeIntl();
+	const applicationLocaleSnapshot = useApplicationLocale(applicationLocaleController);
 	const snapshot = useTerminalSettings(controller);
 	const interactionSnapshot = useTerminalInteractionSettings(terminalInteractionSettingsController);
 	const unavailableTerminalDefaultSettingsSource = React.useMemo(
@@ -169,9 +176,9 @@ export function useTerminalSettingsSurface({
 	const plannedSections = resolvePlannedTerminalSettings({
 		category,
 		formatMessage: (descriptor) => intl.formatMessage(descriptor),
-		...(scrollbackBytesVisible
-			? { implementedSettingIds: DESKTOP_TERMINAL_DEFAULT_SETTING_IDS }
-			: {}),
+		implementedSettingIds: scrollbackBytesVisible
+			? APPLICATION_AND_DESKTOP_TERMINAL_DEFAULT_SETTING_IDS
+			: APPLICATION_SETTING_IDS,
 	});
 	const navigationGroups = TERMINAL_SETTINGS_NAVIGATION_GROUPS.map((group) => ({
 		id: group.id,
@@ -313,6 +320,20 @@ export function useTerminalSettingsSurface({
 			persistenceWarning = messages.persistenceWriteWarning;
 			break;
 	}
+	let localePersistenceWarning: string | null = null;
+	switch (applicationLocaleSnapshot.persistenceIssue) {
+		case 'invalid-record':
+			localePersistenceWarning = messages.localePersistenceInvalidWarning;
+			break;
+		case 'read-failed':
+			localePersistenceWarning = messages.localePersistenceReadWarning;
+			break;
+		case 'write-failed':
+			localePersistenceWarning = messages.localePersistenceWriteWarning;
+			break;
+		case null:
+			break;
+	}
 	let terminalDefaultSettingsWarning: string | null = null;
 	if (terminalDefaultSettingsControl !== undefined) {
 		switch (terminalDefaultSettingsSnapshot.failureCode) {
@@ -367,6 +388,7 @@ export function useTerminalSettingsSurface({
 		foregroundInvalid,
 		foregroundVisible,
 		inputReference,
+		localePersistenceWarning,
 		macosInputVisible,
 		messages,
 		navigationGroups,

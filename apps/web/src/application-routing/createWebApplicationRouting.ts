@@ -122,14 +122,14 @@ const routeTree = webApplicationRootRoute.addChildren([
 ]);
 
 interface WebApplicationRoutingInput extends Omit<WebApplicationProps, 'navigation'> {
-	readonly initialTerminalTitle: string;
+	readonly getInitialTerminalTitle: () => string;
 }
 
 const createWebApplicationRoutingImplementation = (
 	input: WebApplicationRoutingInput,
 	history?: RouterHistory | undefined,
 ) => {
-	const { initialTerminalTitle, ...application } = input;
+	const { getInitialTerminalTitle, ...application } = input;
 	let routeHistory: RouterHistory | undefined = history;
 	const coordinator = new WorkbenchRouteCoordinator(
 		application.projectWorkspaceRuntime,
@@ -139,7 +139,7 @@ const createWebApplicationRoutingImplementation = (
 			if (options.replace) routeHistory.replace(path);
 			else routeHistory.push(path);
 		},
-		initialTerminalTitle,
+		getInitialTerminalTitle,
 	);
 	const router = createRouter({
 		context: { application, coordinator },

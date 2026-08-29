@@ -1,0 +1,1 @@
+export { ApplicationLocaleProvider } from './ApplicationLocaleProvider';

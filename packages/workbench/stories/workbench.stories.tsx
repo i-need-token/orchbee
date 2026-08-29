@@ -15,7 +15,7 @@ import type {
 	WorkbenchTerminalPresentationCommand,
 	WorkbenchTerminalSurfaceProps,
 } from '@orchbee/workbench';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { Meta, StoryObj } from 'storybook-react-rsbuild';
 
 const meta = {
@@ -226,6 +226,43 @@ function BroadcastStoryTerminalSurface({
 	);
 }
 
+function FocusStoryTerminalSurface({
+	autoFocus,
+	focusRequest,
+	onPresentationReady,
+	presentation,
+	presentationMode,
+}: WorkbenchTerminalSurfaceProps) {
+	const inputReference = useRef<HTMLTextAreaElement>(null);
+	useLayoutEffect(() => {
+		if (presentationMode !== 'incoming') return;
+		onPresentationReady('display-ready');
+		onPresentationReady('activation-ready');
+	}, [onPresentationReady, presentationMode]);
+	useEffect(() => {
+		if (autoFocus || focusRequest > 0) inputReference.current?.focus();
+	}, [autoFocus, focusRequest, presentation.presentationId]);
+	return (
+		<textarea
+			aria-label={`Terminal input: ${presentation.title}`}
+			data-slot='storybook-terminal-input'
+			ref={inputReference}
+			style={{
+				background: '#10151d',
+				border: 0,
+				color: '#cdd6e0',
+				fontFamily: 'monospace',
+				height: '100%',
+				padding: '1rem',
+				resize: 'none',
+				width: '100%',
+			}}
+			value={`${presentation.title}\n$ `}
+			readOnly
+		/>
+	);
+}
+
 const createRemoteProjectWorkspaceRuntime = () => {
 	const runtime = createProjectWorkspaceRuntime(['Terminal 1']);
 	runtime.transition({
@@ -399,6 +436,7 @@ export const ProjectWorkspaceNavigation: Story = {
 		onSettings: () => ({ kind: 'unchanged' }),
 		projectWorkspaceRuntime: createPopulatedProjectWorkspaceRuntime(),
 		shortcutPlatform: 'apple',
+		terminalSurface: FocusStoryTerminalSurface,
 	},
 	render: (arguments_) => (
 		<OrchbeeI18nProvider locale='en-US'>

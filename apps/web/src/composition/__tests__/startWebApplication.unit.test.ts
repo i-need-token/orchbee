@@ -48,6 +48,32 @@ describe('startWebApplication', () => {
 		expect(reactRootMocks.unmount).toHaveBeenCalledOnce();
 	});
 
+	it('restores an explicit locale preference instead of browser locale detection', () => {
+		const documentElement = { dataset: {}, dir: '', lang: '' };
+		const rootElement = {} as Element;
+		const layoutStorage = {
+			getItem: (key: string) =>
+				key === 'orchbee:web:application-locale:v1' ? JSON.stringify({ locale: 'en-US' }) : null,
+			setItem: vi.fn<(key: string, value: string) => void>(),
+		};
+
+		const session = startWebApplication(
+			rootElement,
+			documentElement,
+			['zh-CN'],
+			'apple',
+			layoutStorage,
+		);
+
+		expect(documentElement.lang).toBe('en-US');
+		expect(layoutStorage.setItem).not.toHaveBeenCalledWith(
+			'orchbee:web:application-locale:v1',
+			expect.any(String),
+		);
+
+		session.dispose();
+	});
+
 	it('rejects a missing application root before rendering', () => {
 		const documentElement = { dataset: {}, dir: '', lang: '' };
 		const layoutStorage = {

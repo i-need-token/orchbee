@@ -22,6 +22,7 @@ import type {
 	AgentIntegrationReminderController,
 } from '../agent-integration-management';
 import { AgentIntegrationReminder } from '../agent-integration-reminder';
+import type { ApplicationLocaleController } from '../application-locale';
 import {
 	type KeyboardShortcutSettingsController,
 	useKeyboardShortcutSettings,
@@ -42,6 +43,7 @@ import styles from './WebApplication.module.css';
 
 export interface WebApplicationProps {
 	readonly actionRuntime: ActionRuntime;
+	readonly applicationLocaleController: ApplicationLocaleController;
 	readonly agentIntegrationManagementControl?: AgentIntegrationManagementControl | undefined;
 	readonly agentIntegrationReminderController?: AgentIntegrationReminderController | undefined;
 	readonly agentObservationSource?: AgentSnapshotSource | undefined;
@@ -73,6 +75,7 @@ export interface WebApplicationProps {
 
 export function WebApplication({
 	actionRuntime,
+	applicationLocaleController,
 	agentIntegrationManagementControl,
 	agentIntegrationReminderController,
 	agentObservationSource,
@@ -167,6 +170,7 @@ export function WebApplication({
 			<TerminalSettingsSurface
 				agentIntegrationManagementControl={agentIntegrationManagementControl}
 				agentIntegrationReminderController={agentIntegrationReminderController}
+				applicationLocaleController={applicationLocaleController}
 				controller={terminalSettingsController}
 				terminalInteractionSettingsController={terminalInteractionSettingsController}
 				keyboardShortcutController={keyboardShortcutSettingsController}

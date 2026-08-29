@@ -4,6 +4,8 @@ import { TooltipProvider } from '@orchbee/ui/components';
 import { createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 
+import type { ApplicationLocaleSource } from '../../../application-locale';
+import { ApplicationLocaleProvider } from '../../../application-locale-provider';
 import { TerminalTextViewer } from '../TerminalTextViewer';
 import type {
 	TerminalTextViewerController,
@@ -11,6 +13,7 @@ import type {
 } from '../model/terminal-text-viewer-controller';
 
 export interface MountTerminalTextViewerOptions {
+	readonly applicationLocaleSource?: ApplicationLocaleSource | undefined;
 	readonly controller: TerminalTextViewerController;
 	readonly locale: OrchbeeLocale;
 	readonly onCopy: (source: TerminalTextViewerSource) => void;
@@ -24,6 +27,7 @@ export interface TerminalTextViewerMount {
 }
 
 export function mountTerminalTextViewer({
+	applicationLocaleSource,
 	controller,
 	locale,
 	onCopy,
@@ -32,21 +36,20 @@ export function mountTerminalTextViewer({
 	root,
 }: MountTerminalTextViewerOptions): TerminalTextViewerMount {
 	const reactRoot = createRoot(root);
+	const viewer = createElement(
+		TooltipProvider,
+		undefined,
+		createElement(TerminalTextViewer, {
+			controller,
+			onCopy,
+			platform,
+			restoreFocus,
+		}),
+	);
 	reactRoot.render(
-		createElement(
-			OrchbeeI18nProvider,
-			{ locale },
-			createElement(
-				TooltipProvider,
-				undefined,
-				createElement(TerminalTextViewer, {
-					controller,
-					onCopy,
-					platform,
-					restoreFocus,
-				}),
-			),
-		),
+		applicationLocaleSource === undefined
+			? createElement(OrchbeeI18nProvider, { locale }, viewer)
+			: createElement(ApplicationLocaleProvider, { source: applicationLocaleSource }, viewer),
 	);
 	return { dispose: () => reactRoot.unmount() };
 }

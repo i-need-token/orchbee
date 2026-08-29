@@ -10,6 +10,8 @@ import { createRoot } from 'react-dom/client';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { TerminalSettingsSurface } from '../TerminalSettingsSurface';
+import { ApplicationLocaleController } from '../../application-locale';
+import { ApplicationLocaleProvider } from '../../application-locale-provider';
 import { KeyboardShortcutSettingsController } from '../../keyboard-shortcuts';
 import { MacosTerminalInputSettingsController } from '../../macos-terminal-input-settings';
 import { TerminalInteractionSettingsController } from '../../terminal-interaction-settings';
@@ -71,6 +73,7 @@ describe('TerminalSettingsSurface', () => {
 					OrchbeeI18nProvider,
 					{ locale: 'en-US' },
 					createElement(TerminalSettingsSurface, {
+						applicationLocaleController: createApplicationLocaleController(),
 						controller,
 						keyboardShortcutController,
 						keyboardShortcutPlatform: 'apple',
@@ -100,7 +103,7 @@ describe('TerminalSettingsSurface', () => {
 		expect(container.textContent).toContain('Planned');
 		expect(container.querySelectorAll('[data-settings-group]')).toHaveLength(5);
 		const plannedControls = container.querySelectorAll('[data-planned-setting]');
-		expect(plannedControls).toHaveLength(8);
+		expect(plannedControls).toHaveLength(7);
 		for (const control of plannedControls) {
 			expect(control.querySelectorAll('button, input, select')).toHaveLength(1);
 			expect(control.querySelector('[disabled]')).not.toBeNull();
@@ -206,6 +209,71 @@ describe('TerminalSettingsSurface', () => {
 		keyboardShortcutController.dispose();
 	});
 
+	it('switches the mounted Settings copy and persists an explicit display language', async () => {
+		const container = document.createElement('div');
+		document.body.append(container);
+		const storage = memoryStorage();
+		const applicationLocaleController = new ApplicationLocaleController({
+			documentElement: document.documentElement,
+			preferredLocales: ['zh-CN'],
+			storage,
+		});
+		const controller = new TerminalSettingsController({
+			storage,
+			themeTarget: document.documentElement,
+		});
+		const keyboardShortcutController = new KeyboardShortcutSettingsController({
+			platform: 'apple',
+			storage,
+		});
+		controller.open();
+		const root = createRoot(container);
+
+		await act(async () => {
+			root.render(
+				createElement(
+					ApplicationLocaleProvider,
+					{ source: applicationLocaleController },
+					createElement(TerminalSettingsSurface, {
+						applicationLocaleController,
+						controller,
+						keyboardShortcutController,
+						keyboardShortcutPlatform: 'apple',
+						onRequestClose: () => undefined,
+					}),
+				),
+			);
+		});
+
+		const chineseSelect = requiredElement<HTMLSelectElement>(
+			container.querySelector("select[aria-label='显示语言']"),
+		);
+		expect(chineseSelect.value).toBe('zh-CN');
+		expect(chineseSelect.options).toHaveLength(2);
+		expect(storage.setItem).not.toHaveBeenCalled();
+		expect(container.querySelector('[data-setting-id="general.language"]')).not.toBeNull();
+		expect(container.querySelector('[data-planned-setting="general.language"]')).toBeNull();
+
+		await act(async () => {
+			setSelectValue(chineseSelect, 'en-US');
+			chineseSelect.dispatchEvent(new Event('change', { bubbles: true }));
+		});
+
+		expect(document.documentElement.lang).toBe('en-US');
+		expect(container.querySelector("select[aria-label='Display language']")).not.toBeNull();
+		expect(container.textContent).toContain('Settings');
+		expect(storage.setItem).toHaveBeenCalledWith(
+			'orchbee:web:application-locale:v1',
+			'{"locale":"en-US"}',
+		);
+
+		await act(async () => root.unmount());
+		container.remove();
+		applicationLocaleController.dispose();
+		controller.dispose();
+		keyboardShortcutController.dispose();
+	});
+
 	it('supports Cursor-style result selection, Enter activation, and layered Escape', async () => {
 		const container = document.createElement('div');
 		document.body.append(container);
@@ -227,6 +295,7 @@ describe('TerminalSettingsSurface', () => {
 					OrchbeeI18nProvider,
 					{ locale: 'en-US' },
 					createElement(TerminalSettingsSurface, {
+						applicationLocaleController: createApplicationLocaleController(),
 						controller,
 						keyboardShortcutController,
 						keyboardShortcutPlatform: 'apple',
@@ -319,6 +388,7 @@ describe('TerminalSettingsSurface', () => {
 					OrchbeeI18nProvider,
 					{ locale: 'en-US' },
 					createElement(TerminalSettingsSurface, {
+						applicationLocaleController: createApplicationLocaleController(),
 						controller,
 						keyboardShortcutController,
 						keyboardShortcutPlatform: 'apple',
@@ -418,6 +488,7 @@ describe('TerminalSettingsSurface', () => {
 					OrchbeeI18nProvider,
 					{ locale: 'en-US' },
 					createElement(TerminalSettingsSurface, {
+						applicationLocaleController: createApplicationLocaleController(),
 						controller,
 						keyboardShortcutController,
 						keyboardShortcutPlatform: 'apple',
@@ -503,6 +574,7 @@ describe('TerminalSettingsSurface', () => {
 					OrchbeeI18nProvider,
 					{ locale: 'en-US' },
 					createElement(TerminalSettingsSurface, {
+						applicationLocaleController: createApplicationLocaleController(),
 						controller,
 						keyboardShortcutController,
 						keyboardShortcutPlatform: 'apple',
@@ -556,6 +628,7 @@ describe('TerminalSettingsSurface', () => {
 					OrchbeeI18nProvider,
 					{ locale: 'en-US' },
 					createElement(TerminalSettingsSurface, {
+						applicationLocaleController: createApplicationLocaleController(),
 						controller,
 						keyboardShortcutController,
 						keyboardShortcutPlatform: 'apple',
@@ -625,6 +698,7 @@ describe('TerminalSettingsSurface', () => {
 					OrchbeeI18nProvider,
 					{ locale: 'en-US' },
 					createElement(TerminalSettingsSurface, {
+						applicationLocaleController: createApplicationLocaleController(),
 						controller,
 						keyboardShortcutController,
 						keyboardShortcutPlatform: 'standard',
@@ -794,6 +868,7 @@ describe('TerminalSettingsSurface', () => {
 					OrchbeeI18nProvider,
 					{ locale: 'en-US' },
 					createElement(TerminalSettingsSurface, {
+						applicationLocaleController: createApplicationLocaleController(),
 						controller,
 						keyboardShortcutController,
 						keyboardShortcutPlatform: 'apple',
@@ -890,6 +965,7 @@ describe('TerminalSettingsSurface', () => {
 					OrchbeeI18nProvider,
 					{ locale: 'en-US' },
 					createElement(TerminalSettingsSurface, {
+						applicationLocaleController: createApplicationLocaleController(),
 						controller,
 						keyboardShortcutController,
 						keyboardShortcutPlatform: 'apple',
@@ -955,6 +1031,7 @@ describe('TerminalSettingsSurface', () => {
 					OrchbeeI18nProvider,
 					{ locale: 'zh-CN' },
 					createElement(TerminalSettingsSurface, {
+						applicationLocaleController: createApplicationLocaleController(),
 						controller,
 						keyboardShortcutController,
 						keyboardShortcutPlatform: 'apple',
@@ -1021,6 +1098,14 @@ describe('TerminalSettingsSurface', () => {
 	});
 });
 
+function createApplicationLocaleController(): ApplicationLocaleController {
+	return new ApplicationLocaleController({
+		documentElement: document.documentElement,
+		preferredLocales: ['en-US'],
+		storage: memoryStorage(),
+	});
+}
+
 function memoryStorage(): {
 	readonly getItem: ReturnType<typeof vi.fn<TerminalAppearanceStorage['getItem']>>;
 	readonly setItem: ReturnType<typeof vi.fn<TerminalAppearanceStorage['setItem']>>;
@@ -1079,6 +1164,12 @@ function requiredElement<ElementType extends Element>(
 function setInputValue(input: HTMLInputElement, value: string): void {
 	const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
 	if (setter === undefined) throw new Error('The input value setter is unavailable.');
+	setter.call(input, value);
+}
+
+function setSelectValue(input: HTMLSelectElement, value: string): void {
+	const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set;
+	if (setter === undefined) throw new Error('The select value setter is unavailable.');
 	setter.call(input, value);
 }
 

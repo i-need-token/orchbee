@@ -1,11 +1,5 @@
 import { ActionRuntime } from '@orchbee/actions';
-import {
-	createOrchbeeIntl,
-	getOrchbeeTextDirection,
-	resolveOrchbeeLocale,
-	type OrchbeeLocale,
-	workbenchTabMessages,
-} from '@orchbee/i18n';
+import { createOrchbeeIntl, workbenchTabMessages } from '@orchbee/i18n';
 import {
 	DEFAULT_TERMINAL_INTERACTION_CONFIGURATION_SOURCE,
 	type ProjectedTerminalPresentationSnapshot,
@@ -25,6 +19,7 @@ import {
 import { workbenchSharedDocumentRevision } from '@orchbee/workbench/document';
 
 import { createBrowserRandomIdentifier } from '../../browser-random-identifier';
+import type { ApplicationLocaleSource } from '../../application-locale';
 import type { WorkbenchClientSessionClient } from '../client-session';
 import {
 	TerminalPresentationSnapshotCache,
@@ -54,8 +49,8 @@ import {
 
 export interface WorkbenchClientRuntime {
 	readonly actionRuntime: ActionRuntime;
+	readonly applicationLocaleSource: ApplicationLocaleSource;
 	readonly documentCoordinator: WorkbenchDocumentCoordinator;
-	readonly locale: OrchbeeLocale;
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
 	readonly ready: Promise<
 		{ readonly kind: 'ready' } | { readonly kind: 'unavailable'; readonly reason: string }
@@ -65,6 +60,7 @@ export interface WorkbenchClientRuntime {
 }
 
 export interface CreateWorkbenchClientRuntimeOptions {
+	readonly applicationLocaleSource: ApplicationLocaleSource;
 	readonly clientSession: WorkbenchClientSessionClient;
 	readonly documentElement: Pick<HTMLElement, 'dir' | 'lang'>;
 	readonly focusRecoveryStorage?: WorkbenchFocusRecoveryStorage;
@@ -81,6 +77,7 @@ export interface CreateWorkbenchClientRuntimeOptions {
 }
 
 export function createWorkbenchClientRuntime({
+	applicationLocaleSource,
 	clientSession,
 	documentElement,
 	focusRecoveryStorage,
@@ -96,10 +93,7 @@ export function createWorkbenchClientRuntime({
 	terminalPresentationConfigurationSource = DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION_SOURCE,
 }: CreateWorkbenchClientRuntimeOptions): WorkbenchClientRuntime {
 	const bootstrap = clientSession.bootstrap;
-	const locale = resolveOrchbeeLocale(preferredLocales);
-	const intl = createOrchbeeIntl(locale);
-	documentElement.lang = locale;
-	documentElement.dir = getOrchbeeTextDirection(locale);
+	const intl = createOrchbeeIntl(applicationLocaleSource.current());
 	const initialDocument =
 		bootstrap.documentState.kind === 'available'
 			? bootstrap.documentState.document
@@ -203,6 +197,7 @@ export function createWorkbenchClientRuntime({
 	});
 	let disposed = false;
 	const terminalSurfaceCapability: ProjectedTerminalSurfaceCapability = {
+		applicationLocaleSource,
 		documentElement,
 		preferredLocales,
 		platformEffects: terminalPlatformEffects,
@@ -252,9 +247,9 @@ export function createWorkbenchClientRuntime({
 
 	return {
 		actionRuntime,
+		applicationLocaleSource,
 		dispose,
 		documentCoordinator,
-		locale,
 		projectWorkspaceRuntime,
 		ready,
 		terminalSurfaceCapability,

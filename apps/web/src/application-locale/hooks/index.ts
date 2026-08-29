@@ -1,0 +1,1 @@
+export { useApplicationLocale } from './useApplicationLocale';

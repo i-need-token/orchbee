@@ -22,6 +22,7 @@ vi.mock('react-dom/client', () => ({ createRoot: reactRootMocks.createRoot }));
 describe('startBrowserAuthenticationApplication', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+		window.localStorage.clear();
 		Object.defineProperty(window, 'fetch', {
 			configurable: true,
 			value: vi.fn<typeof fetch>(),
@@ -37,6 +38,7 @@ describe('startBrowserAuthenticationApplication', () => {
 			rootElement,
 			document.documentElement,
 			['zh-CN'],
+			window.localStorage,
 		);
 
 		expect(document.documentElement).toMatchObject({ dir: 'ltr', lang: 'zh-CN' });
@@ -50,7 +52,13 @@ describe('startBrowserAuthenticationApplication', () => {
 
 	it('rejects a missing authentication root before rendering', () => {
 		expect(() =>
-			startBrowserAuthenticationApplication(window, null, document.documentElement, ['en-US']),
+			startBrowserAuthenticationApplication(
+				window,
+				null,
+				document.documentElement,
+				['en-US'],
+				window.localStorage,
+			),
 		).toThrow('The Orchbee authentication root element is missing.');
 		expect(createRoot).not.toHaveBeenCalled();
 	});

@@ -1,4 +1,3 @@
-import { OrchbeeI18nProvider } from '@orchbee/i18n';
 import {
 	DESKTOP_AGENT_INTEGRATION_IDS,
 	DesktopTerminalLaunchProfileIdSchema,
@@ -34,7 +33,10 @@ import type {
 	AgentIntegrationManagementClientSnapshot,
 	AgentIntegrationManagementControl,
 } from '../src/agent-integration-management';
+import { ApplicationLocaleController } from '../src/application-locale';
+import { ApplicationLocaleProvider } from '../src/application-locale-provider';
 
+const englishApplicationLocaleController = createStoryApplicationLocaleController('en-US');
 const englishController = createStoryController();
 const englishKeyboardController = createKeyboardStoryController('apple');
 const englishMacosInputController = createMacosInputStoryController();
@@ -43,6 +45,7 @@ const englishTerminalLaunchProfiles = createTerminalLaunchProfileStoryControl(tr
 const englishInteractionController = createInteractionStoryController();
 const englishTerminalDefaults = createTerminalDefaultSettingsStoryControl();
 const englishAgentIntegrations = createAgentIntegrationStoryControl();
+const chineseApplicationLocaleController = createStoryApplicationLocaleController('zh-CN');
 const chineseController = createStoryController({
 	...DEFAULT_TERMINAL_APPEARANCE_PREFERENCES,
 	applicationTheme: 'dark',
@@ -72,6 +75,7 @@ type Story = StoryObj<typeof meta>;
 export const EnglishLight: Story = {
 	args: {
 		agentIntegrationManagementControl: englishAgentIntegrations,
+		applicationLocaleController: englishApplicationLocaleController,
 		controller: englishController,
 		keyboardShortcutController: englishKeyboardController,
 		keyboardShortcutPlatform: 'apple',
@@ -86,16 +90,16 @@ export const EnglishLight: Story = {
 		docs: {
 			description: {
 				story:
-					'Inspect the grouped Application, Terminal, Workspace, Integrations, and Data & Access rail; inspect live padding, weights, ligatures, copy-on-select, and the Desktop scrollback default with its future-terminal notice. Open Profiles to manage the local system and Fish launches, literal ordered arguments, future-terminal boundary, and confirmed destructive actions. Type font to see global Text results without blanking General, then activate Terminal font family to restore the rail and reveal the row. Open Keyboard shortcuts to search localized action copy or current Apple chords and use Record keys as an exact, discovery-only lookup. Neutral setting groups have no outer stroke, future controls are clearly marked Planned and disabled, Shell integration explains automatic Desktop scope and exact manual fallbacks, Remote development remains read-only, and Ghostty migration remains a paste-only dry-run.',
+					'Inspect the grouped Application, Terminal, Workspace, Integrations, and Data & Access rail; switch Display language to verify immediate mounted-copy replacement, then inspect live padding, weights, ligatures, copy-on-select, and the Desktop scrollback default with its future-terminal notice. Open Profiles to manage the local system and Fish launches, literal ordered arguments, future-terminal boundary, and confirmed destructive actions. Type language or font to see global General or Text results without blanking the current page, then activate a setting to restore the rail and reveal its row. Open Keyboard shortcuts to search localized action copy or current Apple chords and use Record keys as an exact, discovery-only lookup. Neutral setting groups have no outer stroke, future controls are clearly marked Planned and disabled, Shell integration explains automatic Desktop scope and exact manual fallbacks, Remote development remains read-only, and Ghostty migration remains a paste-only dry-run.',
 			},
 		},
 	},
 	decorators: [
 		(Story) => (
 			<div data-theme='light' style={{ height: '100vh', position: 'relative' }}>
-				<OrchbeeI18nProvider locale='en-US'>
+				<ApplicationLocaleProvider source={englishApplicationLocaleController}>
 					<Story />
-				</OrchbeeI18nProvider>
+				</ApplicationLocaleProvider>
 			</div>
 		),
 	],
@@ -104,6 +108,7 @@ export const EnglishLight: Story = {
 export const ChineseDarkCustom: Story = {
 	args: {
 		agentIntegrationManagementControl: chineseAgentIntegrations,
+		applicationLocaleController: chineseApplicationLocaleController,
 		controller: chineseController,
 		keyboardShortcutController: chineseKeyboardController,
 		keyboardShortcutPlatform: 'standard',
@@ -117,13 +122,26 @@ export const ChineseDarkCustom: Story = {
 	decorators: [
 		(Story) => (
 			<div data-theme='dark' style={{ height: '100vh', position: 'relative' }}>
-				<OrchbeeI18nProvider locale='zh-CN'>
+				<ApplicationLocaleProvider source={chineseApplicationLocaleController}>
 					<Story />
-				</OrchbeeI18nProvider>
+				</ApplicationLocaleProvider>
 			</div>
 		),
 	],
 };
+
+function createStoryApplicationLocaleController(
+	locale: 'en-US' | 'zh-CN',
+): ApplicationLocaleController {
+	return new ApplicationLocaleController({
+		documentElement: { dir: '', lang: '' },
+		preferredLocales: [locale],
+		storage: {
+			getItem: () => JSON.stringify({ locale }),
+			setItem: () => undefined,
+		},
+	});
+}
 
 function createStoryController(
 	preferences = DEFAULT_TERMINAL_APPEARANCE_PREFERENCES,

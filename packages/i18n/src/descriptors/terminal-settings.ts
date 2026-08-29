@@ -8,6 +8,13 @@ export const terminalSettingsMessages = defineMessages({
 	applicationThemeDescription: message('terminal.settings.applicationTheme.description'),
 	applicationThemeLabel: message('terminal.settings.applicationTheme.label'),
 	applicationThemeLight: message('terminal.settings.applicationTheme.light'),
+	languageAutomaticFallbackNotice: message('terminal.settings.language.automaticFallbackNotice'),
+	languageEnglish: message('terminal.settings.language.english'),
+	languageSection: message('terminal.settings.sections.language'),
+	languageSimplifiedChinese: message('terminal.settings.language.simplifiedChinese'),
+	localePersistenceInvalidWarning: message('terminal.settings.localePersistence.invalidWarning'),
+	localePersistenceReadWarning: message('terminal.settings.localePersistence.readWarning'),
+	localePersistenceWriteWarning: message('terminal.settings.localePersistence.writeWarning'),
 	terminalPaddingDescription: message('terminal.settings.appearance.terminalPadding.description'),
 	terminalPaddingInvalid: message(
 		'terminal.settings.appearance.terminalPadding.invalid',

@@ -9,6 +9,7 @@ import {
 } from '@orchbee/workbench-client-protocol';
 import { describe, expect, it, vi } from 'vitest';
 
+import { ApplicationLocaleController } from '../../../application-locale';
 import {
 	WorkbenchClientSessionClient,
 	type WorkbenchClientSessionTransport,
@@ -116,8 +117,14 @@ describe('createWorkbenchClientRuntime', () => {
 			current: DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION_SOURCE.current,
 			subscribe: () => () => undefined,
 		};
+		const applicationLocaleSource = new ApplicationLocaleController({
+			documentElement,
+			preferredLocales: ['zh-CN'],
+			storage: { getItem: () => null, setItem: () => undefined },
+		});
 
 		const runtime = createWorkbenchClientRuntime({
+			applicationLocaleSource,
 			clientSession: session,
 			documentElement,
 			preferredLocales: ['zh-CN'],
@@ -127,7 +134,7 @@ describe('createWorkbenchClientRuntime', () => {
 		});
 
 		expect(await runtime.ready).toEqual({ kind: 'ready' });
-		expect(runtime.locale).toBe('zh-CN');
+		expect(runtime.applicationLocaleSource.current()).toBe('zh-CN');
 		expect(documentElement).toEqual({ dir: 'ltr', lang: 'zh-CN' });
 		expect(openProjection).not.toHaveBeenCalled();
 		expect(runtime.terminalSurfaceCapability.presentationConfigurationSource).toBe(
@@ -187,6 +194,7 @@ describe('createWorkbenchClientRuntime', () => {
 		).toEqual(startRejected);
 
 		runtime.dispose();
+		applicationLocaleSource.dispose();
 		expect(unsubscribeSessionTransport).toHaveBeenCalledOnce();
 		expect(closeSessionTransport).toHaveBeenCalledOnce();
 		expect(disposeProjectionClient).toHaveBeenCalledOnce();

@@ -28,9 +28,9 @@ export interface DesktopWorkbenchProps extends Omit<WorkbenchClientApplicationPr
 
 export function DesktopWorkbench({
 	applicationLifetimeCoordinator,
+	applicationLocaleSource,
 	browserAccessFinalFocus,
 	browserAccessController,
-	locale,
 	router,
 	terminalSurfaceCapability,
 	sshProjectEnrollmentController,
@@ -43,7 +43,7 @@ export function DesktopWorkbench({
 			data-window-controls={windowControls}
 		>
 			<WorkbenchClientApplication
-				locale={locale}
+				applicationLocaleSource={applicationLocaleSource}
 				router={router}
 				terminalSurfaceCapability={terminalSurfaceCapability}
 			>

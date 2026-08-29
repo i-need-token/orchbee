@@ -1,11 +1,5 @@
 import { ActionRuntime } from '@orchbee/actions';
-import {
-	createOrchbeeIntl,
-	getOrchbeeTextDirection,
-	OrchbeeI18nProvider,
-	resolveOrchbeeLocale,
-	workbenchTabMessages,
-} from '@orchbee/i18n';
+import { createOrchbeeIntl, workbenchTabMessages } from '@orchbee/i18n';
 import { TooltipProvider } from '@orchbee/ui/components';
 import {
 	createWorkbenchPreviewTerminalPresentationComposition,
@@ -19,6 +13,8 @@ import { createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 
 import { createWebApplicationRouting } from '../application-routing';
+import { ApplicationLocaleController } from '../application-locale';
+import { ApplicationLocaleProvider } from '../application-locale-provider';
 import { createBrowserRandomIdentifier } from '../browser-random-identifier';
 import { KeyboardShortcutSettingsController } from '../keyboard-shortcuts';
 import { TerminalInteractionSettingsController } from '../terminal-interaction-settings';
@@ -41,11 +37,16 @@ export function startWebApplication(
 	layoutStorage: WorkbenchLayoutStorage,
 ): WebApplicationSession {
 	if (rootElement === null) throw new Error('The Orchbee web root element is missing.');
-	const locale = resolveOrchbeeLocale(preferredLocales);
-	const intl = createOrchbeeIntl(locale);
-	const initialTerminalTitle = intl.formatMessage(workbenchTabMessages.terminalTitle);
-	documentElement.lang = locale;
-	documentElement.dir = getOrchbeeTextDirection(locale);
+	const applicationLocaleController = new ApplicationLocaleController({
+		documentElement,
+		preferredLocales,
+		storage: layoutStorage,
+	});
+	const getInitialTerminalTitle = (): string =>
+		createOrchbeeIntl(applicationLocaleController.current()).formatMessage(
+			workbenchTabMessages.terminalTitle,
+		);
+	const initialTerminalTitle = getInitialTerminalTitle();
 	const actionRuntime = new ActionRuntime();
 	const keyboardShortcutSettingsController = new KeyboardShortcutSettingsController({
 		platform: shortcutPlatform,
@@ -76,7 +77,8 @@ export function startWebApplication(
 	});
 	const routing = createWebApplicationRouting({
 		actionRuntime,
-		initialTerminalTitle,
+		applicationLocaleController,
+		getInitialTerminalTitle,
 		keyboardShortcutSettingsController,
 		layoutStorage,
 		projectWorkspaceRuntime,
@@ -89,8 +91,8 @@ export function startWebApplication(
 
 	reactRoot.render(
 		createElement(
-			OrchbeeI18nProvider,
-			{ locale },
+			ApplicationLocaleProvider,
+			{ source: applicationLocaleController },
 			createElement(
 				TooltipProvider,
 				undefined,
@@ -108,6 +110,7 @@ export function startWebApplication(
 			terminalSettingsController.dispose();
 			terminalInteractionSettingsController.dispose();
 			terminalFeedbackSettingsController.dispose();
+			applicationLocaleController.dispose();
 		},
 	};
 }

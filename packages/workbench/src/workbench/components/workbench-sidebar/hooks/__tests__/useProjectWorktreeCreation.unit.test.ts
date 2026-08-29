@@ -18,12 +18,13 @@ afterEach(cleanup);
 
 describe('useProjectWorktreeCreation', () => {
 	it('discovers editable defaults and submits the selected repository without a path', async () => {
+		const requestWorkspaceActivation = vi.fn<(projectId: string, workspaceId: string) => void>();
 		const capability: WorkbenchProjectWorktreeCapability = {
 			adopt: vi.fn<WorkbenchProjectWorktreeCapability['adopt']>(),
 			create: vi.fn<WorkbenchProjectWorktreeCapability['create']>(async () => ({
 				directoryId: 'managed-worktree-1',
 				kind: 'created',
-				workspaceId: 'workspace-2',
+				workspaceId: null,
 			})),
 			discover: vi.fn<WorkbenchProjectWorktreeCapability['discover']>(async () => ({
 				discovery: {
@@ -44,7 +45,11 @@ describe('useProjectWorktreeCreation', () => {
 			})),
 		};
 		const rendered = renderHook(() =>
-			useProjectWorktreeCreation({ capability, projectWorkspaceState: projectState() }),
+			useProjectWorktreeCreation({
+				capability,
+				projectWorkspaceState: projectState(),
+				requestWorkspaceActivation,
+			}),
 		);
 
 		await act(async () => {
@@ -81,9 +86,59 @@ describe('useProjectWorktreeCreation', () => {
 			sourceDirectoryId: 'directory-1',
 		});
 		expect(rendered.result.current.dialog).toBeNull();
+		expect(requestWorkspaceActivation).not.toHaveBeenCalled();
+	});
+
+	it('requests activation for the exact Workspace returned by a current creation', async () => {
+		const requestWorkspaceActivation = vi.fn<(projectId: string, workspaceId: string) => void>();
+		const capability: WorkbenchProjectWorktreeCapability = {
+			adopt: vi.fn<WorkbenchProjectWorktreeCapability['adopt']>(),
+			create: vi.fn<WorkbenchProjectWorktreeCapability['create']>(async () => ({
+				directoryId: 'managed-worktree-1',
+				kind: 'created',
+				workspaceId: 'workspace-2',
+			})),
+			discover: vi.fn<WorkbenchProjectWorktreeCapability['discover']>(async () => ({
+				discovery: {
+					managedRoot: '/managed/worktrees',
+					repositories: [
+						{
+							defaultBaseRef: 'main',
+							label: 'orchbee',
+							localBaseRefs: ['main'],
+							repositoryId: 'repository-1',
+							sourceDirectoryId: 'directory-1',
+							suggestedBranchName: 'orchbee/workspace-1',
+							worktreeInventory: { kind: 'available', worktrees: [] },
+						},
+					],
+				},
+				kind: 'discovered',
+			})),
+		};
+		const rendered = renderHook(() =>
+			useProjectWorktreeCreation({
+				capability,
+				projectWorkspaceState: projectState(),
+				requestWorkspaceActivation,
+			}),
+		);
+
+		await act(async () => {
+			rendered.result.current.open('project-1');
+			await Promise.resolve();
+		});
+		await act(async () => {
+			rendered.result.current.submit();
+			await Promise.resolve();
+		});
+
+		expect(requestWorkspaceActivation).toHaveBeenCalledOnce();
+		expect(requestWorkspaceActivation).toHaveBeenCalledWith('project-1', 'workspace-2');
 	});
 
 	it('ignores discovery that settles after the dialog closes', async () => {
+		const requestWorkspaceActivation = vi.fn<(projectId: string, workspaceId: string) => void>();
 		let settleDiscovery: ((result: WorkbenchProjectWorktreeDiscoveryResult) => void) | undefined;
 		const capability: WorkbenchProjectWorktreeCapability = {
 			adopt: vi.fn<WorkbenchProjectWorktreeCapability['adopt']>(),
@@ -96,7 +151,11 @@ describe('useProjectWorktreeCreation', () => {
 			),
 		};
 		const rendered = renderHook(() =>
-			useProjectWorktreeCreation({ capability, projectWorkspaceState: projectState() }),
+			useProjectWorktreeCreation({
+				capability,
+				projectWorkspaceState: projectState(),
+				requestWorkspaceActivation,
+			}),
 		);
 
 		act(() => {

@@ -2,8 +2,9 @@
 
 ## Ownership and scope
 
-`@orchbee/web` owns separate local terminal-appearance, terminal-interaction, terminal-feedback, and macOS terminal-input
-preference records, their Browser storage codecs, the Settings overlay, and the stable client-side
+`@orchbee/web` owns the local application-locale preference and separate terminal-appearance,
+terminal-interaction, terminal-feedback, and macOS terminal-input preference records, their Browser
+storage codecs, the Settings overlay, and the stable client-side
 sources observed by projected terminal attachments. It also owns the presentation and unprivileged
 request clients for the optional Desktop terminal-launch-profile and terminal-default-settings
 capabilities; Electron Main owns those records, persistence, Host commit, and launch resolution. The Browser-backed preference records are local to
@@ -28,6 +29,28 @@ not apply or persist that report, read Ghostty files, mutate a Host profile, exp
 palette editor, make an Electron window transparent, or synchronize preferences across clients.
 It also projects a read-only remote-development diagnostic. That projection neither owns an SSH
 process nor infers whether the current terminal is remote.
+
+## Application locale preference
+
+The General page exposes one display-language control with exactly the supported `English` and
+`简体中文` choices. Automatic operating-system or Browser-language resolution is the bootstrap
+fallback, not a third persisted choice: it applies only while no valid explicit preference exists.
+Selecting either language, including the currently detected language, records an explicit choice;
+later operating-system or Browser-language changes cannot override it.
+
+The application composition reads `orchbee:web:application-locale:v1` once. Its strict JSON value
+contains exactly `{ locale: 'en-US' | 'zh-CN' }`. A missing record uses the existing ordered locale
+resolver without writing a default. An unreadable, malformed, unknown-field, or unsupported record
+also uses automatic resolution and reports a recoverable persistence issue. One accepted selection
+updates the in-memory locale, document `lang` and `dir`, the mounted application provider, and
+application-owned projected-terminal surfaces without reload, then attempts one complete record
+write. A write failure retains the requested language for the current session and remains visible
+as a persistence warning; a later selection retries persistence.
+
+The record is local to one Browser origin or Desktop renderer user-data partition. It is never part
+of the shared Workbench document and is not synchronized through Gateway. Switching locale changes
+product copy and future localized defaults only. It never translates user data, remote output,
+existing Tab titles, Project or Workspace names, paths, commands, or persisted shared content.
 
 ## Appearance and interaction preference records
 
@@ -284,7 +307,7 @@ top-level surface:
 | Integrations  | Agent Integrations, Shell Integration, Remote Development               |
 | Data & Access | Ghostty Migration and the capability-gated Desktop Browser Access entry |
 
-The appearance theme, terminal font family and size, regular and bold weights, ligatures, padding,
+The application display language, appearance theme, terminal font family and size, regular and bold weights, ligatures, padding,
 effective default colors, default-background opacity, copy-on-select, Reset, macOS Option-as-Alt,
 keyboard shortcuts, Agent integrations, Shell integration, remote diagnostic, migration report, Browser-access entry,
 capability-gated Desktop launch-profile editor, and capability-gated Desktop scrollback default
@@ -541,6 +564,11 @@ not claims about Ghostty's byte limits.
 
 - Storage tests cover missing, malformed, unknown, version-1 in-memory migration, invalid version-2
   precedence, out-of-range, read-throw, write-fail then success, Reset repair, and healthy no-op behavior.
+- Application-locale storage and controller tests cover missing and explicit preference precedence,
+  strict rejection, same-as-detected explicit selection, live document metadata and subscriptions,
+  session-only write failure, retry, and disposal. Component and composition tests cover both
+  choices, immediate product-copy updates, search discovery, reload restoration, and automatic
+  resolution only when no valid preference exists.
 - Source tests prove complete single presentation publication, independent interaction publication,
   live attachment updates, application-theme isolation, terminal-setting isolation, stable
   subscription, and disposal.

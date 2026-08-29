@@ -75,34 +75,36 @@ notification acknowledges that target instead of producing a second navigation. 
 View notification that no longer resolves the displayed route is a domain reconciliation and
 replaces, rather than pushes, the canonical fallback.
 
-### Initial empty terminal context
+### First-open empty terminal contexts
 
-- **Problem and scope:** A newly composed application may resolve its initial route to a valid
-  standalone or Workspace terminal context with no Tabs. Before the first Workbench display, the
-  route coordinator makes one terminal-creation decision for that context. Empty-state rendering,
-  ordinary new-Tab commands, persisted restart intent, and native-window Tab assignment keep their
-  existing owners. Re-entering an empty context later in the same coordinator lifetime is excluded.
-- **State and transition:** `InitialTerminalContextState` is either `awaiting-route` or `settled`.
-  Redirects preserve `awaiting-route`. The first unavailable route settles without a command. The
-  first ready terminal route settles and emits `create-terminal` exactly when its authoritative
-  context has no Tabs; a populated context settles without a command. Every event after settlement
-  is an intentional no-op.
+- **Problem and scope:** During one application composition, the first ready visit to each distinct
+  standalone or Workspace terminal context may find no Tabs. The route coordinator makes one
+  terminal-creation decision per authoritative terminal-context identity. This covers a Workspace
+  opened after another context was already displayed. Empty-state rendering, ordinary new-Tab
+  commands, persisted restart intent, and native-window Tab assignment keep their existing owners.
+- **State and transition:** `TerminalContextInitializationState` is the serializable set of context
+  identities whose first ready visit has already been decided. Redirects and unavailable routes do
+  not add an identity. A ready terminal route already in the set is an intentional no-op. A first
+  ready route adds its identity and emits `create-terminal` exactly when that complete authoritative
+  context has no Tabs; a populated context is added without a command.
 - **Commit and failure:** The coordinator applies the ready route first so Workspace identity and
-  default CWD are authoritative, then executes the existing runtime creation path with the localized
-  terminal title and `programmatic` source. Successful creation re-resolves the same request so the
-  new Tab becomes the canonical route before rendering. Rejected creation leaves the canonical
-  empty route blank and is not retried during that coordinator lifetime.
+  default CWD are authoritative, then executes the existing runtime creation path with the current
+  localized terminal title and `programmatic` source. Successful creation re-resolves the same
+  request so the new Tab becomes the canonical route before rendering. Rejected creation leaves that
+  canonical empty route blank and is not retried for the same context during the coordinator
+  lifetime; another context remains independently eligible.
 - **Concurrency and boundaries:** The decision reads the complete active terminal context, never a
   Desktop `tabScope` projection, so a window-local empty assignment cannot trigger creation. Each
-  independently composed page owns one one-shot state and may race another page; the existing
-  revisioned shared-document coordinator remains the only commit authority and converges competing
-  proposals without adding a startup flag, schema field, storage key, or protocol message.
-- **Verification:** Pure transition tests cover redirects, unavailable and ready routes, empty and
-  populated contexts, repetition, and re-entry. Coordinator tests cover standalone and Workspace
-  creation, localized title input, canonical re-resolution, failure, invalid routes, and closing the
-  created last Tab without replacement. Existing multi-client coordinator evidence covers proposal
-  arbitration; no new TLA+ model is selected because the new local transition is synchronous and
-  has no independently ordered completion.
+  independently composed page owns its own decided-identity state and may race another page; the
+  existing revisioned shared-document coordinator remains the only commit authority and converges
+  competing proposals without adding a startup flag, schema field, storage key, or protocol message.
+- **Verification:** Pure transition tests cover redirects, unavailable and ready routes, multiple
+  context identities, empty and populated contexts, repetition, and re-entry. Coordinator tests
+  cover standalone and multiple Workspace creations, current localized title input, canonical
+  re-resolution, per-context failure, invalid routes, and closing a decided context's last Tab
+  without replacement. Existing multi-client coordinator evidence covers proposal arbitration; no
+  new TLA+ model is selected because the local transition is synchronous and has no independently
+  ordered completion.
 
 ## Renderer reload focus recovery
 
@@ -149,8 +151,9 @@ replaces, rather than pushes, the canonical fallback.
 - Partial-route resolution uses document order and never depends on mutable display names, locale,
   object enumeration, or asynchronous arrival order.
 - Applying the current route twice is idempotent.
-- Initial empty-context creation is attempted at most once per route-coordinator lifetime, and
-  closing the last Tab after settlement never triggers another attempt.
+- First-open empty-context creation is attempted at most once for each terminal-context identity per
+  route-coordinator lifetime, and closing its last Tab after that decision never triggers another
+  attempt.
 - A pushed in-app navigation creates one history entry; canonicalization and domain reconciliation
   replace the current entry.
 - Back and Forward never append history and never publish a shared-document command.
@@ -180,9 +183,9 @@ constructs an application URL.
 ## Correctness evidence
 
 Deterministic tests cover route encoding, valid and unavailable resolution, root canonicalization,
-the one-shot initial empty-context transition, route-to-Client-View application, Client-View
+per-context first-open empty-context transitions, route-to-Client-View application, Client-View
 fallback, push-versus-replace history intent, and the re-entrancy guard. Integration tests cover
-initial terminal creation, post-close blank retention, in-app navigation, and Back/Forward against
+first-open terminal creation, post-close blank retention, in-app navigation, and Back/Forward against
 the same Workbench runtime. Desktop tests cover scheme registration order, origin and method
 validation, path-containment checks, asset delivery, and navigation fallback to `index.html`.
 

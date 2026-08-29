@@ -70,6 +70,8 @@ import { useWorkbenchActions } from './useWorkbenchActions';
 import { useWorkbenchFocusRouting } from './useWorkbenchFocusRouting';
 import type { WorkbenchTerminalFocusRequest } from '../model/resolveWorkbenchFocusTarget';
 import { useWorkbenchShortcuts } from './useWorkbenchShortcuts';
+import { useWorkbenchStandaloneTerminalActivation } from './useWorkbenchStandaloneTerminalActivation';
+import type { WorkbenchStandaloneTerminalActivationOrigin } from '../model/workbench-standalone-terminal-activation';
 
 interface ResizableLayoutChangedMeta {
 	readonly isUserInteraction: boolean;
@@ -80,7 +82,7 @@ interface ResizablePanelSize {
 }
 
 interface WorkbenchView {
-	readonly activateStandalone: () => void;
+	readonly activateStandalone: (origin: WorkbenchStandaloneTerminalActivationOrigin) => void;
 	readonly actionScope: ActionScope;
 	readonly addProjectDirectory: (projectId: string, path: string) => void;
 	readonly cancelProjectWorkspaceConfirmation: () => void;
@@ -421,6 +423,21 @@ export function useWorkbench({
 		workspaceCopySuffix: intl.formatMessage(workbenchMessages.workspaceCopySuffix),
 		workspaceTerminalTitle: intl.formatMessage(workbenchTabMessages.terminalTitle),
 	});
+	const invokeStandaloneActivation = useMemoizedFn((source: 'button' | 'pointer') =>
+		actions.invoke(WORKBENCH_ACTION_IDS.activateStandalone, undefined, source),
+	);
+	const requestStandaloneTerminalFocus = useMemoizedFn((): boolean => {
+		if (projectWorkspaceRuntime.getSnapshot().activeLocation.kind !== 'standalone') return false;
+		return focusRouting.requestTerminalFocus();
+	});
+	const activateStandalone = useWorkbenchStandaloneTerminalActivation({
+		activeLocation: projectWorkspaceState.activeLocation,
+		invokeStandaloneActivation,
+		requestTerminalFocus: requestStandaloneTerminalFocus,
+		terminalTargetAvailable:
+			projectWorkspaceState.activeLocation.kind === 'standalone' &&
+			resolveTerminalFocusTarget() !== null,
+	});
 	React.useEffect(() => {
 		const formatActionMessage = (message: ActionConfirmation['title']) => {
 			if (message.id === undefined) {
@@ -480,9 +497,7 @@ export function useWorkbench({
 	);
 
 	return {
-		activateStandalone: () => {
-			actions.invoke(WORKBENCH_ACTION_IDS.activateStandalone, undefined, 'button');
-		},
+		activateStandalone,
 		actionScope: actions.scope,
 		addProjectDirectory: (projectId, path) => {
 			actions.invoke(WORKBENCH_ACTION_IDS.addProjectFolder, { path, projectId }, 'button');

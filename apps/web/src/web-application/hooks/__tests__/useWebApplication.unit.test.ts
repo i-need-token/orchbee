@@ -17,6 +17,7 @@ import {
 	DEFAULT_TERMINAL_APPEARANCE_PREFERENCES,
 	TerminalSettingsController,
 } from '../../../terminal-settings';
+import { ApplicationLocaleController } from '../../../application-locale';
 import { KeyboardShortcutSettingsController } from '../../../keyboard-shortcuts';
 import { WebApplication } from '../../WebApplication';
 
@@ -75,6 +76,7 @@ describe('useWebApplication', () => {
 						undefined,
 						createElement(WebApplication, {
 							actionRuntime,
+							applicationLocaleController: createApplicationLocaleController(),
 							keyboardShortcutSettingsController,
 							projectWorkspaceRuntime,
 							shortcutPlatform: 'apple',
@@ -273,6 +275,7 @@ describe('useWebApplication', () => {
 						undefined,
 						createElement(WebApplication, {
 							actionRuntime,
+							applicationLocaleController: createApplicationLocaleController(),
 							keyboardShortcutSettingsController,
 							projectWorkspaceRuntime,
 							shortcutPlatform: 'apple',
@@ -358,6 +361,7 @@ describe('useWebApplication', () => {
 						undefined,
 						createElement(WebApplication, {
 							actionRuntime,
+							applicationLocaleController: createApplicationLocaleController(),
 							keyboardShortcutSettingsController,
 							projectWorkspaceRuntime,
 							shortcutPlatform: 'apple',
@@ -503,6 +507,14 @@ function useImmediateTerminalPresentationReadiness({
 		onPresentationReady('display-ready');
 		onPresentationReady('activation-ready');
 	}, [onPresentationReady, presentationMode]);
+}
+
+function createApplicationLocaleController(): ApplicationLocaleController {
+	return new ApplicationLocaleController({
+		documentElement: document.documentElement,
+		preferredLocales: ['en-US'],
+		storage: { getItem: () => null, setItem: () => undefined },
+	});
 }
 
 function menuShortcut(label: string): string | null {

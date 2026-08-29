@@ -20,8 +20,14 @@ afterEach(cleanup);
 describe('useProjectWorktreeMenu', () => {
 	it('refreshes in Strict Mode and adopts an opaque Worktree identity', async () => {
 		const capability = createCapability();
+		const requestWorkspaceActivation = vi.fn<(projectId: string, workspaceId: string) => void>();
 		const rendered = renderHook(
-			() => useProjectWorktreeMenu({ capability, projectWorkspaceState: projectState() }),
+			() =>
+				useProjectWorktreeMenu({
+					capability,
+					projectWorkspaceState: projectState(),
+					requestWorkspaceActivation,
+				}),
 			{ wrapper: ({ children }) => createElement(StrictMode, null, children) },
 		);
 
@@ -60,11 +66,14 @@ describe('useProjectWorktreeMenu', () => {
 			worktreeId: 'worktree-1',
 		});
 		expect(rendered.result.current.failure).toBeNull();
+		expect(requestWorkspaceActivation).toHaveBeenCalledOnce();
+		expect(requestWorkspaceActivation).toHaveBeenCalledWith('project-1', 'workspace-2');
 	});
 
 	it('serializes rapid Project refreshes and exposes an adoption failure', async () => {
 		let settleFirst: ((result: WorkbenchProjectWorktreeDiscoveryResult) => void) | undefined;
 		const capability = createCapability();
+		const requestWorkspaceActivation = vi.fn<(projectId: string, workspaceId: string) => void>();
 		capability.discover
 			.mockImplementationOnce(
 				() =>
@@ -75,7 +84,11 @@ describe('useProjectWorktreeMenu', () => {
 			.mockResolvedValueOnce({ discovery: discovery('ghostty'), kind: 'discovered' });
 		capability.adopt.mockResolvedValueOnce({ code: 'worktree-not-found', kind: 'failed' });
 		const rendered = renderHook(() =>
-			useProjectWorktreeMenu({ capability, projectWorkspaceState: projectState(2) }),
+			useProjectWorktreeMenu({
+				capability,
+				projectWorkspaceState: projectState(2),
+				requestWorkspaceActivation,
+			}),
 		);
 
 		act(() => {
@@ -99,6 +112,7 @@ describe('useProjectWorktreeMenu', () => {
 			}),
 		);
 		await vi.waitFor(() => expect(rendered.result.current.failure).toBe('worktree-not-found'));
+		expect(requestWorkspaceActivation).not.toHaveBeenCalled();
 		act(rendered.result.current.dismissFailure);
 		expect(rendered.result.current.failure).toBeNull();
 	});

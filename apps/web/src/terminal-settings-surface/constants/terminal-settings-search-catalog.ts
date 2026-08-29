@@ -2,6 +2,7 @@ import {
 	agentIntegrationMessages,
 	agentObservationMessages,
 	keyboardShortcutMessages,
+	terminalSettingsCatalogMessages,
 	terminalSettingsMessages,
 	type MessageDescriptor,
 } from '@orchbee/i18n';
@@ -52,6 +53,21 @@ export const TERMINAL_SETTINGS_SEARCH_ITEMS: readonly TerminalSettingsSearchItem
 		section: agentIntegrationMessages.localSection,
 		targetId: `agent-integrations.${integrationId}`,
 	})),
+	{
+		category: 'general',
+		description: terminalSettingsCatalogMessages.get(
+			'terminal.settings.catalog.items.general.language.description',
+		),
+		id: 'general.language',
+		keywords: ['language', 'locale', 'English', '简体中文', '语言', '中文'],
+		label: terminalSettingsCatalogMessages.get(
+			'terminal.settings.catalog.items.general.language.label',
+		),
+		section: terminalSettingsCatalogMessages.get(
+			'terminal.settings.catalog.sections.general.defaults',
+		),
+		targetId: 'general.language',
+	},
 	{
 		capability: 'desktop-terminal-default-settings',
 		category: 'terminal',

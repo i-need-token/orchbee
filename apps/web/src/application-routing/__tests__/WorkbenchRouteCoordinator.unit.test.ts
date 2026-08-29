@@ -90,7 +90,7 @@ describe('WorkbenchRouteCoordinator', () => {
 	it('applies a route atomically without mirroring its own Client View writes', () => {
 		const runtime = createRuntime();
 		const navigate = vi.fn<WorkbenchRouteNavigation>(() => Promise.resolve());
-		const coordinator = new WorkbenchRouteCoordinator(runtime, navigate, 'Terminal');
+		const coordinator = new WorkbenchRouteCoordinator(runtime, navigate, () => 'Terminal');
 
 		expect(
 			coordinator.prepare({
@@ -115,7 +115,11 @@ describe('WorkbenchRouteCoordinator', () => {
 		runtime.requestActiveTerminalTabsClose(['terminal-context-1-tab-1']);
 		const createTerminal = vi.spyOn(runtime, 'createTerminal');
 		const navigate = vi.fn<WorkbenchRouteNavigation>(() => Promise.resolve());
-		const coordinator = new WorkbenchRouteCoordinator(runtime, navigate, 'Localized Terminal');
+		const coordinator = new WorkbenchRouteCoordinator(
+			runtime,
+			navigate,
+			() => 'Localized Terminal',
+		);
 
 		expect(coordinator.prepare({ kind: 'standalone' })).toEqual({
 			kind: 'redirect',
@@ -148,7 +152,11 @@ describe('WorkbenchRouteCoordinator', () => {
 		]);
 		const createTerminal = vi.spyOn(runtime, 'createTerminal');
 		const navigate = vi.fn<WorkbenchRouteNavigation>(() => Promise.resolve());
-		const coordinator = new WorkbenchRouteCoordinator(runtime, navigate, 'Localized Terminal');
+		const coordinator = new WorkbenchRouteCoordinator(
+			runtime,
+			navigate,
+			() => 'Localized Terminal',
+		);
 
 		expect(
 			coordinator.prepare({
@@ -176,14 +184,14 @@ describe('WorkbenchRouteCoordinator', () => {
 		coordinator.dispose();
 	});
 
-	it('settles without creating after the initial route is unavailable', () => {
+	it('keeps an undecided context eligible after an unavailable route', () => {
 		const runtime = createRuntime();
 		runtime.requestActiveTerminalTabsClose([
 			'terminal-context-2-tab-1',
 			'terminal-context-2-tab-2',
 		]);
 		const navigate = vi.fn<WorkbenchRouteNavigation>(() => Promise.resolve());
-		const coordinator = new WorkbenchRouteCoordinator(runtime, navigate, 'Terminal');
+		const coordinator = new WorkbenchRouteCoordinator(runtime, navigate, () => 'Terminal');
 
 		expect(
 			coordinator.prepare({
@@ -199,8 +207,40 @@ describe('WorkbenchRouteCoordinator', () => {
 				projectId: 'project-1',
 				workspaceId: 'workspace-1',
 			}),
+		).toMatchObject({ kind: 'redirect' });
+		expect(runtime.getActiveTerminalContext().tabModel.getSnapshot().tabs).toHaveLength(1);
+		coordinator.dispose();
+	});
+
+	it('creates a terminal on the first empty Workspace visit after standalone was already displayed', () => {
+		const runtime = createRuntime();
+		runtime.requestActiveTerminalTabsClose([
+			'terminal-context-2-tab-1',
+			'terminal-context-2-tab-2',
+		]);
+		const createTerminal = vi.spyOn(runtime, 'createTerminal');
+		const navigate = vi.fn<WorkbenchRouteNavigation>(() => Promise.resolve());
+		let localizedTitle = 'Terminal';
+		const coordinator = new WorkbenchRouteCoordinator(runtime, navigate, () => localizedTitle);
+
+		expect(
+			coordinator.prepare({ kind: 'standalone', tabId: 'terminal-context-1-tab-1' }),
 		).toMatchObject({ kind: 'ready' });
-		expect(runtime.getActiveTerminalContext().tabModel.getSnapshot().tabs).toEqual([]);
+		localizedTitle = '终端';
+		expect(
+			coordinator.prepare({
+				kind: 'workspace',
+				projectId: 'project-1',
+				workspaceId: 'workspace-1',
+			}),
+		).toMatchObject({ kind: 'redirect' });
+
+		expect(createTerminal).toHaveBeenCalledExactlyOnceWith({
+			groupId: null,
+			source: 'programmatic',
+			title: '终端',
+		});
+		expect(runtime.getActiveTerminalContext().tabModel.getSnapshot().tabs).toHaveLength(1);
 		coordinator.dispose();
 	});
 
@@ -208,7 +248,7 @@ describe('WorkbenchRouteCoordinator', () => {
 		const runtime = createSealedEmptyRuntime();
 		const createTerminal = vi.spyOn(runtime, 'createTerminal');
 		const navigate = vi.fn<WorkbenchRouteNavigation>(() => Promise.resolve());
-		const coordinator = new WorkbenchRouteCoordinator(runtime, navigate, 'Terminal');
+		const coordinator = new WorkbenchRouteCoordinator(runtime, navigate, () => 'Terminal');
 
 		expect(coordinator.prepare({ kind: 'standalone' })).toEqual({
 			kind: 'ready',
@@ -223,7 +263,7 @@ describe('WorkbenchRouteCoordinator', () => {
 	it('changes the URL before applying a location-navigation target', async () => {
 		const runtime = createRuntime();
 		const navigate = vi.fn<WorkbenchRouteNavigation>(() => Promise.resolve());
-		const coordinator = new WorkbenchRouteCoordinator(runtime, navigate, 'Terminal');
+		const coordinator = new WorkbenchRouteCoordinator(runtime, navigate, () => 'Terminal');
 		coordinator.prepare({
 			kind: 'workspace',
 			projectId: 'project-1',
@@ -246,7 +286,7 @@ describe('WorkbenchRouteCoordinator', () => {
 	it('preserves a delegated multi-selection mode after the target route is observed', async () => {
 		const runtime = createRuntime();
 		const navigate = vi.fn<WorkbenchRouteNavigation>(() => Promise.resolve());
-		const coordinator = new WorkbenchRouteCoordinator(runtime, navigate, 'Terminal');
+		const coordinator = new WorkbenchRouteCoordinator(runtime, navigate, () => 'Terminal');
 		coordinator.prepare({
 			kind: 'workspace',
 			projectId: 'project-1',
@@ -276,7 +316,7 @@ describe('WorkbenchRouteCoordinator', () => {
 	it('keeps the active Tab route when toggling a different selected Tab off', () => {
 		const runtime = createRuntime();
 		const navigate = vi.fn<WorkbenchRouteNavigation>(() => Promise.resolve());
-		const coordinator = new WorkbenchRouteCoordinator(runtime, navigate, 'Terminal');
+		const coordinator = new WorkbenchRouteCoordinator(runtime, navigate, () => 'Terminal');
 		const tabModel = runtime.getActiveTerminalContext().tabModel;
 		coordinator.prepare({
 			kind: 'workspace',
@@ -303,7 +343,7 @@ describe('WorkbenchRouteCoordinator', () => {
 	it('pushes unported active navigation and replaces an invalidated displayed target', () => {
 		const runtime = createRuntime();
 		const navigate = vi.fn<WorkbenchRouteNavigation>(() => Promise.resolve());
-		const coordinator = new WorkbenchRouteCoordinator(runtime, navigate, 'Terminal');
+		const coordinator = new WorkbenchRouteCoordinator(runtime, navigate, () => 'Terminal');
 		coordinator.prepare({
 			kind: 'workspace',
 			projectId: 'project-1',

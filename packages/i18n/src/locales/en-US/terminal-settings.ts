@@ -6,6 +6,16 @@ export const enUSTerminalSettingsMessages = {
 		'Choose the light or dark appearance for Orchbee.',
 	'terminal.settings.applicationTheme.label': 'Application theme',
 	'terminal.settings.applicationTheme.light': 'Light',
+	'terminal.settings.language.automaticFallbackNotice':
+		'Orchbee uses your system or browser language until you choose here. Your choice is saved on this device.',
+	'terminal.settings.language.english': 'English',
+	'terminal.settings.language.simplifiedChinese': '简体中文',
+	'terminal.settings.localePersistence.invalidWarning':
+		'The saved display language is invalid. Your system or browser language is in use; choose a language to replace it.',
+	'terminal.settings.localePersistence.readWarning':
+		'The saved display language could not be read. Your system or browser language is in use; choose a language to try saving it.',
+	'terminal.settings.localePersistence.writeWarning':
+		'Your display language is applied for this session but could not be saved.',
 	'terminal.settings.appearance.terminalPadding.description':
 		'Add the same amount of space, in CSS pixels, around terminal text. Existing terminals update immediately.',
 	'terminal.settings.appearance.terminalPadding.invalid':
@@ -242,6 +252,7 @@ export const enUSTerminalSettingsMessages = {
 	'terminal.settings.shellIntegration.title': 'Shell integration',
 	'terminal.settings.shellIntegration.zsh.title': 'Zsh',
 	'terminal.settings.sections.applicationAppearance': 'Application appearance',
+	'terminal.settings.sections.language': 'Language',
 	'terminal.settings.sections.terminalClipboard': 'Selection and clipboard',
 	'terminal.settings.sections.terminalColors': 'Terminal colors',
 	'terminal.settings.sections.terminalHistory': 'History',

@@ -15,11 +15,12 @@ import {
 	type WorkbenchRouteSnapshot,
 } from './workbench-route-model';
 import {
-	transitionInitialTerminalContext,
-	type InitialTerminalContextEvent,
-	type InitialTerminalContextState,
-	type InitialTerminalContextTransition,
-} from './transitionInitialTerminalContext';
+	EMPTY_TERMINAL_CONTEXT_INITIALIZATION_STATE,
+	transitionTerminalContextInitialization,
+	type TerminalContextInitializationEvent,
+	type TerminalContextInitializationState,
+	type TerminalContextInitializationTransition,
+} from './transition-terminal-context-initialization';
 
 type WorkbenchTabSelectionInput = Parameters<WorkbenchNavigationPort['selectTab']>[1];
 type WorkbenchRouteNavigationResult = 'navigated' | 'unavailable' | 'unchanged' | 'updated';
@@ -63,8 +64,7 @@ function readWorkbenchRouteSnapshot(
 export class WorkbenchRouteCoordinator {
 	#applying = false;
 	#displayedLocation: WorkbenchRouteLocation | undefined;
-	#initialTerminalContextState: InitialTerminalContextState = 'awaiting-route';
-	readonly #initialTerminalTitle: string;
+	readonly #getInitialTerminalTitle: () => string;
 	readonly #navigate: WorkbenchRouteNavigation;
 	#pendingSelection:
 		| {
@@ -74,6 +74,8 @@ export class WorkbenchRouteCoordinator {
 		| undefined;
 	#requestedLocation: WorkbenchRouteLocation | undefined;
 	readonly #runtime: WorkbenchProjectWorkspaceRuntime;
+	#terminalContextInitializationState: TerminalContextInitializationState =
+		EMPTY_TERMINAL_CONTEXT_INITIALIZATION_STATE;
 	readonly #unsubscribe: () => void;
 
 	public readonly navigation: WorkbenchNavigationPort = {
@@ -84,11 +86,11 @@ export class WorkbenchRouteCoordinator {
 	public constructor(
 		runtime: WorkbenchProjectWorkspaceRuntime,
 		navigate: WorkbenchRouteNavigation,
-		initialTerminalTitle: string,
+		getInitialTerminalTitle: () => string,
 	) {
 		this.#runtime = runtime;
 		this.#navigate = navigate;
-		this.#initialTerminalTitle = initialTerminalTitle;
+		this.#getInitialTerminalTitle = getInitialTerminalTitle;
 		this.#unsubscribe = runtime.subscribeClientView(this.#handleClientViewChange);
 	}
 
@@ -111,8 +113,10 @@ export class WorkbenchRouteCoordinator {
 		const resolution = resolveWorkbenchRoute(readWorkbenchRouteSnapshot(this.#runtime), request);
 		if (resolution.kind === 'ready') {
 			this.#applyRoute(resolution.location);
-			const commands = this.#transitionInitialTerminalContext({
-				hasTabs: resolution.location.tabId !== null,
+			const activeTerminalContext = this.#runtime.getActiveTerminalContext();
+			const commands = this.#transitionTerminalContextInitialization({
+				hasTabs: activeTerminalContext.tabModel.getSnapshot().tabs.length > 0,
+				terminalContextId: activeTerminalContext.terminalContextId,
 				type: 'terminal-route-ready',
 			});
 			if (commands.length === 0) return resolution;
@@ -120,10 +124,16 @@ export class WorkbenchRouteCoordinator {
 			this.#applying = true;
 			let creation: ReturnType<WorkbenchProjectWorkspaceRuntime['createTerminal']>;
 			try {
+				if (
+					this.#runtime.getActiveTerminalContext().terminalContextId !==
+					commands[0]?.terminalContextId
+				) {
+					throw new Error('The terminal context changed before first-open initialization.');
+				}
 				creation = this.#runtime.createTerminal({
 					groupId: null,
 					source: 'programmatic',
-					title: this.#initialTerminalTitle,
+					title: this.#getInitialTerminalTitle(),
 				});
 			} finally {
 				this.#applying = false;
@@ -140,18 +150,21 @@ export class WorkbenchRouteCoordinator {
 			this.#displayedLocation = undefined;
 			this.#pendingSelection = undefined;
 			this.#requestedLocation = undefined;
-			this.#transitionInitialTerminalContext({ type: 'route-unavailable' });
+			this.#transitionTerminalContextInitialization({ type: 'route-unavailable' });
 		} else {
-			this.#transitionInitialTerminalContext({ type: 'redirect-observed' });
+			this.#transitionTerminalContextInitialization({ type: 'redirect-observed' });
 		}
 		return resolution;
 	}
 
-	#transitionInitialTerminalContext(
-		event: InitialTerminalContextEvent,
-	): InitialTerminalContextTransition['commands'] {
-		const transition = transitionInitialTerminalContext(this.#initialTerminalContextState, event);
-		this.#initialTerminalContextState = transition.state;
+	#transitionTerminalContextInitialization(
+		event: TerminalContextInitializationEvent,
+	): TerminalContextInitializationTransition['commands'] {
+		const transition = transitionTerminalContextInitialization(
+			this.#terminalContextInitializationState,
+			event,
+		);
+		this.#terminalContextInitializationState = transition.state;
 		return transition.commands;
 	}
 

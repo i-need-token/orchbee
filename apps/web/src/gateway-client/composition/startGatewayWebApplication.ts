@@ -5,6 +5,7 @@ import { createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 
 import { createWebApplicationRouting, type WebApplicationRouting } from '../../application-routing';
+import { ApplicationLocaleController } from '../../application-locale';
 import { KeyboardShortcutSettingsController } from '../../keyboard-shortcuts';
 import { TerminalInteractionSettingsController } from '../../terminal-interaction-settings';
 import { TerminalSettingsController } from '../../terminal-settings';
@@ -68,6 +69,11 @@ export function startGatewayWebApplication(
 		throw new Error('The Orchbee Gateway application root element is missing.');
 	}
 	const applicationRoot = rootElement;
+	const applicationLocaleController = new ApplicationLocaleController({
+		documentElement,
+		preferredLocales,
+		storage,
+	});
 	let control: GatewayControlConnection | undefined;
 	let disposed = false;
 	let reactRoot: Root | undefined;
@@ -99,6 +105,7 @@ export function startGatewayWebApplication(
 		terminalSettingsController.dispose();
 		terminalInteractionSettingsController.dispose();
 		terminalFeedbackSettingsController.dispose();
+		applicationLocaleController.dispose();
 		control?.close();
 		control = undefined;
 	};
@@ -146,6 +153,7 @@ export function startGatewayWebApplication(
 			},
 		});
 		const nextRuntime = dependencies.createRuntime({
+			applicationLocaleSource: applicationLocaleController,
 			clientSession,
 			documentElement,
 			preferredLocales,
@@ -165,15 +173,17 @@ export function startGatewayWebApplication(
 		}
 		if (disposed) return { kind: 'unavailable', reason: 'control-unavailable' };
 		const routingHistory = dependencies.createRoutingHistory(targetWindow, connection);
-		const initialTerminalTitle = createOrchbeeIntl(nextRuntime.locale).formatMessage(
-			workbenchTabMessages.terminalTitle,
-		);
+		const getInitialTerminalTitle = (): string =>
+			createOrchbeeIntl(applicationLocaleController.current()).formatMessage(
+				workbenchTabMessages.terminalTitle,
+			);
 		let nextRouting: WebApplicationRouting;
 		try {
 			nextRouting = dependencies.createRouting(
 				{
 					actionRuntime: nextRuntime.actionRuntime,
-					initialTerminalTitle,
+					applicationLocaleController,
+					getInitialTerminalTitle,
 					keyboardShortcutSettingsController,
 					layoutStorage: storage,
 					projectWorkspaceRuntime: nextRuntime.projectWorkspaceRuntime,
@@ -193,7 +203,7 @@ export function startGatewayWebApplication(
 		reactRoot = dependencies.createReactRoot(applicationRoot);
 		reactRoot.render(
 			createElement(WorkbenchClientApplication, {
-				locale: nextRuntime.locale,
+				applicationLocaleSource: applicationLocaleController,
 				router: nextRouting.router,
 				terminalSurfaceCapability: nextRuntime.terminalSurfaceCapability,
 			}),

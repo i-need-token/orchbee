@@ -11,6 +11,7 @@ import type {
 interface UseProjectWorktreeMenuOptions {
 	readonly capability: WorkbenchProjectWorktreeCapability | undefined;
 	readonly projectWorkspaceState: ProjectWorkspaceState;
+	readonly requestWorkspaceActivation: (projectId: string, workspaceId: string) => void;
 }
 
 interface ProjectWorktreeMenuView {
@@ -31,6 +32,7 @@ interface ActiveRequest {
 export function useProjectWorktreeMenu({
 	capability,
 	projectWorkspaceState,
+	requestWorkspaceActivation,
 }: UseProjectWorktreeMenuOptions): ProjectWorktreeMenuView {
 	const activeRequest = React.useRef<ActiveRequest | null>(null);
 	const capabilityRef = React.useRef(capability);
@@ -133,7 +135,9 @@ export function useProjectWorktreeMenu({
 				.adopt(input)
 				.catch(() => ({ code: 'control-unavailable' as const, kind: 'failed' as const }))
 				.then((result) => {
-					if (!disposed.current && result.kind === 'failed') setFailure(result.code);
+					if (disposed.current) return;
+					if (result.kind === 'failed') setFailure(result.code);
+					else requestWorkspaceActivation(input.projectId, result.workspaceId);
 				})
 				.finally(() => {
 					if (disposed.current) return;

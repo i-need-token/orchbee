@@ -14,6 +14,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { TerminalSettingsController } from '../../terminal-settings';
 import { KeyboardShortcutSettingsController } from '../../keyboard-shortcuts';
+import { ApplicationLocaleController } from '../../application-locale';
 import { createWebApplicationRouting } from '../createWebApplicationRouting';
 
 const originalScrollTo = window.scrollTo;
@@ -82,10 +83,16 @@ function createRouting(path: string, runtime = createRuntime()) {
 		storage,
 		themeTarget: document.documentElement,
 	});
+	const applicationLocaleController = new ApplicationLocaleController({
+		documentElement: document.documentElement,
+		preferredLocales: ['en-US'],
+		storage,
+	});
 	const routing = createWebApplicationRouting(
 		{
 			actionRuntime,
-			initialTerminalTitle: 'Terminal',
+			applicationLocaleController,
+			getInitialTerminalTitle: () => 'Terminal',
 			keyboardShortcutSettingsController,
 			projectWorkspaceRuntime: runtime,
 			shortcutPlatform: 'standard',
@@ -99,6 +106,7 @@ function createRouting(path: string, runtime = createRuntime()) {
 			actionRuntime.dispose();
 			keyboardShortcutSettingsController.dispose();
 			terminalSettingsController.dispose();
+			applicationLocaleController.dispose();
 		},
 		routing,
 		runtime,
