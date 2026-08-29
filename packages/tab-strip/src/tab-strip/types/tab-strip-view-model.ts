@@ -32,6 +32,7 @@ import type { TabStripRovingItem } from '../accessibility/tab-strip-roving-focus
 
 export interface TabStripViewModel {
 	readonly actions: TabStripActions;
+	readonly identityIcons: NonNullable<TabStripOptions['identityIcons']>;
 	readonly model: TabModel;
 	readonly statusAdornments: NonNullable<TabStripOptions['statusAdornments']>;
 	readonly orientation: TabStripOrientation;

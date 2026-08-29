@@ -35,6 +35,7 @@ export function HorizontalContents({
 	const messages = useTabStripMessages();
 	const {
 		actions,
+		identityIcons,
 		orientation,
 		statusAdornments,
 		showGroupHoverCards,
@@ -414,6 +415,7 @@ export function HorizontalContents({
 							data-drag-settling={(Boolean(draggedView) && drag?.settling) || undefined}
 						>
 							<TabButton
+								identityIcon={identityIcons.get(item.tab.id)}
 								tab={item.tab}
 								statusAdornment={statusAdornments.get(item.tab.id)}
 								snapshot={snapshot}

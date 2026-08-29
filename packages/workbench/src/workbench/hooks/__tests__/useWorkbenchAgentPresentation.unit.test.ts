@@ -10,7 +10,7 @@ import {
 } from '@orchbee/agent';
 import { OrchbeeI18nProvider } from '@orchbee/i18n';
 import { TabModel } from '@orchbee/tab-strip';
-import { renderHook } from '@testing-library/react';
+import { act, render, renderHook } from '@testing-library/react';
 import { createElement, type ReactNode } from 'react';
 import { describe, expect, it } from 'vitest';
 
@@ -19,7 +19,7 @@ import { PanelWorkspaceStore } from '../../components/workbench-panel-workspace/
 import { useWorkbenchAgentPresentation } from '../useWorkbenchAgentPresentation';
 
 describe('useWorkbenchAgentPresentation', () => {
-	it('prepares a provider-neutral location and tab adornment from one snapshot', () => {
+	it('projects provider identity independently from the current tab status', () => {
 		const presentationId = terminalPresentationId('agent-presentation-hook');
 		const tabModel = new TabModel({
 			activeTabId: 'agent-tab-hook',
@@ -35,7 +35,7 @@ describe('useWorkbenchAgentPresentation', () => {
 		const runtime = new AgentRuntime();
 		const sessionId = AgentSessionIdSchema.parse('agent-session-hook');
 		runtime.dispatch({
-			capabilities: ['turnLifecycle', 'activity'],
+			capabilities: ['sessionLifecycle', 'turnLifecycle', 'activity'],
 			eventId: AgentEventIdSchema.parse('agent-observed-hook'),
 			executionLocation: {
 				executionLocationId: AgentExecutionLocationIdSchema.parse('agent-execution-hook'),
@@ -94,5 +94,29 @@ describe('useWorkbenchAgentPresentation', () => {
 			accessibleLabel: 'Claude Code: Thinking',
 			kind: 'active',
 		});
+		const activeIcon = render(
+			createElement('div', null, rendered.result.current.tabIdentityIcons.get('agent-tab-hook')),
+		);
+		expect(
+			activeIcon.container.querySelector('[data-agent-provider-icon="claude-code"]'),
+		).toBeTruthy();
+
+		act(() => {
+			runtime.dispatch({
+				eventId: AgentEventIdSchema.parse('agent-ended-hook'),
+				generation: 0,
+				sequence: 3,
+				sessionId,
+				type: 'session-ended',
+			});
+		});
+
+		expect(rendered.result.current.tabStatusAdornments.has('agent-tab-hook')).toBe(false);
+		const endedIcon = render(
+			createElement('div', null, rendered.result.current.tabIdentityIcons.get('agent-tab-hook')),
+		);
+		expect(
+			endedIcon.container.querySelector('[data-agent-provider-icon="claude-code"]'),
+		).toBeTruthy();
 	});
 });

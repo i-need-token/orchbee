@@ -117,6 +117,8 @@ export interface TabStripOptions {
 	actionRuntime?: ActionRuntime | undefined;
 	/** Monotonic host request to focus the current roving Tab Strip entry. */
 	focusRequest?: number | undefined;
+	/** Host-owned stable identity icon keyed by Tab identity. */
+	identityIcons?: ReadonlyMap<string, ReactNode> | undefined;
 	parentActionScope?: ActionScope | undefined;
 	model: TabModel;
 	/** Host-owned semantic status keyed by Tab identity. */

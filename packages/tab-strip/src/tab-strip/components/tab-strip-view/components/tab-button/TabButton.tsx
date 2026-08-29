@@ -36,6 +36,7 @@ import type { TabStatusAdornment } from '../../../../types/tab-strip-options';
 
 export function TabButton({
 	tab,
+	identityIcon,
 	statusAdornment,
 	snapshot,
 	width,
@@ -59,6 +60,7 @@ export function TabButton({
 	dragging = false,
 }: {
 	tab: Readonly<TabData>;
+	identityIcon?: ReactNode | undefined;
 	statusAdornment?: Readonly<TabStatusAdornment> | undefined;
 	snapshot: TabModelSnapshot;
 	width: number;
@@ -95,7 +97,10 @@ export function TabButton({
 	const visualHovered = hovered || hoveredTabId === tab.id;
 	const alertState = tab.alertState ?? 'none';
 	const hasAlert = alertState !== 'none';
-	const hasFavicon = statusAdornment !== undefined || tab.shouldDisplayFavicon !== false;
+	const hasFavicon =
+		identityIcon !== undefined ||
+		statusAdornment !== undefined ||
+		tab.shouldDisplayFavicon !== false;
 	const horizontalContentsWidth = Math.max(0, renderedWidth - TAB_CONTENT_HORIZONTAL_INSET * 2);
 	const childVisibility =
 		orientation === TabStripOrientation.Horizontal
@@ -170,6 +175,7 @@ export function TabButton({
 				<TabIcon
 					tab={tab}
 					availableWidth={Math.max(0, renderedWidth - 18)}
+					identityIcon={identityIcon}
 					statusAdornment={statusAdornment}
 				/>
 			) : null}

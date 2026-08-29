@@ -24,6 +24,7 @@ export function TabStripView({
 }): ReactNode {
 	const {
 		actions,
+		identityIcons,
 		statusAdornments,
 		orientation,
 		onOrientationChange,
@@ -228,6 +229,7 @@ export function TabStripView({
 					<HorizontalContents horizontalLeadingActions={horizontalLeadingActions} view={view} />
 				) : (
 					<VerticalContents
+						identityIcons={identityIcons}
 						snapshot={snapshot}
 						statusAdornments={statusAdornments}
 						tabCountTransitionSuppressed={verticalTabCountTransitionSuppressed}

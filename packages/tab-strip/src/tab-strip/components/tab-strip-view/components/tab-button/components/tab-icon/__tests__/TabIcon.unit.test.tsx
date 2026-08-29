@@ -29,6 +29,39 @@ describe('TabIcon', () => {
 		expect(container.querySelector('[data-agent-icon]')).toBeTruthy();
 	});
 
+	it('renders a stable host identity independently from its semantic status', () => {
+		const { container } = render(
+			<TabIcon
+				tab={{ ...tab, shouldDisplayFavicon: false }}
+				identityIcon={<span data-agent-identity='' />}
+				statusAdornment={{
+					accessibleLabel: 'Agent working',
+					icon: <span data-status-fallback-icon='' />,
+					kind: 'active',
+				}}
+			/>,
+		);
+
+		expect(container.querySelector('[data-tab-icon]')?.getAttribute('data-identity-icon')).toBe(
+			'true',
+		);
+		expect(container.querySelector('[data-agent-identity]')).toBeTruthy();
+		expect(container.querySelector('[data-status-fallback-icon]')).toBeNull();
+		expect(container.querySelector('[data-tab-icon-status]')).toBeTruthy();
+	});
+
+	it('keeps a host identity visible without a semantic status', () => {
+		const { container } = render(
+			<TabIcon
+				tab={{ ...tab, shouldDisplayFavicon: false }}
+				identityIcon={<span data-ended-agent-identity='' />}
+			/>,
+		);
+
+		expect(container.querySelector('[data-ended-agent-identity]')).toBeTruthy();
+		expect(container.querySelector('[data-tab-icon-status]')).toBeNull();
+	});
+
 	it('renders the synchronized spinner and suppresses the default favicon while loading', () => {
 		const { container } = render(<TabIcon tab={{ ...tab, networkState: 'loading' }} />);
 		const icon = container.querySelector('[data-tab-icon]');

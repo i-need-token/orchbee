@@ -119,6 +119,26 @@ describe('TabStrip', () => {
 		expect(screen.getByRole('tab', { name: /Terminal.*Agent working/u })).toBeTruthy();
 	});
 
+	it.each([TabStripOrientation.Horizontal, TabStripOrientation.Vertical])(
+		'renders a host-owned identity without requiring status in the %s strip',
+		(orientation) => {
+			const model = new TabModel({
+				activeTabId: 'agent',
+				tabs: [{ id: 'agent', title: 'Terminal', pinned: true, group: null }],
+			});
+			render(
+				<TabStrip
+					identityIcons={new Map([['agent', <span key='agent' data-agent-product-icon='' />]])}
+					model={model}
+					orientation={orientation}
+				/>,
+			);
+
+			expect(document.querySelector('[data-agent-product-icon]')).toBeTruthy();
+			expect(document.querySelector('[data-tab-icon-status]')).toBeNull();
+		},
+	);
+
 	it('renders one rule for a shared boundary between inactive tabs', () => {
 		const model = new TabModel({
 			tabs: [

@@ -45,6 +45,7 @@ interface WorkbenchTabBarProps {
 	readonly orientation: TabStripOrientation;
 	readonly reserveSidebarToggleSpace: boolean;
 	readonly shortcutLabels: TabStripShortcutLabels;
+	readonly tabIdentityIcons?: ReadonlyMap<string, ReactNode> | undefined;
 	readonly tabModel: TabModel;
 	readonly statusAdornments?: ReadonlyMap<string, Readonly<TabStatusAdornment>> | undefined;
 	readonly tabStripMessages: TabStripMessages;
@@ -70,6 +71,7 @@ export function WorkbenchTabBar({
 	parentActionScope,
 	reserveSidebarToggleSpace,
 	shortcutLabels,
+	tabIdentityIcons,
 	tabModel,
 	statusAdornments,
 	tabStripMessages,
@@ -98,6 +100,7 @@ export function WorkbenchTabBar({
 				}
 				messages={tabStripMessages}
 				model={tabModel}
+				identityIcons={tabIdentityIcons}
 				statusAdornments={statusAdornments}
 				onNewTab={onNewTerminal}
 				onMoveGroupToWindow={onMoveGroupToWindow}

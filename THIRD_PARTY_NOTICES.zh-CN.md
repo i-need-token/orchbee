@@ -51,3 +51,53 @@ Orchbee 包含以下第三方软件和视觉资产。收录这些内容并不表
 - 在 Orchbee 中的用途：以 Orchbee 主题颜色和尺寸呈现未经修改的字形
 
 Codicons 采用独立于 Orchbee 的许可。上游版权和许可仍归其各自所有者所有。
+
+## Lobe Icons
+
+- 版权声明：Copyright (c) 2023 LobeHub
+- 来源：<https://github.com/lobehub/lobe-icons>
+- 包与固定版本：`@lobehub/icons-static-svg@1.94.0`，`fbd2d56e3f734e889f1373e71c8368cc4e60e0d7`
+- 许可证：MIT
+- 在 Orchbee 中的用途：经适配的 SVG path data，用于 Claude Code、Cline、Codex、Gemini CLI、GitHub Copilot、Grok、OpenCode、Pi 与 Qwen Code Agent identity icon
+
+这些图标所表示的产品名称与商标仍归各自所有者所有。描述性使用不表示其认可 Orchbee。
+
+> Permission is hereby granted, free of charge, to any person obtaining a copy of this software and
+> associated documentation files (the "Software"), to deal in the Software without restriction,
+> including without limitation the rights to use, copy, modify, merge, publish, distribute,
+> sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is
+> furnished to do so, subject to the following conditions:
+>
+> The above copyright notice and this permission notice shall be included in all copies or
+> substantial portions of the Software.
+>
+> THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT
+> NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+> NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+> DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT
+> OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+## OMP Favicon
+
+- 版权声明：Copyright (c) 2025 Mario Zechner；Copyright (c) 2025-2026 Can Bölük；Copyright (c) 2026 Stencil Labs, Inc.
+- 来源：<https://omp.sh/favicon.svg>
+- 来源快照：于 2026-08-29 获取，SHA-256 `9419975a0c24961341221c4cec18703db26a989fa037768f92cda74e3769fe05`
+- 许可证：MIT
+- 在 Orchbee 中的用途：经适配的 SVG path 与 gradient data，用于 OMP Agent identity icon
+
+OMP 产品名称与商标仍归其各自所有者所有。描述性使用不表示其认可 Orchbee。
+
+> Permission is hereby granted, free of charge, to any person obtaining a copy of this software and
+> associated documentation files (the "Software"), to deal in the Software without restriction,
+> including without limitation the rights to use, copy, modify, merge, publish, distribute,
+> sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is
+> furnished to do so, subject to the following conditions:
+>
+> The above copyright notice and this permission notice shall be included in all copies or
+> substantial portions of the Software.
+>
+> THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT
+> NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+> NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+> DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT
+> OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.

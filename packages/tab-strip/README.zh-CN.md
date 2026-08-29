@@ -27,7 +27,7 @@ import '@orchbee/tab-strip/styles.css';
 
 产品组合可以为“新建 Tab”“设置 Tab 标题”和上下文“关闭”提供 `shortcutLabels`。它还可以提供 `onSetTabTitle`，该回调只接收被调用的精确 Tab ID，而产品所有者保留标题策略、编辑、持久化与焦点恢复。上下文菜单只会在共享的尾部快捷键槽位渲染非空、按平台格式化的当前绑定；Tab Strip 不会为没有绑定的命令虚构快捷键。
 
-Host 可以提供一个按 Tab identity 索引的 `statusAdornments` map。每个 `TabStatusAdornment` 提供 host-owned React icon、本地化 accessible label，以及一种 semantic visual kind（`active`、`attention`、`success`、`error`、`degraded` 或 `idle`）。Tab Strip 会把该状态组合进既有 icon slot 与 accessible Tab name，而不会修改 `TabData`、复用 loading/crash/attention field，或了解 host 的业务领域。Host 仍负责 aggregation、localization、status lifetime 与含义。
+Host 可以提供一个按 Tab identity 索引的 `identityIcons` map。每个值都是独立于瞬态 status 的稳定装饰性 React icon；它优先于 status fallback icon、`faviconUrl` 与默认 favicon，但不会改变 accessible Tab name。独立的 `statusAdornments` map 可以提供 host-owned fallback icon、本地化 accessible label，以及一种 semantic visual kind（`active`、`attention`、`success`、`error`、`degraded` 或 `idle`）。Tab Strip 会独立组合 status indicator、accessible label 与 identity icon，而不会修改 `TabData`、复用 loading/crash/attention field，或了解 host 的业务领域。Host 仍负责 identity selection、aggregation、localization、status lifetime 与含义。
 
 本地合成通过`TabModel`同步关闭已知Tab IDs。相反，终端拥有的组合提供 `onCloseTabs`。它还可以提供 `getCloseTabsConfirmation`，这使得所有者可以从受验证的选项卡集影响的完整资源中获得保护，同时选项卡条在同一 `tabs.tab.close` 操作内保持确认。 Action 委托其经过验证的 ID 集和执行上下文，而不改变 `TabModel`；只有在终端关闭编排成功后，所有者才会标记提交点并删除选项卡。因此，取消的确认、挂起的关闭或部分失败的关闭无法使选项卡条尽早删除拓扑。
 

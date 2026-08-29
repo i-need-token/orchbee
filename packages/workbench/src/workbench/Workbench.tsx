@@ -309,6 +309,7 @@ export function Workbench({
 								}}
 								tabModel={view.tabModel}
 								statusAdornments={agentPresentation.tabStatusAdornments}
+								tabIdentityIcons={agentPresentation.tabIdentityIcons}
 								tabStripMessages={tabStripMessages}
 								verticalCollapsed={view.verticalTabStripCollapsed}
 								windowTargets={windowIntegration.windowTargets}

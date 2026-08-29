@@ -41,6 +41,7 @@ import { calculateVerticalPinnedPinAnimationLayout } from './utils/calculateVert
 import type { TabStatusAdornment } from '../../../../types/tab-strip-options';
 
 export function VerticalContents({
+	identityIcons,
 	snapshot,
 	statusAdornments,
 	tabCountTransitionSuppressed,
@@ -83,6 +84,7 @@ export function VerticalContents({
 	onTabSearchContextMenu,
 	onCollapseContextMenu,
 }: {
+	identityIcons: ReadonlyMap<string, ReactNode>;
 	snapshot: TabModelSnapshot;
 	statusAdornments: ReadonlyMap<string, Readonly<TabStatusAdornment>>;
 	tabCountTransitionSuppressed: boolean;
@@ -191,6 +193,7 @@ export function VerticalContents({
 				data-drag-source={dragSource || undefined}
 			>
 				<TabButton
+					identityIcon={identityIcons.get(tab.id)}
 					tab={tab}
 					statusAdornment={statusAdornments.get(tab.id)}
 					snapshot={snapshot}

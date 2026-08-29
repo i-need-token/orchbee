@@ -191,6 +191,9 @@
 .ct-tab-icon[data-show-favicon] .ct-tab-icon__normal {
 	opacity: var(--ob-comp-tab-strip-opacity-visible);
 }
+.ct-tab-icon[data-identity-icon] .ct-tab-icon__normal {
+	opacity: var(--ob-comp-tab-strip-opacity-visible);
+}
 .ct-tab-icon[data-status-adornment] .ct-tab-icon__normal {
 	opacity: var(--ob-comp-tab-strip-opacity-visible);
 }

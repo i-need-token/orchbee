@@ -118,6 +118,7 @@ export function useTabStrip(
 	{
 		actionRuntime,
 		focusRequest = 0,
+		identityIcons = new Map(),
 		model,
 		statusAdornments = new Map(),
 		orientation = TabStripOrientation.Horizontal,
@@ -2517,6 +2518,7 @@ export function useTabStrip(
 
 	return {
 		actions,
+		identityIcons,
 		model,
 		statusAdornments,
 		orientation,
