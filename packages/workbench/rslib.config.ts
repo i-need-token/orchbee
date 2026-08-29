@@ -19,8 +19,9 @@ export default defineConfig({
 	source: {
 		entry: {
 			index: './src/index.ts',
-			'terminal-presentation/index': './src/terminal-presentation/index.ts',
 			'document/index': './src/workbench/document/index.ts',
+			'semantic-commands/index': './src/workbench/semantic-commands/index.ts',
+			'terminal-presentation/index': './src/terminal-presentation/index.ts',
 		},
 		tsconfigPath: './tsconfig.build.json',
 	},

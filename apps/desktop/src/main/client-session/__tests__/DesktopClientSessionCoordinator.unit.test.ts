@@ -107,6 +107,40 @@ describe('DesktopClientSessionCoordinator', () => {
 		expect(reconcileDocument).toHaveBeenCalledTimes(2);
 	});
 
+	it('reports the durable commit before post-commit publication and reconciliation', async () => {
+		const current = document('4', 'Canonical');
+		const candidate = document('5', 'Owned mutation');
+		const trace: string[] = [];
+		const store = storeWith({ document: current, kind: 'available' });
+		store.commit.mockImplementation(async () => {
+			trace.push('store-committed');
+			return { kind: 'committed', revision: candidate.revision };
+		});
+		const coordinator = coordinatorWith(store, {
+			reconcileDocument: async () => {
+				trace.push('reconciled');
+			},
+		});
+		await coordinator.start();
+		trace.length = 0;
+		register(
+			coordinator,
+			publisher([], false, () => {
+				trace.push('published');
+				return false;
+			}),
+		);
+
+		await coordinator.mutateCanonicalDocument(
+			() => ({ document: candidate, kind: 'commit' }),
+			() => {
+				trace.push('commit-observed');
+			},
+		);
+
+		expect(trace).toEqual(['store-committed', 'commit-observed', 'published', 'reconciled']);
+	});
+
 	it('keeps canonical state unchanged when an owned mutation is rejected', async () => {
 		const current = document('4', 'Canonical');
 		const store = storeWith({ document: current, kind: 'available' });

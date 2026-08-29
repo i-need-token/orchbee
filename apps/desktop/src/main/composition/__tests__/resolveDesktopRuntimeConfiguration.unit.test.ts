@@ -41,6 +41,9 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 			path.resolve('/users/orchbee/library/orchbee/project-worktree-operations-v1.json'),
 		);
 		expect(first.browserAccess).toEqual({ kind: 'disabled' });
+		expect(first.environmentRegistryStorePath).toBe(
+			path.resolve('/users/orchbee/library/orchbee/environment-registry-v1.json'),
+		);
 		expect(first.terminalBindingStorePath).toBe(path.resolve('/private/recovery/bindings-v3.json'));
 		expect(first.terminalArchiveDirectory).toBe(
 			path.resolve('/private/recovery/terminal-archives-v1'),
@@ -222,6 +225,14 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 		expect(configuration.terminalLaunch.environment).toContainEqual({
 			name: 'ORCHBEE_SHELL_INTEGRATION_DIR',
 			value: path.resolve('/Applications/Orchbee.app/Contents/Resources/shell-integration'),
+		});
+		expect(configuration.terminalLaunch.environment).toContainEqual({
+			name: 'ORCHBEE_CLI',
+			value: path.resolve('/Applications/Orchbee.app/Contents/Resources/orchbee-cli'),
+		});
+		expect(configuration.terminalLaunch.environment).toContainEqual({
+			name: 'ORCHBEE_CLI_RUNTIME_DIRECTORY',
+			value: configuration.runtimeDirectory,
 		});
 	});
 
@@ -429,6 +440,11 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 			{ name: 'TERM', value: 'xterm-256color' },
 			{ name: 'TERM_PROGRAM', value: 'ghostty' },
 			{
+				name: 'ORCHBEE_CLI',
+				value: path.resolve('/repo/apps/cli/resources/orchbee-cli'),
+			},
+			{ name: 'ORCHBEE_CLI_RUNTIME_DIRECTORY', value: configuration.runtimeDirectory },
+			{
 				name: 'ORCHBEE_SHELL_INTEGRATION_DIR',
 				value: path.resolve('/repo/apps/desktop/resources/shell-integration'),
 			},
@@ -455,6 +471,11 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 			{ name: 'COLORTERM', value: 'truecolor' },
 			{ name: 'TERM', value: 'xterm-256color' },
 			{ name: 'TERM_PROGRAM', value: 'ghostty' },
+			{
+				name: 'ORCHBEE_CLI',
+				value: path.resolve('/repo/apps/cli/resources/orchbee-cli'),
+			},
+			{ name: 'ORCHBEE_CLI_RUNTIME_DIRECTORY', value: configuration.runtimeDirectory },
 			{
 				name: 'ORCHBEE_SHELL_INTEGRATION_DIR',
 				value: path.resolve('/repo/apps/desktop/resources/shell-integration'),
@@ -486,6 +507,11 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 			{ name: 'COLORTERM', value: 'truecolor' },
 			{ name: 'TERM', value: 'xterm-256color' },
 			{ name: 'TERM_PROGRAM', value: 'ghostty' },
+			{
+				name: 'ORCHBEE_CLI',
+				value: path.resolve('/repo/apps/cli/resources/orchbee-cli'),
+			},
+			{ name: 'ORCHBEE_CLI_RUNTIME_DIRECTORY', value: configuration.runtimeDirectory },
 			{
 				name: 'ORCHBEE_SHELL_INTEGRATION_DIR',
 				value: path.resolve('/repo/apps/desktop/resources/shell-integration'),
@@ -531,6 +557,11 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 			{ name: 'COLORTERM', value: 'truecolor' },
 			{ name: 'TERM', value: 'xterm-256color' },
 			{ name: 'TERM_PROGRAM', value: 'ghostty' },
+			{
+				name: 'ORCHBEE_CLI',
+				value: 'C:\\repo\\apps\\cli\\resources\\orchbee-cli.cmd',
+			},
+			{ name: 'ORCHBEE_CLI_RUNTIME_DIRECTORY', value: configuration.runtimeDirectory },
 			{ name: 'NO_COLOR', value: null },
 			{ name: 'FORCE_COLOR', value: null },
 			{ name: 'NODE_DISABLE_COLORS', value: null },

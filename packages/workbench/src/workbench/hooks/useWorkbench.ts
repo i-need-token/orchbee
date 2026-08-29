@@ -55,6 +55,7 @@ import type {
 } from '../model/WorkbenchProjectWorkspaceRuntime';
 import { findActiveTerminalFocusTarget } from '../utils/findActiveTerminalFocusTarget';
 import { resolveActiveTerminalPresentationId } from '../utils/resolveActiveTerminalPresentationId';
+import { executeWorkbenchTerminalCreate } from '../semantic-commands';
 import { useWorkbenchActions } from './useWorkbenchActions';
 import { useWorkbenchFocusRouting } from './useWorkbenchFocusRouting';
 import type { WorkbenchTerminalFocusRequest } from '../model/resolveWorkbenchFocusTarget';
@@ -334,36 +335,54 @@ export function useWorkbench({
 		ReturnType<WorkbenchTerminalCreateCallback>
 	>((context, input) => {
 		if (context.signal.aborted) return { kind: 'cancelled' };
-		const cwdResult =
-			input.currentDirectoryTarget === undefined
-				? projectWorkspaceRuntime.resolveActiveTerminalCwd(input.directoryId)
-				: projectWorkspaceRuntime.resolveTerminalCurrentDirectoryTarget(
-						input.currentDirectoryTarget,
-					);
-		if (cwdResult.kind === 'rejected' || cwdResult.kind === 'unavailable') {
-			return { code: cwdResult.reason, kind: 'blocked' };
+		let creation;
+		if (input.currentDirectoryTarget === undefined) {
+			const activeLocation = projectWorkspaceRuntime.getSnapshot().activeLocation;
+			creation = executeWorkbenchTerminalCreate(
+				projectWorkspaceRuntime,
+				{
+					...(input.directoryId === undefined ? {} : { directoryId: input.directoryId }),
+					fallbackTitle: intl.formatMessage(workbenchTabMessages.terminalTitle),
+					location:
+						activeLocation.kind === 'standalone'
+							? { kind: 'standalone' }
+							: {
+									kind: 'workspace',
+									projectId: activeLocation.projectId,
+									workspaceId: activeLocation.workspaceId,
+								},
+					placement: {
+						groupId: input.groupId,
+						...(input.index === undefined ? {} : { index: input.index }),
+					},
+				},
+				() => context.markCommitted(),
+			);
+		} else {
+			const cwdResult = projectWorkspaceRuntime.resolveTerminalCurrentDirectoryTarget(
+				input.currentDirectoryTarget,
+			);
+			if (cwdResult.kind === 'unavailable') {
+				return { code: cwdResult.reason, kind: 'blocked' };
+			}
+			context.markCommitted();
+			creation = projectWorkspaceRuntime.createTerminal({
+				currentDirectoryTarget: input.currentDirectoryTarget,
+				groupId: input.groupId,
+				...(input.index === undefined ? {} : { index: input.index }),
+				source: context.source,
+				title: intl.formatMessage(workbenchTabMessages.terminalTitle),
+			});
 		}
-		context.markCommitted();
-		const commonInput = {
-			groupId: input.groupId,
-			...(input.index === undefined ? {} : { index: input.index }),
-			source: context.source,
-			title: intl.formatMessage(workbenchTabMessages.terminalTitle),
-		};
-		const creation =
-			input.currentDirectoryTarget === undefined
-				? projectWorkspaceRuntime.createTerminal({
-						...commonInput,
-						...(input.directoryId === undefined ? {} : { directoryId: input.directoryId }),
-					})
-				: projectWorkspaceRuntime.createTerminal({
-						...commonInput,
-						currentDirectoryTarget: input.currentDirectoryTarget,
-					});
 		if (creation.kind === 'rejected') {
-			throw new Error('A resolved terminal Directory became invalid during synchronous creation.');
+			return { code: creation.reason, kind: 'blocked' };
 		}
 		scopedTabModel?.includeTabOptimistically(creation.tabId, true);
+		const terminalContext = projectWorkspaceRuntime.getTerminalContext(creation.terminalContextId);
+		if (terminalContext === null) {
+			throw new Error('A committed Terminal result lost its exact terminal context.');
+		}
+		terminalContext.tabModel.selectTab(creation.tabId);
 		focusRouting.requestTerminalFocus();
 		return { kind: 'completed' };
 	});

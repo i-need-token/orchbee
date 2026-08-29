@@ -74,6 +74,16 @@ active Tab or its collapsed-group representative, then the new-Tab button.
 - **Compatibility, delivery, and rollback:** The accepted defaults are `Mod+F6` and `Mod+Shift+F6`, preserving unmodified function keys for PTY/TUI input. Browser overrides migrate from v20 to v21 by copying every valid prior override, dropping entries equal to current defaults, and rejecting post-migration conflicts; the v20 record remains untouched for rollback and older builds intentionally cannot read v21-only edits. Delivery is ordered as this contract, pure resolver and reconciliation tests, Tab Strip semantics, Workbench/terminal-surface integration, then Web persistence and controlled system evidence. Reverting the v21 catalog and migration, focus Actions/state, Tab Strip projection, and terminal focus-request field together restores the previous behavior without durable-data deletion.
 - **Verification and limits:** Deterministic resolver tests cover both directions, hidden/missing regions, unknown and stale focus, singleton rejection, direct focus, repeat no-op, and exclusive-surface fallthrough. Tab Strip component tests enter through the sole natural Tab stop and cover both orientations, Home/End, manual activation, context-menu keys, new-Tab order, removal/group collapse reconciliation, and focus retention. Workbench tests cover Action availability, shortcut consumption only after a resolved target, focus restoration, and suppression of terminal auto-focus while the Tab Strip owns focus. Web migration/catalog/localization tests cover v20→v21 preservation, conflicts, settings projection, and rollback. Controlled Browser and Desktop real-PTY traces exercise terminal → Tab Strip → menu → terminal and reverse routing; the native-window focus-stealing system test remains explicitly excluded unless separately authorized.
 
+Validated shared-document read projections and exact-target terminal-intent creation are available
+from `@orchbee/workbench/semantic-commands`. This DOM-, React-, storage-, and transport-independent
+entry point lists canonical Project, Directory, Workspace, and terminal identities and delegates one
+terminal creation to the existing Workbench runtime. Creation preserves active Client View
+selection when one exists; an empty target uses the sole created Tab as the Tab model's required
+validity fallback. A product Action may separately select only the exact returned Tab. The
+entry point also publishes the strict versioned location input and committed-result schema; the
+composing application supplies the committed revision and remains responsible for durable
+commitment, process reconciliation, and caller authorization.
+
 ## Experience catalog
 
 Workbench keeps reviewed interaction and business-component Manifests in [`docs/experience`](docs/experience). The records describe their intended and excluded use, invariants, composition dependencies, implementation roots, and Storybook inspection states without turning private components into public exports. Discover them from the repository root with `pnpm experience:find --owner @orchbee/workbench`, then inspect a selected record with `pnpm experience:show <id>` before composing a new complex Workbench interface.

@@ -23,12 +23,13 @@ flowchart TB
 	Web -->|"运行形态"| Electron["Electron renderer"]
 	Web -->|"运行形态"| Browser["Browser 页面"]
 
-	Electron <-->|"@orchbee/desktop-client-protocol<br/>+ @orchbee/workbench-client-protocol<br/>通过 preload MessagePorts"| Desktop["apps/desktop<br/>Electron Main、Session 协调、<br/>Binding 与应用生命周期"]
+	Electron <-->|"@orchbee/desktop-client-protocol<br/>+ @orchbee/workbench-client-protocol<br/>通过 preload MessagePorts"| Desktop["apps/desktop<br/>Electron Main、Session 协调、<br/>Environment registry、Binding<br/>与应用生命周期"]
 	Browser <-->|"@orchbee/remote-client-protocol<br/>通过 HTTP + 签名 Cookie"| Server["apps/server<br/>renderer 与 Browser-session 入口"]
 	Browser <-->|"@orchbee/gateway-protocol<br/>通过 Cookie 准入的 WebSocket"| Gateway["apps/gateway<br/>本地开发 Browser bridge"]
 	Desktop -->|"仅当前 activation 有效的 verifier<br/>与 session 签名密钥"| Server
 	Gateway <-->|"@orchbee/gateway-protocol start<br/>+ @orchbee/workbench-client-protocol<br/>通过 scoped MessagePorts"| Desktop
 	Desktop <-->|"@orchbee/terminal-protocol<br/>通过私有本地 IPC"| Host["apps/terminal-host<br/>PTY / process / Ghostty VT / history 权威"]
+	Desktop <-->|"@orchbee/ssh-environment-protocol<br/>通过一个受监督的 OpenSSH stdio attachment"| SshRuntime["apps/ssh-environment-runtime<br/>每个 Environment 一个 daemon / epoch<br/>有界 project-root-v1 observation"]
 ```
 
 ## 包边界

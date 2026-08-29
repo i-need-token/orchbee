@@ -21,6 +21,7 @@ import {
 	registerDesktopRendererScheme,
 } from '../desktop-renderer-protocol';
 import { POSIX_HOST_ENDPOINT_ADDON_NAME } from '../host';
+import { SEMANTIC_COMMAND_ENDPOINT_ADDON_NAME } from '../semantic-command';
 import { installDesktopApplicationMenu } from '../application-menu';
 import {
 	DesktopSecureKeyboardEntry,
@@ -30,6 +31,7 @@ import { DesktopWindowActions } from '../window-actions';
 import { DesktopApplication } from './DesktopApplication';
 import { prepareDesktopDataRoot } from './prepareDesktopDataRoot';
 import { resolveDesktopRuntimeConfiguration } from './resolveDesktopRuntimeConfiguration';
+import { resolveDesktopSshEnvironmentResources } from './resolveDesktopSshEnvironmentResources';
 
 let desktopApplication: DesktopApplication | undefined;
 let desktopApplicationMenu: ReturnType<typeof installDesktopApplicationMenu> | undefined;
@@ -124,6 +126,14 @@ if (!singleInstanceLockOwned) {
 								'lib',
 								POSIX_HOST_ENDPOINT_ADDON_NAME,
 							),
+							developmentSemanticCommandEndpointAddonPath: path.resolve(
+								__dirname,
+								'..',
+								'..',
+								'zig-out',
+								'lib',
+								SEMANTIC_COMMAND_ENDPOINT_ADDON_NAME,
+							),
 							developmentShellIntegrationDirectory: path.resolve(
 								__dirname,
 								'..',
@@ -157,6 +167,24 @@ if (!singleInstanceLockOwned) {
 				preloadPath: path.join(__dirname, '..', 'preload', 'preload.cjs'),
 				rendererUrl,
 				runtime,
+				semanticCommandEndpointWorkerPath: path.join(
+					__dirname,
+					'semantic-command-local-endpoint-worker.cjs',
+				),
+				sshEnvironment: resolveDesktopSshEnvironmentResources(
+					app.isPackaged
+						? {
+								mainDirectoryPath: __dirname,
+								packaged: true,
+								resourcesPath: process.resourcesPath,
+								runtimeExecutablePath: process.execPath,
+							}
+						: {
+								mainDirectoryPath: __dirname,
+								packaged: false,
+								runtimeExecutablePath: process.execPath,
+							},
+				),
 				singleInstanceLockOwned,
 				traceCopyPath: process.env['ORCHBEE_DESKTOP_TRACE'] === '1',
 			});

@@ -8,6 +8,8 @@ export {
 export type {
 	DesktopApplicationDependencies,
 	DesktopApplicationOptions,
+	DesktopSshEnvironmentResources,
+	SshProjectRootInspectionOutcome,
 	DesktopBrowserAccessRuntimeConfiguration,
 	DesktopRuntimeConfiguration,
 	DesktopRuntimeConfigurationInput,

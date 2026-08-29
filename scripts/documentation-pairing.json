@@ -10,12 +10,16 @@
 			"zhCnSha256": "e1a987416a8e3964edea85402c79937c2314157af760b0da29f14d293d4b4efc"
 		},
 		"README.md": {
-			"englishSha256": "5fb7f8359364bb6b356bdae87f1dae28066f0f2d9cc1b0426cd3e469b1a8b1fe",
-			"zhCnSha256": "312c67ffd0d99d45bdd1bc466764ddbc875fa43f12d07e6ad6a2199f4089a88a"
+			"englishSha256": "2de171a901389bd6ca833cdf85091644653a7cd3d8ef3017f491c3f480eaebd6",
+			"zhCnSha256": "16f825ce7522a408935c70d03cef7cd07b1a915d6a55119528a96bb2e33c4d35"
 		},
 		"THIRD_PARTY_NOTICES.md": {
 			"englishSha256": "c5e4e6e6b8f4da64f330347f93dec2d50767f3ceec7d476b98225c662fd728d6",
 			"zhCnSha256": "2afc317d019dbf2e2e66361ee355e94c1c5dd0bef44c3ee9f499cd3a5bf40058"
+		},
+		"apps/cli/README.md": {
+			"englishSha256": "2d070e8277f2415bf22e4de8190825cb6a7ab5a734e18fd8dd18f1bc9bc6a913",
+			"zhCnSha256": "231c6b37f19227efe1c8f35501ab680b813436e874045c9c83e57961296ff167"
 		},
 		"apps/desktop/README.md": {
 			"englishSha256": "066d7c095087644a8c696d49e733ea7b4f9478c4d58005c05729b72e5a30e57d",
@@ -28,6 +32,10 @@
 		"apps/desktop/docs/kitty-automatic-shell-integration-alignment.md": {
 			"englishSha256": "4c3c4cc4d9d2ff9d93ce220e5527d633aae2fd5443f0ed74a200e3e20d95654c",
 			"zhCnSha256": "a3066c919411806d887c660bd6636812218394e65aac05c50a51b877f06ad37f"
+		},
+		"apps/desktop/docs/environment-registry.md": {
+			"englishSha256": "43b171385f41f4fb51ee5c38505a6b3fcc34124c812a4aa8b9fe4bf671f4a3ee",
+			"zhCnSha256": "e79093269a50868343be69867714b2951bd825f20656a4f64390346ff50d5735"
 		},
 		"apps/desktop/docs/multi-client-session-coordinator.md": {
 			"englishSha256": "94ed4f658be0d4c2c082ef1dbec5956903b37b8e3e6bb3781d664a20c8ed520a",
@@ -48,6 +56,18 @@
 		"apps/desktop/docs/project-worktree-creation.md": {
 			"englishSha256": "f300d8e665a52a54a830fa23e0239e8b6dffca924561490accb81a7948a21b5e",
 			"zhCnSha256": "90da626a0829a69e8c9229402596ccfaf9114ef28b64c31ab32256b1e6caea69"
+		},
+		"apps/desktop/docs/semantic-command-execution.md": {
+			"englishSha256": "f9902e59d3965086262480e162f8d103658b9c764608b01c3764fbdcff6724a8",
+			"zhCnSha256": "6ae60b71d43bf56b2c554b28f8d7ea3fe8adbc3c00c997e752fa0002d3285e9d"
+		},
+		"apps/desktop/docs/ssh-environment-connection.md": {
+			"englishSha256": "9e4bd4e666e4b1f2f3a86f0b83ab5b6ec2a41afca9688b02ec85a78f4d54cdf8",
+			"zhCnSha256": "dc5eba7501311b4890d89d12047a7b359a1831b238234900d4dffce340036962"
+		},
+		"apps/desktop/docs/ssh-runtime-release.md": {
+			"englishSha256": "ca8088ca427d6a752b639bc598847609b8299d035d23e9b453649f5e1975e1f1",
+			"zhCnSha256": "cd43aac08cc353f8d270606a3809a27f40c7bc3f5fb58138d66f25090dc7471c"
 		},
 		"apps/desktop/docs/terminal-launch-profiles.md": {
 			"englishSha256": "d91babc3860c0c136dac9b9e3081e64bad76307af94ee0b69f51401a5f26ec9d",
@@ -72,6 +92,10 @@
 		"apps/server/README.md": {
 			"englishSha256": "332ffbc750feb60fb3f23dc7a536970e929cb56c529b2f253f109f41bc8d7370",
 			"zhCnSha256": "c9290becb6796baeb94ce0533b7e6b0bd2a8d44aa47d3fde4f6815b61fedb3f7"
+		},
+		"apps/ssh-environment-runtime/README.md": {
+			"englishSha256": "49b39f2d31be7d1306df4b009521d60dd92b41acf6480a7cbbf7b57f1f97875f",
+			"zhCnSha256": "fd59c491a522acc4b242415eff5e2174d8224964ff751d7b43fa50cb8baa5d54"
 		},
 		"apps/terminal-host/README.md": {
 			"englishSha256": "ec8e3fa088e5427a94d60ecfc3d624d50dadc0f49f6d9e4c2522d6f14fab578d",
@@ -106,8 +130,8 @@
 			"zhCnSha256": "134abf727082da784b6b680c938fa75c27d9399ffc336107a05e99da8d986c57"
 		},
 		"docs/ARCHITECTURE.md": {
-			"englishSha256": "4e9d8e3aae3dbca2cd5c079627b45f7fe1dec01bdf9431e9d4edbc8c970ebeff",
-			"zhCnSha256": "4e03a6b3c9b7f2ed3ff63e266eb0923e52e6ded439027e24bb78642def9162a3"
+			"englishSha256": "5c6a030fee3ec9b9b417861e7e9b48bd5c20bc62336e892b0ea164a5a26b2ef9",
+			"zhCnSha256": "bf912e60c91a3be884967de18bc6925e51d6fb211061451a38b7882b7c5bf38a"
 		},
 		"docs/CODESTYLE.md": {
 			"englishSha256": "3023b49ff411564bc845ef516164cecf1ce4ef17dbb8e8deb8a95271bca67588",
@@ -249,6 +273,14 @@
 			"englishSha256": "4fcd669cf14563bcd0bd6596a6795e1f585f732402a85ced8dbcc1d2391b6d44",
 			"zhCnSha256": "4e8c54ccc50952eb8c53505a7e7b1b55ae0135fa1c702b7711eca75c169d9fe0"
 		},
+		"packages/semantic-command-protocol/README.md": {
+			"englishSha256": "d240d904ceaffd3bd2b9ac6eae775f9dd164da8997ba8836b3748ef462f96647",
+			"zhCnSha256": "91fb416eb874f0bbec83d8af2e7e8bc258c5290c4026c85a078fd2e7e29ae6f1"
+		},
+		"packages/ssh-environment-protocol/README.md": {
+			"englishSha256": "40a85cb72159ddb181889ccd88ea419713ca31b17f0b925eb84f9413dbeac9e8",
+			"zhCnSha256": "a3ba8596f3d06ddacdda3ec14a3fb108f45e37deb8f1c95d7481082d1938e3e9"
+		},
 		"packages/tab-strip/README.md": {
 			"englishSha256": "fe7194826b812f8542c6c817846c5b08dffb12422a62b0723026e6f935102d18",
 			"zhCnSha256": "6fbf0db0b748072c85f466bd9f6b7b1a94ec0677ff622c609a9a9097f06377c0"
@@ -326,8 +358,8 @@
 			"zhCnSha256": "b247fd587a6db28010c4cce7885d4655e54d4a63c7df09d9284ef09ed9e89fbc"
 		},
 		"packages/workbench/docs/project-workspace.md": {
-			"englishSha256": "7735b6ba0a702e8c85156b9b479faa4af4b666da46d3bc24a832cf841ef39cd7",
-			"zhCnSha256": "8b805e8da1e23e4b6f4f89c6d190f35a57b161819e62aeac2594c98a6bee6974"
+			"englishSha256": "eb6f0833ac32918782a54a50390fb0cc1e96f6695c27cc3162f64cf8edf15347",
+			"zhCnSha256": "2a0e735378e4e03ebbd1417bad1ceaabef34527b7e79190b5241895f241ab2f6"
 		},
 		"packages/workbench/docs/shared-workbench-document.md": {
 			"englishSha256": "98fc4d8deedeab7d29e3ac192a5e8be0077f73e77828754320cf0ed1045bdc33",
@@ -342,8 +374,8 @@
 			"zhCnSha256": "403a26836704cb98a731ed1b24d63d3e9e5008b6e3725741d678f25ef2467675"
 		},
 		"proposals/platform/connected-client-capability-service.md": {
-			"englishSha256": "b03f8f1707c9e9cd6a797aacdf5165cbe2d55280786f5f9e45187d27a8dff951",
-			"zhCnSha256": "75da966f95cc4fa620351ef67c0d7b074c6f31e361cd5c83417a3d08ca4d3253"
+			"englishSha256": "e0c23b7fb865a050ded23f2c47295f91eaefcb96fc20e48b6c179fe09f7cb555",
+			"zhCnSha256": "3db7c4275caf9fa0ab5a77854201eb74cf2da1ae68cd41a272dd827c12d60138"
 		},
 		"proposals/terminal-host/desktop-terminal-host-update-continuity.md": {
 			"englishSha256": "9db345f7bedcb849351160c2ae9cb33b4fcd544e722cfb1fef19863bb8a40efa",

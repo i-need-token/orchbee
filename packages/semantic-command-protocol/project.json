@@ -1,0 +1,12 @@
+{
+	"$schema": "../../schemas/project-contract.schema.json",
+	"domain": "semantic-command-protocol",
+	"runtime": ["universal"],
+	"stability": "experimental",
+	"responsibility": "Strict transport-neutral semantic operation descriptors, invocation and execution contracts, plus the bundled version-locked local HTTP/1.1 JSON framing, route, error, and locator schemas shared by the product CLI and coordinator.",
+	"nonGoals": [
+		"Owning feature operation catalogs, feature input or output schemas, authorization policy, execution handlers, or product state.",
+		"Owning Unix-domain sockets, named pipes, trusted-runtime enumeration, peer authentication, storage, CLI presentation, or diagnostic retention.",
+		"Serializing Action registrations, prepared Action invocations, arbitrary functions, exceptions, terminal content, files, commands, credentials, or secrets."
+	]
+}

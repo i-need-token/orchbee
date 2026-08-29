@@ -428,10 +428,16 @@ export class PanelWorkspaceStore {
 		return false;
 	}
 
-	public prepareTabCwd(tabId: string, cwd: string | null): void {
+	public prepareTabCwd(
+		tabId: string,
+		cwd: string | null,
+		presentation?: TerminalPresentationCreation | undefined,
+	): TerminalPresentationCreation {
 		this.assertTerminalCreationAvailable();
+		const resolvedPresentation = presentation ?? this.createPresentation();
 		this.pendingTabCwds.set(tabId, cwd);
-		this.pendingTabPresentations.set(tabId, this.createPresentation());
+		this.pendingTabPresentations.set(tabId, resolvedPresentation);
+		return resolvedPresentation;
 	}
 
 	public readonly reconcileTabs = (): void => {

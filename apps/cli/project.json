@@ -1,0 +1,12 @@
+{
+	"$schema": "../../schemas/project-contract.schema.json",
+	"domain": "cli",
+	"runtime": ["node"],
+	"stability": "experimental",
+	"responsibility": "Product-owned Node semantic-command client core and real process entry, strict argument and output projection, bounded file and stdin ingestion, process-signal observation cancellation, invocation and execution-observation lifecycle, trusted local-coordinator locator selection, authenticated local HTTP transport adapter, and version-locked Desktop launch artifacts without implicit replay, business-work cancellation, or global installation.",
+	"nonGoals": [
+		"Owning coordinator state, operation catalogs, authorization, feature semantics, Workbench files, terminal processes, or another application's source.",
+		"Owning the coordinator endpoint lifecycle, native server implementation, Workbench state, Terminal Host, TCP, SSH, Browser, or remote transport.",
+		"Providing a shell, arbitrary RPC escape hatch, global installation, durable job storage, implicit coordinator launch, or automatic mutation retry."
+	]
+}

@@ -56,6 +56,13 @@ Tab 或其折叠分组代表，最后选择新建 Tab 按钮。
 - **兼容性、交付与回滚：** 已接受的默认键为 `Mod+F6` 与 `Mod+Shift+F6`，保留未修饰功能键供 PTY/TUI 输入。Browser 覆盖从 v20 迁移至 v21：复制每项有效旧覆盖、移除与当前默认值相等的条目，并拒绝迁移后的冲突；v20 记录保持不变以支持回滚，旧构建有意无法读取仅存在于 v21 的编辑。交付顺序为本契约、纯解析器与协调测试、Tab Strip 语义、Workbench/terminal-surface 集成，最后是 Web 持久化和受控系统证据。一起回退 v21 目录与迁移、焦点 Action/状态、Tab Strip 投影和终端焦点请求字段，即可恢复原行为且不删除持久数据。
 - **验证与边界：** 确定性解析器测试覆盖两个方向、隐藏/缺失区域、未知与陈旧焦点、单例拒绝、直接聚焦、重复空操作及独占表面回落。Tab Strip 组件测试从唯一自然 Tab 入口进入，并覆盖两个方向、Home/End、手动激活、上下文菜单按键、新建 Tab 顺序、移除/分组折叠协调和焦点保持。Workbench 测试覆盖 Action 可用性、仅在解析到目标后消费快捷键、焦点恢复，以及 Tab Strip 拥有焦点时抑制终端自动聚焦。Web 迁移/目录/本地化测试覆盖 v20→v21 保留、冲突、Settings 投影和回滚。受控 Browser 与 Desktop 真实 PTY trace 执行终端 → Tab Strip → 菜单 → 终端及反向路由；原生窗口抢焦点系统测试仍明确排除，除非另行授权。
 
+经过验证的共享文档读取投影和精确目标终端意图创建可从
+`@orchbee/workbench/semantic-commands` 获得。这个不依赖 DOM、React、存储和传输的入口会列出规范的
+Project、Directory、Workspace 与终端标识，并把一次终端创建委托给现有 Workbench runtime。创建会保留活动
+Client View 中已有的选择；空目标会把唯一新建的 Tab 作为 Tab model 所要求的有效性后备项。产品 Action 可以
+另行只选择精确返回的 Tab。该入口还发布严格且带版本的 location input 与 committed-result schema；组合应用
+提供已提交 revision，并继续负责持久提交、进程协调和调用方授权。
+
 ## 体验目录
 
 Workbench 在 [`docs/experience`](docs/experience) 中维护已审核的交互与业务组件清单。这些记录说明预期用途与排除用途、不变式、组合依赖、实现根及 Storybook 检查状态，不会因此把私有组件变成公共导出。构建新的复杂 Workbench 界面前，请先从仓库根目录运行 `pnpm experience:find --owner @orchbee/workbench` 查找组件，再用 `pnpm experience:show <id>` 查看选中记录。

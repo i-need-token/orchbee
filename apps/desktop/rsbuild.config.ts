@@ -11,6 +11,7 @@ import {
 	type DesktopDevelopmentRuntimeLogger,
 } from './src/development';
 import { buildPosixHostEndpoint } from './scripts/build-posix-host-endpoint.mjs';
+import { buildSemanticCommandEndpoint } from './scripts/build-semantic-command-endpoint.mjs';
 
 const electronExecutable: unknown = createRequire(import.meta.url)('electron');
 if (typeof electronExecutable !== 'string') {
@@ -76,12 +77,12 @@ export default defineConfig(({ command }) => {
 			});
 		},
 	};
-	const posixHostEndpointPlugin: RsbuildPlugin = {
-		name: 'orchbee-desktop-posix-host-endpoint',
+	const nativeEndpointPlugin: RsbuildPlugin = {
+		name: 'orchbee-desktop-native-endpoints',
 		apply: 'serve',
 		setup(api) {
 			api.onBeforeCreateCompiler(async () => {
-				await buildPosixHostEndpoint();
+				await Promise.all([buildPosixHostEndpoint(), buildSemanticCommandEndpoint()]);
 			});
 		},
 	};
@@ -91,7 +92,7 @@ export default defineConfig(({ command }) => {
 			command === 'dev'
 				? [
 						pluginSourceBuild({ sourceField: '@orchbee/source' }),
-						posixHostEndpointPlugin,
+						nativeEndpointPlugin,
 						developmentRuntimePlugin,
 					]
 				: [],
@@ -99,7 +100,9 @@ export default defineConfig(({ command }) => {
 			watchFiles: {
 				paths: [
 					path.join(desktopRoot, 'scripts', 'build-posix-host-endpoint.mjs'),
+					path.join(desktopRoot, 'scripts', 'build-semantic-command-endpoint.mjs'),
 					path.join(desktopRoot, 'src', 'native', 'posix-host-endpoint'),
+					path.join(desktopRoot, 'src', 'native', 'semantic-command-endpoint'),
 				],
 				type: 'reload-server',
 			},
@@ -114,7 +117,14 @@ export default defineConfig(({ command }) => {
 					module: false,
 					target: 'node',
 				},
-				source: { entry: { main: './src/main/composition/entry.ts' } },
+				source: {
+					entry: {
+						main: './src/main/composition/entry.ts',
+						'ssh-askpass-helper': './src/main/ssh-environment/ssh-askpass-helper.ts',
+						'semantic-command-local-endpoint-worker':
+							'./src/main/semantic-command/semantic-command-local-endpoint-worker.ts',
+					},
+				},
 				splitChunks: false,
 				tools: {
 					rspack(config) {

@@ -147,8 +147,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Test Desktop POSIX Host endpoint adapter
+      - name: Test SSH Environment Runtime on macOS
         if: runner.os == 'macOS'
+        run: pnpm --filter @orchbee/ssh-environment-runtime test
+
+      - name: Test Desktop local endpoint adapters
         run: pnpm --filter @orchbee/desktop test:native
 
       - name: Test native Terminal Host

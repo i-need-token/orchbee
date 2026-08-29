@@ -104,6 +104,24 @@
 			],
 			"project": ["src/**/*.{ts,tsx}!", "*.ts!"]
 		},
+		"packages/semantic-command-protocol": {
+			"entry": [
+				"src/index.ts!",
+				"src/**/*.unit.test.{ts,tsx}!",
+				"rslib.config.ts!",
+				"vitest.config.ts!"
+			],
+			"project": ["src/**/*.{ts,tsx}!", "*.ts!"]
+		},
+		"packages/ssh-environment-protocol": {
+			"entry": [
+				"src/index.ts!",
+				"src/**/*.unit.test.{ts,tsx}!",
+				"rslib.config.ts!",
+				"vitest.config.ts!"
+			],
+			"project": ["src/**/*.{ts,tsx}!", "*.ts!"]
+		},
 		"packages/terminal": {
 			"entry": [
 				"src/index.ts",
@@ -137,11 +155,24 @@
 			],
 			"project": ["src/**/*.{ts,tsx}!", "stories/**/*.tsx!", "*.ts"]
 		},
+		"apps/cli": {
+			"entry": [
+				"src/index.ts!",
+				"src/**/*.unit.test.{ts,tsx}!",
+				"rsbuild.config.ts!",
+				"vitest.config.ts!"
+			],
+			"project": ["src/**/*.{ts,tsx}!", "*.ts!"]
+		},
 		"apps/desktop": {
 			"entry": [
 				"scripts/*.mjs!",
 				"src/index.ts!",
 				"src/main/composition/entry.ts!",
+				"src/main/semantic-command/semantic-command-local-endpoint-worker.ts!",
+				"src/main/ssh-environment/OpenSshTransportAdapter.ts!",
+				"src/main/ssh-environment/ssh-askpass-helper.ts!",
+				"src/main/ssh-environment/SshEnvironmentSupervisor.ts!",
 				"src/preload/entry.ts!",
 				"src/preload/index.ts!",
 				"src/**/*.unit.test.{ts,tsx}!",

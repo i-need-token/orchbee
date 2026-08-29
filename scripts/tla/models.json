@@ -18,6 +18,32 @@
 	],
 	"models": [
 		{
+			"id": "desktop-environment-registry-commit",
+			"owner": "@orchbee/desktop",
+			"workspace": "apps/desktop",
+			"module": "apps/desktop/formal/tla/EnvironmentRegistryCommit.tla",
+			"config": "apps/desktop/formal/tla/EnvironmentRegistryCommit.cfg",
+			"claims": ["apps/desktop/docs/environment-registry.md"],
+			"triggers": ["apps/desktop/src/main/environment/**"],
+			"requiredCoverage": [
+				"CreateNew",
+				"ReplaySame",
+				"RejectIdConflict",
+				"RejectTargetConflict",
+				"RejectCapacity",
+				"Rename",
+				"ConfirmDurability",
+				"DurabilityIndeterminate",
+				"ReloadIndeterminate",
+				"RestartKeepsRename",
+				"RestartLosesRename",
+				"PrecommitFailure",
+				"RestartBeforeRename",
+				"RetryExisting",
+				"RetryMissing"
+			]
+		},
+		{
 			"id": "desktop-lifecycle",
 			"owner": "@orchbee/desktop",
 			"workspace": "apps/desktop",
@@ -220,6 +246,161 @@
 				"ClearCommittedLedger",
 				"DeliverSuccess",
 				"FailSuccessDelivery"
+			]
+		},
+		{
+			"id": "desktop-semantic-command-execution",
+			"owner": "@orchbee/desktop",
+			"workspace": "apps/desktop",
+			"module": "apps/desktop/formal/tla/SemanticCommandExecutionLedger.tla",
+			"config": "apps/desktop/formal/tla/SemanticCommandExecutionLedger.cfg",
+			"claims": ["apps/desktop/docs/semantic-command-execution.md"],
+			"triggers": [
+				"apps/cli/src/**",
+				"apps/desktop/src/main/semantic-command/**",
+				"packages/semantic-command-protocol/src/**"
+			],
+			"requiredCoverage": [
+				"RejectInvalid",
+				"RejectUnauthorized",
+				"RejectCapacity",
+				"Admit",
+				"ReplaySame",
+				"RejectConflict",
+				"ReadRetained",
+				"ReadMissing",
+				"RequestCancellation",
+				"RepeatCancellation",
+				"CancelTerminal",
+				"MarkCommitted",
+				"CompleteUncommitted",
+				"CompleteCommitted",
+				"Disconnect",
+				"Reconnect",
+				"Restart"
+			],
+			"variants": [
+				{
+					"name": "count-limit",
+					"constants": {
+						"MaxTerminalRecords": 1,
+						"MaxTerminalWeight": 4
+					}
+				},
+				{
+					"name": "weight-limit",
+					"constants": {
+						"MaxTerminalRecords": 3,
+						"MaxTerminalWeight": 2
+					}
+				}
+			]
+		},
+		{
+			"id": "desktop-ssh-environment-connection",
+			"owner": "@orchbee/desktop",
+			"workspace": "apps/desktop",
+			"module": "apps/desktop/formal/tla/SshEnvironmentConnection.tla",
+			"config": "apps/desktop/formal/tla/SshEnvironmentConnection.cfg",
+			"claims": ["apps/desktop/docs/ssh-environment-connection.md"],
+			"triggers": ["apps/desktop/src/main/ssh-environment/**"],
+			"requiredCoverage": [
+				"Start",
+				"RepeatStart",
+				"ResolveTarget",
+				"ResolutionFails",
+				"RequestInteraction",
+				"RepeatInteraction",
+				"CompleteInteraction",
+				"CancelInteraction",
+				"Ready",
+				"InitialTransportFails",
+				"PermanentTransportFails",
+				"LoseConnected",
+				"RetryElapsed",
+				"RetryTransportFails",
+				"Stop",
+				"RepeatStop",
+				"StaleReady",
+				"StaleFailure",
+				"StaleTimer",
+				"StaleInteraction"
+			]
+		},
+		{
+			"id": "desktop-ssh-environment-project-root-service",
+			"owner": "@orchbee/desktop",
+			"workspace": "apps/desktop",
+			"module": "apps/desktop/formal/tla/SshEnvironmentProjectRootService.tla",
+			"config": "apps/desktop/formal/tla/SshEnvironmentProjectRootService.cfg",
+			"claims": ["apps/desktop/docs/ssh-environment-connection.md"],
+			"triggers": [
+				"apps/desktop/src/main/ssh-environment/**",
+				"apps/desktop/src/main/composition/**",
+				"apps/ssh-environment-runtime/**",
+				"packages/ssh-environment-protocol/**"
+			],
+			"requiredCoverage": [
+				"Connect",
+				"Reconnect",
+				"OpenChannel",
+				"AcceptChannel",
+				"SendRequest",
+				"StartInspection",
+				"RejectBusy",
+				"RejectInvalidPayload",
+				"CompleteInspection",
+				"TimeoutInspection",
+				"PublishResult",
+				"CancelChannel",
+				"BeginCompletedClose",
+				"AcknowledgeClose",
+				"LoseAttachment",
+				"RetireLostChannel",
+				"RetireLateWorker",
+				"RejectReplay",
+				"Heartbeat",
+				"TransportViolation",
+				"StaleResult"
+			]
+		},
+		{
+			"id": "desktop-ssh-environment-runtime-attachment",
+			"owner": "@orchbee/desktop",
+			"workspace": "apps/desktop",
+			"module": "apps/desktop/formal/tla/SshEnvironmentRuntimeAttachment.tla",
+			"config": "apps/desktop/formal/tla/SshEnvironmentRuntimeAttachment.cfg",
+			"claims": ["apps/desktop/docs/ssh-environment-connection.md"],
+			"triggers": [
+				"apps/desktop/src/main/ssh-environment/**",
+				"apps/ssh-environment-runtime/**",
+				"packages/ssh-environment-protocol/**"
+			],
+			"requiredCoverage": [
+				"BeginVerification",
+				"VerifyCatalog",
+				"RejectCatalog",
+				"ReportPresent",
+				"RequestUpload",
+				"RejectInstalledMismatch",
+				"RejectUnsupported",
+				"UploadAndInstall",
+				"ConcurrentInstallWins",
+				"ConvergeConcurrentInstall",
+				"RejectConcurrentMismatch",
+				"StartDaemon",
+				"BeginHandshake",
+				"AcceptHello",
+				"RejectHello",
+				"Heartbeat",
+				"LoseAttachment",
+				"RetryElapsed",
+				"RestartDaemon",
+				"RejectCompetingAttachment",
+				"RejectUnadvertisedService",
+				"Stop",
+				"RepeatStop",
+				"StaleHello"
 			]
 		},
 		{

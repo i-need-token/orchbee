@@ -1,0 +1,86 @@
+import { execFile } from 'node:child_process';
+import { access } from 'node:fs/promises';
+import { createRequire } from 'node:module';
+import path from 'node:path';
+import { promisify } from 'node:util';
+import { fileURLToPath } from 'node:url';
+
+import { buildSemanticCommandEndpoint } from './build-semantic-command-endpoint.mjs';
+
+const executeFile = promisify(execFile);
+const desktopRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const repositoryRoot = path.resolve(desktopRoot, '..', '..');
+const addonPath = await buildSemanticCommandEndpoint();
+const runtimeVerifier = path.join(
+	desktopRoot,
+	'scripts',
+	'verify-semantic-command-endpoint-runtime.mjs',
+);
+const localHttpVerifier = path.join(
+	desktopRoot,
+	'scripts',
+	'verify-semantic-command-local-http-runtime.mjs',
+);
+const cliRuntimeVerifier = path.join(
+	desktopRoot,
+	'scripts',
+	'verify-semantic-command-cli-runtime.mjs',
+);
+const cliEntryPath = path.join(repositoryRoot, 'apps', 'cli', 'dist', 'main', 'orchbee-cli.cjs');
+const cliLauncherPath = path.join(
+	repositoryRoot,
+	'apps',
+	'cli',
+	'resources',
+	process.platform === 'win32' ? 'orchbee-cli.cmd' : 'orchbee-cli',
+);
+const workerPath = path.join(
+	desktopRoot,
+	'dist',
+	'main',
+	'semantic-command-local-endpoint-worker.cjs',
+);
+try {
+	await access(workerPath);
+} catch {
+	await executeFile('pnpm', ['--filter', '@orchbee/desktop...', 'build'], {
+		cwd: repositoryRoot,
+		encoding: 'utf8',
+	});
+}
+try {
+	await access(cliEntryPath);
+} catch {
+	await executeFile('pnpm', ['--filter', '@orchbee/cli...', 'build'], {
+		cwd: repositoryRoot,
+		encoding: 'utf8',
+	});
+}
+const electronExecutable = createRequire(import.meta.url)('electron');
+if (typeof electronExecutable !== 'string') {
+	throw new Error('The pinned Electron executable is unavailable.');
+}
+for (const [command, arguments_, environment] of [
+	[process.execPath, [runtimeVerifier, addonPath], process.env],
+	[process.execPath, [localHttpVerifier, addonPath, workerPath], process.env],
+	[electronExecutable, [runtimeVerifier, addonPath], { ...process.env, ELECTRON_RUN_AS_NODE: '1' }],
+	[
+		electronExecutable,
+		[localHttpVerifier, addonPath, workerPath],
+		{ ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+	],
+]) {
+	const { stderr, stdout } = await executeFile(command, arguments_, {
+		encoding: 'utf8',
+		env: environment,
+	});
+	if (stdout.length > 0) process.stdout.write(stdout);
+	if (stderr.length > 0) process.stderr.write(stderr);
+}
+const { stderr, stdout } = await executeFile(
+	process.execPath,
+	[cliRuntimeVerifier, addonPath, workerPath, cliEntryPath, cliLauncherPath, electronExecutable],
+	{ encoding: 'utf8', env: process.env },
+);
+if (stdout.length > 0) process.stdout.write(stdout);
+if (stderr.length > 0) process.stderr.write(stderr);

@@ -1,0 +1,44 @@
+{
+	"name": "@orchbee/semantic-command-protocol",
+	"version": "0.1.0",
+	"private": true,
+	"description": "Strict transport-neutral semantic command and execution contracts",
+	"files": [
+		"dist",
+		"README.md"
+	],
+	"type": "module",
+	"sideEffects": false,
+	"main": "./dist/index.cjs",
+	"module": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"@orchbee/source": "./src/index.ts",
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js",
+			"require": "./dist/index.cjs"
+		},
+		"./local-http": {
+			"@orchbee/source": "./src/local-http/index.ts",
+			"types": "./dist/local-http/index.d.ts",
+			"import": "./dist/local-http/index.js",
+			"require": "./dist/local-http/index.cjs"
+		}
+	},
+	"scripts": {
+		"build": "rslib build --log-level error",
+		"dev": "rslib build --watch",
+		"typecheck": "tsc --noEmit",
+		"test": "vitest run",
+		"test:watch": "vitest",
+		"test:exports": "node ../../scripts/check-package-exports.mjs ."
+	},
+	"dependencies": {
+		"zod": "catalog:"
+	},
+	"devDependencies": {
+		"@rslib/core": "catalog:",
+		"vitest": "catalog:"
+	}
+}

@@ -43,6 +43,11 @@ Orchbee 将 PTY 与 Ghostty VT 模拟的权威实现保留在轻量的原生 Ter
 
 不再逐个盯着彼此孤立的终端。Agent 可以 prompt 和拉起其他 Agent、读取彼此的输出、跨终端发送命令、分派任务并协同推进；你只需在一个地方掌握全局。
 
+当前实验性的本地自动化基础有意保持更窄的边界：每个由 Desktop 创建的 Terminal 都会获得一个精确的
+`ORCHBEE_CLI` path，用于检查 live local coordinator 并调用显式准入的 semantic-command catalog。它不需要
+全局安装，也不授予任意 shell、file、focus 或 remote authority。参见
+[Orchbee CLI 契约](apps/cli/README.zh-CN.md)。
+
 ### 从任意设备控制 Agent
 
 <!-- TODO: 添加 GIF，展示运行中的会话在桌面端、Web 端和移动端之间无中断切换 -->
@@ -95,6 +100,15 @@ pnpm desktop
 ```
 
 Desktop 会打印一个 `ORCHBEE_BROWSER_CLIENT_URL`。在浏览器中打开这个完整 URL，即可与 Electron 加入同一个共享 Workbench 文档和 Host 终端会话。直接打开未带标记的 `pnpm web` URL 时，仍然是隔离的 Preview。
+
+在 Desktop 创建的 Terminal 内，使用以下命令检查精确的 running local coordinator：
+
+```bash
+"$ORCHBEE_CLI" status
+```
+
+在 PowerShell 中使用 `& $env:ORCHBEE_CLI status`。Desktop 会注入这个精确 launcher；Orchbee
+不会全局安装它，也不会把它加入 `PATH`。
 
 </details>
 

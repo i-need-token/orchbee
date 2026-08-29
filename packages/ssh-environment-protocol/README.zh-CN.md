@@ -1,0 +1,75 @@
+# SSH Environment 协议
+
+由 Desktop 与每个 Environment 独立的 SSH Runtime 共享的严格二进制 framing。版本 `0.1.0`
+提供精确的 Hello handshake、Runtime instance 与 epoch identity、heartbeat liveness、channel
+lifecycle record、二进制 channel data，以及 byte-credit flow control。
+
+## Wire contract
+
+每条 record 均以 16 字节 header 开始：
+
+| Offset | 字节数 | 含义                                      |
+| ------ | ------ | ----------------------------------------- |
+| 0      | 4      | ASCII magic `OBSE`                        |
+| 4      | 3      | 精确的 major、minor 与 patch version byte |
+| 7      | 1      | Record kind                               |
+| 8      | 4      | Big-endian unsigned payload length        |
+| 12     | 4      | 保留的全零字节                            |
+
+整条 record 上限为 1 MiB。Control payload 是严格且有界的 UTF-8 JSON。Channel data 使用四字节
+big-endian channel identity，后接 opaque byte；credit record 包含 channel identity 与 byte count。
+Decoder 会拒绝未知 version、kind、field、无效 UTF-8、无效 JSON、非零保留字节，以及不一致或越界
+length。
+
+Hello acceptance 标识一份不可变的 Runtime installation build、一个 daemon instance 和一个 daemon
+epoch。重新连接可以附着到同一个 epoch；daemon 重启后必须报告新 epoch。Runtime 只 advertise
+`project-root-v1`，Desktop 要求该精确 singleton。协议不提供 downgrade、dual-stack negotiation 或
+placeholder capability。
+
+## Project-root service contract
+
+一个 `project-root-v1` channel 精确承载一条 strict request：
+
+```json
+{ "type": "inspect-project-root", "path": "/absolute/posix/path" }
+```
+
+Path 必须是有效 UTF-8、absolute POSIX text、encoded bytes 不超过 4,096，并且不包含 NUL 或 control
+character。双方都不进行 tilde、environment-variable、wildcard、command 或 shell expansion。完整 request
+与 result 各自不超过 16 KiB，每个方向精确获得 64 KiB channel credit。
+
+Result 要么是 `{"kind":"resolved","canonicalPath":"/..."}`，要么是
+`{"kind":"failed","reason":"..."}`。Failure reason 封闭为 `invalid-path`、`not-found`、
+`not-directory`、`permission-denied`、`timed-out`、`busy` 与 `unavailable`。Channel identity 是唯一
+correlation identity；service schema 不引入 Project、Checkout、Workspace 或 directory identity。
+
+## 离线 release contract
+
+Release schema `1` 为精确有序的 `darwin-arm64` 与 `linux-x64` artifact matrix 定义一个 canonical
+unsigned signing payload 和一个 canonical signed manifest。每个 artifact 都具有非零有界 size 与
+SHA-256 digest，并且两者共享一个显式 semantic Runtime version。Trust schema `1` 绑定 canonical
+Ed25519 SPKI、其 `ed25519-spki-sha256:<digest>` identity，以及精确 final manifest bytes 的 SHA-256。
+
+Signing payload 没有 trailing newline；final manifest 与 trust descriptor 各有一个。Schema 会拒绝
+unknown field、platform reorder、不受支持 platform、noncanonical signature 与越界 value。固定 directory
+与 file name 同 schema 一并导出，使 Runtime release tooling 与 Desktop packaging 无法静默选择不同
+layout。
+
+## Authority 边界
+
+本 package 只是一份 data contract。它不能 build 或 sign artifact、持有 private key、验证 package
+trust、组合 Desktop release、创建连接、安装或启动 Runtime、认证 peer、重试 attachment、授权 inspection
+或执行 filesystem work。它拥有精确 `project-root-v1` schema 与 codec，但刻意不提供通用
+execute-command record。任何新增 Runtime service 都必须由其所属 subsystem 显式 advertised、admitted、
+authorized 并实现。
+
+## 验证
+
+在仓库根目录运行：
+
+```sh
+pnpm --filter @orchbee/ssh-environment-protocol build
+pnpm --filter @orchbee/ssh-environment-protocol typecheck
+pnpm --filter @orchbee/ssh-environment-protocol test
+pnpm --filter @orchbee/ssh-environment-protocol test:exports
+```

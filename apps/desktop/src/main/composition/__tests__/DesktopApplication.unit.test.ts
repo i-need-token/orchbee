@@ -43,6 +43,7 @@ import {
 	DesktopClientSessionCoordinator,
 	DesktopTerminalIntentReconciler,
 } from '../../client-session';
+import { DesktopEnvironmentRegistry, EnvironmentRecordSchema } from '../../environment';
 import type { WorkbenchDocumentStore } from '../../workbench-document';
 import type { DesktopWindowLayoutStore } from '../../window-layout';
 import type { DesktopWindowStateStore } from '../../window-state';
@@ -69,6 +70,11 @@ const identity = {
 };
 const presentationId = terminalPresentationId('presentation-recovered');
 const mountedGeometry = { cellPixelHeight: 18, cellPixelWidth: 9, columns: 96, rows: 32 } as const;
+type EnvironmentRegistryStore = ConstructorParameters<typeof DesktopEnvironmentRegistry>[0];
+type EnvironmentRegistryDocument = Extract<
+	Awaited<ReturnType<EnvironmentRegistryStore['load']>>,
+	{ readonly kind: 'ready' }
+>['document'];
 
 class TestMainPort extends EventEmitter {
 	readonly close = vi.fn<() => void>();
@@ -77,6 +83,145 @@ class TestMainPort extends EventEmitter {
 }
 
 describe('DesktopApplication', () => {
+	it('composes durable Environment identity without resolving or opening its SSH target', async () => {
+		const harness = createHarness();
+		const application = createApplication(harness.dependencies);
+		await application.start();
+		const environment = EnvironmentRecordSchema.parse({
+			environmentId: `environment:${'4'.repeat(32)}`,
+			name: 'Build machine',
+			provider: {
+				kind: 'ssh',
+				runtimeInstanceId: '5'.repeat(32),
+				target: { configurationFilePath: null, destination: 'build-host' },
+			},
+		});
+
+		await expect(application.createEnvironment(environment)).resolves.toEqual({
+			environment,
+			kind: 'created',
+			revision: 1,
+		});
+		await expect(application.listEnvironments()).resolves.toEqual({
+			kind: 'ready',
+			value: [environment],
+		});
+		await expect(application.getEnvironment(environment.environmentId)).resolves.toEqual({
+			kind: 'ready',
+			value: environment,
+		});
+		expect(harness.sshEnvironmentTargetResolver.resolve).not.toHaveBeenCalled();
+		expect(harness.sshEnvironmentConnectionOwner.connect).not.toHaveBeenCalled();
+		await application.shutdown();
+	});
+
+	it('exposes explicit process-local SSH Environment activation and owns its shutdown', async () => {
+		const harness = createHarness();
+		const application = createApplication(harness.dependencies);
+		await application.start();
+		const environmentId = EnvironmentRecordSchema.parse({
+			environmentId: `environment:${'6'.repeat(32)}`,
+			name: 'Build machine',
+			provider: {
+				kind: 'ssh',
+				runtimeInstanceId: '7'.repeat(32),
+				target: { configurationFilePath: null, destination: 'build-host' },
+			},
+		}).environmentId;
+		const listener = vi.fn<(observation: unknown) => void>();
+		harness.sshEnvironmentConnectionOwner.connect.mockResolvedValueOnce({ kind: 'not-found' });
+		harness.sshEnvironmentConnectionOwner.inspectProjectRoot.mockResolvedValueOnce({
+			kind: 'failed',
+			reason: 'unavailable',
+		});
+
+		await expect(application.connectSshEnvironment(environmentId)).resolves.toEqual({
+			kind: 'not-found',
+		});
+		await expect(application.disconnectSshEnvironment(environmentId)).resolves.toEqual({
+			kind: 'inactive',
+		});
+		await expect(
+			application.inspectSshEnvironmentProjectRoot(environmentId, '/srv/project'),
+		).resolves.toEqual({ kind: 'failed', reason: 'unavailable' });
+		expect(application.getSshEnvironmentConnection(environmentId)).toEqual({ kind: 'inactive' });
+		expect(application.subscribeSshEnvironmentConnection(environmentId, listener)).toBeNull();
+		expect(harness.sshEnvironmentConnectionOwner.connect).toHaveBeenCalledWith(environmentId);
+		expect(harness.sshEnvironmentConnectionOwner.disconnect).toHaveBeenCalledWith(environmentId);
+		expect(harness.sshEnvironmentConnectionOwner.inspectProjectRoot).toHaveBeenCalledWith(
+			environmentId,
+			'/srv/project',
+			undefined,
+		);
+		expect(harness.sshEnvironmentConnectionOwner.observation).toHaveBeenCalledWith(environmentId);
+		expect(harness.sshEnvironmentConnectionOwner.subscribe).toHaveBeenCalledWith(
+			environmentId,
+			listener,
+		);
+
+		await application.shutdown();
+		expect(harness.sshEnvironmentConnectionOwner.dispose).toHaveBeenCalledOnce();
+	});
+
+	it('owns the process-local SSH connection foundation without opening a transport', async () => {
+		const harness = createHarness();
+		const application = createApplication(harness.dependencies);
+		harness.sshEnvironmentTargetResolver.resolve.mockResolvedValueOnce({
+			code: 'openssh-unavailable',
+			kind: 'failed',
+		});
+
+		const stopped = application.createSshEnvironmentConnectionState({
+			connectionId: 'connection-1',
+			target: { configurationFilePath: null, destination: 'build-host' },
+		});
+		const target = stopped.target;
+		const started = application.transitionSshEnvironmentConnection(stopped, {
+			type: 'start-requested',
+		});
+
+		expect(application.observeSshEnvironmentConnection(started.state)).toMatchObject({
+			connected: false,
+			generation: 1,
+			phase: 'resolving',
+		});
+		await expect(application.resolveSshEnvironmentTarget(target)).resolves.toEqual({
+			code: 'openssh-unavailable',
+			kind: 'failed',
+		});
+		expect(harness.sshEnvironmentTargetResolver.resolve).toHaveBeenCalledWith(target);
+		expect(harness.dependencies.connectHost).not.toHaveBeenCalled();
+	});
+
+	it('publishes only the five accepted Workbench operations through one local endpoint', async () => {
+		const harness = createHarness();
+		const application = createApplication(harness.dependencies);
+
+		await application.start();
+
+		expect(harness.semanticCommandLocalEndpoints).toHaveLength(1);
+		const endpoint = harness.semanticCommandLocalEndpoints[0];
+		if (endpoint === undefined) throw new Error('Expected one semantic command endpoint.');
+		expect(endpoint.start).toHaveBeenCalledOnce();
+		expect(
+			endpoint.options.service
+				.list({ kind: 'local-user' })
+				.operations.map((operation) => operation.id),
+		).toEqual([
+			'workbench.directory.list',
+			'workbench.project.list',
+			'workbench.terminal.create',
+			'workbench.terminal.list',
+			'workbench.workspace.list',
+		]);
+		expect(endpoint.options.workerEntryPath).toContain(
+			'semantic-command-local-endpoint-worker.cjs',
+		);
+
+		await application.shutdown();
+		expect(endpoint.dispose).toHaveBeenCalledOnce();
+	});
+
 	it('uses the launch profile background for the pre-document window surface', async () => {
 		const harness = createHarness();
 		const runtime = createRuntime();
@@ -1543,6 +1688,9 @@ describe('DesktopApplication', () => {
 				prepareDevelopmentHostRestart,
 				rendererUrl: 'http://127.0.0.1:3000/',
 				runtime: createRuntime(),
+				semanticCommandEndpointWorkerPath:
+					'/repo/apps/desktop/dist/main/semantic-command-local-endpoint-worker.cjs',
+				sshEnvironment: createSshEnvironmentOptions(),
 				singleInstanceLockOwned: true,
 				traceCopyPath: false,
 			},
@@ -1693,6 +1841,21 @@ describe('DesktopApplication', () => {
 		expect(harness.host.close).toHaveBeenCalledOnce();
 	});
 
+	it('stops before opening the local Host when the Environment registry is invalid', async () => {
+		const harness = createHarness();
+		harness.environmentRegistryStore.load.mockResolvedValueOnce({
+			kind: 'unavailable',
+			reason: 'invalid-record',
+		});
+		const application = createApplication(harness.dependencies);
+
+		await expect(application.start()).rejects.toThrow(
+			'Desktop Environment registry is unavailable: invalid-record.',
+		);
+		expect(harness.dependencies.connectHost).not.toHaveBeenCalled();
+		expect(harness.createWindow).not.toHaveBeenCalled();
+	});
+
 	it('stops startup when the singleton Host does not accept the requested defaults', async () => {
 		const harness = createHarness();
 		harness.requestControl.mockResolvedValueOnce({
@@ -1716,6 +1879,9 @@ describe('DesktopApplication', () => {
 						preloadPath: '/preload.cjs',
 						rendererUrl: 'http://127.0.0.1:3000/',
 						runtime: createRuntime(),
+						semanticCommandEndpointWorkerPath:
+							'/repo/apps/desktop/dist/main/semantic-command-local-endpoint-worker.cjs',
+						sshEnvironment: createSshEnvironmentOptions(),
 						singleInstanceLockOwned: false,
 						traceCopyPath: false,
 					},
@@ -1738,11 +1904,22 @@ function createApplication(
 			preloadPath: '/repo/apps/desktop/dist/preload/preload.cjs',
 			rendererUrl,
 			runtime,
+			semanticCommandEndpointWorkerPath:
+				'/repo/apps/desktop/dist/main/semantic-command-local-endpoint-worker.cjs',
+			sshEnvironment: createSshEnvironmentOptions(),
 			singleInstanceLockOwned: true,
 			traceCopyPath,
 		},
 		dependencies,
 	);
+}
+
+function createSshEnvironmentOptions(): DesktopApplicationOptions['sshEnvironment'] {
+	return {
+		askPassHelperEntryPath: '/repo/apps/desktop/dist/main/ssh-askpass-helper.cjs',
+		askPassRuntimeExecutablePath: '/usr/bin/node',
+		runtimeRelease: null,
+	};
 }
 
 function emitRendererDocumentLoad(webContents: EventEmitter): void {
@@ -1866,6 +2043,13 @@ function createHarness(
 	const projectionServices: Array<
 		Parameters<DesktopApplicationDependencies['createProjectionControlBroker']>[1]
 	> = [];
+	const semanticCommandLocalEndpoints: Array<{
+		readonly dispose: ReturnType<typeof vi.fn<() => Promise<void>>>;
+		readonly options: Parameters<
+			DesktopApplicationDependencies['createSemanticCommandLocalEndpoint']
+		>[0];
+		readonly start: ReturnType<typeof vi.fn<() => Promise<void>>>;
+	}> = [];
 	const lifetimeBrokers: Array<{
 		readonly dispose: ReturnType<typeof vi.fn<() => void>>;
 		readonly requestExit: ReturnType<typeof vi.fn>;
@@ -2174,6 +2358,49 @@ function createHarness(
 			snapshot: terminalDefaultSettingsSnapshot,
 		})),
 	} satisfies ReturnType<DesktopApplicationDependencies['createTerminalDefaultSettingsController']>;
+	const sshEnvironmentTargetResolver = {
+		resolve: vi
+			.fn<DesktopApplicationDependencies['sshEnvironmentTargetResolver']['resolve']>()
+			.mockResolvedValue({ code: 'openssh-unavailable', kind: 'failed' }),
+	};
+	type SshEnvironmentConnectionOwnerHandle = ReturnType<
+		DesktopApplicationDependencies['createSshEnvironmentConnectionOwner']
+	>;
+	const sshEnvironmentConnectionOwner = {
+		connect: vi
+			.fn<SshEnvironmentConnectionOwnerHandle['connect']>()
+			.mockResolvedValue({ kind: 'not-found' }),
+		disconnect: vi
+			.fn<SshEnvironmentConnectionOwnerHandle['disconnect']>()
+			.mockResolvedValue({ kind: 'inactive' }),
+		dispose: vi.fn<SshEnvironmentConnectionOwnerHandle['dispose']>().mockResolvedValue(undefined),
+		inspectProjectRoot: vi
+			.fn<SshEnvironmentConnectionOwnerHandle['inspectProjectRoot']>()
+			.mockResolvedValue({ kind: 'failed', reason: 'unavailable' }),
+		observation: vi
+			.fn<SshEnvironmentConnectionOwnerHandle['observation']>()
+			.mockReturnValue({ kind: 'inactive' }),
+		subscribe: vi.fn<SshEnvironmentConnectionOwnerHandle['subscribe']>().mockReturnValue(null),
+	} satisfies SshEnvironmentConnectionOwnerHandle;
+	let environmentRegistryDocument: EnvironmentRegistryDocument = {
+		environments: [],
+		revision: 0,
+		schemaVersion: 1,
+	};
+	const environmentRegistryStore = {
+		commit: vi.fn<EnvironmentRegistryStore['commit']>(async (expectedRevision, document) => {
+			if (environmentRegistryDocument.revision !== expectedRevision) {
+				return { document: environmentRegistryDocument, kind: 'conflict' };
+			}
+			environmentRegistryDocument = document;
+			return { kind: 'committed' };
+		}),
+		load: vi.fn<EnvironmentRegistryStore['load']>(async () => ({
+			document: environmentRegistryDocument,
+			kind: 'ready',
+		})),
+	} satisfies EnvironmentRegistryStore;
+	const environmentRegistry = new DesktopEnvironmentRegistry(environmentRegistryStore);
 	let identifierSequence = 0;
 	const dependencies: DesktopApplicationDependencies = {
 		connectHost: vi.fn<DesktopApplicationDependencies['connectHost']>().mockResolvedValue(host),
@@ -2215,6 +2442,12 @@ function createHarness(
 			clipboardBrokers.push(broker);
 			return broker;
 		}),
+		createEnvironmentRegistry: vi
+			.fn<DesktopApplicationDependencies['createEnvironmentRegistry']>()
+			.mockReturnValue(environmentRegistry),
+		createSshEnvironmentConnectionOwner: vi
+			.fn<DesktopApplicationDependencies['createSshEnvironmentConnectionOwner']>()
+			.mockReturnValue(sshEnvironmentConnectionOwner),
 		createBroker: vi.fn<DesktopApplicationDependencies['createBroker']>(),
 		createClientSessionBroker: vi.fn<DesktopApplicationDependencies['createClientSessionBroker']>(
 			(port, coordinator, disposeAttachments) => {
@@ -2257,6 +2490,17 @@ function createHarness(
 		createProjectWorktreeRuntime: vi
 			.fn<DesktopApplicationDependencies['createProjectWorktreeRuntime']>()
 			.mockReturnValue(projectWorktreeRuntime),
+		createSemanticCommandLocalEndpoint: vi.fn<
+			DesktopApplicationDependencies['createSemanticCommandLocalEndpoint']
+		>((options) => {
+			const endpoint = {
+				dispose: vi.fn<() => Promise<void>>(async () => undefined),
+				options,
+				start: vi.fn<() => Promise<void>>(async () => undefined),
+			};
+			semanticCommandLocalEndpoints.push(endpoint);
+			return endpoint;
+		}),
 		createTerminalLaunchProfileBroker: vi.fn<
 			DesktopApplicationDependencies['createTerminalLaunchProfileBroker']
 		>(() => {
@@ -2311,6 +2555,7 @@ function createHarness(
 		}),
 		randomIdentifier: () => (++identifierSequence).toString(16).padStart(32, '0'),
 		quitApplication: vi.fn<() => void>(),
+		sshEnvironmentTargetResolver,
 		writeTrace: vi.fn<DesktopApplicationDependencies['writeTrace']>(),
 	};
 	return {
@@ -2325,6 +2570,8 @@ function createHarness(
 		createWorkbenchDocumentStore: dependencies.createWorkbenchDocumentStore,
 		createWindow,
 		dependencies,
+		environmentRegistry,
+		environmentRegistryStore,
 		host,
 		lifetimeBrokers,
 		lifetimeDependencies,
@@ -2346,6 +2593,9 @@ function createHarness(
 		projectionServices,
 		quitApplication: dependencies.quitApplication,
 		requestControl,
+		semanticCommandLocalEndpoints,
+		sshEnvironmentConnectionOwner,
+		sshEnvironmentTargetResolver,
 		terminalRuntime,
 		terminalExitSpillAdmit,
 		terminalExitSpillStore,

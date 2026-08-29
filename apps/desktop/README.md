@@ -238,15 +238,16 @@ existing terminal. Only the local Electron renderer receives the management port
 Gateway pages and ordinary Browser clients cannot inspect or change the catalog. See
 [`docs/terminal-launch-profiles.md`](docs/terminal-launch-profiles.md).
 
-Ordinary remote shells remain owned by the system SSH client the user invokes inside that PTY.
-Desktop does not wrap `ssh`, retain remote credentials or host records, add OpenSSH environment
-forwarding rules, install terminfo, or write a remote cache. A requested SSH PTY can carry the
-standard `TERM=xterm-256color`; `COLORTERM`, `TERM_PROGRAM`, and any other extra variables cross the
-connection only when the user's OpenSSH client configuration and the server both permit them. The
-shared Settings surface provides one constant read-only remote diagnostic command that reports the
-observed variables and distinguishes an unset TERM, a missing `infocmp` program, and a missing
-terminfo entry. That command performs no network, installation, filesystem, or terminal-input
-effect until the user explicitly chooses to run it in a shell.
+Ordinary remote shells remain owned by the system SSH client the user invokes inside that PTY. The
+terminal-launch-profile path does not wrap `ssh`, retain remote credentials or host records, add
+OpenSSH environment-forwarding rules, install terminfo, or write a remote cache. A requested SSH
+PTY can carry the standard `TERM=xterm-256color`; `COLORTERM`, `TERM_PROGRAM`, and any other extra
+variables cross the connection only when the user's OpenSSH client configuration and the server
+both permit them. The shared Settings surface provides one constant read-only remote diagnostic
+command that reports the observed variables and distinguishes an unset TERM, a missing `infocmp`
+program, and a missing terminfo entry. That command performs no network, installation, filesystem,
+or terminal-input effect until the user explicitly chooses to run it in a shell. The separate
+product-managed SSH Environment foundation described below does not change this ordinary-PTY path.
 
 No product maximum is imposed on terminals, bindings, or attachments. Active collections grow from shared product structure and visible demand; allocation, filesystem, Host, or memory exhaustion returns an operation failure instead of evicting or silently truncating another terminal. Host inventory is read through generation-scoped protocol pages rather than one bounded global list. Pre-association `TerminalExited` delivery uses a bounded identity-keyed admission buffer: admitted identities are never evicted, and an identity that has not acquired its binding association is retried before the adapter buffer is released. After the Host envelope is accepted, Desktop Main synchronously records the event in an owner-only durable pending journal before the fire-once Host listener returns. The separate 64-entry identity-keyed in-memory queue is only a scheduler/cache; it is not the crash recovery owner. The pending journal has its own 4096-entry capacity, while the restart-safe publication ledger and durable rejection journal have independent capacities. Journal-full or write failure is recorded as an observable durable rejection when possible, and the admission path fails closed if that rejection cannot be recorded. Unknown identities stay in durable pending ownership without a timer loop; an exact identity observation wakes promotion. Queue-full, shutdown, and observed pending entries may be promoted by the retry owner. A pending entry is removed only after successful durable runtime recording, adapter publication commit, publication-ledger admission, reconciler acceptance, and live publication; compaction failure therefore leaves durable recovery state. Shutdown transfers unresolved in-memory entries to the pending journal before completing the remaining application teardown.
 
@@ -403,6 +404,92 @@ notification permission, and the completion payload contains no command text.
 Known Host `TerminalExited` events enter the Main-owned retry/reconciliation path before they are resolved through the authoritative runtime registry, persisted to the exact binding, and published to Workbench by PresentationId. An identity that remains unresolvable is retained as a durable, observable reconciliation record and is promoted only when its exact identity is observed (or by the retryable known-entry paths); it is not spun in an unbounded unknown-identity timer loop. A recovered exited binding is restored into Workbench only until its identity-checked bootstrap event enters the managed natural-exit removal protocol. Its final revision remains readable during that interval; the resulting close intent disposes the Host terminal without process termination, then Workbench removes or promotes the exact Presentation according to its Panel topology. The reconciler reservation, adapter commit, publication-ledger record, and visible event are separate steps: a bootstrap can see the event only after all durable and presentation ownership steps succeed. Durability is confirmed before the first exit publication is consumed.
 
 The Workbench `terminal-presentation-event-published` message is the single Main-owned lifecycle publication. A typed Host failure becomes a non-retryable `terminal-failed` presentation outcome; the reconciler retains it for later client bootstrap, and Workbench keeps the terminal projectable and read-only until explicit close. `ProjectedTerminalBroker` may also forward an identity-checked, attachment-local raw `terminal-exited` or `terminal-failed` notification so a live projection can synchronize with Host state; that renderer transport has its own monotonic revision filter, is outside the coordinator sequence, and is not a second Workbench publication. The two channels therefore do not provide a cross-channel exactly-once claim.
+
+## Semantic command local endpoint
+
+Desktop composes one process-lifetime semantic-command service after the client-session coordinator
+starts. The service owns an immutable explicit catalog, one coordinator generation, and a bounded
+in-memory execution ledger. Its explicit production catalog contains the four feature-owned read
+operations for Projects, Directories, Workspaces, and terminals, plus the exact-target
+`workbench.terminal.create` command. Every other command remains absent.
+
+Desktop publishes one bounded locator and private local HTTP/1.1 endpoint only after the canonical
+Workbench coordinator is ready. POSIX uses a mode-`0600` Unix-domain socket plus effective-UID
+authentication in both directions; Windows uses a current-user named pipe DACL plus mutual
+current-user process-SID validation. The endpoint opens no TCP listener and is separate from
+preload, renderer, Browser access, and Terminal Host. Shutdown removes the locator and listener
+before disposing the service.
+
+Every Desktop-owned Terminal launch receives the exact current-platform `ORCHBEE_CLI` launcher and
+the same product-scoped `ORCHBEE_CLI_RUNTIME_DIRECTORY`. The launcher derives only its colocated or
+code-relative CLI entry and native addon. Source development uses the repository Node runtime;
+packaged applications use their bundled Electron runtime in Node mode. The launcher is never added
+to `PATH`, never chooses a locator from a Project or current directory, and never starts Desktop or
+falls back to TCP. The CLI owns its process parser, bounded file/stdin reads, request identity, local
+observation cancellation, one-document output, and exit code; Desktop continues to own endpoint
+lifecycle, catalog authority, and execution state. The maintained process and artifact contract
+lives in [`../cli/README.md`](../cli/README.md).
+
+While a receipt is retained, equal canonical requests reuse one execution and conflicting reuse
+fails closed. Active executions are capped at 32 and are never evicted; terminal receipts are
+evicted oldest first above either 256 records or 32 MiB of encoded safe results. One execution
+result is capped below the 1 MiB local response envelope and becomes the payload-free
+`output-capacity-exceeded` failure if necessary. Cancellation is cooperative and forwarded at most
+once before durable commit; after the canonical Workbench revision commits, cancellation is no
+longer forwarded. A client disconnect neither cancels nor replays accepted work. The maintained
+boundary, transition table, evidence, and explicit limits live in
+[`docs/semantic-command-execution.md`](docs/semantic-command-execution.md).
+
+## SSH Environment connection foundation
+
+Desktop Main is the current colocated Hub owner of the strict append-only
+`environment-registry-v1.json`. It loads that registry before the local Terminal Host, keeps the
+provider-neutral Environment identity independent from its SSH Runtime identity, admits one exact
+target only once, and exposes create/list/get/reload only inside Main. A registry record starts no
+connection and grants no remote effect. See
+[`docs/environment-registry.md`](docs/environment-registry.md).
+
+The release-only package path independently verifies one externally signed, canonical two-platform
+Runtime bundle before Electron Packager runs. It derives one exact manifest-pinned trust descriptor
+from a separately supplied Ed25519 public key, stages that descriptor inside `app.asar`, and stages
+the verified manifest and buffered artifacts under `Resources`. Production private keys remain
+outside the repository and ordinary CI. See
+[`docs/ssh-runtime-release.md`](docs/ssh-runtime-release.md).
+
+The separate connection foundation accepts one concrete destination or SSH alias and an optional
+explicitly selected absolute configuration-file path. The bounded resolver invokes the trusted installed
+OpenSSH client as `ssh -G` with a literal argument array and no shell, then admits only a validated
+effective hostname, user, port, host-key lookup identity, and strict host-key policy. OpenSSH remains
+the authority for configuration evaluation and `known_hosts`; disabled host-key checking fails
+closed, and raw process diagnostics never become product payloads.
+
+A supervised adapter verifies one Ed25519-signed release catalog before opening one no-PTY OpenSSH
+child. That same child detects macOS arm64 or glibc Linux x86_64 and emits one bounded installed or
+upload status. An exact installed immutable version skips the artifact read; absence lazily reads,
+verifies, and streams only the selected artifact through a no-clobber installation. A forced
+owner-only AskPass bridge keeps prompts and answers transient. The child then attaches to one
+detached per-Environment Runtime daemon and carries the strict
+`@orchbee/ssh-environment-protocol` Hello and heartbeat directly over SSH stdio. A deterministic
+state machine fences generations, admits `connected` only after exact Runtime identity and epoch
+verification, and retries a lost attachment only after one proven connection. Stopping the local
+attachment does not stop the remote daemon or imply Project deletion.
+
+The exact `0.1.0` protocol advertises only `project-root-v1`. Through the connected Environment
+owner, Desktop Main can inspect one explicit absolute POSIX Project-root candidate and receive its
+canonical directory path or a bounded failure. The call never connects or waits for reconnection,
+is capped at four concurrent calls and 30 seconds per Environment, and is cancelled without replay
+on caller cancellation or attachment loss. It grants no retained filesystem handle or Project,
+Checkout, Workspace, listing, file-byte, watch, or mutation authority.
+
+`DesktopApplication` composes the registry with one process-local, explicitly activated connection
+owner keyed by Environment identity. It never auto-connects, serializes repeated connect and
+disconnect, and disposes all active supervisors on shutdown. There is no renderer API or prompt UI,
+automatic record creation, Runtime network feed, Project or Workspace projection, remote directory
+listing, file access, filesystem watch or mutation, terminal channel, Git operation, Agent execution,
+service installation, Windows activation, or real-SSH test. Release inputs exist only in the
+explicit package command; release-free packages block activation. The maintained connection
+contract, transition table, security boundary, formal claims, and exact limitations live in
+[`docs/ssh-environment-connection.md`](docs/ssh-environment-connection.md).
 
 ## Correctness evidence
 
@@ -630,7 +717,7 @@ Start the canonical Web development server and Desktop together:
 pnpm desktop
 ```
 
-`pnpm desktop` builds the Browser-access Server, Gateway, and static Web resources, then runs the Web development server and the Desktop-owned native/Electron development lifecycle. Electron defaults to `http://127.0.0.1:3000/`; an explicit loopback Web server can be selected with `ORCHBEE_DESKTOP_RENDERER_URL`. Open **Settings → Browser access** to create or reset the Personal Access Token, start loopback access, or explicitly enable trusted-LAN preview. Access links contain no credential; Desktop Main performs the Copy Link and Open Browser effects. Set `ORCHBEE_DESKTOP_GATEWAY=0` to remove Browser-access resources from a development launch.
+`pnpm desktop` builds the Browser-access Server, Gateway, static Web resources, and semantic-command CLI entry before running the Web development server and the Desktop-owned native/Electron development lifecycle. Electron defaults to `http://127.0.0.1:3000/`; an explicit loopback Web server can be selected with `ORCHBEE_DESKTOP_RENDERER_URL`. Open **Settings → Browser access** to create or reset the Personal Access Token, start loopback access, or explicitly enable trusted-LAN preview. Access links contain no credential; Desktop Main performs the Copy Link and Open Browser effects. Set `ORCHBEE_DESKTOP_GATEWAY=0` to remove Browser-access resources from a development launch.
 
 Build an unsigned current-platform application bundle with:
 
@@ -638,7 +725,25 @@ Build an unsigned current-platform application bundle with:
 pnpm desktop:package
 ```
 
-The command builds the Terminal Host, POSIX endpoint adapter, Web renderer, Browser Server, Gateway, and Electron Main/preload bundles before packaging. The Web build is both a read-only `orchbee://app` resource and the on-demand Browser renderer root; the native Host, current-platform endpoint adapter, Server, and Gateway entries remain available outside `app.asar`. The output is generated beneath `apps/desktop/out/` and is not a signed installer or release artifact.
+The command builds the Terminal Host, native endpoint adapters, semantic-command CLI, Web renderer, Browser Server, Gateway, and Electron Main/preload bundles before packaging. The Web build is both a read-only `orchbee://app` resource and the on-demand Browser renderer root; the native Host, current-platform endpoint adapters, CLI entry and launcher, Server, and Gateway entries remain available outside `app.asar`. Packaging fails when a CLI artifact is missing or the POSIX launcher is not executable. This development command does not include an SSH Runtime release.
+
+Compose one previously finalized Runtime bundle with an unsigned current-platform application bundle
+through the separate release-only command:
+
+```sh
+ORCHBEE_SSH_RUNTIME_RELEASE_DIRECTORY=/absolute/final-release \
+ORCHBEE_SSH_RUNTIME_RELEASE_PUBLIC_KEY=/absolute/release-public-key.pem \
+pnpm desktop:package:release
+```
+
+Both paths must be absolute. The command strictly verifies the fixed layout, canonical manifest,
+independent Ed25519 public key, signature, sizes, and digests before invoking Electron Packager. It
+places the manifest and two Runtime artifacts under `Resources/ssh-environment-runtime-release-v1`
+and the exact manifest-pinned trust descriptor inside `app.asar`. The complete offline ceremony and
+rollback boundary live in [`docs/ssh-runtime-release.md`](docs/ssh-runtime-release.md).
+
+Both package commands write beneath `apps/desktop/out/`. Neither performs Electron code signing,
+notarization, installer creation, publication, or update distribution.
 
 `ORCHBEE_TERMINAL_HOST_BINARY` selects an absolute development/test Host binary. `ORCHBEE_TERMINAL_SCROLLBACK_BYTES` selects the temporary development startup/default scrollback budget in decimal bytes from `0` through `1000000000`; the built-in default is `10000000`. `ORCHBEE_GATEWAY_ENTRY_PATH`, `ORCHBEE_SERVER_ENTRY_PATH`, and `ORCHBEE_WEB_RENDERER_ROOT` select explicit development Browser-access resources when the default sibling builds are not used. `ORCHBEE_DESKTOP_RUNTIME_DIRECTORY`, `ORCHBEE_DESKTOP_ENDPOINT_ID`, and `ORCHBEE_DESKTOP_RECOVERY_DIRECTORY` isolate controlled development and system-test state. They are not a versioned Host installation or discovery mechanism. The default POSIX runtime uses the short stable product-scoped child of the trusted per-user runtime location described above; an explicit runtime directory is still prepared and validated by the native endpoint-security boundary.
 

@@ -87,6 +87,31 @@ explicit Project Directory
 
 在创建终端之前，工作台运行时会拒绝无效的显式目录。不可用的默认目录将被跳过。主机可以报告终端的当前CWD，而不改变其启动CWD。面板拆分和子终端创建继承当前CWD；工作区复制从记录的启动 CWD 开始新的 shell。更改项目或工作区主目录永远不会更改现有终端 CWD。
 
+### 语义命令投影与终端创建
+
+`@orchbee/workbench/semantic-commands` 是不依赖 DOM、React、transport 与 storage 的已批准
+Workbench 检查及精确目标终端创建入口。读取操作消费已验证的 `WorkbenchSharedDocument`，mutation
+消费权威的 `WorkbenchProjectWorkspaceRuntime`；它绝不会直接编辑持久文档或自行调度应用提交。
+
+| 建模字段 | 合约                                                                                                                                                                                                                                                                                           |
+| -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 问题     | 非可视调用方需要稳定的 Project、Directory、Workspace 与 terminal identity，以及一项不会漂移到已聚焦客户端对象的终端创建操作。                                                                                                                                                                  |
+| 输入     | 读取投影接收已验证的共享文档。公共终端创建契约只接收精确 `WorkbenchLocationRef` 与可选 Project Directory。Owner operation 还接收 owner 提供的后备标题、固定顶层位置与当前 Workbench runtime。缺失或陈旧 identity 会被拒绝。                                                                    |
+| 数据     | Project、Directory、Workspace、terminal-context、Tab、Panel、Presentation 与持久 intent identity 继续由现有 Workbench 模型拥有。该操作不创建平行 Store。                                                                                                                                       |
+| 输出     | 读取返回带输入文档 revision 的完整规范顺序快照。Owner operation 返回精确 terminal-context、Tab、Panel、Presentation 与 preview/provision intent identity，或一项类型化拒绝。公共 committed output 会加入组合应用已存储的 revision。                                                            |
+| 不变量   | 读取绝不查询 Client View。创建只更改一个已解析 terminal context，保留 active location 与每项已有 active Tab selection，创建一个含单一主 Panel Presentation 的顶层 Tab，并保持其他 context 不变。空目标 context 会把唯一新建的 Tab 作为模型有效性所要求的后备项。拒绝保留完整 Workbench state。 |
+| 决策     | Project、Directory 与 Workspace 顺序跟随共享文档。Terminal 顺序依次为 Tab 顺序、Panel 深度优先顺序，再在每个 Panel 内先主 Presentation 后子 Presentation。精确 Workspace 解析先检查 Project membership，再检查 Workspace identity。                                                            |
+| 模型     | 读取操作是确定性 projector。`executeWorkbenchTerminalCreate` 是主要同步操作，并把唯一 mutation 委托给 `WorkbenchProjectWorkspaceRuntime#createTerminalAtLocation`。                                                                                                                            |
+| 转换     | 解析精确 location → 解析可选或默认 CWD → 验证 Tab 位置并分配 identity → 调用 commit callback → 已有其他 Tab 时添加一个非 active Tab，否则安装首个 Tab 的有效性后备项 → 协调其 Panel Presentation。产品 Action 随后可以把仅选择返回的精确 Tab 作为单独 Client View 投影。                       |
+| 依赖     | `@orchbee/tab-strip` 拥有 Tab 插入不变量；Workbench 拥有 Project/Workspace 解析、Panel 构造、Presentation lifecycle 与 command 投影；组合应用拥有 identity 分配、revision 指派、持久提交与进程协调。                                                                                           |
+| 验证     | 确定性示例覆盖每项读取投影、拒绝类别及空 context 的首个 Tab 后备项。固定 seed 的有状态属性覆盖有效、陈旧、Directory 不可用及 cross-Project trace、精确 context mutation、identity 唯一性、共享文档有效性与已有 active Client View selection 不变。                                             |
+
+Workbench 返回完整读取快照而非分页结果。Desktop semantic-command coordinator 会对快照分页，并把不透明
+HMAC cursor 绑定到 operation、target、coordinator generation 与 revision，而无需把 cursor policy 移入
+Workbench。托管创建结果表示 Workbench 投影中已存在一个持久 `provision` intent；只有应用 coordinator 在存储其
+canonical revision 后才能把该结果标记为已持久提交。Preview 创建保持明确区分，且不能进入共享
+文档。该操作不执行 terminal process、network、filesystem 或 Client View navigation effect。
+
 ### 投影的终端元数据和选项卡标题
 
 应用程序使用拥有终端的计算机的可信主机名转发一个完整的已提交终端元数据观察。 Workbench 通过修剪外部空白然后删除 NUL 字符来标准化自然的 OSC 0/2 标题。 `null` 清除自然标题。持久后备标题和可选的持久自定义选项卡标题保持独立。显示优先级依次为自定义标题、聚焦终端的最新自然标题、其当前 CWD 或启动 CWD 的最后一个非空路径段，然后是后备标题。产品创建的后备值使用本地化且不带编号的“终端”标签，因此身份分配绝不会泄漏到可见标题中。设置自定义标题可以修剪它；空白或已显示的输入不变。较晚的自然标题仍然隐藏在自定义标题下方，清除自定义标题会立即显示最新的自然标题。
@@ -218,6 +243,8 @@ repository 保持为独立分组。Project 中已有的 Worktree 和新发现的
 | 目录刷新保留身份、顺序和引用                                     | 转换和运行时测试                           | 不适用                            | 主机观察值得信赖                           |
 | 活动位置始终解析                                                 | 转换和删除测试                             | 有状态属性测试                    | 仅内存状态                                 |
 | CWD 遵循公认的优先级                                             | 决策表单元测试                             | 不适用                            | 仅本地路径投影                             |
+| 语义读取会解析精确的规范资源，且不回退到 Client View             | 有序读取投影及过时/cross-Project 测试      | 共享文档 Schema 验证              | 完整内存快照；无分页                       |
+| 精确终端创建只改变一个目标上下文，并保留已有选择或唯一有效后备项 | 拒绝矩阵、空 context 与产品 Action 测试    | 固定种子状态属性迹线              | 持久提交和修订仍由应用拥有                 |
 | 预计标题和 CWD 遵循声明的 Warp 范围                              | 标准化和运行时投影场景                     | Web 桥和引导适配器测试            | 无带内命令或 SSH-state 奇偶校验            |
 | 工作区副本重置运行时状态并保留布局投影                           | 上下文运行时和集成测试                     | 组件场景                          | 无过程或输出奇偶校验声明                   |
 | 项目披露不会切换终端上下文                                       | 减速机和部件测试                           | 键盘和指针交互                    | 受控的浏览器环境                           |
@@ -233,7 +260,7 @@ repository 保持为独立分组。Project 中已有的 Worktree 和新发现的
 | 现有 Worktree 采用会按仓库分组清单并原子创建一个 Workspace       | Transition、runtime、协议、Hook 与组件测试 | 真实仓库 Git adapter 测试         | 时间点本地清单；不修改 Git                 |
 | 省略号和行上下文手势公开一个操作菜单模型                         | 组件奇偶校验和调用测试                     | 指针交互回顾                      | 仅项目和工作区行                           |
 
-同步内存转换与浏览器路径条目集合不需要 TLA+。异步 existing-Folder Desktop adapter 由
+同步内存转换、语义投影与终端创建以及浏览器路径条目集合不需要 TLA+。异步 existing-Folder Desktop adapter 由
 `DesktopLifecycle` 的 `project-folder-acquisition` 配置覆盖，包括选择、取消、失败、过时目标、
 renderer 退役及延迟原生完成。托管 Worktree 的 Git/产品一致性与恢复由 Desktop 单独注册的
 `ProjectWorktreeCreation` 模型覆盖。现有 Worktree 的发现与采用使用 Desktop 文档中的有界

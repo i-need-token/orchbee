@@ -15,6 +15,7 @@ import type {
 	AutomaticShellIntegrationConfiguration,
 	AutomaticShellIntegrationShell,
 } from '../terminal-launch-profiles';
+import { SEMANTIC_COMMAND_ENDPOINT_ADDON_NAME } from '../semantic-command';
 
 export interface DesktopRuntimeEnvironment {
 	readonly FORCE_COLOR?: string;
@@ -54,6 +55,7 @@ export interface DesktopRuntimeConfigurationInput {
 	readonly darwinSupportedLocales?: readonly string[] | undefined;
 	readonly darwinSystemLocale?: string | undefined;
 	readonly developmentPosixHostEndpointAddonPath?: string | undefined;
+	readonly developmentSemanticCommandEndpointAddonPath?: string | undefined;
 	readonly developmentShellIntegrationDirectory?: string | undefined;
 	readonly environment: DesktopRuntimeEnvironment;
 	readonly homeDirectory: string;
@@ -69,10 +71,12 @@ export interface DesktopRuntimeConfiguration {
 	readonly binaryPath: string;
 	readonly browserAccess: DesktopBrowserAccessRuntimeConfiguration;
 	readonly endpointId: string;
+	readonly environmentRegistryStorePath: string;
 	readonly managedWorktreeRoot: string;
 	readonly posixHostEndpointAddonPath: string | null;
 	readonly projectWorktreeOperationStorePath: string;
 	readonly runtimeDirectory: string;
+	readonly semanticCommandEndpointAddonPath: string;
 	readonly terminalArchiveDirectory: string;
 	readonly terminalBindingStorePath: string;
 	readonly terminalExitPublicationLedgerPath: string;
@@ -233,6 +237,35 @@ export function resolveDesktopRuntimeConfiguration(
 			POSIX_HOST_ENDPOINT_ADDON_NAME,
 		);
 	}
+	const semanticCommandEndpointAddonPath =
+		input.packagedResourcesPath === undefined
+			? path.resolve(
+					input.developmentSemanticCommandEndpointAddonPath ??
+						path.join(
+							input.applicationPath,
+							'zig-out',
+							'lib',
+							SEMANTIC_COMMAND_ENDPOINT_ADDON_NAME,
+						),
+				)
+			: path.resolve(input.packagedResourcesPath, SEMANTIC_COMMAND_ENDPOINT_ADDON_NAME);
+	// Cross-application artifact contract: search for `semantic-command-cli-launcher-name` before changing these values.
+	const semanticCommandCliLauncherName =
+		input.platform === 'win32' ? 'orchbee-cli.cmd' : 'orchbee-cli';
+	const semanticCommandCliPlatformPath = input.platform === 'win32' ? path.win32 : path.posix;
+	const semanticCommandCliLauncherPath =
+		input.packagedResourcesPath === undefined
+			? semanticCommandCliPlatformPath.resolve(
+					input.applicationPath,
+					'..',
+					'cli',
+					'resources',
+					semanticCommandCliLauncherName,
+				)
+			: semanticCommandCliPlatformPath.resolve(
+					input.packagedResourcesPath,
+					semanticCommandCliLauncherName,
+				);
 
 	return {
 		automaticShellIntegration: resolveAutomaticShellIntegrationConfiguration(
@@ -242,6 +275,7 @@ export function resolveDesktopRuntimeConfiguration(
 		binaryPath,
 		browserAccess,
 		endpointId,
+		environmentRegistryStorePath: path.join(input.userDataPath, 'environment-registry-v1.json'),
 		managedWorktreeRoot: path.join(input.userDataPath, 'worktrees'),
 		posixHostEndpointAddonPath,
 		projectWorktreeOperationStorePath: path.join(
@@ -249,6 +283,7 @@ export function resolveDesktopRuntimeConfiguration(
 			'project-worktree-operations-v1.json',
 		),
 		runtimeDirectory,
+		semanticCommandEndpointAddonPath,
 		terminalArchiveDirectory: path.join(recoveryDirectory, 'terminal-archives-v1'),
 		terminalBindingStorePath: path.join(recoveryDirectory, 'bindings-v3.json'),
 		terminalExitPublicationLedgerPath: path.join(
@@ -274,6 +309,8 @@ export function resolveDesktopRuntimeConfiguration(
 				{ name: 'COLORTERM', value: 'truecolor' },
 				{ name: 'TERM', value: 'xterm-256color' },
 				{ name: 'TERM_PROGRAM', value: 'ghostty' },
+				{ name: 'ORCHBEE_CLI', value: semanticCommandCliLauncherPath },
+				{ name: 'ORCHBEE_CLI_RUNTIME_DIRECTORY', value: runtimeDirectory },
 				...(shellIntegrationDirectory === null
 					? []
 					: [{ name: 'ORCHBEE_SHELL_INTEGRATION_DIR', value: shellIntegrationDirectory }]),

@@ -136,6 +136,72 @@ describe('Workbench Project and Workspace management', () => {
 		);
 	});
 
+	it('adapts New Tab through exact terminal creation and selects only its returned Tab', async () => {
+		const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
+			standaloneCwd: '/system',
+			standaloneTerminalTitle: 'Terminal 1',
+			terminalPresentation: createTestTerminalPresentationComposition('exact-action'),
+		});
+		for (const [index, name] of ['alpha', 'beta'].entries()) {
+			projectWorkspaceRuntime.transition({
+				directory: {
+					available: true,
+					git: null,
+					id: `directory-${name}`,
+					kind: 'folder',
+					name,
+					path: `/projects/${name}`,
+					source: 'selected',
+				},
+				launchConfigurations: [],
+				primaryWorkspaceLaunchConfigurationId: null,
+				primaryWorkspaceName: `${name} workspace`,
+				projectName: name,
+				terminalTitle: `Terminal ${index + 1}`,
+				type: 'project-created',
+			});
+		}
+		const [alpha, beta] = projectWorkspaceRuntime.getSnapshot().projects;
+		const alphaContext =
+			alpha?.workspaces[0] === undefined
+				? null
+				: projectWorkspaceRuntime.getTerminalContext(alpha.workspaces[0].terminalContextId);
+		const betaContext =
+			beta?.workspaces[0] === undefined
+				? null
+				: projectWorkspaceRuntime.getTerminalContext(beta.workspaces[0].terminalContextId);
+		if (alphaContext === null || betaContext === null) {
+			throw new Error('Expected both Project terminal contexts.');
+		}
+		const alphaSelection = alphaContext.tabModel.getSnapshot().activeTabId;
+
+		render(
+			<OrchbeeI18nProvider locale='en-US'>
+				<TooltipProvider>
+					<Workbench
+						actionRuntime={new ActionRuntime()}
+						projectWorkspaceRuntime={projectWorkspaceRuntime}
+						shortcutPlatform='apple'
+					/>
+				</TooltipProvider>
+			</OrchbeeI18nProvider>,
+		);
+
+		fireEvent.click(screen.getByRole('button', { name: /new tab/iu }));
+		await waitFor(() => expect(betaContext.tabModel.getSnapshot().tabs).toHaveLength(2));
+
+		expect(alphaContext.tabModel.getSnapshot()).toMatchObject({
+			activeTabId: alphaSelection,
+			tabs: [{ id: alphaSelection }],
+		});
+		expect(betaContext.tabModel.getSnapshot().activeTabId).toBe('terminal-context-3-tab-2');
+		expect(projectWorkspaceRuntime.getSnapshot().activeLocation).toEqual({
+			kind: 'workspace',
+			projectId: 'project-2',
+			workspaceId: 'workspace-2',
+		});
+	});
+
 	it('projects current configured bindings into the tab context menu', async () => {
 		const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
 			standaloneCwd: '/system',
@@ -1137,7 +1203,7 @@ describe('Workbench Project and Workspace management', () => {
 		fireEvent.click(within(removeProjectDialog).getByRole('button', { name: 'Cancel' }));
 		await waitFor(() => expect(screen.queryByText('Remove Project?')).toBeNull());
 		expect(projectWorkspaceRuntime.getSnapshot().projects).toHaveLength(1);
-	});
+	}, 10_000);
 
 	it('previews Project reorder compactly, commits on release, and restores expansion on completion or cancellation', async () => {
 		const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({

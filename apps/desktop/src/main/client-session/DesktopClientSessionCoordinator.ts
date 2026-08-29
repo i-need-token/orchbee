@@ -186,6 +186,7 @@ export class DesktopClientSessionCoordinator {
 
 	mutateCanonicalDocument(
 		mutation: (document: WorkbenchSharedDocument) => DesktopCanonicalDocumentMutationDecision,
+		afterCommit?: ((document: WorkbenchSharedDocument) => void) | undefined,
 	): Promise<DesktopCanonicalDocumentMutationResult> {
 		return this.#enqueueOperation(async () => {
 			if (this.#startResult?.kind !== 'ready' || this.#phase.kind !== 'accepting') {
@@ -236,6 +237,7 @@ export class DesktopClientSessionCoordinator {
 				return { kind: 'unavailable', reason };
 			}
 			this.#canonicalDocument = document;
+			afterCommit?.(document);
 			await this.#dependencies.onCanonicalDocumentChanged?.(document).catch(() => undefined);
 			await this.#dependencies.reconcileTerminalArchives?.(document).catch(() => undefined);
 			this.#broadcast({

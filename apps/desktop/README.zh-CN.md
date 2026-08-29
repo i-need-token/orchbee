@@ -155,7 +155,13 @@ Electron Main 拥有 `terminal-launch-profiles-v1.json`，这是命名设备本�
 
 当新终端首次配置时，在写入其持久绑定之前，默认配置文件将被解析一次。重试、渲染器重新加载、应用程序重新启动和恢复重用该绑定捕获的完整启动，因此编辑或更改当前默认值不会改变现有终端。仅本地Electron渲染器接收管理端口；经过身份验证的网关页面和普通浏览器客户端无法检查或更改目录。请参阅[`docs/terminal-launch-profiles.md`](docs/terminal-launch-profiles.md)。
 
-普通远程 shell 仍然由用户在 PTY 内部调用的系统 SSH 客户端拥有。 Desktop 不会包装 `ssh`、保留远程凭据或主机记录、添加 OpenSSH 环境转发规则、安装 terminfo 或写入远程缓存。请求的SSH PTY可以携带标准`TERM=xterm-256color`；仅当用户的 OpenSSH 客户端配置和服务器都允许时，`COLORTERM`、`TERM_PROGRAM` 和任何其他额外变量才会跨连接。共享设置表面提供了一个常量只读远程诊断命令，该命令报告观察到的变量并区分未设置的 TERM、丢失的 `infocmp` 程序和丢失的 terminfo 条目。该命令不会执行网络、安装、文件系统或终端输入效果，直到用户明确选择在 shell 中运行它。
+普通远程 shell 仍然由用户在 PTY 内部调用的系统 SSH 客户端拥有。terminal-launch-profile 路径不会
+包装 `ssh`、保留远程凭据或主机记录、添加 OpenSSH 环境转发规则、安装 terminfo 或写入远程缓存。
+请求的 SSH PTY 可以携带标准 `TERM=xterm-256color`；仅当用户的 OpenSSH 客户端配置和服务器都允许时，
+`COLORTERM`、`TERM_PROGRAM` 和其他额外变量才会跨连接。共享 Settings 表面提供一个常量只读远程
+诊断命令，报告观察到的变量，并区分未设置的 TERM、缺少 `infocmp` 程序和缺少 terminfo 条目。只有用户
+显式选择在 shell 中运行该命令时，它才会执行；命令本身不包含网络、安装、文件系统或 terminal-input
+effect。下文单独描述的产品托管 SSH Environment 基础不会改变这条普通 PTY 路径。
 
 终端、绑定或附件都没有产品级数量上限。活动集合随共享产品结构和可见需求增长；分配、文件系统、Host 或内存资源耗尽会返回操作失败，而不会驱逐或静默截断另一个终端。Host 清单通过限定代次的协议分页读取，而不是一个有界全局列表。关联前的 `TerminalExited` 交付使用有界的按身份索引准入缓冲区：已准入身份永不驱逐；尚未获得绑定关联的身份会在适配器释放缓冲区前重试。Host 信封一经接受，Desktop Main 就会在一次性 Host 监听器返回前，把事件同步记录到所有者专用的持久待处理日志。独立的 64 项按身份索引内存队列只是调度器/缓存，而非崩溃恢复的权威所有者。待处理日志有独立的 4096 项容量；可安全跨重启的发布账本与持久拒绝日志也各有独立容量。日志已满或写入失败时会尽可能记录可观察的持久拒绝；若无法记录，准入路径会以失败关闭。未知身份保持持久待处理所有权，不进入定时循环；观察到确切身份后会唤醒晋升。队列已满、关机和已观察的待处理条目可由重试所有者晋升。只有持久运行时记录、适配器发布提交、发布账本准入、协调器接受与实时发布全部成功后，才会移除待处理条目；因此，压缩失败会保留持久恢复状态。关机在完成其余应用拆卸前，会把尚未解决的内存条目转移到待处理日志。
 
@@ -220,6 +226,79 @@ Electron 附件只请求协议字面量 `plain` selection export，并通过 Mai
 已知主机 `TerminalExited` 事件进入 Main 拥有的重试/协调路径，然后通过权威运行时注册表进行解析，保留到确切的绑定，并由 PresentationId 发布到工作台。仍然无法解析的身份将保留为持久的、可观察的协调记录，并且仅当观察到其确切身份（或通过可重试的已知条目路径）时才会升级；它不会在无限的未知身份计时器循环中旋转。恢复的退出绑定只会恢复到 Workbench，直至其经过身份检查的 bootstrap 事件进入 managed 自然退出 removal 协议。在此期间最终修订仍可读取；随后产生的 close intent 会在不终止进程的情况下处置 Host 终端，再由 Workbench 按 Panel 拓扑移除或提升精确的 Presentation。协调器预留、适配器提交、发布分类账记录和可见事件是单独的步骤：只有在所有持久和表示所有权步骤成功后，引导程序才能看到事件。在第一个退出发布被消耗之前确认耐久性。
 
 Workbench `terminal-presentation-event-published` 消息是 Main 拥有的单一生命周期发布。类型化主机故障变成不可重试的 `terminal-failed` 呈现结果；协调器保留它以供以后的客户端引导，而工作台使终端保持可投影和只读状态，直到显式关闭为止。 `ProjectedTerminalBroker` 还可以转发身份检查、附件本地原始 `terminal-exited` 或 `terminal-failed` 通知，以便实时投影可以与主机状态同步；该渲染器传输有自己的单调修订过滤器，位于协调器序列之外，并且不是第二个工作台发布。因此，这两个通道不提供跨通道的一次性声明。
+
+## 语义命令本地 endpoint
+
+Desktop 会在 client-session coordinator 启动后组合一个进程生命周期内的 semantic-command
+service。该 service 拥有不可变的显式 catalog、一个 coordinator generation，以及有界的内存 execution
+ledger。其显式生产 catalog 包含 Project、Directory、Workspace 与 terminal 的四项 feature-owned
+读取 operation，以及精确 target 的 `workbench.terminal.create` command。其他所有 command 仍然不存在。
+
+Desktop 只会在 canonical Workbench coordinator ready 后发布一个有界 locator 和 private local
+HTTP/1.1 endpoint。POSIX 使用 mode-`0600` Unix-domain socket，并在双向执行 effective-UID
+authentication；Windows 使用 current-user named pipe DACL，并进行双向 current-user process-SID
+validation。该 endpoint 不打开 TCP listener，并与 preload、renderer、Browser access 和 Terminal Host
+分离。Shutdown 会先移除 locator 与 listener，再 dispose service。
+
+每次 Desktop-owned Terminal launch 都会获得精确的当前平台 `ORCHBEE_CLI` launcher，以及同一个
+product-scoped `ORCHBEE_CLI_RUNTIME_DIRECTORY`。Launcher 只解析 colocated 或 code-relative CLI entry
+与 native addon。源码开发使用仓库 Node runtime；打包 application 通过 Node mode 使用自身 bundled
+Electron runtime。Launcher 绝不会被加入 `PATH`，不会从 Project 或 current directory 选择 locator，
+不会启动 Desktop，也不会回退到 TCP。CLI 拥有其 process parser、有界 file/stdin read、request identity、
+本地 observation cancellation、单 document output 与 exit code；Desktop 继续拥有 endpoint lifecycle、
+catalog authority 与 execution state。持续维护的 process 与 artifact 契约位于
+[`../cli/README.md`](../cli/README.zh-CN.md)。
+
+receipt 被保留期间，相同的 canonical request 会复用同一个 execution，冲突复用则 fail closed。active
+execution 上限为 32 且永不被淘汰；terminal receipt 超过 256 条或编码后的安全结果超过 32 MiB 时，会按
+最旧优先淘汰。单个 execution result 被限制在 1 MiB local response envelope 以下，必要时会变为不带
+payload 的 `output-capacity-exceeded` failure。Cancellation 是协作式的，并且只会在 durable commit
+前最多转发一次；canonical Workbench revision 提交后不再转发。Client disconnect 不会取消或重放已接受的
+工作。持续维护的边界、transition table、evidence 与明确限制位于
+[`docs/semantic-command-execution.md`](docs/semantic-command-execution.zh-CN.md)。
+
+## SSH Environment 连接基础
+
+Desktop Main 是严格 append-only `environment-registry-v1.json` 的当前共址 Hub owner。它在本地 Terminal
+Host 之前加载 registry，让 provider-neutral Environment identity 与 SSH Runtime identity 保持独立，只准入
+一次相同精确 target，并且只在 Main 内暴露 create/list/get/reload。Registry record 不会启动连接，也不会
+授予远程 effect。参见
+[`docs/environment-registry.md`](docs/environment-registry.zh-CN.md)。
+
+仅用于 release 的 package path 会在 Electron Packager 运行前，独立验证一份 externally signed、canonical
+双平台 Runtime bundle。它从单独提供的 Ed25519 public key 派生一份精确固定 manifest 的 trust
+descriptor，把该 descriptor staging 到 `app.asar` 内，并把已验证 manifest 与缓冲 artifact staging 到
+`Resources` 下。Production private key 保持在 repository 与普通 CI 之外。参见
+[`docs/ssh-runtime-release.md`](docs/ssh-runtime-release.zh-CN.md)。
+
+单独的连接基础接受一个具体 destination 或 SSH alias，以及一个可选且由用户显式选择的绝对配置文件路径。
+有界 resolver 使用字面参数数组且不通过 shell，以 `ssh -G` 调用可信的已安装 OpenSSH 客户端；随后只准入经过验证的有效
+hostname、user、port、host-key 查找身份与严格 host-key 策略。OpenSSH 仍然是配置求值与
+`known_hosts` 的权威；关闭 host-key 检查会失败关闭，原始进程诊断永远不会成为产品 payload。
+
+受监督 adapter 在打开一个无 PTY 的 OpenSSH child 前验证一份 Ed25519-signed release catalog。同一个 child
+检测 macOS arm64 或 glibc Linux x86_64，并发出一个有界 installed 或 upload status。精确的已安装 immutable
+version 会跳过 artifact read；不存在时才会 lazy 读取、验证并传输所选 artifact，完成 no-clobber
+installation。强制启用的 owner-only AskPass bridge 让 prompt 与 answer 保持瞬时。随后 child 附着到每个
+Environment 一个的 detached Runtime daemon，并通过 SSH stdio 直接承载严格的
+`@orchbee/ssh-environment-protocol` Hello 与 heartbeat。确定性状态机 fence generation，仅在验证精确
+Runtime identity 与 epoch 后准入 `connected`，并且只在一次已证明的连接后 retry 丢失的 attachment。停止
+本地 attachment 不会停止远端 daemon，也不表示删除 Project。
+
+精确 `0.1.0` protocol 只公布 `project-root-v1`。Desktop Main 可以通过已连接的 Environment owner 检查一个
+显式的 absolute POSIX Project-root candidate，并接收其 canonical directory path 或有界 failure。该调用
+永不 connect 或等待 reconnect；每个 Environment 最多同时执行四个调用，每个调用最多 30 秒；caller
+cancellation 或 attachment loss 会取消调用且不 replay。它不授予 retained filesystem handle，也不授予
+Project、Checkout、Workspace、listing、file-byte、watch 或 mutation authority。
+
+`DesktopApplication` 把 registry 与一个按 Environment identity 建立、只通过显式 activation 启动的进程内
+connection owner 组合起来。它永不 auto-connect，会串行化重复 connect 与 disconnect，并在 shutdown 时
+dispose 所有 active supervisor。当前没有 renderer API 或 prompt UI、自动 record creation、Runtime network
+feed、Project 或 Workspace projection、remote directory listing、file access、filesystem watch 或
+mutation、terminal channel、Git operation、Agent execution、service installation、Windows activation 或
+real-SSH test。Release input 只存在于显式 package command；不含 release 的 package 会 block activation。
+持续维护的连接合约、转换表、安全边界、形式化声明与精确限制位于
+[`docs/ssh-environment-connection.md`](docs/ssh-environment-connection.zh-CN.md)。
 
 ## 正确性证据
 
@@ -351,7 +430,7 @@ Electron 或 Host 编译失败不会影响最后运行的进程。只有新二�
 pnpm desktop
 ```
 
-`pnpm desktop` 构建 Browser 访问 Server、Gateway 和静态 Web 资源，然后运行 Web 开发 Server 和 Desktop 拥有的 native/Electron 开发生命周期。Electron 默认为 `http://127.0.0.1:3000/`；可以使用 `ORCHBEE_DESKTOP_RENDERER_URL` 选择显式 loopback Web Server。打开 **设置 → 浏览器访问** 可以创建或重置个人访问令牌、启动 loopback 访问，或显式启用 trusted-LAN 预览。访问链接不含 credential；Desktop Main 执行复制链接与打开 Browser effect。设置 `ORCHBEE_DESKTOP_GATEWAY=0` 可从开发启动中移除 Browser 访问资源。
+`pnpm desktop` 会构建 Browser 访问 Server、Gateway、静态 Web 资源和 semantic-command CLI entry，然后运行 Web 开发 Server 与 Desktop 拥有的 native/Electron 开发生命周期。Electron 默认为 `http://127.0.0.1:3000/`；可以使用 `ORCHBEE_DESKTOP_RENDERER_URL` 选择显式 loopback Web Server。打开 **设置 → 浏览器访问** 可以创建或重置个人访问令牌、启动 loopback 访问，或显式启用 trusted-LAN 预览。访问链接不含 credential；Desktop Main 执行复制链接与打开 Browser effect。设置 `ORCHBEE_DESKTOP_GATEWAY=0` 可从开发启动中移除 Browser 访问资源。
 
 使用以下命令构建未签名的当前平台应用程序包：
 
@@ -359,7 +438,25 @@ pnpm desktop
 pnpm desktop:package
 ```
 
-该命令在打包之前构建 Terminal Host、POSIX 端点适配器、Web 渲染器、浏览器服务器、网关和 Electron Main/预加载包。Web 构建既是只读的 `orchbee://app` 资源，也是按需浏览器渲染器根；本机 Host、当前平台端点适配器、服务器和网关条目在 `app.asar` 外部仍然可用。输出是在 `apps/desktop/out/` 下生成的，不是签名的安装程序或发布工件。
+该命令会在打包前构建 Terminal Host、native endpoint adapter、semantic-command CLI、Web renderer、Browser Server、Gateway，以及 Electron Main/preload bundle。Web build 既是只读 `orchbee://app` resource，也是按需 Browser renderer root；native Host、当前平台 endpoint adapter、CLI entry 与 launcher、Server 和 Gateway entry 都保留在 `app.asar` 外。CLI artifact 缺失或 POSIX launcher 不可执行时，packaging 会失败。该开发命令不包含 SSH Runtime release。
+
+通过单独的 release-only command，把一份先前 finalized Runtime bundle 与未签名的当前平台 application
+bundle 组合：
+
+```sh
+ORCHBEE_SSH_RUNTIME_RELEASE_DIRECTORY=/absolute/final-release \
+ORCHBEE_SSH_RUNTIME_RELEASE_PUBLIC_KEY=/absolute/release-public-key.pem \
+pnpm desktop:package:release
+```
+
+两个 path 都必须是绝对路径。该命令会在调用 Electron Packager 前严格验证固定 layout、canonical
+manifest、独立 Ed25519 public key、signature、size 与 digest。它把 manifest 与两个 Runtime artifact
+放在 `Resources/ssh-environment-runtime-release-v1` 下，并把精确固定 manifest 的 trust descriptor 放在
+`app.asar` 内。完整离线 ceremony 与 rollback boundary 位于
+[`docs/ssh-runtime-release.md`](docs/ssh-runtime-release.zh-CN.md)。
+
+两个 package command 都写入 `apps/desktop/out/` 下。它们都不执行 Electron code signing、
+notarization、installer creation、publication 或 update distribution。
 
 `ORCHBEE_TERMINAL_HOST_BINARY` 选择绝对的开发/测试主机二进制文件。 `ORCHBEE_TERMINAL_SCROLLBACK_BYTES` 从 `0` 到 `1000000000` 选择以十进制字节为单位的临时开发启动/默认回滚预算；内置默认值为 `10000000`。当不使用默认同级版本时，`ORCHBEE_GATEWAY_ENTRY_PATH`、`ORCHBEE_SERVER_ENTRY_PATH` 和 `ORCHBEE_WEB_RENDERER_ROOT` 选择显式开发浏览器访问资源。 `ORCHBEE_DESKTOP_RUNTIME_DIRECTORY`、`ORCHBEE_DESKTOP_ENDPOINT_ID` 和 `ORCHBEE_DESKTOP_RECOVERY_DIRECTORY` 隔离受控开发和系统测试状态。它们不是版本化的主机安装或发现机制。默认的 POSIX 运行时使用上述受信任的每用户运行时位置的短稳定产品范围子代；显式运行时目录仍由本机端点安全边界准备和验证。
 

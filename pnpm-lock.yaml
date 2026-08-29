@@ -147,6 +147,22 @@ importers:
         specifier: 'catalog:'
         version: 4.4.3
 
+  apps/cli:
+    dependencies:
+      '@orchbee/semantic-command-protocol':
+        specifier: workspace:^
+        version: link:../../packages/semantic-command-protocol
+    devDependencies:
+      '@rsbuild/core':
+        specifier: 'catalog:'
+        version: 2.1.6
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.1.1
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.10(@types/node@26.1.1)(jsdom@29.1.1)(vite@8.1.4(@types/node@26.1.1)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(yaml@2.9.0))
+
   apps/desktop:
     dependencies:
       '@electron/packager':
@@ -167,6 +183,12 @@ importers:
       '@orchbee/remote-client-protocol':
         specifier: workspace:^
         version: link:../../packages/remote-client-protocol
+      '@orchbee/semantic-command-protocol':
+        specifier: workspace:^
+        version: link:../../packages/semantic-command-protocol
+      '@orchbee/ssh-environment-protocol':
+        specifier: workspace:^
+        version: link:../../packages/ssh-environment-protocol
       '@orchbee/terminal-protocol':
         specifier: workspace:^
         version: link:../../packages/terminal-protocol
@@ -272,6 +294,12 @@ importers:
       ws:
         specifier: 'catalog:'
         version: 8.21.1
+
+  apps/ssh-environment-runtime:
+    devDependencies:
+      '@orchbee/ssh-environment-protocol':
+        specifier: workspace:^
+        version: link:../../packages/ssh-environment-protocol
 
   apps/storybook:
     dependencies:
@@ -561,6 +589,32 @@ importers:
         version: 4.1.10(@types/node@26.1.1)(jsdom@29.1.1)(vite@8.1.4(@types/node@26.1.1)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(yaml@2.9.0))
 
   packages/remote-client-protocol:
+    dependencies:
+      zod:
+        specifier: 'catalog:'
+        version: 4.4.3
+    devDependencies:
+      '@rslib/core':
+        specifier: 'catalog:'
+        version: 0.23.2(typescript@7.0.2)
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.10(@types/node@26.1.1)(jsdom@29.1.1)(vite@8.1.4(@types/node@26.1.1)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(yaml@2.9.0))
+
+  packages/semantic-command-protocol:
+    dependencies:
+      zod:
+        specifier: 'catalog:'
+        version: 4.4.3
+    devDependencies:
+      '@rslib/core':
+        specifier: 'catalog:'
+        version: 0.23.2(typescript@7.0.2)
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.10(@types/node@26.1.1)(jsdom@29.1.1)(vite@8.1.4(@types/node@26.1.1)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(yaml@2.9.0))
+
+  packages/ssh-environment-protocol:
     dependencies:
       zod:
         specifier: 'catalog:'

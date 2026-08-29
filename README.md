@@ -43,6 +43,12 @@ Orchbee keeps PTY and Ghostty VT emulation authoritative in the lightweight nati
 
 Stop managing agents one terminal at a time. Agents can prompt and spawn other agents, read each other's output, send commands across terminals, delegate tasks, and coordinate work—while you stay in control from one place.
 
+The current experimental local automation foundation is intentionally narrower: every
+Desktop-created Terminal receives an exact `ORCHBEE_CLI` path for inspecting the live local
+coordinator and invoking the explicitly admitted semantic-command catalog. It requires no global
+installation and grants no arbitrary shell, file, focus, or remote authority. See the
+[Orchbee CLI contract](apps/cli/README.md).
+
 ### Control Agents from Any Device
 
 <!-- TODO: Add a GIF showing a running session moving from desktop to web to mobile without interruption -->
@@ -95,6 +101,15 @@ pnpm desktop
 ```
 
 Desktop prints an `ORCHBEE_BROWSER_CLIENT_URL`. Open that complete URL in a browser to join the same shared Workbench document and Host terminal sessions as Electron. Opening the unmarked `pnpm web` URL directly remains an isolated Preview.
+
+Inside a Terminal created by Desktop, inspect the exact running local coordinator with:
+
+```bash
+"$ORCHBEE_CLI" status
+```
+
+In PowerShell, use `& $env:ORCHBEE_CLI status`. Desktop injects this exact launcher; Orchbee does
+not install it globally or add it to `PATH`.
 
 </details>
 

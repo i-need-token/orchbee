@@ -4,6 +4,7 @@ import type {
 	TerminalPresentationEvent,
 	TerminalPresentationFailure,
 	TerminalPresentationId,
+	TerminalPresentationOperationId,
 	TerminalPresentationRemovalId,
 } from '../../terminal-presentation';
 import {
@@ -22,6 +23,8 @@ import {
 	type ProjectWorkspaceTransition,
 	type ResolveTerminalCwdResult,
 	type TerminalContextCommand,
+	type WorkbenchProject,
+	type WorkbenchWorkspace,
 } from '../../project-workspace';
 import { PanelWorkspaceStore } from '../components/workbench-panel-workspace/model/PanelWorkspaceStore';
 import type { WorkbenchTabTitlePolicy } from '../components/workbench-panel-workspace/model/PanelWorkspaceStore';
@@ -50,6 +53,12 @@ import {
 	type CurrentDirectoryTerminalTarget,
 	type CurrentDirectoryTerminalTargetResolution,
 } from './resolve-current-directory-terminal-target';
+import type {
+	WorkbenchLocationRef,
+	WorkbenchTerminalCreateIntent,
+	WorkbenchTerminalCreateOperationInput,
+	WorkbenchTerminalCreateOperationResult,
+} from '../semantic-commands/semantic-command-contracts';
 
 type Listener = () => void;
 
@@ -62,6 +71,19 @@ export interface WorkbenchTerminalContext {
 interface MutableWorkbenchTerminalContext extends WorkbenchTerminalContext {
 	nextTabSequence: number;
 }
+
+type WorkbenchTerminalTargetResult =
+	| {
+			readonly context: MutableWorkbenchTerminalContext;
+			readonly kind: 'resolved';
+			readonly project: WorkbenchProject | null;
+			readonly terminalContextId: string;
+			readonly workspace: WorkbenchWorkspace | null;
+	  }
+	| {
+			readonly kind: 'rejected';
+			readonly reason: 'project-not-found' | 'workspace-not-found';
+	  };
 
 export interface WorkbenchProjectWorkspaceRuntimeOptions {
 	readonly initialClientView?: WorkbenchClientView | undefined;
@@ -105,17 +127,13 @@ export type WorkbenchRuntimeTerminalCreateAtCwdInput = TabStripNewTabRequest & {
 };
 
 export type WorkbenchRuntimeTerminalCreateResult =
-	| {
-			readonly kind: 'created';
-			readonly tabId: string;
-	  }
+	| WorkbenchTerminalCreateOperationResult
 	| Extract<ResolveTerminalCwdResult, { kind: 'rejected' }>
 	| {
 			readonly kind: 'rejected';
 			readonly reason:
 				| 'active-tab-unavailable'
 				| 'panel-unavailable'
-				| 'terminal-creation-sealed'
 				| 'terminal-current-directory-unavailable'
 				| 'terminal-target-stale';
 	  };
@@ -819,17 +837,59 @@ export class WorkbenchProjectWorkspaceRuntime {
 	public createTerminal(
 		input: WorkbenchRuntimeTerminalCreateInput,
 	): WorkbenchRuntimeTerminalCreateResult {
+		const activeLocation = this.state.activeLocation;
+		const location: WorkbenchLocationRef =
+			activeLocation.kind === 'standalone'
+				? { kind: 'standalone' }
+				: {
+						kind: 'workspace',
+						projectId: activeLocation.projectId,
+						workspaceId: activeLocation.workspaceId,
+					};
+		const placement = {
+			groupId: input.groupId,
+			...(input.index === undefined ? {} : { index: input.index }),
+		};
+		let result: WorkbenchRuntimeTerminalCreateResult;
+		if (input.currentDirectoryTarget === undefined) {
+			result = this.createTerminalAtLocation({
+				...(input.directoryId === undefined ? {} : { directoryId: input.directoryId }),
+				fallbackTitle: input.title,
+				location,
+				placement,
+			});
+		} else {
+			const cwdResult = this.resolveTerminalCurrentDirectoryTarget(
+				input.currentDirectoryTarget,
+			);
+			if (cwdResult.kind === 'unavailable') {
+				return { kind: 'rejected', reason: cwdResult.reason };
+			}
+			const target = this.resolveTerminalTarget(location);
+			if (target.kind === 'rejected') return target;
+			result = this.createTerminalInTarget(target, cwdResult.cwd, {
+				fallbackTitle: input.title,
+				placement,
+			});
+		}
+		if (result.kind === 'created') {
+			this.requireContext(result.terminalContextId).tabModel.selectTab(result.tabId);
+		}
+		return result;
+	}
+
+	public createTerminalAtLocation(
+		input: WorkbenchTerminalCreateOperationInput,
+		beforeCommit?: (() => void) | undefined,
+	): WorkbenchTerminalCreateOperationResult {
 		if (this.terminalCreationSealed) {
 			return { kind: 'rejected', reason: 'terminal-creation-sealed' };
 		}
-		const cwdResult =
-			input.currentDirectoryTarget === undefined
-				? this.resolveActiveTerminalCwd(input.directoryId)
-				: this.resolveTerminalCurrentDirectoryTarget(input.currentDirectoryTarget);
-		if (cwdResult.kind === 'rejected' || cwdResult.kind === 'unavailable') {
-			return { kind: 'rejected', reason: cwdResult.reason };
-		}
-		return this.#createTerminalAtCwd(input, cwdResult.cwd);
+		const target = this.resolveTerminalTarget(input.location);
+		if (target.kind === 'rejected') return target;
+		const cwdResult = this.resolveTerminalCwdForTarget(target, input.directoryId);
+		if (cwdResult.kind === 'rejected') return cwdResult;
+		return this.createTerminalInTarget(target, cwdResult.cwd, input, beforeCommit);
 	}
 
 	public createTerminalAtCwd(
@@ -839,30 +899,133 @@ export class WorkbenchProjectWorkspaceRuntime {
 			return { kind: 'rejected', reason: 'terminal-creation-sealed' };
 		}
 		if (input.cwd.length === 0) return { kind: 'rejected', reason: 'panel-unavailable' };
-		return this.#createTerminalAtCwd(input, input.cwd);
+		const activeLocation = this.state.activeLocation;
+		const target = this.resolveTerminalTarget(
+			activeLocation.kind === 'standalone'
+				? { kind: 'standalone' }
+				: {
+						kind: 'workspace',
+						projectId: activeLocation.projectId,
+						workspaceId: activeLocation.workspaceId,
+					},
+		);
+		if (target.kind === 'rejected') return target;
+		const result = this.createTerminalInTarget(target, input.cwd, {
+			fallbackTitle: input.title,
+			placement: {
+				groupId: input.groupId,
+				...(input.index === undefined ? {} : { index: input.index }),
+			},
+		});
+		if (result.kind === 'created') {
+			this.requireContext(result.terminalContextId).tabModel.selectTab(result.tabId);
+		}
+		return result;
 	}
 
-	#createTerminalAtCwd(
-		input: TabStripNewTabRequest & { readonly title: string },
+	private createTerminalInTarget(
+		target: Extract<WorkbenchTerminalTargetResult, { readonly kind: 'resolved' }>,
 		cwd: string,
-	): WorkbenchRuntimeTerminalCreateResult {
-		const context = this.getActiveMutableContext();
-		const tabId = `${this.activeTerminalContextId()}-tab-${context.nextTabSequence}`;
+		input: Pick<WorkbenchTerminalCreateOperationInput, 'fallbackTitle' | 'placement'>,
+		beforeCommit?: (() => void) | undefined,
+	): WorkbenchTerminalCreateOperationResult {
+		const context = target.context;
+		const tabId = `${target.terminalContextId}-tab-${context.nextTabSequence}`;
+		const activateCreatedTab = context.tabModel.getSnapshot().tabs.length === 0;
+		if (!canInsertTerminalTab(context.tabModel, tabId, input, activateCreatedTab)) {
+			return { kind: 'rejected', reason: 'tab-placement-invalid' };
+		}
+		const presentation = context.panelWorkspaceStore.createTerminalPresentation();
+		if (collectRuntimeTerminals(this.contexts).has(presentation.presentationId)) {
+			return { kind: 'rejected', reason: 'terminal-presentation-conflict' };
+		}
+		if (presentation.kind === 'managed' && this.hasTerminalOperationId(presentation.operationId)) {
+			return { kind: 'rejected', reason: 'terminal-operation-conflict' };
+		}
+		beforeCommit?.();
 		context.nextTabSequence += 1;
-		context.panelWorkspaceStore.prepareTabCwd(tabId, cwd);
+		context.panelWorkspaceStore.prepareTabCwd(tabId, cwd, presentation);
 		context.tabModel.addTab(
 			{
-				group: input.groupId,
+				group: input.placement.groupId,
 				pinned: false,
-				title: input.title,
+				title: input.fallbackTitle,
 			},
 			{
+				activate: activateCreatedTab,
 				id: tabId,
-				...(input.index === undefined ? {} : { index: input.index }),
+				...(input.placement.index === undefined ? {} : { index: input.placement.index }),
 			},
 		);
 		context.panelWorkspaceStore.reconcileTabs();
-		return { kind: 'created', tabId };
+		const createdTab = context.panelWorkspaceStore
+			.getSnapshot()
+			.tabs.find((candidate) => candidate.tabId === tabId);
+		if (createdTab?.root.kind !== 'panel') {
+			throw new Error('A newly created top-level Terminal Tab must own one primary Panel.');
+		}
+		const terminal = createdTab.root.primaryPresentation;
+		return {
+			intent: createdTerminalIntent(terminal.lifecycle),
+			kind: 'created',
+			panelId: createdTab.root.id,
+			presentationId: terminal.presentationId,
+			tabId,
+			terminalContextId: target.terminalContextId,
+		};
+	}
+
+	private resolveTerminalTarget(location: WorkbenchLocationRef): WorkbenchTerminalTargetResult {
+		if (location.kind === 'standalone') {
+			return {
+				context: this.requireContext(this.state.standaloneTerminalContextId),
+				kind: 'resolved',
+				project: null,
+				terminalContextId: this.state.standaloneTerminalContextId,
+				workspace: null,
+			};
+		}
+		const project = this.state.projects.find((candidate) => candidate.id === location.projectId);
+		if (project === undefined) return { kind: 'rejected', reason: 'project-not-found' };
+		const workspace = project.workspaces.find((candidate) => candidate.id === location.workspaceId);
+		if (workspace === undefined) return { kind: 'rejected', reason: 'workspace-not-found' };
+		return {
+			context: this.requireContext(workspace.terminalContextId),
+			kind: 'resolved',
+			project,
+			terminalContextId: workspace.terminalContextId,
+			workspace,
+		};
+	}
+
+	private resolveTerminalCwdForTarget(
+		target: Extract<WorkbenchTerminalTargetResult, { readonly kind: 'resolved' }>,
+		directoryId?: string | undefined,
+	): ResolveTerminalCwdResult {
+		return resolveTerminalCwd({
+			directories: target.project?.directories ?? [],
+			...(directoryId === undefined ? {} : { explicitDirectoryId: directoryId }),
+			...(target.project === null
+				? {}
+				: { projectPrimaryDirectoryId: target.project.primaryDirectoryId }),
+			systemCwd: this.systemCwd,
+			...(target.workspace === null
+				? {}
+				: { workspacePrimaryDirectoryId: target.workspace.primaryDirectoryId }),
+		});
+	}
+
+	private hasTerminalOperationId(operationId: TerminalPresentationOperationId): boolean {
+		for (const context of this.contexts.values()) {
+			for (const tab of context.panelWorkspaceStore.getSnapshot().tabs) {
+				for (const panel of collectPanelLeaves(tab.root)) {
+					for (const terminal of [panel.primaryPresentation, ...panel.childPresentations]) {
+						if (terminalLifecycleOperationId(terminal.lifecycle) === operationId) return true;
+					}
+				}
+			}
+		}
+		return false;
 	}
 
 	private applyCommand(command: TerminalContextCommand): void {
@@ -1119,6 +1282,65 @@ function requireMappedId(
 	const targetId = idMap.get(sourceId);
 	if (targetId === undefined) throw new Error(`${label} ${sourceId} has no clone mapping.`);
 	return targetId;
+}
+
+function canInsertTerminalTab(
+	tabModel: TabModel,
+	tabId: string,
+	input: Pick<WorkbenchTerminalCreateOperationInput, 'fallbackTitle' | 'placement'>,
+	activate: boolean,
+): boolean {
+	const requestedIndex = input.placement.index;
+	const snapshot = tabModel.getSnapshot();
+	if (
+		requestedIndex !== undefined &&
+		(!Number.isSafeInteger(requestedIndex) ||
+			requestedIndex < 0 ||
+			requestedIndex > snapshot.tabs.length)
+	) {
+		return false;
+	}
+	try {
+		const candidate = new TabModel({
+			activeTabId: snapshot.activeTabId,
+			groups: snapshot.groups,
+			mostRecentGroupId: snapshot.mostRecentGroupId,
+			selectedTabIds: [...snapshot.selectedTabIds],
+			selectionAnchorId: snapshot.selectionAnchorId,
+			tabs: snapshot.tabs,
+		});
+		candidate.addTab(
+			{
+				group: input.placement.groupId,
+				pinned: false,
+				title: input.fallbackTitle,
+			},
+			{
+				activate,
+				id: tabId,
+				...(requestedIndex === undefined ? {} : { index: requestedIndex }),
+			},
+		);
+		return requestedIndex === undefined || candidate.getIndexOfTab(tabId) === requestedIndex;
+	} catch {
+		return false;
+	}
+}
+
+function terminalLifecycleOperationId(
+	lifecycle: TerminalPresentation['lifecycle'],
+): TerminalPresentationOperationId | null {
+	return 'operationId' in lifecycle ? lifecycle.operationId : null;
+}
+
+function createdTerminalIntent(
+	lifecycle: TerminalPresentation['lifecycle'],
+): WorkbenchTerminalCreateIntent {
+	if (lifecycle.kind === 'preview') return { kind: 'preview' };
+	if (lifecycle.kind === 'provisioning') {
+		return { kind: 'provision', operationId: lifecycle.operationId };
+	}
+	throw new Error('A newly created Terminal must remain in its initial lifecycle.');
 }
 
 function removalIdForEvent(

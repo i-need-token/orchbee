@@ -1,11 +1,11 @@
 # Orchbee Server, Connected Clients, and Capability Nodes
 
-| Field             | Value                                                                                                                                                                                 |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Status            | Product direction, initial ingress, and bounded Personal-Access-Token-to-Cookie preview accepted and delivered; production trust model and remote execution contracts remain reserved |
-| Owner             | Product architecture, Desktop service, network ingress, and future capability-node maintainers                                                                                        |
-| Current authority | [`docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md) and the owning Desktop, Gateway, Web, and Terminal Host guides                                                                   |
-| Exit condition    | Accept and implement bounded owner-specific slices, move maintained facts into their owning guides and tests, then delete proposal                                                    |
+| Field             | Value                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Status            | Product direction, Client-Hub-Worker topology, dual native/SSH connection strategy, and continuity invariants accepted; initial ingress, bounded Personal-Access-Token-to-Cookie preview, Agent-ready local CLI, Slice 2.2 SSH Runtime spine, Slices 2.3A-C identity/release/activation composition, and Slice 2.4 bounded Project-root inspection delivered; Project placement and remaining implementation contracts remain reserved |
+| Owner             | Product architecture, Server coordination, Workbench, network ingress, remote-environment, CLI, Agent, and future capability-node maintainers                                                                                                                                                                                                                                                                                          |
+| Current authority | [`docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md) and the owning Desktop, Gateway, Web, and Terminal Host guides                                                                                                                                                                                                                                                                                                                    |
+| Exit condition    | Accept and implement bounded owner-specific slices, move maintained facts into their owning guides and tests, then delete proposal                                                                                                                                                                                                                                                                                                     |
 
 Simplified Chinese review translation:
 [connected-client-capability-service.zh-CN.md](connected-client-capability-service.zh-CN.md).
@@ -16,9 +16,11 @@ English remains canonical.
 One Orchbee installation is a site that may serve more than its local Electron window. The site
 must eventually support:
 
-- Browser and mobile clients that observe and control only their authorized product sessions;
+- Desktop, Browser, mobile, and CLI clients that observe or control only their authorized product
+  sessions;
+- a comparatively weak work computer acting only as a product client for a remote site;
 - another enrolled computer contributing typed compute or device capabilities; and
-- the primary computer contributing its local capabilities while coordinating the site.
+- the coordinating computer contributing local capabilities while also coordinating other nodes.
 
 The externally reachable service is therefore an application backend, not only a static-file
 server or reverse proxy. Static Web delivery, TLS termination, and request forwarding may be
@@ -29,12 +31,57 @@ This direction does not turn the current local-development `apps/gateway` or the
 same-user Terminal Host endpoint into a network service. Those current boundaries remain in force
 until separately accepted replacements or adapters exist.
 
+## Accepted distributed-workbench topology
+
+The accepted logical topology has three independently authorized roles:
+
+| Role   | Authority                                                                                                                                                     |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Client | Renders one authorized product projection, submits semantic commands, and owns client-local view and platform effects; it owns no site-durable product state  |
+| Hub    | Owns canonical Workbench state, authorized semantic-command commitment, Agent orchestration, environment registry, capability placement, and durable recovery |
+| Worker | Owns its local Checkout, filesystem, Git, PTY, process, and bounded Agent-executor effects; it commits no canonical Workbench state directly                  |
+
+One machine may colocate Client, Hub, and Worker roles, but colocation never merges their
+identities, authority, state, or lifecycle. A weak work computer may run only a Client. A central
+server may run the Hub and one Worker while coordinating additional Workers. **Terminal Host**
+continues to name the node-local PTY service; it never names the central Hub.
+
+A Project is a host-independent product goal. A Checkout is one concrete source tree in one
+execution Environment. A Workspace selects one primary Checkout and therefore derives the default
+placement for its terminals and executor Agents. The accepted relationship does not yet define a
+durable schema, migration, cross-machine source-transfer policy, or whether `Directory` is renamed
+or adapted internally; those decisions require a bounded Workbench proposal.
+
+## Accepted semantic-control direction
+
+Human controls, the Orchbee CLI, Skills, and approved automation must reach the same owner-defined
+semantic operations instead of implementing parallel mutations. The CLI is a stable invocation
+surface, not a product-state Store or an authority boundary. Skills compose structured CLI
+operations and never parse human presentation text or simulate pointer, DOM, or keyboard input when
+an eligible semantic operation exists.
+
+Current in-process Action registrations and prepared invocations remain local runtime capabilities.
+They are not serializable network requests and do not become remotely invocable through
+enumeration. Each operation admitted to CLI or remote use requires an explicit versioned input and
+safe output schema, caller authorization, noninteractive confirmation policy, compatibility
+lifecycle, idempotency boundary, and owning domain handler. Client-local operations such as focus,
+window geometry, native dialogs, and clipboard access require an exact authorized Client Session;
+they never mutate every connected client's view implicitly.
+
+The durable ownership split is:
+
+| State or effect                                                                  | Owner                                   |
+| -------------------------------------------------------------------------------- | --------------------------------------- |
+| Project, Workspace, shared Tab/Panel structure, Agent task, and scheduling state | Hub product coordinator                 |
+| Checkout, file, Git, PTY, process, and local Agent-executor state                | Exact Worker capability owner           |
+| Active location, selection, focus, maximization, window geometry, and clipboard  | Exact Client Session or client platform |
+
 ## Accepted naming and package timing
 
-The production backend executable is named **Orchbee Server**. Its runnable workspace will be
-`apps/server`, with package identity `@orchbee/server`, when the first accepted production slice
-requires that process. `Server` names the complete product backend process; it does not collapse
-network ingress, authentication, coordination, device identity, scheduling, and execution into one
+The production backend executable is named **Orchbee Server**. Its runnable workspace is
+`apps/server`, with package identity `@orchbee/server`; the accepted initial-ingress slice created
+that workspace. `Server` names the complete product backend process; it does not collapse network
+ingress, authentication, coordination, device identity, scheduling, and execution into one
 undifferentiated module.
 
 Two protocol boundaries have accepted names and are created only with concrete consumers:
@@ -55,6 +102,38 @@ for a signed session Cookie, and Gateway admits the exact-Origin control connect
 session; no credential appears in the access URL. They must not be renamed to `server` or treated as
 the production external-client contract. The production migration must avoid maintaining two
 competing external-client network contracts indefinitely.
+
+## Accepted connection strategy
+
+Orchbee supports two complementary connection families:
+
+| Connection family | Responsibility                                                                                                                                                                   |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Native site       | HTTPS establishes authenticated human or device sessions; WSS carries versioned control, event, progress, and bounded binary-projection messages through role-specific contracts |
+| SSH environment   | Connects an unmanaged machine, validates its host identity, bootstraps or repairs an Orchbee runtime, and may tunnel native protocol traffic during an explicitly bounded phase  |
+
+Native site connectivity is the long-term primary path for authenticated Clients and enrolled Workers. SSH
+remains a first-use, compatibility, administration, and recovery path; it is not the Workbench,
+Agent, scheduling, or state-synchronization protocol. After enrollment, a Worker should normally
+establish its own outbound native connection to the Hub with a non-Cookie device credential rather
+than requiring the Hub to maintain an inbound SSH login.
+
+An explicitly user-authorized SSH Project may provide terminal and filesystem effects within that
+SSH account. This does not enroll the machine automatically, turn the capability-node contract into
+a generic remote shell, or grant scheduled work any authority beyond its accepted typed capability.
+
+Desktop and Browser clients consume the same authorized product model through the remote-client
+boundary. Capability nodes use their separate node boundary even when both connection roles use the same
+TLS listener and WebSocket implementation. HTTP and WebSocket framing do not define product
+identity, authority, retry, or compatibility semantics. The application contracts remain
+transport-neutral so an accepted SSH tunnel, relay, or later transport adapter cannot create a
+second product model.
+
+Production network traffic uses authenticated encryption supplied by established TLS and SSH
+implementations; Orchbee does not invent transport cryptography. Plain HTTP remains restricted to
+the explicitly warned trusted-LAN preview already delivered. Direct Client-to-Worker data paths,
+QUIC or WebTransport adapters, relay service, and Internet ingress remain reserved optimizations or
+deployment decisions. They may not bypass Hub-issued authority or recovery fencing.
 
 ## Accepted initial ingress foundation
 
@@ -103,23 +182,52 @@ a fresh signing key; stop, mode switch, reset, and exit invalidate earlier sessi
 required for token exchange and Gateway control admission. TLS requirements, production session
 duration and revocation storage, multi-user authorization, and account recovery remain reserved.
 
+## Accepted connection-continuity model
+
+A network connection is a replaceable transport attachment, not the lifetime owner of a Project,
+Workspace, Checkout, retained terminal, Agent task, or durable product session. An SSH, WebSocket,
+or underlying network failure moves the affected attachment through an explicit disconnected,
+reconnecting, and recovering lifecycle. It does not request deletion, cancellation, or process
+termination.
+
+Reconnect establishes a fresh authenticated transport and reconciles stable site, Client Session,
+Node Session, Workbench revision, terminal inventory, Agent execution, and event-sequence identities.
+The authority returns a bounded missing-event range or a fresh snapshot when incremental recovery is
+unsafe or unavailable. Safe semantic commands use owner-defined operation identities and
+idempotency rules. Terminal input or another effect with an unknown admission outcome is never
+replayed automatically.
+
+Clients and nodes use bounded randomized retry with increasing backoff, expose offline and recovery
+state, and stop retrying when identity, authorization, host verification, compatibility, or policy
+requires user or administrator action. Authentication convenience never weakens host-key or TLS
+identity validation. Key- or agent-backed SSH and enrolled device credentials are the preferred
+unattended recovery mechanisms; password-only SSH may require renewed human authentication after a
+transport loss.
+
+Transport loss, remote runtime failure, and remote-machine restart remain distinct failure classes.
+The first preserves remote execution, the second reconciles against independently retained owners
+where available, and the third may require explicit task restart because an operating-system reboot
+cannot preserve ordinary PTYs or processes.
+
 ## Candidate responsibility split
 
-| Responsibility                    | Candidate owner                                                                                                     |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| HTTP/WebSocket ingress and Web UI | A network ingress service; TLS, origin policy, routing fallback, rate limits, and static renderer delivery          |
-| Human authentication              | A site identity/session service; bootstrap token exchange, secure Cookie session, expiry, revocation, and audit     |
-| Product coordination              | A site application coordinator; authorized Workbench sessions, shared-document authority, and capability registry   |
-| Capability-node enrollment        | A device identity service; pairing, device credentials, attestation inputs, rotation, revocation, and presence      |
-| Work scheduling                   | A typed capability scheduler; admission, placement, lease, cancellation, retry, quota, and result ownership         |
-| Local terminal execution          | Terminal Host behind its existing trusted local broker boundary                                                     |
-| Remote execution                  | A separately authenticated node runtime exposing only accepted versioned capability contracts                       |
-| Browser and mobile presentation   | Product clients consuming authorized application APIs; client form factor grants no backend authority automatically |
+| Responsibility                          | Candidate owner                                                                                                     |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| HTTP/WebSocket ingress and Web UI       | A network ingress service; TLS, origin policy, routing fallback, rate limits, and static renderer delivery          |
+| Human authentication                    | A site identity/session service; bootstrap token exchange, secure Cookie session, expiry, revocation, and audit     |
+| Product coordination                    | The Hub application coordinator; authorized Workbench sessions, canonical state, semantic commitment, and recovery  |
+| Environment and Checkout registry       | A product environment owner; stable placement identity, observed availability, and bounded provider adaptation      |
+| Capability-node enrollment              | A device identity service; pairing, device credentials, attestation inputs, rotation, revocation, and presence      |
+| Work scheduling                         | A typed capability scheduler; admission, placement, lease, cancellation, retry, quota, and result ownership         |
+| Local terminal execution                | Terminal Host behind its existing trusted local broker boundary                                                     |
+| Remote execution                        | A separately authenticated node runtime exposing only accepted versioned capability contracts                       |
+| CLI and Skill invocation                | A narrow semantic-command client; structured invocation and observation without product-state ownership             |
+| Desktop, Browser, and mobile projection | Product clients consuming authorized application APIs; client form factor grants no backend authority automatically |
 
-The final process topology is reserved. A first release may colocate ingress and coordination with
-Desktop, but colocating processes never merges their trust, state, or lifecycle responsibilities.
-A later always-on background service must be able to preserve the same contracts without requiring
-another Workbench renderer.
+The logical Client-Hub-Worker topology is accepted; the final physical process topology remains
+reserved. A first release may colocate ingress and coordination with Desktop, but colocating
+processes never merges their trust, state, or lifecycle responsibilities. A later always-on
+background service must preserve the same contracts without requiring another Workbench renderer.
 
 ## Connection roles
 
@@ -150,16 +258,19 @@ Every accepted capability contract must define:
 
 The site coordinator owns placement policy; a capability node owns execution of an accepted lease.
 Neither a node nor a network adapter becomes a writer of Workbench shared state. Product Actions
-remain local semantic contracts unless a separately reviewed API explicitly exposes one operation.
+remain owner-internal semantic contracts. A separately reviewed CLI or remote API may expose only
+an explicitly automation-admitted operation through a serializable boundary; it never serializes a
+prepared invocation or grants registry-wide authority.
 
 ## Deployment shapes
 
-| Shape                           | Required behavior                                                                                     |
-| ------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| Single computer                 | Electron, site coordination, local capabilities, and optional Web ingress may be colocated            |
-| Shared Browser or mobile        | The site serves the renderer and authenticates a human session before exposing product APIs           |
-| Additional compute computer     | An enrolled node advertises typed capacity and receives only explicitly scheduled leases              |
-| Coordinator temporarily offline | Clients and nodes fail closed or enter an explicitly modeled degraded mode; neither invents authority |
+| Shape                           | Required behavior                                                                                                        |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Single computer                 | Client, Hub, local Worker capabilities, and optional Web ingress may be colocated                                        |
+| Weak remote work computer       | A Desktop, Browser, mobile, or CLI Client renders and controls one authorized remote Hub without becoming a Worker       |
+| SSH environment                 | The active product coordinator bootstraps and attaches one unmanaged remote Project environment without inventing a Site |
+| Distributed site                | One Hub coordinates its local Worker and additional enrolled Workers through explicit identities and capabilities        |
+| Coordinator temporarily offline | Clients and nodes fail closed or enter an explicitly modeled degraded mode; neither invents authority                    |
 
 LAN discovery, Internet relay, NAT traversal, public DNS, and cloud rendezvous are transport and
 deployment choices, not product authorization mechanisms.
@@ -171,10 +282,21 @@ deployment choices, not product authorization mechanisms.
   authentication; possession of an IP address and port grants nothing.
 - Human sessions, device identity, capability leases, terminal attachments, and Workbench client
   sessions use distinct identities and revocation scopes.
+- Hub, Worker, and Client Session state have one accepted authority each; transport adapters and
+  colocation never create another writer.
+- A Project is independent of machine identity; every concrete Checkout and execution effect
+  resolves through one explicit Environment before reaching a Worker.
 - Terminal Host retains its private local transport and never accepts an Internet or LAN peer
   directly under the current contract.
+- SSH and native site connections are replaceable transport attachments. Their loss never implies
+  deletion of a Project or Workspace, termination of retained remote work, or cancellation of an
+  Agent task.
+- Recovery reconciles stable identities and revisions. It never replays terminal input or another
+  effect whose admission outcome is unknown.
 - Remote execution never receives a general Desktop, filesystem, shell, secret, or Action
   capability merely because one accepted capability needs a narrower effect.
+- CLI, Skills, and remote clients invoke only explicitly admitted semantic operations and cannot
+  bypass feature-owned validation, authorization, confirmation, commit, or concurrency policy.
 - Disconnect and retry cannot commit one logical result twice or transfer a lease to two active
   owners without an explicitly modeled fencing mechanism.
 - Browser, Electron, and mobile clients observe the same authorized product model and route
@@ -188,15 +310,38 @@ Implementation remains blocked on separate acceptance of:
 
 - whether the site coordinator is an Electron-owned child, an independently supervised local
   service, or a deployable server;
+- expansion of the delivered append-only Environment registry into Checkout and Workspace
+  placement, edit or removal, local-data migration, provider discovery, source-transfer, and
+  cross-machine Git policy;
+- expansion of the delivered Agent-ready CLI catalog, including each additional operation's
+  structured contract, authorization, compatibility, confirmation, and client-view targeting
+  policy;
+- production SSH Runtime signer operation and artifact publication or network feed; Windows AskPass;
+  operating-system service or linger integration; version repair, removal, and old-version cleanup.
+  Slice 2.2 already fixes target resolution, host-key admission, POSIX AskPass, the supervised
+  OpenSSH stdio attachment, the signed no-download bootstrap, the two-platform matrix, immutable
+  installation, exact Hello/epoch/heartbeat protocol, generation fencing, and reconnect policy.
+  Slice 2.3A fixes independent Environment and Runtime identities, exact SSH target uniqueness,
+  append-only idempotent create, strict local persistence, and indeterminate-commit reconciliation.
+  Slice 2.3B fixes the canonical two-platform release, external Ed25519 signing boundary, exact
+  manifest-pinned Desktop trust descriptor, release-only package command, and private staging.
+  Slice 2.3C fixes explicit Environment-owned activation and same-child installed-artifact
+  negotiation. Slice 2.4 fixes exact `project-root-v1` admission and bounded canonical-directory
+  observation without Project placement or general filesystem authority;
 - enrollment and recovery ceremonies, device identity technology, credential storage, rotation,
   revocation, and administrator policy;
+- production HTTPS/WSS endpoints, session-resumption credential, protocol negotiation, heartbeat,
+  backoff, snapshot/delta, binary attachment, backpressure, and replay bounds;
 - LAN-only, Internet-reachable, relay, and NAT-traversal deployment support;
+- whether any authorized high-volume data path may connect a Client directly to a Worker, and the
+  Hub-issued ticket, revocation, accounting, and fallback required if it does;
 - the first concrete remote capability and whether its data can leave the primary computer;
 - scheduling policy, quotas, fairness, priority, preemption, energy awareness, and user consent;
 - multi-user tenancy, authorization hierarchy, sharing scope, and audit retention;
 - protocol version negotiation, rolling update, compatibility, and node quarantine;
 - artifact and secret transfer, encryption at rest, deletion, recovery, and failure diagnostics;
-- offline behavior for clients, coordinator, and nodes; and
+- exact degraded behavior and retention duration while Clients, Hub, Workers, or transports are
+  offline; and
 - service installation, automatic start, update continuity, backup, and uninstall behavior.
 
 Do not create an empty `capability-node-protocol` workspace, broaden
@@ -207,12 +352,21 @@ not authorize capability-node or production remote-execution protocols.
 
 ## Delivery order
 
-1. Delivered: establish the default-loopback Orchbee Server ingress foundation and the separately
-   explicit trusted-LAN preview described above.
-2. Delivered: implement opt-in Web ingress and human Personal-Access-Token-to-Cookie authentication
-   as one bounded slice.
-3. Implement device enrollment and a read-only typed capability inventory without remote work.
-4. Select one concrete compute capability and model its lease, cancellation, failure, data, and
-   fencing semantics.
-5. Add scheduling and remote execution for that capability with deterministic, fault-injected, and
-   security evidence before admitting another capability.
+The initial default-loopback Server ingress, explicit trusted-LAN preview, and bounded human
+Personal-Access-Token-to-Cookie authentication were delivered before the complete roadmap. They are
+reused foundations, not evidence that a later phase is complete.
+
+| Phase | Independently deliverable outcome                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0     | Accepted here: logical Client-Hub-Worker roles, authority split, dual native/SSH strategy, connection-continuity invariants, ordered phases, and explicit reserved decisions                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| 1     | Delivered through the current [Agent-ready local CLI](../../apps/cli/README.md) for an accepted catalog of owner-defined semantic operations, with structured input/output, execution observation, cancellation, authorization, and noninteractive policy; it adds no remote execution                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| 2     | In progress: the [Desktop SSH connection foundation](../../apps/desktop/docs/ssh-environment-connection.md) delivers target resolution, host-key admission, transient POSIX AskPass, one supervised OpenSSH stdio transport, signed no-download Runtime bootstrap, exact Hello/epoch/heartbeat, connection reuse, retained-daemon attachment recovery, installed-artifact negotiation, and one bounded Project-root observation service. The [durable Environment registry](../../apps/desktop/docs/environment-registry.md) delivers stable provider-neutral identity and strict append-only persistence, while [offline Runtime release composition](../../apps/desktop/docs/ssh-runtime-release.md) delivers external signing, exact Desktop trust, and release-only package placement. Remaining work adds Project, Checkout, and Workspace placement plus any separately accepted remote filesystem or Terminal Host service |
+| 3     | Make Project host-independent and add explicit Environment and Checkout placement so one Project can contain local and remote Workspaces; begin with manual placement and no automatic cross-machine source synchronization                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| 4     | Establish a headless Hub authority and production remote Client session so a weak Desktop or Browser client can reconnect to the same Workbench, terminals, and durable Agent work; migrate trusted whole-document proposals toward authorized semantic commands before admitting untrusted writers                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| 5     | Add durable Hub Agent orchestration, Worker-local executor Agents, and Skills that compose the authorized CLI surface; one goal may coordinate explicitly selected Workers without automatic resource scheduling                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| 6     | Add node enrollment and read-only capability inventory, then one modeled remote capability, then its lease-based scheduler with heartbeat, fencing, cancellation, retry, data-locality, fault-injection, and security evidence before admitting another capability                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| 7     | Harden production deployment with accepted TLS and ingress policy, multi-user authorization if required, relay or NAT traversal if required, secret and artifact policy, quotas, audit, rolling compatibility, backup, service supervision, and Hub recovery                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+
+Every phase requires its own accepted bounded or consequential authorization before governed
+implementation. Security, privacy, compatibility, observability, rollback, and recovery are
+cumulative requirements of each phase rather than work deferred entirely to Phase 7.

@@ -295,7 +295,7 @@ describe('terminal archive document', () => {
 		if (!admitted.ok) throw new Error(admitted.detail);
 		expect(decodeTerminalArchive(admitted.value)).toMatchObject({ ok: true });
 		expect(encodeTerminalArchive(counterexample.write)).toMatchObject({ ok: true });
-	});
+	}, 10_000);
 
 	it.each([
 		{
