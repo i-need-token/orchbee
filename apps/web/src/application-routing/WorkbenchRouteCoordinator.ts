@@ -14,6 +14,12 @@ import {
 	type WorkbenchRouteResolution,
 	type WorkbenchRouteSnapshot,
 } from './workbench-route-model';
+import {
+	transitionInitialTerminalContext,
+	type InitialTerminalContextEvent,
+	type InitialTerminalContextState,
+	type InitialTerminalContextTransition,
+} from './transitionInitialTerminalContext';
 
 type WorkbenchTabSelectionInput = Parameters<WorkbenchNavigationPort['selectTab']>[1];
 type WorkbenchRouteNavigationResult = 'navigated' | 'unavailable' | 'unchanged' | 'updated';
@@ -57,6 +63,8 @@ function readWorkbenchRouteSnapshot(
 export class WorkbenchRouteCoordinator {
 	#applying = false;
 	#displayedLocation: WorkbenchRouteLocation | undefined;
+	#initialTerminalContextState: InitialTerminalContextState = 'awaiting-route';
+	readonly #initialTerminalTitle: string;
 	readonly #navigate: WorkbenchRouteNavigation;
 	#pendingSelection:
 		| {
@@ -76,9 +84,11 @@ export class WorkbenchRouteCoordinator {
 	public constructor(
 		runtime: WorkbenchProjectWorkspaceRuntime,
 		navigate: WorkbenchRouteNavigation,
+		initialTerminalTitle: string,
 	) {
 		this.#runtime = runtime;
 		this.#navigate = navigate;
+		this.#initialTerminalTitle = initialTerminalTitle;
 		this.#unsubscribe = runtime.subscribeClientView(this.#handleClientViewChange);
 	}
 
@@ -101,12 +111,48 @@ export class WorkbenchRouteCoordinator {
 		const resolution = resolveWorkbenchRoute(readWorkbenchRouteSnapshot(this.#runtime), request);
 		if (resolution.kind === 'ready') {
 			this.#applyRoute(resolution.location);
+			const commands = this.#transitionInitialTerminalContext({
+				hasTabs: resolution.location.tabId !== null,
+				type: 'terminal-route-ready',
+			});
+			if (commands.length === 0) return resolution;
+
+			this.#applying = true;
+			let creation: ReturnType<WorkbenchProjectWorkspaceRuntime['createTerminal']>;
+			try {
+				creation = this.#runtime.createTerminal({
+					groupId: null,
+					source: 'programmatic',
+					title: this.#initialTerminalTitle,
+				});
+			} finally {
+				this.#applying = false;
+			}
+			if (creation.kind === 'rejected') return resolution;
+
+			const createdResolution = resolveWorkbenchRoute(
+				readWorkbenchRouteSnapshot(this.#runtime),
+				request,
+			);
+			if (createdResolution.kind === 'ready') this.#applyRoute(createdResolution.location);
+			return createdResolution;
 		} else if (resolution.kind === 'unavailable') {
 			this.#displayedLocation = undefined;
 			this.#pendingSelection = undefined;
 			this.#requestedLocation = undefined;
+			this.#transitionInitialTerminalContext({ type: 'route-unavailable' });
+		} else {
+			this.#transitionInitialTerminalContext({ type: 'redirect-observed' });
 		}
 		return resolution;
+	}
+
+	#transitionInitialTerminalContext(
+		event: InitialTerminalContextEvent,
+	): InitialTerminalContextTransition['commands'] {
+		const transition = transitionInitialTerminalContext(this.#initialTerminalContextState, event);
+		this.#initialTerminalContextState = transition.state;
+		return transition.commands;
 	}
 
 	#applyRoute(location: WorkbenchRouteLocation): void {

@@ -6640,7 +6640,9 @@ export class ProjectedTerminal {
 				this.#selectionGesturePointerId === event.pointerId)
 		) {
 			this.#clearHoveredLink();
-			this.#cancelSelectionGesture(true);
+			// Motion is not authoritative release state for a captured selection.
+			// The explicit pointerup supplies the final endpoint; pointercancel,
+			// capture loss, and focus/visibility repair still cancel the gesture.
 			event.preventDefault();
 			return;
 		}

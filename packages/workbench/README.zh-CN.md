@@ -12,6 +12,8 @@ Workbench 在应用程序拥有的 `ActionRuntime` 中注册其产品操作。�
 
 应用可以注入 `tabScope` 投影，只显示分配给当前宿主视图的共享 Tab。设备本地的 `tabWindowControl` 会在此投影上增加稳定的原生窗口摘要、向现有或新窗口原子移动 Tab 与 Group，以及基于屏幕坐标的拖动结算。Workbench 会渲染本地化窗口目标，并在请求宿主提交外部移动前恢复其可逆的源拖动布局；它绝不持久化窗口分配、创建原生 shell、更改共享 Group 成员关系或重启终端 Presentation。未提供任一 capability 时，每个共享 Tab 都保持可见，并且窗口专用命令不可用。
 
+当显示中的终端上下文没有可见 Tab 时，Workbench 会渲染空白内容区域，不显示居中的创建控件。Tab Strip 的新建 Tab 控件、快捷键、菜单和 Action 仍然可用。Workbench 绝不会把空渲染投影视为终端创建意图，因此关闭最后一个 Tab 或显示宿主范围内的空分配都不会重新创建 Tab；应用启动策略仍归组合应用所有。
+
 shell 由 `@orchbee/ui` 组成原语，但不拥有 PTY 进程、文件系统或 Git 效果、设置目标、身份验证、路由或代理编排生命周期。 Workbench 拥有统一的搜索状态和表示，而语义所有者仍然负责可搜索的读取模型和操作注册。机器可读范围合约位于 [`project.json`](project.json) 中。
 
 Workbench 组合显式区分为 `preview` 或 `managed`。两者都会接收应用拥有的终端 Presentation 标识分配器与稳定的初始 Presentation ID。托管组合还接收操作/移除 ID 分配器和窄化的命令调度器；Workbench 绝不分配 Host 终端 ID，也不以 Host 终端标识执行拓扑或生命周期变更。终端表面接缝只向下述响铃效果协调器公开不透明的 Host 终端标识。动态 Presentation ID 不透明，且删除 Presentation 后不得复用。

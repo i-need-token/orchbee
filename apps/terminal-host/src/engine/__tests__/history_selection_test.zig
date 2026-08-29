@@ -500,6 +500,14 @@ test "row request sequences are strictly monotonic and allocation failure is ret
         .row_count = 1,
     });
     defer std.testing.allocator.free(second.bytes);
+    try std.testing.expectError(
+        error.InvalidAcknowledgement,
+        manager.rowsApplied(&terminal, attachment, 2, 99, 1),
+    );
+    try std.testing.expectEqual(
+        @as(u64, 2),
+        findState(&manager, attachment).?.pending.?.request_sequence,
+    );
     // THCR-029: a replay of the already-applied window 1 is an idempotent
     // no-op even while window 2 is pending, and it must not clear the newer
     // flight.
@@ -669,9 +677,17 @@ test "screen changes invalidate anchors gesture selection and export" {
     try std.testing.expectEqual(started.byte_length, cancellation.byte_length);
     try std.testing.expectEqual(started.export_sequence, cancellation.export_sequence);
     try std.testing.expect((try manager.takeSelectionExportCancellation(attachment)) == null);
+    // The screen transition abandoned row window 2 after it was issued. Its
+    // late acknowledgement is an idempotent no-op, while a future sequence is
+    // still rejected.
+    try manager.rowsApplied(&terminal, attachment, 2, 1, 1);
     try std.testing.expectError(
         error.InvalidAcknowledgement,
-        manager.rowsApplied(&terminal, attachment, 2, 1, 1),
+        manager.rowsApplied(&terminal, attachment, 0, 1, 1),
+    );
+    try std.testing.expectError(
+        error.InvalidAcknowledgement,
+        manager.rowsApplied(&terminal, attachment, 99, 1, 1),
     );
     try std.testing.expectError(
         error.InvalidAcknowledgement,

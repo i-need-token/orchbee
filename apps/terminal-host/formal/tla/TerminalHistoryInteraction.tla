@@ -209,9 +209,9 @@ RowsApplied(attachment, sequence) ==
 StaleRowsApplied(attachment, sequence) ==
   /\ attachment \in Attachments
   /\ sequence \in 1..MaxSequence
-  /\ (~attached[attachment]
-      \/ ~pendingAnchor[attachment]
-      \/ ~pendingAnchorValid[attachment]
+  /\ attached[attachment]
+  /\ sequence <= lastRowSequence[attachment]
+  /\ (~pendingAnchor[attachment]
       \/ pendingAnchorSequence[attachment] # sequence)
   /\ UNCHANGED vars
 

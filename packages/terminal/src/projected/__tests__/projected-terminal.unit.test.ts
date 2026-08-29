@@ -11409,7 +11409,7 @@ describe('ProjectedTerminal', () => {
 		terminal.dispose();
 	});
 
-	it('settles a selection gesture across continuous revision advancement', async () => {
+	it('settles a selection gesture across revision advancement and buttonless motion', async () => {
 		const browser = createFakeBrowser();
 		vi.stubGlobal('document', browser.document);
 		vi.stubGlobal('window', browser.document.defaultView);
@@ -11434,6 +11434,8 @@ describe('ProjectedTerminal', () => {
 		const canvas = terminal.canvas as unknown as FakeElement;
 
 		canvas.dispatch('pointerdown', pointerEvent('pointerdown', 0, 1, 2, 2, { pointerId: 71 }));
+		canvas.dispatch('pointermove', pointerEvent('pointermove', 0, 0, 12, 2, { pointerId: 71 }));
+		expect(canvas.capturedPointers.has(71)).toBe(true);
 		canvas.dispatch('pointerup', pointerEvent('pointerup', 0, 0, 12, 2, { pointerId: 71 }));
 		expect(
 			commands
@@ -11694,7 +11696,6 @@ describe('ProjectedTerminal', () => {
 	});
 
 	it.each([
-		'buttonless-move',
 		'input-blur',
 		'lost-capture',
 		'pointer-cancel',
@@ -11758,9 +11759,7 @@ describe('ProjectedTerminal', () => {
 			type: 'pointermove',
 		} as unknown as PointerEvent);
 		browser.flushFrames();
-		if (repair === 'buttonless-move') {
-			canvas.dispatch('pointermove', pointerEvent('pointermove', 0, 0, 12, 2, { pointerId: 9 }));
-		} else if (repair === 'input-blur') {
+		if (repair === 'input-blur') {
 			(terminal.textarea as unknown as FakeElement).dispatch('blur', {
 				relatedTarget: null,
 				type: 'blur',

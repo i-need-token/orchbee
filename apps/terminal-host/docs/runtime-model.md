@@ -841,8 +841,12 @@ region, and pausing or attaching a client does not extend the child-owned deadli
 History row delivery and plain-text selection export use the same principle: each flight has one
 positive, strictly increasing sequence; only its exact acknowledgement can commit it. The control
 boundary rejects HTML and raw VT export values before runtime access. Stale or duplicate
-acknowledgements cannot advance a newer flight. Pausing projection or destroying the attachment
-abandons its flight and invalidates its delta base without changing canonical terminal state.
+acknowledgements cannot advance a newer flight. An exact row acknowledgement replay and a stale
+row acknowledgement at or below the attachment's issued high-water mark after a demand, screen, or
+generation transition are idempotent no-ops; neither can clear a newer pending window or promote an
+anchor. A tuple that misidentifies the current pending window, or a sequence beyond the issued
+high-water mark, is rejected. Pausing projection or destroying the attachment abandons its flight
+and invalidates its delta base without changing canonical terminal state.
 
 The maintained Ghostty surface fixtures refine `TH-006` across the native/browser boundary. Their
 bytes are produced only by enabling mode `2027`, feeding fixed UTF-8 streams through one pinned

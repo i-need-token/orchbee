@@ -2,6 +2,7 @@ import {
 	DesktopWindowLayoutDestinationSchema,
 	DesktopWindowLayoutDragSessionIdSchema,
 } from '@orchbee/desktop-client-protocol';
+import { createOrchbeeIntl, workbenchTabMessages } from '@orchbee/i18n';
 import type { WorkbenchShortcutPlatform, WorkbenchTabWindowControl } from '@orchbee/workbench';
 import type { WorkbenchClientSessionBootstrap } from '@orchbee/workbench-client-protocol';
 import { createElement } from 'react';
@@ -222,8 +223,12 @@ export function startDesktopWorkbenchRenderer(
 			workbenchClientRuntime.documentCoordinator,
 			lifetimeClient,
 		);
+		const initialTerminalTitle = createOrchbeeIntl(workbenchClientRuntime.locale).formatMessage(
+			workbenchTabMessages.terminalTitle,
+		);
 		const nextRouting = createWebApplicationRouting({
 			actionRuntime: workbenchClientRuntime.actionRuntime,
+			initialTerminalTitle,
 			keyboardShortcutSettingsController,
 			layoutStorage: storage.preferences,
 			macosTerminalInputSettingsController,

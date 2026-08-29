@@ -7,7 +7,6 @@ import {
 	AlertDialogFooter,
 	AlertDialogHeader,
 	AlertDialogTitle,
-	Button,
 	Kbd,
 	ResizableHandle,
 	ResizablePanel,
@@ -284,11 +283,7 @@ export function Workbench({
 										terminalSurface={terminalSurface}
 									/>
 								) : (
-									<div className={styles['emptyWindow']} data-slot='workbench-empty-window'>
-										<Button disabled={view.newTerminal === undefined} onClick={view.newTerminal}>
-											{view.newTerminalLabel}
-										</Button>
-									</div>
+									<div className={styles['emptyWindow']} data-slot='workbench-empty-window' />
 								)}
 							</div>
 						</div>

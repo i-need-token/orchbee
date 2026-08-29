@@ -1,4 +1,5 @@
 import type { GatewayBrowserConnection } from '@orchbee/gateway-protocol';
+import { createOrchbeeIntl, workbenchTabMessages } from '@orchbee/i18n';
 import type { WorkbenchShortcutPlatform } from '@orchbee/workbench';
 import { createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
@@ -164,11 +165,15 @@ export function startGatewayWebApplication(
 		}
 		if (disposed) return { kind: 'unavailable', reason: 'control-unavailable' };
 		const routingHistory = dependencies.createRoutingHistory(targetWindow, connection);
+		const initialTerminalTitle = createOrchbeeIntl(nextRuntime.locale).formatMessage(
+			workbenchTabMessages.terminalTitle,
+		);
 		let nextRouting: WebApplicationRouting;
 		try {
 			nextRouting = dependencies.createRouting(
 				{
 					actionRuntime: nextRuntime.actionRuntime,
+					initialTerminalTitle,
 					keyboardShortcutSettingsController,
 					layoutStorage: storage,
 					projectWorkspaceRuntime: nextRuntime.projectWorkspaceRuntime,

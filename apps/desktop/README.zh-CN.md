@@ -302,6 +302,10 @@ Workbench `terminal-presentation-event-published` 消息是 Main 拥有的单一
   `Ctrl+Shift+Arrow`、`Ctrl+Shift+PageUp/PageDown` 和 `Ctrl+Shift+Home/End` 会让一个生产保留历史
   视口逐行、按重叠页面、到顶部和到底部移动，且不会替换附件。该见证不声明 Kitty 的次要别名、
   备用屏幕行为或键盘平滑动画时序；
+- 精确的 `terminal-parity/HS-12-sustained-output-interaction` real-PTY/Electron 证据表明，
+  当输出每 30 毫秒持续到达时，小滚轮增量仍能进入保留历史；已捕获的拖拽在一次
+  匹配但不带按钮位的中间移动后会保持到显式释放，选中单词会到达平台剪贴板，终端
+  revision 继续推进，且不会发布历史失败；
 - 一个 Electron 渲染器和两个普通浏览器页面共享规范工作台和终端状态，同时保留新页面会话、Client View 和附件标识，包括浏览器复制、链接、断开连接、拒绝和重新连接行为；
 - 用户退出保留/取消/停止、空闲运行终端的自动保留、面板关闭保护的精确重用、隐藏终端停止、failed-CAS 抑制、部分停止重试、未引用绑定耗尽、unknown-Host-orphan 拒绝、更新重新启动保留、开发主机停止/阶段/就绪排序以及显式启动停止会话后的新身份。
 

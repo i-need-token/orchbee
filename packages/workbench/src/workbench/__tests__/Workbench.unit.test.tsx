@@ -167,11 +167,12 @@ describe('Workbench', () => {
 		expect(markup).toContain('data-slot="workbench-panel-workspace"');
 	});
 
-	it('renders a recoverable empty view without mounting a hidden terminal', () => {
+	it('renders a blank empty view without mounting a hidden terminal', () => {
 		const markup = renderWorkbench(() => null, 'en-US', false, []);
 
 		expect(markup).toContain('data-slot="workbench-empty-window"');
-		expect(markup).toContain('New Terminal');
+		expect(markup).toMatch(/data-slot="workbench-empty-window"><\/div>/);
+		expect(markup).not.toContain('New Terminal');
 		expect(markup).not.toContain('data-slot="workbench-panel-workspace"');
 		expect(markup).not.toContain('data-slot="workbench-terminal-viewport"');
 	});

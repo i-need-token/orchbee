@@ -43,6 +43,7 @@ export function startWebApplication(
 	if (rootElement === null) throw new Error('The Orchbee web root element is missing.');
 	const locale = resolveOrchbeeLocale(preferredLocales);
 	const intl = createOrchbeeIntl(locale);
+	const initialTerminalTitle = intl.formatMessage(workbenchTabMessages.terminalTitle);
 	documentElement.lang = locale;
 	documentElement.dir = getOrchbeeTextDirection(locale);
 	const actionRuntime = new ActionRuntime();
@@ -67,7 +68,7 @@ export function startWebApplication(
 	});
 	const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
 		standaloneCwd: '/workspace',
-		standaloneTerminalTitle: intl.formatMessage(workbenchTabMessages.terminalTitle),
+		standaloneTerminalTitle: initialTerminalTitle,
 		terminalPresentation: createWorkbenchPreviewTerminalPresentationComposition(
 			terminalPresentationId('web:standalone:initial'),
 			() => terminalPresentationId(`web:preview:${createBrowserRandomIdentifier()}`),
@@ -75,6 +76,7 @@ export function startWebApplication(
 	});
 	const routing = createWebApplicationRouting({
 		actionRuntime,
+		initialTerminalTitle,
 		keyboardShortcutSettingsController,
 		layoutStorage,
 		projectWorkspaceRuntime,

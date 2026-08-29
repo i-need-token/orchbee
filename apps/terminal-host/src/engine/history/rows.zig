@@ -214,19 +214,30 @@ pub fn rowsApplied(
     generation: u64,
 ) HistoryError!void {
     const state = storage.find(self, attachment_id) orelse return error.MissingAttachment;
+    if (request_sequence == 0) return error.InvalidAcknowledgement;
     // A replay of the already-applied rows is an idempotent no-op even
     // while a newer row window is pending; it never clears or advances the
     // newer flight. The immutable acknowledgement tuple is preserved
     // separately from the mutable committed anchor, whose revision and
     // generation may be refreshed by later mutations.
     if (state.committed_ack) |ack| {
-        if (ack.sequence == request_sequence and ack.revision == revision and
-            ack.generation == generation)
-        {
-            return;
+        if (ack.sequence == request_sequence) {
+            if (ack.revision == revision and ack.generation == generation) return;
+            return error.InvalidAcknowledgement;
         }
     }
-    const pending = state.pending orelse return error.InvalidAcknowledgement;
+    const pending = state.pending orelse {
+        // Demand, screen, and generation transitions can abandon a row flight
+        // after its response has crossed the process boundary. A later
+        // acknowledgement below the issued high-water mark has no anchor left
+        // to promote, so it is an idempotent no-op. A future sequence was never
+        // admitted by this attachment and remains invalid.
+        if (request_sequence <= state.last_row_request_sequence) return;
+        return error.InvalidAcknowledgement;
+    };
+    // An older acknowledgement cannot clear or promote the newer pending
+    // anchor. The exact pending sequence still validates its immutable tuple.
+    if (request_sequence < pending.request_sequence) return;
     if (pending.request_sequence != request_sequence or pending.revision != revision or
         pending.generation != generation)
     {

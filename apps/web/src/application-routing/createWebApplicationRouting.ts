@@ -121,10 +121,15 @@ const routeTree = webApplicationRootRoute.addChildren([
 	workspaceTabRoute,
 ]);
 
+interface WebApplicationRoutingInput extends Omit<WebApplicationProps, 'navigation'> {
+	readonly initialTerminalTitle: string;
+}
+
 const createWebApplicationRoutingImplementation = (
-	application: Omit<WebApplicationProps, 'navigation'>,
+	input: WebApplicationRoutingInput,
 	history?: RouterHistory | undefined,
 ) => {
+	const { initialTerminalTitle, ...application } = input;
 	let routeHistory: RouterHistory | undefined = history;
 	const coordinator = new WorkbenchRouteCoordinator(
 		application.projectWorkspaceRuntime,
@@ -134,6 +139,7 @@ const createWebApplicationRoutingImplementation = (
 			if (options.replace) routeHistory.replace(path);
 			else routeHistory.push(path);
 		},
+		initialTerminalTitle,
 	);
 	const router = createRouter({
 		context: { application, coordinator },
@@ -160,10 +166,10 @@ export type WebApplicationRouting = ReturnType<typeof createWebApplicationRoutin
 export type WebApplicationRouter = WebApplicationRouting['router'];
 
 export function createWebApplicationRouting(
-	application: Omit<WebApplicationProps, 'navigation'>,
+	input: WebApplicationRoutingInput,
 	history?: RouterHistory | undefined,
 ): WebApplicationRouting {
-	return createWebApplicationRoutingImplementation(application, history);
+	return createWebApplicationRoutingImplementation(input, history);
 }
 
 function prepareRoute(context: WebApplicationRouteContext, request: WorkbenchRouteRequest): void {

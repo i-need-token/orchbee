@@ -1751,6 +1751,116 @@ test('terminal-parity/HS-04-selection-gesture', async () => {
 		.toContain('hs04-triple entire row marker');
 });
 
+test('terminal-parity/HS-12-sustained-output-interaction', async () => {
+	test.setTimeout(90_000);
+	test.skip(process.platform === 'win32', 'The sustained-output witness uses a POSIX shell.');
+	const application = electronApplication;
+	if (application === undefined) throw new Error('Electron application did not start.');
+	const page = await application.firstWindow();
+	const root = projectedTerminal(page);
+	await expect(root).toHaveAttribute('data-projected-terminal-state', 'open');
+	const input = page.getByRole('textbox');
+	const accessibility = root.locator('[role="list"]');
+	const accessibleRows = accessibility.locator(':scope > div');
+	const canvas = root.locator('canvas').first();
+	await input.pressSequentially(
+		`i=1; while [ "$i" -le 220 ]; do printf 'hs12-history-%03d selectableword\\n' "$i"; i=$((i+1)); done; i=1; while [ "$i" -le 600 ]; do printf 'hs12-stream-%03d selectableword\\n' "$i"; sleep 0.03; i=$((i+1)); done; printf 'hs12-finished\\n'`,
+		{ delay: 1 },
+	);
+	await input.press('Enter');
+
+	try {
+		await expect(accessibility).toContainText('hs12-stream-', { timeout: 10_000 });
+		const firstVisibleRow = async (): Promise<bigint> =>
+			BigInt((await accessibleRows.first().getAttribute('data-terminal-absolute-row')) ?? '0');
+		const revisionBeforeScroll = BigInt(
+			(await root.getAttribute('data-projected-terminal-rendered-revision')) ?? '0',
+		);
+		const isAwayFromBottom = async (): Promise<boolean> => {
+			const totalRows = BigInt(
+				(await accessibility.getAttribute('data-terminal-retained-rows')) ?? '0',
+			);
+			const visibleRows = BigInt((await root.getAttribute('data-projected-terminal-rows')) ?? '0');
+			const maximumStart = totalRows > visibleRows ? totalRows - visibleRows : 0n;
+			return (await firstVisibleRow()) < maximumStart;
+		};
+
+		await canvas.hover();
+		for (let index = 0; index < 10; index++) await page.mouse.wheel(0, -12);
+		await expect.poll(isAwayFromBottom).toBe(true);
+		const visibleHistoryRow = accessibleRows.filter({ hasText: 'selectableword' }).first();
+		await expect(visibleHistoryRow).toBeVisible();
+		const visibleText = (await visibleHistoryRow.textContent())?.trim();
+		if (visibleText === undefined || !visibleText.includes('selectableword')) {
+			throw new Error('The sustained-output history marker is not visible.');
+		}
+		const wordStart = await terminalCellPoint(
+			root,
+			canvas,
+			accessibleRows,
+			'selectableword',
+			0,
+			0.25,
+		);
+		const wordEnd = await terminalCellPoint(
+			root,
+			canvas,
+			accessibleRows,
+			'selectableword',
+			'selectableword'.length - 1,
+			0.75,
+		);
+		await application.evaluate(({ clipboard }) => clipboard.writeText('hs12 clipboard sentinel'));
+		await canvas.evaluate((element) => {
+			const surface = element as HTMLCanvasElement;
+			surface.addEventListener(
+				'pointerdown',
+				(event) => {
+					surface.dataset['hs12PointerId'] = String(event.pointerId);
+				},
+				{ once: true },
+			);
+		});
+		await page.mouse.move(wordStart.x, wordStart.y);
+		await page.mouse.down();
+		await expect.poll(() => canvas.getAttribute('data-hs12-pointer-id')).not.toBeNull();
+		await canvas.evaluate((element, endpoint) => {
+			const surface = element as HTMLCanvasElement;
+			const pointerId = Number(surface.dataset['hs12PointerId']);
+			surface.dispatchEvent(
+				new PointerEvent('pointermove', {
+					bubbles: true,
+					button: -1,
+					buttons: 0,
+					clientX: endpoint.x,
+					clientY: endpoint.y,
+					composed: true,
+					isPrimary: true,
+					pointerId,
+					pointerType: 'mouse',
+				}),
+			);
+			delete surface.dataset['hs12PointerId'];
+		}, wordEnd);
+		await page.mouse.move(wordEnd.x, wordEnd.y, { steps: 4 });
+		await page.mouse.up();
+		await expect(root).toHaveAttribute('data-projected-terminal-selection-state', 'active');
+		await expect
+			.poll(async () => application.evaluate(({ clipboard }) => clipboard.readText()))
+			.toContain('selectableword');
+		await expect
+			.poll(async () =>
+				BigInt((await root.getAttribute('data-projected-terminal-rendered-revision')) ?? '0'),
+			)
+			.toBeGreaterThan(revisionBeforeScroll);
+		await expect(root).toHaveAttribute('data-projected-terminal-selection-state', 'active');
+		expect(await root.getAttribute('data-projected-terminal-failure-code')).toBeNull();
+	} finally {
+		await input.focus();
+		await input.press('Control+C');
+	}
+});
+
 test('terminal-parity/HS-07-selection-export', async () => {
 	const application = electronApplication;
 	if (application === undefined) throw new Error('Electron application did not start.');

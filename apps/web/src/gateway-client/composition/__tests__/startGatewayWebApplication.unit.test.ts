@@ -181,7 +181,10 @@ describe('startGatewayWebApplication', () => {
 			fontSize: 13,
 		});
 		expect(createRouting).toHaveBeenCalledWith(
-			expect.objectContaining({ terminalSettingsController: configurationSource }),
+			expect.objectContaining({
+				initialTerminalTitle: 'Terminal',
+				terminalSettingsController: configurationSource,
+			}),
 			expect.any(Object),
 		);
 		expect(render).toHaveBeenCalledOnce();

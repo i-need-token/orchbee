@@ -77,13 +77,9 @@ interface WorkbenchView {
 	readonly duplicateWorkspace: (projectId: string, workspaceId: string) => void;
 	readonly isSidebarVisible: boolean;
 	readonly leftPanelSize: string;
-	readonly newTerminal: (() => void) | undefined;
 	readonly newTab: ((request: TabStripNewTabRequest) => ActionExecution) | undefined;
 	readonly onCloseTabs: TabStripCloseCallback;
 	readonly getCloseTabsConfirmation: TabStripCloseConfirmation;
-	readonly newTerminalLabel: string;
-	readonly newTerminalShortcutId: string;
-	readonly newTerminalShortcutLabel: string;
 	readonly onLayoutChanged: (
 		layout: Readonly<Record<string, number>>,
 		meta: ResizableLayoutChangedMeta,
@@ -485,9 +481,6 @@ export function useWorkbench({
 		},
 		isSidebarVisible,
 		leftPanelSize: `${leftPanelWidth.current}px`,
-		newTerminal: () => {
-			actions.invoke(WORKBENCH_ACTION_IDS.createTerminal, { groupId: null }, 'button');
-		},
 		newTab: (request) =>
 			actions.invoke(
 				WORKBENCH_ACTION_IDS.createTerminal,
@@ -497,13 +490,6 @@ export function useWorkbench({
 				},
 				request.source,
 			),
-		newTerminalLabel: intl.formatMessage(workbenchMessages.newTerminal),
-		newTerminalShortcutId: WORKBENCH_SHORTCUTS.newTerminal.id,
-		newTerminalShortcutLabel: formatWorkbenchShortcut(
-			'newTerminal',
-			shortcutPlatform,
-			shortcutBindings,
-		),
 		onCloseTabs: closeTabs,
 		getCloseTabsConfirmation,
 		onLayoutChanged: (_layout, meta) => {
