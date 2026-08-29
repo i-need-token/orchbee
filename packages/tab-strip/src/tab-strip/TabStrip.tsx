@@ -17,6 +17,8 @@ import type {
 	TabStripMoveTabsToWindowCallback,
 	TabStripSelectCallback,
 	TabStripShortcutLabels,
+	TabStatusAdornment,
+	TabStatusAdornmentKind,
 	TabStripWindowTarget,
 } from './types/tab-strip-options';
 
@@ -37,6 +39,8 @@ export type {
 	TabStripTabCreationIntent,
 	TabStripSelectCallback,
 	TabStripShortcutLabels,
+	TabStatusAdornment,
+	TabStatusAdornmentKind,
 	TabStripWindowTarget,
 	TabStripMessages,
 };

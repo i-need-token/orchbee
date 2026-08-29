@@ -6,6 +6,7 @@ const subject = model_boundary.launch;
 const terminal_configuration = model_boundary.configuration;
 
 const EnvironmentEntry = subject.EnvironmentEntry;
+const EnvironmentOverlayEntry = subject.EnvironmentOverlayEntry;
 const Launch = subject.Launch;
 
 const features = [_]u16{22};
@@ -190,4 +191,57 @@ test "launch inspection rejects invalid geometry profile configuration and envir
         error.InvalidLaunch,
         subject.inspect(std.testing.allocator, invalid_environment_launch),
     );
+}
+
+test "environment overlay is launch-disjoint and has an order-independent digest" {
+    const durable_environment = [_]EnvironmentEntry{
+        .{ .name = "DURABLE", .value = "value" },
+    };
+    const launch = validLaunch(&durable_environment);
+    const first_overlay = [_]EnvironmentOverlayEntry{
+        .{ .name = "ORCHBEE_AGENT_OBSERVATION_SOCKET", .value = "/tmp/orchbee-agent.sock" },
+        .{ .name = "ORCHBEE_TEST_TRANSIENT_MARKER", .value = "first-marker" },
+    };
+    const reordered_overlay = [_]EnvironmentOverlayEntry{
+        .{ .name = "ORCHBEE_TEST_TRANSIENT_MARKER", .value = "first-marker" },
+        .{ .name = "ORCHBEE_AGENT_OBSERVATION_SOCKET", .value = "/tmp/orchbee-agent.sock" },
+    };
+    const changed_overlay = [_]EnvironmentOverlayEntry{
+        .{ .name = "ORCHBEE_AGENT_OBSERVATION_SOCKET", .value = "/tmp/orchbee-agent.sock" },
+        .{ .name = "ORCHBEE_TEST_TRANSIENT_MARKER", .value = "second-marker" },
+    };
+    const first = try subject.inspectWithOverlay(std.testing.allocator, launch, &first_overlay);
+    const reordered = try subject.inspectWithOverlay(std.testing.allocator, launch, &reordered_overlay);
+    const changed = try subject.inspectWithOverlay(std.testing.allocator, launch, &changed_overlay);
+    try std.testing.expectEqualSlices(
+        u8,
+        &first.environment_overlay.digest,
+        &reordered.environment_overlay.digest,
+    );
+    try std.testing.expect(!std.mem.eql(
+        u8,
+        &first.environment_overlay.digest,
+        &changed.environment_overlay.digest,
+    ));
+    try std.testing.expectEqualSlices(u8, &first.launch_digest, &changed.launch_digest);
+
+    const overlapping = [_]EnvironmentOverlayEntry{
+        .{ .name = "DURABLE", .value = "secret" },
+    };
+    try std.testing.expectError(
+        error.InvalidEnvironmentOverlay,
+        subject.inspectWithOverlay(std.testing.allocator, launch, &overlapping),
+    );
+    const aliases = [_]EnvironmentOverlayEntry{
+        .{ .name = "Path", .value = "first" },
+        .{ .name = "PATH", .value = "second" },
+    };
+    if (target_builtin.os.tag == .windows) {
+        try std.testing.expectError(
+            error.InvalidEnvironmentOverlay,
+            subject.inspectWithOverlay(std.testing.allocator, launch, &aliases),
+        );
+    } else {
+        _ = try subject.inspectWithOverlay(std.testing.allocator, launch, &aliases);
+    }
 }

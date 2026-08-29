@@ -11,21 +11,25 @@ describe('terminal feedback preference storage', () => {
 	it('accepts only the strict supported record', () => {
 		expect(
 			normalizeTerminalFeedbackPreferences({
+				agentNotificationMode: 'hidden',
 				completionReminderMinimumSeconds: 12,
 				completionReminderMode: 'unfocused',
 			}),
 		).toEqual({
+			agentNotificationMode: 'hidden',
 			completionReminderMinimumSeconds: 12,
 			completionReminderMode: 'unfocused',
 		});
 		expect(
 			normalizeTerminalFeedbackPreferences({
+				agentNotificationMode: 'never',
 				completionReminderMinimumSeconds: 0,
 				completionReminderMode: 'always',
 			}),
 		).toBeNull();
 		expect(
 			normalizeTerminalFeedbackPreferences({
+				agentNotificationMode: 'never',
 				completionReminderMinimumSeconds: 5,
 				completionReminderMode: 'never',
 				extra: true,
@@ -68,14 +72,15 @@ describe('terminal feedback preference storage', () => {
 			writeTerminalFeedbackPreferences(
 				{ getItem: () => null, setItem },
 				{
+					agentNotificationMode: 'hidden',
 					completionReminderMinimumSeconds: 12,
 					completionReminderMode: 'always',
 				},
 			),
 		).toBe(true);
 		expect(setItem).toHaveBeenCalledWith(
-			'orchbee:web:terminal-feedback:v1',
-			'{"completionReminderMinimumSeconds":12,"completionReminderMode":"always"}',
+			'orchbee:web:terminal-feedback:v2',
+			'{"agentNotificationMode":"hidden","completionReminderMinimumSeconds":12,"completionReminderMode":"always"}',
 		);
 
 		expect(
@@ -89,5 +94,25 @@ describe('terminal feedback preference storage', () => {
 				DEFAULT_TERMINAL_FEEDBACK_PREFERENCES,
 			),
 		).toBe(false);
+	});
+
+	it('migrates the legacy record with Agent notifications off', () => {
+		const legacy = JSON.stringify({
+			completionReminderMinimumSeconds: 12,
+			completionReminderMode: 'unfocused',
+		});
+		expect(
+			readTerminalFeedbackPreferences({
+				getItem: (key) => (key === 'orchbee:web:terminal-feedback:v1' ? legacy : null),
+				setItem: () => undefined,
+			}),
+		).toEqual({
+			issue: null,
+			preferences: {
+				agentNotificationMode: 'never',
+				completionReminderMinimumSeconds: 12,
+				completionReminderMode: 'unfocused',
+			},
+		});
 	});
 });

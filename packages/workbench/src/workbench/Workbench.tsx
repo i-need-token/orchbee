@@ -13,6 +13,7 @@ import {
 	ResizablePanelGroup,
 } from '@orchbee/ui/components';
 import type { ActionRuntime } from '@orchbee/actions';
+import type { AgentSnapshotSource } from '@orchbee/agent';
 import type { TabStripCrossWindowDragRuntimeFactory } from '@orchbee/tab-strip';
 import * as React from 'react';
 
@@ -30,6 +31,7 @@ import { WorkbenchTabTitleDialog } from './components/workbench-tab-title-dialog
 import { WORKBENCH_ACTION_IDS } from './actions/workbench-action-ids';
 import { EMPTY_WORKBENCH_SEARCH_PROVIDERS } from './constants/search-providers';
 import { useWorkbench } from './hooks/useWorkbench';
+import { useWorkbenchAgentPresentation } from './hooks/useWorkbenchAgentPresentation';
 import { useWorkbenchActionShortcutLabel } from './hooks/useWorkbenchActionShortcutLabel';
 import { useWorkbenchTabStripMessages } from './hooks/useWorkbenchTabStripMessages';
 import { useWorkbenchTabWindowControl } from './hooks/useWorkbenchTabWindowControl';
@@ -42,6 +44,7 @@ import type {
 import type { WorkbenchShortcutPlatform } from './types/workbench-shortcut-platform';
 import type { WorkbenchSearchProvider } from './types/workbench-search-provider';
 import type { WorkbenchTerminalSurface } from './types/workbench-terminal-surface';
+import type { WorkbenchAgentNotificationObserver } from './types/workbench-agent-notification';
 import type { WorkbenchProjectFolderAcquisition } from './types/workbench-project-folder-acquisition';
 import type { WorkbenchEnvironmentProjectConnectionCapability } from './types/workbench-environment-project-connection';
 import type { WorkbenchProjectWorktreeCapability } from './types/workbench-project-worktree';
@@ -57,6 +60,8 @@ import styles from './Workbench.module.css';
 
 export interface WorkbenchProps {
 	readonly actionRuntime: ActionRuntime;
+	readonly agentNotificationObserver?: WorkbenchAgentNotificationObserver | undefined;
+	readonly agentObservationSource?: AgentSnapshotSource | undefined;
 	readonly createCrossWindowDragRuntime?: TabStripCrossWindowDragRuntimeFactory | undefined;
 	readonly environmentProjectConnection?:
 		| WorkbenchEnvironmentProjectConnectionCapability
@@ -82,6 +87,8 @@ export interface WorkbenchProps {
 
 export function Workbench({
 	actionRuntime,
+	agentNotificationObserver,
+	agentObservationSource,
 	createCrossWindowDragRuntime,
 	environmentProjectConnection,
 	isShortcutScopeActive = true,
@@ -132,6 +139,12 @@ export function Workbench({
 	});
 	const effectiveCrossWindowDragRuntime =
 		createCrossWindowDragRuntime ?? windowIntegration.createCrossWindowDragRuntime;
+	const agentPresentation = useWorkbenchAgentPresentation({
+		notificationObserver: agentNotificationObserver,
+		panelWorkspaceStore: view.terminalContext.panelWorkspaceStore,
+		source: agentObservationSource,
+		tabModel: view.tabModel,
+	});
 	const sidebarToggle = (
 		<WorkbenchSidebarToggle
 			isSidebarVisible={view.isSidebarVisible}
@@ -295,6 +308,7 @@ export function Workbench({
 									setTabTitle: shortcutLabelForAction(WORKBENCH_ACTION_IDS.setTabTitle),
 								}}
 								tabModel={view.tabModel}
+								statusAdornments={agentPresentation.tabStatusAdornments}
 								tabStripMessages={tabStripMessages}
 								verticalCollapsed={view.verticalTabStripCollapsed}
 								windowTargets={windowIntegration.windowTargets}
@@ -307,6 +321,7 @@ export function Workbench({
 								{view.hasVisibleTerminalTabs ? (
 									<WorkbenchPanelWorkspace
 										actionRuntime={actionRuntime}
+										agentLocations={agentPresentation.locations}
 										panelWorkspaceStore={view.terminalContext.panelWorkspaceStore}
 										parentActionScope={view.actionScope}
 										presentationScopeId={view.terminalContext.terminalContextId}

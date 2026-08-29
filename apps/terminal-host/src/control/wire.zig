@@ -184,6 +184,11 @@ pub const Environment = struct {
     value: ?[]const u8,
 };
 
+pub const EnvironmentOverlay = struct {
+    name: []const u8,
+    value: []const u8,
+};
+
 pub const Launch = struct {
     arguments: []const []const u8,
     cellPixelHeight: ?u16,
@@ -225,6 +230,7 @@ pub const TerminalProfile = struct {
 
 pub const Create = struct {
     creationId: []const u8,
+    environmentOverlay: []const EnvironmentOverlay,
     launch: Launch,
 };
 

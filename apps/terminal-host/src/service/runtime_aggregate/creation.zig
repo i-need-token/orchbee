@@ -23,10 +23,14 @@ pub fn prepareCreateTerminal(
     creation_id: core_module.CreationId,
     validated_launch: terminal_launch.Validated,
 ) CreatePrepareError!CreatePreparation {
-    if (try self.core_state.resolveCreation(
+    if (try self.core_state.resolveCreationWithOverlay(
         connection_id,
         creation_id,
         validated_launch.launch_digest,
+        if (validated_launch.environment_overlay.entries.len == 0)
+            null
+        else
+            validated_launch.environment_overlay.digest,
     )) |terminal_id| {
         const terminal = self.core_state.findTerminal(terminal_id) orelse unreachable;
         return .{ .replayed = .{
@@ -53,6 +57,7 @@ pub fn prepareCreateTerminal(
         .allocator = self.allocator,
         .connection_id = connection_id,
         .creation_id = creation_id,
+        .environment_overlay_digest = validated_launch.environment_overlay.digest,
         .initial_geometry = validated_launch.launch.geometry,
         .launch_digest = validated_launch.launch_digest,
         .runtime_preparation = prepared_launch,
@@ -94,11 +99,12 @@ pub fn commitPreparedTerminal(
                 // All domain capacity and the complete engine exist before
                 // this infallible commit. The caller has already encoded and
                 // reserved the records that make the commit observable.
-                self.core_state.commitRunningTerminal(
+                self.core_state.commitRunningTerminalWithOverlay(
                     pending.connection_id,
                     pending.creation_id,
                     pending.terminal_id,
                     pending.launch_digest,
+                    pending.environment_overlay_digest,
                     geometry.columns,
                     geometry.rows,
                     geometry.cell_pixel_width,
@@ -114,11 +120,12 @@ pub fn commitPreparedTerminal(
                     .session = undefined,
                     .start_preparation = pending.runtime_preparation,
                 };
-                self.core_state.commitAwaitingStartTerminal(
+                self.core_state.commitAwaitingStartTerminalWithOverlay(
                     pending.connection_id,
                     pending.creation_id,
                     pending.terminal_id,
                     pending.launch_digest,
+                    pending.environment_overlay_digest,
                     retained.start_preparation.?.configuration,
                     retained.start_preparation.?.themeDefaults(),
                     &retained.session,

@@ -64,6 +64,8 @@ describe('Desktop renderer bootstrap contract', () => {
 		expect(DESKTOP_RENDERER_PORT_ROLES).toEqual([
 			'client-session',
 			'terminal-projection',
+			'agent-observation',
+			'agent-integration-management',
 			'application-lifetime',
 			'browser-access',
 			'project-folder-acquisition',

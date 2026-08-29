@@ -110,6 +110,7 @@ pub const PendingCreate = struct {
     allocator: std.mem.Allocator,
     connection_id: core_module.ConnectionId,
     creation_id: core_module.CreationId,
+    environment_overlay_digest: terminal_launch.Digest,
     initial_geometry: ?terminal_geometry.Geometry,
     launch_digest: terminal_launch.Digest,
     runtime_preparation: terminal_launch.RuntimePreparation,

@@ -62,6 +62,10 @@ pub fn decodeCreateTerminal(
         parsed.arena.allocator(),
         parsed.value.launch.environment,
     );
+    const environment_overlay = try translateEnvironmentOverlay(
+        parsed.arena.allocator(),
+        parsed.value.environmentOverlay,
+    );
     const wire_launch = parsed.value.launch;
     const launch: terminal_launch.Launch = .{
         .arguments = wire_launch.arguments,
@@ -83,8 +87,12 @@ pub fn decodeCreateTerminal(
         .parsed = parsed,
         .value = .{
             .creation_id = creation_id,
-            .launch = terminal_launch.inspect(allocator, launch) catch |err| switch (err) {
-                error.InvalidLaunch => return error.InvalidField,
+            .launch = terminal_launch.inspectWithOverlay(
+                allocator,
+                launch,
+                environment_overlay,
+            ) catch |err| switch (err) {
+                error.InvalidLaunch, error.InvalidEnvironmentOverlay => return error.InvalidField,
                 error.OutOfMemory => return error.CommandInspectionOutOfMemory,
             },
         },
@@ -153,8 +161,26 @@ fn translateEnvironment(
     return environment;
 }
 
+fn translateEnvironmentOverlay(
+    allocator: std.mem.Allocator,
+    source_environment: []const control_wire.EnvironmentOverlay,
+) decode_common.Error![]terminal_launch.EnvironmentOverlayEntry {
+    if (source_environment.len > protocol.Limits.environment_overlay_entries) {
+        return error.InvalidField;
+    }
+    const environment = allocator.alloc(
+        terminal_launch.EnvironmentOverlayEntry,
+        source_environment.len,
+    ) catch return error.CommandInspectionOutOfMemory;
+    for (environment, source_environment) |*target, source| {
+        target.* = .{ .name = source.name, .value = source.value };
+    }
+    return environment;
+}
+
 pub const testing = struct {
     pub const translateEnvironmentForTest = translateEnvironment;
+    pub const translateEnvironmentOverlayForTest = translateEnvironmentOverlay;
 };
 
 fn profileFromWire(profile: control_wire.TerminalProfile) ?terminal_profile.Profile {

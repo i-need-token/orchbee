@@ -3,12 +3,14 @@ import {
 	CreationIdSchema,
 	MessageKind,
 	TerminalIdentitySchema,
+	TerminalEnvironmentOverlaySchema,
 	TerminalLaunchSchema,
 	TerminalPhase,
 	type HostEpoch,
 	type TerminalExited,
 	type TerminalIdentity,
 	type TerminalLaunch,
+	type TerminalEnvironmentOverlay,
 	type TerminalSummary,
 } from '@orchbee/terminal-protocol';
 import {
@@ -35,6 +37,10 @@ import {
 export interface TerminalRecoveryCoordinatorDependencies {
 	readonly randomCreationId: () => string;
 	readonly onIdentityObserved?: (identity: TerminalIdentity) => void;
+	readonly resolveEnvironmentOverlay?: (generation: {
+		readonly creationId: TerminalBinding['creationId'];
+		readonly presentationId: TerminalPresentationId;
+	}) => TerminalEnvironmentOverlay;
 }
 
 export type TerminalExitPersistenceResult =
@@ -226,10 +232,12 @@ export class TerminalRecoveryCoordinator {
 	): Promise<TerminalRecoveryOutcome> {
 		let identity: TerminalIdentity;
 		try {
+			const environmentOverlay = this.#resolveEnvironmentOverlay(binding);
 			identity = await this.#host.requestControl(
 				MessageKind.createTerminal,
 				CreateTerminalSchema.parse({
 					creationId: binding.creationId,
+					environmentOverlay,
 					launch: binding.launch,
 				}),
 				TerminalIdentitySchema,
@@ -270,6 +278,7 @@ export class TerminalRecoveryCoordinator {
 				MessageKind.createTerminal,
 				CreateTerminalSchema.parse({
 					creationId: binding.creationId,
+					environmentOverlay: [],
 					launch: binding.launch,
 				}),
 				TerminalIdentitySchema,
@@ -339,6 +348,20 @@ export class TerminalRecoveryCoordinator {
 		}
 		this.#associatedIdentity = identity;
 		this.#dependencies.onIdentityObserved?.(identity);
+	}
+
+	#resolveEnvironmentOverlay(binding: TerminalBinding): TerminalEnvironmentOverlay {
+		try {
+			const candidate = this.#dependencies.resolveEnvironmentOverlay?.({
+				creationId: binding.creationId,
+				presentationId: this.#presentationId,
+			});
+			if (candidate === undefined) return [];
+			const parsed = TerminalEnvironmentOverlaySchema.safeParse(candidate);
+			return parsed.success ? parsed.data : [];
+		} catch {
+			return [];
+		}
 	}
 }
 

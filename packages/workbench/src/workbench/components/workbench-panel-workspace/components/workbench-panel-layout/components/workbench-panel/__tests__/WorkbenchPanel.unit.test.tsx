@@ -1,4 +1,5 @@
 import { ActionRuntime } from '@orchbee/actions';
+import { AgentProviderIdSchema, type AgentLocationPresentation } from '@orchbee/agent';
 import { OrchbeeI18nProvider } from '@orchbee/i18n';
 import { TooltipProvider } from '@orchbee/ui/components';
 import { createElement, createRef } from 'react';
@@ -55,6 +56,7 @@ const layer: TerminalTabPresentationLayer = {
 };
 
 interface RenderPanelOptions {
+	readonly agentPresentation?: AgentLocationPresentation | undefined;
 	readonly dragging?: boolean;
 	readonly focused?: boolean;
 	readonly layoutSettled?: boolean;
@@ -213,6 +215,10 @@ function renderPanel(
 				TooltipProvider,
 				null,
 				createElement(WorkbenchPanel, {
+					agentLocations:
+						options.agentPresentation === undefined
+							? undefined
+							: new Map([['terminal-1', options.agentPresentation]]),
 					layer,
 					layoutSettled: options.layoutSettled ?? true,
 					panel,
@@ -235,6 +241,32 @@ describe('WorkbenchPanel', () => {
 		expect(markup).not.toContain('data-slot="workbench-panel-header"');
 		expect(markup).not.toContain('data-slot="workbench-child-terminal-strip"');
 		expect(markup).not.toContain('data-slot="workbench-panel-focus-scrim"');
+	});
+
+	it('shows a localized, non-color-only Agent status without replacing the terminal title', () => {
+		const markup = renderPanel(createPanel(null), 1, {
+			agentPresentation: {
+				activeCount: 1,
+				attentionCount: 2,
+				freshness: 'stale',
+				location: {
+					generation: 'binding-1',
+					navigable: true,
+					presentationId: 'terminal-1',
+					visibility: 'visible',
+				},
+				providerIds: [AgentProviderIdSchema.parse('claude-code')],
+				sessionCount: 1,
+				status: { count: 2, kind: 'needs-attention' },
+			},
+		});
+
+		expect(markup).toContain('data-slot="workbench-panel-header"');
+		expect(markup).toContain('data-slot="workbench-agent-status"');
+		expect(markup).toContain('data-icon="agent"');
+		expect(markup).toContain('Claude Code');
+		expect(markup).toContain('Needs attention (2) · Status stale');
+		expect(markup).toContain('data-slot="workbench-panel-header-title">Terminal 1</div>');
 	});
 
 	it('shows return and close actions but no panel menu for a singleton child terminal', () => {

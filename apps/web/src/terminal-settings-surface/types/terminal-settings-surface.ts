@@ -3,6 +3,10 @@ import type { KeyboardShortcutPlatform } from '@orchbee/keyboard-shortcuts';
 import type { ProductIconName } from '@orchbee/ui/components';
 import type { KeyboardShortcutSettingsController } from '../../keyboard-shortcuts';
 import type {
+	AgentIntegrationManagementControl,
+	AgentIntegrationReminderController,
+} from '../../agent-integration-management';
+import type {
 	TerminalAppearancePreferences,
 	TerminalSettingsController,
 } from '../../terminal-settings';
@@ -13,6 +17,7 @@ import type { DesktopTerminalDefaultSettingsControl } from '../../terminal-defau
 import type { TerminalInteractionSettingsController } from '../../terminal-interaction-settings';
 
 export type TerminalSettingsCategory =
+	| 'agent-integrations'
 	| 'appearance'
 	| 'browser-access'
 	| 'colors'
@@ -180,12 +185,15 @@ export interface TerminalSettingsSurfaceMessages {
 }
 
 export interface UseTerminalSettingsSurfaceOptions {
+	readonly agentIntegrationManagementControl?: AgentIntegrationManagementControl | undefined;
+	readonly agentIntegrationReminderController?: AgentIntegrationReminderController | undefined;
 	readonly controller: TerminalSettingsController;
 	readonly keyboardShortcutController: KeyboardShortcutSettingsController;
 	readonly keyboardShortcutPlatform: KeyboardShortcutPlatform;
 	readonly macosTerminalInputSettingsController?: MacosTerminalInputSettingsController | undefined;
 	readonly onRequestClose: () => void;
 	readonly requestBrowserAccess?: ((returnFocus: HTMLElement) => void) | undefined;
+	readonly requestedCategory?: TerminalSettingsCategory | undefined;
 	readonly terminalFeedbackSettingsController?: TerminalFeedbackSettingsController | undefined;
 	readonly terminalLaunchProfileClient?: DesktopTerminalLaunchProfileControl | undefined;
 	readonly terminalDefaultSettingsControl?: DesktopTerminalDefaultSettingsControl | undefined;

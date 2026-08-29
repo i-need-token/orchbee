@@ -36,6 +36,7 @@ export function HorizontalContents({
 	const {
 		actions,
 		orientation,
+		statusAdornments,
 		showGroupHoverCards,
 		showNewTabButton,
 		horizontalFrameCondensed,
@@ -414,6 +415,7 @@ export function HorizontalContents({
 						>
 							<TabButton
 								tab={item.tab}
+								statusAdornment={statusAdornments.get(item.tab.id)}
 								snapshot={snapshot}
 								width={renderedBounds.width}
 								orientation={orientation}

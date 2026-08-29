@@ -25,12 +25,12 @@ Terminal Host owns:
 - effective terminal configuration, complete revisioned runtime themes, ordered bounded input,
   revisions, and generations;
 - broker-scoped attachments, demand, delivery flights, bell cursors, history anchors, selections, and exports;
-- bounded OSC 52 plain-text write intent, current terminal progress, and latest semantic command
-  completion facts derived from Ghostty output;
+- bounded OSC 52 plain-text write intent, bounded OSC 777 application-signal transport, current
+  terminal progress, and latest semantic command completion facts derived from Ghostty output;
 - a private local IPC endpoint protected by operating-system user identity; and
 - typed native adaptation of the shared terminal protocol.
 
-It does not own Project, Workspace, Workbench, Tab, Panel, agent, or product-session models. It also does not own Electron lifecycle, product recovery choices, rendering, platform clipboard contents, application commit policy, clipboard effects, search queries, external navigation, updates, network listeners, remote authentication, encryption, or sharing.
+It does not own Project, Workspace, Workbench, Tab, Panel, Agent, provider, or product-session models, and it never derives Agent semantics from a terminal signal. It also does not own Electron lifecycle, product recovery choices, rendering, platform clipboard contents, application commit policy, clipboard effects, search queries, external navigation, updates, network listeners, remote authentication, encryption, or sharing.
 
 ## Runtime promises
 
@@ -39,7 +39,12 @@ The accepted contract requires these externally visible properties:
 - One endpoint has at most one active physical Desktop broker session.
 - A Desktop disconnect destroys that broker's attachments but does not terminate or dispose retained terminals.
 - A Host with retained terminals remains available for reconnect. A Host with no broker and no retained terminal may exit.
-- Terminal creation is atomic and idempotent by creation identity and launch fingerprint while the terminal remains retained in one Host epoch. Explicit disposal releases that identity.
+- Terminal creation is atomic and idempotent by creation identity and durable launch fingerprint
+  while the terminal remains retained in one Host epoch. A separate, non-persistent environment
+  overlay is applied only to that creation generation and represented in retained state by a
+  target-normalized, order-independent digest. A non-empty replay must match the digest; an empty
+  replay may validate an existing retained creation without reconstructing its capability. Explicit
+  disposal releases the identity and overlay generation.
 - A launch with null geometry reserves identity, configuration, and prepared launch ownership in
   `awaiting-start` without spawning a child or PTY. `StartTerminal` requires one complete geometry;
   success uses it for the child, PTY, canonical state, Core observation, and first frame. Exact
@@ -103,6 +108,11 @@ The accepted contract requires these externally visible properties:
 - OSC 52 can publish one bounded plain-text write intent to one read-capable attachment, but never
   reads the user's clipboard or performs a platform effect. Outgoing backpressure retries the same
   intent, while successful handoff and reconnect cannot duplicate it.
+- OSC 777 with the exact reserved title `orchbee.agent.v1` can publish one bounded application
+  signal. Reader-batch admission is transactional, up to 64 admitted signals remain in FIFO order,
+  and outgoing backpressure preserves the exact queue head until commit. The Host does not
+  authenticate the emitter, interpret Agent or provider state, or request a product or platform
+  notification; all other OSC 777 titles and OSC 9 notifications are ignored by this transport.
 - Ghostty progress reports project only the terminal's current bounded local sample; they do not
   assert process completion or request a system notification.
 - OSC 133 `C` and `D` actions transactionally retain only one terminal-local completion sequence,

@@ -4,6 +4,24 @@ Orchbee 工作台的浏览器组合条目。
 
 ## 组合边界
 
+Electron-only capability set 还包括来自 `@orchbee/desktop-client-protocol` 的严格
+`agent-integration-management` port。它投影一个只读的六 Agent 本地 inventory，并且只接受
+Settings 中显式的 refresh、enable 与 disable request；Browser 与 Gateway composition 不提供它。
+
+Electron Desktop 还会在固定 bootstrap bundle 中提供 Agent-observation 与
+Agent-integration-management port；Browser Preview 与 Gateway 均不提供。Agent-observation adapter
+会在 mount application 前请求一份严格的完整 snapshot，拒绝 malformed 或 uncorrelated
+publication，并且只应用递增 revision。它会在 Main 发布对应 state revision 后，独立于 snapshot
+转发经过严格解析的 canonical semantic event。Ready adapter 向 Workbench 提供窄化的
+`AgentSnapshotSource`；adapter 不可用时，既有 terminal application 保持不变。Workbench 为精确
+Panel 与 Tab 投影 status，并把 attention、success 与 failure candidate 提供给 terminal-feedback
+controller。该 controller 默认关闭 Agent notification，绝不由 event 请求 permission，会抑制可见
+destination、按 semantic event identity 去重，并且只在用户已启用设置且 permission 已经 granted 时
+显示本地化且不含内容的文案。激活 notification 会聚焦 application，并调用 Workbench 的
+navigation-only callback。Renderer 不拥有 canonical Agent transition，也不能提交 Agent event、
+response、approval 或 decision。Renderer reload 会创建新 adapter，并从 Desktop Main 的当前完整
+snapshot 恢复，而不是 replay delta 或旧 notification event。
+
 `apps/web` 是普通浏览器页面与 Electron 渲染器共用的唯一可运行产品 UI。环境适配器可以提供不同传输与特权能力，但都组合相同的 Workbench、Workspace、Tab、Panel 与投影终端应用。Desktop 不得维护另一套渲染器 UI。共享 Workbench 客户端运行时负责共享文档协调、投影终端呈现、搜索、Action，以及窄化的客户端会话与投影端口；它不依赖 Electron、`MessagePort`、网络或应用生命周期。运行时为每个投影渲染器会话提供稳定的 `TerminalPresentationConfigurationSource`：初始完整值用于打开表面，后续完整值更新同一会话与附件，不改变 React 功能标识，也不重新打开投影。默认来源保留不平衡内边距，把 `fontSize` 固定为 13 以匹配 Ghostty 默认 13 点设置，并用与 Ghostty 对齐的内置 JetBrains Mono 2.304 variable 字体及 Nerd Fonts Symbols Only 3.4.0 后备字体取代来源中立的 monospace。应用启动时会在打开任何表面前注册这些不可变资产；同一 bundle 与许可证链接服务于浏览器、Gateway 和 Electron 渲染器，不依赖机器已安装字体。每项应用组合都会用客户端本地设置控制器替换该后备来源；控制器恢复严格、完整的偏好记录，公开同一稳定呈现来源，并发布完整运行时更新，无需重新打开投影。
 
 Browser Preview 使用内存 composition。Desktop 为共享 client-session 与 projection port 提供 `MessagePort` adapter，再在通用 application 旁注入仅 Electron 的 application-lifetime、Browser-access、native Project Folder acquisition、managed Project Worktree、设备本地 terminal-launch-profile、terminal-default-settings、Main-owned clipboard-read、remote-terminal-creation 和 SSH Project enrollment capability。其 capability-scoped 本地 projection transport 声明 `local-host`，允许 OBPB format-`0.0.1` render buffer 在结构校验后成为直接 typed view。Gateway adapter 每页使用一个 Cookie 准入的 control WebSocket，每个可见 terminal attachment 使用一个 binary WebSocket，并声明 `external`，保留完整的逐 cell protocol scan。两个 adapter 都组合相同的 `createWorkbenchClientRuntime`，不会实现另一套 Workbench renderer。共享 projected-terminal surface 在每个 inline edge 保留一个透明像素，同时保持 block edge 齐平；每次 container resize 后都把完整 cell 放入该边界，并在完整 Panel viewport 上镜像有效 terminal default background，避免 canvas 暴露不匹配的 application surface。Host mode 使用 Host-projected default；client display override 使用选定的 default color 与 alpha。Background opacity 只作用于该 default background 与 renderer clear，绝不作用于 whole-root CSS opacity 或 terminal text。支持的直接 Kitty graphics 使用同一个严格解码 live frame 和 clipped、pointer-transparent sibling canvas；history presentation 与空 graphics snapshot 会移除 overlay，而不重放 stale image。获准 terminal bell 会在完整 surface 上显示短暂、pointer-transparent 的 information wash，而不是类似 focus 的 edge；reduced-motion presentation 保持同一有界时长但不播放 animation。重复接受的 sequence 会重新开始有界视觉提示，而不改变 layout 或 focus；sound 与 notification policy 彼此独立。Connection notice 明显覆盖 surface，但不消费 terminal-grid space，也不把最后一行移出 viewport。Committed 或 duplicate frame 只清除 transient connection failure；已发布 terminal exit 或 runtime failure 优先于后续 transport loss，并保留 final-frame presentation state。Generic Workbench client payload 来自 `@orchbee/workbench-client-protocol`；人类 Browser 鉴权与 Cookie 契约来自 `@orchbee/remote-client-protocol`；Gateway page handshake、attachment 鉴权与 framing 来自 `@orchbee/gateway-protocol`；Electron bootstrap、application-lifetime、Browser-access、Project Folder acquisition、Project Worktree、terminal-launch-profile、terminal-default-settings、clipboard-read、remote-terminal-creation 与 SSH Project enrollment command 来自 `@orchbee/desktop-client-protocol`。
@@ -90,6 +108,11 @@ file-content read、upload 或 filesystem-link activation。
 所有三种组合都使用一种TanStack路由器和浏览器的路径契约相同。 项目、工作区和活动选项卡标识显示在地址中。 结构不完整的路线（例如 `/projects` 或 `/projects/$projectId/workspaces/$workspaceId`）将自己替换为第一个订购的可用后代； 显式陈旧标识符保留地址并显示本地不可用状态。 应用程序内导航会推送历史记录，而规范化和协调会取代它，因此“后退”和“前进”会重现显示的 Client View，而无需发布共享文档更改。 请参阅[`docs/navigation-routing.md`](docs/navigation-routing.md)。
 
 ## 设置
+
+本地 Desktop Settings 会在 capability 存在时包含 Agent Integrations。Startup、search、category
+navigation 与每个 session 一次且可 dismiss 的 reminder 均不执行 mutation；只有显式 row action
+可以请求 Main 改变 Orchbee 自己的精确本地 entry。Review 只打开 category，不会 enable；dismiss
+reminder 只存储 Agent ID；remote setup 仍只能手动完成。
 
 通用 Settings Action 会打开应用拥有的全窗口 overlay，而不是导航到其他路由。Workbench 子树变为 inert，但其 React tree 与每个 projected terminal attachment 保持 mounted。客户端本地 application theme、terminal font、有效默认 terminal color 和 default-background opacity 立即应用，并作为当前 Browser origin 的一项严格版本记录持久化。在 macOS Desktop 上，单独的严格本地记录选择左右 Option 键是否充当 terminal Alt；默认为关闭，接受的更改会更新每个 mounted projected terminal，而不替换 attachment。六十七个常用 Workbench 与聚焦终端快捷键（包括应用范围字号增大/减小/重置、在精确显示终端的当前目录创建终端标签页、四个方向 Panel-focus command、上一个/下一个 Panel 循环聚焦、十个精确按位置 Panel 聚焦命令、可视 Panel 聚焦与交换、四个方向 Panel-movement command、按比例均分 Panel、键盘 Panel 调整大小模式、活动标签页在其固定或未固定分区内的循环移动、可见终端 Hints、显示上一条命令输出与显示回滚历史）使用单独的严格本地 override 记录；接受的更改会更新 mounted Workbench 与每个 projected terminal，而不替换 attachment 或 connection。标准默认值保留未加 Shift 的 terminal control sequence，runtime Action availability 在消费任何按键前仍具有权威性。Application theme 与 terminal display theme 保持分离，terminal override 绝不修改 Host metadata、palette、cursor、VT 或 OSC state。本地 Desktop 还注入语义 shell-profile control。其显式 editor 可以创建、重命名、选择 system 或 custom executable、保留 literal argument order、选择 default、删除和确认 reset；每项接受的更改只影响 Main-owned catalog 提交后创建的 terminal。Gateway 与 Browser composition 不接收 profile capability。Desktop 会为新建且受支持的本地 Zsh、非登录 Bash 和 Fish 终端自动加载 Shell Integration，且不编辑启动文件；Settings 会解释该边界，把精确的内置 source 命令作为手动回退，并拥有单独的默认关闭设备本地 completion-reminder policy，通知绝不包含 command text。仅粘贴的 Ghostty migration dry-run 会报告无损 current target、manual-review case、ignored key 与 invalid line，但不读取文件、应用值或持久化 source text。Remote development category 是另一项只读 projection：它解释 `xterm-256color` baseline，公开一个固定 shell diagnostic，区分 observed environment 与 terminfo outcome，并声明 Orchbee 不会静默转发额外 environment variable 或修改 remote host。打开、搜索或切换到该 category 不启动 process、不写 terminal input，也不持久化 remote data。Desktop 还注入语义 Browser-access entry，用于创建或重置个人访问令牌、只展示一次新签发令牌，并在重置前停止活动 Browser 访问，而不把 Electron port 或 controller 暴露给通用 Settings module。参见 [`docs/terminal-settings.md`](docs/terminal-settings.md) 与 [`docs/keyboard-shortcuts.md`](docs/keyboard-shortcuts.md)。
 

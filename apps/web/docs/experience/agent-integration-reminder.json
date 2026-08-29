@@ -1,0 +1,58 @@
+{
+	"$schema": "../../../../schemas/experience-component.schema.json",
+	"id": "web.agent-integration-reminder",
+	"kind": "business",
+	"status": "canonical",
+	"name": "Agent Integration Reminder",
+	"description": "Owns the optional, non-modal, device-local reminder that explains when one installed local terminal Agent can gain richer Orchbee status observation and routes the user to explicit integration management without changing Agent configuration.",
+	"owner": "@orchbee/web",
+	"visibility": "private",
+	"intents": [
+		"dismiss-agent-integration-reminder",
+		"discover-agent-status-integration",
+		"open-agent-integration-settings"
+	],
+	"implementation": [
+		"apps/web/src/agent-integration-reminder/AgentIntegrationReminder.tsx",
+		"apps/web/src/agent-integration-reminder/hooks/useAgentIntegrationReminder.ts",
+		"apps/web/src/agent-integration-management/AgentIntegrationReminderController.ts",
+		"apps/web/src/agent-integration-management/agent-integration-reminder-preferences-storage.ts"
+	],
+	"stories": [
+		{
+			"exportName": "EnglishNotInstalled",
+			"file": "apps/web/stories/agent-integration-reminder.stories.tsx",
+			"id": "applications-web-agent-integration-reminder--english-not-installed",
+			"states": [
+				"Inspect the light English non-modal reminder for an installed local Codex whose Orchbee integration is not enabled. Review integration hides the reminder and opens the Agent integrations Settings destination; the close control persists a per-Agent dismissal."
+			]
+		},
+		{
+			"exportName": "ChineseDisabled",
+			"file": "apps/web/stories/agent-integration-reminder.stories.tsx",
+			"id": "applications-web-agent-integration-reminder--chinese-disabled",
+			"states": [
+				"Inspect Simplified Chinese copy and the dark non-modal reminder for a locally available Grok integration that the user previously disabled."
+			]
+		}
+	],
+	"uses": [],
+	"useWhen": [
+		"Desktop has read-only evidence that a supported local Agent is available and its conflict-free Orchbee observation integration is not installed or is disabled.",
+		"A user should discover richer Agent status without an automatic install, an operating-system notification, or a modal interruption."
+	],
+	"avoidWhen": [
+		"The Agent runs on a remote host, integration inspection is ambiguous, a conflicting entry exists, or the integration requires a manual compatibility decision.",
+		"The message reports an active Agent task state such as waiting for input, completion, or failure; those states use tab and Workbench Agent presentation instead."
+	],
+	"invariants": [
+		"Rendering, opening, and dismissing the reminder never invokes an Agent CLI, writes Agent configuration, requests system-notification permission, or changes a remote host.",
+		"At most one eligible integration reminder is offered during one application session, using the canonical Agent order.",
+		"Dismissal is explicit, device-local, persisted per Agent integration, bounded to the closed integration registry, and safe to lose.",
+		"Review integration hides the reminder and opens the Agent integrations Settings category; only a later explicit Settings action can enable or disable an integration.",
+		"An explicit Settings disable records dismissal before attempting the exact Orchbee-owned removal, while a verified successful enable clears that Agent's persisted dismissal for future external drift.",
+		"Only locally available, managed, conflict-free integrations in not-installed or disabled state are eligible; remote, unknown, unsupported, failed-inspection, and conflicting states remain silent.",
+		"The reminder is non-modal, announces itself politely, retains a labeled close action, and never steals focus."
+	],
+	"references": ["apps/web/docs/terminal-settings.md", "apps/web/README.md"]
+}

@@ -1,4 +1,5 @@
 import {
+	agentIntegrationMessages,
 	keyboardShortcutMessages,
 	terminalSettingsCatalogMessages,
 	terminalSettingsMessages,
@@ -24,6 +25,12 @@ interface TerminalSettingsNavigationGroupDefinition {
 const catalogMessage = terminalSettingsCatalogMessages.get;
 
 export const TERMINAL_SETTINGS_CATEGORIES = {
+	'agent-integrations': {
+		description: agentIntegrationMessages.description,
+		icon: 'agent',
+		label: agentIntegrationMessages.category,
+		title: agentIntegrationMessages.title,
+	},
 	appearance: {
 		description: catalogMessage('terminal.settings.catalog.categories.appearance.description'),
 		icon: 'layout',
@@ -127,7 +134,7 @@ export const TERMINAL_SETTINGS_NAVIGATION_GROUPS = [
 		label: catalogMessage('terminal.settings.catalog.groups.workspace'),
 	},
 	{
-		categories: ['shell-integration', 'remote-development'],
+		categories: ['agent-integrations', 'shell-integration', 'remote-development'],
 		id: 'integrations',
 		label: catalogMessage('terminal.settings.catalog.groups.integrations'),
 	},

@@ -39,6 +39,7 @@ const runtimeState = harness.runtimeState;
 const resolveCloseActivity = harness.resolveCloseActivity;
 const max_pending_input_bytes = harness.max_pending_input_bytes;
 const max_pending_input_entries = harness.max_pending_input_entries;
+const max_pending_application_signals = harness.max_pending_application_signals;
 const max_pending_terminal_reply_bytes = harness.max_pending_terminal_reply_bytes;
 const max_writer_slice_bytes = harness.max_writer_slice_bytes;
 const terminal_reply_burst_bound = harness.terminal_reply_burst_bound;
@@ -350,7 +351,9 @@ test "idle scrollback compression is nonblocking bounded and representation-only
     for (&batch, 0..) |*byte, index| {
         byte.* = if (index % 80 == 79) '\n' else @as(u8, 'a') + @as(u8, @intCast(index % 4));
     }
-    for (0..48) |_| {
+    // This still spans multiple resident pages while keeping the bounded
+    // compression test below the idle child process's test-only lifetime.
+    for (0..12) |_| {
         try std.testing.expectEqual(
             ReaderBatchOutcome.committed,
             commitReaderBatch(runtime, &batch),
@@ -840,6 +843,67 @@ test "Ghostty BEL effects advance one terminal bell sequence per control byte" {
     try std.testing.expectEqual(@as(u64, 2), runtime.bellSequence());
     parseTerminalInput(runtime, "text\x07");
     try std.testing.expectEqual(@as(u64, 3), runtime.bellSequence());
+    try runtime.forceTerminate();
+}
+
+test "OSC 777 queues the reserved bounded application signal channel in order" {
+    const runtime = try createIdleRuntime(.{});
+    defer runtime.destroy();
+
+    try std.testing.expectEqual(ReaderBatchOutcome.committed, commitReaderBatch(
+        runtime,
+        "\x1b]777;notify;other.channel;ignored\x1b\\" ++
+            "\x1b]9;also ignored\x1b\\" ++
+            "\x1b]777;notify;orchbee.agent.v1;{\"activity\":\"thinking\",\"version\":1}\x1b\\" ++
+            "\x1b]777;notify;orchbee.agent.v1;{\"activity\":\"command\",\"version\":1}\x1b\\",
+    ));
+
+    var first = (try runtime.prepareApplicationSignal(std.testing.allocator)).?;
+    defer first.deinit();
+    try std.testing.expectEqual(@as(u64, 1), first.sequence);
+    try std.testing.expectEqualStrings(
+        "{\"activity\":\"thinking\",\"version\":1}",
+        first.payload,
+    );
+    runtime.commitApplicationSignal(first);
+
+    var second = (try runtime.prepareApplicationSignal(std.testing.allocator)).?;
+    defer second.deinit();
+    try std.testing.expectEqual(@as(u64, 2), second.sequence);
+    try std.testing.expectEqualStrings(
+        "{\"activity\":\"command\",\"version\":1}",
+        second.payload,
+    );
+    runtime.commitApplicationSignal(second);
+    try std.testing.expect((try runtime.prepareApplicationSignal(std.testing.allocator)) == null);
+
+    try runtime.forceTerminate();
+}
+
+test "OSC 777 application signal queue preserves admitted predecessors at its bound" {
+    const runtime = try createIdleRuntime(.{});
+    defer runtime.destroy();
+
+    const input_signal =
+        "\x1b]777;notify;orchbee.agent.v1;{\"activity\":\"thinking\",\"version\":1}\x1b\\";
+    var input: std.ArrayList(u8) = .empty;
+    defer input.deinit(std.testing.allocator);
+    for (0..max_pending_application_signals + 1) |_| {
+        try input.appendSlice(std.testing.allocator, input_signal);
+    }
+    try std.testing.expectEqual(
+        ReaderBatchOutcome.committed,
+        commitReaderBatch(runtime, input.items),
+    );
+
+    for (1..max_pending_application_signals + 1) |expected_sequence| {
+        var signal = (try runtime.prepareApplicationSignal(std.testing.allocator)).?;
+        defer signal.deinit();
+        try std.testing.expectEqual(@as(u64, expected_sequence), signal.sequence);
+        runtime.commitApplicationSignal(signal);
+    }
+    try std.testing.expect((try runtime.prepareApplicationSignal(std.testing.allocator)) == null);
+
     try runtime.forceTerminate();
 }
 

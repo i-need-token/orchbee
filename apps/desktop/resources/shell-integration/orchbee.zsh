@@ -43,3 +43,43 @@ function __orchbee_precmd() {
 
 add-zsh-hook preexec __orchbee_preexec
 add-zsh-hook precmd __orchbee_precmd
+
+function __orchbee_ssh_observation_eligible() {
+	[[ -n ${ORCHBEE_AGENT_OBSERVATION_SOCKET-} && -S ${ORCHBEE_AGENT_OBSERVATION_SOCKET-} && -t 0 && -t 1 ]] || return 1
+	local argument
+	for argument in "$@"; do
+		case $argument in
+			-G|-O|-Q|-V|-W|-W*) return 1 ;;
+		esac
+		if [[ $argument =~ '^-[46AaCfGgKkMNnqsTtVvXxYy]+$' && $argument =~ '[NnfT]' ]]; then
+			return 1
+		fi
+	done
+}
+
+function __orchbee_ssh_observation_nonce() {
+	emulate -L zsh
+	local nonce
+	nonce=$(od -An -N16 -tx1 /dev/urandom 2>/dev/null | tr -d ' \n')
+	if [[ ! $nonce == [a-f0-9]## ]]; then
+		nonce="$$${RANDOM:-0}${RANDOM:-0}$(date +%s 2>/dev/null)"
+		nonce=${nonce//[^A-Za-z0-9_-]/}
+	fi
+	REPLY=$nonce
+}
+
+if [[ -z ${aliases[ssh]-} && -z ${functions[ssh]-} && $(whence -w ssh 2>/dev/null) == 'ssh: command' ]]; then
+	function ssh() {
+		if ! __orchbee_ssh_observation_eligible "$@"; then
+			command ssh "$@"
+			return $?
+		fi
+		__orchbee_ssh_observation_nonce
+		local remote_socket="/tmp/orchbee-agent-v2-${REPLY}.sock"
+		command ssh \
+			-o StreamLocalBindMask=0177 \
+			-o StreamLocalBindUnlink=yes \
+			-R "${remote_socket}:${ORCHBEE_AGENT_OBSERVATION_SOCKET}" \
+			"$@"
+	}
+fi

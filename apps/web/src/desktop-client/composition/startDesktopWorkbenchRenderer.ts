@@ -13,6 +13,7 @@ import { createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 
 import { createWebApplicationRouting, type WebApplicationRouting } from '../../application-routing';
+import { AgentIntegrationReminderController } from '../../agent-integration-management';
 import { KeyboardShortcutSettingsController } from '../../keyboard-shortcuts';
 import { MacosTerminalInputSettingsController } from '../../macos-terminal-input-settings';
 import { TerminalInteractionSettingsController } from '../../terminal-interaction-settings';
@@ -28,6 +29,8 @@ import {
 	type WorkbenchClientRuntime,
 } from '../../workbench-client';
 import { DesktopClientSessionClient } from '../client-session';
+import { DesktopAgentIntegrationManagementClient } from '../agent-integration-management';
+import { DesktopAgentObservationClient } from '../agent-observation';
 import { createDesktopTerminalPlatformEffects, DesktopClipboardClient } from '../desktop-clipboard';
 import {
 	DesktopApplicationLifetimeClient,
@@ -73,6 +76,8 @@ export function startDesktopWorkbenchRenderer(
 	lifetimePort: MessagePort,
 	clientSessionPort: MessagePort,
 	projectionPort: MessagePort,
+	agentObservationPort: MessagePort,
+	agentIntegrationManagementPort: MessagePort,
 	browserAccessPort: MessagePort,
 	projectFolderAcquisitionPort: MessagePort,
 	projectWorktreePort: MessagePort,
@@ -89,6 +94,13 @@ export function startDesktopWorkbenchRenderer(
 	}
 	const applicationRoot = rootElement;
 	const clientSession = new DesktopClientSessionClient(clientSessionPort, bootstrap);
+	const agentIntegrationManagementClient = new DesktopAgentIntegrationManagementClient(
+		agentIntegrationManagementPort,
+	);
+	const agentObservationClient = new DesktopAgentObservationClient(agentObservationPort);
+	const agentIntegrationReminderController = new AgentIntegrationReminderController(
+		storage.preferences,
+	);
 	const clipboardClient = new DesktopClipboardClient(clipboardReadPort);
 	const projectionClient = new DesktopTerminalProjectionClient(projectionPort);
 	const browserAccessController = new DesktopBrowserAccessController(
@@ -192,6 +204,9 @@ export function startDesktopWorkbenchRenderer(
 		activeContextUnsubscribe?.();
 		activeContextUnsubscribe = undefined;
 		browserAccessController.dispose();
+		agentIntegrationManagementClient.dispose();
+		agentIntegrationReminderController.dispose();
+		agentObservationClient.dispose();
 		clipboardClient.dispose();
 		reactRoot?.unmount();
 		reactRoot = undefined;
@@ -227,11 +242,15 @@ export function startDesktopWorkbenchRenderer(
 	> {
 		const [
 			runtimeStart,
+			agentIntegrationManagementStart,
+			agentObservationStart,
 			terminalLaunchProfilesStart,
 			terminalDefaultSettingsStart,
 			windowLayoutStart,
 		] = await Promise.all([
 			workbenchClientRuntime.ready,
+			agentIntegrationManagementClient.initialize(),
+			agentObservationClient.initialize(),
 			terminalLaunchProfileClient.initialize(),
 			terminalDefaultSettingsClient.initialize(),
 			windowLayoutClient.initialize(),
@@ -268,6 +287,15 @@ export function startDesktopWorkbenchRenderer(
 		);
 		const nextRouting = createWebApplicationRouting({
 			actionRuntime: workbenchClientRuntime.actionRuntime,
+			...(agentIntegrationManagementStart.kind === 'ready'
+				? {
+						agentIntegrationManagementControl: agentIntegrationManagementClient,
+						agentIntegrationReminderController,
+					}
+				: {}),
+			...(agentObservationStart.kind === 'ready'
+				? { agentObservationSource: agentObservationClient }
+				: {}),
 			initialTerminalTitle,
 			environmentProjectConnection: sshProjectEnrollmentController,
 			keyboardShortcutSettingsController,

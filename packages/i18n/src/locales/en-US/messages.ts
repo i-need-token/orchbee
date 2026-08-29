@@ -1,4 +1,6 @@
 import { enUSApplicationRoutingMessages } from './application-routing';
+import { enUSAgentIntegrationMessages } from './agent-integrations';
+import { enUSAgentObservationMessages } from './agent-observation';
 import { enUSBrowserAuthenticationMessages } from './browser-authentication';
 import { enUSDesktopApplicationLifetimeMessages } from './desktop-application-lifetime';
 import { enUSDesktopBrowserAccessMessages } from './desktop-browser-access';
@@ -13,6 +15,8 @@ import { enUSWorkbenchMessages } from './workbench';
 
 export const enUSMessages = {
 	...enUSApplicationRoutingMessages,
+	...enUSAgentIntegrationMessages,
+	...enUSAgentObservationMessages,
 	...enUSBrowserAuthenticationMessages,
 	...enUSDesktopApplicationLifetimeMessages,
 	...enUSDesktopBrowserAccessMessages,

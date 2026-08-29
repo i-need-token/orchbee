@@ -58,6 +58,7 @@ pub const Session = struct {
     configuration_state: ConfigurationState = .{},
     creation_id: CreationId,
     engine_observation: ?EngineObservation,
+    environment_overlay_digest: LaunchDigest = [_]u8{0} ** 32,
     launch_digest: LaunchDigest,
     lifecycle: terminal_lifecycle.Lifecycle,
     retained_cleanup: terminal_lifecycle.RetainedCleanup = .inactive,

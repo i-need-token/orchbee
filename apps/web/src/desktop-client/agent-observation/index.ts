@@ -1,0 +1,1 @@
+export { DesktopAgentObservationClient } from './DesktopAgentObservationClient';

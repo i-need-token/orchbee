@@ -69,11 +69,17 @@ pub const Registry = struct {
         self: *const Registry,
         creation_id: CreationId,
         launch_digest: LaunchDigest,
+        environment_overlay_digest: ?LaunchDigest,
     ) Error!?TerminalId {
         const terminal_id = self.creations.get(creation_id) orelse return null;
         const terminal = self.terminals.get(terminal_id) orelse return error.MissingResource;
         if (!std.mem.eql(u8, &terminal.launch_digest, &launch_digest)) {
             return error.CreationConflict;
+        }
+        if (environment_overlay_digest) |digest| {
+            if (!std.mem.eql(u8, &terminal.environment_overlay_digest, &digest)) {
+                return error.CreationConflict;
+            }
         }
         return terminal_id;
     }

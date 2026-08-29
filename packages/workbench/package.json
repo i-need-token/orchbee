@@ -63,6 +63,7 @@
 	},
 	"dependencies": {
 		"@orchbee/actions": "workspace:^",
+		"@orchbee/agent": "workspace:^",
 		"@orchbee/foundation": "workspace:^",
 		"@orchbee/i18n": "workspace:^",
 		"@orchbee/keyboard-shortcuts": "workspace:^",

@@ -10,6 +10,36 @@ const failure_ops = @import("failure.zig");
 const mode_effects = @import("mode_effects.zig");
 
 const max_clipboard_text_bytes = protocol.Limits.clipboard_text_bytes;
+const application_signal_channel = "orchbee.agent.v1";
+const max_application_signal_bytes = protocol.Limits.terminal_application_signal_bytes;
+
+pub fn desktopNotificationEffect(
+    handler: *ghostty_vt.TerminalStream.Handler,
+    notification: ghostty_vt.StreamAction.ShowDesktopNotification,
+) void {
+    const self = runtimeFromTerminalHandler(handler);
+    std.debug.assert(self.reader_commit_in_progress);
+    if (!std.mem.eql(u8, notification.title, application_signal_channel) or
+        notification.body.len > max_application_signal_bytes or
+        !std.unicode.utf8ValidateSlice(notification.body) or
+        std.mem.indexOfScalar(u8, notification.body, 0) != null)
+    {
+        return;
+    }
+    if (self.application_signal_pending_count + self.application_signal_staged_count >=
+        contracts.max_pending_application_signals) return;
+    if (self.application_signal_sequence_staged == std.math.maxInt(u64)) {
+        self.feedback_sequence_overflow_pending = true;
+        return;
+    }
+    const payload = self.allocator.dupe(u8, notification.body) catch return;
+    self.application_signal_sequence_staged += 1;
+    self.application_signal_staged[self.application_signal_staged_count] = .{
+        .payload = payload,
+        .sequence = self.application_signal_sequence_staged,
+    };
+    self.application_signal_staged_count += 1;
+}
 
 pub fn clipboardContentsEffect(
     handler: *terminal_stream.Handler,
@@ -98,6 +128,7 @@ pub fn semanticPromptEffect(
 }
 
 pub fn beginReaderBatch(self: *state.State) void {
+    std.debug.assert(self.application_signal_staged_count == 0);
     std.debug.assert(self.clipboard_write_staged == null);
     std.debug.assert(self.progress_staged == null);
     std.debug.assert(!self.command_batch_active);
@@ -105,9 +136,15 @@ pub fn beginReaderBatch(self: *state.State) void {
     self.command_completion_staged = self.command_completion;
     self.command_sequence_staged = self.command_sequence;
     self.command_started_at_ns_staged = self.command_started_at_ns;
+    self.application_signal_sequence_staged = self.application_signal_sequence;
 }
 
 pub fn abortReaderBatch(self: *state.State) void {
+    for (self.application_signal_staged[0..self.application_signal_staged_count]) |signal| {
+        self.allocator.free(signal.payload);
+    }
+    self.application_signal_staged_count = 0;
+    self.application_signal_sequence_staged = 0;
     if (self.clipboard_write_staged) |text| self.allocator.free(text);
     self.clipboard_write_staged = null;
     self.progress_staged = null;
@@ -142,6 +179,20 @@ pub fn commitReaderBatch(self: *state.State) void {
         if (!std.meta.eql(self.progress, progress)) self.progress = progress;
     }
 
+    if (self.application_signal_staged_count > 0) {
+        for (self.application_signal_staged[0..self.application_signal_staged_count]) |signal| {
+            std.debug.assert(
+                self.application_signal_pending_count < contracts.max_pending_application_signals,
+            );
+            const tail = (self.application_signal_pending_head +
+                self.application_signal_pending_count) % contracts.max_pending_application_signals;
+            self.application_signal_pending[tail] = signal;
+            self.application_signal_pending_count += 1;
+        }
+        self.application_signal_staged_count = 0;
+        self.application_signal_sequence = self.application_signal_sequence_staged;
+    }
+
     self.command_started_at_ns = self.command_started_at_ns_staged;
     self.command_completion = self.command_completion_staged;
     self.command_sequence = self.command_sequence_staged;
@@ -149,6 +200,39 @@ pub fn commitReaderBatch(self: *state.State) void {
     self.command_completion_staged = null;
     self.command_sequence_staged = 0;
     self.command_started_at_ns_staged = null;
+}
+
+pub fn prepareApplicationSignal(
+    self: *state.State,
+    allocator: std.mem.Allocator,
+) !?contracts.ApplicationSignalEvent {
+    self.terminal_mutex.lock();
+    defer self.terminal_mutex.unlock();
+    failure_ops.waitForReaderCommitLocked(self);
+    try failure_ops.ensureReadableStateAvailableLocked(self);
+    if (self.application_signal_pending_count == 0) return null;
+    const pending = self.application_signal_pending[self.application_signal_pending_head];
+    return .{
+        .allocator = allocator,
+        .payload = try allocator.dupe(u8, pending.payload),
+        .sequence = pending.sequence,
+    };
+}
+
+pub fn commitApplicationSignal(
+    self: *state.State,
+    event: contracts.ApplicationSignalEvent,
+) void {
+    self.terminal_mutex.lock();
+    defer self.terminal_mutex.unlock();
+    if (self.application_signal_pending_count == 0) return;
+    const pending = self.application_signal_pending[self.application_signal_pending_head];
+    if (pending.sequence != event.sequence) return;
+    self.allocator.free(pending.payload);
+    self.application_signal_pending_head =
+        (self.application_signal_pending_head + 1) % contracts.max_pending_application_signals;
+    self.application_signal_pending_count -= 1;
+    if (self.application_signal_pending_count == 0) self.application_signal_pending_head = 0;
 }
 
 pub fn prepareClipboardWriteRequest(
@@ -192,6 +276,13 @@ pub fn commitClipboardWriteRequest(
 
 pub fn deinit(self: *state.State) void {
     abortReaderBatch(self);
+    for (0..self.application_signal_pending_count) |offset| {
+        const index = (self.application_signal_pending_head + offset) %
+            contracts.max_pending_application_signals;
+        self.allocator.free(self.application_signal_pending[index].payload);
+    }
+    self.application_signal_pending_count = 0;
+    self.application_signal_pending_head = 0;
     if (self.clipboard_write_pending) |pending| self.allocator.free(pending.text);
     self.clipboard_write_pending = null;
     self.clipboard_write_in_flight = false;
@@ -222,4 +313,11 @@ fn wallTimeMilliseconds(self: *state.State) ?u64 {
 fn runtimeFromHandler(handler: *terminal_stream.Handler) *state.State {
     const stream: *terminal_stream.Stream = @fieldParentPtr("handler", handler);
     return @alignCast(@fieldParentPtr("stream", stream));
+}
+
+fn runtimeFromTerminalHandler(
+    handler: *ghostty_vt.TerminalStream.Handler,
+) *state.State {
+    const host_handler: *terminal_stream.Handler = @fieldParentPtr("terminal_handler", handler);
+    return runtimeFromHandler(host_handler);
 }

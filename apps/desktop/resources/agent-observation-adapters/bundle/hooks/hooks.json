@@ -1,0 +1,166 @@
+{
+	"hooks": {
+		"SessionStart": [
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "node",
+						"args": ["${CLAUDE_PLUGIN_ROOT}/scripts/forward-hook.mjs", "claude-code"],
+						"timeout": 2
+					}
+				]
+			}
+		],
+		"UserPromptSubmit": [
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "node",
+						"args": ["${CLAUDE_PLUGIN_ROOT}/scripts/forward-hook.mjs", "claude-code"],
+						"timeout": 2
+					}
+				]
+			}
+		],
+		"PreToolUse": [
+			{
+				"matcher": "*",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "node",
+						"args": ["${CLAUDE_PLUGIN_ROOT}/scripts/forward-hook.mjs", "claude-code"],
+						"timeout": 2
+					}
+				]
+			}
+		],
+		"PermissionRequest": [
+			{
+				"matcher": "*",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "node",
+						"args": ["${CLAUDE_PLUGIN_ROOT}/scripts/forward-hook.mjs", "claude-code"],
+						"timeout": 2
+					}
+				]
+			}
+		],
+		"PostToolUse": [
+			{
+				"matcher": "*",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "node",
+						"args": ["${CLAUDE_PLUGIN_ROOT}/scripts/forward-hook.mjs", "claude-code"],
+						"timeout": 2
+					}
+				]
+			}
+		],
+		"PostToolUseFailure": [
+			{
+				"matcher": "*",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "node",
+						"args": ["${CLAUDE_PLUGIN_ROOT}/scripts/forward-hook.mjs", "claude-code"],
+						"timeout": 2
+					}
+				]
+			}
+		],
+		"PreCompact": [
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "node",
+						"args": ["${CLAUDE_PLUGIN_ROOT}/scripts/forward-hook.mjs", "claude-code"],
+						"timeout": 2
+					}
+				]
+			}
+		],
+		"PostCompact": [
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "node",
+						"args": ["${CLAUDE_PLUGIN_ROOT}/scripts/forward-hook.mjs", "claude-code"],
+						"timeout": 2
+					}
+				]
+			}
+		],
+		"SubagentStart": [
+			{
+				"matcher": "*",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "node",
+						"args": ["${CLAUDE_PLUGIN_ROOT}/scripts/forward-hook.mjs", "claude-code"],
+						"timeout": 2
+					}
+				]
+			}
+		],
+		"SubagentStop": [
+			{
+				"matcher": "*",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "node",
+						"args": ["${CLAUDE_PLUGIN_ROOT}/scripts/forward-hook.mjs", "claude-code"],
+						"timeout": 2
+					}
+				]
+			}
+		],
+		"Stop": [
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "node",
+						"args": ["${CLAUDE_PLUGIN_ROOT}/scripts/forward-hook.mjs", "claude-code"],
+						"timeout": 2
+					}
+				]
+			}
+		],
+		"StopFailure": [
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "node",
+						"args": ["${CLAUDE_PLUGIN_ROOT}/scripts/forward-hook.mjs", "claude-code"],
+						"timeout": 2
+					}
+				]
+			}
+		],
+		"SessionEnd": [
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "node",
+						"args": ["${CLAUDE_PLUGIN_ROOT}/scripts/forward-hook.mjs", "claude-code"],
+						"timeout": 2
+					}
+				]
+			}
+		]
+	}
+}

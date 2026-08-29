@@ -607,6 +607,7 @@ test "current protocol activates a lazy live projection and accepts semantic tex
     defer create_writer.deinit();
     try std.json.Stringify.value(.{
         .creationId = "33333333333333333333333333333333",
+        .environmentOverlay = &.{},
         .launch = .{
             .arguments = arguments,
             .cellPixelHeight = 16,

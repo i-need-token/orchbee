@@ -9,6 +9,7 @@ const attachments = @import("attachments.zig");
 const connections = @import("connections.zig");
 const projection = @import("projection.zig");
 const storage = @import("storage.zig");
+const terminal_creation = @import("terminal_creation.zig");
 const terminals = @import("terminals.zig");
 
 const AttachmentId = contracts.AttachmentId;
@@ -146,11 +147,16 @@ pub const HostCore = struct {
         return connections.connectionClientId(self.connectionReadAccess(), connection_id);
     }
 
-    // Terminals boundary.
-    pub const resolveCreation = terminals.resolveCreation;
-    pub const reserveTerminal = terminals.reserveTerminal;
-    pub const commitRunningTerminal = terminals.commitRunningTerminal;
-    pub const commitAwaitingStartTerminal = terminals.commitAwaitingStartTerminal;
+    // Terminal creation boundary.
+    pub const resolveCreation = terminal_creation.resolveCreation;
+    pub const resolveCreationWithOverlay = terminal_creation.resolveCreationWithOverlay;
+    pub const reserveTerminal = terminal_creation.reserveTerminal;
+    pub const commitRunningTerminal = terminal_creation.commitRunningTerminal;
+    pub const commitRunningTerminalWithOverlay = terminal_creation.commitRunningTerminalWithOverlay;
+    pub const commitAwaitingStartTerminal = terminal_creation.commitAwaitingStartTerminal;
+    pub const commitAwaitingStartTerminalWithOverlay = terminal_creation.commitAwaitingStartTerminalWithOverlay;
+
+    // Terminal lifecycle and observation boundary.
     pub const prepareTerminalStart = terminals.prepareTerminalStart;
     pub const commitTerminalStart = terminals.commitTerminalStart;
     pub const updateTerminalConfiguration = terminals.updateTerminalConfiguration;

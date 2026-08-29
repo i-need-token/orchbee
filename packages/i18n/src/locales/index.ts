@@ -1,5 +1,7 @@
 export {
 	enUSApplicationRoutingMessages,
+	enUSAgentIntegrationMessages,
+	enUSAgentObservationMessages,
 	enUSBrowserAuthenticationMessages,
 	enUSDesktopApplicationLifetimeMessages,
 	enUSDesktopBrowserAccessMessages,
@@ -15,6 +17,8 @@ export {
 } from './en-US';
 export type {
 	ApplicationRoutingMessageId,
+	AgentIntegrationMessageId,
+	AgentObservationMessageId,
 	BrowserAuthenticationMessageId,
 	DesktopApplicationLifetimeMessageId,
 	DesktopBrowserAccessMessageId,
@@ -30,6 +34,8 @@ export type {
 } from './en-US';
 export {
 	zhCNApplicationRoutingMessages,
+	zhCNAgentIntegrationMessages,
+	zhCNAgentObservationMessages,
 	zhCNBrowserAuthenticationMessages,
 	zhCNDesktopApplicationLifetimeMessages,
 	zhCNDesktopBrowserAccessMessages,

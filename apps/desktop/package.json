@@ -29,6 +29,7 @@
 	"dependencies": {
 		"@electron/packager": "catalog:",
 		"@orchbee/actions": "workspace:^",
+		"@orchbee/agent": "workspace:^",
 		"@orchbee/desktop-client-protocol": "workspace:^",
 		"@orchbee/gateway-protocol": "workspace:^",
 		"@orchbee/i18n": "workspace:^",

@@ -13,6 +13,16 @@ pub const EnvironmentEntry = struct {
     value: ?[]const u8,
 };
 
+pub const EnvironmentOverlayEntry = struct {
+    name: []const u8,
+    value: []const u8,
+};
+
+pub const ValidatedEnvironmentOverlay = struct {
+    digest: Digest,
+    entries: []const EnvironmentOverlayEntry,
+};
+
 // Launch is the domain input. Boundary adapters translate their
 // transport-specific shapes into this vocabulary before validation.
 pub const Launch = struct {
@@ -29,6 +39,7 @@ pub const Launch = struct {
 // Strings and slices remain owned by the caller. Keep their owner alive until
 // every runtime preparation derived from this value has been consumed.
 pub const Validated = struct {
+    environment_overlay: ValidatedEnvironmentOverlay,
     launch_digest: Digest,
     launch: Launch,
 };
@@ -37,10 +48,60 @@ pub fn inspect(
     allocator: std.mem.Allocator,
     launch: Launch,
 ) (error{InvalidLaunch} || std.mem.Allocator.Error)!Validated {
+    return inspectWithOverlay(allocator, launch, &.{}) catch |err| switch (err) {
+        error.InvalidEnvironmentOverlay => unreachable,
+        else => |forwarded| return forwarded,
+    };
+}
+
+pub fn inspectWithOverlay(
+    allocator: std.mem.Allocator,
+    launch: Launch,
+    environment_overlay: []const EnvironmentOverlayEntry,
+) (error{ InvalidLaunch, InvalidEnvironmentOverlay } || std.mem.Allocator.Error)!Validated {
     if (!isValid(launch)) return error.InvalidLaunch;
     return .{
+        .environment_overlay = try inspectEnvironmentOverlay(
+            allocator,
+            launch.environment,
+            environment_overlay,
+        ),
         .launch_digest = try launchDigest(allocator, launch),
         .launch = launch,
+    };
+}
+
+pub fn inspectEnvironmentOverlay(
+    allocator: std.mem.Allocator,
+    launch_environment: []const EnvironmentEntry,
+    environment_overlay: []const EnvironmentOverlayEntry,
+) (error{InvalidEnvironmentOverlay} || std.mem.Allocator.Error)!ValidatedEnvironmentOverlay {
+    if (environment_overlay.len > protocol.Limits.environment_overlay_entries) {
+        return error.InvalidEnvironmentOverlay;
+    }
+    for (environment_overlay, 0..) |entry, index| {
+        if (entry.name.len == 0 or entry.name.len > protocol.Limits.environment_name_bytes or
+            containsNul(entry.name) or
+            std.mem.indexOfScalar(u8, entry.name, '=') != null or
+            entry.value.len > protocol.Limits.environment_overlay_value_bytes or
+            containsNul(entry.value))
+        {
+            return error.InvalidEnvironmentOverlay;
+        }
+        for (launch_environment) |durable| {
+            if (environmentNamesEqual(durable.name, entry.name)) {
+                return error.InvalidEnvironmentOverlay;
+            }
+        }
+        for (environment_overlay[0..index]) |previous| {
+            if (environmentNamesEqual(previous.name, entry.name)) {
+                return error.InvalidEnvironmentOverlay;
+            }
+        }
+    }
+    return .{
+        .digest = try environmentOverlayDigest(allocator, environment_overlay),
+        .entries = environment_overlay,
     };
 }
 
@@ -177,6 +238,44 @@ fn launchDigest(allocator: std.mem.Allocator, launch: Launch) std.mem.Allocator.
     hashCount(&hash, profile.palette.len);
     for (profile.palette) |color| hashInt(&hash, u32, color);
     hashField(&hash, profile.version_response);
+    var digest: Digest = undefined;
+    hash.final(&digest);
+    return digest;
+}
+
+fn environmentOverlayDigest(
+    allocator: std.mem.Allocator,
+    environment_overlay: []const EnvironmentOverlayEntry,
+) std.mem.Allocator.Error!Digest {
+    var hash = std.crypto.hash.sha2.Sha256.init(.{});
+    hash.update("orchbee-terminal-environment-overlay-v1");
+    hashCount(&hash, environment_overlay.len);
+    const digest_environment = try allocator.alloc(
+        DigestEnvironmentEntry,
+        environment_overlay.len,
+    );
+    @memset(digest_environment, .{ .name = &.{}, .owned = false, .value = null });
+    defer {
+        for (digest_environment) |entry| if (entry.owned) allocator.free(entry.name);
+        allocator.free(digest_environment);
+    }
+    for (digest_environment, environment_overlay) |*digest_entry, entry| {
+        const canonical_name = try canonicalEnvironmentName(allocator, entry.name);
+        digest_entry.* = .{
+            .name = canonical_name.name,
+            .owned = canonical_name.owned,
+            .value = entry.value,
+        };
+    }
+    std.mem.sort(DigestEnvironmentEntry, digest_environment, {}, struct {
+        fn lessThan(_: void, left: DigestEnvironmentEntry, right: DigestEnvironmentEntry) bool {
+            return std.mem.lessThan(u8, left.name, right.name);
+        }
+    }.lessThan);
+    for (digest_environment) |entry| {
+        hashField(&hash, entry.name);
+        hashField(&hash, entry.value.?);
+    }
     var digest: Digest = undefined;
     hash.final(&digest);
     return digest;

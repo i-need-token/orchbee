@@ -1,4 +1,6 @@
 import type { OrchbeeMessageId } from '../en-US';
+import { zhCNAgentIntegrationMessages } from './agent-integrations';
+import { zhCNAgentObservationMessages } from './agent-observation';
 import { zhCNApplicationRoutingMessages } from './application-routing';
 import { zhCNBrowserAuthenticationMessages } from './browser-authentication';
 import { zhCNDesktopApplicationLifetimeMessages } from './desktop-application-lifetime';
@@ -13,6 +15,8 @@ import { zhCNTerminalSettingsCatalogMessages } from './terminal-settings-catalog
 import { zhCNWorkbenchMessages } from './workbench';
 
 export const zhCNMessages = {
+	...zhCNAgentIntegrationMessages,
+	...zhCNAgentObservationMessages,
 	...zhCNApplicationRoutingMessages,
 	...zhCNBrowserAuthenticationMessages,
 	...zhCNDesktopApplicationLifetimeMessages,

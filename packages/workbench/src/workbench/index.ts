@@ -111,6 +111,11 @@ export type {
 } from './types/workbench-host-actions';
 export type { WorkbenchShortcutPlatform } from './types/workbench-shortcut-platform';
 export type {
+	WorkbenchAgentEventObservation,
+	WorkbenchAgentNotificationObserver,
+	WorkbenchAgentNotificationRequest,
+} from './types/workbench-agent-notification';
+export type {
 	WorkbenchShortcutBinding,
 	WorkbenchShortcutBindings,
 	WorkbenchShortcutId,

@@ -97,6 +97,7 @@ describe('ShellIntegrationSettings', () => {
 			);
 			await act(async () => reset.click());
 			expect(controller.getSnapshot().preferences).toEqual({
+				agentNotificationMode: 'never',
 				completionReminderMinimumSeconds: 5,
 				completionReminderMode: 'never',
 			});

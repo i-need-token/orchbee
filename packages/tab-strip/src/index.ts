@@ -36,6 +36,8 @@ export {
 	type TabStripProps,
 	type TabStripSelectCallback,
 	type TabStripShortcutLabels,
+	type TabStatusAdornment,
+	type TabStatusAdornmentKind,
 	type TabStripWindowTarget,
 	CrossWindowDragState,
 	CrossWindowTabDragRuntime,

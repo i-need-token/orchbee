@@ -38,9 +38,11 @@ import { useVerticalGroupCollapseCompletion } from './hooks/useVerticalGroupColl
 import { useVerticalPinAnimation } from './hooks/useVerticalPinAnimation';
 import { type VerticalPinAnimationEntry } from './utils/buildVerticalPinAnimationEntries';
 import { calculateVerticalPinnedPinAnimationLayout } from './utils/calculateVerticalPinnedPinAnimationLayout';
+import type { TabStatusAdornment } from '../../../../types/tab-strip-options';
 
 export function VerticalContents({
 	snapshot,
+	statusAdornments,
 	tabCountTransitionSuppressed,
 	collapsed,
 	expandedOnHover,
@@ -82,6 +84,7 @@ export function VerticalContents({
 	onCollapseContextMenu,
 }: {
 	snapshot: TabModelSnapshot;
+	statusAdornments: ReadonlyMap<string, Readonly<TabStatusAdornment>>;
 	tabCountTransitionSuppressed: boolean;
 	collapsed: boolean;
 	expandedOnHover: boolean;
@@ -189,6 +192,7 @@ export function VerticalContents({
 			>
 				<TabButton
 					tab={tab}
+					statusAdornment={statusAdornments.get(tab.id)}
 					snapshot={snapshot}
 					width={width}
 					orientation={TabStripOrientation.Vertical}

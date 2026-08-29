@@ -1,0 +1,8 @@
+{
+	"author": { "name": "Orchbee" },
+	"defaultEnabled": false,
+	"displayName": "Orchbee Agent Observation",
+	"name": "orchbee-agent-observation",
+	"version": "0.2.0",
+	"description": "Locally sanitizes Claude Code lifecycle hooks for Orchbee Agent status observation"
+}

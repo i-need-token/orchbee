@@ -3,9 +3,11 @@ import * as React from 'react';
 import type { ChangeEventHandler, FocusEventHandler, KeyboardEventHandler } from 'react';
 
 import {
+	AgentNotificationMode,
 	MAXIMUM_COMPLETION_REMINDER_SECONDS,
 	MINIMUM_COMPLETION_REMINDER_SECONDS,
 	TerminalCompletionReminderMode,
+	type AgentNotificationModeValue,
 	type TerminalCompletionReminderModeValue,
 	type TerminalFeedbackSettingsController,
 	type TerminalNotificationPermission,
@@ -45,7 +47,14 @@ interface ReminderSettingsView {
 }
 
 interface NotificationSettingsView {
+	readonly agentModeLabel: string;
+	readonly agentModeOptions: readonly {
+		readonly label: string;
+		readonly value: AgentNotificationModeValue;
+	}[];
+	readonly agentModeValue: AgentNotificationModeValue;
 	readonly description: string;
+	readonly onAgentModeChange: ChangeEventHandler<HTMLSelectElement>;
 	readonly onRequestPermission: (() => void) | null;
 	readonly permission: TerminalNotificationPermission;
 	readonly requestLabel: string;
@@ -109,6 +118,15 @@ export function useShellIntegrationSettings(
 		modeLabel: intl.formatMessage(terminalSettingsMessages.shellIntegrationReminderModeLabel),
 		modeNever: intl.formatMessage(terminalSettingsMessages.shellIntegrationReminderNever),
 		modeUnfocused: intl.formatMessage(terminalSettingsMessages.shellIntegrationReminderUnfocused),
+		notificationAgentModeHidden: intl.formatMessage(
+			terminalSettingsMessages.shellIntegrationNotificationAgentModeHidden,
+		),
+		notificationAgentModeLabel: intl.formatMessage(
+			terminalSettingsMessages.shellIntegrationNotificationAgentModeLabel,
+		),
+		notificationAgentModeNever: intl.formatMessage(
+			terminalSettingsMessages.shellIntegrationNotificationAgentModeNever,
+		),
 		notificationDescription: intl.formatMessage(
 			terminalSettingsMessages.shellIntegrationNotificationDescription,
 		),
@@ -205,6 +223,12 @@ export function useShellIntegrationSettings(
 	const onRequestPermission = (): void => {
 		void controller.requestNotificationPermission();
 	};
+	const onAgentModeChange: ChangeEventHandler<HTMLSelectElement> = (event) => {
+		const value = event.currentTarget.value;
+		if (value === AgentNotificationMode.hidden || value === AgentNotificationMode.never) {
+			controller.update({ agentNotificationMode: value });
+		}
+	};
 	const onReset = (): void => {
 		controller.reset();
 	};
@@ -231,7 +255,14 @@ export function useShellIntegrationSettings(
 		title: messages.reminderTitle,
 	};
 	const notification: NotificationSettingsView = {
+		agentModeLabel: messages.notificationAgentModeLabel,
+		agentModeOptions: [
+			{ label: messages.notificationAgentModeNever, value: AgentNotificationMode.never },
+			{ label: messages.notificationAgentModeHidden, value: AgentNotificationMode.hidden },
+		],
+		agentModeValue: snapshot.preferences.agentNotificationMode,
 		description: messages.notificationDescription,
+		onAgentModeChange,
 		onRequestPermission: snapshot.notificationPermission === 'prompt' ? onRequestPermission : null,
 		permission: snapshot.notificationPermission,
 		requestLabel: messages.notificationRequest,

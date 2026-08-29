@@ -1,4 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
+import {
+	AgentEventIdSchema,
+	AgentRequestIdSchema,
+	AgentSemanticEventSchema,
+	AgentSessionIdSchema,
+} from '@orchbee/agent';
 
 import {
 	TerminalFeedbackSettingsController,
@@ -21,7 +27,7 @@ function storage(initial: string | null = null): {
 	setItem(key: string, value: string): void;
 } {
 	const values = new Map<string, string>();
-	if (initial !== null) values.set('orchbee:web:terminal-feedback:v1', initial);
+	if (initial !== null) values.set('orchbee:web:terminal-feedback:v2', initial);
 	return {
 		values,
 		getItem: (key) => values.get(key) ?? null,
@@ -59,6 +65,7 @@ describe('TerminalFeedbackSettingsController', () => {
 			notificationPermission: 'prompt',
 			persistenceIssue: null,
 			preferences: {
+				agentNotificationMode: 'never',
 				completionReminderMinimumSeconds: 5,
 				completionReminderMode: 'never',
 			},
@@ -176,6 +183,78 @@ describe('TerminalFeedbackSettingsController', () => {
 		resolvePermission?.('granted');
 		expect(await request).toBe('prompt');
 		expect(controller.getSnapshot().notificationPermission).toBe('prompt');
+	});
+
+	it('notifies once for a trusted hidden Agent event without requesting permission', () => {
+		const notifications = notificationCapability('granted');
+		const controller = new TerminalFeedbackSettingsController({
+			notificationCapability: notifications,
+			storage: storage(),
+		});
+		controller.update({ agentNotificationMode: 'hidden' });
+		const event = AgentSemanticEventSchema.parse({
+			eventId: AgentEventIdSchema.parse('agent-event-1'),
+			request: {
+				actionPath: 'navigate-only',
+				kind: 'question',
+				requestId: AgentRequestIdSchema.parse('agent-request-1'),
+				turnId: null,
+			},
+			sessionId: AgentSessionIdSchema.parse('agent-session-1'),
+			type: 'attention-requested',
+		});
+		const onActivate = vi.fn<() => void>();
+		const observation = {
+			event,
+			notification: {
+				body: 'safe body',
+				onActivate,
+				tag: 'agent:event-1',
+				title: 'safe title',
+			},
+			visible: false,
+		};
+
+		expect(controller.observeAgentEvent(observation)).toEqual({
+			kind: 'notify',
+			notification: 'shown',
+		});
+		expect(controller.observeAgentEvent(observation)).toEqual({
+			kind: 'ignored',
+			reason: 'duplicate',
+		});
+		expect(notifications.show).toHaveBeenCalledOnce();
+		expect(notifications.show).toHaveBeenCalledWith(observation.notification);
+		expect(notifications.requestPermission).not.toHaveBeenCalled();
+	});
+
+	it('suppresses visible Agent events and never implicitly asks for permission', () => {
+		const notifications = notificationCapability('prompt');
+		const controller = new TerminalFeedbackSettingsController({
+			notificationCapability: notifications,
+			storage: storage(),
+		});
+		controller.update({ agentNotificationMode: 'hidden' });
+		const event = AgentSemanticEventSchema.parse({
+			eventId: 'agent-event-visible',
+			outcome: 'succeeded',
+			sessionId: 'agent-session-visible',
+			turnId: 'agent-turn-visible',
+			type: 'turn-outcome',
+		});
+		const notification = {
+			body: 'safe',
+			onActivate: () => undefined,
+			tag: 'agent:visible',
+			title: 'completed',
+		};
+
+		expect(controller.observeAgentEvent({ event, notification, visible: true })).toEqual({
+			kind: 'ignored',
+			reason: 'visible',
+		});
+		expect(notifications.requestPermission).not.toHaveBeenCalled();
+		expect(notifications.show).not.toHaveBeenCalled();
 	});
 
 	it('rejects invalid saved data and keeps valid updates session-only after a write failure', () => {

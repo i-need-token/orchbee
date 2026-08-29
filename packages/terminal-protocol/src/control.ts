@@ -152,6 +152,50 @@ const terminalLaunchShape = {
 	executable: boundedTextSchema.min(1),
 } as const;
 
+const environmentOverlayValueSchema = z
+	.string()
+	.max(PROTOCOL_LIMITS.maxEnvironmentOverlayValueBytes)
+	.refine(
+		(value) =>
+			utf8Encoder.encode(value).byteLength <= PROTOCOL_LIMITS.maxEnvironmentOverlayValueBytes,
+		`Environment overlay value exceeds ${PROTOCOL_LIMITS.maxEnvironmentOverlayValueBytes} UTF-8 bytes`,
+	)
+	.refine(
+		(value) => !containsUnpairedSurrogate(value),
+		'Environment overlay value contains an unpaired surrogate',
+	)
+	.refine((value) => !value.includes('\0'), 'Environment overlay value cannot contain NUL');
+
+const environmentOverlayEntrySchema = z.strictObject({
+	name: z
+		.string()
+		.min(1)
+		.max(PROTOCOL_LIMITS.maxEnvironmentNameBytes)
+		.refine(
+			(value) => utf8Encoder.encode(value).byteLength <= PROTOCOL_LIMITS.maxEnvironmentNameBytes,
+			`Environment name exceeds ${PROTOCOL_LIMITS.maxEnvironmentNameBytes} UTF-8 bytes`,
+		)
+		.refine(
+			(value) => !containsUnpairedSurrogate(value),
+			'Environment name contains an unpaired surrogate',
+		)
+		.refine((value) => !value.includes('=') && !value.includes('\0')),
+	value: environmentOverlayValueSchema,
+});
+
+export const TerminalEnvironmentOverlaySchema = z
+	.array(environmentOverlayEntrySchema)
+	.max(PROTOCOL_LIMITS.maxEnvironmentOverlayEntries)
+	.superRefine((environment, context) => {
+		const names = environment.map((entry) => entry.name);
+		if (new Set(names).size !== names.length) {
+			context.addIssue({
+				code: 'custom',
+				message: 'Environment overlay names must be unique',
+			});
+		}
+	});
+
 function validateLaunchEnvironment(
 	launch: { readonly environment: readonly { readonly name: string }[] },
 	context: z.RefinementCtx,
@@ -215,6 +259,32 @@ export function prepareLaunchEnvironment(
 		seen.add(folded);
 	}
 	return protocolSuccess(environment);
+}
+
+/**
+ * Applies target-operating-system identity to the nonpersistent environment
+ * overlay and rejects any duplicate or durable-launch overlap. The native Host
+ * repeats this validation at the trust boundary before process preparation.
+ */
+export function prepareTerminalEnvironmentOverlay(
+	launchEnvironment: readonly { readonly name: string }[],
+	environmentOverlay: readonly { readonly name: string; readonly value: string }[],
+	target: EnvironmentTarget,
+): ProtocolResult<readonly { readonly name: string; readonly value: string }[]> {
+	const seen = new Set(
+		launchEnvironment.map((entry) => canonicalEnvironmentName(entry.name, target)),
+	);
+	for (const entry of environmentOverlay) {
+		const folded = canonicalEnvironmentName(entry.name, target);
+		if (seen.has(folded)) {
+			return protocolFailure(
+				ProtocolErrorCode.invalidField,
+				`Duplicate or overlapping environment overlay name '${entry.name}' for the ${target} target`,
+			);
+		}
+		seen.add(folded);
+	}
+	return protocolSuccess(environmentOverlay);
 }
 
 const responseTextSchema = z
@@ -343,6 +413,7 @@ export const TerminalLaunchSchema = z
 
 export const CreateTerminalSchema = z.strictObject({
 	creationId: CreationIdSchema,
+	environmentOverlay: TerminalEnvironmentOverlaySchema,
 	launch: TerminalLaunchSchema,
 });
 
@@ -542,6 +613,27 @@ export const TerminalMetadataChangedSchema = z.strictObject({
 	identity: TerminalIdentitySchema,
 	revision: positiveCanonicalUint64TextSchema,
 	title: boundedTextSchema.nullable(),
+});
+
+const terminalApplicationSignalPayloadSchema = z
+	.string()
+	.max(PROTOCOL_LIMITS.maxTerminalApplicationSignalBytes)
+	.refine(
+		(value) =>
+			utf8Encoder.encode(value).byteLength <= PROTOCOL_LIMITS.maxTerminalApplicationSignalBytes,
+		`Terminal application signal exceeds ${PROTOCOL_LIMITS.maxTerminalApplicationSignalBytes} UTF-8 bytes`,
+	)
+	.refine(
+		(value) => !containsUnpairedSurrogate(value),
+		'Terminal application signal contains an unpaired surrogate',
+	)
+	.refine((value) => !value.includes('\0'), 'Terminal application signal cannot contain NUL');
+
+export const TerminalApplicationSignalSchema = z.strictObject({
+	channel: z.literal('orchbee.agent.v1'),
+	identity: TerminalIdentitySchema,
+	payload: terminalApplicationSignalPayloadSchema,
+	sequence: positiveCanonicalUint64TextSchema,
 });
 
 const terminalClipboardTextSchema = z
@@ -1079,6 +1171,7 @@ export type CanonicalUint64Text = z.infer<typeof CanonicalUint64TextSchema>;
 export type ClearTerminal = z.infer<typeof ClearTerminalSchema>;
 export type ClaimResizeLease = z.infer<typeof ClaimResizeLeaseSchema>;
 export type CreateTerminal = z.infer<typeof CreateTerminalSchema>;
+export type TerminalEnvironmentOverlay = z.infer<typeof TerminalEnvironmentOverlaySchema>;
 export type DetachTerminal = z.infer<typeof DetachTerminalSchema>;
 export type ExitResult = z.infer<typeof ExitResultSchema>;
 export type FailureContainment = z.infer<typeof FailureContainmentSchema>;
@@ -1105,6 +1198,7 @@ export type HistoryDemand = z.infer<typeof HistoryDemandSchema>;
 export type HistoryDemandAccepted = z.infer<typeof HistoryDemandAcceptedSchema>;
 export type HistoryObserved = z.infer<typeof HistoryObservedSchema>;
 export type TerminalBell = z.infer<typeof TerminalBellSchema>;
+export type TerminalApplicationSignal = z.infer<typeof TerminalApplicationSignalSchema>;
 export type TerminalMetadataChanged = z.infer<typeof TerminalMetadataChangedSchema>;
 export type TerminalClipboardWriteRequest = z.infer<typeof TerminalClipboardWriteRequestSchema>;
 export type RowWindowOrigin = z.infer<typeof RowWindowOriginSchema>;

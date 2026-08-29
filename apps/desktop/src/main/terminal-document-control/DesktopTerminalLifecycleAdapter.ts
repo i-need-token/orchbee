@@ -116,6 +116,7 @@ export interface DesktopTerminalLifecycleAdapterDependencies {
 	readonly registry: DesktopTerminalBindingRegistry;
 	readonly loadBindings: () => Promise<TerminalBindingStoreLoadResult>;
 	readonly onIdentityObserved?: (identity: TerminalIdentity) => void;
+	readonly onPresentationRetired?: (presentationId: TerminalPresentationId) => void;
 	readonly retireProjection: (presentationId: TerminalPresentationId) => Promise<void>;
 	readonly resolveTerminalLaunch: () => TerminalLaunch;
 }
@@ -200,6 +201,7 @@ export class DesktopTerminalLifecycleAdapter implements DesktopTerminalLifecycle
 	#initializationComplete = false;
 	readonly #loadBindings: DesktopTerminalLifecycleAdapterDependencies['loadBindings'];
 	readonly #onIdentityObserved: DesktopTerminalLifecycleAdapterDependencies['onIdentityObserved'];
+	readonly #onPresentationRetired: DesktopTerminalLifecycleAdapterDependencies['onPresentationRetired'];
 	readonly #pendingExitEvents = new Map<string, PendingExit>();
 	readonly #pendingFailureEvents = new Map<string, PendingFailure>();
 	readonly #registry: DesktopTerminalBindingRegistry;
@@ -212,6 +214,7 @@ export class DesktopTerminalLifecycleAdapter implements DesktopTerminalLifecycle
 		this.#createBindingLifecycle = dependencies.createBindingLifecycle;
 		this.#loadBindings = dependencies.loadBindings;
 		this.#onIdentityObserved = dependencies.onIdentityObserved;
+		this.#onPresentationRetired = dependencies.onPresentationRetired;
 		this.#registry = dependencies.registry;
 		this.#retireProjection = dependencies.retireProjection;
 		this.#resolveTerminalLaunch = dependencies.resolveTerminalLaunch;
@@ -917,6 +920,7 @@ export class DesktopTerminalLifecycleAdapter implements DesktopTerminalLifecycle
 		entry.retired = true;
 		this.#entries.delete(entry.presentationId);
 		this.#retiredPresentations.add(entry.presentationId);
+		this.#onPresentationRetired?.(entry.presentationId);
 		return true;
 	}
 

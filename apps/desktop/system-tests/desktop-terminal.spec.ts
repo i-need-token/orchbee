@@ -2363,8 +2363,8 @@ test('terminal-parity/SI-01-manual-shell-integration-completion-reminder', async
 	await expect(minimumDuration).toHaveValue('1');
 	await settingsSurface.locator('aside > button').first().click();
 	await expect(settingsSurface).not.toBeVisible();
-	expect(await page.evaluate(() => localStorage.getItem('orchbee:web:terminal-feedback:v1'))).toBe(
-		'{"completionReminderMinimumSeconds":1,"completionReminderMode":"always"}',
+	expect(await page.evaluate(() => localStorage.getItem('orchbee:web:terminal-feedback:v2'))).toBe(
+		'{"agentNotificationMode":"never","completionReminderMinimumSeconds":1,"completionReminderMode":"always"}',
 	);
 
 	const input = page.getByRole('textbox');

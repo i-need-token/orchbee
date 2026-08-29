@@ -76,6 +76,20 @@ export function ShellIntegrationSettings({
 			<section className={styles['card']} id='shell-integration.notifications'>
 				<h2 className={styles['title']}>{view.notification.title}</h2>
 				<p className={styles['description']}>{view.notification.description}</p>
+				<label className={styles['field']}>
+					<span className={styles['label']}>{view.notification.agentModeLabel}</span>
+					<NativeSelect
+						data-slot='agent-notification-mode'
+						value={view.notification.agentModeValue}
+						onChange={view.notification.onAgentModeChange}
+					>
+						{view.notification.agentModeOptions.map((option) => (
+							<NativeSelectOption key={option.value} value={option.value}>
+								{option.label}
+							</NativeSelectOption>
+						))}
+					</NativeSelect>
+				</label>
 				<p className={styles['status']} data-permission={view.notification.permission}>
 					{view.notification.status}
 				</p>

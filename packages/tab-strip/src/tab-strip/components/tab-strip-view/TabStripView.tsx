@@ -24,6 +24,7 @@ export function TabStripView({
 }): ReactNode {
 	const {
 		actions,
+		statusAdornments,
 		orientation,
 		onOrientationChange,
 		verticalCollapsed,
@@ -228,6 +229,7 @@ export function TabStripView({
 				) : (
 					<VerticalContents
 						snapshot={snapshot}
+						statusAdornments={statusAdornments}
 						tabCountTransitionSuppressed={verticalTabCountTransitionSuppressed}
 						collapsed={verticalCollapsed}
 						expandedOnHover={expandedOnHover}

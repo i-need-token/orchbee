@@ -41,6 +41,7 @@ pub const runtimeState = subject.testing.stateForTesting;
 pub const resolveCloseActivity = subject.testing.resolveCloseActivityFn;
 pub const max_pending_input_bytes = subject.testing.pending_input_limit;
 pub const max_pending_input_entries = subject.testing.pending_input_entry_limit;
+pub const max_pending_application_signals = subject.max_pending_application_signals;
 pub const max_pending_terminal_reply_bytes = subject.testing.pending_terminal_reply_limit;
 pub const max_writer_slice_bytes = subject.testing.writer_slice_limit;
 // The terminal-reply burst bound the writer enforces before yielding to a

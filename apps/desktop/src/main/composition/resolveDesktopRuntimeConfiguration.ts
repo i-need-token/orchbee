@@ -54,6 +54,7 @@ export interface DesktopRuntimeConfigurationInput {
 	readonly applicationPath: string;
 	readonly darwinSupportedLocales?: readonly string[] | undefined;
 	readonly darwinSystemLocale?: string | undefined;
+	readonly developmentAgentObservationAdapterDirectory?: string | undefined;
 	readonly developmentPosixHostEndpointAddonPath?: string | undefined;
 	readonly developmentSemanticCommandEndpointAddonPath?: string | undefined;
 	readonly developmentShellIntegrationDirectory?: string | undefined;
@@ -67,11 +68,13 @@ export interface DesktopRuntimeConfigurationInput {
 }
 
 export interface DesktopRuntimeConfiguration {
+	readonly agentObservationAdapterDirectory: string;
 	readonly automaticShellIntegration: AutomaticShellIntegrationConfiguration | null;
 	readonly binaryPath: string;
 	readonly browserAccess: DesktopBrowserAccessRuntimeConfiguration;
 	readonly endpointId: string;
 	readonly environmentRegistryStorePath: string;
+	readonly homeDirectory: string;
 	readonly managedWorktreeRoot: string;
 	readonly posixHostEndpointAddonPath: string | null;
 	readonly projectWorktreeOperationStorePath: string;
@@ -173,6 +176,13 @@ export function resolveDesktopRuntimeConfiguration(
 				path.join(input.applicationPath, 'resources', 'shell-integration'),
 		);
 	}
+	const agentObservationAdapterDirectory =
+		input.packagedResourcesPath === undefined
+			? path.resolve(
+					input.developmentAgentObservationAdapterDirectory ??
+						path.join(input.applicationPath, 'resources', 'agent-observation-adapters'),
+				)
+			: path.resolve(input.packagedResourcesPath, 'agent-observation-adapters');
 	const recoveryDirectory = path.resolve(
 		input.environment.ORCHBEE_DESKTOP_RECOVERY_DIRECTORY ??
 			path.join(input.userDataPath, 'terminal-recovery'),
@@ -269,6 +279,7 @@ export function resolveDesktopRuntimeConfiguration(
 				);
 
 	return {
+		agentObservationAdapterDirectory,
 		automaticShellIntegration: resolveAutomaticShellIntegrationConfiguration(
 			shellIntegrationDirectory,
 			input.environment,
@@ -277,6 +288,7 @@ export function resolveDesktopRuntimeConfiguration(
 		browserAccess,
 		endpointId,
 		environmentRegistryStorePath: path.join(input.userDataPath, 'environment-registry-v1.json'),
+		homeDirectory: input.homeDirectory,
 		managedWorktreeRoot: path.join(input.userDataPath, 'worktrees'),
 		posixHostEndpointAddonPath,
 		projectWorktreeOperationStorePath: path.join(

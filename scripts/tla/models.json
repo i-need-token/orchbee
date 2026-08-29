@@ -18,6 +18,34 @@
 	],
 	"models": [
 		{
+			"id": "desktop-agent-integration-management",
+			"owner": "@orchbee/desktop",
+			"workspace": "apps/desktop",
+			"module": "apps/desktop/formal/tla/DesktopAgentIntegrationManagement.tla",
+			"config": "apps/desktop/formal/tla/DesktopAgentIntegrationManagement.cfg",
+			"claims": ["apps/desktop/docs/agent-integrations.md"],
+			"triggers": [
+				"apps/desktop/src/main/agent-integration-management/**",
+				"apps/web/src/desktop-client/agent-integration-management/**",
+				"packages/desktop-client-protocol/src/desktop-agent-integration-management-contract.ts"
+			],
+			"requiredCoverage": [
+				"Initialize",
+				"RequestRefresh",
+				"InspectCompletes",
+				"InspectFails",
+				"RequestEnable",
+				"RequestDisable",
+				"RejectConflict",
+				"CommitMutation",
+				"MutationFails",
+				"MutationOutcomeUnknown",
+				"Verify",
+				"RendererReload",
+				"Dispose"
+			]
+		},
+		{
 			"id": "desktop-environment-registry-commit",
 			"owner": "@orchbee/desktop",
 			"workspace": "apps/desktop",
@@ -968,28 +996,6 @@
 			]
 		},
 		{
-			"id": "desktop-workbench-document-proposal-acknowledgement",
-			"owner": "@orchbee/desktop",
-			"workspace": "apps/desktop",
-			"module": "apps/desktop/formal/tla/WorkbenchDocumentProposalAcknowledgement.tla",
-			"config": "apps/desktop/formal/tla/WorkbenchDocumentProposalAcknowledgement.cfg",
-			"claims": ["apps/desktop/docs/multi-client-session-coordinator.md"],
-			"triggers": [
-				"apps/web/src/workbench-client/workbench-document-control/WorkbenchDocumentCoordinator.ts"
-			],
-			"timeoutMilliseconds": 180000,
-			"requiredCoverage": [
-				"BeginFirstProposal",
-				"LocalEdit",
-				"PublishExact",
-				"PublishDivergent",
-				"SettleExactWithoutPublication",
-				"SettleStaleWithoutPublication",
-				"SettlePublished",
-				"BeginNextProposal"
-			]
-		},
-		{
 			"id": "desktop-workbench-document-placement-migration",
 			"owner": "@orchbee/desktop",
 			"workspace": "apps/desktop",
@@ -1010,6 +1016,28 @@
 				"ConfirmMigration",
 				"PostRenameFailure",
 				"ReloadV2"
+			]
+		},
+		{
+			"id": "desktop-workbench-document-proposal-acknowledgement",
+			"owner": "@orchbee/desktop",
+			"workspace": "apps/desktop",
+			"module": "apps/desktop/formal/tla/WorkbenchDocumentProposalAcknowledgement.tla",
+			"config": "apps/desktop/formal/tla/WorkbenchDocumentProposalAcknowledgement.cfg",
+			"claims": ["apps/desktop/docs/multi-client-session-coordinator.md"],
+			"triggers": [
+				"apps/web/src/workbench-client/workbench-document-control/WorkbenchDocumentCoordinator.ts"
+			],
+			"timeoutMilliseconds": 180000,
+			"requiredCoverage": [
+				"BeginFirstProposal",
+				"LocalEdit",
+				"PublishExact",
+				"PublishDivergent",
+				"SettleExactWithoutPublication",
+				"SettleStaleWithoutPublication",
+				"SettlePublished",
+				"BeginNextProposal"
 			]
 		},
 		{
@@ -1749,6 +1777,45 @@
 				"CancelRunning",
 				"Finish",
 				"DisposeRuntime"
+			]
+		},
+		{
+			"id": "agent-runtime",
+			"owner": "@orchbee/agent",
+			"workspace": "packages/agent",
+			"module": "packages/agent/formal/tla/AgentRuntime.tla",
+			"config": "packages/agent/formal/tla/AgentRuntime.cfg",
+			"claims": ["packages/agent/README.md"],
+			"triggers": [
+				"packages/agent/src/**",
+				"packages/desktop-client-protocol/src/desktop-agent-observation-contract.ts",
+				"apps/desktop/src/main/agent-observation/**",
+				"apps/web/src/desktop-client/agent-observation/**"
+			],
+			"requiredCoverage": [
+				"ReceiveCorrelationHalf",
+				"ReceiveTrustedHalf",
+				"AcceptJoinedObservation",
+				"SessionObserved",
+				"AttachPresentation",
+				"TurnStarted",
+				"SetClientHidden",
+				"TurnActivityChanged",
+				"LimitedActivityObserved",
+				"AttentionRequested",
+				"ClientAcknowledged",
+				"AttentionResolved",
+				"SessionIdleObserved",
+				"TurnFinished",
+				"DetachPresentation",
+				"ObservationBecameStale",
+				"ObservationReconnected",
+				"RejectStaleGeneration",
+				"SessionEnded",
+				"SetClientVisible",
+				"PublishSnapshot",
+				"ClientObservePublication",
+				"RendererReconnect"
 			]
 		},
 		{

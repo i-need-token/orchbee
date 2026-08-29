@@ -17,3 +17,11 @@
 .ct-tab-icon__normal {
 	composes: ct-tab-icon__normal from '../../../../TabStripView.module.css';
 }
+
+.ct-tab-icon__status {
+	composes: ct-tab-icon__status from '../../../../TabStripView.module.css';
+}
+
+.ct-tab-icon__status-icon {
+	composes: ct-tab-icon__status-icon from '../../../../TabStripView.module.css';
+}

@@ -1,4 +1,42 @@
 export {
+	DESKTOP_AGENT_INTEGRATION_IDS,
+	DesktopAgentIntegrationAvailabilitySchema,
+	DesktopAgentIntegrationIdSchema,
+	DesktopAgentIntegrationIssueSchema,
+	DesktopAgentIntegrationManagementFailureCodeSchema,
+	DesktopAgentIntegrationManagementMainEventSchema,
+	DesktopAgentIntegrationManagementModeSchema,
+	DesktopAgentIntegrationManagementRendererCommandSchema,
+	DesktopAgentIntegrationManagementRequestIdSchema,
+	DesktopAgentIntegrationManagementSnapshotSchema,
+	DesktopAgentIntegrationSnapshotItemSchema,
+	DesktopAgentIntegrationStateSchema,
+} from './desktop-agent-integration-management-contract';
+export type {
+	DesktopAgentIntegrationAvailability,
+	DesktopAgentIntegrationId,
+	DesktopAgentIntegrationIssue,
+	DesktopAgentIntegrationManagementFailureCode,
+	DesktopAgentIntegrationManagementMainEvent,
+	DesktopAgentIntegrationManagementMode,
+	DesktopAgentIntegrationManagementRendererCommand,
+	DesktopAgentIntegrationManagementRequestId,
+	DesktopAgentIntegrationManagementSnapshot,
+	DesktopAgentIntegrationSnapshotItem,
+	DesktopAgentIntegrationState,
+} from './desktop-agent-integration-management-contract';
+export {
+	DESKTOP_AGENT_OBSERVATION_PROTOCOL_VERSION,
+	DesktopAgentObservationMainEventSchema,
+	DesktopAgentObservationRendererCommandSchema,
+	DesktopAgentObservationRequestIdSchema,
+} from './desktop-agent-observation-contract';
+export type {
+	DesktopAgentObservationMainEvent,
+	DesktopAgentObservationRendererCommand,
+	DesktopAgentObservationRequestId,
+} from './desktop-agent-observation-contract';
+export {
 	DesktopBrowserAccessFailureCodeSchema,
 	DesktopBrowserAccessMainEventSchema,
 	DesktopBrowserAccessModeSchema,

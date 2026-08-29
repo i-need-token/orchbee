@@ -32,6 +32,7 @@ export const MessageKind = {
 	terminalBell: 55,
 	terminalClipboardWriteRequest: 56,
 	terminalMetadataChanged: 57,
+	terminalApplicationSignal: 58,
 	protocolRejected: 3,
 	readRows: 45,
 	resizeAccepted: 33,
@@ -399,6 +400,12 @@ export const MESSAGE_CONTRACTS = {
 	[MessageKind.terminalMetadataChanged]: {
 		eventEncoding: control,
 		name: 'TerminalMetadataChanged',
+		request: null,
+		responseEncoding: null,
+	},
+	[MessageKind.terminalApplicationSignal]: {
+		eventEncoding: control,
+		name: 'TerminalApplicationSignal',
 		request: null,
 		responseEncoding: null,
 	},

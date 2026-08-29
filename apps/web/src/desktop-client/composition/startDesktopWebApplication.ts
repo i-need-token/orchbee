@@ -61,22 +61,26 @@ export function startDesktopWebApplication(
 		const message = DesktopRendererBootstrapWindowMessageSchema.safeParse(event.data);
 		const clientSessionPort = event.ports[0];
 		const projectionPort = event.ports[1];
-		const lifetimePort = event.ports[2];
-		const browserAccessPort = event.ports[3];
-		const projectFolderAcquisitionPort = event.ports[4];
-		const projectWorktreePort = event.ports[5];
-		const terminalLaunchProfilePort = event.ports[6];
-		const terminalDefaultSettingsPort = event.ports[7];
-		const clipboardReadPort = event.ports[8];
-		const windowLayoutPort = event.ports[9];
-		const remoteTerminalCreationPort = event.ports[10];
-		const sshProjectEnrollmentPort = event.ports[11];
+		const agentObservationPort = event.ports[2];
+		const agentIntegrationManagementPort = event.ports[3];
+		const lifetimePort = event.ports[4];
+		const browserAccessPort = event.ports[5];
+		const projectFolderAcquisitionPort = event.ports[6];
+		const projectWorktreePort = event.ports[7];
+		const terminalLaunchProfilePort = event.ports[8];
+		const terminalDefaultSettingsPort = event.ports[9];
+		const clipboardReadPort = event.ports[10];
+		const windowLayoutPort = event.ports[11];
+		const remoteTerminalCreationPort = event.ports[12];
+		const sshProjectEnrollmentPort = event.ports[13];
 		if (
 			!message.success ||
 			!message.data.security.contextIsolated ||
 			!message.data.security.sandboxed ||
 			clientSessionPort === undefined ||
 			projectionPort === undefined ||
+			agentObservationPort === undefined ||
+			agentIntegrationManagementPort === undefined ||
 			lifetimePort === undefined ||
 			browserAccessPort === undefined ||
 			projectFolderAcquisitionPort === undefined ||
@@ -104,6 +108,8 @@ export function startDesktopWebApplication(
 				lifetimePort,
 				clientSessionPort,
 				projectionPort,
+				agentObservationPort,
+				agentIntegrationManagementPort,
 				browserAccessPort,
 				projectFolderAcquisitionPort,
 				projectWorktreePort,

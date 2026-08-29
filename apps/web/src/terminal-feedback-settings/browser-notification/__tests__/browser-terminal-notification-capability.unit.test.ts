@@ -56,9 +56,10 @@ describe('createBrowserTerminalNotificationCapability', () => {
 		);
 
 		NotificationProbe.permission = 'granted';
-		expect(capability.show({ body: 'safe body', tag: 'terminal:1', title: 'safe title' })).toBe(
-			true,
-		);
+		const onActivate = vi.fn<() => void>();
+		expect(
+			capability.show({ body: 'safe body', onActivate, tag: 'terminal:1', title: 'safe title' }),
+		).toBe(true);
 		expect(NotificationProbe.latest).toMatchObject({
 			notificationOptions: { body: 'safe body', silent: true, tag: 'terminal:1' },
 			title: 'safe title',
@@ -67,5 +68,6 @@ describe('createBrowserTerminalNotificationCapability', () => {
 		expect(focus).not.toHaveBeenCalled();
 		NotificationProbe.latest?.click?.();
 		expect(focus).toHaveBeenCalledOnce();
+		expect(onActivate).toHaveBeenCalledOnce();
 	});
 });

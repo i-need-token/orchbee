@@ -10,7 +10,7 @@ const lifecycle_ops = @import("lifecycle.zig");
 const metadata_ops = @import("metadata.zig");
 const completion_ops = @import("completion.zig");
 const failure_ops = @import("failure.zig");
-const feedback_ops = @import("feedback.zig");
+const feedback_handle = @import("feedback_handle.zig");
 const projection_ops = @import("projection.zig");
 const input_handle = @import("input_handle.zig");
 const terminal_control_ops = @import("terminal_control.zig");
@@ -28,6 +28,7 @@ pub const PreparedInput = prepared_input.Type(TerminalRuntime);
 pub const PreparedAttachment = prepared_attachment.Type(TerminalRuntime);
 pub const ReadCommitGuard = read_commit_guard.Type(TerminalRuntime);
 const InputHandle = input_handle.Type(TerminalRuntime, PreparedInput);
+const FeedbackHandle = feedback_handle.Type(TerminalRuntime);
 
 pub const TerminalRuntime = opaque {
     pub fn create(
@@ -100,25 +101,11 @@ pub const TerminalRuntime = opaque {
         return metadata_ops.commitEvent(stateFrom(self), event);
     }
 
-    pub fn prepareClipboardWriteRequest(
-        self: *TerminalRuntime,
-    ) !?contracts.PreparedClipboardWriteRequest {
-        return feedback_ops.prepareClipboardWriteRequest(stateFrom(self));
-    }
-
-    pub fn rollbackClipboardWriteRequest(
-        self: *TerminalRuntime,
-        prepared: contracts.PreparedClipboardWriteRequest,
-    ) void {
-        return feedback_ops.rollbackClipboardWriteRequest(stateFrom(self), prepared);
-    }
-
-    pub fn commitClipboardWriteRequest(
-        self: *TerminalRuntime,
-        prepared: contracts.PreparedClipboardWriteRequest,
-    ) void {
-        return feedback_ops.commitClipboardWriteRequest(stateFrom(self), prepared);
-    }
+    pub const prepareClipboardWriteRequest = FeedbackHandle.prepareClipboardWriteRequest;
+    pub const rollbackClipboardWriteRequest = FeedbackHandle.rollbackClipboardWriteRequest;
+    pub const commitClipboardWriteRequest = FeedbackHandle.commitClipboardWriteRequest;
+    pub const prepareApplicationSignal = FeedbackHandle.prepareApplicationSignal;
+    pub const commitApplicationSignal = FeedbackHandle.commitApplicationSignal;
 
     pub fn acquireReadCommitGuard(
         self: *TerminalRuntime,

@@ -240,6 +240,15 @@ export const terminalSettingsMessages = defineMessages({
 	shellIntegrationNotificationDescription: message(
 		'terminal.settings.shellIntegration.notification.description',
 	),
+	shellIntegrationNotificationAgentModeHidden: message(
+		'terminal.settings.shellIntegration.notification.agentMode.hidden',
+	),
+	shellIntegrationNotificationAgentModeLabel: message(
+		'terminal.settings.shellIntegration.notification.agentMode.label',
+	),
+	shellIntegrationNotificationAgentModeNever: message(
+		'terminal.settings.shellIntegration.notification.agentMode.never',
+	),
 	shellIntegrationNotificationRequest: message(
 		'terminal.settings.shellIntegration.notification.request',
 	),

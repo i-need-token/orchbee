@@ -1,4 +1,5 @@
 import type { ActionRuntime, ActionScope } from '@orchbee/actions';
+import type { AgentLocationPresentation } from '@orchbee/agent';
 import type { ReactNode } from 'react';
 
 import type { PanelWorkspaceStore } from './model/PanelWorkspaceStore';
@@ -18,6 +19,7 @@ import styles from './WorkbenchPanelWorkspace.module.css';
 
 interface WorkbenchPanelWorkspaceProps {
 	readonly actionRuntime: ActionRuntime;
+	readonly agentLocations?: ReadonlyMap<string, AgentLocationPresentation> | undefined;
 	readonly panelWorkspaceStore: PanelWorkspaceStore;
 	readonly parentActionScope: ActionScope;
 	readonly presentationScopeId: string;
@@ -29,6 +31,7 @@ interface WorkbenchPanelWorkspaceProps {
 
 export function WorkbenchPanelWorkspace({
 	actionRuntime,
+	agentLocations,
 	panelWorkspaceStore,
 	parentActionScope,
 	presentationScopeId,
@@ -104,6 +107,7 @@ export function WorkbenchPanelWorkspace({
 						key={revision}
 					>
 						<WorkbenchPanelLayout
+							agentLocations={agentLocations}
 							layer={layer}
 							node={node}
 							terminalAutoFocusAllowed={terminalAutoFocusAllowed}

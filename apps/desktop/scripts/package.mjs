@@ -86,6 +86,11 @@ const semanticCommandEndpointAddon = path.join(
 	semanticCommandEndpointAddonName,
 );
 const shellIntegrationResources = path.join(applicationRoot, 'resources', 'shell-integration');
+const agentObservationAdapterResources = path.join(
+	applicationRoot,
+	'resources',
+	'agent-observation-adapters',
+);
 
 await Promise.all([
 	access(path.join(desktopBuild, 'main', 'main.cjs')),
@@ -113,6 +118,39 @@ await Promise.all([
 			'vendor_conf.d',
 			'orchbee-shell-integration.fish',
 		),
+	),
+	access(path.join(agentObservationAdapterResources, '.agents', 'plugins', 'marketplace.json')),
+	access(path.join(agentObservationAdapterResources, '.claude-plugin', 'marketplace.json')),
+	access(path.join(agentObservationAdapterResources, 'bundle', '.claude-plugin', 'plugin.json')),
+	access(path.join(agentObservationAdapterResources, 'bundle', '.codex-plugin', 'plugin.json')),
+	access(path.join(agentObservationAdapterResources, 'bundle', '.grok-plugin', 'plugin.json')),
+	access(path.join(agentObservationAdapterResources, 'bundle', 'hooks', 'hooks.json')),
+	access(path.join(agentObservationAdapterResources, 'bundle', 'hooks', 'codex.json')),
+	access(path.join(agentObservationAdapterResources, 'bundle', 'hooks', 'grok.json')),
+	access(path.join(agentObservationAdapterResources, 'bundle', 'scripts', 'forward-hook.mjs')),
+	access(path.join(agentObservationAdapterResources, 'bundle', 'scripts', 'hook-sanitizers.mjs')),
+	access(
+		path.join(agentObservationAdapterResources, 'bundle', 'scripts', 'observation-transport.mjs'),
+	),
+	access(
+		path.join(
+			agentObservationAdapterResources,
+			'bundle',
+			'opencode',
+			'orchbee-agent-observation.mjs',
+		),
+	),
+	access(
+		path.join(agentObservationAdapterResources, 'bundle', 'pi', 'orchbee-agent-observation.mjs'),
+	),
+	access(
+		path.join(agentObservationAdapterResources, 'bundle', 'pi', 'orchbee-agent-observation.cjs'),
+	),
+	access(
+		path.join(agentObservationAdapterResources, 'bundle', 'omp', 'orchbee-agent-observation.mjs'),
+	),
+	access(
+		path.join(agentObservationAdapterResources, 'bundle', 'omp', 'orchbee-agent-observation.cjs'),
 	),
 ]);
 if (process.platform !== 'win32' && ((await stat(semanticCommandCliLauncher)).mode & 0o111) === 0) {
@@ -166,6 +204,7 @@ try {
 			...(process.platform === 'win32' ? [] : [posixHostEndpointAddon]),
 			semanticCommandEndpointAddon,
 			shellIntegrationResources,
+			agentObservationAdapterResources,
 			...(environmentReleaseResources === null
 				? []
 				: [environmentReleaseResources.releaseResourceDirectory]),

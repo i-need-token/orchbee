@@ -1,4 +1,6 @@
 import {
+	agentIntegrationMessages,
+	agentObservationMessages,
 	keyboardShortcutMessages,
 	terminalSettingsMessages,
 	type MessageDescriptor,
@@ -7,6 +9,7 @@ import {
 import type { TerminalSettingsCategory } from '../types/terminal-settings-surface';
 
 export type TerminalSettingsSearchCapability =
+	| 'desktop-agent-integrations'
 	| 'desktop-launch-profiles'
 	| 'desktop-terminal-default-settings'
 	| 'macos-option-as-alt'
@@ -26,6 +29,25 @@ export interface TerminalSettingsSearchItemDefinition {
 }
 
 export const TERMINAL_SETTINGS_SEARCH_ITEMS: readonly TerminalSettingsSearchItemDefinition[] = [
+	...(
+		[
+			['claude-code', agentObservationMessages.providerClaudeCode],
+			['codex', agentObservationMessages.providerCodex],
+			['grok', agentObservationMessages.providerGrok],
+			['opencode', agentObservationMessages.providerOpenCode],
+			['pi', agentObservationMessages.providerPi],
+			['omp', agentObservationMessages.providerOmp],
+		] as const
+	).map(([integrationId, label]) => ({
+		capability: 'desktop-agent-integrations' as const,
+		category: 'agent-integrations' as const,
+		description: agentIntegrationMessages.description,
+		id: `agent-integrations.${integrationId}`,
+		keywords: ['Agent', 'adapter', 'hook', 'status'],
+		label,
+		section: agentIntegrationMessages.localSection,
+		targetId: `agent-integrations.${integrationId}`,
+	})),
 	{
 		capability: 'desktop-terminal-default-settings',
 		category: 'terminal',
@@ -244,7 +266,11 @@ export const TERMINAL_SETTINGS_SEARCH_ITEMS: readonly TerminalSettingsSearchItem
 		category: 'shell-integration',
 		description: terminalSettingsMessages.shellIntegrationNotificationDescription,
 		id: 'shell-integration.notifications',
-		keywords: [terminalSettingsMessages.shellIntegrationNotificationRequest],
+		keywords: [
+			terminalSettingsMessages.shellIntegrationNotificationRequest,
+			terminalSettingsMessages.shellIntegrationNotificationAgentModeLabel,
+			terminalSettingsMessages.shellIntegrationNotificationAgentModeHidden,
+		],
 		label: terminalSettingsMessages.shellIntegrationNotificationTitle,
 		targetId: 'shell-integration.notifications',
 	},

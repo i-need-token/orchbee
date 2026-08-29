@@ -581,6 +581,7 @@ fn createPayload(
     defer writer.deinit();
     try std.json.Stringify.value(.{
         .creationId = creation_id_text,
+        .environmentOverlay = &.{},
         .launch = .{
             .arguments = arguments,
             .cellPixelHeight = 16,

@@ -46,6 +46,7 @@ const activeConnection = harness.activeConnection;
 const expectSingleFailureCode = harness.expectSingleFailureCode;
 const expectInputAcceptedBytes = harness.expectInputAcceptedBytes;
 const parseTerminalInput = harness.parseTerminalInput;
+const commitReaderBatch = harness.commitReaderBatch;
 const inputEntryCount = harness.inputEntryCount;
 const testClientId = harness.testClientId;
 const testActiveConnectionState = harness.testActiveConnectionState;
@@ -256,6 +257,68 @@ test "failed terminal outcome is emitted once with typed process evidence" {
     var duplicate = try pollEventsChecked(&service, &connection);
     defer duplicate.deinit();
     try std.testing.expectEqual(@as(usize, 0), duplicate.records().len);
+}
+test "OSC 777 application activity signals cross the Host event scheduler once" {
+    if (target_builtin.os.tag == .windows) return error.SkipZigTest;
+
+    const arguments = [_][]const u8{ "-c", "read value" };
+    const create_payload = try testCreatePayload(
+        "71717171717171717171717171717171",
+        "/bin/sh",
+        &arguments,
+    );
+    defer std.testing.allocator.free(create_payload);
+
+    var service = HostService.init(std.testing.allocator);
+    var connection: ConnectionState = .awaiting_hello;
+    defer {
+        service.disconnect(&connection);
+        service.deinit();
+    }
+    try testHandshake(&service, &connection, "72727272727272727272727272727272");
+    var created = try testRequest(
+        &service,
+        &connection,
+        MessageKind.create_terminal,
+        .control_json,
+        create_payload,
+        [_]u8{0x73} ** 16,
+    );
+    defer created.deinit();
+    const terminal_id = serviceCore(&service).terminalKeys()[0];
+    const runtime = findRuntime(&service, terminal_id).?;
+    try std.testing.expectEqual(
+        @as(terminal_runtime.testing.ReaderBatchOutcomeType, .committed),
+        commitReaderBatch(
+            runtime,
+            "\x1b]777;notify;orchbee.agent.v1;{\"activity\":\"thinking\",\"version\":1}\x1b\\",
+        ),
+    );
+
+    var outgoing = try pollEventsChecked(&service, &connection);
+    defer outgoing.deinit();
+    try std.testing.expectEqual(@as(usize, 1), outgoing.records().len);
+    const envelope = try protocol.validateTransportEnvelope(outgoing.records()[0]);
+    try std.testing.expectEqual(MessageKind.terminal_application_signal, envelope.kind);
+    const Signal = struct {
+        channel: []const u8,
+        identity: struct {
+            creationId: []const u8,
+            hostEpoch: []const u8,
+            terminalId: []const u8,
+        },
+        payload: []const u8,
+        sequence: []const u8,
+    };
+    const signal = try control_wire.decode(Signal, std.testing.allocator, envelope.payload);
+    defer signal.deinit();
+    try std.testing.expectEqualStrings("orchbee.agent.v1", signal.value.channel);
+    try std.testing.expectEqualStrings(
+        "{\"activity\":\"thinking\",\"version\":1}",
+        signal.value.payload,
+    );
+    try std.testing.expectEqualStrings("1", signal.value.sequence);
+    try std.testing.expect((try runtime.prepareApplicationSignal(std.testing.allocator)) == null);
 }
 test "full outgoing batch leaves a failed outcome pending for the next handoff" {
     var service = HostService.init(std.testing.allocator);

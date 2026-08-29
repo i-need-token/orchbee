@@ -26,6 +26,13 @@ pub const State = struct {
     // marker because Ghostty invokes bell synchronously while parsing output.
     bell_sequence: u64 = 0,
     bell_sequence_overflow_pending: bool = false,
+    application_signal_pending: [contracts.max_pending_application_signals]contracts.ApplicationSignal = undefined,
+    application_signal_pending_count: usize = 0,
+    application_signal_pending_head: usize = 0,
+    application_signal_sequence: u64 = 0,
+    application_signal_sequence_staged: u64 = 0,
+    application_signal_staged: [contracts.max_pending_application_signals]contracts.ApplicationSignal = undefined,
+    application_signal_staged_count: usize = 0,
     clipboard_write_in_flight: bool = false,
     clipboard_write_pending: ?contracts.ClipboardWriteRequest = null,
     clipboard_write_sequence: u64 = 0,

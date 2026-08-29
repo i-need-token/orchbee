@@ -93,6 +93,32 @@ describe('TabStrip', () => {
 		return card;
 	};
 
+	it('adds a host-owned status to the tab icon and accessible label', () => {
+		const model = new TabModel({
+			activeTabId: 'agent',
+			tabs: [{ id: 'agent', title: 'Terminal', pinned: false, group: null }],
+		});
+		render(
+			<TabStrip
+				model={model}
+				statusAdornments={
+					new Map([
+						[
+							'agent',
+							{
+								accessibleLabel: 'Agent working',
+								icon: <span data-agent-icon='' />,
+								kind: 'active' as const,
+							},
+						],
+					])
+				}
+			/>,
+		);
+
+		expect(screen.getByRole('tab', { name: /Terminal.*Agent working/u })).toBeTruthy();
+	});
+
 	it('renders one rule for a shared boundary between inactive tabs', () => {
 		const model = new TabModel({
 			tabs: [

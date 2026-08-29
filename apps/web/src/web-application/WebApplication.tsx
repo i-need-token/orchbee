@@ -1,4 +1,5 @@
 import type { ActionRuntime } from '@orchbee/actions';
+import type { AgentSnapshotSource } from '@orchbee/agent';
 import {
 	Workbench,
 	type WorkbenchEnvironmentProjectConnectionCapability,
@@ -16,6 +17,11 @@ import {
 } from '@orchbee/workbench';
 import type { ReactNode } from 'react';
 
+import type {
+	AgentIntegrationManagementControl,
+	AgentIntegrationReminderController,
+} from '../agent-integration-management';
+import { AgentIntegrationReminder } from '../agent-integration-reminder';
 import {
 	type KeyboardShortcutSettingsController,
 	useKeyboardShortcutSettings,
@@ -36,6 +42,9 @@ import styles from './WebApplication.module.css';
 
 export interface WebApplicationProps {
 	readonly actionRuntime: ActionRuntime;
+	readonly agentIntegrationManagementControl?: AgentIntegrationManagementControl | undefined;
+	readonly agentIntegrationReminderController?: AgentIntegrationReminderController | undefined;
+	readonly agentObservationSource?: AgentSnapshotSource | undefined;
 	readonly environmentProjectConnection?:
 		| WorkbenchEnvironmentProjectConnectionCapability
 		| undefined;
@@ -64,6 +73,9 @@ export interface WebApplicationProps {
 
 export function WebApplication({
 	actionRuntime,
+	agentIntegrationManagementControl,
+	agentIntegrationReminderController,
+	agentObservationSource,
 	environmentProjectConnection,
 	keyboardShortcutSettingsController,
 	layoutStorage,
@@ -123,6 +135,8 @@ export function WebApplication({
 			>
 				<Workbench
 					actionRuntime={actionRuntime}
+					agentNotificationObserver={terminalFeedbackSettingsController}
+					agentObservationSource={agentObservationSource}
 					environmentProjectConnection={environmentProjectConnection}
 					isShortcutScopeActive={!view.settingsOpen}
 					layoutStorage={layoutStorage}
@@ -142,7 +156,17 @@ export function WebApplication({
 					tabWindowControl={tabWindowControl}
 				/>
 			</div>
+			{agentIntegrationManagementControl === undefined ||
+			agentIntegrationReminderController === undefined ? null : (
+				<AgentIntegrationReminder
+					control={agentIntegrationManagementControl}
+					controller={agentIntegrationReminderController}
+					onReview={view.openAgentIntegrationSettings}
+				/>
+			)}
 			<TerminalSettingsSurface
+				agentIntegrationManagementControl={agentIntegrationManagementControl}
+				agentIntegrationReminderController={agentIntegrationReminderController}
 				controller={terminalSettingsController}
 				terminalInteractionSettingsController={terminalInteractionSettingsController}
 				keyboardShortcutController={keyboardShortcutSettingsController}
@@ -150,6 +174,7 @@ export function WebApplication({
 				macosTerminalInputSettingsController={macosTerminalInputSettingsController}
 				onRequestClose={view.closeSettings}
 				requestBrowserAccess={requestBrowserAccess}
+				requestedCategory={view.requestedSettingsCategory}
 				terminalFeedbackSettingsController={terminalFeedbackSettingsController}
 				terminalLaunchProfileClient={terminalLaunchProfileClient}
 				terminalDefaultSettingsControl={terminalDefaultSettingsControl}

@@ -2,6 +2,7 @@ import type { KeyboardShortcutPlatform } from '@orchbee/keyboard-shortcuts';
 import { Button, Input, ProductIcon } from '@orchbee/ui/components';
 import * as React from 'react';
 
+import { AgentIntegrationSettings } from './components/agent-integration-settings/AgentIntegrationSettings';
 import { GhosttyMigrationSettings } from './components/ghostty-migration-settings/GhosttyMigrationSettings';
 import { KeyboardShortcutSettings } from './components/keyboard-shortcut-settings/KeyboardShortcutSettings';
 import { MacosTerminalInputSettings } from './components/macos-terminal-input-settings/MacosTerminalInputSettings';
@@ -11,9 +12,14 @@ import { ShellIntegrationSettings } from './components/shell-integration-setting
 import { TerminalSettingsSections } from './components/terminal-settings-sections/TerminalSettingsSections';
 import { TerminalLaunchProfileSettings } from './components/terminal-launch-profile-settings/TerminalLaunchProfileSettings';
 import { useTerminalSettingsSurface } from './hooks/useTerminalSettingsSurface';
+import type { TerminalSettingsCategory } from './types/terminal-settings-surface';
 import type { TerminalSettingsController } from '../terminal-settings';
 import type { TerminalInteractionSettingsController } from '../terminal-interaction-settings';
 import type { KeyboardShortcutSettingsController } from '../keyboard-shortcuts';
+import type {
+	AgentIntegrationManagementControl,
+	AgentIntegrationReminderController,
+} from '../agent-integration-management';
 import type { TerminalFeedbackSettingsController } from '../terminal-feedback-settings';
 import type { MacosTerminalInputSettingsController } from '../macos-terminal-input-settings';
 import type { DesktopTerminalLaunchProfileControl } from '../terminal-launch-profile-control';
@@ -21,12 +27,15 @@ import type { DesktopTerminalDefaultSettingsControl } from '../terminal-default-
 import styles from './TerminalSettingsSurface.module.css';
 
 export interface TerminalSettingsSurfaceProps {
+	readonly agentIntegrationManagementControl?: AgentIntegrationManagementControl | undefined;
+	readonly agentIntegrationReminderController?: AgentIntegrationReminderController | undefined;
 	readonly controller: TerminalSettingsController;
 	readonly keyboardShortcutController: KeyboardShortcutSettingsController;
 	readonly keyboardShortcutPlatform: KeyboardShortcutPlatform;
 	readonly macosTerminalInputSettingsController?: MacosTerminalInputSettingsController | undefined;
 	readonly onRequestClose: () => void;
 	readonly requestBrowserAccess?: ((returnFocus: HTMLElement) => void) | undefined;
+	readonly requestedCategory?: TerminalSettingsCategory | undefined;
 	readonly terminalFeedbackSettingsController?: TerminalFeedbackSettingsController | undefined;
 	readonly terminalLaunchProfileClient?: DesktopTerminalLaunchProfileControl | undefined;
 	readonly terminalDefaultSettingsControl?: DesktopTerminalDefaultSettingsControl | undefined;
@@ -48,7 +57,17 @@ export function TerminalSettingsSurface(props: TerminalSettingsSurfaceProps): Re
 		appearancePreferenceCategory || view.category === 'terminal';
 
 	let mainContent: React.ReactNode;
-	if (view.category === 'keyboard-shortcuts') {
+	if (
+		view.category === 'agent-integrations' &&
+		props.agentIntegrationManagementControl !== undefined
+	) {
+		mainContent = (
+			<AgentIntegrationSettings
+				control={props.agentIntegrationManagementControl}
+				reminderController={props.agentIntegrationReminderController}
+			/>
+		);
+	} else if (view.category === 'keyboard-shortcuts') {
 		mainContent = (
 			<KeyboardShortcutSettings
 				controller={props.keyboardShortcutController}

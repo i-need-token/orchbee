@@ -170,6 +170,24 @@ pub const PreparedClipboardWriteRequest = struct {
     text: []const u8,
 };
 
+pub const ApplicationSignal = struct {
+    payload: []u8,
+    sequence: u64,
+};
+
+pub const max_pending_application_signals: usize = 64;
+
+pub const ApplicationSignalEvent = struct {
+    allocator: std.mem.Allocator,
+    payload: []u8,
+    sequence: u64,
+
+    pub fn deinit(self: *@This()) void {
+        self.allocator.free(self.payload);
+        self.* = undefined;
+    }
+};
+
 pub const ProjectionCounters = terminal_projection.Counters;
 pub const ProjectionEncodeRequest = terminal_projection.EncodeRequest;
 pub const TerminalCloseActivity = terminal_projection.TerminalCloseActivity;

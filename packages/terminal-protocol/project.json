@@ -3,7 +3,7 @@
 	"domain": "terminal-protocol",
 	"runtime": ["universal"],
 	"stability": "experimental",
-	"responsibility": "Transport-neutral Terminal Host wire identities, exact-version handshake, bounded control schemas and binary projection/input/selection codecs, and cross-language conformance fixtures.",
+	"responsibility": "Transport-neutral Terminal Host wire identities, exact-version handshake, bounded control schemas including the non-persistent creation environment overlay and terminal application signal, binary projection/input/selection codecs, and cross-language conformance fixtures.",
 	"nonGoals": [
 		"Owning Terminal Host lifecycle, delivery, retry, recovery, or concurrency semantics.",
 		"Owning PTY processes, terminal emulation, local IPC endpoints, network listeners, authentication, encryption, or transport scheduling.",

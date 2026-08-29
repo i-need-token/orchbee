@@ -1,0 +1,7 @@
+{
+	"author": { "name": "Orchbee" },
+	"description": "Locally sanitizes Codex lifecycle hooks for Orchbee Agent status observation",
+	"hooks": "./hooks/codex.json",
+	"name": "orchbee-agent-observation",
+	"version": "0.2.0"
+}

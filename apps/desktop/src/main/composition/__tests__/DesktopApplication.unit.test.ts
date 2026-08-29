@@ -4,6 +4,8 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import {
+	DESKTOP_AGENT_INTEGRATION_IDS,
+	DesktopAgentIntegrationManagementSnapshotSchema,
 	DesktopTerminalDefaultSettingsSnapshotSchema,
 	DesktopTerminalLaunchProfileSnapshotSchema,
 } from '@orchbee/desktop-client-protocol';
@@ -696,7 +698,7 @@ describe('DesktopApplication', () => {
 			expect.anything(),
 			expect.any(Array),
 		);
-		expect(second.webContents.postMessage.mock.calls[0]?.[2]).toHaveLength(12);
+		expect(second.webContents.postMessage.mock.calls[0]?.[2]).toHaveLength(14);
 		const finalLayout = harness.persistedWindowLayouts.at(-1);
 		expect(finalLayout?.windows).toHaveLength(2);
 		expect(
@@ -912,7 +914,7 @@ describe('DesktopApplication', () => {
 		await application.shutdown();
 	});
 
-	it('starts without creating an attachment and atomically transfers twelve scoped controls', async () => {
+	it('starts without creating an attachment and atomically transfers fourteen scoped controls', async () => {
 		const harness = createHarness();
 		const application = createApplication(harness.dependencies);
 
@@ -939,6 +941,8 @@ describe('DesktopApplication', () => {
 				type: 'orchbee.desktop.renderer-bootstrap',
 			}),
 			[
+				expect.anything(),
+				expect.anything(),
 				expect.anything(),
 				expect.anything(),
 				expect.anything(),
@@ -1067,7 +1071,7 @@ describe('DesktopApplication', () => {
 		const application = createApplication(harness.dependencies);
 
 		await expect(application.start()).rejects.toThrow('renderer projection broker factory failed');
-		expect(harness.messageChannels).toHaveLength(12);
+		expect(harness.messageChannels).toHaveLength(14);
 		for (const channel of harness.messageChannels) {
 			expect(channel.port1.close).toHaveBeenCalledOnce();
 			expect(channel.port2.close).toHaveBeenCalledOnce();
@@ -1194,8 +1198,8 @@ describe('DesktopApplication', () => {
 			throw new Error('gateway projection factory failed');
 		});
 		await expect(factoryOpenClient()).rejects.toThrow('gateway projection factory failed');
-		expect(factoryHarness.messageChannels).toHaveLength(14);
-		for (const channel of factoryHarness.messageChannels.slice(12)) {
+		expect(factoryHarness.messageChannels).toHaveLength(16);
+		for (const channel of factoryHarness.messageChannels.slice(14)) {
 			expect(channel.port1.close).toHaveBeenCalledOnce();
 			expect(channel.port2.close).toHaveBeenCalledOnce();
 		}
@@ -1223,7 +1227,7 @@ describe('DesktopApplication', () => {
 		});
 		await expect(startOpenClient()).rejects.toThrow('gateway projection start failed');
 		expect(startHarness.projectionBrokers[1]?.dispose).toHaveBeenCalledOnce();
-		for (const channel of startHarness.messageChannels.slice(12)) {
+		for (const channel of startHarness.messageChannels.slice(14)) {
 			expect(channel.port1.close).toHaveBeenCalledOnce();
 			expect(channel.port2.close).toHaveBeenCalled();
 		}
@@ -1276,7 +1280,7 @@ describe('DesktopApplication', () => {
 
 		expect(harness.clientSessionPorts[0]?.close).not.toHaveBeenCalled();
 		expect(harness.projectionBrokers[0]?.dispose).not.toHaveBeenCalled();
-		expect(harness.messageChannels).toHaveLength(12);
+		expect(harness.messageChannels).toHaveLength(14);
 		expect(harness.webContents.postMessage).toHaveBeenCalledOnce();
 		await application.shutdown();
 	});
@@ -1295,12 +1299,12 @@ describe('DesktopApplication', () => {
 		await vi.waitFor(() => expect(projectionDispose).toHaveBeenCalledTimes(2));
 		await Promise.resolve();
 		expect(harness.webContents.postMessage).toHaveBeenCalledOnce();
-		expect(harness.messageChannels).toHaveLength(12);
+		expect(harness.messageChannels).toHaveLength(14);
 		expect(harness.projectionBrokers).toHaveLength(1);
 
 		emitRendererDocumentLoad(harness.webContents);
 		await vi.waitFor(() => expect(harness.webContents.postMessage).toHaveBeenCalledTimes(2));
-		expect(harness.messageChannels).toHaveLength(24);
+		expect(harness.messageChannels).toHaveLength(28);
 		expect(harness.projectionBrokers).toHaveLength(2);
 		await application.shutdown();
 	});
@@ -2735,6 +2739,37 @@ function createHarness(
 			snapshot: terminalDefaultSettingsSnapshot,
 		})),
 	} satisfies ReturnType<DesktopApplicationDependencies['createTerminalDefaultSettingsController']>;
+	const agentIntegrationManagementSnapshot = DesktopAgentIntegrationManagementSnapshotSchema.parse({
+		integrations: DESKTOP_AGENT_INTEGRATION_IDS.map((integrationId) => ({
+			availability: 'not-found',
+			integrationId,
+			issue: null,
+			managementMode: 'managed-local',
+			state: 'unknown',
+		})),
+		revision: 0,
+	});
+	type AgentIntegrationManagementController = ReturnType<
+		DesktopApplicationDependencies['createAgentIntegrationManagementController']
+	>;
+	const agentIntegrationManagementController: AgentIntegrationManagementController = {
+		disable: vi.fn<AgentIntegrationManagementController['disable']>(async () => ({
+			kind: 'completed' as const,
+			snapshot: agentIntegrationManagementSnapshot,
+		})),
+		enable: vi.fn<AgentIntegrationManagementController['enable']>(async () => ({
+			kind: 'completed' as const,
+			snapshot: agentIntegrationManagementSnapshot,
+		})),
+		getSnapshot: () => agentIntegrationManagementSnapshot,
+		initialize: vi.fn<AgentIntegrationManagementController['initialize']>(
+			async () => agentIntegrationManagementSnapshot,
+		),
+		refresh: vi.fn<AgentIntegrationManagementController['refresh']>(async () => ({
+			kind: 'completed' as const,
+			snapshot: agentIntegrationManagementSnapshot,
+		})),
+	};
 	const sshEnvironmentTargetResolver = {
 		resolve: vi
 			.fn<DesktopApplicationDependencies['sshEnvironmentTargetResolver']['resolve']>()
@@ -2787,6 +2822,15 @@ function createHarness(
 	let identifierSequence = 0;
 	const dependencies: DesktopApplicationDependencies = {
 		connectHost: vi.fn<DesktopApplicationDependencies['connectHost']>().mockResolvedValue(host),
+		createAgentIntegrationManagementBroker: vi.fn<
+			DesktopApplicationDependencies['createAgentIntegrationManagementBroker']
+		>(() => ({
+			dispose: vi.fn<() => void>(),
+			start: vi.fn<() => void>(),
+		})),
+		createAgentIntegrationManagementController: vi.fn<
+			DesktopApplicationDependencies['createAgentIntegrationManagementController']
+		>(() => agentIntegrationManagementController),
 		createApplicationLifetimeBroker: vi.fn<
 			DesktopApplicationDependencies['createApplicationLifetimeBroker']
 		>((_port, brokerDependencies) => {

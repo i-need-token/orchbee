@@ -1,6 +1,8 @@
 import { randomBytes } from 'node:crypto';
 import { constants } from 'node:os';
+import path from 'node:path';
 
+import type { AgentObservationEvent, AgentTransition } from '@orchbee/agent';
 import { createOrchbeeIntl, resolveOrchbeeLocale, workbenchTabMessages } from '@orchbee/i18n';
 import { WorkbenchProjectWorkspaceRuntime } from '@orchbee/workbench';
 import {
@@ -10,6 +12,7 @@ import {
 	type DesktopApplicationExitFailure,
 	type DesktopApplicationExitReason,
 	type DesktopApplicationExitRequestId,
+	type DesktopAgentIntegrationManagementSnapshot,
 	type DesktopBrowserAccessSnapshot,
 	type DesktopTerminalDefaultSettingsSnapshot,
 	type DesktopTerminalLaunchProfileSnapshot,
@@ -21,14 +24,18 @@ import {
 	TerminalDefaultsAcceptedSchema,
 	TerminalExitedSchema,
 	TerminalFailedSchema,
+	TerminalApplicationSignalSchema,
 	TerminalMetadataChangedSchema,
 	type TerminalConfiguration,
+	type CreationId,
 	type DecodedProtocolEnvelope,
 	type AttachmentCapabilities,
 	type TerminalExited,
 	type TerminalFailed,
 	type TerminalIdentity,
 	type TerminalLaunch,
+	type TerminalApplicationSignal,
+	type TerminalEnvironmentOverlay,
 	type TerminalMetadataChanged,
 } from '@orchbee/terminal-protocol';
 import {
@@ -70,6 +77,19 @@ import {
 	type DesktopApplicationLifetimeDrainResult,
 	type DesktopApplicationLifetimeExitResult,
 } from '../application-lifetime';
+import {
+	createDesktopAgentIntegrationAdapters,
+	DesktopAgentIntegrationManagementBroker,
+	DesktopAgentIntegrationManagementController,
+	NodeAgentIntegrationCommandRunner,
+	type DesktopAgentIntegrationManagementBrokerController,
+} from '../agent-integration-management';
+import {
+	AgentHookObservationIngress,
+	DesktopAgentObservationBroker,
+	DesktopAgentObservationRuntime,
+	type DesktopAgentObservationBrokerSource,
+} from '../agent-observation';
 import {
 	ProjectedTerminalBroker,
 	type ProjectedTerminalBrokerEffectTarget,
@@ -249,6 +269,52 @@ interface DesktopApplicationLifetimeBrokerHandle {
 	start(): void;
 }
 
+interface DesktopAgentObservationBrokerHandle {
+	dispose(): void;
+	start(): void;
+}
+
+interface DesktopAgentIntegrationManagementBrokerHandle {
+	dispose(): void;
+	start(): void;
+}
+
+interface DesktopAgentIntegrationManagementControllerHandle extends DesktopAgentIntegrationManagementBrokerController {
+	initialize(): Promise<DesktopAgentIntegrationManagementSnapshot>;
+}
+
+type DesktopAgentObservationRuntimeHandle = DesktopAgentObservationBrokerSource & {
+	dispatch(event: AgentObservationEvent): AgentTransition;
+	dispose(): void;
+	observeTerminalApplicationSignal?(
+		event: TerminalApplicationSignal,
+		presentationId: TerminalPresentationId,
+	): void;
+	retireTerminalSignalPresentation?(presentationId: TerminalPresentationId): void;
+};
+
+interface DesktopAgentHookObservationIngressHandle {
+	dispose(): Promise<void>;
+	environmentOverlayFor(
+		presentationId: TerminalPresentationId,
+		creationId: CreationId,
+	): TerminalEnvironmentOverlay;
+	observeTerminalApplicationSignal(
+		event: TerminalApplicationSignal,
+		presentationId: TerminalPresentationId,
+	): void;
+	retirePresentation(presentationId: TerminalPresentationId): void;
+	start(): Promise<void>;
+}
+
+interface DesktopTerminalEnvironmentOverlayPort {
+	resolve(
+		presentationId: TerminalPresentationId,
+		creationId: CreationId,
+	): TerminalEnvironmentOverlay;
+	retire(presentationId: TerminalPresentationId): void;
+}
+
 interface DesktopBrowserAccessBrokerHandle {
 	dispose(): void;
 	start(): void;
@@ -370,6 +436,36 @@ export interface DesktopApplicationOptions {
 
 export interface DesktopApplicationDependencies {
 	readonly connectHost: (configuration: DesktopRuntimeConfiguration) => Promise<HostConnection>;
+	readonly createAgentObservationBroker?:
+		| ((
+				port: MessagePortMain,
+				source: DesktopAgentObservationBrokerSource,
+		  ) => DesktopAgentObservationBrokerHandle)
+		| undefined;
+	readonly createAgentObservationRuntime?:
+		| ((options: {
+				readonly allocateEventId: () => string;
+		  }) => DesktopAgentObservationRuntimeHandle)
+		| undefined;
+	readonly createAgentHookObservationIngress?:
+		| ((
+				runtime: DesktopAgentObservationRuntimeHandle,
+				options: {
+					readonly allocateIdentifier: () => string;
+					readonly socketPath: string | null;
+				},
+		  ) => DesktopAgentHookObservationIngressHandle)
+		| undefined;
+	readonly createAgentIntegrationManagementBroker: (
+		port: MessagePortMain,
+		controller: DesktopAgentIntegrationManagementBrokerController,
+	) => DesktopAgentIntegrationManagementBrokerHandle;
+	readonly createAgentIntegrationManagementController: (options: {
+		readonly homeDirectory: string;
+		readonly platform: NodeJS.Platform;
+		readonly resourceRoot: string;
+		readonly shellExecutable: string;
+	}) => DesktopAgentIntegrationManagementControllerHandle;
 	readonly createBroker: (
 		host: HostConnection,
 		port: MessagePortMain,
@@ -474,6 +570,7 @@ export interface DesktopApplicationDependencies {
 		createMessageChannel: DesktopApplicationDependencies['createMessageChannel'],
 		createBroker: DesktopApplicationDependencies['createBroker'],
 		resolveTerminalLaunch: () => TerminalLaunch,
+		environmentOverlayPort?: DesktopTerminalEnvironmentOverlayPort,
 	) => DesktopTerminalRuntime;
 	readonly createTerminalExitSpillStore?: (filePath: string) => TerminalExitSpillStore;
 	readonly createTerminalExitPublicationLedger?: (
@@ -509,6 +606,27 @@ const defaultDependencies: DesktopApplicationDependencies = {
 			runtimeDirectory: configuration.runtimeDirectory,
 			terminalDefaults: configuration.terminalConfiguration,
 		}).connect(),
+	createAgentObservationBroker: (port, source) => new DesktopAgentObservationBroker(port, source),
+	createAgentObservationRuntime: (options) => new DesktopAgentObservationRuntime(options),
+	createAgentHookObservationIngress: (runtime, options) =>
+		new AgentHookObservationIngress(runtime, options),
+	createAgentIntegrationManagementBroker: (port, controller) =>
+		new DesktopAgentIntegrationManagementBroker(port, controller),
+	createAgentIntegrationManagementController: (options) => {
+		const commandRunner = new NodeAgentIntegrationCommandRunner({
+			environment: process.env,
+			homeDirectory: options.homeDirectory,
+			shellExecutable: options.shellExecutable,
+		});
+		return new DesktopAgentIntegrationManagementController(
+			createDesktopAgentIntegrationAdapters({
+				commandRunner,
+				homeDirectory: options.homeDirectory,
+				platform: options.platform,
+				resourceRoot: options.resourceRoot,
+			}),
+		);
+	},
 	createBroker: (host, port, bootstrap, effectTarget, lifecycle, initialCapabilities) =>
 		new ProjectedTerminalBroker(
 			host,
@@ -609,6 +727,7 @@ const defaultDependencies: DesktopApplicationDependencies = {
 		createMessageChannel,
 		createBroker,
 		resolveTerminalLaunch,
+		environmentOverlayPort,
 	) =>
 		composeDesktopTerminalRuntime({
 			configuration,
@@ -616,6 +735,12 @@ const defaultDependencies: DesktopApplicationDependencies = {
 			createMessageChannel,
 			host,
 			randomIdentifier,
+			...(environmentOverlayPort === undefined
+				? {}
+				: {
+						resolveEnvironmentOverlay: environmentOverlayPort.resolve,
+						retireEnvironmentOverlay: environmentOverlayPort.retire,
+					}),
 			resolveTerminalLaunch,
 			writeClipboardText: async (text) => clipboard.writeText(text),
 		}),
@@ -659,6 +784,9 @@ function unavailableBrowserAccess(): never {
 }
 
 export class DesktopApplication {
+	readonly #agentIntegrationManagementController: DesktopAgentIntegrationManagementControllerHandle;
+	readonly #agentObservationRuntime: DesktopAgentObservationRuntimeHandle;
+	#agentHookObservationIngress: DesktopAgentHookObservationIngressHandle | undefined;
 	#applicationLifetimeBroker: DesktopApplicationLifetimeBrokerHandle | undefined;
 	#applicationLifetimeRecovery: Promise<boolean> | undefined;
 	#browserAccessRuntime: DesktopBrowserAccessRuntimeHandle | undefined;
@@ -730,6 +858,39 @@ export class DesktopApplication {
 		}
 		this.#options = options;
 		this.#dependencies = dependencies;
+		this.#agentIntegrationManagementController =
+			dependencies.createAgentIntegrationManagementController({
+				homeDirectory: options.runtime.homeDirectory,
+				platform: options.platform,
+				resourceRoot: options.runtime.agentObservationAdapterDirectory,
+				shellExecutable: options.runtime.terminalLaunch.executable,
+			});
+		this.#agentObservationRuntime =
+			dependencies.createAgentObservationRuntime?.({
+				allocateEventId: () => `desktop:agent:event:${dependencies.randomIdentifier()}`,
+			}) ??
+			new DesktopAgentObservationRuntime({
+				allocateEventId: () => `desktop:agent:event:${dependencies.randomIdentifier()}`,
+			});
+		try {
+			this.#agentHookObservationIngress =
+				dependencies.createAgentHookObservationIngress?.(this.#agentObservationRuntime, {
+					allocateIdentifier: dependencies.randomIdentifier,
+					socketPath:
+						options.platform === 'win32'
+							? null
+							: path.join(options.runtime.runtimeDirectory, 'agent-observation-v2.sock'),
+				}) ??
+				new AgentHookObservationIngress(this.#agentObservationRuntime, {
+					allocateIdentifier: dependencies.randomIdentifier,
+					socketPath:
+						options.platform === 'win32'
+							? null
+							: path.join(options.runtime.runtimeDirectory, 'agent-observation-v2.sock'),
+				});
+		} catch {
+			this.#agentHookObservationIngress = undefined;
+		}
 		this.#environmentRegistry = dependencies.createEnvironmentRegistry(
 			options.runtime.environmentRegistryStorePath,
 		);
@@ -1146,6 +1307,19 @@ export class DesktopApplication {
 		this.#connection = connection;
 		try {
 			await connection.negotiate(ClientIdSchema.parse(this.#dependencies.randomIdentifier()));
+			const agentIntegrationInitialization =
+				this.#agentIntegrationManagementController.initialize();
+			const observationIngress = this.#agentHookObservationIngress;
+			if (observationIngress !== undefined) {
+				try {
+					await observationIngress.start();
+				} catch {
+					await observationIngress.dispose().catch(() => undefined);
+					if (this.#agentHookObservationIngress === observationIngress) {
+						this.#agentHookObservationIngress = undefined;
+					}
+				}
+			}
 			const terminalDefaultSettingsController =
 				this.#dependencies.createTerminalDefaultSettingsController({
 					runtimeConfiguration: this.#options.runtime.terminalConfiguration,
@@ -1175,6 +1349,7 @@ export class DesktopApplication {
 			}
 			this.#terminalExitSpillReady = true;
 			await this.#terminalLaunchProfileController.initialize();
+			await agentIntegrationInitialization;
 			const terminalRuntime = this.#dependencies.createTerminalRuntime(
 				connection,
 				this.#options.runtime,
@@ -1182,6 +1357,15 @@ export class DesktopApplication {
 				this.#dependencies.createMessageChannel,
 				this.#dependencies.createBroker,
 				() => this.#terminalLaunchProfileController.resolveDefaultLaunch(),
+				{
+					resolve: (presentationId, creationId) =>
+						this.#agentHookObservationIngress?.environmentOverlayFor(presentationId, creationId) ??
+						[],
+					retire: (presentationId) => {
+						this.#agentHookObservationIngress?.retirePresentation(presentationId);
+						this.#agentObservationRuntime.retireTerminalSignalPresentation?.(presentationId);
+					},
+				},
 			);
 			this.#terminalRuntime = terminalRuntime;
 			terminalRuntime.setIdentityObservedListener?.(this.#handleTerminalIdentityObserved);
@@ -1556,6 +1740,15 @@ export class DesktopApplication {
 				const terminalRuntime = this.#terminalRuntime;
 				await terminalRuntime?.dispose();
 				if (this.#terminalRuntime === terminalRuntime) this.#terminalRuntime = undefined;
+			} catch (cleanupError: unknown) {
+				cleanupFailure ??= cleanupError;
+			}
+			try {
+				const observationIngress = this.#agentHookObservationIngress;
+				await observationIngress?.dispose();
+				if (this.#agentHookObservationIngress === observationIngress) {
+					this.#agentHookObservationIngress = undefined;
+				}
 			} catch (cleanupError: unknown) {
 				cleanupFailure ??= cleanupError;
 			}
@@ -1971,6 +2164,16 @@ export class DesktopApplication {
 		} catch (error: unknown) {
 			firstFailure ??= error;
 		}
+		try {
+			const observationIngress = this.#agentHookObservationIngress;
+			await observationIngress?.dispose();
+			if (this.#agentHookObservationIngress === observationIngress) {
+				this.#agentHookObservationIngress = undefined;
+			}
+		} catch (error: unknown) {
+			firstFailure ??= error;
+		}
+		this.#agentObservationRuntime.dispose();
 		this.#connection?.close();
 		this.#connection = undefined;
 		if (firstFailure !== undefined) throw firstFailure;
@@ -2106,6 +2309,7 @@ export class DesktopApplication {
 		const sshEnvironmentTerminalRuntimeOwner = this.#sshEnvironmentTerminalRuntimeOwner;
 		const sshProjectEnrollmentRuntime = this.#sshProjectEnrollmentRuntime;
 		const clientSessionCoordinator = this.#clientSessionCoordinator;
+		const agentIntegrationManagementController = this.#agentIntegrationManagementController;
 		const terminalDefaultSettingsController = this.#terminalDefaultSettingsController;
 		const windowLayoutCoordinator = this.#windowLayoutCoordinator;
 		const windowId = this.#windowIds.get(window);
@@ -2127,6 +2331,12 @@ export class DesktopApplication {
 			return;
 		}
 		let lifetimeChannel:
+			| { readonly port1: MessagePortMain; readonly port2: MessagePortMain }
+			| undefined;
+		let agentObservationChannel:
+			| { readonly port1: MessagePortMain; readonly port2: MessagePortMain }
+			| undefined;
+		let agentIntegrationManagementChannel:
 			| { readonly port1: MessagePortMain; readonly port2: MessagePortMain }
 			| undefined;
 		let browserAccessChannel:
@@ -2163,6 +2373,8 @@ export class DesktopApplication {
 			| { readonly port1: MessagePortMain; readonly port2: MessagePortMain }
 			| undefined;
 		let projectionBroker: DesktopProjectionControlBrokerHandle | undefined;
+		let agentObservationBroker: DesktopAgentObservationBrokerHandle | undefined;
+		let agentIntegrationManagementBroker: DesktopAgentIntegrationManagementBrokerHandle | undefined;
 		let clientSessionBroker: DesktopClientSessionBrokerHandle | undefined;
 		let lifetimeBroker: DesktopApplicationLifetimeBrokerHandle | undefined;
 		let browserAccessBroker: DesktopBrowserAccessBrokerHandle | undefined;
@@ -2182,6 +2394,8 @@ export class DesktopApplication {
 			const operation = (async () => {
 				let firstFailure: unknown;
 				for (const dispose of [
+					() => agentIntegrationManagementBroker?.dispose(),
+					() => agentObservationBroker?.dispose(),
 					() => lifetimeBroker?.dispose(),
 					() => browserAccessBroker?.dispose(),
 					() => clipboardBroker?.dispose(),
@@ -2214,6 +2428,8 @@ export class DesktopApplication {
 					}
 				}
 				closeRendererChannel(lifetimeChannel);
+				closeRendererChannel(agentObservationChannel);
+				closeRendererChannel(agentIntegrationManagementChannel);
 				closeRendererChannel(browserAccessChannel);
 				closeRendererChannel(clipboardChannel);
 				closeRendererChannel(clientSessionChannel);
@@ -2241,6 +2457,8 @@ export class DesktopApplication {
 				remoteRuntimes: sshEnvironmentTerminalRuntimeOwner,
 			});
 			lifetimeChannel = this.#dependencies.createMessageChannel();
+			agentObservationChannel = this.#dependencies.createMessageChannel();
+			agentIntegrationManagementChannel = this.#dependencies.createMessageChannel();
 			browserAccessChannel = this.#dependencies.createMessageChannel();
 			clientSessionChannel = this.#dependencies.createMessageChannel();
 			projectionChannel = this.#dependencies.createMessageChannel();
@@ -2255,6 +2473,19 @@ export class DesktopApplication {
 			projectionBroker = this.#dependencies.createProjectionControlBroker(
 				projectionChannel.port2,
 				terminalProjectionRouter,
+			);
+			agentObservationBroker =
+				this.#dependencies.createAgentObservationBroker?.(
+					agentObservationChannel.port2,
+					this.#agentObservationRuntime,
+				) ??
+				new DesktopAgentObservationBroker(
+					agentObservationChannel.port2,
+					this.#agentObservationRuntime,
+				);
+			agentIntegrationManagementBroker = this.#dependencies.createAgentIntegrationManagementBroker(
+				agentIntegrationManagementChannel.port2,
+				agentIntegrationManagementController,
 			);
 			clientSessionBroker = this.#dependencies.createClientSessionBroker(
 				clientSessionChannel.port2,
@@ -2334,6 +2565,8 @@ export class DesktopApplication {
 				windowLayoutCoordinator.createBrokerController(windowId),
 			);
 			clientSessionBroker.start();
+			agentObservationBroker.start();
+			agentIntegrationManagementBroker.start();
 			browserAccessBroker.start();
 			clipboardBroker.start();
 			lifetimeBroker.start();
@@ -2354,6 +2587,8 @@ export class DesktopApplication {
 				[
 					clientSessionChannel.port1,
 					projectionChannel.port1,
+					agentObservationChannel.port1,
+					agentIntegrationManagementChannel.port1,
 					lifetimeChannel.port1,
 					browserAccessChannel.port1,
 					projectFolderAcquisitionChannel.port1,
@@ -2541,11 +2776,23 @@ export class DesktopApplication {
 			if (metadata.ok) this.#acceptTerminalMetadata(metadata.value);
 			return;
 		}
+		if (envelope.kind === MessageKind.terminalApplicationSignal) {
+			const signal = decodeControlJson(envelope.payload, TerminalApplicationSignalSchema);
+			if (signal.ok) this.#acceptTerminalApplicationSignal(signal.value);
+			return;
+		}
 		if (envelope.kind !== MessageKind.terminalFailed) return;
 		const failed = decodeControlJson(envelope.payload, TerminalFailedSchema);
 		if (!failed.ok) return;
 		this.#acceptTerminalFailure(failed.value);
 	};
+
+	#acceptTerminalApplicationSignal(event: TerminalApplicationSignal): void {
+		const presentationId = this.#terminalRuntime?.findPresentationByIdentity(event.identity);
+		if (presentationId === undefined || presentationId === null) return;
+		this.#agentHookObservationIngress?.observeTerminalApplicationSignal(event, presentationId);
+		this.#agentObservationRuntime.observeTerminalApplicationSignal?.(event, presentationId);
+	}
 
 	#acceptTerminalMetadata(event: TerminalMetadataChanged): void {
 		const key = terminalExitIdentityKey(event.identity);

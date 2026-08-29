@@ -21,6 +21,12 @@ import {
 	type WorkbenchClientSessionBootstrap,
 } from '@orchbee/workbench-client-protocol';
 import {
+	DESKTOP_AGENT_INTEGRATION_IDS,
+	DESKTOP_AGENT_OBSERVATION_PROTOCOL_VERSION,
+	DesktopAgentIntegrationManagementMainEventSchema,
+	DesktopAgentIntegrationManagementRendererCommandSchema,
+	DesktopAgentObservationMainEventSchema,
+	DesktopAgentObservationRendererCommandSchema,
 	DesktopProjectFolderAcquisitionMainEventSchema,
 	DesktopProjectFolderAcquisitionRendererCommandSchema,
 	DesktopTerminalDefaultSettingsMainEventSchema,
@@ -29,6 +35,7 @@ import {
 	DesktopTerminalLaunchProfileRendererCommandSchema,
 	DesktopWindowLayoutMainEventSchema,
 } from '@orchbee/desktop-client-protocol';
+import { createAgentRuntimeSnapshot } from '@orchbee/agent';
 import { startDesktopWorkbenchRenderer } from '../startDesktopWorkbenchRenderer';
 
 const mountedGeometry = { cellPixelHeight: 18, cellPixelWidth: 9, columns: 96, rows: 32 } as const;
@@ -206,6 +213,49 @@ function serveTerminalDefaultSettings(port: TestMessagePort): void {
 	});
 }
 
+function serveAgentObservation(port: TestMessagePort): void {
+	port.addEventListener('message', (event) => {
+		const command = DesktopAgentObservationRendererCommandSchema.parse(
+			(event as MessageEvent).data,
+		);
+		port.postMessage(
+			DesktopAgentObservationMainEventSchema.parse({
+				requestId: command.requestId,
+				snapshot: createAgentRuntimeSnapshot(),
+				type: 'desktop-agent-observation-snapshot-published',
+				version: DESKTOP_AGENT_OBSERVATION_PROTOCOL_VERSION,
+			}),
+		);
+	});
+}
+
+function serveAgentIntegrationManagement(port: TestMessagePort): void {
+	port.addEventListener('message', (event) => {
+		const command = DesktopAgentIntegrationManagementRendererCommandSchema.parse(
+			(event as MessageEvent).data,
+		);
+		port.postMessage(
+			DesktopAgentIntegrationManagementMainEventSchema.parse({
+				requestId: command.requestId,
+				result: {
+					kind: 'completed',
+					snapshot: {
+						integrations: DESKTOP_AGENT_INTEGRATION_IDS.map((integrationId) => ({
+							availability: 'not-found',
+							integrationId,
+							issue: null,
+							managementMode: 'managed-local',
+							state: 'unknown',
+						})),
+						revision: 0,
+					},
+				},
+				type: 'desktop-agent-integration-responded',
+			}),
+		);
+	});
+}
+
 function serveWindowLayout(port: TestMessagePort, tabIds: readonly string[]): void {
 	port.postMessage(
 		DesktopWindowLayoutMainEventSchema.parse({
@@ -225,6 +275,8 @@ describe('startDesktopWorkbenchRenderer', () => {
 		const lifetimeChannel = createTestChannel();
 		const clientSessionChannel = createTestChannel();
 		const projectionChannel = createTestChannel();
+		const agentObservationChannel = createTestChannel();
+		const agentIntegrationManagementChannel = createTestChannel();
 		const browserAccessChannel = createTestChannel();
 		const projectFolderAcquisitionChannel = createTestChannel();
 		const projectWorktreeChannel = createTestChannel();
@@ -236,6 +288,8 @@ describe('startDesktopWorkbenchRenderer', () => {
 		const sshProjectEnrollmentChannel = createTestChannel();
 		serveTerminalLaunchProfiles(terminalLaunchProfileChannel.port2);
 		serveTerminalDefaultSettings(terminalDefaultSettingsChannel.port2);
+		serveAgentObservation(agentObservationChannel.port2);
+		serveAgentIntegrationManagement(agentIntegrationManagementChannel.port2);
 		serveWindowLayout(windowLayoutChannel.port2, ['tab-1']);
 		const initializationDocument = provisionDocument('0', ['Terminal 1']);
 		const commands: WorkbenchClientSessionCommand[] = [];
@@ -264,6 +318,8 @@ describe('startDesktopWorkbenchRenderer', () => {
 				lifetimeChannel.port1,
 				clientSessionChannel.port1,
 				projectionChannel.port1,
+				agentObservationChannel.port1,
+				agentIntegrationManagementChannel.port1,
 				browserAccessChannel.port1,
 				projectFolderAcquisitionChannel.port1,
 				projectWorktreeChannel.port1,
@@ -282,6 +338,10 @@ describe('startDesktopWorkbenchRenderer', () => {
 		expect((clientSessionChannel.port1 as unknown as TestMessagePort).closed).toBe(true);
 		expect((lifetimeChannel.port1 as unknown as TestMessagePort).closed).toBe(true);
 		expect((projectionChannel.port1 as unknown as TestMessagePort).closed).toBe(true);
+		expect((agentObservationChannel.port1 as unknown as TestMessagePort).closed).toBe(true);
+		expect((agentIntegrationManagementChannel.port1 as unknown as TestMessagePort).closed).toBe(
+			true,
+		);
 		expect((browserAccessChannel.port1 as unknown as TestMessagePort).closed).toBe(true);
 		expect((projectFolderAcquisitionChannel.port1 as unknown as TestMessagePort).closed).toBe(true);
 		expect((projectWorktreeChannel.port1 as unknown as TestMessagePort).closed).toBe(true);
@@ -298,6 +358,8 @@ describe('startDesktopWorkbenchRenderer', () => {
 		const lifetimeChannel = createTestChannel();
 		const clientSessionChannel = createTestChannel();
 		const projectionChannel = createTestChannel();
+		const agentObservationChannel = createTestChannel();
+		const agentIntegrationManagementChannel = createTestChannel();
 		const browserAccessChannel = createTestChannel();
 		const projectFolderAcquisitionChannel = createTestChannel();
 		const projectWorktreeChannel = createTestChannel();
@@ -309,6 +371,8 @@ describe('startDesktopWorkbenchRenderer', () => {
 		const sshProjectEnrollmentChannel = createTestChannel();
 		serveTerminalLaunchProfiles(terminalLaunchProfileChannel.port2);
 		serveTerminalDefaultSettings(terminalDefaultSettingsChannel.port2);
+		serveAgentObservation(agentObservationChannel.port2);
+		serveAgentIntegrationManagement(agentIntegrationManagementChannel.port2);
 		serveWindowLayout(windowLayoutChannel.port2, ['tab-1', 'tab-2']);
 		const sharedDocument = provisionDocument('4', ['Terminal 1', 'Terminal 2']);
 		const sessionCommands = serveSuccessfulClientSession(clientSessionChannel.port2);
@@ -349,6 +413,8 @@ describe('startDesktopWorkbenchRenderer', () => {
 				lifetimeChannel.port1,
 				clientSessionChannel.port1,
 				projectionChannel.port1,
+				agentObservationChannel.port1,
+				agentIntegrationManagementChannel.port1,
 				browserAccessChannel.port1,
 				projectFolderAcquisitionChannel.port1,
 				projectWorktreeChannel.port1,
@@ -468,6 +534,8 @@ describe('startDesktopWorkbenchRenderer', () => {
 		const lifetimeChannel = createTestChannel();
 		const clientSessionChannel = createTestChannel();
 		const projectionChannel = createTestChannel();
+		const agentObservationChannel = createTestChannel();
+		const agentIntegrationManagementChannel = createTestChannel();
 		const browserAccessChannel = createTestChannel();
 		const projectFolderAcquisitionChannel = createTestChannel();
 		const projectWorktreeChannel = createTestChannel();
@@ -479,6 +547,8 @@ describe('startDesktopWorkbenchRenderer', () => {
 		const sshProjectEnrollmentChannel = createTestChannel();
 		serveTerminalLaunchProfiles(terminalLaunchProfileChannel.port2);
 		serveTerminalDefaultSettings(terminalDefaultSettingsChannel.port2);
+		serveAgentObservation(agentObservationChannel.port2);
+		serveAgentIntegrationManagement(agentIntegrationManagementChannel.port2);
 		serveWindowLayout(windowLayoutChannel.port2, ['tab-1']);
 		const sharedDocument = retainedDocument('4');
 		const sessionCommands = serveSuccessfulClientSession(clientSessionChannel.port2);
@@ -503,6 +573,8 @@ describe('startDesktopWorkbenchRenderer', () => {
 				lifetimeChannel.port1,
 				clientSessionChannel.port1,
 				projectionChannel.port1,
+				agentObservationChannel.port1,
+				agentIntegrationManagementChannel.port1,
 				browserAccessChannel.port1,
 				projectFolderAcquisitionChannel.port1,
 				projectWorktreeChannel.port1,

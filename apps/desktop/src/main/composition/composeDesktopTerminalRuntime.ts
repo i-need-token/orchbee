@@ -1,5 +1,7 @@
 import type {
 	AttachmentCapabilities,
+	CreationId,
+	TerminalEnvironmentOverlay,
 	TerminalExited,
 	TerminalFailed,
 	TerminalGeometry,
@@ -85,7 +87,12 @@ export interface DesktopTerminalRuntimeComposition {
 	};
 	readonly host: HostConnection;
 	readonly randomIdentifier: () => string;
+	readonly resolveEnvironmentOverlay?: (
+		presentationId: TerminalPresentationId,
+		creationId: CreationId,
+	) => TerminalEnvironmentOverlay;
 	readonly resolveTerminalLaunch: () => TerminalLaunch;
+	readonly retireEnvironmentOverlay?: (presentationId: TerminalPresentationId) => void;
 	readonly writeClipboardText?: (text: string) => Promise<void>;
 }
 
@@ -111,7 +118,16 @@ export function composeDesktopTerminalRuntime(
 		randomCreationId: composition.randomIdentifier,
 		registry,
 		resolveTerminalLaunch: composition.resolveTerminalLaunch,
+		...(composition.resolveEnvironmentOverlay === undefined
+			? {}
+			: {
+					resolveEnvironmentOverlay: ({ creationId, presentationId }) =>
+						composition.resolveEnvironmentOverlay?.(presentationId, creationId) ?? [],
+				}),
 		retireProjection: async (presentationId) => projections?.retirePresentation(presentationId),
+		...(composition.retireEnvironmentOverlay === undefined
+			? {}
+			: { retireEnvironmentOverlay: composition.retireEnvironmentOverlay }),
 		store,
 		onIdentityObserved: (identity) => identityObservedListener?.(identity),
 	});

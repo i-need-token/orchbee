@@ -1,4 +1,6 @@
 export { applicationRoutingMessages } from './application-routing';
+export { agentIntegrationMessages } from './agent-integrations';
+export { agentObservationMessages } from './agent-observation';
 export { browserAuthenticationMessages } from './browser-authentication';
 export { desktopApplicationLifetimeMessages } from './desktop-application-lifetime';
 export { desktopBrowserAccessMessages } from './desktop-browser-access';

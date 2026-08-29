@@ -23,6 +23,7 @@ pub const terminalSummary = host.terminalSummary;
 pub const terminalExited = host.terminalExited;
 pub const terminalFailed = host.terminalFailed;
 pub const terminalMetadataChanged = metadata.terminalMetadataChanged;
+pub const terminalApplicationSignal = metadata.terminalApplicationSignal;
 
 pub const terminalThemeResult = theme.terminalThemeResult;
 pub const writeTerminalThemeResult = theme.writeTerminalThemeResult;

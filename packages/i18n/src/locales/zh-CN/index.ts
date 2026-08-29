@@ -1,4 +1,6 @@
 export { zhCNApplicationRoutingMessages } from './application-routing';
+export { zhCNAgentIntegrationMessages } from './agent-integrations';
+export { zhCNAgentObservationMessages } from './agent-observation';
 export { zhCNBrowserAuthenticationMessages } from './browser-authentication';
 export { zhCNDesktopApplicationLifetimeMessages } from './desktop-application-lifetime';
 export { zhCNDesktopBrowserAccessMessages } from './desktop-browser-access';

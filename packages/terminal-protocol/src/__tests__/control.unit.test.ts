@@ -9,6 +9,7 @@ import {
 	CanonicalUint64TextSchema,
 	ClearTerminalSchema,
 	ClaimResizeLeaseSchema,
+	CreateTerminalSchema,
 	DEFAULT_TERMINAL_CONFIGURATION,
 	decodeControlJson,
 	EmptyControlSchema,
@@ -21,6 +22,7 @@ import {
 	ListTerminalsSchema,
 	NeedSnapshotSchema,
 	prepareLaunchEnvironment,
+	prepareTerminalEnvironmentOverlay,
 	ProcessObservationSchema,
 	ReadRowsSchema,
 	ResizeLeaseChangedSchema,
@@ -39,11 +41,13 @@ import {
 	SetProjectionDemandSchema,
 	TerminalConfigurationSchema,
 	TerminalControlAcceptedSchema,
+	TerminalApplicationSignalSchema,
 	TerminalBellSchema,
 	TerminalClipboardWriteRequestSchema,
 	TerminalFailedSchema,
 	UpdateTerminalConfigurationSchema,
 	TerminalLaunchSchema,
+	TerminalEnvironmentOverlaySchema,
 	TerminalListSchema,
 	TerminalMetadataChangedSchema,
 	TerminalStartAcceptedSchema,
@@ -448,6 +452,78 @@ describe('control schemas', () => {
 				code: 'invalid-state',
 				message: '\ud800',
 				retryable: false,
+			}).success,
+		).toBe(false);
+	});
+
+	it('keeps creation environment overlays bounded, explicit, and target-disjoint', () => {
+		const environmentOverlay = [
+			{ name: 'ORCHBEE_AGENT_OBSERVATION_SOCKET', value: '/tmp/orchbee-agent.sock' },
+			{ name: 'ORCHBEE_TEST_TRANSIENT_MARKER', value: 'marker' },
+		];
+		expect(TerminalEnvironmentOverlaySchema.parse(environmentOverlay)).toEqual(environmentOverlay);
+		expect(
+			CreateTerminalSchema.safeParse({
+				creationId: '11'.repeat(16),
+				launch,
+			}).success,
+		).toBe(false);
+		expect(
+			TerminalEnvironmentOverlaySchema.safeParse([
+				...environmentOverlay,
+				{ name: environmentOverlay[0]?.name, value: 'duplicate' },
+			]).success,
+		).toBe(false);
+		expect(
+			TerminalEnvironmentOverlaySchema.safeParse([{ name: 'TOKEN', value: 'x'.repeat(4097) }])
+				.success,
+		).toBe(false);
+
+		expect(
+			prepareTerminalEnvironmentOverlay(launch.environment, environmentOverlay, 'posix').ok,
+		).toBe(true);
+		expect(
+			prepareTerminalEnvironmentOverlay(
+				[{ name: 'Path' }],
+				[{ name: 'PATH', value: 'secret' }],
+				'windows',
+			),
+		).toEqual(expect.objectContaining({ code: ProtocolErrorCode.invalidField, ok: false }));
+	});
+
+	it('bounds terminal application signals to the reserved limited-status channel', () => {
+		const identity = {
+			creationId: '11'.repeat(16),
+			hostEpoch: '22'.repeat(16),
+			terminalId: '33'.repeat(16),
+		};
+		expect(
+			TerminalApplicationSignalSchema.parse({
+				channel: 'orchbee.agent.v1',
+				identity,
+				payload: JSON.stringify({ activity: 'thinking', version: 1 }),
+				sequence: '1',
+			}),
+		).toEqual({
+			channel: 'orchbee.agent.v1',
+			identity,
+			payload: '{"activity":"thinking","version":1}',
+			sequence: '1',
+		});
+		expect(
+			TerminalApplicationSignalSchema.safeParse({
+				channel: 'untrusted.channel',
+				identity,
+				payload: '{}',
+				sequence: '1',
+			}).success,
+		).toBe(false);
+		expect(
+			TerminalApplicationSignalSchema.safeParse({
+				channel: 'orchbee.agent.v1',
+				identity,
+				payload: 'x'.repeat(4097),
+				sequence: '1',
 			}).success,
 		).toBe(false);
 	});

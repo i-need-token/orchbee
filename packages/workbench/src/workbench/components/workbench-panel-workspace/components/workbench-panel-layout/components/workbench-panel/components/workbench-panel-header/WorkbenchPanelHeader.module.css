@@ -27,6 +27,7 @@
 }
 
 .left {
+	overflow: hidden;
 	justify-content: flex-start;
 }
 

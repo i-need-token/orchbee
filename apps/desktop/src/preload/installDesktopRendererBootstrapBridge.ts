@@ -29,19 +29,23 @@ export function installDesktopRendererBootstrapBridge(
 		}
 		const clientSessionPort = event.ports[0];
 		const terminalProjectionPort = event.ports[1];
-		const applicationLifetimePort = event.ports[2];
-		const browserAccessPort = event.ports[3];
-		const projectFolderAcquisitionPort = event.ports[4];
-		const projectWorktreePort = event.ports[5];
-		const terminalLaunchProfilesPort = event.ports[6];
-		const terminalDefaultSettingsPort = event.ports[7];
-		const clipboardReadPort = event.ports[8];
-		const windowLayoutPort = event.ports[9];
-		const remoteTerminalCreationPort = event.ports[10];
-		const sshProjectEnrollmentPort = event.ports[11];
+		const agentObservationPort = event.ports[2];
+		const agentIntegrationManagementPort = event.ports[3];
+		const applicationLifetimePort = event.ports[4];
+		const browserAccessPort = event.ports[5];
+		const projectFolderAcquisitionPort = event.ports[6];
+		const projectWorktreePort = event.ports[7];
+		const terminalLaunchProfilesPort = event.ports[8];
+		const terminalDefaultSettingsPort = event.ports[9];
+		const clipboardReadPort = event.ports[10];
+		const windowLayoutPort = event.ports[11];
+		const remoteTerminalCreationPort = event.ports[12];
+		const sshProjectEnrollmentPort = event.ports[13];
 		if (
 			clientSessionPort === undefined ||
 			terminalProjectionPort === undefined ||
+			agentObservationPort === undefined ||
+			agentIntegrationManagementPort === undefined ||
 			applicationLifetimePort === undefined ||
 			browserAccessPort === undefined ||
 			projectFolderAcquisitionPort === undefined ||
@@ -67,6 +71,8 @@ export function installDesktopRendererBootstrapBridge(
 				[
 					clientSessionPort,
 					terminalProjectionPort,
+					agentObservationPort,
+					agentIntegrationManagementPort,
 					applicationLifetimePort,
 					browserAccessPort,
 					projectFolderAcquisitionPort,

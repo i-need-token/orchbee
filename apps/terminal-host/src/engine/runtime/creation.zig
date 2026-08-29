@@ -129,6 +129,7 @@ pub fn createWithOptionsUsingSpawner(
     });
     const effects = &self.stream.handler.terminal_handler.effects;
     effects.bell = output_ops.bellEffect;
+    effects.desktop_notification = feedback_ops.desktopNotificationEffect;
     effects.write_pty = output_ops.writePtyEffect;
     effects.color_scheme = output_ops.colorSchemeEffect;
     effects.device_attributes = output_ops.deviceAttributesEffect;

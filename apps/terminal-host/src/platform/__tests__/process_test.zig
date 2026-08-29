@@ -458,6 +458,55 @@ test "macOS final process reap is non-blocking and retains a running identity" {
     try std.testing.expect(identity.isReleased());
 }
 
+test "an observed process exit retries only a pending non-blocking reap" {
+    if (builtin.os.tag == .windows) return error.SkipZigTest;
+
+    const Reaper = struct {
+        attempts: *usize,
+        result: enum { pending_then_success, failed },
+
+        pub fn reap(self: @This(), _: std.posix.pid_t) !void {
+            self.attempts.* += 1;
+            switch (self.result) {
+                .pending_then_success => if (self.attempts.* < 3) {
+                    return error.ProcessReapPending;
+                },
+                .failed => return error.ProcessReapFailed,
+            }
+        }
+    };
+    const Delay = struct {
+        pauses: *usize,
+
+        pub fn pause(self: @This()) void {
+            self.pauses.* += 1;
+        }
+    };
+
+    var attempts: usize = 0;
+    var pauses: usize = 0;
+    try PosixProcess.reapObservedProcessExitForTesting(
+        42,
+        Reaper{ .attempts = &attempts, .result = .pending_then_success },
+        Delay{ .pauses = &pauses },
+    );
+    try std.testing.expectEqual(@as(usize, 3), attempts);
+    try std.testing.expectEqual(@as(usize, 2), pauses);
+
+    attempts = 0;
+    pauses = 0;
+    try std.testing.expectError(
+        error.ProcessReapFailed,
+        PosixProcess.reapObservedProcessExitForTesting(
+            42,
+            Reaper{ .attempts = &attempts, .result = .failed },
+            Delay{ .pauses = &pauses },
+        ),
+    );
+    try std.testing.expectEqual(@as(usize, 1), attempts);
+    try std.testing.expectEqual(@as(usize, 0), pauses);
+}
+
 // A stable pidfd does not turn an uncertain getsid failure into a non-member
 // result. Only ESRCH means the captured candidate vanished; EPERM and every
 // other error must abort the scan conservatively.

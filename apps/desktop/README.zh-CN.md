@@ -6,10 +6,12 @@
 
 桌面与主机支持的投影终端组成共享工作台。 Workbench拥有Project、Workspace、Tab、Panel、`TerminalPresentationId`状态； Electron Main拥有持久的技术绑定和Electron独有的特权效果； `apps/terminal-host` 拥有 PTYs、进程、Ghostty VT 状态、历史记录和真实终端身份。浏览器客户端在其自己的页面中提交剪贴板和白名单链接效果。共享工作台文档均不存储在主机中。
 
-Main 启动时无需创建固定终端、打开附件、启动 SSH 或启动 Web 侦听器。它将持久的 `TerminalPresentationId` 恢复为 `TerminalBindingId` 注册表，拥有一个进程范围的规范 Workbench 共享文档协调器，并通过沙盒预加载传输一个原子允许列表功能包。它的十一个端口有一个固定的顺序：
+Main 启动时无需创建固定终端、打开附件、启动 SSH 或启动 Web 侦听器。它将持久的 `TerminalPresentationId` 恢复为 `TerminalBindingId` 注册表，拥有一个进程范围的规范 Workbench 共享文档协调器，并通过沙盒预加载传输一个原子允许列表功能包。它的十四个端口有一个固定的顺序：
 
 - 客户端会话控制提供一个原子文档/终端观察引导程序，接受完整的精确下一个共享文档提案，并发布一个有序的规范事件流；
 - 投影控件仅为显示的终端视口打开并释放范围内的主机附件；
+- Agent-observation 控制接受一个有关联的完整 snapshot 请求，并在状态更新后发布完整、带 revision、provider-neutral 的 snapshot 与精确 semantic event；它不携带 provider payload、prompt、transcript、command、tool、correlation capability 或 decision channel；
+- Agent-integration-management 控制投影一个有界的只读本地 inventory，并且只接受针对 Orchbee 精确托管 entry 的 correlated refresh、enable 与 disable command。它不携带 executable/resource path、command output、通用 process/filesystem authority 或 remote-host mutation authority；
 - 应用程序生命周期控制仅包含退出原因、用户选择、静默确认、共享文档修订、聚合进度、类型化故障以及恢复正在进行的开发主机重启所需的工作台表示标识；
 - 浏览器访问控制只携带显式启动、模式切换、打开、复制、停止、净化的 Origin 状态、个人访问令牌状态、相关的创建/重置请求、一次性已签发令牌交付和有界错误。它绝不携带令牌 verifier、session 签名密钥、Gateway 端口或子进程句柄；
 - 项目文件夹获取请求一个本机现有目录选择，并仅返回相关的选定路径、取消或有限失败；
@@ -17,10 +19,11 @@ Main 启动时无需创建固定终端、打开附件、启动 SSH 或启动 Web
 - Terminal-launch-profile 控制投影并改变系统 shell 或显式可执行启动选择的一个有界设备本地目录。它不携带环境、CWD、机密、项目有效负载或通用文件系统功能；
 - Terminal-default-settings 控制只投影并改变有界的设备本地默认回滚缓冲区字节数。它不携带正在运行的终端、Host 或文件系统权限；
 - 剪贴板读取控制只接受相关的纯文本读取请求，并返回一项受终端输入边界限制的文本值或类型化失败。它不公开写入、其他格式、图像、历史记录或通用 Electron 能力；
+- window-layout 控制投影当前 native-window assignment，并且只接受有界的跨窗口 Tab 与 Panel 移动操作；
 - remote-terminal-creation 控制只接受用于精确 empty remote Workspace 中 default first singleton 的 correlated Project 与 Workspace identity。Main 派生并重新校验 Environment placement，要求既有连接，且不公开 path、SSH activation、alternate placement、额外 terminal、Gateway、CLI 或 general lifecycle authority；
 - ssh-project-enrollment 控制接受有界 enrollment、Connect、Retry、Disconnect、cancellation、精确 prompt-response 与 status 请求。Main 派生所有 identity 与 resolved target；该 port 不公开 SSH argument、Host connection、release byte、持久 credential 或通用 Environment authority。
 
-客户端会话和投影有效负载是来自 `@orchbee/workbench-client-protocol` 的平台中立合约。 `@orchbee/desktop-client-protocol` 拥有原子 Electron 渲染器引导程序、Electron 应用程序生命周期合约、窄浏览器访问命令合约、类型化 Project Folder 获取与 Project Worktree 合约、终端启动配置文件命令合约、终端默认设置命令合约、剪贴板读取命令合约、remote-terminal-creation 命令合约和 SSH Project enrollment 命令合约。 Desktop Main 和 Web 渲染器各自将通用合约调整到 `MessagePort` 的末端；传输细节都不会进入共享工作台客户端运行时。
+客户端会话和投影有效负载是来自 `@orchbee/workbench-client-protocol` 的平台中立合约；canonical Agent snapshot 与 semantic event 来自 `@orchbee/agent`。`@orchbee/desktop-client-protocol` 拥有原子 Electron renderer bootstrap、Agent-observation snapshot/event envelope、Agent-integration-management contract、Electron application-lifetime contract、窄 Browser-access command contract、类型化 Project Folder 获取与 Project Worktree contract、terminal-launch-profile command contract、terminal-default-settings command contract、clipboard-read command contract、window-layout contract、remote-terminal-creation command contract 和 SSH Project enrollment command contract。Desktop Main 和 Web renderer 各自将通用 contract 适配到 `MessagePort` 的一端；transport detail 不会进入共享 Workbench client runtime。
 
 Projection target selection 由 Main 拥有且与 transport 无关。Request 只携带一个
 `TerminalPresentationId` 与 viewport geometry；Main 通过 Terminal Context、Workspace、primary Directory
@@ -31,7 +34,13 @@ Environment placement 只到达该精确 Environment 已 prepared 的 runtime，
 attachment protocol、input/search/selection behavior、resize-lease arbitration，以及各自 client-specific 的
 clipboard/link effect target。
 
-渲染器没有 Node 集成、通用 Electron IPC、filesystem read capability、Host inventory 或原始 terminal-lifetime 权限。它不能直接调用 raw provision、restore、close 或 storage CAS effect。Preload 只接受一个 bootstrap，同时验证全部十一个 port，保留固定的 client-session/projection/application-lifetime/Browser-access/Project-Folder-acquisition/Project-Worktree/terminal-launch-profiles/terminal-default-settings/clipboard-read/remote-terminal-creation/ssh-project-enrollment 顺序，并证明 context isolation 与 sandboxing。两个专用 remote port 只由 Electron Workbench host capability 消费；它们不是 preload global 或 Gateway path。Project Folder port 不接受 renderer path，也不公开 enumeration 或 mutation primitive。Project Worktree port 不接受源或目标 path：discovery 从规范 Project state 推导 repository，创建只接受返回的不透明 identity 与 Git 值。单独的 context-isolated file-drop adapter 只公开当前 platform 与 Electron 的 `File`-scoped backing-path lookup；它不能接受 arbitrary path string、读取 file content、枚举 directory 或执行 IPC request。一个拖入的 disk `File` 可以携带 file 或 directory backing path，但不会授予 child enumeration。Web renderer 只为 user drop 准入该 adapter，应用有界且兼容 Ghostty 的 POSIX live-buffer escaping，直接发布 prepared text，并且绝不追加 Enter。Partial 或 malformed bootstrap 不会启动 renderer runtime。
+渲染器没有 Node 集成、通用 Electron IPC、filesystem read capability、Host inventory 或原始 terminal-lifetime 权限。它不能直接调用 raw provision、restore、close 或 storage CAS effect。Preload 只接受一个 bootstrap，同时验证全部十四个 port，保留固定的 client-session/projection/Agent-observation/Agent-integration-management/application-lifetime/Browser-access/Project-Folder-acquisition/Project-Worktree/terminal-launch-profiles/terminal-default-settings/clipboard-read/window-layout/remote-terminal-creation/ssh-project-enrollment 顺序，并证明 context isolation 与 sandboxing。两个专用 remote port 只由 Electron Workbench host capability 消费；它们不是 preload global 或 Gateway path。Project Folder port 不接受 renderer path，也不公开 enumeration 或 mutation primitive。Project Worktree port 不接受源或目标 path：discovery 从规范 Project state 推导 repository，创建只接受返回的不透明 identity 与 Git 值。单独的 context-isolated file-drop adapter 只公开当前 platform 与 Electron 的 `File`-scoped backing-path lookup；它不能接受 arbitrary path string、读取 file content、枚举 directory 或执行 IPC request。一个拖入的 disk `File` 可以携带 file 或 directory backing path，但不会授予 child enumeration。Web renderer 只为 user drop 准入该 adapter，应用有界且兼容 Ghostty 的 POSIX live-buffer escaping，直接发布 prepared text，并且绝不追加 Enter。Partial 或 malformed bootstrap 不会启动 renderer runtime。
+
+Main 从应用构造到 shutdown 拥有一个 volatile、provider-neutral 的 Agent runtime。Renderer replacement 或 crash 只 retire 自己的 broker；每个替代 renderer 都会从同一 runtime 获得一份新的完整 snapshot。Desktop restart 会有意从空 snapshot 开始，且不持久化任何 Agent observation。Production observation 有两个非阻塞部分。Terminal Host 传输保留的 OSC 777 title `orchbee.agent.v1`；version 1 仍是不可信的 activity-only hint，version 2 只携带 event/correlation identity、activity hint 与 presentation visibility。Rich observation 使用用户显式安装的捆绑 [Agent observation adapter](resources/agent-observation-adapters/README.zh-CN.md)。每个 Agent-bound adapter 校验自己的 upstream contract，丢弃 prompt、tool input/output、transcript path、working directory、error text 与未知 field，只向 private Unix-domain socket 发送共享 normalized allowlist。由应用拥有的 closed registry，而不是 adapter input，授予 adapter provenance、accepted event 与 maximum capability。每个 adapter 都独立地把 version-2 correlation half 直接写入每个解析出的 outer TTY，因此覆盖 direct、tmux、Zellij 与 nested-mux session。只有两半针对 live presentation generation 精确 join 后，Desktop 才准入 rich semantic；OSC 单独不能制造 idle、attention、outcome、action 或 notification authority。
+
+Desktop 只通过非持久化 `CreateTerminal.environmentOverlay` 提供 `ORCHBEE_AGENT_OBSERVATION_SOCKET`，绝不写入 durable `TerminalLaunch`。显式 sourced 的 Bash、Zsh 或 Fish integration 会为符合条件的 interactive `ssh` call 增加 `StreamLocalBindMask=0177`、`StreamLocalBindUnlink=yes`，以及从远端随机 `/tmp/orchbee-agent-v2-*.sock` 到本地 socket 的 reverse Unix-socket forward。既有 alias/function、noninteractive 与 forwarding-only SSH mode、显式 argument 和 OpenSSH configuration 仍是 authority。不使用 HTTP listener、TCP port、Bearer credential、继承的 terminal secret、remote file installation 或 durable remote cache。Hook、socket、mux resolver、OSC 或 SSH-forward failure 都不会阻塞 Agent、SSH 或 terminal。Adapter identifier 只作为 ingress provenance；产品 status、navigation 与 attention behavior 只消费 canonical Agent model，不按 adapter 分支。由 [Agent package guide](../../packages/agent/README.zh-CN.md) 与 [proposal](../../proposals/agent/agent-runtime-observation.zh-CN.md) 定义已实现边界和仍保留的产品决策。
+
+Desktop 另外拥有显式本地 [Agent integration management](docs/agent-integrations.zh-CN.md)。Startup 与 refresh 只执行 inspect；不会自动安装任何 adapter。Settings button 只能改变 Orchbee 自己的精确 local plugin 或 symlink entry，随后 Main 会重新 inspect 再报告成功。Conflict 保持不变，remote host 仍只能手动配置，disable 会保留无关 Agent configuration。
 
 Desktop 上下文菜单和自定义快捷键 Paste 使用 Main 拥有的剪贴板读取端口。空闲的平台默认粘贴组合键会保留原生可编辑元素投递，使共享终端适配器可以区分纯文本与仅图片剪贴板，并在不读取或传输图片字节的情况下发送兼容 Agent 的 `Control+V` 事件对。普通终端选择仍是 Host/Canvas 状态且不占用文档全局 DOM Range，因此隐藏 textarea 会继续作为唯一的原生输入与 IME 所有者。有界的终端 root 后备只准入来自 package 自有 Presentation 后代的粘贴；查找输入框等应用自有控件保留原生编辑行为。当手动选择 Copy 或另一个 Paste Action 仍在提交时，默认组合键会使用 Action 路径；Paste 会等待该精确 Copy 操作结算后再请求当前纯文本，然后复用共享终端的粘贴清理、审阅、回到底部和清除选择路径。Copy 失败时不会合成文本或重试：Paste 会在结算后读取平台剪贴板中的实际纯文本。Browser Preview 与 Gateway 页面不接收 Desktop 剪贴板读取端口，并保留现有本地 Browser 策略。
 
@@ -41,7 +50,7 @@ Main 在允许客户端之前加载并验证共享文档一次。可用的文档
 
 Coordinator 与 transport 无关，支持独立 page session，并且没有产品数量上限。Electron 使用直接 `MessagePort` adapter。显式 Browser 访问把 `apps/server` 与 `apps/gateway` 启动为按需 Utility Process；Desktop 拥有两者的 lifecycle，并为每个已鉴权页面分配恰好一对 client-session/projection port。Server 负责 renderer 交付、个人访问令牌校验与签名 session Cookie 签发；Gateway 负责签名 Cookie 与 exact-Origin 准入、framing，以及 loopback 或显式选择 trusted LAN 上的 transport backpressure。Gateway 绝不接收 application-lifetime port 或 Host connection。`apps/web` 负责与 platform 无关的 Workbench client runtime，以及普通 Browser、Gateway Browser client 与 Electron 使用的唯一 renderer application。开发 Electron 通过 loopback Web origin 上的 User-Agent discovery。Packaged Desktop 在 Electron ready 前注册标准 secure `orchbee:` scheme，从 `orchbee://app` 提供 Web build，并对 Browser Router document request 回退到 `index.html`。Desktop 负责 renderer resource 交付，而不是另一套 renderer source tree。参见 [`docs/multi-client-session-coordinator.md`](docs/multi-client-session-coordinator.md) 与 [`../web/docs/navigation-routing.md`](../web/docs/navigation-routing.md)。
 
-Desktop 严格要求唯一的当前 Host 协议 `0.0.22`；预发布版本既不协商，也不记录历史协议变体。Electron 使用 `42.8.0`，即本仓库所选当前 Electron 主版本中的最新次版本。
+Desktop 严格要求唯一的当前 Host 协议 `0.0.23`；预发布版本既不协商，也不记录历史协议变体。Electron 使用 `42.8.0`，即本仓库所选当前 Electron 主版本中的最新次版本。
 
 `HostConnection` 在每个代理调用者上拥有一个连接全局出站窗口：最多 64 个未应答请求记录和 4 个 MiB 编码请求字节。它会保留该许可，直到相关响应或连接失败为止。已返回 `false` 的完整窗口或节点可写在切换之前拒绝工作，并可重试 `host-transport-backpressure`；在 `drain` 之前没有请求写入恢复。如果移交的请求达到其截止日期，Desktop 将终止连接，并使用不可重试的 `host-request-outcome-unknown` 拒绝所有待处理和未来的请求，因此在出现不明确的结果后，永远不会重播输入。
 
@@ -313,7 +322,7 @@ remote exit 都会在 Host listener 返回前同步 journal，并依次通过 bi
 evidence、Client broadcast 与 journal compaction。Disconnect 或 restart 会保留已准入的 exit recovery，但
 recovery 自身永不 activate 或 reconnect SSH。
 
-在 POSIX Electron Desktop 上，Workbench 通过第十一个 bootstrap port 提供 **通过 SSH 连接…**、remote
+在 POSIX Electron Desktop 上，Workbench 通过第十四个 bootstrap port 提供 **通过 SSH 连接…**、remote
 status 以及 Connect、Retry、Disconnect 控件。Desktop-owned dialog 只提交有界 Environment 显示名称、
 destination 或 alias、可选绝对 SSH configuration path 与绝对 POSIX Project path。Main 解析 target、分配
 opaque identity 或复用精确已准入 target，建立一项 request-scoped interaction lease，并且只把精确

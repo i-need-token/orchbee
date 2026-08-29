@@ -184,7 +184,7 @@ export const zhCNTerminalSettingsMessages = {
 		'TERM_MATCH 用来比较 TERM 与 Orchbee 基线；含不安全控制字符的值不会被直接打印。TERMINFO 会区分 TERM 未设置或不安全、没有 infocmp、条目可用和条目缺失。',
 	'terminal.settings.remoteDevelopment.diagnostic.title': '诊断远端 shell',
 	'terminal.settings.remoteDevelopment.noChanges.description':
-		'Orchbee 不会包装 SSH、静默转发额外环境变量、安装 terminfo、写入远端文件或保留远端缓存；你的 OpenSSH 配置仍然是最终依据。',
+		'Orchbee Shell 集成会为符合条件的交互式 SSH 会话增加一条私有的反向 Unix socket 转发，用于 Agent 观测。其他 SSH 模式保持不变；Orchbee 不会安装远端文件，也不会保留远端缓存。你的显式参数与 OpenSSH 配置仍然是最终依据。',
 	'terminal.settings.remoteDevelopment.noChanges.title': '不会自动修改远端',
 	'terminal.settings.remoteDevelopment.title': '远程开发',
 	'terminal.settings.shellIntegration.bash.title': 'Bash',
@@ -196,6 +196,9 @@ export const zhCNTerminalSettingsMessages = {
 		'Desktop 会为新建且受支持的本地 Zsh、非登录 Bash 和 Fish 终端自动加载集成。Orchbee 永远不会编辑 Shell 启动文件。不受支持的启动形式或其他客户端可使用下方 source 命令手动回退。',
 	'terminal.settings.shellIntegration.notification.description':
 		'只有点击这里的按钮才会请求系统通知权限；终端输出永远不会触发权限请求。',
+	'terminal.settings.shellIntegration.notification.agentMode.hidden': 'Agent 所在位置不可见时通知',
+	'terminal.settings.shellIntegration.notification.agentMode.label': 'Agent 状态通知',
+	'terminal.settings.shellIntegration.notification.agentMode.never': '关闭',
 	'terminal.settings.shellIntegration.notification.request': '允许系统通知',
 	'terminal.settings.shellIntegration.notification.status.denied':
 		'权限已拒绝，请到浏览器或操作系统设置中修改通知权限。',

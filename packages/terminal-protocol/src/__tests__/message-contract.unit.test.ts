@@ -82,6 +82,12 @@ describe('message contract registry', () => {
 			PayloadEncoding.controlJson,
 		);
 		expect(messagePayloadEncoding(MessageKind.terminalMetadataChanged, 'request')).toBeNull();
+		expect(MessageKind.terminalApplicationSignal).toBe(58);
+		expect(messagePayloadEncoding(MessageKind.terminalApplicationSignal, 'event')).toBe(
+			PayloadEncoding.controlJson,
+		);
+		expect(messagePayloadEncoding(MessageKind.terminalApplicationSignal, 'request')).toBeNull();
+		expect(messagePayloadEncoding(MessageKind.terminalApplicationSignal, 'response')).toBeNull();
 		expect(MESSAGE_CONTRACTS[MessageKind.clearTerminal].request?.successKind).toBe(
 			MessageKind.terminalControlAccepted,
 		);

@@ -6,20 +6,20 @@ It does not open sockets or named pipes, spawn processes, parse VT, route Electr
 
 ## Public API
 
-| Area                 | Public contract                                                                                                                                                                                |
-| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Identity             | Strict non-zero 128-bit host, creation, terminal, client, attachment, correlation, and terminal-theme operation identities                                                                     |
-| Compatibility        | Exact current protocol `0.0.22` validation; a different version is rejected rather than adapted                                                                                                |
-| Message registry     | One current-version mapping from every kind to its legal role, payload encoding, and successful response kind                                                                                  |
-| Control              | Message-kind-selected request encoding plus strict handshake, configuration/theme, inventory, lifecycle, attachment, projection/history, bell, clipboard-write, selection, and failure schemas |
-| Transport            | A bounded 64-byte envelope that rejects producer-side role or encoding mismatches for JSON, input, terminal frames, and row windows                                                            |
-| Projection           | OBTF format `0.0.3` and OBPB format `0.0.2` buffers with strict external decode and an explicit immutable-local zero-repack view                                                               |
-| Graphics             | OBKG format `0.0.2` owned decoded images, resolved placements, signed-z layers, animation ticks, and strict snapshot/placement-update admission                                                |
-| History              | OBRW format `0.0.3` render/text row windows, render-detail graphics snapshots, stable origins, applied anchors, and explicit eviction vocabulary                                               |
-| Selection            | Gesture, command, fixed-header chunk-routing, and bounded acknowledged plain-text-only export wire shapes                                                                                      |
-| Input                | Message-kind-selected bounded raw, key, committed-text, mouse, focus, and reviewed-mode paste codecs scoped by `AttachmentId` and its positive capability revision                             |
-| Lifecycle wire       | Mutually exclusive terminal phase, normal-exit, runtime-failure, containment, and failed-outcome schemas                                                                                       |
-| Correctness evidence | Stable-seed codec properties, malformed corpora, generated-file comparison, and Zig conformance tests                                                                                          |
+| Area                 | Public contract                                                                                                                                                                                                                   |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Identity             | Strict non-zero 128-bit host, creation, terminal, client, attachment, correlation, and terminal-theme operation identities                                                                                                        |
+| Compatibility        | Exact current protocol `0.0.23` validation; a different version is rejected rather than adapted                                                                                                                                   |
+| Message registry     | One current-version mapping from every kind to its legal role, payload encoding, and successful response kind                                                                                                                     |
+| Control              | Message-kind-selected request encoding plus strict handshake, configuration/theme, inventory, lifecycle/launch-overlay, attachment, projection/history, bell, clipboard-write, application-signal, selection, and failure schemas |
+| Transport            | A bounded 64-byte envelope that rejects producer-side role or encoding mismatches for JSON, input, terminal frames, and row windows                                                                                               |
+| Projection           | OBTF format `0.0.3` and OBPB format `0.0.2` buffers with strict external decode and an explicit immutable-local zero-repack view                                                                                                  |
+| Graphics             | OBKG format `0.0.2` owned decoded images, resolved placements, signed-z layers, animation ticks, and strict snapshot/placement-update admission                                                                                   |
+| History              | OBRW format `0.0.3` render/text row windows, render-detail graphics snapshots, stable origins, applied anchors, and explicit eviction vocabulary                                                                                  |
+| Selection            | Gesture, command, fixed-header chunk-routing, and bounded acknowledged plain-text-only export wire shapes                                                                                                                         |
+| Input                | Message-kind-selected bounded raw, key, committed-text, mouse, focus, and reviewed-mode paste codecs scoped by `AttachmentId` and its positive capability revision                                                                |
+| Lifecycle wire       | Mutually exclusive terminal phase, normal-exit, runtime-failure, containment, and failed-outcome schemas                                                                                                                          |
+| Correctness evidence | Stable-seed codec properties, malformed corpora, generated-file comparison, and Zig conformance tests                                                                                                                             |
 
 Every decoder returns a `ProtocolResult`. Malformed or unsupported peer input is an expected failure variant and never requires catching a thrown exception.
 
@@ -28,6 +28,14 @@ null geometry fields for deferred visual startup; mixed values are invalid. Defe
 returns identity in `awaiting-start` without an implicit grid. `StartTerminal` supplies the complete
 geometry and receives `TerminalStartAccepted` with the exact identity, geometry, and `started` or
 `already-started` transition. The protocol defines no visual timeout or 80x24 fallback.
+
+`CreateTerminal.environmentOverlay` is a required, separate array of at most 16 non-null environment
+values, each at most 4 KiB. It is not part of `TerminalLaunch.environment`: overlay names must be
+unique under the target operating system's environment identity rule and must not overlap a durable
+launch environment name. An empty overlay and a supplied overlay remain distinguishable inputs so
+the Host can implement recovery validation without placing capability values in durable launch
+identity. The protocol owns this bounded shape only; Host and application owners define its
+in-memory lifetime, digest comparison, revocation, and recovery behavior.
 
 `ApplyTerminalTheme` carries a terminal identity, unique operation identity, expected canonical
 uint64 theme revision, and one complete terminal theme: color scheme, default foreground/background,
@@ -104,27 +112,27 @@ if (envelope.value.payloadEncoding === PayloadEncoding.terminalFrame) {
 The package explicitly exports:
 
 - `@orchbee/terminal-protocol/fixtures/canonical.json`
-- `@orchbee/terminal-protocol/fixtures/control-conformance-v0.0.22.json`
-- `@orchbee/terminal-protocol/fixtures/focus-input-v0.0.22.bin`
+- `@orchbee/terminal-protocol/fixtures/control-conformance-v0.0.23.json`
+- `@orchbee/terminal-protocol/fixtures/focus-input-v0.0.23.bin`
 - `@orchbee/terminal-protocol/fixtures/malformed-frame-v0.0.3.json`
 - `@orchbee/terminal-protocol/fixtures/malformed-row-window-v0.0.3.json`
 - `@orchbee/terminal-protocol/fixtures/packed-projection-conformance-v0.0.3.json`
 - `@orchbee/terminal-protocol/fixtures/terminal-frame-v0.0.3.bin`
-- `@orchbee/terminal-protocol/fixtures/terminal-failed-v0.0.22.json`
+- `@orchbee/terminal-protocol/fixtures/terminal-failed-v0.0.23.json`
 - `@orchbee/terminal-protocol/fixtures/terminal-projection-buffer-v0.0.2.bin`
 - `@orchbee/terminal-protocol/fixtures/terminal-row-window-v0.0.3.bin`
-- `@orchbee/terminal-protocol/fixtures/transport-envelope-v0.0.22.bin`
-- `@orchbee/terminal-protocol/fixtures/write-input-v0.0.22.bin`
-- `@orchbee/terminal-protocol/fixtures/key-input-v0.0.22.bin`
-- `@orchbee/terminal-protocol/fixtures/text-input-v0.0.22.bin`
-- `@orchbee/terminal-protocol/fixtures/mouse-input-v0.0.22.bin`
-- `@orchbee/terminal-protocol/fixtures/paste-input-v0.0.22.bin`
-- `@orchbee/terminal-protocol/fixtures/utf8-bom-conformance-v0.0.22.json`
+- `@orchbee/terminal-protocol/fixtures/transport-envelope-v0.0.23.bin`
+- `@orchbee/terminal-protocol/fixtures/write-input-v0.0.23.bin`
+- `@orchbee/terminal-protocol/fixtures/key-input-v0.0.23.bin`
+- `@orchbee/terminal-protocol/fixtures/text-input-v0.0.23.bin`
+- `@orchbee/terminal-protocol/fixtures/mouse-input-v0.0.23.bin`
+- `@orchbee/terminal-protocol/fixtures/paste-input-v0.0.23.bin`
+- `@orchbee/terminal-protocol/fixtures/utf8-bom-conformance-v0.0.23.json`
 - `@orchbee/terminal-protocol/fixtures/ghostty-alternate-surface-v0.0.3.bin`
 - `@orchbee/terminal-protocol/fixtures/ghostty-render-row-window-v0.0.3.bin`
 - `@orchbee/terminal-protocol/fixtures/ghostty-surface-v0.0.3.bin`
 
-`canonical.json` is only the language-neutral generator input for the current binary formats, so it has no compatibility version. `control-conformance-v0.0.22.json` contains schema-produced command, reply, event, discriminated-union, failure, and complete kind/role/encoding/success-response contracts consumed by the native typed adapter. `fixtures:generate` uses the built TypeScript codecs and schemas to produce those tracked records, the canonical `TerminalFailed` control record, the current OBTF format-`0.0.3`, OBPB format-`0.0.2`, OBRW format-`0.0.3`, and OBKG format-`0.0.2` fixtures, their strict conformance corpus, and the frame and row-window malformed corpora. `test:fixtures` rejects every missing or byte-stale generated output. Every compatibility fixture carries the exact semantic version of its owning wire protocol or binary format; no wildcard or major-only fixture name is used.
+`canonical.json` is only the language-neutral generator input for the current binary formats, so it has no compatibility version. `control-conformance-v0.0.23.json` contains schema-produced command, reply, event, discriminated-union, failure, and complete kind/role/encoding/success-response contracts consumed by the native typed adapter. `fixtures:generate` uses the built TypeScript codecs and schemas to produce those tracked records, the canonical `TerminalFailed` control record, the current OBTF format-`0.0.3`, OBPB format-`0.0.2`, OBRW format-`0.0.3`, and OBKG format-`0.0.2` fixtures, their strict conformance corpus, and the frame and row-window malformed corpora. `test:fixtures` rejects every missing or byte-stale generated output. Every compatibility fixture carries the exact semantic version of its owning wire protocol or binary format; no wildcard or major-only fixture name is used.
 
 `packed-projection-conformance-v0.0.3.json` is the language-neutral strict-boundary oracle for OBPB format `0.0.2` and OBRW format `0.0.3`. Each named case stores complete canonical bytes, its owning strict boundary, and a contract-authored outcome; accepted cases also store all observations required by the corpus schema. Neither decoder generates the expected result. The TypeScript strict decoders consume every case, while `apps/terminal-host` resolves the declared package export, passes the bounded JSON bytes into Zig conformance, and runs every case through the matching native strict validator.
 
@@ -155,7 +163,7 @@ consumer-owned. `NeedSnapshot` reason `activity-stale` abandons the exact in-fli
 consumer has locally invalidated its close-activity observation and cannot prove that frame is
 newer than the invalidating input; the replacement is a complete snapshot. This ordering proves
 only that the replacement reflects the Host cache after invalidation, not that the Host accepted
-the input or that the terminal process consumed it. In protocol `0.0.22`, Host-accepted non-focus
+the input or that the terminal process consumed it. In protocol `0.0.23`, Host-accepted non-focus
 input invalidates the cached observation immediately. A later bounded current-state sample may
 publish `active`, `idle`, or `unknown`, so a causal replacement may legitimately restore fresh
 `idle` in the same terminal lifecycle. This changes no wire value or codec.
@@ -186,6 +194,13 @@ freshness, focus, permission, deduplication, rate limiting, and notification eff
 valid UTF-8 without NUL or unpaired surrogates. The schema grants no clipboard read, selection kind,
 HTML, image, persistence, trust, or effect capability; the application owns the commit policy and
 platform write.
+
+`TerminalApplicationSignal` kind `58` is a separate event-only control record carrying the exact
+terminal identity, the literal channel `orchbee.agent.v1`, a positive terminal-local sequence, and
+at most 4 KiB of valid UTF-8 payload without NUL or unpaired surrogates. The record is an untrusted
+transport hint: the protocol grants no provider identity, Agent lifecycle, attention, idle,
+outcome, notification, or action semantics. An application may apply a stricter payload schema and
+reduce an accepted value only to its separately owned limited-status vocabulary.
 
 ## Ownership
 

@@ -253,6 +253,63 @@ test "creation replay returns retained identity without preparing a new runtime"
 
     _ = aggregate.core().disconnect(connection_id);
 }
+test "creation overlay digest constrains live retries while empty recovery is a wildcard" {
+    var aggregate = subject.HostRuntimeAggregate.init(std.testing.allocator);
+    defer aggregate.deinitChecked(false) catch unreachable;
+    const connection_id: core_module.ConnectionId = 1;
+    const creation_id = testId(core_module.CreationId, 0x29);
+    _ = try aggregate.core().connect(
+        connection_id,
+        testId(core_module.ClientId, 0x28),
+    );
+    var launch = validMissingExecutableLaunch();
+    launch.geometry = null;
+    const first_overlay = [_]terminal_launch.EnvironmentOverlayEntry{
+        .{ .name = "ORCHBEE_AGENT_OBSERVATION_SOCKET", .value = "/tmp/orchbee-agent-first.sock" },
+    };
+    const different_overlay = [_]terminal_launch.EnvironmentOverlayEntry{
+        .{ .name = "ORCHBEE_AGENT_OBSERVATION_SOCKET", .value = "/tmp/orchbee-agent-second.sock" },
+    };
+    const first = try terminal_launch.inspectWithOverlay(
+        std.testing.allocator,
+        launch,
+        &first_overlay,
+    );
+    var creation = try aggregate.prepareCreateTerminal(connection_id, creation_id, first);
+    defer creation.deinit();
+    const created_identity = switch (try aggregate.commitPreparedTerminal(&creation)) {
+        .created => |identity| identity,
+        .replayed => return error.ExpectedCreatedTerminal,
+    };
+
+    var exact_retry = try aggregate.prepareCreateTerminal(connection_id, creation_id, first);
+    defer exact_retry.deinit();
+    try std.testing.expect(!exact_retry.requiresEffect());
+    try std.testing.expect(
+        (try aggregate.commitPreparedTerminal(&exact_retry)).identity().terminal_id.eql(
+            created_identity.terminal_id,
+        ),
+    );
+
+    const conflicting = try terminal_launch.inspectWithOverlay(
+        std.testing.allocator,
+        launch,
+        &different_overlay,
+    );
+    try std.testing.expectError(
+        error.CreationConflict,
+        aggregate.prepareCreateTerminal(connection_id, creation_id, conflicting),
+    );
+
+    const recovery_wildcard = try terminal_launch.inspect(std.testing.allocator, launch);
+    var recovery = try aggregate.prepareCreateTerminal(
+        connection_id,
+        creation_id,
+        recovery_wildcard,
+    );
+    defer recovery.deinit();
+    try std.testing.expect(!recovery.requiresEffect());
+}
 test "dispose preserves an exited Core record when its runtime is missing" {
     var aggregate = subject.HostRuntimeAggregate.init(std.testing.allocator);
     defer aggregate.deinitChecked(false) catch unreachable;

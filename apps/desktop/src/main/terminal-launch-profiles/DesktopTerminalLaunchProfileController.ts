@@ -233,6 +233,7 @@ function validateLaunchableTerminalLaunchProfileCatalog(
 		}
 		const encoded = encodeControlRequest(MessageKind.createTerminal, {
 			creationId: PROFILE_VALIDATION_CREATION_ID,
+			environmentOverlay: [],
 			launch: resolution.launch,
 		});
 		if (!encoded.ok) return { kind: 'invalid', reason: 'invalid-profile' };

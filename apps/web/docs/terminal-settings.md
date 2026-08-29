@@ -9,6 +9,9 @@ request clients for the optional Desktop terminal-launch-profile and terminal-de
 capabilities; Electron Main owns those records, persistence, Host commit, and launch resolution. The Browser-backed preference records are local to
 one Browser origin or Desktop renderer user-data partition. Neither those records nor the Main-owned
 profile and terminal-default records are part of the shared Workbench document or sent to a Gateway or remote terminal.
+A local Desktop composition may also inject Agent-integration management inventory and commands;
+Web owns their Settings and reminder presentation, while Main retains every process and filesystem
+effect.
 A theme-affecting preference derives one complete runtime-theme request that crosses the active
 Desktop or Gateway projection transport to Terminal Host; per-key Option-as-Alt likewise crosses
 only as a semantic input decision, never as the stored preference.
@@ -250,8 +253,8 @@ keyboard-scrollable even when every setting control is a disabled Planned previe
 
 Back closes Settings. Escape first clears a non-empty Settings search and closes Settings only when
 the query is empty; closing restores the captured element, then the Settings Action target, then the
-Workbench root as fallbacks. Desktop may inject semantic Browser-access, local shell-profile, and
-terminal-default controls.
+Workbench root as fallbacks. Desktop may inject semantic Agent-integration, Browser-access, local
+shell-profile, and terminal-default controls.
 The existing Browser-access dialog remains above Settings; closing it returns focus to its Settings
 entry, while Settings remains open. Browser and Gateway compositions do not receive this Desktop
 capability bundle.
@@ -278,12 +281,12 @@ top-level surface:
 | Application   | General, Appearance                                                     |
 | Terminal      | Text, Colors, Cursor & Input, Interaction, Terminal                     |
 | Workspace     | Windows & Tabs, Profiles, Keyboard Shortcuts                            |
-| Integrations  | Shell Integration, Remote Development                                   |
+| Integrations  | Agent Integrations, Shell Integration, Remote Development               |
 | Data & Access | Ghostty Migration and the capability-gated Desktop Browser Access entry |
 
 The appearance theme, terminal font family and size, regular and bold weights, ligatures, padding,
 effective default colors, default-background opacity, copy-on-select, Reset, macOS Option-as-Alt,
-keyboard shortcuts, Shell integration, remote diagnostic, migration report, Browser-access entry,
+keyboard shortcuts, Agent integrations, Shell integration, remote diagnostic, migration report, Browser-access entry,
 capability-gated Desktop launch-profile editor, and capability-gated Desktop scrollback default
 retain their existing behavior and ownership. The remaining General, Appearance, Text, Colors, Cursor & Input,
 Interaction, Terminal, Windows & Tabs, and Profile appearance, connection, and automation rows form
@@ -358,6 +361,34 @@ query clearing after activation, category restoration, and target reveal. Cursor
 catalog contents, fuzzy-search implementation, result limits, pixel geometry, animation timing, and
 ranking ties are explicitly excluded.
 
+## Desktop Agent integrations
+
+Only a local Electron composition injects `AgentIntegrationManagementControl` and
+`AgentIntegrationReminderController`. Browser Preview and authenticated Gateway clients omit the
+Agent Integrations category, its search entries, and the reminder. The renderer consumes one
+canonical six-entry snapshot and displays curated Agent names, bounded states and failures, and the
+shared privacy explanation. It receives no Agent command output, executable path, adapter resource
+path, filesystem capability, or remote-host authority.
+
+Opening Settings, selecting Agent Integrations, rendering rows, and searching are read-only. Refresh
+requests a new read-only Main inventory. Enable and Disable are buttons, not optimistic switches;
+one click sends one semantic request and the row follows Main's re-inspected snapshot. Pending work
+disables competing changes. A conflict, unsupported/manual-only entry, ambiguous inspection, or
+unavailable local Agent cannot be enabled. Remote hosts are explained as manual-only and the
+renderer never writes terminal input or attempts remote setup.
+
+The non-modal reminder is eligible only for a locally available, `managed-local`, issue-free entry
+whose state is `not-installed` or `disabled`. Canonical order selects the first eligible entry, and
+the controller offers at most one reminder per application session. Rendering and **Review
+integration** perform no integration mutation; Review hides the reminder and opens this Settings
+category. Explicit close persists that one Agent ID in the strict, bounded
+`orchbee:web:agent-integration-reminders:v1` record. A Settings disable records the same dismissal
+before it requests Main; a verified successful enable removes it. Missing or invalid storage falls
+back to no dismissals, and write failure retains the current-session behavior.
+
+Desktop Main's exact effects, reconciliation, conflicts, rollback, and remote exclusion are
+authoritative in the [Desktop Agent integration guide](../../desktop/docs/agent-integrations.md).
+
 ## Remote-development diagnostic
 
 The Remote development category documents the Desktop launch baseline
@@ -383,11 +414,16 @@ function in the user's interactive shell.
 Settings does not execute or paste the command; the read-only field uses normal text selection so
 the user remains responsible for choosing where and whether to run it.
 
-Orchbee does not wrap the system SSH client, add `SendEnv` rules, persist remote hosts or
-credentials, or maintain a remote cache. A standard requested SSH PTY carries TERM according to
-OpenSSH behavior. Extra environment values cross the connection only when the user's client and
-server configuration explicitly allow them. OSC 7 hostnames, process titles, and terminal output
-are not remote-identity authority and do not alter this policy.
+The explicitly sourced shell integration defines an `ssh` wrapper only when `ssh` is still a file,
+no earlier alias or function owns the name, a private local Agent-observation socket exists, and
+stdin and stdout are interactive terminals. It leaves configuration, control, forwarding-only, and
+version/query modes unchanged. An eligible call preserves every user argument and adds only
+`StreamLocalBindMask=0177`, `StreamLocalBindUnlink=yes`, and a reverse Unix-socket forward from a
+random `/tmp/orchbee-agent-v2-*.sock` on the remote host to the local Desktop socket. OpenSSH
+authentication, explicit arguments, and user configuration remain authoritative. Orchbee adds no
+`SendEnv` rule, persists no host or credential, installs no remote file, and maintains no remote
+cache. A standard requested SSH PTY still carries TERM according to OpenSSH behavior. OSC 7
+hostnames, process titles, and terminal output are not remote-identity authority.
 
 ## Shell integration and completion reminders
 
@@ -406,15 +442,20 @@ integration; unsupported forms continue unchanged with the manual fallback avail
 emit standard OSC 133 command boundaries and OSC 7 current-directory state without transporting
 command text. Ambient environment cannot replace the resource path, and automatic loading never
 changes running or restored terminals, Windows terminals, remote connections, or user startup
-files. Terminal Host projects only the latest positive sequence, duration, completion timestamp,
-and normalized exit code.
+files.
 
-Completion reminders use the separate key `orchbee:web:terminal-feedback:v1`, whose strict JSON
-value contains `completionReminderMode` (`never`, `unfocused`, or `always`) and
-`completionReminderMinimumSeconds` (an integer from 1 through 3,600). The defaults are `never` and
-5 seconds. Invalid or unreadable storage falls back to the complete default with a recoverable
-warning; a failed write retains the current-session value and reports that it was not saved. Reset
-restores both defaults.
+For an explicitly installed Agent observation adapter, the integration also enables the
+eligible SSH reverse-socket path described above; a remote adapter writes bounded OSC 777
+correlation hints directly to resolved direct, tmux, Zellij, or nested-mux outer TTYs. Terminal Host
+projects only bounded semantic signals.
+
+Terminal feedback uses the separate key `orchbee:web:terminal-feedback:v2`, whose strict JSON
+value contains `agentNotificationMode` (`never` or `hidden`), `completionReminderMode` (`never`,
+`unfocused`, or `always`), and `completionReminderMinimumSeconds` (an integer from 1 through
+3,600). The defaults are `never`, `never`, and 5 seconds, respectively. A valid version-1
+completion-reminder record migrates with Agent notifications off. Invalid or unreadable storage
+falls back to the complete default with a recoverable warning; a failed write retains the
+current-session value and reports that it was not saved. Reset restores all three defaults.
 
 Each client deduplicates by terminal identity and positive completion sequence, ignores facts more
 than 60 seconds old or over 5 seconds in the future, and limits system notifications for one
@@ -425,12 +466,25 @@ qualifying event still presents a localized status inside the terminal when the 
 is unavailable. The notification contains duration and exit status only—never command text,
 arguments, directory, environment, output, or user identity.
 
+Agent status notifications use a separate exact semantic-event subscription rather than terminal
+screen inference. The setting defaults to Off; `hidden` admits attention, successful outcome, and
+failed outcome events only when every navigable attachment is currently hidden by the local Tab,
+split/child presentation, or inner tmux/Zellij pane. Existing system permission must already be
+granted—the event path never requests it.
+
+Copy is localized and curated from bounded Agent identity
+and event kind; it never includes prompts, commands, tool content, output, paths, or error text.
+Each semantic event identity is considered once. Activating the notification focuses the
+application and selects its exact Tab and pane but cannot answer a question or grant approval.
+
 The current Workbench unmounts terminal Surfaces that belong entirely to inactive tabs. A mounted
 but unfocused terminal can remind immediately, and reattachment can consider a completion fact
 within the 60-second freshness window. This is not a claim of complete background monitoring:
 completion while a Surface remains unmounted beyond that window does not produce an immediate
-notification. A future all-tab monitor requires a separate lightweight Workbench/Host event
-subscription rather than hidden renderers.
+notification. A future all-Tab command-completion monitor requires a separate lightweight
+Workbench/Host event subscription rather than hidden renderers. Agent observation already uses
+such an application-level subscription and does not share this command-completion limitation;
+fully disconnected SSH delivery remains out of scope.
 
 ## Ghostty migration report
 
@@ -505,13 +559,19 @@ not claims about Ghostty's byte limits.
   literal custom executable arguments, the future-terminal boundary, create and default selection,
   delete constraints, reset confirmation, platform capabilities, and localized failures.
 - Terminal-default-settings protocol, Main controller, store, broker, renderer client, composition,
-  and component tests cover strict bounds, eight-port bootstrap ordering, Host-first commit, Host
+  and component tests cover strict bounds, fourteen-port bootstrap ordering, Host-first commit, Host
   rejection, session-visible write failure, retry, future-terminal-only capture, capability gating,
   localized validation, and visible failures. The TLA+ model checks no live eviction.
 - Terminal-feedback model tests cover default-off behavior, strict persistence recovery, duration
   and focus policy, stale and future facts, sequence deduplication, notification rate limiting,
   explicit permission requests, and disposal. Component tests cover both locales, all three manual
   source commands, the Bash boundary, reminder controls, permission state, and Reset.
+- Agent-integration protocol, Main adapter/controller/broker, renderer client, composition, storage,
+  Settings, and reminder tests cover canonical ordering, read-only startup, one pending mutation,
+  exact-entry conflicts and disable, reconciliation, malformed messages, explicit user actions,
+  per-Agent dismissal, session offer limits, remote exclusion, localization, and no automatic
+  mutation. The TLA+ model checks serialization, precommit preservation, reconciliation, reload,
+  and disposal safety.
 - Migration analyzer tests cover accepted syntax, exact target boundaries, scalar supersession,
   font resets and fallback lists, opacity-cell interaction, malformed lines, resource limits, and
   one-finding-per-assignment ordering without depending on React or storage.

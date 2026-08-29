@@ -119,6 +119,7 @@ export function useTabStrip(
 		actionRuntime,
 		focusRequest = 0,
 		model,
+		statusAdornments = new Map(),
 		orientation = TabStripOrientation.Horizontal,
 		onOrientationChange,
 		verticalCollapsed = false,
@@ -2517,6 +2518,7 @@ export function useTabStrip(
 	return {
 		actions,
 		model,
+		statusAdornments,
 		orientation,
 		onOrientationChange,
 		verticalCollapsed,

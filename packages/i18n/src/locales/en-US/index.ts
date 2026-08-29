@@ -1,5 +1,9 @@
 export { enUSApplicationRoutingMessages } from './application-routing';
 export type { ApplicationRoutingMessageId } from './application-routing';
+export { enUSAgentIntegrationMessages } from './agent-integrations';
+export type { AgentIntegrationMessageId } from './agent-integrations';
+export { enUSAgentObservationMessages } from './agent-observation';
+export type { AgentObservationMessageId } from './agent-observation';
 export { enUSBrowserAuthenticationMessages } from './browser-authentication';
 export type { BrowserAuthenticationMessageId } from './browser-authentication';
 export { enUSDesktopApplicationLifetimeMessages } from './desktop-application-lifetime';

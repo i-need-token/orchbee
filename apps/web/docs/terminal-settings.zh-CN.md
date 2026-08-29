@@ -2,6 +2,9 @@
 
 ## 所有权和范围
 
+本地 Desktop composition 还可以注入 Agent-integration management inventory 与 command；Web
+拥有其设置与 reminder presentation，Main 保留所有 process 与 filesystem effect。
+
 `@orchbee/web` 拥有相互独立的本地终端外观、终端交互、终端反馈和 macOS 终端输入首选项记录、其 Browser 存储编解码器、“设置”覆盖层，以及投影终端附件观察的稳定客户端源。它还拥有可选 Desktop 终端启动配置文件和终端默认设置能力的 Presentation 与非特权请求客户端；Electron Main 拥有这些记录、持久化、Host 提交和启动解析。Browser 支持的首选项记录只属于一个 Browser 源或 Desktop 渲染器用户数据分区。这些记录以及 Main 拥有的配置文件和终端默认记录都不属于共享 Workbench 文档，也不会发送到 Gateway 或远程终端。影响主题的首选项会派生一个完整运行时主题请求，经活动 Desktop 或 Gateway 投影传输到 Terminal Host；每个按键的 Option-as-Alt 同样只作为语义输入决策跨越边界，绝不是存储的首选项。
 
 `@orchbee/terminal` 拥有源中立渲染器合约，该合约消耗派生的完整演示配置。主机框架元数据对于终端调色板、光标、VT 状态、终端颜色方案回复和 OSC 行为仍然具有权威。 Workbench 通过渲染器覆盖、光标呈现和应用程序设计令牌表面来协调一个完整的主机主题修订。 Web/桌面组合将旧的源中立 `defaultColorOverride` 保留为 `null`。
@@ -143,7 +146,7 @@ Host 运行时主题替换是该设置功能使用的唯一颜色变更路径。
 
 设置体验是应用程序拥有的全窗口覆盖，而不是路线。保持工作台安装状态可以保留终端表面和附件的特性。首次打开时，它会捕获仍然连接的活动元素并聚焦“设置”搜索。重复打开不变，不取代返回目标。当设置打开时，工作台子树实际上是惰性的，因此它的终端和操作快捷方式无法使用设置输入。滚动内容视口保持连续焦点顺序并绘制插入焦点指示器，因此即使每个设置控件都处于禁用的计划预览状态，类别仍保持键盘可滚动状态。
 
-返回会关闭“设置”。Escape 会先清除非空搜索，只有查询为空时才关闭“设置”；关闭时依次恢复捕获元素、“设置”Action 目标和 Workbench 根。Desktop 可以注入语义 Browser 访问、本地 shell 配置文件和终端默认值控件。现有 Browser 访问对话框位于“设置”上方；关闭后焦点返回其“设置”入口，同时“设置”保持打开。Browser 和 Gateway 组合不会收到此 Desktop 能力包。
+返回会关闭“设置”。Escape 会先清除非空搜索，只有查询为空时才关闭“设置”；关闭时依次恢复捕获元素、“设置”Action 目标和 Workbench 根。Desktop 可以注入语义 Agent 集成、Browser 访问、本地 shell 配置文件和终端默认值控件。现有 Browser 访问对话框位于“设置”上方；关闭后焦点返回其“设置”入口，同时“设置”保持打开。Browser 和 Gateway 组合不会收到此 Desktop 能力包。
 
 交互结构遵循已接受的 Cursor 与 Coze 参考，但不复制任一品牌：紧凑的设置导航栏负责返回、搜索、以图标为主的产品结果类别与当前选择；居中的滚动内容列负责一个类别标题，以及稳定排列的分区标签、低干扰分组行、说明和右对齐控件。信息密集的诊断、迁移输入与 Shell 设置沿用相同的表面、圆角、字体、间距与语义边界词汇，而不另造类别专用卡片。窄宽度下，导航栏会变成可横向滚动的顶部导航，设置控件堆叠在说明文字下方。由 Browser 支持的外观、输入、快捷键与反馈变更会立即应用；Shell 配置文件草稿需要显式保存，因为 Main 所拥有的持久目录变更是独立事务。参考品牌、文案、类别和像素几何都不是兼容性目标。
 
@@ -156,7 +159,7 @@ Host 运行时主题替换是该设置功能使用的唯一颜色变更路径。
 | 应用       | 一般、外观                               |
 | 终端       | 文本、颜色、光标和输入、交互、终端       |
 | 工作空间   | Windows 和选项卡、配置文件、键盘快捷键   |
-| 集成       | Shell 集成、远程开发                     |
+| 集成       | Agent 集成、Shell 集成、远程开发         |
 | 数据和访问 | Ghostty 迁移和功能门控桌面浏览器访问条目 |
 
 外观主题、终端字体族与字号、常规与粗体字重、连字、内边距、有效默认颜色、默认背景不透明度、选中时复制、重置、macOS Option-as-Alt、键盘快捷键、Shell 集成、远程诊断、迁移报告、浏览器访问入口、受能力门控的 Desktop 启动配置文件编辑器和受能力门控的 Desktop 回滚缓冲区默认值，均保留现有行为和所有权。其余“常规”“外观”“文本”“颜色”“光标与输入”“交互”“终端”“窗口与标签页”，以及配置文件的外观、连接和自动化各行，共同组成一个已本地化的规划目录；它提炼自 Ghostty、WezTerm、Kitty、Alacritty、Windows Terminal、iTerm2、Tabby、Konsole、GNOME Terminal 和 Foot 中反复出现的设置。该目录覆盖启动与恢复策略、窗口呈现、排版与字形塑造、调色板与对比度、光标与键盘协议、剪贴板与鼠标行为、Shell 与仿真策略、历史记录与反馈、窗口与标签页，以及超出当前获准启动配置文件范围的配置文件功能。缺少 Desktop 终端默认设置能力时，回滚缓冲区行仍属于计划目录，不能改变 Host 状态。
@@ -196,6 +199,31 @@ Host 运行时主题替换是该设置功能使用的唯一颜色变更路径。
 
 采用的参考投影是在2026年8月17日在macOS上的光标3.14.7中观察到的。采用的范围是全局类别和设置发现、查询期间的轨道替换、打字时稳定右侧内容、显式空结果、箭头导航、Enter激活、Escape清除、激活后查询清除、类别恢复和目标显示。明确排除光标品牌、副本、目录内容、模糊搜索实现、结果限制、像素几何、动画计时和排名关系。
 
+## Desktop Agent 集成
+
+只有本地 Electron composition 会注入 `AgentIntegrationManagementControl` 与
+`AgentIntegrationReminderController`。Browser Preview 与已鉴权 Gateway client 会省略 Agent 集成
+category、对应 search entry 与 reminder。Renderer 消费一个规范的六 entry snapshot，并显示 curated
+Agent name、bounded state/failure 与共享隐私说明。它不会收到 Agent command output、executable path、
+adapter resource path、filesystem capability 或 remote-host authority。
+
+打开设置、选择 Agent 集成、渲染 row 与搜索都是只读的。刷新请求新的 Main 只读 inventory。开启与
+关闭使用 button，而不是 optimistic switch；一次点击发送一个 semantic request，row 跟随 Main 重新检查
+后的 snapshot。Pending work 会禁用竞争变更。Conflict、unsupported/manual-only entry、ambiguous
+inspection 或不可用的本地 Agent 都不能开启。Remote host 会明确说明只能手动设置；renderer 绝不写入
+terminal input 或尝试远端设置。
+
+Non-modal reminder 只对本地可用、`managed-local`、没有 issue 且 state 为 `not-installed` 或
+`disabled` 的 entry 生效。Canonical order 选择第一个符合条件的 entry，controller 每个 application
+session 最多 offer 一次 reminder。渲染以及**查看集成**都不执行 integration mutation；查看会隐藏
+reminder 并打开该设置 category。显式关闭会把一个 Agent ID 写入严格且有界的
+`orchbee:web:agent-integration-reminders:v1` record。设置中的关闭会在请求 Main 前记录同一 dismissal；
+经过验证的成功开启会移除它。缺失或无效 storage 会回退为空 dismissal；写入失败仍会保留当前 session
+行为。
+
+Desktop Main 的准确 effect、reconciliation、conflict、rollback 与远端排除以
+[Desktop Agent 集成指南](../../desktop/docs/agent-integrations.zh-CN.md)为准。
+
 ## 远程开发诊断
 
 远程开发类别记录了桌面启动基线 `TERM=xterm-256color` 并公开了一个常量 POSIX-shell 诊断命令。该命令报告版本标记、观察到的 `TERM`、`COLORTERM` 和 `TERM_PROGRAM`、TERM 是否与基线匹配，以及一个 terminfo 结果：
@@ -210,7 +238,7 @@ Host 运行时主题替换是该设置功能使用的唯一颜色变更路径。
 
 该命令不包含用户插值，并在一个子 shell 内运行其帮助程序和临时值。它仅读取环境值，打印最多 128 个与保守的显示安全字符集匹配的字符的值，检查 `command -v infocmp` 并评估 `command infocmp` 的退出状态。不安全或过大的值会收到稳定的标记，而不是作为潜在的终端控制输入进行回显。它不会调用 SSH、访问网络、安装 terminfo、创建目录、读取配置文件、写入远程状态或在用户的交互式 shell 中留下帮助程序函数。设置不执行或粘贴命令；只读字段使用正常的文本选择，因此用户仍然负责选择在何处以及是否运行它。
 
-Orchbee 不会包装系统 SSH 客户端、添加 `SendEnv` 规则、保留远程主机或凭据或维护远程缓存。标准请求的 SSH PTY 根据 OpenSSH 行为携带 TERM。仅当用户的客户端和服务器配置明确允许时，额外的环境值才会跨连接。 OSC 7 主机名、进程标题和终端输出不是远程身份权限，不会更改此策略。
+只有在 `ssh` 仍是 file、没有更早的 alias 或 function 拥有该名称、存在私有 local Agent-observation socket，且 stdin 与 stdout 都是交互式 terminal 时，显式 source 的 shell integration 才会定义 `ssh` wrapper。Configuration、control、仅转发与 version/query mode 保持不变。符合条件的调用会保留全部用户参数，只增加 `StreamLocalBindMask=0177`、`StreamLocalBindUnlink=yes`，以及从远端随机 `/tmp/orchbee-agent-v2-*.sock` 到 local Desktop socket 的 reverse Unix-socket forward。OpenSSH authentication、显式参数与用户配置仍然是最终依据。Orchbee 不添加 `SendEnv` rule、不持久化 host 或 credential、不安装 remote file，也不维护 remote cache。标准请求的 SSH PTY 仍根据 OpenSSH 行为携带 TERM。OSC 7 hostname、process title 与 terminal output 不是 remote-identity authority。
 
 ## Shell 集成与完成提醒
 
@@ -227,11 +255,15 @@ Shell 的正常启动路径，再 source 共享集成。不受支持的形式保
 加载也绝不改变运行中或恢复的终端、Windows 终端、远程连接或用户启动文件。Terminal Host 只投影
 最新的正序列、持续时间、完成时间戳和标准化退出代码。
 
-完成提醒使用单独的密钥 `orchbee:web:terminal-feedback:v1`，其严格的 JSON 值包含 `completionReminderMode`（`never`、`unfocused` 或 `always`）和`completionReminderMinimumSeconds`（1 到 3,600 之间的整数）。默认值为 `never` 和 5 秒。无效或不可读的存储会回退到完全默认值，并显示可恢复的警告；失败的写入保留当前会话值并报告它未保存。重置可恢复两个默认值。
+对于显式安装的 Agent observation adapter，shell integration 还会启用上文所述、符合条件的 SSH reverse-socket path；remote adapter 会把有界 OSC 777 correlation hint 直接写到解析出的 direct、tmux、Zellij 或 nested-mux outer TTY。Terminal Host 只投影有界 semantic signal。
+
+Terminal feedback 使用单独的密钥 `orchbee:web:terminal-feedback:v2`，其严格 JSON 值包含 `agentNotificationMode`（`never` 或 `hidden`）、`completionReminderMode`（`never`、`unfocused` 或 `always`）和 `completionReminderMinimumSeconds`（1 到 3,600 之间的整数）。三者默认分别为 `never`、`never` 与 5 秒。有效的 version-1 completion-reminder record 会迁移，并保持 Agent notification 关闭。无效或不可读的存储会回退到完整默认值并显示可恢复警告；写入失败会保留当前 session 值，并报告尚未保存。重置会恢复全部三个默认值。
 
 每个客户端根据终端身份和肯定的完成顺序进行重复数据删除，忽略超过 60 秒或未来超过 5 秒的事实，并将一个终端的系统通知限制为每 30 秒一次。 `unfocused` 要求文档或终端根目录缺少焦点。只能通过专用的“设置”按钮请求浏览器通知权限；终端输出、启动、存储恢复和配置分析从不要求它。当系统能力不可用时，合格事件仍呈现终端内部的本地化状态。通知仅包含持续时间和退出状态，而不包含命令文本、参数、目录、环境、输出或用户身份。
 
-当前工作台卸载完全属于非活动选项卡的终端表面。已安装但未聚焦的终端可以立即提醒，并且重新连接可以在 60 秒新鲜度窗口内考虑完成事实。这并不是完整的后台监控的声明：当 Surface 在该窗口之外保持未安装状态时完成不会产生立即通知。未来的全选项卡监视器需要单独的轻量级工作台/主机事件订阅，而不是隐藏的渲染器。
+Agent 状态通知使用单独的精确 semantic-event subscription，而不是 terminal screen inference。设置默认为关闭；`hidden` 只在所有 navigable attachment 当前都被 local Tab、split/child presentation 或 inner tmux/Zellij pane 隐藏时，准入 attention、successful outcome 与 failed outcome event。System permission 必须已经 granted；event path 绝不会请求 permission。Copy 只根据有界 Agent identity 与 event kind 生成，是本地化且 curated 的，绝不包含 prompt、command、tool content、output、path 或 error text。每个 semantic event identity 只处理一次。激活 notification 会聚焦 application 并选择其精确 Tab 与 pane，但不能回答 question 或授予 approval。
+
+当前工作台卸载完全属于非活动选项卡的终端表面。已安装但未聚焦的终端可以立即提醒，并且重新连接可以在 60 秒新鲜度窗口内考虑完成事实。这并不是完整的后台监控声明：当 Surface 在该窗口之外保持未安装状态时，完成不会产生立即通知。未来的全 Tab command-completion monitor 需要单独的轻量级 Workbench/Host event subscription，而不是 hidden renderer。Agent observation 已使用这种轻量级 application-level subscription，因此不受此 command-completion 限制；完全断开的 SSH delivery 仍不在范围内。
 
 ## Ghostty 迁移报告
 
@@ -273,7 +305,8 @@ Shell 的正常启动路径，再 source 共享集成。不受支持的形式保
 - 渲染器测试涵盖主机和覆盖模式、显式黑色/RGB/调色板、反转、下划线、光标、Canvas 2D 和 WebGPU alpha 以及未更改的主机元数据。
 - 确定性搜索测试涵盖目录身份和能力门控、本地化类别、部分、标签、描述和关键字匹配、直接匹配排名、多术语标准化、稳定排序和空结果。组件测试涵盖语言环境、全局跨类别结果、查询期间的稳定内容、指针和键盘激活、分层转义、目标显示、禁用的空结果选项、键盘可滚动内容、无效草稿、立即更新、重置、只读远程诊断、迁移分析和处置、惰性、幂等打开、焦点恢复和嵌套浏览器访问行为。故事浏览器审查涵盖了每个类别以及浅色和深色主题中的填充、计划和空搜索投影。
 - 终端启动配置文件协议与客户端测试覆盖严格快照、关联、至多一项待处理变更、格式错误记录、失败投影和处置。设置组件测试覆盖原样保留的自定义可执行文件参数、只影响未来终端的边界、创建与默认选择、删除约束、重置确认、平台能力和本地化失败。
-- 终端默认设置协议、Main 控制器、存储、broker、渲染器客户端、组合和组件测试覆盖严格边界、八端口 bootstrap 顺序、Host 优先提交、Host 拒绝、会话可见的写入失败、重试、仅未来终端捕获、能力门控、本地化验证和可见失败。TLA+ 模型检查不实时驱逐。
+- 终端默认设置协议、Main 控制器、存储、broker、渲染器客户端、组合和组件测试覆盖严格边界、十四端口 bootstrap 顺序、Host 优先提交、Host 拒绝、会话可见的写入失败、重试、仅未来终端捕获、能力门控、本地化验证和可见失败。TLA+ 模型检查不实时驱逐。
 - 终端反馈模型测试涵盖默认关闭行为、严格的持久性恢复、持续时间和焦点策略、过时的和未来的事实、序列重复数据删除、通知速率限制、显式权限请求和处置。组件测试涵盖两个区域设置、所有三个手动源命令、Bash 边界、提醒控件、权限状态和重置。
+- Agent-integration protocol、Main adapter/controller/broker、renderer client、composition、storage、设置与 reminder 测试覆盖 canonical ordering、只读启动、一个 pending mutation、准确 entry conflict 与 disable、reconciliation、malformed message、显式用户操作、per-Agent dismissal、session offer limit、远端排除、本地化以及不自动 mutation。TLA+ model 检查 serialization、precommit preservation、reconciliation、reload 与 disposal safety。
 - 迁移分析器测试涵盖可接受的语法、精确目标边界、标量取代、字体重置和后备列表、不透明单元格交互、畸形行、资源限制以及每个分配一个查找的排序，而不依赖于 React 或存储。
 - 浏览器、网关和桌面组合测试证明共享源、仅限本地配置文件功能和设置条目；桌面 Electron 见证人证明现有的投影终端在打开和关闭“设置”时保持连接状态。当前的macOS系统见证人额外启动了一个具有隔离密钥和配置的临时环回`sshd`，然后证明普通的SSH PTY接收到`TERM=xterm-256color`，解析其terminfo条目，并且不接收`COLORTERM` 或 `TERM_PROGRAM` 无显式转发。一个单独的 macOS Electron 见证人获取已发送的 Zsh 资源，观察一个真实的语义完成和本地化提醒，并证明预计的附件身份未更改。

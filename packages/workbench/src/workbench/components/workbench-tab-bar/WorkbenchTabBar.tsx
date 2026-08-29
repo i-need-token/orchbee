@@ -17,6 +17,7 @@ import {
 	type TabStripOrientation,
 	type TabStripSelectCallback,
 	type TabStripShortcutLabels,
+	type TabStatusAdornment,
 	type TabStripWindowTarget,
 	type TabStripTabCreationIntent,
 } from '@orchbee/tab-strip';
@@ -45,6 +46,7 @@ interface WorkbenchTabBarProps {
 	readonly reserveSidebarToggleSpace: boolean;
 	readonly shortcutLabels: TabStripShortcutLabels;
 	readonly tabModel: TabModel;
+	readonly statusAdornments?: ReadonlyMap<string, Readonly<TabStatusAdornment>> | undefined;
 	readonly tabStripMessages: TabStripMessages;
 	readonly verticalCollapsed: boolean;
 	readonly windowTargets?: readonly TabStripWindowTarget[] | undefined;
@@ -69,6 +71,7 @@ export function WorkbenchTabBar({
 	reserveSidebarToggleSpace,
 	shortcutLabels,
 	tabModel,
+	statusAdornments,
 	tabStripMessages,
 	verticalCollapsed,
 	windowTargets = [],
@@ -95,6 +98,7 @@ export function WorkbenchTabBar({
 				}
 				messages={tabStripMessages}
 				model={tabModel}
+				statusAdornments={statusAdornments}
 				onNewTab={onNewTerminal}
 				onMoveGroupToWindow={onMoveGroupToWindow}
 				onMoveTabsToWindow={onMoveTabsToWindow}

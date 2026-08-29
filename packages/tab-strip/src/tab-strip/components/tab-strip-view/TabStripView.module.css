@@ -191,9 +191,42 @@
 .ct-tab-icon[data-show-favicon] .ct-tab-icon__normal {
 	opacity: var(--ob-comp-tab-strip-opacity-visible);
 }
+.ct-tab-icon[data-status-adornment] .ct-tab-icon__normal {
+	opacity: var(--ob-comp-tab-strip-opacity-visible);
+}
 .ct-tab-icon__favicon {
 	display: block;
 	object-fit: contain;
+}
+.ct-tab-icon__status-icon {
+	display: grid;
+	width: var(--ob-comp-tab-strip-length-16);
+	height: var(--ob-comp-tab-strip-length-16);
+	place-items: center;
+	font: var(--ob-sys-typography-label-lg);
+}
+.ct-tab-icon__status {
+	position: absolute;
+	right: var(--ob-comp-tab-strip-length-negative-3);
+	bottom: var(--ob-comp-tab-strip-length-negative-3);
+	width: var(--ob-comp-tab-strip-length-6);
+	height: var(--ob-comp-tab-strip-length-6);
+	border-radius: 50%;
+	background: var(--ob-sys-color-icon-secondary);
+	box-shadow: var(--ob-comp-tab-strip-shadow-icon-ring);
+}
+.ct-tab-icon[data-status-adornment='active'] .ct-tab-icon__status {
+	background: var(--ob-sys-color-status-info);
+}
+.ct-tab-icon[data-status-adornment='attention'] .ct-tab-icon__status,
+.ct-tab-icon[data-status-adornment='error'] .ct-tab-icon__status {
+	background: var(--ob-sys-color-status-danger);
+}
+.ct-tab-icon[data-status-adornment='success'] .ct-tab-icon__status {
+	background: var(--ob-sys-color-status-success);
+}
+.ct-tab-icon[data-status-adornment='degraded'] .ct-tab-icon__status {
+	background: var(--ob-sys-color-status-warning);
 }
 .ct-tab-icon__crashed {
 	opacity: 0;

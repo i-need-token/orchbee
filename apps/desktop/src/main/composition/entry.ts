@@ -118,6 +118,13 @@ if (!singleInstanceLockOwned) {
 				...(app.isPackaged
 					? {}
 					: {
+							developmentAgentObservationAdapterDirectory: path.resolve(
+								__dirname,
+								'..',
+								'..',
+								'resources',
+								'agent-observation-adapters',
+							),
 							developmentPosixHostEndpointAddonPath: path.resolve(
 								__dirname,
 								'..',

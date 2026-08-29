@@ -1,0 +1,41 @@
+{
+	"name": "@orchbee/agent",
+	"version": "0.1.0",
+	"private": true,
+	"description": "Provider-neutral observed Agent lifecycle and attention model for Orchbee",
+	"files": [
+		"dist",
+		"README.md"
+	],
+	"type": "module",
+	"sideEffects": false,
+	"main": "./dist/index.cjs",
+	"module": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"@orchbee/source": "./src/index.ts",
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js",
+			"require": "./dist/index.cjs"
+		}
+	},
+	"scripts": {
+		"build": "rslib build --log-level error",
+		"dev": "rslib build --watch",
+		"typecheck": "tsc --noEmit",
+		"test": "vitest run",
+		"test:watch": "vitest",
+		"test:tla": "node ../../scripts/tla/run-models.mjs --workspace packages/agent",
+		"test:exports": "node ../../scripts/check-package-exports.mjs .",
+		"verify:correctness": "pnpm typecheck && pnpm test && pnpm test:tla && pnpm build && pnpm test:exports"
+	},
+	"dependencies": {
+		"zod": "catalog:"
+	},
+	"devDependencies": {
+		"@rslib/core": "catalog:",
+		"fast-check": "4.9.0",
+		"vitest": "catalog:"
+	}
+}

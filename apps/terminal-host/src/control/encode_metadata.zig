@@ -31,3 +31,28 @@ pub fn terminalMetadataChanged(
     try writer.writer.writeAll("}");
     return writer.toOwnedSlice();
 }
+
+pub fn terminalApplicationSignal(
+    allocator: std.mem.Allocator,
+    host_epoch: anytype,
+    creation_id: anytype,
+    terminal_id: anytype,
+    event: anytype,
+) ![]u8 {
+    var creation_buffer: [32]u8 = undefined;
+    var epoch_buffer: [32]u8 = undefined;
+    var terminal_buffer: [32]u8 = undefined;
+    var writer: std.Io.Writer.Allocating = .init(allocator);
+    defer writer.deinit();
+    try writer.writer.print(
+        "{{\"channel\":\"orchbee.agent.v1\",\"identity\":{{\"creationId\":\"{s}\",\"hostEpoch\":\"{s}\",\"terminalId\":\"{s}\"}},\"payload\":",
+        .{
+            identifierText(creation_id, &creation_buffer),
+            identifierText(host_epoch, &epoch_buffer),
+            identifierText(terminal_id, &terminal_buffer),
+        },
+    );
+    try std.json.Stringify.value(event.payload, .{}, &writer.writer);
+    try writer.writer.print(",\"sequence\":\"{d}\"}}", .{event.sequence});
+    return writer.toOwnedSlice();
+}

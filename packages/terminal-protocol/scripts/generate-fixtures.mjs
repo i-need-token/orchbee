@@ -39,6 +39,7 @@ import {
 	SelectionExportStartedSchema,
 	SetTerminalDefaultsSchema,
 	TerminalAcknowledgedSchema,
+	TerminalApplicationSignalSchema,
 	TerminalBellSchema,
 	TerminalClipboardWriteRequestSchema,
 	TerminalConfigurationAcceptedSchema,
@@ -621,12 +622,18 @@ function createControlConformanceFixture() {
 		),
 		create_terminal: controlRequestText(
 			MessageKind.createTerminal,
-			{ creationId, launch },
+			{
+				creationId,
+				environmentOverlay: [
+					{ name: 'ORCHBEE_AGENT_OBSERVATION_SOCKET', value: '/tmp/orchbee-agent.sock' },
+				],
+				launch,
+			},
 			'CreateTerminal',
 		),
 		create_terminal_deferred: controlRequestText(
 			MessageKind.createTerminal,
-			{ creationId, launch: deferredLaunch },
+			{ creationId, environmentOverlay: [], launch: deferredLaunch },
 			'CreateTerminal',
 		),
 		detach_terminal: controlRequestText(
@@ -1037,6 +1044,16 @@ function createControlConformanceFixture() {
 			TerminalAcknowledgedSchema,
 			{ terminalId },
 			'TerminalAcknowledged',
+		),
+		terminal_application_signal: controlText(
+			TerminalApplicationSignalSchema,
+			{
+				channel: 'orchbee.agent.v1',
+				identity,
+				payload: JSON.stringify({ activity: 'command', version: 1 }),
+				sequence: '8',
+			},
+			'TerminalApplicationSignal',
 		),
 		terminal_bell: controlText(TerminalBellSchema, { attachmentId, sequence: '6' }, 'TerminalBell'),
 		terminal_clipboard_write_request: controlText(

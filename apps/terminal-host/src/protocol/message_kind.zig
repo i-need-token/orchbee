@@ -48,6 +48,7 @@ pub const MessageKind = struct {
     pub const terminal_bell: u16 = 55;
     pub const terminal_clipboard_write_request: u16 = 56;
     pub const terminal_metadata_changed: u16 = 57;
+    pub const terminal_application_signal: u16 = 58;
     pub const selection_gesture: u16 = 60;
     pub const selection_command: u16 = 61;
     pub const selection_changed: u16 = 62;

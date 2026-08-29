@@ -5,7 +5,7 @@
 | 状态       | 当前的有线合同和编解码器权威；此包不实现生命周期状态机、PTY、IPC 侦听器、渲染器、Electron、恢复或网络行为                                  |
 | 线主       | `@orchbee/terminal-protocol`                                                                                                               |
 | 本土消费者 | `apps/terminal-host` 使用声明的模式和夹具导出来实现有界本机调度和 Zig 一致性                                                               |
-| 参考范围   | 精确协议 `0.0.22`；OBTF 格式 `0.0.3`；OBPB 格式 `0.0.2`；OBRW 格式 `0.0.3`；OBKG 格式 `0.0.2`；输入/选择编解码器；失败术语；边界；以及夹具 |
+| 参考范围   | 精确协议 `0.0.23`；OBTF 格式 `0.0.3`；OBPB 格式 `0.0.2`；OBRW 格式 `0.0.3`；OBKG 格式 `0.0.2`；输入/选择编解码器；失败术语；边界；以及夹具 |
 | 变更规则   | 字段、消息语义、线协议字节、边界或夹具发生变化时，必须更新本文、两种语言实现、每个生产者/消费者及证据                                      |
 
 ## 建模记录
@@ -38,7 +38,7 @@
 | `TerminalThemeOperationId` | 应用程序为一个终端主题比较和设置操作创建的幂等性身份                         |
 | `CorrelationId`            | `Hello` 之后的每个请求和响应都需要；全零信封字节意味着仅握手消息或事件不存在 |
 
-当前协议版本精确为 `0.0.22`。`Hello`、`HelloAccepted` 与每个传输信封都携带该精确版本。不同的主版本、次版本或补丁版本均被拒绝；该预发布契约不包含任何协商范围、兼容模式或历史消息结构。打包 OBTF 帧格式精确为 `0.0.3`；OBPB 投影缓冲区格式精确为 `0.0.2`；OBRW 行窗口格式精确为 `0.0.3`；OBKG 图形扩展格式精确为 `0.0.2`。对应解码器只接受这些精确格式。虽然这些契约的主版本为 `0`，仓库只保留当前尚未发布的契约，不为开发修订保留变更日志。首次公开发布时契约版本变为 `1.0.0`；此后每项外部可观察契约变化都要更新所属语义版本，并在 [`../docs/version-history.md`](../docs/version-history.md) 记录。Host 构建版本是用于标识可执行文件的独立语义版本；`HelloAccepted.hostVersion` 仅将其用于诊断，不要求构建版本与协议版本一同递增。
+当前协议版本精确为 `0.0.23`。`Hello`、`HelloAccepted` 与每个传输信封都携带该精确版本。不同的主版本、次版本或补丁版本均被拒绝；该预发布契约不包含任何协商范围、兼容模式或历史消息结构。打包 OBTF 帧格式精确为 `0.0.3`；OBPB 投影缓冲区格式精确为 `0.0.2`；OBRW 行窗口格式精确为 `0.0.3`；OBKG 图形扩展格式精确为 `0.0.2`。对应解码器只接受这些精确格式。虽然这些契约的主版本为 `0`，仓库只保留当前尚未发布的契约，不为开发修订保留变更日志。首次公开发布时契约版本变为 `1.0.0`；此后每项外部可观察契约变化都要更新所属语义版本，并在 [`../docs/version-history.md`](../docs/version-history.md) 记录。Host 构建版本是用于标识可执行文件的独立语义版本；`HelloAccepted.hostVersion` 仅将其用于诊断，不要求构建版本与协议版本一同递增。
 
 ## 控制合约
 
@@ -53,6 +53,8 @@
 `Hello` 和 `HelloAccepted` 最多携带 64 个 `supportedOptionalFeatures` 名称，每个名称非空，最多 64 个 UTF-8 字节。可选功能名称与其解码后的 JSON 字符串值进行比较；因此，Unicode 代码点可以使用多个字节，同时保持在字节范围内。
 
 `TerminalLaunch` 包含一个文字可执行文件和一个参数数组； 它从不包含 shell 连接的命令字符串。 `currentDirectory: null` 表示继承 Host 启动上下文。 环境条目是一个增量：`value: null` 删除变量或使变量不存在，而 `""` 设置显式空值。 名称不能包含`=`. 启动字符串不能包含 U+0000，因为可执行文件、参数、目录、名称和值字段跨越操作系统进程边界。 产品秘密和值仍然是有效负载数据，并且被排除在正常诊断之外。
+
+`CreateTerminal` 还携带与 `TerminalLaunch` 分离的必填 `environmentOverlay`。它最多包含 16 个条目；每个值都非空值，且最多为 4 KiB UTF-8。名称使用与启动环境名称相同的语法和目标操作系统身份规则，在 overlay 内必须唯一，也不能与任何启动环境名称重叠。Overlay 不是库存数据，也不属于持久启动指纹。Host 仍会为保留的创建 generation 派生经目标规则规范化、与顺序无关的 digest：非空重放必须匹配该 digest；空重放则可以在不重建 capability 的情况下校验一个已经保留的创建。Host runtime contract 拥有这些重放与生命周期语义；本 package 只拥有必填且有界的线协议区分。
 
 四个启动几何字段构成封闭选择。`columns`、`rows`、`cellPixelWidth` 与 `cellPixelHeight` 要么全是合法正整数，要么全是 `null`；混合几何属于畸形输入。数值几何要求立即启动，无头调用方与测试调用方必须提供。空几何会保留延迟终端标识并准备启动，但不隐式提供网格。后续 `StartTerminal` 携带完整 `TerminalGeometry`；线协议契约不定义超时或 80x24 可视回退。
 
@@ -129,23 +131,25 @@ TypeScript 生产者使用 `encodeInputRequest`；消息类型选择原始或语
 
 ## 消息注册表
 
-| 范围    | 集团                 | 种类                                                                                                                                                                                                                                                                                                                                                                  |
-| ------- | -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `1-5`   | 连接方式             | `Hello=1`、`HelloAccepted=2`、`ProtocolRejected=3`、`Ping=4`、`TypedFailure=5`                                                                                                                                                                                                                                                                                        |
-| `10-19` | 库存和生命周期       | `ListTerminals=10`、`CreateTerminal=11`、`TerminateTerminal=12`、`DisposeTerminal=13`、`TerminalStarted=14`、`TerminalExited=15`、`StartTerminal=16`、 `TerminalStartAccepted=17`、`ForceTerminateTerminal=18`、`TerminalFailed=19`                                                                                                                                   |
-| `20-25` | 附件                 | `AttachTerminal=20`、`DetachTerminal=21`、`AttachmentCapabilities=22`、`ResizeLeaseChanged=23`、`UpdateAttachmentInputCapability=24`、`ClaimResizeLease=25`                                                                                                                                                                                                           |
-| `30-38` | 输入和大小           | `WriteInput=30`、`InputAccepted=31`、`ResizeTerminal=32`、`ResizeAccepted=33`、`KeyInput=34`、`TextInput=35`、`MouseInput=36`、 `FocusInput=37`, `PasteInput=38`                                                                                                                                                                                                      |
-| `41-56` | 投影与效果           | `SnapshotFrame=41`、`DeltaFrame=42`、`FrameApplied=43`、`NeedSnapshot=44`、`ReadRows=45`、`RowsSnapshot=46`、`SetProjectionDemand=47`、 `ProjectionDemandAccepted=48`、`ProjectionBlocked=49`、`RowsApplied=50`、`SetHistoryDemand=51`、`HistoryDemandAccepted=52`、`HistoryChanged=53`、`HistoryObserved=54`、 `TerminalBell=55`, `TerminalClipboardWriteRequest=56` |
-| `60-68` | 选择和导出           | `SelectionGesture=60`、`SelectionCommand=61`、`SelectionChanged=62`、`SelectionExport=63`、`SelectionExportStarted=64`、`SelectionExportChunk=65`、`SelectionExportChunkApplied=66`、 `SelectionExportFinished=67`, `SelectionExportCancel=68`                                                                                                                        |
-| `70-78` | 终端配置、控制和主题 | `SetTerminalDefaults=70`、`TerminalDefaultsAccepted=71`、`UpdateTerminalConfiguration=72`、`TerminalConfigurationAccepted=73`、`ClearTerminal=74`、`ResetTerminal=75`、`TerminalControlAccepted=76`、 `ApplyTerminalTheme=77`, `TerminalThemeResult=78`                                                                                                               |
+| 范围    | 集团                 | 种类                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| ------- | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `1-5`   | 连接方式             | `Hello=1`、`HelloAccepted=2`、`ProtocolRejected=3`、`Ping=4`、`TypedFailure=5`                                                                                                                                                                                                                                                                                                                                                      |
+| `10-19` | 库存和生命周期       | `ListTerminals=10`、`CreateTerminal=11`、`TerminateTerminal=12`、`DisposeTerminal=13`、`TerminalStarted=14`、`TerminalExited=15`、`StartTerminal=16`、 `TerminalStartAccepted=17`、`ForceTerminateTerminal=18`、`TerminalFailed=19`                                                                                                                                                                                                 |
+| `20-25` | 附件                 | `AttachTerminal=20`、`DetachTerminal=21`、`AttachmentCapabilities=22`、`ResizeLeaseChanged=23`、`UpdateAttachmentInputCapability=24`、`ClaimResizeLease=25`                                                                                                                                                                                                                                                                         |
+| `30-38` | 输入和大小           | `WriteInput=30`、`InputAccepted=31`、`ResizeTerminal=32`、`ResizeAccepted=33`、`KeyInput=34`、`TextInput=35`、`MouseInput=36`、 `FocusInput=37`, `PasteInput=38`                                                                                                                                                                                                                                                                    |
+| `41-58` | 投影与效果           | `SnapshotFrame=41`、`DeltaFrame=42`、`FrameApplied=43`、`NeedSnapshot=44`、`ReadRows=45`、`RowsSnapshot=46`、`SetProjectionDemand=47`、 `ProjectionDemandAccepted=48`、`ProjectionBlocked=49`、`RowsApplied=50`、`SetHistoryDemand=51`、`HistoryDemandAccepted=52`、`HistoryChanged=53`、`HistoryObserved=54`、 `TerminalBell=55`、`TerminalClipboardWriteRequest=56`、`TerminalMetadataChanged=57`、`TerminalApplicationSignal=58` |
+| `60-68` | 选择和导出           | `SelectionGesture=60`、`SelectionCommand=61`、`SelectionChanged=62`、`SelectionExport=63`、`SelectionExportStarted=64`、`SelectionExportChunk=65`、`SelectionExportChunkApplied=66`、 `SelectionExportFinished=67`, `SelectionExportCancel=68`                                                                                                                                                                                      |
+| `70-78` | 终端配置、控制和主题 | `SetTerminalDefaults=70`、`TerminalDefaultsAccepted=71`、`UpdateTerminalConfiguration=72`、`TerminalConfigurationAccepted=73`、`ClearTerminal=74`、`ResetTerminal=75`、`TerminalControlAccepted=76`、 `ApplyTerminalTheme=77`, `TerminalThemeResult=78`                                                                                                                                                                             |
 
-未列出的号码未分配。标题和当前目录更改在终端框架中传播。初始调整大小租约权限通过附件许可返回；稍后的所有权 transfer 使用附件作用域的 claim 与完整 event。
+未列出的号码未分配。标题和当前目录更改通过终端 frame 和带精确 identity 的 metadata event 传播。初始调整大小租约权限通过附件许可返回；稍后的所有权 transfer 使用附件作用域的 claim 与完整 event。
 
-`MESSAGE_CONTRACTS` 是该表背后的可执行 TypeScript 注册表。其原生镜像通过 `control-conformance-v0.0.22.json` 逐字段检查。因此，新增或修改 kind 时，必须原子更新注册表、原生镜像、编解码器、夹具及消费者。
+`MESSAGE_CONTRACTS` 是该表背后的可执行 TypeScript 注册表。其原生镜像通过 `control-conformance-v0.0.23.json` 逐字段检查。因此，新增或修改 kind 时，必须原子更新注册表、原生镜像、编解码器、夹具及消费者。
 
 `TerminalBell` 是包含 `attachmentId` 和正规范终端响铃 `sequence` 的仅事件控制记录。主机以终端的当前序列为新的可读取附件设置基线，因此在连接或重新连接时不会重播较早的铃声。当提交其确切的传出记录时，每个后续序列都会针对每个实时可读附件发出一次。该事件没有客户端确认，仅携带语义意图；声音、视觉闪烁、通知和可访问性策略仍然是应用程序效果而不是线路行为。
 
 `TerminalClipboardWriteRequest` 是仅事件控制记录，包含 `attachmentId`、正终端拥有的规范 `sequence` 以及最多 16 个 KiB 纯文本 UTF-8。 NUL、未配对的代理、零序列和过大的文本格式错误。它代表分配给一个可读取附件的一个主机承认的 OSC 52 剪贴板写入；它不代表剪贴板读取或授予效果。 Terminal Host 拥有有界挂起状态、单接收者交付、传出批量回滚以及切换后删除。接收应用程序拥有显式的每个请求提交策略和平台剪贴板效果。该文件不会被确认或重播到另一个附件，并且它不包含客户端的信任期限、选择类型选择、丰富的格式或剪贴板内容。
+
+`TerminalApplicationSignal` 是仅事件控制记录，包含一个精确 terminal identity、一个由 terminal 拥有的正数 `sequence`，以及最多 4 KiB UTF-8 `payload`。它传输从保留 OSC 777 notification title `orchbee.agent.v1` 准入的有界 application-emitted hint；它既不认证发出信号的进程，也不授予 Agent、lifecycle、attention、outcome、notification 或 provider 权威。Terminal Host 会按 terminal sequence 的 FIFO 顺序保留最多 64 个已准入 hint，并且只有在 queue head 对应的 outgoing record 精确提交后才移除它。产品 adapter 在解释哪怕 limited activity 之前，也必须校验更窄的 schema。
 
 请求和响应使用响应标志和`CorrelationId`； [运行时绑定](#runtime-binding) 中的命名对使用其注册的响应类型，其他响应重用请求类型。事件使用事件标志。除非存在可选消息标志，否则未知类型将被拒绝，在这种情况下，可以跳过有界有效负载而不改变状态。
 
@@ -399,34 +403,36 @@ Host 使用这些事实和固定的 Ghostty 选择行为来拥有单词、行、
 
 握手可以选择较小的传输有效负载范围。它永远不会提高这些包的硬限制。
 
-| 输入或保留单位               |           硬最大值 |
-| ---------------------------- | -----------------: |
-| 控制 JSON                    |             64 KiB |
-| 一项 OSC 52 剪贴板文本       |             16 KiB |
-| 一个库存页面中的终端         |                128 |
-| 一个原始、文本或粘贴输入正文 |              1 MiB |
-| 一键文字                     |              4 KiB |
-| `WriteInput` 原始有效负载    |       1 MiB + 24 B |
-| 最大语义输入有效负载         |       1 MiB + 32 B |
-| 每个终端待处理的有序输入     |              4 MiB |
-| 每个终端的回滚配置           |    1,000,000,000 B |
-| PTY 读取批次                 |            256 KiB |
-| 包装框架                     |             36 MiB |
-| 所有帧扩展/一条 OBKG 记录    |             33 MiB |
-| 解码Kitty资源                |             32 MiB |
-| 小猫图片/展示位置            |         256 / 1024 |
-| 传输记录                     |      44 MiB + 64 B |
-| 行窗口记录                   |             44 MiB |
-| 客户端边界处的搜索查询       |             16 KiB |
-| 选择预览                     |              4 KiB |
-| 选择导出/一大块              |     16 MiB / 1 MiB |
-| 单个 UTF-8 字符串            |             16 KiB |
-| 字符串/样式/行记录           | 4096 / 1024 / 4096 |
-| 单元/框架扩展                |        262144 / 64 |
-| 总扩展字节数                 |             33 MiB |
-| 网格列/行                    |        4096 / 4096 |
-| 单元格像素宽度/高度          |        4096 / 4096 |
-| 终端像素总宽度/高度          |      65535 / 65535 |
+| 输入或保留单位                   |           硬最大值 |
+| -------------------------------- | -----------------: |
+| 控制 JSON                        |             64 KiB |
+| 一项 OSC 52 剪贴板文本           |             16 KiB |
+| 启动 overlay 条目/单个值         |         16 / 4 KiB |
+| 单个 terminal application signal |              4 KiB |
+| 一个库存页面中的终端             |                128 |
+| 一个原始、文本或粘贴输入正文     |              1 MiB |
+| 一键文字                         |              4 KiB |
+| `WriteInput` 原始有效负载        |       1 MiB + 24 B |
+| 最大语义输入有效负载             |       1 MiB + 32 B |
+| 每个终端待处理的有序输入         |              4 MiB |
+| 每个终端的回滚配置               |    1,000,000,000 B |
+| PTY 读取批次                     |            256 KiB |
+| 包装框架                         |             36 MiB |
+| 所有帧扩展/一条 OBKG 记录        |             33 MiB |
+| 解码Kitty资源                    |             32 MiB |
+| 小猫图片/展示位置                |         256 / 1024 |
+| 传输记录                         |      44 MiB + 64 B |
+| 行窗口记录                       |             44 MiB |
+| 客户端边界处的搜索查询           |             16 KiB |
+| 选择预览                         |              4 KiB |
+| 选择导出/一大块                  |     16 MiB / 1 MiB |
+| 单个 UTF-8 字符串                |             16 KiB |
+| 字符串/样式/行记录               | 4096 / 1024 / 4096 |
+| 单元/框架扩展                    |        262144 / 64 |
+| 总扩展字节数                     |             33 MiB |
+| 网格列/行                        |        4096 / 4096 |
+| 单元格像素宽度/高度              |        4096 / 4096 |
+| 终端像素总宽度/高度              |      65535 / 65535 |
 
 `One UTF-8 string` 限制每个序列化字符串，并且对于文本行窗口，每个逻辑单元的字节跨度：从映射开始到下一个映射开始的字节以及到行文本结束的最终跨度必须适合 16,384 个字节。聚合行文本不受此每个单元格边界的限制。
 

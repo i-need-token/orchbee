@@ -11,6 +11,24 @@ const tab = {
 } as const;
 
 describe('TabIcon', () => {
+	it('renders a host-owned semantic status without mutating native tab state', () => {
+		const { container } = render(
+			<TabIcon
+				tab={{ ...tab, shouldDisplayFavicon: false }}
+				statusAdornment={{
+					accessibleLabel: 'Agent working',
+					icon: <span data-agent-icon='' />,
+					kind: 'active',
+				}}
+			/>,
+		);
+
+		expect(container.querySelector('[data-tab-icon]')?.getAttribute('data-status-adornment')).toBe(
+			'active',
+		);
+		expect(container.querySelector('[data-agent-icon]')).toBeTruthy();
+	});
+
 	it('renders the synchronized spinner and suppresses the default favicon while loading', () => {
 		const { container } = render(<TabIcon tab={{ ...tab, networkState: 'loading' }} />);
 		const icon = container.querySelector('[data-tab-icon]');

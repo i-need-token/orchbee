@@ -198,7 +198,7 @@ export const enUSTerminalSettingsMessages = {
 		'TERM_MATCH compares TERM with the Orchbee baseline. Unsafe control-bearing values are not printed. TERMINFO distinguishes an unset or unsafe TERM, an unavailable infocmp program, an available entry, and a missing entry.',
 	'terminal.settings.remoteDevelopment.diagnostic.title': 'Diagnose the remote shell',
 	'terminal.settings.remoteDevelopment.noChanges.description':
-		'Orchbee does not wrap SSH, silently forward extra environment variables, install terminfo, write remote files, or keep a remote cache. Your OpenSSH configuration remains authoritative.',
+		'Orchbee shell integration augments eligible interactive SSH sessions with one private reverse Unix-socket forward for Agent observation. Other SSH modes remain unchanged; Orchbee installs no remote files and keeps no remote cache. Your explicit arguments and OpenSSH configuration remain authoritative.',
 	'terminal.settings.remoteDevelopment.noChanges.title': 'No automatic remote changes',
 	'terminal.settings.remoteDevelopment.title': 'Remote development',
 	'terminal.settings.shellIntegration.bash.title': 'Bash',
@@ -211,6 +211,10 @@ export const enUSTerminalSettingsMessages = {
 		'Desktop automatically loads integration for supported new local Zsh, non-login Bash, and Fish terminals. Orchbee never edits shell startup files. Use these source commands as a manual fallback for unsupported launch forms and other clients.',
 	'terminal.settings.shellIntegration.notification.description':
 		'System notification permission is requested only from this button. Terminal output never requests permission.',
+	'terminal.settings.shellIntegration.notification.agentMode.hidden':
+		'Notify when the Agent location is hidden',
+	'terminal.settings.shellIntegration.notification.agentMode.label': 'Agent status notifications',
+	'terminal.settings.shellIntegration.notification.agentMode.never': 'Off',
 	'terminal.settings.shellIntegration.notification.request': 'Allow system notifications',
 	'terminal.settings.shellIntegration.notification.status.denied':
 		'Denied. Change notification access in your browser or operating-system settings.',

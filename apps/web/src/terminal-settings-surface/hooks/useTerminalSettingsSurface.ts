@@ -41,12 +41,14 @@ const UNAVAILABLE_TERMINAL_DEFAULT_SETTINGS_SNAPSHOT: DesktopTerminalDefaultSett
 	};
 
 export function useTerminalSettingsSurface({
+	agentIntegrationManagementControl,
 	controller,
 	keyboardShortcutController,
 	keyboardShortcutPlatform,
 	macosTerminalInputSettingsController,
 	onRequestClose,
 	requestBrowserAccess,
+	requestedCategory,
 	terminalFeedbackSettingsController,
 	terminalDefaultSettingsControl,
 	terminalInteractionSettingsController,
@@ -123,6 +125,14 @@ export function useTerminalSettingsSurface({
 		inputReference.current?.focus();
 	}, [snapshot.open]);
 
+	React.useLayoutEffect(() => {
+		if (!snapshot.open || requestedCategory === undefined) return;
+		setCategory(requestedCategory);
+		setQuery('');
+		setActiveSearchResultIndex(0);
+		setPendingSearchTargetId(null);
+	}, [requestedCategory, snapshot.open]);
+
 	React.useEffect(() => {
 		if (pendingSearchTargetId === undefined) return;
 		const content = contentReference.current;
@@ -168,6 +178,8 @@ export function useTerminalSettingsSurface({
 		items: group.categories
 			.filter(
 				(categoryId) =>
+					(categoryId !== 'agent-integrations' ||
+						agentIntegrationManagementControl !== undefined) &&
 					(categoryId !== 'browser-access' || requestBrowserAccess !== undefined) &&
 					(categoryId !== 'shell-integration' || terminalFeedbackSettingsController !== undefined),
 			)
@@ -187,6 +199,9 @@ export function useTerminalSettingsSurface({
 		);
 	}
 	const enabledCapabilities = [
+		...(agentIntegrationManagementControl === undefined
+			? []
+			: (['desktop-agent-integrations'] as const)),
 		...(macosTerminalInputSettingsController === undefined
 			? []
 			: (['macos-option-as-alt'] as const)),

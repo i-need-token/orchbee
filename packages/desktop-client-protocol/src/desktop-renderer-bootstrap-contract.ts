@@ -7,6 +7,8 @@ export const DESKTOP_RENDERER_BOOTSTRAP_WINDOW_MESSAGE = 'orchbee.desktop.render
 export const DESKTOP_RENDERER_PORT_ROLES = [
 	'client-session',
 	'terminal-projection',
+	'agent-observation',
+	'agent-integration-management',
 	'application-lifetime',
 	'browser-access',
 	'project-folder-acquisition',

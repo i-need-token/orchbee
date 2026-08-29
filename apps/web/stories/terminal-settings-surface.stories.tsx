@@ -1,9 +1,12 @@
 import { OrchbeeI18nProvider } from '@orchbee/i18n';
 import {
+	DESKTOP_AGENT_INTEGRATION_IDS,
 	DesktopTerminalLaunchProfileIdSchema,
 	DesktopTerminalLaunchProfileSnapshotSchema,
 	DesktopTerminalDefaultSettingsSnapshotSchema,
 	type DesktopTerminalLaunchProfileCatalog,
+	type DesktopAgentIntegrationId,
+	type DesktopAgentIntegrationSnapshotItem,
 } from '@orchbee/desktop-client-protocol';
 import type { Meta, StoryObj } from 'storybook-react-rsbuild';
 
@@ -27,6 +30,10 @@ import type {
 	DesktopTerminalDefaultSettingsClientSnapshot,
 	DesktopTerminalDefaultSettingsControl,
 } from '../src/terminal-default-settings-control';
+import type {
+	AgentIntegrationManagementClientSnapshot,
+	AgentIntegrationManagementControl,
+} from '../src/agent-integration-management';
 
 const englishController = createStoryController();
 const englishKeyboardController = createKeyboardStoryController('apple');
@@ -35,6 +42,7 @@ const englishFeedbackController = createFeedbackStoryController();
 const englishTerminalLaunchProfiles = createTerminalLaunchProfileStoryControl(true);
 const englishInteractionController = createInteractionStoryController();
 const englishTerminalDefaults = createTerminalDefaultSettingsStoryControl();
+const englishAgentIntegrations = createAgentIntegrationStoryControl();
 const chineseController = createStoryController({
 	...DEFAULT_TERMINAL_APPEARANCE_PREFERENCES,
 	applicationTheme: 'dark',
@@ -49,6 +57,7 @@ const chineseFeedbackController = createFeedbackStoryController();
 const chineseTerminalLaunchProfiles = createTerminalLaunchProfileStoryControl(false);
 const chineseInteractionController = createInteractionStoryController();
 const chineseTerminalDefaults = createTerminalDefaultSettingsStoryControl(24_000_000);
+const chineseAgentIntegrations = createAgentIntegrationStoryControl();
 
 const meta = {
 	title: 'Terminal Settings Surface',
@@ -62,6 +71,7 @@ type Story = StoryObj<typeof meta>;
 
 export const EnglishLight: Story = {
 	args: {
+		agentIntegrationManagementControl: englishAgentIntegrations,
 		controller: englishController,
 		keyboardShortcutController: englishKeyboardController,
 		keyboardShortcutPlatform: 'apple',
@@ -93,6 +103,7 @@ export const EnglishLight: Story = {
 
 export const ChineseDarkCustom: Story = {
 	args: {
+		agentIntegrationManagementControl: chineseAgentIntegrations,
 		controller: chineseController,
 		keyboardShortcutController: chineseKeyboardController,
 		keyboardShortcutPlatform: 'standard',
@@ -270,5 +281,66 @@ function createTerminalLaunchProfileStoryControl(
 					candidate.id === profile.id ? profile : candidate,
 				),
 			}),
+	};
+}
+
+function createAgentIntegrationStoryControl(): AgentIntegrationManagementControl {
+	let snapshot: AgentIntegrationManagementClientSnapshot = createAgentIntegrationStorySnapshot();
+	const listeners = new Set<() => void>();
+	const update = (integrationId: DesktopAgentIntegrationId, enabled: boolean) => {
+		snapshot = {
+			...snapshot,
+			integrations: snapshot.integrations.map((integration) =>
+				integration.integrationId === integrationId
+					? { ...integration, state: enabled ? 'enabled' : 'disabled' }
+					: integration,
+			),
+			revision: snapshot.revision + 1,
+		};
+		for (const listener of listeners) listener();
+		return Promise.resolve({
+			kind: 'completed' as const,
+			snapshot: { integrations: snapshot.integrations, revision: snapshot.revision },
+		});
+	};
+	return {
+		disable: (integrationId) => update(integrationId, false),
+		enable: (integrationId) => update(integrationId, true),
+		getSnapshot: () => snapshot,
+		refresh: () =>
+			Promise.resolve({
+				kind: 'completed' as const,
+				snapshot: { integrations: snapshot.integrations, revision: snapshot.revision },
+			}),
+		subscribe: (listener) => {
+			listeners.add(listener);
+			return () => listeners.delete(listener);
+		},
+	};
+}
+
+function createAgentIntegrationStorySnapshot(): AgentIntegrationManagementClientSnapshot {
+	const examples: Partial<
+		Readonly<Record<DesktopAgentIntegrationId, Partial<DesktopAgentIntegrationSnapshotItem>>>
+	> = {
+		'claude-code': { availability: 'available', state: 'enabled' },
+		codex: { availability: 'available', state: 'not-installed' },
+		grok: { availability: 'available', state: 'disabled' },
+		opencode: { availability: 'available', state: 'enabled' },
+	};
+	return {
+		failureCode: null,
+		failureIntegrationId: null,
+		integrations: DESKTOP_AGENT_INTEGRATION_IDS.map((integrationId) => ({
+			availability: 'not-found',
+			integrationId,
+			issue: null,
+			managementMode: 'managed-local',
+			state: 'unknown',
+			...examples[integrationId],
+		})),
+		pending: false,
+		pendingIntegrationId: null,
+		revision: 1,
 	};
 }

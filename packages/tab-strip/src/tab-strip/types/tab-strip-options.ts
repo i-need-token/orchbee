@@ -8,6 +8,7 @@ import type {
 	ActionRuntime,
 	ActionScope,
 } from '@orchbee/actions';
+import type { ReactNode } from 'react';
 
 import type {
 	TabGroupWindowMoveInput,
@@ -98,12 +99,28 @@ export interface TabStripShortcutLabels {
 	readonly setTabTitle?: string | undefined;
 }
 
+export type TabStatusAdornmentKind =
+	| 'active'
+	| 'attention'
+	| 'success'
+	| 'error'
+	| 'degraded'
+	| 'idle';
+
+export interface TabStatusAdornment {
+	readonly accessibleLabel: string;
+	readonly icon: ReactNode;
+	readonly kind: TabStatusAdornmentKind;
+}
+
 export interface TabStripOptions {
 	actionRuntime?: ActionRuntime | undefined;
 	/** Monotonic host request to focus the current roving Tab Strip entry. */
 	focusRequest?: number | undefined;
 	parentActionScope?: ActionScope | undefined;
 	model: TabModel;
+	/** Host-owned semantic status keyed by Tab identity. */
+	statusAdornments?: ReadonlyMap<string, Readonly<TabStatusAdornment>> | undefined;
 	orientation?: TabStripOrientation;
 	onOrientationChange?: (orientation: TabStripOrientation) => void;
 	verticalCollapsed?: boolean;

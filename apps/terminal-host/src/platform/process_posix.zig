@@ -215,7 +215,17 @@ pub const Process = if (builtin.os.tag == .windows) void else struct {
 
     pub fn releaseProcessIdentity(self: *Process) !void {
         if (self.exit_reaped) return;
-        try self.identity.release(self.child_id, process_session.NativeSessionReaper{});
+        if (self.exit_result != null) {
+            try self.identity.release(
+                self.child_id,
+                process_session.NativeObservedExitReaper{},
+            );
+        } else {
+            try self.identity.release(
+                self.child_id,
+                process_session.NativeSessionReaper{},
+            );
+        }
         self.exit_reaped = true;
     }
 
@@ -361,6 +371,14 @@ pub const Process = if (builtin.os.tag == .windows) void else struct {
         query: anytype,
     ) !u32 {
         return process_session.countFreebsdReaperMembers(session_id, query);
+    }
+
+    pub fn reapObservedProcessExitForTesting(
+        session_id: posix.pid_t,
+        reaper: anytype,
+        delay: anytype,
+    ) !void {
+        return process_session.reapObservedProcessExit(session_id, reaper, delay);
     }
 };
 

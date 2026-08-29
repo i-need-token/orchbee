@@ -431,6 +431,7 @@ const ControlOutputsFixture = struct {
     selection_export_finished: []const []const u8,
     selection_export_started: []const []const u8,
     terminal_acknowledged: []const u8,
+    terminal_application_signal: []const u8,
     terminal_bell: []const u8,
     terminal_clipboard_write_request: []const u8,
     terminal_configuration_accepted: []const u8,
@@ -472,6 +473,8 @@ const ProtocolLimitsFixture = struct {
     clipboard_text_bytes: u64,
     control_json_bytes: u64,
     environment_name_bytes: u64,
+    environment_overlay_entries: u64,
+    environment_overlay_value_bytes: u64,
     extension_bytes: u64,
     frame_bytes: u64,
     frame_cells: u64,
@@ -508,6 +511,7 @@ const ProtocolLimitsFixture = struct {
     string_bytes: u64,
     terminal_profile_features: u64,
     terminal_profile_palette_entries: u64,
+    terminal_application_signal_bytes: u64,
     terminal_response_bytes: u64,
     transport_record_bytes: u64,
     write_input_payload_bytes: u64,
@@ -1213,6 +1217,15 @@ test "every TypeScript control command fixture crosses the native typed decoder"
             @as(@TypeOf(decoded.value.launch.launch.profile.default_cursor_shape), .underline),
             decoded.value.launch.launch.profile.default_cursor_shape,
         );
+        try std.testing.expectEqual(@as(usize, 1), decoded.value.launch.environment_overlay.entries.len);
+        try std.testing.expectEqualStrings(
+            "ORCHBEE_AGENT_OBSERVATION_SOCKET",
+            decoded.value.launch.environment_overlay.entries[0].name,
+        );
+        try std.testing.expectEqualStrings(
+            "/tmp/orchbee-agent.sock",
+            decoded.value.launch.environment_overlay.entries[0].value,
+        );
     }
     {
         var decoded = try control_decode.decodeCreateTerminal(
@@ -1730,6 +1743,17 @@ test "native control replies and events conform to TypeScript schemas" {
         allocator,
         outputs.terminal_bell,
         try control_encode.terminalBell(allocator, attachment_id, 6),
+    );
+    try expectOwnedJson(
+        allocator,
+        outputs.terminal_application_signal,
+        try control_encode.terminalApplicationSignal(
+            allocator,
+            host_epoch,
+            creation_id,
+            terminal_id,
+            .{ .payload = "{\"activity\":\"command\",\"version\":1}", .sequence = 8 },
+        ),
     );
     try expectOwnedJson(
         allocator,

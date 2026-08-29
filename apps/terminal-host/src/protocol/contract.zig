@@ -33,7 +33,7 @@ pub const terminal_row_window_format_patch: u8 = 3;
 pub const transport_envelope_header_bytes = 64;
 pub const current_protocol_major: u16 = 0;
 pub const current_protocol_minor: u16 = 0;
-pub const current_protocol_patch: u16 = 22;
+pub const current_protocol_patch: u16 = 23;
 
 pub const Limits = struct {
     pub const cell_pixel_dimension = 4096;
@@ -59,7 +59,9 @@ pub const Limits = struct {
     pub const key_text_bytes = 4096;
     pub const launch_arguments = 4096;
     pub const launch_environment_entries = 1024;
+    pub const environment_overlay_entries = 16;
     pub const environment_name_bytes: usize = 32 * 1024;
+    pub const environment_overlay_value_bytes: usize = 4 * 1024;
     pub const optional_feature_name_bytes: usize = 64;
     pub const optional_features = 64;
     pub const pending_input_bytes: usize = 4 * 1024 * 1024;
@@ -73,6 +75,7 @@ pub const Limits = struct {
     pub const selection_preview_bytes: usize = 4 * 1024;
     pub const string_bytes = 16 * 1024;
     pub const terminal_profile_features = 64;
+    pub const terminal_application_signal_bytes: usize = 4 * 1024;
     pub const terminal_profile_palette_entries = 256;
     pub const terminal_response_bytes: usize = 256;
     pub const transport_record_bytes: usize = row_window_bytes + transport_envelope_header_bytes;
@@ -363,6 +366,7 @@ pub fn messageContract(kind: u16) ?MessageContract {
         M.terminal_bell => eventOnly("TerminalBell", .control_json),
         M.terminal_clipboard_write_request => eventOnly("TerminalClipboardWriteRequest", .control_json),
         M.terminal_metadata_changed => eventOnly("TerminalMetadataChanged", .control_json),
+        M.terminal_application_signal => eventOnly("TerminalApplicationSignal", .control_json),
         M.selection_gesture => requestOnly(
             "SelectionGesture",
             .selection_gesture,

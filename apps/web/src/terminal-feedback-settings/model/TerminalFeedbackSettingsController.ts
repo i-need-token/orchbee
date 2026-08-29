@@ -1,4 +1,8 @@
 import type { TerminalCommandCompletion } from '@orchbee/terminal-protocol';
+import type {
+	WorkbenchAgentEventObservation,
+	WorkbenchAgentNotificationObserver,
+} from '@orchbee/workbench';
 
 import {
 	DEFAULT_TERMINAL_FEEDBACK_PREFERENCES,
@@ -17,6 +21,7 @@ export type TerminalNotificationPermission = 'denied' | 'granted' | 'prompt' | '
 
 interface TerminalNotificationRequest {
 	readonly body: string;
+	readonly onActivate?: (() => void) | undefined;
 	readonly tag: string;
 	readonly title: string;
 }
@@ -56,6 +61,16 @@ export type TerminalCompletionObservationResult =
 			readonly notification: 'failed' | 'rate-limited' | 'shown' | 'unavailable';
 	  };
 
+type AgentEventObservationResult =
+	| {
+			readonly kind: 'ignored';
+			readonly reason: 'duplicate' | 'turned-off' | 'unsupported' | 'visible';
+	  }
+	| {
+			readonly kind: 'notify';
+			readonly notification: 'failed' | 'shown' | 'unavailable';
+	  };
+
 export type TerminalFeedbackUpdateResult =
 	| { readonly kind: 'applied-and-saved' }
 	| { readonly kind: 'applied-session-only' }
@@ -75,8 +90,12 @@ const SYSTEM_NOTIFICATION_INTERVAL_MILLISECONDS = 30_000;
 
 type SnapshotListener = () => void;
 
-export class TerminalFeedbackSettingsController implements TerminalCompletionReminderObserver {
+export class TerminalFeedbackSettingsController
+	implements TerminalCompletionReminderObserver, WorkbenchAgentNotificationObserver
+{
 	readonly #clock: () => number;
+	readonly #agentEventKeys: string[] = [];
+	readonly #agentEventKeySet = new Set<string>();
 	readonly #lastCompletionSequence = new Map<string, bigint>();
 	readonly #lastNotificationMilliseconds = new Map<string, number>();
 	readonly #notificationCapability: TerminalNotificationCapability;
@@ -219,12 +238,51 @@ export class TerminalFeedbackSettingsController implements TerminalCompletionRem
 		return { kind: 'remind', notification: shown ? 'shown' : 'failed' };
 	}
 
+	observeAgentEvent({
+		event,
+		notification,
+		visible,
+	}: WorkbenchAgentEventObservation): AgentEventObservationResult {
+		if (this.#disposed) return { kind: 'ignored', reason: 'turned-off' };
+		if (
+			event.type !== 'attention-requested' &&
+			(event.type !== 'turn-outcome' ||
+				(event.outcome !== 'failed' && event.outcome !== 'succeeded'))
+		) {
+			return { kind: 'ignored', reason: 'unsupported' };
+		}
+		const key = `${event.sessionId}\0${event.eventId}`;
+		if (this.#agentEventKeySet.has(key)) return { kind: 'ignored', reason: 'duplicate' };
+		this.#agentEventKeySet.add(key);
+		this.#agentEventKeys.push(key);
+		if (this.#agentEventKeys.length > 2048) {
+			const retired = this.#agentEventKeys.shift();
+			if (retired !== undefined) this.#agentEventKeySet.delete(retired);
+		}
+		if (this.#snapshot.preferences.agentNotificationMode === 'never') {
+			return { kind: 'ignored', reason: 'turned-off' };
+		}
+		if (visible) return { kind: 'ignored', reason: 'visible' };
+		if (this.#snapshot.notificationPermission !== 'granted') {
+			return { kind: 'notify', notification: 'unavailable' };
+		}
+		let shown = false;
+		try {
+			shown = this.#notificationCapability.show(notification);
+		} catch {
+			shown = false;
+		}
+		return { kind: 'notify', notification: shown ? 'shown' : 'failed' };
+	}
+
 	dispose(): void {
 		if (this.#disposed) return;
 		this.#disposed = true;
 		this.#permissionRequestEpoch += 1;
 		this.#lastCompletionSequence.clear();
 		this.#lastNotificationMilliseconds.clear();
+		this.#agentEventKeys.length = 0;
+		this.#agentEventKeySet.clear();
 		this.#snapshotListeners.clear();
 	}
 
@@ -255,6 +313,7 @@ function preferencesEqual(
 	right: TerminalFeedbackPreferences,
 ): boolean {
 	return (
+		left.agentNotificationMode === right.agentNotificationMode &&
 		left.completionReminderMinimumSeconds === right.completionReminderMinimumSeconds &&
 		left.completionReminderMode === right.completionReminderMode
 	);

@@ -21,6 +21,8 @@ export type {
 	TabStripProps,
 	TabStripSelectCallback,
 	TabStripShortcutLabels,
+	TabStatusAdornment,
+	TabStatusAdornmentKind,
 	TabStripWindowTarget,
 } from './TabStrip';
 export { TabStripOrientation, VerticalTabStripCollapseState } from './types/tab-strip-types';

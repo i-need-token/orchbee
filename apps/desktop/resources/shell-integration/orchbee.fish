@@ -25,3 +25,47 @@ function __orchbee_prompt --on-event fish_prompt
 	printf '\e]7;file://%s\a' $encoded_path
 	printf '\e]133;A\a'
 end
+
+function __orchbee_ssh_observation_eligible
+	if not set -q ORCHBEE_AGENT_OBSERVATION_SOCKET
+		return 1
+	end
+	if not test -S "$ORCHBEE_AGENT_OBSERVATION_SOCKET"; or not isatty stdin; or not isatty stdout
+		return 1
+	end
+	for argument in $argv
+		switch $argument
+			case -G -O -Q -V -W '-W*'
+				return 1
+		end
+		if string match -rq '^-[46AaCfGgKkMNnqsTtVvXxYy]+$' -- $argument; and string match -rq '[NnfT]' -- $argument
+			return 1
+		end
+	end
+	return 0
+end
+
+function __orchbee_ssh_observation_nonce
+	set -l nonce (od -An -N16 -tx1 /dev/urandom 2>/dev/null | string replace -a ' ' '' | string collect)
+	set nonce (string replace -a '\n' '' -- $nonce)
+	if not string match -rq '^[a-f0-9]{32}$' -- $nonce
+		set nonce "$fish_pid"(random)(random)(date +%s 2>/dev/null)
+		set nonce (string replace -ra '[^A-Za-z0-9_-]' '' -- $nonce)
+	end
+	printf '%s' $nonce
+end
+
+if test (type -t ssh 2>/dev/null) = file
+	function ssh
+		if not __orchbee_ssh_observation_eligible $argv
+			command ssh $argv
+			return $status
+		end
+		set -l remote_socket "/tmp/orchbee-agent-v2-"(__orchbee_ssh_observation_nonce)".sock"
+		command ssh \
+			-o StreamLocalBindMask=0177 \
+			-o StreamLocalBindUnlink=yes \
+			-R "$remote_socket:$ORCHBEE_AGENT_OBSERVATION_SOCKET" \
+			$argv
+	end
+end

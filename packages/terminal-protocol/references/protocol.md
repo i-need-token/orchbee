@@ -5,7 +5,7 @@
 | Status          | Current wire-contract and codec authority; this package implements no lifecycle state machine, PTY, IPC listener, renderer, Electron, recovery, or network behavior                  |
 | Wire owner      | `@orchbee/terminal-protocol`                                                                                                                                                         |
 | Native consumer | `apps/terminal-host` consumes declared schemas and fixture exports for bounded native dispatch and Zig conformance                                                                   |
-| Reference scope | Exact protocol `0.0.22`; OBTF format `0.0.3`; OBPB format `0.0.2`; OBRW format `0.0.3`; OBKG format `0.0.2`; input/selection codecs; failure vocabulary; bounds; and pinned fixtures |
+| Reference scope | Exact protocol `0.0.23`; OBTF format `0.0.3`; OBPB format `0.0.2`; OBRW format `0.0.3`; OBKG format `0.0.2`; input/selection codecs; failure vocabulary; bounds; and pinned fixtures |
 | Change rule     | A changed field, message meaning, wire byte, bound, or fixture updates this record, both language implementations, every producer/consumer, and evidence                             |
 
 ## Modeling record
@@ -40,7 +40,7 @@ identity and are rejected where an identity is required.
 | `TerminalThemeOperationId` | Application-created idempotency identity for one terminal-theme compare-and-set operation                                        |
 | `CorrelationId`            | Required on every request and response after `Hello`; all-zero envelope bytes mean absence only for handshake messages or events |
 
-The current protocol version is exactly `0.0.22`. `Hello`, `HelloAccepted`, and every transport
+The current protocol version is exactly `0.0.23`. `Hello`, `HelloAccepted`, and every transport
 envelope carry that exact version. A different major, minor, or patch is rejected; this pre-release
 contract contains no negotiated range, compatibility mode, or historical message shape. Packed
 OBTF frame format is exactly `0.0.3`; OBPB projection-buffer format is exactly `0.0.2`; OBRW
@@ -95,6 +95,16 @@ sets an explicitly empty value. Names cannot contain `=`. No launch string may c
 U+0000 because executable, argument, directory, name, and value fields cross an operating-system
 process boundary. Product secrets and values remain payload data and are excluded from normal
 diagnostics.
+
+`CreateTerminal` also carries required `environmentOverlay`, separate from `TerminalLaunch`. It
+contains at most 16 entries; every value is non-null and at most 4 KiB of UTF-8. Names use the same
+syntax and target-operating-system identity rule as launch environment names, must be unique within
+the overlay, and must not overlap any launch environment name. The overlay is not inventory data
+and is not part of the durable launch fingerprint. The Host nevertheless derives a
+target-normalized, order-independent digest for its retained creation generation: a non-empty replay
+must match that digest, while an empty replay may validate an already retained creation without
+reconstructing its capability. The Host runtime contract owns those replay and lifetime semantics;
+this package owns only the required bounded wire distinction.
 
 The four launch geometry fields form one closed choice. `columns`, `rows`, `cellPixelWidth`, and
 `cellPixelHeight` are either all valid positive integers or all `null`; mixed geometry is malformed.
@@ -300,22 +310,22 @@ bytes to the ordered ingress budget.
 
 ## Message registry
 
-| Range   | Group                                      | Kinds                                                                                                                                                                                                                                                                                                                                                               |
-| ------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `1-5`   | Connection                                 | `Hello=1`, `HelloAccepted=2`, `ProtocolRejected=3`, `Ping=4`, `TypedFailure=5`                                                                                                                                                                                                                                                                                      |
-| `10-19` | Inventory and lifecycle                    | `ListTerminals=10`, `CreateTerminal=11`, `TerminateTerminal=12`, `DisposeTerminal=13`, `TerminalStarted=14`, `TerminalExited=15`, `StartTerminal=16`, `TerminalStartAccepted=17`, `ForceTerminateTerminal=18`, `TerminalFailed=19`                                                                                                                                  |
-| `20-25` | Attachment                                 | `AttachTerminal=20`, `DetachTerminal=21`, `AttachmentCapabilities=22`, `ResizeLeaseChanged=23`, `UpdateAttachmentInputCapability=24`, `ClaimResizeLease=25`                                                                                                                                                                                                         |
-| `30-38` | Input and size                             | `WriteInput=30`, `InputAccepted=31`, `ResizeTerminal=32`, `ResizeAccepted=33`, `KeyInput=34`, `TextInput=35`, `MouseInput=36`, `FocusInput=37`, `PasteInput=38`                                                                                                                                                                                                     |
-| `41-56` | Projection and effects                     | `SnapshotFrame=41`, `DeltaFrame=42`, `FrameApplied=43`, `NeedSnapshot=44`, `ReadRows=45`, `RowsSnapshot=46`, `SetProjectionDemand=47`, `ProjectionDemandAccepted=48`, `ProjectionBlocked=49`, `RowsApplied=50`, `SetHistoryDemand=51`, `HistoryDemandAccepted=52`, `HistoryChanged=53`, `HistoryObserved=54`, `TerminalBell=55`, `TerminalClipboardWriteRequest=56` |
-| `60-68` | Selection and export                       | `SelectionGesture=60`, `SelectionCommand=61`, `SelectionChanged=62`, `SelectionExport=63`, `SelectionExportStarted=64`, `SelectionExportChunk=65`, `SelectionExportChunkApplied=66`, `SelectionExportFinished=67`, `SelectionExportCancel=68`                                                                                                                       |
-| `70-78` | Terminal configuration, control, and theme | `SetTerminalDefaults=70`, `TerminalDefaultsAccepted=71`, `UpdateTerminalConfiguration=72`, `TerminalConfigurationAccepted=73`, `ClearTerminal=74`, `ResetTerminal=75`, `TerminalControlAccepted=76`, `ApplyTerminalTheme=77`, `TerminalThemeResult=78`                                                                                                              |
+| Range   | Group                                      | Kinds                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| ------- | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `1-5`   | Connection                                 | `Hello=1`, `HelloAccepted=2`, `ProtocolRejected=3`, `Ping=4`, `TypedFailure=5`                                                                                                                                                                                                                                                                                                                                                    |
+| `10-19` | Inventory and lifecycle                    | `ListTerminals=10`, `CreateTerminal=11`, `TerminateTerminal=12`, `DisposeTerminal=13`, `TerminalStarted=14`, `TerminalExited=15`, `StartTerminal=16`, `TerminalStartAccepted=17`, `ForceTerminateTerminal=18`, `TerminalFailed=19`                                                                                                                                                                                                |
+| `20-25` | Attachment                                 | `AttachTerminal=20`, `DetachTerminal=21`, `AttachmentCapabilities=22`, `ResizeLeaseChanged=23`, `UpdateAttachmentInputCapability=24`, `ClaimResizeLease=25`                                                                                                                                                                                                                                                                       |
+| `30-38` | Input and size                             | `WriteInput=30`, `InputAccepted=31`, `ResizeTerminal=32`, `ResizeAccepted=33`, `KeyInput=34`, `TextInput=35`, `MouseInput=36`, `FocusInput=37`, `PasteInput=38`                                                                                                                                                                                                                                                                   |
+| `41-58` | Projection and effects                     | `SnapshotFrame=41`, `DeltaFrame=42`, `FrameApplied=43`, `NeedSnapshot=44`, `ReadRows=45`, `RowsSnapshot=46`, `SetProjectionDemand=47`, `ProjectionDemandAccepted=48`, `ProjectionBlocked=49`, `RowsApplied=50`, `SetHistoryDemand=51`, `HistoryDemandAccepted=52`, `HistoryChanged=53`, `HistoryObserved=54`, `TerminalBell=55`, `TerminalClipboardWriteRequest=56`, `TerminalMetadataChanged=57`, `TerminalApplicationSignal=58` |
+| `60-68` | Selection and export                       | `SelectionGesture=60`, `SelectionCommand=61`, `SelectionChanged=62`, `SelectionExport=63`, `SelectionExportStarted=64`, `SelectionExportChunk=65`, `SelectionExportChunkApplied=66`, `SelectionExportFinished=67`, `SelectionExportCancel=68`                                                                                                                                                                                     |
+| `70-78` | Terminal configuration, control, and theme | `SetTerminalDefaults=70`, `TerminalDefaultsAccepted=71`, `UpdateTerminalConfiguration=72`, `TerminalConfigurationAccepted=73`, `ClearTerminal=74`, `ResetTerminal=75`, `TerminalControlAccepted=76`, `ApplyTerminalTheme=77`, `TerminalThemeResult=78`                                                                                                                                                                            |
 
-Unlisted numbers are unassigned. Title and current-directory changes travel in terminal frames.
-Initial resize-lease authority is returned by attachment admission; later ownership transfers use
-the attachment-scoped claim and complete events.
+Unlisted numbers are unassigned. Title and current-directory changes travel in terminal frames and
+the identity-scoped metadata event. Initial resize-lease authority is returned by attachment
+admission; later ownership transfers use the attachment-scoped claim and complete events.
 
 `MESSAGE_CONTRACTS` is the executable TypeScript registry behind this table. Its native mirror is
-checked field-for-field through `control-conformance-v0.0.22.json`. Adding or changing a kind therefore
+checked field-for-field through `control-conformance-v0.0.23.json`. Adding or changing a kind therefore
 requires one atomic protocol change to the registry, native mirror, codecs, fixture, and consumers.
 
 `TerminalBell` is an event-only control record containing `attachmentId` and a positive canonical
@@ -334,6 +344,15 @@ outgoing-batch rollback, and removal after handoff. The receiving application ow
 per-request commit policy and platform clipboard effect. The record is not acknowledged or replayed
 to another attachment, and it carries no trust duration, selection-kind choice, rich format, or
 clipboard contents from the client.
+
+`TerminalApplicationSignal` is an event-only control record containing one exact terminal identity,
+a positive terminal-owned `sequence`, and at most 4 KiB of UTF-8 `payload`. It transports a bounded
+application-emitted hint admitted from the reserved OSC 777 notification title
+`orchbee.agent.v1`; it does not authenticate the emitting process or grant Agent, lifecycle,
+attention, outcome, notification, or provider authority. Terminal Host retains up to 64 admitted
+hints in terminal-sequence FIFO order and removes the queue head only after its exact outgoing
+record commits. Product adapters must validate a narrower schema before interpreting even limited
+activity.
 
 Requests and responses use the response flag and `CorrelationId`; the named pairs in
 [runtime binding](#runtime-binding) use their registered response kind and other
@@ -777,6 +796,8 @@ The handshake may select smaller transport payload bounds. It never raises these
 | -------------------------------------- | -----------------: |
 | Control JSON                           |             64 KiB |
 | One OSC 52 clipboard text              |             16 KiB |
+| Launch-overlay entries / one value     |         16 / 4 KiB |
+| One terminal application signal        |              4 KiB |
 | Terminals in one inventory page        |                128 |
 | One raw, text, or paste input body     |              1 MiB |
 | One key text                           |              4 KiB |

@@ -32,9 +32,11 @@ import {
 } from '../../../../utils/tab-strip-internals';
 import { useTabButton } from './hooks/useTabButton';
 import { useTabStripMessages } from '../../../../hooks/useTabStripMessages';
+import type { TabStatusAdornment } from '../../../../types/tab-strip-options';
 
 export function TabButton({
 	tab,
+	statusAdornment,
 	snapshot,
 	width,
 	orientation,
@@ -57,6 +59,7 @@ export function TabButton({
 	dragging = false,
 }: {
 	tab: Readonly<TabData>;
+	statusAdornment?: Readonly<TabStatusAdornment> | undefined;
 	snapshot: TabModelSnapshot;
 	width: number;
 	orientation: TabStripOrientation;
@@ -92,7 +95,7 @@ export function TabButton({
 	const visualHovered = hovered || hoveredTabId === tab.id;
 	const alertState = tab.alertState ?? 'none';
 	const hasAlert = alertState !== 'none';
-	const hasFavicon = tab.shouldDisplayFavicon !== false;
+	const hasFavicon = statusAdornment !== undefined || tab.shouldDisplayFavicon !== false;
 	const horizontalContentsWidth = Math.max(0, renderedWidth - TAB_CONTENT_HORIZONTAL_INSET * 2);
 	const childVisibility =
 		orientation === TabStripOrientation.Horizontal
@@ -164,7 +167,11 @@ export function TabButton({
 	const content = (
 		<span className={styles['ct-tab__content']} data-tab-content=''>
 			{childVisibility.showFavicon ? (
-				<TabIcon tab={tab} availableWidth={Math.max(0, renderedWidth - 18)} />
+				<TabIcon
+					tab={tab}
+					availableWidth={Math.max(0, renderedWidth - 18)}
+					statusAdornment={statusAdornment}
+				/>
 			) : null}
 			{childVisibility.showTitle ? (
 				<span className={styles['ct-tab__title']}>{getVisibleTabTitle(tab)}</span>
@@ -189,7 +196,11 @@ export function TabButton({
 			aria-selected={selected}
 			aria-posinset={tabPositionIndex + 1}
 			aria-setsize={snapshot.tabs.length}
-			aria-label={messages.formatTabAccessibleLabel(tab, group)}
+			aria-label={
+				statusAdornment === undefined
+					? messages.formatTabAccessibleLabel(tab, group)
+					: `${messages.formatTabAccessibleLabel(tab, group)}, ${statusAdornment.accessibleLabel}`
+			}
 			title=''
 			className={styles['ct-tab']}
 			data-tab-id={tab.id}

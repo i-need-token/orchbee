@@ -910,7 +910,7 @@ describe('TerminalSettingsSurface', () => {
 		expect(diagnostic.value).toBe(REMOTE_DEVELOPMENT_DIAGNOSTIC_COMMAND);
 		expect(container.textContent).toContain('xterm-256color');
 		expect(container.textContent).toContain('No automatic remote changes');
-		expect(container.textContent).toContain('does not wrap SSH');
+		expect(container.textContent).toContain('private reverse Unix-socket forward');
 		expect(storage.setItem).not.toHaveBeenCalled();
 
 		const search = requiredElement<HTMLInputElement>(

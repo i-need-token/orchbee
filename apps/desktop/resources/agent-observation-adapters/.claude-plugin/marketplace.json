@@ -1,0 +1,13 @@
+{
+	"description": "Explicitly installed Orchbee integrations for terminal Agent observation",
+	"name": "orchbee-local",
+	"owner": { "name": "Orchbee" },
+	"plugins": [
+		{
+			"description": "Locally sanitizes terminal Agent lifecycle events for Orchbee status observation",
+			"name": "orchbee-agent-observation",
+			"source": "./bundle",
+			"version": "0.2.0"
+		}
+	]
+}

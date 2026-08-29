@@ -1,5 +1,6 @@
 const std = @import("std");
 const builtin = @import("builtin");
+const monotonic = @import("monotonic.zig");
 const thread_sync = @import("thread_sync.zig");
 
 extern "c" fn orchbee_prepare_process_tracking() c_int;
@@ -309,7 +310,51 @@ pub const NativeSessionReaper = struct {
             freebsd_reap_mutex.lock();
             defer freebsd_reap_mutex.unlock();
         }
-        if (orchbee_reap_process_exit(session_id) != 0) return error.ProcessReapFailed;
+        const result = orchbee_reap_process_exit(session_id);
+        if (result == @intFromEnum(std.posix.E.AGAIN)) return error.ProcessReapPending;
+        if (result != 0) return error.ProcessReapFailed;
+    }
+};
+
+const observed_exit_reap_retry_limit = 1000;
+const observed_exit_reap_retry_delay_ns = std.time.ns_per_ms;
+
+const NativeReapDelay = struct {
+    fn pause(_: @This()) void {
+        monotonic.sleep(observed_exit_reap_retry_delay_ns);
+    }
+};
+
+/// A prior non-reaping exit observation proves that this is not a wait for a
+/// running child. macOS can still expose a narrow interval in which waitid has
+/// reported that exit but waitpid(WNOHANG) cannot reap it yet, so retry only
+/// that pending result within a fixed bound while the identity fence is held.
+pub fn reapObservedProcessExit(
+    session_id: std.posix.pid_t,
+    reaper: anytype,
+    delay: anytype,
+) !void {
+    for (0..observed_exit_reap_retry_limit) |attempt| {
+        reaper.reap(session_id) catch |err| switch (err) {
+            error.ProcessReapPending => {
+                if (attempt + 1 == observed_exit_reap_retry_limit) return err;
+                delay.pause();
+                continue;
+            },
+            else => return err,
+        };
+        return;
+    }
+    unreachable;
+}
+
+pub const NativeObservedExitReaper = struct {
+    pub fn reap(_: @This(), session_id: std.posix.pid_t) !void {
+        try reapObservedProcessExit(
+            session_id,
+            NativeSessionReaper{},
+            NativeReapDelay{},
+        );
     }
 };
 

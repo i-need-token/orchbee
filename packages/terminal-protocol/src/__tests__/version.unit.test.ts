@@ -8,7 +8,7 @@ import { CURRENT_PROTOCOL_VERSION, ProtocolVersionSchema } from '../version';
 
 describe('protocol version', () => {
 	it('publishes one exact current pre-release contract', () => {
-		expect(CURRENT_PROTOCOL_VERSION).toEqual({ major: 0, minor: 0, patch: 22 });
+		expect(CURRENT_PROTOCOL_VERSION).toEqual({ major: 0, minor: 0, patch: 23 });
 	});
 
 	it('validates only the version shape and leaves exact matching to the handshake', () => {

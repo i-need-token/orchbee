@@ -142,6 +142,13 @@ pub fn parseTerminalInput(runtime: *terminal_runtime.TerminalRuntime, bytes: []c
     runtimeState(runtime).stream.nextSlice(bytes);
 }
 
+pub fn commitReaderBatch(
+    runtime: *terminal_runtime.TerminalRuntime,
+    bytes: []const u8,
+) terminal_runtime.testing.ReaderBatchOutcomeType {
+    return terminal_runtime.testing.commitReaderBatch(runtime, bytes);
+}
+
 pub fn inputEntryCount(runtime: *terminal_runtime.TerminalRuntime) usize {
     return terminal_runtime.testing.inputQueueSnapshot(runtime).entry_count;
 }
@@ -693,6 +700,7 @@ pub fn testCreatePayloadWithConfiguration(
     defer writer.deinit();
     try std.json.Stringify.value(.{
         .creationId = creation_id,
+        .environmentOverlay = &.{},
         .launch = .{
             .arguments = arguments,
             .cellPixelHeight = 16,

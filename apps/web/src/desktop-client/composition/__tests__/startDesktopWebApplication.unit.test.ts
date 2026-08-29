@@ -27,7 +27,7 @@ describe('startDesktopWebApplication', () => {
 				platform: 'darwin',
 			},
 		});
-		const ports = messagePorts(12);
+		const ports = messagePorts(14);
 		const session = startDesktopWebApplication(
 			harness.targetWindow,
 			harness.root,
@@ -50,11 +50,11 @@ describe('startDesktopWebApplication', () => {
 				clientSessionId: 'client-1',
 				terminalHostName: 'orchbee-host',
 			}),
-			ports[2],
+			ports[4],
 			ports[0],
 			ports[1],
+			ports[2],
 			ports[3],
-			ports[4],
 			ports[5],
 			ports[6],
 			ports[7],
@@ -62,12 +62,14 @@ describe('startDesktopWebApplication', () => {
 			ports[9],
 			ports[10],
 			ports[11],
+			ports[12],
+			ports[13],
 			expect.objectContaining({ prepare: expect.any(Function) }),
 		);
 		expect(harness.root.dataset['desktopContextIsolated']).toBe('true');
 		expect(harness.root.dataset['desktopSandboxed']).toBe('true');
 
-		harness.dispatchMessage(rendererMessage(), messagePorts(12));
+		harness.dispatchMessage(rendererMessage(), messagePorts(14));
 		expect(harness.startRenderer).toHaveBeenCalledOnce();
 		session.dispose();
 		expect(harness.disposeRenderer).toHaveBeenCalledOnce();
@@ -75,7 +77,7 @@ describe('startDesktopWebApplication', () => {
 
 	it('fails closed without starting Preview for an untrusted or partial bundle', () => {
 		const harness = createHarness();
-		const ports = messagePorts(11);
+		const ports = messagePorts(13);
 		const closeSpies = ports.map((port) => vi.spyOn(port, 'close'));
 		startDesktopWebApplication(
 			harness.targetWindow,

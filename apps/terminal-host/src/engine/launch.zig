@@ -11,9 +11,12 @@ const terminal_theme = model.theme;
 
 pub const Digest = terminal_launch.Digest;
 pub const EnvironmentEntry = terminal_launch.EnvironmentEntry;
+pub const EnvironmentOverlayEntry = terminal_launch.EnvironmentOverlayEntry;
 pub const Launch = terminal_launch.Launch;
 pub const Validated = terminal_launch.Validated;
+pub const ValidatedEnvironmentOverlay = terminal_launch.ValidatedEnvironmentOverlay;
 pub const inspect = terminal_launch.inspect;
+pub const inspectWithOverlay = terminal_launch.inspectWithOverlay;
 
 // This value owns every launch byte required after CreateTerminal decoding.
 // A deferred visual launch can therefore survive until mounted geometry is
@@ -24,10 +27,14 @@ pub const RuntimePreparation = struct {
     configuration: terminal_configuration.Configuration,
     current_directory: ?[]const u8,
     environment: []pty_process.EnvironmentDelta,
+    environment_overlay_start: usize,
     executable: []const u8,
     profile: terminal_profile.Profile,
 
     pub fn deinit(self: *RuntimePreparation, _: std.mem.Allocator) void {
+        for (self.environment[self.environment_overlay_start..]) |entry| {
+            if (entry.value) |value| @memset(@constCast(value), 0);
+        }
         self.arena.deinit();
         self.* = undefined;
     }
@@ -97,11 +104,21 @@ pub fn prepareRuntime(
     for (arguments, launch.arguments) |*target, argument| {
         target.* = try owned.dupe(u8, argument);
     }
-    const environment = try owned.alloc(pty_process.EnvironmentDelta, launch.environment.len);
+    const overlay = validated.environment_overlay.entries;
+    const environment = try owned.alloc(
+        pty_process.EnvironmentDelta,
+        launch.environment.len + overlay.len,
+    );
     for (launch.environment, 0..) |entry, index| {
         environment[index] = .{
             .name = try owned.dupe(u8, entry.name),
             .value = if (entry.value) |value| try owned.dupe(u8, value) else null,
+        };
+    }
+    for (overlay, launch.environment.len..) |entry, index| {
+        environment[index] = .{
+            .name = try owned.dupe(u8, entry.name),
+            .value = try owned.dupe(u8, entry.value),
         };
     }
     const effective_configuration = launch.configuration orelse default_configuration;
@@ -121,6 +138,7 @@ pub fn prepareRuntime(
         .configuration = effective_configuration,
         .current_directory = current_directory,
         .environment = environment,
+        .environment_overlay_start = launch.environment.len,
         .executable = executable,
         .profile = profile,
     };

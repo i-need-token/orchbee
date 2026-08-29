@@ -7,7 +7,8 @@ import {
 	type TerminalFeedbackPreferences,
 } from './terminal-feedback-preferences';
 
-const TERMINAL_FEEDBACK_STORAGE_KEY = 'orchbee:web:terminal-feedback:v1';
+const TERMINAL_FEEDBACK_STORAGE_KEY = 'orchbee:web:terminal-feedback:v2';
+const LEGACY_TERMINAL_FEEDBACK_STORAGE_KEY = 'orchbee:web:terminal-feedback:v1';
 
 export type TerminalFeedbackPersistenceIssue = 'invalid-record' | 'read-failed' | 'write-failed';
 
@@ -17,12 +18,17 @@ export interface TerminalFeedbackStorage {
 }
 
 const terminalFeedbackPreferencesSchema = z.strictObject({
+	agentNotificationMode: z.enum(['never', 'hidden']),
 	completionReminderMinimumSeconds: z
 		.number()
 		.int()
 		.min(MINIMUM_COMPLETION_REMINDER_SECONDS)
 		.max(MAXIMUM_COMPLETION_REMINDER_SECONDS),
 	completionReminderMode: z.enum(['never', 'unfocused', 'always']),
+});
+
+const legacyTerminalFeedbackPreferencesSchema = terminalFeedbackPreferencesSchema.omit({
+	agentNotificationMode: true,
 });
 
 export function normalizeTerminalFeedbackPreferences(
@@ -37,18 +43,34 @@ export function readTerminalFeedbackPreferences(storage: TerminalFeedbackStorage
 	readonly preferences: TerminalFeedbackPreferences;
 } {
 	let serialized: string | null;
+	let legacy: string | null = null;
 	try {
 		serialized = storage.getItem(TERMINAL_FEEDBACK_STORAGE_KEY);
+		if (serialized === null) legacy = storage.getItem(LEGACY_TERMINAL_FEEDBACK_STORAGE_KEY);
 	} catch {
 		return { issue: 'read-failed', preferences: DEFAULT_TERMINAL_FEEDBACK_PREFERENCES };
 	}
-	if (serialized === null) {
-		return { issue: null, preferences: DEFAULT_TERMINAL_FEEDBACK_PREFERENCES };
+	if (serialized !== null) {
+		try {
+			const result = terminalFeedbackPreferencesSchema.safeParse(JSON.parse(serialized));
+			return result.success
+				? { issue: null, preferences: Object.freeze(result.data) }
+				: { issue: 'invalid-record', preferences: DEFAULT_TERMINAL_FEEDBACK_PREFERENCES };
+		} catch {
+			return { issue: 'invalid-record', preferences: DEFAULT_TERMINAL_FEEDBACK_PREFERENCES };
+		}
 	}
+	if (legacy === null) return { issue: null, preferences: DEFAULT_TERMINAL_FEEDBACK_PREFERENCES };
 	try {
-		const result = terminalFeedbackPreferencesSchema.safeParse(JSON.parse(serialized));
+		const result = legacyTerminalFeedbackPreferencesSchema.safeParse(JSON.parse(legacy));
 		return result.success
-			? { issue: null, preferences: Object.freeze(result.data) }
+			? {
+					issue: null,
+					preferences: Object.freeze({
+						agentNotificationMode: 'never' as const,
+						...result.data,
+					}),
+				}
 			: { issue: 'invalid-record', preferences: DEFAULT_TERMINAL_FEEDBACK_PREFERENCES };
 	} catch {
 		return { issue: 'invalid-record', preferences: DEFAULT_TERMINAL_FEEDBACK_PREFERENCES };

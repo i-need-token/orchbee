@@ -2,6 +2,7 @@ const contracts = @import("contracts.zig");
 const handle = @import("handle.zig");
 
 pub const pending_input_capacity_bytes = contracts.pending_input_capacity_bytes;
+pub const max_pending_application_signals = contracts.max_pending_application_signals;
 pub const max_key_encoded_bytes = contracts.max_key_encoded_bytes;
 pub const max_mouse_encoded_bytes = contracts.max_mouse_encoded_bytes;
 pub const max_focus_encoded_bytes = contracts.max_focus_encoded_bytes;
@@ -23,6 +24,7 @@ pub const ProjectionEncodeOutcome = contracts.ProjectionEncodeOutcome;
 pub const ProjectionEncodeError = contracts.ProjectionEncodeError;
 pub const HistoryDemand = contracts.HistoryDemand;
 pub const MetadataEvent = contracts.MetadataEvent;
+pub const ApplicationSignalEvent = contracts.ApplicationSignalEvent;
 pub const HistoryEvent = contracts.HistoryEvent;
 pub const HistoryReadRequest = contracts.HistoryReadRequest;
 pub const HistoryRows = contracts.HistoryRows;

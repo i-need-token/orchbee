@@ -7,6 +7,7 @@ const subject = engine_boundary.launch;
 const terminal_configuration = model_boundary.configuration;
 
 const EnvironmentEntry = subject.EnvironmentEntry;
+const EnvironmentOverlayEntry = subject.EnvironmentOverlayEntry;
 const Launch = subject.Launch;
 
 const features = [_]u16{22};
@@ -80,4 +81,30 @@ test "validated launch prepares short-lived runtime input only after inspection"
         @as(usize, 54_321),
         configured_runtime.runtimeOptions(configured.launch.geometry.?).scrollback_bytes,
     );
+}
+
+test "runtime preparation appends a nonpersistent environment overlay" {
+    const environment = [_]EnvironmentEntry{
+        .{ .name = "DURABLE", .value = "value" },
+    };
+    const overlay = [_]EnvironmentOverlayEntry{
+        .{ .name = "ORCHBEE_AGENT_OBSERVATION_SOCKET", .value = "/tmp/orchbee-agent.sock" },
+    };
+    const validated = try subject.inspectWithOverlay(
+        std.testing.allocator,
+        validLaunch(&environment),
+        &overlay,
+    );
+    var prepared = try subject.prepareRuntime(validated, std.testing.allocator, .{});
+    defer prepared.deinit(std.testing.allocator);
+    const process_launch = prepared.processLaunch(validated.launch.geometry.?);
+
+    try std.testing.expectEqual(@as(usize, 2), process_launch.environment.len);
+    try std.testing.expectEqualStrings("DURABLE", process_launch.environment[0].name);
+    try std.testing.expectEqualStrings("value", process_launch.environment[0].value.?);
+    try std.testing.expectEqualStrings(
+        "ORCHBEE_AGENT_OBSERVATION_SOCKET",
+        process_launch.environment[1].name,
+    );
+    try std.testing.expectEqualStrings("/tmp/orchbee-agent.sock", process_launch.environment[1].value.?);
 }

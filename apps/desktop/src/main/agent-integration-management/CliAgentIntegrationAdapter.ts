@@ -1,0 +1,104 @@
+import type {
+	DesktopAgentIntegrationId,
+	DesktopAgentIntegrationManagementMode,
+	DesktopAgentIntegrationSnapshotItem,
+	DesktopAgentIntegrationState,
+} from '@orchbee/desktop-client-protocol';
+
+import type { AgentIntegrationCommandRunner } from './NodeAgentIntegrationCommandRunner';
+import type {
+	AgentIntegrationAdapter,
+	AgentIntegrationMutationAttempt,
+} from './agent-integration-adapter';
+
+export interface CliAgentIntegrationOperationContext {
+	readonly commandRunner: AgentIntegrationCommandRunner;
+	readonly executablePath: string;
+	readonly resourceRoot: string;
+}
+
+export interface CliAgentIntegrationAdapterOptions {
+	readonly commandRunner: AgentIntegrationCommandRunner;
+	readonly disable: (
+		context: CliAgentIntegrationOperationContext,
+	) => Promise<AgentIntegrationMutationAttempt>;
+	readonly enable: (
+		context: CliAgentIntegrationOperationContext,
+	) => Promise<AgentIntegrationMutationAttempt>;
+	readonly executableName: string;
+	readonly inspectArguments: readonly string[];
+	readonly integrationId: DesktopAgentIntegrationId;
+	readonly managementMode: DesktopAgentIntegrationManagementMode;
+	readonly parseState: (stdout: string) => DesktopAgentIntegrationState | null;
+	readonly resourceRoot: string;
+}
+
+export class CliAgentIntegrationAdapter implements AgentIntegrationAdapter {
+	readonly #commandRunner: AgentIntegrationCommandRunner;
+	readonly #disableOperation: CliAgentIntegrationAdapterOptions['disable'];
+	readonly #enableOperation: CliAgentIntegrationAdapterOptions['enable'];
+	readonly #executableName: string;
+	readonly #inspectArguments: readonly string[];
+	readonly integrationId: DesktopAgentIntegrationId;
+	readonly managementMode: DesktopAgentIntegrationManagementMode;
+	readonly #parseState: CliAgentIntegrationAdapterOptions['parseState'];
+	readonly #resourceRoot: string;
+
+	constructor(options: CliAgentIntegrationAdapterOptions) {
+		this.#commandRunner = options.commandRunner;
+		this.#disableOperation = options.disable;
+		this.#enableOperation = options.enable;
+		this.#executableName = options.executableName;
+		this.#inspectArguments = options.inspectArguments;
+		this.integrationId = options.integrationId;
+		this.managementMode = options.managementMode;
+		this.#parseState = options.parseState;
+		this.#resourceRoot = options.resourceRoot;
+	}
+
+	async inspect(): Promise<DesktopAgentIntegrationSnapshotItem> {
+		const executablePath = await this.#commandRunner.resolveExecutable(this.#executableName);
+		if (executablePath === null) {
+			return {
+				availability: 'not-found',
+				integrationId: this.integrationId,
+				issue: this.managementMode === 'manual-only' ? 'unsupported-platform' : null,
+				managementMode: this.managementMode,
+				state: 'unknown',
+			};
+		}
+		const result = await this.#commandRunner.run(executablePath, this.#inspectArguments);
+		const state = result.kind === 'completed' ? this.#parseState(result.stdout) : null;
+		let issue: DesktopAgentIntegrationSnapshotItem['issue'] = null;
+		if (this.managementMode === 'manual-only') issue = 'unsupported-platform';
+		else if (state === null) issue = 'inspection-failed';
+		return {
+			availability: 'available',
+			integrationId: this.integrationId,
+			issue,
+			managementMode: this.managementMode,
+			state: state ?? 'unknown',
+		};
+	}
+
+	enable(): Promise<AgentIntegrationMutationAttempt> {
+		return this.#operate(this.#enableOperation);
+	}
+
+	disable(): Promise<AgentIntegrationMutationAttempt> {
+		return this.#operate(this.#disableOperation);
+	}
+
+	async #operate(
+		operation: CliAgentIntegrationAdapterOptions['enable'],
+	): Promise<AgentIntegrationMutationAttempt> {
+		if (this.managementMode === 'manual-only') return { kind: 'manual-action-required' };
+		const executablePath = await this.#commandRunner.resolveExecutable(this.#executableName);
+		if (executablePath === null) return { kind: 'failed' };
+		return operation({
+			commandRunner: this.#commandRunner,
+			executablePath,
+			resourceRoot: this.#resourceRoot,
+		});
+	}
+}
