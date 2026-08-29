@@ -43,6 +43,25 @@ export interface WorkbenchWorkspaceListItem {
 	readonly workspaceId: string;
 }
 
+export interface WorkbenchTabListItem {
+	readonly groupId: string | null;
+	readonly panelCount: number;
+	readonly pinned: boolean;
+	readonly tabCustomTitle: string | null;
+	readonly tabFallbackTitle: string;
+	readonly tabId: string;
+	readonly terminalContextId: string;
+	readonly terminalCount: number;
+}
+
+export interface WorkbenchPanelListItem {
+	readonly panelId: string;
+	readonly position: number;
+	readonly tabId: string;
+	readonly terminalContextId: string;
+	readonly terminalCount: number;
+}
+
 export interface WorkbenchTerminalListItem {
 	readonly groupId: string | null;
 	readonly intent: WorkbenchSharedPresentationIntent;
@@ -61,7 +80,8 @@ export interface WorkbenchTerminalListItem {
 
 export type WorkbenchSemanticReadRejection =
 	| { readonly kind: 'rejected'; readonly reason: 'project-not-found' }
-	| { readonly kind: 'rejected'; readonly reason: 'workspace-not-found' };
+	| { readonly kind: 'rejected'; readonly reason: 'workspace-not-found' }
+	| { readonly kind: 'rejected'; readonly reason: 'tab-not-found' };
 
 export type WorkbenchProjectListResult = WorkbenchSemanticReadSnapshot<WorkbenchProjectListItem>;
 
@@ -73,9 +93,17 @@ export type WorkbenchWorkspaceListResult =
 	| WorkbenchSemanticReadSnapshot<WorkbenchWorkspaceListItem>
 	| Extract<WorkbenchSemanticReadRejection, { readonly reason: 'project-not-found' }>;
 
+export type WorkbenchTabListResult =
+	| WorkbenchSemanticReadSnapshot<WorkbenchTabListItem>
+	| Exclude<WorkbenchSemanticReadRejection, { readonly reason: 'tab-not-found' }>;
+
+export type WorkbenchPanelListResult =
+	| WorkbenchSemanticReadSnapshot<WorkbenchPanelListItem>
+	| WorkbenchSemanticReadRejection;
+
 export type WorkbenchTerminalListResult =
 	| WorkbenchSemanticReadSnapshot<WorkbenchTerminalListItem>
-	| WorkbenchSemanticReadRejection;
+	| Exclude<WorkbenchSemanticReadRejection, { readonly reason: 'tab-not-found' }>;
 
 export interface WorkbenchTerminalCreateOperationInput {
 	readonly directoryId?: string | undefined;

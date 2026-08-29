@@ -20,13 +20,15 @@ orchbee execution wait <request-or-execution-id>
 orchbee execution cancel <request-or-execution-id>
 ```
 
-It also provides high-level projections over the five Workbench operations already admitted by the
+It also provides high-level projections over the seven Workbench operations admitted by the
 production Desktop catalog:
 
 ```text
 orchbee project list [--limit <n>] [--cursor <cursor>]
 orchbee directory list --project <project-id> [--limit <n>] [--cursor <cursor>]
 orchbee workspace list --project <project-id> [--limit <n>] [--cursor <cursor>]
+orchbee tab list (--standalone | --project <project-id> --workspace <workspace-id>) [--limit <n>] [--cursor <cursor>]
+orchbee panel list (--standalone | --project <project-id> --workspace <workspace-id>) --tab <tab-id> [--limit <n>] [--cursor <cursor>]
 orchbee terminal list (--standalone | --project <project-id> --workspace <workspace-id>) [--limit <n>] [--cursor <cursor>]
 orchbee terminal create (--standalone | --project <project-id> --workspace <workspace-id>) [--directory <directory-id>] [--detach] [--request-id <request-id>]
 ```
@@ -51,6 +53,12 @@ Workbench or Agent owner's exported schemas and map to exactly one existing oper
 pages accept 1-200 items; Agent pages accept 1-100 and default to live Sessions, while `--all`
 includes retained ended Sessions. Invalid input is rejected before allocating a request identity or
 contacting Desktop.
+
+`tab list` preserves the canonical shared Tab collection order and returns Panel and Terminal
+membership counts. `panel list` requires an exact returned Tab ID and preserves that Tab's canonical
+depth-first, left-to-right Panel order. These queries expose no active, selected, focused,
+maximized, active-child, split-weight, pixel-geometry, renderer, or screen state. Their returned
+positions describe one revision only and never serve as mutation identities.
 
 Default output is exactly one compact versioned JSON document on stdout. Invoke results always
 include the request identity. `--output text` is an explicitly unstable indented projection of that

@@ -1,8 +1,15 @@
-import type { WorkbenchSharedDocument, WorkbenchSharedPanelNode } from '../document';
+import type {
+	WorkbenchSharedDocument,
+	WorkbenchSharedPanelNode,
+	WorkbenchSharedTerminalContext,
+} from '../document';
 import type {
 	WorkbenchDirectoryListResult,
 	WorkbenchLocationRef,
+	WorkbenchPanelListItem,
+	WorkbenchPanelListResult,
 	WorkbenchProjectListResult,
+	WorkbenchTabListResult,
 	WorkbenchTerminalListItem,
 	WorkbenchTerminalListResult,
 	WorkbenchWorkspaceListResult,
@@ -61,22 +68,56 @@ export function projectWorkbenchWorkspaceList(
 	};
 }
 
+export function projectWorkbenchTabList(
+	document: WorkbenchSharedDocument,
+	location: WorkbenchLocationRef,
+): WorkbenchTabListResult {
+	const resolved = resolveLocation(document, location);
+	if (resolved.kind === 'rejected') return resolved;
+	const panelTabs = new Map(resolved.context.panelWorkspace.tabs.map((tab) => [tab.tabId, tab]));
+	return {
+		items: resolved.context.tabCollection.tabs.map((tab) => {
+			const panelTab = panelTabs.get(tab.id);
+			if (panelTab === undefined) {
+				throw new Error('A validated Workbench Tab must resolve its Panel workspace.');
+			}
+			const summary = summarizePanelNode(panelTab.root);
+			return {
+				groupId: tab.group,
+				panelCount: summary.panelCount,
+				pinned: tab.pinned,
+				tabCustomTitle: tab.customTitle,
+				tabFallbackTitle: tab.title,
+				tabId: tab.id,
+				terminalContextId: resolved.context.terminalContextId,
+				terminalCount: summary.terminalCount,
+			};
+		}),
+		revision: document.revision,
+	};
+}
+
+export function projectWorkbenchPanelList(
+	document: WorkbenchSharedDocument,
+	location: WorkbenchLocationRef,
+	tabId: string,
+): WorkbenchPanelListResult {
+	const resolved = resolveLocation(document, location);
+	if (resolved.kind === 'rejected') return resolved;
+	const tab = resolved.context.panelWorkspace.tabs.find((candidate) => candidate.tabId === tabId);
+	if (tab === undefined) return { kind: 'rejected', reason: 'tab-not-found' };
+	const items: WorkbenchPanelListItem[] = [];
+	collectPanelItems(tab.root, resolved.context.terminalContextId, tabId, items);
+	return { items, revision: document.revision };
+}
+
 export function projectWorkbenchTerminalList(
 	document: WorkbenchSharedDocument,
 	location: WorkbenchLocationRef,
 ): WorkbenchTerminalListResult {
 	const resolved = resolveLocation(document, location);
 	if (resolved.kind === 'rejected') return resolved;
-	const matches = document.terminalContexts.filter(
-		(context) => context.terminalContextId === resolved.terminalContextId,
-	);
-	if (matches.length !== 1) {
-		throw new Error('A validated Workbench location must resolve to one terminal context.');
-	}
-	const context = matches[0];
-	if (context === undefined) {
-		throw new Error('A validated Workbench location lost its terminal context.');
-	}
+	const context = resolved.context;
 	const tabs = new Map(context.tabCollection.tabs.map((tab) => [tab.id, tab]));
 	const items: WorkbenchTerminalListItem[] = [];
 	for (const panelTab of context.panelWorkspace.tabs) {
@@ -106,16 +147,16 @@ function resolveLocation(
 	location: WorkbenchLocationRef,
 ):
 	| {
+			readonly context: WorkbenchSharedTerminalContext;
 			readonly directoryPaths: ReadonlyMap<string, string>;
 			readonly kind: 'resolved';
-			readonly terminalContextId: string;
 	  }
 	| { readonly kind: 'rejected'; readonly reason: 'project-not-found' | 'workspace-not-found' } {
 	if (location.kind === 'standalone') {
 		return {
+			context: findTerminalContext(document, document.projectWorkspace.standaloneTerminalContextId),
 			directoryPaths: new Map(),
 			kind: 'resolved',
-			terminalContextId: document.projectWorkspace.standaloneTerminalContextId,
 		};
 	}
 	const project = document.projectWorkspace.projects.find(
@@ -125,10 +166,67 @@ function resolveLocation(
 	const workspace = project.workspaces.find((candidate) => candidate.id === location.workspaceId);
 	if (workspace === undefined) return { kind: 'rejected', reason: 'workspace-not-found' };
 	return {
+		context: findTerminalContext(document, workspace.terminalContextId),
 		directoryPaths: new Map(project.directories.map((directory) => [directory.path, directory.id])),
 		kind: 'resolved',
-		terminalContextId: workspace.terminalContextId,
 	};
+}
+
+function findTerminalContext(
+	document: WorkbenchSharedDocument,
+	terminalContextId: string,
+): WorkbenchSharedTerminalContext {
+	const matches = document.terminalContexts.filter(
+		(context) => context.terminalContextId === terminalContextId,
+	);
+	if (matches.length !== 1) {
+		throw new Error('A validated Workbench location must resolve to one terminal context.');
+	}
+	const context = matches[0];
+	if (context === undefined) {
+		throw new Error('A validated Workbench location lost its terminal context.');
+	}
+	return context;
+}
+
+function summarizePanelNode(node: WorkbenchSharedPanelNode): {
+	readonly panelCount: number;
+	readonly terminalCount: number;
+} {
+	if (node.kind === 'panel') {
+		return { panelCount: 1, terminalCount: 1 + node.childPresentations.length };
+	}
+	return node.children.reduce(
+		(summary, child) => {
+			const childSummary = summarizePanelNode(child.node);
+			return {
+				panelCount: summary.panelCount + childSummary.panelCount,
+				terminalCount: summary.terminalCount + childSummary.terminalCount,
+			};
+		},
+		{ panelCount: 0, terminalCount: 0 },
+	);
+}
+
+function collectPanelItems(
+	node: WorkbenchSharedPanelNode,
+	terminalContextId: string,
+	tabId: string,
+	items: WorkbenchPanelListItem[],
+): void {
+	if (node.kind === 'split') {
+		for (const child of node.children) {
+			collectPanelItems(child.node, terminalContextId, tabId, items);
+		}
+		return;
+	}
+	items.push({
+		panelId: node.id,
+		position: items.length + 1,
+		tabId,
+		terminalContextId,
+		terminalCount: 1 + node.childPresentations.length,
+	});
 }
 
 function collectTerminalItems(

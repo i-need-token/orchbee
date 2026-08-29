@@ -2,25 +2,33 @@ import { describe, expect, it } from 'vitest';
 
 import {
 	WORKBENCH_DIRECTORY_LIST_OPERATION,
+	WORKBENCH_PANEL_LIST_OPERATION,
 	WORKBENCH_PROJECT_LIST_OPERATION,
+	WORKBENCH_TAB_LIST_OPERATION,
 	WORKBENCH_TERMINAL_LIST_OPERATION,
 	WORKBENCH_WORKSPACE_LIST_OPERATION,
 	WorkbenchDirectoryListInputSchema,
+	WorkbenchPanelListInputSchema,
 	WorkbenchProjectListInputSchema,
+	WorkbenchTabListInputSchema,
 	WorkbenchTerminalListInputSchema,
 } from '../semantic-command-read-contracts';
 
 describe('Workbench semantic read contracts', () => {
-	it('owns four explicit query descriptors without admitting terminal creation', () => {
+	it('owns six explicit query descriptors without admitting terminal creation', () => {
 		expect([
 			WORKBENCH_PROJECT_LIST_OPERATION.id,
 			WORKBENCH_DIRECTORY_LIST_OPERATION.id,
 			WORKBENCH_WORKSPACE_LIST_OPERATION.id,
+			WORKBENCH_TAB_LIST_OPERATION.id,
+			WORKBENCH_PANEL_LIST_OPERATION.id,
 			WORKBENCH_TERMINAL_LIST_OPERATION.id,
 		]).toEqual([
 			'workbench.project.list',
 			'workbench.directory.list',
 			'workbench.workspace.list',
+			'workbench.tab.list',
+			'workbench.panel.list',
 			'workbench.terminal.list',
 		]);
 	});
@@ -34,6 +42,20 @@ describe('Workbench semantic read contracts', () => {
 		).toBe(false);
 		expect(
 			WorkbenchTerminalListInputSchema.safeParse({ location: { kind: 'workspace' } }).success,
+		).toBe(false);
+		expect(WorkbenchTabListInputSchema.parse({ location: { kind: 'standalone' } })).toEqual({
+			limit: 100,
+			location: { kind: 'standalone' },
+		});
+		expect(
+			WorkbenchPanelListInputSchema.safeParse({ location: { kind: 'standalone' } }).success,
+		).toBe(false);
+		expect(
+			WorkbenchPanelListInputSchema.safeParse({
+				active: true,
+				location: { kind: 'standalone' },
+				tabId: 'tab-1',
+			}).success,
 		).toBe(false);
 	});
 });

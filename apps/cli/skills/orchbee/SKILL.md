@@ -1,6 +1,6 @@
 ---
 name: orchbee
-description: Inspect or control the current Orchbee application through its injected CLI. Use when the user explicitly asks to inspect Orchbee Projects, Directories, Workspaces, Terminals, or observed Agent Sessions; wait for an Agent state; create an Orchbee Terminal; or invoke an admitted Orchbee operation. Requires ORCHBEE_CLI.
+description: Inspect or control the current Orchbee application through its injected CLI. Use when the user explicitly asks to inspect Orchbee Projects, Directories, Workspaces, Tabs, Panels, Terminals, or observed Agent Sessions; wait for an Agent state; create an Orchbee Terminal; or invoke an admitted Orchbee operation. Requires ORCHBEE_CLI.
 ---
 
 # Orchbee
@@ -33,6 +33,10 @@ These commands are read-only:
 "$ORCHBEE_CLI" project list
 "$ORCHBEE_CLI" directory list --project <project-id>
 "$ORCHBEE_CLI" workspace list --project <project-id>
+"$ORCHBEE_CLI" tab list --standalone
+"$ORCHBEE_CLI" tab list --project <project-id> --workspace <workspace-id>
+"$ORCHBEE_CLI" panel list --standalone --tab <tab-id>
+"$ORCHBEE_CLI" panel list --project <project-id> --workspace <workspace-id> --tab <tab-id>
 "$ORCHBEE_CLI" terminal list --standalone
 "$ORCHBEE_CLI" terminal list --project <project-id> --workspace <workspace-id>
 "$ORCHBEE_CLI" agent list
@@ -44,6 +48,12 @@ Use `--limit <1-200>` for Workbench lists and `--limit <1-100>` for Agent lists,
 returned `nextCursor` to continue the same query. `agent list` returns live Sessions by default;
 `--all` also includes retained ended Sessions. Use `--target <endpoint-id>` only when discovery
 reports multiple coordinators and an exact trusted endpoint ID is already known.
+
+`tab list` returns canonical shared Tab membership for one exact location. Use only a returned
+`tabId` with `panel list`; that command returns canonical depth-first, left-to-right Panel leaves for
+the same location and Tab. Panel `position` is descriptive for that revision, not a durable target.
+Neither command reports the active or selected Tab, focused or maximized Panel, active child,
+split weights, pixel geometry, renderer state, or screen content.
 
 Default output is one compact, versioned JSON document. For a completed high-level command, the
 owner result is under `.result.execution.result.output`. Read IDs from that output; never derive

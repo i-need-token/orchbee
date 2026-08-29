@@ -11,21 +11,30 @@ import {
 import type { WorkbenchSharedDocument } from '@orchbee/workbench/document';
 import {
 	WORKBENCH_DIRECTORY_LIST_OPERATION,
+	WORKBENCH_PANEL_LIST_OPERATION,
 	WORKBENCH_PROJECT_LIST_OPERATION,
+	WORKBENCH_TAB_LIST_OPERATION,
 	WORKBENCH_TERMINAL_LIST_OPERATION,
 	WORKBENCH_WORKSPACE_LIST_OPERATION,
 	WorkbenchDirectoryListInputSchema,
 	WorkbenchDirectoryListPageSchema,
+	WorkbenchPanelListInputSchema,
+	WorkbenchPanelListPageSchema,
 	WorkbenchProjectListInputSchema,
 	WorkbenchProjectListPageSchema,
+	WorkbenchTabListInputSchema,
+	WorkbenchTabListPageSchema,
 	WorkbenchTerminalListInputSchema,
 	WorkbenchTerminalListPageSchema,
 	WorkbenchWorkspaceListInputSchema,
 	WorkbenchWorkspaceListPageSchema,
 	projectWorkbenchDirectoryList,
+	projectWorkbenchPanelList,
 	projectWorkbenchProjectList,
+	projectWorkbenchTabList,
 	projectWorkbenchTerminalList,
 	projectWorkbenchWorkspaceList,
+	type WorkbenchLocationRef,
 	type WorkbenchPageInput,
 } from '@orchbee/workbench/semantic-commands';
 import type { z } from 'zod';
@@ -49,7 +58,10 @@ interface WorkbenchReadProjection<Item> {
 
 type WorkbenchReadProjectionResult<Item> =
 	| WorkbenchReadProjection<Item>
-	| { readonly kind: 'rejected'; readonly reason: 'project-not-found' | 'workspace-not-found' };
+	| {
+			readonly kind: 'rejected';
+			readonly reason: 'project-not-found' | 'tab-not-found' | 'workspace-not-found';
+	  };
 
 interface ReadOperationDescriptor {
 	readonly confirmation: 'noninteractive-allowed';
@@ -92,7 +104,7 @@ export function createDesktopWorkbenchReadOperations(
 			outputSchema: WorkbenchDirectoryListPageSchema,
 			project: (document, input) => projectWorkbenchDirectoryList(document, input.projectId),
 			resultCode: SemanticCommandResultCodeSchema.parse('directories-listed'),
-			target: (input) => `project:${input.projectId}`,
+			target: (input) => projectCursorTarget(input.projectId),
 		}),
 		createReadOperation(options, cursor, {
 			descriptor: WORKBENCH_WORKSPACE_LIST_OPERATION,
@@ -100,7 +112,24 @@ export function createDesktopWorkbenchReadOperations(
 			outputSchema: WorkbenchWorkspaceListPageSchema,
 			project: (document, input) => projectWorkbenchWorkspaceList(document, input.projectId),
 			resultCode: SemanticCommandResultCodeSchema.parse('workspaces-listed'),
-			target: (input) => `project:${input.projectId}`,
+			target: (input) => projectCursorTarget(input.projectId),
+		}),
+		createReadOperation(options, cursor, {
+			descriptor: WORKBENCH_TAB_LIST_OPERATION,
+			inputSchema: WorkbenchTabListInputSchema,
+			outputSchema: WorkbenchTabListPageSchema,
+			project: (document, input) => projectWorkbenchTabList(document, input.location),
+			resultCode: SemanticCommandResultCodeSchema.parse('tabs-listed'),
+			target: (input) => locationCursorTarget(input.location),
+		}),
+		createReadOperation(options, cursor, {
+			descriptor: WORKBENCH_PANEL_LIST_OPERATION,
+			inputSchema: WorkbenchPanelListInputSchema,
+			outputSchema: WorkbenchPanelListPageSchema,
+			project: (document, input) =>
+				projectWorkbenchPanelList(document, input.location, input.tabId),
+			resultCode: SemanticCommandResultCodeSchema.parse('panels-listed'),
+			target: (input) => panelCursorTarget(input.location, input.tabId),
 		}),
 		createReadOperation(options, cursor, {
 			descriptor: WORKBENCH_TERMINAL_LIST_OPERATION,
@@ -108,12 +137,25 @@ export function createDesktopWorkbenchReadOperations(
 			outputSchema: WorkbenchTerminalListPageSchema,
 			project: (document, input) => projectWorkbenchTerminalList(document, input.location),
 			resultCode: SemanticCommandResultCodeSchema.parse('terminals-listed'),
-			target: (input) =>
-				input.location.kind === 'standalone'
-					? 'standalone'
-					: `workspace:${input.location.projectId}:${input.location.workspaceId}`,
+			target: (input) => locationCursorTarget(input.location),
 		}),
 	];
+}
+
+function projectCursorTarget(projectId: string): string {
+	return JSON.stringify(['project', projectId]);
+}
+
+function locationCursorTarget(location: WorkbenchLocationRef): string {
+	return location.kind === 'standalone'
+		? JSON.stringify(['standalone'])
+		: JSON.stringify(['workspace', location.projectId, location.workspaceId]);
+}
+
+function panelCursorTarget(location: WorkbenchLocationRef, tabId: string): string {
+	return location.kind === 'standalone'
+		? JSON.stringify(['standalone', 'tab', tabId])
+		: JSON.stringify(['workspace', location.projectId, location.workspaceId, 'tab', tabId]);
 }
 
 function createReadOperation<Input extends WorkbenchPageInput, Item>(

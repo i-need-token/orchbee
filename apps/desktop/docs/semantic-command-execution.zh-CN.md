@@ -4,11 +4,11 @@
 
 Desktop 拥有一个进程生命周期内的 semantic-command coordinator generation、显式 operation catalog、
 有界内存 execution ledger，以及向已认证 current-user client 暴露该 service 的 private local endpoint。
-生产 catalog 精确包含九个 operation：`agent.session.list`、`agent.session.get`、
+生产 catalog 精确包含十一个 operation：`agent.session.list`、`agent.session.get`、
 `agent.session.explain` 与 `agent.session.wait`，以及 `workbench.project.list`、
-`workbench.directory.list`、`workbench.workspace.list`、`workbench.terminal.list` 与
-`workbench.terminal.create`。它不提供任意 Action、filesystem、shell、renderer 或 Terminal Host escape
-hatch。
+`workbench.directory.list`、`workbench.workspace.list`、`workbench.tab.list`、
+`workbench.panel.list`、`workbench.terminal.list` 与 `workbench.terminal.create`。它不提供任意
+Action、filesystem、shell、renderer 或 Terminal Host escape hatch。
 
 Feature owner 保留 input 与 output 含义。Protocol package 拥有严格 envelope 与 local HTTP mapping。
 Desktop 拥有 catalog admission、execution、locator publication、endpoint lifecycle 和 OS peer
@@ -28,7 +28,7 @@ semantic-execution recovery。
 
 | 状态或输出             | Owner 与生命周期                                                                                      |
 | ---------------------- | ----------------------------------------------------------------------------------------------------- |
-| Catalog                | 不可变的 `DesktopSemanticCommandCatalog`；只存在四项 Agent query 与五项 Workbench entry               |
+| Catalog                | 不可变的 `DesktopSemanticCommandCatalog`；只存在四项 Agent query 与七项 Workbench entry               |
 | Coordinator generation | 随 service 创建一次，复制到 locator，并出现在每个 public snapshot 中                                  |
 | Endpoint identity      | 仅用于 locator 与 socket 或 named-pipe 名称的随机进程局部 identifier                                  |
 | Locator                | Native adapter 在 listener 创建后发布一个 private bounded file，并在 teardown 时移除                  |
@@ -43,9 +43,14 @@ Diagnostics 不接收 operation input 或 result payload。Query result 可以�
 调用方请求的 name 与 path。
 
 只有 `workbench.directory.list` 使用 operation schema version `2` 与 output schema version `2`；每项
-result 都包含 Directory placement。其他四项 operation 保持 version `1`。Remote Directory result 只包含
-已 commit 的 opaque Environment identity 与 canonical path。Requested alias、失败 observation 与原始
-operating-system diagnostic 绝不进入 semantic output。
+result 都包含 Directory placement。其他六项 Workbench operation 保持 version `1`。Remote Directory
+result 只包含已 commit 的 opaque Environment identity 与 canonical path。Requested alias、失败
+observation 与原始 operating-system diagnostic 绝不进入 semantic output。
+
+Tab 与 Panel list 只投影规范共享文档成员关系。Tab 顺序是共享 Tab collection 顺序；精确目标 Panel
+顺序是深度优先且从左到右。两种 query 都不读取或返回 Client View 的 active、selected、focused、
+maximized、active-child、split-weight 或 geometry 状态。签名 cursor 会绑定到精确 location，Panel cursor
+还会绑定到精确 Tab identity。
 
 四个 Agent operation 都使用 schema version `1`。List、get 与 explain 从 application-lifetime
 `AgentSnapshotSource` 获取一个 canonical snapshot。List page 经过签名并受 revision fencing；get 与
@@ -71,7 +76,7 @@ correlation data。
    会淘汰最旧的 terminal record，直到两个限制都满足。
 8. 单个 execution result 被限制在 local response capacity 以下。Oversize 会变成不带 owner payload 的
    `failed/output-capacity-exceeded`。
-9. Discovery 与 description 精确暴露九项已组合 operation。Catalog registration 或 UI Action availability
+9. Discovery 与 description 精确暴露十一项已组合 operation。Catalog registration 或 UI Action availability
    本身不授予 process authority。
 10. Native adapter 既不跟随 POSIX symlink，也不跟随 Windows reparse point，并且只接受 current-user
     private runtime directory、locator、endpoint 与双向认证 peer。
@@ -123,7 +128,7 @@ response validation。该 endpoint 与 Terminal Host、Browser access 分离，�
 
 | 声明                              | 契约          | 形式化或生成式证据                                                                                  | 确定性或真实 refinement                                                                                                                             | 边界                                                                         |
 | --------------------------------- | ------------- | --------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| 只允许显式且已授权的 catalog      | 不变量 1-3、9 | `SemanticCommandExecutionLedger.tla`：`RequestAndExecutionMappingsAgree`                            | Catalog/service test 覆盖负向 admission 与精确九项 composition；HTTP integration 调用全部 Workbench read 及精确 target 的 Terminal 创建             | 仅九项已接受 operation                                                       |
+| 只允许显式且已授权的 catalog      | 不变量 1-3、9 | `SemanticCommandExecutionLedger.tla`：`RequestAndExecutionMappingsAgree`                            | Catalog/service test 覆盖负向 admission 与精确十一项 composition；HTTP integration 调用全部 Workbench read 及精确 target 的 Terminal 创建           | 仅十一项已接受 operation                                                     |
 | 保留期间至多一个 execution        | 不变量 1-4    | `RetainedRequestHasOneHandlerStart`、`ActiveExecutionCapacity`                                      | Ledger boundary test 与固定 seed 的 stateful command property                                                                                       | 淘汰或 restart 后不作声明                                                    |
 | Cancellation 与 retention 安全    | 不变量 5-8    | `CommittedExecutionNeverCancels`，以及两个 TLC variant 中的 cancellation、count 与 weight invariant | Deferred-handler、commit 前后 cancellation、duplicate request、receipt eviction 及精确 capacity test                                                | 不声明 handler liveness 或 durable storage 成功后的 rollback                 |
 | Agent wait 匹配 canonical state   | 不变量 3、9   | `AgentSemanticWait.tla`：exact subscription、eligibility、freshness、output 与 revision invariant   | Agent domain 与 Desktop operation test 覆盖 pagination、exact read、status explanation、race-safe recheck、timeout、cancellation 与 future baseline | 仅有界 volatile runtime；不声明 restart continuity 或 provider truth         |

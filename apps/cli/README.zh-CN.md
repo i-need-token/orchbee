@@ -19,12 +19,14 @@ orchbee execution wait <request-or-execution-id>
 orchbee execution cancel <request-or-execution-id>
 ```
 
-它还在生产 Desktop catalog 已准入的五个 Workbench operation 之上提供高层 projection：
+它还在生产 Desktop catalog 已准入的七个 Workbench operation 之上提供高层 projection：
 
 ```text
 orchbee project list [--limit <n>] [--cursor <cursor>]
 orchbee directory list --project <project-id> [--limit <n>] [--cursor <cursor>]
 orchbee workspace list --project <project-id> [--limit <n>] [--cursor <cursor>]
+orchbee tab list (--standalone | --project <project-id> --workspace <workspace-id>) [--limit <n>] [--cursor <cursor>]
+orchbee panel list (--standalone | --project <project-id> --workspace <workspace-id>) --tab <tab-id> [--limit <n>] [--cursor <cursor>]
 orchbee terminal list (--standalone | --project <project-id> --workspace <workspace-id>) [--limit <n>] [--cursor <cursor>]
 orchbee terminal create (--standalone | --project <project-id> --workspace <workspace-id>) [--directory <directory-id>] [--detach] [--request-id <request-id>]
 ```
@@ -46,6 +48,11 @@ discovery 精确解析到一个 live coordinator 时，省略 target 才能成�
 Workbench 或 Agent 所有者导出的 schema 校验有界 argument，并恰好映射一个现有 operation。Workbench
 分页接受 1-200 项；Agent 分页接受 1-100 项且默认只包含 live Session，`--all` 会包含保留的 ended
 Session。无效 input 会在分配 request identity 或联系 Desktop 前被拒绝。
+
+`tab list` 保留规范共享 Tab collection 顺序，并返回 Panel 与 Terminal 成员数量。`panel list` 要求一个精确
+返回的 Tab ID，并保留该 Tab 规范的深度优先、从左到右 Panel 顺序。这些 query 不暴露 active、selected、
+focused、maximized、active-child、split-weight、pixel-geometry、renderer 或 screen 状态。返回的位置只描述
+一个 revision，绝不能作为 mutation identity。
 
 默认输出恰好是 stdout 上一个紧凑、带版本的 JSON document。Invoke result 始终包含 request identity。
 `--output text` 是同一 document 的明确不稳定缩进 projection；automation 不得解析它。当前 runner 不会向

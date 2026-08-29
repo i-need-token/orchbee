@@ -62,10 +62,16 @@ mutation，而无需导入可视 Workbench 或其 runtime graph。
 
 经过验证的共享文档读取投影和精确目标终端意图创建可从
 `@orchbee/workbench/semantic-commands` 获得。这个不依赖 DOM、React、存储和传输的入口会列出规范的
-Project、Directory、Workspace 与终端标识，并把一次终端创建委托给现有 Workbench runtime。创建会保留活动
-Client View 中已有的选择；空目标会把唯一新建的 Tab 作为 Tab model 所要求的有效性后备项。产品 Action 可以
-另行只选择精确返回的 Tab。该入口还发布严格且带版本的 location input 与 committed-result schema；组合应用
-提供已提交 revision，并继续负责持久提交、进程协调和调用方授权。
+Project、Directory、Workspace、Tab、Panel 与终端标识，并把一次终端创建委托给现有 Workbench runtime。
+Tab 读取会保留规范 Tab collection 顺序，并汇总 Panel 与 Terminal-presentation 成员关系。精确目标的 Panel
+读取会保留规范的深度优先、从左到右叶节点顺序，并发布从一开始的位置；它绝不替换成 active Tab 或 focused
+Panel。两种读取都排除 Client View 的 focus、selection、maximization、active-child、split-weight 与 geometry
+状态。
+
+创建会保留活动 Client View 中已有的选择；空目标会把唯一新建的 Tab 作为 Tab model 所要求的有效性后备项。
+产品 Action 可以另行只选择精确返回的 Tab。该入口还发布严格且带版本的 location input 与
+committed-result schema；组合应用提供已提交 revision，并继续负责持久提交、进程协调、调用方授权和签名的
+revision-fenced 分页。
 
 ## 体验目录
 

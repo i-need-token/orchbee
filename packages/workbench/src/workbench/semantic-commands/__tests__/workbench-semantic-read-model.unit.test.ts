@@ -11,7 +11,9 @@ import { WorkbenchProjectWorkspaceRuntime } from '../../model/WorkbenchProjectWo
 import { executeWorkbenchTerminalCreate } from '../executeWorkbenchTerminalCreate';
 import {
 	projectWorkbenchDirectoryList,
+	projectWorkbenchPanelList,
 	projectWorkbenchProjectList,
+	projectWorkbenchTabList,
 	projectWorkbenchTerminalList,
 	projectWorkbenchWorkspaceList,
 } from '../workbench-semantic-read-model';
@@ -196,12 +198,58 @@ describe('Workbench semantic read model', () => {
 			],
 			revision,
 		});
-
-		const terminals = projectWorkbenchTerminalList(document, {
-			kind: 'workspace',
+		const location = {
+			kind: 'workspace' as const,
 			projectId: alpha.id,
 			workspaceId: alphaWorkspace.id,
+		};
+		const tabs = projectWorkbenchTabList(document, location);
+		if ('kind' in tabs) throw new Error(`Tab projection rejected: ${tabs.reason}`);
+		expect(tabs).toEqual({
+			items: [
+				{
+					groupId: null,
+					panelCount: 2,
+					pinned: false,
+					tabCustomTitle: null,
+					tabFallbackTitle: 'alpha terminal',
+					tabId: initialTab.tabId,
+					terminalContextId: alphaWorkspace.terminalContextId,
+					terminalCount: 3,
+				},
+				{
+					groupId: null,
+					panelCount: 1,
+					pinned: false,
+					tabCustomTitle: null,
+					tabFallbackTitle: 'Alpha extra',
+					tabId: creation.tabId,
+					terminalContextId: alphaWorkspace.terminalContextId,
+					terminalCount: 1,
+				},
+			],
+			revision,
 		});
+
+		const panels = projectWorkbenchPanelList(document, location, initialTab.tabId);
+		if ('kind' in panels) throw new Error(`Panel projection rejected: ${panels.reason}`);
+		expect(panels.revision).toBe(revision);
+		expect(panels.items).toHaveLength(2);
+		expect(panels.items[0]).toEqual({
+			panelId: initialTab.root.id,
+			position: 1,
+			tabId: initialTab.tabId,
+			terminalContextId: alphaWorkspace.terminalContextId,
+			terminalCount: 2,
+		});
+		expect(panels.items[1]).toMatchObject({
+			position: 2,
+			tabId: initialTab.tabId,
+			terminalContextId: alphaWorkspace.terminalContextId,
+			terminalCount: 1,
+		});
+
+		const terminals = projectWorkbenchTerminalList(document, location);
 		if ('kind' in terminals) throw new Error(`Terminal projection rejected: ${terminals.reason}`);
 		expect(terminals.revision).toBe(revision);
 		expect(
@@ -325,5 +373,23 @@ describe('Workbench semantic read model', () => {
 				workspaceId: 'workspace-2',
 			}),
 		).toEqual({ kind: 'rejected', reason: 'project-not-found' });
+		expect(
+			projectWorkbenchTabList(document, {
+				kind: 'workspace',
+				projectId: 'project-1',
+				workspaceId: 'workspace-2',
+			}),
+		).toEqual({ kind: 'rejected', reason: 'workspace-not-found' });
+		expect(
+			projectWorkbenchPanelList(
+				document,
+				{
+					kind: 'workspace',
+					projectId: 'project-1',
+					workspaceId: 'workspace-1',
+				},
+				'missing-tab',
+			),
+		).toEqual({ kind: 'rejected', reason: 'tab-not-found' });
 	});
 });

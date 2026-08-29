@@ -114,6 +114,8 @@ export async function runSemanticCommandCli(
 			case 'project-list':
 			case 'directory-list':
 			case 'workspace-list':
+			case 'tab-list':
+			case 'panel-list':
 			case 'terminal-list':
 			case 'terminal-create':
 			case 'agent-list':

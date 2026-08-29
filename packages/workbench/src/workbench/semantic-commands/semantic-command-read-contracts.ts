@@ -36,6 +36,15 @@ export const WorkbenchTerminalListInputSchema = z.strictObject({
 	location: WorkbenchLocationRefSchema,
 	...optionalPageShape,
 });
+export const WorkbenchTabListInputSchema = z.strictObject({
+	location: WorkbenchLocationRefSchema,
+	...optionalPageShape,
+});
+export const WorkbenchPanelListInputSchema = z.strictObject({
+	location: WorkbenchLocationRefSchema,
+	tabId: identifierSchema,
+	...optionalPageShape,
+});
 
 const pageShape = {
 	nextCursor: z.string().min(1).max(4096).nullable(),
@@ -65,6 +74,25 @@ const workspaceListItemSchema = z.strictObject({
 	name: z.string(),
 	primaryDirectoryId: identifierSchema,
 	workspaceId: identifierSchema,
+});
+
+const tabListItemSchema = z.strictObject({
+	groupId: identifierSchema.nullable(),
+	panelCount: z.number().int().positive(),
+	pinned: z.boolean(),
+	tabCustomTitle: z.string().min(1).nullable(),
+	tabFallbackTitle: z.string(),
+	tabId: identifierSchema,
+	terminalContextId: identifierSchema,
+	terminalCount: z.number().int().positive(),
+});
+
+const panelListItemSchema = z.strictObject({
+	panelId: identifierSchema,
+	position: z.number().int().positive(),
+	tabId: identifierSchema,
+	terminalContextId: identifierSchema,
+	terminalCount: z.number().int().positive(),
 });
 
 const terminalIntentSchema = z.discriminatedUnion('kind', [
@@ -113,6 +141,14 @@ export const WorkbenchWorkspaceListPageSchema = z.strictObject({
 	...pageShape,
 	items: z.array(workspaceListItemSchema).max(200),
 });
+export const WorkbenchTabListPageSchema = z.strictObject({
+	...pageShape,
+	items: z.array(tabListItemSchema).max(200),
+});
+export const WorkbenchPanelListPageSchema = z.strictObject({
+	...pageShape,
+	items: z.array(panelListItemSchema).max(200),
+});
 export const WorkbenchTerminalListPageSchema = z.strictObject({
 	...pageShape,
 	items: z.array(terminalListItemSchema).max(200),
@@ -158,12 +194,36 @@ export const WORKBENCH_TERMINAL_LIST_OPERATION = Object.freeze({
 	schemaVersion: 1,
 } as const);
 
+export const WORKBENCH_TAB_LIST_OPERATION = Object.freeze({
+	confirmation: 'noninteractive-allowed',
+	id: 'workbench.tab.list',
+	input: { name: 'workbench.tab-list-input', schemaVersion: 1 },
+	kind: 'query',
+	output: { name: 'workbench.tab-list-page', schemaVersion: 1 },
+	retry: 'same-request-while-retained',
+	schemaVersion: 1,
+} as const);
+
+export const WORKBENCH_PANEL_LIST_OPERATION = Object.freeze({
+	confirmation: 'noninteractive-allowed',
+	id: 'workbench.panel.list',
+	input: { name: 'workbench.panel-list-input', schemaVersion: 1 },
+	kind: 'query',
+	output: { name: 'workbench.panel-list-page', schemaVersion: 1 },
+	retry: 'same-request-while-retained',
+	schemaVersion: 1,
+} as const);
+
 export type WorkbenchPageInput = z.infer<typeof WorkbenchProjectListInputSchema>;
 export type WorkbenchProjectListInput = z.infer<typeof WorkbenchProjectListInputSchema>;
 export type WorkbenchDirectoryListInput = z.infer<typeof WorkbenchDirectoryListInputSchema>;
 export type WorkbenchWorkspaceListInput = z.infer<typeof WorkbenchWorkspaceListInputSchema>;
+export type WorkbenchTabListInput = z.infer<typeof WorkbenchTabListInputSchema>;
+export type WorkbenchPanelListInput = z.infer<typeof WorkbenchPanelListInputSchema>;
 export type WorkbenchTerminalListInput = z.infer<typeof WorkbenchTerminalListInputSchema>;
 export type WorkbenchProjectListPage = z.infer<typeof WorkbenchProjectListPageSchema>;
 export type WorkbenchDirectoryListPage = z.infer<typeof WorkbenchDirectoryListPageSchema>;
 export type WorkbenchWorkspaceListPage = z.infer<typeof WorkbenchWorkspaceListPageSchema>;
+export type WorkbenchTabListPage = z.infer<typeof WorkbenchTabListPageSchema>;
+export type WorkbenchPanelListPage = z.infer<typeof WorkbenchPanelListPageSchema>;
 export type WorkbenchTerminalListPage = z.infer<typeof WorkbenchTerminalListPageSchema>;

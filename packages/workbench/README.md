@@ -80,13 +80,19 @@ authoritative mutation without importing the visual Workbench or its runtime gra
 
 Validated shared-document read projections and exact-target terminal-intent creation are available
 from `@orchbee/workbench/semantic-commands`. This DOM-, React-, storage-, and transport-independent
-entry point lists canonical Project, Directory, Workspace, and terminal identities and delegates one
-terminal creation to the existing Workbench runtime. Creation preserves active Client View
-selection when one exists; an empty target uses the sole created Tab as the Tab model's required
-validity fallback. A product Action may separately select only the exact returned Tab. The
-entry point also publishes the strict versioned location input and committed-result schema; the
-composing application supplies the committed revision and remains responsible for durable
-commitment, process reconciliation, and caller authorization.
+entry point lists canonical Project, Directory, Workspace, Tab, Panel, and terminal identities and
+delegates one terminal creation to the existing Workbench runtime. Tab reads preserve canonical Tab
+collection order and summarize Panel and Terminal-presentation membership. An exact-target Panel
+read preserves canonical depth-first, left-to-right leaf order and publishes a one-based position;
+it never substitutes an active Tab or focused Panel. Both exclude Client View focus, selection,
+maximization, active-child, split-weight, and geometry state.
+
+Creation preserves active Client View selection when one exists; an empty target uses the sole
+created Tab as the Tab model's required validity fallback. A product Action may separately select
+only the exact returned Tab. The entry point also publishes the strict versioned location input and
+committed-result schema; the composing application supplies the committed revision and remains
+responsible for durable commitment, process reconciliation, caller authorization, and signed
+revision-fenced pagination.
 
 ## Experience catalog
 

@@ -20,7 +20,9 @@ import {
 } from '@orchbee/semantic-command-protocol';
 import {
 	WORKBENCH_DIRECTORY_LIST_OPERATION,
+	WORKBENCH_PANEL_LIST_OPERATION,
 	WORKBENCH_PROJECT_LIST_OPERATION,
+	WORKBENCH_TAB_LIST_OPERATION,
 	WORKBENCH_TERMINAL_CREATE_OPERATION,
 	WORKBENCH_TERMINAL_LIST_OPERATION,
 	WORKBENCH_WORKSPACE_LIST_OPERATION,
@@ -52,6 +54,8 @@ const ownedOperations = [
 	WORKBENCH_PROJECT_LIST_OPERATION,
 	WORKBENCH_DIRECTORY_LIST_OPERATION,
 	WORKBENCH_WORKSPACE_LIST_OPERATION,
+	WORKBENCH_TAB_LIST_OPERATION,
+	WORKBENCH_PANEL_LIST_OPERATION,
 	WORKBENCH_TERMINAL_LIST_OPERATION,
 	WORKBENCH_TERMINAL_CREATE_OPERATION,
 ] as const;
@@ -193,6 +197,7 @@ describe('runSemanticCommandCli', () => {
 		expect(result).toMatchObject({ exitCode: 0, stderr: '' });
 		expect(result.stdout).toContain('name: orchbee');
 		expect(result.stdout).toContain('"$ORCHBEE_CLI" project list');
+		expect(result.stdout).toContain('"$ORCHBEE_CLI" panel list');
 		expect(result.stdout).toContain('"$ORCHBEE_CLI" agent wait');
 		expect(result.stdout.endsWith('\n')).toBe(true);
 		expect(connect).not.toHaveBeenCalled();
@@ -236,6 +241,31 @@ describe('runSemanticCommandCli', () => {
 				command: 'workspace.list',
 				input: { limit: 100, projectId: 'project-1' },
 				operationId: 'workbench.workspace.list',
+			},
+			{
+				arguments: ['tab', 'list', '--standalone'],
+				command: 'tab.list',
+				input: { limit: 100, location: { kind: 'standalone' } },
+				operationId: 'workbench.tab.list',
+			},
+			{
+				arguments: [
+					'panel',
+					'list',
+					'--project',
+					'project-1',
+					'--workspace',
+					'workspace-1',
+					'--tab',
+					'tab-1',
+				],
+				command: 'panel.list',
+				input: {
+					limit: 100,
+					location: { kind: 'workspace', projectId: 'project-1', workspaceId: 'workspace-1' },
+					tabId: 'tab-1',
+				},
+				operationId: 'workbench.panel.list',
 			},
 			{
 				arguments: ['terminal', 'list', '--standalone'],

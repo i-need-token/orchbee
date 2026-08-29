@@ -26,12 +26,16 @@ import {
 } from '@orchbee/semantic-command-protocol/local-http';
 import {
 	WORKBENCH_DIRECTORY_LIST_OPERATION,
+	WORKBENCH_PANEL_LIST_OPERATION,
 	WORKBENCH_PROJECT_LIST_OPERATION,
+	WORKBENCH_TAB_LIST_OPERATION,
 	WORKBENCH_TERMINAL_CREATE_OPERATION,
 	WORKBENCH_TERMINAL_LIST_OPERATION,
 	WORKBENCH_WORKSPACE_LIST_OPERATION,
 	WorkbenchDirectoryListInputSchema,
+	WorkbenchPanelListInputSchema,
 	WorkbenchProjectListInputSchema,
+	WorkbenchTabListInputSchema,
 	WorkbenchTerminalCreateInputSchema,
 	WorkbenchTerminalListInputSchema,
 	WorkbenchWorkspaceListInputSchema,
@@ -83,6 +87,8 @@ export type SemanticCommandCliCommand =
 	| (SemanticCommandCliOwnedInvocationBase & { readonly kind: 'project-list' })
 	| (SemanticCommandCliOwnedInvocationBase & { readonly kind: 'directory-list' })
 	| (SemanticCommandCliOwnedInvocationBase & { readonly kind: 'workspace-list' })
+	| (SemanticCommandCliOwnedInvocationBase & { readonly kind: 'tab-list' })
+	| (SemanticCommandCliOwnedInvocationBase & { readonly kind: 'panel-list' })
 	| (SemanticCommandCliOwnedInvocationBase & { readonly kind: 'terminal-list' })
 	| (SemanticCommandCliOwnedInvocationBase & { readonly kind: 'terminal-create' })
 	| (SemanticCommandCliOwnedInvocationBase & { readonly kind: 'agent-list' })
@@ -107,6 +113,7 @@ interface ParsedOptions {
 	projectId: string | undefined;
 	requestIdentity: SemanticCommandRequestIdentity | undefined;
 	standalone: boolean;
+	tabId: string | undefined;
 	timeoutMilliseconds: number | undefined;
 	until: readonly AgentWaitCondition[];
 	workspaceId: string | undefined;
@@ -302,6 +309,48 @@ function parseWorkbenchFacadeCommand(
 	}
 	const location = workbenchLocation(options);
 	if (
+		matches(positionals, ['tab', 'list']) &&
+		onlyUses(usedOptions, [
+			'cursor',
+			'limit',
+			'output',
+			'project',
+			'standalone',
+			'target',
+			'workspace',
+		]) &&
+		location !== null
+	) {
+		const input = WorkbenchTabListInputSchema.safeParse({ ...pageOptions, location });
+		return input.success
+			? ownedInvocation(base, 'tab-list', WORKBENCH_TAB_LIST_OPERATION, input.data)
+			: null;
+	}
+	if (
+		matches(positionals, ['panel', 'list']) &&
+		onlyUses(usedOptions, [
+			'cursor',
+			'limit',
+			'output',
+			'project',
+			'standalone',
+			'tab',
+			'target',
+			'workspace',
+		]) &&
+		location !== null &&
+		options.tabId !== undefined
+	) {
+		const input = WorkbenchPanelListInputSchema.safeParse({
+			...pageOptions,
+			location,
+			tabId: options.tabId,
+		});
+		return input.success
+			? ownedInvocation(base, 'panel-list', WORKBENCH_PANEL_LIST_OPERATION, input.data)
+			: null;
+	}
+	if (
 		matches(positionals, ['terminal', 'list']) &&
 		onlyUses(usedOptions, [
 			'cursor',
@@ -403,6 +452,7 @@ function collectArguments(arguments_: readonly string[]):
 	let projectId: string | undefined;
 	let requestIdentity: SemanticCommandRequestIdentity | undefined;
 	let standalone = false;
+	let tabId: string | undefined;
 	let timeoutMilliseconds: number | undefined;
 	const until: AgentWaitCondition[] = [];
 	let workspaceId: string | undefined;
@@ -433,6 +483,7 @@ function collectArguments(arguments_: readonly string[]):
 			option !== 'output' &&
 			option !== 'project' &&
 			option !== 'request-id' &&
+			option !== 'tab' &&
 			option !== 'target' &&
 			option !== 'timeout' &&
 			option !== 'until' &&
@@ -471,6 +522,9 @@ function collectArguments(arguments_: readonly string[]):
 			const parsed = SemanticCommandRequestIdentitySchema.safeParse(value);
 			if (!parsed.success) return usageError();
 			requestIdentity = parsed.data;
+		} else if (option === 'tab') {
+			if (value.length > 512) return usageError();
+			tabId = value;
 		} else if (option === 'target') {
 			const parsed = SemanticCommandLocalEndpointIdSchema.safeParse(value);
 			if (!parsed.success) return usageError();
@@ -505,6 +559,7 @@ function collectArguments(arguments_: readonly string[]):
 			projectId,
 			requestIdentity,
 			standalone,
+			tabId,
 			timeoutMilliseconds,
 			until,
 			workspaceId,

@@ -1,6 +1,6 @@
 ---
 name: orchbee
-description: 通过注入的 CLI 检查或控制当前 Orchbee 应用。当用户明确要求检查 Orchbee Project、Directory、Workspace、Terminal 或已观测 Agent Session，等待 Agent 状态，创建 Orchbee Terminal，或调用已准入的 Orchbee 操作时使用。需要 ORCHBEE_CLI。
+description: 通过注入的 CLI 检查或控制当前 Orchbee 应用。当用户明确要求检查 Orchbee Project、Directory、Workspace、Tab、Panel、Terminal 或已观测 Agent Session，等待 Agent 状态，创建 Orchbee Terminal，或调用已准入的 Orchbee 操作时使用。需要 ORCHBEE_CLI。
 ---
 
 # Orchbee
@@ -33,6 +33,10 @@ if (-not $env:ORCHBEE_CLI) { throw 'Orchbee CLI context is unavailable.' }
 "$ORCHBEE_CLI" project list
 "$ORCHBEE_CLI" directory list --project <project-id>
 "$ORCHBEE_CLI" workspace list --project <project-id>
+"$ORCHBEE_CLI" tab list --standalone
+"$ORCHBEE_CLI" tab list --project <project-id> --workspace <workspace-id>
+"$ORCHBEE_CLI" panel list --standalone --tab <tab-id>
+"$ORCHBEE_CLI" panel list --project <project-id> --workspace <workspace-id> --tab <tab-id>
 "$ORCHBEE_CLI" terminal list --standalone
 "$ORCHBEE_CLI" terminal list --project <project-id> --workspace <workspace-id>
 "$ORCHBEE_CLI" agent list
@@ -44,6 +48,11 @@ Workbench list 使用 `--limit <1-200>`，Agent list 使用 `--limit <1-100>`，
 `nextCursor` 传给同一 query 继续分页。`agent list` 默认返回 live Session；`--all` 还会包含保留的
 ended Session。只有在发现报告多个协调器且已知一个精确可信 endpoint ID 时，才使用
 `--target <endpoint-id>`。
+
+`tab list` 返回一个精确 location 的规范共享 Tab 成员关系。只能把返回的 `tabId` 用于 `panel list`；
+该命令返回同一 location 与 Tab 中规范的深度优先、从左到右 Panel 叶节点。Panel `position` 只描述该
+revision，不是持久目标。两条命令都不报告 active 或 selected Tab、focused 或 maximized Panel、active
+child、split weight、pixel geometry、renderer state 或 screen content。
 
 默认输出是一个紧凑、带版本的 JSON 文档。高层命令完成后，所有者结果位于
 `.result.execution.result.output`。从该输出读取 ID；绝不根据名称、列表顺序、路径、示例或另一客户端

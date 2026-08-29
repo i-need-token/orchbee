@@ -2,7 +2,7 @@
 
 | 字段       | 值                                                                                                                                                                                                     |
 | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 状态       | 现有 TypeScript CLI 方向、切片 1 与只读 Agent 切片 2 已实现；后续终端控制切片仍为待决事项                                                                                                              |
+| 状态       | 现有 TypeScript CLI 方向以及只读切片 1 至 3 已实现；后续终端控制切片仍为待决事项                                                                                                                       |
 | 决策所有者 | 当前请求者，以 Orchbee 产品与架构决策所有者身份作出决策                                                                                                                                                |
 | 语义所有者 | `apps/cli`、Desktop 应用组合、`@orchbee/semantic-command-protocol`、`@orchbee/workbench` 与 Agent 能力                                                                                                 |
 | 当前权威   | [`apps/cli/README.md`](../../apps/cli/README.zh-CN.md)、[语义命令执行](../../apps/desktop/docs/semantic-command-execution.zh-CN.md) 与 [Agent 运行时观测](../agent/agent-runtime-observation.zh-CN.md) |
@@ -136,12 +136,43 @@ orchbee agent wait <session-id> [--until <condition>]... [--after-revision <revi
 catalog-composition test 外，其异步订阅、重查、超时、取消、精确身份和协调器退役边界还有一个有界
 TLA+ model。
 
+## 已交付切片 3：规范 Tab 与 Panel 成员关系读取
+
+切片 3 添加两个确定性 Workbench query 及其高层 CLI 投影：
+
+```text
+orchbee tab list (--standalone | --project <project-id> --workspace <workspace-id>) [--limit <n>] [--cursor <cursor>]
+orchbee panel list (--standalone | --project <project-id> --workspace <workspace-id>) --tab <tab-id> [--limit <n>] [--cursor <cursor>]
+```
+
+- `@orchbee/workbench` 拥有两个严格的版本 1 operation contract，并从同一个经过验证的规范共享文档
+  revision 派生两个投影。Desktop 只添加 catalog 准入、授权、签名分页与已有的有界 execution
+  envelope；CLI 仍然只是这些 operation 之上经过 descriptor 检查的投影。
+- `tab list` 要求一个精确的 standalone 或 Project-and-Workspace location。它保留规范 Tab collection
+  顺序，并返回每个稳定 Tab 身份、terminal-context 身份、group 身份、pinned 状态、自定义与后备标题、
+  Panel 数量和 Terminal-presentation 数量。
+- `panel list` 还要求该 location 中一个精确的 Tab 身份。它保留规范的深度优先、从左到右 Panel-leaf
+  顺序，并返回从一开始的位置、稳定 Panel、Tab 与 terminal-context 身份，以及
+  Terminal-presentation 数量。缺失的精确 Tab 返回 `tab-not-found`；不存在 active Tab 或 focused
+  Panel 后备。
+- 两个 query 都保留 Workbench 的分页上限 200，把每个不透明 cursor 绑定到精确 operation、target、
+  coordinator generation 与共享 revision，并在该 revision 变化后返回 `page-cursor-stale`。Panel
+  cursor target 还包含精确 Tab 身份。
+- 输出有意排除 active 或 selected Tab、focused 或 maximized Panel、最近 focus history、active child
+  Terminal、split weight、pixel geometry、renderer state、screen content、process state 和推断的 Agent
+  state。它们属于 Client View 或其他语义 owner 的事实，不属于规范共享成员关系。
+
+此切片不添加 mutation、异步 owner transition、持久状态或新的失败排序。确定性 projection、schema、
+Desktop operation、HTTP boundary、CLI parser、runner、catalog 与 Skill test 会细化该契约；不选择
+TLA+，因为分页复用已有建模的 semantic-command ledger 和现有 revision-fenced cursor 机制。
+
 ## 不变量与证据
 
 1. 每个高层命令恰好映射一个已准入操作 ID 和一个所有者有效的有界输入；只有实时完整公共 descriptor
    与内嵌所有者契约匹配时才调用。解析失败不连接协调器，也不分配请求身份。
 2. 高层调用与通用调用共享相同的请求身份、调用前 describe、执行账本、等待、取消、退出码与未知结果实现。
-3. 添加命令绝不向 Desktop 目录添加操作，也不授予调用者权限。
+3. 仅添加高层 CLI 投影绝不向 Desktop catalog 添加 operation，也不授予调用者权限；每个新的 owner
+   operation 都会单独声明、准入和测试。
 4. `--skill` 在运行时不做发现、连接、调用、文件读取或产品修改。
 5. 现有命令参数与输出文档保持兼容。
 
@@ -150,16 +181,19 @@ TLA+ model。
 launcher，并证明打印 Skill 不增加端点请求。切片 1 不添加新的异步所有者状态，因此复用 semantic-command
 ledger model。切片 2 新增 `AgentSemanticWait.tla`；领域与 Desktop operation test 对其 exact-identity、
 revision、freshness、subscribe-before-recheck、timeout、cancellation、removal 与
-coordinator-retirement boundary 进行 refinement。
+coordinator-retirement boundary 进行 refinement。切片 3 添加确定性 Workbench 成员关系投影与精确
+target cursor test，不增加新的状态机。
 
 ## 交付顺序
 
 1. 已交付切片 1：Workbench 门面与版本匹配 Skill 不修改生产操作目录。
 2. 已交付切片 2：只读 `agent list`、`agent get`、`agent wait` 与 `agent explain` 使用上面的精确契约。
-3. 逐个所有者操作接受 Workspace、Tab、Panel 与 Terminal 的创建、split、move、rename、focus 和 close 等拓扑修改。
-4. 只有具备精确 provider 与 Terminal 权限、确认、审计、取消、重放和未知结果契约后，
+3. 已交付切片 3：只读 `tab list` 与精确目标 `panel list` 使用规范共享 Workbench 文档，且不暴露
+   Client View 状态。
+4. 逐个所有者操作接受 Workspace、Tab、Panel 与 Terminal 的创建、split、move、rename、focus 和 close 等拓扑修改。
+5. 只有具备精确 provider 与 Terminal 权限、确认、审计、取消、重放和未知结果契约后，
    才接受 Agent 启动、Prompt、Resume、Decision、原始终端输入/输出与编排。
-5. 把已交付行为与证据迁入当前所有者指南并删除已解决的提案章节；没有未来决策后删除完整提案。
+6. 把已交付行为与证据迁入当前所有者指南并删除已解决的提案章节；没有未来决策后删除完整提案。
 
 ## 待决事项
 

@@ -2,7 +2,7 @@
 
 | Field             | Value                                                                                                                                                                                                                             |
 | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Status            | The existing TypeScript CLI direction, Slice 1, and read-only Agent Slice 2 are implemented; later terminal-control slices remain reserved                                                                                        |
+| Status            | The existing TypeScript CLI direction and read-only Slices 1 through 3 are implemented; later terminal-control slices remain reserved                                                                                             |
 | Decision owner    | The active requester acting as Orchbee product and architecture decision owner                                                                                                                                                    |
 | Semantic owners   | `apps/cli`, Desktop application composition, `@orchbee/semantic-command-protocol`, `@orchbee/workbench`, and the Agent capability                                                                                                 |
 | Current authority | [`apps/cli/README.md`](../../apps/cli/README.md), [semantic-command execution](../../apps/desktop/docs/semantic-command-execution.md), and [Agent runtime observation](../agent/agent-runtime-observation.md)                     |
@@ -154,6 +154,39 @@ cancellation, exact-identity, and coordinator-retirement boundary has a bounded 
 addition to deterministic domain, Desktop operation, CLI parser, runner, and catalog-composition
 tests.
 
+## Delivered Slice 3: canonical Tab and Panel membership reads
+
+Slice 3 adds two deterministic Workbench queries and their high-level CLI projections:
+
+```text
+orchbee tab list (--standalone | --project <project-id> --workspace <workspace-id>) [--limit <n>] [--cursor <cursor>]
+orchbee panel list (--standalone | --project <project-id> --workspace <workspace-id>) --tab <tab-id> [--limit <n>] [--cursor <cursor>]
+```
+
+- `@orchbee/workbench` owns both strict version-1 operation contracts and derives both projections
+  from one validated canonical shared-document revision. Desktop adds only catalog admission,
+  authorization, signed pagination, and the existing bounded execution envelope; the CLI remains a
+  descriptor-checked projection over those operations.
+- `tab list` requires one exact standalone or Project-and-Workspace location. It preserves canonical
+  Tab collection order and returns each stable Tab identity, terminal-context identity, group
+  identity, pinned state, custom and fallback titles, Panel count, and Terminal-presentation count.
+- `panel list` additionally requires one exact Tab identity from that location. It preserves the
+  canonical depth-first, left-to-right Panel-leaf order and returns a one-based position, stable
+  Panel, Tab, and terminal-context identities, and Terminal-presentation count. A missing exact Tab
+  returns `tab-not-found`; no active Tab or focused Panel fallback exists.
+- Both queries keep the Workbench page maximum of 200, bind every opaque cursor to the exact
+  operation, target, coordinator generation, and shared revision, and return `page-cursor-stale`
+  after that revision changes. The Panel cursor target includes the exact Tab identity.
+- The output intentionally excludes active or selected Tabs, focused or maximized Panels, recent
+  focus history, active child Terminal, split weights, pixel geometry, renderer state, screen
+  content, process state, and inferred Agent state. Those are Client View or another semantic
+  owner's facts, not canonical shared membership.
+
+This slice adds no mutation, asynchronous owner transition, durable state, or new failure ordering.
+Deterministic projection, schema, Desktop operation, HTTP-boundary, CLI parser, runner, catalog, and
+Skill tests refine the contract; TLA+ is not selected because pagination reuses the already modeled
+semantic-command ledger and existing revision-fenced cursor mechanism.
+
 ## Invariants and evidence
 
 1. Every high-level command maps to exactly one admitted operation ID and one owner-valid bounded
@@ -161,7 +194,8 @@ tests.
    owner contract. Parsing failure connects to no coordinator and allocates no request identity.
 2. High-level and generic invocation share the same request identity, describe-before-invoke,
    execution ledger, wait, cancellation, exit-code, and unknown-outcome implementation.
-3. Adding a command never adds an operation to Desktop's catalog or grants a caller authority.
+3. Adding a high-level CLI projection alone never adds an operation to Desktop's catalog or grants
+   a caller authority; every new owner operation is separately declared, admitted, and tested.
 4. `--skill` performs no discovery, connection, invocation, filesystem read, or product mutation at
    runtime.
 5. Existing command arguments and output documents remain compatible.
@@ -172,7 +206,8 @@ Desktop's real-endpoint test exercises Node, packaged Electron Node mode, and th
 proves that Skill printing adds no endpoint request. Slice 1 adds no new asynchronous owner state and
 therefore reuses the semantic-command ledger model. Slice 2 adds `AgentSemanticWait.tla`; domain and
 Desktop operation tests refine its exact-identity, revision, freshness, subscribe-before-recheck,
-timeout, cancellation, removal, and coordinator-retirement boundaries.
+timeout, cancellation, removal, and coordinator-retirement boundaries. Slice 3 adds deterministic
+Workbench membership projection and exact-target cursor tests without a new state machine.
 
 ## Delivery order
 
@@ -180,12 +215,14 @@ timeout, cancellation, removal, and coordinator-retirement boundaries.
    catalog.
 2. Delivered Slice 2: read-only `agent list`, `agent get`, `agent wait`, and `agent explain` use the
    exact contract above.
-3. Accept topology mutations such as Workspace, Tab, Panel, and Terminal creation, split, move,
+3. Delivered Slice 3: read-only `tab list` and exact-target `panel list` use the canonical shared
+   Workbench document without exposing Client View state.
+4. Accept topology mutations such as Workspace, Tab, Panel, and Terminal creation, split, move,
    rename, focus, and close one owner operation at a time.
-4. Accept Agent launch, prompt, resume, decision, raw terminal input/output, and orchestration only
+5. Accept Agent launch, prompt, resume, decision, raw terminal input/output, and orchestration only
    with exact provider and Terminal authority, confirmation, audit, cancellation, replay, and
    unknown-outcome contracts.
-5. Move delivered behavior and evidence into current owner guides and delete resolved proposal
+6. Move delivered behavior and evidence into current owner guides and delete resolved proposal
    sections; delete the complete proposal when no future decision remains.
 
 ## Reserved decisions

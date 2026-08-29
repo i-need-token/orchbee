@@ -17,6 +17,7 @@ import {
 } from '@orchbee/semantic-command-protocol/local-http';
 import { type WorkbenchDirectory, WorkbenchProjectWorkspaceRuntime } from '@orchbee/workbench';
 import { workbenchSharedDocumentRevision } from '@orchbee/workbench/document';
+import { executeWorkbenchTerminalCreate } from '@orchbee/workbench/semantic-commands';
 import {
 	terminalPresentationId,
 	terminalPresentationOperationId,
@@ -40,13 +41,15 @@ const directory: WorkbenchDirectory = {
 	source: 'selected',
 };
 
-function createDocument(projectCount = 1) {
+function createDocument(projectCount = 1, includeStandaloneTopology = false) {
+	let operationSequence = 1;
 	let presentationSequence = 1;
 	const runtime = new WorkbenchProjectWorkspaceRuntime({
 		standaloneCwd: '/system',
 		standaloneTerminalTitle: 'Standalone',
 		terminalPresentation: {
-			createOperationId: () => terminalPresentationOperationId('read:operation:1'),
+			createOperationId: () =>
+				terminalPresentationOperationId(`read:operation:${operationSequence++}`),
 			createPresentationId: () =>
 				terminalPresentationId(`read:presentation:${presentationSequence++}`),
 			createRemovalId: () => terminalPresentationRemovalId('read:removal:1'),
@@ -66,6 +69,30 @@ function createDocument(projectCount = 1) {
 			type: 'project-created',
 		});
 		if (result.outcome !== 'applied') throw new Error('Project fixture failed.');
+	}
+	if (includeStandaloneTopology) {
+		const standaloneContext = runtime.getTerminalContext(
+			runtime.getSnapshot().standaloneTerminalContextId,
+		);
+		const initialTab = standaloneContext?.panelWorkspaceStore.getSnapshot().tabs[0];
+		if (standaloneContext === null || standaloneContext === undefined || initialTab === undefined) {
+			throw new Error('Standalone topology fixture failed.');
+		}
+		const split = standaloneContext.panelWorkspaceStore.transition({
+			direction: 'right',
+			newTerminalTitle: 'Split Terminal',
+			panelId: initialTab.root.id,
+			presentation: standaloneContext.panelWorkspaceStore.createTerminalPresentation(),
+			tabId: initialTab.tabId,
+			type: 'panel-split',
+		});
+		if (split.outcome !== 'applied') throw new Error('Standalone Panel fixture failed.');
+		const created = executeWorkbenchTerminalCreate(runtime, {
+			fallbackTitle: 'Second Tab',
+			location: { kind: 'standalone' },
+			placement: { groupId: null },
+		});
+		if (created.kind !== 'created') throw new Error('Standalone Tab fixture failed.');
 	}
 	return runtime.getSharedDocument(workbenchSharedDocumentRevision('4'));
 }
@@ -116,11 +143,13 @@ function request(index: number, operationId: string, input: unknown) {
 }
 
 describe('Desktop Workbench read operation catalog', () => {
-	it('admits exactly the four read operations and no terminal mutation', () => {
+	it('admits exactly the six read operations and no terminal mutation', () => {
 		const service = createService(() => createDocument());
 		expect(service.list({ kind: 'local-user' }).operations.map((entry) => entry.id)).toEqual([
 			'workbench.directory.list',
+			'workbench.panel.list',
 			'workbench.project.list',
+			'workbench.tab.list',
 			'workbench.terminal.list',
 			'workbench.workspace.list',
 		]);
@@ -181,16 +210,71 @@ describe('Desktop Workbench read operation catalog', () => {
 				request(3, 'workbench.project.list', { activeProject: true }),
 			),
 		).toMatchObject({ kind: 'rejected', code: 'input-invalid' });
+		expect(
+			await invokeAndRead(
+				service,
+				request(4, 'workbench.panel.list', {
+					location: { kind: 'standalone' },
+					tabId: 'missing-tab',
+				}),
+			),
+		).toEqual({ kind: 'blocked', code: 'tab-not-found' });
 	});
 
-	it('serves exactly the four read operations through the strict local HTTP boundary', async () => {
-		const service = createService(() => createDocument());
+	it('binds a Panel page cursor to the exact Tab target', async () => {
+		const document = createDocument(1, true);
+		const standaloneContext = document.terminalContexts.find(
+			(context) =>
+				context.terminalContextId === document.projectWorkspace.standaloneTerminalContextId,
+		);
+		const firstTabId = standaloneContext?.tabCollection.tabs[0]?.id;
+		const secondTabId = standaloneContext?.tabCollection.tabs[1]?.id;
+		if (firstTabId === undefined || secondTabId === undefined) {
+			throw new Error('Expected two standalone Tabs.');
+		}
+		const service = createService(() => document);
+		const first = await invokeAndRead(
+			service,
+			request(20, 'workbench.panel.list', {
+				limit: 1,
+				location: { kind: 'standalone' },
+				tabId: firstTabId,
+			}),
+		);
+		if (first.kind !== 'completed' || typeof first.output !== 'object' || first.output === null) {
+			throw new Error('Expected a Panel page output.');
+		}
+		const cursor = Reflect.get(first.output, 'nextCursor');
+		expect(typeof cursor).toBe('string');
+		expect(
+			await invokeAndRead(
+				service,
+				request(21, 'workbench.panel.list', {
+					cursor,
+					location: { kind: 'standalone' },
+					tabId: secondTabId,
+				}),
+			),
+		).toEqual({ kind: 'blocked', code: 'page-cursor-invalid' });
+	});
+
+	it('serves exactly the six read operations through the strict local HTTP boundary', async () => {
+		const document = createDocument();
+		const standaloneContext = document.terminalContexts.find(
+			(context) =>
+				context.terminalContextId === document.projectWorkspace.standaloneTerminalContextId,
+		);
+		const standaloneTabId = standaloneContext?.tabCollection.tabs[0]?.id;
+		if (standaloneTabId === undefined) throw new Error('Expected the standalone Tab fixture.');
+		const service = createService(() => document);
 		const listed = SemanticCommandOperationListSchema.parse(
 			localExchange(service, semanticCommandLocalHttpRequests.listOperations()),
 		);
 		expect(listed.operations.map((operation) => operation.id)).toEqual([
 			'workbench.directory.list',
+			'workbench.panel.list',
 			'workbench.project.list',
+			'workbench.tab.list',
 			'workbench.terminal.list',
 			'workbench.workspace.list',
 		]);
@@ -198,6 +282,8 @@ describe('Desktop Workbench read operation catalog', () => {
 			['workbench.project.list', {}],
 			['workbench.directory.list', { projectId: 'project-1' }],
 			['workbench.workspace.list', { projectId: 'project-1' }],
+			['workbench.tab.list', { location: { kind: 'standalone' } }],
+			['workbench.panel.list', { location: { kind: 'standalone' }, tabId: standaloneTabId }],
 			['workbench.terminal.list', { location: { kind: 'standalone' } }],
 		] as const;
 		for (const [index, [operationId, input]] of cases.entries()) {
