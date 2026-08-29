@@ -1,39 +1,37 @@
 .root {
 	position: absolute;
-	top: var(--ob-ref-space-4);
 	right: var(--ob-ref-space-4);
+	bottom: var(--ob-ref-space-4);
 	z-index: var(--ob-ref-layer-overlay);
 	display: grid;
 	grid-template-columns: auto minmax(var(--ob-ref-space-0), 1fr) auto;
-	gap: var(--ob-ref-space-3);
-	width: min(var(--ob-ref-size-dialog), calc(100% - var(--ob-ref-space-8)));
-	padding: var(--ob-ref-space-4);
-	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-default);
+	gap: var(--ob-ref-space-2);
+	width: min(
+		calc(var(--ob-ref-size-menu) + var(--ob-ref-space-16)),
+		calc(100% - var(--ob-ref-space-8))
+	);
+	padding: var(--ob-ref-space-3);
+	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-subtle);
 	border-radius: var(--ob-ref-radius-ui-lg);
-	background: var(--ob-sys-color-surface-raised);
-	box-shadow: var(--ob-sys-shadow-overlay);
+	background: var(--ob-sys-color-surface-overlay);
+	box-shadow: var(--ob-sys-shadow-raised);
 	color: var(--ob-sys-color-text-primary);
 }
 
 .leadingIcon {
-	display: grid;
-	place-items: center;
-	width: var(--ob-ref-space-8);
-	height: var(--ob-ref-space-8);
-	border-radius: var(--ob-ref-radius-full);
-	background: var(--ob-sys-color-status-info-surface);
-	color: var(--ob-sys-color-status-info-text);
+	padding-block-start: var(--ob-ref-space-1);
+	color: var(--ob-sys-color-text-muted);
 }
 
 .content {
 	display: grid;
 	justify-items: start;
-	gap: var(--ob-ref-space-2);
+	gap: var(--ob-ref-space-1-5);
 	min-width: var(--ob-ref-space-0);
 }
 
 .title {
-	font: var(--ob-sys-typography-label-md);
+	font: var(--ob-sys-typography-label-sm);
 }
 
 .body {
@@ -48,8 +46,8 @@
 
 @media (width <= 40rem) {
 	.root {
-		top: var(--ob-ref-space-3);
 		right: var(--ob-ref-space-3);
+		bottom: var(--ob-ref-space-3);
 		width: calc(100% - var(--ob-ref-space-6));
 	}
 }

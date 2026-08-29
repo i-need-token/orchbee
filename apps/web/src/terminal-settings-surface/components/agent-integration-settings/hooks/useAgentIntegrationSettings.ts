@@ -49,39 +49,43 @@ export function useAgentIntegrationSettings(
 			(snapshot.pendingIntegrationId === null ||
 				snapshot.pendingIntegrationId === integration.integrationId);
 		const enabled = integration.state === 'enabled';
-		const actionDisabled =
+		const disabled =
 			snapshot.pending ||
 			integration.managementMode === 'manual-only' ||
 			integration.state === 'conflict' ||
 			integration.state === 'unknown' ||
 			(!enabled && integration.availability !== 'available');
+		const statusView = pending
+			? {
+					status: intl.formatMessage(agentIntegrationMessages.actionWorking),
+					statusTone: 'neutral' as const,
+				}
+			: resolveAgentIntegrationStatusView(integration, (descriptor) =>
+					intl.formatMessage(descriptor),
+				);
 		return {
-			actionDisabled,
-			actionLabel: pending
-				? intl.formatMessage(agentIntegrationMessages.actionWorking)
-				: intl.formatMessage(
-						enabled
-							? agentIntegrationMessages.actionDisable
-							: agentIntegrationMessages.actionEnable,
-					),
 			agentName,
+			checked: enabled,
 			description: intl.formatMessage(agentIntegrationMessages.providerDescription, {
 				agent: agentName,
 			}),
+			disabled,
 			integrationId: integration.integrationId,
-			onAction: (): void => {
-				if (actionDisabled) return;
-				if (enabled) {
+			onCheckedChange: (checked): void => {
+				if (disabled || checked === enabled) return;
+				if (!checked) {
 					reminderController?.dismiss(integration.integrationId);
 					void control.disable(integration.integrationId);
 					return;
 				}
 				void enableAgentIntegration(control, reminderController, integration.integrationId);
 			},
+			pending,
 			settingId: `agent-integrations.${integration.integrationId}`,
-			...resolveAgentIntegrationStatusView(integration, (descriptor) =>
-				intl.formatMessage(descriptor),
-			),
+			...statusView,
+			toggleLabel: intl.formatMessage(agentIntegrationMessages.toggleLabel, {
+				agent: agentName,
+			}),
 		};
 	});
 	return {

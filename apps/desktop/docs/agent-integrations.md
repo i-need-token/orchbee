@@ -8,8 +8,8 @@ effects. The renderer receives provider-neutral inventory and correlated results
 filesystem capability, or generic process capability.
 
 Startup and refresh are read-only. Orchbee never installs, enables, disables, updates, copies, or
-repairs an Agent integration until the user selects **Enable** or **Disable** for that Agent in
-Settings. Browser and Gateway compositions receive no management control.
+repairs an Agent integration until the user changes that Agent's integration switch in Settings.
+Browser and Gateway compositions receive no management control.
 
 ## Local integration registry
 
@@ -17,18 +17,18 @@ The registry is closed and ordered as Claude Code, Codex, Grok, OpenCode, Pi, OM
 GitHub Copilot CLI, Cline, and Qwen Code. Each entry projects only availability, management mode,
 integration state, and a bounded issue.
 
-| Agent              | Read-only inspection                                                           | Explicit enable effect                                                                                        | Explicit disable effect                                                 |
-| ------------------ | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| Claude Code        | `claude plugin list --json`                                                    | Verify or add exact local `orchbee-local` marketplace, then install and enable `orchbee-agent-observation`    | Disable `orchbee-agent-observation@orchbee-local`                       |
-| Codex              | `codex plugin list --json`                                                     | Verify or add exact local `orchbee-local` marketplace, then add `orchbee-agent-observation`                   | Remove `orchbee-agent-observation@orchbee-local`                        |
-| Grok               | `grok plugin list --json`                                                      | Install the packaged Orchbee bundle with trust only after the button click, or enable its exact plugin        | Disable exact plugin `orchbee-agent-observation`                        |
-| OpenCode           | Exact target-path and symlink inspection                                       | Add exact symlink `~/.config/opencode/plugins/orchbee-agent-observation.mjs`                                  | Remove that symlink only when it still points to the packaged file      |
-| Pi                 | Exact target-path and symlink inspection                                       | Add exact symlink `~/.pi/agent/extensions/orchbee-agent-observation.cjs`                                      | Remove that symlink only when it still points to the packaged file      |
-| OMP                | Exact target-path and symlink inspection                                       | Add exact symlink `~/.omp/agent/extensions/orchbee-agent-observation.cjs`                                     | Remove that symlink only when it still points to the packaged file      |
-| Gemini CLI         | Exact target-path and symlink inspection                                       | Add exact directory symlink `~/.gemini/extensions/orchbee-agent-observation`                                  | Remove that symlink only when it still points to the packaged directory |
-| GitHub Copilot CLI | `copilot plugins list --kind plugin --json`                                    | Verify or add the exact local `orchbee-local` marketplace, then install or enable `orchbee-agent-observation` | Disable `orchbee-agent-observation@orchbee-local`                       |
-| Cline              | Bounded scan of Cline's official local-install layout and exact Orchbee marker | Run `cline plugin install` against the packaged bundle                                                        | Run `cline plugin uninstall orchbee-agent-observation`                  |
-| Qwen Code          | Exact target-path and symlink inspection                                       | Add exact directory symlink `~/.qwen/extensions/orchbee-agent-observation`                                    | Remove that symlink only when it still points to the packaged directory |
+| Agent              | Read-only inspection                                                           | Explicit enable effect                                                                                             | Explicit disable effect                                                 |
+| ------------------ | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------- |
+| Claude Code        | `claude plugin list --json`                                                    | Verify or add exact local `orchbee-local` marketplace, then install and enable `orchbee-agent-observation`         | Disable `orchbee-agent-observation@orchbee-local`                       |
+| Codex              | `codex plugin list --json`                                                     | Verify or add exact local `orchbee-local` marketplace, then add `orchbee-agent-observation`                        | Remove `orchbee-agent-observation@orchbee-local`                        |
+| Grok               | `grok plugin list --json`                                                      | Install the packaged Orchbee bundle with trust only after the user turns on its switch, or enable its exact plugin | Disable exact plugin `orchbee-agent-observation`                        |
+| OpenCode           | Exact target-path and symlink inspection                                       | Add exact symlink `~/.config/opencode/plugins/orchbee-agent-observation.mjs`                                       | Remove that symlink only when it still points to the packaged file      |
+| Pi                 | Exact target-path and symlink inspection                                       | Add exact symlink `~/.pi/agent/extensions/orchbee-agent-observation.cjs`                                           | Remove that symlink only when it still points to the packaged file      |
+| OMP                | Exact target-path and symlink inspection                                       | Add exact symlink `~/.omp/agent/extensions/orchbee-agent-observation.cjs`                                          | Remove that symlink only when it still points to the packaged file      |
+| Gemini CLI         | Exact target-path and symlink inspection                                       | Add exact directory symlink `~/.gemini/extensions/orchbee-agent-observation`                                       | Remove that symlink only when it still points to the packaged directory |
+| GitHub Copilot CLI | `copilot plugins list --kind plugin --json`                                    | Verify or add the exact local `orchbee-local` marketplace, then install or enable `orchbee-agent-observation`      | Disable `orchbee-agent-observation@orchbee-local`                       |
+| Cline              | Bounded scan of Cline's official local-install layout and exact Orchbee marker | Run `cline plugin install` against the packaged bundle                                                             | Run `cline plugin uninstall orchbee-agent-observation`                  |
+| Qwen Code          | Exact target-path and symlink inspection                                       | Add exact directory symlink `~/.qwen/extensions/orchbee-agent-observation`                                         | Remove that symlink only when it still points to the packaged directory |
 
 Claude Code, Codex, and GitHub Copilot CLI disable retain the exact local marketplace because
 another explicitly installed Orchbee plugin may use it. Grok disable retains the installed plugin.
@@ -61,11 +61,46 @@ One process-wide controller serializes mutation. An explicit request follows thi
 5. Publish the observed state. Command success without the requested observed state is
    `verification-failed`; failure never fabricates a successful state.
 
-Executable discovery accepts only a fixed lowercase command name and an absolute result from the
-user's login shell. Actual Agent commands do not pass through a shell, ignore stdin, discard stderr,
-bound stdout to 256 KiB, and time out after three seconds. A timeout that may indicate an
-interactive trust or review step becomes `manual-action-required`. No command output crosses the
-renderer boundary.
+### Executable discovery
+
+Finder-launched macOS applications and comparable POSIX desktop launches can inherit a restricted
+`PATH` that differs from the user's interactive terminal. Desktop Main owns the process-local
+`AgentExecutableSearchPath`: the inherited `PATH` is its first source, and one successful or failed
+interactive-login-shell probe is its optional second source. The probe is lazy, shared by concurrent
+adapter inspection, and cached for the Desktop process lifetime. Restarting Desktop is the recovery
+path after the user changes shell startup configuration.
+
+The probe runs the configured absolute user shell in interactive login mode with ignored stdin,
+discarded stderr, a 256 KiB stdout limit, and a three-second timeout. A marker-bounded helper emits
+only the resulting `PATH`; Desktop does not import other shell environment variables. Shell startup
+files can therefore run once when inherited discovery misses, but no shell command is used for an
+Agent inspection or mutation. A failed, malformed, oversized, or timed-out probe contributes no
+search path and remains a read-only `not-found` result.
+
+`resolveAgentExecutableCandidates` is the deterministic resolver. It accepts only the registry's
+bounded lowercase command names, preserves source and directory order, removes duplicates, rejects
+empty, relative, control-character, and overlong entries, and caps each source at 256 directories.
+The platform adapter accepts the first candidate whose followed target is a regular file and is
+executable. It preserves the selected symlink path so version-manager shims keep their invocation
+identity. Aliases, functions, current-directory lookup, recursive home-directory scans, and a fixed
+inventory of package-manager installation directories are excluded.
+
+Commands discovered through the shell source receive only that resolved `PATH` overlaid on the
+inherited command environment, which preserves script interpreter lookup without harvesting shell
+secrets. Actual Agent commands use the selected absolute path directly, ignore stdin, discard
+stderr, bound stdout to 256 KiB, and time out after three seconds. A timeout that may indicate an
+interactive trust or review step becomes `manual-action-required`. No path, environment value, or
+command output crosses the renderer boundary.
+
+This adopts only the once-cached interactive-login-shell environment-probe pattern from VS Code
+[`shellEnv.ts` at `cd429513`](https://github.com/microsoft/vscode/blob/cd429513258458bcbe37b17fe714874197fe2adf/src/vs/platform/shell/node/shellEnv.ts),
+observed on 2026-08-29. Orchbee does not claim source compatibility or adopt VS Code's full
+environment merge, shell catalog, configuration surface, timeout, diagnostics, or CLI-launch
+policy. Deterministic candidate tests cover ordering and rejection boundaries; the command-runner
+test covers a restricted inherited environment, noisy concurrent shell probing, cached failure or
+success, executable validation, and interpreter lookup through the selected shell `PATH`. Native
+macOS verification covers the packaged-launch compatibility claim; other shell families remain
+bounded by their maintained platform tests.
 
 Symlink enable creates only the parent directory and exact file or directory link. A regular file,
 directory, broken foreign link, or link to another source is a conflict and remains unchanged.
@@ -74,13 +109,16 @@ entry.
 
 ## Settings and reminder policy
 
-Settings uses explicit buttons rather than optimistic switches. It shows all ten local entries,
-refresh, bounded failures, the no-auto-install disclosure, and the remote manual-only boundary. A
-user-requested disable records that Agent's device-local reminder dismissal before attempting the
-effect. A verified successful enable clears that dismissal so a later external removal can be
-discovered again.
+Settings uses snapshot-controlled switches. A switch change is the explicit user request, but its
+position remains at the last inspected state until Main publishes the post-attempt inspection; it
+never moves optimistically. Pending work labels the affected row and disables all competing
+switches. The surface also shows all ten local entries, refresh, bounded failures, the
+no-auto-install disclosure, and the remote manual-only boundary. A user-requested disable records
+that Agent's device-local reminder dismissal before attempting the effect. A verified successful
+enable clears that dismissal so a later external removal can be discovered again.
 
-The renderer may show one non-modal reminder per application session when an Agent is locally
+The renderer may show one compact, visually quiet bottom-right reminder per application session
+when an Agent is locally
 available and its managed, conflict-free integration is `not-installed` or `disabled`. The reminder
 does not perform a mutation or request operating-system notification permission. Closing it stores
 only the dismissed integration ID in `orchbee:web:agent-integration-reminders:v1`; **Review

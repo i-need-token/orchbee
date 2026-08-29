@@ -33,7 +33,7 @@ afterAll(() => {
 });
 
 describe('AgentIntegrationSettings', () => {
-	it('changes only after an explicit action and keeps reminder preference in sync', async () => {
+	it('uses authoritative switches and keeps reminder preference in sync', async () => {
 		const container = document.createElement('div');
 		document.body.append(container);
 		let serialized = JSON.stringify({ dismissedIntegrationIds: [] });
@@ -63,34 +63,76 @@ describe('AgentIntegrationSettings', () => {
 		expect(control.enableCalls).toEqual([]);
 		expect(control.disableCalls).toEqual([]);
 		expect(container.textContent).toContain('never installs adapters automatically');
-		const disable = findButton(container, 'Disable');
-		await act(async () => disable.click());
+		const integrationSwitch = findSwitch(container, 'Codex integration');
+		expect(integrationSwitch.getAttribute('aria-checked')).toBe('true');
+		expect(findButtonWithExactText(container, 'Disable')).toBeUndefined();
+		expect(findButtonWithExactText(container, 'Enable')).toBeUndefined();
+
+		await act(async () => integrationSwitch.click());
 		expect(control.disableCalls).toEqual(['codex']);
 		expect(JSON.parse(serialized)).toEqual({ dismissedIntegrationIds: ['codex'] });
+		expect(integrationSwitch.getAttribute('aria-checked')).toBe('false');
 
-		const enable = findButton(container, 'Enable', false);
-		await act(async () => enable.click());
+		await act(async () => integrationSwitch.click());
 		await vi.waitFor(() => {
 			expect(control.enableCalls).toEqual(['codex']);
 			expect(JSON.parse(serialized)).toEqual({ dismissedIntegrationIds: [] });
+			expect(integrationSwitch.getAttribute('aria-checked')).toBe('true');
 		});
 
 		await act(async () => root.unmount());
 		reminderController.dispose();
 		container.remove();
 	});
+
+	it('does not move a switch before Main publishes a re-inspected state', async () => {
+		const container = document.createElement('div');
+		document.body.append(container);
+		const control = createTestControl(
+			{ codex: { availability: 'available', state: 'enabled' } },
+			false,
+		);
+		const root = createRoot(container);
+		await act(async () => {
+			root.render(
+				createElement(
+					OrchbeeI18nProvider,
+					{ locale: 'en-US' },
+					createElement(AgentIntegrationSettings, { control }),
+				),
+			);
+		});
+
+		const integrationSwitch = findSwitch(container, 'Codex integration');
+		await act(async () => integrationSwitch.click());
+		expect(control.disableCalls).toEqual(['codex']);
+		expect(integrationSwitch.getAttribute('aria-checked')).toBe('true');
+
+		await act(async () => {
+			control.updateIntegration('codex', { state: 'disabled' });
+		});
+		expect(integrationSwitch.getAttribute('aria-checked')).toBe('false');
+
+		await act(async () => root.unmount());
+		container.remove();
+	});
 });
 
-function findButton(
-	container: HTMLElement,
-	label: string,
-	includeDisabled = true,
-): HTMLButtonElement {
-	const button = [...container.querySelectorAll('button')].find(
-		(candidate) => candidate.textContent === label && (includeDisabled || !candidate.disabled),
+function findSwitch(container: HTMLElement, label: string): HTMLElement {
+	const element = [...container.querySelectorAll("[data-slot='switch']")].find(
+		(candidate) => candidate.getAttribute('aria-label') === label,
 	);
-	if (button === undefined) throw new Error(`Expected ${label} button.`);
-	return button;
+	if (!(element instanceof HTMLElement)) throw new Error(`Expected ${label} switch.`);
+	return element;
+}
+
+function findButtonWithExactText(
+	container: HTMLElement,
+	text: string,
+): HTMLButtonElement | undefined {
+	return [...container.querySelectorAll('button')].find(
+		(candidate) => candidate.textContent === text,
+	);
 }
 
 interface TestControl extends AgentIntegrationManagementControl {
@@ -106,6 +148,7 @@ function createTestControl(
 	initial: Partial<
 		Readonly<Record<DesktopAgentIntegrationId, Partial<DesktopAgentIntegrationSnapshotItem>>>
 	>,
+	autoPublish = true,
 ): TestControl {
 	let snapshot: AgentIntegrationManagementClientSnapshot = {
 		failureCode: null,
@@ -128,11 +171,13 @@ function createTestControl(
 		enableCalls: [],
 		disable: async (integrationId): Promise<AgentIntegrationManagementClientOperationResult> => {
 			control.disableCalls.push(integrationId);
+			if (!autoPublish) return { kind: 'unavailable' };
 			control.updateIntegration(integrationId, { state: 'disabled' });
 			return { kind: 'completed', snapshot };
 		},
 		enable: async (integrationId): Promise<AgentIntegrationManagementClientOperationResult> => {
 			control.enableCalls.push(integrationId);
+			if (!autoPublish) return { kind: 'unavailable' };
 			control.updateIntegration(integrationId, { state: 'enabled' });
 			return { kind: 'completed', snapshot };
 		},

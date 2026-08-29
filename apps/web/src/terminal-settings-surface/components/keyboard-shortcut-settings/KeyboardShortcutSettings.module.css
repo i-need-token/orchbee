@@ -12,6 +12,34 @@
 	color: var(--ob-sys-color-status-warning-text);
 }
 
+.discovery {
+	display: flex;
+	flex-direction: column;
+	gap: var(--ob-ref-space-2);
+}
+
+.searchControls {
+	display: grid;
+	grid-template-columns: minmax(var(--ob-ref-space-0), 1fr) auto;
+	align-items: center;
+	gap: var(--ob-ref-space-2);
+}
+
+.searchStatus {
+	margin: var(--ob-ref-space-0);
+	color: var(--ob-sys-color-text-secondary);
+	font: var(--ob-sys-typography-label-sm);
+}
+
+.empty {
+	padding: var(--ob-ref-space-8) var(--ob-ref-space-4);
+	border-radius: var(--ob-ref-radius-ui-lg);
+	background: var(--ob-sys-color-surface-subtle);
+	color: var(--ob-sys-color-text-secondary);
+	font: var(--ob-sys-typography-body-sm);
+	text-align: center;
+}
+
 .list {
 	overflow: hidden;
 	border-radius: var(--ob-ref-radius-ui-lg);
@@ -107,6 +135,14 @@
 }
 
 @media (width <= 48rem) {
+	.searchControls {
+		grid-template-columns: minmax(var(--ob-ref-space-0), 1fr);
+	}
+
+	.searchControls > :global([data-slot='button']) {
+		justify-self: start;
+	}
+
 	.row {
 		grid-template-columns: minmax(var(--ob-ref-space-0), 1fr);
 	}

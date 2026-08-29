@@ -1,9 +1,6 @@
 .root {
 	display: grid;
-	grid-template-columns: minmax(var(--ob-ref-space-0), 1fr) minmax(
-			var(--ob-ref-container-3xs),
-			var(--ob-ref-container-2xs)
-		);
+	grid-template-columns: minmax(var(--ob-ref-space-0), 1fr) var(--ob-ref-container-3xs);
 	align-items: center;
 	gap: var(--ob-ref-space-8);
 	min-height: calc(var(--ob-ref-space-12) + var(--ob-ref-space-2));

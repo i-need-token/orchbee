@@ -7,9 +7,9 @@ Desktop Main 拥有本地 Agent 集成检查以及唯一允许的本地配置 ef
 executable path、resource path、command output、filesystem capability 或 generic process
 capability。
 
-启动和刷新都是只读的。除非用户在设置中为对应 Agent 选择**开启**或**关闭**，否则 Orchbee 永远
-不会安装、开启、关闭、更新、复制或修复 Agent 集成。Browser 与 Gateway composition 不会获得
-management control。
+启动和刷新都是只读的。除非用户在设置中切换对应 Agent 的集成 switch，否则 Orchbee 永远不会安装、
+开启、关闭、更新、复制或修复 Agent 集成。Browser 与 Gateway composition 不会获得 management
+control。
 
 ## 本地集成 registry
 
@@ -21,7 +21,7 @@ Copilot CLI、Cline、Qwen Code。每个 entry 只投影 availability、manageme
 | ------------------ | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | ------------------------------------------------------- |
 | Claude Code        | `claude plugin list --json`                                    | 校验或添加准确的本地 `orchbee-local` marketplace，再安装并开启 `orchbee-agent-observation` | 关闭 `orchbee-agent-observation@orchbee-local`          |
 | Codex              | `codex plugin list --json`                                     | 校验或添加准确的本地 `orchbee-local` marketplace，再添加 `orchbee-agent-observation`       | 移除 `orchbee-agent-observation@orchbee-local`          |
-| Grok               | `grok plugin list --json`                                      | 仅在点击按钮后以 trust 安装 Orchbee 打包 bundle，或开启其准确 plugin                       | 关闭准确 plugin `orchbee-agent-observation`             |
+| Grok               | `grok plugin list --json`                                      | 仅在用户打开 switch 后以 trust 安装 Orchbee 打包 bundle，或开启其准确 plugin               | 关闭准确 plugin `orchbee-agent-observation`             |
 | OpenCode           | 准确 target path 与 symlink 检查                               | 添加准确 symlink `~/.config/opencode/plugins/orchbee-agent-observation.mjs`                | 仅当 symlink 仍指向打包文件时移除它                     |
 | Pi                 | 准确 target path 与 symlink 检查                               | 添加准确 symlink `~/.pi/agent/extensions/orchbee-agent-observation.cjs`                    | 仅当 symlink 仍指向打包文件时移除它                     |
 | OMP                | 准确 target path 与 symlink 检查                               | 添加准确 symlink `~/.omp/agent/extensions/orchbee-agent-observation.cjs`                   | 仅当 symlink 仍指向打包文件时移除它                     |
@@ -59,10 +59,40 @@ package 才是 enabled。Orchbee 不执行后台更新。Windows 把所有 entry
 5. 发布观察到的状态。Command 成功但未观察到请求状态时返回 `verification-failed`；失败绝不会伪造
    成功状态。
 
-Executable discovery 只接受固定的小写 command name 以及用户 login shell 返回的 absolute result。
-实际 Agent command 不经过 shell，忽略 stdin、丢弃 stderr、把 stdout 限制在 256 KiB，并在三秒后
-超时。可能表示 interactive trust 或 review 步骤的超时会成为 `manual-action-required`。任何 command
-output 都不会跨过 renderer boundary。
+### Executable discovery
+
+通过 Finder 启动的 macOS 应用以及类似的 POSIX 桌面启动可能只继承精简 `PATH`，与用户的
+interactive terminal 不同。Desktop Main 拥有 process-local `AgentExecutableSearchPath`：继承的
+`PATH` 是第一来源，一次成功或失败的 interactive-login-shell probe 是可选第二来源。Probe
+是惰性的，由并发 adapter inspection 共享，并在 Desktop process 生命期内缓存。用户修改 shell
+startup configuration 后，重启 Desktop 是恢复路径。
+
+Probe 以 interactive login mode 运行配置的 absolute user shell，忽略 stdin、丢弃 stderr、把
+stdout 限制在 256 KiB，并在三秒后超时。一个 marker-bounded helper 只输出最终的
+`PATH`；Desktop 不导入其他 shell environment variable。因此，继承检测未命中时 shell startup file
+可能运行一次，但 Agent inspection 或 mutation 都不使用 shell command。失败、格式错误、过大或超时的
+probe 不提供 search path，并保持只读的 `not-found` 结果。
+
+`resolveAgentExecutableCandidates` 是确定性 resolver。它只接受 registry 中有界的小写 command
+name，保留 source 和 directory 顺序、移除重复项、拒绝空白、relative、含 control character 或过长的
+entry，并把每个 source 限制在 256 个 directory。Platform adapter 接受第一个跟随后目标为
+regular file 且可执行的 candidate。它保留选中的 symlink path，使 version-manager shim 继续保持调用
+identity。Alias、function、current-directory lookup、递归扫描 home directory，以及固定的 package-manager
+installation-directory inventory 都在范围外。
+
+通过 shell source 发现的 command 只会把该已解析 `PATH` 叠加到继承的 command environment，从而保留
+script interpreter lookup，但不采集 shell secret。实际 Agent command 使用选中的 absolute path 直接运行，
+忽略 stdin、丢弃 stderr、把 stdout 限制在 256 KiB，并在三秒后超时。可能表示 interactive trust
+或 review 步骤的超时会成为 `manual-action-required`。Path、environment value 或 command output 都不会
+跨过 renderer boundary。
+
+这里只采用 VS Code [`cd429513` 版本的 `shellEnv.ts`](https://github.com/microsoft/vscode/blob/cd429513258458bcbe37b17fe714874197fe2adf/src/vs/platform/shell/node/shellEnv.ts)
+中“只探测一次并缓存 interactive-login-shell environment”的模式，参考日期为 2026-08-29。Orchbee 不声明
+source compatibility，也不采用 VS Code 的完整 environment merge、shell catalog、configuration surface、
+timeout、diagnostic 或 CLI-launch policy。确定性 candidate test 覆盖顺序与拒绝边界；command-runner test
+覆盖精简继承环境、含噪声的并发 shell probe、缓存的失败或成功、executable validation，以及通过选中
+shell `PATH` 完成的 interpreter lookup。Native macOS verification 覆盖 packaged-launch compatibility claim；
+其他 shell family 仍以各自的 maintained platform test 为边界。
 
 Symlink 开启只创建 parent directory 与准确的 file 或 directory link。Regular file、directory、损坏的
 foreign link 或指向其他 source 的 link 都属于 conflict，并保持不变。关闭只会 unlink resolved source
@@ -70,13 +100,14 @@ foreign link 或指向其他 source 的 link 都属于 conflict，并保持不�
 
 ## 设置与提醒策略
 
-设置使用显式按钮，而不是 optimistic switch。它展示十个本地 entry、刷新、bounded failure、不会自动
-安装的说明以及远端 manual-only 边界。用户请求关闭时，会先记录该 Agent 的 device-local reminder
-dismissal，再尝试 effect。经过验证的成功开启会清除 dismissal，使之后发生的外部移除仍可再次被
-发现。
+设置使用由 snapshot 控制的 switch。一次 switch 变更就是用户的显式请求，但它的位置会保持最近一次
+检查到的状态，直到 Main 发布 effect 后的重新检查结果；它绝不乐观跳动。Pending work 会标记受影响
+row，并禁用所有竞争 switch。界面还会展示十个本地 entry、刷新、bounded failure、不会自动安装的说明
+以及远端 manual-only 边界。用户请求关闭时，会先记录该 Agent 的 device-local reminder dismissal，再
+尝试 effect。经过验证的成功开启会清除 dismissal，使之后发生的外部移除仍可再次被发现。
 
 当 Agent 在本地可用，且其受管、无 conflict 的集成为 `not-installed` 或 `disabled` 时，renderer 每个
-application session 最多显示一个 non-modal reminder。Reminder 不执行 mutation，也不请求操作系统
+application session 最多在右下角显示一个紧凑且视觉低干扰的 reminder。Reminder 不执行 mutation，也不请求操作系统
 通知权限。关闭 reminder 只在 `orchbee:web:agent-integration-reminders:v1` 中存储 dismissed integration
 ID；**查看集成**会打开 Agent 集成设置 category。Storage failure 仍会在当前 session 保留内存中的
 dismissal。

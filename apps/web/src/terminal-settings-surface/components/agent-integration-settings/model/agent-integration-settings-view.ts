@@ -11,15 +11,17 @@ import type {
 } from '../../../../agent-integration-management';
 
 export interface AgentIntegrationSettingsRowView {
-	readonly actionDisabled: boolean;
-	readonly actionLabel: string;
 	readonly agentName: string;
+	readonly checked: boolean;
 	readonly description: string;
+	readonly disabled: boolean;
 	readonly integrationId: DesktopAgentIntegrationId;
-	readonly onAction: () => void;
+	readonly onCheckedChange: (checked: boolean) => void;
+	readonly pending: boolean;
 	readonly settingId: string;
 	readonly status: string;
 	readonly statusTone: 'danger' | 'neutral' | 'positive' | 'warning';
+	readonly toggleLabel: string;
 }
 
 export interface AgentIntegrationSettingsView {

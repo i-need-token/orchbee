@@ -39,8 +39,8 @@ export function AgentIntegrationReminder({
 				</strong>
 				<p className={styles['body']}>{view.body}</p>
 				<Button
-					size='sm'
-					variant='outline'
+					size='xs'
+					variant='ghost'
 					onClick={(event): void => view.onReview(event.currentTarget)}
 				>
 					{view.reviewLabel}

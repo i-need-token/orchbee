@@ -297,6 +297,39 @@ Action 委托一次变更，并调整分割轴与请求方向匹配的最近祖�
 搜索和当前可配置快捷键都会打开同一模式。Electron 保持原生“重新加载”和“强制重新加载”菜单命令
 可点击，但不注册其加速键，让渲染器拥有的当前绑定优先解析。
 
+## 快捷键设置发现模型
+
+- **问题与输入：** 设置目录中的快捷键数量已经很多，逐行浏览不再是可靠的发现路径。本地发现界面
+  接受普通文本、输入的快捷键表示或一次捕获的物理 `KeyboardEvent`；当前本地化行投影和完整有效
+  绑定表是可信输入，输入文本与按键事件是瞬时、不可信输入。缺失或仅含空白的查询表示完整目录。
+- **数据、模型与所有权：** Web 拥有一个瞬时发现状态，由模式（`text` 或 `recording`）和查询
+  （`text` 或一个标准化和弦）组成。纯解析器保留目录顺序并投影匹配的快捷键 ID。
+  `KeyboardShortcutSettingsController` 仍是唯一的绑定写入者；发现功能只读其快照，不拥有存储、
+  Action 或快捷键变更能力。
+- **输出与不变量：** 空文本返回全部行。普通文本通过不区分大小写的合取词项搜索本地化 Action 名称、
+  可见范围、可用条件与来源、稳定 Action 与快捷键 ID，以及格式化后的当前和弦。修饰键名称、常见
+  Apple 符号、物理按键代码和常见按键标签都作为可搜索别名。捕获的和弦使用与冲突检测相同的规范
+  和弦标识进行比较，因此只返回当前的精确匹配。零匹配产生本地化空状态；所有非空结果保留目录顺序。
+  搜索、捕获、清除、取消与卸载绝不会改变绑定或持久化记录。
+
+| 当前模式 | 事件                       | 下一模式 | 查询与可观察结果                                  |
+| -------- | -------------------------- | -------- | ------------------------------------------------- |
+| 文本     | 文本变化                   | 文本     | 替换为文本查询并立即投影匹配行                    |
+| 文本     | 开始录制                   | 录制     | 保留当前查询、聚焦搜索框并等待一个受支持和弦      |
+| 录制     | 受支持和弦                 | 录制     | 替换为精确和弦查询并显示其当前匹配 Action 行      |
+| 录制     | 仅修饰键、重复或输入法组合 | 录制     | 无操作；保留先前查询                              |
+| 录制     | 不支持或不含修饰键的按键   | 录制     | 保留先前查询并显示本地化的无效和弦指引            |
+| 录制     | Escape、Tab 或显式停止     | 文本     | 停止捕获、保留当前查询，并让 Tab 继续普通焦点移动 |
+| 任一     | 清除                       | 不变     | 将查询替换为空文本并显示完整目录                  |
+
+普通模式下，非空查询会先被 Escape 清除，之后外层设置界面才可处理 Escape；空查询时 Escape 仍可交给
+设置界面。开始现有的逐行快捷键编辑器会停止发现录制，开始发现录制则会取消任何逐行编辑器，因此同一
+时刻只有一个已聚焦控件拥有物理按键捕获。搜索框通过礼貌状态报告结果数量，其可访问标签不依赖占位文案。
+
+该交互采用 VS Code 修订版 `cd429513258458bcbe37b17fe714874197fe2adf` 对普通快捷键搜索与显式
+“录制按键”模式的区分。Orchbee 有意只支持一个物理和弦而非 VS Code 的和弦序列，使用自身的有效
+目录与本地化元数据，并将录制路径限定为发现功能而不是编辑命令。
+
 ## 和弦与冲突模型
 
 `@orchbee/keyboard-shortcuts` 只提供纯物理和弦机制。和弦包含一个受支持的 `KeyboardEvent.code` 和标准化的精确修饰符集。 `Mod` 映射到 Apple 上的 Command 和标准平台上的 Control。匹配拒绝额外的修饰符、组合（包括旧键代码 229）、重复、不支持的代码和仅修饰符事件。格式和冲突身份来自相同的标准化和弦。
@@ -329,33 +362,34 @@ Browser Preview、Gateway Browser 和 Electron 各自针对自己的源本地存
 
 ## 声明与证据
 
-| 声明                                                           | 确定性证据                                                                                                            |
-| -------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| 一个有效目标只产生一个子终端、面板或标签页关闭操作             | 活动目标解析器决策表测试                                                                                              |
-| 确认、取消与提交继续由准备好的下层 Action 所有                 | 同时注册面板与标签页 Action 的 Workbench Action 集成测试                                                              |
-| 活动 Workbench 绑定不依赖仍然存在的聚焦后代                    | document 捕获生命周期与 Web 应用集成测试                                                                              |
-| 空 Tab 状态下新建 Tab 会创建并聚焦新终端，设置会抑制它         | Web 应用焦点与设置作用域集成轨迹                                                                                      |
-| 当前目录 Tab 创建使用精确的显示中可信 CWD 并保留源终端         | 解析器、runtime、Action、菜单、快捷键、Settings、v16 迁移及精确 Desktop `terminal-parity/FS-15-current-directory-tab` |
-| Apple 与标准平台默认值符合目录，且自定义编辑会影响分发         | 快捷键定义、解析器与控制器测试                                                                                        |
-| 空闲的平台默认终端 Paste 保留感知 MIME 的原生投递              | 快捷键路由与安装器测试、终端图片粘贴测试及精确 Desktop `terminal-parity/IN-03-image-paste`                            |
-| 活动的普通终端选择会保留原生粘贴与输入所有权                   | 投影终端选择/粘贴测试及精确 Desktop `terminal-parity/IN-18-native-selection-paste`                                    |
-| 等待中的 Copy 与 Paste 工作不会接纳陈旧或重复快捷键输入        | 剪贴板协调器与 Action 测试及精确 Desktop `terminal-parity/IN-13-selection-copy-paste`                                 |
-| 方向聚焦会选择空间邻居，并在外边缘继续传递事件                 | 四面板解析器、Action 与快捷键分发测试                                                                                 |
-| 循环聚焦遵循规范 Panel 顺序、回绕，并在不可用时继续传递        | 生成式解析器、预备 Action、快捷键分发、Settings 与 v17 迁移测试                                                       |
-| 按位置聚焦选择一个精确规范 Panel，且绝不钳制缺失位置           | 生成式解析器、预备 Action、快捷键/Settings、v19 迁移及精确 Desktop `terminal-parity/FS-17-panel-position-focus`       |
-| 可视聚焦与交换会选中一个精确的其他 Panel，且不泄漏已接管的输入 | 模型、Action、React、快捷键、Settings、v19 迁移及精确 Desktop `terminal-parity/FS-16-visible-panel-selection`         |
-| 方向移动会交换精确相邻叶节点并保留源焦点                       | 模型、有界探索、Action、快捷键、设置及精确 Desktop `terminal-parity/FS-13-directional-panel-movement`                 |
-| 均分按同轴 Panel 比例分配范围且不改变标识                      | 模型、生成布局、Action、菜单、快捷键、设置、v15 迁移及精确 Desktop `terminal-parity/FS-14-panel-equalization`         |
-| 键盘调整大小定位最近匹配分割并重新验证捕获标识                 | 解析器、状态、Action、React、设置、迁移、菜单与 Desktop 系统测试                                                      |
-| 按位置选择遵循规范 Tab 顺序并在越界时继续传递事件              | 分组与固定 Action 集成测试及快捷键分发测试                                                                            |
-| 相邻选择遵循规范 Tab 顺序，且仅在存在多个 Tab 时回绕           | 纯解析器、预备 Action 集成与快捷键继续传递测试                                                                        |
-| 活动 Tab 移动通过一个下层 Action 在其固定分区内循环            | 纯解析器、预备 Action 集成、快捷键/设置测试及 Desktop 系统轨迹                                                        |
-| Tab 标题编辑保留动态元数据，并重新校验精确的被调用 Tab         | Workbench 模型/Action/React 测试、存储迁移及精确 Desktop `terminal-parity/FS-11-tab-title`                            |
-| 可见 Hints 消费一个聚焦绑定，且标签按键绝不会泄漏到终端输入    | 终端、Action、快捷键、Settings 与精确 Desktop `terminal-parity/FS-07-keyboard-hints`                                  |
-| 显示回滚历史消费一个聚焦绑定并打开精确不可变查看器             | 终端、Action、快捷键、Settings 与精确 Desktop `terminal-parity/FS-09-scrollback-viewer`                               |
-| 菜单、Action 搜索和设置显示同一个当前绑定                      | 投影与渲染界面测试                                                                                                    |
-| 有效 v1 到 v19 记录迁移时不会丢失显式旧覆盖                    | 存储迁移测试，包括与新默认值的冲突                                                                                    |
-| 无效当前记录或迁移源数据不会读取更旧记录                       | 存储损坏与优先级测试                                                                                                  |
+| 声明                                                                     | 确定性证据                                                                                                            |
+| ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
+| 一个有效目标只产生一个子终端、面板或标签页关闭操作                       | 活动目标解析器决策表测试                                                                                              |
+| 确认、取消与提交继续由准备好的下层 Action 所有                           | 同时注册面板与标签页 Action 的 Workbench Action 集成测试                                                              |
+| 活动 Workbench 绑定不依赖仍然存在的聚焦后代                              | document 捕获生命周期与 Web 应用集成测试                                                                              |
+| 空 Tab 状态下新建 Tab 会创建并聚焦新终端，设置会抑制它                   | Web 应用焦点与设置作用域集成轨迹                                                                                      |
+| 当前目录 Tab 创建使用精确的显示中可信 CWD 并保留源终端                   | 解析器、runtime、Action、菜单、快捷键、Settings、v16 迁移及精确 Desktop `terminal-parity/FS-15-current-directory-tab` |
+| Apple 与标准平台默认值符合目录，且自定义编辑会影响分发                   | 快捷键定义、解析器与控制器测试                                                                                        |
+| 空闲的平台默认终端 Paste 保留感知 MIME 的原生投递                        | 快捷键路由与安装器测试、终端图片粘贴测试及精确 Desktop `terminal-parity/IN-03-image-paste`                            |
+| 活动的普通终端选择会保留原生粘贴与输入所有权                             | 投影终端选择/粘贴测试及精确 Desktop `terminal-parity/IN-18-native-selection-paste`                                    |
+| 等待中的 Copy 与 Paste 工作不会接纳陈旧或重复快捷键输入                  | 剪贴板协调器与 Action 测试及精确 Desktop `terminal-parity/IN-13-selection-copy-paste`                                 |
+| 方向聚焦会选择空间邻居，并在外边缘继续传递事件                           | 四面板解析器、Action 与快捷键分发测试                                                                                 |
+| 循环聚焦遵循规范 Panel 顺序、回绕，并在不可用时继续传递                  | 生成式解析器、预备 Action、快捷键分发、Settings 与 v17 迁移测试                                                       |
+| 按位置聚焦选择一个精确规范 Panel，且绝不钳制缺失位置                     | 生成式解析器、预备 Action、快捷键/Settings、v19 迁移及精确 Desktop `terminal-parity/FS-17-panel-position-focus`       |
+| 可视聚焦与交换会选中一个精确的其他 Panel，且不泄漏已接管的输入           | 模型、Action、React、快捷键、Settings、v19 迁移及精确 Desktop `terminal-parity/FS-16-visible-panel-selection`         |
+| 方向移动会交换精确相邻叶节点并保留源焦点                                 | 模型、有界探索、Action、快捷键、设置及精确 Desktop `terminal-parity/FS-13-directional-panel-movement`                 |
+| 均分按同轴 Panel 比例分配范围且不改变标识                                | 模型、生成布局、Action、菜单、快捷键、设置、v15 迁移及精确 Desktop `terminal-parity/FS-14-panel-equalization`         |
+| 键盘调整大小定位最近匹配分割并重新验证捕获标识                           | 解析器、状态、Action、React、设置、迁移、菜单与 Desktop 系统测试                                                      |
+| 按位置选择遵循规范 Tab 顺序并在越界时继续传递事件                        | 分组与固定 Action 集成测试及快捷键分发测试                                                                            |
+| 相邻选择遵循规范 Tab 顺序，且仅在存在多个 Tab 时回绕                     | 纯解析器、预备 Action 集成与快捷键继续传递测试                                                                        |
+| 活动 Tab 移动通过一个下层 Action 在其固定分区内循环                      | 纯解析器、预备 Action 集成、快捷键/设置测试及 Desktop 系统轨迹                                                        |
+| Tab 标题编辑保留动态元数据，并重新校验精确的被调用 Tab                   | Workbench 模型/Action/React 测试、存储迁移及精确 Desktop `terminal-parity/FS-11-tab-title`                            |
+| 可见 Hints 消费一个聚焦绑定，且标签按键绝不会泄漏到终端输入              | 终端、Action、快捷键、Settings 与精确 Desktop `terminal-parity/FS-07-keyboard-hints`                                  |
+| 显示回滚历史消费一个聚焦绑定并打开精确不可变查看器                       | 终端、Action、快捷键、Settings 与精确 Desktop `terminal-parity/FS-09-scrollback-viewer`                               |
+| 菜单、Action 搜索和设置显示同一个当前绑定                                | 投影与渲染界面测试                                                                                                    |
+| 快捷键设置可查找本地化文本、输入的按键别名与精确录制和弦，且不会编辑绑定 | 纯发现解析器与转换测试，以及渲染后的搜索/捕获集成测试                                                                 |
+| 有效 v1 到 v19 记录迁移时不会丢失显式旧覆盖                              | 存储迁移测试，包括与新默认值的冲突                                                                                    |
+| 无效当前记录或迁移源数据不会读取更旧记录                                 | 存储损坏与优先级测试                                                                                                  |
 
 测试使用合成的平台标志、Action 作用域、存储、document 捕获、注入终端焦点与键盘事件。它们不主张操作系统全局快捷键行为或完整 Warp 兼容性。手动 Desktop 原生窗口焦点测试不包含在自动验证中。
 

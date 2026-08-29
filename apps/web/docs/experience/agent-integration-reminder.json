@@ -24,7 +24,7 @@
 			"file": "apps/web/stories/agent-integration-reminder.stories.tsx",
 			"id": "applications-web-agent-integration-reminder--english-not-installed",
 			"states": [
-				"Inspect the light English non-modal reminder for an installed local Codex whose Orchbee integration is not enabled. Review integration hides the reminder and opens the Agent integrations Settings destination; the close control persists a per-Agent dismissal."
+				"Inspect the compact, visually quiet bottom-right English reminder for an installed local Codex whose Orchbee integration is not enabled. Review integration hides the reminder and opens the Agent integrations Settings destination; the close control persists a per-Agent dismissal."
 			]
 		},
 		{
@@ -32,7 +32,7 @@
 			"file": "apps/web/stories/agent-integration-reminder.stories.tsx",
 			"id": "applications-web-agent-integration-reminder--chinese-disabled",
 			"states": [
-				"Inspect Simplified Chinese copy and the dark non-modal reminder for a locally available Grok integration that the user previously disabled."
+				"Inspect Simplified Chinese copy and the compact, visually quiet bottom-right dark reminder for a locally available Grok integration that the user previously disabled."
 			]
 		}
 	],
@@ -49,10 +49,10 @@
 		"Rendering, opening, and dismissing the reminder never invokes an Agent CLI, writes Agent configuration, requests system-notification permission, or changes a remote host.",
 		"At most one eligible integration reminder is offered during one application session, using the canonical Agent order.",
 		"Dismissal is explicit, device-local, persisted per Agent integration, bounded to the closed integration registry, and safe to lose.",
-		"Review integration hides the reminder and opens the Agent integrations Settings category; only a later explicit Settings action can enable or disable an integration.",
+		"Review integration hides the reminder and opens the Agent integrations Settings category; only a later explicit Settings switch change can enable or disable an integration.",
 		"An explicit Settings disable records dismissal before attempting the exact Orchbee-owned removal, while a verified successful enable clears that Agent's persisted dismissal for future external drift.",
 		"Only locally available, managed, conflict-free integrations in not-installed or disabled state are eligible; remote, unknown, unsupported, failed-inspection, and conflicting states remain silent.",
-		"The reminder is non-modal, announces itself politely, retains a labeled close action, and never steals focus."
+		"The reminder is a compact, visually quiet bottom-right status surface; it is non-modal, announces itself politely, retains a labeled close action, and never steals focus."
 	],
 	"references": ["apps/web/docs/terminal-settings.md", "apps/web/README.md"]
 }

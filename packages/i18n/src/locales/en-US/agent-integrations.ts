@@ -1,13 +1,11 @@
 export const enUSAgentIntegrationMessages = {
-	'agent.integrations.actions.disable': 'Disable',
-	'agent.integrations.actions.enable': 'Enable',
 	'agent.integrations.actions.refresh': 'Refresh status',
 	'agent.integrations.actions.working': 'Working…',
 	'agent.integrations.category': 'Agent integrations',
 	'agent.integrations.description':
 		'Manage the optional local adapters that let Orchbee show rich Agent status.',
 	'agent.integrations.disclosure':
-		'Orchbee only changes an integration after you choose Enable or Disable. It never installs adapters automatically.',
+		'Orchbee changes an integration only when you change its switch. It never installs adapters automatically.',
 	'agent.integrations.failure.agentUnavailable':
 		'This Agent was not found on the local device. Install it first, then refresh.',
 	'agent.integrations.failure.busy': 'Wait for the current integration operation to finish.',
@@ -41,6 +39,7 @@ export const enUSAgentIntegrationMessages = {
 	'agent.integrations.status.notInstalled': 'Not enabled',
 	'agent.integrations.status.unknown': 'Unknown',
 	'agent.integrations.title': 'Agent integrations',
+	'agent.integrations.toggle.label': '{agent} integration',
 } as const;
 
 export type AgentIntegrationMessageId = keyof typeof enUSAgentIntegrationMessages;

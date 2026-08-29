@@ -7,13 +7,19 @@ import { keyboardShortcutMessages, useOrchbeeIntl } from '@orchbee/i18n';
 import * as React from 'react';
 
 import {
+	INITIAL_KEYBOARD_SHORTCUT_SEARCH_STATE,
 	KEYBOARD_SHORTCUT_CATALOG,
+	keyboardShortcutSearchQueryValue,
 	keyboardShortcutBindingSource,
 	keyboardShortcutDeclaration,
+	resolveKeyboardShortcutSearch,
+	transitionKeyboardShortcutSearch,
 	useKeyboardShortcutSettings,
 	type KeyboardShortcutAvailability,
 	type KeyboardShortcutDeclaration,
 	type KeyboardShortcutId,
+	type KeyboardShortcutSearchEvent,
+	type KeyboardShortcutSearchState,
 	type KeyboardShortcutScope,
 	type KeyboardShortcutSettingsController,
 } from '../../../../keyboard-shortcuts';
@@ -37,9 +43,26 @@ interface KeyboardShortcutSettingsRowView {
 
 interface KeyboardShortcutSettingsView {
 	readonly changeLabel: (action: string) => string;
+	readonly noResults: string;
 	readonly persistenceWarning: string | null;
 	readonly recordingInstruction: string;
 	readonly rows: readonly KeyboardShortcutSettingsRowView[];
+	readonly search: KeyboardShortcutSearchView;
+}
+
+interface KeyboardShortcutSearchView {
+	readonly clearLabel: string;
+	readonly inputReference: React.RefObject<HTMLInputElement | null>;
+	readonly label: string;
+	readonly onChange: React.ChangeEventHandler<HTMLInputElement>;
+	readonly onClear: React.MouseEventHandler<HTMLButtonElement>;
+	readonly onKeyDown: React.KeyboardEventHandler<HTMLInputElement>;
+	readonly onRecordingToggle: React.MouseEventHandler<HTMLButtonElement>;
+	readonly placeholder: string;
+	readonly query: string;
+	readonly recording: boolean;
+	readonly recordingToggleLabel: string;
+	readonly status: string | null;
 }
 
 interface UseKeyboardShortcutSettingsViewOptions {
@@ -210,6 +233,12 @@ export function useKeyboardShortcutSettingsView({
 	const [recordingShortcutId, setRecordingShortcutId] = React.useState<KeyboardShortcutId | null>(
 		null,
 	);
+	const searchInputReference = React.useRef<HTMLInputElement>(null);
+	const [searchState, dispatchSearch] = React.useReducer(
+		(current: KeyboardShortcutSearchState, event: KeyboardShortcutSearchEvent) =>
+			transitionKeyboardShortcutSearch(current, event, platform),
+		INITIAL_KEYBOARD_SHORTCUT_SEARCH_STATE,
+	);
 	const [errors, setErrors] = React.useState<Readonly<Partial<Record<KeyboardShortcutId, string>>>>(
 		{},
 	);
@@ -219,90 +248,142 @@ export function useKeyboardShortcutSettingsView({
 				? keyboardShortcutMessages.sourceCustom
 				: keyboardShortcutMessages.sourceDefault,
 		);
-	const rows = KEYBOARD_SHORTCUT_CATALOG.map((declaration) => {
+	const projectedRows = KEYBOARD_SHORTCUT_CATALOG.map((declaration) => {
 		const actionName = actionNameFor(declaration);
 		const scope = scopeNameFor(declaration.scope);
 		const availability = availabilityNameFor(declaration.availability);
-		const chord = formatKeyboardShortcutChord(snapshot.bindings[declaration.shortcutId], platform);
+		const binding = snapshot.bindings[declaration.shortcutId];
+		const chord = formatKeyboardShortcutChord(binding, platform);
 		const sourceKind = keyboardShortcutBindingSource(snapshot, declaration.shortcutId);
 		return {
 			actionName,
+			binding,
 			availability,
 			chord,
-			error: errors[declaration.shortcutId] ?? null,
-			recording: recordingShortcutId === declaration.shortcutId,
-			resetLabel: intl.formatMessage(keyboardShortcutMessages.reset),
+			declaration,
 			scope,
-			shortcutId: declaration.shortcutId,
 			source: sourceLabel(sourceKind),
 			sourceKind,
-			onBlur: (): void => {
-				setRecordingShortcutId((current) => (current === declaration.shortcutId ? null : current));
-			},
-			onChangeClick: (): void => {
-				setErrors((current) => ({ ...current, [declaration.shortcutId]: undefined }));
-				setRecordingShortcutId(declaration.shortcutId);
-			},
-			onKeyDown: (event: React.KeyboardEvent<HTMLButtonElement>): void => {
-				if (recordingShortcutId !== declaration.shortcutId) return;
-				if (event.key === 'Tab') {
-					setRecordingShortcutId(null);
-					return;
-				}
-				event.preventDefault();
-				event.stopPropagation();
-				if (event.key === 'Escape') {
-					setRecordingShortcutId(null);
-					return;
-				}
-				const captured = captureKeyboardShortcutChord(event.nativeEvent, platform);
-				if (captured.kind === 'ignored') {
-					if (captured.reason === 'missing-modifier' || captured.reason === 'unsupported-code') {
+		};
+	});
+	const searchResult = resolveKeyboardShortcutSearch(
+		projectedRows.map((row) => ({
+			actionId: row.declaration.actionId,
+			actionName: row.actionName,
+			availability: row.availability,
+			chord: row.binding,
+			scope: row.scope,
+			shortcutId: row.declaration.shortcutId,
+			source: row.source,
+		})),
+		searchState.query,
+		platform,
+	);
+	const matchingShortcutIds = new Set(searchResult.matchingShortcutIds);
+	const rows = projectedRows
+		.filter((row) => matchingShortcutIds.has(row.declaration.shortcutId))
+		.map((row) => {
+			const { actionName, availability, chord, declaration, scope, source, sourceKind } = row;
+			return {
+				actionName,
+				availability,
+				chord,
+				error: errors[declaration.shortcutId] ?? null,
+				recording: recordingShortcutId === declaration.shortcutId,
+				resetLabel: intl.formatMessage(keyboardShortcutMessages.reset),
+				scope,
+				shortcutId: declaration.shortcutId,
+				source,
+				sourceKind,
+				onBlur: (): void => {
+					setRecordingShortcutId((current) =>
+						current === declaration.shortcutId ? null : current,
+					);
+				},
+				onChangeClick: (): void => {
+					dispatchSearch({ type: 'recording-stopped' });
+					setErrors((current) => ({ ...current, [declaration.shortcutId]: undefined }));
+					setRecordingShortcutId(declaration.shortcutId);
+				},
+				onKeyDown: (event: React.KeyboardEvent<HTMLButtonElement>): void => {
+					if (recordingShortcutId !== declaration.shortcutId) return;
+					if (event.key === 'Tab') {
+						setRecordingShortcutId(null);
+						return;
+					}
+					event.preventDefault();
+					event.stopPropagation();
+					if (event.key === 'Escape') {
+						setRecordingShortcutId(null);
+						return;
+					}
+					const captured = captureKeyboardShortcutChord(event.nativeEvent, platform);
+					if (captured.kind === 'ignored') {
+						if (captured.reason === 'missing-modifier' || captured.reason === 'unsupported-code') {
+							setErrors((current) => ({
+								...current,
+								[declaration.shortcutId]: intl.formatMessage(keyboardShortcutMessages.invalid),
+							}));
+						}
+						return;
+					}
+					const result = controller.setShortcut(declaration.shortcutId, captured.chord);
+					if (result.kind === 'conflict') {
+						const conflictDeclaration = keyboardShortcutDeclaration(
+							result.conflict.conflictingShortcutId,
+						);
+						const conflictSource = keyboardShortcutBindingSource(
+							snapshot,
+							result.conflict.conflictingShortcutId,
+						);
+						setErrors((current) => ({
+							...current,
+							[declaration.shortcutId]: intl.formatMessage(keyboardShortcutMessages.conflict, {
+								action: actionNameFor(conflictDeclaration),
+								availability: availabilityNameFor(conflictDeclaration.availability),
+								scope: scopeNameFor(conflictDeclaration.scope),
+								shortcut: formatKeyboardShortcutChord(result.conflict.chord, platform),
+								source: sourceLabel(conflictSource),
+							}),
+						}));
+						return;
+					}
+					if (result.kind === 'invalid') {
 						setErrors((current) => ({
 							...current,
 							[declaration.shortcutId]: intl.formatMessage(keyboardShortcutMessages.invalid),
 						}));
+						return;
 					}
-					return;
-				}
-				const result = controller.setShortcut(declaration.shortcutId, captured.chord);
-				if (result.kind === 'conflict') {
-					const conflictDeclaration = keyboardShortcutDeclaration(
-						result.conflict.conflictingShortcutId,
-					);
-					const conflictSource = keyboardShortcutBindingSource(
-						snapshot,
-						result.conflict.conflictingShortcutId,
-					);
-					setErrors((current) => ({
-						...current,
-						[declaration.shortcutId]: intl.formatMessage(keyboardShortcutMessages.conflict, {
-							action: actionNameFor(conflictDeclaration),
-							availability: availabilityNameFor(conflictDeclaration.availability),
-							scope: scopeNameFor(conflictDeclaration.scope),
-							shortcut: formatKeyboardShortcutChord(result.conflict.chord, platform),
-							source: sourceLabel(conflictSource),
-						}),
-					}));
-					return;
-				}
-				if (result.kind === 'invalid') {
-					setErrors((current) => ({
-						...current,
-						[declaration.shortcutId]: intl.formatMessage(keyboardShortcutMessages.invalid),
-					}));
-					return;
-				}
-				setErrors((current) => ({ ...current, [declaration.shortcutId]: undefined }));
-				setRecordingShortcutId(null);
-			},
-			onReset: (): void => {
-				controller.resetShortcut(declaration.shortcutId);
-				setErrors((current) => ({ ...current, [declaration.shortcutId]: undefined }));
-				setRecordingShortcutId(null);
-			},
-		};
+					setErrors((current) => ({ ...current, [declaration.shortcutId]: undefined }));
+					setRecordingShortcutId(null);
+				},
+				onReset: (): void => {
+					controller.resetShortcut(declaration.shortcutId);
+					setErrors((current) => ({ ...current, [declaration.shortcutId]: undefined }));
+					setRecordingShortcutId(null);
+				},
+			};
+		});
+
+	const searchQuery = keyboardShortcutSearchQueryValue(searchState.query, platform);
+	const hasSearchQuery =
+		searchState.query.kind === 'chord' || searchState.query.value.trim().length > 0;
+	const searchResultCount = intl.formatMessage(keyboardShortcutMessages.searchResultCount, {
+		count: searchResult.matchingShortcutIds.length,
 	});
+	let searchStatus: string | null = hasSearchQuery ? searchResultCount : null;
+	if (searchState.mode === 'recording') {
+		searchStatus = [
+			intl.formatMessage(keyboardShortcutMessages.searchRecording),
+			hasSearchQuery ? searchResultCount : null,
+		]
+			.filter((part): part is string => part !== null)
+			.join(' ');
+	}
+	if (searchState.recordingIssue === 'invalid-chord') {
+		searchStatus = intl.formatMessage(keyboardShortcutMessages.invalid);
+	}
 
 	let persistenceWarning: string | null = null;
 	switch (snapshot.persistenceIssue) {
@@ -320,8 +401,69 @@ export function useKeyboardShortcutSettingsView({
 	return {
 		changeLabel: (action): string =>
 			intl.formatMessage(keyboardShortcutMessages.change, { action }),
+		noResults: intl.formatMessage(keyboardShortcutMessages.noResults),
 		persistenceWarning,
 		recordingInstruction: intl.formatMessage(keyboardShortcutMessages.recording),
 		rows,
+		search: {
+			clearLabel: intl.formatMessage(keyboardShortcutMessages.searchClear),
+			inputReference: searchInputReference,
+			label: intl.formatMessage(keyboardShortcutMessages.searchPlaceholder),
+			onChange: (event): void => {
+				dispatchSearch({ type: 'text-changed', value: event.currentTarget.value });
+			},
+			onClear: (): void => {
+				dispatchSearch({ type: 'cleared' });
+				searchInputReference.current?.focus();
+			},
+			onKeyDown: (event): void => {
+				if (searchState.mode === 'recording') {
+					if (event.key === 'Tab') {
+						dispatchSearch({ type: 'recording-stopped' });
+						return;
+					}
+					event.preventDefault();
+					event.stopPropagation();
+					if (event.key === 'Escape') {
+						dispatchSearch({ type: 'recording-stopped' });
+						return;
+					}
+					const captured = captureKeyboardShortcutChord(event.nativeEvent, platform);
+					if (captured.kind === 'captured') {
+						dispatchSearch({ chord: captured.chord, type: 'shortcut-captured' });
+						return;
+					}
+					if (captured.reason === 'missing-modifier' || captured.reason === 'unsupported-code') {
+						dispatchSearch({ type: 'shortcut-rejected' });
+					}
+					return;
+				}
+				if (event.key === 'Escape' && hasSearchQuery) {
+					event.preventDefault();
+					event.stopPropagation();
+					dispatchSearch({ type: 'cleared' });
+				}
+			},
+			onRecordingToggle: (): void => {
+				setRecordingShortcutId(null);
+				dispatchSearch({
+					type: searchState.mode === 'recording' ? 'recording-stopped' : 'recording-started',
+				});
+				searchInputReference.current?.focus();
+			},
+			placeholder: intl.formatMessage(
+				searchState.mode === 'recording'
+					? keyboardShortcutMessages.searchRecordingPlaceholder
+					: keyboardShortcutMessages.searchPlaceholder,
+			),
+			query: searchQuery,
+			recording: searchState.mode === 'recording',
+			recordingToggleLabel: intl.formatMessage(
+				searchState.mode === 'recording'
+					? keyboardShortcutMessages.searchStopRecording
+					: keyboardShortcutMessages.searchRecordKeys,
+			),
+			status: searchStatus,
+		},
 	};
 }

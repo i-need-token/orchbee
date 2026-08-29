@@ -82,6 +82,15 @@ export const enUSKeyboardShortcutMessages = {
 	'keyboard.shortcuts.persistence.writeWarning':
 		'Your keyboard shortcut changes apply for this session but could not be saved.',
 	'keyboard.shortcuts.recording': 'Press a shortcut. Escape or moving focus away cancels.',
+	'keyboard.shortcuts.search.clear': 'Clear shortcut search',
+	'keyboard.shortcuts.search.placeholder': 'Search actions or shortcuts',
+	'keyboard.shortcuts.search.recordKeys': 'Record keys',
+	'keyboard.shortcuts.search.recording':
+		'Press a shortcut. Escape stops recording; Tab continues navigation.',
+	'keyboard.shortcuts.search.recordingPlaceholder': 'Recording keys — press a shortcut',
+	'keyboard.shortcuts.search.resultCount':
+		'{count, plural, one {# shortcut found} other {# shortcuts found}}',
+	'keyboard.shortcuts.search.stopRecording': 'Stop recording',
 	'keyboard.shortcuts.scope.activePanel': 'Active panel',
 	'keyboard.shortcuts.scope.activeTerminal': 'Active terminal',
 	'keyboard.shortcuts.scope.focusedTerminal': 'Focused terminal',

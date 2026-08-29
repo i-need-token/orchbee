@@ -1,4 +1,4 @@
-import { Button } from '@orchbee/ui/components';
+import { Button, Switch } from '@orchbee/ui/components';
 import type * as React from 'react';
 
 import type {
@@ -47,9 +47,13 @@ export function AgentIntegrationSettings({
 						}
 						visible
 					>
-						<Button disabled={row.actionDisabled} variant='outline' onClick={row.onAction}>
-							{row.actionLabel}
-						</Button>
+						<Switch
+							aria-busy={row.pending || undefined}
+							aria-label={row.toggleLabel}
+							checked={row.checked}
+							disabled={row.disabled}
+							onCheckedChange={row.onCheckedChange}
+						/>
 					</TerminalSettingsRow>
 				))}
 			</SettingsSection>

@@ -1,8 +1,15 @@
 import { spawn } from 'node:child_process';
+import { constants as fileSystemConstants } from 'node:fs';
+import { access, stat } from 'node:fs/promises';
+import path from 'node:path';
+
+import { resolveAgentExecutableCandidates } from './resolveAgentExecutableCandidates';
 
 const COMMAND_OUTPUT_LIMIT_BYTES = 256 * 1024;
 const COMMAND_TIMEOUT_MILLISECONDS = 3_000;
-const EXECUTABLE_NAME_PATTERN = /^[a-z][a-z0-9-]{0,31}$/u;
+const SHELL_PATH_MARKER = '__ORCHBEE_AGENT_SEARCH_PATH_V1__';
+const SHELL_PATH_PROBE_EXECUTABLE_ENVIRONMENT_KEY = 'ORCHBEE_AGENT_ENVIRONMENT_PROBE_EXECUTABLE';
+const SHELL_PATH_PROBE_COMMAND = `"$${SHELL_PATH_PROBE_EXECUTABLE_ENVIRONMENT_KEY}" -p '"${SHELL_PATH_MARKER}" + JSON.stringify(process.env.PATH ?? null) + "${SHELL_PATH_MARKER}"'`;
 
 export type AgentIntegrationCommandResult =
 	| { readonly kind: 'completed'; readonly stdout: string }
@@ -24,8 +31,10 @@ export interface NodeAgentIntegrationCommandRunnerOptions {
 
 export class NodeAgentIntegrationCommandRunner implements AgentIntegrationCommandRunner {
 	readonly #environment: NodeJS.ProcessEnv;
+	readonly #executableSearchPaths = new Map<string, string>();
 	readonly #homeDirectory: string;
 	readonly #shellExecutable: string;
+	#shellSearchPathPromise: Promise<string | null> | undefined;
 
 	constructor(options: NodeAgentIntegrationCommandRunnerOptions) {
 		this.#environment = { ...options.environment, NO_COLOR: '1' };
@@ -34,24 +43,93 @@ export class NodeAgentIntegrationCommandRunner implements AgentIntegrationComman
 	}
 
 	async resolveExecutable(executableName: string): Promise<string | null> {
-		if (!EXECUTABLE_NAME_PATTERN.test(executableName)) return null;
-		const result = await runCommand(
-			this.#shellExecutable,
-			['-lc', `command -v ${executableName}`],
-			this.#environment,
-			this.#homeDirectory,
-		);
-		if (result.kind !== 'completed') return null;
-		const [firstLine] = result.stdout.trim().split(/\r?\n/u);
-		return firstLine !== undefined && firstLine.startsWith('/') ? firstLine : null;
+		const inheritedResolution = resolveAgentExecutableCandidates(executableName, [
+			this.#environment['PATH'],
+		]);
+		if (inheritedResolution.kind === 'invalid-name') return null;
+		const inheritedExecutable = await findFirstExecutable(inheritedResolution.paths);
+		if (inheritedExecutable !== null) return inheritedExecutable;
+
+		const shellSearchPath = await this.#resolveShellSearchPath();
+		if (shellSearchPath === null) return null;
+		const shellResolution = resolveAgentExecutableCandidates(executableName, [shellSearchPath]);
+		if (shellResolution.kind === 'invalid-name') return null;
+		const shellExecutable = await findFirstExecutable(shellResolution.paths);
+		if (shellExecutable !== null) {
+			this.#executableSearchPaths.set(shellExecutable, shellSearchPath);
+		}
+		return shellExecutable;
 	}
 
-	run(
+	async run(
 		executablePath: string,
 		commandArguments: readonly string[],
 	): Promise<AgentIntegrationCommandResult> {
-		if (!executablePath.startsWith('/')) return Promise.resolve({ kind: 'failed' });
-		return runCommand(executablePath, commandArguments, this.#environment, this.#homeDirectory);
+		if (!path.isAbsolute(executablePath)) return { kind: 'failed' };
+		const shellSearchPath = this.#executableSearchPaths.get(executablePath);
+		const environment =
+			shellSearchPath === undefined
+				? this.#environment
+				: { ...this.#environment, PATH: shellSearchPath };
+		return runCommand(executablePath, commandArguments, environment, this.#homeDirectory);
+	}
+
+	#resolveShellSearchPath(): Promise<string | null> {
+		this.#shellSearchPathPromise ??= this.#probeShellSearchPath();
+		return this.#shellSearchPathPromise;
+	}
+
+	async #probeShellSearchPath(): Promise<string | null> {
+		if (!path.isAbsolute(this.#shellExecutable)) return null;
+		const result = await runCommand(
+			this.#shellExecutable,
+			createShellPathProbeArguments(this.#shellExecutable),
+			{
+				...this.#environment,
+				ELECTRON_NO_ATTACH_CONSOLE: '1',
+				ELECTRON_RUN_AS_NODE: '1',
+				[SHELL_PATH_PROBE_EXECUTABLE_ENVIRONMENT_KEY]: process.execPath,
+				ORCHBEE_RESOLVING_AGENT_ENVIRONMENT: '1',
+			},
+			this.#homeDirectory,
+		);
+		return result.kind === 'completed' ? parseShellSearchPath(result.stdout) : null;
+	}
+}
+
+function createShellPathProbeArguments(shellExecutable: string): readonly string[] {
+	const shellName = path.basename(shellExecutable).toLowerCase();
+	return shellName === 'csh' || shellName === 'tcsh'
+		? ['-ic', SHELL_PATH_PROBE_COMMAND]
+		: ['-i', '-l', '-c', SHELL_PATH_PROBE_COMMAND];
+}
+
+async function findFirstExecutable(candidates: readonly string[]): Promise<string | null> {
+	for (const candidate of candidates) {
+		try {
+			const [, metadata] = await Promise.all([
+				access(candidate, fileSystemConstants.X_OK),
+				stat(candidate),
+			]);
+			if (metadata.isFile()) return candidate;
+		} catch {
+			// An unavailable candidate is an ordinary search miss.
+		}
+	}
+	return null;
+}
+
+function parseShellSearchPath(stdout: string): string | null {
+	const endIndex = stdout.lastIndexOf(SHELL_PATH_MARKER);
+	if (endIndex < 0) return null;
+	const startIndex = stdout.lastIndexOf(SHELL_PATH_MARKER, endIndex - 1);
+	if (startIndex < 0) return null;
+	const encodedSearchPath = stdout.slice(startIndex + SHELL_PATH_MARKER.length, endIndex);
+	try {
+		const parsedSearchPath: unknown = JSON.parse(encodedSearchPath);
+		return typeof parsedSearchPath === 'string' ? parsedSearchPath : null;
+	} catch {
+		return null;
 	}
 }
 

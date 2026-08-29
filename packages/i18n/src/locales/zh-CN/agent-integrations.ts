@@ -1,14 +1,12 @@
 import type { AgentIntegrationMessageId } from '../en-US';
 
 export const zhCNAgentIntegrationMessages = {
-	'agent.integrations.actions.disable': '关闭',
-	'agent.integrations.actions.enable': '开启',
 	'agent.integrations.actions.refresh': '刷新状态',
 	'agent.integrations.actions.working': '处理中…',
 	'agent.integrations.category': 'Agent 集成',
 	'agent.integrations.description': '管理可选的本地适配器，让 Orchbee 能显示更丰富的 Agent 状态。',
 	'agent.integrations.disclosure':
-		'只有你选择“开启”或“关闭”后，Orchbee 才会更改相应集成；适配器永远不会自动安装。',
+		'只有你切换开关后，Orchbee 才会更改相应集成；适配器永远不会自动安装。',
 	'agent.integrations.failure.agentUnavailable':
 		'在本地设备上未找到此 Agent。请先安装 Agent，然后刷新。',
 	'agent.integrations.failure.busy': '请等待当前集成操作完成。',
@@ -38,4 +36,5 @@ export const zhCNAgentIntegrationMessages = {
 	'agent.integrations.status.notInstalled': '未开启',
 	'agent.integrations.status.unknown': '未知',
 	'agent.integrations.title': 'Agent 集成',
+	'agent.integrations.toggle.label': '{agent} 集成',
 } as const satisfies Readonly<Record<AgentIntegrationMessageId, string>>;

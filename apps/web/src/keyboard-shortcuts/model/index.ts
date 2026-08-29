@@ -13,3 +13,13 @@ export type {
 	KeyboardShortcutId,
 	KeyboardShortcutScope,
 } from './keyboard-shortcut-catalog';
+export {
+	INITIAL_KEYBOARD_SHORTCUT_SEARCH_STATE,
+	keyboardShortcutSearchQueryValue,
+	resolveKeyboardShortcutSearch,
+	transitionKeyboardShortcutSearch,
+} from './keyboard-shortcut-search';
+export type {
+	KeyboardShortcutSearchEvent,
+	KeyboardShortcutSearchState,
+} from './keyboard-shortcut-search';

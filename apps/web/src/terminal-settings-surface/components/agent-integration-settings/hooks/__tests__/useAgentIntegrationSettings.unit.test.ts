@@ -53,9 +53,16 @@ describe('useAgentIntegrationSettings', () => {
 
 		expect(rendered.result.current.rows).toHaveLength(DESKTOP_AGENT_INTEGRATION_IDS.length);
 		expect(rendered.result.current.rows[1]).toMatchObject({
-			actionDisabled: false,
 			agentName: 'Codex',
+			checked: false,
+			disabled: false,
+			pending: false,
 			status: 'Not enabled',
+			toggleLabel: 'Codex integration',
+		});
+		expect(rendered.result.current.rows[0]).toMatchObject({
+			disabled: true,
+			toggleLabel: 'Claude Code integration',
 		});
 		expect(enable).not.toHaveBeenCalled();
 	});

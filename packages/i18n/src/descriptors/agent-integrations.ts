@@ -12,8 +12,6 @@ const message = <Id extends keyof typeof enUSAgentIntegrationMessages>(
 });
 
 export const agentIntegrationMessages = defineMessages({
-	actionDisable: message('agent.integrations.actions.disable'),
-	actionEnable: message('agent.integrations.actions.enable'),
 	actionRefresh: message('agent.integrations.actions.refresh'),
 	actionWorking: message('agent.integrations.actions.working'),
 	category: message('agent.integrations.category'),
@@ -52,4 +50,8 @@ export const agentIntegrationMessages = defineMessages({
 	statusNotInstalled: message('agent.integrations.status.notInstalled'),
 	statusUnknown: message('agent.integrations.status.unknown'),
 	title: message('agent.integrations.title'),
+	toggleLabel: message(
+		'agent.integrations.toggle.label',
+		'Stable accessible label for one integration switch. agent is a curated product name.',
+	),
 });

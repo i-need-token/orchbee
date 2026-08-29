@@ -207,13 +207,15 @@ category、对应 search entry 与 reminder。Renderer 消费一个规范的十 
 Agent name、bounded state/failure 与共享隐私说明。它不会收到 Agent command output、executable path、
 adapter resource path、filesystem capability 或 remote-host authority。
 
-打开设置、选择 Agent 集成、渲染 row 与搜索都是只读的。刷新请求新的 Main 只读 inventory。开启与
-关闭使用 button，而不是 optimistic switch；一次点击发送一个 semantic request，row 跟随 Main 重新检查
-后的 snapshot。Pending work 会禁用竞争变更。Conflict、unsupported/manual-only entry、ambiguous
-inspection 或不可用的本地 Agent 都不能开启。Remote host 会明确说明只能手动设置；renderer 绝不写入
-terminal input 或尝试远端设置。
+打开设置、选择 Agent 集成、渲染 row 与搜索都是只读的。刷新请求新的 Main 只读 inventory。每个本地
+entry 使用由 snapshot 控制的 switch。一次 switch 变更只发送一个语义化的开启或关闭请求；switch 位置
+继续反映 Main 最近一次重新检查后的 snapshot，绝不乐观跳动。Pending work 会把受影响 row 标为
+**处理中…**，并禁用所有竞争 switch。Conflict、unsupported/manual-only entry、ambiguous inspection
+或不可用的本地 Agent 都不能开启。Remote host 会明确说明只能手动设置；renderer 绝不写入 terminal
+input 或尝试远端设置。
 
-Non-modal reminder 只对本地可用、`managed-local`、没有 issue 且 state 为 `not-installed` 或
+位于右下角、紧凑且视觉低干扰的 reminder 只对本地可用、`managed-local`、没有 issue 且 state 为
+`not-installed` 或
 `disabled` 的 entry 生效。Canonical order 选择第一个符合条件的 entry，controller 每个 application
 session 最多 offer 一次 reminder。渲染以及**查看集成**都不执行 integration mutation；查看会隐藏
 reminder 并打开该设置 category。显式关闭会把一个 Agent ID 写入严格且有界的

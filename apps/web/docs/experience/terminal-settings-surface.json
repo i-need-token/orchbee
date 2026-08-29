@@ -4,7 +4,7 @@
 	"kind": "business",
 	"status": "canonical",
 	"name": "Terminal Settings Surface",
-	"description": "Owns the grouped Settings information architecture, global category-and-setting discovery, explicit Desktop-local Agent-integration, shell-profile and scrollback-default management, an explicitly noninteractive future terminal-settings catalog, client-local application appearance, terminal typography, padding, copy-on-select, terminal display and macOS Option-as-Alt preferences, frequent keyboard-shortcut overrides, automatic Desktop Shell-integration scope, manual fallback guidance and completion-reminder policy, a read-only remote-shell diagnostic, and an ephemeral Ghostty configuration migration report without unmounting the Workbench or projected terminal attachments.",
+	"description": "Owns the grouped Settings information architecture, global category-and-setting discovery, explicit Desktop-local Agent-integration, shell-profile and scrollback-default management, an explicitly noninteractive future terminal-settings catalog, client-local application appearance, terminal typography, padding, copy-on-select, terminal display and macOS Option-as-Alt preferences, frequent keyboard-shortcut discovery and overrides, automatic Desktop Shell-integration scope, manual fallback guidance and completion-reminder policy, a read-only remote-shell diagnostic, and an ephemeral Ghostty configuration migration report without unmounting the Workbench or projected terminal attachments.",
 	"owner": "@orchbee/web",
 	"visibility": "private",
 	"intents": [
@@ -40,6 +40,7 @@
 		"apps/web/src/terminal-settings-surface/utils/buildTerminalSettingsSearchCatalog.ts",
 		"apps/web/src/terminal-settings-surface/utils/resolveTerminalSettingsSearch.ts",
 		"apps/web/src/ghostty-configuration-analysis/analyzeGhosttyConfiguration.ts",
+		"apps/web/src/keyboard-shortcuts/model/keyboard-shortcut-search.ts",
 		"apps/web/src/keyboard-shortcuts/model/keyboard-shortcut-settings-controller.ts",
 		"apps/web/src/macos-terminal-input-settings/model/MacosTerminalInputSettingsController.ts",
 		"apps/web/src/terminal-feedback-settings/model/TerminalFeedbackSettingsController.ts",
@@ -55,8 +56,9 @@
 			"file": "apps/web/stories/terminal-settings-surface.stories.tsx",
 			"id": "applications-web-terminal-settings-surface--english-light",
 			"states": [
-				"Inspect the light English Desktop surface with five labeled navigation groups, focused search, borderless neutral setting groups, stable section and row rhythm, right-aligned immediate controls, and explicitly disabled Planned rows. Inspect terminal padding, regular and bold weights, ligatures, copy-on-select, and the Desktop scrollback default with its future-terminal notice. Open Profiles to inspect local launch selection, literal ordered arguments, the future-terminal boundary, and confirmed destructive actions. Type font to inspect global Text results while General remains complete, then activate Terminal font family to restore the rail and reveal its row.",
-				"Open Agent integrations to inspect the ten Agent-labeled local adapter states, the explicit no-auto-install disclosure, privacy boundary, refresh and enable or disable actions, conflict-safe failures, and manual-only remote-host explanation.",
+				"Inspect the light English Desktop surface with five labeled navigation groups, focused search, borderless neutral setting groups, stable section and row rhythm, compact right-aligned immediate controls, and explicitly disabled Planned rows. Inspect terminal padding, regular and bold weights, ligatures, copy-on-select, and the Desktop scrollback default with its future-terminal notice. Open Profiles to inspect local launch selection, literal ordered arguments, the future-terminal boundary, and confirmed destructive actions. Type font to inspect global Text results while General remains complete, then activate Terminal font family to restore the rail and reveal its row.",
+				"Open Keyboard shortcuts to inspect localized text filtering, current Apple chord aliases, a zero-result state, polite result counts, and Record keys as an exact lookup that never edits or persists a binding.",
+				"Open Agent integrations to inspect the ten Agent-labeled local adapter states, the explicit no-auto-install disclosure, privacy boundary, refresh and snapshot-controlled enablement switches, conflict-safe failures, and manual-only remote-host explanation.",
 				"Open Shell integration to inspect automatic Desktop scope, exact manual-fallback Zsh, Bash, and Fish source commands, the Bash 4.4 boundary, completion-reminder policy, explicit notification-permission control, and reset.",
 				"Open Remote development to inspect the xterm-256color baseline, complete read-only diagnostic command, result explanation, and explicit absence of automatic remote changes.",
 				"Open Ghostty migration to inspect the paste-only dry-run notice, bounded source field, explicit analysis action, four result dispositions, and absence of an Apply or Import action."
@@ -67,7 +69,8 @@
 			"file": "apps/web/stories/terminal-settings-surface.stories.tsx",
 			"id": "applications-web-terminal-settings-surface--chinese-dark-custom",
 			"states": [
-				"Inspect Simplified Chinese copy, dark application appearance, retained Custom terminal colors, partial background opacity, grouped compact navigation, borderless low-chrome rows, the localized Planned catalog, keyboard-shortcut, Shell-integration, Remote-development and Ghostty-migration navigation, and the Desktop-only Browser access category."
+				"Inspect Simplified Chinese copy, dark application appearance, retained Custom terminal colors, partial background opacity, grouped compact navigation, borderless low-chrome rows, the localized Planned catalog, keyboard-shortcut, Shell-integration, Remote-development and Ghostty-migration navigation, and the Desktop-only Browser access category.",
+				"Open Keyboard shortcuts to inspect the localized action-or-shortcut search, Standard-platform key labels, Record keys capture guidance, exact result projection, and the unchanged binding editor."
 			]
 		}
 	],
@@ -76,7 +79,7 @@
 		"A client changes local Orchbee appearance, terminal font, font weights, ligatures, padding, copy-on-select, effective default terminal colors, or default-background opacity.",
 		"A user searches all available Settings categories and rows without first knowing their owning category.",
 		"A product contributor needs the stable category and section destination for a future terminal preference before implementing its behavior.",
-		"A client reviews or changes one of the frequent Workbench or focused-terminal shortcuts.",
+		"A client searches, records-to-find, reviews, or changes one of the frequent Workbench or focused-terminal shortcuts.",
 		"A macOS Desktop client chooses whether the left, right, both, or neither Option key acts as terminal Alt.",
 		"A Desktop client creates, edits, selects, or removes device-local system-shell and custom-executable launch profiles for future terminals.",
 		"A Desktop client changes the Host scrollback default captured only by future terminals.",
@@ -98,12 +101,13 @@
 		"Application theme, terminal display theme, overlays, cursor presentation, and every mounted projected terminal publish through one exact Host-theme-revision barrier; data-theme changes only after all participants synchronously commit.",
 		"Font family, size, regular and bold weights, ligatures, terminal padding, and copy-on-select update mounted projected terminals without replacing their attachments; presentation and interaction preferences persist independently.",
 		"Shortcut edits publish one complete conflict-free effective table; Action availability is resolved before an event is consumed.",
+		"Shortcut discovery filters localized visible text, stable identifiers and current chord aliases; Record keys compares one captured canonical chord exactly, while search, capture, clearing and cancellation never edit or persist a binding.",
 		"Recording, resetting, and restoring shortcut overrides never remount Workbench or replace a projected terminal attachment.",
 		"Option-as-Alt defaults to off, remains device-local, resolves the selected physical Option side per key event, and updates every mounted projected terminal without replacing its attachment.",
 		"Desktop shell profiles remain device-local, change only executable and literal ordered arguments, and affect only terminals provisioned after the successful Main-owned catalog commit; running and restored terminals retain their captured launch.",
 		"Desktop scrollback defaults commit to Host before Main accepts the session value, preserve prior state on Host rejection, keep a visible session value on storage failure, and affect only future terminals without live eviction; Browser and Gateway retain the row as Planned.",
 		"Agent integration inventory is read-only on startup and refresh; Agent-specific details stay behind Desktop adapters while the renderer receives only the ten canonical Agent labels, bounded states, and privacy-safe failures.",
-		"Agent integration mutation begins only from an explicit Settings button, serializes one operation, re-inspects after every attempt, never overwrites a conflict, and reports the observed state instead of assuming command success.",
+		"Agent integration mutation begins only from an explicit Settings switch change, serializes one operation, re-inspects after every attempt, keeps the switch at its last inspected position until that result arrives, never overwrites a conflict, and reports the observed state instead of assuming command success.",
 		"Disabling removes or disables only Orchbee's exact owned entry, preserves unrelated Agent configuration and any shared local marketplace, and records the reminder dismissal; a verified successful enable clears that Agent's dismissal.",
 		"Remote Agent integration remains manual-only: Settings never copies resources, executes remote commands, writes remote files, or treats an SSH session as local management authority.",
 		"The surface explains automatic integration for supported new local Desktop shells and offers exact manual fallbacks; it never reads or edits a startup file, executes a source command, or requests notification permission without the settings-page button.",

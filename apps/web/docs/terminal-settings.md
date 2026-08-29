@@ -371,13 +371,16 @@ shared privacy explanation. It receives no Agent command output, executable path
 path, filesystem capability, or remote-host authority.
 
 Opening Settings, selecting Agent Integrations, rendering rows, and searching are read-only. Refresh
-requests a new read-only Main inventory. Enable and Disable are buttons, not optimistic switches;
-one click sends one semantic request and the row follows Main's re-inspected snapshot. Pending work
-disables competing changes. A conflict, unsupported/manual-only entry, ambiguous inspection, or
-unavailable local Agent cannot be enabled. Remote hosts are explained as manual-only and the
-renderer never writes terminal input or attempts remote setup.
+requests a new read-only Main inventory. Each local entry uses a snapshot-controlled switch. A
+switch change sends exactly one semantic enable or disable request, while its position continues to
+reflect Main's last re-inspected snapshot and never moves optimistically. Pending work labels the
+affected row **Working…** and disables every competing switch. A conflict,
+unsupported/manual-only entry, ambiguous inspection, or unavailable local Agent cannot be enabled.
+Remote hosts are explained as manual-only and the renderer never writes terminal input or attempts
+remote setup.
 
-The non-modal reminder is eligible only for a locally available, `managed-local`, issue-free entry
+The compact, visually quiet bottom-right reminder is eligible only for a locally available,
+`managed-local`, issue-free entry
 whose state is `not-installed` or `disabled`. Canonical order selects the first eligible entry, and
 the controller offers at most one reminder per application session. Rendering and **Review
 integration** perform no integration mutation; Review hides the reminder and opens this Settings
