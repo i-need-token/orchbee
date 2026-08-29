@@ -1,6 +1,6 @@
 ---
 name: orchbee
-description: 通过注入的 CLI 检查或控制当前 Orchbee 应用。当用户明确要求检查 Orchbee Project、Directory、Workspace、Tab、Panel、Terminal 或已观测 Agent Session，跟随或等待 Agent 状态变化，创建 Orchbee Terminal，或调用已准入的 Orchbee 操作时使用。需要 ORCHBEE_CLI。
+description: 通过注入的 CLI 检查或控制当前 Orchbee 应用。当用户明确要求检查 Orchbee Project、Directory、Workspace、Tab、Panel、Terminal、有界 Terminal 输出或已观测 Agent Session，跟随或等待 Agent 状态变化，创建 Orchbee Terminal，或调用已准入的 Orchbee 操作时使用。需要 ORCHBEE_CLI。
 ---
 
 # Orchbee
@@ -39,6 +39,7 @@ if (-not $env:ORCHBEE_CLI) { throw 'Orchbee CLI context is unavailable.' }
 "$ORCHBEE_CLI" panel list --project <project-id> --workspace <workspace-id> --tab <tab-id>
 "$ORCHBEE_CLI" terminal list --standalone
 "$ORCHBEE_CLI" terminal list --project <project-id> --workspace <workspace-id>
+"$ORCHBEE_CLI" terminal read <presentation-id> [--rows <1-1000>]
 "$ORCHBEE_CLI" agent list
 "$ORCHBEE_CLI" agent get <session-id>
 "$ORCHBEE_CLI" agent explain <session-id>
@@ -54,6 +55,28 @@ ended Session。只有在发现报告多个协调器且已知一个精确可信 
 该命令返回同一 location 与 Tab 中规范的深度优先、从左到右 Panel 叶节点。Panel `position` 只描述该
 revision，不是持久目标。两条命令都不报告 active 或 selected Tab、focused 或 maximized Panel、active
 child、split weight、pixel geometry、renderer state 或 screen content。
+
+## 读取有界 Terminal 输出
+
+只使用 `terminal list` 返回的精确 `presentationId`：
+
+```sh
+"$ORCHBEE_CLI" terminal read <presentation-id>
+"$ORCHBEE_CLI" terminal read <presentation-id> --rows <1-1000>
+```
+
+默认读取最新保留的 80 行。`.result.execution.result.output` 中的结果包含最多 128 KiB 的 `text`、
+精确 generation 与 revision、row 边界、active-screen identity 和 `truncated`。软换行行会被拼接。
+格式只有纯文本：没有 ANSI、style、graphics、hyperlink metadata、raw VT stream 或
+screen-matcher evidence。
+
+这是一次 capture-only read。它绝不会 focus、start、resize、write、paste、close 或 stop Terminal。
+已连接的 SSH Terminal 可以读取，但命令绝不连接断连的 Environment；保留的本地 archive 也可以读取。
+Revision 变化、target 退役或 runtime 不可用都会显式返回，绝不重试或转换成较旧输出。
+
+Terminal 输出可能包含秘密，且不会自动脱敏。只有用户请求或获准任务明确需要时才读取；不要回显、
+持久化或转发无关内容。此命令不会等待未来输出。除非另一个单独获准的工作流拥有持续时间、停止条件与
+披露边界，否则不要创建轮询循环或模拟输出等待。
 
 默认输出是一个紧凑、带版本的 JSON 文档。高层命令完成后，所有者结果位于
 `.result.execution.result.output`。从该输出读取 ID；绝不根据名称、列表顺序、路径、示例或另一客户端
@@ -163,5 +186,6 @@ Terminal 创建是产品修改。仅当用户请求新 Terminal，或已授权�
 ## 当前限制
 
 已安装命令面尚不提供 Agent prompt、launch、approve、answer、resume、interrupt、stop、orchestration
-或按键输入；Terminal 输出读取或输入；Tab 或 Panel split、move、focus 或 close；以及远程控制。Agent
+或按键输入；Terminal 输出等待、输入、ANSI/raw 导出或持久输出历史；Tab 或 Panel split、move、focus
+或 close；以及远程控制。Agent
 observation 在 Desktop restart 后仍不连续。不要通过屏幕推断或私有协议模拟缺失能力。

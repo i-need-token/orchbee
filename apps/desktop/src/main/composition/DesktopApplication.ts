@@ -160,6 +160,7 @@ import {
 } from '../ssh-project-enrollment';
 import {
 	createDesktopAgentReadOperations,
+	createDesktopTerminalOutputReadOperation,
 	createDesktopWorkbenchReadOperations,
 	createDesktopWorkbenchTerminalCreateOperation,
 	DesktopSemanticCommandCatalog,
@@ -167,6 +168,7 @@ import {
 	DesktopSemanticCommandService,
 	type DesktopSemanticCommandLocalEndpointOptions,
 } from '../semantic-command';
+import { DesktopTerminalOutputReader } from '../terminal-output-read';
 import {
 	createSshEnvironmentConnectionState as createSshEnvironmentConnectionStateModel,
 	observeSshEnvironmentConnection as observeSshEnvironmentConnectionModel,
@@ -1712,6 +1714,14 @@ export class DesktopApplication {
 			const semanticCommandCoordinatorGeneration = SemanticCommandCoordinatorGenerationSchema.parse(
 				`desktop:semantic-generation:${this.#dependencies.randomIdentifier()}`,
 			);
+			const semanticTerminalProjectionRouter = new DesktopTerminalProjectionRouter({
+				getDocument: () => clientSessionCoordinator.canonicalDocument,
+				localRuntime: terminalRuntime,
+				remoteRuntimes: sshEnvironmentTerminalRuntimeOwner,
+			});
+			const terminalOutputReader = new DesktopTerminalOutputReader({
+				projection: semanticTerminalProjectionRouter,
+			});
 			const semanticCommandService = new DesktopSemanticCommandService(
 				new DesktopSemanticCommandCatalog([
 					...createDesktopAgentReadOperations({
@@ -1724,6 +1734,7 @@ export class DesktopApplication {
 						cursorSecret: randomBytes(32),
 						getDocument: () => clientSessionCoordinator.canonicalDocument,
 					}),
+					createDesktopTerminalOutputReadOperation({ reader: terminalOutputReader }),
 					createDesktopWorkbenchTerminalCreateOperation({
 						createOperationId,
 						createPresentationId,

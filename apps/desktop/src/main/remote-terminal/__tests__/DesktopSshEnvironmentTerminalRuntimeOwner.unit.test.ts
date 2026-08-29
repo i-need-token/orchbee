@@ -220,11 +220,13 @@ describe('DesktopSshEnvironmentTerminalRuntimeOwner', () => {
 		await owner.dispose();
 	});
 
-	it('projects only through an already prepared Environment runtime', async () => {
+	it('projects interactive and read-only attachments only through an already prepared Environment runtime', async () => {
 		const host = controlledHost();
 		const runtime = runtimeHandle();
 		const projection = projectionLease();
+		const readProjection = projectionLease();
 		runtime.open.mockResolvedValueOnce(projection.lease);
+		runtime.openReadOnly.mockResolvedValueOnce(readProjection.lease);
 		const openTerminalHost = vi.fn<
 			(environmentId: EnvironmentId) => Promise<SshTerminalHostConnectionOutcome>
 		>(async () => ({ connection: host.connection, kind: 'ready' }));
@@ -237,8 +239,12 @@ describe('DesktopSshEnvironmentTerminalRuntimeOwner', () => {
 		await expect(owner.open(firstEnvironmentId, presentationId, geometry)).rejects.toMatchObject({
 			cause: { code: 'terminal-projection-unavailable', retryable: true },
 		});
+		await expect(owner.openReadOnly(firstEnvironmentId, presentationId)).rejects.toMatchObject({
+			cause: { code: 'terminal-projection-unavailable', retryable: true },
+		});
 		expect(openTerminalHost).not.toHaveBeenCalled();
 		expect(runtime.open).not.toHaveBeenCalled();
+		expect(runtime.openReadOnly).not.toHaveBeenCalled();
 
 		await owner.prepare(firstEnvironmentId);
 		await expect(
@@ -251,7 +257,12 @@ describe('DesktopSshEnvironmentTerminalRuntimeOwner', () => {
 			allowArchivedFallback: false,
 			brokerEffectTarget: 'client',
 		});
+		await expect(owner.openReadOnly(firstEnvironmentId, presentationId)).resolves.toBe(
+			readProjection.lease,
+		);
+		expect(runtime.openReadOnly).toHaveBeenCalledWith(presentationId);
 		expect(projection.dispose).not.toHaveBeenCalled();
+		expect(readProjection.dispose).not.toHaveBeenCalled();
 
 		await owner.dispose();
 	});
@@ -358,6 +369,9 @@ function runtimeHandle(): {
 		typeof vi.fn<DesktopSshEnvironmentTerminalRuntimeHandle['initialize']>
 	>;
 	readonly open: ReturnType<typeof vi.fn<DesktopSshEnvironmentTerminalRuntimeHandle['open']>>;
+	readonly openReadOnly: ReturnType<
+		typeof vi.fn<DesktopSshEnvironmentTerminalRuntimeHandle['openReadOnly']>
+	>;
 } {
 	const dispose = vi.fn<() => Promise<void>>(async () => undefined);
 	const execute = vi.fn<DesktopSshEnvironmentTerminalRuntimeHandle['execute']>(async (command) => ({
@@ -369,6 +383,7 @@ function runtimeHandle(): {
 		kind: 'ready',
 	}));
 	const open = vi.fn<DesktopSshEnvironmentTerminalRuntimeHandle['open']>();
+	const openReadOnly = vi.fn<DesktopSshEnvironmentTerminalRuntimeHandle['openReadOnly']>();
 	return {
 		dispose,
 		execute,
@@ -381,12 +396,14 @@ function runtimeHandle(): {
 			getTerminalFailure: () => null,
 			initialize,
 			open,
+			openReadOnly,
 			recordExitOutcome: async () => ({ kind: 'ignored' }),
 			recordFailure: async () => null,
 			setIdentityObservedListener: () => undefined,
 		},
 		initialize,
 		open,
+		openReadOnly,
 	};
 }
 

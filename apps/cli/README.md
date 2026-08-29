@@ -20,7 +20,7 @@ orchbee execution wait <request-or-execution-id>
 orchbee execution cancel <request-or-execution-id>
 ```
 
-It also provides high-level projections over the seven Workbench operations admitted by the
+It also provides high-level projections over the eight Workbench operations admitted by the
 production Desktop catalog:
 
 ```text
@@ -30,6 +30,7 @@ orchbee workspace list --project <project-id> [--limit <n>] [--cursor <cursor>]
 orchbee tab list (--standalone | --project <project-id> --workspace <workspace-id>) [--limit <n>] [--cursor <cursor>]
 orchbee panel list (--standalone | --project <project-id> --workspace <workspace-id>) --tab <tab-id> [--limit <n>] [--cursor <cursor>]
 orchbee terminal list (--standalone | --project <project-id> --workspace <workspace-id>) [--limit <n>] [--cursor <cursor>]
+orchbee terminal read <presentation-id> [--rows <1-1000>] [--detach] [--request-id <request-id>]
 orchbee terminal create (--standalone | --project <project-id> --workspace <workspace-id>) [--directory <directory-id>] [--detach] [--request-id <request-id>]
 ```
 
@@ -60,6 +61,18 @@ membership counts. `panel list` requires an exact returned Tab ID and preserves 
 depth-first, left-to-right Panel order. These queries expose no active, selected, focused,
 maximized, active-child, split-weight, pixel-geometry, renderer, or screen state. Their returned
 positions describe one revision only and never serve as mutation identities.
+
+`terminal read` pins one exact `presentationId` returned by `terminal list` and reads the current
+tail through a capture-only Terminal Host projection. It defaults to 80 rows, accepts at most 1,000,
+and returns at most 128 KiB of plain UTF-8 text together with the exact generation, revision, row
+bounds, and truncation state. Soft-wrapped rows are joined; ANSI escapes, styling, graphics,
+hyperlinks, raw VT bytes, and future output are not exposed. Live local Terminals, already-connected
+SSH Terminals, and retained local archives are eligible. The query never starts or reconnects a
+Terminal, sends input, resizes, focuses, or retries across a stale frame. A stale, retired,
+unavailable, cleanup-failed, cancelled, or five-second read-deadline outcome is explicit and never
+returns old text. Output is not automatically redacted and may contain secrets; callers should not
+echo, persist, or forward content they do not need. Only the existing bounded volatile semantic
+execution ledger retains the result; this command is a one-shot read, not a wait or durable history.
 
 `agent changes` is a global canonical change feed. The first invocation without `--cursor` returns
 an empty baseline and a signed `nextCursor` at the current Agent runtime revision. Pass that cursor
@@ -138,11 +151,12 @@ failure, or locally cancelled observation.
 
 The core supports status, operation list and description, owner-backed Workbench and Agent command
 projections, invocation admission, execution lookup, cooperative cancellation, and bounded-backoff
-waiting. `waitForExecution` repeatedly performs only the read-only execution lookup. In contrast,
-`agent wait` and a cursor-following `agent changes` invoke server-owned asynchronous queries over the
-canonical Agent sources, then observe those semantic executions through the same ledger. Aborting
-the CLI caller signal stops only local execution observation; it never calls invocation or
-cancellation implicitly.
+waiting. `terminal read` invokes one server-owned, bounded Terminal Host projection; the client does
+not inspect screen state itself. `waitForExecution` repeatedly performs only the read-only execution
+lookup. In contrast, `agent wait` and a cursor-following `agent changes` invoke server-owned
+asynchronous queries over the canonical Agent sources, then observe those semantic executions
+through the same ledger. Aborting the CLI caller signal stops only local execution observation; it
+never calls invocation or cancellation implicitly.
 
 `agent wait` pins one exact Session ID. Its default conditions are attention, outcomes, idle, and
 ended; repeated `--until` selects explicit semantic-status or `fresh`, `stale`, and `disconnected`
@@ -187,14 +201,15 @@ presentation remain absent.
 
 ## Ownership boundary
 
-The CLI never reads a Workbench data file, reads provider or screen state, connects to Terminal Host,
-enumerates product Actions, or stores or reconstructs feature state. Its high-level commands
-construct only inputs validated by the Workbench or Agent owner's exported semantic-command schemas
-and verify the complete expected public operation descriptor before invocation. Agent queries return
-only canonical bounded snapshots, projections, and content-free change records; `agent explain`
-describes provenance, freshness, capability, and the status basis without exposing prompts,
-transcripts, tool content, paths, provider errors, or screen evidence. The coordinator owns catalog
-admission and executions; feature packages
+The CLI never reads a Workbench data file, reads provider or screen state directly, connects to
+Terminal Host, enumerates product Actions, or stores or reconstructs feature state. Its high-level
+commands construct only inputs validated by the Workbench or Agent owner's exported
+semantic-command schemas and verify the complete expected public operation descriptor before
+invocation. Terminal text arrives only through the admitted Desktop operation and its capture-only
+Host projection. Agent queries return only canonical bounded snapshots, projections, and
+content-free change records; `agent explain` describes provenance, freshness, capability, and the
+status basis without exposing prompts, transcripts, tool content, paths, provider errors, or screen
+evidence. The coordinator owns catalog admission and executions; feature packages
 own operation input, output, targeting, and effects; the protocol package owns only serializable
 generic envelopes. Adding a CLI projection grants no operation authority.
 

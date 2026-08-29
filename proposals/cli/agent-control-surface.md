@@ -2,7 +2,7 @@
 
 | Field             | Value                                                                                                                                                                                                                             |
 | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Status            | The existing TypeScript CLI direction and read-only Slices 1 through 4 are implemented; later terminal-control slices remain reserved                                                                                             |
+| Status            | The existing TypeScript CLI direction and read-only Slices 1 through 5 are implemented; terminal waiting and mutation slices remain reserved                                                                                      |
 | Decision owner    | The active requester acting as Orchbee product and architecture decision owner                                                                                                                                                    |
 | Semantic owners   | `apps/cli`, Desktop application composition, `@orchbee/semantic-command-protocol`, `@orchbee/workbench`, and the Agent capability                                                                                                 |
 | Current authority | [`apps/cli/README.md`](../../apps/cli/README.md), [semantic-command execution](../../apps/desktop/docs/semantic-command-execution.md), and [Agent runtime observation](../agent/agent-runtime-observation.md)                     |
@@ -14,14 +14,14 @@ Simplified Chinese review translation:
 
 ## Change authorization
 
-| Field         | Accepted authorization                                                                                                                                                                                                                                                                                                                                                                                     |
-| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Tier          | Consequential because this is an Agent-facing process contract and will grow cross-workspace product operations; Modeled because Slices 2 and 4 introduce server-owned Agent waits and a retained change feed with subscription, timeout, cancellation, revision, overflow, and coordinator-lifetime transitions                                                                                           |
-| Problem       | Orchbee already ships a secure local semantic-command CLI, but it exposes only generic operation and execution commands. An Agent must discover operation IDs and construct JSON manually, and there is no release-matched Skill that teaches the installed command surface or its safety boundaries                                                                                                       |
-| Outcome       | Evolve the existing `apps/cli` TypeScript application into Orchbee's single nonvisual Agent control surface. Add owner-backed product nouns and a release-matched Skill incrementally while retaining server-owned facts, exact identities, structured output, explicit admission, and conservative unknown outcomes                                                                                       |
-| Compatibility | Keep the existing `status`, `operation`, and `execution` commands, `ORCHBEE_CLI` launch contract, output version, exit meanings, target selection, input bounds, and no-replay behavior. A high-level command is an additional projection over an admitted semantic operation, never another execution path                                                                                                |
-| Non-goals     | Rewriting the CLI in Zig, creating another CLI or daemon, reproducing Herdr's TUI or flat Agent status, reading screen text as semantic authority, connecting directly to Terminal Host, adding arbitrary shell/filesystem/RPC access, global installation, remote access, or admitting launch, prompt, input, close, focus, approval, or destructive operations without their own accepted owner contract |
-| Recovery      | Remove a high-level command or Skill section without removing the generic operation surface. A lost mutation response continues to reconcile only the same request identity; it is never replayed. Unsupported or unavailable owner operations fail explicitly                                                                                                                                             |
+| Field         | Accepted authorization                                                                                                                                                                                                                                                                                                                                                                                                          |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Tier          | Consequential because this is an Agent-facing process contract and will grow cross-workspace product operations; Modeled because Slices 2, 4, and 5 introduce independently ordered wait, change-feed, projection-lease, frame, row-read, revision, cancellation, target-retirement, and cleanup transitions                                                                                                                    |
+| Problem       | Orchbee already ships a secure local semantic-command CLI, but it exposes only generic operation and execution commands. An Agent must discover operation IDs and construct JSON manually, and there is no release-matched Skill that teaches the installed command surface or its safety boundaries                                                                                                                            |
+| Outcome       | Evolve the existing `apps/cli` TypeScript application into Orchbee's single nonvisual Agent control surface. Add owner-backed product nouns and a release-matched Skill incrementally while retaining server-owned facts, exact identities, structured output, explicit admission, and conservative unknown outcomes                                                                                                            |
+| Compatibility | Keep the existing `status`, `operation`, and `execution` commands, `ORCHBEE_CLI` launch contract, output version, exit meanings, target selection, input bounds, and no-replay behavior. A high-level command is an additional projection over an admitted semantic operation, never another execution path                                                                                                                     |
+| Non-goals     | Rewriting the CLI in Zig, creating another CLI or daemon, reproducing Herdr's TUI or flat Agent status, treating terminal text as Agent semantic authority, connecting the CLI directly to Terminal Host, adding arbitrary shell/filesystem/RPC access, global installation, remote invocation, or admitting launch, prompt, input, close, focus, approval, or destructive operations without their own accepted owner contract |
+| Recovery      | Remove a high-level command or Skill section without removing the generic operation surface. A lost mutation response continues to reconcile only the same request identity; it is never replayed. Unsupported or unavailable owner operations fail explicitly                                                                                                                                                                  |
 
 The active requester first selected a Zig CLI, then explicitly superseded that choice on
 2026-08-29: extend the existing CLI and keep its current TypeScript implementation. This proposal
@@ -222,6 +222,45 @@ Slice 4 adds a bounded TLA+ model covering baseline, ordered batching, current w
 overflow, explicit reset, timeout, cancellation, and coordinator retirement, plus deterministic
 Agent journal, Desktop operation, CLI parser, runner, catalog, HTTP-boundary, and Skill tests.
 
+## Delivered Slice 5: bounded Terminal output read
+
+The requester's 2026-08-29 acceptance of the proposed bounded read contract admits one additional
+read-only command:
+
+```text
+orchbee terminal read <presentation-id> [--rows <1-1000>] [--detach] [--request-id <request-id>]
+```
+
+- The target is one exact canonical `presentationId` returned by `terminal list`. Desktop rejects
+  an absent, duplicate, rerouted, or retired target before publishing output; labels, focus, process
+  IDs, and guessed topology never select a Terminal.
+- The command returns only the retained tail as plain text. It defaults to 80 rows, accepts 1 to
+  1,000 rows, joins soft-wrapped rows, and caps public UTF-8 text at 128 KiB. It exposes no ANSI,
+  style, graphics, hyperlink metadata, input bytes, raw VT stream, or screen-matcher evidence.
+- Desktop acquires a capture-only projection attachment with `read: true`, `input: false`, and
+  `resize: false`. It reads Terminal Host-owned rows at one exact generation and frame revision;
+  a change during the read returns an explicit stale result and is never retried invisibly.
+- Live local Terminals, connected SSH Terminals, and retained local Terminal archives are eligible.
+  A disconnected SSH environment is explicitly unavailable and is never connected as a side
+  effect of reading.
+- Cancellation and every terminal settlement dispose any acquired projection lease. The command
+  cannot focus, start, resize, write to, paste into, close, stop, or otherwise mutate a Terminal.
+- The Desktop reader applies a five-second internal deadline. Deadline expiry is explicit
+  unavailability, disposes an acquired lease, publishes no text, and causes no retry.
+- No automatic redaction is claimed: Terminal output may contain secrets. The result is retained
+  only by the existing bounded, volatile in-memory semantic execution ledger; this slice adds no
+  output file, history database, telemetry payload, audit log, or restart continuity.
+
+The modeled application workflow is `TerminalSemanticRead.tla`: opening a read-only lease,
+observing a frame, issuing a revision-fenced row request, target retirement, stale delivery,
+cancellation, and cleanup are independently ordered. Its principal claims are that success requires
+an exact read-only attachment and matching generation/revision, stale or cancelled reads never
+publish text, no state grants input or resize, every acquired lease is disposed before settlement,
+and exactly one terminal result is published. Deterministic schema, text projection, Desktop
+workflow, router, CLI parser, runner, catalog, HTTP-boundary, and Skill tests refine those claims.
+Output waiting, alternate output sources or formats, and every Terminal or Agent mutation remain
+outside this slice.
+
 ## Invariants and evidence
 
 1. Every high-level command maps to exactly one admitted operation ID and one owner-valid bounded
@@ -245,7 +284,9 @@ timeout, cancellation, removal, and coordinator-retirement boundaries. Slice 3 a
 Workbench membership projection and exact-target cursor tests without a new state machine. Slice 4
 adds `AgentSemanticChanges.tla`; domain and Desktop tests refine its bounded ordering, batching,
 subscribe-before-recheck, timeout, cancellation, overflow/reset, signed cursor, and coordinator-
-retirement boundaries.
+retirement boundaries. Slice 5 adds `TerminalSemanticRead.tla`; deterministic projection and
+Desktop workflow tests refine its exact-target, read-only capability, generation/revision fence,
+bounded text, stale delivery, cancellation, retirement, and lease-cleanup boundaries.
 
 ## Delivery order
 
@@ -257,12 +298,15 @@ retirement boundaries.
    Workbench document without exposing Client View state.
 4. Delivered Slice 4: read-only `agent changes` follows the volatile, loss-aware canonical
    Agent journal without claiming restart continuity.
-5. Accept topology mutations such as Workspace, Tab, Panel, and Terminal creation, split, move,
+5. Delivered Slice 5: read-only `terminal read` returns one bounded, revision-fenced plain-text tail
+   through a capture-only Terminal Host projection.
+6. Accept topology mutations such as Workspace, Tab, Panel, and Terminal creation, split, move,
    rename, focus, and close one owner operation at a time.
-6. Accept Agent launch, prompt, resume, decision, raw terminal input/output, and orchestration only
+7. Accept Agent launch, prompt, resume, decision, Terminal output waiting and mutation, and
+   orchestration only
    with exact provider and Terminal authority, confirmation, audit, cancellation, replay, and
    unknown-outcome contracts.
-7. Move delivered behavior and evidence into current owner guides and delete resolved proposal
+8. Move delivered behavior and evidence into current owner guides and delete resolved proposal
    sections; delete the complete proposal when no future decision remains.
 
 ## Reserved decisions
@@ -273,8 +317,8 @@ retirement boundaries.
 - caller-context environment variables and their exact Project, Workspace, Tab, Terminal,
   presentation-attachment, and remote topology meanings;
 - creation, split, move, focus, close, stop, and destructive lifecycle commands;
-- Terminal output snapshots, history bounds, sensitive-content policy, input, paste, logical keys,
-  and output waiting;
+- Terminal output waiting, alternate snapshot sources or ANSI/raw formats, durable output history,
+  automatic secret detection or redaction, input, paste, and logical keys;
 - Agent launch, naming, provider arguments, prompt/turn identity, submission, approval, answer,
   resume, interruption, orchestration, and external-cost policy;
 - global installation, shell completions, third-party API stability, remote/SSH/Browser invocation,

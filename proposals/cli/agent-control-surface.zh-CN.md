@@ -2,7 +2,7 @@
 
 | 字段       | 值                                                                                                                                                                                                     |
 | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 状态       | 现有 TypeScript CLI 方向以及只读切片 1 至 4 已实现；后续终端控制切片仍为待决事项                                                                                                                       |
+| 状态       | 现有 TypeScript CLI 方向以及只读切片 1 至 5 已实现；终端等待与修改切片仍为待决事项                                                                                                                     |
 | 决策所有者 | 当前请求者，以 Orchbee 产品与架构决策所有者身份作出决策                                                                                                                                                |
 | 语义所有者 | `apps/cli`、Desktop 应用组合、`@orchbee/semantic-command-protocol`、`@orchbee/workbench` 与 Agent 能力                                                                                                 |
 | 当前权威   | [`apps/cli/README.md`](../../apps/cli/README.zh-CN.md)、[语义命令执行](../../apps/desktop/docs/semantic-command-execution.zh-CN.md) 与 [Agent 运行时观测](../agent/agent-runtime-observation.zh-CN.md) |
@@ -14,14 +14,14 @@
 
 ## 变更授权
 
-| 字段   | 已接受的授权                                                                                                                                                                                                                                                           |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 等级   | 这是面向 Agent 的进程契约，且将扩展跨工作区产品操作，因此属于 Consequential；切片 2 与 4 引入 server-owned Agent wait，以及包含 subscription、timeout、cancellation、revision、overflow 与 coordinator-lifetime transition 的 retained change feed，因此属于 Modeled   |
-| 问题   | Orchbee 已经交付安全的本地语义命令 CLI，但只公开通用 operation 与 execution 命令。Agent 必须自行发现操作 ID 并手工构造 JSON，而且没有与发行版本匹配的 Skill 来说明已安装命令面及其安全边界                                                                             |
-| 结果   | 把现有 `apps/cli` TypeScript 应用演进为 Orchbee 唯一的非可视化 Agent 控制面。在保留服务端拥有事实、精确身份、结构化输出、显式准入和保守未知结果的前提下，增量加入由所有者支撑的产品名词和版本匹配 Skill                                                                |
-| 兼容性 | 保留现有 `status`、`operation` 与 `execution` 命令、`ORCHBEE_CLI` 启动契约、输出版本、退出含义、目标选择、输入上限与不重放行为。高层命令只是已准入语义操作之上的附加投影，绝不是另一条执行路径                                                                         |
-| 非目标 | 用 Zig 重写 CLI、创建另一套 CLI 或 daemon、复刻 Herdr 的 TUI 或扁平 Agent 状态、把屏幕文本当成语义权威、直连 Terminal Host、加入任意 shell/文件系统/RPC 权限、全局安装、远程访问，或者在没有各自获准的所有者契约时准入启动、Prompt、输入、关闭、焦点、审批或破坏性操作 |
-| 恢复   | 可移除一个高层命令或 Skill 章节而不移除通用 operation 控制面。修改操作响应丢失后仍只协调相同请求身份，绝不重放。所有者操作不受支持或不可用时必须显式失败                                                                                                               |
+| 字段   | 已接受的授权                                                                                                                                                                                                                                                                         |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 等级   | 这是面向 Agent 的进程契约，且将扩展跨工作区产品操作，因此属于 Consequential；切片 2、4 与 5 引入彼此独立排序的 wait、change feed、projection lease、frame、row read、revision、cancellation、target retirement 与 cleanup transition，因此属于 Modeled                               |
+| 问题   | Orchbee 已经交付安全的本地语义命令 CLI，但只公开通用 operation 与 execution 命令。Agent 必须自行发现操作 ID 并手工构造 JSON，而且没有与发行版本匹配的 Skill 来说明已安装命令面及其安全边界                                                                                           |
+| 结果   | 把现有 `apps/cli` TypeScript 应用演进为 Orchbee 唯一的非可视化 Agent 控制面。在保留服务端拥有事实、精确身份、结构化输出、显式准入和保守未知结果的前提下，增量加入由所有者支撑的产品名词和版本匹配 Skill                                                                              |
+| 兼容性 | 保留现有 `status`、`operation` 与 `execution` 命令、`ORCHBEE_CLI` 启动契约、输出版本、退出含义、目标选择、输入上限与不重放行为。高层命令只是已准入语义操作之上的附加投影，绝不是另一条执行路径                                                                                       |
+| 非目标 | 用 Zig 重写 CLI、创建另一套 CLI 或 daemon、复刻 Herdr 的 TUI 或扁平 Agent 状态、把终端文本当成 Agent 语义权威、让 CLI 直连 Terminal Host、加入任意 shell/文件系统/RPC 权限、全局安装、远程调用，或者在没有各自获准的所有者契约时准入启动、Prompt、输入、关闭、焦点、审批或破坏性操作 |
+| 恢复   | 可移除一个高层命令或 Skill 章节而不移除通用 operation 控制面。修改操作响应丢失后仍只协调相同请求身份，绝不重放。所有者操作不受支持或不可用时必须显式失败                                                                                                                             |
 
 当前请求者最初选择了 Zig CLI，随后在 2026-08-29 明确取代该选择：扩展现有 CLI，
 保留当前 TypeScript 实现。本提案以较新的指令为权威。
@@ -196,6 +196,39 @@ orchbee agent changes [--cursor <cursor>] [--limit <n>] [--timeout <milliseconds
 显式 reset、timeout、cancellation 与 coordinator retirement，并添加 deterministic Agent journal、
 Desktop operation、CLI parser、runner、catalog、HTTP boundary 与 Skill test。
 
+## 已交付切片 5：有界 Terminal 输出读取
+
+请求者在 2026-08-29 接受了所提议的有界读取契约，由此准入一个额外只读命令：
+
+```text
+orchbee terminal read <presentation-id> [--rows <1-1000>] [--detach] [--request-id <request-id>]
+```
+
+- 目标是 `terminal list` 返回的一个精确 canonical `presentationId`。Desktop 会在发布输出前拒绝
+  缺失、重复、已重路由或已退役的目标；label、focus、process ID 与猜测的拓扑绝不选择 Terminal。
+- 命令只把保留的 tail 作为纯文本返回。默认读取 80 行，可接受 1 至 1,000 行，拼接软换行行，
+  并把公开 UTF-8 文本限制在 128 KiB。它不公开 ANSI、style、graphics、hyperlink metadata、
+  input bytes、raw VT stream 或 screen-matcher evidence。
+- Desktop 获取 `read: true`、`input: false`、`resize: false` 的 capture-only projection attachment。
+  它在一个精确 generation 与 frame revision 上读取 Terminal Host 所有的 row；读取期间发生变化会返回
+  显式 stale 结果，绝不隐式重试。
+- 实时本地 Terminal、已连接 SSH Terminal 与保留的本地 Terminal archive 可以读取。断连的 SSH
+  environment 会显式不可用，且读取绝不以副作用方式建立连接。
+- Cancellation 与每一种终止结算都会释放任何已获取的 projection lease。命令无法 focus、start、
+  resize、write、paste、close、stop 或以其他方式修改 Terminal。
+- Desktop reader 使用五秒 internal deadline。Deadline 到期会显式表示 unavailable，释放已获取 lease，
+  不发布文本，也不触发重试。
+- 不承诺自动脱敏：Terminal 输出可能包含秘密。结果只由现有有界、易失、内存内 semantic execution
+  ledger 保留；本切片不增加 output file、history database、telemetry payload、audit log 或 restart 连续性。
+
+建模后的应用工作流是 `TerminalSemanticRead.tla`：打开只读 lease、观察 frame、发出受 revision fence
+约束的 row request、target retirement、stale delivery、cancellation 与 cleanup 彼此独立排序。其主要
+声明是：成功必须具备精确只读 attachment 及匹配的 generation/revision；stale 或 cancelled read 绝不
+发布文本；没有任何状态授予 input 或 resize；每个已获取 lease 都在结算前释放；并且只发布一个终止
+结果。确定性 schema、text projection、Desktop workflow、router、CLI parser、runner、catalog、HTTP
+boundary 与 Skill test 会细化这些声明。输出等待、替代输出源或格式，以及所有 Terminal 或 Agent 修改
+都不在本切片范围内。
+
 ## 不变量与证据
 
 1. 每个高层命令恰好映射一个已准入操作 ID 和一个所有者有效的有界输入；只有实时完整公共 descriptor
@@ -214,7 +247,9 @@ revision、freshness、subscribe-before-recheck、timeout、cancellation、remov
 coordinator-retirement boundary 进行 refinement。切片 3 添加确定性 Workbench 成员关系投影与精确
 target cursor test，不增加新的状态机。切片 4 添加 `AgentSemanticChanges.tla`；domain 与 Desktop test
 会细化 bounded ordering、batching、subscribe-before-recheck、timeout、cancellation、overflow/reset、
-signed cursor 与 coordinator-retirement boundary。
+signed cursor 与 coordinator-retirement boundary。切片 5 添加 `TerminalSemanticRead.tla`；确定性
+projection 与 Desktop workflow test 细化其 exact-target、read-only capability、generation/revision
+fence、bounded text、stale delivery、cancellation、retirement 与 lease-cleanup boundary。
 
 ## 交付顺序
 
@@ -224,10 +259,12 @@ signed cursor 与 coordinator-retirement boundary。
    Client View 状态。
 4. 已交付切片 4：只读 `agent changes` 跟随易失、可感知丢失的 canonical Agent journal，且不声明
    restart 连续性。
-5. 逐个所有者操作接受 Workspace、Tab、Panel 与 Terminal 的创建、split、move、rename、focus 和 close 等拓扑修改。
-6. 只有具备精确 provider 与 Terminal 权限、确认、审计、取消、重放和未知结果契约后，
-   才接受 Agent 启动、Prompt、Resume、Decision、原始终端输入/输出与编排。
-7. 把已交付行为与证据迁入当前所有者指南并删除已解决的提案章节；没有未来决策后删除完整提案。
+5. 已交付切片 5：只读 `terminal read` 通过 capture-only Terminal Host projection 返回一次有界、
+   受 revision fence 约束的纯文本 tail。
+6. 逐个所有者操作接受 Workspace、Tab、Panel 与 Terminal 的创建、split、move、rename、focus 和 close 等拓扑修改。
+7. 只有具备精确 provider 与 Terminal 权限、确认、审计、取消、重放和未知结果契约后，
+   才接受 Agent 启动、Prompt、Resume、Decision、Terminal 输出等待与修改，以及编排。
+8. 把已交付行为与证据迁入当前所有者指南并删除已解决的提案章节；没有未来决策后删除完整提案。
 
 ## 待决事项
 
@@ -235,7 +272,8 @@ signed cursor 与 coordinator-retirement boundary。
   连续性，包括跨 Desktop 或 Hub 重启的持久等待重放或状态保留；
 - 调用者上下文环境变量及其精确 Project、Workspace、Tab、Terminal、presentation attachment 与远程拓扑含义；
 - 创建、split、move、focus、close、stop 与破坏性生命周期命令；
-- Terminal 输出快照、历史边界、敏感内容策略、输入、paste、逻辑按键与输出等待；
+- Terminal 输出等待、替代快照来源或 ANSI/raw 格式、持久输出历史、自动秘密检测或脱敏、输入、paste
+  与逻辑按键；
 - Agent 启动、命名、provider 参数、Prompt/Turn 身份、提交、审批、回答、Resume、中断、编排与外部成本策略；
 - 全局安装、shell completion、第三方 API 稳定性、远程/SSH/Browser 调用、多用户、审计保留与持久执行恢复；以及
 - 超出上面明确选择的固定交互思想以外的任何完整 Herdr 等价声明。

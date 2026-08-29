@@ -1,6 +1,6 @@
 ---
 name: orchbee
-description: Inspect or control the current Orchbee application through its injected CLI. Use when the user explicitly asks to inspect Orchbee Projects, Directories, Workspaces, Tabs, Panels, Terminals, or observed Agent Sessions; follow or wait for Agent state changes; create an Orchbee Terminal; or invoke an admitted Orchbee operation. Requires ORCHBEE_CLI.
+description: Inspect or control the current Orchbee application through its injected CLI. Use when the user explicitly asks to inspect Orchbee Projects, Directories, Workspaces, Tabs, Panels, Terminals, bounded Terminal output, or observed Agent Sessions; follow or wait for Agent state changes; create an Orchbee Terminal; or invoke an admitted Orchbee operation. Requires ORCHBEE_CLI.
 ---
 
 # Orchbee
@@ -39,6 +39,7 @@ These commands are read-only:
 "$ORCHBEE_CLI" panel list --project <project-id> --workspace <workspace-id> --tab <tab-id>
 "$ORCHBEE_CLI" terminal list --standalone
 "$ORCHBEE_CLI" terminal list --project <project-id> --workspace <workspace-id>
+"$ORCHBEE_CLI" terminal read <presentation-id> [--rows <1-1000>]
 "$ORCHBEE_CLI" agent list
 "$ORCHBEE_CLI" agent get <session-id>
 "$ORCHBEE_CLI" agent explain <session-id>
@@ -55,6 +56,32 @@ reports multiple coordinators and an exact trusted endpoint ID is already known.
 the same location and Tab. Panel `position` is descriptive for that revision, not a durable target.
 Neither command reports the active or selected Tab, focused or maximized Panel, active child,
 split weights, pixel geometry, renderer state, or screen content.
+
+## Read bounded Terminal output
+
+Use only an exact `presentationId` returned by `terminal list`:
+
+```sh
+"$ORCHBEE_CLI" terminal read <presentation-id>
+"$ORCHBEE_CLI" terminal read <presentation-id> --rows <1-1000>
+```
+
+The default is the newest 80 retained rows. The result at
+`.result.execution.result.output` contains a maximum 128 KiB `text` value, exact generation and
+revision, row bounds, active-screen identity, and `truncated`. Soft-wrapped rows are joined. The
+format is plain text only: there is no ANSI, styling, graphics, hyperlink metadata, raw VT stream,
+or screen-matcher evidence.
+
+This is one capture-only read. It never focuses, starts, resizes, writes to, pastes into, closes, or
+stops a Terminal. A connected SSH Terminal is eligible, but the command never connects a
+disconnected Environment; a retained local archive is eligible. A revision change, retired target,
+or unavailable runtime is explicit and is not retried or converted into older output.
+
+Terminal output may contain secrets and is not automatically redacted. Read it only when the user
+requested it or the authorized task specifically requires it; do not echo, persist, or forward
+unneeded content. This command does not wait for future output. Do not create a polling loop or
+simulate output waiting unless a separately authorized workflow owns its duration, stop condition,
+and disclosure boundary.
 
 Default output is one compact, versioned JSON document. For a completed high-level command, the
 owner result is under `.result.execution.result.output`. Read IDs from that output; never derive
@@ -175,6 +202,7 @@ uncertainty and do not replay the mutation.
 ## Current limits
 
 The installed command surface does not yet provide Agent prompt, launch, approve, answer, resume,
-interrupt, stop, orchestration, or key input; Terminal output reading or input; Tab or Panel split,
+interrupt, stop, orchestration, or key input; Terminal output waiting, input, ANSI/raw export, or
+durable output history; Tab or Panel split,
 move, focus, or close; or remote control. Agent observation remains volatile across Desktop restart.
 Do not simulate missing capabilities through screen inference or private protocols.

@@ -19,7 +19,7 @@ orchbee execution wait <request-or-execution-id>
 orchbee execution cancel <request-or-execution-id>
 ```
 
-它还在生产 Desktop catalog 已准入的七个 Workbench operation 之上提供高层 projection：
+它还在生产 Desktop catalog 已准入的八个 Workbench operation 之上提供高层 projection：
 
 ```text
 orchbee project list [--limit <n>] [--cursor <cursor>]
@@ -28,6 +28,7 @@ orchbee workspace list --project <project-id> [--limit <n>] [--cursor <cursor>]
 orchbee tab list (--standalone | --project <project-id> --workspace <workspace-id>) [--limit <n>] [--cursor <cursor>]
 orchbee panel list (--standalone | --project <project-id> --workspace <workspace-id>) --tab <tab-id> [--limit <n>] [--cursor <cursor>]
 orchbee terminal list (--standalone | --project <project-id> --workspace <workspace-id>) [--limit <n>] [--cursor <cursor>]
+orchbee terminal read <presentation-id> [--rows <1-1000>] [--detach] [--request-id <request-id>]
 orchbee terminal create (--standalone | --project <project-id> --workspace <workspace-id>) [--directory <directory-id>] [--detach] [--request-id <request-id>]
 ```
 
@@ -54,6 +55,16 @@ Session。无效 input 会在分配 request identity 或联系 Desktop 前被拒
 返回的 Tab ID，并保留该 Tab 规范的深度优先、从左到右 Panel 顺序。这些 query 不暴露 active、selected、
 focused、maximized、active-child、split-weight、pixel-geometry、renderer 或 screen 状态。返回的位置只描述
 一个 revision，绝不能作为 mutation identity。
+
+`terminal read` 固定 `terminal list` 返回的一个精确 `presentationId`，并通过 capture-only Terminal Host
+projection 读取当前 tail。它默认读取 80 行，最多接受 1,000 行，返回不超过 128 KiB 的纯 UTF-8 文本，
+以及精确 generation、revision、行范围与 truncation 状态。Soft-wrapped row 会被拼接；ANSI escape、style、
+graphic、hyperlink、raw VT byte 与未来输出均不公开。Live local Terminal、已连接 SSH Terminal 与保留的
+local archive 均可读取。该 query 绝不启动或重连 Terminal，不发送 input、不 resize、不 focus，也不跨 stale
+frame 重试。Stale、retired、unavailable、cleanup-failed、cancelled 或五秒 read deadline 的 outcome 都会显式
+返回，且绝不返回旧文本。Output 不会自动脱敏，可能包含 secret；caller 不应 echo、持久化或转发不需要的
+内容。只有现有有界、易失的 semantic execution ledger 会保留 result；此 command 是一次性 read，不是 wait
+或 durable history。
 
 `agent changes` 是 global canonical change feed。第一次不带 `--cursor` 调用会返回空 baseline，以及位于
 当前 Agent runtime revision 的签名 `nextCursor`。把该 cursor 传回，可以接收最多 100 条有序 applied
@@ -129,6 +140,7 @@ generation，并针对无效 input、格式错误的 response、transport failur
 
 Core 支持 status、operation list 与 description、owner-backed Workbench 与 Agent command projection、
 invocation admission、execution lookup、cooperative cancellation，以及带边界 backoff 的等待。
+`terminal read` 调用一个 server-owned、有界 Terminal Host projection；client 自身不检查 screen state。
 `waitForExecution` 只会重复执行只读 execution lookup。与之不同，`agent wait` 与跟随 cursor 的
 `agent changes` 会在 canonical Agent source 上调用 server-owned asynchronous query，再通过同一 ledger
 观察该 semantic execution。Abort CLI caller signal 只停止本地 execution observation；它绝不隐式调用
@@ -172,12 +184,13 @@ replay、cancellation 或隐式启动 Desktop。SSH、Browser access、remote ta
 
 ## 所有权边界
 
-CLI 绝不读取 Workbench data file、provider 或 screen state、连接 Terminal Host、枚举产品 Action，也不
-存储或重建 feature state。高层 command 只构造由 Workbench 或 Agent 所有者导出的 semantic-command schema
-验证的 input，并在调用前验证完整的 expected public operation descriptor。Agent query 只返回 canonical
-bounded snapshot、projection 与 content-free change record；`agent explain` 描述 provenance、freshness、
-capability 与 status basis，但不公开 prompt、transcript、tool content、path、provider error 或 screen
-evidence。Coordinator 拥有
+CLI 绝不读取 Workbench data file，不直接读取 provider 或 screen state，不连接 Terminal Host、不枚举产品
+Action，也不存储或重建 feature state。高层 command 只构造由 Workbench 或 Agent 所有者导出的
+semantic-command schema 验证的 input，并在调用前验证完整的 expected public operation descriptor。
+Terminal 文本只会经已准入的 Desktop operation 及其 capture-only Host projection 到达。Agent query 只返回
+canonical bounded snapshot、projection 与 content-free change record；`agent explain` 描述 provenance、
+freshness、capability 与 status basis，但不公开 prompt、transcript、tool content、path、provider error 或
+screen evidence。Coordinator 拥有
 catalog admission 与 execution；feature package 拥有 operation input、output、targeting 与 effect；
 protocol package 只拥有可序列化的通用 envelope。添加 CLI projection 不会授予 operation authority。
 

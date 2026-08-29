@@ -60,13 +60,21 @@ Tab 或其折叠分组代表，最后选择新建 Tab 按钮。
 `@orchbee/workbench/project-workspace` 获取。应用 owner 可以通过这个非 React subpath 执行一项权威
 mutation，而无需导入可视 Workbench 或其 runtime graph。
 
-经过验证的共享文档读取投影和精确目标终端意图创建可从
+经过验证的共享文档读取投影、有界 Terminal-output read contract 与精确目标终端意图创建可从
 `@orchbee/workbench/semantic-commands` 获得。这个不依赖 DOM、React、存储和传输的入口会列出规范的
 Project、Directory、Workspace、Tab、Panel 与终端标识，并把一次终端创建委托给现有 Workbench runtime。
 Tab 读取会保留规范 Tab collection 顺序，并汇总 Panel 与 Terminal-presentation 成员关系。精确目标的 Panel
 读取会保留规范的深度优先、从左到右叶节点顺序，并发布从一开始的位置；它绝不替换成 active Tab 或 focused
 Panel。两种读取都排除 Client View 的 focus、selection、maximization、active-child、split-weight 与 geometry
 状态。
+
+同一入口拥有 `workbench.terminal.output.read` 的 input、output 与 descriptor 含义。Input 固定一个
+canonical Terminal presentation identity，在 1–1,000 的范围内默认使用 80 行。Output 是一个不超过
+128 KiB 的纯 UTF-8 tail，并携带精确 Host generation、revision、screen、总行数与返回行范围，以及
+truncation 状态；soft-wrapped row 会被拼接。Contract 不包含 ANSI style、graphic、hyperlink、raw VT byte、
+input、resize、focus、wait、matcher 或 durable-history authority。Workbench 定义并验证这个可序列化含义，
+但不读取 Terminal Host state。组合 application 必须从一个精确 capture-only frame 取得成功 result，dispose
+其 lease，并以不含文本的方式表示 stale、retired、unavailable、cancelled 与 cleanup-failed outcome。
 
 创建会保留活动 Client View 中已有的选择；空目标会把唯一新建的 Tab 作为 Tab model 所要求的有效性后备项。
 产品 Action 可以另行只选择精确返回的 Tab。该入口还发布严格且带版本的 location input 与

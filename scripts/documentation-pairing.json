@@ -18,12 +18,12 @@
 			"zhCnSha256": "f3a6b515a4ff6d6eef68fde7b0b48d58f987ab81b0d152dce5e8f089024d8130"
 		},
 		"apps/cli/README.md": {
-			"englishSha256": "e744789df669028e07c9943d022f54d2558a6c5edbcafd42f7319f036fd7ee34",
-			"zhCnSha256": "e564eb169aef514b1ef73247a8458550d85a57d223bb3da260000d66963ba8c2"
+			"englishSha256": "8cb30a18392a3983478b380019613a7310041abe66e5065259bd8590f9b3e855",
+			"zhCnSha256": "3f13a89528583e7a705f91b308cf35fbd3a7d41d7c608c06ae34d1ccb1e499d4"
 		},
 		"apps/cli/skills/orchbee/SKILL.md": {
-			"englishSha256": "8c6edd8d8e5e446914c07dbf5080e0c123434f550e221330c755b22843025162",
-			"zhCnSha256": "f9aa78796087d0386168eec7d323c80f281285b5772d63c8ab0564fea5a44f49"
+			"englishSha256": "72782043c6bdabff4fbc57f125c218ca1434bb0c7103d7c73a30568b0d956670",
+			"zhCnSha256": "26d5cd462fe3e5127aea6ee408eaeb8dfc7df659ca009e609489271d8c803f9c"
 		},
 		"apps/desktop/README.md": {
 			"englishSha256": "a8c749a8280befb982502e98b66f24bafea9beebf5cb2d4f38a5c220560d2022",
@@ -66,8 +66,8 @@
 			"zhCnSha256": "90da626a0829a69e8c9229402596ccfaf9114ef28b64c31ab32256b1e6caea69"
 		},
 		"apps/desktop/docs/semantic-command-execution.md": {
-			"englishSha256": "80d126e2be73c5303d82a96d102a328ef5f5bec78e7fd1ef736faee10feccb2c",
-			"zhCnSha256": "390e6c4a4ab2b7ac142c9871ab8bac859f5c6c14997a68cda857ead6dc674563"
+			"englishSha256": "54c9a344e88b1585081c5c1fdb1630638f710116bd71d3885cf7dad6f0635f86",
+			"zhCnSha256": "df4395a2e890412b285728920a1656d526292bd12adc8705f5ef6eb839edf2f0"
 		},
 		"apps/desktop/docs/ssh-environment-connection.md": {
 			"englishSha256": "a4827892f87af61cd3f6aed8c135a99ff97cbca06fef8e8dd59b8ac099482055",
@@ -366,8 +366,8 @@
 			"zhCnSha256": "35b3dd9bc49539693cc96f5bb30b43f26435f3d7e61586c420b4f11670411bf8"
 		},
 		"packages/workbench/README.md": {
-			"englishSha256": "7111ad17192bdea0eba6c0e5719c133f94a7465a4ae29a1e444f053bd05b1e1d",
-			"zhCnSha256": "777eea3dd402c1593b9be52dfeac2bed625b1d4af56ccb028fb8af5b639cf964"
+			"englishSha256": "c163c7717dfd2522ec3165e910f07d51f50ef6b924f5f333e478c13b6f14479b",
+			"zhCnSha256": "0f4e1daf7571389cc37bfd8f79fe0caf44cedc339256a40020f112387cd2de76"
 		},
 		"packages/workbench/docs/panel-broadcast-input.md": {
 			"englishSha256": "a56fe71870f7adae9697ec4851cc0c92b0e129c61662777451dc2941185a464e",
@@ -394,8 +394,8 @@
 			"zhCnSha256": "b80f3d41405ec503a79b7c62cd55917d37b35a4acd13cf95f7aba117c299fe29"
 		},
 		"proposals/cli/agent-control-surface.md": {
-			"englishSha256": "65b1923530a5c9c97615ac2f3731fdc4c839bcaddfddb812f217c08762ff2860",
-			"zhCnSha256": "1f4d15342616bde6444431f934f4bd95f95ddd5c6eed64485292a2e04c70049f"
+			"englishSha256": "b104811ca58a28eda0d35e25b623e81aaf5967668ceeb894110c8ae522473413",
+			"zhCnSha256": "b7d5d323fff837c0a38037a441c4146ca3eb941aa0541004dd36b74a9704a23b"
 		},
 		"proposals/platform/connected-client-capability-service.md": {
 			"englishSha256": "e9bf4886af1f8fa12edf805c1df10970c7e964812bf9810f98ab51131dddc04d",

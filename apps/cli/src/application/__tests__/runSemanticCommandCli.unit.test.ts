@@ -26,6 +26,7 @@ import {
 	WORKBENCH_TAB_LIST_OPERATION,
 	WORKBENCH_TERMINAL_CREATE_OPERATION,
 	WORKBENCH_TERMINAL_LIST_OPERATION,
+	WORKBENCH_TERMINAL_OUTPUT_READ_OPERATION,
 	WORKBENCH_WORKSPACE_LIST_OPERATION,
 } from '@orchbee/workbench/semantic-commands';
 
@@ -60,6 +61,7 @@ const ownedOperations = [
 	WORKBENCH_PANEL_LIST_OPERATION,
 	WORKBENCH_TERMINAL_LIST_OPERATION,
 	WORKBENCH_TERMINAL_CREATE_OPERATION,
+	WORKBENCH_TERMINAL_OUTPUT_READ_OPERATION,
 ] as const;
 
 function descriptorFor(operationId: string) {
@@ -202,6 +204,7 @@ describe('runSemanticCommandCli', () => {
 		expect(result.stdout).toContain('"$ORCHBEE_CLI" panel list');
 		expect(result.stdout).toContain('"$ORCHBEE_CLI" agent changes');
 		expect(result.stdout).toContain('"$ORCHBEE_CLI" agent wait');
+		expect(result.stdout).toContain('"$ORCHBEE_CLI" terminal read');
 		expect(result.stdout.endsWith('\n')).toBe(true);
 		expect(connect).not.toHaveBeenCalled();
 		expect(createRequestIdentity).not.toHaveBeenCalled();
@@ -275,6 +278,12 @@ describe('runSemanticCommandCli', () => {
 				command: 'terminal.list',
 				input: { limit: 100, location: { kind: 'standalone' } },
 				operationId: 'workbench.terminal.list',
+			},
+			{
+				arguments: ['terminal', 'read', 'presentation-1', '--rows', '40'],
+				command: 'terminal.read',
+				input: { presentationId: 'presentation-1', rows: 40 },
+				operationId: 'workbench.terminal.output.read',
 			},
 			{
 				arguments: [

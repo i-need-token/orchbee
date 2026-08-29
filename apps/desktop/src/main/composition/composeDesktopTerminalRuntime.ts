@@ -63,6 +63,7 @@ export interface DesktopTerminalRuntime extends DesktopTerminalLifecycleOperatio
 		geometry: TerminalGeometry,
 		options?: DesktopTerminalProjectionOpenOptions,
 	): Promise<DesktopTerminalProjectionLease>;
+	openReadOnly(presentationId: TerminalPresentationId): Promise<DesktopTerminalProjectionLease>;
 	reconcileArchives(retainedPresentationIds: ReadonlySet<TerminalPresentationId>): Promise<void>;
 	recordExit(event: TerminalExited): Promise<TerminalPresentationId | null>;
 	recordExitOutcome(event: TerminalExited): Promise<DesktopTerminalExitRecordResult>;
@@ -213,6 +214,19 @@ export function composeDesktopTerminalRuntime(
 				throw liveError;
 			}
 		},
+		openReadOnly: async (presentationId) => {
+			const target = adapter.getProjectionTarget(presentationId);
+			if (target !== null) {
+				return projectionService.openCaptureReadOnly(presentationId, target.identity);
+			}
+			try {
+				const archived = await archivedProjections.open(presentationId);
+				if (archived !== null) return archived;
+			} catch {
+				await archiveStore.remove(presentationId).catch(() => undefined);
+			}
+			throw terminalProjectionFailure('terminal-projection-unavailable', true);
+		},
 		reconcileArchives: async (retainedPresentationIds) => {
 			await archiveStore.reconcile(retainedPresentationIds).catch(() => undefined);
 		},
@@ -225,4 +239,8 @@ export function composeDesktopTerminalRuntime(
 			identityObservedListener = listener;
 		},
 	};
+}
+
+function terminalProjectionFailure(code: string, retryable: boolean): Error {
+	return new Error(code, { cause: { code, retryable } });
 }

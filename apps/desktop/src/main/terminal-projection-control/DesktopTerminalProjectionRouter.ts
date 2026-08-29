@@ -18,6 +18,7 @@ interface DesktopTerminalProjectionRuntimePort {
 		geometry: TerminalGeometry,
 		options?: DesktopTerminalProjectionOpenOptions,
 	): Promise<DesktopTerminalProjectionLease>;
+	openReadOnly(presentationId: TerminalPresentationId): Promise<DesktopTerminalProjectionLease>;
 }
 
 interface DesktopSshEnvironmentTerminalProjectionRuntimePort {
@@ -26,6 +27,10 @@ interface DesktopSshEnvironmentTerminalProjectionRuntimePort {
 		presentationId: TerminalPresentationId,
 		geometry: TerminalGeometry,
 		options?: DesktopTerminalProjectionOpenOptions,
+	): Promise<DesktopTerminalProjectionLease>;
+	openReadOnly(
+		environmentId: EnvironmentId,
+		presentationId: TerminalPresentationId,
 	): Promise<DesktopTerminalProjectionLease>;
 }
 
@@ -64,6 +69,29 @@ export class DesktopTerminalProjectionRouter {
 						presentationId,
 						geometry,
 						options,
+					);
+		if (this.#targetStillCurrent(presentationId, target)) {
+			this.#publicationTargets.set(lease, target);
+			return lease;
+		}
+		try {
+			await lease.dispose();
+		} catch {
+			throw projectionFailure('terminal-projection-cleanup-failed', true);
+		}
+		throw projectionFailure('terminal-projection-retired', false);
+	}
+
+	async openReadOnly(
+		presentationId: TerminalPresentationId,
+	): Promise<DesktopTerminalProjectionLease> {
+		const target = this.#resolveTarget(presentationId);
+		const lease =
+			target.kind === 'local'
+				? await this.#localRuntime.openReadOnly(presentationId)
+				: await this.#remoteRuntimes.openReadOnly(
+						EnvironmentIdSchema.parse(target.environmentId),
+						presentationId,
 					);
 		if (this.#targetStillCurrent(presentationId, target)) {
 			this.#publicationTargets.set(lease, target);

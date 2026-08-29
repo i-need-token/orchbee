@@ -13,6 +13,10 @@ export {
 	WORKBENCH_PROJECT_LIST_OPERATION,
 	WORKBENCH_TAB_LIST_OPERATION,
 	WORKBENCH_TERMINAL_LIST_OPERATION,
+	WORKBENCH_TERMINAL_OUTPUT_DEFAULT_ROWS,
+	WORKBENCH_TERMINAL_OUTPUT_MAXIMUM_ROWS,
+	WORKBENCH_TERMINAL_OUTPUT_MAXIMUM_TEXT_BYTES,
+	WORKBENCH_TERMINAL_OUTPUT_READ_OPERATION,
 	WORKBENCH_WORKSPACE_LIST_OPERATION,
 	WorkbenchDirectoryListInputSchema,
 	WorkbenchDirectoryListPageSchema,
@@ -25,6 +29,8 @@ export {
 	WorkbenchTabListPageSchema,
 	WorkbenchTerminalListInputSchema,
 	WorkbenchTerminalListPageSchema,
+	WorkbenchTerminalOutputReadInputSchema,
+	WorkbenchTerminalOutputReadOutputSchema,
 	WorkbenchWorkspaceListInputSchema,
 	WorkbenchWorkspaceListPageSchema,
 } from './semantic-command-read-contracts';
@@ -67,6 +73,8 @@ export type {
 	WorkbenchTabListPage,
 	WorkbenchTerminalListInput,
 	WorkbenchTerminalListPage,
+	WorkbenchTerminalOutputReadInput,
+	WorkbenchTerminalOutputReadOutput,
 	WorkbenchWorkspaceListInput,
 	WorkbenchWorkspaceListPage,
 } from './semantic-command-read-contracts';

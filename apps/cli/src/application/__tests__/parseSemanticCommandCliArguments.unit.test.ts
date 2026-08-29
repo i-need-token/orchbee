@@ -116,6 +116,21 @@ describe('parseSemanticCommandCliArguments', () => {
 			{
 				arguments: [
 					'terminal',
+					'read',
+					'presentation-1',
+					'--rows',
+					'250',
+					'--detach',
+					'--request-id',
+					'cli:request:terminal-read',
+				],
+				input: { presentationId: 'presentation-1', rows: 250 },
+				kind: 'terminal-read',
+				operationId: 'workbench.terminal.output.read',
+			},
+			{
+				arguments: [
+					'terminal',
 					'create',
 					'--project',
 					'project-1',
@@ -247,6 +262,10 @@ describe('parseSemanticCommandCliArguments', () => {
 			['terminal', 'list'],
 			['terminal', 'list', '--standalone', '--project', 'project-1'],
 			['terminal', 'list', '--project', 'project-1'],
+			['terminal', 'read'],
+			['terminal', 'read', 'presentation-1', '--rows', '0'],
+			['terminal', 'read', 'presentation-1', '--rows', '1001'],
+			['terminal', 'read', 'presentation-1', '--standalone'],
 			['terminal', 'create', '--standalone', '--cursor', 'not-accepted'],
 			['agent', 'list', '--limit', '101'],
 			['agent', 'get'],

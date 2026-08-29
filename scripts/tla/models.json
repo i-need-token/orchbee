@@ -1149,6 +1149,40 @@
 			]
 		},
 		{
+			"id": "desktop-terminal-semantic-read",
+			"owner": "@orchbee/desktop",
+			"workspace": "apps/desktop",
+			"module": "apps/desktop/formal/tla/TerminalSemanticRead.tla",
+			"config": "apps/desktop/formal/tla/TerminalSemanticRead.cfg",
+			"claims": [
+				"apps/desktop/docs/semantic-command-execution.md",
+				"proposals/cli/agent-control-surface.md"
+			],
+			"triggers": [
+				"apps/desktop/src/main/composition/composeDesktopTerminalRuntime.ts",
+				"apps/desktop/src/main/remote-terminal/DesktopSshEnvironmentTerminalRuntimeOwner.ts",
+				"apps/desktop/src/main/remote-terminal/desktop-ssh-environment-terminal-runtime.ts",
+				"apps/desktop/src/main/semantic-command/createDesktopTerminalOutputReadOperation.ts",
+				"apps/desktop/src/main/terminal-output-read/**",
+				"apps/desktop/src/main/terminal-projection-control/**",
+				"packages/workbench/src/workbench/semantic-commands/**"
+			],
+			"requiredCoverage": [
+				"BeginRead",
+				"OpenReadOnlyLease",
+				"OpenUnavailable",
+				"ObserveFrame",
+				"RequestRows",
+				"AdvanceFrame",
+				"RowsMatched",
+				"RowsStale",
+				"Cancel",
+				"TargetRetired",
+				"DisposeLease",
+				"PublishResult"
+			]
+		},
+		{
 			"id": "desktop-window-layout",
 			"owner": "@orchbee/desktop",
 			"workspace": "apps/desktop",

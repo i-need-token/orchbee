@@ -244,6 +244,27 @@ export class DesktopSshEnvironmentTerminalRuntimeOwner {
 		throw projectionFailure('terminal-projection-unavailable', true);
 	}
 
+	async openReadOnly(
+		environmentId: EnvironmentId,
+		presentationId: TerminalPresentationId,
+	): Promise<DesktopTerminalProjectionLease> {
+		const canonicalId = EnvironmentIdSchema.parse(environmentId);
+		const record = this.#records.get(canonicalId);
+		if (record === undefined || !record.available || this.#disposed) {
+			throw projectionFailure('terminal-projection-unavailable', true);
+		}
+		const lease = await record.runtime.openReadOnly(presentationId);
+		if (!this.#disposed && record.available && this.#records.get(canonicalId) === record) {
+			return lease;
+		}
+		try {
+			await lease.dispose();
+		} catch {
+			throw projectionFailure('terminal-projection-cleanup-failed', true);
+		}
+		throw projectionFailure('terminal-projection-unavailable', true);
+	}
+
 	retire(environmentId: EnvironmentId): Promise<void> {
 		const canonicalId = EnvironmentIdSchema.parse(environmentId);
 		return this.#enqueue(canonicalId, async () => {

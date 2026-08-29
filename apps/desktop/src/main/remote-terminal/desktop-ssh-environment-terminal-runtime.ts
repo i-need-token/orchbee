@@ -45,6 +45,7 @@ export interface DesktopSshEnvironmentTerminalRuntimeHandle {
 		geometry: TerminalGeometry,
 		options?: DesktopTerminalProjectionOpenOptions,
 	): Promise<DesktopTerminalProjectionLease>;
+	openReadOnly(presentationId: TerminalPresentationId): Promise<DesktopTerminalProjectionLease>;
 	recordExitOutcome(event: TerminalExited): Promise<DesktopTerminalExitRecordResult>;
 	recordFailure(event: TerminalFailed): Promise<TerminalPresentationId | null>;
 	releasePendingExit?(event: TerminalExited): void;

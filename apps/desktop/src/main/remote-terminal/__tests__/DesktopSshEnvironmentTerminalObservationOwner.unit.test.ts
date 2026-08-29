@@ -577,6 +577,9 @@ function runtimeHandle(
 			open: async () => {
 				throw new Error('Projection is outside this observation test.');
 			},
+			openReadOnly: async () => {
+				throw new Error('Projection is outside this observation test.');
+			},
 			recordExitOutcome,
 			recordFailure,
 			releasePendingExit: () => undefined,

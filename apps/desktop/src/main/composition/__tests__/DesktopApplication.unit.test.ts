@@ -601,6 +601,7 @@ describe('DesktopApplication', () => {
 			'workbench.tab.list',
 			'workbench.terminal.create',
 			'workbench.terminal.list',
+			'workbench.terminal.output.read',
 			'workbench.workspace.list',
 		]);
 		expect(endpoint.options.workerEntryPath).toContain(
@@ -2627,6 +2628,7 @@ function createHarness(
 			.fn<DesktopTerminalRuntime['inspectUnknownHostTerminalCount']>()
 			.mockResolvedValue(0),
 		open: vi.fn<DesktopTerminalRuntime['open']>(),
+		openReadOnly: vi.fn<DesktopTerminalRuntime['openReadOnly']>(),
 		reconcileArchives: vi
 			.fn<DesktopTerminalRuntime['reconcileArchives']>()
 			.mockResolvedValue(undefined),
