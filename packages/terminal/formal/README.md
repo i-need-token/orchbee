@@ -158,22 +158,30 @@ native operating-system IME candidate UI.
 general-buffer row-read lanes. The viewport lane represents only the protocol-admitted
 `current-view` requests whose origins are `tail` or `committed`; search and general-buffer lanes
 retain exact-revision semantics. Each lane admits at most one request, all three may coexist, and a
-request-sequence-correlated response settles only its owning lane. The checked bound admits one
-request per lane and one revision advance; the transition invariants are independent of those
+request-sequence-correlated response settles only its owning lane. The viewport scheduler also
+models coalesced user motion and valid-anchor maintenance refreshes: queued user motion is admitted
+first and its current-view request absorbs the older refresh. It also models a pre-admission
+missing-anchor observation: a resolving current-view request establishes the pending Host pin and
+supersedes recovery work queued before that response, while recovery blocks any later viewport
+admission until it settles. The checked bound admits two serial viewport requests, one request in
+each auxiliary lane, and one revision advance; the transition invariants are independent of those
 finite exploration bounds.
 
-| Row-flight claim                                   | Model property                                                            | TypeScript refinement                                                                                            |
-| -------------------------------------------------- | ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| Each purpose remains single-flight                 | `AtMostOneFlightPerLane`, `AtMostThreeFlights`                            | `ProjectedTerminal` stores one viewport, search, and general-buffer flight, for a total bound of three.          |
-| Independently ordered replies cannot cross         | `InFlightSequencesAreDistinct`, `CrossLaneSettlementIsolation`            | `applyRows` selects the exact lane by decoded request sequence before settling or applying its result.           |
-| Revision churn cannot invalidate viewport work     | `RevisionAdvancePreservesFlights`, `EveryAdmittedFlightEventuallySettles` | A same-generation current-view response may commit after newer Host output; a correlated refresh then coalesces. |
-| Exact row results never cross a revision           | `ExactRowsResolveOnlyAtCapturedRevision`                                  | Search and general-buffer responses still require the captured generation and revision.                          |
-| Abort, disposal, and ordinary completion are local | `CrossLaneSettlementIsolation`, `DisposalClosesEveryLane`                 | Auxiliary aborts capture their lane and sequence; disposal closes all lanes without promoting viewport work.     |
+| Row-flight claim                                   | Model property                                                                                                                         | TypeScript refinement                                                                                                                                  |
+| -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Each purpose remains single-flight                 | `AtMostOneFlightPerLane`, `AtMostThreeFlights`                                                                                         | `ProjectedTerminal` stores one viewport, search, and general-buffer flight, for a total bound of three.                                                |
+| Independently ordered replies cannot cross         | `InFlightSequencesAreDistinct`, `CrossLaneSettlementIsolation`                                                                         | `applyRows` selects the exact lane by decoded request sequence before settling or applying its result.                                                 |
+| Revision churn cannot invalidate viewport work     | `RevisionAdvancePreservesFlights`, `EveryAdmittedFlightEventuallySettles`                                                              | A same-generation current-view response may commit after newer Host output; a correlated refresh then coalesces.                                       |
+| Maintenance refresh cannot starve user motion      | `RefreshAdmissionNeverPreemptsQueuedUserIntent`, `UserAdmissionAbsorbsMaintenanceRefresh`, `EveryQueuedUserIntentEventuallyDispatches` | Once the current viewport flight settles, `ProjectedTerminal` dispatches the latest explicit viewport intent before a valid-anchor `delta: 0` refresh. |
+| A committed viewport supersedes prior anchor work  | `ViewportResolutionSupersedesPriorAnchorWork`, `ViewportAdmissionRequiresNoRecovery`                                                   | A current-view response clears refresh or recovery queued before it; authoritative later recovery settles before another viewport admission.           |
+| Exact row results never cross a revision           | `ExactRowsResolveOnlyAtCapturedRevision`                                                                                               | Search and general-buffer responses still require the captured generation and revision.                                                                |
+| Abort, disposal, and ordinary completion are local | `CrossLaneSettlementIsolation`, `DisposalClosesEveryLane`                                                                              | Auxiliary aborts capture their lane and sequence; disposal closes all lanes without promoting viewport work.                                           |
 
-Weak fairness applies only to consistency-appropriate settlement of already-admitted work. The
-model does not assume a Host response deadline, transport delivery, or a particular order among
-the lanes. The schema restriction to viewport plus `tail` or `committed`, generation invalidation,
-byte bounds, rendering, and correlated refresh are covered by protocol and TypeScript tests.
+Weak fairness applies to consistency-appropriate settlement of already-admitted work, enabled user
+or maintenance viewport admission, and enabled invalid-anchor recovery. The model does not assume a
+Host response deadline, transport delivery, or a particular order among the lanes. The schema
+restriction to viewport plus `tail` or `committed`, generation invalidation, byte bounds, rendering,
+and correlated refresh are covered by protocol and TypeScript tests.
 
 ## Prompt-navigation commit authority
 

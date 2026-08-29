@@ -1,15 +1,20 @@
 -------------------- MODULE TerminalRowFlightCoordination --------------------
 EXTENDS FiniteSets, Naturals, TLC
 
-CONSTANTS MaxAdmissions, MaxRevision
+CONSTANTS MaxAdmissions, MaxRevision, MaxViewportAdmissions
 
 \* Models the three independently correlated row-read lanes owned by
 \* ProjectedTerminal. The interactive viewport lane uses Host-linearized
 \* current-view semantics; search and general-buffer lanes retain exact
 \* revision snapshots. Revision churn can therefore never stale or starve an
 \* admitted viewport flight, while exact lanes settle stale rather than accept
-\* bytes from a different revision. Generation invalidation is owned by the
-\* Host history model and is outside this client-lane abstraction.
+\* bytes from a different revision. A valid-anchor maintenance refresh may be
+\* queued alongside newer user viewport motion; once the current flight
+\* settles, user motion is admitted first and subsumes that refresh. A
+\* current-view response also establishes a newer pending Host pin, so it
+\* supersedes anchor recovery or maintenance work queued before that response.
+\* Generation invalidation is owned by the Host history model and is outside
+\* this client-lane abstraction.
 
 Lanes == {"viewport", "search", "buffer"}
 AuxiliaryLanes == {"search", "buffer"}
@@ -17,7 +22,9 @@ Phases == {"idle", "in-flight", "settled", "disposed"}
 Outcomes == {"none", "rows", "stale", "unavailable", "cancelled", "disposed"}
 NoLane == "none"
 Actions == {
-  "init", "admit-viewport", "admit-search", "admit-buffer",
+  "init", "queue-user-intent", "queue-maintenance-refresh",
+  "queue-anchor-recovery", "recover-anchor",
+  "admit-viewport-user", "admit-viewport-refresh", "admit-search", "admit-buffer",
   "resolve-viewport", "resolve-search", "resolve-buffer",
   "stale-search", "stale-buffer", "fail-viewport", "fail-search",
   "fail-buffer", "abort-search", "abort-buffer", "advance-revision",
@@ -26,13 +33,17 @@ Actions == {
 
 VARIABLES active, revision, phase, outcome, admissionCount, sequence,
   flightRevision, nextSequence, priorRevision, priorPhase, priorOutcome,
-  priorAdmissionCount, priorSequence, priorFlightRevision, lastAction,
-  lastTarget
+  priorAdmissionCount, priorSequence, priorFlightRevision,
+  pendingUserIntent, pendingMaintenanceRefresh, pendingAnchorRecovery,
+  lastViewportIntentKind,
+  priorPendingUserIntent, lastAction, lastTarget
 
 vars == <<active, revision, phase, outcome, admissionCount, sequence,
   flightRevision, nextSequence, priorRevision, priorPhase, priorOutcome,
-  priorAdmissionCount, priorSequence, priorFlightRevision, lastAction,
-  lastTarget>>
+  priorAdmissionCount, priorSequence, priorFlightRevision,
+  pendingUserIntent, pendingMaintenanceRefresh, pendingAnchorRecovery,
+  lastViewportIntentKind,
+  priorPendingUserIntent, lastAction, lastTarget>>
 
 Init ==
   /\ active = TRUE
@@ -49,56 +60,117 @@ Init ==
   /\ priorAdmissionCount = admissionCount
   /\ priorSequence = sequence
   /\ priorFlightRevision = flightRevision
+  /\ pendingUserIntent = FALSE
+  /\ pendingMaintenanceRefresh = FALSE
+  /\ pendingAnchorRecovery = FALSE
+  /\ lastViewportIntentKind = "none"
+  /\ priorPendingUserIntent = pendingUserIntent
   /\ lastAction = "init"
   /\ lastTarget = NoLane
 
 Record(action, lane, oldRevision, oldPhase, oldOutcome, oldAdmissionCount,
-       oldSequence, oldFlightRevision) ==
+       oldSequence, oldFlightRevision, oldPendingUserIntent) ==
   /\ priorRevision' = oldRevision
   /\ priorPhase' = oldPhase
   /\ priorOutcome' = oldOutcome
   /\ priorAdmissionCount' = oldAdmissionCount
   /\ priorSequence' = oldSequence
   /\ priorFlightRevision' = oldFlightRevision
+  /\ priorPendingUserIntent' = oldPendingUserIntent
   /\ lastAction' = action
   /\ lastTarget' = lane
 
-Admit(lane, action) ==
+AdmissionLimit(lane) ==
+  IF lane = "viewport" THEN MaxViewportAdmissions ELSE MaxAdmissions
+
+Admit(lane, action, nextPendingUserIntent, nextPendingMaintenanceRefresh,
+      nextViewportIntentKind) ==
   /\ active
   /\ lane \in Lanes
   /\ phase[lane] \in {"idle", "settled"}
-  /\ admissionCount[lane] < MaxAdmissions
+  /\ admissionCount[lane] < AdmissionLimit(lane)
   /\ phase' = [phase EXCEPT ![lane] = "in-flight"]
   /\ outcome' = [outcome EXCEPT ![lane] = "none"]
   /\ admissionCount' = [admissionCount EXCEPT ![lane] = @ + 1]
   /\ sequence' = [sequence EXCEPT ![lane] = nextSequence]
   /\ flightRevision' = [flightRevision EXCEPT ![lane] = revision]
   /\ nextSequence' = nextSequence + 1
-  /\ UNCHANGED <<active, revision>>
+  /\ pendingUserIntent' = nextPendingUserIntent
+  /\ pendingMaintenanceRefresh' = nextPendingMaintenanceRefresh
+  /\ lastViewportIntentKind' = nextViewportIntentKind
+  /\ UNCHANGED <<active, revision, pendingAnchorRecovery>>
   /\ Record(action, lane, revision, phase, outcome, admissionCount, sequence,
-       flightRevision)
+       flightRevision, pendingUserIntent)
 
-AdmitViewport == Admit("viewport", "admit-viewport")
-AdmitSearch == Admit("search", "admit-search")
-AdmitBuffer == Admit("buffer", "admit-buffer")
+QueueUserIntent ==
+  /\ active
+  /\ ~pendingUserIntent
+  /\ admissionCount["viewport"] < MaxViewportAdmissions
+  /\ pendingUserIntent' = TRUE
+  /\ UNCHANGED <<active, revision, phase, outcome, admissionCount, sequence,
+       flightRevision, nextSequence, pendingMaintenanceRefresh,
+       pendingAnchorRecovery, lastViewportIntentKind>>
+  /\ Record("queue-user-intent", NoLane, revision, phase, outcome,
+       admissionCount, sequence, flightRevision, pendingUserIntent)
 
-Settle(lane, nextOutcome, action) ==
+QueueMaintenanceRefresh ==
+  /\ active
+  /\ ~pendingMaintenanceRefresh
+  /\ pendingMaintenanceRefresh' = TRUE
+  /\ UNCHANGED <<active, revision, phase, outcome, admissionCount, sequence,
+       flightRevision, nextSequence, pendingUserIntent,
+       pendingAnchorRecovery, lastViewportIntentKind>>
+  /\ Record("queue-maintenance-refresh", NoLane, revision, phase, outcome,
+       admissionCount, sequence, flightRevision, pendingUserIntent)
+
+QueueAnchorRecovery ==
+  /\ active
+  /\ ~pendingAnchorRecovery
+  /\ pendingAnchorRecovery' = TRUE
+  /\ UNCHANGED <<active, revision, phase, outcome, admissionCount, sequence,
+       flightRevision, nextSequence, pendingUserIntent,
+       pendingMaintenanceRefresh, lastViewportIntentKind>>
+  /\ Record("queue-anchor-recovery", NoLane, revision, phase, outcome,
+       admissionCount, sequence, flightRevision, pendingUserIntent)
+
+AdmitViewportUser ==
+  /\ ~pendingAnchorRecovery
+  /\ pendingUserIntent
+  /\ Admit("viewport", "admit-viewport-user", FALSE, FALSE, "user")
+
+AdmitViewportRefresh ==
+  /\ ~pendingAnchorRecovery
+  /\ ~pendingUserIntent
+  /\ pendingMaintenanceRefresh
+  /\ Admit("viewport", "admit-viewport-refresh", FALSE, FALSE, "refresh")
+
+AdmitSearch ==
+  Admit("search", "admit-search", pendingUserIntent,
+    pendingMaintenanceRefresh, lastViewportIntentKind)
+AdmitBuffer ==
+  Admit("buffer", "admit-buffer", pendingUserIntent,
+    pendingMaintenanceRefresh, lastViewportIntentKind)
+
+Settle(lane, nextOutcome, action, nextPendingMaintenanceRefresh,
+       nextPendingAnchorRecovery) ==
   /\ active
   /\ lane \in Lanes
   /\ phase[lane] = "in-flight"
   /\ phase' = [phase EXCEPT ![lane] = "settled"]
   /\ outcome' = [outcome EXCEPT ![lane] = nextOutcome]
+  /\ pendingMaintenanceRefresh' = nextPendingMaintenanceRefresh
+  /\ pendingAnchorRecovery' = nextPendingAnchorRecovery
   /\ UNCHANGED <<active, revision, admissionCount, sequence,
-       flightRevision, nextSequence>>
+       flightRevision, nextSequence, pendingUserIntent, lastViewportIntentKind>>
   /\ Record(action, lane, revision, phase, outcome, admissionCount, sequence,
-       flightRevision)
+       flightRevision, pendingUserIntent)
 
-ResolveViewport == Settle("viewport", "rows", "resolve-viewport")
+ResolveViewport == Settle("viewport", "rows", "resolve-viewport", FALSE, FALSE)
 
 ResolveExact(lane, action) ==
   /\ lane \in AuxiliaryLanes
   /\ flightRevision[lane] = revision
-  /\ Settle(lane, "rows", action)
+  /\ Settle(lane, "rows", action, pendingMaintenanceRefresh, pendingAnchorRecovery)
 
 ResolveSearch == ResolveExact("search", "resolve-search")
 ResolveBuffer == ResolveExact("buffer", "resolve-buffer")
@@ -106,25 +178,44 @@ ResolveBuffer == ResolveExact("buffer", "resolve-buffer")
 StaleExact(lane, action) ==
   /\ lane \in AuxiliaryLanes
   /\ flightRevision[lane] # revision
-  /\ Settle(lane, "stale", action)
+  /\ Settle(lane, "stale", action, pendingMaintenanceRefresh, pendingAnchorRecovery)
 
 StaleSearch == StaleExact("search", "stale-search")
 StaleBuffer == StaleExact("buffer", "stale-buffer")
 
-FailViewport == Settle("viewport", "unavailable", "fail-viewport")
-FailSearch == Settle("search", "unavailable", "fail-search")
-FailBuffer == Settle("buffer", "unavailable", "fail-buffer")
-AbortSearch == Settle("search", "cancelled", "abort-search")
-AbortBuffer == Settle("buffer", "cancelled", "abort-buffer")
+FailViewport == Settle("viewport", "unavailable", "fail-viewport",
+  pendingMaintenanceRefresh, pendingAnchorRecovery)
+FailSearch == Settle("search", "unavailable", "fail-search",
+  pendingMaintenanceRefresh, pendingAnchorRecovery)
+FailBuffer == Settle("buffer", "unavailable", "fail-buffer",
+  pendingMaintenanceRefresh, pendingAnchorRecovery)
+AbortSearch == Settle("search", "cancelled", "abort-search",
+  pendingMaintenanceRefresh, pendingAnchorRecovery)
+AbortBuffer == Settle("buffer", "cancelled", "abort-buffer",
+  pendingMaintenanceRefresh, pendingAnchorRecovery)
+
+RecoverInvalidAnchor ==
+  /\ active
+  /\ pendingAnchorRecovery
+  /\ phase["viewport"] \in {"idle", "settled"}
+  /\ pendingUserIntent' = FALSE
+  /\ pendingMaintenanceRefresh' = FALSE
+  /\ pendingAnchorRecovery' = FALSE
+  /\ UNCHANGED <<active, revision, phase, outcome, admissionCount, sequence,
+       flightRevision, nextSequence, lastViewportIntentKind>>
+  /\ Record("recover-anchor", NoLane, revision, phase, outcome,
+       admissionCount, sequence, flightRevision, pendingUserIntent)
 
 AdvanceRevision ==
   /\ active
   /\ revision < MaxRevision
   /\ revision' = revision + 1
+  /\ pendingMaintenanceRefresh' = TRUE
   /\ UNCHANGED <<active, phase, outcome, admissionCount, sequence,
-       flightRevision, nextSequence>>
+       flightRevision, nextSequence, pendingUserIntent,
+       pendingAnchorRecovery, lastViewportIntentKind>>
   /\ Record("advance-revision", NoLane, revision, phase, outcome,
-       admissionCount, sequence, flightRevision)
+       admissionCount, sequence, flightRevision, pendingUserIntent)
 
 Dispose ==
   /\ active
@@ -133,12 +224,33 @@ Dispose ==
   /\ outcome' = [lane \in Lanes |->
        IF phase[lane] = "in-flight" THEN "disposed" ELSE outcome[lane]]
   /\ UNCHANGED <<revision, admissionCount, sequence, flightRevision,
-       nextSequence>>
+       nextSequence, pendingUserIntent, pendingMaintenanceRefresh,
+       pendingAnchorRecovery, lastViewportIntentKind>>
   /\ Record("dispose", NoLane, revision, phase, outcome, admissionCount,
-       sequence, flightRevision)
+       sequence, flightRevision, pendingUserIntent)
 
 CoverageAdmitViewport ==
-  /\ lastAction = "admit-viewport"
+  /\ lastAction = "admit-viewport-user"
+  /\ UNCHANGED vars
+
+CoverageAdmitViewportRefresh ==
+  /\ lastAction = "admit-viewport-refresh"
+  /\ UNCHANGED vars
+
+CoverageQueueUserIntent ==
+  /\ lastAction = "queue-user-intent"
+  /\ UNCHANGED vars
+
+CoverageQueueMaintenanceRefresh ==
+  /\ lastAction = "queue-maintenance-refresh"
+  /\ UNCHANGED vars
+
+CoverageQueueAnchorRecovery ==
+  /\ lastAction = "queue-anchor-recovery"
+  /\ UNCHANGED vars
+
+CoverageRecoverInvalidAnchor ==
+  /\ lastAction = "recover-anchor"
   /\ UNCHANGED vars
 
 CoverageAdmitSearch ==
@@ -195,7 +307,12 @@ SettleByConsistency(lane) ==
     [] OTHER -> ResolveBuffer \/ StaleBuffer
 
 Next ==
-  \/ AdmitViewport
+  \/ QueueUserIntent
+  \/ QueueMaintenanceRefresh
+  \/ QueueAnchorRecovery
+  \/ RecoverInvalidAnchor
+  \/ AdmitViewportUser
+  \/ AdmitViewportRefresh
   \/ AdmitSearch
   \/ AdmitBuffer
   \/ ResolveViewport
@@ -211,6 +328,11 @@ Next ==
   \/ AdvanceRevision
   \/ Dispose
   \/ CoverageAdmitViewport
+  \/ CoverageAdmitViewportRefresh
+  \/ CoverageQueueUserIntent
+  \/ CoverageQueueMaintenanceRefresh
+  \/ CoverageQueueAnchorRecovery
+  \/ CoverageRecoverInvalidAnchor
   \/ CoverageAdmitSearch
   \/ CoverageAdmitBuffer
   \/ CoverageResolveViewport
@@ -228,6 +350,9 @@ Spec ==
   /\ Init
   /\ [][Next]_vars
   /\ \A lane \in Lanes: WF_vars(SettleByConsistency(lane))
+  /\ WF_vars(AdmitViewportUser)
+  /\ WF_vars(AdmitViewportRefresh)
+  /\ WF_vars(RecoverInvalidAnchor)
 
 TypeOK ==
   /\ active \in BOOLEAN
@@ -244,12 +369,17 @@ TypeOK ==
   /\ priorAdmissionCount \in [Lanes -> Nat]
   /\ priorSequence \in [Lanes -> Nat]
   /\ priorFlightRevision \in [Lanes -> 0..MaxRevision]
+  /\ pendingUserIntent \in BOOLEAN
+  /\ pendingMaintenanceRefresh \in BOOLEAN
+  /\ pendingAnchorRecovery \in BOOLEAN
+  /\ lastViewportIntentKind \in {"none", "user", "refresh"}
+  /\ priorPendingUserIntent \in BOOLEAN
   /\ lastAction \in Actions
   /\ lastTarget \in Lanes \cup {NoLane}
 
 AtMostOneFlightPerLane ==
   \A lane \in Lanes:
-    /\ admissionCount[lane] <= MaxAdmissions
+    /\ admissionCount[lane] <= AdmissionLimit(lane)
     /\ phase[lane] = "in-flight" =>
          /\ admissionCount[lane] >= 1
          /\ outcome[lane] = "none"
@@ -295,11 +425,32 @@ RevisionAdvancePreservesFlights ==
     /\ sequence = priorSequence
     /\ flightRevision = priorFlightRevision
 
+RefreshAdmissionNeverPreemptsQueuedUserIntent ==
+  lastAction = "admit-viewport-refresh" => ~priorPendingUserIntent
+
+UserAdmissionAbsorbsMaintenanceRefresh ==
+  lastAction = "admit-viewport-user" =>
+    /\ ~pendingUserIntent
+    /\ ~pendingMaintenanceRefresh
+    /\ lastViewportIntentKind = "user"
+
+ViewportResolutionSupersedesPriorAnchorWork ==
+  lastAction = "resolve-viewport" =>
+    /\ ~pendingMaintenanceRefresh
+    /\ ~pendingAnchorRecovery
+
+ViewportAdmissionRequiresNoRecovery ==
+  lastAction \in {"admit-viewport-user", "admit-viewport-refresh"} =>
+    ~pendingAnchorRecovery
+
 DisposalClosesEveryLane ==
   ~active => \A lane \in Lanes: phase[lane] = "disposed"
 
 EveryAdmittedFlightEventuallySettles ==
   \A lane \in Lanes:
     [](phase[lane] = "in-flight" => <>(phase[lane] \in {"settled", "disposed"}))
+
+EveryQueuedUserIntentEventuallyDispatches ==
+  [](pendingUserIntent => <>(~pendingUserIntent \/ ~active))
 
 =============================================================================

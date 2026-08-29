@@ -467,8 +467,24 @@ settles that old flight; the readable window remains visible and one event-drive
 newest generation and committed pin without surfacing the obsolete failure. Superseded background
 row reads likewise settle their bounded stale result without presenting a user-visible history
 failure.
+When valid-anchor maintenance refresh and explicit viewport work are both pending, the latest user
+line, page, scrollbar, search-reveal, or selection-autoscroll intent is dispatched first. Its
+current-view request uses the newest Host revision and committed pin, so it also satisfies the older
+maintenance refresh. History observation may race the Host's admission of that current-view read:
+a same-generation response at the observed revision or newer establishes the newer pending Host
+pin and supersedes a maintenance refresh or missing-anchor recovery queued before the response. A
+missing-anchor event newer than the response remains authoritative and recovers to the bottom
+before any queued history intent can run.
 Clear, screen replacement, eviction, or any other invalid anchor resumes bottom projection while a
 fresh snapshot replaces the last readable history window.
+
+The selected differential behavior reference is Ghostty source revision
+`9c3ec931d64561a8407dde7ac984ce156ae91539`, specifically `Surface.scrollCallback`,
+`Termio.scrollViewport`, and `PageList.scroll`, with a separate interaction check against the local
+ZeroGH 0.1 (1) build. The parity scope is progress only: a valid pinned primary-screen viewport must
+continue accepting user history motion while output advances. Orchbee retains its Host-projected
+row-window architecture; exact pixels, motion curve, transport latency, and alternate-screen
+application input are outside this differential claim.
 
 Wheel-originated history navigation presents each newly committed Host row window with one
 client-owned, reversible canvas transaction. It snapshots the previously committed canvas before

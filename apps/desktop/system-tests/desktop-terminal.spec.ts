@@ -1751,8 +1751,9 @@ test('terminal-parity/HS-04-selection-gesture', async () => {
 		.toContain('hs04-triple entire row marker');
 });
 
-test('terminal-parity/HS-12-sustained-output-interaction', async () => {
+test('terminal-parity/HS-12-sustained-output-interaction', async ({ browserName }, testInfo) => {
 	test.setTimeout(90_000);
+	test.skip(browserName !== 'chromium', 'The sustained-output witness requires Chromium.');
 	test.skip(process.platform === 'win32', 'The sustained-output witness uses a POSIX shell.');
 	const application = electronApplication;
 	if (application === undefined) throw new Error('Electron application did not start.');
@@ -1763,14 +1764,14 @@ test('terminal-parity/HS-12-sustained-output-interaction', async () => {
 	const accessibility = root.locator('[role="list"]');
 	const accessibleRows = accessibility.locator(':scope > div');
 	const canvas = root.locator('canvas').first();
-	await input.pressSequentially(
-		`i=1; while [ "$i" -le 220 ]; do printf 'hs12-history-%03d selectableword\\n' "$i"; i=$((i+1)); done; i=1; while [ "$i" -le 600 ]; do printf 'hs12-stream-%03d selectableword\\n' "$i"; sleep 0.03; i=$((i+1)); done; printf 'hs12-finished\\n'`,
-		{ delay: 1 },
-	);
+	const stressCommand =
+		`i=1; while [ "$i" -le 220 ]; do printf 'hs12-history-%03d selectableword\\n' "$i"; i=$((i+1)); done; ` +
+		`node -e 'let i=0; process.stdin.setRawMode(true); process.stdin.resume(); process.stdin.on("data",(data)=>{if(data[0]===3){process.exit(0)}process.stdout.write("\\r\\nhs12-input-ack-"+data.toString("hex")+"\\r\\n")}); setInterval(()=>{process.stdout.write("\\r\\x1b[2Khs12-status-"+String(i++).padStart(6,"0"))},2)'`;
+	await input.pressSequentially(stressCommand, { delay: 1 });
 	await input.press('Enter');
 
 	try {
-		await expect(accessibility).toContainText('hs12-stream-', { timeout: 10_000 });
+		await expect(accessibility).toContainText('hs12-status-', { timeout: 10_000 });
 		const firstVisibleRow = async (): Promise<bigint> =>
 			BigInt((await accessibleRows.first().getAttribute('data-terminal-absolute-row')) ?? '0');
 		const revisionBeforeScroll = BigInt(
@@ -1786,7 +1787,102 @@ test('terminal-parity/HS-12-sustained-output-interaction', async () => {
 		};
 
 		await canvas.hover();
-		for (let index = 0; index < 10; index++) await page.mouse.wheel(0, -12);
+		await page.mouse.wheel(0, -2_000);
+		await expect.poll(isAwayFromBottom).toBe(true);
+		const fineScrollStart = await firstVisibleRow();
+		await accessibility.evaluate((element, initialStart) => {
+			const terminalRoot = element.closest<HTMLElement>('[data-projected-terminal-state]');
+			if (terminalRoot === null) {
+				throw new Error('The sustained-output scroll measurement surface is unavailable.');
+			}
+			const surface = terminalRoot.querySelector('canvas');
+			if (surface === null) {
+				throw new Error('The sustained-output scroll measurement canvas is unavailable.');
+			}
+			let startedAt: number | undefined;
+			const recordProgress = (): void => {
+				const firstRow = element.querySelector<HTMLElement>(':scope > div');
+				const currentStart = firstRow?.dataset['terminalAbsoluteRow'];
+				if (
+					startedAt === undefined ||
+					currentStart === undefined ||
+					BigInt(currentStart) >= BigInt(initialStart)
+				) {
+					return;
+				}
+				terminalRoot.dataset['hs12FineScrollLatencyMilliseconds'] = String(
+					performance.now() - startedAt,
+				);
+				observer.disconnect();
+			};
+			const observer = new MutationObserver(recordProgress);
+			observer.observe(element, { attributes: true, childList: true, subtree: true });
+			surface.addEventListener(
+				'wheel',
+				() => {
+					startedAt ??= performance.now();
+					recordProgress();
+				},
+				{ capture: true, once: true },
+			);
+		}, fineScrollStart.toString());
+		for (let index = 0; index < 12; index++) await page.mouse.wheel(0, -12);
+		await expect.poll(firstVisibleRow).toBeLessThan(fineScrollStart);
+		await expect
+			.poll(() => root.getAttribute('data-hs12-fine-scroll-latency-milliseconds'))
+			.not.toBeNull();
+		const fineScrollLatencyMilliseconds = Number(
+			await root.getAttribute('data-hs12-fine-scroll-latency-milliseconds'),
+		);
+		expect(fineScrollLatencyMilliseconds).toBeLessThanOrEqual(150);
+
+		await input.evaluate((element) => {
+			const terminalRoot = element.closest<HTMLElement>('[data-projected-terminal-state]');
+			if (terminalRoot === null) {
+				throw new Error('The sustained-output input measurement surface is unavailable.');
+			}
+			const accessibilitySurface = terminalRoot.querySelector<HTMLElement>('[role="list"]');
+			if (accessibilitySurface === null) {
+				throw new Error('The sustained-output accessibility surface is unavailable.');
+			}
+			let startedAt: number | undefined;
+			const recordAcknowledgement = (): void => {
+				if (
+					startedAt === undefined ||
+					!accessibilitySurface.textContent?.includes('hs12-input-ack-71')
+				) {
+					return;
+				}
+				terminalRoot.dataset['hs12InputLatencyMilliseconds'] = String(
+					performance.now() - startedAt,
+				);
+				observer.disconnect();
+			};
+			const observer = new MutationObserver(recordAcknowledgement);
+			observer.observe(accessibilitySurface, { childList: true, subtree: true });
+			element.addEventListener(
+				'keydown',
+				(event) => {
+					if ((event as KeyboardEvent).key !== 'q') return;
+					startedAt = performance.now();
+					recordAcknowledgement();
+				},
+				{ capture: true, once: true },
+			);
+		});
+		await input.focus();
+		await input.press('q');
+		await expect(accessibility).toContainText('hs12-input-ack-71');
+		await expect
+			.poll(() => root.getAttribute('data-hs12-input-latency-milliseconds'))
+			.not.toBeNull();
+		const inputLatencyMilliseconds = Number(
+			await root.getAttribute('data-hs12-input-latency-milliseconds'),
+		);
+		expect(inputLatencyMilliseconds).toBeLessThanOrEqual(150);
+
+		await canvas.hover();
+		await page.mouse.wheel(0, -2_000);
 		await expect.poll(isAwayFromBottom).toBe(true);
 		const visibleHistoryRow = accessibleRows.filter({ hasText: 'selectableword' }).first();
 		await expect(visibleHistoryRow).toBeVisible();
@@ -1854,7 +1950,16 @@ test('terminal-parity/HS-12-sustained-output-interaction', async () => {
 			)
 			.toBeGreaterThan(revisionBeforeScroll);
 		await expect(root).toHaveAttribute('data-projected-terminal-selection-state', 'active');
-		expect(await root.getAttribute('data-projected-terminal-failure-code')).toBeNull();
+		const failureCode = await root.getAttribute('data-projected-terminal-failure-code');
+		if (failureCode !== null) {
+			throw new Error(
+				`Sustained-output interaction failed: ${failureCode} operation=${await root.getAttribute('data-projected-terminal-failure-operation')} request=${await root.getAttribute('data-projected-terminal-failure-request-sequence')}`,
+			);
+		}
+		await testInfo.attach('hs12-interaction-metrics.json', {
+			body: JSON.stringify({ fineScrollLatencyMilliseconds, inputLatencyMilliseconds }),
+			contentType: 'application/json',
+		});
 	} finally {
 		await input.focus();
 		await input.press('Control+C');

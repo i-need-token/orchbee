@@ -73,17 +73,19 @@ TLC 配置检查两个有序请求以及全部十个已发布字段的标识。�
 
 ## 行读取飞行协调
 
-`tla/TerminalRowFlightCoordination.tla` 对独立排序的视口、搜索和通用缓冲区行读取通道建模。视口通道只表示协议允许的 `current-view` 请求，其 origin 为 `tail` 或 `committed`；搜索和通用缓冲区通道继续使用精确修订语义。每个通道最多接纳一个请求，三个通道可以共存，按请求序列关联的响应只会结算其所属通道。检查边界允许每个通道接纳一个请求并发生一次修订推进；这些转移不变量不依赖上述有限探索边界。
+`tla/TerminalRowFlightCoordination.tla` 对独立排序的视口、搜索和通用缓冲区行读取通道建模。视口通道只表示协议允许的 `current-view` 请求，其 origin 为 `tail` 或 `committed`；搜索和通用缓冲区通道继续使用精确修订语义。每个通道最多接纳一个请求，三个通道可以共存，按请求序列关联的响应只会结算其所属通道。视口调度器还对合并的用户移动和有效锚点维护刷新建模：排队的用户移动会先获准，其 current-view 请求会吸收较旧的刷新。它也对准入前的缺锚观察建模：结算 current-view 请求会建立 Host 待提交固定点，并覆盖响应之前排队的恢复工作；恢复一旦仍具权威性，就会阻止后续视口准入直至结算。检查边界允许两个串行视口请求、每个辅助通道各一个请求，并发生一次修订推进；这些转移不变量不依赖上述有限探索边界。
 
-| 行读取飞行声明                       | 模型属性                                                                  | TypeScript 细化                                                              |
-| ------------------------------------ | ------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| 每种用途保持单飞行                   | `AtMostOneFlightPerLane`、`AtMostThreeFlights`                            | `ProjectedTerminal` 分别保存一个视口、搜索和通用缓冲区飞行，总上限为三个。   |
-| 独立排序的响应不能串到其他通道       | `InFlightSequencesAreDistinct`、`CrossLaneSettlementIsolation`            | `applyRows` 先按解码后的请求序列选择精确通道，再结算或应用结果。             |
-| 修订抖动不能使视口工作失效           | `RevisionAdvancePreservesFlights`、`EveryAdmittedFlightEventuallySettles` | 同生成的 current-view 响应可在更新的 Host 输出后提交，随后合并一次关联刷新。 |
-| 精确行结果绝不跨越修订               | `ExactRowsResolveOnlyAtCapturedRevision`                                  | 搜索和通用缓冲区响应仍要求捕获的生成与修订。                                 |
-| 中止、处置与普通完成只作用于所属通道 | `CrossLaneSettlementIsolation`、`DisposalClosesEveryLane`                 | 辅助中止捕获其通道和序列；处置关闭全部通道，且不提升视口工作。               |
+| 行读取飞行声明                       | 模型属性                                                                                                                               | TypeScript 细化                                                                                        |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| 每种用途保持单飞行                   | `AtMostOneFlightPerLane`、`AtMostThreeFlights`                                                                                         | `ProjectedTerminal` 分别保存一个视口、搜索和通用缓冲区飞行，总上限为三个。                             |
+| 独立排序的响应不能串到其他通道       | `InFlightSequencesAreDistinct`、`CrossLaneSettlementIsolation`                                                                         | `applyRows` 先按解码后的请求序列选择精确通道，再结算或应用结果。                                       |
+| 修订抖动不能使视口工作失效           | `RevisionAdvancePreservesFlights`、`EveryAdmittedFlightEventuallySettles`                                                              | 同生成的 current-view 响应可在更新的 Host 输出后提交，随后合并一次关联刷新。                           |
+| 维护刷新不能饿死用户移动             | `RefreshAdmissionNeverPreemptsQueuedUserIntent`、`UserAdmissionAbsorbsMaintenanceRefresh`、`EveryQueuedUserIntentEventuallyDispatches` | 当前视口飞行结算后，`ProjectedTerminal` 会先派发最新的显式视口意图，再处理有效锚点的 `delta: 0` 刷新。 |
+| 已提交视口会覆盖较早的锚点工作       | `ViewportResolutionSupersedesPriorAnchorWork`、`ViewportAdmissionRequiresNoRecovery`                                                   | current-view 响应会清除它之前排队的刷新或恢复；具权威性的较晚恢复会先于另一次视口准入结算。            |
+| 精确行结果绝不跨越修订               | `ExactRowsResolveOnlyAtCapturedRevision`                                                                                               | 搜索和通用缓冲区响应仍要求捕获的生成与修订。                                                           |
+| 中止、处置与普通完成只作用于所属通道 | `CrossLaneSettlementIsolation`、`DisposalClosesEveryLane`                                                                              | 辅助中止捕获其通道和序列；处置关闭全部通道，且不提升视口工作。                                         |
 
-弱公平性只应用于已准入工作中符合一致性策略的结算。模型不假设 Host 响应期限、传输交付或通道之间的特定顺序。Schema 对 viewport 加 `tail` 或 `committed` 的限制、生成失效、字节上限、渲染及关联刷新由协议与 TypeScript 测试覆盖。
+弱公平性应用于已准入工作中符合一致性策略的结算、已启用的用户或维护视口准入，以及已启用的无效锚点恢复。模型不假设 Host 响应期限、传输交付或通道之间的特定顺序。Schema 对 viewport 加 `tail` 或 `committed` 的限制、生成失效、字节上限、渲染及关联刷新由协议与 TypeScript 测试覆盖。
 
 ## 提示符导航提交权威
 

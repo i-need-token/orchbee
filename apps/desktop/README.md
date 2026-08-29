@@ -534,11 +534,12 @@ Focused traces cover:
   retained-history viewport by line, overlapping page, top, and bottom without replacing the
   attachment. The witness does not claim Kitty's secondary aliases, alternate-screen behavior, or
   keyboard smooth-animation timing;
-- exact `terminal-parity/HS-12-sustained-output-interaction` real-PTY/Electron evidence that small
-  wheel deltas enter retained history while output continues every 30 milliseconds, a captured
-  drag survives one matching buttonless intermediate move until explicit release, the selected
-  word reaches the platform clipboard, terminal revision continues advancing, and no history
-  failure is published;
+- exact `terminal-parity/HS-12-sustained-output-interaction` real-PTY/Electron evidence that large
+  and small wheel deltas enter and continue moving retained history during 2-millisecond in-place
+  status redraws, fine-wheel progress and raw-TTY input acknowledgement each remain within 150
+  milliseconds, a captured drag survives one matching buttonless intermediate move until explicit
+  release, the selected word reaches the platform clipboard, terminal revision continues advancing,
+  and no history failure is published;
 - one Electron renderer and two ordinary Browser pages sharing canonical Workbench and terminal state while retaining fresh page sessions, Client Views, and attachment identities, including Browser copy, link, disconnect, rejection, and reconnect behavior;
 - user-quit preserve/cancel/stop, automatic preserve for idle running terminals, exact reuse of Panel-close protection, hidden-terminal stop, failed-CAS suppression, partial-stop retry, unreferenced-binding drain, unknown-Host-orphan refusal, update-restart preserve, development Host stop/stage/ready ordering, and fresh identity after explicitly starting a stopped session.
 

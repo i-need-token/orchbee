@@ -1808,6 +1808,11 @@ export class ProjectedTerminal {
 		const previousMetadata = this.metadata;
 		const previousVisibleStart =
 			previousMetadata === null ? undefined : this.#historyVisibleStart(previousMetadata);
+		const supersedesPendingHistoryTransition =
+			flight.revisionPolicy === 'current-view' &&
+			window.revision >= this.#historyRevision &&
+			(this.#pendingHistoryTransition === 'refresh' ||
+				this.#pendingHistoryTransition === 'recover');
 		const viewport = new PackedTerminalViewport(staged, 0, flight.visibleRowCount);
 		this.#prepareHistoryScrollPresentation(
 			flight.smoothPresentation,
@@ -1829,6 +1834,7 @@ export class ProjectedTerminal {
 			this.#historyTotalRows - (visibleStartRow + BigInt(flight.visibleRowCount)),
 		);
 		this.#historyPhase = ProjectedHistoryPhase.viewingHistory;
+		if (supersedesPendingHistoryTransition) this.#pendingHistoryTransition = undefined;
 		this.#syncPreeditPresentation();
 		this.#send({
 			kind: 'rows-applied',
@@ -3905,27 +3911,43 @@ export class ProjectedTerminal {
 			this.#recoverHistory();
 			return;
 		}
-		if (transition === 'refresh') {
-			this.#requestHistoryRows({ delta: 0, kind: 'committed' });
-			return;
-		}
+		const maintenanceRefreshPending = transition === 'refresh';
 		const startRow = this.#pendingHistoryStartRow;
 		this.#pendingHistoryStartRow = undefined;
 		if (startRow !== undefined) {
 			this.#requestHistoryStartRow(startRow, false);
+			this.#dispatchUnabsorbedHistoryRefresh(maintenanceRefreshPending);
 			return;
 		}
 		const targetRow = this.#pendingHistoryTargetRow;
 		this.#pendingHistoryTargetRow = undefined;
 		if (targetRow !== undefined) {
 			this.#revealSearchRow(targetRow);
+			this.#dispatchUnabsorbedHistoryRefresh(maintenanceRefreshPending);
 			return;
 		}
 		const pendingDelta = this.#pendingHistoryDelta;
 		const smoothPresentation = this.#pendingHistorySmoothPresentation;
 		this.#pendingHistoryDelta = 0;
 		this.#pendingHistorySmoothPresentation = false;
-		if (pendingDelta !== 0) this.#scrollHistoryLines(pendingDelta, smoothPresentation);
+		if (pendingDelta !== 0) {
+			this.#scrollHistoryLines(pendingDelta, smoothPresentation);
+			this.#dispatchUnabsorbedHistoryRefresh(maintenanceRefreshPending);
+			return;
+		}
+		this.#dispatchUnabsorbedHistoryRefresh(maintenanceRefreshPending);
+	}
+
+	#dispatchUnabsorbedHistoryRefresh(pending: boolean): void {
+		if (
+			!pending ||
+			this.#rowFlights.has('viewport') ||
+			(this.#historyPhase !== ProjectedHistoryPhase.viewingHistory &&
+				this.#historyPhase !== ProjectedHistoryPhase.requestingHistory)
+		) {
+			return;
+		}
+		this.#requestHistoryRows({ delta: 0, kind: 'committed' });
 	}
 
 	#recoverHistory(smoothPresentation = false): void {

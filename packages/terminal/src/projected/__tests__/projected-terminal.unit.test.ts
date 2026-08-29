@@ -5361,6 +5361,192 @@ describe('ProjectedTerminal', () => {
 		terminal.dispose();
 	});
 
+	it('prioritizes queued wheel motion over a valid-anchor maintenance refresh', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['live-a', 'live-b'], null, [0, 1], 18n));
+
+		terminal.scrollLines(-3);
+		const initialRead = commands.at(-1);
+		if (initialRead?.kind !== 'read-rows') throw new Error('initial history request was not sent');
+		const initialStart = resolvedRowRequestStart(initialRead, 20n);
+		expect(
+			terminal.applyRows(
+				renderRowWindow(
+					BigInt(initialRead.payload.requestSequence),
+					1n,
+					initialStart,
+					20n,
+					Array.from({ length: initialRead.payload.rowCount }, (_, index) => `initial-${index}`),
+				),
+			),
+		).toBe('committed');
+
+		terminal.scrollLines(-1);
+		const inFlightRead = commands.at(-1);
+		if (inFlightRead?.kind !== 'read-rows') throw new Error('history motion request was not sent');
+		terminal.notifyHistoryChanged({
+			anchorStatus: 'valid',
+			attachmentId,
+			generation: canonicalText('1'),
+			revision: canonicalText('2'),
+			sequence: canonicalText('1'),
+			totalRows: canonicalText('21'),
+		});
+		terminal.scrollLines(-2);
+
+		expect(
+			terminal.applyRows(
+				renderRowWindow(
+					BigInt(inFlightRead.payload.requestSequence),
+					2n,
+					initialStart - 1n,
+					21n,
+					Array.from({ length: inFlightRead.payload.rowCount }, (_, index) => `updated-${index}`),
+				),
+			),
+		).toBe('committed');
+		const nextRead = commands.at(-1);
+		if (nextRead?.kind !== 'read-rows') throw new Error('queued history request was not sent');
+		expect(nextRead.payload.origin).toEqual({ delta: -2, kind: 'committed' });
+		terminal.dispose();
+	});
+
+	it.each([
+		{ kind: 'same-revision', responseRevision: 2n },
+		{ kind: 'newer', responseRevision: 3n },
+	])(
+		'lets a $kind current-view response supersede a pre-admission missing-anchor event',
+		async ({ responseRevision }) => {
+			const browser = createFakeBrowser();
+			vi.stubGlobal('document', browser.document);
+			vi.stubGlobal('window', browser.document.defaultView);
+			vi.stubGlobal('navigator', {});
+			const commands: ProjectedTerminalCommand[] = [];
+			const terminal = new ProjectedTerminal({
+				attachmentId,
+				creationId,
+				hostEpoch,
+				labels: { input: 'input', screen: 'screen' },
+				port: {
+					send: (command) => {
+						commands.push(command);
+					},
+				},
+				terminalId,
+			});
+			await terminal.open(browser.root);
+			terminal.applyFrame(
+				terminalFrame('snapshot', 1n, 1n, ['live-a', 'live-b'], null, [0, 1], 18n),
+			);
+
+			terminal.scrollLines(-3);
+			const initialRead = commands.at(-1);
+			if (initialRead?.kind !== 'read-rows')
+				throw new Error('initial history request was not sent');
+			const initialStart = resolvedRowRequestStart(initialRead, 20n);
+			terminal.notifyHistoryChanged({
+				anchorStatus: 'none',
+				attachmentId,
+				generation: canonicalText('1'),
+				revision: canonicalText('2'),
+				sequence: canonicalText('1'),
+				totalRows: canonicalText('20'),
+			});
+
+			expect(
+				terminal.applyRows(
+					renderRowWindow(
+						BigInt(initialRead.payload.requestSequence),
+						responseRevision,
+						initialStart,
+						20n,
+						Array.from({ length: initialRead.payload.rowCount }, (_, index) => `history-${index}`),
+					),
+				),
+			).toBe('committed');
+			expect(terminal.historyPhase).toBe(ProjectedHistoryPhase.viewingHistory);
+			expect(
+				commands.some(
+					(command) =>
+						command.kind === 'set-history-demand' && command.payload.demand === 'following-bottom',
+				),
+			).toBe(false);
+			terminal.dispose();
+		},
+	);
+
+	it('keeps a newer missing-anchor event authoritative over an older current-view response', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['live-a', 'live-b'], null, [0, 1], 18n));
+
+		terminal.scrollLines(-3);
+		const initialRead = commands.at(-1);
+		if (initialRead?.kind !== 'read-rows') throw new Error('initial history request was not sent');
+		const initialStart = resolvedRowRequestStart(initialRead, 20n);
+		terminal.notifyHistoryChanged({
+			anchorStatus: 'none',
+			attachmentId,
+			generation: canonicalText('1'),
+			revision: canonicalText('3'),
+			sequence: canonicalText('1'),
+			totalRows: canonicalText('20'),
+		});
+
+		expect(
+			terminal.applyRows(
+				renderRowWindow(
+					BigInt(initialRead.payload.requestSequence),
+					2n,
+					initialStart,
+					20n,
+					Array.from({ length: initialRead.payload.rowCount }, (_, index) => `history-${index}`),
+				),
+			),
+		).toBe('committed');
+		expect(terminal.historyPhase).toBe(ProjectedHistoryPhase.recovering);
+		expect(
+			commands.some(
+				(command) =>
+					command.kind === 'set-history-demand' && command.payload.demand === 'following-bottom',
+			),
+		).toBe(true);
+		terminal.dispose();
+	});
+
 	it('refreshes a reflowed history viewport after its old generation request fails', async () => {
 		const browser = createFakeBrowser();
 		vi.stubGlobal('document', browser.document);
