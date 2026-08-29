@@ -23,7 +23,15 @@ Phase one accepts only `navigate-only` attention paths. The package does not exp
 
 ## Transitions and trust
 
-`transitionAgentRuntime(...)` is a pure reducer over a trusted, typed `AgentObservationEvent`. `AgentRuntime` owns one snapshot, publishes only applied revisions, and emits semantic attention, resolution, outcome, and Session-end events separately from state subscriptions. Duplicate or reordered sequence values are unchanged; mismatched generation, identity, capability, parent, location, or Turn and Request correlation is rejected without mutation.
+`transitionAgentRuntime(...)` is a pure reducer over a trusted, typed `AgentObservationEvent`.
+`AgentRuntime` owns one snapshot, publishes only applied revisions, and emits semantic attention,
+resolution, outcome, and Session-end events separately from state subscriptions. It also retains the
+latest 512 applied revisions as a content-free change journal. Each record contains only the runtime
+revision, canonical transition kind, and current Session summary; unchanged and rejected input
+creates no record. `readChanges(...)` returns ordered pages, `current`, `revision-ahead`, or an
+explicit `reset-required` result when a caller is behind retention. Duplicate or reordered sequence
+values are unchanged; mismatched generation, identity, capability, parent, location, or Turn and
+Request correlation is rejected without mutation.
 
 Source and capability are independent. A heuristic source can claim no semantic capability. A terminal source can claim only bounded activity through `limited-activity-observed`; the resulting hint never creates a Turn, affirmative idle, outcome, attention request, semantic event, or notification authority. Native and hook sources may claim only the observational capabilities they actually implement. `presentation-attached`, `presentation-visibility-changed`, and `presentation-detached` update exact generation-fenced presentation views without duplicating Session semantics; detaching one presentation leaves the Session connected while another navigable attachment remains. Reconnect requires an explicit higher-generation snapshot, revalidates its source capability ceiling and every semantic claim, and never reconstructs a missing completion or resolution. Staleness changes only freshness. Client acknowledgement is intentionally outside the canonical reducer and cannot resolve a shared request.
 
@@ -44,10 +52,11 @@ Freshness remains a separate overlay and cannot silently turn stale work into id
 ## Semantic command read model
 
 The package owns strict version-1 contracts for `agent.session.list`, `agent.session.get`,
-`agent.session.explain`, and `agent.session.wait`. These descriptors, schemas, and deterministic
-projection helpers are transport- and application-independent. Desktop application composition may
-admit them over an `AgentSnapshotSource`; the CLI may expose a high-level projection only after the
-complete live descriptor matches this package's contract.
+`agent.session.explain`, `agent.session.wait`, and `agent.session.changes`. These descriptors,
+schemas, and deterministic projection helpers are transport- and application-independent. Desktop
+application composition may admit point-in-time reads and waits over an `AgentSnapshotSource` and
+the change feed over an `AgentChangeSource`; the CLI may expose a high-level projection only after
+the complete live descriptor matches this package's contract.
 
 `agent.session.list` projects stable summaries from one runtime revision, defaults to live Sessions,
 optionally includes retained ended Sessions, and caps one page at 100 items. `agent.session.get`
@@ -66,9 +75,28 @@ strictly newer global runtime revision. The application-owned asynchronous handl
 before its decisive recheck and return one exact matching snapshot or an explicit missing, ahead,
 timeout, cancellation, or coordinator-retirement outcome.
 
+`agent.session.changes` defines a global, content-free change-page contract. An application returns
+an empty baseline at the current revision when no cursor is supplied. A signed cursor then selects
+the next revision after that baseline; one page contains at most 100 ordered records. A current
+cursor may long-poll, timeout completes as an empty `current` page, and retention loss completes as
+an empty `reset-required` page with a cursor at the current revision. Consumers must refresh the
+canonical Session snapshot before continuing after reset. The journal and cursors are volatile and
+claim no continuity across Desktop or future Hub restart.
+
 ## Current application composition
 
-Desktop owns one volatile `DesktopAgentObservationRuntime` for the application lifetime. Renderer document replacement retires only the previous broker; the runtime remains alive and the next renderer requests a fresh full snapshot through the strict `@orchbee/desktop-client-protocol` Agent-observation port. Version 2 of that port also publishes exact semantic events after their snapshot update so a renderer can evaluate one notification effect without reconstructing an event from state. The Web adapter rejects malformed or uncorrelated messages and ignores non-increasing revisions. Workbench consumes the narrow `AgentSnapshotSource`, projects non-ended state into exact terminal panel headers, and deduplicates all terminal presentations in a Tab into a provider identity icon plus one localized non-ended status adornment. Retained ended state keeps only the provider identity icon.
+Desktop owns one volatile `DesktopAgentObservationRuntime` for the application lifetime, including
+the bounded change journal. Renderer document replacement retires only the previous broker; the
+runtime and journal remain alive, and the next renderer requests a fresh full snapshot through the
+strict `@orchbee/desktop-client-protocol` Agent-observation port. Version 2 of that port also
+publishes exact semantic events after their snapshot update so a renderer can evaluate one
+notification effect without reconstructing an event from state. The Web adapter rejects malformed
+or uncorrelated messages and ignores non-increasing revisions. Workbench consumes the narrow
+`AgentSnapshotSource`, projects non-ended state into exact terminal panel headers, and deduplicates
+all terminal presentations in a Tab into a provider identity icon plus one localized non-ended
+status adornment. Retained ended state keeps only the provider identity icon. Desktop
+semantic-command composition alone consumes `AgentChangeSource` for signed cursor reads and long
+polling.
 
 Desktop admits two non-blocking observation halves. A strict terminal-signal adapter can emit only `limited-activity-observed` from a bounded OSC 777 version-1 payload, so the untrusted hint changes only `activityHint`. Explicitly installed, provider-bound adapters for Claude Code, Codex, Grok, OpenCode, Pi, OMP, Gemini CLI, GitHub Copilot CLI, Cline, and Qwen Code each validate their own upstream contract before stripping prompts, tool content, transcript paths, working directories, error text, and unknown fields. They send the shared normalized rich allowlist over a private Unix-domain socket and write a separate OSC 777 version-2 correlation hint to every resolved outer TTY. A closed application registry grants provider provenance, accepted events, and maximum capabilities; no adapter payload grants itself authority. Neither transport half has enough authority alone: Desktop accepts rich semantics only after an exact bounded event/correlation join for a live terminal generation. The shared resolver covers direct terminals, every attached tmux client, Zellij clients conservatively, and nested mux targets. The shell integration gives eligible interactive SSH sessions a random remote socket through OpenSSH reverse Unix-socket forwarding; there is no HTTP port, Bearer credential, inherited terminal secret, automatic remote installation, or durable remote cache. Either half may fail without affecting the Agent or terminal.
 
@@ -80,9 +108,10 @@ Unit and property tests cover transition guards, exact attention capability admi
 
 Semantic-command contract and projection tests additionally cover default and explicit wait
 conditions, fresh-only semantic matching, health matching, status-basis explanations, content
-absence, ended filtering, and bounded schemas. Desktop operation tests refine pagination,
-exact-identity reads, subscribe-before-recheck waiting, revision fencing, timeout, cancellation, and
-synchronous subscription races.
+absence, ended filtering, bounded schemas, ordered change batching, current reads, overflow, and
+explicit reset. Desktop operation tests refine pagination, exact-identity reads, both
+subscribe-before-recheck waits, revision fencing, signed change cursors, timeout, cancellation,
+overflow/reset, and synchronous subscription races.
 
 [`formal/tla/AgentRuntime.tla`](formal/tla/AgentRuntime.tla) is the bounded asynchronous model. It contains two Sessions, two client views, two observation generations, interleaved attention and reconnect lifecycles, limited and Turn activity, outcome-free idle settlement, client acknowledgement, visibility, notification candidates, snapshot publication, and renderer reconnect. TLC checks that acknowledgement cannot resolve a request, stale-generation rejection preserves canonical state, limited activity changes only its hint, an idle observation cannot fabricate an outcome or notification candidate, activity creates no notification candidate, candidates are fresh/live/invisible and attention-or-failure based, generation changes only on reconnect, ended Sessions have no active work, client revisions never exceed publication, and an observed or recovered snapshot exactly matches the published canonical state. Required action coverage prevents a vacuous passing model.
 
@@ -95,6 +124,13 @@ subscription ownership, subscribe-before-decisive-recheck eligibility, fresh-onl
 exact matched output, no invented unmatched output, Agent-only revision ownership, and explicit
 missing, future-baseline, timeout, cancellation, and coordinator-retirement paths. Those bounds do
 not prove unbounded waiters, time, revisions, Sessions, or restart continuity.
+
+[`../../apps/desktop/formal/tla/AgentSemanticChanges.tla`](../../apps/desktop/formal/tla/AgentSemanticChanges.tla)
+is the application-composition change-feed model. With revisions 0 through 4, retention 2, page
+bound 2, and two coordinator generations, TLC checks the bounded ordered journal suffix, baseline,
+ordered batching, exact current subscription, empty timeout, invalid cursor, cancellation,
+coordinator retirement, and explicit reset instead of a silent retention gap. Those bounds do not
+prove unbounded retention, revisions, readers, cryptographic cursor security, or restart continuity.
 
 ## Verification
 

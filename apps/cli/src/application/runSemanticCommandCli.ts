@@ -119,6 +119,7 @@ export async function runSemanticCommandCli(
 			case 'terminal-list':
 			case 'terminal-create':
 			case 'agent-list':
+			case 'agent-changes':
 			case 'agent-get':
 			case 'agent-explain':
 			case 'agent-wait':

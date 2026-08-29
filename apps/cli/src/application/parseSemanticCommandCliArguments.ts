@@ -1,8 +1,10 @@
 import {
+	AGENT_SESSION_CHANGES_OPERATION,
 	AGENT_SESSION_EXPLAIN_OPERATION,
 	AGENT_SESSION_GET_OPERATION,
 	AGENT_SESSION_LIST_OPERATION,
 	AGENT_SESSION_WAIT_OPERATION,
+	AgentSessionChangesInputSchema,
 	AgentSessionListInputSchema,
 	AgentSessionTargetInputSchema,
 	AgentSessionWaitInputSchema,
@@ -94,6 +96,7 @@ export type SemanticCommandCliCommand =
 	| (SemanticCommandCliOwnedInvocationBase & { readonly kind: 'agent-list' })
 	| (SemanticCommandCliOwnedInvocationBase & { readonly kind: 'agent-get' })
 	| (SemanticCommandCliOwnedInvocationBase & { readonly kind: 'agent-explain' })
+	| (SemanticCommandCliOwnedInvocationBase & { readonly kind: 'agent-changes' })
 	| (SemanticCommandCliOwnedInvocationBase & { readonly kind: 'agent-wait' });
 
 export type SemanticCommandCliArgumentParseResult =
@@ -216,6 +219,29 @@ function parseAgentFacadeCommand(
 		});
 		return input.success
 			? ownedInvocation(base, 'agent-list', AGENT_SESSION_LIST_OPERATION, input.data)
+			: null;
+	}
+	if (
+		matches(positionals, ['agent', 'changes']) &&
+		onlyUses(usedOptions, [
+			'cursor',
+			'detach',
+			'limit',
+			'output',
+			'request-id',
+			'target',
+			'timeout',
+		])
+	) {
+		const input = AgentSessionChangesInputSchema.safeParse({
+			...(options.cursor === undefined ? {} : { cursor: options.cursor }),
+			...(options.limit === undefined ? {} : { limit: options.limit }),
+			...(options.timeoutMilliseconds === undefined
+				? {}
+				: { timeoutMilliseconds: options.timeoutMilliseconds }),
+		});
+		return input.success
+			? ownedInvocation(base, 'agent-changes', AGENT_SESSION_CHANGES_OPERATION, input.data, options)
 			: null;
 	}
 	if (

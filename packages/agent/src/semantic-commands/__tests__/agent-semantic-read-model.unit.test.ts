@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import { AgentSessionSnapshotSchema, type AgentSessionSnapshot } from '../../model';
 import {
+	AgentSessionChangesInputSchema,
+	AgentSessionChangesPageSchema,
 	AgentSessionListInputSchema,
 	AgentSessionWaitInputSchema,
 	AgentSessionWaitOutputSchema,
@@ -16,6 +18,10 @@ import {
 
 describe('Agent semantic command contracts', () => {
 	it('canonicalizes bounded list and wait defaults', () => {
+		expect(AgentSessionChangesInputSchema.parse({})).toEqual({
+			limit: 50,
+			timeoutMilliseconds: 30_000,
+		});
 		expect(AgentSessionListInputSchema.parse({})).toEqual({
 			includeEnded: false,
 			limit: 50,
@@ -27,7 +33,20 @@ describe('Agent semantic command contracts', () => {
 		});
 	});
 
-	it('rejects duplicate wait conditions and out-of-bound timeouts', () => {
+	it('rejects invalid bounded command inputs and outputs', () => {
+		expect(AgentSessionChangesInputSchema.safeParse({ timeoutMilliseconds: 600_001 }).success).toBe(
+			false,
+		);
+		expect(
+			AgentSessionChangesPageSchema.safeParse({
+				hasMore: false,
+				items: [],
+				kind: 'baseline',
+				nextCursor: 'cursor',
+				observedThroughRevision: 0,
+				runtimeRevision: 1,
+			}).success,
+		).toBe(false);
 		expect(
 			AgentSessionWaitInputSchema.safeParse({
 				sessionId: 'session-semantic',

@@ -2,7 +2,7 @@
 
 | Field             | Value                                                                                                                                                                                                                                                                                                                                |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Status            | Phase-one core, local observation, the accepted SSH, tmux, and Zellij topology, the explicit multi-Agent adapters, and explicit local integration management for Claude Code, Codex, Grok, OpenCode, Pi, OMP, Gemini CLI, GitHub Copilot CLI, Cline, and Qwen Code are authorized; later reserved decisions remain unresolved        |
+| Status            | Phase-one core, local observation, the accepted SSH, tmux, and Zellij topology, the explicit multi-Agent adapters, explicit local integration management, and the volatile loss-aware change feed are implemented; later reserved decisions remain unresolved                                                                        |
 | Decision owner    | The active requester acting as Orchbee product and architecture decision owner for the accepted phase-one authorization; each reserved decision still requires explicit acceptance by its required owner                                                                                                                             |
 | Semantic owners   | Agent capability, application runtime, Workbench application composition, and platform notification adapters                                                                                                                                                                                                                         |
 | Current authority | [`docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md), [`@orchbee/agent`](../../packages/agent/README.md), [`@orchbee/terminal-protocol`](../../packages/terminal-protocol/README.md), [`@orchbee/workbench`](../../packages/workbench/README.md), and the [unified-search contract](../../packages/workbench/docs/unified-search.md) |
@@ -602,7 +602,10 @@ Selected correctness evidence:
 6. Completed: the same semantic priority projects into exact local Panel and Tab adornments;
    attention, success, and failure can produce permission-gated, hidden-attachment notification
    attempts. Activity and Unified Search remain later separately governed surfaces.
-7. Consider provider-native Answer, Approve, resume, durable history, offline remote relay, mobile
+7. Completed: the Agent runtime retains a bounded, content-free canonical change journal; Desktop
+   exposes signed, loss-aware long polling, and the TypeScript CLI plus bundled Skill expose its
+   reset-and-resnapshot workflow without claiming restart continuity.
+8. Consider provider-native Answer, Approve, resume, durable history, offline remote relay, mobile
    push, and cross-device delivery only as separately authorized consequential slices.
 
 Every slice can roll back by removing its consumer and adapter registration while retaining the
@@ -748,6 +751,38 @@ while acting as Orchbee product and architecture decision owner:
    plugin installation; unsupported versions and missing events degrade without inventing state or
    affecting Agent execution.
 
+## Accepted volatile change-feed authorization
+
+On 2026-08-29, the same active requester explicitly authorized Herdr-inspired peripheral
+observation engineering while acting as Orchbee product and architecture decision owner. This
+consequential and modeled slice accepts the following narrower contract:
+
+1. `@orchbee/agent` owns one in-memory journal containing the latest 512 applied canonical runtime
+   transitions. Each record has the globally monotonic runtime revision, canonical transition kind,
+   and content-free current Session summary. Rejected and unchanged adapter inputs produce no
+   record.
+2. The journal is an observation projection, not another reducer, event-ingress path, audit log, or
+   durable history. It never contains prompts, transcripts, commands, question text, tool content,
+   filesystem paths, environment values, provider-private payloads, or screen matcher evidence.
+3. A consumer first obtains an empty baseline at the current revision, then follows a signed opaque
+   cursor. Reads return at most 100 ordered records. When no newer record exists, the application
+   subscribes before its decisive recheck and may long-poll until the bounded timeout, cancellation,
+   or coordinator retirement.
+4. Falling behind retained history is never presented as a continuous feed. The result explicitly
+   requires reset, advances the cursor to the current revision, and directs the consumer to obtain a
+   fresh canonical Session snapshot before following again. A forged, cross-operation,
+   cross-generation, or malformed cursor is rejected.
+5. Retention survives renderer unmount because the application runtime owns it, but no continuity,
+   replay, cursor validity, or retained changes are claimed across Desktop or future Hub restart.
+   The coordinator generation remains the restart fence.
+6. The first consumer is the existing semantic-command boundary and TypeScript CLI. This slice adds
+   no Agent control, provider capability, screen or process heuristic, terminal output access,
+   remote relay, persistence, telemetry, or operating-system effect.
+7. Deterministic journal and operation tests plus a bounded TLA+ model must cover ordered batching,
+   subscribe-before-recheck, timeout, cancellation, retention overflow, explicit reset, malformed
+   cursors, and coordinator retirement. Rollback removes the read operation and journal while
+   preserving canonical Agent observation and existing point-in-time reads.
+
 ## Reserved decisions
 
 The accepted phase-one domain slice would not decide:
@@ -760,8 +795,9 @@ The accepted phase-one domain slice would not decide:
 - automatic local or remote adapter deployment, every Orchbee-initiated remote configuration
   change, silent local configuration edits, a background adapter updater, and compatibility claims
   outside the pinned provider fixture matrix;
-- notification defaults beyond the existing explicit opt-in, stale grace period, recent-event
-  bounds, per-client acknowledgement persistence, and cross-device suppression;
+- notification defaults beyond the existing explicit opt-in, stale grace period, Activity-specific
+  recent-event bounds, per-client acknowledgement persistence, and cross-device suppression; the
+  volatile change journal has the separately accepted bound above;
 - the final Activity surface composition, window or Dock badge policy, and experience-component
   reuse or admission;
 - provider-native question and approval payloads, response authorization, audit, cancellation,

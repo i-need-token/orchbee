@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+	AGENT_SESSION_CHANGES_OPERATION,
 	AGENT_SESSION_EXPLAIN_OPERATION,
 	AGENT_SESSION_GET_OPERATION,
 	AGENT_SESSION_LIST_OPERATION,
@@ -47,6 +48,7 @@ const descriptor = SemanticCommandOperationDescriptorSchema.parse({
 	schemaVersion: 1,
 });
 const ownedOperations = [
+	AGENT_SESSION_CHANGES_OPERATION,
 	AGENT_SESSION_EXPLAIN_OPERATION,
 	AGENT_SESSION_GET_OPERATION,
 	AGENT_SESSION_LIST_OPERATION,
@@ -198,6 +200,7 @@ describe('runSemanticCommandCli', () => {
 		expect(result.stdout).toContain('name: orchbee');
 		expect(result.stdout).toContain('"$ORCHBEE_CLI" project list');
 		expect(result.stdout).toContain('"$ORCHBEE_CLI" panel list');
+		expect(result.stdout).toContain('"$ORCHBEE_CLI" agent changes');
 		expect(result.stdout).toContain('"$ORCHBEE_CLI" agent wait');
 		expect(result.stdout.endsWith('\n')).toBe(true);
 		expect(connect).not.toHaveBeenCalled();
@@ -358,6 +361,21 @@ describe('runSemanticCommandCli', () => {
 				command: 'agent.explain',
 				input: { sessionId: 'session-1' },
 				operationId: 'agent.session.explain',
+			},
+			{
+				arguments: [
+					'agent',
+					'changes',
+					'--cursor',
+					'next-change',
+					'--limit',
+					'20',
+					'--timeout',
+					'30000',
+				],
+				command: 'agent.changes',
+				input: { cursor: 'next-change', limit: 20, timeoutMilliseconds: 30_000 },
+				operationId: 'agent.session.changes',
 			},
 			{
 				arguments: [

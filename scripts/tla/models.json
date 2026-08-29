@@ -46,6 +46,31 @@
 			]
 		},
 		{
+			"id": "desktop-agent-semantic-changes",
+			"owner": "@orchbee/desktop",
+			"workspace": "apps/desktop",
+			"module": "apps/desktop/formal/tla/AgentSemanticChanges.tla",
+			"config": "apps/desktop/formal/tla/AgentSemanticChanges.cfg",
+			"claims": ["apps/desktop/docs/semantic-command-execution.md", "packages/agent/README.md"],
+			"triggers": [
+				"apps/desktop/src/main/semantic-command/createDesktopAgentReadOperations.ts",
+				"packages/agent/src/AgentRuntime.ts",
+				"packages/agent/src/changes.ts",
+				"packages/agent/src/semantic-commands/**"
+			],
+			"requiredCoverage": [
+				"BeginBaseline",
+				"BeginFollowCurrent",
+				"BeginFollowChanges",
+				"BeginFollowReset",
+				"BeginInvalidCursor",
+				"AgentUpdate",
+				"Timeout",
+				"Cancel",
+				"CoordinatorRetire"
+			]
+		},
+		{
 			"id": "desktop-agent-semantic-wait",
 			"owner": "@orchbee/desktop",
 			"workspace": "apps/desktop",

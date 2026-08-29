@@ -1,8 +1,11 @@
 import {
+	AGENT_SESSION_CHANGES_OPERATION,
 	AGENT_SESSION_EXPLAIN_OPERATION,
 	AGENT_SESSION_GET_OPERATION,
 	AGENT_SESSION_LIST_OPERATION,
 	AGENT_SESSION_WAIT_OPERATION,
+	AgentSessionChangesInputSchema,
+	AgentSessionChangesPageSchema,
 	AgentSessionExplainOutputSchema,
 	AgentSessionGetOutputSchema,
 	AgentSessionListInputSchema,
@@ -15,8 +18,10 @@ import {
 	matchingAgentWaitConditions,
 	projectAgentSessionDetail,
 	projectAgentSessionSummary,
+	type AgentChangeSource,
+	type AgentRuntimeChangeReadResult,
+	type AgentSessionChangesInput,
 	type AgentSessionWaitInput,
-	type AgentSnapshotSource,
 } from '@orchbee/agent';
 import {
 	SemanticCommandJsonValueSchema,
@@ -40,7 +45,7 @@ export interface DesktopAgentReadOperationOptions {
 	readonly coordinatorGeneration: SemanticCommandCoordinatorGeneration;
 	readonly cursorSecret: Uint8Array;
 	readonly scheduleTimeout?: ScheduleTimeout | undefined;
-	readonly source: AgentSnapshotSource;
+	readonly source: AgentChangeSource;
 }
 
 const defaultScheduleTimeout: ScheduleTimeout = (listener, milliseconds) => {
@@ -57,7 +62,62 @@ export function createDesktopAgentReadOperations(
 		createAgentGetOperation(options),
 		createAgentExplainOperation(options),
 		createAgentWaitOperation(options),
+		createAgentChangesOperation(options, cursor),
 	];
+}
+
+const AGENT_CHANGES_CURSOR_REVISION = 'agent-session-changes-v1';
+const AGENT_CHANGES_CURSOR_TARGET = 'all-agent-sessions';
+
+function createAgentChangesOperation(
+	options: DesktopAgentReadOperationOptions,
+	cursor: DesktopSemanticCommandPageCursor,
+): DesktopSemanticCommandOperation {
+	const descriptor = SemanticCommandOperationDescriptorSchema.parse(
+		AGENT_SESSION_CHANGES_OPERATION,
+	);
+	const operationId = SemanticCommandOperationIdSchema.parse(descriptor.id);
+	const cursorContext = {
+		coordinatorGeneration: options.coordinatorGeneration,
+		operationId,
+		revision: AGENT_CHANGES_CURSOR_REVISION,
+		target: AGENT_CHANGES_CURSOR_TARGET,
+	};
+	return {
+		authorize: localUser,
+		canonicalizeInput: (input) => canonicalInput(AgentSessionChangesInputSchema.safeParse(input)),
+		descriptor,
+		execute: async (input, context) => {
+			if (context.signal.aborted) return noEffect('cancelled', 'agent-changes-cancelled');
+			const parsed = AgentSessionChangesInputSchema.safeParse(input);
+			if (!parsed.success) return noEffect('failed', 'operation-input-invalid');
+			if (parsed.data.cursor === undefined) {
+				const revision = options.source.getSnapshot().revision;
+				return completed('agent-changes-baselined', {
+					hasMore: false,
+					items: [],
+					kind: 'baseline',
+					nextCursor: cursor.create(cursorContext, revision),
+					observedThroughRevision: revision,
+					runtimeRevision: revision,
+				});
+			}
+			const resolved = cursor.resolve(parsed.data.cursor, cursorContext);
+			if (resolved.kind !== 'resolved') {
+				return noEffect('blocked', 'agent-change-cursor-invalid');
+			}
+			return waitForAgentChanges(
+				options,
+				parsed.data,
+				resolved.offset,
+				context.signal,
+				cursor,
+				cursorContext,
+			);
+		},
+		isVisibleTo: localUser,
+		validateOutput: (output) => AgentSessionChangesPageSchema.safeParse(output).success,
+	};
 }
 
 function createAgentListOperation(
@@ -241,6 +301,100 @@ function waitForAgentSnapshot(
 		if (settled) stopTimeout();
 		if (signal.aborted) handleAbort();
 	});
+}
+
+type AgentChangesCursorContext = Parameters<DesktopSemanticCommandPageCursor['create']>[0];
+
+function waitForAgentChanges(
+	options: DesktopAgentReadOperationOptions,
+	input: AgentSessionChangesInput,
+	afterRevision: number,
+	signal: AbortSignal,
+	cursor: DesktopSemanticCommandPageCursor,
+	cursorContext: AgentChangesCursorContext,
+): Promise<DesktopSemanticCommandHandlerSettlement> {
+	const initial = options.source.readChanges({ afterRevision, limit: input.limit });
+	if (initial.kind !== 'current') {
+		return Promise.resolve(agentChangesSettlement(initial, cursor, cursorContext));
+	}
+
+	return new Promise((resolve) => {
+		let cancelTimeout = (): void => undefined;
+		let settled = false;
+		let unsubscribe = (): void => undefined;
+		const finish = (result: DesktopSemanticCommandHandlerSettlement): void => {
+			if (settled) return;
+			settled = true;
+			cancelTimeout();
+			unsubscribe();
+			signal.removeEventListener('abort', handleAbort);
+			resolve(result);
+		};
+		const evaluate = (timedOut: boolean): void => {
+			if (settled) return;
+			const result = options.source.readChanges({ afterRevision, limit: input.limit });
+			if (result.kind === 'current' && !timedOut) return;
+			finish(agentChangesSettlement(result, cursor, cursorContext));
+		};
+		const handleAbort = (): void => finish(noEffect('cancelled', 'agent-changes-cancelled'));
+
+		signal.addEventListener('abort', handleAbort, { once: true });
+		const stop = options.source.subscribe(() => evaluate(false));
+		unsubscribe = stop;
+		if (settled) {
+			stop();
+			return;
+		}
+		evaluate(false);
+		if (settled) return;
+		const stopTimeout = (options.scheduleTimeout ?? defaultScheduleTimeout)(
+			() => evaluate(true),
+			input.timeoutMilliseconds,
+		);
+		cancelTimeout = stopTimeout;
+		if (settled) stopTimeout();
+		if (signal.aborted) handleAbort();
+	});
+}
+
+function agentChangesSettlement(
+	result: AgentRuntimeChangeReadResult,
+	cursor: DesktopSemanticCommandPageCursor,
+	cursorContext: AgentChangesCursorContext,
+): DesktopSemanticCommandHandlerSettlement {
+	if (result.kind === 'revision-ahead') {
+		return noEffect('blocked', 'agent-change-cursor-invalid');
+	}
+	const nextCursor = cursor.create(cursorContext, result.observedThroughRevision);
+	switch (result.kind) {
+		case 'changes':
+			return completed('agent-changes-read', {
+				hasMore: result.hasMore,
+				items: result.changes,
+				kind: 'changes',
+				nextCursor,
+				observedThroughRevision: result.observedThroughRevision,
+				runtimeRevision: result.runtimeRevision,
+			});
+		case 'current':
+			return completed('agent-changes-current', {
+				hasMore: false,
+				items: [],
+				kind: 'current',
+				nextCursor,
+				observedThroughRevision: result.observedThroughRevision,
+				runtimeRevision: result.runtimeRevision,
+			});
+		case 'reset-required':
+			return completed('agent-changes-reset-required', {
+				hasMore: false,
+				items: [],
+				kind: 'reset-required',
+				nextCursor,
+				observedThroughRevision: result.observedThroughRevision,
+				runtimeRevision: result.runtimeRevision,
+			});
+	}
 }
 
 function canonicalInput(

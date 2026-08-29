@@ -33,13 +33,14 @@ orchbee terminal list (--standalone | --project <project-id> --workspace <worksp
 orchbee terminal create (--standalone | --project <project-id> --workspace <workspace-id>) [--directory <directory-id>] [--detach] [--request-id <request-id>]
 ```
 
-The production Desktop catalog also admits four read-only Agent-observation operations. Their
+The production Desktop catalog also admits five read-only Agent-observation operations. Their
 high-level projections are:
 
 ```text
 orchbee agent list [--all] [--limit <n>] [--cursor <cursor>]
 orchbee agent get <session-id>
 orchbee agent explain <session-id>
+orchbee agent changes [--cursor <cursor>] [--limit <n>] [--timeout <milliseconds>] [--detach] [--request-id <request-id>]
 orchbee agent wait <session-id> [--until <condition>]... [--after-revision <revision>] [--timeout <milliseconds>] [--detach] [--request-id <request-id>]
 ```
 
@@ -59,6 +60,15 @@ membership counts. `panel list` requires an exact returned Tab ID and preserves 
 depth-first, left-to-right Panel order. These queries expose no active, selected, focused,
 maximized, active-child, split-weight, pixel-geometry, renderer, or screen state. Their returned
 positions describe one revision only and never serve as mutation identities.
+
+`agent changes` is a global canonical change feed. The first invocation without `--cursor` returns
+an empty baseline and a signed `nextCursor` at the current Agent runtime revision. Pass that cursor
+back to receive at most 100 ordered applied transitions or to long-poll while it is current. Timeout
+defaults to 30,000 milliseconds, is bounded from 1 to 600,000, and completes with an empty `current`
+page. A `reset-required` page means the cursor fell behind the 512 retained in-memory changes: take a
+new `agent list --all` snapshot, then continue with the reset page's cursor. Never treat reset as a
+continuous feed. Change records contain only revision, canonical transition kind, and a content-free
+Session summary.
 
 Default output is exactly one compact versioned JSON document on stdout. Invoke results always
 include the request identity. `--output text` is an explicitly unstable indented projection of that
@@ -129,9 +139,10 @@ failure, or locally cancelled observation.
 The core supports status, operation list and description, owner-backed Workbench and Agent command
 projections, invocation admission, execution lookup, cooperative cancellation, and bounded-backoff
 waiting. `waitForExecution` repeatedly performs only the read-only execution lookup. In contrast,
-`agent wait` invokes one server-owned asynchronous query over the canonical Agent snapshot source,
-then observes that semantic execution through the same ledger. Aborting the CLI caller signal stops
-only local execution observation; it never calls invocation or cancellation implicitly.
+`agent wait` and a cursor-following `agent changes` invoke server-owned asynchronous queries over the
+canonical Agent sources, then observe those semantic executions through the same ledger. Aborting
+the CLI caller signal stops only local execution observation; it never calls invocation or
+cancellation implicitly.
 
 `agent wait` pins one exact Session ID. Its default conditions are attention, outcomes, idle, and
 ended; repeated `--until` selects explicit semantic-status or `fresh`, `stale`, and `disconnected`
@@ -140,6 +151,11 @@ newer global Agent runtime revision, and `--timeout` is bounded from 1 to 3,600,
 a 600,000 millisecond default. Use `--detach` to retain the request or execution identity for later
 observation or explicit `execution cancel`. A coordinator-generation change makes an in-flight wait
 outcome unknown; the CLI never replays it.
+
+`agent changes` is stateless at the CLI boundary. It neither caches events nor inspects providers,
+processes, terminals, or screens. Use `--detach` only when retaining the exact execution identity for
+later observation or cancellation of the long poll; cancellation never cancels Agent work. Signed
+cursors are bound to the operation and coordinator generation and become invalid after restart.
 
 The runner invokes an operation at most once. After a lost response, it reconnects and observes the
 same request identity only. A different coordinator generation returns
@@ -175,9 +191,10 @@ The CLI never reads a Workbench data file, reads provider or screen state, conne
 enumerates product Actions, or stores or reconstructs feature state. Its high-level commands
 construct only inputs validated by the Workbench or Agent owner's exported semantic-command schemas
 and verify the complete expected public operation descriptor before invocation. Agent queries return
-only canonical bounded snapshots and projections; `agent explain` describes provenance, freshness,
-capability, and the status basis without exposing prompts, transcripts, tool content, paths, provider
-errors, or screen evidence. The coordinator owns catalog admission and executions; feature packages
+only canonical bounded snapshots, projections, and content-free change records; `agent explain`
+describes provenance, freshness, capability, and the status basis without exposing prompts,
+transcripts, tool content, paths, provider errors, or screen evidence. The coordinator owns catalog
+admission and executions; feature packages
 own operation input, output, targeting, and effects; the protocol package owns only serializable
 generic envelopes. Adding a CLI projection grants no operation authority.
 

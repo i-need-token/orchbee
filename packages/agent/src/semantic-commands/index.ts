@@ -1,10 +1,13 @@
 export {
 	AGENT_SESSION_EXPLAIN_OPERATION,
+	AGENT_SESSION_CHANGES_OPERATION,
 	AGENT_SESSION_GET_OPERATION,
 	AGENT_SESSION_LIST_OPERATION,
 	AGENT_SESSION_WAIT_OPERATION,
 	AgentFreshnessMeaningSchema,
 	AgentSessionDetailSchema,
+	AgentSessionChangesInputSchema,
+	AgentSessionChangesPageSchema,
 	AgentSessionExplainOutputSchema,
 	AgentSessionExplanationSchema,
 	AgentSessionGetOutputSchema,
@@ -21,6 +24,8 @@ export {
 export type {
 	AgentFreshnessMeaning,
 	AgentSessionDetail,
+	AgentSessionChangesInput,
+	AgentSessionChangesPage,
 	AgentSessionExplainOutput,
 	AgentSessionExplanation,
 	AgentSessionGetOutput,

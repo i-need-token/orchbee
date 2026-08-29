@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { constants, userInfo } from 'node:os';
 import path from 'node:path';
 
-import type { AgentObservationEvent, AgentTransition } from '@orchbee/agent';
+import type { AgentChangeSource, AgentObservationEvent, AgentTransition } from '@orchbee/agent';
 import { createOrchbeeIntl, resolveOrchbeeLocale, workbenchTabMessages } from '@orchbee/i18n';
 import { WorkbenchProjectWorkspaceRuntime } from '@orchbee/workbench';
 import {
@@ -288,15 +288,16 @@ interface DesktopAgentIntegrationManagementControllerHandle extends DesktopAgent
 	initialize(): Promise<DesktopAgentIntegrationManagementSnapshot>;
 }
 
-type DesktopAgentObservationRuntimeHandle = DesktopAgentObservationBrokerSource & {
-	dispatch(event: AgentObservationEvent): AgentTransition;
-	dispose(): void;
-	observeTerminalApplicationSignal?(
-		event: TerminalApplicationSignal,
-		presentationId: TerminalPresentationId,
-	): void;
-	retireTerminalSignalPresentation?(presentationId: TerminalPresentationId): void;
-};
+type DesktopAgentObservationRuntimeHandle = AgentChangeSource &
+	DesktopAgentObservationBrokerSource & {
+		dispatch(event: AgentObservationEvent): AgentTransition;
+		dispose(): void;
+		observeTerminalApplicationSignal?(
+			event: TerminalApplicationSignal,
+			presentationId: TerminalPresentationId,
+		): void;
+		retireTerminalSignalPresentation?(presentationId: TerminalPresentationId): void;
+	};
 
 interface DesktopAgentHookObservationIngressHandle {
 	dispose(): Promise<void>;

@@ -590,6 +590,7 @@ describe('DesktopApplication', () => {
 				.list({ kind: 'local-user' })
 				.operations.map((operation) => operation.id),
 		).toEqual([
+			'agent.session.changes',
 			'agent.session.explain',
 			'agent.session.get',
 			'agent.session.list',

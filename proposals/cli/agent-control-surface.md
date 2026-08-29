@@ -2,7 +2,7 @@
 
 | Field             | Value                                                                                                                                                                                                                             |
 | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Status            | The existing TypeScript CLI direction and read-only Slices 1 through 3 are implemented; later terminal-control slices remain reserved                                                                                             |
+| Status            | The existing TypeScript CLI direction and read-only Slices 1 through 4 are implemented; later terminal-control slices remain reserved                                                                                             |
 | Decision owner    | The active requester acting as Orchbee product and architecture decision owner                                                                                                                                                    |
 | Semantic owners   | `apps/cli`, Desktop application composition, `@orchbee/semantic-command-protocol`, `@orchbee/workbench`, and the Agent capability                                                                                                 |
 | Current authority | [`apps/cli/README.md`](../../apps/cli/README.md), [semantic-command execution](../../apps/desktop/docs/semantic-command-execution.md), and [Agent runtime observation](../agent/agent-runtime-observation.md)                     |
@@ -16,7 +16,7 @@ Simplified Chinese review translation:
 
 | Field         | Accepted authorization                                                                                                                                                                                                                                                                                                                                                                                     |
 | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Tier          | Consequential because this is an Agent-facing process contract and will grow cross-workspace product operations; Modeled because Slice 2 introduces a server-owned Agent wait with subscription, timeout, cancellation, revision, and coordinator-lifetime transitions                                                                                                                                     |
+| Tier          | Consequential because this is an Agent-facing process contract and will grow cross-workspace product operations; Modeled because Slices 2 and 4 introduce server-owned Agent waits and a retained change feed with subscription, timeout, cancellation, revision, overflow, and coordinator-lifetime transitions                                                                                           |
 | Problem       | Orchbee already ships a secure local semantic-command CLI, but it exposes only generic operation and execution commands. An Agent must discover operation IDs and construct JSON manually, and there is no release-matched Skill that teaches the installed command surface or its safety boundaries                                                                                                       |
 | Outcome       | Evolve the existing `apps/cli` TypeScript application into Orchbee's single nonvisual Agent control surface. Add owner-backed product nouns and a release-matched Skill incrementally while retaining server-owned facts, exact identities, structured output, explicit admission, and conservative unknown outcomes                                                                                       |
 | Compatibility | Keep the existing `status`, `operation`, and `execution` commands, `ORCHBEE_CLI` launch contract, output version, exit meanings, target selection, input bounds, and no-replay behavior. A high-level command is an additional projection over an admitted semantic operation, never another execution path                                                                                                |
@@ -68,6 +68,7 @@ Agent + release-matched Skill
 | Server-owned live topology                     | Preserve Desktop or future Hub ownership; never reconstruct topology from renderer state                                                                       |
 | Workspace, tab, pane, and agent command groups | Adapt as Project, Directory, Workspace, Tab, Terminal, and Agent nouns only when each owner publishes the required semantic read or command contract           |
 | Agent detection and wait                       | Use the Agent-owned Session, Turn, Attention, Outcome, attachment, provenance, and freshness model; never copy Herdr's flat state or promote screen heuristics |
+| Bounded event journal and subscriptions        | Adopt as a loss-aware canonical Agent change feed with signed cursors, explicit reset, and no cross-runtime continuity claim                                   |
 | Pane output and input                          | Keep Terminal Host authority and require explicit bounded semantic contracts; do not expose its private protocol through the CLI                               |
 | Prompt, key input, focus, close, and stop      | Reserve because these may submit work, answer a prompt, steal focus, terminate work, or have an unknown commit outcome                                         |
 
@@ -187,6 +188,40 @@ Deterministic projection, schema, Desktop operation, HTTP-boundary, CLI parser, 
 Skill tests refine the contract; TLA+ is not selected because pagination reuses the already modeled
 semantic-command ledger and existing revision-fenced cursor mechanism.
 
+## Delivered Slice 4: loss-aware canonical Agent changes
+
+The requester's 2026-08-29 authorization to begin Herdr-inspired peripheral observation adopts one
+additional read-only command over the separately accepted Agent-owned volatile change journal:
+
+```text
+orchbee agent changes [--cursor <cursor>] [--limit <n>] [--timeout <milliseconds>] [--detach] [--request-id <request-id>]
+```
+
+- The first call without a cursor returns immediately with an empty `baseline` page and a signed
+  cursor at the current runtime revision. A later call with that exact cursor returns up to 100
+  strictly ordered canonical changes or long-polls when the cursor is current.
+- Every item contains only its runtime revision, canonical observation-transition kind, and the
+  current Agent-owned content-free Session summary. It contains no provider payload, prompt,
+  transcript, command, question, tool content, path, environment value, terminal output, or screen
+  matcher evidence.
+- A timed-out long poll completes with a `current` page rather than fabricating an Agent change or
+  failing the feed. Cancellation is `agent-changes-cancelled`. Invalid or cross-generation cursors
+  are `agent-change-cursor-invalid`.
+- When the caller is behind the latest 512 retained applied transitions, the operation returns a
+  completed `reset-required` page with no items and a fresh cursor at the current revision. The
+  Skill must obtain a new `agent list --all` snapshot before continuing; it must never silently
+  bridge the gap.
+- The application owns subscribe-before-recheck, timeout, cancellation, and coordinator-retirement
+  behavior. The CLI remains stateless and emits one versioned JSON document per invocation; it does
+  not keep a process-local event cache or bypass semantic-command admission.
+- Timeout defaults to 30,000 milliseconds and is bounded from 1 to 600,000 milliseconds. The
+  journal and cursor are volatile across Desktop or future Hub restart, and no durable replay,
+  audit, or exactly-once delivery is claimed.
+
+Slice 4 adds a bounded TLA+ model covering baseline, ordered batching, current waiting, retention
+overflow, explicit reset, timeout, cancellation, and coordinator retirement, plus deterministic
+Agent journal, Desktop operation, CLI parser, runner, catalog, HTTP-boundary, and Skill tests.
+
 ## Invariants and evidence
 
 1. Every high-level command maps to exactly one admitted operation ID and one owner-valid bounded
@@ -207,7 +242,10 @@ proves that Skill printing adds no endpoint request. Slice 1 adds no new asynchr
 therefore reuses the semantic-command ledger model. Slice 2 adds `AgentSemanticWait.tla`; domain and
 Desktop operation tests refine its exact-identity, revision, freshness, subscribe-before-recheck,
 timeout, cancellation, removal, and coordinator-retirement boundaries. Slice 3 adds deterministic
-Workbench membership projection and exact-target cursor tests without a new state machine.
+Workbench membership projection and exact-target cursor tests without a new state machine. Slice 4
+adds `AgentSemanticChanges.tla`; domain and Desktop tests refine its bounded ordering, batching,
+subscribe-before-recheck, timeout, cancellation, overflow/reset, signed cursor, and coordinator-
+retirement boundaries.
 
 ## Delivery order
 
@@ -217,12 +255,14 @@ Workbench membership projection and exact-target cursor tests without a new stat
    exact contract above.
 3. Delivered Slice 3: read-only `tab list` and exact-target `panel list` use the canonical shared
    Workbench document without exposing Client View state.
-4. Accept topology mutations such as Workspace, Tab, Panel, and Terminal creation, split, move,
+4. Delivered Slice 4: read-only `agent changes` follows the volatile, loss-aware canonical
+   Agent journal without claiming restart continuity.
+5. Accept topology mutations such as Workspace, Tab, Panel, and Terminal creation, split, move,
    rename, focus, and close one owner operation at a time.
-5. Accept Agent launch, prompt, resume, decision, raw terminal input/output, and orchestration only
+6. Accept Agent launch, prompt, resume, decision, raw terminal input/output, and orchestration only
    with exact provider and Terminal authority, confirmation, audit, cancellation, replay, and
    unknown-outcome contracts.
-6. Move delivered behavior and evidence into current owner guides and delete resolved proposal
+7. Move delivered behavior and evidence into current owner guides and delete resolved proposal
    sections; delete the complete proposal when no future decision remains.
 
 ## Reserved decisions

@@ -7,8 +7,8 @@ import {
 	AgentRuntime,
 	AgentSessionIdSchema,
 	AgentTurnIdSchema,
+	type AgentChangeSource,
 	type AgentObservationEvent,
-	type AgentSnapshotSource,
 } from '@orchbee/agent';
 import {
 	SemanticCommandCoordinatorGenerationSchema,
@@ -30,15 +30,182 @@ const generation = SemanticCommandCoordinatorGenerationSchema.parse(
 );
 
 describe('Desktop Agent read operation catalog', () => {
-	it('admits exactly the four local-user Agent read operations', () => {
+	it('admits exactly the five local-user Agent read operations', () => {
 		const { service } = createService(runtimeWithWorkingSession());
 
 		expect(service.list({ kind: 'local-user' }).operations.map((entry) => entry.id)).toEqual([
+			'agent.session.changes',
 			'agent.session.explain',
 			'agent.session.get',
 			'agent.session.list',
 			'agent.session.wait',
 		]);
+	});
+
+	it('baselines and follows ordered Agent changes through a signed cursor', async () => {
+		const runtime = runtimeWithWorkingSession();
+		const { service } = createService(runtime);
+		const baseline = await invokeAndRead(service, request(1, 'agent.session.changes', {}));
+		expect(baseline).toMatchObject({
+			code: 'agent-changes-baselined',
+			kind: 'completed',
+			output: {
+				hasMore: false,
+				items: [],
+				kind: 'baseline',
+				observedThroughRevision: 2,
+				runtimeRevision: 2,
+			},
+		});
+		const cursor = resultOutputProperty(baseline, 'nextCursor');
+		expect(cursor).toBeTypeOf('string');
+		const follow = request(2, 'agent.session.changes', {
+			cursor,
+			timeoutMilliseconds: 1_000,
+		});
+		expect(service.invoke({ kind: 'local-user' }, follow)).toMatchObject({
+			execution: { phase: 'active' },
+			kind: 'accepted',
+		});
+
+		runtime.dispatch(finished('session-working', 'event-changes-finished', 3));
+
+		expect(await waitForTerminal(service, follow)).toMatchObject({
+			code: 'agent-changes-read',
+			kind: 'completed',
+			output: {
+				hasMore: false,
+				items: [
+					{
+						revision: 3,
+						session: { sessionId: 'session-working', status: { kind: 'succeeded' } },
+						transition: 'turn-finished',
+					},
+				],
+				kind: 'changes',
+				observedThroughRevision: 3,
+				runtimeRevision: 3,
+			},
+		});
+	});
+
+	it('closes the change subscription race and completes a timeout as current', async () => {
+		const runtime = runtimeWithWorkingSession();
+		const unsubscribe = vi.fn<() => void>();
+		let dispatchDuringSubscribe = true;
+		const source: AgentChangeSource = {
+			getSnapshot: runtime.getSnapshot,
+			readChanges: runtime.readChanges,
+			subscribe: (listener) => {
+				const stop = runtime.subscribe(listener);
+				if (dispatchDuringSubscribe) {
+					dispatchDuringSubscribe = false;
+					runtime.dispatch(finished('session-working', 'event-changes-race', 3));
+				}
+				return () => {
+					stop();
+					unsubscribe();
+				};
+			},
+		};
+		let expire: (() => void) | undefined;
+		const { service } = createService(source, {
+			scheduleTimeout: (listener) => {
+				expire = listener;
+				return () => undefined;
+			},
+		});
+		const baseline = await invokeAndRead(service, request(1, 'agent.session.changes', {}));
+		const baselineCursor = resultOutputProperty(baseline, 'nextCursor');
+		const raced = await invokeAndRead(
+			service,
+			request(2, 'agent.session.changes', {
+				cursor: baselineCursor,
+				timeoutMilliseconds: 1_000,
+			}),
+		);
+		expect(raced).toMatchObject({
+			code: 'agent-changes-read',
+			output: { items: [{ revision: 3 }] },
+		});
+		expect(unsubscribe).toHaveBeenCalledOnce();
+
+		const currentCursor = resultOutputProperty(raced, 'nextCursor');
+		const currentRequest = request(3, 'agent.session.changes', {
+			cursor: currentCursor,
+			timeoutMilliseconds: 1,
+		});
+		service.invoke({ kind: 'local-user' }, currentRequest);
+		await vi.waitFor(() => expect(expire).toBeTypeOf('function'));
+		expire?.();
+		expect(await waitForTerminal(service, currentRequest)).toMatchObject({
+			code: 'agent-changes-current',
+			kind: 'completed',
+			output: { items: [], kind: 'current', observedThroughRevision: 3 },
+		});
+	});
+
+	it('rejects malformed change cursors and settles follow cancellation', async () => {
+		const runtime = runtimeWithWorkingSession();
+		const { service } = createService(runtime);
+		expect(
+			await invokeAndRead(
+				service,
+				request(1, 'agent.session.changes', { cursor: 'not-a-signed-cursor' }),
+			),
+		).toEqual({ code: 'agent-change-cursor-invalid', kind: 'blocked' });
+
+		const baseline = await invokeAndRead(service, request(2, 'agent.session.changes', {}));
+		const invocation = request(3, 'agent.session.changes', {
+			cursor: resultOutputProperty(baseline, 'nextCursor'),
+			timeoutMilliseconds: 1_000,
+		});
+		service.invoke({ kind: 'local-user' }, invocation);
+		await vi.waitFor(() =>
+			expect(
+				service.get({ kind: 'request', requestIdentity: invocation.requestIdentity }),
+			).toMatchObject({ execution: { phase: 'active' }, kind: 'found' }),
+		);
+		service.cancel({ kind: 'request', requestIdentity: invocation.requestIdentity });
+		expect(await waitForTerminal(service, invocation)).toEqual({
+			code: 'agent-changes-cancelled',
+			kind: 'cancelled',
+		});
+	});
+
+	it('returns an explicit reset page after retained changes overflow', async () => {
+		const runtime = new AgentRuntime();
+		const { service } = createService(runtime);
+		const baseline = await invokeAndRead(service, request(1, 'agent.session.changes', {}));
+		const cursor = resultOutputProperty(baseline, 'nextCursor');
+
+		runtime.dispatch(terminalObserved());
+		for (let sequence = 2; sequence <= 513; sequence += 1) {
+			runtime.dispatch({
+				activity: sequence % 2 === 0 ? 'command' : 'thinking',
+				eventId: AgentEventIdSchema.parse(`event-desktop-change-${sequence}`),
+				generation: 0,
+				sequence,
+				sessionId: AgentSessionIdSchema.parse('session-desktop-retention'),
+				type: 'limited-activity-observed',
+			});
+		}
+
+		expect(
+			await invokeAndRead(
+				service,
+				request(2, 'agent.session.changes', { cursor, timeoutMilliseconds: 1 }),
+			),
+		).toMatchObject({
+			code: 'agent-changes-reset-required',
+			kind: 'completed',
+			output: {
+				items: [],
+				kind: 'reset-required',
+				observedThroughRevision: 513,
+				runtimeRevision: 513,
+			},
+		});
 	});
 
 	it('pages revision-fenced summaries and excludes ended Sessions by default', async () => {
@@ -222,8 +389,9 @@ describe('Desktop Agent read operation catalog', () => {
 		const after = runtime.getSnapshot();
 		let current = before;
 		const unsubscribe = vi.fn<() => void>();
-		const source: AgentSnapshotSource = {
+		const source: AgentChangeSource = {
 			getSnapshot: () => current,
+			readChanges: runtime.readChanges,
 			subscribe: (listener) => {
 				current = after;
 				listener();
@@ -270,7 +438,7 @@ describe('Desktop Agent read operation catalog', () => {
 });
 
 function createService(
-	source: AgentSnapshotSource,
+	source: AgentChangeSource,
 	overrides: Partial<DesktopAgentReadOperationOptions> = {},
 ) {
 	let execution = 0;
@@ -364,6 +532,28 @@ function observed(
 		presentationAttachments: [],
 		providerId: AgentProviderIdSchema.parse('codex'),
 		sessionId: AgentSessionIdSchema.parse(session),
+		type: 'session-observed',
+	};
+}
+
+function terminalObserved(): Extract<AgentObservationEvent, { readonly type: 'session-observed' }> {
+	return {
+		capabilities: ['activity'],
+		eventId: AgentEventIdSchema.parse('event-desktop-retention-observed'),
+		executionLocation: {
+			executionLocationId: AgentExecutionLocationIdSchema.parse('execution-desktop-retention'),
+		},
+		observation: {
+			fidelity: 'basic',
+			freshness: 'fresh',
+			generation: 0,
+			sequence: 1,
+			source: 'terminal',
+		},
+		parentSessionId: null,
+		presentationAttachments: [],
+		providerId: AgentProviderIdSchema.parse('terminal-signal'),
+		sessionId: AgentSessionIdSchema.parse('session-desktop-retention'),
 		type: 'session-observed',
 	};
 }

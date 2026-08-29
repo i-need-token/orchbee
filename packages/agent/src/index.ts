@@ -1,6 +1,22 @@
 export { AgentSemanticEventSchema } from './events';
 export type { AgentObservationEvent, AgentSemanticEvent } from './events';
 export {
+	AGENT_RUNTIME_CHANGE_RETENTION,
+	AgentObservationTransitionKindSchema,
+	AgentRuntimeChangeReadInputSchema,
+	AgentRuntimeChangeReadResultSchema,
+	AgentRuntimeChangeSchema,
+	AgentRuntimeChangeSessionSchema,
+	MAX_AGENT_RUNTIME_CHANGE_PAGE_SIZE,
+} from './changes';
+export type {
+	AgentObservationTransitionKind,
+	AgentRuntimeChange,
+	AgentRuntimeChangeReadInput,
+	AgentRuntimeChangeReadResult,
+	AgentRuntimeChangeSession,
+} from './changes';
+export {
 	AgentActivitySchema,
 	AgentAttentionRequestSchema,
 	AgentCapabilitySchema,
@@ -54,11 +70,14 @@ export type {
 } from './projection';
 export {
 	AGENT_SESSION_EXPLAIN_OPERATION,
+	AGENT_SESSION_CHANGES_OPERATION,
 	AGENT_SESSION_GET_OPERATION,
 	AGENT_SESSION_LIST_OPERATION,
 	AGENT_SESSION_WAIT_OPERATION,
 	AgentFreshnessMeaningSchema,
 	AgentSessionDetailSchema,
+	AgentSessionChangesInputSchema,
+	AgentSessionChangesPageSchema,
 	AgentSessionExplainOutputSchema,
 	AgentSessionExplanationSchema,
 	AgentSessionGetOutputSchema,
@@ -80,6 +99,8 @@ export {
 export type {
 	AgentFreshnessMeaning,
 	AgentSessionDetail,
+	AgentSessionChangesInput,
+	AgentSessionChangesPage,
 	AgentSessionExplainOutput,
 	AgentSessionExplanation,
 	AgentSessionGetOutput,
@@ -96,6 +117,7 @@ export { createAgentRuntimeSnapshot, transitionAgentRuntime } from './reducer';
 export type { AgentTransition, AgentTransitionRejection } from './reducer';
 export { AgentRuntime } from './AgentRuntime';
 export type {
+	AgentChangeSource,
 	AgentRuntimeListener,
 	AgentSemanticEventListener,
 	AgentSnapshotSource,

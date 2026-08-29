@@ -31,12 +31,13 @@ orchbee terminal list (--standalone | --project <project-id> --workspace <worksp
 orchbee terminal create (--standalone | --project <project-id> --workspace <workspace-id>) [--directory <directory-id>] [--detach] [--request-id <request-id>]
 ```
 
-生产 Desktop catalog 还准入四个只读 Agent observation operation。其高层 projection 为：
+生产 Desktop catalog 还准入五个只读 Agent observation operation。其高层 projection 为：
 
 ```text
 orchbee agent list [--all] [--limit <n>] [--cursor <cursor>]
 orchbee agent get <session-id>
 orchbee agent explain <session-id>
+orchbee agent changes [--cursor <cursor>] [--limit <n>] [--timeout <milliseconds>] [--detach] [--request-id <request-id>]
 orchbee agent wait <session-id> [--until <condition>]... [--after-revision <revision>] [--timeout <milliseconds>] [--detach] [--request-id <request-id>]
 ```
 
@@ -53,6 +54,13 @@ Session。无效 input 会在分配 request identity 或联系 Desktop 前被拒
 返回的 Tab ID，并保留该 Tab 规范的深度优先、从左到右 Panel 顺序。这些 query 不暴露 active、selected、
 focused、maximized、active-child、split-weight、pixel-geometry、renderer 或 screen 状态。返回的位置只描述
 一个 revision，绝不能作为 mutation identity。
+
+`agent changes` 是 global canonical change feed。第一次不带 `--cursor` 调用会返回空 baseline，以及位于
+当前 Agent runtime revision 的签名 `nextCursor`。把该 cursor 传回，可以接收最多 100 条有序 applied
+transition，或者在 cursor 已是当前值时长轮询。Timeout 默认 30,000 毫秒，范围为 1 到 600,000，并以
+空 `current` page 完成。`reset-required` page 表示 cursor 已落后于内存保留的 512 条 change：取得新的
+`agent list --all` snapshot，再使用 reset page 的 cursor 继续。绝不能把 reset 当作连续 feed。Change
+record 只包含 revision、canonical transition kind 与 content-free Session summary。
 
 默认输出恰好是 stdout 上一个紧凑、带版本的 JSON document。Invoke result 始终包含 request identity。
 `--output text` 是同一 document 的明确不稳定缩进 projection；automation 不得解析它。当前 runner 不会向
@@ -121,16 +129,21 @@ generation，并针对无效 input、格式错误的 response、transport failur
 
 Core 支持 status、operation list 与 description、owner-backed Workbench 与 Agent command projection、
 invocation admission、execution lookup、cooperative cancellation，以及带边界 backoff 的等待。
-`waitForExecution` 只会重复执行只读 execution lookup。与之不同，`agent wait` 会在 canonical Agent
-snapshot source 上调用一个 server-owned asynchronous query，再通过同一 ledger 观察该 semantic
-execution。Abort CLI caller signal 只停止本地 execution observation；它绝不隐式调用 invocation 或
-cancellation。
+`waitForExecution` 只会重复执行只读 execution lookup。与之不同，`agent wait` 与跟随 cursor 的
+`agent changes` 会在 canonical Agent source 上调用 server-owned asynchronous query，再通过同一 ledger
+观察该 semantic execution。Abort CLI caller signal 只停止本地 execution observation；它绝不隐式调用
+invocation 或 cancellation。
 
 `agent wait` 固定一个精确 Session ID。默认条件包含 attention、outcome、idle 与 ended；重复的
 `--until` 可选择显式 semantic status，或 `fresh`、`stale` 与 `disconnected` 条件。Semantic status 只匹配
 fresh observation。`--after-revision` 要求严格更新的全局 Agent runtime revision，`--timeout` 范围为
 1 到 3,600,000 毫秒，默认 600,000 毫秒。使用 `--detach` 保留 request 或 execution identity，以便之后
 观察或显式执行 `execution cancel`。Coordinator generation 变化会让进行中的 wait 结果未知；CLI 绝不重放。
+
+`agent changes` 在 CLI boundary 保持无状态。它既不缓存 event，也不检查 provider、process、terminal
+或 screen。只有需要保留精确 execution identity 以便后续观察或取消 long poll 时，才使用 `--detach`；
+cancellation 绝不会取消 Agent 工作。签名 cursor 绑定 operation 与 coordinator generation，并在 restart
+后失效。
 
 Runner 最多调用一次 operation。Response 丢失后，它只会重连并观察同一个 request identity。不同的
 coordinator generation 会返回 `outcome-unknown-after-restart`，且绝不重放 mutation。位置参数形式的
@@ -162,8 +175,9 @@ replay、cancellation 或隐式启动 Desktop。SSH、Browser access、remote ta
 CLI 绝不读取 Workbench data file、provider 或 screen state、连接 Terminal Host、枚举产品 Action，也不
 存储或重建 feature state。高层 command 只构造由 Workbench 或 Agent 所有者导出的 semantic-command schema
 验证的 input，并在调用前验证完整的 expected public operation descriptor。Agent query 只返回 canonical
-bounded snapshot 与 projection；`agent explain` 描述 provenance、freshness、capability 与 status basis，
-但不公开 prompt、transcript、tool content、path、provider error 或 screen evidence。Coordinator 拥有
+bounded snapshot、projection 与 content-free change record；`agent explain` 描述 provenance、freshness、
+capability 与 status basis，但不公开 prompt、transcript、tool content、path、provider error 或 screen
+evidence。Coordinator 拥有
 catalog admission 与 execution；feature package 拥有 operation input、output、targeting 与 effect；
 protocol package 只拥有可序列化的通用 envelope。添加 CLI projection 不会授予 operation authority。
 

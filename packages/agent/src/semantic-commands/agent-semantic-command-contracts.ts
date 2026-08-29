@@ -9,11 +9,16 @@ import {
 	AgentSessionIdSchema,
 	AgentSessionSnapshotSchema,
 } from '../model';
+import {
+	AgentRuntimeChangeReadResultSchema,
+	AgentRuntimeChangeSchema,
+	MAX_AGENT_RUNTIME_CHANGE_PAGE_SIZE,
+} from '../changes';
 import { AgentSemanticStatusSchema } from '../projection';
 
 const optionalPageShape = {
 	cursor: z.string().min(1).max(4096).optional(),
-	limit: z.number().int().min(1).max(100).default(50),
+	limit: z.number().int().min(1).max(MAX_AGENT_RUNTIME_CHANGE_PAGE_SIZE).default(50),
 };
 
 export const AgentSessionListInputSchema = z.strictObject({
@@ -23,6 +28,11 @@ export const AgentSessionListInputSchema = z.strictObject({
 
 export const AgentSessionTargetInputSchema = z.strictObject({
 	sessionId: AgentSessionIdSchema,
+});
+
+export const AgentSessionChangesInputSchema = z.strictObject({
+	...optionalPageShape,
+	timeoutMilliseconds: z.number().int().min(1).max(600_000).default(30_000),
 });
 
 export const AgentWaitConditionSchema = z.enum([
@@ -137,6 +147,56 @@ export const AgentSessionWaitOutputSchema = z.strictObject({
 	session: AgentSessionDetailSchema,
 });
 
+const agentSessionChangesPageShape = {
+	nextCursor: z.string().min(1).max(4096),
+	observedThroughRevision: z.number().int().nonnegative().safe(),
+	runtimeRevision: z.number().int().nonnegative().safe(),
+};
+
+export const AgentSessionChangesPageSchema = z
+	.discriminatedUnion('kind', [
+		z.strictObject({
+			...agentSessionChangesPageShape,
+			hasMore: z.literal(false),
+			items: z.tuple([]),
+			kind: z.literal('baseline'),
+		}),
+		z.strictObject({
+			...agentSessionChangesPageShape,
+			hasMore: z.boolean(),
+			items: z.array(AgentRuntimeChangeSchema).min(1).max(MAX_AGENT_RUNTIME_CHANGE_PAGE_SIZE),
+			kind: z.literal('changes'),
+		}),
+		z.strictObject({
+			...agentSessionChangesPageShape,
+			hasMore: z.literal(false),
+			items: z.tuple([]),
+			kind: z.literal('current'),
+		}),
+		z.strictObject({
+			...agentSessionChangesPageShape,
+			hasMore: z.literal(false),
+			items: z.tuple([]),
+			kind: z.literal('reset-required'),
+		}),
+	])
+	.superRefine((page, context) => {
+		if (
+			!AgentRuntimeChangeReadResultSchema.safeParse({
+				changes: page.items,
+				hasMore: page.hasMore,
+				kind: page.kind === 'baseline' ? 'current' : page.kind,
+				observedThroughRevision: page.observedThroughRevision,
+				runtimeRevision: page.runtimeRevision,
+			}).success
+		) {
+			context.addIssue({
+				code: 'custom',
+				message: 'Agent change page revisions and continuation must be consistent',
+			});
+		}
+	});
+
 export const AGENT_SESSION_LIST_OPERATION = Object.freeze({
 	confirmation: 'noninteractive-allowed',
 	id: 'agent.session.list',
@@ -177,8 +237,20 @@ export const AGENT_SESSION_WAIT_OPERATION = Object.freeze({
 	schemaVersion: 1,
 } as const);
 
+export const AGENT_SESSION_CHANGES_OPERATION = Object.freeze({
+	confirmation: 'noninteractive-allowed',
+	id: 'agent.session.changes',
+	input: { name: 'agent.session-changes-input', schemaVersion: 1 },
+	kind: 'query',
+	output: { name: 'agent.session-changes-page', schemaVersion: 1 },
+	retry: 'same-request-while-retained',
+	schemaVersion: 1,
+} as const);
+
 export type AgentFreshnessMeaning = z.infer<typeof AgentFreshnessMeaningSchema>;
 export type AgentSessionDetail = z.infer<typeof AgentSessionDetailSchema>;
+export type AgentSessionChangesInput = z.infer<typeof AgentSessionChangesInputSchema>;
+export type AgentSessionChangesPage = z.infer<typeof AgentSessionChangesPageSchema>;
 export type AgentSessionExplainOutput = z.infer<typeof AgentSessionExplainOutputSchema>;
 export type AgentSessionExplanation = z.infer<typeof AgentSessionExplanationSchema>;
 export type AgentSessionGetOutput = z.infer<typeof AgentSessionGetOutputSchema>;

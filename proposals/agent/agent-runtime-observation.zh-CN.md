@@ -2,7 +2,7 @@
 
 | 字段       | 内容                                                                                                                                                                                                                                                                                                                                                        |
 | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 状态       | 第一阶段 core、本地 observation、已接受的 SSH、tmux、Zellij 拓扑、显式 multi-Agent adapter，以及 Claude Code、Codex、Grok、OpenCode、Pi、OMP、Gemini CLI、GitHub Copilot CLI、Cline 与 Qwen Code 的显式本地集成管理已获授权；后续保留决策仍未解决                                                                                                           |
+| 状态       | 第一阶段 core、本地 observation、已接受的 SSH、tmux、Zellij 拓扑、显式 multi-Agent adapter、显式本地集成管理与易失、可感知丢失的变化流已实现；后续保留决策仍未解决                                                                                                                                                                                          |
 | 决策 Owner | Active requester 以 Orchbee 产品与架构 decision owner 身份接受了第一阶段授权；每项保留决策仍需其所需 owner 明确接受                                                                                                                                                                                                                                         |
 | 语义 Owner | Agent capability、应用运行时、Workbench 应用组合层与平台通知 adapter                                                                                                                                                                                                                                                                                        |
 | 当前权威   | [`docs/ARCHITECTURE.md`](../../docs/zh-CN/ARCHITECTURE.md)、[`@orchbee/agent`](../../packages/agent/README.zh-CN.md)、[`@orchbee/terminal-protocol`](../../packages/terminal-protocol/README.zh-CN.md)、[`@orchbee/workbench`](../../packages/workbench/README.zh-CN.md)，以及 [unified-search 契约](../../packages/workbench/docs/unified-search.zh-CN.md) |
@@ -543,7 +543,9 @@ device-scoped notification command。
 6. 已完成：同一 semantic priority 会投影到精确本地 Panel 与 Tab adornment；attention、success 与
    failure 可以产生 permission-gated、hidden-attachment notification attempt。Activity 与 Unified
    Search 仍是后续分别治理的界面。
-7. 只有作为分别授权的 consequential 切片，才考虑 provider-native Answer、Approve、resume、durable
+7. 已完成：Agent runtime 保留有界、去内容化的 canonical change journal；Desktop 公开签名且可感知
+   丢失的长轮询，TypeScript CLI 与内嵌 Skill 公开 reset-and-resnapshot 工作流，且不声明 restart 连续性。
+8. 只有作为分别授权的 consequential 切片，才考虑 provider-native Answer、Approve、resume、durable
    history、offline remote relay、mobile push 与 cross-device delivery。
 
 每个切片都可以通过删除其 consumer 与 adapter registration 回滚，同时保留 terminal。Wire-contract
@@ -671,6 +673,34 @@ Consequential 与 Modeled 切片：
 6. Remote installation 始终只能手动完成。关闭只移除准确的 Orchbee-owned symlink 或 plugin installation；
    unsupported version 与 missing event 只会降级，不会虚构状态或影响 Agent 执行。
 
+## 已接受的易失变化流授权
+
+2026-08-29，同一 active requester 以 Orchbee 产品与架构 decision owner 身份明确授权了受 Herdr 启发的
+外围观察工程。这一 Consequential 与 Modeled 切片接受以下更窄契约：
+
+1. `@orchbee/agent` 拥有一个内存 journal，保留最近 512 个已应用的 canonical runtime transition。每条
+   record 包含全局单调 runtime revision、canonical transition kind 与去内容化的当前 Session summary。
+   被拒绝和未改变的 adapter input 不产生 record。
+2. Journal 是 observation projection，而不是另一套 reducer、event ingress、audit log 或 durable history。
+   它绝不包含 prompt、transcript、command、question text、tool content、filesystem path、environment
+   value、provider-private payload 或 screen matcher evidence。
+3. Consumer 先取得位于当前 revision 的空 baseline，再通过签名 opaque cursor 跟随。一次读取最多返回
+   100 条有序 record。没有更新 record 时，application 会先订阅再完成决定性 recheck，并可长轮询直至
+   有界 timeout、cancellation 或 coordinator retirement。
+4. Consumer 落后于已保留 history 时绝不呈现为连续 feed。结果会明确要求 reset，把 cursor 推进到当前
+   revision，并要求 consumer 先获取新的 canonical Session snapshot 再继续跟随。伪造、跨 operation、
+   跨 generation 或 malformed cursor 会被拒绝。
+5. Retention 由 application runtime 拥有，因此可跨 renderer unmount 保留；但不声明跨 Desktop 或未来
+   Hub restart 的连续性、replay、cursor validity 或 retained change。Coordinator generation 继续作为
+   restart fence。
+6. 第一个 consumer 是既有 semantic-command boundary 与 TypeScript CLI。本切片不增加 Agent control、
+   provider capability、screen 或 process heuristic、terminal output access、remote relay、persistence、
+   telemetry 或 operating-system effect。
+7. Deterministic journal 与 operation test 加一个有界 TLA+ model 必须覆盖 ordered batching、
+   subscribe-before-recheck、timeout、cancellation、retention overflow、显式 reset、malformed cursor 与
+   coordinator retirement。Rollback 会移除 read operation 与 journal，同时保留 canonical Agent
+   observation 和既有 point-in-time read。
+
 ## 保留决策
 
 已接受的第一阶段领域切片不会决定：
@@ -682,8 +712,9 @@ Consequential 与 Modeled 切片：
 - 自动 local 或 remote adapter deployment、任何由 Orchbee 发起的 remote configuration change、静默
   local configuration edit、background adapter updater，以及 pinned provider fixture matrix 之外的
   compatibility claim；
-- 除既有显式 opt-in 外的 notification default、stale grace period、recent-event bound、per-client
-  acknowledgement persistence 与 cross-device suppression；
+- 除既有显式 opt-in 外的 notification default、stale grace period、Activity 专用 recent-event bound、
+  per-client acknowledgement persistence 与 cross-device suppression；易失 change journal 使用上面
+  单独接受的 bound；
 - 最终 Activity 界面组合、window 或 Dock badge policy，以及 experience-component reuse 或 admission；
 - Provider-native question 与 approval payload、response authorization、audit、cancellation、replay
   protection 与 inline interaction；

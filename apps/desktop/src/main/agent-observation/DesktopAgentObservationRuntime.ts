@@ -5,7 +5,10 @@ import {
 	AgentProviderIdSchema,
 	AgentRuntime,
 	AgentSessionIdSchema,
+	type AgentChangeSource,
 	type AgentObservationEvent,
+	type AgentRuntimeChangeReadInput,
+	type AgentRuntimeChangeReadResult,
 	type AgentRuntimeSnapshot,
 	type AgentSessionId,
 	type AgentSemanticEventListener,
@@ -31,7 +34,7 @@ export interface DesktopAgentObservationRuntimeOptions {
 	readonly allocateEventId: () => string;
 }
 
-export class DesktopAgentObservationRuntime {
+export class DesktopAgentObservationRuntime implements AgentChangeSource {
 	readonly #allocateEventId: () => string;
 	readonly #runtime: AgentRuntime;
 	readonly #terminalSignalSessions = new Map<string, TerminalSignalSession>();
@@ -54,6 +57,9 @@ export class DesktopAgentObservationRuntime {
 	}
 
 	getSnapshot = (): AgentRuntimeSnapshot => this.#runtime.getSnapshot();
+
+	readChanges = (input: AgentRuntimeChangeReadInput): AgentRuntimeChangeReadResult =>
+		this.#runtime.readChanges(input);
 
 	retireTerminalSignalPresentation(presentationId: string): void {
 		for (const [key, binding] of this.#terminalSignalSessions) {

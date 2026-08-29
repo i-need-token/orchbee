@@ -127,6 +127,7 @@ try {
 		if (stderr !== '') throw new Error(`${launch.name} wrote a diagnostic to stderr.`);
 		if (
 			!stdout.startsWith('---\nname: orchbee\n') ||
+			!stdout.includes('"$ORCHBEE_CLI" agent changes') ||
 			!stdout.includes('"$ORCHBEE_CLI" agent wait') ||
 			!stdout.endsWith('\n')
 		) {

@@ -23,7 +23,14 @@ Session、Turn、Request、Event 与 Provider identity 都是有界 opaque strin
 
 ## Transition 与信任
 
-`transitionAgentRuntime(...)` 是作用于可信、有类型 `AgentObservationEvent` 的纯 reducer。`AgentRuntime` 拥有一个 snapshot，只发布 applied revision，并把 semantic attention、resolution、outcome 与 Session-end event 同 state subscription 分开发出。重复或乱序 sequence value 保持 unchanged；generation、identity、capability、parent、location 或 Turn/Request correlation 不匹配时拒绝且不发生 mutation。
+`transitionAgentRuntime(...)` 是作用于可信、有类型 `AgentObservationEvent` 的纯 reducer。
+`AgentRuntime` 拥有一个 snapshot，只发布 applied revision，并把 semantic attention、resolution、outcome
+与 Session-end event 同 state subscription 分开发出。它还把最近 512 个 applied revision 保留为
+content-free change journal。每条 record 只包含 runtime revision、canonical transition kind 与当前
+Session summary；unchanged 与 rejected input 不创建 record。`readChanges(...)` 返回 ordered page、
+`current`、`revision-ahead`，或在调用者落后于 retention 时返回显式 `reset-required` result。重复或乱序
+sequence value 保持 unchanged；generation、identity、capability、parent、location 或 Turn/Request
+correlation 不匹配时拒绝且不发生 mutation。
 
 Source 与 capability 相互独立。Heuristic source 不能声明 semantic capability。Terminal source 只能通过 `limited-activity-observed` 声明有界 activity；产生的 hint 绝不创建 Turn、肯定性 idle、outcome、attention request、semantic event 或 notification 权威。Native 与 hook source 只能声明其实际实现的 observational capability。`presentation-attached`、`presentation-visibility-changed` 与 `presentation-detached` 更新精确、受 generation fencing 的 presentation view，但不会重复 Session 语义；只 detach 一个 presentation 时，只要仍有其他 navigable attachment，Session 就保持 connected。Reconnect 需要显式 higher-generation snapshot，会重新验证 source capability 上限与每项 semantic claim，并且绝不从缺失中重建 completion 或 resolution。Staleness 只改变 freshness。Client acknowledgement 有意位于 canonical reducer 之外，不能解决 shared request。
 
@@ -43,10 +50,11 @@ Freshness 保持为独立 overlay，不能把 stale work 静默变成 idle。每
 
 ## Semantic command read model
 
-该 package 拥有 `agent.session.list`、`agent.session.get`、`agent.session.explain` 与
-`agent.session.wait` 的严格 version-1 契约。这些 descriptor、schema 与确定性 projection helper 独立于
-transport 与 application。Desktop application composition 可以在 `AgentSnapshotSource` 上准入它们；CLI
-只有在完整 live descriptor 匹配该 package 契约后，才能公开高层 projection。
+该 package 拥有 `agent.session.list`、`agent.session.get`、`agent.session.explain`、
+`agent.session.wait` 与 `agent.session.changes` 的严格 version-1 契约。这些 descriptor、schema 与
+确定性 projection helper 独立于 transport 与 application。Desktop application composition 可以在
+`AgentSnapshotSource` 上准入 point-in-time read 与 wait，并在 `AgentChangeSource` 上准入 change feed；
+CLI 只有在完整 live descriptor 匹配该 package 契约后，才能公开高层 projection。
 
 `agent.session.list` 从一个 runtime revision 投影稳定 summary，默认只包含 live Session，可选包含保留的
 ended Session，并把一页限制在 100 项。`agent.session.get` 返回精确保留的 canonical Session snapshot 与
@@ -63,9 +71,23 @@ Semantic status 只在 observation fresh 时匹配；health 只匹配精确请�
 recheck，并返回一个精确 matching snapshot，或显式 missing、ahead、timeout、cancellation 或
 coordinator-retirement outcome。
 
+`agent.session.changes` 定义 global、content-free change-page 契约。没有提供 cursor 时，application 会在
+当前 revision 返回空 baseline。随后，签名 cursor 选择该 baseline 之后的下一个 revision；一页最多包含
+100 条有序 record。Current cursor 可以长轮询，timeout 以空 `current` page 完成，retention loss 以空
+`reset-required` page 完成，并提供位于当前 revision 的 cursor。Consumer 必须在 reset 后刷新 canonical
+Session snapshot，再继续跟随。Journal 与 cursor 都是易失的，不声明跨 Desktop 或未来 Hub restart 连续性。
+
 ## 当前应用组合
 
-Desktop 在 application lifetime 内拥有一个 volatile `DesktopAgentObservationRuntime`。Renderer document replacement 只退役旧 broker；runtime 保持存活，下一个 renderer 通过严格的 `@orchbee/desktop-client-protocol` Agent-observation port 请求 fresh full snapshot。该 port 的 version 2 还会在 snapshot 更新后发布精确 semantic event，使 renderer 可以评估一次 notification effect，而不用从状态重建事件。Web adapter 拒绝 malformed 或 uncorrelated message，并忽略 non-increasing revision。Workbench 消费狭窄的 `AgentSnapshotSource`，把非 ended 状态投影到精确 terminal panel header，并把一个 Tab 内的全部 terminal presentation 去重为一个 provider identity icon 与一个本地化的非 ended status adornment。保留的 ended state 只继续显示 provider identity icon。
+Desktop 在 application lifetime 内拥有一个 volatile `DesktopAgentObservationRuntime`，包括有界 change
+journal。Renderer document replacement 只退役旧 broker；runtime 与 journal 保持存活，下一个 renderer
+通过严格的 `@orchbee/desktop-client-protocol` Agent-observation port 请求 fresh full snapshot。该 port
+的 version 2 还会在 snapshot 更新后发布精确 semantic event，使 renderer 可以评估一次 notification
+effect，而不用从状态重建事件。Web adapter 拒绝 malformed 或 uncorrelated message，并忽略
+non-increasing revision。Workbench 消费狭窄的 `AgentSnapshotSource`，把非 ended 状态投影到精确
+terminal panel header，并把一个 Tab 内的全部 terminal presentation 去重为一个 provider identity icon
+与一个本地化的非 ended status adornment。保留的 ended state 只继续显示 provider identity icon。只有
+Desktop semantic-command composition 会为 signed cursor read 与 long polling 消费 `AgentChangeSource`。
 
 Desktop 准入两个 non-blocking observation half。严格的 terminal-signal adapter 只能根据有界 OSC 777 version-1 payload 发出 `limited-activity-observed`，因此不可信 hint 只能改变 `activityHint`。需要显式安装且分别绑定 provider 的 Claude Code、Codex、Grok、OpenCode、Pi、OMP、Gemini CLI、GitHub Copilot CLI、Cline 与 Qwen Code adapter，会各自验证 upstream contract，再剥离 prompt、tool content、transcript path、working directory、error text 与未知字段。它们通过私有 Unix-domain socket 发送共享的 normalized rich allowlist，并向每个解析出的 outer TTY 单独写入 OSC 777 version-2 correlation hint。封闭的应用 registry 授予 provider provenance、accepted event 与 maximum capability；adapter payload 不能给自己授予权威。任一 transport half 单独都没有足够权威：Desktop 只有对 live terminal generation 完成精确、有界的 event/correlation join 后，才接受 rich semantics。共享 resolver 覆盖 direct terminal、每个已 attached 的 tmux client、保守解析 Zellij client，以及 nested mux target。Shell integration 会通过 OpenSSH reverse Unix-socket forwarding，为符合条件的交互式 SSH session 提供一个随机 remote socket；不存在 HTTP port、Bearer credential、继承的 terminal secret、automatic remote installation 或 durable remote cache。任一 half 都可以失败，而不影响 Agent 或 terminal。
 
@@ -76,9 +98,10 @@ Desktop 准入两个 non-blocking observation half。严格的 terminal-signal a
 Unit 与 property test 覆盖 transition guard、精确 attention capability 准入、durable request、outcome cleanup、无 outcome 的 idle settlement、stale overlay、Session end、source capability ceiling、reconnect、presentation-generation fencing、multi-attachment fan-out 与 retirement、schema invariant、runtime disposal 与 deterministic projection。
 
 Semantic-command contract 与 projection test 还覆盖默认和显式 wait condition、fresh-only semantic
-matching、health matching、status-basis explanation、content absence、ended filtering 与 bounded schema。
-Desktop operation test refinement 覆盖 pagination、exact-identity read、subscribe-before-recheck waiting、
-revision fencing、timeout、cancellation 与 synchronous subscription race。
+matching、health matching、status-basis explanation、content absence、ended filtering、bounded schema、
+ordered change batching、current read、overflow 与 explicit reset。Desktop operation test refinement
+覆盖 pagination、exact-identity read、两种 subscribe-before-recheck wait、revision fencing、signed
+change cursor、timeout、cancellation、overflow/reset 与 synchronous subscription race。
 
 [`formal/tla/AgentRuntime.tla`](formal/tla/AgentRuntime.tla) 是有界 asynchronous model。它包含两个 Session、两个 client view、两个 observation generation、交错的 attention 与 reconnect lifecycle、limited 与 Turn activity、无 outcome 的 idle settlement、client acknowledgement、visibility、notification candidate、snapshot publication 与 renderer reconnect。TLC 检查 acknowledgement 不能解决 request、stale-generation rejection 保留 canonical state、limited activity 只改变其 hint、idle observation 不能伪造 outcome 或 notification candidate、activity 不创建 notification candidate、candidate 必须 fresh/live/invisible 且基于 attention 或 failure、generation 只在 reconnect 时改变、ended Session 没有 active work、client revision 不超过 publication，以及 observed 或 recovered snapshot 与 published canonical state 精确一致。Required action coverage 防止模型在未触达关键动作时空洞通过。
 
@@ -91,6 +114,13 @@ subscribe-before-decisive-recheck eligibility、fresh-only semantic match、精�
 unmatched output、Agent-only revision ownership，以及显式 missing、future-baseline、timeout、
 cancellation 与 coordinator-retirement path。这些边界不证明无界 waiter、time、revision、Session 或
 restart continuity。
+
+[`../../apps/desktop/formal/tla/AgentSemanticChanges.tla`](../../apps/desktop/formal/tla/AgentSemanticChanges.tla)
+是 application-composition change-feed model。它使用 revision 0 到 4、retention 2、page bound 2 与两个
+coordinator generation；TLC 检查有界 ordered journal suffix、baseline、ordered batching、精确 current
+subscription、空 timeout、invalid cursor、cancellation、coordinator retirement，以及用显式 reset
+取代静默 retention gap。这些边界不证明无界 retention、revision、reader、cryptographic cursor security
+或 restart continuity。
 
 ## 验证
 

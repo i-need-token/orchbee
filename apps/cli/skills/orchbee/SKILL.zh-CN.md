@@ -1,6 +1,6 @@
 ---
 name: orchbee
-description: 通过注入的 CLI 检查或控制当前 Orchbee 应用。当用户明确要求检查 Orchbee Project、Directory、Workspace、Tab、Panel、Terminal 或已观测 Agent Session，等待 Agent 状态，创建 Orchbee Terminal，或调用已准入的 Orchbee 操作时使用。需要 ORCHBEE_CLI。
+description: 通过注入的 CLI 检查或控制当前 Orchbee 应用。当用户明确要求检查 Orchbee Project、Directory、Workspace、Tab、Panel、Terminal 或已观测 Agent Session，跟随或等待 Agent 状态变化，创建 Orchbee Terminal，或调用已准入的 Orchbee 操作时使用。需要 ORCHBEE_CLI。
 ---
 
 # Orchbee
@@ -42,6 +42,7 @@ if (-not $env:ORCHBEE_CLI) { throw 'Orchbee CLI context is unavailable.' }
 "$ORCHBEE_CLI" agent list
 "$ORCHBEE_CLI" agent get <session-id>
 "$ORCHBEE_CLI" agent explain <session-id>
+"$ORCHBEE_CLI" agent changes
 ```
 
 Workbench list 使用 `--limit <1-200>`，Agent list 使用 `--limit <1-100>`，然后把返回的
@@ -92,6 +93,29 @@ health condition。`--after-revision` 要求严格更新的全局 Agent runtime 
 不会取消 waiter 或 Agent。如果之后可能需要取消，应使用 `--detach` 启动，保留返回的 request 或 execution
 ID，再对该精确 ID 使用 `execution cancel`。取消 wait 仍不会取消 Agent 工作。Coordinator restart 会让
 进行中的 wait 结果未知；应报告该不确定性且不得重放。
+
+### 跟随全部 canonical Agent 变化
+
+任务需要跨 Session 持续观察时，使用 global change feed：
+
+```sh
+"$ORCHBEE_CLI" agent changes
+"$ORCHBEE_CLI" agent changes --cursor <next-cursor> --timeout <milliseconds>
+```
+
+第一次调用返回空 `baseline`。读取其精确
+`.result.execution.result.output.nextCursor`，再把该 cursor 传给下一次调用。每次调用后都用新返回的
+`nextCursor` 替换它：
+
+- `changes`：消费有序 `items`；`hasMore` 为 true 时立即重复，否则再次长轮询；
+- `current`：timeout 前没有 canonical transition；仅在仍需要观察时继续；
+- `reset-required`：cursor 已落后于内存保留的 512 条 change。运行 `agent list --all` 获取新的 canonical
+  snapshot，报告连续性已经丢失，再用 reset result 的 cursor 继续。绝不能静默跨过 gap。
+
+每个 item 是一个 applied runtime revision，包含 canonical transition kind 与 content-free Session
+summary。它不包含 prompt、transcript、tool、path、terminal output 或 screen evidence。默认 timeout 为
+30,000 毫秒，上限为 600,000。Cursor 绑定当前 coordinator generation，并在 restart 后失效。取消或中断
+feed wait 绝不会取消 Agent 工作。
 
 ## 创建 Terminal
 

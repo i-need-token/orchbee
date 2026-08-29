@@ -1,6 +1,6 @@
 ---
 name: orchbee
-description: Inspect or control the current Orchbee application through its injected CLI. Use when the user explicitly asks to inspect Orchbee Projects, Directories, Workspaces, Tabs, Panels, Terminals, or observed Agent Sessions; wait for an Agent state; create an Orchbee Terminal; or invoke an admitted Orchbee operation. Requires ORCHBEE_CLI.
+description: Inspect or control the current Orchbee application through its injected CLI. Use when the user explicitly asks to inspect Orchbee Projects, Directories, Workspaces, Tabs, Panels, Terminals, or observed Agent Sessions; follow or wait for Agent state changes; create an Orchbee Terminal; or invoke an admitted Orchbee operation. Requires ORCHBEE_CLI.
 ---
 
 # Orchbee
@@ -42,6 +42,7 @@ These commands are read-only:
 "$ORCHBEE_CLI" agent list
 "$ORCHBEE_CLI" agent get <session-id>
 "$ORCHBEE_CLI" agent explain <session-id>
+"$ORCHBEE_CLI" agent changes
 ```
 
 Use `--limit <1-200>` for Workbench lists and `--limit <1-100>` for Agent lists, then pass the
@@ -96,6 +97,33 @@ local observation and does not cancel the waiter or the Agent. If later cancella
 start with `--detach`, retain the returned request or execution ID, and use `execution cancel` on
 that exact ID. Cancelling the wait still does not cancel Agent work. A coordinator restart makes an
 in-flight wait outcome unknown; report that uncertainty and do not replay it.
+
+### Follow all canonical Agent changes
+
+Use the global change feed when the task needs ongoing observation across Sessions:
+
+```sh
+"$ORCHBEE_CLI" agent changes
+"$ORCHBEE_CLI" agent changes --cursor <next-cursor> --timeout <milliseconds>
+```
+
+The first call returns an empty `baseline`. Read its exact
+`.result.execution.result.output.nextCursor`, then pass that cursor to the next call. After every
+call, replace it with the newly returned `nextCursor`:
+
+- `changes`: consume the ordered `items`; repeat immediately when `hasMore` is true, otherwise
+  long-poll again;
+- `current`: no canonical transition occurred before timeout; continue only if observation is still
+  requested;
+- `reset-required`: the cursor fell behind the 512 retained in-memory changes. Run `agent list
+--all` for a fresh canonical snapshot, report that continuity was lost, then continue with the
+  reset result's cursor. Never silently bridge the gap.
+
+Each item is one applied runtime revision with a canonical transition kind and content-free Session
+summary. It contains no prompt, transcript, tool, path, terminal output, or screen evidence. The
+default timeout is 30,000 milliseconds and the maximum is 600,000. A cursor is bound to the current
+coordinator generation and is invalid after restart. Cancelling or interrupting a feed wait never
+cancels Agent work.
 
 ## Create a Terminal
 
