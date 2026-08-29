@@ -50,6 +50,31 @@ describe('OpenSshTargetResolver', () => {
 		expect(dependencies.query).toHaveBeenCalledWith('/usr/bin/ssh', ['-G', '--', 'build-host']);
 	});
 
+	it('uses an available application-home configuration for a target without an override', async () => {
+		const dependencies = {
+			...createDependencies({
+				kind: 'completed' as const,
+				stdout: configurationOutput({ strictHostKeyChecking: 'ask' }),
+			}),
+			fileExists: vi.fn<(path: string) => boolean>(() => true),
+		};
+		const resolver = new OpenSshTargetResolver(
+			'/usr/bin/ssh',
+			dependencies,
+			'/Users/example/.ssh/config',
+		);
+
+		await expect(resolver.resolve(directTarget)).resolves.toMatchObject({ kind: 'resolved' });
+		expect(dependencies.fileExists).toHaveBeenCalledWith('/Users/example/.ssh/config');
+		expect(dependencies.query).toHaveBeenCalledWith('/usr/bin/ssh', [
+			'-G',
+			'-F',
+			'/Users/example/.ssh/config',
+			'--',
+			'build-host',
+		]);
+	});
+
 	it('passes one explicit absolute configuration file before the protected destination', async () => {
 		const dependencies = createDependencies({
 			kind: 'completed',

@@ -123,7 +123,7 @@ test "launcher accepts only the exact public commands and isolated worker surfac
     }));
 }
 
-test "protocol wire constants stay aligned with version 0.2.0" {
+test "protocol wire constants stay aligned with version 0.3.0" {
     try std.testing.expectEqual(@as(usize, 16), protocol.header_bytes);
     try std.testing.expectEqual(@as(usize, 1024 * 1024), protocol.maximum_frame_bytes);
     try std.testing.expectEqual(@as(u8, 1), @intFromEnum(protocol.Kind.hello));
@@ -131,9 +131,9 @@ test "protocol wire constants stay aligned with version 0.2.0" {
     try std.testing.expectEqual(@as(u8, 18), @intFromEnum(protocol.Kind.channel_data));
     try std.testing.expectEqual(@as(u8, 19), @intFromEnum(protocol.Kind.channel_credit));
     try std.testing.expectEqual(@as(u8, 0), protocol.protocol_major);
-    try std.testing.expectEqual(@as(u8, 2), protocol.protocol_minor);
+    try std.testing.expectEqual(@as(u8, 3), protocol.protocol_minor);
     try std.testing.expectEqual(@as(u8, 0), protocol.protocol_patch);
-    try std.testing.expectEqualStrings("project-root-v1", protocol.project_root_service_id);
+    try std.testing.expectEqualStrings("project-root-v2", protocol.project_root_service_id);
     try std.testing.expectEqualStrings("terminal-host-v1", protocol.terminal_host_service_id);
     try std.testing.expectEqual(@as(usize, 65_536), protocol.terminal_host_maximum_chunk_bytes);
 }
@@ -145,7 +145,15 @@ test "project-root request decoder and path boundary are strict" {
         "{\"type\":\"inspect-project-root\",\"path\":\"/srv/project\"}",
     );
     defer request.deinit();
-    try std.testing.expectEqualStrings("/srv/project", request.value.path);
+    try std.testing.expectEqualStrings("/srv/project", request.value.path.?);
+
+    var home_listing = try project_root.decodeRequest(
+        allocator,
+        "{\"type\":\"list-project-directory\",\"path\":null}",
+    );
+    defer home_listing.deinit();
+    try std.testing.expectEqual(project_root.RequestKind.list, project_root.requestKind(home_listing.value));
+    try std.testing.expect(home_listing.value.path == null);
 
     for ([_][]const u8{
         "{\"type\":\"inspect-project-root\",\"path\":\"relative\"}",

@@ -18,12 +18,14 @@ export function WorkbenchRoute(): ReactNode {
 			macosTerminalInputSettingsController={application.macosTerminalInputSettingsController}
 			navigation={coordinator.navigation}
 			onConnectViaSsh={application.onConnectViaSsh}
+			onAddProjectFolderViaSsh={application.onAddProjectFolderViaSsh}
 			projectFolderAcquisition={application.projectFolderAcquisition}
 			projectWorktree={application.projectWorktree}
 			projectWorkspaceRuntime={application.projectWorkspaceRuntime}
 			remoteTerminalCreation={application.remoteTerminalCreation}
 			requestBrowserAccess={application.requestBrowserAccess}
 			shortcutPlatform={application.shortcutPlatform}
+			sshConnectionManagementControl={application.sshConnectionManagementControl}
 			terminalSettingsController={application.terminalSettingsController}
 			terminalInteractionSettingsController={application.terminalInteractionSettingsController}
 			terminalFeedbackSettingsController={application.terminalFeedbackSettingsController}

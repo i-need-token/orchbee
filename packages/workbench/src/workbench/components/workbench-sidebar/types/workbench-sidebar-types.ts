@@ -42,12 +42,16 @@ export interface WorkbenchProjectNavigationMessages {
 	readonly projectFolders: string;
 	readonly projectManage: string;
 	readonly projectManageAddFolder: string;
+	readonly projectManageAddLocalFolder: string;
+	readonly projectManageAddSshFolder: string;
 	readonly projectManageDescription: string;
 	readonly projectManageFolderAlreadyAdded: string;
 	readonly projectManageFolders: string;
 	readonly projectManageName: string;
 	readonly projectManageNamePlaceholder: string;
 	readonly projectManagePrimaryFolder: string;
+	readonly projectManageSshFolderBadge: string;
+	readonly projectManageSshFolderDescription: string;
 	readonly projectManageTitle: string;
 	readonly projectOptions: string;
 	readonly projectWorktrees: string;

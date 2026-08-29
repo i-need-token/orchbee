@@ -11,7 +11,7 @@ import { describe, expect, it } from 'vitest';
 import { createSshEnvironmentRemoteBootstrap } from '../createSshEnvironmentRemoteBootstrap';
 import type { VerifiedSshEnvironmentReleaseCatalog } from '../verify-ssh-environment-release';
 
-const runtimeVersion = SshEnvironmentRuntimeVersionSchema.parse('0.1.0');
+const runtimeVersion = SshEnvironmentRuntimeVersionSchema.parse('0.2.0');
 const darwinDigest = SshEnvironmentBuildDigestSchema.parse('a'.repeat(64));
 const linuxDigest = SshEnvironmentBuildDigestSchema.parse('b'.repeat(64));
 const terminalHostVersion = SshEnvironmentTerminalHostVersionSchema.parse('0.1.0');
@@ -65,7 +65,7 @@ describe('SSH Environment remote bootstrap', () => {
 		expect(spawnSync('/bin/sh', ['-n', '-c', bootstrap.command]).status).toBe(0);
 		expect(bootstrap.command).toContain('orchbee_directory="$HOME/.orchbee"');
 		expect(bootstrap.command).toContain(
-			'runtime_version_directory="$runtime_versions_directory/0.1.0"',
+			'runtime_version_directory="$runtime_versions_directory/0.2.0"',
 		);
 		expect(bootstrap.command).toContain(
 			'terminal_host_version_directory="$terminal_host_versions_directory/0.1.0"',

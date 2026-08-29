@@ -90,6 +90,11 @@ export type ProjectWorkspaceEvent =
 			readonly type: 'environment-project-registered';
 	  }
 	| {
+			readonly directory: WorkbenchFolderDirectory;
+			readonly projectId: string;
+			readonly type: 'environment-directory-registered';
+	  }
+	| {
 			readonly directoryId: string;
 			readonly projectId: string;
 			readonly type: 'environment-workspace-registered';
@@ -208,6 +213,7 @@ export type ProjectWorkspaceEvent =
 
 export type ProjectWorkspaceRejection =
 	| 'directory-already-exists'
+	| 'directory-environment-conflict'
 	| 'directory-invalid'
 	| 'directory-not-found'
 	| 'directory-removal-not-allowed'
@@ -270,6 +276,9 @@ export function transitionProjectWorkspace(
 ): ProjectWorkspaceTransition {
 	let result: ProjectWorkspaceTransition;
 	switch (event.type) {
+		case 'environment-directory-registered':
+			result = registerEnvironmentDirectory(state, event);
+			break;
 		case 'environment-project-registered':
 			result = registerEnvironmentProject(state, event);
 			break;
@@ -343,6 +352,48 @@ export function transitionProjectWorkspace(
 	}
 	assertProjectWorkspaceInvariants(result.state);
 	return result;
+}
+
+function registerEnvironmentDirectory(
+	state: ProjectWorkspaceState,
+	event: Extract<ProjectWorkspaceEvent, { type: 'environment-directory-registered' }>,
+): ProjectWorkspaceTransition {
+	const project = findProject(state, event.projectId);
+	if (project === null) return rejected(state, 'project-not-found');
+	if (!isValidRemoteProjectDirectory(event.directory)) {
+		return rejected(state, 'directory-invalid');
+	}
+	for (const candidateProject of state.projects) {
+		const existing = candidateProject.directories.find((directory) =>
+			directoriesShareLocation(directory, event.directory),
+		);
+		if (existing === undefined) continue;
+		return candidateProject.id === project.id
+			? unchanged(state)
+			: rejected(state, 'directory-already-exists');
+	}
+	if (project.directories.some((directory) => directory.id === event.directory.id)) {
+		return rejected(state, 'directory-already-exists');
+	}
+	const projectEnvironmentIds = new Set(
+		project.directories.flatMap((directory) =>
+			directory.placement.kind === 'environment' ? [directory.placement.environmentId] : [],
+		),
+	);
+	if (
+		projectEnvironmentIds.size > 1 ||
+		(projectEnvironmentIds.size === 1 &&
+			!projectEnvironmentIds.has(event.directory.placement.environmentId))
+	) {
+		return rejected(state, 'directory-environment-conflict');
+	}
+	const update = requireProjectUpdate(
+		updateKnownProject(state, event.projectId, (currentProject) => ({
+			...currentProject,
+			directories: [...currentProject.directories, event.directory],
+		})),
+	);
+	return applied(update.state);
 }
 
 function createProject(
@@ -1249,6 +1300,7 @@ export function assertProjectWorkspaceInvariants(state: ProjectWorkspaceState): 
 		}
 		const directoryIds = new Set<string>();
 		const directoryLocations: WorkbenchDirectory[] = [];
+		const projectEnvironmentIds = new Set<string>();
 		for (const directory of project.directories) {
 			if (!isValidDirectoryDescriptor(directory)) {
 				throw new Error(`Project ${project.id} has an invalid Directory ${directory.id}.`);
@@ -1262,6 +1314,7 @@ export function assertProjectWorkspaceInvariants(state: ProjectWorkspaceState): 
 			directoryIds.add(directory.id);
 			directoryLocations.push(directory);
 			if (directory.placement.kind === 'environment') {
+				projectEnvironmentIds.add(directory.placement.environmentId);
 				const remoteLocation = JSON.stringify([directory.placement.environmentId, directory.path]);
 				if (remoteDirectoryLocations.has(remoteLocation)) {
 					throw new Error(
@@ -1270,6 +1323,9 @@ export function assertProjectWorkspaceInvariants(state: ProjectWorkspaceState): 
 				}
 				remoteDirectoryLocations.add(remoteLocation);
 			}
+		}
+		if (projectEnvironmentIds.size > 1) {
+			throw new Error(`Project ${project.id} spans multiple Environment identities.`);
 		}
 		if (!directoryIds.has(project.primaryDirectoryId)) {
 			throw new Error(`Project ${project.id} has a missing primary Directory.`);

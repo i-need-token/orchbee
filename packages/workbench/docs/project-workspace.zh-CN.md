@@ -74,6 +74,8 @@ ProjectWorkspaceState
 - 项目、目录、工作空间和终端上下文 IDs 在其所属状态中是唯一的。
 - 项目顺序是当前项目身份的排列；重新排序不会改变成员资格、活动位置或披露意图。
 - 每个项目至少拥有一个有序目录。
+- 一个 Project 的全部 Directory 最多引用一个 Environment identity；local Directory 可以与来自该
+  Environment 的任意多个不同 path 共存。
 - 每个目录的可识别类型与其 Git 元数据一致。
 - 每个项目 `primaryDirectoryId` 都会命名其目录之一。
 - 启动配置 IDs 在他们的项目中是独一无二的。
@@ -176,6 +178,7 @@ canonical revision 后才能把该结果标记为已持久提交。Preview 创�
 | 激活工作区          | 已知的项目和工作空间成员资格                                | 工作区变得活跃并且项目扩展                           | 无                                                                 |
 | 创建项目            | 一个标准化的可用目录                                        | 项目、主工作区和活动位置已创建                       | 使用一个选项卡、面板和 shell 投影创建一个上下文                    |
 | 注册远程 Project    | 一个 unavailable Environment Folder；placement 与 path 唯一 | 追加无 Workspace 的 Project；active location 不变    | 无                                                                 |
+| 注册远程 Directory  | 已知 Project；位于其唯一 Environment 的 unavailable Folder  | 追加 Directory；Project 与 Workspace default 不变    | 无                                                                 |
 | 注册远程 Workspace  | 已知 Environment Directory，且尚无其 admitted Workspace     | 追加一个 inactive Workspace；Project disclosure 不变 | 创建一个 empty context；无 Tab、Panel、Presentation 或 Host effect |
 | 添加目录            | 已知项目；位置尚未存在                                      | 目录附加到稳定的顺序                                 | 无                                                                 |
 | 注册已创建 Worktree | 已知 Project 与可用源；唯一有效 Worktree                    | 追加 Directory；可选追加、展开并激活 Workspace       | 仅在启用 Workspace 选项时创建一个上下文                            |
@@ -190,13 +193,15 @@ canonical revision 后才能把该结果标记为已持久提交。Preview 创�
 | 删除工作区          | 已知工作空间                                                | 工作区被删除；主动删除回退到独立状态                 | 处理其上下文                                                       |
 | 删除项目            | 已知项目                                                    | 项目及其工作区元数据被删除；磁盘位置保留             | 处置每个项目工作区上下文                                           |
 
-Remote Project 与 Workspace registration 是只供 authoritative application owner 使用的纯 Workbench
-transition。Project registration 通过现有 sequence 分配 identity，接受 owner 提供的 Directory identity，
-且不发出 command。Workspace registration 为该 Environment Directory 分配一个 Workspace 与
-terminal-context identity，但保持 active location 与 Project disclosure 不变；其唯一 command 会 materialize
-一个 empty context。重复任一已表示 placement 时保持 unchanged。Desktop 把两个 transition 组合进一次
-canonical commit，并拥有 remote inspection、registry authorization、随机 Directory identity、durable
-idempotency 与 proposal-origin policy。
+Remote Project、Directory 与 Workspace registration 是只供 authoritative application owner 使用的纯
+Workbench transition。Project registration 通过现有 sequence 分配 identity，接受 owner 提供的 Directory
+identity，且不发出 command。Directory registration 仅在精确 existing Project 没有其他 Environment identity
+时，向其中追加一个被强制为 unavailable 的 Environment Folder；精确 duplicate 保持 unchanged，cross-Project
+location 或第二个 Environment 会 reject。它不改变 Project name、primary Directory、Workspace、active
+location、identity sequence 或 terminal context。Workspace registration 为该 Environment Directory 分配一个
+Workspace 与 terminal-context identity，但保持 active location 与 Project disclosure 不变；其唯一 command
+会 materialize 一个 empty context。Desktop 拥有 remote inspection、registry authorization、随机 Directory
+identity、durable idempotency 与 proposal-origin policy。
 
 Remote terminal provision 是作用于该已准入 placement 的独立 Main-owned operation。它不是通用 Project
 transition，也不通过普通 local terminal-create semantic command 暴露。Desktop 拥有 Environment
@@ -219,6 +224,12 @@ execution；Workbench 只拥有精确 structural mutation 及其 rejection rule�
 
 文件夹列表省略了主要指定和设置主要控件，而项目仅拥有一个文件夹，因为该选择是隐式的。对于多个文件夹，主行带有一个安静的名称，而每个可用的非主行仅当该行悬停或键盘焦点位于其中时才会显示其凸起的“设置主行”操作。将鼠标悬停或聚焦文件夹名称会通过共享工具提示显示完整路径；显示的名称保持紧凑，并且可能会被截断。
 
+当 Desktop 同时提供 local 与 SSH acquisition 时，`Add Folder` 会打开明确的 **添加本地文件夹…** 与
+**添加 SSH 文件夹…** 选项。SSH callback 只携带精确的当前 Project identity，并在 application-owned overlay
+连接和浏览远端 host 时保持 manager 打开。每个通过 canonical publication 出现的 Environment Folder 都带有
+可见且已本地化的 **SSH** 标识及可访问 remote-folder label；local Folder 不显示标识，现有 path Tooltip 继续
+提供完整 canonical path。
+
 Desktop 在同一适配点注入窄 existing-Folder 采集能力。它的 Electron Main 所有者打开一个本机单目录选择器，标准化所选的绝对路径，并在返回之前检查该路径是否仍命名为可读、可遍历的目录。检查遵循符号链接，同时保留所选路径拼写；它不执行目录创建、枚举、Git 发现或其他文件系统突变。浏览器和网关客户端不接收本机采集端口，并继续使用上面的手动路径输入演示。
 
 一台安装的工作台最多允许一种本地选择。成功的选择将调用与浏览器条目相同的项目创建或项目目录添加操作。取消是无效操作。有界选择器或验证失败会打开一个本地化诊断并且不执行任何项目变更。在添加选定的文件夹之前，Workbench 会重新检查最新的项目快照：已删除的项目或已添加的另一个操作拒绝的确切路径，而不改变另一个目标。卸载、渲染器文档替换、端口退役、窗口关闭和应用程序处置撤销请求；稍后的本机完成无法提交。维护的桌面策略和证据限制位于 [`apps/desktop/docs/project-folder-acquisition.md`](../../../apps/desktop/docs/project-folder-acquisition.md) 中。
@@ -229,6 +240,10 @@ Workbench 接受一项用于 Environment-placed Project 的可选平台 capabili
 Project-create menu 会增加 **通过 SSH 连接…**；capability 缺失时，该入口会完全消失。Callback 只打开
 application-owned workflow，不会通过 Workbench 携带 Project、Environment、path、SSH 或 credential
 payload。因此 Browser Preview 与 Gateway 保留共享 Project menu，但不会宣称拥有这项 effect。
+
+另一项可选 callback 只扩展 Project manager 的 `Add Folder` row。它把 canonical target Project identity
+传给 application-owned SSH workflow，但绝不通过 Workbench 接受 Environment identity、Directory identity、
+path、credential 或 remote listing。最终 Folder 只会通过普通 canonical document publication 出现。
 
 每个已准入 Environment Project 可以拥有一项进程内 connection status：`blocked`、`connected`、
 `connecting`、`disconnected`、`interaction-required`、`retrying` 或 `unavailable`。Workbench 把该 status

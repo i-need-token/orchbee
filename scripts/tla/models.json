@@ -356,6 +356,70 @@
 			]
 		},
 		{
+			"id": "desktop-ssh-environment-connection-management",
+			"owner": "@orchbee/desktop",
+			"workspace": "apps/desktop",
+			"module": "apps/desktop/formal/tla/SshEnvironmentConnectionManagement.tla",
+			"config": "apps/desktop/formal/tla/SshEnvironmentConnectionManagement.cfg",
+			"claims": [
+				"apps/desktop/docs/ssh-environment-connection.md",
+				"apps/web/docs/terminal-settings.md"
+			],
+			"triggers": [
+				"apps/desktop/src/main/composition/**",
+				"apps/desktop/src/main/ssh-project-enrollment/**",
+				"apps/web/src/desktop-client/**",
+				"apps/web/src/ssh-connection-management/**",
+				"apps/web/src/terminal-settings-surface/**",
+				"packages/desktop-client-protocol/src/**"
+			],
+			"requiredCoverage": [
+				"OpenPort",
+				"StartupNoOp",
+				"RequestCatalog",
+				"RejectStaleCatalog",
+				"PublishCatalogHealthy",
+				"PublishCatalogPartial",
+				"RequestAdd",
+				"ResolveAdd",
+				"AddResolutionFails",
+				"CommitAdd",
+				"ReuseAdd",
+				"RegistryWriteFails",
+				"CancelAdd",
+				"RequestConnect",
+				"RejectEnvironmentBusy",
+				"RequestPrompt",
+				"SubmitPrompt",
+				"RejectStalePrompt",
+				"ConnectionReady",
+				"ConnectionFails",
+				"CancelConnection",
+				"ConnectionReadyWithoutRequest",
+				"RequestDisconnect",
+				"CompleteDisconnect",
+				"RetirePort",
+				"ReplacePort",
+				"ResetRequest"
+			],
+			"variants": [
+				{
+					"name": "catalog",
+					"constants": {
+						"MaxCatalogGeneration": 2,
+						"Scenario": "catalog"
+					}
+				},
+				{
+					"name": "connection",
+					"constants": {
+						"MaxCatalogGeneration": 1,
+						"Scenario": "connection"
+					}
+				}
+			]
+		},
+		{
 			"id": "desktop-ssh-environment-project-root-service",
 			"owner": "@orchbee/desktop",
 			"workspace": "apps/desktop",
@@ -474,6 +538,12 @@
 				"ConnectionReady",
 				"ConnectionReadyWithoutLease",
 				"ConnectionFails",
+				"PublishInitialDirectory",
+				"InitialDirectoryListingFails",
+				"NavigateDirectory",
+				"DirectoryNavigationFails",
+				"RejectStaleDirectorySelection",
+				"SelectDirectory",
 				"InspectProjectRoot",
 				"InspectionCompletes",
 				"InspectionFails",
@@ -495,6 +565,75 @@
 				"BlockPromptWithoutLease",
 				"ActivateInitiatingWorkspace",
 				"ApplicationRestart"
+			]
+		},
+		{
+			"id": "desktop-ssh-environment-remote-project-folder-attachment",
+			"owner": "@orchbee/desktop",
+			"workspace": "apps/desktop",
+			"module": "apps/desktop/formal/tla/SshEnvironmentProjectFolderAttachment.tla",
+			"config": "apps/desktop/formal/tla/SshEnvironmentProjectFolderAttachment.cfg",
+			"claims": [
+				"apps/desktop/docs/ssh-environment-connection.md",
+				"packages/workbench/docs/project-workspace.md"
+			],
+			"triggers": [
+				"apps/desktop/src/main/composition/**",
+				"apps/desktop/src/main/environment/**",
+				"apps/desktop/src/main/remote-project/**",
+				"apps/desktop/src/main/ssh-environment/**",
+				"apps/desktop/src/main/ssh-project-enrollment/**",
+				"apps/desktop/src/preload/**",
+				"apps/web/src/desktop-client/**",
+				"packages/desktop-client-protocol/src/**",
+				"packages/workbench/src/**"
+			],
+			"requiredCoverage": [
+				"OpenPort",
+				"SeedFolder",
+				"RemoveProject",
+				"RequestAttachment",
+				"RejectBusy",
+				"ResolveTarget",
+				"TargetResolutionFails",
+				"CommitRegistryNew",
+				"ReuseRegistry",
+				"RegistryWriteFails",
+				"StartConnection",
+				"ReuseConnection",
+				"RequestInteraction",
+				"SubmitInteraction",
+				"CancelInteraction",
+				"RejectStaleInteraction",
+				"ConnectionReady",
+				"ConnectionFails",
+				"PublishInitialDirectory",
+				"InitialDirectoryListingFails",
+				"NavigateDirectory",
+				"DirectoryNavigationFails",
+				"RejectStaleDirectorySelection",
+				"SelectDirectory",
+				"InspectProjectRoot",
+				"InspectionCompletes",
+				"InspectionFails",
+				"BeginWorkbenchCommit",
+				"CommitFolderNew",
+				"SettleFolderExisting",
+				"RejectMissingTarget",
+				"RejectEnvironmentConflict",
+				"RejectCrossProjectLocation",
+				"WorkbenchCommitIndeterminate",
+				"ReconcileWorkbenchCommit",
+				"ReconcileWorkbenchMissing",
+				"PublishCanonicalFolder",
+				"ObservePublishedFolder",
+				"PublicationTargetMissing",
+				"CancelBeforeWorkbenchCommit",
+				"CancelDuringWorkbenchCommit",
+				"RetirePortBeforeCommit",
+				"RetirePortDuringCommit",
+				"RetirePortAfterCommit",
+				"RetryRequest"
 			]
 		},
 		{

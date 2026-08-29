@@ -774,6 +774,85 @@ describe('Workbench Project and Workspace management', () => {
 		expect(selectExistingFolder).toHaveBeenCalledTimes(2);
 	});
 
+	it('offers Local and SSH Folder attachment and marks published remote Folders', async () => {
+		const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
+			standaloneCwd: '/system',
+			standaloneTerminalTitle: 'Terminal 1',
+			terminalPresentation: createTestTerminalPresentationComposition('ssh-folder-attachment'),
+		});
+		projectWorkspaceRuntime.transition({
+			directory: {
+				available: true,
+				git: null,
+				id: 'directory-local',
+				kind: 'folder',
+				name: 'orchbee',
+				path: '/workspace/orchbee',
+				placement: { kind: 'local' },
+				source: 'selected',
+			},
+			launchConfigurations: [],
+			primaryWorkspaceLaunchConfigurationId: null,
+			primaryWorkspaceName: 'Primary',
+			projectName: 'orchbee',
+			terminalTitle: 'Terminal 1',
+			type: 'project-created',
+		});
+		const onAddProjectFolderViaSsh = vi.fn<(projectId: string) => void>();
+		render(
+			<OrchbeeI18nProvider locale='en-US'>
+				<TooltipProvider>
+					<Workbench
+						actionRuntime={new ActionRuntime()}
+						onAddProjectFolderViaSsh={onAddProjectFolderViaSsh}
+						projectFolderAcquisition={{
+							selectExistingFolder: async () => ({ kind: 'cancelled' }),
+						}}
+						projectWorkspaceRuntime={projectWorkspaceRuntime}
+						shortcutPlatform='apple'
+					/>
+				</TooltipProvider>
+			</OrchbeeI18nProvider>,
+		);
+
+		fireEvent.click(screen.getByRole('button', { name: 'Project options: orchbee' }));
+		fireEvent.click(
+			within(await screen.findByRole('menu')).getByRole('menuitem', {
+				name: 'Manage Project…',
+			}),
+		);
+		const manager = await screen.findByRole('dialog');
+		fireEvent.click(within(manager).getByRole('button', { name: 'Add Folder' }));
+		const addMenu = await screen.findByRole('menu');
+		expect(within(addMenu).getByRole('menuitem', { name: 'Add Local Folder…' })).toBeDefined();
+		fireEvent.click(within(addMenu).getByRole('menuitem', { name: 'Add SSH Folder…' }));
+		expect(onAddProjectFolderViaSsh).toHaveBeenCalledWith('project-1');
+		expect(screen.getByRole('dialog')).toBe(manager);
+
+		projectWorkspaceRuntime.transition({
+			directory: {
+				available: false,
+				git: null,
+				id: 'environment-directory:00000000000000000000000000000001',
+				kind: 'folder',
+				name: 'remote-src',
+				path: '/srv/orchbee/src',
+				placement: {
+					environmentId: 'environment:00000000000000000000000000000001',
+					kind: 'environment',
+				},
+				source: 'selected',
+			},
+			projectId: 'project-1',
+			type: 'environment-directory-registered',
+		});
+
+		await waitFor(() =>
+			expect(within(manager).getByLabelText('SSH remote folder').textContent).toBe('SSH'),
+		);
+		expect(within(manager).getByText('remote-src')).toBeDefined();
+	});
+
 	it('shows a localized bounded native Folder failure without Project mutation', async () => {
 		const projectWorkspaceRuntime = new WorkbenchProjectWorkspaceRuntime({
 			standaloneCwd: '/system',

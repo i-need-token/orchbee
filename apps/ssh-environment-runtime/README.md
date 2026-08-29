@@ -2,7 +2,7 @@
 
 `orchbee-ssh-environment-runtime` is the detached per-Environment daemon reached through a
 replaceable SSH attachment. It is a native transport endpoint, not a remote shell. It owns the
-bounded read-only `project-root-v1` observation and one opaque `terminal-host-v1` relay, but creates
+bounded read-only `project-root-v2` observation and one opaque `terminal-host-v1` relay, but creates
 no terminal, Project, Workspace, Git, or Agent effect itself.
 
 ## Commands
@@ -36,34 +36,38 @@ competing attachment receives `runtime-attachment-conflict` and is closed.
 
 ## Protocol and lifetime
 
-The Runtime implements exact version `0.2.0` from `@orchbee/ssh-environment-protocol`. It accepts one
+The Runtime implements exact version `0.3.0` from `@orchbee/ssh-environment-protocol`. It accepts one
 exact Hello, returns Runtime build identity, release cohort identity, Terminal Host version/build,
 platform, ordered capabilities, and a fresh daemon epoch, then acknowledges heartbeats. Partial
 records and incomplete handshakes are bounded by time and size. Disconnecting an attachment does not
 stop the Runtime or change its epoch; restarting it always produces a new epoch.
 
-The Runtime advertises exactly `[project-root-v1, terminal-host-v1]`; Desktop rejects every other
+The Runtime advertises exactly `[project-root-v2, terminal-host-v1]`; Desktop rejects every other
 capability set. Channel identifiers are globally monotonic for an attachment. There is deliberately
 no execute-command message, generic service dispatch, forwarding, or network listener.
 
-## Project-root inspection
+## Project-root service
 
-One Desktop-initiated channel inspects one explicit absolute POSIX UTF-8 path. The Runtime follows
-remote operating-system symlinks, requires the final target to be an accessible directory, and
-returns only the canonical absolute path. Invalid path, absence, non-directory, permission,
-deadline, capacity, and internal availability outcomes are mapped to the bounded protocol reasons;
-raw operating-system errors never cross the channel or enter logs.
+One Desktop-initiated channel either inspects one explicit absolute POSIX UTF-8 path or lists one
+directory. A null listing path resolves the Runtime process's validated absolute `HOME`. The Runtime
+follows remote operating-system symlinks, requires the final target to be an accessible directory,
+and returns the canonical absolute path. Invalid path, absence, non-directory, permission, deadline,
+capacity, and internal availability outcomes map to bounded protocol reasons; raw operating-system
+errors never cross the channel or enter logs.
 
-At most four inspections run per Environment. Each filesystem observation executes in a restricted
+At most four operations run per Environment. Each filesystem observation executes in a restricted
 child of the same immutable Runtime binary; the path reaches that child only over stdin, stderr is
 discarded, and stdout carries one private bounded result. The daemon polls those children alongside
 the attachment, so filesystem latency cannot block heartbeat. Cancellation or attachment loss
 kills the matching child, and the 30-second deadline forcibly terminates it before publishing
 `timed-out`. A reconnect never inherits or replays an old channel.
 
-This service does not list a directory, read file bytes, retain a handle, watch or mutate a path,
-run a shell, or assign Project, Checkout, Workspace, or directory identity. Requested and canonical
-paths remain process-local.
+A listing returns at most 256 lexically sorted, accessible UTF-8 child-directory names plus canonical
+path, optional parent, and truncation metadata within 128 KiB. It omits files, invalid or inaccessible
+entries, and symlinks whose targets cannot be opened as directories. The service never reads file
+bytes, retains a handle, watches or mutates a path, runs a shell, or assigns Project, Checkout,
+Workspace, or directory identity; path and listing metadata remain transient and never enter logs or
+durable state.
 
 ## Terminal Host relay
 

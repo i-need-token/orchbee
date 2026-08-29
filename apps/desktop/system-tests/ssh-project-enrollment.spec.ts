@@ -48,6 +48,13 @@ test('ssh-project-enrollment/SU-01-signed-loopback-lifecycle', async () => {
 		const desktopTemporaryDirectory = path.join(fixtureRoot, 'desktop-tmp');
 		await mkdir(desktopHome, { mode: 0o700 });
 		await mkdir(desktopTemporaryDirectory, { mode: 0o700 });
+		const desktopSshDirectory = path.join(desktopHome, '.ssh');
+		await mkdir(desktopSshDirectory, { mode: 0o700 });
+		await writeFile(
+			path.join(desktopSshDirectory, 'config'),
+			await readFile(fixture.clientConfiguration),
+			{ mode: 0o600 },
+		);
 		application = await electron.launch({
 			args: [`--user-data-dir=${path.join(fixtureRoot, 'electron-user-data')}`],
 			env: {
@@ -78,11 +85,8 @@ test('ssh-project-enrollment/SU-01-signed-loopback-lifecycle', async () => {
 		await page.getByRole('menuitem', { name: /^(?:Connect via SSH|通过 SSH 连接)…$/u }).click();
 		const enrollment = page.locator('[data-slot="desktop-ssh-project-enrollment"]');
 		await expect(enrollment).toBeVisible();
-		await enrollment.locator('#ssh-project-name').fill('Signed loopback');
 		await enrollment.locator('#ssh-project-destination').fill(fixture.destination);
-		await enrollment.locator('#ssh-project-configuration-file').fill(fixture.clientConfiguration);
-		await enrollment.locator('#ssh-project-path').fill(fixture.projectPath);
-		await enrollment.getByRole('button', { name: /^(?:Connect|连接)$/u }).click();
+		await enrollment.locator('#ssh-project-destination').press('Enter');
 
 		await expect(enrollment.locator('pre')).toContainText(/authenticity|真实性/u);
 		const promptResponse = enrollment.locator('input[type="password"]');
@@ -93,6 +97,13 @@ test('ssh-project-enrollment/SU-01-signed-loopback-lifecycle', async () => {
 		await expect(secretResponse).toBeVisible();
 		await secretResponse.fill(clientKeyPassphrase);
 		await enrollment.getByRole('button', { name: /^(?:Continue|继续)$/u }).click();
+		const directoryBrowser = enrollment.locator('[data-slot="remote-directory-browser"]');
+		await expect(directoryBrowser).toBeVisible({ timeout: 60_000 });
+		await directoryBrowser.getByRole('button', { name: 'ssh-project', exact: true }).click();
+		await expect(directoryBrowser.locator('[aria-current="page"]')).toHaveText('ssh-project');
+		await directoryBrowser
+			.getByRole('button', { name: /^(?:Use This Folder|使用此文件夹)$/u })
+			.click();
 		await expect(enrollment).not.toBeVisible({ timeout: 60_000 });
 
 		const project = page.locator('li[data-project-id]').filter({ hasText: 'ssh-project' });
@@ -100,6 +111,10 @@ test('ssh-project-enrollment/SU-01-signed-loopback-lifecycle', async () => {
 		const projectStatus = project.locator(
 			'[data-slot="workbench-sidebar-project"] span[data-state]',
 		);
+		const projectOptions = project.locator(
+			'button[aria-label^="Project options:"], button[aria-label^="项目选项:"]',
+		);
+		const projectRow = project.locator('[data-project-reorder-row="true"]');
 		await expect(projectStatus).toHaveAttribute('data-state', 'connected');
 		await expect(page.locator('[data-terminal-presentation-id]')).toHaveCount(0);
 		await expect(page.getByRole('button', { name: /^(?:New tab|新建标签页)$/u })).toBeEnabled();
@@ -122,6 +137,34 @@ test('ssh-project-enrollment/SU-01-signed-loopback-lifecycle', async () => {
 		expect(durableState.join('\n')).toContain(fixture.projectPath);
 		expect(durableState.join('\n')).not.toContain(clientKeyPassphrase);
 
+		await projectRow.hover();
+		await projectOptions.click();
+		await page.getByRole('menuitem', { name: /^(?:Manage Project|管理项目)…$/u }).click();
+		const projectManager = page.locator('[data-slot="workbench-project-manager"]');
+		await expect(projectManager).toBeVisible();
+		await expect(projectManager.getByLabel(/^(?:SSH remote folder|SSH 远程文件夹)$/u)).toHaveCount(
+			1,
+		);
+		await projectManager.getByRole('button', { name: /^(?:Add Folder|添加文件夹)$/u }).click();
+		await page.getByRole('menuitem', { name: /^(?:Add SSH Folder|添加 SSH 文件夹)…$/u }).click();
+		await expect(enrollment).toBeVisible();
+		await enrollment.locator('#ssh-project-destination').fill(fixture.destination);
+		await enrollment.locator('#ssh-project-destination').press('Enter');
+		await expect(directoryBrowser).toBeVisible({ timeout: 60_000 });
+		await directoryBrowser.getByRole('button', { name: 'ssh-folder', exact: true }).click();
+		await expect(directoryBrowser.locator('[aria-current="page"]')).toHaveText('ssh-folder');
+		await directoryBrowser
+			.getByRole('button', { name: /^(?:Use This Folder|使用此文件夹)$/u })
+			.click();
+		await expect(enrollment).not.toBeVisible({ timeout: 60_000 });
+		await expect(projectManager).toBeVisible();
+		await expect(projectManager.getByText('ssh-folder', { exact: true })).toBeVisible();
+		await expect(projectManager.getByLabel(/^(?:SSH remote folder|SSH 远程文件夹)$/u)).toHaveCount(
+			2,
+		);
+		expect(await readFile(workbenchDocumentPath, 'utf8')).toContain(fixture.attachmentPath);
+		await projectManager.getByRole('button', { name: /^(?:Cancel|取消)$/u }).click();
+
 		await page.getByRole('button', { name: /^(?:New tab|新建标签页)$/u }).click();
 		const terminal = page.locator('[data-terminal-presentation-id]').first();
 		await expect(terminal.locator('[data-terminal-projection-state]')).toHaveAttribute(
@@ -141,10 +184,6 @@ test('ssh-project-enrollment/SU-01-signed-loopback-lifecycle', async () => {
 			.toMatch(/^(?:blocked|retrying)$/u);
 		await fixture.startServer();
 		await expect(projectStatus).toHaveAttribute('data-state', 'blocked', { timeout: 30_000 });
-		const projectOptions = project.locator(
-			'button[aria-label^="Project options:"], button[aria-label^="项目选项:"]',
-		);
-		const projectRow = project.locator('[data-project-reorder-row="true"]');
 		await projectRow.hover();
 		await projectOptions.click();
 		await page.getByRole('menuitem', { name: /^(?:Retry Connection|重试连接)$/u }).click();
@@ -168,6 +207,13 @@ test('ssh-project-enrollment/SU-01-signed-loopback-lifecycle', async () => {
 		expect(await readFile(workbenchDocumentPath, 'utf8')).toContain(fixture.projectPath);
 	} catch (error: unknown) {
 		const output = applicationOutput.join('').slice(-32 * 1024);
+		const enrollmentText =
+			(await application?.firstWindow().then((page) =>
+				page
+					.locator('[data-slot="desktop-ssh-project-enrollment"]')
+					.innerText()
+					.catch(() => ''),
+			)) ?? '';
 		const fixtureProcesses = (await observeProcesses())
 			.filter((processObservation) => processObservation.command.includes(fixtureRoot))
 			.map(
@@ -178,6 +224,7 @@ test('ssh-project-enrollment/SU-01-signed-loopback-lifecycle', async () => {
 		throw new Error(
 			[
 				'Signed loopback SSH Project enrollment failed.',
+				enrollmentText,
 				output,
 				sshFixture?.diagnostics() ?? '',
 				fixtureProcesses,
@@ -200,6 +247,7 @@ test('ssh-project-enrollment/SU-01-signed-loopback-lifecycle', async () => {
 });
 
 interface LoopbackSshFixture {
+	readonly attachmentPath: string;
 	readonly clientConfiguration: string;
 	readonly destination: string;
 	diagnostics(): string;
@@ -215,7 +263,9 @@ async function createLoopbackSshFixture(root: string): Promise<LoopbackSshFixtur
 	const directory = path.join(root, 'loopback-sshd');
 	const remoteHome = path.join(directory, 'remote-home');
 	const projectPath = path.join(remoteHome, 'ssh-project');
+	const attachmentPath = path.join(remoteHome, 'ssh-folder');
 	await mkdir(projectPath, { mode: 0o700, recursive: true });
+	await mkdir(attachmentPath, { mode: 0o700, recursive: true });
 	const hostKey = path.join(directory, 'host-key');
 	const clientKey = path.join(directory, 'client-key');
 	await runProgram('/usr/bin/ssh-keygen', ['-q', '-t', 'ed25519', '-N', '', '-f', hostKey]);
@@ -347,6 +397,7 @@ async function createLoopbackSshFixture(root: string): Promise<LoopbackSshFixtur
 	};
 	await startServer();
 	return {
+		attachmentPath,
 		clientConfiguration,
 		destination,
 		diagnostics: () => serverDiagnostics,

@@ -1,0 +1,190 @@
+.root {
+	display: grid;
+	gap: var(--ob-ref-space-3);
+	min-inline-size: 0;
+}
+
+.locationBar {
+	display: flex;
+	align-items: center;
+	min-inline-size: 0;
+	padding: var(--ob-ref-space-1);
+	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-subtle);
+	border-radius: var(--ob-ref-radius-ui-md);
+	background: var(--ob-sys-color-surface-subtle);
+}
+
+.source {
+	display: inline-flex;
+	flex: none;
+	align-items: center;
+	gap: var(--ob-ref-space-1);
+	max-inline-size: var(--ob-ref-container-2xs);
+	padding-inline: var(--ob-ref-space-2);
+	color: var(--ob-sys-color-text-link);
+	font: var(--ob-sys-typography-label-sm);
+}
+
+.source span:last-child,
+.currentCrumb,
+.crumbButton {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.breadcrumbs {
+	display: flex;
+	flex: 1;
+	align-items: center;
+	min-inline-size: 0;
+	overflow-x: auto;
+	scrollbar-width: thin;
+}
+
+.breadcrumb {
+	display: inline-flex;
+	flex: none;
+	align-items: center;
+	min-inline-size: 0;
+	color: var(--ob-sys-color-text-muted);
+}
+
+.crumbButton {
+	max-inline-size: var(--ob-ref-container-3xs);
+	padding: var(--ob-ref-space-1) var(--ob-ref-space-2);
+	border: none;
+	border-radius: var(--ob-ref-radius-ui-sm);
+	background: transparent;
+	color: var(--ob-sys-color-text-secondary);
+	font: var(--ob-sys-typography-body-sm);
+	cursor: pointer;
+}
+
+.crumbButton:hover {
+	background: var(--ob-sys-color-surface-hovered);
+	color: var(--ob-sys-color-text-primary);
+}
+
+.crumbButton:focus-visible {
+	box-shadow: inset 0 0 0 var(--ob-sys-focus-ring-width) var(--ob-sys-color-border-focus);
+	outline: none;
+}
+
+.crumbButton:disabled {
+	cursor: default;
+	opacity: var(--ob-sys-opacity-disabled);
+}
+
+.currentCrumb {
+	max-inline-size: var(--ob-ref-container-3xs);
+	padding: var(--ob-ref-space-1) var(--ob-ref-space-2);
+	color: var(--ob-sys-color-text-primary);
+	font: var(--ob-sys-typography-label-sm);
+}
+
+.editPath {
+	flex: none;
+}
+
+.pathForm {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	align-items: end;
+	gap: var(--ob-ref-space-2);
+}
+
+.pathField {
+	min-inline-size: 0;
+}
+
+.navigationFailure {
+	margin: 0;
+	padding: var(--ob-ref-space-3);
+	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-status-danger-border);
+	border-radius: var(--ob-ref-radius-ui-md);
+	color: var(--ob-sys-color-status-danger-text);
+	font: var(--ob-sys-typography-body-sm);
+}
+
+.loading,
+.truncated {
+	margin: 0;
+	color: var(--ob-sys-color-text-muted);
+	font: var(--ob-sys-typography-body-sm);
+}
+
+.listFrame {
+	min-inline-size: 0;
+	max-block-size: var(--ob-ref-container-sm);
+	overflow: auto;
+	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-subtle);
+	border-radius: var(--ob-ref-radius-ui-md);
+	background: var(--ob-sys-color-surface-raised);
+}
+
+.directoryList {
+	display: grid;
+}
+
+.directoryRow {
+	display: grid;
+	grid-template-columns: var(--ob-ref-size-control-xs) minmax(0, 1fr) var(--ob-ref-size-control-xs);
+	align-items: center;
+	inline-size: 100%;
+	min-block-size: var(--ob-ref-size-control-lg);
+	padding: var(--ob-ref-space-1) var(--ob-ref-space-3);
+	border: none;
+	border-block-end: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-subtle);
+	background: transparent;
+	color: var(--ob-sys-color-text-primary);
+	font: var(--ob-sys-typography-body-sm);
+	text-align: start;
+	cursor: pointer;
+}
+
+.directoryList > div:last-child .directoryRow {
+	border-block-end: 0;
+}
+
+.directoryRow:hover {
+	background: var(--ob-sys-color-surface-hovered);
+}
+
+.directoryRow:focus-visible {
+	position: relative;
+	box-shadow: inset 0 0 0 var(--ob-sys-focus-ring-width) var(--ob-sys-color-border-focus);
+	outline: none;
+}
+
+.directoryRow:disabled {
+	cursor: progress;
+	opacity: var(--ob-sys-opacity-disabled);
+}
+
+.directoryRow span:nth-child(2) {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.emptyDirectory {
+	margin: 0;
+	padding: var(--ob-ref-space-6) var(--ob-ref-space-3);
+	color: var(--ob-sys-color-text-muted);
+	font: var(--ob-sys-typography-body-sm);
+	text-align: center;
+}
+
+.actions {
+	display: flex;
+	flex-direction: column-reverse;
+	gap: var(--ob-ref-space-2);
+}
+
+@media (min-width: 40rem) {
+	.actions {
+		flex-direction: row;
+		justify-content: flex-end;
+	}
+}

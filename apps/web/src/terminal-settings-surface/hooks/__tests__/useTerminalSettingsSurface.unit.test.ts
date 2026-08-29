@@ -10,6 +10,7 @@ import {
 	TerminalSettingsController,
 	type TerminalAppearancePreferences,
 } from '../../../terminal-settings';
+import type { DesktopSshConnectionManagementControl } from '../../../ssh-connection-management';
 import { useTerminalSettingsSurface } from '../useTerminalSettingsSurface';
 
 describe('useTerminalSettingsSurface', () => {
@@ -23,16 +24,27 @@ describe('useTerminalSettingsSurface', () => {
 		expect(renderView(controller, 'en-US')).toBe('Settings|12|custom-enabled');
 		expect(renderView(controller, 'zh-CN')).toBe('设置|12|custom-enabled');
 	});
+
+	it('shows the SSH Connections category only when Desktop supplies its management capability', () => {
+		const controller = createController(DEFAULT_TERMINAL_APPEARANCE_PREFERENCES);
+		controller.open();
+
+		expect(renderView(controller, 'en-US')).toContain('|12|');
+		expect(renderView(controller, 'en-US', SSH_CONNECTION_MANAGEMENT_CONTROL)).toContain('|13|');
+		expect(renderView(controller, 'zh-CN', SSH_CONNECTION_MANAGEMENT_CONTROL)).toContain('|13|');
+	});
 });
 
 function SurfaceProbe({
 	applicationLocaleController,
 	controller,
 	keyboardShortcutController,
+	sshConnectionManagementControl,
 }: {
 	readonly applicationLocaleController: ApplicationLocaleController;
 	readonly controller: TerminalSettingsController;
 	readonly keyboardShortcutController: KeyboardShortcutSettingsController;
+	readonly sshConnectionManagementControl?: DesktopSshConnectionManagementControl | undefined;
 }): ReactNode {
 	const view = useTerminalSettingsSurface({
 		applicationLocaleController,
@@ -40,6 +52,7 @@ function SurfaceProbe({
 		keyboardShortcutController,
 		keyboardShortcutPlatform: 'apple',
 		onRequestClose: () => undefined,
+		sshConnectionManagementControl,
 	});
 	const categoryCount = view.navigationGroups.reduce(
 		(total, group) => total + group.items.length,
@@ -58,7 +71,11 @@ function createController(preferences: TerminalAppearancePreferences): TerminalS
 	});
 }
 
-function renderView(controller: TerminalSettingsController, locale: 'en-US' | 'zh-CN'): string {
+function renderView(
+	controller: TerminalSettingsController,
+	locale: 'en-US' | 'zh-CN',
+	sshConnectionManagementControl?: DesktopSshConnectionManagementControl,
+): string {
 	const keyboardShortcutController = new KeyboardShortcutSettingsController({
 		platform: 'apple',
 		storage: { getItem: () => null, setItem: () => undefined },
@@ -76,7 +93,22 @@ function renderView(controller: TerminalSettingsController, locale: 'en-US' | 'z
 				applicationLocaleController,
 				controller,
 				keyboardShortcutController,
+				sshConnectionManagementControl,
 			}),
 		),
 	);
 }
+
+const SSH_CONNECTION_MANAGEMENT_CONTROL: DesktopSshConnectionManagementControl = {
+	addConnection: async () => false,
+	clearFailure: () => undefined,
+	connectEnvironment: () => undefined,
+	disconnectEnvironment: () => undefined,
+	getManagementSnapshot: () => ({
+		catalog: { discoveryIssue: null, managed: [], registryIssue: null, suggestions: [] },
+		failure: null,
+		pending: null,
+	}),
+	refreshConnections: () => undefined,
+	subscribeManagement: () => () => undefined,
+};

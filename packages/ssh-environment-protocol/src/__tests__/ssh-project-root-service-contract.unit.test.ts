@@ -3,10 +3,16 @@ import { describe, expect, it } from 'vitest';
 import {
 	SSH_PROJECT_ROOT_MAX_MESSAGE_BYTES,
 	SSH_PROJECT_ROOT_MAX_PATH_BYTES,
+	SshProjectRootDirectoryListingRequestSchema,
+	SshProjectRootDirectoryListingResultSchema,
 	SshProjectRootInspectionRequestSchema,
 	SshProjectRootInspectionResultSchema,
+	decodeSshProjectRootDirectoryListingRequest,
+	decodeSshProjectRootDirectoryListingResult,
 	decodeSshProjectRootInspectionRequest,
 	decodeSshProjectRootInspectionResult,
+	encodeSshProjectRootDirectoryListingRequest,
+	encodeSshProjectRootDirectoryListingResult,
 	encodeSshProjectRootInspectionRequest,
 	encodeSshProjectRootInspectionResult,
 } from '../ssh-project-root-service-contract';
@@ -34,6 +40,45 @@ describe('SSH project-root service contract', () => {
 		}
 	});
 
+	it('round-trips bounded home and path directory listings', () => {
+		for (const request of [
+			SshProjectRootDirectoryListingRequestSchema.parse({
+				type: 'list-project-directory',
+				path: null,
+			}),
+			SshProjectRootDirectoryListingRequestSchema.parse({
+				type: 'list-project-directory',
+				path: '/srv/orchbee',
+			}),
+		] as const) {
+			expect(
+				decodeSshProjectRootDirectoryListingRequest(
+					encodeSshProjectRootDirectoryListingRequest(request),
+				),
+			).toEqual({ ok: true, message: request });
+		}
+
+		for (const result of [
+			SshProjectRootDirectoryListingResultSchema.parse({
+				kind: 'listed',
+				canonicalPath: '/home/alice',
+				parentPath: '/home',
+				directories: [{ name: '.config' }, { name: '项目' }],
+				truncated: false,
+			}),
+			SshProjectRootDirectoryListingResultSchema.parse({
+				kind: 'failed',
+				reason: 'permission-denied',
+			}),
+		] as const) {
+			expect(
+				decodeSshProjectRootDirectoryListingResult(
+					encodeSshProjectRootDirectoryListingResult(result),
+				),
+			).toEqual({ ok: true, message: result });
+		}
+	});
+
 	it('rejects relative, controlled, malformed Unicode, oversized, and non-strict paths', () => {
 		expect.hasAssertions();
 		for (const path of [
@@ -52,6 +97,29 @@ describe('SSH project-root service contract', () => {
 				type: 'inspect-project-root',
 				path: '/srv/project',
 				unexpected: true,
+			}).success,
+		).toBe(false);
+	});
+
+	it('rejects unsafe directory names and oversized directory collections', () => {
+		for (const name of ['', '.', '..', 'nested/name', 'line\nbreak', '\ud800']) {
+			expect(
+				SshProjectRootDirectoryListingResultSchema.safeParse({
+					kind: 'listed',
+					canonicalPath: '/home/alice',
+					parentPath: '/home',
+					directories: [{ name }],
+					truncated: false,
+				}).success,
+			).toBe(false);
+		}
+		expect(
+			SshProjectRootDirectoryListingResultSchema.safeParse({
+				kind: 'listed',
+				canonicalPath: '/',
+				parentPath: null,
+				directories: Array.from({ length: 257 }, (_, index) => ({ name: `d-${index}` })),
+				truncated: true,
 			}).success,
 		).toBe(false);
 	});

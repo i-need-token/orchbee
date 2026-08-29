@@ -9,6 +9,8 @@ export { desktopSshProjectMessages } from './desktop-ssh-project';
 export { desktopWindowMessages } from './desktop-window';
 export { keyboardShortcutMessages } from './keyboard-shortcuts';
 export { projectedTerminalMessages } from './projected-terminal';
+export { remoteDirectoryBrowserMessages } from './remote-directory-browser';
+export { sshConnectionManagementMessages } from './ssh-connection-management';
 export { terminalSettingsMessages } from './terminal-settings';
 export { terminalSettingsCatalogMessages } from './terminal-settings-catalog';
 export { workbenchMessages } from './workbench';

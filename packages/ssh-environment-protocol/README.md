@@ -1,6 +1,6 @@
 # SSH Environment Protocol
 
-Strict binary framing shared by Desktop and the per-Environment SSH Runtime. Version `0.2.0`
+Strict binary framing shared by Desktop and the per-Environment SSH Runtime. Version `0.3.0`
 provides an exact Hello handshake, Runtime instance and epoch identity, heartbeat liveness, channel
 lifecycle records, binary channel data, and byte-credit flow control.
 
@@ -24,27 +24,37 @@ invalid JSON, nonzero reserved bytes, and inconsistent or oversized lengths.
 Hello acceptance identifies one immutable Runtime build, one release cohort, one Terminal Host
 version/build, one daemon instance, and one Runtime epoch. A reconnect may attach to the same epoch;
 a restarted Runtime necessarily reports a new epoch. The Runtime advertises exactly the ordered
-`[project-root-v1, terminal-host-v1]` pair, and Desktop requires it. There is no downgrade, dual-stack
+`[project-root-v2, terminal-host-v1]` pair, and Desktop requires it. There is no downgrade, dual-stack
 negotiation, or placeholder capability.
 
 ## Project-root service contract
 
-One `project-root-v1` channel carries exactly one strict request:
+One `project-root-v2` channel carries exactly one strict request. Canonical inspection uses:
 
 ```json
 { "type": "inspect-project-root", "path": "/absolute/posix/path" }
 ```
 
-The path is valid UTF-8, absolute POSIX text, at most 4,096 encoded bytes, and contains no NUL or
+Authenticated directory listing uses:
+
+```json
+{ "type": "list-project-directory", "path": null }
+```
+
+`null` selects the Runtime process's validated absolute `HOME`; an absolute path navigates directly.
+Every path is valid UTF-8, absolute POSIX text, at most 4,096 encoded bytes, and contains no NUL or
 control character. Neither side performs tilde, environment-variable, wildcard, command, or shell
-expansion. The complete request and result are each at most 16 KiB, and each direction receives
-exactly 64 KiB of channel credit.
+expansion. The complete request and result are each at most 128 KiB, and each direction receives
+exactly 128 KiB of channel credit.
 
 A result is either `{"kind":"resolved","canonicalPath":"/..."}` or
 `{"kind":"failed","reason":"..."}`. Failure reasons are closed to `invalid-path`, `not-found`,
 `not-directory`, `permission-denied`, `timed-out`, `busy`, and `unavailable`. The channel identity is
 the only correlation identity; the service schema introduces no Project, Checkout, Workspace, or
-directory identity.
+directory identity. A listing result contains the canonical path, an optional canonical parent, at
+most 256 sorted child entries containing only a UTF-8 directory name of at most 255 bytes, and a
+`truncated` flag. It exposes no file entry or file byte, and a symlink appears only when its target
+can be opened as a directory.
 
 ## Terminal Host relay contract
 
@@ -78,7 +88,7 @@ layouts or mix v1 and v2.
 This package is a data contract only. It cannot build or sign an artifact, hold a private key,
 verify package trust, compose a release, create a connection, install or start a component,
 authenticate a peer, retry an attachment, authorize an inspection, or perform filesystem work. It
-owns the exact `project-root-v1` schema/codec and the `terminal-host-v1` opaque relay envelope, but
+owns the exact `project-root-v2` schema/codec and the `terminal-host-v1` opaque relay envelope, but
 deliberately has no generic execute-command record. Any additional Runtime service must be explicitly
 advertised, admitted, authorized, and implemented by its owning subsystem.
 

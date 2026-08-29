@@ -12,7 +12,7 @@ pub const runtime_platform = build_options.runtime_platform;
 const poll_interval_ms = 100;
 const heartbeat_timeout_ns =
     protocol.heartbeat_interval_ms * protocol.heartbeat_miss_limit * std.time.ns_per_ms;
-const maximum_poll_descriptors = 4 + project_root.maximum_concurrent_inspections;
+const maximum_poll_descriptors = 4 + project_root.maximum_concurrent_operations;
 
 const AttachmentPhase = enum {
     awaiting_hello,
@@ -21,14 +21,14 @@ const AttachmentPhase = enum {
 
 const ChannelPhase = enum {
     opened,
-    inspecting,
+    running,
     result_published,
 };
 
 const Channel = struct {
     phase: ChannelPhase = .opened,
-    request_credit: u32 = protocol.initial_channel_credit_bytes,
-    result_credit: u32 = protocol.initial_channel_credit_bytes,
+    request_credit: u32 = protocol.project_root_initial_channel_credit_bytes,
+    result_credit: u32 = protocol.project_root_initial_channel_credit_bytes,
 };
 
 pub const TerminalHostConfiguration = struct {
@@ -97,6 +97,7 @@ const WorkerPoll = struct {
 pub fn serve(
     io: std.Io,
     allocator: std.mem.Allocator,
+    home_directory: []const u8,
     runtime_directory: []const u8,
     runtime_instance_id: []const u8,
     runtime_build_digest: []const u8,
@@ -151,7 +152,7 @@ pub fn serve(
     const runtime_epoch = std.fmt.bytesToHex(epoch_bytes, .lower);
     var attachment: ?Attachment = null;
     var next_attachment_generation: u64 = 1;
-    var workers = [_]?project_root.Worker{null} ** project_root.maximum_concurrent_inspections;
+    var workers = [_]?project_root.Worker{null} ** project_root.maximum_concurrent_operations;
     defer terminateAllWorkers(io, &workers);
     defer if (attachment) |*active| active.close(io);
 
@@ -207,7 +208,7 @@ pub fn serve(
                 descriptor_count += 1;
             }
         }
-        var worker_polls: [project_root.maximum_concurrent_inspections]WorkerPoll = undefined;
+        var worker_polls: [project_root.maximum_concurrent_operations]WorkerPoll = undefined;
         var worker_poll_count: usize = 0;
         for (&workers, 0..) |*worker_slot, slot_index| {
             if (worker_slot.*) |*worker| {
@@ -245,6 +246,7 @@ pub fn serve(
                 &attachment.?,
                 &workers,
                 executable_path,
+                home_directory,
                 runtime_instance_id,
                 &runtime_epoch,
                 runtime_build_digest,
@@ -342,8 +344,9 @@ fn dispatch(
     io: std.Io,
     allocator: std.mem.Allocator,
     attachment: *Attachment,
-    workers: *[project_root.maximum_concurrent_inspections]?project_root.Worker,
+    workers: *[project_root.maximum_concurrent_operations]?project_root.Worker,
     executable_path: []const u8,
+    home_directory: []const u8,
     runtime_instance_id: []const u8,
     runtime_epoch: []const u8,
     runtime_build_digest: []const u8,
@@ -421,6 +424,7 @@ fn dispatch(
                 attachment,
                 workers,
                 executable_path,
+                home_directory,
                 frame.payload,
             ),
             .channel_credit => return dispatchChannelCredit(
@@ -481,7 +485,7 @@ fn dispatchChannelOpen(
     }
     try attachment.used_channels.put(opened.value.channelId, {});
     if (std.mem.eql(u8, opened.value.serviceId, protocol.project_root_service_id)) {
-        if (attachment.channels.count() >= project_root.maximum_concurrent_inspections) {
+        if (attachment.channels.count() >= project_root.maximum_concurrent_operations) {
             try protocol.writeChannelClosed(
                 allocator,
                 attachment.stream.socket.handle,
@@ -497,6 +501,7 @@ fn dispatchChannelOpen(
             attachment.stream.socket.handle,
             runtime_epoch,
             opened.value.channelId,
+            opened.value.initialCreditBytes,
         );
         return true;
     }
@@ -540,8 +545,9 @@ fn dispatchChannelData(
     io: std.Io,
     allocator: std.mem.Allocator,
     attachment: *Attachment,
-    workers: *[project_root.maximum_concurrent_inspections]?project_root.Worker,
+    workers: *[project_root.maximum_concurrent_operations]?project_root.Worker,
     executable_path: []const u8,
+    home_directory: []const u8,
     payload: []const u8,
 ) !bool {
     const data = protocol.decodeChannelData(payload) catch return false;
@@ -583,7 +589,8 @@ fn dispatchChannelData(
         executable_path,
         attachment.generation,
         data.channel_id,
-        request.value.path,
+        project_root.requestKind(request.value),
+        request.value.path orelse home_directory,
     ) catch {
         try publishResult(
             allocator,
@@ -593,7 +600,7 @@ fn dispatchChannelData(
         );
         return true;
     };
-    channel.phase = .inspecting;
+    channel.phase = .running;
     return true;
 }
 
@@ -616,7 +623,7 @@ fn dispatchChannelClose(
     io: std.Io,
     allocator: std.mem.Allocator,
     attachment: *Attachment,
-    workers: *[project_root.maximum_concurrent_inspections]?project_root.Worker,
+    workers: *[project_root.maximum_concurrent_operations]?project_root.Worker,
     runtime_epoch: []const u8,
     payload: []const u8,
 ) !bool {
@@ -800,6 +807,7 @@ fn openTerminalHostRelay(
         attachment.stream.socket.handle,
         runtime_epoch,
         relay.worker.channel_id,
+        protocol.initial_channel_credit_bytes,
     );
 }
 
@@ -827,7 +835,7 @@ fn processWorkerEvents(
     io: std.Io,
     allocator: std.mem.Allocator,
     attachment: *Attachment,
-    workers: *[project_root.maximum_concurrent_inspections]?project_root.Worker,
+    workers: *[project_root.maximum_concurrent_operations]?project_root.Worker,
     slot_index: usize,
     events: i16,
 ) !bool {
@@ -852,7 +860,7 @@ fn processWorkerEvents(
     defer workers[slot_index] = null;
     if (worker.attachment_generation == attachment.generation) {
         const channel = attachment.channels.get(worker.channel_id);
-        if (channel != null and channel.?.phase == .inspecting) {
+        if (channel != null and channel.?.phase == .running) {
             try publishResult(allocator, attachment, worker.channel_id, outcome);
         }
     }
@@ -863,7 +871,7 @@ fn completeUnavailableWorker(
     io: std.Io,
     allocator: std.mem.Allocator,
     attachment: *Attachment,
-    workers: *[project_root.maximum_concurrent_inspections]?project_root.Worker,
+    workers: *[project_root.maximum_concurrent_operations]?project_root.Worker,
     slot_index: usize,
 ) !bool {
     const generation = workers[slot_index].?.attachment_generation;
@@ -872,7 +880,7 @@ fn completeUnavailableWorker(
     workers[slot_index] = null;
     if (generation == attachment.generation) {
         const channel = attachment.channels.get(channel_id);
-        if (channel != null and channel.?.phase == .inspecting) {
+        if (channel != null and channel.?.phase == .running) {
             try publishResult(
                 allocator,
                 attachment,
@@ -888,12 +896,12 @@ fn processWorkerTimeouts(
     io: std.Io,
     allocator: std.mem.Allocator,
     attachment: *Attachment,
-    workers: *[project_root.maximum_concurrent_inspections]?project_root.Worker,
+    workers: *[project_root.maximum_concurrent_operations]?project_root.Worker,
 ) !void {
     const now: std.Io.Timestamp = .now(io, .awake);
     for (workers) |*worker_slot| {
         if (worker_slot.*) |*worker| {
-            if (worker.started_at.durationTo(now).nanoseconds <= project_root.inspection_timeout_ns) {
+            if (worker.started_at.durationTo(now).nanoseconds <= project_root.operation_timeout_ns) {
                 continue;
             }
             const generation = worker.attachment_generation;
@@ -902,7 +910,7 @@ fn processWorkerTimeouts(
             worker_slot.* = null;
             if (generation == attachment.generation) {
                 const channel = attachment.channels.get(channel_id);
-                if (channel != null and channel.?.phase == .inspecting) {
+                if (channel != null and channel.?.phase == .running) {
                     try publishResult(
                         allocator,
                         attachment,
@@ -938,7 +946,7 @@ fn publishResult(
 }
 
 fn firstAvailableWorkerSlot(
-    workers: *[project_root.maximum_concurrent_inspections]?project_root.Worker,
+    workers: *[project_root.maximum_concurrent_operations]?project_root.Worker,
 ) ?usize {
     for (workers, 0..) |worker, index| if (worker == null) return index;
     return null;
@@ -946,7 +954,7 @@ fn firstAvailableWorkerSlot(
 
 fn terminateWorker(
     io: std.Io,
-    workers: *[project_root.maximum_concurrent_inspections]?project_root.Worker,
+    workers: *[project_root.maximum_concurrent_operations]?project_root.Worker,
     attachment_generation: u64,
     channel_id: u32,
 ) void {
@@ -965,7 +973,7 @@ fn terminateWorker(
 
 fn terminateGenerationWorkers(
     io: std.Io,
-    workers: *[project_root.maximum_concurrent_inspections]?project_root.Worker,
+    workers: *[project_root.maximum_concurrent_operations]?project_root.Worker,
     attachment_generation: u64,
 ) void {
     for (workers) |*worker_slot| {
@@ -980,7 +988,7 @@ fn terminateGenerationWorkers(
 
 fn terminateAllWorkers(
     io: std.Io,
-    workers: *[project_root.maximum_concurrent_inspections]?project_root.Worker,
+    workers: *[project_root.maximum_concurrent_operations]?project_root.Worker,
 ) void {
     for (workers) |*worker_slot| {
         if (worker_slot.*) |*worker| worker.terminate(io);
@@ -991,7 +999,7 @@ fn terminateAllWorkers(
 fn retireAttachment(
     io: std.Io,
     attachment: *?Attachment,
-    workers: *[project_root.maximum_concurrent_inspections]?project_root.Worker,
+    workers: *[project_root.maximum_concurrent_operations]?project_root.Worker,
 ) void {
     if (attachment.*) |*active| {
         terminateGenerationWorkers(io, workers, active.generation);

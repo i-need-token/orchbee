@@ -488,13 +488,14 @@ state machine fences generations, admits `connected` only after exact Runtime id
 verification, and retries a lost attachment only after one proven connection. Stopping the local
 attachment does not stop the remote daemon or imply Project deletion.
 
-The exact `0.2.0` protocol advertises `project-root-v1` and `terminal-host-v1`. Through the connected
-Environment owner, Desktop Main can inspect one explicit absolute POSIX Project-root candidate and
-receive its canonical directory path or a bounded failure. The call never connects or waits for
-reconnection, is capped at four concurrent calls and 30 seconds per Environment, and is cancelled
-without replay on caller cancellation or attachment loss. The opaque Terminal Host relay uses the
-same attachment with bounded credit and exposes one negotiated process-local `HostConnection`; it
-does not add a generic command or filesystem protocol.
+The exact `0.3.0` protocol advertises `project-root-v2` and `terminal-host-v1`. Through the connected
+Environment owner, Desktop Main can inspect one explicit absolute POSIX Project-root candidate or
+request a bounded read-only directory snapshot starting at the Runtime's home. Each snapshot contains
+only a canonical path, optional parent, at most 256 sorted accessible child-directory names, and a
+truncation flag. Calls never connect or wait for reconnection, are capped at four concurrent calls and
+30 seconds per Environment, and are cancelled without replay on caller cancellation or attachment
+loss. The opaque Terminal Host relay uses the same attachment with bounded credit and exposes one
+negotiated process-local `HostConnection`; neither service adds generic command or file-byte access.
 
 Main can admit the inspected root as one durable Environment-placed Project and inactive Workspace,
 then explicitly provision the first terminal after the canonical Presentation intent commits. The
@@ -507,23 +508,38 @@ reservation, publication evidence, Client broadcast, and journal compaction. Dis
 retains admitted exit recovery, but recovery alone never activates or reconnects SSH.
 
 On POSIX Electron Desktop, Workbench exposes **Connect via SSH…**, remote status, and Connect, Retry,
-and Disconnect controls through the fourteenth bootstrap port. The Desktop-owned dialog submits only
-a bounded Environment display name, destination or alias, optional absolute SSH configuration path,
-and absolute POSIX Project path. Main resolves the target, allocates opaque identities or reuses the
-exact admitted target, establishes one request-scoped interaction lease, and forwards only the exact
-generation and prompt handle to transient AskPass UI. Enrollment orders the durable Environment,
-connection readiness, canonical root inspection, and canonical Workbench commit; after publication,
-only the initiating client navigates to the new Workspace. Enrollment creates no terminal. A
-confirmed pre-commit cancellation preserves any registry identity, and an outcome that may have
-committed fails closed for reload or restart reconciliation instead of rolling back durable state.
+and Disconnect controls through the fourteenth bootstrap port. The Desktop-owned dialog initially
+submits only one bounded SSH address. Main uses default OpenSSH configuration, derives the display
+name, allocates opaque identities or reuses the exact admitted target, connects through exact transient
+AskPass prompts, and then publishes one request- and revision-correlated remote directory chooser.
+Selecting a folder triggers an independent canonical inspection before Workbench commit; after
+publication, only the initiating client navigates to the new Workspace. Enrollment creates no
+terminal. A confirmed pre-commit cancellation preserves any registry identity, and an outcome that
+may have committed fails closed for reload or restart reconciliation instead of rolling back durable
+state.
+
+The same dedicated port also supports the Project manager's SSH Folder action. Its renderer request
+carries only the exact Project identity and SSH address. Main repeats target resolution, connection,
+remote selection, and canonical inspection, then atomically appends the unavailable Environment
+Folder without changing the Project name, primary Directory, Workspace structure, active location,
+or terminal contexts. Exact duplicates are idempotent, the same remote location cannot belong to a
+second Project, and one Project cannot span multiple SSH Environment identities.
+
+Desktop Settings exposes the registry as a dedicated **SSH Connections** category. It keeps
+registry-backed **Your connections** separate from read-only **From your SSH config** suggestions,
+shows current process-local state and Project usage, and accepts manual one-address Add plus explicit
+Connect, Retry, and Disconnect actions. Opening or refreshing the page only performs bounded local
+discovery from `~/.ssh/config` and its user `Include` graph; it never starts OpenSSH, prompts, writes
+configuration, or activates a connection. Adding a discovered or manual destination first resolves
+it with `ssh -G`, then records or reuses the Environment without connecting or opening a Project.
 
 `DesktopApplication` composes the registry with one process-local, explicitly activated connection
 owner keyed by Environment identity. It never auto-connects, serializes repeated connect and
 disconnect, and disposes all active supervisors on shutdown. Desktop restart and Project projection
 never activate SSH; an explicit enrollment, Connect, or Retry supplies the interaction lease when
 needed, while proven live-connection loss may use generation-fenced automatic retry. The product
-surface exposes no general Environment editing or removal, Runtime network feed, remote directory
-listing, file access, filesystem watch or mutation, additional remote terminal, terminal
+surface exposes no Environment rename or removal, Runtime network feed, general or retained remote
+directory browsing, file-byte access, filesystem watch or mutation, additional remote terminal, terminal
 close/restart/split/archive command, Git operation, Agent execution, service installation, Windows
 activation, Gateway enrollment, or CLI enrollment. Release inputs exist only in the explicit package
 command; release-free packages block activation. The maintained connection contract, transition

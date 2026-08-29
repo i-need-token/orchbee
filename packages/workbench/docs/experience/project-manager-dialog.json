@@ -9,6 +9,7 @@
 	"visibility": "private",
 	"intents": [
 		"add-folder",
+		"add-ssh-folder",
 		"manage-project",
 		"rename-project",
 		"remove-folder",
@@ -35,7 +36,8 @@
 			"id": "packages-workbench-workbench--native-project-folder-management",
 			"states": [
 				"Open Manage Project, choose Add Folder, and confirm that native acquisition commits the selected Folder without replacing the final row with a manual path field.",
-				"Inspect the appended native Folder while the Project-name draft, primary Folder, existing Workspace defaults, and outer Dialog actions remain stable."
+				"With SSH attachment available, choose Add Folder and inspect the explicit Local and SSH actions without closing the Project manager.",
+				"Inspect the appended native Folder and published SSH-marked remote Folder while the Project-name draft, primary Folder, existing Workspace defaults, and outer Dialog actions remain stable."
 			]
 		}
 	],
@@ -57,6 +59,7 @@
 		"Adding a Folder validates empty and exact duplicate browser paths before invoking the semantic action.",
 		"Native Folder acquisition keeps the list stable, admits one request, and rechecks the latest Project and exact duplicate paths before invoking the semantic action.",
 		"Native cancellation, bounded failure, disposal, and late completion do not alter Folder membership.",
+		"SSH attachment receives only the exact Project identity; every canonically published Environment Folder has a localized visible and accessible SSH marker while local Folders remain unmarked.",
 		"Removing the primary Folder automatically falls back to the next remaining Folder without asking for a replacement."
 	],
 	"references": ["packages/workbench/docs/project-workspace.md"]

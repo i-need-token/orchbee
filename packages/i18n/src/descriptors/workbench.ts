@@ -744,6 +744,16 @@ export const workbenchMessages = defineMessages({
 		defaultMessage: enUSWorkbenchMessages['workbench.projects.manage.description'],
 		description: 'Accessible description for the Project management interface.',
 	},
+	projectManageAddLocalFolder: {
+		id: 'workbench.projects.manage.addLocalFolder',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.manage.addLocalFolder'],
+		description: 'Action that adds a local Folder to an existing Project.',
+	},
+	projectManageAddSshFolder: {
+		id: 'workbench.projects.manage.addSshFolder',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.manage.addSshFolder'],
+		description: 'Action that connects over SSH and adds a remote Folder to an existing Project.',
+	},
 	projectManageFolders: {
 		id: 'workbench.projects.manage.folders',
 		defaultMessage: enUSWorkbenchMessages['workbench.projects.manage.folders'],
@@ -768,6 +778,16 @@ export const workbenchMessages = defineMessages({
 		id: 'workbench.projects.manage.primaryFolder',
 		defaultMessage: enUSWorkbenchMessages['workbench.projects.manage.primaryFolder'],
 		description: 'Label identifying a Project primary Folder.',
+	},
+	projectManageSshFolderBadge: {
+		id: 'workbench.projects.manage.sshFolderBadge',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.manage.sshFolderBadge'],
+		description: 'Short visible marker for an SSH remote Folder.',
+	},
+	projectManageSshFolderDescription: {
+		id: 'workbench.projects.manage.sshFolderDescription',
+		defaultMessage: enUSWorkbenchMessages['workbench.projects.manage.sshFolderDescription'],
+		description: 'Accessible description for an SSH remote Folder marker.',
 	},
 	projectManageTitle: {
 		id: 'workbench.projects.manage.title',

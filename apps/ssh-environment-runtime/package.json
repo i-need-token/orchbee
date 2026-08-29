@@ -1,6 +1,6 @@
 {
 	"name": "@orchbee/ssh-environment-runtime",
-	"version": "0.1.0",
+	"version": "0.2.0",
 	"private": true,
 	"description": "Detached per-Environment Runtime reached through a replaceable SSH attachment",
 	"type": "module",

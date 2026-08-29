@@ -2,7 +2,7 @@ const builtin = @import("builtin");
 const std = @import("std");
 
 const required_zig_version = "0.16.0";
-const default_runtime_version = "0.1.0";
+const default_runtime_version = "0.2.0";
 const authored_c_flags: []const []const u8 = &.{
     "-std=c17",
     "-Wall",

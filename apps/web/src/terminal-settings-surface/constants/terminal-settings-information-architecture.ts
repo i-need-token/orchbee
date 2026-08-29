@@ -1,6 +1,7 @@
 import {
 	agentIntegrationMessages,
 	keyboardShortcutMessages,
+	sshConnectionManagementMessages,
 	terminalSettingsCatalogMessages,
 	terminalSettingsMessages,
 	type MessageDescriptor,
@@ -97,6 +98,12 @@ export const TERMINAL_SETTINGS_CATEGORIES = {
 		label: terminalSettingsMessages.shellIntegrationCategory,
 		title: terminalSettingsMessages.shellIntegrationTitle,
 	},
+	'ssh-connections': {
+		description: sshConnectionManagementMessages.description,
+		icon: 'terminal',
+		label: sshConnectionManagementMessages.category,
+		title: sshConnectionManagementMessages.title,
+	},
 	terminal: {
 		description: catalogMessage('terminal.settings.catalog.categories.terminal.description'),
 		icon: 'terminal',
@@ -134,7 +141,12 @@ export const TERMINAL_SETTINGS_NAVIGATION_GROUPS = [
 		label: catalogMessage('terminal.settings.catalog.groups.workspace'),
 	},
 	{
-		categories: ['agent-integrations', 'shell-integration', 'remote-development'],
+		categories: [
+			'agent-integrations',
+			'ssh-connections',
+			'shell-integration',
+			'remote-development',
+		],
 		id: 'integrations',
 		label: catalogMessage('terminal.settings.catalog.groups.integrations'),
 	},

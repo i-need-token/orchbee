@@ -10,6 +10,8 @@ import { zhCNDesktopSshProjectMessages } from './desktop-ssh-project';
 import { zhCNDesktopWindowMessages } from './desktop-window';
 import { zhCNKeyboardShortcutMessages } from './keyboard-shortcuts';
 import { zhCNProjectedTerminalMessages } from './projected-terminal';
+import { zhCNRemoteDirectoryBrowserMessages } from './remote-directory-browser';
+import { zhCNSshConnectionManagementMessages } from './ssh-connection-management';
 import { zhCNTerminalSettingsMessages } from './terminal-settings';
 import { zhCNTerminalSettingsCatalogMessages } from './terminal-settings-catalog';
 import { zhCNWorkbenchMessages } from './workbench';
@@ -26,6 +28,8 @@ export const zhCNMessages = {
 	...zhCNDesktopWindowMessages,
 	...zhCNKeyboardShortcutMessages,
 	...zhCNProjectedTerminalMessages,
+	...zhCNRemoteDirectoryBrowserMessages,
+	...zhCNSshConnectionManagementMessages,
 	...zhCNTerminalSettingsMessages,
 	...zhCNTerminalSettingsCatalogMessages,
 	...zhCNWorkbenchMessages,

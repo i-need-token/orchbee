@@ -201,6 +201,13 @@ export function startDesktopWorkbenchRenderer(
 			});
 			return routing !== undefined;
 		},
+		onFolderAttachmentCommitted: async (result) =>
+			(await waitForFolderAttachmentPublication(
+				runtime.projectWorkspaceRuntime,
+				result.projectId,
+				result.directoryId,
+				result.canonicalPath,
+			)) && !disposed,
 	});
 
 	const dispose = (): void => {
@@ -308,10 +315,13 @@ export function startDesktopWorkbenchRenderer(
 				: {}),
 			getInitialTerminalTitle,
 			environmentProjectConnection: sshProjectEnrollmentController,
+			sshConnectionManagementControl: sshProjectEnrollmentController,
 			keyboardShortcutSettingsController,
 			layoutStorage: storage.preferences,
 			macosTerminalInputSettingsController,
 			onConnectViaSsh: () => sshProjectEnrollmentController.openEnrollment(),
+			onAddProjectFolderViaSsh: (projectId) =>
+				sshProjectEnrollmentController.openFolderAttachment(projectId),
 			projectWorkspaceRuntime: workbenchClientRuntime.projectWorkspaceRuntime,
 			projectFolderAcquisition: projectFolderAcquisitionClient,
 			projectWorktree: projectWorktreeClient,
@@ -388,11 +398,41 @@ function waitForEnrollmentPublication(
 	projectId: string,
 	workspaceId: string,
 ): Promise<boolean> {
-	const published = (): boolean =>
-		runtime
-			.getSnapshot()
-			.projects.find((project) => project.id === projectId)
-			?.workspaces.some((workspace) => workspace.id === workspaceId) ?? false;
+	return waitForWorkbenchPublication(
+		runtime,
+		() =>
+			runtime
+				.getSnapshot()
+				.projects.find((project) => project.id === projectId)
+				?.workspaces.some((workspace) => workspace.id === workspaceId) ?? false,
+	);
+}
+
+function waitForFolderAttachmentPublication(
+	runtime: WorkbenchProjectWorkspaceRuntime,
+	projectId: string,
+	directoryId: string,
+	canonicalPath: string,
+): Promise<boolean> {
+	return waitForWorkbenchPublication(
+		runtime,
+		() =>
+			runtime
+				.getSnapshot()
+				.projects.find((project) => project.id === projectId)
+				?.directories.some(
+					(directory) =>
+						directory.id === directoryId &&
+						directory.path === canonicalPath &&
+						directory.placement.kind === 'environment',
+				) ?? false,
+	);
+}
+
+function waitForWorkbenchPublication(
+	runtime: WorkbenchProjectWorkspaceRuntime,
+	published: () => boolean,
+): Promise<boolean> {
 	if (published()) return Promise.resolve(true);
 	return new Promise((resolve) => {
 		let settled = false;

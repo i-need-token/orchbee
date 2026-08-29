@@ -4,6 +4,10 @@
 	gap: var(--ob-ref-space-4);
 }
 
+.directoryDialog {
+	max-inline-size: min(var(--ob-ref-container-2xl), calc(100% - var(--ob-ref-space-8)));
+}
+
 .progress,
 .promptDescription {
 	margin: 0;

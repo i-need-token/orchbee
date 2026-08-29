@@ -16,8 +16,11 @@ import {
 	SSH_TERMINAL_HOST_SERVICE_ID,
 	SshEnvironmentFrameDecoder,
 	SshEnvironmentChannelIdSchema,
+	SshProjectRootDirectoryListingRequestSchema,
 	SshProjectRootInspectionRequestSchema,
+	decodeSshProjectRootDirectoryListingResult,
 	decodeSshProjectRootInspectionResult,
+	encodeSshProjectRootDirectoryListingRequest,
 	encodeSshProjectRootInspectionRequest,
 	encodeSshEnvironmentMessage,
 } from '@orchbee/ssh-environment-protocol';
@@ -64,6 +67,11 @@ const children = new Set();
 try {
 	await mkdir(terminalHostRuntimeDirectory, { mode: 0o700 });
 	await mkdir(projectRoot);
+	await mkdir(path.join(projectRoot, '.hidden'));
+	await mkdir(path.join(projectRoot, 'alpha'));
+	await mkdir(path.join(projectRoot, 'zeta'));
+	await symlink(path.join(projectRoot, 'alpha'), path.join(projectRoot, 'linked-dir'));
+	await writeFile(path.join(projectRoot, 'file.txt'), 'not a directory');
 	await symlink(projectRoot, projectRootLink);
 	await writeFile(projectFile, 'not a directory');
 	const canonicalProjectRoot = await realpath(projectRoot);
@@ -102,12 +110,19 @@ try {
 		kind: 'failed',
 		reason: 'not-directory',
 	});
-	assert.deepEqual(await sendInvalidProjectRootRequest(firstAttachment, firstAccepted, 4), {
+	assert.deepEqual(await listProjectDirectory(firstAttachment, firstAccepted, 4, null), {
+		kind: 'listed',
+		canonicalPath: canonicalProjectRoot,
+		parentPath: path.dirname(canonicalProjectRoot),
+		directories: [{ name: '.hidden' }, { name: 'alpha' }, { name: 'linked-dir' }, { name: 'zeta' }],
+		truncated: false,
+	});
+	assert.deepEqual(await sendInvalidProjectRootRequest(firstAttachment, firstAccepted, 5), {
 		kind: 'failed',
 		reason: 'invalid-path',
 	});
-	await cancelProjectRootChannel(firstAttachment, firstAccepted, 5);
-	await negotiateTerminalHost(firstAttachment, firstAccepted, 6);
+	await cancelProjectRootChannel(firstAttachment, firstAccepted, 6);
+	await negotiateTerminalHost(firstAttachment, firstAccepted, 7);
 
 	const competingAttachment = startAttachment('competing');
 	competingAttachment.write(helloFrame('2'.repeat(32)));
@@ -157,6 +172,7 @@ try {
 function spawnRuntime(arguments_, stdio) {
 	const child = spawn(runtimeExecutable, arguments_, {
 		cwd: appDirectory,
+		env: { ...process.env, HOME: projectRoot },
 		stdio,
 	});
 	children.add(child);
@@ -315,6 +331,29 @@ async function inspectProjectRoot(attachment, accepted, channelIdValue, requeste
 	const result = await nextProjectRootResult(attachment, channelId);
 	await closeProjectRootChannel(attachment, accepted, channelId, 'completed');
 	return result;
+}
+
+async function listProjectDirectory(attachment, accepted, channelIdValue, requestedPath) {
+	const channelId = SshEnvironmentChannelIdSchema.parse(channelIdValue);
+	await openProjectRootChannel(attachment, accepted, channelId);
+	const request = SshProjectRootDirectoryListingRequestSchema.parse({
+		type: 'list-project-directory',
+		path: requestedPath,
+	});
+	attachment.write(
+		encodeSshEnvironmentMessage({
+			type: 'channel-data',
+			channelId,
+			data: encodeSshProjectRootDirectoryListingRequest(request),
+		}),
+	);
+	const message = await attachment.nextMessage();
+	assert.equal(message.type, 'channel-data');
+	assert.equal(message.channelId, channelId);
+	const decoded = decodeSshProjectRootDirectoryListingResult(message.data);
+	assert.equal(decoded.ok, true);
+	await closeProjectRootChannel(attachment, accepted, channelId, 'completed');
+	return decoded.message;
 }
 
 async function sendInvalidProjectRootRequest(attachment, accepted, channelIdValue) {

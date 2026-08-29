@@ -16,6 +16,7 @@ import type { DesktopTerminalLaunchProfileControl } from '../../terminal-launch-
 import type { DesktopTerminalDefaultSettingsControl } from '../../terminal-default-settings-control';
 import type { TerminalInteractionSettingsController } from '../../terminal-interaction-settings';
 import type { ApplicationLocaleController } from '../../application-locale';
+import type { DesktopSshConnectionManagementControl } from '../../ssh-connection-management';
 
 export type TerminalSettingsCategory =
 	| 'agent-integrations'
@@ -30,6 +31,7 @@ export type TerminalSettingsCategory =
 	| 'profiles'
 	| 'remote-development'
 	| 'shell-integration'
+	| 'ssh-connections'
 	| 'terminal'
 	| 'text'
 	| 'windows-tabs';
@@ -199,6 +201,7 @@ export interface UseTerminalSettingsSurfaceOptions {
 	readonly onRequestClose: () => void;
 	readonly requestBrowserAccess?: ((returnFocus: HTMLElement) => void) | undefined;
 	readonly requestedCategory?: TerminalSettingsCategory | undefined;
+	readonly sshConnectionManagementControl?: DesktopSshConnectionManagementControl | undefined;
 	readonly terminalFeedbackSettingsController?: TerminalFeedbackSettingsController | undefined;
 	readonly terminalLaunchProfileClient?: DesktopTerminalLaunchProfileControl | undefined;
 	readonly terminalDefaultSettingsControl?: DesktopTerminalDefaultSettingsControl | undefined;

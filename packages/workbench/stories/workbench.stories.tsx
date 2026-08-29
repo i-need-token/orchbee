@@ -115,6 +115,28 @@ const createPopulatedProjectWorkspaceRuntime = () => {
 	return runtime;
 };
 
+const createSshFolderManagementRuntime = () => {
+	const runtime = createPopulatedProjectWorkspaceRuntime();
+	runtime.transition({
+		directory: {
+			available: false,
+			git: null,
+			id: 'environment-directory:44444444444444444444444444444444',
+			kind: 'folder',
+			name: 'remote-services',
+			path: '/srv/orchbee/services',
+			placement: {
+				environmentId: 'environment:00000000000000000000000000000001',
+				kind: 'environment',
+			},
+			source: 'selected',
+		},
+		projectId: 'project-1',
+		type: 'environment-directory-registered',
+	});
+	return runtime;
+};
+
 const createVisualPanelSelectionRuntime = () => {
 	const runtime = createProjectWorkspaceRuntime(['Terminal 1']);
 	const store = runtime.getActiveTerminalContext().panelWorkspaceStore;
@@ -464,12 +486,13 @@ export const SshProjectConnection: Story = {
 export const NativeProjectFolderManagement: Story = {
 	args: {
 		actionRuntime: new ActionRuntime({ confirm: () => true }),
+		onAddProjectFolderViaSsh: () => undefined,
 		onSettings: () => ({ kind: 'unchanged' }),
 		projectFolderAcquisition: {
 			selectExistingFolder: () =>
 				Promise.resolve({ kind: 'selected', path: '/workspace/native-added' }),
 		},
-		projectWorkspaceRuntime: createPopulatedProjectWorkspaceRuntime(),
+		projectWorkspaceRuntime: createSshFolderManagementRuntime(),
 		shortcutPlatform: 'apple',
 	},
 	render: (arguments_) => (

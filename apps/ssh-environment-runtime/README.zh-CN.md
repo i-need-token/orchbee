@@ -1,7 +1,7 @@
 # SSH Environment Runtime
 
 `orchbee-ssh-environment-runtime` 是通过可替换 SSH attachment 到达的、每个 Environment 独立的
-detached daemon。它是 native transport endpoint，不是 remote shell。它拥有有界只读 `project-root-v1`
+detached daemon。它是 native transport endpoint，不是 remote shell。它拥有有界只读 `project-root-v2`
 observation 与一个 opaque `terminal-host-v1` relay，但自身不创建 terminal、Project、Workspace、Git 或
 Agent effect。
 
@@ -33,30 +33,34 @@ Server 还会检查每个本地 peer 的 effective user identity。同一时间�
 
 ## 协议与生命周期
 
-Runtime 实现 `@orchbee/ssh-environment-protocol` 的精确 `0.2.0` 版本。它接受一个精确 Hello，返回 Runtime
+Runtime 实现 `@orchbee/ssh-environment-protocol` 的精确 `0.3.0` 版本。它接受一个精确 Hello，返回 Runtime
 build identity、release cohort identity、Terminal Host version/build、platform、有序 capability 与一个新的
 daemon epoch，随后确认 heartbeat。Partial record 与未完成 handshake 同时受时间和大小限制。断开
 attachment 不会停止 Runtime 或改变 epoch；重启 Runtime 始终会产生新 epoch。
 
-Runtime 精确 advertise `[project-root-v1, terminal-host-v1]`；Desktop 会拒绝任何其他 capability set。
+Runtime 精确 advertise `[project-root-v2, terminal-host-v1]`；Desktop 会拒绝任何其他 capability set。
 一个 attachment 内的 channel identifier 全局单调。协议刻意没有 execute-command message、generic service
 dispatch、forwarding 或 network listener。
 
-## Project-root inspection
+## Project-root service
 
-一个由 Desktop 发起的 channel 检查一个显式 absolute POSIX UTF-8 path。Runtime 跟随远端 operating-system
-symlink，要求最终 target 是可访问 directory，并且只返回 canonical absolute path。非法 path、不存在、非
-directory、permission、deadline、capacity 与内部 availability outcome 都映射到协议中的有界 reason；原始
+一个由 Desktop 发起的 channel 要么检查一个显式 absolute POSIX UTF-8 path，要么列出一个 directory。Null
+listing path 会解析为 Runtime process 已验证的绝对 `HOME`。Runtime 跟随远端 operating-system symlink，
+要求最终 target 是可访问 directory，并返回 canonical absolute path。非法 path、不存在、非 directory、
+permission、deadline、capacity 与内部 availability outcome 都映射为有界 protocol reason；原始
 operating-system error 不会跨越 channel，也不会进入 log。
 
-每个 Environment 最多运行四个 inspection。每次 filesystem observation 都在同一 immutable Runtime binary
+每个 Environment 最多运行四个 operation。每次 filesystem observation 都在同一 immutable Runtime binary
 的受限 child 中执行；path 只通过 stdin 到达 child，stderr 被丢弃，stdout 只承载一条私有有界 result。Daemon
 把这些 child 与 attachment 一起 poll，因此 filesystem latency 无法阻塞 heartbeat。Cancellation 或
 attachment loss 会 kill 匹配 child，30 秒 deadline 会在发布 `timed-out` 前强制终止它。Reconnect 永不继承
 或 replay 旧 channel。
 
-该 service 不会列出 directory、读取 file byte、保留 handle、watch 或 mutate path、运行 shell，也不会分配
-Project、Checkout、Workspace 或 directory identity。Requested path 与 canonical path 始终只存在于进程内。
+Listing 在 128 KiB 内返回最多 256 个按字典序排列、可访问的 UTF-8 child-directory name，以及 canonical
+path、可选 parent 和 truncation metadata。它会省略 file、非法或不可访问 entry，以及 target 无法作为
+directory 打开的 symlink。该 service 永不读取 file byte、保留 handle、watch 或 mutate path、运行 shell，
+也不分配 Project、Checkout、Workspace 或 directory identity；path 与 listing metadata 保持瞬时，绝不进入
+log 或 durable state。
 
 ## Terminal Host relay
 

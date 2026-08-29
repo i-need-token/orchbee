@@ -1,17 +1,17 @@
 ------------------- MODULE SshEnvironmentProjectRootService -------------------
 EXTENDS FiniteSets, Naturals, TLC
 
-\* Bounded abstraction of the Slice 2.4 project-root inspection service. One
-\* authenticated Runtime attachment advertises one exact service. Desktop opens
-\* bounded single-request channels, both peers consume explicit byte credit,
-\* filesystem workers remain bounded, and attachment replacement never replays
-\* a request or publishes a stale worker result.
+\* Bounded abstraction of the project-root inspection and directory-listing
+\* service. One authenticated Runtime attachment advertises one exact service.
+\* Desktop opens bounded single-request channels, both peers consume explicit
+\* byte credit, filesystem workers remain bounded, and attachment replacement
+\* never replays a request or publishes a stale worker result.
 
 CONSTANT Channels, Epochs, MaxConcurrent
 
 NoEpoch == "none"
 NoOutcome == "none"
-ExpectedService == "project-root-v1"
+ExpectedService == "project-root-v2"
 ExpectedServices == {ExpectedService}
 
 ChannelPhases == {
@@ -21,7 +21,7 @@ ChannelPhases == {
 }
 
 WorkerOutcomes == {
-  "resolved", "invalid-path", "not-found", "not-directory",
+  "resolved", "listed", "invalid-path", "not-found", "not-directory",
   "permission-denied", "timed-out", "busy", "unavailable"
 }
 

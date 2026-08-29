@@ -30,6 +30,8 @@ The root entry currently retains the `Button` compatibility export. The explicit
 
 Dropdown, context, menubar, and submenu surfaces use the shared `250px` menu width and shrink only when the available viewport is narrower. Product consumers keep the primitive default instead of assigning one-off menu widths. Their content, trigger, and interaction contract follows the repository [frontend menu standard](../../docs/frontend/menus.md).
 
+Portaled floating content keeps its generated default layer outside a modal. Modal consumers use the supported `positionerClassName` override with a CSS Module class mapped to `--ob-ref-layer-modal`, so the portal stays above its owning dialog without a one-off popup `z-index`.
+
 Default Dialog and Alert Dialog surfaces use the shared `480px` width, constrained by the viewport, and shadow without an outer outline. Their action footers share the content surface and rely on spacing instead of a divider or tinted footer band.
 
 ## Product icons

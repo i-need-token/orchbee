@@ -16,18 +16,19 @@ class StoryController implements DesktopSshProjectEnrollmentDialogController {
 
 	close(): void {}
 	getDialogSnapshot = (): DesktopSshProjectEnrollmentDialogState => this.#state;
+	navigateDirectory(): void {}
+	openFolderAttachment(): void {}
 	resolvePrompt(): void {}
 	retry(): void {}
+	selectDirectory(): void {}
 	submit(): void {}
 	subscribeDialog = (): (() => void) => () => undefined;
+	updateDirectoryPath(): void {}
 	updateForm(): void {}
 }
 
 const enrollmentForm = {
-	configurationFilePath: '/Users/me/.ssh/config',
-	destination: 'build-host',
-	name: 'Build machine',
-	projectPath: '/srv/orchbee',
+	destination: 'ssh builder@build-host',
 };
 
 const meta = {
@@ -43,10 +44,13 @@ type Story = StoryObj<typeof meta>;
 export const Enrollment: Story = story(
 	'en-US',
 	new StoryController({
+		canNavigate: false,
 		canSubmit: true,
+		directory: null,
 		failure: null,
 		form: enrollmentForm,
 		kind: 'enrollment',
+		pathInput: '',
 		phase: 'editing',
 		progress: null,
 		prompt: null,
@@ -56,10 +60,13 @@ export const Enrollment: Story = story(
 export const HostVerification: Story = story(
 	'en-US',
 	new StoryController({
+		canNavigate: false,
 		canSubmit: true,
+		directory: null,
 		failure: null,
 		form: enrollmentForm,
 		kind: 'enrollment',
+		pathInput: '',
 		phase: 'prompt',
 		progress: 'connecting',
 		prompt: {
@@ -75,10 +82,13 @@ export const HostVerification: Story = story(
 export const Authentication: Story = story(
 	'en-US',
 	new StoryController({
+		canNavigate: false,
 		canSubmit: true,
+		directory: null,
 		failure: null,
 		form: enrollmentForm,
 		kind: 'enrollment',
+		pathInput: '',
 		phase: 'prompt',
 		progress: 'connecting',
 		prompt: {
@@ -90,11 +100,53 @@ export const Authentication: Story = story(
 	}),
 );
 
+export const DirectorySelection: Story = story(
+	'en-US',
+	new StoryController({
+		canNavigate: true,
+		canSubmit: true,
+		directory: {
+			canonicalPath: '/home/builder',
+			directories: [{ name: '.config' }, { name: 'orchbee' }, { name: 'projects' }],
+			navigationFailure: null,
+			parentPath: '/home',
+			truncated: false,
+		},
+		failure: null,
+		form: enrollmentForm,
+		kind: 'enrollment',
+		pathInput: '/home/builder',
+		phase: 'directory',
+		progress: 'selecting-project-directory',
+		prompt: null,
+	}),
+);
+
+export const FolderAttachment: Story = story(
+	'en-US',
+	new StoryController({
+		canNavigate: false,
+		canSubmit: true,
+		directory: null,
+		failure: null,
+		form: enrollmentForm,
+		kind: 'attachment',
+		pathInput: '',
+		phase: 'editing',
+		progress: null,
+		projectId: 'project-local',
+		prompt: null,
+	}),
+);
+
 export const ConnectionFailure: Story = story(
 	'en-US',
 	new StoryController({
+		canNavigate: false,
+		directory: null,
 		failure: 'connection',
 		kind: 'connection',
+		pathInput: '',
 		phase: 'failed',
 		progress: null,
 		projectId: 'project-remote',
@@ -105,10 +157,13 @@ export const ConnectionFailure: Story = story(
 export const SimplifiedChineseEnrollment: Story = story(
 	'zh-CN',
 	new StoryController({
+		canNavigate: false,
 		canSubmit: true,
+		directory: null,
 		failure: null,
 		form: enrollmentForm,
 		kind: 'enrollment',
+		pathInput: '',
 		phase: 'editing',
 		progress: null,
 		prompt: null,

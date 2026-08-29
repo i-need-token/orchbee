@@ -65,6 +65,23 @@
 	font: var(--ob-sys-typography-label-xs);
 }
 
+.remoteBadge {
+	display: inline-flex;
+	min-height: var(--ob-ref-size-icon-lg);
+	flex: none;
+	align-items: center;
+	padding-inline: var(--ob-ref-space-1);
+	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-subtle);
+	border-radius: var(--ob-ref-radius-ui-md);
+	color: var(--ob-sys-color-text-secondary);
+	background: var(--ob-sys-color-surface-subtle);
+	font: var(--ob-sys-typography-label-xs);
+}
+
+.modalMenu {
+	z-index: var(--ob-ref-layer-modal);
+}
+
 .setPrimaryButton {
 	position: absolute;
 	inset-inline-end: calc(

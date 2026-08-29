@@ -5,10 +5,10 @@ export const SSH_ENVIRONMENT_FRAME_HEADER_BYTES = 16;
 export const SSH_ENVIRONMENT_MAX_FRAME_BYTES = 1024 * 1024;
 export const SSH_ENVIRONMENT_PROTOCOL_VERSION = Object.freeze({
 	major: 0,
-	minor: 2,
+	minor: 3,
 	patch: 0,
 });
-const SSH_PROJECT_ROOT_SERVICE_ID_LITERAL = 'project-root-v1';
+const SSH_PROJECT_ROOT_SERVICE_ID_LITERAL = 'project-root-v2';
 const SSH_TERMINAL_HOST_SERVICE_ID_LITERAL = 'terminal-host-v1';
 export const SSH_TERMINAL_HOST_INITIAL_CREDIT_BYTES = 65_536;
 export const SSH_TERMINAL_HOST_MAX_CHUNK_BYTES = 65_536;

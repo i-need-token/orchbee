@@ -2,6 +2,7 @@ import { EventEmitter } from 'node:events';
 
 import {
 	SshEnvironmentRuntimeInstanceIdSchema,
+	SshProjectRootDirectoryNameSchema,
 	SshProjectRootPathSchema,
 } from '@orchbee/ssh-environment-protocol';
 import {
@@ -42,6 +43,9 @@ const environment = EnvironmentRecordSchema.parse({
 		target: { configurationFilePath: null, destination: 'build-host' },
 	},
 });
+
+const rejectFolderAttachment: DesktopSshProjectEnrollmentRuntimeOptions['attachProjectFolder'] =
+	async () => ({ kind: 'failed', reason: 'workbench-unavailable' });
 
 describe('Desktop SSH Project enrollment runtime', () => {
 	it('resolves before durability, connects with an exact prompt lease, inspects, then commits', async () => {
@@ -90,6 +94,10 @@ describe('Desktop SSH Project enrollment runtime', () => {
 					kind: 'resolved' as const,
 				};
 			}),
+			listProjectDirectory: vi.fn<EnrollmentConnections['listProjectDirectory']>(async () => {
+				trace.push('list');
+				return directoryListing('/srv/orchbee');
+			}),
 			observation: () => ({
 				kind: 'ready' as const,
 				observation: connectedObservation(environmentId),
@@ -97,6 +105,7 @@ describe('Desktop SSH Project enrollment runtime', () => {
 			subscribe: () => () => undefined,
 		};
 		const runtime = new DesktopSshProjectEnrollmentRuntime({
+			attachProjectFolder: rejectFolderAttachment,
 			admitProject: async () => {
 				trace.push('commit');
 				return {
@@ -121,16 +130,19 @@ describe('Desktop SSH Project enrollment runtime', () => {
 			kind: 'submitted' as const,
 			response: 'secret',
 		}));
+		const selectDirectory = vi.fn<DesktopSshProjectEnrollmentOperation['selectDirectory']>(
+			async () => {
+				trace.push('select');
+				return { kind: 'selected' };
+			},
+		);
 
 		await expect(
 			runtime.enroll(
 				{
-					configurationFilePath: null,
-					destination: 'build-host',
-					name: 'Build machine',
-					projectPath: '/srv/orchbee-alias',
+					destination: 'ssh build-host',
 				},
-				{ interact, progress: (stage) => progress.push(stage) },
+				{ interact, progress: (stage) => progress.push(stage), selectDirectory },
 				new AbortController().signal,
 			),
 		).resolves.toEqual({
@@ -145,6 +157,8 @@ describe('Desktop SSH Project enrollment runtime', () => {
 			'registry-create',
 			'lease',
 			'connect',
+			'list',
+			'select',
 			'inspect',
 			'commit',
 			'release',
@@ -153,6 +167,7 @@ describe('Desktop SSH Project enrollment runtime', () => {
 			'resolving-target',
 			'recording-environment',
 			'connecting',
+			'selecting-project-directory',
 			'inspecting-project',
 			'committing-project',
 		]);
@@ -174,6 +189,7 @@ describe('Desktop SSH Project enrollment runtime', () => {
 		};
 		const admittedEnvironmentIds: EnvironmentId[] = [];
 		const runtime = new DesktopSshProjectEnrollmentRuntime({
+			attachProjectFolder: rejectFolderAttachment,
 			admitProject: async (candidate) => {
 				admittedEnvironmentIds.push(candidate);
 				return {
@@ -193,17 +209,183 @@ describe('Desktop SSH Project enrollment runtime', () => {
 
 		await runtime.enroll(
 			{
-				configurationFilePath: null,
 				destination: 'build-host',
-				name: 'A renderer cannot rename this',
-				projectPath: '/srv/project',
 			},
-			{ interact: async () => ({ kind: 'cancelled' }), progress: () => undefined },
+			{
+				interact: async () => ({ kind: 'cancelled' }),
+				progress: () => undefined,
+				selectDirectory: selectCurrentDirectory,
+			},
 			new AbortController().signal,
 		);
 
 		expect(registry.create).not.toHaveBeenCalled();
 		expect(admittedEnvironmentIds).toEqual([environmentId]);
+	});
+
+	it('publishes Project connection status only after the canonical commit is visible', async () => {
+		let document: ReturnType<typeof remoteProjectDocument> | null = null;
+		const runtime = new DesktopSshProjectEnrollmentRuntime({
+			attachProjectFolder: rejectFolderAttachment,
+			admitProject: async () => {
+				await Promise.resolve();
+				document = remoteProjectDocument();
+				return {
+					canonicalPath: '/srv/project',
+					directoryId: 'directory-remote',
+					kind: 'created',
+					projectId: 'project-remote',
+					workspaceId: 'workspace-remote',
+				};
+			},
+			allocateIdentifier: identifierSequence(),
+			connections: immediatelyConnectedConnections(environmentId),
+			getDocument: () => document,
+			registry: existingRegistry(),
+			resolveTarget: async () => resolvedTarget(),
+		});
+		const publications: (readonly { readonly projectId: string; readonly state: string }[])[] = [];
+		runtime.subscribeStatuses((statuses) => publications.push(statuses));
+
+		await runtime.enroll(
+			{ destination: 'build-host' },
+			{
+				interact: async () => ({ kind: 'cancelled' }),
+				progress: () => undefined,
+				selectDirectory: selectCurrentDirectory,
+			},
+			new AbortController().signal,
+		);
+
+		expect(publications.at(-1)).toEqual([
+			{ blockedReason: null, projectId: 'project-remote', state: 'connected' },
+		]);
+	});
+
+	it('reuses the connection and directory workflow to attach a Folder to the exact Project', async () => {
+		const connections = immediatelyConnectedConnections(environmentId);
+		const attachProjectFolder = vi.fn<
+			DesktopSshProjectEnrollmentRuntimeOptions['attachProjectFolder']
+		>(async (_candidateEnvironmentId, projectId, canonicalPath) => ({
+			canonicalPath,
+			directoryId: 'environment-directory:44444444444444444444444444444444',
+			kind: 'attached',
+			projectId,
+		}));
+		const admitProject = vi.fn<DesktopSshProjectEnrollmentRuntimeOptions['admitProject']>();
+		const runtime = new DesktopSshProjectEnrollmentRuntime({
+			admitProject,
+			allocateIdentifier: identifierSequence(),
+			attachProjectFolder,
+			connections,
+			getDocument: () => null,
+			registry: existingRegistry(),
+			resolveTarget: async () => resolvedTarget(),
+		});
+		const progress: string[] = [];
+
+		await expect(
+			runtime.attachFolder(
+				'project-local',
+				{ destination: 'ssh build-host' },
+				{
+					interact: async () => ({ kind: 'cancelled' }),
+					progress: (stage) => progress.push(stage),
+					selectDirectory: selectCurrentDirectory,
+				},
+				new AbortController().signal,
+			),
+		).resolves.toEqual({
+			canonicalPath: '/srv/project',
+			directoryId: 'environment-directory:44444444444444444444444444444444',
+			kind: 'attached',
+			projectId: 'project-local',
+		});
+		expect(attachProjectFolder).toHaveBeenCalledWith(
+			environmentId,
+			'project-local',
+			'/srv/project',
+			expect.any(AbortSignal),
+		);
+		expect(admitProject).not.toHaveBeenCalled();
+		expect(progress).toEqual([
+			'resolving-target',
+			'recording-environment',
+			'connecting',
+			'selecting-project-directory',
+			'inspecting-project',
+			'committing-project-folder',
+		]);
+	});
+
+	it('retains the last valid snapshot after failed navigation and inspects only the selection', async () => {
+		const connections = immediatelyConnectedConnections(environmentId);
+		connections.listProjectDirectory
+			.mockResolvedValueOnce({
+				...directoryListing('/home/builder'),
+				directories: [{ name: SshProjectRootDirectoryNameSchema.parse('src') }],
+				parentPath: SshProjectRootPathSchema.parse('/home'),
+			})
+			.mockResolvedValueOnce({ kind: 'failed', reason: 'not-found' })
+			.mockResolvedValueOnce(directoryListing('/home/builder/src'));
+		const snapshots: Parameters<DesktopSshProjectEnrollmentOperation['selectDirectory']>[0][] = [];
+		const selectDirectory = vi.fn<DesktopSshProjectEnrollmentOperation['selectDirectory']>(
+			async (snapshot) => {
+				snapshots.push(snapshot);
+				if (snapshots.length === 1) return { kind: 'navigate', path: '/missing' };
+				if (snapshots.length === 2) {
+					return { kind: 'navigate', path: '/home/builder/src' };
+				}
+				return { kind: 'selected' };
+			},
+		);
+		const admitProject = vi.fn<DesktopSshProjectEnrollmentRuntimeOptions['admitProject']>(
+			async () => ({
+				canonicalPath: '/srv/project',
+				directoryId: 'directory-1',
+				kind: 'created',
+				projectId: 'project-1',
+				workspaceId: 'workspace-1',
+			}),
+		);
+		const runtime = new DesktopSshProjectEnrollmentRuntime({
+			attachProjectFolder: rejectFolderAttachment,
+			admitProject,
+			allocateIdentifier: identifierSequence(),
+			connections,
+			getDocument: () => null,
+			registry: existingRegistry(),
+			resolveTarget: async () => resolvedTarget(),
+		});
+
+		await runtime.enroll(
+			{ destination: 'build-host' },
+			{
+				interact: async () => ({ kind: 'cancelled' }),
+				progress: () => undefined,
+				selectDirectory,
+			},
+			new AbortController().signal,
+		);
+
+		expect(snapshots).toEqual([
+			expect.objectContaining({ canonicalPath: '/home/builder', navigationFailure: null }),
+			expect.objectContaining({
+				canonicalPath: '/home/builder',
+				navigationFailure: 'not-found',
+			}),
+			expect.objectContaining({ canonicalPath: '/home/builder/src', navigationFailure: null }),
+		]);
+		expect(connections.inspectProjectRoot).toHaveBeenCalledWith(
+			environmentId,
+			'/home/builder/src',
+			expect.any(AbortSignal),
+		);
+		expect(admitProject).toHaveBeenCalledWith(
+			environmentId,
+			'/srv/project',
+			expect.any(AbortSignal),
+		);
 	});
 
 	it('cancels a pre-commit operation and stops only its unreferenced new attachment', async () => {
@@ -213,6 +395,7 @@ describe('Desktop SSH Project enrollment runtime', () => {
 			kind: 'disconnected' as const,
 		}));
 		const runtime = new DesktopSshProjectEnrollmentRuntime({
+			attachProjectFolder: rejectFolderAttachment,
 			admitProject: vi.fn<DesktopSshProjectEnrollmentRuntimeOptions['admitProject']>(),
 			allocateIdentifier: identifierSequence(),
 			connections: {
@@ -227,6 +410,7 @@ describe('Desktop SSH Project enrollment runtime', () => {
 				}),
 				disconnect,
 				inspectProjectRoot: vi.fn<EnrollmentConnections['inspectProjectRoot']>(),
+				listProjectDirectory: vi.fn<EnrollmentConnections['listProjectDirectory']>(),
 				observation: () => ({
 					kind: 'ready' as const,
 					observation: resolvingObservation(environmentId),
@@ -252,12 +436,13 @@ describe('Desktop SSH Project enrollment runtime', () => {
 		});
 		const enrollment = runtime.enroll(
 			{
-				configurationFilePath: null,
 				destination: 'build-host',
-				name: 'Build machine',
-				projectPath: '/srv/project',
 			},
-			{ interact: async () => ({ kind: 'cancelled' }), progress: () => undefined },
+			{
+				interact: async () => ({ kind: 'cancelled' }),
+				progress: () => undefined,
+				selectDirectory: selectCurrentDirectory,
+			},
 			abortController.signal,
 		);
 		await eventually(() => observations.listenerCount('observation') > 0);
@@ -270,6 +455,7 @@ describe('Desktop SSH Project enrollment runtime', () => {
 	it('fails closed on indeterminate Environment durability before any connection starts', async () => {
 		const connections = immediatelyConnectedConnections(environmentId);
 		const runtime = new DesktopSshProjectEnrollmentRuntime({
+			attachProjectFolder: rejectFolderAttachment,
 			admitProject: vi.fn<DesktopSshProjectEnrollmentRuntimeOptions['admitProject']>(),
 			allocateIdentifier: identifierSequence(),
 			connections,
@@ -290,12 +476,13 @@ describe('Desktop SSH Project enrollment runtime', () => {
 		await expect(
 			runtime.enroll(
 				{
-					configurationFilePath: null,
 					destination: 'build-host',
-					name: 'Build machine',
-					projectPath: '/srv/project',
 				},
-				{ interact: async () => ({ kind: 'cancelled' }), progress: () => undefined },
+				{
+					interact: async () => ({ kind: 'cancelled' }),
+					progress: () => undefined,
+					selectDirectory: selectCurrentDirectory,
+				},
 				new AbortController().signal,
 			),
 		).resolves.toEqual({ kind: 'indeterminate', reason: 'durability-unconfirmed' });
@@ -313,6 +500,7 @@ describe('Desktop SSH Project enrollment runtime', () => {
 			disconnect,
 		};
 		const runtime = new DesktopSshProjectEnrollmentRuntime({
+			attachProjectFolder: rejectFolderAttachment,
 			admitProject: async () => {
 				abortController.abort();
 				return { kind: 'cancelled' };
@@ -327,12 +515,13 @@ describe('Desktop SSH Project enrollment runtime', () => {
 		await expect(
 			runtime.enroll(
 				{
-					configurationFilePath: null,
 					destination: 'build-host',
-					name: 'Build machine',
-					projectPath: '/srv/project',
 				},
-				{ interact: async () => ({ kind: 'cancelled' }), progress: () => undefined },
+				{
+					interact: async () => ({ kind: 'cancelled' }),
+					progress: () => undefined,
+					selectDirectory: selectCurrentDirectory,
+				},
 				abortController.signal,
 			),
 		).resolves.toEqual({ kind: 'cancelled' });
@@ -362,6 +551,7 @@ describe('Desktop SSH Project enrollment runtime', () => {
 			subscribe: vi.fn<EnrollmentConnections['subscribe']>(() => () => undefined),
 		};
 		const runtime = new DesktopSshProjectEnrollmentRuntime({
+			attachProjectFolder: rejectFolderAttachment,
 			admitProject: vi.fn<DesktopSshProjectEnrollmentRuntimeOptions['admitProject']>(),
 			allocateIdentifier: identifierSequence(),
 			connections,
@@ -373,12 +563,13 @@ describe('Desktop SSH Project enrollment runtime', () => {
 		await expect(
 			runtime.enroll(
 				{
-					configurationFilePath: null,
 					destination: 'build-host',
-					name: 'Build machine',
-					projectPath: '/srv/project',
 				},
-				{ interact: async () => ({ kind: 'cancelled' }), progress: () => undefined },
+				{
+					interact: async () => ({ kind: 'cancelled' }),
+					progress: () => undefined,
+					selectDirectory: selectCurrentDirectory,
+				},
 				abortController.signal,
 			),
 		).resolves.toEqual({ kind: 'cancelled' });
@@ -394,6 +585,7 @@ describe('Desktop SSH Project enrollment runtime', () => {
 			return { kind: 'disconnected' as const };
 		});
 		const runtime = new DesktopSshProjectEnrollmentRuntime({
+			attachProjectFolder: rejectFolderAttachment,
 			admitProject: vi.fn<DesktopSshProjectEnrollmentRuntimeOptions['admitProject']>(),
 			allocateIdentifier: identifierSequence(),
 			connections: {
@@ -427,6 +619,7 @@ describe('Desktop SSH Project enrollment runtime', () => {
 
 	it('fails closed when the connection owner cannot confirm explicit disconnection', async () => {
 		const runtime = new DesktopSshProjectEnrollmentRuntime({
+			attachProjectFolder: rejectFolderAttachment,
 			admitProject: vi.fn<DesktopSshProjectEnrollmentRuntimeOptions['admitProject']>(),
 			allocateIdentifier: identifierSequence(),
 			connections: {
@@ -444,6 +637,83 @@ describe('Desktop SSH Project enrollment runtime', () => {
 		await expect(
 			runtime.disconnectProject('project-remote', new AbortController().signal),
 		).resolves.toEqual({ kind: 'failed', reason: 'connection-owner-unavailable' });
+	});
+
+	it('builds a reusable catalog from saved Environments and bounded SSH Host discovery', async () => {
+		const discoverHostAliases = vi
+			.fn<NonNullable<DesktopSshProjectEnrollmentRuntimeOptions['discoverHostAliases']>>()
+			.mockResolvedValue({ aliases: ['build-host', 'gpu-lab'], issue: 'truncated' });
+		const runtime = new DesktopSshProjectEnrollmentRuntime({
+			attachProjectFolder: rejectFolderAttachment,
+			admitProject: vi.fn<DesktopSshProjectEnrollmentRuntimeOptions['admitProject']>(),
+			allocateIdentifier: identifierSequence(),
+			connections: immediatelyConnectedConnections(environmentId),
+			discoverHostAliases,
+			getDocument: remoteProjectDocument,
+			registry: existingRegistry(),
+			resolveTarget: async () => resolvedTarget(),
+		});
+
+		await expect(runtime.environmentCatalog(false)).resolves.toEqual({
+			discoveryIssue: 'truncated',
+			managed: [
+				{
+					blockedReason: null,
+					destination: 'build-host',
+					environmentId,
+					name: 'Authoritative build machine',
+					projectCount: 1,
+					state: 'connected',
+				},
+			],
+			registryIssue: null,
+			suggestions: [{ destination: 'gpu-lab' }],
+		});
+		await runtime.environmentCatalog(false);
+		expect(discoverHostAliases).toHaveBeenCalledOnce();
+		await runtime.environmentCatalog(true);
+		expect(discoverHostAliases).toHaveBeenCalledTimes(2);
+	});
+
+	it('validates and records a suggested host without opening a connection', async () => {
+		const records: (typeof environment)[] = [];
+		const registry = {
+			create: vi.fn<DesktopEnvironmentRegistry['create']>(async (record) => {
+				records.push(record);
+				return { environment: record, kind: 'created', revision: 1 };
+			}),
+			list: vi.fn<DesktopEnvironmentRegistry['list']>(async () => ({
+				kind: 'ready' as const,
+				value: [...records],
+			})),
+		};
+		const connections = immediatelyConnectedConnections(environmentId);
+		const resolveTarget = vi.fn<DesktopSshProjectEnrollmentRuntimeOptions['resolveTarget']>(
+			async () => resolvedTarget(),
+		);
+		const runtime = new DesktopSshProjectEnrollmentRuntime({
+			attachProjectFolder: rejectFolderAttachment,
+			admitProject: vi.fn<DesktopSshProjectEnrollmentRuntimeOptions['admitProject']>(),
+			allocateIdentifier: identifierSequence(),
+			connections,
+			discoverHostAliases: async () => ({ aliases: ['gpu-lab'], issue: null }),
+			getDocument: () => null,
+			registry,
+			resolveTarget,
+		});
+		const catalogListener = vi.fn<() => void>();
+		runtime.subscribeEnvironmentCatalog(catalogListener);
+
+		await expect(
+			runtime.addEnvironment({ destination: 'gpu-lab' }, new AbortController().signal),
+		).resolves.toMatchObject({ kind: 'added' });
+		expect(resolveTarget).toHaveBeenCalledWith({
+			configurationFilePath: null,
+			destination: 'gpu-lab',
+		});
+		expect(registry.create).toHaveBeenCalledOnce();
+		expect(connections.connect).not.toHaveBeenCalled();
+		expect(catalogListener).toHaveBeenCalledOnce();
 	});
 });
 
@@ -463,9 +733,26 @@ function immediatelyConnectedConnections(candidate: EnvironmentId) {
 			canonicalPath: SshProjectRootPathSchema.parse('/srv/project'),
 			kind: 'resolved' as const,
 		})),
+		listProjectDirectory: vi.fn<EnrollmentConnections['listProjectDirectory']>(async () =>
+			directoryListing('/srv/project'),
+		),
 		observation: () => ({ kind: 'ready' as const, observation: connectedObservation(candidate) }),
 		subscribe: () => () => undefined,
 	};
+}
+
+function directoryListing(path: string) {
+	return {
+		canonicalPath: SshProjectRootPathSchema.parse(path),
+		directories: [],
+		kind: 'listed' as const,
+		parentPath: path === '/' ? null : SshProjectRootPathSchema.parse('/'),
+		truncated: false,
+	};
+}
+
+async function selectCurrentDirectory() {
+	return { kind: 'selected' as const };
 }
 
 function existingRegistry() {

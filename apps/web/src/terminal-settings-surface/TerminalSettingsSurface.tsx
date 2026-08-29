@@ -9,6 +9,7 @@ import type {
 import type { ApplicationLocaleController } from '../application-locale';
 import type { KeyboardShortcutSettingsController } from '../keyboard-shortcuts';
 import type { MacosTerminalInputSettingsController } from '../macos-terminal-input-settings';
+import type { DesktopSshConnectionManagementControl } from '../ssh-connection-management';
 import type { DesktopTerminalDefaultSettingsControl } from '../terminal-default-settings-control';
 import type { TerminalFeedbackSettingsController } from '../terminal-feedback-settings';
 import type { TerminalInteractionSettingsController } from '../terminal-interaction-settings';
@@ -22,6 +23,7 @@ import { MacosTerminalInputSettings } from './components/macos-terminal-input-se
 import { PlannedTerminalSettings } from './components/planned-terminal-settings/PlannedTerminalSettings';
 import { RemoteDevelopmentSettings } from './components/remote-development-settings/RemoteDevelopmentSettings';
 import { ShellIntegrationSettings } from './components/shell-integration-settings/ShellIntegrationSettings';
+import { SshConnectionSettings } from './components/ssh-connection-settings/SshConnectionSettings';
 import { TerminalSettingsSections } from './components/terminal-settings-sections/TerminalSettingsSections';
 import { TerminalLaunchProfileSettings } from './components/terminal-launch-profile-settings/TerminalLaunchProfileSettings';
 import { useTerminalSettingsSurface } from './hooks/useTerminalSettingsSurface';
@@ -39,6 +41,7 @@ export interface TerminalSettingsSurfaceProps {
 	readonly onRequestClose: () => void;
 	readonly requestBrowserAccess?: ((returnFocus: HTMLElement) => void) | undefined;
 	readonly requestedCategory?: TerminalSettingsCategory | undefined;
+	readonly sshConnectionManagementControl?: DesktopSshConnectionManagementControl | undefined;
 	readonly terminalFeedbackSettingsController?: TerminalFeedbackSettingsController | undefined;
 	readonly terminalLaunchProfileClient?: DesktopTerminalLaunchProfileControl | undefined;
 	readonly terminalDefaultSettingsControl?: DesktopTerminalDefaultSettingsControl | undefined;
@@ -90,6 +93,11 @@ export function TerminalSettingsSurface(props: TerminalSettingsSurfaceProps): Re
 		);
 	} else if (view.category === 'remote-development') {
 		mainContent = <RemoteDevelopmentSettings messages={view.messages} />;
+	} else if (
+		view.category === 'ssh-connections' &&
+		props.sshConnectionManagementControl !== undefined
+	) {
+		mainContent = <SshConnectionSettings control={props.sshConnectionManagementControl} />;
 	} else if (view.category === 'profiles' && props.terminalLaunchProfileClient !== undefined) {
 		mainContent = (
 			<div className={styles['settingsStack']}>

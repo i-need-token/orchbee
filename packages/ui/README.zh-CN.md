@@ -30,6 +30,8 @@ export function Example() {
 
 下拉菜单、上下文菜单、菜单栏和子菜单表面共享 `250px` 菜单宽度，只在可用视口更窄时收缩。产品消费者应保留该默认值，不另设一次性菜单宽度。内容、触发器与交互契约遵循仓库[前端菜单标准](../../docs/frontend/menus.md)。
 
+Portaled 浮动内容在模态框之外保留生成的默认层级。模态框消费者通过受支持的 `positionerClassName` Override 传入映射到 `--ob-ref-layer-modal` 的 CSS Module Class，使 Portal 位于所属 Dialog 之上，而无需为 Popup 设置一次性 `z-index`。
+
 默认对话框和警报对话框表面使用共享的 `480px` 宽度，受视口和没有外部轮廓的阴影约束。他们的操作页脚共享内容表面并依赖于间距而不是分隔线或着色的页脚带。
 
 ## 产品图标

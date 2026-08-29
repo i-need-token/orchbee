@@ -1,8 +1,10 @@
 import { z } from 'zod';
 
-export const SSH_PROJECT_ROOT_INITIAL_CREDIT_BYTES = 65_536;
-export const SSH_PROJECT_ROOT_MAX_MESSAGE_BYTES = 16 * 1024;
+export const SSH_PROJECT_ROOT_INITIAL_CREDIT_BYTES = 128 * 1024;
+export const SSH_PROJECT_ROOT_MAX_MESSAGE_BYTES = 128 * 1024;
 export const SSH_PROJECT_ROOT_MAX_PATH_BYTES = 4_096;
+export const SSH_PROJECT_ROOT_MAX_DIRECTORY_NAME_BYTES = 255;
+export const SSH_PROJECT_ROOT_MAX_DIRECTORY_ENTRIES = 256;
 
 const textDecoder = new TextDecoder('utf-8', { fatal: true });
 const textEncoder = new TextEncoder();
@@ -33,6 +35,28 @@ export const SshProjectRootInspectionRequestSchema = z.strictObject({
 	path: SshProjectRootPathSchema,
 });
 
+export const SshProjectRootDirectoryNameSchema = z
+	.string()
+	.min(1)
+	.refine((name) => name !== '.' && name !== '..', 'name must identify a child directory')
+	.refine((name) => !name.includes('/'), 'name must not contain a POSIX path separator')
+	.refine((name) => !containsControlCharacter(name), 'name must not contain control characters')
+	.refine((name) => isUnicodeScalarSequence(name), 'name must contain valid Unicode scalar values')
+	.refine(
+		(name) => textEncoder.encode(name).byteLength <= SSH_PROJECT_ROOT_MAX_DIRECTORY_NAME_BYTES,
+		`name must not exceed ${SSH_PROJECT_ROOT_MAX_DIRECTORY_NAME_BYTES} UTF-8 bytes`,
+	)
+	.brand<'SshProjectRootDirectoryName'>();
+
+export const SshProjectRootDirectoryListingRequestSchema = z.strictObject({
+	type: z.literal('list-project-directory'),
+	path: SshProjectRootPathSchema.nullable(),
+});
+
+export const SshProjectRootDirectoryEntrySchema = z.strictObject({
+	name: SshProjectRootDirectoryNameSchema,
+});
+
 export const SshProjectRootInspectionResultSchema = z.discriminatedUnion('kind', [
 	z.strictObject({
 		kind: z.literal('resolved'),
@@ -44,10 +68,34 @@ export const SshProjectRootInspectionResultSchema = z.discriminatedUnion('kind',
 	}),
 ]);
 
+export const SshProjectRootDirectoryListingResultSchema = z.discriminatedUnion('kind', [
+	z.strictObject({
+		kind: z.literal('listed'),
+		canonicalPath: SshProjectRootPathSchema,
+		parentPath: SshProjectRootPathSchema.nullable(),
+		directories: z
+			.array(SshProjectRootDirectoryEntrySchema)
+			.max(SSH_PROJECT_ROOT_MAX_DIRECTORY_ENTRIES),
+		truncated: z.boolean(),
+	}),
+	z.strictObject({
+		kind: z.literal('failed'),
+		reason: SshProjectRootFailureReasonSchema,
+	}),
+]);
+
 export type SshProjectRootPath = z.infer<typeof SshProjectRootPathSchema>;
+export type SshProjectRootDirectoryName = z.infer<typeof SshProjectRootDirectoryNameSchema>;
 export type SshProjectRootFailureReason = z.infer<typeof SshProjectRootFailureReasonSchema>;
 export type SshProjectRootInspectionRequest = z.infer<typeof SshProjectRootInspectionRequestSchema>;
 export type SshProjectRootInspectionResult = z.infer<typeof SshProjectRootInspectionResultSchema>;
+export type SshProjectRootDirectoryEntry = z.infer<typeof SshProjectRootDirectoryEntrySchema>;
+export type SshProjectRootDirectoryListingRequest = z.infer<
+	typeof SshProjectRootDirectoryListingRequestSchema
+>;
+export type SshProjectRootDirectoryListingResult = z.infer<
+	typeof SshProjectRootDirectoryListingResultSchema
+>;
 
 export interface SshProjectRootMessageDecodeError {
 	readonly code: 'message-empty' | 'message-invalid' | 'message-too-large';
@@ -79,6 +127,30 @@ export function decodeSshProjectRootInspectionResult(
 	bytes: Uint8Array,
 ): SshProjectRootMessageDecodeResult<SshProjectRootInspectionResult> {
 	return decodeMessage(SshProjectRootInspectionResultSchema, bytes);
+}
+
+export function encodeSshProjectRootDirectoryListingRequest(
+	request: SshProjectRootDirectoryListingRequest,
+): Uint8Array {
+	return encodeMessage(SshProjectRootDirectoryListingRequestSchema, request);
+}
+
+export function decodeSshProjectRootDirectoryListingRequest(
+	bytes: Uint8Array,
+): SshProjectRootMessageDecodeResult<SshProjectRootDirectoryListingRequest> {
+	return decodeMessage(SshProjectRootDirectoryListingRequestSchema, bytes);
+}
+
+export function encodeSshProjectRootDirectoryListingResult(
+	result: SshProjectRootDirectoryListingResult,
+): Uint8Array {
+	return encodeMessage(SshProjectRootDirectoryListingResultSchema, result);
+}
+
+export function decodeSshProjectRootDirectoryListingResult(
+	bytes: Uint8Array,
+): SshProjectRootMessageDecodeResult<SshProjectRootDirectoryListingResult> {
+	return decodeMessage(SshProjectRootDirectoryListingResultSchema, bytes);
 }
 
 function encodeMessage<Message>(schema: z.ZodType<Message>, message: Message): Uint8Array {

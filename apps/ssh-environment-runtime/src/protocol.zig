@@ -5,15 +5,18 @@ const json_wire = @import("ssh-json-wire");
 pub const header_bytes = 16;
 pub const maximum_frame_bytes = 1024 * 1024;
 pub const initial_channel_credit_bytes = 65_536;
-pub const project_root_maximum_message_bytes = 16 * 1024;
+pub const project_root_initial_channel_credit_bytes = 128 * 1024;
+pub const project_root_maximum_message_bytes = 128 * 1024;
+pub const project_root_maximum_directory_entries = 256;
+pub const project_root_maximum_directory_name_bytes = 255;
 pub const project_root_maximum_path_bytes = 4_096;
-pub const project_root_service_id = "project-root-v1";
+pub const project_root_service_id = "project-root-v2";
 pub const terminal_host_service_id = "terminal-host-v1";
 pub const terminal_host_maximum_chunk_bytes = 65_536;
 pub const heartbeat_interval_ms = 15_000;
 pub const heartbeat_miss_limit = 3;
 pub const protocol_major = 0;
-pub const protocol_minor = 2;
+pub const protocol_minor = 3;
 pub const protocol_patch = 0;
 
 const maximum_payload_bytes = maximum_frame_bytes - header_bytes;
@@ -151,7 +154,10 @@ pub fn decodeChannelOpen(
         parsed.value.channelId == 0 or
         (!std.mem.eql(u8, parsed.value.serviceId, project_root_service_id) and
             !std.mem.eql(u8, parsed.value.serviceId, terminal_host_service_id)) or
-        parsed.value.initialCreditBytes != initial_channel_credit_bytes)
+        (std.mem.eql(u8, parsed.value.serviceId, project_root_service_id) and
+            parsed.value.initialCreditBytes != project_root_initial_channel_credit_bytes) or
+        (std.mem.eql(u8, parsed.value.serviceId, terminal_host_service_id) and
+            parsed.value.initialCreditBytes != initial_channel_credit_bytes))
     {
         return error.InvalidChannelOpen;
     }
@@ -182,7 +188,7 @@ pub fn decodeChannelData(payload: []const u8) !ChannelData {
     if (payload.len < @sizeOf(u32)) return error.InvalidChannelData;
     const channel_id = std.mem.readInt(u32, payload[0..4], .big);
     const data = payload[4..];
-    if (channel_id == 0 or data.len == 0 or data.len > terminal_host_maximum_chunk_bytes) {
+    if (channel_id == 0 or data.len == 0 or data.len > project_root_maximum_message_bytes) {
         return error.InvalidChannelData;
     }
     return .{ .channel_id = channel_id, .data = data };
@@ -240,13 +246,14 @@ pub fn writeChannelOpened(
     socket: std.posix.socket_t,
     runtime_epoch: []const u8,
     channel_id: u32,
+    initial_credit_bytes: u32,
 ) !void {
     var payload: std.Io.Writer.Allocating = .init(allocator);
     defer payload.deinit();
     try std.json.Stringify.value(.{
         .runtimeEpoch = runtime_epoch,
         .channelId = channel_id,
-        .initialCreditBytes = initial_channel_credit_bytes,
+        .initialCreditBytes = initial_credit_bytes,
     }, .{}, &payload.writer);
     try writeFrame(socket, .channel_opened, payload.written());
 }
@@ -257,7 +264,7 @@ pub fn writeChannelData(
     channel_id: u32,
     data: []const u8,
 ) !void {
-    if (channel_id == 0 or data.len == 0 or data.len > terminal_host_maximum_chunk_bytes) {
+    if (channel_id == 0 or data.len == 0 or data.len > project_root_maximum_message_bytes) {
         return error.InvalidChannelData;
     }
     const payload = try allocator.alloc(u8, @sizeOf(u32) + data.len);

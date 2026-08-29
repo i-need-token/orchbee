@@ -49,6 +49,7 @@ interface WorkbenchSidebarProps {
 	readonly onSearch: (returnFocus: HTMLElement) => void;
 	readonly onSettings?: (() => void) | undefined;
 	readonly onConnectViaSsh?: (() => void) | undefined;
+	readonly onAddProjectFolderViaSsh?: ((projectId: string) => void) | undefined;
 	readonly projectLabel: string;
 	readonly projectNavigationMessages: WorkbenchProjectNavigationMessages;
 	readonly projectFolderAcquisition?: WorkbenchProjectFolderAcquisition | undefined;
@@ -94,6 +95,7 @@ export function WorkbenchSidebar({
 	onSearch,
 	onSettings,
 	onConnectViaSsh,
+	onAddProjectFolderViaSsh,
 	projectLabel,
 	projectNavigationMessages,
 	projectFolderAcquisition,
@@ -295,6 +297,11 @@ export function WorkbenchSidebar({
 					onNameChange={projectManagement.setName}
 					onRemoveDirectory={(directoryId) =>
 						removeProjectDirectory(projectManagement.project.id, directoryId)
+					}
+					onSelectSshDirectory={
+						onAddProjectFolderViaSsh === undefined
+							? undefined
+							: () => onAddProjectFolderViaSsh(projectManagement.project.id)
 					}
 					onSave={(name) => {
 						renameProject(projectManagement.project.id, name);

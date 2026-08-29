@@ -1,0 +1,68 @@
+{
+	"$schema": "../../../../schemas/experience-component.schema.json",
+	"id": "web.remote-directory-browser",
+	"kind": "experience",
+	"status": "canonical",
+	"name": "Remote Directory Browser",
+	"description": "Provides a controlled, source-neutral browser for choosing one folder from bounded remote directory snapshots without a native picker.",
+	"owner": "@orchbee/web",
+	"visibility": "private",
+	"intents": [
+		"browse-remote-directories",
+		"choose-remote-folder",
+		"select-folder-without-native-picker"
+	],
+	"implementation": ["apps/web/src/remote-directory-browser/RemoteDirectoryBrowser.tsx"],
+	"stories": [
+		{
+			"exportName": "Default",
+			"file": "apps/web/stories/remote-directory-browser.stories.tsx",
+			"id": "applications-web-remote-directory-browser--default",
+			"states": [
+				"Inspect source identity, clickable breadcrumbs, bounded child folders, editable-path disclosure, explicit cancellation, and current-folder selection."
+			]
+		},
+		{
+			"exportName": "Loading",
+			"file": "apps/web/stories/remote-directory-browser.stories.tsx",
+			"id": "applications-web-remote-directory-browser--loading",
+			"states": [
+				"Inspect the last canonical directory snapshot retained while navigation is loading and every navigation or selection decision is disabled."
+			]
+		},
+		{
+			"exportName": "NavigationFailure",
+			"file": "apps/web/stories/remote-directory-browser.stories.tsx",
+			"id": "applications-web-remote-directory-browser--navigation-failure",
+			"states": [
+				"Inspect inline bounded failure recovery with the attempted absolute path and last canonical folder list still visible."
+			]
+		},
+		{
+			"exportName": "SimplifiedChinese",
+			"file": "apps/web/stories/remote-directory-browser.stories.tsx",
+			"id": "applications-web-remote-directory-browser--simplified-chinese",
+			"states": [
+				"Inspect the complete directory browser interaction and actions in Simplified Chinese."
+			]
+		}
+	],
+	"uses": [],
+	"useWhen": [
+		"A trusted adapter can provide bounded read-only folder snapshots but the initiating client cannot use the source machine's native folder picker.",
+		"A remote connection flow must let a person discover and select one folder after authentication."
+	],
+	"avoidWhen": [
+		"The initiating client can and should use a native local folder picker owned by the same machine.",
+		"The workflow needs file selection, file contents, folder creation, deletion, renaming, or any other filesystem mutation."
+	],
+	"invariants": [
+		"The component is controlled presentation only and grants no filesystem, transport, authentication, or durable Project authority.",
+		"Breadcrumb and child-folder navigation emit only paths supplied by the current canonical snapshot; editable paths remain explicit user input for the adapter to validate.",
+		"A navigation request keeps the last canonical snapshot visible, disables all navigation and selection decisions, and exposes bounded progress.",
+		"A failed navigation retains the last canonical snapshot, attempted path, and a localized bounded reason without exposing provider diagnostics.",
+		"The browser exposes folders only and contains no file-content, filesystem-mutation, generic-command, or terminal behavior.",
+		"Folder rows use valid list semantics, every action is keyboard reachable, Enter submits an edited path, and Escape restores the canonical path draft."
+	],
+	"references": ["apps/web/README.md"]
+}

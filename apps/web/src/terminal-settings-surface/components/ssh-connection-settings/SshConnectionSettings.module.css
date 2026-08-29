@@ -1,0 +1,273 @@
+.root {
+	display: flex;
+	flex-direction: column;
+	gap: var(--ob-ref-space-8);
+}
+
+.privacy {
+	display: grid;
+	grid-template-columns: var(--ob-ref-size-control-md) minmax(var(--ob-ref-space-0), 1fr);
+	align-items: start;
+	gap: var(--ob-ref-space-3);
+	padding: var(--ob-ref-space-4);
+	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-status-info-border);
+	border-radius: var(--ob-ref-radius-ui-lg);
+	background: var(--ob-sys-color-status-info-surface);
+	color: var(--ob-sys-color-status-info-text);
+}
+
+.privacyIcon,
+.connectionIcon,
+.emptyIcon {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: var(--ob-ref-radius-ui-md);
+}
+
+.privacyIcon {
+	width: var(--ob-ref-size-control-md);
+	height: var(--ob-ref-size-control-md);
+	background: var(--ob-sys-color-surface-canvas);
+}
+
+.privacyTitle,
+.privacyDescription,
+.sectionTitle,
+.sectionDescription,
+.connectionName,
+.metadata,
+.discoveryWarning,
+.emptyDescription {
+	margin: var(--ob-ref-space-0);
+}
+
+.privacyTitle {
+	font: var(--ob-sys-typography-body-sm);
+}
+
+.privacyDescription,
+.sectionDescription,
+.metadata,
+.emptyDescription {
+	font: var(--ob-sys-typography-body-sm);
+}
+
+.privacyDescription {
+	margin-block-start: var(--ob-ref-space-1);
+}
+
+.warning,
+.failure,
+.discoveryWarning {
+	padding: var(--ob-ref-space-3) var(--ob-ref-space-4);
+	border-radius: var(--ob-ref-radius-ui-md);
+	font: var(--ob-sys-typography-body-sm);
+}
+
+.warning,
+.discoveryWarning {
+	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-status-warning-border);
+	background: var(--ob-sys-color-status-warning-surface);
+	color: var(--ob-sys-color-status-warning-text);
+}
+
+.failure {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--ob-ref-space-3);
+	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-status-danger-border);
+	background: var(--ob-sys-color-status-danger-surface);
+	color: var(--ob-sys-color-status-danger-text);
+}
+
+.section {
+	display: flex;
+	flex-direction: column;
+	gap: var(--ob-ref-space-3);
+}
+
+.sectionHeader {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: var(--ob-ref-space-6);
+}
+
+.sectionTitle {
+	color: var(--ob-sys-color-text-heading);
+	font: var(--ob-sys-typography-label-sm);
+}
+
+.sectionDescription {
+	margin-block-start: var(--ob-ref-space-1);
+	color: var(--ob-sys-color-text-secondary);
+}
+
+.addForm,
+.list {
+	border-radius: var(--ob-ref-radius-ui-lg);
+	background: var(--ob-sys-color-surface-subtle);
+}
+
+.addForm {
+	display: flex;
+	flex-direction: column;
+	gap: var(--ob-ref-space-2);
+	padding: var(--ob-ref-space-4);
+}
+
+.fieldLabel {
+	color: var(--ob-sys-color-text-label);
+	font: var(--ob-sys-typography-label-sm);
+}
+
+.addControls {
+	display: grid;
+	grid-template-columns: minmax(var(--ob-ref-space-0), 1fr) auto;
+	gap: var(--ob-ref-space-2);
+}
+
+.list {
+	overflow: hidden;
+}
+
+.connection,
+.suggestion {
+	display: grid;
+	grid-template-columns:
+		var(--ob-ref-size-control-md) minmax(var(--ob-ref-space-0), 1fr)
+		auto;
+	align-items: center;
+	gap: var(--ob-ref-space-3);
+	min-height: calc(var(--ob-ref-space-16) + var(--ob-ref-space-2));
+	padding: var(--ob-ref-space-3) var(--ob-ref-space-4);
+}
+
+.connection + .connection,
+.suggestion + .suggestion {
+	border-block-start: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-subtle);
+}
+
+.connectionIcon {
+	width: var(--ob-ref-size-control-md);
+	height: var(--ob-ref-size-control-md);
+	background: var(--ob-sys-color-surface-canvas);
+	color: var(--ob-sys-color-icon-secondary);
+}
+
+.connectionCopy {
+	display: flex;
+	min-width: var(--ob-ref-space-0);
+	flex-direction: column;
+	gap: var(--ob-ref-space-1);
+}
+
+.connectionHeading {
+	display: flex;
+	min-width: var(--ob-ref-space-0);
+	align-items: center;
+	flex-wrap: wrap;
+	gap: var(--ob-ref-space-2);
+}
+
+.connectionName {
+	min-width: var(--ob-ref-space-0);
+	overflow: hidden;
+	color: var(--ob-sys-color-text-primary);
+	font: var(--ob-sys-typography-body-sm);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.destination {
+	min-width: var(--ob-ref-space-0);
+	overflow: hidden;
+	color: var(--ob-sys-color-text-secondary);
+	font: var(--ob-sys-typography-code-sm);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.metadata {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: var(--ob-ref-space-1);
+	color: var(--ob-sys-color-text-secondary);
+}
+
+.status {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--ob-ref-space-1);
+	color: var(--ob-sys-color-text-secondary);
+	font: var(--ob-sys-typography-label-sm);
+}
+
+.statusDot {
+	width: var(--ob-ref-space-1-5);
+	height: var(--ob-ref-space-1-5);
+	border-radius: var(--ob-ref-radius-full);
+	background: currentColor;
+}
+
+.status[data-tone='positive'] {
+	color: var(--ob-sys-color-status-success-text);
+}
+
+.status[data-tone='warning'] {
+	color: var(--ob-sys-color-status-warning-text);
+}
+
+.status[data-tone='danger'] {
+	color: var(--ob-sys-color-status-danger-text);
+}
+
+.discoveryWarning {
+	margin: var(--ob-ref-space-0);
+}
+
+.empty {
+	display: grid;
+	grid-template-columns: var(--ob-ref-size-control-md) minmax(var(--ob-ref-space-0), 1fr);
+	align-items: center;
+	gap: var(--ob-ref-space-3);
+	padding: var(--ob-ref-space-5) var(--ob-ref-space-4);
+}
+
+.emptyIcon {
+	width: var(--ob-ref-size-control-md);
+	height: var(--ob-ref-size-control-md);
+	background: var(--ob-sys-color-surface-canvas);
+	color: var(--ob-sys-color-icon-muted);
+}
+
+.emptyTitle {
+	display: block;
+	color: var(--ob-sys-color-text-primary);
+	font: var(--ob-sys-typography-body-sm);
+}
+
+.emptyDescription {
+	margin-block-start: var(--ob-ref-space-1);
+	color: var(--ob-sys-color-text-secondary);
+}
+
+@media (width <= 48rem) {
+	.sectionHeader {
+		align-items: stretch;
+		flex-direction: column;
+	}
+
+	.addControls,
+	.connection,
+	.suggestion {
+		grid-template-columns: minmax(var(--ob-ref-space-0), 1fr);
+	}
+
+	.connectionIcon {
+		display: none;
+	}
+}

@@ -159,6 +159,107 @@ describe('project-workspace-state', () => {
 		expect(otherEnvironment.state.projects).toHaveLength(2);
 	});
 
+	it('attaches same-Environment remote folders to an existing Project without other effects', () => {
+		const initial = createProject(createProjectWorkspaceState());
+		const firstDirectory = remoteDirectory(
+			'environment-directory:00000000000000000000000000000001',
+		);
+		const first = transitionProjectWorkspace(initial, {
+			directory: firstDirectory,
+			projectId: 'project-1',
+			type: 'environment-directory-registered',
+		});
+
+		expect(first).toMatchObject({ commands: [], outcome: 'applied', rejection: null });
+		expect(first.state).toEqual({
+			...initial,
+			projects: [
+				{
+					...initial.projects[0],
+					directories: [...(initial.projects[0]?.directories ?? []), firstDirectory],
+				},
+			],
+		});
+
+		const duplicate = transitionProjectWorkspace(first.state, {
+			directory: remoteDirectory('environment-directory:ffffffffffffffffffffffffffffffff'),
+			projectId: 'project-1',
+			type: 'environment-directory-registered',
+		});
+		expect(duplicate).toEqual({
+			commands: [],
+			outcome: 'unchanged',
+			rejection: null,
+			state: first.state,
+		});
+
+		const secondDirectory = remoteDirectory(
+			'environment-directory:00000000000000000000000000000002',
+			undefined,
+			'/srv/second',
+		);
+		const second = transitionProjectWorkspace(first.state, {
+			directory: secondDirectory,
+			projectId: 'project-1',
+			type: 'environment-directory-registered',
+		});
+		expect(second).toMatchObject({ commands: [], outcome: 'applied', rejection: null });
+		expect(second.state.projects[0]?.directories).toEqual([
+			...(first.state.projects[0]?.directories ?? []),
+			secondDirectory,
+		]);
+	});
+
+	it('rejects cross-Project remote locations and mixed Environment ownership', () => {
+		let state = createProjects(2);
+		const firstDirectory = remoteDirectory(
+			'environment-directory:00000000000000000000000000000001',
+		);
+		state = transitionProjectWorkspace(state, {
+			directory: firstDirectory,
+			projectId: 'project-1',
+			type: 'environment-directory-registered',
+		}).state;
+
+		expect(
+			transitionProjectWorkspace(state, {
+				directory: remoteDirectory('environment-directory:00000000000000000000000000000002'),
+				projectId: 'project-2',
+				type: 'environment-directory-registered',
+			}),
+		).toMatchObject({ outcome: 'rejected', rejection: 'directory-already-exists', state });
+
+		expect(
+			transitionProjectWorkspace(state, {
+				directory: remoteDirectory(
+					'environment-directory:00000000000000000000000000000003',
+					'environment:00000000000000000000000000000002',
+					'/srv/second',
+				),
+				projectId: 'project-1',
+				type: 'environment-directory-registered',
+			}),
+		).toMatchObject({ outcome: 'rejected', rejection: 'directory-environment-conflict', state });
+	});
+
+	it('rejects forged local or available Environment folder attachment', () => {
+		const state = createProject(createProjectWorkspaceState());
+		const remote = remoteDirectory('environment-directory:00000000000000000000000000000001');
+
+		for (const candidateDirectory of [
+			{ ...remote, available: true },
+			{ ...remote, placement: { kind: 'local' as const } },
+		]) {
+			expect(
+				transitionProjectWorkspace(state, {
+					directory: candidateDirectory,
+					projectId: 'project-1',
+					type: 'environment-directory-registered',
+				}),
+			).toMatchObject({ outcome: 'rejected', rejection: 'directory-invalid', state });
+		}
+	});
+
 	it('registers one remote Workspace with an empty terminal context command', () => {
 		const remote = remoteDirectory('environment-directory:00000000000000000000000000000001');
 		const projectRegistered = transitionProjectWorkspace(createProjectWorkspaceState(), {

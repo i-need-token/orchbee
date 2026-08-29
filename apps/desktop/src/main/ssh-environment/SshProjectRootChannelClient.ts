@@ -2,22 +2,34 @@ import {
 	SSH_PROJECT_ROOT_INITIAL_CREDIT_BYTES,
 	SSH_PROJECT_ROOT_MAX_MESSAGE_BYTES,
 	SSH_PROJECT_ROOT_SERVICE_ID,
+	SshProjectRootDirectoryListingRequestSchema,
 	SshProjectRootInspectionRequestSchema,
+	decodeSshProjectRootDirectoryListingResult,
 	decodeSshProjectRootInspectionResult,
 	encodeSshEnvironmentMessage,
+	encodeSshProjectRootDirectoryListingRequest,
 	encodeSshProjectRootInspectionRequest,
 	type SshEnvironmentChannelId,
 	type SshEnvironmentMessage,
 	type SshEnvironmentRuntimeEpoch,
+	type SshProjectRootDirectoryListingResult,
+	type SshProjectRootFailureReason,
 	type SshProjectRootInspectionResult,
 } from '@orchbee/ssh-environment-protocol';
 
-const MAXIMUM_CONCURRENT_INSPECTIONS = 4;
-const INSPECTION_TIMEOUT_MILLISECONDS = 30_000;
+const MAXIMUM_CONCURRENT_OPERATIONS = 4;
+const OPERATION_TIMEOUT_MILLISECONDS = 30_000;
 
 export type SshProjectRootInspectionOutcome =
 	| SshProjectRootInspectionResult
 	| { readonly kind: 'cancelled' };
+export type SshProjectRootDirectoryListingOutcome =
+	| SshProjectRootDirectoryListingResult
+	| { readonly kind: 'cancelled' };
+
+type SshProjectRootOperationOutcome =
+	| SshProjectRootInspectionOutcome
+	| SshProjectRootDirectoryListingOutcome;
 
 interface SshProjectRootChannelClientOptions {
 	readonly allocateChannelId: () => SshEnvironmentChannelId | null;
@@ -29,13 +41,14 @@ interface SshProjectRootChannelClientOptions {
 type ChannelPhase = 'closing' | 'opening' | 'request-sent';
 type ChannelCloseReason = 'cancelled' | 'completed' | 'protocol-failure';
 
-interface InspectionChannel {
+interface OperationChannel {
 	abortListener?: () => void;
 	readonly abortSignal?: AbortSignal;
 	closeReason?: ChannelCloseReason;
+	readonly kind: 'inspection' | 'listing';
 	phase: ChannelPhase;
 	readonly requestBytes: Uint8Array;
-	resolve: (outcome: SshProjectRootInspectionOutcome) => void;
+	resolve: (outcome: SshProjectRootOperationOutcome) => void;
 	resultCreditBytes: number;
 	settled: boolean;
 	timeout: NodeJS.Timeout;
@@ -43,7 +56,7 @@ interface InspectionChannel {
 
 export class SshProjectRootChannelClient {
 	readonly #allocateChannelId: () => SshEnvironmentChannelId | null;
-	readonly #channels = new Map<SshEnvironmentChannelId, InspectionChannel>();
+	readonly #channels = new Map<SshEnvironmentChannelId, OperationChannel>();
 	readonly #onAttachmentInvalid: () => void;
 	#retired = false;
 	readonly #runtimeEpoch: SshEnvironmentRuntimeEpoch;
@@ -64,23 +77,81 @@ export class SshProjectRootChannelClient {
 		});
 		if (!request.success) return Promise.resolve(failed('invalid-path'));
 		if (signal?.aborted === true) return Promise.resolve({ kind: 'cancelled' });
-		if (this.#channels.size >= MAXIMUM_CONCURRENT_INSPECTIONS) {
+		if (this.#channels.size >= MAXIMUM_CONCURRENT_OPERATIONS) {
 			return Promise.resolve(failed('busy'));
 		}
 		const channelId = this.#allocateChannelId();
 		if (channelId === null) return Promise.resolve(failed('unavailable'));
 
 		return new Promise((resolve) => {
-			const channel: InspectionChannel = {
+			const channel: OperationChannel = {
 				...(signal === undefined ? {} : { abortSignal: signal }),
+				kind: 'inspection',
 				phase: 'opening',
 				requestBytes: encodeSshProjectRootInspectionRequest(request.data),
-				resolve,
+				resolve: (outcome) => {
+					if (outcome.kind === 'listed') {
+						resolve(failed('unavailable'));
+						return;
+					}
+					resolve(outcome);
+				},
 				resultCreditBytes: SSH_PROJECT_ROOT_INITIAL_CREDIT_BYTES,
 				settled: false,
 				timeout: setTimeout(
 					() => this.#cancel(channelId, failed('timed-out')),
-					INSPECTION_TIMEOUT_MILLISECONDS,
+					OPERATION_TIMEOUT_MILLISECONDS,
+				),
+			};
+			if (signal !== undefined) {
+				channel.abortListener = () => this.#cancel(channelId, { kind: 'cancelled' });
+				signal.addEventListener('abort', channel.abortListener, { once: true });
+			}
+			this.#channels.set(channelId, channel);
+			this.#send({
+				type: 'channel-open',
+				payload: {
+					runtimeEpoch: this.#runtimeEpoch,
+					channelId,
+					serviceId: SSH_PROJECT_ROOT_SERVICE_ID,
+					initialCreditBytes: SSH_PROJECT_ROOT_INITIAL_CREDIT_BYTES,
+				},
+			});
+		});
+	}
+
+	list(path: string | null, signal?: AbortSignal): Promise<SshProjectRootDirectoryListingOutcome> {
+		if (this.#retired) return Promise.resolve(failed('unavailable'));
+		const request = SshProjectRootDirectoryListingRequestSchema.safeParse({
+			type: 'list-project-directory',
+			path,
+		});
+		if (!request.success) return Promise.resolve(failed('invalid-path'));
+		if (signal?.aborted === true) return Promise.resolve({ kind: 'cancelled' });
+		if (this.#channels.size >= MAXIMUM_CONCURRENT_OPERATIONS) {
+			return Promise.resolve(failed('busy'));
+		}
+		const channelId = this.#allocateChannelId();
+		if (channelId === null) return Promise.resolve(failed('unavailable'));
+
+		return new Promise((resolve) => {
+			const channel: OperationChannel = {
+				...(signal === undefined ? {} : { abortSignal: signal }),
+				kind: 'listing',
+				phase: 'opening',
+				requestBytes: encodeSshProjectRootDirectoryListingRequest(request.data),
+				resolve: (outcome) => {
+					if (outcome.kind === 'resolved') {
+						resolve(failed('unavailable'));
+						return;
+					}
+					resolve(outcome);
+				},
+				resultCreditBytes: SSH_PROJECT_ROOT_INITIAL_CREDIT_BYTES,
+				settled: false,
+				timeout: setTimeout(
+					() => this.#cancel(channelId, failed('timed-out')),
+					OPERATION_TIMEOUT_MILLISECONDS,
 				),
 			};
 			if (signal !== undefined) {
@@ -151,7 +222,10 @@ export class SshProjectRootChannelClient {
 		if (channel === undefined || channel.phase !== 'request-sent') return 'attachment-invalid';
 		if (data.byteLength > channel.resultCreditBytes) return 'attachment-invalid';
 		channel.resultCreditBytes -= data.byteLength;
-		const decoded = decodeSshProjectRootInspectionResult(data);
+		const decoded =
+			channel.kind === 'inspection'
+				? decodeSshProjectRootInspectionResult(data)
+				: decodeSshProjectRootDirectoryListingResult(data);
 		if (data.byteLength > SSH_PROJECT_ROOT_MAX_MESSAGE_BYTES || !decoded.ok) {
 			this.#settle(channel, failed('unavailable'));
 			this.#beginClose(channelId, channel, 'protocol-failure');
@@ -178,7 +252,7 @@ export class SshProjectRootChannelClient {
 		return 'handled';
 	}
 
-	#cancel(channelId: SshEnvironmentChannelId, outcome: SshProjectRootInspectionOutcome): void {
+	#cancel(channelId: SshEnvironmentChannelId, outcome: SshProjectRootOperationOutcome): void {
 		const channel = this.#channels.get(channelId);
 		if (channel === undefined || channel.settled) return;
 		this.#settle(channel, outcome);
@@ -187,7 +261,7 @@ export class SshProjectRootChannelClient {
 
 	#beginClose(
 		channelId: SshEnvironmentChannelId,
-		channel: InspectionChannel,
+		channel: OperationChannel,
 		reason: ChannelCloseReason,
 	): void {
 		channel.phase = 'closing';
@@ -198,7 +272,7 @@ export class SshProjectRootChannelClient {
 		});
 	}
 
-	#settle(channel: InspectionChannel, outcome: SshProjectRootInspectionOutcome): void {
+	#settle(channel: OperationChannel, outcome: SshProjectRootOperationOutcome): void {
 		if (channel.settled) return;
 		channel.settled = true;
 		clearTimeout(channel.timeout);
@@ -208,7 +282,7 @@ export class SshProjectRootChannelClient {
 		channel.resolve(outcome);
 	}
 
-	#release(channelId: SshEnvironmentChannelId, channel: InspectionChannel): void {
+	#release(channelId: SshEnvironmentChannelId, channel: OperationChannel): void {
 		clearTimeout(channel.timeout);
 		if (channel.abortSignal !== undefined && channel.abortListener !== undefined) {
 			channel.abortSignal.removeEventListener('abort', channel.abortListener);
@@ -234,8 +308,9 @@ function channelIdOf(message: SshEnvironmentMessage): SshEnvironmentChannelId | 
 	}
 }
 
-function failed(
-	reason: Extract<SshProjectRootInspectionResult, { readonly kind: 'failed' }>['reason'],
-): Extract<SshProjectRootInspectionResult, { readonly kind: 'failed' }> {
+function failed(reason: SshProjectRootFailureReason): {
+	readonly kind: 'failed';
+	readonly reason: SshProjectRootFailureReason;
+} {
 	return { kind: 'failed', reason };
 }

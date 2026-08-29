@@ -4,7 +4,7 @@ EXTENDS FiniteSets, Naturals, TLC
 \* Bounded abstraction of the Slice 3.1B terminal-host-v1 relay. One Runtime
 \* attachment owns one global monotonically allocated channel namespace, at
 \* most one opaque Terminal Host broker, and one credit window in each
-\* direction. Host setup and local I/O do not remove project-root-v1 authority
+\* direction. Host setup and local I/O do not remove project-root-v2 authority
 \* or disable heartbeat. Attachment loss closes only the broker, retains Host
 \* work, marks an admitted-but-unsettled effect unknown, and never replays it.
 

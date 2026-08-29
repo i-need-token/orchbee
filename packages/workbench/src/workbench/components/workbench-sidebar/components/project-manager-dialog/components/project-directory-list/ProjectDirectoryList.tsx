@@ -1,5 +1,9 @@
 import {
 	Button,
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
 	FieldDescription,
 	Field,
 	FieldTitle,
@@ -28,6 +32,7 @@ interface ProjectDirectoryListProps {
 	readonly onRemoveDirectory: (directoryId: string) => void;
 	readonly onSetPrimaryDirectory: (directoryId: string) => void;
 	readonly onSelectFolder?: (() => void) | undefined;
+	readonly onSelectSshFolder?: (() => void) | undefined;
 	readonly project: WorkbenchProject;
 	readonly setFolderPath: (path: string) => void;
 	readonly showFolderInput: () => void;
@@ -46,6 +51,7 @@ export function ProjectDirectoryList({
 	onRemoveDirectory,
 	onSetPrimaryDirectory,
 	onSelectFolder,
+	onSelectSshFolder,
 	project,
 	setFolderPath,
 	showFolderInput,
@@ -53,6 +59,49 @@ export function ProjectDirectoryList({
 }: ProjectDirectoryListProps): React.ReactNode {
 	const showPrimaryControls = project.directories.length > 1;
 	const folderInputDescriptionId = `project-folder-add-description-${project.id}`;
+	const addFolderControl =
+		onSelectSshFolder === undefined ? (
+			<Button
+				className={styles['addButton']}
+				disabled={nativeSelectionPending}
+				type='button'
+				variant='ghost'
+				onClick={onSelectFolder ?? showFolderInput}
+			>
+				<ProductIcon name={onSelectFolder === undefined ? 'new-folder' : 'folder-opened'} />
+				{messages.projectManageAddFolder}
+			</Button>
+		) : (
+			<DropdownMenu>
+				<DropdownMenuTrigger
+					render={
+						<Button
+							aria-label={messages.projectManageAddFolder}
+							className={styles['addButton']}
+							disabled={nativeSelectionPending}
+							type='button'
+							variant='ghost'
+						/>
+					}
+				>
+					<ProductIcon name='new-folder' />
+					{messages.projectManageAddFolder}
+				</DropdownMenuTrigger>
+				<DropdownMenuContent align='start' positionerClassName={styles['modalMenu']} side='bottom'>
+					<DropdownMenuItem onClick={onSelectFolder ?? showFolderInput}>
+						<ProductIcon
+							name={onSelectFolder === undefined ? 'new-folder' : 'folder-opened'}
+							size='menu-leading'
+						/>
+						{messages.projectManageAddLocalFolder}
+					</DropdownMenuItem>
+					<DropdownMenuItem onClick={onSelectSshFolder}>
+						<ProductIcon name='terminal' size='menu-leading' />
+						{messages.projectManageAddSshFolder}
+					</DropdownMenuItem>
+				</DropdownMenuContent>
+			</DropdownMenu>
+		);
 
 	return (
 		<Field>
@@ -60,6 +109,7 @@ export function ProjectDirectoryList({
 			<ul className={styles['list']}>
 				{project.directories.map((directory) => {
 					const primary = project.primaryDirectoryId === directory.id;
+					const remote = directory.placement.kind === 'environment';
 					const removable = directory.kind === 'folder' && project.directories.length > 1;
 					return (
 						<li
@@ -77,6 +127,14 @@ export function ProjectDirectoryList({
 									</TooltipTrigger>
 									<TooltipContent side='top'>{directory.path}</TooltipContent>
 								</Tooltip>
+								{remote && (
+									<span
+										aria-label={messages.projectManageSshFolderDescription}
+										className={styles['remoteBadge']}
+									>
+										{messages.projectManageSshFolderBadge}
+									</span>
+								)}
 							</span>
 							<span className={styles['directoryActions']}>
 								{showPrimaryControls &&
@@ -177,16 +235,7 @@ export function ProjectDirectoryList({
 							)}
 						</div>
 					) : (
-						<Button
-							className={styles['addButton']}
-							disabled={nativeSelectionPending}
-							type='button'
-							variant='ghost'
-							onClick={onSelectFolder ?? showFolderInput}
-						>
-							<ProductIcon name={onSelectFolder === undefined ? 'new-folder' : 'folder-opened'} />
-							{messages.projectManageAddFolder}
-						</Button>
+						addFolderControl
 					)}
 				</li>
 			</ul>

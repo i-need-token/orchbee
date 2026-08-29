@@ -15,6 +15,53 @@ describe('OpenSSH transport arguments', () => {
 		);
 	});
 
+	it('uses an available application-home configuration for a target without an override', async () => {
+		let arguments_: readonly string[] | undefined;
+		const adapter = new OpenSshTransportAdapter(
+			'/usr/bin/ssh',
+			{
+				fileExists: () => true,
+				spawn: (_executablePath, receivedArguments, options) => {
+					arguments_ = [...receivedArguments];
+					return spawn(process.execPath, ['-e', 'setInterval(() => {}, 1_000)'], options);
+				},
+			},
+			'/Users/example/.ssh/config',
+		);
+		const transport = adapter.open({
+			askPass: { environment: {} },
+			remoteCommand: 'exec runtime attach',
+			resolvedTarget: SshEnvironmentResolvedTargetSchema.parse({
+				destination: 'build-host',
+				hostKeyLookupName: 'build.internal.example',
+				hostKeyPolicy: 'ask',
+				hostname: '10.0.0.8',
+				port: 22,
+				user: 'builder',
+			}),
+			target: SshEnvironmentTargetReferenceSchema.parse({
+				configurationFilePath: null,
+				destination: 'build-host',
+			}),
+		});
+		const closed = new Promise<void>((resolve) => {
+			transport.onExit(() => resolve());
+		});
+
+		try {
+			expect(arguments_?.slice(-5)).toEqual([
+				'-F',
+				'/Users/example/.ssh/config',
+				'--',
+				'build-host',
+				'exec runtime attach',
+			]);
+		} finally {
+			transport.retire();
+			await closed;
+		}
+	});
+
 	it('opens one no-PTY stdio transport with forwarding and multiplexing disabled', async () => {
 		let executablePath: string | undefined;
 		let arguments_: readonly string[] | undefined;

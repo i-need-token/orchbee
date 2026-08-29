@@ -72,6 +72,7 @@ export interface WorkbenchProps {
 	readonly onSettings?: WorkbenchHostActionCallback | undefined;
 	readonly onTerminalFontSizeChange?: WorkbenchTerminalFontSizeChangeCallback | undefined;
 	readonly onConnectViaSsh?: (() => void) | undefined;
+	readonly onAddProjectFolderViaSsh?: ((projectId: string) => void) | undefined;
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
 	readonly projectFolderAcquisition?: WorkbenchProjectFolderAcquisition | undefined;
 	readonly projectWorktree?: WorkbenchProjectWorktreeCapability | undefined;
@@ -97,6 +98,7 @@ export function Workbench({
 	onSettings,
 	onTerminalFontSizeChange,
 	onConnectViaSsh,
+	onAddProjectFolderViaSsh,
 	projectWorkspaceRuntime,
 	projectFolderAcquisition,
 	projectWorktree,
@@ -247,6 +249,7 @@ export function Workbench({
 										onSearch={view.search}
 										onSettings={view.settings}
 										onConnectViaSsh={onConnectViaSsh}
+										onAddProjectFolderViaSsh={onAddProjectFolderViaSsh}
 										projectLabel={view.projectLabel}
 										projectNavigationMessages={view.projectNavigationMessages}
 										projectFolderAcquisition={projectFolderAcquisition}

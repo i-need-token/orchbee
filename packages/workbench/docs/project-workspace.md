@@ -97,6 +97,8 @@ state references that context; it does not duplicate Tab, Panel, or Terminal Ses
 - Project order is a permutation of the current Project identities; reordering never changes
   membership, active location, or disclosure intent.
 - Every Project owns at least one ordered Directory.
+- A Project references at most one Environment identity across all of its Directories; local
+  Directories may coexist with any number of distinct paths from that Environment.
 - Every Directory's discriminated kind agrees with its Git metadata.
 - Every Project `primaryDirectoryId` names one of its Directories.
 - Launch-configuration IDs are unique within their Project.
@@ -238,6 +240,7 @@ trusted command or SSH fact; this policy does not guess either state.
 | Activate Workspace           | Known Project and Workspace membership                         | Workspace becomes active and Project expands                          | None                                                                  |
 | Create Project               | One normalized available Directory                             | Project, Primary Workspace, and active location are created           | Create one context with one Tab, Panel, and shell projection          |
 | Register remote Project      | One unavailable Environment Folder; unique placement and path  | Project with no Workspace is appended; active location is unchanged   | None                                                                  |
+| Register remote Directory    | Known Project; unavailable Folder in its sole Environment      | Directory appends; Project and Workspace defaults remain unchanged    | None                                                                  |
 | Register remote Workspace    | Known Environment Directory without its admitted Workspace     | One inactive Workspace appends; Project disclosure remains unchanged  | Create one empty context; no Tab, Panel, presentation, or Host effect |
 | Add Directory                | Known Project; location not already present                    | Directory appends to stable order                                     | None                                                                  |
 | Register created Worktree    | Known Project and available source; unique valid Worktree      | Directory appends; optional Workspace appends, expands, and activates | Create one context only when the Workspace option is enabled          |
@@ -252,14 +255,17 @@ trusted command or SSH fact; this policy does not guess either state.
 | Delete Workspace             | Known Workspace                                                | Workspace is removed; active deletion falls back to standalone        | Dispose its context                                                   |
 | Remove Project               | Known Project                                                  | Project and its Workspace metadata are removed; disk locations remain | Dispose every Project Workspace context                               |
 
-Remote Project and Workspace registration are pure Workbench transitions intended only for an
-authoritative application owner. Project registration allocates through the existing sequence,
-accepts the owner-supplied Directory identity, and emits no command. Workspace registration
-allocates one Workspace and terminal-context identity for that Environment Directory but leaves the
-active location and Project disclosure unchanged; its only command materializes an empty context.
-Repeating either represented placement is unchanged. Desktop composes both transitions into one
-canonical commit and owns remote inspection, registry authorization, random Directory identity,
-durable idempotency, and proposal-origin policy.
+Remote Project, Directory, and Workspace registration are pure Workbench transitions intended only
+for an authoritative application owner. Project registration allocates through the existing
+sequence, accepts the owner-supplied Directory identity, and emits no command. Directory
+registration appends one forced-unavailable Environment Folder to an exact existing Project only
+when that Project has no other Environment identity; an exact duplicate is unchanged, while a
+cross-Project location or second Environment rejects. It changes no Project name, primary Directory,
+Workspace, active location, identity sequence, or terminal context. Workspace registration allocates
+one Workspace and terminal-context identity for that Environment Directory but leaves the active
+location and Project disclosure unchanged; its only command materializes an empty context. Desktop
+owns remote inspection, registry authorization, random Directory identity, durable idempotency, and
+proposal-origin policy.
 
 Remote terminal provision is a separate Main-owned operation over that already admitted placement.
 It is not a general Project transition and is not exposed through the ordinary local terminal-create
@@ -322,6 +328,13 @@ designation while each available non-primary row reveals its raised Set Primary 
 the row is hovered or keyboard focus is within it. Hovering or focusing a Folder name exposes the
 complete path through the shared Tooltip; the displayed name remains compact and may truncate.
 
+When Desktop supplies both local and SSH acquisition, `Add Folder` opens an explicit choice between
+**Add Local Folder…** and **Add SSH Folder…**. The SSH callback carries only the exact current Project
+identity and leaves the manager open while the application-owned overlay connects and browses the
+remote host. Every canonically published Environment Folder has a visible localized **SSH** marker
+with an accessible remote-folder label; local Folders remain unmarked, and the existing path Tooltip
+continues to expose the complete canonical path.
+
 Desktop injects a narrow existing-Folder acquisition capability at the same adaptation point. Its
 Electron Main owner opens one native single-directory picker, normalizes the selected absolute path,
 and checks that the path still names a readable, traversable Directory before returning it. The
@@ -346,6 +359,11 @@ supplies it, the Project-create menu adds **Connect via SSH…**; absence remove
 The callback opens an application-owned workflow and carries no Project, Environment, path, SSH, or
 credential payload through Workbench. Browser Preview and Gateway therefore keep the shared Project
 menu without claiming this effect.
+
+A separate optional callback extends only the Project manager's `Add Folder` row. It carries the
+canonical target Project identity to the application-owned SSH workflow but never accepts an
+Environment identity, Directory identity, path, credential, or remote listing through Workbench.
+The resulting Folder appears only through ordinary canonical document publication.
 
 Each admitted Environment Project may have one process-local connection status: `blocked`,
 `connected`, `connecting`, `disconnected`, `interaction-required`, `retrying`, or `unavailable`.

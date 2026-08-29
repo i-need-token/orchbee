@@ -55,6 +55,7 @@ export function useTerminalSettingsSurface({
 	onRequestClose,
 	requestBrowserAccess,
 	requestedCategory,
+	sshConnectionManagementControl,
 	terminalFeedbackSettingsController,
 	terminalDefaultSettingsControl,
 	terminalInteractionSettingsController,
@@ -188,6 +189,7 @@ export function useTerminalSettingsSurface({
 					(categoryId !== 'agent-integrations' ||
 						agentIntegrationManagementControl !== undefined) &&
 					(categoryId !== 'browser-access' || requestBrowserAccess !== undefined) &&
+					(categoryId !== 'ssh-connections' || sshConnectionManagementControl !== undefined) &&
 					(categoryId !== 'shell-integration' || terminalFeedbackSettingsController !== undefined),
 			)
 			.map((categoryId) => ({
@@ -219,6 +221,9 @@ export function useTerminalSettingsSurface({
 		...(terminalInteractionSettingsController === undefined
 			? []
 			: (['terminal-interaction'] as const)),
+		...(sshConnectionManagementControl === undefined
+			? []
+			: (['desktop-ssh-connection-management'] as const)),
 	];
 	const searchCatalog = buildTerminalSettingsSearchCatalog({
 		enabledCapabilities,

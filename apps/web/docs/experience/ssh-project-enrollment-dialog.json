@@ -4,10 +4,11 @@
 	"kind": "business",
 	"status": "canonical",
 	"name": "Desktop SSH Project Enrollment Dialog",
-	"description": "Owns explicit SSH Environment enrollment, remote Project validation, transient host and authentication prompts, progress, cancellation, and bounded recovery.",
+	"description": "Owns one-address SSH Environment enrollment, transient host and authentication prompts, bounded remote directory selection, Project validation, progress, cancellation, and recovery.",
 	"owner": "@orchbee/web",
 	"visibility": "private",
 	"intents": [
+		"attach-folder-via-ssh",
 		"connect-project-via-ssh",
 		"enroll-ssh-environment",
 		"recover-remote-project-connection",
@@ -23,7 +24,7 @@
 			"file": "apps/web/stories/ssh-project-enrollment-dialog.stories.tsx",
 			"id": "applications-web-desktop-ssh-project-enrollment-dialog--enrollment",
 			"states": [
-				"Inspect the bounded Environment name, SSH destination, optional absolute SSH configuration path, and absolute remote Project path fields."
+				"Inspect the single bounded SSH address field, examples, native Enter submission, and connection action."
 			]
 		},
 		{
@@ -43,6 +44,14 @@
 			]
 		},
 		{
+			"exportName": "DirectorySelection",
+			"file": "apps/web/stories/ssh-project-enrollment-dialog.stories.tsx",
+			"id": "applications-web-desktop-ssh-project-enrollment-dialog--directory-selection",
+			"states": [
+				"Inspect the authenticated remote folder picker, editable absolute path, parent navigation, bounded child directory list, and explicit folder selection."
+			]
+		},
+		{
 			"exportName": "ConnectionFailure",
 			"file": "apps/web/stories/ssh-project-enrollment-dialog.stories.tsx",
 			"id": "applications-web-desktop-ssh-project-enrollment-dialog--connection-failure",
@@ -51,15 +60,24 @@
 			]
 		},
 		{
+			"exportName": "FolderAttachment",
+			"file": "apps/web/stories/ssh-project-enrollment-dialog.stories.tsx",
+			"id": "applications-web-desktop-ssh-project-enrollment-dialog--folder-attachment",
+			"states": [
+				"Inspect the one-address SSH Folder form opened for one exact existing Project before authentication and remote directory selection."
+			]
+		},
+		{
 			"exportName": "SimplifiedChineseEnrollment",
 			"file": "apps/web/stories/ssh-project-enrollment-dialog.stories.tsx",
 			"id": "applications-web-desktop-ssh-project-enrollment-dialog--simplified-chinese-enrollment",
-			"states": ["Inspect the complete enrollment form and actions in Simplified Chinese."]
+			"states": ["Inspect the one-address enrollment form and actions in Simplified Chinese."]
 		}
 	],
-	"uses": [],
+	"uses": ["web.remote-directory-browser"],
 	"useWhen": [
 		"Electron Desktop explicitly enrolls a Project that belongs to an SSH Environment.",
+		"Electron Desktop attaches a selected SSH Folder to one exact existing Project.",
 		"An explicit remote Project connection or retry needs the initiating client to own one transient SSH interaction lease."
 	],
 	"avoidWhen": [
@@ -68,11 +86,13 @@
 		"A Browser, Gateway, CLI, Skill, or Agent surface asks to gain SSH enrollment authority."
 	],
 	"invariants": [
-		"The renderer supplies only bounded user intent; Main resolves OpenSSH configuration and allocates every durable identity.",
+		"The renderer supplies one bounded SSH address and exact directory-selection intent; Main resolves default OpenSSH configuration, derives display identity, and allocates every durable identity.",
 		"Only one exact initiating-client interaction lease exists per Environment, and port loss or cancellation revokes it without reassignment.",
 		"Authentication responses remain in password input state only until direct submission and never enter the controller snapshot, durable storage, diagnostics, or shared Workbench document.",
-		"Enrollment progress follows resolve, durable Environment recording, connection, canonical Project inspection, and Workbench commit order.",
+		"After authentication, directory snapshots expose only bounded directory names and canonical navigation metadata; Main re-inspects the exact selected path before commit.",
+		"Enrollment progress follows resolve, durable Environment recording, connection, remote directory selection, canonical Project inspection, and Workbench commit order.",
 		"A successful enrollment activates only the initiating client after canonical publication and creates no terminal.",
+		"A successful Folder attachment closes only its SSH overlay after the exact Directory appears under the requested Project through canonical publication; it changes no Project name, primary Folder, Workspace, active location, or terminal context.",
 		"Cancellation before a possible Workbench commit may release only the operation-owned unreferenced connection; the durable Environment identity remains recorded.",
 		"Once Workbench commit may have happened, failure is outcome-unknown and never rolls back the remote connection automatically."
 	],

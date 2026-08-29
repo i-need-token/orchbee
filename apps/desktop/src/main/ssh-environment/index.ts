@@ -9,7 +9,10 @@ export type { PackagedSshEnvironmentReleaseSourceOptions } from './ssh-environme
 export { SshEnvironmentSupervisor } from './SshEnvironmentSupervisor';
 export type { SshEnvironmentSupervisorInteractionRequest } from './SshEnvironmentSupervisor';
 export type { SshAskPassInteractionResult } from './SshAskPassBridge';
-export type { SshProjectRootInspectionOutcome } from './SshProjectRootChannelClient';
+export type {
+	SshProjectRootDirectoryListingOutcome,
+	SshProjectRootInspectionOutcome,
+} from './SshProjectRootChannelClient';
 export type { SshTerminalHostConnectionOutcome } from './SshTerminalHostChannelClient';
 export {
 	createSshEnvironmentConnectionState,

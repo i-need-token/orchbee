@@ -85,6 +85,27 @@ describe('buildTerminalSettingsSearchCatalog', () => {
 		expect(entries.some((entry) => entry.id === 'cursor-input.ime')).toBe(true);
 	});
 
+	it('adds SSH management search targets only with the Desktop capability', () => {
+		const intl = createOrchbeeIntl('en-US');
+		const buildCatalog = (
+			enabledCapabilities: readonly ['desktop-ssh-connection-management'] | [],
+		) =>
+			buildTerminalSettingsSearchCatalog({
+				enabledCapabilities,
+				enabledCategories: ['ssh-connections'],
+				formatMessage: (descriptor, values) => intl.formatMessage(descriptor, values),
+				keyboardShortcutChords: {},
+			});
+
+		expect(buildCatalog([]).map((entry) => entry.id)).toEqual(['category:ssh-connections']);
+		expect(buildCatalog(['desktop-ssh-connection-management']).map((entry) => entry.id)).toEqual([
+			'category:ssh-connections',
+			'ssh-connections.add',
+			'ssh-connections.managed',
+			'ssh-connections.discovery',
+		]);
+	});
+
 	it('replaces the planned scrollback result when Desktop owns the setting', () => {
 		const intl = createOrchbeeIntl('en-US');
 		const buildCatalog = (

@@ -3,9 +3,12 @@ import {
 	SSH_PROJECT_ROOT_SERVICE_ID,
 	SshEnvironmentChannelIdSchema,
 	SshEnvironmentRuntimeEpochSchema,
+	SshProjectRootDirectoryListingResultSchema,
 	SshProjectRootInspectionResultSchema,
 	decodeSshEnvironmentFrame,
+	decodeSshProjectRootDirectoryListingRequest,
 	decodeSshProjectRootInspectionRequest,
+	encodeSshProjectRootDirectoryListingResult,
 	encodeSshProjectRootInspectionResult,
 	type SshEnvironmentChannelId,
 	type SshEnvironmentMessage,
@@ -60,6 +63,36 @@ describe('SSH project-root channel client', () => {
 		});
 		expect(harness.client.handle(closed(channelId, 'completed'))).toBe('handled');
 		expect(harness.onAttachmentInvalid).not.toHaveBeenCalled();
+	});
+
+	it('lists the remote home or an absolute directory through the same bounded lifecycle', async () => {
+		const harness = createHarness();
+		const listing = harness.client.list(null);
+		const channelId = requireOpenedChannelId(harness.messages[0]);
+		expect(harness.client.handle(opened(channelId))).toBe('handled');
+		const requestMessage = harness.messages[1];
+		if (requestMessage?.type !== 'channel-data') throw new Error('missing directory request');
+		expect(decodeSshProjectRootDirectoryListingRequest(requestMessage.data)).toEqual({
+			ok: true,
+			message: { type: 'list-project-directory', path: null },
+		});
+
+		const result = SshProjectRootDirectoryListingResultSchema.parse({
+			kind: 'listed',
+			canonicalPath: '/home/alice',
+			parentPath: '/home',
+			directories: [{ name: '.config' }, { name: 'src' }],
+			truncated: false,
+		});
+		expect(
+			harness.client.handle({
+				type: 'channel-data',
+				channelId,
+				data: encodeSshProjectRootDirectoryListingResult(result),
+			}),
+		).toBe('handled');
+		await expect(listing).resolves.toEqual(result);
+		expect(harness.client.handle(closed(channelId, 'completed'))).toBe('handled');
 	});
 
 	it('bounds concurrency, cancels without sending a request, and allocates a fresh channel', async () => {

@@ -18,7 +18,7 @@ UnsupportedPlatform == "unsupported"
 Components == {"ssh-environment-runtime", "terminal-host"}
 InstallDigests == {"absent", "expected", "mismatch"}
 InstallModes == {"none", "present", "upload"}
-ExpectedServices == {"project-root-v1", "terminal-host-v1"}
+ExpectedServices == {"project-root-v2", "terminal-host-v1"}
 Phases == {
   "stopped", "verifying-catalog", "negotiating", "uploading",
   "daemon-ready", "attaching", "handshaking", "connected",

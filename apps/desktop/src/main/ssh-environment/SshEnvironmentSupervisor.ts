@@ -18,7 +18,10 @@ import {
 	type SshEnvironmentRuntimeIdentity,
 	type SshEnvironmentRuntimeSessionFailureReason,
 } from './SshEnvironmentRuntimeSession';
-import type { SshProjectRootInspectionOutcome } from './SshProjectRootChannelClient';
+import type {
+	SshProjectRootDirectoryListingOutcome,
+	SshProjectRootInspectionOutcome,
+} from './SshProjectRootChannelClient';
 import type { SshTerminalHostConnectionOutcome } from './SshTerminalHostChannelClient';
 import { createSshEnvironmentRemoteBootstrap } from './createSshEnvironmentRemoteBootstrap';
 import type { SshEnvironmentReleaseSource } from './ssh-environment-release-source';
@@ -46,6 +49,10 @@ interface AskPassBridgePort {
 
 interface RuntimeSessionPort {
 	inspectProjectRoot(path: string, signal?: AbortSignal): Promise<SshProjectRootInspectionOutcome>;
+	listProjectDirectory(
+		path: string | null,
+		signal?: AbortSignal,
+	): Promise<SshProjectRootDirectoryListingOutcome>;
 	openTerminalHost(): Promise<SshTerminalHostConnectionOutcome>;
 	start(): Promise<void>;
 	stop(): void;
@@ -149,6 +156,20 @@ export class SshEnvironmentSupervisor {
 		}
 		return (
 			resources.session?.inspectProjectRoot(path, signal) ??
+			Promise.resolve({ kind: 'failed', reason: 'unavailable' })
+		);
+	}
+
+	listProjectDirectory(
+		path: string | null,
+		signal?: AbortSignal,
+	): Promise<SshProjectRootDirectoryListingOutcome> {
+		const resources = this.#resources.get(this.#state.generation);
+		if (this.#state.phase !== 'connected' || resources?.ready !== true) {
+			return Promise.resolve({ kind: 'failed', reason: 'unavailable' });
+		}
+		return (
+			resources.session?.listProjectDirectory(path, signal) ??
 			Promise.resolve({ kind: 'failed', reason: 'unavailable' })
 		);
 	}

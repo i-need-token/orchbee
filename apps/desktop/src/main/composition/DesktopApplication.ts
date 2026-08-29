@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { constants } from 'node:os';
+import { constants, userInfo } from 'node:os';
 import path from 'node:path';
 
 import type { AgentObservationEvent, AgentTransition } from '@orchbee/agent';
@@ -136,7 +136,9 @@ import {
 } from '../project-worktree';
 import {
 	admitDesktopSshEnvironmentRemoteProject,
+	attachDesktopSshEnvironmentRemoteProjectFolder,
 	type DesktopSshEnvironmentRemoteProjectAdmissionResult,
+	type DesktopSshEnvironmentRemoteProjectFolderAttachmentResult,
 } from '../remote-project';
 import {
 	createDesktopSshEnvironmentRemoteTerminal,
@@ -153,6 +155,7 @@ import {
 import {
 	DesktopSshProjectEnrollmentBroker,
 	DesktopSshProjectEnrollmentRuntime,
+	discoverOpenSshHostAliases,
 	type DesktopSshProjectEnrollmentBrokerRuntime,
 } from '../ssh-project-enrollment';
 import {
@@ -179,6 +182,7 @@ import {
 	type SshEnvironmentConnectionObservation,
 	type SshEnvironmentConnectionState,
 	type SshEnvironmentConnectionTransition,
+	type SshProjectRootDirectoryListingOutcome,
 	type SshProjectRootInspectionOutcome,
 	type SshTerminalHostConnectionOutcome,
 	type SshEnvironmentTargetReference,
@@ -494,6 +498,7 @@ export interface DesktopApplicationDependencies {
 	readonly createSshEnvironmentConnectionOwner: (options: {
 		readonly askPassHelperEntryPath: string;
 		readonly askPassRuntimeExecutablePath: string;
+		readonly defaultConfigurationFilePath: null | string;
 		readonly platform: NodeJS.Platform;
 		readonly registry: Pick<DesktopEnvironmentRegistry, 'get'>;
 		readonly release: PackagedSshEnvironmentReleaseSourceOptions | null;
@@ -590,7 +595,7 @@ export interface DesktopApplicationDependencies {
 	readonly getPreferredLocales: () => readonly string[];
 	readonly randomIdentifier: () => string;
 	readonly quitApplication: () => void;
-	readonly sshEnvironmentTargetResolver: Pick<OpenSshTargetResolver, 'resolve'>;
+	readonly sshEnvironmentTargetResolver?: Pick<OpenSshTargetResolver, 'resolve'> | undefined;
 	readonly writeTrace: (trace: unknown) => void;
 }
 
@@ -655,7 +660,11 @@ const defaultDependencies: DesktopApplicationDependencies = {
 			options.release === null
 				? new UnavailableSshEnvironmentReleaseSource()
 				: new PackagedSshEnvironmentReleaseSource(options.release);
-		const targetResolver = new OpenSshTargetResolver(executablePath);
+		const targetResolver = new OpenSshTargetResolver(
+			executablePath,
+			undefined,
+			options.defaultConfigurationFilePath,
+		);
 		return new DesktopSshEnvironmentConnectionOwner({
 			createSupervisor: (configuration, interaction) =>
 				new SshEnvironmentSupervisor(
@@ -668,7 +677,11 @@ const defaultDependencies: DesktopApplicationDependencies = {
 						interaction,
 						releaseSource,
 						targetResolver,
-						transportAdapter: new OpenSshTransportAdapter(executablePath),
+						transportAdapter: new OpenSshTransportAdapter(
+							executablePath,
+							undefined,
+							options.defaultConfigurationFilePath,
+						),
 					},
 				),
 			registry: options.registry,
@@ -759,9 +772,6 @@ const defaultDependencies: DesktopApplicationDependencies = {
 	}),
 	randomIdentifier: () => randomBytes(16).toString('hex'),
 	quitApplication: () => app.quit(),
-	sshEnvironmentTargetResolver: new OpenSshTargetResolver(
-		OpenSshTargetResolver.resolveSystemExecutablePath(process.platform, process.env['SystemRoot']),
-	),
 	writeTrace: (trace) => console.info(JSON.stringify(trace)),
 };
 
@@ -776,6 +786,24 @@ const unavailableBrowserAccessRuntime: DesktopBrowserAccessBrokerRuntime = {
 	start: async () => unavailableBrowserAccess(),
 	stop: async () => unavailableBrowserAccess(),
 };
+
+function applicationHomeSshConfigurationFilePath(
+	applicationHomeDirectory: string,
+	nativeHomeDirectory: string,
+): null | string {
+	return path.resolve(applicationHomeDirectory) === path.resolve(nativeHomeDirectory)
+		? null
+		: path.join(applicationHomeDirectory, '.ssh', 'config');
+}
+
+function nativeAccountHomeDirectory(fallback: string): string {
+	try {
+		const directory = userInfo().homedir;
+		return path.isAbsolute(directory) ? directory : fallback;
+	} catch {
+		return fallback;
+	}
+}
 
 function unavailableBrowserAccess(): never {
 	throw Object.assign(new Error('Desktop Browser access resources are unavailable.'), {
@@ -802,6 +830,7 @@ export class DesktopApplication {
 	readonly #environmentRegistry: DesktopEnvironmentRegistry;
 	readonly #registeredEnvironmentIds = new Set<EnvironmentId>();
 	readonly #sshEnvironmentConnections: DesktopSshEnvironmentConnectionOwnerPort;
+	readonly #sshEnvironmentTargetResolver: Pick<OpenSshTargetResolver, 'resolve'>;
 	#sshEnvironmentTerminalRuntimeOwner: DesktopSshEnvironmentTerminalRuntimeOwner | undefined;
 	#exitRequest: Promise<DesktopApplicationLifetimeExitResult> | undefined;
 	readonly #pendingGatewayClientCleanups = new Set<GatewayClientResourceOwner>();
@@ -858,6 +887,20 @@ export class DesktopApplication {
 		}
 		this.#options = options;
 		this.#dependencies = dependencies;
+		const defaultSshConfigurationFilePath = applicationHomeSshConfigurationFilePath(
+			options.runtime.homeDirectory,
+			nativeAccountHomeDirectory(options.runtime.homeDirectory),
+		);
+		this.#sshEnvironmentTargetResolver =
+			dependencies.sshEnvironmentTargetResolver ??
+			new OpenSshTargetResolver(
+				OpenSshTargetResolver.resolveSystemExecutablePath(
+					options.platform,
+					process.env['SystemRoot'],
+				),
+				undefined,
+				defaultSshConfigurationFilePath,
+			);
 		this.#agentIntegrationManagementController =
 			dependencies.createAgentIntegrationManagementController({
 				homeDirectory: options.runtime.homeDirectory,
@@ -897,6 +940,7 @@ export class DesktopApplication {
 		this.#sshEnvironmentConnections = dependencies.createSshEnvironmentConnectionOwner({
 			askPassHelperEntryPath: options.sshEnvironment.askPassHelperEntryPath,
 			askPassRuntimeExecutablePath: options.sshEnvironment.askPassRuntimeExecutablePath,
+			defaultConfigurationFilePath: defaultSshConfigurationFilePath,
 			platform: options.platform,
 			registry: this.#environmentRegistry,
 			release: options.sshEnvironment.release,
@@ -1084,6 +1128,18 @@ export class DesktopApplication {
 		return this.#sshEnvironmentConnections.inspectProjectRoot(environmentId, requestedPath, signal);
 	}
 
+	listSshEnvironmentProjectDirectory(
+		environmentId: EnvironmentId,
+		requestedPath: string | null,
+		signal?: AbortSignal,
+	): Promise<SshProjectRootDirectoryListingOutcome> {
+		return this.#sshEnvironmentConnections.listProjectDirectory(
+			environmentId,
+			requestedPath,
+			signal,
+		);
+	}
+
 	openSshEnvironmentTerminalHost(
 		environmentId: EnvironmentId,
 	): Promise<SshTerminalHostConnectionOutcome> {
@@ -1104,6 +1160,28 @@ export class DesktopApplication {
 			connections: this.#sshEnvironmentConnections,
 			coordinator,
 			environmentId,
+			registry: this.#environmentRegistry,
+			requestedPath,
+			...(signal === undefined ? {} : { signal }),
+		});
+	}
+
+	attachSshEnvironmentRemoteProjectFolder(
+		environmentId: EnvironmentId,
+		projectId: string,
+		requestedPath: string,
+		signal?: AbortSignal,
+	): Promise<DesktopSshEnvironmentRemoteProjectFolderAttachmentResult> {
+		const coordinator = this.#clientSessionCoordinator;
+		if (coordinator === undefined) {
+			return Promise.resolve({ kind: 'failed', reason: 'workbench-unavailable' });
+		}
+		return attachDesktopSshEnvironmentRemoteProjectFolder({
+			allocateDirectoryToken: this.#dependencies.randomIdentifier,
+			connections: this.#sshEnvironmentConnections,
+			coordinator,
+			environmentId,
+			projectId,
 			registry: this.#environmentRegistry,
 			requestedPath,
 			...(signal === undefined ? {} : { signal }),
@@ -1210,7 +1288,7 @@ export class DesktopApplication {
 	resolveSshEnvironmentTarget(
 		target: SshEnvironmentTargetReference,
 	): Promise<OpenSshTargetResolutionResult> {
-		return this.#dependencies.sshEnvironmentTargetResolver.resolve(target);
+		return this.#sshEnvironmentTargetResolver.resolve(target);
 	}
 
 	transitionSshEnvironmentConnection(
@@ -1587,6 +1665,13 @@ export class DesktopApplication {
 			this.#sshProjectEnrollmentRuntime = new DesktopSshProjectEnrollmentRuntime({
 				admitProject: (environmentId, requestedPath, signal) =>
 					this.admitSshEnvironmentRemoteProject(environmentId, requestedPath, signal),
+				attachProjectFolder: (environmentId, projectId, requestedPath, signal) =>
+					this.attachSshEnvironmentRemoteProjectFolder(
+						environmentId,
+						projectId,
+						requestedPath,
+						signal,
+					),
 				allocateIdentifier: this.#dependencies.randomIdentifier,
 				connections: {
 					claimInteractionLease: (environmentId, interaction) =>
@@ -1599,17 +1684,28 @@ export class DesktopApplication {
 							requestedPath,
 							signal,
 						),
+					listProjectDirectory: (environmentId, requestedPath, signal) =>
+						this.#sshEnvironmentConnections.listProjectDirectory(
+							environmentId,
+							requestedPath,
+							signal,
+						),
 					observation: (environmentId) =>
 						this.#sshEnvironmentConnections.observation(environmentId),
 					subscribe: (environmentId, listener) =>
 						this.#sshEnvironmentConnections.subscribe(environmentId, listener),
 				},
+				discoverHostAliases: () =>
+					discoverOpenSshHostAliases(
+						path.join(this.#options.runtime.homeDirectory, '.ssh', 'config'),
+						this.#options.runtime.homeDirectory,
+					),
 				getDocument: () => clientSessionCoordinator.canonicalDocument,
 				registry: {
 					create: (environment) => this.createEnvironment(environment),
 					list: () => this.listEnvironments(),
 				},
-				resolveTarget: (target) => this.#dependencies.sshEnvironmentTargetResolver.resolve(target),
+				resolveTarget: (target) => this.#sshEnvironmentTargetResolver.resolve(target),
 			});
 			const semanticCommandCoordinatorGeneration = SemanticCommandCoordinatorGenerationSchema.parse(
 				`desktop:semantic-generation:${this.#dependencies.randomIdentifier()}`,

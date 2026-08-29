@@ -38,6 +38,7 @@ import type { MacosTerminalInputSettingsController } from '../macos-terminal-inp
 import { TerminalSettingsSurface } from '../terminal-settings-surface';
 import type { DesktopTerminalLaunchProfileControl } from '../terminal-launch-profile-control';
 import type { DesktopTerminalDefaultSettingsControl } from '../terminal-default-settings-control';
+import type { DesktopSshConnectionManagementControl } from '../ssh-connection-management';
 import { useWebApplication } from './hooks/useWebApplication';
 import styles from './WebApplication.module.css';
 
@@ -55,12 +56,14 @@ export interface WebApplicationProps {
 	readonly macosTerminalInputSettingsController?: MacosTerminalInputSettingsController | undefined;
 	readonly navigation?: WorkbenchNavigationPort | undefined;
 	readonly onConnectViaSsh?: (() => void) | undefined;
+	readonly onAddProjectFolderViaSsh?: ((projectId: string) => void) | undefined;
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
 	readonly projectFolderAcquisition?: WorkbenchProjectFolderAcquisition | undefined;
 	readonly projectWorktree?: WorkbenchProjectWorktreeCapability | undefined;
 	readonly remoteTerminalCreation?: WorkbenchRemoteTerminalCreationCapability | undefined;
 	readonly requestBrowserAccess?: ((returnFocus: HTMLElement) => void) | undefined;
 	readonly shortcutPlatform: WorkbenchShortcutPlatform;
+	readonly sshConnectionManagementControl?: DesktopSshConnectionManagementControl | undefined;
 	readonly terminalSettingsController: TerminalSettingsController;
 	readonly terminalInteractionSettingsController?:
 		| TerminalInteractionSettingsController
@@ -85,12 +88,14 @@ export function WebApplication({
 	macosTerminalInputSettingsController,
 	navigation,
 	onConnectViaSsh,
+	onAddProjectFolderViaSsh,
 	projectWorkspaceRuntime,
 	projectFolderAcquisition,
 	projectWorktree,
 	remoteTerminalCreation,
 	requestBrowserAccess,
 	shortcutPlatform,
+	sshConnectionManagementControl,
 	terminalSettingsController,
 	terminalInteractionSettingsController,
 	terminalFeedbackSettingsController,
@@ -145,6 +150,7 @@ export function WebApplication({
 					layoutStorage={layoutStorage}
 					navigation={navigation}
 					onConnectViaSsh={onConnectViaSsh}
+					onAddProjectFolderViaSsh={onAddProjectFolderViaSsh}
 					onSettings={view.onSettings}
 					onTerminalFontSizeChange={view.onTerminalFontSizeChange}
 					projectWorkspaceRuntime={projectWorkspaceRuntime}
@@ -179,6 +185,7 @@ export function WebApplication({
 				onRequestClose={view.closeSettings}
 				requestBrowserAccess={requestBrowserAccess}
 				requestedCategory={view.requestedSettingsCategory}
+				sshConnectionManagementControl={sshConnectionManagementControl}
 				terminalFeedbackSettingsController={terminalFeedbackSettingsController}
 				terminalLaunchProfileClient={terminalLaunchProfileClient}
 				terminalDefaultSettingsControl={terminalDefaultSettingsControl}

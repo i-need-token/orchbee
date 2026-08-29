@@ -176,6 +176,13 @@ describe('DesktopApplication', () => {
 			canonicalPath: SshProjectRootPathSchema.parse('/srv/orchbee'),
 			kind: 'resolved',
 		});
+		harness.sshEnvironmentConnectionOwner.listProjectDirectory.mockResolvedValue({
+			canonicalPath: SshProjectRootPathSchema.parse('/srv/orchbee'),
+			directories: [],
+			kind: 'listed',
+			parentPath: SshProjectRootPathSchema.parse('/srv'),
+			truncated: false,
+		});
 		harness.sshEnvironmentConnectionOwner.observation.mockImplementation(() =>
 			connectedObservation === undefined
 				? { kind: 'inactive' }
@@ -192,13 +199,12 @@ describe('DesktopApplication', () => {
 		const enrollmentRuntime = harness.sshProjectEnrollmentBrokers[0]?.runtime;
 		if (enrollmentRuntime === undefined) throw new Error('Expected the SSH enrollment runtime.');
 		const result = await enrollmentRuntime.enroll(
+			{ destination: 'build-host' },
 			{
-				configurationFilePath: null,
-				destination: 'build-host',
-				name: 'Build machine',
-				projectPath: '/srv/orchbee-alias',
+				interact: async () => ({ kind: 'cancelled' }),
+				progress: () => undefined,
+				selectDirectory: async () => ({ kind: 'selected' }),
 			},
-			{ interact: async () => ({ kind: 'cancelled' }), progress: () => undefined },
 			new AbortController().signal,
 		);
 		expect(result).toEqual({
@@ -209,11 +215,53 @@ describe('DesktopApplication', () => {
 		});
 		await expect(application.listEnvironments()).resolves.toMatchObject({
 			kind: 'ready',
-			value: [expect.objectContaining({ name: 'Build machine' })],
+			value: [expect.objectContaining({ name: 'build-host' })],
 		});
+		expect(harness.sshEnvironmentConnectionOwner.listProjectDirectory).toHaveBeenCalledWith(
+			expect.any(String),
+			null,
+			expect.any(AbortSignal),
+		);
 		expect(enrollmentRuntime.statuses()).toEqual([
 			{ blockedReason: null, projectId: 'project-1', state: 'connected' },
 		]);
+
+		harness.sshEnvironmentConnectionOwner.listProjectDirectory.mockResolvedValue({
+			canonicalPath: SshProjectRootPathSchema.parse('/srv/shared'),
+			directories: [],
+			kind: 'listed',
+			parentPath: SshProjectRootPathSchema.parse('/srv'),
+			truncated: false,
+		});
+		harness.sshEnvironmentConnectionOwner.inspectProjectRoot.mockResolvedValue({
+			canonicalPath: SshProjectRootPathSchema.parse('/srv/shared'),
+			kind: 'resolved',
+		});
+		await expect(
+			enrollmentRuntime.attachFolder(
+				'project-1',
+				{ destination: 'build-host' },
+				{
+					interact: async () => ({ kind: 'cancelled' }),
+					progress: () => undefined,
+					selectDirectory: async () => ({ kind: 'selected' }),
+				},
+				new AbortController().signal,
+			),
+		).resolves.toMatchObject({
+			canonicalPath: '/srv/shared',
+			kind: 'attached',
+			projectId: 'project-1',
+		});
+		const attachedDocument = harness.workbenchDocumentStore.commit.mock.calls.at(-1)?.[1];
+		expect(attachedDocument?.projectWorkspace.projects[0]).toMatchObject({
+			directories: [
+				{ path: '/srv/orchbee' },
+				{ path: '/srv/shared', placement: { kind: 'environment' } },
+			],
+			primaryDirectoryId: expect.any(String),
+			workspaces: [{ id: 'workspace-1' }],
+		});
 		await application.shutdown();
 	});
 
@@ -2772,7 +2820,7 @@ function createHarness(
 	};
 	const sshEnvironmentTargetResolver = {
 		resolve: vi
-			.fn<DesktopApplicationDependencies['sshEnvironmentTargetResolver']['resolve']>()
+			.fn<NonNullable<DesktopApplicationDependencies['sshEnvironmentTargetResolver']>['resolve']>()
 			.mockResolvedValue({ code: 'openssh-unavailable', kind: 'failed' }),
 	};
 	type SshEnvironmentConnectionOwnerHandle = ReturnType<
@@ -2791,6 +2839,9 @@ function createHarness(
 		dispose: vi.fn<SshEnvironmentConnectionOwnerHandle['dispose']>().mockResolvedValue(undefined),
 		inspectProjectRoot: vi
 			.fn<SshEnvironmentConnectionOwnerHandle['inspectProjectRoot']>()
+			.mockResolvedValue({ kind: 'failed', reason: 'unavailable' }),
+		listProjectDirectory: vi
+			.fn<SshEnvironmentConnectionOwnerHandle['listProjectDirectory']>()
 			.mockResolvedValue({ kind: 'failed', reason: 'unavailable' }),
 		openTerminalHost: vi
 			.fn<SshEnvironmentConnectionOwnerHandle['openTerminalHost']>()

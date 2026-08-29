@@ -15,8 +15,8 @@ afterEach(cleanup);
 
 describe('DesktopSshProjectEnrollmentDialog', () => {
 	it.each([
-		{ destination: 'SSH destination', locale: 'en-US', title: 'Connect via SSH' },
-		{ destination: 'SSH 目标', locale: 'zh-CN', title: '通过 SSH 连接' },
+		{ destination: 'SSH address', locale: 'en-US', title: 'Connect via SSH' },
+		{ destination: 'SSH 地址', locale: 'zh-CN', title: '通过 SSH 连接' },
 	] satisfies readonly { destination: string; locale: OrchbeeLocale; title: string }[])(
 		'ships the enrollment form in $locale',
 		({ destination, locale, title }) => {
@@ -35,8 +35,27 @@ describe('DesktopSshProjectEnrollmentDialog', () => {
 		},
 	);
 
-	it('moves through host verification and transient authentication before closing on commit', async () => {
+	it.each([
+		{ locale: 'en-US', title: 'Add SSH Folder' },
+		{ locale: 'zh-CN', title: '添加 SSH 文件夹' },
+	] satisfies readonly { locale: OrchbeeLocale; title: string }[])(
+		'ships the Folder attachment form in $locale',
+		({ locale, title }) => {
+			const controller = createController();
+			controller.openFolderAttachment('project-local');
+			render(
+				<OrchbeeI18nProvider locale={locale}>
+					<DesktopSshProjectEnrollmentDialog controller={controller} />
+				</OrchbeeI18nProvider>,
+			);
+			expect(screen.getByRole('heading', { name: title })).toBeTruthy();
+			controller.dispose();
+		},
+	);
+
+	it('submits one address, authenticates, and chooses the remote folder before commit', async () => {
 		const responses: unknown[] = [];
+		const directorySelections: unknown[] = [];
 		const committed = vi.fn<DesktopSshProjectEnrollmentControllerOptions['onEnrollmentCommitted']>(
 			async () => true,
 		);
@@ -57,6 +76,15 @@ describe('DesktopSshProjectEnrollmentDialog', () => {
 					prompt: "Enter passphrase for key '/Users/me/.ssh/id_ed25519':",
 				}),
 			);
+			directorySelections.push(
+				await observer.selectDirectory({
+					canonicalPath: '/srv/orchbee',
+					directories: [{ name: 'packages' }],
+					navigationFailure: null,
+					parentPath: '/srv',
+					truncated: false,
+				}),
+			);
 			return {
 				canonicalPath: '/srv/orchbee',
 				kind: 'created',
@@ -71,16 +99,12 @@ describe('DesktopSshProjectEnrollmentDialog', () => {
 			</OrchbeeI18nProvider>,
 		);
 
-		fireEvent.change(screen.getByLabelText('Environment name'), {
-			target: { value: 'Build machine' },
+		fireEvent.change(screen.getByLabelText('SSH address'), {
+			target: { value: 'ssh builder@build-host' },
 		});
-		fireEvent.change(screen.getByLabelText('SSH destination'), {
-			target: { value: 'build-host' },
-		});
-		fireEvent.change(screen.getByLabelText('Remote Project path'), {
-			target: { value: '/srv/orchbee' },
-		});
-		fireEvent.click(screen.getByRole('button', { name: 'Connect' }));
+		const addressForm = screen.getByLabelText('SSH address').closest('form');
+		expect(addressForm).not.toBeNull();
+		fireEvent.submit(addressForm as HTMLFormElement);
 
 		await screen.findByRole('heading', { name: 'Verify SSH Host' });
 		expect(screen.getByText('The authenticity of host cannot be established.')).toBeTruthy();
@@ -93,11 +117,18 @@ describe('DesktopSshProjectEnrollmentDialog', () => {
 		expect(JSON.stringify(controller.getDialogSnapshot())).not.toContain('one-use secret');
 		fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
 
+		await screen.findByRole('heading', { name: 'Choose a Project Folder' });
+		fireEvent.click(screen.getByRole('button', { name: 'Edit folder path' }));
+		expect((screen.getByLabelText('Folder path') as HTMLInputElement).value).toBe('/srv/orchbee');
+		expect(screen.getByRole('button', { name: /packages/u })).toBeTruthy();
+		fireEvent.click(screen.getByRole('button', { name: 'Use This Folder' }));
+
 		await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
 		expect(responses).toEqual([
 			{ kind: 'submitted', response: 'yes' },
 			{ kind: 'submitted', response: 'one-use secret' },
 		]);
+		expect(directorySelections).toEqual([{ kind: 'selected' }]);
 		expect(committed).toHaveBeenCalledOnce();
 		controller.dispose();
 	});
@@ -111,12 +142,28 @@ function createController(
 		true,
 ): DesktopSshProjectEnrollmentController {
 	const client: DesktopSshProjectEnrollmentControllerClient = {
+		addEnvironment: async () => ({ kind: 'cancelled' }),
+		attachFolder: async () => ({ kind: 'cancelled' }),
 		connect: async (projectId) => ({ kind: 'connected', projectId }),
+		connectEnvironment: async () => ({ kind: 'cancelled' }),
 		disconnect: async (projectId) => ({ kind: 'disconnected', projectId }),
+		disconnectEnvironment: async () => ({ kind: 'cancelled' }),
 		dispose: () => undefined,
 		enroll,
+		getEnvironmentCatalog: () => ({
+			discoveryIssue: null,
+			managed: [],
+			registryIssue: null,
+			suggestions: [],
+		}),
 		getStatuses: () => [],
+		refreshEnvironmentCatalog: () => undefined,
+		subscribeEnvironmentCatalog: () => () => undefined,
 		subscribeStatuses: () => () => undefined,
 	};
-	return new DesktopSshProjectEnrollmentController({ client, onEnrollmentCommitted });
+	return new DesktopSshProjectEnrollmentController({
+		client,
+		onEnrollmentCommitted,
+		onFolderAttachmentCommitted: async () => true,
+	});
 }

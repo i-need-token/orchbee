@@ -13,6 +13,8 @@ export {
 	desktopWindowMessages,
 	keyboardShortcutMessages,
 	projectedTerminalMessages,
+	remoteDirectoryBrowserMessages,
+	sshConnectionManagementMessages,
 	terminalSettingsMessages,
 	terminalSettingsCatalogMessages,
 	workbenchMessages,

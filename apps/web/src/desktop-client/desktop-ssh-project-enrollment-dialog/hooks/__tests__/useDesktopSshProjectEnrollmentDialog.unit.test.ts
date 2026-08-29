@@ -42,8 +42,12 @@ describe('useDesktopSshProjectEnrollmentDialog', () => {
 		const controller: DesktopSshProjectEnrollmentDialogController = {
 			close: vi.fn<DesktopSshProjectEnrollmentDialogController['close']>(),
 			getDialogSnapshot: () => state,
+			navigateDirectory: vi.fn<DesktopSshProjectEnrollmentDialogController['navigateDirectory']>(),
+			openFolderAttachment:
+				vi.fn<DesktopSshProjectEnrollmentDialogController['openFolderAttachment']>(),
 			resolvePrompt: vi.fn<DesktopSshProjectEnrollmentDialogController['resolvePrompt']>(),
 			retry: vi.fn<DesktopSshProjectEnrollmentDialogController['retry']>(),
+			selectDirectory: vi.fn<DesktopSshProjectEnrollmentDialogController['selectDirectory']>(),
 			submit: vi.fn<DesktopSshProjectEnrollmentDialogController['submit']>(),
 			subscribeDialog: (nextListener) => {
 				listener = nextListener;
@@ -51,6 +55,8 @@ describe('useDesktopSshProjectEnrollmentDialog', () => {
 					listener = undefined;
 				};
 			},
+			updateDirectoryPath:
+				vi.fn<DesktopSshProjectEnrollmentDialogController['updateDirectoryPath']>(),
 			updateForm: vi.fn<DesktopSshProjectEnrollmentDialogController['updateForm']>(),
 		};
 		const container = document.createElement('div');
@@ -60,8 +66,11 @@ describe('useDesktopSshProjectEnrollmentDialog', () => {
 		expect(container.firstElementChild?.getAttribute('data-dialog-phase')).toBe('closed');
 		await act(async () => {
 			state = {
+				canNavigate: false,
+				directory: null,
 				failure: null,
 				kind: 'connection',
+				pathInput: '',
 				phase: 'working',
 				progress: null,
 				projectId: 'project-remote',

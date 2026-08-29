@@ -162,15 +162,15 @@ Host 运行时主题替换是该设置功能使用的唯一颜色变更路径。
 
 设置栏对产品结果进行分组，而不是公开实施包。当前的信息架构足够稳定，可以让未来的设置进入，而无需创建另一个顶级表面：
 
-| 集团       | 类别                                     |
-| ---------- | ---------------------------------------- |
-| 应用       | 一般、外观                               |
-| 终端       | 文本、颜色、光标和输入、交互、终端       |
-| 工作空间   | Windows 和选项卡、配置文件、键盘快捷键   |
-| 集成       | Agent 集成、Shell 集成、远程开发         |
-| 数据和访问 | Ghostty 迁移和功能门控桌面浏览器访问条目 |
+| 集团       | 类别                                       |
+| ---------- | ------------------------------------------ |
+| 应用       | 一般、外观                                 |
+| 终端       | 文本、颜色、光标和输入、交互、终端         |
+| 工作空间   | Windows 和选项卡、配置文件、键盘快捷键     |
+| 集成       | Agent 集成、SSH 连接、Shell 集成、远程开发 |
+| 数据和访问 | Ghostty 迁移和功能门控桌面浏览器访问条目   |
 
-应用显示语言、外观主题、终端字体族与字号、常规与粗体字重、连字、内边距、有效默认颜色、默认背景不透明度、选中时复制、重置、macOS Option-as-Alt、键盘快捷键、Shell 集成、远程诊断、迁移报告、浏览器访问入口、受能力门控的 Desktop 启动配置文件编辑器和受能力门控的 Desktop 回滚缓冲区默认值，均保留现有行为和所有权。其余“通用”“外观”“文本”“颜色”“光标与输入”“交互”“终端”“窗口与标签页”，以及配置文件的外观、连接和自动化各行，共同组成一个已本地化的规划目录；它提炼自 Ghostty、WezTerm、Kitty、Alacritty、Windows Terminal、iTerm2、Tabby、Konsole、GNOME Terminal 和 Foot 中反复出现的设置。该目录覆盖启动与恢复策略、窗口呈现、排版与字形塑造、调色板与对比度、光标与键盘协议、剪贴板与鼠标行为、Shell 与仿真策略、历史记录与反馈、窗口与标签页，以及超出当前获准启动配置文件范围的配置文件功能。缺少 Desktop 终端默认设置能力时，回滚缓冲区行仍属于计划目录，不能改变 Host 状态。
+应用显示语言、外观主题、终端字体族与字号、常规与粗体字重、连字、内边距、有效默认颜色、默认背景不透明度、选中时复制、重置、macOS Option-as-Alt、键盘快捷键、Agent 集成、SSH 连接管理、Shell 集成、远程诊断、迁移报告、浏览器访问入口、受能力门控的 Desktop 启动配置文件编辑器和受能力门控的 Desktop 回滚缓冲区默认值，均保留现有行为和所有权。其余“通用”“外观”“文本”“颜色”“光标与输入”“交互”“终端”“窗口与标签页”，以及配置文件的外观、连接和自动化各行，共同组成一个已本地化的规划目录；它提炼自 Ghostty、WezTerm、Kitty、Alacritty、Windows Terminal、iTerm2、Tabby、Konsole、GNOME Terminal 和 Foot 中反复出现的设置。该目录覆盖启动与恢复策略、窗口呈现、排版与字形塑造、调色板与对比度、光标与键盘协议、剪贴板与鼠标行为、Shell 与仿真策略、历史记录与反馈、窗口与标签页，以及超出当前获准启动配置文件范围的配置文件功能。缺少 Desktop 终端默认设置能力时，回滚缓冲区行仍属于计划目录，不能改变 Host 状态。
 
 计划的行被显式标记，仅公开禁用的预览控件，并且从不读取或写入首选项。实现一个需要有自己公认的行为权威、模型、持久边界、平台能力和验证。因此，可见行是产品方向，而不是兼容性或可用性声明。
 
@@ -233,6 +233,33 @@ reminder 并打开该设置 category。显式关闭会把一个 Agent ID 写入�
 
 Desktop Main 的准确 effect、reconciliation、conflict、rollback 与远端排除以
 [Desktop Agent 集成指南](../../desktop/docs/agent-integrations.zh-CN.md)为准。
+
+## Desktop SSH 连接
+
+只有 Electron Desktop composition 会注入 `DesktopSshConnectionManagementControl`。Browser Preview
+与已认证 Gateway client 会省略 SSH 连接 category 及其 search entry。页面把 registry-backed 的
+**你的连接**与自动发现的**来自你的 SSH 配置**建议明确分开。Managed row 显示一个有界 name、
+destination、当前 process-local connection state 与仅供参考的 Project-reference count。Suggestion
+不是 managed intent；显式 Add 成功前不能连接。
+
+打开 category 与 Refresh 只能请求有界 local discovery。Main 从 Desktop application user 的
+`~/.ssh/config` 开始，沿有界 user `Include` graph 读取，按大小写不敏感去重，并且最多发布 1,024 个
+具体 literal `Host` value。Pattern、negation、option-like value、configuration text 与 path、resolved
+hostname、user、port、identity file、proxy command 与 credential 都不会到达 renderer。缺少 config
+是空且健康的结果；invalid、unreadable 与 truncated discovery 会显示为有界 issue。Discovery 不启动
+SSH process、DNS lookup、network access、prompt、write 或 Workbench mutation。
+
+Manual Add 与 suggested-host Add 都提交同一个有界 SSH address。Main 先应用既有 `ssh -G` security-floor
+resolution，再创建或复用 append-only Environment record。Add 永不连接、提示、选择 directory、创建
+Project 或 Workspace、挂载 Folder 或启动 terminal。精确 managed target 会从 suggestion 消失；不同
+target 不会被猜测为同一 alias。该 surface 明确继承 registry 当前无 delete 与无 rename 的边界。
+
+Connect、Retry 与 Disconnect 是显式 row button。它们复用 Project connection 所用的同一个 Main-owned
+supervisor、瞬时 AskPass interaction、status publication 与 retry fencing，因此所有 Project 都观察同一
+underlying Environment connection。Password 与 passphrase 只存在于当前 uncontrolled prompt field 与精确
+AskPass response；它们永不进入 Settings state、catalog、storage、diagnostic 或 canonical document。
+Desktop restart、discovery、search 与 category navigation 永不 activate SSH。权威 effect 与 recovery
+contract 位于 [Desktop SSH Environment 连接指南](../../desktop/docs/ssh-environment-connection.zh-CN.md)。
 
 ## 远程开发诊断
 
@@ -319,5 +346,6 @@ Agent 状态通知使用单独的精确 semantic-event subscription，而不是 
 - 终端默认设置协议、Main 控制器、存储、broker、渲染器客户端、组合和组件测试覆盖严格边界、十四端口 bootstrap 顺序、Host 优先提交、Host 拒绝、会话可见的写入失败、重试、仅未来终端捕获、能力门控、本地化验证和可见失败。TLA+ 模型检查不实时驱逐。
 - 终端反馈模型测试涵盖默认关闭行为、严格的持久性恢复、持续时间和焦点策略、过时的和未来的事实、序列重复数据删除、通知速率限制、显式权限请求和处置。组件测试涵盖两个区域设置、所有三个手动源命令、Bash 边界、提醒控件、权限状态和重置。
 - Agent-integration protocol、Main adapter/controller/broker、renderer client、composition、storage、设置与 reminder 测试覆盖 canonical ordering、只读启动、一个 pending mutation、准确 entry conflict 与 disable、reconciliation、malformed message、显式用户操作、per-Agent dismissal、session offer limit、远端排除、本地化以及不自动 mutation。TLA+ model 检查 serialization、precommit preservation、reconciliation、reload 与 disposal safety。
+- SSH-connection discovery、runtime、broker、renderer client、controller、Settings、localization、search、bootstrap 与 composition test 覆盖 bounded recursive Include、concrete-host filtering、missing 与 partial configuration、exact suggestion suppression、resolver-before-record ordering、无 activation 的 idempotent Add、shared status、显式 connect 与 disconnect、prompt secrecy、refresh supersession 与 capability absence。Controlled loopback SSH evidence 继续负责真实 OpenSSH、AskPass 与 Runtime behavior。
 - 迁移分析器测试涵盖可接受的语法、精确目标边界、标量取代、字体重置和后备列表、不透明单元格交互、畸形行、资源限制以及每个分配一个查找的排序，而不依赖于 React 或存储。
 - 浏览器、网关和桌面组合测试证明共享源、仅限本地配置文件功能和设置条目；桌面 Electron 见证人证明现有的投影终端在打开和关闭“设置”时保持连接状态。当前的macOS系统见证人额外启动了一个具有隔离密钥和配置的临时环回`sshd`，然后证明普通的SSH PTY接收到`TERM=xterm-256color`，解析其terminfo条目，并且不接收`COLORTERM` 或 `TERM_PROGRAM` 无显式转发。一个单独的 macOS Electron 见证人获取已发送的 Zsh 资源，观察一个真实的语义完成和本地化提醒，并证明预计的附件身份未更改。

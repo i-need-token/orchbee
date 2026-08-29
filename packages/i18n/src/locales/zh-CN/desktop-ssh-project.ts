@@ -6,39 +6,46 @@ export const zhCNDesktopSshProjectMessages = {
 	'desktop.sshProject.actions.connect': '连接',
 	'desktop.sshProject.actions.continue': '继续',
 	'desktop.sshProject.actions.retry': '重试',
+	'desktop.sshProject.attachment.description':
+		'输入 SSH 地址。Orchbee 会先连接，再让你为当前项目选择远程文件夹。',
+	'desktop.sshProject.attachment.directoryDescription': '选择要添加到当前项目的远程文件夹。',
+	'desktop.sshProject.attachment.directoryTitle': '选择远程文件夹',
+	'desktop.sshProject.attachment.title': '添加 SSH 文件夹',
 	'desktop.sshProject.connection.description':
 		'Orchbee 将重新连接此项目，不会更改已保存的结构或远端文件。',
 	'desktop.sshProject.connection.title': '连接远端项目',
-	'desktop.sshProject.description':
-		'连接到可信的 SSH 主机，验证远端项目文件夹，然后将其添加到 Orchbee。',
+	'desktop.sshProject.description': '输入 SSH 地址。Orchbee 会先完成连接，再让你选择项目文件夹。',
+	'desktop.sshProject.directory.description': '选择要作为项目添加的远端文件夹。',
+	'desktop.sshProject.directory.title': '选择项目文件夹',
+	'desktop.sshProject.environmentConnection.description':
+		'验证这个可复用连接。密码和密钥口令只会发送给当前 SSH 进程。',
+	'desktop.sshProject.environmentConnection.failureTitle': '无法建立 SSH 连接',
+	'desktop.sshProject.environmentConnection.title': '连接 SSH',
 	'desktop.sshProject.failure.busy': '另一个 SSH 项目操作正在进行。',
 	'desktop.sshProject.failure.connection':
 		'Orchbee 无法建立远端运行时连接。请检查 SSH 访问权限后重试。',
 	'desktop.sshProject.failure.control': '桌面控制连接已中断。请重新加载窗口后再试。',
+	'desktop.sshProject.failure.projectAttachment':
+		'此项目已使用另一个 SSH 主机，或此远程文件夹已属于另一个项目。',
 	'desktop.sshProject.failure.projectPath':
 		'无法使用远端项目路径。请确认它是可访问的绝对文件夹路径。',
 	'desktop.sshProject.failure.storage': 'Orchbee 无法安全记录此 SSH 环境。请重启 Orchbee 后再试。',
-	'desktop.sshProject.failure.target': '无法安全解析 SSH 目标或配置。',
+	'desktop.sshProject.failure.target': '无法安全解析 SSH 地址。',
 	'desktop.sshProject.failure.title': '无法连接远端项目',
 	'desktop.sshProject.failure.unsupported': '此桌面平台不支持 SSH 项目连接。',
 	'desktop.sshProject.failure.workbench':
 		'Orchbee 无法安全地将项目添加到共享工作台。请重新加载后再试。',
-	'desktop.sshProject.fields.configurationFilePath': 'SSH 配置文件（可选）',
-	'desktop.sshProject.fields.configurationFilePathDescription':
-		'请输入 OpenSSH 配置文件的绝对路径。',
-	'desktop.sshProject.fields.configurationFilePathPlaceholder': '/Users/you/.ssh/config',
-	'desktop.sshProject.fields.destination': 'SSH 目标',
-	'desktop.sshProject.fields.destinationPlaceholder': 'build-host 或 user@example.com',
-	'desktop.sshProject.fields.name': '环境名称',
-	'desktop.sshProject.fields.namePlaceholder': '构建机器',
-	'desktop.sshProject.fields.projectPath': '远端项目路径',
-	'desktop.sshProject.fields.projectPathDescription': '请输入远端主机上的绝对 POSIX 文件夹路径。',
-	'desktop.sshProject.fields.projectPathPlaceholder': '/srv/project',
+	'desktop.sshProject.fields.destination': 'SSH 地址',
+	'desktop.sshProject.fields.destinationDescription':
+		'可使用 SSH 配置中的主机、user@hostname，或粘贴 ssh user@hostname。',
+	'desktop.sshProject.fields.destinationPlaceholder': 'ssh user@example.com',
 	'desktop.sshProject.progress.committingProject': '正在将项目添加到工作台…',
+	'desktop.sshProject.progress.committingProjectFolder': '正在将远程文件夹添加到项目…',
 	'desktop.sshProject.progress.connecting': '正在连接并准备远端运行时…',
 	'desktop.sshProject.progress.inspectingProject': '正在验证远端项目文件夹…',
 	'desktop.sshProject.progress.recordingEnvironment': '正在记录 SSH 环境…',
 	'desktop.sshProject.progress.resolvingTarget': '正在解析 SSH 配置…',
+	'desktop.sshProject.progress.selectingDirectory': '正在加载远端主目录…',
 	'desktop.sshProject.prompt.authenticationDescription':
 		'此响应会直接发送给当前 SSH 进程，不会被保存。',
 	'desktop.sshProject.prompt.authenticationTitle': '需要 SSH 认证',

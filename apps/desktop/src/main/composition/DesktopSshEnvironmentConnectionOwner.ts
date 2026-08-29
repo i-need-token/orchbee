@@ -7,12 +7,17 @@ import type {
 	SshEnvironmentConnectionObservation,
 	SshEnvironmentSupervisorInteractionRequest,
 	SshAskPassInteractionResult,
+	SshProjectRootDirectoryListingOutcome,
 	SshProjectRootInspectionOutcome,
 	SshTerminalHostConnectionOutcome,
 } from '../ssh-environment';
 
 export interface DesktopSshEnvironmentSupervisorPort {
 	inspectProjectRoot(path: string, signal?: AbortSignal): Promise<SshProjectRootInspectionOutcome>;
+	listProjectDirectory(
+		path: string | null,
+		signal?: AbortSignal,
+	): Promise<SshProjectRootDirectoryListingOutcome>;
 	openTerminalHost(): Promise<SshTerminalHostConnectionOutcome>;
 	observation(): SshEnvironmentConnectionObservation;
 	start(): void;
@@ -90,6 +95,11 @@ export interface DesktopSshEnvironmentConnectionOwnerPort {
 		path: string,
 		signal?: AbortSignal,
 	): Promise<SshProjectRootInspectionOutcome>;
+	listProjectDirectory(
+		environmentId: EnvironmentId,
+		path: string | null,
+		signal?: AbortSignal,
+	): Promise<SshProjectRootDirectoryListingOutcome>;
 	observation(environmentId: EnvironmentId): DesktopSshEnvironmentConnectionReadResult;
 	openTerminalHost(environmentId: EnvironmentId): Promise<SshTerminalHostConnectionOutcome>;
 	subscribe(
@@ -152,6 +162,20 @@ export class DesktopSshEnvironmentConnectionOwner implements DesktopSshEnvironme
 		const supervisor = this.#supervisors.get(canonicalId);
 		return (
 			supervisor?.inspectProjectRoot(path, signal) ??
+			Promise.resolve({ kind: 'failed', reason: 'unavailable' })
+		);
+	}
+
+	listProjectDirectory(
+		environmentId: EnvironmentId,
+		path: string | null,
+		signal?: AbortSignal,
+	): Promise<SshProjectRootDirectoryListingOutcome> {
+		const canonicalId = EnvironmentIdSchema.parse(environmentId);
+		if (this.#disposed) return Promise.resolve({ kind: 'failed', reason: 'unavailable' });
+		const supervisor = this.#supervisors.get(canonicalId);
+		return (
+			supervisor?.listProjectDirectory(path, signal) ??
 			Promise.resolve({ kind: 'failed', reason: 'unavailable' })
 		);
 	}

@@ -20,6 +20,7 @@ import {
 
 import {
 	SshProjectRootChannelClient,
+	type SshProjectRootDirectoryListingOutcome,
 	type SshProjectRootInspectionOutcome,
 } from './SshProjectRootChannelClient';
 import {
@@ -139,6 +140,16 @@ export class SshEnvironmentRuntimeSession {
 			return Promise.resolve({ kind: 'failed', reason: 'unavailable' });
 		}
 		return this.#projectRootChannels.inspect(path, signal);
+	}
+
+	listProjectDirectory(
+		path: string | null,
+		signal?: AbortSignal,
+	): Promise<SshProjectRootDirectoryListingOutcome> {
+		if (this.#phase !== 'ready' || this.#projectRootChannels === undefined) {
+			return Promise.resolve({ kind: 'failed', reason: 'unavailable' });
+		}
+		return this.#projectRootChannels.list(path, signal);
 	}
 
 	openTerminalHost(): Promise<SshTerminalHostConnectionOutcome> {

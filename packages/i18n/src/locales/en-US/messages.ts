@@ -9,6 +9,8 @@ import { enUSDesktopSshProjectMessages } from './desktop-ssh-project';
 import { enUSDesktopWindowMessages } from './desktop-window';
 import { enUSKeyboardShortcutMessages } from './keyboard-shortcuts';
 import { enUSProjectedTerminalMessages } from './projected-terminal';
+import { enUSRemoteDirectoryBrowserMessages } from './remote-directory-browser';
+import { enUSSshConnectionManagementMessages } from './ssh-connection-management';
 import { enUSTerminalSettingsMessages } from './terminal-settings';
 import { enUSTerminalSettingsCatalogMessages } from './terminal-settings-catalog';
 import { enUSWorkbenchMessages } from './workbench';
@@ -25,6 +27,8 @@ export const enUSMessages = {
 	...enUSDesktopWindowMessages,
 	...enUSKeyboardShortcutMessages,
 	...enUSProjectedTerminalMessages,
+	...enUSRemoteDirectoryBrowserMessages,
+	...enUSSshConnectionManagementMessages,
 	...enUSTerminalSettingsMessages,
 	...enUSTerminalSettingsCatalogMessages,
 	...enUSWorkbenchMessages,

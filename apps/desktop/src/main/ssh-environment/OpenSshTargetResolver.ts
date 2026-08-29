@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { isAbsolute, win32 } from 'node:path';
 
 import {
@@ -26,6 +27,7 @@ type OpenSshConfigurationQueryResult =
 	  };
 
 interface OpenSshTargetResolverDependencies {
+	readonly fileExists?: ((path: string) => boolean) | undefined;
 	readonly isAbsolute: (path: string) => boolean;
 	readonly query: (
 		executablePath: string,
@@ -48,11 +50,13 @@ export type OpenSshTargetResolutionResult =
 	| { readonly code: OpenSshTargetResolutionFailureCode; readonly kind: 'failed' };
 
 const defaultDependencies: OpenSshTargetResolverDependencies = {
+	fileExists: existsSync,
 	isAbsolute,
 	query: queryOpenSshConfiguration,
 };
 
 export class OpenSshTargetResolver {
+	readonly #defaultConfigurationFilePath: null | string;
 	readonly #dependencies: OpenSshTargetResolverDependencies;
 	readonly #executablePath: string;
 
@@ -69,7 +73,9 @@ export class OpenSshTargetResolver {
 	constructor(
 		executablePath: string,
 		dependencies: OpenSshTargetResolverDependencies = defaultDependencies,
+		defaultConfigurationFilePath: null | string = null,
 	) {
+		this.#defaultConfigurationFilePath = defaultConfigurationFilePath;
 		this.#executablePath = executablePath;
 		this.#dependencies = dependencies;
 	}
@@ -78,15 +84,27 @@ export class OpenSshTargetResolver {
 		if (!this.#dependencies.isAbsolute(this.#executablePath)) {
 			return { code: 'openssh-path-not-absolute', kind: 'failed' };
 		}
+		const defaultConfigurationFilePath = this.#defaultConfigurationFilePath;
 		if (
-			target.configurationFilePath !== null &&
-			!this.#dependencies.isAbsolute(target.configurationFilePath)
+			defaultConfigurationFilePath !== null &&
+			!this.#dependencies.isAbsolute(defaultConfigurationFilePath)
 		) {
 			return { code: 'configuration-path-not-absolute', kind: 'failed' };
 		}
+		const configurationFilePath =
+			target.configurationFilePath ??
+			(defaultConfigurationFilePath !== null &&
+			(this.#dependencies.fileExists ?? defaultDependencies.fileExists)?.(
+				defaultConfigurationFilePath,
+			)
+				? defaultConfigurationFilePath
+				: null);
+		if (configurationFilePath !== null && !this.#dependencies.isAbsolute(configurationFilePath)) {
+			return { code: 'configuration-path-not-absolute', kind: 'failed' };
+		}
 		const arguments_ = ['-G'];
-		if (target.configurationFilePath !== null) {
-			arguments_.push('-F', target.configurationFilePath);
+		if (configurationFilePath !== null) {
+			arguments_.push('-F', configurationFilePath);
 		}
 		arguments_.push('--', target.destination);
 		const queryResult = await this.#dependencies.query(this.#executablePath, arguments_);

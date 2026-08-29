@@ -1,7 +1,8 @@
 ---------------- MODULE SshEnvironmentProjectEnrollment ----------------
 EXTENDS FiniteSets, Naturals, TLC
 
-\* Bounded model of Slice 3.3A's Electron SSH Project enrollment workflow.
+\* Bounded model of the Electron SSH Project enrollment workflow through the
+\* connect-first, directory-selection extension delivered after Slice 3.3A.
 \* The append-only Environment registry owns durable identity; the canonical
 \* Workbench document alone owns whether the remote Project is enrolled.
 \* Renderer requests own only one transient interaction lease. Registry and
@@ -16,8 +17,9 @@ RequestKinds == {"none", "enroll", "reconnect"}
 RequestPhases == {
   "idle", "busy", "resolving", "registry-writing", "pending",
   "connecting", "interaction", "connected-for-enrollment", "inspecting",
-  "ready-to-commit", "committing", "committed", "completed", "failed",
-  "cancelled", "outcome-unknown"
+  "choosing-directory", "directory-selected", "ready-to-commit",
+  "committing", "committed", "completed", "failed", "cancelled",
+  "outcome-unknown"
 }
 RegistryStates == {"absent", "present", "indeterminate"}
 ConnectionPhases == {
@@ -26,7 +28,8 @@ ConnectionPhases == {
 }
 PreCommitPhases == {
   "resolving", "registry-writing", "pending", "connecting", "interaction",
-  "connected-for-enrollment", "inspecting", "ready-to-commit"
+  "connected-for-enrollment", "choosing-directory", "directory-selected",
+  "inspecting", "ready-to-commit"
 }
 Actions == {
   "init", "open-port", "request-enrollment", "reject-busy",
@@ -37,6 +40,9 @@ Actions == {
   "request-interaction", "submit-interaction", "cancel-interaction",
   "reject-stale-interaction", "connection-ready",
   "connection-ready-without-lease", "connection-fails",
+  "publish-initial-directory", "initial-directory-listing-fails",
+  "navigate-directory", "directory-navigation-fails",
+  "reject-stale-directory-selection", "select-directory",
   "inspect-project-root", "inspection-completes", "inspection-fails",
   "begin-workbench-commit", "commit-project-new", "commit-project-existing",
   "workbench-commit-indeterminate", "reconcile-workbench-commit",
@@ -356,10 +362,90 @@ ConnectionFails(request) ==
   /\ lastAction' = "connection-fails"
   /\ lastRequest' = request
 
-InspectProjectRoot(request) ==
+PublishInitialDirectory(request) ==
   /\ activeRequest = request
   /\ requestKind[request] = "enroll"
   /\ requestPhase[request] = "connected-for-enrollment"
+  /\ connectionPhase = "connected"
+  /\ request \in ports
+  /\ requestPhase' = [requestPhase EXCEPT ![request] = "choosing-directory"]
+  /\ UNCHANGED <<ports, requestKind, activeRequest, registryState,
+       storedProject, canonicalProject, publishedEnrollment, connectionPhase,
+       connectedOnce, generation, promptOwner, promptGeneration,
+       activatedRequests, terminalEffectCount>>
+  /\ lastAction' = "publish-initial-directory"
+  /\ lastRequest' = request
+
+InitialDirectoryListingFails(request) ==
+  /\ activeRequest = request
+  /\ requestKind[request] = "enroll"
+  /\ requestPhase[request] = "connected-for-enrollment"
+  /\ connectionPhase = "connected"
+  /\ requestPhase' = [requestPhase EXCEPT ![request] = "failed"]
+  /\ activeRequest' = NoRequest
+  /\ UNCHANGED <<ports, requestKind, registryState, storedProject,
+       canonicalProject, publishedEnrollment, connectionPhase, connectedOnce,
+       generation, promptOwner, promptGeneration, activatedRequests,
+       terminalEffectCount>>
+  /\ lastAction' = "initial-directory-listing-fails"
+  /\ lastRequest' = request
+
+NavigateDirectory(request) ==
+  /\ activeRequest = request
+  /\ requestPhase[request] = "choosing-directory"
+  /\ connectionPhase = "connected"
+  /\ request \in ports
+  /\ UNCHANGED <<ports, requestKind, requestPhase, activeRequest,
+       registryState, storedProject, canonicalProject, publishedEnrollment,
+       connectionPhase, connectedOnce, generation, promptOwner,
+       promptGeneration, activatedRequests, terminalEffectCount>>
+  /\ lastAction' = "navigate-directory"
+  /\ lastRequest' = request
+
+DirectoryNavigationFails(request) ==
+  /\ activeRequest = request
+  /\ requestPhase[request] = "choosing-directory"
+  /\ connectionPhase = "connected"
+  /\ request \in ports
+  /\ UNCHANGED <<ports, requestKind, requestPhase, activeRequest,
+       registryState, storedProject, canonicalProject, publishedEnrollment,
+       connectionPhase, connectedOnce, generation, promptOwner,
+       promptGeneration, activatedRequests, terminalEffectCount>>
+  /\ lastAction' = "directory-navigation-fails"
+  /\ lastRequest' = request
+
+RejectStaleDirectorySelection(request) ==
+  /\ \E owner \in Requests:
+       /\ activeRequest = owner
+       /\ requestPhase[owner] = "choosing-directory"
+       /\ connectionPhase = "connected"
+       /\ \/ request # owner
+          \/ request \notin ports
+  /\ UNCHANGED <<ports, requestKind, requestPhase, activeRequest,
+       registryState, storedProject, canonicalProject, publishedEnrollment,
+       connectionPhase, connectedOnce, generation, promptOwner,
+       promptGeneration, activatedRequests, terminalEffectCount>>
+  /\ lastAction' = "reject-stale-directory-selection"
+  /\ lastRequest' = request
+
+SelectDirectory(request) ==
+  /\ activeRequest = request
+  /\ requestKind[request] = "enroll"
+  /\ requestPhase[request] = "choosing-directory"
+  /\ connectionPhase = "connected"
+  /\ request \in ports
+  /\ requestPhase' = [requestPhase EXCEPT ![request] = "directory-selected"]
+  /\ UNCHANGED <<ports, requestKind, activeRequest, registryState,
+       storedProject, canonicalProject, publishedEnrollment, connectionPhase,
+       connectedOnce, generation, promptOwner, promptGeneration,
+       activatedRequests, terminalEffectCount>>
+  /\ lastAction' = "select-directory"
+  /\ lastRequest' = request
+
+InspectProjectRoot(request) ==
+  /\ activeRequest = request
+  /\ requestKind[request] = "enroll"
+  /\ requestPhase[request] = "directory-selected"
   /\ connectionPhase = "connected"
   /\ requestPhase' = [requestPhase EXCEPT ![request] = "inspecting"]
   /\ UNCHANGED <<ports, requestKind, activeRequest, registryState,
@@ -661,6 +747,12 @@ Next ==
   \/ \E request \in Requests: ConnectionReady(request)
   \/ ConnectionReadyWithoutLease
   \/ \E request \in Requests: ConnectionFails(request)
+  \/ \E request \in Requests: PublishInitialDirectory(request)
+  \/ \E request \in Requests: InitialDirectoryListingFails(request)
+  \/ \E request \in Requests: NavigateDirectory(request)
+  \/ \E request \in Requests: DirectoryNavigationFails(request)
+  \/ \E request \in Requests: RejectStaleDirectorySelection(request)
+  \/ \E request \in Requests: SelectDirectory(request)
   \/ \E request \in Requests: InspectProjectRoot(request)
   \/ \E request \in Requests: InspectionCompletes(request)
   \/ \E request \in Requests: InspectionFails(request)
@@ -727,6 +819,13 @@ NoPromptOutsideInteraction ==
   connectionPhase # "interaction" =>
     /\ promptOwner = NoRequest
     /\ promptGeneration = NoGeneration
+
+DirectorySelectionHasExactLiveRequest ==
+  \A request \in Requests:
+    requestPhase[request] = "choosing-directory" =>
+      /\ activeRequest = request
+      /\ request \in ports
+      /\ connectionPhase = "connected"
 
 CommittedRequestHasCanonicalProject ==
   \A request \in Requests:

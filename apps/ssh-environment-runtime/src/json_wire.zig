@@ -77,6 +77,10 @@ fn refineValue(comptime T: type, value: *std.json.Value) error{InvalidField}!voi
             },
             else => return error.InvalidField,
         },
+        .optional => |optional| {
+            if (value.* == .null) return;
+            try refineValue(optional.child, value);
+        },
         else => return error.InvalidField,
     }
 }

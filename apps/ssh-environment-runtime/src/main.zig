@@ -11,7 +11,7 @@ pub fn main(init: std.process.Init) !void {
     if (argv.len == 0) return error.InvalidArguments;
     switch (try arguments.parse(argv[1..])) {
         .version => try writeVersion(init.io),
-        .project_root_worker => try project_root_service.runWorker(init.io),
+        .project_root_worker => try project_root_service.runWorker(init.io, init.gpa),
         .terminal_host_relay_worker => |options| try terminal_host_relay.runWorker(
             init.io,
             init.gpa,
@@ -19,21 +19,29 @@ pub fn main(init: std.process.Init) !void {
             options.runtime_directory,
             options.endpoint_id,
         ),
-        .serve => |options| try runtime_server.serve(
-            init.io,
-            init.gpa,
-            options.runtime_directory,
-            options.runtime_instance_id,
-            options.runtime_build_digest,
-            options.release_cohort_digest,
-            .{
-                .build_digest = options.terminal_host.build_digest,
-                .endpoint_id = options.terminal_host.endpoint_id,
-                .executable_path = options.terminal_host.executable_path,
-                .runtime_directory = options.terminal_host.runtime_directory,
-                .version = options.terminal_host.version,
-            },
-        ),
+        .serve => |options| {
+            const home_directory = init.environ_map.get("HOME") orelse
+                return error.HomeDirectoryUnavailable;
+            if (!project_root_service.validPath(home_directory)) {
+                return error.HomeDirectoryUnavailable;
+            }
+            try runtime_server.serve(
+                init.io,
+                init.gpa,
+                home_directory,
+                options.runtime_directory,
+                options.runtime_instance_id,
+                options.runtime_build_digest,
+                options.release_cohort_digest,
+                .{
+                    .build_digest = options.terminal_host.build_digest,
+                    .endpoint_id = options.terminal_host.endpoint_id,
+                    .executable_path = options.terminal_host.executable_path,
+                    .runtime_directory = options.terminal_host.runtime_directory,
+                    .version = options.terminal_host.version,
+                },
+            );
+        },
         .attach => |options| try attachment.attach(
             init.io,
             init.gpa,

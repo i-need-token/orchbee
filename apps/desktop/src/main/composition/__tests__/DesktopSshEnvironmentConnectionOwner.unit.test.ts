@@ -66,6 +66,11 @@ describe('Desktop SSH Environment connection owner', () => {
 			canonicalPath: canonicalProjectRoot,
 		});
 		expect(supervisors[0]?.inspectProjectRoot).toHaveBeenCalledWith('/srv/project', undefined);
+		await expect(owner.listProjectDirectory(environmentId, null)).resolves.toEqual({
+			kind: 'failed',
+			reason: 'unavailable',
+		});
+		expect(supervisors[0]?.listProjectDirectory).toHaveBeenCalledWith(null, undefined);
 		await expect(owner.openTerminalHost(environmentId)).resolves.toEqual({
 			kind: 'failed',
 			reason: 'unavailable',
@@ -225,6 +230,9 @@ function createSupervisorPort(connectionId: string): DesktopSshEnvironmentSuperv
 		inspectProjectRoot: vi
 			.fn<DesktopSshEnvironmentSupervisorPort['inspectProjectRoot']>()
 			.mockResolvedValue({ kind: 'resolved', canonicalPath: canonicalProjectRoot }),
+		listProjectDirectory: vi
+			.fn<DesktopSshEnvironmentSupervisorPort['listProjectDirectory']>()
+			.mockResolvedValue({ kind: 'failed', reason: 'unavailable' }),
 		openTerminalHost: vi
 			.fn<DesktopSshEnvironmentSupervisorPort['openTerminalHost']>()
 			.mockResolvedValue({ kind: 'failed', reason: 'unavailable' }),

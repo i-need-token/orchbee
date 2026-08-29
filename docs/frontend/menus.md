@@ -54,6 +54,9 @@ not implement parallel mutations for those invocation paths.
   only when the available viewport is narrower. Consumers do not assign one-off menu widths.
 - Use the shared overlay surface, radius, shadow, padding, and collision behavior from
   `@orchbee/ui`; feature styles do not redraw the menu container.
+- A portaled menu opened from a modal participates in `--ob-ref-layer-modal` through the shared
+  positioner-layer override. The feature passes a CSS Module class to the primitive; it does not
+  assign a one-off `z-index` to the popup.
 - Every actionable command has a leading semantic `ProductIcon`. A checkbox or radio selection
   indicator may replace it only when the command has no separate action metaphor.
 - Group labels and separators are structural and do not receive decorative action icons.
@@ -104,6 +107,8 @@ their consequence requires it. Do not add lines around individual menu items.
   cleanup after dismissal.
 - Sidebar placement coverage verifies right-side opening when the full menu fits and the lower-left
   fallback when right-side space is constrained.
+- Modal coverage verifies that a portaled menu renders above the owning dialog and remains pointer
+  operable.
 - Keyboard coverage verifies traversal, invocation, nested dismissal, and focus restoration.
 - Run `pnpm verify` after changing a menu primitive, shared menu model, trigger behavior, or this
   standard.

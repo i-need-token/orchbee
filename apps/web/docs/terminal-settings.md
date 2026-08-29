@@ -299,17 +299,17 @@ The Settings rail groups product outcomes instead of exposing implementation pac
 information architecture is stable enough for future settings to enter without creating another
 top-level surface:
 
-| Group         | Categories                                                              |
-| ------------- | ----------------------------------------------------------------------- |
-| Application   | General, Appearance                                                     |
-| Terminal      | Text, Colors, Cursor & Input, Interaction, Terminal                     |
-| Workspace     | Windows & Tabs, Profiles, Keyboard Shortcuts                            |
-| Integrations  | Agent Integrations, Shell Integration, Remote Development               |
-| Data & Access | Ghostty Migration and the capability-gated Desktop Browser Access entry |
+| Group         | Categories                                                                 |
+| ------------- | -------------------------------------------------------------------------- |
+| Application   | General, Appearance                                                        |
+| Terminal      | Text, Colors, Cursor & Input, Interaction, Terminal                        |
+| Workspace     | Windows & Tabs, Profiles, Keyboard Shortcuts                               |
+| Integrations  | Agent Integrations, SSH Connections, Shell Integration, Remote Development |
+| Data & Access | Ghostty Migration and the capability-gated Desktop Browser Access entry    |
 
 The application display language, appearance theme, terminal font family and size, regular and bold weights, ligatures, padding,
 effective default colors, default-background opacity, copy-on-select, Reset, macOS Option-as-Alt,
-keyboard shortcuts, Agent integrations, Shell integration, remote diagnostic, migration report, Browser-access entry,
+keyboard shortcuts, Agent integrations, SSH connection management, Shell integration, remote diagnostic, migration report, Browser-access entry,
 capability-gated Desktop launch-profile editor, and capability-gated Desktop scrollback default
 retain their existing behavior and ownership. The remaining General, Appearance, Text, Colors, Cursor & Input,
 Interaction, Terminal, Windows & Tabs, and Profile appearance, connection, and automation rows form
@@ -414,6 +414,38 @@ back to no dismissals, and write failure retains the current-session behavior.
 
 Desktop Main's exact effects, reconciliation, conflicts, rollback, and remote exclusion are
 authoritative in the [Desktop Agent integration guide](../../desktop/docs/agent-integrations.md).
+
+## Desktop SSH connections
+
+Only the Electron Desktop composition injects `DesktopSshConnectionManagementControl`. Browser
+Preview and authenticated Gateway clients omit the SSH Connections category and its search entries.
+The page separates registry-backed **Your connections** from automatically discovered **From your
+SSH config** suggestions. A managed row shows one bounded name, destination, current process-local
+connection state, and informative Project-reference count. A suggestion is not managed intent and
+cannot be connected until an explicit Add succeeds.
+
+Opening the category and Refresh may only request bounded local discovery. Main starts at the
+Desktop application user's `~/.ssh/config`, follows a bounded graph of user `Include` directives,
+deduplicates aliases case-insensitively, and publishes at most 1,024 concrete literal `Host` values.
+Patterns, negations, option-like values, configuration text and paths, resolved hostnames, users,
+ports, identity files, proxy commands, and credentials never reach the renderer. A missing config is
+an empty healthy result; invalid, unreadable, and truncated discovery are visible bounded issues.
+Discovery starts no SSH process, DNS lookup, network access, prompt, write, or Workbench mutation.
+
+Manual Add and suggested-host Add both submit the same single bounded SSH address. Main first applies
+the existing `ssh -G` security-floor resolution, then creates or reuses the append-only Environment
+record. Add never connects, prompts, chooses a directory, creates a Project or Workspace, attaches a
+Folder, or starts a terminal. Exact managed targets disappear from suggestions; distinct targets are
+not guessed to be aliases of one another. This surface deliberately inherits the registry's current
+no-delete and no-rename boundary.
+
+Connect, Retry, and Disconnect are explicit row buttons. They reuse the same Main-owned supervisor,
+transient AskPass interaction, status publication, and retry fencing as Project connections, so every
+Project observes the same underlying Environment connection. Passwords and passphrases remain only
+in the current uncontrolled prompt field and exact AskPass response; they never enter Settings state,
+the catalog, storage, diagnostics, or a canonical document. Desktop restart, discovery, search, and
+category navigation never activate SSH. The authoritative effect and recovery contract is the
+[Desktop SSH Environment connection guide](../../desktop/docs/ssh-environment-connection.md).
 
 ## Remote-development diagnostic
 
@@ -603,6 +635,12 @@ not claims about Ghostty's byte limits.
   per-Agent dismissal, session offer limits, remote exclusion, localization, and no automatic
   mutation. The TLA+ model checks serialization, precommit preservation, reconciliation, reload,
   and disposal safety.
+- SSH-connection discovery, runtime, broker, renderer client, controller, Settings, localization,
+  search, bootstrap, and composition tests cover bounded recursive Includes, concrete-host filtering,
+  missing and partial configuration, exact suggestion suppression, resolver-before-record ordering,
+  idempotent Add without activation, shared status, explicit connect and disconnect, prompt secrecy,
+  refresh supersession, and capability absence. Controlled loopback SSH evidence retains ownership of
+  real OpenSSH, AskPass, and Runtime behavior.
 - Migration analyzer tests cover accepted syntax, exact target boundaries, scalar supersession,
   font resets and fallback lists, opacity-cell interaction, malformed lines, resource limits, and
   one-finding-per-assignment ordering without depending on React or storage.

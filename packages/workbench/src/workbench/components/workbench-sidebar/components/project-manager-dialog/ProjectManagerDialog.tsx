@@ -24,6 +24,7 @@ interface ProjectManagerDialogProps {
 	readonly onClose: () => void;
 	readonly onNameChange: (name: string) => void;
 	readonly onRemoveDirectory: (directoryId: string) => void;
+	readonly onSelectSshDirectory?: (() => void) | undefined;
 	readonly onSave: (name: string) => void;
 	readonly onSelectDirectory?: (() => void) | undefined;
 	readonly onSetPrimaryDirectory: (directoryId: string) => void;
@@ -38,6 +39,7 @@ export function ProjectManagerDialog({
 	onClose,
 	onNameChange,
 	onRemoveDirectory,
+	onSelectSshDirectory,
 	onSave,
 	onSelectDirectory,
 	onSetPrimaryDirectory,
@@ -87,6 +89,7 @@ export function ProjectManagerDialog({
 						onRemoveDirectory={onRemoveDirectory}
 						onSetPrimaryDirectory={onSetPrimaryDirectory}
 						onSelectFolder={onSelectDirectory}
+						onSelectSshFolder={onSelectSshDirectory}
 						project={project}
 						setFolderPath={view.setFolderPath}
 						showFolderInput={view.showFolderInput}

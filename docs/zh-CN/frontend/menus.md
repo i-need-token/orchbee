@@ -48,6 +48,9 @@
   更窄时才缩小。使用方不得分配一次性菜单宽度。
 - 使用 `@orchbee/ui` 共享的 Overlay Surface、圆角、阴影、Padding 和碰撞行为；功能样式不得重画
   菜单容器。
+- 从模态框打开的 Portaled Menu 通过共享的 Positioner Layer Override 参与
+  `--ob-ref-layer-modal`。功能组件向 Primitive 传递 CSS Module Class；不得给 Popup 分配一次性的
+  `z-index`。
 - 每个可操作 Command 都带有前置语义 `ProductIcon`。只有 Command 没有独立动作隐喻时，Checkbox
   或 Radio 选择指示器才可以替代它。
 - Group Label 和 Separator 是结构，不添加装饰性动作图标。
@@ -93,5 +96,6 @@ Menu Item 添加框线。
 - Submenu 覆盖验证子菜单 Active 时，父级触发项持续保留 Open State Class。
 - Trigger 覆盖验证空与有内容 Section 的披露、菜单打开期间的持续显示，以及关闭后的状态清理。
 - 侧栏位置覆盖验证空间充足时从右侧打开，以及右侧空间受限时回退到左下方。
+- 模态框覆盖验证 Portaled Menu 渲染在所属 Dialog 之上，并保持 Pointer 可操作。
 - 键盘覆盖验证遍历、调用、嵌套关闭和焦点恢复。
 - 修改菜单 Primitive、共享菜单模型、触发器行为或本规范后运行 `pnpm verify`。

@@ -619,6 +619,10 @@ export function useWorkbench({
 			},
 			projectManage: intl.formatMessage(workbenchMessages.projectManage),
 			projectManageAddFolder: intl.formatMessage(workbenchMessages.projectAddFolder),
+			projectManageAddLocalFolder: intl.formatMessage(
+				workbenchMessages.projectManageAddLocalFolder,
+			),
+			projectManageAddSshFolder: intl.formatMessage(workbenchMessages.projectManageAddSshFolder),
 			projectManageDescription: intl.formatMessage(workbenchMessages.projectManageDescription),
 			projectManageFolderAlreadyAdded: intl.formatMessage(
 				workbenchMessages.projectManageFolderAlreadyAdded,
@@ -629,6 +633,12 @@ export function useWorkbench({
 				workbenchMessages.projectManageNamePlaceholder,
 			),
 			projectManagePrimaryFolder: intl.formatMessage(workbenchMessages.projectManagePrimaryFolder),
+			projectManageSshFolderBadge: intl.formatMessage(
+				workbenchMessages.projectManageSshFolderBadge,
+			),
+			projectManageSshFolderDescription: intl.formatMessage(
+				workbenchMessages.projectManageSshFolderDescription,
+			),
 			projectManageTitle: intl.formatMessage(workbenchMessages.projectManageTitle),
 			projectOptions: intl.formatMessage(workbenchMessages.projectOptions),
 			projectWorktrees: intl.formatMessage(workbenchMessages.projectWorktrees),

@@ -2,6 +2,7 @@ import { isValidElement, type ReactNode } from 'react';
 import { describe, expect, it } from 'vitest';
 
 import { ComboboxContent } from '../combobox';
+import { DropdownMenuContent } from '../dropdown-menu';
 import { SelectContent } from '../select';
 
 function readPositionerClassName(content: ReactNode): string {
@@ -21,6 +22,7 @@ describe('Floating content layers', () => {
 
 		for (const className of [
 			readPositionerClassName(ComboboxContent({ positionerClassName: modalLayer })),
+			readPositionerClassName(DropdownMenuContent({ positionerClassName: modalLayer })),
 			readPositionerClassName(SelectContent({ positionerClassName: modalLayer })),
 		]) {
 			expect(className).toContain(modalLayer);
@@ -30,6 +32,7 @@ describe('Floating content layers', () => {
 
 	it('retains the generated default layer outside dialogs', () => {
 		expect(readPositionerClassName(ComboboxContent({}))).toContain('z-50');
+		expect(readPositionerClassName(DropdownMenuContent({}))).toContain('z-50');
 		expect(readPositionerClassName(SelectContent({}))).toContain('z-50');
 	});
 });

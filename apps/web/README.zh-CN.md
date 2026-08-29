@@ -8,6 +8,11 @@ Electron-only capability set 还包括来自 `@orchbee/desktop-client-protocol` 
 `agent-integration-management` port。它投影一个只读的十 Agent 本地 inventory，并且只接受
 Settings 中显式的 refresh、enable 与 disable request；Browser 与 Gateway composition 不提供它。
 
+同一个仅 Desktop SSH port 会把有界的可复用连接 catalog 投影到 Settings。它会分开 registry-backed
+connection 与从本地 OpenSSH user configuration 中发现的具体 alias，且只接受显式 Add、
+Connect、Retry、Disconnect 与 Refresh action。Browser 与 Gateway composition 不提供该 category
+及其 search entry。
+
 Electron Desktop 还会在固定 bootstrap bundle 中提供 Agent-observation 与
 Agent-integration-management port；Browser Preview 与 Gateway 均不提供。Agent-observation adapter
 会在 mount application 前请求一份严格的完整 snapshot，拒绝 malformed 或 uncorrelated
@@ -118,6 +123,12 @@ reminder 只存储 Agent ID；remote setup 仍只能手动完成。
 的有序偏好自动解析；一旦选择，严格的客户端本地记录优先，并且无需 reload 就会更新已挂载的
 产品文案。
 
+当 Desktop SSH capability 存在时，Settings 还会包含 **SSH 连接**。页面会分开可复用的**你的连接**
+与**来自你的 SSH 配置**建议，显示 connection state 与 Project 使用情况，并提供单地址手动
+Add。打开 category 或刷新只会请求有界本地 discovery；不会连接、提示或写配置。Suggestion
+只会在显式 Add 后成为 managed connection；连接变更必须显式执行 Connect、Retry 或 Disconnect。
+Credential 只会进入瞬时 Desktop AskPass flow，永不进入 Settings state。
+
 通用 Settings Action 会打开应用拥有的全窗口 overlay，而不是导航到其他路由。Workbench 子树变为 inert，但其 React tree 与每个 projected terminal attachment 保持 mounted。客户端本地 application theme、terminal font、有效默认 terminal color 和 default-background opacity 立即应用，并作为当前 Browser origin 的一项严格版本记录持久化。在 macOS Desktop 上，单独的严格本地记录选择左右 Option 键是否充当 terminal Alt；默认为关闭，接受的更改会更新每个 mounted projected terminal，而不替换 attachment。六十七个常用 Workbench 与聚焦终端快捷键（包括应用范围字号增大/减小/重置、在精确显示终端的当前目录创建终端标签页、四个方向 Panel-focus command、上一个/下一个 Panel 循环聚焦、十个精确按位置 Panel 聚焦命令、可视 Panel 聚焦与交换、四个方向 Panel-movement command、按比例均分 Panel、键盘 Panel 调整大小模式、活动标签页在其固定或未固定分区内的循环移动、可见终端 Hints、显示上一条命令输出与显示回滚历史）使用单独的严格本地 override 记录；接受的更改会更新 mounted Workbench 与每个 projected terminal，而不替换 attachment 或 connection。标准默认值保留未加 Shift 的 terminal control sequence，runtime Action availability 在消费任何按键前仍具有权威性。Application theme 与 terminal display theme 保持分离，terminal override 绝不修改 Host metadata、palette、cursor、VT 或 OSC state。本地 Desktop 还注入语义 shell-profile control。其显式 editor 可以创建、重命名、选择 system 或 custom executable、保留 literal argument order、选择 default、删除和确认 reset；每项接受的更改只影响 Main-owned catalog 提交后创建的 terminal。Gateway 与 Browser composition 不接收 profile capability。Desktop 会为新建且受支持的本地 Zsh、非登录 Bash 和 Fish 终端自动加载 Shell Integration，且不编辑启动文件；Settings 会解释该边界，把精确的内置 source 命令作为手动回退，并拥有单独的默认关闭设备本地 completion-reminder policy，通知绝不包含 command text。仅粘贴的 Ghostty migration dry-run 会报告无损 current target、manual-review case、ignored key 与 invalid line，但不读取文件、应用值或持久化 source text。Remote development category 是另一项只读 projection：它解释 `xterm-256color` baseline，公开一个固定 shell diagnostic，区分 observed environment 与 terminfo outcome，并声明 Orchbee 不会静默转发额外 environment variable 或修改 remote host。打开、搜索或切换到该 category 不启动 process、不写 terminal input，也不持久化 remote data。Desktop 还注入语义 Browser-access entry，用于创建或重置个人访问令牌、只展示一次新签发令牌，并在重置前停止活动 Browser 访问，而不把 Electron port 或 controller 暴露给通用 Settings module。参见 [`docs/terminal-settings.md`](docs/terminal-settings.md) 与 [`docs/keyboard-shortcuts.md`](docs/keyboard-shortcuts.md)。
 
 精确的 `terminal-parity/SU-09-theme` 见证会在一次原子发布前持有已准备 Host 结果及带修订标记的帧，随后观察终端默认值、调色板、光标、覆盖层、像素与应用表面共同发布同一匹配修订。它使用受控运行时呈现 Canvas 夹具，不对持久设置迁移、原生 OS 主题事件或渲染器拥有的终端调色板作出声明。
@@ -129,16 +140,24 @@ Web composition。
 
 `pnpm web` 使用本地化的侧边栏、独立终端上下文、项目和工作区导航以及每个选项卡面板工作区来呈现工作台外壳。浏览器组合创建一个 `ActionRuntime` 和一个内存 `WorkbenchProjectWorkspaceRuntime`。它仅以独立的终端上下文开始。一个人可以通过输入文件夹路径来创建内存中的项目；项目添加控件首先保留通用创建菜单，然后 `Select Folder…` 打开仅浏览器的路径条目来代替本机选择器。浏览器使用该路径作为初始项目文件夹和终端 CWD，而不声明该路径存在。 `New Folder…` 保持可见但被禁用，因为该组合不执行文件系统、Git、PTY 或持久存储效果。
 
-该 composition 还负责 locale 与 shortcut-platform setup。Electron Desktop 把原生 existing-Folder 获取与托管 Worktree capability 注入同一应用，因此 `Select Folder…` 会打开 OS picker，Project Manager 的 `Add Folder` 使用同一 capability 而不显示手动 path field，`New Worktree…` 则打开固定位置 Git form。普通 Browser Preview 与已认证 Gateway 页面不接收这两项 native capability，继续使用手动 Folder path 输入，且不显示 New Worktree。New Folder 仍需等待 environment adapter 拥有对应 effect。没有 Gateway marker 的普通 HTTP(S) URL 仍是内存 preview，不连接 Desktop Main。Desktop Main 打开或复制的非秘密 Gateway URL 会先把未鉴权用户重定向到 `/login`；个人访问令牌交换成功后创建 session Cookie，并在 Electron 及其他每个已鉴权页面共用的规范 Workbench document 与 terminal presentation 上创建新 page session 和 Client View。当前 activation 存活期间，reload 会复用 Cookie。关闭页面只释放其 attachment；重新打开 URL 会创建新 page session 与完整 projection snapshot。
+该 composition 还负责 locale 与 shortcut-platform setup。Electron Desktop 把原生 existing-Folder 获取与托管 Worktree capability 注入同一应用，因此 `Select Folder…` 会打开 OS picker，Project Manager 的 `Add Folder` 会提供明确的 local 与 SSH action，`New Worktree…` 则打开固定位置 Git form。Local attachment 使用 native picker，不显示手动 path field。SSH attachment 为精确的当前 Project 打开同一个单地址连接与已认证 remote-directory flow；Environment Folder 只会在 canonical publication 后出现在仍打开的 manager 中，并带有可见且已本地化的 SSH 标识。普通 Browser Preview 与已认证 Gateway 页面既不接收 native capability，也没有获得授权的 directory-listing adapter，因此继续使用手动 Folder path 输入，且不显示 New Worktree。App-owned canonical `RemoteDirectoryBrowser` 是一个受控且与数据源无关的替代界面，可供能发布有界只读 folder snapshot 的 remote adapter 使用；组件自身不授予 Gateway、transport 或 filesystem authority。New Folder 仍需等待 environment adapter 拥有对应 effect。没有 Gateway marker 的普通 HTTP(S) URL 仍是内存 preview，不连接 Desktop Main。Desktop Main 打开或复制的非秘密 Gateway URL 会先把未鉴权用户重定向到 `/login`；个人访问令牌交换成功后创建 session Cookie，并在 Electron 及其他每个已鉴权页面共用的规范 Workbench document 与 terminal presentation 上创建新 page session 和 Client View。当前 activation 存活期间，reload 会复用 Cookie。关闭页面只释放其 attachment；重新打开 URL 会创建新 page session 与完整 projection snapshot。
 
 POSIX Electron Desktop 还会注入专用 SSH Project capability。**通过 SSH 连接…** 会打开 application-owned
-多步 dialog，用于 Environment 名称、destination 或 alias、可选绝对 SSH configuration path、绝对 POSIX
-Project path、有界 progress，以及精确 host-key 或 credential prompt。Prompt response 只在 controller 中短暂
-保留，以回答匹配的 request、generation 与 handle。Main 成功结果不会让 renderer optimistic mutation：
+多步 dialog，初始只需一个 SSH 地址。Main 使用默认 OpenSSH configuration、派生 Environment display
+identity、通过精确 host-key 或 credential prompt 建立连接，随后以已认证 remote home 与有界只读
+child-folder snapshot 驱动共享 `RemoteDirectoryBrowser`。Breadcrumb 与 folder row 用于导航；可编辑 absolute
+path 是大型或 truncated directory 的 fallback。Prompt response 与 directory snapshot 只在 controller 中短暂
+保留，以回答精确关联的 interaction。Main 成功结果不会让 renderer optimistic mutation：
 controller 等待 canonical shared-document publication，随后只有发起 client 导航到已准入 Workspace。有界
 publication timeout 会保留为可恢复的失败 dialog，因此 Retry 可以 reconcile 精确 target 与 identity。
 Enrollment 不创建 terminal。Project row 投影进程内 remote status，并且只提供适用的 Connect、Retry 或
 Disconnect control。Browser Preview 与 Gateway 不接收这项 capability 或 UI。
+
+Project manager 的 SSH action 只提供精确 target Project identity 与 SSH address。Main 复用该 connection、
+directory browser、prompt lease 与最终 inspection，然后只追加所选的 unavailable Environment Folder。它保留
+Project name、primary Folder、Workspace、active location 与 terminal context。一个 Project 可以包含来自同一
+SSH Environment 的多个 path，但不能包含来自两个 SSH Environment 的 path；duplicate 与 cross-Project
+location 会在 publication 前 fail closed。
 
 Gateway 复制选择时会从 Terminal Host 获取有界 UTF-8 选择字节，并可用浏览器剪贴板 API 提交。每次写入都动态解析当前 API，并要求 `window.isSecureContext` 与活动的瞬态 `navigator.userActivation`；复制 Action 可用性使用同一实时检查，最终效果在 Host 往返后再次检查。API 缺失、激活过期、上下文不安全、能力探测失败或写入被拒绝时，操作会失败并以有界局部表面结果结束。浏览器路径不执行重试、`execCommand`、服务器中继、隐藏降级、剪贴板读取或图像字节读取。当前 insecure-LAN 组合未安装手动复制呈现，因此不公开特权复制路径，Copy 保持不可用；未来经审核的手动复制呈现必须保持明确的非剪贴板交互。剪贴板效果归属明确后，自动与手动准入的复制尝试共享一个本地化表面级成功/失败公告；复制反馈不依赖查找表面是否打开。Gateway 链接使用仅允许 `http`、`https` 与 `mailto` 的本地浏览器效果；自动检测、投影悬停/上下文、Workbench Action 可用性及最终效果都消费终端包中的同一规范化策略。页面不获得 Electron Main 效果能力。只有 Electron 会通过第九个 bootstrap 端口注入关联响应、受终端输入上限约束的纯文本读取器；它继续使用 Main 拥有的剪贴板，并在特权边界独立重新校验同一窄化 scheme 集合。
 

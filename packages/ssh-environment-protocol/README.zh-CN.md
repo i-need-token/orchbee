@@ -1,6 +1,6 @@
 # SSH Environment 协议
 
-由 Desktop 与每个 Environment 独立的 SSH Runtime 共享的严格二进制 framing。版本 `0.2.0`
+由 Desktop 与每个 Environment 独立的 SSH Runtime 共享的严格二进制 framing。版本 `0.3.0`
 提供精确的 Hello handshake、Runtime instance 与 epoch identity、heartbeat liveness、channel
 lifecycle record、二进制 channel data，以及 byte-credit flow control。
 
@@ -23,25 +23,35 @@ length。
 
 Hello acceptance 标识一份不可变的 Runtime build、一个 release cohort、一个 Terminal Host
 version/build、一个 daemon instance 与一个 Runtime epoch。重新连接可以附着到同一个 epoch；Runtime
-重启后必须报告新 epoch。Runtime 精确 advertise 有序的 `[project-root-v1, terminal-host-v1]` pair，
+重启后必须报告新 epoch。Runtime 精确 advertise 有序的 `[project-root-v2, terminal-host-v1]` pair，
 Desktop 要求该精确 pair。协议不提供 downgrade、dual-stack negotiation 或 placeholder capability。
 
 ## Project-root service contract
 
-一个 `project-root-v1` channel 精确承载一条 strict request：
+一个 `project-root-v2` channel 精确承载一条 strict request。Canonical inspection 使用：
 
 ```json
 { "type": "inspect-project-root", "path": "/absolute/posix/path" }
 ```
 
-Path 必须是有效 UTF-8、absolute POSIX text、encoded bytes 不超过 4,096，并且不包含 NUL 或 control
-character。双方都不进行 tilde、environment-variable、wildcard、command 或 shell expansion。完整 request
-与 result 各自不超过 16 KiB，每个方向精确获得 64 KiB channel credit。
+已认证的 directory listing 使用：
+
+```json
+{ "type": "list-project-directory", "path": null }
+```
+
+`null` 选择 Runtime process 已验证的绝对 `HOME`；绝对 path 用于直接导航。每个 path 都必须是有效
+UTF-8、absolute POSIX text、encoded bytes 不超过 4,096，并且不包含 NUL 或 control character。双方都不
+进行 tilde、environment-variable、wildcard、command 或 shell expansion。完整 request 与 result 各自不
+超过 128 KiB，每个方向精确获得 128 KiB channel credit。
 
 Result 要么是 `{"kind":"resolved","canonicalPath":"/..."}`，要么是
 `{"kind":"failed","reason":"..."}`。Failure reason 封闭为 `invalid-path`、`not-found`、
 `not-directory`、`permission-denied`、`timed-out`、`busy` 与 `unavailable`。Channel identity 是唯一
-correlation identity；service schema 不引入 Project、Checkout、Workspace 或 directory identity。
+correlation identity；service schema 不引入 Project、Checkout、Workspace 或 directory identity。Listing
+result 包含 canonical path、可选 canonical parent、最多 256 个已排序 child entry；每个 entry 只含一个
+最多 255 字节的 UTF-8 directory name，并带有 `truncated` flag。它不暴露 file entry 或 file byte；symlink
+只有在其 target 可作为 directory 打开时才会出现。
 
 ## Terminal Host relay contract
 
@@ -72,7 +82,7 @@ packaging 无法静默选择不同 layout 或混用 v1 与 v2。
 
 本 package 只是一份 data contract。它不能 build 或 sign artifact、持有 private key、验证 package
 trust、组合 release、创建连接、安装或启动 component、认证 peer、重试 attachment、授权 inspection
-或执行 filesystem work。它拥有精确 `project-root-v1` schema/codec 与 `terminal-host-v1` opaque relay
+或执行 filesystem work。它拥有精确 `project-root-v2` schema/codec 与 `terminal-host-v1` opaque relay
 envelope，但刻意不提供通用 execute-command record。任何新增 Runtime service 都必须由其所属 subsystem
 显式 advertised、admitted、authorized 并实现。
 

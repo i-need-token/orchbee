@@ -3,6 +3,7 @@ import {
 	type ChildProcessWithoutNullStreams,
 	type SpawnOptionsWithStdioTuple,
 } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 import type { Readable, Writable } from 'node:stream';
 
@@ -31,6 +32,7 @@ export interface OpenSshTransport {
 }
 
 interface OpenSshTransportAdapterDependencies {
+	readonly fileExists?: ((path: string) => boolean) | undefined;
 	readonly spawn: (
 		executablePath: string,
 		arguments_: readonly string[],
@@ -39,20 +41,27 @@ interface OpenSshTransportAdapterDependencies {
 }
 
 const defaultDependencies: OpenSshTransportAdapterDependencies = {
+	fileExists: existsSync,
 	spawn: (executablePath, arguments_, options) => spawn(executablePath, arguments_, options),
 };
 
 export class OpenSshTransportAdapter {
+	readonly #defaultConfigurationFilePath: null | string;
 	readonly #dependencies: OpenSshTransportAdapterDependencies;
 	readonly #executablePath: string;
 
 	constructor(
 		executablePath: string,
 		dependencies: OpenSshTransportAdapterDependencies = defaultDependencies,
+		defaultConfigurationFilePath: null | string = null,
 	) {
 		if (!isAbsolute(executablePath)) {
 			throw new Error('OpenSSH executable path must be absolute.');
 		}
+		if (defaultConfigurationFilePath !== null && !isAbsolute(defaultConfigurationFilePath)) {
+			throw new Error('Default OpenSSH configuration path must be absolute.');
+		}
+		this.#defaultConfigurationFilePath = defaultConfigurationFilePath;
 		this.#executablePath = executablePath;
 		this.#dependencies = dependencies;
 	}
@@ -65,7 +74,16 @@ export class OpenSshTransportAdapter {
 	}): OpenSshTransport {
 		const child: ChildProcessWithoutNullStreams = this.#dependencies.spawn(
 			this.#executablePath,
-			createOpenSshArguments(options),
+			createOpenSshArguments(
+				options,
+				options.target.configurationFilePath ??
+					(this.#defaultConfigurationFilePath !== null &&
+					(this.#dependencies.fileExists ?? defaultDependencies.fileExists)?.(
+						this.#defaultConfigurationFilePath,
+					)
+						? this.#defaultConfigurationFilePath
+						: null),
+			),
 			{
 				env: { ...process.env, ...options.askPass.environment },
 				stdio: ['pipe', 'pipe', 'pipe'],
@@ -95,11 +113,14 @@ export class OpenSshTransportAdapter {
 	}
 }
 
-function createOpenSshArguments(options: {
-	readonly remoteCommand: string;
-	readonly resolvedTarget: SshEnvironmentResolvedTarget;
-	readonly target: SshEnvironmentTargetReference;
-}): string[] {
+function createOpenSshArguments(
+	options: {
+		readonly remoteCommand: string;
+		readonly resolvedTarget: SshEnvironmentResolvedTarget;
+		readonly target: SshEnvironmentTargetReference;
+	},
+	configurationFilePath: null | string,
+): string[] {
 	const { resolvedTarget, target } = options;
 	const arguments_ = [
 		'-T',
@@ -164,8 +185,8 @@ function createOpenSshArguments(options: {
 		'-o',
 		`User=${resolvedTarget.user}`,
 	];
-	if (target.configurationFilePath !== null) {
-		arguments_.push('-F', target.configurationFilePath);
+	if (configurationFilePath !== null) {
+		arguments_.push('-F', configurationFilePath);
 	}
 	arguments_.push('--', target.destination, options.remoteCommand);
 	return arguments_;

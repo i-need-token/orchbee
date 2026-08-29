@@ -6,6 +6,7 @@ export const DESKTOP_SSH_PROJECT_ENROLLMENT_FAILURE_MESSAGES = {
 	busy: desktopSshProjectMessages.failureBusy,
 	connection: desktopSshProjectMessages.failureConnection,
 	control: desktopSshProjectMessages.failureControl,
+	'project-attachment': desktopSshProjectMessages.failureProjectAttachment,
 	'project-path': desktopSshProjectMessages.failureProjectPath,
 	storage: desktopSshProjectMessages.failureStorage,
 	target: desktopSshProjectMessages.failureTarget,

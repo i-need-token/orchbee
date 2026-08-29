@@ -9,6 +9,8 @@ export { zhCNDesktopSshProjectMessages } from './desktop-ssh-project';
 export { zhCNDesktopWindowMessages } from './desktop-window';
 export { zhCNKeyboardShortcutMessages } from './keyboard-shortcuts';
 export { zhCNProjectedTerminalMessages } from './projected-terminal';
+export { zhCNRemoteDirectoryBrowserMessages } from './remote-directory-browser';
+export { zhCNSshConnectionManagementMessages } from './ssh-connection-management';
 export { zhCNMessages } from './messages';
 export { zhCNTerminalSettingsMessages } from './terminal-settings';
 export { zhCNTerminalSettingsCatalogMessages } from './terminal-settings-catalog';

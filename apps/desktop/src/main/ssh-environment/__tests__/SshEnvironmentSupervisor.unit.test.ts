@@ -35,7 +35,7 @@ import { verifySshEnvironmentReleaseCatalog } from '../verify-ssh-environment-re
 
 const runtimeInstanceId = SshEnvironmentRuntimeInstanceIdSchema.parse('1'.repeat(32));
 const runtimeEpoch = SshEnvironmentRuntimeEpochSchema.parse('2'.repeat(32));
-const runtimeVersion = SshEnvironmentRuntimeVersionSchema.parse('0.1.0');
+const runtimeVersion = SshEnvironmentRuntimeVersionSchema.parse('0.2.0');
 const terminalHostVersion = SshEnvironmentTerminalHostVersionSchema.parse('0.1.0');
 const artifactBytes = Buffer.from('signed Runtime artifact');
 const terminalHostArtifactBytes = Buffer.from('signed Terminal Host artifact');

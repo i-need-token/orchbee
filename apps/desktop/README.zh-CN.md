@@ -306,12 +306,13 @@ Environment 一个的 detached Runtime daemon，并通过 SSH stdio 直接承载
 Runtime identity 与 epoch 后准入 `connected`，并且只在一次已证明的连接后 retry 丢失的 attachment。停止
 本地 attachment 不会停止远端 daemon，也不表示删除 Project。
 
-精确 `0.2.0` protocol 公布 `project-root-v1` 与 `terminal-host-v1`。Desktop Main 可以通过已连接的
-Environment owner 检查一个显式的 absolute POSIX Project-root candidate，并接收其 canonical directory path
-或有界 failure。该调用永不 connect 或等待 reconnect；每个 Environment 最多同时执行四个调用，每个调用
-最多 30 秒；caller cancellation 或 attachment loss 会取消调用且不 replay。Opaque Terminal Host relay 在
-同一 attachment 上使用 bounded credit，并暴露一个已协商的进程内 `HostConnection`；它不增加 generic
-command 或 filesystem protocol。
+精确 `0.3.0` protocol 公布 `project-root-v2` 与 `terminal-host-v1`。Desktop Main 可以通过已连接的
+Environment owner 检查一个显式 absolute POSIX Project-root candidate，或请求从 Runtime home 开始的有界
+read-only directory snapshot。每份 snapshot 只包含 canonical path、可选 parent、最多 256 个已排序且可访问
+的 child-directory name，以及 truncation flag。调用永不 connect 或等待 reconnect；每个 Environment 最多
+同时执行四个调用，每个调用最多 30 秒；caller cancellation 或 attachment loss 会取消调用且不 replay。
+Opaque Terminal Host relay 在同一 attachment 上使用 bounded credit，并暴露一个已协商的进程内
+`HostConnection`；两项 service 都不增加 generic command 或 file-byte access。
 
 Main 可以把已检查 root 准入为一个 durable Environment-placed Project 与 inactive Workspace，然后在
 canonical Presentation intent commit 后显式 provision 第一个 terminal。Remote runtime、binding ledger、
@@ -323,21 +324,33 @@ evidence、Client broadcast 与 journal compaction。Disconnect 或 restart 会�
 recovery 自身永不 activate 或 reconnect SSH。
 
 在 POSIX Electron Desktop 上，Workbench 通过第十四个 bootstrap port 提供 **通过 SSH 连接…**、remote
-status 以及 Connect、Retry、Disconnect 控件。Desktop-owned dialog 只提交有界 Environment 显示名称、
-destination 或 alias、可选绝对 SSH configuration path 与绝对 POSIX Project path。Main 解析 target、分配
-opaque identity 或复用精确已准入 target，建立一项 request-scoped interaction lease，并且只把精确
-generation 与 prompt handle 转发给瞬时 AskPass UI。Enrollment 依次完成 durable Environment、connection
-readiness、canonical root inspection 与 canonical Workbench commit；publication 后只有发起 client 会导航到
-新 Workspace。Enrollment 不创建 terminal。经确认的 pre-commit cancellation 会保留任何 registry identity；
+status 以及 Connect、Retry、Disconnect 控件。Desktop-owned dialog 最初只提交一个有界 SSH 地址。Main 使用
+默认 OpenSSH configuration、派生 display name、分配 opaque identity 或复用精确已准入 target，通过精确的
+瞬时 AskPass prompt 连接，随后发布一项按 request 与 revision 关联的 remote directory chooser。选择文件夹
+后会在 Workbench commit 前触发独立 canonical inspection；publication 后只有发起 client 会导航到新
+Workspace。Enrollment 不创建 terminal。经确认的 pre-commit cancellation 会保留任何 registry identity；
 可能已经 commit 的不确定 outcome 会 fail closed，等待 reload 或 restart reconciliation，而不会回滚 durable
 state。
+
+同一个 dedicated port 还支持 Project manager 的 SSH Folder action。Renderer request 只携带精确 Project
+identity 与 SSH address。Main 重复 target resolution、connection、remote selection 与 canonical inspection，
+然后原子追加 unavailable Environment Folder，而不改变 Project name、primary Directory、Workspace
+structure、active location 或 terminal context。精确 duplicate 是 idempotent；同一 remote location 不能属于
+第二个 Project；一个 Project 不能跨越多个 SSH Environment identity。
+
+Desktop Settings 会把 registry 显示为专门的 **SSH 连接** category。它明确分开 registry-backed
+**你的连接**与只读的**来自你的 SSH 配置**建议，显示当前 process-local state 与 Project 使用情况，
+并接受手动单地址 Add 及显式 Connect、Retry 与 Disconnect action。打开或刷新页面只会对
+`~/.ssh/config` 及其 user `Include` graph 执行有界本地 discovery；它不启动 OpenSSH、不提示、
+不写配置，也不 activate 连接。添加自动发现或手动输入的 destination 时，会先用 `ssh -G`
+解析，再记录或复用 Environment，但不连接或打开 Project。
 
 `DesktopApplication` 把 registry 与一个按 Environment identity 建立、只通过显式 activation 启动的进程内
 connection owner 组合起来。它永不 auto-connect，会串行化重复 connect 与 disconnect，并在 shutdown 时
 dispose 所有 active supervisor。Desktop restart 与 Project projection 永不 activate SSH；显式 enrollment、
 Connect 或 Retry 在需要时提供 interaction lease，而已证明的 live-connection loss 可以使用 generation-fenced
-automatic retry。产品 surface 不公开通用 Environment 编辑或移除、Runtime network feed、remote directory
-listing、file access、filesystem watch 或 mutation、额外 remote terminal、terminal
+automatic retry。产品 surface 不公开 Environment rename 或移除、Runtime network feed、通用或 retained
+remote directory browsing、file-byte access、filesystem watch 或 mutation、额外 remote terminal、terminal
 close/restart/split/archive command、Git operation、Agent execution、service installation、Windows
 activation、Gateway enrollment 或 CLI enrollment。Release input 只存在于显式 package command；不含
 release 的 package 会 block activation。持续维护的连接合约、转换表、安全边界、形式化声明与精确限制位于
