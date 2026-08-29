@@ -487,21 +487,102 @@ describe('TabStrip', () => {
 		expect(leadingActions.nextElementSibling).toBe(track);
 	});
 
-	it('selects with the pointer but leaves unmodified focus-navigation keys to Views accessibility', () => {
+	it('keeps one roving composite stop and moves focus without activating a Tab', () => {
 		const model = createModel();
 		render(<TabStrip model={model} />);
+		expect(
+			[...document.querySelectorAll('[data-tab-strip-roving-key][tabindex="0"]')].map((element) =>
+				element.getAttribute('data-tab-strip-roving-key'),
+			),
+		).toEqual(['tab:research-a']);
+		expect(screen.getByRole('button', { name: 'New tab' }).getAttribute('tabindex')).toBe('0');
 
 		const loose = screen.getByRole('tab', { name: /^Loose/ });
-		fireEvent.pointerDown(loose, { button: 0, pointerId: 1, clientX: 100, clientY: 10 });
-		fireEvent.pointerUp(window, { button: 0, pointerId: 1, clientX: 100, clientY: 10 });
+		act(() => model.selectTab('loose'));
 		expect(model.getSnapshot().activeTabId).toBe('loose');
+		expect(loose.getAttribute('tabindex')).toBe('0');
 
 		loose.focus();
 		fireEvent.keyDown(loose, { key: 'ArrowLeft' });
-		fireEvent.keyDown(loose, { key: 'Home' });
+		const researchB = screen.getByRole('tab', { name: /^Research B/ });
+		expect(document.activeElement).toBe(researchB);
 		expect(model.getSnapshot().activeTabId).toBe('loose');
-		expect(document.activeElement).toBe(loose);
+		expect(researchB.getAttribute('tabindex')).toBe('0');
 		expect(loose.getAttribute('tabindex')).toBe('-1');
+
+		fireEvent.keyDown(researchB, { key: 'Home' });
+		const pinned = screen.getByRole('tab', { name: /^Pinned/ });
+		expect(document.activeElement).toBe(pinned);
+		expect(model.getSnapshot().activeTabId).toBe('loose');
+
+		fireEvent.keyDown(pinned, { key: ' ' });
+		expect(model.getSnapshot().activeTabId).toBe('loose');
+		fireEvent.keyUp(pinned, { key: ' ' });
+		expect(model.getSnapshot().activeTabId).toBe('pinned');
+		expect(document.activeElement).toBe(pinned);
+	});
+
+	it('uses vertical arrows, wraps boundaries, and projects a collapsed active group', () => {
+		const model = createModel();
+		render(<TabStrip model={model} orientation={TabStripOrientation.Vertical} />);
+		const researchA = screen.getByRole('tab', { name: /^Research A/ });
+		researchA.focus();
+
+		fireEvent.keyDown(researchA, { key: 'ArrowUp' });
+		expect(document.activeElement).toBe(
+			screen.getByRole('tablist', { name: /^Research, 2 tabs.*expanded$/ }),
+		);
+		const focusedGroup = document.activeElement;
+		if (focusedGroup === null) throw new Error('Expected the group header to receive focus.');
+		fireEvent.keyDown(focusedGroup, { key: 'Home' });
+		const pinned = screen.getByRole('tab', { name: /^Pinned/ });
+		expect(document.activeElement).toBe(pinned);
+		fireEvent.keyDown(pinned, { key: 'ArrowUp' });
+		expect(document.activeElement).toBe(screen.getByRole('tab', { name: /^Loose/ }));
+
+		researchA.focus();
+		act(() => model.toggleGroupCollapsed('research'));
+		const collapsedGroup = screen.getByRole('tablist', {
+			name: /^Research, 2 tabs.*collapsed$/,
+		});
+		expect(collapsedGroup.getAttribute('tabindex')).toBe('0');
+		expect(
+			screen.getByRole('tab', { name: /^Research A/, hidden: true }).getAttribute('tabindex'),
+		).toBe('-1');
+	});
+
+	it('opens exact Tab and group context menus from keyboard requests', () => {
+		const model = createModel();
+		render(<TabStrip model={model} />);
+		const loose = screen.getByRole('tab', { name: /^Loose/ });
+		loose.focus();
+
+		fireEvent.keyDown(loose, { key: 'F10', shiftKey: true });
+		expect(screen.getByRole('menuitem', { name: 'Duplicate' })).toBeTruthy();
+		fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape' });
+
+		const group = screen.getByRole('tablist', { name: /^Research, 2 tabs.*expanded$/ });
+		group.focus();
+		fireEvent.keyDown(group, { key: 'ContextMenu' });
+		expect(screen.getByRole('menu', { name: 'Group options' })).toBeTruthy();
+		expect((screen.getByRole('textbox', { name: 'Group name' }) as HTMLInputElement).value).toBe(
+			'Research',
+		);
+	});
+
+	it('fulfills each newer host focus request at the current roving entry', () => {
+		const model = createModel();
+		const { rerender } = render(<TabStrip focusRequest={0} model={model} />);
+		expect(document.activeElement).toBe(document.body);
+
+		rerender(<TabStrip focusRequest={1} model={model} />);
+		expect(document.activeElement).toBe(screen.getByRole('tab', { name: /^Research A/ }));
+
+		const loose = screen.getByRole('tab', { name: /^Loose/ });
+		loose.focus();
+		fireEvent.blur(loose, { relatedTarget: document.body });
+		rerender(<TabStrip focusRequest={2} model={model} />);
+		expect(document.activeElement).toBe(loose);
 	});
 
 	it('selects touch tabs on gesture-down and starts dragging after crossing the threshold', () => {

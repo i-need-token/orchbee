@@ -16,6 +16,7 @@ export const WORKBENCH_ACTION_IDS = {
 	deleteWorkspace: 'workbench.workspace.delete',
 	duplicateWorkspace: 'workbench.workspace.duplicate',
 	equalizeActivePanels: 'workbench.panel.active.equalize',
+	focusActiveTerminal: 'workbench.focus.active-terminal',
 	focusActivePanelDown: 'workbench.panel.active.focus-down',
 	focusActivePanelLeft: 'workbench.panel.active.focus-left',
 	focusActivePanelByPosition: 'workbench.panel.active.focus-by-position',
@@ -24,6 +25,10 @@ export const WORKBENCH_ACTION_IDS = {
 	focusActivePanelRight: 'workbench.panel.active.focus-right',
 	focusActivePanelUp: 'workbench.panel.active.focus-up',
 	focusActivePanelVisible: 'workbench.panel.active.focus-visible',
+	focusNextRegion: 'workbench.focus.next-region',
+	focusPreviousRegion: 'workbench.focus.previous-region',
+	focusSidebar: 'workbench.focus.sidebar',
+	focusTabStrip: 'workbench.focus.tab-strip',
 	increaseTerminalFontSize: 'workbench.terminal.font-size.increase',
 	openSearch: 'workbench.search.open',
 	openPanelBroadcastInput: 'workbench.panel.active.broadcast-input.open',
@@ -150,6 +155,7 @@ export interface WorkbenchActionCatalog {
 	readonly [WORKBENCH_ACTION_IDS.deleteWorkspace]: ActionSignature<WorkbenchWorkspaceInput>;
 	readonly [WORKBENCH_ACTION_IDS.duplicateWorkspace]: ActionSignature<WorkbenchWorkspaceInput>;
 	readonly [WORKBENCH_ACTION_IDS.equalizeActivePanels]: ActionSignature<void>;
+	readonly [WORKBENCH_ACTION_IDS.focusActiveTerminal]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.focusActivePanelDown]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.focusActivePanelLeft]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.focusActivePanelByPosition]: ActionSignature<WorkbenchPanelPositionInput>;
@@ -158,6 +164,10 @@ export interface WorkbenchActionCatalog {
 	readonly [WORKBENCH_ACTION_IDS.focusActivePanelRight]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.focusActivePanelUp]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.focusActivePanelVisible]: ActionSignature<void>;
+	readonly [WORKBENCH_ACTION_IDS.focusNextRegion]: ActionSignature<void>;
+	readonly [WORKBENCH_ACTION_IDS.focusPreviousRegion]: ActionSignature<void>;
+	readonly [WORKBENCH_ACTION_IDS.focusSidebar]: ActionSignature<void>;
+	readonly [WORKBENCH_ACTION_IDS.focusTabStrip]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.increaseTerminalFontSize]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.openSearch]: ActionSignature<WorkbenchSearchOpenInput>;
 	readonly [WORKBENCH_ACTION_IDS.openPanelBroadcastInput]: ActionSignature<void>;

@@ -33,6 +33,31 @@ export const workbenchMessages = defineMessages({
 		defaultMessage: enUSWorkbenchMessages['workbench.actions.states.unavailable'],
 		description: 'Reason shown when a host does not provide an optional Workbench action.',
 	},
+	focusActiveTerminal: {
+		id: 'workbench.focus.actions.activeTerminal',
+		defaultMessage: enUSWorkbenchMessages['workbench.focus.actions.activeTerminal'],
+		description: 'Action that focuses the displayed terminal in the active Workbench Panel.',
+	},
+	focusNextRegion: {
+		id: 'workbench.focus.actions.nextRegion',
+		defaultMessage: enUSWorkbenchMessages['workbench.focus.actions.nextRegion'],
+		description: 'Action that focuses the next available ordinary Workbench region.',
+	},
+	focusPreviousRegion: {
+		id: 'workbench.focus.actions.previousRegion',
+		defaultMessage: enUSWorkbenchMessages['workbench.focus.actions.previousRegion'],
+		description: 'Action that focuses the previous available ordinary Workbench region.',
+	},
+	focusSidebar: {
+		id: 'workbench.focus.actions.sidebar',
+		defaultMessage: enUSWorkbenchMessages['workbench.focus.actions.sidebar'],
+		description: 'Action that focuses the active destination in the visible Workbench sidebar.',
+	},
+	focusTabStrip: {
+		id: 'workbench.focus.actions.tabStrip',
+		defaultMessage: enUSWorkbenchMessages['workbench.focus.actions.tabStrip'],
+		description: 'Action that focuses the remembered item in the Workbench Tab Strip.',
+	},
 	hideSidebar: {
 		id: 'workbench.sidebar.actions.hide',
 		defaultMessage: enUSWorkbenchMessages['workbench.sidebar.actions.hide'],

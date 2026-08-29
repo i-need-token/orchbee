@@ -41,6 +41,9 @@ export function TabStripView({
 		showNewTabButton,
 		touchUi,
 		onTabKeyboardFocusChanged,
+		onRovingFocusChanged,
+		onRovingFocusExited,
+		rovingFocusKey,
 		onMoveTabsToNewWindow,
 		onMoveGroupToNewWindow,
 		onMoveTabsToWindow,
@@ -177,6 +180,13 @@ export function TabStripView({
 						target instanceof Element
 							? target.closest<HTMLElement>('[data-tab-id], [data-group-id]')
 							: null;
+					if (anchor?.dataset['tabId']) {
+						onRovingFocusChanged(`tab:${anchor.dataset['tabId']}`);
+					} else if (anchor?.dataset['groupId']) {
+						onRovingFocusChanged(`group:${anchor.dataset['groupId']}`);
+					} else {
+						onRovingFocusChanged(null);
+					}
 					if (anchor?.dataset['tabId']) onTabKeyboardFocusChanged?.(anchor.dataset['tabId']);
 					if (anchor && event.currentTarget.contains(anchor)) {
 						if (anchor.dataset['tabId'])
@@ -203,6 +213,7 @@ export function TabStripView({
 						expandOnHoverController.setFocused(false);
 					}
 					if (!(next instanceof Node) || !event.currentTarget.contains(next)) {
+						onRovingFocusExited();
 						onTabKeyboardFocusChanged?.(null);
 					}
 					const anchor =
@@ -236,6 +247,7 @@ export function TabStripView({
 						onGroupKeyDown={onGroupKeyDown}
 						onTabKeyDown={onTabKeyDown}
 						onTabKeyUp={onTabKeyUp}
+						rovingFocusKey={rovingFocusKey}
 						onTabMouseEnter={onTabMouseEnter}
 						onGroupMouseEnter={onGroupMouseEnter}
 						showGroupHoverCards={showGroupHoverCards}

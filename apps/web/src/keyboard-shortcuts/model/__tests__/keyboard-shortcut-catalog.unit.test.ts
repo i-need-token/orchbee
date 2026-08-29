@@ -10,9 +10,9 @@ import {
 } from '../keyboard-shortcut-catalog';
 
 describe('keyboard shortcut catalog', () => {
-	it('combines the fifty-one Workbench and sixteen projected-terminal declarations once', () => {
-		expect(KEYBOARD_SHORTCUT_CATALOG).toHaveLength(67);
-		expect(new Set(KEYBOARD_SHORTCUT_IDS).size).toBe(67);
+	it('combines the fifty-three Workbench and sixteen projected-terminal declarations once', () => {
+		expect(KEYBOARD_SHORTCUT_CATALOG).toHaveLength(69);
+		expect(new Set(KEYBOARD_SHORTCUT_IDS).size).toBe(69);
 		expect(keyboardShortcutDeclaration('workbench.search.actions.open')).toMatchObject({
 			actionId: 'workbench.search.open',
 			actionInput: { filter: 'actions' },
@@ -21,6 +21,20 @@ describe('keyboard shortcut catalog', () => {
 		expect(keyboardShortcutDeclaration('workbench.search.all.open')).toMatchObject({
 			actionId: 'workbench.search.open',
 			actionInput: { filter: 'all' },
+		});
+		expect(keyboardShortcutDeclaration('workbench.focus.next-region')).toMatchObject({
+			actionId: 'workbench.focus.next-region',
+			actionInput: undefined,
+			availability: 'always-in-workbench',
+			name: 'focus-next-region',
+			scope: 'workbench',
+		});
+		expect(keyboardShortcutDeclaration('workbench.focus.previous-region')).toMatchObject({
+			actionId: 'workbench.focus.previous-region',
+			actionInput: undefined,
+			availability: 'always-in-workbench',
+			name: 'focus-previous-region',
+			scope: 'workbench',
 		});
 		expect(keyboardShortcutDeclaration('workbench.terminal.active.close')).toMatchObject({
 			actionId: 'workbench.terminal.active.close',

@@ -46,6 +46,7 @@ export function TabButton({
 	onMouseLeave,
 	onKeyDown,
 	onKeyUp,
+	tabIndex: rovingTabIndex,
 	touchUi,
 	closeButtonAllowed,
 	declutterEnabled = false,
@@ -67,6 +68,7 @@ export function TabButton({
 	onMouseLeave: () => void;
 	onKeyDown: (event: React.KeyboardEvent, tabId: string) => void;
 	onKeyUp: (event: React.KeyboardEvent, tabId: string) => void;
+	tabIndex: -1 | 0;
 	touchUi: boolean;
 	closeButtonAllowed: boolean;
 	declutterEnabled?: boolean;
@@ -135,7 +137,7 @@ export function TabButton({
 			? null
 			: (snapshot.groups.find((candidate) => candidate.id === tab.group) ?? null);
 	const separatorBounds = getHorizontalTabSeparatorBounds(renderedWidth);
-	const tabIndex = snapshot.tabs.findIndex((candidate) => candidate.id === tab.id);
+	const tabPositionIndex = snapshot.tabs.findIndex((candidate) => candidate.id === tab.id);
 	const separatorStateFor = (candidate: Readonly<TabData> | undefined) =>
 		candidate
 			? {
@@ -152,13 +154,13 @@ export function TabButton({
 			hovered: false,
 			group: tab.group,
 		},
-		previous: separatorStateFor(snapshot.tabs[tabIndex - 1]),
-		next: separatorStateFor(snapshot.tabs[tabIndex + 1]),
+		previous: separatorStateFor(snapshot.tabs[tabPositionIndex - 1]),
+		next: separatorStateFor(snapshot.tabs[tabPositionIndex + 1]),
 		tabCount: snapshot.tabs.length,
 		declutterEnabled,
 	});
-	const previousTabHovered = hoveredTabId === snapshot.tabs[tabIndex - 1]?.id;
-	const nextTabHovered = hoveredTabId === snapshot.tabs[tabIndex + 1]?.id;
+	const previousTabHovered = hoveredTabId === snapshot.tabs[tabPositionIndex - 1]?.id;
+	const nextTabHovered = hoveredTabId === snapshot.tabs[tabPositionIndex + 1]?.id;
 	const content = (
 		<span className={styles['ct-tab__content']} data-tab-content=''>
 			{childVisibility.showFavicon ? (
@@ -183,14 +185,15 @@ export function TabButton({
 		<div
 			ref={tabViewRef}
 			role='tab'
-			tabIndex={-1}
+			tabIndex={rovingTabIndex}
 			aria-selected={selected}
-			aria-posinset={tabIndex + 1}
+			aria-posinset={tabPositionIndex + 1}
 			aria-setsize={snapshot.tabs.length}
 			aria-label={messages.formatTabAccessibleLabel(tab, group)}
 			title=''
 			className={styles['ct-tab']}
 			data-tab-id={tab.id}
+			data-tab-strip-roving-key={`tab:${tab.id}`}
 			data-active={active || undefined}
 			data-selected={selected || undefined}
 			data-hovered={visualHovered || undefined}

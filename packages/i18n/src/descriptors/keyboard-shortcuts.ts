@@ -14,6 +14,7 @@ export const keyboardShortcutMessages = defineMessages({
 	decreaseTerminalFontSize: message('keyboard.shortcuts.actions.decreaseTerminalFontSize'),
 	equalizePanels: message('keyboard.shortcuts.actions.equalizePanels'),
 	find: message('keyboard.shortcuts.actions.find'),
+	focusNextRegion: message('keyboard.shortcuts.actions.focusNextRegion'),
 	focusPanelDown: message('keyboard.shortcuts.actions.focusPanelDown'),
 	focusPanelLeft: message('keyboard.shortcuts.actions.focusPanelLeft'),
 	focusPanelPosition: message(
@@ -25,6 +26,7 @@ export const keyboardShortcutMessages = defineMessages({
 	focusPanelRight: message('keyboard.shortcuts.actions.focusPanelRight'),
 	focusPanelUp: message('keyboard.shortcuts.actions.focusPanelUp'),
 	focusPanelVisible: message('keyboard.shortcuts.actions.focusPanelVisible'),
+	focusPreviousRegion: message('keyboard.shortcuts.actions.focusPreviousRegion'),
 	globalSearch: message('keyboard.shortcuts.actions.globalSearch'),
 	hints: message('keyboard.shortcuts.actions.hints'),
 	increaseTerminalFontSize: message('keyboard.shortcuts.actions.increaseTerminalFontSize'),

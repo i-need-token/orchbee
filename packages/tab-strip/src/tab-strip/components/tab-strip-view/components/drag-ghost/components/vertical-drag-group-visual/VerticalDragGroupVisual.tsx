@@ -46,6 +46,7 @@ export function VerticalDragGroupVisual({
 				onMouseLeave={() => undefined}
 				onKeyDown={() => undefined}
 				onKeyUp={() => undefined}
+				tabIndex={-1}
 				touchUi={touchUi}
 				closeButtonAllowed={closeButtonAllowed}
 				hoveredTabId={null}
@@ -80,6 +81,7 @@ export function VerticalDragGroupVisual({
 				onOpenEditor={() => undefined}
 				onMouseEnter={() => undefined}
 				onMouseLeave={() => undefined}
+				tabIndex={-1}
 				showHoverCard={false}
 			/>
 			<div

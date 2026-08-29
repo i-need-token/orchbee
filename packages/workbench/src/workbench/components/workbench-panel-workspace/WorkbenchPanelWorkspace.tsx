@@ -13,6 +13,7 @@ import { useTerminalTabPresentationHandoff } from './hooks/useTerminalTabPresent
 import { projectTerminalTabPresentationLayers } from './model/projectTerminalTabPresentationLayers';
 import { projectWorkbenchPanelWorkspaceTabView } from './model/projectWorkbenchPanelWorkspaceTabView';
 import type { TerminalTabPresentationLayer } from './types/terminal-tab-presentation-layer';
+import type { WorkbenchTerminalFocusRequest } from '../../model/resolveWorkbenchFocusTarget';
 import styles from './WorkbenchPanelWorkspace.module.css';
 
 interface WorkbenchPanelWorkspaceProps {
@@ -21,6 +22,8 @@ interface WorkbenchPanelWorkspaceProps {
 	readonly parentActionScope: ActionScope;
 	readonly presentationScopeId: string;
 	readonly shortcutLabelForAction: (actionId: string) => string | undefined;
+	readonly terminalAutoFocusAllowed: boolean;
+	readonly terminalFocusRequest: WorkbenchTerminalFocusRequest | null;
 	readonly terminalSurface?: WorkbenchTerminalSurface | undefined;
 }
 
@@ -30,6 +33,8 @@ export function WorkbenchPanelWorkspace({
 	parentActionScope,
 	presentationScopeId,
 	shortcutLabelForAction,
+	terminalAutoFocusAllowed,
+	terminalFocusRequest,
 	terminalSurface,
 }: WorkbenchPanelWorkspaceProps): ReactNode {
 	const view = useWorkbenchPanelWorkspace({
@@ -101,6 +106,8 @@ export function WorkbenchPanelWorkspace({
 						<WorkbenchPanelLayout
 							layer={layer}
 							node={node}
+							terminalAutoFocusAllowed={terminalAutoFocusAllowed}
+							terminalFocusRequest={terminalFocusRequest}
 							terminalSurface={terminalSurface}
 							view={layerView}
 						/>

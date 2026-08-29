@@ -42,6 +42,7 @@ export function TabStripControlButton({
 				variantClass === undefined ? undefined : styles[variantClass],
 			)}
 			data-frame-condensed={frameCondensed || undefined}
+			data-tab-strip-new-tab={variantClass === 'ct-new-tab' || undefined}
 			style={{
 				'--ob-comp-tab-strip-inline-start':
 					inlineStart === undefined ? undefined : `${inlineStart}px`,

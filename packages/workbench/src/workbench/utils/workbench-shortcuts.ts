@@ -28,6 +28,8 @@ interface WorkbenchShortcutDefinition {
 		| typeof WORKBENCH_ACTION_IDS.focusActivePanelRight
 		| typeof WORKBENCH_ACTION_IDS.focusActivePanelUp
 		| typeof WORKBENCH_ACTION_IDS.focusActivePanelVisible
+		| typeof WORKBENCH_ACTION_IDS.focusNextRegion
+		| typeof WORKBENCH_ACTION_IDS.focusPreviousRegion
 		| typeof WORKBENCH_ACTION_IDS.increaseTerminalFontSize
 		| typeof WORKBENCH_ACTION_IDS.moveActivePanelDown
 		| typeof WORKBENCH_ACTION_IDS.moveActivePanelLeft
@@ -171,6 +173,24 @@ export const WORKBENCH_SHORTCUTS = {
 		id: WORKBENCH_ACTION_IDS.focusActivePanelVisible,
 		input: undefined,
 		shortcutId: WORKBENCH_ACTION_IDS.focusActivePanelVisible,
+	},
+	focusNextRegion: {
+		defaults: {
+			apple: chord('F6', ['mod']),
+			standard: chord('F6', ['mod']),
+		},
+		id: WORKBENCH_ACTION_IDS.focusNextRegion,
+		input: undefined,
+		shortcutId: WORKBENCH_ACTION_IDS.focusNextRegion,
+	},
+	focusPreviousRegion: {
+		defaults: {
+			apple: chord('F6', ['mod', 'shift']),
+			standard: chord('F6', ['mod', 'shift']),
+		},
+		id: WORKBENCH_ACTION_IDS.focusPreviousRegion,
+		input: undefined,
+		shortcutId: WORKBENCH_ACTION_IDS.focusPreviousRegion,
 	},
 	increaseTerminalFontSize: {
 		defaults: {
@@ -407,6 +427,8 @@ const WORKBENCH_SHORTCUT_ACTIONS = Object.freeze([
 	'focusActivePanelRight',
 	'focusActivePanelUp',
 	'focusActivePanelVisible',
+	'focusNextRegion',
+	'focusPreviousRegion',
 	'increaseTerminalFontSize',
 	'maximizeActivePanel',
 	'moveActivePanelDown',
@@ -518,6 +540,10 @@ export function formatWorkbenchActionShortcut(
 			return formatWorkbenchShortcut('focusActivePanelUp', platform, bindings);
 		case WORKBENCH_ACTION_IDS.focusActivePanelVisible:
 			return formatWorkbenchShortcut('focusActivePanelVisible', platform, bindings);
+		case WORKBENCH_ACTION_IDS.focusNextRegion:
+			return formatWorkbenchShortcut('focusNextRegion', platform, bindings);
+		case WORKBENCH_ACTION_IDS.focusPreviousRegion:
+			return formatWorkbenchShortcut('focusPreviousRegion', platform, bindings);
 		case WORKBENCH_ACTION_IDS.increaseTerminalFontSize:
 			return formatWorkbenchShortcut('increaseTerminalFontSize', platform, bindings);
 		case WORKBENCH_ACTION_IDS.moveActivePanelDown:
@@ -627,6 +653,10 @@ function defaultBindingsFor(platform: WorkbenchShortcutPlatform): WorkbenchShort
 			WORKBENCH_SHORTCUTS.focusActivePanelUp.defaults[platform],
 		[WORKBENCH_SHORTCUTS.focusActivePanelVisible.shortcutId]:
 			WORKBENCH_SHORTCUTS.focusActivePanelVisible.defaults[platform],
+		[WORKBENCH_SHORTCUTS.focusNextRegion.shortcutId]:
+			WORKBENCH_SHORTCUTS.focusNextRegion.defaults[platform],
+		[WORKBENCH_SHORTCUTS.focusPreviousRegion.shortcutId]:
+			WORKBENCH_SHORTCUTS.focusPreviousRegion.defaults[platform],
 		[WORKBENCH_SHORTCUTS.increaseTerminalFontSize.shortcutId]:
 			WORKBENCH_SHORTCUTS.increaseTerminalFontSize.defaults[platform],
 		[WORKBENCH_SHORTCUTS.maximizeActivePanel.shortcutId]:

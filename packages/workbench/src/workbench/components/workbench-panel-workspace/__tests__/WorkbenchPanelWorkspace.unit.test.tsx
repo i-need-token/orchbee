@@ -181,6 +181,8 @@ function renderThreePanelWorkspace() {
 					parentActionScope={parentActionScope}
 					presentationScopeId='test-context'
 					shortcutLabelForAction={() => undefined}
+					terminalAutoFocusAllowed
+					terminalFocusRequest={null}
 					terminalSurface={TestTerminalSurface}
 				/>
 			</TooltipProvider>
@@ -228,6 +230,8 @@ function renderRunningThreePanelWorkspace() {
 					parentActionScope={parentActionScope}
 					presentationScopeId='test-context'
 					shortcutLabelForAction={() => undefined}
+					terminalAutoFocusAllowed
+					terminalFocusRequest={null}
 					terminalSurface={TestTerminalSurface}
 				/>
 			</TooltipProvider>
@@ -505,6 +509,8 @@ describe('WorkbenchPanelWorkspace', () => {
 						parentActionScope={actionRuntime.createScope('test.workbench')}
 						presentationScopeId='test-context'
 						shortcutLabelForAction={() => undefined}
+						terminalAutoFocusAllowed
+						terminalFocusRequest={null}
 						terminalSurface={TestTerminalSurface}
 					/>
 				</TooltipProvider>
@@ -586,6 +592,8 @@ describe('WorkbenchPanelWorkspace', () => {
 						parentActionScope={actionRuntime.createScope('test.workbench')}
 						presentationScopeId='test-context'
 						shortcutLabelForAction={() => undefined}
+						terminalAutoFocusAllowed
+						terminalFocusRequest={null}
 						terminalSurface={TestTerminalSurface}
 					/>
 				</TooltipProvider>
@@ -662,6 +670,8 @@ describe('WorkbenchPanelWorkspace', () => {
 						parentActionScope={actionRuntime.createScope('test.workbench')}
 						presentationScopeId='test-context'
 						shortcutLabelForAction={() => undefined}
+						terminalAutoFocusAllowed
+						terminalFocusRequest={null}
 						terminalSurface={TestTerminalSurface}
 					/>
 				</TooltipProvider>
@@ -760,6 +770,8 @@ describe('WorkbenchPanelWorkspace', () => {
 						parentActionScope={actionRuntime.createScope('test.workbench')}
 						presentationScopeId='test-context'
 						shortcutLabelForAction={() => undefined}
+						terminalAutoFocusAllowed
+						terminalFocusRequest={null}
 						terminalSurface={TestTerminalSurface}
 					/>
 				</TooltipProvider>

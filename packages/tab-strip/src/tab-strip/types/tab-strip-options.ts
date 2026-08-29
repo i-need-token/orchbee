@@ -90,6 +90,8 @@ export interface TabStripShortcutLabels {
 
 export interface TabStripOptions {
 	actionRuntime?: ActionRuntime | undefined;
+	/** Monotonic host request to focus the current roving Tab Strip entry. */
+	focusRequest?: number | undefined;
 	parentActionScope?: ActionScope | undefined;
 	model: TabModel;
 	orientation?: TabStripOrientation;

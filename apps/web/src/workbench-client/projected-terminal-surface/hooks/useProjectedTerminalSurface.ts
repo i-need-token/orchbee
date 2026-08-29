@@ -71,7 +71,7 @@ type ProjectedTerminalSurfaceWorkbenchHost = Pick<
 	Partial<
 		Pick<
 			WorkbenchTerminalSurfaceProps,
-			'bindBroadcastInputSink' | 'onPresentationReady' | 'presentationMode'
+			'bindBroadcastInputSink' | 'focusRequest' | 'onPresentationReady' | 'presentationMode'
 		>
 	>;
 
@@ -85,6 +85,7 @@ export function useProjectedTerminalSurface(
 	const autoFocus = workbenchHost?.autoFocus ?? false;
 	const bindActionContextProvider = workbenchHost?.bindActionContextProvider;
 	const bindBroadcastInputSink = workbenchHost?.bindBroadcastInputSink;
+	const focusRequest = workbenchHost?.focusRequest ?? 0;
 	const onPresentationReady = workbenchHost?.onPresentationReady;
 	const presentationMode = workbenchHost?.presentationMode ?? 'active';
 	const capability = React.useContext(ProjectedTerminalSurfaceCapabilityContext);
@@ -400,7 +401,13 @@ export function useProjectedTerminalSurface(
 		const recovery = recoveryController.current;
 		if (recovery?.presentationId !== presentation.presentationId) return;
 		recovery.controller.focusTerminal();
-	}, [autoFocus, currentRecovery?.kind, presentation.presentationId, presentationMode]);
+	}, [
+		autoFocus,
+		currentRecovery?.kind,
+		focusRequest,
+		presentation.presentationId,
+		presentationMode,
+	]);
 
 	let projectionState: ProjectedTerminalSurfaceView['projectionState'] = 'inactive';
 	if (projectable) projectionState = 'requested';

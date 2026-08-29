@@ -28,12 +28,18 @@ describe('useKeyboardShortcutSettingsView', () => {
 				}),
 			{ wrapper: I18nWrapper },
 		);
-		expect(allRows.result.current.rows).toHaveLength(67);
+		expect(allRows.result.current.rows).toHaveLength(69);
 		expect(allRows.result.current.rows[0]).toMatchObject({
 			actionName: 'Search actions',
 			chord: 'Ctrl+Shift+P',
 			scope: 'Workbench',
 			source: 'Default',
+		});
+		expect(
+			allRows.result.current.rows.find((row) => row.actionName === 'Focus next Workbench region'),
+		).toMatchObject({
+			chord: 'Ctrl+F6',
+			scope: 'Workbench',
 		});
 		expect(
 			allRows.result.current.rows.find((row) => row.actionName === 'Resize active panel'),

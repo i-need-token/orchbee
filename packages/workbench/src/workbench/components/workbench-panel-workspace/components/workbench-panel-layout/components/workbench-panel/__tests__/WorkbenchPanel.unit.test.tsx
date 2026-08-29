@@ -216,6 +216,8 @@ function renderPanel(
 					layer,
 					layoutSettled: options.layoutSettled ?? true,
 					panel,
+					terminalAutoFocusAllowed: true,
+					terminalFocusRequest: null,
 					terminalSurface: TestTerminalSurface,
 					view,
 				}),

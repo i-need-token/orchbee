@@ -61,6 +61,7 @@ export function HorizontalContents({
 		onGroupKeyDown,
 		onTabKeyDown,
 		onTabKeyUp,
+		rovingFocusKey,
 		addTab,
 		finishHorizontalDragSettle,
 		paintedHorizontalBounds,
@@ -356,6 +357,7 @@ export function HorizontalContents({
 									}}
 									onMouseEnter={(event) => onGroupMouseEnter(event, item.group.id)}
 									onMouseLeave={clearHover}
+									tabIndex={rovingFocusKey === `group:${item.group.id}` ? 0 : -1}
 									showHoverCard={showGroupHoverCards}
 									frameCondensed={horizontalFrameCondensed}
 								/>
@@ -427,6 +429,7 @@ export function HorizontalContents({
 								onMouseLeave={clearHover}
 								onKeyDown={onTabKeyDown}
 								onKeyUp={onTabKeyUp}
+								tabIndex={rovingFocusKey === `tab:${item.tab.id}` ? 0 : -1}
 								touchUi={touchUi}
 								closeButtonAllowed
 								declutterEnabled={tabStripDeclutter}
@@ -445,6 +448,7 @@ export function HorizontalContents({
 						aria-label={messages.newTab}
 						icon={<ProductIcon name='add' />}
 						frameCondensed={horizontalFrameCondensed}
+						tabIndex={0}
 						onClick={addTab}
 						onContextMenu={(event) => {
 							setMenu({ kind: 'new-tab', x: event.clientX, y: event.clientY });

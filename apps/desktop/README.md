@@ -516,6 +516,10 @@ Focused traces cover:
   immutable three-Panel target set, exactly-once committed IME text, paste exclusion, serialized
   FIFO text, unmodified Escape delivery, visibility and end controls, visible target shields, and
   non-atomic partial delivery that stops without retry or replay;
+- exact headed `terminal-parity/FS-19-workbench-region-focus` real-PTY/Electron witness for forward
+  and reverse modified-key cycling across the active terminal, Tab Strip, and visible sidebar; exact
+  keyboard Tab-menu entry and return focus; stable presentation and attachment identities; and live
+  PTY input after the round trip;
 - exact headed `terminal-parity/LC-05-lan-capability` Browser-composition evidence for per-operation secure-context, transient-user-activation, and API checks; synchronous Copy availability; one admitted writer call; rejection without retry; localized failure; and no privileged insecure-LAN path;
 - exact `terminal-parity/HS-07-selection-export` real-PTY/Electron evidence that styled terminal
   selection reaches the platform clipboard as the exact visible plain text, paired with protocol,

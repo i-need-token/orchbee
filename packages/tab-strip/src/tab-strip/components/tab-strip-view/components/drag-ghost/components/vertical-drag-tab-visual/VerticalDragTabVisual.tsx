@@ -32,6 +32,7 @@ export function VerticalDragTabVisual({
 			onMouseLeave={() => undefined}
 			onKeyDown={() => undefined}
 			onKeyUp={() => undefined}
+			tabIndex={-1}
 			touchUi={touchUi}
 			closeButtonAllowed={closeButtonAllowed}
 			hoveredTabId={null}

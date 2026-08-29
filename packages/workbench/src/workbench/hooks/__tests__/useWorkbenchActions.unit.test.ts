@@ -14,7 +14,13 @@ import type {
 	WorkbenchTerminalCreateCallback,
 } from '../../types/workbench-host-actions';
 import { WorkbenchProjectWorkspaceRuntime } from '../../model/WorkbenchProjectWorkspaceRuntime';
+import { WORKBENCH_SHORTCUTS } from '../../utils/workbench-shortcuts';
 import { useWorkbenchActions } from '../useWorkbenchActions';
+
+const unavailableFocusRouting = {
+	focus: () => ({ kind: 'unavailable', reason: 'no-available-region' }) as const,
+	getResolution: () => ({ kind: 'unavailable', reason: 'no-available-region' }) as const,
+};
 
 function createTestTerminalPresentationComposition(scope: string) {
 	let sequence = 0;
@@ -25,7 +31,9 @@ function createTestTerminalPresentationComposition(scope: string) {
 }
 
 interface WorkbenchActionsHarnessProps {
+	readonly captureActions?: ((actions: ReturnType<typeof useWorkbenchActions>) => void) | undefined;
 	readonly captureScope?: ((scope: ReturnType<ActionRuntime['createScope']>) => void) | undefined;
+	readonly focusRouting?: Parameters<typeof useWorkbenchActions>[0]['focusRouting'] | undefined;
 	readonly onNewTerminal?: WorkbenchTerminalCreateCallback | undefined;
 	readonly onTerminalFontSizeChange?: WorkbenchTerminalFontSizeChangeCallback | undefined;
 	readonly navigation?: WorkbenchNavigationPort | undefined;
@@ -34,7 +42,9 @@ interface WorkbenchActionsHarnessProps {
 }
 
 function WorkbenchActionsHarness({
+	captureActions,
 	captureScope,
+	focusRouting = unavailableFocusRouting,
 	navigation,
 	onNewTerminal,
 	onTerminalFontSizeChange,
@@ -57,6 +67,7 @@ function WorkbenchActionsHarness({
 		projectWorkspaceRuntime.getSnapshot,
 	);
 	const actions = useWorkbenchActions({
+		focusRouting,
 		isSidebarVisible,
 		navigation,
 		onNewTerminal,
@@ -74,6 +85,7 @@ function WorkbenchActionsHarness({
 		workspaceCopySuffix: 'Copy',
 		workspaceTerminalTitle: 'Terminal 1',
 	});
+	captureActions?.(actions);
 	captureScope?.(actions.scope);
 
 	return React.createElement(
@@ -332,6 +344,7 @@ describe('useWorkbenchActions', () => {
 					}),
 			);
 			const actions = useWorkbenchActions({
+				focusRouting: unavailableFocusRouting,
 				isSidebarVisible: true,
 				onNewTerminal: undefined,
 				onSettings: undefined,
@@ -364,6 +377,90 @@ describe('useWorkbenchActions', () => {
 		).toMatchObject({
 			availability: { kind: 'disabled' },
 		});
+	});
+
+	it('consumes region shortcuts only for resolved targets and preserves direct-focus no-ops', async () => {
+		const runtime = new ActionRuntime();
+		type TestFocusRouting = Parameters<typeof useWorkbenchActions>[0]['focusRouting'];
+		const focusRouting: TestFocusRouting = {
+			focus: vi.fn<TestFocusRouting['focus']>((intent) =>
+				intent.kind === 'cycle' && intent.direction === 'next'
+					? ({ kind: 'target', region: 'tab-strip' } as const)
+					: ({ kind: 'unavailable', reason: 'target-unavailable' } as const),
+			),
+			getResolution: vi.fn<TestFocusRouting['getResolution']>((intent) => {
+				if (intent.kind === 'direct' && intent.region === 'terminal') {
+					return { kind: 'unchanged', region: 'terminal' } as const;
+				}
+				return intent.kind === 'cycle' && intent.direction === 'next'
+					? ({ kind: 'target', region: 'tab-strip' } as const)
+					: ({ kind: 'unavailable', reason: 'no-different-region' } as const);
+			}),
+		};
+		let actions: ReturnType<typeof useWorkbenchActions> | undefined;
+		render(
+			React.createElement(WorkbenchActionsHarness, {
+				captureActions: (candidate) => {
+					actions = candidate;
+				},
+				focusRouting,
+				runtime,
+			}),
+		);
+		if (actions === undefined) throw new Error('Expected Workbench actions to be captured.');
+		const scope = actions.scope;
+
+		expect(
+			runtime.resolveAction(WORKBENCH_ACTION_IDS.focusNextRegion, undefined, {
+				scope,
+				source: 'keyboard',
+			})?.availability,
+		).toEqual({ kind: 'enabled' });
+		expect(
+			runtime.resolveAction(WORKBENCH_ACTION_IDS.focusPreviousRegion, undefined, {
+				scope,
+				source: 'keyboard',
+			})?.availability,
+		).toMatchObject({ kind: 'disabled' });
+
+		await expect(
+			runtime.execute(WORKBENCH_ACTION_IDS.focusNextRegion, undefined, {
+				scope,
+				source: 'keyboard',
+			}).completion,
+		).resolves.toEqual({ kind: 'completed' });
+		expect(focusRouting.focus).toHaveBeenCalledWith({ direction: 'next', kind: 'cycle' });
+
+		await expect(
+			runtime.execute(WORKBENCH_ACTION_IDS.focusActiveTerminal, undefined, {
+				scope,
+				source: 'command-surface',
+			}).completion,
+		).resolves.toEqual({ kind: 'unchanged' });
+		expect(focusRouting.focus).toHaveBeenCalledOnce();
+
+		expect(
+			actions.invokeShortcut(
+				{
+					action: 'focusPreviousRegion',
+					chord: WORKBENCH_SHORTCUTS.focusPreviousRegion.defaults.standard,
+					shortcutId: WORKBENCH_SHORTCUTS.focusPreviousRegion.shortcutId,
+				},
+				'keyboard',
+			),
+		).toBe(false);
+		expect(
+			actions.invokeShortcut(
+				{
+					action: 'focusNextRegion',
+					chord: WORKBENCH_SHORTCUTS.focusNextRegion.defaults.standard,
+					shortcutId: WORKBENCH_SHORTCUTS.focusNextRegion.shortcutId,
+				},
+				'keyboard',
+			),
+		).toBe(true);
+		await act(async () => undefined);
+		expect(focusRouting.focus).toHaveBeenCalledTimes(2);
 	});
 
 	it('routes the three terminal font-size actions through one host capability', async () => {

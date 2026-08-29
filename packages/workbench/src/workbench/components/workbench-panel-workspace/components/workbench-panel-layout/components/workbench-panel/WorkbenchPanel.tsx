@@ -4,6 +4,7 @@ import { getDisplayedTerminal, type PanelLeaf } from '../../../../model/panel-wo
 import type { WorkbenchPanelWorkspaceView } from '../../../../types/panel-workspace-view';
 import type { TerminalTabPresentationLayer } from '../../../../types/terminal-tab-presentation-layer';
 import type { WorkbenchTerminalSurface } from '../../../../../../types/workbench-terminal-surface';
+import type { WorkbenchTerminalFocusRequest } from '../../../../../../model/resolveWorkbenchFocusTarget';
 import { WorkbenchChildTerminalStrip } from './components/workbench-child-terminal-strip/WorkbenchChildTerminalStrip';
 import { WorkbenchPanelDropPlaceholder } from './components/workbench-panel-drop-placeholder/WorkbenchPanelDropPlaceholder';
 import { WorkbenchPanelFocusScrim } from './components/workbench-panel-focus-scrim/WorkbenchPanelFocusScrim';
@@ -17,6 +18,8 @@ interface WorkbenchPanelProps {
 	readonly layer: TerminalTabPresentationLayer;
 	readonly layoutSettled: boolean;
 	readonly panel: PanelLeaf;
+	readonly terminalAutoFocusAllowed: boolean;
+	readonly terminalFocusRequest: WorkbenchTerminalFocusRequest | null;
 	readonly terminalSurface?: WorkbenchTerminalSurface | undefined;
 	readonly view: WorkbenchPanelWorkspaceView;
 }
@@ -25,6 +28,8 @@ export function WorkbenchPanel({
 	layer,
 	layoutSettled,
 	panel,
+	terminalAutoFocusAllowed,
+	terminalFocusRequest,
 	terminalSurface,
 	view,
 }: WorkbenchPanelProps): React.ReactNode {
@@ -72,6 +77,8 @@ export function WorkbenchPanel({
 				panelId={panel.id}
 				terminal={displayedTerminal}
 				terminalRole={panel.activeChildPresentationId === null ? 'primary' : 'child'}
+				terminalAutoFocusAllowed={terminalAutoFocusAllowed}
+				terminalFocusRequest={terminalFocusRequest}
 				terminalSurface={terminalSurface}
 				view={view}
 			/>

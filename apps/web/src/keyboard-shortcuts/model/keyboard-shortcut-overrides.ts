@@ -47,6 +47,12 @@ export function createKeyboardShortcutBindings(
 		[WORKBENCH_SHORTCUTS.focusActivePanelLeft.shortcutId]: bindingFor(
 			WORKBENCH_SHORTCUTS.focusActivePanelLeft.shortcutId,
 		),
+		[WORKBENCH_SHORTCUTS.focusNextRegion.shortcutId]: bindingFor(
+			WORKBENCH_SHORTCUTS.focusNextRegion.shortcutId,
+		),
+		[WORKBENCH_SHORTCUTS.focusPreviousRegion.shortcutId]: bindingFor(
+			WORKBENCH_SHORTCUTS.focusPreviousRegion.shortcutId,
+		),
 		[WORKBENCH_SHORTCUTS.focusPanel1.shortcutId]: bindingFor(
 			WORKBENCH_SHORTCUTS.focusPanel1.shortcutId,
 		),

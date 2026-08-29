@@ -126,8 +126,10 @@ describe('useWebApplication', () => {
 		await vi.waitFor(() =>
 			expect(container.querySelectorAll('[data-slot="workbench-panel"]')).toHaveLength(1),
 		);
-		expect(document.activeElement).toBe(
-			container.querySelector('[data-test-terminal-input="true"]'),
+		await vi.waitFor(() =>
+			expect(document.activeElement).toBe(
+				container.querySelector('[data-test-terminal-input="true"]'),
+			),
 		);
 
 		const activeTabInput = requiredElement<HTMLTextAreaElement>(
@@ -425,6 +427,7 @@ function TestTerminalSurface(properties: WorkbenchTerminalSurfaceProps): ReactNo
 
 function FocusTerminalSurface({
 	autoFocus,
+	focusRequest,
 	onPresentationReady,
 	presentation,
 	presentationMode,
@@ -433,7 +436,7 @@ function FocusTerminalSurface({
 	useImmediateTerminalPresentationReadiness({ onPresentationReady, presentationMode });
 	useEffect(() => {
 		if (autoFocus) inputReference.current?.focus();
-	}, [autoFocus, presentation.presentationId]);
+	}, [autoFocus, focusRequest, presentation.presentationId]);
 	return createElement('textarea', {
 		'aria-label': presentation.title,
 		'data-presentation-id': presentation.presentationId,

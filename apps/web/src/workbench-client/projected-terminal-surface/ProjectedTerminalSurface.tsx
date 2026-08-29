@@ -16,6 +16,7 @@ export function ProjectedTerminalSurface({
 	autoFocus,
 	bindActionContextProvider,
 	bindBroadcastInputSink,
+	focusRequest,
 	onPresentationReady,
 	presentation,
 	presentationMode,
@@ -27,6 +28,7 @@ export function ProjectedTerminalSurface({
 		autoFocus,
 		bindActionContextProvider,
 		bindBroadcastInputSink,
+		focusRequest,
 		onPresentationReady,
 		presentationMode,
 	});

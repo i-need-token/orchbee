@@ -16,6 +16,7 @@ import type {
 	WorkbenchTerminalSurface,
 	WorkbenchTerminalSurfaceProps,
 } from '../../../../../../../../types/workbench-terminal-surface';
+import type { WorkbenchTerminalFocusRequest } from '../../../../../../../../model/resolveWorkbenchFocusTarget';
 import { useWorkbenchTerminalContextMenu } from './hooks/useWorkbenchTerminalContextMenu';
 import { useWorkbenchTerminalActions } from './hooks/useWorkbenchTerminalActions';
 import styles from './WorkbenchTerminalViewport.module.css';
@@ -25,6 +26,8 @@ interface WorkbenchTerminalViewportProps {
 	readonly layoutSettled: boolean;
 	readonly panelId: string;
 	readonly terminal: TerminalPresentation;
+	readonly terminalAutoFocusAllowed: boolean;
+	readonly terminalFocusRequest: WorkbenchTerminalFocusRequest | null;
 	readonly terminalRole: 'child' | 'primary';
 	readonly terminalSurface?: WorkbenchTerminalSurface | undefined;
 	readonly view: WorkbenchPanelWorkspaceView;
@@ -35,6 +38,8 @@ export function WorkbenchTerminalViewport({
 	layoutSettled,
 	panelId,
 	terminal,
+	terminalAutoFocusAllowed,
+	terminalFocusRequest,
 	terminalRole,
 	terminalSurface: TerminalSurface,
 	view,
@@ -201,10 +206,16 @@ export function WorkbenchTerminalViewport({
 						actionScope={terminalActions.scope}
 						admitBellEffect={view.admitTerminalBellEffect}
 						autoFocus={
+							terminalAutoFocusAllowed &&
 							view.broadcastInput.kind === 'idle' &&
 							layoutSettled &&
 							layer.mode === 'active' &&
 							view.activeTab?.focusedPanelId === panelId
+						}
+						focusRequest={
+							terminalFocusRequest?.presentationId === terminal.presentationId
+								? terminalFocusRequest.sequence
+								: 0
 						}
 						bindActionContextProvider={terminalActions.bindActionContextProvider}
 						bindBroadcastInputSink={bindBroadcastInputSink}

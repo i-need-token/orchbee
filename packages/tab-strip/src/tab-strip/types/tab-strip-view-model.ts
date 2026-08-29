@@ -28,6 +28,7 @@ import type { TabCollectionAnimationRuntime } from '../utils/TabCollectionAnimat
 import type { TabStripOptions } from './tab-strip-options';
 import type { DragState, HoverState, MenuState, VisualItem } from '../utils/tab-strip-internals';
 import type { TabStripActions } from './tab-strip-actions';
+import type { TabStripRovingItem } from '../accessibility/tab-strip-roving-focus';
 
 export interface TabStripViewModel {
 	readonly actions: TabStripActions;
@@ -51,6 +52,9 @@ export interface TabStripViewModel {
 	readonly touchUi: boolean;
 	readonly tabStripDeclutter: boolean;
 	readonly onTabKeyboardFocusChanged: TabStripOptions['onTabKeyboardFocusChanged'];
+	readonly onRovingFocusChanged: (key: TabStripRovingItem['key'] | null) => void;
+	readonly onRovingFocusExited: () => void;
+	readonly rovingFocusKey: TabStripRovingItem['key'] | null;
 	readonly onMoveTabsToNewWindow: TabStripOptions['onMoveTabsToNewWindow'];
 	readonly onMoveGroupToNewWindow: TabStripOptions['onMoveGroupToNewWindow'];
 	readonly onMoveTabsToWindow: TabStripOptions['onMoveTabsToWindow'];

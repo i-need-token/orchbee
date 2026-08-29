@@ -38,6 +38,7 @@ function WorkbenchHarness({ actionRuntime, isUserInteraction, storage }: Workben
 		shortcutBindings: defaultWorkbenchShortcutBindings('apple'),
 		shortcutPlatform: 'apple',
 		storage,
+		terminalSurfaceAvailable: false,
 	});
 	workbench.onLeftPanelResize({ inPixels: 318.4 });
 	workbench.onLayoutChanged({}, { isUserInteraction });

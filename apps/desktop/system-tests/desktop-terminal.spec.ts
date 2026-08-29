@@ -3657,6 +3657,68 @@ test('terminal-parity/FS-17-panel-position-focus', async () => {
 	await expect(settingsSurface).not.toBeVisible();
 });
 
+test('terminal-parity/FS-19-workbench-region-focus', async () => {
+	test.setTimeout(60_000);
+	const application = electronApplication;
+	if (application === undefined) throw new Error('Electron application did not start.');
+	const page = await application.firstWindow();
+	const terminalRoot = projectedTerminal(page);
+	await expect(terminalRoot).toHaveAttribute('data-projected-terminal-state', 'open');
+	const presentationId = await terminalRoot.getAttribute('data-terminal-presentation-id');
+	const attachmentId = await terminalRoot.getAttribute('data-projected-terminal-attachment-id');
+	if (presentationId === null || attachmentId === null) {
+		throw new Error('The active terminal projection identity is unavailable.');
+	}
+
+	const terminalInput = terminalRoot.getByRole('textbox');
+	const tabBar = page.locator('[data-slot="workbench-tab-bar"]');
+	const rovingTab = tabBar.locator('[role="tab"][data-tab-strip-roving-key][tabindex="0"]');
+	const sidebarTerminal = page.locator('[data-slot="workbench-sidebar-terminal"]');
+	const primaryModifier = process.platform === 'darwin' ? 'Meta' : 'Control';
+	const nextRegionShortcut = `${primaryModifier}+F6`;
+	const previousRegionShortcut = `${primaryModifier}+Shift+F6`;
+	await expect(rovingTab).toHaveCount(1);
+	await expect(sidebarTerminal).toBeVisible();
+
+	await terminalInput.focus();
+	await page.keyboard.press(nextRegionShortcut);
+	await expect(rovingTab).toBeFocused();
+
+	await page.keyboard.press('Shift+F10');
+	const tabMenu = page.getByRole('menu', { name: /^(?:Tab options|标签页选项)$/u });
+	await expect(tabMenu).toBeVisible();
+	await expect(
+		tabMenu.getByRole('menuitem', { name: /^(?:Duplicate|复制标签页)$/u }),
+	).toBeVisible();
+	await page.keyboard.press('Escape');
+	await expect(tabMenu).not.toBeVisible();
+	await expect(rovingTab).toBeFocused();
+
+	await page.keyboard.press(nextRegionShortcut);
+	await expect(sidebarTerminal).toBeFocused();
+	await page.keyboard.press(nextRegionShortcut);
+	await expect(terminalInput).toBeFocused();
+
+	expect(await terminalRoot.getAttribute('data-terminal-presentation-id')).toBe(presentationId);
+	expect(await terminalRoot.getAttribute('data-projected-terminal-attachment-id')).toBe(
+		attachmentId,
+	);
+	await terminalInput.pressSequentially("printf 'workbench-region-focus-alive\\n'", { delay: 1 });
+	await terminalInput.press('Enter');
+	await expect(terminalRoot.locator('[role="list"]')).toContainText('workbench-region-focus-alive');
+
+	await page.keyboard.press(previousRegionShortcut);
+	await expect(sidebarTerminal).toBeFocused();
+	await page.keyboard.press(previousRegionShortcut);
+	await expect(rovingTab).toBeFocused();
+	await page.keyboard.press(previousRegionShortcut);
+	await expect(terminalInput).toBeFocused();
+	expect(await terminalRoot.getAttribute('data-terminal-presentation-id')).toBe(presentationId);
+	expect(await terminalRoot.getAttribute('data-projected-terminal-attachment-id')).toBe(
+		attachmentId,
+	);
+});
+
 test('keeps terminal presentation continuous through rapid Tab switching and active Tab closure', async () => {
 	test.setTimeout(60_000);
 	const application = electronApplication;

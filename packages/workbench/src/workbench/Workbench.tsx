@@ -111,6 +111,7 @@ export function Workbench({
 		shortcutPlatform,
 		storage: layoutStorage,
 		tabScope,
+		terminalSurfaceAvailable: terminalSurface !== undefined,
 	});
 	const windowIntegration = useWorkbenchTabWindowControl({
 		control: tabWindowControl,
@@ -178,7 +179,12 @@ export function Workbench({
 		);
 
 	return (
-		<div className={styles['root']} ref={view.shortcutScopeReference}>
+		<div
+			className={styles['root']}
+			onBlurCapture={view.onRootBlurCapture}
+			onFocusCapture={view.onRootFocusCapture}
+			ref={view.shortcutScopeReference}
+		>
 			<div className={styles['sidebarToggle']} data-slot='workbench-sidebar-toggle-position'>
 				{sidebarToggle}
 			</div>
@@ -199,7 +205,11 @@ export function Workbench({
 								groupResizeBehavior='preserve-pixel-size'
 								onResize={view.onLeftPanelResize}
 							>
-								<div className={styles['leftPanel']} data-slot='workbench-left-panel'>
+								<div
+									className={styles['leftPanel']}
+									data-slot='workbench-left-panel'
+									data-workbench-focus-region='sidebar'
+								>
 									<WorkbenchSidebar
 										activateStandalone={view.activateStandalone}
 										activateWorkspace={view.activateWorkspace}
@@ -224,6 +234,7 @@ export function Workbench({
 										searchLabel={view.searchLabel}
 										searchShortcutId={view.searchShortcutId}
 										searchShortcutLabel={view.searchShortcutLabel}
+										focusRequest={view.sidebarFocusRequest}
 										settingsLabel={view.settingsLabel}
 										settingsShortcutId={view.settingsShortcutId}
 										settingsShortcutLabel={view.settingsShortcutLabel}
@@ -259,6 +270,7 @@ export function Workbench({
 								orientation={view.tabStripOrientation}
 								onCloseTabs={view.onCloseTabs}
 								getCloseTabsConfirmation={view.getCloseTabsConfirmation}
+								focusRequest={view.tabStripFocusRequest}
 								onSelectTab={navigation?.selectTab}
 								onSetTabTitle={view.setTabTitle}
 								parentActionScope={view.actionScope}
@@ -273,7 +285,11 @@ export function Workbench({
 								verticalCollapsed={view.verticalTabStripCollapsed}
 								windowTargets={windowIntegration.windowTargets}
 							/>
-							<div className={styles['tabContent']} data-slot='workbench-tab-content'>
+							<div
+								className={styles['tabContent']}
+								data-slot='workbench-tab-content'
+								data-workbench-focus-region='terminal'
+							>
 								{view.hasVisibleTerminalTabs ? (
 									<WorkbenchPanelWorkspace
 										actionRuntime={actionRuntime}
@@ -281,6 +297,8 @@ export function Workbench({
 										parentActionScope={view.actionScope}
 										presentationScopeId={view.terminalContext.terminalContextId}
 										shortcutLabelForAction={shortcutLabelForAction}
+										terminalAutoFocusAllowed={view.terminalAutoFocusAllowed}
+										terminalFocusRequest={view.terminalFocusRequest}
 										terminalSurface={terminalSurface}
 									/>
 								) : (

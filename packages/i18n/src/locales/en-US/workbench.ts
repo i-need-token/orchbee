@@ -7,6 +7,11 @@ export const enUSWorkbenchMessages = {
 	'workbench.actions.categories.view': 'View',
 	'workbench.actions.states.unavailable':
 		'This action is not available in the current application.',
+	'workbench.focus.actions.activeTerminal': 'Focus Active Terminal',
+	'workbench.focus.actions.nextRegion': 'Focus Next Region',
+	'workbench.focus.actions.previousRegion': 'Focus Previous Region',
+	'workbench.focus.actions.sidebar': 'Focus Sidebar',
+	'workbench.focus.actions.tabStrip': 'Focus Tab Strip',
 	'workbench.terminal.actions.closeActive': 'Close Active Terminal',
 	'workbench.terminal.actions.fontSize.decrease': 'Decrease Terminal Font Size',
 	'workbench.terminal.actions.fontSize.increase': 'Increase Terminal Font Size',

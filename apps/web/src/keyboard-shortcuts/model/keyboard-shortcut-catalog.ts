@@ -60,6 +60,7 @@ type KeyboardShortcutName =
 	| 'decrease-terminal-font-size'
 	| 'equalize-panels'
 	| 'find'
+	| 'focus-next-region'
 	| 'focus-panel-down'
 	| 'focus-panel-left'
 	| 'focus-panel-next'
@@ -67,6 +68,7 @@ type KeyboardShortcutName =
 	| 'focus-panel-right'
 	| 'focus-panel-up'
 	| 'focus-panel-visible'
+	| 'focus-previous-region'
 	| 'global-search'
 	| 'hints'
 	| 'increase-terminal-font-size'
@@ -208,6 +210,26 @@ export const KEYBOARD_SHORTCUT_CATALOG = Object.freeze([
 		name: 'actions-search',
 		scope: 'workbench',
 		shortcutId: WORKBENCH_SHORTCUTS.actionsSearch.shortcutId,
+	}),
+	Object.freeze({
+		actionId: WORKBENCH_SHORTCUTS.focusNextRegion.id,
+		actionInput: WORKBENCH_SHORTCUTS.focusNextRegion.input,
+		availability: 'always-in-workbench',
+		defaults: WORKBENCH_SHORTCUTS.focusNextRegion.defaults,
+		feature: 'workbench',
+		name: 'focus-next-region',
+		scope: 'workbench',
+		shortcutId: WORKBENCH_SHORTCUTS.focusNextRegion.shortcutId,
+	}),
+	Object.freeze({
+		actionId: WORKBENCH_SHORTCUTS.focusPreviousRegion.id,
+		actionInput: WORKBENCH_SHORTCUTS.focusPreviousRegion.input,
+		availability: 'always-in-workbench',
+		defaults: WORKBENCH_SHORTCUTS.focusPreviousRegion.defaults,
+		feature: 'workbench',
+		name: 'focus-previous-region',
+		scope: 'workbench',
+		shortcutId: WORKBENCH_SHORTCUTS.focusPreviousRegion.shortcutId,
 	}),
 	Object.freeze({
 		actionId: WORKBENCH_SHORTCUTS.newTerminal.id,

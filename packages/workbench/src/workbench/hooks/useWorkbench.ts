@@ -54,7 +54,10 @@ import type {
 	WorkbenchTerminalContext,
 } from '../model/WorkbenchProjectWorkspaceRuntime';
 import { findActiveTerminalFocusTarget } from '../utils/findActiveTerminalFocusTarget';
+import { resolveActiveTerminalPresentationId } from '../utils/resolveActiveTerminalPresentationId';
 import { useWorkbenchActions } from './useWorkbenchActions';
+import { useWorkbenchFocusRouting } from './useWorkbenchFocusRouting';
+import type { WorkbenchTerminalFocusRequest } from '../model/resolveWorkbenchFocusTarget';
 import { useWorkbenchShortcuts } from './useWorkbenchShortcuts';
 
 interface ResizableLayoutChangedMeta {
@@ -85,6 +88,8 @@ interface WorkbenchView {
 		meta: ResizableLayoutChangedMeta,
 	) => void;
 	readonly onLeftPanelResize: (size: ResizablePanelSize) => void;
+	readonly onRootBlurCapture: (event: React.FocusEvent<HTMLDivElement>) => void;
+	readonly onRootFocusCapture: (event: React.FocusEvent<HTMLDivElement>) => void;
 	readonly shortcutScopeReference: React.RefObject<HTMLDivElement | null>;
 	readonly sidebarShortcutId: string;
 	readonly sidebarShortcutLabel: string;
@@ -119,6 +124,7 @@ interface WorkbenchView {
 	readonly settings: (() => void) | undefined;
 	readonly settingsShortcutId: string;
 	readonly settingsShortcutLabel: string;
+	readonly sidebarFocusRequest: number;
 	readonly setTabTitle: (tabId: string) => void;
 	readonly tabTitleEditor:
 		| (WorkbenchTabTitleEditorRequest & { readonly draftTitle: string })
@@ -138,10 +144,13 @@ interface WorkbenchView {
 	readonly submitTabTitleEditor: () => void;
 	readonly updateTabTitleEditor: (title: string) => void;
 	readonly terminalContext: WorkbenchTerminalContext;
+	readonly terminalAutoFocusAllowed: boolean;
+	readonly terminalFocusRequest: WorkbenchTerminalFocusRequest | null;
 	readonly tabModel: TabModel;
 	readonly hasVisibleTerminalTabs: boolean;
 	readonly terminalLabel: string;
 	readonly tabStripOrientation: TabStripOrientation;
+	readonly tabStripFocusRequest: number;
 	readonly onTabStripOrientationChange: (orientation: TabStripOrientation) => void;
 	readonly verticalTabStripCollapsed: boolean;
 	readonly onVerticalTabStripCollapsedChange: (collapsed: boolean) => void;
@@ -168,6 +177,7 @@ interface UseWorkbenchOptions {
 	readonly shortcutPlatform: WorkbenchShortcutPlatform;
 	readonly storage: WorkbenchLayoutStorage | undefined;
 	readonly tabScope?: WorkbenchTabScopeSource | undefined;
+	readonly terminalSurfaceAvailable: boolean;
 }
 
 export function useWorkbench({
@@ -181,6 +191,7 @@ export function useWorkbench({
 	shortcutPlatform,
 	storage,
 	tabScope,
+	terminalSurfaceAvailable,
 }: UseWorkbenchOptions): WorkbenchView {
 	const intl = useOrchbeeIntl();
 	const pendingProjectWorkspaceConfirmation = React.useRef<((accepted: boolean) => void) | null>(
@@ -236,6 +247,17 @@ export function useWorkbench({
 	);
 	const [isSidebarVisible, setIsSidebarVisible] = React.useState(() =>
 		readWorkbenchSidebarVisibility(storage),
+	);
+	const resolveTerminalFocusTarget = useMemoizedFn(() =>
+		terminalSurfaceAvailable ? resolveActiveTerminalPresentationId(projectWorkspaceRuntime) : null,
+	);
+	const focusRouting = useWorkbenchFocusRouting({
+		isSidebarVisible,
+		resolveTerminalTarget: resolveTerminalFocusTarget,
+	});
+	const focusRouter = React.useMemo(
+		() => ({ focus: focusRouting.focus, getResolution: focusRouting.getResolution }),
+		[focusRouting.focus, focusRouting.getResolution],
 	);
 	const [tabStripOrientation, setTabStripOrientationState] = React.useState<TabStripOrientation>(
 		() => readWorkbenchTabStripOrientation(storage),
@@ -342,6 +364,7 @@ export function useWorkbench({
 			throw new Error('A resolved terminal Directory became invalid during synchronous creation.');
 		}
 		scopedTabModel?.includeTabOptimistically(creation.tabId, true);
+		focusRouting.requestTerminalFocus();
 		return { kind: 'completed' };
 	});
 	const closeTabs = useMemoizedFn<
@@ -378,6 +401,7 @@ export function useWorkbench({
 				};
 	});
 	const actions = useWorkbenchActions({
+		focusRouting: focusRouter,
 		isSidebarVisible,
 		navigation,
 		onNewTerminal: createTerminal,
@@ -500,6 +524,8 @@ export function useWorkbench({
 		onLeftPanelResize: (size) => {
 			leftPanelWidth.current = size.inPixels;
 		},
+		onRootBlurCapture: focusRouting.onBlurCapture,
+		onRootFocusCapture: focusRouting.onFocusCapture,
 		shortcutScopeReference,
 		sidebarShortcutId: WORKBENCH_SHORTCUTS.toggleSidebar.id,
 		sidebarShortcutLabel: formatWorkbenchShortcut(
@@ -687,6 +713,7 @@ export function useWorkbench({
 		settingsLabel: intl.formatMessage(workbenchMessages.settings),
 		settingsShortcutId: WORKBENCH_SHORTCUTS.settings.id,
 		settingsShortcutLabel: formatWorkbenchShortcut('settings', shortcutPlatform, shortcutBindings),
+		sidebarFocusRequest: focusRouting.sidebarFocusRequest,
 		setTabTitle: (tabId) => {
 			const activeTerminalContext = projectWorkspaceRuntime.getActiveTerminalContext();
 			actions.invoke(
@@ -726,10 +753,13 @@ export function useWorkbench({
 			setTabTitleEditor((current) => (current === null ? null : { ...current, draftTitle: title }));
 		},
 		terminalContext,
+		terminalAutoFocusAllowed: focusRouting.terminalAutoFocusAllowed,
+		terminalFocusRequest: focusRouting.terminalFocusRequest,
 		tabModel,
 		hasVisibleTerminalTabs: tabModelSnapshot.tabs.length > 0,
 		terminalLabel: intl.formatMessage(workbenchMessages.terminal),
 		tabStripOrientation,
+		tabStripFocusRequest: focusRouting.tabStripFocusRequest,
 		onTabStripOrientationChange: (orientation) => {
 			actions.invoke(WORKBENCH_ACTION_IDS.setTabStripOrientation, { orientation }, 'context-menu');
 		},

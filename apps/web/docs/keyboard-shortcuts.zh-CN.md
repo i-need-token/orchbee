@@ -7,6 +7,8 @@
 | 快捷方式 ID                                   | 适用范围               | 苹果默认                 | 标准默认值             |
 | --------------------------------------------- | ---------------------- | ------------------------ | ---------------------- |
 | `workbench.search.actions.open`               | Workbench              | `Cmd+Shift+P`            | `Ctrl+Shift+P`         |
+| `workbench.focus.next-region`                 | Workbench              | `Cmd+F6`                 | `Ctrl+F6`              |
+| `workbench.focus.previous-region`             | Workbench              | `Cmd+Shift+F6`           | `Ctrl+Shift+F6`        |
 | `workbench.terminal.create`                   | Workbench              | `Cmd+T`                  | `Ctrl+Shift+T`         |
 | `workbench.terminal.create-current-directory` | 活动终端               | `Option+Cmd+Enter`       | `Ctrl+Alt+Enter`       |
 | `workbench.terminal.font-size.increase`       | Workbench              | `Cmd+=`                  | `Ctrl+=`               |
@@ -305,11 +307,11 @@ Workbench 负责格式化自身绑定。投影终端负责其绑定默认值与�
 
 ## 持久化与恢复
 
-新写入使用 `orchbee:web:keyboard-shortcuts:v20` 严格记录：
+新写入使用 `orchbee:web:keyboard-shortcuts:v21` 严格记录：
 
 ```json
 {
-	"version": 20,
+	"version": 21,
 	"overrides": [
 		{
 			"shortcutId": "workbench.search.all.open",
@@ -319,9 +321,9 @@ Workbench 负责格式化自身绑定。投影终端负责其绑定默认值与�
 }
 ```
 
-只存储自定义值，并按快捷键 ID 排序。未知字段或 ID、重复项、未排序条目、非规范修饰符、不支持的代码、已存储默认值、过多条目以及有效冲突都会使完整 v20 记录无效，并恢复平台默认值。写入失败时，不可变的会话绑定仍保持活动，同时报告尚未保存，并在下一次合法修改时重试。恢复单项会移除其覆盖。
+只存储自定义值，并按快捷键 ID 排序。未知字段或 ID、重复项、未排序条目、非规范修饰符、不支持的代码、已存储默认值、过多条目以及有效冲突都会使完整 v21 记录无效，并恢复平台默认值。写入失败时，不可变的会话绑定仍保持活动，同时报告尚未保存，并在下一次合法修改时重试。恢复单项会移除其覆盖。
 
-当 v20 不存在时，Web 会先按准确的旧目录与旧默认值读取 `orchbee:web:keyboard-shortcuts:v19`；如果 v19 也不存在，则依次尝试 v18、v17、v16、v15、v14、v13、v12、v11、v10、v9、v8、v7、v6、v5、v4、v3、v2 和 v1。每次迁移都会把显式覆盖带入扩展后的目录，移除与当前默认值等价的覆盖，拒绝迁移后产生的冲突，并写入规范 v20 记录。v1 到 v19 的值原样保留，作为回滚快照。无效当前记录绝不回退到更旧记录，无效迁移源也绝不继续读取下一个更旧版本，因为任一回退都会掩盖数据损坏。回滚时会恢复旧版本能够理解的最新记录；只在 v20 中做出的编辑有意不对旧版本可用。
+当 v21 不存在时，Web 会先按准确的旧目录与旧默认值读取 `orchbee:web:keyboard-shortcuts:v20`；如果 v20 也不存在，则依次尝试 v19、v18、v17、v16、v15、v14、v13、v12、v11、v10、v9、v8、v7、v6、v5、v4、v3、v2 和 v1。每次迁移都会把显式覆盖带入扩展后的目录，移除与当前默认值等价的覆盖，拒绝迁移后产生的冲突，并写入规范 v21 记录。v1 到 v20 的值原样保留，作为回滚快照。无效当前记录绝不回退到更旧记录，无效迁移源也绝不继续读取下一个更旧版本，因为任一回退都会掩盖数据损坏。回滚时会恢复旧版本能够理解的最新记录；只在 v21 中做出的编辑有意不对旧版本可用。
 
 Browser Preview、Gateway Browser 和 Electron 各自针对自己的源本地存储创建并销毁一个控制器。Gateway 与 Electron 通过 `ProjectedTerminalSurfaceCapability` 传递控制器的窄绑定来源。事件处理器在分发时读取当前表，因此修改不会重新挂载 Workbench、替换附件，也不会重新打开 Host 或 Gateway 连接。
 

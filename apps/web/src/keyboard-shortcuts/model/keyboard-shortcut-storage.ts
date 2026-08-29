@@ -37,10 +37,20 @@ const KEYBOARD_SHORTCUT_STORAGE_V17_KEY = 'orchbee:web:keyboard-shortcuts:v17';
 const KEYBOARD_SHORTCUT_STORAGE_V18_KEY = 'orchbee:web:keyboard-shortcuts:v18';
 const KEYBOARD_SHORTCUT_STORAGE_V19_KEY = 'orchbee:web:keyboard-shortcuts:v19';
 const KEYBOARD_SHORTCUT_STORAGE_V20_KEY = 'orchbee:web:keyboard-shortcuts:v20';
+const KEYBOARD_SHORTCUT_STORAGE_V21_KEY = 'orchbee:web:keyboard-shortcuts:v21';
 
 const CURRENT_DIRECTORY_TERMINAL_SHORTCUT_ID = 'workbench.terminal.create-current-directory';
+const PRE_WORKBENCH_REGION_FOCUS_SHORTCUT_IDS = Object.freeze(
+	KEYBOARD_SHORTCUT_IDS.filter(
+		(shortcutId) =>
+			shortcutId !== 'workbench.focus.next-region' &&
+			shortcutId !== 'workbench.focus.previous-region',
+	),
+);
 const PRE_POSITIONAL_PANEL_FOCUS_SHORTCUT_IDS = Object.freeze(
-	KEYBOARD_SHORTCUT_IDS.filter((shortcutId) => !shortcutId.startsWith('workbench.panel.focus.')),
+	PRE_WORKBENCH_REGION_FOCUS_SHORTCUT_IDS.filter(
+		(shortcutId) => !shortcutId.startsWith('workbench.panel.focus.'),
+	),
 );
 const PRE_VISUAL_PANEL_SELECTION_SHORTCUT_IDS = Object.freeze(
 	PRE_POSITIONAL_PANEL_FOCUS_SHORTCUT_IDS.filter(
@@ -307,6 +317,10 @@ type LegacyV18KeyboardShortcutId = (typeof LEGACY_V18_KEYBOARD_SHORTCUT_IDS)[num
 const LEGACY_V19_KEYBOARD_SHORTCUT_IDS = PRE_POSITIONAL_PANEL_FOCUS_SHORTCUT_IDS;
 
 type LegacyV19KeyboardShortcutId = (typeof LEGACY_V19_KEYBOARD_SHORTCUT_IDS)[number];
+
+const LEGACY_V20_KEYBOARD_SHORTCUT_IDS = PRE_WORKBENCH_REGION_FOCUS_SHORTCUT_IDS;
+
+type LegacyV20KeyboardShortcutId = (typeof LEGACY_V20_KEYBOARD_SHORTCUT_IDS)[number];
 
 const legacyChord = (
 	code: string,
@@ -651,6 +665,16 @@ const LEGACY_V19_DEFAULT_BINDINGS = Object.freeze({
 	>
 >;
 
+const LEGACY_V20_DEFAULT_BINDINGS = Object.freeze({
+	apple: defaultKeyboardShortcutBindings('apple'),
+	standard: defaultKeyboardShortcutBindings('standard'),
+}) satisfies Readonly<
+	Record<
+		KeyboardShortcutPlatform,
+		Readonly<Record<LegacyV20KeyboardShortcutId, KeyboardShortcutChord>>
+	>
+>;
+
 export type KeyboardShortcutPersistenceIssue = 'invalid-record' | 'read-failed' | 'write-failed';
 
 export interface KeyboardShortcutStorage {
@@ -680,6 +704,7 @@ export interface KeyboardShortcutStorageReadResult {
 		| 'v17'
 		| 'v18'
 		| 'v19'
+		| 'v20'
 		| null;
 	readonly overrides: readonly KeyboardShortcutOverride[];
 }
@@ -908,8 +933,19 @@ const storedKeyboardShortcutOverridesV20Schema = z.strictObject({
 				shortcutId: z.string(),
 			}),
 		)
-		.max(KEYBOARD_SHORTCUT_IDS.length),
+		.max(LEGACY_V20_KEYBOARD_SHORTCUT_IDS.length),
 	version: z.literal(20),
+});
+const storedKeyboardShortcutOverridesV21Schema = z.strictObject({
+	overrides: z
+		.array(
+			z.strictObject({
+				chord: chordSchema,
+				shortcutId: z.string(),
+			}),
+		)
+		.max(KEYBOARD_SHORTCUT_IDS.length),
+	version: z.literal(21),
 });
 
 interface StoredKeyboardShortcutOverride {
@@ -921,13 +957,21 @@ export function readKeyboardShortcutOverrides(
 	storage: KeyboardShortcutStorage,
 	platform: KeyboardShortcutPlatform,
 ): KeyboardShortcutStorageReadResult {
+	let versionTwentyOne: string | null;
+	try {
+		versionTwentyOne = storage.getItem(KEYBOARD_SHORTCUT_STORAGE_V21_KEY);
+	} catch {
+		return defaultReadResult('read-failed');
+	}
+	if (versionTwentyOne !== null) return readVersionTwentyOne(versionTwentyOne, platform);
+
 	let versionTwenty: string | null;
 	try {
 		versionTwenty = storage.getItem(KEYBOARD_SHORTCUT_STORAGE_V20_KEY);
 	} catch {
 		return defaultReadResult('read-failed');
 	}
-	if (versionTwenty !== null) return readVersionTwenty(versionTwenty, platform);
+	if (versionTwenty !== null) return migrateVersionTwenty(versionTwenty, platform);
 
 	let versionNineteen: string | null;
 	try {
@@ -1089,13 +1133,13 @@ export function writeKeyboardShortcutOverrides(
 ): boolean {
 	try {
 		storage.setItem(
-			KEYBOARD_SHORTCUT_STORAGE_V20_KEY,
+			KEYBOARD_SHORTCUT_STORAGE_V21_KEY,
 			JSON.stringify({
 				overrides: overrides.map((override) => ({
 					chord: override.chord,
 					shortcutId: override.shortcutId,
 				})),
-				version: 20,
+				version: 21,
 			}),
 		);
 		return true;
@@ -1104,17 +1148,38 @@ export function writeKeyboardShortcutOverrides(
 	}
 }
 
-function readVersionTwenty(
+function readVersionTwentyOne(
+	serialized: string,
+	platform: KeyboardShortcutPlatform,
+): KeyboardShortcutStorageReadResult {
+	try {
+		const parsed = storedKeyboardShortcutOverridesV21Schema.safeParse(JSON.parse(serialized));
+		if (!parsed.success) return defaultReadResult('invalid-record');
+		const overrides = validateCurrentOverrides(parsed.data.overrides, platform);
+		return overrides === null
+			? defaultReadResult('invalid-record')
+			: { issue: null, migration: null, overrides };
+	} catch {
+		return defaultReadResult('invalid-record');
+	}
+}
+
+function migrateVersionTwenty(
 	serialized: string,
 	platform: KeyboardShortcutPlatform,
 ): KeyboardShortcutStorageReadResult {
 	try {
 		const parsed = storedKeyboardShortcutOverridesV20Schema.safeParse(JSON.parse(serialized));
 		if (!parsed.success) return defaultReadResult('invalid-record');
-		const overrides = validateCurrentOverrides(parsed.data.overrides, platform);
-		return overrides === null
+		const legacyOverrides = validateLegacyOverrides(
+			parsed.data.overrides,
+			platform,
+			LEGACY_V20_KEYBOARD_SHORTCUT_IDS,
+			LEGACY_V20_DEFAULT_BINDINGS,
+		);
+		return legacyOverrides === null
 			? defaultReadResult('invalid-record')
-			: { issue: null, migration: null, overrides };
+			: migrateLegacyOverrides(legacyOverrides, platform, 'v20');
 	} catch {
 		return defaultReadResult('invalid-record');
 	}

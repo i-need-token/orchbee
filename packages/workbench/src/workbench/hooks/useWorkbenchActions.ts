@@ -25,6 +25,7 @@ import {
 	type WorkbenchTabTitleEditorRequest,
 } from '../actions/registerWorkbenchTabTitleAction';
 import { registerWorkbenchTabSelectionActions } from '../actions/registerWorkbenchTabSelectionActions';
+import { registerWorkbenchFocusActions } from '../actions/registerWorkbenchFocusActions';
 import {
 	WORKBENCH_ACTION_IDS,
 	type WorkbenchActionCatalog,
@@ -42,9 +43,11 @@ import type {
 	WorkbenchTerminalFontSizeChangeCallback,
 	WorkbenchTerminalCreateCallback,
 } from '../types/workbench-host-actions';
+import type { WorkbenchFocusRouting } from '../types/workbench-focus-routing';
 import { WORKBENCH_SHORTCUTS, type WorkbenchShortcutBinding } from '../utils/workbench-shortcuts';
 
 interface UseWorkbenchActionsOptions {
+	readonly focusRouting: Pick<WorkbenchFocusRouting, 'focus' | 'getResolution'>;
 	readonly isSidebarVisible: boolean;
 	readonly navigation?: WorkbenchNavigationPort | undefined;
 	readonly onNewTerminal: WorkbenchTerminalCreateCallback | undefined;
@@ -79,6 +82,7 @@ interface WorkbenchActions {
 }
 
 export function useWorkbenchActions({
+	focusRouting,
 	isSidebarVisible,
 	navigation,
 	onNewTerminal,
@@ -152,6 +156,11 @@ export function useWorkbenchActions({
 			},
 		});
 		const registrations = [
+			...registerWorkbenchFocusActions({
+				focusRouter: focusRouting,
+				scope,
+				typedRuntime,
+			}),
 			registerWorkbenchTabTitleAction({
 				openEditor: openTabTitleEditor,
 				projectWorkspaceRuntime,
@@ -368,6 +377,7 @@ export function useWorkbenchActions({
 			}
 		};
 	}, [
+		focusRouting,
 		isSidebarVisible,
 		navigation,
 		onNewTerminal,
@@ -466,6 +476,8 @@ export function useWorkbenchActions({
 				case 'focusActivePanelRight':
 				case 'focusActivePanelUp':
 				case 'focusActivePanelVisible':
+				case 'focusNextRegion':
+				case 'focusPreviousRegion':
 				case 'increaseTerminalFontSize':
 				case 'maximizeActivePanel':
 				case 'moveActivePanelDown':

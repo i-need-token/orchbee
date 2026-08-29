@@ -3,6 +3,7 @@ import {
 	type MouseEvent as ReactMouseEvent,
 	type PointerEvent as ReactPointerEvent,
 	useEffect,
+	useLayoutEffect,
 	useMemo,
 	useRef,
 	useState,
@@ -18,6 +19,14 @@ import {
 } from '../actions/tab-strip-action-contracts';
 import { TabHoverCardThumbnailRuntime } from '../components/tab-strip-view/components/hover-card/model/tab-hover-card-thumbnail-runtime';
 import { resolveTabKeyboardReorder } from '../accessibility/resolveTabKeyboardReorder';
+import {
+	isTabStripKeyboardContextMenuRequest,
+	projectTabStripRovingItems,
+	resolveTabStripRovingFocus,
+	resolveTabStripRovingNavigation,
+	resolveTabStripRovingNavigationCommand,
+	type TabStripRovingItem,
+} from '../accessibility/tab-strip-roving-focus';
 import { TabActive, TabOpen, TabPinned } from '../model/tab-types';
 import { type TabData, type TabGroupData } from '../model/tab-model';
 import {
@@ -108,6 +117,7 @@ interface DragPointerUpdate {
 export function useTabStrip(
 	{
 		actionRuntime,
+		focusRequest = 0,
 		model,
 		orientation = TabStripOrientation.Horizontal,
 		onOrientationChange,
@@ -160,6 +170,71 @@ export function useTabStrip(
 	const [horizontalTrackRef, horizontalTrackSize] = useElementSize<HTMLDivElement>(horizontal);
 	const size = horizontal ? horizontalTrackSize : stripSize;
 	const items = useMemo(() => buildVisualItems(snapshot), [snapshot]);
+	const rovingItems = useMemo(() => projectTabStripRovingItems(snapshot), [snapshot]);
+	const [rememberedRovingFocusKey, setRememberedRovingFocusKey] = useState<
+		TabStripRovingItem['key'] | null
+	>(null);
+	const previousRovingItemsRef = useRef(rovingItems);
+	const previousRovingIndex =
+		rememberedRovingFocusKey === null
+			? null
+			: previousRovingItemsRef.current.findIndex((item) => item.key === rememberedRovingFocusKey);
+	const rovingFocusKey = resolveTabStripRovingFocus({
+		activeTabId: snapshot.activeTabId,
+		items: rovingItems,
+		preferredKey: rememberedRovingFocusKey,
+		previousIndex:
+			previousRovingIndex === null || previousRovingIndex === -1 ? null : previousRovingIndex,
+	});
+	const rovingFocusWithinRef = useRef(false);
+	const lastFocusRequestRef = useRef(0);
+	const focusRovingItem = useMemoizedFn((key: TabStripRovingItem['key']): boolean => {
+		const root = stripRef.current;
+		if (root === null) return false;
+		const element = [...root.querySelectorAll<HTMLElement>('[data-tab-strip-roving-key]')].find(
+			(candidate) =>
+				candidate.dataset['tabStripRovingKey'] === key &&
+				candidate.closest('[aria-hidden="true"]') === null,
+		);
+		if (element === undefined) return false;
+		setRememberedRovingFocusKey(key);
+		element.focus({ preventScroll: true });
+		return true;
+	});
+	const focusTabStripEntry = useMemoizedFn((): boolean => {
+		if (rovingFocusKey !== null && focusRovingItem(rovingFocusKey)) return true;
+		const newTabButton =
+			stripRef.current?.querySelector<HTMLButtonElement>('[data-tab-strip-new-tab]') ?? null;
+		if (newTabButton === null) return false;
+		newTabButton.focus({ preventScroll: true });
+		return true;
+	});
+	const onRovingFocusChanged = useMemoizedFn((key: TabStripRovingItem['key'] | null): void => {
+		rovingFocusWithinRef.current = true;
+		if (key !== null) setRememberedRovingFocusKey(key);
+	});
+	const onRovingFocusExited = useMemoizedFn((): void => {
+		rovingFocusWithinRef.current = false;
+	});
+	useEffect(() => {
+		previousRovingItemsRef.current = rovingItems;
+		if (rememberedRovingFocusKey !== null && rememberedRovingFocusKey !== rovingFocusKey) {
+			setRememberedRovingFocusKey(rovingFocusKey);
+		}
+	}, [rememberedRovingFocusKey, rovingFocusKey, rovingItems]);
+	useLayoutEffect(() => {
+		if (focusRequest === lastFocusRequestRef.current) return;
+		lastFocusRequestRef.current = focusRequest;
+		if (focusRequest > 0) focusTabStripEntry();
+	}, [focusRequest, focusTabStripEntry]);
+	useLayoutEffect(() => {
+		if (!rovingFocusWithinRef.current) return;
+		const root = stripRef.current;
+		if (root === null) return;
+		const activeElement = root.ownerDocument.activeElement;
+		if (activeElement instanceof Node && root.contains(activeElement)) return;
+		focusTabStripEntry();
+	}, [focusTabStripEntry, rovingFocusKey, rovingItems, stripRef]);
 	const horizontalAnimationRuntimeRef = useRef<TabCollectionAnimationRuntime | null>(null);
 	if (horizontalAnimationRuntimeRef.current === null) {
 		horizontalAnimationRuntimeRef.current = new TabCollectionAnimationRuntime();
@@ -1529,6 +1604,23 @@ export function useTabStrip(
 	};
 
 	const onGroupKeyDown = (event: React.KeyboardEvent<HTMLDivElement>, groupId: string) => {
+		if (isTabStripKeyboardContextMenuRequest(event)) {
+			event.preventDefault();
+			const bounds = event.currentTarget.getBoundingClientRect();
+			openGroupEditor(groupId, bounds.left + bounds.width / 2, bounds.bottom);
+			return;
+		}
+		const navigation = resolveTabStripRovingNavigationCommand(event, horizontal);
+		if (navigation !== null) {
+			event.preventDefault();
+			const target = resolveTabStripRovingNavigation({
+				command: navigation,
+				currentKey: `group:${groupId}`,
+				items: rovingItems,
+			});
+			if (target !== null) focusRovingItem(target);
+			return;
+		}
 		if (!(event.ctrlKey || event.metaKey)) return;
 		const previousKey = horizontal ? 'ArrowLeft' : 'ArrowUp';
 		const nextKey = horizontal ? 'ArrowRight' : 'ArrowDown';
@@ -2279,14 +2371,38 @@ export function useTabStrip(
 	]);
 
 	const onTabKeyDown = (event: React.KeyboardEvent, tabId: string) => {
-		if (event.key === 'Enter') {
-			if (snapshot.selectedTabIds.has(tabId)) return;
+		if (isTabStripKeyboardContextMenuRequest(event)) {
 			event.preventDefault();
-			actions.execute(TAB_STRIP_ACTION_IDS.selectTab, { mode: 'replace', tabId }, 'keyboard');
+			const bounds = event.currentTarget.getBoundingClientRect();
+			setMenu({ kind: 'tab', id: tabId, x: bounds.left + bounds.width / 2, y: bounds.bottom });
 			return;
 		}
-		if (event.key === ' ') {
+		if (
+			event.key === 'Enter' &&
+			!event.altKey &&
+			!event.ctrlKey &&
+			!event.metaKey &&
+			!event.shiftKey
+		) {
 			event.preventDefault();
+			if (snapshot.activeTabId !== tabId) {
+				actions.execute(TAB_STRIP_ACTION_IDS.selectTab, { mode: 'replace', tabId }, 'keyboard');
+			}
+			return;
+		}
+		if (event.key === ' ' && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey) {
+			event.preventDefault();
+			return;
+		}
+		const navigation = resolveTabStripRovingNavigationCommand(event, horizontal);
+		if (navigation !== null) {
+			event.preventDefault();
+			const target = resolveTabStripRovingNavigation({
+				command: navigation,
+				currentKey: `tab:${tabId}`,
+				items: rovingItems,
+			});
+			if (target !== null) focusRovingItem(target);
 			return;
 		}
 		const reorder = resolveTabKeyboardReorder({
@@ -2357,9 +2473,11 @@ export function useTabStrip(
 	};
 
 	const onTabKeyUp = (event: React.KeyboardEvent, tabId: string) => {
-		if (event.key !== ' ') return;
+		if (event.key !== ' ' || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) {
+			return;
+		}
 		event.preventDefault();
-		if (!snapshot.selectedTabIds.has(tabId)) {
+		if (snapshot.activeTabId !== tabId) {
 			actions.execute(TAB_STRIP_ACTION_IDS.selectTab, { mode: 'replace', tabId }, 'keyboard');
 		}
 	};
@@ -2416,6 +2534,9 @@ export function useTabStrip(
 		touchUi,
 		tabStripDeclutter,
 		onTabKeyboardFocusChanged,
+		onRovingFocusChanged,
+		onRovingFocusExited,
+		rovingFocusKey,
 		onMoveTabsToNewWindow,
 		onMoveGroupToNewWindow,
 		onMoveTabsToWindow,

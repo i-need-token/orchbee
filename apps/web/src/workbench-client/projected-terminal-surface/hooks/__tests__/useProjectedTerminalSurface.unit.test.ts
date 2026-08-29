@@ -108,9 +108,11 @@ afterEach(() => {
 
 function TestHarness({
 	autoFocus,
+	focusRequest = 0,
 	presentation,
 }: {
 	readonly autoFocus?: boolean | undefined;
+	readonly focusRequest?: number | undefined;
 	readonly presentation: WorkbenchTerminalPresentation;
 }): ReactNode {
 	const view = useProjectedTerminalSurface(
@@ -123,6 +125,7 @@ function TestHarness({
 					admitBellEffect,
 					autoFocus,
 					bindActionContextProvider,
+					focusRequest,
 				},
 	);
 	return createElement(
@@ -229,7 +232,7 @@ describe('useProjectedTerminalSurface', () => {
 		const container = document.createElement('div');
 		document.body.appendChild(container);
 		const root = createRoot(container);
-		const renderHarness = async (autoFocus: boolean): Promise<void> => {
+		const renderHarness = async (autoFocus: boolean, focusRequest: number): Promise<void> => {
 			await act(async () => {
 				root.render(
 					createElement(
@@ -238,24 +241,27 @@ describe('useProjectedTerminalSurface', () => {
 						createElement(
 							OrchbeeI18nProvider,
 							{ locale: 'en-US' },
-							createElement(TestHarness, { autoFocus, presentation }),
+							createElement(TestHarness, { autoFocus, focusRequest, presentation }),
 						),
 					),
 				);
 			});
 		};
 
-		await renderHarness(true);
+		await renderHarness(true, 1);
 		await vi.waitFor(() => expect(renderer.start).toHaveBeenCalledOnce());
 		expect(focus).not.toHaveBeenCalled();
 		await act(async () => markPresentationReady?.());
 		await vi.waitFor(() => expect(focus).toHaveBeenCalledOnce());
 
-		await renderHarness(true);
+		await renderHarness(true, 1);
 		expect(focus).toHaveBeenCalledOnce();
-		await renderHarness(false);
-		await renderHarness(true);
+		await renderHarness(true, 2);
 		await vi.waitFor(() => expect(focus).toHaveBeenCalledTimes(2));
+		await renderHarness(false, 3);
+		expect(focus).toHaveBeenCalledTimes(2);
+		await renderHarness(true, 3);
+		await vi.waitFor(() => expect(focus).toHaveBeenCalledTimes(3));
 
 		await act(async () => root.unmount());
 		expect(release).toHaveBeenCalledOnce();

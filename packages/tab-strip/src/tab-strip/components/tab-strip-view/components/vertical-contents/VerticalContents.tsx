@@ -57,6 +57,7 @@ export function VerticalContents({
 	onGroupKeyDown,
 	onTabKeyDown,
 	onTabKeyUp,
+	rovingFocusKey,
 	onTabMouseEnter,
 	onGroupMouseEnter,
 	showGroupHoverCards,
@@ -99,6 +100,7 @@ export function VerticalContents({
 	onGroupKeyDown: (event: React.KeyboardEvent<HTMLDivElement>, groupId: string) => void;
 	onTabKeyDown: (event: React.KeyboardEvent, tabId: string) => void;
 	onTabKeyUp: (event: React.KeyboardEvent, tabId: string) => void;
+	rovingFocusKey: `group:${string}` | `tab:${string}` | null;
 	onTabMouseEnter: (event: ReactMouseEvent<HTMLDivElement>, tabId: string) => void;
 	onGroupMouseEnter: (event: ReactMouseEvent<HTMLDivElement>, groupId: string) => void;
 	showGroupHoverCards: boolean;
@@ -201,6 +203,7 @@ export function VerticalContents({
 					onMouseLeave={clearHover}
 					onKeyDown={onTabKeyDown}
 					onKeyUp={onTabKeyUp}
+					tabIndex={rovingFocusKey === `tab:${tab.id}` ? 0 : -1}
 					touchUi={touchUi}
 					closeButtonAllowed={closeButtonAllowed}
 					verticalExpandedOnHover={expandedOnHover}
@@ -539,6 +542,7 @@ export function VerticalContents({
 											onOpenEditor={(x, y) => onOpenGroupEditor(group.id, x, y)}
 											onMouseEnter={(event) => onGroupMouseEnter(event, group.id)}
 											onMouseLeave={clearHover}
+											tabIndex={rovingFocusKey === `group:${group.id}` ? 0 : -1}
 											showHoverCard={showGroupHoverCards}
 										/>
 										<div

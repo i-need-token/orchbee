@@ -42,6 +42,7 @@ export function FlatEdgeButton({
 			aria-label={ariaLabel}
 			data-target-visible={targetVisible || undefined}
 			data-animating={animating || undefined}
+			data-tab-strip-new-tab={variantClass === 'ct-vertical-new-tab' || undefined}
 			onClick={onClick}
 			onContextMenu={onContextMenu}
 			className={joinClassNames(

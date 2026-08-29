@@ -26,6 +26,7 @@ import { useNavigationReorderDrag } from './hooks/useNavigationReorderDrag';
 import { useProjectFolderAcquisition } from './hooks/useProjectFolderAcquisition';
 import { useProjectWorktreeCreation } from './hooks/useProjectWorktreeCreation';
 import { useProjectWorktreeMenu } from './hooks/useProjectWorktreeMenu';
+import { useWorkbenchSidebarFocusRequest } from './hooks/useWorkbenchSidebarFocusRequest';
 import type { WorkbenchProjectNavigationMessages } from './types/workbench-sidebar-types';
 import styles from './WorkbenchSidebar.module.css';
 
@@ -37,6 +38,7 @@ interface WorkbenchSidebarProps {
 	readonly createProject: (path: string) => void;
 	readonly deleteWorkspace: (projectId: string, workspaceId: string) => void;
 	readonly duplicateWorkspace: (projectId: string, workspaceId: string) => void;
+	readonly focusRequest: number;
 	readonly label: string;
 	readonly onSearch: (returnFocus: HTMLElement) => void;
 	readonly onSettings?: (() => void) | undefined;
@@ -79,6 +81,7 @@ export function WorkbenchSidebar({
 	createProject,
 	deleteWorkspace,
 	duplicateWorkspace,
+	focusRequest,
 	label,
 	onSearch,
 	onSettings,
@@ -103,6 +106,7 @@ export function WorkbenchSidebar({
 	toggleProjectExpansion,
 	updateWorkspace,
 }: WorkbenchSidebarProps): React.ReactNode {
+	const rootReference = useWorkbenchSidebarFocusRequest(focusRequest);
 	const view = useWorkbenchSidebar(projectWorkspaceState);
 	const folderAcquisition = useProjectFolderAcquisition({
 		acquisition: projectFolderAcquisition,
@@ -125,7 +129,12 @@ export function WorkbenchSidebar({
 	});
 	return (
 		<>
-			<aside aria-label={label} className={styles['root']} data-slot='workbench-sidebar'>
+			<aside
+				aria-label={label}
+				className={styles['root']}
+				data-slot='workbench-sidebar'
+				ref={rootReference}
+			>
 				<ul className={styles['primaryList']}>
 					<li>
 						<Button

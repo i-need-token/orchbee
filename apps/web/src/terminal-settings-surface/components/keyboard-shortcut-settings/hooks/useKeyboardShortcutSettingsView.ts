@@ -120,6 +120,8 @@ export function useKeyboardShortcutSettingsView({
 				return intl.formatMessage(keyboardShortcutMessages.toggleSidebar);
 			case 'find':
 				return intl.formatMessage(keyboardShortcutMessages.find);
+			case 'focus-next-region':
+				return intl.formatMessage(keyboardShortcutMessages.focusNextRegion);
 			case 'focus-panel-down':
 				return intl.formatMessage(keyboardShortcutMessages.focusPanelDown);
 			case 'focus-panel-left':
@@ -138,6 +140,8 @@ export function useKeyboardShortcutSettingsView({
 				return intl.formatMessage(keyboardShortcutMessages.focusPanelUp);
 			case 'focus-panel-visible':
 				return intl.formatMessage(keyboardShortcutMessages.focusPanelVisible);
+			case 'focus-previous-region':
+				return intl.formatMessage(keyboardShortcutMessages.focusPreviousRegion);
 			case 'copy-selection':
 				return intl.formatMessage(keyboardShortcutMessages.copySelection);
 			case 'decrease-terminal-font-size':

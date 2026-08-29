@@ -33,6 +33,7 @@ export function GroupHeader({
 	onOpenEditor,
 	onMouseEnter,
 	onMouseLeave,
+	tabIndex,
 	showHoverCard,
 	frameCondensed = false,
 }: {
@@ -48,6 +49,7 @@ export function GroupHeader({
 	onOpenEditor?: (x: number, y: number) => void;
 	onMouseEnter: (event: ReactMouseEvent<HTMLDivElement>) => void;
 	onMouseLeave: () => void;
+	tabIndex: -1 | 0;
 	showHoverCard: boolean;
 	frameCondensed?: boolean;
 }): ReactNode {
@@ -75,10 +77,11 @@ export function GroupHeader({
 		<div
 			ref={headerRef}
 			role='tablist'
-			tabIndex={-1}
+			tabIndex={tabIndex}
 			className={styles['ct-group-header']}
 			data-tab-strip-group-header=''
 			data-group-id={group.id}
+			data-tab-strip-roving-key={`group:${group.id}`}
 			data-active={representedActiveTabId !== null || undefined}
 			data-active-tab-id={representedActiveTabId ?? undefined}
 			data-orientation={orientation}

@@ -61,6 +61,7 @@ describe('ProjectedTerminalSurface', () => {
 					autoFocus: true,
 					bindActionContextProvider: () => ({ dispose: () => undefined }),
 					bindBroadcastInputSink: () => ({ dispose: () => undefined }),
+					focusRequest: 3,
 					onPresentationReady: () => undefined,
 					presentation,
 					presentationMode: 'active',
@@ -75,7 +76,7 @@ describe('ProjectedTerminalSurface', () => {
 		expect(markup).toContain('data-slot="projected-terminal-mobile-input-bar"');
 		expect(useProjectedTerminalSurface).toHaveBeenCalledWith(
 			presentation,
-			expect.objectContaining({ autoFocus: true }),
+			expect.objectContaining({ autoFocus: true, focusRequest: 3 }),
 		);
 	});
 
@@ -121,6 +122,7 @@ describe('ProjectedTerminalSurface', () => {
 					autoFocus: false,
 					bindActionContextProvider: () => ({ dispose: () => undefined }),
 					bindBroadcastInputSink: () => ({ dispose: () => undefined }),
+					focusRequest: 0,
 					onPresentationReady: () => undefined,
 					presentation: stoppedPresentation,
 					presentationMode: 'active',

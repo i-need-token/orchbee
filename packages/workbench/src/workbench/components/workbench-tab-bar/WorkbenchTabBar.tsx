@@ -27,6 +27,7 @@ interface WorkbenchTabBarProps {
 	readonly onMoveTabsToWindow?: TabStripMoveTabsToWindowCallback | undefined;
 	readonly onCloseTabs?: TabStripCloseCallback | undefined;
 	readonly getCloseTabsConfirmation: TabStripCloseConfirmation;
+	readonly focusRequest: number;
 	readonly onOrientationChange: (orientation: TabStripOrientation) => void;
 	readonly onSelectTab?: TabStripSelectCallback | undefined;
 	readonly onSetTabTitle: (tabId: string) => void;
@@ -48,6 +49,7 @@ export function WorkbenchTabBar({
 	onMoveTabsToWindow,
 	onCloseTabs,
 	getCloseTabsConfirmation,
+	focusRequest,
 	onOrientationChange,
 	onSelectTab,
 	onSetTabTitle,
@@ -65,12 +67,14 @@ export function WorkbenchTabBar({
 		<div
 			className={styles['root']}
 			data-slot='workbench-tab-bar'
+			data-workbench-focus-region='tab-strip'
 			data-orientation={orientation}
 			data-reserve-sidebar-toggle-space={reserveSidebarToggleSpace || undefined}
 		>
 			<TabStrip
 				actionRuntime={actionRuntime}
 				createCrossWindowDragRuntime={createCrossWindowDragRuntime}
+				focusRequest={focusRequest}
 				horizontalLeadingActions={
 					reserveSidebarToggleSpace ? (
 						<div
