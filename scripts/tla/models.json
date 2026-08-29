@@ -1617,6 +1617,7 @@
 			],
 			"requiredCoverage": [
 				"BeginSwitch",
+				"BeginRevisionReplacement",
 				"Supersede",
 				"SupersedeWithoutSurface",
 				"SwitchWithoutSurface",

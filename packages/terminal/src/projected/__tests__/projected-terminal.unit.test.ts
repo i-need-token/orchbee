@@ -13350,6 +13350,80 @@ describe('ProjectedTerminal', () => {
 		terminal.dispose();
 	});
 
+	it('reports presentation geometry current only after a matching frame is painted', async () => {
+		const browser = createFakeBrowser();
+		const root = browser.root as unknown as FakeElement;
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			canResize: true,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		const initialResize = commands.find((command) => command.kind === 'resize-terminal');
+		if (initialResize?.kind !== 'resize-terminal') {
+			throw new Error('initial resize proposal is unavailable');
+		}
+		const frameForGeometry = (
+			sequence: bigint,
+			geometry: typeof initialResize.payload,
+		): Uint8Array =>
+			terminalFrame(
+				'snapshot',
+				sequence,
+				sequence,
+				['a', 'b'],
+				null,
+				Array.from({ length: geometry.rows }, (_, index) => index),
+				0n,
+				interaction,
+				{ column: 0, row: 0 },
+				1n,
+				geometry.columns,
+				ActiveScreen.primary,
+				'unknown',
+				0n,
+				geometry,
+			);
+
+		expect(terminal.isPresentationGeometryCurrent()).toBe(false);
+		expect(terminal.applyFrame(frameForGeometry(1n, initialResize.payload))).toBe('committed');
+		expect(terminal.isPresentationGeometryCurrent()).toBe(false);
+		browser.flushFrames();
+		expect(terminal.isPresentationGeometryCurrent()).toBe(true);
+
+		const commandCountBeforeMeasurement = commands.length;
+		root.clientWidth = 360;
+		expect(terminal.isPresentationGeometryCurrent()).toBe(false);
+		expect(commands).toHaveLength(commandCountBeforeMeasurement);
+		browser.dispatchWindow('resize');
+		const resized = commands.filter((command) => command.kind === 'resize-terminal').at(-1);
+		if (resized?.kind !== 'resize-terminal') {
+			throw new Error('resized proposal is unavailable');
+		}
+		expect(resized.payload.columns).toBeLessThan(initialResize.payload.columns);
+
+		expect(terminal.applyFrame(frameForGeometry(2n, initialResize.payload))).toBe('committed');
+		browser.flushFrames();
+		expect(terminal.isPresentationGeometryCurrent()).toBe(false);
+
+		expect(terminal.applyFrame(frameForGeometry(3n, resized.payload))).toBe('committed');
+		browser.flushFrames();
+		expect(terminal.isPresentationGeometryCurrent()).toBe(true);
+		terminal.dispose();
+	});
+
 	it('caps resize geometry to the PTY total-pixel bounds', async () => {
 		const browser = createFakeBrowser();
 		const root = browser.root as unknown as FakeElement;

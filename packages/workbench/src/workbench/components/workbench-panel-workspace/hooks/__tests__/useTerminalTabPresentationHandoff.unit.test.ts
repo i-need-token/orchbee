@@ -40,6 +40,7 @@ describe('useTerminalTabPresentationHandoff', () => {
 			({ activeTab }) =>
 				useTerminalTabPresentationHandoff({
 					activeTab,
+					presentationScopeId: 'scope-a',
 					tabs,
 					terminalSurfaceAvailable: true,
 				}),
@@ -54,10 +55,13 @@ describe('useTerminalTabPresentationHandoff', () => {
 			targetTabId: 'second',
 		});
 		const epoch = result.current.state.epoch;
+		if (result.current.state.kind === 'settled') throw new Error('Expected a pending target.');
+		const targetRevision = result.current.state.targetRevision;
 		act(() => {
 			result.current.reportPresentationReady(
 				epoch,
 				'second',
+				targetRevision,
 				terminalPresentationId('presentation-second'),
 				'display-ready',
 			);
@@ -67,6 +71,7 @@ describe('useTerminalTabPresentationHandoff', () => {
 			result.current.reportPresentationReady(
 				epoch,
 				'second',
+				targetRevision,
 				terminalPresentationId('presentation-second'),
 				'activation-ready',
 			);
@@ -81,6 +86,7 @@ describe('useTerminalTabPresentationHandoff', () => {
 			({ activeTab }) =>
 				useTerminalTabPresentationHandoff({
 					activeTab,
+					presentationScopeId: 'scope-a',
 					tabs: [first, second],
 					terminalSurfaceAvailable: false,
 				}),
@@ -89,5 +95,67 @@ describe('useTerminalTabPresentationHandoff', () => {
 
 		rerender({ activeTab: second });
 		expect(result.current.state).toMatchObject({ displayedTabId: 'second', kind: 'settled' });
+	});
+
+	it('retains the prior same-Tab layout until the replacement revision is ready', () => {
+		const initial = tab('first', 'presentation-first');
+		const maximized = { ...initial, maximizedPanelId: initial.root.id };
+		const { result, rerender } = renderHook(
+			({ activeTab, tabs }) =>
+				useTerminalTabPresentationHandoff({
+					activeTab,
+					presentationScopeId: 'scope-a',
+					tabs,
+					terminalSurfaceAvailable: true,
+				}),
+			{ initialProps: { activeTab: initial, tabs: [initial] } },
+		);
+
+		rerender({ activeTab: maximized, tabs: [maximized] });
+		expect(result.current.displayedTab).toBe(initial);
+		expect(result.current.state).toMatchObject({
+			displayedTabId: 'first',
+			kind: 'preparing',
+			targetTabId: 'first',
+		});
+		if (result.current.state.kind === 'settled') throw new Error('Expected a pending target.');
+		const epoch = result.current.state.epoch;
+		const targetRevision = result.current.state.targetRevision;
+		act(() => {
+			result.current.reportPresentationReady(
+				epoch,
+				'first',
+				targetRevision,
+				terminalPresentationId('presentation-first'),
+				'activation-ready',
+			);
+		});
+		expect(result.current.displayedTab).toBe(maximized);
+		expect(result.current.state).toMatchObject({ kind: 'settled' });
+	});
+
+	it('starts a handoff when the Workspace scope changes around the same Tab identity', () => {
+		const firstScopeTab = tab('first', 'presentation-first');
+		const secondScopeTab = tab('first', 'presentation-second');
+		const { result, rerender } = renderHook(
+			({ activeTab, presentationScopeId }) =>
+				useTerminalTabPresentationHandoff({
+					activeTab,
+					presentationScopeId,
+					tabs: [activeTab],
+					terminalSurfaceAvailable: true,
+				}),
+			{
+				initialProps: { activeTab: firstScopeTab, presentationScopeId: 'scope-a' },
+			},
+		);
+
+		rerender({ activeTab: secondScopeTab, presentationScopeId: 'scope-b' });
+		expect(result.current.displayedTab).toBe(firstScopeTab);
+		expect(result.current.state).toMatchObject({
+			displayedTabId: 'first',
+			kind: 'preparing',
+			targetTabId: 'first',
+		});
 	});
 });

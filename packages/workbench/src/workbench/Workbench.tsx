@@ -279,6 +279,7 @@ export function Workbench({
 										actionRuntime={actionRuntime}
 										panelWorkspaceStore={view.terminalContext.panelWorkspaceStore}
 										parentActionScope={view.actionScope}
+										presentationScopeId={view.terminalContext.terminalContextId}
 										shortcutLabelForAction={shortcutLabelForAction}
 										terminalSurface={terminalSurface}
 									/>

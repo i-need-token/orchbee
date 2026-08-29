@@ -67,5 +67,16 @@ describe('projectWorkbenchPanelWorkspaceTabView', () => {
 			panelVisualSelection: null,
 		});
 		expect(projectWorkbenchPanelWorkspaceTabView(view, active)).toBe(view);
+
+		const retainedRevision = { ...active, maximizedPanelId: 'active-panel' };
+		const projectedRevision = projectWorkbenchPanelWorkspaceTabView(view, retainedRevision);
+		expect(projectedRevision).not.toBe(view);
+		expect(projectedRevision).toMatchObject({
+			activeTab: retainedRevision,
+			displayedRoot: retainedRevision.root,
+			maximizedPanelId: 'active-panel',
+			panelDrag: { draggingPanelId: null, dropTarget: null, ghost: null, previewRoot: null },
+			panelVisualSelection: null,
+		});
 	});
 });

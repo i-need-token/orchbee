@@ -92,6 +92,7 @@ type ProjectedTerminalDriver = Pick<
 	| 'focus'
 	| 'freeze'
 	| 'getBufferRowsSnapshot'
+	| 'isPresentationGeometryCurrent'
 	| 'notifyExited'
 	| 'notifyFailed'
 	| 'notifyBell'
@@ -930,6 +931,11 @@ export async function startProjectedTerminalRenderer(
 					);
 					rootElement.dataset['projectedTerminalRenderer'] = event.backend;
 					updateFinalPresentation();
+					const presentationGeometryCurrent = terminal.isPresentationGeometryCurrent();
+					rootElement.dataset['projectedTerminalPresentationGeometryCurrent'] = String(
+						presentationGeometryCurrent,
+					);
+					if (!presentationGeometryCurrent) return;
 					displayPresentationDrawn = true;
 					activationPresentationDrawn = true;
 					resolveReadiness();
@@ -1220,9 +1226,15 @@ export async function startProjectedTerminalRenderer(
 			isProjectedTerminalSnapshotDriver(terminal) &&
 			terminal.capturePresentationSnapshot() === presentationSnapshot
 		) {
-			displayPresentationDrawn = true;
-			rootElement.dataset['projectedTerminalCachedPresentation'] = 'true';
-			resolveReadiness();
+			const presentationGeometryCurrent = terminal.isPresentationGeometryCurrent();
+			rootElement.dataset['projectedTerminalPresentationGeometryCurrent'] = String(
+				presentationGeometryCurrent,
+			);
+			if (presentationGeometryCurrent) {
+				displayPresentationDrawn = true;
+				rootElement.dataset['projectedTerminalCachedPresentation'] = 'true';
+				resolveReadiness();
+			}
 		}
 		reportProjectionReady();
 		if (terminalThemeSource !== undefined && themeParticipant !== undefined) {

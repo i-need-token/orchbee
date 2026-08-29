@@ -130,6 +130,36 @@ afterEach(() => {
 });
 
 describe('WorkbenchTerminalViewport', () => {
+	it('does not mount an incoming terminal surface before its ancestor layout settles', () => {
+		const actionRuntime = new ActionRuntime();
+		const view = createView(actionRuntime);
+		const incomingLayer: TerminalTabPresentationLayer = {
+			...layer,
+			mode: 'incoming',
+		};
+		const renderViewport = (layoutSettled: boolean) => (
+			<OrchbeeI18nProvider locale='en-US'>
+				<WorkbenchTerminalViewport
+					layer={incomingLayer}
+					layoutSettled={layoutSettled}
+					panelId='panel-1'
+					terminal={terminal}
+					terminalRole='primary'
+					terminalSurface={TestTerminalSurface}
+					view={view}
+				/>
+			</OrchbeeI18nProvider>
+		);
+		const rendered = render(renderViewport(false));
+
+		expect(screen.queryByRole('textbox', { name: 'Terminal input' })).toBeNull();
+		rendered.rerender(renderViewport(true));
+		expect(screen.getByRole('textbox', { name: 'Terminal input' })).toBeDefined();
+
+		rendered.unmount();
+		actionRuntime.dispose();
+	});
+
 	it('restores the same terminal input focus after Clear closes the product context menu', async () => {
 		const actionRuntime = new ActionRuntime();
 		const rendered = render(

@@ -274,8 +274,8 @@
 			"zhCnSha256": "1cc0850fc5f8aae29734edaae364de39f27fa399994efb852abe72aad7d9e0be"
 		},
 		"packages/terminal/README.md": {
-			"englishSha256": "3e3503f7f9a2133c9466cd1887b8b923727abee3b30ad45bda08c953bfb71303",
-			"zhCnSha256": "be823ff84b366ffba47d17d98aa922ef5a75291fb72bd2e5a050b05528e0d704"
+			"englishSha256": "64be3b9dc1939cc891be1e2ae860982253bf1dcfef2ac41900a999b5af83ad95",
+			"zhCnSha256": "9e1f02e92052effa238487f8177b35d053b2686e2fea71dc016da41783ae9cdc"
 		},
 		"packages/terminal/docs/ghostty-surface-test-provenance.md": {
 			"englishSha256": "c3fa251874939bdae471915e05fac4136244c6f35eb0bf41d3c7f3f0bb176cc6",
@@ -318,8 +318,8 @@
 			"zhCnSha256": "48ca773dc61815ae61bb2940b15b8f0f84135965c9ed1b9d06afb6a0cac15ff3"
 		},
 		"packages/workbench/README.md": {
-			"englishSha256": "04cbb8c08acf83058e386d38ead6eb69eb563f26a2499f0266ed402e2eb6ffaf",
-			"zhCnSha256": "94fca9256dfc2cc9e221cf5aaa503a457db5a3d837540747e7c64b8005bb70fc"
+			"englishSha256": "aca31a9a92e831f4a2afb577e624415a589f671f7bd198039b5334c651ef229c",
+			"zhCnSha256": "e5db6c1dbebf217a77d8b4d19405bab3bfd66501b4b4eeff99ea0f0b9ec61f12"
 		},
 		"packages/workbench/docs/panel-broadcast-input.md": {
 			"englishSha256": "a56fe71870f7adae9697ec4851cc0c92b0e129c61662777451dc2941185a464e",

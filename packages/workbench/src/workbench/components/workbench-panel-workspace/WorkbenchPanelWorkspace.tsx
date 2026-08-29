@@ -19,6 +19,7 @@ interface WorkbenchPanelWorkspaceProps {
 	readonly actionRuntime: ActionRuntime;
 	readonly panelWorkspaceStore: PanelWorkspaceStore;
 	readonly parentActionScope: ActionScope;
+	readonly presentationScopeId: string;
 	readonly shortcutLabelForAction: (actionId: string) => string | undefined;
 	readonly terminalSurface?: WorkbenchTerminalSurface | undefined;
 }
@@ -27,6 +28,7 @@ export function WorkbenchPanelWorkspace({
 	actionRuntime,
 	panelWorkspaceStore,
 	parentActionScope,
+	presentationScopeId,
 	shortcutLabelForAction,
 	terminalSurface,
 }: WorkbenchPanelWorkspaceProps): ReactNode {
@@ -38,11 +40,12 @@ export function WorkbenchPanelWorkspace({
 	});
 	const handoff = useTerminalTabPresentationHandoff({
 		activeTab: view.activeTab,
+		presentationScopeId,
 		tabs: view.state.tabs,
 		terminalSurfaceAvailable: terminalSurface !== undefined,
 	});
 	const presentationLayers = projectTerminalTabPresentationLayers(
-		view.state.tabs,
+		view.activeTab,
 		handoff.state,
 		handoff.displayedTab,
 	);
@@ -76,12 +79,12 @@ export function WorkbenchPanelWorkspace({
 			ref={view.workspaceReference}
 			tabIndex={-1}
 		>
-			{presentationLayers.map(({ epoch, mode, tab }) => {
+			{presentationLayers.map(({ epoch, mode, revision, tab }) => {
 				const layer: TerminalTabPresentationLayer = {
 					epoch,
 					mode,
 					reportPresentationReady: (presentationId, readiness) => {
-						handoff.reportPresentationReady(epoch, tab.tabId, presentationId, readiness);
+						handoff.reportPresentationReady(epoch, tab.tabId, revision, presentationId, readiness);
 					},
 				};
 				const layerView = projectWorkbenchPanelWorkspaceTabView(view, tab);
@@ -93,7 +96,7 @@ export function WorkbenchPanelWorkspace({
 						data-presentation-mode={mode}
 						data-terminal-tab-id={tab.tabId}
 						inert={mode === 'active' ? undefined : true}
-						key={tab.tabId}
+						key={revision}
 					>
 						<WorkbenchPanelLayout
 							layer={layer}

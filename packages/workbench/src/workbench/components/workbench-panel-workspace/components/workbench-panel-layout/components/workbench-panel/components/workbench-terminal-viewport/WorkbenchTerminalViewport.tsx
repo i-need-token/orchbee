@@ -195,7 +195,7 @@ export function WorkbenchTerminalViewport({
 				}}
 				tabIndex={0}
 			>
-				{TerminalSurface === undefined ? null : (
+				{TerminalSurface === undefined || (layer.mode === 'incoming' && !layoutSettled) ? null : (
 					<TerminalSurface
 						actionRuntime={view.actionRuntime}
 						actionScope={terminalActions.scope}

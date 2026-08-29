@@ -6,7 +6,7 @@ export function projectWorkbenchPanelWorkspaceTabView(
 	view: WorkbenchPanelWorkspaceView,
 	tab: TabPanelWorkspace,
 ): WorkbenchPanelWorkspaceView {
-	if (view.activeTab?.tabId === tab.tabId) return view;
+	if (view.activeTab === tab) return view;
 	return {
 		...view,
 		activeTab: tab,

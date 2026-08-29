@@ -30,6 +30,7 @@ import {
 import { WorkbenchPanelWorkspace } from '../WorkbenchPanelWorkspace';
 
 const surfaces = new Map<string, WorkbenchTerminalSurfaceProps>();
+const surfacesByMode = new Map<string, WorkbenchTerminalSurfaceProps>();
 const broadcastInputs = new Map<string, WorkbenchTerminalBroadcastInput[]>();
 const broadcastSendHandlers = new Map<
 	string,
@@ -57,8 +58,26 @@ class TestResizeObserver {
 	public unobserve(_target: Element): void {}
 }
 
+function createBounds(left: number, width: number): DOMRect {
+	return {
+		bottom: 100,
+		height: 100,
+		left,
+		right: left + width,
+		toJSON: () => ({}),
+		top: 0,
+		width,
+		x: left,
+		y: 0,
+	};
+}
+
 function TestTerminalSurface(properties: WorkbenchTerminalSurfaceProps): ReactNode {
 	surfaces.set(properties.presentation.presentationId, properties);
+	surfacesByMode.set(
+		`${properties.presentation.presentationId}:${properties.presentationMode}`,
+		properties,
+	);
 	const bindBroadcastInputSink = properties.bindBroadcastInputSink;
 	const presentationId = properties.presentation.presentationId;
 	const sink = useMemo(
@@ -160,6 +179,7 @@ function renderThreePanelWorkspace() {
 					actionRuntime={actionRuntime}
 					panelWorkspaceStore={panelWorkspaceStore}
 					parentActionScope={parentActionScope}
+					presentationScopeId='test-context'
 					shortcutLabelForAction={() => undefined}
 					terminalSurface={TestTerminalSurface}
 				/>
@@ -206,6 +226,7 @@ function renderRunningThreePanelWorkspace() {
 					actionRuntime={actionRuntime}
 					panelWorkspaceStore={panelWorkspaceStore}
 					parentActionScope={parentActionScope}
+					presentationScopeId='test-context'
 					shortcutLabelForAction={() => undefined}
 					terminalSurface={TestTerminalSurface}
 				/>
@@ -217,13 +238,48 @@ function renderRunningThreePanelWorkspace() {
 
 beforeEach(() => {
 	vi.stubGlobal('ResizeObserver', TestResizeObserver);
+	vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockImplementation(
+		function (this: HTMLElement) {
+			switch (this.dataset['slot']) {
+				case 'resizable-handle':
+					return 10;
+				case 'resizable-panel':
+					return 500;
+				case 'resizable-panel-group':
+					return 1_000;
+				default:
+					return 0;
+			}
+		},
+	);
+	vi.spyOn(HTMLElement.prototype, 'offsetLeft', 'get').mockImplementation(
+		function (this: HTMLElement) {
+			return this.dataset['slot'] === 'resizable-panel' && this.id.endsWith('panel-2') ? 500 : 0;
+		},
+	);
+	vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(
+		function (this: HTMLElement) {
+			switch (this.dataset['slot']) {
+				case 'resizable-handle':
+					return createBounds(495, 10);
+				case 'resizable-panel':
+					return createBounds(this.id.endsWith('panel-2') ? 500 : 0, 500);
+				case 'resizable-panel-group':
+					return createBounds(0, 1_000);
+				default:
+					return createBounds(0, 0);
+			}
+		},
+	);
 });
 
 afterEach(() => {
 	cleanup();
 	surfaces.clear();
+	surfacesByMode.clear();
 	broadcastInputs.clear();
 	broadcastSendHandlers.clear();
+	vi.restoreAllMocks();
 	vi.unstubAllGlobals();
 });
 
@@ -284,6 +340,7 @@ describe('WorkbenchPanelWorkspace', () => {
 		);
 		expect(rendered.container.querySelector('[data-panel-broadcast-target="true"]')).toBeNull();
 
+		rendered.unmount();
 		actionRuntime.dispose();
 	});
 
@@ -313,6 +370,7 @@ describe('WorkbenchPanelWorkspace', () => {
 			targets.map(() => [{ kind: 'text', text: 'unsafe-to-retry' }]),
 		);
 
+		rendered.unmount();
 		actionRuntime.dispose();
 	});
 	it('owns keyboard selection exclusively and focuses the physically labeled target', async () => {
@@ -445,6 +503,7 @@ describe('WorkbenchPanelWorkspace', () => {
 						actionRuntime={actionRuntime}
 						panelWorkspaceStore={panelWorkspaceStore}
 						parentActionScope={actionRuntime.createScope('test.workbench')}
+						presentationScopeId='test-context'
 						shortcutLabelForAction={() => undefined}
 						terminalSurface={TestTerminalSurface}
 					/>
@@ -485,6 +544,89 @@ describe('WorkbenchPanelWorkspace', () => {
 		actionRuntime.dispose();
 	});
 
+	it('keeps the pre-maximize same-Tab layer visible until the maximized geometry is ready', () => {
+		const actionRuntime = new ActionRuntime();
+		const tabModel = new TabModel({
+			activeTabId: 'tab-a',
+			tabs: [{ group: null, id: 'tab-a', pinned: false, title: 'Terminal A' }],
+		});
+		let sequence = 1;
+		const panelWorkspaceStore = new PanelWorkspaceStore(tabModel, {
+			composition: {
+				createPresentationId: () => terminalPresentationId(`terminal-max-${sequence++}`),
+				initialPresentationId: terminalPresentationId('terminal-max-initial'),
+				kind: 'preview',
+			},
+		});
+		const initialTab = panelWorkspaceStore.getSnapshot().tabs[0];
+		const initialPanel =
+			initialTab === undefined ? undefined : collectPanelLeaves(initialTab.root)[0];
+		if (initialPanel === undefined) throw new Error('Expected the initial Panel.');
+		panelWorkspaceStore.transition({
+			direction: 'right',
+			newTerminalTitle: 'Terminal',
+			panelId: initialPanel.id,
+			presentation: panelWorkspaceStore.createTerminalPresentation(),
+			tabId: 'tab-a',
+			type: 'panel-split',
+		});
+		const splitTab = panelWorkspaceStore.getSnapshot().tabs[0];
+		if (splitTab === undefined) throw new Error('Expected the split Tab.');
+		const maximizedPanel = collectPanelLeaves(splitTab.root).find(
+			(panel) => panel.id === splitTab.focusedPanelId,
+		);
+		if (maximizedPanel === undefined) throw new Error('Expected the focused Panel.');
+		const maximizedPresentationId = getDisplayedTerminal(maximizedPanel).presentationId;
+		const rendered = render(
+			<OrchbeeI18nProvider locale='en-US'>
+				<TooltipProvider>
+					<WorkbenchPanelWorkspace
+						actionRuntime={actionRuntime}
+						panelWorkspaceStore={panelWorkspaceStore}
+						parentActionScope={actionRuntime.createScope('test.workbench')}
+						presentationScopeId='test-context'
+						shortcutLabelForAction={() => undefined}
+						terminalSurface={TestTerminalSurface}
+					/>
+				</TooltipProvider>
+			</OrchbeeI18nProvider>,
+		);
+
+		act(() => {
+			panelWorkspaceStore.transition({
+				panelId: maximizedPanel.id,
+				tabId: 'tab-a',
+				type: 'panel-maximization-toggled',
+			});
+		});
+		const pendingLayers = [
+			...rendered.container.querySelectorAll('[data-terminal-tab-id="tab-a"]'),
+		];
+		expect(pendingLayers.map((element) => element.getAttribute('data-presentation-mode'))).toEqual([
+			'incoming',
+			'retained',
+		]);
+		const incomingSurface = surfacesByMode.get(`${maximizedPresentationId}:incoming`);
+		if (incomingSurface === undefined) throw new Error('Expected the incoming maximized surface.');
+		expect(incomingSurface.autoFocus).toBe(false);
+
+		act(() => incomingSurface.onPresentationReady('display-ready'));
+		expect(
+			[...rendered.container.querySelectorAll('[data-terminal-tab-id="tab-a"]')].map((element) =>
+				element.getAttribute('data-presentation-mode'),
+			),
+		).toEqual(['incoming']);
+		act(() => incomingSurface.onPresentationReady('activation-ready'));
+		expect(
+			rendered.container
+				.querySelector('[data-terminal-tab-id="tab-a"]')
+				?.getAttribute('data-presentation-mode'),
+		).toBe('active');
+		expect(surfaces.get(maximizedPresentationId)?.autoFocus).toBe(true);
+
+		actionRuntime.dispose();
+	});
+
 	it('keeps a closed active Tab visible until its surviving replacement is display ready', () => {
 		const actionRuntime = new ActionRuntime();
 		const tabModel = new TabModel({
@@ -518,6 +660,7 @@ describe('WorkbenchPanelWorkspace', () => {
 						actionRuntime={actionRuntime}
 						panelWorkspaceStore={panelWorkspaceStore}
 						parentActionScope={actionRuntime.createScope('test.workbench')}
+						presentationScopeId='test-context'
 						shortcutLabelForAction={() => undefined}
 						terminalSurface={TestTerminalSurface}
 					/>
@@ -615,6 +758,7 @@ describe('WorkbenchPanelWorkspace', () => {
 						actionRuntime={actionRuntime}
 						panelWorkspaceStore={panelWorkspaceStore}
 						parentActionScope={actionRuntime.createScope('test.workbench')}
+						presentationScopeId='test-context'
 						shortcutLabelForAction={() => undefined}
 						terminalSurface={TestTerminalSurface}
 					/>
@@ -636,7 +780,11 @@ describe('WorkbenchPanelWorkspace', () => {
 				.querySelector('[data-terminal-tab-id="tab-b"]')
 				?.getAttribute('data-presentation-mode'),
 		).toBe('retained');
-		act(() => surfaces.get(maximizedPresentationId)?.onPresentationReady('activation-ready'));
+		const incomingMaximizedSurface = surfacesByMode.get(`${maximizedPresentationId}:incoming`);
+		if (incomingMaximizedSurface === undefined) {
+			throw new Error('Expected the incoming maximized surface.');
+		}
+		act(() => incomingMaximizedSurface.onPresentationReady('activation-ready'));
 
 		expect(rendered.container.querySelector('[data-terminal-tab-id="tab-b"]')).toBeNull();
 		expect(

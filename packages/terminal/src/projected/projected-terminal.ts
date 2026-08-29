@@ -1153,6 +1153,12 @@ export class ProjectedTerminal {
 		return visibleStore.capturePresentationSnapshot();
 	}
 
+	/** Report whether the most recently painted frame exactly fits the mounted surface. */
+	isPresentationGeometryCurrent(): boolean {
+		const geometry = this.#measureSurfaceGeometry();
+		return geometry !== undefined && sameGeometry(geometry, this.#lastPresentedMetadata);
+	}
+
 	get copyOnSelect(): boolean {
 		return this.#copyOnSelect;
 	}
@@ -7317,52 +7323,8 @@ export class ProjectedTerminal {
 		) {
 			return;
 		}
-		const root = this.#root;
-		const renderer = this.#renderer;
-		if (!root || !renderer || root.clientWidth <= 0 || root.clientHeight <= 0) return;
-		const metrics = renderer.getMetrics();
-		const grid = calculateSurfaceGrid(
-			{ height: root.clientHeight, width: root.clientWidth },
-			{ height: metrics.height, width: metrics.width },
-			addUniformSurfacePadding(
-				readSurfacePadding(root),
-				this.#presentationConfiguration.terminalPadding,
-			),
-		);
-		if (grid === undefined) return;
-		const cellPixelHeight = clamp(
-			Math.round(metrics.height * this.#devicePixelRatio),
-			1,
-			PROTOCOL_LIMITS.maxCellPixelDimension,
-		);
-		const cellPixelWidth = clamp(
-			Math.round(metrics.width * this.#devicePixelRatio),
-			1,
-			PROTOCOL_LIMITS.maxCellPixelDimension,
-		);
-		const columns = clamp(
-			grid.columns,
-			1,
-			Math.min(
-				PROTOCOL_LIMITS.maxFrameColumns,
-				Math.floor(MAX_PTY_PIXEL_DIMENSION / cellPixelWidth),
-			),
-		);
-		const rows = clamp(
-			grid.rows,
-			1,
-			Math.min(
-				PROTOCOL_LIMITS.maxFrameRows,
-				Math.floor(PROTOCOL_LIMITS.maxFrameCells / columns),
-				Math.floor(MAX_PTY_PIXEL_DIMENSION / cellPixelHeight),
-			),
-		);
-		const geometry: ResizeGeometry = {
-			cellPixelHeight,
-			cellPixelWidth,
-			columns,
-			rows,
-		};
+		const geometry = this.#measureSurfaceGeometry();
+		if (geometry === undefined) return;
 		const committedMetadata = this.#store.metadata;
 		if (
 			!this.#forceResizeSubmission &&
@@ -7390,6 +7352,55 @@ export class ProjectedTerminal {
 		) {
 			this.#forceResizeSubmission = false;
 		}
+	}
+
+	#measureSurfaceGeometry(): ResizeGeometry | undefined {
+		const root = this.#root;
+		const renderer = this.#renderer;
+		if (!root || !renderer || root.clientWidth <= 0 || root.clientHeight <= 0) return undefined;
+		const metrics = renderer.getMetrics();
+		const grid = calculateSurfaceGrid(
+			{ height: root.clientHeight, width: root.clientWidth },
+			{ height: metrics.height, width: metrics.width },
+			addUniformSurfacePadding(
+				readSurfacePadding(root),
+				this.#presentationConfiguration.terminalPadding,
+			),
+		);
+		if (grid === undefined) return undefined;
+		const cellPixelHeight = clamp(
+			Math.round(metrics.height * this.#devicePixelRatio),
+			1,
+			PROTOCOL_LIMITS.maxCellPixelDimension,
+		);
+		const cellPixelWidth = clamp(
+			Math.round(metrics.width * this.#devicePixelRatio),
+			1,
+			PROTOCOL_LIMITS.maxCellPixelDimension,
+		);
+		const columns = clamp(
+			grid.columns,
+			1,
+			Math.min(
+				PROTOCOL_LIMITS.maxFrameColumns,
+				Math.floor(MAX_PTY_PIXEL_DIMENSION / cellPixelWidth),
+			),
+		);
+		const rows = clamp(
+			grid.rows,
+			1,
+			Math.min(
+				PROTOCOL_LIMITS.maxFrameRows,
+				Math.floor(PROTOCOL_LIMITS.maxFrameCells / columns),
+				Math.floor(MAX_PTY_PIXEL_DIMENSION / cellPixelHeight),
+			),
+		);
+		return {
+			cellPixelHeight,
+			cellPixelWidth,
+			columns,
+			rows,
+		};
 	}
 
 	#reconcileCommittedGeometry(metadata: ProjectedTerminalMetadata): void {

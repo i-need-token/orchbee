@@ -4403,7 +4403,9 @@ test('restores terminal geometry, focus, input, and scrolling after Panel maximi
 	if (splitPresentationId === undefined) {
 		throw new Error('Split terminal presentation identity is unavailable.');
 	}
-	const splitRoot = projectedTerminalFor(page, splitPresentationId);
+	const splitRoot = page.locator(
+		`[data-presentation-mode="active"] [data-terminal-presentation-id="${splitPresentationId}"][data-projected-terminal-state]`,
+	);
 	const splitInput = splitRoot.getByRole('textbox');
 	const splitPanel = splitRoot.locator('xpath=ancestor::*[@data-slot="workbench-panel"][1]');
 	await expect(splitInput).toBeFocused();
@@ -4433,17 +4435,25 @@ test('restores terminal geometry, focus, input, and scrolling after Panel maximi
 	};
 	const initialGeometry = await readGeometry();
 	expect(initialGeometry.columns).toBeGreaterThan(0);
+	await expect(splitRoot).toHaveAttribute(
+		'data-projected-terminal-presentation-geometry-current',
+		'true',
+	);
 
+	await startTerminalPresentationFrameTrace(page);
 	await splitPanel.getByRole('button', { name: /Panel options|面板选项/u }).click();
 	await page.getByRole('menuitem', { name: /Maximize Panel|最大化面板/u }).click();
-	await expect
-		.poll(async () => (await readGeometry()).columns)
-		.toBeGreaterThan(initialGeometry.columns);
+	await expect(splitRoot).toHaveAttribute(
+		'data-projected-terminal-presentation-geometry-current',
+		'true',
+	);
 	await expect(splitInput).toBeFocused();
 	const maximizedGeometry = await readGeometry();
+	expect(maximizedGeometry.columns).toBeGreaterThan(initialGeometry.columns);
 	expect(maximizedGeometry.panelWidth).toBeGreaterThan(initialGeometry.panelWidth);
 	expect(maximizedGeometry.rootWidth).toBeGreaterThan(initialGeometry.rootWidth);
 	expect(maximizedGeometry.canvasWidth).toBeGreaterThan(initialGeometry.canvasWidth);
+	expectAtomicTerminalPresentationTrace(await stopTerminalPresentationFrameTrace(page));
 
 	await splitInput.pressSequentially("seq 180; printf 'panel-maximized-marker\\n'", { delay: 1 });
 	await splitInput.press('Enter');
@@ -4453,17 +4463,23 @@ test('restores terminal geometry, focus, input, and scrolling after Panel maximi
 		.poll(async () => Number(await accessibility.getAttribute('data-terminal-retained-rows')))
 		.toBeGreaterThan(180);
 
+	await startTerminalPresentationFrameTrace(page);
 	await splitPanel.getByRole('button', { name: /Panel options|面板选项/u }).click();
 	await page.getByRole('menuitem', { name: /Minimize Panel|最小化面板/u }).click();
-	await expect.poll(async () => (await readGeometry()).columns).toBe(initialGeometry.columns);
+	await expect(splitRoot).toHaveAttribute(
+		'data-projected-terminal-presentation-geometry-current',
+		'true',
+	);
 	await expect(splitInput).toBeFocused();
 	const restoredGeometry = await readGeometry();
+	expect(restoredGeometry.columns).toBe(initialGeometry.columns);
 	expect(Math.abs(restoredGeometry.panelWidth - initialGeometry.panelWidth)).toBeLessThanOrEqual(2);
 	expect(Math.abs(restoredGeometry.rootWidth - initialGeometry.rootWidth)).toBeLessThanOrEqual(2);
 	expect(Math.abs(restoredGeometry.canvasWidth - initialGeometry.canvasWidth)).toBeLessThanOrEqual(
 		2,
 	);
 	expect(restoredGeometry.canvasWidth).toBeLessThan(maximizedGeometry.canvasWidth);
+	expectAtomicTerminalPresentationTrace(await stopTerminalPresentationFrameTrace(page));
 
 	await splitInput.pressSequentially("printf 'panel-restored-input-marker\\n'", { delay: 1 });
 	await splitInput.press('Enter');
@@ -6574,6 +6590,98 @@ function waitForElectronExit(application: ElectronApplication): Promise<void> {
 
 function projectedTerminal(page: Page): Locator {
 	return page.locator('[data-terminal-presentation-id][data-projected-terminal-state]').first();
+}
+
+interface TerminalPresentationFrameSample {
+	readonly exposedGeometryStates: readonly (string | null)[];
+	readonly exposedMode: string | null;
+	readonly layerModes: readonly (string | null)[];
+	readonly timestamp: number;
+}
+
+const TERMINAL_PRESENTATION_FRAME_TRACE_KEY = '__orchbeeTerminalPresentationFrameTrace';
+
+async function startTerminalPresentationFrameTrace(page: Page): Promise<void> {
+	await page.evaluate((traceKey) => {
+		interface TraceState {
+			samples: TerminalPresentationFrameSample[];
+			stopped: boolean;
+		}
+		const previous = Reflect.get(globalThis, traceKey) as TraceState | undefined;
+		if (previous !== undefined) previous.stopped = true;
+		const state: TraceState = { samples: [], stopped: false };
+		Reflect.set(globalThis, traceKey, state);
+		const sample = (timestamp: number): void => {
+			const workspace = [
+				...document.querySelectorAll<HTMLElement>('[data-slot="workbench-panel-workspace"]'),
+			].find((candidate) => {
+				const bounds = candidate.getBoundingClientRect();
+				return bounds.width > 0 && bounds.height > 0;
+			});
+			const layers =
+				workspace === undefined
+					? []
+					: [...workspace.querySelectorAll<HTMLElement>(':scope > [data-presentation-mode]')];
+			const exposedLayer =
+				layers.find((layer) => layer.dataset['presentationMode'] === 'retained') ??
+				layers.find((layer) => layer.dataset['presentationMode'] === 'active') ??
+				layers.find((layer) => layer.dataset['presentationMode'] === 'incoming');
+			const terminalRoots =
+				exposedLayer === undefined
+					? []
+					: [
+							...exposedLayer.querySelectorAll<HTMLElement>(
+								'[data-terminal-presentation-id][data-projected-terminal-state]',
+							),
+						];
+			state.samples.push({
+				exposedGeometryStates: terminalRoots.map(
+					(root) => root.dataset['projectedTerminalPresentationGeometryCurrent'] ?? null,
+				),
+				exposedMode: exposedLayer?.dataset['presentationMode'] ?? null,
+				layerModes: layers.map((layer) => layer.dataset['presentationMode'] ?? null),
+				timestamp,
+			});
+			if (!state.stopped) globalThis.requestAnimationFrame(sample);
+		};
+		globalThis.requestAnimationFrame(sample);
+	}, TERMINAL_PRESENTATION_FRAME_TRACE_KEY);
+}
+
+async function stopTerminalPresentationFrameTrace(
+	page: Page,
+): Promise<readonly TerminalPresentationFrameSample[]> {
+	return page.evaluate(async (traceKey) => {
+		interface TraceState {
+			samples: TerminalPresentationFrameSample[];
+			stopped: boolean;
+		}
+		const state = Reflect.get(globalThis, traceKey) as TraceState | undefined;
+		if (state === undefined) throw new Error('Terminal presentation frame trace is unavailable.');
+		state.stopped = true;
+		await new Promise<void>((resolve) => globalThis.requestAnimationFrame(() => resolve()));
+		Reflect.deleteProperty(globalThis, traceKey);
+		return state.samples;
+	}, TERMINAL_PRESENTATION_FRAME_TRACE_KEY);
+}
+
+function expectAtomicTerminalPresentationTrace(
+	samples: readonly TerminalPresentationFrameSample[],
+): void {
+	expect(samples.length).toBeGreaterThan(0);
+	expect(
+		samples.some(
+			(sample) => sample.layerModes.includes('incoming') && sample.layerModes.includes('retained'),
+		),
+	).toBe(true);
+	expect(
+		samples.filter(
+			(sample) =>
+				sample.exposedMode === null ||
+				sample.exposedGeometryStates.length === 0 ||
+				sample.exposedGeometryStates.some((state) => state !== 'true'),
+		),
+	).toEqual([]);
 }
 
 async function dispatchDesktopFileDrop(terminalRoot: Locator): Promise<{

@@ -5,36 +5,58 @@ import type { TerminalTabPresentationLayer } from '../types/terminal-tab-present
 interface ProjectedTerminalTabPresentationLayer {
 	readonly epoch: number;
 	readonly mode: TerminalTabPresentationLayer['mode'];
+	readonly revision: string;
 	readonly tab: TabPanelWorkspace;
 }
 
 /** Projects the current handoff state into keyed React layers ordered back to front. */
 export function projectTerminalTabPresentationLayers(
-	tabs: readonly TabPanelWorkspace[],
+	targetTab: TabPanelWorkspace | null,
 	state: TerminalTabPresentationHandoffState,
-	detachedDisplayedTab: TabPanelWorkspace | null = null,
+	displayedTab: TabPanelWorkspace | null,
 ): readonly ProjectedTerminalTabPresentationLayer[] {
-	const findTab = (tabId: string | null): TabPanelWorkspace | undefined =>
-		tabId === null
-			? undefined
-			: (tabs.find((tab) => tab.tabId === tabId) ??
-				(detachedDisplayedTab?.tabId === tabId ? detachedDisplayedTab : undefined));
 	if (state.kind === 'settled') {
-		const tab = findTab(state.displayedTabId);
-		return tab === undefined ? [] : [{ epoch: state.epoch, mode: 'active', tab }];
+		return displayedTab === null || state.displayedRevision === null
+			? []
+			: [
+					{
+						epoch: state.epoch,
+						mode: 'active',
+						revision: state.displayedRevision,
+						tab: displayedTab,
+					},
+				];
 	}
 	if (state.kind === 'activating') {
-		const tab = findTab(state.displayedTabId);
-		return tab === undefined ? [] : [{ epoch: state.epoch, mode: 'incoming', tab }];
+		return targetTab === null
+			? []
+			: [
+					{
+						epoch: state.epoch,
+						mode: 'incoming',
+						revision: state.targetRevision,
+						tab: targetTab,
+					},
+				];
 	}
-	const target = findTab(state.targetTabId);
-	const displayed = findTab(state.displayedTabId);
-	if (target === undefined) return [];
-	if (displayed === undefined || displayed.tabId === target.tabId) {
-		return [{ epoch: state.epoch, mode: 'incoming', tab: target }];
+	if (targetTab === null) return [];
+	const target = {
+		epoch: state.epoch,
+		mode: 'incoming' as const,
+		revision: state.targetRevision,
+		tab: targetTab,
+	};
+	if (displayedTab === null || state.displayedRevision === null) return [target];
+	if (state.displayedRevision === state.targetRevision) {
+		return [target];
 	}
 	return [
-		{ epoch: state.epoch, mode: 'incoming', tab: target },
-		{ epoch: state.epoch, mode: 'retained', tab: displayed },
+		target,
+		{
+			epoch: state.epoch,
+			mode: 'retained',
+			revision: state.displayedRevision,
+			tab: displayedTab,
+		},
 	];
 }

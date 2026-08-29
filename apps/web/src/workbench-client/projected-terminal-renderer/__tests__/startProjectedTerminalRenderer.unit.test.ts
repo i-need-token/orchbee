@@ -140,6 +140,9 @@ describe('startProjectedTerminalRenderer', () => {
 		const injectInput = vi
 			.fn<ProjectedTerminal['injectInput']>()
 			.mockResolvedValue({ kind: 'sent' });
+		const isPresentationGeometryCurrent = vi
+			.fn<ProjectedTerminal['isPresentationGeometryCurrent']>()
+			.mockReturnValue(true);
 		const openTerminal = vi.fn<ProjectedTerminal['open']>().mockResolvedValue(undefined);
 		const pasteTerminal = vi.fn<ProjectedTerminal['paste']>().mockResolvedValue({ kind: 'empty' });
 		const setResizeOwnership = vi.fn<ProjectedTerminal['setResizeOwnership']>();
@@ -213,6 +216,7 @@ describe('startProjectedTerminalRenderer', () => {
 							kind: 'ready',
 							revision: `${bootstrap.attachmentId}:1`,
 						},
+						isPresentationGeometryCurrent,
 						linkOpenRequestIsCurrent: vi.fn<ProjectedTerminal['linkOpenRequestIsCurrent']>(
 							() => true,
 						),
@@ -1103,7 +1107,11 @@ describe('startProjectedTerminalRenderer', () => {
 			expect(liveElements.additionalRoot.dataset['projectedTerminalCachedPresentation']).toBe(
 				'true',
 			);
-			emitFrameTelemetry({
+			expect(
+				liveElements.additionalRoot.dataset['projectedTerminalPresentationGeometryCurrent'],
+			).toBe('true');
+			expect(isPresentationGeometryCurrent).toHaveBeenCalled();
+			const frameTelemetry: ProjectedTerminalFrameTelemetry = {
 				atlasGlyphCount: 0,
 				atlasGlyphsCreated: 0,
 				atlasHeight: 0,
@@ -1127,8 +1135,21 @@ describe('startProjectedTerminalRenderer', () => {
 				timestamp: 1,
 				vertexUploadBytes: 0,
 				viewportY: 0,
-			});
+			};
+			isPresentationGeometryCurrent.mockReturnValue(false);
+			emitFrameTelemetry(frameTelemetry);
+			await Promise.resolve();
+			expect(activationReady).toBe(false);
+			expect(
+				liveElements.additionalRoot.dataset['projectedTerminalPresentationGeometryCurrent'],
+			).toBe('false');
+			isPresentationGeometryCurrent.mockReturnValue(true);
+			emitFrameTelemetry({ ...frameTelemetry, frameId: 2, timestamp: 2 });
 			await expect(liveSession.presentationReady).resolves.toBeUndefined();
+			expect(activationReady).toBe(true);
+			expect(
+				liveElements.additionalRoot.dataset['projectedTerminalPresentationGeometryCurrent'],
+			).toBe('true');
 			expect(liveSession.isTransportAvailable()).toBe(true);
 			expect(liveElements.additionalRoot.dataset['projectedTerminalState']).toBe('open');
 			expect(liveElements.additionalRoot.dataset['projectedTerminalInputCapability']).toBe(
@@ -1317,6 +1338,48 @@ describe('startProjectedTerminalRenderer', () => {
 			});
 			expect(unsubscribeLiveSource).toHaveBeenCalledOnce();
 			expect(liveTransport.close).toHaveBeenCalledOnce();
+
+			isPresentationGeometryCurrent.mockReturnValue(false);
+			const mismatchedSnapshotElements = createAdditionalRoot();
+			const mismatchedSnapshotTransport = createAdditionalTransport();
+			const mismatchedSnapshotSession = await startProjectedTerminalRenderer(
+				mismatchedSnapshotElements.additionalRoot,
+				documentElement,
+				['en-US'],
+				'apple',
+				liveBootstrap,
+				mismatchedSnapshotTransport.additionalTransport,
+				dependencies,
+				{},
+				{
+					current: () => initialPresentationConfiguration,
+					subscribe: () => vi.fn<() => void>(),
+				},
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				cachedPresentation,
+			);
+			let mismatchedSnapshotDisplayReady = false;
+			void mismatchedSnapshotSession.displayReady?.then(() => {
+				mismatchedSnapshotDisplayReady = true;
+			});
+			await Promise.resolve();
+			expect(mismatchedSnapshotDisplayReady).toBe(false);
+			expect(
+				mismatchedSnapshotElements.additionalRoot.dataset[
+					'projectedTerminalPresentationGeometryCurrent'
+				],
+			).toBe('false');
+			expect(
+				mismatchedSnapshotElements.additionalRoot.dataset['projectedTerminalCachedPresentation'],
+			).toBeUndefined();
+			mismatchedSnapshotSession.dispose();
+			isPresentationGeometryCurrent.mockReturnValue(true);
 
 			const hostCloseElements = createAdditionalRoot();
 			const hostCloseTransport = createAdditionalTransport();

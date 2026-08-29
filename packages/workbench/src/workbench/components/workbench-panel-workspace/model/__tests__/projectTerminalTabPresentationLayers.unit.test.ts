@@ -30,56 +30,92 @@ function tab(tabId: string): TabPanelWorkspace {
 }
 
 describe('projectTerminalTabPresentationLayers', () => {
-	it('orders an incoming target below the retained displayed Tab', () => {
-		const tabs = [tab('tab-a'), tab('tab-b')];
-		const state: TerminalTabPresentationHandoffState = {
-			activationReadyPresentationIds: [],
-			displayReadyPresentationIds: [],
-			displayedTabId: 'tab-a',
-			epoch: 1,
-			expectedPresentationIds: ['tab-b-presentation'],
-			kind: 'preparing',
-			targetTabId: 'tab-b',
-		};
-
-		expect(projectTerminalTabPresentationLayers(tabs, state)).toMatchObject([
-			{ epoch: 1, mode: 'incoming', tab: { tabId: 'tab-b' } },
-			{ epoch: 1, mode: 'retained', tab: { tabId: 'tab-a' } },
-		]);
-	});
-
-	it('retains a detached displayed Tab while its canonical replacement prepares', () => {
-		const detached = tab('tab-a');
+	it('orders an incoming revision below the retained displayed revision', () => {
+		const displayed = tab('tab-a');
 		const target = tab('tab-b');
 		const state: TerminalTabPresentationHandoffState = {
 			activationReadyPresentationIds: [],
-			displayReadyPresentationIds: [],
+			displayedRevision: 'scope:tab-a:layout-1',
 			displayedTabId: 'tab-a',
-			epoch: 2,
+			displayReadyPresentationIds: [],
+			epoch: 1,
 			expectedPresentationIds: ['tab-b-presentation'],
 			kind: 'preparing',
+			targetRevision: 'scope:tab-b:layout-1',
 			targetTabId: 'tab-b',
 		};
 
-		expect(projectTerminalTabPresentationLayers([target], state, detached)).toMatchObject([
-			{ epoch: 2, mode: 'incoming', tab: { tabId: 'tab-b' } },
-			{ epoch: 2, mode: 'retained', tab: { tabId: 'tab-a' } },
+		expect(projectTerminalTabPresentationLayers(target, state, displayed)).toMatchObject([
+			{
+				epoch: 1,
+				mode: 'incoming',
+				revision: 'scope:tab-b:layout-1',
+				tab: { tabId: 'tab-b' },
+			},
+			{
+				epoch: 1,
+				mode: 'retained',
+				revision: 'scope:tab-a:layout-1',
+				tab: { tabId: 'tab-a' },
+			},
+		]);
+	});
+
+	it('keeps distinct layers when one Tab replaces its layout revision', () => {
+		const displayed = tab('tab-a');
+		const target = { ...displayed, maximizedPanelId: displayed.root.id };
+		const state: TerminalTabPresentationHandoffState = {
+			activationReadyPresentationIds: [],
+			displayedRevision: 'scope:tab-a:layout-1',
+			displayedTabId: 'tab-a',
+			displayReadyPresentationIds: [],
+			epoch: 2,
+			expectedPresentationIds: ['tab-a-presentation'],
+			kind: 'preparing',
+			targetRevision: 'scope:tab-a:layout-2',
+			targetTabId: 'tab-a',
+		};
+
+		expect(projectTerminalTabPresentationLayers(target, state, displayed)).toMatchObject([
+			{ mode: 'incoming', revision: 'scope:tab-a:layout-2' },
+			{ mode: 'retained', revision: 'scope:tab-a:layout-1' },
+		]);
+	});
+
+	it('reuses one keyed layer when returning to the frozen displayed revision', () => {
+		const target = tab('tab-a');
+		const state: TerminalTabPresentationHandoffState = {
+			activationReadyPresentationIds: [],
+			displayedRevision: 'scope:tab-a:layout-1',
+			displayedTabId: 'tab-a',
+			displayReadyPresentationIds: [],
+			epoch: 3,
+			expectedPresentationIds: ['tab-a-presentation'],
+			kind: 'preparing',
+			targetRevision: 'scope:tab-a:layout-1',
+			targetTabId: 'tab-a',
+		};
+
+		expect(projectTerminalTabPresentationLayers(target, state, target)).toMatchObject([
+			{ mode: 'incoming', revision: 'scope:tab-a:layout-1' },
 		]);
 	});
 
 	it('projects only the inert target after its display barrier commits', () => {
 		const state: TerminalTabPresentationHandoffState = {
 			activationReadyPresentationIds: [],
-			displayReadyPresentationIds: ['tab-b-presentation'],
+			displayedRevision: 'scope:tab-b:layout-1',
 			displayedTabId: 'tab-b',
+			displayReadyPresentationIds: ['tab-b-presentation'],
 			epoch: 2,
 			expectedPresentationIds: ['tab-b-presentation'],
 			kind: 'activating',
+			targetRevision: 'scope:tab-b:layout-1',
 			targetTabId: 'tab-b',
 		};
 
-		expect(projectTerminalTabPresentationLayers([tab('tab-b')], state)).toMatchObject([
-			{ epoch: 2, mode: 'incoming', tab: { tabId: 'tab-b' } },
+		expect(projectTerminalTabPresentationLayers(tab('tab-b'), state, tab('tab-b'))).toMatchObject([
+			{ epoch: 2, mode: 'incoming', revision: 'scope:tab-b:layout-1' },
 		]);
 	});
 });

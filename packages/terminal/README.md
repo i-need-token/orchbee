@@ -665,6 +665,16 @@ resize, transport, metadata-publication, or durable-state authority. The termina
 opening reference once the cached draw completes, while an external bounded cache may retain the
 snapshot for later presentation.
 
+`isPresentationGeometryCurrent()` compares the metadata represented by that most recently completed
+draw with a synchronous measurement of the currently mounted surface using the same grid, padding,
+cell, DPR, protocol, and PTY pixel-limit rules as resize submission. It returns `false` before any
+draw, for an unmeasurable surface, and after a layout, presentation-configuration, or DPR change
+until a matching Host frame has painted. An injected display snapshot may satisfy the comparison
+only when its exact geometry already matches the target surface. The query is read-only: it never
+resizes a canvas, submits PTY geometry, acknowledges a frame, or grants input authority. Application
+handoffs may use it to keep an older meaningful layer visible until the target canvas is safe to
+commit.
+
 WebGPU adapter acquisition, device creation, preferred format, and the immutable background/text
 pipeline pair are shared by renderers in one `Document`. Every configured renderer owns its glyph
 atlas texture, sampler, uniform and vertex buffers, bind groups, Kitty textures, reconstructible CPU
