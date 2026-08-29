@@ -15,6 +15,7 @@ export type {
 	WorkbenchActiveLocation,
 	WorkbenchDirectory,
 	WorkbenchDirectoryGitMetadata,
+	WorkbenchDirectoryPlacement,
 	WorkbenchDirectorySource,
 	WorkbenchFolderDirectory,
 	WorkbenchLaunchConfigurationReference,
@@ -55,6 +56,8 @@ export {
 	transitionTerminalThemeRevision,
 } from './terminal-presentation';
 export type {
+	WorkbenchActiveTerminalCreationRoute,
+	WorkbenchActiveTerminalCreationRouteInput,
 	WorkbenchProps,
 	WorkbenchProjectWorkspaceRuntimeOptions,
 	WorkbenchProjectCreateInput,
@@ -70,6 +73,9 @@ export type {
 	WorkbenchProjectWorktreeFailureCode,
 	WorkbenchProjectWorktreeInventory,
 	WorkbenchProjectWorktreeRepository,
+	WorkbenchRemoteTerminalCreationCapability,
+	WorkbenchRemoteTerminalCreationFailureReason,
+	WorkbenchRemoteTerminalCreationResult,
 	WorkbenchProjectDirectoryInput,
 	WorkbenchProjectFolderAddInput,
 	WorkbenchProjectInput,

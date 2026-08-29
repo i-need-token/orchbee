@@ -5,11 +5,15 @@ import {
 } from '../environment';
 import type {
 	SshEnvironmentConnectionObservation,
+	SshEnvironmentSupervisorInteractionRequest,
+	SshAskPassInteractionResult,
 	SshProjectRootInspectionOutcome,
+	SshTerminalHostConnectionOutcome,
 } from '../ssh-environment';
 
 export interface DesktopSshEnvironmentSupervisorPort {
 	inspectProjectRoot(path: string, signal?: AbortSignal): Promise<SshProjectRootInspectionOutcome>;
+	openTerminalHost(): Promise<SshTerminalHostConnectionOutcome>;
 	observation(): SshEnvironmentConnectionObservation;
 	start(): void;
 	stop(): Promise<void>;
@@ -28,10 +32,24 @@ interface DesktopSshEnvironmentConnectionConfiguration {
 export interface DesktopSshEnvironmentConnectionOwnerOptions {
 	readonly createSupervisor: (
 		configuration: DesktopSshEnvironmentConnectionConfiguration,
+		interaction: DesktopSshEnvironmentInteraction,
 	) => DesktopSshEnvironmentSupervisorPort;
 	readonly registry: Pick<DesktopEnvironmentRegistry, 'get'>;
 	readonly supported: boolean;
 }
+
+export type DesktopSshEnvironmentInteraction = (
+	request: SshEnvironmentSupervisorInteractionRequest,
+) => Promise<SshAskPassInteractionResult>;
+
+interface DesktopSshEnvironmentInteractionLease {
+	release(): void;
+}
+
+export type DesktopSshEnvironmentInteractionLeaseResult =
+	| { readonly kind: 'claimed'; readonly lease: DesktopSshEnvironmentInteractionLease }
+	| { readonly kind: 'busy' }
+	| { readonly kind: 'unavailable'; readonly reason: 'connection-owner-disposed' };
 
 export type DesktopSshEnvironmentConnectResult =
 	| {
@@ -60,6 +78,10 @@ export type DesktopSshEnvironmentConnectionReadResult =
 	  };
 
 export interface DesktopSshEnvironmentConnectionOwnerPort {
+	claimInteractionLease(
+		environmentId: EnvironmentId,
+		interaction: DesktopSshEnvironmentInteraction,
+	): DesktopSshEnvironmentInteractionLeaseResult;
 	connect(environmentId: EnvironmentId): Promise<DesktopSshEnvironmentConnectResult>;
 	disconnect(environmentId: EnvironmentId): Promise<DesktopSshEnvironmentDisconnectResult>;
 	dispose(): Promise<void>;
@@ -69,6 +91,7 @@ export interface DesktopSshEnvironmentConnectionOwnerPort {
 		signal?: AbortSignal,
 	): Promise<SshProjectRootInspectionOutcome>;
 	observation(environmentId: EnvironmentId): DesktopSshEnvironmentConnectionReadResult;
+	openTerminalHost(environmentId: EnvironmentId): Promise<SshTerminalHostConnectionOutcome>;
 	subscribe(
 		environmentId: EnvironmentId,
 		listener: (observation: SshEnvironmentConnectionObservation) => void,
@@ -78,6 +101,10 @@ export interface DesktopSshEnvironmentConnectionOwnerPort {
 export class DesktopSshEnvironmentConnectionOwner implements DesktopSshEnvironmentConnectionOwnerPort {
 	readonly #createSupervisor: DesktopSshEnvironmentConnectionOwnerOptions['createSupervisor'];
 	#disposed = false;
+	readonly #interactionLeases = new Map<
+		EnvironmentId,
+		{ readonly interaction: DesktopSshEnvironmentInteraction }
+	>();
 	readonly #operationTails = new Map<EnvironmentId, Promise<void>>();
 	readonly #registry: DesktopSshEnvironmentConnectionOwnerOptions['registry'];
 	readonly #supervisors = new Map<EnvironmentId, DesktopSshEnvironmentSupervisorPort>();
@@ -87,6 +114,32 @@ export class DesktopSshEnvironmentConnectionOwner implements DesktopSshEnvironme
 		this.#createSupervisor = options.createSupervisor;
 		this.#registry = options.registry;
 		this.#supported = options.supported;
+	}
+
+	claimInteractionLease(
+		environmentId: EnvironmentId,
+		interaction: DesktopSshEnvironmentInteraction,
+	): DesktopSshEnvironmentInteractionLeaseResult {
+		const canonicalId = EnvironmentIdSchema.parse(environmentId);
+		if (this.#disposed) {
+			return { kind: 'unavailable', reason: 'connection-owner-disposed' };
+		}
+		if (this.#interactionLeases.has(canonicalId)) return { kind: 'busy' };
+		const leaseOwner = { interaction };
+		this.#interactionLeases.set(canonicalId, leaseOwner);
+		let released = false;
+		return {
+			kind: 'claimed',
+			lease: {
+				release: () => {
+					if (released) return;
+					released = true;
+					if (this.#interactionLeases.get(canonicalId) === leaseOwner) {
+						this.#interactionLeases.delete(canonicalId);
+					}
+				},
+			},
+		};
 	}
 
 	inspectProjectRoot(
@@ -100,6 +153,15 @@ export class DesktopSshEnvironmentConnectionOwner implements DesktopSshEnvironme
 		return (
 			supervisor?.inspectProjectRoot(path, signal) ??
 			Promise.resolve({ kind: 'failed', reason: 'unavailable' })
+		);
+	}
+
+	openTerminalHost(environmentId: EnvironmentId): Promise<SshTerminalHostConnectionOutcome> {
+		const canonicalId = EnvironmentIdSchema.parse(environmentId);
+		if (this.#disposed) return Promise.resolve({ kind: 'failed', reason: 'unavailable' });
+		const supervisor = this.#supervisors.get(canonicalId);
+		return (
+			supervisor?.openTerminalHost() ?? Promise.resolve({ kind: 'failed', reason: 'unavailable' })
 		);
 	}
 
@@ -129,11 +191,14 @@ export class DesktopSshEnvironmentConnectionOwner implements DesktopSshEnvironme
 				return { kind: 'unavailable', reason: 'registry-unavailable' };
 			}
 			if (record.value === null) return { kind: 'not-found' };
-			const supervisor = this.#createSupervisor({
-				connectionId: record.value.environmentId,
-				runtimeInstanceId: record.value.provider.runtimeInstanceId,
-				target: record.value.provider.target,
-			});
+			const supervisor = this.#createSupervisor(
+				{
+					connectionId: record.value.environmentId,
+					runtimeInstanceId: record.value.provider.runtimeInstanceId,
+					target: record.value.provider.target,
+				},
+				(request) => this.#requestInteraction(canonicalId, request),
+			);
 			this.#supervisors.set(canonicalId, supervisor);
 			supervisor.start();
 			return {
@@ -179,6 +244,7 @@ export class DesktopSshEnvironmentConnectionOwner implements DesktopSshEnvironme
 	async dispose(): Promise<void> {
 		if (this.#disposed) return;
 		this.#disposed = true;
+		this.#interactionLeases.clear();
 		await Promise.all(this.#operationTails.values());
 		const supervisors = [...this.#supervisors.values()];
 		const settlements = await Promise.allSettled(
@@ -191,6 +257,16 @@ export class DesktopSshEnvironmentConnectionOwner implements DesktopSshEnvironme
 		if (failures.length > 0) {
 			throw new AggregateError(failures, 'SSH Environment connection cleanup did not converge.');
 		}
+	}
+
+	#requestInteraction(
+		environmentId: EnvironmentId,
+		request: SshEnvironmentSupervisorInteractionRequest,
+	): Promise<SshAskPassInteractionResult> {
+		return (
+			this.#interactionLeases.get(environmentId)?.interaction(request) ??
+			Promise.resolve({ kind: 'cancelled' })
+		);
 	}
 
 	#enqueue<Value>(environmentId: EnvironmentId, operation: () => Promise<Value>): Promise<Value> {

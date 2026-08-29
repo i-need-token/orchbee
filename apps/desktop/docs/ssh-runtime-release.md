@@ -1,16 +1,17 @@
-# Desktop SSH Runtime Release
+# Desktop SSH Environment Release
 
-## Scope and delivered boundary
+## Scope
 
-Slice 2.3B delivers one offline, release-only composition path for the SSH Environment Runtime. The
-Runtime workspace prepares one parameter-fixed two-target build, an external signer authenticates
-the exact canonical payload, the Runtime workspace finalizes one signed bundle, and Desktop verifies
-that bundle against an independently supplied public key before invoking Electron Packager.
+Slice 2.3B delivered the frozen schema-version-1 Runtime-only release. Slice 3.1A adds the
+schema-version-2 SSH Environment release containing one SSH Runtime and one Terminal Host for each
+accepted platform. Repository automation builds and assembles the cohort, an external authority
+signs its exact canonical payload, and Desktop verifies and privately stages every component before
+Electron Packager runs.
 
-The ordinary `desktop:package` command remains a development package with no SSH Runtime release.
-The new `desktop:package:release` command is the only path that admits the signed bundle. This slice
-does not connect an Environment, compose `SshEnvironmentSupervisor`, negotiate installed artifacts,
-publish a feed, sign or notarize Electron, or add any Runtime service.
+`desktop:package` remains release-free. `desktop:package:release` accepts only v2. Slice 3.1B now
+consumes that verified cohort for atomic remote installation and exact Terminal Host relay
+negotiation. This release boundary still does not create a remote Workspace or terminal, publish a
+feed, sign or notarize Electron, or define update and cleanup policy.
 
 ## Accepted decisions D37-D46
 
@@ -27,134 +28,115 @@ publish a feed, sign or notarize Electron, or add any Runtime service.
 | D45      | This slice does not compose SSH connection, installation, supervisor, or installed-artifact fast-path behavior and does not own Electron code signing or notarization.                                                                                                                                                     |
 | D46      | Deterministic evidence uses ephemeral Ed25519 keys, full prepare/sign/finalize/verify flow, mutation and canonical-layout cases, two-target compilation, platform-native Runtime tests, and the repository gate. No production key enters tests; no TLA+ or Lean artifact is required for this finite sequential workflow. |
 
+## Accepted decisions D77-D86
+
+| Decision | Accepted contract                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| D77      | Phase 3 is sliced. Slice 3.1A owns only remote-execution component construction, signing, verification, and Desktop packaging; it creates no remote installation, process, Workspace, or terminal effect.                                                                                                                                                                                                                                                  |
+| D78      | Existing `orchbee-terminal-host` remains the sole PTY, process-tree, Ghostty-state, and terminal-recovery authority. SSH Runtime does not reimplement terminal behavior and gains no generic execution, shell, or network listener in this slice.                                                                                                                                                                                                          |
+| D79      | `ssh-environment-release-v2` is independent from frozen v1 and contains exactly `ssh-environment-runtime` then `terminal-host`; each component contains exactly `darwin-arm64` then `linux-x64`, for four artifacts total.                                                                                                                                                                                                                                 |
+| D80      | Runtime and Terminal Host retain distinct semantic component versions, sizes, and SHA-256 digests. The signed manifest digest identifies the compatibility cohort; it does not replace Runtime build identity or future Terminal Host epoch identity.                                                                                                                                                                                                      |
+| D81      | Both components use Zig `0.16.0`, `ReleaseSafe`, stripping, and explicit versions. The exact targets are Apple Silicon macOS and x64 glibc Linux, with artifact names `orchbee-ssh-environment-runtime` and `orchbee-terminal-host`.                                                                                                                                                                                                                       |
+| D82      | Each native application owns its build recipe. Repository-level release automation owns cross-application prepare/finalize and consumes installed build output; neither application imports the other's source tree.                                                                                                                                                                                                                                       |
+| D83      | Prepare is offline and finalize accepts one external raw Ed25519 signature. One canonical signature covers every component role, version, platform, size, and digest. Layouts are exact, symlinks and extra entries fail closed, every artifact is bounded at 128 MiB, and the manifest is bounded at 64 KiB. Production private keys remain outside repository tooling.                                                                                   |
+| D84      | Explicit Desktop release packaging independently verifies the signature, manifest, four artifacts, and public key before staging. It places the exact trust descriptor inside `app.asar` and buffered manifest/artifacts beneath `Resources`; ordinary development packaging remains release-free.                                                                                                                                                         |
+| D85      | Frozen v1 artifacts remain valid only for already delivered Runtime and `project-root-v1` behavior. A future Terminal Host capability requires verified v2 and cannot use a v1 companion, remote `PATH`, remote build, network download, mixed cohort, or validation-failure downgrade.                                                                                                                                                                    |
+| D86      | Evidence covers strict schemas and canonical bytes, missing/reordered/expanded/oversized/tampered inputs, wrong keys and signatures, symlinks, fixed build arguments, real target compilation, prepare/finalize/package round trips, documentation pairing, and the repository gate. Real SSH, remote upload, production signing, Workspace, terminal execution, and UI remain outside the claim; this bounded sequential workflow requires no TLA+ model. |
+
+## Versioned contracts
+
+| Contract | Components                                    | Consumer                                                                                                                                      |
+| -------- | --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| v1       | Two SSH Runtime artifacts                     | Frozen legacy contract for existing Slice 2.3B through 2.5 behavior; new Desktop release packaging does not admit it                          |
+| v2       | SSH Runtime and Terminal Host × two platforms | Current `desktop:package:release` and Slice 3.1B SSH activation; bootstrap installs and commits the exact selected-platform cohort atomically |
+
+The schemas are not a permissive union. A v2 path never treats v1 bytes as a missing companion and
+never falls back after v2 validation fails.
+
 ## Modeling record
 
-| Field           | Slice 2.3B record                                                                                                                                                                                                                                                                                                                                                                            |
-| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Problem         | A release engineer must bind the exact supported remote Runtime bytes to one Desktop package without putting a production private key in the repository, asking a remote machine to download code, or allowing package-time substitution.                                                                                                                                                    |
-| Inputs          | Trusted intent is one explicit Runtime semantic version, one externally governed Ed25519 signer, and one independently selected public key. Build outputs, prepared directories, signatures, manifests, artifacts, filesystem kinds, package environment variables, and absence of any required input are untrusted until validated.                                                         |
-| Data            | Schema-version-1 unsigned and signed manifests contain the ordered two-platform artifact matrix. A schema-version-1 trust descriptor contains canonical SPKI, its derived signing-key identity, and the exact final-manifest digest. Prepared and final bundles have fixed paths and no optional entries.                                                                                    |
-| Outputs         | Prepare either atomically publishes a signing payload plus artifacts or leaves its requested output absent. Finalize either atomically publishes the signed manifest plus artifacts or leaves its output absent. Release packaging either invokes Electron Packager with verified buffered resources or fails first. Ordinary packaging intentionally includes no SSH Runtime release.       |
-| Invariants      | Both artifacts share one explicit Runtime version; every signed size and digest matches buffered bytes; the manifest and descriptor are canonical; the descriptor pins both signer identity and exact manifest bytes; a production private key is never an input; verified bytes, not later source-path reads, are staged; unknown filesystem content grants no authority.                   |
-| Decisions       | D37-D46 fix ownership, targets, toolchain mode, canonical formats, private-key exclusion, trust binding, package placement, command separation, rollback, non-goals, and evidence. There is no runtime policy switch inside this slice.                                                                                                                                                      |
-| Model           | A finite workflow owns `prepareSshRuntimeRelease`, external signing, `finalizeSshRuntimeRelease`, `readVerifiedSshRuntimeRelease`, and `stageSshRuntimeReleasePackageResources`. Canonical schema functions are deterministic data-contract operations.                                                                                                                                      |
-| Transitions     | Each repository-owned workflow starts with an absent output, validates and buffers every input, writes only into a private candidate or staging directory, and publishes or invokes its next boundary only after all checks pass. It has no background state, retry, partial-success result, or automatic recovery.                                                                          |
-| Dependencies    | Zig `0.16.0`, Node.js cryptography and filesystem APIs, an external Ed25519 signer or HSM, an owner-controlled release workspace, and Electron Packager. Network access and production signing credentials are not repository capabilities.                                                                                                                                                  |
-| Ownership       | The protocol package owns encoding schemas; the Runtime workspace owns build parameters and prepared/final bundle construction; the external release authority owns the private key and signature act; Desktop owns public-key normalization, trust-descriptor construction, verification policy, private staging, and package placement.                                                    |
-| Verification    | Contract unit tests cover canonical encodings and strict fields. Runtime Node tests cover fixed arguments, prepare/finalize, signatures, mutations, and layouts. Desktop verifier and package tests cover exact trust, wrong keys, changed bytes, noncanonical manifests, extra entries, symlinks, and buffered staging. Zig compiles both targets and runs on supported CI hosts.           |
-| Correctness     | The claims are exact acceptance/rejection and phase ordering under the trust assumptions below. This is a bounded sequential workflow without concurrent state, retry, cancellation, or critical unbounded transformation, so example and integration tests are the selected evidence; TLA+ and Lean would not strengthen the claimed boundary in this slice.                                |
-| Reference scope | The contract covers release schema `1`, trust schema `1`, Zig `0.16.0`, Node.js `>=22`, macOS arm64 and glibc Linux x86_64 Runtime artifacts, and Electron Packager resource placement. It does not claim bit-for-bit reproducibility across machines, Electron signing/notarization, hostile concurrent mutation of the owner-controlled workspace, or Runtime execution on another target. |
+| Field        | Slice 3.1A record                                                                                                                                                                                                                                                                              |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Problem      | Bind the exact Runtime and Terminal Host compatibility cohort to one Desktop package without admitting a production private key, remote download, remote build, path lookup, or component substitution.                                                                                        |
+| Inputs       | Trusted intent is two explicit semantic versions, one externally governed Ed25519 signer, and one independently supplied public key. Build output, prepared/final directories, signatures, manifests, filesystem kinds, package variables, and absent inputs are untrusted until validated.    |
+| Data         | Schema-version-2 manifests contain an ordered two-component by two-platform matrix. Trust schema `2` binds canonical SPKI, its derived signing-key identity, and the exact final-manifest digest.                                                                                              |
+| Outputs      | Prepare and finalize atomically publish exact absent-target directories. Packaging either invokes Electron Packager with a privately buffered verified cohort or fails first. Ordinary packaging contains no SSH Environment release.                                                          |
+| Invariants   | Every required component exists once, every signed size and digest matches buffered bytes, component versions remain distinct, canonical manifest bytes define the cohort, trust pins signer and manifest, and no production private key is an input.                                          |
+| Ownership    | Native applications own component builds; repository automation owns cohort assembly; the protocol package owns data contracts; the external authority owns signing; Desktop owns public-key normalization, trust construction, complete verification, buffering, and package placement.       |
+| Verification | Protocol and Desktop unit tests, repository-automation tests, both native target compiles, documentation pairing, and `pnpm verify`. The workflow is finite and sequential, so deterministic transition and negative-path tests are stronger evidence than a concurrency model for this claim. |
 
-## Canonical artifacts and placement
+## Canonical artifacts
 
 Prepare emits exactly:
 
 ```text
 prepared-release/
   artifacts/
-    darwin-arm64/orchbee-ssh-environment-runtime
-    linux-x64/orchbee-ssh-environment-runtime
+    darwin-arm64/
+      orchbee-ssh-environment-runtime
+      orchbee-terminal-host
+    linux-x64/
+      orchbee-ssh-environment-runtime
+      orchbee-terminal-host
   manifest-signing-payload.json
 ```
 
-The signing payload has no trailing newline. Finalize accepts exactly one raw 64-byte Ed25519
-signature and one matching public key, verifies them against those payload bytes, rechecks both
-artifacts, and emits exactly:
+The signing payload has no trailing newline. Finalize accepts one matching public key and one raw
+64-byte Ed25519 signature, rechecks all four artifacts, and replaces the payload with canonical
+`manifest.json`. The final manifest and trust descriptor each have one trailing newline.
+
+Release packaging creates:
 
 ```text
-final-release/
+app.asar:/dist/main/ssh-environment-release-trust-v2.json
+Resources/ssh-environment-release-v2/
   artifacts/
-    darwin-arm64/orchbee-ssh-environment-runtime
-    linux-x64/orchbee-ssh-environment-runtime
+    darwin-arm64/
+      orchbee-ssh-environment-runtime
+      orchbee-terminal-host
+    linux-x64/
+      orchbee-ssh-environment-runtime
+      orchbee-terminal-host
   manifest.json
 ```
 
-The final manifest and trust descriptor each use their canonical property order and one trailing
-newline. Release packaging creates this split:
+The descriptor remains application trust state inside `app.asar`. Executable bytes remain real
+files under `Resources` for later exact-artifact installation. The bundle never supplies its own
+trust root.
 
-```text
-app.asar:/dist/main/ssh-environment-runtime-release-trust-v1.json
-Resources/ssh-environment-runtime-release-v1/
-  artifacts/
-    darwin-arm64/orchbee-ssh-environment-runtime
-    linux-x64/orchbee-ssh-environment-runtime
-  manifest.json
-```
+## Offline workflow
 
-The descriptor is application trust state and therefore remains inside `app.asar`. The signed
-manifest and executable bytes must be real files outside `app.asar` so the later bootstrap can read
-and stream the selected artifact. Desktop derives the canonical DER SPKI and signing-key identity
-from the independent public-key file; the final release bundle does not supply its own trust root.
-
-## Offline release workflow
-
-All paths are absolute, all requested output directories must be absent, and the production signer
-must run outside repository tooling. From the repository root:
+All paths are absolute and requested output directories must be absent. From the repository root:
 
 ```sh
-pnpm --filter @orchbee/ssh-environment-runtime release:prepare --output /absolute/prepared-release --runtime-version 1.2.3
+pnpm release:ssh-environment:prepare --output /absolute/prepared-release --runtime-version 1.2.3 --terminal-host-version 4.5.6
 
-# The external release authority signs the exact bytes in:
+# An external authority signs the exact bytes in
 # /absolute/prepared-release/manifest-signing-payload.json
-# It writes a raw 64-byte Ed25519 signature without exposing the private key to this process.
+# and writes one raw 64-byte Ed25519 signature.
 
-pnpm --filter @orchbee/ssh-environment-runtime release:finalize --prepared /absolute/prepared-release --signature /absolute/signature.bin --public-key /absolute/release-public-key.pem --output /absolute/final-release
+pnpm release:ssh-environment:finalize --prepared /absolute/prepared-release --signature /absolute/signature.bin --public-key /absolute/release-public-key.pem --output /absolute/final-release
 
-ORCHBEE_SSH_RUNTIME_RELEASE_DIRECTORY=/absolute/final-release \
-ORCHBEE_SSH_RUNTIME_RELEASE_PUBLIC_KEY=/absolute/release-public-key.pem \
+ORCHBEE_SSH_ENVIRONMENT_RELEASE_DIRECTORY=/absolute/final-release \
+ORCHBEE_SSH_ENVIRONMENT_RELEASE_PUBLIC_KEY=/absolute/release-public-key.pem \
 pnpm desktop:package:release
 ```
 
-The public key passed to Desktop is an independent release input, not a file trusted from inside the
-bundle. Missing variables, relative paths, a wrong key, a wrong signature, noncanonical JSON,
-changed bytes, unsupported matrix, or expanded layout stops the release command before Electron
-Packager. The ordinary command remains:
+`pnpm desktop:package` ignores these variables and includes no release cohort or descriptor.
 
-```sh
-pnpm desktop:package
-```
+## Trust and current limits
 
-It does not read these release variables and does not include a Runtime bundle or descriptor.
+A Desktop package contains one descriptor and matching cohort. Changing either component or the
+signing key requires another Desktop package; application rollback restores its original descriptor
+and cohort together. There is no mutable current pointer, feed, key rollover, remote downgrade,
+cleanup, or component replacement.
 
-## Trust, rollback, and privacy
+The manifest exposes component versions, platforms, sizes, and hashes. The descriptor exposes the
+public key, derived key identity, and manifest digest. SSH credentials, Environment targets,
+usernames, remote paths, AskPass values, and private keys are structurally absent.
 
-The production release authority must authenticate the prepared payload, protect the private key,
-and supply the intended public key to Desktop packaging through an access-controlled release job.
-The workflow trusts the pinned Zig and Node toolchains, Node's SHA-256 and Ed25519 implementation,
-the owner-controlled local release workspace, and Electron Packager's documented `asar` and
-`extraResource` placement. Ordinary CI proves the mechanism only with ephemeral keys; it never
-claims that a production signer approved a release.
-
-There is no mutable `current` trust identity. A Desktop package contains one descriptor and one
-matching bundle. Changing either the Runtime bytes/version or signing key requires producing and
-shipping another Desktop package. Rolling back the application restores the older package's own
-descriptor and bundle together; this slice performs no remote downgrade, cleanup, feed lookup, or
-key rollover.
-
-The manifest exposes Runtime version, supported platforms, sizes, and hashes. The descriptor
-exposes a public key, its digest-derived identity, and the manifest digest. These are release
-metadata, not secrets. Private keys, SSH credentials, Environment targets, usernames, remote paths,
-and AskPass values are structurally absent and must not be added to either bundle.
-
-## Verification and current limits
-
-Run the focused evidence from the repository root:
-
-```sh
-pnpm --filter @orchbee/ssh-environment-protocol test
-pnpm --filter @orchbee/ssh-environment-runtime test
-pnpm --filter @orchbee/ssh-environment-runtime test:cross
-pnpm --filter @orchbee/desktop test:release-package
-pnpm --filter @orchbee/desktop typecheck
-```
-
-The macOS native CI leg runs the Runtime tests in addition to the two-target compilation performed
-by the repository gate. A full release rehearsal may use a temporary Ed25519 key, but production
-keys remain outside local and ordinary CI evidence.
-
-Slice 2.3C now consumes this exact package boundary for installed-artifact negotiation and
-process-local supervisor composition. The release bundle alone still cannot create or connect an
-Environment, open a remote terminal, browse files, execute a generic command, operate a Project or
-Workspace, run an Agent, install an operating-system service, or survive logout/reboot. Electron
-application signing, notarization, installer creation, publication, and update distribution also
-remain separate release work.
+Slice 3.1B remotely installs and consumes the exact Terminal Host artifact through one Runtime-owned
+opaque relay, but does not change release signing or packaging ownership. Workspace admission,
+terminal creation/routing, Agent execution, real-SSH interoperability, Electron signing,
+notarization, publication, update distribution, component cleanup, and service installation require
+later accepted slices.

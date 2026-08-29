@@ -150,6 +150,7 @@ function projectState(count = 1): ProjectWorkspaceState {
 				kind: 'folder',
 				name: index === 1 ? 'orchbee' : 'ghostty',
 				path: `/workspace/project-${index}`,
+				placement: { kind: 'local' },
 				source: 'selected',
 			},
 			launchConfigurations: [],

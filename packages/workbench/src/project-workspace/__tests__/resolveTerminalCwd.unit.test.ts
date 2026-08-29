@@ -11,6 +11,7 @@ const DIRECTORIES: readonly WorkbenchDirectory[] = [
 		kind: 'folder',
 		name: 'alpha',
 		path: '/projects/alpha',
+		placement: { kind: 'local' },
 		source: 'selected',
 	},
 	{
@@ -20,6 +21,7 @@ const DIRECTORIES: readonly WorkbenchDirectory[] = [
 		kind: 'folder',
 		name: 'beta',
 		path: '/projects/beta',
+		placement: { kind: 'local' },
 		source: 'created',
 	},
 	{
@@ -29,6 +31,20 @@ const DIRECTORIES: readonly WorkbenchDirectory[] = [
 		kind: 'folder',
 		name: 'missing',
 		path: '/projects/missing',
+		placement: { kind: 'local' },
+		source: 'selected',
+	},
+	{
+		available: false,
+		git: null,
+		id: 'directory-remote',
+		kind: 'folder',
+		name: 'remote',
+		path: '/srv/remote',
+		placement: {
+			environmentId: 'environment:00000000000000000000000000000001',
+			kind: 'environment',
+		},
 		source: 'selected',
 	},
 ];
@@ -106,5 +122,16 @@ describe('resolveTerminalCwd', () => {
 				systemCwd: '/system',
 			}),
 		).toEqual({ kind: 'rejected', reason: 'explicit-directory-not-found' });
+	});
+
+	it('rejects a remote Workspace Directory instead of falling back locally', () => {
+		expect(
+			resolveTerminalCwd({
+				directories: DIRECTORIES,
+				projectPrimaryDirectoryId: 'directory-a',
+				systemCwd: '/system',
+				workspacePrimaryDirectoryId: 'directory-remote',
+			}),
+		).toEqual({ kind: 'rejected', reason: 'workspace-directory-remote' });
 	});
 });

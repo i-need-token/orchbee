@@ -54,6 +54,11 @@ pub fn build(builder: *std.Build) void {
 
     const target = builder.standardTargetOptions(.{});
     const optimize = builder.standardOptimizeOption(.{});
+    const strip = builder.option(
+        bool,
+        "strip",
+        "Strip the final executable; production SSH Environment releases require true",
+    ) orelse false;
     const host_version = builder.option(
         []const u8,
         "host-version",
@@ -139,6 +144,7 @@ pub fn build(builder: *std.Build) void {
         .root_source_file = builder.path("src/main.zig"),
         .target = target,
         .optimize = optimize,
+        .strip = strip,
     });
     const black_box_test_module = builder.createModule(.{
         .root_source_file = builder.path("src/__tests__/host_black_box_test.zig"),

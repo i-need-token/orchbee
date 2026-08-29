@@ -9,12 +9,14 @@ import { useTabStripMessages } from '../../../../../../hooks/useTabStripMessages
 export interface VerticalTabStripBottomContainerProps {
 	collapseState: VerticalTabStripCollapseState;
 	onNewTab: () => void;
+	disabled?: boolean | undefined;
 	onContextMenu?: (event: ReactMouseEvent<HTMLButtonElement>) => void;
 }
 
 export function VerticalTabStripBottomContainer({
 	collapseState,
 	onNewTab,
+	disabled,
 	onContextMenu,
 }: VerticalTabStripBottomContainerProps): ReactNode {
 	const messages = useTabStripMessages();
@@ -39,6 +41,7 @@ export function VerticalTabStripBottomContainer({
 				variantClass='ct-vertical-new-tab'
 				type='button'
 				aria-label={messages.newTab}
+				disabled={disabled}
 				icon={<ProductIcon name='add' />}
 				label={messages.newTab}
 				expansionOrientation={presentation.orientation}

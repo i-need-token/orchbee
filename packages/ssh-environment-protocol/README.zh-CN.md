@@ -1,6 +1,6 @@
 # SSH Environment 协议
 
-由 Desktop 与每个 Environment 独立的 SSH Runtime 共享的严格二进制 framing。版本 `0.1.0`
+由 Desktop 与每个 Environment 独立的 SSH Runtime 共享的严格二进制 framing。版本 `0.2.0`
 提供精确的 Hello handshake、Runtime instance 与 epoch identity、heartbeat liveness、channel
 lifecycle record、二进制 channel data，以及 byte-credit flow control。
 
@@ -21,10 +21,10 @@ big-endian channel identity，后接 opaque byte；credit record 包含 channel 
 Decoder 会拒绝未知 version、kind、field、无效 UTF-8、无效 JSON、非零保留字节，以及不一致或越界
 length。
 
-Hello acceptance 标识一份不可变的 Runtime installation build、一个 daemon instance 和一个 daemon
-epoch。重新连接可以附着到同一个 epoch；daemon 重启后必须报告新 epoch。Runtime 只 advertise
-`project-root-v1`，Desktop 要求该精确 singleton。协议不提供 downgrade、dual-stack negotiation 或
-placeholder capability。
+Hello acceptance 标识一份不可变的 Runtime build、一个 release cohort、一个 Terminal Host
+version/build、一个 daemon instance 与一个 Runtime epoch。重新连接可以附着到同一个 epoch；Runtime
+重启后必须报告新 epoch。Runtime 精确 advertise 有序的 `[project-root-v1, terminal-host-v1]` pair，
+Desktop 要求该精确 pair。协议不提供 downgrade、dual-stack negotiation 或 placeholder capability。
 
 ## Project-root service contract
 
@@ -43,25 +43,38 @@ Result 要么是 `{"kind":"resolved","canonicalPath":"/..."}`，要么是
 `not-directory`、`permission-denied`、`timed-out`、`busy` 与 `unavailable`。Channel identity 是唯一
 correlation identity；service schema 不引入 Project、Checkout、Workspace 或 directory identity。
 
+## Terminal Host relay contract
+
+一个 `terminal-host-v1` channel 承载 opaque Terminal Host protocol byte。每个方向起始时精确获得
+64 KiB credit；每个 data chunk 必须非空且不超过 64 KiB。只有 receiving boundary 消费 byte 后才返回
+credit。一个 Runtime attachment 只允许一个 relay，同时 channel identifier 在 relay 与 project-root
+service 之间保持全局单调。
+
+Open failure 封闭为 `service-busy`、`service-unavailable` 与 `compatibility-unsupported`，并保持
+channel-local。Attachment 丢失会关闭 relay 且不 replay；outer epoch、channel、framing、ordering 或
+credit corruption 会 retire attachment。此 contract 既不定义也不解析 Terminal Host record，并且不授予
+通用 command authority。
+
 ## 离线 release contract
 
-Release schema `1` 为精确有序的 `darwin-arm64` 与 `linux-x64` artifact matrix 定义一个 canonical
-unsigned signing payload 和一个 canonical signed manifest。每个 artifact 都具有非零有界 size 与
-SHA-256 digest，并且两者共享一个显式 semantic Runtime version。Trust schema `1` 绑定 canonical
-Ed25519 SPKI、其 `ed25519-spki-sha256:<digest>` identity，以及精确 final manifest bytes 的 SHA-256。
+冻结的 release schema `1` 定义 Runtime-only 双 platform contract。Release schema `2` 独立定义精确
+有序的 `ssh-environment-runtime` 与 `terminal-host` component；每个 component 都包含精确有序的
+`darwin-arm64` 与 `linux-x64` artifact，并保留自己的 semantic version。每个 artifact 都有非零且上限
+为 128 MiB 的 size 与 SHA-256 digest。Trust schema `1` 和 `2` 绑定 canonical Ed25519 SPKI、其
+`ed25519-spki-sha256:<digest>` identity，以及精确匹配 final-manifest bytes 的 SHA-256。
 
 Signing payload 没有 trailing newline；final manifest 与 trust descriptor 各有一个。Schema 会拒绝
-unknown field、platform reorder、不受支持 platform、noncanonical signature 与越界 value。固定 directory
-与 file name 同 schema 一并导出，使 Runtime release tooling 与 Desktop packaging 无法静默选择不同
-layout。
+unknown field、component 或 platform reorder、缺失或不受支持 entry、noncanonical signature 与越界
+value。固定 directory 与 file name 同 schema 一并导出，使仓库 release automation 与 Desktop
+packaging 无法静默选择不同 layout 或混用 v1 与 v2。
 
 ## Authority 边界
 
 本 package 只是一份 data contract。它不能 build 或 sign artifact、持有 private key、验证 package
-trust、组合 Desktop release、创建连接、安装或启动 Runtime、认证 peer、重试 attachment、授权 inspection
-或执行 filesystem work。它拥有精确 `project-root-v1` schema 与 codec，但刻意不提供通用
-execute-command record。任何新增 Runtime service 都必须由其所属 subsystem 显式 advertised、admitted、
-authorized 并实现。
+trust、组合 release、创建连接、安装或启动 component、认证 peer、重试 attachment、授权 inspection
+或执行 filesystem work。它拥有精确 `project-root-v1` schema/codec 与 `terminal-host-v1` opaque relay
+envelope，但刻意不提供通用 execute-command record。任何新增 Runtime service 都必须由其所属 subsystem
+显式 advertised、admitted、authorized 并实现。
 
 ## 验证
 

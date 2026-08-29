@@ -123,6 +123,7 @@ function projectState(): ProjectWorkspaceState {
 			kind: 'folder',
 			name: 'orchbee',
 			path: '/workspace/orchbee',
+			placement: { kind: 'local' },
 			source: 'selected',
 		},
 		launchConfigurations: [],

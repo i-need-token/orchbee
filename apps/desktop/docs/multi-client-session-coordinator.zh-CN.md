@@ -12,14 +12,15 @@ Desktop Main 拥有一个 `DesktopClientSessionCoordinator`。它串行处理共
 
 ## 输入和边界
 
-| 输入                             | 信任和缺席语义                                                                                              |
-| -------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| 已存储 `WorkbenchSharedDocument` | `@orchbee/workbench/document` 解析的不受信任的文件输入； missing 是一个独特的初始状态，invalid 表示不可用。 |
-| 客户端文档提案                   | 不受信任的能力输入，包含请求标识、预期修订和完整的严格文档。                                                |
-| 终端运行时结果                   | 只有与所请求的确切 Presentation 和操作标识匹配后才可信。                                                    |
-| Host 退出                        | 不受信任的进程输入由 Host 协议验证，并在发布前通过 Main 绑定注册表解析。                                    |
-| 客户端断开连接                   | 附件/会话生命周期事件；它绝不是最终或产品生命周期意图。                                                     |
-| 应用退出政策                     | 单独的 Electron 专用功能，可以将协调器置于应用程序范围的静默状态。                                          |
+| 输入                             | 信任和缺席语义                                                                                                                   |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| 已存储 `WorkbenchSharedDocument` | `@orchbee/workbench/document` 解析的不受信任的文件输入； missing 是一个独特的初始状态，invalid 表示不可用。                      |
+| 客户端文档提案                   | 不受信任的能力输入，包含请求标识、预期修订和完整的严格文档。                                                                     |
+| 终端运行时结果                   | 只有与所请求的确切 Presentation 和操作标识匹配后才可信。                                                                         |
+| 投影请求                         | 不受信任的 viewport demand，只携带一个 Presentation identity 与有界 geometry；只有 canonical document placement 能选择 runtime。 |
+| Host 退出                        | 不受信任的进程输入由 Host 协议验证，并在发布前通过 Main 绑定注册表解析。                                                         |
+| 客户端断开连接                   | 附件/会话生命周期事件；它绝不是最终或产品生命周期意图。                                                                          |
+| 应用退出政策                     | 单独的 Electron 专用功能，可以将协调器置于应用程序范围的静默状态。                                                               |
 
 协调器依赖窄端口完成文档加载/提交、终端意图执行、会话事件发布、标识符分配和附件会话处置。确定性核心不依赖 Electron、文件系统、Host、时钟、随机性、网络、React 或 DOM。
 
@@ -43,15 +44,18 @@ DesktopClientSessionCoordinator
 
 ```text
 Desktop Main lifecycle/projection owners
-├── bounded TerminalExited retry queue (identity + newest revision)
-├── durable pending-journal/rejection owner (queue-full, association, shutdown, unknown)
-├── separate durable publication ledger (identity + newest published revision)
+├── local TerminalExited retry、pending/rejection-journal 与 publication-ledger owner
+├── EnvironmentRuntime[EnvironmentId]
+│   ├── current-record 与 Host-epoch envelope fence
+│   ├── Environment-scoped binding 与 monotonic metadata/failure observation
+│   └── Environment-scoped pending/rejection journal 与 publication ledger
+├── canonical Presentation-to-local-or-Environment projection router
 ├── pending Host detach set for post-attach failures
 ├── active projection leases and resize ownership
 └── retiring ClientSession records with retryable attachment disposal
 ```
 
-`ClientSessionId` 和事件序列是 Main 生命周期内的标识。它们永远不会存入共享文档或恢复文件。Client View 和终端视口状态保持页面本地。`TerminalId`、绑定标识、PTY/VT 状态、历史记录和进程状态仍由 Terminal Host 或 Desktop 终端运行时掌权。Main 的瞬态 Presentation 观察只是在客户端水合时所需、限定到 Presentation 范围内的投影。
+`ClientSessionId` 和事件序列是 Main 生命周期内的标识。它们永远不会存入共享文档或恢复文件。Client View 和终端视口状态保持页面本地。`TerminalId`、绑定标识、PTY/VT 状态、历史记录和进程状态仍由 Terminal Host 或 Desktop 终端运行时掌权。Main 的瞬态 Presentation 观察只是在客户端水合时所需、限定到 Presentation 范围内的投影。每个 remote recovery owner 都以 `EnvironmentId` 为 key；raw Host identity 永远不是跨 Environment 或 local-runtime 的 deduplication key。
 
 会话、提案、终端或附件都没有产品级数量上限。分配、结构化克隆、存储、Host 或内存资源耗尽属于类型化失败；绝不因此允许截断、驱逐、复用身份或终止另一个会话。
 
@@ -123,6 +127,14 @@ Presentation 的两个持久意图重叠。
 
 会话退役绝不会改变共享文档、绑定注册表、PTY、进程或终端生命周期。显式关闭 Panel 或 Tab 仍是共享产品转换，并会协调其持久关闭意图。
 
+每次 projection open 前，Main 都通过 Terminal Context、Workspace、primary Directory 与 placement，从
+canonical Presentation containment 推导 target。Local Presentation 只能到达 local runtime。Environment
+Presentation 只能到达该精确 Environment 已 prepared 的 runtime；projection 不会 activate SSH、等待
+reconnect，或使用 local binding/archive fallback。Main 会在 open 后、broker 可以发布 lease 前重新解析
+target。如果 Presentation 已被删除或移动，它会 dispose provisional attachment，且不报告 open projection。
+Electron 与 authenticated Gateway client 使用同一路由器与 attachment contract；只有它们现有的
+clipboard/link effect target 不同。
+
 对于运行中的 terminal，第一个成功打开的可写 attachment 获得 Host 的初始独占 resize lease。
 后来加入的可写 attachment 获得 read/input/resize capability，但保持 resize observer。
 接纳的 focus-in、key press/repeat、已提交 text 或 paste、application mouse press 或
@@ -169,28 +181,53 @@ surface 随即提交其测量 geometry。Owner detach 会晋升 successful claim
 - 到达某些会话但在另一个会话上失败的终端退出发布将保留一个序列，并仅重试尚未接受该确切事件的会话；成功的会话不会重播，并且重试不会分配序列间隙。
 - 退出持久性或关联失败是类型化的可重试结果。在 Host 监听器返回前，Desktop Main 会同步把每个已接受的 `TerminalExited` 接纳到所有者专用的持久待处理日志。有界的 64 项内存重试队列只是调度器/缓存；它不是崩溃恢复的权威所有者，而且当前 Host 事件信封仍没有确认/重新交付字段。待处理日志、发布账本与持久拒绝日志各有独立容量。队列已满和关机条目可以提升为重试；等待关联或身份未知的条目会被停放，直至观察到确切身份后再提升。身份未知的条目不会进入无界定时重试循环。只有运行时结果、适配器提交、发布账本准入、协调器可见性与实时发布全部成功后，才会移除待处理所有权。待处理日志已满或写入失败时会尽可能记录持久拒绝，否则以失败关闭；绝不会只留下一条跟踪消息。bootstrap 只读取协调器已经提交且可见的观察，不读取待处理预留或尚未提交的账本尝试。
 - Workbench 的终端 Presentation 发布是 Main 唯一的生命周期发布。附件的 `ProjectedTerminalBroker` 可以另行转发经过身份校验的原始 `terminal-exited` 或 `terminal-failed` 传输通知，并按附件执行单调修订过滤。该通知不是协调器序列事件，也不构成跨两个通道的恰好一次保证。Main 会先把 `terminal-failed` 记录为保留的 Presentation 结果，再广播它；失败会话只读，但仍可显式关闭。故障恢复依据存活 Host 的清单，而不是退出专用的溢出与发布账本。
+- Remote projection failure 仍限定在精确 Environment runtime。不可用或已结束的 relay 绝不会探测 local
+  runtime、启动 SSH 或等待 automatic recovery；后续有界 client retry 是一个 fresh projection request，
+  不会 replay unknown input 或其他 Host effect。
+- Remote metadata、failure 与 exit observation 同样限定在精确 Environment 的 current runtime record。
+  Metadata 保持单调，并为后续 Client bootstrap 保留。Failure 只有在精确 binding 与 canonical-target
+  resolution 后才发布；disconnect 永不制造 failure。Exit 会在 listener 返回前进入该 Environment 的同步
+  durable pending 或 rejection journal，然后依次通过 binding durability、reconciler reservation、
+  runtime/publication evidence、reconciler commit、Client broadcast 与 journal compaction。Deletion、
+  retargeting、relay loss 与 restart 会保留原 outcome，且不会 activate SSH，也不会把它重定向到 local 或
+  另一个 Environment。
 - 投影清理失败由服务级租约/分离所有者保留。渲染器端口关闭、畸形控制消息、postMessage 失败、会话退役，以及附件工厂或 open 后失败，会在 Host 请求传输仍可用时通过后续 release、retire 或 dispose 重试收敛；该路径只有收到匹配的 detach acknowledgement 后才清除请求。一旦确认连接终止，Host 连接 teardown 就构成该连接附件的清理证据：Desktop 不再发送 Host 请求，并结算连接作用域内的本地所有者。
 - 已删除且从未发布的单客户端 IPC 契约不提供兼容读取器、别名或迁移。版本 1 的共享文档文件格式与路径不变。
 
 ## 正确性主张和证据
 
-| 声明                                                               | 确定性证据                        | 形式化/系统证据                                  | 限制                                            |
-| ------------------------------------------------------------------ | --------------------------------- | ------------------------------------------------ | ----------------------------------------------- |
-| 一条精确修订链只有一个 Main 写入者                                 | 提案决策和队列测试                | `DesktopMultiClientSession` 规范/修订不变量      | 完整文档先写者胜出策略                          |
-| 已确认的本地提案绝不会抹掉同一页面稍后产生的意图                   | 在途提案/发布协调器 trace         | `WorkbenchDocumentProposalAcknowledgement` 保留  | 只适用于精确候选确认；分歧写入仍回滚            |
-| 最终效果遵循匹配的持久意图                                         | 意图协调器痕迹                    | TLA+ `EffectRequiresPublishedIntent`             | 主机/账本幂等性可信                             |
-| 独立 Presentation 效果不会相互等待                                 | 延迟双 Presentation 协调器 trace  | `DesktopTerminalIntentReconciliation` 批量/进展  | 后续提交仍等待当前效果集合                      |
-| 等价竞态收敛，分歧的陈旧写入保留规范状态                           | 双客户端和有状态属性测试          | TLA+ 陈旧/收敛 Action                            | 无语义合并                                      |
-| 每个已连接会话都按发布顺序追赶                                     | 会话 bootstrap/广播测试           | TLA+ 发布进度                                    | 传输暂停/中断时不保证推进                       |
-| 页面断开连接仅释放其附件                                           | 会话处理和并发投影测试            | TLA+ 附件/会话不变                               | OS/进程崩溃清理委托给现有边界                   |
-| Quiescing 在应用排空前拒绝非所有者变更                             | 退出所有者转换测试                | TLA+ quiescing 不变式                            | 现有不可逆 stop 恢复策略                        |
-| 多个查看者仍只有一个调整大小权限；符合条件的活跃查看者可发起 claim | 租约移交、资格与 claim 串行化测试 | Desktop 与 Terminal Host resize lease 模型       | 不按客户端类型设置隐式优先级                    |
-| 已发布的投影请求永远不会变为活动状态                               | 客户端、网关和主要发布竞赛测试    | `ProjectedTerminalIpcReliability` 释放竞争不变量 | 一种订购的实时控制连接                          |
-| 主机附加响应在稍后的入站交付之前安装其使用者                       | 主机响应/帧/关闭排序测试          | TLA+ 响应-屏障安全与进步                         | JavaScript microtask-before-`setImmediate` 细化 |
-| 仅在渲染器就绪并允许绘制后才确认首帧                               | 慢启动帧/传输测试                 | TLA+ 就绪帧确认不变式                            | 确认客户端提交，不表示绘制已经完成              |
-| 恢复只以已绘制的新附件替换可信冻结帧                               | 投影表面恢复测试                  | TLA+ 恢复与操作标识不变式                        | 两次尝试；不假定传输推进                        |
+| 声明                                                                       | 确定性证据                                                                  | 形式化/系统证据                                                             | 限制                                             |
+| -------------------------------------------------------------------------- | --------------------------------------------------------------------------- | --------------------------------------------------------------------------- | ------------------------------------------------ |
+| 一条精确修订链只有一个 Main 写入者                                         | 提案决策和队列测试                                                          | `DesktopMultiClientSession` 规范/修订不变量                                 | 完整文档先写者胜出策略                           |
+| 已确认的本地提案绝不会抹掉同一页面稍后产生的意图                           | 在途提案/发布协调器 trace                                                   | `WorkbenchDocumentProposalAcknowledgement` 保留                             | 只适用于精确候选确认；分歧写入仍回滚             |
+| 最终效果遵循匹配的持久意图                                                 | 意图协调器痕迹                                                              | TLA+ `EffectRequiresPublishedIntent`                                        | 主机/账本幂等性可信                              |
+| 独立 Presentation 效果不会相互等待                                         | 延迟双 Presentation 协调器 trace                                            | `DesktopTerminalIntentReconciliation` 批量/进展                             | 后续提交仍等待当前效果集合                       |
+| 等价竞态收敛，分歧的陈旧写入保留规范状态                                   | 双客户端和有状态属性测试                                                    | TLA+ 陈旧/收敛 Action                                                       | 无语义合并                                       |
+| 每个已连接会话都按发布顺序追赶                                             | 会话 bootstrap/广播测试                                                     | TLA+ 发布进度                                                               | 传输暂停/中断时不保证推进                        |
+| 页面断开连接仅释放其附件                                                   | 会话处理和并发投影测试                                                      | TLA+ 附件/会话不变                                                          | OS/进程崩溃清理委托给现有边界                    |
+| Canonical remote placement 只到达其 prepared Environment runtime           | Target resolver、router、runtime-owner 与 Electron/Gateway composition test | `SshEnvironmentRemoteTerminalProjection` authority 与 stale-lease invariant | 不 automatic SSH activation 或 local fallback    |
+| Remote terminal outcome 只在 Environment-scoped durable predecessor 后发布 | Observation owner、journal/ledger、routing、coordinator 与 composition test | `SshEnvironmentRemoteTerminalOutcome` ordering 与 isolation invariant       | 仅一个既有 remote terminal；无 lifecycle command |
+| Quiescing 在应用排空前拒绝非所有者变更                                     | 退出所有者转换测试                                                          | TLA+ quiescing 不变式                                                       | 现有不可逆 stop 恢复策略                         |
+| 多个查看者仍只有一个调整大小权限；符合条件的活跃查看者可发起 claim         | 租约移交、资格与 claim 串行化测试                                           | Desktop 与 Terminal Host resize lease 模型                                  | 不按客户端类型设置隐式优先级                     |
+| 已发布的投影请求永远不会变为活动状态                                       | 客户端、网关和主要发布竞赛测试                                              | `ProjectedTerminalIpcReliability` 释放竞争不变量                            | 一种订购的实时控制连接                           |
+| 主机附加响应在稍后的入站交付之前安装其使用者                               | 主机响应/帧/关闭排序测试                                                    | TLA+ 响应-屏障安全与进步                                                    | JavaScript microtask-before-`setImmediate` 细化  |
+| 仅在渲染器就绪并允许绘制后才确认首帧                                       | 慢启动帧/传输测试                                                           | TLA+ 就绪帧确认不变式                                                       | 确认客户端提交，不表示绘制已经完成               |
+| 恢复只以已绘制的新附件替换可信冻结帧                                       | 投影表面恢复测试                                                            | TLA+ 恢复与操作标识不变式                                                   | 两次尝试；不假定传输推进                         |
 
 多客户端 TLA+ 配置检查两个客户端、两个文档值、一个附件、缺失与空的可用初始化、等价与分歧的提案、重新排序的断开/提交/效果完成、quiescing 与断开连接所有者的移交、发布，以及两个有界修订（`0` 和 `1`）。`provision` 表示使终端保持活动的效果，`stop` 表示包括 close 在内的终端终结效果，`none` 表示只改变文档。每个抽象客户端身份最多连接和提案一次；依照生产契约，重新连接使用新身份。`WorkbenchDocumentProposalAcknowledgement` 另行检查精确发布前后的本地编辑、无发布时的精确结果确认、分歧发布、陈旧结果，以及跨修订 `0`、`1`、`2` 重新提议保留下来的意图。`DesktopTerminalIntentReconciliation` 另行检查一个双 Presentation 批次、任何结果之前的原子派发、任一完成/发布顺序，以及跨相同三个修订的后续提交屏障。有状态属性测试使用固定 seed 与生成的客户端 Action。真实的 Electron 加两个 Browser 跟踪覆盖 Gateway 认证、独立页面会话、共享规范状态、附件断开/重连、Browser 效果和限定到确切附件的背压恢复。显式 resize 控制传输不在本契约范围内。不增加吞吐量验收门槛；终端帧热路径保持不变。
+
+`SshEnvironmentRemoteTerminalProjection` 单独检查 canonical local-versus-Environment target resolution、
+prepared-runtime admission、可选 retained-terminal start、deletion 与 retarget race、发布前 stale-lease
+disposal、disconnect retirement，以及不存在 SSH activation 或 local fallback。生产 router 与
+runtime-owner test 对 Electron 与 authenticated Gateway composition 细化这些边界；interactive stream
+本身继续复用现有 attachment、broker、resize-lease 与 effect-target test。
+
+`SshEnvironmentRemoteTerminalOutcome` 单独检查 current-record subscription、精确 Environment namespace、
+monotonic metadata、non-synthetic failure、同步 exit admission 或 rejection、durable publication
+ordering、deletion 与 retarget retention、retry、disconnect，以及没有隐式 connection growth 的 owner
+restart。Observation-owner 与 Desktop composition test 细化 per-Environment store、
+listener-before-runtime ordering、Host-epoch fence、精确 canonical target、Client bootstrap retention 与
+无 local-runtime fallback。
 
 `ProjectedTerminalIpcReliability` 分别检查三个正交配置，而不将状态空间相乘。release-race 配置允许客户端在服务附加前、附加后或 open 事件已发布后释放；清理可能失败，失败的 Main 请求与租约仍由所有者持有，直至退役成功。迟到的 open 事件会因客户端控制能力已关闭而失败，绝不会激活其传输附件。attach-ordering 配置按 Host 线协议顺序将 attach 响应、可选首帧与 close 排入队列。响应屏障必须让 Promise 延续在后续项交付前安装 Broker 与附件监听器。渲染器初始化和首帧交付可以按任意顺序发生，但 `FrameApplied` 同时要求帧已提交且渲染器就绪。弱公平性只适用于已排队、进程内的延续与 Host 交付 Action；渲染器初始化仍是环境 Action，不假定完成期限。
 

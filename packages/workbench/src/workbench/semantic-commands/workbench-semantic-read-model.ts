@@ -35,6 +35,7 @@ export function projectWorkbenchDirectoryList(
 			kind: directory.kind,
 			name: directory.name,
 			path: directory.path,
+			placement: { ...directory.placement },
 			primary: directory.id === project.primaryDirectoryId,
 			source: directory.source,
 		})),

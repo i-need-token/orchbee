@@ -8,10 +8,12 @@ pub const initial_channel_credit_bytes = 65_536;
 pub const project_root_maximum_message_bytes = 16 * 1024;
 pub const project_root_maximum_path_bytes = 4_096;
 pub const project_root_service_id = "project-root-v1";
+pub const terminal_host_service_id = "terminal-host-v1";
+pub const terminal_host_maximum_chunk_bytes = 65_536;
 pub const heartbeat_interval_ms = 15_000;
 pub const heartbeat_miss_limit = 3;
 pub const protocol_major = 0;
-pub const protocol_minor = 1;
+pub const protocol_minor = 2;
 pub const protocol_patch = 0;
 
 const maximum_payload_bytes = maximum_frame_bytes - header_bytes;
@@ -122,8 +124,7 @@ pub fn decodeHello(allocator: std.mem.Allocator, payload: []const u8) !std.json.
     if (!validIdentity(parsed.value.runtimeInstanceId) or
         !validIdentity(parsed.value.clientNonce) or
         parsed.value.maxFrameBytes != maximum_frame_bytes or
-        parsed.value.initialChannelCreditBytes == 0 or
-        parsed.value.initialChannelCreditBytes > 16 * 1024 * 1024)
+        parsed.value.initialChannelCreditBytes != initial_channel_credit_bytes)
     {
         return error.InvalidHello;
     }
@@ -148,7 +149,8 @@ pub fn decodeChannelOpen(
     errdefer parsed.deinit();
     if (!validIdentity(parsed.value.runtimeEpoch) or
         parsed.value.channelId == 0 or
-        !std.mem.eql(u8, parsed.value.serviceId, project_root_service_id) or
+        (!std.mem.eql(u8, parsed.value.serviceId, project_root_service_id) and
+            !std.mem.eql(u8, parsed.value.serviceId, terminal_host_service_id)) or
         parsed.value.initialCreditBytes != initial_channel_credit_bytes)
     {
         return error.InvalidChannelOpen;
@@ -166,7 +168,10 @@ pub fn decodeChannelClose(
         (!std.mem.eql(u8, parsed.value.reason, "completed") and
             !std.mem.eql(u8, parsed.value.reason, "cancelled") and
             !std.mem.eql(u8, parsed.value.reason, "attachment-lost") and
-            !std.mem.eql(u8, parsed.value.reason, "protocol-failure")))
+            !std.mem.eql(u8, parsed.value.reason, "protocol-failure") and
+            !std.mem.eql(u8, parsed.value.reason, "service-busy") and
+            !std.mem.eql(u8, parsed.value.reason, "service-unavailable") and
+            !std.mem.eql(u8, parsed.value.reason, "compatibility-unsupported")))
     {
         return error.InvalidChannelClose;
     }
@@ -176,8 +181,11 @@ pub fn decodeChannelClose(
 pub fn decodeChannelData(payload: []const u8) !ChannelData {
     if (payload.len < @sizeOf(u32)) return error.InvalidChannelData;
     const channel_id = std.mem.readInt(u32, payload[0..4], .big);
-    if (channel_id == 0) return error.InvalidChannelData;
-    return .{ .channel_id = channel_id, .data = payload[4..] };
+    const data = payload[4..];
+    if (channel_id == 0 or data.len == 0 or data.len > terminal_host_maximum_chunk_bytes) {
+        return error.InvalidChannelData;
+    }
+    return .{ .channel_id = channel_id, .data = data };
 }
 
 pub fn decodeChannelCredit(payload: []const u8) !ChannelCredit {
@@ -196,7 +204,10 @@ pub fn writeHelloAccepted(
     runtime_instance_id: []const u8,
     runtime_epoch: []const u8,
     runtime_version: []const u8,
-    build_digest: []const u8,
+    runtime_build_digest: []const u8,
+    release_cohort_digest: []const u8,
+    terminal_host_version: []const u8,
+    terminal_host_build_digest: []const u8,
     platform: []const u8,
 ) !void {
     var payload: std.Io.Writer.Allocating = .init(allocator);
@@ -210,9 +221,12 @@ pub fn writeHelloAccepted(
         .runtimeInstanceId = runtime_instance_id,
         .runtimeEpoch = runtime_epoch,
         .runtimeVersion = runtime_version,
-        .buildDigest = build_digest,
+        .runtimeBuildDigest = runtime_build_digest,
+        .releaseCohortDigest = release_cohort_digest,
+        .terminalHostVersion = terminal_host_version,
+        .terminalHostBuildDigest = terminal_host_build_digest,
         .platform = platform,
-        .capabilities = [_][]const u8{project_root_service_id},
+        .capabilities = [_][]const u8{ project_root_service_id, terminal_host_service_id },
         .heartbeatIntervalMs = heartbeat_interval_ms,
         .heartbeatMissLimit = heartbeat_miss_limit,
         .maxFrameBytes = maximum_frame_bytes,
@@ -243,7 +257,7 @@ pub fn writeChannelData(
     channel_id: u32,
     data: []const u8,
 ) !void {
-    if (channel_id == 0 or data.len > project_root_maximum_message_bytes) {
+    if (channel_id == 0 or data.len == 0 or data.len > terminal_host_maximum_chunk_bytes) {
         return error.InvalidChannelData;
     }
     const payload = try allocator.alloc(u8, @sizeOf(u32) + data.len);
@@ -251,6 +265,20 @@ pub fn writeChannelData(
     std.mem.writeInt(u32, payload[0..4], channel_id, .big);
     @memcpy(payload[4..], data);
     try writeFrame(socket, .channel_data, payload);
+}
+
+pub fn writeChannelCredit(
+    socket: std.posix.socket_t,
+    channel_id: u32,
+    bytes: u32,
+) !void {
+    if (channel_id == 0 or bytes == 0 or bytes > initial_channel_credit_bytes) {
+        return error.InvalidChannelCredit;
+    }
+    var payload: [@sizeOf(u32) * 2]u8 = undefined;
+    std.mem.writeInt(u32, payload[0..4], channel_id, .big);
+    std.mem.writeInt(u32, payload[4..8], bytes, .big);
+    try writeFrame(socket, .channel_credit, &payload);
 }
 
 pub fn writeChannelClosed(

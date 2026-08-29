@@ -1,8 +1,8 @@
 import { isAbsolute, join } from 'node:path';
 
 import {
-	SSH_RUNTIME_RELEASE_DIRECTORY_NAME,
-	SSH_RUNTIME_RELEASE_TRUST_DESCRIPTOR_FILE_NAME,
+	SSH_ENVIRONMENT_RELEASE_DIRECTORY_NAME,
+	SSH_ENVIRONMENT_RELEASE_TRUST_DESCRIPTOR_FILE_NAME,
 } from '@orchbee/ssh-environment-protocol';
 
 import type { DesktopSshEnvironmentResources } from './DesktopApplication';
@@ -30,7 +30,7 @@ export function resolveDesktopSshEnvironmentResources(
 		return {
 			askPassHelperEntryPath: join(input.mainDirectoryPath, 'ssh-askpass-helper.cjs'),
 			askPassRuntimeExecutablePath: input.runtimeExecutablePath,
-			runtimeRelease: null,
+			release: null,
 		};
 	}
 	if (!isAbsolute(input.resourcesPath)) {
@@ -39,11 +39,11 @@ export function resolveDesktopSshEnvironmentResources(
 	return {
 		askPassHelperEntryPath: join(input.resourcesPath, 'ssh-askpass-helper.cjs'),
 		askPassRuntimeExecutablePath: input.runtimeExecutablePath,
-		runtimeRelease: {
-			releaseDirectoryPath: join(input.resourcesPath, SSH_RUNTIME_RELEASE_DIRECTORY_NAME),
+		release: {
+			releaseDirectoryPath: join(input.resourcesPath, SSH_ENVIRONMENT_RELEASE_DIRECTORY_NAME),
 			trustDescriptorFilePath: join(
 				input.mainDirectoryPath,
-				SSH_RUNTIME_RELEASE_TRUST_DESCRIPTOR_FILE_NAME,
+				SSH_ENVIRONMENT_RELEASE_TRUST_DESCRIPTOR_FILE_NAME,
 			),
 		},
 	};

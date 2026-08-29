@@ -4,11 +4,13 @@
 	"kind": "business",
 	"status": "canonical",
 	"name": "Project and Workspace Navigation",
-	"description": "Presents the expandable, reorderable Project and Workspace hierarchy with consistent row, menu, and selection behavior.",
+	"description": "Presents the expandable, reorderable Project and Workspace hierarchy with consistent row, menu, selection, and optional Environment connection status behavior.",
 	"owner": "@orchbee/workbench",
 	"visibility": "private",
 	"intents": [
 		"create-workspace-from-worktree",
+		"connect-environment-project",
+		"disconnect-environment-project",
 		"navigate-workspace",
 		"reorder-project",
 		"reorder-workspace",
@@ -40,7 +42,8 @@
 	],
 	"useWhen": [
 		"Workbench needs to show Project ownership, nested Workspace destinations, semantic menus, and Project ordering together.",
-		"A host needs the reviewed sidebar projection of Workbench Project and Workspace runtime state."
+		"A host needs the reviewed sidebar projection of Workbench Project and Workspace runtime state.",
+		"A host supplies process-local Environment connection observations and explicit connect or disconnect commands for remote Projects."
 	],
 	"avoidWhen": [
 		"The hierarchy represents unrelated navigation entities that do not follow the Project and Workspace model.",
@@ -52,7 +55,8 @@
 		"An open row menu keeps the entire owner row highlighted without introducing a second trigger background.",
 		"Existing Worktree choices remain grouped by their represented repository, and selecting one creates no Workspace until host revalidation and canonical commit succeed.",
 		"Project and Workspace drag order is persisted only on release; the source row follows the pointer while crossed siblings squeeze into its vacated slot, and completion does not replay the previous displacement.",
-		"Workspace reordering remains inside the source Project and preserves active location, terminal ownership, Workspace identity, and Project disclosure."
+		"Workspace reordering remains inside the source Project and preserves active location, terminal ownership, Workspace identity, and Project disclosure.",
+		"Environment connection state is a host observation only; Workbench renders status and invokes explicit commands without owning SSH configuration, prompts, credentials, or runtime lifecycle."
 	],
 	"references": ["packages/workbench/docs/project-workspace.md"]
 }

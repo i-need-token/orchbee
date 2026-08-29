@@ -7,7 +7,7 @@
 	"description": "Creates a Project from the shared Folder acquisition menu through either manual path entry or one injected native existing-Folder capability.",
 	"owner": "@orchbee/workbench",
 	"visibility": "private",
-	"intents": ["acquire-folder", "create-project", "enter-folder-path"],
+	"intents": ["acquire-folder", "connect-project-via-ssh", "create-project", "enter-folder-path"],
 	"implementation": [
 		"packages/workbench/src/workbench/components/workbench-sidebar/components/project-create-menu/ProjectCreateMenu.tsx",
 		"packages/workbench/src/workbench/components/workbench-sidebar/components/create-project-dialog/CreateProjectDialog.tsx"

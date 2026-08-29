@@ -97,6 +97,20 @@ Desktop 从其产品用户数据范围派生运行时目录和端点标识符；
 
 `orchbee-terminal-host --version` 打印可执行文件名称及其嵌入的语义版本。二进制版本标识打包的进程，并且独立于协议和二进制格式版本。
 
+## SSH Environment release 组件
+
+已接受的 schema-version-2 SSH Environment release 原样复用这个 executable 作为其
+`terminal-host` component。本 workspace 拥有 component build recipe；仓库级 release automation
+拥有跨 application assembly、signing input 与 final bundle。精确 remote target 为
+`aarch64-macos` 与 `x86_64-linux-gnu`，使用 Zig `0.16.0`、`ReleaseSafe`、stripping 与
+`-Dhost-version=<semver>` 构建。
+
+Desktop 显式打开已接受的 `terminal-host-v1` service 后，远程 SSH Runtime 会连接此 executable
+保持不变的 same-user private endpoint，或启动 cohort 精确锁定的 version，然后通过现有 SSH
+attachment relay opaque Terminal Host protocol byte。Terminal Host 仍拥有 native terminal identity、
+retained terminal state、PTY 与 process tree。Component 自身不获得 network listener、SSH parsing 或
+generic command authority；remote lifecycle 与 relay policy 归 Desktop 和 SSH Runtime 所有。
+
 ## 固定本机输入
 
 | 输入           | 价值                                                             |

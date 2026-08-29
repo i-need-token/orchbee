@@ -6,6 +6,7 @@ import type {
 	WorkbenchSharedDocumentRevision,
 	WorkbenchSharedPresentationIntent,
 } from '../document';
+import type { WorkbenchDirectoryPlacement } from '../../project-workspace';
 
 export type WorkbenchLocationRef =
 	| { readonly kind: 'standalone' }
@@ -31,6 +32,7 @@ export interface WorkbenchDirectoryListItem {
 	readonly kind: 'folder' | 'worktree';
 	readonly name: string;
 	readonly path: string;
+	readonly placement: WorkbenchDirectoryPlacement;
 	readonly primary: boolean;
 	readonly source: 'created' | 'discovered' | 'selected';
 }
@@ -105,10 +107,14 @@ export type WorkbenchTerminalCreateRejectionReason =
 	| 'explicit-directory-not-found'
 	| 'explicit-directory-unavailable'
 	| 'project-not-found'
+	| 'remote-terminal-context-not-empty'
 	| 'tab-placement-invalid'
 	| 'terminal-creation-sealed'
 	| 'terminal-operation-conflict'
 	| 'terminal-presentation-conflict'
+	| 'workspace-directory-not-remote'
+	| 'workspace-directory-remote'
+	| 'workspace-environment-mismatch'
 	| 'workspace-not-found';
 
 export type WorkbenchTerminalCreateOperationResult =

@@ -4,12 +4,16 @@ import type { Readable, Writable } from 'node:stream';
 import {
 	SSH_ENVIRONMENT_MAX_FRAME_BYTES,
 	SSH_ENVIRONMENT_PROTOCOL_VERSION,
-	SSH_PROJECT_ROOT_SERVICE_ID,
+	SSH_ENVIRONMENT_REQUIRED_CAPABILITIES,
+	SshEnvironmentChannelIdSchema,
 	SshEnvironmentClientNonceSchema,
 	SshEnvironmentFrameDecoder,
 	encodeSshEnvironmentMessage,
+	type SshEnvironmentChannelId,
 	type SshEnvironmentFailure,
 	type SshEnvironmentHelloAccepted,
+	type SshEnvironmentPlatform,
+	type SshEnvironmentReleaseComponentRole,
 	type SshEnvironmentRuntimeEpoch,
 	type SshEnvironmentRuntimeInstanceId,
 } from '@orchbee/ssh-environment-protocol';
@@ -18,19 +22,25 @@ import {
 	SshProjectRootChannelClient,
 	type SshProjectRootInspectionOutcome,
 } from './SshProjectRootChannelClient';
-import type { SshRuntimeArtifactLoadResult } from './ssh-runtime-release-source';
 import {
-	SshRuntimeBootstrapStatusDecoder,
-	type SshRuntimeBootstrapStatus,
-} from './ssh-runtime-bootstrap-negotiation';
-import type {
-	VerifiedSshRuntimeArtifactDescriptor,
-	VerifiedSshRuntimeReleaseCatalog,
-} from './verify-ssh-runtime-artifact';
+	SshTerminalHostChannelClient,
+	type SshTerminalHostConnectionOutcome,
+} from './SshTerminalHostChannelClient';
+import {
+	SshEnvironmentBootstrapDecoder,
+	type SshEnvironmentBootstrapArtifactStatus,
+	type SshEnvironmentBootstrapMessage,
+} from './ssh-environment-bootstrap-negotiation';
+import type { SshEnvironmentArtifactLoadResult } from './ssh-environment-release-source';
+import type { VerifiedSshEnvironmentReleaseCatalog } from './verify-ssh-environment-release';
 
 const BOOTSTRAP_TIMEOUT_MILLISECONDS = 10 * 60 * 1_000;
 const HANDSHAKE_TIMEOUT_MILLISECONDS = 15_000;
 const INITIAL_CHANNEL_CREDIT_BYTES = 65_536;
+const BOOTSTRAP_COMPONENT_ORDER = Object.freeze([
+	'ssh-environment-runtime',
+	'terminal-host',
+] as const satisfies readonly SshEnvironmentReleaseComponentRole[]);
 
 export type SshEnvironmentRuntimeSessionFailureReason =
 	| 'compatibility-unsupported'
@@ -44,10 +54,11 @@ export interface SshEnvironmentRuntimeIdentity {
 }
 
 interface SshEnvironmentRuntimeSessionOptions {
-	readonly catalog: VerifiedSshRuntimeReleaseCatalog;
+	readonly catalog: VerifiedSshEnvironmentReleaseCatalog;
 	readonly loadArtifact: (
-		platform: SshRuntimeBootstrapStatus['platform'],
-	) => Promise<SshRuntimeArtifactLoadResult>;
+		role: SshEnvironmentReleaseComponentRole,
+		platform: SshEnvironmentPlatform,
+	) => Promise<SshEnvironmentArtifactLoadResult>;
 	readonly onFailure: (reason: SshEnvironmentRuntimeSessionFailureReason) => void;
 	readonly onLost: () => void;
 	readonly onReady: (identity: SshEnvironmentRuntimeIdentity) => void;
@@ -56,24 +67,23 @@ interface SshEnvironmentRuntimeSessionOptions {
 	readonly writable: Writable;
 }
 
-type SessionPhase =
-	| 'handshaking'
-	| 'idle'
-	| 'preparing-artifact'
-	| 'ready'
-	| 'stopped'
-	| 'waiting-bootstrap-status';
+type SessionPhase = 'bootstrapping' | 'handshaking' | 'idle' | 'ready' | 'stopped';
 
 export class SshEnvironmentRuntimeSession {
-	readonly #bootstrapDecoder = new SshRuntimeBootstrapStatusDecoder();
+	readonly #bootstrapDecoder = new SshEnvironmentBootstrapDecoder();
+	readonly #bootstrapMessages: SshEnvironmentBootstrapMessage[] = [];
+	#bootstrapPlatform: SshEnvironmentPlatform | undefined;
+	#bootstrapProcessing = false;
+	#bootstrapRoleIndex = 0;
 	#bootstrapTimeout: NodeJS.Timeout | undefined;
-	readonly #catalog: VerifiedSshRuntimeReleaseCatalog;
+	readonly #catalog: VerifiedSshEnvironmentReleaseCatalog;
 	readonly #decoder = new SshEnvironmentFrameDecoder();
 	#heartbeatInterval: NodeJS.Timeout | undefined;
 	#heartbeatMisses = 0;
 	#handshakeTimeout: NodeJS.Timeout | undefined;
 	#helloAccepted: SshEnvironmentHelloAccepted | undefined;
 	readonly #loadArtifact: SshEnvironmentRuntimeSessionOptions['loadArtifact'];
+	#nextChannelId = 1;
 	#nextHeartbeatSequence = 1;
 	readonly #onFailure: SshEnvironmentRuntimeSessionOptions['onFailure'];
 	readonly #onLost: SshEnvironmentRuntimeSessionOptions['onLost'];
@@ -83,7 +93,7 @@ export class SshEnvironmentRuntimeSession {
 	#projectRootChannels: SshProjectRootChannelClient | undefined;
 	readonly #readable: Readable;
 	readonly #runtimeInstanceId: SshEnvironmentRuntimeInstanceId;
-	#selectedArtifact: VerifiedSshRuntimeArtifactDescriptor | undefined;
+	#terminalHostChannels: SshTerminalHostChannelClient | undefined;
 	readonly #writable: Writable;
 
 	constructor(options: SshEnvironmentRuntimeSessionOptions) {
@@ -99,7 +109,7 @@ export class SshEnvironmentRuntimeSession {
 
 	async start(): Promise<void> {
 		if (this.#phase !== 'idle') throw new Error('SSH Runtime session has already started.');
-		this.#phase = 'waiting-bootstrap-status';
+		this.#phase = 'bootstrapping';
 		this.#readable.on('data', this.#handleData);
 		this.#readable.once('end', this.#handleTransportEnd);
 		this.#readable.once('error', this.#handleTransportError);
@@ -115,6 +125,8 @@ export class SshEnvironmentRuntimeSession {
 		this.#phase = 'stopped';
 		this.#projectRootChannels?.retire();
 		this.#projectRootChannels = undefined;
+		this.#terminalHostChannels?.retire();
+		this.#terminalHostChannels = undefined;
 		this.#clearTimers();
 		this.#readable.off('data', this.#handleData);
 		this.#readable.off('end', this.#handleTransportEnd);
@@ -129,21 +141,23 @@ export class SshEnvironmentRuntimeSession {
 		return this.#projectRootChannels.inspect(path, signal);
 	}
 
+	openTerminalHost(): Promise<SshTerminalHostConnectionOutcome> {
+		if (this.#phase !== 'ready' || this.#terminalHostChannels === undefined) {
+			return Promise.resolve({ kind: 'failed', reason: 'unavailable' });
+		}
+		return this.#terminalHostChannels.open();
+	}
+
 	readonly #handleData = (chunk: Buffer): void => {
 		if (this.#phase === 'stopped') return;
-		if (this.#phase === 'waiting-bootstrap-status') {
+		if (this.#phase === 'bootstrapping') {
 			const decoded = this.#bootstrapDecoder.push(chunk);
-			if (decoded.kind === 'pending') return;
 			if (decoded.kind === 'rejected') {
 				this.#fail('policy-rejected');
 				return;
 			}
-			this.#phase = 'preparing-artifact';
-			void this.#completeBootstrap(decoded.status);
-			return;
-		}
-		if (this.#phase === 'preparing-artifact') {
-			this.#fail('policy-rejected');
+			this.#bootstrapMessages.push(...decoded.messages);
+			void this.#drainBootstrapMessages();
 			return;
 		}
 		const decoded = this.#decoder.push(chunk);
@@ -176,7 +190,14 @@ export class SshEnvironmentRuntimeSession {
 				this.#heartbeatMisses = 0;
 				continue;
 			}
-			if (this.#projectRootChannels?.handle(message) !== 'handled') {
+			const terminalHostHandling = this.#terminalHostChannels?.handle(message) ?? 'unhandled';
+			if (terminalHostHandling === 'attachment-invalid') {
+				this.#fail('policy-rejected');
+				return;
+			}
+			if (terminalHostHandling === 'handled') continue;
+			const projectRootHandling = this.#projectRootChannels?.handle(message) ?? 'unhandled';
+			if (projectRootHandling !== 'handled') {
 				this.#fail('policy-rejected');
 				return;
 			}
@@ -199,64 +220,114 @@ export class SshEnvironmentRuntimeSession {
 		this.#handleTransportEnd();
 	};
 
-	async #completeBootstrap(status: SshRuntimeBootstrapStatus): Promise<void> {
-		const selectedArtifact = this.#catalog.artifacts[status.platform];
-		this.#selectedArtifact = selectedArtifact;
+	async #drainBootstrapMessages(): Promise<void> {
+		if (this.#bootstrapProcessing || this.#phase !== 'bootstrapping') return;
+		this.#bootstrapProcessing = true;
 		try {
-			if (status.artifactDisposition === 'upload') {
-				const loaded = await this.#loadArtifact(status.platform);
-				if (this.#phase === 'stopped') return;
-				if (loaded.kind === 'unavailable') {
-					this.#fail('runtime-release-unavailable');
-					return;
+			while (this.#phase === 'bootstrapping') {
+				const message = this.#bootstrapMessages.shift();
+				if (message === undefined) return;
+				if (message.type === 'artifact-status') {
+					if (!(await this.#acceptBootstrapArtifactStatus(message))) return;
+					continue;
 				}
 				if (
-					loaded.artifact.buildDigest !== selectedArtifact.buildDigest ||
-					loaded.artifact.bytes.byteLength !== selectedArtifact.sizeBytes ||
-					loaded.artifact.platform !== selectedArtifact.platform ||
-					loaded.artifact.runtimeVersion !== selectedArtifact.runtimeVersion
+					this.#bootstrapRoleIndex !== BOOTSTRAP_COMPONENT_ORDER.length ||
+					message.platform !== this.#bootstrapPlatform ||
+					this.#bootstrapMessages.length !== 0
 				) {
 					this.#fail('policy-rejected');
 					return;
 				}
-				await this.#write(loaded.artifact.bytes);
+				await this.#beginHandshake();
 			}
-			if (this.#phase !== 'preparing-artifact') return;
-			if (this.#bootstrapTimeout !== undefined) clearTimeout(this.#bootstrapTimeout);
-			this.#bootstrapTimeout = undefined;
-			this.#phase = 'handshaking';
-			this.#handshakeTimeout = setTimeout(
-				() => this.#fail('retryable'),
-				HANDSHAKE_TIMEOUT_MILLISECONDS,
-			);
-			const clientNonce = SshEnvironmentClientNonceSchema.parse(randomBytes(16).toString('hex'));
-			await this.#write(
-				encodeSshEnvironmentMessage({
-					type: 'hello',
-					payload: {
-						protocolVersion: SSH_ENVIRONMENT_PROTOCOL_VERSION,
-						runtimeInstanceId: this.#runtimeInstanceId,
-						clientNonce,
-						maxFrameBytes: SSH_ENVIRONMENT_MAX_FRAME_BYTES,
-						initialChannelCreditBytes: INITIAL_CHANNEL_CREDIT_BYTES,
-					},
-				}),
-			);
 		} catch {
 			this.#fail('retryable');
+		} finally {
+			this.#bootstrapProcessing = false;
 		}
 	}
 
-	#acceptHello(accepted: SshEnvironmentHelloAccepted): boolean {
-		const selectedArtifact = this.#selectedArtifact;
+	async #acceptBootstrapArtifactStatus(
+		status: SshEnvironmentBootstrapArtifactStatus,
+	): Promise<boolean> {
+		const expectedRole = BOOTSTRAP_COMPONENT_ORDER[this.#bootstrapRoleIndex];
 		if (
-			selectedArtifact === undefined ||
+			expectedRole === undefined ||
+			status.role !== expectedRole ||
+			(this.#bootstrapPlatform !== undefined && status.platform !== this.#bootstrapPlatform)
+		) {
+			this.#fail('policy-rejected');
+			return false;
+		}
+		this.#bootstrapPlatform = status.platform;
+		const component = this.#catalog.components[status.role];
+		const descriptor = component.artifacts[status.platform];
+		if (status.artifactDisposition === 'upload') {
+			const loaded = await this.#loadArtifact(status.role, status.platform);
+			if (this.#phase === 'stopped') return false;
+			if (loaded.kind === 'unavailable') {
+				this.#fail('runtime-release-unavailable');
+				return false;
+			}
+			if (
+				loaded.artifact.buildDigest !== descriptor.buildDigest ||
+				loaded.artifact.bytes.byteLength !== descriptor.sizeBytes ||
+				loaded.artifact.platform !== descriptor.platform ||
+				loaded.artifact.role !== component.role ||
+				loaded.artifact.version !== component.version
+			) {
+				this.#fail('policy-rejected');
+				return false;
+			}
+			await this.#write(loaded.artifact.bytes);
+		}
+		this.#bootstrapRoleIndex += 1;
+		return true;
+	}
+
+	async #beginHandshake(): Promise<void> {
+		if (this.#bootstrapTimeout !== undefined) clearTimeout(this.#bootstrapTimeout);
+		this.#bootstrapTimeout = undefined;
+		this.#phase = 'handshaking';
+		this.#handshakeTimeout = setTimeout(
+			() => this.#fail('retryable'),
+			HANDSHAKE_TIMEOUT_MILLISECONDS,
+		);
+		const clientNonce = SshEnvironmentClientNonceSchema.parse(randomBytes(16).toString('hex'));
+		await this.#write(
+			encodeSshEnvironmentMessage({
+				type: 'hello',
+				payload: {
+					protocolVersion: SSH_ENVIRONMENT_PROTOCOL_VERSION,
+					runtimeInstanceId: this.#runtimeInstanceId,
+					clientNonce,
+					maxFrameBytes: SSH_ENVIRONMENT_MAX_FRAME_BYTES,
+					initialChannelCreditBytes: INITIAL_CHANNEL_CREDIT_BYTES,
+				},
+			}),
+		);
+	}
+
+	#acceptHello(accepted: SshEnvironmentHelloAccepted): boolean {
+		const platform = this.#bootstrapPlatform;
+		if (platform === undefined) return false;
+		const runtime = this.#catalog.components['ssh-environment-runtime'];
+		const terminalHost = this.#catalog.components['terminal-host'];
+		const runtimeArtifact = runtime.artifacts[platform];
+		const terminalHostArtifact = terminalHost.artifacts[platform];
+		if (
 			accepted.runtimeInstanceId !== this.#runtimeInstanceId ||
-			accepted.runtimeVersion !== selectedArtifact.runtimeVersion ||
-			accepted.buildDigest !== selectedArtifact.buildDigest ||
-			accepted.platform !== selectedArtifact.platform ||
-			accepted.capabilities.length !== 1 ||
-			accepted.capabilities[0] !== SSH_PROJECT_ROOT_SERVICE_ID ||
+			accepted.runtimeVersion !== runtime.version ||
+			accepted.runtimeBuildDigest !== runtimeArtifact.buildDigest ||
+			accepted.releaseCohortDigest !== this.#catalog.releaseCohortDigest ||
+			accepted.terminalHostVersion !== terminalHost.version ||
+			accepted.terminalHostBuildDigest !== terminalHostArtifact.buildDigest ||
+			accepted.platform !== platform ||
+			accepted.capabilities.length !== SSH_ENVIRONMENT_REQUIRED_CAPABILITIES.length ||
+			!accepted.capabilities.every(
+				(capability, index) => capability === SSH_ENVIRONMENT_REQUIRED_CAPABILITIES[index],
+			) ||
 			accepted.maxFrameBytes !== SSH_ENVIRONMENT_MAX_FRAME_BYTES ||
 			accepted.initialChannelCreditBytes !== INITIAL_CHANNEL_CREDIT_BYTES
 		) {
@@ -264,10 +335,16 @@ export class SshEnvironmentRuntimeSession {
 		}
 		this.#helloAccepted = accepted;
 		this.#phase = 'ready';
-		this.#projectRootChannels = new SshProjectRootChannelClient({
+		const channelOptions = {
+			allocateChannelId: () => this.#allocateChannelId(),
 			onAttachmentInvalid: () => this.#fail('policy-rejected'),
 			runtimeEpoch: accepted.runtimeEpoch,
-			write: (bytes) => this.#write(bytes),
+			write: (bytes: Uint8Array) => this.#write(bytes),
+		};
+		this.#projectRootChannels = new SshProjectRootChannelClient(channelOptions);
+		this.#terminalHostChannels = new SshTerminalHostChannelClient({
+			...channelOptions,
+			expectedHostVersion: terminalHost.version,
 		});
 		if (this.#handshakeTimeout !== undefined) clearTimeout(this.#handshakeTimeout);
 		this.#handshakeTimeout = undefined;
@@ -281,6 +358,13 @@ export class SshEnvironmentRuntimeSession {
 		});
 		this.#heartbeatTick();
 		return true;
+	}
+
+	#allocateChannelId(): SshEnvironmentChannelId | null {
+		const parsed = SshEnvironmentChannelIdSchema.safeParse(this.#nextChannelId);
+		if (!parsed.success) return null;
+		this.#nextChannelId += 1;
+		return parsed.data;
 	}
 
 	#heartbeatTick(): void {

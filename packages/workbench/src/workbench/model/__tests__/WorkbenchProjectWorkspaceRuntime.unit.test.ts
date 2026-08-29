@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { WorkbenchDirectory } from '../../../project-workspace';
+import type { WorkbenchFolderDirectory } from '../../../project-workspace';
 import { workbenchSharedDocumentRevision } from '../../document';
 import {
 	terminalPresentationId,
@@ -19,24 +19,38 @@ function createTestTerminalPresentationComposition(scope: string) {
 	);
 }
 
-const DIRECTORY: WorkbenchDirectory = {
+const DIRECTORY: WorkbenchFolderDirectory = {
 	available: true,
 	git: null,
 	id: 'directory-1',
 	kind: 'folder',
 	name: 'orchbee',
 	path: '/projects/orchbee',
+	placement: { kind: 'local' },
 	source: 'selected',
 };
 
-const FEATURE_DIRECTORY: WorkbenchDirectory = {
+const FEATURE_DIRECTORY: WorkbenchFolderDirectory = {
 	...DIRECTORY,
 	id: 'directory-2',
 	name: 'feature',
 	path: '/projects/feature',
 };
 
-const REPOSITORY_DIRECTORY: WorkbenchDirectory = {
+const REMOTE_ENVIRONMENT_ID = 'environment:00000000000000000000000000000001';
+
+const REMOTE_DIRECTORY: WorkbenchFolderDirectory = {
+	...DIRECTORY,
+	available: false,
+	id: 'environment-directory:00000000000000000000000000000001',
+	path: '/srv/orchbee',
+	placement: {
+		environmentId: REMOTE_ENVIRONMENT_ID,
+		kind: 'environment',
+	},
+};
+
+const REPOSITORY_DIRECTORY: WorkbenchFolderDirectory = {
 	...DIRECTORY,
 	git: {
 		branch: 'main',
@@ -75,6 +89,158 @@ function createManagedRuntime(): WorkbenchProjectWorkspaceRuntime {
 }
 
 describe('WorkbenchProjectWorkspaceRuntime', () => {
+	it('materializes an empty remote Workspace context without dispatching a terminal effect', () => {
+		let operationSequence = 1;
+		let presentationSequence = 2;
+		const commands: WorkbenchTerminalPresentationCommand[] = [];
+		const runtime = new WorkbenchProjectWorkspaceRuntime({
+			standaloneCwd: '/system',
+			standaloneTerminalTitle: 'Terminal 1',
+			terminalPresentation: {
+				createOperationId: () =>
+					terminalPresentationOperationId(`remote:operation:${operationSequence++}`),
+				createPresentationId: () =>
+					terminalPresentationId(`remote:presentation:${presentationSequence++}`),
+				createRemovalId: () => terminalPresentationRemovalId('remote:removal:1'),
+				dispatchCommands: (nextCommands) => commands.push(...nextCommands),
+				initialPresentationId: terminalPresentationId('remote:presentation:1'),
+				kind: 'managed',
+			},
+		});
+		expect(commands).toHaveLength(1);
+		expect(runtime.resolveActiveTerminalCreationRoute({ placement: { groupId: null } })).toEqual({
+			kind: 'local',
+			location: { kind: 'standalone' },
+		});
+		runtime.transition({
+			directory: REMOTE_DIRECTORY,
+			projectName: 'orchbee',
+			type: 'environment-project-registered',
+		});
+		const result = runtime.transition({
+			directoryId: REMOTE_DIRECTORY.id,
+			projectId: 'project-1',
+			type: 'environment-workspace-registered',
+			workspaceName: 'orchbee',
+		});
+		runtime.transition({
+			projectId: 'project-1',
+			type: 'workspace-activated',
+			workspaceId: 'workspace-1',
+		});
+
+		expect(result.outcome).toBe('applied');
+		expect(commands).toHaveLength(1);
+		expect(runtime.resolveActiveTerminalCreationRoute({ placement: { groupId: null } })).toEqual({
+			kind: 'remote',
+			projectId: 'project-1',
+			workspaceId: 'workspace-1',
+		});
+		expect(
+			runtime.resolveActiveTerminalCreationRoute({ placement: { groupId: 'group-1' } }),
+		).toEqual({ kind: 'rejected', reason: 'remote-terminal-placement-unsupported' });
+		expect(
+			runtime.resolveActiveTerminalCreationRoute({ placement: { groupId: null, index: 0 } }),
+		).toEqual({ kind: 'rejected', reason: 'remote-terminal-placement-unsupported' });
+		expect(
+			runtime.resolveActiveTerminalCreationRoute({
+				directoryId: REMOTE_DIRECTORY.id,
+				placement: { groupId: null },
+			}),
+		).toEqual({ kind: 'rejected', reason: 'remote-terminal-placement-unsupported' });
+		expect(
+			runtime
+				.getSharedDocument(workbenchSharedDocumentRevision('1'))
+				.terminalContexts.find((context) => context.terminalContextId === 'terminal-context-2'),
+		).toMatchObject({
+			nextTabSequence: 1,
+			panelWorkspace: { pendingRemovals: [], tabs: [] },
+			tabCollection: { groups: [], tabs: [] },
+		});
+		expect(
+			runtime.createTerminalAtLocation({
+				fallbackTitle: 'Remote Terminal',
+				location: { kind: 'workspace', projectId: 'project-1', workspaceId: 'workspace-1' },
+				placement: { groupId: null },
+			}),
+		).toEqual({ kind: 'rejected', reason: 'workspace-directory-remote' });
+		expect(commands).toHaveLength(1);
+
+		const clientViewBefore = runtime.getClientView();
+		const created = runtime.createEnvironmentTerminalAtLocation({
+			environmentId: REMOTE_ENVIRONMENT_ID,
+			fallbackTitle: 'Remote Terminal',
+			placement: { groupId: null },
+			projectId: 'project-1',
+			workspaceId: 'workspace-1',
+		});
+		expect(created).toMatchObject({
+			intent: { kind: 'provision' },
+			kind: 'created',
+			terminalContextId: 'terminal-context-2',
+		});
+		if (created.kind !== 'created') throw new Error('Expected a created remote Terminal.');
+		expect(
+			runtime.hasPublishedTerminal({
+				panelId: created.panelId,
+				presentationId: created.presentationId,
+				projectId: 'project-1',
+				tabId: created.tabId,
+				terminalContextId: created.terminalContextId,
+				workspaceId: 'workspace-1',
+			}),
+		).toBe(true);
+		expect(
+			runtime.hasPublishedTerminal({
+				panelId: created.panelId,
+				presentationId: 'other-presentation',
+				projectId: 'project-1',
+				tabId: created.tabId,
+				terminalContextId: created.terminalContextId,
+				workspaceId: 'workspace-1',
+			}),
+		).toBe(false);
+		expect(runtime.resolveActiveTerminalCreationRoute({ placement: { groupId: null } })).toEqual({
+			kind: 'rejected',
+			reason: 'remote-terminal-context-not-empty',
+		});
+		expect(runtime.getClientView()).toMatchObject({
+			activeLocation: clientViewBefore.activeLocation,
+			expandedProjectIds: clientViewBefore.expandedProjectIds,
+		});
+		expect(
+			runtime
+				.getSharedDocument(workbenchSharedDocumentRevision('2'))
+				.terminalContexts.find((context) => context.terminalContextId === 'terminal-context-2')
+				?.panelWorkspace.tabs[0]?.root,
+		).toMatchObject({
+			kind: 'panel',
+			primaryPresentation: { launchCwd: '/srv/orchbee' },
+		});
+		expect(commands.at(-1)).toMatchObject({
+			launchCwd: '/srv/orchbee',
+			type: 'terminal-provision-requested',
+		});
+		expect(
+			runtime.createEnvironmentTerminalAtLocation({
+				environmentId: REMOTE_ENVIRONMENT_ID,
+				fallbackTitle: 'Second Remote Terminal',
+				placement: { groupId: null },
+				projectId: 'project-1',
+				workspaceId: 'workspace-1',
+			}),
+		).toEqual({ kind: 'rejected', reason: 'remote-terminal-context-not-empty' });
+		expect(
+			runtime.createEnvironmentTerminalAtLocation({
+				environmentId: 'environment:00000000000000000000000000000002',
+				fallbackTitle: 'Wrong Environment',
+				placement: { groupId: null },
+				projectId: 'project-1',
+				workspaceId: 'workspace-1',
+			}),
+		).toEqual({ kind: 'rejected', reason: 'workspace-environment-mismatch' });
+	});
+
 	it('materializes the terminal context for an atomically created Worktree Workspace', () => {
 		const runtime = createManagedRuntime();
 		runtime.transition({
@@ -100,6 +266,7 @@ describe('WorkbenchProjectWorkspaceRuntime', () => {
 				kind: 'worktree',
 				name: 'orchbee/workspace-1',
 				path: '/managed/worktrees/managed-worktree-1',
+				placement: { kind: 'local' },
 				source: 'created',
 			},
 			projectId: 'project-1',

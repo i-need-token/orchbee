@@ -2,7 +2,7 @@
 
 ## Scope and ownership
 
-`@orchbee/workbench/document` owns two version-1 contracts with different authority:
+`@orchbee/workbench/document` owns two versioned contracts with different authority:
 
 - `WorkbenchSharedDocument` is the recoverable, revisioned product structure shared by every
   Browser page and Electron renderer page connected to one application runtime.
@@ -18,10 +18,10 @@ contract contains a platform discriminator.
 
 ```text
 WorkbenchSharedDocument
-├── version: 1
+├── version: 2
 ├── revision: canonical unsigned decimal text
 ├── projectWorkspace
-│   ├── identity sequences and ordered Projects
+│   ├── identity sequences and ordered Projects with placed Directories
 │   └── each Workspace references exactly one Terminal Context
 └── terminalContexts[] (canonical identity order)
     ├── Tab and Group identity, metadata, membership, and order
@@ -51,6 +51,20 @@ The effect command makes destructive disposition explicit: `terminal-close-reque
 `remove` for ordinary close and structural removal, or `stop` for application stop and its durable
 retry. This command-only distinction lets the application archive a stopped terminal without
 changing the five shared intent forms or treating ordinary close as retained product history.
+
+A Terminal Context may be structurally empty: allocation sequences start at `1`, while its Tab,
+Group, Panel, presentation, and pending-removal collections are empty. Slice 3.2A uses this existing
+valid shape for a Main-admitted remote Workspace, so durable placement can precede any authorized
+remote terminal effect without changing document version or schema shape.
+
+Slice 3.2B uses the same version-2 schema for one explicit first-terminal provision. A Main-owned
+mutation may replace that exact empty remote context with one top-level Tab, one primary Panel, and
+one `provision` presentation whose durable launch CWD is the admitted remote Directory path. The
+corresponding process effect is not document authority: Desktop derives its local or exact
+Environment target from canonical Project/Workspace containment, commits the matching intent first,
+and only then asks the target runtime to reconcile it. A Client may preserve or delete that complete
+remote placement and may report only the exact `provision`-to-`retain` convergence for the admitted
+presentation; it cannot create, retarget, or otherwise mutate remote terminal structure.
 
 Each shared Tab stores a durable fallback `title` and nullable durable `customTitle`. Product-created
 fallbacks are the localized unnumbered Terminal label; a custom title is the explicit user override.
@@ -119,6 +133,13 @@ recovery requires a separate accepted owner and contract.
 - Terminal Contexts use canonical identity order and equal the exact set referenced by standalone
   and Workspace contexts.
 - Directory, primary-Directory, launch-configuration, and Terminal Context references resolve.
+- Every Directory has exactly one placement: `local`, or `environment` with one non-empty opaque
+  Environment reference. An environment-placed Directory is always unavailable.
+- Every Workspace primary Directory resolves and may have local or Environment placement. Ordinary
+  Workbench mutations require local placement; Desktop Main alone may admit an exact remote
+  Workspace and may provision its exact empty Terminal Context. Client mutation cannot create or
+  retarget remote terminal structure; only exact preservation, deletion, and the admitted
+  provision-to-retain convergence are accepted.
 - Tab and Panel-workspace Tab membership and order match; pinned Tabs form one prefix and every
   Group is contiguous.
 - Every Split has exactly two children and unique slots. A child Split may repeat its parent's
@@ -137,32 +158,37 @@ recovery requires a separate accepted owner and contract.
 
 ## Compatibility and application integration
 
-`WorkbenchSharedDocument` version `1` is a new binary-split contract, not a reader for the unshipped
-Workbench topology schema. Within version `1`, an omitted Tab `customTitle` is canonicalized to
-`null` so documents written before that optional override was introduced remain readable. There is
-no alias, migration, or reinterpretation for development-era flattened or n-ary topology.
-Applications use a distinct storage path and ignore any such development-era file without deleting
-it.
+`WorkbenchSharedDocument` version `2` adds explicit Directory placement. Its exported one-way
+migration accepts exactly one valid historical version-1 document, adds `placement: { kind:
+'local' }` to every Directory without changing identity, order, revision, lifecycle intent, or any
+other field, then validates the complete version-2 result. It never accepts a partial or malformed
+v1 value and never emits v1. Within the historical v1 parser, an omitted Tab `customTitle` is
+canonicalized to `null`, preserving the prior v1 contract. Desktop owns when that migration is
+persisted and keeps the source file untouched. Development-era flattened or n-ary topology remains
+unsupported and is not reinterpreted as v1.
 
 Only shared changes advance the application-owned revision and enter its durability barrier.
 `subscribeDocument(...)` and `subscribeClientView(...)` compare their owned projections and notify
-independently, so a client-only change cannot schedule a shared commit. The current Desktop adapter
-remains a single-client writer in this foundation; multi-client arbitration and broadcasts belong
-to the Desktop session coordinator.
+independently, so a client-only change cannot schedule a shared commit. Workbench does not arbitrate
+clients; Desktop's session coordinator owns the single canonical writer, proposal ordering, and
+broadcasts.
 
 ## Correctness evidence
 
-| Claim                                                        | Evidence                                                                        | Limits                                          |
-| ------------------------------------------------------------ | ------------------------------------------------------------------------------- | ----------------------------------------------- |
-| Strict shared documents preserve every binary relationship   | Valid/malformed examples, JSON round trips, and generated same-axis hierarchies | Generated bounds: eight Tabs, four Panels each  |
-| Client Views are isolated and reconciliation is idempotent   | Two-view examples, stale-reference regression, and fixed-seed properties        | In-memory view contract only                    |
-| Hydration preserves durable terminal intent                  | Provision/retain/close/stop/stopped runtime round trips                         | Host binding existence remains application work |
-| Custom title survives while natural metadata stays transient | Title override/reset and shared-document hydration scenarios                    | Rename presentation is adapter-owned            |
-| Applying a shared document emits no terminal effect          | Runtime trace with structural removal and retained running observation          | One renderer runtime                            |
-| View-only changes never require a shared write               | Projection-specific observers and Desktop coordinator fingerprint tests         | Multi-client ordering belongs to the next slice |
-| Preview state cannot claim shared durability                 | Deterministic rejection test                                                    | Preview remains an in-memory composition        |
+| Claim                                                        | Evidence                                                                              | Limits                                                                          |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| Strict shared documents preserve every binary relationship   | Valid/malformed examples, JSON round trips, and generated same-axis hierarchies       | Generated bounds: eight Tabs, four Panels each                                  |
+| Historical v1 placement migration is exact and one-way       | Strict parser, field-preservation, and Desktop file-authority tests                   | Exact historical version 1 only                                                 |
+| Client Views are isolated and reconciliation is idempotent   | Two-view examples, stale-reference regression, and fixed-seed properties              | In-memory view contract only                                                    |
+| Hydration preserves durable terminal intent                  | Provision/retain/close/stop/stopped runtime round trips                               | Host binding existence remains application work                                 |
+| Custom title survives while natural metadata stays transient | Title override/reset and shared-document hydration scenarios                          | Rename presentation is adapter-owned                                            |
+| Applying a shared document emits no terminal effect          | Runtime trace with structural removal and retained running observation                | One renderer runtime                                                            |
+| Empty remote Workspace placement carries no presentation     | Empty-context schema/runtime and Desktop admission/forgery tests                      | Slice 3.2A admission only                                                       |
+| First remote provision remains target-exact and commit-first | Workbench exact-context tests plus Desktop provision TLA+, routing, and forgery tests | One top-level terminal; projection and input are outside this document contract |
+| View-only changes never require a shared write               | Projection-specific observers and Desktop coordinator fingerprint tests               | Shared ordering is Desktop session authority                                    |
+| Preview state cannot claim shared durability                 | Deterministic rejection test                                                          | Preview remains an in-memory composition                                        |
 
-TLA+ is not selected for the pure document/view projection because it contains no asynchronous
-completion, cancellation, or independently ordered event. The Desktop commit/lifecycle workflow
-owns its existing asynchronous model; the multi-client coordinator must replace or extend that
-model when its ordering contract changes.
+TLA+ is not selected for the general pure document/view projection because it contains no
+asynchronous completion, cancellation, or independently ordered event. The one-way v1-to-v2
+placement migration is separately covered by `WorkbenchDocumentPlacementMigration`; Desktop's
+commit/lifecycle and multi-client session models own their asynchronous ordering contracts.

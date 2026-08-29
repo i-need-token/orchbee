@@ -24,12 +24,35 @@ const worktreeGitMetadataSchema = z.strictObject({
 	worktree: z.literal(true),
 });
 
-const directoryBase = {
+const historicalDirectoryBase = {
 	available: z.boolean(),
 	id: identifierSchema,
 	name: z.string(),
 	path: z.string().min(1),
 	source: z.enum(['created', 'discovered', 'selected']),
+};
+
+const historicalDirectorySchema = z.discriminatedUnion('kind', [
+	z.strictObject({
+		...historicalDirectoryBase,
+		git: repositoryGitMetadataSchema.nullable(),
+		kind: z.literal('folder'),
+	}),
+	z.strictObject({
+		...historicalDirectoryBase,
+		git: worktreeGitMetadataSchema,
+		kind: z.literal('worktree'),
+	}),
+]);
+
+const directoryPlacementSchema = z.discriminatedUnion('kind', [
+	z.strictObject({ kind: z.literal('local') }),
+	z.strictObject({ environmentId: identifierSchema, kind: z.literal('environment') }),
+]);
+
+const directoryBase = {
+	...historicalDirectoryBase,
+	placement: directoryPlacementSchema,
 };
 
 const directorySchema = z.discriminatedUnion('kind', [
@@ -67,11 +90,28 @@ const projectSchema = z.strictObject({
 	workspaces: z.array(workspaceSchema),
 });
 
+const historicalProjectSchema = z.strictObject({
+	directories: z.array(historicalDirectorySchema),
+	id: identifierSchema,
+	launchConfigurations: z.array(launchConfigurationSchema),
+	name: z.string(),
+	primaryDirectoryId: identifierSchema,
+	workspaces: z.array(workspaceSchema),
+});
+
 const projectWorkspaceSchema = z.strictObject({
 	nextProjectSequence: sequenceSchema,
 	nextTerminalContextSequence: sequenceSchema,
 	nextWorkspaceSequence: sequenceSchema,
 	projects: z.array(projectSchema),
+	standaloneTerminalContextId: identifierSchema,
+});
+
+const historicalProjectWorkspaceSchema = z.strictObject({
+	nextProjectSequence: sequenceSchema,
+	nextTerminalContextSequence: sequenceSchema,
+	nextWorkspaceSequence: sequenceSchema,
+	projects: z.array(historicalProjectSchema),
 	standaloneTerminalContextId: identifierSchema,
 });
 
@@ -238,6 +278,24 @@ const terminalContextSchema = z.strictObject({
 
 export type WorkbenchSharedTerminalContext = z.infer<typeof terminalContextSchema>;
 
+export function createEmptyWorkbenchSharedTerminalContext(
+	terminalContextId: string,
+): WorkbenchSharedTerminalContext {
+	return terminalContextSchema.parse({
+		nextTabSequence: 1,
+		panelWorkspace: {
+			nextPanelSequence: 1,
+			nextPanelSlotSequence: 1,
+			nextSplitSequence: 1,
+			nextTerminalSequence: 1,
+			pendingRemovals: [],
+			tabs: [],
+		},
+		tabCollection: { groups: [], tabs: [] },
+		terminalContextId,
+	});
+}
+
 export const WorkbenchSharedDocumentRevisionSchema = z
 	.string()
 	.regex(/^(?:0|[1-9][0-9]*)$/u)
@@ -246,6 +304,13 @@ export type WorkbenchSharedDocumentRevision = z.infer<typeof WorkbenchSharedDocu
 
 const workbenchSharedDocumentBaseSchema = z.strictObject({
 	projectWorkspace: projectWorkspaceSchema,
+	revision: WorkbenchSharedDocumentRevisionSchema,
+	terminalContexts: z.array(terminalContextSchema),
+	version: z.literal(2),
+});
+
+const historicalWorkbenchSharedDocumentVersion1Schema = z.strictObject({
+	projectWorkspace: historicalProjectWorkspaceSchema,
 	revision: WorkbenchSharedDocumentRevisionSchema,
 	terminalContexts: z.array(terminalContextSchema),
 	version: z.literal(1),
@@ -270,12 +335,30 @@ export function createWorkbenchSharedDocument(
 		terminalContexts: [...input.terminalContexts].sort((left, right) =>
 			compareIdentifiers(left.terminalContextId, right.terminalContextId),
 		),
-		version: 1,
+		version: 2,
 	});
 }
 
 export function parseWorkbenchSharedDocument(value: unknown): WorkbenchSharedDocument {
 	return WorkbenchSharedDocumentSchema.parse(value);
+}
+
+export function migrateWorkbenchSharedDocumentVersion1(value: unknown): WorkbenchSharedDocument {
+	const historical = historicalWorkbenchSharedDocumentVersion1Schema.parse(value);
+	return WorkbenchSharedDocumentSchema.parse({
+		...historical,
+		projectWorkspace: {
+			...historical.projectWorkspace,
+			projects: historical.projectWorkspace.projects.map((project) => ({
+				...project,
+				directories: project.directories.map((directory) => ({
+					...directory,
+					placement: { kind: 'local' as const },
+				})),
+			})),
+		},
+		version: 2,
+	});
 }
 
 export function workbenchSharedDocumentRevision(value: string): WorkbenchSharedDocumentRevision {

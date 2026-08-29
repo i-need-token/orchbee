@@ -2,7 +2,7 @@
 
 ## 范围和所有权
 
-`@orchbee/workbench/document` 拥有两个不同权限的版本 1 合约：
+`@orchbee/workbench/document` 拥有两个不同权限的版本化合约：
 
 - `WorkbenchSharedDocument` 是连接到一个应用程序运行时的每个浏览器页面和 Electron 渲染器页面共享的可恢复、修订的产品结构。
 - `WorkbenchClientView` 是一页一次性导航和布局投影。它从不授权产品或终端生命周期变更。
@@ -13,10 +13,10 @@
 
 ```text
 WorkbenchSharedDocument
-├── version: 1
+├── version: 2
 ├── revision: canonical unsigned decimal text
 ├── projectWorkspace
-│   ├── identity sequences and ordered Projects
+│   ├── identity sequences and ordered Projects with placed Directories
 │   └── each Workspace references exactly one Terminal Context
 └── terminalContexts[] (canonical identity order)
     ├── Tab and Group identity, metadata, membership, and order
@@ -39,6 +39,19 @@ WorkbenchSharedDocument
 投影将配置失败映射到 `provision`；对 `retain` 运行、恢复、协调、恢复失败或退出观察；关闭状态为 `close`；停止状态为 `stop`；并填写完整的申请表至 `stopped`。 Hydration 重建挂起的生命周期状态，但不分派任何进程命令。显式协调稍后会重播配置、关闭和停止，并仅对 `retain` 使用恢复。
 
 效果命令会显式区分破坏性处置：`terminal-close-requested` 在普通关闭和结构移除时携带 `remove`，在应用停止及其持久重试时携带 `stop`。这一仅属于命令的区别允许应用归档已停止终端，而不会改变五种共享意图，也不会把普通关闭视为应保留的产品历史。
+
+Terminal Context 可以在结构上为空：allocation sequence 从 `1` 开始，而 Tab、Group、Panel、Presentation
+与 pending-removal collection 均为空。Slice 3.2A 为 Main 准入的 remote Workspace 使用这一已有的有效
+shape，使 durable placement 可以先于任何已授权 remote terminal effect，且不改变 document version 或
+schema shape。
+
+Slice 3.2B 使用同一 version-2 schema 承载一次显式的 first-terminal provision。Main-owned mutation 可以把
+该精确 empty remote context 替换为一个顶层 Tab、一个 primary Panel 与一个 `provision` Presentation，
+其 durable launch CWD 是已准入 remote Directory path。对应 process effect 不是 document authority：
+Desktop 从 canonical Project/Workspace containment 派生 local 或精确 Environment target，先提交匹配
+intent，再请求目标 runtime reconcile。Client 可以保留或删除完整 remote placement，也只能为已准入
+Presentation 报告精确 `provision` 到 `retain` convergence；它不能创建、retarget 或以其他方式改变 remote
+terminal structure。
 
 每个共享选项卡都存储一个持久回退 `title` 和可为 null 的持久 `customTitle`。产品创建的后备值是本地化且不带编号的“终端”标签；自定义标题是显式用户覆盖。主机派生的自然终端标题和当前的 CWD 是瞬态运行时观察结果，永远不会进入共享文档。显示层可以从持久启动 CWD 派生紧凑的目录标签，因此水合可以在新投影到达前恢复目录上下文，同时保持存储的后备标题和自定义标题不变。
 
@@ -74,6 +87,12 @@ Client View 位于该基础的内存中。关闭页面会销毁它；除非应�
 - 项目、工作区、终端上下文、选项卡、组、面板、拆分、面板插槽、删除和 `TerminalPresentationId` 标识在其声明的范围内是唯一的。
 - 终端上下文使用规范的身份顺序，并且等于独立和工作空间上下文引用的确切集合。
 - 目录、primary-Directory、启动配置和终端上下文引用解析。
+- 每个 Directory 精确拥有一种 placement：`local`，或带一个非空 opaque Environment 引用的
+  `environment`。Environment-placed Directory 始终 unavailable。
+- 每个 Workspace 的 primary Directory 都会解析，且可以是 local 或 Environment placement。普通
+  Workbench mutation 要求 local placement；只有 Desktop Main 可以准入精确 remote Workspace，并 provision
+  其精确 empty Terminal Context。Client mutation 不能创建或 retarget remote terminal structure；只接受
+  精确保留、删除以及已准入的 provision-to-retain convergence。
 - 选项卡和面板工作区选项卡成员身份和顺序匹配；固定的选项卡形成一个前缀，并且每个组都是连续的。
 - 每个 Split 恰好有两个子级及唯一插槽。子 Split 可以重复父级方向，因为该祖先关系决定局部关闭与调整大小行为。
 - 每个 Presentation 只出现一次。待处理移除会解析为精确非空目标，彼此绝不重叠，并且只与具有相同移除标识的 `close` 意图匹配。
@@ -84,20 +103,33 @@ Client View 位于该基础的内存中。关闭页面会销毁它；除非应�
 
 ## 兼容性和应用程序集成
 
-`WorkbenchSharedDocument` 版本 `1` 是新的二叉 split 契约，并非从未发布的 Workbench 拓扑 Schema 的兼容读取器。版本 `1` 会把缺失的 Tab `customTitle` 规范化为 `null`，因此在引入可选覆盖前写入的文档仍可读取。不为开发阶段的展平或 n 叉拓扑提供别名、迁移或重解释。应用使用不同存储路径，并会忽略这类开发阶段文件而不删除它。
+`WorkbenchSharedDocument` version `2` 增加显式 Directory placement。其导出的单向 migration 只接受
+一个有效的历史 version-1 document，为每个 Directory 增加 `placement: { kind: 'local' }`，且不改变
+identity、order、revision、lifecycle intent 或任何其他字段，然后校验完整 version-2 result。它绝不接受
+局部或 malformed v1 value，也绝不输出 v1。在历史 v1 parser 内，缺失的 Tab `customTitle` 会
+canonicalize 为 `null`，从而保留此前 v1 contract。Desktop 决定何时持久化 migration，并保持 source
+file 不变。开发阶段的 flattened 或 n-ary topology 继续不受支持，也不会被重新解释为 v1。
 
-只有共享的更改才能推进应用程序拥有的修订并进入其持久性障碍。 `subscribeDocument(...)` 和 `subscribeClientView(...)` 比较其拥有的投影并独立通知，因此仅客户端更改无法安排共享提交。在此基础上，当前的桌面适配器仍然是单客户端编写器；多客户端仲裁和广播属于桌面会话协调器。
+只有共享更改才会推进应用拥有的 revision 并进入其 durability barrier。`subscribeDocument(...)` 与
+`subscribeClientView(...)` 比较各自拥有的 projection 并独立通知，因此仅 client 的更改不能调度 shared
+commit。Workbench 不仲裁 client；Desktop session coordinator 拥有单一 canonical writer、proposal
+ordering 与 broadcast。
 
 ## 正确性证据
 
-| 声明                                     | 证据                                             | 限制                                       |
-| ---------------------------------------- | ------------------------------------------------ | ------------------------------------------ |
-| 严格的共享文档保留每个二叉关系           | 有效/格式错误示例、JSON 往返及生成的同轴层次结构 | 生成的边界：八个选项卡，每个选项卡四个面板 |
-| Client View 是隔离的，协调是幂等的       | 双视图示例、陈旧参考回归和固定种子属性           | 仅内存中查看合约                           |
-| 水合会保留持久的终端意图                 | provision/retain/close/stop/stopped 运行时往返   | Host 绑定是否存在仍由应用负责              |
-| 自定义标题会持久保留，自然元数据保持瞬态 | 标题覆盖/reset 与共享文档水合场景                | 重命名 Presentation 由适配器负责           |
-| 应用共享文档不会产生最终效果             | 具有结构去除和保留运行观察的运行时跟踪           | 一个渲染器运行时                           |
-| 仅查看更改从不需要共享写入               | 投影特定观察员和桌面协调员指纹测试               | 多客户端排序属于下一个切片                 |
-| 预览状态无法声明共享持久性               | 确定性拒绝测试                                   | 预览仍然是内存中的合成                     |
+| 声明                                                    | 证据                                                                            | 限制                                                              |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| 严格的共享文档保留每个二叉关系                          | 有效/格式错误示例、JSON 往返及生成的同轴层次结构                                | 生成的边界：八个选项卡，每个选项卡四个面板                        |
+| 历史 v1 placement migration 精确且单向                  | 严格 parser、字段保持与 Desktop file-authority test                             | 仅精确历史 version 1                                              |
+| Client View 是隔离的，协调是幂等的                      | 双视图示例、陈旧参考回归和固定种子属性                                          | 仅内存中查看合约                                                  |
+| 水合会保留持久的终端意图                                | provision/retain/close/stop/stopped 运行时往返                                  | Host 绑定是否存在仍由应用负责                                     |
+| 自定义标题会持久保留，自然元数据保持瞬态                | 标题覆盖/reset 与共享文档水合场景                                               | 重命名 Presentation 由适配器负责                                  |
+| 应用共享文档不会产生最终效果                            | 具有结构去除和保留运行观察的运行时跟踪                                          | 一个渲染器运行时                                                  |
+| Empty remote Workspace placement 不携带 Presentation    | Empty-context schema/runtime 与 Desktop admission/forgery test                  | 仅 Slice 3.2A admission                                           |
+| 首个 remote provision 保持 target-exact 且 commit-first | Workbench exact-context test 加 Desktop provision TLA+、routing 与 forgery test | 一个顶层 terminal；projection 与 input 不属于本 document contract |
+| 仅查看更改从不需要共享写入                              | 投影特定观察员和 Desktop coordinator 指纹测试                                   | Shared ordering 由 Desktop session 负责                           |
+| 预览状态无法声明共享持久性                              | 确定性拒绝测试                                                                  | 预览仍然是内存中的合成                                            |
 
-TLA+ 未选择用于纯文档/视图投影，因为它不包含异步完成、取消或独立排序事件。桌面提交/生命周期工作流程拥有其现有的异步模型；当其订购合同发生变化时，多客户端协调器必须替换或扩展该模型。
+一般的纯 document/view projection 不选择 TLA+，因为它不包含异步 completion、cancellation 或独立排序
+event。单向 v1-to-v2 placement migration 由 `WorkbenchDocumentPlacementMigration` 单独覆盖；Desktop 的
+commit/lifecycle 与 multi-client session model 拥有各自的异步 ordering contract。

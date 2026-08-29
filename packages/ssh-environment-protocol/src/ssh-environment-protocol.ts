@@ -5,10 +5,13 @@ export const SSH_ENVIRONMENT_FRAME_HEADER_BYTES = 16;
 export const SSH_ENVIRONMENT_MAX_FRAME_BYTES = 1024 * 1024;
 export const SSH_ENVIRONMENT_PROTOCOL_VERSION = Object.freeze({
 	major: 0,
-	minor: 1,
+	minor: 2,
 	patch: 0,
 });
 const SSH_PROJECT_ROOT_SERVICE_ID_LITERAL = 'project-root-v1';
+const SSH_TERMINAL_HOST_SERVICE_ID_LITERAL = 'terminal-host-v1';
+export const SSH_TERMINAL_HOST_INITIAL_CREDIT_BYTES = 65_536;
+export const SSH_TERMINAL_HOST_MAX_CHUNK_BYTES = 65_536;
 
 const MAX_FRAME_PAYLOAD_BYTES =
 	SSH_ENVIRONMENT_MAX_FRAME_BYTES - SSH_ENVIRONMENT_FRAME_HEADER_BYTES;
@@ -46,20 +49,40 @@ export const SshEnvironmentBuildDigestSchema = z
 	.length(64)
 	.regex(/^[0-9a-f]+$/u)
 	.brand<'SshEnvironmentBuildDigest'>();
+export const SshEnvironmentReleaseCohortDigestSchema = z
+	.string()
+	.length(64)
+	.regex(/^[0-9a-f]+$/u)
+	.brand<'SshEnvironmentReleaseCohortDigest'>();
 export const SshEnvironmentRuntimeVersionSchema = z
 	.string()
 	.min(1)
 	.max(MAX_RUNTIME_VERSION_LENGTH)
 	.regex(/^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?$/u)
 	.brand<'SshEnvironmentRuntimeVersion'>();
+export const SshEnvironmentTerminalHostVersionSchema = z
+	.string()
+	.min(1)
+	.max(MAX_RUNTIME_VERSION_LENGTH)
+	.regex(/^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?$/u)
+	.brand<'SshEnvironmentTerminalHostVersion'>();
 export const SshEnvironmentPlatformSchema = z.enum(['darwin-arm64', 'linux-x64']);
-export const SshEnvironmentCapabilitySchema = z.literal(SSH_PROJECT_ROOT_SERVICE_ID_LITERAL);
-export const SshEnvironmentServiceIdSchema = z
-	.literal(SSH_PROJECT_ROOT_SERVICE_ID_LITERAL)
-	.brand<'SshEnvironmentServiceId'>();
+export const SshEnvironmentCapabilitySchema = z.union([
+	z.literal(SSH_PROJECT_ROOT_SERVICE_ID_LITERAL),
+	z.literal(SSH_TERMINAL_HOST_SERVICE_ID_LITERAL),
+]);
+export const SshEnvironmentServiceIdSchema =
+	SshEnvironmentCapabilitySchema.brand<'SshEnvironmentServiceId'>();
 export const SSH_PROJECT_ROOT_SERVICE_ID = SshEnvironmentServiceIdSchema.parse(
 	SSH_PROJECT_ROOT_SERVICE_ID_LITERAL,
 );
+export const SSH_TERMINAL_HOST_SERVICE_ID = SshEnvironmentServiceIdSchema.parse(
+	SSH_TERMINAL_HOST_SERVICE_ID_LITERAL,
+);
+export const SSH_ENVIRONMENT_REQUIRED_CAPABILITIES = Object.freeze([
+	SSH_PROJECT_ROOT_SERVICE_ID,
+	SSH_TERMINAL_HOST_SERVICE_ID,
+] as const);
 export const SshEnvironmentChannelIdSchema =
 	positiveUnsignedIntegerSchema.brand<'SshEnvironmentChannelId'>();
 
@@ -75,7 +98,10 @@ export const SshEnvironmentHelloAcceptedSchema = z.strictObject({
 	runtimeInstanceId: SshEnvironmentRuntimeInstanceIdSchema,
 	runtimeEpoch: SshEnvironmentRuntimeEpochSchema,
 	runtimeVersion: SshEnvironmentRuntimeVersionSchema,
-	buildDigest: SshEnvironmentBuildDigestSchema,
+	runtimeBuildDigest: SshEnvironmentBuildDigestSchema,
+	releaseCohortDigest: SshEnvironmentReleaseCohortDigestSchema,
+	terminalHostVersion: SshEnvironmentTerminalHostVersionSchema,
+	terminalHostBuildDigest: SshEnvironmentBuildDigestSchema,
 	platform: SshEnvironmentPlatformSchema,
 	capabilities: z.array(SshEnvironmentCapabilitySchema).max(16),
 	heartbeatIntervalMs: z.number().int().min(5_000).max(60_000),
@@ -118,12 +144,28 @@ export const SshEnvironmentChannelOpenedSchema = z.strictObject({
 export const SshEnvironmentChannelCloseSchema = z.strictObject({
 	runtimeEpoch: SshEnvironmentRuntimeEpochSchema,
 	channelId: SshEnvironmentChannelIdSchema,
-	reason: z.enum(['completed', 'cancelled', 'attachment-lost', 'protocol-failure']),
+	reason: z.enum([
+		'completed',
+		'cancelled',
+		'attachment-lost',
+		'protocol-failure',
+		'service-busy',
+		'service-unavailable',
+		'compatibility-unsupported',
+	]),
 });
 export const SshEnvironmentChannelClosedSchema = z.strictObject({
 	runtimeEpoch: SshEnvironmentRuntimeEpochSchema,
 	channelId: SshEnvironmentChannelIdSchema,
-	reason: z.enum(['completed', 'cancelled', 'attachment-lost', 'protocol-failure']),
+	reason: z.enum([
+		'completed',
+		'cancelled',
+		'attachment-lost',
+		'protocol-failure',
+		'service-busy',
+		'service-unavailable',
+		'compatibility-unsupported',
+	]),
 });
 
 export type SshEnvironmentProtocolVersion = z.infer<typeof SshEnvironmentProtocolVersionSchema>;
@@ -131,7 +173,13 @@ export type SshEnvironmentRuntimeInstanceId = z.infer<typeof SshEnvironmentRunti
 export type SshEnvironmentRuntimeEpoch = z.infer<typeof SshEnvironmentRuntimeEpochSchema>;
 export type SshEnvironmentClientNonce = z.infer<typeof SshEnvironmentClientNonceSchema>;
 export type SshEnvironmentBuildDigest = z.infer<typeof SshEnvironmentBuildDigestSchema>;
+export type SshEnvironmentReleaseCohortDigest = z.infer<
+	typeof SshEnvironmentReleaseCohortDigestSchema
+>;
 export type SshEnvironmentRuntimeVersion = z.infer<typeof SshEnvironmentRuntimeVersionSchema>;
+export type SshEnvironmentTerminalHostVersion = z.infer<
+	typeof SshEnvironmentTerminalHostVersionSchema
+>;
 export type SshEnvironmentPlatform = z.infer<typeof SshEnvironmentPlatformSchema>;
 export type SshEnvironmentCapability = z.infer<typeof SshEnvironmentCapabilitySchema>;
 export type SshEnvironmentServiceId = z.infer<typeof SshEnvironmentServiceIdSchema>;

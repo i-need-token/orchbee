@@ -29,6 +29,8 @@ import {
 	type TerminalPresentationEvent,
 } from '@orchbee/workbench/terminal-presentation';
 import {
+	createEmptyWorkbenchSharedTerminalContext,
+	createWorkbenchSharedDocument,
 	workbenchSharedDocumentRevision,
 	type WorkbenchSharedDocument,
 } from '@orchbee/workbench/document';
@@ -134,6 +136,10 @@ describe('DesktopApplication', () => {
 			kind: 'failed',
 			reason: 'unavailable',
 		});
+		harness.sshEnvironmentConnectionOwner.openTerminalHost.mockResolvedValueOnce({
+			kind: 'failed',
+			reason: 'unavailable',
+		});
 
 		await expect(application.connectSshEnvironment(environmentId)).resolves.toEqual({
 			kind: 'not-found',
@@ -144,6 +150,10 @@ describe('DesktopApplication', () => {
 		await expect(
 			application.inspectSshEnvironmentProjectRoot(environmentId, '/srv/project'),
 		).resolves.toEqual({ kind: 'failed', reason: 'unavailable' });
+		await expect(application.openSshEnvironmentTerminalHost(environmentId)).resolves.toEqual({
+			kind: 'failed',
+			reason: 'unavailable',
+		});
 		expect(application.getSshEnvironmentConnection(environmentId)).toEqual({ kind: 'inactive' });
 		expect(application.subscribeSshEnvironmentConnection(environmentId, listener)).toBeNull();
 		expect(harness.sshEnvironmentConnectionOwner.connect).toHaveBeenCalledWith(environmentId);
@@ -153,6 +163,9 @@ describe('DesktopApplication', () => {
 			'/srv/project',
 			undefined,
 		);
+		expect(harness.sshEnvironmentConnectionOwner.openTerminalHost).toHaveBeenCalledWith(
+			environmentId,
+		);
 		expect(harness.sshEnvironmentConnectionOwner.observation).toHaveBeenCalledWith(environmentId);
 		expect(harness.sshEnvironmentConnectionOwner.subscribe).toHaveBeenCalledWith(
 			environmentId,
@@ -161,6 +174,227 @@ describe('DesktopApplication', () => {
 
 		await application.shutdown();
 		expect(harness.sshEnvironmentConnectionOwner.dispose).toHaveBeenCalledOnce();
+	});
+
+	it('provisions and projects a remote Workspace terminal without opening SSH during startup', async () => {
+		const harness = createHarness(undefined, true);
+		const environment = EnvironmentRecordSchema.parse({
+			environmentId: `environment:${'8'.repeat(32)}`,
+			name: 'Build machine',
+			provider: {
+				kind: 'ssh',
+				runtimeInstanceId: '9'.repeat(32),
+				target: { configurationFilePath: null, destination: 'build-host' },
+			},
+		});
+		let canonical = remoteWorkspaceDocument(environment.environmentId);
+		harness.environmentRegistryStore.load.mockResolvedValueOnce({
+			document: { environments: [environment], revision: 1, schemaVersion: 1 },
+			kind: 'ready',
+		});
+		harness.workbenchDocumentStore.load.mockResolvedValueOnce({
+			document: canonical,
+			kind: 'available',
+		});
+		harness.workbenchDocumentStore.commit.mockImplementation(async (_revision, document) => {
+			canonical = document;
+			return { kind: 'committed', revision: document.revision };
+		});
+		let remotePresentationId = presentationId;
+		let remoteExit: TerminalExited | null = null;
+		const remoteRuntime = {
+			...harness.terminalRuntime,
+			commitExitPublication: vi
+				.fn<NonNullable<DesktopTerminalRuntime['commitExitPublication']>>()
+				.mockReturnValue(true),
+			dispose: vi.fn<DesktopTerminalRuntime['dispose']>().mockResolvedValue(undefined),
+			execute: vi.fn<DesktopTerminalRuntime['execute']>(async (command) => ({
+				operationId: command.operationId,
+				presentationId: command.presentationId,
+				type: 'terminal-provision-completed',
+			})),
+			findPresentationByIdentity: vi
+				.fn<DesktopTerminalRuntime['findPresentationByIdentity']>()
+				.mockImplementation(() => remotePresentationId),
+			getDurableTerminalExit: vi
+				.fn<DesktopTerminalRuntime['getDurableTerminalExit']>()
+				.mockImplementation((candidatePresentationId) =>
+					candidatePresentationId === remotePresentationId ? remoteExit : null,
+				),
+			initialize: vi
+				.fn<DesktopTerminalRuntime['initialize']>()
+				.mockResolvedValue({ kind: 'ready' }),
+			open: vi.fn<DesktopTerminalRuntime['open']>().mockResolvedValue({
+				dispose: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
+			} as unknown as Awaited<ReturnType<DesktopTerminalRuntime['open']>>),
+			recordExitOutcome: vi
+				.fn<DesktopTerminalRuntime['recordExitOutcome']>()
+				.mockImplementation(async (event) => {
+					remoteExit = event;
+					return {
+						finalRevision: event.finalRevision,
+						kind: 'durable',
+						presentationId: remotePresentationId,
+					};
+				}),
+			recordFailure: vi
+				.fn<DesktopTerminalRuntime['recordFailure']>()
+				.mockImplementation(async () => remotePresentationId),
+		};
+		harness.createTerminalRuntime
+			.mockReturnValueOnce(harness.terminalRuntime)
+			.mockReturnValueOnce(remoteRuntime);
+		const application = createApplication(
+			harness.dependencies,
+			'linux',
+			createRuntime({
+				ORCHBEE_DESKTOP_GATEWAY: '1',
+				ORCHBEE_GATEWAY_ENTRY_PATH: '/repo/apps/gateway/dist/main/gateway.cjs',
+				SHELL: '/bin/sh',
+			}),
+		);
+		const stopped = application.createSshEnvironmentConnectionState({
+			connectionId: environment.environmentId,
+			target: environment.provider.target,
+		});
+		const started = application.transitionSshEnvironmentConnection(stopped, {
+			type: 'start-requested',
+		});
+		const resolving = application.transitionSshEnvironmentConnection(started.state, {
+			generation: 1,
+			resolvedTarget: {
+				destination: stopped.target.destination,
+				hostKeyLookupName: 'build-host',
+				hostKeyPolicy: 'ask',
+				hostname: 'build-host',
+				port: 22,
+				user: 'builder',
+			},
+			type: 'target-resolved',
+		});
+		const ready = application.transitionSshEnvironmentConnection(resolving.state, {
+			generation: 1,
+			runtimeEpoch: 'a'.repeat(32),
+			runtimeInstanceId: environment.provider.runtimeInstanceId,
+			type: 'remote-runtime-ready',
+		});
+		harness.sshEnvironmentConnectionOwner.observation.mockReturnValue({
+			kind: 'ready',
+			observation: application.observeSshEnvironmentConnection(ready.state),
+		});
+		harness.sshEnvironmentConnectionOwner.openTerminalHost.mockResolvedValue({
+			connection: harness.host,
+			kind: 'ready',
+		});
+
+		await application.start();
+		expect(harness.sshEnvironmentConnectionOwner.openTerminalHost).not.toHaveBeenCalled();
+
+		const created = await application.createSshEnvironmentRemoteTerminalForWorkspace(
+			'project-1',
+			'workspace-1',
+		);
+		expect(created).toMatchObject({ kind: 'created', revision: '5' });
+		if (created.kind !== 'created') throw new Error('Expected one created remote terminal.');
+		remotePresentationId = created.presentationId;
+		expect(harness.sshEnvironmentConnectionOwner.openTerminalHost).toHaveBeenCalledOnce();
+		expect(remoteRuntime.execute).toHaveBeenCalledWith(
+			expect.objectContaining({
+				launchCwd: '/srv/orchbee',
+				type: 'terminal-provision-requested',
+			}),
+		);
+		const remoteRuntimeComposition = harness.createTerminalRuntime.mock.calls[1];
+		expect(remoteRuntimeComposition?.[1].terminalBindingStorePath).toContain(
+			`ssh-environments-v1/${'8'.repeat(32)}/bindings-v1.json`,
+		);
+		expect(harness.createTerminalExitSpillStore).toHaveBeenCalledWith(
+			expect.stringContaining(`ssh-environments-v1/${'8'.repeat(32)}/terminal-exits-v1.json`),
+		);
+		expect(harness.createTerminalExitPublicationLedger).toHaveBeenCalledWith(
+			expect.stringContaining(
+				`ssh-environments-v1/${'8'.repeat(32)}/terminal-exit-publications-v1.json`,
+			),
+		);
+		expect(remoteRuntimeComposition?.[5]()).toMatchObject({
+			currentDirectory: null,
+			executable: '/bin/sh',
+		});
+		expect(canonical.projectWorkspace.projects[0]?.directories[0]?.available).toBe(false);
+
+		const desktopProjectionService = harness.projectionServices[0];
+		if (desktopProjectionService === undefined) {
+			throw new Error('Desktop projection service was not composed.');
+		}
+		const desktopLease = await desktopProjectionService.open(
+			created.presentationId,
+			mountedGeometry,
+		);
+		expect(
+			desktopProjectionService.isPublicationTargetCurrent?.(created.presentationId, desktopLease),
+		).toBe(true);
+		expect(remoteRuntime.open).toHaveBeenCalledWith(created.presentationId, mountedGeometry, {
+			allowArchivedFallback: false,
+			brokerEffectTarget: 'desktop',
+		});
+		expect(harness.terminalRuntime.open).not.toHaveBeenCalled();
+
+		const metadata = terminalMetadataChanged('20', 'remote background agent');
+		harness.hostEnvelopeListener?.(terminalMetadataChangedEnvelope(metadata));
+		await vi.waitFor(() =>
+			expect(harness.clientSessionPorts[0]?.postMessage).toHaveBeenCalledWith(
+				expect.objectContaining({
+					metadata: { ...metadata, presentationId: created.presentationId },
+					type: 'terminal-metadata-published',
+				}),
+			),
+		);
+
+		const exit: TerminalExited = {
+			exit: { code: 23, kind: 'exit-code' },
+			finalRevision: CanonicalUint64TextSchema.parse('21'),
+			identity,
+		};
+		harness.hostEnvelopeListener?.(terminalExitedEnvelope(exit));
+		await vi.waitFor(() => expect(remoteRuntime.recordExitOutcome).toHaveBeenCalledWith(exit));
+		await vi.waitFor(() => expect(remoteRuntime.commitExitPublication).toHaveBeenCalledWith(exit));
+		await vi.waitFor(() =>
+			expect(terminalEventPublications(harness)).toContainEqual(
+				expect.objectContaining({
+					event: expect.objectContaining({
+						exitCode: 23,
+						presentationId: created.presentationId,
+						type: 'terminal-exited',
+					}),
+				}),
+			),
+		);
+		expect(harness.terminalRuntime.recordExitOutcome).not.toHaveBeenCalled();
+		expect(harness.publishedExitLedgerEvents).toContainEqual(exit);
+
+		const openClient = harness.createBrowserAccessRuntime.mock.calls[0]?.[1];
+		if (openClient === undefined) throw new Error('Browser access client factory was not created.');
+		const gatewayClient = await openClient();
+		const gatewayProjectionService = harness.projectionServices[1];
+		if (gatewayProjectionService === undefined) {
+			throw new Error('Gateway projection service was not composed.');
+		}
+		const gatewayLease = await gatewayProjectionService.open(
+			created.presentationId,
+			mountedGeometry,
+		);
+		expect(
+			gatewayProjectionService.isPublicationTargetCurrent?.(created.presentationId, gatewayLease),
+		).toBe(true);
+		expect(remoteRuntime.open).toHaveBeenLastCalledWith(created.presentationId, mountedGeometry, {
+			allowArchivedFallback: false,
+			brokerEffectTarget: 'client',
+		});
+		expect(harness.terminalRuntime.open).not.toHaveBeenCalled();
+
+		await gatewayClient.dispose();
+		await application.shutdown();
+		expect(remoteRuntime.dispose).toHaveBeenCalledOnce();
 	});
 
 	it('owns the process-local SSH connection foundation without opening a transport', async () => {
@@ -632,7 +866,10 @@ describe('DesktopApplication', () => {
 		expect(harness.createTerminalRuntime.mock.calls[0]?.[5]?.()).toEqual(
 			createRuntime().terminalLaunch,
 		);
-		expect(harness.createWorkbenchDocumentStore).toHaveBeenCalledOnce();
+		expect(harness.createWorkbenchDocumentStore).toHaveBeenCalledWith(
+			createRuntime().workbenchDocumentStorePath,
+			createRuntime().workbenchDocumentLegacyStorePath,
+		);
 		expect(harness.createBrowserAccessRuntime).not.toHaveBeenCalled();
 		expect(harness.requestControl).toHaveBeenCalledWith(
 			MessageKind.setTerminalDefaults,
@@ -767,6 +1004,7 @@ describe('DesktopApplication', () => {
 		);
 
 		await application.start();
+		await proposeInitializationDocument(harness, 'gateway-local-projection');
 
 		expect(harness.createBrowserAccessRuntime).toHaveBeenCalledWith(
 			{
@@ -793,6 +1031,9 @@ describe('DesktopApplication', () => {
 		expect(gatewayClient.bootstrap.clientSessionId).not.toBe(
 			desktopBootstrap?.clientSession?.clientSessionId,
 		);
+		harness.terminalRuntime.open.mockResolvedValueOnce({
+			dispose: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
+		} as unknown as Awaited<ReturnType<DesktopTerminalRuntime['open']>>);
 		await harness.projectionServices[1]?.open(presentationId, mountedGeometry);
 		expect(harness.terminalRuntime.open).toHaveBeenCalledWith(presentationId, mountedGeometry, {
 			brokerEffectTarget: 'client',
@@ -1918,7 +2159,7 @@ function createSshEnvironmentOptions(): DesktopApplicationOptions['sshEnvironmen
 	return {
 		askPassHelperEntryPath: '/repo/apps/desktop/dist/main/ssh-askpass-helper.cjs',
 		askPassRuntimeExecutablePath: '/usr/bin/node',
-		runtimeRelease: null,
+		release: null,
 	};
 }
 
@@ -2079,6 +2320,13 @@ function createHarness(
 	const terminalExitSpillList = vi
 		.fn<TerminalExitSpillStore['list']>()
 		.mockImplementation(() => (trackSpill ? trackedSpills : []));
+	const terminalExitSpillListRejected = vi
+		.fn<TerminalExitSpillStore['listRejected']>()
+		.mockImplementation(() =>
+			trackSpill
+				? trackedRejections.map((event) => ({ event, reason: 'pending-journal-full' as const }))
+				: [],
+		);
 	const terminalExitSpillRemove = vi
 		.fn<TerminalExitSpillStore['remove']>()
 		.mockImplementation((eventOrIdentity) => {
@@ -2112,6 +2360,7 @@ function createHarness(
 		admit: terminalExitSpillAdmit,
 		isRejected: terminalExitSpillIsRejected,
 		list: terminalExitSpillList,
+		listRejected: terminalExitSpillListRejected,
 		load: vi.fn<TerminalExitSpillStore['load']>().mockResolvedValue({ kind: 'ready' }),
 		reject: terminalExitSpillReject,
 		remove: terminalExitSpillRemove,
@@ -2144,6 +2393,15 @@ function createHarness(
 						BigInt(candidate.finalRevision) >= BigInt(event.finalRevision),
 				),
 			),
+		hasExact: vi
+			.fn<TerminalExitPublicationLedger['hasExact']>()
+			.mockImplementation((event) =>
+				publishedExitLedgerEvents.some(
+					(candidate) =>
+						JSON.stringify(candidate.identity) === JSON.stringify(event.identity) &&
+						BigInt(candidate.finalRevision) === BigInt(event.finalRevision),
+				),
+			),
 		list: vi
 			.fn<TerminalExitPublicationLedger['list']>()
 			.mockImplementation(() => publishedExitLedgerEvents.map((event) => ({ event }))),
@@ -2152,6 +2410,12 @@ function createHarness(
 	} as unknown as TerminalExitPublicationLedger & {
 		readonly markPublished: typeof terminalExitPublicationLedgerMarkPublished;
 	};
+	const createTerminalExitSpillStore = vi.fn<
+		NonNullable<DesktopApplicationDependencies['createTerminalExitSpillStore']>
+	>(() => spillStoreFactory?.() ?? terminalExitSpillStore);
+	const createTerminalExitPublicationLedger = vi.fn<
+		NonNullable<DesktopApplicationDependencies['createTerminalExitPublicationLedger']>
+	>(() => terminalExitPublicationLedger);
 	const workbenchDocumentStore = {
 		commit: vi
 			.fn<WorkbenchDocumentStore['commit']>()
@@ -2367,6 +2631,9 @@ function createHarness(
 		DesktopApplicationDependencies['createSshEnvironmentConnectionOwner']
 	>;
 	const sshEnvironmentConnectionOwner = {
+		claimInteractionLease: vi
+			.fn<SshEnvironmentConnectionOwnerHandle['claimInteractionLease']>()
+			.mockReturnValue({ kind: 'busy' }),
 		connect: vi
 			.fn<SshEnvironmentConnectionOwnerHandle['connect']>()
 			.mockResolvedValue({ kind: 'not-found' }),
@@ -2376,6 +2643,9 @@ function createHarness(
 		dispose: vi.fn<SshEnvironmentConnectionOwnerHandle['dispose']>().mockResolvedValue(undefined),
 		inspectProjectRoot: vi
 			.fn<SshEnvironmentConnectionOwnerHandle['inspectProjectRoot']>()
+			.mockResolvedValue({ kind: 'failed', reason: 'unavailable' }),
+		openTerminalHost: vi
+			.fn<SshEnvironmentConnectionOwnerHandle['openTerminalHost']>()
 			.mockResolvedValue({ kind: 'failed', reason: 'unavailable' }),
 		observation: vi
 			.fn<SshEnvironmentConnectionOwnerHandle['observation']>()
@@ -2534,8 +2804,8 @@ function createHarness(
 			return terminalLaunchProfileController;
 		}),
 		createTerminalRuntime,
-		createTerminalExitSpillStore: () => spillStoreFactory?.() ?? terminalExitSpillStore,
-		createTerminalExitPublicationLedger: () => terminalExitPublicationLedger,
+		createTerminalExitSpillStore,
+		createTerminalExitPublicationLedger,
 		createTerminalIntentReconciler: (reconcilerDependencies) =>
 			new DesktopTerminalIntentReconciler(reconcilerDependencies),
 		createWorkbenchDocumentStore: vi
@@ -2567,6 +2837,8 @@ function createHarness(
 		createBrowserAccessRuntime,
 		createProjectionControlBroker,
 		createTerminalRuntime,
+		createTerminalExitPublicationLedger,
+		createTerminalExitSpillStore,
 		createWorkbenchDocumentStore: dependencies.createWorkbenchDocumentStore,
 		createWindow,
 		dependencies,
@@ -2857,6 +3129,51 @@ function createDeferred<Value>(): { promise: Promise<Value>; resolve: (value: Va
 		resolvePromise = resolve;
 	});
 	return { promise, resolve: resolvePromise };
+}
+
+function remoteWorkspaceDocument(environmentId: string): WorkbenchSharedDocument {
+	return createWorkbenchSharedDocument({
+		projectWorkspace: {
+			nextProjectSequence: 2,
+			nextTerminalContextSequence: 3,
+			nextWorkspaceSequence: 2,
+			projects: [
+				{
+					directories: [
+						{
+							available: false,
+							git: null,
+							id: 'environment-directory-1',
+							kind: 'folder',
+							name: 'orchbee',
+							path: '/srv/orchbee',
+							placement: { environmentId, kind: 'environment' },
+							source: 'selected',
+						},
+					],
+					id: 'project-1',
+					launchConfigurations: [],
+					name: 'orchbee',
+					primaryDirectoryId: 'environment-directory-1',
+					workspaces: [
+						{
+							id: 'workspace-1',
+							launchConfigurationId: null,
+							name: 'orchbee',
+							primaryDirectoryId: 'environment-directory-1',
+							terminalContextId: 'terminal-context-2',
+						},
+					],
+				},
+			],
+			standaloneTerminalContextId: 'terminal-context-1',
+		},
+		revision: workbenchSharedDocumentRevision('4'),
+		terminalContexts: [
+			createEmptyWorkbenchSharedTerminalContext('terminal-context-1'),
+			createEmptyWorkbenchSharedTerminalContext('terminal-context-2'),
+		],
+	});
 }
 
 function createRuntime(

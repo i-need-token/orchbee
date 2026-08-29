@@ -53,7 +53,7 @@ afterEach(async () => {
 describe('FileWorkbenchDocumentStore', () => {
 	it('serializes exact-next commits through one private atomic file', async () => {
 		const directory = await createTemporaryDirectory();
-		const storePath = path.join(directory, 'state', 'workbench-shared-document-v1.json');
+		const storePath = path.join(directory, 'state', 'workbench-shared-document-v2.json');
 		let token = 1;
 		const store = new FileWorkbenchDocumentStore(storePath, {
 			randomToken: () => `temporary-${token++}`,
@@ -71,7 +71,7 @@ describe('FileWorkbenchDocumentStore', () => {
 		]);
 		expect(await store.load()).toEqual({ document: document('1'), kind: 'available' });
 		expect((await readFile(storePath, 'utf8')).endsWith('\n')).toBe(true);
-		expect(await readdir(path.dirname(storePath))).toEqual(['workbench-shared-document-v1.json']);
+		expect(await readdir(path.dirname(storePath))).toEqual(['workbench-shared-document-v2.json']);
 		const fileMode = process.platform === 'win32' ? 0o600 : (await stat(storePath)).mode & 0o777;
 		const directoryMode =
 			process.platform === 'win32' ? 0o700 : (await stat(path.dirname(storePath))).mode & 0o777;
@@ -109,7 +109,7 @@ describe('FileWorkbenchDocumentStore', () => {
 		expect(await readFile(storePath, 'utf8')).toBe('{not-json');
 	});
 
-	it('reports an indeterminate write failure and preserves a pre-rename current file', async () => {
+	it('reports a write failure and preserves a pre-rename current file', async () => {
 		const directory = await createTemporaryDirectory();
 		const storePath = path.join(directory, 'document.json');
 		await writeFile(storePath, `${JSON.stringify(document('0'))}\n`, 'utf8');
@@ -121,6 +121,39 @@ describe('FileWorkbenchDocumentStore', () => {
 		expect(await store.commit(workbenchSharedDocumentRevision('0'), document('1'))).toEqual({
 			kind: 'unavailable',
 			reason: 'write-failed',
+		});
+		expect(await store.load()).toEqual({ document: document('0'), kind: 'available' });
+	});
+
+	it('migrates exact v1 once, leaves it untouched, and makes v2 authoritative', async () => {
+		const directory = await createTemporaryDirectory();
+		const currentPath = path.join(directory, 'workbench-shared-document-v2.json');
+		const legacyPath = path.join(directory, 'workbench-shared-document-v1.json');
+		const legacy = JSON.stringify({ ...document('0'), version: 1 });
+		await writeFile(legacyPath, `${legacy}\n`, 'utf8');
+		const store = new FileWorkbenchDocumentStore(currentPath, { legacyFilePath: legacyPath });
+
+		expect(await store.load()).toEqual({ document: document('0'), kind: 'available' });
+		expect(await readFile(legacyPath, 'utf8')).toBe(`${legacy}\n`);
+		expect(JSON.parse(await readFile(currentPath, 'utf8'))).toEqual(document('0'));
+
+		await writeFile(currentPath, '{invalid-v2', 'utf8');
+		expect(await store.load()).toEqual({ kind: 'unavailable', reason: 'invalid' });
+		expect(await readFile(legacyPath, 'utf8')).toBe(`${legacy}\n`);
+	});
+
+	it('reports a post-rename commit as indeterminate and reconciles by loading v2', async () => {
+		const directory = await createTemporaryDirectory();
+		const storePath = path.join(directory, 'workbench-shared-document-v2.json');
+		const store = new FileWorkbenchDocumentStore(storePath, {
+			synchronizeParentDirectory: async () => {
+				throw new Error('injected post-rename failure');
+			},
+		});
+
+		expect(await store.commit(null, document('0'))).toEqual({
+			kind: 'unavailable',
+			reason: 'write-indeterminate',
 		});
 		expect(await store.load()).toEqual({ document: document('0'), kind: 'available' });
 	});

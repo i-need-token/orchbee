@@ -1,6 +1,7 @@
 import { useOrchbeeIntl, workbenchMessages, workbenchTabMessages } from '@orchbee/i18n';
 import type {
 	ActionConfirmation,
+	ActionAvailability,
 	ActionExecution,
 	ActionRuntime,
 	ActionScope,
@@ -13,6 +14,7 @@ import {
 	type TabStripCloseConfirmation,
 	type TabStripNewTabRequest,
 	type TabStripOrientation,
+	type TabStripTabCreationIntent,
 } from '@orchbee/tab-strip';
 import * as React from 'react';
 
@@ -36,6 +38,7 @@ import type {
 import type { WorkbenchSearchFilter } from '../types/workbench-search';
 import type { WorkbenchTabScopeSource } from '../types/workbench-tab-scope';
 import type { WorkbenchProjectNavigationMessages } from '../components/workbench-sidebar/types/workbench-sidebar-types';
+import type { WorkbenchRemoteTerminalCreationCapability } from '../types/workbench-remote-terminal-creation';
 import {
 	createWorkbenchSearchState,
 	transitionWorkbenchSearch,
@@ -47,7 +50,10 @@ import {
 	WORKBENCH_SHORTCUTS,
 	type WorkbenchShortcutBindings,
 } from '../utils/workbench-shortcuts';
-import { WORKBENCH_ACTION_IDS } from '../actions/workbench-action-ids';
+import {
+	WORKBENCH_ACTION_IDS,
+	type WorkbenchTerminalCreateInput,
+} from '../actions/workbench-action-ids';
 import type { WorkbenchTabTitleEditorRequest } from '../actions/registerWorkbenchTabTitleAction';
 import type {
 	WorkbenchProjectWorkspaceRuntime,
@@ -55,7 +61,11 @@ import type {
 } from '../model/WorkbenchProjectWorkspaceRuntime';
 import { findActiveTerminalFocusTarget } from '../utils/findActiveTerminalFocusTarget';
 import { resolveActiveTerminalPresentationId } from '../utils/resolveActiveTerminalPresentationId';
-import { executeWorkbenchTerminalCreate } from '../semantic-commands';
+import {
+	executeWorkbenchTerminalCreationAction,
+	getWorkbenchTabCreationAvailability,
+	getWorkbenchTerminalCreationAvailability,
+} from '../actions/workbench-terminal-creation-action';
 import { useWorkbenchActions } from './useWorkbenchActions';
 import { useWorkbenchFocusRouting } from './useWorkbenchFocusRouting';
 import type { WorkbenchTerminalFocusRequest } from '../model/resolveWorkbenchFocusTarget';
@@ -84,6 +94,7 @@ interface WorkbenchView {
 	readonly newTab: ((request: TabStripNewTabRequest) => ActionExecution) | undefined;
 	readonly onCloseTabs: TabStripCloseCallback;
 	readonly getCloseTabsConfirmation: TabStripCloseConfirmation;
+	readonly getTabCreationAvailability: (intent: TabStripTabCreationIntent) => ActionAvailability;
 	readonly onLayoutChanged: (
 		layout: Readonly<Record<string, number>>,
 		meta: ResizableLayoutChangedMeta,
@@ -174,6 +185,7 @@ interface UseWorkbenchOptions {
 	readonly onSettings: WorkbenchHostActionCallback | undefined;
 	readonly onTerminalFontSizeChange?: WorkbenchTerminalFontSizeChangeCallback | undefined;
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
+	readonly remoteTerminalCreation?: WorkbenchRemoteTerminalCreationCapability | undefined;
 	readonly shortcutBindings: WorkbenchShortcutBindings;
 	readonly shortcutPlatform: WorkbenchShortcutPlatform;
 	readonly storage: WorkbenchLayoutStorage | undefined;
@@ -188,6 +200,7 @@ export function useWorkbench({
 	onSettings,
 	onTerminalFontSizeChange,
 	projectWorkspaceRuntime,
+	remoteTerminalCreation,
 	shortcutBindings,
 	shortcutPlatform,
 	storage,
@@ -329,63 +342,31 @@ export function useWorkbench({
 		setTabStripOrientationState(orientation);
 		writeWorkbenchTabStripOrientation(storage, orientation);
 	});
+	const getNewTerminalAvailability = useMemoizedFn((input: WorkbenchTerminalCreateInput) =>
+		getWorkbenchTerminalCreationAvailability(
+			projectWorkspaceRuntime,
+			remoteTerminalCreation,
+			input,
+		),
+	);
+	const getTabCreationAvailability = useMemoizedFn((intent: TabStripTabCreationIntent) =>
+		getWorkbenchTabCreationAvailability(projectWorkspaceRuntime, remoteTerminalCreation, intent),
+	);
 	const createTerminal = useMemoizedFn<
 		void,
 		Parameters<WorkbenchTerminalCreateCallback>,
 		ReturnType<WorkbenchTerminalCreateCallback>
-	>((context, input) => {
-		if (context.signal.aborted) return { kind: 'cancelled' };
-		let creation;
-		if (input.currentDirectoryTarget === undefined) {
-			const activeLocation = projectWorkspaceRuntime.getSnapshot().activeLocation;
-			creation = executeWorkbenchTerminalCreate(
-				projectWorkspaceRuntime,
-				{
-					...(input.directoryId === undefined ? {} : { directoryId: input.directoryId }),
-					fallbackTitle: intl.formatMessage(workbenchTabMessages.terminalTitle),
-					location:
-						activeLocation.kind === 'standalone'
-							? { kind: 'standalone' }
-							: {
-									kind: 'workspace',
-									projectId: activeLocation.projectId,
-									workspaceId: activeLocation.workspaceId,
-								},
-					placement: {
-						groupId: input.groupId,
-						...(input.index === undefined ? {} : { index: input.index }),
-					},
-				},
-				() => context.markCommitted(),
-			);
-		} else {
-			const cwdResult = projectWorkspaceRuntime.resolveTerminalCurrentDirectoryTarget(
-				input.currentDirectoryTarget,
-			);
-			if (cwdResult.kind === 'unavailable') {
-				return { code: cwdResult.reason, kind: 'blocked' };
-			}
-			context.markCommitted();
-			creation = projectWorkspaceRuntime.createTerminal({
-				currentDirectoryTarget: input.currentDirectoryTarget,
-				groupId: input.groupId,
-				...(input.index === undefined ? {} : { index: input.index }),
-				source: context.source,
-				title: intl.formatMessage(workbenchTabMessages.terminalTitle),
-			});
-		}
-		if (creation.kind === 'rejected') {
-			return { code: creation.reason, kind: 'blocked' };
-		}
-		scopedTabModel?.includeTabOptimistically(creation.tabId, true);
-		const terminalContext = projectWorkspaceRuntime.getTerminalContext(creation.terminalContextId);
-		if (terminalContext === null) {
-			throw new Error('A committed Terminal result lost its exact terminal context.');
-		}
-		terminalContext.tabModel.selectTab(creation.tabId);
-		focusRouting.requestTerminalFocus();
-		return { kind: 'completed' };
-	});
+	>((context, input) =>
+		executeWorkbenchTerminalCreationAction(context, input, {
+			fallbackTitle: intl.formatMessage(workbenchTabMessages.terminalTitle),
+			onLocalTerminalCreated: (creation) => {
+				scopedTabModel?.includeTabOptimistically(creation.tabId, true);
+				focusRouting.requestTerminalFocus();
+			},
+			remoteTerminalCreation,
+			runtime: projectWorkspaceRuntime,
+		}),
+	);
 	const closeTabs = useMemoizedFn<
 		void,
 		Parameters<TabStripCloseCallback>,
@@ -421,6 +402,7 @@ export function useWorkbench({
 	});
 	const actions = useWorkbenchActions({
 		focusRouting: focusRouter,
+		getNewTerminalAvailability,
 		isSidebarVisible,
 		navigation,
 		onNewTerminal: createTerminal,
@@ -535,6 +517,7 @@ export function useWorkbench({
 			),
 		onCloseTabs: closeTabs,
 		getCloseTabsConfirmation,
+		getTabCreationAvailability,
 		onLayoutChanged: (_layout, meta) => {
 			if (meta.isUserInteraction) {
 				writeWorkbenchLeftPanelWidth(storage, leftPanelWidth.current);

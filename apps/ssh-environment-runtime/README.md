@@ -1,40 +1,50 @@
 # SSH Environment Runtime
 
 `orchbee-ssh-environment-runtime` is the detached per-Environment daemon reached through a
-replaceable SSH attachment. It is a native transport endpoint, not a remote shell and not yet a
-remote terminal, Project, Git, or Agent service. Its only admitted filesystem behavior is the
-bounded read-only `project-root-v1` observation described below.
+replaceable SSH attachment. It is a native transport endpoint, not a remote shell. It owns the
+bounded read-only `project-root-v1` observation and one opaque `terminal-host-v1` relay, but creates
+no terminal, Project, Workspace, Git, or Agent effect itself.
 
 ## Commands
 
 ```text
 orchbee-ssh-environment-runtime --version
-orchbee-ssh-environment-runtime serve --runtime-directory <absolute-path> --instance-id <32-hex> --build-digest <64-hex>
+orchbee-ssh-environment-runtime serve \
+  --runtime-directory <absolute-path> --instance-id <32-hex> \
+  --build-digest <64-hex> --release-cohort-digest <64-hex> \
+  --terminal-host-version <semver> --terminal-host-build-digest <64-hex> \
+  --terminal-host-executable <absolute-path> \
+  --terminal-host-runtime-directory <absolute-path> \
+  --terminal-host-endpoint-id <32-hex>
 orchbee-ssh-environment-runtime attach --runtime-directory <absolute-path> --instance-id <32-hex>
 ```
 
-`serve` owns one daemon epoch, lifetime lock, private Unix-domain socket, and the exact signed
-artifact digest admitted by the Desktop bootstrap. `attach` authenticates that same-user endpoint
-and bridges only stdin/stdout protocol bytes. The Desktop bootstrap launches `serve` with inherited
-streams detached and then replaces its remote shell with `attach`; this separation lets the SSH
-child disappear while the daemon remains alive.
+`serve` owns one daemon epoch, lifetime lock, private Unix-domain socket, and the exact signed cohort
+identity admitted by Desktop bootstrap. `attach` authenticates that same-user endpoint and bridges
+only stdin/stdout protocol bytes. Before that authenticated connection exists, `attach` retries the
+private endpoint for at most five seconds so an abruptly stopped daemon's stale socket cannot race
+its replacement; after connection, bridge loss terminates the attachment immediately. The remaining
+internal worker commands are exact private ABIs and grant no caller-selected command, shell, or path
+execution.
 
 The Runtime directory, lock, and socket must be owned by the effective user, have exact owner-only
-permissions, contain no extended ACL grant, and never follow a symlink at admission. The server also
-checks the effective user identity of every local peer. One attachment may be active; a competing
-attachment receives `runtime-attachment-conflict` and is closed.
+permissions, contain no extended ACL grant, and never follow a symlink at admission. The server
+binds and secures an unpublished same-directory socket before atomically publishing the admitted
+endpoint name, so the public path is never observable with permissive creation-mode permissions. It
+also checks the effective user identity of every local peer. One attachment may be active; a
+competing attachment receives `runtime-attachment-conflict` and is closed.
 
 ## Protocol and lifetime
 
-The Runtime implements version `0.1.0` from `@orchbee/ssh-environment-protocol`. It accepts one exact
-Hello, returns the immutable artifact version and SHA-256 build digest plus a fresh daemon epoch,
-and acknowledges heartbeats. Partial records and incomplete handshakes are bounded by time and size.
-Disconnecting an attachment does not stop the daemon or change its epoch; restarting the daemon
-always produces a new epoch.
+The Runtime implements exact version `0.2.0` from `@orchbee/ssh-environment-protocol`. It accepts one
+exact Hello, returns Runtime build identity, release cohort identity, Terminal Host version/build,
+platform, ordered capabilities, and a fresh daemon epoch, then acknowledges heartbeats. Partial
+records and incomplete handshakes are bounded by time and size. Disconnecting an attachment does not
+stop the Runtime or change its epoch; restarting it always produces a new epoch.
 
-The Runtime advertises exactly `project-root-v1`; Desktop rejects every other capability set. There
-is deliberately no execute-command message. Later terminal or other services require their own
-accepted owner contract and private Runtime-side adapter.
+The Runtime advertises exactly `[project-root-v1, terminal-host-v1]`; Desktop rejects every other
+capability set. Channel identifiers are globally monotonic for an attachment. There is deliberately
+no execute-command message, generic service dispatch, forwarding, or network listener.
 
 ## Project-root inspection
 
@@ -54,6 +64,20 @@ kills the matching child, and the 30-second deadline forcibly terminates it befo
 This service does not list a directory, read file bytes, retain a handle, watch or mutate a path,
 run a shell, or assign Project, Checkout, Workspace, or directory identity. Requested and canonical
 paths remain process-local.
+
+## Terminal Host relay
+
+One `terminal-host-v1` channel connects to the configured same-UID private Host endpoint. If that
+endpoint is absent, an isolated child launches only the exact configured signed executable with
+fixed `serve` arguments and retries the endpoint. It never removes an endpoint, kills or replaces an
+existing Host, selects `PATH`, or parses Terminal Host protocol bytes.
+
+The relay admits one channel, 64 KiB credit in each direction, and nonempty chunks up to 64 KiB.
+Endpoint connection, launch, and blocking Host I/O remain in the child; the Runtime event loop polls
+its nonblocking pipes beside heartbeat and four project-root workers. Busy, unavailable, and
+compatibility outcomes are channel-local. Attachment corruption retires the attachment; attachment
+loss kills only the relay worker and never replays an outcome-unknown Host effect. Terminal Host owns
+its epoch, retained terminals, inventory, PTYs, and process trees.
 
 Daemon retention currently covers attachment loss while the user session and operating system keep
 the process alive. Survival across a total logout or reboot requires a later reviewed service or
@@ -91,6 +115,12 @@ pnpm --filter @orchbee/ssh-environment-runtime release:prepare --output /absolut
 pnpm --filter @orchbee/ssh-environment-runtime release:finalize --prepared /absolute/prepared-release --signature /absolute/signature.bin --public-key /absolute/release-public-key.pem --output /absolute/final-release
 ```
 
+These application-owned commands remain the frozen schema-version-1 Runtime-only workflow.
+Schema-version-2 SSH Environment releases use repository-level
+`release:ssh-environment:prepare` and `release:ssh-environment:finalize` to assemble this
+workspace's parameter-fixed artifact with the separately built Terminal Host artifact. This
+workspace neither imports Terminal Host source nor owns the combined cohort.
+
 Desktop package composition and the complete trust/rollback contract live in
 [`../desktop/docs/ssh-runtime-release.md`](../desktop/docs/ssh-runtime-release.md).
 
@@ -99,15 +129,23 @@ Desktop package composition and the complete trust/rollback contract live in
 Run from the repository root:
 
 ```sh
-pnpm --filter @orchbee/ssh-environment-runtime build
+pnpm --filter @orchbee/ssh-environment-runtime... build
+pnpm --filter @orchbee/terminal-host build
 pnpm --filter @orchbee/ssh-environment-runtime test
 pnpm --filter @orchbee/ssh-environment-runtime test:cross
 pnpm --filter @orchbee/ssh-environment-runtime format:check
 ```
 
-The real-process conformance test starts the daemon in a private temporary directory, performs the
-cross-language Hello and heartbeat, exercises canonical symlink resolution and bounded failure and
-cancel paths, rejects a competing attachment, reconnects to the same epoch, and proves that a daemon
-restart changes the epoch. The release tests use only ephemeral keys and also cover the fixed build
-arguments, signing round trip, mutations, and exact layouts. No test contacts an SSH server or reads
-a production signing key.
+Build the declared protocol dependencies and the Terminal Host conformance artifact before running
+the focused test. The Runtime test lifecycle builds only its own native artifact; it never rebuilds
+or temporarily removes a sibling package output while the recursive repository test gate may be
+consuming that output. The root `pnpm verify` gate already enforces this build-before-test order.
+
+The real-process conformance test starts the Runtime and actual Terminal Host in private temporary
+directories, performs both cross-language Hellos and heartbeat, checks relay credit, exercises
+canonical symlink resolution and bounded failure/cancel paths, rejects a competing attachment,
+reconnects to the same Runtime epoch, forces a daemon crash with a stale endpoint, proves an already
+waiting attachment reaches the replacement Runtime's new epoch, and proves that Runtime restart
+changes the epoch. The release tests use only ephemeral keys and also cover fixed build arguments,
+signing round trips, mutations, and exact layouts. No test contacts an SSH server or reads a
+production signing key.

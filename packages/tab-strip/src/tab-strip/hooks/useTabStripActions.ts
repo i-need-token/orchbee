@@ -45,6 +45,7 @@ import type {
 	TabStripNewTabRequest,
 	TabStripOptions,
 	TabStripSelectCallback,
+	TabStripTabCreationIntent,
 } from '../types/tab-strip-options';
 import type { TabStripActions } from '../types/tab-strip-actions';
 import { createGroupForTabs, createNewTabGroup } from '../utils/tab-strip-internals';
@@ -59,6 +60,11 @@ interface UseTabStripActionsOptions {
 	readonly onMoveGroupToWindow?: TabStripOptions['onMoveGroupToWindow'];
 	readonly onMoveTabsToWindow?: TabStripOptions['onMoveTabsToWindow'];
 	readonly onNewTab: ((request: TabStripNewTabRequest) => ActionExecution) | undefined;
+	readonly getTabCreationAvailability?:
+		| ((
+				intent: TabStripTabCreationIntent,
+		  ) => ReturnType<TabStripActions['getCreationAvailability']>)
+		| undefined;
 	readonly onCloseTabs: TabStripCloseCallback | undefined;
 	readonly getCloseTabsConfirmation: TabStripCloseConfirmation | undefined;
 	readonly onSelectTab: TabStripSelectCallback | undefined;
@@ -81,6 +87,7 @@ export function useTabStripActions({
 	onMoveGroupToWindow,
 	onMoveTabsToWindow,
 	onNewTab,
+	getTabCreationAvailability,
 	onCloseTabs,
 	getCloseTabsConfirmation,
 	onSelectTab,
@@ -170,6 +177,8 @@ export function useTabStripActions({
 						reason: workbenchMessages.actionUnavailable,
 					}
 				: { kind: 'enabled' as const };
+		const creationAvailability = (intent: TabStripTabCreationIntent) =>
+			getTabCreationAvailability?.(intent) ?? ({ kind: 'enabled' } as const);
 		const commit = (context: { markCommitted(): void }, operation: () => void) => {
 			const revision = model.getSnapshot().revision;
 			context.markCommitted();
@@ -190,7 +199,12 @@ export function useTabStripActions({
 									`${input.groupId ?? 'ungrouped'}:${input.index ?? 'end'}`,
 								mode: 'foreground',
 							},
-							getAvailability: () => ({ kind: 'enabled' }),
+							getAvailability: (_context, input) =>
+								creationAvailability({
+									groupId: input.groupId,
+									...(input.index === undefined ? {} : { index: input.index }),
+									kind: 'new-tab',
+								}),
 							handler: {
 								execute: (context, input) =>
 									commit(context, () => {
@@ -329,7 +343,7 @@ export function useTabStripActions({
 						concurrencyKey: () => 'new-group',
 						mode: 'foreground',
 					},
-					getAvailability: () => ({ kind: 'enabled' }),
+					getAvailability: () => creationAvailability({ kind: 'new-group' }),
 					handler: {
 						execute: (context) =>
 							commit(context, () => createNewTabGroup(model, messages.newTabTitle)),
@@ -394,7 +408,13 @@ export function useTabStripActions({
 				defineAction({
 					category,
 					execution: parallelByTabs,
-					getAvailability: (_context, input) => tabAvailability(input.tabIds),
+					getAvailability: (_context, input) => {
+						const availability = creationAvailability({
+							kind: 'duplicate',
+							tabIds: input.tabIds,
+						});
+						return availability.kind === 'enabled' ? tabAvailability(input.tabIds) : availability;
+					},
 					handler: {
 						execute: (context, input) =>
 							commit(context, () => {
@@ -734,6 +754,7 @@ export function useTabStripActions({
 		messages.newTabTitle,
 		model,
 		getCloseTabsConfirmation,
+		getTabCreationAvailability,
 		onMoveGroupToNewWindow,
 		onMoveTabsToNewWindow,
 		onMoveGroupToWindow,
@@ -773,6 +794,13 @@ export function useTabStripActions({
 					});
 		},
 	);
+	const getCreationAvailability = useMemoizedFn(
+		(intent: TabStripTabCreationIntent) =>
+			getTabCreationAvailability?.(intent) ?? ({ kind: 'enabled' } as const),
+	);
 
-	return useMemo(() => ({ createTab, execute, scope }), [createTab, execute, scope]);
+	return useMemo(
+		() => ({ createTab, execute, getCreationAvailability, scope }),
+		[createTab, execute, getCreationAvailability, scope],
+	);
 }

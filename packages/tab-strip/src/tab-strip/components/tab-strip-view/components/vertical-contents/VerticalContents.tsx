@@ -66,6 +66,7 @@ export function VerticalContents({
 	onOpenGroupEditor,
 	showNewTabButton,
 	addTab,
+	newTabCreationEnabled,
 	touchUi,
 	closeButtonAllowed,
 	showTopControls,
@@ -109,6 +110,7 @@ export function VerticalContents({
 	onOpenGroupEditor: (groupId: string, x: number, y: number) => void;
 	showNewTabButton: boolean;
 	addTab: () => void;
+	newTabCreationEnabled: boolean;
 	touchUi: boolean;
 	closeButtonAllowed: boolean;
 	showTopControls: boolean;
@@ -593,6 +595,7 @@ export function VerticalContents({
 							: VerticalTabStripCollapseState.Expanded
 					}
 					onNewTab={addTab}
+					disabled={!newTabCreationEnabled}
 					onContextMenu={(event) => {
 						setMenu({ kind: 'new-tab', x: event.clientX, y: event.clientY });
 					}}

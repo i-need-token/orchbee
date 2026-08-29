@@ -3,9 +3,10 @@
 ## Scope and delivered boundary
 
 Desktop Main owns the process-local Slice 2.2 connection foundation for one explicitly requested
-SSH Environment: target resolution, one supervised OpenSSH child, transient AskPass, signed Runtime
-artifact verification, a no-download remote bootstrap, exact Hello and heartbeat, generation-fenced
-retry, and attachment retirement. The native `apps/ssh-environment-runtime` daemon and
+SSH Environment: target resolution, one supervised OpenSSH child, transient AskPass, a verified
+Runtime projection from the signed SSH Environment release, a no-download remote bootstrap, exact
+Hello and heartbeat, generation-fenced retry, and attachment retirement. The native
+`apps/ssh-environment-runtime` daemon and
 `@orchbee/ssh-environment-protocol` wire contract are concrete consumers of this boundary.
 
 Slice 2.3A separately composes the durable append-only Environment registry into
@@ -13,10 +14,24 @@ Slice 2.3A separately composes the durable append-only Environment registry into
 bundle and Desktop trust composition. Slice 2.3C now composes an explicit process-local connection
 owner keyed by durable Environment identity and adds same-child installed-artifact negotiation. There
 is now one Slice 2.4 process-local API for inspecting an explicit remote Project-root candidate over
-the already-connected epoch. There is no renderer or product UI, Runtime network feed, automatic SSH
-connection, Project or Workspace creation, directory browser, file access, terminal, Git, or Agent.
-Tests use local temporary directories, ephemeral signing keys, and controlled processes; no real SSH
-server is contacted.
+the already-connected epoch. Slice 2.5 composes that observation with the canonical Workbench writer
+to admit one unavailable remote Project Directory through a Main-only process-local API. Slice 3.1B
+atomically installs the signed Runtime and Terminal Host cohort, advertises one Terminal Host relay
+on the existing attachment, and returns a negotiated process-local `HostConnection`. Slice 3.2A now
+extends the same Main-only admission with exactly one inactive remote Workspace and empty Terminal
+Context in the same canonical commit. Slice 3.2B adds one explicit Main-only operation that provisions
+or reconciles the first terminal in that Workspace through an Environment-scoped Terminal runtime.
+Slice 3.2C routes Electron and authenticated Gateway projection requests from canonical Presentation
+containment to that exact prepared Environment runtime, reuses the existing interactive attachment
+contract, and rechecks authority before publishing the lease. Slice 3.2D now observes metadata,
+runtime failure, and terminal exit from the exact current Environment relay, durably journals exits
+before listener return, and publishes only after Environment-scoped binding and canonical target
+validation. Slice 3.2E adds one Electron-only product surface for creating or reconciling that first
+singleton from an exact empty remote Workspace. It uses a dedicated renderer capability, derives
+and revalidates all remote authority in Main, and waits for canonical client-session publication.
+There is no Gateway or CLI creation surface, Runtime network feed, automatic SSH connection,
+directory browser, file access, Git, or Agent authority. Tests use local temporary directories,
+ephemeral signing keys, and controlled processes; no real SSH server is contacted.
 
 ## Accepted decisions D17-D26
 
@@ -46,7 +61,7 @@ record schema, transition table, privacy boundary, rollback behavior, TLA+ refin
 authority live in [`environment-registry.md`](environment-registry.md). Slice 2.3B release
 composition and Slice 2.3C fast-path/supervisor composition are now delivered independently.
 
-## Offline Runtime release composition
+## Offline release composition
 
 Accepted decisions D37-D46 fix one canonical schema-version-1 release, exact macOS arm64 and glibc
 Linux x86_64 stripped `ReleaseSafe` builds under Zig `0.16.0`, an external Ed25519 signature, an
@@ -59,6 +74,11 @@ the exact final bundle before Electron Packager, places its executable artifacts
 `Resources`, and keeps the trust descriptor inside `app.asar`. Fixed layouts, command ceremony,
 trust assumptions, rollback, modeling record, verification mapping, and remaining release limits
 live in [`ssh-runtime-release.md`](ssh-runtime-release.md).
+
+Slice 3.1A supersedes only the current release packaging path with schema version 2: one independently
+versioned Runtime and one independently versioned Terminal Host for each admitted platform, bound by
+one signed canonical cohort manifest. The frozen v1 contract remains valid only for already delivered
+Runtime behavior and cannot satisfy a future Terminal Host capability.
 
 ## Accepted decisions D47-D56
 
@@ -100,14 +120,23 @@ Desktop supervisor
             └─ owner-only Unix socket
                  └─ per-Environment Runtime daemon and epoch
                       ├─ bounded project-root-v1 inspection adapter
-                      └─ future explicitly admitted service adapters
+                      └─ one terminal-host-v1 opaque relay worker
+                           └─ same-UID private endpoint
+                                └─ retained Terminal Host daemon and Host epoch
 ```
 
 The Desktop connection owner admits one explicit activation per durable Environment and owns one
 supervisor for that active identity. The generation owns target resolution, release-catalog
-admission, AskPass, OpenSSH, installed-artifact negotiation, handshake, and heartbeat. It does not
-own the daemon lifetime. The Runtime advertises exactly `project-root-v1`; every other remote service
-edge remains intentionally absent.
+admission, AskPass, OpenSSH, installed-cohort negotiation, handshake, and heartbeat. It does not own
+either daemon lifetime. The Runtime advertises exactly `project-root-v1` then `terminal-host-v1`; it
+interprets the former and relays the latter without parsing Terminal Host records.
+
+Projection requests carry only `TerminalPresentationId` and viewport geometry. Desktop Main resolves
+Presentation containment through Terminal Context, Workspace, primary Directory, and placement.
+Local placement reaches only the local runtime; Environment placement reaches only the already
+prepared runtime cached for that exact Environment. Main repeats the resolution after runtime open
+and disposes the provisional lease when the target is missing or changed. Projection never prepares
+or reconnects SSH, and the Environment path disables local binding and terminal-archive fallback.
 
 ## Target resolution and OpenSSH transport
 
@@ -138,39 +167,44 @@ loss without exposing the diagnostic text.
 
 ## Verified bootstrap and installation
 
-`SshRuntimeReleaseManifestSchema` requires the canonical two-platform matrix, one bounded semantic
-version, exact artifact sizes and SHA-256 digests, and one canonical base64url Ed25519 signature.
-Desktop loads the app-asar-bound trust descriptor and Resources-bound manifest, verifies the exact
-manifest and signature, and checks both artifact file sizes before OpenSSH starts. It caches that
-catalog result. Artifact contents are not read on the installed fast path; a requested upload lazily
-reads and re-verifies the selected artifact bytes before writing them to SSH.
+The schema-version-2 release catalog contains an ordered Runtime and Terminal Host for both admitted
+platforms. Desktop authenticates the exact canonical manifest, signer, cohort digest, sizes, and
+digests before OpenSSH. Installed fast paths read no artifact bytes; an `upload` status lazily loads
+and re-verifies only that selected component.
 
-The same fixed POSIX bootstrap child detects macOS arm64 or glibc Linux x86_64 and checks the exact
-version path. An exact non-symlink regular file emits `present`; absence emits `upload`; a mismatch,
-symlink, non-regular file, unsupported platform, or missing hash facility blocks. The status decoder
-accepts only the four fixed maximum-128-byte ASCII lines from D50, and those lines select flow rather
-than establish trust. On `upload`, the bootstrap reads exactly the catalog byte count from SSH stdin,
-verifies SHA-256 again on the remote machine, and installs the executable at:
+The same POSIX bootstrap detects macOS arm64 or glibc Linux x86_64, then emits exact maximum-128-byte
+ASCII `OBSI/2 <platform> ssh-environment-runtime <present|upload>` followed by
+`OBSI/2 <platform> terminal-host <present|upload>`. Desktop accepts only that role order and platform
+agreement. After both exact artifacts exist, bootstrap emits `OBSC/2 <platform> ready`; only then may
+Desktop send Hello. v1, a missing or duplicate role, reordering, mixed platform, or bytes after the
+commit barrier fail closed.
+
+Each `present` file must be a non-symlink regular file with the exact digest. Each `upload` reads the
+exact signed byte count, verifies SHA-256 remotely, and publishes with a no-clobber hard link at:
 
 ```text
 ~/.orchbee/ssh-runtime/versions/<version>/orchbee-ssh-environment-runtime
+~/.orchbee/terminal-host/versions/<version>/orchbee-terminal-host
 ```
 
-It uses a private state directory at `~/.orchbee/ssh-runtime/state`, never invokes `curl` or `wget`,
-and publishes a verified incoming file with a no-clobber hard link. Concurrent identical installers
-converge by re-verifying the winner; a different winner blocks without overwrite. It starts `serve`
-with inherited streams detached, waits for its private socket, and `exec`s `attach`. On `present`,
-Hello immediately follows the status; on `upload`, bytes after the exact artifact become Hello. One
-OpenSSH child therefore owns platform detection, optional installation, and active protocol.
+Runtime and Host state live at `~/.orchbee/ssh-runtime/state` and
+`~/.orchbee/terminal-host/state`. Bootstrap never invokes `curl` or `wget`, overwrites an installed
+artifact, selects a remote `PATH` binary, or creates a mutable `current` link. Concurrent identical
+installers converge by re-verifying the winner; any mismatch blocks the cohort before Runtime start.
+Bootstrap then launches the exact Runtime with the cohort and Host metadata, waits for its private
+socket, and `exec`s `attach` on the same OpenSSH stdio stream.
 
-The release-only Desktop package path now supplies the verified two-platform bundle and exact
-manifest-pinned trust descriptor. Its private-key exclusion, external signing ceremony, canonical
-layouts, public-key injection, rollback, and package placement are maintained in
+The Host endpoint identifier is a domain-separated digest of Runtime instance and release cohort,
+not a credential or Runtime identity. Runtime connects only to its same-UID private endpoint. If the
+endpoint is absent, an isolated relay worker launches the exact signed Host path with only its fixed
+`serve --runtime-directory ... --endpoint-id ...` ABI; it never kills or replaces an existing Host.
+
+The release-only Desktop package supplies the verified cohort and exact manifest-pinned trust
+descriptor. Its private-key exclusion, external signing ceremony, canonical layouts, public-key
+injection, rollback, and package placement are maintained in
 [`ssh-runtime-release.md`](ssh-runtime-release.md). `DesktopApplication` now composes that source
 with an Environment-keyed connection owner, while release-free development and ordinary packages
-fail activation as `runtime-release-unavailable`. The bootstrap passes the verified artifact SHA-256
-into `serve`; the daemon retains it for its epoch and returns it in Hello, avoiding a circular
-self-digest build requirement.
+fail activation as `runtime-release-unavailable`.
 
 ## AskPass security boundary
 
@@ -190,17 +224,18 @@ composed, every prompt is cancelled without exposing it to the renderer.
 
 ## Protocol, identity, and heartbeat
 
-Every protocol record has a 16-byte `OBSE` header, exact `0.1.0` version bytes, a kind, big-endian
+Every protocol record has a 16-byte `OBSE` header, exact `0.2.0` version bytes, a kind, big-endian
 payload length, and four reserved zero bytes. The complete record is capped at 1 MiB. Control
 payloads are strict bounded UTF-8 JSON; channel data is binary; malformed, unknown, partial, or
 oversized input fails closed.
 
-After the fixed status, Desktop streams artifact bytes only for `upload`, then sends one Hello
-containing the expected Runtime instance identity, random client nonce, frame bound, and initial
-credit. `connected` is impossible until Hello-Accepted returns the exact instance, signed artifact
-version and digest, status-selected platform, exact singleton `project-root-v1` capability, and a
-valid daemon epoch. A status token alone never establishes readiness. The state observation retains
-only that epoch and secret-free connection metadata.
+After the fixed cohort commit, Desktop sends one Hello containing the expected Runtime instance
+identity, random client nonce, frame bound, and initial credit. `connected` is impossible until
+Hello-Accepted returns the exact instance, Runtime version and digest, release cohort digest,
+Terminal Host version and digest, selected platform, exact ordered
+`[project-root-v1, terminal-host-v1]` capabilities, and a valid Runtime epoch. Bootstrap status alone
+never establishes readiness. The state observation retains only that epoch and secret-free
+connection metadata.
 
 Desktop immediately starts heartbeats and uses the Runtime-advertised 15-second interval and
 three-miss limit. Runtime acknowledges the exact epoch and sequence. A mismatch is a protocol
@@ -228,6 +263,137 @@ channels. A malformed service result closes only that valid channel with `protoc
 epoch, unknown-channel, order, framing, or credit violation retires the attachment. Paths are never
 copied into connection observations, registry records, diagnostics, telemetry, or logs.
 
+## Terminal Host relay service
+
+`DesktopApplication.openSshEnvironmentTerminalHost` requires one already-connected Runtime epoch and
+never activates SSH. A fresh globally monotonic channel opens `terminal-host-v1`; at most one relay
+may exist beside four project-root channels. Runtime delays `channel-opened` until its isolated worker
+has authenticated and connected the same-UID Host endpoint or launched and connected the exact
+signed Host executable.
+
+After opening, Runtime treats every channel-data byte as opaque Terminal Host protocol. Each
+direction has exactly 64 KiB credit and every chunk is nonempty and at most 64 KiB. Bytes accepted by
+the worker replenish Desktop input credit; bytes consumed by the Desktop `HostConnection` replenish
+Host output credit. Blocking endpoint discovery, launch, and Host I/O occur outside the attachment
+loop, so heartbeat and project-root progress remain independent.
+
+Main constructs `HostConnection` over the relay and requires its negotiated Host version to equal the
+signed cohort. Busy, unavailable, and incompatible Host outcomes close only that channel. Invalid
+outer framing, epoch, ordering, identity, chunk, or credit retires the attachment. Attachment loss
+destroys the broker stream and makes pending Host effects outcome-unknown; nothing is replayed. A new
+attachment allocates a new channel and reconciles retained terminals through the Host epoch and
+inventory owned by Terminal Host.
+
+## Remote Project admission
+
+`DesktopApplication.admitSshEnvironmentRemoteProject` accepts one `EnvironmentId` and requested path. It
+first resolves the durable registry record, then requires an already-connected observation, invokes
+the exact `project-root-v1` inspection, and finally queues one Desktop Main-owned canonical Workbench
+mutation. It never starts or waits for an SSH connection. Before the inspection result is queued,
+cancellation or attachment loss creates no product state.
+
+The global admission key is the returned `(EnvironmentId, canonicalPath)`. A missing key allocates a
+random 128-bit Directory identity and the next Workbench Project identity; the Project name is the
+canonical path's final segment. Equivalent concurrent or retried admissions return the same Project.
+The committed version-2 document contains one unavailable remote Folder Directory, one inactive
+Workspace that selects it, and one empty Terminal Context. The requested spelling and failed
+observation never enter durable state, diagnostics, telemetry, or logs.
+
+Once the canonical result enters the mutation queue, caller cancellation does not roll it back and a
+later disconnect does not invalidate the point-in-time observation. A pre-rename write failure is a
+safe negative result. A failure that may follow rename is `indeterminate`: the coordinator freezes
+further mutation, and restart plus retry reconciles through the durable admission key.
+
+Only Desktop Main may introduce remote placement. A client proposal may preserve or delete the exact
+remote Directory, Workspace, and context, but cannot introduce, alter, reparent, relabel, duplicate,
+or mark them available. Desktop validates every retained opaque Environment reference against the
+registry. Project removal deletes product metadata only; it performs no remote delete, listing,
+file, Git, shell, terminal stop, Agent, synchronization, renderer creation, or CLI effect.
+
+## Remote terminal provision
+
+`DesktopApplication.createSshEnvironmentRemoteTerminal` accepts one `EnvironmentId`, Project ID, and
+Workspace ID. It requires a registered Environment, an already-connected observation, and a
+Workspace whose primary Directory is placed on that exact Environment. It never calls `connect`,
+waits for reconnect, accepts a path hint, or changes active or expanded Client View state.
+
+Before entering the canonical mutation queue, Main prepares at most one cached Terminal runtime and
+one relay per Environment. Its binding ledger and archive directory use a deterministic
+Environment-isolated namespace. The remote launch is fixed to `/bin/sh`, uses only bounded terminal
+defaults plus `COLORTERM`, `TERM`, and `TERM_PROGRAM`, and receives the canonical remote Directory
+path as `launchCwd`; no local executable, CWD fallback, environment delta, shell integration, CLI
+endpoint, profile, or secret is transferred.
+
+An empty remote context receives exactly one Main-owned Tab, Panel, and provision Presentation. The
+Workspace is the idempotency key: an exact retry reuses that Presentation and operation identity;
+any other pre-existing shape fails closed. The canonical version-2 commit precedes effect
+reconciliation. Target selection is derived only from Presentation containment through Terminal
+Context, Workspace, primary Directory, and placement, so local placement reaches only the local Host
+and Environment placement reaches only that Environment's Host.
+
+An unavailable runtime or retryable/unknown Host outcome leaves the durable intent pending without
+publishing a synthetic failure or caching a settlement. A later explicit repeat opens or reuses a
+relay and reconciles the same Environment-scoped binding and Creation identity; it never falls back
+locally or blindly creates a second terminal. Client proposals may apply only the exact
+`provision → retain` convergence or delete the protected remote state. Disconnect and shutdown
+dispose the process-local runtime and relay without deleting product state or sending terminal stop.
+Close, restart, split, archive capture, and application-stop draining remain outside this slice.
+
+## Electron remote terminal creation surface
+
+The ordinary `workbench.terminal.create` Action, shortcut, and New Terminal controls route through
+one Workbench-owned availability policy. Local placement keeps the existing local command. An
+Electron renderer in an exact empty remote Workspace may request only the default top-level first
+terminal; New Group with Tab, Duplicate Tab, explicit Group or insertion placement, and every
+creation entry point become unavailable once the singleton exists or the capability is absent.
+
+The renderer sends only a correlated request identity, `ProjectId`, and `WorkspaceId` over the
+tenth purpose-specific `remote-terminal-creation` bootstrap port. Desktop Main derives the
+Environment, canonical Directory path, and Terminal Context from the current shared document,
+requires a registered and currently connected Environment, and revalidates the target around the
+canonical commit. The broker may prepare or reuse that Environment's Terminal Host runtime, but it
+never starts, reconnects, waits for, or prompts for SSH. The capability is not a preload global and
+is not offered to Gateway, Browser, semantic CLI, Skill, or Agent callers.
+
+The renderer performs no optimistic document or Client View mutation. A `created` or `existing`
+settlement completes only after the independently ordered client-session stream publishes the exact
+canonical Project, Workspace, Context, Tab, Panel, and Presentation identity. Completion never
+navigates, selects, or steals focus. Only Main-confirmed abort before commit is `cancelled`; abort,
+unmount, broker retirement, or control-port loss after dispatch or possible commit is a bounded
+failed/outcome-unknown result. A fresh request on a replacement port reconciles the singleton rather
+than creating a duplicate or falling back to the local runtime.
+
+## Remote terminal projection and durable observation
+
+Electron and authenticated Gateway clients project an existing remote Presentation through the same
+attachment protocol as a local terminal. Main derives the target only from canonical containment and
+requires that Environment's runtime to be already prepared. Projection does not activate SSH,
+prepare a relay, wait for reconnect, or use local binding/archive fallback. Main rechecks the target
+after open and disposes a provisional lease when the Presentation was deleted or retargeted.
+
+Before opening the remote `HostConnection`, the Environment runtime owner loads that Environment's
+`terminal-exits-v1.json` and `terminal-exit-publications-v1.json`, then installs a current-record and
+Host-epoch-fenced envelope listener before runtime reconciliation. The binding ledger, pending and
+rejection journals, publication ledger, retry owner, and identity association all live under the
+same deterministic Environment directory. Identical raw `TerminalIdentity` values in local or other
+Environment runtimes therefore remain separate.
+
+Metadata accepts only increasing Host revisions, resolves through the Environment runtime binding,
+and enters `DesktopClientSessionCoordinator`'s retained bootstrap state without changing the shared
+document. A `TerminalFailed` event is recorded through that binding and published only while its
+Presentation still resolves to that exact Environment. Relay loss and runtime unavailability retire
+the observation owner; they never synthesize a terminal failure.
+
+Every `TerminalExited` envelope is synchronously persisted to the Environment pending journal—or to
+its durable rejection journal when pending admission is unavailable—before the Host listener
+returns. Reconciliation then persists the binding outcome, reserves the Presentation outcome,
+commits runtime and Environment publication evidence, commits the reconciler event, broadcasts it,
+and only then compacts the pending journal. Missing association, canonical deletion, or retargeting
+parks the original Environment-scoped event; it cannot publish to another target. Transient local
+persistence/publication failures may retry, but recovery never connects SSH. Relay loss or Desktop
+restart reloads the durable journals only when a later explicit operation prepares that exact
+Environment runtime.
+
 ## Connection lifecycle and recovery
 
 | Current phase          | Event                              | Next phase and effect                                                                |
@@ -245,8 +411,9 @@ copied into connection observations, registry records, diagnostics, telemetry, o
 Retry uses equal jitter: 500-1,000 ms first, doubles to a 30-second cap, and has one timer. A
 replacement attachment to a surviving daemon observes the same epoch. If the daemon died, the
 bootstrap starts the exact installed version and Hello reports a new epoch. This distinction is the
-future reconciliation fence. Project-root inspection is read-only and never replayed; the protocol
-still contains no terminal, Git, command, or Agent effect.
+future reconciliation fence. Project-root inspection is read-only and never replayed. A lost
+Terminal Host relay is also never replayed; a later explicit open negotiates a new broker stream
+against retained Host state. The protocol still contains no Git, generic command, or Agent effect.
 
 `DesktopSshEnvironmentConnectionOwner` serializes connect and disconnect per `EnvironmentId`. The
 first connect copies the registry target and Runtime instance identity into one supervisor; repeated
@@ -256,14 +423,18 @@ and application startup never invoke connect.
 
 ## Modeling and verification
 
-Three registered TLA+ models split responsibility:
+Eleven registered TLA+ models split responsibility:
 
 - `SshEnvironmentConnection` checks generation exclusion, interaction, retry admission, blocking,
   stop fencing, and retry progress.
 - `SshEnvironmentRuntimeAttachment` checks trusted-catalog-before-transport ordering, present without
-  artifact read, upload-only-on-request, exact installed digest, concurrent no-clobber convergence,
-  mismatch rejection, one current attachment, Hello/epoch readiness, retained daemon identity,
-  competing-attachment rejection, exact service authority, and no unknown-effect replay.
+  artifact read, ordered dual-component upload, atomic cohort commit, exact installed digests,
+  concurrent no-clobber convergence, mismatch rejection, one current attachment, full cohort
+  Hello/epoch readiness, retained daemon identity, competing-attachment rejection, exact service
+  authority, and no unknown-effect replay.
+- `SshEnvironmentTerminalHostRelay` checks one relay, global channel identity, bounded bidirectional
+  credit, isolated Host setup/I/O, channel-local failures, attachment loss, retained Host epoch,
+  reconnect reconciliation, and no replay.
 - `SshEnvironmentProjectRootService` checks exact capability admission, channel order and credit,
   bounded capacity, timeout, cancellation, attachment loss, no replay, stale-result fencing, and
   worker progress.

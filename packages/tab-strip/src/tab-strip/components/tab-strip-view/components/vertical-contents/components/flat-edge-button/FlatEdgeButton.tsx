@@ -7,6 +7,7 @@ import { joinClassNames } from '../../../../../../utils/tab-strip-internals';
 export interface FlatEdgeButtonProps {
 	type?: 'button' | 'reset' | 'submit' | undefined;
 	'aria-label': string;
+	disabled?: boolean | undefined;
 	'data-target-visible'?: boolean | undefined;
 	'data-animating'?: boolean | undefined;
 	onClick?: MouseEventHandler<HTMLButtonElement> | undefined;
@@ -29,6 +30,7 @@ export function FlatEdgeButton({
 	expansionOrientation = TabStripOrientation.Horizontal,
 	type = 'button',
 	'aria-label': ariaLabel,
+	disabled,
 	'data-target-visible': targetVisible,
 	'data-animating': animating,
 	onClick,
@@ -40,6 +42,7 @@ export function FlatEdgeButton({
 		<button
 			type={type}
 			aria-label={ariaLabel}
+			disabled={disabled}
 			data-target-visible={targetVisible || undefined}
 			data-animating={animating || undefined}
 			data-tab-strip-new-tab={variantClass === 'ct-vertical-new-tab' || undefined}

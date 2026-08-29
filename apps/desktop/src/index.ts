@@ -9,6 +9,7 @@ export type {
 	DesktopApplicationDependencies,
 	DesktopApplicationOptions,
 	DesktopSshEnvironmentResources,
+	DesktopSshEnvironmentRemoteTerminalResult,
 	SshProjectRootInspectionOutcome,
 	DesktopBrowserAccessRuntimeConfiguration,
 	DesktopRuntimeConfiguration,

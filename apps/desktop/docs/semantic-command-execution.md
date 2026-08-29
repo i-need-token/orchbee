@@ -41,6 +41,12 @@ The ledger stores no canonical input. An asynchronous handler closure may hold c
 while its execution is active. Diagnostics receive no operation input or result payload. A query
 result may explicitly contain the requested names and paths in its bounded response and receipt.
 
+`workbench.directory.list` alone uses operation schema version `2` and output schema version `2`;
+each result includes the Directory placement. The other four operations remain version `1`. A remote
+Directory result contains only its committed opaque Environment identity and canonical path. The
+requested alias, failed observations, and raw operating-system diagnostics never enter semantic
+output.
+
 ## Invariants
 
 1. One retained request identity maps to exactly one retained execution and one canonical

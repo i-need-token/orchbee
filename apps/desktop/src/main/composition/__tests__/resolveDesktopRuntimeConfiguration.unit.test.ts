@@ -58,6 +58,9 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 			path.resolve('/private/recovery/terminal-exit-publications-v1.json'),
 		);
 		expect(first.workbenchDocumentStorePath).toBe(
+			path.resolve('/private/recovery/workbench-shared-document-v2.json'),
+		);
+		expect(first.workbenchDocumentLegacyStorePath).toBe(
 			path.resolve('/private/recovery/workbench-shared-document-v1.json'),
 		);
 		expect(first.windowStateStorePath).toBe(
@@ -141,6 +144,11 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 			path.resolve('/users/orchbee/.config/orchbee/terminal-recovery/terminal-archives-v1'),
 		);
 		expect(configuration.workbenchDocumentStorePath).toBe(
+			path.resolve(
+				'/users/orchbee/.config/orchbee/terminal-recovery/workbench-shared-document-v2.json',
+			),
+		);
+		expect(configuration.workbenchDocumentLegacyStorePath).toBe(
 			path.resolve(
 				'/users/orchbee/.config/orchbee/terminal-recovery/workbench-shared-document-v1.json',
 			),

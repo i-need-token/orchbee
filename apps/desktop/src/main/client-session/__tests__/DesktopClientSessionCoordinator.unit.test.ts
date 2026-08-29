@@ -157,6 +157,69 @@ describe('DesktopClientSessionCoordinator', () => {
 		expect(coordinator.canonicalDocument).toBe(current);
 	});
 
+	it('returns an unchanged canonical mutation without allocating a revision or writing', async () => {
+		const current = document('4', 'Canonical');
+		const store = storeWith({ document: current, kind: 'available' });
+		const coordinator = coordinatorWith(store);
+		await coordinator.start();
+
+		await expect(
+			coordinator.mutateCanonicalDocument((canonical) => {
+				expect(canonical).toBe(current);
+				return { kind: 'unchanged' };
+			}),
+		).resolves.toEqual({ document: current, kind: 'unchanged' });
+		expect(store.commit).not.toHaveBeenCalled();
+		expect(coordinator.canonicalDocument).toBe(current);
+	});
+
+	it('explicitly reconciles the unchanged canonical document without another durable commit', async () => {
+		const current = document('4', 'Canonical');
+		const store = storeWith({ document: current, kind: 'available' });
+		const reconcileDocument = vi.fn<() => Promise<void>>(async () => undefined);
+		const coordinator = coordinatorWith(store, { reconcileDocument });
+
+		await expect(coordinator.reconcileCanonicalDocument()).resolves.toEqual({
+			kind: 'rejected',
+			reason: 'control-unavailable',
+		});
+		await coordinator.start();
+		reconcileDocument.mockClear();
+
+		await expect(coordinator.reconcileCanonicalDocument()).resolves.toEqual({
+			document: current,
+			kind: 'reconciled',
+		});
+		expect(reconcileDocument).toHaveBeenCalledWith(current, expect.any(Function));
+		expect(store.commit).not.toHaveBeenCalled();
+	});
+
+	it('freezes canonical control after a post-rename mutation outcome is indeterminate', async () => {
+		const current = document('4', 'Canonical');
+		const candidate = document('5', 'Possibly durable');
+		const store = storeWith({ document: current, kind: 'available' });
+		store.commit.mockResolvedValue({ kind: 'unavailable', reason: 'write-indeterminate' });
+		const coordinator = coordinatorWith(store);
+		await coordinator.start();
+		const publications: DesktopClientSessionPublication[] = [];
+		register(coordinator, publisher(publications));
+
+		await expect(
+			coordinator.mutateCanonicalDocument(() => ({ document: candidate, kind: 'commit' })),
+		).resolves.toEqual({ kind: 'indeterminate', reason: 'durability-unconfirmed' });
+		expect(coordinator.canonicalDocument).toBe(current);
+		expect(publications).toMatchObject([
+			{
+				reason: 'write-failed',
+				type: 'client-session-coordinator-unavailable',
+			},
+		]);
+		await expect(
+			coordinator.mutateCanonicalDocument(() => ({ document: candidate, kind: 'commit' })),
+		).resolves.toEqual({ kind: 'rejected', reason: 'control-unavailable' });
+		expect(store.commit).toHaveBeenCalledOnce();
+	});
+
 	it('commits the first proposal, publishes before its effect, and converges an equivalent race', async () => {
 		const store = storeWith({ kind: 'missing' });
 		store.commit.mockResolvedValue({

@@ -34,6 +34,12 @@
 			"import": "./dist/document/index.js",
 			"require": "./dist/document/index.cjs"
 		},
+		"./project-workspace": {
+			"@orchbee/source": "./src/project-workspace/index.ts",
+			"types": "./dist/project-workspace/index.d.ts",
+			"import": "./dist/project-workspace/index.js",
+			"require": "./dist/project-workspace/index.cjs"
+		},
 		"./semantic-commands": {
 			"@orchbee/source": "./src/workbench/semantic-commands/index.ts",
 			"types": "./dist/workbench/semantic-commands/index.d.ts",

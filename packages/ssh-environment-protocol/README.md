@@ -1,6 +1,6 @@
 # SSH Environment Protocol
 
-Strict binary framing shared by Desktop and the per-Environment SSH Runtime. Version `0.1.0`
+Strict binary framing shared by Desktop and the per-Environment SSH Runtime. Version `0.2.0`
 provides an exact Hello handshake, Runtime instance and epoch identity, heartbeat liveness, channel
 lifecycle records, binary channel data, and byte-credit flow control.
 
@@ -21,10 +21,11 @@ uses a four-byte big-endian channel identity followed by opaque bytes; credit re
 channel identity and byte count. Decoders reject unknown versions, kinds, fields, invalid UTF-8,
 invalid JSON, nonzero reserved bytes, and inconsistent or oversized lengths.
 
-Hello acceptance identifies one immutable Runtime installation build, one daemon instance, and one
-daemon epoch. A reconnect may attach to the same epoch; a restarted daemon necessarily reports a new
-epoch. The Runtime advertises exactly `project-root-v1`, and Desktop requires that exact singleton.
-There is no downgrade, dual-stack negotiation, or placeholder capability.
+Hello acceptance identifies one immutable Runtime build, one release cohort, one Terminal Host
+version/build, one daemon instance, and one Runtime epoch. A reconnect may attach to the same epoch;
+a restarted Runtime necessarily reports a new epoch. The Runtime advertises exactly the ordered
+`[project-root-v1, terminal-host-v1]` pair, and Desktop requires it. There is no downgrade, dual-stack
+negotiation, or placeholder capability.
 
 ## Project-root service contract
 
@@ -45,27 +46,41 @@ A result is either `{"kind":"resolved","canonicalPath":"/..."}` or
 the only correlation identity; the service schema introduces no Project, Checkout, Workspace, or
 directory identity.
 
+## Terminal Host relay contract
+
+One `terminal-host-v1` channel carries opaque Terminal Host protocol bytes. Each direction begins
+with exactly 64 KiB credit; every data chunk is nonempty and at most 64 KiB. Credit is returned only
+after the receiving boundary consumes bytes. One Runtime attachment admits one relay, while channel
+identifiers remain globally monotonic across relay and project-root services.
+
+Open failures are closed to `service-busy`, `service-unavailable`, and
+`compatibility-unsupported` and remain channel-local. Attachment loss closes the relay without
+replay; outer epoch, channel, framing, ordering, or credit corruption retires the attachment. This
+contract neither defines nor parses Terminal Host records and grants no generic command authority.
+
 ## Offline release contract
 
-Release schema `1` defines one canonical unsigned signing payload and one canonical signed manifest
-for the exact ordered `darwin-arm64` and `linux-x64` artifact matrix. Each artifact has a nonzero
-bounded size and SHA-256 digest, and both share one explicit semantic Runtime version. Trust schema
-`1` binds canonical Ed25519 SPKI, its `ed25519-spki-sha256:<digest>` identity, and the SHA-256 of the
-exact final manifest bytes.
+Frozen release schema `1` defines the Runtime-only two-platform contract. Release schema `2`
+separately defines the exact ordered `ssh-environment-runtime` and `terminal-host` components; each
+component contains the exact ordered `darwin-arm64` and `linux-x64` artifacts and retains its own
+semantic version. Every artifact has a nonzero size bounded at 128 MiB and a SHA-256 digest. Trust
+schemas `1` and `2` bind canonical Ed25519 SPKI, its `ed25519-spki-sha256:<digest>` identity, and the
+SHA-256 of the exact matching final-manifest bytes.
 
 The signing payload has no trailing newline; the final manifest and trust descriptor each have one.
-Schemas reject unknown fields, platform reordering, unsupported platforms, noncanonical signatures,
-and out-of-bound values. Fixed directory and file names are exported with the schemas so Runtime
-release tooling and Desktop packaging cannot silently choose different layouts.
+Schemas reject unknown fields, component or platform reordering, missing or unsupported entries,
+noncanonical signatures, and out-of-bound values. Fixed directory and file names are exported with
+the schemas so repository release automation and Desktop packaging cannot silently choose different
+layouts or mix v1 and v2.
 
 ## Authority boundary
 
 This package is a data contract only. It cannot build or sign an artifact, hold a private key,
-verify package trust, compose a Desktop release, create a connection, install or start a Runtime,
+verify package trust, compose a release, create a connection, install or start a component,
 authenticate a peer, retry an attachment, authorize an inspection, or perform filesystem work. It
-owns the exact `project-root-v1` schema and codec, but deliberately has no generic execute-command
-record. Any additional Runtime service must be explicitly advertised, admitted, authorized, and
-implemented by its owning subsystem.
+owns the exact `project-root-v1` schema/codec and the `terminal-host-v1` opaque relay envelope, but
+deliberately has no generic execute-command record. Any additional Runtime service must be explicitly
+advertised, admitted, authorized, and implemented by its owning subsystem.
 
 ## Verification
 

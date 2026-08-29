@@ -144,6 +144,8 @@ describe('WorkbenchTerminalViewport', () => {
 					layoutSettled={layoutSettled}
 					panelId='panel-1'
 					terminal={terminal}
+					terminalAutoFocusAllowed
+					terminalFocusRequest={null}
 					terminalRole='primary'
 					terminalSurface={TestTerminalSurface}
 					view={view}

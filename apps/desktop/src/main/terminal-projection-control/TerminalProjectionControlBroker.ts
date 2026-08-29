@@ -11,10 +11,7 @@ import {
 } from '@orchbee/workbench/terminal-presentation';
 import type { TerminalGeometry } from '@orchbee/terminal-protocol';
 
-import type {
-	DesktopTerminalProjectionLease,
-	DesktopTerminalProjectionService,
-} from './DesktopTerminalProjectionService';
+import type { DesktopTerminalProjectionLease } from './DesktopTerminalProjectionService';
 
 interface ProjectionRequest {
 	disposalPromise: Promise<void> | undefined;
@@ -24,16 +21,27 @@ interface ProjectionRequest {
 	releaseRequested: boolean;
 }
 
+export interface DesktopTerminalProjectionControlService {
+	isPublicationTargetCurrent?(
+		presentationId: TerminalPresentationId,
+		lease: DesktopTerminalProjectionLease,
+	): boolean;
+	open(
+		presentationId: TerminalPresentationId,
+		geometry: TerminalGeometry,
+	): Promise<DesktopTerminalProjectionLease>;
+}
+
 export class TerminalProjectionControlBroker {
 	readonly #openTasks = new Set<Promise<void>>();
 	readonly #port: MessagePortMain;
 	readonly #requests = new Map<TerminalProjectionRequestId, ProjectionRequest>();
-	readonly #service: Pick<DesktopTerminalProjectionService, 'open'>;
+	readonly #service: DesktopTerminalProjectionControlService;
 	#disposePromise: Promise<void> | undefined;
 	#disposed = false;
 	#started = false;
 
-	constructor(port: MessagePortMain, service: Pick<DesktopTerminalProjectionService, 'open'>) {
+	constructor(port: MessagePortMain, service: DesktopTerminalProjectionControlService) {
 		this.#port = port;
 		this.#service = service;
 	}
@@ -143,7 +151,7 @@ export class TerminalProjectionControlBroker {
 
 	async #open(
 		requestId: TerminalProjectionRequestId,
-		presentationId: Parameters<DesktopTerminalProjectionService['open']>[0],
+		presentationId: TerminalPresentationId,
 		geometry: TerminalGeometry,
 		request: ProjectionRequest,
 	): Promise<void> {
@@ -157,6 +165,14 @@ export class TerminalProjectionControlBroker {
 					return;
 				}
 				return;
+			}
+			if (this.#service.isPublicationTargetCurrent?.(presentationId, lease) === false) {
+				try {
+					await this.#disposeUnpublishedRequest(request);
+				} catch {
+					throw projectionControlFailure('terminal-projection-cleanup-failed', true);
+				}
+				throw projectionControlFailure('terminal-projection-retired', false);
 			}
 			const event = TerminalProjectionControlEventSchema.parse({
 				bootstrap: lease.bootstrap,
@@ -198,6 +214,23 @@ export class TerminalProjectionControlBroker {
 			});
 			this.#requests.delete(requestId);
 		}
+	}
+
+	async #disposeUnpublishedRequest(request: ProjectionRequest): Promise<void> {
+		if (request.disposalPromise !== undefined) return request.disposalPromise;
+		const lease = request.lease;
+		if (lease === null) return;
+		const operation = lease
+			.dispose()
+			.then(() => {
+				request.lease = null;
+			})
+			.catch((error: unknown) => {
+				request.disposalPromise = undefined;
+				throw error;
+			});
+		request.disposalPromise = operation;
+		return operation;
 	}
 
 	#post(event: TerminalProjectionControlEvent): void {
@@ -254,4 +287,8 @@ function geometriesEqual(left: TerminalGeometry, right: TerminalGeometry): boole
 		left.columns === right.columns &&
 		left.rows === right.rows
 	);
+}
+
+function projectionControlFailure(code: string, retryable: boolean): Error {
+	return new Error(code, { cause: { code, retryable } });
 }

@@ -2,7 +2,6 @@ import {
 	SSH_PROJECT_ROOT_INITIAL_CREDIT_BYTES,
 	SSH_PROJECT_ROOT_MAX_MESSAGE_BYTES,
 	SSH_PROJECT_ROOT_SERVICE_ID,
-	SshEnvironmentChannelIdSchema,
 	SshProjectRootInspectionRequestSchema,
 	decodeSshProjectRootInspectionResult,
 	encodeSshEnvironmentMessage,
@@ -21,6 +20,7 @@ export type SshProjectRootInspectionOutcome =
 	| { readonly kind: 'cancelled' };
 
 interface SshProjectRootChannelClientOptions {
+	readonly allocateChannelId: () => SshEnvironmentChannelId | null;
 	readonly onAttachmentInvalid: () => void;
 	readonly runtimeEpoch: SshEnvironmentRuntimeEpoch;
 	readonly write: (bytes: Uint8Array) => Promise<void>;
@@ -42,14 +42,15 @@ interface InspectionChannel {
 }
 
 export class SshProjectRootChannelClient {
+	readonly #allocateChannelId: () => SshEnvironmentChannelId | null;
 	readonly #channels = new Map<SshEnvironmentChannelId, InspectionChannel>();
-	#nextChannelId = 1;
 	readonly #onAttachmentInvalid: () => void;
 	#retired = false;
 	readonly #runtimeEpoch: SshEnvironmentRuntimeEpoch;
 	readonly #write: (bytes: Uint8Array) => Promise<void>;
 
 	constructor(options: SshProjectRootChannelClientOptions) {
+		this.#allocateChannelId = options.allocateChannelId;
 		this.#onAttachmentInvalid = options.onAttachmentInvalid;
 		this.#runtimeEpoch = options.runtimeEpoch;
 		this.#write = options.write;
@@ -66,9 +67,8 @@ export class SshProjectRootChannelClient {
 		if (this.#channels.size >= MAXIMUM_CONCURRENT_INSPECTIONS) {
 			return Promise.resolve(failed('busy'));
 		}
-		const channelId = SshEnvironmentChannelIdSchema.safeParse(this.#nextChannelId);
-		if (!channelId.success) return Promise.resolve(failed('unavailable'));
-		this.#nextChannelId += 1;
+		const channelId = this.#allocateChannelId();
+		if (channelId === null) return Promise.resolve(failed('unavailable'));
 
 		return new Promise((resolve) => {
 			const channel: InspectionChannel = {
@@ -79,20 +79,20 @@ export class SshProjectRootChannelClient {
 				resultCreditBytes: SSH_PROJECT_ROOT_INITIAL_CREDIT_BYTES,
 				settled: false,
 				timeout: setTimeout(
-					() => this.#cancel(channelId.data, failed('timed-out')),
+					() => this.#cancel(channelId, failed('timed-out')),
 					INSPECTION_TIMEOUT_MILLISECONDS,
 				),
 			};
 			if (signal !== undefined) {
-				channel.abortListener = () => this.#cancel(channelId.data, { kind: 'cancelled' });
+				channel.abortListener = () => this.#cancel(channelId, { kind: 'cancelled' });
 				signal.addEventListener('abort', channel.abortListener, { once: true });
 			}
-			this.#channels.set(channelId.data, channel);
+			this.#channels.set(channelId, channel);
 			this.#send({
 				type: 'channel-open',
 				payload: {
 					runtimeEpoch: this.#runtimeEpoch,
-					channelId: channelId.data,
+					channelId,
 					serviceId: SSH_PROJECT_ROOT_SERVICE_ID,
 					initialCreditBytes: SSH_PROJECT_ROOT_INITIAL_CREDIT_BYTES,
 				},
@@ -100,7 +100,9 @@ export class SshProjectRootChannelClient {
 		});
 	}
 
-	handle(message: SshEnvironmentMessage): 'attachment-invalid' | 'handled' {
+	handle(message: SshEnvironmentMessage): 'attachment-invalid' | 'handled' | 'unhandled' {
+		const channelId = channelIdOf(message);
+		if (channelId === null || !this.#channels.has(channelId)) return 'unhandled';
 		switch (message.type) {
 			case 'channel-opened':
 				return this.#handleOpened(message.payload);
@@ -216,6 +218,19 @@ export class SshProjectRootChannelClient {
 
 	#send(message: SshEnvironmentMessage): void {
 		void this.#write(encodeSshEnvironmentMessage(message)).catch(this.#onAttachmentInvalid);
+	}
+}
+
+function channelIdOf(message: SshEnvironmentMessage): SshEnvironmentChannelId | null {
+	switch (message.type) {
+		case 'channel-data':
+		case 'channel-credit':
+			return message.channelId;
+		case 'channel-opened':
+		case 'channel-closed':
+			return message.payload.channelId;
+		default:
+			return null;
 	}
 }
 

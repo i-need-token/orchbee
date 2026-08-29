@@ -4,38 +4,46 @@ import { PassThrough } from 'node:stream';
 import {
 	SSH_ENVIRONMENT_MAX_FRAME_BYTES,
 	SSH_ENVIRONMENT_PROTOCOL_VERSION,
-	SSH_PROJECT_ROOT_SERVICE_ID,
-	SSH_RUNTIME_RELEASE_SIGNING_KEY_ID_PREFIX,
+	SSH_ENVIRONMENT_RELEASE_SCHEMA_VERSION,
+	SSH_ENVIRONMENT_RELEASE_SIGNING_KEY_ID_PREFIX,
+	SSH_ENVIRONMENT_RELEASE_TRUST_SCHEMA_VERSION,
+	SSH_ENVIRONMENT_REQUIRED_CAPABILITIES,
 	SshEnvironmentBuildDigestSchema,
 	SshEnvironmentFrameDecoder,
+	SshEnvironmentReleaseManifestSchema,
+	SshEnvironmentReleaseTrustDescriptorSchema,
+	SshEnvironmentReleaseUnsignedManifestSchema,
 	SshEnvironmentRuntimeEpochSchema,
 	SshEnvironmentRuntimeInstanceIdSchema,
 	SshEnvironmentRuntimeVersionSchema,
-	SshRuntimeReleaseManifestSchema,
-	SshRuntimeReleaseTrustDescriptorSchema,
-	SshRuntimeReleaseUnsignedManifestSchema,
-	createSshRuntimeManifestSigningPayload,
-	encodeSshRuntimeReleaseManifest,
+	SshEnvironmentTerminalHostVersionSchema,
+	createSshEnvironmentReleaseManifestSigningPayload,
 	encodeSshEnvironmentMessage,
+	encodeSshEnvironmentReleaseManifest,
 } from '@orchbee/ssh-environment-protocol';
 import { describe, expect, it, vi } from 'vitest';
 
 import { OpenSshTargetResolver } from '../OpenSshTargetResolver';
 import type { OpenSshTransportAdapter } from '../OpenSshTransportAdapter';
-import type { SshRuntimeReleaseSource } from '../ssh-runtime-release-source';
+import type { SshEnvironmentReleaseSource } from '../ssh-environment-release-source';
 import {
 	SshEnvironmentSupervisor,
 	type SshEnvironmentSupervisorDependencies,
 } from '../SshEnvironmentSupervisor';
-import { SSH_RUNTIME_BOOTSTRAP_STATUS_LINES } from '../ssh-runtime-bootstrap-negotiation';
-import { verifySshRuntimeReleaseCatalog } from '../verify-ssh-runtime-artifact';
+import { SSH_ENVIRONMENT_BOOTSTRAP_STATUS_LINES } from '../ssh-environment-bootstrap-negotiation';
+import { verifySshEnvironmentReleaseCatalog } from '../verify-ssh-environment-release';
 
 const runtimeInstanceId = SshEnvironmentRuntimeInstanceIdSchema.parse('1'.repeat(32));
 const runtimeEpoch = SshEnvironmentRuntimeEpochSchema.parse('2'.repeat(32));
 const runtimeVersion = SshEnvironmentRuntimeVersionSchema.parse('0.1.0');
+const terminalHostVersion = SshEnvironmentTerminalHostVersionSchema.parse('0.1.0');
 const artifactBytes = Buffer.from('signed Runtime artifact');
+const terminalHostArtifactBytes = Buffer.from('signed Terminal Host artifact');
 const buildDigest = SshEnvironmentBuildDigestSchema.parse(
 	createHash('sha256').update(artifactBytes).digest('hex'),
+);
+const terminalHostBuildDigest = SshEnvironmentBuildDigestSchema.parse(
+	createHash('sha256').update(terminalHostArtifactBytes).digest('hex'),
 );
 type ResolverDependencies = NonNullable<ConstructorParameters<typeof OpenSshTargetResolver>[1]>;
 
@@ -105,17 +113,30 @@ describe('SSH Environment supervisor', () => {
 		await eventually(() => open.mock.calls.length === 1);
 		expect(askPassResult).toEqual({ kind: 'submitted', response: 'one-use password' });
 		expect(interaction).toHaveBeenCalledWith({
+			generation: 1,
 			handle: 'ssh-prompt-test',
 			kind: 'none',
 			prompt: '(builder@host) Password:',
 		});
 		expect(output).toHaveLength(0);
-		readable.write(`${SSH_RUNTIME_BOOTSTRAP_STATUS_LINES['darwin-arm64'].upload}\n`);
-		await eventually(() => Buffer.concat(output).byteLength > artifactBytes.byteLength);
+		readable.write(
+			`${SSH_ENVIRONMENT_BOOTSTRAP_STATUS_LINES['darwin-arm64']['ssh-environment-runtime'].upload}\n`,
+		);
+		await eventually(() => Buffer.concat(output).byteLength >= artifactBytes.byteLength);
+		readable.write(
+			`${SSH_ENVIRONMENT_BOOTSTRAP_STATUS_LINES['darwin-arm64']['terminal-host'].upload}\n`,
+		);
+		const cohortArtifactLength = artifactBytes.byteLength + terminalHostArtifactBytes.byteLength;
+		await eventually(() => Buffer.concat(output).byteLength >= cohortArtifactLength);
+		readable.write(`${SSH_ENVIRONMENT_BOOTSTRAP_STATUS_LINES['darwin-arm64'].committed}\n`);
+		await eventually(() => Buffer.concat(output).byteLength > cohortArtifactLength);
 		const initialOutput = Buffer.concat(output);
 		expect(initialOutput.subarray(0, artifactBytes.byteLength)).toEqual(artifactBytes);
+		expect(initialOutput.subarray(artifactBytes.byteLength, cohortArtifactLength)).toEqual(
+			terminalHostArtifactBytes,
+		);
 		const decoder = new SshEnvironmentFrameDecoder();
-		const initialFrames = decoder.push(initialOutput.subarray(artifactBytes.byteLength));
+		const initialFrames = decoder.push(initialOutput.subarray(cohortArtifactLength));
 		expect(initialFrames.ok).toBe(true);
 		if (!initialFrames.ok) throw new Error('invalid supervisor Hello frame');
 		expect(initialFrames.messages).toHaveLength(1);
@@ -133,9 +154,12 @@ describe('SSH Environment supervisor', () => {
 					runtimeInstanceId,
 					runtimeEpoch,
 					runtimeVersion,
-					buildDigest,
+					runtimeBuildDigest: buildDigest,
+					releaseCohortDigest: releaseSource.releaseCohortDigest,
+					terminalHostVersion,
+					terminalHostBuildDigest,
 					platform: 'darwin-arm64',
-					capabilities: [SSH_PROJECT_ROOT_SERVICE_ID],
+					capabilities: [...SSH_ENVIRONMENT_REQUIRED_CAPABILITIES],
 					heartbeatIntervalMs: 15_000,
 					heartbeatMissLimit: 3,
 					maxFrameBytes: SSH_ENVIRONMENT_MAX_FRAME_BYTES,
@@ -244,9 +268,9 @@ describe('SSH Environment supervisor', () => {
 			{
 				interaction: vi.fn<SshEnvironmentSupervisorDependencies['interaction']>(),
 				releaseSource: {
-					loadArtifact: vi.fn<SshRuntimeReleaseSource['loadArtifact']>(),
+					loadArtifact: vi.fn<SshEnvironmentReleaseSource['loadArtifact']>(),
 					loadCatalog: vi
-						.fn<SshRuntimeReleaseSource['loadCatalog']>()
+						.fn<SshEnvironmentReleaseSource['loadCatalog']>()
 						.mockResolvedValue({ kind: 'unavailable' }),
 				},
 				targetResolver: resolvedTargetResolver(),
@@ -282,37 +306,58 @@ function resolvedTargetResolver(): OpenSshTargetResolver {
 }
 
 function signedRelease(signer: { readonly privateKey: KeyObject; readonly publicKey: KeyObject }) {
-	const unsigned = SshRuntimeReleaseUnsignedManifestSchema.parse({
-		schemaVersion: 1,
-		runtimeVersion,
-		artifacts: [
+	const unsigned = SshEnvironmentReleaseUnsignedManifestSchema.parse({
+		schemaVersion: SSH_ENVIRONMENT_RELEASE_SCHEMA_VERSION,
+		components: [
 			{
-				platform: 'darwin-arm64' as const,
-				sizeBytes: artifactBytes.byteLength,
-				sha256: buildDigest,
+				role: 'ssh-environment-runtime',
+				version: runtimeVersion,
+				artifacts: [
+					{
+						platform: 'darwin-arm64' as const,
+						sizeBytes: artifactBytes.byteLength,
+						sha256: buildDigest,
+					},
+					{
+						platform: 'linux-x64' as const,
+						sizeBytes: 1,
+						sha256: SshEnvironmentBuildDigestSchema.parse('0'.repeat(64)),
+					},
+				],
 			},
 			{
-				platform: 'linux-x64' as const,
-				sizeBytes: 1,
-				sha256: SshEnvironmentBuildDigestSchema.parse('0'.repeat(64)),
+				role: 'terminal-host',
+				version: terminalHostVersion,
+				artifacts: [
+					{
+						platform: 'darwin-arm64' as const,
+						sizeBytes: terminalHostArtifactBytes.byteLength,
+						sha256: terminalHostBuildDigest,
+					},
+					{
+						platform: 'linux-x64' as const,
+						sizeBytes: 1,
+						sha256: SshEnvironmentBuildDigestSchema.parse('2'.repeat(64)),
+					},
+				],
 			},
 		],
 	});
-	const manifest = SshRuntimeReleaseManifestSchema.parse({
+	const manifest = SshEnvironmentReleaseManifestSchema.parse({
 		...unsigned,
 		signature: sign(
 			null,
-			createSshRuntimeManifestSigningPayload(unsigned),
+			createSshEnvironmentReleaseManifestSigningPayload(unsigned),
 			signer.privateKey,
 		).toString('base64url'),
 	});
-	const manifestBytes = encodeSshRuntimeReleaseManifest(manifest);
+	const manifestBytes = encodeSshEnvironmentReleaseManifest(manifest);
 	const publicKeySpki = signer.publicKey.export({ format: 'der', type: 'spki' });
 	return {
 		manifestBytes,
-		trustDescriptor: SshRuntimeReleaseTrustDescriptorSchema.parse({
-			schemaVersion: 1,
-			signingKeyId: `${SSH_RUNTIME_RELEASE_SIGNING_KEY_ID_PREFIX}${createHash('sha256')
+		trustDescriptor: SshEnvironmentReleaseTrustDescriptorSchema.parse({
+			schemaVersion: SSH_ENVIRONMENT_RELEASE_TRUST_SCHEMA_VERSION,
+			signingKeyId: `${SSH_ENVIRONMENT_RELEASE_SIGNING_KEY_ID_PREFIX}${createHash('sha256')
 				.update(publicKeySpki)
 				.digest('hex')}`,
 			publicKeySpki: publicKeySpki.toString('base64url'),
@@ -323,26 +368,31 @@ function signedRelease(signer: { readonly privateKey: KeyObject; readonly public
 	};
 }
 
-function createReleaseSource(release: ReturnType<typeof signedRelease>): SshRuntimeReleaseSource {
-	const verification = verifySshRuntimeReleaseCatalog({
+function createReleaseSource(release: ReturnType<typeof signedRelease>) {
+	const verification = verifySshEnvironmentReleaseCatalog({
 		manifestBytes: release.manifestBytes,
 		trustDescriptor: release.trustDescriptor,
 	});
 	if (verification.kind === 'failed') throw new Error('Expected a verified test release.');
 	return {
-		loadArtifact: vi.fn<SshRuntimeReleaseSource['loadArtifact']>().mockResolvedValue({
-			artifact: {
-				buildDigest,
-				bytes: artifactBytes,
-				platform: 'darwin-arm64',
-				runtimeVersion,
-			},
-			kind: 'ready',
+		loadArtifact: vi.fn<SshEnvironmentReleaseSource['loadArtifact']>(async (role, platform) => {
+			const component = verification.catalog.components[role];
+			return {
+				artifact: {
+					buildDigest: component.artifacts[platform].buildDigest,
+					bytes: role === 'ssh-environment-runtime' ? artifactBytes : terminalHostArtifactBytes,
+					platform,
+					role,
+					version: component.version,
+				},
+				kind: 'ready',
+			};
 		}),
-		loadCatalog: vi.fn<SshRuntimeReleaseSource['loadCatalog']>().mockResolvedValue({
+		loadCatalog: vi.fn<SshEnvironmentReleaseSource['loadCatalog']>().mockResolvedValue({
 			catalog: verification.catalog,
 			kind: 'ready',
 		}),
+		releaseCohortDigest: verification.catalog.releaseCohortDigest,
 	};
 }
 

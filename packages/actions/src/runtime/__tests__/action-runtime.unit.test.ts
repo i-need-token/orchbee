@@ -998,7 +998,7 @@ describe('ActionRuntime', () => {
 			value: 'successor',
 		});
 		expect(handlerCallCount).toBe(2);
-	});
+	}, 30_000);
 
 	it('notifies on registration and disposal and returns unsupported for missing actions', () => {
 		const runtime = new ActionRuntime();

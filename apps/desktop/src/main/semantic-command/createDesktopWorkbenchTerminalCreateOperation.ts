@@ -33,6 +33,8 @@ type CanonicalDocumentMutationDecision =
 
 type CanonicalDocumentMutationResult =
 	| { readonly document: WorkbenchSharedDocument; readonly kind: 'committed' }
+	| { readonly document: WorkbenchSharedDocument; readonly kind: 'unchanged' }
+	| { readonly kind: 'indeterminate'; readonly reason: 'durability-unconfirmed' }
 	| { readonly kind: 'rejected'; readonly reason: string }
 	| {
 			readonly kind: 'unavailable';
@@ -127,6 +129,12 @@ export function createDesktopWorkbenchTerminalCreateOperation(
 			if (mutation.kind === 'rejected') return rejectedMutation(mutation.reason);
 			if (mutation.kind === 'unavailable') {
 				return noEffect('failed', `workbench-document-${mutation.reason}`);
+			}
+			if (mutation.kind === 'indeterminate') {
+				return noEffect('failed', 'workbench-document-durability-unconfirmed');
+			}
+			if (mutation.kind === 'unchanged') {
+				return noEffect('failed', 'workbench-mutation-invalid');
 			}
 			if (created === undefined || created.intent.kind !== 'provision') {
 				return noEffect('failed', 'workbench-mutation-invalid');

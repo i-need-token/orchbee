@@ -83,6 +83,13 @@ pub fn build(builder: *std.Build) void {
     project_root_service_module.addImport("ssh-environment-protocol", protocol_module);
     project_root_service_module.addImport("ssh-json-wire", json_wire_module);
     server_module.addImport("ssh-project-root-service", project_root_service_module);
+    const terminal_host_relay_module = builder.createModule(.{
+        .root_source_file = builder.path("src/terminal_host_relay.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    terminal_host_relay_module.addImport("ssh-runtime-private-ipc", security_module);
+    server_module.addImport("ssh-terminal-host-relay", terminal_host_relay_module);
     const attachment_module = builder.createModule(.{
         .root_source_file = builder.path("src/attachment.zig"),
         .target = target,
@@ -100,6 +107,7 @@ pub fn build(builder: *std.Build) void {
     executable_module.addImport("ssh-runtime-attachment", attachment_module);
     executable_module.addImport("ssh-project-root-service", project_root_service_module);
     executable_module.addImport("ssh-runtime-server", server_module);
+    executable_module.addImport("ssh-terminal-host-relay", terminal_host_relay_module);
 
     const executable = builder.addExecutable(.{
         .name = "orchbee-ssh-environment-runtime",
@@ -116,6 +124,7 @@ pub fn build(builder: *std.Build) void {
     test_module.addImport("ssh-runtime-arguments", arguments_module);
     test_module.addImport("ssh-environment-protocol", protocol_module);
     test_module.addImport("ssh-project-root-service", project_root_service_module);
+    test_module.addImport("ssh-terminal-host-relay", terminal_host_relay_module);
     const tests = builder.addTest(.{ .root_module = test_module });
     tests.root_module.link_libc = true;
     const run_tests = builder.addRunArtifact(tests);

@@ -1,4 +1,4 @@
-import { assert, integer, property, uniqueArray } from 'fast-check';
+import { array, assert, integer, property, uniqueArray } from 'fast-check';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -19,6 +19,7 @@ function directory(id: string, kind: WorkbenchDirectory['kind'] = 'folder'): Wor
 		kind,
 		name: id,
 		path: `/projects/${id}`,
+		placement: { kind: 'local' as const },
 		source: kind === 'worktree' ? ('discovered' as const) : ('selected' as const),
 	};
 	return kind === 'worktree'
@@ -48,6 +49,24 @@ function repositoryDirectory(id: string): WorkbenchFolderDirectory {
 		kind: 'folder',
 		name: id,
 		path: `/projects/${id}`,
+		placement: { kind: 'local' },
+		source: 'selected',
+	};
+}
+
+function remoteDirectory(
+	id: string,
+	environmentId = 'environment:00000000000000000000000000000001',
+	path = '/srv/orchbee',
+): WorkbenchFolderDirectory {
+	return {
+		available: false,
+		git: null,
+		id,
+		kind: 'folder',
+		name: 'orchbee',
+		path,
+		placement: { environmentId, kind: 'environment' },
 		source: 'selected',
 	};
 }
@@ -91,6 +110,206 @@ function createWorkspaces(count: number): ProjectWorkspaceState {
 }
 
 describe('project-workspace-state', () => {
+	it('registers an idempotent remote Project without Workspace or terminal effect', () => {
+		const initial = createProjectWorkspaceState();
+		const created = transitionProjectWorkspace(initial, {
+			directory: remoteDirectory('environment-directory:00000000000000000000000000000001'),
+			projectName: 'orchbee',
+			type: 'environment-project-registered',
+		});
+
+		expect(created).toMatchObject({
+			commands: [],
+			outcome: 'applied',
+			state: {
+				activeLocation: { kind: 'standalone' },
+				nextProjectSequence: 2,
+				nextTerminalContextSequence: 2,
+				nextWorkspaceSequence: 1,
+				projects: [
+					{
+						id: 'project-1',
+						primaryDirectoryId: 'environment-directory:00000000000000000000000000000001',
+						workspaces: [],
+					},
+				],
+			},
+		});
+
+		const duplicate = transitionProjectWorkspace(created.state, {
+			directory: remoteDirectory('environment-directory:ffffffffffffffffffffffffffffffff'),
+			projectName: 'renamed',
+			type: 'environment-project-registered',
+		});
+		expect(duplicate).toEqual({
+			commands: [],
+			outcome: 'unchanged',
+			rejection: null,
+			state: created.state,
+		});
+
+		const otherEnvironment = transitionProjectWorkspace(created.state, {
+			directory: remoteDirectory(
+				'environment-directory:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
+				'environment:00000000000000000000000000000002',
+			),
+			projectName: 'orchbee',
+			type: 'environment-project-registered',
+		});
+		expect(otherEnvironment.state.projects).toHaveLength(2);
+	});
+
+	it('registers one remote Workspace with an empty terminal context command', () => {
+		const remote = remoteDirectory('environment-directory:00000000000000000000000000000001');
+		const projectRegistered = transitionProjectWorkspace(createProjectWorkspaceState(), {
+			directory: remote,
+			projectName: 'orchbee',
+			type: 'environment-project-registered',
+		});
+		const workspaceRegistered = transitionProjectWorkspace(projectRegistered.state, {
+			directoryId: remote.id,
+			projectId: 'project-1',
+			type: 'environment-workspace-registered',
+			workspaceName: 'orchbee',
+		});
+
+		expect(workspaceRegistered).toMatchObject({
+			commands: [
+				{
+					terminalContextId: 'terminal-context-2',
+					type: 'terminal-context-created-empty',
+				},
+			],
+			outcome: 'applied',
+			state: {
+				activeLocation: { kind: 'standalone' },
+				nextTerminalContextSequence: 3,
+				nextWorkspaceSequence: 2,
+				projects: [
+					{
+						workspaces: [
+							{
+								id: 'workspace-1',
+								launchConfigurationId: null,
+								name: 'orchbee',
+								primaryDirectoryId: remote.id,
+								terminalContextId: 'terminal-context-2',
+							},
+						],
+					},
+				],
+			},
+		});
+		expect(
+			transitionProjectWorkspace(workspaceRegistered.state, {
+				directoryId: remote.id,
+				projectId: 'project-1',
+				type: 'environment-workspace-registered',
+				workspaceName: 'renamed',
+			}),
+		).toEqual({
+			commands: [],
+			outcome: 'unchanged',
+			rejection: null,
+			state: workspaceRegistered.state,
+		});
+	});
+
+	it('rejects remote Workspace registration against unknown or local placement', () => {
+		const local = createProject(createProjectWorkspaceState());
+		expect(
+			transitionProjectWorkspace(local, {
+				directoryId: 'directory-a',
+				projectId: 'project-1',
+				type: 'environment-workspace-registered',
+				workspaceName: 'forged',
+			}),
+		).toMatchObject({ outcome: 'rejected', rejection: 'directory-unavailable' });
+		expect(
+			transitionProjectWorkspace(local, {
+				directoryId: 'missing',
+				projectId: 'project-1',
+				type: 'environment-workspace-registered',
+				workspaceName: 'missing',
+			}),
+		).toMatchObject({ outcome: 'rejected', rejection: 'directory-not-found' });
+	});
+
+	it('converges generated repeated remote registrations by Environment and canonical path', () => {
+		assert(
+			property(
+				array(integer({ min: 0, max: 63 }), { minLength: 1, maxLength: 64 }),
+				(admissions) => {
+					let state = createProjectWorkspaceState();
+					const admittedKeys = new Set<string>();
+					for (const [index, value] of admissions.entries()) {
+						const environmentSequence = value % 4;
+						const pathSequence = Math.floor(value / 4) % 4;
+						const environmentId = `environment:${environmentSequence.toString(16).padStart(32, '0')}`;
+						const path = `/srv/project-${pathSequence}`;
+						const key = JSON.stringify([environmentId, path]);
+						const alreadyAdmitted = admittedKeys.has(key);
+						const result = transitionProjectWorkspace(state, {
+							directory: remoteDirectory(
+								`environment-directory:${(index + 1).toString(16).padStart(32, '0')}`,
+								environmentId,
+								path,
+							),
+							projectName: `project-${pathSequence}`,
+							type: 'environment-project-registered',
+						});
+
+						expect(result.commands).toEqual([]);
+						expect(result.outcome).toBe(alreadyAdmitted ? 'unchanged' : 'applied');
+						if (!alreadyAdmitted) admittedKeys.add(key);
+						state = result.state;
+					}
+
+					expect(state.projects).toHaveLength(admittedKeys.size);
+					expect(state.nextProjectSequence).toBe(admittedKeys.size + 1);
+					expect(state.nextTerminalContextSequence).toBe(2);
+					expect(state.nextWorkspaceSequence).toBe(1);
+					expect(state.projects.every((project) => project.workspaces.length === 0)).toBe(true);
+				},
+			),
+			{ numRuns: 200, seed: 20_260_828 },
+		);
+	});
+
+	it('keeps remote placement unavailable and outside local Workspace transitions', () => {
+		const remote = remoteDirectory('environment-directory:00000000000000000000000000000001');
+		const registered = transitionProjectWorkspace(createProjectWorkspaceState(), {
+			directory: remote,
+			projectName: 'orchbee',
+			type: 'environment-project-registered',
+		}).state;
+
+		expect(
+			transitionProjectWorkspace(registered, {
+				directoryId: remote.id,
+				launchConfigurationId: null,
+				name: 'Remote workspace',
+				projectId: 'project-1',
+				terminalTitle: 'Terminal',
+				type: 'workspace-created',
+			}),
+		).toMatchObject({ outcome: 'rejected', rejection: 'directory-unavailable' });
+		expect(
+			transitionProjectWorkspace(registered, {
+				directory: { ...remote, placement: { kind: 'local' } },
+				projectId: 'project-1',
+				type: 'directory-updated',
+			}),
+		).toMatchObject({ outcome: 'rejected', rejection: 'directory-update-not-allowed' });
+		expect(
+			transitionProjectWorkspace(createProjectWorkspaceState(), {
+				directory: { ...remote, available: true },
+				projectName: 'orchbee',
+				type: 'environment-project-registered',
+			}),
+		).toMatchObject({ outcome: 'rejected', rejection: 'directory-invalid' });
+	});
+
 	it('adds a managed Worktree Directory and optional Workspace atomically', () => {
 		const sourceDirectory = repositoryDirectory('directory-a');
 		const state = createProject(createProjectWorkspaceState(), sourceDirectory);
@@ -108,6 +327,7 @@ describe('project-workspace-state', () => {
 				kind: 'worktree',
 				name: 'orchbee/workspace-1',
 				path: '/managed/worktrees/managed-worktree-1',
+				placement: { kind: 'local' },
 				source: 'created',
 			},
 			projectId: 'project-1',
@@ -159,6 +379,7 @@ describe('project-workspace-state', () => {
 				kind: 'worktree',
 				name: 'orchbee/workspace-1',
 				path: '/managed/worktrees/managed-worktree-1',
+				placement: { kind: 'local' },
 				source: 'created',
 			},
 			projectId: 'project-1',
@@ -193,6 +414,7 @@ describe('project-workspace-state', () => {
 				kind: 'worktree',
 				name: 'orchbee/workspace-1',
 				path: '/managed/worktrees/managed-worktree-1',
+				placement: { kind: 'local' },
 				source: 'created',
 			},
 			projectId: 'project-1',
@@ -226,6 +448,7 @@ describe('project-workspace-state', () => {
 				kind: 'worktree',
 				name: 'detached-checkout',
 				path: '/external/detached-checkout',
+				placement: { kind: 'local' },
 				source: 'discovered',
 			},
 			projectId: 'project-1',
@@ -715,6 +938,40 @@ describe('project-workspace-state', () => {
 		});
 
 		expect(result.state.projects[0]?.primaryDirectoryId).toBe('directory-a');
+	});
+
+	it('rejects removal when a Workspace would fall back to a remote Directory', () => {
+		let state = transitionProjectWorkspace(createProjectWorkspaceState(), {
+			directory: remoteDirectory('environment-directory:00000000000000000000000000000001'),
+			projectName: 'Remote Project',
+			type: 'environment-project-registered',
+		}).state;
+		state = transitionProjectWorkspace(state, {
+			directory: directory('directory-local'),
+			projectId: 'project-1',
+			type: 'directory-added',
+		}).state;
+		state = transitionProjectWorkspace(state, {
+			directoryId: 'directory-local',
+			launchConfigurationId: null,
+			name: 'Local Workspace',
+			projectId: 'project-1',
+			terminalTitle: 'Local Terminal',
+			type: 'workspace-created',
+		}).state;
+
+		const result = transitionProjectWorkspace(state, {
+			directoryIds: ['directory-local'],
+			projectId: 'project-1',
+			type: 'directories-removed',
+		});
+
+		expect(result).toMatchObject({
+			commands: [],
+			outcome: 'rejected',
+			rejection: 'directory-removal-not-allowed',
+			state,
+		});
 	});
 
 	it('rejects removal of the final or automatically discovered Directory', () => {

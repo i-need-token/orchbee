@@ -65,6 +65,7 @@ function enteredFolderForPath(path: string) {
 		kind: 'folder' as const,
 		name: deriveProjectNameFromPath(path),
 		path,
+		placement: { kind: 'local' as const },
 		source: 'selected' as const,
 	};
 }

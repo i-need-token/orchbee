@@ -1,4 +1,5 @@
 import {
+	createEmptyWorkbenchSharedTerminalContext,
 	createWorkbenchSharedDocument,
 	workbenchSharedDocumentRevision,
 	type WorkbenchSharedDocument,
@@ -247,6 +248,99 @@ describe('DesktopTerminalIntentReconciler', () => {
 		]);
 		expect(reconciler.getTerminalEvents()).toContainEqual(failure);
 	});
+
+	it('routes a remote Workspace intent only to its durable Environment target', async () => {
+		const execute = vi
+			.fn<ConstructorParameters<typeof DesktopTerminalIntentReconciler>[0]['execute']>()
+			.mockImplementation(async (command) => ({
+				event: {
+					operationId: command.operationId,
+					presentationId: command.presentationId,
+					type: 'terminal-provision-completed',
+				},
+				kind: 'settled',
+			}));
+		const reconciler = new DesktopTerminalIntentReconciler({
+			createOperationId: () => terminalPresentationOperationId('restore-operation'),
+			execute,
+			getTerminalOutcome: () => null,
+		});
+
+		await reconciler.reconcileDocument(
+			document('0', provisionIntent('remote-operation'), {
+				targetEnvironmentId: 'environment:00000000000000000000000000000001',
+			}),
+			() => undefined,
+		);
+
+		expect(execute).toHaveBeenCalledWith(expect.anything(), {
+			environmentId: 'environment:00000000000000000000000000000001',
+			kind: 'ssh-environment',
+		});
+	});
+
+	it('keeps an unavailable remote intent pending until an explicit reconciliation settles it', async () => {
+		const execute = vi
+			.fn<ConstructorParameters<typeof DesktopTerminalIntentReconciler>[0]['execute']>()
+			.mockResolvedValueOnce({ kind: 'deferred' })
+			.mockImplementationOnce(async (command) => ({
+				event: {
+					operationId: command.operationId,
+					presentationId: command.presentationId,
+					type: 'terminal-provision-completed',
+				},
+				kind: 'settled',
+			}));
+		const reconciler = new DesktopTerminalIntentReconciler({
+			createOperationId: () => terminalPresentationOperationId('restore-operation'),
+			execute,
+			getTerminalOutcome: () => null,
+		});
+		const remote = document('0', provisionIntent('remote-operation'), {
+			targetEnvironmentId: 'environment:00000000000000000000000000000001',
+		});
+		const published: TerminalPresentationEvent[] = [];
+
+		await reconciler.reconcileDocument(remote, (event) => published.push(event));
+		expect(published).toEqual([]);
+		expect(reconciler.getTerminalEvents()).toEqual([]);
+
+		await reconciler.reconcileDocument(remote, (event) => published.push(event));
+		expect(execute).toHaveBeenCalledTimes(2);
+		expect(published.map((event) => event.type)).toEqual(['terminal-provision-completed']);
+	});
+
+	it('rejects reuse of a durable operation identity after its Environment target changes', async () => {
+		const execute = vi
+			.fn<ConstructorParameters<typeof DesktopTerminalIntentReconciler>[0]['execute']>()
+			.mockImplementation(async (command) => ({
+				event: {
+					operationId: command.operationId,
+					presentationId: command.presentationId,
+					type: 'terminal-provision-completed',
+				},
+				kind: 'settled',
+			}));
+		const reconciler = new DesktopTerminalIntentReconciler({
+			createOperationId: () => terminalPresentationOperationId('restore-operation'),
+			execute,
+			getTerminalOutcome: () => null,
+		});
+		await reconciler.reconcileDocument(
+			document('0', provisionIntent('same-operation'), {
+				targetEnvironmentId: 'environment:00000000000000000000000000000001',
+			}),
+			() => undefined,
+		);
+
+		expect(
+			reconciler.validateDocument(
+				document('1', provisionIntent('same-operation'), {
+					targetEnvironmentId: 'environment:00000000000000000000000000000002',
+				}),
+			),
+		).toBe(false);
+	});
 });
 
 function reconcilerWith(
@@ -258,8 +352,8 @@ function reconcilerWith(
 	let operationSequence = 0;
 	return new DesktopTerminalIntentReconciler({
 		createOperationId: () => terminalPresentationOperationId(`main:restore:${++operationSequence}`),
-		execute,
-		getTerminalOutcome,
+		execute: async (command) => ({ event: await execute(command), kind: 'settled' }),
+		getTerminalOutcome: (presentationId) => getTerminalOutcome(presentationId, { kind: 'local' }),
 	});
 }
 
@@ -289,15 +383,50 @@ function document(
 	options: {
 		readonly child?: WorkbenchSharedPresentation;
 		readonly launchCwd?: string;
+		readonly targetEnvironmentId?: string;
 	} = {},
 ): WorkbenchSharedDocument {
+	const remote = options.targetEnvironmentId !== undefined;
 	return createWorkbenchSharedDocument({
 		projectWorkspace: {
 			nextProjectSequence: 1,
-			nextTerminalContextSequence: 2,
-			nextWorkspaceSequence: 1,
-			projects: [],
-			standaloneTerminalContextId: 'terminal-context-1',
+			nextTerminalContextSequence: remote ? 3 : 2,
+			nextWorkspaceSequence: remote ? 2 : 1,
+			projects: remote
+				? [
+						{
+							directories: [
+								{
+									available: false,
+									git: null,
+									id: 'remote-directory-1',
+									kind: 'folder',
+									name: 'workspace',
+									path: '/workspace',
+									placement: {
+										environmentId: options.targetEnvironmentId,
+										kind: 'environment',
+									},
+									source: 'selected',
+								},
+							],
+							id: 'project-1',
+							launchConfigurations: [],
+							name: 'workspace',
+							primaryDirectoryId: 'remote-directory-1',
+							workspaces: [
+								{
+									id: 'workspace-1',
+									launchConfigurationId: null,
+									name: 'workspace',
+									primaryDirectoryId: 'remote-directory-1',
+									terminalContextId: 'terminal-context-1',
+								},
+							],
+						},
+					]
+				: [],
+			standaloneTerminalContextId: remote ? 'terminal-context-2' : 'terminal-context-1',
 		},
 		revision: workbenchSharedDocumentRevision(revision),
 		terminalContexts: [
@@ -331,6 +460,7 @@ function document(
 				},
 				terminalContextId: 'terminal-context-1',
 			},
+			...(remote ? [createEmptyWorkbenchSharedTerminalContext('terminal-context-2')] : []),
 		],
 	});
 }

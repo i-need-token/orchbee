@@ -9,8 +9,10 @@ import {
 	WorkbenchSharedDocumentRevisionSchema,
 	WorkbenchSharedDocumentSchema,
 	createDefaultWorkbenchClientView,
+	createEmptyWorkbenchSharedTerminalContext,
 	createWorkbenchClientView,
 	createWorkbenchSharedDocument,
+	migrateWorkbenchSharedDocumentVersion1,
 	parseWorkbenchClientView,
 	parseWorkbenchSharedDocument,
 	reconcileWorkbenchClientView,
@@ -126,6 +128,22 @@ function parsedViewJson(view: WorkbenchClientView): WorkbenchClientView {
 }
 
 describe('Workbench shared document and Client View', () => {
+	it('creates a canonical empty terminal context without terminal presentation intent', () => {
+		expect(createEmptyWorkbenchSharedTerminalContext('terminal-context-remote')).toEqual({
+			nextTabSequence: 1,
+			panelWorkspace: {
+				nextPanelSequence: 1,
+				nextPanelSlotSequence: 1,
+				nextSplitSequence: 1,
+				nextTerminalSequence: 1,
+				pendingRemovals: [],
+				tabs: [],
+			},
+			tabCollection: { groups: [], tabs: [] },
+			terminalContextId: 'terminal-context-remote',
+		});
+	});
+
 	it('round-trips only shared product structure and terminal lifecycle intent', () => {
 		const document = createWorkbenchSharedDocument(inputWithTabs([1, 3]));
 		const serialized = JSON.stringify(document);
@@ -144,7 +162,55 @@ describe('Workbench shared document and Client View', () => {
 		expect(serialized).not.toContain('weight');
 		expect(serialized).not.toContain('currentCwd');
 		expect(serialized).not.toContain('terminalId');
-		expect(document).toMatchObject({ revision: '0', version: 1 });
+		expect(document).toMatchObject({ revision: '0', version: 2 });
+	});
+
+	it('migrates one strict historical v1 document to local placement without changing its source', () => {
+		const current = createWorkbenchSharedDocument(inputWithTabs());
+		const historical = {
+			...current,
+			projectWorkspace: {
+				...current.projectWorkspace,
+				nextProjectSequence: 2,
+				projects: [
+					{
+						directories: [
+							{
+								available: true,
+								git: null,
+								id: 'directory-1',
+								kind: 'folder',
+								name: 'orchbee',
+								path: '/projects/orchbee',
+								source: 'selected',
+							},
+						],
+						id: 'project-1',
+						launchConfigurations: [],
+						name: 'orchbee',
+						primaryDirectoryId: 'directory-1',
+						workspaces: [],
+					},
+				],
+			},
+			version: 1 as const,
+		};
+		const before = JSON.stringify(historical);
+
+		const migrated = migrateWorkbenchSharedDocumentVersion1(historical);
+
+		expect(migrated.version).toBe(2);
+		expect(migrated.projectWorkspace.projects[0]?.directories[0]?.placement).toEqual({
+			kind: 'local',
+		});
+		expect(JSON.stringify(historical)).toBe(before);
+		expect(() => parseWorkbenchSharedDocument(historical)).toThrow(/version/u);
+		expect(() =>
+			migrateWorkbenchSharedDocumentVersion1({
+				...historical,
+				projectWorkspace: { ...historical.projectWorkspace, unexpected: true },
+			}),
+		).toThrow(/unexpected/u);
 	});
 
 	it('derives a complete default Client View without changing the shared document', () => {
@@ -286,7 +352,7 @@ describe('Workbench shared document and Client View', () => {
 		expect(
 			WorkbenchSharedDocumentSchema.safeParse({
 				...input,
-				version: 1,
+				version: 2,
 				terminalContexts: [
 					{
 						...terminalContext,
@@ -312,7 +378,7 @@ describe('Workbench shared document and Client View', () => {
 		expect(
 			WorkbenchSharedDocumentSchema.safeParse({
 				...input,
-				version: 1,
+				version: 2,
 				terminalContexts: [
 					{
 						...terminalContext,

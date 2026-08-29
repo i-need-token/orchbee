@@ -13,7 +13,7 @@ describe('Desktop SSH Environment resource composition', () => {
 		).toEqual({
 			askPassHelperEntryPath: '/repo/apps/desktop/dist/main/ssh-askpass-helper.cjs',
 			askPassRuntimeExecutablePath: '/Applications/Electron.app/Contents/MacOS/Electron',
-			runtimeRelease: null,
+			release: null,
 		});
 	});
 
@@ -28,11 +28,11 @@ describe('Desktop SSH Environment resource composition', () => {
 		).toEqual({
 			askPassHelperEntryPath: '/Applications/Orchbee.app/Contents/Resources/ssh-askpass-helper.cjs',
 			askPassRuntimeExecutablePath: '/Applications/Orchbee.app/Contents/MacOS/Orchbee',
-			runtimeRelease: {
+			release: {
 				releaseDirectoryPath:
-					'/Applications/Orchbee.app/Contents/Resources/ssh-environment-runtime-release-v1',
+					'/Applications/Orchbee.app/Contents/Resources/ssh-environment-release-v2',
 				trustDescriptorFilePath:
-					'/Applications/Orchbee.app/Contents/Resources/app.asar/dist/main/ssh-environment-runtime-release-trust-v1.json',
+					'/Applications/Orchbee.app/Contents/Resources/app.asar/dist/main/ssh-environment-release-trust-v2.json',
 			},
 		});
 	});

@@ -6,6 +6,18 @@ import { VerticalTabStripBottomContainer } from '../VerticalTabStripBottomContai
 afterEach(cleanup);
 
 describe('VerticalTabStripBottomContainer', () => {
+	it('exposes host creation availability on the native button', () => {
+		render(
+			<VerticalTabStripBottomContainer
+				collapseState={VerticalTabStripCollapseState.Expanded}
+				disabled
+				onNewTab={() => undefined}
+			/>,
+		);
+
+		expect(screen.getByRole('button', { name: 'New tab' }).hasAttribute('disabled')).toBe(true);
+	});
+
 	it('forwards primary and context actions with collapsed styling', () => {
 		const onNewTab = vi.fn<() => void>();
 		const onContextMenu = vi.fn<(event: React.MouseEvent) => void>((event) =>

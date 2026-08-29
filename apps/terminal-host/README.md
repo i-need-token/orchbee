@@ -146,6 +146,21 @@ inside its platform adapter, while Terminal Host remains a separately retained s
 
 `orchbee-terminal-host --version` prints the executable name and its embedded semantic version. The binary version identifies the packaged process and is independent from protocol and binary format versions.
 
+## SSH Environment release component
+
+The accepted schema-version-2 SSH Environment release reuses this executable unchanged as its
+`terminal-host` component. This workspace owns the component build recipe; repository-level release
+automation owns cross-application assembly, signing inputs, and final bundles. The exact remote
+targets are `aarch64-macos` and `x86_64-linux-gnu`, built with Zig `0.16.0`, `ReleaseSafe`, stripping,
+and `-Dhost-version=<semver>`.
+
+After Desktop explicitly opens the accepted `terminal-host-v1` service, the remote SSH Runtime
+connects to this executable's unchanged same-user private endpoint or starts the exact cohort-pinned
+version, then relays opaque Terminal Host protocol bytes over the existing SSH attachment. Terminal
+Host still owns native terminal identities, retained terminal state, PTYs, and process trees. The
+component itself gains no network listener, SSH parsing, or generic command authority; remote
+lifecycle and relay policy belong to Desktop and the SSH Runtime.
+
 ## Pinned native inputs
 
 | Input                | Value                                                            |

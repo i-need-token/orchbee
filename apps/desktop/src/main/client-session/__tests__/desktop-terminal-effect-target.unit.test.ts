@@ -1,0 +1,180 @@
+import {
+	createEmptyWorkbenchSharedTerminalContext,
+	createWorkbenchSharedDocument,
+	workbenchSharedDocumentRevision,
+	type WorkbenchSharedDocument,
+} from '@orchbee/workbench/document';
+import { terminalPresentationId } from '@orchbee/workbench/terminal-presentation';
+import { describe, expect, it } from 'vitest';
+
+import {
+	resolveDesktopTerminalContextEffectTarget,
+	resolveDesktopTerminalPresentationEffectTarget,
+} from '../desktop-terminal-effect-target';
+
+const presentationId = terminalPresentationId('presentation-1');
+
+describe('resolveDesktopTerminalEffectTarget', () => {
+	it('resolves a standalone Presentation only to the local runtime', () => {
+		const document = terminalDocument();
+
+		expect(resolveDesktopTerminalPresentationEffectTarget(document, presentationId)).toEqual({
+			kind: 'local',
+		});
+	});
+
+	it('resolves a Workspace Presentation through its primary Directory placement', () => {
+		const document = terminalDocument('environment:00000000000000000000000000000001');
+
+		expect(resolveDesktopTerminalPresentationEffectTarget(document, presentationId)).toEqual({
+			environmentId: 'environment:00000000000000000000000000000001',
+			kind: 'ssh-environment',
+		});
+	});
+
+	it('fails closed when the Presentation is absent or appears in multiple contexts', () => {
+		const document = terminalDocument();
+		expect(() =>
+			resolveDesktopTerminalPresentationEffectTarget(
+				document,
+				terminalPresentationId('missing-presentation'),
+			),
+		).toThrow('exactly one Terminal Context');
+
+		const duplicateContext = {
+			...document.terminalContexts[0],
+			terminalContextId: 'terminal-context-2',
+		};
+		const ambiguous = {
+			...document,
+			terminalContexts: [...document.terminalContexts, duplicateContext],
+		} as WorkbenchSharedDocument;
+		expect(() => resolveDesktopTerminalPresentationEffectTarget(ambiguous, presentationId)).toThrow(
+			'exactly one Terminal Context',
+		);
+	});
+
+	it('fails closed when one context contains the Presentation more than once', () => {
+		const document = terminalDocument();
+		const context = document.terminalContexts[0];
+		const tab = context?.panelWorkspace.tabs[0];
+		if (context === undefined || tab === undefined) throw new Error('Missing test terminal tab.');
+		const ambiguous = {
+			...document,
+			terminalContexts: [
+				{
+					...context,
+					panelWorkspace: {
+						...context.panelWorkspace,
+						tabs: [tab, { ...tab, tabId: 'tab-2' }],
+					},
+				},
+			],
+		} as WorkbenchSharedDocument;
+
+		expect(() => resolveDesktopTerminalPresentationEffectTarget(ambiguous, presentationId)).toThrow(
+			'exactly one Terminal Context',
+		);
+	});
+
+	it('fails closed when a context has competing standalone and Workspace authority', () => {
+		const remote = terminalDocument('environment:00000000000000000000000000000001');
+		const ambiguous = {
+			...remote,
+			projectWorkspace: {
+				...remote.projectWorkspace,
+				standaloneTerminalContextId: 'terminal-context-1',
+			},
+		} as WorkbenchSharedDocument;
+
+		expect(() =>
+			resolveDesktopTerminalContextEffectTarget(ambiguous, 'terminal-context-1'),
+		).toThrow('exactly one effect target');
+	});
+});
+
+function terminalDocument(environmentId?: string): WorkbenchSharedDocument {
+	const remote = environmentId !== undefined;
+	return createWorkbenchSharedDocument({
+		projectWorkspace: {
+			nextProjectSequence: remote ? 2 : 1,
+			nextTerminalContextSequence: remote ? 3 : 2,
+			nextWorkspaceSequence: remote ? 2 : 1,
+			projects: remote
+				? [
+						{
+							directories: [
+								{
+									available: false,
+									git: null,
+									id: 'directory-1',
+									kind: 'folder',
+									name: 'workspace',
+									path: '/workspace',
+									placement: { environmentId, kind: 'environment' },
+									source: 'selected',
+								},
+							],
+							id: 'project-1',
+							launchConfigurations: [],
+							name: 'workspace',
+							primaryDirectoryId: 'directory-1',
+							workspaces: [
+								{
+									id: 'workspace-1',
+									launchConfigurationId: null,
+									name: 'workspace',
+									primaryDirectoryId: 'directory-1',
+									terminalContextId: 'terminal-context-1',
+								},
+							],
+						},
+					]
+				: [],
+			standaloneTerminalContextId: remote ? 'terminal-context-2' : 'terminal-context-1',
+		},
+		revision: workbenchSharedDocumentRevision('0'),
+		terminalContexts: [
+			{
+				nextTabSequence: 2,
+				panelWorkspace: {
+					nextPanelSequence: 2,
+					nextPanelSlotSequence: 1,
+					nextSplitSequence: 1,
+					nextTerminalSequence: 2,
+					pendingRemovals: [],
+					tabs: [
+						{
+							root: {
+								childPresentations: [],
+								id: 'panel-1',
+								kind: 'panel',
+								primaryPresentation: {
+									intent: { kind: 'retain' },
+									launchCwd: '/workspace',
+									presentationId,
+									title: 'Terminal',
+								},
+							},
+							tabId: 'tab-1',
+						},
+					],
+				},
+				tabCollection: {
+					groups: [],
+					tabs: [
+						{
+							customTitle: null,
+							group: null,
+							id: 'tab-1',
+							pinned: false,
+							title: 'Terminal',
+						},
+					],
+				},
+				terminalContextId: 'terminal-context-1',
+			},
+			...(remote ? [createEmptyWorkbenchSharedTerminalContext('terminal-context-2')] : []),
+		],
+	});
+}

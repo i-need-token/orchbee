@@ -17,19 +17,19 @@ independent Tab and Panel contexts or determine their default CWD from a Project
 
 ## Inputs and validation
 
-| Input                                                   | Trust and absence                                                               |
-| ------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| `ProjectWorkspaceState`                                 | Trusted only after construction or transition invariant checks                  |
-| Project, Directory, Workspace, and terminal-context IDs | Stable opaque strings; missing or stale IDs reject                              |
-| Directory descriptor                                    | A host-normalized local location with one canonical Folder or Worktree kind     |
-| Managed Worktree commit                                 | One host-validated created Worktree and one current source Directory            |
-| Existing Worktree adoption                              | One host-revalidated discovered Worktree and one current source Directory       |
-| Browser-entered Folder path                             | Trimmed, non-empty user input; otherwise preserved and not filesystem-verified  |
-| Display name                                            | User or localized product input; duplicate names are allowed                    |
-| Launch-configuration reference                          | Stable Project-local ID and display name; executable payload remains host-owned |
-| Explicit terminal Directory                             | Must be an available member of the target Project                               |
-| Split CWD                                               | A host-reported local CWD; absence continues through the fallback chain         |
-| System CWD                                              | Required final fallback supplied by the composition host                        |
+| Input                                                   | Trust and absence                                                                  |
+| ------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `ProjectWorkspaceState`                                 | Trusted only after construction or transition invariant checks                     |
+| Project, Directory, Workspace, and terminal-context IDs | Stable opaque strings; missing or stale IDs reject                                 |
+| Directory descriptor                                    | One canonical Folder or Worktree kind plus explicit local or Environment placement |
+| Managed Worktree commit                                 | One host-validated created Worktree and one current source Directory               |
+| Existing Worktree adoption                              | One host-revalidated discovered Worktree and one current source Directory          |
+| Browser-entered Folder path                             | Trimmed, non-empty user input; otherwise preserved and not filesystem-verified     |
+| Display name                                            | User or localized product input; duplicate names are allowed                       |
+| Launch-configuration reference                          | Stable Project-local ID and display name; executable payload remains host-owned    |
+| Explicit terminal Directory                             | Must be an available member of the target Project                                  |
+| Split CWD                                               | A host-reported local CWD; absence continues through the fallback chain            |
+| System CWD                                              | Required final fallback supplied by the composition host                           |
 
 The first delivery receives normalized Directory descriptors and performs no filesystem lookup.
 The browser preview additionally accepts a manually entered path and constructs a synthetic Folder
@@ -37,6 +37,25 @@ Directory for its simulated terminal projection. Its `available: true` means the
 can use the path as launch CWD; it is not evidence that the path exists on disk. Later platform
 adapters must validate external filesystem and Git data before constructing authoritative local
 descriptors.
+
+Each Directory is the current Checkout-bearing entity and has exactly one placement:
+
+```text
+placement = local | environment(EnvironmentId)
+```
+
+The Environment reference is an opaque non-empty string to Workbench. The composing application
+owns registry validation. Path uniqueness is scoped by placement, so the same spelling may exist
+locally and in distinct Environments. Directory refresh cannot change placement. Ordinary Folder
+acquisition, Git Worktree, Workspace creation/edit/duplicate, and terminal-CWD flows are local-only
+and require `placement: local`. Creating or editing an ordinary Workspace or resolving its terminal
+CWD additionally requires that local Directory to be available. An existing local Workspace remains
+structurally valid if its Directory later refreshes unavailable, but it cannot launch until that
+Directory is available again. The authoritative remote-registration exception is
+`environment-workspace-registered`: it may reference a forced-unavailable Environment Directory
+and creates an empty terminal context without a terminal presentation or Host effect. After that
+placement is durable, the composing Main process may use the dedicated remote-terminal operation
+described below; ordinary local creation and CWD resolution remain unchanged.
 
 ## Data
 
@@ -82,7 +101,8 @@ state references that context; it does not duplicate Tab, Panel, or Terminal Ses
 - Every Project `primaryDirectoryId` names one of its Directories.
 - Launch-configuration IDs are unique within their Project.
 - Every Workspace belongs to exactly one Project and its `primaryDirectoryId` names one Directory
-  in that Project.
+  in that Project. Ordinary Workspace transitions require local placement; only the authoritative
+  remote-registration transition may introduce an Environment-placed primary Directory.
 - Every non-null Workspace `launchConfigurationId` names one Project launch configuration.
 - Each Workspace has one terminal-context ID, and no two Workspaces or the standalone terminal
   share a terminal context.
@@ -91,16 +111,19 @@ state references that context; it does not duplicate Tab, Panel, or Terminal Ses
 - Display names need not be unique and never serve as identity.
 - A transition that rejects or reports unchanged preserves the complete input state.
 
-Removing Directories preserves referential integrity. For every removed primary Directory, choose
-the first surviving Directory after it in the Project's previous stable order, wrapping to the
-first surviving Directory when necessary. Removing the final Directory rejects.
+Removing Directories preserves referential integrity. For every removed Project primary Directory,
+choose the first surviving Directory after it in the Project's previous stable order, wrapping to
+the first surviving Directory when necessary. A Workspace primary uses the same circular order but
+skips every remote Directory; removal rejects if no local fallback survives. Removing the final
+Project Directory also rejects.
 
 ## Outputs
 
 `transitionProjectWorkspace` returns the complete next state, an `applied`, `unchanged`, or
 `rejected` outcome, a named rejection when applicable, and terminal-context commands. Commands
-create, clone, or dispose in-memory terminal contexts; the pure transition performs no React, DOM,
-storage, process, filesystem, Git, time, random, or network effect.
+create an empty or populated context, clone a context, or dispose an in-memory context; the pure
+transition performs no React, DOM, storage, process, filesystem, Git, time, random, or network
+effect.
 
 Each terminal presentation records immutable `launchCwd` separately from host-reported `currentCwd`.
 Workbench owns its opaque presentation ID and discriminated lifecycle, while the application owns
@@ -117,10 +140,32 @@ explicit Project Directory
 ```
 
 An invalid explicit Directory rejects in the Workbench runtime before terminal creation.
-Unavailable default Directories are skipped. The host may report a terminal's current CWD without
-changing its launch CWD. Panel split and child-terminal creation inherit current CWD; Workspace
-duplication starts fresh shells from recorded launch CWD. Changing a Project or Workspace primary
-Directory never changes an existing terminal CWD.
+Unavailable local default Directories are skipped. An Environment-placed Workspace primary rejects
+as `workspace-directory-remote` before Project or system fallback, so the local runtime cannot turn
+a remote Workspace into a local shell accidentally. The host may report a terminal's current CWD
+without changing its launch CWD. Panel split and child-terminal creation inherit current CWD;
+Workspace duplication starts fresh shells from recorded launch CWD. Changing a Project or Workspace
+primary Directory never changes an existing terminal CWD.
+
+`WorkbenchProjectWorkspaceRuntime#createEnvironmentTerminalAtLocation` is the narrow exception for
+the first terminal in a Main-admitted remote Workspace. Its caller supplies the exact Project,
+Workspace, and Environment identities. Workbench verifies their containment and placement, requires
+the target Terminal Context to be exactly empty, and records the canonical remote primary-Directory
+path as `launchCwd`. A successful call creates exactly one top-level Tab, one primary Panel, and one
+`provision` presentation without changing active location, Project disclosure, or Client View. It
+rejects a local Workspace, an Environment mismatch, or any non-empty context; it never falls back to
+the local system CWD. The operation records durable intent only and performs no process or network
+effect.
+
+`resolveActiveTerminalCreationRoute` is the product Action boundary. Standalone and local Workspace
+locations keep the existing local semantic command. An Environment-placed Workspace is eligible
+only when its exact Terminal Context is empty, placement is default top-level, and the Electron host
+provides the remote-terminal-creation capability; the capability receives only Project and Workspace
+identities. The Action waits until the canonical client-session publication contains the exact
+created or existing terminal identity and performs no optimistic state, local fallback, navigation,
+selection, or focus effect. The Action, shortcut, New Terminal buttons, New Group with Tab, and
+Duplicate Tab all revalidate the same availability policy, so another Tab-producing path cannot
+bypass the remote singleton boundary.
 
 ### Semantic command projections and terminal creation
 
@@ -192,6 +237,8 @@ trusted command or SSH fact; this policy does not guess either state.
 | Reorder Workspace            | Known Project, source Workspace, and optional sibling target   | Workspace moves within that Project, or to the end when absent        | None                                                                  |
 | Activate Workspace           | Known Project and Workspace membership                         | Workspace becomes active and Project expands                          | None                                                                  |
 | Create Project               | One normalized available Directory                             | Project, Primary Workspace, and active location are created           | Create one context with one Tab, Panel, and shell projection          |
+| Register remote Project      | One unavailable Environment Folder; unique placement and path  | Project with no Workspace is appended; active location is unchanged   | None                                                                  |
+| Register remote Workspace    | Known Environment Directory without its admitted Workspace     | One inactive Workspace appends; Project disclosure remains unchanged  | Create one empty context; no Tab, Panel, presentation, or Host effect |
 | Add Directory                | Known Project; location not already present                    | Directory appends to stable order                                     | None                                                                  |
 | Register created Worktree    | Known Project and available source; unique valid Worktree      | Directory appends; optional Workspace appends, expands, and activates | Create one context only when the Workspace option is enabled          |
 | Adopt existing Worktree      | Known Project and available source; unique discovered Worktree | Directory and Workspace append, expand, and activate                  | Create one context rooted at the adopted Worktree                     |
@@ -201,9 +248,24 @@ trusted command or SSH fact; this policy does not guess either state.
 | Set Project primary          | Available Project Directory                                    | Future Project defaults change                                        | None                                                                  |
 | Create Workspace             | Available Project Directory                                    | Workspace appends, Project expands, Workspace becomes active          | Create one context with one Tab, Panel, and shell projection          |
 | Edit Workspace               | Known Workspace and available Project Directory                | Name or future default changes                                        | None                                                                  |
-| Duplicate Workspace          | Known Workspace                                                | Copy appends and becomes active                                       | Clone layout and names into fresh Tab, Panel, and Terminal identities |
+| Duplicate Workspace          | Known Workspace with a local primary Directory                 | Copy appends and becomes active                                       | Clone layout and names into fresh Tab, Panel, and Terminal identities |
 | Delete Workspace             | Known Workspace                                                | Workspace is removed; active deletion falls back to standalone        | Dispose its context                                                   |
 | Remove Project               | Known Project                                                  | Project and its Workspace metadata are removed; disk locations remain | Dispose every Project Workspace context                               |
+
+Remote Project and Workspace registration are pure Workbench transitions intended only for an
+authoritative application owner. Project registration allocates through the existing sequence,
+accepts the owner-supplied Directory identity, and emits no command. Workspace registration
+allocates one Workspace and terminal-context identity for that Environment Directory but leaves the
+active location and Project disclosure unchanged; its only command materializes an empty context.
+Repeating either represented placement is unchanged. Desktop composes both transitions into one
+canonical commit and owns remote inspection, registry authorization, random Directory identity,
+durable idempotency, and proposal-origin policy.
+
+Remote terminal provision is a separate Main-owned operation over that already admitted placement.
+It is not a general Project transition and is not exposed through the ordinary local terminal-create
+semantic command. Desktop owns Environment connectivity, target-specific Host selection,
+commit-before-effect ordering, retry reconciliation, and process execution; Workbench owns only the
+exact structural mutation and its rejection rules.
 
 The runtime's optional transition commit callback runs only for an `applied` result, immediately
 before any terminal-context command or authoritative state replacement. Action adapters use it to
@@ -431,7 +493,8 @@ Action availability.
 | Ellipsis and row context gestures expose one action-menu model                                                 | Component parity and invocation tests                     | Pointer interaction review                    | Project and Workspace rows only                         |
 
 TLA+ is not required for the synchronous in-memory transition, semantic projection and terminal
-creation, or browser path-entry set. The
+creation, or browser path-entry set. Remote admission ordering, cancellation, idempotency, and
+one-way document migration are covered by Desktop's registered admission and migration models. The
 asynchronous existing-Folder adapter is covered by the `project-folder-acquisition` configuration
 of `DesktopLifecycle`, including selection, cancellation, failure, stale targets, renderer
 retirement, and late native completion. Managed Worktree Git/product parity and recovery are covered

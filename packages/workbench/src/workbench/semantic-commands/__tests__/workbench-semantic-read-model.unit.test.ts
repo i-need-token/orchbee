@@ -23,6 +23,7 @@ const PRIMARY_DIRECTORY: WorkbenchDirectory = {
 	kind: 'folder',
 	name: 'primary',
 	path: '/projects/primary',
+	placement: { kind: 'local' },
 	source: 'selected',
 };
 
@@ -31,6 +32,7 @@ const FEATURE_DIRECTORY: WorkbenchDirectory = {
 	id: 'directory-feature',
 	name: 'feature',
 	path: '/projects/feature',
+	placement: { kind: 'local' },
 	source: 'discovered',
 };
 
@@ -157,6 +159,7 @@ describe('Workbench semantic read model', () => {
 					kind: 'folder',
 					name: 'primary',
 					path: '/projects/primary',
+					placement: { kind: 'local' },
 					primary: true,
 					source: 'selected',
 				},
@@ -166,6 +169,7 @@ describe('Workbench semantic read model', () => {
 					kind: 'folder',
 					name: 'feature',
 					path: '/projects/feature',
+					placement: { kind: 'local' },
 					primary: false,
 					source: 'discovered',
 				},
@@ -175,6 +179,7 @@ describe('Workbench semantic read model', () => {
 					kind: 'folder',
 					name: 'unavailable',
 					path: '/projects/unavailable',
+					placement: { kind: 'local' },
 					primary: false,
 					source: 'selected',
 				},
@@ -237,6 +242,52 @@ describe('Workbench semantic read model', () => {
 				(terminal) => terminal.terminalContextId === alphaWorkspace.terminalContextId,
 			),
 		).toBe(true);
+	});
+
+	it('projects an authoritative remote Directory placement without creating a Workspace', () => {
+		const runtime = createRuntime();
+		const registration = runtime.transition({
+			directory: {
+				available: false,
+				git: null,
+				id: 'environment-directory:11111111111111111111111111111111',
+				kind: 'folder',
+				name: 'orchbee',
+				path: '/srv/orchbee',
+				placement: {
+					environmentId: 'environment:22222222222222222222222222222222',
+					kind: 'environment',
+				},
+				source: 'selected',
+			},
+			projectName: 'orchbee',
+			type: 'environment-project-registered',
+		});
+		expect(registration).toMatchObject({ commands: [], outcome: 'applied' });
+
+		const document = runtime.getSharedDocument(workbenchSharedDocumentRevision('1'));
+		expect(projectWorkbenchDirectoryList(document, 'project-1')).toEqual({
+			items: [
+				{
+					available: false,
+					directoryId: 'environment-directory:11111111111111111111111111111111',
+					kind: 'folder',
+					name: 'orchbee',
+					path: '/srv/orchbee',
+					placement: {
+						environmentId: 'environment:22222222222222222222222222222222',
+						kind: 'environment',
+					},
+					primary: true,
+					source: 'selected',
+				},
+			],
+			revision: '1',
+		});
+		expect(projectWorkbenchWorkspaceList(document, 'project-1')).toEqual({
+			items: [],
+			revision: '1',
+		});
 	});
 
 	it('rejects stale and cross-Project read targets without a Client View fallback', () => {

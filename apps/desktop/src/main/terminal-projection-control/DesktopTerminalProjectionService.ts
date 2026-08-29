@@ -51,6 +51,7 @@ export interface DesktopTerminalProjectionLease {
 }
 
 export interface DesktopTerminalProjectionOpenOptions {
+	readonly allowArchivedFallback?: boolean;
 	readonly brokerEffectTarget: ProjectedTerminalBrokerEffectTarget;
 }
 

@@ -122,6 +122,9 @@ importers:
 
   .:
     devDependencies:
+      '@orchbee/ssh-environment-protocol':
+        specifier: workspace:^
+        version: link:packages/ssh-environment-protocol
       knip:
         specifier: 'catalog:'
         version: 6.26.0
@@ -300,6 +303,9 @@ importers:
       '@orchbee/ssh-environment-protocol':
         specifier: workspace:^
         version: link:../../packages/ssh-environment-protocol
+      '@orchbee/terminal-protocol':
+        specifier: workspace:^
+        version: link:../../packages/terminal-protocol
 
   apps/storybook:
     dependencies:

@@ -15,6 +15,7 @@ import {
 	type DesktopClientDocumentProposalDecision,
 	type DesktopClientSessionPhase,
 } from './decideDesktopClientDocumentProposal';
+import { validateDesktopClientRemotePlacementProposal } from './validateDesktopClientRemotePlacementProposal';
 
 export type DesktopClientSessionPublication =
 	| {
@@ -60,14 +61,24 @@ export type DesktopClientDocumentProposalResult =
 
 export type DesktopCanonicalDocumentMutationDecision =
 	| { readonly document: WorkbenchSharedDocument; readonly kind: 'commit' }
+	| { readonly kind: 'unchanged' }
 	| { readonly kind: 'rejected'; readonly reason: string };
 
 export type DesktopCanonicalDocumentMutationResult =
 	| { readonly document: WorkbenchSharedDocument; readonly kind: 'committed' }
+	| { readonly document: WorkbenchSharedDocument; readonly kind: 'unchanged' }
+	| { readonly kind: 'indeterminate'; readonly reason: 'durability-unconfirmed' }
 	| { readonly kind: 'rejected'; readonly reason: string }
 	| {
 			readonly kind: 'unavailable';
 			readonly reason: 'invalid' | 'read-failed' | 'write-failed';
+	  };
+
+export type DesktopCanonicalDocumentReconciliationResult =
+	| { readonly document: WorkbenchSharedDocument; readonly kind: 'reconciled' }
+	| {
+			readonly kind: 'rejected';
+			readonly reason: 'control-unavailable' | 'document-missing';
 	  };
 
 type DesktopClientSessionBootstrap =
@@ -169,7 +180,10 @@ export class DesktopClientSessionCoordinator {
 	#unavailableReason: 'invalid' | 'read-failed' | 'write-failed' | undefined;
 	#startResult:
 		| { readonly kind: 'ready' }
-		| { readonly kind: 'unavailable'; readonly reason: 'invalid' | 'read-failed' }
+		| {
+				readonly kind: 'unavailable';
+				readonly reason: 'invalid' | 'read-failed' | 'write-failed';
+		  }
 		| undefined;
 
 	constructor(dependencies: DesktopClientSessionCoordinatorDependencies) {
@@ -200,9 +214,16 @@ export class DesktopClientSessionCoordinator {
 					initialized.kind !== 'committed' ||
 					initialized.revision !== initializationDocument.revision
 				) {
-					const reason = initialized.kind === 'unavailable' ? initialized.reason : 'write-failed';
-					this.#becomeUnavailable(reason);
-					return { kind: 'unavailable', reason };
+					if (initialized.kind === 'unavailable') {
+						if (initialized.reason === 'write-indeterminate') {
+							this.#becomeUnavailable('write-failed');
+							return { kind: 'indeterminate', reason: 'durability-unconfirmed' };
+						}
+						this.#becomeUnavailable(initialized.reason);
+						return { kind: 'unavailable', reason: initialized.reason };
+					}
+					this.#becomeUnavailable('write-failed');
+					return { kind: 'unavailable', reason: 'write-failed' };
 				}
 				this.#canonicalDocument = initializationDocument;
 				canonical = initializationDocument;
@@ -223,6 +244,9 @@ export class DesktopClientSessionCoordinator {
 			}
 			const decision = mutation(canonical);
 			if (decision.kind === 'rejected') return decision;
+			if (decision.kind === 'unchanged') {
+				return { document: canonical, kind: 'unchanged' };
+			}
 			const document = decision.document;
 			const nextRevision = workbenchSharedDocumentRevision(
 				(BigInt(canonical.revision) + 1n).toString(),
@@ -232,9 +256,16 @@ export class DesktopClientSessionCoordinator {
 			}
 			const committed = await this.#dependencies.store.commit(canonical.revision, document);
 			if (committed.kind !== 'committed' || committed.revision !== document.revision) {
-				const reason = committed.kind === 'unavailable' ? committed.reason : 'write-failed';
-				this.#becomeUnavailable(reason);
-				return { kind: 'unavailable', reason };
+				if (committed.kind === 'unavailable') {
+					if (committed.reason === 'write-indeterminate') {
+						this.#becomeUnavailable('write-failed');
+						return { kind: 'indeterminate', reason: 'durability-unconfirmed' };
+					}
+					this.#becomeUnavailable(committed.reason);
+					return { kind: 'unavailable', reason: committed.reason };
+				}
+				this.#becomeUnavailable('write-failed');
+				return { kind: 'unavailable', reason: 'write-failed' };
 			}
 			this.#canonicalDocument = document;
 			afterCommit?.(document);
@@ -252,9 +283,24 @@ export class DesktopClientSessionCoordinator {
 		});
 	}
 
+	reconcileCanonicalDocument(): Promise<DesktopCanonicalDocumentReconciliationResult> {
+		return this.#enqueueOperation(async () => {
+			if (this.#startResult?.kind !== 'ready' || this.#phase.kind !== 'accepting') {
+				return { kind: 'rejected', reason: 'control-unavailable' };
+			}
+			const document = this.#canonicalDocument;
+			if (document === null) return { kind: 'rejected', reason: 'document-missing' };
+			await this.#dependencies.reconcileDocument(document, this.publishTerminalEvent);
+			return { document, kind: 'reconciled' };
+		});
+	}
+
 	async start(): Promise<
 		| { readonly kind: 'ready' }
-		| { readonly kind: 'unavailable'; readonly reason: 'invalid' | 'read-failed' }
+		| {
+				readonly kind: 'unavailable';
+				readonly reason: 'invalid' | 'read-failed' | 'write-failed';
+		  }
 	> {
 		if (this.#startResult !== undefined) return this.#startResult;
 		if (this.#started)
@@ -491,7 +537,10 @@ export class DesktopClientSessionCoordinator {
 		expectedRevision: WorkbenchSharedDocumentRevision | null,
 		document: WorkbenchSharedDocument,
 	): Promise<DesktopClientDocumentProposalResult> {
-		if (!this.#dependencies.validateDocument(document)) {
+		if (
+			!validateDesktopClientRemotePlacementProposal(this.#canonicalDocument, document) ||
+			!this.#dependencies.validateDocument(document)
+		) {
 			await this.#retireSession(clientSessionId);
 			return {
 				document: this.#canonicalDocument,
@@ -507,7 +556,11 @@ export class DesktopClientSessionCoordinator {
 		if (decision.kind !== 'commit') return resultFromDecision(decision, this.#canonicalDocument);
 		const committed = await this.#dependencies.store.commit(expectedRevision, document);
 		if (committed.kind !== 'committed') {
-			if (committed.kind === 'unavailable') return this.#becomeUnavailable(committed.reason);
+			if (committed.kind === 'unavailable') {
+				return this.#becomeUnavailable(
+					committed.reason === 'write-indeterminate' ? 'write-failed' : committed.reason,
+				);
+			}
 			return this.#becomeUnavailable('write-failed');
 		}
 		if (committed.revision !== document.revision) return this.#becomeUnavailable('write-failed');

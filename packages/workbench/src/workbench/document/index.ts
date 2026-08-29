@@ -1,7 +1,9 @@
 export {
 	WorkbenchSharedDocumentSchema,
 	WorkbenchSharedDocumentRevisionSchema,
+	createEmptyWorkbenchSharedTerminalContext,
 	createWorkbenchSharedDocument,
+	migrateWorkbenchSharedDocumentVersion1,
 	parseWorkbenchSharedDocument,
 	workbenchSharedDocumentRevision,
 } from './workbench-document';

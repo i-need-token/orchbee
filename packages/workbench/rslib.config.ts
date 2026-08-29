@@ -20,6 +20,7 @@ export default defineConfig({
 		entry: {
 			index: './src/index.ts',
 			'document/index': './src/workbench/document/index.ts',
+			'project-workspace/index': './src/project-workspace/index.ts',
 			'semantic-commands/index': './src/workbench/semantic-commands/index.ts',
 			'terminal-presentation/index': './src/terminal-presentation/index.ts',
 		},

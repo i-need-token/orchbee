@@ -19,8 +19,9 @@ import {
 	type SshEnvironmentRuntimeSessionFailureReason,
 } from './SshEnvironmentRuntimeSession';
 import type { SshProjectRootInspectionOutcome } from './SshProjectRootChannelClient';
-import type { SshRuntimeReleaseSource } from './ssh-runtime-release-source';
-import { createSshRuntimeRemoteBootstrap } from './createSshRuntimeRemoteBootstrap';
+import type { SshTerminalHostConnectionOutcome } from './SshTerminalHostChannelClient';
+import { createSshEnvironmentRemoteBootstrap } from './createSshEnvironmentRemoteBootstrap';
+import type { SshEnvironmentReleaseSource } from './ssh-environment-release-source';
 import {
 	createSshEnvironmentConnectionState,
 	observeSshEnvironmentConnection,
@@ -45,15 +46,16 @@ interface AskPassBridgePort {
 
 interface RuntimeSessionPort {
 	inspectProjectRoot(path: string, signal?: AbortSignal): Promise<SshProjectRootInspectionOutcome>;
+	openTerminalHost(): Promise<SshTerminalHostConnectionOutcome>;
 	start(): Promise<void>;
 	stop(): void;
 }
 
 export interface SshEnvironmentSupervisorDependencies {
-	readonly releaseSource: SshRuntimeReleaseSource;
+	readonly releaseSource: SshEnvironmentReleaseSource;
 	readonly askPassBridgeFactory?: (options: SshAskPassBridgeOptions) => AskPassBridgePort;
 	readonly interaction: (
-		request: SshAskPassInteractionRequest,
+		request: SshEnvironmentSupervisorInteractionRequest,
 	) => Promise<SshAskPassInteractionResult>;
 	readonly randomDelay?: (minimum: number, maximum: number) => number;
 	readonly runtimeSessionFactory?: (
@@ -61,6 +63,10 @@ export interface SshEnvironmentSupervisorDependencies {
 	) => RuntimeSessionPort;
 	readonly targetResolver: Pick<OpenSshTargetResolver, 'resolve'>;
 	readonly transportAdapter: Pick<OpenSshTransportAdapter, 'open'>;
+}
+
+export interface SshEnvironmentSupervisorInteractionRequest extends SshAskPassInteractionRequest {
+	readonly generation: number;
 }
 
 interface GenerationResources {
@@ -147,6 +153,17 @@ export class SshEnvironmentSupervisor {
 		);
 	}
 
+	openTerminalHost(): Promise<SshTerminalHostConnectionOutcome> {
+		const resources = this.#resources.get(this.#state.generation);
+		if (this.#state.phase !== 'connected' || resources?.ready !== true) {
+			return Promise.resolve({ kind: 'failed', reason: 'unavailable' });
+		}
+		return (
+			resources.session?.openTerminalHost() ??
+			Promise.resolve({ kind: 'failed', reason: 'unavailable' })
+		);
+	}
+
 	#dispatch(event: SshEnvironmentConnectionEvent): void {
 		const commands = this.#transition(event);
 		for (const command of commands) this.#execute(command);
@@ -224,7 +241,7 @@ export class SshEnvironmentSupervisor {
 				return;
 			}
 
-			const bootstrap = createSshRuntimeRemoteBootstrap({
+			const bootstrap = createSshEnvironmentRemoteBootstrap({
 				catalog: release.catalog,
 				runtimeInstanceId: this.#configuration.runtimeInstanceId,
 			});
@@ -247,7 +264,8 @@ export class SshEnvironmentSupervisor {
 			transport.onExit((exit) => this.#transportExited(command.generation, resources, exit));
 			const session = this.#dependencies.runtimeSessionFactory({
 				catalog: release.catalog,
-				loadArtifact: (platform) => this.#dependencies.releaseSource.loadArtifact(platform),
+				loadArtifact: (role, platform) =>
+					this.#dependencies.releaseSource.loadArtifact(role, platform),
 				onFailure: (reason) => this.#sessionFailed(command.generation, resources, reason),
 				onLost: () => this.#sessionLost(command.generation, resources),
 				onReady: (identity) => this.#sessionReady(command.generation, resources, identity),
@@ -282,7 +300,7 @@ export class SshEnvironmentSupervisor {
 		}
 		let result: SshAskPassInteractionResult;
 		try {
-			result = await this.#dependencies.interaction(request);
+			result = await this.#dependencies.interaction({ ...request, generation });
 		} catch {
 			result = { kind: 'cancelled' };
 		}

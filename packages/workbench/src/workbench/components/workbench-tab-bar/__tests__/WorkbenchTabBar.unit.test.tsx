@@ -32,9 +32,11 @@ afterAll(() => {
 
 function VerticalWorkbenchTabBar({
 	actionRuntime,
+	creationEnabled = true,
 	tabModel,
 }: {
 	readonly actionRuntime: ActionRuntime;
+	readonly creationEnabled?: boolean | undefined;
 	readonly tabModel: TabModel;
 }) {
 	const messages = useWorkbenchTabStripMessages();
@@ -47,6 +49,11 @@ function VerticalWorkbenchTabBar({
 			createCrossWindowDragRuntime={undefined}
 			focusRequest={0}
 			getCloseTabsConfirmation={() => null}
+			getTabCreationAvailability={() =>
+				creationEnabled
+					? { kind: 'enabled' }
+					: { kind: 'disabled', reason: { id: 'creation-unavailable' } }
+			}
 			onNewTerminal={undefined}
 			onOrientationChange={() => undefined}
 			onSetTabTitle={() => undefined}
@@ -63,6 +70,23 @@ function VerticalWorkbenchTabBar({
 }
 
 describe('Workbench browser behavior', () => {
+	it('disables the visible new-tab control when creation is unavailable', () => {
+		const actionRuntime = new ActionRuntime();
+		const tabModel = new TabModel({ activeTabId: null, tabs: [] });
+
+		render(
+			<OrchbeeI18nProvider locale='en-US'>
+				<VerticalWorkbenchTabBar
+					actionRuntime={actionRuntime}
+					creationEnabled={false}
+					tabModel={tabModel}
+				/>
+			</OrchbeeI18nProvider>,
+		);
+
+		expect(screen.getByRole('button', { name: 'New tab' }).hasAttribute('disabled')).toBe(true);
+	});
+
 	it('owns and updates the vertical tab-strip collapsed state', () => {
 		const actionRuntime = new ActionRuntime();
 		const tabModel = new TabModel({

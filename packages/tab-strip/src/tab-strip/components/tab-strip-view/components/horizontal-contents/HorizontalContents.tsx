@@ -34,6 +34,7 @@ export function HorizontalContents({
 }): ReactNode {
 	const messages = useTabStripMessages();
 	const {
+		actions,
 		orientation,
 		showGroupHoverCards,
 		showNewTabButton,
@@ -446,6 +447,9 @@ export function HorizontalContents({
 						variantClass='ct-new-tab'
 						type='button'
 						aria-label={messages.newTab}
+						disabled={
+							actions.getCreationAvailability({ groupId: null, kind: 'new-tab' }).kind !== 'enabled'
+						}
 						icon={<ProductIcon name='add' />}
 						frameCondensed={horizontalFrameCondensed}
 						tabIndex={0}

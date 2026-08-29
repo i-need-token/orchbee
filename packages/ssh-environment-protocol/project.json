@@ -3,7 +3,7 @@
 	"domain": "ssh-environment-protocol",
 	"runtime": ["universal"],
 	"stability": "experimental",
-	"responsibility": "Strict versioned framing, handshake, Runtime epoch, heartbeat, channel lifecycle, binary channel data, credit-flow contracts, the exact project-root-v1 request/result codec and bounds, and canonical offline Runtime release manifest and Desktop trust-descriptor schemas shared by Desktop and an SSH Environment Runtime.",
+	"responsibility": "Strict versioned framing, handshake, Runtime epoch, heartbeat, channel lifecycle, binary channel data, credit-flow contracts, the exact project-root-v1 request/result codec and bounds, the frozen schema-version-1 Runtime release contract, and the exact schema-version-2 SSH Environment release and Desktop trust-descriptor contracts for the signed Runtime plus Terminal Host component matrix.",
 	"nonGoals": [
 		"Owning OpenSSH, AskPass, Runtime installation, release builds, signing keys, signature execution, package assembly, artifact verification policy, process supervision, retry, persistence, or product-interface implementations.",
 		"Authorizing or performing filesystem inspection, executing commands, reading file bytes, opening terminals, operating Agents, or using any service not explicitly advertised and admitted by a Runtime.",

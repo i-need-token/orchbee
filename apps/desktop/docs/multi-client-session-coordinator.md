@@ -37,14 +37,15 @@ new `packages/web` workspace.
 
 ## Inputs and boundaries
 
-| Input                            | Trust and absence semantics                                                                                                   |
-| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| Stored `WorkbenchSharedDocument` | Untrusted file input parsed by `@orchbee/workbench/document`; missing is a distinct initial state and invalid is unavailable. |
-| Client document proposal         | Untrusted capability input containing one request identity, expected revision, and complete strict document.                  |
-| Terminal-runtime result          | Trusted only after matching the exact requested presentation and operation identity.                                          |
-| Host exit                        | Untrusted process input validated by the Host protocol and resolved through the Main binding registry before publication.     |
-| Client disconnect                | An attachment/session lifetime event; it is never terminal or product lifecycle intent.                                       |
-| Application exit policy          | A separate Electron-only capability that may place the coordinator in application-wide quiescing.                             |
+| Input                            | Trust and absence semantics                                                                                                                     |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Stored `WorkbenchSharedDocument` | Untrusted file input parsed by `@orchbee/workbench/document`; missing is a distinct initial state and invalid is unavailable.                   |
+| Client document proposal         | Untrusted capability input containing one request identity, expected revision, and complete strict document.                                    |
+| Terminal-runtime result          | Trusted only after matching the exact requested presentation and operation identity.                                                            |
+| Projection request               | Untrusted viewport demand carrying only one Presentation identity and bounded geometry; canonical document placement alone selects the runtime. |
+| Host exit                        | Untrusted process input validated by the Host protocol and resolved through the Main binding registry before publication.                       |
+| Client disconnect                | An attachment/session lifetime event; it is never terminal or product lifecycle intent.                                                         |
+| Application exit policy          | A separate Electron-only capability that may place the coordinator in application-wide quiescing.                                               |
 
 The coordinator depends on narrow ports for document load/commit, terminal intent execution,
 session event publication, identifier allocation, and attachment-session disposal. The deterministic
@@ -70,9 +71,12 @@ The surrounding Desktop Main composition owns the cross-boundary cleanup and exi
 
 ```text
 Desktop Main lifecycle/projection owners
-├── bounded TerminalExited retry queue (identity + newest revision)
-├── durable pending-journal/rejection owner (queue-full, association, shutdown, unknown)
-├── separate durable publication ledger (identity + newest published revision)
+├── local TerminalExited retry, pending/rejection-journal, and publication-ledger owners
+├── EnvironmentRuntime[EnvironmentId]
+│   ├── current-record and Host-epoch envelope fence
+│   ├── Environment-scoped binding and monotonic metadata/failure observation
+│   └── Environment-scoped pending/rejection journal and publication ledger
+├── canonical Presentation-to-local-or-Environment projection router
 ├── pending Host detach set for post-attach failures
 ├── active projection leases and resize ownership
 └── retiring ClientSession records with retryable attachment disposal
@@ -82,7 +86,8 @@ Desktop Main lifecycle/projection owners
 shared document or recovery files. Client View and terminal viewport state remain page-local.
 `TerminalId`, Binding identity, PTY/VT state, history, and process state remain Terminal Host or
 Desktop terminal-runtime authority. Main's transient presentation observation is only the
-presentation-scoped projection required to hydrate a client.
+presentation-scoped projection required to hydrate a client. Each remote recovery owner is keyed by
+`EnvironmentId`; raw Host identity is never a cross-Environment or local-runtime deduplication key.
 
 There is no product count ceiling for sessions, proposals, terminals, or attachments. Allocation,
 structured-clone, storage, Host, or memory exhaustion is a typed failure; it never authorizes
@@ -190,6 +195,15 @@ Session retirement never changes the shared document, Binding registry, PTY, pro
 lifecycle. Explicitly closing a Panel or Tab remains a shared product transition and reconciles its
 durable close intent.
 
+Before every projection open, Main derives the target from canonical Presentation containment through
+Terminal Context, Workspace, primary Directory, and placement. A local Presentation can reach only
+the local runtime. An Environment Presentation can reach only the already prepared runtime for that
+exact Environment; projection does not activate SSH, wait for reconnect, or use a local binding or
+archive fallback. Main re-resolves the target after open and before the broker can publish the lease.
+If the Presentation was deleted or moved, it disposes the provisional attachment and reports no open
+projection. Electron and authenticated Gateway clients use this same router and attachment contract;
+only their existing clipboard/link effect target differs.
+
 For a running terminal, the first successfully opened writable attachment receives the Host's
 initial exclusive resize lease. Later writable attachments receive read/input/resize capability but
 remain resize observers. An admitted focus-in, key press/repeat, committed text or paste,
@@ -269,6 +283,17 @@ application. An ordinary page close is never application quit.
   channels. Main records `terminal-failed` as the retained presentation outcome before broadcasting
   it; a failed session is read-only and remains explicitly closable. Failure recovery comes from the
   surviving Host's inventory rather than the exit-specific spill and publication ledgers.
+- Remote projection failure remains scoped to the exact Environment runtime. An unavailable or ended
+  relay never probes the local runtime, starts SSH, or waits for automatic recovery; a later bounded
+  client retry is a fresh projection request and does not replay unknown input or another Host effect.
+- Remote metadata, failure, and exit observation is likewise scoped to the exact current Environment
+  runtime record. Metadata is monotonic and retained for later Client bootstrap. Failure is published
+  only after exact binding and canonical-target resolution; disconnect never manufactures failure.
+  Exit enters the Environment's synchronous durable pending or rejection journal before listener
+  return, then advances through binding durability, reconciler reservation, runtime/publication
+  evidence, reconciler commit, Client broadcast, and journal compaction. Deletion, retargeting, relay
+  loss, and restart retain the original outcome without activating SSH or redirecting it locally or
+  to another Environment.
 - Projection cleanup failures are retained by the service-level lease/detach owner. Renderer port-close,
   malformed-control, postMessage, session-retirement, and post-attach factory/start failures converge
   through later release, retirement, or dispose retry while the Host request transport remains
@@ -280,21 +305,23 @@ application. An ordinary page close is never application quit.
 
 ## Correctness claims and evidence
 
-| Claim                                                                                  | Deterministic evidence                                    | Formal/system evidence                                    | Limits                                                    |
-| -------------------------------------------------------------------------------------- | --------------------------------------------------------- | --------------------------------------------------------- | --------------------------------------------------------- |
-| One exact revision chain has one Main writer                                           | Proposal decision and queue tests                         | `DesktopMultiClientSession` canonical/revision invariants | Complete-document first-writer-wins policy                |
-| An acknowledged local proposal never erases later same-page intent                     | In-flight proposal/publication coordinator traces         | `WorkbenchDocumentProposalAcknowledgement` preservation   | Exact acknowledgement only; divergent writes roll back    |
-| A terminal effect follows matching durable intent                                      | Intent reconciler traces                                  | TLA+ `EffectRequiresPublishedIntent`                      | Host/ledger idempotency trusted                           |
-| Independent presentation effects do not wait for one another                           | Deferred two-presentation reconciler trace                | `DesktopTerminalIntentReconciliation` batch/progress      | A later commit waits for the current effect set           |
-| Equivalent races converge and divergent stale writes preserve canonical state          | Two-client and stateful property tests                    | TLA+ stale/converged actions                              | No semantic merge                                         |
-| Every connected fair session can catch up in publication order                         | Session bootstrap/broadcast tests                         | TLA+ publication progress                                 | No progress through suspended/broken transport            |
-| Page disconnect releases only its attachments                                          | Session disposal and concurrent projection tests          | TLA+ attachment/session invariant                         | OS/process crash cleanup delegated to existing boundaries |
-| Quiescing rejects non-owner mutation before application drain                          | Exit-owner transition tests                               | TLA+ quiescing invariant                                  | Existing irreversible stop recovery policy                |
-| Multiple viewers preserve one resize authority; an eligible active viewer may claim it | Lease handoff, eligibility, and claim-serialization tests | Desktop and Terminal Host resize-lease models             | No implicit priority by client type                       |
-| Released projection requests never become active                                       | Client, Gateway, and Main release-race tests              | `ProjectedTerminalIpcReliability` release-race invariants | One ordered live control connection                       |
-| A Host attach response installs its consumer before later inbound delivery             | Host response/frame/close ordering tests                  | TLA+ response-barrier safety and progress                 | JavaScript microtask-before-`setImmediate` refinement     |
-| An opening frame is acknowledged only after renderer readiness admits its draw         | Slow-start frame/transport tests                          | TLA+ ready-frame acknowledgement invariant                | Client commit acknowledgement, not completed paint        |
-| Recovery replaces an honest frozen frame only with a painted fresh attachment          | Projected-surface recovery tests                          | TLA+ recovery and operation-identity invariants           | Two attempts; transport progress is not assumed           |
+| Claim                                                                                  | Deterministic evidence                                                         | Formal/system evidence                                                        | Limits                                                    |
+| -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- | --------------------------------------------------------- |
+| One exact revision chain has one Main writer                                           | Proposal decision and queue tests                                              | `DesktopMultiClientSession` canonical/revision invariants                     | Complete-document first-writer-wins policy                |
+| An acknowledged local proposal never erases later same-page intent                     | In-flight proposal/publication coordinator traces                             | `WorkbenchDocumentProposalAcknowledgement` preservation                       | Exact acknowledgement only; divergent writes roll back    |
+| A terminal effect follows matching durable intent                                      | Intent reconciler traces                                                       | TLA+ `EffectRequiresPublishedIntent`                                          | Host/ledger idempotency trusted                           |
+| Independent presentation effects do not wait for one another                           | Deferred two-presentation reconciler trace                                    | `DesktopTerminalIntentReconciliation` batch/progress                          | A later commit waits for the current effect set           |
+| Equivalent races converge and divergent stale writes preserve canonical state          | Two-client and stateful property tests                                         | TLA+ stale/converged actions                                                  | No semantic merge                                         |
+| Every connected fair session can catch up in publication order                         | Session bootstrap/broadcast tests                                              | TLA+ publication progress                                                     | No progress through suspended/broken transport            |
+| Page disconnect releases only its attachments                                          | Session disposal and concurrent projection tests                               | TLA+ attachment/session invariant                                             | OS/process crash cleanup delegated to existing boundaries |
+| Canonical remote placement reaches only its prepared Environment runtime               | Target resolver, router, runtime-owner, and Electron/Gateway composition tests | `SshEnvironmentRemoteTerminalProjection` authority and stale-lease invariants | No automatic SSH activation or local fallback             |
+| Remote terminal outcomes publish only after Environment-scoped durable predecessors    | Observation owner, journal/ledger, routing, coordinator, and composition tests | `SshEnvironmentRemoteTerminalOutcome` ordering and isolation invariants       | One existing remote terminal; no lifecycle command        |
+| Quiescing rejects non-owner mutation before application drain                          | Exit-owner transition tests                                                    | TLA+ quiescing invariant                                                      | Existing irreversible stop recovery policy                |
+| Multiple viewers preserve one resize authority; an eligible active viewer may claim it | Lease handoff, eligibility, and claim-serialization tests                      | Desktop and Terminal Host resize-lease models                                 | No implicit priority by client type                       |
+| Released projection requests never become active                                       | Client, Gateway, and Main release-race tests                                   | `ProjectedTerminalIpcReliability` release-race invariants                     | One ordered live control connection                       |
+| A Host attach response installs its consumer before later inbound delivery             | Host response/frame/close ordering tests                                       | TLA+ response-barrier safety and progress                                     | JavaScript microtask-before-`setImmediate` refinement     |
+| An opening frame is acknowledged only after renderer readiness admits its draw         | Slow-start frame/transport tests                                               | TLA+ ready-frame acknowledgement invariant                                    | Client commit acknowledgement, not completed paint        |
+| Recovery replaces an honest frozen frame only with a painted fresh attachment          | Projected-surface recovery tests                                               | TLA+ recovery and operation-identity invariants                               | Two attempts; transport progress is not assumed           |
 
 The multi-client TLA+ configuration checks two clients, two document values, one attachment, both
 missing and empty available initialization, equivalent and divergent proposals, reordered
@@ -313,6 +340,20 @@ Electron-plus-two-Browser trace covers Gateway authentication, independent page 
 canonical state, attachment disconnect/reconnect, Browser effects, and exact attachment
 backpressure recovery. Explicit resize-control transfer remains outside this contract. No
 throughput acceptance gate is added; the terminal frame hot path is unchanged.
+
+`SshEnvironmentRemoteTerminalProjection` separately checks canonical local-versus-Environment target
+resolution, prepared-runtime admission, optional retained-terminal start, deletion and retarget races,
+pre-publication stale-lease disposal, disconnect retirement, and the absence of SSH activation or
+local fallback. The production router and runtime-owner tests refine those boundaries for both
+Electron and authenticated Gateway composition while reusing the existing attachment, broker,
+resize-lease, and effect-target tests for the interactive stream itself.
+
+`SshEnvironmentRemoteTerminalOutcome` separately checks current-record subscription, exact
+Environment namespaces, monotonic metadata, non-synthetic failure, synchronous exit admission or
+rejection, durable publication ordering, deletion and retarget retention, retry, disconnect, and
+owner restart without implicit connection growth. Observation-owner and Desktop composition tests
+refine the per-Environment stores, listener-before-runtime order, Host-epoch fence, exact canonical
+target, Client bootstrap retention, and no local-runtime fallback.
 
 `ProjectedTerminalIpcReliability` checks three orthogonal configurations rather than multiplying
 their state spaces. The release-race configuration permits client release before service attach,

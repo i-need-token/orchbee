@@ -144,6 +144,9 @@ export function TabStripContextMenu({
 		return (
 			<ContextMenuContent aria-label={messages.newTabMenu}>
 				<ContextMenuItem
+					disabled={
+						actions.getCreationAvailability({ groupId: null, kind: 'new-tab' }).kind !== 'enabled'
+					}
 					onClick={run(() =>
 						actions.createTab({ groupId: null, title: messages.newTabTitle }, 'context-menu'),
 					)}
@@ -154,7 +157,13 @@ export function TabStripContextMenu({
 					)}
 				</ContextMenuItem>
 				<ContextMenuItem
-					disabled={!recentGroup}
+					disabled={
+						!recentGroup ||
+						actions.getCreationAvailability({
+							groupId: recentGroup.id,
+							kind: 'new-tab',
+						}).kind !== 'enabled'
+					}
 					onClick={run(() => {
 						if (recentGroup) {
 							actions.createTab(
@@ -171,6 +180,7 @@ export function TabStripContextMenu({
 				</ContextMenuItem>
 				<ContextMenuSeparator />
 				<ContextMenuItem
+					disabled={actions.getCreationAvailability({ kind: 'new-group' }).kind !== 'enabled'}
 					onClick={run(() =>
 						actions.execute(TAB_STRIP_ACTION_IDS.createGroupWithTab, undefined, 'context-menu'),
 					)}
@@ -341,6 +351,10 @@ export function TabStripContextMenu({
 				</div>
 				<ContextMenuSeparator />
 				<ContextMenuItem
+					disabled={
+						actions.getCreationAvailability({ groupId: group.id, kind: 'new-tab' }).kind !==
+						'enabled'
+					}
 					onClick={run(() =>
 						actions.createTab({ groupId: group.id, title: messages.newTabTitle }, 'context-menu'),
 					)}
@@ -396,6 +410,13 @@ export function TabStripContextMenu({
 	return (
 		<ContextMenuContent aria-label={messages.tabOptions}>
 			<ContextMenuItem
+				disabled={
+					actions.getCreationAvailability({
+						groupId: tab.group,
+						index: index + 1,
+						kind: 'new-tab',
+					}).kind !== 'enabled'
+				}
 				onClick={run(() =>
 					actions.createTab(
 						{
@@ -528,6 +549,12 @@ export function TabStripContextMenu({
 			)}
 			<ContextMenuSeparator />
 			<ContextMenuItem
+				disabled={
+					actions.getCreationAvailability({
+						kind: 'duplicate',
+						tabIds: commandTabIds,
+					}).kind !== 'enabled'
+				}
 				onClick={run(() =>
 					actions.execute(
 						TAB_STRIP_ACTION_IDS.duplicateTabs,

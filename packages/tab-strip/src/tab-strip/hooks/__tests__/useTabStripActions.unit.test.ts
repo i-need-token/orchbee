@@ -1,4 +1,9 @@
-import { ActionRuntime, type ActionExecution, type ActionScope } from '@orchbee/actions';
+import {
+	ActionRuntime,
+	type ActionAvailability,
+	type ActionExecution,
+	type ActionScope,
+} from '@orchbee/actions';
 import { cleanup, render } from '@testing-library/react';
 import { createElement, type ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -12,6 +17,7 @@ import type {
 	TabStripCloseConfirmation,
 	TabStripNewTabRequest,
 	TabStripSelectCallback,
+	TabStripTabCreationIntent,
 } from '../../types/tab-strip-options';
 import type { TabStripActions } from '../../types/tab-strip-actions';
 import { useTabStripActions } from '../useTabStripActions';
@@ -22,6 +28,9 @@ interface HarnessProps {
 	readonly comboButtonController?: TabStripComboButtonController | undefined;
 	readonly model: TabModel;
 	readonly getCloseTabsConfirmation?: TabStripCloseConfirmation | undefined;
+	readonly getTabCreationAvailability?:
+		| ((intent: TabStripTabCreationIntent) => ActionAvailability)
+		| undefined;
 	readonly onCloseTabs?: TabStripCloseCallback | undefined;
 	readonly onNewTab?: ((request: TabStripNewTabRequest) => ActionExecution) | undefined;
 	readonly onSelectTab?: TabStripSelectCallback | undefined;
@@ -35,6 +44,7 @@ function Harness({
 	comboButtonController = new TabStripComboButtonController(),
 	model,
 	getCloseTabsConfirmation,
+	getTabCreationAvailability,
 	onCloseTabs,
 	onNewTab,
 	onSelectTab,
@@ -47,6 +57,7 @@ function Harness({
 		messages: DEFAULT_TAB_STRIP_MESSAGES,
 		model,
 		getCloseTabsConfirmation,
+		getTabCreationAvailability,
 		onMoveGroupToNewWindow: undefined,
 		onMoveTabsToNewWindow: undefined,
 		onNewTab,
@@ -70,6 +81,59 @@ function Harness({
 afterEach(() => cleanup());
 
 describe('useTabStripActions', () => {
+	it('guards every tab-producing action with the host creation policy', async () => {
+		const runtime = new ActionRuntime();
+		const parentScope = runtime.createScope('workbench');
+		const model = new TabModel({
+			activeTabId: 'tab-1',
+			groups: [],
+			tabs: [{ group: null, id: 'tab-1', pinned: false, title: 'Tab 1' }],
+		});
+		const getTabCreationAvailability = vi.fn<
+			(intent: TabStripTabCreationIntent) => ActionAvailability
+		>(
+			(_intent: TabStripTabCreationIntent): ActionAvailability => ({
+				kind: 'disabled',
+				reason: { id: 'remote-terminal-creation-unavailable' },
+			}),
+		);
+		let actions: TabStripActions | undefined;
+		let scope: ActionScope | undefined;
+		render(
+			createElement(Harness, {
+				captureActions: (candidate) => {
+					actions = candidate;
+				},
+				captureScope: (candidate) => {
+					scope = candidate;
+				},
+				getTabCreationAvailability,
+				model,
+				parentScope,
+				runtime,
+			}),
+		);
+		if (actions === undefined || scope === undefined) {
+			throw new Error('Expected the tab-strip action fixtures.');
+		}
+
+		expect(actions.getCreationAvailability({ groupId: null, kind: 'new-tab' })).toMatchObject({
+			kind: 'disabled',
+		});
+		await expect(
+			actions.createTab({ groupId: null, title: 'New Tab' }, 'button').completion,
+		).resolves.toMatchObject({ kind: 'blocked' });
+		await expect(
+			actions.execute(TAB_STRIP_ACTION_IDS.createGroupWithTab, undefined, 'context-menu')
+				.completion,
+		).resolves.toMatchObject({ kind: 'blocked' });
+		await expect(
+			actions.execute(TAB_STRIP_ACTION_IDS.duplicateTabs, { tabIds: ['tab-1'] }, 'context-menu')
+				.completion,
+		).resolves.toMatchObject({ kind: 'blocked' });
+		expect(model.getSnapshot().tabs).toHaveLength(1);
+	});
+
 	it('delegates Tab selection before mutating the model', async () => {
 		const runtime = new ActionRuntime();
 		const parentScope = runtime.createScope('workbench');

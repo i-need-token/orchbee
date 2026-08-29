@@ -36,6 +36,7 @@ const directory: WorkbenchDirectory = {
 	kind: 'folder',
 	name: 'source',
 	path: '/source',
+	placement: { kind: 'local' },
 	source: 'selected',
 };
 
@@ -109,7 +110,7 @@ function request(index: number, operationId: string, input: unknown) {
 		protocolVersion: 1,
 		requestIdentity: `cli:read:${index}`,
 		operationId: SemanticCommandOperationIdSchema.parse(operationId),
-		operationSchemaVersion: 1,
+		operationSchemaVersion: operationId === 'workbench.directory.list' ? 2 : 1,
 		input,
 	});
 }

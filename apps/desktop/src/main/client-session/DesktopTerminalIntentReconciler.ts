@@ -11,13 +11,26 @@ import type {
 	WorkbenchSharedPresentation,
 } from '@orchbee/workbench/document';
 
+import {
+	resolveDesktopTerminalContextEffectTarget,
+	type DesktopTerminalEffectTarget,
+} from './desktop-terminal-effect-target';
+
 export interface DesktopTerminalIntentReconcilerDependencies {
 	readonly createOperationId: () => TerminalPresentationOperationId;
-	readonly execute: (command: TerminalPresentationCommand) => Promise<TerminalPresentationEvent>;
+	readonly execute: (
+		command: TerminalPresentationCommand,
+		target: DesktopTerminalEffectTarget,
+	) => Promise<DesktopTerminalExecutionResult>;
 	readonly getTerminalOutcome: (
 		presentationId: TerminalPresentationId,
+		target: DesktopTerminalEffectTarget,
 	) => TerminalOutcomeEvent | null;
 }
+
+export type DesktopTerminalExecutionResult =
+	| { readonly kind: 'deferred' }
+	| { readonly event: TerminalPresentationEvent; readonly kind: 'settled' };
 
 interface DurableOperationRecord {
 	readonly fingerprint: string;
@@ -26,6 +39,12 @@ interface DurableOperationRecord {
 
 interface RetainRecord {
 	readonly operationId: TerminalPresentationOperationId;
+	readonly targetFingerprint: string;
+}
+
+interface TargetedPresentation {
+	readonly presentation: WorkbenchSharedPresentation;
+	readonly target: DesktopTerminalEffectTarget;
 }
 
 type TerminalOutcomeEvent = Extract<
@@ -50,10 +69,15 @@ export class DesktopTerminalIntentReconciler {
 	}
 
 	validateDocument(document: WorkbenchSharedDocument): boolean {
-		const candidates = durableCommands(document);
+		let candidates: ReturnType<typeof durableCommands>;
+		try {
+			candidates = durableCommands(document);
+		} catch {
+			return false;
+		}
 		const local = new Map<TerminalPresentationOperationId, string>();
-		for (const command of candidates) {
-			const fingerprint = commandFingerprint(command);
+		for (const { command, target } of candidates) {
+			const fingerprint = commandFingerprint(command, target);
 			const localFingerprint = local.get(command.operationId);
 			if (localFingerprint !== undefined && localFingerprint !== fingerprint) return false;
 			local.set(command.operationId, fingerprint);
@@ -105,24 +129,30 @@ export class DesktopTerminalIntentReconciler {
 		document: WorkbenchSharedDocument,
 		publish: (event: TerminalPresentationEvent) => unknown,
 	): Promise<void> {
-		const presentations = sharedPresentations(document);
+		const presentations = targetedPresentations(document);
 		const currentOperationIds = new Set<TerminalPresentationOperationId>(
-			presentations.flatMap((presentation) =>
+			presentations.flatMap(({ presentation }) =>
 				'operationId' in presentation.intent ? [presentation.intent.operationId] : [],
 			),
 		);
 		const currentPresentationIds = new Set<TerminalPresentationId>(
-			presentations.map((presentation) => presentation.presentationId),
+			presentations.map(({ presentation }) => presentation.presentationId),
 		);
 		this.#currentPresentationIds = currentPresentationIds;
 		for (const operationId of this.#operations.keys()) {
 			if (!currentOperationIds.has(operationId)) this.#operations.delete(operationId);
 		}
 		for (const presentationId of this.#retained.keys()) {
-			const presentation = presentations.find(
-				(candidate) => candidate.presentationId === presentationId,
+			const targeted = presentations.find(
+				(candidate) => candidate.presentation.presentationId === presentationId,
 			);
-			if (presentation?.intent.kind !== 'retain') this.#retained.delete(presentationId);
+			const record = this.#retained.get(presentationId);
+			if (
+				targeted?.presentation.intent.kind !== 'retain' ||
+				record?.targetFingerprint !== targetFingerprint(targeted.target)
+			) {
+				this.#retained.delete(presentationId);
+			}
 		}
 		for (const presentationId of this.#events.keys()) {
 			if (!currentPresentationIds.has(presentationId)) {
@@ -137,42 +167,45 @@ export class DesktopTerminalIntentReconciler {
 		}
 
 		const reconciliations: Promise<void>[] = [];
-		for (const presentation of presentations) {
+		for (const { presentation, target } of presentations) {
 			if (presentation.intent.kind === 'stopped') {
 				this.#events.delete(presentation.presentationId);
 				this.#externalEventReservations.delete(presentation.presentationId);
 				continue;
 			}
 			if (presentation.intent.kind === 'retain') {
-				reconciliations.push(this.#reconcileRetain(presentation, publish));
+				reconciliations.push(this.#reconcileRetain(presentation, target, publish));
 				continue;
 			}
 			const command = commandForPresentation(presentation);
 			if (this.#operations.has(command.operationId)) continue;
-			reconciliations.push(this.#reconcileDurableCommand(command, publish));
+			reconciliations.push(this.#reconcileDurableCommand(command, target, publish));
 		}
 		await Promise.all(reconciliations);
 	}
 
 	async #reconcileDurableCommand(
 		command: TerminalPresentationCommand,
+		target: DesktopTerminalEffectTarget,
 		publish: (event: TerminalPresentationEvent) => unknown,
 	): Promise<void> {
-		const result = await this.#executeCommand(command);
+		const execution = await this.#executeCommand(command, target);
+		if (execution.kind === 'deferred') return;
+		const result = execution.event;
 		this.#operations.set(command.operationId, {
-			fingerprint: commandFingerprint(command),
+			fingerprint: commandFingerprint(command, target),
 			result,
 		});
-		this.#recordAndPublishResult(result, publish);
+		this.#recordAndPublishResult(result, target, publish);
 	}
 
 	async #reconcileRetain(
 		presentation: WorkbenchSharedPresentation,
+		target: DesktopTerminalEffectTarget,
 		publish: (event: TerminalPresentationEvent) => unknown,
 	): Promise<void> {
 		if (this.#retained.has(presentation.presentationId)) return;
 		const operationId = this.#createOperationId();
-		this.#retained.set(presentation.presentationId, { operationId });
 		const previous = this.#events.get(presentation.presentationId) ?? [];
 		const previousOutcome = previous.find(isTerminalOutcomeEvent);
 		const alreadyRunning = previous.some(
@@ -185,8 +218,12 @@ export class DesktopTerminalIntentReconciler {
 			presentationId: presentation.presentationId,
 			type: 'terminal-restore-started',
 		} as const;
-		this.#recordEvent(started);
 		if (alreadyRunning) {
+			this.#retained.set(presentation.presentationId, {
+				operationId,
+				targetFingerprint: targetFingerprint(target),
+			});
+			this.#recordEvent(started);
 			const completed = {
 				operationId,
 				presentationId: presentation.presentationId,
@@ -196,24 +233,40 @@ export class DesktopTerminalIntentReconciler {
 			if (previousOutcome !== undefined) this.#recordEvent(previousOutcome);
 			return;
 		}
-		publish(started);
-		const result = await this.#executeCommand({
-			launchCwd: presentation.launchCwd,
+		const execution = await this.#executeCommand(
+			{
+				launchCwd: presentation.launchCwd,
+				operationId,
+				presentationId: presentation.presentationId,
+				type: 'terminal-restore-requested',
+			},
+			target,
+		);
+		if (execution.kind === 'deferred') return;
+		this.#retained.set(presentation.presentationId, {
 			operationId,
-			presentationId: presentation.presentationId,
-			type: 'terminal-restore-requested',
+			targetFingerprint: targetFingerprint(target),
 		});
-		this.#recordAndPublishResult(result, publish);
+		this.#recordEvent(started);
+		publish(started);
+		this.#recordAndPublishResult(execution.event, target, publish);
 	}
 
-	async #executeCommand(command: TerminalPresentationCommand): Promise<TerminalPresentationEvent> {
+	async #executeCommand(
+		command: TerminalPresentationCommand,
+		target: DesktopTerminalEffectTarget,
+	): Promise<DesktopTerminalExecutionResult> {
 		try {
-			const result = await this.#execute(command);
-			return resultMatchesCommand(command, result)
-				? result
-				: failedResult(command, mismatchFailure);
+			const execution = await this.#execute(command, target);
+			if (execution.kind === 'deferred') return execution;
+			return {
+				event: resultMatchesCommand(command, execution.event)
+					? execution.event
+					: failedResult(command, mismatchFailure),
+				kind: 'settled',
+			};
 		} catch {
-			return failedResult(command, unavailableFailure);
+			return { event: failedResult(command, unavailableFailure), kind: 'settled' };
 		}
 	}
 
@@ -247,6 +300,7 @@ export class DesktopTerminalIntentReconciler {
 
 	#recordAndPublishResult(
 		result: TerminalPresentationEvent,
+		target: DesktopTerminalEffectTarget,
 		publish: (event: TerminalPresentationEvent) => unknown,
 	): void {
 		if (result.type === 'terminal-exited' || result.type === 'terminal-failed') {
@@ -267,7 +321,7 @@ export class DesktopTerminalIntentReconciler {
 		) {
 			return;
 		}
-		const outcome = this.#getTerminalOutcome(result.presentationId);
+		const outcome = this.#getTerminalOutcome(result.presentationId, target);
 		if (outcome === null) return;
 		if (outcome.type === 'terminal-failed') {
 			this.#recordEvent(outcome);
@@ -305,23 +359,25 @@ const unavailableFailure: TerminalPresentationFailure = {
 	retryable: true,
 };
 
-function durableCommands(
-	document: WorkbenchSharedDocument,
-): readonly TerminalPresentationCommand[] {
-	return sharedPresentations(document)
+function durableCommands(document: WorkbenchSharedDocument): readonly {
+	readonly command: TerminalPresentationCommand;
+	readonly target: DesktopTerminalEffectTarget;
+}[] {
+	return targetedPresentations(document)
 		.filter(
-			(presentation) =>
+			({ presentation }) =>
 				presentation.intent.kind !== 'retain' && presentation.intent.kind !== 'stopped',
 		)
-		.map(commandForPresentation);
+		.map(({ presentation, target }) => ({ command: commandForPresentation(presentation), target }));
 }
 
-function sharedPresentations(
-	document: WorkbenchSharedDocument,
-): readonly WorkbenchSharedPresentation[] {
-	return document.terminalContexts.flatMap((context) =>
-		context.panelWorkspace.tabs.flatMap((tab) => presentationsInNode(tab.root)),
-	);
+function targetedPresentations(document: WorkbenchSharedDocument): readonly TargetedPresentation[] {
+	return document.terminalContexts.flatMap((context) => {
+		const target = resolveDesktopTerminalContextEffectTarget(document, context.terminalContextId);
+		return context.panelWorkspace.tabs.flatMap((tab) =>
+			presentationsInNode(tab.root).map((presentation) => ({ presentation, target })),
+		);
+	});
 }
 
 function presentationsInNode(
@@ -363,8 +419,15 @@ function commandForPresentation(
 	}
 }
 
-function commandFingerprint(command: TerminalPresentationCommand): string {
-	return JSON.stringify(command);
+function commandFingerprint(
+	command: TerminalPresentationCommand,
+	target: DesktopTerminalEffectTarget,
+): string {
+	return JSON.stringify([target, command]);
+}
+
+function targetFingerprint(target: DesktopTerminalEffectTarget): string {
+	return JSON.stringify(target);
 }
 
 function resultMatchesCommand(

@@ -172,6 +172,32 @@ describe('TerminalProjectionControlBroker', () => {
 		]);
 	});
 
+	it('rechecks canonical authority synchronously before publishing a renderer port', async () => {
+		const testPort = createTestPort();
+		const lease = createLease();
+		const isPublicationTargetCurrent = vi.fn<() => boolean>(() => false);
+		const broker = new TerminalProjectionControlBroker(testPort.port, {
+			isPublicationTargetCurrent,
+			open: vi.fn<DesktopTerminalProjectionService['open']>().mockResolvedValue(lease),
+		});
+		broker.start();
+
+		testPort.emitMessage(openCommand());
+
+		await vi.waitFor(() => expect(lease.dispose).toHaveBeenCalledOnce());
+		await vi.waitFor(() => expect(testPort.posted).toHaveLength(1));
+		expect(isPublicationTargetCurrent).toHaveBeenCalledWith('presentation-1', lease);
+		expect(testPort.posted[0]).toEqual({
+			message: {
+				failure: { code: 'terminal-projection-retired', retryable: false },
+				presentationId: 'presentation-1',
+				requestId: 'projection-1',
+				type: 'terminal-projection-failed',
+			},
+			ports: [],
+		});
+	});
+
 	it('retains a failed in-flight release cleanup for broker retirement retry', async () => {
 		const testPort = createTestPort();
 		const deferred = createDeferred<DesktopTerminalProjectionLease>();

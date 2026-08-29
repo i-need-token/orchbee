@@ -5,13 +5,16 @@ import {
 	SSH_ENVIRONMENT_MAX_FRAME_BYTES,
 	SSH_ENVIRONMENT_PROTOCOL_VERSION,
 	SSH_PROJECT_ROOT_SERVICE_ID,
+	SSH_TERMINAL_HOST_SERVICE_ID,
 	SshEnvironmentBuildDigestSchema,
 	SshEnvironmentChannelIdSchema,
 	SshEnvironmentClientNonceSchema,
+	SshEnvironmentReleaseCohortDigestSchema,
 	SshEnvironmentRuntimeEpochSchema,
 	SshEnvironmentRuntimeInstanceIdSchema,
 	SshEnvironmentRuntimeVersionSchema,
 	SshEnvironmentServiceIdSchema,
+	SshEnvironmentTerminalHostVersionSchema,
 	decodeSshEnvironmentFrame,
 	encodeSshEnvironmentMessage,
 	type SshEnvironmentDecodeError,
@@ -23,7 +26,10 @@ const runtimeInstanceId = SshEnvironmentRuntimeInstanceIdSchema.parse('1'.repeat
 const runtimeEpoch = SshEnvironmentRuntimeEpochSchema.parse('2'.repeat(32));
 const clientNonce = SshEnvironmentClientNonceSchema.parse('3'.repeat(32));
 const buildDigest = SshEnvironmentBuildDigestSchema.parse('4'.repeat(64));
+const terminalHostBuildDigest = SshEnvironmentBuildDigestSchema.parse('5'.repeat(64));
+const releaseCohortDigest = SshEnvironmentReleaseCohortDigestSchema.parse('6'.repeat(64));
 const runtimeVersion = SshEnvironmentRuntimeVersionSchema.parse('0.1.0');
+const terminalHostVersion = SshEnvironmentTerminalHostVersionSchema.parse('0.2.0');
 const channelId = SshEnvironmentChannelIdSchema.parse(7);
 const binaryChannelId = SshEnvironmentChannelIdSchema.parse(9);
 const serviceId = SshEnvironmentServiceIdSchema.parse(SSH_PROJECT_ROOT_SERVICE_ID);
@@ -52,9 +58,12 @@ describe('SSH Environment protocol framing', () => {
 					runtimeInstanceId,
 					runtimeEpoch,
 					runtimeVersion,
-					buildDigest,
+					runtimeBuildDigest: buildDigest,
+					releaseCohortDigest,
+					terminalHostVersion,
+					terminalHostBuildDigest,
 					platform: 'darwin-arm64',
-					capabilities: [SSH_PROJECT_ROOT_SERVICE_ID],
+					capabilities: [SSH_PROJECT_ROOT_SERVICE_ID, SSH_TERMINAL_HOST_SERVICE_ID],
 					heartbeatIntervalMs: 15_000,
 					heartbeatMissLimit: 3,
 					maxFrameBytes: SSH_ENVIRONMENT_MAX_FRAME_BYTES,

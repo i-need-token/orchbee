@@ -13,6 +13,7 @@ export type {
 	WorkbenchActiveLocation,
 	WorkbenchDirectory,
 	WorkbenchDirectoryGitMetadata,
+	WorkbenchDirectoryPlacement,
 	WorkbenchDirectorySource,
 	WorkbenchFolderDirectory,
 	WorkbenchLaunchConfigurationReference,

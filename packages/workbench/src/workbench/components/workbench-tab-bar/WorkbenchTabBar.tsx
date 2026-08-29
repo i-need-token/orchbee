@@ -1,4 +1,9 @@
-import type { ActionExecution, ActionRuntime, ActionScope } from '@orchbee/actions';
+import type {
+	ActionAvailability,
+	ActionExecution,
+	ActionRuntime,
+	ActionScope,
+} from '@orchbee/actions';
 import {
 	TabStrip,
 	type TabModel,
@@ -13,6 +18,7 @@ import {
 	type TabStripSelectCallback,
 	type TabStripShortcutLabels,
 	type TabStripWindowTarget,
+	type TabStripTabCreationIntent,
 } from '@orchbee/tab-strip';
 import type { ReactNode } from 'react';
 
@@ -28,6 +34,9 @@ interface WorkbenchTabBarProps {
 	readonly onCloseTabs?: TabStripCloseCallback | undefined;
 	readonly getCloseTabsConfirmation: TabStripCloseConfirmation;
 	readonly focusRequest: number;
+	readonly getTabCreationAvailability?:
+		| ((intent: TabStripTabCreationIntent) => ActionAvailability)
+		| undefined;
 	readonly onOrientationChange: (orientation: TabStripOrientation) => void;
 	readonly onSelectTab?: TabStripSelectCallback | undefined;
 	readonly onSetTabTitle: (tabId: string) => void;
@@ -50,6 +59,7 @@ export function WorkbenchTabBar({
 	onCloseTabs,
 	getCloseTabsConfirmation,
 	focusRequest,
+	getTabCreationAvailability,
 	onOrientationChange,
 	onSelectTab,
 	onSetTabTitle,
@@ -90,6 +100,7 @@ export function WorkbenchTabBar({
 				onMoveTabsToWindow={onMoveTabsToWindow}
 				onCloseTabs={onCloseTabs}
 				getCloseTabsConfirmation={getCloseTabsConfirmation}
+				getTabCreationAvailability={getTabCreationAvailability}
 				onOrientationChange={onOrientationChange}
 				onSelectTab={onSelectTab}
 				onSetTabTitle={onSetTabTitle}

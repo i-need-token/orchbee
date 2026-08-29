@@ -6,17 +6,17 @@ import { fileURLToPath } from 'node:url';
 
 import { packager } from '@electron/packager';
 import {
-	SSH_RUNTIME_RELEASE_DIRECTORY_NAME,
-	SSH_RUNTIME_RELEASE_TRUST_DESCRIPTOR_FILE_NAME,
+	SSH_ENVIRONMENT_RELEASE_DIRECTORY_NAME,
+	SSH_ENVIRONMENT_RELEASE_TRUST_DESCRIPTOR_FILE_NAME,
 } from '@orchbee/ssh-environment-protocol';
 
 import {
-	readVerifiedSshRuntimeRelease,
-	resolveSshRuntimeReleasePackageConfiguration,
-	stageSshRuntimeReleasePackageResources,
-} from './ssh-runtime-release-package.mjs';
+	readVerifiedSshEnvironmentRelease,
+	resolveSshEnvironmentReleasePackageConfiguration,
+	stageSshEnvironmentReleasePackageResources,
+} from './ssh-environment-release-package.mjs';
 
-const runtimeReleaseConfiguration = resolveSshRuntimeReleasePackageConfiguration(
+const environmentReleaseConfiguration = resolveSshEnvironmentReleasePackageConfiguration(
 	process.argv.slice(2),
 	process.env,
 );
@@ -142,14 +142,14 @@ try {
 		)}\n`,
 		'utf8',
 	);
-	const runtimeReleaseResources =
-		runtimeReleaseConfiguration === null
+	const environmentReleaseResources =
+		environmentReleaseConfiguration === null
 			? null
-			: await stageSshRuntimeReleasePackageResources({
+			: await stageSshEnvironmentReleasePackageResources({
 					applicationStagingRoot: stagingRoot,
 					externalResourcesStagingRoot: path.join(packageWorkspace, 'external-resources'),
-					publicKeyFilePath: runtimeReleaseConfiguration.publicKeyFilePath,
-					releaseDirectory: runtimeReleaseConfiguration.releaseDirectory,
+					publicKeyFilePath: environmentReleaseConfiguration.publicKeyFilePath,
+					releaseDirectory: environmentReleaseConfiguration.releaseDirectory,
 				});
 	const outputs = await packager({
 		asar: true,
@@ -166,9 +166,9 @@ try {
 			...(process.platform === 'win32' ? [] : [posixHostEndpointAddon]),
 			semanticCommandEndpointAddon,
 			shellIntegrationResources,
-			...(runtimeReleaseResources === null
+			...(environmentReleaseResources === null
 				? []
-				: [runtimeReleaseResources.releaseResourceDirectory]),
+				: [environmentReleaseResources.releaseResourceDirectory]),
 		],
 		name: 'Orchbee',
 		out: path.join(applicationRoot, 'out'),
@@ -194,17 +194,17 @@ try {
 			access(path.join(resourcesDirectory, path.basename(semanticCommandCliEntry))),
 			access(path.join(resourcesDirectory, path.basename(semanticCommandEndpointAddon))),
 			access(packagedLauncher),
-			...(runtimeReleaseResources === null
+			...(environmentReleaseResources === null
 				? []
 				: [access(path.join(resourcesDirectory, 'app.asar'))]),
 		]);
-		if (runtimeReleaseConfiguration !== null) {
-			await readVerifiedSshRuntimeRelease({
-				publicKeyFilePath: runtimeReleaseConfiguration.publicKeyFilePath,
-				releaseDirectory: path.join(resourcesDirectory, SSH_RUNTIME_RELEASE_DIRECTORY_NAME),
+		if (environmentReleaseConfiguration !== null) {
+			await readVerifiedSshEnvironmentRelease({
+				publicKeyFilePath: environmentReleaseConfiguration.publicKeyFilePath,
+				releaseDirectory: path.join(resourcesDirectory, SSH_ENVIRONMENT_RELEASE_DIRECTORY_NAME),
 			});
 			await requireMissing(
-				path.join(resourcesDirectory, SSH_RUNTIME_RELEASE_TRUST_DESCRIPTOR_FILE_NAME),
+				path.join(resourcesDirectory, SSH_ENVIRONMENT_RELEASE_TRUST_DESCRIPTOR_FILE_NAME),
 			);
 		}
 		if (process.platform !== 'win32' && ((await stat(packagedLauncher)).mode & 0o111) === 0) {
@@ -223,5 +223,5 @@ async function requireMissing(target) {
 		if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return;
 		throw error;
 	}
-	throw new Error(`SSH Runtime trust descriptor escaped app.asar: ${target}`);
+	throw new Error(`SSH Environment trust descriptor escaped app.asar: ${target}`);
 }

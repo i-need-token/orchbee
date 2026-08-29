@@ -22,6 +22,7 @@ export {
 	composeDesktopTerminalLifecycleAdapter,
 	DesktopTerminalLifecycleAdapter,
 } from './terminal-document-control';
+export type { DesktopSshEnvironmentRemoteTerminalResult } from './remote-terminal';
 export type {
 	DesktopTerminalBindingLifecyclePort,
 	DesktopTerminalLifecycleAdapterComposition,

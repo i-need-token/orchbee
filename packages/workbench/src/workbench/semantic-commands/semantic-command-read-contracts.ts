@@ -53,6 +53,10 @@ const directoryListItemSchema = z.strictObject({
 	kind: z.enum(['folder', 'worktree']),
 	name: z.string(),
 	path: z.string().min(1),
+	placement: z.discriminatedUnion('kind', [
+		z.strictObject({ kind: z.literal('local') }),
+		z.strictObject({ environmentId: identifierSchema, kind: z.literal('environment') }),
+	]),
 	primary: z.boolean(),
 	source: z.enum(['created', 'discovered', 'selected']),
 });
@@ -129,9 +133,9 @@ export const WORKBENCH_DIRECTORY_LIST_OPERATION = Object.freeze({
 	id: 'workbench.directory.list',
 	input: { name: 'workbench.directory-list-input', schemaVersion: 1 },
 	kind: 'query',
-	output: { name: 'workbench.directory-list-page', schemaVersion: 1 },
+	output: { name: 'workbench.directory-list-page', schemaVersion: 2 },
 	retry: 'same-request-while-retained',
-	schemaVersion: 1,
+	schemaVersion: 2,
 } as const);
 
 export const WORKBENCH_WORKSPACE_LIST_OPERATION = Object.freeze({

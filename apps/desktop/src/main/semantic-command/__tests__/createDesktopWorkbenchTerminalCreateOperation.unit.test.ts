@@ -38,6 +38,7 @@ const directory: WorkbenchDirectory = {
 	kind: 'folder',
 	name: 'source',
 	path: '/source',
+	placement: { kind: 'local' },
 	source: 'selected',
 };
 

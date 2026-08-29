@@ -256,6 +256,9 @@ export function TabStripView({
 						onOpenGroupEditor={openGroupEditorFromControl}
 						showNewTabButton={showNewTabButton}
 						addTab={addTab}
+						newTabCreationEnabled={
+							actions.getCreationAvailability({ groupId: null, kind: 'new-tab' }).kind === 'enabled'
+						}
 						touchUi={touchUi}
 						closeButtonAllowed
 						showTopControls={showVerticalTopControls}

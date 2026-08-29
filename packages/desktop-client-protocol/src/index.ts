@@ -132,6 +132,20 @@ export type {
 	DesktopProjectFolderAcquisitionResult,
 } from './desktop-project-folder-acquisition-contract';
 export {
+	DesktopRemoteTerminalCreationFailureReasonSchema,
+	DesktopRemoteTerminalCreationMainEventSchema,
+	DesktopRemoteTerminalCreationRendererCommandSchema,
+	DesktopRemoteTerminalCreationRequestIdSchema,
+	DesktopRemoteTerminalCreationResultSchema,
+} from './desktop-remote-terminal-creation-contract';
+export type {
+	DesktopRemoteTerminalCreationFailureReason,
+	DesktopRemoteTerminalCreationMainEvent,
+	DesktopRemoteTerminalCreationRendererCommand,
+	DesktopRemoteTerminalCreationRequestId,
+	DesktopRemoteTerminalCreationResult,
+} from './desktop-remote-terminal-creation-contract';
+export {
 	DESKTOP_BUILT_IN_TERMINAL_LAUNCH_PROFILE_ID,
 	DESKTOP_TERMINAL_LAUNCH_PROFILE_LIMITS,
 	DesktopTerminalLaunchProfileCatalogSchema,

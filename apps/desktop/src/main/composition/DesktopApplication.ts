@@ -27,7 +27,6 @@ import {
 	type AttachmentCapabilities,
 	type TerminalExited,
 	type TerminalFailed,
-	type TerminalGeometry,
 	type TerminalIdentity,
 	type TerminalLaunch,
 	type TerminalMetadataChanged,
@@ -81,6 +80,7 @@ import {
 	DesktopClientSessionBroker,
 	DesktopClientSessionCoordinator,
 	DesktopTerminalIntentReconciler,
+	resolveDesktopTerminalPresentationEffectTarget,
 	type DesktopClientSessionCoordinatorDependencies,
 	type DesktopTerminalIntentReconcilerDependencies,
 } from '../client-session';
@@ -94,8 +94,10 @@ import {
 import { DesktopClipboardBroker } from '../desktop-clipboard';
 import {
 	DesktopEnvironmentRegistry,
+	EnvironmentIdSchema,
 	EnvironmentRecordSchema,
 	FileEnvironmentRegistryStore,
+	validateWorkbenchEnvironmentReferences,
 	type EnvironmentId,
 	type EnvironmentRecord,
 	type EnvironmentRegistryCreateResult,
@@ -113,6 +115,18 @@ import {
 	FileProjectWorktreeOperationStore,
 } from '../project-worktree';
 import {
+	admitDesktopSshEnvironmentRemoteProject,
+	type DesktopSshEnvironmentRemoteProjectAdmissionResult,
+} from '../remote-project';
+import {
+	createDesktopSshEnvironmentRemoteTerminal,
+	DesktopSshEnvironmentTerminalObservationOwner,
+	DesktopSshEnvironmentTerminalRuntimeOwner,
+	resolveDesktopSshEnvironmentTerminalRuntimeResources,
+	resolveDesktopSshEnvironmentRemoteTerminalCreationTarget,
+	type DesktopSshEnvironmentRemoteTerminalResult,
+} from '../remote-terminal';
+import {
 	createDesktopWorkbenchReadOperations,
 	createDesktopWorkbenchTerminalCreateOperation,
 	DesktopSemanticCommandCatalog,
@@ -125,18 +139,19 @@ import {
 	observeSshEnvironmentConnection as observeSshEnvironmentConnectionModel,
 	OpenSshTargetResolver,
 	OpenSshTransportAdapter,
-	PackagedSshRuntimeReleaseSource,
+	PackagedSshEnvironmentReleaseSource,
 	SshEnvironmentSupervisor,
 	transitionSshEnvironmentConnection as transitionSshEnvironmentConnectionModel,
-	UnavailableSshRuntimeReleaseSource,
+	UnavailableSshEnvironmentReleaseSource,
 	type OpenSshTargetResolutionResult,
-	type PackagedSshRuntimeReleaseSourceOptions,
+	type PackagedSshEnvironmentReleaseSourceOptions,
 	type SshEnvironmentConnectionConfiguration,
 	type SshEnvironmentConnectionEvent,
 	type SshEnvironmentConnectionObservation,
 	type SshEnvironmentConnectionState,
 	type SshEnvironmentConnectionTransition,
 	type SshProjectRootInspectionOutcome,
+	type SshTerminalHostConnectionOutcome,
 	type SshEnvironmentTargetReference,
 } from '../ssh-environment';
 import {
@@ -145,8 +160,9 @@ import {
 	type TerminalExitSpillReason,
 } from '../recovery';
 import {
+	DesktopTerminalProjectionRouter,
 	TerminalProjectionControlBroker,
-	type DesktopTerminalProjectionLease,
+	type DesktopTerminalProjectionControlService,
 } from '../terminal-projection-control';
 import {
 	DesktopTerminalDefaultSettingsBroker,
@@ -316,7 +332,7 @@ function terminalRgbCss(value: number): string {
 export interface DesktopSshEnvironmentResources {
 	readonly askPassHelperEntryPath: string;
 	readonly askPassRuntimeExecutablePath: string;
-	readonly runtimeRelease: PackagedSshRuntimeReleaseSourceOptions | null;
+	readonly release: PackagedSshEnvironmentReleaseSourceOptions | null;
 }
 
 export interface DesktopApplicationOptions {
@@ -365,7 +381,7 @@ export interface DesktopApplicationDependencies {
 		readonly askPassRuntimeExecutablePath: string;
 		readonly platform: NodeJS.Platform;
 		readonly registry: Pick<DesktopEnvironmentRegistry, 'get'>;
-		readonly runtimeRelease: PackagedSshRuntimeReleaseSourceOptions | null;
+		readonly release: PackagedSshEnvironmentReleaseSourceOptions | null;
 	}) => DesktopSshEnvironmentConnectionOwnerPort;
 	readonly createClientSessionBroker: (
 		port: MessagePortMain,
@@ -381,12 +397,7 @@ export interface DesktopApplicationDependencies {
 	};
 	readonly createProjectionControlBroker: (
 		port: MessagePortMain,
-		service: {
-			open(
-				presentationId: Parameters<DesktopTerminalRuntime['open']>[0],
-				geometry: TerminalGeometry,
-			): Promise<DesktopTerminalProjectionLease>;
-		},
+		service: DesktopTerminalProjectionControlService,
 	) => DesktopProjectionControlBrokerHandle;
 	readonly createProjectFolderAcquisitionBroker: (
 		port: MessagePortMain,
@@ -444,7 +455,10 @@ export interface DesktopApplicationDependencies {
 	readonly createTerminalIntentReconciler: (
 		dependencies: DesktopTerminalIntentReconcilerDependencies,
 	) => DesktopTerminalIntentReconciler;
-	readonly createWorkbenchDocumentStore: (filePath: string) => WorkbenchDocumentStore;
+	readonly createWorkbenchDocumentStore: (
+		filePath: string,
+		legacyFilePath: string,
+	) => WorkbenchDocumentStore;
 	readonly createWindow: (options: BrowserWindowConstructorOptions) => BrowserWindow;
 	readonly createWindowLayoutStore?: (filePath: string) => DesktopWindowLayoutStore;
 	readonly createWindowStateStore: (filePath: string) => DesktopWindowStateStore;
@@ -493,12 +507,12 @@ const defaultDependencies: DesktopApplicationDependencies = {
 			process.env['SystemRoot'],
 		);
 		const releaseSource =
-			options.runtimeRelease === null
-				? new UnavailableSshRuntimeReleaseSource()
-				: new PackagedSshRuntimeReleaseSource(options.runtimeRelease);
+			options.release === null
+				? new UnavailableSshEnvironmentReleaseSource()
+				: new PackagedSshEnvironmentReleaseSource(options.release);
 		const targetResolver = new OpenSshTargetResolver(executablePath);
 		return new DesktopSshEnvironmentConnectionOwner({
-			createSupervisor: (configuration) =>
+			createSupervisor: (configuration, interaction) =>
 				new SshEnvironmentSupervisor(
 					{
 						...configuration,
@@ -506,7 +520,7 @@ const defaultDependencies: DesktopApplicationDependencies = {
 						askPassRuntimeExecutablePath: options.askPassRuntimeExecutablePath,
 					},
 					{
-						interaction: async () => ({ kind: 'cancelled' }),
+						interaction,
 						releaseSource,
 						targetResolver,
 						transportAdapter: new OpenSshTransportAdapter(executablePath),
@@ -577,7 +591,8 @@ const defaultDependencies: DesktopApplicationDependencies = {
 	createTerminalIntentReconciler: (dependencies) =>
 		new DesktopTerminalIntentReconciler(dependencies),
 	createTerminalExitPublicationLedger: (filePath) => new TerminalExitPublicationLedger(filePath),
-	createWorkbenchDocumentStore: (filePath) => new FileWorkbenchDocumentStore(filePath),
+	createWorkbenchDocumentStore: (filePath, legacyFilePath) =>
+		new FileWorkbenchDocumentStore(filePath, { legacyFilePath }),
 	createWindow: (options) => new BrowserWindow(options),
 	createWindowLayoutStore: (filePath) => new FileDesktopWindowLayoutStore(filePath),
 	createWindowStateStore: (filePath) => new FileDesktopWindowStateStore(filePath),
@@ -626,7 +641,9 @@ export class DesktopApplication {
 	#documentTransition = Promise.resolve();
 	#developmentHostRestartPresentationIds: readonly TerminalPresentationId[] | undefined;
 	readonly #environmentRegistry: DesktopEnvironmentRegistry;
+	readonly #registeredEnvironmentIds = new Set<EnvironmentId>();
 	readonly #sshEnvironmentConnections: DesktopSshEnvironmentConnectionOwnerPort;
+	#sshEnvironmentTerminalRuntimeOwner: DesktopSshEnvironmentTerminalRuntimeOwner | undefined;
 	#exitRequest: Promise<DesktopApplicationLifetimeExitResult> | undefined;
 	readonly #pendingGatewayClientCleanups = new Set<GatewayClientResourceOwner>();
 	#projectWorktreeRuntime: DesktopProjectWorktreeRuntimeHandle | undefined;
@@ -689,7 +706,7 @@ export class DesktopApplication {
 			askPassRuntimeExecutablePath: options.sshEnvironment.askPassRuntimeExecutablePath,
 			platform: options.platform,
 			registry: this.#environmentRegistry,
-			runtimeRelease: options.sshEnvironment.runtimeRelease,
+			release: options.sshEnvironment.release,
 		});
 		this.#terminalExitSpillStore =
 			dependencies.createTerminalExitSpillStore?.(options.runtime.terminalExitSpillPath) ??
@@ -704,6 +721,7 @@ export class DesktopApplication {
 		);
 		this.#workbenchDocumentStore = dependencies.createWorkbenchDocumentStore(
 			options.runtime.workbenchDocumentStorePath,
+			options.runtime.workbenchDocumentLegacyStorePath,
 		);
 		this.#terminalLaunchProfileController = dependencies.createTerminalLaunchProfileController({
 			allocateProfileId: () => `profile-${dependencies.randomIdentifier()}`,
@@ -811,8 +829,16 @@ export class DesktopApplication {
 		return result.kind === 'completed';
 	}
 
-	createEnvironment(environment: EnvironmentRecord): Promise<EnvironmentRegistryCreateResult> {
-		return this.#environmentRegistry.create(EnvironmentRecordSchema.parse(environment));
+	async createEnvironment(
+		environment: EnvironmentRecord,
+	): Promise<EnvironmentRegistryCreateResult> {
+		const result = await this.#environmentRegistry.create(
+			EnvironmentRecordSchema.parse(environment),
+		);
+		if ('environment' in result) {
+			this.#registeredEnvironmentIds.add(result.environment.environmentId);
+		}
+		return result;
 	}
 
 	getEnvironment(
@@ -825,18 +851,36 @@ export class DesktopApplication {
 		return this.#environmentRegistry.list();
 	}
 
-	reloadEnvironmentRegistry(): Promise<EnvironmentRegistryInitializeResult> {
-		return this.#environmentRegistry.initialize();
+	async reloadEnvironmentRegistry(): Promise<EnvironmentRegistryInitializeResult> {
+		const result = await this.#environmentRegistry.initialize();
+		if (result.kind === 'ready')
+			this.#replaceRegisteredEnvironmentIds(result.document.environments);
+		return result;
+	}
+
+	#replaceRegisteredEnvironmentIds(environments: readonly EnvironmentRecord[]): void {
+		this.#registeredEnvironmentIds.clear();
+		for (const environment of environments) {
+			this.#registeredEnvironmentIds.add(environment.environmentId);
+		}
 	}
 
 	connectSshEnvironment(environmentId: EnvironmentId): Promise<DesktopSshEnvironmentConnectResult> {
 		return this.#sshEnvironmentConnections.connect(environmentId);
 	}
 
-	disconnectSshEnvironment(
+	async disconnectSshEnvironment(
 		environmentId: EnvironmentId,
 	): Promise<DesktopSshEnvironmentDisconnectResult> {
-		return this.#sshEnvironmentConnections.disconnect(environmentId);
+		let retirementFailure: unknown;
+		try {
+			await this.#sshEnvironmentTerminalRuntimeOwner?.retire(environmentId);
+		} catch (error: unknown) {
+			retirementFailure = error;
+		}
+		const result = await this.#sshEnvironmentConnections.disconnect(environmentId);
+		if (retirementFailure !== undefined) throw retirementFailure;
+		return result;
 	}
 
 	inspectSshEnvironmentProjectRoot(
@@ -845,6 +889,104 @@ export class DesktopApplication {
 		signal?: AbortSignal,
 	): Promise<SshProjectRootInspectionOutcome> {
 		return this.#sshEnvironmentConnections.inspectProjectRoot(environmentId, path, signal);
+	}
+
+	openSshEnvironmentTerminalHost(
+		environmentId: EnvironmentId,
+	): Promise<SshTerminalHostConnectionOutcome> {
+		return this.#sshEnvironmentConnections.openTerminalHost(environmentId);
+	}
+
+	admitSshEnvironmentRemoteProject(
+		environmentId: EnvironmentId,
+		requestedPath: string,
+		signal?: AbortSignal,
+	): Promise<DesktopSshEnvironmentRemoteProjectAdmissionResult> {
+		const coordinator = this.#clientSessionCoordinator;
+		if (coordinator === undefined) {
+			return Promise.resolve({ kind: 'failed', reason: 'workbench-unavailable' });
+		}
+		return admitDesktopSshEnvironmentRemoteProject({
+			allocateDirectoryToken: this.#dependencies.randomIdentifier,
+			connections: this.#sshEnvironmentConnections,
+			coordinator,
+			environmentId,
+			registry: this.#environmentRegistry,
+			requestedPath,
+			...(signal === undefined ? {} : { signal }),
+		});
+	}
+
+	createSshEnvironmentRemoteTerminal(
+		environmentId: EnvironmentId,
+		projectId: string,
+		workspaceId: string,
+		signal?: AbortSignal,
+	): Promise<DesktopSshEnvironmentRemoteTerminalResult> {
+		const coordinator = this.#clientSessionCoordinator;
+		const runtimeOwner = this.#sshEnvironmentTerminalRuntimeOwner;
+		if (coordinator === undefined || runtimeOwner === undefined) {
+			return Promise.resolve({ kind: 'failed', reason: 'workbench-unavailable' });
+		}
+		const intl = createOrchbeeIntl(resolveOrchbeeLocale(this.#dependencies.getPreferredLocales()));
+		return createDesktopSshEnvironmentRemoteTerminal({
+			allocateIdentifier: this.#dependencies.randomIdentifier,
+			connections: this.#sshEnvironmentConnections,
+			coordinator,
+			environmentId,
+			projectId,
+			registry: this.#environmentRegistry,
+			runtimeOwner,
+			...(signal === undefined ? {} : { signal }),
+			terminalTitle: intl.formatMessage(workbenchTabMessages.terminalTitle),
+			workspaceId,
+		});
+	}
+
+	createSshEnvironmentRemoteTerminalForWorkspace(
+		projectId: string,
+		workspaceId: string,
+		signal?: AbortSignal,
+	): Promise<DesktopSshEnvironmentRemoteTerminalResult> {
+		const coordinator = this.#clientSessionCoordinator;
+		if (coordinator === undefined) {
+			return Promise.resolve({ kind: 'failed', reason: 'workbench-unavailable' });
+		}
+		const document = coordinator.canonicalDocument;
+		if (document === null) {
+			return Promise.resolve({ kind: 'failed', reason: 'workbench-missing' });
+		}
+		const target = resolveDesktopSshEnvironmentRemoteTerminalCreationTarget(
+			document,
+			projectId,
+			workspaceId,
+		);
+		if (target.kind === 'rejected') {
+			return Promise.resolve({ kind: 'failed', reason: target.reason });
+		}
+		return this.createSshEnvironmentRemoteTerminal(
+			target.environmentId,
+			projectId,
+			workspaceId,
+			signal,
+		);
+	}
+
+	#isCurrentSshEnvironmentTerminalTarget(
+		environmentId: EnvironmentId,
+		presentationId: TerminalPresentationId,
+	): boolean {
+		const document = this.#clientSessionCoordinator?.canonicalDocument;
+		if (document === null || document === undefined) return false;
+		try {
+			const target = resolveDesktopTerminalPresentationEffectTarget(document, presentationId);
+			return (
+				target.kind === 'ssh-environment' &&
+				EnvironmentIdSchema.parse(target.environmentId) === EnvironmentIdSchema.parse(environmentId)
+			);
+		} catch {
+			return false;
+		}
 	}
 
 	getSshEnvironmentConnection(
@@ -967,6 +1109,7 @@ export class DesktopApplication {
 				`Desktop Environment registry is unavailable: ${environmentRegistryInitialization.reason}.`,
 			);
 		}
+		this.#replaceRegisteredEnvironmentIds(environmentRegistryInitialization.document.environments);
 		const connection = await this.#dependencies.connectHost(this.#options.runtime);
 		this.#connection = connection;
 		try {
@@ -1017,6 +1160,65 @@ export class DesktopApplication {
 					`Desktop terminal runtime initialization stopped with ${initialization.kind}.`,
 				);
 			}
+			const sshEnvironmentTerminalRuntimeOwner = new DesktopSshEnvironmentTerminalRuntimeOwner({
+				connections: this.#sshEnvironmentConnections,
+				createObservation: (environmentId) => {
+					const resources = resolveDesktopSshEnvironmentTerminalRuntimeResources(
+						this.#options.runtime,
+						environmentId,
+					);
+					const spillStore =
+						this.#dependencies.createTerminalExitSpillStore?.(
+							resources.configuration.terminalExitSpillPath,
+						) ?? new TerminalExitSpillStore(resources.configuration.terminalExitSpillPath);
+					const publicationLedger =
+						this.#dependencies.createTerminalExitPublicationLedger?.(
+							resources.configuration.terminalExitPublicationLedgerPath,
+						) ??
+						new TerminalExitPublicationLedger(
+							resources.configuration.terminalExitPublicationLedgerPath,
+						);
+					return new DesktopSshEnvironmentTerminalObservationOwner({
+						createExitEvent: toDocumentExit,
+						createFailureEvent: toDocumentFailure,
+						environmentId,
+						publication: {
+							commitExternalEvent: (event) =>
+								this.#terminalIntentReconciler?.commitExternalEvent(event) ?? false,
+							hasExternalEvent: (event) =>
+								this.#terminalIntentReconciler?.hasExternalEvent(event) ?? false,
+							isCurrentPresentationTarget: (targetEnvironmentId, presentationId) =>
+								this.#isCurrentSshEnvironmentTerminalTarget(targetEnvironmentId, presentationId),
+							publishTerminalEvent: (event) =>
+								this.#clientSessionCoordinator?.publishTerminalEvent(event) ?? false,
+							publishTerminalMetadata: (metadata) =>
+								this.#clientSessionCoordinator?.publishTerminalMetadata(metadata) ?? false,
+							recordExternalEvent: (event) =>
+								this.#terminalIntentReconciler?.recordExternalEvent(event) ?? false,
+							reserveExternalEvent: (event) =>
+								this.#terminalIntentReconciler?.reserveExternalEvent(event) ?? false,
+						},
+						publicationLedger,
+						spillStore,
+						trace: (reason) => this.#writeCopyPathTrace(reason),
+					});
+				},
+				createRuntime: (environmentId, remoteHost) => {
+					const resources = resolveDesktopSshEnvironmentTerminalRuntimeResources(
+						this.#options.runtime,
+						environmentId,
+					);
+					return this.#dependencies.createTerminalRuntime(
+						remoteHost,
+						resources.configuration,
+						this.#dependencies.randomIdentifier,
+						this.#dependencies.createMessageChannel,
+						this.#dependencies.createBroker,
+						() => resources.launch,
+					);
+				},
+			});
+			this.#sshEnvironmentTerminalRuntimeOwner = sshEnvironmentTerminalRuntimeOwner;
 			const defaultCwd = this.#options.runtime.terminalLaunch.currentDirectory;
 			if (defaultCwd === null) {
 				throw new Error('Desktop terminal runtime requires a default CWD.');
@@ -1046,13 +1248,33 @@ export class DesktopApplication {
 			});
 			const terminalIntentReconciler = this.#dependencies.createTerminalIntentReconciler({
 				createOperationId,
-				execute: async (command) => terminalRuntime.execute(command),
-				getTerminalOutcome: (presentationId) => {
-					const terminalFailure = terminalRuntime.getTerminalFailure(presentationId);
+				execute: async (command, target) => {
+					if (target.kind === 'local') {
+						return { event: await terminalRuntime.execute(command), kind: 'settled' };
+					}
+					return sshEnvironmentTerminalRuntimeOwner.execute(
+						EnvironmentIdSchema.parse(target.environmentId),
+						command,
+					);
+				},
+				getTerminalOutcome: (presentationId, target) => {
+					const terminalFailure =
+						target.kind === 'local'
+							? terminalRuntime.getTerminalFailure(presentationId)
+							: sshEnvironmentTerminalRuntimeOwner.getTerminalFailure(
+									EnvironmentIdSchema.parse(target.environmentId),
+									presentationId,
+								);
 					if (terminalFailure !== null) {
 						return toDocumentFailure(presentationId, terminalFailure);
 					}
-					const terminalExit = terminalRuntime.getDurableTerminalExit(presentationId);
+					const terminalExit =
+						target.kind === 'local'
+							? terminalRuntime.getDurableTerminalExit(presentationId)
+							: sshEnvironmentTerminalRuntimeOwner.getDurableTerminalExit(
+									EnvironmentIdSchema.parse(target.environmentId),
+									presentationId,
+								);
 					return terminalExit === null ? null : toDocumentExit(presentationId, terminalExit);
 				},
 			});
@@ -1070,14 +1292,35 @@ export class DesktopApplication {
 						this.#fallbackWindowBounds(),
 					);
 				},
-				reconcileDocument: (document, publish) =>
-					terminalIntentReconciler.reconcileDocument(document, (event) => {
+				reconcileDocument: async (document, publish) => {
+					await terminalIntentReconciler.reconcileDocument(document, (event) => {
 						if (event.type === 'terminal-exited') {
-							return this.#commitReconciledTerminalExit(terminalRuntime, event, publish);
+							let target;
+							try {
+								target = resolveDesktopTerminalPresentationEffectTarget(
+									document,
+									event.presentationId,
+								);
+							} catch {
+								return false;
+							}
+							return target.kind === 'local'
+								? this.#commitReconciledTerminalExit(terminalRuntime, event, publish)
+								: sshEnvironmentTerminalRuntimeOwner.commitReconciledExit(
+										EnvironmentIdSchema.parse(target.environmentId),
+										event,
+										publish,
+									);
 						}
 						publish(event);
 						return true;
-					}),
+					});
+					await Promise.all(
+						[...this.#registeredEnvironmentIds].map(async (environmentId) =>
+							sshEnvironmentTerminalRuntimeOwner.retryPending(environmentId),
+						),
+					);
+				},
 				reconcileTerminalArchives: (document) =>
 					terminalRuntime.reconcileArchives(
 						document === null
@@ -1086,7 +1329,9 @@ export class DesktopApplication {
 					),
 				store: this.#workbenchDocumentStore,
 				terminalHostName: this.#options.runtime.terminalHostName,
-				validateDocument: (document) => terminalIntentReconciler.validateDocument(document),
+				validateDocument: (document) =>
+					terminalIntentReconciler.validateDocument(document) &&
+					validateWorkbenchEnvironmentReferences(document, this.#registeredEnvironmentIds),
 			});
 			this.#terminalIntentReconciler = terminalIntentReconciler;
 			this.#clientSessionCoordinator = clientSessionCoordinator;
@@ -1237,6 +1482,15 @@ export class DesktopApplication {
 				if (this.#clientSessionCoordinator === coordinator) {
 					this.#clientSessionCoordinator = undefined;
 					this.#terminalIntentReconciler = undefined;
+				}
+			} catch (cleanupError: unknown) {
+				cleanupFailure ??= cleanupError;
+			}
+			try {
+				const remoteTerminalRuntimeOwner = this.#sshEnvironmentTerminalRuntimeOwner;
+				await remoteTerminalRuntimeOwner?.dispose();
+				if (this.#sshEnvironmentTerminalRuntimeOwner === remoteTerminalRuntimeOwner) {
+					this.#sshEnvironmentTerminalRuntimeOwner = undefined;
 				}
 			} catch (cleanupError: unknown) {
 				cleanupFailure ??= cleanupError;
@@ -1578,9 +1832,19 @@ export class DesktopApplication {
 		this.#removeHostListener = undefined;
 		let firstFailure: unknown;
 		try {
-			await this.#sshEnvironmentConnections.dispose();
+			const remoteTerminalRuntimeOwner = this.#sshEnvironmentTerminalRuntimeOwner;
+			await remoteTerminalRuntimeOwner?.dispose();
+			if (this.#sshEnvironmentTerminalRuntimeOwner === remoteTerminalRuntimeOwner) {
+				this.#sshEnvironmentTerminalRuntimeOwner = undefined;
+			}
 		} catch (error: unknown) {
 			firstFailure = error;
+			this.#writeCopyPathTrace('ssh-environment-terminal-runtime-failed-during-shutdown');
+		}
+		try {
+			await this.#sshEnvironmentConnections.dispose();
+		} catch (error: unknown) {
+			firstFailure ??= error;
 			this.#writeCopyPathTrace('ssh-environment-connections-failed-during-shutdown');
 		}
 		try {
@@ -1780,6 +2044,7 @@ export class DesktopApplication {
 
 	async #attachRendererDocument(window: BrowserWindow, generation: number): Promise<void> {
 		const terminalRuntime = this.#terminalRuntime;
+		const sshEnvironmentTerminalRuntimeOwner = this.#sshEnvironmentTerminalRuntimeOwner;
 		const clientSessionCoordinator = this.#clientSessionCoordinator;
 		const terminalDefaultSettingsController = this.#terminalDefaultSettingsController;
 		const windowLayoutCoordinator = this.#windowLayoutCoordinator;
@@ -1787,6 +2052,7 @@ export class DesktopApplication {
 		const windowRecord = windowId === undefined ? undefined : this.#windows.get(windowId);
 		if (
 			terminalRuntime === undefined ||
+			sshEnvironmentTerminalRuntimeOwner === undefined ||
 			clientSessionCoordinator === undefined ||
 			terminalDefaultSettingsController === undefined ||
 			windowLayoutCoordinator === undefined ||
@@ -1896,6 +2162,11 @@ export class DesktopApplication {
 			return cleanupPromise;
 		};
 		try {
+			const terminalProjectionRouter = new DesktopTerminalProjectionRouter({
+				getDocument: () => clientSessionCoordinator.canonicalDocument,
+				localRuntime: terminalRuntime,
+				remoteRuntimes: sshEnvironmentTerminalRuntimeOwner,
+			});
 			lifetimeChannel = this.#dependencies.createMessageChannel();
 			browserAccessChannel = this.#dependencies.createMessageChannel();
 			clientSessionChannel = this.#dependencies.createMessageChannel();
@@ -1908,7 +2179,7 @@ export class DesktopApplication {
 			windowLayoutChannel = this.#dependencies.createMessageChannel();
 			projectionBroker = this.#dependencies.createProjectionControlBroker(
 				projectionChannel.port2,
-				terminalRuntime,
+				terminalProjectionRouter,
 			);
 			clientSessionBroker = this.#dependencies.createClientSessionBroker(
 				clientSessionChannel.port2,
@@ -2015,9 +2286,11 @@ export class DesktopApplication {
 
 	async #openGatewayClient(): Promise<DesktopGatewayClientHandle> {
 		const terminalRuntime = this.#terminalRuntime;
+		const sshEnvironmentTerminalRuntimeOwner = this.#sshEnvironmentTerminalRuntimeOwner;
 		const clientSessionCoordinator = this.#clientSessionCoordinator;
 		if (
 			terminalRuntime === undefined ||
+			sshEnvironmentTerminalRuntimeOwner === undefined ||
 			clientSessionCoordinator === undefined ||
 			this.#shuttingDown
 		) {
@@ -2067,11 +2340,20 @@ export class DesktopApplication {
 		const owner: GatewayClientResourceOwner = { dispose: cleanup };
 		this.#pendingGatewayClientCleanups.add(owner);
 		try {
+			const terminalProjectionRouter = new DesktopTerminalProjectionRouter({
+				getDocument: () => clientSessionCoordinator.canonicalDocument,
+				localRuntime: terminalRuntime,
+				remoteRuntimes: sshEnvironmentTerminalRuntimeOwner,
+			});
 			clientSessionChannel = this.#dependencies.createMessageChannel();
 			projectionChannel = this.#dependencies.createMessageChannel();
 			projectionBroker = this.#dependencies.createProjectionControlBroker(projectionChannel.port2, {
+				isPublicationTargetCurrent: (presentationId, lease) =>
+					terminalProjectionRouter.isPublicationTargetCurrent(presentationId, lease),
 				open: async (presentationId, geometry) =>
-					terminalRuntime.open(presentationId, geometry, { brokerEffectTarget: 'client' }),
+					terminalProjectionRouter.open(presentationId, geometry, {
+						brokerEffectTarget: 'client',
+					}),
 			});
 			clientSessionBroker = this.#dependencies.createClientSessionBroker(
 				clientSessionChannel.port2,

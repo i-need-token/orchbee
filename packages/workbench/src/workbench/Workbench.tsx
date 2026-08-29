@@ -46,6 +46,7 @@ import type { WorkbenchProjectFolderAcquisition } from './types/workbench-projec
 import type { WorkbenchProjectWorktreeCapability } from './types/workbench-project-worktree';
 import type { WorkbenchTabScopeSource } from './types/workbench-tab-scope';
 import type { WorkbenchTabWindowControl } from './types/workbench-tab-window-control';
+import type { WorkbenchRemoteTerminalCreationCapability } from './types/workbench-remote-terminal-creation';
 import type { WorkbenchProjectWorkspaceRuntime } from './model/WorkbenchProjectWorkspaceRuntime';
 import {
 	defaultWorkbenchShortcutBindings,
@@ -64,6 +65,7 @@ export interface WorkbenchProps {
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
 	readonly projectFolderAcquisition?: WorkbenchProjectFolderAcquisition | undefined;
 	readonly projectWorktree?: WorkbenchProjectWorktreeCapability | undefined;
+	readonly remoteTerminalCreation?: WorkbenchRemoteTerminalCreationCapability | undefined;
 	readonly searchProviders?: readonly WorkbenchSearchProvider[] | undefined;
 	readonly shortcutBindings?: WorkbenchShortcutBindings | undefined;
 	readonly shortcutPlatform: WorkbenchShortcutPlatform;
@@ -84,6 +86,7 @@ export function Workbench({
 	projectWorkspaceRuntime,
 	projectFolderAcquisition,
 	projectWorktree,
+	remoteTerminalCreation,
 	searchProviders = EMPTY_WORKBENCH_SEARCH_PROVIDERS,
 	shortcutBindings,
 	shortcutPlatform,
@@ -107,6 +110,7 @@ export function Workbench({
 		onSettings,
 		onTerminalFontSizeChange,
 		projectWorkspaceRuntime,
+		remoteTerminalCreation,
 		shortcutBindings: effectiveShortcutBindings,
 		shortcutPlatform,
 		storage: layoutStorage,
@@ -271,6 +275,7 @@ export function Workbench({
 								onCloseTabs={view.onCloseTabs}
 								getCloseTabsConfirmation={view.getCloseTabsConfirmation}
 								focusRequest={view.tabStripFocusRequest}
+								getTabCreationAvailability={view.getTabCreationAvailability}
 								onSelectTab={navigation?.selectTab}
 								onSetTabTitle={view.setTabTitle}
 								parentActionScope={view.actionScope}

@@ -37,8 +37,17 @@ export type {
 	WorkbenchProjectWorktreeInventory,
 	WorkbenchProjectWorktreeRepository,
 } from './types/workbench-project-worktree';
+export type {
+	WorkbenchRemoteTerminalCreationCapability,
+	WorkbenchRemoteTerminalCreationFailureReason,
+	WorkbenchRemoteTerminalCreationResult,
+} from './types/workbench-remote-terminal-creation';
 export { WORKBENCH_SHORTCUTS, defaultWorkbenchShortcutBindings } from './utils/workbench-shortcuts';
 export type {
+	WorkbenchActiveTerminalCreationRoute,
+	WorkbenchActiveTerminalCreationRouteInput,
+	WorkbenchEnvironmentTerminalCreateInput,
+	WorkbenchPublishedTerminalIdentity,
 	WorkbenchProjectWorkspaceRuntimeOptions,
 	WorkbenchRuntimeTerminalCreateInput,
 	WorkbenchRuntimeTerminalCreateAtCwdInput,

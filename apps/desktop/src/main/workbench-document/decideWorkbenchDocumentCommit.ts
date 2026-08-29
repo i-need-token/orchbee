@@ -5,14 +5,18 @@ import {
 	type WorkbenchSharedDocumentRevision,
 } from '@orchbee/workbench/document';
 
-type WorkbenchDocumentStoreUnavailableReason = 'invalid' | 'read-failed' | 'write-failed';
+type WorkbenchDocumentStoreUnavailableReason =
+	| 'invalid'
+	| 'read-failed'
+	| 'write-failed'
+	| 'write-indeterminate';
 
 export type WorkbenchDocumentStoreLoadResult =
 	| { readonly document: WorkbenchSharedDocument; readonly kind: 'available' }
 	| { readonly kind: 'missing' }
 	| {
 			readonly kind: 'unavailable';
-			readonly reason: Exclude<WorkbenchDocumentStoreUnavailableReason, 'write-failed'>;
+			readonly reason: Exclude<WorkbenchDocumentStoreUnavailableReason, 'write-indeterminate'>;
 	  };
 
 export type WorkbenchDocumentStoreCommitResult =

@@ -130,6 +130,7 @@ describe('useWorkbenchActions', () => {
 				kind: 'folder',
 				name: 'orchbee',
 				path: '/workspace/orchbee',
+				placement: { kind: 'local' },
 				source: 'selected',
 			},
 			launchConfigurations: [],
@@ -515,6 +516,7 @@ describe('useWorkbenchActions', () => {
 				kind: 'folder',
 				name: 'orchbee',
 				path: '/workspace/orchbee',
+				placement: { kind: 'local' },
 				source: 'selected',
 			},
 			launchConfigurations: [],
@@ -532,6 +534,7 @@ describe('useWorkbenchActions', () => {
 				kind: 'folder',
 				name: 'xterm.js',
 				path: '/workspace/xterm.js',
+				placement: { kind: 'local' },
 				source: 'selected',
 			},
 			projectId: 'project-1',
@@ -662,6 +665,13 @@ describe('useWorkbenchActions', () => {
 			{ scope: actionScope, source: 'button' },
 		);
 		expect(execution.getSnapshot().state).toBe('running');
+		await expect(
+			runtime.execute(
+				WORKBENCH_ACTION_IDS.createTerminal,
+				{ groupId: null },
+				{ scope: actionScope, source: 'keyboard' },
+			).completion,
+		).resolves.toEqual({ code: 'duplicate-action-execution', kind: 'blocked' });
 		execution.cancel();
 
 		expect(context?.signal.aborted).toBe(true);

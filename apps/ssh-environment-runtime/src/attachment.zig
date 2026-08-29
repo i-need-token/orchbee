@@ -3,6 +3,8 @@ const std = @import("std");
 const private_ipc = @import("ssh-runtime-private-ipc");
 
 const bridge_buffer_bytes = 8192;
+const connect_attempts = 100;
+const connect_retry_ns = 50 * std.time.ns_per_ms;
 
 pub fn attach(
     io: std.Io,
@@ -21,7 +23,7 @@ pub fn attach(
     try private_ipc.validateEndpoint(endpoint_name);
     const address = std.Io.net.UnixAddress.init(endpoint_name) catch
         return error.EndpointPathTooLong;
-    const stream = try address.connect(io);
+    const stream = try connectRuntime(io, address);
     defer stream.close(io);
     try private_ipc.requirePeerEffectiveUid(stream.socket.handle);
 
@@ -61,6 +63,18 @@ pub fn attach(
             return;
         }
     }
+}
+
+fn connectRuntime(io: std.Io, address: std.Io.net.UnixAddress) !std.Io.net.Stream {
+    for (0..connect_attempts) |attempt| {
+        const stream = address.connect(io) catch |err| {
+            if (attempt + 1 == connect_attempts) return err;
+            std.Io.sleep(io, .fromNanoseconds(connect_retry_ns), .awake) catch {};
+            continue;
+        };
+        return stream;
+    }
+    unreachable;
 }
 
 fn sendAll(socket: std.posix.socket_t, bytes: []const u8) !void {

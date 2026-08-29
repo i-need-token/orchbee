@@ -132,7 +132,7 @@ describe('SSH project-root channel client', () => {
 				channelId: unknownChannel,
 				data: new Uint8Array(),
 			}),
-		).toBe('attachment-invalid');
+		).toBe('unhandled');
 	});
 
 	it('rejects invalid local paths and fences every pending invocation on attachment loss', async () => {
@@ -159,7 +159,9 @@ describe('SSH project-root channel client', () => {
 function createHarness() {
 	const messages: SshEnvironmentMessage[] = [];
 	const onAttachmentInvalid = vi.fn<() => void>();
+	let nextChannelId = 1;
 	const client = new SshProjectRootChannelClient({
+		allocateChannelId: () => SshEnvironmentChannelIdSchema.parse(nextChannelId++),
 		onAttachmentInvalid,
 		runtimeEpoch,
 		write: async (bytes) => {

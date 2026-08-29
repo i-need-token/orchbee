@@ -314,8 +314,11 @@ pub fn createIdleRuntimeWithGeometryAndHooks(
         null;
     defer if (windows_executable) |value| std.testing.allocator.free(value);
     const executable = if (windows_executable) |value| value else "/bin/sh";
-    const posix_arguments = [_][]const u8{ "-c", "sleep 120" };
-    const windows_arguments = [_][]const u8{ "/D", "/S", "/C", "ping -n 121 127.0.0.1 >nul" };
+    // The scrollback stress scenarios can exceed two minutes on a loaded debug
+    // runner. Teardown terminates this child explicitly, so keep the idle
+    // process alive well beyond the test workload instead of racing wall time.
+    const posix_arguments = [_][]const u8{ "-c", "sleep 600" };
+    const windows_arguments = [_][]const u8{ "/D", "/S", "/C", "ping -n 601 127.0.0.1 >nul" };
     const arguments = if (builtin.os.tag == .windows) &windows_arguments else &posix_arguments;
     var spawner: HookedThreadSpawner = .{ .hooks = hooks };
     return createWithOptionsUsingSpawner(std.testing.allocator, .{

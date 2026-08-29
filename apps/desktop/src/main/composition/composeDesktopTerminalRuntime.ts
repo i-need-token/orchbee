@@ -182,6 +182,7 @@ export function composeDesktopTerminalRuntime(
 				return await projectionService.open(presentationId, geometry, options);
 			} catch (liveError) {
 				if (
+					options?.allowArchivedFallback === false ||
 					options?.brokerEffectTarget === 'client' ||
 					adapter.getProjectionTarget(presentationId) !== null
 				) {

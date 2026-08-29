@@ -3,6 +3,7 @@ import {
 	defineAction,
 	noActionInput,
 	type ActionCatalogId,
+	type ActionAvailability,
 	type ActionExecution,
 	type ActionInputFor,
 	type ActionInvocation,
@@ -51,6 +52,9 @@ interface UseWorkbenchActionsOptions {
 	readonly isSidebarVisible: boolean;
 	readonly navigation?: WorkbenchNavigationPort | undefined;
 	readonly onNewTerminal: WorkbenchTerminalCreateCallback | undefined;
+	readonly getNewTerminalAvailability?:
+		| ((input: WorkbenchTerminalCreateInput) => ActionAvailability)
+		| undefined;
 	readonly openSearch: (input: WorkbenchSearchOpenInput) => void;
 	readonly openTabTitleEditor: (request: WorkbenchTabTitleEditorRequest) => void;
 	readonly onSettings: WorkbenchHostActionCallback | undefined;
@@ -86,6 +90,7 @@ export function useWorkbenchActions({
 	isSidebarVisible,
 	navigation,
 	onNewTerminal,
+	getNewTerminalAvailability,
 	openSearch,
 	openTabTitleEditor,
 	onSettings,
@@ -201,11 +206,12 @@ export function useWorkbenchActions({
 				defineAction({
 					category: categoryTerminal,
 					execution: {
-						concurrency: 'parallel',
+						concurrency: 'reject-duplicate',
 						concurrencyKey: (input) => `${input.groupId ?? 'ungrouped'}:${input.index ?? 'end'}`,
 						mode: 'foreground',
 					},
-					getAvailability: availabilityFor(onNewTerminal),
+					getAvailability: (_context, input) =>
+						getNewTerminalAvailability?.(input) ?? availabilityFor(onNewTerminal)(),
 					handler: {
 						execute: (context, input) => {
 							if (onNewTerminal === undefined) {
@@ -380,6 +386,7 @@ export function useWorkbenchActions({
 		focusRouting,
 		isSidebarVisible,
 		navigation,
+		getNewTerminalAvailability,
 		onNewTerminal,
 		onSettings,
 		onTerminalFontSizeChange,

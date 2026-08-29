@@ -4,6 +4,7 @@ const build_options = @import("build-options");
 const private_ipc = @import("ssh-runtime-private-ipc");
 const project_root = @import("ssh-project-root-service");
 const protocol = @import("ssh-environment-protocol");
+const terminal_host = @import("ssh-terminal-host-relay");
 
 pub const runtime_version = build_options.runtime_version;
 pub const runtime_platform = build_options.runtime_platform;
@@ -11,7 +12,7 @@ pub const runtime_platform = build_options.runtime_platform;
 const poll_interval_ms = 100;
 const heartbeat_timeout_ns =
     protocol.heartbeat_interval_ms * protocol.heartbeat_miss_limit * std.time.ns_per_ms;
-const maximum_poll_descriptors = 2 + project_root.maximum_concurrent_inspections;
+const maximum_poll_descriptors = 4 + project_root.maximum_concurrent_inspections;
 
 const AttachmentPhase = enum {
     awaiting_hello,
@@ -30,11 +31,37 @@ const Channel = struct {
     result_credit: u32 = protocol.initial_channel_credit_bytes,
 };
 
+pub const TerminalHostConfiguration = struct {
+    build_digest: []const u8,
+    endpoint_id: []const u8,
+    executable_path: []const u8,
+    runtime_directory: []const u8,
+    version: []const u8,
+};
+
+const TerminalHostRelayPhase = enum { starting, open };
+
+const TerminalHostRelay = struct {
+    desktop_credit: u32,
+    host_input: [protocol.initial_channel_credit_bytes]u8 = undefined,
+    host_input_credit: u32 = protocol.initial_channel_credit_bytes,
+    host_input_length: usize = 0,
+    host_input_offset: usize = 0,
+    phase: TerminalHostRelayPhase = .starting,
+    worker: terminal_host.Worker,
+
+    fn terminate(self: *TerminalHostRelay, io: std.Io) void {
+        self.worker.terminate(io);
+        self.* = undefined;
+    }
+};
+
 const Attachment = struct {
     channels: std.AutoHashMap(u32, Channel),
     generation: u64,
     last_heartbeat: std.Io.Timestamp,
     phase: AttachmentPhase = .awaiting_hello,
+    terminal_host_relay: ?TerminalHostRelay = null,
     stream: std.Io.net.Stream,
     used_channels: std.AutoHashMap(u32, void),
 
@@ -54,6 +81,7 @@ const Attachment = struct {
     }
 
     fn close(self: *Attachment, io: std.Io) void {
+        if (self.terminal_host_relay) |*relay| relay.terminate(io);
         self.stream.close(io);
         self.channels.deinit();
         self.used_channels.deinit();
@@ -72,6 +100,8 @@ pub fn serve(
     runtime_directory: []const u8,
     runtime_instance_id: []const u8,
     runtime_build_digest: []const u8,
+    release_cohort_digest: []const u8,
+    terminal_host_configuration: TerminalHostConfiguration,
 ) !void {
     const executable_path = try std.process.executablePathAlloc(io, allocator);
     defer allocator.free(executable_path);
@@ -90,17 +120,31 @@ pub fn serve(
 
     const endpoint_name = try endpointName(allocator, runtime_instance_id);
     defer allocator.free(endpoint_name);
+    const unpublished_endpoint_name = try unpublishedEndpointName(allocator, runtime_instance_id);
+    defer allocator.free(unpublished_endpoint_name);
     directory.deleteFile(io, endpoint_name) catch |err| switch (err) {
         error.FileNotFound => {},
         else => return err,
     };
+    directory.deleteFile(io, unpublished_endpoint_name) catch |err| switch (err) {
+        error.FileNotFound => {},
+        else => return err,
+    };
     defer directory.deleteFile(io, endpoint_name) catch {};
+    defer directory.deleteFile(io, unpublished_endpoint_name) catch {};
 
-    const address = std.Io.net.UnixAddress.init(endpoint_name) catch
+    const address = std.Io.net.UnixAddress.init(unpublished_endpoint_name) catch
         return error.EndpointPathTooLong;
     var listener = try address.listen(io, .{ .kernel_backlog = 8 });
     defer listener.deinit(io);
-    try private_ipc.secureEndpoint(endpoint_name);
+    try private_ipc.secureEndpoint(unpublished_endpoint_name);
+    try directory.rename(
+        unpublished_endpoint_name,
+        directory,
+        endpoint_name,
+        io,
+    );
+    try private_ipc.validateEndpoint(endpoint_name);
 
     var epoch_bytes: [16]u8 = undefined;
     io.random(&epoch_bytes);
@@ -141,6 +185,28 @@ pub fn serve(
             .revents = 0,
         };
         var descriptor_count: usize = 2;
+        var terminal_host_output_descriptor_index: ?usize = null;
+        var terminal_host_input_descriptor_index: ?usize = null;
+        if (attachment.?.terminal_host_relay) |*relay| {
+            if (relay.phase == .starting or relay.desktop_credit > 0) {
+                terminal_host_output_descriptor_index = descriptor_count;
+                descriptors[descriptor_count] = .{
+                    .fd = relay.worker.outputDescriptor(),
+                    .events = std.posix.POLL.IN,
+                    .revents = 0,
+                };
+                descriptor_count += 1;
+            }
+            if (relay.host_input_offset < relay.host_input_length) {
+                terminal_host_input_descriptor_index = descriptor_count;
+                descriptors[descriptor_count] = .{
+                    .fd = relay.worker.inputDescriptor(),
+                    .events = std.posix.POLL.OUT,
+                    .revents = 0,
+                };
+                descriptor_count += 1;
+            }
+        }
         var worker_polls: [project_root.maximum_concurrent_inspections]WorkerPoll = undefined;
         var worker_poll_count: usize = 0;
         for (&workers, 0..) |*worker_slot, slot_index| {
@@ -182,6 +248,8 @@ pub fn serve(
                 runtime_instance_id,
                 &runtime_epoch,
                 runtime_build_digest,
+                release_cohort_digest,
+                terminal_host_configuration,
             ) catch |err| failed: {
                 std.log.warn(
                     "retiring SSH Runtime attachment after dispatch failure: {s}",
@@ -197,6 +265,39 @@ pub fn serve(
         if (active_events & (std.posix.POLL.ERR | std.posix.POLL.HUP | std.posix.POLL.NVAL) != 0) {
             retireAttachment(io, &attachment, &workers);
             continue;
+        }
+
+        if (terminal_host_output_descriptor_index) |descriptor_index| {
+            if (attachment.?.terminal_host_relay != null and
+                descriptors[descriptor_index].revents != 0)
+            {
+                processTerminalHostOutputEvents(
+                    io,
+                    allocator,
+                    &attachment.?,
+                    &runtime_epoch,
+                    descriptors[descriptor_index].revents,
+                ) catch {
+                    retireAttachment(io, &attachment, &workers);
+                    continue;
+                };
+            }
+        }
+        if (terminal_host_input_descriptor_index) |descriptor_index| {
+            if (attachment.?.terminal_host_relay != null and
+                descriptors[descriptor_index].revents != 0)
+            {
+                processTerminalHostInputEvents(
+                    io,
+                    allocator,
+                    &attachment.?,
+                    &runtime_epoch,
+                    descriptors[descriptor_index].revents,
+                ) catch {
+                    retireAttachment(io, &attachment, &workers);
+                    continue;
+                };
+            }
         }
 
         var worker_failed_attachment = false;
@@ -246,6 +347,8 @@ fn dispatch(
     runtime_instance_id: []const u8,
     runtime_epoch: []const u8,
     runtime_build_digest: []const u8,
+    release_cohort_digest: []const u8,
+    terminal_host_configuration: TerminalHostConfiguration,
 ) !bool {
     var frame = protocol.readFrame(io, allocator, attachment.stream.socket.handle) catch |err| {
         const code = if (err == error.UnsupportedProtocolVersion)
@@ -286,6 +389,9 @@ fn dispatch(
                 runtime_epoch,
                 runtime_version,
                 runtime_build_digest,
+                release_cohort_digest,
+                terminal_host_configuration.version,
+                terminal_host_configuration.build_digest,
                 runtime_platform,
             );
             attachment.phase = .active;
@@ -301,9 +407,12 @@ fn dispatch(
                 frame.payload,
             ),
             .channel_open => return dispatchChannelOpen(
+                io,
                 allocator,
                 attachment,
                 runtime_epoch,
+                executable_path,
+                terminal_host_configuration,
                 frame.payload,
             ),
             .channel_data => return dispatchChannelData(
@@ -314,6 +423,10 @@ fn dispatch(
                 executable_path,
                 frame.payload,
             ),
+            .channel_credit => return dispatchChannelCredit(
+                attachment,
+                frame.payload,
+            ),
             .channel_close => return dispatchChannelClose(
                 io,
                 allocator,
@@ -322,7 +435,6 @@ fn dispatch(
                 runtime_epoch,
                 frame.payload,
             ),
-            .channel_credit,
             .channel_opened,
             .channel_closed,
             => return false,
@@ -352,9 +464,12 @@ fn dispatchHeartbeat(
 }
 
 fn dispatchChannelOpen(
+    io: std.Io,
     allocator: std.mem.Allocator,
     attachment: *Attachment,
     runtime_epoch: []const u8,
+    executable_path: []const u8,
+    terminal_host_configuration: TerminalHostConfiguration,
     payload: []const u8,
 ) !bool {
     var opened = protocol.decodeChannelOpen(allocator, payload) catch return false;
@@ -365,13 +480,59 @@ fn dispatchChannelOpen(
         return false;
     }
     try attachment.used_channels.put(opened.value.channelId, {});
-    try attachment.channels.put(opened.value.channelId, .{});
-    try protocol.writeChannelOpened(
-        allocator,
-        attachment.stream.socket.handle,
-        runtime_epoch,
+    if (std.mem.eql(u8, opened.value.serviceId, protocol.project_root_service_id)) {
+        if (attachment.channels.count() >= project_root.maximum_concurrent_inspections) {
+            try protocol.writeChannelClosed(
+                allocator,
+                attachment.stream.socket.handle,
+                runtime_epoch,
+                opened.value.channelId,
+                "service-busy",
+            );
+            return true;
+        }
+        try attachment.channels.put(opened.value.channelId, .{});
+        try protocol.writeChannelOpened(
+            allocator,
+            attachment.stream.socket.handle,
+            runtime_epoch,
+            opened.value.channelId,
+        );
+        return true;
+    }
+    if (!std.mem.eql(u8, opened.value.serviceId, protocol.terminal_host_service_id)) return false;
+    if (attachment.terminal_host_relay != null) {
+        try protocol.writeChannelClosed(
+            allocator,
+            attachment.stream.socket.handle,
+            runtime_epoch,
+            opened.value.channelId,
+            "service-busy",
+        );
+        return true;
+    }
+    const worker = terminal_host.Worker.spawn(
+        io,
+        executable_path,
+        attachment.generation,
         opened.value.channelId,
-    );
+        terminal_host_configuration.executable_path,
+        terminal_host_configuration.runtime_directory,
+        terminal_host_configuration.endpoint_id,
+    ) catch {
+        try protocol.writeChannelClosed(
+            allocator,
+            attachment.stream.socket.handle,
+            runtime_epoch,
+            opened.value.channelId,
+            "service-unavailable",
+        );
+        return true;
+    };
+    attachment.terminal_host_relay = .{
+        .desktop_credit = opened.value.initialCreditBytes,
+        .worker = worker,
+    };
     return true;
 }
 
@@ -384,6 +545,20 @@ fn dispatchChannelData(
     payload: []const u8,
 ) !bool {
     const data = protocol.decodeChannelData(payload) catch return false;
+    if (attachment.terminal_host_relay) |*relay| {
+        if (relay.worker.channel_id == data.channel_id) {
+            if (relay.phase != .open or
+                data.data.len == 0 or
+                data.data.len > protocol.terminal_host_maximum_chunk_bytes or
+                data.data.len > relay.host_input_credit)
+            {
+                return false;
+            }
+            appendTerminalHostInput(relay, data.data) catch return false;
+            relay.host_input_credit -= @intCast(data.data.len);
+            return true;
+        }
+    }
     const channel = attachment.channels.getPtr(data.channel_id) orelse return false;
     if (channel.phase != .opened or data.data.len > channel.request_credit) return false;
     channel.request_credit = 0;
@@ -422,6 +597,21 @@ fn dispatchChannelData(
     return true;
 }
 
+fn dispatchChannelCredit(
+    attachment: *Attachment,
+    payload: []const u8,
+) !bool {
+    const credit = protocol.decodeChannelCredit(payload) catch return false;
+    const relay = if (attachment.terminal_host_relay) |*active| active else return false;
+    if (relay.worker.channel_id != credit.channel_id or relay.phase != .open or
+        credit.bytes > protocol.initial_channel_credit_bytes - relay.desktop_credit)
+    {
+        return false;
+    }
+    relay.desktop_credit += credit.bytes;
+    return true;
+}
+
 fn dispatchChannelClose(
     io: std.Io,
     allocator: std.mem.Allocator,
@@ -433,6 +623,20 @@ fn dispatchChannelClose(
     var closed = protocol.decodeChannelClose(allocator, payload) catch return false;
     defer closed.deinit();
     if (!std.mem.eql(u8, closed.value.runtimeEpoch, runtime_epoch)) return false;
+    if (attachment.terminal_host_relay) |*relay| {
+        if (relay.worker.channel_id == closed.value.channelId) {
+            try protocol.writeChannelClosed(
+                allocator,
+                attachment.stream.socket.handle,
+                runtime_epoch,
+                closed.value.channelId,
+                closed.value.reason,
+            );
+            relay.terminate(io);
+            attachment.terminal_host_relay = null;
+            return true;
+        }
+    }
     const channel = attachment.channels.get(closed.value.channelId) orelse return false;
     const cancelled = std.mem.eql(u8, closed.value.reason, "cancelled");
     const completed = std.mem.eql(u8, closed.value.reason, "completed");
@@ -455,6 +659,168 @@ fn dispatchChannelClose(
         return true;
     }
     return false;
+}
+
+fn appendTerminalHostInput(relay: *TerminalHostRelay, bytes: []const u8) !void {
+    if (relay.host_input.len - relay.host_input_length < bytes.len) {
+        const queued_length = relay.host_input_length - relay.host_input_offset;
+        std.mem.copyForwards(
+            u8,
+            relay.host_input[0..queued_length],
+            relay.host_input[relay.host_input_offset..relay.host_input_length],
+        );
+        relay.host_input_offset = 0;
+        relay.host_input_length = queued_length;
+    }
+    if (relay.host_input.len - relay.host_input_length < bytes.len) {
+        return error.TerminalHostInputOverflow;
+    }
+    @memcpy(relay.host_input[relay.host_input_length..][0..bytes.len], bytes);
+    relay.host_input_length += bytes.len;
+}
+
+fn processTerminalHostOutputEvents(
+    io: std.Io,
+    allocator: std.mem.Allocator,
+    attachment: *Attachment,
+    runtime_epoch: []const u8,
+    events: i16,
+) !void {
+    if (events & std.posix.POLL.NVAL != 0) {
+        try closeTerminalHostRelay(io, allocator, attachment, runtime_epoch, "service-unavailable");
+        return;
+    }
+    if (events & std.posix.POLL.IN != 0) {
+        const relay = if (attachment.terminal_host_relay) |*active| active else return;
+        const was_starting = relay.phase == .starting;
+        const maximum_read_length: usize = if (was_starting)
+            @min(protocol.terminal_host_maximum_chunk_bytes, relay.desktop_credit + 1)
+        else
+            @min(protocol.terminal_host_maximum_chunk_bytes, relay.desktop_credit);
+        if (maximum_read_length > 0) {
+            var buffer: [protocol.terminal_host_maximum_chunk_bytes]u8 = undefined;
+            const result = relay.worker.readAvailable(buffer[0..maximum_read_length]) catch {
+                try closeTerminalHostRelay(
+                    io,
+                    allocator,
+                    attachment,
+                    runtime_epoch,
+                    "service-unavailable",
+                );
+                return;
+            };
+            switch (result) {
+                .pending => {},
+                .ready => try openTerminalHostRelay(allocator, attachment, runtime_epoch),
+                .data => |length| {
+                    if (was_starting) try openTerminalHostRelay(allocator, attachment, runtime_epoch);
+                    const open_relay = if (attachment.terminal_host_relay) |*active| active else return error.TerminalHostRelayUnavailable;
+                    if (open_relay.phase != .open or length == 0 or
+                        length > open_relay.desktop_credit)
+                    {
+                        return error.TerminalHostRelayCreditInvalid;
+                    }
+                    try protocol.writeChannelData(
+                        allocator,
+                        attachment.stream.socket.handle,
+                        open_relay.worker.channel_id,
+                        buffer[0..length],
+                    );
+                    open_relay.desktop_credit -= @intCast(length);
+                },
+                .unavailable, .closed => {
+                    try closeTerminalHostRelay(
+                        io,
+                        allocator,
+                        attachment,
+                        runtime_epoch,
+                        "service-unavailable",
+                    );
+                    return;
+                },
+            }
+        }
+    }
+    if (attachment.terminal_host_relay != null and
+        events & (std.posix.POLL.ERR | std.posix.POLL.HUP) != 0)
+    {
+        try closeTerminalHostRelay(io, allocator, attachment, runtime_epoch, "service-unavailable");
+    }
+}
+
+fn processTerminalHostInputEvents(
+    io: std.Io,
+    allocator: std.mem.Allocator,
+    attachment: *Attachment,
+    runtime_epoch: []const u8,
+    events: i16,
+) !void {
+    if (events & (std.posix.POLL.ERR | std.posix.POLL.HUP | std.posix.POLL.NVAL) != 0) {
+        try closeTerminalHostRelay(io, allocator, attachment, runtime_epoch, "service-unavailable");
+        return;
+    }
+    if (events & std.posix.POLL.OUT == 0) return;
+    const relay = if (attachment.terminal_host_relay) |*active| active else return;
+    const written = relay.worker.writeAvailable(
+        relay.host_input[relay.host_input_offset..relay.host_input_length],
+    ) catch {
+        try closeTerminalHostRelay(
+            io,
+            allocator,
+            attachment,
+            runtime_epoch,
+            "service-unavailable",
+        );
+        return;
+    };
+    if (written == 0) return;
+    relay.host_input_offset += written;
+    relay.host_input_credit += @intCast(written);
+    if (relay.host_input_offset == relay.host_input_length) {
+        relay.host_input_offset = 0;
+        relay.host_input_length = 0;
+    }
+    try protocol.writeChannelCredit(
+        attachment.stream.socket.handle,
+        relay.worker.channel_id,
+        @intCast(written),
+    );
+}
+
+fn openTerminalHostRelay(
+    allocator: std.mem.Allocator,
+    attachment: *Attachment,
+    runtime_epoch: []const u8,
+) !void {
+    const relay = if (attachment.terminal_host_relay) |*active| active else return error.TerminalHostRelayUnavailable;
+    if (relay.phase != .starting) return error.TerminalHostRelayStateInvalid;
+    relay.phase = .open;
+    try protocol.writeChannelOpened(
+        allocator,
+        attachment.stream.socket.handle,
+        runtime_epoch,
+        relay.worker.channel_id,
+    );
+}
+
+fn closeTerminalHostRelay(
+    io: std.Io,
+    allocator: std.mem.Allocator,
+    attachment: *Attachment,
+    runtime_epoch: []const u8,
+    reason: []const u8,
+) !void {
+    const relay = if (attachment.terminal_host_relay) |*active| active else return;
+    const channel_id = relay.worker.channel_id;
+    try protocol.writeChannelClosed(
+        allocator,
+        attachment.stream.socket.handle,
+        runtime_epoch,
+        channel_id,
+        reason,
+    );
+    relay.terminate(io);
+    attachment.terminal_host_relay = null;
 }
 
 fn processWorkerEvents(
@@ -639,4 +1005,11 @@ pub fn endpointName(
     runtime_instance_id: []const u8,
 ) ![]u8 {
     return std.fmt.allocPrint(allocator, "{s}.s", .{runtime_instance_id});
+}
+
+fn unpublishedEndpointName(
+    allocator: std.mem.Allocator,
+    runtime_instance_id: []const u8,
+) ![]u8 {
+    return std.fmt.allocPrint(allocator, "{s}.p", .{runtime_instance_id});
 }

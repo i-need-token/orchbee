@@ -1,5 +1,6 @@
 import type {
 	ActionConfirmation,
+	ActionAvailability,
 	ActionExecution,
 	ActionExecutionContext,
 	ActionInvocationSource,
@@ -47,6 +48,15 @@ export interface TabStripNewTabRequest {
 	readonly index?: number | undefined;
 	readonly source: ActionInvocationSource;
 }
+
+export type TabStripTabCreationIntent =
+	| {
+			readonly groupId: string | null;
+			readonly index?: number | undefined;
+			readonly kind: 'new-tab';
+	  }
+	| { readonly kind: 'new-group' }
+	| { readonly kind: 'duplicate'; readonly tabIds: readonly string[] };
 
 export interface TabStripCloseRequest {
 	readonly closeSource: TabCloseSource;
@@ -138,6 +148,9 @@ export interface TabStripOptions {
 	windowTargets?: readonly TabStripWindowTarget[] | undefined;
 	ariaLabel?: string;
 	onNewTab?: ((request: TabStripNewTabRequest) => ActionExecution) | undefined;
+	getTabCreationAvailability?:
+		| ((intent: TabStripTabCreationIntent) => ActionAvailability)
+		| undefined;
 	onCloseTabs?: TabStripCloseCallback | undefined;
 	getCloseTabsConfirmation?: TabStripCloseConfirmation | undefined;
 	onSelectTab?: TabStripSelectCallback | undefined;

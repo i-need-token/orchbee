@@ -6,7 +6,7 @@
 
 桌面与主机支持的投影终端组成共享工作台。 Workbench拥有Project、Workspace、Tab、Panel、`TerminalPresentationId`状态； Electron Main拥有持久的技术绑定和Electron独有的特权效果； `apps/terminal-host` 拥有 PTYs、进程、Ghostty VT 状态、历史记录和真实终端身份。浏览器客户端在其自己的页面中提交剪贴板和白名单链接效果。共享工作台文档均不存储在主机中。
 
-Main 启动时无需创建固定终端、打开附件或启动 Web 侦听器。它将持久的 `TerminalPresentationId` 恢复为 `TerminalBindingId` 注册表，拥有一个进程范围的规范 Workbench 共享文档协调器，并通过沙盒预加载传输一个原子允许列表功能包。它的九个端口有一个固定的顺序：
+Main 启动时无需创建固定终端、打开附件、启动 SSH 或启动 Web 侦听器。它将持久的 `TerminalPresentationId` 恢复为 `TerminalBindingId` 注册表，拥有一个进程范围的规范 Workbench 共享文档协调器，并通过沙盒预加载传输一个原子允许列表功能包。它的十一个端口有一个固定的顺序：
 
 - 客户端会话控制提供一个原子文档/终端观察引导程序，接受完整的精确下一个共享文档提案，并发布一个有序的规范事件流；
 - 投影控件仅为显示的终端视口打开并释放范围内的主机附件；
@@ -169,7 +169,7 @@ effect。下文单独描述的产品托管 SSH Environment 基础不会改变这
 
 `TerminalFailed` 是不同的结果，而不是合成退出。仅当绑定仍在获取其主机身份时，桌面才会保留身份键控关联缓冲区，然后在公开另一个投影之前记录该绑定的失败。发生故障的终端在幸存的主机中仍然保留并具有权威性，因此桌面重新启动可以从主机清单中恢复相同类型的故障；它不会复制到特定出口的溢出存储或发布分类帐中。这并不保证主机或操作系统崩溃后的恢复。
 
-单独的 Workbench 共享文档存储仅通过一个 Main 拥有的序列化编写器接受规范版本 1 文档。缺失的存储从修订版 `0` 开始；以后的每次提交都必须准确命名当前修订版本并将其前进 1。冲突、非下一个修订、无效文件和读取失败会保留当前数据。写入使用仅限所有者的临时文件、文件同步、原子替换和父目录同步（如果支持）。客户端仅接收原子引导、类型化提案结果和有序发布；它永远不会接收路径、节点错误、存储功能或一般文件系统功能。请参阅[`docs/workbench-shared-document-storage.md`](docs/workbench-shared-document-storage.md)。商店使用`workbench-shared-document-v1.json`。对于未发布的开发拓扑文件，它没有读取器、别名或迁移；旧路径将被忽略并且不会自动删除。
+单独的 Workbench 共享文档存储仅通过一个 Main 拥有的序列化 writer 接受规范 version-2 文档。缺失的存储从 revision `0` 开始；之后每次 commit 都必须精确命名当前 revision 并将其推进 1。Conflict、非下一 revision、无效文件与读取失败都会保留当前数据。写入使用 owner-only 临时文件、文件同步、原子替换以及受支持平台上的父目录同步；可能已经越过 rename 的失败会报告为 indeterminate。客户端只接收原子 bootstrap、类型化 proposal result 与有序 publication；它永远不会接收路径、Node error、store capability 或通用 filesystem capability。参见 [`docs/workbench-shared-document-storage.md`](docs/workbench-shared-document-storage.md)。当前 store 使用 `workbench-shared-document-v2.json`。该路径缺失时，可以把一个精确历史 `workbench-shared-document-v1.json` 中的全部 Directory 迁移为 local placement，同时保持 v1 bytes 不变。v2 一旦存在就是唯一 authority。未交付的开发阶段 topology schema 不保留 reader、alias 或 migration。
 
 在创建终端之前，配置会分配并保留新的绑定。恢复仅接受精确的 HostEpoch/TerminalId/CreationId 匹配，并且绝不会用新的 shell 来替换丢失的连续性。丢失的创建响应可能仅重播相同的 CreationId 并在记录的主机纪元中启动。孤儿状态、冲突状态、腐败账本状态和传输状态无法关闭。
 
@@ -266,9 +266,10 @@ Host 之前加载 registry，让 provider-neutral Environment identity 与 SSH R
 [`docs/environment-registry.md`](docs/environment-registry.zh-CN.md)。
 
 仅用于 release 的 package path 会在 Electron Packager 运行前，独立验证一份 externally signed、canonical
-双平台 Runtime bundle。它从单独提供的 Ed25519 public key 派生一份精确固定 manifest 的 trust
-descriptor，把该 descriptor staging 到 `app.asar` 内，并把已验证 manifest 与缓冲 artifact staging 到
-`Resources` 下。Production private key 保持在 repository 与普通 CI 之外。参见
+双 component × 双平台 SSH Environment cohort。它从单独提供的 Ed25519 public key 派生一份精确固定
+manifest 的 trust descriptor，把该 descriptor staging 到 `app.asar` 内，并把已验证 manifest 与所有已缓冲
+Runtime、Terminal Host artifact staging 到 `Resources` 下。Production private key 保持在 repository 与普通
+CI 之外。Packaging 本身不会安装、启动或 relay 远程 Terminal Host。参见
 [`docs/ssh-runtime-release.md`](docs/ssh-runtime-release.zh-CN.md)。
 
 单独的连接基础接受一个具体 destination 或 SSH alias，以及一个可选且由用户显式选择的绝对配置文件路径。
@@ -438,21 +439,21 @@ pnpm desktop
 pnpm desktop:package
 ```
 
-该命令会在打包前构建 Terminal Host、native endpoint adapter、semantic-command CLI、Web renderer、Browser Server、Gateway，以及 Electron Main/preload bundle。Web build 既是只读 `orchbee://app` resource，也是按需 Browser renderer root；native Host、当前平台 endpoint adapter、CLI entry 与 launcher、Server 和 Gateway entry 都保留在 `app.asar` 外。CLI artifact 缺失或 POSIX launcher 不可执行时，packaging 会失败。该开发命令不包含 SSH Runtime release。
+该命令会在打包前构建 Terminal Host、native endpoint adapter、semantic-command CLI、Web renderer、Browser Server、Gateway，以及 Electron Main/preload bundle。Web build 既是只读 `orchbee://app` resource，也是按需 Browser renderer root；native Host、当前平台 endpoint adapter、CLI entry 与 launcher、Server 和 Gateway entry 都保留在 `app.asar` 外。CLI artifact 缺失或 POSIX launcher 不可执行时，packaging 会失败。该开发命令不包含 SSH Environment release。
 
-通过单独的 release-only command，把一份先前 finalized Runtime bundle 与未签名的当前平台 application
-bundle 组合：
+通过单独的 release-only command，把一份先前 finalized v2 SSH Environment cohort 与未签名的当前平台
+application bundle 组合：
 
 ```sh
-ORCHBEE_SSH_RUNTIME_RELEASE_DIRECTORY=/absolute/final-release \
-ORCHBEE_SSH_RUNTIME_RELEASE_PUBLIC_KEY=/absolute/release-public-key.pem \
+ORCHBEE_SSH_ENVIRONMENT_RELEASE_DIRECTORY=/absolute/final-release \
+ORCHBEE_SSH_ENVIRONMENT_RELEASE_PUBLIC_KEY=/absolute/release-public-key.pem \
 pnpm desktop:package:release
 ```
 
 两个 path 都必须是绝对路径。该命令会在调用 Electron Packager 前严格验证固定 layout、canonical
-manifest、独立 Ed25519 public key、signature、size 与 digest。它把 manifest 与两个 Runtime artifact
-放在 `Resources/ssh-environment-runtime-release-v1` 下，并把精确固定 manifest 的 trust descriptor 放在
-`app.asar` 内。完整离线 ceremony 与 rollback boundary 位于
+manifest、独立 Ed25519 public key、signature、size 与 digest，并覆盖全部四个 artifact。它把 manifest、
+两个 Runtime artifact 与两个 Terminal Host artifact 放在 `Resources/ssh-environment-release-v2` 下，并把
+精确固定 manifest 的 trust descriptor 放在 `app.asar` 内。完整离线 ceremony 与 rollback boundary 位于
 [`docs/ssh-runtime-release.md`](docs/ssh-runtime-release.zh-CN.md)。
 
 两个 package command 都写入 `apps/desktop/out/` 下。它们都不执行 Electron code signing、

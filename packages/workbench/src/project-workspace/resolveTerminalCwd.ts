@@ -24,7 +24,10 @@ export type ResolveTerminalCwdResult =
 	  }
 	| {
 			readonly kind: 'rejected';
-			readonly reason: 'explicit-directory-not-found' | 'explicit-directory-unavailable';
+			readonly reason:
+				| 'explicit-directory-not-found'
+				| 'explicit-directory-unavailable'
+				| 'workspace-directory-remote';
 	  };
 
 export function resolveTerminalCwd(input: ResolveTerminalCwdInput): ResolveTerminalCwdResult {
@@ -34,7 +37,7 @@ export function resolveTerminalCwd(input: ResolveTerminalCwdInput): ResolveTermi
 		if (explicitDirectory === null) {
 			return { kind: 'rejected', reason: 'explicit-directory-not-found' };
 		}
-		if (!explicitDirectory.available) {
+		if (!isAvailableLocalDirectory(explicitDirectory)) {
 			return { kind: 'rejected', reason: 'explicit-directory-unavailable' };
 		}
 		return {
@@ -46,16 +49,18 @@ export function resolveTerminalCwd(input: ResolveTerminalCwdInput): ResolveTermi
 	if (input.splitCwd !== undefined && input.splitCwd !== null) {
 		return { cwd: input.splitCwd, kind: 'resolved', source: 'split-terminal' };
 	}
-	const workspaceDirectory = findAvailableDirectory(
-		input.directories,
-		input.workspacePrimaryDirectoryId,
-	);
-	if (workspaceDirectory !== null) {
-		return {
-			cwd: workspaceDirectory.path,
-			kind: 'resolved',
-			source: 'workspace-primary-directory',
-		};
+	if (input.workspacePrimaryDirectoryId !== undefined) {
+		const workspaceDirectory = findDirectory(input.directories, input.workspacePrimaryDirectoryId);
+		if (workspaceDirectory?.placement.kind === 'environment') {
+			return { kind: 'rejected', reason: 'workspace-directory-remote' };
+		}
+		if (workspaceDirectory !== null && isAvailableLocalDirectory(workspaceDirectory)) {
+			return {
+				cwd: workspaceDirectory.path,
+				kind: 'resolved',
+				source: 'workspace-primary-directory',
+			};
+		}
 	}
 	const projectDirectory = findAvailableDirectory(
 		input.directories,
@@ -71,11 +76,22 @@ export function resolveTerminalCwd(input: ResolveTerminalCwdInput): ResolveTermi
 	return { cwd: input.systemCwd, kind: 'resolved', source: 'system' };
 }
 
+function findDirectory(
+	directories: readonly WorkbenchDirectory[],
+	directoryId: string,
+): WorkbenchDirectory | null {
+	return directories.find((candidate) => candidate.id === directoryId) ?? null;
+}
+
 function findAvailableDirectory(
 	directories: readonly WorkbenchDirectory[],
 	directoryId: string | undefined,
 ): WorkbenchDirectory | null {
 	if (directoryId === undefined) return null;
 	const directory = directories.find((candidate) => candidate.id === directoryId) ?? null;
-	return directory?.available === true ? directory : null;
+	return directory !== null && isAvailableLocalDirectory(directory) ? directory : null;
+}
+
+function isAvailableLocalDirectory(directory: WorkbenchDirectory): boolean {
+	return directory.available && directory.placement.kind === 'local';
 }

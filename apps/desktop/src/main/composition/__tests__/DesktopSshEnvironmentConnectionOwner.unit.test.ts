@@ -52,20 +52,68 @@ describe('Desktop SSH Environment connection owner', () => {
 		expect(repeated).toMatchObject({ activation: 'existing', kind: 'ready' });
 		expect(registry.get).toHaveBeenCalledOnce();
 		expect(createSupervisor).toHaveBeenCalledOnce();
-		expect(createSupervisor).toHaveBeenCalledWith({
-			connectionId: environmentId,
-			runtimeInstanceId: environment.provider.runtimeInstanceId,
-			target: environment.provider.target,
-		});
+		expect(createSupervisor).toHaveBeenCalledWith(
+			{
+				connectionId: environmentId,
+				runtimeInstanceId: environment.provider.runtimeInstanceId,
+				target: environment.provider.target,
+			},
+			expect.any(Function),
+		);
 		expect(supervisors[0]?.start).toHaveBeenCalledTimes(2);
 		await expect(owner.inspectProjectRoot(environmentId, '/srv/project')).resolves.toEqual({
 			kind: 'resolved',
 			canonicalPath: canonicalProjectRoot,
 		});
 		expect(supervisors[0]?.inspectProjectRoot).toHaveBeenCalledWith('/srv/project', undefined);
+		await expect(owner.openTerminalHost(environmentId)).resolves.toEqual({
+			kind: 'failed',
+			reason: 'unavailable',
+		});
+		expect(supervisors[0]?.openTerminalHost).toHaveBeenCalledOnce();
 
 		await owner.dispose();
 		expect(supervisors[0]?.stop).toHaveBeenCalledOnce();
+	});
+
+	it('grants one exact transient interaction lease and cancels prompts without an owner', async () => {
+		let presentInteraction:
+			| Parameters<DesktopSshEnvironmentConnectionOwnerOptions['createSupervisor']>[1]
+			| undefined;
+		const owner = new DesktopSshEnvironmentConnectionOwner({
+			createSupervisor: (configuration, interaction) => {
+				presentInteraction = interaction;
+				return createSupervisorPort(configuration.connectionId);
+			},
+			registry: {
+				get: vi.fn<RegistryGet>().mockResolvedValue({ kind: 'ready', value: environment }),
+			},
+			supported: true,
+		});
+		const interaction = vi
+			.fn<NonNullable<typeof presentInteraction>>()
+			.mockResolvedValue({ kind: 'submitted', response: 'one-use secret' });
+		const claimed = owner.claimInteractionLease(environmentId, interaction);
+		expect(owner.claimInteractionLease(environmentId, interaction)).toEqual({ kind: 'busy' });
+		await owner.connect(environmentId);
+		if (presentInteraction === undefined || claimed.kind !== 'claimed') {
+			throw new Error('Expected an active interaction lease.');
+		}
+		const request = {
+			generation: 1,
+			handle: 'ssh-prompt-test',
+			kind: 'none' as const,
+			prompt: 'Password:',
+		};
+		await expect(presentInteraction(request)).resolves.toEqual({
+			kind: 'submitted',
+			response: 'one-use secret',
+		});
+		claimed.lease.release();
+		await expect(presentInteraction(request)).resolves.toEqual({ kind: 'cancelled' });
+		expect(owner.claimInteractionLease(environmentId, interaction).kind).toBe('claimed');
+		await owner.dispose();
+		await expect(presentInteraction(request)).resolves.toEqual({ kind: 'cancelled' });
 	});
 
 	it('does not activate an absent, unavailable, or unsupported durable intent', async () => {
@@ -159,6 +207,10 @@ describe('Desktop SSH Environment connection owner', () => {
 			kind: 'failed',
 			reason: 'unavailable',
 		});
+		await expect(owner.openTerminalHost(environmentId)).resolves.toEqual({
+			kind: 'failed',
+			reason: 'unavailable',
+		});
 	});
 });
 
@@ -173,6 +225,9 @@ function createSupervisorPort(connectionId: string): DesktopSshEnvironmentSuperv
 		inspectProjectRoot: vi
 			.fn<DesktopSshEnvironmentSupervisorPort['inspectProjectRoot']>()
 			.mockResolvedValue({ kind: 'resolved', canonicalPath: canonicalProjectRoot }),
+		openTerminalHost: vi
+			.fn<DesktopSshEnvironmentSupervisorPort['openTerminalHost']>()
+			.mockResolvedValue({ kind: 'failed', reason: 'unavailable' }),
 		observation: () => observation,
 		start: vi.fn<() => void>(),
 		stop: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),

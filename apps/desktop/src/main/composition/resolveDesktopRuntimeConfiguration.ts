@@ -89,6 +89,7 @@ export interface DesktopRuntimeConfiguration {
 	readonly terminalLaunchProfileStorePath: string;
 	readonly windowStateStorePath: string;
 	readonly windowLayoutStorePath: string;
+	readonly workbenchDocumentLegacyStorePath: string;
 	readonly workbenchDocumentStorePath: string;
 }
 
@@ -329,7 +330,11 @@ export function resolveDesktopRuntimeConfiguration(
 		),
 		windowStateStorePath: path.join(input.userDataPath, 'window-state-v1.json'),
 		windowLayoutStorePath: path.join(input.userDataPath, 'window-layout-v1.json'),
-		workbenchDocumentStorePath: path.join(recoveryDirectory, 'workbench-shared-document-v1.json'),
+		workbenchDocumentLegacyStorePath: path.join(
+			recoveryDirectory,
+			'workbench-shared-document-v1.json',
+		),
+		workbenchDocumentStorePath: path.join(recoveryDirectory, 'workbench-shared-document-v2.json'),
 	};
 }
 

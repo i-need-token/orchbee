@@ -40,6 +40,11 @@ Ledger 不存储 canonical input。异步 handler closure 只能在 execution ac
 Diagnostics 不接收 operation input 或 result payload。Query result 可以在其有界 response 与 receipt 中显式包含
 调用方请求的 name 与 path。
 
+只有 `workbench.directory.list` 使用 operation schema version `2` 与 output schema version `2`；每项
+result 都包含 Directory placement。其他四项 operation 保持 version `1`。Remote Directory result 只包含
+已 commit 的 opaque Environment identity 与 canonical path。Requested alias、失败 observation 与原始
+operating-system diagnostic 绝不进入 semantic output。
+
 ## 不变量
 
 1. 一个保留中的 request identity 精确映射到一个保留中的 execution 和一个 canonical fingerprint。

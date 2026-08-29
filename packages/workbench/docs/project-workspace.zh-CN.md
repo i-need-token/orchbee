@@ -10,21 +10,37 @@
 
 ## 输入和验证
 
-| 输入                               | 信任与缺席                                                   |
-| ---------------------------------- | ------------------------------------------------------------ |
-| `ProjectWorkspaceState`            | 仅在构造或转换不变检查后才可信                               |
-| 项目、目录、工作区和终端上下文 IDs | 稳定的不透明字符串；丢失或过时 IDs 拒绝                      |
-| 目录描述符                         | 具有一种规范文件夹或工作树类型的主机标准化本地位置           |
-| 托管 Worktree 提交                 | 一个经 host 验证的已创建 Worktree 与一个当前源 Directory     |
-| 已有 Worktree 接纳                 | 一个经 host 重新校验的已发现 Worktree 与一个当前源 Directory |
-| 浏览器输入的文件夹路径             | 修剪后的非空用户输入；否则保留且未经文件系统验证             |
-| 显示名称                           | 用户或本地化产品输入；允许重复名称                           |
-| 启动配置参考                       | 稳定项目-本地ID和显示名称；可执行有效负载仍属于主机所有      |
-| 显式终端目录                       | 必须是目标项目的可用成员                                     |
-| 分体式 CWD                         | 主机报告本地CWD；缺席通过后备链继续                          |
-| 系统 CWD                           | 组合主机提供所需的最终后备                                   |
+| 输入                               | 信任与缺席                                                              |
+| ---------------------------------- | ----------------------------------------------------------------------- |
+| `ProjectWorkspaceState`            | 仅在构造或转换不变检查后才可信                                          |
+| 项目、目录、工作区和终端上下文 IDs | 稳定的不透明字符串；丢失或过时 IDs 拒绝                                 |
+| 目录描述符                         | 一种规范 Folder 或 Worktree kind，加显式 local 或 Environment placement |
+| 托管 Worktree 提交                 | 一个经 host 验证的已创建 Worktree 与一个当前源 Directory                |
+| 已有 Worktree 接纳                 | 一个经 host 重新校验的已发现 Worktree 与一个当前源 Directory            |
+| 浏览器输入的文件夹路径             | 修剪后的非空用户输入；否则保留且未经文件系统验证                        |
+| 显示名称                           | 用户或本地化产品输入；允许重复名称                                      |
+| 启动配置参考                       | 稳定项目-本地ID和显示名称；可执行有效负载仍属于主机所有                 |
+| 显式终端目录                       | 必须是目标项目的可用成员                                                |
+| 分体式 CWD                         | 主机报告本地CWD；缺席通过后备链继续                                     |
+| 系统 CWD                           | 组合主机提供所需的最终后备                                              |
 
 第一次交付接收规范化的目录描述符并且不执行文件系统查找。浏览器预览还接受手动输入的路径，并为其模拟终端投影构建合成文件夹目录。其`available: true`表示当前预览可以使用启动CWD的路径；这并不能证明该路径存在于磁盘上。更高版本的平台适配器必须在构造权威本地描述符之前验证外部文件系统和 Git 数据。
+
+每个 Directory 是当前承载 Checkout 的实体，并精确拥有一种 placement：
+
+```text
+placement = local | environment(EnvironmentId)
+```
+
+对 Workbench 而言，Environment reference 是 opaque non-empty string；组合应用拥有 registry validation。
+Path uniqueness 由 placement 限定，因此同一拼写可以分别存在于本地与不同 Environment。Directory refresh
+不能改变 placement。普通 Folder acquisition、Git Worktree、Workspace 创建/编辑/复制与 terminal-CWD flow
+全部仅限 local，并要求 `placement: local`。创建或编辑普通 Workspace，或解析其 terminal CWD，还要求该
+local Directory 当前 available。若已有 local Workspace 的 Directory 随后刷新为 unavailable，它在结构上
+仍然有效，但在 Directory 再次 available 前不能启动。authoritative remote-registration 例外是
+`environment-workspace-registered`：它可以引用被强制为 unavailable 的 Environment Directory，并创建一个
+不含 terminal presentation 或 Host effect 的 empty terminal context。该 placement durable 后，组合层 Main
+进程可以使用下述专用 remote-terminal operation；普通 local creation 与 CWD resolution 保持不变。
 
 ## 数据
 
@@ -61,7 +77,9 @@ ProjectWorkspaceState
 - 每个目录的可识别类型与其 Git 元数据一致。
 - 每个项目 `primaryDirectoryId` 都会命名其目录之一。
 - 启动配置 IDs 在他们的项目中是独一无二的。
-- 每个工作区都属于一个项目，其 `primaryDirectoryId` 命名该项目中的一个目录。
+- 每个 Workspace 都属于一个 Project，其 `primaryDirectoryId` 命名该 Project 中的一个 Directory。普通
+  Workspace transition 要求 local placement；只有 authoritative remote-registration transition 可以引入
+  Environment-placed primary Directory。
 - 每个非空工作空间 `launchConfigurationId` 都会命名一个项目启动配置。
 - 每个工作区都有一个终端上下文 ID，并且没有两个工作区或独立终端共享终端上下文。
 - `activeLocation` 是独立的或命名一个当前项目中的一个当前工作区。
@@ -69,11 +87,17 @@ ProjectWorkspaceState
 - 显示名称不必是唯一的，也不能用作身份。
 - 拒绝或报告未更改的转换会保留完整的输入状态。
 
-删除目录可以保留引用完整性。对于每个已删除的主目录，请按照项目先前的稳定顺序选择其后的第一个幸存目录，必要时包装到第一个幸存目录。删除最终目录拒绝。
+删除 Directory 会保持引用完整性。对于被删除的 Project primary Directory，按照 Project 先前的稳定顺序
+选择其后的第一个幸存 Directory，并在必要时环回第一个幸存项。Workspace primary 使用相同环形顺序，但会
+跳过所有 remote Directory；若没有幸存的 local fallback，则拒绝删除。删除 Project 的最后一个 Directory
+也会被拒绝。
 
 ## 输出
 
-`transitionProjectWorkspace` 返回完整的下一个状态、`applied`、`unchanged` 或 `rejected` 结果、命名拒绝（如果适用）以及终端上下文命令。命令创建、克隆或处置内存中的终端上下文；纯转换不执行 React、DOM、存储、进程、文件系统、Git、时间、随机或网络效应。
+`transitionProjectWorkspace` 返回完整的下一个状态、`applied`、`unchanged` 或 `rejected` 结果、命名拒绝
+（如果适用）以及 terminal-context command。Command 可以创建 empty 或 populated context、克隆 context，
+或处置内存中的 context；纯 transition 不执行 React、DOM、storage、process、filesystem、Git、time、random
+或 network effect。
 
 每个终端呈现记录不可变的 `launchCwd` 与主机报告的 `currentCwd` 分开。 Workbench拥有不透明的呈现ID和可区分的生命周期，而应用程序拥有不可重用的身份分配和命令调度。主机终端身份永远不会进入该模型。 `resolveTerminalCwd` 返回一条启动路径及其来源：
 
@@ -85,7 +109,28 @@ explicit Project Directory
 → system CWD
 ```
 
-在创建终端之前，工作台运行时会拒绝无效的显式目录。不可用的默认目录将被跳过。主机可以报告终端的当前CWD，而不改变其启动CWD。面板拆分和子终端创建继承当前CWD；工作区复制从记录的启动 CWD 开始新的 shell。更改项目或工作区主目录永远不会更改现有终端 CWD。
+在创建 terminal 前，Workbench runtime 会拒绝无效的 explicit Directory。Unavailable local default
+Directory 会被跳过。Environment-placed Workspace primary 会在 Project 或 system fallback 前以
+`workspace-directory-remote` 拒绝，因此 local runtime 不会意外把 remote Workspace 变成 local shell。
+Host 可以报告 terminal 的 current CWD，而不改变其 launch CWD。Panel split 与 child-terminal creation
+继承 current CWD；Workspace duplicate 从记录的 launch CWD 启动新 shell。更改 Project 或 Workspace
+primary Directory 永远不会改变已有 terminal CWD。
+
+`WorkbenchProjectWorkspaceRuntime#createEnvironmentTerminalAtLocation` 是 Main-admitted remote Workspace
+中首个 terminal 的窄例外。调用方提供精确 Project、Workspace 与 Environment identity。Workbench 校验其
+containment 与 placement，要求目标 Terminal Context 精确为空，并把 canonical remote primary-Directory
+path 记录为 `launchCwd`。成功调用会精确创建一个顶层 Tab、一个 primary Panel 与一个 `provision`
+Presentation，且不改变 active location、Project disclosure 或 Client View。local Workspace、Environment
+mismatch 或任何非空 context 都会被拒绝；该操作绝不 fallback 到 local system CWD。它只记录 durable
+intent，不执行 process 或 network effect。
+
+`resolveActiveTerminalCreationRoute` 是产品 Action boundary。Standalone 与 local Workspace location
+保持既有 local semantic command。Environment-placed Workspace 只有在其精确 Terminal Context 为空、
+placement 是 default top-level，且 Electron host 提供 remote-terminal-creation capability 时才 eligible；该
+capability 只接收 Project 与 Workspace identity。Action 会等待 canonical client-session publication 包含
+精确 created 或 existing terminal identity，不执行 optimistic state、local fallback、navigation、selection
+或 focus effect。Action、shortcut、New Terminal button、New Group with Tab 与 Duplicate Tab 都重新校验同一
+availability policy，因此其他 Tab-producing path 不能绕过 remote singleton boundary。
 
 ### 语义命令投影与终端创建
 
@@ -122,26 +167,41 @@ canonical revision 后才能把该结果标记为已持久提交。Preview 创�
 
 ## 决策和转变
 
-| 意图                | 守卫                                       | 结果                                             | 终端上下文命令                                  |
-| ------------------- | ------------------------------------------ | ------------------------------------------------ | ----------------------------------------------- |
-| 激活独立终端        | 无                                         | 独立状态变为活动状态                             | 无                                              |
-| 切换项目扩展        | 已知项目                                   | 仅披露变更                                       | 无                                              |
-| 重新订购项目        | 已知项目和可选的已知后续项目               | 项目移至该项目之前，或在缺席时移至末尾           | 无                                              |
-| 重新排序工作区      | 已知项目、源工作区和可选的同级目标         | 工作空间在该项目内移动，或者在不存在时移动到末尾 | 无                                              |
-| 激活工作区          | 已知的项目和工作空间成员资格               | 工作区变得活跃并且项目扩展                       | 无                                              |
-| 创建项目            | 一个标准化的可用目录                       | 项目、主工作区和活动位置已创建                   | 使用一个选项卡、面板和 shell 投影创建一个上下文 |
-| 添加目录            | 已知项目；位置尚未存在                     | 目录附加到稳定的顺序                             | 无                                              |
-| 注册已创建 Worktree | 已知 Project 与可用源；唯一有效 Worktree   | 追加 Directory；可选追加、展开并激活 Workspace   | 仅在启用 Workspace 选项时创建一个上下文         |
-| 接纳已有 Worktree   | 已知 Project 与可用源；唯一已发现 Worktree | 追加 Directory 与 Workspace，并展开和激活        | 创建一个以接纳 Worktree 为根目录的上下文        |
-| 刷新目录            | 已知身份；种类和来源不变；独特的路径       | 主机观察更新到位；顺序和参考文献保留             | 无                                              |
-| 删除目录            | 至少有一个目录幸存；仅要求文件夹类型       | 引用初选使用循环下一个幸存者选择                 | 无                                              |
-| 协调启动参考        | 已知项目；唯一非空参考号 IDs               | 目录替换；删除的工作区选择变为 `null`            | 无                                              |
-| 将项目设置为主      | 可用项目目录                               | 未来项目默认值更改                               | 无                                              |
-| 创建工作空间        | 可用项目目录                               | 工作区追加、项目扩展、工作区变为活动状态         | 使用一个选项卡、面板和 shell 投影创建一个上下文 |
-| 编辑工作区          | 已知的工作空间和可用的项目目录             | 名称或将来的默认更改                             | 无                                              |
-| 重复工作区          | 已知工作空间                               | 复制追加并变为活动状态                           | 将布局和名称克隆到新的选项卡、面板和终端标识中  |
-| 删除工作区          | 已知工作空间                               | 工作区被删除；主动删除回退到独立状态             | 处理其上下文                                    |
-| 删除项目            | 已知项目                                   | 项目及其工作区元数据被删除；磁盘位置保留         | 处置每个项目工作区上下文                        |
+| 意图                | 守卫                                                        | 结果                                                 | 终端上下文命令                                                     |
+| ------------------- | ----------------------------------------------------------- | ---------------------------------------------------- | ------------------------------------------------------------------ |
+| 激活独立终端        | 无                                                          | 独立状态变为活动状态                                 | 无                                                                 |
+| 切换项目扩展        | 已知项目                                                    | 仅披露变更                                           | 无                                                                 |
+| 重新订购项目        | 已知项目和可选的已知后续项目                                | 项目移至该项目之前，或在缺席时移至末尾               | 无                                                                 |
+| 重新排序工作区      | 已知项目、源工作区和可选的同级目标                          | 工作空间在该项目内移动，或者在不存在时移动到末尾     | 无                                                                 |
+| 激活工作区          | 已知的项目和工作空间成员资格                                | 工作区变得活跃并且项目扩展                           | 无                                                                 |
+| 创建项目            | 一个标准化的可用目录                                        | 项目、主工作区和活动位置已创建                       | 使用一个选项卡、面板和 shell 投影创建一个上下文                    |
+| 注册远程 Project    | 一个 unavailable Environment Folder；placement 与 path 唯一 | 追加无 Workspace 的 Project；active location 不变    | 无                                                                 |
+| 注册远程 Workspace  | 已知 Environment Directory，且尚无其 admitted Workspace     | 追加一个 inactive Workspace；Project disclosure 不变 | 创建一个 empty context；无 Tab、Panel、Presentation 或 Host effect |
+| 添加目录            | 已知项目；位置尚未存在                                      | 目录附加到稳定的顺序                                 | 无                                                                 |
+| 注册已创建 Worktree | 已知 Project 与可用源；唯一有效 Worktree                    | 追加 Directory；可选追加、展开并激活 Workspace       | 仅在启用 Workspace 选项时创建一个上下文                            |
+| 接纳已有 Worktree   | 已知 Project 与可用源；唯一已发现 Worktree                  | 追加 Directory 与 Workspace，并展开和激活            | 创建一个以接纳 Worktree 为根目录的上下文                           |
+| 刷新目录            | 已知身份；种类和来源不变；独特的路径                        | 主机观察更新到位；顺序和参考文献保留                 | 无                                                                 |
+| 删除目录            | 至少有一个目录幸存；仅要求文件夹类型                        | 引用初选使用循环下一个幸存者选择                     | 无                                                                 |
+| 协调启动参考        | 已知项目；唯一非空参考号 IDs                                | 目录替换；删除的工作区选择变为 `null`                | 无                                                                 |
+| 将项目设置为主      | 可用项目目录                                                | 未来项目默认值更改                                   | 无                                                                 |
+| 创建工作空间        | 可用项目目录                                                | 工作区追加、项目扩展、工作区变为活动状态             | 使用一个选项卡、面板和 shell 投影创建一个上下文                    |
+| 编辑工作区          | 已知的工作空间和可用的项目目录                              | 名称或将来的默认更改                                 | 无                                                                 |
+| 重复工作区          | 已知且 primary Directory 为 local 的 Workspace              | 复制追加并变为 active                                | 将 layout 与 name 克隆到全新 Tab、Panel 与 Terminal identity       |
+| 删除工作区          | 已知工作空间                                                | 工作区被删除；主动删除回退到独立状态                 | 处理其上下文                                                       |
+| 删除项目            | 已知项目                                                    | 项目及其工作区元数据被删除；磁盘位置保留             | 处置每个项目工作区上下文                                           |
+
+Remote Project 与 Workspace registration 是只供 authoritative application owner 使用的纯 Workbench
+transition。Project registration 通过现有 sequence 分配 identity，接受 owner 提供的 Directory identity，
+且不发出 command。Workspace registration 为该 Environment Directory 分配一个 Workspace 与
+terminal-context identity，但保持 active location 与 Project disclosure 不变；其唯一 command 会 materialize
+一个 empty context。重复任一已表示 placement 时保持 unchanged。Desktop 把两个 transition 组合进一次
+canonical commit，并拥有 remote inspection、registry authorization、随机 Directory identity、durable
+idempotency 与 proposal-origin policy。
+
+Remote terminal provision 是作用于该已准入 placement 的独立 Main-owned operation。它不是通用 Project
+transition，也不通过普通 local terminal-create semantic command 暴露。Desktop 拥有 Environment
+connectivity、target-specific Host selection、commit-before-effect ordering、retry reconciliation 与 process
+execution；Workbench 只拥有精确 structural mutation 及其 rejection rule。
 
 运行时的可选转换提交回调仅在任何终端上下文命令或权威状态替换之前针对 `applied` 结果运行。动作适配器使用它来记录它们的提交点。替换后，运行时同步发布新的快照；观察者故障是孤立的，不能重新标记转换或阻止后来的观察者接收它。
 

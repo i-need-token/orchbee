@@ -6,7 +6,7 @@ Sandboxed Electron product client and scoped local broker for Orchbee's native T
 
 Desktop composes the shared Workbench with Host-backed projected terminals. Workbench owns Project, Workspace, Tab, Panel, and `TerminalPresentationId` state; Electron Main owns durable technical bindings and Electron-only privileged effects; `apps/terminal-host` owns PTYs, processes, Ghostty VT state, history, and real terminal identity. A Browser client commits clipboard and allowlisted link effects in its own page. None of the shared Workbench document is stored in the Host.
 
-Main starts without creating a fixed terminal, opening an attachment, or starting a Web listener. It restores the durable `TerminalPresentationId` to `TerminalBindingId` registry, owns one process-wide canonical Workbench shared-document coordinator, and transfers one atomic allowlisted capability bundle through the sandboxed preload. Its nine ports have one fixed order:
+Main starts without creating a fixed terminal, opening an attachment, starting SSH, or starting a Web listener. It restores the durable `TerminalPresentationId` to `TerminalBindingId` registry, owns one process-wide canonical Workbench shared-document coordinator, and transfers one atomic allowlisted capability bundle through the sandboxed preload. Its eleven ports have one fixed order:
 
 - client-session control delivers one atomic document/terminal-observation bootstrap, accepts complete exact-next shared-document proposals, and publishes one ordered canonical event stream;
 - projection control opens and releases scoped Host attachments only for displayed terminal viewports;
@@ -255,7 +255,7 @@ The terminal-exit spill store migrates legacy v1 files with a bounded event arra
 
 `TerminalFailed` is a different result, not a synthetic exit. Desktop keeps an identity-keyed association buffer only while a binding is still acquiring its Host identity, then records the failure on that binding before exposing another projection. The failed terminal remains retained and authoritative in the surviving Host, so Desktop restart recovers the same typed failure from Host inventory; it is not copied into the exit-specific spill store or publication ledger. This does not promise recovery after a Host or operating-system crash.
 
-The separate Workbench shared-document store accepts only the canonical version-1 document through one Main-owned serialized writer. A missing store starts at revision `0`; every later commit must name the exact current revision and advance it by one. Conflicts, non-next revisions, invalid files, and read failures preserve current data. Writes use owner-only temporary files, file synchronization, atomic replacement, and parent-directory synchronization where supported. A client receives only an atomic bootstrap, typed proposal result, and ordered publication; it never receives a path, Node error, store capability, or general filesystem capability. See [`docs/workbench-shared-document-storage.md`](docs/workbench-shared-document-storage.md). The store uses `workbench-shared-document-v1.json`. It has no reader, alias, or migration for the unshipped development topology file; that old path is ignored and not deleted automatically.
+The separate Workbench shared-document store accepts only the canonical version-2 document through one Main-owned serialized writer. A missing store starts at revision `0`; every later commit must name the exact current revision and advance it by one. Conflicts, non-next revisions, invalid files, and read failures preserve current data. Writes use owner-only temporary files, file synchronization, atomic replacement, and parent-directory synchronization where supported; a failure that may have crossed rename is reported as indeterminate. A client receives only an atomic bootstrap, typed proposal result, and ordered publication; it never receives a path, Node error, store capability, or general filesystem capability. See [`docs/workbench-shared-document-storage.md`](docs/workbench-shared-document-storage.md). The current store uses `workbench-shared-document-v2.json`. When that path is missing, one exact historical `workbench-shared-document-v1.json` may migrate every Directory to local placement while leaving the v1 bytes untouched. A present v2 file is the sole authority. No reader, alias, or migration is retained for the unshipped development topology schema.
 
 Provisioning allocates and persists a fresh binding before creating a terminal. Recovery accepts only an exact HostEpoch/TerminalId/CreationId match and never substitutes a new shell for lost continuity. A lost create response may replay only the same CreationId and launch in the recorded Host epoch. Orphan, conflict, corrupt-ledger, and transport states fail closed.
 
@@ -449,11 +449,12 @@ target only once, and exposes create/list/get/reload only inside Main. A registr
 connection and grants no remote effect. See
 [`docs/environment-registry.md`](docs/environment-registry.md).
 
-The release-only package path independently verifies one externally signed, canonical two-platform
-Runtime bundle before Electron Packager runs. It derives one exact manifest-pinned trust descriptor
-from a separately supplied Ed25519 public key, stages that descriptor inside `app.asar`, and stages
-the verified manifest and buffered artifacts under `Resources`. Production private keys remain
-outside the repository and ordinary CI. See
+The release-only package path independently verifies one externally signed, canonical two-component
+by two-platform SSH Environment cohort before Electron Packager runs. It derives one exact
+manifest-pinned trust descriptor from a separately supplied Ed25519 public key, stages that
+descriptor inside `app.asar`, and stages the verified manifest plus all buffered Runtime and Terminal
+Host artifacts under `Resources`. Production private keys remain outside the repository and ordinary
+CI. Packaging itself does not install, launch, or relay the remote Terminal Host. See
 [`docs/ssh-runtime-release.md`](docs/ssh-runtime-release.md).
 
 The separate connection foundation accepts one concrete destination or SSH alias and an optional
@@ -725,22 +726,23 @@ Build an unsigned current-platform application bundle with:
 pnpm desktop:package
 ```
 
-The command builds the Terminal Host, native endpoint adapters, semantic-command CLI, Web renderer, Browser Server, Gateway, and Electron Main/preload bundles before packaging. The Web build is both a read-only `orchbee://app` resource and the on-demand Browser renderer root; the native Host, current-platform endpoint adapters, CLI entry and launcher, Server, and Gateway entries remain available outside `app.asar`. Packaging fails when a CLI artifact is missing or the POSIX launcher is not executable. This development command does not include an SSH Runtime release.
+The command builds the Terminal Host, native endpoint adapters, semantic-command CLI, Web renderer, Browser Server, Gateway, and Electron Main/preload bundles before packaging. The Web build is both a read-only `orchbee://app` resource and the on-demand Browser renderer root; the native Host, current-platform endpoint adapters, CLI entry and launcher, Server, and Gateway entries remain available outside `app.asar`. Packaging fails when a CLI artifact is missing or the POSIX launcher is not executable. This development command does not include an SSH Environment release.
 
-Compose one previously finalized Runtime bundle with an unsigned current-platform application bundle
-through the separate release-only command:
+Compose one previously finalized v2 SSH Environment cohort with an unsigned current-platform
+application bundle through the separate release-only command:
 
 ```sh
-ORCHBEE_SSH_RUNTIME_RELEASE_DIRECTORY=/absolute/final-release \
-ORCHBEE_SSH_RUNTIME_RELEASE_PUBLIC_KEY=/absolute/release-public-key.pem \
+ORCHBEE_SSH_ENVIRONMENT_RELEASE_DIRECTORY=/absolute/final-release \
+ORCHBEE_SSH_ENVIRONMENT_RELEASE_PUBLIC_KEY=/absolute/release-public-key.pem \
 pnpm desktop:package:release
 ```
 
 Both paths must be absolute. The command strictly verifies the fixed layout, canonical manifest,
-independent Ed25519 public key, signature, sizes, and digests before invoking Electron Packager. It
-places the manifest and two Runtime artifacts under `Resources/ssh-environment-runtime-release-v1`
-and the exact manifest-pinned trust descriptor inside `app.asar`. The complete offline ceremony and
-rollback boundary live in [`docs/ssh-runtime-release.md`](docs/ssh-runtime-release.md).
+independent Ed25519 public key, signature, sizes, and digests for all four artifacts before invoking
+Electron Packager. It places the manifest, two Runtime artifacts, and two Terminal Host artifacts
+under `Resources/ssh-environment-release-v2` and the exact manifest-pinned trust descriptor inside
+`app.asar`. The complete offline ceremony and rollback boundary live in
+[`docs/ssh-runtime-release.md`](docs/ssh-runtime-release.md).
 
 Both package commands write beneath `apps/desktop/out/`. Neither performs Electron code signing,
 notarization, installer creation, publication, or update distribution.

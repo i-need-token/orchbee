@@ -23,6 +23,7 @@ const ALPHA_DIRECTORY: WorkbenchDirectory = {
 	kind: 'folder',
 	name: 'alpha',
 	path: '/projects/alpha',
+	placement: { kind: 'local' },
 	source: 'selected',
 };
 

@@ -17,6 +17,7 @@ export type {
 	TabStripNewTabRequest,
 	TabStripMoveGroupToWindowCallback,
 	TabStripMoveTabsToWindowCallback,
+	TabStripTabCreationIntent,
 	TabStripProps,
 	TabStripSelectCallback,
 	TabStripShortcutLabels,
