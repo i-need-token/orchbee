@@ -33,6 +33,19 @@ transports. A Host response additionally retains its exact correlation ID, while
 and link effects retain their request sequence. These values identify consequences and diagnostics;
 they never authorize automatic replay of input or another user effect.
 
+Local filesystem effects are an optional attachment capability, absent by default. When present,
+`link-open` carries a discriminated URL or file target instead of granting a generic opener. URL
+targets retain the shared scheme policy; file targets are meaningful only to the owning local
+Desktop broker. Browser, Gateway, archived, and source-neutral attachments do not acquire local
+application-launch or filesystem-read authority from terminal text.
+
+Image preview is a separate request-bound flow. A capable renderer may request one detected local
+image path and cancel the exact request sequence. Desktop replies with either an exact bounded
+`ArrayBuffer` plus one admitted raster media type, or an unavailable result that reveals no file
+detail. The protocol caps preview content at 8 MiB and transports no file handle, directory listing,
+cache key, or persistence instruction. Request identity lets the renderer reject late content after
+hover replacement or attachment retirement; it does not authorize retry or remote file transfer.
+
 Projection release remains correlated after the attachment stream closes. The client retains the
 request identity until Main returns either `terminal-projection-released` or the exact typed cleanup
 failure. The success acknowledgement transfers no port; a late cleanup result therefore settles only

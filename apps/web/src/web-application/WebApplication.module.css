@@ -16,6 +16,8 @@
 	min-height: 0;
 	min-width: 0;
 	overflow: hidden;
+	padding-block: env(safe-area-inset-top) env(safe-area-inset-bottom);
+	padding-inline: env(safe-area-inset-left) env(safe-area-inset-right);
 	position: relative;
 	width: 100%;
 }

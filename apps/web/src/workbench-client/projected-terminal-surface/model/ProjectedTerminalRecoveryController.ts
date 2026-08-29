@@ -9,7 +9,12 @@ import type {
 	WorkbenchTerminalBroadcastInputSink,
 } from '@orchbee/workbench';
 
-import type { ProjectedTerminalRendererSession } from '../../projected-terminal-renderer';
+import type {
+	MobileTerminalInputState,
+	MobileTerminalKey,
+	MobileTerminalModifier,
+	ProjectedTerminalRendererSession,
+} from '../../projected-terminal-renderer';
 import type { TerminalProjection, TerminalProjectionRequest } from '../../terminal-projection';
 
 const AUTOMATIC_RETRY_DELAYS_MILLISECONDS = [250, 500, 1_000] as const;
@@ -58,8 +63,10 @@ export class ProjectedTerminalRecoveryController implements WorkbenchTerminalBro
 	readonly #startRenderer: ProjectedTerminalRecoveryControllerOptions['startRenderer'];
 	#active: ManagedProjectedTerminalSession | undefined;
 	#activeBroadcastInputSubscription: { dispose(): void } | undefined;
+	#activeMobileInputSubscription: { dispose(): void } | undefined;
 	#automaticRetryIndex = 0;
 	readonly #broadcastInputReadinessListeners = new Set<() => void>();
+	readonly #mobileInputStateListeners = new Set<() => void>();
 	#candidate: ManagedProjectedTerminalSession | undefined;
 	#disposed = false;
 	readonly #disposedPromise: Promise<void>;
@@ -102,8 +109,10 @@ export class ProjectedTerminalRecoveryController implements WorkbenchTerminalBro
 		} else if (this.#active !== undefined) {
 			const active = this.#active;
 			this.#unbindActiveBroadcastInput();
+			this.#unbindActiveMobileInput();
 			this.#active = undefined;
 			this.#notifyBroadcastInputReadiness();
+			this.#notifyMobileInputState();
 			this.#freezeForRetention(active);
 		} else {
 			this.#pending?.release();
@@ -140,6 +149,29 @@ export class ProjectedTerminalRecoveryController implements WorkbenchTerminalBro
 		if (this.#disposed || this.#active === undefined) return false;
 		this.#active.session.focus();
 		return true;
+	}
+
+	getMobileInputState(): MobileTerminalInputState {
+		return this.#disposed
+			? unavailableMobileInputState()
+			: (this.#active?.session.getMobileInputState?.() ?? unavailableMobileInputState());
+	}
+
+	sendMobileKey(key: MobileTerminalKey): boolean {
+		return this.#disposed ? false : (this.#active?.session.sendMobileKey?.(key) ?? false);
+	}
+
+	toggleMobileKeyboard(): boolean {
+		return this.#disposed ? false : (this.#active?.session.toggleMobileKeyboard?.() ?? false);
+	}
+
+	toggleMobileModifier(modifier: MobileTerminalModifier): void {
+		if (!this.#disposed) this.#active?.session.toggleMobileModifier?.(modifier);
+	}
+
+	subscribeMobileInputState(listener: () => void): { dispose(): void } {
+		if (!this.#disposed) this.#mobileInputStateListeners.add(listener);
+		return { dispose: () => this.#mobileInputStateListeners.delete(listener) };
 	}
 
 	getReadiness(): WorkbenchTerminalBroadcastInputReadiness {
@@ -181,8 +213,11 @@ export class ProjectedTerminalRecoveryController implements WorkbenchTerminalBro
 		if (this.#disposed) return;
 		this.#disposed = true;
 		this.#unbindActiveBroadcastInput();
+		this.#unbindActiveMobileInput();
 		this.#notifyBroadcastInputReadiness();
+		this.#notifyMobileInputState();
 		this.#broadcastInputReadinessListeners.clear();
+		this.#mobileInputStateListeners.clear();
 		this.#resolveDisposed?.();
 		this.#resolveDisposed = undefined;
 		if (this.#retryTimer !== undefined) globalThis.clearTimeout(this.#retryTimer);
@@ -293,6 +328,7 @@ export class ProjectedTerminalRecoveryController implements WorkbenchTerminalBro
 		this.#frozen = undefined;
 		this.#active = managed;
 		this.#bindActiveBroadcastInput(managed);
+		this.#bindActiveMobileInput(managed);
 		this.#automaticRetryIndex = 0;
 		this.#onStateChange({ kind: 'ready' });
 		this.#onDisplayReady();
@@ -303,8 +339,10 @@ export class ProjectedTerminalRecoveryController implements WorkbenchTerminalBro
 	#handleTransportUnavailable(managed: ManagedProjectedTerminalSession): void {
 		if (this.#disposed || this.#active !== managed) return;
 		this.#unbindActiveBroadcastInput();
+		this.#unbindActiveMobileInput();
 		this.#active = undefined;
 		this.#notifyBroadcastInputReadiness();
+		this.#notifyMobileInputState();
 		managed.session.freeze();
 		managed.release();
 		this.#frozen?.session.dispose();
@@ -371,9 +409,35 @@ export class ProjectedTerminalRecoveryController implements WorkbenchTerminalBro
 		this.#activeBroadcastInputSubscription = undefined;
 	}
 
+	#bindActiveMobileInput(managed: ManagedProjectedTerminalSession): void {
+		this.#unbindActiveMobileInput();
+		this.#activeMobileInputSubscription = managed.session.subscribeMobileInputState?.(() =>
+			this.#notifyMobileInputState(),
+		);
+		this.#notifyMobileInputState();
+	}
+
+	#unbindActiveMobileInput(): void {
+		this.#activeMobileInputSubscription?.dispose();
+		this.#activeMobileInputSubscription = undefined;
+	}
+
 	#notifyBroadcastInputReadiness(): void {
 		for (const listener of this.#broadcastInputReadinessListeners) listener();
 	}
+
+	#notifyMobileInputState(): void {
+		for (const listener of this.#mobileInputStateListeners) listener();
+	}
+}
+
+function unavailableMobileInputState(): MobileTerminalInputState {
+	return {
+		alt: false,
+		control: false,
+		focused: false,
+		readiness: { kind: 'unavailable' },
+	};
 }
 
 function managedRequest(request: TerminalProjectionRequest): ManagedProjectionRequest {

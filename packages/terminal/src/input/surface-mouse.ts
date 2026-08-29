@@ -20,6 +20,13 @@ export function classifySurfaceMousePlatform(platform: string): SurfaceMousePlat
 	return /Mac|iPhone|iPad/u.test(platform) ? 'macos' : 'other';
 }
 
+export function surfaceLinkModifierIsActive(
+	platform: SurfaceMousePlatform,
+	modifiers: Pick<SurfaceMouseModifiers, 'control' | 'meta'>,
+): boolean {
+	return platform === 'macos' ? modifiers.meta : modifiers.control;
+}
+
 export function resolveSurfaceMouseCursor(input: SurfaceMouseCursorInput): SurfaceMouseCursor {
 	if (input.linkActive) return 'pointer';
 	if (input.applicationMouseOwned) return 'default';

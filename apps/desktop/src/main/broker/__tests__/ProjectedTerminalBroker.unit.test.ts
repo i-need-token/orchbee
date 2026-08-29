@@ -21,7 +21,10 @@ import type { MessagePortMain } from 'electron';
 import { describe, expect, it, vi } from 'vitest';
 
 import { HostRequestError, type HostConnection } from '../../host';
-import { ProjectedTerminalBroker } from '../ProjectedTerminalBroker';
+import {
+	ProjectedTerminalBroker,
+	type ProjectedTerminalBrokerDependencies,
+} from '../ProjectedTerminalBroker';
 
 const textEncoder = new TextEncoder();
 const theme = TerminalThemeStateSchema.parse({
@@ -2403,7 +2406,7 @@ describe('ProjectedTerminalBroker', () => {
 				payload: {
 					attachmentId: bootstrap.attachmentId,
 					requestSequence: '8',
-					target: 'https://orchbee.dev',
+					target: { kind: 'url', url: 'https://orchbee.dev' },
 				},
 			},
 		});
@@ -2448,7 +2451,7 @@ describe('ProjectedTerminalBroker', () => {
 			writeClipboardText: vi.fn<(text: string) => void>(),
 		});
 		broker.start();
-		for (const [requestSequence, target] of [
+		for (const [requestSequence, url] of [
 			['1', 'http://orchbee.dev/path'],
 			['2', 'https://orchbee.dev/终端'],
 			['3', 'mailto:terminal@orchbee.dev'],
@@ -2460,7 +2463,11 @@ describe('ProjectedTerminalBroker', () => {
 			emitter.emit('message', {
 				data: {
 					kind: 'link-open',
-					payload: { attachmentId: bootstrap.attachmentId, requestSequence, target },
+					payload: {
+						attachmentId: bootstrap.attachmentId,
+						requestSequence,
+						target: { kind: 'url', url },
+					},
 				},
 			});
 		}
@@ -2488,6 +2495,197 @@ describe('ProjectedTerminalBroker', () => {
 			).toHaveLength(4);
 		});
 		expect(broker.metrics.externalTargetsOpened).toBe(3);
+	});
+
+	it('opens typed local targets and publishes only the latest image preview', async () => {
+		const bootstrap = {
+			attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
+			canInput: true,
+			canResize: true,
+			capabilityRevision: CanonicalUint64TextSchema.parse('1'),
+			creationId: CreationIdSchema.parse('22'.repeat(16)),
+			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
+			localFileEffects: true,
+			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
+			terminalOutcome: null,
+			theme,
+		};
+		const host = {
+			onAttachmentEnvelope: vi.fn<HostConnection['onAttachmentEnvelope']>(() =>
+				vi.fn<() => void>(),
+			),
+			onEnvelope: vi.fn<HostConnection['onEnvelope']>(() => vi.fn<() => void>()),
+			onClosed: vi.fn<HostConnection['onClosed']>(() => vi.fn<() => void>()),
+		} as unknown as HostConnection;
+		const emitter = new EventEmitter();
+		const postMessage = vi.fn<(...arguments_: unknown[]) => void>();
+		const port = Object.assign(emitter, {
+			close: vi.fn<() => void>(),
+			postMessage,
+			start: vi.fn<() => void>(),
+		}) as unknown as MessagePortMain;
+		const openPath = vi.fn<(_target: string) => Promise<string>>().mockResolvedValue('');
+		const pendingPreviews: Array<{
+			readonly signal: AbortSignal;
+			readonly target: string;
+			readonly resolve: (preview: {
+				readonly content: ArrayBuffer;
+				readonly mediaType: 'image/png';
+			}) => void;
+		}> = [];
+		const readImagePreview = vi.fn<
+			NonNullable<ProjectedTerminalBrokerDependencies['readImagePreview']>
+		>(
+			(target: string, signal: AbortSignal) =>
+				new Promise<{
+					readonly content: ArrayBuffer;
+					readonly mediaType: 'image/png';
+				}>((resolve) => pendingPreviews.push({ resolve, signal, target })),
+		);
+		const broker = new ProjectedTerminalBroker(host, port, bootstrap, {
+			openExternal: vi.fn<(_target: string) => Promise<void>>().mockResolvedValue(),
+			openPath,
+			readImagePreview,
+			writeClipboardText: vi.fn<(text: string) => void>(),
+		});
+		broker.start();
+
+		emitter.emit('message', {
+			data: {
+				kind: 'link-open',
+				payload: {
+					attachmentId: bootstrap.attachmentId,
+					requestSequence: '1',
+					target: { kind: 'file', path: '/tmp' },
+				},
+			},
+		});
+		await vi.waitFor(() => expect(openPath).toHaveBeenCalledWith('/tmp'));
+		await vi.waitFor(() =>
+			expect(postMessage).toHaveBeenCalledWith({ kind: 'link-opened', requestSequence: '1' }),
+		);
+
+		for (const [requestSequence, target] of [
+			['2', '/tmp/first.png'],
+			['3', '/tmp/second.png'],
+		] as const) {
+			emitter.emit('message', {
+				data: {
+					kind: 'image-preview',
+					payload: { attachmentId: bootstrap.attachmentId, path: target, requestSequence },
+				},
+			});
+			await vi.waitFor(() => expect(pendingPreviews).toHaveLength(Number(requestSequence) - 1));
+		}
+		expect(pendingPreviews[0]?.signal.aborted).toBe(true);
+		pendingPreviews[0]?.resolve({ content: new ArrayBuffer(1), mediaType: 'image/png' });
+		pendingPreviews[1]?.resolve({ content: new ArrayBuffer(2), mediaType: 'image/png' });
+		await vi.waitFor(() =>
+			expect(postMessage).toHaveBeenCalledWith({
+				content: expect.any(ArrayBuffer),
+				kind: 'image-preview-content',
+				mediaType: 'image/png',
+				requestSequence: '3',
+			}),
+		);
+		expect(
+			postMessage.mock.calls.some(
+				([message]) =>
+					(message as { kind?: string; requestSequence?: string }).kind ===
+						'image-preview-content' &&
+					(message as { requestSequence?: string }).requestSequence === '2',
+			),
+		).toBe(false);
+
+		emitter.emit('message', {
+			data: {
+				kind: 'image-preview',
+				payload: {
+					attachmentId: bootstrap.attachmentId,
+					path: '/tmp/cancelled.png',
+					requestSequence: '4',
+				},
+			},
+		});
+		await vi.waitFor(() => expect(pendingPreviews).toHaveLength(3));
+		emitter.emit('message', {
+			data: {
+				kind: 'image-preview-cancel',
+				payload: { attachmentId: bootstrap.attachmentId, requestSequence: '4' },
+			},
+		});
+		await vi.waitFor(() => expect(pendingPreviews[2]?.signal.aborted).toBe(true));
+	});
+
+	it('keeps file opens and previews unavailable without the Desktop-local capability', async () => {
+		const bootstrap = {
+			attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
+			canInput: false,
+			canResize: false,
+			capabilityRevision: CanonicalUint64TextSchema.parse('1'),
+			creationId: CreationIdSchema.parse('22'.repeat(16)),
+			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
+			terminalId: TerminalIdSchema.parse('44'.repeat(16)),
+			terminalOutcome: null,
+			theme,
+		};
+		const host = {
+			onAttachmentEnvelope: vi.fn<HostConnection['onAttachmentEnvelope']>(() =>
+				vi.fn<() => void>(),
+			),
+			onEnvelope: vi.fn<HostConnection['onEnvelope']>(() => vi.fn<() => void>()),
+			onClosed: vi.fn<HostConnection['onClosed']>(() => vi.fn<() => void>()),
+		} as unknown as HostConnection;
+		const emitter = new EventEmitter();
+		const postMessage = vi.fn<(...arguments_: unknown[]) => void>();
+		const port = Object.assign(emitter, {
+			close: vi.fn<() => void>(),
+			postMessage,
+			start: vi.fn<() => void>(),
+		}) as unknown as MessagePortMain;
+		const readImagePreview =
+			vi.fn<NonNullable<ProjectedTerminalBrokerDependencies['readImagePreview']>>();
+		const broker = new ProjectedTerminalBroker(host, port, bootstrap, {
+			openExternal: vi.fn<(_target: string) => Promise<void>>().mockResolvedValue(),
+			readImagePreview,
+			writeClipboardText: vi.fn<(text: string) => void>(),
+		});
+		broker.start();
+
+		emitter.emit('message', {
+			data: {
+				kind: 'image-preview',
+				payload: {
+					attachmentId: bootstrap.attachmentId,
+					path: '/tmp/output.png',
+					requestSequence: '1',
+				},
+			},
+		});
+		emitter.emit('message', {
+			data: {
+				kind: 'link-open',
+				payload: {
+					attachmentId: bootstrap.attachmentId,
+					requestSequence: '2',
+					target: { kind: 'file', path: '/tmp/output.png' },
+				},
+			},
+		});
+
+		await vi.waitFor(() =>
+			expect(postMessage).toHaveBeenCalledWith({
+				kind: 'image-preview-unavailable',
+				requestSequence: '1',
+			}),
+		);
+		await vi.waitFor(() =>
+			expect(postMessage).toHaveBeenCalledWith({
+				failure: expect.objectContaining({ code: 'link-file-effect-unavailable' }),
+				kind: 'failure',
+			}),
+		);
+		expect(readImagePreview).not.toHaveBeenCalled();
 	});
 
 	it('hands renderer postMessage failure to the cleanup owner before detaching', async () => {

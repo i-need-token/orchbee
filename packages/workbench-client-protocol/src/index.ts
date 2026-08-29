@@ -1,4 +1,5 @@
 export {
+	MAX_PROJECTED_TERMINAL_IMAGE_PREVIEW_BYTES,
 	ProjectedAttachmentBootstrapSchema,
 	ProjectedTerminalOutcomeSchema,
 	ProjectedTerminalCommandSchema,

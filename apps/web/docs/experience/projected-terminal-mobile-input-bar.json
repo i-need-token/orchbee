@@ -1,0 +1,54 @@
+{
+	"$schema": "../../../../schemas/experience-component.schema.json",
+	"id": "projected-terminal.mobile-input-bar",
+	"kind": "business",
+	"status": "canonical",
+	"name": "Projected Terminal Mobile Input Bar",
+	"description": "Exposes attachment-safe software-keyboard control, essential terminal keys, and one-shot modifiers on coarse non-hover browser pointers.",
+	"owner": "@orchbee/web",
+	"visibility": "private",
+	"intents": [
+		"show-terminal-keyboard",
+		"hide-terminal-keyboard",
+		"send-essential-terminal-key",
+		"arm-one-shot-terminal-modifier"
+	],
+	"implementation": [
+		"apps/web/src/workbench-client/projected-terminal-surface/components/projected-terminal-mobile-input-bar/ProjectedTerminalMobileInputBar.tsx",
+		"apps/web/src/workbench-client/projected-terminal-renderer/MobileTerminalInputController.ts",
+		"apps/web/src/workbench-client/projected-terminal-renderer/mobile-terminal-input-state.ts"
+	],
+	"stories": [
+		{
+			"exportName": "ReadyWithModifiers",
+			"file": "apps/web/stories/projected-terminal-mobile-input-bar.stories.tsx",
+			"id": "applications-web-projected-terminal-mobile-input-bar--ready-with-modifiers",
+			"states": [
+				"Inspect all nine minimum-touch-target controls with the native keyboard focused and the one-shot Alt modifier armed.",
+				"Tap a key without moving DOM focus away from the projected terminal textarea."
+			]
+		},
+		{
+			"exportName": "ReadOnlyChinese",
+			"file": "apps/web/stories/projected-terminal-mobile-input-bar.stories.tsx",
+			"id": "applications-web-projected-terminal-mobile-input-bar--read-only-chinese",
+			"states": [
+				"Inspect localized Simplified Chinese labels with every input-producing control unavailable for a read-only attachment."
+			]
+		}
+	],
+	"uses": [],
+	"useWhen": [
+		"A projected terminal is used from a browser with a coarse pointer and no hover capability."
+	],
+	"avoidWhen": [
+		"A fine-pointer desktop browser already provides a physical keyboard, or a non-terminal form owns text input."
+	],
+	"invariants": [
+		"Every input-producing control uses the exact active attachment revision and is disabled when that revision is unavailable.",
+		"Control and Alt are one-shot modifiers cleared by publication attempts, blur, composition, paste, downgrade, replacement, recovery, and disposal.",
+		"Key controls preserve textarea focus; the keyboard toggle reflects textarea focus and does not claim operating-system keyboard visibility.",
+		"The bar is absent from fine-pointer hover layouts and never stores mobile input state in Workbench documents or browser storage."
+	],
+	"references": ["apps/web/README.md"]
+}

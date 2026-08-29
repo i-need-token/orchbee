@@ -1,6 +1,6 @@
 import { useMemoizedFn } from '@orchbee/foundation/react';
 import { projectedTerminalMessages, useOrchbeeIntl } from '@orchbee/i18n';
-import type { ProjectedPasteReview } from '@orchbee/terminal';
+import type { ProjectedPasteReview, TerminalImagePreviewPresentation } from '@orchbee/terminal';
 import type {
 	WorkbenchTerminalPresentation,
 	WorkbenchTerminalSurfaceProps,
@@ -14,7 +14,12 @@ import {
 	MAXIMUM_TERMINAL_FILE_DROP_INPUT_CHARACTERS,
 	type TerminalFileDropRejectionReason,
 } from '../../../terminal-file-drop';
-import { startProjectedTerminalRenderer } from '../../projected-terminal-renderer';
+import {
+	startProjectedTerminalRenderer,
+	type MobileTerminalInputState,
+	type MobileTerminalKey,
+	type MobileTerminalModifier,
+} from '../../projected-terminal-renderer';
 import { ProjectedTerminalSurfaceCapabilityContext } from '../contexts/projected-terminal-surface-capability';
 import { MountedTerminalProjectionRequest } from '../model/MountedTerminalProjectionRequest';
 import {
@@ -33,6 +38,23 @@ interface PresentationRecoveryState {
 	readonly presentationId: string;
 	readonly state: ProjectedTerminalRecoveryState;
 }
+
+interface PresentationMobileInputState {
+	readonly presentationId: string;
+	readonly state: MobileTerminalInputState;
+}
+
+interface PresentationImagePreview {
+	readonly presentationId: string;
+	readonly preview: Extract<TerminalImagePreviewPresentation, { readonly kind: 'visible' }>;
+}
+
+const unavailableMobileInputState: MobileTerminalInputState = {
+	alt: false,
+	control: false,
+	focused: false,
+	readiness: { kind: 'unavailable' },
+};
 
 interface PresentationFileDropFailure {
 	readonly count: number;
@@ -77,6 +99,10 @@ export function useProjectedTerminalSurface(
 		React.useState<PresentationFileDropFailure | null>(null);
 	const [presentationRecovery, setPresentationRecovery] =
 		React.useState<PresentationRecoveryState | null>(null);
+	const [presentationMobileInput, setPresentationMobileInput] =
+		React.useState<PresentationMobileInputState | null>(null);
+	const [presentationImagePreview, setPresentationImagePreview] =
+		React.useState<PresentationImagePreview | null>(null);
 	const [startFailurePresentationId, setStartFailurePresentationId] = React.useState<string | null>(
 		null,
 	);
@@ -101,6 +127,10 @@ export function useProjectedTerminalSurface(
 		presentationRecovery?.presentationId === presentation.presentationId
 			? presentationRecovery.state
 			: undefined;
+	const currentImagePreview =
+		presentationImagePreview?.presentationId === presentation.presentationId
+			? presentationImagePreview.preview
+			: null;
 	const reportPresentationReady = useMemoizedFn(
 		(readiness: Parameters<WorkbenchTerminalSurfaceProps['onPresentationReady']>[0]): void => {
 			if (presentationMode === 'incoming') onPresentationReady?.(readiness);
@@ -208,6 +238,24 @@ export function useProjectedTerminalSurface(
 			setStartFailurePresentationId(presentation.presentationId);
 		}
 	});
+	const sendMobileKey = useMemoizedFn((key: MobileTerminalKey): boolean => {
+		const recovery = recoveryController.current;
+		return recovery?.presentationId === presentation.presentationId
+			? recovery.controller.sendMobileKey(key)
+			: false;
+	});
+	const toggleMobileKeyboard = useMemoizedFn((): boolean => {
+		const recovery = recoveryController.current;
+		return recovery?.presentationId === presentation.presentationId
+			? recovery.controller.toggleMobileKeyboard()
+			: false;
+	});
+	const toggleMobileModifier = useMemoizedFn((modifier: MobileTerminalModifier): void => {
+		const recovery = recoveryController.current;
+		if (recovery?.presentationId === presentation.presentationId) {
+			recovery.controller.toggleMobileModifier(modifier);
+		}
+	});
 	if (capability === null) {
 		throw new Error('ProjectedTerminalSurface requires its client capability.');
 	}
@@ -273,20 +321,48 @@ export function useProjectedTerminalSurface(
 							},
 					capability.interactionConfigurationSource,
 					capability.presentationSnapshots?.get(presentation.presentationId),
+					(preview) => {
+						if (cancelled) return;
+						if (preview.kind === 'visible') {
+							setPresentationImagePreview({
+								presentationId: presentation.presentationId,
+								preview,
+							});
+							return;
+						}
+						setPresentationImagePreview((current) =>
+							current?.presentationId === presentation.presentationId ? null : current,
+						);
+					},
 				);
 			},
 		});
 		recoveryController.current = { controller, presentationId: presentation.presentationId };
+		const mobileInputSubscription = controller.subscribeMobileInputState(() => {
+			if (cancelled) return;
+			setPresentationMobileInput({
+				presentationId: presentation.presentationId,
+				state: controller.getMobileInputState(),
+			});
+		});
+		setPresentationMobileInput({
+			presentationId: presentation.presentationId,
+			state: controller.getMobileInputState(),
+		});
 		const broadcastInputRegistration = bindBroadcastInputSink?.(controller);
 		if (sessionPolicyReference.current === 'retain') controller.retain();
 		else controller.start();
 		return () => {
 			cancelled = true;
+			setPresentationImagePreview((current) =>
+				current?.presentationId === presentation.presentationId ? null : current,
+			);
 			fileDropEpoch.current += 1;
 			settlePasteReview(false);
 			if (recoveryController.current?.controller === controller) {
 				recoveryController.current = null;
 			}
+			mobileInputSubscription.dispose();
 			broadcastInputRegistration?.dispose();
 			controller.dispose();
 		};
@@ -342,6 +418,10 @@ export function useProjectedTerminalSurface(
 		presentationFileDropFailure?.presentationId === presentation.presentationId
 			? presentationFileDropFailure
 			: null;
+	const mobileInputState =
+		presentationMobileInput?.presentationId === presentation.presentationId
+			? presentationMobileInput.state
+			: unavailableMobileInputState;
 	if (failureMessage === null && currentFileDropFailure !== null) {
 		switch (currentFileDropFailure.reason) {
 			case 'too-many-files':
@@ -377,6 +457,8 @@ export function useProjectedTerminalSurface(
 		failureMessage,
 		handleFileDragOver,
 		handleFileDrop,
+		imagePreview: currentImagePreview,
+		mobileInputState,
 		pasteReview,
 		projectionState,
 		recoveryAvailable: !stopped && currentRecovery?.kind === 'failed',
@@ -386,7 +468,10 @@ export function useProjectedTerminalSurface(
 			}
 		},
 		root,
+		sendMobileKey,
 		stopped,
 		startNewSession,
+		toggleMobileKeyboard,
+		toggleMobileModifier,
 	};
 }

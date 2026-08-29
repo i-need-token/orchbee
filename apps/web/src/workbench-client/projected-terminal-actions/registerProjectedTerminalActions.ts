@@ -53,6 +53,9 @@ export interface ProjectedTerminalActionTarget {
 	chooseVisibleHint(signal: AbortSignal): Promise<TerminalHintChoiceResult>;
 	linkOpenRequestIsCurrent(request: ProjectedTerminalLinkOpenRequest): boolean;
 	openLinkAsync(target: string): Promise<ProjectedTerminalSideEffectResult>;
+	openTargetAsync(
+		target: Extract<TerminalOpenTarget, { readonly kind: 'file' | 'url' }>,
+	): Promise<ProjectedTerminalSideEffectResult>;
 	paste(text: string, source: 'api' | 'clipboard'): Promise<ProjectedPasteResult>;
 	reset(): void;
 	readLastCommandOutput(signal: AbortSignal): Promise<ProjectedCommandOutputReadResult>;
@@ -644,25 +647,27 @@ export function registerProjectedTerminalActions({
 				},
 				getAvailability: (_context, input) => {
 					const request = terminalLinkOpenRequest(input);
-					return request !== null && normalizedExternalTarget(request.target) !== null
+					return request !== null && terminalOpenTarget(request.target) !== null
 						? { kind: 'enabled' }
 						: { kind: 'disabled', reason: projectedTerminalMessages.actionUnavailable };
 				},
 				handler: {
 					execute: async (context, input) => {
 						const request = terminalLinkOpenRequest(input);
-						const normalizedTarget =
-							request === null ? null : normalizedExternalTarget(request.target);
+						const target = request === null ? null : terminalOpenTarget(request.target);
 						if (
 							request === null ||
-							normalizedTarget === null ||
+							target === null ||
 							!terminal.linkOpenRequestIsCurrent(request)
 						) {
 							return { code: 'stale-terminal-link-context', kind: 'blocked' };
 						}
 						if (context.signal.aborted) return { kind: 'cancelled' };
-						const result = await (platformEffects.openExternal?.(normalizedTarget) ??
-							terminal.openLinkAsync(normalizedTarget));
+						const result =
+							target.kind === 'url'
+								? await (platformEffects.openExternal?.(target.url) ??
+										terminal.openLinkAsync(target.url))
+								: await terminal.openTargetAsync(target);
 						if (result.kind === 'completed') {
 							context.markCommitted();
 							return { kind: 'completed' };
@@ -724,9 +729,27 @@ function clipboardWriteIsAvailable(platformEffects: ProjectedTerminalPlatformEff
 function terminalLinkOpenRequest(
 	input: ProjectedTerminalActionCatalog[typeof PROJECTED_TERMINAL_ACTION_IDS.openLink]['input'],
 ): ProjectedTerminalLinkOpenRequest | null {
-	return input.context !== undefined && input.target.kind === 'url'
-		? { context: input.context, target: input.target }
-		: null;
+	if (input.context === undefined) return null;
+	if (input.target.kind === 'url') return { context: input.context, target: input.target };
+	if (input.target.kind !== 'file') return null;
+	return {
+		context: input.context,
+		target: {
+			kind: 'file',
+			path: input.target.path,
+			...(typeof input.target.line === 'number' ? { line: input.target.line } : {}),
+			...(typeof input.target.column === 'number' ? { column: input.target.column } : {}),
+		},
+	};
+}
+
+function terminalOpenTarget(
+	target: TerminalOpenTarget,
+): Extract<TerminalOpenTarget, { readonly kind: 'file' | 'url' }> | null {
+	if (target.kind === 'file') return target;
+	if (target.kind !== 'url') return null;
+	const url = normalizePermittedExternalTerminalUrl(target.url);
+	return url === null ? null : { kind: 'url', url };
 }
 
 function normalizedExternalTarget(target: TerminalOpenTarget): string | null {

@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { ProjectedTerminalRendererSession } from '../../../projected-terminal-renderer';
+import type {
+	MobileTerminalInputState,
+	ProjectedTerminalRendererSession,
+} from '../../../projected-terminal-renderer';
 import type { TerminalProjection, TerminalProjectionRequest } from '../../../terminal-projection';
 import {
 	ProjectedTerminalRecoveryController,
@@ -204,6 +207,72 @@ describe('ProjectedTerminalRecoveryController', () => {
 		).resolves.toEqual({ kind: 'blocked' });
 		expect(readinessChanged).toHaveBeenCalledTimes(3);
 		controller.dispose();
+	});
+
+	it('routes mobile input state and controls only through the exact active renderer', async () => {
+		let mobileState: MobileTerminalInputState = {
+			alt: false,
+			control: false,
+			focused: true,
+			readiness: { kind: 'ready', revision: 'attachment-mobile:5' },
+		};
+		let emitMobileState = (): void => undefined;
+		const disposeMobileState = vi.fn<() => void>();
+		const sendMobileKey = vi.fn<NonNullable<ProjectedTerminalRendererSession['sendMobileKey']>>(
+			() => true,
+		);
+		const toggleMobileKeyboard = vi.fn<
+			NonNullable<ProjectedTerminalRendererSession['toggleMobileKeyboard']>
+		>(() => true);
+		const toggleMobileModifier =
+			vi.fn<NonNullable<ProjectedTerminalRendererSession['toggleMobileModifier']>>();
+		const active = rendererSession({
+			getMobileInputState: () => mobileState,
+			sendMobileKey,
+			subscribeMobileInputState: (listener) => {
+				emitMobileState = listener;
+				return { dispose: disposeMobileState };
+			},
+			toggleMobileKeyboard,
+			toggleMobileModifier,
+		});
+		const request = projectionRequest();
+		const states: ProjectedTerminalRecoveryState[] = [];
+		const controller = new ProjectedTerminalRecoveryController({
+			onStateChange: (state) => states.push(state),
+			open: () => request.request,
+			startRenderer: async () => active.session,
+		});
+		const mobileStateChanged = vi.fn<() => void>();
+		controller.subscribeMobileInputState(mobileStateChanged);
+
+		expect(controller.getMobileInputState().readiness).toEqual({ kind: 'unavailable' });
+		expect(controller.sendMobileKey('Escape')).toBe(false);
+		controller.start();
+		request.resolve();
+		await vi.waitFor(() => expect(states.at(-1)).toEqual({ kind: 'ready' }));
+
+		expect(controller.getMobileInputState()).toEqual(mobileState);
+		expect(controller.sendMobileKey('ArrowUp')).toBe(true);
+		expect(controller.toggleMobileKeyboard()).toBe(true);
+		controller.toggleMobileModifier('control');
+		expect(sendMobileKey).toHaveBeenCalledExactlyOnceWith('ArrowUp');
+		expect(toggleMobileKeyboard).toHaveBeenCalledOnce();
+		expect(toggleMobileModifier).toHaveBeenCalledExactlyOnceWith('control');
+
+		mobileState = {
+			alt: false,
+			control: false,
+			focused: false,
+			readiness: { kind: 'ready', revision: 'attachment-mobile:6' },
+		};
+		emitMobileState();
+		expect(controller.getMobileInputState()).toEqual(mobileState);
+		expect(mobileStateChanged).toHaveBeenCalledTimes(2);
+
+		controller.dispose();
+		expect(disposeMobileState).toHaveBeenCalledOnce();
+		expect(controller.getMobileInputState().readiness).toEqual({ kind: 'unavailable' });
 	});
 
 	it('retains the active frame across bounded recovery and replaces it only after a painted frame', async () => {

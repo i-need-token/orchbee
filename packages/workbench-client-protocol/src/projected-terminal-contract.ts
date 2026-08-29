@@ -40,14 +40,35 @@ import { z } from 'zod';
 
 const utf8Encoder = new TextEncoder();
 
-const projectedTerminalLinkTargetSchema = z
+export const MAX_PROJECTED_TERMINAL_IMAGE_PREVIEW_BYTES = 8 * 1024 * 1024;
+
+const projectedTerminalTargetTextSchema = z
 	.string()
 	.min(1)
 	.max(PROTOCOL_LIMITS.maxStringBytes)
 	.refine(
 		(value) => utf8Encoder.encode(value).byteLength <= PROTOCOL_LIMITS.maxStringBytes,
-		`Link target exceeds ${PROTOCOL_LIMITS.maxStringBytes} UTF-8 bytes.`,
+		`Terminal target exceeds ${PROTOCOL_LIMITS.maxStringBytes} UTF-8 bytes.`,
 	);
+
+const ProjectedTerminalOpenTargetSchema = z.discriminatedUnion('kind', [
+	z.strictObject({ kind: z.literal('url'), url: projectedTerminalTargetTextSchema }),
+	z.strictObject({
+		column: z.number().int().positive().safe().optional(),
+		kind: z.literal('file'),
+		line: z.number().int().positive().safe().optional(),
+		path: projectedTerminalTargetTextSchema,
+	}),
+]);
+
+const ProjectedTerminalImagePreviewMediaTypeSchema = z.enum([
+	'image/png',
+	'image/jpeg',
+	'image/gif',
+	'image/webp',
+	'image/avif',
+	'image/bmp',
+]);
 
 export const ProjectedTerminalOutcomeSchema = z
 	.discriminatedUnion('kind', [
@@ -67,6 +88,7 @@ export const ProjectedAttachmentBootstrapSchema = z
 		),
 		creationId: CreationIdSchema,
 		hostEpoch: HostEpochSchema,
+		localFileEffects: z.boolean().optional(),
 		terminalId: TerminalIdSchema,
 		terminalOutcome: ProjectedTerminalOutcomeSchema,
 		theme: TerminalThemeStateSchema,
@@ -123,6 +145,21 @@ export const ProjectedTerminalCommandSchema = z.discriminatedUnion('kind', [
 	z.strictObject({ kind: z.literal('reset-terminal'), payload: ResetTerminalSchema }),
 	z.strictObject({ kind: z.literal('rows-applied'), payload: RowsAppliedSchema }),
 	z.strictObject({ kind: z.literal('history-observed'), payload: HistoryObservedSchema }),
+	z.strictObject({
+		kind: z.literal('image-preview'),
+		payload: z.strictObject({
+			attachmentId: AttachmentIdSchema,
+			path: projectedTerminalTargetTextSchema,
+			requestSequence: CanonicalUint64TextSchema,
+		}),
+	}),
+	z.strictObject({
+		kind: z.literal('image-preview-cancel'),
+		payload: z.strictObject({
+			attachmentId: AttachmentIdSchema,
+			requestSequence: CanonicalUint64TextSchema,
+		}),
+	}),
 	z.strictObject({ kind: z.literal('selection-command'), payload: SelectionCommandSchema }),
 	z.strictObject({ kind: z.literal('selection-gesture'), payload: SelectionGestureSchema }),
 	z.strictObject({
@@ -139,7 +176,7 @@ export const ProjectedTerminalCommandSchema = z.discriminatedUnion('kind', [
 		payload: z.strictObject({
 			attachmentId: AttachmentIdSchema,
 			requestSequence: CanonicalUint64TextSchema,
-			target: projectedTerminalLinkTargetSchema,
+			target: ProjectedTerminalOpenTargetSchema,
 		}),
 	}),
 	z.strictObject({ kind: z.literal('text-input'), payload: TextInputSchema }),
@@ -200,6 +237,22 @@ export const ProjectedTerminalEventSchema = z.discriminatedUnion('kind', [
 	}),
 	z.strictObject({ frame: ProjectedTerminalFrameBinarySchema, kind: z.literal('frame') }),
 	z.strictObject({ event: HistoryChangedSchema, kind: z.literal('history-changed') }),
+	z.strictObject({
+		content: z
+			.instanceof(ArrayBuffer)
+			.refine(
+				(value) =>
+					value.byteLength > 0 && value.byteLength <= MAX_PROJECTED_TERMINAL_IMAGE_PREVIEW_BYTES,
+				'Image preview content must be non-empty and within the protocol limit.',
+			),
+		kind: z.literal('image-preview-content'),
+		mediaType: ProjectedTerminalImagePreviewMediaTypeSchema,
+		requestSequence: CanonicalUint64TextSchema,
+	}),
+	z.strictObject({
+		kind: z.literal('image-preview-unavailable'),
+		requestSequence: CanonicalUint64TextSchema,
+	}),
 	z.strictObject({ event: ResizeLeaseChangedSchema, kind: z.literal('resize-lease-changed') }),
 	z.strictObject({
 		content: z

@@ -222,13 +222,21 @@ before one focus-out, while entering through a non-textarea descendant publishes
 focus-in. The application decides when to call `focus()`; an open surface synchronizes its local
 padding, scrollbar, hidden-input anchor, and current resize proposal before moving native focus to
 the hidden textarea. Opening the package surface does not claim initial product focus.
-Desktop and pen pointer activation focuses the hidden textarea on pointer down. Touch pointer
-handling completes before a non-passive canvas `touchend` prevents native compatibility mouse and
-caret handling, then focuses the textarea; a writable textarea opens the mobile virtual keyboard.
-Touch activation alone publishes no PTY input and preserves Host selection. The resulting
-`beforeinput` and composition events use the same shared pre-input transition and exactly-once
-deduplication as other browser input, while a read-only attachment remains focusable without
-admitting mobile text.
+Desktop and pen pointer activation focuses the hidden textarea on pointer down.
+
+### Mobile touch and native-input model
+
+| Field                      | Contract                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Problem and scope          | A coarse touch pointer must operate a projected terminal without inheriting desktop selection timing or relying on a hardware keyboard. Mouse, pen, touchpad, hardware-keyboard, multi-touch, pinch-zoom, and native selection-handle behavior are unchanged or excluded.                                                                                                                                                                                                                                                                        |
+| Inputs                     | The adapter normalizes one primary `pointerType === 'touch'` stream, finite CSS-pixel coordinates, current cell geometry, projected application-mouse ownership, active-screen mode, input capability, `touchend`, native input/composition events, and lifecycle cancellation. Missing geometry, stale pointer identity, additional touches, and closed input admission are intentional no-ops or cancellation.                                                                                                                                 |
+| State and model            | `TerminalTouchGestureState` is `idle`, `pending-tap`, or `scrolling` and is owned by one mounted `ProjectedTerminal`. `transitionTerminalTouchGesture(...)` is the deterministic owner of activation, the eight-CSS-pixel movement threshold, vertical-axis dominance, accumulated scroll displacement, completion, and cancellation. DOM capture, focus, and Host commands are adapter effects returned by that model.                                                                                                                          |
+| Transitions                | Primary touch down enters `pending-tap` without selection, focus, or Host mouse input. Motion remains pending below the threshold; vertically dominant motion at or beyond it enters `scrolling`. Pending release produces one tap at the final cell; scrolling release produces no tap. Pointer cancel, lost capture, focus/visibility repair, capability replacement, and disposal return to `idle` without a tap.                                                                                                                             |
+| Outputs and invariants     | A completed tap focuses the writable textarea from the following non-passive `touchend`; a projected application-mouse owner also receives one final-cell press/release pair. A scroll never focuses, selects, clicks, or publishes text. Natural vertical displacement reuses wheel ownership: application mouse receives buttons 4/5, the writable alternate screen receives Arrow Up/Down, and the primary screen navigates retained history. Host selection is preserved unless later admitted input uses the existing pre-input transition. |
+| Native input               | Mobile focus keeps a deletable sentinel in the textarea so empty-prompt Backspace remains observable, strips that sentinel from every committed/preedit fallback, and uses an effective native input font size of at least 16 CSS pixels to avoid focus zoom. Enter, Backspace, Delete, independent text, and IME composition retain the existing ordered, exactly-once input contract. Read-only attachments never admit mobile text.                                                                                                           |
+| Ownership and dependencies | This package owns gesture and native-input correctness. The application owns mobile-control visibility, localized controls, one-shot modifier policy, visual-viewport geometry, and platform validation. Terminal Host remains the sole owner of VT input encoding, retained history, and selection.                                                                                                                                                                                                                                             |
+| Verification and limits    | Pure transition tests cover threshold minus/equal/plus one, axis ties, natural direction, stale identities, completion, and every cancellation. Projected-terminal adapter tests cover tap, application mouse, scrolling, sentinel deletion, IME, read-only, and repair. A controlled headed browser trace remains required to verify DOM ordering and geometry; real iOS and Android keyboard appearance remains release validation rather than an automated operating-system claim.                                                            |
+
 Every raw, key, committed-text, paste, application-mouse, focus, and repair command carries the
 current positive attachment capability revision. Direct construction defaults to the initial
 revision `1`, while Desktop and Gateway bootstraps forward the Host-returned revision.
@@ -600,12 +608,52 @@ arrive from Host-owned Ghostty state; this package never reparses their escape s
 links take precedence over detected URL and path text. Automatic URL detection admits only
 `http`, `https`, and `mailto`; `normalizePermittedExternalTerminalUrl(...)` is the public policy
 operation used again by Workbench Action and Browser effect adapters. Unsupported explicit OSC 8
-metadata and detected filesystem targets may remain in the bounded link cache, but they never
-receive pointer hover, product context, or an activation request. Content revisions, viewport
-transitions, surface resize, device-pixel-ratio changes, and presentation geometry changes retire
-the hover cache. A modifier-assisted click revalidates the hovered generation, revision, hover
-epoch, and clicked cell before `ProjectedTerminal` emits one approved URL request; the application
-decides whether and how to open it. Filesystem and unknown targets are not opened by this package.
+metadata and detected filesystem targets may remain in the bounded link cache. A caller must grant
+one attachment explicit local-filesystem-link capability before a filesystem target receives active
+pointer styling, product context, activation, or image-preview intent; Browser, Gateway, archived,
+and source-neutral default attachments grant none. Content revisions, viewport transitions, surface
+resize, device-pixel-ratio changes, presentation geometry changes, application-mouse ownership, and
+gesture transitions retire the hover cache. A modifier-assisted click revalidates the hovered
+generation, revision, hover epoch, clicked cell, exact typed target, and current capability before
+`ProjectedTerminal` emits one approved URL or local-file request. The application decides whether
+and how to perform that effect. This package never reads a path or invokes an operating-system
+opener.
+
+### Local filesystem link and image-preview model
+
+Local filesystem interaction is a per-attachment, default-off projection over the existing typed
+link cache. URLs retain the `http`/`https`/`mailto` policy. An enabled local file or directory uses
+Command plus primary click on Apple platforms and Control plus primary click elsewhere; ordinary
+primary drag remains terminal selection, and application mouse tracking retains ownership unless
+Shift returns the gesture to the product. Relative paths are resolved from the generation-pinned
+current directory before the target is exposed. Quoted and escaped path syntax affects detection
+only; the effect boundary receives the normalized path and separately validates it as untrusted
+input.
+
+Only a fine, hover-capable pointer over a detected PNG, JPEG, GIF, WebP, AVIF, or BMP path may enter
+the image-preview workflow. A 300 millisecond dwell is a reversible intent, not an activation. It
+does not probe generic paths, mutate selection, take focus, capture the pointer, or create a durable
+cache. The application may return at most 8 MiB of independently validated raster bytes from its
+optional local Desktop capability. SVG, HEIC, TIFF, unknown, oversized, missing, non-regular, and
+undecodable content produces no card and discloses no filesystem detail through hover feedback.
+
+| State         | Accepted transition and output                                                                                                             |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `idle`        | No current eligible image target, timer, request, or card.                                                                                  |
+| `waiting`     | One current revision-pinned image target owns the dwell timer; target replacement or any retirement returns to `idle`.                    |
+| `loading`     | The elapsed dwell starts one request for that exact target and request identity; replacement cancels it and may start a new `waiting`.     |
+| `visible`     | Valid bytes from the current request produce one pointer-transparent card anchored to the current cell; no terminal or product focus moves. |
+| `unavailable` | A current failure stays silent for that hover membership and returns to `idle` only after replacement or retirement.                       |
+
+The latest hover membership is authoritative. Pointer leave, pointer down, wheel, key input,
+selection start, application-mouse takeover, revision or geometry change, attachment replacement,
+document retirement, and disposal cancel waiting/loading work and hide visible content. A late,
+duplicated, failed, or reordered completion cannot become visible unless its attachment, request
+identity, target, generation, revision, link epoch, row, and column still equal the current hover.
+The [image-preview model](formal/README.md#image-preview-freshness) checks this safety claim under
+cancellation, replacement, and reordered completion. No liveness claim is made for operating-system
+filesystem completion; cancellation is presentation-authoritative even when an underlying read
+cannot stop synchronously.
 
 Plain-text drops follow the same sanitization, review, ordering, and Host input path as paste. The
 `file-drop` paste source follows the same hazard policy, but its source alone does not force review:
@@ -957,6 +1005,7 @@ stated by their owning guides.
 | `terminal-parity/HS-04-selection-gesture`, `terminal-parity/HS-05-selection-cancel`, `terminal-parity/HS-06-selection-eviction`, `terminal-parity/HS-08-selection-commands`, `terminal-parity/HS-10-copy`                   | The [selection-gesture model](formal/README.md#selection-gesture-stale-cancellation), [`src/projected/__tests__/projected-terminal.unit.test.ts`](src/projected/__tests__/projected-terminal.unit.test.ts), Host selection/export tests, Web clipboard-result tests, and exact headed `terminal-parity/HS-04-selection-gesture` cover gesture derivation, stale retirement, cancellation, pinned export, absolute endpoints, and one perceivable copy outcome.                                                                                        |
 | `terminal-parity/FS-01-search`, `terminal-parity/FS-02-search-scheduling`                                                                                                                                                   | [`src/search/__tests__/projected-search-controller.unit.test.ts`](src/search/__tests__/projected-search-controller.unit.test.ts), [`src/search/__tests__/projected-search-worker.unit.test.ts`](src/search/__tests__/projected-search-worker.unit.test.ts), and [`src/search/__tests__/ProjectedSearchAccumulator.unit.test.ts`](src/search/__tests__/ProjectedSearchAccumulator.unit.test.ts) cover bounded results, independent navigation, invalidation, cancellation, progress, and reveal.                                                       |
 | `terminal-parity/FS-03-links`, `terminal-parity/FS-04-link-invalidation`                                                                                                                                                    | [`src/__tests__/terminal-row-links.unit.test.ts`](src/__tests__/terminal-row-links.unit.test.ts) and [`src/projected/__tests__/projected-terminal.unit.test.ts`](src/projected/__tests__/projected-terminal.unit.test.ts) cover complete bounded logical lines, precedence, exact cell mapping, hover retirement, and activation revalidation.                                                                                                                                                                                                        |
+| `terminal-parity/FS-19-local-file-links`, `terminal-parity/FS-20-image-preview`                                                                                                                                             | The [image-preview model](formal/README.md#image-preview-freshness), row-link and projected-terminal unit tests, Desktop broker/file-capability tests, the Web preview-card Story, and exact headed `terminal-parity/FS-19-local-file-links` and `terminal-parity/FS-20-image-preview` witnesses cover typed path detection, capability gating, modifier activation, bounded raster validation, latest-hover cancellation, anchored presentation, and Browser/Gateway/archived absence. The traces use a captured opener and synthetic image bytes; they do not launch an operating-system application, automate Finder, prove network-filesystem latency, or grant remote file access. |
 | `terminal-parity/FS-07-keyboard-hints`                                                                                                                                                                                      | [`src/__tests__/terminal-hints.unit.test.ts`](src/__tests__/terminal-hints.unit.test.ts), projected-terminal, Web Action, shortcut, Settings, storage, and exact headed Desktop evidence cover visible target detection, overlay ownership, cancellation, effects, migration, and unchanged attachment identity.                                                                                                                                                                                                                                      |
 | `terminal-parity/FS-08-command-output-viewer`                                                                                                                                                                               | [`src/projected/__tests__/projected-command-output.unit.test.ts`](src/projected/__tests__/projected-command-output.unit.test.ts), projected-terminal, Web viewer, Action, shortcut, Settings, storage, and exact headed Desktop evidence cover OSC 133 boundaries, exact snapshots, immutable search, copy, focus, bounds, migration, and unchanged attachment identity.                                                                                                                                                                              |
 | `terminal-parity/FS-09-scrollback-viewer`                                                                                                                                                                                   | [`src/projected/__tests__/projected-scrollback.unit.test.ts`](src/projected/__tests__/projected-scrollback.unit.test.ts), projected-terminal, Web viewer, Action, shortcut, Settings, storage, and exact headed Desktop evidence cover full retained-row projection, wrap boundaries, visible-top anchoring, immutable search, copy, cancellation, bounds, migration, and unchanged attachment identity.                                                                                                                                              |

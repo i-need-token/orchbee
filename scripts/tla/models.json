@@ -1216,6 +1216,34 @@
 			]
 		},
 		{
+			"id": "terminal-image-preview",
+			"owner": "@orchbee/terminal",
+			"workspace": "packages/terminal",
+			"module": "packages/terminal/formal/tla/TerminalImagePreview.tla",
+			"config": "packages/terminal/formal/tla/TerminalImagePreview.cfg",
+			"claims": ["packages/terminal/formal/README.md", "packages/terminal/README.md"],
+			"triggers": [
+				"packages/terminal/src/terminal-row-links.ts",
+				"packages/terminal/src/projected/**",
+				"packages/workbench-client-protocol/src/projected-terminal-contract.ts",
+				"apps/web/src/workbench-client/projected-terminal-*/**",
+				"apps/desktop/src/main/broker/**"
+			],
+			"requiredCoverage": [
+				"ObserveIneligibleHover",
+				"StartHover",
+				"ReplaceHover",
+				"DwellElapsed",
+				"CompleteCurrent",
+				"FailCurrent",
+				"CompleteStale",
+				"CoverageLeaveHover",
+				"CoverageRetireHover",
+				"RevokeCapability",
+				"Dispose"
+			]
+		},
+		{
 			"id": "terminal-input-repair",
 			"owner": "@orchbee/terminal",
 			"workspace": "packages/terminal",

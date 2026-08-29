@@ -18,8 +18,18 @@ export { ghosttyCodepointWidth } from './ghosttyCodepointWidth';
 export {
 	classifySurfaceMousePlatform,
 	resolveSurfaceMouseCursor,
+	surfaceLinkModifierIsActive,
 	type SurfaceMouseModifiers,
 } from './surface-mouse';
+export {
+	createTerminalTouchGestureState,
+	TERMINAL_TOUCH_ACTIVATION_DISTANCE_PX,
+	transitionTerminalTouchGesture,
+	type TerminalTouchGestureCommand,
+	type TerminalTouchGestureEvent,
+	type TerminalTouchGestureState,
+	type TerminalTouchGestureTransition,
+} from './terminal-touch-gesture';
 export {
 	beginTerminalComposition,
 	createTerminalInputState,

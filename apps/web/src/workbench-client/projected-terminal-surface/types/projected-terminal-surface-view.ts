@@ -1,8 +1,18 @@
 import type { DragEvent, RefObject } from 'react';
-import type { ProjectedPasteReview } from '@orchbee/terminal';
+import type { ProjectedPasteReview, TerminalImagePreviewPresentation } from '@orchbee/terminal';
+import type {
+	MobileTerminalInputState,
+	MobileTerminalKey,
+	MobileTerminalModifier,
+} from '../../projected-terminal-renderer';
 
 export interface ProjectedTerminalSurfaceView {
 	readonly failureMessage: string | null;
+	readonly imagePreview: Extract<
+		TerminalImagePreviewPresentation,
+		{ readonly kind: 'visible' }
+	> | null;
+	readonly mobileInputState: MobileTerminalInputState;
 	readonly pasteReview: ProjectedPasteReview | null;
 	readonly projectionState: 'failed' | 'inactive' | 'recovering' | 'requested';
 	readonly recoveryAvailable: boolean;
@@ -13,5 +23,8 @@ export interface ProjectedTerminalSurfaceView {
 	handleFileDragOver(event: DragEvent<HTMLDivElement>): void;
 	handleFileDrop(event: DragEvent<HTMLDivElement>): void;
 	retryProjection(): void;
+	sendMobileKey(key: MobileTerminalKey): boolean;
 	startNewSession(): void;
+	toggleMobileKeyboard(): boolean;
+	toggleMobileModifier(modifier: MobileTerminalModifier): void;
 }

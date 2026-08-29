@@ -799,6 +799,11 @@
 	--ob-comp-workbench-panel-drag-scale: 1;
 	--ob-comp-workbench-panel-drag-opacity: 0.96;
 	--ob-comp-projected-terminal-progress-value: 0%;
+	--ob-comp-projected-terminal-image-preview-inline-start: 0px;
+	--ob-comp-projected-terminal-image-preview-block-start: 0px;
+	--ob-comp-projected-terminal-image-preview-anchor-block-size: 0px;
+	--ob-comp-projected-terminal-image-preview-inline-size: 20rem;
+	--ob-comp-projected-terminal-image-preview-block-size: 15rem;
 	--ob-comp-workbench-project-reorder-shift: calc(
 		var(--ob-ref-size-control-navigation) + var(--ob-ref-space-1)
 	);

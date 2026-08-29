@@ -199,3 +199,9 @@
 .stopped > p {
 	margin: 0;
 }
+
+@media (hover: none) and (pointer: coarse) {
+	.terminalSurface[data-projected-terminal-mobile-controls='visible'] {
+		padding-block-end: calc(var(--ob-ref-size-control-lg) + var(--ob-ref-space-4));
+	}
+}

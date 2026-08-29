@@ -2,6 +2,7 @@ import { PROTOCOL_LIMITS } from '@orchbee/terminal-protocol';
 import { describe, expect, it } from 'vitest';
 
 import {
+	MAX_PROJECTED_TERMINAL_IMAGE_PREVIEW_BYTES,
 	ProjectedAttachmentBootstrapSchema,
 	ProjectedTerminalCommandSchema,
 	ProjectedTerminalEventSchema,
@@ -173,6 +174,19 @@ describe('projected terminal contract', () => {
 		).toBe(false);
 	});
 
+	it('keeps local filesystem effects an explicit optional attachment capability', () => {
+		expect(
+			ProjectedAttachmentBootstrapSchema.parse({ ...bootstrap, terminalOutcome: null }),
+		).not.toHaveProperty('localFileEffects');
+		expect(
+			ProjectedAttachmentBootstrapSchema.parse({
+				...bootstrap,
+				localFileEffects: true,
+				terminalOutcome: null,
+			}),
+		).toMatchObject({ localFileEffects: true });
+	});
+
 	it('keeps commands scoped to their attachment identity', () => {
 		for (const kind of ['clear-terminal', 'reset-terminal'] as const) {
 			expect(
@@ -295,7 +309,7 @@ describe('projected terminal contract', () => {
 		).toBe(true);
 	});
 
-	it('bounds link targets by their UTF-8 representation', () => {
+	it('types and bounds open targets by their UTF-8 representation', () => {
 		const prefix = 'https://example.com/';
 		const exactAsciiTarget = `${prefix}${'a'.repeat(
 			PROTOCOL_LIMITS.maxStringBytes - prefix.length,
@@ -309,13 +323,21 @@ describe('projected terminal contract', () => {
 		expect(
 			ProjectedTerminalCommandSchema.safeParse({
 				kind: 'link-open',
-				payload: { attachmentId, requestSequence: '1', target: exactAsciiTarget },
+				payload: {
+					attachmentId,
+					requestSequence: '1',
+					target: { kind: 'url', url: exactAsciiTarget },
+				},
 			}).success,
 		).toBe(true);
 		expect(
 			ProjectedTerminalCommandSchema.safeParse({
 				kind: 'link-open',
-				payload: { attachmentId, requestSequence: '1', target: `${exactAsciiTarget}a` },
+				payload: {
+					attachmentId,
+					requestSequence: '1',
+					target: { kind: 'url', url: `${exactAsciiTarget}a` },
+				},
 			}).success,
 		).toBe(false);
 		expect(target.length).toBeLessThan(PROTOCOL_LIMITS.maxStringBytes);
@@ -325,9 +347,82 @@ describe('projected terminal contract', () => {
 		expect(
 			ProjectedTerminalCommandSchema.safeParse({
 				kind: 'link-open',
-				payload: { attachmentId, requestSequence: '1', target },
+				payload: { attachmentId, requestSequence: '1', target: { kind: 'url', url: target } },
 			}).success,
 		).toBe(false);
+		expect(
+			ProjectedTerminalCommandSchema.parse({
+				kind: 'link-open',
+				payload: {
+					attachmentId,
+					requestSequence: '2',
+					target: { column: 4, kind: 'file', line: 12, path: '/tmp/output image.png' },
+				},
+			}),
+		).toMatchObject({ payload: { target: { kind: 'file', line: 12 } } });
+		expect(
+			ProjectedTerminalCommandSchema.safeParse({
+				kind: 'link-open',
+				payload: {
+					attachmentId,
+					requestSequence: '2',
+					target: { kind: 'unknown', value: '/tmp/output.png' },
+				},
+			}).success,
+		).toBe(false);
+	});
+
+	it('bounds typed image-preview requests and binary results', () => {
+		expect(
+			ProjectedTerminalCommandSchema.parse({
+				kind: 'image-preview',
+				payload: { attachmentId, path: '/tmp/output.png', requestSequence: '7' },
+			}),
+		).toMatchObject({ kind: 'image-preview' });
+		expect(
+			ProjectedTerminalCommandSchema.parse({
+				kind: 'image-preview-cancel',
+				payload: { attachmentId, requestSequence: '7' },
+			}),
+		).toMatchObject({ kind: 'image-preview-cancel' });
+		expect(
+			ProjectedTerminalEventSchema.safeParse({
+				content: new ArrayBuffer(MAX_PROJECTED_TERMINAL_IMAGE_PREVIEW_BYTES),
+				kind: 'image-preview-content',
+				mediaType: 'image/png',
+				requestSequence: '7',
+			}).success,
+		).toBe(true);
+		expect(
+			ProjectedTerminalEventSchema.safeParse({
+				content: new ArrayBuffer(MAX_PROJECTED_TERMINAL_IMAGE_PREVIEW_BYTES + 1),
+				kind: 'image-preview-content',
+				mediaType: 'image/png',
+				requestSequence: '7',
+			}).success,
+		).toBe(false);
+		expect(
+			ProjectedTerminalEventSchema.safeParse({
+				content: new ArrayBuffer(0),
+				kind: 'image-preview-content',
+				mediaType: 'image/png',
+				requestSequence: '7',
+			}).success,
+		).toBe(false);
+		expect(
+			ProjectedTerminalEventSchema.safeParse({
+				content: new ArrayBuffer(16),
+				kind: 'image-preview-content',
+				mediaType: 'image/svg+xml',
+				requestSequence: '7',
+			}).success,
+		).toBe(false);
+		expect(
+			ProjectedTerminalEventSchema.parse({
+				kind: 'image-preview-unavailable',
+				requestSequence: '7',
+			}),
+		).toEqual({ kind: 'image-preview-unavailable', requestSequence: '7' });
 	});
 
 	it('preserves binary frame payloads without JSON representation', () => {

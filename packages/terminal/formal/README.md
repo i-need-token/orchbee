@@ -62,6 +62,30 @@ independent completion or failure transition records its cancelled outcome. TLC 
 only for an eligible commit; font completion, request arrival, and disposal remain independently
 ordered and are not assumed fair.
 
+## Image-preview freshness
+
+`tla/TerminalImagePreview.tla` models the reversible fine-pointer image-preview workflow with two
+targets and two independently completing filesystem requests. One hover epoch abstracts the exact
+attachment, generation, revision, link epoch, row, column, path, and geometry membership checked by
+the runtime. Replacing or retiring that membership clears the current request and card immediately
+without claiming that an already-started operating-system read stopped. The stale read remains in
+the model until an independent completion discards it.
+
+| Image-preview claim                              | Model property                                                              | TypeScript refinement                                                                                                   |
+| ------------------------------------------------ | --------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Local capability is required                     | `NoPresentationWithoutCapability`                                           | The projected surface enables file hover and activation only for a Desktop-local attachment capability.                 |
+| One loading request belongs to the latest hover  | `CurrentRequestIsLatest`                                                    | The preview controller captures the complete revision-pinned target and one monotonically increasing request identity.  |
+| Visible bytes belong to the current hover        | `VisibleRequiresCurrentHover`, `PublicationRequiresCurrentAuthority`        | Completion revalidates attachment, target, link context, request identity, and controller epoch before publication.     |
+| Stale completion cannot publish                  | `StaleCompletionCannotPublish`, `PublicationChangesOnlyOnCurrentCompletion` | Replacement, cancellation, and disposal detach the current resolver; late protocol events are parsed and ignored.       |
+| Every retirement removes reversible presentation | `RetirementClearsPresentation`                                              | Leave, pointer/keyboard/wheel intent, selection, geometry/revision change, capability revocation, and disposal hide it. |
+| One request cannot publish more than once        | `AtMostOnePublicationPerAdmission`                                          | A correlated reply consumes its pending request before the display state can change.                                    |
+
+The model has no filesystem-completion liveness property: local, removable, and network-backed
+filesystems may delay or never complete at the abstraction boundary. It checks only bounded safety
+under replacement, cancellation, capability revocation, disposal, and reordered completion. Raster
+magic, the 8 MiB byte limit, path normalization, DOM geometry, decode support, and pointer timing
+remain deterministic TypeScript, Desktop adapter, and headed-system evidence.
+
 ## Input repair
 
 `tla/TerminalInputRepair.tla` models native composition lifetime, local text/preedit publication
@@ -280,8 +304,8 @@ Run the bounded model from the repository root:
 pnpm --filter @orchbee/terminal test:tla
 ```
 
-The shared repository runner executes the renderer-initialization, presentation, row-flight,
-prompt-navigation, selection-gesture, and native-settlement models once and the input-repair model through nine fixed
+The shared repository runner executes the renderer-initialization, presentation, image-preview,
+row-flight, prompt-navigation, selection-gesture, and native-settlement models once and the input-repair model through nine fixed
 semantic scenarios: composition, key, mouse, focus, review-key, review-mouse, review-focus,
 review-composition, and lifecycle. `review-composition`
 combines a stalled review, queued focus-in, reset invalidation, a deliberately failed first

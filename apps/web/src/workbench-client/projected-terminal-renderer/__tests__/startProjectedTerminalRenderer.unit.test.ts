@@ -109,6 +109,8 @@ describe('startProjectedTerminalRenderer', () => {
 		} as unknown as HTMLElement;
 		const documentElement = { dir: '', lang: '' };
 		const applyFrame = vi.fn<ProjectedTerminal['applyFrame']>(() => 'committed');
+		const applyImagePreviewContent = vi.fn<ProjectedTerminal['applyImagePreviewContent']>();
+		const applyImagePreviewUnavailable = vi.fn<ProjectedTerminal['applyImagePreviewUnavailable']>();
 		const applyInputCapability = vi
 			.fn<ProjectedTerminal['applyInputCapability']>()
 			.mockReturnValue({ kind: 'applied' });
@@ -168,6 +170,8 @@ describe('startProjectedTerminalRenderer', () => {
 		let emitInjectedInputReadiness: Parameters<
 			ProjectedTerminal['onInjectedInputReadinessChange']
 		>[0] = () => undefined;
+		let emitImagePreview: Parameters<ProjectedTerminal['onImagePreviewChange']>[0] = () =>
+			undefined;
 		let emitLinkOpenRequest: Parameters<ProjectedTerminal['onLinkOpenRequest']>[0] = () =>
 			undefined;
 		let emitMetadata: Parameters<ProjectedTerminal['onMetadataChange']>[0] | undefined;
@@ -183,6 +187,8 @@ describe('startProjectedTerminalRenderer', () => {
 					options = nextOptions;
 					return {
 						applyFrame,
+						applyImagePreviewContent,
+						applyImagePreviewUnavailable,
 						applyInputCapability,
 						applyRows,
 						canControlTerminal: true,
@@ -254,6 +260,10 @@ describe('startProjectedTerminalRenderer', () => {
 						onHistoryChange: vi.fn<ProjectedTerminal['onHistoryChange']>(() => ({
 							dispose: vi.fn<() => void>(),
 						})),
+						onImagePreviewChange: vi.fn<ProjectedTerminal['onImagePreviewChange']>((listener) => {
+							emitImagePreview = listener;
+							return { dispose: vi.fn<() => void>() };
+						}),
 						onInjectedInputReadinessChange: vi.fn<
 							ProjectedTerminal['onInjectedInputReadinessChange']
 						>((listener) => {
@@ -286,6 +296,9 @@ describe('startProjectedTerminalRenderer', () => {
 						})),
 						openLinkAsync: vi
 							.fn<ProjectedTerminal['openLinkAsync']>()
+							.mockResolvedValue({ kind: 'completed' }),
+						openTargetAsync: vi
+							.fn<ProjectedTerminal['openTargetAsync']>()
 							.mockResolvedValue({ kind: 'completed' }),
 						open: openTerminal,
 						paste: pasteTerminal,
@@ -352,6 +365,7 @@ describe('startProjectedTerminalRenderer', () => {
 			capabilityRevision: CanonicalUint64TextSchema.parse('1'),
 			creationId: CreationIdSchema.parse('22'.repeat(16)),
 			hostEpoch: HostEpochSchema.parse('33'.repeat(16)),
+			localFileEffects: true,
 			terminalOutcome: {
 				event: {
 					exit: { code: 0, kind: 'exit-code' as const },
@@ -405,6 +419,7 @@ describe('startProjectedTerminalRenderer', () => {
 			},
 		};
 		const observeMetadata = vi.fn<(metadata: ProjectedTerminalMetadata) => void>();
+		const observeImagePreview = vi.fn<Parameters<ProjectedTerminal['onImagePreviewChange']>[0]>();
 		const actionRuntime = new ActionRuntime();
 		const actionScope = actionRuntime.createScope('test.workbench.terminal');
 		const admitBellEffect = vi.fn<(event: WorkbenchTerminalBellEffect) => boolean>(() => true);
@@ -451,6 +466,8 @@ describe('startProjectedTerminalRenderer', () => {
 				inputConfigurationSource,
 				{ admitBellEffect, bindContextProvider, runtime: actionRuntime, scope: actionScope },
 				interactionConfigurationSource,
+				undefined,
+				observeImagePreview,
 			);
 			const broadcastReadinessChanged = vi.fn<() => void>();
 			const broadcastReadinessSubscription =
@@ -475,7 +492,11 @@ describe('startProjectedTerminalRenderer', () => {
 			});
 			expect(broadcastReadinessChanged).toHaveBeenCalledOnce();
 			expect(dependencies.createTerminal).toHaveBeenCalledWith(
-				expect.objectContaining({ copyOnSelect: false, projectionBufferTrust: 'local-host' }),
+				expect.objectContaining({
+					copyOnSelect: false,
+					localFileEffects: true,
+					projectionBufferTrust: 'local-host',
+				}),
 			);
 			expect(contextProvider).toBeDefined();
 			expect(
@@ -520,7 +541,33 @@ describe('startProjectedTerminalRenderer', () => {
 				kind: 'selection-copy-content',
 				requestSequence: '10',
 			});
+			const imagePreviewContent = new Uint8Array([0x89, 0x50, 0x4e, 0x47]).buffer;
+			emitTransportMessage({
+				content: imagePreviewContent,
+				kind: 'image-preview-content',
+				mediaType: 'image/png',
+				requestSequence: '11',
+			});
+			emitTransportMessage({ kind: 'image-preview-unavailable', requestSequence: '12' });
+			const imagePresentation = {
+				anchor: {
+					height: 18,
+					left: 24,
+					surfaceHeight: 400,
+					surfaceWidth: 600,
+					top: 40,
+					width: 8,
+				},
+				content: imagePreviewContent,
+				kind: 'visible' as const,
+				mediaType: 'image/png' as const,
+				path: '/tmp/output.png',
+			};
+			emitImagePreview(imagePresentation);
 			expect(applyFrame).toHaveBeenCalledOnce();
+			expect(applyImagePreviewContent).toHaveBeenCalledWith('11', imagePreviewContent, 'image/png');
+			expect(applyImagePreviewUnavailable).toHaveBeenCalledWith('12');
+			expect(observeImagePreview).toHaveBeenCalledWith(imagePresentation);
 			expect(notifyBell).toHaveBeenCalledWith({
 				attachmentId: bootstrap.attachmentId,
 				sequence: '5',

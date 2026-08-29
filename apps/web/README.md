@@ -93,6 +93,20 @@ pointer activation, an explicit terminal focus request, and closing the Find or 
 surface are the only adapter paths that move focus into the hidden terminal input. The projected
 root contains that input and both surfaces, so moving among them does not publish a terminal focus
 transition.
+
+### Mobile browser terminal interaction
+
+| Field                   | Contract                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Problem and scope       | Browser access on a coarse, non-hover pointer must expose terminal input, scrolling, and essential keys without redesigning the complete Workbench. Whole-shell responsive layout, native selection handles, multi-touch, pinch zoom, Panel gestures, and configurable key rows are excluded.                                                                                                                                                                                                                       |
+| Inputs and dependencies | The application consumes the current projected-attachment input readiness, terminal textarea focus, localized messages, `(hover: none) and (pointer: coarse)`, `VisualViewport` geometry, layout-viewport fallback, and semantic key intents. It never infers Host modes or encodes terminal bytes.                                                                                                                                                                                                                 |
+| State and ownership     | One mounted projected-terminal renderer owns `MobileTerminalInputState`: attachment availability, native keyboard focus, and a subset of one-shot `control`/`alt` modifiers. The React surface only renders that prepared state. The Web composition adapter owns current visual-viewport width, height, and offsets as reversible presentation geometry; it owns no terminal or Workbench state.                                                                                                                   |
+| Modifier transitions    | Tapping Control or Alt toggles that one-shot modifier. The next eligible toolbar key, physical key, or independent single printable ASCII native input consumes all armed modifiers before publication. Composition start, paste, multi-character or non-ASCII committed text, blur, read-only downgrade, attachment replacement, recovery, and disposal clear them without transforming or replaying input. A blocked or failed send still consumes the snapshot so stale modifiers cannot affect a later command. |
+| Key row and focus       | The canonical `projected-terminal.mobile-input-bar` appears only for the coarse non-hover media condition and contains Show/Hide Keyboard, Escape, Tab, Control, Alt, and four Arrow controls. Its key controls retain textarea focus and use the exact active attachment revision; the keyboard toggle reflects actual textarea focus and never claims that the operating system displayed a keyboard. Unavailable or read-only input disables input-producing controls.                                           |
+| Viewport projection     | The composition applies each finite positive `VisualViewport` resize or scroll sample to the application root before terminal measurement; an unavailable or invalid API uses the layout viewport. The root respects safe-area insets, and the existing terminal `ResizeObserver` remains the only writer of projected grid resize. Keyboard close restores the latest full visual viewport without persisting geometry.                                                                                            |
+| Invariants and failure  | Touch scrolling never arms a modifier; controls never publish to a replaced attachment; no mobile state enters the shared Workbench document, browser storage, or Terminal Host. Missing browser focus or viewport capabilities degrade to an unchanged layout and typed unavailable input rather than synthetic success. Desktop pointer and hardware-keyboard behavior remain unchanged.                                                                                                                          |
+| Verification and limits | Deterministic state tests cover every modifier transition and replacement. Renderer and React tests cover native capture ordering, revision pinning, localization, and focus retention. A controlled headed mobile-viewport trace remains required to verify media-conditioned visibility, touch tap/scroll, viewport shrink/restore, grid resize, and both locales; real iOS and Android keyboard appearance remains manual release evidence.                                                                      |
+
 Each attachment publishes only its own focus claim and projection demand. Terminal Host combines
 eligible claims for a shared terminal, so one attachment losing focus or visibility cannot emit a
 terminal-wide `FocusOut` while another eligible claim remains; reactivation requires a fresh claim.
@@ -250,13 +264,25 @@ indeterminate indicator, and both visual presentations respect reduced motion.
 
 Terminal link hover reads only generation/revision-pinned Host rows. When application mouse
 tracking owns the surface, ordinary context intent stays terminal-owned; Shift explicitly returns
-that intent to the product. The projected surface captures only the link target and its exact
-generation, revision, link epoch, row, and column when the Workbench menu opens. The prepared
-Workbench Action applies the `http`/`https`/`mailto` allowlist and revalidates that complete context
-immediately before selecting the Browser-local or Electron Main-owned effect. A changed context
-settles as a localized blocked result without opening the stale target. Modifier-assisted direct
-click uses the same request and revalidation path. The Host-projected hyperlink is data, never an
+that intent to the product. The projected surface captures only the typed link target and its exact
+generation, revision, link epoch, row, and column when the Workbench menu opens. Every composition
+keeps URL activation within the `http`/`https`/`mailto` policy. A detected file or directory target
+becomes interactive only when that exact attachment bootstrap carries the optional Desktop-local
+file-effects capability; Browser, Gateway, archived, and source-neutral attachments keep it inert.
+The prepared Workbench Action revalidates the complete context immediately before selecting its
+environment-owned effect. A changed context settles as a localized blocked result without opening
+the stale target. Command-click on Apple platforms or Control-click elsewhere uses the same typed
+request and revalidation path. Host-projected text and hyperlink metadata remain data, never an
 effect capability.
+
+With that Desktop-local capability, a fine-pointer hover over a detected PNG, JPEG, GIF, WebP, AVIF,
+or BMP path starts a 300 ms dwell without probing unrelated paths. The resulting request remains
+bound to the attachment, target, generation, revision, link epoch, row, and column. Replacement,
+pointer leave or press, wheel input, geometry or revision change, attachment retirement, and
+disposal cancel the pending presentation; a late completion cannot replace the latest hover. The
+surface renders admitted bytes in one pointer-transparent card anchored next to the source cell and
+keeps terminal focus and selection unchanged. Missing, unsupported, invalid, or unreadable images
+fail silently. Browser and Gateway never request or receive local image bytes.
 
 The headed Canvas 2D witnesses `terminal-parity/FS-05-file-links` and
 `terminal-parity/FS-06-url-policy` compose the production projected surface, Workbench Action, and
@@ -265,6 +291,14 @@ activation, while automatic FTP text, unsupported explicit metadata, explicit fi
 detected paths, and a direct file-effect request remain inactive. The controlled fixture uses
 synthetic generation-pinned Host row windows and a captured Browser opener; it does not exercise an
 operating-system URL handler or claim filesystem existence.
+
+The headed Canvas 2D witnesses `terminal-parity/FS-19-local-file-links` and
+`terminal-parity/FS-20-image-preview` enable the optional local capability against the same real
+projected surface with a fake Desktop effect. They prove relative-path resolution, modifier opening,
+300 ms image intent, replacement cancellation, rejection of a late completion, and the production
+anchored card's final PNG source and pointer-transparent interaction. Their captured opener and
+synthetic bytes do not launch an operating-system application, automate Finder, claim native image
+decoding, or grant Browser/Gateway filesystem access.
 
 The headed Canvas 2D witness `terminal-parity/FS-07-keyboard-hints` uses that same production
 surface and bounded row fixture. `Mod+Shift+O` labels visible URL, path, file-location, and hash

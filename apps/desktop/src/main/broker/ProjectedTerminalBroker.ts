@@ -48,6 +48,11 @@ import {
 	type TerminalThemeState,
 } from '@orchbee/terminal-protocol';
 import { HostRequestError, readTerminalInventory, type HostConnection } from '../host';
+import {
+	openTerminalLocalPath,
+	readTerminalImagePreview,
+	type TerminalImagePreviewContent,
+} from './terminal-local-file-effects';
 
 const MAX_IN_FLIGHT_RENDERER_REQUESTS = 64;
 const MAX_IN_FLIGHT_RENDERER_INPUT_REQUESTS = 16;
@@ -122,6 +127,11 @@ interface ActiveSelectionCopy {
 	startedAtMilliseconds: number;
 }
 
+interface ActiveImagePreview {
+	readonly controller: AbortController;
+	readonly requestSequence: ReturnType<typeof CanonicalUint64TextSchema.parse>;
+}
+
 type ProjectedResizeCommand = Extract<
 	ProjectedTerminalCommand,
 	{ readonly kind: 'resize-terminal' }
@@ -179,6 +189,11 @@ function isMeaningfulResizeActivity(command: ProjectedTerminalCommand): boolean 
 
 export interface ProjectedTerminalBrokerDependencies {
 	readonly openExternal: (target: string) => Promise<void>;
+	readonly openPath?: (target: string) => Promise<string>;
+	readonly readImagePreview?: (
+		target: string,
+		signal: AbortSignal,
+	) => Promise<TerminalImagePreviewContent>;
 	readonly writeClipboardText: (text: string) => Promise<void> | void;
 }
 
@@ -191,11 +206,16 @@ export interface ProjectedTerminalBrokerLifecycle {
 	readonly onThemeChanged?: (theme: TerminalThemeState) => void;
 }
 
-const defaultDependencies: ProjectedTerminalBrokerDependencies = {
+const defaultDependencies: Required<ProjectedTerminalBrokerDependencies> = {
 	openExternal: async (target) => {
 		const { shell } = await import('electron');
 		await shell.openExternal(target);
 	},
+	openPath: async (target) => {
+		const { shell } = await import('electron');
+		return shell.openPath(target);
+	},
+	readImagePreview: readTerminalImagePreview,
 	writeClipboardText: async (text) => {
 		const { clipboard } = await import('electron');
 		clipboard.writeText(text);
@@ -242,6 +262,7 @@ export class ProjectedTerminalBroker {
 	readonly #onResizeLeaseChanged: ((ownsResize: boolean) => void) | undefined;
 	readonly #onThemeChanged: ((theme: TerminalThemeState) => void) | undefined;
 	readonly #port: MessagePortMain;
+	#activeImagePreview: ActiveImagePreview | undefined;
 	#activeSelectionCopy: ActiveSelectionCopy | undefined;
 	#clipboardCommits = 0;
 	#commandsAccepted = 0;
@@ -307,6 +328,12 @@ export class ProjectedTerminalBroker {
 		}
 		this.#dependencies = dependencies;
 		this.#effectTarget = effectTarget;
+		if (bootstrap.localFileEffects === true && effectTarget !== 'desktop') {
+			throw new BrokerOperationError(
+				'invalid-local-file-effect-capability',
+				'Local file effects cannot be delegated to a client attachment.',
+			);
+		}
 	}
 
 	get metrics(): ProjectedTerminalBrokerMetrics {
@@ -468,6 +495,7 @@ export class ProjectedTerminalBroker {
 		if (this.#disposePromise !== undefined) return this.#disposePromise;
 		const activeCopy = this.#activeSelectionCopy;
 		this.#activeSelectionCopy = undefined;
+		this.#cancelActiveImagePreview();
 		this.#pendingClipboardWriteRequest = undefined;
 		this.#clearPendingRendererCommands();
 		this.#pendingResizeCommand = undefined;
@@ -514,6 +542,7 @@ export class ProjectedTerminalBroker {
 	#requestCleanup(error: unknown): void {
 		if (this.#cleanupRequested) return;
 		this.#cleanupRequested = true;
+		this.#cancelActiveImagePreview();
 		this.#clearPendingRendererCommands();
 		this.#pendingResizeCommand = undefined;
 		if (this.#onCleanupRequested !== undefined) {
@@ -1095,6 +1124,12 @@ export class ProjectedTerminalBroker {
 					HistoryObservedSchema,
 				);
 				return;
+			case 'image-preview':
+				this.#startImagePreview(command.payload.requestSequence, command.payload.path);
+				return;
+			case 'image-preview-cancel':
+				this.#cancelImagePreview(command.payload.requestSequence);
+				return;
 			case 'selection-command':
 			case 'selection-gesture': {
 				const kind =
@@ -1139,7 +1174,7 @@ export class ProjectedTerminalBroker {
 						'This attachment requires its client environment to open links.',
 					);
 				}
-				await this.#openExternal(command.payload.target);
+				await this.#openTarget(command.payload.target);
 				this.#postMessage({
 					kind: 'link-opened',
 					requestSequence: command.payload.requestSequence,
@@ -1363,10 +1398,27 @@ export class ProjectedTerminalBroker {
 		}
 	}
 
-	async #openExternal(target: string): Promise<void> {
+	async #openTarget(
+		target: Extract<ProjectedTerminalCommand, { readonly kind: 'link-open' }>['payload']['target'],
+	): Promise<void> {
+		if (target.kind === 'file') {
+			if (this.#bootstrap.localFileEffects !== true) {
+				throw new BrokerOperationError(
+					'link-file-effect-unavailable',
+					'This attachment cannot open local file targets.',
+				);
+			}
+			await openTerminalLocalPath(
+				target.path,
+				this.#dependencies.openPath ?? defaultDependencies.openPath,
+			);
+			this.#externalTargetsOpened += 1;
+			return;
+		}
+
 		let parsed: URL;
 		try {
-			parsed = new URL(target);
+			parsed = new URL(target.url);
 		} catch {
 			throw new BrokerOperationError('link-policy-blocked', 'The terminal link is not a URL.');
 		}
@@ -1382,6 +1434,60 @@ export class ProjectedTerminalBroker {
 		}
 		await this.#dependencies.openExternal(parsed.href);
 		this.#externalTargetsOpened += 1;
+	}
+
+	#startImagePreview(
+		requestSequence: ReturnType<typeof CanonicalUint64TextSchema.parse>,
+		target: string,
+	): void {
+		this.#cancelActiveImagePreview();
+		if (this.#effectTarget !== 'desktop' || this.#bootstrap.localFileEffects !== true) {
+			this.#postMessage({ kind: 'image-preview-unavailable', requestSequence });
+			return;
+		}
+
+		const state: ActiveImagePreview = { controller: new AbortController(), requestSequence };
+		this.#activeImagePreview = state;
+		const readImagePreview = this.#dependencies.readImagePreview ?? readTerminalImagePreview;
+		void readImagePreview(target, state.controller.signal)
+			.then((preview) => {
+				if (
+					this.#activeImagePreview !== state ||
+					state.controller.signal.aborted ||
+					this.#disposed
+				) {
+					return;
+				}
+				this.#activeImagePreview = undefined;
+				this.#postMessage({
+					content: preview.content,
+					kind: 'image-preview-content',
+					mediaType: preview.mediaType,
+					requestSequence,
+				});
+			})
+			.catch(() => {
+				if (
+					this.#activeImagePreview !== state ||
+					state.controller.signal.aborted ||
+					this.#disposed
+				) {
+					return;
+				}
+				this.#activeImagePreview = undefined;
+				this.#postMessage({ kind: 'image-preview-unavailable', requestSequence });
+			});
+	}
+
+	#cancelImagePreview(requestSequence: ReturnType<typeof CanonicalUint64TextSchema.parse>): void {
+		if (this.#activeImagePreview?.requestSequence !== requestSequence) return;
+		this.#cancelActiveImagePreview();
+	}
+
+	#cancelActiveImagePreview(): void {
+		const active = this.#activeImagePreview;
+		this.#activeImagePreview = undefined;
+		active?.controller.abort();
 	}
 
 	#failActiveSelectionCopy(error: unknown, cancelReason?: SelectionExportCancel['reason']): void {
@@ -1491,6 +1597,9 @@ function failureContext(
 			return { operation: 'copy', requestSequence: command.payload.requestSequence };
 		case 'link-open':
 			return { operation: 'link', requestSequence: command.payload.requestSequence };
+		case 'image-preview':
+		case 'image-preview-cancel':
+			return { operation: 'protocol', requestSequence: command.payload.requestSequence };
 		case 'read-rows':
 			return { operation: 'history', requestSequence: command.payload.requestSequence };
 		case 'rows-applied':

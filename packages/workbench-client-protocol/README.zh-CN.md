@@ -16,6 +16,10 @@
 
 功能故障在 Electron 和 Gateway 传输中保留其语义操作和可重试性。 Host 响应还保留其确切的相关性 ID，而客户端拥有的复制和链接效果保留其请求序列。这些值确定后果和诊断；他们从不授权自动重放输入或其他用户效果。
 
+本地文件系统效果是一项可选的附件能力，默认不存在。启用时，`link-open` 携带有判别字段的 URL 或文件目标，而不是授予通用 opener。URL 目标继续遵循共享 scheme 策略；文件目标只对拥有该附件的本地 Desktop broker 有意义。Browser、Gateway、archive 与来源中立的附件不会因为终端文本而获得本地应用启动或文件系统读取权限。
+
+图片预览是独立且绑定请求的流程。具备能力的 renderer 可以请求一个检测到的本地图片路径，并取消精确的请求序列。Desktop 只会返回精确有界的 `ArrayBuffer` 与一种已准入 raster media type，或不泄露文件细节的 unavailable 结果。协议把预览内容限制在 8 MiB，且不传输文件句柄、目录列表、cache key 或持久化指令。请求标识让 renderer 能在 hover replacement 或附件退役后拒绝迟到内容；它不授权重试或远程文件传输。
+
 附件流关闭后，Projection release 仍保持相关联。客户端会保留请求标识，直到 Main 返回 `terminal-projection-released` 或确切的类型化清理失败。成功确认不会传输任何端口；因此，迟到的清理结果只会结算其已释放请求，不会被误认为会使无关投影退役的未知消息。
 由于命令交付与异步 open 完成是独立调度的，相关联的 `terminal-projection-opened` 可能在客户端请求 release 后才到达。客户端只关闭被转移的 attachment 端口，保留已释放请求标识直到清理结算，并让共享控制传输与无关请求继续可用。缺失或多出的转移端口、冲突标识或重复 open 仍属于无效控制流量，并会退役受影响的控制传输。
 

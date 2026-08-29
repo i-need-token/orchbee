@@ -52,6 +52,11 @@ export {
 } from './projected-terminal';
 export type { ProjectedTerminalSearchEvent } from '../search';
 export type {
+	TerminalImagePreviewAnchor,
+	TerminalImagePreviewMediaType,
+	TerminalImagePreviewPresentation,
+} from './terminal-image-preview-controller';
+export type {
 	ProjectedCommandOutput,
 	ProjectedCommandOutputReadResult,
 } from './projected-command-output';

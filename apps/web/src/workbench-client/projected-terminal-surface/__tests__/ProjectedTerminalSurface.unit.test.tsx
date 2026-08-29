@@ -30,13 +30,23 @@ describe('ProjectedTerminalSurface', () => {
 			failureMessage: 'The terminal connection failed.',
 			handleFileDragOver: () => undefined,
 			handleFileDrop: () => undefined,
+			imagePreview: null,
 			pasteReview: null,
+			mobileInputState: {
+				alt: false,
+				control: false,
+				focused: false,
+				readiness: { kind: 'unavailable' },
+			},
 			projectionState: 'failed',
 			recoveryAvailable: false,
 			retryProjection: () => undefined,
 			root: { current: null },
+			sendMobileKey: () => false,
 			stopped: false,
 			startNewSession: () => undefined,
+			toggleMobileKeyboard: () => false,
+			toggleMobileModifier: () => undefined,
 		});
 		const actionRuntime = new ActionRuntime();
 
@@ -62,6 +72,7 @@ describe('ProjectedTerminalSurface', () => {
 		expect(markup).toContain('data-projected-terminal-close-activity="unknown"');
 		expect(markup).toContain('role="alert"');
 		expect(markup).toContain('The terminal connection failed.');
+		expect(markup).toContain('data-slot="projected-terminal-mobile-input-bar"');
 		expect(useProjectedTerminalSurface).toHaveBeenCalledWith(
 			presentation,
 			expect.objectContaining({ autoFocus: true }),
@@ -75,13 +86,23 @@ describe('ProjectedTerminalSurface', () => {
 			failureMessage: null,
 			handleFileDragOver: () => undefined,
 			handleFileDrop: () => undefined,
+			imagePreview: null,
 			pasteReview: null,
+			mobileInputState: {
+				alt: false,
+				control: false,
+				focused: false,
+				readiness: { kind: 'unavailable' },
+			},
 			projectionState: 'requested',
 			recoveryAvailable: false,
 			retryProjection: () => undefined,
 			root: { current: null },
+			sendMobileKey: () => false,
 			stopped: true,
 			startNewSession: () => undefined,
+			toggleMobileKeyboard: () => false,
+			toggleMobileModifier: () => undefined,
 		});
 		const actionRuntime = new ActionRuntime();
 		const stoppedPresentation: WorkbenchTerminalPresentation = {
@@ -111,5 +132,6 @@ describe('ProjectedTerminalSurface', () => {
 		expect(markup).toContain('Terminal session stopped');
 		expect(markup).toContain('Start New Session');
 		expect(markup).not.toContain('data-projected-terminal-status="true"');
+		expect(markup).not.toContain('data-slot="projected-terminal-mobile-input-bar"');
 	});
 });

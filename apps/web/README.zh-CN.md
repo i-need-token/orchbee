@@ -26,7 +26,22 @@ Desktop `MessagePort` 投影适配器会让每项本地已释放请求保持关�
 
 共享适配器将最后完成的绘制检查点公开为 `data-projected-terminal-rendered-generation` 和 `data-projected-terminal-rendered-revision`。这两个值都来自一个渲染器遥测事件，并标识在任何动画帧合并后实际绘制的打包主机提交。该诊断合同在 Electron 和网关浏览器客户端中是相同的；这不是对 Terminal Host 的第二次确认。运行时表示诊断还可以在同一表面上公开请求、提交和绘制的纪元。它们将独立排序的字体准备与单个本地提交区分开来，并完成当前的重绘，而无需创建另一个附件生命周期。
 
-挂载投影渲染器永远不会移动 DOM 焦点。Workbench 保留主动产品控件；只有指针激活、显式终端焦点请求以及关闭查找或终端文本查看器这几条适配器路径会将焦点移到隐藏的终端输入框。投影根包含该输入框与两个界面，因此在三者之间移动不会发布终端焦点转换。每个附件只发布自己的焦点声明和投影需求。Terminal Host 会聚合共享终端的合格声明；只要仍有另一项合格声明，失去焦点或可见性的附件就无法发出终端范围的 `FocusOut`，而重新激活需要新的声明。打开紧凑的查找界面时，如果可用，会根据活动 Host 选择的有界预览生成空查询或预填查询；搜索所拥有的活动范围仍以 Host 选择为权威，而不会形成第二套应用程序选择模型。打开或显式再次打开查找都会聚焦并全选完整查询；从任一查找控件按 Escape 会关闭界面并恢复终端焦点。匹配选项位于查询输入框内，普通搜索进度使用紧凑的本地化计数，左右方向键在匹配选项间移动，指针改变匹配选项后则把焦点还给查询输入框。只有可操作的失败、超时或保留历史通知才会展开工具栏并显示完整的本地化反馈。
+挂载投影渲染器永远不会移动 DOM 焦点。Workbench 保留主动产品控件；只有指针激活、显式终端焦点请求以及关闭查找或终端文本查看器这几条适配器路径会将焦点移到隐藏的终端输入框。投影根包含该输入框与两个界面，因此在三者之间移动不会发布终端焦点转换。
+
+### 移动浏览器终端交互
+
+| 字段         | 契约                                                                                                                                                                                                                                                                                                                   |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 问题与范围   | 粗粒度、无 hover 指针上的浏览器访问必须提供终端输入、滚动和必要按键，且不重新设计完整 Workbench。完整外壳响应式布局、原生选择手柄、多点触摸、捏合缩放、Panel 手势和可配置键条均明确排除。                                                                                                                              |
+| 输入与依赖   | 应用消费当前投影附件输入就绪状态、终端 textarea 焦点、本地化消息、`(hover: none) and (pointer: coarse)`、`VisualViewport` 几何、布局视口后备和语义按键意图。应用绝不推断 Host 模式或编码终端字节。                                                                                                                     |
+| 状态与所有权 | 一个已挂载投影终端渲染器拥有 `MobileTerminalInputState`：附件可用性、原生键盘焦点和一次性 `control`/`alt` 修饰键子集。React 表面只渲染已准备状态。Web composition 适配器把当前可视视口宽度、高度和偏移作为可逆呈现几何拥有；它不拥有终端或 Workbench 状态。                                                            |
+| 修饰键转换   | 轻触 Control 或 Alt 会切换该一次性修饰键。下一项合格键条按键、物理按键或独立单个可打印 ASCII 原生输入，会在发布前消费所有已准备修饰键。组合开始、粘贴、多字符或非 ASCII 提交文本、blur、只读降级、附件替换、恢复及处置会清除修饰键，且不转换或重放输入。被阻止或失败的发送仍消费快照，因此过时修饰键不能影响后续命令。 |
+| 键条与焦点   | 规范的 `projected-terminal.mobile-input-bar` 只在粗粒度无 hover 媒体条件下出现，包含显示/隐藏键盘、Escape、Tab、Control、Alt 和四个方向控件。其按键控件保留 textarea 焦点并使用精确的活动附件修订；键盘切换反映真实 textarea 焦点，绝不声称操作系统已显示键盘。输入不可用或只读时，产生输入的控件禁用。                |
+| 视口投影     | composition 会在终端测量前，把每个有限正值 `VisualViewport` resize 或 scroll 样本应用到应用根；API 不可用或无效时使用布局视口。根尊重安全区域 inset，既有终端 `ResizeObserver` 仍是投影网格 resize 的唯一写入者。键盘关闭会恢复最新完整可视视口，且不持久化几何。                                                      |
+| 不变量与失败 | 触摸滚动绝不准备修饰键；控件绝不向已替换附件发布；移动状态不会进入共享 Workbench document、浏览器存储或 Terminal Host。缺失浏览器焦点或视口能力会降级为不变布局和类型化不可用输入，而不是合成成功。桌面指针与硬件键盘行为保持不变。                                                                                    |
+| 验证与限制   | 确定性状态测试覆盖每个修饰键转换和替换。渲染器与 React 测试覆盖原生捕获顺序、修订固定、本地化和焦点保留。仍需受控有界面移动视口轨迹来验证媒体条件可见性、触摸轻触/滚动、视口收缩/恢复、网格 resize 和两种 locale；真实 iOS 与 Android 键盘弹出仍属手动发布证据。                                                       |
+
+每个附件只发布自己的焦点声明和投影需求。Terminal Host 会聚合共享终端的合格声明；只要仍有另一项合格声明，失去焦点或可见性的附件就无法发出终端范围的 `FocusOut`，而重新激活需要新的声明。打开紧凑的查找界面时，如果可用，会根据活动 Host 选择的有界预览生成空查询或预填查询；搜索所拥有的活动范围仍以 Host 选择为权威，而不会形成第二套应用程序选择模型。打开或显式再次打开查找都会聚焦并全选完整查询；从任一查找控件按 Escape 会关闭界面并恢复终端焦点。匹配选项位于查询输入框内，普通搜索进度使用紧凑的本地化计数，左右方向键在匹配选项间移动，指针改变匹配选项后则把焦点还给查询输入框。只有可操作的失败、超时或保留历史通知才会展开工具栏并显示完整的本地化反馈。
 
 `Ctrl+Shift+G` 会在应用拥有的模态查看器中打开上一条带 Shell 标记的命令输出。一个 replace-latest Action 通过有界通用缓冲区 lane 准备精确 generation/revision 的纯文本 document；过时、淘汰、备用屏幕、不可用或超限读取绝不发布局部输出。已准备 document 在打开期间保持不可变，字面量不区分大小写搜索、Enter/Shift+Enter 导航、原生文本选择与独立的 `terminal.output.copy` Action 都在本地运行。查看器会约束焦点循环并在关闭时恢复终端焦点，且有意不启动外部 pager 或重新渲染 ANSI 样式。参见 [Kitty 对齐契约](../../packages/terminal/docs/kitty-command-output-viewer-alignment.zh-CN.md) 与 `projected-terminal.text-viewer` experience component。
 
@@ -90,9 +105,13 @@ Gateway 复制选择时会从 Terminal Host 获取有界 UTF-8 选择字节，�
 
 OSC 52 写入从不共享选择复制快速路径。共享渲染器自动处理每个精确有界的 UTF-8 请求，而无需呈现确认表面。它的决定重复了确切的附件、主机序列和文本； Desktop Main 执行特权 Electron 效果，而网关浏览器仅在其自己的本地剪贴板 API 成功后报告成功。失败的客户端本地效果报告失败并消耗请求，而不要求 Main 重复写入；网关路径保留其安全上下文和瞬时用户激活要求。附件更换、终端退役和渲染器处置抑制了后期决策；请求文本和决策永远不会进入浏览器存储或共享工作台文档。这有意允许主机允许的终端程序替换当前的桌面剪贴板，而无需其他用户手势；恢复每个请求确认是回滚边界。每个附件贝尔向工作台生命周期协调器报告不透明的终端身份和主机序列。只有该终端序列的第一个被承认的交付才会产生简短的标记化视觉表面提示；重复、陈旧、重新连接和重放的传送不会产生任何效果，包括当不同的附件流交错时。可选的声音和操作系统通知回调是单独的显式应用程序选择加入，默认情况下不存在，并且在准入后独立失败。这两种效果都不需要焦点。当前的 OBTF 进度样本仍然是一个安静的底部边缘确定或不确定指示器，并且两种视觉呈现都尊重减少的运动。
 
-终端链接悬停仅读取生成/修订固定的主机行。当应用程序鼠标跟踪拥有该表面时，普通上下文意图仍由终端拥有； Shift 明确地将这一意图返回给产品。当工作台菜单打开时，投影表面仅捕获链接目标及其确切的生成、修订、链接纪元、行和列。准备好的工作台操作应用 `http`/`https`/`mailto` 允许列表，并在选择浏览器本地或 Electron Main 拥有的效果之前立即重新验证完整上下文。更改的上下文将作为本地化的阻止结果解决，而无需打开过时的目标。修改器辅助的直接点击使用相同的请求和重新验证路径。主机投影的超链接是数据，而不是效果功能。
+终端链接悬停仅读取 generation/revision-pinned Host 行。当 application mouse tracking 拥有表面时，普通 context intent 仍归终端；Shift 会明确把该 intent 交还产品。Workbench 菜单打开时，投影表面只捕获 typed link target 及其精确 generation、revision、link epoch、row 与 column。所有 composition 都把 URL activation 限制在 `http`/`https`/`mailto` 策略内。检测到的文件或目录目标只有在该精确附件 bootstrap 携带可选的 Desktop-local file-effects capability 时才可交互；Browser、Gateway、archive 与来源中立的附件都会保持 inert。准备好的 Workbench Action 会在选择环境拥有的 effect 前立即重新校验完整 context。context 变化会以本地化 blocked 结果结算，不打开 stale target。Apple 平台上的 Command-click 或其他平台上的 Control-click 使用同一 typed request 与重校验路径。Host 投影的文本与 hyperlink metadata 始终只是数据，而不是 effect capability。
+
+具备该 Desktop-local capability 时，fine pointer 悬停在检测到的 PNG、JPEG、GIF、WebP、AVIF 或 BMP 路径上会启动 300 ms dwell，且不会探测无关路径。随后产生的请求仍绑定 attachment、target、generation、revision、link epoch、row 与 column。target replacement、pointer leave 或 press、wheel input、geometry 或 revision 变化、attachment retirement 与 disposal 都会取消待处理 presentation；迟到 completion 无法覆盖最新 hover。表面只会在源 cell 旁渲染一个 pointer-transparent 的有界卡片，并保持终端 focus 与 selection 不变。缺失、不支持、无效或不可读的图片会静默失败。Browser 与 Gateway 永远不会请求或接收本地图片 bytes。
 
 头部Canvas 2D见证`terminal-parity/FS-05-file-links`和`terminal-parity/FS-06-url-policy`组成了生产投影表面、工作台动作和浏览器效果。他们证明，`http`、`https` 和 `mailto` 单独暴露悬停、上下文和直接激活，而自动 FTP 文本、不支持的显式元数据、显式文件元数据、检测到的路径和直接文件效果请求保持不活动状态。受控装置使用合成的生成固定主机行窗口和捕获的浏览器开启器；它不执行操作系统 URL 处理程序或声明文件系统存在。
+
+有界面 Canvas 2D 见证 `terminal-parity/FS-19-local-file-links` 与 `terminal-parity/FS-20-image-preview` 会在同一真实投影表面上启用可选 local capability，并使用假的 Desktop effect。它们证明 relative-path resolution、modifier opening、300 ms image intent、replacement cancellation、拒绝迟到 completion，以及生产锚定卡片最终的 PNG source 与 pointer-transparent interaction。捕获的 opener 与合成 bytes 不会启动操作系统应用、自动操作 Finder、声明原生图片解码，也不会授予 Browser/Gateway 文件系统访问。
 
 头部 Canvas 2D 见证 `terminal-parity/FS-07-keyboard-hints` 使用同一个生产界面与有界行夹具。
 `Mod+Shift+O` 为可见 URL、路径、文件位置与 hash 目标添加标签；标签按键绝不会到达终端输入，

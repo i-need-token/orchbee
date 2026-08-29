@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
 	classifySurfaceMousePlatform,
 	resolveSurfaceMouseCursor,
+	surfaceLinkModifierIsActive,
 	type SurfaceMouseCursorInput,
 	type SurfaceMouseModifiers,
 } from '../surface-mouse';
@@ -54,6 +55,13 @@ describe('surface mouse cursor', () => {
 		expect(classifySurfaceMousePlatform('MacIntel')).toBe('macos');
 		expect(classifySurfaceMousePlatform('iPhone')).toBe('macos');
 		expect(classifySurfaceMousePlatform('Linux x86_64')).toBe('other');
+	});
+
+	it('uses Command on macOS and Control on other platforms for link activation', () => {
+		expect(surfaceLinkModifierIsActive('macos', { control: false, meta: true })).toBe(true);
+		expect(surfaceLinkModifierIsActive('macos', { control: true, meta: false })).toBe(false);
+		expect(surfaceLinkModifierIsActive('other', { control: true, meta: false })).toBe(true);
+		expect(surfaceLinkModifierIsActive('other', { control: false, meta: true })).toBe(false);
 	});
 });
 

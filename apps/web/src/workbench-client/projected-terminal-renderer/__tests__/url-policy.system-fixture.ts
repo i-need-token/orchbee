@@ -1,7 +1,16 @@
 import { ActionRuntime, type ActionDiscoveryResult, type ActionScope } from '@orchbee/actions';
-import { ProjectedTerminal, type ProjectedTerminalOptions } from '@orchbee/terminal';
+import '@orchbee/ui/styles.css';
+
+import {
+	ProjectedTerminal,
+	type ProjectedTerminalCommand as TerminalSurfaceCommand,
+	type ProjectedTerminalOptions,
+	type TerminalImagePreviewPresentation,
+} from '@orchbee/terminal';
 import type { WorkbenchTerminalActionContextProvider } from '@orchbee/workbench';
 import type { ProjectedTerminalCommand } from '@orchbee/workbench-client-protocol';
+import { createElement } from 'react';
+import { createRoot } from 'react-dom/client';
 import {
 	ActiveScreen,
 	AttachmentIdSchema,
@@ -42,6 +51,7 @@ import {
 	startProjectedTerminalRenderer,
 	type ProjectedTerminalRendererDependencies,
 } from '../startProjectedTerminalRenderer';
+import { ProjectedTerminalImagePreviewCard } from '../../projected-terminal-surface';
 
 interface LinkScenario {
 	readonly id: string;
@@ -85,6 +95,10 @@ const emptyGraphics = {
 const creationId = CreationIdSchema.parse('92'.repeat(16));
 const hostEpoch = HostEpochSchema.parse('93'.repeat(16));
 const terminalId = TerminalIdSchema.parse('94'.repeat(16));
+const localAttachmentId = AttachmentIdSchema.parse('95'.repeat(16));
+const localCreationId = CreationIdSchema.parse('96'.repeat(16));
+const localHostEpoch = HostEpochSchema.parse('97'.repeat(16));
+const localTerminalId = TerminalIdSchema.parse('98'.repeat(16));
 const capabilityRevision = CanonicalUint64TextSchema.parse('1');
 const theme = TerminalThemeStateSchema.parse({
 	operationId: null,
@@ -244,7 +258,7 @@ async function runWitness(): Promise<void> {
 					buttons: 0,
 					clientX: point.x,
 					clientY: point.y,
-					metaKey: true,
+					...linkModifierFacts(),
 					pointerType: 'mouse',
 				}),
 			);
@@ -254,8 +268,7 @@ async function runWitness(): Promise<void> {
 				altKey: false,
 				clientX: point.x,
 				clientY: point.y,
-				ctrlKey: false,
-				metaKey: true,
+				...linkModifierFacts(),
 				shiftKey: false,
 			});
 			if (capture.kind !== 'product') {
@@ -321,6 +334,7 @@ async function runWitness(): Promise<void> {
 		sequence += 1n;
 		transportListener({ frame: terminalSnapshot(), kind: 'frame' });
 		await nextPaint();
+		await runLocalFileEffectsWitness();
 		root.dataset['witnessHintsReady'] = 'true';
 		root.dataset['witnessReady'] = 'true';
 		window.addEventListener(
@@ -334,6 +348,279 @@ async function runWitness(): Promise<void> {
 	} catch (error) {
 		root.dataset['witnessFailure'] = error instanceof Error ? error.message : String(error);
 	}
+}
+
+async function runLocalFileEffectsWitness(): Promise<void> {
+	const surface = document.createElement('section');
+	surface.id = 'local-file-effects-witness';
+	surface.style.background = '#102030';
+	surface.style.boxSizing = 'border-box';
+	surface.style.height = '180px';
+	surface.style.position = 'relative';
+	surface.style.width = '720px';
+	document.body.appendChild(surface);
+
+	const overlay = document.createElement('div');
+	overlay.style.inset = '0';
+	overlay.style.pointerEvents = 'none';
+	overlay.style.position = 'absolute';
+	surface.appendChild(overlay);
+	const previewRoot = createRoot(overlay);
+	const localText = './images/old.png ./images/final.png';
+	const previewRequests: Extract<TerminalSurfaceCommand, { readonly kind: 'image-preview' }>[] = [];
+	const previewCancellations: string[] = [];
+	const openedPaths: string[] = [];
+	const previewState: { current: TerminalImagePreviewPresentation } = {
+		current: { kind: 'hidden' },
+	};
+	let localTerminal: ProjectedTerminal;
+	const localPort = {
+		send: (command: TerminalSurfaceCommand): void => {
+			if (command.kind === 'read-rows') {
+				queueMicrotask(() => localTerminal.applyRows(localTerminalRows(command, localText)));
+				return;
+			}
+			if (command.kind === 'image-preview-cancel') {
+				previewCancellations.push(command.payload.requestSequence);
+				return;
+			}
+			if (command.kind === 'image-preview') {
+				previewRequests.push(command);
+				if (previewRequests.length === 2) {
+					queueMicrotask(() => {
+						localTerminal.applyImagePreviewContent(
+							command.payload.requestSequence,
+							fixturePngBytes(),
+							'image/png',
+						);
+					});
+				}
+				return;
+			}
+			if (command.kind === 'link-open' && command.payload.target.kind === 'file') {
+				openedPaths.push(command.payload.target.path);
+				root.dataset['witnessLocalOpenedPaths'] = openedPaths.join('|');
+				localTerminal.notifyLinkOpened(command.payload.requestSequence);
+			}
+		},
+	};
+	localTerminal = new ProjectedTerminal({
+		attachmentId: localAttachmentId,
+		canResize: false,
+		capabilityRevision,
+		creationId: localCreationId,
+		hostEpoch: localHostEpoch,
+		labels: { input: 'Terminal input', screen: 'Terminal screen' },
+		localFileEffects: true,
+		port: localPort,
+		projectionBufferTrust: 'local-host',
+		terminalId: localTerminalId,
+	});
+	const previewSubscription = localTerminal.onImagePreviewChange((presentation) => {
+		previewState.current = presentation;
+		previewRoot.render(
+			presentation.kind === 'visible'
+				? createElement(ProjectedTerminalImagePreviewCard, { preview: presentation })
+				: null,
+		);
+	});
+	const linkSubscription = localTerminal.onLinkOpenRequest((request) => {
+		localTerminal.openTarget(request.target);
+	});
+	await localTerminal.open(surface);
+	localTerminal.applyFrame(localTerminalSnapshot(localText));
+	await nextPaint();
+	const canvas = localTerminal.canvas;
+	if (canvas === undefined) throw new Error('Local-file witness has no terminal canvas.');
+	const oldPoint = surfaceColumnPoint(canvas, 1);
+	canvas.dispatchEvent(
+		new PointerEvent('pointermove', {
+			bubbles: true,
+			buttons: 0,
+			clientX: oldPoint.x,
+			clientY: oldPoint.y,
+			pointerType: 'mouse',
+		}),
+	);
+	await until(() => previewRequests.length === 1);
+
+	const finalPoint = surfaceColumnPoint(canvas, localText.indexOf('./images/final.png') + 1);
+	canvas.dispatchEvent(
+		new PointerEvent('pointermove', {
+			bubbles: true,
+			buttons: 0,
+			clientX: finalPoint.x,
+			clientY: finalPoint.y,
+			pointerType: 'mouse',
+		}),
+	);
+	await until(() => previewRequests.length === 2 && previewState.current.kind === 'visible');
+	const staleRequest = previewRequests[0];
+	if (staleRequest === undefined)
+		throw new Error('Local-file witness lost its stale preview request.');
+	localTerminal.applyImagePreviewContent(
+		staleRequest.payload.requestSequence,
+		fixturePngBytes(),
+		'image/png',
+	);
+	await nextPaint();
+	if (
+		previewState.current.kind !== 'visible' ||
+		!previewState.current.path.endsWith('/images/final.png')
+	) {
+		throw new Error('A stale image-preview completion replaced the latest hover target.');
+	}
+	const finalPresentation = previewState.current;
+	canvas.dispatchEvent(
+		new MouseEvent('click', {
+			bubbles: true,
+			cancelable: true,
+			clientX: finalPoint.x,
+			clientY: finalPoint.y,
+			...linkModifierFacts(),
+		}),
+	);
+	await until(() => openedPaths.length === 1);
+	root.dataset['witnessLocalPreviewRequests'] = String(previewRequests.length);
+	root.dataset['witnessLocalPreviewCancellations'] = previewCancellations.join('|');
+	root.dataset['witnessLocalPreviewPath'] = finalPresentation.path;
+	root.dataset['witnessLocalPreviewMediaType'] = finalPresentation.mediaType;
+	root.dataset['witnessLocalReady'] = 'true';
+	window.addEventListener(
+		'pagehide',
+		() => {
+			linkSubscription.dispose();
+			previewSubscription.dispose();
+			localTerminal.dispose();
+			previewRoot.unmount();
+		},
+		{ once: true },
+	);
+}
+
+function fixturePngBytes(): ArrayBuffer {
+	const encoded =
+		'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
+	const bytes = Uint8Array.from(atob(encoded), (character) => character.codePointAt(0) ?? 0);
+	const content = new ArrayBuffer(bytes.byteLength);
+	new Uint8Array(content).set(bytes);
+	return content;
+}
+
+function localTerminalRows(
+	command: Extract<TerminalSurfaceCommand, { readonly kind: 'read-rows' }>,
+	text: string,
+): Uint8Array {
+	if (command.payload.origin.kind !== 'absolute') {
+		throw new Error('Local-file witness requested a non-absolute row window.');
+	}
+	const startRow = BigInt(command.payload.origin.row);
+	const requestSequence = BigInt(command.payload.requestSequence);
+	const frame = localTerminalFrame(text, requestSequence);
+	const rows = startRow === 0n ? 1 : 0;
+	const encoded = encodeTerminalRowWindow({
+		attachmentId: localAttachmentId,
+		columns: frame.columns,
+		detail: TerminalRowWindowDetail.render,
+		frame: { ...frame, rowData: rows === 0 ? [] : frame.rowData, rows, scrollbackRows: startRow },
+		generation: 1n,
+		graphics: emptyGraphics,
+		hostEpoch: localHostEpoch,
+		revision: 1n,
+		sequence: requestSequence,
+		startRow,
+		totalRows: 1n,
+	});
+	if (!encoded.ok) throw new Error(encoded.detail);
+	return encoded.value;
+}
+
+function localTerminalSnapshot(text: string): Uint8Array {
+	const encoded = encodeTerminalFrame(localTerminalFrame(text, 1n));
+	if (!encoded.ok) throw new Error(encoded.detail);
+	return encoded.value;
+}
+
+function localTerminalFrame(text: string, frameSequence: bigint): TerminalFrame {
+	const regularStyle: TerminalFrame['styles'][number] = {
+		background: { kind: TerminalColorKind.default },
+		blink: false,
+		bold: false,
+		faint: false,
+		foreground: { kind: TerminalColorKind.default },
+		hyperlink: null,
+		inverse: false,
+		invisible: false,
+		italic: false,
+		overline: false,
+		strikethrough: false,
+		underline: { kind: TerminalColorKind.none },
+		underlineKind: UnderlineKind.none,
+	};
+	return {
+		activeScreen: ActiveScreen.primary,
+		attachmentId: localAttachmentId,
+		baseRevision: null,
+		cellPixelHeight: 18,
+		cellPixelWidth: 9,
+		columns: 64,
+		cursor: {
+			blinking: false,
+			column: 0,
+			row: 0,
+			shape: CursorShape.bar,
+			visible: true,
+			wideTail: false,
+		},
+		currentDirectory: '/fixture',
+		defaultColors: { backgroundRgb: 0x10_20_30, cursorRgb: null, foregroundRgb: 0xf4_f4_f4 },
+		extensions: [],
+		generation: 1n,
+		hostEpoch: localHostEpoch,
+		interaction: {
+			applicationCursorKeys: false,
+			applicationKeypad: false,
+			bracketedPaste: false,
+			focusReporting: false,
+			kittyDisambiguateEscapeCodes: false,
+			kittyReportAllKeysAsEscapeCodes: false,
+			kittyReportAlternateKeys: false,
+			kittyReportAssociatedText: false,
+			kittyReportEventTypes: false,
+			modifyOtherKeys2: false,
+			mouseAny: false,
+			mouseButton: false,
+			mouseNormal: false,
+			mouseSgr: false,
+			mouseSgrPixels: false,
+			mouseUtf8: false,
+			mouseUrxvt: false,
+			mouseX10: false,
+		},
+		kind: TerminalFrameKind.snapshot,
+		revision: 1n,
+		rowData: [
+			{
+				cells: Array.from({ length: 64 }, (_, column) => ({
+					grapheme: text[column] ?? '',
+					protected: false,
+					semanticContent: SemanticContent.output,
+					style: 0,
+					width: CellWidth.narrow,
+				})),
+				index: 0,
+				promptClass: RowPromptClass.none,
+				wrap: false,
+				wrapContinuation: false,
+			},
+		],
+		rows: 1,
+		scrollbackRows: 0n,
+		sequence: frameSequence,
+		styles: [regularStyle],
+		themeRevision: 0n,
+		title: 'FS-19 FS-20 local file effects witness',
+	};
 }
 
 function discoverLinkAction(
@@ -362,13 +649,26 @@ function modifierClick(point: { readonly x: number; readonly y: number }): Mouse
 		cancelable: true,
 		clientX: point.x,
 		clientY: point.y,
-		metaKey: true,
+		...linkModifierFacts(),
 	});
+}
+
+function linkModifierFacts(): { readonly ctrlKey: boolean; readonly metaKey: boolean } {
+	const apple = /Mac|iPhone|iPad/u.test(globalThis.navigator.platform);
+	return { ctrlKey: !apple, metaKey: apple };
 }
 
 function surfacePoint(canvas: HTMLCanvasElement): { readonly x: number; readonly y: number } {
 	const bounds = canvas.getBoundingClientRect();
 	return { x: bounds.left + 4, y: bounds.top + 4 };
+}
+
+function surfaceColumnPoint(
+	canvas: HTMLCanvasElement,
+	column: number,
+): { readonly x: number; readonly y: number } {
+	const bounds = canvas.getBoundingClientRect();
+	return { x: bounds.left + column * 9 + 4, y: bounds.top + 4 };
 }
 
 function terminalRows(

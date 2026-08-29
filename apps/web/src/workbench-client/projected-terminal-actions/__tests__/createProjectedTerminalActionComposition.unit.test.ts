@@ -227,6 +227,9 @@ function terminalTarget(
 		openLinkAsync: vi
 			.fn<ProjectedTerminalActionTarget['openLinkAsync']>()
 			.mockResolvedValue({ kind: 'completed' }),
+		openTargetAsync: vi
+			.fn<ProjectedTerminalActionTarget['openTargetAsync']>()
+			.mockResolvedValue({ kind: 'completed' }),
 		paste: vi.fn<ProjectedTerminalActionTarget['paste']>().mockResolvedValue({ kind: 'empty' }),
 		readLastCommandOutput: vi
 			.fn<ProjectedTerminalActionTarget['readLastCommandOutput']>()

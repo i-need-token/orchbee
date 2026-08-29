@@ -1188,7 +1188,7 @@ test('terminal-parity/IN-12-actions', async () => {
 		);
 		await expect(root).toHaveAttribute(
 			'data-witness-feedback',
-			'已将剪贴板文本粘贴到终端。|已清除终端输出。|终端链接已发生变化，无法打开。',
+			'已将剪贴板文本粘贴到终端。|已清除终端输出。|终端目标已发生变化，无法打开。',
 		);
 		await expect(root).toHaveAttribute('data-witness-confirmation-count', '0');
 	} finally {
@@ -1432,6 +1432,53 @@ test('terminal-parity/FS-07-keyboard-hints', async () => {
 		await expect(hints).toHaveCount(0);
 		await expect(root).toHaveAttribute('data-witness-hint-insertions', 'deadbee');
 		await expect(root).toHaveAttribute('data-witness-hint-key-inputs', '0');
+	} finally {
+		await page.context().browser()?.close();
+	}
+});
+
+test('terminal-parity/FS-19-local-file-links', async () => {
+	test.setTimeout(45_000);
+	const page = await openTerminalUrlPolicyWitness();
+	try {
+		const root = page.locator('#terminal-url-policy-witness');
+		await expect(root).toHaveAttribute('data-witness-ready', 'true');
+		await expect(root).not.toHaveAttribute('data-witness-failure', /.+/u);
+		await expect(root).toHaveAttribute('data-witness-local-ready', 'true');
+		await expect(root).toHaveAttribute(
+			'data-witness-local-opened-paths',
+			'/fixture/images/final.png',
+		);
+		await expect(root).toHaveAttribute(
+			'data-witness-local-preview-path',
+			'/fixture/images/final.png',
+		);
+	} finally {
+		await page.context().browser()?.close();
+	}
+});
+
+test('terminal-parity/FS-20-image-preview', async () => {
+	test.setTimeout(45_000);
+	const page = await openTerminalUrlPolicyWitness();
+	try {
+		const root = page.locator('#terminal-url-policy-witness');
+		await expect(root).toHaveAttribute('data-witness-ready', 'true');
+		await expect(root).not.toHaveAttribute('data-witness-failure', /.+/u);
+		await expect(root).toHaveAttribute('data-witness-local-preview-requests', '2');
+		await expect(root).toHaveAttribute('data-witness-local-preview-cancellations', /.+/u);
+		await expect(root).toHaveAttribute('data-witness-local-preview-media-type', 'image/png');
+
+		const preview = page.locator(
+			'#local-file-effects-witness [data-slot="projected-terminal-image-preview-card"]',
+		);
+		await expect(preview).toHaveCount(1);
+		await expect(preview).toHaveAttribute('data-placement', 'below');
+		await expect(preview.locator('figcaption')).toHaveText('final.png');
+		await expect(preview.locator('img')).toHaveAttribute('src', /^data:image\/png;base64,/u);
+		expect(await preview.evaluate((element) => getComputedStyle(element).pointerEvents)).toBe(
+			'none',
+		);
 	} finally {
 		await page.context().browser()?.close();
 	}

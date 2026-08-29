@@ -1,14 +1,31 @@
 import type { TerminalBufferRow } from './buffer-rows';
 import { normalizePermittedExternalTerminalUrl } from './normalizePermittedExternalTerminalUrl';
+import type { TerminalOpenTarget } from './terminal-contracts';
 import type { ILink, ILinkRange } from './types';
 
 const PATH_COMPONENT = String.raw`[\p{L}\p{N}\p{M}_.@%+,-]+`;
 const PATH_SEPARATOR = String.raw`[\\/]`;
-const BARE_FILE = String.raw`[\p{L}\p{N}\p{M}_@%+,-][\p{L}\p{N}\p{M}_.@%+,-]*\.(?:[\p{L}\p{N}]{2,7}|[ahcmo])`;
+const FILE_EXTENSION = String.raw`(?:[\p{L}\p{N}]{2,7}|[ahcmo])`;
+const BARE_FILE = String.raw`[\p{L}\p{N}\p{M}_@%+,-][\p{L}\p{N}\p{M}_.@%+,-]*\.${FILE_EXTENSION}`;
 const PATH_REGEX = new RegExp(
 	String.raw`(?:file:\/\/(?:[A-Za-z]:|${PATH_COMPONENT})?(?:${PATH_SEPARATOR}${PATH_COMPONENT})+|[A-Za-z]:${PATH_SEPARATOR}(?:${PATH_COMPONENT}${PATH_SEPARATOR})*${PATH_COMPONENT}|(?:~|\.{1,2})?${PATH_SEPARATOR}(?:${PATH_COMPONENT}${PATH_SEPARATOR})*${PATH_COMPONENT}|(?:${PATH_COMPONENT}${PATH_SEPARATOR})+${PATH_COMPONENT}|${BARE_FILE})(?::(\d+)(?::(\d+))?)?`,
 	'gu',
 );
+const DIRECTORY_WORD = String.raw`[\p{L}\p{N}\p{M}_@%+,-]+`;
+const PATH_COMPONENT_WITH_SPACES = String.raw`(?:${PATH_COMPONENT}|${DIRECTORY_WORD}(?:(?: |\\ )${DIRECTORY_WORD})+)`;
+const SPACED_BARE_FILE = String.raw`${PATH_COMPONENT}(?:(?: |\\ )${PATH_COMPONENT})*\.${FILE_EXTENSION}`;
+const SPACED_FILE_PATH_REGEX = new RegExp(
+	String.raw`(?:file:\/\/(?:[A-Za-z]:)?${PATH_SEPARATOR}|[A-Za-z]:${PATH_SEPARATOR}|(?:~|\.{1,2})${PATH_SEPARATOR}|(?<![\p{L}\p{N}\p{M}_~/:])\/(?!\/)|(?:${PATH_COMPONENT}${PATH_SEPARATOR})+)(?:${PATH_COMPONENT_WITH_SPACES}${PATH_SEPARATOR})*${SPACED_BARE_FILE}(?::(\d+)(?::(\d+))?)?(?=$|[\s"'),;!?\]])`,
+	'gu',
+);
+const SHELL_ESCAPED_PATH_COMPONENT = String.raw`${PATH_COMPONENT}(?:\\ ${PATH_COMPONENT})+`;
+const SHELL_PATH_COMPONENT = String.raw`(?:${PATH_COMPONENT}|${SHELL_ESCAPED_PATH_COMPONENT})`;
+const SHELL_ESCAPED_PATH_REGEX = new RegExp(
+	String.raw`(?:(?:~|\.{1,2})\/|(?<![\p{L}\p{N}\p{M}_~/:])\/(?!\/)|(?:${PATH_COMPONENT}\/)+)(?:${SHELL_PATH_COMPONENT}\/)*${SHELL_ESCAPED_PATH_COMPONENT}(?:\/${SHELL_PATH_COMPONENT})*(?::(\d+)(?::(\d+))?)?(?=$|[\s"'),;!?\]])`,
+	'gu',
+);
+const QUOTED_PATH_REGEX = /(["'])([^"'\r\n]+)\1(?::(\d+)(?::(\d+))?)?/gu;
+const IMAGE_PREVIEW_PATH_REGEX = /\.(?:png|jpe?g|gif|webp|avif|bmp)$/iu;
 const TRAILING_PATH_PUNCTUATION = /[.,;!?)\]，。！？）】]+$/u;
 const TRAILING_URL_PUNCTUATION = /[.,;!?)\]]+$/u;
 const URL_REGEX =
@@ -26,7 +43,7 @@ export function detectTerminalRowLinks(
 	currentDirectory = '',
 ): readonly ILink[] {
 	if (rows.length === 0) return [];
-	const explicit = detectExplicitLinks(rows);
+	const explicit = detectExplicitLinks(rows, currentDirectory);
 	const logicalLines = buildLogicalTerminalTexts(rows);
 	const urls = logicalLines
 		.flatMap(detectUrlLinks)
@@ -50,6 +67,13 @@ export function terminalLinkContains(link: ILink, column: number, row: number): 
 export function isPermittedExternalTerminalTarget(link: ILink): boolean {
 	const target = link.target;
 	return target?.kind === 'url' && normalizePermittedExternalTerminalUrl(target.url) !== null;
+}
+
+/** True only for the raster path extensions admitted to the optional preview workflow. */
+export function isTerminalImagePreviewTarget(
+	target: TerminalOpenTarget | null | undefined,
+): target is Extract<TerminalOpenTarget, { readonly kind: 'file' }> {
+	return target?.kind === 'file' && IMAGE_PREVIEW_PATH_REGEX.test(target.path);
 }
 
 export function buildLogicalTerminalTexts(
@@ -86,7 +110,10 @@ export function buildLogicalTerminalTexts(
 	return logicalLines;
 }
 
-function detectExplicitLinks(rows: readonly TerminalBufferRow[]): readonly ILink[] {
+function detectExplicitLinks(
+	rows: readonly TerminalBufferRow[],
+	currentDirectory: string,
+): readonly ILink[] {
 	const links: ILink[] = [];
 	let active:
 		| {
@@ -100,7 +127,7 @@ function detectExplicitLinks(rows: readonly TerminalBufferRow[]): readonly ILink
 		links.push({
 			activation: 'modifier',
 			range: { end: active.end, start: active.start },
-			target: { kind: 'url', url: active.target },
+			target: explicitTerminalTarget(active.target, currentDirectory),
 			text: active.target,
 		});
 		active = undefined;
@@ -148,15 +175,10 @@ function detectUrlLinks(logical: LogicalTerminalText): readonly ILink[] {
 
 function detectPathLinks(logical: LogicalTerminalText, currentDirectory: string): readonly ILink[] {
 	const links: ILink[] = [];
-	PATH_REGEX.lastIndex = 0;
-	let match: RegExpExecArray | null = PATH_REGEX.exec(logical.text);
-	while (match !== null) {
-		const original = stripTrailingPathPunctuation(match[0]);
-		const suffixLength =
-			(match[1] ? match[1].length + 1 : 0) + (match[2] ? match[2].length + 1 : 0);
-		const pathText = original.slice(0, Math.max(0, original.length - suffixLength));
+	for (const match of detectPathTextMatches(logical.text)) {
 		const start = logical.positions[match.index];
-		const end = logical.positions[match.index + original.length - 1];
+		const end = logical.positions[match.index + match.original.length - 1];
+		const pathText = decodeDisplayedPath(match.pathText, match.quoted);
 		if (pathText && start !== undefined && end !== undefined) {
 			const row = logical.rows.find((candidate) => Number(candidate.index) === start.y);
 			const semantic = row?.cells?.find((cell) => cell.column === start.x)?.semanticContent;
@@ -172,16 +194,127 @@ function detectPathLinks(logical: LogicalTerminalText, currentDirectory: string)
 					target: {
 						kind: 'file',
 						path: resolvePath(pathText, currentDirectory),
-						...(match[1] ? { line: Number(match[1]) } : {}),
-						...(match[2] ? { column: Number(match[2]) } : {}),
+						...(match.line === undefined ? {} : { line: match.line }),
+						...(match.column === undefined ? {} : { column: match.column }),
 					},
-					text: original,
+					text: match.original,
 				});
 			}
 		}
-		match = PATH_REGEX.exec(logical.text);
 	}
 	return links;
+}
+
+interface PathTextMatch {
+	readonly column: number | undefined;
+	readonly index: number;
+	readonly line: number | undefined;
+	readonly original: string;
+	readonly pathText: string;
+	readonly quoted: 'double' | 'single' | 'unquoted';
+}
+
+function detectPathTextMatches(text: string): readonly PathTextMatch[] {
+	const matches: PathTextMatch[] = [];
+	QUOTED_PATH_REGEX.lastIndex = 0;
+	let quoted: RegExpExecArray | null = QUOTED_PATH_REGEX.exec(text);
+	while (quoted !== null) {
+		const quote = quoted[1];
+		let pathText = quoted[2] ?? '';
+		let line = parseOptionalPositiveInteger(quoted[3]);
+		let column = parseOptionalPositiveInteger(quoted[4]);
+		if (line === undefined) {
+			const location = terminalPathLocation(pathText);
+			if (location !== null) {
+				pathText = location.path;
+				line = location.line;
+				column = location.column;
+			}
+		}
+		if ((quote === '"' || quote === "'") && looksLikeTerminalPath(pathText)) {
+			matches.push({
+				column,
+				index: quoted.index,
+				line,
+				original: quoted[0],
+				pathText,
+				quoted: quote === '"' ? 'double' : 'single',
+			});
+		}
+		quoted = QUOTED_PATH_REGEX.exec(text);
+	}
+	collectUnquotedPathMatches(text, SPACED_FILE_PATH_REGEX, matches);
+	collectUnquotedPathMatches(text, SHELL_ESCAPED_PATH_REGEX, matches);
+	collectUnquotedPathMatches(text, PATH_REGEX, matches);
+	return matches
+		.filter(
+			(candidate, index, all) =>
+				all.findIndex(
+					(other) =>
+						candidate.index >= other.index &&
+						candidate.index + candidate.original.length <= other.index + other.original.length,
+				) === index,
+		)
+		.sort((left, right) => left.index - right.index);
+}
+
+function collectUnquotedPathMatches(text: string, regex: RegExp, matches: PathTextMatch[]): void {
+	regex.lastIndex = 0;
+	let match: RegExpExecArray | null = regex.exec(text);
+	while (match !== null) {
+		const original = stripTrailingPathPunctuation(match[0]);
+		const suffixLength =
+			(match[1] ? match[1].length + 1 : 0) + (match[2] ? match[2].length + 1 : 0);
+		const pathText = original.slice(0, Math.max(0, original.length - suffixLength));
+		if (pathText) {
+			matches.push({
+				column: parseOptionalPositiveInteger(match[2]),
+				index: match.index,
+				line: parseOptionalPositiveInteger(match[1]),
+				original,
+				pathText,
+				quoted: 'unquoted',
+			});
+		}
+		match = regex.exec(text);
+	}
+}
+
+function looksLikeTerminalPath(value: string): boolean {
+	return (
+		value.startsWith('file://') ||
+		value.startsWith('/') ||
+		value.startsWith('~/') ||
+		value.startsWith('./') ||
+		value.startsWith('../') ||
+		isWindowsAbsolutePath(value) ||
+		value.includes('/') ||
+		value.includes('\\') ||
+		BARE_FILE_REGEX.test(value)
+	);
+}
+
+const BARE_FILE_REGEX = new RegExp(String.raw`^${BARE_FILE}$`, 'u');
+
+function decodeDisplayedPath(value: string, quoted: PathTextMatch['quoted']): string {
+	if (quoted === 'single' || isWindowsAbsolutePath(value)) return value;
+	return value.replaceAll(/\\([ \\"'])/gu, '$1');
+}
+
+function parseOptionalPositiveInteger(value: string | undefined): number | undefined {
+	if (value === undefined) return undefined;
+	const parsed = Number(value);
+	return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+function terminalPathLocation(
+	value: string,
+): { readonly column: number | undefined; readonly line: number; readonly path: string } | null {
+	const match = value.match(/^(.*?):(\d+)(?::(\d+))?$/u);
+	const path = match?.[1];
+	const line = parseOptionalPositiveInteger(match?.[2]);
+	if (path === undefined || line === undefined || !looksLikeTerminalPath(path)) return null;
+	return { column: parseOptionalPositiveInteger(match?.[3]), line, path };
 }
 
 function positionsTouch(
@@ -205,11 +338,7 @@ function overlapsAny(range: ILinkRange, links: readonly ILink[]): boolean {
 
 function resolvePath(path: string, currentDirectory: string): string {
 	if (path.startsWith('file://')) {
-		try {
-			return normalizeFileUrlPath(decodeURIComponent(new URL(path).pathname));
-		} catch {
-			return path;
-		}
+		return fileUrlPath(path) ?? path;
 	}
 	if (
 		path.startsWith('/') ||
@@ -224,11 +353,7 @@ function resolvePath(path: string, currentDirectory: string): string {
 
 function normalizeCurrentDirectory(currentDirectory: string): string {
 	if (!currentDirectory.startsWith('file://')) return currentDirectory;
-	try {
-		return normalizeFileUrlPath(decodeURIComponent(new URL(currentDirectory).pathname));
-	} catch {
-		return currentDirectory;
-	}
+	return fileUrlPath(currentDirectory) ?? currentDirectory;
 }
 
 function normalizePath(path: string): string {
@@ -262,4 +387,23 @@ function normalizeFileUrlPath(path: string): string {
 function stripTrailingPathPunctuation(path: string): string {
 	if (/(?:^|[\\/])\.{1,2}$/u.test(path) || path.endsWith('..')) return path;
 	return path.replace(TRAILING_PATH_PUNCTUATION, '');
+}
+
+function explicitTerminalTarget(target: string, currentDirectory: string): TerminalOpenTarget {
+	if (!target.startsWith('file:')) return { kind: 'url', url: target };
+	const path = fileUrlPath(target);
+	return path === null
+		? { kind: 'unknown', value: target }
+		: { kind: 'file', path: resolvePath(path, currentDirectory) };
+}
+
+function fileUrlPath(value: string): string | null {
+	try {
+		const url = new URL(value);
+		if (url.protocol !== 'file:' || (url.hostname !== '' && url.hostname !== 'localhost'))
+			return null;
+		return normalizeFileUrlPath(decodeURIComponent(url.pathname));
+	} catch {
+		return null;
+	}
 }

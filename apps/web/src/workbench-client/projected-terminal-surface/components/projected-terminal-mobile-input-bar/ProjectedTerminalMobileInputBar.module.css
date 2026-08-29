@@ -1,0 +1,50 @@
+.root {
+	box-sizing: border-box;
+	position: absolute;
+	z-index: var(--ob-ref-layer-raised);
+	inset-block-end: 0;
+	inset-inline: 0;
+	display: none;
+	align-items: center;
+	gap: var(--ob-ref-space-1);
+	block-size: calc(var(--ob-ref-size-control-lg) + var(--ob-ref-space-4));
+	padding: var(--ob-ref-space-2);
+	overflow-x: auto;
+	overflow-y: hidden;
+	overscroll-behavior-inline: contain;
+	border-block-start: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-default);
+	background: var(--ob-sys-color-surface-raised);
+	color: var(--ob-sys-color-text-primary);
+	scrollbar-width: none;
+	-webkit-overflow-scrolling: touch;
+}
+
+.root::-webkit-scrollbar {
+	display: none;
+}
+
+.key {
+	flex: 0 0 auto;
+	min-inline-size: calc(var(--ob-ref-size-control-lg) + var(--ob-ref-space-2));
+	block-size: calc(var(--ob-ref-size-control-lg) + var(--ob-ref-space-2));
+	padding-inline: var(--ob-ref-space-2);
+	border-radius: var(--ob-ref-radius-ui-sm);
+	font: var(--ob-sys-typography-label-sm);
+	touch-action: manipulation;
+}
+
+.key[aria-pressed='true'] {
+	border-color: var(--ob-sys-color-status-info-border);
+	background: var(--ob-sys-color-status-info-surface);
+	color: var(--ob-sys-color-status-info-text);
+}
+
+.keyboardGlyph {
+	font: var(--ob-sys-typography-body-lg);
+}
+
+@media (hover: none) and (pointer: coarse) {
+	.root {
+		display: flex;
+	}
+}

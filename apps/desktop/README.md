@@ -342,7 +342,7 @@ burst of container measurements uses constant memory, submits at most one resize
 makes the newest pending geometry the next Host request without allowing an intermediate request to
 overtake it.
 
-`HostConnection` reads and validates the fixed terminal-frame header once, then routes the binary record directly by AttachmentId. Main performs no VT parsing, row reconstruction, Kitty image loading, JSON/base64 conversion, or per-cell pass. At the Electron capability boundary, the broker copies only the routed payload into an exact-size `ArrayBuffer` before structured clone, so envelope headers and coalesced neighboring records never cross the renderer port. The renderer strictly decodes bounded OBKG raw pixels inside OBTF, paints all three signed-z layers in Canvas2D or WebGPU, and never receives a path, URL, temporary-file handle, or shared-memory capability. OBRW format `0.0.3` local history render buffers carry their own OBKG snapshot and use the OBPB structural-view boundary; Gateway delivery remains externally validated. History, selection, copy, link, and accessibility behavior remains attachment-scoped. Normal bottom-following use creates no history cache or search Worker; these resources are activated only by their existing interaction contracts.
+`HostConnection` reads and validates the fixed terminal-frame header once, then routes the binary record directly by AttachmentId. Main performs no VT parsing, row reconstruction, Kitty image loading, JSON/base64 conversion, or per-cell pass. At the Electron capability boundary, the broker copies only the routed payload into an exact-size `ArrayBuffer` before structured clone, so envelope headers and coalesced neighboring records never cross the renderer port. The renderer strictly decodes bounded OBKG raw pixels inside OBTF and paints all three signed-z layers in Canvas2D or WebGPU; that frame path carries no URL, temporary-file handle, or shared-memory capability. OBRW format `0.0.3` local history render buffers carry their own OBKG snapshot and use the OBPB structural-view boundary; Gateway delivery remains externally validated. History, selection, copy, link, and accessibility behavior remains attachment-scoped. Normal bottom-following use creates no history cache or search Worker; these resources are activated only by their existing interaction contracts.
 
 A correlated Host `TypedFailure` remains a typed `HostRequestError`; `HostConnection` retains the
 response correlation ID, and `ProjectedTerminalBroker` adds the exact renderer-command operation
@@ -354,10 +354,29 @@ and neither broker retries user effects from that diagnostic identity.
 Electron attachments request only the protocol's literal `plain` selection export and commit the
 decoded UTF-8 text through Main's clipboard. Gateway attachments receive the same bounded plain-text
 selection bytes and commit them through the Browser Clipboard API. Neither projection command nor
-platform effect exposes an HTML or raw VT format selector. Links open only allowlisted `http`,
-`https`, or `mailto` targets through Electron or a local Browser gesture. The Browser never receives
-a generic Electron effect port. Attachment transport backpressure retires only that attachment; the
+platform effect exposes an HTML or raw VT format selector. Every composition opens allowlisted
+`http`, `https`, or `mailto` targets through Electron or a local Browser gesture. A Desktop-effect
+attachment additionally receives one optional local-file capability; the Browser never receives a
+generic Electron effect port. Attachment transport backpressure retires only that attachment; the
 visible surface requests a fresh projection and full snapshot.
+
+That local-file capability accepts only a typed file target already derived from generation-pinned
+terminal text. Main treats the path as untrusted: it expands a leading home marker, requires an
+absolute path without control characters, and verifies that an explicit open target currently names
+a regular file or directory before delegating to Electron's default application. Explicit open
+failure returns the bounded typed link failure used by the localized renderer result. The capability
+does not enumerate directories, resolve a Browser/Gateway path, or become a general preload API.
+
+Image preview is narrower still. Main opens the requested path read-only and nonblocking, validates
+the opened handle as a non-empty regular file no larger than 8 MiB, reads exactly that bounded
+content, and requires the extension and magic signature to agree for PNG, JPEG, GIF, WebP, AVIF, or
+BMP. SVG, HEIC, TIFF, unknown, mismatched, oversized, missing, and non-regular targets remain
+external-open-only or unavailable. Each broker keeps at most one current preview request; replacement,
+explicit cancellation, attachment cleanup, and disposal make late completion inert. Admitted bytes
+cross only the attachment port in an exact `ArrayBuffer`, are not cached or persisted, and never
+enter an archive or Gateway. Preview unavailability is silent, while deliberate open failure remains
+localized and visible. Removing the optional attachment capability rolls back both file activation
+and preview without changing URL behavior.
 
 An unexpected shared Host-connection close publishes one retryable `host-connection-unavailable`
 failure to every still-live attachment before requesting its cleanup. Each visible surface freezes only
@@ -452,6 +471,11 @@ Focused traces cover:
   activation; the shared `http`/`https`/`mailto` detection, hover, context, and activation boundary;
   and visible URL/path/file-location/hash labels with exact insertion, captured URL opening,
   cancellation, and zero label-key terminal input;
+- exact headed `terminal-parity/FS-19-local-file-links` and
+  `terminal-parity/FS-20-image-preview` local-capability witnesses for relative-path resolution,
+  modifier activation, 300 ms dwell, replacement cancellation, stale-completion rejection, and the
+  production pointer-transparent preview card. They use a fake opener and synthetic image bytes and
+  do not automate an operating-system application;
 - exact headed `terminal-parity/FS-08-command-output-viewer` and
   `terminal-parity/FS-09-scrollback-viewer` Browser-composition witnesses for the production shared
   immutable terminal-text viewer, exact retained snapshots, visible-top anchoring, bounded search,

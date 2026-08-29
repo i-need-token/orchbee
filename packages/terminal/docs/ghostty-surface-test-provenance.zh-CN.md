@@ -136,9 +136,11 @@ Ghostty 拥有显式超链接和 shell 集成语义。 OSC 8 目标进入主机�
 
 本机语料库在软包装上携带一个 OSC 8 链接，然后在其最后一行中的调色板颜色单元格周围跨越 OSC 133 提示、输入和输出边界。 TypeScript 解码器和打包存储断言验证原始目标、行提示类和所有三个单元语义。单独的投影终端跟踪读取生成/修订固定的主机行窗口，解析确切指针单元格处的显式链接，在修改器辅助单击时重新验证该单元格，并发出一个键入的 URL 请求。然后，工作台组合跟踪通过其允许的外部链接操作和环境拥有的效果路由该请求。
 
-显式 OSC 8 范围保留优先于检测到的 URL 或路径文本。应用策略仍将激活限制为 `http`、`https` 和 `mailto`；主机元数据从不授予文件系统或通用方案权限。
+显式 OSC 8 范围仍优先于检测到的 URL 或路径文本。来源中立的应用策略把激活限制在 `http`、`https` 与 `mailto`；Host metadata 从不授予文件系统或通用 scheme 权限。独立且默认关闭的 Desktop-local attachment capability 可以在同一 generation/revision-pinned 重校验后准入 typed file target。
 
 头部 Canvas 2D 见证了 `terminal-parity/FS-05-file-links` 和 `terminal-parity/FS-06-url-policy` 通过生产投影表面、工作台操作和浏览器效果提供生成固定的合成主机行窗口。他们观察普通的白名单检测以及悬停、上下文和直接激活；自动FTP文字；不支持显式 OSC 8 元数据；显式文件元数据；和检测到的路径。文件和不受支持的目标不会产生外部影响。这些见证人控制浏览器组成和策略行为；它们不会调用操作系统 URL 处理程序、解析 OSC 字节、声明文件系统存在或添加文件打开权限。
+
+有界面 Canvas 2D 见证 `terminal-parity/FS-19-local-file-links` 与 `terminal-parity/FS-20-image-preview` 会用 fake local opener 与合成且已验证的 PNG bytes 启用该可选 capability。它们观察 relative-path resolution、modifier activation、300 ms hover dwell、target 变化时的 cancellation、拒绝第一个 request 的迟到 completion，以及第二个 target 对应的生产锚定 pointer-transparent card。它们不会调用操作系统应用、读取真实文件、自动操作 Finder，也不会授予 Browser/Gateway 权限。
 
 ## 打包元数据转换
 

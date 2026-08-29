@@ -371,11 +371,11 @@ export const projectedTerminalMessages = defineMessages({
 		id: 'terminal.projected.link.blocked',
 	},
 	linkFailed: {
-		defaultMessage: 'The terminal link could not be opened.',
+		defaultMessage: 'The terminal link or file could not be opened.',
 		id: 'terminal.projected.link.failed',
 	},
 	linkStale: {
-		defaultMessage: 'The terminal link changed before it could be opened.',
+		defaultMessage: 'The terminal target changed before it could be opened.',
 		id: 'terminal.projected.link.stale',
 	},
 	matchCase: {
@@ -387,11 +387,11 @@ export const projectedTerminalMessages = defineMessages({
 		id: 'terminal.projected.find.next',
 	},
 	openLinkAction: {
-		defaultMessage: 'Open terminal link',
+		defaultMessage: 'Open link or file',
 		id: 'terminal.projected.action.openLink',
 	},
 	openLinkCompleted: {
-		defaultMessage: 'Terminal link opened.',
+		defaultMessage: 'Terminal link or file opened.',
 		id: 'terminal.projected.link.completed',
 	},
 	pasteAction: {
@@ -450,6 +450,50 @@ export const projectedTerminalMessages = defineMessages({
 	requestFailure: {
 		defaultMessage: 'The terminal action could not be completed.',
 		id: 'terminal.projected.failure.request',
+	},
+	mobileAlt: {
+		defaultMessage: 'Alt',
+		id: 'terminal.projected.mobile.alt',
+	},
+	mobileArrowDown: {
+		defaultMessage: 'Down arrow',
+		id: 'terminal.projected.mobile.arrowDown',
+	},
+	mobileArrowLeft: {
+		defaultMessage: 'Left arrow',
+		id: 'terminal.projected.mobile.arrowLeft',
+	},
+	mobileArrowRight: {
+		defaultMessage: 'Right arrow',
+		id: 'terminal.projected.mobile.arrowRight',
+	},
+	mobileArrowUp: {
+		defaultMessage: 'Up arrow',
+		id: 'terminal.projected.mobile.arrowUp',
+	},
+	mobileControl: {
+		defaultMessage: 'Control',
+		id: 'terminal.projected.mobile.control',
+	},
+	mobileControls: {
+		defaultMessage: 'Terminal mobile controls',
+		id: 'terminal.projected.mobile.controls',
+	},
+	mobileEscape: {
+		defaultMessage: 'Escape',
+		id: 'terminal.projected.mobile.escape',
+	},
+	mobileHideKeyboard: {
+		defaultMessage: 'Hide keyboard',
+		id: 'terminal.projected.mobile.keyboard.hide',
+	},
+	mobileShowKeyboard: {
+		defaultMessage: 'Show keyboard',
+		id: 'terminal.projected.mobile.keyboard.show',
+	},
+	mobileTab: {
+		defaultMessage: 'Tab',
+		id: 'terminal.projected.mobile.tab',
 	},
 	resizeFailure: {
 		defaultMessage: 'The terminal size could not be synchronized.',

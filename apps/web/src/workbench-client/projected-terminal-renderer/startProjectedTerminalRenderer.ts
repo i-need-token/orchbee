@@ -19,6 +19,7 @@ import {
 	type TerminalInputConfiguration,
 	type TerminalInteractionConfiguration,
 	type TerminalInteractionConfigurationSource,
+	type TerminalImagePreviewPresentation,
 	type TerminalPresentationConfiguration,
 	type TerminalPresentationConfigurationUpdateResult,
 } from '@orchbee/terminal';
@@ -68,11 +69,22 @@ import {
 	type TerminalPresentationConfigurationSource,
 } from '../../terminal-presentation';
 import { createTerminalThemePresentationParticipant } from './createTerminalThemePresentationParticipant';
+import {
+	MobileTerminalInputController,
+	type MobileTerminalInputSubscription,
+	type MobileTerminalKey,
+} from './MobileTerminalInputController';
+import type {
+	MobileTerminalInputState,
+	MobileTerminalModifier,
+} from './mobile-terminal-input-state';
 
 type ProjectedTerminalDriver = Pick<
 	ProjectedTerminal,
 	| 'applyFrame'
 	| 'applyInputCapability'
+	| 'applyImagePreviewContent'
+	| 'applyImagePreviewUnavailable'
 	| 'applyRows'
 	| 'canControlTerminal'
 	| 'canNavigatePrompts'
@@ -108,6 +120,7 @@ type ProjectedTerminalDriver = Pick<
 	| 'onExit'
 	| 'onFrameTelemetry'
 	| 'onHistoryChange'
+	| 'onImagePreviewChange'
 	| 'onLinkOpenRequest'
 	| 'onMetadataChange'
 	| 'onRendererHealth'
@@ -116,6 +129,7 @@ type ProjectedTerminalDriver = Pick<
 	| 'onSelectionCopyResult'
 	| 'onSelectionCopied'
 	| 'openLinkAsync'
+	| 'openTargetAsync'
 	| 'open'
 	| 'paste'
 	| 'reset'
@@ -139,9 +153,12 @@ type ProjectedTerminalDriver = Pick<
 		Pick<
 			ProjectedTerminal,
 			| 'capturePresentationSnapshot'
+			| 'blur'
+			| 'focusMobileInput'
 			| 'injectInput'
 			| 'injectedInputReadiness'
 			| 'onInjectedInputReadinessChange'
+			| 'textarea'
 		>
 	>;
 
@@ -200,6 +217,28 @@ function isProjectedTerminalBroadcastInputDriver(
 	);
 }
 
+function isMobileTerminalInputDriver(
+	terminal: ProjectedTerminalDriver,
+): terminal is ProjectedTerminalDriver &
+	Pick<
+		ProjectedTerminal,
+		| 'blur'
+		| 'focusMobileInput'
+		| 'injectInput'
+		| 'injectedInputReadiness'
+		| 'onInjectedInputReadinessChange'
+		| 'textarea'
+	> {
+	return (
+		typeof Reflect.get(terminal, 'blur') === 'function' &&
+		typeof Reflect.get(terminal, 'focusMobileInput') === 'function' &&
+		typeof Reflect.get(terminal, 'injectInput') === 'function' &&
+		Reflect.has(terminal, 'injectedInputReadiness') &&
+		typeof Reflect.get(terminal, 'onInjectedInputReadinessChange') === 'function' &&
+		Reflect.has(terminal, 'textarea')
+	);
+}
+
 export interface ProjectedTerminalRendererDependencies {
 	readonly createTerminal: (options: ProjectedTerminalOptions) => ProjectedTerminalDriver;
 	readonly installShortcuts: typeof installProjectedTerminalShortcuts;
@@ -212,6 +251,7 @@ export interface ProjectedTerminalRendererSession {
 	dispose(): void;
 	readonly displayReady?: Promise<void> | undefined;
 	focus(): void;
+	getMobileInputState?(): MobileTerminalInputState;
 	getBroadcastInputReadiness?(): WorkbenchTerminalBroadcastInputReadiness;
 	isTransportAvailable(): boolean;
 	pasteFileDrop(text: string): Promise<ProjectedPasteResult>;
@@ -223,7 +263,11 @@ export interface ProjectedTerminalRendererSession {
 		input: WorkbenchTerminalBroadcastInput,
 		expectedRevision: string,
 	): Promise<WorkbenchTerminalBroadcastInputResult>;
+	sendMobileKey?(key: MobileTerminalKey): boolean;
 	subscribeBroadcastInputReadiness?(listener: () => void): ActionDisposable;
+	subscribeMobileInputState?(listener: () => void): MobileTerminalInputSubscription;
+	toggleMobileKeyboard?(): boolean;
+	toggleMobileModifier?(modifier: MobileTerminalModifier): void;
 	updatePresentationConfiguration(
 		configuration: TerminalPresentationConfiguration,
 	): Promise<TerminalPresentationConfigurationUpdateResult>;
@@ -254,6 +298,7 @@ export async function startProjectedTerminalRenderer(
 	workbenchHost?: ProjectedTerminalWorkbenchHost,
 	interactionConfigurationSource: TerminalInteractionConfigurationSource = DEFAULT_TERMINAL_INTERACTION_CONFIGURATION_SOURCE,
 	presentationSnapshot?: ProjectedTerminalPresentationSnapshot,
+	observeImagePreview?: (presentation: TerminalImagePreviewPresentation) => void,
 ): Promise<ProjectedTerminalRendererSession> {
 	if (!(rootElement instanceof HTMLElement)) {
 		throw new Error('The Orchbee projected terminal root element is missing.');
@@ -619,6 +664,7 @@ export async function startProjectedTerminalRenderer(
 				selectedText: (text) =>
 					intl.formatMessage(projectedTerminalMessages.accessibilitySelection, { text }),
 			},
+			localFileEffects: bootstrap.localFileEffects === true,
 			port: {
 				send: (command) => transport.send(command),
 			},
@@ -1035,6 +1081,9 @@ export async function startProjectedTerminalRenderer(
 				}),
 			);
 			pendingSubscriptions.push(
+				terminal.onImagePreviewChange((presentation) => observeImagePreview?.(presentation)),
+			);
+			pendingSubscriptions.push(
 				terminal.onSelectionCopied((event) => {
 					rootElement.dataset['projectedTerminalCopiedBytes'] = String(event.byteLength);
 					rootElement.dataset['projectedTerminalCopiedAtMilliseconds'] = String(performance.now());
@@ -1133,6 +1182,16 @@ export async function startProjectedTerminalRenderer(
 			case 'history-changed':
 				terminal.notifyHistoryChanged(event.data.event);
 				return;
+			case 'image-preview-content':
+				terminal.applyImagePreviewContent(
+					event.data.requestSequence,
+					event.data.content,
+					event.data.mediaType,
+				);
+				return;
+			case 'image-preview-unavailable':
+				terminal.applyImagePreviewUnavailable(event.data.requestSequence);
+				return;
 			case 'link-opened':
 				terminal.notifyLinkOpened(event.data.requestSequence);
 				return;
@@ -1205,6 +1264,7 @@ export async function startProjectedTerminalRenderer(
 	let textViewerRoot: HTMLElement | undefined;
 	let textViewer: TerminalTextViewerMount | undefined;
 	let disposeShortcuts: (() => void) | undefined;
+	let mobileInputController: MobileTerminalInputController | undefined;
 	try {
 		findRoot = rootElement.ownerDocument.createElement('div');
 		findRoot.dataset['projectedTerminalFindSurface'] = 'true';
@@ -1221,6 +1281,9 @@ export async function startProjectedTerminalRenderer(
 			throw new Error('Projected terminal transport became unavailable during renderer startup.');
 		}
 		terminalOpened = true;
+		if (isMobileTerminalInputDriver(terminal)) {
+			mobileInputController = new MobileTerminalInputController(rootElement, terminal);
+		}
 		if (
 			presentationSnapshot !== undefined &&
 			isProjectedTerminalSnapshotDriver(terminal) &&
@@ -1314,6 +1377,7 @@ export async function startProjectedTerminalRenderer(
 		runCleanup([
 			unsubscribeConfigurationSources,
 			disposeThemeParticipant,
+			() => mobileInputController?.dispose(),
 			() => disposeShortcuts?.(),
 			() => textViewer?.dispose(),
 			() => findSurface?.dispose(),
@@ -1346,6 +1410,7 @@ export async function startProjectedTerminalRenderer(
 			if (frozen) {
 				runCleanup([
 					disposeThemeParticipant,
+					() => mobileInputController?.dispose(),
 					() => terminal.dispose(),
 					() => status.remove(),
 					() => progress.remove(),
@@ -1357,6 +1422,7 @@ export async function startProjectedTerminalRenderer(
 			runCleanup([
 				unsubscribeConfigurationSources,
 				disposeThemeParticipant,
+				() => mobileInputController?.dispose(),
 				() => disposeShortcuts?.(),
 				() => textViewer?.dispose(),
 				() => findSurface?.dispose(),
@@ -1377,6 +1443,13 @@ export async function startProjectedTerminalRenderer(
 			if (disposed || frozen) return;
 			terminal.focus();
 		},
+		getMobileInputState: () =>
+			mobileInputController?.state ?? {
+				alt: false,
+				control: false,
+				focused: false,
+				readiness: { kind: 'unavailable' },
+			},
 		getBroadcastInputReadiness: () =>
 			disposed ||
 			frozen ||
@@ -1396,6 +1469,7 @@ export async function startProjectedTerminalRenderer(
 			runCleanup([
 				unsubscribeConfigurationSources,
 				disposeThemeParticipant,
+				() => mobileInputController?.dispose(),
 				() => disposeShortcuts?.(),
 				() => textViewer?.dispose(),
 				() => findSurface?.dispose(),
@@ -1414,6 +1488,7 @@ export async function startProjectedTerminalRenderer(
 		isTransportAvailable: () => transportAvailable,
 		pasteFileDrop: async (text) => await terminal.paste(text, 'file-drop'),
 		presentationReady,
+		sendMobileKey: (key) => mobileInputController?.sendKey(key) ?? false,
 		sendBroadcastInput: async (input, expectedRevision) => {
 			if (
 				disposed ||
@@ -1433,6 +1508,10 @@ export async function startProjectedTerminalRenderer(
 				dispose: () => broadcastInputReadinessListeners.delete(listener),
 			};
 		},
+		subscribeMobileInputState: (listener) =>
+			mobileInputController?.subscribe(listener) ?? { dispose: () => undefined },
+		toggleMobileKeyboard: () => mobileInputController?.toggleKeyboard() ?? false,
+		toggleMobileModifier: (modifier) => mobileInputController?.toggleModifier(modifier),
 		transportUnavailable,
 		updatePresentationConfiguration,
 	};

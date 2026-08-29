@@ -26,7 +26,8 @@ export default defineConfig(({ command }) => ({
 						: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self' ws:",
 				'http-equiv': 'Content-Security-Policy',
 			},
-			viewport: 'width=device-width, initial-scale=1.0',
+			viewport:
+				'width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content',
 		},
 		title: 'Orchbee Workbench',
 	},

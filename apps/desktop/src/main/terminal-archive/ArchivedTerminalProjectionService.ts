@@ -287,8 +287,15 @@ class ArchivedTerminalBroker {
 				return;
 			case 'frame-applied':
 			case 'history-observed':
+			case 'image-preview-cancel':
 			case 'rows-applied':
 			case 'set-history-demand':
+				return;
+			case 'image-preview':
+				this.#post({
+					kind: 'image-preview-unavailable',
+					requestSequence: command.payload.requestSequence,
+				});
 				return;
 			case 'clear-terminal':
 			case 'clipboard-write-decision':
@@ -901,6 +908,9 @@ function failureContext(
 			return { operation: 'resize' };
 		case 'link-open':
 			return { operation: 'link', requestSequence: command.payload.requestSequence };
+		case 'image-preview':
+		case 'image-preview-cancel':
+			return { operation: 'protocol', requestSequence: command.payload.requestSequence };
 		case 'clipboard-write-decision':
 			return { operation: 'clipboard', requestSequence: command.payload.sequence };
 		case 'clear-terminal':

@@ -4,6 +4,8 @@ import type { WorkbenchTerminalSurfaceProps } from '@orchbee/workbench';
 import type { ReactNode } from 'react';
 
 import styles from './ProjectedTerminalSurface.module.css';
+import { ProjectedTerminalImagePreviewCard } from './components/projected-terminal-image-preview-card/ProjectedTerminalImagePreviewCard';
+import { ProjectedTerminalMobileInputBar } from './components/projected-terminal-mobile-input-bar/ProjectedTerminalMobileInputBar';
 import { ProjectedTerminalPasteReviewDialog } from './components/projected-terminal-paste-review-dialog/ProjectedTerminalPasteReviewDialog';
 import { useProjectedTerminalSurface } from './hooks/useProjectedTerminalSurface';
 
@@ -34,6 +36,7 @@ export function ProjectedTerminalSurface({
 			<div
 				className={styles['terminalSurface']}
 				data-projected-terminal-close-activity={presentation.closeActivity}
+				data-projected-terminal-mobile-controls={view.stopped ? 'hidden' : 'visible'}
 				data-terminal-presentation-id={presentation.presentationId}
 				data-terminal-projection-state={view.projectionState}
 				onDragOver={view.handleFileDragOver}
@@ -61,6 +64,17 @@ export function ProjectedTerminalSurface({
 							</Button>
 						) : null}
 					</div>
+				)}
+				{view.imagePreview === null ? null : (
+					<ProjectedTerminalImagePreviewCard preview={view.imagePreview} />
+				)}
+				{view.stopped ? null : (
+					<ProjectedTerminalMobileInputBar
+						onKey={view.sendMobileKey}
+						onKeyboardToggle={view.toggleMobileKeyboard}
+						onModifierToggle={view.toggleMobileModifier}
+						state={view.mobileInputState}
+					/>
 				)}
 			</div>
 			{view.pasteReview === null ? null : (

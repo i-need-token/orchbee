@@ -908,6 +908,49 @@ describe('registerProjectedTerminalActions', () => {
 		for (const registration of registrations) registration.dispose();
 		runtime.dispose();
 	});
+
+	it('routes a revision-pinned file target only through the terminal attachment', async () => {
+		const runtime = new ActionRuntime();
+		const scope = runtime.createScope('terminal.projected');
+		const controller = new TerminalFindController({
+			clearSearch: vi.fn<() => void>(),
+			updateSearch: vi.fn<(query: string, options: TerminalSearchOptions) => void>(),
+		});
+		const terminal = terminalTarget();
+		const openExternal = vi.fn<NonNullable<ProjectedTerminalPlatformEffects['openExternal']>>(
+			() => ({ kind: 'completed' as const }),
+		);
+		const registrations = registerProjectedTerminalActions({
+			findController: controller,
+			platformEffects: { openExternal },
+			scope,
+			terminal,
+			typedRuntime: createTypedActionRuntime<ProjectedTerminalActionCatalog>(runtime),
+		});
+		const input = {
+			context: {
+				column: 2,
+				generation: '1',
+				linkEpoch: '3',
+				revision: '4',
+				row: '5',
+			},
+			target: { column: 7, kind: 'file' as const, line: 42, path: '/tmp/output image.png' },
+		};
+
+		await expect(
+			runtime.execute(PROJECTED_TERMINAL_ACTION_IDS.openLink, input, {
+				scope,
+				source: 'context-menu',
+			}).completion,
+		).resolves.toEqual({ kind: 'completed' });
+
+		expect(terminal.openTargetAsync).toHaveBeenCalledWith(input.target);
+		expect(openExternal).not.toHaveBeenCalled();
+		expect(terminal.linkOpenRequestIsCurrent).toHaveBeenCalledOnce();
+		for (const registration of registrations) registration.dispose();
+		runtime.dispose();
+	});
 });
 
 function terminalTarget(
@@ -937,6 +980,9 @@ function terminalTarget(
 		),
 		openLinkAsync: vi
 			.fn<ProjectedTerminalActionTarget['openLinkAsync']>()
+			.mockResolvedValue({ kind: 'completed' }),
+		openTargetAsync: vi
+			.fn<ProjectedTerminalActionTarget['openTargetAsync']>()
 			.mockResolvedValue({ kind: 'completed' }),
 		paste: vi.fn<ProjectedTerminalActionTarget['paste']>().mockResolvedValue({ kind: 'empty' }),
 		readLastCommandOutput: vi

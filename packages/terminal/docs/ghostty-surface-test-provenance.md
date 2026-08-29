@@ -288,9 +288,10 @@ explicit link at the exact pointer cell, revalidates that cell on modifier-assis
 one typed URL request. The Workbench composition trace then routes that request through its
 allowlisted external-link Action and environment-owned effect.
 
-Explicit OSC 8 ranges retain precedence over detected URL or path text. Application policy still
-limits activation to `http`, `https`, and `mailto`; Host metadata never grants filesystem or generic
-scheme authority.
+Explicit OSC 8 ranges retain precedence over detected URL or path text. Source-neutral application
+policy limits activation to `http`, `https`, and `mailto`; Host metadata never grants filesystem or
+generic scheme authority. A separate, default-off Desktop-local attachment capability may admit a
+typed file target after the same generation/revision-pinned revalidation.
 
 The headed Canvas 2D witnesses `terminal-parity/FS-05-file-links` and
 `terminal-parity/FS-06-url-policy` feed generation-pinned synthetic Host row windows through the
@@ -300,6 +301,13 @@ explicit OSC 8 metadata; explicit file metadata; and a detected path. File and u
 produce no external effect. These witnesses control Browser composition and policy behavior; they
 do not invoke an operating-system URL handler, parse OSC bytes, claim filesystem existence, or add
 file-opening authority.
+
+The headed Canvas 2D witnesses `terminal-parity/FS-19-local-file-links` and
+`terminal-parity/FS-20-image-preview` enable that optional capability with a fake local opener and
+synthetic validated PNG bytes. They observe relative-path resolution, modifier activation, a 300 ms
+hover dwell, cancellation when the target changes, rejection of the first request's late completion,
+and the production anchored pointer-transparent card for the second target. They do not invoke an
+operating-system application, read a real file, automate Finder, or grant Browser/Gateway authority.
 
 ## Packed metadata transition
 

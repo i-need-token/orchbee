@@ -1,0 +1,61 @@
+.card {
+	position: absolute;
+	z-index: var(--ob-ref-layer-dropdown);
+	inset-inline-start: max(
+		var(--ob-ref-space-2),
+		min(
+			var(--ob-comp-projected-terminal-image-preview-inline-start),
+			calc(
+				100% - var(--ob-comp-projected-terminal-image-preview-inline-size) - var(--ob-ref-space-2)
+			)
+		)
+	);
+	box-sizing: border-box;
+	inline-size: min(
+		var(--ob-comp-projected-terminal-image-preview-inline-size),
+		calc(100% - var(--ob-ref-space-8))
+	);
+	max-block-size: var(--ob-comp-projected-terminal-image-preview-block-size);
+	margin: 0;
+	padding: var(--ob-ref-space-1);
+	overflow: hidden;
+	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-default);
+	border-radius: var(--ob-ref-radius-ui-md);
+	background: var(--ob-sys-color-surface-overlay);
+	box-shadow: var(--ob-sys-shadow-overlay);
+	color: var(--ob-sys-color-text-secondary);
+	pointer-events: none;
+}
+
+.card[data-placement='below'] {
+	inset-block-start: calc(
+		var(--ob-comp-projected-terminal-image-preview-block-start) +
+			var(--ob-comp-projected-terminal-image-preview-anchor-block-size) + var(--ob-ref-space-2)
+	);
+}
+
+.card[data-placement='above'] {
+	inset-block-start: calc(
+		var(--ob-comp-projected-terminal-image-preview-block-start) - var(--ob-ref-space-2)
+	);
+	transform: translateY(-100%);
+}
+
+.image {
+	display: block;
+	inline-size: 100%;
+	max-block-size: calc(
+		var(--ob-comp-projected-terminal-image-preview-block-size) - var(--ob-ref-size-control-sm)
+	);
+	border-radius: var(--ob-ref-radius-sm);
+	background: var(--ob-sys-color-surface-subtle);
+	object-fit: contain;
+}
+
+.caption {
+	padding: var(--ob-ref-space-1) var(--ob-ref-space-1) 0;
+	overflow: hidden;
+	font: var(--ob-sys-typography-code-sm);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}

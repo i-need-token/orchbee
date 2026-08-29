@@ -7,6 +7,7 @@ import { BROWSER_AUTHENTICATION_LOGIN_PATH } from '@orchbee/remote-client-protoc
 import { startDesktopWebApplication } from '../desktop-client';
 import { startGatewayWebApplication } from '../gateway-client';
 import { registerTerminalProductFonts } from '../workbench-client';
+import { projectMobileVisualViewport } from './projectMobileVisualViewport';
 import { resolveShortcutPlatform } from './resolveShortcutPlatform';
 import { startBrowserAuthenticationApplication } from './startBrowserAuthenticationApplication';
 import { startWebApplication } from './startWebApplication';
@@ -30,6 +31,10 @@ if (window.location.pathname === BROWSER_AUTHENTICATION_LOGIN_PATH) {
 	);
 	window.addEventListener('unload', () => session.dispose(), { once: true });
 } else if (runtimeMode === 'browser') {
+	const mobileViewport = projectMobileVisualViewport(
+		window,
+		rootElement instanceof HTMLElement ? rootElement : null,
+	);
 	const session = startWebApplication(
 		rootElement,
 		document.documentElement,
@@ -37,7 +42,14 @@ if (window.location.pathname === BROWSER_AUTHENTICATION_LOGIN_PATH) {
 		shortcutPlatform,
 		window.localStorage,
 	);
-	window.addEventListener('unload', () => session.dispose(), { once: true });
+	window.addEventListener(
+		'unload',
+		() => {
+			session.dispose();
+			mobileViewport.dispose();
+		},
+		{ once: true },
+	);
 } else if (runtimeMode === 'desktop') {
 	let focusRecoveryStorage: Pick<Storage, 'getItem' | 'removeItem' | 'setItem'> | undefined;
 	try {
@@ -59,6 +71,10 @@ if (window.location.pathname === BROWSER_AUTHENTICATION_LOGIN_PATH) {
 } else if (runtimeMode === 'gateway') {
 	const connection = decodeGatewayBrowserSearch(window.location.search);
 	if (connection !== null) {
+		const mobileViewport = projectMobileVisualViewport(
+			window,
+			rootElement instanceof HTMLElement ? rootElement : null,
+		);
 		const session = startGatewayWebApplication(
 			window,
 			rootElement,
@@ -68,6 +84,13 @@ if (window.location.pathname === BROWSER_AUTHENTICATION_LOGIN_PATH) {
 			window.localStorage,
 			connection,
 		);
-		window.addEventListener('unload', () => session.dispose(), { once: true });
+		window.addEventListener(
+			'unload',
+			() => {
+				session.dispose();
+				mobileViewport.dispose();
+			},
+			{ once: true },
+		);
 	}
 }

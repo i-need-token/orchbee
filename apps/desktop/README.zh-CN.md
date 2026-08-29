@@ -203,11 +203,15 @@ Desktop 在受信任的主要组合边界处读取一次终端计算机的主机
 
 每个 `ProjectedTerminalBroker` 还为其附件拥有一个有界调整大小命令序列化器。串行器处于空闲状态或只有一个主机调整大小请求处于活动状态；当处于活动状态时，每个较新的经过验证的渲染器测量都会替换单个待处理的测量，而不是启动竞争的 PTY 调整大小。活动请求的成功或类型化失败使串行器返回空闲状态，并在附件保持活动状态时立即接受最新的待处理测量。活动失败仍然通过现有的类型化渲染器失败路径发布，并且永远不会静默重播；只有在开始后到达的测量才能驱动下一个请求。处置或附件清理会删除挂起的测量，其他渲染器命令保留其现有并发性，并且挂起的调整大小在调度之前不占用主机请求窗口槽。因此，容器测量的突发使用恒定内存，一次最多提交一个调整大小，并使最新的挂起几何图形成为下一个主机请求，而不允许中间请求超越它。
 
-`HostConnection` 读取并验证固定终端帧标头一次，然后通过 AttachmentId 直接路由二进制记录。Main 不执行 VT 解析、行重建、Kitty 图像加载、JSON/base64 转换或每单元传递。在 Electron capability 边界，broker 在 structured clone 前只把路由后的 payload 复制到精确大小的 `ArrayBuffer`，因此信封头与合并的相邻记录绝不会穿过 renderer port。Renderer 严格解码 OBTF 中的有界 OBKG raw 像素，通过 Canvas2D 或 WebGPU 绘制全部三个有符号 z 层，并且绝不接收路径、URL、临时文件句柄或共享内存 capability。OBRW format `0.0.3` 本地历史 render buffer 携带自己的 OBKG 快照，并使用 OBPB structural-view 边界；Gateway 交付仍经外部验证。历史、选择、复制、链接和辅助功能行为仍属于附件作用域。正常 bottom-following 使用不会创建历史缓存或搜索 Worker；这些资源只由既有交互合同激活。
+`HostConnection` 只读取并验证一次固定终端帧标头，然后按 AttachmentId 直接路由二进制记录。Main 不执行 VT 解析、行重建、Kitty 图片加载、JSON/base64 转换或逐 cell 处理。在 Electron capability 边界，broker 会在 structured clone 前只把路由后的 payload 复制到精确大小的 `ArrayBuffer`，因此信封头与合并的相邻记录绝不会穿过 renderer port。Renderer 严格解码 OBTF 中的有界 OBKG raw 像素，并通过 Canvas2D 或 WebGPU 绘制全部三个有符号 z 层；该 frame path 不携带 URL、临时文件句柄或共享内存 capability。OBRW format `0.0.3` 本地历史 render buffer 携带自己的 OBKG 快照，并使用 OBPB structural-view 边界；Gateway 交付仍经外部验证。历史、选择、复制、链接和辅助功能行为仍属于附件作用域。正常 bottom-following 使用不会创建历史缓存或 search Worker；这些资源只由既有交互合同激活。
 
 相关主机 `TypedFailure` 仍为类型化 `HostRequestError`； `HostConnection` 保留了响应相关性 ID，而 `ProjectedTerminalBroker` 添加了确切的渲染器命令操作，而无需替换主机代码、消息或可重试性。失败的行读取还会保留其渲染器请求序列，以便只有历史记录飞行才能解决。客户端拥有的复制和链接效果使用其请求序列。 Electron 和网关转发相同的有界故障合约，并且两个代理都不会重试该诊断身份的用户效果。
 
-Electron 附件仅请求协议的文字 `plain` 选择导出并通过 Main 的剪贴板提交解码的 UTF-8 文本。网关附件接收相同的有界纯文本选择字节，并通过浏览器剪贴板 API 提交它们。投影命令和平台效果都不会公开 HTML 或原始 VT 格式选择器。链接仅通过 Electron 或本地浏览器手势打开列入白名单的 `http`、`https` 或 `mailto` 目标。浏览器永远不会收到通用 Electron 效果端口。附件传输背压仅使该附件退出；可见表面需要新的投影和完整的快照。
+Electron 附件只请求协议字面量 `plain` selection export，并通过 Main 的剪贴板提交解码后的 UTF-8 文本。Gateway 附件接收同一有界纯文本 selection bytes，并通过 Browser Clipboard API 提交。投影命令与平台 effect 都不公开 HTML 或 raw VT format selector。所有 composition 都通过 Electron 或本地 Browser gesture 打开 allowlisted `http`、`https` 或 `mailto` 目标。Desktop-effect 附件还会获得一项可选 local-file capability；Browser 永远不会收到通用 Electron effect port。附件传输背压只会使该附件退役；可见表面会请求新 projection 与完整 snapshot。
+
+该 local-file capability 只接收已经从 generation-pinned 终端文本派生出的 typed file target。Main 把路径视为不可信输入：展开开头的 home marker，要求路径为不含 control character 的绝对路径，并在委托给 Electron 默认应用前验证显式 open target 当前确实是普通文件或目录。显式打开失败会返回有界 typed link failure，供 renderer 显示本地化结果。该 capability 不枚举目录、不解析 Browser/Gateway 路径，也不会成为通用 preload API。
+
+图片预览边界更窄。Main 会以 read-only、nonblocking 方式打开请求路径，验证已打开句柄是非空、大小不超过 8 MiB 的普通文件，精确读取这段有界内容，并要求 PNG、JPEG、GIF、WebP、AVIF 或 BMP 的扩展名与 magic signature 一致。SVG、HEIC、TIFF、未知、签名不匹配、超限、缺失与非普通目标只能由外部程序打开或返回 unavailable。每个 broker 最多保留一个 current preview request；replacement、显式 cancellation、attachment cleanup 与 disposal 都会让迟到 completion 失效。准入 bytes 只会以精确 `ArrayBuffer` 穿过该 attachment port，不缓存、不持久化，也绝不会进入 archive 或 Gateway。预览 unavailable 保持静默，而用户主动打开失败仍会显示本地化反馈。移除可选 attachment capability 即可同时回滚文件激活与预览，且不改变 URL 行为。
 
 意外的共享主机连接关闭会在请求清理之前向每个仍处于活动状态的附件发布一个可重试的 `host-connection-unavailable` 故障。每个可见表面仅冻结其最后提交的投影并进入相同的附件本地恢复路径；它不会等待另一个用户命令来发现主机传输已经结束。
 
@@ -254,6 +258,10 @@ Workbench `terminal-presentation-event-published` 消息是 Main 拥有的单一
   `terminal-parity/FS-07-keyboard-hints` 浏览器组合见证，覆盖禁用文件系统激活、共享的
   `http`/`https`/`mailto` 检测/悬停/上下文/激活边界，以及可见 URL/路径/文件位置/hash 标签的
   精确插入、捕获 URL 打开、取消与标签按键零终端输入；
+- 精确的 `terminal-parity/FS-19-local-file-links` 与 `terminal-parity/FS-20-image-preview`
+  local-capability 见证，覆盖 relative-path resolution、modifier activation、300 ms dwell、
+  replacement cancellation、stale-completion rejection 与生产 pointer-transparent preview card。
+  它们使用 fake opener 与合成图片 bytes，不会自动操作操作系统应用；
 - 精确的 `terminal-parity/FS-08-command-output-viewer` 与
   `terminal-parity/FS-09-scrollback-viewer` 浏览器组合见证，覆盖生产共享不可变 terminal-text viewer、
   精确保留快照、可见顶部锚定、有界搜索、按来源复制 Action、焦点恢复与不变的 attachment identity；

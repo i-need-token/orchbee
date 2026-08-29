@@ -324,7 +324,7 @@ async function runWitness(): Promise<void> {
 		transportListener({ frame: terminalSnapshot(2n, 2n), kind: 'frame' });
 		await nextPaint();
 		const staleLinkResult = await activeProvider.executePrepared(linkAction.invocation).completion;
-		await until(() => terminalStatusText() === '终端链接已发生变化，无法打开。');
+		await until(() => terminalStatusText() === '终端目标已发生变化，无法打开。');
 		const staleFeedback = terminalStatusText();
 
 		projectedScrollbackRows = 10n;

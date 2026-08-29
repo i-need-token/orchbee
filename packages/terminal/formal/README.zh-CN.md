@@ -37,6 +37,21 @@
 
 TLC 配置检查两个有序请求以及全部十个已发布字段的标识。字段值被抽象为请求纪元，因为具体值与测量由确定性校验和渲染器测试负责。模型让过时的字体工作保持在途，直至独立的完成或失败转换记录其取消结果。TLC 只对具备资格的提交采用弱公平性；字体准备完成、请求到达和处置仍各自独立排序，且不假定公平。
 
+## 图片预览新鲜度
+
+`tla/TerminalImagePreview.tla` 使用两个 target 和两个可独立完成的 filesystem request，对可逆的 fine-pointer 图片预览 workflow 建模。一个 hover epoch 抽象 runtime 检查的精确 attachment、generation、revision、link epoch、row、column、path 与 geometry membership。替换或退役该 membership 会立即清除当前 request 和 card，但不会假称已启动的操作系统 read 已停止。过时 read 会保留在模型中，直到独立 completion 将其丢弃。
+
+| 图片预览声明                            | 模型属性                                                                    | TypeScript 细化                                                                                                         |
+| --------------------------------------- | --------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| 必须具备本地 capability                 | `NoPresentationWithoutCapability`                                           | projected surface 仅对 Desktop-local attachment capability 启用文件 hover 与 activation。                               |
+| 一个 loading request 属于最新 hover     | `CurrentRequestIsLatest`                                                    | preview controller 捕获完整 revision-pinned target 与一个单调递增的 request identity。                                  |
+| visible bytes 属于当前 hover            | `VisibleRequiresCurrentHover`、`PublicationRequiresCurrentAuthority`        | completion 在 publication 前重新验证 attachment、target、link context、request identity 与 controller epoch。           |
+| 过时 completion 不能发布                | `StaleCompletionCannotPublish`、`PublicationChangesOnlyOnCurrentCompletion` | replacement、cancellation 与 disposal 会分离当前 resolver；延迟 protocol event 会被解析并忽略。                         |
+| 每次 retirement 都移除可逆 presentation | `RetirementClearsPresentation`                                              | leave、pointer/keyboard/wheel intent、selection、geometry/revision 变化、capability revocation 与 disposal 都会隐藏它。 |
+| 一个 request 最多发布一次               | `AtMostOnePublicationPerAdmission`                                          | 关联 reply 会先消费 pending request，再允许 display state 改变。                                                        |
+
+该模型不包含 filesystem-completion liveness property：local、removable 与 network-backed filesystem 在抽象边界可能延迟或永不完成。它只检查 replacement、cancellation、capability revocation、disposal 与 reordered completion 下的有界安全性。Raster magic、8 MiB byte limit、path normalization、DOM geometry、decode support 与 pointer timing 仍由确定性 TypeScript、Desktop adapter 与 headed-system 证据负责。
+
 ## 输入修复
 
 `tla/TerminalInputRepair.tla` 对原生输入法组合生命周期、本地文本/预编辑发布资格、结算、瞬态输入呈现、按事件区分的单记录去重、修复后果与处置建模。结算守卫与普通关联记录彼此分离，因此修复可以清除关联记录，同时保留仍可能发出结束事件或组合来源 `beforeinput` 的原生工作。新的组合可在旧组合结束前取代已取消的工作；独立按键、焦点和空闲 `beforeinput` 的推进不等待旧组合结束。运行时使用浏览器可提供的事实（`isComposing`、`insertCompositionText` 和 `insertFromComposition`）阻止延迟到达的组合来源输入。浏览器事件不携带原生组合标识，因此新的 `compositionstart` 会取得下一个结束事件的所有权。
@@ -148,7 +163,7 @@ TLC 检查一个当前指针手势、一个合并后的待处理端点、两个�
 pnpm --filter @orchbee/terminal test:tla
 ```
 
-共享仓库运行器让渲染器初始化、呈现配置、行读取飞行、提示符导航、选择手势和原生输入结算模型各执行一次，并让输入修复模型覆盖九个固定语义场景：组合、按键、鼠标、焦点、审核按键、审核鼠标、审核焦点、审核组合和生命周期。`review-composition` 组合停滞审核、排队焦点、reset 失效、刻意失败的首次新生成焦点协调、被阻止的组合发布尝试、成功的协调重试及后续组合发布。`InputPublicationReady` 只守卫 Host 定向发布；组合开始、更新、取消、结束结算和丢弃过时延续仍是本地调度器操作，不要求 Host 焦点收敛。
+共享仓库运行器让渲染器初始化、呈现配置、图片预览、行读取飞行、提示符导航、选择手势和原生输入结算模型各执行一次，并让输入修复模型覆盖九个固定语义场景：组合、按键、鼠标、焦点、审核按键、审核鼠标、审核焦点、审核组合和生命周期。`review-composition` 组合停滞审核、排队焦点、reset 失效、刻意失败的首次新生成焦点协调、被阻止的组合发布尝试、成功的协调重试及后续组合发布。`InputPublicationReady` 只守卫 Host 定向发布；组合开始、更新、取消、结束结算和丢弃过时延续仍是本地调度器操作，不要求 Host 焦点收敛。
 
 [`../../../scripts/tla/models.json`](../../../scripts/tla/models.json) 是执行清单。运行器以 SHA-256 固定 `tla2tools 1.7.4`，每次运行使用一个 worker、零指纹多项式、显式超时、Action 覆盖率，以及根目录下已忽略 `.tools` 中的唯一元数据目录。变体配置与模型副本仅为临时文件，并在 `finally` 中删除。每项完成的检查都会发出一条 `TLA_RESULT` 记录，其中包含模型/配置摘要、持续时间、生成状态数、不同状态数、剩余队列及深度。稳定的具名覆盖条目必须存在，并在已注册变体中具有非零计数；源码行号不是证据。可以把 `ORCHBEE_TLA2TOOLS_JAR` 指向已配置且摘要匹配的 jar，也可以让运行器配置仓库根目录下已忽略的副本。
 

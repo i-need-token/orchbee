@@ -412,6 +412,7 @@ export class DesktopTerminalProjectionService {
 				capabilityRevision: capabilities.capabilityRevision,
 				creationId: target.identity.creationId,
 				hostEpoch: target.identity.hostEpoch,
+				localFileEffects: options.brokerEffectTarget === 'desktop',
 				terminalId: target.identity.terminalId,
 				terminalOutcome: target.terminalOutcome,
 				theme: target.theme,
