@@ -46,6 +46,28 @@
 			]
 		},
 		{
+			"id": "desktop-agent-semantic-wait",
+			"owner": "@orchbee/desktop",
+			"workspace": "apps/desktop",
+			"module": "apps/desktop/formal/tla/AgentSemanticWait.tla",
+			"config": "apps/desktop/formal/tla/AgentSemanticWait.cfg",
+			"claims": ["apps/desktop/docs/semantic-command-execution.md", "packages/agent/README.md"],
+			"triggers": [
+				"apps/desktop/src/main/semantic-command/createDesktopAgentReadOperations.ts",
+				"packages/agent/src/semantic-commands/**"
+			],
+			"requiredCoverage": [
+				"BeginWait",
+				"BeginMissing",
+				"BeginAhead",
+				"AgentUpdate",
+				"RemoveSession",
+				"Timeout",
+				"Cancel",
+				"CoordinatorRetire"
+			]
+		},
+		{
 			"id": "desktop-environment-registry-commit",
 			"owner": "@orchbee/desktop",
 			"workspace": "apps/desktop",

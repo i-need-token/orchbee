@@ -159,6 +159,7 @@ import {
 	type DesktopSshProjectEnrollmentBrokerRuntime,
 } from '../ssh-project-enrollment';
 import {
+	createDesktopAgentReadOperations,
 	createDesktopWorkbenchReadOperations,
 	createDesktopWorkbenchTerminalCreateOperation,
 	DesktopSemanticCommandCatalog,
@@ -1712,6 +1713,11 @@ export class DesktopApplication {
 			);
 			const semanticCommandService = new DesktopSemanticCommandService(
 				new DesktopSemanticCommandCatalog([
+					...createDesktopAgentReadOperations({
+						coordinatorGeneration: semanticCommandCoordinatorGeneration,
+						cursorSecret: randomBytes(32),
+						source: this.#agentObservationRuntime,
+					}),
 					...createDesktopWorkbenchReadOperations({
 						coordinatorGeneration: semanticCommandCoordinatorGeneration,
 						cursorSecret: randomBytes(32),

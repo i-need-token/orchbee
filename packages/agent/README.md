@@ -41,6 +41,31 @@ open attention > failed/canceled/interrupted > succeeded > active Turn > idle > 
 
 Freshness remains a separate overlay and cannot silently turn stale work into idle. Every attachment receives the same Session semantics, so one remote execution can truthfully fan out to several local panels or Tabs without duplicating the Turn, request, outcome, or semantic event. Presentation aggregation excludes retained ended Sessions while a live Session remains and derives freshness from the Session or attention set that produced the resolved status, so a lower-priority disconnected Session cannot degrade unrelated fresh work. A presentation ID with multiple retained attachment generations prefers a navigable generation, then fresher observation, then higher semantic priority, and finally the stable generation order. Provider identity stays separate from semantic status so applications can apply curated localized names and icons without accepting provider-controlled product copy or markup.
 
+## Semantic command read model
+
+The package owns strict version-1 contracts for `agent.session.list`, `agent.session.get`,
+`agent.session.explain`, and `agent.session.wait`. These descriptors, schemas, and deterministic
+projection helpers are transport- and application-independent. Desktop application composition may
+admit them over an `AgentSnapshotSource`; the CLI may expose a high-level projection only after the
+complete live descriptor matches this package's contract.
+
+`agent.session.list` projects stable summaries from one runtime revision, defaults to live Sessions,
+optionally includes retained ended Sessions, and caps one page at 100 items. `agent.session.get`
+returns the exact retained canonical Session snapshot plus its semantic status.
+`agent.session.explain` adds source, fidelity, freshness meaning, generation, sequence, capability
+ceiling, and the canonical status basis. Explanation remains `navigate-only` and content-free: it
+never fabricates prompt, transcript, command, tool, path, provider-error, adapter-correlation, or
+screen-matcher evidence.
+
+`agent.session.wait` defines exact-Session matching, but does not own a clock, subscription,
+execution ledger, timeout effect, or coordinator lifecycle. Its default conditions are attention,
+all outcomes, idle, and ended. Explicit conditions can select any semantic status or the `fresh`,
+`stale`, and `disconnected` health values. A semantic status matches only while its observation is
+fresh; health matches only its exact requested value. An optional `afterRevision` requires a
+strictly newer global runtime revision. The application-owned asynchronous handler must subscribe
+before its decisive recheck and return one exact matching snapshot or an explicit missing, ahead,
+timeout, cancellation, or coordinator-retirement outcome.
+
 ## Current application composition
 
 Desktop owns one volatile `DesktopAgentObservationRuntime` for the application lifetime. Renderer document replacement retires only the previous broker; the runtime remains alive and the next renderer requests a fresh full snapshot through the strict `@orchbee/desktop-client-protocol` Agent-observation port. Version 2 of that port also publishes exact semantic events after their snapshot update so a renderer can evaluate one notification effect without reconstructing an event from state. The Web adapter rejects malformed or uncorrelated messages and ignores non-increasing revisions. Workbench consumes the narrow `AgentSnapshotSource`, projects non-ended state into exact terminal panel headers, and deduplicates all terminal presentations in a Tab into a provider identity icon plus one localized non-ended status adornment. Retained ended state keeps only the provider identity icon.
@@ -53,9 +78,23 @@ One Session may attach to several presentations without duplicating its Turn, re
 
 Unit and property tests cover transition guards, exact attention capability admission, durable requests, outcome cleanup, outcome-free idle settlement, stale overlays, Session end, source capability ceilings, reconnect, presentation-generation fencing, multi-attachment fan-out and retirement, schema invariants, runtime disposal, and deterministic projections.
 
+Semantic-command contract and projection tests additionally cover default and explicit wait
+conditions, fresh-only semantic matching, health matching, status-basis explanations, content
+absence, ended filtering, and bounded schemas. Desktop operation tests refine pagination,
+exact-identity reads, subscribe-before-recheck waiting, revision fencing, timeout, cancellation, and
+synchronous subscription races.
+
 [`formal/tla/AgentRuntime.tla`](formal/tla/AgentRuntime.tla) is the bounded asynchronous model. It contains two Sessions, two client views, two observation generations, interleaved attention and reconnect lifecycles, limited and Turn activity, outcome-free idle settlement, client acknowledgement, visibility, notification candidates, snapshot publication, and renderer reconnect. TLC checks that acknowledgement cannot resolve a request, stale-generation rejection preserves canonical state, limited activity changes only its hint, an idle observation cannot fabricate an outcome or notification candidate, activity creates no notification candidate, candidates are fresh/live/invisible and attention-or-failure based, generation changes only on reconnect, ended Sessions have no active work, client revisions never exceed publication, and an observed or recovered snapshot exactly matches the published canonical state. Required action coverage prevents a vacuous passing model.
 
 The model does not prove unbounded Session or event counts, upstream provider truthfulness, adapter payload correctness, liveness or provider termination, platform notification delivery, pixel appearance, or continuity across application restart.
+
+[`../../apps/desktop/formal/tla/AgentSemanticWait.tla`](../../apps/desktop/formal/tla/AgentSemanticWait.tla)
+is the application-composition wait model. Its bounded state has two Sessions, two semantic statuses,
+three health values, two Agent mutations (revisions 0 through 2), and two coordinator generations. TLC checks exact
+subscription ownership, subscribe-before-decisive-recheck eligibility, fresh-only semantic matches,
+exact matched output, no invented unmatched output, Agent-only revision ownership, and explicit
+missing, future-baseline, timeout, cancellation, and coordinator-retirement paths. Those bounds do
+not prove unbounded waiters, time, revisions, Sessions, or restart continuity.
 
 ## Verification
 

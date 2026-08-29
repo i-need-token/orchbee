@@ -40,6 +40,7 @@ export type {
 } from './model';
 export {
 	aggregateAgentSessions,
+	AgentSemanticStatusSchema,
 	projectAgentLocation,
 	projectAgentLocations,
 	projectAgentPresentationGroup,
@@ -51,6 +52,46 @@ export type {
 	AgentSemanticStatus,
 	AgentSessionPresentation,
 } from './projection';
+export {
+	AGENT_SESSION_EXPLAIN_OPERATION,
+	AGENT_SESSION_GET_OPERATION,
+	AGENT_SESSION_LIST_OPERATION,
+	AGENT_SESSION_WAIT_OPERATION,
+	AgentFreshnessMeaningSchema,
+	AgentSessionDetailSchema,
+	AgentSessionExplainOutputSchema,
+	AgentSessionExplanationSchema,
+	AgentSessionGetOutputSchema,
+	AgentSessionListInputSchema,
+	AgentSessionListPageSchema,
+	AgentSessionSummarySchema,
+	AgentSessionTargetInputSchema,
+	AgentSessionWaitInputSchema,
+	AgentSessionWaitOutputSchema,
+	AgentStatusBasisSchema,
+	AgentWaitConditionSchema,
+	DEFAULT_AGENT_WAIT_CONDITIONS,
+	explainAgentSession,
+	findAgentSession,
+	matchingAgentWaitConditions,
+	projectAgentSessionDetail,
+	projectAgentSessionSummary,
+} from './semantic-commands';
+export type {
+	AgentFreshnessMeaning,
+	AgentSessionDetail,
+	AgentSessionExplainOutput,
+	AgentSessionExplanation,
+	AgentSessionGetOutput,
+	AgentSessionListInput,
+	AgentSessionListPage,
+	AgentSessionSummary,
+	AgentSessionTargetInput,
+	AgentSessionWaitInput,
+	AgentSessionWaitOutput,
+	AgentStatusBasis,
+	AgentWaitCondition,
+} from './semantic-commands';
 export { createAgentRuntimeSnapshot, transitionAgentRuntime } from './reducer';
 export type { AgentTransition, AgentTransitionRejection } from './reducer';
 export { AgentRuntime } from './AgentRuntime';

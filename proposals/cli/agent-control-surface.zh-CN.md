@@ -2,7 +2,7 @@
 
 | 字段       | 值                                                                                                                                                                                                     |
 | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 状态       | 现有 TypeScript CLI 方向与切片 1 已实现；后续 Agent 与终端控制切片仍为待决事项                                                                                                                         |
+| 状态       | 现有 TypeScript CLI 方向、切片 1 与只读 Agent 切片 2 已实现；后续终端控制切片仍为待决事项                                                                                                              |
 | 决策所有者 | 当前请求者，以 Orchbee 产品与架构决策所有者身份作出决策                                                                                                                                                |
 | 语义所有者 | `apps/cli`、Desktop 应用组合、`@orchbee/semantic-command-protocol`、`@orchbee/workbench` 与 Agent 能力                                                                                                 |
 | 当前权威   | [`apps/cli/README.md`](../../apps/cli/README.zh-CN.md)、[语义命令执行](../../apps/desktop/docs/semantic-command-execution.zh-CN.md) 与 [Agent 运行时观测](../agent/agent-runtime-observation.zh-CN.md) |
@@ -16,7 +16,7 @@
 
 | 字段   | 已接受的授权                                                                                                                                                                                                                                                           |
 | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 等级   | 这是面向 Agent 的进程契约，且将扩展跨工作区产品操作，因此属于 Consequential；后续切片一旦引入 Agent 等待、输入、启动、取消或其他自有异步转换，就属于 Modeled                                                                                                           |
+| 等级   | 这是面向 Agent 的进程契约，且将扩展跨工作区产品操作，因此属于 Consequential；切片 2 引入含 subscription、timeout、cancellation、revision 与 coordinator-lifetime transition 的 server-owned Agent wait，因此属于 Modeled                                               |
 | 问题   | Orchbee 已经交付安全的本地语义命令 CLI，但只公开通用 operation 与 execution 命令。Agent 必须自行发现操作 ID 并手工构造 JSON，而且没有与发行版本匹配的 Skill 来说明已安装命令面及其安全边界                                                                             |
 | 结果   | 把现有 `apps/cli` TypeScript 应用演进为 Orchbee 唯一的非可视化 Agent 控制面。在保留服务端拥有事实、精确身份、结构化输出、显式准入和保守未知结果的前提下，增量加入由所有者支撑的产品名词和版本匹配 Skill                                                                |
 | 兼容性 | 保留现有 `status`、`operation` 与 `execution` 命令、`ORCHBEE_CLI` 启动契约、输出版本、退出含义、目标选择、输入上限与不重放行为。高层命令只是已准入语义操作之上的附加投影，绝不是另一条执行路径                                                                         |
@@ -97,6 +97,45 @@ Terminal presentation，并保留现有提交、协调、重试与不聚焦语�
 - 对不可用能力如实说明，而不是改用 shell 注入、私有协议或屏幕推断；以及
 - 修改前要求明确用户意图，且绝不声称 execution 取消会逆转所有者已经提交的效果。
 
+## 已交付切片 2：规范 Agent 读取与服务端拥有的等待
+
+2026-08-29，请求者委托系统沿已经选定的 Herdr 对齐方向持续完成工作。切片 2 在该授权内采取
+保守边界，只交付只读 Agent 观测，不增加任何 provider、Terminal 或 presentation 权限：
+
+```text
+orchbee agent list [--all] [--limit <n>] [--cursor <cursor>]
+orchbee agent get <session-id>
+orchbee agent explain <session-id>
+orchbee agent wait <session-id> [--until <condition>]... [--after-revision <revision>] [--timeout <milliseconds>] [--detach] [--request-id <request-id>]
+```
+
+- `@orchbee/agent` 拥有四个 operation descriptor、严格输入输出 schema、摘要、详情、解释、
+  条件匹配和默认等待条件。CLI 只接受精确返回的 Session ID；provider 名称、presentation 标签、
+  聚焦状态、路径、进程身份和屏幕内容都不能解析目标。
+- `agent list` 返回由 revision 限定并经服务端签名的稳定 Session 摘要页，默认仅包含 live
+  Session，只有 `--all` 才包含仍保留的 ended Session，最大页大小为 100。`agent get` 返回精确的
+  已保留规范快照及其 Agent 所有的语义投影。这两类查询都不返回 Prompt、逐字稿、命令、工具内容、
+  文件系统路径、环境值、provider 错误或 adapter 私有的关联数据。
+- `agent explain` 说明哪个规范维度选择了投影状态、已声明的能力上限、source、fidelity、
+  freshness、generation 与 sequence，以及当前仅导航且无内容的限制。它不暴露或重建 Herdr
+  式屏幕 matcher 证据，因为屏幕检测不是 Orchbee 的语义权威。
+- `agent wait` 是一个已准入的异步查询，由 Desktop 应用组合基于规范
+  `AgentSnapshotSource` 拥有。它在决定性重查之前先订阅，固定一个 Session 身份，并且只根据精确
+  快照、显式超时、取消或协调器退役来结束。它不轮询 renderer、不维持隐藏终端，也不直接消费
+  provider 事件。
+- 等待条件包括 Agent 语义状态种类以及 `fresh`、`stale` 和 `disconnected`。默认条件为
+  `needs-attention`、四种 outcome、`idle` 或 `ended`。语义状态条件仅匹配 fresh 观测；只有显式
+  请求时才匹配降级健康状态。`--after-revision` 还要求运行时 revision 严格更新；若基线领先于
+  当前运行时则拒绝，而不是含糊等待。
+- 超时是显式规范输入，默认为 600,000 毫秒，边界为 1 至 3,600,000 毫秒。超时为
+  `agent-wait-timeout`，身份不存在为 `agent-session-not-found`，未来基线为
+  `agent-revision-ahead`，execution 取消为 `agent-wait-cancelled`。Desktop 或 Hub 重启会改变
+  coordinator generation，因此进行中的等待按现有 CLI 契约成为结果未知；不声称连续性或重放。
+
+切片 2 不添加 Agent 修改或持久状态。除确定性的领域、Desktop operation、CLI parser、runner 与
+catalog-composition test 外，其异步订阅、重查、超时、取消、精确身份和协调器退役边界还有一个有界
+TLA+ model。
+
 ## 不变量与证据
 
 1. 每个高层命令恰好映射一个已准入操作 ID 和一个所有者有效的有界输入；只有实时完整公共 descriptor
@@ -108,14 +147,15 @@ Terminal presentation，并保留现有提交、协调、重试与不聚焦语�
 
 确定性 parser 与 runner 测试覆盖每种已接受形态、不兼容 selector、精确操作/输入映射、操作不可用、
 响应丢失、输出与 Skill 不连接路径。Desktop 真实端点测试覆盖 Node、打包 Electron Node mode 与精确
-launcher，并证明打印 Skill 不增加端点请求。切片 1 不添加新的异步所有者状态，因此复用现有语义命令
-账本模型，而不是新增第二个 TLA+ 模型。
+launcher，并证明打印 Skill 不增加端点请求。切片 1 不添加新的异步所有者状态，因此复用 semantic-command
+ledger model。切片 2 新增 `AgentSemanticWait.tla`；领域与 Desktop operation test 对其 exact-identity、
+revision、freshness、subscribe-before-recheck、timeout、cancellation、removal 与
+coordinator-retirement boundary 进行 refinement。
 
 ## 交付顺序
 
 1. 已交付切片 1：Workbench 门面与版本匹配 Skill 不修改生产操作目录。
-2. 接受并交付来自规范 Agent 读取模型的只读 `agent list`、`agent get`、`agent wait` 与
-   `agent explain`，包括订阅或轮询语义、freshness、visibility、隐私、兼容性和应用运行时所有权。
+2. 已交付切片 2：只读 `agent list`、`agent get`、`agent wait` 与 `agent explain` 使用上面的精确契约。
 3. 逐个所有者操作接受 Workspace、Tab、Panel 与 Terminal 的创建、split、move、rename、focus 和 close 等拓扑修改。
 4. 只有具备精确 provider 与 Terminal 权限、确认、审计、取消、重放和未知结果契约后，
    才接受 Agent 启动、Prompt、Resume、Decision、原始终端输入/输出与编排。
@@ -123,7 +163,8 @@ launcher，并证明打印 Skill 不增加端点请求。切片 1 不添加新�
 
 ## 待决事项
 
-- Agent CLI 读取 schema、运行时端点、等待/事件协议、保留策略以及跨 Desktop 或 Hub 重启的连续性；
+- 超出所选易失 Desktop 运行时与现有 coordinator-generation 失败边界之外的任何 Agent CLI
+  连续性，包括跨 Desktop 或 Hub 重启的持久等待重放或状态保留；
 - 调用者上下文环境变量及其精确 Project、Workspace、Tab、Terminal、presentation attachment 与远程拓扑含义；
 - 创建、split、move、focus、close、stop 与破坏性生命周期命令；
 - Terminal 输出快照、历史边界、敏感内容策略、输入、paste、逻辑按键与输出等待；

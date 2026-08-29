@@ -6,22 +6,23 @@ import {
 	type SemanticCommandCoordinatorGeneration,
 	type SemanticCommandOperationId,
 } from '@orchbee/semantic-command-protocol';
-import { WorkbenchSharedDocumentRevisionSchema } from '@orchbee/workbench/document';
 import { z } from 'zod';
+
+const semanticReadRevisionSchema = z.string().min(1).max(128);
 
 const cursorPayloadSchema = z.strictObject({
 	version: z.literal(1),
 	coordinatorGeneration: SemanticCommandCoordinatorGenerationSchema,
 	operationId: SemanticCommandOperationIdSchema,
 	target: z.string().min(1).max(2048),
-	revision: WorkbenchSharedDocumentRevisionSchema,
+	revision: semanticReadRevisionSchema,
 	offset: z.number().int().nonnegative(),
 });
 
 interface DesktopSemanticCommandPageCursorContext {
 	readonly coordinatorGeneration: SemanticCommandCoordinatorGeneration;
 	readonly operationId: SemanticCommandOperationId;
-	readonly revision: z.infer<typeof WorkbenchSharedDocumentRevisionSchema>;
+	readonly revision: string;
 	readonly target: string;
 }
 

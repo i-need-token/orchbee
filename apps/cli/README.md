@@ -1,10 +1,10 @@
 # Orchbee CLI
 
 Product-owned Node client for invoking explicitly admitted Orchbee semantic commands. The workspace
-contains the transport-independent client core, strict generic and Workbench command projections,
-the release-matched embedded Agent Skill, lifecycle runner, trusted local locator and authenticated
-HTTP adapter, and the real process entry used by the Desktop distribution. Desktop-created
-terminals receive one exact launcher path without a global installation.
+contains the transport-independent client core, strict generic, Workbench, and Agent command
+projections, the release-matched embedded Agent Skill, lifecycle runner, trusted local locator and
+authenticated HTTP adapter, and the real process entry used by the Desktop distribution.
+Desktop-created terminals receive one exact launcher path without a global installation.
 
 ## Command surface
 
@@ -29,15 +29,28 @@ orchbee directory list --project <project-id> [--limit <n>] [--cursor <cursor>]
 orchbee workspace list --project <project-id> [--limit <n>] [--cursor <cursor>]
 orchbee terminal list (--standalone | --project <project-id> --workspace <workspace-id>) [--limit <n>] [--cursor <cursor>]
 orchbee terminal create (--standalone | --project <project-id> --workspace <workspace-id>) [--directory <directory-id>] [--detach] [--request-id <request-id>]
-orchbee --skill
 ```
+
+The production Desktop catalog also admits four read-only Agent-observation operations. Their
+high-level projections are:
+
+```text
+orchbee agent list [--all] [--limit <n>] [--cursor <cursor>]
+orchbee agent get <session-id>
+orchbee agent explain <session-id>
+orchbee agent wait <session-id> [--until <condition>]... [--after-revision <revision>] [--timeout <milliseconds>] [--detach] [--request-id <request-id>]
+```
+
+`orchbee --skill` is the separate coordinator-free command for printing the embedded Skill.
 
 Every coordinator-backed command accepts `--target <endpoint-id>` and `--output json|text`. Omitted
 targets succeed only when trusted local discovery resolves exactly one live coordinator. Duplicate,
 unknown, or cross-command options fail before connection. Generic invocation reads one strict UTF-8
 JSON value from the named file or stdin. High-level commands validate bounded arguments through the
-Workbench owner's exported schemas and map to exactly one existing operation. Invalid input is
-rejected before allocating a request identity or contacting Desktop.
+Workbench or Agent owner's exported schemas and map to exactly one existing operation. Workbench
+pages accept 1-200 items; Agent pages accept 1-100 and default to live Sessions, while `--all`
+includes retained ended Sessions. Invalid input is rejected before allocating a request identity or
+contacting Desktop.
 
 Default output is exactly one compact versioned JSON document on stdout. Invoke results always
 include the request identity. `--output text` is an explicitly unstable indented projection of that
@@ -105,11 +118,20 @@ unknown response with `@orchbee/semantic-command-protocol`, rejects a mismatched
 generation, and returns payload-free client errors for invalid input, malformed response, transport
 failure, or locally cancelled observation.
 
-The core supports status, operation list and description, owner-backed Workbench command
+The core supports status, operation list and description, owner-backed Workbench and Agent command
 projections, invocation admission, execution lookup, cooperative cancellation, and bounded-backoff
-waiting. `waitForExecution` repeatedly performs only the read-only lookup. Aborting the caller
-signal stops local observation; it never calls invocation or cancellation and never creates a
-server-side waiter.
+waiting. `waitForExecution` repeatedly performs only the read-only execution lookup. In contrast,
+`agent wait` invokes one server-owned asynchronous query over the canonical Agent snapshot source,
+then observes that semantic execution through the same ledger. Aborting the CLI caller signal stops
+only local execution observation; it never calls invocation or cancellation implicitly.
+
+`agent wait` pins one exact Session ID. Its default conditions are attention, outcomes, idle, and
+ended; repeated `--until` selects explicit semantic-status or `fresh`, `stale`, and `disconnected`
+conditions. Semantic status matches only a fresh observation. `--after-revision` requires a strictly
+newer global Agent runtime revision, and `--timeout` is bounded from 1 to 3,600,000 milliseconds with
+a 600,000 millisecond default. Use `--detach` to retain the request or execution identity for later
+observation or explicit `execution cancel`. A coordinator-generation change makes an in-flight wait
+outcome unknown; the CLI never replays it.
 
 The runner invokes an operation at most once. After a lost response, it reconnects and observes the
 same request identity only. A different coordinator generation returns
@@ -141,12 +163,15 @@ presentation remain absent.
 
 ## Ownership boundary
 
-The CLI never reads a Workbench data file, connects to Terminal Host, enumerates product Actions, or
-stores or reconstructs feature state. Its high-level commands construct only inputs validated by
-the Workbench owner's exported semantic-command schemas and verify the complete expected public
-operation descriptor before invocation. The coordinator owns catalog admission and executions;
-feature packages own operation input, output, targeting, and effects; the protocol package owns only
-serializable generic envelopes. Adding a CLI projection grants no operation authority.
+The CLI never reads a Workbench data file, reads provider or screen state, connects to Terminal Host,
+enumerates product Actions, or stores or reconstructs feature state. Its high-level commands
+construct only inputs validated by the Workbench or Agent owner's exported semantic-command schemas
+and verify the complete expected public operation descriptor before invocation. Agent queries return
+only canonical bounded snapshots and projections; `agent explain` describes provenance, freshness,
+capability, and the status basis without exposing prompts, transcripts, tool content, paths, provider
+errors, or screen evidence. The coordinator owns catalog admission and executions; feature packages
+own operation input, output, targeting, and effects; the protocol package owns only serializable
+generic envelopes. Adding a CLI projection grants no operation authority.
 
 ## Verification
 

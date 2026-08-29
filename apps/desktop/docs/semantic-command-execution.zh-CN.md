@@ -4,9 +4,11 @@
 
 Desktop 拥有一个进程生命周期内的 semantic-command coordinator generation、显式 operation catalog、
 有界内存 execution ledger，以及向已认证 current-user client 暴露该 service 的 private local endpoint。
-生产 catalog 精确包含 `workbench.project.list`、`workbench.directory.list`、
-`workbench.workspace.list`、`workbench.terminal.list`，以及 `workbench.terminal.create`。它不提供任意
-Action、filesystem、shell、renderer 或 Terminal Host escape hatch。
+生产 catalog 精确包含九个 operation：`agent.session.list`、`agent.session.get`、
+`agent.session.explain` 与 `agent.session.wait`，以及 `workbench.project.list`、
+`workbench.directory.list`、`workbench.workspace.list`、`workbench.terminal.list` 与
+`workbench.terminal.create`。它不提供任意 Action、filesystem、shell、renderer 或 Terminal Host escape
+hatch。
 
 Feature owner 保留 input 与 output 含义。Protocol package 拥有严格 envelope 与 local HTTP mapping。
 Desktop 拥有 catalog admission、execution、locator publication、endpoint lifecycle 和 OS peer
@@ -26,7 +28,7 @@ semantic-execution recovery。
 
 | 状态或输出             | Owner 与生命周期                                                                                      |
 | ---------------------- | ----------------------------------------------------------------------------------------------------- |
-| Catalog                | 不可变的 `DesktopSemanticCommandCatalog`；只存在五项显式组合的 Workbench entry                        |
+| Catalog                | 不可变的 `DesktopSemanticCommandCatalog`；只存在四项 Agent query 与五项 Workbench entry               |
 | Coordinator generation | 随 service 创建一次，复制到 locator，并出现在每个 public snapshot 中                                  |
 | Endpoint identity      | 仅用于 locator 与 socket 或 named-pipe 名称的随机进程局部 identifier                                  |
 | Locator                | Native adapter 在 listener 创建后发布一个 private bounded file，并在 teardown 时移除                  |
@@ -45,6 +47,15 @@ result 都包含 Directory placement。其他四项 operation 保持 version `1`
 已 commit 的 opaque Environment identity 与 canonical path。Requested alias、失败 observation 与原始
 operating-system diagnostic 绝不进入 semantic output。
 
+四个 Agent operation 都使用 schema version `1`。List、get 与 explain 从 application-lifetime
+`AgentSnapshotSource` 获取一个 canonical snapshot。List page 经过签名并受 revision fencing；get 与
+explain 精确指向一个保留的 Session。Wait 是 server-owned asynchronous query：先 subscribe 再进行
+decisive recheck，重新评估 canonical source，并在一个精确 match、Session missing、future revision
+baseline、timeout、cooperative cancellation 或 coordinator retirement 上结束。Semantic-status condition
+要求 fresh observation。Agent query 不读取 renderer、terminal screen、provider transport、prompt、
+transcript、tool content、filesystem path、environment value、provider error 或 adapter-private
+correlation data。
+
 ## 不变量
 
 1. 一个保留中的 request identity 精确映射到一个保留中的 execution 和一个 canonical fingerprint。
@@ -60,7 +71,7 @@ operating-system diagnostic 绝不进入 semantic output。
    会淘汰最旧的 terminal record，直到两个限制都满足。
 8. 单个 execution result 被限制在 local response capacity 以下。Oversize 会变成不带 owner payload 的
    `failed/output-capacity-exceeded`。
-9. Discovery 与 description 精确暴露五项已组合 operation。Catalog registration 或 UI Action availability
+9. Discovery 与 description 精确暴露九项已组合 operation。Catalog registration 或 UI Action availability
    本身不授予 process authority。
 10. Native adapter 既不跟随 POSIX symlink，也不跟随 Windows reparse point，并且只接受 current-user
     private runtime directory、locator、endpoint 与双向认证 peer。
@@ -97,6 +108,11 @@ Workbench 所属的严格 input，把 owner operation 应用到隔离且 hydrate
 中把 execution 标记为 committed。隔离 runtime 绝不 dispatch provision command；正常 canonical
 reconciliation 只会在持久化成功后启动 PTY。
 
+`createDesktopAgentReadOperations` 通过 Agent-owned projection 与 contract 适配 application-lifetime
+`AgentSnapshotSource`。Desktop 拥有 signed cursor binding、asynchronous wait subscription、timeout
+scheduling、cooperative abort 与 coordinator-lifetime failure boundary；它不重新解释 Agent status，也不
+成为另一名 Agent state owner。
+
 `DesktopSemanticCommandLocalEndpoint` 拥有 Worker lifetime。Worker 在 Electron Main 之外执行有界 blocking
 local I/O，只转发完整 request byte。Native adapter 拥有 private runtime、locator、Unix-domain socket 或
 Windows named-pipe creation，以及双向 current-user validation。
@@ -105,17 +121,23 @@ response validation。该 endpoint 与 Terminal Host、Browser access 分离，�
 
 ## 正确性证据
 
-| 声明                              | 契约          | 形式化或生成式证据                                                                                  | 确定性或真实 refinement                                                                                                                     | 边界                                                                         |
-| --------------------------------- | ------------- | --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| 只允许显式且已授权的 catalog      | 不变量 1-3、9 | `SemanticCommandExecutionLedger.tla`：`RequestAndExecutionMappingsAgree`                            | Catalog/service test 覆盖负向 admission；HTTP integration 调用全部四项读取及精确 target 的 Terminal 创建                                    | 仅初始五项 operation                                                         |
-| 保留期间至多一个 execution        | 不变量 1-4    | `RetainedRequestHasOneHandlerStart`、`ActiveExecutionCapacity`                                      | Ledger boundary test 与固定 seed 的 stateful command property                                                                               | 淘汰或 restart 后不作声明                                                    |
-| Cancellation 与 retention 安全    | 不变量 5-8    | `CommittedExecutionNeverCancels`，以及两个 TLC variant 中的 cancellation、count 与 weight invariant | Deferred-handler、commit 前后 cancellation、duplicate request、receipt eviction 及精确 capacity test                                        | 不声明 handler liveness 或 durable storage 成功后的 rollback                 |
-| Locator 与 peer 保持 current-user | 不变量 10、12 | Native source 会为维护中的 POSIX 与 Windows family 编译                                             | Native Node 与 Electron test 会创建、认证、读取、拒绝不安全 POSIX ownership 并 retire endpoint；维护中的 Windows CI 会执行 DACL/SID path    | 信任受损 same-user process；cross-user 负向执行需要 platform account fixture |
-| Framing 与 capacity fail closed   | 不变量 8、11  | 严格 protocol framing 与 route schema                                                               | Unit rejection matrix 与真实 Node/Electron local-transport test 覆盖 trailing input、64 KiB request、1 MiB response、malformed input 与恢复 | Kernel queue scheduling 与 process kill 不属于该声明                         |
-| Disconnect 不会 cancel 或 replay  | 不变量 12     | `Disconnect` 与 `Reconnect` 保持 ledger variable 不变                                               | 真实 client timeout 证明只交付一次；CLI test 会恢复同一保留 request，并在 generation 变化后报告 unknown 且不重新 invocation                 | 排除跨 machine 或 coordinator restart 的 durable recovery                    |
+| 声明                              | 契约          | 形式化或生成式证据                                                                                  | 确定性或真实 refinement                                                                                                                             | 边界                                                                         |
+| --------------------------------- | ------------- | --------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| 只允许显式且已授权的 catalog      | 不变量 1-3、9 | `SemanticCommandExecutionLedger.tla`：`RequestAndExecutionMappingsAgree`                            | Catalog/service test 覆盖负向 admission 与精确九项 composition；HTTP integration 调用全部 Workbench read 及精确 target 的 Terminal 创建             | 仅九项已接受 operation                                                       |
+| 保留期间至多一个 execution        | 不变量 1-4    | `RetainedRequestHasOneHandlerStart`、`ActiveExecutionCapacity`                                      | Ledger boundary test 与固定 seed 的 stateful command property                                                                                       | 淘汰或 restart 后不作声明                                                    |
+| Cancellation 与 retention 安全    | 不变量 5-8    | `CommittedExecutionNeverCancels`，以及两个 TLC variant 中的 cancellation、count 与 weight invariant | Deferred-handler、commit 前后 cancellation、duplicate request、receipt eviction 及精确 capacity test                                                | 不声明 handler liveness 或 durable storage 成功后的 rollback                 |
+| Agent wait 匹配 canonical state   | 不变量 3、9   | `AgentSemanticWait.tla`：exact subscription、eligibility、freshness、output 与 revision invariant   | Agent domain 与 Desktop operation test 覆盖 pagination、exact read、status explanation、race-safe recheck、timeout、cancellation 与 future baseline | 仅有界 volatile runtime；不声明 restart continuity 或 provider truth         |
+| Locator 与 peer 保持 current-user | 不变量 10、12 | Native source 会为维护中的 POSIX 与 Windows family 编译                                             | Native Node 与 Electron test 会创建、认证、读取、拒绝不安全 POSIX ownership 并 retire endpoint；维护中的 Windows CI 会执行 DACL/SID path            | 信任受损 same-user process；cross-user 负向执行需要 platform account fixture |
+| Framing 与 capacity fail closed   | 不变量 8、11  | 严格 protocol framing 与 route schema                                                               | Unit rejection matrix 与真实 Node/Electron local-transport test 覆盖 trailing input、64 KiB request、1 MiB response、malformed input 与恢复         | Kernel queue scheduling 与 process kill 不属于该声明                         |
+| Disconnect 不会 cancel 或 replay  | 不变量 12     | `Disconnect` 与 `Reconnect` 保持 ledger variable 不变                                               | 真实 client timeout 证明只交付一次；CLI test 会恢复同一保留 request，并在 generation 变化后报告 unknown 且不重新 invocation                         | 排除跨 machine 或 coordinator restart 的 durable recovery                    |
 
 注册的 TLC model 使用两个 request identity、两个 fingerprint、三个 execution identity、一个 active
 slot、两个 coordinator generation，以及分别限制 count 和 weight 的 retention variant。这些边界会暴露
 replay、conflict、cancellation、completion-order eviction 与 restart interleaving；它们不证明无界状态。
 Native test 会在当前平台的 Node 与 pinned Electron runtime 下运行，而维护中的 macOS 与 Windows CI matrix
 是平台行为 authority。不会运行任何 manual native-window test。
+
+Agent-wait model 还包含两个 Session、两个 semantic status、三个 health value、两次 Agent mutation
+（revision 0 到 2）与两个 coordinator generation。其 action coverage 包含 begin、missing、ahead、update、removal、timeout、
+cancellation 与 retirement path。这些边界可以暴露 subscription 与 decisive-recheck race，但不声明无界
+waiter count、time、revision 或 restart recovery。

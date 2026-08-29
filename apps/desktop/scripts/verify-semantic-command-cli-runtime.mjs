@@ -125,7 +125,11 @@ try {
 			env: launch.environment,
 		});
 		if (stderr !== '') throw new Error(`${launch.name} wrote a diagnostic to stderr.`);
-		if (!stdout.startsWith('---\nname: orchbee\n') || !stdout.endsWith('\n')) {
+		if (
+			!stdout.startsWith('---\nname: orchbee\n') ||
+			!stdout.includes('"$ORCHBEE_CLI" agent wait') ||
+			!stdout.endsWith('\n')
+		) {
 			throw new Error(`${launch.name} did not emit the bundled Orchbee Skill.`);
 		}
 	}

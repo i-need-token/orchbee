@@ -13,6 +13,7 @@
 		"test:watch": "vitest"
 	},
 	"dependencies": {
+		"@orchbee/agent": "workspace:^",
 		"@orchbee/semantic-command-protocol": "workspace:^",
 		"@orchbee/workbench": "workspace:^"
 	},

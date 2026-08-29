@@ -116,6 +116,10 @@ export async function runSemanticCommandCli(
 			case 'workspace-list':
 			case 'terminal-list':
 			case 'terminal-create':
+			case 'agent-list':
+			case 'agent-get':
+			case 'agent-explain':
+			case 'agent-wait':
 				return runOwnedOperationInvoke(command, dependencies);
 			case 'execution-get':
 				return runExecutionGet(command, dependencies);

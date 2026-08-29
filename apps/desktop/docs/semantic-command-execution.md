@@ -4,10 +4,11 @@
 
 Desktop owns one process-lifetime semantic-command coordinator generation, an explicit operation
 catalog, a bounded in-memory execution ledger, and the private local endpoint that exposes that
-service to an authenticated current-user client. The production catalog contains exactly
-`workbench.project.list`, `workbench.directory.list`, `workbench.workspace.list`, and
-`workbench.terminal.list`, plus `workbench.terminal.create`. It does not contain an arbitrary
-Action, filesystem, shell, renderer, or Terminal Host escape hatch.
+service to an authenticated current-user client. The production catalog contains exactly nine
+operations: `agent.session.list`, `agent.session.get`, `agent.session.explain`, and
+`agent.session.wait`, plus `workbench.project.list`, `workbench.directory.list`,
+`workbench.workspace.list`, `workbench.terminal.list`, and `workbench.terminal.create`. It does not
+contain an arbitrary Action, filesystem, shell, renderer, or Terminal Host escape hatch.
 
 Feature owners retain input and output meaning. The protocol package owns strict envelopes and
 local HTTP mapping. Desktop owns catalog admission, execution, locator publication, endpoint
@@ -27,7 +28,7 @@ presentation, remote authentication, or durable semantic-execution recovery.
 
 | State or output        | Owner and lifecycle                                                                                           |
 | ---------------------- | ------------------------------------------------------------------------------------------------------------- |
-| Catalog                | Immutable `DesktopSemanticCommandCatalog`; only the five explicitly composed Workbench entries exist          |
+| Catalog                | Immutable `DesktopSemanticCommandCatalog`; only four Agent queries and five Workbench entries exist           |
 | Coordinator generation | Created once with the service, copied into the locator, and present in every public snapshot                  |
 | Endpoint identity      | Random process-local identifier used only for the locator and socket or named-pipe name                       |
 | Locator                | Native adapter publishes one private bounded file after listener creation and removes it during teardown      |
@@ -47,6 +48,15 @@ Directory result contains only its committed opaque Environment identity and can
 requested alias, failed observations, and raw operating-system diagnostics never enter semantic
 output.
 
+All four Agent operations use schema version `1`. List, get, and explain take one canonical snapshot
+from the application-lifetime `AgentSnapshotSource`. List pages are signed and revision-fenced;
+get and explain target one exact retained Session. Wait is a server-owned asynchronous query that
+subscribes before its decisive recheck, reevaluates the canonical source, and settles on one exact
+match, missing Session, future revision baseline, timeout, cooperative cancellation, or coordinator
+retirement. Semantic-status conditions require fresh observation. No Agent query reads a renderer,
+terminal screen, provider transport, prompt, transcript, tool content, filesystem path, environment
+value, provider error, or adapter-private correlation data.
+
 ## Invariants
 
 1. One retained request identity maps to exactly one retained execution and one canonical
@@ -65,7 +75,7 @@ output.
    Completion evicts the oldest terminal records until both limits hold.
 8. One execution result is bounded below the local response capacity. Oversize becomes
    `failed/output-capacity-exceeded` with no owner payload.
-9. Discovery and description expose exactly the five composed operations. Catalog registration or
+9. Discovery and description expose exactly the nine composed operations. Catalog registration or
    UI Action availability alone grants no process authority.
 10. The native adapter follows neither a POSIX symlink nor a Windows reparse point and accepts only
     a current-user private runtime directory, locator, endpoint, and mutually authenticated peer.
@@ -103,6 +113,11 @@ revision only through `DesktopClientSessionCoordinator`, and marks the execution
 coordinator's immediate post-storage callback. The isolated runtime never dispatches a provision
 command; normal canonical reconciliation starts the PTY only after persistence succeeds.
 
+`createDesktopAgentReadOperations` adapts the application-lifetime `AgentSnapshotSource` through
+Agent-owned projections and contracts. Desktop owns signed cursor binding, the asynchronous wait
+subscription, timeout scheduling, cooperative abort, and coordinator-lifetime failure boundary; it
+does not reinterpret Agent status or become another Agent state owner.
+
 `DesktopSemanticCommandLocalEndpoint` owns the Worker lifetime. The Worker performs bounded
 blocking local I/O away from Electron Main and forwards only complete request bytes. The native
 adapter owns private runtime, locator, Unix-domain socket or Windows named-pipe creation plus mutual
@@ -114,9 +129,10 @@ Host and Browser access and opens no TCP listener.
 
 | Claim                                | Contract         | Formal or generated evidence                                                                          | Deterministic or real refinement                                                                                                                                  | Limits                                                                                                     |
 | ------------------------------------ | ---------------- | ----------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| Explicit authorized catalog only     | Invariants 1-3,9 | `SemanticCommandExecutionLedger.tla`: `RequestAndExecutionMappingsAgree`                              | Catalog/service tests cover negative admission; HTTP integration invokes all four reads plus exact-target Terminal creation                                       | Initial five operations only                                                                               |
+| Explicit authorized catalog only     | Invariants 1-3,9 | `SemanticCommandExecutionLedger.tla`: `RequestAndExecutionMappingsAgree`                              | Catalog/service tests cover negative admission and exact nine-entry composition; HTTP integration invokes all Workbench reads plus exact-target Terminal creation | Nine accepted operations only                                                                              |
 | At most one execution while retained | Invariants 1-4   | `RetainedRequestHasOneHandlerStart`, `ActiveExecutionCapacity`                                        | Ledger boundary tests and the fixed-seed stateful command property                                                                                                | No claim after eviction or restart                                                                         |
 | Cancellation and retention are safe  | Invariants 5-8   | `CommittedExecutionNeverCancels` plus cancellation, count, and weight invariants in both TLC variants | Deferred-handler, pre-/post-commit cancellation, duplicate request, receipt eviction, and exact capacity tests                                                    | Handler liveness and rollback after successful durable storage are not claimed                             |
+| Agent wait matches canonical state   | Invariants 3,9   | `AgentSemanticWait.tla`: exact subscription, eligibility, freshness, output, and revision invariants  | Agent domain and Desktop operation tests cover pagination, exact reads, status explanation, race-safe recheck, timeout, cancellation, and future baselines        | Bounded volatile runtime only; no restart continuity or provider-truth claim                               |
 | Locator and peer stay current-user   | Invariants 10,12 | Native source is compiled for maintained POSIX and Windows families                                   | Native Node and Electron tests create, authenticate, read, reject unsafe POSIX ownership, and retire the endpoint; maintained Windows CI exercises DACL/SID paths | A compromised same-user process is trusted; cross-user negative execution needs a platform account fixture |
 | Framing and capacity fail closed     | Invariants 8,11  | Strict protocol framing and route schemas                                                             | Unit rejection matrix plus real Node/Electron local-transport tests cover trailing input, 64 KiB request, 1 MiB response, malformed input, and recovery           | Kernel queue scheduling and process kill are outside the claim                                             |
 | Disconnect cannot cancel or replay   | Invariant 12     | `Disconnect` and `Reconnect` leave ledger variables unchanged                                         | Real client timeout proves one delivery; CLI tests recover the same retained request and report unknown after generation change without reinvocation              | Durable recovery across machine or coordinator restart is excluded                                         |
@@ -127,3 +143,9 @@ variants. Those bounds expose replay, conflict, cancellation, completion-order e
 restart interleavings; they do not prove unbounded state. Native tests run under both Node and the
 pinned Electron runtime on the current platform, while the maintained macOS and Windows CI matrix
 is the authority for platform behavior. No manual native-window test participates.
+
+The Agent-wait model adds two Sessions, two semantic statuses, three health values, two Agent
+mutations (revisions 0 through 2), and two coordinator generations. Its action coverage includes begin, missing, ahead,
+update, removal, timeout, cancellation, and retirement paths. These bounds expose subscription and
+decisive-recheck races without claiming unbounded waiter counts, time, revisions, or restart
+recovery.

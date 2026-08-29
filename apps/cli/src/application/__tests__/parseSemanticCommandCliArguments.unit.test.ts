@@ -123,6 +123,66 @@ describe('parseSemanticCommandCliArguments', () => {
 		}
 	});
 
+	it('maps high-level Agent reads and waits to exact owner operations and inputs', () => {
+		const cases = [
+			{
+				arguments: ['agent', 'list', '--all', '--limit', '25', '--cursor', 'next-agent'],
+				input: { cursor: 'next-agent', includeEnded: true, limit: 25 },
+				kind: 'agent-list',
+				operationId: 'agent.session.list',
+			},
+			{
+				arguments: ['agent', 'get', 'session-1'],
+				input: { sessionId: 'session-1' },
+				kind: 'agent-get',
+				operationId: 'agent.session.get',
+			},
+			{
+				arguments: ['agent', 'explain', 'session-1'],
+				input: { sessionId: 'session-1' },
+				kind: 'agent-explain',
+				operationId: 'agent.session.explain',
+			},
+			{
+				arguments: [
+					'agent',
+					'wait',
+					'session-1',
+					'--until',
+					'needs-attention',
+					'--until',
+					'succeeded',
+					'--after-revision',
+					'42',
+					'--timeout',
+					'30000',
+					'--detach',
+					'--request-id',
+					'cli:request:agent-wait',
+				],
+				input: {
+					afterRevision: 42,
+					sessionId: 'session-1',
+					timeoutMilliseconds: 30_000,
+					until: ['needs-attention', 'succeeded'],
+				},
+				kind: 'agent-wait',
+				operationId: 'agent.session.wait',
+			},
+		] as const;
+
+		for (const candidate of cases) {
+			expect(parseSemanticCommandCliArguments(candidate.arguments)).toMatchObject({
+				command: {
+					input: candidate.input,
+					kind: candidate.kind,
+					operation: { id: candidate.operationId },
+				},
+				kind: 'parsed',
+			});
+		}
+	});
+
 	it('rejects unknown, duplicate, missing, and cross-command options', () => {
 		for (const arguments_ of [
 			[],
@@ -141,6 +201,15 @@ describe('parseSemanticCommandCliArguments', () => {
 			['terminal', 'list', '--standalone', '--project', 'project-1'],
 			['terminal', 'list', '--project', 'project-1'],
 			['terminal', 'create', '--standalone', '--cursor', 'not-accepted'],
+			['agent', 'list', '--limit', '101'],
+			['agent', 'get'],
+			['agent', 'get', 'bad identity/with spaces'],
+			['agent', 'get', 'session-1', '--all'],
+			['agent', 'wait', 'session-1', '--timeout', '0'],
+			['agent', 'wait', 'session-1', '--timeout', '3600001'],
+			['agent', 'wait', 'session-1', '--after-revision', '-1'],
+			['agent', 'wait', 'session-1', '--until', 'done'],
+			['agent', 'wait', 'session-1', '--until', 'idle', '--until', 'idle'],
 		]) {
 			expect(parseSemanticCommandCliArguments(arguments_)).toEqual({
 				code: 'cli-usage-invalid',

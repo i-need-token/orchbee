@@ -1,6 +1,6 @@
 ---
 name: orchbee
-description: Inspect or control the current Orchbee application through its injected CLI. Use when the user explicitly asks to inspect Orchbee Projects, Directories, Workspaces, or Terminals, create an Orchbee Terminal, or invoke an admitted Orchbee operation. Requires ORCHBEE_CLI.
+description: Inspect or control the current Orchbee application through its injected CLI. Use when the user explicitly asks to inspect Orchbee Projects, Directories, Workspaces, Terminals, or observed Agent Sessions; wait for an Agent state; create an Orchbee Terminal; or invoke an admitted Orchbee operation. Requires ORCHBEE_CLI.
 ---
 
 # Orchbee
@@ -35,15 +35,57 @@ These commands are read-only:
 "$ORCHBEE_CLI" workspace list --project <project-id>
 "$ORCHBEE_CLI" terminal list --standalone
 "$ORCHBEE_CLI" terminal list --project <project-id> --workspace <workspace-id>
+"$ORCHBEE_CLI" agent list
+"$ORCHBEE_CLI" agent get <session-id>
+"$ORCHBEE_CLI" agent explain <session-id>
 ```
 
-Use `--limit <1-200>` and the returned `nextCursor` for pagination. Use `--target <endpoint-id>`
-only when discovery reports multiple coordinators and an exact trusted endpoint ID is already known.
+Use `--limit <1-200>` for Workbench lists and `--limit <1-100>` for Agent lists, then pass the
+returned `nextCursor` to continue the same query. `agent list` returns live Sessions by default;
+`--all` also includes retained ended Sessions. Use `--target <endpoint-id>` only when discovery
+reports multiple coordinators and an exact trusted endpoint ID is already known.
 
 Default output is one compact, versioned JSON document. For a completed high-level command, the
 owner result is under `.result.execution.result.output`. Read IDs from that output; never derive
 them from names, list order, paths, examples, or another client's focused UI. `--output text` is
 pretty JSON for humans and is not a stable automation format.
+
+## Observe an Agent
+
+Select only an exact `sessionId` returned by `agent list` or another canonical Agent result. Never
+resolve a Session from a provider name, presentation label, path, process identity, screen text,
+list position, or focused UI. Inspect one retained Session or its status basis with:
+
+```sh
+"$ORCHBEE_CLI" agent get <session-id>
+"$ORCHBEE_CLI" agent explain <session-id>
+```
+
+`agent get` returns the canonical bounded snapshot and Agent-owned status projection. `agent
+explain` reports the source, fidelity, freshness, generation, sequence, capability ceiling, and
+canonical status basis. Neither command returns prompts, transcripts, commands, tool content,
+filesystem paths, environment values, provider errors, or screen-matcher evidence.
+
+Wait for a canonical condition on that same Session with:
+
+```sh
+"$ORCHBEE_CLI" agent wait <session-id>
+"$ORCHBEE_CLI" agent wait <session-id> --until needs-attention --until failed
+"$ORCHBEE_CLI" agent wait <session-id> --after-revision <revision> --timeout <milliseconds>
+```
+
+The default conditions are `needs-attention`, `failed`, `succeeded`, `canceled`, `interrupted`,
+`idle`, and `ended`. Explicit conditions may also include `working`, `unknown`, `fresh`, `stale`, or
+`disconnected`. Semantic-status conditions match only while the observation is fresh; request a
+health condition explicitly when degraded state is the result you need. `--after-revision` requires
+a strictly newer global Agent runtime revision. The timeout defaults to 600,000 milliseconds and is
+bounded from 1 to 3,600,000.
+
+This wait is a server-owned semantic execution. `SIGINT` or `SIGTERM` stops only this CLI process's
+local observation and does not cancel the waiter or the Agent. If later cancellation may be needed,
+start with `--detach`, retain the returned request or execution ID, and use `execution cancel` on
+that exact ID. Cancelling the wait still does not cancel Agent work. A coordinator restart makes an
+in-flight wait outcome unknown; report that uncertainty and do not replay it.
 
 ## Create a Terminal
 
@@ -94,7 +136,7 @@ uncertainty and do not replay the mutation.
 
 ## Current limits
 
-The installed command surface does not yet provide Agent list, read, wait, prompt, launch, approve,
-resume, or key input; Terminal output reading or input; Tab or Panel split, move, focus, or close; or
-remote control. Do not simulate those missing capabilities through screen inference or private
-protocols.
+The installed command surface does not yet provide Agent prompt, launch, approve, answer, resume,
+interrupt, stop, orchestration, or key input; Terminal output reading or input; Tab or Panel split,
+move, focus, or close; or remote control. Agent observation remains volatile across Desktop restart.
+Do not simulate missing capabilities through screen inference or private protocols.

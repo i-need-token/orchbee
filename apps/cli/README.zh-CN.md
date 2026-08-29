@@ -1,9 +1,9 @@
 # Orchbee CLI
 
 用于调用显式准入的 Orchbee semantic command 的产品所属 Node client。该 workspace 包含
-transport-independent client core、严格的通用与 Workbench command projection、版本匹配的内嵌 Agent
-Skill、lifecycle runner、可信本地 locator 和已认证 HTTP adapter，以及 Desktop distribution 使用的真实
-process entry。Desktop 创建的 Terminal 会获得一个精确 launcher path，而不需要全局安装。
+transport-independent client core、严格的通用、Workbench 与 Agent command projection、版本匹配的内嵌
+Agent Skill、lifecycle runner、可信本地 locator 和已认证 HTTP adapter，以及 Desktop distribution 使用的
+真实 process entry。Desktop 创建的 Terminal 会获得一个精确 launcher path，而不需要全局安装。
 
 ## Command 表面
 
@@ -27,14 +27,25 @@ orchbee directory list --project <project-id> [--limit <n>] [--cursor <cursor>]
 orchbee workspace list --project <project-id> [--limit <n>] [--cursor <cursor>]
 orchbee terminal list (--standalone | --project <project-id> --workspace <workspace-id>) [--limit <n>] [--cursor <cursor>]
 orchbee terminal create (--standalone | --project <project-id> --workspace <workspace-id>) [--directory <directory-id>] [--detach] [--request-id <request-id>]
-orchbee --skill
 ```
+
+生产 Desktop catalog 还准入四个只读 Agent observation operation。其高层 projection 为：
+
+```text
+orchbee agent list [--all] [--limit <n>] [--cursor <cursor>]
+orchbee agent get <session-id>
+orchbee agent explain <session-id>
+orchbee agent wait <session-id> [--until <condition>]... [--after-revision <revision>] [--timeout <milliseconds>] [--detach] [--request-id <request-id>]
+```
+
+`orchbee --skill` 是用于打印内嵌 Skill 的独立 coordinator-free command。
 
 每条连接 coordinator 的 command 都接受 `--target <endpoint-id>` 与 `--output json|text`。只有可信本地
 discovery 精确解析到一个 live coordinator 时，省略 target 才能成功。重复、未知或跨 command 的 option
 会在连接前失败。通用 invocation 从指定文件或 stdin 读取一个严格 UTF-8 JSON value。高层 command 通过
-Workbench 所有者导出的 schema 校验有界 argument，并恰好映射一个现有 operation。无效 input 会在分配
-request identity 或联系 Desktop 前被拒绝。
+Workbench 或 Agent 所有者导出的 schema 校验有界 argument，并恰好映射一个现有 operation。Workbench
+分页接受 1-200 项；Agent 分页接受 1-100 项且默认只包含 live Session，`--all` 会包含保留的 ended
+Session。无效 input 会在分配 request identity 或联系 Desktop 前被拒绝。
 
 默认输出恰好是 stdout 上一个紧凑、带版本的 JSON document。Invoke result 始终包含 request identity。
 `--output text` 是同一 document 的明确不稳定缩进 projection；automation 不得解析它。当前 runner 不会向
@@ -101,10 +112,18 @@ distribution-internal、version-locked launch artifact，不是全局 executable
 generation，并针对无效 input、格式错误的 response、transport failure 或本地取消的 observation，
 返回不带 payload 的 client error。
 
-Core 支持 status、operation list 与 description、owner-backed Workbench command projection、
+Core 支持 status、operation list 与 description、owner-backed Workbench 与 Agent command projection、
 invocation admission、execution lookup、cooperative cancellation，以及带边界 backoff 的等待。
-`waitForExecution` 只会重复执行只读 lookup。Abort caller signal 会停止本地 observation；它绝不调用
-invocation 或 cancellation，也不创建 server-side waiter。
+`waitForExecution` 只会重复执行只读 execution lookup。与之不同，`agent wait` 会在 canonical Agent
+snapshot source 上调用一个 server-owned asynchronous query，再通过同一 ledger 观察该 semantic
+execution。Abort CLI caller signal 只停止本地 execution observation；它绝不隐式调用 invocation 或
+cancellation。
+
+`agent wait` 固定一个精确 Session ID。默认条件包含 attention、outcome、idle 与 ended；重复的
+`--until` 可选择显式 semantic status，或 `fresh`、`stale` 与 `disconnected` 条件。Semantic status 只匹配
+fresh observation。`--after-revision` 要求严格更新的全局 Agent runtime revision，`--timeout` 范围为
+1 到 3,600,000 毫秒，默认 600,000 毫秒。使用 `--detach` 保留 request 或 execution identity，以便之后
+观察或显式执行 `execution cancel`。Coordinator generation 变化会让进行中的 wait 结果未知；CLI 绝不重放。
 
 Runner 最多调用一次 operation。Response 丢失后，它只会重连并观察同一个 request identity。不同的
 coordinator generation 会返回 `outcome-unknown-after-restart`，且绝不重放 mutation。位置参数形式的
@@ -133,11 +152,13 @@ replay、cancellation 或隐式启动 Desktop。SSH、Browser access、remote ta
 
 ## 所有权边界
 
-CLI 绝不读取 Workbench 数据文件、连接 Terminal Host、枚举产品 Action，也不存储或重建 feature state。
-它的高层 command 只构造通过 Workbench 所有者导出 semantic-command schema 校验的 input，并在调用前
-验证完整的预期公共 operation descriptor。Coordinator 拥有 catalog admission 与 execution；feature
-package 拥有 operation input、output、targeting 与 effect；protocol package 只拥有可序列化的通用 envelope。
-添加 CLI projection 不会授予 operation 权限。
+CLI 绝不读取 Workbench data file、provider 或 screen state、连接 Terminal Host、枚举产品 Action，也不
+存储或重建 feature state。高层 command 只构造由 Workbench 或 Agent 所有者导出的 semantic-command schema
+验证的 input，并在调用前验证完整的 expected public operation descriptor。Agent query 只返回 canonical
+bounded snapshot 与 projection；`agent explain` 描述 provenance、freshness、capability 与 status basis，
+但不公开 prompt、transcript、tool content、path、provider error 或 screen evidence。Coordinator 拥有
+catalog admission 与 execution；feature package 拥有 operation input、output、targeting 与 effect；
+protocol package 只拥有可序列化的通用 envelope。添加 CLI projection 不会授予 operation authority。
 
 ## 验证
 

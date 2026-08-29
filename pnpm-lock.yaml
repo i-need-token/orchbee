@@ -152,6 +152,9 @@ importers:
 
   apps/cli:
     dependencies:
+      '@orchbee/agent':
+        specifier: workspace:^
+        version: link:../../packages/agent
       '@orchbee/semantic-command-protocol':
         specifier: workspace:^
         version: link:../../packages/semantic-command-protocol

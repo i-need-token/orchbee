@@ -3,7 +3,7 @@
 	"domain": "agent",
 	"runtime": ["universal"],
 	"stability": "experimental",
-	"responsibility": "Provider-neutral observed Agent Session, Turn, Attention, Outcome, provenance, execution-location, multi-presentation attachment, deterministic transition, and presentation projection semantics.",
+	"responsibility": "Provider-neutral observed Agent Session, Turn, Attention, Outcome, provenance, execution-location, multi-presentation attachment, deterministic transition, presentation projection, and semantic-command read and wait-matching contracts.",
 	"nonGoals": [
 		"Owning provider hook installation, provider payload parsing, terminal lifecycle, transport, persistence, notification effects, or application composition.",
 		"Launching Agents, submitting prompts, answering questions, approving requests, or granting a provider-native decision channel.",

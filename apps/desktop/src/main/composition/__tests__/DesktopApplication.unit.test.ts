@@ -575,7 +575,7 @@ describe('DesktopApplication', () => {
 		expect(harness.dependencies.connectHost).not.toHaveBeenCalled();
 	});
 
-	it('publishes only the five accepted Workbench operations through one local endpoint', async () => {
+	it('publishes only the accepted Workbench and Agent operations through one local endpoint', async () => {
 		const harness = createHarness();
 		const application = createApplication(harness.dependencies);
 
@@ -590,6 +590,10 @@ describe('DesktopApplication', () => {
 				.list({ kind: 'local-user' })
 				.operations.map((operation) => operation.id),
 		).toEqual([
+			'agent.session.explain',
+			'agent.session.get',
+			'agent.session.list',
+			'agent.session.wait',
 			'workbench.directory.list',
 			'workbench.project.list',
 			'workbench.terminal.create',

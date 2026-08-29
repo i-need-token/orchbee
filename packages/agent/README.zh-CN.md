@@ -41,6 +41,28 @@ open attention > failed/canceled/interrupted > succeeded > active Turn > idle > 
 
 Freshness 保持为独立 overlay，不能把 stale work 静默变成 idle。每个 attachment 获得同一份 Session 语义，因此一个 remote execution 可以如实 fan out 到多个 local Panel 或 Tab，而不重复 Turn、request、outcome 或 semantic event。当仍有 live Session 时，presentation aggregation 排除 retained ended Session，并从产生 resolved status 的 Session 或 attention 集合派生 freshness，因此较低优先级的 disconnected Session 不会降低无关 fresh work 的状态。对于具有多个 retained attachment generation 的 presentation ID，依次优先选择 navigable generation、更新鲜的 observation、更高 semantic priority，最后按稳定 generation 顺序选择。Provider identity 与 semantic status 保持分离，因此应用可以使用 curated localized name 与 icon，而不会接受 provider 控制的 product copy 或 markup。
 
+## Semantic command read model
+
+该 package 拥有 `agent.session.list`、`agent.session.get`、`agent.session.explain` 与
+`agent.session.wait` 的严格 version-1 契约。这些 descriptor、schema 与确定性 projection helper 独立于
+transport 与 application。Desktop application composition 可以在 `AgentSnapshotSource` 上准入它们；CLI
+只有在完整 live descriptor 匹配该 package 契约后，才能公开高层 projection。
+
+`agent.session.list` 从一个 runtime revision 投影稳定 summary，默认只包含 live Session，可选包含保留的
+ended Session，并把一页限制在 100 项。`agent.session.get` 返回精确保留的 canonical Session snapshot 与
+其 semantic status。`agent.session.explain` 额外提供 source、fidelity、freshness meaning、generation、
+sequence、capability ceiling 与 canonical status basis。Explanation 保持 `navigate-only` 且不含内容：
+它绝不伪造 prompt、transcript、command、tool、path、provider error、adapter correlation 或
+screen-matcher evidence。
+
+`agent.session.wait` 定义 exact-Session matching，但不拥有 clock、subscription、execution ledger、
+timeout effect 或 coordinator lifecycle。其默认 condition 包含 attention、全部 outcome、idle 与 ended。
+显式 condition 可以选择任意 semantic status，或 `fresh`、`stale` 与 `disconnected` health value。
+Semantic status 只在 observation fresh 时匹配；health 只匹配精确请求的值。可选 `afterRevision` 要求严格
+更新的全局 runtime revision。Application-owned asynchronous handler 必须先 subscribe 再进行 decisive
+recheck，并返回一个精确 matching snapshot，或显式 missing、ahead、timeout、cancellation 或
+coordinator-retirement outcome。
+
 ## 当前应用组合
 
 Desktop 在 application lifetime 内拥有一个 volatile `DesktopAgentObservationRuntime`。Renderer document replacement 只退役旧 broker；runtime 保持存活，下一个 renderer 通过严格的 `@orchbee/desktop-client-protocol` Agent-observation port 请求 fresh full snapshot。该 port 的 version 2 还会在 snapshot 更新后发布精确 semantic event，使 renderer 可以评估一次 notification effect，而不用从状态重建事件。Web adapter 拒绝 malformed 或 uncorrelated message，并忽略 non-increasing revision。Workbench 消费狭窄的 `AgentSnapshotSource`，把非 ended 状态投影到精确 terminal panel header，并把一个 Tab 内的全部 terminal presentation 去重为一个 provider identity icon 与一个本地化的非 ended status adornment。保留的 ended state 只继续显示 provider identity icon。
@@ -53,9 +75,22 @@ Desktop 准入两个 non-blocking observation half。严格的 terminal-signal a
 
 Unit 与 property test 覆盖 transition guard、精确 attention capability 准入、durable request、outcome cleanup、无 outcome 的 idle settlement、stale overlay、Session end、source capability ceiling、reconnect、presentation-generation fencing、multi-attachment fan-out 与 retirement、schema invariant、runtime disposal 与 deterministic projection。
 
+Semantic-command contract 与 projection test 还覆盖默认和显式 wait condition、fresh-only semantic
+matching、health matching、status-basis explanation、content absence、ended filtering 与 bounded schema。
+Desktop operation test refinement 覆盖 pagination、exact-identity read、subscribe-before-recheck waiting、
+revision fencing、timeout、cancellation 与 synchronous subscription race。
+
 [`formal/tla/AgentRuntime.tla`](formal/tla/AgentRuntime.tla) 是有界 asynchronous model。它包含两个 Session、两个 client view、两个 observation generation、交错的 attention 与 reconnect lifecycle、limited 与 Turn activity、无 outcome 的 idle settlement、client acknowledgement、visibility、notification candidate、snapshot publication 与 renderer reconnect。TLC 检查 acknowledgement 不能解决 request、stale-generation rejection 保留 canonical state、limited activity 只改变其 hint、idle observation 不能伪造 outcome 或 notification candidate、activity 不创建 notification candidate、candidate 必须 fresh/live/invisible 且基于 attention 或 failure、generation 只在 reconnect 时改变、ended Session 没有 active work、client revision 不超过 publication，以及 observed 或 recovered snapshot 与 published canonical state 精确一致。Required action coverage 防止模型在未触达关键动作时空洞通过。
 
 该模型不证明无界 Session 或 event count、upstream provider truthfulness、adapter payload correctness、liveness 或 provider termination、平台 notification delivery、pixel appearance，或 application restart 后的连续性。
+
+[`../../apps/desktop/formal/tla/AgentSemanticWait.tla`](../../apps/desktop/formal/tla/AgentSemanticWait.tla)
+是 application-composition wait model。其有界状态包含两个 Session、两个 semantic status、三个 health
+value、两次 Agent mutation（revision 0 到 2）与两个 coordinator generation。TLC 检查 exact subscription ownership、
+subscribe-before-decisive-recheck eligibility、fresh-only semantic match、精确 matched output、没有伪造的
+unmatched output、Agent-only revision ownership，以及显式 missing、future-baseline、timeout、
+cancellation 与 coordinator-retirement path。这些边界不证明无界 waiter、time、revision、Session 或
+restart continuity。
 
 ## 验证
 

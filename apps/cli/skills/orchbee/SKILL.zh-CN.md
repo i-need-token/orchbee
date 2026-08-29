@@ -1,6 +1,6 @@
 ---
 name: orchbee
-description: 通过注入的 CLI 检查或控制当前 Orchbee 应用。当用户明确要求检查 Orchbee Project、Directory、Workspace 或 Terminal，创建 Orchbee Terminal，或调用已准入的 Orchbee 操作时使用。需要 ORCHBEE_CLI。
+description: 通过注入的 CLI 检查或控制当前 Orchbee 应用。当用户明确要求检查 Orchbee Project、Directory、Workspace、Terminal 或已观测 Agent Session，等待 Agent 状态，创建 Orchbee Terminal，或调用已准入的 Orchbee 操作时使用。需要 ORCHBEE_CLI。
 ---
 
 # Orchbee
@@ -35,14 +35,54 @@ if (-not $env:ORCHBEE_CLI) { throw 'Orchbee CLI context is unavailable.' }
 "$ORCHBEE_CLI" workspace list --project <project-id>
 "$ORCHBEE_CLI" terminal list --standalone
 "$ORCHBEE_CLI" terminal list --project <project-id> --workspace <workspace-id>
+"$ORCHBEE_CLI" agent list
+"$ORCHBEE_CLI" agent get <session-id>
+"$ORCHBEE_CLI" agent explain <session-id>
 ```
 
-使用 `--limit <1-200>` 和返回的 `nextCursor` 分页。只有在发现报告多个协调器且已知一个精确可信
-endpoint ID 时，才使用 `--target <endpoint-id>`。
+Workbench list 使用 `--limit <1-200>`，Agent list 使用 `--limit <1-100>`，然后把返回的
+`nextCursor` 传给同一 query 继续分页。`agent list` 默认返回 live Session；`--all` 还会包含保留的
+ended Session。只有在发现报告多个协调器且已知一个精确可信 endpoint ID 时，才使用
+`--target <endpoint-id>`。
 
 默认输出是一个紧凑、带版本的 JSON 文档。高层命令完成后，所有者结果位于
 `.result.execution.result.output`。从该输出读取 ID；绝不根据名称、列表顺序、路径、示例或另一客户端
 聚焦的 UI 推导 ID。`--output text` 是供人阅读的美化 JSON，不是稳定的自动化格式。
+
+## 观察 Agent
+
+只选择 `agent list` 或其他 canonical Agent result 返回的精确 `sessionId`。绝不根据 provider name、
+presentation label、path、process identity、screen text、list position 或 focused UI 解析 Session。使用以下
+命令检查一个保留的 Session 或其 status basis：
+
+```sh
+"$ORCHBEE_CLI" agent get <session-id>
+"$ORCHBEE_CLI" agent explain <session-id>
+```
+
+`agent get` 返回 canonical bounded snapshot 与 Agent-owned status projection。`agent explain` 报告
+source、fidelity、freshness、generation、sequence、capability ceiling 与 canonical status basis。两条
+命令都不返回 prompt、transcript、command、tool content、filesystem path、environment value、provider
+error 或 screen-matcher evidence。
+
+使用以下命令等待同一 Session 的 canonical condition：
+
+```sh
+"$ORCHBEE_CLI" agent wait <session-id>
+"$ORCHBEE_CLI" agent wait <session-id> --until needs-attention --until failed
+"$ORCHBEE_CLI" agent wait <session-id> --after-revision <revision> --timeout <milliseconds>
+```
+
+默认 condition 是 `needs-attention`、`failed`、`succeeded`、`canceled`、`interrupted`、`idle` 与
+`ended`。显式 condition 还可以包含 `working`、`unknown`、`fresh`、`stale` 或 `disconnected`。
+Semantic-status condition 只在 observation fresh 时匹配；如果需要 degraded state 作为结果，应显式请求
+health condition。`--after-revision` 要求严格更新的全局 Agent runtime revision。Timeout 默认为
+600,000 毫秒，范围为 1 到 3,600,000。
+
+该 wait 是 server-owned semantic execution。`SIGINT` 或 `SIGTERM` 只停止该 CLI process 的本地观察，
+不会取消 waiter 或 Agent。如果之后可能需要取消，应使用 `--detach` 启动，保留返回的 request 或 execution
+ID，再对该精确 ID 使用 `execution cancel`。取消 wait 仍不会取消 Agent 工作。Coordinator restart 会让
+进行中的 wait 结果未知；应报告该不确定性且不得重放。
 
 ## 创建 Terminal
 
@@ -89,6 +129,6 @@ Terminal 创建是产品修改。仅当用户请求新 Terminal，或已授权�
 
 ## 当前限制
 
-已安装命令面尚不提供 Agent list、read、wait、prompt、launch、approve、resume 或按键输入；
-Terminal 输出读取或输入；Tab 或 Panel split、move、focus 或 close；以及远程控制。
-不要通过屏幕推断或私有协议模拟这些缺失能力。
+已安装命令面尚不提供 Agent prompt、launch、approve、answer、resume、interrupt、stop、orchestration
+或按键输入；Terminal 输出读取或输入；Tab 或 Panel split、move、focus 或 close；以及远程控制。Agent
+observation 在 Desktop restart 后仍不连续。不要通过屏幕推断或私有协议模拟缺失能力。

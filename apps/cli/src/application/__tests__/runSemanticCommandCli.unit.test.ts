@@ -1,6 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+	AGENT_SESSION_EXPLAIN_OPERATION,
+	AGENT_SESSION_GET_OPERATION,
+	AGENT_SESSION_LIST_OPERATION,
+	AGENT_SESSION_WAIT_OPERATION,
+} from '@orchbee/agent';
+import {
 	SemanticCommandCoordinatorGenerationSchema,
 	SemanticCommandExecutionSnapshotSchema,
 	SemanticCommandInvocationResultSchema,
@@ -38,7 +44,11 @@ const descriptor = SemanticCommandOperationDescriptorSchema.parse({
 	retry: 'same-request-while-retained',
 	schemaVersion: 1,
 });
-const workbenchOperations = [
+const ownedOperations = [
+	AGENT_SESSION_EXPLAIN_OPERATION,
+	AGENT_SESSION_GET_OPERATION,
+	AGENT_SESSION_LIST_OPERATION,
+	AGENT_SESSION_WAIT_OPERATION,
 	WORKBENCH_PROJECT_LIST_OPERATION,
 	WORKBENCH_DIRECTORY_LIST_OPERATION,
 	WORKBENCH_WORKSPACE_LIST_OPERATION,
@@ -47,7 +57,7 @@ const workbenchOperations = [
 ] as const;
 
 function descriptorFor(operationId: string) {
-	const operation = workbenchOperations.find((candidate) => candidate.id === operationId);
+	const operation = ownedOperations.find((candidate) => candidate.id === operationId);
 	if (operation === undefined) throw new Error(`Unknown test operation: ${operationId}`);
 	return SemanticCommandOperationDescriptorSchema.parse(operation);
 }
@@ -183,6 +193,7 @@ describe('runSemanticCommandCli', () => {
 		expect(result).toMatchObject({ exitCode: 0, stderr: '' });
 		expect(result.stdout).toContain('name: orchbee');
 		expect(result.stdout).toContain('"$ORCHBEE_CLI" project list');
+		expect(result.stdout).toContain('"$ORCHBEE_CLI" agent wait');
 		expect(result.stdout.endsWith('\n')).toBe(true);
 		expect(connect).not.toHaveBeenCalled();
 		expect(createRequestIdentity).not.toHaveBeenCalled();
@@ -294,6 +305,93 @@ describe('runSemanticCommandCli', () => {
 					input: candidate.input,
 					operationId: candidate.operationId,
 				}),
+			);
+		}
+	});
+
+	it('invokes each high-level Agent command through its exact owner contract', async () => {
+		const cases = [
+			{
+				arguments: ['agent', 'list', '--all', '--limit', '20'],
+				command: 'agent.list',
+				input: { includeEnded: true, limit: 20 },
+				operationId: 'agent.session.list',
+			},
+			{
+				arguments: ['agent', 'get', 'session-1'],
+				command: 'agent.get',
+				input: { sessionId: 'session-1' },
+				operationId: 'agent.session.get',
+			},
+			{
+				arguments: ['agent', 'explain', 'session-1'],
+				command: 'agent.explain',
+				input: { sessionId: 'session-1' },
+				operationId: 'agent.session.explain',
+			},
+			{
+				arguments: [
+					'agent',
+					'wait',
+					'session-1',
+					'--until',
+					'needs-attention',
+					'--until',
+					'succeeded',
+					'--after-revision',
+					'2',
+					'--timeout',
+					'30000',
+				],
+				command: 'agent.wait',
+				input: {
+					afterRevision: 2,
+					sessionId: 'session-1',
+					timeoutMilliseconds: 30_000,
+					until: ['needs-attention', 'succeeded'],
+				},
+				operationId: 'agent.session.wait',
+			},
+		] as const;
+
+		for (const candidate of cases) {
+			const invoke = vi.fn<SemanticCommandClientPort['invoke']>(async (request) => ({
+				execution: terminalExecution(
+					SemanticCommandTerminalResultSchema.parse({
+						code: 'owner-completed',
+						kind: 'completed',
+						output: {},
+					}),
+					request.requestIdentity,
+					'desktop:execution:agent',
+					generationOne,
+					descriptorFor(request.operationId),
+				),
+				kind: 'accepted',
+				replayed: false,
+			}));
+			const fixture = clientWith({
+				describeOperation: async (operationId) =>
+					SemanticCommandOperationDescriptionResultSchema.parse({
+						coordinatorGeneration: generationOne,
+						kind: 'operation-description',
+						operation: descriptorFor(operationId),
+						protocolVersion: 1,
+					}),
+				invoke,
+			});
+			const result = await runSemanticCommandCli(
+				candidate.arguments,
+				dependenciesWith(connected(fixture.client)),
+			);
+
+			expect(result.exitCode).toBe(0);
+			expect(output(result)).toMatchObject({
+				command: candidate.command,
+				requestIdentity: 'cli:request:1',
+			});
+			expect(invoke).toHaveBeenCalledWith(
+				expect.objectContaining({ input: candidate.input, operationId: candidate.operationId }),
 			);
 		}
 	});

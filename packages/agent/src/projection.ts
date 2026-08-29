@@ -1,5 +1,7 @@
+import { z } from 'zod';
+
+import { AgentActivitySchema } from './model';
 import type {
-	AgentActivity,
 	AgentExecutionLocation,
 	AgentObservation,
 	AgentPresentationAttachment,
@@ -9,19 +11,23 @@ import type {
 	AgentSessionSnapshot,
 } from './model';
 
-export type AgentSemanticStatus =
-	| { readonly count: number; readonly kind: 'needs-attention' }
-	| { readonly kind: 'failed' }
-	| { readonly kind: 'succeeded' }
-	| { readonly kind: 'canceled' | 'interrupted' }
-	| {
-			readonly activity: AgentActivity | null;
-			readonly kind: 'working';
-			readonly phase: 'queued' | 'working' | 'waiting-external';
-	  }
-	| { readonly kind: 'idle' }
-	| { readonly activityHint: AgentActivity | null; readonly kind: 'unknown' }
-	| { readonly kind: 'ended' };
+export const AgentSemanticStatusSchema = z.discriminatedUnion('kind', [
+	z.strictObject({ count: z.number().int().positive().safe(), kind: z.literal('needs-attention') }),
+	z.strictObject({ kind: z.literal('failed') }),
+	z.strictObject({ kind: z.literal('succeeded') }),
+	z.strictObject({ kind: z.literal('canceled') }),
+	z.strictObject({ kind: z.literal('interrupted') }),
+	z.strictObject({
+		activity: AgentActivitySchema.nullable(),
+		kind: z.literal('working'),
+		phase: z.enum(['queued', 'working', 'waiting-external']),
+	}),
+	z.strictObject({ kind: z.literal('idle') }),
+	z.strictObject({ activityHint: AgentActivitySchema.nullable(), kind: z.literal('unknown') }),
+	z.strictObject({ kind: z.literal('ended') }),
+]);
+
+export type AgentSemanticStatus = z.infer<typeof AgentSemanticStatusSchema>;
 
 export interface AgentSessionPresentation {
 	readonly executionLocation: AgentExecutionLocation;

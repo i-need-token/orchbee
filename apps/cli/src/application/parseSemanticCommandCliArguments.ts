@@ -1,4 +1,16 @@
 import {
+	AGENT_SESSION_EXPLAIN_OPERATION,
+	AGENT_SESSION_GET_OPERATION,
+	AGENT_SESSION_LIST_OPERATION,
+	AGENT_SESSION_WAIT_OPERATION,
+	AgentSessionListInputSchema,
+	AgentSessionTargetInputSchema,
+	AgentSessionWaitInputSchema,
+	AgentSessionIdSchema,
+	AgentWaitConditionSchema,
+	type AgentWaitCondition,
+} from '@orchbee/agent';
+import {
 	SemanticCommandJsonValueSchema,
 	SemanticCommandOperationDescriptorSchema,
 	SemanticCommandOperationIdSchema,
@@ -72,13 +84,19 @@ export type SemanticCommandCliCommand =
 	| (SemanticCommandCliOwnedInvocationBase & { readonly kind: 'directory-list' })
 	| (SemanticCommandCliOwnedInvocationBase & { readonly kind: 'workspace-list' })
 	| (SemanticCommandCliOwnedInvocationBase & { readonly kind: 'terminal-list' })
-	| (SemanticCommandCliOwnedInvocationBase & { readonly kind: 'terminal-create' });
+	| (SemanticCommandCliOwnedInvocationBase & { readonly kind: 'terminal-create' })
+	| (SemanticCommandCliOwnedInvocationBase & { readonly kind: 'agent-list' })
+	| (SemanticCommandCliOwnedInvocationBase & { readonly kind: 'agent-get' })
+	| (SemanticCommandCliOwnedInvocationBase & { readonly kind: 'agent-explain' })
+	| (SemanticCommandCliOwnedInvocationBase & { readonly kind: 'agent-wait' });
 
 export type SemanticCommandCliArgumentParseResult =
 	| { readonly code: 'cli-usage-invalid' | 'output-selection-invalid'; readonly kind: 'error' }
 	| { readonly command: SemanticCommandCliCommand; readonly kind: 'parsed' };
 
 interface ParsedOptions {
+	afterRevision: number | undefined;
+	all: boolean;
 	cursor: string | undefined;
 	detach: boolean;
 	directoryId: string | undefined;
@@ -89,6 +107,8 @@ interface ParsedOptions {
 	projectId: string | undefined;
 	requestIdentity: SemanticCommandRequestIdentity | undefined;
 	standalone: boolean;
+	timeoutMilliseconds: number | undefined;
+	until: readonly AgentWaitCondition[];
 	workspaceId: string | undefined;
 }
 
@@ -165,9 +185,74 @@ export function parseSemanticCommandCliArguments(
 			kind: 'parsed',
 		};
 	}
+	const agentCommand = parseAgentFacadeCommand(positionals, usedOptions, options, base);
+	if (agentCommand !== null) return agentCommand;
 	const workbenchCommand = parseWorkbenchFacadeCommand(positionals, usedOptions, options, base);
 	if (workbenchCommand !== null) return workbenchCommand;
 	return usageError();
+}
+
+function parseAgentFacadeCommand(
+	positionals: readonly string[],
+	usedOptions: ReadonlySet<string>,
+	options: ParsedOptions,
+	base: SemanticCommandCliCommandBase,
+): Extract<SemanticCommandCliArgumentParseResult, { readonly kind: 'parsed' }> | null {
+	if (
+		matches(positionals, ['agent', 'list']) &&
+		onlyUses(usedOptions, ['all', 'cursor', 'limit', 'output', 'target'])
+	) {
+		const input = AgentSessionListInputSchema.safeParse({
+			...(options.cursor === undefined ? {} : { cursor: options.cursor }),
+			includeEnded: options.all,
+			...(options.limit === undefined ? {} : { limit: options.limit }),
+		});
+		return input.success
+			? ownedInvocation(base, 'agent-list', AGENT_SESSION_LIST_OPERATION, input.data)
+			: null;
+	}
+	if (
+		positionals.length === 3 &&
+		positionals[0] === 'agent' &&
+		(positionals[1] === 'get' || positionals[1] === 'explain') &&
+		onlyUses(usedOptions, ['output', 'target'])
+	) {
+		const sessionId = AgentSessionIdSchema.safeParse(positionals[2]);
+		if (!sessionId.success) return null;
+		const input = AgentSessionTargetInputSchema.parse({ sessionId: sessionId.data });
+		return positionals[1] === 'get'
+			? ownedInvocation(base, 'agent-get', AGENT_SESSION_GET_OPERATION, input)
+			: ownedInvocation(base, 'agent-explain', AGENT_SESSION_EXPLAIN_OPERATION, input);
+	}
+	if (
+		positionals.length === 3 &&
+		positionals[0] === 'agent' &&
+		positionals[1] === 'wait' &&
+		onlyUses(usedOptions, [
+			'after-revision',
+			'detach',
+			'output',
+			'request-id',
+			'target',
+			'timeout',
+			'until',
+		])
+	) {
+		const sessionId = AgentSessionIdSchema.safeParse(positionals[2]);
+		if (!sessionId.success) return null;
+		const input = AgentSessionWaitInputSchema.safeParse({
+			...(options.afterRevision === undefined ? {} : { afterRevision: options.afterRevision }),
+			sessionId: sessionId.data,
+			...(options.timeoutMilliseconds === undefined
+				? {}
+				: { timeoutMilliseconds: options.timeoutMilliseconds }),
+			...(options.until.length === 0 ? {} : { until: options.until }),
+		});
+		return input.success
+			? ownedInvocation(base, 'agent-wait', AGENT_SESSION_WAIT_OPERATION, input.data, options)
+			: null;
+	}
+	return null;
 }
 
 function parseWorkbenchFacadeCommand(
@@ -306,6 +391,8 @@ function collectArguments(arguments_: readonly string[]):
 			readonly usedOptions: ReadonlySet<string>;
 	  }
 	| Extract<SemanticCommandCliArgumentParseResult, { readonly kind: 'error' }> {
+	let afterRevision: number | undefined;
+	let all = false;
 	let cursor: string | undefined;
 	let detach = false;
 	let directoryId: string | undefined;
@@ -316,6 +403,8 @@ function collectArguments(arguments_: readonly string[]):
 	let projectId: string | undefined;
 	let requestIdentity: SemanticCommandRequestIdentity | undefined;
 	let standalone = false;
+	let timeoutMilliseconds: number | undefined;
+	const until: AgentWaitCondition[] = [];
 	let workspaceId: string | undefined;
 	const positionals: string[] = [];
 	const usedOptions = new Set<string>();
@@ -327,14 +416,16 @@ function collectArguments(arguments_: readonly string[]):
 			continue;
 		}
 		const option = argument.slice(2);
-		if (usedOptions.has(option)) return usageError();
+		if (usedOptions.has(option) && option !== 'until') return usageError();
 		usedOptions.add(option);
-		if (option === 'detach' || option === 'standalone') {
+		if (option === 'all' || option === 'detach' || option === 'standalone') {
 			if (option === 'detach') detach = true;
-			else standalone = true;
+			else if (option === 'standalone') standalone = true;
+			else all = true;
 			continue;
 		}
 		if (
+			option !== 'after-revision' &&
 			option !== 'cursor' &&
 			option !== 'directory' &&
 			option !== 'input-file' &&
@@ -343,13 +434,19 @@ function collectArguments(arguments_: readonly string[]):
 			option !== 'project' &&
 			option !== 'request-id' &&
 			option !== 'target' &&
+			option !== 'timeout' &&
+			option !== 'until' &&
 			option !== 'workspace'
 		) {
 			return usageError();
 		}
 		const value = arguments_[++index];
 		if (value === undefined || value.length === 0 || value.startsWith('--')) return usageError();
-		if (option === 'cursor') {
+		if (option === 'after-revision') {
+			if (!/^(?:0|[1-9]\d*)$/u.test(value)) return usageError();
+			afterRevision = Number(value);
+			if (!Number.isSafeInteger(afterRevision)) return usageError();
+		} else if (option === 'cursor') {
 			if (value.length > 4096) return usageError();
 			cursor = value;
 		} else if (option === 'directory') {
@@ -378,6 +475,16 @@ function collectArguments(arguments_: readonly string[]):
 			const parsed = SemanticCommandLocalEndpointIdSchema.safeParse(value);
 			if (!parsed.success) return usageError();
 			endpointId = parsed.data;
+		} else if (option === 'timeout') {
+			if (!/^[1-9]\d*$/u.test(value)) return usageError();
+			timeoutMilliseconds = Number(value);
+			if (!Number.isSafeInteger(timeoutMilliseconds) || timeoutMilliseconds > 3_600_000) {
+				return usageError();
+			}
+		} else if (option === 'until') {
+			const parsed = AgentWaitConditionSchema.safeParse(value);
+			if (!parsed.success || until.includes(parsed.data)) return usageError();
+			until.push(parsed.data);
 		} else {
 			if (value.length > 512) return usageError();
 			workspaceId = value;
@@ -386,6 +493,8 @@ function collectArguments(arguments_: readonly string[]):
 	return {
 		kind: 'collected',
 		options: {
+			afterRevision,
+			all,
 			cursor,
 			detach,
 			directoryId,
@@ -396,6 +505,8 @@ function collectArguments(arguments_: readonly string[]):
 			projectId,
 			requestIdentity,
 			standalone,
+			timeoutMilliseconds,
+			until,
 			workspaceId,
 		},
 		positionals,
