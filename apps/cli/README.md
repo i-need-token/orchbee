@@ -1,14 +1,14 @@
 # Orchbee CLI
 
 Product-owned Node client for invoking explicitly admitted Orchbee semantic commands. The workspace
-contains the transport-independent client core, strict command parser and lifecycle runner, the
-trusted local locator and authenticated HTTP adapter, and the real process entry used by the
-Desktop distribution. Desktop-created terminals receive one exact launcher path without a global
-installation.
+contains the transport-independent client core, strict generic and Workbench command projections,
+the release-matched embedded Agent Skill, lifecycle runner, trusted local locator and authenticated
+HTTP adapter, and the real process entry used by the Desktop distribution. Desktop-created
+terminals receive one exact launcher path without a global installation.
 
 ## Command surface
 
-The application runner accepts only these command families:
+The application runner accepts these generic command families:
 
 ```text
 orchbee status
@@ -20,16 +20,30 @@ orchbee execution wait <request-or-execution-id>
 orchbee execution cancel <request-or-execution-id>
 ```
 
-Every command accepts `--target <endpoint-id>` and `--output json|text`. Omitted targets succeed
-only when trusted local discovery resolves exactly one live coordinator. Duplicate, unknown, or
-cross-command options fail before connection. Invocation reads one strict UTF-8 JSON value from the
-named file or stdin and rejects malformed or over-capacity input before allocating a request
-identity or contacting Desktop.
+It also provides high-level projections over the five Workbench operations already admitted by the
+production Desktop catalog:
+
+```text
+orchbee project list [--limit <n>] [--cursor <cursor>]
+orchbee directory list --project <project-id> [--limit <n>] [--cursor <cursor>]
+orchbee workspace list --project <project-id> [--limit <n>] [--cursor <cursor>]
+orchbee terminal list (--standalone | --project <project-id> --workspace <workspace-id>) [--limit <n>] [--cursor <cursor>]
+orchbee terminal create (--standalone | --project <project-id> --workspace <workspace-id>) [--directory <directory-id>] [--detach] [--request-id <request-id>]
+orchbee --skill
+```
+
+Every coordinator-backed command accepts `--target <endpoint-id>` and `--output json|text`. Omitted
+targets succeed only when trusted local discovery resolves exactly one live coordinator. Duplicate,
+unknown, or cross-command options fail before connection. Generic invocation reads one strict UTF-8
+JSON value from the named file or stdin. High-level commands validate bounded arguments through the
+Workbench owner's exported schemas and map to exactly one existing operation. Invalid input is
+rejected before allocating a request identity or contacting Desktop.
 
 Default output is exactly one compact versioned JSON document on stdout. Invoke results always
 include the request identity. `--output text` is an explicitly unstable indented projection of that
 same document; automation must not parse it. The current runner emits no payload-bearing stderr
-diagnostics.
+diagnostics. `--skill` is the deliberate exception: it prints the canonical Agent Skill bundled in
+the same build, performs no runtime file read, and makes no coordinator connection.
 
 | Exit | Meaning                                                                              |
 | ---- | ------------------------------------------------------------------------------------ |
@@ -63,6 +77,7 @@ For example, after Desktop creates a POSIX Terminal:
 
 ```sh
 "$ORCHBEE_CLI" status
+"$ORCHBEE_CLI" --skill
 ```
 
 PowerShell uses the same injected path through `& $env:ORCHBEE_CLI status`. These are
@@ -71,17 +86,17 @@ package-manager installation, or stable third-party embedding API.
 
 ### Process model
 
-| Field        | Contract                                                                                                                                                                                                                      |
-| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Problem      | A human, Agent, or Skill already running in a Desktop-owned Terminal needs one nonvisual invocation path to the same live local coordinator without global installation or another state owner.                               |
-| Inputs       | Arguments, file paths, file/stdin bytes, and signals are untrusted. The code-located launcher, native addon location, and Desktop-selected runtime directory are trusted product composition.                                 |
-| Data         | The process owns no durable state. It holds one bounded input buffer, one caller-generated request identity when invoking, and one transient client connection.                                                               |
-| Outputs      | One versioned stdout document and one exit code. Current stderr is empty; operation input and result payloads never enter diagnostics.                                                                                        |
-| Invariants   | Parse precedes connection; input is capped before JSON decoding; one invocation is submitted at most once; one process writes its result once; no launch path changes operation authority.                                    |
-| Decisions    | Command grammar selects the runner branch; `--target` selects one exact validated endpoint; `--input-file -` selects bounded stdin instead of a bounded file; the output option selects only serialization.                   |
-| Model        | `runSemanticCommandCliProcess` composes the deterministic runner with filesystem, randomness, trusted locator, and native-transport capabilities. `startSemanticCommandCliProcess` owns signal registration and final writes. |
-| Cancellation | `SIGINT` and `SIGTERM` abort only CLI-owned execution observation. They never issue semantic cancellation; business cancellation still requires `execution cancel`.                                                           |
-| Verification | Unit tests control input, configuration, signals, and writes. Desktop native integration launches the built entry with Node, Electron's Node mode, and the exact product launcher against one real private endpoint.          |
+| Field        | Contract                                                                                                                                                                                                                                      |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Problem      | A human, Agent, or Skill already running in a Desktop-owned Terminal needs one nonvisual invocation path to the same live local coordinator without global installation or another state owner.                                               |
+| Inputs       | Arguments, high-level owner-backed inputs, file paths, file/stdin bytes, and signals are untrusted. The code-located launcher, embedded Skill, native addon location, and Desktop-selected runtime directory are trusted product composition. |
+| Data         | The process owns no durable state. It holds one bounded input buffer, one caller-generated request identity when invoking, and one transient client connection.                                                                               |
+| Outputs      | One versioned stdout document or the exact embedded Skill, plus one exit code. Current stderr is empty; operation input and result payloads never enter diagnostics.                                                                          |
+| Invariants   | Parse precedes connection; input is capped before JSON decoding; one invocation is submitted at most once; one process writes its result once; no launch path changes operation authority.                                                    |
+| Decisions    | Command grammar selects the runner branch; `--target` selects one exact validated endpoint; `--input-file -` selects bounded stdin instead of a bounded file; the output option selects only serialization.                                   |
+| Model        | `runSemanticCommandCliProcess` composes the deterministic runner with filesystem, randomness, trusted locator, and native-transport capabilities. `startSemanticCommandCliProcess` owns signal registration and final writes.                 |
+| Cancellation | `SIGINT` and `SIGTERM` abort only CLI-owned execution observation. They never issue semantic cancellation; business cancellation still requires `execution cancel`.                                                                           |
+| Verification | Unit tests control input, configuration, signals, and writes. Desktop native integration launches the built entry with Node, Electron's Node mode, and the exact product launcher against one real private endpoint.                          |
 
 ## Client boundary
 
@@ -90,10 +105,11 @@ unknown response with `@orchbee/semantic-command-protocol`, rejects a mismatched
 generation, and returns payload-free client errors for invalid input, malformed response, transport
 failure, or locally cancelled observation.
 
-The core supports status, operation list and description, invocation admission, execution lookup,
-cooperative cancellation, and bounded-backoff waiting. `waitForExecution` repeatedly performs only
-the read-only lookup. Aborting the caller signal stops local observation; it never calls invocation
-or cancellation and never creates a server-side waiter.
+The core supports status, operation list and description, owner-backed Workbench command
+projections, invocation admission, execution lookup, cooperative cancellation, and bounded-backoff
+waiting. `waitForExecution` repeatedly performs only the read-only lookup. Aborting the caller
+signal stops local observation; it never calls invocation or cancellation and never creates a
+server-side waiter.
 
 The runner invokes an operation at most once. After a lost response, it reconnects and observes the
 same request identity only. A different coordinator generation returns
@@ -125,10 +141,12 @@ presentation remain absent.
 
 ## Ownership boundary
 
-The CLI never reads a Workbench data file, connects to Terminal Host, enumerates product Actions,
-or interprets operation payloads. The coordinator owns catalog admission and executions; feature
-packages own operation input, output, targeting, and effects; the protocol package owns only
-serializable generic envelopes.
+The CLI never reads a Workbench data file, connects to Terminal Host, enumerates product Actions, or
+stores or reconstructs feature state. Its high-level commands construct only inputs validated by
+the Workbench owner's exported semantic-command schemas and verify the complete expected public
+operation descriptor before invocation. The coordinator owns catalog admission and executions;
+feature packages own operation input, output, targeting, and effects; the protocol package owns only
+serializable generic envelopes. Adding a CLI projection grants no operation authority.
 
 ## Verification
 

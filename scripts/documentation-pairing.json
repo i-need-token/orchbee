@@ -18,8 +18,12 @@
 			"zhCnSha256": "f3a6b515a4ff6d6eef68fde7b0b48d58f987ab81b0d152dce5e8f089024d8130"
 		},
 		"apps/cli/README.md": {
-			"englishSha256": "2d070e8277f2415bf22e4de8190825cb6a7ab5a734e18fd8dd18f1bc9bc6a913",
-			"zhCnSha256": "231c6b37f19227efe1c8f35501ab680b813436e874045c9c83e57961296ff167"
+			"englishSha256": "0d17e1118b926545406fe6b5def1530075847e8ba3b69b159fadb5d5361d882e",
+			"zhCnSha256": "6f7091c2da213c30bc1320369215d4e84e0b49cecd777269330e2429eebdb3f1"
+		},
+		"apps/cli/skills/orchbee/SKILL.md": {
+			"englishSha256": "9b72a85db4642a3bf969be933fd2f621f52513264149dc78b5daa265aeed9da2",
+			"zhCnSha256": "8ef33e403df2d9aeec479d45fcf6c742f6b1847be1b1c76a74f136ed2efce069"
 		},
 		"apps/desktop/README.md": {
 			"englishSha256": "a8c749a8280befb982502e98b66f24bafea9beebf5cb2d4f38a5c220560d2022",
@@ -388,6 +392,10 @@
 		"proposals/agent/agent-runtime-observation.md": {
 			"englishSha256": "d63e34c39712288a53e6c4679ffa2769eedf9e70b892b6371f4665a0245d5911",
 			"zhCnSha256": "4c66081b39833c9a534a1aaf903607c6350bfc0e8f8b6792522049ad8c1d84cc"
+		},
+		"proposals/cli/agent-control-surface.md": {
+			"englishSha256": "565e26db3cc0d8f45b57183f23d0691f84db90df9f37dda0680b94266f1c9fa0",
+			"zhCnSha256": "210b0534a9a09e68068ce69fc96af403de4cfb666af509b88e91e379b10ec5b2"
 		},
 		"proposals/platform/connected-client-capability-service.md": {
 			"englishSha256": "e9bf4886af1f8fa12edf805c1df10970c7e964812bf9810f98ab51131dddc04d",

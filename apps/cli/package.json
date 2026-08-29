@@ -13,7 +13,8 @@
 		"test:watch": "vitest"
 	},
 	"dependencies": {
-		"@orchbee/semantic-command-protocol": "workspace:^"
+		"@orchbee/semantic-command-protocol": "workspace:^",
+		"@orchbee/workbench": "workspace:^"
 	},
 	"devDependencies": {
 		"@rsbuild/core": "catalog:",

@@ -46,6 +46,83 @@ describe('parseSemanticCommandCliArguments', () => {
 		}
 	});
 
+	it('parses the release-matched Skill without a coordinator selector', () => {
+		expect(parseSemanticCommandCliArguments(['--skill'])).toEqual({
+			command: { kind: 'skill' },
+			kind: 'parsed',
+		});
+	});
+
+	it('maps high-level Workbench commands to exact owner operations and inputs', () => {
+		const cases = [
+			{
+				arguments: ['project', 'list', '--limit', '20', '--cursor', 'next-project'],
+				input: { cursor: 'next-project', limit: 20 },
+				kind: 'project-list',
+				operationId: 'workbench.project.list',
+			},
+			{
+				arguments: ['directory', 'list', '--project', 'project-1'],
+				input: { limit: 100, projectId: 'project-1' },
+				kind: 'directory-list',
+				operationId: 'workbench.directory.list',
+			},
+			{
+				arguments: ['workspace', 'list', '--project', 'project-1'],
+				input: { limit: 100, projectId: 'project-1' },
+				kind: 'workspace-list',
+				operationId: 'workbench.workspace.list',
+			},
+			{
+				arguments: ['terminal', 'list', '--standalone'],
+				input: { limit: 100, location: { kind: 'standalone' } },
+				kind: 'terminal-list',
+				operationId: 'workbench.terminal.list',
+			},
+			{
+				arguments: ['terminal', 'list', '--project', 'project-1', '--workspace', 'workspace-1'],
+				input: {
+					limit: 100,
+					location: { kind: 'workspace', projectId: 'project-1', workspaceId: 'workspace-1' },
+				},
+				kind: 'terminal-list',
+				operationId: 'workbench.terminal.list',
+			},
+			{
+				arguments: [
+					'terminal',
+					'create',
+					'--project',
+					'project-1',
+					'--workspace',
+					'workspace-1',
+					'--directory',
+					'directory-1',
+					'--detach',
+					'--request-id',
+					'cli:request:terminal-create',
+				],
+				input: {
+					directoryId: 'directory-1',
+					location: { kind: 'workspace', projectId: 'project-1', workspaceId: 'workspace-1' },
+				},
+				kind: 'terminal-create',
+				operationId: 'workbench.terminal.create',
+			},
+		] as const;
+
+		for (const candidate of cases) {
+			expect(parseSemanticCommandCliArguments(candidate.arguments)).toMatchObject({
+				command: {
+					input: candidate.input,
+					kind: candidate.kind,
+					operation: { id: candidate.operationId },
+				},
+				kind: 'parsed',
+			});
+		}
+	});
+
 	it('rejects unknown, duplicate, missing, and cross-command options', () => {
 		for (const arguments_ of [
 			[],
@@ -55,6 +132,15 @@ describe('parseSemanticCommandCliArguments', () => {
 			['operation', 'invoke', 'workbench.terminal.create'],
 			['execution', 'get', 'bad identity/with spaces'],
 			['status', '--target', 'not-an-endpoint'],
+			['--skill', '--output', 'json'],
+			['project', 'list', '--limit', '0'],
+			['project', 'list', '--limit', '201'],
+			['directory', 'list'],
+			['workspace', 'list', '--workspace', 'workspace-1'],
+			['terminal', 'list'],
+			['terminal', 'list', '--standalone', '--project', 'project-1'],
+			['terminal', 'list', '--project', 'project-1'],
+			['terminal', 'create', '--standalone', '--cursor', 'not-accepted'],
 		]) {
 			expect(parseSemanticCommandCliArguments(arguments_)).toEqual({
 				code: 'cli-usage-invalid',

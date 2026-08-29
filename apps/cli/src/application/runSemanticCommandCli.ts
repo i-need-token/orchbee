@@ -29,6 +29,7 @@ import {
 import {
 	parseSemanticCommandCliArguments,
 	type SemanticCommandCliCommand,
+	type SemanticCommandCliOwnedOperation,
 } from './parseSemanticCommandCliArguments';
 import {
 	cliErrorResult,
@@ -36,6 +37,7 @@ import {
 	cliProtocolResult,
 	type SemanticCommandCliRunResult,
 } from './semantic-command-cli-output';
+import orchbeeSkill from '../../skills/orchbee/SKILL.md?raw';
 
 export interface SemanticCommandCliConnection {
 	readonly client: SemanticCommandClient;
@@ -79,6 +81,16 @@ type WaitResult =
 	| SemanticCommandClientResult<SemanticCommandExecutionLookupResult>
 	| { readonly code: 'outcome-unknown-after-restart'; readonly kind: 'unknown' };
 
+type SemanticCommandCliCoordinatorCommand = Exclude<
+	SemanticCommandCliCommand,
+	{ readonly kind: 'skill' }
+>;
+
+type SemanticCommandCliInvocationCommand = Extract<
+	SemanticCommandCliCoordinatorCommand,
+	{ readonly detach: boolean }
+>;
+
 const inputDecoder = new TextDecoder('utf-8', { fatal: true });
 
 export async function runSemanticCommandCli(
@@ -88,6 +100,7 @@ export async function runSemanticCommandCli(
 	const parsed = parseSemanticCommandCliArguments(arguments_);
 	if (parsed.kind === 'error') return cliErrorResult(null, parsed.code);
 	const command = parsed.command;
+	if (command.kind === 'skill') return skillResult();
 	try {
 		switch (command.kind) {
 			case 'status':
@@ -98,6 +111,12 @@ export async function runSemanticCommandCli(
 				return runOperationDescribe(command, dependencies);
 			case 'operation-invoke':
 				return runOperationInvoke(command, dependencies);
+			case 'project-list':
+			case 'directory-list':
+			case 'workspace-list':
+			case 'terminal-list':
+			case 'terminal-create':
+				return runOwnedOperationInvoke(command, dependencies);
 			case 'execution-get':
 				return runExecutionGet(command, dependencies);
 			case 'execution-wait':
@@ -152,11 +171,34 @@ async function runOperationInvoke(
 ): Promise<SemanticCommandCliRunResult> {
 	const input = await readInvocationInput(command, dependencies);
 	if (isCliRunResult(input)) return input;
+	return runInvocation(command, input, command.operationId, dependencies);
+}
+
+async function runOwnedOperationInvoke(
+	command: Exclude<SemanticCommandCliInvocationCommand, { readonly kind: 'operation-invoke' }>,
+	dependencies: SemanticCommandCliDependencies,
+): Promise<SemanticCommandCliRunResult> {
+	return runInvocation(
+		command,
+		command.input,
+		command.operation.id,
+		dependencies,
+		command.operation,
+	);
+}
+
+async function runInvocation(
+	command: SemanticCommandCliInvocationCommand,
+	input: SemanticCommandJsonValue,
+	operationId: Parameters<SemanticCommandClient['describeOperation']>[0],
+	dependencies: SemanticCommandCliDependencies,
+	expectedOperation?: SemanticCommandCliOwnedOperation | undefined,
+): Promise<SemanticCommandCliRunResult> {
 	const requestIdentity = createRequestIdentity(command, dependencies);
 	if (isCliRunResult(requestIdentity)) return requestIdentity;
 	const connected = await connect(command, dependencies, requestIdentity);
 	if (isCliRunResult(connected)) return connected;
-	const described = await connected.client.describeOperation(command.operationId);
+	const described = await connected.client.describeOperation(operationId);
 	if (described.kind === 'error') return clientFailure(command, described.code, requestIdentity);
 	if (described.value.kind === 'operation-unavailable') {
 		return cliProtocolResult(
@@ -167,9 +209,21 @@ async function runOperationInvoke(
 			requestIdentity,
 		);
 	}
+	if (
+		expectedOperation !== undefined &&
+		!operationDescriptorsMatch(described.value.operation, expectedOperation)
+	) {
+		return cliFailureResult(
+			commandName(command),
+			'operation-version-unsupported',
+			6,
+			command.output,
+			requestIdentity,
+		);
+	}
 	const request = SemanticCommandInvocationRequestSchema.parse({
 		input,
-		operationId: command.operationId,
+		operationId,
 		operationSchemaVersion: described.value.operation.schemaVersion,
 		protocolVersion: SEMANTIC_COMMAND_PROTOCOL_VERSION,
 		requestIdentity,
@@ -234,8 +288,25 @@ async function runOperationInvoke(
 	return executionLookupResult(command, waited.value, requestIdentity);
 }
 
+function operationDescriptorsMatch(
+	actual: SemanticCommandCliOwnedOperation,
+	expected: SemanticCommandCliOwnedOperation,
+): boolean {
+	return (
+		actual.confirmation === expected.confirmation &&
+		actual.id === expected.id &&
+		actual.input.name === expected.input.name &&
+		actual.input.schemaVersion === expected.input.schemaVersion &&
+		actual.kind === expected.kind &&
+		actual.output.name === expected.output.name &&
+		actual.output.schemaVersion === expected.output.schemaVersion &&
+		actual.retry === expected.retry &&
+		actual.schemaVersion === expected.schemaVersion
+	);
+}
+
 async function recoverInvocationObservation(
-	command: Extract<SemanticCommandCliCommand, { readonly kind: 'operation-invoke' }>,
+	command: SemanticCommandCliInvocationCommand,
 	dependencies: SemanticCommandCliDependencies,
 	connection: SemanticCommandCliConnection,
 	requestIdentity: SemanticCommandRequestIdentity,
@@ -313,7 +384,7 @@ async function runExecutionCancel(
 }
 
 async function connect(
-	command: SemanticCommandCliCommand,
+	command: SemanticCommandCliCoordinatorCommand,
 	dependencies: SemanticCommandCliDependencies,
 	requestIdentity?: SemanticCommandRequestIdentity | undefined,
 ): Promise<SemanticCommandCliConnection | SemanticCommandCliRunResult> {
@@ -363,7 +434,7 @@ async function readInvocationInput(
 }
 
 function createRequestIdentity(
-	command: Extract<SemanticCommandCliCommand, { readonly kind: 'operation-invoke' }>,
+	command: SemanticCommandCliInvocationCommand,
 	dependencies: SemanticCommandCliDependencies,
 ): SemanticCommandRequestIdentity | SemanticCommandCliRunResult {
 	let candidate: string;
@@ -418,7 +489,7 @@ async function resolveExecutionReference(
 }
 
 async function waitAcrossGeneration(
-	command: SemanticCommandCliCommand,
+	command: SemanticCommandCliCoordinatorCommand,
 	dependencies: SemanticCommandCliDependencies,
 	connection: SemanticCommandCliConnection,
 	reference: SemanticCommandExecutionReference,
@@ -445,7 +516,7 @@ async function waitAcrossGeneration(
 }
 
 function executionLookupResult(
-	command: SemanticCommandCliCommand,
+	command: SemanticCommandCliCoordinatorCommand,
 	lookup: SemanticCommandExecutionLookupResult,
 	requestIdentity?: SemanticCommandRequestIdentity | undefined,
 ): SemanticCommandCliRunResult {
@@ -462,7 +533,7 @@ function executionLookupResult(
 }
 
 function terminalLookupResult(
-	command: SemanticCommandCliCommand,
+	command: SemanticCommandCliCoordinatorCommand,
 	execution: TerminalExecutionSnapshot,
 	requestIdentity: SemanticCommandRequestIdentity,
 ): SemanticCommandCliRunResult {
@@ -470,7 +541,7 @@ function terminalLookupResult(
 }
 
 function cancellationResult(
-	command: SemanticCommandCliCommand,
+	command: SemanticCommandCliCoordinatorCommand,
 	result: SemanticCommandExecutionCancellationResult,
 ): SemanticCommandCliRunResult {
 	return cliProtocolResult(
@@ -482,7 +553,7 @@ function cancellationResult(
 }
 
 function clientReadResult<Value>(
-	command: SemanticCommandCliCommand,
+	command: SemanticCommandCliCoordinatorCommand,
 	result: SemanticCommandClientResult<Value>,
 	exitCode: SemanticCommandCliRunResult['exitCode'],
 ): SemanticCommandCliRunResult {
@@ -492,7 +563,7 @@ function clientReadResult<Value>(
 }
 
 function clientFailure(
-	command: SemanticCommandCliCommand,
+	command: SemanticCommandCliCoordinatorCommand,
 	code: SemanticCommandClientErrorCode,
 	requestIdentity?: SemanticCommandRequestIdentity | undefined,
 ): SemanticCommandCliRunResult {
@@ -506,7 +577,7 @@ function clientFailure(
 }
 
 function resolutionFailure(
-	command: SemanticCommandCliCommand,
+	command: SemanticCommandCliCoordinatorCommand,
 	code: SemanticCommandClientErrorCode | 'execution-reference-ambiguous',
 ): SemanticCommandCliRunResult {
 	return code === 'execution-reference-ambiguous'
@@ -550,8 +621,16 @@ function exitCodeForTerminalResult(
 	}
 }
 
-function commandName(command: SemanticCommandCliCommand): string {
+function commandName(command: SemanticCommandCliCoordinatorCommand): string {
 	return command.kind.replaceAll('-', '.');
+}
+
+function skillResult(): SemanticCommandCliRunResult {
+	return {
+		exitCode: 0,
+		stderr: '',
+		stdout: orchbeeSkill.endsWith('\n') ? orchbeeSkill : `${orchbeeSkill}\n`,
+	};
 }
 
 function isCliRunResult(value: unknown): value is SemanticCommandCliRunResult {

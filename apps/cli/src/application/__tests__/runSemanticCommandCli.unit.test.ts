@@ -12,6 +12,13 @@ import {
 	type SemanticCommandExecutionSnapshot,
 	type SemanticCommandTerminalResult,
 } from '@orchbee/semantic-command-protocol';
+import {
+	WORKBENCH_DIRECTORY_LIST_OPERATION,
+	WORKBENCH_PROJECT_LIST_OPERATION,
+	WORKBENCH_TERMINAL_CREATE_OPERATION,
+	WORKBENCH_TERMINAL_LIST_OPERATION,
+	WORKBENCH_WORKSPACE_LIST_OPERATION,
+} from '@orchbee/workbench/semantic-commands';
 
 import { SemanticCommandClient, type SemanticCommandClientPort } from '../../client';
 import {
@@ -31,6 +38,19 @@ const descriptor = SemanticCommandOperationDescriptorSchema.parse({
 	retry: 'same-request-while-retained',
 	schemaVersion: 1,
 });
+const workbenchOperations = [
+	WORKBENCH_PROJECT_LIST_OPERATION,
+	WORKBENCH_DIRECTORY_LIST_OPERATION,
+	WORKBENCH_WORKSPACE_LIST_OPERATION,
+	WORKBENCH_TERMINAL_LIST_OPERATION,
+	WORKBENCH_TERMINAL_CREATE_OPERATION,
+] as const;
+
+function descriptorFor(operationId: string) {
+	const operation = workbenchOperations.find((candidate) => candidate.id === operationId);
+	if (operation === undefined) throw new Error(`Unknown test operation: ${operationId}`);
+	return SemanticCommandOperationDescriptorSchema.parse(operation);
+}
 
 function activeExecution(
 	requestIdentity = 'cli:request:1',
@@ -58,12 +78,13 @@ function terminalExecution(
 	requestIdentity = 'cli:request:1',
 	executionIdentity = 'desktop:execution:1',
 	generation = generationOne,
+	operation = descriptor,
 ): SemanticCommandExecutionSnapshot {
 	return SemanticCommandExecutionSnapshotSchema.parse({
 		coordinatorGeneration: generation,
 		executionIdentity,
-		operationId: descriptor.id,
-		operationSchemaVersion: 1,
+		operationId: operation.id,
+		operationSchemaVersion: operation.schemaVersion,
 		phase: 'terminal',
 		protocolVersion: 1,
 		requestIdentity,
@@ -149,6 +170,163 @@ function output(result: Awaited<ReturnType<typeof runSemanticCommandCli>>) {
 }
 
 describe('runSemanticCommandCli', () => {
+	it('prints the bundled Skill without connecting or allocating a request', async () => {
+		const connect = vi.fn<SemanticCommandCliDependencies['connect']>();
+		const createRequestIdentity = vi.fn<SemanticCommandCliDependencies['createRequestIdentity']>();
+		const readInput = vi.fn<SemanticCommandCliDependencies['readInput']>();
+		const result = await runSemanticCommandCli(['--skill'], {
+			connect,
+			createRequestIdentity,
+			readInput,
+		});
+
+		expect(result).toMatchObject({ exitCode: 0, stderr: '' });
+		expect(result.stdout).toContain('name: orchbee');
+		expect(result.stdout).toContain('"$ORCHBEE_CLI" project list');
+		expect(result.stdout.endsWith('\n')).toBe(true);
+		expect(connect).not.toHaveBeenCalled();
+		expect(createRequestIdentity).not.toHaveBeenCalled();
+		expect(readInput).not.toHaveBeenCalled();
+	});
+
+	it('rejects an incomplete high-level target before connecting or allocating a request', async () => {
+		const connect = vi.fn<SemanticCommandCliDependencies['connect']>();
+		const createRequestIdentity = vi.fn<SemanticCommandCliDependencies['createRequestIdentity']>();
+		const readInput = vi.fn<SemanticCommandCliDependencies['readInput']>();
+		const result = await runSemanticCommandCli(['terminal', 'list', '--project', 'project-1'], {
+			connect,
+			createRequestIdentity,
+			readInput,
+		});
+
+		expect(result.exitCode).toBe(2);
+		expect(output(result)).toMatchObject({ code: 'cli-usage-invalid', command: null });
+		expect(connect).not.toHaveBeenCalled();
+		expect(createRequestIdentity).not.toHaveBeenCalled();
+		expect(readInput).not.toHaveBeenCalled();
+	});
+
+	it('invokes each high-level Workbench command through its exact owner contract', async () => {
+		const cases = [
+			{
+				arguments: ['project', 'list', '--limit', '20'],
+				command: 'project.list',
+				input: { limit: 20 },
+				operationId: 'workbench.project.list',
+			},
+			{
+				arguments: ['directory', 'list', '--project', 'project-1'],
+				command: 'directory.list',
+				input: { limit: 100, projectId: 'project-1' },
+				operationId: 'workbench.directory.list',
+			},
+			{
+				arguments: ['workspace', 'list', '--project', 'project-1'],
+				command: 'workspace.list',
+				input: { limit: 100, projectId: 'project-1' },
+				operationId: 'workbench.workspace.list',
+			},
+			{
+				arguments: ['terminal', 'list', '--standalone'],
+				command: 'terminal.list',
+				input: { limit: 100, location: { kind: 'standalone' } },
+				operationId: 'workbench.terminal.list',
+			},
+			{
+				arguments: [
+					'terminal',
+					'create',
+					'--project',
+					'project-1',
+					'--workspace',
+					'workspace-1',
+					'--directory',
+					'directory-1',
+				],
+				command: 'terminal.create',
+				input: {
+					directoryId: 'directory-1',
+					location: { kind: 'workspace', projectId: 'project-1', workspaceId: 'workspace-1' },
+				},
+				operationId: 'workbench.terminal.create',
+			},
+		] as const;
+
+		for (const candidate of cases) {
+			const invoke = vi.fn<SemanticCommandClientPort['invoke']>(async (request) => ({
+				execution: terminalExecution(
+					SemanticCommandTerminalResultSchema.parse({
+						code: 'owner-completed',
+						kind: 'completed',
+						output: { revision: '2' },
+					}),
+					request.requestIdentity,
+					'desktop:execution:1',
+					generationOne,
+					descriptorFor(request.operationId),
+				),
+				kind: 'accepted',
+				replayed: false,
+			}));
+			const fixture = clientWith({
+				describeOperation: async (operationId) =>
+					SemanticCommandOperationDescriptionResultSchema.parse({
+						coordinatorGeneration: generationOne,
+						kind: 'operation-description',
+						operation: descriptorFor(operationId),
+						protocolVersion: 1,
+					}),
+				invoke,
+			});
+			const result = await runSemanticCommandCli(
+				candidate.arguments,
+				dependenciesWith(connected(fixture.client)),
+			);
+
+			expect(result.exitCode).toBe(0);
+			expect(output(result)).toMatchObject({
+				command: candidate.command,
+				requestIdentity: 'cli:request:1',
+			});
+			expect(invoke).toHaveBeenCalledOnce();
+			expect(invoke).toHaveBeenCalledWith(
+				expect.objectContaining({
+					input: candidate.input,
+					operationId: candidate.operationId,
+				}),
+			);
+		}
+	});
+
+	it('rejects an incompatible owner operation before invocation', async () => {
+		const invoke = vi.fn<SemanticCommandClientPort['invoke']>();
+		const fixture = clientWith({
+			describeOperation: async () =>
+				SemanticCommandOperationDescriptionResultSchema.parse({
+					coordinatorGeneration: generationOne,
+					kind: 'operation-description',
+					operation: {
+						...WORKBENCH_PROJECT_LIST_OPERATION,
+						input: { name: 'workbench.project-list-input', schemaVersion: 2 },
+						schemaVersion: 2,
+					},
+					protocolVersion: 1,
+				}),
+			invoke,
+		});
+		const result = await runSemanticCommandCli(
+			['project', 'list'],
+			dependenciesWith(connected(fixture.client)),
+		);
+
+		expect(result.exitCode).toBe(6);
+		expect(output(result)).toMatchObject({
+			code: 'operation-version-unsupported',
+			command: 'project.list',
+		});
+		expect(invoke).not.toHaveBeenCalled();
+	});
+
 	it('emits one versioned JSON document and forwards one exact optional target', async () => {
 		const fixture = clientWith();
 		const endpointId = 'ab'.repeat(16);

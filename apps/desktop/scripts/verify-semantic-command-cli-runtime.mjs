@@ -104,6 +104,34 @@ try {
 	) {
 		throw new Error('The CLI process used an unexpected route or request count.');
 	}
+	const skillLaunches = [
+		{
+			arguments: [cliEntryPath, '--skill'],
+			command: process.execPath,
+			environment: directEnvironment,
+			name: 'Node entry Skill',
+		},
+		{
+			arguments: [cliEntryPath, '--skill'],
+			command: electronExecutable,
+			environment: { ...directEnvironment, ELECTRON_RUN_AS_NODE: '1' },
+			name: 'packaged Electron Node runtime Skill',
+		},
+		launcherLaunch(cliLauncherPath, launcherEnvironment, '--skill'),
+	];
+	for (const launch of skillLaunches) {
+		const { stderr, stdout } = await executeFile(launch.command, launch.arguments, {
+			encoding: 'utf8',
+			env: launch.environment,
+		});
+		if (stderr !== '') throw new Error(`${launch.name} wrote a diagnostic to stderr.`);
+		if (!stdout.startsWith('---\nname: orchbee\n') || !stdout.endsWith('\n')) {
+			throw new Error(`${launch.name} did not emit the bundled Orchbee Skill.`);
+		}
+	}
+	if (receivedPaths.length !== launches.length * 2) {
+		throw new Error('Printing the bundled Skill unexpectedly contacted the coordinator.');
+	}
 
 	worker.postMessage({ kind: 'stop' });
 	await waitForWorker(worker, 'stopped');
@@ -113,21 +141,21 @@ try {
 	await rm(testRoot, { force: true, recursive: true });
 }
 
-function launcherLaunch(launcherPath, environment) {
+function launcherLaunch(launcherPath, environment, argument = 'status') {
 	if (process.platform !== 'win32') {
 		return {
-			arguments: ['status'],
+			arguments: [argument],
 			command: launcherPath,
 			environment,
-			name: 'product-injected CLI launcher',
+			name: `product-injected CLI launcher ${argument}`,
 		};
 	}
 	const commandInterpreter = process.env.ComSpec ?? 'C:\\Windows\\System32\\cmd.exe';
 	return {
-		arguments: ['/d', '/s', '/c', `""${launcherPath}" status"`],
+		arguments: ['/d', '/s', '/c', `""${launcherPath}" ${argument}"`],
 		command: commandInterpreter,
 		environment,
-		name: 'product-injected CLI launcher',
+		name: `product-injected CLI launcher ${argument}`,
 	};
 }
 

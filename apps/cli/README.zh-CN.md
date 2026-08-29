@@ -1,13 +1,13 @@
 # Orchbee CLI
 
 用于调用显式准入的 Orchbee semantic command 的产品所属 Node client。该 workspace 包含
-transport-independent client core、严格 command parser 与 lifecycle runner、可信本地 locator 和已认证
-HTTP adapter，以及 Desktop distribution 使用的真实 process entry。Desktop 创建的 Terminal 会获得一个精确
-launcher path，而不需要全局安装。
+transport-independent client core、严格的通用与 Workbench command projection、版本匹配的内嵌 Agent
+Skill、lifecycle runner、可信本地 locator 和已认证 HTTP adapter，以及 Desktop distribution 使用的真实
+process entry。Desktop 创建的 Terminal 会获得一个精确 launcher path，而不需要全局安装。
 
 ## Command 表面
 
-Application runner 只接受以下 command family：
+Application runner 接受以下通用 command family：
 
 ```text
 orchbee status
@@ -19,14 +19,27 @@ orchbee execution wait <request-or-execution-id>
 orchbee execution cancel <request-or-execution-id>
 ```
 
-每条 command 都接受 `--target <endpoint-id>` 与 `--output json|text`。只有可信本地 discovery 精确解析到
-一个 live coordinator 时，省略 target 才能成功。重复、未知或跨 command 的 option 会在连接前失败。
-Invocation 从指定文件或 stdin 读取一个严格 UTF-8 JSON value，并在分配 request identity 或联系 Desktop
-之前拒绝 malformed 或 over-capacity input。
+它还在生产 Desktop catalog 已准入的五个 Workbench operation 之上提供高层 projection：
+
+```text
+orchbee project list [--limit <n>] [--cursor <cursor>]
+orchbee directory list --project <project-id> [--limit <n>] [--cursor <cursor>]
+orchbee workspace list --project <project-id> [--limit <n>] [--cursor <cursor>]
+orchbee terminal list (--standalone | --project <project-id> --workspace <workspace-id>) [--limit <n>] [--cursor <cursor>]
+orchbee terminal create (--standalone | --project <project-id> --workspace <workspace-id>) [--directory <directory-id>] [--detach] [--request-id <request-id>]
+orchbee --skill
+```
+
+每条连接 coordinator 的 command 都接受 `--target <endpoint-id>` 与 `--output json|text`。只有可信本地
+discovery 精确解析到一个 live coordinator 时，省略 target 才能成功。重复、未知或跨 command 的 option
+会在连接前失败。通用 invocation 从指定文件或 stdin 读取一个严格 UTF-8 JSON value。高层 command 通过
+Workbench 所有者导出的 schema 校验有界 argument，并恰好映射一个现有 operation。无效 input 会在分配
+request identity 或联系 Desktop 前被拒绝。
 
 默认输出恰好是 stdout 上一个紧凑、带版本的 JSON document。Invoke result 始终包含 request identity。
 `--output text` 是同一 document 的明确不稳定缩进 projection；automation 不得解析它。当前 runner 不会向
-stderr 发出带 payload 的 diagnostic。
+stderr 发出带 payload 的 diagnostic。`--skill` 是有意设置的例外：它打印同一 build 中捆绑的规范 Agent
+Skill，不在运行时读取文件，也不连接 coordinator。
 
 | Exit | 含义                                                                              |
 | ---- | --------------------------------------------------------------------------------- |
@@ -60,6 +73,7 @@ coordinator，也不会回退到 TCP 或 project-local discovery。
 
 ```sh
 "$ORCHBEE_CLI" status
+"$ORCHBEE_CLI" --skill
 ```
 
 PowerShell 通过 `& $env:ORCHBEE_CLI status` 使用同一个注入路径。这些是
@@ -68,17 +82,17 @@ distribution-internal、version-locked launch artifact，不是全局 executable
 
 ### Process 模型
 
-| 字段         | 契约                                                                                                                                                                                                      |
-| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Problem      | 已在 Desktop-owned Terminal 中运行的人、Agent 或 Skill 需要一条非视觉 invocation path，连接同一个 live local coordinator，且不进行全局安装，也不增加另一名 state owner。                                  |
-| Inputs       | Argument、file path、file/stdin byte 与 signal 均不受信。由代码位置确定的 launcher、native addon location 与 Desktop 选择的 runtime directory 属于可信 product composition。                              |
-| Data         | Process 不拥有 durable state。它只持有一个有界 input buffer、invoke 时的一个 caller-generated request identity，以及一个瞬态 client connection。                                                          |
-| Outputs      | 一个带版本的 stdout document 与一个 exit code。当前 stderr 为空；operation input 与 result payload 绝不进入 diagnostic。                                                                                  |
-| Invariants   | 先 parse 后连接；input 在 JSON decode 前受容量限制；一次 invocation 最多提交一次；一个 process 只写一次 result；launch path 不改变 operation authority。                                                  |
-| Decisions    | Command grammar 选择 runner branch；`--target` 选择一个精确且经过验证的 endpoint；`--input-file -` 选择有界 stdin 而非有界 file；output option 只选择 serialization。                                     |
-| Model        | `runSemanticCommandCliProcess` 用 filesystem、randomness、可信 locator 与 native-transport capability 组合 deterministic runner。`startSemanticCommandCliProcess` 拥有 signal registration 与最终 write。 |
-| Cancellation | `SIGINT` 与 `SIGTERM` 只 abort CLI-owned execution observation。它们绝不会发出 semantic cancellation；business cancellation 仍然需要 `execution cancel`。                                                 |
-| Verification | Unit test 控制 input、configuration、signal 与 write。Desktop native integration 使用 Node、Electron Node mode 和精确 product launcher 启动 built entry，并连接一个真实 private endpoint。                |
+| 字段         | 契约                                                                                                                                                                                                              |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Problem      | 已在 Desktop-owned Terminal 中运行的人、Agent 或 Skill 需要一条非视觉 invocation path，连接同一个 live local coordinator，且不进行全局安装，也不增加另一名 state owner。                                          |
+| Inputs       | Argument、高层 owner-backed input、file path、file/stdin byte 与 signal 均不受信。由代码位置确定的 launcher、内嵌 Skill、native addon location 与 Desktop 选择的 runtime directory 属于可信 product composition。 |
+| Data         | Process 不拥有 durable state。它只持有一个有界 input buffer、invoke 时的一个 caller-generated request identity，以及一个瞬态 client connection。                                                                  |
+| Outputs      | 一个带版本的 stdout document 或精确内嵌 Skill，以及一个 exit code。当前 stderr 为空；operation input 与 result payload 绝不进入 diagnostic。                                                                      |
+| Invariants   | 先 parse 后连接；input 在 JSON decode 前受容量限制；一次 invocation 最多提交一次；一个 process 只写一次 result；launch path 不改变 operation authority。                                                          |
+| Decisions    | Command grammar 选择 runner branch；`--target` 选择一个精确且经过验证的 endpoint；`--input-file -` 选择有界 stdin 而非有界 file；output option 只选择 serialization。                                             |
+| Model        | `runSemanticCommandCliProcess` 用 filesystem、randomness、可信 locator 与 native-transport capability 组合 deterministic runner。`startSemanticCommandCliProcess` 拥有 signal registration 与最终 write。         |
+| Cancellation | `SIGINT` 与 `SIGTERM` 只 abort CLI-owned execution observation。它们绝不会发出 semantic cancellation；business cancellation 仍然需要 `execution cancel`。                                                         |
+| Verification | Unit test 控制 input、configuration、signal 与 write。Desktop native integration 使用 Node、Electron Node mode 和精确 product launcher 启动 built entry，并连接一个真实 private endpoint。                        |
 
 ## Client 边界
 
@@ -87,9 +101,10 @@ distribution-internal、version-locked launch artifact，不是全局 executable
 generation，并针对无效 input、格式错误的 response、transport failure 或本地取消的 observation，
 返回不带 payload 的 client error。
 
-Core 支持 status、operation list 与 description、invocation admission、execution lookup、cooperative
-cancellation，以及带边界 backoff 的等待。`waitForExecution` 只会重复执行只读 lookup。Abort caller
-signal 会停止本地 observation；它绝不调用 invocation 或 cancellation，也不创建 server-side waiter。
+Core 支持 status、operation list 与 description、owner-backed Workbench command projection、
+invocation admission、execution lookup、cooperative cancellation，以及带边界 backoff 的等待。
+`waitForExecution` 只会重复执行只读 lookup。Abort caller signal 会停止本地 observation；它绝不调用
+invocation 或 cancellation，也不创建 server-side waiter。
 
 Runner 最多调用一次 operation。Response 丢失后，它只会重连并观察同一个 request identity。不同的
 coordinator generation 会返回 `outcome-unknown-after-restart`，且绝不重放 mutation。位置参数形式的
@@ -118,9 +133,11 @@ replay、cancellation 或隐式启动 Desktop。SSH、Browser access、remote ta
 
 ## 所有权边界
 
-CLI 绝不读取 Workbench 数据文件、连接 Terminal Host、枚举产品 Action，也不解释 operation payload。
-Coordinator 拥有 catalog admission 与 execution；feature package 拥有 operation input、output、targeting
-与 effect；protocol package 只拥有可序列化的通用 envelope。
+CLI 绝不读取 Workbench 数据文件、连接 Terminal Host、枚举产品 Action，也不存储或重建 feature state。
+它的高层 command 只构造通过 Workbench 所有者导出 semantic-command schema 校验的 input，并在调用前
+验证完整的预期公共 operation descriptor。Coordinator 拥有 catalog admission 与 execution；feature
+package 拥有 operation input、output、targeting 与 effect；protocol package 只拥有可序列化的通用 envelope。
+添加 CLI projection 不会授予 operation 权限。
 
 ## 验证
 

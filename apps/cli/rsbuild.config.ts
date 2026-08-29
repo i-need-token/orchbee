@@ -18,6 +18,9 @@ export default defineConfig({
 	tools: {
 		rspack(config) {
 			config.target = 'node';
+			config.module ??= {};
+			config.module.rules ??= [];
+			config.module.rules.push({ resourceQuery: /raw/u, type: 'asset/source' });
 		},
 	},
 });
