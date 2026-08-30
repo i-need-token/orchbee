@@ -2539,6 +2539,10 @@ test('projects native window drag regions without consuming title bar controls o
 	const sidebar = page.locator('[data-slot="workbench-sidebar"]');
 	const sidebarTogglePosition = page.locator('[data-slot="workbench-sidebar-toggle-position"]');
 	const sidebarToggle = page.locator('[data-slot="workbench-sidebar-toggle"]');
+	const horizontalTabBar = page.locator(
+		'[data-slot="workbench-tab-bar"][data-orientation="horizontal"]',
+	);
+	const horizontalLeadingActions = horizontalTabBar.locator('[data-horizontal-leading-actions]');
 	const tabTrack = page.locator(
 		'[data-slot="workbench-tab-bar"][data-orientation="horizontal"] [data-horizontal-track]',
 	);
@@ -2546,6 +2550,7 @@ test('projects native window drag regions without consuming title bar controls o
 	const newTabButton = tabTrack.locator(':scope > button').last();
 
 	await expect.poll(() => appRegion(leftChrome)).toBe('drag');
+	await expect.poll(() => appRegion(horizontalTabBar)).toBe('drag');
 	await expect.poll(() => appRegion(tabTrack)).toBe('drag');
 	await expect.poll(() => appRegion(sidebarTogglePosition)).toBe('no-drag');
 	await expect.poll(() => appRegion(sidebarToggle)).toBe('no-drag');
@@ -2553,17 +2558,26 @@ test('projects native window drag regions without consuming title bar controls o
 	await expect.poll(() => appRegion(newTabButton)).toBe('no-drag');
 	await expect(sidebar).toHaveCSS('padding-top', '36px');
 
-	const [leftChromeBox, sidebarTogglePositionBox, sidebarToggleBox, tabTrackBox] =
+	const [leftChromeBox, sidebarBox, sidebarTogglePositionBox, sidebarToggleBox, tabTrackBox] =
 		await Promise.all([
 			leftChrome.boundingBox(),
+			sidebar.boundingBox(),
 			sidebarTogglePosition.boundingBox(),
 			sidebarToggle.boundingBox(),
 			tabTrack.boundingBox(),
 		]);
-	if (!leftChromeBox || !sidebarTogglePositionBox || !sidebarToggleBox || !tabTrackBox) {
+	if (
+		!leftChromeBox ||
+		!sidebarBox ||
+		!sidebarTogglePositionBox ||
+		!sidebarToggleBox ||
+		!tabTrackBox
+	) {
 		throw new Error('Expected complete native window chrome geometry.');
 	}
 	expect(leftChromeBox.height).toBe(36);
+	expect(leftChromeBox.x).toBe(sidebarBox.x);
+	expect(leftChromeBox.width).toBe(sidebarBox.width);
 	expect(tabTrackBox.height).toBe(36);
 	expect(sidebarTogglePositionBox.y - tabTrackBox.y).toBe(4);
 	expect(sidebarToggleBox.height).toBe(28);
@@ -2580,6 +2594,8 @@ test('projects native window drag regions without consuming title bar controls o
 		process.platform === 'darwin' ? `${primaryModifier}+KeyB` : `${primaryModifier}+Shift+KeyB`,
 	);
 	await expect(leftPanel).not.toBeAttached();
+	await expect(horizontalLeadingActions).toBeAttached();
+	await expect.poll(() => appRegion(horizontalLeadingActions)).toBe('drag');
 	await expect(terminalInput).toBeFocused();
 	await sidebarToggle.click();
 	await expect(leftPanel).toBeVisible();

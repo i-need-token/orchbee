@@ -322,17 +322,46 @@ outcomes use the theme-specific result channel; an unknown outcome must reconcil
 is never flattened into a generic projection failure. Desktop Main does not render or independently
 choose terminal colors.
 
-Desktop hides the native title bar while retaining the operating system's window controls. The
-Desktop renderer marks only the sidebar's top chrome and unoccupied horizontal Tab-track background
-as native window-drag regions; Tabs, groups, the sidebar toggle, and the new-Tab control remain
-interactive non-drag regions. On macOS, Workbench exclusively owns `Command+W` as Close Terminal;
-Main keeps the native Close Window menu item clickable but does not register its accelerator, so a
-repeated or temporarily unavailable terminal-close event cannot fall through and close the native
-window. Main also leaves the Window Controls Overlay disabled, positions the native traffic lights
-at `(8, 10)`, and the renderer centers the sidebar toggle in the same `36px` horizontal Tab row after
-the reserved native-control space. The toggle position is itself a non-drag region, its reserved
-leading lane is never marked draggable, and visible sidebar drag geometry begins after that lane so
-the complete pointer target remains interactive.
+Desktop hides the native title bar while retaining the operating system's window controls. On
+macOS, Workbench exclusively owns `Command+W` as Close Terminal; Main keeps the native Close Window
+menu item clickable but does not register its accelerator, so a repeated or temporarily unavailable
+terminal-close event cannot fall through and close the native window. Main also leaves the Window
+Controls Overlay disabled, positions the native traffic lights at `(8, 10)`, and the renderer centers
+the sidebar toggle in the same `36px` horizontal Tab row after the reserved native-control space.
+
+### Native window drag-region projection
+
+- **Problem and scope:** A Desktop user must be able to move a frameless native window from every
+  unoccupied point in its `36px` top chrome without losing Tabs, groups, the sidebar toggle, the
+  new-Tab control, or operating-system window controls. This projection covers the sidebar top row
+  and a horizontal Tab bar. The vertical Tab Strip, content below the top chrome, Panel and sidebar
+  interactions, resize separators, Tab cross-window drag, and the native move lifecycle are non-goals.
+- **Inputs, data, and ownership:** Trusted Workbench layout supplies sidebar visibility, Tab Strip
+  orientation, the horizontal chrome boundary, and the rendered control geometry; `windowControls`
+  supplies the operating-system control side. There is no durable drag-region state and no missing
+  input is inferred. Workbench owns the shell geometry, the Desktop renderer exclusively projects
+  CSS app regions, and Electron and the operating system own native-control precedence plus pointer
+  activation, movement, release, and cancellation.
+- **Model and output:** The renderer applies this hit-test policy after every layout projection:
+
+  | Horizontal-chrome target                                                                | CSS app region | Observable result                                |
+  | --------------------------------------------------------------------------------------- | -------------- | ------------------------------------------------ |
+  | Unoccupied sidebar top-row background                                                   | `drag`         | Starts native window movement                    |
+  | Unoccupied horizontal Tab-bar background, including reserved leading and trailing space | `drag`         | Starts native window movement                    |
+  | Sidebar-toggle position, Tab, group, or button geometry                                 | `no-drag`      | Retains the control's ordinary pointer behavior  |
+  | Vertical Tab Strip or content outside the horizontal chrome                             | Unset          | Retains its existing non-window-drag interaction |
+
+- **Invariants and transitions:** Native window controls and rendered Workbench controls always
+  take precedence over a background drag region; no Desktop drag projection extends below the
+  `36px` boundary. Showing or hiding the sidebar and switching Tab Strip orientation recompute the
+  projection without starting, committing, or cancelling a native drag. Unsupported or absent
+  horizontal chrome is an intentional no-op.
+- **Dependencies and verification:** Electron's CSS app-region contract is the only platform
+  capability. The controlled Desktop system trace checks the complete sidebar-row geometry, the
+  horizontal Tab-bar default, every interactive exclusion, sidebar visibility transitions, and
+  live control activation. Automated evidence does not move or focus an operating-system window;
+  that remains outside the aggregate suite and inside the separately authorized manual native-window
+  boundary.
 
 Desktop reads the terminal machine's hostname once at the trusted Main composition boundary,
 validates it as runtime configuration, and includes it in every Electron or Gateway client-session

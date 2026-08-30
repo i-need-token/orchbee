@@ -5,48 +5,28 @@
 }
 
 .root :global([data-slot='workbench-window-drag-region']),
+.root :global([data-slot='workbench-tab-bar'][data-orientation='horizontal']),
+.root
+	:global(
+		[data-slot='workbench-tab-bar'][data-orientation='horizontal'] [data-horizontal-leading-actions]
+	),
 .root
 	:global([data-slot='workbench-tab-bar'][data-orientation='horizontal'] [data-horizontal-track]) {
 	-webkit-app-region: drag;
 	app-region: drag;
 }
 
-.root :global([data-slot='workbench-window-drag-region']) {
-	inset-inline-start: calc(
-		var(--ob-ref-space-2) + var(--ob-ref-size-control-sm) + var(--ob-ref-space-2)
-	);
-}
-
 .root :global([data-slot='workbench-sidebar-toggle-position']),
 .root :global([data-slot='workbench-sidebar-toggle']),
-.root
-	:global(
-		[data-slot='workbench-tab-bar'][data-orientation='horizontal']
-			[data-horizontal-track]
-			[data-tab-id]
-	),
-.root
-	:global(
-		[data-slot='workbench-tab-bar'][data-orientation='horizontal']
-			[data-horizontal-track]
-			[data-group-id]
-	),
-.root
-	:global(
-		[data-slot='workbench-tab-bar'][data-orientation='horizontal'] [data-horizontal-track] button
-	) {
+.root :global([data-slot='workbench-tab-bar'][data-orientation='horizontal'] [data-tab-id]),
+.root :global([data-slot='workbench-tab-bar'][data-orientation='horizontal'] [data-group-id]),
+.root :global([data-slot='workbench-tab-bar'][data-orientation='horizontal'] button) {
 	-webkit-app-region: no-drag;
 	app-region: no-drag;
 }
 
 .root[data-window-controls='leading'] :global([data-slot='workbench-sidebar-toggle-position']) {
 	inset-inline-start: var(--ob-ref-space-20);
-}
-
-.root[data-window-controls='leading'] :global([data-slot='workbench-window-drag-region']) {
-	inset-inline-start: calc(
-		var(--ob-ref-space-20) + var(--ob-ref-size-control-sm) + var(--ob-ref-space-2)
-	);
 }
 
 .root[data-window-controls='leading'] :global([data-slot='workbench-tab-bar-leading-actions']) {
