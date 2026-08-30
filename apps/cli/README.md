@@ -222,5 +222,5 @@ pnpm --filter @orchbee/cli build
 pnpm --filter @orchbee/cli typecheck
 pnpm --filter @orchbee/cli test
 pnpm --filter @orchbee/desktop test:native
-pnpm desktop:package
+pnpm desktop:package:local
 ```

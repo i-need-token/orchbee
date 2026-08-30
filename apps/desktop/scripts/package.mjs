@@ -1,4 +1,15 @@
-import { access, cp, lstat, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import {
+	access,
+	cp,
+	lstat,
+	mkdir,
+	mkdtemp,
+	readFile,
+	realpath,
+	rm,
+	stat,
+	writeFile,
+} from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -15,11 +26,14 @@ import {
 	resolveSshEnvironmentReleasePackageConfiguration,
 	stageSshEnvironmentReleasePackageResources,
 } from './ssh-environment-release-package.mjs';
-
-const environmentReleaseConfiguration = resolveSshEnvironmentReleasePackageConfiguration(
-	process.argv.slice(2),
-	process.env,
-);
+import { materializeDarwinApplicationIcon } from './materialize-darwin-application-icon.mjs';
+import {
+	DESKTOP_DISTRIBUTION_DESCRIPTOR_FILE_NAME,
+	createDesktopDevelopmentScope,
+	encodeDesktopDistributionDescriptor,
+	parseDesktopDistributionProfileArguments,
+	resolveDesktopDistributionProfile,
+} from '../src/distribution/desktop-distribution-profile.ts';
 
 const electronPackage = createRequire(import.meta.url)('electron/package.json');
 if (typeof electronPackage?.version !== 'string') {
@@ -28,6 +42,16 @@ if (typeof electronPackage?.version !== 'string') {
 
 const applicationRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const repositoryRoot = path.resolve(applicationRoot, '..', '..');
+const profileId = parseDesktopDistributionProfileArguments(process.argv.slice(2));
+const developmentScope =
+	profileId === 'dev'
+		? createDesktopDevelopmentScope(await realpath(repositoryRoot), process.platform)
+		: undefined;
+const distributionProfile = resolveDesktopDistributionProfile(profileId, developmentScope);
+const environmentReleaseConfiguration = resolveSshEnvironmentReleasePackageConfiguration(
+	distributionProfile.releasePayload === 'required' ? ['--with-ssh-environment-release'] : [],
+	process.env,
+);
 const applicationPackage = JSON.parse(
 	await readFile(path.join(applicationRoot, 'package.json'), 'utf8'),
 );
@@ -91,6 +115,7 @@ const agentObservationAdapterResources = path.join(
 	'resources',
 	'agent-observation-adapters',
 );
+const baseApplicationIcon = path.join(repositoryRoot, 'resources', 'icon.svg');
 
 await Promise.all([
 	access(path.join(desktopBuild, 'main', 'main.cjs')),
@@ -162,6 +187,7 @@ await Promise.all([
 	access(
 		path.join(agentObservationAdapterResources, 'bundle', 'omp', 'orchbee-agent-observation.cjs'),
 	),
+	access(baseApplicationIcon),
 ]);
 if (process.platform !== 'win32' && ((await stat(semanticCommandCliLauncher)).mode & 0o111) === 0) {
 	throw new Error('The packaged semantic command CLI launcher must be executable.');
@@ -181,7 +207,7 @@ try {
 			{
 				description: applicationPackage.description,
 				main: 'dist/main/main.cjs',
-				name: 'orchbee',
+				name: distributionProfile.packageName,
 				private: true,
 				version: applicationPackage.version,
 			},
@@ -189,6 +215,11 @@ try {
 			2,
 		)}\n`,
 		'utf8',
+	);
+	await writeFile(
+		path.join(stagingRoot, DESKTOP_DISTRIBUTION_DESCRIPTOR_FILE_NAME),
+		encodeDesktopDistributionDescriptor(distributionProfile),
+		{ encoding: 'utf8', mode: 0o400 },
 	);
 	const environmentReleaseResources =
 		environmentReleaseConfiguration === null
@@ -199,7 +230,16 @@ try {
 					publicKeyFilePath: environmentReleaseConfiguration.publicKeyFilePath,
 					releaseDirectory: environmentReleaseConfiguration.releaseDirectory,
 				});
+	const applicationIcon =
+		process.platform === 'darwin'
+			? await materializeDarwinApplicationIcon({
+					baseIconSvg: await readFile(baseApplicationIcon, 'utf8'),
+					outputDirectory: path.join(packageWorkspace, 'application-icon'),
+					profile: distributionProfile,
+				})
+			: undefined;
 	const outputs = await packager({
+		appBundleId: distributionProfile.bundleIdentifier,
 		asar: true,
 		dir: stagingRoot,
 		electronVersion: electronPackage.version,
@@ -219,20 +259,34 @@ try {
 				? []
 				: [environmentReleaseResources.releaseResourceDirectory]),
 		],
-		name: 'Orchbee',
-		out: path.join(applicationRoot, 'out'),
+		helperBundleId: `${distributionProfile.bundleIdentifier}.helper`,
+		...(applicationIcon === undefined ? {} : { icon: applicationIcon }),
+		name: distributionProfile.applicationName,
+		out: path.join(applicationRoot, 'out', distributionProfile.outputDirectoryName),
 		overwrite: true,
 		prune: false,
 	});
 	for (const output of outputs) {
+		const applicationFileName = `${distributionProfile.applicationName}.app`;
 		const resourcesDirectory =
 			process.platform === 'darwin'
-				? path.join(output, 'Orchbee.app', 'Contents', 'Resources')
+				? path.join(output, applicationFileName, 'Contents', 'Resources')
 				: path.join(output, 'resources');
 		const executablePath =
 			process.platform === 'darwin'
-				? path.join(output, 'Orchbee.app', 'Contents', 'MacOS', 'Orchbee')
-				: path.join(output, process.platform === 'win32' ? 'Orchbee.exe' : 'Orchbee');
+				? path.join(
+						output,
+						applicationFileName,
+						'Contents',
+						'MacOS',
+						distributionProfile.applicationName,
+					)
+				: path.join(
+						output,
+						process.platform === 'win32'
+							? `${distributionProfile.applicationName}.exe`
+							: distributionProfile.applicationName,
+					);
 		const packagedLauncher = path.join(
 			resourcesDirectory,
 			path.basename(semanticCommandCliLauncher),
@@ -259,7 +313,7 @@ try {
 		if (process.platform !== 'win32' && ((await stat(packagedLauncher)).mode & 0o111) === 0) {
 			throw new Error('The packaged semantic command CLI launcher is not executable.');
 		}
-		console.info(`Packaged Orchbee Desktop: ${output}`);
+		console.info(`Packaged Orchbee Desktop (${distributionProfile.profileId}): ${output}`);
 	}
 } finally {
 	await rm(packageWorkspace, { force: true, recursive: true });

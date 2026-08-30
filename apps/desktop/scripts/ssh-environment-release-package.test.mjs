@@ -29,7 +29,7 @@ import {
 	stageSshEnvironmentReleasePackageResources,
 } from './ssh-environment-release-package.mjs';
 
-test('package mode keeps development release-free and requires two absolute release inputs', () => {
+test('Dev and Local exclude a release payload while Release requires two absolute inputs', () => {
 	const absoluteRoot = path.parse(process.cwd()).root;
 	const publicKeyFilePath = path.join(absoluteRoot, 'release-inputs', 'public-key.pem');
 	const releaseDirectory = path.join(absoluteRoot, 'release-inputs', 'final-release');

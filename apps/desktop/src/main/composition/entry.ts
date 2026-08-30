@@ -15,6 +15,7 @@ import {
 	DesktopDevelopmentRestartPlanStore,
 	DesktopDevelopmentRestartRequestSchema,
 } from '../../development';
+import { resolveDesktopApplicationDistribution } from './resolveDesktopApplicationDistribution';
 import {
 	DESKTOP_RENDERER_URL,
 	installDesktopRendererScheme,
@@ -45,10 +46,16 @@ let bypassQuitGate = false;
 const DARWIN_LOCALE_INVENTORY_MAX_BYTES = 64 * 1024;
 const DARWIN_LOCALE_INVENTORY_TIMEOUT_MILLISECONDS = 1_000;
 registerDesktopRendererScheme(protocol);
-const desktopDataRoot = prepareDesktopDataRoot({
+const desktopDistribution = resolveDesktopApplicationDistribution({
+	applicationPath: app.getAppPath(),
 	environment: process.env,
-	homeDirectory: app.getPath('home'),
 	packaged: app.isPackaged,
+	platform: process.platform,
+});
+app.setName(desktopDistribution.applicationName);
+const desktopDataRoot = prepareDesktopDataRoot({
+	distribution: desktopDistribution,
+	homeDirectory: app.getPath('home'),
 	platform: process.platform,
 });
 app.setPath('userData', desktopDataRoot.path);

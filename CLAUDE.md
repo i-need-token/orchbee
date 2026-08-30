@@ -17,6 +17,7 @@
 - **Act on structural smells early.** When an in-scope change reveals a clear risk of growth, coupling, ownership ambiguity, or boundary erosion, resolve it before it spreads; if the remedy would materially expand scope, surface the risk before proceeding.
 - **`AGENTS.md` and `AGENTS.zh-CN.md` are symlinks to their `CLAUDE` counterparts.** Only edit `CLAUDE.md` and `CLAUDE.zh-CN.md`.
 - **Never modify lint config to escape errors.** Fix the code, not the config. Changing `.oxlintrc.json` requires explicit human approval.
+- **Desktop development diagnostics target the development application identity.** When inspecting `pnpm desktop`, target the generated `Orchbee Dev.app` by its exact path or checkout-scoped bundle identifier. Never open, focus, quit, replace, or fall back to `/Applications/Orchbee.app` unless the human explicitly requests the installed release application in the current task.
 - **The focus-stealing Desktop native-window system test is manual-only.** Never invoke `test:system:manual:native-window` or set `ORCHBEE_DESKTOP_NATIVE_WINDOW_TEST_APPROVAL` unless the human explicitly authorizes that exact test in the current request; aggregate, full, CI, and autonomous verification must exclude it. See `apps/desktop/README.md#manual-native-window-test`.
 
 ## Key Docs Index

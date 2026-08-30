@@ -2,20 +2,24 @@
 
 ## 权威与范围
 
-本参考拥有 Desktop 产品数据根目录与开发实例隔离。数据根目录统一限定 Electron
+本参考拥有 Desktop 产品数据根目录与 distribution profile 隔离。数据根目录统一限定 Electron
 `userData`、单实例锁、Terminal Host 身份、恢复状态、本地偏好设置和托管 Git Worktree 的默认位置。
-它不定义同步产品状态、用户可选存储位置、从早期 Electron 管理位置迁移数据或自动删除。
+它不定义同步产品状态、用户可选存储位置、profile 之间或从早期 Electron 管理位置迁移数据，也不
+定义自动删除。
 
 ## 解析
 
-| 环境     | 数据根目录                           |
-| -------- | ------------------------------------ |
-| 打包环境 | `<home>/.orchbee`                    |
-| 开发环境 | `<home>/.orchbee-dev-<scope-digest>` |
+| Distribution profile | 数据根目录                           |
+| -------------------- | ------------------------------------ |
+| Dev                  | `<home>/.orchbee-dev-<scope-digest>` |
+| Local                | `<home>/.orchbee-local`              |
+| Release              | `<home>/.orchbee`                    |
 
-开发环境在哈希前解析规范的源码 checkout 根目录。Scope digest 是对包含平台规范化真实路径的带版本
-identity 执行 SHA-256 后所得小写十六进制结果的前 16 个字符。版本标记可以显式管理未来的 identity
-迁移，但进程 CWD 和嵌套 package 路径不会进入 identity。开发启动器显式提供 checkout 根目录。
+无论由 `pnpm desktop` 实时启动，还是来自 `pnpm desktop:package:dev`，Dev 都会在哈希前解析规范的
+源码 checkout 根目录。Scope digest 是对包含平台规范化真实路径的带版本 identity 执行 SHA-256 后
+所得小写十六进制结果的前 16 个字符。版本标记可以显式管理未来的 identity 迁移，但进程 CWD 和
+嵌套 package 路径不会进入 identity。实时开发启动器显式提供 checkout 根目录；打包 Dev descriptor
+会记录该路径，启动时重新解析同一规范路径后才接受 scope。
 
 每个开发数据根目录都包含一个有界的 scope marker，其中保存完整的规范 checkout 路径和 digest
 版本。启动时只有 marker 一致才接受已有目录；不一致时关闭失败，绝不打开其他 checkout 的状态。
@@ -26,9 +30,11 @@ checkout 移动后会获得新的数据根目录，旧目录保持不动。
 
 ## 启动顺序与所有权
 
-Desktop Main 在请求 Electron 单实例锁之前解析并创建数据根目录。它先把 Electron `userData`
-设置为该目录，使磁盘状态与锁身份由同一个 scope 控制。因此同一个 checkout 只允许一个 Desktop
-实例，而打包版 Desktop 与不同开发 checkout 可以并行运行。
+Desktop Main 在请求 Electron 单实例锁之前解析显式 distribution profile，并创建对应数据根目录。
+实时开发只接受启动器提供的 source root；打包应用只接受 `app.asar` 内的严格 descriptor，进程环境
+不能覆盖它。Main 会先把 Electron `userData` 设置为解析后的目录，使磁盘状态与锁身份由同一个
+profile scope 控制。因此同一个 checkout 只允许一个 Dev 实例，而 Dev、Local、Release 和不同开发
+checkout 可以并行运行。
 
 在 POSIX 上，Main 以仅所有者可访问的权限创建产品拥有的数据目录。Electron renderer 可以收到固定的
 托管 Worktree 根目录作为表单中的只读文案，但不会收到源 repository 路径、数据根目录枚举、位置覆盖
@@ -37,7 +43,8 @@ Desktop Main 在请求 Electron 单实例锁之前解析并创建数据根目录
 
 ## 不变量
 
-- 打包环境与开发环境绝不解析为同一路径。
+- Dev、Local 和 Release 的数据根目录两两不同。
+- 打包 profile 的身份与数据 scope 只能来自内嵌的严格 descriptor。
 - 相同的规范开发 checkout 路径解析为相同的数据根目录。
 - 被接受的开发根目录 marker 精确记录用于计算 digest 的路径。
 - 不同路径不能共享一个被接受的根目录，包括截断 digest 发生碰撞时。
@@ -47,6 +54,6 @@ Desktop Main 在请求 Electron 单实例锁之前解析并创建数据根目录
 
 ## 验证
 
-确定性 resolver 测试覆盖打包与开发路径、规范路径稳定性、平台规范化、marker 创建与不匹配，以及
-不同 checkout 隔离。Desktop 配置测试验证选定的 `userData` 根目录进入托管 Worktree 与恢复路径；
-Main 入口会在请求单实例锁之前选择 `userData`。
+确定性 resolver 测试覆盖三种 profile、严格打包 descriptor、环境不可覆盖、规范路径稳定性、平台
+规范化、marker 创建与不匹配，以及不同 checkout 隔离。Desktop 配置测试验证选定的 `userData`
+根目录进入托管 Worktree 与恢复路径；Main 入口会在请求单实例锁之前选择 `userData`。

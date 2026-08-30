@@ -17,6 +17,7 @@
 - **尽早处理结构异味。** 当范围内变更暴露明显的增长、耦合、所有权歧义或边界侵蚀风险时，在它扩散前解决；如果补救会实质性扩大范围，继续前先说明风险。
 - **`AGENTS.md` 和 `AGENTS.zh-CN.md` 是指向各自 `CLAUDE` 对应文件的符号链接。** 只能编辑 `CLAUDE.md` 和 `CLAUDE.zh-CN.md`。
 - **绝不能为规避错误而修改 lint 配置。** 修复代码，不要修改配置。变更 `.oxlintrc.json` 必须取得明确的人工批准。
+- **Desktop 开发诊断必须定位开发应用身份。** 检查 `pnpm desktop` 时，必须按精确路径或 checkout 专属 bundle identifier 定位生成的 `Orchbee Dev.app`。除非人类在当前任务中明确要求操作已安装的正式应用，否则绝不能打开、聚焦、退出、替换 `/Applications/Orchbee.app`，也不能把它作为回退目标。
 - **会抢占焦点的 Desktop 原生窗口系统测试只能手动运行。** 除非人类在当前请求中明确授权该项测试，否则绝不能调用 `test:system:manual:native-window` 或设置 `ORCHBEE_DESKTOP_NATIVE_WINDOW_TEST_APPROVAL`；聚合、完整、CI 和自主验证必须排除它。参见 `apps/desktop/README.md#manual-native-window-test`。
 
 ## 核心文档索引

@@ -1,10 +1,10 @@
-import { createHash } from 'node:crypto';
-import { chmodSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { z } from 'zod';
 
-const DEVELOPMENT_SCOPE_DIGEST_LENGTH = 16;
+import type { DesktopDistributionProfile } from '../../distribution';
+
 const DEVELOPMENT_SCOPE_DIGEST_VERSION = 1;
 const DEVELOPMENT_SCOPE_MARKER_NAME = 'development-scope-v1.json';
 
@@ -15,21 +15,16 @@ const developmentScopeMarkerSchema = z.strictObject({
 	sourceRoot: z.string().min(1),
 });
 
-type DesktopDataRootEnvironment = {
-	readonly ORCHBEE_DESKTOP_DEVELOPMENT_SOURCE_ROOT?: string;
-};
-
 export interface DesktopDataRootInput {
-	readonly environment: DesktopDataRootEnvironment;
+	readonly distribution: DesktopDistributionProfile;
 	readonly homeDirectory: string;
-	readonly packaged: boolean;
 	readonly platform: NodeJS.Platform;
 }
 
 export type DesktopDataRoot =
 	| {
 			readonly path: string;
-			readonly scope: { readonly kind: 'packaged' };
+			readonly scope: { readonly kind: 'local' | 'release' };
 	  }
 	| {
 			readonly path: string;
@@ -47,7 +42,6 @@ interface DesktopDataRootDependencies {
 		options: { readonly mode: number; readonly recursive: true },
 	) => void;
 	readonly readFile: (filePath: string, encoding: 'utf8') => string;
-	readonly realpath: (filePath: string) => string;
 	readonly writeFile: (
 		filePath: string,
 		data: string,
@@ -59,7 +53,6 @@ const defaultDependencies: DesktopDataRootDependencies = {
 	chmod: (filePath, mode) => chmodSync(filePath, mode),
 	mkdir: (filePath, options) => void mkdirSync(filePath, options),
 	readFile: (filePath, encoding) => readFileSync(filePath, encoding),
-	realpath: realpathSync.native,
 	writeFile: (filePath, data, options) => writeFileSync(filePath, data, options),
 };
 
@@ -67,7 +60,7 @@ export function prepareDesktopDataRoot(
 	input: DesktopDataRootInput,
 	dependencies: DesktopDataRootDependencies = defaultDependencies,
 ): DesktopDataRoot {
-	const resolved = resolveDesktopDataRoot(input, dependencies.realpath);
+	const resolved = resolveDesktopDataRoot(input);
 	dependencies.mkdir(resolved.path, { mode: 0o700, recursive: true });
 	if (input.platform !== 'win32') dependencies.chmod(resolved.path, 0o700);
 	if (resolved.scope.kind === 'development') {
@@ -76,34 +69,29 @@ export function prepareDesktopDataRoot(
 	return resolved;
 }
 
-function resolveDesktopDataRoot(
-	input: DesktopDataRootInput,
-	realpath: (value: string) => string = realpathSync.native,
-): DesktopDataRoot {
+function resolveDesktopDataRoot(input: DesktopDataRootInput): DesktopDataRoot {
 	const platformPath = input.platform === 'win32' ? path.win32 : path.posix;
 	if (!platformPath.isAbsolute(input.homeDirectory)) {
 		throw new Error('Desktop data-root resolution requires an absolute home directory.');
 	}
 	const normalizedHome = normalizePath(input.homeDirectory, input.platform);
-	if (input.packaged) {
-		return { path: platformPath.join(normalizedHome, '.orchbee'), scope: { kind: 'packaged' } };
+	if (input.distribution.dataScope.kind !== 'development') {
+		const directoryName = input.distribution.dataRootDirectoryName;
+		if (directoryName === null) {
+			throw new Error('Packaged Desktop distribution requires a fixed data-root directory.');
+		}
+		return {
+			path: platformPath.join(normalizedHome, directoryName),
+			scope: { kind: input.distribution.dataScope.kind },
+		};
 	}
-	const configuredSourceRoot = input.environment.ORCHBEE_DESKTOP_DEVELOPMENT_SOURCE_ROOT;
-	if (configuredSourceRoot === undefined || configuredSourceRoot.length === 0) {
-		throw new Error('Development Desktop requires its canonical source checkout root.');
-	}
-	const sourceRoot = normalizePath(realpath(configuredSourceRoot), input.platform);
-	if (!platformPath.isAbsolute(sourceRoot)) {
-		throw new Error('Development Desktop source checkout root must resolve to an absolute path.');
-	}
-	const digest = createHash('sha256')
-		.update(`orchbee-development-data-root-v${DEVELOPMENT_SCOPE_DIGEST_VERSION}\0`)
-		.update(sourceRoot)
-		.digest('hex')
-		.slice(0, DEVELOPMENT_SCOPE_DIGEST_LENGTH);
 	return {
-		path: platformPath.join(normalizedHome, `.orchbee-dev-${digest}`),
-		scope: { digest, kind: 'development', sourceRoot },
+		path: platformPath.join(normalizedHome, `.orchbee-dev-${input.distribution.dataScope.digest}`),
+		scope: {
+			digest: input.distribution.dataScope.digest,
+			kind: 'development',
+			sourceRoot: input.distribution.dataScope.sourceRoot,
+		},
 	};
 }
 

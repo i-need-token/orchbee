@@ -8,10 +8,11 @@ accepted platform. Repository automation builds and assembles the cohort, an ext
 signs its exact canonical payload, and Desktop verifies and privately stages every component before
 Electron Packager runs.
 
-`desktop:package` remains release-free. `desktop:package:release` accepts only v2. Slice 3.1B now
-consumes that verified cohort for atomic remote installation and exact Terminal Host relay
-negotiation. This release boundary still does not create a remote Workspace or terminal, publish a
-feed, sign or notarize Electron, or define update and cleanup policy.
+`desktop:package:dev` and `desktop:package:local` are structurally release-free.
+`desktop:package:release` requires v2. Slice 3.1B now consumes that verified cohort for atomic remote
+installation and exact Terminal Host relay negotiation. This release boundary still does not create
+a remote Workspace or terminal, publish a feed, sign or notarize Electron, or define update and
+cleanup policy.
 
 ## Accepted decisions D37-D46
 
@@ -23,7 +24,7 @@ feed, sign or notarize Electron, or define update and cleanup policy.
 | D40      | Repository code never reads a production private key. The workflow is prepare → external or HSM-backed raw Ed25519 signature → finalize with the 64-byte signature and independent public key.                                                                                                                             |
 | D41      | One Desktop release trusts one Ed25519 key and one exact manifest. Its descriptor stores canonical SPKI, `ed25519-spki-sha256:<digest>`, and the SHA-256 of the exact final manifest bytes.                                                                                                                                |
 | D42      | The trust descriptor is staged inside `app.asar`; the manifest and artifacts are staged beneath Electron `Resources`. Desktop reads, verifies, and buffers all admitted bytes into a private staging area before packaging.                                                                                                |
-| D43      | `desktop:package` keeps its existing development behavior. `desktop:package:release` requires an absolute finalized-bundle path and independent public-key path and fails before Electron Packager on missing or invalid input.                                                                                            |
+| D43      | Explicit Dev and Local packaging exclude release payloads. `desktop:package:release` requires an absolute finalized-bundle path and independent public-key path and fails before Electron Packager on missing or invalid input.                                                                                            |
 | D44      | This slice has no multi-key trust, feed, automatic upgrade, or downgrade policy. A signing-key or Runtime change produces a new Desktop package; an application rollback carries its own original bundle and descriptor.                                                                                                   |
 | D45      | This slice does not compose SSH connection, installation, supervisor, or installed-artifact fast-path behavior and does not own Electron code signing or notarization.                                                                                                                                                     |
 | D46      | Deterministic evidence uses ephemeral Ed25519 keys, full prepare/sign/finalize/verify flow, mutation and canonical-layout cases, two-target compilation, platform-native Runtime tests, and the repository gate. No production key enters tests; no TLA+ or Lean artifact is required for this finite sequential workflow. |
@@ -39,7 +40,7 @@ feed, sign or notarize Electron, or define update and cleanup policy.
 | D81      | Both components use Zig `0.16.0`, `ReleaseSafe`, stripping, and explicit versions. The exact targets are Apple Silicon macOS and x64 glibc Linux, with artifact names `orchbee-ssh-environment-runtime` and `orchbee-terminal-host`.                                                                                                                                                                                                                       |
 | D82      | Each native application owns its build recipe. Repository-level release automation owns cross-application prepare/finalize and consumes installed build output; neither application imports the other's source tree.                                                                                                                                                                                                                                       |
 | D83      | Prepare is offline and finalize accepts one external raw Ed25519 signature. One canonical signature covers every component role, version, platform, size, and digest. Layouts are exact, symlinks and extra entries fail closed, every artifact is bounded at 128 MiB, and the manifest is bounded at 64 KiB. Production private keys remain outside repository tooling.                                                                                   |
-| D84      | Explicit Desktop release packaging independently verifies the signature, manifest, four artifacts, and public key before staging. It places the exact trust descriptor inside `app.asar` and buffered manifest/artifacts beneath `Resources`; ordinary development packaging remains release-free.                                                                                                                                                         |
+| D84      | Explicit Desktop release packaging independently verifies the signature, manifest, four artifacts, and public key before staging. It places the exact trust descriptor inside `app.asar` and buffered manifest/artifacts beneath `Resources`; Dev and Local packaging remain release-free.                                                                                                                                                                 |
 | D85      | Frozen v1 artifacts remain valid only for already delivered Runtime and `project-root-v1` behavior. A future Terminal Host capability requires verified v2 and cannot use a v1 companion, remote `PATH`, remote build, network download, mixed cohort, or validation-failure downgrade.                                                                                                                                                                    |
 | D86      | Evidence covers strict schemas and canonical bytes, missing/reordered/expanded/oversized/tampered inputs, wrong keys and signatures, symlinks, fixed build arguments, real target compilation, prepare/finalize/package round trips, documentation pairing, and the repository gate. Real SSH, remote upload, production signing, Workspace, terminal execution, and UI remain outside the claim; this bounded sequential workflow requires no TLA+ model. |
 
@@ -60,7 +61,7 @@ never falls back after v2 validation fails.
 | Problem      | Bind the exact Runtime and Terminal Host compatibility cohort to one Desktop package without admitting a production private key, remote download, remote build, path lookup, or component substitution.                                                                                        |
 | Inputs       | Trusted intent is two explicit semantic versions, one externally governed Ed25519 signer, and one independently supplied public key. Build output, prepared/final directories, signatures, manifests, filesystem kinds, package variables, and absent inputs are untrusted until validated.    |
 | Data         | Schema-version-2 manifests contain an ordered two-component by two-platform matrix. Trust schema `2` binds canonical SPKI, its derived signing-key identity, and the exact final-manifest digest.                                                                                              |
-| Outputs      | Prepare and finalize atomically publish exact absent-target directories. Packaging either invokes Electron Packager with a privately buffered verified cohort or fails first. Ordinary packaging contains no SSH Environment release.                                                          |
+| Outputs      | Prepare and finalize atomically publish exact absent-target directories. Release packaging either invokes Electron Packager with a privately buffered verified cohort or fails first. Dev and Local packaging contain no SSH Environment release.                                              |
 | Invariants   | Every required component exists once, every signed size and digest matches buffered bytes, component versions remain distinct, canonical manifest bytes define the cohort, trust pins signer and manifest, and no production private key is an input.                                          |
 | Ownership    | Native applications own component builds; repository automation owns cohort assembly; the protocol package owns data contracts; the external authority owns signing; Desktop owns public-key normalization, trust construction, complete verification, buffering, and package placement.       |
 | Verification | Protocol and Desktop unit tests, repository-automation tests, both native target compiles, documentation pairing, and `pnpm verify`. The workflow is finite and sequential, so deterministic transition and negative-path tests are stronger evidence than a concurrency model for this claim. |
@@ -122,7 +123,8 @@ ORCHBEE_SSH_ENVIRONMENT_RELEASE_PUBLIC_KEY=/absolute/release-public-key.pem \
 pnpm desktop:package:release
 ```
 
-`pnpm desktop:package` ignores these variables and includes no release cohort or descriptor.
+`pnpm desktop:package:dev` and `pnpm desktop:package:local` ignore these variables and include no
+release cohort or trust descriptor.
 
 ## Trust and current limits
 

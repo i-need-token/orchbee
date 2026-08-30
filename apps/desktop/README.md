@@ -774,13 +774,31 @@ pnpm desktop
 
 `pnpm desktop` builds the Browser-access Server, Gateway, static Web resources, and semantic-command CLI entry before running the Web development server and the Desktop-owned native/Electron development lifecycle. Electron defaults to `http://127.0.0.1:3000/`; an explicit loopback Web server can be selected with `ORCHBEE_DESKTOP_RENDERER_URL`. Open **Settings → Browser access** to create or reset the Personal Access Token, start loopback access, or explicitly enable trusted-LAN preview. Access links contain no credential; Desktop Main performs the Copy Link and Open Browser effects. Set `ORCHBEE_DESKTOP_GATEWAY=0` to remove Browser-access resources from a development launch.
 
-Build an unsigned current-platform application bundle with:
+On macOS, the command materializes and ad-hoc signs a content-addressed `Orchbee Dev.app` beneath
+`apps/desktop/out/development-runtime/`, then launches its exact executable. Its application name,
+checkout-scoped bundle identifier, purple development icon, and checkout-scoped data root are
+separate from the installed release application. Development diagnostics must target that exact
+bundle path or identifier and never fall back to `/Applications/Orchbee.app`.
 
-```sh
-pnpm desktop:package
-```
+### Distribution profiles
 
-The command builds the Terminal Host, native endpoint adapters, semantic-command CLI, Web renderer, Browser Server, Gateway, and Electron Main/preload bundles before packaging. The Web build is both a read-only `orchbee://app` resource and the on-demand Browser renderer root; the native Host, current-platform endpoint adapters, CLI entry and launcher, Server, and Gateway entries remain available outside `app.asar`. Packaging fails when a CLI artifact is missing or the POSIX launcher is not executable. This development command does not include an SSH Environment release.
+Desktop owns exactly three explicit distribution profiles:
+
+| Command                        | Application         | Bundle identifier                          | Data root                       | Icon              | Output / release payload              |
+| ------------------------------ | ------------------- | ------------------------------------------ | ------------------------------- | ----------------- | ------------------------------------- |
+| `pnpm desktop:package:dev`     | `Orchbee Dev.app`   | `com.electron.orchbee.dev.d<scope-digest>` | `~/.orchbee-dev-<scope-digest>` | Purple Dev badge  | `apps/desktop/out/dev/`; excluded     |
+| `pnpm desktop:package:local`   | `Orchbee Local.app` | `com.electron.orchbee.local`               | `~/.orchbee-local`              | Green Local badge | `apps/desktop/out/local/`; excluded   |
+| `pnpm desktop:package:release` | `Orchbee.app`       | `com.electron.orchbee`                     | `~/.orchbee`                    | Canonical Orchbee | `apps/desktop/out/release/`; required |
+
+`pnpm desktop` always uses the `dev` identity but does not create a packaged application. There is
+no generic `desktop:package` command: package creation requires one explicit profile so a local or
+development build cannot be mistaken for release. All three packaging commands build the Terminal
+Host, native endpoint adapters, semantic-command CLI, Web renderer, Browser Server, Gateway, and
+Electron Main/preload bundles before packaging. The Web build is both a read-only `orchbee://app`
+resource and the on-demand Browser renderer root; the native Host, current-platform endpoint
+adapters, CLI entry and launcher, Server, and Gateway entries remain available outside `app.asar`.
+Packaging fails when a CLI artifact is missing or the POSIX launcher is not executable. The `dev`
+and `local` profiles cannot include an SSH Environment release.
 
 Compose one previously finalized v2 SSH Environment cohort with an unsigned current-platform
 application bundle through the separate release-only command:
@@ -798,8 +816,9 @@ under `Resources/ssh-environment-release-v2` and the exact manifest-pinned trust
 `app.asar`. The complete offline ceremony and rollback boundary live in
 [`docs/ssh-runtime-release.md`](docs/ssh-runtime-release.md).
 
-Both package commands write beneath `apps/desktop/out/`. Neither performs Electron code signing,
-notarization, installer creation, publication, or update distribution.
+All three package commands write beneath their profile-specific directory in `apps/desktop/out/`.
+They do not perform Electron code signing, notarization, installer creation, publication, or update
+distribution.
 
 `ORCHBEE_TERMINAL_HOST_BINARY` selects an absolute development/test Host binary. `ORCHBEE_TERMINAL_SCROLLBACK_BYTES` selects the temporary development startup/default scrollback budget in decimal bytes from `0` through `1000000000`; the built-in default is `10000000`. `ORCHBEE_GATEWAY_ENTRY_PATH`, `ORCHBEE_SERVER_ENTRY_PATH`, and `ORCHBEE_WEB_RENDERER_ROOT` select explicit development Browser-access resources when the default sibling builds are not used. `ORCHBEE_DESKTOP_RUNTIME_DIRECTORY`, `ORCHBEE_DESKTOP_ENDPOINT_ID`, and `ORCHBEE_DESKTOP_RECOVERY_DIRECTORY` isolate controlled development and system-test state. They are not a versioned Host installation or discovery mechanism. The default POSIX runtime uses the short stable product-scoped child of the trusted per-user runtime location described above; an explicit runtime directory is still prepared and validated by the native endpoint-security boundary.
 

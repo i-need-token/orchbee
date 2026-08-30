@@ -12,9 +12,10 @@ import {
 } from './src/development';
 import { buildPosixHostEndpoint } from './scripts/build-posix-host-endpoint.mjs';
 import { buildSemanticCommandEndpoint } from './scripts/build-semantic-command-endpoint.mjs';
+import { prepareDesktopDevelopmentExecutable } from './scripts/prepare-desktop-development-application.mjs';
 
-const electronExecutable: unknown = createRequire(import.meta.url)('electron');
-if (typeof electronExecutable !== 'string') {
+const sourceElectronExecutable: unknown = createRequire(import.meta.url)('electron');
+if (typeof sourceElectronExecutable !== 'string') {
 	throw new Error('Electron development executable path is unavailable.');
 }
 
@@ -43,6 +44,12 @@ export default defineConfig(({ command }) => {
 			};
 			api.onAfterStartDevServer(async () => {
 				if (developmentRuntime !== undefined) return;
+				const electronExecutable = await prepareDesktopDevelopmentExecutable({
+					baseIconPath: path.join(sourceRoot, 'resources', 'icon.svg'),
+					electronExecutable: sourceElectronExecutable,
+					outputRoot: path.join(desktopRoot, 'out', 'development-runtime'),
+					sourceRoot,
+				});
 				const runtime = new DesktopDevelopmentRuntime(
 					{
 						desktopEntryPath: path.join(desktopRoot, 'dist', 'main', 'main.cjs'),
@@ -101,8 +108,12 @@ export default defineConfig(({ command }) => {
 				paths: [
 					path.join(desktopRoot, 'scripts', 'build-posix-host-endpoint.mjs'),
 					path.join(desktopRoot, 'scripts', 'build-semantic-command-endpoint.mjs'),
+					path.join(desktopRoot, 'scripts', 'materialize-darwin-application-icon.mjs'),
+					path.join(desktopRoot, 'scripts', 'prepare-desktop-development-application.mjs'),
+					path.join(desktopRoot, 'src', 'distribution'),
 					path.join(desktopRoot, 'src', 'native', 'posix-host-endpoint'),
 					path.join(desktopRoot, 'src', 'native', 'semantic-command-endpoint'),
+					path.join(sourceRoot, 'resources', 'icon.svg'),
 				],
 				type: 'reload-server',
 			},

@@ -5,7 +5,8 @@
 	"scripts": {
 		"desktop": "pnpm --filter @orchbee/server... build && pnpm --filter @orchbee/gateway... build && pnpm --filter @orchbee/web... build && pnpm --filter @orchbee/cli... build && pnpm --parallel --filter @orchbee/web --filter @orchbee/desktop dev",
 		"desktop:build": "pnpm --filter @orchbee/server... build && pnpm --filter @orchbee/gateway... build && pnpm --filter @orchbee/web... build && pnpm --filter @orchbee/cli... build && pnpm --filter @orchbee/desktop... build",
-		"desktop:package": "pnpm --filter @orchbee/desktop package",
+		"desktop:package:dev": "pnpm --filter @orchbee/desktop package:dev",
+		"desktop:package:local": "pnpm --filter @orchbee/desktop package:local",
 		"desktop:package:release": "pnpm --filter @orchbee/desktop package:release",
 		"release:ssh-environment:prepare": "pnpm --filter @orchbee/ssh-environment-protocol build && node scripts/prepare-ssh-environment-release.mjs",
 		"release:ssh-environment:finalize": "pnpm --filter @orchbee/ssh-environment-protocol build && node scripts/finalize-ssh-environment-release.mjs",

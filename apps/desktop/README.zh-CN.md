@@ -488,13 +488,29 @@ pnpm desktop
 
 `pnpm desktop` 会构建 Browser 访问 Server、Gateway、静态 Web 资源和 semantic-command CLI entry，然后运行 Web 开发 Server 与 Desktop 拥有的 native/Electron 开发生命周期。Electron 默认为 `http://127.0.0.1:3000/`；可以使用 `ORCHBEE_DESKTOP_RENDERER_URL` 选择显式 loopback Web Server。打开 **设置 → 浏览器访问** 可以创建或重置个人访问令牌、启动 loopback 访问，或显式启用 trusted-LAN 预览。访问链接不含 credential；Desktop Main 执行复制链接与打开 Browser effect。设置 `ORCHBEE_DESKTOP_GATEWAY=0` 可从开发启动中移除 Browser 访问资源。
 
-使用以下命令构建未签名的当前平台应用程序包：
+在 macOS 上，该命令会在 `apps/desktop/out/development-runtime/` 下物化并临时签名一份
+content-addressed `Orchbee Dev.app`，再启动其精确可执行文件。它的应用名称、checkout 专属 bundle
+identifier、紫色开发图标和 checkout 专属数据根目录均与已安装的正式应用隔离。开发诊断必须定位
+该精确 bundle path 或 identifier，绝不能回退到 `/Applications/Orchbee.app`。
 
-```sh
-pnpm desktop:package
-```
+### 分发 Profile
 
-该命令会在打包前构建 Terminal Host、native endpoint adapter、semantic-command CLI、Web renderer、Browser Server、Gateway，以及 Electron Main/preload bundle。Web build 既是只读 `orchbee://app` resource，也是按需 Browser renderer root；native Host、当前平台 endpoint adapter、CLI entry 与 launcher、Server 和 Gateway entry 都保留在 `app.asar` 外。CLI artifact 缺失或 POSIX launcher 不可执行时，packaging 会失败。该开发命令不包含 SSH Environment release。
+Desktop 只拥有以下三种显式 distribution profile：
+
+| 命令                           | 应用                | Bundle identifier                          | 数据根目录                      | 图标              | 输出 / release payload                |
+| ------------------------------ | ------------------- | ------------------------------------------ | ------------------------------- | ----------------- | ------------------------------------- |
+| `pnpm desktop:package:dev`     | `Orchbee Dev.app`   | `com.electron.orchbee.dev.d<scope-digest>` | `~/.orchbee-dev-<scope-digest>` | 紫色 Dev 标记     | `apps/desktop/out/dev/`；不包含       |
+| `pnpm desktop:package:local`   | `Orchbee Local.app` | `com.electron.orchbee.local`               | `~/.orchbee-local`              | 绿色 Local 标记   | `apps/desktop/out/local/`；不包含     |
+| `pnpm desktop:package:release` | `Orchbee.app`       | `com.electron.orchbee`                     | `~/.orchbee`                    | 规范 Orchbee 图标 | `apps/desktop/out/release/`；必须包含 |
+
+`pnpm desktop` 始终使用 `dev` 身份，但不会创建打包应用。仓库刻意不提供通用的
+`desktop:package` 命令：创建包时必须显式选择一个 profile，避免把 local 或 development build 误当成
+release。三条 packaging 命令都会在打包前构建 Terminal Host、native endpoint adapter、
+semantic-command CLI、Web renderer、Browser Server、Gateway，以及 Electron Main/preload bundle。
+Web build 既是只读 `orchbee://app` resource，也是按需 Browser renderer root；native Host、当前平台
+endpoint adapter、CLI entry 与 launcher、Server 和 Gateway entry 都保留在 `app.asar` 外。CLI artifact
+缺失或 POSIX launcher 不可执行时，packaging 会失败。`dev` 和 `local` profile 不能包含 SSH
+Environment release。
 
 通过单独的 release-only command，把一份先前 finalized v2 SSH Environment cohort 与未签名的当前平台
 application bundle 组合：
@@ -511,8 +527,8 @@ manifest、独立 Ed25519 public key、signature、size 与 digest，并覆盖�
 精确固定 manifest 的 trust descriptor 放在 `app.asar` 内。完整离线 ceremony 与 rollback boundary 位于
 [`docs/ssh-runtime-release.md`](docs/ssh-runtime-release.zh-CN.md)。
 
-两个 package command 都写入 `apps/desktop/out/` 下。它们都不执行 Electron code signing、
-notarization、installer creation、publication 或 update distribution。
+三条 package command 都写入 `apps/desktop/out/` 下各自的 profile 专属目录。它们都不执行 Electron
+code signing、notarization、installer creation、publication 或 update distribution。
 
 `ORCHBEE_TERMINAL_HOST_BINARY` 选择绝对的开发/测试主机二进制文件。 `ORCHBEE_TERMINAL_SCROLLBACK_BYTES` 从 `0` 到 `1000000000` 选择以十进制字节为单位的临时开发启动/默认回滚预算；内置默认值为 `10000000`。当不使用默认同级版本时，`ORCHBEE_GATEWAY_ENTRY_PATH`、`ORCHBEE_SERVER_ENTRY_PATH` 和 `ORCHBEE_WEB_RENDERER_ROOT` 选择显式开发浏览器访问资源。 `ORCHBEE_DESKTOP_RUNTIME_DIRECTORY`、`ORCHBEE_DESKTOP_ENDPOINT_ID` 和 `ORCHBEE_DESKTOP_RECOVERY_DIRECTORY` 隔离受控开发和系统测试状态。它们不是版本化的主机安装或发现机制。默认的 POSIX 运行时使用上述受信任的每用户运行时位置的短稳定产品范围子代；显式运行时目录仍由本机端点安全边界准备和验证。
 

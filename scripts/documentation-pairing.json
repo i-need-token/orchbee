@@ -2,12 +2,12 @@
 	"formatVersion": 1,
 	"pairs": {
 		"AGENTS.md": {
-			"englishSha256": "633908b2eb74766e10875f538c1000e7be76fda6f9a3ac2d5360e3efde5f8987",
-			"zhCnSha256": "e1a987416a8e3964edea85402c79937c2314157af760b0da29f14d293d4b4efc"
+			"englishSha256": "4f4048bcb98389630d44c045cdd61caf3093179c4a30df047dcbe96c0ea89cd7",
+			"zhCnSha256": "21f59c07406cf001088a673bbd6c5b368b74109c047161b64395b4681a24d5e0"
 		},
 		"CLAUDE.md": {
-			"englishSha256": "633908b2eb74766e10875f538c1000e7be76fda6f9a3ac2d5360e3efde5f8987",
-			"zhCnSha256": "e1a987416a8e3964edea85402c79937c2314157af760b0da29f14d293d4b4efc"
+			"englishSha256": "4f4048bcb98389630d44c045cdd61caf3093179c4a30df047dcbe96c0ea89cd7",
+			"zhCnSha256": "21f59c07406cf001088a673bbd6c5b368b74109c047161b64395b4681a24d5e0"
 		},
 		"README.md": {
 			"englishSha256": "2de171a901389bd6ca833cdf85091644653a7cd3d8ef3017f491c3f480eaebd6",
@@ -18,24 +18,24 @@
 			"zhCnSha256": "f3a6b515a4ff6d6eef68fde7b0b48d58f987ab81b0d152dce5e8f089024d8130"
 		},
 		"apps/cli/README.md": {
-			"englishSha256": "8cb30a18392a3983478b380019613a7310041abe66e5065259bd8590f9b3e855",
-			"zhCnSha256": "3f13a89528583e7a705f91b308cf35fbd3a7d41d7c608c06ae34d1ccb1e499d4"
+			"englishSha256": "5cc579f47084d737a3558f760b3c47131adad9c1d8524d1a888acdd4e49f465e",
+			"zhCnSha256": "53346b82680406d81c9a70c70031316bf19096bd3b9bcc4579073100cd57aaf2"
 		},
 		"apps/cli/skills/orchbee/SKILL.md": {
 			"englishSha256": "72782043c6bdabff4fbc57f125c218ca1434bb0c7103d7c73a30568b0d956670",
 			"zhCnSha256": "26d5cd462fe3e5127aea6ee408eaeb8dfc7df659ca009e609489271d8c803f9c"
 		},
 		"apps/desktop/README.md": {
-			"englishSha256": "a8c749a8280befb982502e98b66f24bafea9beebf5cb2d4f38a5c220560d2022",
-			"zhCnSha256": "a50e3c3c17232f6b5a3e210ee005b55da67be7b5f8a8857ec57d8efd31e886a2"
+			"englishSha256": "d1ce4d40d5768f34918d639b4128a6d2165cb6c0c48acff391a8e9b231558287",
+			"zhCnSha256": "bd0f1adf884d2e706678dc5226399505d55da9cb225dca210f2a2d0ea2bdc1c1"
 		},
 		"apps/desktop/docs/agent-integrations.md": {
 			"englishSha256": "9941103e0cfb900b65dc6636cda98622ef45a96a8dda8bd24462e70193a1f33b",
 			"zhCnSha256": "746a9def2df36a32baa7319d9e1c525ae31ab5a8f17527d95515687498945dbf"
 		},
 		"apps/desktop/docs/data-root.md": {
-			"englishSha256": "70b2836c182df8c32456081cc30682ecd9bb4bb2d6bf3409bb3f9853ad23490e",
-			"zhCnSha256": "27677c38376c4ece6d408b8cb8385ee8bdec1c855fc5b165eb9703318a2f3e13"
+			"englishSha256": "9885bcf78979d8a848c2029210e169af3975241a3401f84fec213458e846731d",
+			"zhCnSha256": "7cbc55d2c9877f2e32b8103711134610aa1badf95284d0a690484638968c4cfc"
 		},
 		"apps/desktop/docs/environment-registry.md": {
 			"englishSha256": "43b171385f41f4fb51ee5c38505a6b3fcc34124c812a4aa8b9fe4bf671f4a3ee",
@@ -70,12 +70,12 @@
 			"zhCnSha256": "df4395a2e890412b285728920a1656d526292bd12adc8705f5ef6eb839edf2f0"
 		},
 		"apps/desktop/docs/ssh-environment-connection.md": {
-			"englishSha256": "a4827892f87af61cd3f6aed8c135a99ff97cbca06fef8e8dd59b8ac099482055",
-			"zhCnSha256": "4f5feb5bdfb2ffe24f672c84b64655dd22ce99d5c68462e071deaf9c697748ac"
+			"englishSha256": "74bc9420b8ff184a2b739b57ac9244414160a8cd7c2f3691254c22fb4c9b8a02",
+			"zhCnSha256": "2028e794c529800130c684fb0c71bff8b7842115d21bc1d83169d8d45db12b2e"
 		},
 		"apps/desktop/docs/ssh-runtime-release.md": {
-			"englishSha256": "3c6ae712b5ae08c976d0919991b0191d6936edb6adf9e5b5b8c4519d5b00c254",
-			"zhCnSha256": "6d2047d117b9062d240e652898f6ae6ba2ab2cdfb1bdcbfc8f3c55579ad12b2c"
+			"englishSha256": "545501a9fec157a1c991b3804abd3474a9d47a656f633a2125cb6b7132ea2cb3",
+			"zhCnSha256": "d4a247115832964c7647e51c09638f1f6ade3d18b7dfa6cf82c01ff105990ef2"
 		},
 		"apps/desktop/docs/terminal-launch-profiles.md": {
 			"englishSha256": "d91babc3860c0c136dac9b9e3081e64bad76307af94ee0b69f51401a5f26ec9d",
