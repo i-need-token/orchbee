@@ -37,6 +37,7 @@ export function buildTerminalSettingsSurfaceMessages(
 		browserAccessCategory: formatMessage(terminalSettingsMessages.browserAccessCategory),
 		browserAccessDescription: formatMessage(terminalSettingsMessages.browserAccessDescription),
 		browserAccessTitle: formatMessage(terminalSettingsMessages.browserAccessTitle),
+		close: formatMessage(terminalSettingsMessages.close),
 		copyOnSelectDescription: formatMessage(terminalSettingsMessages.copyOnSelectDescription),
 		copyOnSelectLabel: formatMessage(terminalSettingsMessages.copyOnSelectLabel),
 		currentDeviceOnlyNotice: formatMessage(terminalSettingsMessages.currentDeviceOnlyNotice),

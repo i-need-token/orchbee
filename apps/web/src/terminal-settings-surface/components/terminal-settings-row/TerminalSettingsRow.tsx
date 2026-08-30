@@ -26,6 +26,7 @@ export function TerminalSettingsRow({
 			data-setting-id={settingId}
 			data-slot='terminal-settings-row'
 			id={settingId}
+			tabIndex={-1}
 		>
 			<div className={styles['copy']}>
 				<div className={styles['labelLine']}>

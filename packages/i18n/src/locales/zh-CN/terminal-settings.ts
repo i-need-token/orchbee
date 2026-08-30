@@ -2,6 +2,7 @@ import type { TerminalSettingsMessageId } from '../en-US';
 
 export const zhCNTerminalSettingsMessages = {
 	'terminal.settings.actions.back': '返回',
+	'terminal.settings.actions.close': '关闭设置',
 	'terminal.settings.actions.reset': '重置',
 	'terminal.settings.applicationTheme.dark': '深色',
 	'terminal.settings.applicationTheme.description': '选择 Orchbee 的浅色或深色外观。',

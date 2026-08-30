@@ -30,7 +30,6 @@ describe('buildTerminalSettingsSearchCatalog', () => {
 			targetId: 'text.font-family',
 		});
 		expect(entries.find((entry) => entry.id === 'text.ligatures')).toMatchObject({
-			availability: 'available',
 			category: 'text',
 			kind: 'setting',
 			sectionLabel: 'Text shaping',
@@ -82,7 +81,12 @@ describe('buildTerminalSettingsSearchCatalog', () => {
 
 		expect(entries.some((entry) => entry.category === 'browser-access')).toBe(false);
 		expect(entries.some((entry) => entry.id === 'cursor-input.macos-option-as-alt')).toBe(false);
-		expect(entries.some((entry) => entry.id === 'cursor-input.ime')).toBe(true);
+		expect(entries.map((entry) => entry.id)).toEqual([
+			'category:general',
+			'general.language',
+			'general.reset',
+			'category:cursor-input',
+		]);
 	});
 
 	it('adds SSH management search targets only with the Desktop capability', () => {
@@ -106,7 +110,7 @@ describe('buildTerminalSettingsSearchCatalog', () => {
 		]);
 	});
 
-	it('replaces the planned scrollback result when Desktop owns the setting', () => {
+	it('indexes scrollback only when Desktop owns the setting', () => {
 		const intl = createOrchbeeIntl('en-US');
 		const buildCatalog = (
 			enabledCapabilities: readonly ['desktop-terminal-default-settings'] | [],
@@ -118,14 +122,12 @@ describe('buildTerminalSettingsSearchCatalog', () => {
 				keyboardShortcutChords: {},
 			});
 
-		expect(buildCatalog([]).filter((entry) => entry.id === 'terminal.scrollback')).toEqual([
-			expect.objectContaining({ availability: 'planned' }),
-		]);
+		expect(buildCatalog([]).some((entry) => entry.id === 'terminal.scrollback')).toBe(false);
 		expect(
 			buildCatalog(['desktop-terminal-default-settings']).filter(
 				(entry) => entry.id === 'terminal.scrollback',
 			),
-		).toEqual([expect.objectContaining({ availability: 'available' })]);
+		).toHaveLength(1);
 	});
 
 	it('exposes the Agent tail-row setting only with terminal interaction control', () => {
@@ -146,7 +148,6 @@ describe('buildTerminalSettingsSearchCatalog', () => {
 				(entry) => entry.id === 'terminal.trimTrailingBlankRowsForAgents',
 			),
 		).toMatchObject({
-			availability: 'available',
 			label: 'Trim trailing blank rows for CLI agents',
 			sectionLabel: 'History',
 		});

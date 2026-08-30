@@ -41,6 +41,7 @@
 - **前端 React**：`docs/frontend/react.md` — 组件所有权、文件边界、状态、Effect、Hook、Zustand 和测试
 - **前端体验组件**：`docs/frontend/experience-components.md` — 已审查的交互词汇、包本地 Manifest、发现、组合约束和生命周期
 - **前端对话框与表单**：`docs/frontend/dialogs-and-forms.md` — 中断预算、表面准入、问题预算、取消、焦点和证据
+- **前端设置**：`docs/frontend/settings.md` — 设置项准入、视觉组合、作用域、控件、提交、重置和证据
 - **前端视觉基础**：`docs/frontend/visual-foundations.md` — 字体、层级、间距、圆角、尺寸、边框和表面选择规则
 - **前端设计 Token**：`docs/frontend/design-tokens.md` — Token 所有权、层级、命名、主题、语义覆盖和变更
 - **前端样式**：`docs/frontend/styling.md` — CSS Module、生成的 shadcn 边界、图标、样式表和验证

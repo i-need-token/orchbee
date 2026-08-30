@@ -43,8 +43,6 @@ export function resolveTerminalSettingsSearch({
 			else if (queryTerms.every((term) => normalizedLabel.includes(term))) score = 3;
 			else if (normalizedSection.includes(normalizedQuery)) score = 4;
 			else if (normalizedKeywords.some((value) => value.includes(normalizedQuery))) score = 5;
-			if (entry.availability === 'planned') score += 2;
-
 			return { entry, order, score };
 		})
 		.filter((match) => match !== null)

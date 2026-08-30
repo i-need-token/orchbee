@@ -4,11 +4,16 @@
 	align-items: center;
 	gap: var(--ob-ref-space-8);
 	min-height: calc(var(--ob-ref-space-12) + var(--ob-ref-space-2));
-	padding: var(--ob-ref-space-3) var(--ob-ref-space-4);
+	padding: var(--ob-ref-space-3) var(--ob-ref-space-0);
+	outline: none;
 }
 
 .root + .root {
 	border-block-start: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-subtle);
+}
+
+.root:focus-visible {
+	box-shadow: 0 0 0 var(--ob-sys-focus-ring-width) var(--ob-sys-color-border-focus);
 }
 
 .copy {

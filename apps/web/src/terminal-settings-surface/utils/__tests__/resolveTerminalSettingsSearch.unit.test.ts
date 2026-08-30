@@ -67,19 +67,6 @@ describe('resolveTerminalSettingsSearch', () => {
 		).toEqual(['text.font-family', 'text.font-size']);
 	});
 
-	it('prefers an available label match over a broader planned match', () => {
-		const results = resolveTerminalSettingsSearch({
-			entries: [
-				entry({ availability: 'planned', id: 'text.weights', label: 'Font styles and weights' }),
-				entry({ id: 'text.font-family', label: 'Terminal font family' }),
-			],
-			locale: 'en-US',
-			query: 'font',
-		});
-
-		expect(results.map((result) => result.id)).toEqual(['text.font-family', 'text.weights']);
-	});
-
 	it('requires every normalized query term and preserves catalog order for ties', () => {
 		expect(
 			resolveTerminalSettingsSearch({
@@ -103,7 +90,6 @@ function entry(
 		Pick<TerminalSettingsSearchEntry, 'id' | 'label'>,
 ): TerminalSettingsSearchEntry {
 	return {
-		availability: 'available',
 		category: overrides.id.startsWith('text.') ? 'text' : 'appearance',
 		categoryLabel: overrides.id.startsWith('text.') ? 'Text' : 'Appearance',
 		description: '',

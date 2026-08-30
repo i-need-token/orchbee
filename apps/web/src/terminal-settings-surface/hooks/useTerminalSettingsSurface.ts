@@ -1,5 +1,5 @@
 import { formatKeyboardShortcutChord } from '@orchbee/keyboard-shortcuts';
-import { terminalSettingsCatalogMessages, useOrchbeeIntl } from '@orchbee/i18n';
+import { useOrchbeeIntl } from '@orchbee/i18n';
 import * as React from 'react';
 
 import {
@@ -23,7 +23,6 @@ import type {
 } from '../types/terminal-settings-surface';
 import { buildTerminalSettingsSearchCatalog } from '../utils/buildTerminalSettingsSearchCatalog';
 import { buildTerminalSettingsSurfaceMessages } from '../utils/buildTerminalSettingsSurfaceMessages';
-import { resolvePlannedTerminalSettings } from '../utils/resolvePlannedTerminalSettings';
 import { resolveTerminalSettingsSearch } from '../utils/resolveTerminalSettingsSearch';
 import {
 	parseScrollbackBytes,
@@ -31,7 +30,6 @@ import {
 	parseTerminalPadding,
 } from '../utils/terminal-settings-draft-parsing';
 
-const APPLICATION_SETTING_IDS: ReadonlySet<string> = new Set(['general.language']);
 const UNAVAILABLE_TERMINAL_DEFAULT_SETTINGS_SNAPSHOT: DesktopTerminalDefaultSettingsClientSnapshot =
 	{
 		configuration: { scrollbackBytes: 10_000_000 },
@@ -77,9 +75,38 @@ export function useTerminalSettingsSurface({
 		terminalDefaultSettingsSource.getSnapshot,
 	);
 	const keyboardShortcutSnapshot = useKeyboardShortcutSettings(keyboardShortcutController);
+	const availableCategories = new Set<TerminalSettingsCategory>([
+		'appearance',
+		'colors',
+		'general',
+		'ghostty-migration',
+		'keyboard-shortcuts',
+		'remote-development',
+		'text',
+	]);
+	if (agentIntegrationManagementControl !== undefined) {
+		availableCategories.add('agent-integrations');
+	}
+	if (requestBrowserAccess !== undefined) availableCategories.add('browser-access');
+	if (macosTerminalInputSettingsController !== undefined) {
+		availableCategories.add('cursor-input');
+	}
+	if (terminalInteractionSettingsController !== undefined) {
+		availableCategories.add('interaction');
+		availableCategories.add('terminal');
+	}
+	if (terminalDefaultSettingsControl !== undefined) availableCategories.add('terminal');
+	if (terminalLaunchProfileClient !== undefined) availableCategories.add('profiles');
+	if (sshConnectionManagementControl !== undefined) availableCategories.add('ssh-connections');
+	if (terminalFeedbackSettingsController !== undefined) {
+		availableCategories.add('shell-integration');
+	}
+	const requestedCategoryAvailable =
+		requestedCategory !== undefined && availableCategories.has(requestedCategory);
 	const inputReference = React.useRef<HTMLInputElement>(null);
 	const contentReference = React.useRef<HTMLElement>(null);
 	const [category, setCategory] = React.useState<TerminalSettingsCategory>('general');
+	const [navigationOpen, setNavigationOpen] = React.useState(true);
 	const [query, setQuery] = React.useState('');
 	const [activeSearchResultIndex, setActiveSearchResultIndex] = React.useState(0);
 	const [pendingSearchTargetId, setPendingSearchTargetId] = React.useState<
@@ -126,16 +153,25 @@ export function useTerminalSettingsSurface({
 
 	React.useEffect(() => {
 		if (!snapshot.open) return;
+		setQuery('');
+		setActiveSearchResultIndex(0);
+		setPendingSearchTargetId(undefined);
+		setNavigationOpen(requestedCategory === undefined);
 		inputReference.current?.focus();
-	}, [snapshot.open]);
+	}, [requestedCategory, snapshot.open]);
+	React.useLayoutEffect(() => {
+		if (!snapshot.open || !navigationOpen) return;
+		inputReference.current?.focus();
+	}, [navigationOpen, snapshot.open]);
 
 	React.useLayoutEffect(() => {
 		if (!snapshot.open || requestedCategory === undefined) return;
-		setCategory(requestedCategory);
+		setCategory(requestedCategoryAvailable ? requestedCategory : 'general');
+		setNavigationOpen(false);
 		setQuery('');
 		setActiveSearchResultIndex(0);
 		setPendingSearchTargetId(null);
-	}, [requestedCategory, snapshot.open]);
+	}, [requestedCategory, requestedCategoryAvailable, snapshot.open]);
 
 	React.useEffect(() => {
 		if (pendingSearchTargetId === undefined) return;
@@ -143,10 +179,14 @@ export function useTerminalSettingsSurface({
 		if (content === null) return;
 		if (pendingSearchTargetId === null) {
 			content.scrollTop = 0;
+			document.getElementById('terminal-settings-title')?.focus({ preventScroll: true });
 		} else {
 			const target = document.getElementById(pendingSearchTargetId);
 			if (target !== null && content.contains(target)) {
 				target.scrollIntoView({ block: 'center' });
+				target.focus({ preventScroll: true });
+			} else {
+				content.focus({ preventScroll: true });
 			}
 		}
 		setPendingSearchTargetId(undefined);
@@ -171,27 +211,10 @@ export function useTerminalSettingsSurface({
 	const copyOnSelectVisible = terminalInteractionSettingsController !== undefined;
 	const trimTrailingBlankRowsForAgentsVisible = terminalInteractionSettingsController !== undefined;
 	const scrollbackBytesVisible = terminalDefaultSettingsControl !== undefined;
-	const implementedSettingIds = new Set(APPLICATION_SETTING_IDS);
-	if (scrollbackBytesVisible) implementedSettingIds.add('terminal.scrollback');
-	if (trimTrailingBlankRowsForAgentsVisible) {
-		implementedSettingIds.add('terminal.trimTrailingBlankRowsForAgents');
-	}
-	const plannedSections = resolvePlannedTerminalSettings({
-		category,
-		formatMessage: (descriptor) => intl.formatMessage(descriptor),
-		implementedSettingIds,
-	});
 	const navigationGroups = TERMINAL_SETTINGS_NAVIGATION_GROUPS.map((group) => ({
 		id: group.id,
 		items: group.categories
-			.filter(
-				(categoryId) =>
-					(categoryId !== 'agent-integrations' ||
-						agentIntegrationManagementControl !== undefined) &&
-					(categoryId !== 'browser-access' || requestBrowserAccess !== undefined) &&
-					(categoryId !== 'ssh-connections' || sshConnectionManagementControl !== undefined) &&
-					(categoryId !== 'shell-integration' || terminalFeedbackSettingsController !== undefined),
-			)
+			.filter((categoryId) => availableCategories.has(categoryId))
 			.map((categoryId) => ({
 				icon: TERMINAL_SETTINGS_CATEGORIES[categoryId].icon,
 				id: categoryId,
@@ -253,20 +276,17 @@ export function useTerminalSettingsSurface({
 		const entry = resolvedSearchResults[resultIndex];
 		if (entry === undefined) return;
 		setCategory(entry.category);
+		setNavigationOpen(false);
 		setQuery('');
 		setActiveSearchResultIndex(0);
 		setPendingSearchTargetId(entry.targetId);
 	};
-	const plannedSearchResultLabel = intl.formatMessage(
-		terminalSettingsCatalogMessages.get('terminal.settings.catalog.common.planned'),
-	);
 	const searchResults = resolvedSearchResults.map((entry, resultIndex) => ({
 		...entry,
 		active: resultIndex === boundedSearchResultIndex,
 		elementId: `terminal-settings-search-result-${entry.id}`,
 		onActivate: (): void => activateSearchEntry(resultIndex),
 		onFocus: (): void => setActiveSearchResultIndex(resultIndex),
-		statusLabel: entry.availability === 'planned' ? plannedSearchResultLabel : null,
 	}));
 	const searchActive = query.trim().length > 0;
 	const pageDefinition = TERMINAL_SETTINGS_CATEGORIES[category];
@@ -396,6 +416,7 @@ export function useTerminalSettingsSurface({
 		localePersistenceWarning,
 		macosInputVisible,
 		messages,
+		navigationOpen,
 		navigationGroups,
 		onApplicationThemeChange: (event): void => {
 			const applicationTheme = event.currentTarget.value;
@@ -426,6 +447,7 @@ export function useTerminalSettingsSurface({
 		},
 		onCategorySelect: (nextCategory): void => {
 			setCategory(nextCategory);
+			setNavigationOpen(false);
 			setPendingSearchTargetId(null);
 		},
 		onCopyOnSelectChange: (checked): void => {
@@ -476,6 +498,11 @@ export function useTerminalSettingsSurface({
 		},
 		onForegroundInputBlur: (): void => commitForeground(),
 		onOpenBrowserAccess: (event): void => requestBrowserAccess?.(event.currentTarget),
+		onNavigationRequest: (): void => {
+			setQuery('');
+			setActiveSearchResultIndex(0);
+			setNavigationOpen(true);
+		},
 		onRequestClose: (): void => onRequestClose(),
 		onReset: (): void => {
 			controller.reset();
@@ -548,10 +575,6 @@ export function useTerminalSettingsSurface({
 		open: snapshot.open,
 		opacityVisible,
 		persistenceWarning,
-		plannedNotice: intl.formatMessage(
-			terminalSettingsCatalogMessages.get('terminal.settings.catalog.common.plannedNotice'),
-		),
-		plannedSections,
 		preferences: snapshot.preferences,
 		pageDescription: intl.formatMessage(pageDefinition.description),
 		pageTitle: intl.formatMessage(pageDefinition.title),

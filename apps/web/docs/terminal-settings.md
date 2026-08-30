@@ -180,7 +180,7 @@ Only a local Electron composition injects `DesktopTerminalLaunchProfileControl`.
 snapshot exposes one bounded canonical catalog, the current default identity, whether the catalog
 came from the built-in fallback or durable storage, an optional persistence issue, and the current
 platform's login-shell capability. Browser Preview and authenticated Gateway compositions receive
-no control and show only the remaining planned Profile rows. The renderer never receives a store
+no control and omit the Profiles category. The renderer never receives a store
 path, Node error, filesystem primitive, or launch capability.
 
 Each profile has a stable identity, a user-visible name, and exactly one command choice:
@@ -215,7 +215,8 @@ Only a local Electron composition injects `DesktopTerminalDefaultSettingsControl
 contains the complete bounded Host default, persistence issue, source, pending state, and bounded
 failure code. The Terminal page exposes `terminal.scrollback` as a decimal byte count from `0`
 through `1_000_000_000` and states that running terminals keep their current limit. Browser Preview
-and authenticated Gateway compositions receive no control and retain the same row as Planned.
+and authenticated Gateway compositions receive no control and omit this row. The Terminal category
+remains visible only when that composition supplies another current Terminal setting.
 
 The renderer validates drafts before sending a complete update. Host rejection keeps the prior
 value; persistence failure after Host acceptance keeps the session value visible and shows that it
@@ -298,76 +299,72 @@ effective background with the selected alpha. Explicit backgrounds, inverse cell
 search highlights remain opaque. The implementation must not use whole-root CSS `opacity`, because
 terminal text must remain opaque.
 
-## Overlay and focus model
+## Modal shell and focus model
 
-The Settings experience is an application-owned full-window overlay, not a route. Keeping the
-Workbench mounted preserves terminal surface and attachment identity. On first open it captures a
-still-connected active element and focuses Settings search. Repeated open is unchanged and does not
-replace the return target. The Workbench subtree is genuinely inert while Settings is open, so its
-terminal and Action shortcuts cannot consume Settings input. The scrolling content viewport remains
-in the sequential focus order and draws an inset focus indicator, so a category stays
-keyboard-scrollable even when every setting control is a disabled Planned preview.
+Settings is an application-owned centered, bounded modal shell, not a route or another Workbench
+canvas. A scrim leaves the mounted Workbench perceptible while its subtree remains genuinely inert,
+preserving terminal surface and attachment identity and preventing Workbench shortcuts from
+consuming Settings input. On first open, the application captures a still-connected active element
+and focuses global Settings search. Repeated open does not replace that return target. The content
+viewport remains keyboard-scrollable and draws an inset focus indicator.
 
-Back closes Settings. Escape first clears a non-empty Settings search and closes Settings only when
-the query is empty; closing restores the captured element, then the Settings Action target, then the
-Workbench root as fallbacks. Desktop may inject semantic Agent-integration, Browser-access, local
-shell-profile, and terminal-default controls.
-The existing Browser-access dialog remains above Settings; closing it returns focus to its Settings
-entry, while Settings remains open. Browser and Gateway compositions do not receive this Desktop
-capability bundle.
+The rail owns an explicit Close settings button. Escape first clears a non-empty Settings search and
+closes Settings only when the query is empty; closing restores the captured element, then the
+Settings Action target, then the Workbench root as fallbacks. Desktop may inject semantic
+Agent-integration, Browser-access, local shell-profile, and terminal-default controls. The existing
+Browser-access dialog remains above Settings; closing it returns focus to its Settings entry while
+Settings remains open. Browser and Gateway compositions do not receive this Desktop capability
+bundle.
 
-The interaction structure follows the accepted Cursor and Coze references without copying either
-brand: a compact Settings rail owns Back, search, icon-led product-outcome categories, and the current
-selection; a centered scrolling content column owns one category title and a stable sequence of
-section labels, low-chrome grouped rows, descriptions, and right-aligned controls. Content-heavy
-diagnostics, migration input, and shell setup keep the same surface, radius, type, spacing, and
-semantic-border vocabulary instead of inventing category-specific cards. At narrow widths the rail becomes
-a horizontally scrollable top navigation and setting controls stack below their copy. Browser-backed
+ChatGPT's current Web/Desktop Settings composition is the primary visual reference: one quiet rail
+owns Close, search, monochrome product-outcome categories, and a restrained neutral selection; one
+moderate content column owns a compact category title, optional introduction, section labels, direct
+rows with hairline separators, descriptions, and a stable trailing control column. Radius and shadow
+belong to the outer shell and transient surfaces rather than ordinary setting sections. Diagnostics,
+migration input, profile management, and shell setup may retain the semantic boundaries required by
+their task states without turning every setting into a card. Cursor, Warp, Zed, and the terminal
+references continue to inform behavior and architecture, not the primary visual composition.
+
+At narrow widths, Settings shows one pane at a time. It opens to the searchable category list;
+selecting a category or search result shows content, and the content-level Back affordance restores
+the list. Controls stack below their copy when the trailing column no longer fits. Browser-backed
 appearance, input, shortcut, and feedback changes apply immediately; shell-profile drafts require
 explicit Save because Main-owned durable catalog mutation is a separate transaction. Reference
 branding, copy, categories, and pixel geometry are not compatibility targets.
 
-## Settings information architecture and planned catalog
+## Settings information architecture and capability admission
 
-The Settings rail groups product outcomes instead of exposing implementation packages. The current
-information architecture is stable enough for future settings to enter without creating another
-top-level surface:
+The catalog keeps a stable product-outcome order instead of exposing implementation packages. The
+rail renders the following groups with quiet localized labels and restrained vertical separation;
+those groups also retain deterministic category and search order:
 
 | Group         | Categories                                                                 |
 | ------------- | -------------------------------------------------------------------------- |
 | Application   | General, Appearance                                                        |
 | Terminal      | Text, Colors, Cursor & Input, Interaction, Terminal                        |
-| Workspace     | Windows & Tabs, Profiles, Keyboard Shortcuts                               |
+| Workspace     | Profiles, Keyboard Shortcuts                                               |
 | Integrations  | Agent Integrations, SSH Connections, Shell Integration, Remote Development |
 | Data & Access | Ghostty Migration and the capability-gated Desktop Browser Access entry    |
 
-The application display language, appearance theme, terminal font family and size, regular and bold weights, ligatures, padding,
-effective default colors, default-background opacity, copy-on-select, Reset, macOS Option-as-Alt,
-keyboard shortcuts, Agent integrations, SSH connection management, Shell integration, remote diagnostic, migration report, Browser-access entry,
-capability-gated Desktop launch-profile editor, and capability-gated Desktop scrollback default
-retain their existing behavior and ownership. The remaining General, Appearance, Text, Colors, Cursor & Input,
-Interaction, Terminal, Windows & Tabs, and Profile appearance, connection, and automation rows form
-a localized planned catalog derived from recurring settings across Ghostty, WezTerm, Kitty,
-Alacritty, Windows Terminal, iTerm2, Tabby, Konsole, GNOME Terminal, and Foot. This catalog covers
-startup and restore policy, window presentation, typography and shaping, palettes and contrast,
-cursor and keyboard protocols, clipboard and mouse behavior, shell and emulation policy, history
-and feedback, windows and tabs, and profile capabilities outside the accepted launch-profile scope.
-Without the Desktop terminal-default capability, the scrollback row remains part of that planned
-catalog and cannot mutate Host state.
+The application display language, appearance theme, terminal font family and size, regular and bold
+weights, ligatures, padding, effective default colors, default-background opacity, copy-on-select,
+Reset, macOS Option-as-Alt, keyboard shortcuts, Agent integrations, SSH connection management,
+Shell integration, remote diagnostic, migration report, Browser-access entry, Desktop launch-profile
+editor, and Desktop scrollback default retain their existing behavior and ownership. A category or
+row enters navigation and search only when its current implementation and required composition
+capability are present. Profiles, Cursor & Input, Interaction, Terminal, Agent Integrations, SSH
+Connections, Shell Integration, and Browser Access are therefore omitted when their owner is absent.
+Windows & Tabs and other roadmap-only controls are not projected into the product.
 
-Planned rows are explicitly marked, expose only disabled preview controls, and never read or write
-a preference. Implementing one requires its own accepted behavioral authority, model, persistence
-boundary, platform capability, and verification. A visible row is therefore product direction, not
-a compatibility or availability claim.
-
-Neutral grouped settings use one rounded subtle surface with no outer stroke. Only row separators,
-real input boundaries, focus indicators, and semantic status or danger notices retain borders. This
-keeps every category in one low-chrome visual system while preserving meaningful state boundaries.
+Ordinary settings use direct rows between quiet hairlines. Only real control boundaries, focus
+indicators, and semantic status, warning, or danger notices retain additional borders or surfaces.
+This keeps every category in one low-chrome visual system while preserving meaningful state
+boundaries.
 
 ## Settings discovery and navigation model
 
 Settings search is a global discovery surface, not an in-page filter. Its deterministic catalog
-contains every available category plus each current or explicitly planned setting with a stable
+contains every available category plus each current setting or management entry with a stable
 identifier, owning category, localized label, optional section, description, and search keywords.
 Capability-gated categories and settings enter the catalog only when their composition capability is
 present. The catalog never reads a preference value and search never changes a controller, storage,
@@ -376,9 +373,8 @@ Host, terminal attachment, migration report, or remote environment.
 The query is trimmed, Unicode-normalized, split into non-empty terms, and compared
 case-insensitively in the effective locale. Category results match their category label. Setting
 results require every term to match the setting label, section, description, or explicit keyword.
-Direct label matches rank before section, description, and keyword matches; available settings get a
-bounded priority over nearby Planned matches, every Planned result is labeled, and original
-information-architecture order breaks remaining ties. Empty query preserves the grouped navigation rail. A non-empty query
+Direct label matches rank before section, description, and keyword matches; original
+information-architecture order breaks remaining ties. Empty query preserves the category rail. A non-empty query
 replaces that rail with one global result list while the current content page remains complete and
 unchanged. Zero matches render a localized empty state in the rail rather than blanking the content
 page. Search results remain one labeled listbox; the zero-match projection contains one disabled,
@@ -395,21 +391,21 @@ The owned interaction state is one of:
 
 Transitions are deterministic:
 
-| Input                      | Guard                          | Result                                                                                           |
-| -------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------ |
-| Edit query                 | Any                            | Recompute the global projection and select its first result when present.                        |
-| Arrow Down or Arrow Up     | Searching with results         | Move the bounded selection by one; the current content page and every preference remain stable.  |
-| Enter                      | Searching with results         | Activate the selected result.                                                                    |
-| Pointer activation         | A visible result               | Activate that result.                                                                            |
-| Activate a category result | Any                            | Select the category, clear the query, restore grouped navigation, and scroll content to its top. |
-| Activate a setting result  | Its category remains available | Select the category, clear the query, restore grouped navigation, and reveal its stable target.  |
-| Escape                     | Query is non-empty             | Clear search, restore grouped navigation, keep Settings open, and retain the current category.   |
-| Escape                     | Query is empty                 | Follow the Settings overlay close and focus-restoration contract.                                |
+| Input                      | Guard                          | Result                                                                                                                        |
+| -------------------------- | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| Edit query                 | Any                            | Recompute the global projection and select its first result when present.                                                     |
+| Arrow Down or Arrow Up     | Searching with results         | Move the bounded selection by one; the current content page and every preference remain stable.                               |
+| Enter                      | Searching with results         | Activate the selected result.                                                                                                 |
+| Pointer activation         | A visible result               | Activate that result.                                                                                                         |
+| Activate a category result | Any                            | Select the category, clear the query, restore navigation, show content, and focus its heading.                                |
+| Activate a setting result  | Its category remains available | Select the category, clear the query, restore navigation, show content, reveal and focus its stable row or management target. |
+| Escape                     | Query is non-empty             | Clear search, restore navigation, keep Settings open, and retain the current category.                                        |
+| Escape                     | Query is empty                 | Follow the Settings overlay close and focus-restoration contract.                                                             |
 
-The search input retains keyboard focus while moving or activating a result. Result activation may
-scroll only the Settings rail or content viewport; it never focuses a setting control or invokes its
-action. Changing category through the normal rail clears no user data and starts at the top of that
-category.
+The search input retains keyboard focus while moving through results. Result activation moves focus
+to the destination heading, row, or management target, never directly changes a value, and never
+invokes its action. Changing category through the normal rail clears no user data and starts at the
+top of that category.
 
 The adopted reference projection was observed in Cursor 3.14.7 on macOS on 2026-08-17. The adopted
 scope is global category-and-setting discovery, rail replacement during a query, stable right-side
@@ -652,7 +648,8 @@ not claims about Ghostty's byte limits.
   reveal, the disabled empty-result option, keyboard-scrollable content, invalid drafts, immediate
   updates, Reset, read-only remote diagnostics, migration analysis and disposal, inertness,
   idempotent open, focus restoration, and nested Browser-access behavior. Story browser review covers
-  every category and populated, Planned, and empty search projections in both light and dark themes.
+  the bounded shell, every available category, populated and empty search projections, wide and
+  narrow one-pane layouts, and both light and dark themes.
 - Terminal-launch-profile protocol and client tests cover strict snapshots, correlation, one pending
   mutation, malformed records, failure projection, and disposal. Settings component tests cover
   literal custom executable arguments, the future-terminal boundary, create and default selection,

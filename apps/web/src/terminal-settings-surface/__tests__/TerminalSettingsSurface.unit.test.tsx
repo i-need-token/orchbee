@@ -90,31 +90,34 @@ describe('TerminalSettingsSurface', () => {
 		expect(
 			requiredElement<HTMLElement>(container.querySelector('[data-settings-content]')).tabIndex,
 		).toBe(0);
-		const back = requiredElement<HTMLButtonElement>(
-			container.querySelector('button[data-settings-back]'),
+		expect(
+			container.querySelector("[data-settings-layout='bounded'][role='dialog']"),
+		).not.toBeNull();
+		const closeSettings = requiredElement<HTMLButtonElement>(
+			container.querySelector('button[data-settings-close]'),
 		);
-		const title = requiredElement<HTMLElement>(back.querySelector('span:not([aria-hidden])'));
-		expect(back.getAttribute('aria-label')).toBe('Back');
-		expect(title.textContent).toBe('Settings');
-		await act(async () => title.click());
+		expect(closeSettings.getAttribute('aria-label')).toBe('Close settings');
+		expect(container.textContent).toContain('Settings');
+		await act(async () => closeSettings.click());
 		expect(close).toHaveBeenCalledOnce();
 
-		expect(container.textContent).toContain('On startup');
-		expect(container.textContent).toContain('Planned');
+		expect(container.textContent).toContain('Display language');
+		expect(container.textContent).not.toContain('Planned');
+		expect(container.querySelector("button[data-settings-category='windows-tabs']")).toBeNull();
 		expect(container.querySelectorAll('[data-settings-group]')).toHaveLength(5);
-		const plannedControls = container.querySelectorAll('[data-planned-setting]');
-		expect(plannedControls).toHaveLength(7);
-		for (const control of plannedControls) {
-			expect(control.querySelectorAll('button, input, select')).toHaveLength(1);
-			expect(control.querySelector('[disabled]')).not.toBeNull();
-		}
+		expect(
+			Array.from(
+				container.querySelectorAll('[data-settings-group-label]'),
+				(groupLabel) => groupLabel.textContent,
+			),
+		).toEqual(['Application', 'Terminal', 'Workspace', 'Integrations', 'Data & Access']);
 
 		await act(async () => {
 			setInputValue(search, 'does not exist');
 			search.dispatchEvent(new Event('input', { bubbles: true }));
 		});
 		expect(container.textContent).toContain('No settings found.');
-		expect(container.textContent).toContain('On startup');
+		expect(container.textContent).toContain('Display language');
 		expect(container.querySelectorAll('[data-settings-group]')).toHaveLength(0);
 		expect(container.querySelector('[role="listbox"]')).not.toBeNull();
 		const emptyResult = requiredElement<HTMLElement>(
@@ -127,7 +130,7 @@ describe('TerminalSettingsSurface', () => {
 			setInputValue(search, 'font');
 			search.dispatchEvent(new Event('input', { bubbles: true }));
 		});
-		expect(container.textContent).toContain('On startup');
+		expect(container.textContent).toContain('Display language');
 		expect(container.textContent).toContain('Text›Terminal font family');
 		expect(container.querySelector('[role="listbox"]')).not.toBeNull();
 		await act(async () =>
@@ -252,7 +255,6 @@ describe('TerminalSettingsSurface', () => {
 		expect(chineseSelect.options).toHaveLength(2);
 		expect(storage.setItem).not.toHaveBeenCalled();
 		expect(container.querySelector('[data-setting-id="general.language"]')).not.toBeNull();
-		expect(container.querySelector('[data-planned-setting="general.language"]')).toBeNull();
 
 		await act(async () => {
 			setSelectValue(chineseSelect, 'en-US');
@@ -274,7 +276,7 @@ describe('TerminalSettingsSurface', () => {
 		keyboardShortcutController.dispose();
 	});
 
-	it('supports Cursor-style result selection, Enter activation, and layered Escape', async () => {
+	it('supports deterministic result selection, destination focus, and layered Escape', async () => {
 		const container = document.createElement('div');
 		document.body.append(container);
 		const storage = memoryStorage();
@@ -312,7 +314,7 @@ describe('TerminalSettingsSurface', () => {
 			setInputValue(search, 'theme');
 			search.dispatchEvent(new Event('input', { bubbles: true }));
 		});
-		expect(container.textContent).toContain('On startup');
+		expect(container.textContent).toContain('Display language');
 		expect(
 			container
 				.querySelector("[data-settings-search-result='appearance.application-theme']")
@@ -335,7 +337,7 @@ describe('TerminalSettingsSurface', () => {
 			);
 		});
 		expect(search.value).toBe('');
-		expect(document.activeElement).toBe(search);
+		expect(document.activeElement?.id).toBe('colors.display-theme');
 		expect(container.querySelector('[data-settings-content="colors"]')).not.toBeNull();
 		expect(container.querySelector("[id='colors.display-theme']")).not.toBeNull();
 
@@ -365,7 +367,7 @@ describe('TerminalSettingsSurface', () => {
 		keyboardShortcutController.dispose();
 	});
 
-	it('applies typography, padding, Agent tail, and copy settings live without Planned duplicates', async () => {
+	it('applies typography, padding, Agent tail, and copy settings live', async () => {
 		const container = document.createElement('div');
 		document.body.append(container);
 		const storage = memoryStorage();
@@ -404,9 +406,6 @@ describe('TerminalSettingsSurface', () => {
 				container.querySelector("button[data-settings-category='appearance']"),
 			).click(),
 		);
-		expect(
-			container.querySelector("[data-planned-setting='appearance.terminalPadding']"),
-		).toBeNull();
 		const padding = requiredElement<HTMLInputElement>(
 			container.querySelector("input[aria-label='Terminal padding']"),
 		);
@@ -422,8 +421,6 @@ describe('TerminalSettingsSurface', () => {
 				container.querySelector("button[data-settings-category='text']"),
 			).click(),
 		);
-		expect(container.querySelector("[data-planned-setting='text.weights']")).toBeNull();
-		expect(container.querySelector("[data-planned-setting='text.ligatures']")).toBeNull();
 		const regularWeight = requiredElement<HTMLSelectElement>(
 			container.querySelector("select[aria-label='Regular font weight']"),
 		);
@@ -468,7 +465,6 @@ describe('TerminalSettingsSurface', () => {
 				container.querySelector("button[data-settings-category='interaction']"),
 			).click(),
 		);
-		expect(container.querySelector("[data-planned-setting='interaction.copyOnSelect']")).toBeNull();
 		const copyOnSelect = requiredElement<HTMLElement>(
 			container.querySelector("[aria-label='Copy on select']"),
 		);
@@ -520,7 +516,6 @@ describe('TerminalSettingsSurface', () => {
 				container.querySelector("button[data-settings-category='terminal']"),
 			).click(),
 		);
-		expect(container.querySelector("[data-planned-setting='terminal.scrollback']")).toBeNull();
 		expect(container.textContent).toContain('Running terminals keep their current history limit.');
 		const scrollback = requiredElement<HTMLInputElement>(
 			container.querySelector("input[aria-label='Scrollback limit']"),
@@ -558,7 +553,6 @@ describe('TerminalSettingsSurface', () => {
 			container.querySelector("[data-settings-search-result='terminal.scrollback']"),
 		);
 		expect(searchResult.textContent).toContain('Scrollback limit');
-		expect(searchResult.textContent).not.toContain('Planned');
 
 		await act(async () => root.unmount());
 		container.remove();
@@ -942,12 +936,12 @@ describe('TerminalSettingsSurface', () => {
 		expect(controller.getSnapshot().preferences).toBe(initialPreferences);
 		expect(storage.setItem).not.toHaveBeenCalled();
 
-		const terminalCategory = requiredElement<HTMLButtonElement>(
+		const appearanceCategory = requiredElement<HTMLButtonElement>(
 			[...container.querySelectorAll('button')].find(
-				(button) => button.textContent?.trim() === 'Terminal',
+				(button) => button.textContent?.trim() === 'Appearance',
 			),
 		);
-		await act(async () => terminalCategory.click());
+		await act(async () => appearanceCategory.click());
 		await act(async () => migrationCategory.click());
 		const remountedSource = requiredElement<HTMLTextAreaElement>(
 			container.querySelector('#ghostty-migration-source'),

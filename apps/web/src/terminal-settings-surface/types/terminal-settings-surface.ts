@@ -49,7 +49,6 @@ interface TerminalSettingsNavigationGroupView {
 }
 
 export interface TerminalSettingsSearchEntry {
-	readonly availability: 'available' | 'planned';
 	readonly category: TerminalSettingsCategory;
 	readonly categoryLabel: string;
 	readonly description: string;
@@ -67,28 +66,6 @@ interface TerminalSettingsSearchResultView extends TerminalSettingsSearchEntry {
 	readonly elementId: string;
 	readonly onActivate: () => void;
 	readonly onFocus: () => void;
-	readonly statusLabel: string | null;
-}
-
-export type PlannedTerminalSettingControlKind =
-	| 'action'
-	| 'color'
-	| 'number'
-	| 'select'
-	| 'text'
-	| 'toggle';
-
-export interface PlannedTerminalSettingItemView {
-	readonly control: PlannedTerminalSettingControlKind;
-	readonly description: string;
-	readonly id: string;
-	readonly label: string;
-}
-
-export interface PlannedTerminalSettingSectionView {
-	readonly id: string;
-	readonly items: readonly PlannedTerminalSettingItemView[];
-	readonly title: string;
 }
 
 export interface TerminalSettingsSurfaceMessages {
@@ -107,6 +84,7 @@ export interface TerminalSettingsSurfaceMessages {
 	readonly browserAccessCategory: string;
 	readonly browserAccessDescription: string;
 	readonly browserAccessTitle: string;
+	readonly close: string;
 	readonly currentDeviceOnlyNotice: string;
 	readonly copyOnSelectDescription: string;
 	readonly copyOnSelectLabel: string;
@@ -240,6 +218,7 @@ export interface TerminalSettingsSurfaceView {
 	readonly macosInputVisible: boolean;
 	readonly localePersistenceWarning: string | null;
 	readonly messages: TerminalSettingsSurfaceMessages;
+	readonly navigationOpen: boolean;
 	readonly navigationGroups: readonly TerminalSettingsNavigationGroupView[];
 	readonly onApplicationThemeChange: React.ChangeEventHandler<HTMLSelectElement>;
 	readonly onBackgroundColorChange: React.ChangeEventHandler<HTMLInputElement>;
@@ -263,6 +242,7 @@ export interface TerminalSettingsSurfaceView {
 	readonly onForegroundDraftKeyDown: React.KeyboardEventHandler<HTMLInputElement>;
 	readonly onForegroundInputBlur: React.FocusEventHandler<HTMLInputElement>;
 	readonly onOpenBrowserAccess: React.MouseEventHandler<HTMLButtonElement>;
+	readonly onNavigationRequest: React.MouseEventHandler<HTMLButtonElement>;
 	readonly onRequestClose: React.MouseEventHandler<HTMLButtonElement>;
 	readonly onReset: React.MouseEventHandler<HTMLButtonElement>;
 	readonly onSearchChange: React.ChangeEventHandler<HTMLInputElement>;
@@ -279,8 +259,6 @@ export interface TerminalSettingsSurfaceView {
 	readonly open: boolean;
 	readonly opacityVisible: boolean;
 	readonly persistenceWarning: string | null;
-	readonly plannedNotice: string;
-	readonly plannedSections: readonly PlannedTerminalSettingSectionView[];
 	readonly preferences: TerminalAppearancePreferences;
 	readonly pageDescription: string;
 	readonly pageTitle: string;

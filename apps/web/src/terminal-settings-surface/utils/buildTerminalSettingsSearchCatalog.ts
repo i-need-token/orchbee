@@ -12,10 +12,6 @@ import {
 	TERMINAL_SETTINGS_CATEGORIES,
 	TERMINAL_SETTINGS_NAVIGATION_GROUPS,
 } from '../constants/terminal-settings-information-architecture';
-import {
-	isPlannedTerminalSettingsCategory,
-	PLANNED_TERMINAL_SETTINGS,
-} from '../constants/planned-terminal-settings';
 import type {
 	TerminalSettingsCategory,
 	TerminalSettingsSearchEntry,
@@ -40,7 +36,6 @@ export function buildTerminalSettingsSearchCatalog({
 	const capabilitySet = new Set(enabledCapabilities);
 	const categorySet = new Set(enabledCategories);
 	const entries: TerminalSettingsSearchEntry[] = [];
-	const availableSettingIds = new Set<string>();
 
 	for (const navigationGroup of TERMINAL_SETTINGS_NAVIGATION_GROUPS) {
 		for (const category of navigationGroup.categories) {
@@ -48,7 +43,6 @@ export function buildTerminalSettingsSearchCatalog({
 			const categoryDefinition = TERMINAL_SETTINGS_CATEGORIES[category];
 			const categoryLabel = formatMessage(categoryDefinition.label);
 			entries.push({
-				availability: 'available',
 				category,
 				categoryLabel,
 				description: formatMessage(categoryDefinition.description),
@@ -67,7 +61,6 @@ export function buildTerminalSettingsSearchCatalog({
 					continue;
 				}
 				entries.push({
-					availability: 'available',
 					category,
 					categoryLabel,
 					description: formatMessage(definition.description),
@@ -82,13 +75,11 @@ export function buildTerminalSettingsSearchCatalog({
 					sectionLabel: definition.section === undefined ? null : formatMessage(definition.section),
 					targetId: definition.targetId,
 				});
-				availableSettingIds.add(definition.id);
 			}
 
 			if (category === 'keyboard-shortcuts') {
 				for (const declaration of KEYBOARD_SHORTCUT_CATALOG) {
 					entries.push({
-						availability: 'available',
 						category,
 						categoryLabel,
 						description: formatMessage(keyboardShortcutMessages.description),
@@ -107,27 +98,6 @@ export function buildTerminalSettingsSearchCatalog({
 						),
 						sectionLabel: formatMessage(KEYBOARD_SHORTCUT_SEARCH_SCOPES[declaration.scope]),
 						targetId: `keyboard-shortcuts.${declaration.shortcutId}`,
-					});
-				}
-			}
-
-			if (!isPlannedTerminalSettingsCategory(category)) continue;
-			for (const section of PLANNED_TERMINAL_SETTINGS[category]) {
-				const sectionLabel = formatMessage(section.title);
-				for (const definition of section.items) {
-					if (availableSettingIds.has(definition.id)) continue;
-					entries.push({
-						availability: 'planned',
-						category,
-						categoryLabel,
-						description: formatMessage(definition.description),
-						icon: categoryDefinition.icon,
-						id: definition.id,
-						keywords: [],
-						kind: 'setting',
-						label: formatMessage(definition.label),
-						sectionLabel,
-						targetId: definition.id,
 					});
 				}
 			}

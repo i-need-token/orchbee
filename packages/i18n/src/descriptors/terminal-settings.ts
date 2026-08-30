@@ -22,6 +22,7 @@ export const terminalSettingsMessages = defineMessages({
 	),
 	terminalPaddingLabel: message('terminal.settings.appearance.terminalPadding.label'),
 	back: message('terminal.settings.actions.back'),
+	close: message('terminal.settings.actions.close'),
 	backgroundDescription: message('terminal.settings.colors.background.description'),
 	backgroundInvalid: message('terminal.settings.colors.background.invalid'),
 	backgroundLabel: message('terminal.settings.colors.background.label'),

@@ -4,7 +4,7 @@
 	"kind": "business",
 	"status": "canonical",
 	"name": "Terminal Settings Surface",
-	"description": "Owns the grouped Settings information architecture, global category-and-setting discovery, explicit English or Simplified-Chinese display-language selection, reusable Desktop SSH-connection management with bounded system-config discovery, explicit Desktop-local Agent-integration, shell-profile and scrollback-default management, an explicitly noninteractive future terminal-settings catalog, client-local application appearance, terminal typography, padding, copy-on-select, terminal display and macOS Option-as-Alt preferences, frequent keyboard-shortcut discovery and overrides, automatic Desktop Shell-integration scope, manual fallback guidance and completion-reminder policy, a read-only remote-shell diagnostic, and an ephemeral Ghostty configuration migration report without unmounting the Workbench or projected terminal attachments.",
+	"description": "Owns the centered bounded Settings shell, capability-filtered information architecture, global current-category-and-setting discovery, explicit English or Simplified-Chinese display-language selection, reusable Desktop SSH-connection management with bounded system-config discovery, explicit Desktop-local Agent-integration, shell-profile and scrollback-default management, client-local application appearance, terminal typography, padding, copy-on-select, terminal display and macOS Option-as-Alt preferences, frequent keyboard-shortcut discovery and overrides, automatic Desktop Shell-integration scope, manual fallback guidance and completion-reminder policy, a read-only remote-shell diagnostic, and an ephemeral Ghostty configuration migration report without unmounting the Workbench or projected terminal attachments.",
 	"owner": "@orchbee/web",
 	"visibility": "private",
 	"intents": [
@@ -32,13 +32,11 @@
 		"apps/web/src/terminal-settings-surface/components/ghostty-migration-settings/GhosttyMigrationSettings.tsx",
 		"apps/web/src/terminal-settings-surface/components/keyboard-shortcut-settings/KeyboardShortcutSettings.tsx",
 		"apps/web/src/terminal-settings-surface/components/macos-terminal-input-settings/MacosTerminalInputSettings.tsx",
-		"apps/web/src/terminal-settings-surface/components/planned-terminal-settings/PlannedTerminalSettings.tsx",
 		"apps/web/src/terminal-settings-surface/components/remote-development-settings/RemoteDevelopmentSettings.tsx",
 		"apps/web/src/terminal-settings-surface/components/shell-integration-settings/ShellIntegrationSettings.tsx",
 		"apps/web/src/terminal-settings-surface/components/ssh-connection-settings/SshConnectionSettings.tsx",
 		"apps/web/src/terminal-settings-surface/components/terminal-launch-profile-settings/TerminalLaunchProfileSettings.tsx",
 		"apps/web/src/terminal-settings-surface/components/terminal-settings-sections/TerminalSettingsSections.tsx",
-		"apps/web/src/terminal-settings-surface/constants/planned-terminal-settings.ts",
 		"apps/web/src/terminal-settings-surface/constants/remote-development-diagnostic.ts",
 		"apps/web/src/terminal-settings-surface/constants/terminal-settings-search-catalog.ts",
 		"apps/web/src/terminal-settings-surface/constants/terminal-settings-information-architecture.ts",
@@ -61,7 +59,7 @@
 			"file": "apps/web/stories/terminal-settings-surface.stories.tsx",
 			"id": "applications-web-terminal-settings-surface--english-light",
 			"states": [
-				"Inspect the light English Desktop surface with five labeled navigation groups, focused search, borderless neutral setting groups, stable section and row rhythm, compact right-aligned immediate controls, and explicitly disabled Planned rows. Switch Display language to Simplified Chinese and back to verify immediate mounted-copy replacement and explicit persistence, then inspect terminal padding, regular and bold weights, ligatures, copy-on-select, and the Desktop scrollback default with its future-terminal notice. Open Profiles to inspect local launch selection, literal ordered arguments, the future-terminal boundary, and confirmed destructive actions. Type language or font to inspect the available General or Text result without a Planned duplicate while the current page remains complete, then activate a setting to restore the rail and reveal its row.",
+				"Inspect the light English Desktop surface with a centered bounded shell, quiet grouped rail with subdued localized labels, neutral selected category, focused search, direct setting rows with hairline separators, stable section rhythm, and compact trailing immediate controls. Switch Display language to Simplified Chinese and back to verify immediate mounted-copy replacement and explicit persistence, then inspect terminal padding, regular and bold weights, ligatures, copy-on-select, and the Desktop scrollback default with its future-terminal notice. Open Profiles to inspect local launch selection, literal ordered arguments, the future-terminal boundary, and confirmed destructive actions. Type language or font while the current page remains complete, then activate a setting to restore navigation and move focus to its stable destination. Resize below the medium breakpoint to verify one-pane category/content navigation and its Back path.",
 				"Open Keyboard shortcuts to inspect localized text filtering, current Apple chord aliases, a zero-result state, polite result counts, and Record keys as an exact lookup that never edits or persists a binding.",
 				"Open Agent integrations to inspect the ten Agent-labeled local adapter states, the explicit no-auto-install disclosure, privacy boundary, refresh and snapshot-controlled enablement switches, conflict-safe failures, and manual-only remote-host explanation.",
 				"Open Shell integration to inspect automatic Desktop scope, exact manual-fallback Zsh, Bash, and Fish source commands, the Bash 4.4 boundary, completion-reminder policy, explicit notification-permission control, and reset.",
@@ -82,7 +80,7 @@
 			"file": "apps/web/stories/terminal-settings-surface.stories.tsx",
 			"id": "applications-web-terminal-settings-surface--chinese-dark-custom",
 			"states": [
-				"Inspect Simplified Chinese copy, dark application appearance, retained Custom terminal colors, partial background opacity, grouped compact navigation, borderless low-chrome rows, the localized Planned catalog, keyboard-shortcut, Shell-integration, Remote-development and Ghostty-migration navigation, and the Desktop-only Browser access category.",
+				"Inspect Simplified Chinese copy, dark application appearance, retained Custom terminal colors, partial background opacity, the bounded shell, compact grouped navigation with subdued localized labels, direct low-chrome rows, keyboard-shortcut, Shell-integration, Remote-development and Ghostty-migration navigation, the Desktop-only Browser access category, and the absence of roadmap-only categories or controls.",
 				"Open Keyboard shortcuts to inspect the localized action-or-shortcut search, Standard-platform key labels, Record keys capture guidance, exact result projection, and the unchanged binding editor."
 			]
 		}
@@ -92,7 +90,6 @@
 		"A user explicitly chooses English or Simplified Chinese after automatic system or Browser locale resolution.",
 		"A client changes local Orchbee appearance, terminal font, font weights, ligatures, padding, copy-on-select, effective default terminal colors, or default-background opacity.",
 		"A user searches all available Settings categories and rows without first knowing their owning category.",
-		"A product contributor needs the stable category and section destination for a future terminal preference before implementing its behavior.",
 		"A client searches, records-to-find, reviews, or changes one of the frequent Workbench or focused-terminal shortcuts.",
 		"A macOS Desktop client chooses whether the left, right, both, or neither Option key acts as terminal Alt.",
 		"A Desktop client creates, edits, selects, or removes device-local system-shell and custom-executable launch profiles for future terminals.",
@@ -110,10 +107,10 @@
 		"A native window, operating-system transparency, palette, VT, or OSC setting is being configured."
 	],
 	"invariants": [
-		"Opening Settings keeps the Workbench and projected terminal attachments mounted while the Workbench subtree is inert.",
+		"Opening Settings presents one centered bounded modal shell, keeps the Workbench and projected terminal attachments mounted while the Workbench subtree is inert, and uses one-pane category/content navigation below the medium breakpoint.",
 		"A missing valid language record uses ordered system or Browser locale resolution without writing a default; either explicit language selection persists and immediately takes precedence for mounted product copy, while user data and existing shared titles remain unchanged.",
-		"An empty search shows grouped categories; a non-empty search replaces only the rail with globally ranked category and setting results while the current content page remains complete and preferences remain unchanged.",
-		"Search activation clears the query, restores grouped navigation, selects the owning category, and reveals the stable category or setting target; Arrow keys and Enter operate the same result projection, while Escape clears search before it can close Settings.",
+		"An empty search shows the grouped available-category rail; a non-empty search replaces only the rail with globally ranked current category and setting results while the current content page remains complete and preferences remain unchanged.",
+		"Search activation clears the query, restores navigation, selects the owning category, reveals the stable category or setting target, and moves focus to its heading, row, or management target without activating its control; Arrow keys and Enter operate the same result projection, while Escape clears search before it can close Settings.",
 		"Application theme, terminal display theme, overlays, cursor presentation, and every mounted projected terminal publish through one exact Host-theme-revision barrier; data-theme changes only after all participants synchronously commit.",
 		"Font family, size, regular and bold weights, ligatures, terminal padding, and copy-on-select update mounted projected terminals without replacing their attachments; presentation and interaction preferences persist independently.",
 		"Shortcut edits publish one complete conflict-free effective table; Action availability is resolved before an event is consumed.",
@@ -121,7 +118,7 @@
 		"Recording, resetting, and restoring shortcut overrides never remount Workbench or replace a projected terminal attachment.",
 		"Option-as-Alt defaults to off, remains device-local, resolves the selected physical Option side per key event, and updates every mounted projected terminal without replacing its attachment.",
 		"Desktop shell profiles remain device-local, change only executable and literal ordered arguments, and affect only terminals provisioned after the successful Main-owned catalog commit; running and restored terminals retain their captured launch.",
-		"Desktop scrollback defaults commit to Host before Main accepts the session value, preserve prior state on Host rejection, keep a visible session value on storage failure, and affect only future terminals without live eviction; Browser and Gateway retain the row as Planned.",
+		"Desktop scrollback defaults commit to Host before Main accepts the session value, preserve prior state on Host rejection, keep a visible session value on storage failure, and affect only future terminals without live eviction; Browser and Gateway omit the row.",
 		"Agent integration inventory is read-only on startup and refresh; Agent-specific details stay behind Desktop adapters while the renderer receives only the ten canonical Agent labels, bounded states, and privacy-safe failures.",
 		"Agent integration mutation begins only from an explicit Settings switch change, serializes one operation, re-inspects after every attempt, keeps the switch at its last inspected position until that result arrives, never overwrites a conflict, and reports the observed state instead of assuming command success.",
 		"Disabling removes or disables only Orchbee's exact owned entry, preserves unrelated Agent configuration and any shared local marketplace, and records the reminder dismissal; a verified successful enable clears that Agent's dismissal.",
@@ -135,7 +132,7 @@
 		"Ghostty migration analyzes pasted text only, emits one visible source-ordered finding per assignment, never applies or persists a value, and clears its source and report when its category unmounts.",
 		"The Web/Desktop composition keeps defaultColorOverride null; Light, Dark, and Custom derive a complete Host-owned terminal-theme transaction while explicit colors, palette projection, cursor, VT, and OSC state retain their Host authority.",
 		"The complete strict appearance and interaction preference records are local to one browser origin and all product copy ships in English and Simplified Chinese.",
-		"Planned catalog controls and search results are visibly marked; planned controls remain disabled and never change memory, storage, Host state, or a projected terminal."
+		"Navigation and search project only currently implemented categories, settings, and management entries whose required composition capabilities are present; roadmap-only categories and controls remain absent."
 	],
 	"references": [
 		"apps/web/docs/keyboard-shortcuts.md",

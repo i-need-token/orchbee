@@ -136,7 +136,7 @@ export const TERMINAL_SETTINGS_NAVIGATION_GROUPS = [
 		label: catalogMessage('terminal.settings.catalog.groups.terminal'),
 	},
 	{
-		categories: ['windows-tabs', 'profiles', 'keyboard-shortcuts'],
+		categories: ['profiles', 'keyboard-shortcuts'],
 		id: 'workspace',
 		label: catalogMessage('terminal.settings.catalog.groups.workspace'),
 	},

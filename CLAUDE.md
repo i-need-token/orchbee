@@ -41,6 +41,7 @@
 - **Frontend React**: `docs/frontend/react.md` — component ownership, file boundaries, state, Effects, Hooks, Zustand, and testing
 - **Frontend Experience Components**: `docs/frontend/experience-components.md` — reviewed interaction vocabulary, package-local manifests, discovery, composition constraints, and lifecycle
 - **Frontend Dialogs and Forms**: `docs/frontend/dialogs-and-forms.md` — interruption budgets, surface admission, question budgets, cancellation, focus, and evidence
+- **Frontend Settings**: `docs/frontend/settings.md` — setting admission, visual composition, scope, controls, commit, reset, and evidence
 - **Frontend Visual Foundations**: `docs/frontend/visual-foundations.md` — typography, hierarchy, spacing, radius, sizing, border, and surface selection rules
 - **Frontend Design Tokens**: `docs/frontend/design-tokens.md` — token ownership, tiers, naming, themes, semantic coverage, and changes
 - **Frontend Styling**: `docs/frontend/styling.md` — CSS Modules, generated shadcn boundaries, icons, stylesheets, and verification

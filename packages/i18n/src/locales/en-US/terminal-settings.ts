@@ -1,5 +1,6 @@
 export const enUSTerminalSettingsMessages = {
 	'terminal.settings.actions.back': 'Back',
+	'terminal.settings.actions.close': 'Close settings',
 	'terminal.settings.actions.reset': 'Reset',
 	'terminal.settings.applicationTheme.dark': 'Dark',
 	'terminal.settings.applicationTheme.description':

@@ -3,13 +3,11 @@
 }
 
 .title {
-	margin: var(--ob-ref-space-0) var(--ob-ref-space-1) var(--ob-ref-space-2);
+	margin: var(--ob-ref-space-0) var(--ob-ref-space-0) var(--ob-ref-space-2);
 	color: var(--ob-sys-color-text-label);
 	font: var(--ob-sys-typography-label-sm);
 }
 
 .group {
-	overflow: hidden;
-	border-radius: var(--ob-ref-radius-ui-lg);
-	background: var(--ob-sys-color-surface-subtle);
+	border-block: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-subtle);
 }

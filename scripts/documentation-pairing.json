@@ -2,12 +2,12 @@
 	"formatVersion": 1,
 	"pairs": {
 		"AGENTS.md": {
-			"englishSha256": "f03628f58c2087530d8ce13495012e6d3d7024c8b42cf3ddcb9cfa29d94285eb",
-			"zhCnSha256": "ea7d357f29d2376d17864414356c44c7c0cd3ddabd6c4a4c84f311cb7b29c579"
+			"englishSha256": "54d90cb13230e32b6c6649aa347c32f0644c9aabda0f3e67b0765e997eee7606",
+			"zhCnSha256": "714551b5371ad947068a2d668c9f3ec7d0f46dd66bf5fe741b09b1e1b8fd33d9"
 		},
 		"CLAUDE.md": {
-			"englishSha256": "f03628f58c2087530d8ce13495012e6d3d7024c8b42cf3ddcb9cfa29d94285eb",
-			"zhCnSha256": "ea7d357f29d2376d17864414356c44c7c0cd3ddabd6c4a4c84f311cb7b29c579"
+			"englishSha256": "54d90cb13230e32b6c6649aa347c32f0644c9aabda0f3e67b0765e997eee7606",
+			"zhCnSha256": "714551b5371ad947068a2d668c9f3ec7d0f46dd66bf5fe741b09b1e1b8fd33d9"
 		},
 		"README.md": {
 			"englishSha256": "2de171a901389bd6ca833cdf85091644653a7cd3d8ef3017f491c3f480eaebd6",
@@ -138,8 +138,8 @@
 			"zhCnSha256": "19b9dad21b26d18de141e6ea67809605c7f467e854fe8cd708248176aa256b63"
 		},
 		"apps/web/docs/terminal-settings.md": {
-			"englishSha256": "19737b84f1b15db10df5b9d398fa5aa21ee0109f2ec91c26ff71ccd83dee7002",
-			"zhCnSha256": "91f72cf3233e24062a8ea498ae15987c093d3f02646232e727a036b356374f44"
+			"englishSha256": "51daeeb58302fdabe6b4fa2b4d88fe1367e56e35f154cd3dd86216495792a9ce",
+			"zhCnSha256": "c375fc1df41d847254b7fd450ed22e6f6cefd7fe76b8682a495bab26fd33cf83"
 		},
 		"docs/APPLICATIONS.md": {
 			"englishSha256": "1c539d8e95d8aea3e75c0aa5b0591630bec8d1bef6133ce143d560cb1dbbe22b",
@@ -240,6 +240,10 @@
 		"docs/frontend/react.md": {
 			"englishSha256": "1f47cb81c7935e121c2a831297f00079489514d2e08456fe53474b47b780a93e",
 			"zhCnSha256": "51f09a9fb14ce02a97a1aa2206868c1876cf24995d5c04e01f09bf8284061fb4"
+		},
+		"docs/frontend/settings.md": {
+			"englishSha256": "48cda429efcea647be46c069626a7e1e7d684a9266eb017064a51e7dc104c35c",
+			"zhCnSha256": "33db95dea62e6723ea985a15ca4b7ce107ab1211d890c0e5bc2a808d0ff3e064"
 		},
 		"docs/frontend/storybook.md": {
 			"englishSha256": "8186c1d02401213c09b4e97d00b19b658c2abaf6bc466d189f1da6bd7fff7ecf",

@@ -21,17 +21,17 @@ describe('useTerminalSettingsSurface', () => {
 		});
 		controller.open();
 
-		expect(renderView(controller, 'en-US')).toBe('Settings|12|custom-enabled');
-		expect(renderView(controller, 'zh-CN')).toBe('设置|12|custom-enabled');
+		expect(renderView(controller, 'en-US')).toBe('Settings|7|custom-enabled');
+		expect(renderView(controller, 'zh-CN')).toBe('设置|7|custom-enabled');
 	});
 
 	it('shows the SSH Connections category only when Desktop supplies its management capability', () => {
 		const controller = createController(DEFAULT_TERMINAL_APPEARANCE_PREFERENCES);
 		controller.open();
 
-		expect(renderView(controller, 'en-US')).toContain('|12|');
-		expect(renderView(controller, 'en-US', SSH_CONNECTION_MANAGEMENT_CONTROL)).toContain('|13|');
-		expect(renderView(controller, 'zh-CN', SSH_CONNECTION_MANAGEMENT_CONTROL)).toContain('|13|');
+		expect(renderView(controller, 'en-US')).toContain('|7|');
+		expect(renderView(controller, 'en-US', SSH_CONNECTION_MANAGEMENT_CONTROL)).toContain('|8|');
+		expect(renderView(controller, 'zh-CN', SSH_CONNECTION_MANAGEMENT_CONTROL)).toContain('|8|');
 	});
 });
 
