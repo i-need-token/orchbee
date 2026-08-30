@@ -150,29 +150,30 @@ export function Workbench({
 					if (!open) view.cancelProjectWorkspaceConfirmation();
 				}}
 			>
-				<AlertDialogContent initialFocus={view.projectWorkspaceConfirmationConfirmButtonRef}>
-					<AlertDialogHeader>
-						<AlertDialogTitle>{view.projectWorkspaceConfirmation.title}</AlertDialogTitle>
-						<AlertDialogDescription>
+				<AlertDialogContent
+					className={styles['confirmationContent']}
+					initialFocus={view.projectWorkspaceConfirmationCancelButtonRef}
+				>
+					<AlertDialogHeader className={styles['confirmationHeader']}>
+						<AlertDialogTitle className={styles['confirmationTitle']}>
+							{view.projectWorkspaceConfirmation.title}
+						</AlertDialogTitle>
+						<AlertDialogDescription className={styles['confirmationDescription']}>
 							{view.projectWorkspaceConfirmation.description}
 						</AlertDialogDescription>
 					</AlertDialogHeader>
-					<AlertDialogFooter>
-						<AlertDialogCancel onClick={view.cancelProjectWorkspaceConfirmation}>
+					<AlertDialogFooter className={styles['confirmationFooter']}>
+						<AlertDialogCancel
+							ref={view.projectWorkspaceConfirmationCancelButtonRef}
+							onClick={view.cancelProjectWorkspaceConfirmation}
+						>
 							{view.projectWorkspaceConfirmation.cancelLabel}
 							<Kbd aria-hidden='true' className={styles['confirmationShortcut']}>
 								Esc
 							</Kbd>
 						</AlertDialogCancel>
-						<AlertDialogAction
-							ref={view.projectWorkspaceConfirmationConfirmButtonRef}
-							variant='destructive'
-							onClick={view.confirmProjectWorkspaceAction}
-						>
+						<AlertDialogAction variant='destructive' onClick={view.confirmProjectWorkspaceAction}>
 							{view.projectWorkspaceConfirmation.confirmLabel}
-							<Kbd aria-hidden='true' className={styles['confirmationShortcut']}>
-								Enter
-							</Kbd>
 						</AlertDialogAction>
 					</AlertDialogFooter>
 				</AlertDialogContent>

@@ -63,18 +63,19 @@ afterEach(() => cleanup());
 describe('useWorkbenchFocusRouting', () => {
 	it('routes semantic requests and suppresses terminal autofocus for other or exclusive owners', () => {
 		let routing: WorkbenchFocusRouting | undefined;
-		render(
+		const capture = (candidate: WorkbenchFocusRouting): void => {
+			routing = candidate;
+		};
+		const rendered = render(
 			React.createElement(FocusRoutingHarness, {
-				capture: (candidate) => {
-					routing = candidate;
-				},
+				capture,
+				showDialog: false,
 			}),
 		);
 		if (routing === undefined) throw new Error('Expected focus routing to be captured.');
 
 		const terminal = screen.getByRole('button', { name: 'Terminal' });
 		const tabStrip = screen.getByRole('button', { name: 'Tab Strip' });
-		const dialog = screen.getByRole('dialog');
 		terminal.focus();
 		expect(screen.getByLabelText('terminal autofocus').textContent).toBe('true');
 
@@ -88,13 +89,27 @@ describe('useWorkbenchFocusRouting', () => {
 
 		tabStrip.focus();
 		expect(screen.getByLabelText('terminal autofocus').textContent).toBe('false');
+		rendered.rerender(
+			React.createElement(FocusRoutingHarness, {
+				capture,
+				showDialog: true,
+			}),
+		);
+		const dialog = screen.getByRole('dialog');
 		dialog.focus();
 		expect(screen.getByLabelText('terminal autofocus').textContent).toBe('false');
 		expect(routing.getResolution({ direction: 'next', kind: 'cycle' })).toEqual({
 			kind: 'unavailable',
 			reason: 'exclusive-surface-active',
 		});
+		expect(routing.requestTerminalFocus()).toBe(false);
 
+		rendered.rerender(
+			React.createElement(FocusRoutingHarness, {
+				capture,
+				showDialog: false,
+			}),
+		);
 		terminal.focus();
 		act(() => {
 			expect(routing?.requestTerminalFocus()).toBe(true);
@@ -106,7 +121,7 @@ describe('useWorkbenchFocusRouting', () => {
 		expect(screen.getByLabelText('terminal autofocus').textContent).toBe('true');
 	});
 
-	it('releases a stale exclusive owner when its focused surface is removed', async () => {
+	it('retains an exclusive owner while its shell remains and releases it after closure', async () => {
 		let routing: WorkbenchFocusRouting | undefined;
 		const capture = (candidate: WorkbenchFocusRouting): void => {
 			routing = candidate;
@@ -118,7 +133,15 @@ describe('useWorkbenchFocusRouting', () => {
 		);
 		if (routing === undefined) throw new Error('Expected focus routing to be captured.');
 
-		act(() => screen.getByRole('dialog').focus());
+		const dialog = screen.getByRole('dialog');
+		const transientControl = document.createElement('input');
+		dialog.append(transientControl);
+		act(() => transientControl.focus());
+		expect(screen.getByLabelText('terminal autofocus').textContent).toBe('false');
+		transientControl.remove();
+		await act(async () => undefined);
+
+		expect(document.activeElement).toBe(document.body);
 		expect(screen.getByLabelText('terminal autofocus').textContent).toBe('false');
 		rendered.rerender(
 			React.createElement(FocusRoutingHarness, {
@@ -128,7 +151,6 @@ describe('useWorkbenchFocusRouting', () => {
 		);
 		await act(async () => undefined);
 
-		expect(document.activeElement).toBe(document.body);
 		expect(screen.getByLabelText('terminal autofocus').textContent).toBe('true');
 	});
 });

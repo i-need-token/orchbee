@@ -173,7 +173,7 @@ function documentWith(record: EnvironmentRecord): EnvironmentRegistryDocument {
 	return {
 		environments: [record],
 		revision: 1,
-		schemaVersion: 1,
+		schemaVersion: 2,
 	};
 }
 

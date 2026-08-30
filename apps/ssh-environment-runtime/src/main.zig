@@ -25,10 +25,16 @@ pub fn main(init: std.process.Init) !void {
             if (!project_root_service.validPath(home_directory)) {
                 return error.HomeDirectoryUnavailable;
             }
+            const configured_login_shell = init.environ_map.get("SHELL") orelse "/bin/sh";
+            const login_shell = if (project_root_service.validPath(configured_login_shell))
+                configured_login_shell
+            else
+                "/bin/sh";
             try runtime_server.serve(
                 init.io,
                 init.gpa,
                 home_directory,
+                login_shell,
                 options.runtime_directory,
                 options.runtime_instance_id,
                 options.runtime_build_digest,

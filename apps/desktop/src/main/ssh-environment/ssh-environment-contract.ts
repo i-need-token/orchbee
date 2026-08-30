@@ -29,10 +29,56 @@ const SshEnvironmentConfigurationFilePathSchema = z
 	.refine(hasNoControlCharacters)
 	.brand<'SshEnvironmentConfigurationFilePath'>();
 
-export const SshEnvironmentTargetReferenceSchema = z.strictObject({
-	configurationFilePath: SshEnvironmentConfigurationFilePathSchema.nullable(),
-	destination: SshEnvironmentDestinationSchema,
-});
+const SshEnvironmentOptionValueSchema = z
+	.string()
+	.min(1)
+	.max(32_768)
+	.refine(hasNoControlCharacters);
+
+export const SshEnvironmentTargetOptionSchema = z.discriminatedUnion('kind', [
+	z.strictObject({ kind: z.literal('address-family'), value: z.enum(['inet', 'inet6']) }),
+	z.strictObject({ enabled: z.boolean(), kind: z.literal('compression') }),
+	z.strictObject({ enabled: z.boolean(), kind: z.literal('forward-agent') }),
+	z.strictObject({ kind: z.literal('identity-file'), value: SshEnvironmentOptionValueSchema }),
+	z.strictObject({
+		kind: z.literal('proxy-jump'),
+		value: ConcreteDestinationSchema,
+	}),
+	z.strictObject({ kind: z.literal('user'), value: SshNameSchema }),
+	z.strictObject({ kind: z.literal('port'), value: z.number().int().min(1).max(65_535) }),
+]);
+
+export const SshEnvironmentTargetReferenceSchema = z
+	.strictObject({
+		configurationFilePath: SshEnvironmentConfigurationFilePathSchema.nullable(),
+		destination: SshEnvironmentDestinationSchema,
+		options: z.array(SshEnvironmentTargetOptionSchema).max(32).optional(),
+	})
+	.superRefine((target, context) => {
+		const singletonKinds = new Set<string>();
+		for (const [index, option] of (target.options ?? []).entries()) {
+			if (option.kind === 'identity-file') continue;
+			if (singletonKinds.has(option.kind)) {
+				context.addIssue({
+					code: 'custom',
+					message: 'A singleton SSH target option cannot be repeated.',
+					path: ['options', index],
+				});
+			}
+			singletonKinds.add(option.kind);
+		}
+	})
+	.transform((target) => {
+		const options = target.options?.toSorted(
+			(left, right) => sshTargetOptionOrder(left.kind) - sshTargetOptionOrder(right.kind),
+		);
+		return options === undefined || options.length === 0
+			? {
+					configurationFilePath: target.configurationFilePath,
+					destination: target.destination,
+				}
+			: { ...target, options };
+	});
 
 const SshEnvironmentHostKeyPolicySchema = z.enum(['yes', 'ask', 'accept-new']);
 
@@ -49,6 +95,7 @@ export type SshEnvironmentConnectionId = z.infer<typeof SshEnvironmentConnection
 export type SshEnvironmentHostKeyPolicy = z.infer<typeof SshEnvironmentHostKeyPolicySchema>;
 export type SshEnvironmentInteractionHandle = z.infer<typeof SshEnvironmentInteractionHandleSchema>;
 export type SshEnvironmentResolvedTarget = z.infer<typeof SshEnvironmentResolvedTargetSchema>;
+export type SshEnvironmentTargetOption = z.infer<typeof SshEnvironmentTargetOptionSchema>;
 export type SshEnvironmentTargetReference = z.infer<typeof SshEnvironmentTargetReferenceSchema>;
 
 function hasNoControlCharacters(value: string): boolean {
@@ -57,4 +104,23 @@ function hasNoControlCharacters(value: string): boolean {
 		if (codePoint !== undefined && (codePoint <= 0x1f || codePoint === 0x7f)) return false;
 	}
 	return true;
+}
+
+function sshTargetOptionOrder(kind: SshEnvironmentTargetOption['kind']): number {
+	switch (kind) {
+		case 'address-family':
+			return 0;
+		case 'forward-agent':
+			return 1;
+		case 'compression':
+			return 2;
+		case 'identity-file':
+			return 3;
+		case 'proxy-jump':
+			return 4;
+		case 'user':
+			return 5;
+		case 'port':
+			return 6;
+	}
 }

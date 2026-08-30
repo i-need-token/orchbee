@@ -76,7 +76,7 @@ export class BrowserAuthenticationController implements BrowserAuthenticationCon
 			this.#setState({ ...this.#state, error: 'invalid-request' });
 			return;
 		}
-		this.#setState({ ...this.#state, error: null, pending: true });
+		this.#setState({ error: null, pending: true, personalAccessToken: '' });
 		void this.#client.authenticate(personalAccessToken.data).then(
 			() => {
 				if (this.#disposed) return;
@@ -86,9 +86,9 @@ export class BrowserAuthenticationController implements BrowserAuthenticationCon
 			(error: unknown) => {
 				if (this.#disposed) return;
 				this.#setState({
-					...this.#state,
 					error: error instanceof BrowserAuthenticationClientError ? error.code : 'unavailable',
 					pending: false,
+					personalAccessToken: '',
 				});
 			},
 		);

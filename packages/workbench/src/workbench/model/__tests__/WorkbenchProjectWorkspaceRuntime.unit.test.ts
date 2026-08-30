@@ -201,8 +201,9 @@ describe('WorkbenchProjectWorkspaceRuntime', () => {
 			}),
 		).toBe(false);
 		expect(runtime.resolveActiveTerminalCreationRoute({ placement: { groupId: null } })).toEqual({
-			kind: 'rejected',
-			reason: 'remote-terminal-context-not-empty',
+			kind: 'remote',
+			projectId: 'project-1',
+			workspaceId: 'workspace-1',
 		});
 		expect(runtime.getClientView()).toMatchObject({
 			activeLocation: clientViewBefore.activeLocation,
@@ -221,15 +222,18 @@ describe('WorkbenchProjectWorkspaceRuntime', () => {
 			launchCwd: '/srv/orchbee',
 			type: 'terminal-provision-requested',
 		});
-		expect(
-			runtime.createEnvironmentTerminalAtLocation({
-				environmentId: REMOTE_ENVIRONMENT_ID,
-				fallbackTitle: 'Second Remote Terminal',
-				placement: { groupId: null },
-				projectId: 'project-1',
-				workspaceId: 'workspace-1',
-			}),
-		).toEqual({ kind: 'rejected', reason: 'remote-terminal-context-not-empty' });
+		const second = runtime.createEnvironmentTerminalAtLocation({
+			environmentId: REMOTE_ENVIRONMENT_ID,
+			fallbackTitle: 'Second Remote Terminal',
+			placement: { groupId: null },
+			projectId: 'project-1',
+			workspaceId: 'workspace-1',
+		});
+		expect(second).toMatchObject({
+			kind: 'created',
+			tabId: 'terminal-context-2-tab-2',
+			terminalContextId: 'terminal-context-2',
+		});
 		expect(
 			runtime.createEnvironmentTerminalAtLocation({
 				environmentId: 'environment:00000000000000000000000000000002',

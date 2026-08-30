@@ -4,7 +4,7 @@
 
 This standard owns surface selection and interaction behavior for Orchbee-authored product flows
 that ask a person to decide, confirm, or enter data. It governs inline editors, anchored
-disclosures, persistent panels, form Dialogs, Alert Dialogs, and dedicated task surfaces across
+disclosures, persistent panels, Dialogs, forms, Alert Dialogs, and dedicated task surfaces across
 browser and Desktop React interfaces.
 
 Visual geometry follows [`visual-foundations.md`](visual-foundations.md), reviewed compositions
@@ -46,6 +46,22 @@ Any surface that makes the rest of the application inert is modal, regardless of
 component is named Dialog, Sheet, Drawer, or Popover. Responsive presentation may change geometry,
 but it preserves modality, commit, cancellation, and focus behavior.
 
+## Dialog and form composition
+
+A Dialog and a form are independent responsibilities that may be composed but never inferred from
+one another:
+
+| Responsibility   | Owns                                                                                               | Does not own                                                                                        |
+| ---------------- | -------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Dialog shell     | Modal mechanics, geometry, title hierarchy, optional description, close control, footer, focus     | Field semantics or an assumption that the task body is a form                                       |
+| Dialog task body | The current task representation, such as a form, picker, list, prompt, progress, or recovery state | A second shell hierarchy or permission to restyle the shell according to its content type           |
+| Form             | Questions, values, labels, controls, help, validation, draft state, and submission semantics       | Surface admission, modality, enclosing title, close behavior, geometry, or an enclosing task footer |
+
+The Dialog shell contract applies to every Dialog, including one whose task body contains no form.
+The form contract applies wherever a form appears, including an inline editor, Popover, Dialog,
+persistent panel, or page. A primitive composition may connect their submit and cancellation
+actions, but it does not merge their ownership.
+
 ## Direct manipulation and expert entry
 
 When one semantic value supports both direct selection and precise text entry, keep both paths in
@@ -55,6 +71,12 @@ one stable task surface:
   text entry only when the person requests it.
 - Replace the direct representation in place with its editor. Do not append a second form row, open
   another overlay, or move the surrounding content and actions merely to expose expert input.
+- Preserve the replaced region's block size and the task body's stable viewport across direct,
+  editing, filtered, and loading projections. State changes must not resize or recenter the Dialog
+  merely because a label, status, or result row appears or disappears.
+- During bounded in-place navigation, keep the last valid view legible, block stale decisions, and
+  layer a non-resizing progress indicator inside the stable task viewport. Do not communicate
+  loading by fading the complete task or inserting a status row that moves surrounding content.
 - Reveal the edit affordance on both hover and keyboard focus. Its button has a localized accessible
   name; a Tooltip may reinforce that name but never provides the only discovery path.
 - Keep the last canonical value separate from the text draft. Typing may filter or suggest bounded
@@ -64,7 +86,7 @@ one stable task surface:
   an explanation.
 - Enter accepts an exact or explicitly highlighted candidate only when the outcome is unambiguous.
   Escape leaves text-entry mode and restores the canonical representation; the task's Cancel action
-  still cancels the complete task.
+  still cancels its explicitly declared task boundary.
 - Coalesce asynchronous candidate requests and bind results to the latest draft and source scope. A
   stale response never replaces newer candidates, selection, or canonical context.
 
@@ -93,24 +115,32 @@ reverse effect. An Alert Dialog contains no ordinary form, progress workflow, or
 acknowledgement; its least destructive action receives initial focus when accidental confirmation
 would be costly.
 
-## Compact Desktop form-dialog typography
+## Compact Desktop Dialog shell
 
-A compact Desktop form Dialog does not inherit the larger generic primitive typography as its
-product hierarchy. Use this composition consistently across its editing, prompt, progress, and
-recoverable-failure states:
+A compact Desktop Dialog does not inherit the larger generic primitive typography as its product
+hierarchy. Use this shell composition consistently across every state, whether the task body is a
+form, picker, list, prompt, progress view, or recoverable failure:
 
-| Part                               | Typography role                  | Presentation rule                                                             |
-| ---------------------------------- | -------------------------------- | ----------------------------------------------------------------------------- |
-| One state-specific title           | `--ob-sys-typography-heading-xs` | Normal weight; position and spacing establish hierarchy                       |
-| Description, help, error, progress | `--ob-sys-typography-body-sm`    | Normal weight; semantic color establishes priority or status                  |
-| Field labels and footer actions    | `--ob-sys-typography-control-sm` | Normal weight; control geometry and primary surface establish emphasis        |
-| Code-like input and exact prompt   | `--ob-sys-typography-code-sm`    | Use only when the value is genuinely code-like                                |
-| Supplemental key hint              | `--ob-sys-typography-label-xs`   | Subordinate to the localized action label and hidden from its accessible name |
+| Shell part                                    | Typography role                  | Presentation rule                                                             |
+| --------------------------------------------- | -------------------------------- | ----------------------------------------------------------------------------- |
+| One state-specific title                      | `--ob-sys-typography-heading-xs` | Normal weight; position and spacing establish hierarchy                       |
+| Description, status, error, and ordinary body | `--ob-sys-typography-body-sm`    | Normal weight; semantic color establishes priority or status                  |
+| Footer actions and terse task controls        | `--ob-sys-typography-control-sm` | Normal weight; control geometry and primary surface establish emphasis        |
+| Exact command, path, identifier, or prompt    | `--ob-sys-typography-code-sm`    | Use only when the value is genuinely code-like                                |
+| Supplemental key hint                         | `--ob-sys-typography-label-xs`   | Subordinate to the localized action label and hidden from its accessible name |
 
 Do not increase weight merely because text is a title, field label, or primary action. Reserve
 stronger label and heading roles for a concrete hierarchy that remains ambiguous after position,
 spacing, semantic color, and control surface are applied. A nested step changes the copy and
-actions, not this type hierarchy.
+actions, not this shell hierarchy. Task-body content never selects a different shell title or
+footer typography merely because it is not a form.
+
+## Form contract scope
+
+The question budget, field contract, validation, draft, and submission rules below apply to every
+product form independently of its enclosing surface. A form inherits the enclosing surface's task
+boundary and shell; it does not create or redefine modality, geometry, title hierarchy, outer close
+behavior, or focus containment.
 
 ## Question budget
 
@@ -137,6 +167,11 @@ clear.
 
 ## Field contract
 
+- In compact Desktop forms, field labels and terse controls use
+  `--ob-sys-typography-control-sm`, supporting and error text uses
+  `--ob-sys-typography-body-sm`, and genuinely code-like input uses
+  `--ob-sys-typography-code-sm`. Moving the form between admitted surfaces does not change those
+  roles.
 - Give every control a persistent visible label. Append a localized “(optional)” to an individually
   visible optional field unless an enclosing titled group already states that the complete group is
   optional. Never mark required fields with an asterisk.
@@ -152,13 +187,20 @@ clear.
   programmatically exposed.
 - Secret responses state where they are sent and whether they are stored. They remain only in the
   input until direct submission and are cleared on submission, cancellation, failure, and unmount.
+- Place an exact bounded authentication prompt beside the privacy explanation and secret field.
+  Do not repeat it in a separate visual panel unless structured content such as a host fingerprint
+  must remain independently inspectable.
 
 ## Validation and actions
 
 - Keep one primary action in the current task. Its localized label names the outcome, such as
   “Connect” or “Save”; use “Continue” only when it advances to another visible step.
-- Place the non-destructive cancel action before the primary action. A close control, Escape,
-  backdrop dismissal, and Cancel have the same no-commit meaning whenever those paths are enabled.
+- Place the non-destructive cancel action before the primary action. Scope every exit path to a
+  named task boundary. In a single-step surface, Close, Escape, backdrop dismissal, and Cancel have
+  the same no-commit outcome whenever enabled. In a multistep surface before commit, Cancel and
+  Escape cancel the innermost foreground step and restore the preceding stable step, while the
+  outer close control and backdrop dismissal exit the complete surface. Never wire a step-local
+  Cancel action to full dismissal or present an outer Close action as step-local cancellation.
 - Do not disable submit as the only validation explanation. When a person can reasonably attempt
   submission, accept the attempt, reveal localized field errors, and focus the first invalid field.
   Disable only for an active duplicate submission or an unmet prerequisite already explained in the
@@ -167,16 +209,23 @@ clear.
   person can answer, clear an error while its condition is repaired, or expose raw exceptions.
 - Preserve non-secret input after a recoverable failure. Submission commits the complete validated
   draft once; cancellation before commit produces no semantic mutation.
+- A recoverable failure identifies the exact bounded, non-secret subject or submitted value needed
+  to distinguish it from the person's other active, saved, or configured items. Do not make people
+  infer which connection, path, account, or command failed, and never repeat a secret response.
 - Preserve native form behavior. Enter submits only when the focused control, input method editor,
   and current step make submission unambiguous; it never submits from a multiline response.
-- In a compact Desktop form Dialog, show `Kbd` hints inside the corresponding footer buttons when
-  Escape always cancels the current task and unmodified Enter always invokes the current single-line
-  form's submission path. The hints are supplemental and hidden from the accessible name because the
+- In a compact Desktop Dialog, show `Kbd` hints inside the corresponding footer buttons when
+  Escape always cancels the current task and unmodified Enter always invokes the current unambiguous
+  primary action: either the single-line form submission or a deliberately default-focused recovery
+  action such as Retry. The hints are supplemental and hidden from the accessible name because the
   localized action label already names the outcome.
 - A visible key hint is a claim about the step's default editing context, not an override of native
   control activation. Omit it when composition, multiline input, confirmation safety, or workflow
   state can make the key invoke a different action or no action from the initial or editable focus
   target. An explicitly focused button continues to receive native Enter activation.
+- When a Dialog transitions in place to a default-action state, establish focus after the new state
+  renders or provide scoped unmodified-key handling. Primary styling and a `Kbd` hint alone do not
+  create keyboard ownership.
 
 ## Cancellation and asynchronous work
 
@@ -185,12 +234,19 @@ Classify submitted work as foreground, background, or external under
 when leaving would make the outcome unsafe or unobservable. If accepted work can continue safely,
 close the modal and report progress through the owning nonintrusive activity surface.
 
+- While foreground work is waiting, keep the exact bounded, non-secret operation subject visible
+  whenever it could be confused with another active, saved, or configured item. Carry that context
+  through intervening prompts and recovery without asking the person to remember an earlier screen.
 - Define the commit point. Before it, every enabled dismissal requests cancellation and releases
   operation-owned resources; after it, the UI never relabels committed work as cancelled.
 - Prevent duplicate work by semantic operation identity and scope, not by a process-wide or
   component-global “dialog busy” flag.
 - Cancellation, close, failure, transport loss, and unmount are idempotent cleanup paths. None may
   leave a lease or lock that blocks a fresh invocation.
+- Returning from a foreground substep is a cancellation boundary, not visual-only navigation. It
+  revokes the current prompt or selection, aborts pre-commit work, invalidates the old interaction
+  identity, clears secret input, preserves the outer non-secret draft, and fences every late
+  completion before restoring the preceding step.
 - A late completion cannot reopen a surface, steal focus, overwrite a newer draft, or navigate away
   from later work. Publish it only through the still-owning interaction token or a nonintrusive result
   channel.
@@ -208,9 +264,10 @@ close the modal and report progress through the owning nonintrusive activity sur
 - Place initial focus deliberately: the first unresolved required control for a short form, a static
   heading or introduction when structured content must be read first, or the least destructive
   action for a costly irreversible decision.
-- Tab and Shift+Tab remain inside a modal. Escape closes the innermost cancellable task. Closing
-  restores focus to the invoker or to the logical result created by the completed action when the
-  invoker no longer exists.
+- Tab and Shift+Tab remain inside a modal. Escape cancels the innermost cancellable task, either
+  returning to its preceding stable step or closing the complete surface according to the declared
+  task boundary. Full closure restores focus to the invoker or to the logical result created by the
+  completed action when the invoker no longer exists.
 - Keep a visible close or cancel control in the tab order. A Dialog has a visible localized title;
   associate a concise description only when it can be announced as one understandable unit.
 - Connect hint and error text to its control. Announce asynchronous progress politely and use an

@@ -22,6 +22,7 @@ const resolvedTarget: SshEnvironmentResolvedTarget = {
 	user: 'builder',
 };
 const promptHandle = 'prompt-1';
+const loginShell = '/bin/zsh';
 const runtimeEpoch = '2'.repeat(32);
 const runtimeInstanceId = '1'.repeat(32);
 
@@ -51,6 +52,7 @@ describe('SSH Environment connection state', () => {
 
 		const ready = transitionSshEnvironmentConnection(resolved.state, {
 			generation: 1,
+			loginShell,
 			runtimeEpoch,
 			runtimeInstanceId,
 			type: 'remote-runtime-ready',
@@ -61,6 +63,7 @@ describe('SSH Environment connection state', () => {
 		});
 		expect(observeSshEnvironmentConnection(ready.state)).toMatchObject({
 			connected: true,
+			loginShell,
 			phase: 'connected',
 			runtimeEpoch,
 		});
@@ -124,6 +127,7 @@ describe('SSH Environment connection state', () => {
 			connectionId,
 			generation: 1,
 			interactionRequired: false,
+			loginShell: null,
 			phase: 'blocked',
 			retryAttempt: null,
 			runtimeEpoch: null,
@@ -271,6 +275,7 @@ describe('SSH Environment connection state', () => {
 		for (const event of [
 			{
 				generation: 0,
+				loginShell,
 				runtimeEpoch,
 				runtimeInstanceId,
 				type: 'remote-runtime-ready' as const,
@@ -297,6 +302,7 @@ describe('SSH Environment connection state', () => {
 		});
 		const staleReady = transitionSshEnvironmentConnection(stopped.state, {
 			generation: 1,
+			loginShell,
 			runtimeEpoch,
 			runtimeInstanceId,
 			type: 'remote-runtime-ready',
@@ -370,6 +376,7 @@ function createConnectingState(): SshEnvironmentConnectionState {
 function createConnectedState(): SshEnvironmentConnectionState {
 	return transitionSshEnvironmentConnection(createConnectingState(), {
 		generation: 1,
+		loginShell,
 		runtimeEpoch,
 		runtimeInstanceId,
 		type: 'remote-runtime-ready',

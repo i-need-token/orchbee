@@ -394,12 +394,15 @@ export function WorkbenchSidebar({
 					}}
 					open
 				>
-					<AlertDialogContent data-slot='workbench-project-folder-acquisition-failure'>
-						<AlertDialogHeader>
-							<AlertDialogTitle>
+					<AlertDialogContent
+						className={styles['alertContent']}
+						data-slot='workbench-project-folder-acquisition-failure'
+					>
+						<AlertDialogHeader className={styles['alertHeader']}>
+							<AlertDialogTitle className={styles['alertTitle']}>
 								{projectNavigationMessages.folderAcquisitionFailureTitle}
 							</AlertDialogTitle>
-							<AlertDialogDescription>
+							<AlertDialogDescription className={styles['alertDescription']}>
 								{
 									projectNavigationMessages.folderAcquisitionFailureMessages[
 										folderAcquisition.failure
@@ -407,7 +410,7 @@ export function WorkbenchSidebar({
 								}
 							</AlertDialogDescription>
 						</AlertDialogHeader>
-						<AlertDialogFooter>
+						<AlertDialogFooter className={styles['alertFooter']}>
 							<AlertDialogAction onClick={folderAcquisition.dismissFailure}>
 								{projectNavigationMessages.folderAcquisitionFailureDismiss}
 							</AlertDialogAction>
@@ -422,16 +425,19 @@ export function WorkbenchSidebar({
 					}}
 					open
 				>
-					<AlertDialogContent data-slot='workbench-project-worktree-adoption-failure'>
-						<AlertDialogHeader>
-							<AlertDialogTitle>
+					<AlertDialogContent
+						className={styles['alertContent']}
+						data-slot='workbench-project-worktree-adoption-failure'
+					>
+						<AlertDialogHeader className={styles['alertHeader']}>
+							<AlertDialogTitle className={styles['alertTitle']}>
 								{projectNavigationMessages.projectWorktreeFailureTitle}
 							</AlertDialogTitle>
-							<AlertDialogDescription>
+							<AlertDialogDescription className={styles['alertDescription']}>
 								{projectNavigationMessages.projectWorktreeFailureMessages[worktreeMenu.failure]}
 							</AlertDialogDescription>
 						</AlertDialogHeader>
-						<AlertDialogFooter>
+						<AlertDialogFooter className={styles['alertFooter']}>
 							<AlertDialogAction onClick={worktreeMenu.dismissFailure}>
 								{projectNavigationMessages.close}
 							</AlertDialogAction>

@@ -13,11 +13,11 @@ describe('Environment registry contract', () => {
 		expect(createEmptyEnvironmentRegistryDocument()).toEqual({
 			environments: [],
 			revision: 0,
-			schemaVersion: 1,
+			schemaVersion: 2,
 		});
 	});
 
-	it('derives an exact unambiguous key from configuration path and destination', () => {
+	it('derives an exact unambiguous key from configuration path, destination, and options', () => {
 		expect(
 			sshEnvironmentTargetKey(
 				SshEnvironmentTargetReferenceSchema.parse({
@@ -25,7 +25,7 @@ describe('Environment registry contract', () => {
 					destination: 'build-host',
 				}),
 			),
-		).toBe('["/Users/example/.ssh/config","build-host"]');
+		).toBe('["/Users/example/.ssh/config","build-host",[]]');
 		expect(
 			sshEnvironmentTargetKey(
 				SshEnvironmentTargetReferenceSchema.parse({
@@ -33,7 +33,21 @@ describe('Environment registry contract', () => {
 					destination: 'build-host',
 				}),
 			),
-		).toBe('[null,"build-host"]');
+		).toBe('[null,"build-host",[]]');
+		expect(
+			sshEnvironmentTargetKey(
+				SshEnvironmentTargetReferenceSchema.parse({
+					configurationFilePath: null,
+					destination: 'build-host',
+					options: [
+						{ kind: 'port', value: 2222 },
+						{ enabled: true, kind: 'forward-agent' },
+					],
+				}),
+			),
+		).toBe(
+			'[null,"build-host",[{"enabled":true,"kind":"forward-agent"},{"kind":"port","value":2222}]]',
+		);
 	});
 
 	it('rejects noncanonical identities, names, configuration paths, duplicate records, and extra secrets', () => {
@@ -74,14 +88,14 @@ describe('Environment registry contract', () => {
 			EnvironmentRegistryDocumentSchema.safeParse({
 				environments: [valid, valid],
 				revision: 2,
-				schemaVersion: 1,
+				schemaVersion: 2,
 			}).success,
 		).toBe(false);
 		expect(
 			EnvironmentRegistryDocumentSchema.safeParse({
 				environments: [valid],
 				revision: 2,
-				schemaVersion: 1,
+				schemaVersion: 2,
 			}).success,
 		).toBe(false);
 	});

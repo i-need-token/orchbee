@@ -1,3 +1,23 @@
+.alertContent {
+	font: var(--ob-sys-typography-body-sm);
+}
+
+.alertHeader {
+	padding-inline-end: var(--ob-ref-space-6);
+}
+
+.alertTitle {
+	font: var(--ob-sys-typography-heading-xs);
+}
+
+.alertDescription {
+	font: var(--ob-sys-typography-body-sm);
+}
+
+.alertFooter :global([data-slot='alert-dialog-action']) {
+	font: var(--ob-sys-typography-control-sm);
+}
+
 .root {
 	display: flex;
 	box-sizing: border-box;

@@ -11,7 +11,7 @@ import {
 describe('DesktopRemoteTerminalCreationBroker', () => {
 	it('publishes one bounded canonical settlement for the exact target', async () => {
 		const port = new FakeMessagePort();
-		const runtime = createRuntime(async (_projectId, _workspaceId, signal) => {
+		const runtime = createRuntime(async (_projectId, _workspaceId, _requestId, signal) => {
 			expect(signal.aborted).toBe(false);
 			return createdResult();
 		});
@@ -24,6 +24,7 @@ describe('DesktopRemoteTerminalCreationBroker', () => {
 		expect(runtime.create).toHaveBeenCalledWith(
 			'project-1',
 			'workspace-1',
+			'remote-terminal:1',
 			expect.any(AbortSignal),
 		);
 		expect(DesktopRemoteTerminalCreationMainEventSchema.parse(port.messages[0])).toEqual({
@@ -37,7 +38,7 @@ describe('DesktopRemoteTerminalCreationBroker', () => {
 		const port = new FakeMessagePort();
 		let finish: (() => void) | undefined;
 		const runtime = createRuntime(
-			(_projectId, _workspaceId, signal) =>
+			(_projectId, _workspaceId, _requestId, signal) =>
 				new Promise((resolve) => {
 					finish = () => resolve(signal.aborted ? { kind: 'cancelled' } : createdResult());
 				}),
@@ -71,7 +72,7 @@ describe('DesktopRemoteTerminalCreationBroker', () => {
 		let signal: AbortSignal | undefined;
 		let finish: (() => void) | undefined;
 		const runtime = createRuntime(
-			(_projectId, _workspaceId, operationSignal) =>
+			(_projectId, _workspaceId, _requestId, operationSignal) =>
 				new Promise((resolve) => {
 					signal = operationSignal;
 					finish = () => resolve({ kind: 'cancelled' });

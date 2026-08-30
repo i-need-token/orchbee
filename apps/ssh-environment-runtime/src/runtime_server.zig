@@ -98,6 +98,7 @@ pub fn serve(
     io: std.Io,
     allocator: std.mem.Allocator,
     home_directory: []const u8,
+    login_shell: []const u8,
     runtime_directory: []const u8,
     runtime_instance_id: []const u8,
     runtime_build_digest: []const u8,
@@ -247,6 +248,7 @@ pub fn serve(
                 &workers,
                 executable_path,
                 home_directory,
+                login_shell,
                 runtime_instance_id,
                 &runtime_epoch,
                 runtime_build_digest,
@@ -347,6 +349,7 @@ fn dispatch(
     workers: *[project_root.maximum_concurrent_operations]?project_root.Worker,
     executable_path: []const u8,
     home_directory: []const u8,
+    login_shell: []const u8,
     runtime_instance_id: []const u8,
     runtime_epoch: []const u8,
     runtime_build_digest: []const u8,
@@ -396,6 +399,7 @@ fn dispatch(
                 terminal_host_configuration.version,
                 terminal_host_configuration.build_digest,
                 runtime_platform,
+                login_shell,
             );
             attachment.phase = .active;
             attachment.last_heartbeat = .now(io, .awake);

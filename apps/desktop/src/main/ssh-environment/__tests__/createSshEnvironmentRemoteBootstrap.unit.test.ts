@@ -68,6 +68,9 @@ describe('SSH Environment remote bootstrap', () => {
 			'runtime_version_directory="$runtime_versions_directory/0.2.0"',
 		);
 		expect(bootstrap.command).toContain(
+			'runtime_state_directory="$runtime_state_root_directory/eeeeeeeeeeeeeeee"',
+		);
+		expect(bootstrap.command).toContain(
 			'terminal_host_version_directory="$terminal_host_versions_directory/0.1.0"',
 		);
 		expect(bootstrap.command).toContain(`runtime_expected_digest=${darwinDigest}`);

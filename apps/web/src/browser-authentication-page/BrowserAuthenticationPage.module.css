@@ -37,28 +37,32 @@
 
 .form {
 	display: grid;
-	gap: var(--ob-ref-space-2);
+	gap: var(--ob-ref-space-4);
+}
+
+.title {
+	font: var(--ob-sys-typography-heading-sm);
+}
+
+.description,
+.supporting,
+.error {
+	font: var(--ob-sys-typography-body-sm);
 }
 
 .label {
-	font: var(--ob-sys-typography-label-md);
+	font: var(--ob-sys-typography-control-sm);
 }
 
 .error {
 	color: var(--ob-sys-color-status-danger-text);
-	font: var(--ob-sys-typography-body-sm);
-	margin: var(--ob-ref-space-0);
+}
+
+.token {
+	font: var(--ob-sys-typography-code-sm);
 }
 
 .submit {
-	margin-block-start: var(--ob-ref-space-2);
+	font: var(--ob-sys-typography-control-sm);
 	width: 100%;
-}
-
-.notice {
-	border-block-start: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-subtle);
-	color: var(--ob-sys-color-text-secondary);
-	font: var(--ob-sys-typography-body-md);
-	margin: var(--ob-ref-space-5) var(--ob-ref-space-0) var(--ob-ref-space-0);
-	padding-block-start: var(--ob-ref-space-4);
 }

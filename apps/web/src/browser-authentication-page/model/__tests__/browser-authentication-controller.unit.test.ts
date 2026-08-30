@@ -48,6 +48,7 @@ describe('BrowserAuthenticationController', () => {
 		await vi.waitFor(() => expect(controller.getSnapshot().pending).toBe(false));
 
 		expect(controller.getSnapshot().error).toBe('invalid-personal-access-token');
+		expect(controller.getSnapshot().personalAccessToken).toBe('');
 		controller.dispose();
 	});
 });

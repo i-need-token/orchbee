@@ -39,9 +39,11 @@ export function WorkbenchPanelResizeDialog({
 				finalFocus={dialog.finalFocus}
 				onKeyDownCapture={dialog.onKeyDownCapture}
 			>
-				<DialogHeader>
-					<DialogTitle>{view.messages.resizeTitle}</DialogTitle>
-					<DialogDescription>{view.messages.resizeDescription}</DialogDescription>
+				<DialogHeader className={styles['header']}>
+					<DialogTitle className={styles['title']}>{view.messages.resizeTitle}</DialogTitle>
+					<DialogDescription className={styles['description']}>
+						{view.messages.resizeDescription}
+					</DialogDescription>
 				</DialogHeader>
 				<div className={styles['options']}>
 					{PANEL_RESIZE_OPTIONS.map((option, index) => (
@@ -63,7 +65,7 @@ export function WorkbenchPanelResizeDialog({
 					{dialog.status ?? '\u00a0'}
 				</p>
 				<DialogFooter>
-					<Button type='button' onClick={view.cancelPanelResize}>
+					<Button className={styles['action']} type='button' onClick={view.cancelPanelResize}>
 						{view.messages.resizeDone}
 						<Kbd aria-hidden='true' className={styles['doneShortcut']}>
 							Esc

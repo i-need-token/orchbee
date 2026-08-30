@@ -8,7 +8,7 @@ export const zhCNDesktopSshProjectMessages = {
 	'desktop.sshProject.actions.retry': '重试',
 	'desktop.sshProject.actions.trustHost': '信任并继续',
 	'desktop.sshProject.attachment.description':
-		'输入 SSH 地址。Orchbee 会先连接，再让你为当前项目选择远程文件夹。',
+		'连接 SSH 主机，然后选择要添加到当前项目的远端文件夹。',
 	'desktop.sshProject.attachment.directoryDescription': '选择要添加到当前项目的远程文件夹。',
 	'desktop.sshProject.attachment.directoryTitle': '选择远程文件夹',
 	'desktop.sshProject.attachment.title': '添加 SSH 文件夹',
@@ -25,24 +25,28 @@ export const zhCNDesktopSshProjectMessages = {
 	'desktop.sshProject.failure.busy': '另一个 SSH 项目操作正在进行。',
 	'desktop.sshProject.failure.connection':
 		'Orchbee 无法建立远端运行时连接。请检查 SSH 访问权限后重试。',
+	'desktop.sshProject.failure.connectionWithDestination':
+		'Orchbee 无法通过 SSH 连接“{destination}”建立远端运行时。请检查 SSH 访问权限后重试。',
 	'desktop.sshProject.failure.control': '桌面控制连接已中断。请重新加载窗口后再试。',
+	'desktop.sshProject.failure.destinationContext': '相关 SSH 连接为“{destination}”。',
 	'desktop.sshProject.failure.projectAttachment':
 		'此项目已使用另一个 SSH 主机，或此远程文件夹已属于另一个项目。',
 	'desktop.sshProject.failure.projectPath':
 		'无法使用远端项目路径。请确认它是可访问的绝对文件夹路径。',
 	'desktop.sshProject.failure.storage': 'Orchbee 无法安全记录此 SSH 环境。请重启 Orchbee 后再试。',
-	'desktop.sshProject.failure.target': '无法安全解析 SSH 地址。',
+	'desktop.sshProject.failure.target': '无法安全解析 SSH 连接命令。',
 	'desktop.sshProject.failure.title': '无法连接远端项目',
 	'desktop.sshProject.failure.unsupported': '此桌面平台不支持 SSH 项目连接。',
 	'desktop.sshProject.failure.workbench':
 		'Orchbee 无法安全地将项目添加到共享工作台。请重新加载后再试。',
-	'desktop.sshProject.fields.destination': 'SSH 地址',
+	'desktop.sshProject.fields.destination': 'SSH 主机',
 	'desktop.sshProject.fields.destinationDescription':
-		'使用 SSH 配置中的主机，或输入 user@hostname。',
-	'desktop.sshProject.fields.destinationError': '请输入有效的 SSH 主机，例如 user@hostname。',
-	'desktop.sshProject.fields.destinationPlaceholder': 'user@hostname',
+		'输入 SSH 连接命令，或从下方的已保存及已配置主机中选择。',
+	'desktop.sshProject.fields.destinationError': '请输入有效的 SSH 连接命令或主机。',
+	'desktop.sshProject.fields.destinationPlaceholder': '例如：ssh hello@orchbee -A',
 	'desktop.sshProject.progress.committingProject': '正在将项目添加到工作台…',
 	'desktop.sshProject.progress.committingProjectFolder': '正在将远程文件夹添加到项目…',
+	'desktop.sshProject.progress.connectionLabel': 'SSH 连接：',
 	'desktop.sshProject.progress.connecting': '正在连接并准备远端运行时…',
 	'desktop.sshProject.progress.inspectingProject': '正在验证远端项目文件夹…',
 	'desktop.sshProject.progress.recordingEnvironment': '正在记录 SSH 环境…',

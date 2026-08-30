@@ -2,6 +2,9 @@ import {
 	Badge,
 	Button,
 	Checkbox,
+	Field,
+	FieldDescription,
+	FieldLabel,
 	Input,
 	NativeSelect,
 	NativeSelectOption,
@@ -52,42 +55,57 @@ export function TerminalLaunchProfileSettings({
 						))}
 					</div>
 					<form className={styles['addProfile']} onSubmit={view.addProfile.onSubmit}>
-						<Input
-							aria-label={view.addProfile.inputLabel}
-							disabled={view.addProfile.inputDisabled}
-							placeholder={view.addProfile.inputPlaceholder}
-							value={view.addProfile.inputValue}
-							onChange={view.addProfile.onInputChange}
-						/>
-						<Button
-							data-slot='terminal-launch-profile-add'
-							disabled={view.addProfile.buttonDisabled}
-							type='submit'
-							variant='secondary'
-						>
-							<ProductIcon name='add' />
-							{view.addProfile.buttonLabel}
-						</Button>
+						<Field>
+							<FieldLabel className={styles['fieldLabel']} htmlFor='terminal-profile-add-name'>
+								{view.addProfile.inputLabel}
+							</FieldLabel>
+							<Input
+								autoComplete='off'
+								disabled={view.addProfile.inputDisabled}
+								id='terminal-profile-add-name'
+								placeholder={view.addProfile.inputPlaceholder}
+								required
+								value={view.addProfile.inputValue}
+								onChange={view.addProfile.onInputChange}
+							/>
+							<Button
+								data-slot='terminal-launch-profile-add'
+								disabled={view.addProfile.buttonDisabled}
+								type='submit'
+								variant='secondary'
+							>
+								<ProductIcon name='add' />
+								{view.addProfile.buttonLabel}
+							</Button>
+						</Field>
 					</form>
 				</div>
 
-				<div className={styles['editor']}>
-					<div className={styles['field']}>
-						<label className={styles['fieldLabel']} htmlFor='terminal-profile-name'>
+				<form
+					className={styles['editor']}
+					onSubmit={(event: React.FormEvent<HTMLFormElement>) => {
+						event.preventDefault();
+						if (!view.saveAction.disabled) view.saveAction.onClick();
+					}}
+				>
+					<Field className={styles['field']}>
+						<FieldLabel className={styles['fieldLabel']} htmlFor='terminal-profile-name'>
 							{view.nameEditor.label}
-						</label>
+						</FieldLabel>
 						<Input
+							autoComplete='off'
 							disabled={view.nameEditor.disabled}
 							id='terminal-profile-name'
 							placeholder={view.nameEditor.placeholder}
+							required
 							value={view.nameEditor.value}
 							onChange={view.nameEditor.onChange}
 						/>
-					</div>
-					<div className={styles['field']} id='profiles.command'>
-						<label className={styles['fieldLabel']} htmlFor='terminal-profile-command'>
+					</Field>
+					<Field className={styles['field']} id='profiles.command'>
+						<FieldLabel className={styles['fieldLabel']} htmlFor='terminal-profile-command'>
 							{view.commandEditor.label}
-						</label>
+						</FieldLabel>
 						<NativeSelect
 							className={styles['wideControl']}
 							disabled={view.commandEditor.disabled}
@@ -101,7 +119,7 @@ export function TerminalLaunchProfileSettings({
 								</NativeSelectOption>
 							))}
 						</NativeSelect>
-					</div>
+					</Field>
 
 					{view.commandEditor.kind === 'system-shell' ? (
 						<div className={styles['toggleField']}>
@@ -123,24 +141,36 @@ export function TerminalLaunchProfileSettings({
 						</div>
 					) : (
 						<>
-							<div className={styles['field']}>
-								<label className={styles['fieldLabel']} htmlFor='terminal-profile-executable'>
+							<Field className={styles['field']}>
+								<FieldLabel className={styles['fieldLabel']} htmlFor='terminal-profile-executable'>
 									{view.commandEditor.executableLabel}
-								</label>
+								</FieldLabel>
 								<Input
+									aria-describedby='terminal-profile-executable-description'
+									autoCapitalize='none'
+									autoComplete='off'
+									autoCorrect='off'
+									className={styles['codeInput']}
 									disabled={view.commandEditor.disabled}
 									id='terminal-profile-executable'
 									placeholder={view.commandEditor.executablePlaceholder}
+									required
+									spellCheck={false}
 									value={view.commandEditor.executableValue}
 									onChange={view.commandEditor.onExecutableChange}
 								/>
-								<p className={styles['fieldDescription']}>
+								<FieldDescription
+									className={styles['fieldDescription']}
+									id='terminal-profile-executable-description'
+								>
 									{view.commandEditor.executableDescription}
-								</p>
-							</div>
-							<div className={styles['field']} id='profiles.arguments'>
+								</FieldDescription>
+							</Field>
+							<Field className={styles['field']} id='profiles.arguments'>
 								<div className={styles['argumentHeader']}>
-									<span className={styles['fieldLabel']}>{view.commandEditor.argumentsLabel}</span>
+									<span className={styles['fieldLabel']} id='terminal-profile-arguments-label'>
+										{view.commandEditor.argumentsLabel}
+									</span>
 									<Button
 										data-slot='terminal-launch-profile-add-argument'
 										disabled={view.commandEditor.addArgumentDisabled}
@@ -153,15 +183,34 @@ export function TerminalLaunchProfileSettings({
 										{view.commandEditor.addArgumentLabel}
 									</Button>
 								</div>
-								<p className={styles['fieldDescription']}>
+								<FieldDescription
+									className={styles['fieldDescription']}
+									id='terminal-profile-arguments-description'
+								>
 									{view.commandEditor.argumentsDescription}
-								</p>
-								<div className={styles['arguments']}>
+								</FieldDescription>
+								<div
+									aria-describedby='terminal-profile-arguments-description'
+									aria-labelledby='terminal-profile-arguments-label'
+									className={styles['arguments']}
+									role='group'
+								>
 									{view.commandEditor.arguments.map((argument) => (
 										<div className={styles['argument']} key={argument.key}>
+											<label
+												className={styles['argumentLabel']}
+												htmlFor={`terminal-profile-argument-${argument.key}`}
+											>
+												{argument.inputLabel}
+											</label>
 											<Input
-												aria-label={argument.inputLabel}
+												autoCapitalize='none'
+												autoComplete='off'
+												autoCorrect='off'
+												className={styles['codeInput']}
 												disabled={argument.disabled}
+												id={`terminal-profile-argument-${argument.key}`}
+												spellCheck={false}
 												value={argument.value}
 												onChange={argument.onChange}
 											/>
@@ -178,7 +227,7 @@ export function TerminalLaunchProfileSettings({
 										</div>
 									))}
 								</div>
-							</div>
+							</Field>
 						</>
 					)}
 
@@ -186,8 +235,7 @@ export function TerminalLaunchProfileSettings({
 						<Button
 							data-slot='terminal-launch-profile-save'
 							disabled={view.saveAction.disabled}
-							type='button'
-							onClick={view.saveAction.onClick}
+							type='submit'
 						>
 							{view.saveAction.label}
 						</Button>
@@ -231,7 +279,7 @@ export function TerminalLaunchProfileSettings({
 							</Button>
 						)}
 					</div>
-				</div>
+				</form>
 			</section>
 
 			<div className={styles['reset']}>

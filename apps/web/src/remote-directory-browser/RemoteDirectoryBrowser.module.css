@@ -2,11 +2,13 @@
 	display: grid;
 	gap: var(--ob-ref-space-3);
 	min-inline-size: 0;
+	outline: none;
 }
 
 .locationBar {
 	display: flex;
 	align-items: center;
+	block-size: calc(var(--ob-ref-size-control-lg) + var(--ob-ref-space-1));
 	min-inline-size: 0;
 	padding: var(--ob-ref-space-1);
 	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-subtle);
@@ -88,14 +90,15 @@
 }
 
 .pathForm {
-	display: grid;
-	grid-template-columns: minmax(0, 1fr) auto;
-	align-items: end;
-	gap: var(--ob-ref-space-2);
+	display: flex;
+	align-items: center;
+	block-size: calc(var(--ob-ref-size-control-lg) + var(--ob-ref-space-1));
+	min-inline-size: 0;
 }
 
-.pathField {
+.pathInput {
 	min-inline-size: 0;
+	font: var(--ob-sys-typography-code-sm);
 }
 
 .navigationFailure {
@@ -107,7 +110,14 @@
 	font: var(--ob-sys-typography-body-sm);
 }
 
-.loading,
+.filterGuidance {
+	margin: 0;
+	padding: var(--ob-ref-space-2) var(--ob-ref-space-3);
+	border-block-end: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-subtle);
+	color: var(--ob-sys-color-text-muted);
+	font: var(--ob-sys-typography-body-sm);
+}
+
 .truncated {
 	margin: 0;
 	color: var(--ob-sys-color-text-muted);
@@ -115,12 +125,48 @@
 }
 
 .listFrame {
+	position: relative;
 	min-inline-size: 0;
-	max-block-size: var(--ob-ref-container-sm);
-	overflow: auto;
+	block-size: min(var(--ob-ref-container-sm), 50vh);
+	overflow: hidden;
 	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-subtle);
 	border-radius: var(--ob-ref-radius-ui-md);
 	background: var(--ob-sys-color-surface-raised);
+}
+
+.listScroller {
+	block-size: 100%;
+	overflow: auto;
+}
+
+.loadingStatus {
+	position: absolute;
+	inline-size: var(--ob-ref-border-width-default);
+	block-size: var(--ob-ref-border-width-default);
+	padding: var(--ob-ref-space-0);
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+}
+
+.loadingIndicator {
+	position: absolute;
+	inset-block-start: 50%;
+	inset-inline-start: 50%;
+	display: grid;
+	place-items: center;
+	inline-size: var(--ob-ref-size-control-lg);
+	block-size: var(--ob-ref-size-control-lg);
+	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-subtle);
+	border-radius: var(--ob-ref-radius-full);
+	background: var(--ob-sys-color-surface-overlay);
+	box-shadow: var(--ob-sys-shadow-overlay);
+	transform: translate(-50%, -50%);
+	pointer-events: none;
+}
+
+.loadingSpinner {
+	color: var(--ob-sys-color-action-primary);
 }
 
 .directoryList {
@@ -159,7 +205,7 @@
 
 .directoryRow:disabled {
 	cursor: progress;
-	opacity: var(--ob-sys-opacity-disabled);
+	opacity: 1;
 }
 
 .directoryRow span:nth-child(2) {
@@ -176,15 +222,57 @@
 	text-align: center;
 }
 
+.footer {
+	display: flex;
+	flex-direction: column;
+	gap: var(--ob-ref-space-3);
+}
+
+.footerOptions {
+	display: flex;
+	align-items: center;
+	min-inline-size: 0;
+}
+
+.hiddenDirectoriesToggle {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--ob-ref-space-2);
+	color: var(--ob-sys-color-text-secondary);
+	font: var(--ob-sys-typography-control-sm);
+	cursor: pointer;
+}
+
+.hiddenDirectoriesToggle:has([data-disabled]) {
+	cursor: progress;
+	opacity: var(--ob-sys-opacity-disabled);
+}
+
 .actions {
 	display: flex;
 	flex-direction: column-reverse;
 	gap: var(--ob-ref-space-2);
 }
 
+.action {
+	font: var(--ob-sys-typography-control-sm);
+}
+
+.shortcut {
+	background: transparent;
+	color: currentColor;
+	font: var(--ob-sys-typography-label-xs);
+	opacity: var(--ob-sys-opacity-muted);
+}
+
 @media (min-width: 40rem) {
+	.footer {
+		flex-direction: row;
+		align-items: center;
+		justify-content: space-between;
+	}
+
 	.actions {
 		flex-direction: row;
-		justify-content: flex-end;
 	}
 }

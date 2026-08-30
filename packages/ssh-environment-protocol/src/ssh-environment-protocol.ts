@@ -1,11 +1,13 @@
 import { z } from 'zod';
 
+import { SshProjectRootPathSchema } from './ssh-project-root-service-contract';
+
 export const SSH_ENVIRONMENT_FRAME_MAGIC = 'OBSE';
 export const SSH_ENVIRONMENT_FRAME_HEADER_BYTES = 16;
 export const SSH_ENVIRONMENT_MAX_FRAME_BYTES = 1024 * 1024;
 export const SSH_ENVIRONMENT_PROTOCOL_VERSION = Object.freeze({
 	major: 0,
-	minor: 3,
+	minor: 4,
 	patch: 0,
 });
 const SSH_PROJECT_ROOT_SERVICE_ID_LITERAL = 'project-root-v2';
@@ -67,6 +69,8 @@ export const SshEnvironmentTerminalHostVersionSchema = z
 	.regex(/^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?$/u)
 	.brand<'SshEnvironmentTerminalHostVersion'>();
 export const SshEnvironmentPlatformSchema = z.enum(['darwin-arm64', 'linux-x64']);
+export const SshEnvironmentLoginShellSchema =
+	SshProjectRootPathSchema.brand<'SshEnvironmentLoginShell'>();
 export const SshEnvironmentCapabilitySchema = z.union([
 	z.literal(SSH_PROJECT_ROOT_SERVICE_ID_LITERAL),
 	z.literal(SSH_TERMINAL_HOST_SERVICE_ID_LITERAL),
@@ -103,6 +107,7 @@ export const SshEnvironmentHelloAcceptedSchema = z.strictObject({
 	terminalHostVersion: SshEnvironmentTerminalHostVersionSchema,
 	terminalHostBuildDigest: SshEnvironmentBuildDigestSchema,
 	platform: SshEnvironmentPlatformSchema,
+	loginShell: SshEnvironmentLoginShellSchema,
 	capabilities: z.array(SshEnvironmentCapabilitySchema).max(16),
 	heartbeatIntervalMs: z.number().int().min(5_000).max(60_000),
 	heartbeatMissLimit: z.number().int().min(1).max(10),
@@ -181,6 +186,7 @@ export type SshEnvironmentTerminalHostVersion = z.infer<
 	typeof SshEnvironmentTerminalHostVersionSchema
 >;
 export type SshEnvironmentPlatform = z.infer<typeof SshEnvironmentPlatformSchema>;
+export type SshEnvironmentLoginShell = z.infer<typeof SshEnvironmentLoginShellSchema>;
 export type SshEnvironmentCapability = z.infer<typeof SshEnvironmentCapabilitySchema>;
 export type SshEnvironmentServiceId = z.infer<typeof SshEnvironmentServiceIdSchema>;
 export type SshEnvironmentChannelId = z.infer<typeof SshEnvironmentChannelIdSchema>;

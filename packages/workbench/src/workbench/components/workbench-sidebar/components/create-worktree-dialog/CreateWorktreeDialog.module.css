@@ -2,10 +2,6 @@
 	width: 100%;
 }
 
-.codeControl {
-	width: 100%;
-}
-
 .modalPopup {
 	z-index: var(--ob-ref-layer-modal);
 }
@@ -18,21 +14,25 @@
 	cursor: pointer;
 }
 
-.locationSummary {
+.metadata {
 	display: grid;
 	gap: var(--ob-ref-space-1);
 	margin: var(--ob-ref-space-0);
 }
 
-.locationLabel {
-	color: var(--ob-sys-color-text-label);
+.metadata dd {
+	margin: var(--ob-ref-space-0);
+}
+
+.metadataLabel {
+	color: var(--ob-sys-color-text-primary);
 	font: var(--ob-sys-typography-control-sm);
 }
 
-.locationValue {
-	margin: var(--ob-ref-space-0);
+.metadataValue {
+	overflow-wrap: anywhere;
 	color: var(--ob-sys-color-text-secondary);
-	font: var(--ob-sys-typography-body-sm);
+	font: var(--ob-sys-typography-code-sm);
 }
 
 .status {

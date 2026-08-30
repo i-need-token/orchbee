@@ -42,6 +42,9 @@ describe('resolveDesktopRuntimeConfiguration', () => {
 		);
 		expect(first.browserAccess).toEqual({ kind: 'disabled' });
 		expect(first.environmentRegistryStorePath).toBe(
+			path.resolve('/users/orchbee/library/orchbee/environment-registry-v2.json'),
+		);
+		expect(first.environmentRegistryLegacyStorePath).toBe(
 			path.resolve('/users/orchbee/library/orchbee/environment-registry-v1.json'),
 		);
 		expect(first.terminalBindingStorePath).toBe(path.resolve('/private/recovery/bindings-v3.json'));

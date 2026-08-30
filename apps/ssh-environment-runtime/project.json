@@ -3,7 +3,7 @@
 	"domain": "ssh-environment-runtime",
 	"runtime": ["native"],
 	"stability": "experimental",
-	"responsibility": "Detached per-Environment remote Runtime daemon lifecycle, bootstrap-admitted immutable artifact digest and daemon epoch identity, private same-user attachment endpoint, exact SSH Environment Hello identity and heartbeat, the exact bounded project-root-v2 channel service with killable filesystem-worker isolation, canonical inspection, and read-only directory listing, parameter-fixed explicit-version ReleaseSafe stripped component builds, and the frozen schema-version-1 Runtime-only offline release workflow.",
+	"responsibility": "Detached per-Environment remote Runtime daemon lifecycle, bootstrap-admitted immutable artifact digest and daemon epoch identity, private same-user attachment endpoint, exact SSH Environment Hello identity including the validated remote-account login Shell and heartbeat, the exact bounded project-root-v2 channel service with killable filesystem-worker isolation, canonical inspection, and read-only directory listing, parameter-fixed explicit-version ReleaseSafe stripped component builds, and the frozen schema-version-1 Runtime-only offline release workflow.",
 	"nonGoals": [
 		"Owning SSH target resolution, OpenSSH launch, AskPass, production private signing keys, signature execution, Desktop trust-descriptor creation or package assembly, Desktop retry, Project, Workspace, Workbench, Git, terminal, or Agent behavior.",
 		"Providing a network listener, generic command execution, file listing or file-byte access, filesystem watch or mutation, retained path handles, terminal hosting, Git, Agent behavior, or any remote service beyond the exact bounded project-root-v2 contract.",

@@ -120,7 +120,7 @@ interface WorkbenchView {
 	readonly sidebarLabel: string;
 	readonly projectLabel: string;
 	readonly projectNavigationMessages: WorkbenchProjectNavigationMessages;
-	readonly projectWorkspaceConfirmationConfirmButtonRef: React.RefObject<HTMLButtonElement | null>;
+	readonly projectWorkspaceConfirmationCancelButtonRef: React.RefObject<HTMLButtonElement | null>;
 	readonly projectWorkspaceConfirmation: {
 		readonly cancelLabel: string;
 		readonly confirmLabel: string;
@@ -228,7 +228,7 @@ export function useWorkbench({
 	const pendingProjectWorkspaceConfirmation = React.useRef<((accepted: boolean) => void) | null>(
 		null,
 	);
-	const projectWorkspaceConfirmationConfirmButtonRef = React.useRef<HTMLButtonElement>(null);
+	const projectWorkspaceConfirmationCancelButtonRef = React.useRef<HTMLButtonElement>(null);
 	const [projectWorkspaceConfirmation, setProjectWorkspaceConfirmation] = React.useState<{
 		readonly cancelLabel: string;
 		readonly confirmLabel: string;
@@ -348,6 +348,10 @@ export function useWorkbench({
 		executeWorkbenchTerminalCreationAction(context, input, {
 			fallbackTitle: intl.formatMessage(workbenchTabMessages.terminalTitle),
 			onLocalTerminalCreated: () => {
+				focusRouting.requestTerminalFocus();
+			},
+			onRemoteTerminalCreated: (creation) => {
+				scopedTabModel?.includeTabOptimistically(creation.tabId, true);
 				focusRouting.requestTerminalFocus();
 			},
 			remoteTerminalCreation,
@@ -737,7 +741,7 @@ export function useWorkbench({
 			workspaceManageTitle: intl.formatMessage(workbenchMessages.workspaceManageTitle),
 			workspaceOptions: intl.formatMessage(workbenchMessages.workspaceOptions),
 		},
-		projectWorkspaceConfirmationConfirmButtonRef,
+		projectWorkspaceConfirmationCancelButtonRef,
 		projectWorkspaceConfirmation,
 		projectWorkspaceState,
 		removeProject: (projectId) => {

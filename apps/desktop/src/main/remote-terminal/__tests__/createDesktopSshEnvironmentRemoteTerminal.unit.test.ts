@@ -1,4 +1,5 @@
 import { SshEnvironmentRuntimeInstanceIdSchema } from '@orchbee/ssh-environment-protocol';
+import { DesktopRemoteTerminalCreationRequestIdSchema } from '@orchbee/desktop-client-protocol';
 import {
 	WorkbenchSharedDocumentSchema,
 	createEmptyWorkbenchSharedTerminalContext,
@@ -128,6 +129,7 @@ describe('createDesktopSshEnvironmentRemoteTerminal', () => {
 			coordinator,
 			environmentId,
 			projectId: 'project-1',
+			requestId: DesktopRemoteTerminalCreationRequestIdSchema.parse('remote-terminal:retry'),
 			registry: registry(),
 			runtimeOwner: { prepare },
 			terminalTitle: 'Remote Terminal',
@@ -165,6 +167,77 @@ describe('createDesktopSshEnvironmentRemoteTerminal', () => {
 		});
 	});
 
+	it('creates one top-level remote Terminal for each distinct request identity', async () => {
+		const persistence = createStore(remoteDocument());
+		const execute = vi.fn<
+			ConstructorParameters<typeof DesktopTerminalIntentReconciler>[0]['execute']
+		>(async (command) => ({
+			event: {
+				operationId: command.operationId,
+				presentationId: command.presentationId,
+				type: 'terminal-provision-completed',
+			},
+			kind: 'settled',
+		}));
+		const coordinator = await createCoordinator(persistence.store, execute);
+		let identifierSequence = 0;
+		const base = {
+			allocateIdentifier: () => `${++identifierSequence}`.padStart(32, '0'),
+			connections: connectedConnections(),
+			coordinator,
+			environmentId,
+			projectId: 'project-1',
+			registry: registry(),
+			runtimeOwner: {
+				prepare: async () => ({ activation: 'existing' as const, kind: 'ready' as const }),
+			},
+			terminalTitle: 'Remote Terminal',
+			workspaceId: 'workspace-1',
+		};
+
+		const first = await createDesktopSshEnvironmentRemoteTerminal({
+			...base,
+			requestId: DesktopRemoteTerminalCreationRequestIdSchema.parse('remote-terminal:first'),
+		});
+		const retitled = await coordinator.mutateCanonicalDocument((canonical) => {
+			const remoteContext = canonical.terminalContexts[1];
+			const tab = remoteContext?.tabCollection.tabs[0];
+			if (remoteContext === undefined || tab === undefined) {
+				return { kind: 'rejected', reason: 'missing-remote-terminal' };
+			}
+			return {
+				document: createWorkbenchSharedDocument({
+					projectWorkspace: canonical.projectWorkspace,
+					revision: workbenchSharedDocumentRevision((BigInt(canonical.revision) + 1n).toString()),
+					terminalContexts: [
+						canonical.terminalContexts[0] ?? remoteContext,
+						{
+							...remoteContext,
+							tabCollection: {
+								...remoteContext.tabCollection,
+								tabs: [{ ...tab, title: 'remote-host' }],
+							},
+						},
+					],
+				}),
+				kind: 'commit',
+			};
+		});
+		expect(retitled.kind).toBe('committed');
+		const second = await createDesktopSshEnvironmentRemoteTerminal({
+			...base,
+			requestId: DesktopRemoteTerminalCreationRequestIdSchema.parse('remote-terminal:second'),
+		});
+
+		expect(first).toMatchObject({ kind: 'created', tabId: 'terminal-context-2-tab-1' });
+		expect(second).toMatchObject({ kind: 'created', tabId: 'terminal-context-2-tab-2' });
+		if (first.kind !== 'created' || second.kind !== 'created') {
+			throw new Error('Expected two created remote Terminals.');
+		}
+		expect(second.presentationId).not.toBe(first.presentationId);
+		expect(persistence.current().terminalContexts[1]?.panelWorkspace.tabs).toHaveLength(2);
+	});
+
 	it('fails closed for disconnected or mismatched Workspace authority', async () => {
 		const persistence = createStore(remoteDocument());
 		const execute =
@@ -179,6 +252,7 @@ describe('createDesktopSshEnvironmentRemoteTerminal', () => {
 			coordinator,
 			environmentId,
 			projectId: 'project-1',
+			requestId: DesktopRemoteTerminalCreationRequestIdSchema.parse('remote-terminal:authority'),
 			registry: registry(),
 			runtimeOwner: { prepare },
 			terminalTitle: 'Remote Terminal',
@@ -218,6 +292,7 @@ describe('createDesktopSshEnvironmentRemoteTerminal', () => {
 				coordinator: cancelledCoordinator,
 				environmentId,
 				projectId: 'project-1',
+				requestId: DesktopRemoteTerminalCreationRequestIdSchema.parse('remote-terminal:cancel'),
 				registry: registry(),
 				runtimeOwner: {
 					prepare: async () => {
@@ -243,6 +318,7 @@ describe('createDesktopSshEnvironmentRemoteTerminal', () => {
 				coordinator: uncertainCoordinator,
 				environmentId,
 				projectId: 'project-1',
+				requestId: DesktopRemoteTerminalCreationRequestIdSchema.parse('remote-terminal:uncertain'),
 				registry: registry(),
 				runtimeOwner: {
 					prepare: async () => ({ activation: 'started', kind: 'ready' }),

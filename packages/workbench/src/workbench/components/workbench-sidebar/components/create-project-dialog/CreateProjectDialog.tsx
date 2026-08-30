@@ -1,9 +1,6 @@
 import {
 	Dialog,
 	DialogContent,
-	DialogDescription,
-	DialogHeader,
-	DialogTitle,
 	Field,
 	FieldDescription,
 	FieldLabel,
@@ -13,6 +10,8 @@ import * as React from 'react';
 
 import type { WorkbenchProjectNavigationMessages } from '../../types/workbench-sidebar-types';
 import { ResourceDialogForm } from '../../../resource-dialog-form/ResourceDialogForm';
+import { ResourceDialogFooter } from '../../../resource-dialog-form/ResourceDialogFooter';
+import { ResourceDialogHeader } from '../../../resource-dialog-form/ResourceDialogHeader';
 
 interface CreateProjectDialogProps {
 	readonly messages: WorkbenchProjectNavigationMessages;
@@ -29,6 +28,7 @@ export function CreateProjectDialog({
 	onSubmit,
 	path,
 }: CreateProjectDialogProps): React.ReactNode {
+	const formId = 'workbench-project-create-form';
 	const normalizedPath = path.trim();
 	return (
 		<Dialog
@@ -38,26 +38,28 @@ export function CreateProjectDialog({
 			open
 		>
 			<DialogContent closeLabel={messages.close} data-slot='workbench-project-create'>
+				<ResourceDialogHeader
+					description={messages.projectCreateDescription}
+					title={messages.projectCreateTitle}
+				/>
 				<ResourceDialogForm
-					cancelLabel={messages.cancel}
-					keyboardHints='unambiguous-cancel-and-submit'
-					onCancel={onClose}
+					id={formId}
 					onSubmit={() => onSubmit(normalizedPath)}
 					submitDisabled={normalizedPath.length === 0}
-					submitLabel={messages.create}
 				>
-					<DialogHeader>
-						<DialogTitle>{messages.projectCreateTitle}</DialogTitle>
-						<DialogDescription>{messages.projectCreateDescription}</DialogDescription>
-					</DialogHeader>
 					<Field>
 						<FieldLabel htmlFor='project-create-path'>{messages.projectCreatePath}</FieldLabel>
 						<Input
 							aria-describedby='project-create-path-description'
+							autoCapitalize='none'
+							autoComplete='off'
+							autoCorrect='off'
 							autoFocus
-							data-resource-dialog-value='code'
+							data-code-like='true'
 							id='project-create-path'
 							placeholder={messages.projectCreatePathPlaceholder}
+							required
+							spellCheck={false}
 							value={path}
 							onChange={(event) => onPathChange(event.currentTarget.value)}
 						/>
@@ -66,6 +68,13 @@ export function CreateProjectDialog({
 						</FieldDescription>
 					</Field>
 				</ResourceDialogForm>
+				<ResourceDialogFooter
+					cancelLabel={messages.cancel}
+					formId={formId}
+					onCancel={onClose}
+					submitDisabled={normalizedPath.length === 0}
+					submitLabel={messages.create}
+				/>
 			</DialogContent>
 		</Dialog>
 	);

@@ -136,9 +136,15 @@
 	gap: var(--ob-ref-space-2);
 }
 
+.addLabel {
+	color: var(--ob-sys-color-text-primary);
+	font: var(--ob-sys-typography-control-sm);
+}
+
 .addInput {
 	min-width: var(--ob-ref-space-0);
 	flex: 1;
+	font: var(--ob-sys-typography-code-sm);
 }
 
 .addActions {

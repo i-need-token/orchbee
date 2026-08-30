@@ -2,6 +2,7 @@ import { useMemoizedFn } from '@orchbee/foundation/react';
 import * as React from 'react';
 
 import type { WorkbenchShortcutPlatform } from '../types/workbench-shortcut-platform';
+import { isWorkbenchExclusiveFocusTarget } from '../utils/workbench-focus-dom';
 import {
 	resolveWorkbenchShortcut,
 	type WorkbenchShortcutBinding,
@@ -17,12 +18,7 @@ export function useWorkbenchShortcuts(
 	const rootReference = React.useRef<HTMLDivElement>(null);
 	const handleKeyDown = useMemoizedFn((event: KeyboardEvent): void => {
 		if (!active) return;
-		if (
-			event.target instanceof Element &&
-			event.target.closest('[data-workbench-keyboard-capture="true"]') !== null
-		) {
-			return;
-		}
+		if (isWorkbenchExclusiveFocusTarget(event.target)) return;
 		const binding = resolveWorkbenchShortcut(event, platform, bindings);
 		if (binding === null || !invokeShortcut(binding, 'keyboard')) return;
 		event.preventDefault();

@@ -2,6 +2,7 @@ import {
 	DesktopSshProjectEnrollmentInputSchema,
 	DesktopSshProjectDirectorySelectionResultSchema,
 	type DesktopSshEnvironmentAddResult,
+	type DesktopSshEnvironmentCatalog,
 	type DesktopSshEnvironmentConnectionResult,
 	type DesktopSshEnvironmentId,
 	type DesktopSshProjectConnectionResult,
@@ -107,7 +108,9 @@ export interface DesktopSshProjectEnrollmentControllerClient {
 }
 
 export interface DesktopSshProjectEnrollmentDialogController {
+	cancel(): void;
 	close(): void;
+	getDestinationCatalogSnapshot(): DesktopSshEnvironmentCatalog;
 	getDialogSnapshot(): DesktopSshProjectEnrollmentDialogState;
 	navigateDirectory(path: string): void;
 	openFolderAttachment(projectId: string): void;
@@ -115,6 +118,7 @@ export interface DesktopSshProjectEnrollmentDialogController {
 	retry(): void;
 	selectDirectory(): void;
 	submit(): void;
+	subscribeDestinationCatalog(listener: Listener): () => void;
 	subscribeDialog(listener: Listener): () => void;
 	updateDirectoryPath(path: string): void;
 	updateForm(update: Partial<DesktopSshProjectEnrollmentForm>): void;
@@ -304,6 +308,13 @@ export class DesktopSshProjectEnrollmentController
 	};
 
 	readonly getDialogSnapshot = (): DesktopSshProjectEnrollmentDialogState => this.#dialogState;
+	readonly getDestinationCatalogSnapshot = (): DesktopSshEnvironmentCatalog =>
+		this.#managementSnapshot.catalog;
+
+	readonly subscribeDestinationCatalog = (listener: Listener): (() => void) => {
+		this.#managementListeners.add(listener);
+		return () => this.#managementListeners.delete(listener);
+	};
 
 	readonly subscribeDialog = (listener: Listener): (() => void) => {
 		this.#dialogListeners.add(listener);
@@ -312,11 +323,13 @@ export class DesktopSshProjectEnrollmentController
 
 	openEnrollment(): void {
 		if (this.#disposed || this.#activeAbortController !== undefined) return;
+		this.#client.refreshEnvironmentCatalog(true);
 		this.#setDialog(enrollmentState(EMPTY_FORM));
 	}
 
 	openFolderAttachment(projectId: string): void {
 		if (this.#disposed || this.#activeAbortController !== undefined) return;
+		this.#client.refreshEnvironmentCatalog(true);
 		this.#setDialog(attachmentState(projectId, EMPTY_FORM));
 	}
 
@@ -428,13 +441,24 @@ export class DesktopSshProjectEnrollmentController
 		deferred.resolve(result);
 	}
 
+	cancel(): void {
+		const state = this.#dialogState;
+		if (state.kind === 'closed') return;
+		if (canReturnToDestinationEditing(state)) {
+			this.#stopCurrentOperation();
+			this.#setDialog(
+				state.kind === 'enrollment'
+					? enrollmentState(state.form)
+					: attachmentState(state.projectId, state.form),
+			);
+			return;
+		}
+		this.close();
+	}
+
 	close(): void {
 		if (this.#dialogState.kind === 'closed') return;
-		this.#operationGeneration += 1;
-		this.#cancelPrompt();
-		this.#cancelDirectorySelection();
-		this.#activeAbortController?.abort();
-		this.#activeAbortController = undefined;
+		this.#stopCurrentOperation();
 		this.#setDialog({ kind: 'closed' });
 	}
 
@@ -729,6 +753,14 @@ export class DesktopSshProjectEnrollmentController
 		if (this.#activeAbortController === abortController) this.#activeAbortController = undefined;
 	}
 
+	#stopCurrentOperation(): void {
+		this.#operationGeneration += 1;
+		this.#cancelPrompt();
+		this.#cancelDirectorySelection();
+		this.#activeAbortController?.abort();
+		this.#activeAbortController = undefined;
+	}
+
 	#cancelPrompt(): void {
 		this.#promptDeferred?.resolve({ kind: 'cancelled' });
 		this.#promptDeferred = undefined;
@@ -812,6 +844,19 @@ function isDirectoryOperationState(
 	{ readonly kind: 'attachment' | 'enrollment' }
 > {
 	return state.kind === 'attachment' || state.kind === 'enrollment';
+}
+
+function canReturnToDestinationEditing(
+	state: DesktopSshProjectEnrollmentDialogState,
+): state is Extract<
+	DesktopSshProjectEnrollmentDialogState,
+	{ readonly kind: 'attachment' | 'enrollment' }
+> {
+	if (!isDirectoryOperationState(state) || state.phase === 'editing') return false;
+	return !(
+		state.phase === 'working' &&
+		(state.progress === 'committing-project' || state.progress === 'committing-project-folder')
+	);
 }
 
 function enrollmentInput(form: DesktopSshProjectEnrollmentForm) {

@@ -73,6 +73,7 @@ export interface DesktopRuntimeConfiguration {
 	readonly binaryPath: string;
 	readonly browserAccess: DesktopBrowserAccessRuntimeConfiguration;
 	readonly endpointId: string;
+	readonly environmentRegistryLegacyStorePath: string;
 	readonly environmentRegistryStorePath: string;
 	readonly homeDirectory: string;
 	readonly managedWorktreeRoot: string;
@@ -286,7 +287,11 @@ export function resolveDesktopRuntimeConfiguration(
 		binaryPath,
 		browserAccess,
 		endpointId,
-		environmentRegistryStorePath: path.join(input.userDataPath, 'environment-registry-v1.json'),
+		environmentRegistryLegacyStorePath: path.join(
+			input.userDataPath,
+			'environment-registry-v1.json',
+		),
+		environmentRegistryStorePath: path.join(input.userDataPath, 'environment-registry-v2.json'),
 		homeDirectory: input.homeDirectory,
 		managedWorktreeRoot: path.join(input.userDataPath, 'worktrees'),
 		posixHostEndpointAddonPath,

@@ -3,6 +3,29 @@
 	max-height: calc(100% - var(--ob-ref-space-8));
 }
 
+.dialogHeader,
+.alertDialogHeader {
+	padding-inline-end: var(--ob-ref-space-6);
+}
+
+.dialogTitle {
+	font: var(--ob-sys-typography-heading-xs);
+}
+
+.dialogDescription {
+	font: var(--ob-sys-typography-body-sm);
+}
+
+.dialogFooter :global([data-slot='button']),
+.dialogFooter :global([data-slot='alert-dialog-action']),
+.dialogFooter :global([data-slot='alert-dialog-cancel']) {
+	font: var(--ob-sys-typography-control-sm);
+}
+
+.alertDialog {
+	font: var(--ob-sys-typography-body-sm);
+}
+
 .content {
 	display: grid;
 	gap: var(--ob-ref-space-4);
@@ -32,7 +55,7 @@
 
 .statusTitle,
 .warningTitle {
-	font: var(--ob-sys-typography-label-md);
+	font: var(--ob-sys-typography-control-sm);
 }
 
 .statusTitle {
@@ -129,7 +152,7 @@
 
 .sectionTitle {
 	color: var(--ob-sys-color-text-label);
-	font: var(--ob-sys-typography-label-sm);
+	font: var(--ob-sys-typography-control-sm);
 }
 
 .addressList {

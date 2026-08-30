@@ -104,9 +104,11 @@ export function DesktopBrowserAccessDialog({
 					data-slot='desktop-browser-access-dialog'
 					finalFocus={finalFocus}
 				>
-					<DialogHeader>
-						<DialogTitle>{intl.formatMessage(desktopBrowserAccessMessages.title)}</DialogTitle>
-						<DialogDescription>
+					<DialogHeader className={styles['dialogHeader']}>
+						<DialogTitle className={styles['dialogTitle']}>
+							{intl.formatMessage(desktopBrowserAccessMessages.title)}
+						</DialogTitle>
+						<DialogDescription className={styles['dialogDescription']}>
 							{intl.formatMessage(desktopBrowserAccessMessages.description)}
 						</DialogDescription>
 					</DialogHeader>
@@ -234,7 +236,7 @@ export function DesktopBrowserAccessDialog({
 						) : null}
 					</div>
 
-					<DialogFooter>
+					<DialogFooter className={styles['dialogFooter']}>
 						{ready === null ? (
 							<>
 								<Button
@@ -293,18 +295,21 @@ export function DesktopBrowserAccessDialog({
 			</Dialog>
 			{state.resetConfirmationOpen ? (
 				<AlertDialog open>
-					<AlertDialogContent data-slot='desktop-personal-access-token-reset-confirmation'>
-						<AlertDialogHeader>
-							<AlertDialogTitle>
+					<AlertDialogContent
+						className={styles['alertDialog']}
+						data-slot='desktop-personal-access-token-reset-confirmation'
+					>
+						<AlertDialogHeader className={styles['alertDialogHeader']}>
+							<AlertDialogTitle className={styles['dialogTitle']}>
 								{intl.formatMessage(desktopBrowserAccessMessages.personalAccessTokenResetTitle)}
 							</AlertDialogTitle>
-							<AlertDialogDescription>
+							<AlertDialogDescription className={styles['dialogDescription']}>
 								{intl.formatMessage(
 									desktopBrowserAccessMessages.personalAccessTokenResetDescription,
 								)}
 							</AlertDialogDescription>
 						</AlertDialogHeader>
-						<AlertDialogFooter>
+						<AlertDialogFooter className={styles['dialogFooter']}>
 							<AlertDialogCancel onClick={() => controller.cancelPersonalAccessTokenReset()}>
 								{intl.formatMessage(desktopBrowserAccessMessages.personalAccessTokenResetCancel)}
 							</AlertDialogCancel>

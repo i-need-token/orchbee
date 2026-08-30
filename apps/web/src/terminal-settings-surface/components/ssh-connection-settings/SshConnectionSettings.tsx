@@ -1,5 +1,12 @@
 import { sshConnectionManagementMessages, useOrchbeeIntl } from '@orchbee/i18n';
-import { Button, Input, ProductIcon } from '@orchbee/ui/components';
+import {
+	Button,
+	Field,
+	FieldDescription,
+	FieldLabel,
+	Input,
+	ProductIcon,
+} from '@orchbee/ui/components';
 import type * as React from 'react';
 
 import type { DesktopSshConnectionManagementControl } from '../../../ssh-connection-management';
@@ -55,32 +62,45 @@ export function SshConnectionSettings({ control }: SshConnectionSettingsProps): 
 						<h2 className={styles['sectionTitle']}>
 							{intl.formatMessage(sshConnectionManagementMessages.actionAdd)}
 						</h2>
-						<p className={styles['sectionDescription']}>
-							{intl.formatMessage(sshConnectionManagementMessages.fieldDestinationDescription)}
-						</p>
 					</div>
 				</div>
 				<form className={styles['addForm']} onSubmit={view.onSubmit}>
-					<label className={styles['fieldLabel']} htmlFor='ssh-connection-destination'>
-						{intl.formatMessage(sshConnectionManagementMessages.fieldDestination)}
-					</label>
-					<div className={styles['addControls']}>
-						<Input
-							autoCapitalize='none'
-							autoComplete='off'
-							id='ssh-connection-destination'
-							placeholder={intl.formatMessage(
-								sshConnectionManagementMessages.fieldDestinationPlaceholder,
-							)}
-							spellCheck={false}
-							value={view.destination}
-							onChange={view.onDestinationChange}
-						/>
-						<Button disabled={view.addActionDisabled} type='submit'>
-							<ProductIcon name='add' />
-							{view.addActionLabel}
-						</Button>
-					</div>
+					<Field>
+						<FieldLabel className={styles['fieldLabel']} htmlFor='ssh-connection-destination'>
+							{intl.formatMessage(sshConnectionManagementMessages.fieldDestination)}
+						</FieldLabel>
+						<div className={styles['addControls']}>
+							<Input
+								aria-describedby='ssh-connection-destination-description'
+								autoCapitalize='none'
+								autoComplete='off'
+								autoCorrect='off'
+								className={styles['destinationInput']}
+								id='ssh-connection-destination'
+								placeholder={intl.formatMessage(
+									sshConnectionManagementMessages.fieldDestinationPlaceholder,
+								)}
+								required
+								spellCheck={false}
+								value={view.destination}
+								onChange={view.onDestinationChange}
+							/>
+							<Button
+								className={styles['formAction']}
+								disabled={view.addActionDisabled}
+								type='submit'
+							>
+								<ProductIcon name='add' />
+								{view.addActionLabel}
+							</Button>
+						</div>
+						<FieldDescription
+							className={styles['fieldDescription']}
+							id='ssh-connection-destination-description'
+						>
+							{intl.formatMessage(sshConnectionManagementMessages.fieldDestinationDescription)}
+						</FieldDescription>
+					</Field>
 				</form>
 			</section>
 

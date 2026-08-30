@@ -147,7 +147,7 @@ export const zhCNTerminalSettingsMessages = {
 	'terminal.settings.profiles.arguments.argumentLabel': '参数 {number, number}',
 	'terminal.settings.profiles.arguments.description':
 		'参数会按此顺序原样传入，不会解析 Shell 引号。',
-	'terminal.settings.profiles.arguments.label': '参数',
+	'terminal.settings.profiles.arguments.label': '参数（可选）',
 	'terminal.settings.profiles.command.custom': '自定义可执行文件',
 	'terminal.settings.profiles.command.label': '命令',
 	'terminal.settings.profiles.command.system': '系统 Shell',

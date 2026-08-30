@@ -8,9 +8,6 @@ import {
 	ComboboxList,
 	Dialog,
 	DialogContent,
-	DialogDescription,
-	DialogHeader,
-	DialogTitle,
 	Field,
 	FieldLabel,
 	Input,
@@ -28,6 +25,8 @@ import type {
 } from '../../../../types/workbench-project-worktree';
 import type { WorkbenchProjectNavigationMessages } from '../../types/workbench-sidebar-types';
 import { ResourceDialogForm } from '../../../resource-dialog-form/ResourceDialogForm';
+import { ResourceDialogFooter } from '../../../resource-dialog-form/ResourceDialogFooter';
+import { ResourceDialogHeader } from '../../../resource-dialog-form/ResourceDialogHeader';
 import styles from './CreateWorktreeDialog.module.css';
 
 interface CreateWorktreeDialogProps {
@@ -65,6 +64,7 @@ export function CreateWorktreeDialog({
 	repositoryId,
 	submitting,
 }: CreateWorktreeDialogProps): React.ReactNode {
+	const formId = 'workbench-project-worktree-create-form';
 	const repository = discovery?.repositories.find(
 		(candidate) => candidate.repositoryId === repositoryId,
 	);
@@ -84,18 +84,11 @@ export function CreateWorktreeDialog({
 			open
 		>
 			<DialogContent closeLabel={messages.close} data-slot='workbench-project-worktree-create'>
-				<ResourceDialogForm
-					cancelDisabled={submitting}
-					cancelLabel={messages.cancel}
-					onCancel={onClose}
-					onSubmit={onSubmit}
-					submitDisabled={submitDisabled}
-					submitLabel={messages.create}
-				>
-					<DialogHeader>
-						<DialogTitle>{messages.projectWorktreeTitle}</DialogTitle>
-						<DialogDescription>{messages.projectWorktreeDescription}</DialogDescription>
-					</DialogHeader>
+				<ResourceDialogHeader
+					description={messages.projectWorktreeDescription}
+					title={messages.projectWorktreeTitle}
+				/>
+				<ResourceDialogForm id={formId} onSubmit={onSubmit} submitDisabled={submitDisabled}>
 					{loading ? <p className={styles['status']}>{messages.projectWorktreeLoading}</p> : null}
 					{!loading && discovery?.repositories.length === 0 ? (
 						<p className={styles['status']}>{messages.projectWorktreeNoRepositories}</p>
@@ -113,10 +106,14 @@ export function CreateWorktreeDialog({
 									{messages.projectWorktreeBranch}
 								</FieldLabel>
 								<Input
+									autoCapitalize='none'
+									autoComplete='off'
+									autoCorrect='off'
 									autoFocus
-									className={styles['codeControl']}
-									data-resource-dialog-value='code'
+									data-code-like='true'
 									id='project-worktree-branch'
+									required
+									spellCheck={false}
 									value={branchName}
 									onChange={(event) => onBranchNameChange(event.currentTarget.value)}
 								/>
@@ -165,9 +162,13 @@ export function CreateWorktreeDialog({
 									}}
 								>
 									<ComboboxInput
-										className={styles['codeControl']}
-										data-resource-dialog-value='code'
+										autoCapitalize='none'
+										autoCorrect='off'
+										className={styles['select']}
+										data-code-like='true'
 										id='project-worktree-base'
+										required
+										spellCheck={false}
 									/>
 									<ComboboxContent positionerClassName={styles['modalPopup']}>
 										<ComboboxEmpty>{messages.projectWorktreeBaseNoMatches}</ComboboxEmpty>
@@ -181,10 +182,12 @@ export function CreateWorktreeDialog({
 									</ComboboxContent>
 								</Combobox>
 							</Field>
-							<dl className={styles['locationSummary']}>
-								<dt className={styles['locationLabel']}>{messages.projectWorktreeLocation}</dt>
-								<dd className={styles['locationValue']}>
-									{messages.projectWorktreeLocationAutomatic(discovery?.managedRoot ?? '')}
+							<dl className={styles['metadata']} data-slot='project-worktree-location'>
+								<dt className={styles['metadataLabel']}>{messages.projectWorktreeLocation}</dt>
+								<dd>
+									<code className={styles['metadataValue']}>
+										{messages.projectWorktreeLocationAutomatic(discovery?.managedRoot ?? '')}
+									</code>
 								</dd>
 							</dl>
 							<label className={styles['checkbox']}>
@@ -197,6 +200,16 @@ export function CreateWorktreeDialog({
 						</>
 					)}
 				</ResourceDialogForm>
+				<ResourceDialogFooter
+					cancelDisabled={submitting}
+					cancelLabel={messages.cancel}
+					formId={formId}
+					onCancel={onClose}
+					showCancelShortcut={false}
+					showSubmitShortcut={false}
+					submitDisabled={submitDisabled}
+					submitLabel={messages.create}
+				/>
 			</DialogContent>
 		</Dialog>
 	);

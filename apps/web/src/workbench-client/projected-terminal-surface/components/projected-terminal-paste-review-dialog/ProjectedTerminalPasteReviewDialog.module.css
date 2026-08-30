@@ -1,3 +1,24 @@
+.content {
+	font: var(--ob-sys-typography-body-sm);
+}
+
+.header {
+	padding-inline-end: var(--ob-ref-space-6);
+}
+
+.title {
+	font: var(--ob-sys-typography-heading-xs);
+}
+
+.description {
+	font: var(--ob-sys-typography-body-sm);
+}
+
+.footer :global([data-slot='alert-dialog-action']),
+.footer :global([data-slot='alert-dialog-cancel']) {
+	font: var(--ob-sys-typography-control-sm);
+}
+
 .review {
 	display: grid;
 	gap: var(--ob-ref-space-3);

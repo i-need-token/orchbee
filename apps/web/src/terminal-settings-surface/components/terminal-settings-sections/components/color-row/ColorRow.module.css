@@ -18,3 +18,7 @@
 .picker:disabled {
 	opacity: var(--ob-sys-opacity-muted);
 }
+
+.root :global([data-slot='input']) {
+	font: var(--ob-sys-typography-code-sm);
+}

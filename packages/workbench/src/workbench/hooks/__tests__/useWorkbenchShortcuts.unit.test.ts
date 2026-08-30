@@ -35,6 +35,11 @@ function WorkbenchShortcutsHarness({
 			{ 'data-workbench-keyboard-capture': 'true' },
 			createElement('button', { 'aria-label': 'Exclusive keyboard capture' }),
 		),
+		createElement(
+			'div',
+			{ role: 'dialog' },
+			createElement('button', { 'aria-label': 'Dialog action' }),
+		),
 	);
 }
 
@@ -96,6 +101,25 @@ describe('useWorkbenchShortcuts', () => {
 		});
 
 		capture.dispatchEvent(event);
+
+		expect(invokeIfEnabled).not.toHaveBeenCalled();
+		expect(event.defaultPrevented).toBe(false);
+	});
+
+	it('leaves events inside a modal dialog to that dialog', () => {
+		const invokeIfEnabled = vi.fn<
+			(binding: WorkbenchShortcutBinding, source: 'keyboard') => boolean
+		>(() => true);
+		render(createElement(WorkbenchShortcutsHarness, { invokeIfEnabled }));
+		const dialogAction = screen.getByRole('button', { name: 'Dialog action' });
+		const event = new KeyboardEvent('keydown', {
+			bubbles: true,
+			cancelable: true,
+			code: 'KeyT',
+			metaKey: true,
+		});
+
+		dialogAction.dispatchEvent(event);
 
 		expect(invokeIfEnabled).not.toHaveBeenCalled();
 		expect(event.defaultPrevented).toBe(false);

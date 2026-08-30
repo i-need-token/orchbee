@@ -19,6 +19,45 @@ const confirmFolderAttachment: DesktopSshProjectEnrollmentControllerOptions['onF
 	async () => true;
 
 describe('DesktopSshProjectEnrollmentController', () => {
+	it('refreshes configured hosts on entry without replacing the current address draft', () => {
+		const catalogSource = environmentCatalogSource();
+		const client = createClient({
+			getEnvironmentCatalog: catalogSource.getEnvironmentCatalog,
+			subscribeEnvironmentCatalog: catalogSource.subscribeEnvironmentCatalog,
+		});
+		const controller = new DesktopSshProjectEnrollmentController({
+			client,
+			onEnrollmentCommitted: async () => true,
+			onFolderAttachmentCommitted: confirmFolderAttachment,
+		});
+		const catalogListener = vi.fn<() => void>();
+		controller.subscribeDestinationCatalog(catalogListener);
+
+		controller.openEnrollment();
+		expect(client.refreshEnvironmentCatalog).toHaveBeenCalledExactlyOnceWith(true);
+		expect(controller.getDestinationCatalogSnapshot().suggestions).toEqual([
+			{ destination: 'gpu-lab' },
+		]);
+		controller.updateForm({ destination: 'builder@custom-host' });
+		catalogSource.publish(
+			DesktopSshEnvironmentCatalogSchema.parse({
+				discoveryIssue: null,
+				managed: [],
+				registryIssue: null,
+				suggestions: [{ destination: 'build-host' }],
+			}),
+		);
+
+		expect(catalogListener).toHaveBeenCalledOnce();
+		expect(controller.getDestinationCatalogSnapshot().suggestions).toEqual([
+			{ destination: 'build-host' },
+		]);
+		expect(controller.getDialogSnapshot()).toMatchObject({
+			form: { destination: 'builder@custom-host' },
+		});
+		controller.dispose();
+	});
+
 	it('validates enrollment locally and keeps authentication responses outside dialog state', async () => {
 		const responses: unknown[] = [];
 		const directorySelections: unknown[] = [];
@@ -234,6 +273,56 @@ describe('DesktopSshProjectEnrollmentController', () => {
 		await vi.waitFor(() => expect(interactionResult).toEqual({ kind: 'cancelled' }));
 		expect(operationSignal?.aborted).toBe(true);
 		expect(controller.getDialogSnapshot()).toEqual({ kind: 'closed' });
+		controller.dispose();
+	});
+
+	it('cancels an enrollment substep back to the retained destination and fences late settlement', async () => {
+		const completion = createDeferred<DesktopSshProjectEnrollmentResult>();
+		let interactionResult: unknown;
+		let operationCompleted = false;
+		let operationSignal: AbortSignal | undefined;
+		const client = createClient({
+			enroll: async (_input, observer, signal) => {
+				operationSignal = signal;
+				interactionResult = await observer.interact({
+					generation: 1,
+					handle: 'prompt-cancelled-to-editing',
+					kind: 'none',
+					prompt: 'Password:',
+				});
+				const result = await completion.promise;
+				operationCompleted = true;
+				return result;
+			},
+		});
+		const controller = new DesktopSshProjectEnrollmentController({
+			client,
+			onEnrollmentCommitted: async () => true,
+			onFolderAttachmentCommitted: confirmFolderAttachment,
+		});
+		controller.openEnrollment();
+		controller.updateForm({ destination: 'ssh builder@build-host -A' });
+		controller.submit();
+		await vi.waitFor(() =>
+			expect(controller.getDialogSnapshot()).toMatchObject({ phase: 'prompt' }),
+		);
+
+		controller.cancel();
+		await vi.waitFor(() => expect(interactionResult).toEqual({ kind: 'cancelled' }));
+		expect(operationSignal?.aborted).toBe(true);
+		expect(controller.getDialogSnapshot()).toMatchObject({
+			form: { destination: 'ssh builder@build-host -A' },
+			kind: 'enrollment',
+			phase: 'editing',
+		});
+
+		completion.resolve({ kind: 'cancelled' });
+		await vi.waitFor(() => expect(operationCompleted).toBe(true));
+		expect(controller.getDialogSnapshot()).toMatchObject({
+			form: { destination: 'ssh builder@build-host -A' },
+			kind: 'enrollment',
+			phase: 'editing',
+		});
 		controller.dispose();
 	});
 

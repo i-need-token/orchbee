@@ -108,6 +108,7 @@
 	],
 	"invariants": [
 		"Opening Settings presents one centered bounded modal shell, keeps the Workbench and projected terminal attachments mounted while the Workbench subtree is inert, and uses one-pane category/content navigation below the medium breakpoint.",
+		"Every editable setting keeps a persistent visible label, compact control typography, body-role support and error text, and code-role presentation for exact commands, paths, arguments, or identifiers; a placeholder never replaces the label.",
 		"A missing valid language record uses ordered system or Browser locale resolution without writing a default; either explicit language selection persists and immediately takes precedence for mounted product copy, while user data and existing shared titles remain unchanged.",
 		"An empty search shows the grouped available-category rail; a non-empty search replaces only the rail with globally ranked current category and setting results while the current content page remains complete and preferences remain unchanged.",
 		"Search activation clears the query, restores navigation, selects the owning category, reveals the stable category or setting target, and moves focus to its heading, row, or management target without activating its control; Arrow keys and Enter operate the same result projection, while Escape clears search before it can close Settings.",

@@ -104,6 +104,14 @@
 	gap: var(--ob-ref-space-2);
 }
 
+.addProfile :global([data-slot='button']),
+.addProfile :global([data-slot='input']),
+.editor :global([data-slot='button']),
+.editor :global([data-slot='input']),
+.editor :global([data-slot='native-select']) {
+	font: var(--ob-sys-typography-control-sm);
+}
+
 .editor {
 	display: flex;
 	flex-direction: column;
@@ -120,13 +128,17 @@
 
 .fieldLabel {
 	color: var(--ob-sys-color-text-primary);
-	font: var(--ob-sys-typography-label-sm);
+	font: var(--ob-sys-typography-control-sm);
 }
 
 .fieldDescription {
 	margin: var(--ob-ref-space-0);
 	color: var(--ob-sys-color-text-secondary);
 	font: var(--ob-sys-typography-body-sm);
+}
+
+.editor .codeInput {
+	font: var(--ob-sys-typography-code-sm);
 }
 
 .wideControl {
@@ -164,9 +176,14 @@
 
 .argument {
 	display: grid;
-	grid-template-columns: minmax(var(--ob-ref-space-0), 1fr) auto;
+	grid-template-columns: max-content minmax(var(--ob-ref-space-0), 1fr) auto;
 	align-items: center;
-	gap: var(--ob-ref-space-1);
+	gap: var(--ob-ref-space-2);
+}
+
+.argumentLabel {
+	color: var(--ob-sys-color-text-secondary);
+	font: var(--ob-sys-typography-control-sm);
 }
 
 .actions {

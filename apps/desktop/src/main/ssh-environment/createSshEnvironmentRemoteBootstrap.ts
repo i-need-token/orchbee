@@ -11,6 +11,7 @@ import type { VerifiedSshEnvironmentReleaseCatalog } from './verify-ssh-environm
 const REMOTE_RUNTIME_EXECUTABLE_NAME = 'orchbee-ssh-environment-runtime';
 const REMOTE_TERMINAL_HOST_EXECUTABLE_NAME = 'orchbee-terminal-host';
 const TERMINAL_HOST_ENDPOINT_DOMAIN = 'orchbee-terminal-host-endpoint-v1\0';
+const RUNTIME_COHORT_NAMESPACE_HEX_LENGTH = 16;
 
 export interface SshEnvironmentRemoteBootstrap {
 	readonly command: string;
@@ -26,6 +27,10 @@ export function createSshEnvironmentRemoteBootstrap(options: {
 	const { catalog } = options;
 	const runtime = catalog.components['ssh-environment-runtime'];
 	const terminalHost = catalog.components['terminal-host'];
+	const runtimeCohortNamespace = catalog.releaseCohortDigest.slice(
+		0,
+		RUNTIME_COHORT_NAMESPACE_HEX_LENGTH,
+	);
 	const terminalHostEndpointId = createTerminalHostEndpointId(
 		runtimeInstanceId,
 		catalog.releaseCohortDigest,
@@ -69,7 +74,8 @@ export function createSshEnvironmentRemoteBootstrap(options: {
 		'runtime_directory="$orchbee_directory/ssh-runtime"',
 		'runtime_versions_directory="$runtime_directory/versions"',
 		`runtime_version_directory="$runtime_versions_directory/${runtime.version}"`,
-		'runtime_state_directory="$runtime_directory/state"',
+		'runtime_state_root_directory="$orchbee_directory/runtime-state"',
+		`runtime_state_directory="$runtime_state_root_directory/${runtimeCohortNamespace}"`,
 		`runtime_executable="$runtime_version_directory/${REMOTE_RUNTIME_EXECUTABLE_NAME}"`,
 		'terminal_host_directory="$orchbee_directory/terminal-host"',
 		'terminal_host_versions_directory="$terminal_host_directory/versions"',
@@ -86,6 +92,7 @@ export function createSshEnvironmentRemoteBootstrap(options: {
 		'ensure_private_directory "$runtime_directory"',
 		'ensure_private_directory "$runtime_versions_directory"',
 		'ensure_private_directory "$runtime_version_directory"',
+		'ensure_private_directory "$runtime_state_root_directory"',
 		'ensure_private_directory "$runtime_state_directory"',
 		'ensure_private_directory "$terminal_host_directory"',
 		'ensure_private_directory "$terminal_host_versions_directory"',

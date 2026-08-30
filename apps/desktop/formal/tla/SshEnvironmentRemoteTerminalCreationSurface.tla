@@ -3,8 +3,9 @@ EXTENDS FiniteSets, Naturals, TLC
 
 \* Bounded model of Slice 3.2E. The Electron creation surface carries only a
 \* Project/Workspace intent. Main resolves current canonical Environment
-\* authority, requires an already-connected Environment, and converges every
-\* admitted request on one canonical terminal. Renderer visibility is a later,
+\* authority, requires an already-connected Environment, and gives every
+\* distinct admitted request at most one canonical terminal while exact replay
+\* converges on the same identity. Renderer visibility is a later,
 \* independently ordered client-session publication. Port loss never invents
 \* cancellation, rolls back a possible commit, activates SSH, or falls back to
 \* the local runtime.
@@ -30,16 +31,13 @@ Targets == Environments \cup {NoEnvironment}
 InitialEnvironment == CHOOSE environment \in Environments : TRUE
 
 CanonicalTerminals(state) ==
-  {workspace \in Workspaces : state.terminalCount[workspace] = 1}
-
-ExactClientContextIsEmpty(state, workspace) ==
-  workspace \notin state.rendererVisible \cup state.unsupportedContext
+  {workspace \in Workspaces : state.terminalCount[workspace] > 0}
 
 CreationSurfaceIsAvailable(state, workspace) ==
   /\ state.portOpen
   /\ state.capabilityAvailable
   /\ state.canonicalTarget[workspace] # NoEnvironment
-  /\ ExactClientContextIsEmpty(state, workspace)
+  /\ workspace \notin state.unsupportedContext
 
 VARIABLE s
 
@@ -239,7 +237,7 @@ BeginCommit(request) ==
   /\ s.requestPhase[request] = "prepared"
   /\ s.canonicalTarget[s.requestWorkspace[request]] =
        s.resolvedEnvironment[request]
-  /\ s.terminalCount[s.requestWorkspace[request]] = 0
+  /\ request \notin s.committedByRequest
   /\ s' = Record(
        [s EXCEPT !.requestPhase[request] = "committing"],
        "begin-commit")
@@ -249,12 +247,12 @@ CommitNew(request) ==
   /\ s.requestPhase[request] = "committing"
   /\ s.canonicalTarget[s.requestWorkspace[request]] =
        s.resolvedEnvironment[request]
-  /\ s.terminalCount[s.requestWorkspace[request]] = 0
+  /\ request \notin s.committedByRequest
   /\ s' = Record(
        [s EXCEPT
          !.activeRequest = NoRequest,
          !.requestPhase[request] = "committed",
-         !.terminalCount[s.requestWorkspace[request]] = 1,
+         !.terminalCount[s.requestWorkspace[request]] = @ + 1,
          !.committedByRequest = @ \cup {request},
          !.committedEnvironment[s.requestWorkspace[request]] =
            s.resolvedEnvironment[request]],
@@ -265,7 +263,7 @@ ObserveExisting(request) ==
   /\ s.requestPhase[request] = "prepared"
   /\ s.canonicalTarget[s.requestWorkspace[request]] =
        s.resolvedEnvironment[request]
-  /\ s.terminalCount[s.requestWorkspace[request]] = 1
+  /\ request \in s.committedByRequest
   /\ s' = Record(
        [s EXCEPT
          !.activeRequest = NoRequest,
@@ -312,13 +310,13 @@ RetirePortDuringCommit(request) ==
             !.activeRequest = NoRequest,
             !.requestPhase[request] = "indeterminate"],
           "retire-port-during-commit")
-     \/ /\ s.terminalCount[s.requestWorkspace[request]] = 0
+     \/ /\ request \notin s.committedByRequest
         /\ s' = Record(
              [s EXCEPT
                !.portOpen = FALSE,
                !.activeRequest = NoRequest,
                !.requestPhase[request] = "indeterminate",
-               !.terminalCount[s.requestWorkspace[request]] = 1,
+               !.terminalCount[s.requestWorkspace[request]] = @ + 1,
                !.committedByRequest = @ \cup {request},
                !.committedEnvironment[s.requestWorkspace[request]] =
                  s.resolvedEnvironment[request]],
@@ -338,6 +336,17 @@ ReplacePort ==
   /\ s' = Record(
        [s EXCEPT !.portOpen = TRUE],
        "replace-port")
+
+ReplayRequest(request) ==
+  /\ s.portOpen
+  /\ s.requestPhase[request] \in {
+       "indeterminate", "settled-created", "settled-existing"
+     }
+  /\ s.requestWorkspace[request] \in Workspaces
+  /\ CreationSurfaceIsAvailable(s, s.requestWorkspace[request])
+  /\ s' = Record(
+       [s EXCEPT !.requestPhase[request] = "sent"],
+       "replay-request")
 
 RetryRequest(previous, fresh) ==
   /\ previous # fresh
@@ -395,6 +404,7 @@ Next ==
   \/ \E request \in Requests : RetirePortDuringCommit(request)
   \/ \E request \in Requests : RetirePortAfterCommit(request)
   \/ ReplacePort
+  \/ \E request \in Requests : ReplayRequest(request)
   \/ \E previous \in Requests, fresh \in Requests :
        RetryRequest(previous, fresh)
   \/ \E location \in Locations : ChangeClientLocation(location)
@@ -407,7 +417,7 @@ TypeOK ==
   /\ s.capabilityAvailable \in BOOLEAN
   /\ s.connected \subseteq Environments
   /\ s.canonicalTarget \in [Workspaces -> Targets]
-  /\ s.terminalCount \in [Workspaces -> 0..1]
+  /\ s.terminalCount \in [Workspaces -> 0..Cardinality(Requests)]
   /\ s.rendererVisible \subseteq Workspaces
   /\ s.unsupportedContext \subseteq Workspaces
   /\ s.activeRequest \in Requests \cup {NoRequest}
@@ -425,12 +435,15 @@ TypeOK ==
   /\ s.automaticConnectCount \in Nat
   /\ s.activeLocation \in Locations
   /\ s.previousConnected \subseteq Environments
-  /\ s.previousTerminalCount \in [Workspaces -> 0..1]
+  /\ s.previousTerminalCount \in [Workspaces -> 0..Cardinality(Requests)]
   /\ s.previousRendererVisible \subseteq Workspaces
   /\ s.previousActiveLocation \in Locations
 
-AtMostOneCanonicalTerminalPerWorkspace ==
-  \A workspace \in Workspaces : s.terminalCount[workspace] <= 1
+CanonicalTerminalCountMatchesCommittedRequests ==
+  \A workspace \in Workspaces :
+    s.terminalCount[workspace] = Cardinality(
+      {request \in s.committedByRequest : s.requestWorkspace[request] = workspace}
+    )
 
 TerminalRequiresCanonicalEnvironment ==
   \A workspace \in CanonicalTerminals(s) :

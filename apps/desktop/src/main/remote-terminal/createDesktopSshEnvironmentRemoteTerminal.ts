@@ -1,3 +1,6 @@
+import { createHash } from 'node:crypto';
+
+import type { DesktopRemoteTerminalCreationRequestId } from '@orchbee/desktop-client-protocol';
 import {
 	WorkbenchProjectWorkspaceRuntime,
 	terminalPresentationId,
@@ -37,6 +40,7 @@ interface DesktopSshEnvironmentRemoteTerminalOptions {
 	>;
 	readonly environmentId: EnvironmentId;
 	readonly projectId: string;
+	readonly requestId: DesktopRemoteTerminalCreationRequestId;
 	readonly registry: Pick<DesktopEnvironmentRegistry, 'get'>;
 	readonly runtimeOwner: Pick<DesktopSshEnvironmentTerminalRuntimeOwner, 'prepare'>;
 	readonly signal?: AbortSignal | undefined;
@@ -98,6 +102,7 @@ export async function createDesktopSshEnvironmentRemoteTerminal(
 		};
 	}
 	if (signalIsAborted(options.signal)) return { kind: 'cancelled' };
+	const requestedPresentationId = remoteTerminalPresentationId(options.requestId);
 
 	let terminal:
 		| (DesktopSshEnvironmentRemoteTerminalIdentity & {
@@ -120,7 +125,11 @@ export async function createDesktopSshEnvironmentRemoteTerminal(
 		if (target.environmentId !== environmentId) {
 			return { kind: 'rejected', reason: 'workspace-environment-mismatch' };
 		}
-		const existing = exactExistingRemoteTerminal(target.context, target.directoryPath);
+		const existing = findRequestedRemoteTerminal(
+			target.context,
+			target.directoryPath,
+			requestedPresentationId,
+		);
 		if (existing.kind === 'existing') {
 			terminal = existing;
 			return { kind: 'unchanged' };
@@ -129,9 +138,7 @@ export async function createDesktopSshEnvironmentRemoteTerminal(
 			return { kind: 'rejected', reason: 'remote-context-invalid' };
 		}
 
-		const initialPresentationId = terminalPresentationId(
-			`desktop:presentation:${options.allocateIdentifier()}`,
-		);
+		let presentationAllocated = false;
 		const runtime = new WorkbenchProjectWorkspaceRuntime({
 			initialDocument: canonical,
 			standaloneCwd: '/',
@@ -139,12 +146,17 @@ export async function createDesktopSshEnvironmentRemoteTerminal(
 			terminalPresentation: {
 				createOperationId: () =>
 					terminalPresentationOperationId(`desktop:operation:${options.allocateIdentifier()}`),
-				createPresentationId: () =>
-					terminalPresentationId(`desktop:presentation:${options.allocateIdentifier()}`),
+				createPresentationId: () => {
+					if (presentationAllocated) {
+						throw new Error('One remote Terminal request cannot allocate multiple presentations.');
+					}
+					presentationAllocated = true;
+					return requestedPresentationId;
+				},
 				createRemovalId: () =>
 					terminalPresentationRemovalId(`desktop:removal:${options.allocateIdentifier()}`),
 				dispatchCommands: () => undefined,
-				initialPresentationId,
+				initialPresentationId: requestedPresentationId,
 				kind: 'managed',
 			},
 		});
@@ -200,66 +212,59 @@ export async function createDesktopSshEnvironmentRemoteTerminal(
 	};
 }
 
-type ExistingRemoteTerminalResult =
-	| { readonly kind: 'empty' }
+type RequestedRemoteTerminalResult =
+	| { readonly kind: 'creatable' }
 	| { readonly kind: 'invalid' }
 	| (DesktopSshEnvironmentRemoteTerminalIdentity & { readonly kind: 'existing' });
 
-function exactExistingRemoteTerminal(
+function findRequestedRemoteTerminal(
 	context: WorkbenchSharedDocument['terminalContexts'][number],
 	directoryPath: string,
-): ExistingRemoteTerminalResult {
+	presentationId: WorkbenchSharedPresentation['presentationId'],
+): RequestedRemoteTerminalResult {
 	if (
-		context.nextTabSequence === 1 &&
-		context.panelWorkspace.nextPanelSequence === 1 &&
-		context.panelWorkspace.nextPanelSlotSequence === 1 &&
-		context.panelWorkspace.nextSplitSequence === 1 &&
-		context.panelWorkspace.nextTerminalSequence === 1 &&
-		context.panelWorkspace.pendingRemovals.length === 0 &&
-		context.panelWorkspace.tabs.length === 0 &&
-		context.tabCollection.groups.length === 0 &&
-		context.tabCollection.tabs.length === 0
-	) {
-		return { kind: 'empty' };
-	}
-	const tab = context.panelWorkspace.tabs[0];
-	const tabRecord = context.tabCollection.tabs[0];
-	if (
-		context.nextTabSequence !== 2 ||
-		context.panelWorkspace.nextPanelSequence !== 2 ||
-		context.panelWorkspace.nextPanelSlotSequence !== 1 ||
-		context.panelWorkspace.nextSplitSequence !== 1 ||
-		context.panelWorkspace.nextTerminalSequence !== 2 ||
 		context.panelWorkspace.pendingRemovals.length !== 0 ||
-		context.panelWorkspace.tabs.length !== 1 ||
-		context.tabCollection.groups.length !== 0 ||
-		context.tabCollection.tabs.length !== 1 ||
-		tab === undefined ||
-		tabRecord === undefined ||
-		tab.tabId !== tabRecord.id ||
-		tabRecord.customTitle !== null ||
-		tabRecord.group !== null ||
-		tabRecord.pinned ||
-		tab.root.kind !== 'panel' ||
-		tab.root.childPresentations.length !== 0
+		context.panelWorkspace.tabs.length !== context.tabCollection.tabs.length ||
+		context.tabCollection.groups.length !== 0
 	) {
 		return { kind: 'invalid' };
 	}
-	const presentation = tab.root.primaryPresentation;
-	if (
-		presentation.launchCwd !== directoryPath ||
-		presentation.title !== tabRecord.title ||
-		(presentation.intent.kind !== 'provision' && presentation.intent.kind !== 'retain')
-	) {
-		return { kind: 'invalid' };
+	let requested: DesktopSshEnvironmentRemoteTerminalIdentity | undefined;
+	for (const [index, tab] of context.panelWorkspace.tabs.entries()) {
+		const tabRecord = context.tabCollection.tabs[index];
+		if (
+			tabRecord === undefined ||
+			tab.tabId !== tabRecord.id ||
+			tabRecord.group !== null ||
+			tab.root.kind !== 'panel' ||
+			tab.root.childPresentations.length !== 0
+		) {
+			return { kind: 'invalid' };
+		}
+		const presentation = tab.root.primaryPresentation;
+		if (
+			presentation.launchCwd !== directoryPath ||
+			(presentation.intent.kind !== 'provision' && presentation.intent.kind !== 'retain')
+		) {
+			return { kind: 'invalid' };
+		}
+		if (presentation.presentationId !== presentationId) continue;
+		if (requested !== undefined) return { kind: 'invalid' };
+		requested = {
+			panelId: tab.root.id,
+			presentationId: presentation.presentationId,
+			tabId: tab.tabId,
+			terminalContextId: context.terminalContextId,
+		};
 	}
-	return {
-		kind: 'existing',
-		panelId: tab.root.id,
-		presentationId: presentation.presentationId,
-		tabId: tab.tabId,
-		terminalContextId: context.terminalContextId,
-	};
+	return requested === undefined ? { kind: 'creatable' } : { ...requested, kind: 'existing' };
+}
+
+function remoteTerminalPresentationId(
+	requestId: DesktopRemoteTerminalCreationRequestId,
+): WorkbenchSharedPresentation['presentationId'] {
+	const digest = createHash('sha256').update(requestId).digest('hex');
+	return terminalPresentationId(`desktop:remote:${digest}`);
 }
 
 function environmentIsConnected(

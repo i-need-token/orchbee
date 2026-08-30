@@ -6,6 +6,7 @@ import path from 'node:path';
 import {
 	DESKTOP_AGENT_INTEGRATION_IDS,
 	DesktopAgentIntegrationManagementSnapshotSchema,
+	DesktopRemoteTerminalCreationRequestIdSchema,
 	DesktopTerminalDefaultSettingsSnapshotSchema,
 	DesktopTerminalLaunchProfileSnapshotSchema,
 } from '@orchbee/desktop-client-protocol';
@@ -183,6 +184,7 @@ describe('DesktopApplication', () => {
 			});
 			const ready = application.transitionSshEnvironmentConnection(resolving.state, {
 				generation: 1,
+				loginShell: '/bin/zsh',
 				runtimeEpoch: 'a'.repeat(32),
 				runtimeInstanceId: 'b'.repeat(32),
 				type: 'remote-runtime-ready',
@@ -359,7 +361,7 @@ describe('DesktopApplication', () => {
 		});
 		let canonical = remoteWorkspaceDocument(environment.environmentId);
 		harness.environmentRegistryStore.load.mockResolvedValueOnce({
-			document: { environments: [environment], revision: 1, schemaVersion: 1 },
+			document: { environments: [environment], revision: 1, schemaVersion: 2 },
 			kind: 'ready',
 		});
 		harness.workbenchDocumentStore.load.mockResolvedValueOnce({
@@ -444,6 +446,7 @@ describe('DesktopApplication', () => {
 		});
 		const ready = application.transitionSshEnvironmentConnection(resolving.state, {
 			generation: 1,
+			loginShell: '/bin/zsh',
 			runtimeEpoch: 'a'.repeat(32),
 			runtimeInstanceId: environment.provider.runtimeInstanceId,
 			type: 'remote-runtime-ready',
@@ -463,6 +466,7 @@ describe('DesktopApplication', () => {
 		const created = await application.createSshEnvironmentRemoteTerminalForWorkspace(
 			'project-1',
 			'workspace-1',
+			DesktopRemoteTerminalCreationRequestIdSchema.parse('remote-terminal:application'),
 		);
 		expect(created).toMatchObject({ kind: 'created', revision: '5' });
 		if (created.kind !== 'created') throw new Error('Expected one created remote terminal.');
@@ -2768,7 +2772,7 @@ function createHarness(
 	let environmentRegistryDocument: EnvironmentRegistryDocument = {
 		environments: [],
 		revision: 0,
-		schemaVersion: 1,
+		schemaVersion: 2,
 	};
 	const environmentRegistryStore = {
 		commit: vi.fn<EnvironmentRegistryStore['commit']>(async (expectedRevision, document) => {

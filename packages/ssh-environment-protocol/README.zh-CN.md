@@ -1,6 +1,6 @@
 # SSH Environment 协议
 
-由 Desktop 与每个 Environment 独立的 SSH Runtime 共享的严格二进制 framing。版本 `0.3.0`
+由 Desktop 与每个 Environment 独立的 SSH Runtime 共享的严格二进制 framing。版本 `0.4.0`
 提供精确的 Hello handshake、Runtime instance 与 epoch identity、heartbeat liveness、channel
 lifecycle record、二进制 channel data，以及 byte-credit flow control。
 
@@ -22,9 +22,10 @@ Decoder 会拒绝未知 version、kind、field、无效 UTF-8、无效 JSON、�
 length。
 
 Hello acceptance 标识一份不可变的 Runtime build、一个 release cohort、一个 Terminal Host
-version/build、一个 daemon instance 与一个 Runtime epoch。重新连接可以附着到同一个 epoch；Runtime
-重启后必须报告新 epoch。Runtime 精确 advertise 有序的 `[project-root-v2, terminal-host-v1]` pair，
-Desktop 要求该精确 pair。协议不提供 downgrade、dual-stack negotiation 或 placeholder capability。
+version/build、一个 daemon instance、一个 Runtime epoch，以及远端账户声明并验证过的绝对 login-Shell
+path。重新连接可以附着到同一个 epoch；Runtime 重启后必须报告新 epoch。Runtime 精确 advertise 有序的
+`[project-root-v2, terminal-host-v1]` pair，Desktop 要求该精确 pair。协议不提供 downgrade、dual-stack
+negotiation 或 placeholder capability。
 
 ## Project-root service contract
 

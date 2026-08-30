@@ -171,16 +171,23 @@ export function ProjectDirectoryList({
 				<li className={styles['addRow']} data-editing={addingFolder || undefined}>
 					{addingFolder ? (
 						<div className={styles['addEditor']}>
+							<label className={styles['addLabel']} htmlFor={`project-folder-add-${project.id}`}>
+								{messages.projectCreatePath}
+							</label>
 							<div className={styles['addControls']}>
 								<Input
 									aria-describedby={folderAlreadyAdded ? folderInputDescriptionId : undefined}
 									aria-invalid={folderAlreadyAdded || undefined}
 									aria-label={messages.projectCreatePath}
+									autoCapitalize='none'
+									autoComplete='off'
+									autoCorrect='off'
 									autoFocus
 									className={styles['addInput']}
 									data-resource-dialog-value='code'
 									id={`project-folder-add-${project.id}`}
 									placeholder={messages.projectCreatePathPlaceholder}
+									spellCheck={false}
 									value={folderPath}
 									onChange={(event) => setFolderPath(event.currentTarget.value)}
 									onKeyDown={onFolderPathKeyDown}

@@ -3,6 +3,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+	hasWorkbenchExclusiveFocusSurface,
 	isWorkbenchExclusiveFocusTarget,
 	resolveWorkbenchFocusRegionFromTarget,
 } from '../workbench-focus-dom';
@@ -33,5 +34,11 @@ describe('Workbench focus DOM boundaries', () => {
 		expect(isWorkbenchExclusiveFocusTarget(capture)).toBe(true);
 		expect(isWorkbenchExclusiveFocusTarget(ordinary)).toBe(false);
 		expect(isWorkbenchExclusiveFocusTarget(null)).toBe(false);
+
+		const root = document.createElement('main');
+		root.append(ordinary, dialog);
+		expect(hasWorkbenchExclusiveFocusSurface(root)).toBe(true);
+		dialog.remove();
+		expect(hasWorkbenchExclusiveFocusSurface(root)).toBe(false);
 	});
 });

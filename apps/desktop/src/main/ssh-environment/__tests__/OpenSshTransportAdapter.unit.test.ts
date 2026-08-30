@@ -126,4 +126,48 @@ describe('OpenSSH transport arguments', () => {
 			await closed;
 		}
 	});
+
+	it('replays explicit connection options while retaining the fixed runtime command boundary', async () => {
+		let arguments_: readonly string[] | undefined;
+		const adapter = new OpenSshTransportAdapter('/usr/bin/ssh', {
+			spawn: (_executablePath, receivedArguments, options) => {
+				arguments_ = [...receivedArguments];
+				return spawn(process.execPath, ['-e', 'setInterval(() => {}, 1_000)'], options);
+			},
+		});
+		const transport = adapter.open({
+			askPass: { environment: {} },
+			remoteCommand: 'exec runtime attach',
+			resolvedTarget: SshEnvironmentResolvedTargetSchema.parse({
+				destination: 'build-host',
+				hostKeyLookupName: 'build.internal.example',
+				hostKeyPolicy: 'ask',
+				hostname: '10.0.0.8',
+				port: 2222,
+				user: 'builder',
+			}),
+			target: SshEnvironmentTargetReferenceSchema.parse({
+				configurationFilePath: null,
+				destination: 'build-host',
+				options: [
+					{ enabled: true, kind: 'forward-agent' },
+					{ kind: 'identity-file', value: '~/.ssh/id_ed25519' },
+					{ kind: 'proxy-jump', value: 'bastion' },
+				],
+			}),
+		});
+		const closed = new Promise<void>((resolve) => {
+			transport.onExit(() => resolve());
+		});
+
+		try {
+			expect(arguments_).toContain('ForwardAgent=yes');
+			expect(arguments_).toContain('~/.ssh/id_ed25519');
+			expect(arguments_).toContain('bastion');
+			expect(arguments_?.slice(-3)).toEqual(['--', 'build-host', 'exec runtime attach']);
+		} finally {
+			transport.retire();
+			await closed;
+		}
+	});
 });

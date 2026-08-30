@@ -123,7 +123,7 @@ test "launcher accepts only the exact public commands and isolated worker surfac
     }));
 }
 
-test "protocol wire constants stay aligned with version 0.3.0" {
+test "protocol wire constants stay aligned with version 0.4.0" {
     try std.testing.expectEqual(@as(usize, 16), protocol.header_bytes);
     try std.testing.expectEqual(@as(usize, 1024 * 1024), protocol.maximum_frame_bytes);
     try std.testing.expectEqual(@as(u8, 1), @intFromEnum(protocol.Kind.hello));
@@ -131,7 +131,7 @@ test "protocol wire constants stay aligned with version 0.3.0" {
     try std.testing.expectEqual(@as(u8, 18), @intFromEnum(protocol.Kind.channel_data));
     try std.testing.expectEqual(@as(u8, 19), @intFromEnum(protocol.Kind.channel_credit));
     try std.testing.expectEqual(@as(u8, 0), protocol.protocol_major);
-    try std.testing.expectEqual(@as(u8, 3), protocol.protocol_minor);
+    try std.testing.expectEqual(@as(u8, 4), protocol.protocol_minor);
     try std.testing.expectEqual(@as(u8, 0), protocol.protocol_patch);
     try std.testing.expectEqualStrings("project-root-v2", protocol.project_root_service_id);
     try std.testing.expectEqualStrings("terminal-host-v1", protocol.terminal_host_service_id);

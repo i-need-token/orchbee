@@ -770,7 +770,7 @@ describe('Workbench Project and Workspace management', () => {
 			const pathInput = within(dialog).getByLabelText(pathLabel);
 			expect(pathInput.getAttribute('placeholder')).toBe(pathPlaceholder);
 			expect(pathInput.getAttribute('aria-describedby')).toBe('project-create-path-description');
-			expect(pathInput.getAttribute('data-resource-dialog-value')).toBe('code');
+			expect(pathInput.getAttribute('data-code-like')).toBe('true');
 			const cancelButton = within(dialog).getByRole('button', { name: cancel });
 			const createButton = within(dialog).getByRole('button', { name: create });
 			expect(within(cancelButton).getByText('Esc')).toBeDefined();
@@ -1075,13 +1075,14 @@ describe('Workbench Project and Workspace management', () => {
 		const branch = within(dialog).getByLabelText('New branch');
 		expect(base).toHaveProperty('value', 'main');
 		expect(branch).toHaveProperty('value', 'orchbee/workspace-1');
-		expect(base.getAttribute('data-resource-dialog-value')).toBe('code');
-		expect(branch.getAttribute('data-resource-dialog-value')).toBe('code');
+		expect(base.getAttribute('data-code-like')).toBe('true');
+		expect(branch.getAttribute('data-code-like')).toBe('true');
 		expect(document.activeElement).toBe(branch);
-		expect(within(dialog).getByText('Managed location')).toBeDefined();
-		expect(
-			within(dialog).getByText('/Users/test/.orchbee-dev-scope/worktrees/managed-worktree-…'),
-		).toBeDefined();
+		const location = dialog.querySelector('[data-slot="project-worktree-location"]');
+		expect(location?.textContent).toContain('Managed location');
+		expect(location?.textContent).toContain(
+			'/Users/test/.orchbee-dev-scope/worktrees/managed-worktree-…',
+		);
 		expect(within(dialog).queryByRole('textbox', { name: 'Managed location' })).toBeNull();
 		expect(
 			[...dialog.querySelectorAll('input')]
@@ -1520,8 +1521,8 @@ describe('Workbench Project and Workspace management', () => {
 			name: 'Delete Workspace',
 		});
 		expect(within(confirmationCancel).getByText('Esc')).toBeDefined();
-		expect(within(confirmationSubmit).getByText('Enter')).toBeDefined();
-		await waitFor(() => expect(document.activeElement).toBe(confirmationSubmit));
+		expect(within(confirmationSubmit).queryByText('Enter')).toBeNull();
+		await waitFor(() => expect(document.activeElement).toBe(confirmationCancel));
 		fireEvent.click(confirmationCancel);
 		await waitFor(() =>
 			expect(document.querySelector('[data-slot="alert-dialog-content"]')).toBeNull(),

@@ -152,7 +152,6 @@ export type WorkbenchActiveTerminalCreationRoute =
 			readonly kind: 'rejected';
 			readonly reason:
 				| 'project-not-found'
-				| 'remote-terminal-context-not-empty'
 				| 'remote-terminal-placement-unsupported'
 				| 'workspace-directory-not-remote'
 				| 'workspace-not-found';
@@ -1005,9 +1004,6 @@ export class WorkbenchProjectWorkspaceRuntime {
 		) {
 			return { kind: 'rejected', reason: 'remote-terminal-placement-unsupported' };
 		}
-		if (!remoteTerminalContextIsEmpty(target.context)) {
-			return { kind: 'rejected', reason: 'remote-terminal-context-not-empty' };
-		}
 		return {
 			kind: 'remote',
 			projectId: activeLocation.projectId,
@@ -1050,9 +1046,6 @@ export class WorkbenchProjectWorkspaceRuntime {
 		}
 		if (directory.placement.environmentId !== input.environmentId) {
 			return { kind: 'rejected', reason: 'workspace-environment-mismatch' };
-		}
-		if (!remoteTerminalContextIsEmpty(target.context)) {
-			return { kind: 'rejected', reason: 'remote-terminal-context-not-empty' };
 		}
 		return this.createTerminalInTarget(target, directory.path, input, beforeCommit);
 	}
@@ -1450,23 +1443,6 @@ export class WorkbenchProjectWorkspaceRuntime {
 			);
 		}
 	}
-}
-
-function remoteTerminalContextIsEmpty(context: MutableWorkbenchTerminalContext): boolean {
-	const tabs = context.tabModel.getSnapshot();
-	const panels = context.panelWorkspaceStore.getSnapshot();
-	return (
-		context.nextTabSequence === 1 &&
-		tabs.activeTabId === null &&
-		tabs.groups.length === 0 &&
-		tabs.tabs.length === 0 &&
-		panels.nextPanelSequence === 1 &&
-		panels.nextPanelSlotSequence === 1 &&
-		panels.nextSplitSequence === 1 &&
-		panels.nextTerminalSequence === 1 &&
-		panels.pendingRemovals.length === 0 &&
-		panels.tabs.length === 0
-	);
 }
 
 function requireMappedId(

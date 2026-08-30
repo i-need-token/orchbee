@@ -98,6 +98,39 @@ describe('OpenSshTargetResolver', () => {
 		]);
 	});
 
+	it('passes persisted connection options to the configuration query without a shell', async () => {
+		const dependencies = createDependencies({
+			kind: 'completed',
+			stdout: configurationOutput({ strictHostKeyChecking: 'ask' }),
+		});
+		const resolver = new OpenSshTargetResolver('/usr/bin/ssh', dependencies);
+		const target = SshEnvironmentTargetReferenceSchema.parse({
+			configurationFilePath: null,
+			destination: 'build-host',
+			options: [
+				{ enabled: true, kind: 'forward-agent' },
+				{ kind: 'port', value: 2222 },
+				{ kind: 'identity-file', value: '~/.ssh/id_ed25519' },
+				{ kind: 'proxy-jump', value: 'bastion' },
+			],
+		});
+
+		await expect(resolver.resolve(target)).resolves.toMatchObject({ kind: 'resolved' });
+		expect(dependencies.query).toHaveBeenCalledWith('/usr/bin/ssh', [
+			'-G',
+			'-o',
+			'ForwardAgent=yes',
+			'-i',
+			'~/.ssh/id_ed25519',
+			'-J',
+			'bastion',
+			'-p',
+			'2222',
+			'--',
+			'build-host',
+		]);
+	});
+
 	it('uses the effective hostname when OpenSSH supplies no HostKeyAlias', async () => {
 		const resolver = new OpenSshTargetResolver(
 			'/usr/bin/ssh',

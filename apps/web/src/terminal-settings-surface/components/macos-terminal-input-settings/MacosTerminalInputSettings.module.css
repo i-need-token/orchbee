@@ -13,4 +13,5 @@
 	border-radius: var(--ob-ref-radius-ui-md);
 	background: var(--ob-sys-color-status-warning-surface);
 	color: var(--ob-sys-color-status-warning-text);
+	font: var(--ob-sys-typography-body-sm);
 }

@@ -4,21 +4,8 @@
 	font: var(--ob-sys-typography-body-sm);
 }
 
-.form > :global([data-slot='dialog-header']) {
-	padding-inline-end: var(--ob-ref-space-6);
-}
-
-.form :global([data-slot='dialog-title']) {
-	font: var(--ob-sys-typography-heading-xs);
-}
-
-.form :global([data-slot='dialog-description']),
-.form :global([data-slot='field-description']),
-.form :global([data-slot='field-error']) {
-	font: var(--ob-sys-typography-body-sm);
-}
-
 .form :global([data-slot='field-label']),
+.form :global([data-slot='field-legend']),
 .form :global([data-slot='button']),
 .form :global([data-slot='native-select']),
 .form :global([data-slot='select-trigger']) {
@@ -30,13 +17,12 @@
 	font: var(--ob-sys-typography-body-sm);
 }
 
-.form :global([data-resource-dialog-value='code']) {
-	font: var(--ob-sys-typography-code-sm);
+.form :global([data-slot='field-description']),
+.form :global([data-slot='field-error']) {
+	font: var(--ob-sys-typography-body-sm);
 }
 
-.shortcut {
-	color: currentColor;
-	background: transparent;
-	font: var(--ob-sys-typography-label-xs);
-	opacity: var(--ob-sys-opacity-muted);
+.form :global([data-resource-dialog-value='code']),
+.form :global([data-code-like='true']) {
+	font: var(--ob-sys-typography-code-sm);
 }

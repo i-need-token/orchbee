@@ -36,11 +36,12 @@ competing attachment receives `runtime-attachment-conflict` and is closed.
 
 ## Protocol and lifetime
 
-The Runtime implements exact version `0.3.0` from `@orchbee/ssh-environment-protocol`. It accepts one
+The Runtime implements exact version `0.4.0` from `@orchbee/ssh-environment-protocol`. It accepts one
 exact Hello, returns Runtime build identity, release cohort identity, Terminal Host version/build,
-platform, ordered capabilities, and a fresh daemon epoch, then acknowledges heartbeats. Partial
-records and incomplete handshakes are bounded by time and size. Disconnecting an attachment does not
-stop the Runtime or change its epoch; restarting it always produces a new epoch.
+platform, the validated absolute login-Shell path declared by the remote account, ordered
+capabilities, and a fresh daemon epoch, then acknowledges heartbeats. Partial records and incomplete
+handshakes are bounded by time and size. Disconnecting an attachment does not stop the Runtime or
+change its epoch; restarting it always produces a new epoch.
 
 The Runtime advertises exactly `[project-root-v2, terminal-host-v1]`; Desktop rejects every other
 capability set. Channel identifiers are globally monotonic for an attachment. There is deliberately

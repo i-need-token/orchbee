@@ -31,6 +31,8 @@ import type {
 } from '../remote-project';
 import {
 	SshEnvironmentTargetReferenceSchema,
+	formatOpenSshConnectionCommand,
+	parseOpenSshConnectionCommand,
 	type OpenSshTargetResolutionResult,
 	type SshAskPassInteractionResult,
 	type SshEnvironmentConnectionObservation,
@@ -126,6 +128,7 @@ export interface DesktopSshProjectEnrollmentRuntimeOptions {
 	readonly connections: DesktopSshProjectEnrollmentConnectionPort;
 	readonly discoverHostAliases?: (() => Promise<OpenSshHostAliasDiscovery>) | undefined;
 	readonly getDocument: () => WorkbenchSharedDocument | null;
+	readonly homeDirectory?: string | undefined;
 	readonly registry: Pick<DesktopEnvironmentRegistry, 'create' | 'list'>;
 	readonly resolveTarget: (
 		target: SshEnvironmentTargetReference,
@@ -150,6 +153,7 @@ export class DesktopSshProjectEnrollmentRuntime {
 	readonly #environmentSubscriptions = new Map<EnvironmentId, () => void>();
 	readonly #catalogListeners = new Set<CatalogListener>();
 	readonly #getDocument: () => WorkbenchSharedDocument | null;
+	readonly #homeDirectory: string | undefined;
 	readonly #listeners = new Set<StatusListener>();
 	readonly #registry: DesktopSshProjectEnrollmentRuntimeOptions['registry'];
 	readonly #resolveTarget: DesktopSshProjectEnrollmentRuntimeOptions['resolveTarget'];
@@ -162,6 +166,7 @@ export class DesktopSshProjectEnrollmentRuntime {
 		this.#discoverHostAliases =
 			options.discoverHostAliases ?? (() => Promise.resolve({ aliases: [], issue: null }));
 		this.#getDocument = options.getDocument;
+		this.#homeDirectory = options.homeDirectory;
 		this.#registry = options.registry;
 		this.#resolveTarget = options.resolveTarget;
 	}
@@ -185,7 +190,7 @@ export class DesktopSshProjectEnrollmentRuntime {
 			managed: registry.value
 				.map((environment) => ({
 					...environmentConnectionStatus(this.#connections.observation(environment.environmentId)),
-					destination: environment.provider.target.destination,
+					destination: formatOpenSshConnectionCommand(environment.provider.target),
 					environmentId: DesktopSshEnvironmentIdSchema.parse(environment.environmentId),
 					name: environment.name,
 					projectCount: this.#environmentProjectCount(environment.environmentId),
@@ -214,17 +219,23 @@ export class DesktopSshProjectEnrollmentRuntime {
 	): Promise<DesktopSshEnvironmentAddResult> {
 		const canonicalInput = DesktopSshProjectEnrollmentInputSchema.parse(input);
 		if (signal.aborted) return { kind: 'cancelled' };
-		const destination = normalizeSshDestination(canonicalInput.destination);
-		const target = SshEnvironmentTargetReferenceSchema.parse({
-			configurationFilePath: null,
-			destination,
-		});
+		let target: SshEnvironmentTargetReference;
+		try {
+			target = parseOpenSshConnectionCommand(canonicalInput.destination, {
+				homeDirectory: this.#homeDirectory,
+			});
+		} catch {
+			return { kind: 'failed', reason: 'target-resolution-failed' };
+		}
 		const resolution = await this.#resolveTarget(target).catch(() => null);
 		if (signal.aborted) return { kind: 'cancelled' };
 		if (resolution === null || resolution.kind === 'failed') {
 			return { kind: 'failed', reason: 'target-resolution-failed' };
 		}
-		const recorded = await this.#recordEnvironment(deriveEnvironmentName(destination), target);
+		const recorded = await this.#recordEnvironment(
+			deriveEnvironmentName(formatOpenSshConnectionCommand(target)),
+			target,
+		);
 		if (recorded.kind === 'ready') {
 			this.#publishCatalog();
 			return {
@@ -359,11 +370,14 @@ export class DesktopSshProjectEnrollmentRuntime {
 	): Promise<Result> {
 		const canonicalInput = DesktopSshProjectEnrollmentInputSchema.parse(input);
 		if (signal.aborted) return mapSettlement({ kind: 'cancelled' });
-		const destination = normalizeSshDestination(canonicalInput.destination);
-		const target = SshEnvironmentTargetReferenceSchema.parse({
-			configurationFilePath: null,
-			destination,
-		});
+		let target: SshEnvironmentTargetReference;
+		try {
+			target = parseOpenSshConnectionCommand(canonicalInput.destination, {
+				homeDirectory: this.#homeDirectory,
+			});
+		} catch {
+			return mapSettlement({ kind: 'failed', reason: 'target-resolution-failed' });
+		}
 		operation.progress('resolving-target');
 		const resolution = await this.#resolveTarget(target).catch(() => null);
 		if (signal.aborted) return mapSettlement({ kind: 'cancelled' });
@@ -373,7 +387,7 @@ export class DesktopSshProjectEnrollmentRuntime {
 
 		operation.progress('recording-environment');
 		const environmentResult = await this.#recordEnvironment(
-			deriveEnvironmentName(destination),
+			deriveEnvironmentName(formatOpenSshConnectionCommand(target)),
 			target,
 		);
 		if (environmentResult.kind !== 'ready') return mapSettlement(environmentResult.result);
@@ -778,10 +792,6 @@ export class DesktopSshProjectEnrollmentRuntime {
 		}
 		return { environmentId: parsed.data, kind: 'resolved' };
 	}
-}
-
-function normalizeSshDestination(input: string): string {
-	return input.startsWith('ssh ') ? input.slice(4) : input;
 }
 
 function deriveEnvironmentName(destination: string): string {

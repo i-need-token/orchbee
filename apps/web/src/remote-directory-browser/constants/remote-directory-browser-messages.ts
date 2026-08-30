@@ -2,6 +2,12 @@ import { remoteDirectoryBrowserMessages, type MessageDescriptor } from '@orchbee
 
 import type { RemoteDirectoryNavigationFailureReason } from '../types/remote-directory-browser';
 
+export const REMOTE_DIRECTORY_EMPTY_MESSAGES = {
+	empty: remoteDirectoryBrowserMessages.empty,
+	hidden: remoteDirectoryBrowserMessages.emptyHidden,
+	'no-match': remoteDirectoryBrowserMessages.filterNoMatches,
+} as const satisfies Readonly<Record<'empty' | 'hidden' | 'no-match', MessageDescriptor>>;
+
 export const REMOTE_DIRECTORY_NAVIGATION_FAILURE_MESSAGES: Readonly<
 	Record<RemoteDirectoryNavigationFailureReason, MessageDescriptor>
 > = {

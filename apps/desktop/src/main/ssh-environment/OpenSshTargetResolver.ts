@@ -8,6 +8,7 @@ import {
 	type SshEnvironmentResolvedTarget,
 	type SshEnvironmentTargetReference,
 } from './ssh-environment-contract';
+import { createOpenSshTargetOptionArguments } from './open-ssh-connection-command';
 
 const OPEN_SSH_QUERY_TIMEOUT_MILLISECONDS = 5_000;
 const OPEN_SSH_QUERY_OUTPUT_LIMIT_BYTES = 256 * 1_024;
@@ -106,6 +107,7 @@ export class OpenSshTargetResolver {
 		if (configurationFilePath !== null) {
 			arguments_.push('-F', configurationFilePath);
 		}
+		arguments_.push(...createOpenSshTargetOptionArguments(target.options));
 		arguments_.push('--', target.destination);
 		const queryResult = await this.#dependencies.query(this.#executablePath, arguments_);
 		if (queryResult.kind === 'failed') return mapQueryFailure(queryResult.reason);

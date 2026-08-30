@@ -54,8 +54,15 @@ export function ShellIntegrationSettings({
 				</label>
 				<label className={styles['field']}>
 					<span className={styles['label']}>{view.reminder.minimumLabel}</span>
-					<span className={styles['description']}>{view.reminder.minimumDescription}</span>
+					<span className={styles['description']} id='completion-reminder-minimum-description'>
+						{view.reminder.minimumDescription}
+					</span>
 					<Input
+						aria-describedby={
+							view.reminder.minimumInvalid
+								? 'completion-reminder-minimum-description completion-reminder-minimum-error'
+								: 'completion-reminder-minimum-description'
+						}
 						aria-invalid={view.reminder.minimumInvalid}
 						data-slot='completion-reminder-minimum'
 						max={view.reminder.minimumMaximum}
@@ -67,7 +74,7 @@ export function ShellIntegrationSettings({
 						onKeyDown={view.reminder.onMinimumKeyDown}
 					/>
 					{view.reminder.minimumInvalid ? (
-						<span className={styles['error']} role='alert'>
+						<span className={styles['error']} id='completion-reminder-minimum-error' role='alert'>
 							{view.reminder.minimumInvalidMessage}
 						</span>
 					) : null}
@@ -96,6 +103,7 @@ export function ShellIntegrationSettings({
 				{view.notification.onRequestPermission === null ? null : (
 					<Button
 						data-slot='request-terminal-notification-permission'
+						type='button'
 						variant='outline'
 						onClick={view.notification.onRequestPermission}
 					>
@@ -108,6 +116,7 @@ export function ShellIntegrationSettings({
 				<p className={styles['description']}>{view.reset.description}</p>
 				<Button
 					data-slot='reset-terminal-feedback-settings'
+					type='button'
 					variant='outline'
 					onClick={view.reset.onReset}
 				>

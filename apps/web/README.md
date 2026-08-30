@@ -293,7 +293,12 @@ opens the application-owned multi-step dialog with one SSH address. Main uses th
 configuration, derives the Environment display identity, connects through exact host-key or
 credential prompts, and then supplies the shared `RemoteDirectoryBrowser` with the authenticated
 remote home and bounded read-only child-folder snapshots. Breadcrumbs and folder rows navigate;
-an editable absolute path is the fallback for large or truncated directories. Prompt responses and
+an editable absolute path replaces the breadcrumb bar in place as the fallback for large or
+truncated directories, retains the source identity and last canonical folder snapshot, filters
+bounded direct-child candidates without navigating, and uses the existing footer for path
+navigation. The editor starts from the canonical directory plus its continuation separator;
+ordinary focus departure or Escape restores breadcrumbs without navigating. Dot-prefixed children
+remain hidden until explicitly requested or addressed by a dot path fragment. Prompt responses and
 directory snapshots remain only in the controller long enough to answer the exact correlated
 interaction. A successful Main result does not optimistically mutate
 the renderer: the controller waits for the canonical shared-document publication, then only the

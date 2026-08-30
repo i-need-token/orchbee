@@ -15,6 +15,7 @@ describe('useRemoteDirectoryBrowser', () => {
 					busy,
 					canNavigate,
 					canonicalPath: '/home/builder',
+					directories: [],
 					navigationFailure: null,
 					onNavigate,
 					onPathDraftChange,
@@ -27,7 +28,7 @@ describe('useRemoteDirectoryBrowser', () => {
 
 		act(() => result.current.openPathEditor());
 		expect(result.current.showPathEditor).toBe(true);
-		expect(onPathDraftChange).toHaveBeenLastCalledWith('/home/builder');
+		expect(onPathDraftChange).toHaveBeenLastCalledWith('/home/builder/');
 
 		act(() => result.current.resetPathEditor());
 		expect(result.current.showPathEditor).toBe(false);
@@ -43,18 +44,23 @@ describe('useRemoteDirectoryBrowser', () => {
 	});
 
 	it('keeps recovery editing visible while a navigation failure exists', () => {
+		const onPathDraftChange = vi.fn<(path: string) => void>();
 		const { result } = renderHook(() =>
 			useRemoteDirectoryBrowser({
 				busy: false,
 				canNavigate: true,
 				canonicalPath: '/home/builder',
+				directories: [],
 				navigationFailure: 'not-found',
 				onNavigate: () => undefined,
-				onPathDraftChange: () => undefined,
+				onPathDraftChange,
 				pathDraft: '/missing',
 			}),
 		);
 
 		expect(result.current.showPathEditor).toBe(true);
+		act(() => result.current.resetPathEditor());
+		expect(result.current.showPathEditor).toBe(false);
+		expect(onPathDraftChange).toHaveBeenLastCalledWith('/home/builder');
 	});
 });

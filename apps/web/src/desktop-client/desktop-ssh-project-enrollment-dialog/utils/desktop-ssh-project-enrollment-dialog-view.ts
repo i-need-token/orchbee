@@ -1,4 +1,7 @@
-import type { DesktopSshProjectDirectorySnapshot } from '@orchbee/desktop-client-protocol';
+import type {
+	DesktopSshEnvironmentCatalog,
+	DesktopSshProjectDirectorySnapshot,
+} from '@orchbee/desktop-client-protocol';
 import { desktopSshProjectMessages, type MessageDescriptor } from '@orchbee/i18n';
 
 import type { RemoteDirectoryBrowserLocation } from '../../../remote-directory-browser';
@@ -6,6 +9,25 @@ import { DESKTOP_SSH_PROJECT_ENROLLMENT_FAILURE_MESSAGES } from '../constants/de
 import type { DesktopSshProjectEnrollmentDialogState } from '../model/DesktopSshProjectEnrollmentController';
 
 type OpenDialogState = Exclude<DesktopSshProjectEnrollmentDialogState, { readonly kind: 'closed' }>;
+
+export function desktopSshProjectDestinationOptions(
+	catalog: DesktopSshEnvironmentCatalog,
+	query = '',
+): readonly string[] {
+	const destinations = new Set<string>();
+	for (const connection of catalog.managed) destinations.add(connection.destination);
+	for (const suggestion of catalog.suggestions) destinations.add(suggestion.destination);
+	const normalizedQuery = query
+		.trim()
+		.toLowerCase()
+		.replace(/^ssh(?:\s+|$)/u, '')
+		.trimStart();
+	return normalizedQuery.length === 0
+		? [...destinations]
+		: [...destinations].filter((destination) =>
+				destination.toLowerCase().includes(normalizedQuery),
+			);
+}
 
 export function desktopSshProjectDialogTitleMessage(
 	state: OpenDialogState,
@@ -77,6 +99,17 @@ export function desktopSshProjectProgressMessage(state: OpenDialogState): Messag
 		case null:
 			return desktopSshProjectMessages.progressConnecting;
 	}
+}
+
+export function desktopSshProjectConnectionDisplayTarget(state: OpenDialogState): string | null {
+	let target: string | null = null;
+	if (state.kind === 'attachment' || state.kind === 'enrollment') {
+		target = state.form.destination;
+	} else if (state.kind === 'environment-connection') {
+		target = state.environmentName;
+	}
+	const trimmed = target?.trim() ?? '';
+	return trimmed.length === 0 ? null : trimmed;
 }
 
 export function toRemoteDirectoryLocation(

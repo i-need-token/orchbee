@@ -109,7 +109,7 @@ function capabilityReturning(
 }
 
 describe('executeWorkbenchTerminalCreationAction', () => {
-	it('enables only the first default remote Terminal surface when the capability exists', () => {
+	it('enables each default top-level remote Terminal surface when the capability exists', () => {
 		const runtime = createRemoteRuntime('availability');
 		const capability = capabilityReturning({ kind: 'cancelled' });
 
@@ -136,6 +136,10 @@ describe('executeWorkbenchTerminalCreationAction', () => {
 				tabIds: ['tab-1'],
 			}),
 		).toMatchObject({ kind: 'disabled' });
+		createMainResult(runtime);
+		expect(
+			getWorkbenchTerminalCreationAvailability(runtime, capability, { groupId: null }),
+		).toEqual({ kind: 'enabled' });
 	});
 
 	it('waits for canonical publication without an optimistic Renderer mutation', async () => {
@@ -144,6 +148,7 @@ describe('executeWorkbenchTerminalCreationAction', () => {
 		const mainResult = createMainResult(mainRuntime);
 		const capability = capabilityReturning(mainResult);
 		const { context, markCommitted } = createContext();
+		const onRemoteTerminalCreated = vi.fn();
 		let settled = false;
 		const completion = Promise.resolve(
 			executeWorkbenchTerminalCreationAction(
@@ -151,6 +156,7 @@ describe('executeWorkbenchTerminalCreationAction', () => {
 				{ groupId: null },
 				{
 					fallbackTitle: 'Remote Terminal',
+					onRemoteTerminalCreated,
 					remoteTerminalCreation: capability,
 					runtime: rendererRuntime,
 				},
@@ -170,6 +176,9 @@ describe('executeWorkbenchTerminalCreationAction', () => {
 		);
 		await expect(completion).resolves.toEqual({ kind: 'completed' });
 		expect(rendererRuntime.hasPublishedTerminal(mainResult)).toBe(true);
+		expect(onRemoteTerminalCreated).toHaveBeenCalledWith(
+			expect.objectContaining({ tabId: mainResult.tabId }),
+		);
 	});
 
 	it('accepts only Main-confirmed precommit cancellation as cancelled', async () => {

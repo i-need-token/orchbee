@@ -1,6 +1,6 @@
 # SSH Environment Protocol
 
-Strict binary framing shared by Desktop and the per-Environment SSH Runtime. Version `0.3.0`
+Strict binary framing shared by Desktop and the per-Environment SSH Runtime. Version `0.4.0`
 provides an exact Hello handshake, Runtime instance and epoch identity, heartbeat liveness, channel
 lifecycle records, binary channel data, and byte-credit flow control.
 
@@ -22,8 +22,9 @@ channel identity and byte count. Decoders reject unknown versions, kinds, fields
 invalid JSON, nonzero reserved bytes, and inconsistent or oversized lengths.
 
 Hello acceptance identifies one immutable Runtime build, one release cohort, one Terminal Host
-version/build, one daemon instance, and one Runtime epoch. A reconnect may attach to the same epoch;
-a restarted Runtime necessarily reports a new epoch. The Runtime advertises exactly the ordered
+version/build, one daemon instance, one Runtime epoch, and the validated absolute login-Shell path
+declared by the remote account. A reconnect may attach to the same epoch; a restarted Runtime
+necessarily reports a new epoch. The Runtime advertises exactly the ordered
 `[project-root-v2, terminal-host-v1]` pair, and Desktop requires it. There is no downgrade, dual-stack
 negotiation, or placeholder capability.
 

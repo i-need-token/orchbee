@@ -19,7 +19,7 @@
 			"file": "apps/web/stories/remote-directory-browser.stories.tsx",
 			"id": "applications-web-remote-directory-browser--default",
 			"states": [
-				"Inspect source identity, clickable breadcrumbs, bounded child folders, editable-path disclosure, explicit cancellation, and current-folder selection."
+				"Inspect source identity, clickable breadcrumbs, bounded child folders with hidden-folder disclosure, in-place editable-path filtering, explicit cancellation, and current-folder selection."
 			]
 		},
 		{
@@ -59,10 +59,15 @@
 	"invariants": [
 		"The component is controlled presentation only and grants no filesystem, transport, authentication, or durable Project authority.",
 		"Breadcrumb and child-folder navigation emit only paths supplied by the current canonical snapshot; editable paths remain explicit user input for the adapter to validate.",
-		"A navigation request keeps the last canonical snapshot visible, disables all navigation and selection decisions, and exposes bounded progress.",
+		"Breadcrumbs and precise path entry are mutually exclusive projections of one location control: requesting edit replaces the complete source-and-breadcrumb bar with one full-width path input of identical block size, retains the last canonical folder snapshot, and moves the path-navigation action into the existing footer.",
+		"Opening precise path entry seeds the canonical directory as a continuation prefix with one trailing path separator; ordinary focus departure or Escape discards the uncommitted draft and restores breadcrumbs, while focus moving to the footer Go action or a filtered folder row preserves the intended activation.",
+		"A direct-child path fragment filters only the current bounded canonical snapshot; an ambiguous partial match requires selecting a matching folder or completing the path, while an exact candidate or unlisted absolute path remains explicitly navigable.",
+		"Dot-prefixed child folders are omitted from the default low-noise list, remain available through one explicit Show hidden folders control, and are also discoverable when precise path input begins with a dot.",
+		"The folder viewport keeps one bounded block size across ordinary, filtered, empty, and loading projections so row-count and progress changes do not resize the Dialog.",
+		"A navigation request keeps the last canonical snapshot legible, disables all navigation and selection decisions, and layers a non-resizing visual progress indicator plus localized assistive status inside the stable folder viewport instead of fading the complete task or inserting a visible status-text row.",
 		"A failed navigation retains the last canonical snapshot, attempted path, and a localized bounded reason without exposing provider diagnostics.",
 		"The browser exposes folders only and contains no file-content, filesystem-mutation, generic-command, or terminal behavior.",
-		"Folder rows use valid list semantics, every action is keyboard reachable, Enter submits an edited path, and Escape restores the canonical path draft."
+		"Folder rows use valid list semantics and every action is keyboard reachable. In breadcrumb mode, unmodified Enter chooses the current folder and the footer shows accurate Enter and Escape hints; in path-edit mode, Enter or the footer Go action submits the path, while Escape restores the canonical path draft and breadcrumb representation without cancelling the outer folder task."
 	],
 	"references": ["apps/web/README.md"]
 }

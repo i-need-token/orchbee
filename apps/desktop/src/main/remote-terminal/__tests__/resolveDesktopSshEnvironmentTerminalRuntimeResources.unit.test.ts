@@ -7,7 +7,7 @@ import { resolveDesktopRuntimeConfiguration } from '../../composition';
 import { resolveDesktopSshEnvironmentTerminalRuntimeResources } from '../resolveDesktopSshEnvironmentTerminalRuntimeResources';
 
 describe('resolveDesktopSshEnvironmentTerminalRuntimeResources', () => {
-	it('isolates recovery state and constructs a fixed secret-free POSIX launch', () => {
+	it('isolates recovery state and launches the validated remote login Shell', () => {
 		const base = resolveDesktopRuntimeConfiguration({
 			applicationPath: path.resolve('/repo/apps/desktop'),
 			environment: {
@@ -22,7 +22,11 @@ describe('resolveDesktopSshEnvironmentTerminalRuntimeResources', () => {
 		});
 		const environmentId = EnvironmentIdSchema.parse(`environment:${'a'.repeat(32)}`);
 
-		const resources = resolveDesktopSshEnvironmentTerminalRuntimeResources(base, environmentId);
+		const resources = resolveDesktopSshEnvironmentTerminalRuntimeResources(
+			base,
+			environmentId,
+			'/bin/zsh',
+		);
 
 		expect(resources.configuration.terminalBindingStorePath).toBe(
 			path.resolve(`/private/recovery/ssh-environments-v1/${'a'.repeat(32)}/bindings-v1.json`),
@@ -41,10 +45,10 @@ describe('resolveDesktopSshEnvironmentTerminalRuntimeResources', () => {
 			),
 		);
 		expect(resources.launch).toMatchObject({
-			arguments: [],
+			arguments: ['-l'],
 			configuration: base.terminalConfiguration,
 			currentDirectory: null,
-			executable: '/bin/sh',
+			executable: '/bin/zsh',
 		});
 		expect(resources.launch.environment).toEqual([
 			{ name: 'COLORTERM', value: 'truecolor' },

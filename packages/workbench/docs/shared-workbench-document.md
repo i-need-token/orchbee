@@ -137,9 +137,9 @@ recovery requires a separate accepted owner and contract.
   Environment reference. An environment-placed Directory is always unavailable.
 - Every Workspace primary Directory resolves and may have local or Environment placement. Ordinary
   Workbench mutations require local placement; Desktop Main alone may admit an exact remote
-  Workspace and may provision its exact empty Terminal Context. Client mutation cannot create or
-  retarget remote terminal structure; only exact preservation, deletion, and the admitted
-  provision-to-retain convergence are accepted.
+  Workspace and may append default top-level Terminals to its Terminal Context. Client mutation
+  cannot create or retarget remote terminal structure; only exact preservation, deletion, the
+  admitted provision-to-retain convergence, and an exact whole-Tab close intent are accepted.
 - Tab and Panel-workspace Tab membership and order match; pinned Tabs form one prefix and every
   Group is contiguous.
 - Every Split has exactly two children and unique slots. A child Split may repeat its parent's
@@ -184,7 +184,7 @@ broadcasts.
 | Custom title survives while natural metadata stays transient | Title override/reset and shared-document hydration scenarios                          | Rename presentation is adapter-owned                                            |
 | Applying a shared document emits no terminal effect          | Runtime trace with structural removal and retained running observation                | One renderer runtime                                                            |
 | Empty remote Workspace placement carries no presentation     | Empty-context schema/runtime and Desktop admission/forgery tests                      | Slice 3.2A admission only                                                       |
-| First remote provision remains target-exact and commit-first | Workbench exact-context tests plus Desktop provision TLA+, routing, and forgery tests | One top-level terminal; projection and input are outside this document contract |
+| Remote provision remains target-exact and commit-first       | Workbench context tests plus Desktop routing, replay, and forgery tests                 | Default top-level terminals; projection and input are outside this contract     |
 | View-only changes never require a shared write               | Projection-specific observers and Desktop coordinator fingerprint tests               | Shared ordering is Desktop session authority                                    |
 | Preview state cannot claim shared durability                 | Deterministic rejection test                                                          | Preview remains an in-memory composition                                        |
 

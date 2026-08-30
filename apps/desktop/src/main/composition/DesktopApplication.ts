@@ -14,6 +14,7 @@ import {
 	type DesktopAgentIntegrationId,
 	type DesktopAgentIntegrationManagementSnapshot,
 	type DesktopBrowserAccessSnapshot,
+	type DesktopRemoteTerminalCreationRequestId,
 	type DesktopTerminalDefaultSettingsSnapshot,
 	type DesktopTerminalLaunchProfileSnapshot,
 } from '@orchbee/desktop-client-protocol';
@@ -144,6 +145,7 @@ import {
 	createDesktopSshEnvironmentRemoteTerminal,
 	DesktopSshEnvironmentTerminalObservationOwner,
 	DesktopSshEnvironmentTerminalRuntimeOwner,
+	resolveDesktopSshEnvironmentTerminalRuntimeConfiguration,
 	resolveDesktopSshEnvironmentTerminalRuntimeResources,
 	resolveDesktopSshEnvironmentRemoteTerminalCreationTarget,
 	type DesktopSshEnvironmentRemoteTerminalResult,
@@ -477,7 +479,10 @@ export interface DesktopApplicationDependencies {
 		port: MessagePortMain,
 		readClipboardText: () => string,
 	) => DesktopClipboardBrokerHandle;
-	readonly createEnvironmentRegistry: (filePath: string) => DesktopEnvironmentRegistry;
+	readonly createEnvironmentRegistry: (
+		filePath: string,
+		legacyFilePath: string,
+	) => DesktopEnvironmentRegistry;
 	readonly createSshEnvironmentConnectionOwner: (options: {
 		readonly askPassHelperEntryPath: string;
 		readonly askPassRuntimeExecutablePath: string;
@@ -631,8 +636,8 @@ const defaultDependencies: DesktopApplicationDependencies = {
 		new DesktopBrowserAccessRuntime(options, { openClient }),
 	createClipboardBroker: (port, readClipboardText) =>
 		new DesktopClipboardBroker(port, { readText: readClipboardText }),
-	createEnvironmentRegistry: (filePath) =>
-		new DesktopEnvironmentRegistry(new FileEnvironmentRegistryStore(filePath)),
+	createEnvironmentRegistry: (filePath, legacyFilePath) =>
+		new DesktopEnvironmentRegistry(new FileEnvironmentRegistryStore(filePath, { legacyFilePath })),
 	createSshEnvironmentConnectionOwner: (options) => {
 		const executablePath = OpenSshTargetResolver.resolveSystemExecutablePath(
 			options.platform,
@@ -912,6 +917,7 @@ export class DesktopApplication {
 		}
 		this.#environmentRegistry = dependencies.createEnvironmentRegistry(
 			options.runtime.environmentRegistryStorePath,
+			options.runtime.environmentRegistryLegacyStorePath,
 		);
 		this.#sshEnvironmentConnections = dependencies.createSshEnvironmentConnectionOwner({
 			askPassHelperEntryPath: options.sshEnvironment.askPassHelperEntryPath,
@@ -1079,6 +1085,7 @@ export class DesktopApplication {
 		environmentId: EnvironmentId,
 		projectId: string,
 		workspaceId: string,
+		requestId: DesktopRemoteTerminalCreationRequestId,
 		signal?: AbortSignal,
 	): Promise<DesktopSshEnvironmentRemoteTerminalResult> {
 		const coordinator = this.#clientSessionCoordinator;
@@ -1093,6 +1100,7 @@ export class DesktopApplication {
 			coordinator,
 			environmentId,
 			projectId,
+			requestId,
 			registry: this.#environmentRegistry,
 			runtimeOwner,
 			...(signal === undefined ? {} : { signal }),
@@ -1104,6 +1112,7 @@ export class DesktopApplication {
 	createSshEnvironmentRemoteTerminalForWorkspace(
 		projectId: string,
 		workspaceId: string,
+		requestId: DesktopRemoteTerminalCreationRequestId,
 		signal?: AbortSignal,
 	): Promise<DesktopSshEnvironmentRemoteTerminalResult> {
 		const coordinator = this.#clientSessionCoordinator;
@@ -1126,6 +1135,7 @@ export class DesktopApplication {
 			target.environmentId,
 			projectId,
 			workspaceId,
+			requestId,
 			signal,
 		);
 	}
@@ -1341,21 +1351,18 @@ export class DesktopApplication {
 			const sshEnvironmentTerminalRuntimeOwner = new DesktopSshEnvironmentTerminalRuntimeOwner({
 				connections: this.#sshEnvironmentConnections,
 				createObservation: (environmentId) => {
-					const resources = resolveDesktopSshEnvironmentTerminalRuntimeResources(
+					const configuration = resolveDesktopSshEnvironmentTerminalRuntimeConfiguration(
 						this.#options.runtime,
 						environmentId,
 					);
 					const spillStore =
 						this.#dependencies.createTerminalExitSpillStore?.(
-							resources.configuration.terminalExitSpillPath,
-						) ?? new TerminalExitSpillStore(resources.configuration.terminalExitSpillPath);
+							configuration.terminalExitSpillPath,
+						) ?? new TerminalExitSpillStore(configuration.terminalExitSpillPath);
 					const publicationLedger =
 						this.#dependencies.createTerminalExitPublicationLedger?.(
-							resources.configuration.terminalExitPublicationLedgerPath,
-						) ??
-						new TerminalExitPublicationLedger(
-							resources.configuration.terminalExitPublicationLedgerPath,
-						);
+							configuration.terminalExitPublicationLedgerPath,
+						) ?? new TerminalExitPublicationLedger(configuration.terminalExitPublicationLedgerPath);
 					return new DesktopSshEnvironmentTerminalObservationOwner({
 						createExitEvent: toDocumentExit,
 						createFailureEvent: toDocumentFailure,
@@ -1382,9 +1389,18 @@ export class DesktopApplication {
 					});
 				},
 				createRuntime: (environmentId, remoteHost) => {
+					const connection = this.#sshEnvironmentConnections.observation(environmentId);
+					if (
+						connection.kind !== 'ready' ||
+						!connection.observation.connected ||
+						connection.observation.loginShell === null
+					) {
+						throw new Error('SSH Environment login Shell is unavailable.');
+					}
 					const resources = resolveDesktopSshEnvironmentTerminalRuntimeResources(
 						this.#options.runtime,
 						environmentId,
+						connection.observation.loginShell,
 					);
 					return this.#dependencies.createTerminalRuntime(
 						remoteHost,
@@ -1550,6 +1566,7 @@ export class DesktopApplication {
 						this.#options.runtime.homeDirectory,
 					),
 				getDocument: () => clientSessionCoordinator.canonicalDocument,
+				homeDirectory: this.#options.runtime.homeDirectory,
 				registry: {
 					create: (environment) => this.createEnvironment(environment),
 					list: () => this.listEnvironments(),
@@ -2261,8 +2278,13 @@ export class DesktopApplication {
 			remoteTerminalCreationBroker = this.#dependencies.createRemoteTerminalCreationBroker(
 				remoteTerminalCreationChannel.port2,
 				{
-					create: (projectId, workspaceId, signal) =>
-						this.createSshEnvironmentRemoteTerminalForWorkspace(projectId, workspaceId, signal),
+					create: (projectId, workspaceId, requestId, signal) =>
+						this.createSshEnvironmentRemoteTerminalForWorkspace(
+							projectId,
+							workspaceId,
+							requestId,
+							signal,
+						),
 				},
 			);
 			sshProjectEnrollmentBroker = this.#dependencies.createSshProjectEnrollmentBroker(

@@ -39,8 +39,14 @@ export function TerminalSettingsSections({ view }: TerminalSettingsSectionsProps
 					<div className={styles['stackedControl']}>
 						<FieldControl
 							error={view.scrollbackBytesInvalid ? view.messages.scrollbackBytesInvalid : null}
+							errorId='terminal-scrollback-error'
 						>
 							<Input
+								aria-describedby={
+									view.scrollbackBytesInvalid
+										? 'terminal-scrollback-device-notice terminal-scrollback-error'
+										: 'terminal-scrollback-device-notice'
+								}
 								aria-label={view.messages.scrollbackBytesLabel}
 								aria-invalid={view.scrollbackBytesInvalid}
 								disabled={view.scrollbackBytesPending}
@@ -53,7 +59,7 @@ export function TerminalSettingsSections({ view }: TerminalSettingsSectionsProps
 								onKeyDown={view.onScrollbackBytesKeyDown}
 							/>
 						</FieldControl>
-						<span className={styles['deviceNotice']}>
+						<span className={styles['deviceNotice']} id='terminal-scrollback-device-notice'>
 							{view.messages.scrollbackBytesFutureNotice}
 						</span>
 					</div>
@@ -108,8 +114,10 @@ export function TerminalSettingsSections({ view }: TerminalSettingsSectionsProps
 				>
 					<FieldControl
 						error={view.terminalPaddingInvalid ? view.messages.terminalPaddingInvalid : null}
+						errorId='terminal-padding-error'
 					>
 						<Input
+							aria-describedby={view.terminalPaddingInvalid ? 'terminal-padding-error' : undefined}
 							aria-label={view.messages.terminalPaddingLabel}
 							aria-invalid={view.terminalPaddingInvalid}
 							max={32}
@@ -140,8 +148,12 @@ export function TerminalSettingsSections({ view }: TerminalSettingsSectionsProps
 					settingId='text.font-family'
 					visible={view.fontFamilyVisible}
 				>
-					<FieldControl error={view.fontFamilyInvalid ? view.messages.fontFamilyInvalid : null}>
+					<FieldControl
+						error={view.fontFamilyInvalid ? view.messages.fontFamilyInvalid : null}
+						errorId='terminal-font-family-error'
+					>
 						<Input
+							aria-describedby={view.fontFamilyInvalid ? 'terminal-font-family-error' : undefined}
 							aria-label={view.messages.fontFamilyLabel}
 							aria-invalid={view.fontFamilyInvalid}
 							value={view.fontFamilyDraft}
@@ -157,8 +169,12 @@ export function TerminalSettingsSections({ view }: TerminalSettingsSectionsProps
 					settingId='text.font-size'
 					visible={view.fontSizeVisible}
 				>
-					<FieldControl error={view.fontSizeInvalid ? view.messages.fontSizeRangeInvalid : null}>
+					<FieldControl
+						error={view.fontSizeInvalid ? view.messages.fontSizeRangeInvalid : null}
+						errorId='terminal-font-size-error'
+					>
 						<Input
+							aria-describedby={view.fontSizeInvalid ? 'terminal-font-size-error' : undefined}
 							aria-label={view.messages.fontSizeLabel}
 							aria-invalid={view.fontSizeInvalid}
 							max={48}

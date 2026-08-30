@@ -112,15 +112,24 @@
 }
 
 .addForm {
-	display: flex;
-	flex-direction: column;
-	gap: var(--ob-ref-space-2);
 	padding: var(--ob-ref-space-4);
 }
 
 .fieldLabel {
 	color: var(--ob-sys-color-text-label);
-	font: var(--ob-sys-typography-label-sm);
+	font: var(--ob-sys-typography-control-sm);
+}
+
+.fieldDescription {
+	font: var(--ob-sys-typography-body-sm);
+}
+
+.destinationInput {
+	font: var(--ob-sys-typography-code-sm);
+}
+
+.formAction {
+	font: var(--ob-sys-typography-control-sm);
 }
 
 .addControls {

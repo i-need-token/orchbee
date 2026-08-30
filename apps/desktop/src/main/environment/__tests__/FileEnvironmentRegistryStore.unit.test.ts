@@ -37,7 +37,7 @@ describe('FileEnvironmentRegistryStore', () => {
 		const duplicate = environment(1, 1);
 		await writeFile(
 			filePath,
-			`${JSON.stringify({ environments: [duplicate, duplicate], revision: 2, schemaVersion: 1 })}\n`,
+			`${JSON.stringify({ environments: [duplicate, duplicate], revision: 2, schemaVersion: 2 })}\n`,
 			'utf8',
 		);
 		await expect(store.load()).resolves.toEqual({ kind: 'unavailable', reason: 'invalid-record' });
@@ -101,7 +101,7 @@ describe('FileEnvironmentRegistryStore', () => {
 		const secondDocument = EnvironmentRegistryDocumentSchema.parse({
 			environments: [firstDocument.environments[0], environment(2, 2)],
 			revision: 2,
-			schemaVersion: 1,
+			schemaVersion: 2,
 		});
 
 		await expect(failing.commit(1, secondDocument)).resolves.toEqual({
@@ -154,13 +154,78 @@ describe('FileEnvironmentRegistryStore', () => {
 
 		await expect(store.load()).resolves.toEqual({ kind: 'unavailable', reason: 'invalid-record' });
 	});
+
+	it('migrates a valid version-1 registry without rewriting or deleting the legacy file', async () => {
+		const filePath = await temporaryFilePath();
+		const legacyFilePath = path.join(path.dirname(filePath), 'environment-registry-v1.json');
+		const legacyEnvironment = environment(1, 1);
+		const legacyDocument = {
+			environments: [
+				{
+					...legacyEnvironment,
+					provider: {
+						...legacyEnvironment.provider,
+						target: {
+							configurationFilePath: null,
+							destination: 'build-1',
+						},
+					},
+				},
+			],
+			revision: 1,
+			schemaVersion: 1,
+		};
+		await writeFile(legacyFilePath, `${JSON.stringify(legacyDocument)}\n`, 'utf8');
+		const store = new FileEnvironmentRegistryStore(filePath, { legacyFilePath });
+
+		const loaded = await store.load();
+		expect(loaded).toMatchObject({
+			document: { revision: 1, schemaVersion: 2 },
+			kind: 'ready',
+		});
+		await expect(readFile(legacyFilePath, 'utf8')).resolves.toBe(
+			`${JSON.stringify(legacyDocument)}\n`,
+		);
+		await expect(readFile(filePath, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
+		if (loaded.kind !== 'ready') throw new Error('Expected the migrated registry.');
+		const nextDocument = EnvironmentRegistryDocumentSchema.parse({
+			environments: [...loaded.document.environments, environment(2, 2)],
+			revision: 2,
+			schemaVersion: 2,
+		});
+		await expect(store.commit(1, nextDocument)).resolves.toEqual({ kind: 'committed' });
+		expect(
+			EnvironmentRegistryDocumentSchema.parse(JSON.parse(await readFile(filePath, 'utf8'))),
+		).toEqual(nextDocument);
+		await expect(readFile(legacyFilePath, 'utf8')).resolves.toBe(
+			`${JSON.stringify(legacyDocument)}\n`,
+		);
+	});
+
+	it('does not fall back to a valid version-1 registry when version 2 is invalid', async () => {
+		const filePath = await temporaryFilePath();
+		const legacyFilePath = path.join(path.dirname(filePath), 'environment-registry-v1.json');
+		await writeFile(filePath, '{"schemaVersion":2,"invalid":true}\n', 'utf8');
+		await writeFile(
+			legacyFilePath,
+			`${JSON.stringify({
+				environments: [],
+				revision: 0,
+				schemaVersion: 1,
+			})}\n`,
+			'utf8',
+		);
+		const store = new FileEnvironmentRegistryStore(filePath, { legacyFilePath });
+
+		await expect(store.load()).resolves.toEqual({ kind: 'unavailable', reason: 'invalid-record' });
+	});
 });
 
 function documentWith(record: EnvironmentRecord) {
 	return EnvironmentRegistryDocumentSchema.parse({
 		environments: [record],
 		revision: 1,
-		schemaVersion: 1,
+		schemaVersion: 2,
 	});
 }
 
@@ -185,5 +250,5 @@ async function temporaryFilePath(): Promise<string> {
 	temporaryDirectories.push(directory);
 	const privateDirectory = path.join(directory, 'private');
 	await mkdir(privateDirectory);
-	return path.join(privateDirectory, 'environment-registry-v1.json');
+	return path.join(privateDirectory, 'environment-registry-v2.json');
 }

@@ -25,9 +25,31 @@
 	z-index: var(--ob-ref-layer-raised);
 }
 
+.confirmationContent {
+	font: var(--ob-sys-typography-body-sm);
+}
+
+.confirmationHeader {
+	padding-inline-end: var(--ob-ref-space-6);
+}
+
+.confirmationTitle {
+	font: var(--ob-sys-typography-heading-xs);
+}
+
+.confirmationDescription {
+	font: var(--ob-sys-typography-body-sm);
+}
+
+.confirmationFooter :global([data-slot='alert-dialog-action']),
+.confirmationFooter :global([data-slot='alert-dialog-cancel']) {
+	font: var(--ob-sys-typography-control-sm);
+}
+
 .confirmationShortcut {
 	color: currentColor;
 	background: transparent;
+	font: var(--ob-sys-typography-label-xs);
 	opacity: var(--ob-sys-opacity-muted);
 }
 

@@ -16,7 +16,7 @@ pub const terminal_host_maximum_chunk_bytes = 65_536;
 pub const heartbeat_interval_ms = 15_000;
 pub const heartbeat_miss_limit = 3;
 pub const protocol_major = 0;
-pub const protocol_minor = 3;
+pub const protocol_minor = 4;
 pub const protocol_patch = 0;
 
 const maximum_payload_bytes = maximum_frame_bytes - header_bytes;
@@ -215,6 +215,7 @@ pub fn writeHelloAccepted(
     terminal_host_version: []const u8,
     terminal_host_build_digest: []const u8,
     platform: []const u8,
+    login_shell: []const u8,
 ) !void {
     var payload: std.Io.Writer.Allocating = .init(allocator);
     defer payload.deinit();
@@ -232,6 +233,7 @@ pub fn writeHelloAccepted(
         .terminalHostVersion = terminal_host_version,
         .terminalHostBuildDigest = terminal_host_build_digest,
         .platform = platform,
+        .loginShell = login_shell,
         .capabilities = [_][]const u8{ project_root_service_id, terminal_host_service_id },
         .heartbeatIntervalMs = heartbeat_interval_ms,
         .heartbeatMissLimit = heartbeat_miss_limit,

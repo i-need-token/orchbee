@@ -11,6 +11,7 @@ import {
 import * as React from 'react';
 
 import type { WorkbenchPanelWorkspaceView } from '../../types/panel-workspace-view';
+import styles from './WorkbenchPanelCloseDialog.module.css';
 
 interface WorkbenchPanelCloseDialogProps {
 	readonly view: WorkbenchPanelWorkspaceView;
@@ -28,14 +29,16 @@ export function WorkbenchPanelCloseDialog({
 			}}
 			open={view.pendingClose !== null}
 		>
-			<AlertDialogContent>
-				<AlertDialogHeader>
-					<AlertDialogTitle>{view.messages.closeRunningTitle}</AlertDialogTitle>
-					<AlertDialogDescription>
+			<AlertDialogContent className={styles['content']}>
+				<AlertDialogHeader className={styles['header']}>
+					<AlertDialogTitle className={styles['title']}>
+						{view.messages.closeRunningTitle}
+					</AlertDialogTitle>
+					<AlertDialogDescription className={styles['description']}>
 						{view.messages.closeRunningDescription(view.pendingClose?.runningCount ?? 0)}
 					</AlertDialogDescription>
 				</AlertDialogHeader>
-				<AlertDialogFooter>
+				<AlertDialogFooter className={styles['footer']}>
 					<AlertDialogCancel>{view.messages.cancel}</AlertDialogCancel>
 					<AlertDialogAction onClick={view.confirmClose} variant='destructive'>
 						{view.messages.closeAnyway}

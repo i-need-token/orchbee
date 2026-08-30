@@ -14,9 +14,22 @@
 
 .description[data-compact-typography='true'],
 .failureDescription,
+.authenticationDescription,
 .supportingText,
 .plainInput {
 	font: var(--ob-sys-typography-body-sm);
+}
+
+.authenticationDescription {
+	display: grid;
+	gap: var(--ob-ref-space-1);
+}
+
+.authenticationPrompt {
+	overflow-wrap: anywhere;
+	color: var(--ob-sys-color-text-primary);
+	font: var(--ob-sys-typography-code-sm);
+	white-space: pre-wrap;
 }
 
 .controlText {
@@ -31,6 +44,38 @@
 	font: var(--ob-sys-typography-code-sm);
 }
 
+.destinationCandidates {
+	display: grid;
+	gap: var(--ob-ref-space-1);
+	max-block-size: calc((var(--ob-ref-size-control-md) * 4.5) + (var(--ob-ref-space-1) * 4));
+	margin: 0;
+	padding: 0;
+	overflow-y: auto;
+	overscroll-behavior: contain;
+	list-style: none;
+}
+
+.destinationCandidate {
+	justify-content: flex-start;
+	inline-size: 100%;
+	font: var(--ob-sys-typography-control-sm);
+}
+
+.destinationCandidateAddress {
+	min-inline-size: 0;
+	overflow: hidden;
+	font: var(--ob-sys-typography-code-sm);
+	text-align: start;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.destinationCandidateType {
+	margin-inline-start: auto;
+	color: var(--ob-sys-color-text-muted);
+	font: var(--ob-sys-typography-label-sm);
+}
+
 .progress {
 	display: flex;
 	align-items: center;
@@ -40,7 +85,23 @@
 	font: var(--ob-sys-typography-body-sm);
 }
 
+.progressContent {
+	display: inline-flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: var(--ob-ref-space-1);
+	min-inline-size: 0;
+}
+
+.progressContent code {
+	min-inline-size: 0;
+	overflow-wrap: anywhere;
+	color: var(--ob-sys-color-text-primary);
+	font: var(--ob-sys-typography-code-sm);
+}
+
 .failureDescription {
+	overflow-wrap: anywhere;
 	color: var(--ob-sys-color-status-danger-text);
 }
 

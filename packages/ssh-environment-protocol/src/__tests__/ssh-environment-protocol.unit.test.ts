@@ -60,6 +60,7 @@ describe('SSH Environment protocol framing', () => {
 					runtimeVersion,
 					runtimeBuildDigest: buildDigest,
 					releaseCohortDigest,
+					loginShell: '/bin/zsh',
 					terminalHostVersion,
 					terminalHostBuildDigest,
 					platform: 'darwin-arm64',

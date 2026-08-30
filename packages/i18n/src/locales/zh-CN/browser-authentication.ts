@@ -13,7 +13,7 @@ export const zhCNBrowserAuthenticationMessages = {
 	'browser.authentication.personalAccessTokenLabel': '个人访问令牌',
 	'browser.authentication.personalAccessTokenPlaceholder': '粘贴个人访问令牌',
 	'browser.authentication.securityNotice':
-		'局域网浏览器访问使用 HTTP，凭据和终端流量不会被加密。请仅在可信网络中使用。',
+		'令牌只会发送到当前 Orchbee 地址用于登录，不会保存在浏览器存储中。局域网浏览器访问使用 HTTP，凭据和终端流量不会加密；请仅在可信网络中使用。',
 	'browser.authentication.submit': '登录',
 	'browser.authentication.submitting': '正在登录…',
 	'browser.authentication.title': '登录 Orchbee',

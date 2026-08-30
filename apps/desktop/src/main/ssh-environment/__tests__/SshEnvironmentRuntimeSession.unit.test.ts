@@ -103,7 +103,11 @@ describe('SSH Environment Runtime session', () => {
 		});
 
 		harness.readable.write(helloAccepted());
-		expect(harness.onReady).toHaveBeenCalledWith({ runtimeEpoch, runtimeInstanceId });
+		expect(harness.onReady).toHaveBeenCalledWith({
+			loginShell: '/bin/zsh',
+			runtimeEpoch,
+			runtimeInstanceId,
+		});
 		const allOutput = Buffer.concat(harness.output);
 		const decoder = new SshEnvironmentFrameDecoder();
 		const frames = decoder.push(allOutput.subarray(artifactLength));
@@ -296,6 +300,7 @@ function helloAccepted(
 			runtimeVersion,
 			runtimeBuildDigest: overrides.runtimeBuildDigest ?? runtimeBuildDigest,
 			releaseCohortDigest,
+			loginShell: '/bin/zsh',
 			terminalHostVersion,
 			terminalHostBuildDigest,
 			platform: 'darwin-arm64',

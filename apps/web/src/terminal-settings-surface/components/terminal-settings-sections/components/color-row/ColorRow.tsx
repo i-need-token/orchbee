@@ -34,6 +34,7 @@ export function ColorRow({
 	onInputBlur,
 	visible,
 }: ColorRowProps): React.ReactNode {
+	const errorId = `${settingId}-error`;
 	return (
 		<TerminalSettingsRow
 			description={description}
@@ -41,7 +42,7 @@ export function ColorRow({
 			settingId={settingId}
 			visible={visible}
 		>
-			<FieldControl error={error}>
+			<FieldControl error={error} errorId={errorId}>
 				<div className={styles['root']}>
 					<input
 						aria-label={label}
@@ -53,6 +54,7 @@ export function ColorRow({
 					/>
 					<Input
 						aria-label={label}
+						aria-describedby={error === null ? undefined : errorId}
 						aria-invalid={error !== null}
 						disabled={disabled}
 						value={draft}

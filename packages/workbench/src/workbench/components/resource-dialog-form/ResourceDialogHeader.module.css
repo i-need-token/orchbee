@@ -1,0 +1,11 @@
+.header {
+	padding-inline-end: var(--ob-ref-space-6);
+}
+
+.title {
+	font: var(--ob-sys-typography-heading-xs);
+}
+
+.description {
+	font: var(--ob-sys-typography-body-sm);
+}

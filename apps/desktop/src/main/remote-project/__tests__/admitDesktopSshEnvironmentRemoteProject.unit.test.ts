@@ -143,6 +143,7 @@ function connectedObservation() {
 	});
 	const connected = transitionSshEnvironmentConnection(connecting.state, {
 		generation: 1,
+		loginShell: '/bin/zsh',
 		runtimeEpoch: '2'.repeat(32),
 		runtimeInstanceId: environment.provider.runtimeInstanceId,
 		type: 'remote-runtime-ready',

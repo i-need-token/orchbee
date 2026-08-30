@@ -15,7 +15,7 @@ export const enUSBrowserAuthenticationMessages = {
 	'browser.authentication.personalAccessTokenLabel': 'Personal Access Token',
 	'browser.authentication.personalAccessTokenPlaceholder': 'Paste your Personal Access Token',
 	'browser.authentication.securityNotice':
-		'Local network Browser access uses HTTP, so credentials and terminal traffic are not encrypted. Use it only on a trusted network.',
+		'Your token is sent only to this Orchbee address for sign-in and is not stored in Browser storage. Local network Browser access uses HTTP, so credentials and terminal traffic are not encrypted; use it only on a trusted network.',
 	'browser.authentication.submit': 'Sign in',
 	'browser.authentication.submitting': 'Signing in…',
 	'browser.authentication.title': 'Sign in to Orchbee',

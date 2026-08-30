@@ -34,22 +34,15 @@ describe('Desktop SSH Project enrollment contract', () => {
 		expect(command).not.toHaveProperty('directoryId');
 	});
 
-	it('rejects SSH options, control characters, and renderer authority', () => {
-		for (const candidate of [
-			{
-				input: {
-					destination: 'ssh -v',
-				},
+	it('carries bounded SSH options while rejecting controls and renderer authority', () => {
+		expect(
+			DesktopSshProjectEnrollmentRendererCommandSchema.safeParse({
+				input: { destination: 'ssh -A -p 2222 alice@example.com' },
 				requestId: 'ssh-project:option',
 				type: 'desktop-ssh-project-enrollment-requested',
-			},
-			{
-				input: {
-					destination: 'ssh -p 2222 production',
-				},
-				requestId: 'ssh-project:2',
-				type: 'desktop-ssh-project-enrollment-requested',
-			},
+			}).success,
+		).toBe(true);
+		for (const candidate of [
 			{
 				environmentId: 'environment:00000000000000000000000000000000',
 				input: {

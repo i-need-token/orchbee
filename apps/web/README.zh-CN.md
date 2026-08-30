@@ -146,8 +146,12 @@ POSIX Electron Desktop 还会注入专用 SSH Project capability。**通过 SSH 
 多步 dialog，初始只需一个 SSH 地址。Main 使用默认 OpenSSH configuration、派生 Environment display
 identity、通过精确 host-key 或 credential prompt 建立连接，随后以已认证 remote home 与有界只读
 child-folder snapshot 驱动共享 `RemoteDirectoryBrowser`。Breadcrumb 与 folder row 用于导航；可编辑 absolute
-path 是大型或 truncated directory 的 fallback。Prompt response 与 directory snapshot 只在 controller 中短暂
-保留，以回答精确关联的 interaction。Main 成功结果不会让 renderer optimistic mutation：
+path 会在原位置替换 breadcrumb bar，作为大型或 truncated directory 的 fallback，同时保留 source identity
+与最后一个 canonical folder snapshot，在不触发 navigation 的情况下过滤有界 direct-child candidate，并复用现有
+footer 执行 path navigation。编辑器从 canonical directory 与其 continuation separator 开始；普通失焦或 Escape
+会恢复 breadcrumb，且不会触发 navigation。Dot-prefixed child 默认隐藏，只有在明确要求显示或输入以 dot 开头
+的 path fragment 时才会出现。Prompt response 与 directory snapshot 只在 controller 中短暂保留，以回答精确
+关联的 interaction。Main 成功结果不会让 renderer optimistic mutation：
 controller 等待 canonical shared-document publication，随后只有发起 client 导航到已准入 Workspace。有界
 publication timeout 会保留为可恢复的失败 dialog，因此 Retry 可以 reconcile 精确 target 与 identity。
 Enrollment 不创建 terminal。Project row 投影进程内 remote status，并且只提供适用的 Connect、Retry 或

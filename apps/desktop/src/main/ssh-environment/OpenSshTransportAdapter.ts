@@ -11,6 +11,7 @@ import type {
 	SshEnvironmentResolvedTarget,
 	SshEnvironmentTargetReference,
 } from './ssh-environment-contract';
+import { createOpenSshTargetOptionArguments } from './open-ssh-connection-command';
 
 const MAXIMUM_DIAGNOSTIC_BYTES = 64 * 1024;
 
@@ -122,8 +123,11 @@ function createOpenSshArguments(
 	configurationFilePath: null | string,
 ): string[] {
 	const { resolvedTarget, target } = options;
+	const forwardAgentEnabled =
+		target.options?.find((option) => option.kind === 'forward-agent')?.enabled ?? false;
 	const arguments_ = [
 		'-T',
+		...createOpenSshTargetOptionArguments(target.options),
 		'-o',
 		'AddKeysToAgent=no',
 		'-o',
@@ -143,7 +147,7 @@ function createOpenSshArguments(
 		'-o',
 		'EscapeChar=none',
 		'-o',
-		'ForwardAgent=no',
+		`ForwardAgent=${forwardAgentEnabled ? 'yes' : 'no'}`,
 		'-o',
 		'ForkAfterAuthentication=no',
 		'-o',

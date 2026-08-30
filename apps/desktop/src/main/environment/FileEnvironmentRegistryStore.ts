@@ -5,7 +5,9 @@ import path from 'node:path';
 import {
 	DESKTOP_ENVIRONMENT_REGISTRY_LIMITS,
 	EnvironmentRegistryDocumentSchema,
+	LegacyEnvironmentRegistryDocumentSchema,
 	createEmptyEnvironmentRegistryDocument,
+	migrateLegacyEnvironmentRegistryDocument,
 	type EnvironmentRegistryDocument,
 } from './environment-registry-contract';
 
@@ -38,6 +40,7 @@ export interface EnvironmentRegistryStore {
 }
 
 interface FileEnvironmentRegistryStoreOptions {
+	readonly legacyFilePath?: string | undefined;
 	readonly platform?: NodeJS.Platform;
 	readonly randomToken?: () => string;
 	readonly synchronizeDirectory?: (directory: string) => Promise<void>;
@@ -50,6 +53,7 @@ type EnvironmentRegistryFileReadResult =
 
 export class FileEnvironmentRegistryStore implements EnvironmentRegistryStore {
 	readonly #filePath: string;
+	readonly #legacyFilePath: string | undefined;
 	#operationTail = Promise.resolve();
 	readonly #platform: NodeJS.Platform;
 	readonly #randomToken: () => string;
@@ -57,6 +61,8 @@ export class FileEnvironmentRegistryStore implements EnvironmentRegistryStore {
 
 	constructor(filePath: string, options: FileEnvironmentRegistryStoreOptions = {}) {
 		this.#filePath = path.resolve(filePath);
+		this.#legacyFilePath =
+			options.legacyFilePath === undefined ? undefined : path.resolve(options.legacyFilePath);
 		this.#platform = options.platform ?? process.platform;
 		this.#randomToken = options.randomToken ?? (() => randomBytes(16).toString('hex'));
 		this.#synchronizeDirectory = options.synchronizeDirectory ?? synchronizeDirectory;
@@ -79,7 +85,7 @@ export class FileEnvironmentRegistryStore implements EnvironmentRegistryStore {
 
 	async load(): Promise<EnvironmentRegistryStoreLoadResult> {
 		await this.#operationTail;
-		const result = await readEnvironmentRegistryFile(this.#filePath);
+		const result = await this.#readCurrentDocument();
 		return result.kind === 'missing'
 			? { document: createEmptyEnvironmentRegistryDocument(), kind: 'ready' }
 			: result;
@@ -89,7 +95,7 @@ export class FileEnvironmentRegistryStore implements EnvironmentRegistryStore {
 		expectedRevision: number,
 		document: EnvironmentRegistryDocument,
 	): Promise<EnvironmentRegistryStoreCommitResult> {
-		const current = await readEnvironmentRegistryFile(this.#filePath);
+		const current = await this.#readCurrentDocument();
 		if (current.kind === 'unavailable') return current;
 		if (current.kind === 'missing' && expectedRevision !== 0) {
 			return { kind: 'unavailable', reason: 'current-record-missing' };
@@ -132,11 +138,43 @@ export class FileEnvironmentRegistryStore implements EnvironmentRegistryStore {
 		}
 		return { kind: 'committed' };
 	}
+
+	async #readCurrentDocument(): Promise<EnvironmentRegistryFileReadResult> {
+		const current = await readEnvironmentRegistryFile(this.#filePath);
+		if (current.kind !== 'missing' || this.#legacyFilePath === undefined) return current;
+		const legacy = await readEnvironmentRegistryFileValue(this.#legacyFilePath, (value) =>
+			LegacyEnvironmentRegistryDocumentSchema.safeParse(value),
+		);
+		if (legacy.kind !== 'ready') return legacy;
+		try {
+			return {
+				document: migrateLegacyEnvironmentRegistryDocument(legacy.document),
+				kind: 'ready',
+			};
+		} catch {
+			return { kind: 'unavailable', reason: 'invalid-record' };
+		}
+	}
 }
 
 async function readEnvironmentRegistryFile(
 	filePath: string,
 ): Promise<EnvironmentRegistryFileReadResult> {
+	return readEnvironmentRegistryFileValue(filePath, (value) =>
+		EnvironmentRegistryDocumentSchema.safeParse(value),
+	);
+}
+
+async function readEnvironmentRegistryFileValue<Document>(
+	filePath: string,
+	parse: (
+		value: unknown,
+	) => { readonly data: Document; readonly success: true } | { readonly success: false },
+): Promise<
+	| { readonly document: Document; readonly kind: 'ready' }
+	| { readonly kind: 'missing' }
+	| { readonly kind: 'unavailable'; readonly reason: EnvironmentRegistryStoreUnavailableReason }
+> {
 	let handle: Awaited<ReturnType<typeof open>>;
 	try {
 		handle = await open(filePath, 'r');
@@ -163,7 +201,7 @@ async function readEnvironmentRegistryFile(
 		} catch {
 			return { kind: 'unavailable', reason: 'invalid-record' };
 		}
-		const parsed = EnvironmentRegistryDocumentSchema.safeParse(value);
+		const parsed = parse(value);
 		return parsed.success
 			? { document: parsed.data, kind: 'ready' }
 			: { kind: 'unavailable', reason: 'invalid-record' };

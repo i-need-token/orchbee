@@ -9,6 +9,7 @@ import {
 } from '../model/resolveWorkbenchFocusTarget';
 import type { WorkbenchFocusRouting } from '../types/workbench-focus-routing';
 import {
+	hasWorkbenchExclusiveFocusSurface,
 	isWorkbenchExclusiveFocusTarget,
 	resolveWorkbenchFocusRegionFromTarget,
 } from '../utils/workbench-focus-dom';
@@ -26,6 +27,7 @@ export function useWorkbenchFocusRouting({
 	const [owner, setOwner] = React.useState<WorkbenchFocusOwner>(initialOwner);
 	const [sidebarFocusRequest, setSidebarFocusRequest] = React.useState(0);
 	const [tabStripFocusRequest, setTabStripFocusRequest] = React.useState(0);
+	const [exclusiveSurfaceMounted, setExclusiveSurfaceMounted] = React.useState(false);
 	const terminalFocusSequenceReference = React.useRef(0);
 	const [terminalFocusRequest, setTerminalFocusRequest] =
 		React.useState<WorkbenchFocusRouting['terminalFocusRequest']>(null);
@@ -39,6 +41,10 @@ export function useWorkbenchFocusRouting({
 		...(isSidebarVisible ? (['sidebar'] as const) : []),
 	]);
 	const requestTerminalFocus = useMemoizedFn((): boolean => {
+		if (typeof document !== 'undefined') {
+			if (hasWorkbenchExclusiveFocusSurface(document)) return false;
+			setExclusiveSurfaceMounted(false);
+		}
 		const presentationId = resolveTerminalTarget();
 		if (presentationId === null) return false;
 		terminalFocusSequenceReference.current += 1;
@@ -52,7 +58,11 @@ export function useWorkbenchFocusRouting({
 	const getResolution = useMemoizedFn((intent: WorkbenchFocusIntent): WorkbenchFocusResolution => {
 		const activeElement = typeof document === 'undefined' ? null : document.activeElement;
 		const focusedRegion = resolveWorkbenchFocusRegionFromTarget(activeElement);
-		const exclusiveSurfaceActive = isWorkbenchExclusiveFocusTarget(activeElement);
+		const exclusiveSurfaceActive =
+			typeof document === 'undefined'
+				? exclusiveSurfaceMounted
+				: hasWorkbenchExclusiveFocusSurface(document) ||
+					isWorkbenchExclusiveFocusTarget(activeElement);
 		return resolveWorkbenchFocusTarget({
 			availableRegions: availableRegions(),
 			currentRegion: focusedRegion,
@@ -83,6 +93,10 @@ export function useWorkbenchFocusRouting({
 			updateOwner('exclusive');
 			return;
 		}
+		if (hasWorkbenchExclusiveFocusSurface(event.currentTarget.ownerDocument)) {
+			updateOwner('exclusive');
+			return;
+		}
 		const region = resolveWorkbenchFocusRegionFromTarget(event.target);
 		if (region !== null && event.currentTarget.contains(event.target)) updateOwner(region);
 	});
@@ -94,27 +108,34 @@ export function useWorkbenchFocusRouting({
 		if (event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget)) {
 			return;
 		}
+		if (hasWorkbenchExclusiveFocusSurface(event.currentTarget.ownerDocument)) {
+			updateOwner('exclusive');
+			return;
+		}
 		const nextRegion = resolveWorkbenchFocusRegionFromTarget(event.relatedTarget);
 		updateOwner(nextRegion);
 	});
 	React.useEffect(() => {
-		if (
-			owner !== 'exclusive' ||
-			typeof document === 'undefined' ||
-			typeof MutationObserver === 'undefined'
-		) {
+		if (typeof document === 'undefined' || typeof MutationObserver === 'undefined') {
 			return undefined;
 		}
-		const reconcileExclusiveOwner = (): void => {
-			const activeElement = document.activeElement;
-			if (isWorkbenchExclusiveFocusTarget(activeElement)) return;
-			setOwner(resolveWorkbenchFocusRegionFromTarget(activeElement));
+		const reconcileExclusiveSurface = (): void => {
+			setExclusiveSurfaceMounted(hasWorkbenchExclusiveFocusSurface(document));
 		};
-		const observer = new MutationObserver(reconcileExclusiveOwner);
+		reconcileExclusiveSurface();
+		const observer = new MutationObserver(reconcileExclusiveSurface);
 		observer.observe(document.body, { childList: true, subtree: true });
-		queueMicrotask(reconcileExclusiveOwner);
 		return () => observer.disconnect();
-	}, [owner]);
+	}, []);
+	React.useEffect(() => {
+		setOwner((currentOwner) => {
+			if (exclusiveSurfaceMounted) return 'exclusive';
+			if (currentOwner !== 'exclusive') return currentOwner;
+			return typeof document === 'undefined'
+				? null
+				: resolveWorkbenchFocusRegionFromTarget(document.activeElement);
+		});
+	}, [exclusiveSurfaceMounted]);
 
 	return {
 		focus,
@@ -123,7 +144,7 @@ export function useWorkbenchFocusRouting({
 		onFocusCapture,
 		sidebarFocusRequest,
 		tabStripFocusRequest,
-		terminalAutoFocusAllowed: owner === 'terminal' || owner === null,
+		terminalAutoFocusAllowed: !exclusiveSurfaceMounted && (owner === 'terminal' || owner === null),
 		terminalFocusRequest,
 		requestTerminalFocus,
 	};

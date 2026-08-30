@@ -207,6 +207,11 @@ function cloneEnvironmentRecord(environment: EnvironmentRecord): EnvironmentReco
 			target: {
 				configurationFilePath: environment.provider.target.configurationFilePath,
 				destination: environment.provider.target.destination,
+				...(environment.provider.target.options === undefined
+					? {}
+					: {
+							options: environment.provider.target.options.map((option) => ({ ...option })),
+						}),
 			},
 		},
 	});

@@ -157,7 +157,7 @@ export const enUSTerminalSettingsMessages = {
 	'terminal.settings.profiles.arguments.argumentLabel': 'Argument {number, number}',
 	'terminal.settings.profiles.arguments.description':
 		'Arguments are passed literally, in this order. Shell quoting is not interpreted.',
-	'terminal.settings.profiles.arguments.label': 'Arguments',
+	'terminal.settings.profiles.arguments.label': 'Arguments (optional)',
 	'terminal.settings.profiles.command.custom': 'Custom executable',
 	'terminal.settings.profiles.command.label': 'Command',
 	'terminal.settings.profiles.command.system': 'System shell',

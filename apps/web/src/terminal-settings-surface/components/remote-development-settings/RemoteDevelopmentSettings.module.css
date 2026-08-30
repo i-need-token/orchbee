@@ -38,7 +38,7 @@
 
 .label {
 	color: var(--ob-sys-color-text-primary);
-	font: var(--ob-sys-typography-body-sm);
+	font: var(--ob-sys-typography-control-sm);
 }
 
 .term {

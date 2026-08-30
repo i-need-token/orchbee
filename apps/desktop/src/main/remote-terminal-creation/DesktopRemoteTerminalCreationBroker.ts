@@ -10,6 +10,7 @@ export interface DesktopRemoteTerminalCreationBrokerRuntime {
 	create(
 		projectId: string,
 		workspaceId: string,
+		requestId: DesktopRemoteTerminalCreationRequestId,
 		signal: AbortSignal,
 	): Promise<DesktopRemoteTerminalCreationResult>;
 }
@@ -91,7 +92,12 @@ export class DesktopRemoteTerminalCreationBroker {
 
 	async #execute(request: ActiveRequest): Promise<void> {
 		const result = await this.#runtime
-			.create(request.projectId, request.workspaceId, request.abortController.signal)
+			.create(
+				request.projectId,
+				request.workspaceId,
+				request.requestId,
+				request.abortController.signal,
+			)
 			.catch(
 				(): DesktopRemoteTerminalCreationResult => ({
 					kind: 'failed',

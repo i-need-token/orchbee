@@ -14,6 +14,7 @@ import type { ReactNode } from 'react';
 import { useDesktopApplicationLifetimeDialog } from './hooks/useDesktopApplicationLifetimeDialog';
 import type { DesktopApplicationLifetimeState } from './model/DesktopApplicationLifetimeCoordinator';
 import type { DesktopApplicationLifetimeDialogController } from './types/desktop-application-lifetime-dialog';
+import styles from './DesktopApplicationLifetimeDialog.module.css';
 
 interface DesktopApplicationLifetimeDialogProps {
 	readonly controller: DesktopApplicationLifetimeDialogController;
@@ -29,18 +30,21 @@ export function DesktopApplicationLifetimeDialog({
 	if (state.kind === 'awaiting-choice') {
 		return (
 			<AlertDialog open>
-				<AlertDialogContent data-slot='desktop-application-lifetime-dialog'>
-					<AlertDialogHeader>
-						<AlertDialogTitle>
+				<AlertDialogContent
+					className={styles['content']}
+					data-slot='desktop-application-lifetime-dialog'
+				>
+					<AlertDialogHeader className={styles['header']}>
+						<AlertDialogTitle className={styles['title']}>
 							{intl.formatMessage(desktopApplicationLifetimeMessages.exitTitle)}
 						</AlertDialogTitle>
-						<AlertDialogDescription>
+						<AlertDialogDescription className={styles['description']}>
 							{intl.formatMessage(desktopApplicationLifetimeMessages.exitDescription, {
 								sessionCount: state.sessionCount,
 							})}
 						</AlertDialogDescription>
 					</AlertDialogHeader>
-					<AlertDialogFooter>
+					<AlertDialogFooter className={styles['footer']}>
 						<AlertDialogCancel
 							data-lifetime-choice='cancel'
 							onClick={() => controller.choose('cancel')}
@@ -70,16 +74,19 @@ export function DesktopApplicationLifetimeDialog({
 	if (state.kind === 'failed') {
 		return (
 			<AlertDialog open>
-				<AlertDialogContent data-slot='desktop-application-lifetime-dialog'>
-					<AlertDialogHeader>
-						<AlertDialogTitle>
+				<AlertDialogContent
+					className={styles['content']}
+					data-slot='desktop-application-lifetime-dialog'
+				>
+					<AlertDialogHeader className={styles['header']}>
+						<AlertDialogTitle className={styles['title']}>
 							{intl.formatMessage(desktopApplicationLifetimeMessages.failedTitle)}
 						</AlertDialogTitle>
-						<AlertDialogDescription>
+						<AlertDialogDescription className={styles['description']}>
 							{intl.formatMessage(desktopApplicationLifetimeMessages.failedDescription)}
 						</AlertDialogDescription>
 					</AlertDialogHeader>
-					<AlertDialogFooter>
+					<AlertDialogFooter className={styles['footer']}>
 						{state.retry === null ? null : (
 							<AlertDialogAction data-lifetime-action='retry' onClick={() => controller.retry()}>
 								{intl.formatMessage(desktopApplicationLifetimeMessages.retry)}
@@ -100,12 +107,17 @@ export function DesktopApplicationLifetimeDialog({
 
 	return (
 		<AlertDialog open>
-			<AlertDialogContent data-slot='desktop-application-lifetime-dialog'>
-				<AlertDialogHeader>
-					<AlertDialogTitle>
+			<AlertDialogContent
+				className={styles['content']}
+				data-slot='desktop-application-lifetime-dialog'
+			>
+				<AlertDialogHeader className={styles['header']}>
+					<AlertDialogTitle className={styles['title']}>
 						{intl.formatMessage(desktopApplicationLifetimeMessages.progressTitle)}
 					</AlertDialogTitle>
-					<AlertDialogDescription>{progressMessage(state)}</AlertDialogDescription>
+					<AlertDialogDescription className={styles['description']}>
+						{progressMessage(state)}
+					</AlertDialogDescription>
 				</AlertDialogHeader>
 			</AlertDialogContent>
 		</AlertDialog>

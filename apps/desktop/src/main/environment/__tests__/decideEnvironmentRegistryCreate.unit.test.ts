@@ -29,7 +29,7 @@ describe('Environment registry state', () => {
 		expect(secondDecision.document).toMatchObject({
 			environments: [first, second],
 			revision: 2,
-			schemaVersion: 1,
+			schemaVersion: 2,
 		});
 		expect(decideEnvironmentRegistryCreate(secondDecision.document, first)).toEqual({
 			environment: first,
@@ -57,6 +57,33 @@ describe('Environment registry state', () => {
 		});
 	});
 
+	it('treats different canonical SSH options as different immutable targets', () => {
+		const original = environment(1, 1);
+		const firstDecision = decideEnvironmentRegistryCreate(
+			createEmptyEnvironmentRegistryDocument(),
+			original,
+		);
+		if (firstDecision.kind !== 'append') throw new Error('Expected the fixture append.');
+		const withAgentForwarding = EnvironmentRecordSchema.parse({
+			...environment(2, 1),
+			provider: {
+				...environment(2, 1).provider,
+				target: {
+					configurationFilePath: null,
+					destination: 'build-1',
+					options: [{ enabled: true, kind: 'forward-agent' }],
+				},
+			},
+		});
+
+		expect(
+			decideEnvironmentRegistryCreate(firstDecision.document, withAgentForwarding),
+		).toMatchObject({
+			environment: withAgentForwarding,
+			kind: 'append',
+		});
+	});
+
 	it('allows duplicate display names while enforcing the append-only capacity', () => {
 		const environments = Array.from(
 			{ length: DESKTOP_ENVIRONMENT_REGISTRY_LIMITS.maximumEnvironmentCount },
@@ -65,7 +92,7 @@ describe('Environment registry state', () => {
 		const full = EnvironmentRegistryDocumentSchema.parse({
 			environments,
 			revision: environments.length,
-			schemaVersion: 1,
+			schemaVersion: 2,
 		});
 
 		expect(

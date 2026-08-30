@@ -715,6 +715,63 @@ describe('Desktop SSH Project enrollment runtime', () => {
 		expect(connections.connect).not.toHaveBeenCalled();
 		expect(catalogListener).toHaveBeenCalledOnce();
 	});
+
+	it('parses and records supported SSH command options without opening a connection', async () => {
+		const records: (typeof environment)[] = [];
+		const registry = {
+			create: vi.fn<DesktopEnvironmentRegistry['create']>(async (record) => {
+				records.push(record);
+				return { environment: record, kind: 'created', revision: 1 };
+			}),
+			list: vi.fn<DesktopEnvironmentRegistry['list']>(async () => ({
+				kind: 'ready' as const,
+				value: [...records],
+			})),
+		};
+		const connections = immediatelyConnectedConnections(environmentId);
+		const resolveTarget = vi.fn<DesktopSshProjectEnrollmentRuntimeOptions['resolveTarget']>(
+			async () => resolvedTarget(),
+		);
+		const runtime = new DesktopSshProjectEnrollmentRuntime({
+			attachProjectFolder: rejectFolderAttachment,
+			admitProject: vi.fn<DesktopSshProjectEnrollmentRuntimeOptions['admitProject']>(),
+			allocateIdentifier: identifierSequence(),
+			connections,
+			getDocument: () => null,
+			registry,
+			resolveTarget,
+		});
+
+		await expect(
+			runtime.addEnvironment(
+				{ destination: 'ssh -p 2222 -A alice@192.0.2.10' },
+				new AbortController().signal,
+			),
+		).resolves.toMatchObject({ kind: 'added' });
+		expect(resolveTarget).toHaveBeenCalledWith({
+			configurationFilePath: null,
+			destination: 'alice@192.0.2.10',
+			options: [
+				{ enabled: true, kind: 'forward-agent' },
+				{ kind: 'port', value: 2222 },
+			],
+		});
+		expect(registry.create).toHaveBeenCalledWith(
+			expect.objectContaining({
+				provider: expect.objectContaining({
+					target: {
+						configurationFilePath: null,
+						destination: 'alice@192.0.2.10',
+						options: [
+							{ enabled: true, kind: 'forward-agent' },
+							{ kind: 'port', value: 2222 },
+						],
+					},
+				}),
+			}),
+		);
+		expect(connections.connect).not.toHaveBeenCalled();
+	});
 });
 
 function immediatelyConnectedConnections(candidate: EnvironmentId) {
@@ -836,6 +893,7 @@ function connectedObservation(candidate: EnvironmentId): SshEnvironmentConnectio
 	});
 	const connected = transitionSshEnvironmentConnection(connecting.state, {
 		generation: 1,
+		loginShell: '/bin/zsh',
 		runtimeEpoch: '3'.repeat(32),
 		runtimeInstanceId: '2'.repeat(32),
 		type: 'remote-runtime-ready',

@@ -5,6 +5,7 @@ import {
 } from '../environment';
 import type {
 	SshEnvironmentConnectionObservation,
+	SshEnvironmentTargetReference,
 	SshEnvironmentSupervisorInteractionRequest,
 	SshAskPassInteractionResult,
 	SshProjectRootDirectoryListingOutcome,
@@ -28,10 +29,7 @@ export interface DesktopSshEnvironmentSupervisorPort {
 interface DesktopSshEnvironmentConnectionConfiguration {
 	readonly connectionId: string;
 	readonly runtimeInstanceId: string;
-	readonly target: {
-		readonly configurationFilePath: null | string;
-		readonly destination: string;
-	};
+	readonly target: SshEnvironmentTargetReference;
 }
 
 export interface DesktopSshEnvironmentConnectionOwnerOptions {

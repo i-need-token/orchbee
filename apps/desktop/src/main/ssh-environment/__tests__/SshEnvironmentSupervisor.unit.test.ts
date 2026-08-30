@@ -156,6 +156,7 @@ describe('SSH Environment supervisor', () => {
 					runtimeVersion,
 					runtimeBuildDigest: buildDigest,
 					releaseCohortDigest: releaseSource.releaseCohortDigest,
+					loginShell: '/bin/zsh',
 					terminalHostVersion,
 					terminalHostBuildDigest,
 					platform: 'darwin-arm64',

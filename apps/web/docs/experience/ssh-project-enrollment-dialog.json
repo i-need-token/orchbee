@@ -4,7 +4,7 @@
 	"kind": "business",
 	"status": "canonical",
 	"name": "Desktop SSH Project Enrollment Dialog",
-	"description": "Owns one-address SSH Environment enrollment, transient host and authentication prompts, bounded remote directory selection, Project validation, progress, cancellation, and recovery.",
+	"description": "Owns one-host SSH Environment enrollment through primary SSH-command entry with inline saved and configured candidates, transient host and authentication prompts, bounded remote directory selection, Project validation, progress, cancellation, and recovery.",
 	"owner": "@orchbee/web",
 	"visibility": "private",
 	"intents": [
@@ -24,7 +24,23 @@
 			"file": "apps/web/stories/ssh-project-enrollment-dialog.stories.tsx",
 			"id": "applications-web-desktop-ssh-project-enrollment-dialog--enrollment",
 			"states": [
-				"Inspect the single bounded SSH address field, examples, native Enter submission, connection action, and visible Esc and Enter hints."
+				"Inspect the primary SSH host field, direct host or supported SSH-command entry, immediately adjacent guidance, explicit connection action, and visible Esc and Enter hints."
+			]
+		},
+		{
+			"exportName": "ConfiguredHosts",
+			"file": "apps/web/stories/ssh-project-enrollment-dialog.stories.tsx",
+			"id": "applications-web-desktop-ssh-project-enrollment-dialog--configured-hosts",
+			"states": [
+				"Inspect the inline host candidates, stable managed-before-system ordering, exact duplicate suppression, local filtering from the primary input, one-click connection of a matched candidate, and the four-and-a-half-row scroll affordance when more candidates exist."
+			]
+		},
+		{
+			"exportName": "Connecting",
+			"file": "apps/web/stories/ssh-project-enrollment-dialog.stories.tsx",
+			"id": "applications-web-desktop-ssh-project-enrollment-dialog--connecting",
+			"states": [
+				"Inspect the single foreground status line that combines the complete bounded SSH command with current progress, plus step-local cancellation."
 			]
 		},
 		{
@@ -40,7 +56,7 @@
 			"file": "apps/web/stories/ssh-project-enrollment-dialog.stories.tsx",
 			"id": "applications-web-desktop-ssh-project-enrollment-dialog--host-verification",
 			"states": [
-				"Inspect the exact host-verification prompt, one state-specific heading, explicit trust action, safe initial focus, and cancellation boundary owned by the initiating Desktop client."
+				"Inspect the exact host-verification prompt, one state-specific heading, explicit trust action, safe initial focus, Cancel and Escape returning to the retained SSH-command draft, and the outer Close action dismissing the complete Dialog."
 			]
 		},
 		{
@@ -48,7 +64,7 @@
 			"file": "apps/web/stories/ssh-project-enrollment-dialog.stories.tsx",
 			"id": "applications-web-desktop-ssh-project-enrollment-dialog--authentication",
 			"states": [
-				"Inspect the password-or-passphrase input, one state-specific heading, authentication action with its Enter hint, and the explanation that the response is sent directly to the active SSH process and is never saved."
+				"Inspect the exact OpenSSH password-or-passphrase prompt in the header description, the secret input without a duplicate prompt panel, one state-specific heading, authentication action with its Enter hint, Cancel and Escape returning to the retained SSH-command draft, and the explanation that the response is sent directly to the active SSH process and is never saved."
 			]
 		},
 		{
@@ -56,7 +72,7 @@
 			"file": "apps/web/stories/ssh-project-enrollment-dialog.stories.tsx",
 			"id": "applications-web-desktop-ssh-project-enrollment-dialog--directory-selection",
 			"states": [
-				"Inspect the authenticated remote folder picker, editable absolute path, parent navigation, bounded child directory list, and explicit folder selection."
+				"Inspect the authenticated remote folder picker, source-aware breadcrumb bar, in-place absolute-path editor with footer Go action, parent navigation, bounded child directory list, and explicit folder selection."
 			]
 		},
 		{
@@ -64,7 +80,7 @@
 			"file": "apps/web/stories/ssh-project-enrollment-dialog.stories.tsx",
 			"id": "applications-web-desktop-ssh-project-enrollment-dialog--connection-failure",
 			"states": [
-				"Inspect bounded recovery copy with Retry and Cancel after an explicit remote connection fails."
+				"Inspect one bounded recovery sentence that includes the complete submitted SSH command, a default-focused Retry action whose Enter hint invokes the retry after the in-place state transition, and Cancel after an explicit remote connection fails."
 			]
 		},
 		{
@@ -80,7 +96,7 @@
 			"file": "apps/web/stories/ssh-project-enrollment-dialog.stories.tsx",
 			"id": "applications-web-desktop-ssh-project-enrollment-dialog--simplified-chinese-enrollment",
 			"states": [
-				"Inspect the one-address enrollment form, localized actions, and visible Esc and Enter hints in Simplified Chinese."
+				"Inspect the searchable SSH-command field, adjacent direct-entry guidance, localized explicit actions, and visible Esc and Enter hints in Simplified Chinese."
 			]
 		},
 		{
@@ -104,13 +120,21 @@
 		"A Browser, Gateway, CLI, Skill, or Agent surface asks to gain SSH enrollment authority."
 	],
 	"invariants": [
-		"The renderer supplies one bounded SSH address and exact directory-selection intent; Main resolves default OpenSSH configuration, derives display identity, and allocates every durable identity.",
+		"The renderer supplies one bounded SSH connection-command draft and exact directory-selection intent; Main tokenizes it without a shell, rejects unquoted shell-control syntax, accepts one destination plus the reviewed connection-option subset, resolves default OpenSSH configuration, derives display identity, and allocates every durable identity.",
+		"The primary SSH field places concise format guidance immediately after the input and before the latest bounded managed and system-configured host catalog; the separate inline candidate list keeps stable order, removes exact duplicates, filters locally, and never replaces a direct-entry draft when the catalog refreshes.",
+		"The inline candidate viewport grows naturally through four rows, exposes half of the fifth row when more candidates exist, and scrolls within the Dialog without moving its actions.",
+		"Submitting a complete custom host or supported SSH connection command connects directly; activating a filtered candidate updates the same bounded draft and starts the identical connection path immediately.",
 		"Only one exact initiating-client interaction lease exists per Environment, and port loss or cancellation revokes it without reassignment.",
+		"Before a possible Workbench commit, Cancel and Escape revoke the current enrollment or attachment substep and return to the retained non-secret SSH-command draft; the outer Close action and backdrop dismiss the complete Dialog. Both paths abort pre-commit work, clear secret input, and fence late settlement from replacing the resulting state.",
 		"Authentication responses remain in password input state only until direct submission and never enter the controller snapshot, durable storage, diagnostics, or shared Workbench document.",
-		"Each editing, prompt, working, and failure state presents one state-specific heading, one concise explanation, and one outcome-named primary action; SSH prompt text remains exact and independently inspectable.",
-		"Non-directory states use the compact Desktop form-Dialog typography hierarchy: a lightweight compact heading, normal-weight control text, dense supporting copy, smaller code-like input text, and subordinate key hints.",
-		"An invalid SSH address submission remains in editing, explains the accepted format, and focuses the address field without hiding the primary action.",
-		"Footer actions display aria-hidden Esc or Enter Kbd hints only when the current step maps that key unambiguously to the same cancellation or submission action.",
+		"A non-confirmation OpenSSH prompt appears exactly once in the header description beside the privacy boundary and secret field; structured host-verification content remains in its independently inspectable prompt surface.",
+		"Each editing, prompt, working, and failure state presents one state-specific heading and one concise explanation; every applicable primary action is named for its outcome, and SSH prompt text remains exact.",
+		"Every state, including remote directory selection, uses the compact Desktop Dialog-shell hierarchy: a lightweight compact heading, normal-weight footer actions, dense ordinary body copy, exact code-like values where applicable, and subordinate key hints where their keyboard claims remain unambiguous.",
+		"Form bodies independently use the surface-neutral form hierarchy for field labels, controls, help, validation, and code-like input; changing the Dialog task body between a form, prompt, progress view, recovery state, and directory picker never changes either owner's typography responsibility.",
+		"An invalid SSH connection-command submission remains in editing, explains the accepted format, and focuses the SSH field without hiding the primary action.",
+		"Every non-directory foreground working state that owns a bounded SSH-command draft combines the complete draft and current progress in one status line, so the person can continuously verify the active connection target without competing information blocks.",
+		"A recoverable enrollment or attachment failure displays the complete bounded non-secret SSH-command draft that produced it, so the person never has to infer which saved, configured, or direct connection failed.",
+		"Footer actions display aria-hidden Esc or Enter Kbd hints only when the current step maps that key unambiguously to the same cancellation, submission, or default-focused Retry action; an in-place failure transition establishes real Retry focus and scoped Enter handling, while inline host candidates preserve the same cancel and connect outcomes.",
 		"After authentication, directory snapshots expose only bounded directory names and canonical navigation metadata; Main re-inspects the exact selected path before commit.",
 		"Enrollment progress follows resolve, durable Environment recording, connection, remote directory selection, canonical Project inspection, and Workbench commit order.",
 		"A successful enrollment activates only the initiating client after canonical publication and creates no terminal.",

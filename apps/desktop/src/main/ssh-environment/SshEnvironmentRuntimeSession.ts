@@ -12,6 +12,7 @@ import {
 	type SshEnvironmentChannelId,
 	type SshEnvironmentFailure,
 	type SshEnvironmentHelloAccepted,
+	type SshEnvironmentLoginShell,
 	type SshEnvironmentPlatform,
 	type SshEnvironmentReleaseComponentRole,
 	type SshEnvironmentRuntimeEpoch,
@@ -50,6 +51,7 @@ export type SshEnvironmentRuntimeSessionFailureReason =
 	| 'runtime-release-unavailable';
 
 export interface SshEnvironmentRuntimeIdentity {
+	readonly loginShell: SshEnvironmentLoginShell;
 	readonly runtimeEpoch: SshEnvironmentRuntimeEpoch;
 	readonly runtimeInstanceId: SshEnvironmentRuntimeInstanceId;
 }
@@ -364,6 +366,7 @@ export class SshEnvironmentRuntimeSession {
 			accepted.heartbeatIntervalMs,
 		);
 		this.#onReady({
+			loginShell: accepted.loginShell,
 			runtimeEpoch: accepted.runtimeEpoch,
 			runtimeInstanceId: accepted.runtimeInstanceId,
 		});

@@ -28,11 +28,7 @@ const SshDestinationSchema = z
 	.min(1)
 	.max(MAXIMUM_DESTINATION_CHARACTERS)
 	.refine((value) => value === value.trim())
-	.refine(hasNoControlCharacters)
-	.refine((value) => {
-		const destination = value.startsWith('ssh ') ? value.slice(4) : value;
-		return destination.length > 0 && !destination.startsWith('-') && !/\s/u.test(destination);
-	});
+	.refine(hasNoControlCharacters);
 
 const SshHostAliasSchema = z
 	.string()

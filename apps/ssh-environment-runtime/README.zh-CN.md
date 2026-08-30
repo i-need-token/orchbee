@@ -33,10 +33,11 @@ Server 还会检查每个本地 peer 的 effective user identity。同一时间�
 
 ## 协议与生命周期
 
-Runtime 实现 `@orchbee/ssh-environment-protocol` 的精确 `0.3.0` 版本。它接受一个精确 Hello，返回 Runtime
-build identity、release cohort identity、Terminal Host version/build、platform、有序 capability 与一个新的
-daemon epoch，随后确认 heartbeat。Partial record 与未完成 handshake 同时受时间和大小限制。断开
-attachment 不会停止 Runtime 或改变 epoch；重启 Runtime 始终会产生新 epoch。
+Runtime 实现 `@orchbee/ssh-environment-protocol` 的精确 `0.4.0` 版本。它接受一个精确 Hello，返回 Runtime
+build identity、release cohort identity、Terminal Host version/build、platform、远端账户声明并验证过的绝对
+login-Shell path、有序 capability 与一个新的 daemon epoch，随后确认 heartbeat。Partial record 与未完成
+handshake 同时受时间和大小限制。断开 attachment 不会停止 Runtime 或改变 epoch；重启 Runtime 始终会产生
+新 epoch。
 
 Runtime 精确 advertise `[project-root-v2, terminal-host-v1]`；Desktop 会拒绝任何其他 capability set。
 一个 attachment 内的 channel identifier 全局单调。协议刻意没有 execute-command message、generic service

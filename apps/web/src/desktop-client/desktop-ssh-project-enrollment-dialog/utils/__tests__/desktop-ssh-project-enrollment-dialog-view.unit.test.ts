@@ -1,10 +1,15 @@
 import { desktopSshProjectMessages } from '@orchbee/i18n';
-import { DesktopSshEnvironmentIdSchema } from '@orchbee/desktop-client-protocol';
+import {
+	DesktopSshEnvironmentCatalogSchema,
+	DesktopSshEnvironmentIdSchema,
+} from '@orchbee/desktop-client-protocol';
 import { describe, expect, it } from 'vitest';
 
 import type { DesktopSshProjectEnrollmentDialogState } from '../../model/DesktopSshProjectEnrollmentController';
 import {
+	desktopSshProjectConnectionDisplayTarget,
 	desktopSshProjectDialogDescriptionMessage,
+	desktopSshProjectDestinationOptions,
 	desktopSshProjectDialogTitleMessage,
 	desktopSshProjectProgressMessage,
 	sshSourceLabel,
@@ -12,8 +17,30 @@ import {
 } from '../desktop-ssh-project-enrollment-dialog-view';
 
 describe('desktop SSH Project enrollment dialog view mapping', () => {
+	it('orders managed and configured hosts while removing exact duplicates', () => {
+		const catalog = DesktopSshEnvironmentCatalogSchema.parse({
+			discoveryIssue: null,
+			managed: [
+				{
+					blockedReason: null,
+					destination: 'builder@build-host',
+					environmentId: `environment:${'a'.repeat(32)}`,
+					name: 'build-host',
+					projectCount: 1,
+					state: 'connected',
+				},
+			],
+			registryIssue: null,
+			suggestions: [{ destination: 'builder@build-host' }, { destination: 'gpu-lab' }],
+		});
+		expect(desktopSshProjectDestinationOptions(catalog)).toEqual(['builder@build-host', 'gpu-lab']);
+		expect(desktopSshProjectDestinationOptions(catalog, 'GPU')).toEqual(['gpu-lab']);
+		expect(desktopSshProjectDestinationOptions(catalog, 'ssh GPU')).toEqual(['gpu-lab']);
+	});
+
 	it('selects exact title, description, and progress descriptors', () => {
 		const enrollment = enrollmentState();
+		expect(desktopSshProjectConnectionDisplayTarget(enrollment)).toBe('build-host');
 		expect(desktopSshProjectDialogTitleMessage(enrollment, false)).toBe(
 			desktopSshProjectMessages.title,
 		);
@@ -54,6 +81,7 @@ describe('desktop SSH Project enrollment dialog view mapping', () => {
 		);
 
 		const connection = connectionState();
+		expect(desktopSshProjectConnectionDisplayTarget(connection)).toBeNull();
 		expect(desktopSshProjectDialogTitleMessage(connection, false)).toBe(
 			desktopSshProjectMessages.connectionTitle,
 		);
@@ -69,6 +97,7 @@ describe('desktop SSH Project enrollment dialog view mapping', () => {
 		);
 
 		const environmentConnection = environmentConnectionState();
+		expect(desktopSshProjectConnectionDisplayTarget(environmentConnection)).toBe('gpu-lab');
 		expect(desktopSshProjectDialogTitleMessage(environmentConnection, false)).toBe(
 			desktopSshProjectMessages.environmentConnectionTitle,
 		);

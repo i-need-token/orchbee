@@ -12,9 +12,39 @@ describe('SSH Environment contract', () => {
 		expect(
 			SshEnvironmentTargetReferenceSchema.parse({
 				configurationFilePath: null,
-				destination: 'zeroliu@10.144.144.1',
+				destination: 'alice@192.0.2.10',
 			}),
-		).toEqual({ configurationFilePath: null, destination: 'zeroliu@10.144.144.1' });
+		).toEqual({ configurationFilePath: null, destination: 'alice@192.0.2.10' });
+	});
+
+	it('canonicalizes supported connection options and rejects duplicate singleton options', () => {
+		expect(
+			SshEnvironmentTargetReferenceSchema.parse({
+				configurationFilePath: null,
+				destination: 'alice@192.0.2.10',
+				options: [
+					{ kind: 'port', value: 2222 },
+					{ enabled: true, kind: 'forward-agent' },
+				],
+			}),
+		).toEqual({
+			configurationFilePath: null,
+			destination: 'alice@192.0.2.10',
+			options: [
+				{ enabled: true, kind: 'forward-agent' },
+				{ kind: 'port', value: 2222 },
+			],
+		});
+		expect(
+			SshEnvironmentTargetReferenceSchema.safeParse({
+				configurationFilePath: null,
+				destination: 'alice@192.0.2.10',
+				options: [
+					{ kind: 'port', value: 22 },
+					{ kind: 'port', value: 2222 },
+				],
+			}).success,
+		).toBe(false);
 	});
 
 	it.each(['', 'two hosts', 'host\nname', '-oProxyCommand=bad'])(

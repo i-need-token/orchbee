@@ -39,8 +39,16 @@ describe('useDesktopSshProjectEnrollmentDialog', () => {
 	it('subscribes the dialog to the enrollment controller external store', async () => {
 		let listener: (() => void) | undefined;
 		let state: DesktopSshProjectEnrollmentDialogState = { kind: 'closed' };
+		const destinationCatalog = {
+			discoveryIssue: null,
+			managed: [],
+			registryIssue: null,
+			suggestions: [],
+		};
 		const controller: DesktopSshProjectEnrollmentDialogController = {
+			cancel: vi.fn<DesktopSshProjectEnrollmentDialogController['cancel']>(),
 			close: vi.fn<DesktopSshProjectEnrollmentDialogController['close']>(),
+			getDestinationCatalogSnapshot: () => destinationCatalog,
 			getDialogSnapshot: () => state,
 			navigateDirectory: vi.fn<DesktopSshProjectEnrollmentDialogController['navigateDirectory']>(),
 			openFolderAttachment:
@@ -49,6 +57,7 @@ describe('useDesktopSshProjectEnrollmentDialog', () => {
 			retry: vi.fn<DesktopSshProjectEnrollmentDialogController['retry']>(),
 			selectDirectory: vi.fn<DesktopSshProjectEnrollmentDialogController['selectDirectory']>(),
 			submit: vi.fn<DesktopSshProjectEnrollmentDialogController['submit']>(),
+			subscribeDestinationCatalog: () => () => undefined,
 			subscribeDialog: (nextListener) => {
 				listener = nextListener;
 				return () => {

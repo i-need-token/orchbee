@@ -36,16 +36,16 @@ export function ProjectedTerminalPasteReviewDialog({
 			}}
 			open
 		>
-			<AlertDialogContent data-slot='projected-terminal-paste-review'>
-				<AlertDialogHeader>
-					<AlertDialogTitle>
+			<AlertDialogContent className={styles['content']} data-slot='projected-terminal-paste-review'>
+				<AlertDialogHeader className={styles['header']}>
+					<AlertDialogTitle className={styles['title']}>
 						{intl.formatMessage(
 							fileDrop
 								? projectedTerminalMessages.fileDropReviewTitle
 								: projectedTerminalMessages.pasteReviewTitle,
 						)}
 					</AlertDialogTitle>
-					<AlertDialogDescription>
+					<AlertDialogDescription className={styles['description']}>
 						{intl.formatMessage(
 							fileDrop
 								? projectedTerminalMessages.fileDropReviewDescription
@@ -94,7 +94,7 @@ export function ProjectedTerminalPasteReviewDialog({
 						</p>
 					) : null}
 				</div>
-				<AlertDialogFooter>
+				<AlertDialogFooter className={styles['footer']}>
 					<AlertDialogCancel>
 						{intl.formatMessage(projectedTerminalMessages.pasteReviewCancel)}
 					</AlertDialogCancel>

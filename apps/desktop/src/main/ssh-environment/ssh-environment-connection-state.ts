@@ -1,6 +1,8 @@
 import {
 	SshEnvironmentRuntimeEpochSchema,
 	SshEnvironmentRuntimeInstanceIdSchema,
+	SshEnvironmentLoginShellSchema,
+	type SshEnvironmentLoginShell,
 	type SshEnvironmentRuntimeEpoch,
 	type SshEnvironmentRuntimeInstanceId,
 } from '@orchbee/ssh-environment-protocol';
@@ -46,6 +48,7 @@ interface SshEnvironmentConnectionStateBase {
 }
 
 interface SshEnvironmentRuntimeIdentity {
+	readonly loginShell: SshEnvironmentLoginShell;
 	readonly runtimeEpoch: SshEnvironmentRuntimeEpoch;
 	readonly runtimeInstanceId: SshEnvironmentRuntimeInstanceId;
 }
@@ -127,6 +130,7 @@ export type SshEnvironmentConnectionEvent =
 	  }
 	| {
 			readonly generation: number;
+			readonly loginShell: string;
 			readonly runtimeEpoch: string;
 			readonly runtimeInstanceId: string;
 			readonly type: 'remote-runtime-ready';
@@ -184,6 +188,7 @@ export interface SshEnvironmentConnectionObservation {
 	readonly connectionId: SshEnvironmentConnectionId;
 	readonly generation: number;
 	readonly interactionRequired: boolean;
+	readonly loginShell: SshEnvironmentLoginShell | null;
 	readonly phase: SshEnvironmentConnectionState['phase'];
 	readonly retryAttempt: number | null;
 	readonly runtimeEpoch: SshEnvironmentRuntimeEpoch | null;
@@ -191,10 +196,7 @@ export interface SshEnvironmentConnectionObservation {
 
 export interface SshEnvironmentConnectionConfiguration {
 	readonly connectionId: string;
-	readonly target: {
-		readonly configurationFilePath: null | string;
-		readonly destination: string;
-	};
+	readonly target: SshEnvironmentTargetReference;
 }
 
 export function createSshEnvironmentConnectionState(
@@ -219,6 +221,7 @@ export function observeSshEnvironmentConnection(
 		connectionId: state.connectionId,
 		generation: state.generation,
 		interactionRequired: state.phase === 'interaction-required',
+		loginShell: state.runtimeIdentity?.loginShell ?? null,
 		phase: state.phase,
 		retryAttempt:
 			state.phase === 'resolving' ||
@@ -250,7 +253,7 @@ export function transitionSshEnvironmentConnection(
 		case 'interaction-completed':
 			return interactionCompleted(state, event.handle, event.outcome);
 		case 'remote-runtime-ready':
-			return runtimeReady(state, event.runtimeInstanceId, event.runtimeEpoch);
+			return runtimeReady(state, event.runtimeInstanceId, event.runtimeEpoch, event.loginShell);
 		case 'transport-failed':
 			return transportFailed(state, event.reason);
 		case 'transport-lost':
@@ -364,11 +367,13 @@ function runtimeReady(
 	state: SshEnvironmentConnectionState,
 	runtimeInstanceId: string,
 	runtimeEpoch: string,
+	loginShell: string,
 ): SshEnvironmentConnectionTransition {
 	if (state.phase !== 'connecting') return unchanged(state);
 	const parsedInstanceId = SshEnvironmentRuntimeInstanceIdSchema.safeParse(runtimeInstanceId);
 	const parsedEpoch = SshEnvironmentRuntimeEpochSchema.safeParse(runtimeEpoch);
-	if (!parsedInstanceId.success || !parsedEpoch.success) {
+	const parsedLoginShell = SshEnvironmentLoginShellSchema.safeParse(loginShell);
+	if (!parsedInstanceId.success || !parsedEpoch.success || !parsedLoginShell.success) {
 		return block(state, 'policy-rejected', true);
 	}
 	const nextState: SshEnvironmentConnectionConnectedState = {
@@ -378,6 +383,7 @@ function runtimeReady(
 		phase: 'connected',
 		resolvedTarget: state.resolvedTarget,
 		runtimeIdentity: {
+			loginShell: parsedLoginShell.data,
 			runtimeEpoch: parsedEpoch.data,
 			runtimeInstanceId: parsedInstanceId.data,
 		},

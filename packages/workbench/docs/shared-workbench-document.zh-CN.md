@@ -90,9 +90,10 @@ Client View 位于该基础的内存中。关闭页面会销毁它；除非应�
 - 每个 Directory 精确拥有一种 placement：`local`，或带一个非空 opaque Environment 引用的
   `environment`。Environment-placed Directory 始终 unavailable。
 - 每个 Workspace 的 primary Directory 都会解析，且可以是 local 或 Environment placement。普通
-  Workbench mutation 要求 local placement；只有 Desktop Main 可以准入精确 remote Workspace，并 provision
-  其精确 empty Terminal Context。Client mutation 不能创建或 retarget remote terminal structure；只接受
-  精确保留、删除以及已准入的 provision-to-retain convergence。
+  Workbench mutation 要求 local placement；只有 Desktop Main 可以准入精确 remote Workspace，并向其
+  Terminal Context 追加 default top-level Terminal。Client mutation 不能创建或 retarget remote terminal
+  structure；只接受精确保留、删除、已准入的 provision-to-retain convergence，以及精确的整 Tab close
+  intent。
 - 选项卡和面板工作区选项卡成员身份和顺序匹配；固定的选项卡形成一个前缀，并且每个组都是连续的。
 - 每个 Split 恰好有两个子级及唯一插槽。子 Split 可以重复父级方向，因为该祖先关系决定局部关闭与调整大小行为。
 - 每个 Presentation 只出现一次。待处理移除会解析为精确非空目标，彼此绝不重叠，并且只与具有相同移除标识的 `close` 意图匹配。
@@ -126,7 +127,7 @@ ordering 与 broadcast。
 | 自定义标题会持久保留，自然元数据保持瞬态                | 标题覆盖/reset 与共享文档水合场景                                               | 重命名 Presentation 由适配器负责                                  |
 | 应用共享文档不会产生最终效果                            | 具有结构去除和保留运行观察的运行时跟踪                                          | 一个渲染器运行时                                                  |
 | Empty remote Workspace placement 不携带 Presentation    | Empty-context schema/runtime 与 Desktop admission/forgery test                  | 仅 Slice 3.2A admission                                           |
-| 首个 remote provision 保持 target-exact 且 commit-first | Workbench exact-context test 加 Desktop provision TLA+、routing 与 forgery test | 一个顶层 terminal；projection 与 input 不属于本 document contract |
+| Remote provision 保持 target-exact 且 commit-first      | Workbench context test 加 Desktop routing、replay 与 forgery test                | Default top-level terminal；projection 与 input 不属于本 contract          |
 | 仅查看更改从不需要共享写入                              | 投影特定观察员和 Desktop coordinator 指纹测试                                   | Shared ordering 由 Desktop session 负责                           |
 | 预览状态无法声明共享持久性                              | 确定性拒绝测试                                                                  | 预览仍然是内存中的合成                                            |
 

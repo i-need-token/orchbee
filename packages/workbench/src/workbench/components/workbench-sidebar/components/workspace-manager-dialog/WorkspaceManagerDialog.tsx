@@ -1,9 +1,6 @@
 import {
 	Dialog,
 	DialogContent,
-	DialogDescription,
-	DialogHeader,
-	DialogTitle,
 	Field,
 	FieldLabel,
 	Input,
@@ -14,6 +11,8 @@ import * as React from 'react';
 
 import type { WorkbenchProject, WorkbenchWorkspace } from '../../../../../project-workspace';
 import { ResourceDialogForm } from '../../../resource-dialog-form/ResourceDialogForm';
+import { ResourceDialogFooter } from '../../../resource-dialog-form/ResourceDialogFooter';
+import { ResourceDialogHeader } from '../../../resource-dialog-form/ResourceDialogHeader';
 import type { WorkbenchProjectNavigationMessages } from '../../types/workbench-sidebar-types';
 import styles from './WorkspaceManagerDialog.module.css';
 
@@ -40,6 +39,7 @@ export function WorkspaceManagerDialog({
 	project,
 	workspace,
 }: WorkspaceManagerDialogProps): React.ReactNode {
+	const formId = 'workbench-workspace-manager-form';
 	const normalizedName = name.trim();
 	return (
 		<Dialog
@@ -49,17 +49,15 @@ export function WorkspaceManagerDialog({
 			open
 		>
 			<DialogContent closeLabel={messages.close} data-slot='workbench-workspace-manager'>
+				<ResourceDialogHeader
+					description={messages.workspaceManageDescription}
+					title={messages.workspaceManageTitle}
+				/>
 				<ResourceDialogForm
-					cancelLabel={messages.cancel}
-					onCancel={onClose}
+					id={formId}
 					onSubmit={() => onSave(normalizedName, primaryDirectoryId)}
 					submitDisabled={normalizedName.length === 0}
-					submitLabel={messages.save}
 				>
-					<DialogHeader>
-						<DialogTitle>{messages.workspaceManageTitle}</DialogTitle>
-						<DialogDescription>{messages.workspaceManageDescription}</DialogDescription>
-					</DialogHeader>
 					<Field>
 						<FieldLabel htmlFor={`workspace-name-${workspace.id}`}>
 							{messages.workspaceManageName}
@@ -67,6 +65,7 @@ export function WorkspaceManagerDialog({
 						<Input
 							id={`workspace-name-${workspace.id}`}
 							placeholder={messages.workspaceManageNamePlaceholder}
+							required
 							value={name}
 							onChange={(event) => onNameChange(event.currentTarget.value)}
 						/>
@@ -93,6 +92,15 @@ export function WorkspaceManagerDialog({
 						</NativeSelect>
 					</Field>
 				</ResourceDialogForm>
+				<ResourceDialogFooter
+					cancelLabel={messages.cancel}
+					formId={formId}
+					onCancel={onClose}
+					showCancelShortcut={false}
+					showSubmitShortcut={false}
+					submitDisabled={normalizedName.length === 0}
+					submitLabel={messages.save}
+				/>
 			</DialogContent>
 		</Dialog>
 	);

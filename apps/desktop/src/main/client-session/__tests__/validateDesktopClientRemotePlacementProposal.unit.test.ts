@@ -7,6 +7,7 @@ import {
 import {
 	terminalPresentationId,
 	terminalPresentationOperationId,
+	terminalPresentationRemovalId,
 } from '@orchbee/workbench/terminal-presentation';
 import { describe, expect, it } from 'vitest';
 
@@ -320,6 +321,133 @@ describe('validateDesktopClientRemotePlacementProposal', () => {
 									},
 								},
 							],
+						},
+					},
+				],
+			}),
+		).toBe(false);
+	});
+
+	it('allows an exact remote Tab close request without allowing Terminal mutation', () => {
+		const canonical = remoteDocumentWithTerminal();
+		const remoteContext = canonical.terminalContexts[1];
+		const tab = remoteContext?.panelWorkspace.tabs[0];
+		if (remoteContext === undefined || tab?.root.kind !== 'panel') {
+			throw new Error('Missing remote terminal fixture.');
+		}
+		const removalId = terminalPresentationRemovalId('remote-removal');
+		const closing = createWorkbenchSharedDocument({
+			projectWorkspace: canonical.projectWorkspace,
+			revision: workbenchSharedDocumentRevision('1'),
+			terminalContexts: [
+				canonical.terminalContexts[0] ?? remoteContext,
+				{
+					...remoteContext,
+					panelWorkspace: {
+						...remoteContext.panelWorkspace,
+						pendingRemovals: [
+							{
+								kind: 'tab',
+								presentationIds: [tab.root.primaryPresentation.presentationId],
+								removalId,
+								tabId: tab.tabId,
+							},
+						],
+						tabs: [
+							{
+								...tab,
+								root: {
+									...tab.root,
+									primaryPresentation: {
+										...tab.root.primaryPresentation,
+										intent: {
+											kind: 'close',
+											operationId: terminalPresentationOperationId('remote-close'),
+											removalId,
+										},
+									},
+								},
+							},
+						],
+					},
+				},
+			],
+		});
+
+		expect(validateDesktopClientRemotePlacementProposal(canonical, closing)).toBe(true);
+		const closingContext = closing.terminalContexts[1];
+		const closingTab = closingContext?.panelWorkspace.tabs[0];
+		if (closingContext === undefined || closingTab?.root.kind !== 'panel') {
+			throw new Error('Missing closing remote terminal fixture.');
+		}
+		expect(
+			validateDesktopClientRemotePlacementProposal(canonical, {
+				...closing,
+				terminalContexts: [
+					closing.terminalContexts[0] ?? closingContext,
+					{
+						...closingContext,
+						panelWorkspace: {
+							...closingContext.panelWorkspace,
+							tabs: [
+								{
+									...closingTab,
+									root: {
+										...closingTab.root,
+										primaryPresentation: {
+											...closingTab.root.primaryPresentation,
+											launchCwd: '/forged',
+										},
+									},
+								},
+							],
+						},
+					},
+				],
+			}),
+		).toBe(false);
+	});
+
+	it('allows renderer-owned remote Tab display metadata without allowing topology changes', () => {
+		const canonical = remoteDocumentWithTerminal();
+		const remoteContext = canonical.terminalContexts[1];
+		const tab = remoteContext?.tabCollection.tabs[0];
+		if (remoteContext === undefined || tab === undefined) {
+			throw new Error('Missing remote terminal fixture.');
+		}
+		const retitled = createWorkbenchSharedDocument({
+			projectWorkspace: canonical.projectWorkspace,
+			revision: workbenchSharedDocumentRevision('1'),
+			terminalContexts: [
+				canonical.terminalContexts[0] ?? remoteContext,
+				{
+					...remoteContext,
+					tabCollection: {
+						...remoteContext.tabCollection,
+						tabs: [
+							{
+								...tab,
+								customTitle: 'Remote work',
+								pinned: true,
+								title: 'remote-host',
+							},
+						],
+					},
+				},
+			],
+		});
+
+		expect(validateDesktopClientRemotePlacementProposal(canonical, retitled)).toBe(true);
+		expect(
+			validateDesktopClientRemotePlacementProposal(canonical, {
+				...retitled,
+				terminalContexts: [
+					retitled.terminalContexts[0] ?? remoteContext,
+					{
+						...remoteContext,
+						tabCollection: {
+							...remoteContext.tabCollection,
+							tabs: [{ ...tab, id: 'forged-tab' }],
 						},
 					},
 				],

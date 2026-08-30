@@ -1,4 +1,4 @@
-import { Button, Textarea } from '@orchbee/ui/components';
+import { Button, Field, FieldDescription, FieldLabel, Textarea } from '@orchbee/ui/components';
 import * as React from 'react';
 
 import { useGhosttyMigrationSettings } from './hooks/useGhosttyMigrationSettings';
@@ -70,34 +70,47 @@ export function GhosttyMigrationSettings(): React.ReactNode {
 			<p className={styles['notice']} id='ghostty-migration-safety'>
 				{view.messages.safetyNotice}
 			</p>
-			<div className={styles['field']} id='ghostty-migration.source'>
-				<label className={styles['label']} htmlFor='ghostty-migration-source'>
-					{view.messages.sourceLabel}
-				</label>
-				<p className={styles['description']} id='ghostty-migration-source-description'>
-					{view.messages.sourceDescription}
-				</p>
-				<Textarea
-					autoCapitalize='off'
-					autoComplete='off'
-					className={styles['source']}
-					id='ghostty-migration-source'
-					placeholder={view.messages.sourcePlaceholder}
-					rows={10}
-					spellCheck={false}
-					value={view.source}
-					aria-describedby='ghostty-migration-source-description ghostty-migration-safety'
-					onChange={view.onSourceChange}
-				/>
-			</div>
-			<div className={styles['actions']}>
-				<Button disabled={!view.canAnalyze} onClick={view.onAnalyze}>
-					{view.messages.analyze}
-				</Button>
-				<Button disabled={!view.canClear} variant='ghost' onClick={view.onClear}>
-					{view.messages.clear}
-				</Button>
-			</div>
+			<form
+				className={styles['form']}
+				onSubmit={(event: React.FormEvent<HTMLFormElement>) => {
+					event.preventDefault();
+					if (view.canAnalyze) view.onAnalyze();
+				}}
+			>
+				<Field className={styles['field']} id='ghostty-migration.source'>
+					<FieldLabel className={styles['label']} htmlFor='ghostty-migration-source'>
+						{view.messages.sourceLabel}
+					</FieldLabel>
+					<Textarea
+						aria-describedby='ghostty-migration-source-description ghostty-migration-safety'
+						autoCapitalize='none'
+						autoComplete='off'
+						autoCorrect='off'
+						className={styles['source']}
+						id='ghostty-migration-source'
+						placeholder={view.messages.sourcePlaceholder}
+						required
+						rows={10}
+						spellCheck={false}
+						value={view.source}
+						onChange={view.onSourceChange}
+					/>
+					<FieldDescription
+						className={styles['description']}
+						id='ghostty-migration-source-description'
+					>
+						{view.messages.sourceDescription}
+					</FieldDescription>
+				</Field>
+				<div className={styles['actions']}>
+					<Button disabled={!view.canAnalyze} type='submit'>
+						{view.messages.analyze}
+					</Button>
+					<Button disabled={!view.canClear} type='button' variant='ghost' onClick={view.onClear}>
+						{view.messages.clear}
+					</Button>
+				</div>
+			</form>
 
 			{reportContent}
 		</section>

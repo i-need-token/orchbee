@@ -9,6 +9,6 @@
 
 .error {
 	color: var(--ob-sys-color-status-danger-text);
-	font: var(--ob-sys-typography-label-xs);
+	font: var(--ob-sys-typography-body-sm);
 	text-align: start;
 }

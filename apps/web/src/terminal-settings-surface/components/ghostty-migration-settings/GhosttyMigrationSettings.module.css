@@ -4,6 +4,11 @@
 	gap: var(--ob-ref-space-4);
 }
 
+.form {
+	display: grid;
+	gap: var(--ob-ref-space-3);
+}
+
 .notice,
 .rejection {
 	margin: var(--ob-ref-space-0);
@@ -30,7 +35,7 @@
 
 .label {
 	color: var(--ob-sys-color-text-primary);
-	font: var(--ob-sys-typography-body-sm);
+	font: var(--ob-sys-typography-control-sm);
 }
 
 .description,
@@ -42,7 +47,7 @@
 }
 
 .source {
-	font: var(--ob-sys-typography-code-md);
+	font: var(--ob-sys-typography-code-sm);
 	resize: vertical;
 }
 
@@ -50,6 +55,10 @@
 	display: flex;
 	flex-wrap: wrap;
 	gap: var(--ob-ref-space-2);
+}
+
+.actions :global([data-slot='button']) {
+	font: var(--ob-sys-typography-control-sm);
 }
 
 .report {

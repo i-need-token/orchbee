@@ -20,6 +20,9 @@ interface WorkbenchTerminalCreationOptions {
 	readonly onLocalTerminalCreated?:
 		| ((creation: { readonly tabId: string; readonly terminalContextId: string }) => void)
 		| undefined;
+	readonly onRemoteTerminalCreated?:
+		| ((creation: { readonly tabId: string; readonly terminalContextId: string }) => void)
+		| undefined;
 	readonly remoteTerminalCreation?: WorkbenchRemoteTerminalCreationCapability | undefined;
 	readonly runtime: WorkbenchProjectWorkspaceRuntime;
 }
@@ -82,7 +85,7 @@ export function executeWorkbenchTerminalCreationAction(
 		if (options.remoteTerminalCreation === undefined) {
 			return { code: 'remote-terminal-capability-unavailable', kind: 'blocked' };
 		}
-		return executeRemoteTerminalCreation(context, options.runtime, options.remoteTerminalCreation, {
+		return executeRemoteTerminalCreation(context, options, options.remoteTerminalCreation, {
 			projectId: route.projectId,
 			workspaceId: route.workspaceId,
 		});
@@ -119,7 +122,7 @@ function settleLocalTerminalCreation(
 
 async function executeRemoteTerminalCreation(
 	context: ActionExecutionContext,
-	runtime: WorkbenchProjectWorkspaceRuntime,
+	options: WorkbenchTerminalCreationOptions,
 	capability: WorkbenchRemoteTerminalCreationCapability,
 	target: { readonly projectId: string; readonly workspaceId: string },
 ): Promise<ActionResult<void>> {
@@ -136,13 +139,23 @@ async function executeRemoteTerminalCreation(
 	if (result.kind === 'indeterminate') {
 		return { failure: { code: `remote-terminal-${result.reason}` }, kind: 'failed' };
 	}
-	const publication = await waitForRemoteTerminalPublication(runtime, result, context.signal);
+	const publication = await waitForRemoteTerminalPublication(
+		options.runtime,
+		result,
+		context.signal,
+	);
 	if (publication === 'unavailable') {
 		return {
 			failure: { code: 'remote-terminal-publication-unavailable' },
 			kind: 'failed',
 		};
 	}
+	const terminalContext = options.runtime.getTerminalContext(result.terminalContextId);
+	if (terminalContext === null) {
+		throw new Error('A published remote Terminal lost its exact terminal context.');
+	}
+	terminalContext.tabModel.selectTab(result.tabId);
+	options.onRemoteTerminalCreated?.(result);
 	return { kind: result.kind === 'created' ? 'completed' : 'unchanged' };
 }
 

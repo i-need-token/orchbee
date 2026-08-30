@@ -1,17 +1,10 @@
-import {
-	Dialog,
-	DialogContent,
-	DialogDescription,
-	DialogHeader,
-	DialogTitle,
-	Field,
-	FieldLabel,
-	Input,
-} from '@orchbee/ui/components';
+import { Dialog, DialogContent, Field, FieldLabel, Input } from '@orchbee/ui/components';
 import * as React from 'react';
 
 import type { WorkbenchProject } from '../../../../../project-workspace';
 import { ResourceDialogForm } from '../../../resource-dialog-form/ResourceDialogForm';
+import { ResourceDialogFooter } from '../../../resource-dialog-form/ResourceDialogFooter';
+import { ResourceDialogHeader } from '../../../resource-dialog-form/ResourceDialogHeader';
 import type { WorkbenchProjectNavigationMessages } from '../../types/workbench-sidebar-types';
 import { ProjectDirectoryList } from './components/project-directory-list/ProjectDirectoryList';
 import { useProjectManagerDialog } from './hooks/useProjectManagerDialog';
@@ -45,6 +38,7 @@ export function ProjectManagerDialog({
 	onSetPrimaryDirectory,
 	project,
 }: ProjectManagerDialogProps): React.ReactNode {
+	const formId = 'workbench-project-manager-form';
 	const view = useProjectManagerDialog({ onAddDirectory, project });
 	const normalizedName = name.trim();
 	return (
@@ -55,17 +49,15 @@ export function ProjectManagerDialog({
 			open
 		>
 			<DialogContent closeLabel={messages.close} data-slot='workbench-project-manager'>
+				<ResourceDialogHeader
+					description={messages.projectManageDescription}
+					title={messages.projectManageTitle}
+				/>
 				<ResourceDialogForm
-					cancelLabel={messages.cancel}
-					onCancel={onClose}
+					id={formId}
 					onSubmit={() => onSave(normalizedName)}
 					submitDisabled={normalizedName.length === 0}
-					submitLabel={messages.save}
 				>
-					<DialogHeader>
-						<DialogTitle>{messages.projectManageTitle}</DialogTitle>
-						<DialogDescription>{messages.projectManageDescription}</DialogDescription>
-					</DialogHeader>
 					<Field>
 						<FieldLabel htmlFor={`project-name-${project.id}`}>
 							{messages.projectManageName}
@@ -73,6 +65,7 @@ export function ProjectManagerDialog({
 						<Input
 							id={`project-name-${project.id}`}
 							placeholder={messages.projectManageNamePlaceholder}
+							required
 							value={name}
 							onChange={(event) => onNameChange(event.currentTarget.value)}
 						/>
@@ -96,6 +89,15 @@ export function ProjectManagerDialog({
 						submitFolder={view.submitFolder}
 					/>
 				</ResourceDialogForm>
+				<ResourceDialogFooter
+					cancelLabel={messages.cancel}
+					formId={formId}
+					onCancel={onClose}
+					showCancelShortcut={false}
+					showSubmitShortcut={false}
+					submitDisabled={normalizedName.length === 0}
+					submitLabel={messages.save}
+				/>
 			</DialogContent>
 		</Dialog>
 	);

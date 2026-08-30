@@ -1,4 +1,8 @@
-import type { WorkbenchSharedDocument } from '@orchbee/workbench/document';
+import type {
+	WorkbenchSharedDocument,
+	WorkbenchSharedPanelNode,
+	WorkbenchSharedPresentation,
+} from '@orchbee/workbench/document';
 
 type SharedProject = WorkbenchSharedDocument['projectWorkspace']['projects'][number];
 type SharedWorkspace = SharedProject['workspaces'][number];
@@ -94,34 +98,169 @@ function remoteContextProposalIsAllowed(
 	candidate: SharedTerminalContext,
 ): boolean {
 	if (valuesEqual(canonical, candidate)) return true;
-	const canonicalTab = canonical.panelWorkspace.tabs[0];
 	if (
-		canonical.panelWorkspace.tabs.length !== 1 ||
-		canonicalTab?.root.kind !== 'panel' ||
-		canonicalTab.root.childPresentations.length !== 0 ||
-		canonicalTab.root.primaryPresentation.intent.kind !== 'provision'
+		canonical.nextTabSequence !== candidate.nextTabSequence ||
+		canonical.panelWorkspace.nextPanelSequence !== candidate.panelWorkspace.nextPanelSequence ||
+		canonical.panelWorkspace.nextPanelSlotSequence !==
+			candidate.panelWorkspace.nextPanelSlotSequence ||
+		canonical.panelWorkspace.nextSplitSequence !== candidate.panelWorkspace.nextSplitSequence ||
+		canonical.panelWorkspace.nextTerminalSequence !==
+			candidate.panelWorkspace.nextTerminalSequence ||
+		!remoteTabCollectionProposalIsAllowed(canonical, candidate) ||
+		canonical.panelWorkspace.tabs.length !== candidate.panelWorkspace.tabs.length
 	) {
 		return false;
 	}
-	const completed: SharedTerminalContext = {
-		...canonical,
-		panelWorkspace: {
-			...canonical.panelWorkspace,
-			tabs: [
-				{
-					...canonicalTab,
-					root: {
-						...canonicalTab.root,
-						primaryPresentation: {
-							...canonicalTab.root.primaryPresentation,
-							intent: { kind: 'retain' },
-						},
-					},
-				},
-			],
-		},
-	};
-	return valuesEqual(completed, candidate);
+	const canonicalRemovals = canonical.panelWorkspace.pendingRemovals;
+	const candidateRemovals = candidate.panelWorkspace.pendingRemovals;
+	if (
+		candidateRemovals.length < canonicalRemovals.length ||
+		!valuesEqual(candidateRemovals.slice(0, canonicalRemovals.length), canonicalRemovals)
+	) {
+		return false;
+	}
+	const newRemovals = candidateRemovals.slice(canonicalRemovals.length);
+	const removalByTabId = new Map<string, (typeof newRemovals)[number]>();
+	const removalIds = new Set(canonicalRemovals.map((removal) => removal.removalId));
+	for (const removal of newRemovals) {
+		if (
+			removal.kind !== 'tab' ||
+			removalByTabId.has(removal.tabId) ||
+			removalIds.has(removal.removalId)
+		) {
+			return false;
+		}
+		removalByTabId.set(removal.tabId, removal);
+		removalIds.add(removal.removalId);
+	}
+	const operationIds = new Set<string>();
+	for (const [index, canonicalTab] of canonical.panelWorkspace.tabs.entries()) {
+		const candidateTab = candidate.panelWorkspace.tabs[index];
+		if (candidateTab === undefined || candidateTab.tabId !== canonicalTab.tabId) return false;
+		const removal = removalByTabId.get(canonicalTab.tabId);
+		if (removal !== undefined) {
+			const presentationIds = presentationsInNode(canonicalTab.root).map(
+				(presentation) => presentation.presentationId,
+			);
+			if (!valuesEqual(removal.presentationIds, presentationIds)) return false;
+		}
+		if (
+			!remotePanelNodeProposalIsAllowed(
+				canonicalTab.root,
+				candidateTab.root,
+				removal?.removalId,
+				operationIds,
+			)
+		) {
+			return false;
+		}
+	}
+	return [...removalByTabId.keys()].every((tabId) =>
+		canonical.panelWorkspace.tabs.some((tab) => tab.tabId === tabId),
+	);
+}
+
+function remoteTabCollectionProposalIsAllowed(
+	canonical: SharedTerminalContext,
+	candidate: SharedTerminalContext,
+): boolean {
+	const canonicalCollection = canonical.tabCollection;
+	const candidateCollection = candidate.tabCollection;
+	if (
+		!valuesEqual(canonicalCollection.groups, candidateCollection.groups) ||
+		canonicalCollection.tabs.length !== candidateCollection.tabs.length
+	) {
+		return false;
+	}
+	return canonicalCollection.tabs.every((tab, index) => {
+		const candidateTab = candidateCollection.tabs[index];
+		return (
+			candidateTab !== undefined && candidateTab.id === tab.id && candidateTab.group === tab.group
+		);
+	});
+}
+
+function remotePanelNodeProposalIsAllowed(
+	canonical: WorkbenchSharedPanelNode,
+	candidate: WorkbenchSharedPanelNode,
+	removalId: string | undefined,
+	operationIds: Set<string>,
+): boolean {
+	if (canonical.kind !== candidate.kind || canonical.id !== candidate.id) return false;
+	if (canonical.kind === 'split' && candidate.kind === 'split') {
+		return (
+			canonical.orientation === candidate.orientation &&
+			canonical.children.length === candidate.children.length &&
+			canonical.children.every((child, index) => {
+				const candidateChild = candidate.children[index];
+				return (
+					candidateChild !== undefined &&
+					child.id === candidateChild.id &&
+					remotePanelNodeProposalIsAllowed(child.node, candidateChild.node, removalId, operationIds)
+				);
+			})
+		);
+	}
+	if (canonical.kind !== 'panel' || candidate.kind !== 'panel') return false;
+	if (canonical.childPresentations.length !== candidate.childPresentations.length) return false;
+	return (
+		remotePresentationProposalIsAllowed(
+			canonical.primaryPresentation,
+			candidate.primaryPresentation,
+			removalId,
+			operationIds,
+		) &&
+		canonical.childPresentations.every((presentation, index) => {
+			const candidatePresentation = candidate.childPresentations[index];
+			return (
+				candidatePresentation !== undefined &&
+				remotePresentationProposalIsAllowed(
+					presentation,
+					candidatePresentation,
+					removalId,
+					operationIds,
+				)
+			);
+		})
+	);
+}
+
+function remotePresentationProposalIsAllowed(
+	canonical: WorkbenchSharedPresentation,
+	candidate: WorkbenchSharedPresentation,
+	removalId: string | undefined,
+	operationIds: Set<string>,
+): boolean {
+	if (
+		canonical.launchCwd !== candidate.launchCwd ||
+		canonical.presentationId !== candidate.presentationId ||
+		canonical.title !== candidate.title
+	) {
+		return false;
+	}
+	if (removalId !== undefined) {
+		if (
+			candidate.intent.kind !== 'close' ||
+			candidate.intent.removalId !== removalId ||
+			operationIds.has(candidate.intent.operationId)
+		) {
+			return false;
+		}
+		operationIds.add(candidate.intent.operationId);
+		return canonical.intent.kind !== 'close' && canonical.intent.kind !== 'stop';
+	}
+	return (
+		valuesEqual(canonical.intent, candidate.intent) ||
+		(canonical.intent.kind === 'provision' && candidate.intent.kind === 'retain')
+	);
+}
+
+function presentationsInNode(
+	node: WorkbenchSharedPanelNode,
+): readonly WorkbenchSharedPresentation[] {
+	return node.kind === 'panel'
+		? [node.primaryPresentation, ...node.childPresentations]
+		: node.children.flatMap((child) => presentationsInNode(child.node));
 }
 
 function collectCanonicalRemoteDirectories(canonical: WorkbenchSharedDocument | null) {

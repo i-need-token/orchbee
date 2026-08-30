@@ -48,7 +48,7 @@ export function decideEnvironmentRegistryCreate(
 	const nextDocument = EnvironmentRegistryDocumentSchema.safeParse({
 		environments: [...current.environments, requested],
 		revision: current.revision + 1,
-		schemaVersion: 1,
+		schemaVersion: 2,
 	});
 	if (!nextDocument.success) return { kind: 'rejected', reason: 'capacity' };
 	return { document: nextDocument.data, environment: requested, kind: 'append' };
@@ -60,7 +60,6 @@ function environmentRecordsEqual(left: EnvironmentRecord, right: EnvironmentReco
 		left.name === right.name &&
 		left.provider.kind === right.provider.kind &&
 		left.provider.runtimeInstanceId === right.provider.runtimeInstanceId &&
-		left.provider.target.configurationFilePath === right.provider.target.configurationFilePath &&
-		left.provider.target.destination === right.provider.target.destination
+		sshEnvironmentTargetKey(left.provider.target) === sshEnvironmentTargetKey(right.provider.target)
 	);
 }

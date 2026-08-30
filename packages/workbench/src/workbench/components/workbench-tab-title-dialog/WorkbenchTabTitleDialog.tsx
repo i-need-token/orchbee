@@ -1,9 +1,6 @@
 import {
 	Dialog,
 	DialogContent,
-	DialogDescription,
-	DialogHeader,
-	DialogTitle,
 	Field,
 	FieldDescription,
 	FieldLabel,
@@ -12,6 +9,8 @@ import {
 import type { ReactNode } from 'react';
 
 import { ResourceDialogForm } from '../resource-dialog-form/ResourceDialogForm';
+import { ResourceDialogFooter } from '../resource-dialog-form/ResourceDialogFooter';
+import { ResourceDialogHeader } from '../resource-dialog-form/ResourceDialogHeader';
 
 interface WorkbenchTabTitleDialogMessages {
 	readonly cancel: string;
@@ -42,6 +41,7 @@ export function WorkbenchTabTitleDialog({
 	title,
 }: WorkbenchTabTitleDialogProps): ReactNode {
 	const descriptionId = 'workbench-tab-title-description';
+	const formId = 'workbench-tab-title-form';
 	const inputId = 'workbench-tab-title-input';
 	return (
 		<Dialog
@@ -55,18 +55,8 @@ export function WorkbenchTabTitleDialog({
 				data-slot='workbench-tab-title-dialog'
 				finalFocus={finalFocus}
 			>
-				<ResourceDialogForm
-					cancelLabel={messages.cancel}
-					keyboardHints='unambiguous-cancel-and-submit'
-					onCancel={onCancel}
-					onSubmit={onSubmit}
-					submitDisabled={false}
-					submitLabel={messages.save}
-				>
-					<DialogHeader>
-						<DialogTitle>{messages.title}</DialogTitle>
-						<DialogDescription>{messages.description}</DialogDescription>
-					</DialogHeader>
+				<ResourceDialogHeader description={messages.description} title={messages.title} />
+				<ResourceDialogForm id={formId} onSubmit={onSubmit} submitDisabled={false}>
 					<Field>
 						<FieldLabel htmlFor={inputId}>{messages.field}</FieldLabel>
 						<Input
@@ -81,6 +71,13 @@ export function WorkbenchTabTitleDialog({
 						<FieldDescription id={descriptionId}>{messages.restoreDescription}</FieldDescription>
 					</Field>
 				</ResourceDialogForm>
+				<ResourceDialogFooter
+					cancelLabel={messages.cancel}
+					formId={formId}
+					onCancel={onCancel}
+					submitDisabled={false}
+					submitLabel={messages.save}
+				/>
 			</DialogContent>
 		</Dialog>
 	);
