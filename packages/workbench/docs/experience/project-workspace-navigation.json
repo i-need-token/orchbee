@@ -60,6 +60,7 @@
 	],
 	"invariants": [
 		"Selecting a Workspace changes the active terminal context while Project disclosure alone never changes it.",
+		"Pointer-clicking a Workspace row transfers focus to the exact destination terminal after activation and projection are ready, while keyboard and programmatic activation remain focus-neutral.",
 		"Active and hovered rows share the strong foreground role while default rows use the quieter foreground role.",
 		"An open row menu keeps the entire owner row highlighted without introducing a second trigger background.",
 		"Existing Worktree choices remain grouped by their represented repository, and selecting one creates no Workspace until host revalidation and canonical commit succeed.",

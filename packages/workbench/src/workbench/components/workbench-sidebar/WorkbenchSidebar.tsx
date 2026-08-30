@@ -13,7 +13,7 @@ import {
 import type { ReactNode } from 'react';
 
 import type { ProjectWorkspaceState } from '../../../project-workspace';
-import type { WorkbenchStandaloneTerminalActivationOrigin } from '../../model/workbench-standalone-terminal-activation';
+import type { WorkbenchTerminalLocationActivationOrigin } from '../../model/workbench-terminal-location-activation';
 import type { WorkbenchEnvironmentProjectConnectionCapability } from '../../types/workbench-environment-project-connection';
 import type { WorkbenchProjectFolderAcquisition } from '../../types/workbench-project-folder-acquisition';
 import type { WorkbenchProjectWorktreeCapability } from '../../types/workbench-project-worktree';
@@ -34,8 +34,12 @@ import type { WorkbenchProjectNavigationMessages } from './types/workbench-sideb
 import styles from './WorkbenchSidebar.module.css';
 
 interface WorkbenchSidebarProps {
-	readonly activateStandalone: (origin: WorkbenchStandaloneTerminalActivationOrigin) => void;
-	readonly activateWorkspace: (projectId: string, workspaceId: string) => void;
+	readonly activateStandalone: (origin: WorkbenchTerminalLocationActivationOrigin) => void;
+	readonly activateWorkspace: (
+		projectId: string,
+		workspaceId: string,
+		origin: WorkbenchTerminalLocationActivationOrigin,
+	) => void;
 	readonly addProjectDirectory: (projectId: string, path: string) => void;
 	readonly createWorkspace: (projectId: string, directoryId: string) => void;
 	readonly createProject: (path: string) => void;
@@ -131,7 +135,8 @@ export function WorkbenchSidebar({
 	const projectManagement = view.projectManagement;
 	const workspaceManagement = view.workspaceManagement;
 	const requestWorkspaceActivation = useWorkspaceCreationActivation({
-		activateWorkspace,
+		activateWorkspace: (projectId, workspaceId) =>
+			activateWorkspace(projectId, workspaceId, 'other'),
 		projectWorkspaceState,
 	});
 	const worktreeCreation = useProjectWorktreeCreation({

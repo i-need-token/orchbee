@@ -1,8 +1,8 @@
----------------- MODULE WorkbenchStandaloneTerminalActivation ----------------
+---------------- MODULE WorkbenchTerminalLocationActivation ------------------
 \* Models the initiating-client focus intent created only by a pointer click on
-\* the Workbench Terminal entry. Action settlement and the exact standalone
-\* terminal projection may arrive in either order; only the latest live pointer
-\* request may emit one focus command after both have been observed.
+\* an exact Workbench terminal location entry. Action settlement and the exact
+\* destination terminal projection may arrive in either order; only the latest
+\* live pointer request may emit one focus command after both have been observed.
 EXTENDS FiniteSets, Naturals, TLC
 
 RequestIds == 1..2

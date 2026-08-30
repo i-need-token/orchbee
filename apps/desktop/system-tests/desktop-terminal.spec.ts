@@ -6010,6 +6010,75 @@ test('runs the complete shared Project, Workspace, Tab, Panel, and terminal flow
 	}
 });
 
+test('focuses the exact terminal after pointer navigation between Terminal and Workspace', async () => {
+	test.setTimeout(90_000);
+	const application = electronApplication;
+	const currentRuntimeDirectory = runtimeDirectory;
+	if (application === undefined) throw new Error('Electron application did not start.');
+	if (currentRuntimeDirectory === undefined) {
+		throw new Error('Desktop runtime directory is unavailable.');
+	}
+	const projectName = path.basename(currentRuntimeDirectory);
+	const desktopPage = await application.firstWindow();
+	desktopPage.setDefaultTimeout(10_000);
+	const standaloneRoot = projectedTerminal(desktopPage);
+	await expect(standaloneRoot).toHaveAttribute('data-projected-terminal-state', 'open');
+	const standalonePresentationId = await standaloneRoot.getAttribute(
+		'data-terminal-presentation-id',
+	);
+	if (standalonePresentationId === null) {
+		throw new Error('Standalone terminal presentation identity is unavailable.');
+	}
+
+	const browserAccess = await openLoopbackBrowserAccess(application, desktopPage);
+	const browser = await chromium.launch();
+	try {
+		const browserPage = await browser.newPage();
+		browserPage.setDefaultTimeout(10_000);
+		await signInToBrowserAccess(
+			browserPage,
+			browserAccess.browserUrl,
+			browserAccess.personalAccessToken,
+		);
+		await browserPage.getByRole('button', { name: 'Create Project' }).click();
+		await browserPage.getByRole('menuitem', { name: 'Select Folder…' }).click();
+		const createProjectDialog = browserPage.locator('[data-slot="workbench-project-create"]');
+		await createProjectDialog.getByLabel('Folder path').fill(currentRuntimeDirectory);
+		await createProjectDialog.getByRole('button', { name: 'Create' }).click();
+		await expect(createProjectDialog).not.toBeAttached();
+		const browserWorkspaceRoot = projectedTerminal(browserPage);
+		await expect(browserWorkspaceRoot).toHaveAttribute('data-projected-terminal-state', 'open');
+		const workspacePresentationId = await browserWorkspaceRoot.getAttribute(
+			'data-terminal-presentation-id',
+		);
+		if (workspacePresentationId === null) {
+			throw new Error('Workspace terminal presentation identity is unavailable.');
+		}
+		await browserPage.close();
+
+		await expandProject(desktopPage, projectName);
+		const workspace = workbenchWorkspace(desktopPage, 'Primary');
+		await expect(workspace).toBeVisible();
+		await workspace.click();
+		await expect(workspace).toHaveAttribute('aria-current', 'page');
+		await expect
+			.poll(() => focusedTerminalPresentationId(desktopPage), { timeout: 30_000 })
+			.toBe(workspacePresentationId);
+
+		await desktopPage.locator('[data-slot="workbench-sidebar-terminal"]').click();
+		await expect
+			.poll(() => focusedTerminalPresentationId(desktopPage), { timeout: 30_000 })
+			.toBe(standalonePresentationId);
+
+		await workspace.click();
+		await expect
+			.poll(() => focusedTerminalPresentationId(desktopPage), { timeout: 30_000 })
+			.toBe(workspacePresentationId);
+	} finally {
+		await browser.close();
+	}
+});
+
 test('restarts Electron Main while retaining the Host terminal identity and contents', async () => {
 	const firstApplication = electronApplication;
 	if (firstApplication === undefined) throw new Error('Electron application did not start.');
@@ -7029,6 +7098,15 @@ function projectedTerminals(page: Page): Locator {
 function projectedTerminalFor(page: Page, presentationId: string): Locator {
 	return page.locator(
 		`[data-terminal-presentation-id="${presentationId}"][data-projected-terminal-state]`,
+	);
+}
+
+async function focusedTerminalPresentationId(page: Page): Promise<string | null> {
+	return await page.evaluate(
+		() =>
+			document.activeElement
+				?.closest<HTMLElement>('[data-terminal-presentation-id]')
+				?.getAttribute('data-terminal-presentation-id') ?? null,
 	);
 }
 

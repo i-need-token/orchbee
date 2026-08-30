@@ -27,7 +27,7 @@ import {
 	writeWorkbenchTabStripOrientation,
 	type WorkbenchLayoutStorage,
 } from '../../workbench-layout-storage';
-import type { ProjectWorkspaceState } from '../../project-workspace';
+import type { ProjectWorkspaceState, WorkbenchActiveLocation } from '../../project-workspace';
 import type { WorkbenchShortcutPlatform } from '../types/workbench-shortcut-platform';
 import type {
 	WorkbenchHostActionCallback,
@@ -70,8 +70,11 @@ import { useWorkbenchActions } from './useWorkbenchActions';
 import { useWorkbenchFocusRouting } from './useWorkbenchFocusRouting';
 import type { WorkbenchTerminalFocusRequest } from '../model/resolveWorkbenchFocusTarget';
 import { useWorkbenchShortcuts } from './useWorkbenchShortcuts';
-import { useWorkbenchStandaloneTerminalActivation } from './useWorkbenchStandaloneTerminalActivation';
-import type { WorkbenchStandaloneTerminalActivationOrigin } from '../model/workbench-standalone-terminal-activation';
+import { useWorkbenchTerminalLocationActivation } from './useWorkbenchTerminalLocationActivation';
+import {
+	workbenchActiveLocationsEqual,
+	type WorkbenchTerminalLocationActivationOrigin,
+} from '../model/workbench-terminal-location-activation';
 
 interface ResizableLayoutChangedMeta {
 	readonly isUserInteraction: boolean;
@@ -82,7 +85,7 @@ interface ResizablePanelSize {
 }
 
 interface WorkbenchView {
-	readonly activateStandalone: (origin: WorkbenchStandaloneTerminalActivationOrigin) => void;
+	readonly activateStandalone: (origin: WorkbenchTerminalLocationActivationOrigin) => void;
 	readonly actionScope: ActionScope;
 	readonly addProjectDirectory: (projectId: string, path: string) => void;
 	readonly cancelProjectWorkspaceConfirmation: () => void;
@@ -170,7 +173,11 @@ interface WorkbenchView {
 	readonly onVerticalTabStripCollapsedChange: (collapsed: boolean) => void;
 	readonly toggleSidebar: () => void;
 	readonly toggleProjectExpansion: (projectId: string) => void;
-	readonly activateWorkspace: (projectId: string, workspaceId: string) => void;
+	readonly activateWorkspace: (
+		projectId: string,
+		workspaceId: string,
+		origin: WorkbenchTerminalLocationActivationOrigin,
+	) => void;
 	readonly setProjectPrimaryDirectory: (projectId: string, directoryId: string) => void;
 	readonly updateWorkspace: (
 		projectId: string,
@@ -423,21 +430,45 @@ export function useWorkbench({
 		workspaceCopySuffix: intl.formatMessage(workbenchMessages.workspaceCopySuffix),
 		workspaceTerminalTitle: intl.formatMessage(workbenchTabMessages.terminalTitle),
 	});
-	const invokeStandaloneActivation = useMemoizedFn((source: 'button' | 'pointer') =>
-		actions.invoke(WORKBENCH_ACTION_IDS.activateStandalone, undefined, source),
+	const invokeLocationActivation = useMemoizedFn(
+		(targetLocation: WorkbenchActiveLocation, source: 'button' | 'pointer') =>
+			targetLocation.kind === 'standalone'
+				? actions.invoke(WORKBENCH_ACTION_IDS.activateStandalone, undefined, source)
+				: actions.invoke(
+						WORKBENCH_ACTION_IDS.activateWorkspace,
+						{
+							projectId: targetLocation.projectId,
+							workspaceId: targetLocation.workspaceId,
+						},
+						source,
+					),
 	);
-	const requestStandaloneTerminalFocus = useMemoizedFn((): boolean => {
-		if (projectWorkspaceRuntime.getSnapshot().activeLocation.kind !== 'standalone') return false;
-		return focusRouting.requestTerminalFocus();
-	});
-	const activateStandalone = useWorkbenchStandaloneTerminalActivation({
+	const requestLocationTerminalFocus = useMemoizedFn(
+		(targetLocation: WorkbenchActiveLocation): boolean => {
+			if (
+				!workbenchActiveLocationsEqual(
+					projectWorkspaceRuntime.getSnapshot().activeLocation,
+					targetLocation,
+				)
+			) {
+				return false;
+			}
+			return focusRouting.requestTerminalFocus();
+		},
+	);
+	const activateLocation = useWorkbenchTerminalLocationActivation({
 		activeLocation: projectWorkspaceState.activeLocation,
-		invokeStandaloneActivation,
-		requestTerminalFocus: requestStandaloneTerminalFocus,
-		terminalTargetAvailable:
-			projectWorkspaceState.activeLocation.kind === 'standalone' &&
-			resolveTerminalFocusTarget() !== null,
+		invokeLocationActivation,
+		requestTerminalFocus: requestLocationTerminalFocus,
+		terminalTargetAvailable: resolveTerminalFocusTarget() !== null,
 	});
+	const activateStandalone = useMemoizedFn((origin: WorkbenchTerminalLocationActivationOrigin) =>
+		activateLocation({ kind: 'standalone' }, origin),
+	);
+	const activateWorkspace = useMemoizedFn(
+		(projectId: string, workspaceId: string, origin: WorkbenchTerminalLocationActivationOrigin) =>
+			activateLocation({ kind: 'workspace', projectId, workspaceId }, origin),
+	);
 	React.useEffect(() => {
 		const formatActionMessage = (message: ActionConfirmation['title']) => {
 			if (message.id === undefined) {
@@ -502,9 +533,7 @@ export function useWorkbench({
 		addProjectDirectory: (projectId, path) => {
 			actions.invoke(WORKBENCH_ACTION_IDS.addProjectFolder, { path, projectId }, 'button');
 		},
-		activateWorkspace: (projectId, workspaceId) => {
-			actions.invoke(WORKBENCH_ACTION_IDS.activateWorkspace, { projectId, workspaceId }, 'button');
-		},
+		activateWorkspace,
 		cancelProjectWorkspaceConfirmation: () => pendingProjectWorkspaceConfirmation.current?.(false),
 		confirmProjectWorkspaceAction: () => pendingProjectWorkspaceConfirmation.current?.(true),
 		createProject: (path) => {

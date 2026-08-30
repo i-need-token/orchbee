@@ -242,8 +242,66 @@ describe('Workbench Project and Workspace management', () => {
 		expect(document.activeElement).toBe(terminalButton);
 	});
 
-	it('keeps pointer Workspace navigation focus in the sidebar', async () => {
+	it('focuses the Workspace terminal only after pointer-click navigation is published', async () => {
 		const projectWorkspaceRuntime = createTerminalFocusProjectWorkspaceRuntime('workspace-focus');
+		projectWorkspaceRuntime.transition({ type: 'standalone-activated' });
+		const navigate = vi.fn<WorkbenchNavigationPort['navigate']>((context) => {
+			context.markCommitted();
+			return { kind: 'completed' };
+		});
+		render(
+			<OrchbeeI18nProvider locale='en-US'>
+				<TooltipProvider>
+					<Workbench
+						actionRuntime={new ActionRuntime()}
+						navigation={{ navigate, selectTab: () => ({ kind: 'unchanged' }) }}
+						projectWorkspaceRuntime={projectWorkspaceRuntime}
+						shortcutPlatform='apple'
+						terminalSurface={FocusTestTerminalSurface}
+					/>
+				</TooltipProvider>
+			</OrchbeeI18nProvider>,
+		);
+
+		const workspaceButton = screen.getByRole('button', { name: 'Primary' });
+		act(() => workspaceButton.focus());
+		fireEvent.click(workspaceButton, { detail: 1 });
+		await waitFor(() =>
+			expect(navigate).toHaveBeenCalledWith(expect.anything(), {
+				kind: 'workspace',
+				projectId: 'project-1',
+				workspaceId: 'workspace-1',
+			}),
+		);
+		expect(projectWorkspaceRuntime.getSnapshot().activeLocation.kind).toBe('standalone');
+		expect(document.activeElement).toBe(workspaceButton);
+
+		act(() => {
+			projectWorkspaceRuntime.transition({
+				projectId: 'project-1',
+				type: 'workspace-activated',
+				workspaceId: 'workspace-1',
+			});
+		});
+		await waitFor(() =>
+			expect(projectWorkspaceRuntime.getSnapshot().activeLocation).toEqual({
+				kind: 'workspace',
+				projectId: 'project-1',
+				workspaceId: 'workspace-1',
+			}),
+		);
+		await waitFor(() => {
+			const workspaceInput = screen.getByRole('textbox', {
+				name: 'Terminal input: Workspace Terminal',
+			});
+			expect(document.activeElement).toBe(workspaceInput);
+		});
+	});
+
+	it('keeps keyboard activation of a Workspace button focus-neutral', async () => {
+		const projectWorkspaceRuntime = createTerminalFocusProjectWorkspaceRuntime(
+			'workspace-keyboard-focus',
+		);
 		projectWorkspaceRuntime.transition({ type: 'standalone-activated' });
 		render(
 			<OrchbeeI18nProvider locale='en-US'>
@@ -260,13 +318,18 @@ describe('Workbench Project and Workspace management', () => {
 
 		const workspaceButton = screen.getByRole('button', { name: 'Primary' });
 		act(() => workspaceButton.focus());
-		fireEvent.click(workspaceButton, { detail: 1 });
+		fireEvent.click(workspaceButton, { detail: 0 });
 		await waitFor(() =>
 			expect(projectWorkspaceRuntime.getSnapshot().activeLocation).toEqual({
 				kind: 'workspace',
 				projectId: 'project-1',
 				workspaceId: 'workspace-1',
 			}),
+		);
+		await waitFor(() =>
+			expect(
+				screen.getByRole('textbox', { name: 'Terminal input: Workspace Terminal' }),
+			).not.toBeNull(),
 		);
 		expect(document.activeElement).toBe(workspaceButton);
 	});

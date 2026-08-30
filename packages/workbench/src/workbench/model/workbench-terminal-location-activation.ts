@@ -1,21 +1,22 @@
 import type { WorkbenchActiveLocation } from '../../project-workspace';
 
-export type WorkbenchStandaloneTerminalActivationOrigin = 'other' | 'pointer';
+export type WorkbenchTerminalLocationActivationOrigin = 'other' | 'pointer';
 
-interface WorkbenchStandaloneTerminalActivationWaitingState {
+interface WorkbenchTerminalLocationActivationWaitingState {
 	readonly activationAccepted: boolean;
 	readonly kind: 'waiting';
 	readonly originLocation: WorkbenchActiveLocation;
 	readonly requestId: number;
+	readonly targetLocation: WorkbenchActiveLocation;
 	readonly terminalProjectionReady: boolean;
 }
 
-export type WorkbenchStandaloneTerminalActivationState =
+export type WorkbenchTerminalLocationActivationState =
 	| { readonly kind: 'disposed' }
 	| { readonly kind: 'idle' }
-	| WorkbenchStandaloneTerminalActivationWaitingState;
+	| WorkbenchTerminalLocationActivationWaitingState;
 
-export type WorkbenchStandaloneTerminalActivationEvent =
+export type WorkbenchTerminalLocationActivationEvent =
 	| {
 			readonly activeLocation: WorkbenchActiveLocation;
 			readonly kind: 'projection-observed';
@@ -23,9 +24,10 @@ export type WorkbenchStandaloneTerminalActivationEvent =
 	  }
 	| {
 			readonly kind: 'activate';
-			readonly origin: WorkbenchStandaloneTerminalActivationOrigin;
+			readonly origin: WorkbenchTerminalLocationActivationOrigin;
 			readonly originLocation: WorkbenchActiveLocation;
 			readonly requestId: number;
+			readonly targetLocation: WorkbenchActiveLocation;
 	  }
 	| {
 			readonly kind: 'activation-settled';
@@ -35,27 +37,31 @@ export type WorkbenchStandaloneTerminalActivationEvent =
 	| { readonly kind: 'dispose' }
 	| { readonly kind: 'mount' };
 
-export type WorkbenchStandaloneTerminalActivationCommand =
+export type WorkbenchTerminalLocationActivationCommand =
 	| {
-			readonly kind: 'invoke-standalone-activation';
+			readonly kind: 'invoke-location-activation';
 			readonly requestId: number;
 			readonly source: 'button' | 'pointer';
+			readonly targetLocation: WorkbenchActiveLocation;
 	  }
-	| { readonly kind: 'request-terminal-focus' };
+	| {
+			readonly kind: 'request-terminal-focus';
+			readonly targetLocation: WorkbenchActiveLocation;
+	  };
 
-export interface WorkbenchStandaloneTerminalActivationTransition {
-	readonly commands: readonly WorkbenchStandaloneTerminalActivationCommand[];
-	readonly state: WorkbenchStandaloneTerminalActivationState;
+export interface WorkbenchTerminalLocationActivationTransition {
+	readonly commands: readonly WorkbenchTerminalLocationActivationCommand[];
+	readonly state: WorkbenchTerminalLocationActivationState;
 }
 
-export const INITIAL_WORKBENCH_STANDALONE_TERMINAL_ACTIVATION_STATE = {
+export const INITIAL_WORKBENCH_TERMINAL_LOCATION_ACTIVATION_STATE = {
 	kind: 'disposed',
-} as const satisfies WorkbenchStandaloneTerminalActivationState;
+} as const satisfies WorkbenchTerminalLocationActivationState;
 
-export function transitionWorkbenchStandaloneTerminalActivation(
-	state: WorkbenchStandaloneTerminalActivationState,
-	event: WorkbenchStandaloneTerminalActivationEvent,
-): WorkbenchStandaloneTerminalActivationTransition {
+export function transitionWorkbenchTerminalLocationActivation(
+	state: WorkbenchTerminalLocationActivationState,
+	event: WorkbenchTerminalLocationActivationEvent,
+): WorkbenchTerminalLocationActivationTransition {
 	if (event.kind === 'mount') {
 		return state.kind === 'disposed'
 			? { commands: [], state: { kind: 'idle' } }
@@ -66,9 +72,10 @@ export function transitionWorkbenchStandaloneTerminalActivation(
 
 	if (event.kind === 'activate') {
 		const command = {
-			kind: 'invoke-standalone-activation',
+			kind: 'invoke-location-activation',
 			requestId: event.requestId,
 			source: event.origin === 'pointer' ? 'pointer' : 'button',
+			targetLocation: event.targetLocation,
 		} as const;
 		return event.origin === 'pointer'
 			? {
@@ -78,6 +85,7 @@ export function transitionWorkbenchStandaloneTerminalActivation(
 						kind: 'waiting',
 						originLocation: event.originLocation,
 						requestId: event.requestId,
+						targetLocation: event.targetLocation,
 						terminalProjectionReady: false,
 					},
 				}
@@ -89,11 +97,11 @@ export function transitionWorkbenchStandaloneTerminalActivation(
 		if (event.requestId !== state.requestId) return { commands: [], state };
 		if (event.outcome === 'rejected') return { commands: [], state: { kind: 'idle' } };
 		return state.terminalProjectionReady
-			? focusTransition()
+			? focusTransition(state.targetLocation)
 			: { commands: [], state: { ...state, activationAccepted: true } };
 	}
 
-	if (event.activeLocation.kind === 'standalone') {
+	if (workbenchActiveLocationsEqual(event.activeLocation, state.targetLocation)) {
 		if (!event.terminalTargetAvailable) {
 			return {
 				commands: [],
@@ -101,10 +109,10 @@ export function transitionWorkbenchStandaloneTerminalActivation(
 			};
 		}
 		return state.activationAccepted
-			? focusTransition()
+			? focusTransition(state.targetLocation)
 			: { commands: [], state: { ...state, terminalProjectionReady: true } };
 	}
-	if (locationsEqual(event.activeLocation, state.originLocation)) {
+	if (workbenchActiveLocationsEqual(event.activeLocation, state.originLocation)) {
 		return {
 			commands: [],
 			state: { ...state, terminalProjectionReady: false },
@@ -113,14 +121,19 @@ export function transitionWorkbenchStandaloneTerminalActivation(
 	return { commands: [], state: { kind: 'idle' } };
 }
 
-function focusTransition(): WorkbenchStandaloneTerminalActivationTransition {
+function focusTransition(
+	targetLocation: WorkbenchActiveLocation,
+): WorkbenchTerminalLocationActivationTransition {
 	return {
-		commands: [{ kind: 'request-terminal-focus' }],
+		commands: [{ kind: 'request-terminal-focus', targetLocation }],
 		state: { kind: 'idle' },
 	};
 }
 
-function locationsEqual(left: WorkbenchActiveLocation, right: WorkbenchActiveLocation): boolean {
+export function workbenchActiveLocationsEqual(
+	left: WorkbenchActiveLocation,
+	right: WorkbenchActiveLocation,
+): boolean {
 	if (left.kind !== right.kind) return false;
 	if (left.kind === 'standalone' || right.kind === 'standalone') return true;
 	return left.projectId === right.projectId && left.workspaceId === right.workspaceId;

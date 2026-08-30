@@ -5,59 +5,63 @@ import { act, cleanup, renderHook } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { WorkbenchActiveLocation } from '../../../project-workspace';
-import { useWorkbenchStandaloneTerminalActivation } from '../useWorkbenchStandaloneTerminalActivation';
+import { useWorkbenchTerminalLocationActivation } from '../useWorkbenchTerminalLocationActivation';
 
 afterEach(cleanup);
 
-describe('useWorkbenchStandaloneTerminalActivation', () => {
-	it('waits for late standalone publication before requesting focus', async () => {
+describe('useWorkbenchTerminalLocationActivation', () => {
+	it('waits for late Workspace publication before requesting focus', async () => {
 		const pending = pendingExecution('activation-1');
-		const invokeStandaloneActivation = vi.fn<(source: 'button' | 'pointer') => ActionExecution>(
-			() => pending.execution,
+		const invokeLocationActivation = vi.fn<
+			(targetLocation: WorkbenchActiveLocation, source: 'button' | 'pointer') => ActionExecution
+		>(() => pending.execution);
+		const requestTerminalFocus = vi.fn<(targetLocation: WorkbenchActiveLocation) => boolean>(
+			() => true,
 		);
-		const requestTerminalFocus = vi.fn<() => boolean>(() => true);
-		let properties = workspaceProjection();
+		let properties = standaloneProjection();
 		const rendered = renderHook(
 			({ activeLocation, terminalTargetAvailable }) =>
-				useWorkbenchStandaloneTerminalActivation({
+				useWorkbenchTerminalLocationActivation({
 					activeLocation,
-					invokeStandaloneActivation,
+					invokeLocationActivation,
 					requestTerminalFocus,
 					terminalTargetAvailable,
 				}),
 			{ initialProps: properties },
 		);
 
-		act(() => rendered.result.current('pointer'));
-		expect(invokeStandaloneActivation).toHaveBeenCalledWith('pointer');
+		act(() => rendered.result.current(workspaceLocation, 'pointer'));
+		expect(invokeLocationActivation).toHaveBeenCalledWith(workspaceLocation, 'pointer');
 		expect(requestTerminalFocus).not.toHaveBeenCalled();
 
 		await pending.settle({ kind: 'completed' });
 		expect(requestTerminalFocus).not.toHaveBeenCalled();
 
-		properties = { activeLocation: { kind: 'standalone' }, terminalTargetAvailable: true };
+		properties = { activeLocation: workspaceLocation, terminalTargetAvailable: true };
 		rendered.rerender(properties);
-		expect(requestTerminalFocus).toHaveBeenCalledOnce();
+		expect(requestTerminalFocus).toHaveBeenCalledWith(workspaceLocation);
 		rendered.rerender(properties);
 		expect(requestTerminalFocus).toHaveBeenCalledOnce();
 	});
 
 	it('waits for the Action result when standalone publication arrives first', async () => {
 		const pending = pendingExecution('activation-1');
-		const requestTerminalFocus = vi.fn<() => boolean>(() => true);
+		const requestTerminalFocus = vi.fn<(targetLocation: WorkbenchActiveLocation) => boolean>(
+			() => true,
+		);
 		let properties = workspaceProjection();
 		const rendered = renderHook(
 			({ activeLocation, terminalTargetAvailable }) =>
-				useWorkbenchStandaloneTerminalActivation({
+				useWorkbenchTerminalLocationActivation({
 					activeLocation,
-					invokeStandaloneActivation: () => pending.execution,
+					invokeLocationActivation: () => pending.execution,
 					requestTerminalFocus,
 					terminalTargetAvailable,
 				}),
 			{ initialProps: properties },
 		);
 
-		act(() => rendered.result.current('pointer'));
+		act(() => rendered.result.current(standaloneLocation, 'pointer'));
 		properties = { activeLocation: { kind: 'standalone' }, terminalTargetAvailable: true };
 		rendered.rerender(properties);
 		expect(requestTerminalFocus).not.toHaveBeenCalled();
@@ -70,29 +74,31 @@ describe('useWorkbenchStandaloneTerminalActivation', () => {
 		const keyboard = pendingExecution('keyboard-activation');
 		const pointer = pendingExecution('pointer-activation');
 		const executions = [keyboard.execution, pointer.execution];
-		const invokeStandaloneActivation = vi.fn<(source: 'button' | 'pointer') => ActionExecution>(
-			() => {
-				const execution = executions.shift();
-				if (execution === undefined) throw new Error('Expected a pending activation.');
-				return execution;
-			},
+		const invokeLocationActivation = vi.fn<
+			(targetLocation: WorkbenchActiveLocation, source: 'button' | 'pointer') => ActionExecution
+		>(() => {
+			const execution = executions.shift();
+			if (execution === undefined) throw new Error('Expected a pending activation.');
+			return execution;
+		});
+		const requestTerminalFocus = vi.fn<(targetLocation: WorkbenchActiveLocation) => boolean>(
+			() => true,
 		);
-		const requestTerminalFocus = vi.fn<() => boolean>(() => true);
 		const rendered = renderHook(() =>
-			useWorkbenchStandaloneTerminalActivation({
+			useWorkbenchTerminalLocationActivation({
 				activeLocation: { kind: 'standalone' },
-				invokeStandaloneActivation,
+				invokeLocationActivation,
 				requestTerminalFocus,
 				terminalTargetAvailable: true,
 			}),
 		);
 
-		act(() => rendered.result.current('other'));
+		act(() => rendered.result.current(workspaceLocation, 'other'));
 		await keyboard.settle({ kind: 'completed' });
-		expect(invokeStandaloneActivation).toHaveBeenNthCalledWith(1, 'button');
+		expect(invokeLocationActivation).toHaveBeenNthCalledWith(1, workspaceLocation, 'button');
 		expect(requestTerminalFocus).not.toHaveBeenCalled();
 
-		act(() => rendered.result.current('pointer'));
+		act(() => rendered.result.current(standaloneLocation, 'pointer'));
 		await pointer.settle({ kind: 'cancelled' });
 		expect(requestTerminalFocus).not.toHaveBeenCalled();
 	});
@@ -101,11 +107,13 @@ describe('useWorkbenchStandaloneTerminalActivation', () => {
 		const first = pendingExecution('activation-1');
 		const latest = pendingExecution('activation-2');
 		const executions = [first.execution, latest.execution];
-		const requestTerminalFocus = vi.fn<() => boolean>(() => true);
+		const requestTerminalFocus = vi.fn<(targetLocation: WorkbenchActiveLocation) => boolean>(
+			() => true,
+		);
 		const rendered = renderHook(() =>
-			useWorkbenchStandaloneTerminalActivation({
+			useWorkbenchTerminalLocationActivation({
 				activeLocation: { kind: 'standalone' },
-				invokeStandaloneActivation: () => {
+				invokeLocationActivation: () => {
 					const execution = executions.shift();
 					if (execution === undefined) throw new Error('Expected a pending activation.');
 					return execution;
@@ -116,8 +124,8 @@ describe('useWorkbenchStandaloneTerminalActivation', () => {
 		);
 
 		act(() => {
-			rendered.result.current('pointer');
-			rendered.result.current('pointer');
+			rendered.result.current(workspaceLocation, 'pointer');
+			rendered.result.current(standaloneLocation, 'pointer');
 		});
 		await first.settle({ kind: 'completed' });
 		expect(requestTerminalFocus).not.toHaveBeenCalled();
@@ -127,6 +135,13 @@ describe('useWorkbenchStandaloneTerminalActivation', () => {
 		expect(requestTerminalFocus).not.toHaveBeenCalled();
 	});
 });
+
+const standaloneLocation = { kind: 'standalone' } as const;
+const workspaceLocation = {
+	kind: 'workspace',
+	projectId: 'project-1',
+	workspaceId: 'workspace-2',
+} as const;
 
 function workspaceProjection(): {
 	readonly activeLocation: WorkbenchActiveLocation;
@@ -138,6 +153,16 @@ function workspaceProjection(): {
 			projectId: 'project-1',
 			workspaceId: 'workspace-1',
 		},
+		terminalTargetAvailable: true,
+	};
+}
+
+function standaloneProjection(): {
+	readonly activeLocation: WorkbenchActiveLocation;
+	readonly terminalTargetAvailable: boolean;
+} {
+	return {
+		activeLocation: standaloneLocation,
 		terminalTargetAvailable: true,
 	};
 }

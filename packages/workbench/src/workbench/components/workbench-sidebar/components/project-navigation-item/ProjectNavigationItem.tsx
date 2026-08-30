@@ -2,6 +2,7 @@ import { Button, ContextMenu, ContextMenuTrigger, ProductIcon } from '@orchbee/u
 import * as React from 'react';
 
 import type { ProjectWorkspaceState, WorkbenchProject } from '../../../../../project-workspace';
+import type { WorkbenchTerminalLocationActivationOrigin } from '../../../../model/workbench-terminal-location-activation';
 import { WorkbenchActionContextMenuContent } from '../../../workbench-action-context-menu-content/WorkbenchActionContextMenuContent';
 import type {
 	WorkbenchActionMenuCommand,
@@ -18,7 +19,11 @@ import { WorkbenchSidebarDropdownMenu } from '../workbench-sidebar-dropdown-menu
 import styles from './ProjectNavigationItem.module.css';
 
 interface ProjectNavigationItemProps {
-	readonly activateWorkspace: (projectId: string, workspaceId: string) => void;
+	readonly activateWorkspace: (
+		projectId: string,
+		workspaceId: string,
+		origin: WorkbenchTerminalLocationActivationOrigin,
+	) => void;
 	readonly activeLocation: ProjectWorkspaceState['activeLocation'];
 	readonly adoptWorktree?:
 		| ((input: Parameters<WorkbenchProjectWorktreeCapability['adopt']>[0]) => void)
@@ -454,7 +459,13 @@ export function ProjectNavigationItem({
 											data-slot='workbench-sidebar-workspace'
 											size='sm'
 											variant='ghost'
-											onClick={() => activateWorkspace(project.id, workspace.id)}
+											onClick={(event) =>
+												activateWorkspace(
+													project.id,
+													workspace.id,
+													event.detail > 0 ? 'pointer' : 'other',
+												)
+											}
 										>
 											<span className={styles['icon']}>
 												<ProductIcon name='layout' />

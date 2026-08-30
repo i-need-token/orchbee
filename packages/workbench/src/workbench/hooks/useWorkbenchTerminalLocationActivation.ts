@@ -4,56 +4,60 @@ import * as React from 'react';
 
 import type { WorkbenchActiveLocation } from '../../project-workspace';
 import {
-	INITIAL_WORKBENCH_STANDALONE_TERMINAL_ACTIVATION_STATE,
-	transitionWorkbenchStandaloneTerminalActivation,
-	type WorkbenchStandaloneTerminalActivationCommand,
-	type WorkbenchStandaloneTerminalActivationEvent,
-	type WorkbenchStandaloneTerminalActivationOrigin,
-	type WorkbenchStandaloneTerminalActivationState,
-} from '../model/workbench-standalone-terminal-activation';
+	INITIAL_WORKBENCH_TERMINAL_LOCATION_ACTIVATION_STATE,
+	transitionWorkbenchTerminalLocationActivation,
+	type WorkbenchTerminalLocationActivationCommand,
+	type WorkbenchTerminalLocationActivationEvent,
+	type WorkbenchTerminalLocationActivationOrigin,
+	type WorkbenchTerminalLocationActivationState,
+} from '../model/workbench-terminal-location-activation';
 
-interface UseWorkbenchStandaloneTerminalActivationOptions {
+interface UseWorkbenchTerminalLocationActivationOptions {
 	readonly activeLocation: WorkbenchActiveLocation;
-	readonly invokeStandaloneActivation: (source: 'button' | 'pointer') => ActionExecution;
-	readonly requestTerminalFocus: () => boolean;
+	readonly invokeLocationActivation: (
+		targetLocation: WorkbenchActiveLocation,
+		source: 'button' | 'pointer',
+	) => ActionExecution;
+	readonly requestTerminalFocus: (targetLocation: WorkbenchActiveLocation) => boolean;
 	readonly terminalTargetAvailable: boolean;
 }
 
-interface WorkbenchStandaloneTerminalProjection {
+interface WorkbenchTerminalLocationProjection {
 	readonly activeLocation: WorkbenchActiveLocation;
 	readonly terminalTargetAvailable: boolean;
 }
 
-export function useWorkbenchStandaloneTerminalActivation({
+export function useWorkbenchTerminalLocationActivation({
 	activeLocation,
-	invokeStandaloneActivation,
+	invokeLocationActivation,
 	requestTerminalFocus,
 	terminalTargetAvailable,
-}: UseWorkbenchStandaloneTerminalActivationOptions): (
-	origin: WorkbenchStandaloneTerminalActivationOrigin,
+}: UseWorkbenchTerminalLocationActivationOptions): (
+	targetLocation: WorkbenchActiveLocation,
+	origin: WorkbenchTerminalLocationActivationOrigin,
 ) => void {
-	const modelReference = React.useRef<WorkbenchStandaloneTerminalActivationState>(
-		INITIAL_WORKBENCH_STANDALONE_TERMINAL_ACTIVATION_STATE,
+	const modelReference = React.useRef<WorkbenchTerminalLocationActivationState>(
+		INITIAL_WORKBENCH_TERMINAL_LOCATION_ACTIVATION_STATE,
 	);
 	const requestSequenceReference = React.useRef(0);
-	const projectionReference = React.useRef<WorkbenchStandaloneTerminalProjection>({
+	const projectionReference = React.useRef<WorkbenchTerminalLocationProjection>({
 		activeLocation,
 		terminalTargetAvailable,
 	});
 	projectionReference.current = { activeLocation, terminalTargetAvailable };
 	const applyEventReference = React.useRef<
-		(event: WorkbenchStandaloneTerminalActivationEvent) => void
+		(event: WorkbenchTerminalLocationActivationEvent) => void
 	>(() => undefined);
 
 	const executeCommand = useMemoizedFn(
-		(command: WorkbenchStandaloneTerminalActivationCommand): void => {
+		(command: WorkbenchTerminalLocationActivationCommand): void => {
 			if (command.kind === 'request-terminal-focus') {
-				requestTerminalFocus();
+				requestTerminalFocus(command.targetLocation);
 				return;
 			}
 			let execution: ActionExecution;
 			try {
-				execution = invokeStandaloneActivation(command.source);
+				execution = invokeLocationActivation(command.targetLocation, command.source);
 			} catch {
 				applyEventReference.current({
 					kind: 'activation-settled',
@@ -79,17 +83,14 @@ export function useWorkbenchStandaloneTerminalActivation({
 			);
 		},
 	);
-	const applyEvent = useMemoizedFn((event: WorkbenchStandaloneTerminalActivationEvent): void => {
-		const transition = transitionWorkbenchStandaloneTerminalActivation(
-			modelReference.current,
-			event,
-		);
+	const applyEvent = useMemoizedFn((event: WorkbenchTerminalLocationActivationEvent): void => {
+		const transition = transitionWorkbenchTerminalLocationActivation(modelReference.current, event);
 		modelReference.current = transition.state;
 		for (const command of transition.commands) executeCommand(command);
 	});
 	applyEventReference.current = applyEvent;
 	const observeProjection = useMemoizedFn(
-		(projection: WorkbenchStandaloneTerminalProjection): void => {
+		(projection: WorkbenchTerminalLocationProjection): void => {
 			applyEvent({
 				activeLocation: projection.activeLocation,
 				kind: 'projection-observed',
@@ -108,15 +109,21 @@ export function useWorkbenchStandaloneTerminalActivation({
 		[activeLocation, observeProjection, terminalTargetAvailable],
 	);
 
-	return useMemoizedFn((origin: WorkbenchStandaloneTerminalActivationOrigin): void => {
-		requestSequenceReference.current += 1;
-		const projection = projectionReference.current;
-		applyEvent({
-			kind: 'activate',
-			origin,
-			originLocation: projection.activeLocation,
-			requestId: requestSequenceReference.current,
-		});
-		observeProjection(projection);
-	});
+	return useMemoizedFn(
+		(
+			targetLocation: WorkbenchActiveLocation,
+			origin: WorkbenchTerminalLocationActivationOrigin,
+		): void => {
+			requestSequenceReference.current += 1;
+			const projection = projectionReference.current;
+			applyEvent({
+				kind: 'activate',
+				origin,
+				originLocation: projection.activeLocation,
+				requestId: requestSequenceReference.current,
+				targetLocation,
+			});
+			observeProjection(projection);
+		},
+	);
 }
