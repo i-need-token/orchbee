@@ -102,7 +102,7 @@ export function CreateWorktreeDialog({
 					) : null}
 					{failure === null ? null : (
 						<div className={styles['failure']} role='alert'>
-							<strong>{messages.projectWorktreeFailureTitle}</strong>
+							<span>{messages.projectWorktreeFailureTitle}</span>
 							<span>{messages.projectWorktreeFailureMessages[failure]}</span>
 						</div>
 					)}
@@ -114,6 +114,8 @@ export function CreateWorktreeDialog({
 								</FieldLabel>
 								<Input
 									autoFocus
+									className={styles['codeControl']}
+									data-resource-dialog-value='code'
 									id='project-worktree-branch'
 									value={branchName}
 									onChange={(event) => onBranchNameChange(event.currentTarget.value)}
@@ -162,7 +164,11 @@ export function CreateWorktreeDialog({
 										if (value !== null) onBaseRefChange(value);
 									}}
 								>
-									<ComboboxInput className={styles['select']} id='project-worktree-base' />
+									<ComboboxInput
+										className={styles['codeControl']}
+										data-resource-dialog-value='code'
+										id='project-worktree-base'
+									/>
 									<ComboboxContent positionerClassName={styles['modalPopup']}>
 										<ComboboxEmpty>{messages.projectWorktreeBaseNoMatches}</ComboboxEmpty>
 										<ComboboxList>
@@ -175,16 +181,12 @@ export function CreateWorktreeDialog({
 									</ComboboxContent>
 								</Combobox>
 							</Field>
-							<Field>
-								<FieldLabel htmlFor='project-worktree-location'>
-									{messages.projectWorktreeLocation}
-								</FieldLabel>
-								<Input
-									id='project-worktree-location'
-									readOnly
-									value={messages.projectWorktreeLocationAutomatic(discovery?.managedRoot ?? '')}
-								/>
-							</Field>
+							<dl className={styles['locationSummary']}>
+								<dt className={styles['locationLabel']}>{messages.projectWorktreeLocation}</dt>
+								<dd className={styles['locationValue']}>
+									{messages.projectWorktreeLocationAutomatic(discovery?.managedRoot ?? '')}
+								</dd>
+							</dl>
 							<label className={styles['checkbox']}>
 								<Checkbox
 									checked={createWorkspace}

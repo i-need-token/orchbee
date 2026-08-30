@@ -57,6 +57,7 @@ export function WorkbenchTabTitleDialog({
 			>
 				<ResourceDialogForm
 					cancelLabel={messages.cancel}
+					keyboardHints='unambiguous-cancel-and-submit'
 					onCancel={onCancel}
 					onSubmit={onSubmit}
 					submitDisabled={false}

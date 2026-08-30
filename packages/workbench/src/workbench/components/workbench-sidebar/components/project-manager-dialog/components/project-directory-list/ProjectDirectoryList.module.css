@@ -118,7 +118,7 @@
 	width: fit-content;
 	justify-content: flex-start;
 	color: var(--ob-sys-color-text-primary);
-	font: var(--ob-sys-typography-body-md);
+	font: var(--ob-sys-typography-control-sm);
 }
 
 .addEditor {

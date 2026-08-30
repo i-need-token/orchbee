@@ -658,10 +658,14 @@ describe('Workbench Project and Workspace management', () => {
 
 		let dialog = await screen.findByRole('dialog', { name: 'Set Tab Title' });
 		let titleInput = within(dialog).getByLabelText<HTMLInputElement>('Tab title');
+		const titleCancel = within(dialog).getByRole('button', { name: 'Cancel' });
+		const titleSave = within(dialog).getByRole('button', { name: 'Save' });
 		expect(titleInput.value).toBe('system');
 		expect(document.activeElement).toBe(titleInput);
 		expect(titleInput.selectionStart).toBe(0);
 		expect(titleInput.selectionEnd).toBe(titleInput.value.length);
+		expect(within(titleCancel).getByText('Esc')).toBeDefined();
+		expect(within(titleSave).getByText('Enter')).toBeDefined();
 
 		terminalContext.tabModel.selectTab(creation.tabId);
 		fireEvent.change(titleInput, { target: { value: '  Focus work  ' } });
@@ -838,6 +842,7 @@ describe('Workbench Project and Workspace management', () => {
 			const pathInput = within(dialog).getByLabelText(pathLabel);
 			expect(pathInput.getAttribute('placeholder')).toBe(pathPlaceholder);
 			expect(pathInput.getAttribute('aria-describedby')).toBe('project-create-path-description');
+			expect(pathInput.getAttribute('data-resource-dialog-value')).toBe('code');
 			const cancelButton = within(dialog).getByRole('button', { name: cancel });
 			const createButton = within(dialog).getByRole('button', { name: create });
 			expect(within(cancelButton).getByText('Esc')).toBeDefined();
@@ -1142,18 +1147,23 @@ describe('Workbench Project and Workspace management', () => {
 		const branch = within(dialog).getByLabelText('New branch');
 		expect(base).toHaveProperty('value', 'main');
 		expect(branch).toHaveProperty('value', 'orchbee/workspace-1');
+		expect(base.getAttribute('data-resource-dialog-value')).toBe('code');
+		expect(branch.getAttribute('data-resource-dialog-value')).toBe('code');
 		expect(document.activeElement).toBe(branch);
-		const location = within(dialog).getByLabelText('Managed location');
-		expect(location).toHaveProperty(
-			'value',
-			'/Users/test/.orchbee-dev-scope/worktrees/managed-worktree-…',
-		);
-		expect(location).toHaveProperty('readOnly', true);
+		expect(within(dialog).getByText('Managed location')).toBeDefined();
+		expect(
+			within(dialog).getByText('/Users/test/.orchbee-dev-scope/worktrees/managed-worktree-…'),
+		).toBeDefined();
+		expect(within(dialog).queryByRole('textbox', { name: 'Managed location' })).toBeNull();
 		expect(
 			[...dialog.querySelectorAll('input')]
 				.map((input) => input.id)
 				.filter((id) => id.startsWith('project-worktree-')),
-		).toEqual(['project-worktree-branch', 'project-worktree-base', 'project-worktree-location']);
+		).toEqual(['project-worktree-branch', 'project-worktree-base']);
+		const cancel = within(dialog).getByRole('button', { name: 'Cancel' });
+		const createButton = within(dialog).getByRole('button', { name: 'Create' });
+		expect(within(cancel).queryByText('Esc')).toBeNull();
+		expect(within(createButton).queryByText('Enter')).toBeNull();
 		expect(
 			within(dialog)
 				.getByRole('checkbox', { name: 'Create a Workspace for this Worktree' })
@@ -1618,8 +1628,8 @@ describe('Workbench Project and Workspace management', () => {
 		expect(workspaceNameInput.getAttribute('placeholder')).toBe('Enter a workspace name');
 		const workspaceCancel = within(workspaceManager).getByRole('button', { name: 'Cancel' });
 		const workspaceSave = within(workspaceManager).getByRole('button', { name: 'Save' });
-		expect(within(workspaceCancel).getByText('Esc')).toBeDefined();
-		expect(within(workspaceSave).getByText('Enter')).toBeDefined();
+		expect(within(workspaceCancel).queryByText('Esc')).toBeNull();
+		expect(within(workspaceSave).queryByText('Enter')).toBeNull();
 		expect(workspaceSave.getAttribute('type')).toBe('submit');
 		fireEvent.click(workspaceCancel);
 		await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
@@ -1671,8 +1681,8 @@ describe('Workbench Project and Workspace management', () => {
 		expect(projectNameInput.getAttribute('placeholder')).toBe('Enter a project name');
 		const projectCancel = within(dialog).getByRole('button', { name: 'Cancel' });
 		const projectSave = within(dialog).getByRole('button', { name: 'Save' });
-		expect(within(projectCancel).getByText('Esc')).toBeDefined();
-		expect(within(projectSave).getByText('Enter')).toBeDefined();
+		expect(within(projectCancel).queryByText('Esc')).toBeNull();
+		expect(within(projectSave).queryByText('Enter')).toBeNull();
 		expect(projectSave.getAttribute('type')).toBe('submit');
 		expect(within(dialog).getByText('Primary folder')).toBeDefined();
 		expect(within(dialog).getByRole('button', { name: 'Set as primary' })).toBeDefined();
@@ -1681,6 +1691,7 @@ describe('Workbench Project and Workspace management', () => {
 		fireEvent.click(within(dialog).getByRole('button', { name: 'Add Folder' }));
 		let folderPathInput = within(dialog).getByLabelText('Folder path');
 		expect(folderPathInput.getAttribute('placeholder')).toBe('/path/to/project');
+		expect(folderPathInput.getAttribute('data-resource-dialog-value')).toBe('code');
 		expect(document.activeElement).toBe(folderPathInput);
 		expect(within(dialog).getByRole('button', { name: 'Save' })).toBe(projectSave);
 		expect(within(dialog).getAllByRole('button', { name: 'Cancel' })).toHaveLength(2);

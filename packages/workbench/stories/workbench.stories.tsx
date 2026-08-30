@@ -11,6 +11,7 @@ import {
 } from '@orchbee/workbench';
 import type {
 	WorkbenchEnvironmentProjectConnectionCapability,
+	WorkbenchProjectWorktreeCapability,
 	WorkbenchSearchProvider,
 	WorkbenchTerminalBroadcastInput,
 	WorkbenchTerminalPresentationCommand,
@@ -114,6 +115,34 @@ const createPopulatedProjectWorkspaceRuntime = () => {
 		type: 'workspace-created',
 	});
 	return runtime;
+};
+
+const storyProjectWorktreeCapability: WorkbenchProjectWorktreeCapability = {
+	adopt: () => Promise.resolve({ code: 'worktree-not-found', kind: 'failed' }),
+	create: () =>
+		Promise.resolve({
+			directoryId: 'story-created-worktree',
+			kind: 'created',
+			workspaceId: null,
+		}),
+	discover: () =>
+		Promise.resolve({
+			discovery: {
+				managedRoot: '/Users/demo/.orchbee/worktrees',
+				repositories: [
+					{
+						defaultBaseRef: 'main',
+						label: 'orchbee',
+						localBaseRefs: ['main', 'release', 'feature/dialogs'],
+						repositoryId: 'orchbee',
+						sourceDirectoryId: 'directory-orchbee',
+						suggestedBranchName: 'feature/new-worktree',
+						worktreeInventory: { kind: 'available', worktrees: [] },
+					},
+				],
+			},
+			kind: 'discovered',
+		}),
 };
 
 const createWorkspaceAgentOverviewStoryFixture = () => {
@@ -637,6 +666,7 @@ export const ProjectWorkspaceNavigation: Story = {
 		actionRuntime: new ActionRuntime({ confirm: () => true }),
 		onSettings: () => ({ kind: 'unchanged' }),
 		projectWorkspaceRuntime: createPopulatedProjectWorkspaceRuntime(),
+		projectWorktree: storyProjectWorktreeCapability,
 		shortcutPlatform: 'apple',
 		terminalSurface: FocusStoryTerminalSurface,
 	},

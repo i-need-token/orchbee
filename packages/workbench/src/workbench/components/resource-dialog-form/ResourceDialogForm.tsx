@@ -7,6 +7,7 @@ interface ResourceDialogFormProps {
 	readonly cancelDisabled?: boolean | undefined;
 	readonly cancelLabel: string;
 	readonly children: React.ReactNode;
+	readonly keyboardHints?: 'unambiguous-cancel-and-submit' | undefined;
 	readonly onCancel: () => void;
 	readonly onSubmit: () => void;
 	readonly submitDisabled: boolean;
@@ -17,6 +18,7 @@ export function ResourceDialogForm({
 	cancelDisabled = false,
 	cancelLabel,
 	children,
+	keyboardHints,
 	onCancel,
 	onSubmit,
 	submitDisabled,
@@ -34,15 +36,19 @@ export function ResourceDialogForm({
 			<DialogFooter>
 				<Button disabled={cancelDisabled} type='button' variant='outline' onClick={onCancel}>
 					{cancelLabel}
-					<Kbd aria-hidden='true' className={styles['shortcut']}>
-						Esc
-					</Kbd>
+					{keyboardHints === 'unambiguous-cancel-and-submit' ? (
+						<Kbd aria-hidden='true' className={styles['shortcut']}>
+							Esc
+						</Kbd>
+					) : null}
 				</Button>
 				<Button disabled={submitDisabled} type='submit'>
 					{submitLabel}
-					<Kbd aria-hidden='true' className={styles['shortcut']}>
-						Enter
-					</Kbd>
+					{keyboardHints === 'unambiguous-cancel-and-submit' ? (
+						<Kbd aria-hidden='true' className={styles['shortcut']}>
+							Enter
+						</Kbd>
+					) : null}
 				</Button>
 			</DialogFooter>
 		</form>

@@ -2,6 +2,10 @@
 	width: 100%;
 }
 
+.codeControl {
+	width: 100%;
+}
+
 .modalPopup {
 	z-index: var(--ob-ref-layer-modal);
 }
@@ -10,8 +14,25 @@
 	display: flex;
 	align-items: center;
 	gap: var(--ob-ref-space-2-5);
-	font: var(--ob-sys-typography-body-sm);
+	font: var(--ob-sys-typography-control-sm);
 	cursor: pointer;
+}
+
+.locationSummary {
+	display: grid;
+	gap: var(--ob-ref-space-1);
+	margin: var(--ob-ref-space-0);
+}
+
+.locationLabel {
+	color: var(--ob-sys-color-text-label);
+	font: var(--ob-sys-typography-control-sm);
+}
+
+.locationValue {
+	margin: var(--ob-ref-space-0);
+	color: var(--ob-sys-color-text-secondary);
+	font: var(--ob-sys-typography-body-sm);
 }
 
 .status {

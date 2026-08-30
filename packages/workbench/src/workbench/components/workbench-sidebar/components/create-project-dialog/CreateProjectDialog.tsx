@@ -40,6 +40,7 @@ export function CreateProjectDialog({
 			<DialogContent closeLabel={messages.close} data-slot='workbench-project-create'>
 				<ResourceDialogForm
 					cancelLabel={messages.cancel}
+					keyboardHints='unambiguous-cancel-and-submit'
 					onCancel={onClose}
 					onSubmit={() => onSubmit(normalizedPath)}
 					submitDisabled={normalizedPath.length === 0}
@@ -54,6 +55,7 @@ export function CreateProjectDialog({
 						<Input
 							aria-describedby='project-create-path-description'
 							autoFocus
+							data-resource-dialog-value='code'
 							id='project-create-path'
 							placeholder={messages.projectCreatePathPlaceholder}
 							value={path}

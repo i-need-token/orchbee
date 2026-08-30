@@ -178,6 +178,7 @@ export function ProjectDirectoryList({
 									aria-label={messages.projectCreatePath}
 									autoFocus
 									className={styles['addInput']}
+									data-resource-dialog-value='code'
 									id={`project-folder-add-${project.id}`}
 									placeholder={messages.projectCreatePathPlaceholder}
 									value={folderPath}

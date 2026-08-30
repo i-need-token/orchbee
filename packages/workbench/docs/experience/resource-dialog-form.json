@@ -17,8 +17,9 @@
 			"file": "packages/workbench/stories/workbench.stories.tsx",
 			"id": "packages-workbench-workbench--project-workspace-navigation",
 			"states": [
-				"Open Manage Project from a Project menu and inspect the title, description, field rhythm, and footer actions.",
-				"Open Manage Workspace from a Workspace menu and compare the shared dialog organization and shortcuts."
+				"Open Manage Project from a Project menu and inspect the lightweight compact title, dense description, normal-weight field labels, and footer actions.",
+				"Open Manage Workspace from a Workspace menu and confirm that its shared compact hierarchy omits key hints because Enter and Escape also operate its nested controls.",
+				"Open New Workspace, choose New Worktree, and inspect code-like branch fields, read-only managed-location metadata, and the omission of ambiguous key hints."
 			]
 		}
 	],
@@ -33,8 +34,9 @@
 	],
 	"invariants": [
 		"The title and any decision-relevant description explain the resource and outcome before the first editable field.",
+		"Every consumer uses the compact Desktop form-Dialog typography hierarchy: a lightweight compact heading, dense normal-weight supporting copy, normal-weight control text, code typography only for code-like values, and subordinate key hints.",
 		"Every editable field has a visible label; placeholders are optional, and contextual descriptions appear only when validation or platform limits matter.",
-		"Cancel and submit preserve native form semantics; when Escape cancels and Enter submits unambiguously, their buttons expose aria-hidden Kbd hints for discovery."
+		"Cancel and submit preserve native form semantics; their buttons expose aria-hidden Esc and Enter Kbd hints together only when neither key has a competing meaning in any editable control."
 	],
 	"references": ["packages/workbench/docs/project-workspace.md"]
 }

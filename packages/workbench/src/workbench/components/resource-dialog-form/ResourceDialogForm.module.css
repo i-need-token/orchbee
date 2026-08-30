@@ -1,10 +1,42 @@
 .form {
 	display: grid;
 	gap: var(--ob-ref-space-4);
+	font: var(--ob-sys-typography-body-sm);
+}
+
+.form > :global([data-slot='dialog-header']) {
+	padding-inline-end: var(--ob-ref-space-6);
+}
+
+.form :global([data-slot='dialog-title']) {
+	font: var(--ob-sys-typography-heading-xs);
+}
+
+.form :global([data-slot='dialog-description']),
+.form :global([data-slot='field-description']),
+.form :global([data-slot='field-error']) {
+	font: var(--ob-sys-typography-body-sm);
+}
+
+.form :global([data-slot='field-label']),
+.form :global([data-slot='button']),
+.form :global([data-slot='native-select']),
+.form :global([data-slot='select-trigger']) {
+	font: var(--ob-sys-typography-control-sm);
+}
+
+.form :global([data-slot='input']),
+.form :global([data-slot='input-group-control']) {
+	font: var(--ob-sys-typography-body-sm);
+}
+
+.form :global([data-resource-dialog-value='code']) {
+	font: var(--ob-sys-typography-code-sm);
 }
 
 .shortcut {
 	color: currentColor;
 	background: transparent;
+	font: var(--ob-sys-typography-label-xs);
 	opacity: var(--ob-sys-opacity-muted);
 }
