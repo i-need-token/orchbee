@@ -261,6 +261,9 @@ export const zhCNTerminalSettingsMessages = {
 		'无法读取保存的回滚缓冲区设置，本次会话已采用运行时默认值。',
 	'terminal.settings.terminal.scrollbackBytes.persistenceWriteWarning':
 		'此回滚缓冲区值已在本次会话生效，但无法保存；再次提交此值即可重试保存。',
+	'terminal.settings.terminal.trimTrailingBlankRowsForAgents.description':
+		'隐藏已识别 CLI Agent 普通屏幕末尾未使用的空白行，让内容贴近底部显示；已打开的终端会立即更新。',
+	'terminal.settings.terminal.trimTrailingBlankRowsForAgents.label': '裁剪 CLI Agent 尾部空白行',
 	'terminal.settings.title': '设置',
 	'terminal.settings.typography.fontFamily.description': '设置终端文本使用的字体。',
 	'terminal.settings.typography.fontFamily.deviceAvailability':

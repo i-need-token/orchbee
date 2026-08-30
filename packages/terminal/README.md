@@ -486,6 +486,47 @@ before any queued history intent can run.
 Clear, screen replacement, eviction, or any other invalid anchor resumes bottom projection while a
 fresh snapshot replaces the last readable history window.
 
+### Agent tail-row presentation
+
+The application may enable a display-only trailing-blank-row policy for a terminal presentation.
+The application owns whether the current presentation represents a live CLI Agent; this package
+receives only the resulting boolean policy and never infers an Agent from process names, commands,
+or terminal text. Ghostty and Terminal Host remain authoritative for the PTY geometry, active
+screen, cursor, retained history, and packed cell contents. A missing policy source is equivalent to
+`false`.
+
+The model reads one committed live primary-screen grid, its visible cursor, graphics placements,
+application-mouse modes, and retained-row count. It classifies only a contiguous suffix. A row is
+not blank when it contains non-whitespace text, a visible cursor, a graphics placement, a prompt or
+row flag, a non-default background, a style flag, or underline presentation. The policy is disabled
+on the alternate screen and while application mouse tracking is active.
+
+| Condition                                                                            | Presentation result                                                                                                                  |
+| ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Policy disabled, alternate screen, application mouse active, or no safe blank suffix | Present the exact live grid.                                                                                                         |
+| Safe suffix exists but retained history is shorter than that suffix                  | Replace only as many suffix rows as retained rows can fill; never move the gap to the top.                                           |
+| Safe suffix exists and enough retained history is available                          | Request one exact Host tail window ending before the removable suffix and present the returned full-height window.                   |
+| Read fails, becomes stale, is superseded, or its anchor becomes invalid              | Settle any Host row acknowledgement, discard the candidate, and fall back to the exact live grid until a later live frame can retry. |
+
+The result is a presentation window, not a VT mutation: it never changes PTY rows, Ghostty state,
+retained history, frame acknowledgements, or terminal output. Internal blank rows are preserved and
+at least one live row remains. A committed semantic tail window uses the Host history anchor for
+selection coordinate resolution while live projection remains active; its cursor is remapped from
+the same live frame. Keyboard input continues to target the live terminal. Manual history
+navigation takes ownership from that window, and disabling the policy, losing live-Agent
+eligibility, changing screen or generation, resizing, or disposing restores ordinary
+bottom-following state. Accessibility rows, links, search, selection, the scrollbar, and hidden
+input geometry all consume the same committed visible window.
+
+The selected differential behavior reference is Warp revision
+`086dade63ff7327426d6276d57f85b3f2f313af0`, limited to the visible-tail idea represented by
+`app/src/terminal/cli_agent.rs`, `app/src/terminal/view.rs`, and
+`app/src/terminal/model/blockgrid.rs`. Orchbee retains its Host-projected row-window architecture;
+Warp's block model, feature-flag machinery, pixel geometry, cursor policy, and mouse behavior are
+outside this claim. Deterministic policy tests cover every content signal and no-op boundary;
+projected-terminal tests cover exact-window admission, cursor remapping, failure fallback, runtime
+disablement, alternate-screen and application-mouse exclusion, and transfer to manual history.
+
 The selected differential behavior reference is Ghostty source revision
 `9c3ec931d64561a8407dde7ac984ce156ae91539`, specifically `Surface.scrollCallback`,
 `Termio.scrollViewport`, and `PageList.scroll`, with a separate interaction check against the local

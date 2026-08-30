@@ -35,6 +35,7 @@ import type { TerminalProjectionClient } from '../terminal-projection';
 import { WorkbenchDocumentCoordinator } from '../workbench-document-control';
 import type { TerminalFileDropCapability } from '../../terminal-file-drop';
 import type { TerminalCompletionReminderObserver } from '../../terminal-feedback-settings';
+import type { TerminalTrailingBlankRowsPreferenceSource } from '../../terminal-interaction-settings';
 import {
 	DEFAULT_TERMINAL_INPUT_CONFIGURATION_SOURCE,
 	type TerminalInputConfigurationSource,
@@ -72,6 +73,7 @@ export interface CreateWorkbenchClientRuntimeOptions {
 	readonly terminalFileDropCapability?: TerminalFileDropCapability;
 	readonly terminalInputConfigurationSource?: TerminalInputConfigurationSource;
 	readonly terminalInteractionConfigurationSource?: TerminalInteractionConfigurationSource;
+	readonly terminalTrailingBlankRowsPreferenceSource?: TerminalTrailingBlankRowsPreferenceSource;
 	readonly terminalCompletionReminderObserver?: TerminalCompletionReminderObserver;
 	readonly terminalPresentationConfigurationSource?: TerminalPresentationConfigurationSource;
 }
@@ -89,6 +91,7 @@ export function createWorkbenchClientRuntime({
 	terminalFileDropCapability,
 	terminalInputConfigurationSource = DEFAULT_TERMINAL_INPUT_CONFIGURATION_SOURCE,
 	terminalInteractionConfigurationSource = DEFAULT_TERMINAL_INTERACTION_CONFIGURATION_SOURCE,
+	terminalTrailingBlankRowsPreferenceSource,
 	terminalCompletionReminderObserver,
 	terminalPresentationConfigurationSource = DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION_SOURCE,
 }: CreateWorkbenchClientRuntimeOptions): WorkbenchClientRuntime {
@@ -207,6 +210,9 @@ export function createWorkbenchClientRuntime({
 			: { terminalCompletionReminderObserver }),
 		inputConfigurationSource: terminalInputConfigurationSource,
 		interactionConfigurationSource: terminalInteractionConfigurationSource,
+		...(terminalTrailingBlankRowsPreferenceSource === undefined
+			? {}
+			: { trailingBlankRowsPreferenceSource: terminalTrailingBlankRowsPreferenceSource }),
 		presentationConfigurationSource: terminalPresentationConfigurationSource,
 		presentationSnapshots,
 		projectionClient,

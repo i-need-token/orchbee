@@ -16,11 +16,15 @@ describe('buildTerminalSettingsSurfaceMessages', () => {
 			copyOnSelectLabel: 'Copy on select',
 			scrollbackBytesInvalid: 'Enter a whole number from 0 to 1,000,000,000.',
 			terminalPaddingInvalid: 'Enter a whole number from 0 to 32.',
+			trimTrailingBlankRowsForAgentsLabel: 'Trim trailing blank rows for CLI agents',
 		});
 		expect(
 			buildTerminalSettingsSurfaceMessages((descriptor, values) =>
 				chinese.formatMessage(descriptor, values),
-			).copyOnSelectLabel,
-		).toBe('选中时复制');
+			),
+		).toMatchObject({
+			copyOnSelectLabel: '选中时复制',
+			trimTrailingBlankRowsForAgentsLabel: '裁剪 CLI Agent 尾部空白行',
+		});
 	});
 });

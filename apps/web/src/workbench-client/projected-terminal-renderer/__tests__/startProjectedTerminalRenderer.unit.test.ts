@@ -34,6 +34,7 @@ import {
 	type ProjectedTerminalRendererDependencies,
 } from '../startProjectedTerminalRenderer';
 import type { TerminalPresentationConfigurationSource } from '../../../terminal-presentation';
+import type { TerminalTrailingBlankRowsPresentationSource } from '../terminal-trailing-blank-rows-presentation-source';
 
 const theme = TerminalThemeStateSchema.parse({
 	operationId: null,
@@ -156,6 +157,7 @@ describe('startProjectedTerminalRenderer', () => {
 		const setResizeOwnership = vi.fn<ProjectedTerminal['setResizeOwnership']>();
 		const setOptionAsAltMode = vi.fn<ProjectedTerminal['setOptionAsAltMode']>();
 		const setCopyOnSelect = vi.fn<ProjectedTerminal['setCopyOnSelect']>();
+		const setTrimTrailingBlankRows = vi.fn<ProjectedTerminal['setTrimTrailingBlankRows']>();
 		const updatePresentationConfiguration = vi
 			.fn<ProjectedTerminal['updatePresentationConfiguration']>()
 			.mockResolvedValue({
@@ -337,6 +339,7 @@ describe('startProjectedTerminalRenderer', () => {
 						setResizeOwnership,
 						setCopyOnSelect,
 						setOptionAsAltMode,
+						setTrimTrailingBlankRows,
 						updatePresentationConfiguration,
 						updateSearch: vi.fn<ProjectedTerminal['updateSearch']>(),
 					};
@@ -424,6 +427,15 @@ describe('startProjectedTerminalRenderer', () => {
 				return unsubscribeInteractionConfiguration;
 			},
 		};
+		let emitTrailingBlankRows = (_enabled: boolean): void => undefined;
+		const unsubscribeTrailingBlankRows = vi.fn<() => void>();
+		const trailingBlankRowsPresentationSource: TerminalTrailingBlankRowsPresentationSource = {
+			current: () => true,
+			subscribe: (listener) => {
+				emitTrailingBlankRows = listener;
+				return unsubscribeTrailingBlankRows;
+			},
+		};
 		const observeMetadata = vi.fn<(metadata: ProjectedTerminalMetadata) => void>();
 		const observeImagePreview = vi.fn<Parameters<ProjectedTerminal['onImagePreviewChange']>[0]>();
 		const actionRuntime = new ActionRuntime();
@@ -475,6 +487,7 @@ describe('startProjectedTerminalRenderer', () => {
 				undefined,
 				observeImagePreview,
 				applicationLocaleSource,
+				trailingBlankRowsPresentationSource,
 			);
 			const broadcastReadinessChanged = vi.fn<() => void>();
 			const broadcastReadinessSubscription =
@@ -503,6 +516,7 @@ describe('startProjectedTerminalRenderer', () => {
 					copyOnSelect: false,
 					localFileEffects: true,
 					projectionBufferTrust: 'local-host',
+					trimTrailingBlankRows: true,
 				}),
 			);
 			expect(contextProvider).toBeDefined();
@@ -877,6 +891,8 @@ describe('startProjectedTerminalRenderer', () => {
 			expect(setOptionAsAltMode).toHaveBeenCalledWith('both');
 			emitInteractionConfiguration({ copyOnSelect: true });
 			expect(setCopyOnSelect).toHaveBeenCalledWith(true);
+			emitTrailingBlankRows(false);
+			expect(setTrimTrailingBlankRows).toHaveBeenCalledWith(false);
 			expect(openTerminal).toHaveBeenCalledOnce();
 			expect(focusTerminal).not.toHaveBeenCalled();
 			expect(root.style.backgroundColor).toBe('#123456');
@@ -949,6 +965,7 @@ describe('startProjectedTerminalRenderer', () => {
 			expect(unsubscribePresentationConfiguration).toHaveBeenCalledOnce();
 			expect(unsubscribeInputConfiguration).toHaveBeenCalledOnce();
 			expect(unsubscribeInteractionConfiguration).toHaveBeenCalledOnce();
+			expect(unsubscribeTrailingBlankRows).toHaveBeenCalledOnce();
 			expect(disposeTerminal).toHaveBeenCalledOnce();
 			applicationLocaleSource.dispose();
 

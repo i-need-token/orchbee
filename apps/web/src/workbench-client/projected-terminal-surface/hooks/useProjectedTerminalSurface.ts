@@ -15,6 +15,7 @@ import {
 	type TerminalFileDropRejectionReason,
 } from '../../../terminal-file-drop';
 import {
+	createTerminalTrailingBlankRowsPresentationSource,
 	startProjectedTerminalRenderer,
 	type MobileTerminalInputState,
 	type MobileTerminalKey,
@@ -294,6 +295,12 @@ export function useProjectedTerminalSurface(
 					preparedProjectionRequest?.takePresentationConfigurationSource() ??
 					capability.presentationConfigurationSource;
 				preparedProjectionRequest = undefined;
+				const trailingBlankRowsPresentationSource =
+					createTerminalTrailingBlankRowsPresentationSource({
+						agentObservationSource: capability.agentObservationSource,
+						preferenceSource: capability.trailingBlankRowsPreferenceSource,
+						presentationId: presentation.presentationId,
+					});
 				return startProjectedTerminalRenderer(
 					root.current,
 					capability.documentElement,
@@ -336,6 +343,7 @@ export function useProjectedTerminalSurface(
 						);
 					},
 					capability.applicationLocaleSource,
+					trailingBlankRowsPresentationSource,
 				);
 			},
 		});

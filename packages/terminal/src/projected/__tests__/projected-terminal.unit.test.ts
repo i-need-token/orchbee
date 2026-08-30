@@ -238,9 +238,9 @@ function terminalFrame(
 	kind: 'delta' | 'snapshot',
 	sequence: bigint,
 	revision: bigint,
-	text: readonly [string, string],
+	text: readonly string[],
 	baseRevision: bigint | null = null,
-	rowIndices: readonly number[] = [0, 1],
+	rowIndices: readonly number[] = text.map((_value, index) => index),
 	scrollbackRows = 0n,
 	frameInteraction: TerminalFrame['interaction'] = interaction,
 	cursor: { readonly column: number; readonly row: number } = { column: 0, row: 0 },
@@ -4858,6 +4858,280 @@ describe('ProjectedTerminal', () => {
 			expect.objectContaining({ generation: '2', revision: '3' }),
 		);
 		expect(telemetry).toHaveBeenCalledTimes(2);
+		terminal.dispose();
+	});
+
+	it('presents a live Agent tail window and restores the exact grid when disabled or unavailable', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: {
+				historyRange: (start, end, total) => `${start}-${end}/${total}`,
+				input: 'input',
+				screen: 'screen',
+			},
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+			trimTrailingBlankRows: true,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(
+			terminalFrame(
+				'snapshot',
+				1n,
+				1n,
+				['output', 'prompt', '', ''],
+				null,
+				[0, 1, 2, 3],
+				4n,
+				interaction,
+				{ column: 0, row: 1 },
+				1n,
+				2,
+				ActiveScreen.primary,
+				'active',
+				0n,
+				{ rows: 4 },
+			),
+		);
+
+		const read = commands
+			.filter((command) => command.kind === 'read-rows' && command.payload.purpose === 'viewport')
+			.at(-1);
+		if (read?.kind !== 'read-rows') throw new Error('Agent tail request was not sent');
+		expect(read.payload).toEqual(
+			expect.objectContaining({
+				origin: { kind: 'tail', rowsBefore: 2 },
+				revisionPolicy: 'exact',
+				rowCount: 4,
+			}),
+		);
+		expect(
+			commands.some(
+				(command) =>
+					command.kind === 'set-history-demand' && command.payload.demand === 'viewing-history',
+			),
+		).toBe(true);
+		expect(terminal.historyPhase).toBe(ProjectedHistoryPhase.followingBottom);
+		expect(
+			terminal.applyRows(
+				renderRowWindow(BigInt(read.payload.requestSequence), 1n, 2n, 8n, [
+					'history-a',
+					'history-b',
+					'output',
+					'prompt',
+				]),
+			),
+		).toBe('committed');
+		expect(terminal.historyPhase).toBe(ProjectedHistoryPhase.followingBottom);
+		expect(terminal.metadata?.cursor).toEqual(expect.objectContaining({ row: 3, visible: true }));
+		const accessibilityRoot = (browser.root as unknown as FakeElement).children[2];
+		expect(accessibilityRoot?.attributes.get('data-terminal-visible-row-start')).toBe('2');
+		expect(commands.at(-1)).toEqual({
+			kind: 'rows-applied',
+			payload: {
+				attachmentId,
+				generation: '1',
+				requestSequence: read.payload.requestSequence,
+				revision: '1',
+			},
+		});
+
+		commands.length = 0;
+		terminal.applyFrame(
+			terminalFrame(
+				'delta',
+				2n,
+				2n,
+				['output', 'prompt', '', ''],
+				1n,
+				[0, 1, 2, 3],
+				4n,
+				interaction,
+				{ column: 0, row: 1 },
+				1n,
+				2,
+				ActiveScreen.primary,
+				'active',
+				0n,
+				{ rows: 4 },
+			),
+		);
+		expect(commands.some((command) => command.kind === 'set-history-demand')).toBe(false);
+		expect(commands.some((command) => command.kind === 'read-rows')).toBe(true);
+
+		const readsBeforeDisable = commands.filter((command) => command.kind === 'read-rows').length;
+		terminal.setTrimTrailingBlankRows(false);
+		expect(terminal.metadata?.cursor).toEqual(expect.objectContaining({ row: 1, visible: true }));
+		expect(accessibilityRoot?.attributes.get('data-terminal-visible-row-start')).toBe('4');
+		expect(commands.at(-1)).toEqual({
+			kind: 'set-history-demand',
+			payload: { attachmentId, demand: 'following-bottom' },
+		});
+		expect(commands.filter((command) => command.kind === 'read-rows')).toHaveLength(
+			readsBeforeDisable,
+		);
+
+		terminal.setTrimTrailingBlankRows(true);
+		const retry = commands.filter((command) => command.kind === 'read-rows').at(-1);
+		if (retry?.kind !== 'read-rows') throw new Error('Agent tail retry was not sent');
+		terminal.notifyBrokerFailure({
+			code: 'history-unavailable',
+			message: 'unavailable',
+			operation: 'history',
+			requestSequence: retry.payload.requestSequence,
+			retryable: true,
+		});
+		expect(terminal.metadata?.cursor.row).toBe(1);
+		expect(commands.at(-1)).toEqual({
+			kind: 'set-history-demand',
+			payload: { attachmentId, demand: 'following-bottom' },
+		});
+		terminal.dispose();
+	});
+
+	it('excludes alternate-screen and application-mouse frames and transfers a tail window to manual history', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+			trimTrailingBlankRows: true,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(
+			terminalFrame(
+				'snapshot',
+				1n,
+				1n,
+				['output', 'prompt', '', ''],
+				null,
+				[0, 1, 2, 3],
+				4n,
+				interaction,
+				{ column: 0, row: 1 },
+				2n,
+				2,
+				ActiveScreen.alternate,
+				'unknown',
+				0n,
+				{ rows: 4 },
+			),
+		);
+		expect(commands.some((command) => command.kind === 'read-rows')).toBe(false);
+
+		terminal.applyFrame(
+			terminalFrame(
+				'snapshot',
+				2n,
+				2n,
+				['output', 'prompt', '', ''],
+				null,
+				[0, 1, 2, 3],
+				4n,
+				{ ...interaction, mouseNormal: true },
+				{ column: 0, row: 1 },
+				2n,
+				2,
+				ActiveScreen.primary,
+				'unknown',
+				0n,
+				{ rows: 4 },
+			),
+		);
+		expect(commands.some((command) => command.kind === 'read-rows')).toBe(false);
+
+		terminal.applyFrame(
+			terminalFrame(
+				'snapshot',
+				3n,
+				3n,
+				['output', 'prompt', '', ''],
+				null,
+				[0, 1, 2, 3],
+				4n,
+				interaction,
+				{ column: 0, row: 1 },
+				2n,
+				2,
+				ActiveScreen.primary,
+				'unknown',
+				0n,
+				{ rows: 4 },
+			),
+		);
+		expect(terminal.metadata).toEqual(
+			expect.objectContaining({
+				activeScreen: ActiveScreen.primary,
+				cursor: expect.objectContaining({ row: 1, visible: true }),
+				interaction: expect.objectContaining({ mouseNormal: false }),
+				revision: 3n,
+				rows: 4,
+				scrollbackRows: 4n,
+			}),
+		);
+		expect(terminal.historyPhase).toBe(ProjectedHistoryPhase.followingBottom);
+		const tailRead = commands.filter((command) => command.kind === 'read-rows').at(-1);
+		if (tailRead?.kind !== 'read-rows') throw new Error('Agent tail request was not sent');
+		expect(
+			terminal.applyRows(
+				renderRowWindow(
+					BigInt(tailRead.payload.requestSequence),
+					3n,
+					2n,
+					8n,
+					['history-a', 'history-b', 'output', 'prompt'],
+					{ generation: 2n },
+				),
+			),
+		).toBe('committed');
+		commands.length = 0;
+
+		expect(terminal.scrollLines(-1)).toBe(true);
+		expect(terminal.historyPhase).toBe(ProjectedHistoryPhase.requestingHistory);
+		expect(
+			commands.some(
+				(command) =>
+					command.kind === 'set-history-demand' && command.payload.demand === 'following-bottom',
+			),
+		).toBe(false);
+		expect(commands).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					kind: 'set-history-demand',
+					payload: { attachmentId, demand: 'viewing-history' },
+				}),
+				expect.objectContaining({
+					kind: 'set-projection-demand',
+					payload: { attachmentId, demand: 'paused' },
+				}),
+				expect.objectContaining({
+					kind: 'read-rows',
+					payload: expect.objectContaining({ purpose: 'viewport', revisionPolicy: 'current-view' }),
+				}),
+			]),
+		);
 		terminal.dispose();
 	});
 

@@ -7,6 +7,7 @@ import {
 	DEFAULT_TERMINAL_INTERACTION_PREFERENCES,
 	terminalInteractionConfigurationFromPreferences,
 	type TerminalInteractionPreferences,
+	type TerminalTrailingBlankRowsPreferenceSource,
 } from './terminal-interaction-preferences';
 import {
 	normalizeTerminalInteractionPreferences,
@@ -48,6 +49,18 @@ export class TerminalInteractionSettingsController implements TerminalInteractio
 	#publishingConfiguration = false;
 	#revision = 0;
 	#snapshot: TerminalInteractionSettingsSnapshot;
+	readonly trailingBlankRowsPreferenceSource: TerminalTrailingBlankRowsPreferenceSource = {
+		current: () => this.#snapshot.preferences.trimTrailingBlankRowsForAgents,
+		subscribe: (listener) => {
+			let previous = this.#snapshot.preferences.trimTrailingBlankRowsForAgents;
+			return this.subscribeSnapshot(() => {
+				const next = this.#snapshot.preferences.trimTrailingBlankRowsForAgents;
+				if (next === previous) return;
+				previous = next;
+				listener(next);
+			});
+		},
+	};
 
 	constructor(storage: TerminalInteractionStorage) {
 		this.#storage = storage;
@@ -79,8 +92,12 @@ export class TerminalInteractionSettingsController implements TerminalInteractio
 			...patch,
 		});
 		if (candidate === null) return { kind: 'invalid' };
+		const preferencesChanged =
+			candidate.copyOnSelect !== this.#snapshot.preferences.copyOnSelect ||
+			candidate.trimTrailingBlankRowsForAgents !==
+				this.#snapshot.preferences.trimTrailingBlankRowsForAgents;
 		const configurationChanged = candidate.copyOnSelect !== this.#snapshot.preferences.copyOnSelect;
-		if (!configurationChanged && this.#snapshot.persistenceIssue === null) {
+		if (!preferencesChanged && this.#snapshot.persistenceIssue === null) {
 			return { kind: 'unchanged' };
 		}
 

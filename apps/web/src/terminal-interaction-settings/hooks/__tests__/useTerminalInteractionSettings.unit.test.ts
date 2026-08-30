@@ -31,7 +31,10 @@ describe('useTerminalInteractionSettings', () => {
 		expect(container.textContent).toBe('enabled:healthy');
 
 		const controller = new TerminalInteractionSettingsController({
-			getItem: () => JSON.stringify({ copyOnSelect: false }),
+			getItem: (key) =>
+				key === 'orchbee:web:terminal-interaction:v2'
+					? JSON.stringify({ copyOnSelect: false, trimTrailingBlankRowsForAgents: true })
+					: null,
 			setItem: () => undefined,
 		});
 		await act(async () => root.render(createElement(SnapshotProbe, { controller })));

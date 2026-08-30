@@ -164,6 +164,8 @@ export function startGatewayWebApplication(
 			terminalCompletionReminderObserver: terminalFeedbackSettingsController,
 			terminalPresentationConfigurationSource: terminalSettingsController,
 			terminalInteractionConfigurationSource: terminalInteractionSettingsController,
+			terminalTrailingBlankRowsPreferenceSource:
+				terminalInteractionSettingsController.trailingBlankRowsPreferenceSource,
 		});
 		runtime = nextRuntime;
 		const runtimeStart = await nextRuntime.ready;

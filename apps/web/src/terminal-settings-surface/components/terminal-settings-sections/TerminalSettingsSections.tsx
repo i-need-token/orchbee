@@ -25,7 +25,10 @@ export function TerminalSettingsSections({ view }: TerminalSettingsSectionsProps
 		<div className={styles['root']}>
 			<SettingsSection
 				title={view.messages.terminalHistorySection}
-				visible={view.category === 'terminal' && view.scrollbackBytesVisible}
+				visible={
+					view.category === 'terminal' &&
+					(view.scrollbackBytesVisible || view.trimTrailingBlankRowsForAgentsVisible)
+				}
 			>
 				<TerminalSettingsRow
 					description={view.messages.scrollbackBytesDescription}
@@ -54,6 +57,18 @@ export function TerminalSettingsSections({ view }: TerminalSettingsSectionsProps
 							{view.messages.scrollbackBytesFutureNotice}
 						</span>
 					</div>
+				</TerminalSettingsRow>
+				<TerminalSettingsRow
+					description={view.messages.trimTrailingBlankRowsForAgentsDescription}
+					label={view.messages.trimTrailingBlankRowsForAgentsLabel}
+					settingId='terminal.trimTrailingBlankRowsForAgents'
+					visible={view.trimTrailingBlankRowsForAgentsVisible}
+				>
+					<Switch
+						aria-label={view.messages.trimTrailingBlankRowsForAgentsLabel}
+						checked={view.trimTrailingBlankRowsForAgents}
+						onCheckedChange={view.onTrimTrailingBlankRowsForAgentsChange}
+					/>
 				</TerminalSettingsRow>
 			</SettingsSection>
 			<SettingsSection

@@ -15,7 +15,7 @@ describe('TerminalInteractionSettingsController', () => {
 		expect(controller.update({ copyOnSelect: false })).toEqual({ kind: 'applied-and-saved' });
 		expect(controller.getSnapshot()).toEqual({
 			persistenceIssue: null,
-			preferences: { copyOnSelect: false },
+			preferences: { copyOnSelect: false, trimTrailingBlankRowsForAgents: true },
 		});
 		expect(configurations).toEqual([{ copyOnSelect: false }]);
 		expect(storage.setItem).toHaveBeenCalledOnce();
@@ -32,8 +32,26 @@ describe('TerminalInteractionSettingsController', () => {
 		expect(controller.current()).toEqual({ copyOnSelect: false });
 		expect(controller.getSnapshot()).toEqual({
 			persistenceIssue: 'write-failed',
-			preferences: { copyOnSelect: false },
+			preferences: { copyOnSelect: false, trimTrailingBlankRowsForAgents: true },
 		});
+	});
+
+	it('publishes the Agent tail preference without changing terminal interaction configuration', () => {
+		const controller = new TerminalInteractionSettingsController(createStorage());
+		const configurations = vi.fn<(configuration: TerminalInteractionConfiguration) => void>();
+		const tailPreference = vi.fn<(enabled: boolean) => void>();
+		controller.subscribe(configurations);
+		controller.trailingBlankRowsPreferenceSource.subscribe(tailPreference);
+
+		expect(controller.trailingBlankRowsPreferenceSource.current()).toBe(true);
+		expect(controller.update({ trimTrailingBlankRowsForAgents: false })).toEqual({
+			kind: 'applied-and-saved',
+		});
+		expect(controller.current()).toEqual({ copyOnSelect: true });
+		expect(controller.trailingBlankRowsPreferenceSource.current()).toBe(false);
+		expect(configurations).not.toHaveBeenCalled();
+		expect(tailPreference).toHaveBeenCalledOnce();
+		expect(tailPreference).toHaveBeenCalledWith(false);
 	});
 
 	it('stops publication and mutation after disposal', () => {

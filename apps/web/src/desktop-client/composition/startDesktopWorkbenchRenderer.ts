@@ -167,6 +167,8 @@ export function startDesktopWorkbenchRenderer(
 		shortcutPlatform,
 		terminalPresentationConfigurationSource: terminalSettingsController,
 		terminalInteractionConfigurationSource: terminalInteractionSettingsController,
+		terminalTrailingBlankRowsPreferenceSource:
+			terminalInteractionSettingsController.trailingBlankRowsPreferenceSource,
 		terminalCompletionReminderObserver: terminalFeedbackSettingsController,
 		terminalPlatformEffects: createDesktopTerminalPlatformEffects(clipboardClient),
 		...(macosTerminalInputSettingsController === undefined
@@ -372,6 +374,13 @@ export function startDesktopWorkbenchRenderer(
 			} satisfies WorkbenchTabWindowControl,
 		});
 		routing = nextRouting;
+		const terminalSurfaceCapability =
+			agentObservationStart.kind === 'ready'
+				? {
+						...workbenchClientRuntime.terminalSurfaceCapability,
+						agentObservationSource: agentObservationClient,
+					}
+				: workbenchClientRuntime.terminalSurfaceCapability;
 		reactRoot = createRoot(applicationRoot);
 		reactRoot.render(
 			createElement(DesktopWorkbench, {
@@ -385,7 +394,7 @@ export function startDesktopWorkbenchRenderer(
 				browserAccessController,
 				router: nextRouting.router,
 				sshProjectEnrollmentController,
-				terminalSurfaceCapability: workbenchClientRuntime.terminalSurfaceCapability,
+				terminalSurfaceCapability,
 				windowControls: shortcutPlatform === 'apple' ? 'leading' : 'trailing',
 			}),
 		);

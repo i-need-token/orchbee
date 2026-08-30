@@ -168,6 +168,8 @@ export interface TerminalSettingsSurfaceMessages {
 	readonly scrollbackBytesPersistenceInvalidWarning: string;
 	readonly scrollbackBytesPersistenceReadWarning: string;
 	readonly scrollbackBytesPersistenceWriteWarning: string;
+	readonly trimTrailingBlankRowsForAgentsDescription: string;
+	readonly trimTrailingBlankRowsForAgentsLabel: string;
 	readonly shellIntegrationCategory: string;
 	readonly shellIntegrationDescription: string;
 	readonly shellIntegrationTitle: string;
@@ -273,6 +275,7 @@ export interface TerminalSettingsSurfaceView {
 	readonly onTerminalPaddingBlur: React.FocusEventHandler<HTMLInputElement>;
 	readonly onTerminalPaddingChange: React.ChangeEventHandler<HTMLInputElement>;
 	readonly onTerminalPaddingKeyDown: React.KeyboardEventHandler<HTMLInputElement>;
+	readonly onTrimTrailingBlankRowsForAgentsChange: (checked: boolean) => void;
 	readonly open: boolean;
 	readonly opacityVisible: boolean;
 	readonly persistenceWarning: string | null;
@@ -294,4 +297,6 @@ export interface TerminalSettingsSurfaceView {
 	readonly terminalPaddingDraft: string;
 	readonly terminalPaddingInvalid: boolean;
 	readonly terminalPaddingVisible: boolean;
+	readonly trimTrailingBlankRowsForAgents: boolean;
+	readonly trimTrailingBlankRowsForAgentsVisible: boolean;
 }

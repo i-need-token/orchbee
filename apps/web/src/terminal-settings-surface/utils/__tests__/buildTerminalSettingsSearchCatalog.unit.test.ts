@@ -128,6 +128,30 @@ describe('buildTerminalSettingsSearchCatalog', () => {
 		).toEqual([expect.objectContaining({ availability: 'available' })]);
 	});
 
+	it('exposes the Agent tail-row setting only with terminal interaction control', () => {
+		const intl = createOrchbeeIntl('en-US');
+		const buildCatalog = (enabledCapabilities: readonly ['terminal-interaction'] | []) =>
+			buildTerminalSettingsSearchCatalog({
+				enabledCapabilities,
+				enabledCategories: ['terminal'],
+				formatMessage: (descriptor, values) => intl.formatMessage(descriptor, values),
+				keyboardShortcutChords: {},
+			});
+
+		expect(
+			buildCatalog([]).some((entry) => entry.id === 'terminal.trimTrailingBlankRowsForAgents'),
+		).toBe(false);
+		expect(
+			buildCatalog(['terminal-interaction']).find(
+				(entry) => entry.id === 'terminal.trimTrailingBlankRowsForAgents',
+			),
+		).toMatchObject({
+			availability: 'available',
+			label: 'Trim trailing blank rows for CLI agents',
+			sectionLabel: 'History',
+		});
+	});
+
 	it('formats category, section, and setting copy in the effective locale', () => {
 		const intl = createOrchbeeIntl('zh-CN');
 		const entries = buildTerminalSettingsSearchCatalog({

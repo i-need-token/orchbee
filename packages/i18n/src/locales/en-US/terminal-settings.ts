@@ -278,6 +278,10 @@ export const enUSTerminalSettingsMessages = {
 		'The saved scrollback setting could not be read. The runtime default is active for this session.',
 	'terminal.settings.terminal.scrollbackBytes.persistenceWriteWarning':
 		'This scrollback value is active for this session, but could not be saved. Retry the value to save it.',
+	'terminal.settings.terminal.trimTrailingBlankRowsForAgents.description':
+		'Hide unused blank rows at the end of the primary screen for detected CLI agents so their content stays aligned with the bottom. Existing terminals update immediately.',
+	'terminal.settings.terminal.trimTrailingBlankRowsForAgents.label':
+		'Trim trailing blank rows for CLI agents',
 	'terminal.settings.title': 'Settings',
 	'terminal.settings.typography.fontFamily.description': 'Set the font used for terminal text.',
 	'terminal.settings.typography.fontFamily.deviceAvailability':

@@ -144,6 +144,12 @@ export function buildTerminalSettingsSurfaceMessages(
 		scrollbackBytesPersistenceWriteWarning: formatMessage(
 			terminalSettingsMessages.scrollbackBytesPersistenceWriteWarning,
 		),
+		trimTrailingBlankRowsForAgentsDescription: formatMessage(
+			terminalSettingsMessages.trimTrailingBlankRowsForAgentsDescription,
+		),
+		trimTrailingBlankRowsForAgentsLabel: formatMessage(
+			terminalSettingsMessages.trimTrailingBlankRowsForAgentsLabel,
+		),
 		shellIntegrationCategory: formatMessage(terminalSettingsMessages.shellIntegrationCategory),
 		shellIntegrationDescription: formatMessage(
 			terminalSettingsMessages.shellIntegrationDescription,

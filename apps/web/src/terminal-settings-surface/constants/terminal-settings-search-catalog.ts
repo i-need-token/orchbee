@@ -81,6 +81,16 @@ export const TERMINAL_SETTINGS_SEARCH_ITEMS: readonly TerminalSettingsSearchItem
 		targetId: 'terminal.scrollback',
 	},
 	{
+		capability: 'terminal-interaction',
+		category: 'terminal',
+		description: terminalSettingsMessages.trimTrailingBlankRowsForAgentsDescription,
+		id: 'terminal.trimTrailingBlankRowsForAgents',
+		keywords: ['Agent', 'CLI', 'Codex', 'Claude', 'blank', 'scroll'],
+		label: terminalSettingsMessages.trimTrailingBlankRowsForAgentsLabel,
+		section: terminalSettingsMessages.terminalHistorySection,
+		targetId: 'terminal.trimTrailingBlankRowsForAgents',
+	},
+	{
 		category: 'appearance',
 		description: terminalSettingsMessages.applicationThemeDescription,
 		id: 'appearance.application-theme',

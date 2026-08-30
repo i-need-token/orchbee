@@ -365,7 +365,7 @@ describe('TerminalSettingsSurface', () => {
 		keyboardShortcutController.dispose();
 	});
 
-	it('applies typography, padding, and copy-on-select settings live without Planned duplicates', async () => {
+	it('applies typography, padding, Agent tail, and copy settings live without Planned duplicates', async () => {
 		const container = document.createElement('div');
 		document.body.append(container);
 		const storage = memoryStorage();
@@ -446,6 +446,22 @@ describe('TerminalSettingsSurface', () => {
 			fontWeightBold: 800,
 			terminalPadding: 12,
 		});
+
+		await act(async () =>
+			requiredElement<HTMLButtonElement>(
+				container.querySelector("button[data-settings-category='terminal']"),
+			).click(),
+		);
+		const trimTrailingBlankRows = requiredElement<HTMLElement>(
+			container.querySelector("[aria-label='Trim trailing blank rows for CLI agents']"),
+		);
+		expect(trimTrailingBlankRows.getAttribute('aria-checked')).toBe('true');
+		await act(async () => trimTrailingBlankRows.click());
+		expect(interactionController.getSnapshot().preferences).toEqual({
+			copyOnSelect: true,
+			trimTrailingBlankRowsForAgents: false,
+		});
+		expect(interactionListener).not.toHaveBeenCalled();
 
 		await act(async () =>
 			requiredElement<HTMLButtonElement>(

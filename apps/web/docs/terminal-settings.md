@@ -82,9 +82,20 @@ Both weights are integer hundreds from 100 through 900. Terminal padding is an i
 through 32 CSS pixels. Custom colors are exactly `#RRGGBB` and are normalized to lowercase.
 Background opacity is an integer percentage from 10 through 100.
 
-The separate strict key `orchbee:web:terminal-interaction:v1` contains only
-`copyOnSelect: boolean`. It has an independent controller, persistence issue, and source-neutral
-subscription. Its product default is `true`.
+The separate strict key `orchbee:web:terminal-interaction:v2` contains one complete object with no
+unknown fields:
+
+```ts
+interface StoredTerminalInteractionPreferencesV2 {
+	readonly copyOnSelect: boolean;
+	readonly trimTrailingBlankRowsForAgents: boolean;
+}
+```
+
+When version 2 is absent, one valid `orchbee:web:terminal-interaction:v1` record is migrated only in
+memory by adding `trimTrailingBlankRowsForAgents: true`. No eager migration write occurs; every
+later semantic write uses version 2. Invalid version-2 data never falls back to version 1. The
+record has an independent controller, persistence issue, and subscriptions.
 
 The complete product default is:
 
@@ -102,6 +113,29 @@ The complete product default is:
 | Custom background      | `#fcfcfc`                                                          |
 | Background opacity     | `100`                                                              |
 | Copy on select         | `true`                                                             |
+| Trim Agent tail blanks | `true`                                                             |
+
+### CLI Agent trailing-blank-row preference
+
+The Terminal History setting exposes “Trim trailing blank rows for CLI agents”. It is enabled by
+default and updates existing terminal presentations without recreating their Host attachments.
+Turning it off immediately restores the exact projected VT grid.
+
+The application derives one effective presentation policy from the stored preference and the
+canonical Agent observation for that presentation identifier. It is `true` only while the
+preference is enabled and `projectAgentLocation(...)` reports a location whose aggregate status is
+not `ended`. Missing Agent capability, missing location, observation failure, and ended status are
+all safe `false` results. The composition does not inspect terminal output or guess process names.
+This provider-neutral decision is passed to `@orchbee/terminal`, which owns the bounded display
+window and its fallback behavior; neither layer changes PTY geometry or retained history.
+
+Preference writes are complete-record transactions: validate, commit the session snapshot, publish
+to installed presentations, then attempt Browser persistence. A failed write keeps the requested
+session value and reports the existing recoverable persistence issue; a later change retries it.
+Reset restores both interaction defaults. Deterministic controller tests cover version-1 migration,
+invalid-version isolation, default-on reset, immediate publication, and write failure. Derived-source
+tests cover Agent start, end, replacement, missing capability, preference disablement, and disposal;
+projected-terminal evidence owns the row-classification and Host-window boundaries.
 
 Workbench exposes increase, decrease, and reset font-size Actions through the same controller.
 Increase and decrease apply a two-point step and clamp at `8` and `48`; reset restores only the

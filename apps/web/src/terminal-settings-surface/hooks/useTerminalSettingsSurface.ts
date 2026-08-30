@@ -32,10 +32,6 @@ import {
 } from '../utils/terminal-settings-draft-parsing';
 
 const APPLICATION_SETTING_IDS: ReadonlySet<string> = new Set(['general.language']);
-const APPLICATION_AND_DESKTOP_TERMINAL_DEFAULT_SETTING_IDS: ReadonlySet<string> = new Set([
-	'general.language',
-	'terminal.scrollback',
-]);
 const UNAVAILABLE_TERMINAL_DEFAULT_SETTINGS_SNAPSHOT: DesktopTerminalDefaultSettingsClientSnapshot =
 	{
 		configuration: { scrollbackBytes: 10_000_000 },
@@ -173,13 +169,17 @@ export function useTerminalSettingsSurface({
 	const resetVisible = true;
 	const macosInputVisible = true;
 	const copyOnSelectVisible = terminalInteractionSettingsController !== undefined;
+	const trimTrailingBlankRowsForAgentsVisible = terminalInteractionSettingsController !== undefined;
 	const scrollbackBytesVisible = terminalDefaultSettingsControl !== undefined;
+	const implementedSettingIds = new Set(APPLICATION_SETTING_IDS);
+	if (scrollbackBytesVisible) implementedSettingIds.add('terminal.scrollback');
+	if (trimTrailingBlankRowsForAgentsVisible) {
+		implementedSettingIds.add('terminal.trimTrailingBlankRowsForAgents');
+	}
 	const plannedSections = resolvePlannedTerminalSettings({
 		category,
 		formatMessage: (descriptor) => intl.formatMessage(descriptor),
-		implementedSettingIds: scrollbackBytesVisible
-			? APPLICATION_AND_DESKTOP_TERMINAL_DEFAULT_SETTING_IDS
-			: APPLICATION_SETTING_IDS,
+		implementedSettingIds,
 	});
 	const navigationGroups = TERMINAL_SETTINGS_NAVIGATION_GROUPS.map((group) => ({
 		id: group.id,
@@ -540,6 +540,11 @@ export function useTerminalSettingsSurface({
 			commitTerminalPadding();
 			event.currentTarget.blur();
 		},
+		onTrimTrailingBlankRowsForAgentsChange: (checked): void => {
+			terminalInteractionSettingsController?.update({
+				trimTrailingBlankRowsForAgents: checked,
+			});
+		},
 		open: snapshot.open,
 		opacityVisible,
 		persistenceWarning,
@@ -563,5 +568,7 @@ export function useTerminalSettingsSurface({
 		terminalPaddingDraft,
 		terminalPaddingInvalid,
 		terminalPaddingVisible,
+		trimTrailingBlankRowsForAgents: interactionSnapshot.preferences.trimTrailingBlankRowsForAgents,
+		trimTrailingBlankRowsForAgentsVisible,
 	};
 }

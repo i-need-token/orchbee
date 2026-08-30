@@ -954,7 +954,12 @@ export class PackedTerminalViewport {
 	readonly #rows: readonly PackedTerminalRowView[];
 	readonly #store: PackedTerminalStore;
 
-	constructor(store: PackedTerminalStore, rowOffset: number, visibleRows: number) {
+	constructor(
+		store: PackedTerminalStore,
+		rowOffset: number,
+		visibleRows: number,
+		metadataOverride?: ProjectedTerminalMetadata,
+	) {
 		if (!Number.isInteger(rowOffset) || rowOffset < 0) {
 			throw new RangeError('Packed terminal viewport row offset must be non-negative.');
 		}
@@ -970,9 +975,13 @@ export class PackedTerminalViewport {
 				row: placement.row - rowOffset,
 			})),
 		};
+		if (metadataOverride !== undefined && metadataOverride.rows !== visibleRows) {
+			throw new RangeError('Packed terminal viewport metadata must match its visible row count.');
+		}
 		const metadata = store.metadata;
 		this.#metadata =
-			metadata === null
+			metadataOverride ??
+			(metadata === null
 				? null
 				: {
 						...metadata,
@@ -986,7 +995,7 @@ export class PackedTerminalViewport {
 						},
 						rows: visibleRows,
 						scrollbackRows: metadata.scrollbackRows + BigInt(rowOffset),
-					};
+					});
 	}
 
 	get metadata(): ProjectedTerminalMetadata | null {

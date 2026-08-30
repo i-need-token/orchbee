@@ -1,3 +1,4 @@
+import type { AgentSnapshotSource } from '@orchbee/agent';
 import type {
 	TerminalPresentationId,
 	WorkbenchTerminalPresentationEventResult,
@@ -20,8 +21,10 @@ import type { TerminalProjectionClient } from '../../terminal-projection';
 import type { TerminalFileDropCapability } from '../../../terminal-file-drop';
 import type { TerminalCompletionReminderObserver } from '../../../terminal-feedback-settings';
 import type { TerminalInputConfigurationSource } from '../../../terminal-input-configuration';
+import type { TerminalTrailingBlankRowsPreferenceSource } from '../../../terminal-interaction-settings';
 
 export interface ProjectedTerminalSurfaceCapability {
+	readonly agentObservationSource?: AgentSnapshotSource | undefined;
 	readonly applicationLocaleSource?: ApplicationLocaleSource | undefined;
 	readonly documentElement: Pick<HTMLElement, 'dir' | 'lang'>;
 	readonly preferredLocales: readonly string[];
@@ -45,6 +48,9 @@ export interface ProjectedTerminalSurfaceCapability {
 	readonly presentationConfigurationSource: TerminalPresentationConfigurationSource;
 	readonly inputConfigurationSource?: TerminalInputConfigurationSource | undefined;
 	readonly interactionConfigurationSource?: TerminalInteractionConfigurationSource | undefined;
+	readonly trailingBlankRowsPreferenceSource?:
+		| TerminalTrailingBlankRowsPreferenceSource
+		| undefined;
 	observeTerminalMetadata(
 		presentationId: TerminalPresentationId,
 		metadata: Pick<

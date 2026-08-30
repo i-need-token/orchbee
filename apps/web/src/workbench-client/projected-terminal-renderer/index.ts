@@ -8,3 +8,4 @@ export type {
 export { DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION_SOURCE } from '../../terminal-presentation';
 export type { TerminalPresentationConfigurationSource } from '../../terminal-presentation';
 export { registerTerminalProductFonts } from './registerTerminalProductFonts';
+export { createTerminalTrailingBlankRowsPresentationSource } from './terminal-trailing-blank-rows-presentation-source';

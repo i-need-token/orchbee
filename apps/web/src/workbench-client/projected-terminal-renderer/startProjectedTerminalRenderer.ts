@@ -79,6 +79,10 @@ import type {
 	MobileTerminalInputState,
 	MobileTerminalModifier,
 } from './mobile-terminal-input-state';
+import {
+	DEFAULT_TERMINAL_TRAILING_BLANK_ROWS_PRESENTATION_SOURCE,
+	type TerminalTrailingBlankRowsPresentationSource,
+} from './terminal-trailing-blank-rows-presentation-source';
 
 type ProjectedTerminalDriver = Pick<
 	ProjectedTerminal,
@@ -147,6 +151,7 @@ type ProjectedTerminalDriver = Pick<
 	| 'setOptionAsAltMode'
 	| 'setCopyOnSelect'
 	| 'setResizeOwnership'
+	| 'setTrimTrailingBlankRows'
 	| 'updatePresentationConfiguration'
 	| 'updateSearch'
 > &
@@ -301,6 +306,7 @@ export async function startProjectedTerminalRenderer(
 	presentationSnapshot?: ProjectedTerminalPresentationSnapshot,
 	observeImagePreview?: (presentation: TerminalImagePreviewPresentation) => void,
 	applicationLocaleSource?: ApplicationLocaleSource,
+	trailingBlankRowsPresentationSource: TerminalTrailingBlankRowsPresentationSource = DEFAULT_TERMINAL_TRAILING_BLANK_ROWS_PRESENTATION_SOURCE,
 ): Promise<ProjectedTerminalRendererSession> {
 	if (!(rootElement instanceof HTMLElement)) {
 		throw new Error('The Orchbee projected terminal root element is missing.');
@@ -316,10 +322,12 @@ export async function startProjectedTerminalRenderer(
 	let initialPresentationConfiguration: TerminalPresentationConfiguration;
 	let initialInputConfiguration: TerminalInputConfiguration;
 	let initialInteractionConfiguration: TerminalInteractionConfiguration;
+	let initialTrimTrailingBlankRows: boolean;
 	try {
 		initialPresentationConfiguration = presentationConfigurationSource.current();
 		initialInputConfiguration = inputConfigurationSource.current();
 		initialInteractionConfiguration = interactionConfigurationSource.current();
+		initialTrimTrailingBlankRows = trailingBlankRowsPresentationSource.current();
 	} catch (error) {
 		runCleanup([() => transport.close()]);
 		throw error;
@@ -675,6 +683,7 @@ export async function startProjectedTerminalRenderer(
 			hostEpoch: bootstrap.hostEpoch,
 			inputConfiguration: initialInputConfiguration,
 			copyOnSelect: initialInteractionConfiguration.copyOnSelect,
+			trimTrailingBlankRows: initialTrimTrailingBlankRows,
 			inputEnabled: bootstrap.canInput !== false,
 			labels: terminalLabels,
 			localFileEffects: bootstrap.localFileEffects === true,
@@ -753,6 +762,7 @@ export async function startProjectedTerminalRenderer(
 	};
 	let unsubscribeInputConfiguration = (): void => undefined;
 	let unsubscribeInteractionConfiguration = (): void => undefined;
+	let unsubscribeTrailingBlankRowsPresentation = (): void => undefined;
 	let unsubscribeApplicationLocale = (): void => undefined;
 	let unsubscribePresentationConfiguration = (): void => undefined;
 	let unregisterThemeParticipant = (): void => undefined;
@@ -806,11 +816,21 @@ export async function startProjectedTerminalRenderer(
 			throw new TypeError('The terminal interaction configuration source did not unsubscribe.');
 		}
 		unsubscribeInteractionConfiguration = unsubscribeInteraction;
+		const unsubscribeTrailingBlankRows = trailingBlankRowsPresentationSource.subscribe(
+			(enabled) => {
+				terminal.setTrimTrailingBlankRows(enabled);
+			},
+		);
+		if (typeof unsubscribeTrailingBlankRows !== 'function') {
+			throw new TypeError('The terminal trailing blank rows source did not unsubscribe.');
+		}
+		unsubscribeTrailingBlankRowsPresentation = unsubscribeTrailingBlankRows;
 	} catch (error) {
 		runCleanup([
 			unsubscribeApplicationLocale,
 			unsubscribeInputConfiguration,
 			unsubscribeInteractionConfiguration,
+			unsubscribeTrailingBlankRowsPresentation,
 			unsubscribePresentationConfiguration,
 			disposeThemeParticipant,
 			() => terminal.dispose(),
@@ -824,6 +844,7 @@ export async function startProjectedTerminalRenderer(
 		unsubscribeApplicationLocale();
 		unsubscribeInputConfiguration();
 		unsubscribeInteractionConfiguration();
+		unsubscribeTrailingBlankRowsPresentation();
 		unsubscribePresentationConfiguration();
 		unregisterThemeParticipant();
 		unregisterThemeParticipant = () => undefined;

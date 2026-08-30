@@ -47,25 +47,53 @@ interface StoredTerminalAppearancePreferencesV2 {
 900 之间以百为单位的整数。终端内边距是 0 到 32 CSS 像素之间的整数。自定义颜色必须是
 `#RRGGBB` 并规范化为小写。背景不透明度是 10 到 100 之间的整数百分比。
 
-独立的严格密钥 `orchbee:web:terminal-interaction:v1` 只包含 `copyOnSelect: boolean`。它拥有
-独立控制器、持久化问题和源中性订阅。产品默认值是 `true`。
+独立的严格密钥 `orchbee:web:terminal-interaction:v2` 包含一个没有未知字段的完整对象：
+
+```ts
+interface StoredTerminalInteractionPreferencesV2 {
+	readonly copyOnSelect: boolean;
+	readonly trimTrailingBlankRowsForAgents: boolean;
+}
+```
+
+版本 2 缺失时，一个有效的 `orchbee:web:terminal-interaction:v1` 记录只会在内存中迁移，并补入
+`trimTrailingBlankRowsForAgents: true`。迁移不会立即写入；之后每次语义写入都使用版本 2。版本 2
+数据无效时绝不回退读取版本 1。该记录拥有独立控制器、持久化问题与订阅。
 
 完整产品默认值为：
 
-| 字段         | 默认                                                               |
-| ------------ | ------------------------------------------------------------------ |
-| 应用主题     | `light`                                                            |
-| 字体族       | `"Orchbee JetBrains Mono", "Orchbee Symbols Nerd Font", monospace` |
-| 字号         | `13`                                                               |
-| 常规字重     | `400`                                                              |
-| 粗体字重     | `700`                                                              |
-| 字体连字     | `true`                                                             |
-| 终端内边距   | `0`                                                                |
-| 终端显示主题 | `host`                                                             |
-| 自定义前景色 | `#141414`                                                          |
-| 自定义背景色 | `#fcfcfc`                                                          |
-| 背景不透明度 | `100`                                                              |
-| 选中时复制   | `true`                                                             |
+| 字段                | 默认                                                               |
+| ------------------- | ------------------------------------------------------------------ |
+| 应用主题            | `light`                                                            |
+| 字体族              | `"Orchbee JetBrains Mono", "Orchbee Symbols Nerd Font", monospace` |
+| 字号                | `13`                                                               |
+| 常规字重            | `400`                                                              |
+| 粗体字重            | `700`                                                              |
+| 字体连字            | `true`                                                             |
+| 终端内边距          | `0`                                                                |
+| 终端显示主题        | `host`                                                             |
+| 自定义前景色        | `#141414`                                                          |
+| 自定义背景色        | `#fcfcfc`                                                          |
+| 背景不透明度        | `100`                                                              |
+| 选中时复制          | `true`                                                             |
+| 裁剪 Agent 尾部空白 | `true`                                                             |
+
+### CLI Agent 尾部空白行偏好
+
+“终端历史”设置公开“裁剪 CLI Agent 尾部空白行”。它默认启用，并在不重建 Host 附件的情况下更新
+已打开的终端 Presentation。关闭后会立即恢复精确的投影 VT 网格。
+
+应用根据存储偏好与该 Presentation 标识的规范 Agent 观察派生一个有效显示策略。只有偏好已开启，
+且 `projectAgentLocation(...)` 报告的位置聚合状态不是 `ended` 时，结果才为 `true`。缺少 Agent
+能力、缺少位置、观察失败与结束状态都安全地得到 `false`。composition 不检查终端输出，也不猜测
+进程名。该提供方中立的判定传给 `@orchbee/terminal`；后者拥有有界显示窗口与回退行为，两层都不
+改变 PTY 几何或保留历史。
+
+偏好写入是完整记录事务：验证、提交 session 快照、发布给已安装 Presentation，然后尝试 Browser
+持久化。写入失败时，请求值在当前 session 保持生效，并报告现有的可恢复持久化问题；之后的变更会
+重试。重置会恢复两个交互默认值。确定性控制器测试覆盖版本 1 迁移、无效版本隔离、默认开启重置、
+即时发布与写入失败。派生来源测试覆盖 Agent 启动、结束、替换、缺少能力、关闭偏好与处置；投影终端
+证据负责行分类与 Host 窗口边界。
 
 Workbench 通过同一个控制器公开增大、减小和重置字号 Action。增大与减小应用两点步长，并在 `8`
 和 `48` 处限制；重置只恢复默认 `13` 字号，并保留其他所有首选项。发生变化的 Action 遵循普通的

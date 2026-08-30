@@ -325,6 +325,12 @@ export const terminalSettingsMessages = defineMessages({
 	scrollbackBytesPersistenceWriteWarning: message(
 		'terminal.settings.terminal.scrollbackBytes.persistenceWriteWarning',
 	),
+	trimTrailingBlankRowsForAgentsDescription: message(
+		'terminal.settings.terminal.trimTrailingBlankRowsForAgents.description',
+	),
+	trimTrailingBlankRowsForAgentsLabel: message(
+		'terminal.settings.terminal.trimTrailingBlankRowsForAgents.label',
+	),
 	terminalCategory: message('terminal.settings.categories.terminal'),
 	terminalClipboardSection: message('terminal.settings.sections.terminalClipboard'),
 	terminalColorsSection: message('terminal.settings.sections.terminalColors'),

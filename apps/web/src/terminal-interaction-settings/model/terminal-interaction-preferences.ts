@@ -5,10 +5,19 @@ import {
 
 export interface TerminalInteractionPreferences {
 	readonly copyOnSelect: boolean;
+	readonly trimTrailingBlankRowsForAgents: boolean;
+}
+
+export interface TerminalTrailingBlankRowsPreferenceSource {
+	current(): boolean;
+	subscribe(listener: (enabled: boolean) => void): () => void;
 }
 
 export const DEFAULT_TERMINAL_INTERACTION_PREFERENCES: TerminalInteractionPreferences =
-	DEFAULT_TERMINAL_INTERACTION_CONFIGURATION;
+	Object.freeze({
+		copyOnSelect: DEFAULT_TERMINAL_INTERACTION_CONFIGURATION.copyOnSelect,
+		trimTrailingBlankRowsForAgents: true,
+	});
 
 export function terminalInteractionConfigurationFromPreferences(
 	preferences: TerminalInteractionPreferences,
