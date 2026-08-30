@@ -17,11 +17,11 @@ export function renderDesktopApplicationIconSvg(
 	if (closingTagIndex < 0 || !/^\s*<svg(?:\s|>)/u.test(baseIconSvg)) {
 		throw new Error('The Desktop application base icon must be a complete SVG document.');
 	}
-	if (profile.profileId === 'release') return baseIconSvg;
-	const accentColor = profile.icon.accentColor;
-	if (accentColor === null) {
-		throw new Error(`The ${profile.profileId} Desktop icon requires an accent color.`);
+	if (profile.profileId === 'release' || profile.icon === null) {
+		throw new Error(
+			`The ${profile.profileId} Desktop distribution does not configure an application icon.`,
+		);
 	}
-	const overlay = DISTRIBUTION_ICON_OVERLAYS[profile.profileId](accentColor);
+	const overlay = DISTRIBUTION_ICON_OVERLAYS[profile.profileId](profile.icon.accentColor);
 	return `${baseIconSvg.slice(0, closingTagIndex)}${overlay}${baseIconSvg.slice(closingTagIndex)}`;
 }

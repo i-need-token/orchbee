@@ -51,7 +51,7 @@ describe('Desktop distribution profiles', () => {
 				applicationName: 'Orchbee',
 				bundleIdentifier: 'com.electron.orchbee',
 				dataScope: 'release',
-				icon: { accentColor: null, variant: 'release' },
+				icon: null,
 				outputDirectoryName: 'release',
 				releasePayload: 'required',
 			},

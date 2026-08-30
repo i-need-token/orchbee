@@ -9,10 +9,10 @@ import { renderDesktopApplicationIconSvg } from '../renderDesktopApplicationIcon
 const baseIcon = '<svg xmlns="http://www.w3.org/2000/svg"><path d="M0 0h1v1z"/></svg>';
 
 describe('renderDesktopApplicationIconSvg', () => {
-	it('preserves the release icon exactly', () => {
-		expect(
+	it('rejects a release distribution without a configured application icon', () => {
+		expect(() =>
 			renderDesktopApplicationIconSvg(baseIcon, resolveDesktopDistributionProfile('release')),
-		).toBe(baseIcon);
+		).toThrow('does not configure an application icon');
 	});
 
 	it('adds the checkout-scoped dev badge without changing the base artwork', () => {

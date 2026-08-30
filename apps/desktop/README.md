@@ -816,7 +816,7 @@ Desktop owns exactly three explicit distribution profiles:
 | ------------------------------ | ------------------- | ------------------------------------------ | ------------------------------- | ----------------- | ------------------------------------------- |
 | `pnpm desktop:package:dev`     | `Orchbee Dev.app`   | `com.electron.orchbee.dev.d<scope-digest>` | `~/.orchbee-dev-<scope-digest>` | Purple Dev badge  | `apps/desktop/out/dev/`; development-signed |
 | `pnpm desktop:package:local`   | `Orchbee Local.app` | `com.electron.orchbee.local`               | `~/.orchbee-local`              | Green Local badge | `apps/desktop/out/local/`; excluded         |
-| `pnpm desktop:package:release` | `Orchbee.app`       | `com.electron.orchbee`                     | `~/.orchbee`                    | Canonical Orchbee | `apps/desktop/out/release/`; required       |
+| `pnpm desktop:package:release` | `Orchbee.app`       | `com.electron.orchbee`                     | `~/.orchbee`                    | Electron default  | `apps/desktop/out/release/`; required       |
 
 `pnpm desktop` always uses the `dev` identity but does not create a packaged application. There is
 no generic `desktop:package` command: package creation requires one explicit profile so a local or

@@ -45,9 +45,9 @@ interface DesktopDistributionProfileDefinition {
 	readonly baseBundleIdentifier: string;
 	readonly dataRootDirectoryName: string | null;
 	readonly icon: {
-		readonly accentColor: string | null;
-		readonly variant: DesktopDistributionProfileId;
-	};
+		readonly accentColor: string;
+		readonly variant: Exclude<DesktopDistributionProfileId, 'release'>;
+	} | null;
 	readonly outputDirectoryName: DesktopDistributionProfileId;
 	readonly packageName: string;
 	readonly releasePayload: 'development' | 'excluded' | 'required';
@@ -76,7 +76,7 @@ const DESKTOP_DISTRIBUTION_PROFILE_DEFINITIONS = {
 		applicationName: 'Orchbee',
 		baseBundleIdentifier: 'com.electron.orchbee',
 		dataRootDirectoryName: '.orchbee',
-		icon: { accentColor: null, variant: 'release' },
+		icon: null,
 		outputDirectoryName: 'release',
 		packageName: 'orchbee',
 		releasePayload: 'required',

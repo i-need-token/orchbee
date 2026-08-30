@@ -531,7 +531,7 @@ Desktop 只拥有以下三种显式 distribution profile：
 | ------------------------------ | ------------------- | ------------------------------------------ | ------------------------------- | ----------------- | ------------------------------------------- |
 | `pnpm desktop:package:dev`     | `Orchbee Dev.app`   | `com.electron.orchbee.dev.d<scope-digest>` | `~/.orchbee-dev-<scope-digest>` | 紫色 Dev 标记     | `apps/desktop/out/dev/`；development-signed |
 | `pnpm desktop:package:local`   | `Orchbee Local.app` | `com.electron.orchbee.local`               | `~/.orchbee-local`              | 绿色 Local 标记   | `apps/desktop/out/local/`；不包含           |
-| `pnpm desktop:package:release` | `Orchbee.app`       | `com.electron.orchbee`                     | `~/.orchbee`                    | 规范 Orchbee 图标 | `apps/desktop/out/release/`；必须包含       |
+| `pnpm desktop:package:release` | `Orchbee.app`       | `com.electron.orchbee`                     | `~/.orchbee`                    | Electron 默认图标 | `apps/desktop/out/release/`；必须包含       |
 
 `pnpm desktop` 始终使用 `dev` 身份，但不会创建打包应用。仓库刻意不提供通用的
 `desktop:package` 命令：创建包时必须显式选择一个 profile，避免把 local 或 development build 误当成
