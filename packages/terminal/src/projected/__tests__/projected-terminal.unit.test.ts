@@ -142,6 +142,20 @@ function canonicalText(value: string): CanonicalUint64Text {
 	return CanonicalUint64TextSchema.parse(value);
 }
 
+function deferredPromise<T>(): {
+	readonly promise: Promise<T>;
+	readonly reject: (reason?: unknown) => void;
+	readonly resolve: (value: T | PromiseLike<T>) => void;
+} {
+	let rejectPromise: (reason?: unknown) => void = () => {};
+	let resolvePromise: (value: T | PromiseLike<T>) => void = () => {};
+	const promise = new Promise<T>((resolve, reject) => {
+		rejectPromise = reject;
+		resolvePromise = resolve;
+	});
+	return { promise, reject: rejectPromise, resolve: resolvePromise };
+}
+
 function resolvedRowRequestStart(
 	command: Extract<ProjectedTerminalCommand, { readonly kind: 'read-rows' }>,
 	totalRows: bigint,
@@ -6061,6 +6075,171 @@ describe('ProjectedTerminal', () => {
 		terminal.dispose();
 	});
 
+	it.each(['throw', 'reject'] as const)(
+		'recovers from a viewport row publication %s and admits later history intent',
+		async (failureMode) => {
+			const browser = createFakeBrowser();
+			vi.stubGlobal('document', browser.document);
+			vi.stubGlobal('window', browser.document.defaultView);
+			vi.stubGlobal('navigator', {});
+			const commands: ProjectedTerminalCommand[] = [];
+			const publication = deferredPromise<void>();
+			const publicationError = new Error(`viewport row publication ${failureMode}`);
+			let failNextViewportRead = true;
+			const terminal = new ProjectedTerminal({
+				attachmentId,
+				creationId,
+				hostEpoch,
+				labels: { input: 'input', screen: 'screen' },
+				port: {
+					send: (command) => {
+						commands.push(command);
+						if (
+							command.kind !== 'read-rows' ||
+							command.payload.purpose !== 'viewport' ||
+							!failNextViewportRead
+						) {
+							return;
+						}
+						failNextViewportRead = false;
+						if (failureMode === 'throw') throw publicationError;
+						return publication.promise;
+					},
+				},
+				terminalId,
+			});
+			await terminal.open(browser.root);
+			terminal.applyFrame(
+				terminalFrame('snapshot', 1n, 1n, ['live-a', 'live-b'], null, [0, 1], 18n),
+			);
+
+			expect(terminal.scrollLines(-3)).toBe(true);
+			const queuedIntentAccepted = failureMode === 'reject' ? terminal.scrollLines(-1) : true;
+			expect(queuedIntentAccepted).toBe(true);
+			if (failureMode === 'reject') {
+				publication.reject(publicationError);
+				await Promise.resolve();
+				await Promise.resolve();
+			}
+
+			try {
+				expect(terminal.historyPhase).toBe(ProjectedHistoryPhase.recovering);
+				expect(commands.filter((command) => command.kind === 'read-rows')).toHaveLength(1);
+				terminal.applyFrame(
+					terminalFrame('snapshot', 2n, 2n, ['fresh-a', 'fresh-b'], null, [0, 1], 18n),
+				);
+				const laterIntentAccepted = failureMode === 'throw' ? terminal.scrollLines(-1) : true;
+				expect(laterIntentAccepted).toBe(true);
+				const reads = commands.filter((command) => command.kind === 'read-rows');
+				expect(reads).toHaveLength(2);
+				const failedRead = reads[0];
+				const laterRead = reads[1];
+				if (failedRead?.kind !== 'read-rows' || laterRead?.kind !== 'read-rows') {
+					throw new Error('viewport recovery did not publish two correlated reads');
+				}
+				expect(laterRead.payload.requestSequence).not.toBe(failedRead.payload.requestSequence);
+				expect(terminal.historyPhase).toBe(ProjectedHistoryPhase.requestingHistory);
+				const laterStart = resolvedRowRequestStart(laterRead, 20n);
+				expect(
+					terminal.applyRows(
+						renderRowWindow(
+							BigInt(laterRead.payload.requestSequence),
+							2n,
+							laterStart,
+							20n,
+							Array.from({ length: laterRead.payload.rowCount }, (_, index) => `fresh-${index}`),
+						),
+					),
+				).toBe('committed');
+				expect(terminal.historyPhase).toBe(ProjectedHistoryPhase.viewingHistory);
+			} finally {
+				terminal.dispose();
+			}
+		},
+	);
+
+	it('keeps a newer viewport row flight current when an older accepted send rejects late', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const olderPublication = deferredPromise<void>();
+		let captureOlderPublication = true;
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+					if (
+						command.kind !== 'read-rows' ||
+						command.payload.purpose !== 'viewport' ||
+						!captureOlderPublication
+					) {
+						return;
+					}
+					captureOlderPublication = false;
+					return olderPublication.promise;
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(
+			terminalFrame('snapshot', 1n, 42n, ['live-a', 'live-b'], null, [0, 1], 18n),
+		);
+
+		terminal.scrollLines(-3);
+		const olderRead = commands.at(-1);
+		if (olderRead?.kind !== 'read-rows') throw new Error('older viewport read was not sent');
+		const olderStart = resolvedRowRequestStart(olderRead, 20n);
+		expect(
+			terminal.applyRows(
+				renderRowWindow(
+					BigInt(olderRead.payload.requestSequence),
+					42n,
+					olderStart,
+					20n,
+					Array.from({ length: olderRead.payload.rowCount }, (_, index) => `older-${index}`),
+				),
+			),
+		).toBe('committed');
+		terminal.scrollLines(-1);
+		const newerRead = commands.at(-1);
+		if (newerRead?.kind !== 'read-rows') throw new Error('newer viewport read was not sent');
+		const bottomRecoveryCount = commands.filter(
+			(command) =>
+				command.kind === 'set-history-demand' && command.payload.demand === 'following-bottom',
+		).length;
+
+		olderPublication.reject(new Error('late older viewport publication failure'));
+		await Promise.resolve();
+		await Promise.resolve();
+		expect(terminal.historyPhase).toBe(ProjectedHistoryPhase.requestingHistory);
+		expect(
+			commands.filter(
+				(command) =>
+					command.kind === 'set-history-demand' && command.payload.demand === 'following-bottom',
+			),
+		).toHaveLength(bottomRecoveryCount);
+		expect(
+			terminal.applyRows(
+				renderRowWindow(
+					BigInt(newerRead.payload.requestSequence),
+					42n,
+					olderStart - 1n,
+					20n,
+					Array.from({ length: newerRead.payload.rowCount }, (_, index) => `newer-${index}`),
+				),
+			),
+		).toBe('committed');
+		expect(terminal.historyPhase).toBe(ProjectedHistoryPhase.viewingHistory);
+		terminal.dispose();
+	});
+
 	it.each(['evicted', 'none'] as const)(
 		'resumes bottom projection when the Host history anchor becomes %s',
 		async (anchorStatus) => {
@@ -7873,6 +8052,139 @@ describe('ProjectedTerminal', () => {
 		} finally {
 			terminal.dispose();
 		}
+	});
+
+	it.each(['throw', 'reject'] as const)(
+		'settles a buffer row publication %s and admits a later read on the same lane',
+		async (failureMode) => {
+			const browser = createFakeBrowser();
+			vi.stubGlobal('document', browser.document);
+			vi.stubGlobal('window', browser.document.defaultView);
+			vi.stubGlobal('navigator', {});
+			const commands: ProjectedTerminalCommand[] = [];
+			const publication = deferredPromise<void>();
+			const publicationError = new Error(`buffer row publication ${failureMode}`);
+			let failNextRead = true;
+			const terminal = new ProjectedTerminal({
+				attachmentId,
+				creationId,
+				hostEpoch,
+				labels: { input: 'input', screen: 'screen' },
+				port: {
+					send: (command) => {
+						commands.push(command);
+						if (command.kind !== 'read-rows' || !failNextRead) return;
+						failNextRead = false;
+						if (failureMode === 'throw') throw publicationError;
+						return publication.promise;
+					},
+				},
+				terminalId,
+			});
+			const errors = vi.fn<(event: ProjectedTerminalErrorEvent) => void>();
+			terminal.onError(errors);
+			await terminal.open(browser.root);
+			terminal.applyFrame(terminalFrame('snapshot', 1n, 42n, ['a', 'b'], null, [0, 1], 10n));
+
+			const request = {
+				detail: 'text' as const,
+				generation: 1n,
+				maximumBytes: PROTOCOL_LIMITS.maxRowWindowBytes,
+				revision: 42n,
+				rowCount: 1,
+				startRow: 0n,
+			};
+			const failedRows = terminal.readBufferRows(request, new AbortController().signal);
+			if (failureMode === 'reject') {
+				publication.reject(publicationError);
+				await Promise.resolve();
+				await Promise.resolve();
+			}
+			const laterRows = terminal.readBufferRows(request, new AbortController().signal);
+
+			try {
+				const reads = commands.filter((command) => command.kind === 'read-rows');
+				expect(reads).toHaveLength(2);
+				await expect(failedRows).resolves.toEqual({
+					generation: 1n,
+					kind: 'unavailable',
+					revision: 42n,
+					totalRows: 12n,
+				});
+				const laterRead = reads[1];
+				if (laterRead?.kind !== 'read-rows') throw new Error('later buffer read was not sent');
+				expect(
+					terminal.applyRows(
+						encodedTextRowWindow(BigInt(laterRead.payload.requestSequence), 42n, 0n, 12n, ['a']),
+					),
+				).toBe('committed');
+				await expect(laterRows).resolves.toMatchObject({ kind: 'rows', startRow: 0n });
+				expect(errors).toHaveBeenCalledOnce();
+				expect(errors).toHaveBeenCalledWith({ error: publicationError, operation: 'command' });
+			} finally {
+				terminal.dispose();
+			}
+		},
+	);
+
+	it('keeps a newer buffer row flight current when an older accepted send rejects late', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const olderPublication = deferredPromise<void>();
+		let captureOlderPublication = true;
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+					if (command.kind !== 'read-rows' || !captureOlderPublication) return;
+					captureOlderPublication = false;
+					return olderPublication.promise;
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(terminalFrame('snapshot', 1n, 42n, ['a', 'b'], null, [0, 1], 10n));
+		const request = {
+			detail: 'text' as const,
+			generation: 1n,
+			maximumBytes: PROTOCOL_LIMITS.maxRowWindowBytes,
+			revision: 42n,
+			rowCount: 1,
+			startRow: 0n,
+		};
+
+		const olderRows = terminal.readBufferRows(request, new AbortController().signal);
+		const olderRead = commands.at(-1);
+		if (olderRead?.kind !== 'read-rows') throw new Error('older buffer read was not sent');
+		expect(
+			terminal.applyRows(
+				encodedTextRowWindow(BigInt(olderRead.payload.requestSequence), 42n, 0n, 12n, ['a']),
+			),
+		).toBe('committed');
+		await expect(olderRows).resolves.toMatchObject({ kind: 'rows' });
+
+		const newerRows = terminal.readBufferRows(request, new AbortController().signal);
+		const newerRead = commands.at(-1);
+		if (newerRead?.kind !== 'read-rows') throw new Error('newer buffer read was not sent');
+		olderPublication.reject(new Error('late older buffer publication failure'));
+		await Promise.resolve();
+		await Promise.resolve();
+
+		expect(
+			terminal.applyRows(
+				encodedTextRowWindow(BigInt(newerRead.payload.requestSequence), 42n, 0n, 12n, ['a']),
+			),
+		).toBe('committed');
+		await expect(newerRows).resolves.toMatchObject({ kind: 'rows' });
+		terminal.dispose();
 	});
 
 	it('settles a stale buffer read without surfacing a history failure', async () => {
@@ -11814,6 +12126,54 @@ describe('ProjectedTerminal', () => {
 		expect(root.children).toHaveLength(0);
 	});
 
+	it('refuses new correlated row, history, and link work after freeze without retaining it', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: { send: () => undefined },
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(terminalFrame('snapshot', 1n, 42n, ['a', 'b'], null, [0, 1], 10n));
+		terminal.freeze();
+
+		const rows = terminal.readBufferRows(
+			{
+				detail: 'text',
+				generation: 1n,
+				maximumBytes: PROTOCOL_LIMITS.maxRowWindowBytes,
+				revision: 42n,
+				rowCount: 1,
+				startRow: 0n,
+			},
+			new AbortController().signal,
+		);
+		const link = terminal.openLinkAsync('https://orchbee.dev');
+		const scrolled = terminal.scrollLines(-1);
+		const historyPhase = terminal.historyPhase;
+		terminal.dispose();
+
+		expect(scrolled).toBe(false);
+		expect(historyPhase).toBe(ProjectedHistoryPhase.disposed);
+		await expect(rows).resolves.toEqual({
+			generation: 1n,
+			kind: 'unavailable',
+			revision: 42n,
+			totalRows: 12n,
+		});
+		await expect(link).resolves.toEqual({
+			code: 'link-send-failed',
+			kind: 'failed',
+			retryable: true,
+		});
+	});
+
 	it('sends an accessibility DOM range as one explicit cell-range command', async () => {
 		const browser = createFakeBrowser();
 		vi.stubGlobal('document', browser.document);
@@ -13852,6 +14212,98 @@ describe('ProjectedTerminal', () => {
 			kind: 'failed',
 			retryable: false,
 		});
+		terminal.dispose();
+	});
+
+	it.each(['throw', 'reject'] as const)(
+		'settles an asynchronous link publication %s and admits a later link effect',
+		async (failureMode) => {
+			const commands: ProjectedTerminalCommand[] = [];
+			const publication = deferredPromise<void>();
+			const publicationError = new Error(`link publication ${failureMode}`);
+			let failNextLink = true;
+			const terminal = new ProjectedTerminal({
+				attachmentId,
+				creationId,
+				hostEpoch,
+				labels: { input: 'input', screen: 'screen' },
+				port: {
+					send: (command) => {
+						commands.push(command);
+						if (command.kind !== 'link-open' || !failNextLink) return;
+						failNextLink = false;
+						if (failureMode === 'throw') throw publicationError;
+						return publication.promise;
+					},
+				},
+				terminalId,
+			});
+			const failedLink = terminal.openLinkAsync('https://failed.orchbee.dev');
+			if (failureMode === 'reject') {
+				publication.reject(publicationError);
+				await Promise.resolve();
+				await Promise.resolve();
+			}
+			const laterLink = terminal.openLinkAsync('https://orchbee.dev');
+
+			try {
+				const links = commands.filter((command) => command.kind === 'link-open');
+				expect(links).toHaveLength(2);
+				await expect(failedLink).resolves.toEqual({
+					code: 'link-send-failed',
+					kind: 'failed',
+					retryable: true,
+				});
+				const laterCommand = links[1];
+				if (laterCommand?.kind !== 'link-open') throw new Error('later link effect was not sent');
+				terminal.notifyLinkOpened(laterCommand.payload.requestSequence);
+				await expect(laterLink).resolves.toEqual({ kind: 'completed' });
+			} finally {
+				terminal.dispose();
+			}
+		},
+	);
+
+	it('keeps a newer link completion current when an older accepted send rejects late', async () => {
+		const commands: ProjectedTerminalCommand[] = [];
+		const olderPublication = deferredPromise<void>();
+		let captureOlderPublication = true;
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+					if (command.kind !== 'link-open' || !captureOlderPublication) return;
+					captureOlderPublication = false;
+					return olderPublication.promise;
+				},
+			},
+			terminalId,
+		});
+
+		const olderLink = terminal.openLinkAsync('https://older.orchbee.dev');
+		const olderCommand = commands.at(-1);
+		if (olderCommand?.kind !== 'link-open') throw new Error('older link effect was not sent');
+		terminal.notifyLinkOpened(olderCommand.payload.requestSequence);
+		await expect(olderLink).resolves.toEqual({ kind: 'completed' });
+
+		const newerLink = terminal.openLinkAsync('https://newer.orchbee.dev');
+		const newerCommand = commands.at(-1);
+		if (newerCommand?.kind !== 'link-open') throw new Error('newer link effect was not sent');
+		olderPublication.reject(new Error('late older link publication failure'));
+		await Promise.resolve();
+		await Promise.resolve();
+
+		await expect(terminal.openLinkAsync('https://blocked.orchbee.dev')).resolves.toEqual({
+			code: 'link-in-progress',
+			kind: 'failed',
+			retryable: true,
+		});
+		terminal.notifyLinkOpened(newerCommand.payload.requestSequence);
+		await expect(newerLink).resolves.toEqual({ kind: 'completed' });
 		terminal.dispose();
 	});
 

@@ -486,6 +486,15 @@ before any queued history intent can run.
 Clear, screen replacement, eviction, or any other invalid anchor resumes bottom projection while a
 fresh snapshot replaces the last readable history window.
 
+Once a viewport read, exact buffer read, or asynchronous link effect installs its local
+correlation, command publication is part of that operation's settlement boundary. A synchronous
+refusal or throw, or a later send-Promise rejection, retires only the captured request sequence:
+buffer reads settle `unavailable`, `openLinkAsync`/`openTargetAsync` settle retryable
+`link-send-failed`, and viewport reads enter the existing history recovery or queued-transition
+policy. The failed command is never retried automatically. A failure arriving after completion,
+cancellation, disposal, or a newer request cannot replace the settled result or retire newer work;
+the ordinary command-error diagnostic remains observable.
+
 ### Agent tail-row presentation
 
 The application may enable a display-only trailing-blank-row policy for a terminal presentation.
@@ -704,7 +713,9 @@ The off-screen accessibility mirror is a labeled `list` whose direct `listitem` 
 
 ## Bounded row API
 
-The asynchronous row reader exposes only revision- and generation-pinned pages. It intentionally has no synchronous whole-buffer string API.
+The asynchronous row reader exposes only revision- and generation-pinned pages. It intentionally
+has no synchronous whole-buffer string API. Local command-publication failure settles the exact
+read as `unavailable` and releases its purpose lane for a later explicit read.
 
 ```ts
 const snapshot = terminal.getBufferRowsSnapshot();

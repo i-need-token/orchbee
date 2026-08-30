@@ -10,6 +10,19 @@ import { buildSemanticCommandEndpoint } from './build-semantic-command-endpoint.
 const executeFile = promisify(execFile);
 const desktopRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const repositoryRoot = path.resolve(desktopRoot, '..', '..');
+
+async function executePnpm(arguments_) {
+	const options = { cwd: repositoryRoot, encoding: 'utf8' };
+	if (process.platform === 'win32') {
+		return executeFile(
+			process.env.ComSpec ?? 'cmd.exe',
+			['/d', '/s', '/c', 'pnpm.cmd', ...arguments_],
+			options,
+		);
+	}
+	return executeFile('pnpm', arguments_, options);
+}
+
 const addonPath = await buildSemanticCommandEndpoint();
 const runtimeVerifier = path.join(
 	desktopRoot,
@@ -43,18 +56,12 @@ const workerPath = path.join(
 try {
 	await access(workerPath);
 } catch {
-	await executeFile('pnpm', ['--filter', '@orchbee/desktop...', 'build'], {
-		cwd: repositoryRoot,
-		encoding: 'utf8',
-	});
+	await executePnpm(['--filter', '@orchbee/desktop...', 'build']);
 }
 try {
 	await access(cliEntryPath);
 } catch {
-	await executeFile('pnpm', ['--filter', '@orchbee/cli...', 'build'], {
-		cwd: repositoryRoot,
-		encoding: 'utf8',
-	});
+	await executePnpm(['--filter', '@orchbee/cli...', 'build']);
 }
 const electronExecutable = createRequire(import.meta.url)('electron');
 if (typeof electronExecutable !== 'string') {

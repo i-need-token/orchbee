@@ -149,7 +149,10 @@ jobs:
 
       - name: Test SSH Environment Runtime on macOS
         if: runner.os == 'macOS'
-        run: pnpm --filter @orchbee/ssh-environment-runtime test
+        run: |
+          pnpm --filter @orchbee/ssh-environment-runtime... build
+          pnpm --filter @orchbee/terminal-host build
+          pnpm --filter @orchbee/ssh-environment-runtime test
 
       - name: Test Desktop local endpoint adapters
         run: pnpm --filter @orchbee/desktop test:native

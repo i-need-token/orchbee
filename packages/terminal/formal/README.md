@@ -207,6 +207,51 @@ Host response deadline, transport delivery, or a particular order among the lane
 restriction to viewport plus `tail` or `committed`, generation invalidation, byte bounds, rendering,
 and correlated refresh are covered by protocol and TypeScript tests.
 
+## Request-publication recovery
+
+`tla/TerminalRequestPublicationRecovery.tla` models the local publication boundary after
+`ProjectedTerminal` has installed correlation state for a viewport row read, an exact buffer row
+read, or an asynchronous link effect. Its trusted inputs are terminal-owned lane and request
+sequence identities. The command port's synchronous return, throw, or refusal, its independently
+ordered Promise rejection, Host completion, a later explicit request, queued viewport intent, and
+lifecycle disposal are external events. A void or fulfilled send is accepted publication with no
+additional semantic output; an absent Host completion remains in flight.
+
+The terminal owns each lane's current request and resolver. Publication refusal settles the staged
+request immediately. An accepted publication may later complete through the Host or reject through
+the command-port Promise. Both failure paths compare the captured request sequence with the current
+lane before retiring anything. Disposal cancels current work, while a late rejection after Host
+completion, disposal, or readmission is correlation-state inert. Buffer-row cancellation remains
+owned by the row-flight model: a later send rejection may release its retained lane but cannot
+replace the already returned `cancelled` result.
+
+| State/event                      | Guard and next state                                                                                      | Observable output                                                                 |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `idle` or `settled` / admit      | The lane is below its bound; install a fresh sequence in `publishing`.                                    | No result yet.                                                                    |
+| `publishing` / accept            | The command port returned; retain a rejectable send and enter `in-flight`.                                | No result yet.                                                                    |
+| `publishing` / refuse            | The port returned false or threw; retire only that staged sequence and enter `settled`.                   | Buffer `unavailable`, retryable `link-send-failed`, or history recovery.          |
+| `in-flight` / Host completion    | The completion matches the current sequence; enter `settled`.                                             | Rows or completed link effect.                                                    |
+| `in-flight` / Promise rejection  | The rejection matches the current sequence; enter `settled` without creating another admission.           | The lane-specific failure above.                                                  |
+| any / stale Promise rejection    | Completion, disposal, or readmission made the captured sequence noncurrent.                               | No correlation-state change; command diagnostics remain outside this abstraction. |
+| settled viewport / queued intent | Admit the separately queued user intent with a fresh sequence; without one, remain settled or recovering. | New work, never a retry of the failed request.                                    |
+
+| Publication-recovery claim                          | Model property                                                                                   | TypeScript refinement                                                                                                      |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| A reported current send failure settles one request | `CurrentPublicationFailureSettlesExactRequest`, `SettledRequestHasTypedOutcome`                  | Buffer rows resolve `unavailable`; async links resolve `link-send-failed`; viewport rows enter the existing recovery path. |
+| Failure never retries the failed command            | `PublicationFailureDoesNotRetry`, `PendingViewportAdmissionConsumesOnlyQueuedIntent`             | Cleanup removes the exact flight/completion; only a distinct caller or queued viewport intent may publish again.           |
+| A stale rejection cannot clear newer work           | `StalePublicationFailureIsInert`, `CrossLaneSettlementIsolation`, `CurrentSequencesAreDistinct`  | Every failure callback rechecks its captured request sequence; generic command diagnostics remain observable.              |
+| Later work receives a fresh identity                | `ReadmissionUsesFreshSequence` plus required retry/readmission action coverage                   | A retired lane admits a later read or link request through the existing monotonic sequence allocators.                     |
+| A settled queued viewport intent makes progress     | `EverySettledViewportIntentEventuallyDispatches` under weak fairness of enabled intent admission | Existing history intent priority runs only after the failed viewport flight is retired.                                    |
+| Disposal remains authoritative                      | `DisposalClosesEveryLane`                                                                        | Freeze/disposal clears row flights and link completions; later rejection callbacks are no-ops.                             |
+
+The checked bound admits two requests per lane, permits all three lanes to overlap, and retains an
+old accepted send while a newer request becomes current. It does not assume transport or Host
+completion liveness, prove delivery, retry commands, model row bytes or link policy, or change the
+Host/protocol contract. Deterministic TypeScript tests own concrete synchronous throws, native
+Promise rejections, frozen-port refusal, typed results, history compensation, and re-entry.
+Cancellation settlement and lane retention are checked by the separate row-flight model and
+existing abort tests.
+
 ## Search-refresh scheduling
 
 `tla/TerminalSearchRefreshScheduling.tla` models exact-revision search admission during output
@@ -326,7 +371,7 @@ pnpm --filter @orchbee/terminal test:tla
 ```
 
 The shared repository runner executes the renderer-initialization, presentation, image-preview,
-row-flight, prompt-navigation, selection-gesture, and native-settlement models once and the input-repair model through nine fixed
+row-flight, request-publication-recovery, prompt-navigation, selection-gesture, and native-settlement models once and the input-repair model through nine fixed
 semantic scenarios: composition, key, mouse, focus, review-key, review-mouse, review-focus,
 review-composition, and lifecycle. `review-composition`
 combines a stalled review, queued focus-in, reset invalidation, a deliberately failed first

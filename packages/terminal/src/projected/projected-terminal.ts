@@ -1778,7 +1778,7 @@ export class ProjectedTerminal {
 		if (request.startRow >= snapshot.totalRows) {
 			return Promise.resolve({ ...snapshot, kind: 'evicted' });
 		}
-		if (this.#phase === ProjectedTerminalPhase.disposed) {
+		if (this.#isDisposed()) {
 			return Promise.resolve({ ...snapshot, kind: 'unavailable' });
 		}
 		const lane = request.purpose === 'search' ? 'search' : 'buffer';
@@ -1805,24 +1805,28 @@ export class ProjectedTerminal {
 				requestSequence,
 				resolve,
 			});
-			this.#send({
-				kind: 'read-rows',
-				payload: {
-					attachmentId: this.#attachmentId,
-					detail: request.detail,
-					generation: CanonicalUint64TextSchema.parse(request.generation.toString()),
-					maximumBytes: request.maximumBytes,
-					origin: {
-						kind: 'absolute',
-						row: CanonicalUint64TextSchema.parse(request.startRow.toString()),
+			const sent = this.#send(
+				{
+					kind: 'read-rows',
+					payload: {
+						attachmentId: this.#attachmentId,
+						detail: request.detail,
+						generation: CanonicalUint64TextSchema.parse(request.generation.toString()),
+						maximumBytes: request.maximumBytes,
+						origin: {
+							kind: 'absolute',
+							row: CanonicalUint64TextSchema.parse(request.startRow.toString()),
+						},
+						purpose: request.purpose ?? 'buffer',
+						requestSequence,
+						revision: CanonicalUint64TextSchema.parse(request.revision.toString()),
+						revisionPolicy: 'exact',
+						rowCount: request.rowCount,
 					},
-					purpose: request.purpose ?? 'buffer',
-					requestSequence,
-					revision: CanonicalUint64TextSchema.parse(request.revision.toString()),
-					revisionPolicy: 'exact',
-					rowCount: request.rowCount,
 				},
-			});
+				() => this.#settleRowPublicationFailure(requestSequence),
+			);
+			if (!sent) this.#settleRowPublicationFailure(requestSequence);
 		});
 	}
 
@@ -2105,6 +2109,27 @@ export class ProjectedTerminal {
 		if (flight.kind === 'buffer') flight.removeAbortListener();
 	}
 
+	#settleRowPublicationFailure(requestSequence: CanonicalUint64Text): void {
+		const flight = this.#rowFlightForSequence(requestSequence);
+		if (flight === undefined) return;
+		this.#retireRowFlight(flight);
+		if (flight.kind === 'buffer') {
+			if (!flight.aborted) {
+				flight.resolve({ ...this.getBufferRowsSnapshot(), kind: 'unavailable' });
+			}
+			return;
+		}
+		if (flight.kind !== 'viewport' || this.#isDisposed()) return;
+		if (
+			this.#pendingHistoryTransition === 'recover' ||
+			this.#pendingHistoryTransition === 'refresh'
+		) {
+			this.#dispatchPendingHistoryIntent();
+			return;
+		}
+		this.#recoverHistory('preserve-pending-intent');
+	}
+
 	#cancelAuxiliaryRowFlights(): void {
 		for (const lane of ['search', 'buffer'] as const) {
 			const flight = this.#rowFlights.get(lane);
@@ -2121,11 +2146,7 @@ export class ProjectedTerminal {
 	}
 
 	#scrollHistoryLines(amount: number): boolean {
-		if (
-			!Number.isFinite(amount) ||
-			amount === 0 ||
-			this.#phase === ProjectedTerminalPhase.disposed
-		) {
+		if (!Number.isFinite(amount) || amount === 0 || this.#isDisposed()) {
 			return false;
 		}
 		const rows = Math.trunc(amount);
@@ -2215,7 +2236,9 @@ export class ProjectedTerminal {
 
 	scrollToBottom(): boolean {
 		this.#promptNavigationIntentAnchor = undefined;
-		if (this.#historyPhase === ProjectedHistoryPhase.followingBottom) return false;
+		if (this.#isDisposed() || this.#historyPhase === ProjectedHistoryPhase.followingBottom) {
+			return false;
+		}
 		this.#historyIntentEpoch += 1n;
 		this.#showHistoryScrollbar();
 		this.#recoverHistory();
@@ -2776,17 +2799,31 @@ export class ProjectedTerminal {
 	}
 
 	openTargetAsync(target: ProjectedTerminalOpenTarget): Promise<ProjectedTerminalSideEffectResult> {
+		if (this.#isDisposed()) {
+			return Promise.resolve({ code: 'link-send-failed', kind: 'failed', retryable: true });
+		}
 		if (this.#linkCompletions.size > 0) {
 			return Promise.resolve({ code: 'link-in-progress', kind: 'failed', retryable: true });
 		}
 		const requestSequence = this.#nextSideEffectSequence();
 		return new Promise((resolve) => {
 			this.#linkCompletions.set(requestSequence, resolve);
-			this.#send({
-				kind: 'link-open',
-				payload: { attachmentId: this.#attachmentId, requestSequence, target },
-			});
+			const sent = this.#send(
+				{
+					kind: 'link-open',
+					payload: { attachmentId: this.#attachmentId, requestSequence, target },
+				},
+				() => this.#settleLinkPublicationFailure(requestSequence),
+			);
+			if (!sent) this.#settleLinkPublicationFailure(requestSequence);
 		});
+	}
+
+	#settleLinkPublicationFailure(requestSequence: CanonicalUint64Text): void {
+		const complete = this.#linkCompletions.get(requestSequence);
+		if (complete === undefined) return;
+		this.#linkCompletions.delete(requestSequence);
+		complete({ code: 'link-send-failed', kind: 'failed', retryable: true });
 	}
 
 	captureActionContext(
@@ -4158,7 +4195,7 @@ export class ProjectedTerminal {
 			metadata === undefined ||
 			this.#rowFlights.has('viewport') ||
 			this.#pendingHistoryTransition !== undefined ||
-			this.#phase === ProjectedTerminalPhase.disposed
+			this.#isDisposed()
 		) {
 			return;
 		}
@@ -4203,8 +4240,10 @@ export class ProjectedTerminal {
 				kind: 'set-history-demand',
 				payload: { attachmentId: this.#attachmentId, demand: 'viewing-history' },
 			});
+			if (this.#isDisposed()) return;
 			this.#demand = 'paused';
 			this.#sendDemandIfNeeded();
+			if (this.#isDisposed()) return;
 		}
 		this.#historyPhase = ProjectedHistoryPhase.requestingHistory;
 		this.#syncPreeditPresentation();
@@ -4220,26 +4259,30 @@ export class ProjectedTerminal {
 			revisionPolicy,
 			visibleRowCount,
 		});
-		this.#send({
-			kind: 'read-rows',
-			payload: {
-				attachmentId: this.#attachmentId,
-				detail: 'render',
-				generation: CanonicalUint64TextSchema.parse(this.#historyGeneration.toString()),
-				maximumBytes: PROTOCOL_LIMITS.maxRowWindowBytes,
-				origin: requestOrigin,
-				purpose: 'viewport',
-				requestSequence,
-				revision: CanonicalUint64TextSchema.parse(this.#historyRevision.toString()),
-				revisionPolicy,
-				rowCount: cacheRowCount,
+		const sent = this.#send(
+			{
+				kind: 'read-rows',
+				payload: {
+					attachmentId: this.#attachmentId,
+					detail: 'render',
+					generation: CanonicalUint64TextSchema.parse(this.#historyGeneration.toString()),
+					maximumBytes: PROTOCOL_LIMITS.maxRowWindowBytes,
+					origin: requestOrigin,
+					purpose: 'viewport',
+					requestSequence,
+					revision: CanonicalUint64TextSchema.parse(this.#historyRevision.toString()),
+					revisionPolicy,
+					rowCount: cacheRowCount,
+				},
 			},
-		});
+			() => this.#settleRowPublicationFailure(requestSequence),
+		);
+		if (!sent) this.#settleRowPublicationFailure(requestSequence);
 	}
 
 	#requestHistoryStartRow(requestedStartRow: bigint, advanceIntent = true): void {
 		const metadata = this.metadata ?? this.#store.metadata;
-		if (metadata === null || this.#phase === ProjectedTerminalPhase.disposed) return;
+		if (metadata === null || this.#isDisposed()) return;
 		if (advanceIntent) this.#historyIntentEpoch += 1n;
 		const visibleRows = BigInt(metadata.rows);
 		const maximumStart =
@@ -4349,7 +4392,7 @@ export class ProjectedTerminal {
 		this.#requestHistoryRows({ delta: 0, kind: 'committed' });
 	}
 
-	#recoverHistory(): void {
+	#recoverHistory(pendingIntentPolicy: 'discard' | 'preserve-pending-intent' = 'discard'): void {
 		if (
 			this.#historyPhase === ProjectedHistoryPhase.followingBottom ||
 			this.#historyPhase === ProjectedHistoryPhase.disposed
@@ -4358,10 +4401,12 @@ export class ProjectedTerminal {
 		}
 		const flight = this.#rowFlights.get('viewport');
 		if (flight !== undefined) this.#retireRowFlight(flight);
-		this.#pendingHistoryDelta = 0;
+		if (pendingIntentPolicy === 'discard') this.#pendingHistoryDelta = 0;
 		this.#pendingHistoryTransition = undefined;
-		this.#pendingHistoryStartRow = undefined;
-		this.#pendingHistoryTargetRow = undefined;
+		if (pendingIntentPolicy === 'discard') {
+			this.#pendingHistoryStartRow = undefined;
+			this.#pendingHistoryTargetRow = undefined;
+		}
 		this.#searchController?.invalidate();
 		this.#historyPhase = ProjectedHistoryPhase.recovering;
 		this.#syncPreeditPresentation();

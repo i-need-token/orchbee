@@ -322,8 +322,8 @@
 			"zhCnSha256": "5bd27bbf14f2a78b40fe094367953bc6561c9d06570d409500892ea63ec4933a"
 		},
 		"packages/terminal/README.md": {
-			"englishSha256": "ccfda981229e3c836c2657973edd3375477f6a0a63d2067cf95765a8e2348700",
-			"zhCnSha256": "dee17d9d20e7fff9d8b376a435914069e55a346f1b264f8ffc557ca82e17ef9c"
+			"englishSha256": "bbb2ba0fa674c1452dee1f9945b2f3562a8532a7e7921f6a749a1d1dd58af611",
+			"zhCnSha256": "d8bd33dafd15887c0754877b5e7a5e4ef6554d0548eb9c50585c7ec55ba9fb35"
 		},
 		"packages/terminal/docs/ghostty-surface-test-provenance.md": {
 			"englishSha256": "afda7b3196e6d1e72b50037bc0af2d2e05552a9259f8ac4c0e29c34c9b8e8559",
@@ -354,8 +354,8 @@
 			"zhCnSha256": "fa2f4da8947ada9da5fc817b0e882b405d20d7d659b2054ec7ac95f6f0f50561"
 		},
 		"packages/terminal/formal/README.md": {
-			"englishSha256": "07e25932988500ab1b849564403dbced6f6b5826b1ceaccaf76b3a293fbccb21",
-			"zhCnSha256": "68e8bceaf4223f0600366a64254447dabf68d9eb009b2b15d69415ac21d2ccf8"
+			"englishSha256": "bd93a26f17a5299b320c8e3523d852fc1dec09d3daf2b7c43fe4eb50232dfbd8",
+			"zhCnSha256": "aeeec1323e33066fd80e70fb511e338cf8ced93ffab20c67d19a43a5c11b6d00"
 		},
 		"packages/ui/README.md": {
 			"englishSha256": "fd7e91519a763d17c4612157069f138041bea7eb6019955d5a690fbc9b4f6dfc",

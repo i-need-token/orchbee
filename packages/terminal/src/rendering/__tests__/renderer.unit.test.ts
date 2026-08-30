@@ -2769,7 +2769,7 @@ describe('projected terminal renderer', () => {
 		expect(selectedText).toBeDefined();
 		expect(selectedText?.[0]).toBe(unselectedText?.[0]);
 		expect(selectedText?.[4]).toBe(unselectedText?.[4]);
-		expect(selectedText?.[8]).toBeCloseTo(30 / 255, 6);
+		expect(selectedText?.[8]).toBeCloseTo(212 / 255, 6);
 		expect(selectedText?.[21]).toBeCloseTo(216 / 255, 6);
 		renderer.dispose();
 	});
