@@ -60,9 +60,9 @@ font set and requires the selected product text face to be loaded before accepti
 surface.
 
 Evidence with a deliberate domain difference states and asserts that difference at its named
-witness: the DPR trace changes only device metrics, visibility and smooth-scroll traces control
-their own animation time, real Electron/PTY traces use the mounted native window, and WebGPU tests
-use deterministic owner-local adapters. Assertions compare exact semantic state, geometry,
+witness: the DPR trace changes only device metrics, visibility traces control their own animation
+time, immediate wheel traces assert canonical canvas transforms, real Electron/PTY traces use the
+mounted native window, and WebGPU tests use deterministic owner-local adapters. Assertions compare exact semantic state, geometry,
 ordering, colors, or bytes; there is no screenshot threshold or normalization that may erase a
 semantic difference. This baseline does not claim identical operating-system antialiasing,
 native-monitor transfer, WebGPU driver behavior, another browser engine, or native OS effects.

@@ -81,6 +81,7 @@ export class ProjectedSearchController {
 	#navigationAnchor: TerminalSearchPosition | undefined;
 	#pendingNavigationOffset = 0;
 	#query = '';
+	#refreshPending = false;
 	#regexError: string | null = null;
 	#revision = 0n;
 	#searchId = 0;
@@ -111,12 +112,12 @@ export class ProjectedSearchController {
 
 	invalidate(): void {
 		if (this.#disposed || !this.#query) return;
-		const pendingNavigation = this.#pendingNavigationOffset + this.#inFlightNavigationStep;
-		this.#restart(this.#query, this.#searchOptions, this.#navigationAnchor, {
-			debounceMilliseconds: SEARCH_REVISION_REFRESH_DEBOUNCE_MILLISECONDS,
-			revealActiveMatch: false,
-		});
-		this.#pendingNavigationOffset = pendingNavigation;
+		if (this.#debounce !== undefined) return;
+		if (this.#scanActive()) {
+			this.#refreshPending = true;
+			return;
+		}
+		this.#scheduleRevisionRefresh();
 	}
 
 	next(reverse = false): boolean {
@@ -159,6 +160,7 @@ export class ProjectedSearchController {
 		this.#searchOptions = { ...options };
 		this.#navigationAnchor = anchor === undefined ? undefined : { ...anchor };
 		this.#cancelScan();
+		this.#refreshPending = false;
 		this.#inFlightNavigationStep = 0;
 		this.#matches = [];
 		this.#pendingNavigationOffset = 0;
@@ -192,6 +194,7 @@ export class ProjectedSearchController {
 		if (this.#disposed || !this.#query) return;
 		const snapshot = this.#options.reader.getBufferRowsSnapshot();
 		const searchId = ++this.#searchId;
+		this.#refreshPending = false;
 		this.#generation = snapshot.generation;
 		this.#revision = snapshot.revision;
 		if (!preserveResults) {
@@ -262,6 +265,10 @@ export class ProjectedSearchController {
 						abortController.signal,
 					);
 					continue;
+				}
+				if (result.kind === 'evicted' || result.kind === 'stale') {
+					this.#retireObsoleteScan(searchId);
+					return;
 				}
 				if (result.kind !== 'rows') {
 					this.#completeError(searchId, `Terminal search source became ${result.kind}.`);
@@ -340,6 +347,15 @@ export class ProjectedSearchController {
 			this.#receiveWorkerProgress(searchId, response.nextRow);
 			return;
 		}
+		const current = this.#options.reader.getBufferRowsSnapshot();
+		if (
+			this.#refreshPending ||
+			current.generation !== this.#generation ||
+			current.revision !== this.#revision
+		) {
+			this.#retireObsoleteScan(searchId);
+			return;
+		}
 		if (this.#workerProgress !== undefined) {
 			this.#completeError(searchId, 'Terminal search Worker completed before page admission.');
 			return;
@@ -351,6 +367,7 @@ export class ProjectedSearchController {
 			this.#navigationAnchor = { ...response.activeMatch.start };
 		}
 		this.#inFlightNavigationStep = 0;
+		this.#refreshPending = false;
 		this.#abortController = undefined;
 		this.#cancelWorker();
 		if (response.activeMatch !== null) {
@@ -374,8 +391,33 @@ export class ProjectedSearchController {
 		this.#activeIndex = -1;
 		this.#inFlightNavigationStep = 0;
 		this.#pendingNavigationOffset = 0;
+		this.#refreshPending = false;
 		this.#retireScan(searchId);
 		this.#emit('error', message);
+	}
+
+	#retireObsoleteScan(searchId: number): void {
+		if (this.#searchId !== searchId) return;
+		this.#pendingNavigationOffset += this.#inFlightNavigationStep;
+		this.#inFlightNavigationStep = 0;
+		this.#retireScan(searchId);
+		this.#refreshPending = false;
+		this.#scheduleRevisionRefresh();
+	}
+
+	#scheduleRevisionRefresh(): void {
+		if (this.#disposed || !this.#query || this.#debounce !== undefined || this.#scanActive()) {
+			return;
+		}
+		this.#debounce = setTimeout(() => {
+			this.#debounce = undefined;
+			void this.#run(this.#initialNavigation(), true, false);
+		}, SEARCH_REVISION_REFRESH_DEBOUNCE_MILLISECONDS);
+		this.#emit('searching', null);
+	}
+
+	#scanActive(): boolean {
+		return this.#abortController !== undefined || this.#worker !== undefined;
 	}
 
 	#event(): ProjectedTerminalSearchEvent {
@@ -522,6 +564,7 @@ export class ProjectedSearchController {
 			if (this.#searchId !== searchId) return;
 			this.#inFlightNavigationStep = 0;
 			this.#pendingNavigationOffset = 0;
+			this.#refreshPending = false;
 			this.#retireScan(searchId);
 			this.#emit('timeout', null);
 		}, SEARCH_WATCHDOG_MILLISECONDS);
@@ -543,6 +586,7 @@ export class ProjectedSearchController {
 		this.#abortController = undefined;
 		this.#releaseWorkerProgress(false);
 		this.#cancelWorker();
+		this.#refreshPending = false;
 		this.#searchId += 1;
 	}
 

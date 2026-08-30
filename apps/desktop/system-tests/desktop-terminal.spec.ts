@@ -1672,7 +1672,7 @@ test('terminal-parity/SU-10-scrollbar', async () => {
 	expect((await captureTerminalScrollbarStrip(page, root)).equals(faded)).toBe(true);
 });
 
-test('terminal-parity/SU-11-smooth-scroll', async () => {
+test('terminal-parity/SU-11-wheel-scroll', async () => {
 	const application = electronApplication;
 	if (application === undefined) throw new Error('Electron application did not start.');
 	const page = await application.firstWindow();
@@ -1687,17 +1687,9 @@ test('terminal-parity/SU-11-smooth-scroll', async () => {
 		.toBeGreaterThan(180);
 	const accessibleRows = accessibility.locator(':scope > div');
 	const canvas = root.locator('canvas').first();
-	const motion = root.locator('[data-projected-terminal-history-motion="true"]');
+	const canvases = root.locator('canvas');
 	const firstVisibleRow = async (): Promise<bigint> =>
 		BigInt((await accessibleRows.first().getAttribute('data-terminal-absolute-row')) ?? '0');
-	const canvasOffset = async (): Promise<number> =>
-		canvas.evaluate((element) => {
-			if (!(element instanceof HTMLCanvasElement)) {
-				throw new Error('Projected terminal surface is not a canvas.');
-			}
-			const match = /^translateY\((-?[\d.]+)px\)$/u.exec(element.style.transform);
-			return match === null ? 0 : Number(match[1]);
-		});
 
 	await page.clock.install();
 	await page.clock.pauseAt((await page.evaluate(() => Date.now())) + 1_000);
@@ -1710,40 +1702,15 @@ test('terminal-parity/SU-11-smooth-scroll', async () => {
 	await canvas.hover();
 	await page.mouse.wheel(0, -bounds.height / visibleRowCount);
 	await expect.poll(firstVisibleRow).toBeLessThan(bottomStart);
-	await expect(motion).toBeAttached();
+	await expect(canvases).toHaveCount(1);
 	await page.clock.runFor(17);
-	const upwardStart = await canvasOffset();
-	expect(upwardStart).toBeLessThan(0);
-	expect(Math.abs(upwardStart)).toBeLessThanOrEqual(bounds.height);
-	await page.clock.runFor(34);
-	const upwardMidpoint = await canvasOffset();
-	expect(upwardMidpoint).toBeLessThan(0);
-	expect(Math.abs(upwardMidpoint)).toBeLessThan(Math.abs(upwardStart));
+	await expect(canvas).toHaveCSS('transform', 'none');
 
 	await page.mouse.wheel(0, bounds.height / visibleRowCount);
 	await expect.poll(firstVisibleRow).toBe(bottomStart);
-	await expect(motion).toBeAttached();
+	await expect(canvases).toHaveCount(1);
 	await page.clock.runFor(17);
-	const downwardStart = await canvasOffset();
-	expect(downwardStart).toBeGreaterThan(0);
-	expect(downwardStart).toBeLessThanOrEqual(bounds.height);
-
-	await page.evaluate(() => {
-		Object.defineProperty(document, 'visibilityState', {
-			configurable: true,
-			value: 'hidden',
-		});
-		document.dispatchEvent(new Event('visibilitychange'));
-	});
-	await expect(motion).toHaveCount(0);
-	expect(await canvasOffset()).toBe(0);
-	await page.clock.runFor(200);
-	await expect(motion).toHaveCount(0);
-	expect(await canvasOffset()).toBe(0);
-	await page.evaluate(() => {
-		Reflect.deleteProperty(document, 'visibilityState');
-		document.dispatchEvent(new Event('visibilitychange'));
-	});
+	await expect(canvas).toHaveCSS('transform', 'none');
 });
 
 test('terminal-parity/LC-06-metadata-bridge', async () => {

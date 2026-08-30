@@ -58,8 +58,8 @@ The workflow preserves these invariants:
 - local history navigation remains available without PTY input authority and publishes no input;
 - every movement retires older prompt-navigation commit authority and preserves the existing
   generation, revision, request-sequence, and row-window validation;
-- line, page, top, and bottom API navigation is immediate; existing wheel-only smooth presentation
-  is neither reused nor expanded by these keyboard Actions;
+- line, page, top, bottom, and wheel history presentation commits immediately through the same
+  canonical viewport path;
 - top and bottom are idempotent at their respective boundaries, and every amount is bounded by the
   existing history owner before publication.
 

@@ -2349,6 +2349,24 @@
 			]
 		},
 		{
+			"id": "terminal-search-refresh-scheduling",
+			"owner": "@orchbee/terminal",
+			"workspace": "packages/terminal",
+			"module": "packages/terminal/formal/tla/TerminalSearchRefreshScheduling.tla",
+			"config": "packages/terminal/formal/tla/TerminalSearchRefreshScheduling.cfg",
+			"claims": ["packages/terminal/formal/README.md", "packages/terminal/README.md"],
+			"triggers": ["packages/terminal/src/search/projected-search-controller.ts"],
+			"requiredCoverage": [
+				"StartScan",
+				"AdvanceWhileScheduled",
+				"AdvanceWhileScanning",
+				"AdvanceAfterCompletion",
+				"CompleteCurrent",
+				"SettleObsolete",
+				"Dispose"
+			]
+		},
+		{
 			"id": "terminal-selection-gesture-coordination",
 			"owner": "@orchbee/terminal",
 			"workspace": "packages/terminal",

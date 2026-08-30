@@ -207,6 +207,27 @@ Host response deadline, transport delivery, or a particular order among the lane
 restriction to viewport plus `tail` or `committed`, generation invalidation, byte bounds, rendering,
 and correlated refresh are covered by protocol and TypeScript tests.
 
+## Search-refresh scheduling
+
+`tla/TerminalSearchRefreshScheduling.tla` models exact-revision search admission during output
+churn. A scheduled scan keeps one admission deadline while revisions advance. Once admitted, a scan
+keeps its captured revision until it settles: a current result publishes, while an obsolete result
+publishes nothing and schedules one replacement. Revision invalidation after a completed result
+also schedules one replacement. Query replacement, invalid-query rejection, Worker failure,
+watchdog timeout, page streaming, and directional navigation remain outside this scheduling model.
+
+| Search-refresh claim                             | Model property                                                                    | TypeScript refinement                                                                                                                                         |
+| ------------------------------------------------ | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Revision churn cannot postpone a scheduled scan  | `ScheduledInvalidationPreservesAdmission`, `EveryScheduledSearchEventuallyStarts` | `ProjectedSearchController.invalidate()` leaves an existing debounce deadline unchanged.                                                                      |
+| Revision churn cannot cancel an admitted scan    | `ScanningInvalidationDoesNotCancel`, `EveryAdmittedScanEventuallySettles`         | An in-flight scan settles against its captured generation and revision; invalidation records only one pending replacement.                                    |
+| Only a current exact-revision result can publish | `CurrentResultsOnly`, `ObsoleteResultsNeverPublish`                               | Worker completion rechecks the row-reader snapshot; stale or evicted pages and superseded results retire silently before one fixed-delay refresh is admitted. |
+
+The checked configuration covers three revisions and three serial scan attempts. Weak fairness
+assumes an enabled timer callback and consistency-appropriate settlement of an admitted scan; it
+does not assume a Host response deadline or a quiet revision interval. Deterministic controller
+tests own the 50-millisecond query debounce, 200-millisecond refresh delay, navigation replay,
+cancellation, and watchdog boundaries.
+
 ## Prompt-navigation commit authority
 
 `tla/TerminalPromptNavigation.tla` models two replaceable previous/next prompt-navigation requests,

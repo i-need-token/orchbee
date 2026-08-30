@@ -68,6 +68,94 @@ describe('ProjectedSearchController', () => {
 		expect(worker.terminated).toBe(true);
 	});
 
+	it('does not let sustained revision invalidation postpone the scheduled query scan', async () => {
+		vi.useFakeTimers();
+		const worker = createFakeWorker(true);
+		let revision = 7n;
+		const rows = [bufferRow(0n, 'needle')];
+		const readBufferRows = vi.fn<TerminalBufferRowReader['readBufferRows']>(async (request) => ({
+			...rowsResult(rows),
+			revision: request.revision,
+		}));
+		const changes = vi.fn<ProjectedSearchControllerOptions['onChange']>();
+		const controller = new ProjectedSearchController({
+			createWorker: () => worker.value,
+			onActivate: () => {},
+			onChange: changes,
+			reader: {
+				getBufferRowsSnapshot: () => ({ generation: 2n, revision, totalRows: 1n }),
+				readBufferRows,
+			},
+		});
+
+		controller.update('needle');
+		for (let invalidation = 0; invalidation < 4; invalidation++) {
+			await vi.advanceTimersByTimeAsync(10);
+			revision += 1n;
+			controller.invalidate();
+		}
+		await vi.advanceTimersByTimeAsync(10);
+
+		expect(readBufferRows).toHaveBeenCalledOnce();
+		expect(worker.messages[0]).toMatchObject({ kind: 'start', revision: revision.toString() });
+		expect(changes).toHaveBeenLastCalledWith(
+			expect.objectContaining({ revision, state: 'complete' }),
+		);
+	});
+
+	it('settles an admitted stale scan before scheduling one non-resetting refresh', async () => {
+		vi.useFakeTimers();
+		const staleWorker = createFakeWorker(false);
+		const replacementWorker = createFakeWorker(true, 0, [0]);
+		const createWorker = vi
+			.fn<ProjectedSearchControllerOptions['createWorker']>()
+			.mockReturnValueOnce(staleWorker.value)
+			.mockReturnValueOnce(replacementWorker.value);
+		let revision = 7n;
+		const rows = [bufferRow(0n, 'needle')];
+		const readBufferRows = vi.fn<TerminalBufferRowReader['readBufferRows']>(async (request) => ({
+			...rowsResult(rows),
+			revision: request.revision,
+		}));
+		const changes = vi.fn<ProjectedSearchControllerOptions['onChange']>();
+		const controller = new ProjectedSearchController({
+			createWorker,
+			onActivate: () => {},
+			onChange: changes,
+			reader: {
+				getBufferRowsSnapshot: () => ({ generation: 2n, revision, totalRows: 1n }),
+				readBufferRows,
+			},
+		});
+
+		controller.update('needle');
+		await vi.advanceTimersByTimeAsync(50);
+		revision = 8n;
+		controller.invalidate();
+		for (let invalidation = 0; invalidation < 3; invalidation++) {
+			await vi.advanceTimersByTimeAsync(50);
+			revision += 1n;
+			controller.invalidate();
+		}
+		expect(staleWorker.terminated).toBe(false);
+
+		staleWorker.respond(0, [0]);
+		expect(staleWorker.terminated).toBe(true);
+		expect(changes).toHaveBeenLastCalledWith(expect.objectContaining({ state: 'searching' }));
+		await vi.advanceTimersByTimeAsync(199);
+		expect(createWorker).toHaveBeenCalledOnce();
+		await vi.advanceTimersByTimeAsync(1);
+
+		expect(createWorker).toHaveBeenCalledTimes(2);
+		expect(replacementWorker.messages[0]).toMatchObject({
+			kind: 'start',
+			revision: revision.toString(),
+		});
+		expect(changes).toHaveBeenLastCalledWith(
+			expect.objectContaining({ revision, state: 'complete' }),
+		);
+	});
+
 	it('retries a bounded page with fewer rows after a too-large result', async () => {
 		vi.useFakeTimers();
 		const worker = createFakeWorker(true);
@@ -252,6 +340,8 @@ describe('ProjectedSearchController', () => {
 		await vi.advanceTimersByTimeAsync(200);
 		expect(controller.next(false)).toBe(true);
 		controller.invalidate();
+		expect(staleWorker.terminated).toBe(false);
+		staleWorker.respond(0, [0, 1]);
 		await vi.advanceTimersByTimeAsync(200);
 
 		expect(staleWorker.terminated).toBe(true);

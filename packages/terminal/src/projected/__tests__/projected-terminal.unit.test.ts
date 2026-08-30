@@ -5119,7 +5119,7 @@ describe('ProjectedTerminal', () => {
 		expect(terminal.canScrollHistory).toBe(false);
 	});
 
-	it('smooths wheel history motion, reverses on a committed target, and cancels when hidden', async () => {
+	it('commits wheel history immediately without a presentation transaction', async () => {
 		const browser = createFakeBrowser();
 		vi.stubGlobal('document', browser.document);
 		vi.stubGlobal('window', browser.document.defaultView);
@@ -5142,6 +5142,10 @@ describe('ProjectedTerminal', () => {
 		browser.flushFrames(0);
 		const root = browser.root as unknown as FakeElement;
 		const canvas = terminal.canvas as unknown as FakeElement;
+		const canvasCount = (): number =>
+			root.children.filter(
+				(element) => 'getContext' in element && typeof element.getContext === 'function',
+			).length;
 
 		canvas.dispatch('wheel', wheelEvent(0, -1, { deltaMode: 1 }));
 		const historyRead = commands.at(-1);
@@ -5155,32 +5159,22 @@ describe('ProjectedTerminal', () => {
 				]),
 			),
 		).toBe('committed');
+		expect(terminal.historyPhase).toBe(ProjectedHistoryPhase.viewingHistory);
+		expect(canvasCount()).toBe(1);
 		browser.flushFrames(16);
-		const activeMotion = (): FakeElement | undefined =>
-			root.children.find((element) => element.dataset['projectedTerminalHistoryMotion'] === 'true');
-		expect(activeMotion()).toBeDefined();
-		expect(canvas.style['transform']).toMatch(/^translateY\(-[\d.]+px\)$/u);
-
-		browser.flushFrames(50);
-		const upwardOffset = canvas.style['transform'];
-		expect(upwardOffset).toMatch(/^translateY\(-[\d.]+px\)$/u);
+		expect(canvas.style['transform'] ?? '').toBe('');
 
 		canvas.dispatch('wheel', wheelEvent(0, 1, { deltaMode: 1 }));
 		expect(terminal.historyPhase).toBe(ProjectedHistoryPhase.recovering);
 		terminal.applyFrame(terminalFrame('snapshot', 2n, 2n, ['live-c', 'live-d'], null, [0, 1], 10n));
 		browser.flushFrames(60);
-		expect(activeMotion()).toBeDefined();
-		expect(canvas.style['transform']).toMatch(/^translateY\([\d.]+px\)$/u);
-
-		browser.setVisibilityState('hidden');
-		browser.dispatchDocument('visibilitychange');
-		expect(activeMotion()).toBeUndefined();
+		expect(terminal.historyPhase).toBe(ProjectedHistoryPhase.followingBottom);
+		expect(canvasCount()).toBe(1);
 		expect(canvas.style['transform'] ?? '').toBe('');
-		expect(browser.frames.size).toBe(0);
 		terminal.dispose();
 	});
 
-	it('keeps a later programmatic history intent immediate after queued wheel motion', async () => {
+	it('coalesces queued wheel and programmatic history intents on the canonical canvas', async () => {
 		const browser = createFakeBrowser();
 		vi.stubGlobal('document', browser.document);
 		vi.stubGlobal('window', browser.document.defaultView);
@@ -5203,8 +5197,10 @@ describe('ProjectedTerminal', () => {
 		browser.flushFrames(0);
 		const root = browser.root as unknown as FakeElement;
 		const canvas = terminal.canvas as unknown as FakeElement;
-		const activeMotion = (): FakeElement | undefined =>
-			root.children.find((element) => element.dataset['projectedTerminalHistoryMotion'] === 'true');
+		const canvasCount = (): number =>
+			root.children.filter(
+				(element) => 'getContext' in element && typeof element.getContext === 'function',
+			).length;
 
 		canvas.dispatch('wheel', wheelEvent(0, -1, { deltaMode: 1 }));
 		const firstRead = commands.at(-1);
@@ -5221,7 +5217,7 @@ describe('ProjectedTerminal', () => {
 			),
 		).toBe('committed');
 		browser.flushFrames(16);
-		expect(activeMotion()).toBeUndefined();
+		expect(canvasCount()).toBe(1);
 		const secondRead = commands.at(-1);
 		if (secondRead?.kind !== 'read-rows') throw new Error('queued history request was not sent');
 		expect(
@@ -5235,7 +5231,7 @@ describe('ProjectedTerminal', () => {
 		).toBe('committed');
 		browser.flushFrames(32);
 
-		expect(activeMotion()).toBeUndefined();
+		expect(canvasCount()).toBe(1);
 		expect(canvas.style['transform'] ?? '').toBe('');
 		terminal.dispose();
 	});
@@ -6905,7 +6901,7 @@ describe('ProjectedTerminal', () => {
 			state: 'active',
 		});
 		terminal.updateSearch('needle');
-		await vi.advanceTimersByTimeAsync(200);
+		await vi.advanceTimersByTimeAsync(50);
 
 		expect(readBufferRows).toHaveBeenCalledOnce();
 		expect(searchNavigation).toEqual({
