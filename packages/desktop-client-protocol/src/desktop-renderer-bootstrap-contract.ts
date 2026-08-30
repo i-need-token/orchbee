@@ -23,6 +23,7 @@ export const DESKTOP_RENDERER_PORT_ROLES = [
 
 export const DesktopRendererBootstrapSchema = z.strictObject({
 	clientSession: WorkbenchClientSessionBootstrapSchema,
+	sshProjectEnrollmentAvailable: z.boolean(),
 	type: z.literal(DESKTOP_RENDERER_BOOTSTRAP_IPC_CHANNEL),
 });
 

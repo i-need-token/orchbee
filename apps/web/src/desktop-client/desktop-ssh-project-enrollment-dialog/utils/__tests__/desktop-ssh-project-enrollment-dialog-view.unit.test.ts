@@ -26,6 +26,32 @@ describe('desktop SSH Project enrollment dialog view mapping', () => {
 		expect(desktopSshProjectProgressMessage(enrollment)).toBe(
 			desktopSshProjectMessages.progressSelectingDirectory,
 		);
+		const hostPrompt = {
+			...enrollment,
+			phase: 'prompt',
+			prompt: {
+				generation: 1,
+				handle: 'host-prompt',
+				kind: 'confirm',
+				prompt: 'Verify host fingerprint?',
+			},
+		} as const;
+		expect(desktopSshProjectDialogTitleMessage(hostPrompt, false)).toBe(
+			desktopSshProjectMessages.promptHostTitle,
+		);
+		expect(desktopSshProjectDialogDescriptionMessage(hostPrompt, false)).toBe(
+			desktopSshProjectMessages.promptHostDescription,
+		);
+		const authenticationPrompt = {
+			...hostPrompt,
+			prompt: { ...hostPrompt.prompt, kind: 'none' },
+		} as const;
+		expect(desktopSshProjectDialogTitleMessage(authenticationPrompt, false)).toBe(
+			desktopSshProjectMessages.promptAuthenticationTitle,
+		);
+		expect(desktopSshProjectDialogDescriptionMessage(authenticationPrompt, false)).toBe(
+			desktopSshProjectMessages.promptAuthenticationDescription,
+		);
 
 		const connection = connectionState();
 		expect(desktopSshProjectDialogTitleMessage(connection, false)).toBe(
@@ -33,6 +59,13 @@ describe('desktop SSH Project enrollment dialog view mapping', () => {
 		);
 		expect(desktopSshProjectDialogDescriptionMessage(connection, false)).toBe(
 			desktopSshProjectMessages.connectionDescription,
+		);
+		const failedConnection = { ...connection, failure: 'connection', phase: 'failed' } as const;
+		expect(desktopSshProjectDialogTitleMessage(failedConnection, false)).toBe(
+			desktopSshProjectMessages.failureTitle,
+		);
+		expect(desktopSshProjectDialogDescriptionMessage(failedConnection, false)).toBe(
+			desktopSshProjectMessages.failureConnection,
 		);
 
 		const environmentConnection = environmentConnectionState();

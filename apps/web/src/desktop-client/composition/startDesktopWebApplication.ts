@@ -105,6 +105,7 @@ export function startDesktopWebApplication(
 				shortcutPlatform,
 				storage,
 				message.data.bootstrap.clientSession,
+				message.data.bootstrap.sshProjectEnrollmentAvailable,
 				lifetimePort,
 				clientSessionPort,
 				projectionPort,

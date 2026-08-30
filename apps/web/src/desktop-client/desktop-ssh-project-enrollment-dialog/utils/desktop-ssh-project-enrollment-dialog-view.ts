@@ -2,6 +2,7 @@ import type { DesktopSshProjectDirectorySnapshot } from '@orchbee/desktop-client
 import { desktopSshProjectMessages, type MessageDescriptor } from '@orchbee/i18n';
 
 import type { RemoteDirectoryBrowserLocation } from '../../../remote-directory-browser';
+import { DESKTOP_SSH_PROJECT_ENROLLMENT_FAILURE_MESSAGES } from '../constants/desktop-ssh-project-enrollment-dialog-messages';
 import type { DesktopSshProjectEnrollmentDialogState } from '../model/DesktopSshProjectEnrollmentController';
 
 type OpenDialogState = Exclude<DesktopSshProjectEnrollmentDialogState, { readonly kind: 'closed' }>;
@@ -14,6 +15,16 @@ export function desktopSshProjectDialogTitleMessage(
 		return state.kind === 'attachment'
 			? desktopSshProjectMessages.attachmentDirectoryTitle
 			: desktopSshProjectMessages.directoryTitle;
+	}
+	if (state.phase === 'prompt' && state.prompt !== null) {
+		return state.prompt.kind === 'confirm'
+			? desktopSshProjectMessages.promptHostTitle
+			: desktopSshProjectMessages.promptAuthenticationTitle;
+	}
+	if (state.phase === 'failed' && state.failure !== null) {
+		return state.kind === 'environment-connection'
+			? desktopSshProjectMessages.environmentConnectionFailureTitle
+			: desktopSshProjectMessages.failureTitle;
 	}
 	if (state.kind === 'attachment') return desktopSshProjectMessages.attachmentTitle;
 	if (state.kind === 'enrollment') return desktopSshProjectMessages.title;
@@ -31,6 +42,14 @@ export function desktopSshProjectDialogDescriptionMessage(
 		return state.kind === 'attachment'
 			? desktopSshProjectMessages.attachmentDirectoryDescription
 			: desktopSshProjectMessages.directoryDescription;
+	}
+	if (state.phase === 'prompt' && state.prompt !== null) {
+		return state.prompt.kind === 'confirm'
+			? desktopSshProjectMessages.promptHostDescription
+			: desktopSshProjectMessages.promptAuthenticationDescription;
+	}
+	if (state.phase === 'failed' && state.failure !== null) {
+		return DESKTOP_SSH_PROJECT_ENROLLMENT_FAILURE_MESSAGES[state.failure];
 	}
 	if (state.kind === 'attachment') return desktopSshProjectMessages.attachmentDescription;
 	if (state.kind === 'enrollment') return desktopSshProjectMessages.description;

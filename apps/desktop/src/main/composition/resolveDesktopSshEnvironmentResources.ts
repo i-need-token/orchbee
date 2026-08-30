@@ -11,11 +11,18 @@ type DesktopSshEnvironmentResourceInput =
 	| {
 			readonly mainDirectoryPath: string;
 			readonly packaged: false;
+			readonly release?:
+				| {
+						readonly releaseDirectoryPath: string;
+						readonly trustDescriptorFilePath: string;
+				  }
+				| undefined;
 			readonly runtimeExecutablePath: string;
 	  }
 	| {
 			readonly mainDirectoryPath: string;
 			readonly packaged: true;
+			readonly releaseAvailable: boolean;
 			readonly resourcesPath: string;
 			readonly runtimeExecutablePath: string;
 	  };
@@ -27,10 +34,17 @@ export function resolveDesktopSshEnvironmentResources(
 		throw new Error('Desktop SSH Environment runtime resource paths must be absolute.');
 	}
 	if (!input.packaged) {
+		if (
+			input.release !== undefined &&
+			(!isAbsolute(input.release.releaseDirectoryPath) ||
+				!isAbsolute(input.release.trustDescriptorFilePath))
+		) {
+			throw new Error('Desktop SSH Environment development release paths must be absolute.');
+		}
 		return {
 			askPassHelperEntryPath: join(input.mainDirectoryPath, 'ssh-askpass-helper.cjs'),
 			askPassRuntimeExecutablePath: input.runtimeExecutablePath,
-			release: null,
+			release: input.release ?? null,
 		};
 	}
 	if (!isAbsolute(input.resourcesPath)) {
@@ -39,12 +53,14 @@ export function resolveDesktopSshEnvironmentResources(
 	return {
 		askPassHelperEntryPath: join(input.resourcesPath, 'ssh-askpass-helper.cjs'),
 		askPassRuntimeExecutablePath: input.runtimeExecutablePath,
-		release: {
-			releaseDirectoryPath: join(input.resourcesPath, SSH_ENVIRONMENT_RELEASE_DIRECTORY_NAME),
-			trustDescriptorFilePath: join(
-				input.mainDirectoryPath,
-				SSH_ENVIRONMENT_RELEASE_TRUST_DESCRIPTOR_FILE_NAME,
-			),
-		},
+		release: input.releaseAvailable
+			? {
+					releaseDirectoryPath: join(input.resourcesPath, SSH_ENVIRONMENT_RELEASE_DIRECTORY_NAME),
+					trustDescriptorFilePath: join(
+						input.mainDirectoryPath,
+						SSH_ENVIRONMENT_RELEASE_TRUST_DESCRIPTOR_FILE_NAME,
+					),
+				}
+			: null,
 	};
 }

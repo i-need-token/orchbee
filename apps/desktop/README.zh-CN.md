@@ -36,7 +36,7 @@ clipboard/link effect target。
 
 渲染器没有 Node 集成、通用 Electron IPC、filesystem read capability、Host inventory 或原始 terminal-lifetime 权限。它不能直接调用 raw provision、restore、close 或 storage CAS effect。Preload 只接受一个 bootstrap，同时验证全部十四个 port，保留固定的 client-session/projection/Agent-observation/Agent-integration-management/application-lifetime/Browser-access/Project-Folder-acquisition/Project-Worktree/terminal-launch-profiles/terminal-default-settings/clipboard-read/window-layout/remote-terminal-creation/ssh-project-enrollment 顺序，并证明 context isolation 与 sandboxing。两个专用 remote port 只由 Electron Workbench host capability 消费；它们不是 preload global 或 Gateway path。Project Folder port 不接受 renderer path，也不公开 enumeration 或 mutation primitive。Project Worktree port 不接受源或目标 path：discovery 从规范 Project state 推导 repository，创建只接受返回的不透明 identity 与 Git 值。单独的 context-isolated file-drop adapter 只公开当前 platform 与 Electron 的 `File`-scoped backing-path lookup；它不能接受 arbitrary path string、读取 file content、枚举 directory 或执行 IPC request。一个拖入的 disk `File` 可以携带 file 或 directory backing path，但不会授予 child enumeration。Web renderer 只为 user drop 准入该 adapter，应用有界且兼容 Ghostty 的 POSIX live-buffer escaping，直接发布 prepared text，并且绝不追加 Enter。Partial 或 malformed bootstrap 不会启动 renderer runtime。
 
-Main 从应用构造到 shutdown 拥有一个 volatile、provider-neutral 的 Agent runtime。Renderer replacement 或 crash 只 retire 自己的 broker；每个替代 renderer 都会从同一 runtime 获得一份新的完整 snapshot。Desktop restart 会有意从空 snapshot 开始，且不持久化任何 Agent observation。Production observation 有两个非阻塞部分。Terminal Host 传输保留的 OSC 777 title `orchbee.agent.v1`；version 1 仍是不可信的 activity-only hint，version 2 只携带 event/correlation identity、activity hint 与 presentation visibility，version 3 只携带用于 gate 本地 direct-launch reminder 的 closed integration ID。Version 3 不授予 Agent status 或 mutation authority，也不包含 command text 或 argument。Claude Code、Codex、Grok、OpenCode、Pi、OMP、Gemini CLI、GitHub Copilot CLI、Cline 与 Qwen Code 的 rich observation 使用用户显式安装的捆绑 [Agent observation adapter](resources/agent-observation-adapters/README.zh-CN.md)。每个 Agent-bound adapter 校验自己的 upstream contract，丢弃 prompt、tool input/output、transcript path、working directory、error text 与未知 field，只向 private Unix-domain socket 发送共享 normalized allowlist。由应用拥有的 closed registry，而不是 adapter input，授予 adapter provenance、accepted event 与 maximum capability。发现至少一个已准入的 local 或 reverse-forwarded observation socket candidate 后，每个 adapter 才会独立地把 version-2 correlation half 直接写入每个解析出的 outer TTY，因此覆盖 direct、tmux、Zellij 与 nested-mux session；没有 candidate 时不会写入 terminal control sequence。只有两半针对 live presentation generation 精确 join 后，Desktop 才准入 rich semantic；OSC 单独不能制造 idle、attention、outcome、action 或 notification authority。
+Main 从应用构造到 shutdown 拥有一个 volatile、provider-neutral 的 Agent runtime。Renderer replacement 或 crash 只 retire 自己的 broker；每个替代 renderer 都会从同一 runtime 获得一份新的完整 snapshot。Desktop restart 会有意从空 snapshot 开始，且不持久化任何 Agent observation。Production observation 有两个非阻塞部分。Terminal Host 传输保留的 OSC 777 title `orchbee.agent.v1`；version 1 仍是不可信的 activity-only hint，version 2 只携带 event/correlation identity、activity hint 与 presentation visibility，version 3 只携带用于 gate 本地 direct-launch reminder 的 closed integration ID。Version 3 不授予 Agent status 或 mutation authority，也不包含 command text 或 argument。Claude Code、Codex、Grok、OpenCode、Pi、OMP、Gemini CLI、GitHub Copilot CLI、Cline 与 Qwen Code 的 rich observation 使用用户显式安装的捆绑 [Agent observation adapter](resources/agent-observation-adapters/README.zh-CN.md)。每个 Agent-bound adapter 校验自己的 upstream contract，丢弃 prompt、tool input/output、transcript path、working directory、error text 与未知 field，只向 private Unix-domain socket 发送共享 normalized allowlist。由应用拥有的 closed registry，而不是 adapter input，授予 adapter provenance、accepted event 与 maximum capability。发现至少一个已准入的 local 或 reverse-forwarded observation socket candidate 后，每个 adapter 才会独立地把 version-2 correlation half 直接写入每个解析出的 outer TTY，因此覆盖 direct、tmux、Zellij 与 nested-mux session；没有 candidate 时不会写入 terminal control sequence。只有两半针对 live presentation generation 精确 join 后，Desktop 才准入 rich semantic；OSC 单独不能制造 idle、attention、outcome、action 或 notification authority。[Agent observation ingress contract](docs/agent-observation-ingress.zh-CN.md)负责 join state model、timer 与 generation invariant、reference scope 和 correctness evidence。
 
 Desktop 只通过非持久化 `CreateTerminal.environmentOverlay` 提供 `ORCHBEE_AGENT_OBSERVATION_SOCKET`，绝不写入 durable `TerminalLaunch`。显式 sourced 的 Bash、Zsh 或 Fish integration 会为符合条件的 interactive `ssh` call 增加 `StreamLocalBindMask=0177`、`StreamLocalBindUnlink=yes`，以及从远端随机 `/tmp/orchbee-agent-v2-*.sock` 到本地 socket 的 reverse Unix-socket forward。既有 alias/function、noninteractive 与 forwarding-only SSH mode、显式 argument 和 OpenSSH configuration 仍是 authority。不使用 HTTP listener、TCP port、Bearer credential、继承的 terminal secret、remote file installation 或 durable remote cache。Hook、socket、mux resolver、OSC 或 SSH-forward failure 都不会阻塞 Agent、SSH 或 terminal。Adapter identifier 只作为 ingress provenance；产品 status、navigation 与 attention behavior 只消费 canonical Agent model，不按 adapter 分支。由 [Agent package guide](../../packages/agent/README.zh-CN.md) 与 [proposal](../../proposals/agent/agent-runtime-observation.zh-CN.md) 定义已实现边界和仍保留的产品决策。
 
@@ -517,7 +517,7 @@ Electron 或 Host 编译失败不会影响最后运行的进程。只有新二�
 pnpm desktop
 ```
 
-`pnpm desktop` 会构建 Browser 访问 Server、Gateway、静态 Web 资源和 semantic-command CLI entry，然后运行 Web 开发 Server 与 Desktop 拥有的 native/Electron 开发生命周期。Electron 默认为 `http://127.0.0.1:3000/`；可以使用 `ORCHBEE_DESKTOP_RENDERER_URL` 选择显式 loopback Web Server。打开 **设置 → 浏览器访问** 可以创建或重置个人访问令牌、启动 loopback 访问，或显式启用 trusted-LAN 预览。访问链接不含 credential；Desktop Main 执行复制链接与打开 Browser effect。设置 `ORCHBEE_DESKTOP_GATEWAY=0` 可从开发启动中移除 Browser 访问资源。
+`pnpm desktop` 会构建 Browser 访问 Server、Gateway、静态 Web 资源和 semantic-command CLI entry，然后运行 Web 开发 Server 与 Desktop 拥有的 native/Electron 开发生命周期。在受支持 POSIX host 上，它会先在 `apps/desktop/out/development-ssh-environment/` 下准备或验证一份 content-addressed、development-signed SSH Runtime/Terminal Host cohort；其瞬时 private key 永远不会写入磁盘。Electron 默认为 `http://127.0.0.1:3000/`；可以使用 `ORCHBEE_DESKTOP_RENDERER_URL` 选择显式 loopback Web Server。打开 **设置 → 浏览器访问** 可以创建或重置个人访问令牌、启动 loopback 访问，或显式启用 trusted-LAN 预览。访问链接不含 credential；Desktop Main 执行复制链接与打开 Browser effect。设置 `ORCHBEE_DESKTOP_GATEWAY=0` 可从开发启动中移除 Browser 访问资源。
 
 在 macOS 上，该命令会在 `apps/desktop/out/development-runtime/` 下物化并临时签名一份
 content-addressed `Orchbee Dev.app`，再启动其精确可执行文件。它的应用名称、checkout 专属 bundle
@@ -528,11 +528,11 @@ identifier、紫色开发图标和 checkout 专属数据根目录均与已安装
 
 Desktop 只拥有以下三种显式 distribution profile：
 
-| 命令                           | 应用                | Bundle identifier                          | 数据根目录                      | 图标              | 输出 / release payload                |
-| ------------------------------ | ------------------- | ------------------------------------------ | ------------------------------- | ----------------- | ------------------------------------- |
-| `pnpm desktop:package:dev`     | `Orchbee Dev.app`   | `com.electron.orchbee.dev.d<scope-digest>` | `~/.orchbee-dev-<scope-digest>` | 紫色 Dev 标记     | `apps/desktop/out/dev/`；不包含       |
-| `pnpm desktop:package:local`   | `Orchbee Local.app` | `com.electron.orchbee.local`               | `~/.orchbee-local`              | 绿色 Local 标记   | `apps/desktop/out/local/`；不包含     |
-| `pnpm desktop:package:release` | `Orchbee.app`       | `com.electron.orchbee`                     | `~/.orchbee`                    | 规范 Orchbee 图标 | `apps/desktop/out/release/`；必须包含 |
+| 命令                           | 应用                | Bundle identifier                          | 数据根目录                      | 图标              | 输出 / release payload                      |
+| ------------------------------ | ------------------- | ------------------------------------------ | ------------------------------- | ----------------- | ------------------------------------------- |
+| `pnpm desktop:package:dev`     | `Orchbee Dev.app`   | `com.electron.orchbee.dev.d<scope-digest>` | `~/.orchbee-dev-<scope-digest>` | 紫色 Dev 标记     | `apps/desktop/out/dev/`；development-signed |
+| `pnpm desktop:package:local`   | `Orchbee Local.app` | `com.electron.orchbee.local`               | `~/.orchbee-local`              | 绿色 Local 标记   | `apps/desktop/out/local/`；不包含           |
+| `pnpm desktop:package:release` | `Orchbee.app`       | `com.electron.orchbee`                     | `~/.orchbee`                    | 规范 Orchbee 图标 | `apps/desktop/out/release/`；必须包含       |
 
 `pnpm desktop` 始终使用 `dev` 身份，但不会创建打包应用。仓库刻意不提供通用的
 `desktop:package` 命令：创建包时必须显式选择一个 profile，避免把 local 或 development build 误当成
@@ -540,8 +540,9 @@ release。三条 packaging 命令都会在打包前构建 Terminal Host、native
 semantic-command CLI、Web renderer、Browser Server、Gateway，以及 Electron Main/preload bundle。
 Web build 既是只读 `orchbee://app` resource，也是按需 Browser renderer root；native Host、当前平台
 endpoint adapter、CLI entry 与 launcher、Server 和 Gateway entry 都保留在 `app.asar` 外。CLI artifact
-缺失或 POSIX launcher 不可执行时，packaging 会失败。`dev` 和 `local` profile 不能包含 SSH
-Environment release。
+缺失或 POSIX launcher 不可执行时，packaging 会失败。在 POSIX 上，`dev` profile 会自动准备并嵌入其
+checkout-scoped development cohort。`local` profile 永远不包含 cohort，而且两个 profile 都不接受
+production release input variable。Windows 不公布 SSH Project-enrollment capability。
 
 通过单独的 release-only command，把一份先前 finalized v2 SSH Environment cohort 与未签名的当前平台
 application bundle 组合：
@@ -583,10 +584,10 @@ pnpm --filter @orchbee/desktop test:system
 pnpm --filter @orchbee/desktop test:system:ssh-project-enrollment
 ```
 
-它会准备并签名一份临时双平台 release cohort，通过正常 release path 打包 Desktop，并针对受控本地
-`sshd` 验证 host-key confirmation、encrypted-key AskPass、remote installation、Project admission、terminal
-I/O、connection loss、Retry 与 Disconnect。它不属于普通 `test:system`，也不会调用手动 native-window
-test。
+它会打包真实 Dev distribution，从 packaged manifest 读取预期 component version，并针对受控本地 `sshd`
+验证 host-key confirmation、encrypted-key AskPass、remote installation、Project admission、terminal I/O、
+connection loss、Retry 与 Disconnect。它属于 required repository `pnpm test` gate，也可以通过上面的
+focused command 独立运行，并且永远不会调用 manual native-window test。
 
 ### 手动本机窗口测试
 

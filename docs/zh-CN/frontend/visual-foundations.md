@@ -28,10 +28,12 @@ Tailwind 替换 Token 和 shadcn 兼容 alias 不会扩大产品编写词汇。�
 | `--ob-sys-typography-body-sm`    | `400 13px/18px` | 默认密集桌面 UI、导航、设置行和描述        | 长篇阅读内容需要更宽松的行框     |
 | `--ob-sys-typography-body-md`    | `400 14px/20px` | 多行帮助、新手引导文案和密度较低的产品界面 | 紧凑工具栏或普通设置行           |
 | `--ob-sys-typography-body-lg`    | `400 16px/24px` | 空状态或首次运行体验中的简短介绍文案       | 常规 shell chrome 或数据密集内容 |
+| `--ob-sys-typography-control-sm` | `400 13px/18px` | 紧凑桌面字段标签、按钮和其他简短控件文本   | 正文、页面导航或需要强调的控件   |
 | `--ob-sys-typography-label-xs`   | `400 11px/16px` | 持久面板 chrome 中的低优先级元数据         | 控件、章节标签或截断补救方案     |
 | `--ob-sys-typography-label-sm`   | `400 12px/16px` | 章节标签和低调的类别标题                   | 正文描述或可点击控件标签         |
 | `--ob-sys-typography-label-md`   | `500 13px/18px` | 按钮、标签、输入框和需要明确强调的紧凑控件 | 页面标题或解释段落               |
 | `--ob-sys-typography-label-lg`   | `500 14px/20px` | 突出的控件标签和主要面板工具栏             | 作为标题的替代品                 |
+| `--ob-sys-typography-heading-xs` | `400 14px/20px` | 已有空间层级的紧凑单任务 Dialog 或卡片标题 | 页面、设置或主要面板标题         |
 | `--ob-sys-typography-heading-sm` | `500 16px/20px` | 页面标题、设置标题或主要面板标题           | 每个卡片或行标题                 |
 | `--ob-sys-typography-heading-md` | `600 20px/28px` | 主要新手引导章节或层级更强的页面           | 密集桌面设置或导航               |
 | `--ob-sys-typography-heading-lg` | `600 24px/32px` | 空状态标题或聚焦的首次运行步骤             | 持久应用 chrome                  |
@@ -197,15 +199,15 @@ Terminal 滚动条和专用 overlay 滚动条属于独立组件行为，不继�
 阴影而不是外描边。操作 Footer 与内容保持在同一表面，通过留白而不是分隔线或着色框带
 进行分组。字段和控件保留自身边界与焦点几何。
 
-表单 Dialog 依次展示一个标题、一段辅助说明和带标签的字段。每个可编辑字段都提供本地化
-placeholder 作为输入提示；持续有效的说明必须保持为可见的 description 文本，不能放进
-placeholder。Footer 将取消操作放在主要提交操作之前，并在相应标签旁用 `Kbd` 展示 `Esc`
-和 `Enter`。这些提示必须对应真实行为：`Escape` 关闭 Dialog 并恢复焦点，表单提交则允许
-通过 `Enter` 调用当前可用的主要操作。当 Dialog 进入添加现有集合条目等临时内层任务时，
-不得再渲染第二套操作 Footer；原有 Footer 应切换为该内层任务的取消和提交操作，`Escape`
-和 `Enter` 先作用于最内层任务，完成或取消后再恢复原 Dialog 操作。可见的关闭控件必须具有
-本地化的无障碍名称。结构相同的 Dialog 必须复用共享表单和 Footer owner，不能重复实现快捷键、
-禁用状态或提交逻辑。
+根据 [`dialogs-and-forms.md`](dialogs-and-forms.md) 获准的表单 Dialog 依次展示一个标题、仅在
+能增加决策相关上下文时展示的辅助说明，以及带标签的字段。placeholder 是可选的，绝不能承载
+持久指令，也不能替代可见标签或说明。Footer 将取消操作放在主要提交操作之前。`Escape` 取消并
+恢复焦点；只有原生表单和输入语义能让行为明确时，`Enter` 才提交。当快捷键发现确有收益时，
+经过评审的体验可以显示 `Kbd` 提示；不能仅因为存在 Footer 就添加提示。当 Dialog 进入添加现有
+集合条目等临时内层任务时，不得再渲染第二套操作 Footer；原有 Footer 应切换为该内层任务的取消
+和提交操作，`Escape` 和 `Enter` 先作用于最内层任务，完成或取消后再恢复原 Dialog 操作。可见的
+关闭控件必须具有本地化的无障碍名称。结构相同的 Dialog 必须复用共享表单和 Footer owner，不能
+重复实现取消、验证或提交逻辑。
 
 ## 操作和状态
 

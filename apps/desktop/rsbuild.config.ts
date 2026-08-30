@@ -13,6 +13,7 @@ import {
 import { buildPosixHostEndpoint } from './scripts/build-posix-host-endpoint.mjs';
 import { buildSemanticCommandEndpoint } from './scripts/build-semantic-command-endpoint.mjs';
 import { prepareDesktopDevelopmentExecutable } from './scripts/prepare-desktop-development-application.mjs';
+import { prepareDevelopmentSshEnvironmentRelease } from './scripts/development-ssh-environment-release.mjs';
 
 const sourceElectronExecutable: unknown = createRequire(import.meta.url)('electron');
 if (typeof sourceElectronExecutable !== 'string') {
@@ -44,6 +45,13 @@ export default defineConfig(({ command }) => {
 			};
 			api.onAfterStartDevServer(async () => {
 				if (developmentRuntime !== undefined) return;
+				const sshEnvironmentRelease =
+					process.platform === 'win32'
+						? undefined
+						: await prepareDevelopmentSshEnvironmentRelease({
+								outputRoot: path.join(desktopRoot, 'out', 'development-ssh-environment'),
+								sourceRoot,
+							});
 				const electronExecutable = await prepareDesktopDevelopmentExecutable({
 					baseIconPath: path.join(sourceRoot, 'resources', 'icon.svg'),
 					electronExecutable: sourceElectronExecutable,
@@ -59,6 +67,14 @@ export default defineConfig(({ command }) => {
 						rendererUrl,
 						serverEntryPath,
 						sourceRoot,
+						...(sshEnvironmentRelease === undefined
+							? {}
+							: {
+									sshEnvironmentRelease: {
+										releaseDirectoryPath: sshEnvironmentRelease.releaseDirectoryPath,
+										trustDescriptorFilePath: sshEnvironmentRelease.trustDescriptorFilePath,
+									},
+								}),
 						terminalHostRoot: path.resolve(desktopRoot, '..', 'terminal-host'),
 						webRendererRoot,
 					},

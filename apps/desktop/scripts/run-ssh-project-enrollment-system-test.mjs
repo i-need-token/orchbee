@@ -1,98 +1,103 @@
 import { spawn } from 'node:child_process';
-import { generateKeyPairSync, sign } from 'node:crypto';
-import { access, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { access, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const RUNTIME_VERSION = '0.0.0-system-test';
-const TERMINAL_HOST_VERSION = '0.0.0-system-test';
 const applicationRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const repositoryRoot = path.resolve(applicationRoot, '..', '..');
 
-requireSupportedPlatform();
-
-const fixtureRoot = await mkdtemp(path.join(tmpdir(), 'orchbee-ssh-enrollment-release-'));
-try {
-	await runProgram('pnpm', ['--filter', '@orchbee/ssh-environment-protocol', 'build']);
-	const { finalizeSshEnvironmentRelease, prepareSshEnvironmentRelease } =
-		await import('../../../scripts/ssh-environment-release.mjs');
-	const preparedDirectory = path.join(fixtureRoot, 'prepared-release');
-	const finalizedDirectory = path.join(fixtureRoot, 'final-release');
-	const publicKeyFilePath = path.join(fixtureRoot, 'release-public-key.pem');
-	const signatureFilePath = path.join(fixtureRoot, 'release-signature.bin');
-	await prepareSshEnvironmentRelease({
-		outputDirectory: preparedDirectory,
-		runtimeRoot: path.join(repositoryRoot, 'apps', 'ssh-environment-runtime'),
-		runtimeVersion: RUNTIME_VERSION,
-		terminalHostRoot: path.join(repositoryRoot, 'apps', 'terminal-host'),
-		terminalHostVersion: TERMINAL_HOST_VERSION,
-	});
-	const signingPayload = await readFile(
-		path.join(preparedDirectory, 'manifest-signing-payload.json'),
+if (isSupportedPlatform()) {
+	await runSshProjectEnrollmentSystemTest();
+} else {
+	console.log(
+		'Skipping the SSH Project enrollment system witness: this runner requires macOS arm64 or glibc Linux x64.',
 	);
-	const keyPair = generateKeyPairSync('ed25519');
-	await Promise.all([
-		writeFile(publicKeyFilePath, keyPair.publicKey.export({ format: 'pem', type: 'spki' }), {
-			mode: 0o600,
-		}),
-		writeFile(signatureFilePath, sign(null, signingPayload, keyPair.privateKey), { mode: 0o600 }),
-	]);
-	await finalizeSshEnvironmentRelease({
-		outputDirectory: finalizedDirectory,
-		preparedDirectory,
-		publicKeyFilePath,
-		signatureFilePath,
-	});
-	await runProgram('pnpm', ['--filter', '@orchbee/desktop', 'package:release'], {
-		ORCHBEE_SSH_ENVIRONMENT_RELEASE_DIRECTORY: finalizedDirectory,
-		ORCHBEE_SSH_ENVIRONMENT_RELEASE_PUBLIC_KEY: publicKeyFilePath,
-	});
-	const packagedExecutable = resolvePackagedExecutable();
-	await access(packagedExecutable);
-	await runProgram(
-		'pnpm',
-		[
-			'--filter',
-			'@orchbee/desktop',
-			'exec',
-			'playwright',
-			'test',
-			'ssh-project-enrollment.spec.ts',
-			'--config',
-			'playwright.config.ts',
-		],
-		{
-			ORCHBEE_SSH_PROJECT_ENROLLMENT_PACKAGE_EXECUTABLE: packagedExecutable,
-			ORCHBEE_SSH_PROJECT_ENROLLMENT_RUNTIME_VERSION: RUNTIME_VERSION,
-			ORCHBEE_SSH_PROJECT_ENROLLMENT_TERMINAL_HOST_VERSION: TERMINAL_HOST_VERSION,
-		},
-	);
-} finally {
-	await rm(fixtureRoot, { force: true, recursive: true });
 }
 
-function requireSupportedPlatform() {
-	if (
+async function runSshProjectEnrollmentSystemTest() {
+	await runProgram('pnpm', ['--filter', '@orchbee/desktop', 'package:dev']);
+	const packagedApplication = resolvePackagedApplication();
+	await access(packagedApplication.executablePath);
+	const componentVersions = await readPackagedComponentVersions(packagedApplication.manifestPath);
+	const playwrightArguments = [
+		'--filter',
+		'@orchbee/desktop',
+		'exec',
+		'playwright',
+		'test',
+		'ssh-project-enrollment.spec.ts',
+		'--config',
+		'playwright.config.ts',
+	];
+	const testEnvironment = {
+		ORCHBEE_SSH_PROJECT_ENROLLMENT_PACKAGE_EXECUTABLE: packagedApplication.executablePath,
+		ORCHBEE_SSH_PROJECT_ENROLLMENT_RUNTIME_VERSION: componentVersions.runtimeVersion,
+		ORCHBEE_SSH_PROJECT_ENROLLMENT_TERMINAL_HOST_VERSION: componentVersions.terminalHostVersion,
+	};
+	if (process.platform === 'linux' && process.env.DISPLAY === undefined) {
+		await runProgram('/usr/bin/xvfb-run', ['-a', 'pnpm', ...playwrightArguments], testEnvironment);
+	} else {
+		await runProgram('pnpm', playwrightArguments, testEnvironment);
+	}
+}
+
+function isSupportedPlatform() {
+	return (
 		(process.platform === 'darwin' && process.arch === 'arm64') ||
 		(process.platform === 'linux' && process.arch === 'x64')
-	) {
-		return;
-	}
-	throw new Error(
-		'SSH Project enrollment system evidence requires macOS arm64 or glibc Linux x64.',
 	);
 }
 
-function resolvePackagedExecutable() {
+function resolvePackagedApplication() {
+	const applicationName = 'Orchbee Dev';
 	const outputDirectory = path.join(
 		applicationRoot,
 		'out',
-		`Orchbee-${process.platform}-${process.arch}`,
+		'dev',
+		`${applicationName}-${process.platform}-${process.arch}`,
 	);
-	return process.platform === 'darwin'
-		? path.join(outputDirectory, 'Orchbee.app', 'Contents', 'MacOS', 'Orchbee')
-		: path.join(outputDirectory, 'Orchbee');
+	if (process.platform === 'darwin') {
+		const resourcesPath = path.join(
+			outputDirectory,
+			`${applicationName}.app`,
+			'Contents',
+			'Resources',
+		);
+		return {
+			executablePath: path.join(
+				outputDirectory,
+				`${applicationName}.app`,
+				'Contents',
+				'MacOS',
+				applicationName,
+			),
+			manifestPath: path.join(resourcesPath, 'ssh-environment-release-v2', 'manifest.json'),
+		};
+	}
+	return {
+		executablePath: path.join(outputDirectory, applicationName),
+		manifestPath: path.join(
+			outputDirectory,
+			'resources',
+			'ssh-environment-release-v2',
+			'manifest.json',
+		),
+	};
+}
+
+async function readPackagedComponentVersions(manifestPath) {
+	const { SshEnvironmentReleaseManifestSchema } = await import('@orchbee/ssh-environment-protocol');
+	const manifest = SshEnvironmentReleaseManifestSchema.parse(
+		JSON.parse(await readFile(manifestPath, 'utf8')),
+	);
+	const runtime = manifest.components.find(
+		(component) => component.role === 'ssh-environment-runtime',
+	);
+	const terminalHost = manifest.components.find((component) => component.role === 'terminal-host');
+	if (runtime === undefined || terminalHost === undefined) {
+		throw new Error('The packaged Dev cohort omitted a required component.');
+	}
+	return { runtimeVersion: runtime.version, terminalHostVersion: terminalHost.version };
 }
 
 function runProgram(executable, arguments_, environment = {}) {

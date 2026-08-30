@@ -6,7 +6,7 @@ import path from 'node:path';
 import { AgentRuntime, type AgentSemanticEvent } from '@orchbee/agent';
 import { CreationIdSchema, TerminalApplicationSignalSchema } from '@orchbee/terminal-protocol';
 import { terminalPresentationId } from '@orchbee/workbench/terminal-presentation';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type {
 	AgentHookAdapterId,
@@ -21,6 +21,7 @@ describe('AgentHookObservationIngress', () => {
 	afterEach(async () => {
 		await ingress?.dispose();
 		ingress = undefined;
+		vi.useRealTimers();
 		if (runtimeDirectory !== undefined)
 			await rm(runtimeDirectory, { force: true, recursive: true });
 		runtimeDirectory = undefined;
@@ -156,6 +157,39 @@ describe('AgentHookObservationIngress', () => {
 		});
 	});
 
+	it('does not apply a partially joined event after its settlement deadline outlives expiry', async () => {
+		let now = 0;
+		const runtime = new AgentRuntime();
+		const setup = await startIngress(runtime, () => now, 25);
+		const presentationId = terminalPresentationId('desktop:presentation:expired-settlement');
+		const creationId = CreationIdSchema.parse('99'.repeat(16));
+		setup.ingress.environmentOverlayFor(presentationId, creationId);
+
+		await sendEnvelope(setup.socketPath, envelope(1, 'turn-started', [1, 2]));
+		vi.useFakeTimers();
+		setup.ingress.observeTerminalApplicationSignal(signal(1, 1, creationId), presentationId);
+		now = 10_000;
+		await vi.advanceTimersByTimeAsync(25);
+
+		expect(runtime.getSnapshot().sessions).toEqual([]);
+	});
+
+	it('does not retarget a remaining correlation after its presentation generation changes', async () => {
+		const runtime = new AgentRuntime();
+		const setup = await startIngress(runtime, undefined, 1_000);
+		const presentationId = terminalPresentationId('desktop:presentation:generation-fence');
+		const firstCreation = CreationIdSchema.parse('aa'.repeat(16));
+		const secondCreation = CreationIdSchema.parse('bb'.repeat(16));
+		setup.ingress.environmentOverlayFor(presentationId, firstCreation);
+
+		await sendEnvelope(setup.socketPath, envelope(1, 'turn-started', [1, 2]));
+		setup.ingress.observeTerminalApplicationSignal(signal(1, 1, firstCreation), presentationId);
+		setup.ingress.environmentOverlayFor(presentationId, secondCreation);
+		setup.ingress.observeTerminalApplicationSignal(signal(2, 1, secondCreation), presentationId);
+
+		expect(runtime.getSnapshot().sessions).toEqual([]);
+	});
+
 	it('expires unmatched halves and rejects malformed or content-bearing envelopes', async () => {
 		let now = 0;
 		const runtime = new AgentRuntime();
@@ -260,13 +294,17 @@ describe('AgentHookObservationIngress', () => {
 		expect(semanticEvents.filter((event) => event.type === 'turn-outcome')).toEqual([]);
 	});
 
-	async function startIngress(runtime: AgentRuntime, now?: () => number) {
+	async function startIngress(
+		runtime: AgentRuntime,
+		now?: () => number,
+		joinSettleMilliseconds = 0,
+	) {
 		let identifier = 0;
 		runtimeDirectory = await mkdtemp(path.join(tmpdir(), 'orchbee-agent-ingress-'));
 		const socketPath = path.join(runtimeDirectory, 'agent-observation-v2.sock');
 		ingress = new AgentHookObservationIngress(runtime, {
 			allocateIdentifier: () => `${++identifier}`,
-			joinSettleMilliseconds: 0,
+			joinSettleMilliseconds,
 			...(now === undefined ? {} : { now }),
 			socketPath,
 		});

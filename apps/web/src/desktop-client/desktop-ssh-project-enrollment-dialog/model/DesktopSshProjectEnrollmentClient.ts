@@ -561,7 +561,9 @@ export class DesktopSshProjectEnrollmentClient {
 	}
 
 	#cancel(requestId: DesktopSshProjectEnrollmentRequestId): void {
-		if (this.#pending?.requestId !== requestId || this.#disposed) return;
+		const pending = this.#pending;
+		if (pending?.requestId !== requestId || this.#disposed) return;
+		if (this.#pendingInteraction?.request === pending) this.#pendingInteraction = undefined;
 		this.#post({ requestId, type: 'desktop-ssh-project-enrollment-cancel-requested' });
 	}
 

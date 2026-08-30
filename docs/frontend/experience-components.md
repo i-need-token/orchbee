@@ -5,7 +5,8 @@
 This standard makes reviewed product-interface knowledge discoverable before implementation and
 constrains high-complexity UI work to deliberate, repeatable compositions. It governs browser and
 desktop-facing React interfaces across applications and packages. It does not replace primitive,
-React, package-boundary, Storybook, localization, Action, or product-domain authorities.
+React, package-boundary, Dialog and form, Storybook, localization, Action, or product-domain
+authorities.
 
 | Term                 | Contract                                                                                                                                            |
 | -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -89,6 +90,9 @@ source or all Stories before choosing a candidate.
 
 ## Composition constraints
 
+- Apply [`dialogs-and-forms.md`](dialogs-and-forms.md) before choosing an interrupting surface or
+  collecting input. Discovering a reusable Dialog composition does not prove modal admission or
+  justify every field in that composition.
 - Prefer a canonical experience or business component over a fresh composition when its declared
   `useWhen` conditions match and no `avoidWhen` condition applies.
 - Do not directly assemble an admitted workflow from raw Dialog, Menu, Form, Overlay, or navigation

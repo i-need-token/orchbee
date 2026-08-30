@@ -74,6 +74,35 @@
 			]
 		},
 		{
+			"id": "desktop-agent-observation-join",
+			"owner": "@orchbee/desktop",
+			"workspace": "apps/desktop",
+			"module": "apps/desktop/formal/tla/AgentObservationJoin.tla",
+			"config": "apps/desktop/formal/tla/AgentObservationJoin.cfg",
+			"claims": ["apps/desktop/docs/agent-observation-ingress.md"],
+			"triggers": [
+				"apps/desktop/src/main/agent-observation/AgentHookObservationIngress.ts",
+				"apps/desktop/src/main/agent-observation/AgentObservationJoinStateMachine.ts"
+			],
+			"requiredCoverage": [
+				"RegisterPresentation",
+				"ReceiveEvent",
+				"ReceiveHint",
+				"JoinPartial",
+				"JoinComplete",
+				"Settle",
+				"JoinLate",
+				"RejectGenerationRetarget",
+				"RejectMismatchedIdentity",
+				"ExpireHint",
+				"ExpireEvent",
+				"AdvanceGeneration",
+				"RetirePresentation",
+				"FireStaleDeadline",
+				"Dispose"
+			]
+		},
+		{
 			"id": "desktop-agent-semantic-changes",
 			"owner": "@orchbee/desktop",
 			"workspace": "apps/desktop",

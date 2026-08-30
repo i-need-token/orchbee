@@ -57,6 +57,22 @@ export const Enrollment: Story = story(
 	}),
 );
 
+export const InvalidAddress: Story = story(
+	'en-US',
+	new StoryController({
+		canNavigate: false,
+		canSubmit: false,
+		directory: null,
+		failure: null,
+		form: { destination: '' },
+		kind: 'enrollment',
+		pathInput: '',
+		phase: 'editing',
+		progress: null,
+		prompt: null,
+	}),
+);
+
 export const HostVerification: Story = story(
 	'en-US',
 	new StoryController({
@@ -167,6 +183,27 @@ export const SimplifiedChineseEnrollment: Story = story(
 		phase: 'editing',
 		progress: null,
 		prompt: null,
+	}),
+);
+
+export const SimplifiedChineseAuthentication: Story = story(
+	'zh-CN',
+	new StoryController({
+		canNavigate: false,
+		canSubmit: true,
+		directory: null,
+		failure: null,
+		form: enrollmentForm,
+		kind: 'enrollment',
+		pathInput: '',
+		phase: 'prompt',
+		progress: 'connecting',
+		prompt: {
+			generation: 1,
+			handle: 'story-authentication-zh-cn',
+			kind: 'none',
+			prompt: '(builder@build-host) Password:',
+		},
 	}),
 );
 

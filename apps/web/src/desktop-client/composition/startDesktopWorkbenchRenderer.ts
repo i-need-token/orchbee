@@ -74,6 +74,7 @@ export function startDesktopWorkbenchRenderer(
 	shortcutPlatform: WorkbenchShortcutPlatform,
 	storage: DesktopWorkbenchRendererStorage,
 	bootstrap: WorkbenchClientSessionBootstrap,
+	sshProjectEnrollmentAvailable: boolean,
 	lifetimePort: MessagePort,
 	clientSessionPort: MessagePort,
 	projectionPort: MessagePort,
@@ -316,14 +317,18 @@ export function startDesktopWorkbenchRenderer(
 				? { agentObservationSource: agentObservationClient }
 				: {}),
 			getInitialTerminalTitle,
-			environmentProjectConnection: sshProjectEnrollmentController,
-			sshConnectionManagementControl: sshProjectEnrollmentController,
+			...(sshProjectEnrollmentAvailable
+				? {
+						environmentProjectConnection: sshProjectEnrollmentController,
+						onAddProjectFolderViaSsh: (projectId: string) =>
+							sshProjectEnrollmentController.openFolderAttachment(projectId),
+						onConnectViaSsh: () => sshProjectEnrollmentController.openEnrollment(),
+						sshConnectionManagementControl: sshProjectEnrollmentController,
+					}
+				: {}),
 			keyboardShortcutSettingsController,
 			layoutStorage: storage.preferences,
 			macosTerminalInputSettingsController,
-			onConnectViaSsh: () => sshProjectEnrollmentController.openEnrollment(),
-			onAddProjectFolderViaSsh: (projectId) =>
-				sshProjectEnrollmentController.openFolderAttachment(projectId),
 			projectWorkspaceRuntime: workbenchClientRuntime.projectWorkspaceRuntime,
 			projectFolderAcquisition: projectFolderAcquisitionClient,
 			projectWorktree: projectWorktreeClient,

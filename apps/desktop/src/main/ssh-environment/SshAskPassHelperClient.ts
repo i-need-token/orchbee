@@ -2,6 +2,8 @@ import { connect } from 'node:net';
 
 const MAXIMUM_RESPONSE_BYTES = 32 * 1024;
 const RESPONSE_TIMEOUT_MILLISECONDS = 5 * 60 * 1_000;
+const OPENSSH_HOST_CONFIRMATION_SUFFIX =
+	/Are you sure you want to continue connecting \(yes\/no(?:\/\[fingerprint\])?\)\?\s*$/u;
 
 export interface SshAskPassHelperClientOptions {
 	readonly arguments?: readonly string[];
@@ -26,7 +28,7 @@ export class SshAskPassHelperClient {
 			const capability = this.#requiredEnvironment('ORCHBEE_ASKPASS_CAPABILITY');
 			const prompt = this.#arguments[0] ?? '';
 			const promptKind = this.#environment['SSH_ASKPASS_PROMPT'];
-			const kind = promptKind === 'confirm' || promptKind === 'none' ? promptKind : 'unknown';
+			const kind = classifyPromptKind(promptKind, prompt);
 			const response = await this.#request(socketPath, {
 				version: 1,
 				capability,
@@ -95,4 +97,12 @@ export class SshAskPassHelperClient {
 		}
 		return true;
 	}
+}
+
+function classifyPromptKind(
+	promptKind: string | undefined,
+	prompt: string,
+): 'confirm' | 'none' | 'unknown' {
+	if (promptKind === 'confirm' || promptKind === 'none') return promptKind;
+	return OPENSSH_HOST_CONFIRMATION_SUFFIX.test(prompt) ? 'confirm' : 'unknown';
 }

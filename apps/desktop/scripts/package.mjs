@@ -26,6 +26,7 @@ import {
 	resolveSshEnvironmentReleasePackageConfiguration,
 	stageSshEnvironmentReleasePackageResources,
 } from './ssh-environment-release-package.mjs';
+import { prepareDevelopmentSshEnvironmentRelease } from './development-ssh-environment-release.mjs';
 import { materializeDarwinApplicationIcon } from './materialize-darwin-application-icon.mjs';
 import {
 	DESKTOP_DISTRIBUTION_DESCRIPTOR_FILE_NAME,
@@ -48,10 +49,7 @@ const developmentScope =
 		? createDesktopDevelopmentScope(await realpath(repositoryRoot), process.platform)
 		: undefined;
 const distributionProfile = resolveDesktopDistributionProfile(profileId, developmentScope);
-const environmentReleaseConfiguration = resolveSshEnvironmentReleasePackageConfiguration(
-	distributionProfile.releasePayload === 'required' ? ['--with-ssh-environment-release'] : [],
-	process.env,
-);
+const environmentReleaseConfiguration = await resolveEnvironmentReleaseConfiguration();
 const applicationPackage = JSON.parse(
 	await readFile(path.join(applicationRoot, 'package.json'), 'utf8'),
 );
@@ -116,6 +114,26 @@ const agentObservationAdapterResources = path.join(
 	'agent-observation-adapters',
 );
 const baseApplicationIcon = path.join(repositoryRoot, 'resources', 'icon.svg');
+
+async function resolveEnvironmentReleaseConfiguration() {
+	if (distributionProfile.releasePayload === 'required') {
+		return resolveSshEnvironmentReleasePackageConfiguration(
+			['--with-ssh-environment-release'],
+			process.env,
+		);
+	}
+	if (distributionProfile.releasePayload === 'excluded' || process.platform === 'win32') {
+		return null;
+	}
+	const developmentRelease = await prepareDevelopmentSshEnvironmentRelease({
+		outputRoot: path.join(applicationRoot, 'out', 'development-ssh-environment'),
+		sourceRoot: repositoryRoot,
+	});
+	return {
+		publicKeyFilePath: developmentRelease.publicKeyFilePath,
+		releaseDirectory: developmentRelease.releaseDirectoryPath,
+	};
+}
 
 await Promise.all([
 	access(path.join(desktopBuild, 'main', 'main.cjs')),

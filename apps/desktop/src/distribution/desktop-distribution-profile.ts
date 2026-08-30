@@ -50,7 +50,7 @@ interface DesktopDistributionProfileDefinition {
 	};
 	readonly outputDirectoryName: DesktopDistributionProfileId;
 	readonly packageName: string;
-	readonly releasePayload: 'excluded' | 'required';
+	readonly releasePayload: 'development' | 'excluded' | 'required';
 }
 
 const DESKTOP_DISTRIBUTION_PROFILE_DEFINITIONS = {
@@ -61,7 +61,7 @@ const DESKTOP_DISTRIBUTION_PROFILE_DEFINITIONS = {
 		icon: { accentColor: '#625bf6', variant: 'dev' },
 		outputDirectoryName: 'dev',
 		packageName: 'orchbee-dev',
-		releasePayload: 'excluded',
+		releasePayload: 'development',
 	},
 	local: {
 		applicationName: 'Orchbee Local',

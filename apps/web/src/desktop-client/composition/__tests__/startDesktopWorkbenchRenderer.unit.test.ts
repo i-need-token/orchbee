@@ -316,6 +316,7 @@ describe('startDesktopWorkbenchRenderer', () => {
 				'apple',
 				desktopStorage(),
 				bootstrap({ kind: 'missing' }, initializationDocument),
+				true,
 				lifetimeChannel.port1,
 				clientSessionChannel.port1,
 				projectionChannel.port1,
@@ -355,7 +356,7 @@ describe('startDesktopWorkbenchRenderer', () => {
 		root.remove();
 	});
 
-	it('projects only the visible Tab while client-only selection stays out of the shared document', async () => {
+	it('projects visible Tabs and omits SSH surfaces when bootstrap capability is absent', async () => {
 		const lifetimeChannel = createTestChannel();
 		const clientSessionChannel = createTestChannel();
 		const projectionChannel = createTestChannel();
@@ -411,6 +412,7 @@ describe('startDesktopWorkbenchRenderer', () => {
 					sharedDocument,
 					provisionCompletedEvents(2),
 				),
+				false,
 				lifetimeChannel.port1,
 				clientSessionChannel.port1,
 				projectionChannel.port1,
@@ -470,6 +472,11 @@ describe('startDesktopWorkbenchRenderer', () => {
 		await vi.waitFor(() => {
 			expect(root.querySelector('[data-slot="terminal-settings-surface"]')).not.toBeNull();
 		});
+		expect(
+			[...root.querySelectorAll<HTMLButtonElement>('button')].find(
+				(button) => button.textContent?.trim() === 'SSH Connections',
+			),
+		).toBeUndefined();
 		expect(document.querySelector('[data-slot="desktop-browser-access-dialog"]')).toBeNull();
 		const browserAccessCategory = [...root.querySelectorAll<HTMLButtonElement>('button')].find(
 			(button) => button.textContent?.trim() === 'Browser access',
@@ -516,6 +523,11 @@ describe('startDesktopWorkbenchRenderer', () => {
 			);
 			expect(selectFolder).toBeDefined();
 		});
+		expect(
+			[...document.querySelectorAll<HTMLDivElement>('[role="menuitem"]')].find(
+				(item) => item.textContent?.trim() === 'Connect via SSH…',
+			),
+		).toBeUndefined();
 		await act(async () => selectFolder?.click());
 		await vi.waitFor(() =>
 			expect(sessionCommands.at(-1)?.document.projectWorkspace.projects).toEqual(
@@ -571,6 +583,7 @@ describe('startDesktopWorkbenchRenderer', () => {
 				'apple',
 				desktopStorage(),
 				bootstrap({ document: sharedDocument, kind: 'available' }, sharedDocument, terminalEvents),
+				true,
 				lifetimeChannel.port1,
 				clientSessionChannel.port1,
 				projectionChannel.port1,

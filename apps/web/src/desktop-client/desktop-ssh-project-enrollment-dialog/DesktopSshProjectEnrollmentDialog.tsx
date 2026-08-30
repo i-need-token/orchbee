@@ -9,13 +9,15 @@ import {
 	DialogTitle,
 	Field,
 	FieldDescription,
+	FieldError,
 	FieldLabel,
 	Input,
+	Kbd,
+	Spinner,
 } from '@orchbee/ui/components';
 import type { FormEvent, ReactNode } from 'react';
 
 import { RemoteDirectoryBrowser } from '../../remote-directory-browser';
-import { DESKTOP_SSH_PROJECT_ENROLLMENT_FAILURE_MESSAGES } from './constants/desktop-ssh-project-enrollment-dialog-messages';
 import { useDesktopSshProjectEnrollmentDialog } from './hooks/useDesktopSshProjectEnrollmentDialog';
 import type { DesktopSshProjectEnrollmentDialogController } from './model/DesktopSshProjectEnrollmentController';
 import {
@@ -35,7 +37,8 @@ export function DesktopSshProjectEnrollmentDialog({
 	controller,
 }: DesktopSshProjectEnrollmentDialogProps): ReactNode {
 	const intl = useOrchbeeIntl();
-	const state = useDesktopSshProjectEnrollmentDialog(controller);
+	const { close, destinationInputReference, destinationInvalid, state, submitDestination } =
+		useDesktopSshProjectEnrollmentDialog(controller);
 	if (state.kind === 'closed') return null;
 	const directoryOperation = state.kind === 'attachment' || state.kind === 'enrollment';
 	const choosingDirectory =
@@ -50,7 +53,7 @@ export function DesktopSshProjectEnrollmentDialog({
 	return (
 		<Dialog
 			onOpenChange={(open) => {
-				if (!open) controller.close();
+				if (!open) close();
 			}}
 			open
 		>
@@ -59,43 +62,79 @@ export function DesktopSshProjectEnrollmentDialog({
 				closeLabel={intl.formatMessage(desktopSshProjectMessages.close)}
 				data-slot='desktop-ssh-project-enrollment'
 			>
-				<DialogHeader>
-					<DialogTitle>{title}</DialogTitle>
-					<DialogDescription>{description}</DialogDescription>
+				<DialogHeader className={styles['header']}>
+					<DialogTitle className={choosingDirectory ? undefined : styles['title']}>
+						{title}
+					</DialogTitle>
+					<DialogDescription
+						className={
+							state.phase === 'failed' ? styles['failureDescription'] : styles['description']
+						}
+						data-compact-typography={choosingDirectory ? undefined : true}
+						role={state.phase === 'failed' ? 'alert' : undefined}
+					>
+						{description}
+					</DialogDescription>
 				</DialogHeader>
 				{directoryOperation && state.phase === 'editing' ? (
-					<form
-						className={styles['fields']}
-						onSubmit={(event: FormEvent<HTMLFormElement>) => {
-							event.preventDefault();
-							controller.submit();
-						}}
-					>
-						<Field>
-							<FieldLabel htmlFor='ssh-project-destination'>
+					<form className={styles['form']} noValidate onSubmit={submitDestination}>
+						<Field data-invalid={destinationInvalid}>
+							<FieldLabel className={styles['controlText']} htmlFor='ssh-project-destination'>
 								{intl.formatMessage(desktopSshProjectMessages.fieldDestination)}
 							</FieldLabel>
 							<Input
+								aria-describedby={
+									destinationInvalid
+										? 'ssh-project-destination-description ssh-project-destination-error'
+										: 'ssh-project-destination-description'
+								}
+								aria-invalid={destinationInvalid}
+								autoCapitalize='none'
+								autoComplete='off'
+								autoCorrect='off'
 								autoFocus
+								className={styles['destinationInput']}
 								id='ssh-project-destination'
 								placeholder={intl.formatMessage(
 									desktopSshProjectMessages.fieldDestinationPlaceholder,
 								)}
+								ref={destinationInputReference}
+								required
+								spellCheck={false}
 								value={state.form.destination}
 								onChange={(event) =>
 									controller.updateForm({ destination: event.currentTarget.value })
 								}
 							/>
-							<FieldDescription>
+							<FieldDescription
+								className={styles['supportingText']}
+								id='ssh-project-destination-description'
+							>
 								{intl.formatMessage(desktopSshProjectMessages.fieldDestinationDescription)}
 							</FieldDescription>
+							{destinationInvalid ? (
+								<FieldError className={styles['supportingText']} id='ssh-project-destination-error'>
+									{intl.formatMessage(desktopSshProjectMessages.fieldDestinationError)}
+								</FieldError>
+							) : null}
 						</Field>
 						<DialogFooter>
-							<Button type='button' variant='outline' onClick={() => controller.close()}>
+							<Button
+								className={styles['controlText']}
+								type='button'
+								variant='outline'
+								onClick={close}
+							>
 								{intl.formatMessage(desktopSshProjectMessages.cancel)}
+								<Kbd aria-hidden='true' className={styles['shortcut']}>
+									Esc
+								</Kbd>
 							</Button>
-							<Button disabled={!state.canSubmit} type='submit'>
+							<Button className={styles['controlText']} type='submit'>
 								{intl.formatMessage(desktopSshProjectMessages.connect)}
+								<Kbd aria-hidden='true' className={styles['shortcut']}>
+									Enter
+								</Kbd>
 							</Button>
 						</DialogFooter>
 					</form>
@@ -105,7 +144,7 @@ export function DesktopSshProjectEnrollmentDialog({
 						busy={state.phase === 'working'}
 						canNavigate={state.canNavigate}
 						location={toRemoteDirectoryLocation(state.directory)}
-						onCancel={() => controller.close()}
+						onCancel={close}
 						onNavigate={(path) => controller.navigateDirectory(path)}
 						onPathDraftChange={(path) => controller.updateDirectoryPath(path)}
 						onSelect={() => controller.selectDirectory()}
@@ -114,7 +153,8 @@ export function DesktopSshProjectEnrollmentDialog({
 					/>
 				) : null}
 				{state.phase === 'working' && !choosingDirectory ? (
-					<p aria-live='polite' className={styles['progress']}>
+					<p aria-live='polite' aria-atomic='true' className={styles['progress']}>
+						<Spinner aria-hidden='true' />
 						{intl.formatMessage(desktopSshProjectProgressMessage(state))}
 					</p>
 				) : null}
@@ -132,68 +172,65 @@ export function DesktopSshProjectEnrollmentDialog({
 							controller.resolvePrompt({ kind: 'submitted', response });
 						}}
 					>
-						<div>
-							<h3>
-								{intl.formatMessage(
-									prompt.kind === 'confirm'
-										? desktopSshProjectMessages.promptHostTitle
-										: desktopSshProjectMessages.promptAuthenticationTitle,
-								)}
-							</h3>
-							<p className={styles['promptDescription']}>
-								{intl.formatMessage(
-									prompt.kind === 'confirm'
-										? desktopSshProjectMessages.promptHostDescription
-										: desktopSshProjectMessages.promptAuthenticationDescription,
-								)}
-							</p>
-						</div>
 						<pre className={styles['promptText']}>{prompt.prompt}</pre>
 						{prompt.kind === 'confirm' ? null : (
 							<Field>
-								<FieldLabel htmlFor={`ssh-project-response-${prompt.handle}`}>
-									{intl.formatMessage(desktopSshProjectMessages.promptResponse)}
+								<FieldLabel
+									className={styles['controlText']}
+									htmlFor={`ssh-project-response-${prompt.handle}`}
+								>
+									{intl.formatMessage(desktopSshProjectMessages.promptSecret)}
 								</FieldLabel>
 								<Input
+									autoComplete='off'
 									autoFocus
+									className={styles['plainInput']}
 									id={`ssh-project-response-${prompt.handle}`}
 									name='response'
 									required
+									spellCheck={false}
 									type='password'
 								/>
 							</Field>
 						)}
 						<DialogFooter>
-							<Button type='button' variant='outline' onClick={() => controller.close()}>
+							<Button
+								autoFocus={prompt.kind === 'confirm'}
+								className={styles['controlText']}
+								type='button'
+								variant='outline'
+								onClick={close}
+							>
 								{intl.formatMessage(desktopSshProjectMessages.cancel)}
+								<Kbd aria-hidden='true' className={styles['shortcut']}>
+									Esc
+								</Kbd>
 							</Button>
-							<Button type='submit'>
-								{intl.formatMessage(desktopSshProjectMessages.continue)}
+							<Button className={styles['controlText']} type='submit'>
+								{intl.formatMessage(
+									prompt.kind === 'confirm'
+										? desktopSshProjectMessages.trustHost
+										: desktopSshProjectMessages.authenticate,
+								)}
+								{prompt.kind === 'confirm' ? null : (
+									<Kbd aria-hidden='true' className={styles['shortcut']}>
+										Enter
+									</Kbd>
+								)}
 							</Button>
 						</DialogFooter>
 					</form>
 				)}
-				{state.phase === 'failed' && state.failure !== null ? (
-					<div className={styles['failure']} role='alert'>
-						<strong>
-							{intl.formatMessage(
-								state.kind === 'environment-connection'
-									? desktopSshProjectMessages.environmentConnectionFailureTitle
-									: desktopSshProjectMessages.failureTitle,
-							)}
-						</strong>
-						<span>
-							{intl.formatMessage(DESKTOP_SSH_PROJECT_ENROLLMENT_FAILURE_MESSAGES[state.failure])}
-						</span>
-					</div>
-				) : null}
 				{(state.phase === 'working' || state.phase === 'failed') && !choosingDirectory ? (
 					<DialogFooter>
-						<Button variant='outline' onClick={() => controller.close()}>
+						<Button className={styles['controlText']} variant='outline' onClick={close}>
 							{intl.formatMessage(desktopSshProjectMessages.cancel)}
+							<Kbd aria-hidden='true' className={styles['shortcut']}>
+								Esc
+							</Kbd>
 						</Button>
 						{state.phase === 'failed' ? (
-							<Button onClick={() => controller.retry()}>
+							<Button className={styles['controlText']} onClick={() => controller.retry()}>
 								{intl.formatMessage(desktopSshProjectMessages.retry)}
 							</Button>
 						) : null}

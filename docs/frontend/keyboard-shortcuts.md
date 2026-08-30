@@ -59,6 +59,16 @@ Before adding a binding, search all scopes for the same canonical chord. Conditi
 - A shortcut reference derives the action name, formatted chord, condition summary, and binding source from the registered descriptor rather than a separately maintained inventory.
 - The control remains usable by pointer and assistive technology. A shortcut is an additional invocation path, never the only one.
 
+## Native dialog affordances
+
+- Unmodified Enter submission and Escape dismissal supplied by native form behavior and shared
+  Dialog primitives are structural keyboard affordances, not application-wide shortcut bindings.
+  Do not duplicate them in a product shortcut registry or attach parallel keydown listeners.
+- Their visible `Kbd` hints follow [`dialogs-and-forms.md`](dialogs-and-forms.md#validation-and-actions).
+  Render a hint from the current step's default editing context, hide it from the action's
+  accessible name, and omit it whenever that mapping is conditional or ambiguous. Never intercept
+  Enter to override native activation of an explicitly focused control.
+
 ## Lifecycle and verification
 
 - Register browser listeners in a responsibility-focused lifecycle Hook or application composition owner and remove the exact listener during cleanup.

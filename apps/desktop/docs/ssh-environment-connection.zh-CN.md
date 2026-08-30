@@ -63,10 +63,11 @@ arm64 与 glibc Linux x86_64 stripped `ReleaseSafe` artifact、外部 Ed25519 si
 key，以及每份 Desktop package 一份精确固定 manifest 的 trust descriptor。Repository 代码绝不接受
 production private key，普通 CI 只使用临时 key。
 
-普通 package command 保持不包含 release。Release-only command 会在 Electron Packager 前验证并缓冲精确
-final bundle，把 executable artifact 与 manifest 放在 `Resources` 下，并把 trust descriptor 保留在
-`app.asar` 内。固定 layout、command ceremony、trust assumption、rollback、modeling record、verification
-mapping 与剩余 release limit 位于
+Development startup 与 Dev packaging 会在 Electron 启动前准备并验证 checkout-scoped development-signed
+cohort。Local packaging 继续不包含 release。Release-only command 仍会在 Electron Packager 前验证并缓冲
+精确 externally signed final bundle，把 executable artifact 与 manifest 放在 `Resources` 下，并把 trust
+descriptor 保留在 `app.asar` 内。固定 layout、command ceremony、trust assumption、rollback、modeling
+record、verification mapping 与剩余 release limit 位于
 [`ssh-runtime-release.md`](ssh-runtime-release.zh-CN.md)。
 
 Slice 3.1A 只用 schema version 2 取代当前 release packaging path：每个已准入平台各有一个独立 version
@@ -281,6 +282,18 @@ v1 contract 只对已经交付的 Runtime behavior 保持有效，不能满足�
 | D183 | 专用 renderer contract 只携带相关联 request、opaque Environment identity、有界 catalog row、有界 discovery issue、connection state、Project 引用数、prompt handle/text 与有界 settlement。Main 仍是 SSH configuration 的唯一 reader 与 Environment intent 的唯一 writer。一个 renderer 同时最多一个请求；stale response、port loss 与 competing prompt lease 都 fail closed；secret 不进入 React snapshot、catalog、storage、diagnostic 或 canonical document。                                                                                                                                                                                                                                                                                                                                                           |
 | D184 | 这个 Consequential 与 Modeled 扩展在 production integration 前记录 catalog 与 transition contract。已登记的双场景 `SshEnvironmentConnectionManagement` 模型检查 stale-refresh fencing、append-only Add ordering、被动操作不激活连接、显式 connection ownership、精确 prompt lease、port retirement，以及不存在 Project、Directory、Workspace 与 terminal effect。确定性 evidence 还覆盖有界递归发现、concrete-host filtering、缺失与 partial configuration、精确 suggestion suppression、resolver-before-record ordering、幂等 Add、共享 status projection、显式 connect/disconnect、prompt correlation 与 secrecy、multi-renderer publication、localization、search 与 capability absence。受控 loopback evidence 继续负责真实 OpenSSH/AskPass/runtime behavior；完整 `pnpm verify` 继续排除 manual native-window test。 |
 
+## 已接受决策 D185-D191
+
+| 决策 | 已接受契约                                                                                                                                                                                                                                                                                                                                                                                             |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| D185 | 在受支持 POSIX host 上，development startup 与 Dev packaging 自动准备 development-signed schema-v2 Runtime/Terminal Host cohort。这只在 Dev profile 上取代 D43、D84 与 D155。Local 与 Windows 继续不含 release，而 Release packaging 继续要求独立提供的 production cohort 与 public key。                                                                                                              |
+| D186 | Development component version 由带版本 recipe、canonical checkout identity、精确 native source 与 build input，以及 active Zig toolchain identity 做内容寻址。Wall time、randomness、Git commit identity、generated output、credential 与 remote state 不影响版本。因此，任何 admitted input 变化都会产生不同的 immutable remote install path。                                                        |
+| D187 | Development Ed25519 private key 只在一次 preparation attempt 的内存中存在。Checkout cache 只可保留 public key、signed final cohort、精确 trust descriptor 与 validation marker。Renderer bootstrap 与 diagnostic 均不得暴露 signer、private key、release path 或 artifact byte。                                                                                                                       |
+| D188 | Development cache publication 采用 absent-target atomic。Private candidate 必须通过与 release package 相同的 signature、canonical-manifest、trust-descriptor 与四个 artifact 验证后才能 rename。并发相同 attempt 会重新验证 winner；任何无效 existing target 都 fail closed，且不得静默修复或替换。                                                                                                    |
+| D189 | Electron bootstrap 只发布一个静态 `sshProjectEnrollmentAvailable` capability，它仅由 POSIX support 与已准入 verified cohort 派生。Renderer 只在该 bit 为 true 时组合 enrollment、Folder attachment 与 connection-management UI。既有固定 bootstrap port role 始终存在，因此 capability absence 不改变 role 顺序或 general transport authority。                                                        |
+| D190 | 受控 signed-loopback witness 会 package 真实 Dev distribution，从 packaged manifest 派生预期 component version，并覆盖 AskPass、immutable install、Project admission、terminal I/O、connection loss、retry 与 disconnect。它取代 D146-D184 中较早的 real-SSH verification exclusion，在 required repository gate 中于 workspace test 后串行运行，并继续与被禁止的 manual native-window test 相互独立。 |
+| D191 | 已接受的 operational cost 是每个新 content identity 首次 preparation 较慢，以及 remote host 会保留 immutable development component version；本 slice 不增加 remote cleanup。Capability absence 就是 rollback 与 release-free mode。Real-host validation 只作为补充 evidence，其 credential 保持 transient interaction input。                                                                          |
+
 ### SSH 连接管理模型
 
 | 建模字段                 | 契约                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
@@ -299,17 +312,17 @@ v1 contract 只对已经交付的 Runtime behavior 保持有效，不能满足�
 
 ### SSH Project enrollment 模型
 
-| 建模字段         | 契约                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 问题             | Desktop 用户目前只能通过 process-local method 使用所有底层 SSH 与 remote-Project operation，却没有负责 identity establishment、authentication、progress、Project admission、failure recovery 或 reconnect 的产品路径。                                                                                                                                                                                                                                                                                              |
-| 输入             | Renderer 提供一个 request identity，以及 D158 中唯一的有界 SSH destination。Main 派生并连接精确 target 后，renderer response 只能 navigate 到一个有界 absolute path，或选择精确 current canonical directory snapshot。Main 派生 name、identity、resolved fact、canonical path 与 connection generation。                                                                                                                                                                                                            |
-| 数据与 ownership | Environment registry 拥有 immutable identity 与精确 target intent。Canonical Workbench document 拥有已 enrollment Project 与 Workspace structure。Connection owner 拥有 process-local status 与每个 Environment 一个 supervisor。Enrollment coordinator 拥有 request serialization，以及瞬时 AskPass 与 directory-selection lease。只有发起 Client View 拥有瞬时 snapshot 和 publication 后的 expansion 与 activation。任何 snapshot 或 lifecycle projection 都不能成为第二个 durable authority。                   |
-| 状态             | Request 依次经历 target resolution、registry create/reuse、pending identity、connection 或 reuse、可选精确 AskPass interaction、initial home listing、零次或多次成功或失败的 directory navigation、精确 directory selection、connected Project-root inspection、Workbench commit、settlement、canonical publication，以及 initiating-view activation。Registry 与 Workbench commit 分别允许 pre-write failure 与 post-rename uncertainty。                                                                          |
-| 不变量           | Remote effect 需要 durable Environment；Workbench enrollment 蕴含该 Environment；registry-only pending identity 永不发布为 enrolled Project；一个 Environment 最多有一个 active request 与一个精确 interaction lease；stale 或 foreign prompt 和 directory response 不能进入各自 owner；inspection 与 commit 需要精确选择 current snapshot；cancellation 永不回滚可能 committed 的 Project；restart 永不 auto-connect；enrollment 永不创建 terminal。                                                               |
-| Commit/recovery  | Environment commit 先于所有 remote effect，并在后续 failure 时保留。Workbench canonical commit 是 Project-enrollment commit point。已知 pre-commit failure 会根据 registry outcome 保持 pending 或 absent。Indeterminate registry 会阻止后续使用直到 reload；indeterminate Workbench write 会从 store reconcile，之后新的 request 才能声称 created 或 absent。Startup reload 两个 owner，并且只从已验证 canonical placement 派生 enrollment。                                                                       |
-| Cancellation     | Target resolution 与 pre-commit workflow phase 可以以确认的 cancellation 停止。没有 enrolled Project 的 operation-owned connection 会被 retire；pre-existing shared connection 会保留。Workbench commit 期间或之后，cancellation 与 port loss 只移除 request delivery/interaction lease，而 Main 会完成或稍后 reconcile authoritative commit。                                                                                                                                                                      |
-| Security/privacy | Renderer 与 Workbench 永不接收 Host connection、release byte、Runtime identity、SSH argument、resolved target、environment capability、raw diagnostic 或 secret。Prompt text 与 directory metadata 是有界 untrusted display data，并且只通过精确 current correlation 接受或回答。Listing 暴露 directory name 与 canonical path，但不暴露 file byte、file entry、mutation、command execution 或 terminal authority。                                                                                                 |
-| 验证             | `SshEnvironmentProjectEnrollment` 检查 non-atomic registry/Workbench ordering、pending identity、connection 与 interaction-lease exclusion、stale prompt 和 directory rejection、initial listing failure、保留 authority 的 navigation failure、inspection 前的精确 selection、busy request、cancellation 与 port retirement、reconciliation、reconnect/disconnect、restart、initiating-view activation，以及无 terminal effect。现有 connection、registry、admission 与 first-terminal model 仍是独立 refinement。 |
+| 建模字段         | 契约                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 问题             | Desktop 用户目前只能通过 process-local method 使用所有底层 SSH 与 remote-Project operation，却没有负责 identity establishment、authentication、progress、Project admission、failure recovery 或 reconnect 的产品路径。                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| 输入             | Renderer 提供一个 request identity，以及 D158 中唯一的有界 SSH destination。Main 派生并连接精确 target 后，renderer response 只能 navigate 到一个有界 absolute path，或选择精确 current canonical directory snapshot。Main 派生 name、identity、resolved fact、canonical path 与 connection generation。                                                                                                                                                                                                                                                                                                                                                        |
+| 数据与 ownership | Environment registry 拥有 immutable identity 与精确 target intent。Canonical Workbench document 拥有已 enrollment Project 与 Workspace structure。Connection owner 拥有 process-local status 与每个 Environment 一个 supervisor。Enrollment coordinator 拥有 request serialization，以及瞬时 AskPass 与 directory-selection lease。只有发起 Client View 拥有瞬时 snapshot 和 publication 后的 expansion 与 activation。任何 snapshot 或 lifecycle projection 都不能成为第二个 durable authority。                                                                                                                                                               |
+| 状态             | Request 依次经历 target resolution、registry create/reuse、pending identity、connection 或 reuse、可选精确 AskPass interaction、initial home listing、零次或多次成功或失败的 directory navigation、精确 directory selection、connected Project-root inspection、Workbench commit、settlement、canonical publication，以及 initiating-view activation。Registry 与 Workbench commit 分别允许 pre-write failure 与 post-rename uncertainty。                                                                                                                                                                                                                      |
+| 不变量           | Remote effect 需要 durable Environment；Workbench enrollment 蕴含该 Environment；registry-only pending identity 永不发布为 enrolled Project；一个 Environment 最多有一个 active request 与一个精确 interaction lease；stale 或 foreign prompt 和 directory response 不能进入各自 owner；inspection 与 commit 需要精确选择 current snapshot；cancellation 永不回滚可能 committed 的 Project；restart 永不 auto-connect；enrollment 永不创建 terminal。                                                                                                                                                                                                           |
+| Commit/recovery  | Environment commit 先于所有 remote effect，并在后续 failure 时保留。Workbench canonical commit 是 Project-enrollment commit point。已知 pre-commit failure 会根据 registry outcome 保持 pending 或 absent。Indeterminate registry 会阻止后续使用直到 reload；indeterminate Workbench write 会从 store reconcile，之后新的 request 才能声称 created 或 absent。Startup reload 两个 owner，并且只从已验证 canonical placement 派生 enrollment。                                                                                                                                                                                                                   |
+| Cancellation     | Target resolution 与 pre-commit workflow phase 可以以确认的 cancellation 停止。在 renderer 发送 request cancellation 之前，它会先使该 request 的 pending prompt 或 directory response 失效；之后到达的本地 completion 会被丢弃，而不会成为 stale channel response。Main settlement 会释放 Client serialization，之后的 re-entry 使用新的 request identity；真正并发的 live request 仍返回 busy。没有 enrolled Project 的 operation-owned connection 会被 retire；pre-existing shared connection 会保留。Workbench commit 期间或之后，cancellation 与 port loss 只移除 request delivery/interaction lease，而 Main 会完成或稍后 reconcile authoritative commit。 |
+| Security/privacy | Renderer 与 Workbench 永不接收 Host connection、release byte、Runtime identity、SSH argument、resolved target、environment capability、raw diagnostic 或 secret。Prompt text 与 directory metadata 是有界 untrusted display data，并且只通过精确 current correlation 接受或回答。Listing 暴露 directory name 与 canonical path，但不暴露 file byte、file entry、mutation、command execution 或 terminal authority。                                                                                                                                                                                                                                             |
+| 验证             | `SshEnvironmentProjectEnrollment` 检查 non-atomic registry/Workbench ordering、pending identity、connection 与 interaction-lease exclusion、stale prompt 和 directory rejection、cancel-before-prompt-completion ordering 与 re-entry、initial listing failure、保留 authority 的 navigation failure、inspection 前的精确 selection、busy request、cancellation 与 port retirement、reconciliation、reconnect/disconnect、restart、initiating-view activation，以及无 terminal effect。现有 connection、registry、admission 与 first-terminal model 仍是独立 refinement。                                                                                       |
 
 ### 既有 Project 的 SSH 文件夹挂载模型
 
@@ -418,11 +431,12 @@ Host endpoint identifier 是 Runtime instance 与 release cohort 的 domain-sepa
 固定 `serve --runtime-directory ... --endpoint-id ...` ABI 启动 signed Host 精确路径；它永不 kill 或 replace
 现有 Host。
 
-Release-only Desktop package 提供已验证 cohort 与精确 manifest-pinned trust descriptor。其 private-key
-exclusion、外部 signing ceremony、canonical layout、public-key injection、rollback 与 package placement 维护在
-[`ssh-runtime-release.md`](ssh-runtime-release.zh-CN.md)。`DesktopApplication` 现在把该 source 与按
-Environment 建立的 connection owner 组合起来；不包含 release 的 development 与 ordinary package 会以
-`runtime-release-unavailable` 阻止 activation。
+Dev 与 Release Desktop profile 提供已验证 cohort 与精确 manifest-pinned trust descriptor。Dev 使用
+checkout-scoped transient-signing preparation；Release 保留维护在
+[`ssh-runtime-release.md`](ssh-runtime-release.zh-CN.md) 中的 private-key exclusion、外部 signing ceremony、
+canonical layout、public-key injection、rollback 与 package placement。`DesktopApplication` 把任一已准入
+source 与按 Environment 建立的 connection owner 组合起来。Release-free Local profile 不公布 SSH
+Project-enrollment capability，任何直接 activation attempt 都以 `runtime-release-unavailable` 失败。
 
 ## AskPass 安全边界
 
@@ -434,9 +448,11 @@ prompt。
 Prompt text 是不受信的 OpenSSH input。只有 opaque handle、prompt kind 与 transient prompt 会交给注入的
 Main interaction owner。Response 被直接写给等待的 AskPass process，随后释放。Password、passphrase、OTP、
 prompt 与 answer 绝不进入 `SshEnvironmentConnectionState`、diagnostics、telemetry 或 durable storage。
-Cancellation 会 retire generation。已交付的安全 bridge 仅支持 POSIX；在 Windows Desktop 启用该路径前，
-仍需 Windows ACL-backed implementation。在组合 Main interaction handler 前，每个 prompt 都会被 cancel，
-且不会暴露给 renderer。
+Cancellation 会 retire generation。部分平台 OpenSSH build 在 host verification 时不会提供
+`SSH_ASKPASS_PROMPT`；此时 helper 只识别 OpenSSH 的 canonical host-confirmation suffix，其他缺失 kind
+一律保持为 `unknown`。已交付的安全 bridge 仅支持 POSIX；在 Windows Desktop 启用该路径前，仍需 Windows
+ACL-backed implementation。在组合 Main interaction handler 前，每个 prompt 都会被 cancel，且不会暴露给
+renderer。
 
 ## 协议、identity 与 heartbeat
 
@@ -684,9 +700,10 @@ Strip creation control 共用一个 availability policy。Enrollment-surface evi
 role、严格 request/progress/prompt/status/result parsing、精确 interaction-lease ownership、registry 与
 Workbench commit boundary、cancellation 与 port retirement、status projection、Connect、Retry、Disconnect、
 仅发起 client navigation、本地化 dialog behavior，以及不会替换 identity 的 publication-timeout recovery。
-显式 signed loopback system witness 针对受控 `sshd` 验证 host-key confirmation、encrypted-key AskPass、signed
-Runtime 与 Terminal Host installation、canonical Project admission、无 automatic terminal creation、首个
-terminal I/O、connection loss、recovery 与 durable placement retention。
+Required signed loopback system witness 会 package 真实 Dev distribution，从 packaged manifest 派生预期
+component version，并针对受控 `sshd` 验证 host-key confirmation、encrypted-key AskPass、signed Runtime 与
+Terminal Host installation、canonical Project admission、无 automatic terminal creation、首个 terminal I/O、
+connection loss、recovery 与 durable placement retention。
 
 从 repository root 运行聚焦边界：
 

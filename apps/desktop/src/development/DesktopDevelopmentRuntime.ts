@@ -1,6 +1,10 @@
 import path from 'node:path';
 
-import type { DesktopDevelopmentRestartRequest } from './desktop-development-contract';
+import {
+	DESKTOP_DEVELOPMENT_SSH_ENVIRONMENT_RELEASE_DIRECTORY_ENVIRONMENT_KEY,
+	DESKTOP_DEVELOPMENT_SSH_ENVIRONMENT_TRUST_DESCRIPTOR_ENVIRONMENT_KEY,
+	type DesktopDevelopmentRestartRequest,
+} from './desktop-development-contract';
 import type {
 	DesktopDevelopmentRestartPlanLoadResult,
 	DesktopDevelopmentRestartPlanStore,
@@ -24,6 +28,12 @@ interface DesktopDevelopmentRuntimeOptions {
 	readonly restartTimeoutMilliseconds?: number;
 	readonly serverEntryPath: string;
 	readonly sourceRoot: string;
+	readonly sshEnvironmentRelease?:
+		| {
+				readonly releaseDirectoryPath: string;
+				readonly trustDescriptorFilePath: string;
+		  }
+		| undefined;
 	readonly terminalHostRoot: string;
 	readonly webRendererRoot: string;
 }
@@ -125,6 +135,17 @@ export class DesktopDevelopmentRuntime {
 			['Web renderer root', options.webRendererRoot],
 		] as const) {
 			if (!path.isAbsolute(value)) throw new Error(`${name} path must be absolute.`);
+		}
+		if (options.sshEnvironmentRelease !== undefined) {
+			for (const [name, value] of [
+				['Development SSH Environment release', options.sshEnvironmentRelease.releaseDirectoryPath],
+				[
+					'Development SSH Environment trust descriptor',
+					options.sshEnvironmentRelease.trustDescriptorFilePath,
+				],
+			] as const) {
+				if (!path.isAbsolute(value)) throw new Error(`${name} path must be absolute.`);
+			}
 		}
 		this.#dependencies = dependencies;
 		this.#logger = logger;
@@ -379,6 +400,14 @@ export class DesktopDevelopmentRuntime {
 				ORCHBEE_DESKTOP_RENDERER_URL: this.#options.rendererUrl,
 				ORCHBEE_DESKTOP_RUNTIME_DIRECTORY: workspace.runtimeDirectory,
 				ORCHBEE_DESKTOP_DEVELOPMENT_SOURCE_ROOT: this.#options.sourceRoot,
+				...(this.#options.sshEnvironmentRelease === undefined
+					? {}
+					: {
+							[DESKTOP_DEVELOPMENT_SSH_ENVIRONMENT_RELEASE_DIRECTORY_ENVIRONMENT_KEY]:
+								this.#options.sshEnvironmentRelease.releaseDirectoryPath,
+							[DESKTOP_DEVELOPMENT_SSH_ENVIRONMENT_TRUST_DESCRIPTOR_ENVIRONMENT_KEY]:
+								this.#options.sshEnvironmentRelease.trustDescriptorFilePath,
+						}),
 				ORCHBEE_GATEWAY_ENTRY_PATH: this.#options.gatewayEntryPath,
 				ORCHBEE_SERVER_ENTRY_PATH: this.#options.serverEntryPath,
 				ORCHBEE_TERMINAL_HOST_BINARY: candidate.binaryPath,

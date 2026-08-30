@@ -7,12 +7,12 @@ export const desktopSshProjectMessages = defineMessages({
 	attachmentDirectoryDescription: message('desktop.sshProject.attachment.directoryDescription'),
 	attachmentDirectoryTitle: message('desktop.sshProject.attachment.directoryTitle'),
 	attachmentTitle: message('desktop.sshProject.attachment.title'),
+	authenticate: message('desktop.sshProject.actions.authenticate'),
 	cancel: message('desktop.sshProject.actions.cancel'),
 	close: message('desktop.sshProject.actions.close'),
 	connect: message('desktop.sshProject.actions.connect'),
 	connectionDescription: message('desktop.sshProject.connection.description'),
 	connectionTitle: message('desktop.sshProject.connection.title'),
-	continue: message('desktop.sshProject.actions.continue'),
 	description: message('desktop.sshProject.description'),
 	directoryDescription: message('desktop.sshProject.directory.description'),
 	directoryTitle: message('desktop.sshProject.directory.title'),
@@ -33,6 +33,7 @@ export const desktopSshProjectMessages = defineMessages({
 	failureWorkbench: message('desktop.sshProject.failure.workbench'),
 	fieldDestination: message('desktop.sshProject.fields.destination'),
 	fieldDestinationDescription: message('desktop.sshProject.fields.destinationDescription'),
+	fieldDestinationError: message('desktop.sshProject.fields.destinationError'),
 	fieldDestinationPlaceholder: message('desktop.sshProject.fields.destinationPlaceholder'),
 	progressCommittingProject: message('desktop.sshProject.progress.committingProject'),
 	progressCommittingProjectFolder: message('desktop.sshProject.progress.committingProjectFolder'),
@@ -45,9 +46,10 @@ export const desktopSshProjectMessages = defineMessages({
 	promptAuthenticationTitle: message('desktop.sshProject.prompt.authenticationTitle'),
 	promptHostDescription: message('desktop.sshProject.prompt.hostDescription'),
 	promptHostTitle: message('desktop.sshProject.prompt.hostTitle'),
-	promptResponse: message('desktop.sshProject.prompt.response'),
+	promptSecret: message('desktop.sshProject.prompt.secret'),
 	retry: message('desktop.sshProject.actions.retry'),
 	title: message('desktop.sshProject.title'),
+	trustHost: message('desktop.sshProject.actions.trustHost'),
 });
 
 function message(id: keyof typeof enUSDesktopSshProjectMessages) {

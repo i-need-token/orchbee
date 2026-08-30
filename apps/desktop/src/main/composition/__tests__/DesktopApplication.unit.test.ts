@@ -1017,6 +1017,7 @@ describe('DesktopApplication', () => {
 					terminalHostName: 'orchbee-host',
 					type: 'orchbee.workbench.client-session-bootstrap',
 				}),
+				sshProjectEnrollmentAvailable: false,
 				type: 'orchbee.desktop.renderer-bootstrap',
 			}),
 			[

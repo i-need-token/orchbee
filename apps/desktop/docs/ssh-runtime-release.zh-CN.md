@@ -7,10 +7,11 @@ schema-version-2 SSH Environment release，其中为每个已接受平台分别�
 一个 Terminal Host。仓库自动化构建并组装该 cohort，外部 authority 对其精确 canonical
 payload 签名，Desktop 在 Electron Packager 运行前验证并私下暂存每一个组件。
 
-`desktop:package:dev` 与 `desktop:package:local` 在结构上不带 release；
-`desktop:package:release` 必须使用 v2。Slice 3.1B 现在会消费该 verified cohort，用于 atomic remote
-installation 与精确 Terminal Host relay negotiation。这个 release boundary 仍不创建 remote Workspace 或
-terminal、不发布 feed、不负责 Electron 签名或 notarization，也不定义 update 与 cleanup policy。
+`pnpm desktop` 与 `desktop:package:dev` 会构建并验证一个 checkout-scoped、development-signed v2
+cohort。`desktop:package:local` 在结构上继续不带 release，而 `desktop:package:release` 必须使用外部签名的
+v2 input。Slice 3.1B 会通过相同的 verification、atomic remote-installation 与精确 Terminal Host relay
+path 消费任一已准入 cohort。这个 release boundary 仍不创建 remote Workspace 或 terminal、不发布
+feed、不负责 Electron 签名或 notarization，也不定义 update 与 cleanup policy。
 
 ## 已接受决策 D37-D46
 
@@ -42,27 +43,54 @@ terminal、不发布 feed、不负责 Electron 签名或 notarization，也不�
 | D85  | 冻结的 v1 artifact 只对已交付 Runtime 与 `project-root-v1` behavior 保持有效。未来 Terminal Host capability 必须要求已验证 v2，不能使用 v1 companion、remote `PATH`、remote build、network download、mixed cohort，或在 validation failure 后 downgrade。                                                                                                                                                |
 | D86  | Evidence 覆盖 strict schema 与 canonical bytes、missing/reordered/expanded/oversized/tampered input、错误 key 与 signature、symlink、固定 build arguments、真实 target compilation、prepare/finalize/package round trip、documentation pairing 与 repository gate。真实 SSH、remote upload、production signing、Workspace、terminal execution 与 UI 不在 claim 内；这个有界顺序工作流不需要 TLA+ model。 |
 
+## 已接受决策 D185-D191
+
+| 决策 | 已接受契约                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| D185 | 在受支持 POSIX host 上，`pnpm desktop` 与 `desktop:package:dev` 准入一个自动生成、development-signed 的 v2 cohort。它只针对 Dev profile 取代 D43、D84 与 D155。Local 与 Windows 继续不带 release；Release 仍要求外部 finalized cohort 与独立 public key。任何路径都不得读取、复用或仿冒 production private key。                                                                                                                                                                         |
+| D186 | Development component version 由 recipe revision、canonical checkout identity、精确 native build recipe 与 source byte，以及当前 Zig toolchain environment 做 content addressing。Runtime 与 Terminal Host 保持不同 version。Wall time、randomness、Git commit identity、generated output、credential 与 remote state 绝不影响 version。未变化的 checkout 与 toolchain 复用一个 version；input 变化会产生另一个 immutable remote version。                                               |
+| D187 | Development Ed25519 private key 仅在 process memory 中存在到 canonical prepared payload 完成签名为止。Cache 只保留 public key、finalized manifest 与 artifact、精确 trust descriptor，以及 canonical input marker。Source development 与 packaged Dev 消费同一个完全 verified cache。Private key、credential、SSH target 与 user data 都不会写入 cache 或 application package。                                                                                                          |
+| D188 | Development cache publication 使用 absent target 且保持 atomic。每个 private candidate 使用 candidate-private Zig build cache，并在 rename 前完成 prepare、sign、finalize、cache removal 与独立 Desktop verification。并发的相同 builder 只接受完全 verified 的获胜目录。Missing、partial、malformed、mismatched 或 unverifiable 的 existing cache 会 fail closed，不进行 artifact fallback、unsigned execution、in-place repair 或 remote activation。                                  |
+| D189 | Desktop 只根据 POSIX support 与 admitted release source 派生一个 static bootstrap boolean 来投影 SSH availability。固定 `ssh-project-enrollment` port 仍保留在 atomic fourteen-port bootstrap 中，但 Web 仅在该 boolean 为 true 时注入 enrollment、Folder attachment、status 与 Settings control。该 boolean 不公开 path、profile、signer、manifest、Environment identity 或 diagnostic。因此 Local 与 Windows 不会展示 Main 无法执行的 operation。                                      |
+| D190 | 必需的 signed-loopback witness 会 package 并启动真实 Dev profile、读取其 staged manifest version、确认 host-key 与 encrypted-key AskPass、安装 signed cohort、准入并浏览 Project、执行 terminal I/O、观察 loss、retry 并 disconnect。Runner 从 distribution profile output 派生 executable，并在 required repository `pnpm test` gate 中于 workspace test 之后串行运行。Production external-signing test 继续作为独立 finite package evidence。                                          |
+| D191 | Changed development cohort 的首次使用会执行两个已准入 target build，并可能增加 development startup 或 packaging 时间。Immutable development version 可能保留在 remote user 既有 Orchbee Runtime directory 下；automatic cleanup 与 mutable replacement 仍被排除。Rollback 会移除 Dev cohort producer 并把 capability 报告为 unavailable，而不改变 registry 或 Workbench data。Real-host manual check 可以补充 loopback witness，但其 credential 保持瞬时，且不属于 repository evidence。 |
+
 ## 版本化契约
 
-| Contract | 组件                                    | Consumer                                                                                                               |
-| -------- | --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| v1       | 两个 SSH Runtime artifact               | 为现有 Slice 2.3B 到 2.5 behavior 保留的冻结 legacy contract；新的 Desktop release packaging 不接受它                  |
-| v2       | SSH Runtime 与 Terminal Host × 两个平台 | 当前 `desktop:package:release` 与 Slice 3.1B SSH activation；bootstrap 原子安装并 commit 精确 selected-platform cohort |
+| Contract | 组件                                    | Consumer                                                                                                              |
+| -------- | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| v1       | 两个 SSH Runtime artifact               | 为现有 Slice 2.3B 到 2.5 behavior 保留的冻结 legacy contract；新的 Desktop release packaging 不接受它                 |
+| v2       | SSH Runtime 与 Terminal Host × 两个平台 | 当前 Dev 与 Release profile 以及 Slice 3.1B SSH activation；bootstrap 原子安装并 commit 精确 selected-platform cohort |
 
 这些 schema 不是 permissive union。v2 path 绝不会把 v1 bytes 当作缺失 companion，也不会在 v2
 validation 失败后 fallback。
 
 ## 建模记录
 
-| 字段         | Slice 3.1A 记录                                                                                                                                                                                                                              |
-| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Problem      | 把精确 Runtime 与 Terminal Host compatibility cohort 绑定到一个 Desktop package，同时不接受 production private key、remote download、remote build、path lookup 或 component substitution。                                                   |
-| Inputs       | Trusted intent 是两个显式 semantic version、一个由外部治理的 Ed25519 signer，以及一个独立提供的 public key。Build output、prepared/final directory、signature、manifest、filesystem kind、package variable 与缺失 input 在验证前都不可信。   |
-| Data         | Schema-version-2 manifest 包含有序的双 component × 双 platform matrix。Trust schema `2` 绑定 canonical SPKI、其派生 signing-key identity 与精确 final-manifest digest。                                                                      |
-| Outputs      | Prepare 与 finalize 向原本缺失的目标目录原子发布精确内容。Release packaging 要么以 private buffer 中已验证的完整 cohort 调用 Electron Packager，要么提前失败。Dev 与 Local packaging 不含 SSH Environment release。                          |
-| Invariants   | 每个必需 component 精确存在一次，每个已签名 size 与 digest 匹配 buffered bytes，component version 保持独立，canonical manifest bytes 定义 cohort，trust 同时 pin signer 与 manifest，且 production private key 绝不是输入。                  |
-| Ownership    | Native application 拥有 component build；仓库自动化拥有 cohort assembly；protocol package 拥有 data contract；外部 authority 拥有签名；Desktop 拥有 public-key normalization、trust construction、完整验证、buffering 与 package placement。 |
-| Verification | Protocol 与 Desktop unit test、仓库自动化 test、两个 native target compile、documentation pairing 与 `pnpm verify`。该 workflow 有限且顺序执行，因此 deterministic transition 与 negative-path test 对这个 claim 比 concurrency model 更强。 |
+| 字段         | Slice 3.1A 记录                                                                                                                                                                                                                                                   |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Problem      | 把精确 Runtime 与 Terminal Host compatibility cohort 绑定到一个 Desktop package，同时不接受 production private key、remote download、remote build、path lookup 或 component substitution。                                                                        |
+| Inputs       | Trusted intent 是两个显式 semantic version、一个由外部治理的 Ed25519 signer，以及一个独立提供的 public key。Build output、prepared/final directory、signature、manifest、filesystem kind、package variable 与缺失 input 在验证前都不可信。                        |
+| Data         | Schema-version-2 manifest 包含有序的双 component × 双 platform matrix。Trust schema `2` 绑定 canonical SPKI、其派生 signing-key identity 与精确 final-manifest digest。                                                                                           |
+| Outputs      | Prepare 与 finalize 向原本缺失的目标目录原子发布精确内容。Release packaging 要么以 private buffer 中已验证的完整 cohort 调用 Electron Packager，要么提前失败。Dev packaging 使用下文单独建模的 development cohort；Local packaging 不含 SSH Environment release。 |
+| Invariants   | 每个必需 component 精确存在一次，每个已签名 size 与 digest 匹配 buffered bytes，component version 保持独立，canonical manifest bytes 定义 cohort，trust 同时 pin signer 与 manifest，且 production private key 绝不是输入。                                       |
+| Ownership    | Native application 拥有 component build；仓库自动化拥有 cohort assembly；protocol package 拥有 data contract；外部 authority 拥有签名；Desktop 拥有 public-key normalization、trust construction、完整验证、buffering 与 package placement。                      |
+| Verification | Protocol 与 Desktop unit test、仓库自动化 test、两个 native target compile、documentation pairing 与 `pnpm verify`。该 workflow 有限且顺序执行，因此 deterministic transition 与 negative-path test 对这个 claim 比 concurrency model 更强。                      |
+
+## Development cohort 建模记录
+
+| 字段   | 当前契约                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 问题   | Dev application 展示 SSH enrollment，但 release-free composition 只能以 `runtime-release-unavailable` 失败；开发者因此无法操作受支持的产品 path，也无法维护其真实 system witness。                                                                                                                                                                                                                                                                                   |
+| 输入   | Trusted intent 是 Dev profile 与固定 development recipe。Untrusted input 包括 canonical source root、component build file 与 native source byte、Zig environment、cache filesystem state、generated public material、finalized bundle，以及 absent value。                                                                                                                                                                                                           |
+| 数据   | 一个 input marker 绑定 recipe、checkout、toolchain、component digest、derived version 与 cohort identity。一个 immutable cache directory 拥有 public key、finalized v2 release、trust descriptor 与 marker。                                                                                                                                                                                                                                                         |
+| 输出   | Preparation 返回一个 independently verified release/trust path pair，或一个 typed unavailable build failure。Source development 只把这些 private absolute path 传给 Main；Dev packaging 通过既有 release packager 暂存相同 verified byte。                                                                                                                                                                                                                           |
+| 不变量 | Production signing 不可到达；private development key 永不写入；cache reuse 要求 marker、signature、manifest、platform matrix、size、digest、trust 与 version 全部精确一致；只有 verified source 才会让 renderer capability 为 true；Local 与 Windows 保持 unavailable。                                                                                                                                                                                              |
+| 决策   | Missing cache 构建一个 candidate；valid cache 复用；并发的 valid winner 复用；invalid existing cache 失败；unavailable source 移除 product control；准入后的 connection behavior 保持不变。                                                                                                                                                                                                                                                                          |
+| 依赖   | Native application 保留各自 build recipe；repository release automation 保留 prepare/finalize；Desktop development tooling 拥有 input identity、transient signing、cache publication 与 composition；Desktop protocol 拥有 static capability bit；Web 拥有 optional control injection。                                                                                                                                                                              |
+| 失败   | Toolchain、build、signing、verification、publication 或 cache-validation failure 会使用 owned diagnostic 停止 Desktop development startup 或 Dev packaging。它绝不选择 stale directory、改变 existing cache、fallback 到 Local 或 Release trust，或启动 SSH。                                                                                                                                                                                                        |
+| 安全   | Development signer 表示 self-contained build integrity，而不是 production provenance。Cache 与 package 只包含 public verification material。SSH credential 继续通过既有 correlated AskPass lease 传递，并且不会进入 development identity、cache、bootstrap、diagnostic 或 test。                                                                                                                                                                                     |
+| 验证   | Pure test 覆盖 input identity、version stability 与 change、transient-key exclusion、cache reuse、contention、corruption、profile policy、resource resolution 与 bootstrap capability projection。必需的 actual-Dev signed-loopback witness 在 macOS arm64 或 glibc Linux x64 上覆盖完整 local process 与 remote mutation path；heterogeneous server、network quality 与 remote cleanup 仍被排除。没有引入新的 connection transition，因此既有 TLA+ model 保持不变。 |
 
 ## Canonical artifact
 
@@ -120,15 +148,15 @@ ORCHBEE_SSH_ENVIRONMENT_RELEASE_PUBLIC_KEY=/absolute/release-public-key.pem \
 pnpm desktop:package:release
 ```
 
-`pnpm desktop:package:dev` 与 `pnpm desktop:package:local` 会忽略这些 variable，并且不包含 release
-cohort 或 trust descriptor。
+`pnpm desktop:package:dev` 会忽略这些 variable，并生成自己的 development cohort。
+`pnpm desktop:package:local` 会忽略它们，且不包含 release cohort 或 trust descriptor。
 
 ## Trust 与当前限制
 
-一个 Desktop package 包含一个 descriptor 与匹配 cohort。改变任一 component 或 signing key
-都要求另一个 Desktop package；application rollback 会一起恢复其原有 descriptor 与 cohort。
-不存在 mutable current pointer、feed、key rollover、remote downgrade、cleanup 或 component
-replacement。
+一个 Dev 或 Release package 包含一个 descriptor 与匹配 cohort。改变任一 component 或 signing key
+都要求另一个 package；application rollback 会一起恢复其原有 descriptor 与 cohort。Source development
+会消费同一个 content-addressed verified Dev cohort，而不会把它放进 Electron shell。不存在 mutable current
+pointer、feed、key rollover、remote downgrade、cleanup 或 component replacement。
 
 Manifest 暴露 component version、platform、size 与 hash。Descriptor 暴露 public key、派生 key
 identity 与 manifest digest。SSH credential、Environment target、username、remote path、AskPass

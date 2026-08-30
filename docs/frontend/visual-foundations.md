@@ -42,21 +42,23 @@ font size from one role, line height from another, or a local font weight. HTML 
 express document structure; visual heading roles express presentation, so they do not need to
 have matching suffixes.
 
-| Variable                         | Baseline default | Use when                                                              | Do not use when                                           |
-| -------------------------------- | ---------------- | --------------------------------------------------------------------- | --------------------------------------------------------- |
-| `--ob-sys-typography-body-sm`    | `400 13px/18px`  | Default dense desktop UI, navigation, setting rows, descriptions      | Long reading content needs a more relaxed line box        |
-| `--ob-sys-typography-body-md`    | `400 14px/20px`  | Multi-line help, onboarding copy, and less dense product surfaces     | A compact toolbar or ordinary settings row                |
-| `--ob-sys-typography-body-lg`    | `400 16px/24px`  | Short introductory copy in an empty state or first-run experience     | Routine shell chrome or data-dense content                |
-| `--ob-sys-typography-label-xs`   | `400 11px/16px`  | Low-priority metadata in persistent panel chrome                      | Controls, section labels, or truncation workarounds       |
-| `--ob-sys-typography-label-sm`   | `400 12px/16px`  | Section labels and quiet category headings                            | Body descriptions or clickable control labels             |
-| `--ob-sys-typography-label-md`   | `500 13px/18px`  | Buttons, tabs, inputs, and compact controls needing explicit emphasis | Page titles or explanatory paragraphs                     |
-| `--ob-sys-typography-label-lg`   | `500 14px/20px`  | Prominent control labels and a primary panel toolbar                  | A substitute for a heading                                |
-| `--ob-sys-typography-heading-sm` | `500 16px/20px`  | Page title, settings title, or primary panel title                    | Every card or row title                                   |
-| `--ob-sys-typography-heading-md` | `600 20px/28px`  | Major onboarding section or a page with stronger hierarchy            | Dense desktop settings or navigation                      |
-| `--ob-sys-typography-heading-lg` | `600 24px/32px`  | Empty-state title or focused first-run step                           | Persistent application chrome                             |
-| `--ob-sys-typography-heading-xl` | `700 36px/40px`  | Rare hero or product-introduction statement                           | Ordinary application screens                              |
-| `--ob-sys-typography-code-sm`    | `400 12px/16px`  | Inline code, compact identifiers, and code-like metadata              | Specialized cell rendering or normal prose                |
-| `--ob-sys-typography-code-md`    | `400 13px/18px`  | Code blocks, commands, logs, and adjacent read-only information       | An interactive content canvas that owns its font settings |
+| Variable                         | Baseline default | Use when                                                                 | Do not use when                                           |
+| -------------------------------- | ---------------- | ------------------------------------------------------------------------ | --------------------------------------------------------- |
+| `--ob-sys-typography-body-sm`    | `400 13px/18px`  | Default dense desktop UI, navigation, setting rows, descriptions         | Long reading content needs a more relaxed line box        |
+| `--ob-sys-typography-body-md`    | `400 14px/20px`  | Multi-line help, onboarding copy, and less dense product surfaces        | A compact toolbar or ordinary settings row                |
+| `--ob-sys-typography-body-lg`    | `400 16px/24px`  | Short introductory copy in an empty state or first-run experience        | Routine shell chrome or data-dense content                |
+| `--ob-sys-typography-control-sm` | `400 13px/18px`  | Compact Desktop field labels, buttons, and other terse control text      | Body copy, page navigation, or a control needing emphasis |
+| `--ob-sys-typography-label-xs`   | `400 11px/16px`  | Low-priority metadata in persistent panel chrome                         | Controls, section labels, or truncation workarounds       |
+| `--ob-sys-typography-label-sm`   | `400 12px/16px`  | Section labels and quiet category headings                               | Body descriptions or clickable control labels             |
+| `--ob-sys-typography-label-md`   | `500 13px/18px`  | Buttons, tabs, inputs, and compact controls needing explicit emphasis    | Page titles or explanatory paragraphs                     |
+| `--ob-sys-typography-label-lg`   | `500 14px/20px`  | Prominent control labels and a primary panel toolbar                     | A substitute for a heading                                |
+| `--ob-sys-typography-heading-xs` | `400 14px/20px`  | Compact one-task Dialog or card title with established spatial hierarchy | Page, settings, or primary panel title                    |
+| `--ob-sys-typography-heading-sm` | `500 16px/20px`  | Page title, settings title, or primary panel title                       | Every card or row title                                   |
+| `--ob-sys-typography-heading-md` | `600 20px/28px`  | Major onboarding section or a page with stronger hierarchy               | Dense desktop settings or navigation                      |
+| `--ob-sys-typography-heading-lg` | `600 24px/32px`  | Empty-state title or focused first-run step                              | Persistent application chrome                             |
+| `--ob-sys-typography-heading-xl` | `700 36px/40px`  | Rare hero or product-introduction statement                              | Ordinary application screens                              |
+| `--ob-sys-typography-code-sm`    | `400 12px/16px`  | Inline code, compact identifiers, and code-like metadata                 | Specialized cell rendering or normal prose                |
+| `--ob-sys-typography-code-md`    | `400 13px/18px`  | Code blocks, commands, logs, and adjacent read-only information          | An interactive content canvas that owns its font settings |
 
 Apply these hierarchy rules:
 
@@ -259,17 +261,18 @@ viewport, and overlay shadow instead of an outer outline. Their action footers r
 surface and separate from content through spacing, not a divider or tinted boxed band. Fields and
 controls retain their own boundaries and focus geometry.
 
-A form Dialog presents one title, one supporting description, then labeled fields. Every editable
-field provides a localized placeholder as an input hint; persistent instructions remain visible
-description text rather than placeholder content. The footer places the cancel action before the
-primary submit action and shows `Esc` and `Enter` with `Kbd` beside those labels. These hints must
-describe real behavior: `Escape` closes the Dialog and restores focus, while form submission invokes
-the enabled primary action from `Enter`. When a Dialog enters a temporary nested task, such as adding
-an item to an existing collection, it does not render a second action footer. The existing footer
-switches to the nested task's cancel and submit actions; `Escape` and `Enter` operate on that
-innermost task first, then the original Dialog actions return. The visible close control has a
-localized accessible name. Dialog implementations with the same structure reuse the shared form and
-footer owner instead of repeating shortcut, disabled-state, or submit logic.
+A form Dialog admitted under [`dialogs-and-forms.md`](dialogs-and-forms.md) presents one title, a
+supporting description only when it adds decision-relevant context, then labeled fields. A
+placeholder is optional and never carries persistent instructions or replaces a visible label or
+description. The footer places the cancel action before the primary submit action. `Escape` cancels
+and restores focus, while `Enter` submits only when native form and input semantics make that
+behavior unambiguous. A reviewed experience may show `Kbd` hints when they improve shortcut
+discovery; do not add them solely because a footer exists. When a Dialog enters a temporary nested
+task, such as adding an item to an existing collection, it does not render a second action footer.
+The existing footer switches to the nested task's cancel and submit actions; `Escape` and `Enter`
+operate on that innermost task first, then the original Dialog actions return. The visible close
+control has a localized accessible name. Dialog implementations with the same structure reuse the
+shared form and footer owner instead of repeating cancellation, validation, or submit logic.
 
 ## Actions and status
 

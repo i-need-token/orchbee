@@ -15,11 +15,29 @@ afterEach(cleanup);
 
 describe('DesktopSshProjectEnrollmentDialog', () => {
 	it.each([
-		{ destination: 'SSH address', locale: 'en-US', title: 'Connect via SSH' },
-		{ destination: 'SSH 地址', locale: 'zh-CN', title: '通过 SSH 连接' },
-	] satisfies readonly { destination: string; locale: OrchbeeLocale; title: string }[])(
+		{
+			cancel: 'Cancel',
+			connect: 'Connect',
+			destination: 'SSH address',
+			locale: 'en-US',
+			title: 'Connect via SSH',
+		},
+		{
+			cancel: '取消',
+			connect: '连接',
+			destination: 'SSH 地址',
+			locale: 'zh-CN',
+			title: '通过 SSH 连接',
+		},
+	] satisfies readonly {
+		cancel: string;
+		connect: string;
+		destination: string;
+		locale: OrchbeeLocale;
+		title: string;
+	}[])(
 		'ships the enrollment form in $locale',
-		({ destination, locale, title }) => {
+		({ cancel, connect, destination, locale, title }) => {
 			const controller = createController();
 			controller.openEnrollment();
 			render(
@@ -31,6 +49,47 @@ describe('DesktopSshProjectEnrollmentDialog', () => {
 			expect(screen.getByRole('dialog')).toBeTruthy();
 			expect(screen.getByRole('heading', { name: title })).toBeTruthy();
 			expect(screen.getByLabelText(destination)).toBeTruthy();
+			expect(screen.getByRole('button', { name: cancel }).querySelector('kbd')?.textContent).toBe(
+				'Esc',
+			);
+			expect(screen.getByRole('button', { name: connect }).querySelector('kbd')?.textContent).toBe(
+				'Enter',
+			);
+			controller.dispose();
+		},
+	);
+
+	it.each([
+		{
+			error: 'Enter a valid SSH host, such as user@hostname.',
+			locale: 'en-US',
+		},
+		{
+			error: '请输入有效的 SSH 主机，例如 user@hostname。',
+			locale: 'zh-CN',
+		},
+	] satisfies readonly { error: string; locale: OrchbeeLocale }[])(
+		'explains an invalid SSH address in $locale without hiding the primary action',
+		({ error, locale }) => {
+			const controller = createController();
+			controller.openEnrollment();
+			render(
+				<OrchbeeI18nProvider locale={locale}>
+					<DesktopSshProjectEnrollmentDialog controller={controller} />
+				</OrchbeeI18nProvider>,
+			);
+
+			const destination = screen.getByRole('textbox');
+			fireEvent.click(
+				screen.getByRole('button', { name: locale === 'en-US' ? 'Connect' : '连接' }),
+			);
+
+			expect(screen.getByRole('alert').textContent).toBe(error);
+			expect(destination.getAttribute('aria-invalid')).toBe('true');
+			expect(document.activeElement).toBe(destination);
+
+			fireEvent.change(destination, { target: { value: 'builder@build-host' } });
+			expect(screen.queryByRole('alert')).toBeNull();
 			controller.dispose();
 		},
 	);
@@ -107,15 +166,24 @@ describe('DesktopSshProjectEnrollmentDialog', () => {
 		fireEvent.submit(addressForm as HTMLFormElement);
 
 		await screen.findByRole('heading', { name: 'Verify SSH Host' });
+		expect(screen.getAllByRole('heading')).toHaveLength(1);
 		expect(screen.getByText('The authenticity of host cannot be established.')).toBeTruthy();
-		fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+		expect(screen.getByRole('button', { name: 'Cancel' }).querySelector('kbd')?.textContent).toBe(
+			'Esc',
+		);
+		const trustHost = screen.getByRole('button', { name: 'Trust and Continue' });
+		expect(trustHost.querySelector('kbd')).toBeNull();
+		fireEvent.click(trustHost);
 
 		await screen.findByRole('heading', { name: 'SSH Authentication Required' });
-		const response = screen.getByLabelText('Response');
+		expect(screen.getAllByRole('heading')).toHaveLength(1);
+		const response = screen.getByLabelText('Password or passphrase');
 		expect(response.getAttribute('type')).toBe('password');
 		fireEvent.change(response, { target: { value: 'one-use secret' } });
 		expect(JSON.stringify(controller.getDialogSnapshot())).not.toContain('one-use secret');
-		fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+		const authenticate = screen.getByRole('button', { name: 'Authenticate' });
+		expect(authenticate.querySelector('kbd')?.textContent).toBe('Enter');
+		fireEvent.click(authenticate);
 
 		await screen.findByRole('heading', { name: 'Choose a Project Folder' });
 		fireEvent.click(screen.getByRole('button', { name: 'Edit folder path' }));

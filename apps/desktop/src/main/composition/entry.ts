@@ -31,6 +31,7 @@ import {
 import { DesktopWindowActions } from '../window-actions';
 import { DesktopApplication } from './DesktopApplication';
 import { prepareDesktopDataRoot } from './prepareDesktopDataRoot';
+import { resolveDesktopDevelopmentSshEnvironmentRelease } from './resolveDesktopDevelopmentSshEnvironmentRelease';
 import { resolveDesktopRuntimeConfiguration } from './resolveDesktopRuntimeConfiguration';
 import { resolveDesktopSshEnvironmentResources } from './resolveDesktopSshEnvironmentResources';
 
@@ -45,6 +46,7 @@ let developmentRestartPlanStore: DesktopDevelopmentRestartPlanStore | undefined;
 let bypassQuitGate = false;
 const DARWIN_LOCALE_INVENTORY_MAX_BYTES = 64 * 1024;
 const DARWIN_LOCALE_INVENTORY_TIMEOUT_MILLISECONDS = 1_000;
+
 registerDesktopRendererScheme(protocol);
 const desktopDistribution = resolveDesktopApplicationDistribution({
 	applicationPath: app.getAppPath(),
@@ -76,6 +78,9 @@ if (!singleInstanceLockOwned) {
 	void app
 		.whenReady()
 		.then(async () => {
+			const developmentSshEnvironmentRelease = app.isPackaged
+				? undefined
+				: resolveDesktopDevelopmentSshEnvironmentRelease(process.env);
 			let darwinSupportedLocales: readonly string[] | undefined;
 			if (process.platform === 'darwin') {
 				const inventory = spawnSync('/usr/bin/locale', ['-a'], {
@@ -190,12 +195,17 @@ if (!singleInstanceLockOwned) {
 						? {
 								mainDirectoryPath: __dirname,
 								packaged: true,
+								releaseAvailable:
+									process.platform !== 'win32' && desktopDistribution.releasePayload !== 'excluded',
 								resourcesPath: process.resourcesPath,
 								runtimeExecutablePath: process.execPath,
 							}
 						: {
 								mainDirectoryPath: __dirname,
 								packaged: false,
+								...(developmentSshEnvironmentRelease === undefined
+									? {}
+									: { release: developmentSshEnvironmentRelease }),
 								runtimeExecutablePath: process.execPath,
 							},
 				),

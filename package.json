@@ -29,7 +29,7 @@
 		"format:check": "oxfmt --check . && pnpm -r --if-present format:check",
 		"typecheck": "pnpm -r typecheck",
 		"build": "pnpm -r build",
-		"test": "pnpm test:lint-rules && pnpm test:documentation-pairing && pnpm test:style-contract && pnpm test:storage-contract && pnpm test:experience-contract && pnpm test:ssh-environment-release && pnpm -r test && pnpm -r --if-present test:cross",
+		"test": "pnpm test:lint-rules && pnpm test:documentation-pairing && pnpm test:style-contract && pnpm test:storage-contract && pnpm test:experience-contract && pnpm test:ssh-environment-release && pnpm -r test && pnpm --filter @orchbee/desktop test:system:ssh-project-enrollment && pnpm -r --if-present test:cross",
 		"test:lint-rules": "vitest run --config scripts/oxlint-plugin-orchbee/vitest.config.ts",
 		"test:documentation-pairing": "node --test scripts/documentation-pairing.test.mjs",
 		"test:style-contract": "vitest run --config scripts/style-contract/vitest.config.ts",

@@ -1,34 +1,54 @@
-.fields,
+.form,
 .prompt {
 	display: grid;
 	gap: var(--ob-ref-space-4);
+}
+
+.header {
+	padding-inline-end: var(--ob-ref-space-6);
+}
+
+.title {
+	font: var(--ob-sys-typography-heading-xs);
+}
+
+.description[data-compact-typography='true'],
+.failureDescription,
+.supportingText,
+.plainInput {
+	font: var(--ob-sys-typography-body-sm);
+}
+
+.controlText {
+	font: var(--ob-sys-typography-control-sm);
 }
 
 .directoryDialog {
 	max-inline-size: min(var(--ob-ref-container-2xl), calc(100% - var(--ob-ref-space-8)));
 }
 
-.progress,
-.promptDescription {
+.destinationInput {
+	font: var(--ob-sys-typography-code-sm);
+}
+
+.progress {
+	display: flex;
+	align-items: center;
+	gap: var(--ob-ref-space-2);
 	margin: 0;
-	color: var(--ob-sys-color-text-muted);
+	color: var(--ob-sys-color-text-secondary);
 	font: var(--ob-sys-typography-body-sm);
 }
 
-.failure {
-	display: grid;
-	gap: var(--ob-ref-space-1);
-	padding: var(--ob-ref-space-3);
-	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-status-danger-border);
-	border-radius: var(--ob-ref-radius-ui-md);
+.failureDescription {
 	color: var(--ob-sys-color-status-danger-text);
-	font: var(--ob-sys-typography-body-sm);
 }
 
-.prompt h3 {
-	margin: 0 0 var(--ob-ref-space-1);
-	color: var(--ob-sys-color-text-primary);
-	font: var(--ob-sys-typography-heading-sm);
+.shortcut {
+	color: currentColor;
+	background: transparent;
+	font: var(--ob-sys-typography-label-xs);
+	opacity: var(--ob-sys-opacity-muted);
 }
 
 .promptText {
@@ -39,7 +59,7 @@
 	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-subtle);
 	border-radius: var(--ob-ref-radius-ui-md);
 	background: var(--ob-sys-color-surface-subtle);
-	color: var(--ob-sys-color-text-secondary);
+	color: var(--ob-sys-color-text-primary);
 	font: var(--ob-sys-typography-code-sm);
 	white-space: pre-wrap;
 }

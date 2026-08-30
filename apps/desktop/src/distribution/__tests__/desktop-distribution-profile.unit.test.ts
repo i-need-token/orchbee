@@ -37,7 +37,7 @@ describe('Desktop distribution profiles', () => {
 				dataScope: 'development',
 				icon: { accentColor: '#625bf6', variant: 'dev' },
 				outputDirectoryName: 'dev',
-				releasePayload: 'excluded',
+				releasePayload: 'development',
 			},
 			{
 				applicationName: 'Orchbee Local',

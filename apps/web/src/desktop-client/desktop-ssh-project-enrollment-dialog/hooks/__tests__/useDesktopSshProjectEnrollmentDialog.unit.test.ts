@@ -29,7 +29,7 @@ function TestHarness({
 }: {
 	readonly controller: DesktopSshProjectEnrollmentDialogController;
 }): ReactNode {
-	const state = useDesktopSshProjectEnrollmentDialog(controller);
+	const { state } = useDesktopSshProjectEnrollmentDialog(controller);
 	return createElement('div', {
 		'data-dialog-phase': state.kind === 'closed' ? 'closed' : state.phase,
 	});

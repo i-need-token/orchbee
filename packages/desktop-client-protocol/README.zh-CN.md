@@ -4,7 +4,7 @@
 
 ## 适用范围
 
-该包负责一个原子的 Desktop renderer bootstrap、十四个独立 capability port 的固定顺序与安全证明、Agent-observation snapshot 与 semantic-event contract、Agent-integration-management command contract、设备本地原生窗口布局与跨窗口 Tab 移动契约、Browser 访问与个人访问令牌管理契约、类型化的现有 Project Folder 获取与托管 Project Worktree 契约、设备本地终端启动配置文件与终端默认设置命令契约、有界纯文本剪贴板读取契约、精确首个远程终端创建契约、专用 SSH Project enrollment、existing-Project Folder attachment、可复用 SSH Environment catalog 与显式连接控制契约、preload 暴露的 context-isolated 文件路径查询稳定名称，以及 Electron 应用生命周期控制。bootstrap 内嵌由 `@orchbee/workbench-client-protocol` 所拥有、与 transport 无关的 Workbench client-session bootstrap。
+该包负责一个原子的 Desktop renderer bootstrap、十四个独立 capability port 的固定顺序与安全证明、一个静态 SSH Project-enrollment availability boolean、Agent-observation snapshot 与 semantic-event contract、Agent-integration-management command contract、设备本地原生窗口布局与跨窗口 Tab 移动契约、Browser 访问与个人访问令牌管理契约、类型化的现有 Project Folder 获取与托管 Project Worktree 契约、设备本地终端启动配置文件与终端默认设置命令契约、有界纯文本剪贴板读取契约、精确首个远程终端创建契约、专用 SSH Project enrollment、existing-Project Folder attachment、可复用 SSH Environment catalog 与显式连接控制契约、preload 暴露的 context-isolated 文件路径查询稳定名称，以及 Electron 应用生命周期控制。bootstrap 内嵌由 `@orchbee/workbench-client-protocol` 所拥有、与 transport 无关的 Workbench client-session bootstrap。Availability boolean 不公开 profile、path、signer、artifact、Environment identity 或 diagnostic；Web 只用它在 Main 没有 admitted release source 时省略 SSH surface。
 
 应用生命周期区分用户退出、更新重启和仅开发环境使用的 Terminal Host 重启。用户退出可以取消、保留或停止；更新重启自动保留。开发 Host 重启是一种显式、非交互模式：它持久地停止当前会话，并在 Main 报告就绪前暂存新的 provision；它不是 updater 的别名。命令只携带请求标识、模式、聚合计数、精确的共享文档 revision、进度、有界类型化失败，以及渲染器替换后恢复进行中开发 Host 重启所需的 Workbench presentation 标识。命令绝不暴露 Host、绑定、终端或文件系统权限。
 

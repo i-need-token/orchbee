@@ -27,9 +27,12 @@ import {
 	AgentHookPresentationCorrelationHintSchema,
 	AgentHookRichObservationEnvelopeSchema,
 	type AgentHookAdapterId,
-	type AgentHookRichObservationEnvelope,
 	type AgentHookSanitizedObservation,
 } from './agent-hook-observation-contract';
+import {
+	AgentObservationJoinStateMachine,
+	type AgentObservationJoinCommand,
+} from './AgentObservationJoinStateMachine';
 import {
 	resolveAgentHookAdapter,
 	type AgentHookAdapterDefinition,
@@ -38,14 +41,9 @@ import {
 const MAX_ACTIVE_CONNECTIONS = 64;
 const MAX_CHILD_SESSIONS_PER_SESSION = 128;
 const MAX_OBSERVATION_BODY_BYTES = 16 * 1024;
-const MAX_PENDING_EVENTS = 512;
-const MAX_PENDING_HINTS = 1024;
 const MAX_PENDING_REQUESTS_PER_SESSION = 128;
 const MAX_SESSIONS = 128;
 const CONNECTION_TIMEOUT_MILLISECONDS = 500;
-const JOIN_SETTLE_MILLISECONDS = 25;
-const JOIN_TTL_MILLISECONDS = 10_000;
-const RECENT_EVENT_TTL_MILLISECONDS = 60_000;
 type AgentSessionObservationEvent = Exclude<
 	AgentObservationEvent,
 	{ readonly type: 'session-observed' }
@@ -78,22 +76,6 @@ interface SessionBinding {
 	readonly sessionId: AgentSessionId;
 }
 
-interface PendingHint {
-	readonly attachment: AgentPresentationAttachment;
-	readonly eventId: string;
-	readonly expiresAt: number;
-}
-
-interface PendingEvent {
-	readonly adapter: AgentHookAdapterDefinition;
-	applied: boolean;
-	readonly envelope: AgentHookRichObservationEnvelope;
-	readonly expiresAt: number;
-	readonly matchedAttachments: Map<string, AgentPresentationAttachment>;
-	readonly matchedCorrelationIds: Set<string>;
-	settleTimer: ReturnType<typeof setTimeout> | null;
-}
-
 /**
  * Owns the trusted Desktop ingress for locally sanitized Agent hook
  * observations. A rich Unix-socket half has no presentation authority and an
@@ -102,16 +84,15 @@ interface PendingEvent {
 export class AgentHookObservationIngress {
 	readonly #activeConnections = new Set<Socket>();
 	readonly #allocateIdentifier: () => string;
-	readonly #correlationEventIds = new Map<string, string>();
-	readonly #currentGenerations = new Map<string, CreationId>();
-	readonly #joinSettleMilliseconds: number;
 	readonly #now: () => number;
-	readonly #pendingEvents = new Map<string, PendingEvent>();
-	readonly #pendingHints = new Map<string, PendingHint>();
-	readonly #recentEventExpirations = new Map<string, number>();
+	readonly #observationJoin: AgentObservationJoinStateMachine;
 	readonly #runtime: AgentHookObservationRuntimeSink;
 	readonly #server: Server;
 	readonly #sessions = new Map<string, SessionBinding>();
+	readonly #settlementTimers = new Map<
+		string,
+		{ readonly eventExpiresAt: number; readonly handle: ReturnType<typeof setTimeout> }
+	>();
 	readonly #socketPath: string | null;
 	#started = false;
 
@@ -121,8 +102,12 @@ export class AgentHookObservationIngress {
 	) {
 		this.#runtime = runtime;
 		this.#allocateIdentifier = options.allocateIdentifier;
-		this.#joinSettleMilliseconds = options.joinSettleMilliseconds ?? JOIN_SETTLE_MILLISECONDS;
 		this.#now = options.now ?? Date.now;
+		this.#observationJoin = new AgentObservationJoinStateMachine(
+			options.joinSettleMilliseconds === undefined
+				? {}
+				: { joinSettleMilliseconds: options.joinSettleMilliseconds },
+		);
 		this.#socketPath = options.socketPath;
 		this.#server = createServer(this.#acceptConnection);
 		this.#server.maxConnections = MAX_ACTIVE_CONNECTIONS;
@@ -158,11 +143,9 @@ export class AgentHookObservationIngress {
 		creationId: CreationId,
 	): TerminalEnvironmentOverlay {
 		if (!this.#started || this.#socketPath === null) return [];
-		const previousGeneration = this.#currentGenerations.get(presentationId);
-		if (previousGeneration !== undefined && previousGeneration !== creationId) {
-			this.#retirePresentationGeneration(presentationId, previousGeneration);
-		}
-		this.#currentGenerations.set(presentationId, creationId);
+		this.#handleJoinCommands(
+			this.#observationJoin.registerPresentationGeneration(presentationId, creationId),
+		);
 		return [{ name: 'ORCHBEE_AGENT_OBSERVATION_SOCKET', value: this.#socketPath }];
 	}
 
@@ -172,46 +155,28 @@ export class AgentHookObservationIngress {
 	): void {
 		const parsed = AgentHookPresentationCorrelationHintSchema.safeParse(parseJson(event.payload));
 		if (!parsed.success) return;
-		const currentGeneration = this.#currentGenerations.get(presentationId);
-		if (currentGeneration === undefined || currentGeneration !== event.identity.creationId) return;
-
-		const now = this.#now();
-		this.#cleanupExpired(now);
-		const hint: PendingHint = {
-			attachment: {
-				generation: event.identity.creationId,
-				navigable: true,
-				presentationId,
-				visibility: parsed.data.visibility,
-			},
-			eventId: parsed.data.eventId,
-			expiresAt: now + JOIN_TTL_MILLISECONDS,
-		};
-		const existing = this.#pendingHints.get(parsed.data.correlationId);
-		if (existing !== undefined) {
-			if (!pendingHintsEqual(existing, hint)) return;
-		} else {
-			if (this.#pendingHints.size >= MAX_PENDING_HINTS) return;
-			this.#pendingHints.set(parsed.data.correlationId, hint);
-		}
-		this.#joinCorrelation(parsed.data.correlationId);
+		this.#handleJoinCommands(
+			this.#observationJoin.receiveHint(
+				{
+					correlationId: parsed.data.correlationId,
+					eventId: parsed.data.eventId,
+					generation: event.identity.creationId,
+					presentationId,
+					visibility: parsed.data.visibility,
+				},
+				this.#now(),
+			),
+		);
 	}
 
 	retirePresentation(presentationId: TerminalPresentationId): void {
-		const generation = this.#currentGenerations.get(presentationId);
-		this.#currentGenerations.delete(presentationId);
-		if (generation !== undefined) this.#retirePresentationGeneration(presentationId, generation);
+		this.#handleJoinCommands(this.#observationJoin.retirePresentation(presentationId));
 	}
 
 	async dispose(): Promise<void> {
-		for (const pendingEvent of this.#pendingEvents.values()) {
-			if (pendingEvent.settleTimer !== null) clearTimeout(pendingEvent.settleTimer);
-		}
-		this.#pendingEvents.clear();
-		this.#pendingHints.clear();
-		this.#correlationEventIds.clear();
-		this.#recentEventExpirations.clear();
-		this.#currentGenerations.clear();
+		for (const timer of this.#settlementTimers.values()) clearTimeout(timer.handle);
+		this.#settlementTimers.clear();
+		this.#observationJoin.reset();
 		this.#sessions.clear();
 		for (const connection of this.#activeConnections) connection.destroy();
 		this.#activeConnections.clear();
@@ -261,102 +226,63 @@ export class AgentHookObservationIngress {
 		if (!parsed.success) return;
 		const adapter = resolveAgentHookAdapter(parsed.data.adapterId, parsed.data.observation.event);
 		if (adapter === null) return;
-		const now = this.#now();
-		this.#cleanupExpired(now);
-		const transportEventKey = eventKey(parsed.data.adapterId, parsed.data.eventId);
-		if (this.#recentEventExpirations.has(transportEventKey)) return;
+		this.#handleJoinCommands(this.#observationJoin.receiveEvent(adapter, parsed.data, this.#now()));
+	}
 
-		const existing = this.#pendingEvents.get(transportEventKey);
-		if (existing !== undefined) {
-			if (!envelopesEqual(existing.envelope, parsed.data)) return;
-			for (const correlationId of parsed.data.correlationIds) {
-				this.#joinCorrelation(correlationId);
+	#handleJoinCommands(commands: readonly AgentObservationJoinCommand[]): void {
+		for (const command of commands) {
+			switch (command.type) {
+				case 'schedule-settlement':
+					this.#scheduleSettlement(command);
+					break;
+				case 'cancel-settlement':
+					this.#cancelSettlement(command.eventKey, command.eventExpiresAt);
+					break;
+				case 'apply-observation':
+					this.#observe(
+						command.adapter,
+						command.envelope.observation,
+						command.envelope.eventId,
+						command.attachments,
+					);
+					break;
+				case 'attach-presentations': {
+					const binding = this.#sessions.get(sessionKeyFor(command.adapterId, command.sessionKey));
+					if (binding !== undefined) this.#attachPresentations(binding, command.attachments);
+					break;
+				}
+				case 'retire-presentation-generation':
+					this.#detachPresentationGeneration(command.presentationId, command.generation);
+					break;
 			}
-			return;
-		}
-		if (this.#pendingEvents.size >= MAX_PENDING_EVENTS) return;
-		if (
-			parsed.data.correlationIds.some((correlationId) => {
-				const claimedEventKey = this.#correlationEventIds.get(correlationId);
-				return claimedEventKey !== undefined && claimedEventKey !== transportEventKey;
-			})
-		) {
-			return;
-		}
-
-		const pendingEvent: PendingEvent = {
-			adapter,
-			applied: false,
-			envelope: parsed.data,
-			expiresAt: now + JOIN_TTL_MILLISECONDS,
-			matchedAttachments: new Map(),
-			matchedCorrelationIds: new Set(),
-			settleTimer: null,
-		};
-		this.#pendingEvents.set(transportEventKey, pendingEvent);
-		for (const correlationId of parsed.data.correlationIds) {
-			this.#correlationEventIds.set(correlationId, transportEventKey);
-			this.#joinCorrelation(correlationId);
 		}
 	}
 
-	#joinCorrelation(correlationId: string): void {
-		const transportEventKey = this.#correlationEventIds.get(correlationId);
-		const hint = this.#pendingHints.get(correlationId);
-		if (transportEventKey === undefined || hint === undefined) return;
-		const pendingEvent = this.#pendingEvents.get(transportEventKey);
-		if (pendingEvent === undefined || hint.eventId !== pendingEvent.envelope.eventId) return;
-		if (pendingEvent.matchedCorrelationIds.has(correlationId)) return;
-		pendingEvent.matchedCorrelationIds.add(correlationId);
-		const key = attachmentKey(hint.attachment);
-		const matchedAttachment = pendingEvent.matchedAttachments.get(key);
-		const attachment =
-			matchedAttachment === undefined
-				? hint.attachment
-				: {
-						...hint.attachment,
-						visibility: combinePresentationVisibility(
-							matchedAttachment.visibility,
-							hint.attachment.visibility,
-						),
-					};
-		pendingEvent.matchedAttachments.set(key, attachment);
-		this.#pendingHints.delete(correlationId);
-
-		if (pendingEvent.applied) {
-			const binding = this.#sessions.get(
-				sessionKeyFor(
-					pendingEvent.envelope.adapterId,
-					pendingEvent.envelope.observation.sessionKey,
-				),
+	#scheduleSettlement(
+		command: Extract<AgentObservationJoinCommand, { readonly type: 'schedule-settlement' }>,
+	): void {
+		const existing = this.#settlementTimers.get(command.eventKey);
+		if (existing?.eventExpiresAt === command.eventExpiresAt) return;
+		if (existing !== undefined) clearTimeout(existing.handle);
+		const handle = setTimeout(() => {
+			const current = this.#settlementTimers.get(command.eventKey);
+			if (current?.eventExpiresAt !== command.eventExpiresAt) return;
+			this.#settlementTimers.delete(command.eventKey);
+			this.#handleJoinCommands(
+				this.#observationJoin.settle(command.eventKey, command.eventExpiresAt, this.#now()),
 			);
-			if (binding !== undefined) this.#attachPresentations(binding, [attachment]);
-			return;
-		}
-		if (pendingEvent.matchedCorrelationIds.size === pendingEvent.envelope.correlationIds.length) {
-			this.#applyPendingEvent(transportEventKey);
-			return;
-		}
-		if (pendingEvent.settleTimer !== null) return;
-		pendingEvent.settleTimer = setTimeout(
-			() => this.#applyPendingEvent(transportEventKey),
-			this.#joinSettleMilliseconds,
-		);
+		}, command.milliseconds);
+		this.#settlementTimers.set(command.eventKey, {
+			eventExpiresAt: command.eventExpiresAt,
+			handle,
+		});
 	}
 
-	#applyPendingEvent(transportEventKey: string): void {
-		const pendingEvent = this.#pendingEvents.get(transportEventKey);
-		if (pendingEvent === undefined || pendingEvent.applied) return;
-		if (pendingEvent.settleTimer !== null) clearTimeout(pendingEvent.settleTimer);
-		pendingEvent.settleTimer = null;
-		if (pendingEvent.matchedAttachments.size === 0) return;
-		pendingEvent.applied = true;
-		this.#observe(
-			pendingEvent.adapter,
-			pendingEvent.envelope.observation,
-			pendingEvent.envelope.eventId,
-			[...pendingEvent.matchedAttachments.values()],
-		);
+	#cancelSettlement(eventKey: string, eventExpiresAt: number): void {
+		const existing = this.#settlementTimers.get(eventKey);
+		if (existing?.eventExpiresAt !== eventExpiresAt) return;
+		clearTimeout(existing.handle);
+		this.#settlementTimers.delete(eventKey);
 	}
 
 	#observe(
@@ -719,22 +645,10 @@ export class AgentHookObservationIngress {
 		if (parent.activeTurnId !== null) this.#changeActivity(parent, 'thinking');
 	}
 
-	#retirePresentationGeneration(presentationId: string, generation: CreationId): void {
-		for (const [correlationId, hint] of this.#pendingHints) {
-			if (
-				hint.attachment.presentationId === presentationId &&
-				hint.attachment.generation === generation
-			) {
-				this.#pendingHints.delete(correlationId);
-			}
-		}
-		for (const pendingEvent of this.#pendingEvents.values()) {
-			for (const [key, attachment] of pendingEvent.matchedAttachments) {
-				if (attachment.presentationId === presentationId && attachment.generation === generation) {
-					pendingEvent.matchedAttachments.delete(key);
-				}
-			}
-		}
+	#detachPresentationGeneration(
+		presentationId: TerminalPresentationId,
+		generation: CreationId,
+	): void {
 		for (const session of this.#runtime.getSnapshot().sessions) {
 			const attachment = session.presentationAttachments.find(
 				(candidate) =>
@@ -779,28 +693,6 @@ export class AgentHookObservationIngress {
 		return this.#runtime
 			.getSnapshot()
 			.sessions.find((candidate) => candidate.sessionId === sessionId);
-	}
-
-	#cleanupExpired(now: number): void {
-		for (const [correlationId, hint] of this.#pendingHints) {
-			if (hint.expiresAt <= now) this.#pendingHints.delete(correlationId);
-		}
-		for (const [transportEventKey, pendingEvent] of this.#pendingEvents) {
-			if (pendingEvent.expiresAt > now) continue;
-			if (pendingEvent.settleTimer !== null) clearTimeout(pendingEvent.settleTimer);
-			this.#pendingEvents.delete(transportEventKey);
-			for (const correlationId of pendingEvent.envelope.correlationIds) {
-				if (this.#correlationEventIds.get(correlationId) === transportEventKey) {
-					this.#correlationEventIds.delete(correlationId);
-				}
-			}
-			if (pendingEvent.applied) {
-				this.#recentEventExpirations.set(transportEventKey, now + RECENT_EVENT_TTL_MILLISECONDS);
-			}
-		}
-		for (const [eventId, expiresAt] of this.#recentEventExpirations) {
-			if (expiresAt <= now) this.#recentEventExpirations.delete(eventId);
-		}
 	}
 
 	#externalEventId(adapterId: AgentHookAdapterId, externalEventId: string): AgentEventId {
@@ -851,38 +743,6 @@ function parseJson(value: string): unknown {
 	}
 }
 
-function eventKey(adapterId: AgentHookAdapterId, externalEventId: string): string {
-	return `${adapterId}\0${externalEventId}`;
-}
-
 function sessionKeyFor(adapterId: AgentHookAdapterId, externalSessionKey: string): string {
 	return `${adapterId}\0${externalSessionKey}`;
-}
-
-function attachmentKey(attachment: AgentPresentationAttachment): string {
-	return `${attachment.presentationId}\0${attachment.generation}`;
-}
-
-function combinePresentationVisibility(
-	left: AgentPresentationAttachment['visibility'],
-	right: AgentPresentationAttachment['visibility'],
-): AgentPresentationAttachment['visibility'] {
-	if (left === 'hidden' || right === 'hidden') return 'hidden';
-	return left === 'visible' && right === 'visible' ? 'visible' : 'unknown';
-}
-
-function pendingHintsEqual(left: PendingHint, right: PendingHint): boolean {
-	return (
-		left.eventId === right.eventId &&
-		left.attachment.presentationId === right.attachment.presentationId &&
-		left.attachment.generation === right.attachment.generation &&
-		left.attachment.visibility === right.attachment.visibility
-	);
-}
-
-function envelopesEqual(
-	left: AgentHookRichObservationEnvelope,
-	right: AgentHookRichObservationEnvelope,
-): boolean {
-	return JSON.stringify(left) === JSON.stringify(right);
 }

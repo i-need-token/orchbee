@@ -1,11 +1,12 @@
 import type { DesktopSshProjectMessageId } from '../en-US';
 
 export const zhCNDesktopSshProjectMessages = {
+	'desktop.sshProject.actions.authenticate': '认证',
 	'desktop.sshProject.actions.cancel': '取消',
 	'desktop.sshProject.actions.close': '关闭',
 	'desktop.sshProject.actions.connect': '连接',
-	'desktop.sshProject.actions.continue': '继续',
 	'desktop.sshProject.actions.retry': '重试',
+	'desktop.sshProject.actions.trustHost': '信任并继续',
 	'desktop.sshProject.attachment.description':
 		'输入 SSH 地址。Orchbee 会先连接，再让你为当前项目选择远程文件夹。',
 	'desktop.sshProject.attachment.directoryDescription': '选择要添加到当前项目的远程文件夹。',
@@ -14,7 +15,7 @@ export const zhCNDesktopSshProjectMessages = {
 	'desktop.sshProject.connection.description':
 		'Orchbee 将重新连接此项目，不会更改已保存的结构或远端文件。',
 	'desktop.sshProject.connection.title': '连接远端项目',
-	'desktop.sshProject.description': '输入 SSH 地址。Orchbee 会先完成连接，再让你选择项目文件夹。',
+	'desktop.sshProject.description': '连接 SSH 主机，然后选择要作为项目使用的远端文件夹。',
 	'desktop.sshProject.directory.description': '选择要作为项目添加的远端文件夹。',
 	'desktop.sshProject.directory.title': '选择项目文件夹',
 	'desktop.sshProject.environmentConnection.description':
@@ -37,8 +38,9 @@ export const zhCNDesktopSshProjectMessages = {
 		'Orchbee 无法安全地将项目添加到共享工作台。请重新加载后再试。',
 	'desktop.sshProject.fields.destination': 'SSH 地址',
 	'desktop.sshProject.fields.destinationDescription':
-		'可使用 SSH 配置中的主机、user@hostname，或粘贴 ssh user@hostname。',
-	'desktop.sshProject.fields.destinationPlaceholder': 'ssh user@example.com',
+		'使用 SSH 配置中的主机，或输入 user@hostname。',
+	'desktop.sshProject.fields.destinationError': '请输入有效的 SSH 主机，例如 user@hostname。',
+	'desktop.sshProject.fields.destinationPlaceholder': 'user@hostname',
 	'desktop.sshProject.progress.committingProject': '正在将项目添加到工作台…',
 	'desktop.sshProject.progress.committingProjectFolder': '正在将远程文件夹添加到项目…',
 	'desktop.sshProject.progress.connecting': '正在连接并准备远端运行时…',
@@ -47,10 +49,10 @@ export const zhCNDesktopSshProjectMessages = {
 	'desktop.sshProject.progress.resolvingTarget': '正在解析 SSH 配置…',
 	'desktop.sshProject.progress.selectingDirectory': '正在加载远端主目录…',
 	'desktop.sshProject.prompt.authenticationDescription':
-		'此响应会直接发送给当前 SSH 进程，不会被保存。',
+		'密码或密钥口令只会发送给当前 SSH 进程，绝不会被保存。',
 	'desktop.sshProject.prompt.authenticationTitle': '需要 SSH 认证',
-	'desktop.sshProject.prompt.hostDescription': '继续前请检查 SSH 主机验证提示。',
+	'desktop.sshProject.prompt.hostDescription': '信任此连接前，请确认主机指纹。',
 	'desktop.sshProject.prompt.hostTitle': '验证 SSH 主机',
-	'desktop.sshProject.prompt.response': '响应',
+	'desktop.sshProject.prompt.secret': '密码或密钥口令',
 	'desktop.sshProject.title': '通过 SSH 连接',
 } as const satisfies Record<DesktopSshProjectMessageId, string>;

@@ -731,6 +731,8 @@
 		var(--ob-ref-font-size-sm-line-height) var(--ob-ref-font-family-sans);
 	--ob-sys-typography-body-lg: var(--ob-ref-font-weight-normal) var(--ob-ref-font-size-base) /
 		var(--ob-ref-font-size-base-line-height) var(--ob-ref-font-family-sans);
+	--ob-sys-typography-control-sm: var(--ob-ref-font-weight-normal) var(--ob-ref-font-size-ui-base) /
+		var(--ob-ref-font-size-ui-base-line-height) var(--ob-ref-font-family-sans);
 	--ob-sys-typography-label-xs: var(--ob-ref-font-weight-normal) var(--ob-ref-font-size-2xs) /
 		var(--ob-ref-font-size-2xs-line-height) var(--ob-ref-font-family-sans);
 	--ob-sys-typography-label-sm: var(--ob-ref-font-weight-normal) var(--ob-ref-font-size-xs) /
@@ -738,6 +740,8 @@
 	--ob-sys-typography-label-md: var(--ob-ref-font-weight-medium) var(--ob-ref-font-size-ui-base) /
 		var(--ob-ref-font-size-ui-base-line-height) var(--ob-ref-font-family-sans);
 	--ob-sys-typography-label-lg: var(--ob-ref-font-weight-medium) var(--ob-ref-font-size-sm) /
+		var(--ob-ref-font-size-sm-line-height) var(--ob-ref-font-family-sans);
+	--ob-sys-typography-heading-xs: var(--ob-ref-font-weight-normal) var(--ob-ref-font-size-sm) /
 		var(--ob-ref-font-size-sm-line-height) var(--ob-ref-font-family-sans);
 	--ob-sys-typography-heading-sm: var(--ob-ref-font-weight-medium) var(--ob-ref-font-size-base) /
 		var(--ob-ref-font-size-sm-line-height) var(--ob-ref-font-family-sans);

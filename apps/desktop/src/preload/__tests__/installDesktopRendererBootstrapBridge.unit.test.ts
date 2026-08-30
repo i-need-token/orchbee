@@ -119,6 +119,7 @@ function rendererBootstrap(): unknown {
 			terminalEvents: [],
 			type: WORKBENCH_CLIENT_SESSION_BOOTSTRAP,
 		},
+		sshProjectEnrollmentAvailable: true,
 		type: DESKTOP_RENDERER_BOOTSTRAP_IPC_CHANNEL,
 	};
 }

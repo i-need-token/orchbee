@@ -24,7 +24,15 @@
 			"file": "apps/web/stories/ssh-project-enrollment-dialog.stories.tsx",
 			"id": "applications-web-desktop-ssh-project-enrollment-dialog--enrollment",
 			"states": [
-				"Inspect the single bounded SSH address field, examples, native Enter submission, and connection action."
+				"Inspect the single bounded SSH address field, examples, native Enter submission, connection action, and visible Esc and Enter hints."
+			]
+		},
+		{
+			"exportName": "InvalidAddress",
+			"file": "apps/web/stories/ssh-project-enrollment-dialog.stories.tsx",
+			"id": "applications-web-desktop-ssh-project-enrollment-dialog--invalid-address",
+			"states": [
+				"Submit the empty form and inspect the localized inline explanation, invalid semantics, retained primary action, and restored address-field focus."
 			]
 		},
 		{
@@ -32,7 +40,7 @@
 			"file": "apps/web/stories/ssh-project-enrollment-dialog.stories.tsx",
 			"id": "applications-web-desktop-ssh-project-enrollment-dialog--host-verification",
 			"states": [
-				"Inspect the exact host-verification prompt, explicit continuation, and cancellation boundary owned by the initiating Desktop client."
+				"Inspect the exact host-verification prompt, one state-specific heading, explicit trust action, safe initial focus, and cancellation boundary owned by the initiating Desktop client."
 			]
 		},
 		{
@@ -40,7 +48,7 @@
 			"file": "apps/web/stories/ssh-project-enrollment-dialog.stories.tsx",
 			"id": "applications-web-desktop-ssh-project-enrollment-dialog--authentication",
 			"states": [
-				"Inspect the password input and the explanation that the response is sent directly to the active SSH process and is never saved."
+				"Inspect the password-or-passphrase input, one state-specific heading, authentication action with its Enter hint, and the explanation that the response is sent directly to the active SSH process and is never saved."
 			]
 		},
 		{
@@ -71,7 +79,17 @@
 			"exportName": "SimplifiedChineseEnrollment",
 			"file": "apps/web/stories/ssh-project-enrollment-dialog.stories.tsx",
 			"id": "applications-web-desktop-ssh-project-enrollment-dialog--simplified-chinese-enrollment",
-			"states": ["Inspect the one-address enrollment form and actions in Simplified Chinese."]
+			"states": [
+				"Inspect the one-address enrollment form, localized actions, and visible Esc and Enter hints in Simplified Chinese."
+			]
+		},
+		{
+			"exportName": "SimplifiedChineseAuthentication",
+			"file": "apps/web/stories/ssh-project-enrollment-dialog.stories.tsx",
+			"id": "applications-web-desktop-ssh-project-enrollment-dialog--simplified-chinese-authentication",
+			"states": [
+				"Inspect the state-specific authentication heading, transient secret explanation, password-or-passphrase input, and outcome-named action in Simplified Chinese."
+			]
 		}
 	],
 	"uses": ["web.remote-directory-browser"],
@@ -89,6 +107,10 @@
 		"The renderer supplies one bounded SSH address and exact directory-selection intent; Main resolves default OpenSSH configuration, derives display identity, and allocates every durable identity.",
 		"Only one exact initiating-client interaction lease exists per Environment, and port loss or cancellation revokes it without reassignment.",
 		"Authentication responses remain in password input state only until direct submission and never enter the controller snapshot, durable storage, diagnostics, or shared Workbench document.",
+		"Each editing, prompt, working, and failure state presents one state-specific heading, one concise explanation, and one outcome-named primary action; SSH prompt text remains exact and independently inspectable.",
+		"Non-directory states use the compact Desktop form-Dialog typography hierarchy: a lightweight compact heading, normal-weight control text, dense supporting copy, smaller code-like input text, and subordinate key hints.",
+		"An invalid SSH address submission remains in editing, explains the accepted format, and focuses the address field without hiding the primary action.",
+		"Footer actions display aria-hidden Esc or Enter Kbd hints only when the current step maps that key unambiguously to the same cancellation or submission action.",
 		"After authentication, directory snapshots expose only bounded directory names and canonical navigation metadata; Main re-inspects the exact selected path before commit.",
 		"Enrollment progress follows resolve, durable Environment recording, connection, remote directory selection, canonical Project inspection, and Workbench commit order.",
 		"A successful enrollment activates only the initiating client after canonical publication and creates no terminal.",

@@ -2703,6 +2703,8 @@ export class DesktopApplication {
 				DESKTOP_RENDERER_BOOTSTRAP_IPC_CHANNEL,
 				DesktopRendererBootstrapSchema.parse({
 					clientSession: clientSessionBroker.bootstrap,
+					sshProjectEnrollmentAvailable:
+						this.#options.platform !== 'win32' && this.#options.sshEnvironment.release !== null,
 					type: DESKTOP_RENDERER_BOOTSTRAP_IPC_CHANNEL,
 				}),
 				[

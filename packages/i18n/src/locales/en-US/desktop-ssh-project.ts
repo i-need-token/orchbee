@@ -1,9 +1,10 @@
 export const enUSDesktopSshProjectMessages = {
+	'desktop.sshProject.actions.authenticate': 'Authenticate',
 	'desktop.sshProject.actions.cancel': 'Cancel',
 	'desktop.sshProject.actions.close': 'Close',
 	'desktop.sshProject.actions.connect': 'Connect',
-	'desktop.sshProject.actions.continue': 'Continue',
 	'desktop.sshProject.actions.retry': 'Retry',
+	'desktop.sshProject.actions.trustHost': 'Trust and Continue',
 	'desktop.sshProject.attachment.description':
 		'Enter an SSH address. Orchbee will connect, then let you choose a remote folder for this Project.',
 	'desktop.sshProject.attachment.directoryDescription':
@@ -14,7 +15,7 @@ export const enUSDesktopSshProjectMessages = {
 		'Orchbee will reconnect this Project without changing its saved structure or remote files.',
 	'desktop.sshProject.connection.title': 'Connect Remote Project',
 	'desktop.sshProject.description':
-		'Enter an SSH address. Orchbee will connect first, then let you choose a project folder.',
+		'Connect to an SSH host, then choose the remote folder for your Project.',
 	'desktop.sshProject.directory.description':
 		'Choose the remote folder you want to add as a Project.',
 	'desktop.sshProject.directory.title': 'Choose a Project Folder',
@@ -41,8 +42,9 @@ export const enUSDesktopSshProjectMessages = {
 		'Orchbee could not safely add the Project to the shared Workbench. Reload and try again.',
 	'desktop.sshProject.fields.destination': 'SSH address',
 	'desktop.sshProject.fields.destinationDescription':
-		'Use a host from your SSH config, user@hostname, or paste ssh user@hostname.',
-	'desktop.sshProject.fields.destinationPlaceholder': 'ssh user@example.com',
+		'Use a host from your SSH config or enter user@hostname.',
+	'desktop.sshProject.fields.destinationError': 'Enter a valid SSH host, such as user@hostname.',
+	'desktop.sshProject.fields.destinationPlaceholder': 'user@hostname',
 	'desktop.sshProject.progress.committingProject': 'Adding the Project to the Workbench…',
 	'desktop.sshProject.progress.committingProjectFolder': 'Adding the remote folder to the Project…',
 	'desktop.sshProject.progress.connecting': 'Connecting and preparing the remote runtime…',
@@ -51,12 +53,12 @@ export const enUSDesktopSshProjectMessages = {
 	'desktop.sshProject.progress.resolvingTarget': 'Resolving the SSH configuration…',
 	'desktop.sshProject.progress.selectingDirectory': 'Loading your remote home folder…',
 	'desktop.sshProject.prompt.authenticationDescription':
-		'This response is sent directly to the active SSH process and is not saved.',
+		'Your password or passphrase is sent only to this SSH process and is never saved.',
 	'desktop.sshProject.prompt.authenticationTitle': 'SSH Authentication Required',
 	'desktop.sshProject.prompt.hostDescription':
-		'Review the SSH host verification prompt before continuing.',
+		'Confirm the host fingerprint before trusting this connection.',
 	'desktop.sshProject.prompt.hostTitle': 'Verify SSH Host',
-	'desktop.sshProject.prompt.response': 'Response',
+	'desktop.sshProject.prompt.secret': 'Password or passphrase',
 	'desktop.sshProject.title': 'Connect via SSH',
 } as const;
 

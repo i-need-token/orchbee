@@ -190,6 +190,91 @@ describe('DesktopSshProjectEnrollmentClient', () => {
 		channel.port2.close();
 	});
 
+	it('drops a prompt completion that races behind cancellation and admits re-entry after settlement', async () => {
+		const channel = new MessageChannel();
+		const commands: unknown[] = [];
+		let enrollmentCount = 0;
+		channel.port2.addEventListener('message', (event) => {
+			const command = DesktopSshProjectEnrollmentRendererCommandSchema.parse(event.data);
+			commands.push(command);
+			if (command.type === 'desktop-ssh-project-enrollment-requested') {
+				enrollmentCount += 1;
+				if (enrollmentCount === 1) {
+					channel.port2.postMessage(
+						DesktopSshProjectEnrollmentMainEventSchema.parse({
+							generation: 1,
+							handle: 'prompt-cancelled',
+							kind: 'none',
+							prompt: 'Password:',
+							requestId: command.requestId,
+							type: 'desktop-ssh-project-interaction-requested',
+						}),
+					);
+				} else {
+					channel.port2.postMessage(
+						DesktopSshProjectEnrollmentMainEventSchema.parse({
+							requestId: command.requestId,
+							result: { kind: 'cancelled' },
+							type: 'desktop-ssh-project-enrollment-settled',
+						}),
+					);
+				}
+				return;
+			}
+			if (command.type === 'desktop-ssh-project-enrollment-cancel-requested') {
+				channel.port2.postMessage(
+					DesktopSshProjectEnrollmentMainEventSchema.parse({
+						requestId: command.requestId,
+						result: { kind: 'cancelled' },
+						type: 'desktop-ssh-project-enrollment-settled',
+					}),
+				);
+			}
+		});
+		channel.port2.start();
+		const client = new DesktopSshProjectEnrollmentClient(channel.port1, () => 'cancel-race');
+		const interaction = createDeferred<{ readonly kind: 'cancelled' }>();
+		const interact = vi.fn<DesktopSshProjectOperationObserver['interact']>(
+			() => interaction.promise,
+		);
+		const abortController = new AbortController();
+		const firstEnrollment = client.enroll(
+			enrollmentInput(),
+			{
+				interact,
+				selectDirectory: async () => ({ kind: 'cancelled' }),
+			},
+			abortController.signal,
+		);
+		await vi.waitFor(() => expect(interact).toHaveBeenCalledOnce());
+		interaction.resolve({ kind: 'cancelled' });
+		abortController.abort();
+
+		await expect(firstEnrollment).resolves.toEqual({ kind: 'cancelled' });
+		await vi.waitFor(() =>
+			expect(commands).toContainEqual(
+				expect.objectContaining({ type: 'desktop-ssh-project-enrollment-cancel-requested' }),
+			),
+		);
+		expect(commands).not.toContainEqual(
+			expect.objectContaining({ type: 'desktop-ssh-project-interaction-resolved' }),
+		);
+		await expect(
+			client.enroll(
+				enrollmentInput(),
+				{
+					interact: async () => ({ kind: 'cancelled' }),
+					selectDirectory: async () => ({ kind: 'cancelled' }),
+				},
+				new AbortController().signal,
+			),
+		).resolves.toEqual({ kind: 'cancelled' });
+		expect(enrollmentCount).toBe(2);
+
+		client.dispose();
+		channel.port2.close();
+	});
+
 	it('correlates Folder attachment with its exact Project and canonical Directory result', async () => {
 		const channel = new MessageChannel();
 		const commands: unknown[] = [];
@@ -411,4 +496,15 @@ function enrollmentInput() {
 	return {
 		destination: 'build-host',
 	};
+}
+
+function createDeferred<Value>(): {
+	readonly promise: Promise<Value>;
+	readonly resolve: (value: Value) => void;
+} {
+	let resolvePromise: (value: Value) => void = () => undefined;
+	const promise = new Promise<Value>((resolve) => {
+		resolvePromise = resolve;
+	});
+	return { promise, resolve: resolvePromise };
 }
