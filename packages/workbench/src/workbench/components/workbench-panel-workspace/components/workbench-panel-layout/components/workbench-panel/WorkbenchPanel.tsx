@@ -1,4 +1,3 @@
-import type { AgentLocationPresentation } from '@orchbee/agent';
 import * as React from 'react';
 
 import { getDisplayedTerminal, type PanelLeaf } from '../../../../model/panel-workspace-state';
@@ -16,7 +15,6 @@ import { WorkbenchTerminalViewport } from './components/workbench-terminal-viewp
 import styles from './WorkbenchPanel.module.css';
 
 interface WorkbenchPanelProps {
-	readonly agentLocations?: ReadonlyMap<string, AgentLocationPresentation> | undefined;
 	readonly layer: TerminalTabPresentationLayer;
 	readonly layoutSettled: boolean;
 	readonly panel: PanelLeaf;
@@ -27,7 +25,6 @@ interface WorkbenchPanelProps {
 }
 
 export function WorkbenchPanel({
-	agentLocations,
 	layer,
 	layoutSettled,
 	panel,
@@ -37,13 +34,7 @@ export function WorkbenchPanel({
 	view,
 }: WorkbenchPanelProps): React.ReactNode {
 	const displayedTerminal = getDisplayedTerminal(panel);
-	const agentPresentation = agentLocations?.get(displayedTerminal.presentationId) ?? null;
-	const visibleAgentPresentation =
-		agentPresentation?.status.kind === 'ended' ? null : agentPresentation;
-	const showHeader =
-		view.panelCount > 1 ||
-		panel.activeChildPresentationId !== null ||
-		visibleAgentPresentation !== null;
+	const showHeader = view.panelCount > 1 || panel.activeChildPresentationId !== null;
 	const isDropPlaceholder = view.panelDrag.draggingPanelId === panel.id;
 	const isInactive =
 		view.panelCount > 1 && view.activeTab !== null && view.activeTab.focusedPanelId !== panel.id;
@@ -79,13 +70,7 @@ export function WorkbenchPanel({
 				if (event.button === 0) view.focusPanel(panel.id, 'pointer');
 			}}
 		>
-			{showHeader && (
-				<WorkbenchPanelHeader
-					agentPresentation={visibleAgentPresentation}
-					panel={panel}
-					view={view}
-				/>
-			)}
+			{showHeader && <WorkbenchPanelHeader panel={panel} view={view} />}
 			<WorkbenchTerminalViewport
 				layer={layer}
 				layoutSettled={layoutSettled}

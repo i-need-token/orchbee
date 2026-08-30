@@ -19,7 +19,6 @@ describe('formatWorkbenchAgentStatus', () => {
 		expect(formatWorkbenchAgentStatus(createOrchbeeIntl('en-US'), presentation)).toEqual({
 			provider: 'Codex',
 			status: 'Thinking · Status stale',
-			tone: 'degraded',
 		});
 	});
 });

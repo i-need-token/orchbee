@@ -10,7 +10,6 @@ import { formatWorkbenchAgentProvider } from './formatWorkbenchAgentProvider';
 export interface WorkbenchAgentStatusView {
 	readonly provider: string;
 	readonly status: string;
-	readonly tone: 'active' | 'danger' | 'degraded' | 'neutral';
 }
 
 export function formatWorkbenchAgentStatus(
@@ -33,7 +32,6 @@ export function formatWorkbenchAgentStatus(
 	return {
 		provider,
 		status,
-		tone: resolveTone(presentation.status, presentation.freshness),
 	};
 }
 
@@ -90,21 +88,5 @@ function formatActivity(formatter: IntlShape, activity: AgentActivity | null): s
 			return formatter.formatMessage(agentObservationMessages.statusOtherActivity);
 		case null:
 			return formatter.formatMessage(agentObservationMessages.statusWorking);
-	}
-}
-
-function resolveTone(
-	value: AgentSemanticStatus,
-	freshness: AgentAggregatePresentation['freshness'],
-): WorkbenchAgentStatusView['tone'] {
-	if (freshness !== 'fresh') return 'degraded';
-	switch (value.kind) {
-		case 'needs-attention':
-		case 'failed':
-			return 'danger';
-		case 'working':
-			return 'active';
-		default:
-			return 'neutral';
 	}
 }

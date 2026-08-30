@@ -1,4 +1,3 @@
-import type { AgentLocationPresentation } from '@orchbee/agent';
 import {
 	Button,
 	ContextMenu,
@@ -22,20 +21,14 @@ import {
 	type PanelLeaf,
 } from '../../../../../../model/panel-workspace-state';
 import type { WorkbenchPanelWorkspaceView } from '../../../../../../types/panel-workspace-view';
-import { WorkbenchAgentStatus } from './components/workbench-agent-status/WorkbenchAgentStatus';
 import styles from './WorkbenchPanelHeader.module.css';
 
 interface WorkbenchPanelHeaderProps {
-	readonly agentPresentation?: AgentLocationPresentation | null | undefined;
 	readonly panel: PanelLeaf;
 	readonly view: WorkbenchPanelWorkspaceView;
 }
 
-export function WorkbenchPanelHeader({
-	agentPresentation,
-	panel,
-	view,
-}: WorkbenchPanelHeaderProps): React.ReactNode {
+export function WorkbenchPanelHeader({ panel, view }: WorkbenchPanelHeaderProps): React.ReactNode {
 	const displayedTerminal = getDisplayedTerminal(panel);
 	const isChildTerminalActive = panel.activeChildPresentationId !== null;
 	const isMaximized = view.maximizedPanelId === panel.id;
@@ -116,9 +109,6 @@ export function WorkbenchPanelHeader({
 						</TooltipTrigger>
 						<TooltipContent side='bottom'>{view.messages.returnToPrimary}</TooltipContent>
 					</Tooltip>
-				)}
-				{agentPresentation === undefined || agentPresentation === null ? null : (
-					<WorkbenchAgentStatus presentation={agentPresentation} />
 				)}
 			</div>
 			<div className={styles['title']} data-slot='workbench-panel-header-title'>

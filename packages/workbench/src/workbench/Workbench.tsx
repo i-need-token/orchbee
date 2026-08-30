@@ -325,7 +325,6 @@ export function Workbench({
 								{view.hasVisibleTerminalTabs ? (
 									<WorkbenchPanelWorkspace
 										actionRuntime={actionRuntime}
-										agentLocations={agentPresentation.locations}
 										panelWorkspaceStore={view.terminalContext.panelWorkspaceStore}
 										parentActionScope={view.actionScope}
 										presentationScopeId={view.terminalContext.terminalContextId}

@@ -1,4 +1,3 @@
-import type { AgentLocationPresentation } from '@orchbee/agent';
 import * as React from 'react';
 
 import type { PanelLayoutNode } from '../../model/panel-workspace-state';
@@ -10,7 +9,6 @@ import { WorkbenchPanel } from './components/workbench-panel/WorkbenchPanel';
 import { WorkbenchPanelSplit } from './components/workbench-panel-split/WorkbenchPanelSplit';
 
 interface WorkbenchPanelLayoutProps {
-	readonly agentLocations?: ReadonlyMap<string, AgentLocationPresentation> | undefined;
 	readonly layer: TerminalTabPresentationLayer;
 	readonly layoutSettled?: boolean | undefined;
 	readonly node: PanelLayoutNode;
@@ -21,7 +19,6 @@ interface WorkbenchPanelLayoutProps {
 }
 
 export function WorkbenchPanelLayout({
-	agentLocations,
 	layer,
 	layoutSettled = true,
 	node,
@@ -33,7 +30,6 @@ export function WorkbenchPanelLayout({
 	if (node.kind === 'panel') {
 		return (
 			<WorkbenchPanel
-				agentLocations={agentLocations}
 				layer={layer}
 				layoutSettled={layoutSettled}
 				panel={node}
@@ -49,7 +45,6 @@ export function WorkbenchPanelLayout({
 		<WorkbenchPanelSplit
 			renderNode={(childNode, childLayoutSettled) => (
 				<WorkbenchPanelLayout
-					agentLocations={agentLocations}
 					layer={layer}
 					layoutSettled={layoutSettled && childLayoutSettled}
 					node={childNode}

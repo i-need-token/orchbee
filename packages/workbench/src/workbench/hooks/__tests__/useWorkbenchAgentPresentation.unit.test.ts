@@ -85,11 +85,6 @@ describe('useWorkbenchAgentPresentation', () => {
 			},
 		);
 
-		expect(rendered.result.current.locations.get(presentationId)?.status).toEqual({
-			activity: 'thinking',
-			kind: 'working',
-			phase: 'working',
-		});
 		expect(rendered.result.current.tabStatusAdornments.get('agent-tab-hook')).toMatchObject({
 			accessibleLabel: 'Claude Code: Thinking',
 			kind: 'active',

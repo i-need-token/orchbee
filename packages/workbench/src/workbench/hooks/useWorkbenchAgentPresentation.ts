@@ -1,8 +1,4 @@
-import {
-	projectAgentPresentationGroup,
-	type AgentLocationPresentation,
-	type AgentSnapshotSource,
-} from '@orchbee/agent';
+import { projectAgentPresentationGroup, type AgentSnapshotSource } from '@orchbee/agent';
 import { useOrchbeeIntl } from '@orchbee/i18n';
 import type { TabStatusAdornment, TabStatusAdornmentKind, TabModel } from '@orchbee/tab-strip';
 import * as React from 'react';
@@ -12,7 +8,6 @@ import type { PanelWorkspaceStore } from '../components/workbench-panel-workspac
 import { collectPanelLeaves } from '../components/workbench-panel-workspace/model/panel-workspace-state';
 import type { WorkbenchAgentNotificationObserver } from '../types/workbench-agent-notification';
 import { formatWorkbenchAgentStatus } from '../utils/formatWorkbenchAgentStatus';
-import { projectAgentLocationMap } from '../utils/projectAgentLocationMap';
 import { useAgentSnapshot } from './useAgentSnapshot';
 import { useWorkbenchAgentNotifications } from './useWorkbenchAgentNotifications';
 
@@ -24,7 +19,6 @@ interface UseWorkbenchAgentPresentationOptions {
 }
 
 interface WorkbenchAgentPresentationView {
-	readonly locations: ReadonlyMap<string, AgentLocationPresentation>;
 	readonly tabIdentityIcons: ReadonlyMap<string, React.ReactNode>;
 	readonly tabStatusAdornments: ReadonlyMap<string, Readonly<TabStatusAdornment>>;
 }
@@ -50,7 +44,6 @@ export function useWorkbenchAgentPresentation({
 		source,
 		tabModel,
 	});
-	const locations = React.useMemo(() => projectAgentLocationMap(snapshot), [snapshot]);
 	const tabPresentation = React.useMemo(() => {
 		const identityIcons = new Map<string, React.ReactNode>();
 		const statusAdornments = new Map<string, Readonly<TabStatusAdornment>>();
@@ -84,10 +77,9 @@ export function useWorkbenchAgentPresentation({
 	}, [agentIconGradientPrefix, intl, panelWorkspaceState, snapshot]);
 	return React.useMemo(
 		() => ({
-			locations,
 			tabIdentityIcons: tabPresentation.identityIcons,
 			tabStatusAdornments: tabPresentation.statusAdornments,
 		}),
-		[locations, tabPresentation],
+		[tabPresentation],
 	);
 }
