@@ -28,6 +28,32 @@ function __orchbee_encode_path() {
 function __orchbee_preexec() {
 	__ORCHBEE_COMMAND_ACTIVE=1
 	printf '\033]133;C\007'
+	__orchbee_agent_integration_launch "$1"
+}
+
+function __orchbee_agent_integration_launch() {
+	emulate -L zsh
+	local command_line=$1 command_word executable integration_id resolution
+	local -a words
+	words=(${(z)command_line})
+	command_word=${words[1]-}
+	executable=${command_word:t}
+	case $executable in
+		claude) integration_id=claude-code ;;
+		codex) integration_id=codex ;;
+		grok) integration_id=grok ;;
+		opencode) integration_id=opencode ;;
+		pi) integration_id=pi ;;
+		omp) integration_id=omp ;;
+		gemini) integration_id=gemini ;;
+		copilot) integration_id=github-copilot ;;
+		cline) integration_id=cline ;;
+		qwen) integration_id=qwen-code ;;
+		*) return 0 ;;
+	esac
+	resolution=$(whence -w -- "$command_word" 2>/dev/null) || return 0
+	[[ $resolution == *': command' ]] || return 0
+	printf '\033]777;notify;orchbee.agent.v1;{"integrationId":"%s","version":3}\033\\' "$integration_id"
 }
 
 function __orchbee_precmd() {

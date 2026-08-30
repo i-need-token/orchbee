@@ -30,7 +30,6 @@ const AGENT_NAME_MESSAGES: Readonly<Record<DesktopAgentIntegrationId, MessageDes
 export function useAgentIntegrationReminder(
 	control: AgentIntegrationManagementControl,
 	controller: AgentIntegrationReminderController,
-	onReview: (returnFocus: HTMLElement) => void,
 ): AgentIntegrationReminderView | null {
 	const intl = useOrchbeeIntl();
 	const managementSnapshot = React.useSyncExternalStore(
@@ -49,11 +48,18 @@ export function useAgentIntegrationReminder(
 			: managementSnapshot.integrations.find(
 					(integration) => integration.integrationId === reminderSnapshot.activeIntegrationId,
 				);
-	const candidate = managementSnapshot.integrations.find(
-		(integration) =>
-			isAgentIntegrationReminderEligible(integration) &&
-			!reminderSnapshot.dismissedIntegrationIds.includes(integration.integrationId),
-	);
+	const candidate = managementSnapshot.launchedIntegrationIds
+		.map((integrationId) =>
+			managementSnapshot.integrations.find(
+				(integration) => integration.integrationId === integrationId,
+			),
+		)
+		.find(
+			(integration) =>
+				integration !== undefined &&
+				isAgentIntegrationReminderEligible(integration) &&
+				!reminderSnapshot.dismissedIntegrationIds.includes(integration.integrationId),
+		);
 
 	React.useEffect(() => {
 		if (
@@ -73,20 +79,30 @@ export function useAgentIntegrationReminder(
 	}
 	const integrationId = activeIntegration.integrationId;
 	const agentName = intl.formatMessage(AGENT_NAME_MESSAGES[integrationId]);
+	const enablePending =
+		managementSnapshot.pending && managementSnapshot.pendingIntegrationId === integrationId;
 	return {
 		body: intl.formatMessage(agentIntegrationMessages.reminderBody, { agent: agentName }),
 		dismissLabel: intl.formatMessage(agentIntegrationMessages.reminderDismiss, {
 			agent: agentName,
 		}),
+		enableDisabled: managementSnapshot.pending,
+		enableLabel: intl.formatMessage(
+			enablePending
+				? agentIntegrationMessages.actionWorking
+				: agentIntegrationMessages.reminderEnable,
+		),
 		integrationId,
 		onDismiss: (): void => {
 			controller.dismiss(integrationId);
 		},
-		onReview: (returnFocus): void => {
-			controller.hide(integrationId);
-			onReview(returnFocus);
+		onEnable: (): void => {
+			if (managementSnapshot.pending) return;
+			void control.enable(integrationId).then((result) => {
+				if (result.kind === 'completed') controller.restore(integrationId);
+			});
 		},
-		reviewLabel: intl.formatMessage(agentIntegrationMessages.reminderOpen),
+		pending: enablePending,
 		title: intl.formatMessage(agentIntegrationMessages.reminderTitle),
 	};
 }

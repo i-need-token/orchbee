@@ -26,9 +26,9 @@ export const enUSAgentIntegrationMessages = {
 		'Remote hosts are always manual-only. Run the reviewed setup command on the host where the Agent runs; Orchbee never copies files or changes remote configuration.',
 	'agent.integrations.remoteTitle': 'Remote hosts stay manual',
 	'agent.integrations.reminder.body':
-		'{agent} is installed locally, but its Orchbee status integration is not enabled.',
+		'You started {agent}, but its Orchbee status integration is not enabled.',
 	'agent.integrations.reminder.dismiss': 'Dismiss {agent} integration reminder',
-	'agent.integrations.reminder.open': 'Review integration',
+	'agent.integrations.reminder.enable': 'Enable integration',
 	'agent.integrations.reminder.title': 'Show richer Agent status',
 	'agent.integrations.status.conflict': 'Conflict',
 	'agent.integrations.status.disabled': 'Disabled',

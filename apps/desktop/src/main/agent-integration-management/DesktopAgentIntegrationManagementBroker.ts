@@ -18,6 +18,9 @@ export interface DesktopAgentIntegrationManagementBrokerController {
 	): Promise<DesktopAgentIntegrationManagementOperationResult>;
 	getSnapshot(): DesktopAgentIntegrationManagementSnapshot;
 	refresh(): Promise<DesktopAgentIntegrationManagementOperationResult>;
+	subscribeLaunches(
+		listener: (integrationId: DesktopAgentIntegrationId, revision: number) => void,
+	): () => void;
 }
 
 export class DesktopAgentIntegrationManagementBroker {
@@ -26,6 +29,7 @@ export class DesktopAgentIntegrationManagementBroker {
 	#disposed = false;
 	readonly #port: MessagePortMain;
 	#started = false;
+	#unsubscribeLaunches: (() => void) | undefined;
 
 	constructor(
 		port: MessagePortMain,
@@ -40,6 +44,7 @@ export class DesktopAgentIntegrationManagementBroker {
 		this.#started = true;
 		this.#port.on('message', this.#handleMessage);
 		this.#port.on('close', this.#handleClose);
+		this.#unsubscribeLaunches = this.#controller.subscribeLaunches(this.#handleLaunch);
 		this.#port.start();
 	}
 
@@ -48,6 +53,21 @@ export class DesktopAgentIntegrationManagementBroker {
 	}
 
 	readonly #handleClose = (): void => this.#retire(false);
+
+	readonly #handleLaunch = (integrationId: DesktopAgentIntegrationId, revision: number): void => {
+		if (this.#disposed) return;
+		try {
+			this.#port.postMessage(
+				DesktopAgentIntegrationManagementMainEventSchema.parse({
+					integrationId,
+					revision,
+					type: 'desktop-agent-integration-launch-observed',
+				}),
+			);
+		} catch {
+			this.#retire(true);
+		}
+	};
 
 	readonly #handleMessage = (event: MessageEvent): void => {
 		if (event.ports.length !== 0) {
@@ -129,6 +149,8 @@ export class DesktopAgentIntegrationManagementBroker {
 		if (this.#disposed) return;
 		this.#disposed = true;
 		this.#activeRequestId = undefined;
+		this.#unsubscribeLaunches?.();
+		this.#unsubscribeLaunches = undefined;
 		this.#port.off('message', this.#handleMessage);
 		this.#port.off('close', this.#handleClose);
 		if (closePort) this.#port.close();

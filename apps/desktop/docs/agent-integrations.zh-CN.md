@@ -7,9 +7,9 @@ Desktop Main 拥有本地 Agent 集成检查以及唯一允许的本地配置 ef
 executable path、resource path、command output、filesystem capability 或 generic process
 capability。
 
-启动和刷新都是只读的。除非用户在设置中切换对应 Agent 的集成 switch，否则 Orchbee 永远不会安装、
-开启、关闭、更新、复制或修复 Agent 集成。Browser 与 Gateway composition 不会获得 management
-control。
+启动和刷新都是只读的。除非用户在设置中显式切换对应 Agent 的集成 switch，或在由启动触发的 reminder
+中按下**开启集成**，否则 Orchbee 永远不会安装、开启、关闭、更新、复制或修复 Agent 集成。Browser 与
+Gateway composition 不会获得 management control。
 
 ## 本地集成 registry
 
@@ -106,11 +106,19 @@ row，并禁用所有竞争 switch。界面还会展示十个本地 entry、刷�
 以及远端 manual-only 边界。用户请求关闭时，会先记录该 Agent 的 device-local reminder dismissal，再
 尝试 effect。经过验证的成功开启会清除 dismissal，使之后发生的外部移除仍可再次被发现。
 
-当 Agent 在本地可用，且其受管、无 conflict 的集成为 `not-installed` 或 `disabled` 时，renderer 每个
-application session 最多在右下角显示一个紧凑且视觉低干扰的 reminder。Reminder 不执行 mutation，也不请求操作系统
-通知权限。关闭 reminder 只在 `orchbee:web:agent-integration-reminders:v1` 中存储 dismissed integration
-ID；**查看集成**会打开 Agent 集成设置 category。Storage failure 仍会在当前 session 保留内存中的
-dismissal。
+本地 Zsh、Bash 与 Fish resource 只会在第一个 command word 表示受支持 Agent 且解析为外部 executable
+时发出 version `3` launch hint。Hint 只含封闭的 integration ID 与 protocol version；command text 与
+argument 永远不会进入 signal。Main 只把它当作不可信的 reminder gating evidence，而不是 Agent status
+或 configuration authority，并按首次观察顺序对每个 ID 记录一次。Alias、function、wrapper、remote
+shell，以及没有 Orchbee shell integration 的 terminal 都保持静默。
+
+只有在观察到对应本地 launch，且 Agent 在本地可用、其受管且无 conflict 的 integration 处于
+`not-installed` 或 `disabled` state 时，renderer 才可在每个 application session 的右下角显示一个紧凑
+且视觉低干扰的 reminder。候选按首次观察到的 eligible launch 顺序选择。渲染不执行 mutation，也不请求
+操作系统通知权限。**开启集成**是对设置 switch 所用同一套 verified enable transaction 的显式用户请求；
+management busy 时按钮会被禁用，验证成功后 reminder 消失，失败后仍可重试。关闭 reminder 只在
+`orchbee:web:agent-integration-reminders:v1` 中存储 dismissed integration ID；storage failure 仍会在
+当前 session 保留内存中的 dismissal。
 
 ## 远端边界
 
@@ -133,7 +141,7 @@ review，永远不会被覆盖。移除 Orchbee 准确的 managed entry 即为 r
 从仓库根目录运行：
 
 ```sh
-node scripts/tla/run-models.mjs --models desktop-agent-integration-management
+node scripts/tla/run-models.mjs --models desktop-agent-integration-management,agent-integration-launch-reminder
 pnpm --filter @orchbee/desktop-client-protocol test
 pnpm --filter @orchbee/desktop test:unit
 pnpm --filter @orchbee/web test

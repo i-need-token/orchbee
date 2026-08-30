@@ -8,8 +8,9 @@ effects. The renderer receives provider-neutral inventory and correlated results
 filesystem capability, or generic process capability.
 
 Startup and refresh are read-only. Orchbee never installs, enables, disables, updates, copies, or
-repairs an Agent integration until the user changes that Agent's integration switch in Settings.
-Browser and Gateway compositions receive no management control.
+repairs an Agent integration until the user explicitly changes that Agent's integration switch in
+Settings or presses **Enable integration** in a launch-triggered reminder. Browser and Gateway
+compositions receive no management control.
 
 ## Local integration registry
 
@@ -117,13 +118,22 @@ no-auto-install disclosure, and the remote manual-only boundary. A user-requeste
 that Agent's device-local reminder dismissal before attempting the effect. A verified successful
 enable clears that dismissal so a later external removal can be discovered again.
 
+The local Zsh, Bash, and Fish resources emit a version-`3` launch hint only when the first command
+word names a supported Agent and resolves to an external executable. The hint contains only the
+closed integration ID and protocol version; command text and arguments never enter the signal.
+Main treats it as untrusted reminder-gating evidence, not Agent status or configuration authority,
+and records each ID once in first-observation order. Aliases, functions, wrappers, remote shells,
+and terminals without Orchbee shell integration remain silent.
+
 The renderer may show one compact, visually quiet bottom-right reminder per application session
-when an Agent is locally
-available and its managed, conflict-free integration is `not-installed` or `disabled`. The reminder
-does not perform a mutation or request operating-system notification permission. Closing it stores
-only the dismissed integration ID in `orchbee:web:agent-integration-reminders:v1`; **Review
-integration** opens the Agent Integrations Settings category. Storage failure keeps the in-memory
-dismissal for the current session.
+only after the corresponding local launch was observed and the Agent is locally available with a
+managed, conflict-free integration in `not-installed` or `disabled` state. First-observed eligible
+launch order selects the candidate. Rendering performs no mutation and requests no operating-system
+notification permission. **Enable integration** is an explicit user request for the same verified
+enable transaction as the Settings switch; it is disabled while management is busy, disappears
+after verified success, and remains available for retry after failure. Closing the reminder stores
+only the dismissed integration ID in `orchbee:web:agent-integration-reminders:v1`; storage failure
+keeps the in-memory dismissal for the current session.
 
 ## Remote boundary
 
@@ -149,7 +159,7 @@ overwritten. Removing Orchbee's exact managed entry is the rollback.
 Run from the repository root:
 
 ```sh
-node scripts/tla/run-models.mjs --models desktop-agent-integration-management
+node scripts/tla/run-models.mjs --models desktop-agent-integration-management,agent-integration-launch-reminder
 pnpm --filter @orchbee/desktop-client-protocol test
 pnpm --filter @orchbee/desktop test:unit
 pnpm --filter @orchbee/web test

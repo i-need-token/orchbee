@@ -21,10 +21,14 @@ export type DesktopAgentIntegrationManagementOperationResult =
 			readonly snapshot: DesktopAgentIntegrationManagementSnapshot;
 	  };
 
+type LaunchListener = (integrationId: DesktopAgentIntegrationId, revision: number) => void;
+
 export class DesktopAgentIntegrationManagementController {
 	#activeOperation = false;
 	readonly #adapters: ReadonlyMap<DesktopAgentIntegrationId, AgentIntegrationAdapter>;
 	#initialization: Promise<DesktopAgentIntegrationManagementSnapshot> | undefined;
+	readonly #launchListeners = new Set<LaunchListener>();
+	#launchedIntegrationIds: readonly DesktopAgentIntegrationId[] = Object.freeze([]);
 	#revision = 0;
 	#snapshot: DesktopAgentIntegrationManagementSnapshot | undefined;
 
@@ -50,6 +54,26 @@ export class DesktopAgentIntegrationManagementController {
 			throw new Error('Desktop Agent integration management must initialize before reading.');
 		}
 		return this.#snapshot;
+	}
+
+	observeLaunch(integrationId: DesktopAgentIntegrationId): boolean {
+		if (this.#launchedIntegrationIds.includes(integrationId)) return false;
+		this.#launchedIntegrationIds = Object.freeze([...this.#launchedIntegrationIds, integrationId]);
+		const revision = this.#revision++;
+		if (this.#snapshot !== undefined) {
+			this.#snapshot = DesktopAgentIntegrationManagementSnapshotSchema.parse({
+				integrations: this.#snapshot.integrations,
+				launchedIntegrationIds: this.#launchedIntegrationIds,
+				revision,
+			});
+		}
+		for (const listener of this.#launchListeners) listener(integrationId, revision);
+		return true;
+	}
+
+	subscribeLaunches(listener: LaunchListener): () => void {
+		this.#launchListeners.add(listener);
+		return () => this.#launchListeners.delete(listener);
 	}
 
 	async refresh(): Promise<DesktopAgentIntegrationManagementOperationResult> {
@@ -126,6 +150,7 @@ export class DesktopAgentIntegrationManagementController {
 		);
 		this.#snapshot = DesktopAgentIntegrationManagementSnapshotSchema.parse({
 			integrations,
+			launchedIntegrationIds: this.#launchedIntegrationIds,
 			revision: this.#revision++,
 		});
 		return this.#snapshot;
@@ -153,6 +178,7 @@ export class DesktopAgentIntegrationManagementController {
 			integrations: snapshot.integrations.map((current) =>
 				current.integrationId === item.integrationId ? item : current,
 			),
+			launchedIntegrationIds: this.#launchedIntegrationIds,
 			revision: this.#revision++,
 		});
 	}

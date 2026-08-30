@@ -362,7 +362,11 @@ function createAgentIntegrationStoryControl(): AgentIntegrationManagementControl
 		for (const listener of listeners) listener();
 		return Promise.resolve({
 			kind: 'completed' as const,
-			snapshot: { integrations: snapshot.integrations, revision: snapshot.revision },
+			snapshot: {
+				integrations: snapshot.integrations,
+				launchedIntegrationIds: snapshot.launchedIntegrationIds,
+				revision: snapshot.revision,
+			},
 		});
 	};
 	return {
@@ -372,7 +376,11 @@ function createAgentIntegrationStoryControl(): AgentIntegrationManagementControl
 		refresh: () =>
 			Promise.resolve({
 				kind: 'completed' as const,
-				snapshot: { integrations: snapshot.integrations, revision: snapshot.revision },
+				snapshot: {
+					integrations: snapshot.integrations,
+					launchedIntegrationIds: snapshot.launchedIntegrationIds,
+					revision: snapshot.revision,
+				},
 			}),
 		subscribe: (listener) => {
 			listeners.add(listener);
@@ -401,6 +409,7 @@ function createAgentIntegrationStorySnapshot(): AgentIntegrationManagementClient
 			state: 'unknown',
 			...examples[integrationId],
 		})),
+		launchedIntegrationIds: [],
 		pending: false,
 		pendingIntegrationId: null,
 		revision: 1,

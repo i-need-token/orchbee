@@ -250,14 +250,15 @@ entry 使用由 snapshot 控制的 switch。一次 switch 变更只发送一个�
 或不可用的本地 Agent 都不能开启。Remote host 会明确说明只能手动设置；renderer 绝不写入 terminal
 input 或尝试远端设置。
 
-位于右下角、紧凑且视觉低干扰的 reminder 只对本地可用、`managed-local`、没有 issue 且 state 为
-`not-installed` 或
-`disabled` 的 entry 生效。Canonical order 选择第一个符合条件的 entry，controller 每个 application
-session 最多 offer 一次 reminder。渲染以及**查看集成**都不执行 integration mutation；查看会隐藏
-reminder 并打开该设置 category。显式关闭会把一个 Agent ID 写入严格且有界的
-`orchbee:web:agent-integration-reminders:v1` record。设置中的关闭会在请求 Main 前记录同一 dismissal；
-经过验证的成功开启会移除它。缺失或无效 storage 会回退为空 dismissal；写入失败仍会保留当前 session
-行为。
+只有在 Desktop 观察到一次直接本地 launch，并且对应 entry 在本地可用、为 `managed-local`、没有 issue
+且 state 为 `not-installed` 或 `disabled` 时，位于右下角、紧凑且视觉低干扰的 reminder 才生效。候选
+按首次观察到的 eligible launch 顺序选择，controller 每个 application session 最多 offer 一次
+reminder。渲染不执行 integration mutation。**开启集成**会针对该 Agent 精确发送一次显式 enable
+request；management busy 时按钮会被禁用，验证成功后 reminder 消失，失败后仍可重试。显式关闭会把
+一个 Agent ID 写入严格且有界的 `orchbee:web:agent-integration-reminders:v1` record。设置中的关闭会在
+请求 Main 前记录同一 dismissal；经过验证的成功开启会移除它。缺失或无效 storage 会回退为空
+dismissal；写入失败仍会保留当前 session 行为。Alias、function、wrapper、remote Agent，以及没有
+Orchbee shell integration 的 terminal 都不会触发它。
 
 Desktop Main 的准确 effect、reconciliation、conflict、rollback 与远端排除以
 [Desktop Agent 集成指南](../../desktop/docs/agent-integrations.zh-CN.md)为准。

@@ -11,6 +11,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
 	AgentIntegrationReminderController,
+	type AgentIntegrationManagementClientOperationResult,
+	type AgentIntegrationManagementClientSnapshot,
 	type AgentIntegrationManagementControl,
 } from '../../../agent-integration-management';
 import { useAgentIntegrationReminder } from '../useAgentIntegrationReminder';
@@ -23,6 +25,7 @@ const protocolSnapshot: DesktopAgentIntegrationManagementSnapshot = {
 		managementMode: 'managed-local',
 		state: integrationId === 'codex' || integrationId === 'grok' ? 'not-installed' : 'unknown',
 	})),
+	launchedIntegrationIds: [],
 	revision: 1,
 };
 
@@ -33,15 +36,19 @@ function I18nWrapper({ children }: { readonly children: ReactNode }) {
 afterEach(() => cleanup());
 
 describe('useAgentIntegrationReminder', () => {
-	it('offers only the first eligible Agent and delegates review without enabling it', async () => {
-		const enable = vi.fn<AgentIntegrationManagementControl['enable']>();
-		const clientSnapshot = {
+	it('offers only the first launched eligible Agent and delegates explicit enablement', async () => {
+		const enable = vi.fn<AgentIntegrationManagementControl['enable']>(async () => ({
+			kind: 'completed',
+			snapshot: protocolSnapshot,
+		}));
+		const clientSnapshot: AgentIntegrationManagementClientSnapshot = {
 			...protocolSnapshot,
 			failureCode: null,
 			failureIntegrationId: null,
+			launchedIntegrationIds: ['grok', 'codex'],
 			pending: false,
 			pendingIntegrationId: null,
-		} as const;
+		};
 		const control: AgentIntegrationManagementControl = {
 			disable: vi.fn<AgentIntegrationManagementControl['disable']>(),
 			enable,
@@ -53,19 +60,65 @@ describe('useAgentIntegrationReminder', () => {
 			getItem: () => null,
 			setItem: () => undefined,
 		});
-		const onReview = vi.fn<(returnFocus: HTMLElement) => void>();
-		const rendered = renderHook(() => useAgentIntegrationReminder(control, controller, onReview), {
+		const rendered = renderHook(() => useAgentIntegrationReminder(control, controller), {
 			wrapper: I18nWrapper,
 		});
 
-		await waitFor(() => expect(rendered.result.current?.integrationId).toBe('codex'));
-		expect(rendered.result.current?.body).toContain('Codex is installed locally');
+		await waitFor(() => expect(rendered.result.current?.integrationId).toBe('grok'));
+		expect(rendered.result.current?.body).toContain('You started Grok');
 		expect(enable).not.toHaveBeenCalled();
-		const returnFocus = document.createElement('button');
-		act(() => rendered.result.current?.onReview(returnFocus));
-		expect(onReview).toHaveBeenCalledWith(returnFocus);
-		expect(controller.getSnapshot().activeIntegrationId).toBeNull();
-		expect(controller.offer('grok')).toBe(false);
+		act(() => rendered.result.current?.onEnable());
+		expect(enable).toHaveBeenCalledWith('grok');
+		expect(controller.getSnapshot().activeIntegrationId).toBe('grok');
+		expect(controller.offer('codex')).toBe(false);
+
+		controller.dispose();
+	});
+
+	it('clears a concurrent dismissal after the explicit enable is verified', async () => {
+		let settleEnable: (result: AgentIntegrationManagementClientOperationResult) => void = () =>
+			undefined;
+		const enable = vi.fn<AgentIntegrationManagementControl['enable']>(
+			() =>
+				new Promise((resolve) => {
+					settleEnable = resolve;
+				}),
+		);
+		const clientSnapshot: AgentIntegrationManagementClientSnapshot = {
+			...protocolSnapshot,
+			failureCode: null,
+			failureIntegrationId: null,
+			launchedIntegrationIds: ['grok'],
+			pending: false,
+			pendingIntegrationId: null,
+		};
+		const control: AgentIntegrationManagementControl = {
+			disable: vi.fn<AgentIntegrationManagementControl['disable']>(),
+			enable,
+			getSnapshot: () => clientSnapshot,
+			refresh: vi.fn<AgentIntegrationManagementControl['refresh']>(),
+			subscribe: () => () => undefined,
+		};
+		const controller = new AgentIntegrationReminderController({
+			getItem: () => null,
+			setItem: () => undefined,
+		});
+		const rendered = renderHook(() => useAgentIntegrationReminder(control, controller), {
+			wrapper: I18nWrapper,
+		});
+		await waitFor(() => expect(rendered.result.current?.integrationId).toBe('grok'));
+		const view = rendered.result.current;
+		if (view === null) throw new Error('Expected an Agent integration reminder.');
+
+		act(() => {
+			view.onEnable();
+			view.onDismiss();
+		});
+		expect(controller.getSnapshot().dismissedIntegrationIds).toEqual(['grok']);
+		await act(async () => {
+			settleEnable({ kind: 'completed', snapshot: protocolSnapshot });
+		});
+		expect(controller.getSnapshot().dismissedIntegrationIds).toEqual([]);
 
 		controller.dispose();
 	});

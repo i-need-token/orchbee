@@ -18,6 +18,34 @@
 	],
 	"models": [
 		{
+			"id": "agent-integration-launch-reminder",
+			"owner": "@orchbee/desktop",
+			"workspace": "apps/desktop",
+			"module": "apps/desktop/formal/tla/AgentIntegrationLaunchReminder.tla",
+			"config": "apps/desktop/formal/tla/AgentIntegrationLaunchReminder.cfg",
+			"claims": ["apps/desktop/docs/agent-integrations.md", "apps/web/docs/terminal-settings.md"],
+			"triggers": [
+				"apps/desktop/resources/shell-integration/**",
+				"apps/desktop/src/main/agent-integration-management/**",
+				"apps/desktop/src/main/composition/DesktopApplication.ts",
+				"apps/web/src/agent-integration-reminder/**",
+				"apps/web/src/desktop-client/agent-integration-management/**",
+				"packages/desktop-client-protocol/src/desktop-agent-integration-management-contract.ts"
+			],
+			"requiredCoverage": [
+				"ObserveDirectLaunch",
+				"ObserveDuplicateLaunch",
+				"CaptureManagementResponse",
+				"DeliverLaunchObservation",
+				"DeliverManagementResponse",
+				"OfferReminder",
+				"DismissReminder",
+				"RequestReminderEnable",
+				"EnableFails",
+				"EnableSucceeds"
+			]
+		},
+		{
 			"id": "desktop-agent-integration-management",
 			"owner": "@orchbee/desktop",
 			"workspace": "apps/desktop",

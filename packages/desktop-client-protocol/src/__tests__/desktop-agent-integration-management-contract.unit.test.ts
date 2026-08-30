@@ -36,12 +36,53 @@ describe('Desktop Agent integration management contract', () => {
 			state: 'not-installed' as const,
 		}));
 		expect(
-			DesktopAgentIntegrationManagementSnapshotSchema.parse({ integrations, revision: 0 }),
-		).toEqual({ integrations, revision: 0 });
+			DesktopAgentIntegrationManagementSnapshotSchema.parse({
+				integrations,
+				launchedIntegrationIds: ['grok', 'claude-code'],
+				revision: 0,
+			}),
+		).toEqual({ integrations, launchedIntegrationIds: ['grok', 'claude-code'], revision: 0 });
 		expect(
 			DesktopAgentIntegrationManagementSnapshotSchema.safeParse({
 				integrations: [...integrations].reverse(),
+				launchedIntegrationIds: [],
 				revision: 0,
+			}).success,
+		).toBe(false);
+		expect(
+			DesktopAgentIntegrationManagementSnapshotSchema.safeParse({
+				integrations,
+				launchedIntegrationIds: ['codex', 'codex'],
+				revision: 0,
+			}).success,
+		).toBe(false);
+	});
+
+	it('publishes only a bounded Agent launch identity without command content', () => {
+		expect(
+			DesktopAgentIntegrationManagementMainEventSchema.parse({
+				integrationId: 'claude-code',
+				revision: 3,
+				type: 'desktop-agent-integration-launch-observed',
+			}),
+		).toEqual({
+			integrationId: 'claude-code',
+			revision: 3,
+			type: 'desktop-agent-integration-launch-observed',
+		});
+		expect(
+			DesktopAgentIntegrationManagementMainEventSchema.safeParse({
+				command: 'claude --prompt secret',
+				integrationId: 'claude-code',
+				revision: 3,
+				type: 'desktop-agent-integration-launch-observed',
+			}).success,
+		).toBe(false);
+		expect(
+			DesktopAgentIntegrationManagementMainEventSchema.safeParse({
+				integrationId: 'claude-code',
+				revision: -1,
+				type: 'desktop-agent-integration-launch-observed',
 			}).success,
 		).toBe(false);
 	});
@@ -63,6 +104,7 @@ describe('Desktop Agent integration management contract', () => {
 							managementMode: 'managed-local',
 							state: 'unknown',
 						})),
+						launchedIntegrationIds: [],
 						revision: 1,
 					},
 				},

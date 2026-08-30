@@ -115,9 +115,9 @@ file-content read、upload 或 filesystem-link activation。
 ## 设置
 
 本地 Desktop Settings 会在 capability 存在时包含 Agent Integrations。Startup、search、category
-navigation 与每个 session 一次且可 dismiss 的 reminder 均不执行 mutation；只有显式 row action
-可以请求 Main 改变 Orchbee 自己的精确本地 entry。Review 只打开 category，不会 enable；dismiss
-reminder 只存储 Agent ID；remote setup 仍只能手动完成。
+navigation 与 reminder 渲染都不执行 mutation。受支持 Agent 在带 integration 的本地 shell 中被直接
+启动后，每个 session 一次的 reminder 可以针对该 Agent 发送显式的一键 enable request；显式 row
+action 仍是设置中的操作路径。Dismiss reminder 只存储 Agent ID；remote setup 仍只能手动完成。
 
 “通用”页允许用户选择 English 或简体中文。在用户尚未显式选择时，locale 按操作系统或 Browser
 的有序偏好自动解析；一旦选择，严格的客户端本地记录优先，并且无需 reload 就会更新已挂载的

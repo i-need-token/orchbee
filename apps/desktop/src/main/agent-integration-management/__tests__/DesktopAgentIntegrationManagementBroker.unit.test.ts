@@ -19,6 +19,7 @@ const snapshot: DesktopAgentIntegrationManagementSnapshot = {
 		managementMode: 'managed-local',
 		state: integrationId === 'codex' ? 'not-installed' : 'unknown',
 	})),
+	launchedIntegrationIds: [],
 	revision: 1,
 };
 
@@ -77,11 +78,41 @@ describe('DesktopAgentIntegrationManagementBroker', () => {
 		);
 		expect(transferredPort.close).toHaveBeenCalledOnce();
 	});
+
+	it('publishes a launch identity once without waiting for a renderer request', () => {
+		const port = new FakeMessagePort();
+		const controller = createController();
+		const broker = new DesktopAgentIntegrationManagementBroker(
+			port.asMessagePortMain(),
+			controller,
+		);
+		broker.start();
+
+		controller.publishLaunch('claude-code', 2);
+
+		expect(port.messages).toEqual([
+			{
+				integrationId: 'claude-code',
+				revision: 2,
+				type: 'desktop-agent-integration-launch-observed',
+			},
+		]);
+		broker.dispose();
+		controller.publishLaunch('codex', 3);
+		expect(port.messages).toHaveLength(1);
+	});
 });
 
 function createController(): DesktopAgentIntegrationManagementBrokerController & {
 	readonly enable: ReturnType<typeof vi.fn>;
+	publishLaunch(
+		integrationId: (typeof DESKTOP_AGENT_INTEGRATION_IDS)[number],
+		revision: number,
+	): void;
 } {
+	const launchListeners = new Set<
+		(integrationId: (typeof DESKTOP_AGENT_INTEGRATION_IDS)[number], revision: number) => void
+	>();
 	return {
 		disable: vi.fn<DesktopAgentIntegrationManagementBrokerController['disable']>(async () => ({
 			kind: 'completed',
@@ -96,6 +127,13 @@ function createController(): DesktopAgentIntegrationManagementBrokerController &
 			kind: 'completed',
 			snapshot,
 		})),
+		publishLaunch: (integrationId, revision) => {
+			for (const listener of launchListeners) listener(integrationId, revision);
+		},
+		subscribeLaunches: (listener) => {
+			launchListeners.add(listener);
+			return () => launchListeners.delete(listener);
+		},
 	};
 }
 

@@ -11,18 +11,17 @@ import styles from './AgentIntegrationReminder.module.css';
 export interface AgentIntegrationReminderProps {
 	readonly control: AgentIntegrationManagementControl;
 	readonly controller: AgentIntegrationReminderController;
-	readonly onReview: (returnFocus: HTMLElement) => void;
 }
 
 export function AgentIntegrationReminder({
 	control,
 	controller,
-	onReview,
 }: AgentIntegrationReminderProps): React.ReactNode {
-	const view = useAgentIntegrationReminder(control, controller, onReview);
+	const view = useAgentIntegrationReminder(control, controller);
 	if (view === null) return null;
 	return (
 		<aside
+			aria-busy={view.pending}
 			aria-labelledby='agent-integration-reminder-title'
 			aria-live='polite'
 			className={styles['root']}
@@ -38,12 +37,8 @@ export function AgentIntegrationReminder({
 					{view.title}
 				</strong>
 				<p className={styles['body']}>{view.body}</p>
-				<Button
-					size='xs'
-					variant='ghost'
-					onClick={(event): void => view.onReview(event.currentTarget)}
-				>
-					{view.reviewLabel}
+				<Button disabled={view.enableDisabled} size='xs' variant='ghost' onClick={view.onEnable}>
+					{view.enableLabel}
 				</Button>
 			</div>
 			<Button

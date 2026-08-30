@@ -24,6 +24,7 @@ import {
 	type TerminalExited,
 	type TerminalFailed,
 	type TerminalIdentity,
+	type TerminalApplicationSignal,
 	type TerminalMetadataChanged,
 	type TerminalSummary,
 } from '@orchbee/terminal-protocol';
@@ -89,6 +90,28 @@ class TestMainPort extends EventEmitter {
 }
 
 describe('DesktopApplication', () => {
+	it('routes only a bounded terminal Agent launch hint to integration management', async () => {
+		const harness = createHarness();
+		const application = createApplication(harness.dependencies);
+		await application.start();
+
+		harness.hostEnvelopeListener?.(
+			terminalApplicationSignalEnvelope('{"integrationId":"claude-code","version":3}'),
+		);
+		harness.hostEnvelopeListener?.(
+			terminalApplicationSignalEnvelope(
+				'{"command":"claude --prompt secret","integrationId":"claude-code","version":3}',
+				'2',
+			),
+		);
+
+		expect(harness.agentIntegrationManagementController.observeLaunch).toHaveBeenCalledOnce();
+		expect(harness.agentIntegrationManagementController.observeLaunch).toHaveBeenCalledWith(
+			'claude-code',
+		);
+		await application.shutdown();
+	});
+
 	it('composes durable Environment identity without resolving or opening its SSH target', async () => {
 		const harness = createHarness();
 		const application = createApplication(harness.dependencies);
@@ -2804,6 +2827,7 @@ function createHarness(
 			managementMode: 'managed-local',
 			state: 'unknown',
 		})),
+		launchedIntegrationIds: [],
 		revision: 0,
 	});
 	type AgentIntegrationManagementController = ReturnType<
@@ -2822,10 +2846,14 @@ function createHarness(
 		initialize: vi.fn<AgentIntegrationManagementController['initialize']>(
 			async () => agentIntegrationManagementSnapshot,
 		),
+		observeLaunch: vi.fn<AgentIntegrationManagementController['observeLaunch']>(() => true),
 		refresh: vi.fn<AgentIntegrationManagementController['refresh']>(async () => ({
 			kind: 'completed' as const,
 			snapshot: agentIntegrationManagementSnapshot,
 		})),
+		subscribeLaunches: vi
+			.fn<AgentIntegrationManagementController['subscribeLaunches']>()
+			.mockReturnValue(() => undefined),
 	};
 	const sshEnvironmentTargetResolver = {
 		resolve: vi
@@ -3067,6 +3095,7 @@ function createHarness(
 		writeTrace: vi.fn<DesktopApplicationDependencies['writeTrace']>(),
 	};
 	return {
+		agentIntegrationManagementController,
 		browserAccessBrokers,
 		browserAccessRuntime,
 		browserWindow,
@@ -3317,6 +3346,31 @@ function terminalMetadataChangedEnvelope(event: TerminalMetadataChanged): Decode
 		hostEpoch: identity.hostEpoch,
 		ignoredOptionalFlags: 0,
 		kind: MessageKind.terminalMetadataChanged,
+		knownMessage: true,
+		optionalMessage: false,
+		payload: new TextEncoder().encode(JSON.stringify(event)),
+		payloadEncoding: PayloadEncoding.controlJson,
+		protocol: CURRENT_PROTOCOL_VERSION,
+		response: false,
+	};
+}
+
+function terminalApplicationSignalEnvelope(
+	payload: string,
+	sequence = '1',
+): DecodedProtocolEnvelope {
+	const event: TerminalApplicationSignal = {
+		channel: 'orchbee.agent.v1',
+		identity,
+		payload,
+		sequence: CanonicalUint64TextSchema.parse(sequence),
+	};
+	return {
+		correlationId: null,
+		event: true,
+		hostEpoch: identity.hostEpoch,
+		ignoredOptionalFlags: 0,
+		kind: MessageKind.terminalApplicationSignal,
 		knownMessage: true,
 		optionalMessage: false,
 		payload: new TextEncoder().encode(JSON.stringify(event)),

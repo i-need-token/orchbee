@@ -31,7 +31,6 @@ export const EnglishNotInstalled: Story = {
 	args: {
 		control: englishControl,
 		controller: englishController,
-		onReview: () => undefined,
 	},
 	decorators: [
 		(Story) => (
@@ -48,7 +47,6 @@ export const ChineseDisabled: Story = {
 	args: {
 		control: chineseControl,
 		controller: chineseController,
-		onReview: () => undefined,
 	},
 	decorators: [
 		(Story) => (
@@ -75,6 +73,7 @@ function createStoryControl(
 			managementMode: 'managed-local',
 			state: candidateId === integrationId ? state : 'unknown',
 		})),
+		launchedIntegrationIds: [integrationId],
 		pending: false,
 		pendingIntegrationId: null,
 		revision: 1,

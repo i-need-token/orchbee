@@ -122,6 +122,81 @@ describe('DesktopAgentIntegrationManagementClient', () => {
 		});
 		expect(channel.port1).toMatchObject({ closed: true });
 	});
+
+	it('accepts idempotent launch observations before initialization and during an operation', async () => {
+		const channel = createTestChannel();
+		let enableRequestId: string | undefined;
+		let inventoryRequestId: string | undefined;
+		channel.port2.addEventListener('message', (event) => {
+			const command = DesktopAgentIntegrationManagementRendererCommandSchema.parse(
+				(event as MessageEvent).data,
+			);
+			if (command.type === 'desktop-agent-integration-inventory-requested') {
+				inventoryRequestId = command.requestId;
+				return;
+			}
+			enableRequestId = command.requestId;
+		});
+		const client = new DesktopAgentIntegrationManagementClient(channel.port1, () => 'test');
+		const listener = vi.fn<() => void>();
+		client.subscribe(listener);
+		const initialization = client.initialize();
+		await vi.waitFor(() => expect(inventoryRequestId).toBeDefined());
+
+		channel.port2.postMessage({
+			integrationId: 'grok',
+			revision: 2,
+			type: 'desktop-agent-integration-launch-observed',
+		});
+		if (inventoryRequestId === undefined) throw new Error('Expected an inventory request.');
+		channel.port2.postMessage(
+			DesktopAgentIntegrationManagementMainEventSchema.parse({
+				requestId: inventoryRequestId,
+				result: { kind: 'completed', snapshot: snapshot('not-installed', 1) },
+				type: 'desktop-agent-integration-responded',
+			}),
+		);
+		await expect(initialization).resolves.toEqual({ kind: 'ready' });
+		await vi.waitFor(() =>
+			expect(client.getSnapshot()).toMatchObject({
+				launchedIntegrationIds: ['grok'],
+				revision: 2,
+			}),
+		);
+		channel.port2.postMessage({
+			integrationId: 'grok',
+			revision: 2,
+			type: 'desktop-agent-integration-launch-observed',
+		});
+		const enabling = client.enable('codex');
+		channel.port2.postMessage({
+			integrationId: 'claude-code',
+			revision: 3,
+			type: 'desktop-agent-integration-launch-observed',
+		});
+		await vi.waitFor(() =>
+			expect(client.getSnapshot()).toMatchObject({
+				launchedIntegrationIds: ['grok', 'claude-code'],
+				pending: true,
+			}),
+		);
+		if (enableRequestId === undefined) throw new Error('Expected an enable request.');
+		channel.port2.postMessage(
+			DesktopAgentIntegrationManagementMainEventSchema.parse({
+				requestId: enableRequestId,
+				result: { kind: 'completed', snapshot: snapshot('enabled', 2) },
+				type: 'desktop-agent-integration-responded',
+			}),
+		);
+		await expect(enabling).resolves.toMatchObject({ kind: 'completed' });
+		expect(client.getSnapshot()).toMatchObject({
+			launchedIntegrationIds: ['grok', 'claude-code'],
+			revision: 3,
+		});
+		expect(listener).toHaveBeenCalledTimes(4);
+
+		client.dispose();
+	});
 });
 
 function snapshot(
@@ -136,6 +211,7 @@ function snapshot(
 			managementMode: 'managed-local',
 			state: integrationId === 'codex' ? codexState : 'unknown',
 		})),
+		launchedIntegrationIds: [],
 		revision,
 	};
 }

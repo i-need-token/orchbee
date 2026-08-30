@@ -57,6 +57,13 @@ export const DesktopAgentIntegrationManagementSnapshotSchema = z.strictObject({
 				),
 			'Desktop Agent integrations must use canonical order',
 		),
+	launchedIntegrationIds: z
+		.array(DesktopAgentIntegrationIdSchema)
+		.max(DESKTOP_AGENT_INTEGRATION_IDS.length)
+		.refine(
+			(integrationIds) => new Set(integrationIds).size === integrationIds.length,
+			'Desktop Agent integration launch observations must be unique',
+		),
 	revision: z.number().int().nonnegative(),
 });
 
@@ -115,11 +122,18 @@ const operationResultSchema = z.discriminatedUnion('kind', [
 	}),
 ]);
 
-export const DesktopAgentIntegrationManagementMainEventSchema = z.strictObject({
-	requestId: DesktopAgentIntegrationManagementRequestIdSchema,
-	result: operationResultSchema,
-	type: z.literal('desktop-agent-integration-responded'),
-});
+export const DesktopAgentIntegrationManagementMainEventSchema = z.discriminatedUnion('type', [
+	z.strictObject({
+		integrationId: DesktopAgentIntegrationIdSchema,
+		revision: z.number().int().nonnegative(),
+		type: z.literal('desktop-agent-integration-launch-observed'),
+	}),
+	z.strictObject({
+		requestId: DesktopAgentIntegrationManagementRequestIdSchema,
+		result: operationResultSchema,
+		type: z.literal('desktop-agent-integration-responded'),
+	}),
+]);
 
 export type DesktopAgentIntegrationAvailability = z.infer<
 	typeof DesktopAgentIntegrationAvailabilitySchema

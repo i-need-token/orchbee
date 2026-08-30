@@ -56,7 +56,7 @@ describe('Agent integration Settings view model', () => {
 		controller.dismiss('codex');
 		const enable = vi.fn<AgentIntegrationManagementControl['enable']>(async () => ({
 			kind: 'completed',
-			snapshot: { integrations: [], revision: 1 },
+			snapshot: { integrations: [], launchedIntegrationIds: [], revision: 1 },
 		}));
 		const control = {
 			disable: vi.fn<AgentIntegrationManagementControl['disable']>(),

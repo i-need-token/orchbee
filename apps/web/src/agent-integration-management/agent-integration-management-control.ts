@@ -17,7 +17,10 @@ export type AgentIntegrationManagementClientInitialization =
 	| { readonly kind: 'unavailable' };
 
 export type AgentIntegrationManagementClientOperationResult =
-	| DesktopAgentIntegrationManagementMainEvent['result']
+	| Extract<
+			DesktopAgentIntegrationManagementMainEvent,
+			{ readonly type: 'desktop-agent-integration-responded' }
+	  >['result']
 	| { readonly kind: 'unavailable' };
 
 export interface AgentIntegrationManagementControl {

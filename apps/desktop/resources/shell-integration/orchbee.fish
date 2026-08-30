@@ -9,6 +9,30 @@ set -g __orchbee_command_active 0
 function __orchbee_preexec --on-event fish_preexec
 	set -g __orchbee_command_active 1
 	printf '\e]133;C\a'
+	__orchbee_agent_integration_launch "$argv[1]"
+end
+
+function __orchbee_agent_integration_launch
+	set -l command_line "$argv[1]"
+	set -l command_word (string replace -r '^[[:space:]]*([^[:space:];|&]+).*$' '$1' -- "$command_line")
+	set -l executable (string replace -r '^.*/' '' -- "$command_word")
+	set -l integration_id
+	switch "$executable"
+		case claude
+			set integration_id claude-code
+		case codex grok opencode pi omp gemini cline
+			set integration_id "$executable"
+		case copilot
+			set integration_id github-copilot
+		case qwen
+			set integration_id qwen-code
+		case '*'
+			return 0
+	end
+	if test (type -t "$command_word" 2>/dev/null) != file
+		return 0
+	end
+	printf '\e]777;notify;orchbee.agent.v1;{"integrationId":"%s","version":3}\e\\' "$integration_id"
 end
 
 function __orchbee_postexec --on-event fish_postexec

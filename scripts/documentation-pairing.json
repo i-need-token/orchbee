@@ -26,12 +26,12 @@
 			"zhCnSha256": "26d5cd462fe3e5127aea6ee408eaeb8dfc7df659ca009e609489271d8c803f9c"
 		},
 		"apps/desktop/README.md": {
-			"englishSha256": "c3b5ab055870bcd9a6709547e10b5c4cd848e85610625ab03a3e83baed7fbb63",
-			"zhCnSha256": "3af9e751cc39d167dbc9688745696e37a3ec500d6510c9b54b29d37bd7ef4d4c"
+			"englishSha256": "e2262196d383f070513fa509a1d04d5a81087d69ed2d0089235ee6ea7f373c38",
+			"zhCnSha256": "8b272a591c8be3ad9c08b2f7d31f5f58d080ba79f077bb6539ee7117a0af799f"
 		},
 		"apps/desktop/docs/agent-integrations.md": {
-			"englishSha256": "9941103e0cfb900b65dc6636cda98622ef45a96a8dda8bd24462e70193a1f33b",
-			"zhCnSha256": "746a9def2df36a32baa7319d9e1c525ae31ab5a8f17527d95515687498945dbf"
+			"englishSha256": "e0ad0d6215f7d1fe091da4fb6887af7ed50ee0ba2aded6ab2e67a9ccea522d45",
+			"zhCnSha256": "ab4993baee666ae7a14cfe59829d748c856be88f978ee005d3b8d0c3b664358e"
 		},
 		"apps/desktop/docs/data-root.md": {
 			"englishSha256": "9885bcf78979d8a848c2029210e169af3975241a3401f84fec213458e846731d",
@@ -122,8 +122,8 @@
 			"zhCnSha256": "5bac848741e60379e75fefd0366953987bc0eb5d349b89afe7b42ca00371ad34"
 		},
 		"apps/web/README.md": {
-			"englishSha256": "e3df855ff91165cf8b80ac1a8c636f2cfcac5d8f09b8f6cd008346653b144431",
-			"zhCnSha256": "ebc12415f648cbb4bad0188583f15e66ccc83af3e969b14ff82dbb2e90c71032"
+			"englishSha256": "ebcda051587c2c23ab403eb286b5b24205835eea0c99bde809f09eaf7ea77506",
+			"zhCnSha256": "962572fd3a7f5504fc68a3079e54cd173803745df2797cdb5d9501ca3564ef7b"
 		},
 		"apps/web/docs/keyboard-shortcuts.md": {
 			"englishSha256": "d5b14080a84020726028045c20bef2b4963fd49e246d8a472bf75797a981f2b5",
@@ -134,8 +134,8 @@
 			"zhCnSha256": "19b9dad21b26d18de141e6ea67809605c7f467e854fe8cd708248176aa256b63"
 		},
 		"apps/web/docs/terminal-settings.md": {
-			"englishSha256": "cff81c19e39a2dd1641efa166e7c25947bb4915935712a64814e8eff51d257b9",
-			"zhCnSha256": "f01bc02848cfdcc2408eadde19cb937f5eb0aa8a03b7309de831cc3c52d90619"
+			"englishSha256": "19737b84f1b15db10df5b9d398fa5aa21ee0109f2ec91c26ff71ccd83dee7002",
+			"zhCnSha256": "91f72cf3233e24062a8ea498ae15987c093d3f02646232e727a036b356374f44"
 		},
 		"docs/APPLICATIONS.md": {
 			"englishSha256": "1c539d8e95d8aea3e75c0aa5b0591630bec8d1bef6133ce143d560cb1dbbe22b",
@@ -262,8 +262,8 @@
 			"zhCnSha256": "8c2923204c6468f50f87eadc78721e9dcacd015eb9e440f7abd90c6445a6c578"
 		},
 		"packages/desktop-client-protocol/README.md": {
-			"englishSha256": "0efa5b5f1fe0b26e518825af7d2b92552ca141dd73d64e0f4d2d9f394a806598",
-			"zhCnSha256": "b7097842845c3609e46e2baa2eba914f8f860a1f26fc5f9a9bc8ffc30209efdd"
+			"englishSha256": "5ef99b08d13c99fd192e2ed6df1958d325c6a4a84d215e2b9cebb8f1dac33a96",
+			"zhCnSha256": "50924f355667da4e45b8fa2adfc238574ea41e397614993d7688662a161916ba"
 		},
 		"packages/foundation/README.md": {
 			"englishSha256": "fef97cd4e2c12ec171b4731026830debabc7f248d26c8f113d46abf2f8cbcb84",

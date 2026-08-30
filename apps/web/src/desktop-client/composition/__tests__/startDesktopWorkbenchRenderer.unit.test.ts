@@ -247,6 +247,7 @@ function serveAgentIntegrationManagement(port: TestMessagePort): void {
 							managementMode: 'managed-local',
 							state: 'unknown',
 						})),
+						launchedIntegrationIds: [],
 						revision: 0,
 					},
 				},

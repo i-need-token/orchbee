@@ -27,6 +27,42 @@ describe('DesktopAgentIntegrationManagementController', () => {
 		expect(adapters.every((candidate) => candidate.disableCount === 0)).toBe(true);
 	});
 
+	it('records each direct Agent launch once without mutating its integration', async () => {
+		const adapters = createAdapters();
+		const controller = new DesktopAgentIntegrationManagementController(adapters);
+		const launches: DesktopAgentIntegrationId[] = [];
+		const revisions: number[] = [];
+		controller.subscribeLaunches((integrationId, revision) => {
+			launches.push(integrationId);
+			revisions.push(revision);
+		});
+
+		expect(controller.observeLaunch('grok')).toBe(true);
+		expect(controller.observeLaunch('grok')).toBe(false);
+		const snapshot = await controller.initialize();
+
+		expect(snapshot.launchedIntegrationIds).toEqual(['grok']);
+		expect(snapshot.revision).toBe(1);
+		expect(launches).toEqual(['grok']);
+		expect(revisions).toEqual([0]);
+		expect(adapters.every((candidate) => candidate.enableCount === 0)).toBe(true);
+		expect(adapters.every((candidate) => candidate.disableCount === 0)).toBe(true);
+	});
+
+	it('preserves launch order across later inspection and mutation snapshots', async () => {
+		const adapters = createAdapters();
+		const controller = new DesktopAgentIntegrationManagementController(adapters);
+		await controller.initialize();
+		controller.observeLaunch('grok');
+		controller.observeLaunch('claude-code');
+
+		const refreshed = await controller.refresh();
+		const enabled = await controller.enable('codex');
+
+		expect(refreshed.snapshot.launchedIntegrationIds).toEqual(['grok', 'claude-code']);
+		expect(enabled.snapshot.launchedIntegrationIds).toEqual(['grok', 'claude-code']);
+	});
+
 	it('mutates only after an explicit request and reports success after verification', async () => {
 		const adapters = createAdapters();
 		const codex = adapter(adapters, 'codex');

@@ -3,3 +3,4 @@ export { DesktopAgentIntegrationManagementBroker } from './DesktopAgentIntegrati
 export type { DesktopAgentIntegrationManagementBrokerController } from './DesktopAgentIntegrationManagementBroker';
 export { DesktopAgentIntegrationManagementController } from './DesktopAgentIntegrationManagementController';
 export { createDesktopAgentIntegrationAdapters } from './createDesktopAgentIntegrationAdapters';
+export { parseAgentIntegrationLaunchSignal } from './parseAgentIntegrationLaunchSignal';

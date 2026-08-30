@@ -12,6 +12,7 @@ import {
 	type DesktopApplicationExitFailure,
 	type DesktopApplicationExitReason,
 	type DesktopApplicationExitRequestId,
+	type DesktopAgentIntegrationId,
 	type DesktopAgentIntegrationManagementSnapshot,
 	type DesktopBrowserAccessSnapshot,
 	type DesktopTerminalDefaultSettingsSnapshot,
@@ -82,6 +83,7 @@ import {
 	DesktopAgentIntegrationManagementBroker,
 	DesktopAgentIntegrationManagementController,
 	NodeAgentIntegrationCommandRunner,
+	parseAgentIntegrationLaunchSignal,
 	type DesktopAgentIntegrationManagementBrokerController,
 } from '../agent-integration-management';
 import {
@@ -288,6 +290,7 @@ interface DesktopAgentIntegrationManagementBrokerHandle {
 
 interface DesktopAgentIntegrationManagementControllerHandle extends DesktopAgentIntegrationManagementBrokerController {
 	initialize(): Promise<DesktopAgentIntegrationManagementSnapshot>;
+	observeLaunch(integrationId: DesktopAgentIntegrationId): boolean;
 }
 
 type DesktopAgentObservationRuntimeHandle = AgentChangeSource &
@@ -2908,6 +2911,10 @@ export class DesktopApplication {
 	#acceptTerminalApplicationSignal(event: TerminalApplicationSignal): void {
 		const presentationId = this.#terminalRuntime?.findPresentationByIdentity(event.identity);
 		if (presentationId === undefined || presentationId === null) return;
+		const launchedIntegrationId = parseAgentIntegrationLaunchSignal(event.payload);
+		if (launchedIntegrationId !== null) {
+			this.#agentIntegrationManagementController.observeLaunch(launchedIntegrationId);
+		}
 		this.#agentHookObservationIngress?.observeTerminalApplicationSignal(event, presentationId);
 		this.#agentObservationRuntime.observeTerminalApplicationSignal?.(event, presentationId);
 	}

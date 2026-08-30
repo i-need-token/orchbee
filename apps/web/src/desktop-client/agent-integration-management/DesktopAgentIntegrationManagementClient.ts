@@ -16,7 +16,10 @@ import type {
 } from '../../agent-integration-management';
 import { createBrowserRandomIdentifier } from '../../browser-random-identifier';
 
-type ProtocolResult = DesktopAgentIntegrationManagementMainEvent['result'];
+type ProtocolResult = Extract<
+	DesktopAgentIntegrationManagementMainEvent,
+	{ readonly type: 'desktop-agent-integration-responded' }
+>['result'];
 type CommandWithoutRequestId =
 	DesktopAgentIntegrationManagementRendererCommand extends infer Command
 		? Command extends DesktopAgentIntegrationManagementRendererCommand
@@ -34,7 +37,9 @@ export class DesktopAgentIntegrationManagementClient implements AgentIntegration
 	readonly #createRequestId: () => DesktopAgentIntegrationManagementRequestId;
 	#disposed = false;
 	#initialization: Promise<AgentIntegrationManagementClientInitialization> | undefined;
+	#latestLaunchRevision = 0;
 	readonly #listeners = new Set<() => void>();
+	#launchedIntegrationIds: readonly DesktopAgentIntegrationId[] = Object.freeze([]);
 	#pending: PendingRequest | undefined;
 	readonly #port: MessagePort;
 	#sequence = 0;
@@ -147,25 +152,58 @@ export class DesktopAgentIntegrationManagementClient implements AgentIntegration
 			return;
 		}
 		const parsed = DesktopAgentIntegrationManagementMainEventSchema.safeParse(event.data);
+		if (!parsed.success) {
+			this.#retire(true);
+			return;
+		}
+		if (parsed.data.type === 'desktop-agent-integration-launch-observed') {
+			this.#recordLaunch(parsed.data.integrationId, parsed.data.revision);
+			return;
+		}
 		const pending = this.#pending;
-		if (!parsed.success || pending === undefined || parsed.data.requestId !== pending.requestId) {
+		if (pending === undefined || parsed.data.requestId !== pending.requestId) {
 			this.#retire(true);
 			return;
 		}
 		this.#pending = undefined;
 		const result = parsed.data.result;
+		for (const integrationId of result.snapshot.launchedIntegrationIds) {
+			this.#recordLaunch(integrationId, result.snapshot.revision, false);
+		}
 		this.#snapshot = {
 			...result.snapshot,
 			failureCode: result.kind === 'failed' ? result.code : null,
 			failureIntegrationId: result.kind === 'failed' ? result.integrationId : null,
+			launchedIntegrationIds: [...this.#launchedIntegrationIds],
 			pending: false,
 			pendingIntegrationId: null,
+			revision: Math.max(result.snapshot.revision, this.#latestLaunchRevision),
 		};
 		this.#emit();
 		pending.resolve(result);
 	};
 
 	readonly #handleMessageError = (): void => this.#retire(true);
+
+	#recordLaunch(integrationId: DesktopAgentIntegrationId, revision: number, publish = true): void {
+		const isNew = !this.#launchedIntegrationIds.includes(integrationId);
+		if (isNew) {
+			this.#launchedIntegrationIds = Object.freeze([
+				...this.#launchedIntegrationIds,
+				integrationId,
+			]);
+		}
+		this.#latestLaunchRevision = Math.max(this.#latestLaunchRevision, revision);
+		if (!publish || this.#snapshot === undefined) return;
+		const nextRevision = Math.max(this.#snapshot.revision, this.#latestLaunchRevision);
+		if (!isNew && nextRevision === this.#snapshot.revision) return;
+		this.#snapshot = {
+			...this.#snapshot,
+			launchedIntegrationIds: [...this.#launchedIntegrationIds],
+			revision: nextRevision,
+		};
+		this.#emit();
+	}
 
 	#updatePending(): void {
 		if (this.#snapshot === undefined) return;
@@ -207,8 +245,12 @@ export class DesktopAgentIntegrationManagementClient implements AgentIntegration
 
 function protocolSnapshot(
 	snapshot: AgentIntegrationManagementClientSnapshot,
-): DesktopAgentIntegrationManagementMainEvent['result']['snapshot'] {
-	return { integrations: snapshot.integrations, revision: snapshot.revision };
+): ProtocolResult['snapshot'] {
+	return {
+		integrations: snapshot.integrations,
+		launchedIntegrationIds: [...snapshot.launchedIntegrationIds],
+		revision: snapshot.revision,
+	};
 }
 
 function defaultRequestId(): string {

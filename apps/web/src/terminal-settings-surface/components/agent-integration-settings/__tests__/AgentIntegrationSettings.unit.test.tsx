@@ -161,6 +161,7 @@ function createTestControl(
 			state: 'not-installed',
 			...initial[integrationId],
 		})),
+		launchedIntegrationIds: [],
 		pending: false,
 		pendingIntegrationId: null,
 		revision: 0,

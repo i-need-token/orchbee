@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { DESKTOP_AGENT_INTEGRATION_IDS } from '@orchbee/desktop-client-protocol';
 import { TerminalLaunchSchema, type TerminalLaunch } from '@orchbee/terminal-protocol';
 import { describe, expect, it } from 'vitest';
 
@@ -19,7 +20,7 @@ const resources = path.resolve(
 );
 
 describe('Desktop shell integration resources', () => {
-	it('ships manual, idempotent Zsh, Bash, and Fish integrations without command text transport', async () => {
+	it('ships manual, idempotent integrations with bounded Agent launch hints and no command text transport', async () => {
 		const [zsh, bash, fish, automaticZsh, automaticBash, automaticFish] = await Promise.all(
 			['orchbee.zsh', 'orchbee.bash', 'orchbee.fish']
 				.map((name) => readFile(path.join(resources, name), 'utf8'))
@@ -43,8 +44,12 @@ describe('Desktop shell integration resources', () => {
 			expect(source).toContain('133;C');
 			expect(source).toContain('133;D;');
 			expect(source).toContain('133;A');
+			expect(source).toContain('"integrationId":"%s","version":3');
 			expect(source).toContain('file://');
-			expect(source).not.toMatch(/cmdline|command[_ -]?text|history/iu);
+			expect(source).not.toMatch(/cmdline|command[_ -]?text/iu);
+			for (const integrationId of DESKTOP_AGENT_INTEGRATION_IDS) {
+				expect(source).toContain(integrationId);
+			}
 		}
 		expect(bash).toContain('BASH_VERSINFO[1] < 4');
 		expect(bash).toContain('unsupported-bash-version');
@@ -58,6 +63,48 @@ describe('Desktop shell integration resources', () => {
 			expect(loader).not.toMatch(/cmdline|command[_ -]?text|history -[rwa]/iu);
 		}
 	});
+
+	it.runIf(process.platform !== 'win32')(
+		'emits only the closed Agent identity for a direct executable Zsh command',
+		async () => {
+			const temporaryBin = await mkdtemp(path.join(tmpdir(), 'orchbee-agent-command-'));
+			try {
+				await writeFile(path.join(temporaryBin, 'claude'), '', { mode: 0o755 });
+				const script = [
+					`source ${shellQuote(path.join(resources, 'orchbee.zsh'))}`,
+					`PATH=${shellQuote(temporaryBin)}:$PATH`,
+					"__orchbee_preexec 'claude --prompt do-not-transport-this'",
+				].join('\n');
+				const output = execFileSync('/bin/zsh', ['-f', '-c', script]).toString('utf8');
+				expect(output).toContain(
+					'\u001B]777;notify;orchbee.agent.v1;{"integrationId":"claude-code","version":3}\u001B\\',
+				);
+				expect(output).not.toContain('do-not-transport-this');
+			} finally {
+				await rm(temporaryBin, { force: true, recursive: true });
+			}
+		},
+	);
+
+	it.runIf(process.platform !== 'win32')(
+		'ignores a shell function that shadows a supported Agent executable',
+		async () => {
+			const temporaryBin = await mkdtemp(path.join(tmpdir(), 'orchbee-agent-function-'));
+			try {
+				await writeFile(path.join(temporaryBin, 'codex'), '', { mode: 0o755 });
+				const script = [
+					`source ${shellQuote(path.join(resources, 'orchbee.zsh'))}`,
+					`PATH=${shellQuote(temporaryBin)}:$PATH`,
+					'function codex() { :; }',
+					"__orchbee_preexec 'codex --prompt do-not-transport-this'",
+				].join('\n');
+				const output = execFileSync('/bin/zsh', ['-f', '-c', script]).toString('utf8');
+				expect(output).toBe('\u001B]133;C\u0007');
+			} finally {
+				await rm(temporaryBin, { force: true, recursive: true });
+			}
+		},
+	);
 
 	it.runIf(process.platform !== 'win32')(
 		'emits one Zsh command boundary with an encoded working directory and exit code',
