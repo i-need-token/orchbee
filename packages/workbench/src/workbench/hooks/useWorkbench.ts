@@ -6,6 +6,7 @@ import type {
 	ActionRuntime,
 	ActionScope,
 } from '@orchbee/actions';
+import type { AgentSnapshotSource } from '@orchbee/agent';
 import { useMemoizedFn } from '@orchbee/foundation/react';
 import {
 	ScopedTabModel,
@@ -70,7 +71,9 @@ import { useWorkbenchActions } from './useWorkbenchActions';
 import { useWorkbenchFocusRouting } from './useWorkbenchFocusRouting';
 import type { WorkbenchTerminalFocusRequest } from '../model/resolveWorkbenchFocusTarget';
 import { useWorkbenchShortcuts } from './useWorkbenchShortcuts';
+import { useWorkbenchAgentNavigation } from './useWorkbenchAgentNavigation';
 import { useWorkbenchTerminalLocationActivation } from './useWorkbenchTerminalLocationActivation';
+import type { WorkbenchAgentNavigationInput } from '../model/project-workbench-agent-overview';
 import {
 	workbenchActiveLocationsEqual,
 	type WorkbenchTerminalLocationActivationOrigin,
@@ -85,7 +88,12 @@ interface ResizablePanelSize {
 }
 
 interface WorkbenchView {
+	readonly agentNavigationAnnouncement: {
+		readonly message: string;
+		readonly sequence: number;
+	} | null;
 	readonly activateStandalone: (origin: WorkbenchTerminalLocationActivationOrigin) => void;
+	readonly navigateAgent: (input: WorkbenchAgentNavigationInput) => void;
 	readonly actionScope: ActionScope;
 	readonly addProjectDirectory: (projectId: string, path: string) => void;
 	readonly cancelProjectWorkspaceConfirmation: () => void;
@@ -189,6 +197,7 @@ interface WorkbenchView {
 
 interface UseWorkbenchOptions {
 	readonly actionRuntime: ActionRuntime;
+	readonly agentObservationSource?: AgentSnapshotSource | undefined;
 	readonly isShortcutScopeActive: boolean;
 	readonly navigation?: WorkbenchNavigationPort | undefined;
 	readonly onSettings: WorkbenchHostActionCallback | undefined;
@@ -204,6 +213,7 @@ interface UseWorkbenchOptions {
 
 export function useWorkbench({
 	actionRuntime,
+	agentObservationSource,
 	isShortcutScopeActive,
 	navigation,
 	onSettings,
@@ -217,6 +227,8 @@ export function useWorkbench({
 	terminalSurfaceAvailable,
 }: UseWorkbenchOptions): WorkbenchView {
 	const intl = useOrchbeeIntl();
+	const [agentNavigationAnnouncementSequence, setAgentNavigationAnnouncementSequence] =
+		React.useState(0);
 	const pendingProjectWorkspaceConfirmation = React.useRef<((accepted: boolean) => void) | null>(
 		null,
 	);
@@ -410,6 +422,7 @@ export function useWorkbench({
 				};
 	});
 	const actions = useWorkbenchActions({
+		agentObservationSource,
 		focusRouting: focusRouter,
 		getNewTerminalAvailability,
 		isSidebarVisible,
@@ -469,6 +482,20 @@ export function useWorkbench({
 		(projectId: string, workspaceId: string, origin: WorkbenchTerminalLocationActivationOrigin) =>
 			activateLocation({ kind: 'workspace', projectId, workspaceId }, origin),
 	);
+	const invokeAgentNavigation = useMemoizedFn((input: WorkbenchAgentNavigationInput) =>
+		actions.invoke(WORKBENCH_ACTION_IDS.navigateAgent, input, 'button'),
+	);
+	const announceAgentNavigationUnavailable = useMemoizedFn(() => {
+		setAgentNavigationAnnouncementSequence((sequence) => sequence + 1);
+	});
+	const navigateAgent = useWorkbenchAgentNavigation({
+		activeLocation: projectWorkspaceState.activeLocation,
+		announceUnavailable: announceAgentNavigationUnavailable,
+		invokeAgentNavigation,
+		projectWorkspaceRuntime,
+		requestTerminalFocus: focusRouting.requestTerminalFocus,
+		source: agentObservationSource,
+	});
 	React.useEffect(() => {
 		const formatActionMessage = (message: ActionConfirmation['title']) => {
 			if (message.id === undefined) {
@@ -528,7 +555,15 @@ export function useWorkbench({
 	);
 
 	return {
+		agentNavigationAnnouncement:
+			agentNavigationAnnouncementSequence === 0
+				? null
+				: {
+						message: intl.formatMessage(workbenchMessages.workspaceAgentNavigationUnavailable),
+						sequence: agentNavigationAnnouncementSequence,
+					},
 		activateStandalone,
+		navigateAgent,
 		actionScope: actions.scope,
 		addProjectDirectory: (projectId, path) => {
 			actions.invoke(WORKBENCH_ACTION_IDS.addProjectFolder, { path, projectId }, 'button');

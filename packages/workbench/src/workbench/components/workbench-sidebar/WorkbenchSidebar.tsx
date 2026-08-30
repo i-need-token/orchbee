@@ -13,6 +13,7 @@ import {
 import type { ReactNode } from 'react';
 
 import type { ProjectWorkspaceState } from '../../../project-workspace';
+import type { WorkbenchAgentNavigationInput } from '../../model/project-workbench-agent-overview';
 import type { WorkbenchTerminalLocationActivationOrigin } from '../../model/workbench-terminal-location-activation';
 import type { WorkbenchEnvironmentProjectConnectionCapability } from '../../types/workbench-environment-project-connection';
 import type { WorkbenchProjectFolderAcquisition } from '../../types/workbench-project-folder-acquisition';
@@ -29,8 +30,10 @@ import { useProjectFolderAcquisition } from './hooks/useProjectFolderAcquisition
 import { useProjectWorktreeCreation } from './hooks/useProjectWorktreeCreation';
 import { useProjectWorktreeMenu } from './hooks/useProjectWorktreeMenu';
 import { useWorkbenchSidebarFocusRequest } from './hooks/useWorkbenchSidebarFocusRequest';
+import { useWorkbenchSidebarAgentOverview } from './hooks/useWorkbenchSidebarAgentOverview';
 import { useWorkspaceCreationActivation } from './hooks/useWorkspaceCreationActivation';
 import type { WorkbenchProjectNavigationMessages } from './types/workbench-sidebar-types';
+import type { WorkbenchWorkspaceAgentOverviewView } from '../../types/workbench-agent-overview';
 import styles from './WorkbenchSidebar.module.css';
 
 interface WorkbenchSidebarProps {
@@ -45,6 +48,7 @@ interface WorkbenchSidebarProps {
 	readonly createProject: (path: string) => void;
 	readonly deleteWorkspace: (projectId: string, workspaceId: string) => void;
 	readonly duplicateWorkspace: (projectId: string, workspaceId: string) => void;
+	readonly navigateAgent: (input: WorkbenchAgentNavigationInput) => void;
 	readonly focusRequest: number;
 	readonly environmentProjectConnection?:
 		| WorkbenchEnvironmentProjectConnectionCapability
@@ -83,6 +87,7 @@ interface WorkbenchSidebarProps {
 		name: string,
 		primaryDirectoryId: string,
 	) => void;
+	readonly workspaceAgentOverviews: readonly WorkbenchWorkspaceAgentOverviewView[];
 }
 
 export function WorkbenchSidebar({
@@ -93,6 +98,7 @@ export function WorkbenchSidebar({
 	createProject,
 	deleteWorkspace,
 	duplicateWorkspace,
+	navigateAgent,
 	focusRequest,
 	environmentProjectConnection,
 	label,
@@ -120,7 +126,12 @@ export function WorkbenchSidebar({
 	terminalLabel,
 	toggleProjectExpansion,
 	updateWorkspace,
+	workspaceAgentOverviews,
 }: WorkbenchSidebarProps): ReactNode {
+	const agentOverview = useWorkbenchSidebarAgentOverview({
+		expandedProjectIds: projectWorkspaceState.expandedProjectIds,
+		workspaces: workspaceAgentOverviews,
+	});
 	const rootReference = useWorkbenchSidebarFocusRequest(focusRequest);
 	const view = useWorkbenchSidebar(projectWorkspaceState, environmentProjectConnection);
 	const folderAcquisition = useProjectFolderAcquisition({
@@ -220,6 +231,7 @@ export function WorkbenchSidebar({
 							{projectWorkspaceState.projects.map((project) => (
 								<ProjectNavigationItem
 									key={project.id}
+									agentGradientPrefix={`${agentOverview.agentGradientPrefix}-${project.id}`}
 									activateWorkspace={activateWorkspace}
 									activeLocation={projectWorkspaceState.activeLocation}
 									adoptWorktree={projectWorktree === undefined ? undefined : worktreeMenu.adopt}
@@ -232,6 +244,11 @@ export function WorkbenchSidebar({
 											: null
 									}
 									duplicateWorkspace={duplicateWorkspace}
+									expandedAgentWorkspaceId={
+										agentOverview.expandedWorkspace?.projectId === project.id
+											? agentOverview.expandedWorkspace.workspaceId
+											: null
+									}
 									environmentConnection={view.connectionStatusByProjectId.get(project.id) ?? null}
 									connectEnvironment={environmentProjectConnection?.connect}
 									disconnectEnvironment={environmentProjectConnection?.disconnect}
@@ -241,6 +258,7 @@ export function WorkbenchSidebar({
 									}
 									dragging={projectReorder.draggingItemId === project.id}
 									messages={projectNavigationMessages}
+									navigateAgent={navigateAgent}
 									project={project}
 									refreshWorktrees={
 										projectWorktree === undefined
@@ -254,6 +272,12 @@ export function WorkbenchSidebar({
 									showProjectManager={view.showProjectManager}
 									showWorkspaceManager={view.showWorkspaceManager}
 									toggleProjectExpansion={toggleProjectExpansion}
+									toggleWorkspaceAgentExpansion={(workspaceId) =>
+										agentOverview.toggleWorkspace(project.id, workspaceId)
+									}
+									workspaceAgentOverviews={workspaceAgentOverviews.filter(
+										(overview) => overview.projectId === project.id,
+									)}
 									worktreeDiscovery={worktreeMenu.discoveryByProject.get(project.id) ?? null}
 									worktreeDiscoveryFailed={worktreeMenu.discoveryFailureProjectIds.has(project.id)}
 									worktreeOperationPending={worktreeMenu.busy}

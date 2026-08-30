@@ -274,7 +274,13 @@ describe('useWorkbenchActions', () => {
 					)
 					.map((action) => action.descriptor.id),
 			),
-		).toEqual(new Set(Object.values(WORKBENCH_ACTION_IDS)));
+		).toEqual(
+			new Set(
+				Object.values(WORKBENCH_ACTION_IDS).filter(
+					(actionId) => actionId !== WORKBENCH_ACTION_IDS.navigateAgent,
+				),
+			),
+		);
 
 		fireEvent.click(screen.getByRole('button', { name: 'create' }));
 		fireEvent.click(screen.getByRole('button', { name: 'toggle' }));

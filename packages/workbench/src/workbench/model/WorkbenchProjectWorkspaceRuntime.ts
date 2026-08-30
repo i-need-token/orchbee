@@ -217,6 +217,8 @@ export class WorkbenchProjectWorkspaceRuntime {
 	private documentFingerprint: string | undefined;
 	private durableReconciliationStarted = false;
 	private readonly listeners = new Set<Listener>();
+	private terminalTopologyFingerprint: string | undefined;
+	private readonly terminalTopologyListeners = new Set<Listener>();
 	private readonly systemCwd: string;
 	private readonly terminalPresentation: WorkbenchTerminalPresentationComposition;
 	private terminalCreationSealed = false;
@@ -347,6 +349,24 @@ export class WorkbenchProjectWorkspaceRuntime {
 		return () => {
 			this.documentListeners.delete(listener);
 			if (this.documentListeners.size === 0) this.documentFingerprint = undefined;
+			this.syncContextDocumentSubscriptions();
+		};
+	};
+
+	public readonly getTerminalTopologyRevision = (): string =>
+		JSON.stringify(this.runtimeSnapshot());
+
+	public readonly subscribeTerminalTopology = (listener: Listener): (() => void) => {
+		if (this.terminalTopologyListeners.size === 0) {
+			this.terminalTopologyFingerprint = this.getTerminalTopologyRevision();
+		}
+		this.terminalTopologyListeners.add(listener);
+		this.syncContextDocumentSubscriptions();
+		return () => {
+			this.terminalTopologyListeners.delete(listener);
+			if (this.terminalTopologyListeners.size === 0) {
+				this.terminalTopologyFingerprint = undefined;
+			}
 			this.syncContextDocumentSubscriptions();
 		};
 	};
@@ -1384,6 +1404,20 @@ export class WorkbenchProjectWorkspaceRuntime {
 	}
 
 	private readonly emitDocumentAndClientView = (): void => {
+		if (this.terminalTopologyListeners.size > 0) {
+			const fingerprint = this.getTerminalTopologyRevision();
+			if (fingerprint !== this.terminalTopologyFingerprint) {
+				this.terminalTopologyFingerprint = fingerprint;
+				for (const listener of this.terminalTopologyListeners) {
+					try {
+						listener();
+					} catch {
+						// Topology observers cannot take ownership of an authoritative transition.
+						continue;
+					}
+				}
+			}
+		}
 		if (this.documentListeners.size > 0) {
 			const fingerprint = sharedDocumentFingerprint(
 				this.getSharedDocument(workbenchSharedDocumentRevision('0')),
@@ -1430,7 +1464,11 @@ export class WorkbenchProjectWorkspaceRuntime {
 	}
 
 	private syncContextDocumentSubscriptions(): void {
-		if (this.documentListeners.size === 0 && this.clientViewListeners.size === 0) {
+		if (
+			this.documentListeners.size === 0 &&
+			this.clientViewListeners.size === 0 &&
+			this.terminalTopologyListeners.size === 0
+		) {
 			for (const unsubscribe of this.contextDocumentSubscriptions.values()) unsubscribe();
 			this.contextDocumentSubscriptions.clear();
 			return;

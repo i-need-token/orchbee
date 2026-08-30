@@ -1,8 +1,10 @@
 import { Button, ContextMenu, ContextMenuTrigger, ProductIcon } from '@orchbee/ui/components';
-import * as React from 'react';
+import type { PointerEvent, ReactNode } from 'react';
 
 import type { ProjectWorkspaceState, WorkbenchProject } from '../../../../../project-workspace';
+import type { WorkbenchAgentNavigationInput } from '../../../../model/project-workbench-agent-overview';
 import type { WorkbenchTerminalLocationActivationOrigin } from '../../../../model/workbench-terminal-location-activation';
+import { WorkbenchAgentIdentity } from '../../../workbench-agent-identity/WorkbenchAgentIdentity';
 import { WorkbenchActionContextMenuContent } from '../../../workbench-action-context-menu-content/WorkbenchActionContextMenuContent';
 import type {
 	WorkbenchActionMenuCommand,
@@ -13,12 +15,15 @@ import type {
 	WorkbenchProjectWorktreeDiscovery,
 } from '../../../../types/workbench-project-worktree';
 import type { WorkbenchEnvironmentProjectConnectionStatus } from '../../../../types/workbench-environment-project-connection';
+import type { WorkbenchWorkspaceAgentOverviewView } from '../../../../types/workbench-agent-overview';
 import { useNavigationReorderDrag } from '../../hooks/useNavigationReorderDrag';
 import type { WorkbenchProjectNavigationMessages } from '../../types/workbench-sidebar-types';
 import { WorkbenchSidebarDropdownMenu } from '../workbench-sidebar-dropdown-menu/WorkbenchSidebarDropdownMenu';
+import { WorkspaceAgentList } from './components/workspace-agent-list/WorkspaceAgentList';
 import styles from './ProjectNavigationItem.module.css';
 
 interface ProjectNavigationItemProps {
+	readonly agentGradientPrefix: string;
 	readonly activateWorkspace: (
 		projectId: string,
 		workspaceId: string,
@@ -35,13 +40,15 @@ interface ProjectNavigationItemProps {
 	readonly displacement: 'down' | 'up' | null;
 	readonly disconnectEnvironment?: ((projectId: string) => void) | undefined;
 	readonly duplicateWorkspace: (projectId: string, workspaceId: string) => void;
+	readonly expandedAgentWorkspaceId: string | null;
 	readonly dragging: boolean;
 	readonly expanded: boolean;
 	readonly environmentConnection: WorkbenchEnvironmentProjectConnectionStatus | null;
 	readonly messages: WorkbenchProjectNavigationMessages;
+	readonly navigateAgent: (input: WorkbenchAgentNavigationInput) => void;
 	readonly project: WorkbenchProject;
 	readonly refreshWorktrees?: (() => void) | undefined;
-	readonly onPointerDown: (projectId: string, event: React.PointerEvent<HTMLDivElement>) => void;
+	readonly onPointerDown: (projectId: string, event: PointerEvent<HTMLDivElement>) => void;
 	readonly reorderActive: boolean;
 	readonly reorderWorkspace: (
 		projectId: string,
@@ -52,12 +59,15 @@ interface ProjectNavigationItemProps {
 	readonly showProjectManager: (projectId: string) => void;
 	readonly showWorkspaceManager: (projectId: string, workspaceId: string) => void;
 	readonly toggleProjectExpansion: (projectId: string) => void;
+	readonly toggleWorkspaceAgentExpansion: (workspaceId: string) => void;
+	readonly workspaceAgentOverviews: readonly WorkbenchWorkspaceAgentOverviewView[];
 	readonly worktreeDiscovery: WorkbenchProjectWorktreeDiscovery | null;
 	readonly worktreeDiscoveryFailed: boolean;
 	readonly worktreeOperationPending: boolean;
 }
 
 export function ProjectNavigationItem({
+	agentGradientPrefix,
 	activateWorkspace,
 	activeLocation,
 	adoptWorktree,
@@ -68,10 +78,12 @@ export function ProjectNavigationItem({
 	displacement,
 	disconnectEnvironment,
 	duplicateWorkspace,
+	expandedAgentWorkspaceId,
 	dragging,
 	expanded,
 	environmentConnection,
 	messages,
+	navigateAgent,
 	project,
 	refreshWorktrees,
 	onPointerDown,
@@ -81,10 +93,12 @@ export function ProjectNavigationItem({
 	showProjectManager,
 	showWorkspaceManager,
 	toggleProjectExpansion,
+	toggleWorkspaceAgentExpansion,
+	workspaceAgentOverviews,
 	worktreeDiscovery,
 	worktreeDiscoveryFailed,
 	worktreeOperationPending,
-}: ProjectNavigationItemProps): React.ReactNode {
+}: ProjectNavigationItemProps): ReactNode {
 	const representsActiveWorkspace =
 		!expanded && activeLocation.kind === 'workspace' && activeLocation.projectId === project.id;
 	const workspaceReorder = useNavigationReorderDrag(project.workspaces, (workspaceId, beforeId) =>
@@ -395,6 +409,10 @@ export function ProjectNavigationItem({
 					data-workspace-reorder-dragging={workspaceReorder.draggingItemId ?? undefined}
 				>
 					{project.workspaces.map((workspace) => {
+						const agentOverview = workspaceAgentOverviews.find(
+							(overview) => overview.workspaceId === workspace.id,
+						);
+						const agentExpanded = expandedAgentWorkspaceId === workspace.id;
 						const active =
 							activeLocation.kind === 'workspace' &&
 							activeLocation.projectId === project.id &&
@@ -453,9 +471,15 @@ export function ProjectNavigationItem({
 										}
 									>
 										<Button
+											aria-label={
+												agentOverview === undefined
+													? workspace.name
+													: `${workspace.name}. ${agentOverview.countLabel}. ${agentOverview.status.provider}: ${agentOverview.status.status}`
+											}
 											aria-current={active ? 'page' : undefined}
 											className={styles['workspaceItem']}
 											data-active={active || undefined}
+											data-agent-summary={agentOverview === undefined ? undefined : 'true'}
 											data-slot='workbench-sidebar-workspace'
 											size='sm'
 											variant='ghost'
@@ -468,10 +492,48 @@ export function ProjectNavigationItem({
 											}
 										>
 											<span className={styles['icon']}>
-												<ProductIcon name='layout' />
+												{agentOverview === undefined ? (
+													<ProductIcon name='layout' />
+												) : (
+													<WorkbenchAgentIdentity
+														gradientPrefix={`${agentGradientPrefix}-${workspace.id}`}
+														providerIds={agentOverview.providerIds}
+														status={agentOverview.status}
+													/>
+												)}
 											</span>
 											<span className={styles['workspaceName']}>{workspace.name}</span>
+											{agentOverview === undefined ? null : (
+												<span
+													aria-hidden='true'
+													className={styles['agentCount']}
+													title={agentOverview.countLabel}
+												>
+													{agentOverview.visibleCountLabel}
+												</span>
+											)}
 										</Button>
+										{agentOverview === undefined ? null : (
+											<Button
+												aria-expanded={agentExpanded}
+												aria-label={
+													agentExpanded ? agentOverview.collapseLabel : agentOverview.expandLabel
+												}
+												className={styles['agentDisclosure']}
+												data-navigation-reorder-excluded='true'
+												size='icon-xs'
+												variant='ghost'
+												onClick={() => toggleWorkspaceAgentExpansion(workspace.id)}
+											>
+												<span
+													aria-hidden='true'
+													className={styles['agentDisclosureIcon']}
+													data-expanded={agentExpanded || undefined}
+												>
+													<ProductIcon name='chevron-right' />
+												</span>
+											</Button>
+										)}
 										<WorkbenchSidebarDropdownMenu
 											entries={workspaceMenuEntries}
 											trigger={
@@ -488,6 +550,21 @@ export function ProjectNavigationItem({
 									</ContextMenuTrigger>
 									<WorkbenchActionContextMenuContent entries={workspaceMenuEntries} />
 								</ContextMenu>
+								{agentOverview !== undefined &&
+									agentExpanded &&
+									workspaceReorder.draggingItemId === null && (
+										<WorkspaceAgentList
+											gradientPrefix={`${agentGradientPrefix}-${workspace.id}-detail`}
+											navigateAgent={(sessionId) =>
+												navigateAgent({
+													projectId: project.id,
+													sessionId,
+													workspaceId: workspace.id,
+												})
+											}
+											overview={agentOverview}
+										/>
+									)}
 							</li>
 						);
 					})}

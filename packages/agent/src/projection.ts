@@ -122,6 +122,12 @@ export function projectAgentPresentationGroup(
 	return sessions.length === 0 ? null : projectAggregate(sessions);
 }
 
+export function projectAgentSessionGroup(
+	sessions: readonly AgentSessionSnapshot[],
+): AgentAggregatePresentation | null {
+	return sessions.length === 0 ? null : projectAggregate(sessions);
+}
+
 export function aggregateAgentSessions(
 	sessions: readonly AgentSessionSnapshot[],
 ): AgentSemanticStatus {

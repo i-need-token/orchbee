@@ -8,14 +8,15 @@ import { agentObservationMessages, type IntlShape } from '@orchbee/i18n';
 import { formatWorkbenchAgentProvider } from './formatWorkbenchAgentProvider';
 
 export interface WorkbenchAgentStatusView {
+	readonly glyph: '!' | '?' | '×' | '•' | '✓';
 	readonly provider: string;
 	readonly status: string;
+	readonly tone: 'attention' | 'danger' | 'degraded' | 'info' | 'neutral' | 'success';
 }
 
-export function formatWorkbenchAgentStatus(
-	intl: IntlShape,
-	presentation: AgentAggregatePresentation,
-): WorkbenchAgentStatusView {
+export function formatWorkbenchAgentStatus<
+	Presentation extends Pick<AgentAggregatePresentation, 'freshness' | 'providerIds' | 'status'>,
+>(intl: IntlShape, presentation: Presentation): WorkbenchAgentStatusView {
 	const provider = formatWorkbenchAgentProvider(intl, presentation.providerIds);
 	const semanticStatus = formatSemanticStatus(intl, presentation.status);
 	const status =
@@ -30,8 +31,10 @@ export function formatWorkbenchAgentStatus(
 					status: semanticStatus,
 				});
 	return {
+		glyph: resolveGlyph(presentation.status, presentation.freshness),
 		provider,
 		status,
+		tone: resolveTone(presentation.status, presentation.freshness),
 	};
 }
 
@@ -88,5 +91,48 @@ function formatActivity(formatter: IntlShape, activity: AgentActivity | null): s
 			return formatter.formatMessage(agentObservationMessages.statusOtherActivity);
 		case null:
 			return formatter.formatMessage(agentObservationMessages.statusWorking);
+	}
+}
+function resolveTone(
+	value: AgentSemanticStatus,
+	freshness: AgentAggregatePresentation['freshness'],
+): WorkbenchAgentStatusView['tone'] {
+	if (freshness !== 'fresh') return 'degraded';
+	switch (value.kind) {
+		case 'needs-attention':
+			return 'attention';
+		case 'failed':
+		case 'canceled':
+		case 'interrupted':
+			return 'danger';
+		case 'working':
+			return 'info';
+		case 'succeeded':
+			return 'success';
+		default:
+			return 'neutral';
+	}
+}
+
+function resolveGlyph(
+	value: AgentSemanticStatus,
+	freshness: AgentAggregatePresentation['freshness'],
+): WorkbenchAgentStatusView['glyph'] {
+	if (freshness !== 'fresh') return '?';
+	switch (value.kind) {
+		case 'needs-attention':
+			return '!';
+		case 'failed':
+		case 'canceled':
+		case 'interrupted':
+			return '×';
+		case 'succeeded':
+			return '✓';
+		case 'working':
+		case 'idle':
+			return '•';
+		case 'unknown':
+		case 'ended':
+			return '?';
 	}
 }

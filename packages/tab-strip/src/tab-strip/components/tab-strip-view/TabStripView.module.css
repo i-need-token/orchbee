@@ -221,7 +221,9 @@
 .ct-tab-icon[data-status-adornment='active'] .ct-tab-icon__status {
 	background: var(--ob-sys-color-status-info);
 }
-.ct-tab-icon[data-status-adornment='attention'] .ct-tab-icon__status,
+.ct-tab-icon[data-status-adornment='attention'] .ct-tab-icon__status {
+	background: var(--ob-sys-color-status-warning);
+}
 .ct-tab-icon[data-status-adornment='error'] .ct-tab-icon__status {
 	background: var(--ob-sys-color-status-danger);
 }

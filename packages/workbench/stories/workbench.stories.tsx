@@ -1,5 +1,6 @@
 import { OrchbeeI18nProvider } from '@orchbee/i18n';
 import { ActionRuntime } from '@orchbee/actions';
+import { AgentRuntime, AgentRuntimeSnapshotSchema } from '@orchbee/agent';
 import {
 	Workbench,
 	WorkbenchProjectWorkspaceRuntime,
@@ -114,6 +115,185 @@ const createPopulatedProjectWorkspaceRuntime = () => {
 	});
 	return runtime;
 };
+
+const createWorkspaceAgentOverviewStoryFixture = () => {
+	const runtime = createPopulatedProjectWorkspaceRuntime();
+	runtime.transition({
+		directoryId: 'directory-orchbee',
+		launchConfigurationId: null,
+		name: 'Batch Tasks',
+		projectId: 'project-1',
+		terminalTitle: 'Batch Agent 1',
+		type: 'workspace-created',
+	});
+	runtime.transition({
+		directoryId: 'directory-orchbee',
+		launchConfigurationId: null,
+		name: 'Docs',
+		projectId: 'project-1',
+		terminalTitle: 'Documentation',
+		type: 'workspace-created',
+	});
+	const project = runtime.getSnapshot().projects[0];
+	if (project === undefined) throw new Error('Expected the Storybook Project.');
+	const primary = project.workspaces.find((workspace) => workspace.name === 'Primary');
+	const review = project.workspaces.find((workspace) => workspace.name === 'Project Workspace');
+	const batch = project.workspaces.find((workspace) => workspace.name === 'Batch Tasks');
+	if (primary === undefined || review === undefined || batch === undefined) {
+		throw new Error('Expected all Agent overview Storybook Workspaces.');
+	}
+	const primaryPresentations = createStoryWorkspacePresentations(runtime, primary.id, 1);
+	const reviewPresentations = createStoryWorkspacePresentations(runtime, review.id, 2);
+	const batchPresentations = createStoryWorkspacePresentations(runtime, batch.id, 3);
+	runtime.transition({
+		projectId: project.id,
+		type: 'workspace-activated',
+		workspaceId: review.id,
+	});
+	return {
+		agentObservationSource: new AgentRuntime(
+			AgentRuntimeSnapshotSchema.parse({
+				revision: 1,
+				sessions: [
+					createStoryAgentSession({
+						kind: 'working',
+						presentationId: primaryPresentations[0],
+						providerId: 'codex',
+						sessionId: 'story-primary-codex',
+					}),
+					createStoryAgentSession({
+						kind: 'attention',
+						presentationId: reviewPresentations[0],
+						providerId: 'claude-code',
+						sessionId: 'story-review-claude',
+					}),
+					createStoryAgentSession({
+						kind: 'succeeded',
+						presentationId: reviewPresentations[1],
+						providerId: 'codex',
+						sessionId: 'story-review-codex',
+					}),
+					createStoryAgentSession({
+						kind: 'working',
+						presentationId: batchPresentations[0],
+						providerId: 'codex',
+						sessionId: 'story-batch-codex',
+					}),
+					createStoryAgentSession({
+						kind: 'failed',
+						presentationId: batchPresentations[1],
+						providerId: 'claude-code',
+						sessionId: 'story-batch-claude',
+					}),
+					createStoryAgentSession({
+						kind: 'idle',
+						presentationId: batchPresentations[2],
+						providerId: 'gemini',
+						sessionId: 'story-batch-gemini',
+					}),
+				],
+			}),
+		),
+		projectWorkspaceRuntime: runtime,
+	};
+};
+
+function createStoryWorkspacePresentations(
+	runtime: WorkbenchProjectWorkspaceRuntime,
+	workspaceId: string,
+	count: number,
+): readonly string[] {
+	const project = runtime.getSnapshot().projects[0];
+	const workspace = project?.workspaces.find((candidate) => candidate.id === workspaceId);
+	if (project === undefined || workspace === undefined) {
+		throw new Error('Expected the Storybook Workspace.');
+	}
+	runtime.transition({ projectId: project.id, type: 'workspace-activated', workspaceId });
+	for (let index = 1; index < count; index += 1) {
+		runtime.createTerminal({
+			groupId: null,
+			source: 'programmatic',
+			title: `Agent Terminal ${index + 1}`,
+		});
+	}
+	const context = runtime.getTerminalContext(workspace.terminalContextId);
+	if (context === null) throw new Error('Expected the Storybook terminal context.');
+	const tabs = context.tabModel.getSnapshot().tabs.slice(0, count);
+	for (const [index, tab] of tabs.entries()) {
+		context.tabModel.updateTab(tab.id, { title: `${workspace.name} ${index + 1}` });
+	}
+	const panelsByTabId = new Map(
+		context.panelWorkspaceStore.getSnapshot().tabs.map((tab) => [tab.tabId, tab] as const),
+	);
+	return tabs.map((tab) => {
+		const panelTab = panelsByTabId.get(tab.id);
+		if (panelTab === undefined) throw new Error('Expected the Storybook Panel topology.');
+		if (panelTab.root.kind !== 'panel') throw new Error('Expected one Storybook terminal Panel.');
+		return panelTab.root.primaryPresentation.presentationId;
+	});
+}
+
+function createStoryAgentSession(input: {
+	readonly kind: 'attention' | 'failed' | 'idle' | 'succeeded' | 'working';
+	readonly presentationId: string | undefined;
+	readonly providerId: string;
+	readonly sessionId: string;
+}) {
+	if (input.presentationId === undefined) {
+		throw new Error('Expected a Storybook Agent presentation.');
+	}
+	const turnId = `turn-${input.sessionId}`;
+	let capabilities = ['turnLifecycle'];
+	if (input.kind === 'attention') capabilities = ['questions', 'turnLifecycle'];
+	else if (input.kind === 'idle') capabilities = [];
+	return {
+		activityHint: null,
+		capabilities,
+		executionLocation: { executionLocationId: `execution-${input.sessionId}` },
+		lastOutcome:
+			input.kind === 'failed' || input.kind === 'succeeded'
+				? {
+						eventId: `outcome-${input.sessionId}`,
+						kind: input.kind,
+						turnId,
+					}
+				: null,
+		lifecycle: 'live',
+		observation: {
+			fidelity: 'rich',
+			freshness: 'fresh',
+			generation: 0,
+			sequence: 1,
+			source: 'hook',
+		},
+		parentSessionId: null,
+		pendingRequests:
+			input.kind === 'attention'
+				? [
+						{
+							actionPath: 'navigate-only',
+							kind: 'question',
+							requestId: `request-${input.sessionId}`,
+							turnId,
+						},
+					]
+				: [],
+		presentationAttachments: [
+			{
+				generation: `attachment-${input.sessionId}`,
+				navigable: true,
+				presentationId: input.presentationId,
+				visibility: 'visible',
+			},
+		],
+		providerId: input.providerId,
+		sessionId: input.sessionId,
+		turn:
+			input.kind === 'attention' || input.kind === 'working'
+				? { activity: 'editing', kind: 'active', phase: 'working', turnId }
+				: { kind: 'idle' },
+	};
+}
 
 const createSshFolderManagementRuntime = () => {
 	const runtime = createPopulatedProjectWorkspaceRuntime();
@@ -459,6 +639,30 @@ export const ProjectWorkspaceNavigation: Story = {
 		projectWorkspaceRuntime: createPopulatedProjectWorkspaceRuntime(),
 		shortcutPlatform: 'apple',
 		terminalSurface: FocusStoryTerminalSurface,
+	},
+	render: (arguments_) => (
+		<OrchbeeI18nProvider locale='en-US'>
+			<Workbench {...arguments_} />
+		</OrchbeeI18nProvider>
+	),
+};
+
+const workspaceAgentOverviewStory = createWorkspaceAgentOverviewStoryFixture();
+
+export const WorkspaceAgentOverview: Story = {
+	args: {
+		actionRuntime: new ActionRuntime({ confirm: () => true }),
+		agentObservationSource: workspaceAgentOverviewStory.agentObservationSource,
+		onSettings: () => ({ kind: 'unchanged' }),
+		projectWorkspaceRuntime: workspaceAgentOverviewStory.projectWorkspaceRuntime,
+		shortcutPlatform: 'apple',
+		terminalSurface: FocusStoryTerminalSurface,
+	},
+	play: ({ canvasElement }) => {
+		const disclosure = [...canvasElement.querySelectorAll('button')].find(
+			(button) => button.getAttribute('aria-label') === 'Show 2 Agents in Project Workspace',
+		);
+		disclosure?.click();
 	},
 	render: (arguments_) => (
 		<OrchbeeI18nProvider locale='en-US'>

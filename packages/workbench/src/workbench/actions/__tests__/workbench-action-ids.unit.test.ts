@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
 	WORKBENCH_ACTION_IDS,
+	workbenchAgentNavigateInput,
 	workbenchProjectCreateInput,
 	workbenchProjectDirectoryInput,
 	workbenchProjectFolderAddInput,
@@ -23,6 +24,7 @@ import {
 describe('workbench action contracts', () => {
 	it('owns stable semantic action ids', () => {
 		expect(WORKBENCH_ACTION_IDS).toEqual({
+			navigateAgent: 'workbench.agent.navigate',
 			activateStandalone: 'workbench.location.standalone.activate',
 			activateWorkspace: 'workbench.workspace.activate',
 			addProjectFolder: 'workbench.project.directory.add',
@@ -79,6 +81,30 @@ describe('workbench action contracts', () => {
 			toggleSidebar: 'workbench.sidebar.toggle',
 			updateWorkspace: 'workbench.workspace.update',
 		});
+	});
+
+	it('validates exact Agent navigation identity without accepting projected topology', () => {
+		expect(
+			workbenchAgentNavigateInput.parse({
+				projectId: 'project-a',
+				sessionId: 'session-a',
+				workspaceId: 'workspace-a',
+			}),
+		).toEqual({
+			data: {
+				projectId: 'project-a',
+				sessionId: 'session-a',
+				workspaceId: 'workspace-a',
+			},
+			success: true,
+		});
+		expect(
+			workbenchAgentNavigateInput.parse({
+				panelId: 'stale-panel',
+				projectId: 'project-a',
+				workspaceId: 'workspace-a',
+			}),
+		).toEqual({ code: 'expected-workbench-agent-navigate-input', success: false });
 	});
 
 	it('accepts only the first ten one-based Panel positions', () => {

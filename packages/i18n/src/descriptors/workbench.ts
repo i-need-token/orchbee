@@ -834,6 +834,56 @@ export const workbenchMessages = defineMessages({
 		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.actions.activate'],
 		description: 'Action that activates a Workspace terminal context.',
 	},
+	workspaceAgentCollapse: {
+		id: 'workbench.workspaces.agents.actions.collapse',
+		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.agents.actions.collapse'],
+		description: 'Accessible action that collapses the live Agent list for one Workspace.',
+	},
+	workspaceAgentCount: {
+		id: 'workbench.workspaces.agents.count',
+		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.agents.count'],
+		description: 'Exact live Agent Session count represented by one Workspace summary.',
+	},
+	workspaceAgentExpand: {
+		id: 'workbench.workspaces.agents.actions.expand',
+		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.agents.actions.expand'],
+		description: 'Accessible action that expands the live Agent list for one Workspace.',
+	},
+	workspaceAgentLocation: {
+		id: 'workbench.workspaces.agents.location',
+		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.agents.location'],
+		description: 'Compact Tab, Panel, and terminal location for a Workspace Agent row.',
+	},
+	workspaceAgentLocationChildTerminal: {
+		id: 'workbench.workspaces.agents.location.childTerminal',
+		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.agents.location.childTerminal'],
+		description: 'Position label for a child terminal that owns a live Agent Session.',
+	},
+	workspaceAgentLocationPrimaryTerminal: {
+		id: 'workbench.workspaces.agents.location.primaryTerminal',
+		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.agents.location.primaryTerminal'],
+		description: 'Position label for a primary terminal that owns a live Agent Session.',
+	},
+	workspaceAgentNavigate: {
+		id: 'workbench.workspaces.agents.actions.navigate',
+		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.agents.actions.navigate'],
+		description: 'Semantic action that opens the exact terminal attached to a live Agent.',
+	},
+	workspaceAgentNavigationLabel: {
+		id: 'workbench.workspaces.agents.navigationLabel',
+		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.agents.navigationLabel'],
+		description: 'Accessible label for a navigable Workspace Agent row.',
+	},
+	workspaceAgentNavigationUnavailable: {
+		id: 'workbench.workspaces.agents.navigationUnavailable',
+		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.agents.navigationUnavailable'],
+		description: 'Announcement when a live Agent disappears before navigation can commit.',
+	},
+	workspaceAgentNotNavigable: {
+		id: 'workbench.workspaces.agents.notNavigable',
+		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.agents.notNavigable'],
+		description: 'Accessible label for a represented Agent attachment that cannot be opened.',
+	},
 	workspacePrimaryName: {
 		id: 'workbench.workspaces.names.primary',
 		defaultMessage: enUSWorkbenchMessages['workbench.workspaces.names.primary'],

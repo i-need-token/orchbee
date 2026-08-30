@@ -145,6 +145,18 @@ export const enUSWorkbenchMessages = {
 	'workbench.workspaces.actions.manage': 'Manage Workspace…',
 	'workbench.workspaces.actions.options': 'Workspace options',
 	'workbench.workspaces.actions.reorder': 'Reorder Workspace',
+	'workbench.workspaces.agents.actions.collapse':
+		'Hide {count, plural, one {# Agent} other {# Agents}} in {workspace}',
+	'workbench.workspaces.agents.actions.expand':
+		'Show {count, plural, one {# Agent} other {# Agents}} in {workspace}',
+	'workbench.workspaces.agents.actions.navigate': 'Open Agent',
+	'workbench.workspaces.agents.count': '{count, plural, one {# live Agent} other {# live Agents}}',
+	'workbench.workspaces.agents.location': '{tab} · Panel {panel} · {terminal}',
+	'workbench.workspaces.agents.location.childTerminal': 'Child terminal {position}',
+	'workbench.workspaces.agents.location.primaryTerminal': 'Primary terminal',
+	'workbench.workspaces.agents.navigationLabel': '{provider}, {status}, {location}',
+	'workbench.workspaces.agents.navigationUnavailable': 'This Agent is no longer available.',
+	'workbench.workspaces.agents.notNavigable': '{label}. This Agent cannot be opened right now.',
 	'workbench.workspaces.confirmDelete.description':
 		'This deletes “{name}”, including its tabs, panels, and terminal context. Its folder stays on disk.',
 	'workbench.workspaces.confirmDelete.title': 'Delete Workspace?',

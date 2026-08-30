@@ -60,6 +60,7 @@ export {
 	projectAgentLocation,
 	projectAgentLocations,
 	projectAgentPresentationGroup,
+	projectAgentSessionGroup,
 	projectAgentSession,
 } from './projection';
 export type {

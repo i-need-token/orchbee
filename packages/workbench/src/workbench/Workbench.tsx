@@ -121,6 +121,7 @@ export function Workbench({
 	});
 	const view = useWorkbench({
 		actionRuntime,
+		agentObservationSource,
 		isShortcutScopeActive,
 		navigation,
 		onSettings,
@@ -144,6 +145,7 @@ export function Workbench({
 	const agentPresentation = useWorkbenchAgentPresentation({
 		notificationObserver: agentNotificationObserver,
 		panelWorkspaceStore: view.terminalContext.panelWorkspaceStore,
+		projectWorkspaceRuntime,
 		source: agentObservationSource,
 		tabModel: view.tabModel,
 	});
@@ -211,6 +213,13 @@ export function Workbench({
 			onFocusCapture={view.onRootFocusCapture}
 			ref={view.shortcutScopeReference}
 		>
+			<div aria-live='polite' className={styles['liveRegion']}>
+				{view.agentNavigationAnnouncement === null ? null : (
+					<span key={view.agentNavigationAnnouncement.sequence}>
+						{view.agentNavigationAnnouncement.message}
+					</span>
+				)}
+			</div>
 			<div className={styles['sidebarToggle']} data-slot='workbench-sidebar-toggle-position'>
 				{sidebarToggle}
 			</div>
@@ -244,6 +253,7 @@ export function Workbench({
 										createWorkspace={view.createWorkspace}
 										deleteWorkspace={view.deleteWorkspace}
 										duplicateWorkspace={view.duplicateWorkspace}
+										navigateAgent={view.navigateAgent}
 										environmentProjectConnection={environmentProjectConnection}
 										label={view.sidebarLabel}
 										onSearch={view.search}
@@ -255,6 +265,7 @@ export function Workbench({
 										projectFolderAcquisition={projectFolderAcquisition}
 										projectWorktree={projectWorktree}
 										projectWorkspaceState={view.projectWorkspaceState}
+										workspaceAgentOverviews={agentPresentation.workspaceAgentOverviews}
 										removeProject={view.removeProject}
 										removeProjectDirectory={view.removeProjectDirectory}
 										reorderProject={view.reorderProject}

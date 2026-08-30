@@ -86,12 +86,14 @@ journal。Renderer document replacement 只退役旧 broker；runtime 与 journa
 effect，而不用从状态重建事件。Web adapter 拒绝 malformed 或 uncorrelated message，并忽略
 non-increasing revision。Workbench 消费狭窄的 `AgentSnapshotSource`，把非 ended 状态投影到精确
 terminal panel header，并把一个 Tab 内的全部 terminal presentation 去重为一个 provider identity icon
-与一个本地化的非 ended status adornment。保留的 ended state 只继续显示 provider identity icon。只有
-Desktop semantic-command composition 会为 signed cursor read 与 long polling 消费 `AgentChangeSource`。
+与一个本地化的非 ended status adornment。它还会在不挂载非活动 terminal surface 的前提下，为每个
+Workspace 派生 live Session 摘要。保留的 ended state 会从 panel、Tab、Workspace 摘要与 Workspace
+详情展示中排除，因此普通 terminal 或 layout identity 会立即恢复。只有 Desktop semantic-command
+composition 会为 signed cursor read 与 long polling 消费 `AgentChangeSource`。
 
 Desktop 准入两个 non-blocking observation half。严格的 terminal-signal adapter 只能根据有界 OSC 777 version-1 payload 发出 `limited-activity-observed`，因此不可信 hint 只能改变 `activityHint`。需要显式安装且分别绑定 provider 的 Claude Code、Codex、Grok、OpenCode、Pi、OMP、Gemini CLI、GitHub Copilot CLI、Cline 与 Qwen Code adapter，会各自验证 upstream contract，再剥离 prompt、tool content、transcript path、working directory、error text 与未知字段。它们通过私有 Unix-domain socket 发送共享的 normalized rich allowlist，并向每个解析出的 outer TTY 单独写入 OSC 777 version-2 correlation hint。封闭的应用 registry 授予 provider provenance、accepted event 与 maximum capability；adapter payload 不能给自己授予权威。任一 transport half 单独都没有足够权威：Desktop 只有对 live terminal generation 完成精确、有界的 event/correlation join 后，才接受 rich semantics。共享 resolver 覆盖 direct terminal、每个已 attached 的 tmux client、保守解析 Zellij client，以及 nested mux target。Shell integration 会通过 OpenSSH reverse Unix-socket forwarding，为符合条件的交互式 SSH session 提供一个随机 remote socket；不存在 HTTP port、Bearer credential、继承的 terminal secret、automatic remote installation 或 durable remote cache。任一 half 都可以失败，而不影响 Agent 或 terminal。
 
-一个 Session 可以 attach 到多个 presentation，而不重复其 Turn、request、outcome 或 semantic event。Workbench 在 panel header 与 Tab icon 中显示 aggregate。当用户显式开启 Agent notification 且 system permission 已经 granted 时，精确 attention、success 与 failure event 只会在所有 attached destination 均隐藏时通知；激活通知会选择对应 Tab 与 panel。通知文案是 curated 的，绝不包含 provider 控制的内容。Provider identity 只作为 provenance 与可选 curated presentation identity；业务 transition 与 consumer 只依赖 canonical capability 与 event。自动 provider setup、SSH 完全断开期间的 delivery、durable Agent history，以及 Desktop 或操作系统 restart 后的连续性仍不属于这一切片。
+一个 Session 可以 attach 到多个 presentation，而不重复其 Turn、request、outcome 或 semantic event。Workbench 在 panel header、Tab icon 与去重后的 live Workspace 摘要中显示 aggregate。同一 Session 在一个 Workspace 的多个 presentation 中只计数一次，而跨 Workspace attachment 会在每个被表示的 Workspace 中各出现一次。当用户显式开启 Agent notification 且 system permission 已经 granted 时，精确 attention、success 与 failure event 只会在所有 attached destination 均隐藏时通知；激活通知会选择对应 Tab 与 panel。通知文案是 curated 的，绝不包含 provider 控制的内容。Provider identity 只作为 provenance 与可选 curated presentation identity；业务 transition 与 consumer 只依赖 canonical capability 与 event。自动 provider setup、SSH 完全断开期间的 delivery、durable Agent history，以及 Desktop 或操作系统 restart 后的连续性仍不属于这一切片。
 
 ## 正确性证据
 

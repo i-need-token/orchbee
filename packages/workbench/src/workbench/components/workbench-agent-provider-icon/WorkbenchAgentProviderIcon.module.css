@@ -1,0 +1,21 @@
+.group {
+	display: inline-flex;
+	align-items: center;
+}
+
+.provider {
+	display: inline-flex;
+	width: var(--ob-ref-size-icon-sm);
+	height: var(--ob-ref-size-icon-sm);
+	flex: none;
+	align-items: center;
+	justify-content: center;
+	font: var(--ob-sys-typography-label-lg);
+}
+
+.provider + .provider {
+	margin-inline-start: calc(var(--ob-ref-size-icon-sm) * -0.25);
+	border-radius: var(--ob-ref-radius-sm);
+	background: var(--ob-sys-color-surface-canvas);
+	box-shadow: 0 0 0 var(--ob-ref-border-width-default) var(--ob-sys-color-surface-canvas);
+}

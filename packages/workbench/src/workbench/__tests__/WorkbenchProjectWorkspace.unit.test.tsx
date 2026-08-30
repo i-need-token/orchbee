@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import { ActionRuntime } from '@orchbee/actions';
+import { AgentEventIdSchema, AgentRuntime, AgentRuntimeSnapshotSchema } from '@orchbee/agent';
 import { OrchbeeI18nProvider } from '@orchbee/i18n';
 import { TooltipProvider } from '@orchbee/ui/components';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
@@ -165,6 +166,103 @@ function getActionableMenuPresentation(menu: HTMLElement): readonly {
 }
 
 describe('Workbench Project and Workspace management', () => {
+	it('summarizes live Workspace Agents, expands only Agent rows, and opens the exact terminal', async () => {
+		const projectWorkspaceRuntime = createTerminalFocusProjectWorkspaceRuntime(
+			'workspace-agent-overview',
+		);
+		const workspace = projectWorkspaceRuntime.getSnapshot().projects[0]?.workspaces[0];
+		if (workspace === undefined) throw new Error('Expected the primary Workspace.');
+		const context = projectWorkspaceRuntime.getTerminalContext(workspace.terminalContextId);
+		if (context === null) throw new Error('Expected the Workspace terminal context.');
+		const creation = projectWorkspaceRuntime.createTerminal({
+			groupId: null,
+			source: 'programmatic',
+			title: 'Agent Tab',
+		});
+		if (creation.kind !== 'created') throw new Error('Expected the Agent Tab.');
+		const targetTab = context.panelWorkspaceStore
+			.getSnapshot()
+			.tabs.find((tab) => tab.tabId === creation.tabId);
+		if (targetTab?.root.kind !== 'panel') throw new Error('Expected the Agent Panel.');
+		const presentationId = targetTab.root.primaryPresentation.presentationId;
+		const targetTabTitle = context.tabModel
+			.getSnapshot()
+			.tabs.find((tab) => tab.id === creation.tabId)?.title;
+		if (targetTabTitle === undefined) throw new Error('Expected the Agent Tab title.');
+		const agentRuntime = new AgentRuntime(
+			AgentRuntimeSnapshotSchema.parse({
+				revision: 1,
+				sessions: [agentSession('workspace-agent-session', presentationId)],
+			}),
+		);
+		projectWorkspaceRuntime.transition({ type: 'standalone-activated' });
+
+		render(
+			<OrchbeeI18nProvider locale='en-US'>
+				<TooltipProvider>
+					<Workbench
+						actionRuntime={new ActionRuntime()}
+						agentObservationSource={agentRuntime}
+						projectWorkspaceRuntime={projectWorkspaceRuntime}
+						shortcutPlatform='apple'
+						terminalSurface={FocusTestTerminalSurface}
+					/>
+				</TooltipProvider>
+			</OrchbeeI18nProvider>,
+		);
+
+		const workspaceButton = screen.getByRole('button', {
+			name: 'Primary. 1 live Agent. Codex: Ready',
+		});
+		expect(workspaceButton.querySelector('[data-agent-provider-icon="codex"]')).not.toBeNull();
+		expect(screen.queryByRole('button', { name: /Codex, Ready/iu })).toBeNull();
+
+		fireEvent.click(screen.getByRole('button', { name: 'Show 1 Agent in Primary' }));
+		const agentButton = screen.getByRole('button', {
+			name: `Codex, Ready, ${targetTabTitle} · Panel 1 · Primary terminal`,
+		});
+		expect(agentButton.textContent).toContain('Codex');
+		expect(agentButton.textContent).toContain(`${targetTabTitle} · Panel 1 · Primary terminal`);
+		fireEvent.click(screen.getByRole('button', { name: 'Collapse project: orchbee' }));
+		fireEvent.click(screen.getByRole('button', { name: 'Expand project: orchbee' }));
+		expect(screen.queryByRole('button', { name: /Codex, Ready/iu })).toBeNull();
+		fireEvent.click(screen.getByRole('button', { name: 'Show 1 Agent in Primary' }));
+		fireEvent.click(
+			screen.getByRole('button', {
+				name: `Codex, Ready, ${targetTabTitle} · Panel 1 · Primary terminal`,
+			}),
+		);
+
+		await waitFor(() => {
+			expect(projectWorkspaceRuntime.getSnapshot().activeLocation).toEqual({
+				kind: 'workspace',
+				projectId: 'project-1',
+				workspaceId: workspace.id,
+			});
+			expect(context.tabModel.getSnapshot().activeTabId).toBe(creation.tabId);
+			expect(document.activeElement).toBe(
+				document.querySelector(`[data-test-terminal-input="${presentationId}"]`),
+			);
+		});
+		const observedSessionId = agentRuntime.getSnapshot().sessions[0]?.sessionId;
+		if (observedSessionId === undefined) throw new Error('Expected the observed Agent Session.');
+
+		act(() => {
+			agentRuntime.dispatch({
+				eventId: AgentEventIdSchema.parse('workspace-agent-ended'),
+				generation: 0,
+				sequence: 2,
+				sessionId: observedSessionId,
+				type: 'session-ended',
+			});
+		});
+		await waitFor(() => {
+			expect(screen.queryByRole('button', { name: /Codex, Ready/iu })).toBeNull();
+			expect(screen.queryByRole('button', { name: /Agent in Primary/iu })).toBeNull();
+			expect(screen.getByRole('button', { name: 'Primary' }).textContent).toContain('Primary');
+		});
+	});
+
 	it('focuses the standalone terminal only after pointer-click navigation is published', async () => {
 		const projectWorkspaceRuntime = createTerminalFocusProjectWorkspaceRuntime('pointer-focus');
 		const navigate = vi.fn<WorkbenchNavigationPort['navigate']>((context) => {
@@ -2024,6 +2122,36 @@ describe('Workbench Project and Workspace management', () => {
 		).toBe('true');
 	});
 });
+
+function agentSession(sessionId: string, presentationId: string) {
+	return {
+		activityHint: null,
+		capabilities: ['sessionLifecycle'],
+		executionLocation: { executionLocationId: `execution-${sessionId}` },
+		lastOutcome: null,
+		lifecycle: 'live',
+		observation: {
+			fidelity: 'rich',
+			freshness: 'fresh',
+			generation: 0,
+			sequence: 1,
+			source: 'hook',
+		},
+		parentSessionId: null,
+		pendingRequests: [],
+		presentationAttachments: [
+			{
+				generation: `generation-${sessionId}`,
+				navigable: true,
+				presentationId,
+				visibility: 'visible',
+			},
+		],
+		providerId: 'codex',
+		sessionId,
+		turn: { kind: 'idle' },
+	};
+}
 
 function projectRowRectangle(top: number): DOMRect {
 	return {

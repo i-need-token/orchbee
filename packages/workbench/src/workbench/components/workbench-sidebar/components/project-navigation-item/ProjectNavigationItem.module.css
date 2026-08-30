@@ -1,6 +1,7 @@
 .project {
 	position: relative;
 	display: grid;
+	min-width: var(--ob-ref-space-0);
 	gap: var(--ob-ref-space-0-5);
 }
 
@@ -20,6 +21,7 @@
 
 .workspace {
 	position: relative;
+	min-width: var(--ob-ref-space-0);
 }
 
 .workspace[data-workspace-reorder-active] {
@@ -240,6 +242,7 @@
 
 .workspaceList {
 	display: grid;
+	min-width: var(--ob-ref-space-0);
 	gap: var(--ob-ref-space-0-5);
 	margin: var(--ob-ref-space-0);
 	margin-inline-start: var(--ob-ref-space-3);
@@ -255,4 +258,55 @@
 
 .workspaceItem {
 	padding-inline-start: var(--ob-ref-space-2);
+}
+
+.workspaceItem[data-agent-summary] {
+	padding-inline-end: calc(
+		var(--ob-ref-space-8) + var(--ob-ref-size-control-xs) + var(--ob-ref-space-1)
+	);
+}
+
+.agentCount {
+	min-width: var(--ob-ref-space-4);
+	flex: none;
+	margin-inline-start: auto;
+	color: var(--ob-sys-color-text-muted);
+	font: var(--ob-sys-typography-label-xs);
+	font-variant-numeric: tabular-nums;
+	text-align: end;
+}
+
+.agentDisclosure {
+	position: absolute;
+	inset-block-start: 50%;
+	inset-inline-end: calc(var(--ob-ref-space-1) + var(--ob-ref-size-control-xs));
+	flex: none;
+	border: none;
+	color: var(--ob-sys-color-icon-muted);
+	transform: translateY(-50%);
+	cursor: default;
+}
+
+.agentDisclosure:hover,
+.agentDisclosure:focus-visible {
+	background: transparent;
+	color: var(--ob-sys-color-icon-primary);
+}
+
+.agentDisclosureIcon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	transform: rotate(0deg);
+	transition: transform var(--ob-sys-motion-duration-fast) var(--ob-sys-motion-easing-standard);
+}
+
+.agentDisclosureIcon[data-expanded] {
+	transform: rotate(90deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.agentDisclosureIcon {
+		transition: none;
+	}
 }

@@ -6,6 +6,16 @@
 	background: var(--ob-sys-color-surface-raised);
 }
 
+.liveRegion {
+	position: absolute;
+	width: var(--ob-ref-border-width-default);
+	height: var(--ob-ref-border-width-default);
+	padding: var(--ob-ref-space-0);
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+}
+
 .sidebarToggle {
 	position: absolute;
 	inset-block-start: calc(

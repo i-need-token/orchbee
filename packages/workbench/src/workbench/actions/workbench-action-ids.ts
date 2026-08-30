@@ -1,10 +1,12 @@
 import type { ActionInputValidation, ActionSignature } from '@orchbee/actions';
+import { AgentSessionIdSchema, type AgentSessionId } from '@orchbee/agent';
 import type { TabStripOrientation } from '@orchbee/tab-strip';
 
 import type { PanelFocusPosition } from '../components/workbench-panel-workspace/model/resolvePanelFocusByPosition';
 import type { WorkbenchSearchFilter } from '../types/workbench-search';
 
 export const WORKBENCH_ACTION_IDS = {
+	navigateAgent: 'workbench.agent.navigate',
 	activateStandalone: 'workbench.location.standalone.activate',
 	activateWorkspace: 'workbench.workspace.activate',
 	addProjectFolder: 'workbench.project.directory.add',
@@ -61,6 +63,12 @@ export const WORKBENCH_ACTION_IDS = {
 	toggleSidebar: 'workbench.sidebar.toggle',
 	updateWorkspace: 'workbench.workspace.update',
 } as const;
+
+export interface WorkbenchAgentNavigateInput {
+	readonly projectId: string;
+	readonly sessionId: AgentSessionId;
+	readonly workspaceId: string;
+}
 
 export interface WorkbenchProjectInput {
 	readonly projectId: string;
@@ -144,6 +152,7 @@ export interface WorkbenchSearchOpenInput {
 }
 
 export interface WorkbenchActionCatalog {
+	readonly [WORKBENCH_ACTION_IDS.navigateAgent]: ActionSignature<WorkbenchAgentNavigateInput>;
 	readonly [WORKBENCH_ACTION_IDS.activateStandalone]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.activateWorkspace]: ActionSignature<WorkbenchWorkspaceInput>;
 	readonly [WORKBENCH_ACTION_IDS.addProjectFolder]: ActionSignature<WorkbenchProjectFolderAddInput>;
@@ -200,6 +209,30 @@ export interface WorkbenchActionCatalog {
 	readonly [WORKBENCH_ACTION_IDS.toggleSidebar]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.updateWorkspace]: ActionSignature<WorkbenchWorkspaceUpdateInput>;
 }
+
+export const workbenchAgentNavigateInput: ActionInputValidation<WorkbenchAgentNavigateInput> = {
+	name: 'WorkbenchAgentNavigateInput',
+	parse: (input) => {
+		if (
+			!isRecord(input) ||
+			typeof input['projectId'] !== 'string' ||
+			typeof input['workspaceId'] !== 'string'
+		) {
+			return { code: 'expected-workbench-agent-navigate-input', success: false };
+		}
+		const sessionId = AgentSessionIdSchema.safeParse(input['sessionId']);
+		return sessionId.success
+			? {
+					data: {
+						projectId: input['projectId'],
+						sessionId: sessionId.data,
+						workspaceId: input['workspaceId'],
+					},
+					success: true,
+				}
+			: { code: 'expected-workbench-agent-navigate-input', success: false };
+	},
+};
 
 function isRecord(input: unknown): input is Readonly<Record<string, unknown>> {
 	return typeof input === 'object' && input !== null && !Array.isArray(input);

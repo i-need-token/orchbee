@@ -870,6 +870,26 @@ describe('WorkbenchProjectWorkspaceRuntime', () => {
 		expect(listener).not.toHaveBeenCalled();
 	});
 
+	it('observes preview terminal topology without materializing a shared document', () => {
+		const runtime = createRuntime();
+		const context = runtime.getActiveTerminalContext();
+		const listener = vi.fn<() => void>();
+		const initialRevision = runtime.getTerminalTopologyRevision();
+		const unsubscribe = runtime.subscribeTerminalTopology(listener);
+		const activeTabId = context.tabModel.getSnapshot().activeTabId;
+		if (activeTabId === null) throw new Error('Expected an active Tab.');
+
+		context.tabModel.updateTab(activeTabId, { title: 'Renamed preview Tab' });
+
+		expect(listener).toHaveBeenCalledOnce();
+		expect(runtime.getTerminalTopologyRevision()).not.toBe(initialRevision);
+		listener.mockClear();
+		unsubscribe();
+		context.tabModel.updateTab(activeTabId, { title: 'Renamed after unsubscribe' });
+
+		expect(listener).not.toHaveBeenCalled();
+	});
+
 	it('notifies shared-document and Client View observers only for their owned projection', () => {
 		const runtime = createManagedRuntime();
 		runtime.createTerminal({ groupId: null, source: 'button', title: 'Terminal 2' });

@@ -8,7 +8,11 @@ import {
 	AgentSessionIdSchema,
 	AgentTurnIdSchema,
 } from '../model';
-import { projectAgentLocation, projectAgentPresentationGroup } from '../projection';
+import {
+	projectAgentLocation,
+	projectAgentPresentationGroup,
+	projectAgentSessionGroup,
+} from '../projection';
 
 describe('projectAgentLocation', () => {
 	it('selects attention before active work while retaining degraded freshness', () => {
@@ -365,5 +369,65 @@ describe('projectAgentPresentationGroup', () => {
 			sessionCount: 2,
 			status: { count: 1, kind: 'needs-attention' },
 		});
+	});
+});
+
+describe('projectAgentSessionGroup', () => {
+	it('aggregates an explicit deduplicated Session set without presentation selection', () => {
+		const snapshot = AgentRuntimeSnapshotSchema.parse({
+			revision: 1,
+			sessions: [
+				{
+					activityHint: null,
+					capabilities: [],
+					executionLocation: { executionLocationId: 'explicit-execution-a' },
+					lastOutcome: null,
+					lifecycle: 'live',
+					observation: {
+						fidelity: 'heuristic',
+						freshness: 'fresh',
+						generation: 0,
+						sequence: 1,
+						source: 'heuristic',
+					},
+					parentSessionId: null,
+					pendingRequests: [],
+					presentationAttachments: [],
+					providerId: AgentProviderIdSchema.parse('codex'),
+					sessionId: AgentSessionIdSchema.parse('explicit-session-a'),
+					turn: { kind: 'idle' },
+				},
+				{
+					activityHint: null,
+					capabilities: [],
+					executionLocation: { executionLocationId: 'explicit-execution-b' },
+					lastOutcome: null,
+					lifecycle: 'live',
+					observation: {
+						fidelity: 'heuristic',
+						freshness: 'fresh',
+						generation: 0,
+						sequence: 1,
+						source: 'heuristic',
+					},
+					parentSessionId: null,
+					pendingRequests: [],
+					presentationAttachments: [],
+					providerId: AgentProviderIdSchema.parse('claude-code'),
+					sessionId: AgentSessionIdSchema.parse('explicit-session-b'),
+					turn: { kind: 'unknown' },
+				},
+			],
+		});
+
+		expect(projectAgentSessionGroup(snapshot.sessions)).toMatchObject({
+			providerIds: [
+				AgentProviderIdSchema.parse('claude-code'),
+				AgentProviderIdSchema.parse('codex'),
+			],
+			sessionCount: 2,
+			status: { kind: 'idle' },
+		});
+		expect(projectAgentSessionGroup([])).toBeNull();
 	});
 });

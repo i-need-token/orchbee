@@ -2589,6 +2589,44 @@
 			]
 		},
 		{
+			"id": "workbench-workspace-agent-navigation",
+			"owner": "@orchbee/workbench",
+			"workspace": "packages/workbench",
+			"module": "packages/workbench/formal/tla/WorkbenchAgentNavigation.tla",
+			"config": "packages/workbench/formal/tla/WorkbenchAgentNavigation.cfg",
+			"claims": ["packages/workbench/docs/project-workspace.md"],
+			"triggers": [
+				"packages/workbench/src/workbench/model/workbench-agent-navigation.ts",
+				"packages/workbench/src/workbench/model/__tests__/workbench-agent-navigation.unit.test.ts",
+				"packages/workbench/src/workbench/model/project-workbench-agent-overview.ts",
+				"packages/workbench/src/workbench/model/__tests__/project-workbench-agent-overview.unit.test.ts",
+				"packages/workbench/src/workbench/actions/registerWorkbenchAgentNavigationAction.ts",
+				"packages/workbench/src/workbench/actions/__tests__/registerWorkbenchAgentNavigationAction.unit.test.ts",
+				"packages/workbench/src/workbench/hooks/useWorkbenchAgentNavigation.ts",
+				"packages/workbench/src/workbench/Workbench.tsx",
+				"packages/workbench/src/workbench/components/workbench-sidebar/WorkbenchSidebar.tsx",
+				"packages/workbench/src/workbench/components/workbench-sidebar/components/project-navigation-item/ProjectNavigationItem.tsx",
+				"packages/workbench/src/workbench/components/workbench-sidebar/components/project-navigation-item/components/workspace-agent-list/WorkspaceAgentList.tsx",
+				"packages/workbench/src/workbench/__tests__/WorkbenchProjectWorkspace.unit.test.tsx",
+				"packages/workbench/docs/project-workspace.md",
+				"packages/workbench/docs/project-workspace.zh-CN.md"
+			],
+			"requiredCoverage": [
+				"Mount",
+				"Navigate",
+				"ActionAccepted",
+				"ActionRejected",
+				"SettleStale",
+				"ObserveOrigin",
+				"ObserveTargetPending",
+				"ObserveReady",
+				"ObserveUnavailable",
+				"ObserveUnrelated",
+				"Focus",
+				"Dispose"
+			]
+		},
+		{
 			"id": "workspace-creation-activation",
 			"owner": "@orchbee/workbench",
 			"workspace": "packages/workbench",

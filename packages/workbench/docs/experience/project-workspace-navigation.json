@@ -4,13 +4,15 @@
 	"kind": "business",
 	"status": "canonical",
 	"name": "Project and Workspace Navigation",
-	"description": "Presents the expandable, reorderable Project and Workspace hierarchy with consistent row, menu, selection, and optional Environment connection status behavior.",
+	"description": "Presents the expandable, reorderable Project and Workspace hierarchy with consistent row, menu, selection, optional Environment connection status, and live Workspace Agent summaries.",
 	"owner": "@orchbee/workbench",
 	"visibility": "private",
 	"intents": [
 		"create-workspace-from-worktree",
 		"connect-environment-project",
 		"disconnect-environment-project",
+		"inspect-workspace-agents",
+		"navigate-to-agent",
 		"navigate-workspace",
 		"reorder-project",
 		"reorder-workspace",
@@ -18,7 +20,8 @@
 	],
 	"implementation": [
 		"packages/workbench/src/workbench/components/workbench-sidebar/WorkbenchSidebar.tsx",
-		"packages/workbench/src/workbench/components/workbench-sidebar/components/project-navigation-item/ProjectNavigationItem.tsx"
+		"packages/workbench/src/workbench/components/workbench-sidebar/components/project-navigation-item/ProjectNavigationItem.tsx",
+		"packages/workbench/src/workbench/components/workbench-sidebar/components/project-navigation-item/components/workspace-agent-list/WorkspaceAgentList.tsx"
 	],
 	"stories": [
 		{
@@ -31,6 +34,17 @@
 				"Open New Workspace and inspect existing Worktrees grouped under each represented Project repository before selecting one for direct Workspace creation.",
 				"Drag a Project between siblings and verify the pointer-following row, midpoint-driven sibling squeeze motion, edge scrolling, temporary collapse, and restoration after the drop.",
 				"Drag a Workspace between siblings inside one expanded Project and verify the same pointer-following, midpoint squeeze, release settlement, and cancellation behavior without changing Workspace activation or Project disclosure."
+			]
+		},
+		{
+			"exportName": "WorkspaceAgentOverview",
+			"file": "packages/workbench/stories/workbench.stories.tsx",
+			"id": "packages-workbench-workbench--workspace-agent-overview",
+			"states": [
+				"Compare a single provider summary, a two-provider overlapped summary, a three-provider generic Agent summary, and a Workspace with the default layout icon because it has no live Agent.",
+				"Inspect exact live Session counts independently from the number of distinct provider marks and verify attention, failure, working, success, and idle states use both a glyph and semantic color.",
+				"Inspect the expanded two-provider Workspace as a flat Agent-only list with provider and localized status on the first line and Tab, Panel, and primary or child terminal location on the second line.",
+				"Activate an enabled Agent row and verify exact Workspace, Tab, Panel, and terminal navigation; disabled rows remain perceivable but do not navigate."
 			]
 		},
 		{
@@ -52,6 +66,7 @@
 	"useWhen": [
 		"Workbench needs to show Project ownership, nested Workspace destinations, semantic menus, and Project ordering together.",
 		"A host needs the reviewed sidebar projection of Workbench Project and Workspace runtime state.",
+		"A person needs to notice live Agents in inactive Workspaces and navigate to an exact attached terminal without duplicating the Tab Strip.",
 		"A host supplies process-local Environment connection observations and explicit connect or disconnect commands for remote Projects."
 	],
 	"avoidWhen": [
@@ -66,6 +81,11 @@
 		"Existing Worktree choices remain grouped by their represented repository, and selecting one creates no Workspace until host revalidation and canonical commit succeed.",
 		"Project and Workspace drag order is persisted only on release; the source row follows the pointer while crossed siblings squeeze into its vacated slot, and completion does not replay the previous displacement.",
 		"Workspace reordering remains inside the source Project and preserves active location, terminal ownership, Workspace identity, and Project disclosure.",
+		"A Workspace with no live Agent keeps the default layout icon and no Agent disclosure; retained ended Sessions never leave an Agent icon, count, status, or detail row.",
+		"A Workspace Agent summary counts deduplicated live Sessions, composes one or two curated provider identities, uses the generic Agent identity for three or more providers, and exposes its resolved status through text or an accessible label as well as color.",
+		"At most one Workspace Agent list is expanded across the sidebar; it is process-local, closes when its Project collapses or its final Agent ends, stays closed on activation and arrival, and is hidden during Workspace reorder.",
+		"Expanded Agent detail is a flat list only: it never repeats Tabs, terminal-only rows, panel thumbnails, prompts, commands, provider errors, or internal identifiers.",
+		"Agent-row navigation revalidates the latest live Session and focuses only the exact ready terminal projection; replacement, disappearance, rejection, or unrelated navigation cannot produce a late fallback focus.",
 		"Environment connection state is a host observation only; Workbench renders status and invokes explicit commands without owning SSH configuration, prompts, credentials, or runtime lifecycle."
 	],
 	"references": ["packages/workbench/docs/project-workspace.md"]
