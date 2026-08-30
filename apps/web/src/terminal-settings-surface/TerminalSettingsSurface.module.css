@@ -295,6 +295,13 @@
 	font: var(--ob-sys-typography-label-sm);
 }
 
+@media (width > 48rem) {
+	.categories,
+	.searchResults {
+		margin-inline-end: calc(var(--ob-ref-space-3) * -1);
+	}
+}
+
 .content {
 	min-height: var(--ob-ref-space-0);
 	overflow-x: hidden;
