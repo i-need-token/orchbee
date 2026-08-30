@@ -5,19 +5,19 @@
 `ProjectedTerminal` follows the VS Code integrated-terminal find model while searching bounded,
 Host-provided text pages rather than a local VT buffer.
 
-| Behavior          | Orchbee contract                                                                                                                                                                            |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Incremental input | `updateSearch()` runs on a 50 ms trailing-edge debounce. A newer query cancels the pending query, its accepted navigation offset, and its row reads.                                        |
-| Navigation intent | Navigation requested during debounce or scanning is accepted as a signed offset and applied when the immutable result is available; same-query revision invalidation preserves that offset. |
-| Navigation        | `findNext()` and `findPrevious()` navigate from the Host selection anchor and wrap across the admitted retained search domain, independently of the bounded decoration collection.          |
-| Search modes      | Literal, case-sensitive, whole-word, and JavaScript regular-expression modes are available. Invalid expressions produce an explicit result error.                                           |
-| Match enumeration | Matches do not overlap and advance by the complete match. Soft-wrapped rows remain one logical line; hard line breaks are crossed only when `spanLines` is enabled.                         |
-| Result status     | `onSearchResults` reports query, bounded matches, the independent active match, its bounded-collection index when present, revision/generation, validation, lifecycle state, and cap.       |
-| Highlight bound   | Decorations and result counts collect at most 20,000 matches by default. `maxResults` may lower but never raise that bound.                                                                 |
-| Source bound      | A scan admits at most 16 MiB of UTF-8 row text. Exceeding that bound fails the whole immutable scan without publishing partial matches.                                                     |
-| Watchdog          | Ten seconds without a completed row read or Worker page credit retires the scan as `timeout`; later abort or Worker outcomes cannot replace that terminal state.                            |
+| Behavior          | Orchbee contract                                                                                                                                                                                        |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Incremental input | `updateSearch()` runs on a 50 ms trailing-edge debounce. A newer query cancels the pending query, its accepted navigation offset, and its row reads.                                                    |
+| Navigation intent | Navigation requested during debounce or scanning is accepted as a signed offset and applied when the immutable result is available; same-query revision invalidation preserves that offset.             |
+| Navigation        | `findNext()` and `findPrevious()` navigate from the Host selection anchor and wrap across the admitted retained search domain, independently of the bounded decoration collection.                      |
+| Search modes      | Literal, case-sensitive, whole-word, and JavaScript regular-expression modes are available. Invalid expressions produce an explicit result error.                                                       |
+| Match enumeration | Matches do not overlap and advance by the complete match. Soft-wrapped rows remain one logical line; hard line breaks are crossed only when `spanLines` is enabled.                                     |
+| Result status     | `onSearchResults` reports query, bounded matches, the independent active match, its bounded-collection index when present, revision/generation, validation, lifecycle state, and cap.                   |
+| Highlight bound   | Decorations and result counts collect at most 20,000 matches by default. `maxResults` may lower but never raise that bound.                                                                             |
+| Source bound      | A scan admits at most 16 MiB of UTF-8 row text. Exceeding that bound fails the whole immutable scan without publishing partial matches.                                                                 |
+| Watchdog          | Ten seconds without a completed row read or Worker page credit retires the scan as `timeout`; later abort or Worker outcomes cannot replace that terminal state.                                        |
 | Revision changes  | A changed Host revision cancels stale work and restarts the latest non-empty query after a separate 200 ms refresh debounce. Refreshed results preserve the viewport unless queued navigation resolves. |
-| Empty input       | An empty query cancels row reads, terminates the active scan, clears decorations, and returns to the idle state.                                                                            |
+| Empty input       | An empty query cancels row reads, terminates the active scan, clears decorations, and returns to the idle state.                                                                                        |
 
 The application find surface owns shortcut focus, seeding from selection, mode controls,
 result-count presentation, query history, and localized accessible labels. `@orchbee/terminal`

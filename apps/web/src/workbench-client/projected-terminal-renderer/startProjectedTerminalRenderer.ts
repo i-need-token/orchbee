@@ -384,7 +384,10 @@ export async function startProjectedTerminalRenderer(
 	let finalRevision: bigint | undefined;
 	let lastObservedCommandCompletionSequence: bigint | undefined;
 	let lastMetadata: ProjectedTerminalMetadata | undefined;
+	let lastProgress: ProjectedTerminalMetadata['progress'] | undefined;
 	let lastRenderedRevision: bigint | undefined;
+	let presentedRootBackgroundColor: string | undefined;
+	let presentedRootBackgroundOpacity: string | undefined;
 	let renderedFrames = 0;
 	let presentationRequestEpoch = 0;
 	let statusKind:
@@ -451,13 +454,19 @@ export async function startProjectedTerminalRenderer(
 	const syncRootBackground = (): void => {
 		if (lastMetadata === undefined) return;
 		const background = terminalRgbColor(lastMetadata.defaultColors.backgroundRgb);
-		rootElement.style.backgroundColor = terminalBackgroundColor(
+		const backgroundColor = terminalBackgroundColor(
 			background,
 			committedPresentationConfiguration.backgroundOpacity,
 		);
-		rootElement.dataset['projectedTerminalBackgroundOpacity'] = String(
-			committedPresentationConfiguration.backgroundOpacity,
-		);
+		if (backgroundColor !== presentedRootBackgroundColor) {
+			rootElement.style.backgroundColor = backgroundColor;
+			presentedRootBackgroundColor = backgroundColor;
+		}
+		const backgroundOpacity = String(committedPresentationConfiguration.backgroundOpacity);
+		if (backgroundOpacity !== presentedRootBackgroundOpacity) {
+			rootElement.dataset['projectedTerminalBackgroundOpacity'] = backgroundOpacity;
+			presentedRootBackgroundOpacity = backgroundOpacity;
+		}
 	};
 	const clearStatus = (): void => {
 		status.textContent = null;
@@ -560,6 +569,13 @@ export async function startProjectedTerminalRenderer(
 	};
 	const updateProgress = (metadata: ProjectedTerminalMetadata): void => {
 		const terminalProgress = metadata.progress;
+		if (
+			lastProgress?.state === terminalProgress.state &&
+			lastProgress.value === terminalProgress.value
+		) {
+			return;
+		}
+		lastProgress = terminalProgress;
 		progress.dataset['state'] = terminalProgress.state;
 		progress.hidden = terminalProgress.state === 'remove';
 		if (terminalProgress.value === null) {
@@ -1073,17 +1089,37 @@ export async function startProjectedTerminalRenderer(
 			pendingSubscriptions.push(
 				terminal.onMetadataChange((metadata) => {
 					observeMetadata?.(metadata);
+					const previousMetadata = lastMetadata;
 					lastMetadata = metadata;
 					syncRootBackground();
-					rootElement.dataset['projectedTerminalCellPixelHeight'] = String(
-						metadata.cellPixelHeight,
-					);
-					rootElement.dataset['projectedTerminalCellPixelWidth'] = String(metadata.cellPixelWidth);
-					rootElement.dataset['projectedTerminalColumns'] = String(metadata.columns);
-					rootElement.dataset['projectedTerminalCursorBlinking'] = String(metadata.cursor.blinking);
-					rootElement.dataset['projectedTerminalCursorShape'] = metadata.cursor.shape;
-					rootElement.dataset['projectedTerminalRows'] = String(metadata.rows);
-					rootElement.dataset['projectedTerminalThemeRevision'] = metadata.themeRevision.toString();
+					if (previousMetadata?.cellPixelHeight !== metadata.cellPixelHeight) {
+						rootElement.dataset['projectedTerminalCellPixelHeight'] = String(
+							metadata.cellPixelHeight,
+						);
+					}
+					if (previousMetadata?.cellPixelWidth !== metadata.cellPixelWidth) {
+						rootElement.dataset['projectedTerminalCellPixelWidth'] = String(
+							metadata.cellPixelWidth,
+						);
+					}
+					if (previousMetadata?.columns !== metadata.columns) {
+						rootElement.dataset['projectedTerminalColumns'] = String(metadata.columns);
+					}
+					if (previousMetadata?.cursor.blinking !== metadata.cursor.blinking) {
+						rootElement.dataset['projectedTerminalCursorBlinking'] = String(
+							metadata.cursor.blinking,
+						);
+					}
+					if (previousMetadata?.cursor.shape !== metadata.cursor.shape) {
+						rootElement.dataset['projectedTerminalCursorShape'] = metadata.cursor.shape;
+					}
+					if (previousMetadata?.rows !== metadata.rows) {
+						rootElement.dataset['projectedTerminalRows'] = String(metadata.rows);
+					}
+					if (previousMetadata?.themeRevision !== metadata.themeRevision) {
+						rootElement.dataset['projectedTerminalThemeRevision'] =
+							metadata.themeRevision.toString();
+					}
 					updateProgress(metadata);
 					observeCommandCompletion(metadata);
 				}),

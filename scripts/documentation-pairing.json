@@ -46,7 +46,7 @@
 			"zhCnSha256": "a3066c919411806d887c660bd6636812218394e65aac05c50a51b877f06ad37f"
 		},
 		"apps/desktop/docs/multi-client-session-coordinator.md": {
-			"englishSha256": "58c483b015a8cb07a9f618a6411edb19313a56eac69913ec7fc5281168895340",
+			"englishSha256": "ca41fb3e021136c7a7e982af3fe06bace7963cdc424a21b37a369b48827e8f31",
 			"zhCnSha256": "d2c6957a7a26d6f6f4696b33fdda8fda8c3f0442b4b474f8817233e1dcfb63b6"
 		},
 		"apps/desktop/docs/posix-host-endpoint.md": {
@@ -122,8 +122,8 @@
 			"zhCnSha256": "5bac848741e60379e75fefd0366953987bc0eb5d349b89afe7b42ca00371ad34"
 		},
 		"apps/web/README.md": {
-			"englishSha256": "8b84f55789f0df6159faf0ab5319f1da8aea34f7000ae7128d24549403685487",
-			"zhCnSha256": "1563eedf00b98530d811a420a4968c742aef400301a5565e8f84f3db2406bb84"
+			"englishSha256": "e3df855ff91165cf8b80ac1a8c636f2cfcac5d8f09b8f6cd008346653b144431",
+			"zhCnSha256": "ebc12415f648cbb4bad0188583f15e66ccc83af3e969b14ff82dbb2e90c71032"
 		},
 		"apps/web/docs/keyboard-shortcuts.md": {
 			"englishSha256": "d5b14080a84020726028045c20bef2b4963fd49e246d8a472bf75797a981f2b5",
@@ -350,8 +350,8 @@
 			"zhCnSha256": "ebfd84c6572f26b7aef3af95f4cefc1ae49c6f3c7f20d16165baea58282be4ab"
 		},
 		"packages/terminal/docs/vscode-search-alignment.md": {
-			"englishSha256": "d9af02a0e23114bf43195af3df9a4b4750ef4be59ab1a4c4c143c900dfca1470",
-			"zhCnSha256": "10fbd379d7d4c2ca9e0281439baeaae305f7a94ae88e52e209cd4c8f60fff903"
+			"englishSha256": "6e12b8ae5fff0ef849383710b1fb18e85b3f168d742db54fecedb969d1440767",
+			"zhCnSha256": "fa2f4da8947ada9da5fc817b0e882b405d20d7d659b2054ec7ac95f6f0f50561"
 		},
 		"packages/terminal/formal/README.md": {
 			"englishSha256": "07e25932988500ab1b849564403dbced6f6b5826b1ceaccaf76b3a293fbccb21",

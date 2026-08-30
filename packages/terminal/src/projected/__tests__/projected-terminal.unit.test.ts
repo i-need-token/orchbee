@@ -4861,6 +4861,87 @@ describe('ProjectedTerminal', () => {
 		terminal.dispose();
 	});
 
+	it('reuses the measured history scrollbar viewport across terminal frames', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'Localized input', screen: 'Localized screen' },
+			port: { send: () => undefined },
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['a', 'b']));
+		browser.flushFrames();
+
+		const rootBounds = vi.spyOn(browser.root, 'getBoundingClientRect');
+		terminal.applyFrame(terminalFrame('delta', 2n, 2n, ['c', 'b'], 1n, [0]));
+		terminal.applyFrame(terminalFrame('delta', 3n, 3n, ['c', 'd'], 2n, [1]));
+
+		expect(rootBounds).not.toHaveBeenCalled();
+		terminal.dispose();
+	});
+
+	it('does not rewrite stable input or scrollbar styles during in-place output', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: { input: 'Localized input', screen: 'Localized screen' },
+			port: { send: () => undefined },
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(
+			terminalFrame('snapshot', 1n, 1n, ['a', 'b'], null, [0, 1], 10n, interaction, {
+				column: 0,
+				row: 0,
+			}),
+		);
+		browser.flushFrames();
+
+		const root = browser.root as unknown as FakeElement;
+		const input = root.children[1]?.children[0];
+		const scrollbar = root.children[4];
+		const thumb = scrollbar?.children[0];
+		if (input === undefined || scrollbar === undefined || thumb === undefined) {
+			throw new Error('terminal presentation elements are unavailable');
+		}
+		const styleWrites: string[] = [];
+		for (const [element, properties] of [
+			[input, ['height', 'left', 'lineHeight', 'top', 'width']],
+			[scrollbar, ['width']],
+			[thumb, ['height', 'opacity', 'top', 'width']],
+		] as const) {
+			for (const property of properties) {
+				let value = element.style[property] ?? '';
+				Object.defineProperty(element.style, property, {
+					configurable: true,
+					get: () => value,
+					set: (next: string) => {
+						styleWrites.push(property);
+						value = next;
+					},
+				});
+			}
+		}
+
+		terminal.applyFrame(
+			terminalFrame('delta', 2n, 2n, ['c', 'b'], 1n, [0], 10n, interaction, { column: 0, row: 0 }),
+		);
+
+		expect(styleWrites).toEqual([]);
+		terminal.dispose();
+	});
+
 	it('presents a live Agent tail window and restores the exact grid when disabled or unavailable', async () => {
 		const browser = createFakeBrowser();
 		vi.stubGlobal('document', browser.document);
@@ -8249,6 +8330,42 @@ describe('ProjectedTerminal', () => {
 			{ position: '11', role: 'listitem', size: '12', text: 'a b' },
 			{ position: '12', role: 'listitem', size: '12', text: ' ' },
 		]);
+		terminal.dispose();
+	});
+
+	it('does not rewrite stable accessibility row attributes during in-place output', async () => {
+		const browser = createFakeBrowser();
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			creationId,
+			hostEpoch,
+			labels: {
+				input: 'input',
+				row: (row, text) => `row ${row}: ${text}`,
+				screen: 'screen',
+			},
+			port: { send: () => undefined },
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		terminal.applyFrame(terminalFrame('snapshot', 1n, 1n, ['stable', 'old']));
+		browser.flushFrames();
+		const accessibilityRoot = (browser.root as unknown as FakeElement).children[2];
+		const stableRow = accessibilityRoot?.children[0];
+		const changedRow = accessibilityRoot?.children[1];
+		if (stableRow === undefined || changedRow === undefined) {
+			throw new Error('accessibility rows are unavailable');
+		}
+		const stableRowAttributes = vi.spyOn(stableRow as unknown as Element, 'setAttribute');
+		const changedRowAttributes = vi.spyOn(changedRow as unknown as Element, 'setAttribute');
+
+		terminal.applyFrame(terminalFrame('delta', 2n, 2n, ['stable', 'new'], 1n, [1]));
+
+		expect(stableRowAttributes).not.toHaveBeenCalled();
+		expect(changedRowAttributes.mock.calls.map(([name]) => name)).toEqual(['aria-label']);
 		terminal.dispose();
 	});
 

@@ -235,6 +235,28 @@ function cssPixels(value: string): number {
 	return Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
 }
 
+function setAttributeIfChanged(element: Element, name: string, value: string): void {
+	if (element.getAttribute(name) === value) return;
+	element.setAttribute(name, value);
+}
+
+type ProjectedPresentationStyleProperty =
+	| 'height'
+	| 'left'
+	| 'lineHeight'
+	| 'opacity'
+	| 'top'
+	| 'width';
+
+function setStyleIfChanged(
+	style: CSSStyleDeclaration,
+	property: ProjectedPresentationStyleProperty,
+	value: string,
+): void {
+	if (style[property] === value) return;
+	style[property] = value;
+}
+
 function isTextInsertionInputType(inputType: string): boolean {
 	return (
 		inputType === 'insertText' ||
@@ -951,6 +973,8 @@ export class ProjectedTerminal {
 	#accessibilityPreviousCursor: { readonly column: number; readonly row: number } | undefined;
 	#accessibilityPreviousModelRows: readonly AccessibleRow[] = [];
 	#accessibilityPreviousRows: readonly string[] = [];
+	#accessibilityPositionedRetainedRows: bigint | undefined;
+	#accessibilityPositionedVisibleStart: bigint | undefined;
 	#accessibilityRoot: HTMLDivElement | undefined;
 	#accessibilityVisibleStart = 0n;
 	#applicationMouseClickSuppression: PointerClickSuppression | undefined;
@@ -980,6 +1004,7 @@ export class ProjectedTerminal {
 	#historyScrollbarOpacity = 0;
 	#historyScrollbar: HTMLDivElement | undefined;
 	#historyScrollbarThumb: HTMLDivElement | undefined;
+	#historyScrollbarViewportSize: { readonly height: number; readonly width: number } | undefined;
 	#hintSession: TerminalHintSession | undefined;
 	#historyStartRow = 0n;
 	#historyStore: PackedTerminalViewport | undefined;
@@ -3543,6 +3568,8 @@ export class ProjectedTerminal {
 		this.#accessibilityPreviousCursor = undefined;
 		this.#accessibilityPreviousModelRows = [];
 		this.#accessibilityPreviousRows = [];
+		this.#accessibilityPositionedRetainedRows = undefined;
+		this.#accessibilityPositionedVisibleStart = undefined;
 		this.#canvas = undefined;
 		this.#inputHelper = undefined;
 		this.#input = undefined;
@@ -3556,6 +3583,7 @@ export class ProjectedTerminal {
 		this.#historyScrollbar?.remove();
 		this.#historyScrollbar = undefined;
 		this.#historyScrollbarThumb = undefined;
+		this.#historyScrollbarViewportSize = undefined;
 	}
 
 	#scheduleRender(forceWhileSuspended = false, forceAll = false): boolean {
@@ -3994,15 +4022,26 @@ export class ProjectedTerminal {
 		const root = this.#root;
 		const metadata = this.metadata;
 		if (!root || !metadata) return null;
-		const rectangle = root.getBoundingClientRect();
+		const viewportSize =
+			this.#historyScrollbarViewportSize ?? this.#measureHistoryScrollbarViewportSize(root);
 		return projectHistoryScrollbar({
 			opacity: this.#historyScrollbarOpacity,
 			totalRows: this.#historyTotalRows,
-			viewportHeight: rectangle.height,
-			viewportWidth: rectangle.width,
+			viewportHeight: viewportSize.height,
+			viewportWidth: viewportSize.width,
 			visibleRows: metadata.rows,
 			visibleStartRow: this.#historyVisibleStart(metadata),
 		});
+	}
+
+	#measureHistoryScrollbarViewportSize(root: HTMLElement): {
+		readonly height: number;
+		readonly width: number;
+	} {
+		const rectangle = root.getBoundingClientRect();
+		const viewportSize = { height: rectangle.height, width: rectangle.width };
+		this.#historyScrollbarViewportSize = viewportSize;
+		return viewportSize;
 	}
 
 	#syncHistoryScrollbarPresentation(): void {
@@ -4011,16 +4050,16 @@ export class ProjectedTerminal {
 		if (scrollbar === undefined || thumb === undefined) return;
 		const projection = this.#historyScrollbarProjection();
 		if (projection === null) {
-			scrollbar.hidden = true;
-			thumb.style.opacity = '0';
+			if (!scrollbar.hidden) scrollbar.hidden = true;
+			setStyleIfChanged(thumb.style, 'opacity', '0');
 			return;
 		}
-		scrollbar.hidden = false;
-		scrollbar.style.width = `${projection.hitArea.width}px`;
-		thumb.style.height = `${projection.thumb.height}px`;
-		thumb.style.opacity = String(projection.thumb.opacity);
-		thumb.style.top = `${projection.thumb.y}px`;
-		thumb.style.width = `${projection.thumb.width}px`;
+		if (scrollbar.hidden) scrollbar.hidden = false;
+		setStyleIfChanged(scrollbar.style, 'width', `${projection.hitArea.width}px`);
+		setStyleIfChanged(thumb.style, 'height', `${projection.thumb.height}px`);
+		setStyleIfChanged(thumb.style, 'opacity', String(projection.thumb.opacity));
+		setStyleIfChanged(thumb.style, 'top', `${projection.thumb.y}px`);
+		setStyleIfChanged(thumb.style, 'width', `${projection.thumb.width}px`);
 	}
 
 	#showHistoryScrollbar(): void {
@@ -6114,11 +6153,11 @@ export class ProjectedTerminal {
 		if (!input || !root || !canvas || !renderer) return;
 		const metadata = this.#inputAnchorMetadata();
 		if (metadata === null) {
-			input.style.left = '0px';
-			input.style.top = '0px';
-			input.style.width = '1px';
-			input.style.height = '1px';
-			input.style.lineHeight = '1px';
+			setStyleIfChanged(input.style, 'left', '0px');
+			setStyleIfChanged(input.style, 'top', '0px');
+			setStyleIfChanged(input.style, 'width', '1px');
+			setStyleIfChanged(input.style, 'height', '1px');
+			setStyleIfChanged(input.style, 'lineHeight', '1px');
 			return;
 		}
 		if (measureSurface || this.#inputSurfaceOffset === undefined) {
@@ -6155,11 +6194,11 @@ export class ProjectedTerminal {
 			preeditCellWidth: this.#preeditCellWidth,
 			rows: metadata.rows,
 		});
-		input.style.left = `${anchor.left}px`;
-		input.style.top = `${anchor.top}px`;
-		input.style.width = `${anchor.width}px`;
-		input.style.height = `${anchor.height}px`;
-		input.style.lineHeight = `${anchor.height}px`;
+		setStyleIfChanged(input.style, 'left', `${anchor.left}px`);
+		setStyleIfChanged(input.style, 'top', `${anchor.top}px`);
+		setStyleIfChanged(input.style, 'width', `${anchor.width}px`);
+		setStyleIfChanged(input.style, 'height', `${anchor.height}px`);
+		setStyleIfChanged(input.style, 'lineHeight', `${anchor.height}px`);
 	}
 
 	#rememberNativeInputText(text: string): void {
@@ -7803,6 +7842,7 @@ export class ProjectedTerminal {
 
 	#synchronizeSurfaceBeforeFocus(): void {
 		this.#renderer?.syncSurfacePadding();
+		this.#historyScrollbarViewportSize = undefined;
 		this.#syncHistoryScrollbarPresentation();
 		this.#updateInputPosition(true);
 		this.#sendResizeIfChanged();
@@ -7811,6 +7851,7 @@ export class ProjectedTerminal {
 	#handleSurfaceResize(): void {
 		this.#invalidateLinkCache();
 		this.#renderer?.syncSurfacePadding();
+		this.#historyScrollbarViewportSize = undefined;
 		this.#syncHistoryScrollbarPresentation();
 		this.#updateInputPosition(true);
 		this.#sendResizeIfChanged();
@@ -7829,6 +7870,7 @@ export class ProjectedTerminal {
 		this.#invalidateLinkCache();
 		this.#syncDevicePixelRatio();
 		this.#renderer?.syncSurfacePadding();
+		this.#historyScrollbarViewportSize = undefined;
 		this.#syncHistoryScrollbarPresentation();
 		this.#updateInputPosition(true);
 		this.#sendResizeIfChanged();
@@ -8030,66 +8072,88 @@ export class ProjectedTerminal {
 	#updateAccessibility(metadata: ProjectedTerminalMetadata): void {
 		const root = this.#accessibilityRoot;
 		if (!root) return;
-		this.#accessibilityAnnouncement?.setAttribute(
-			'aria-live',
-			this.#historyPhase === ProjectedHistoryPhase.followingBottom &&
-				this.#tailPresentationStore === undefined
-				? 'polite'
-				: 'off',
-		);
+		const accessibilityAnnouncement = this.#accessibilityAnnouncement;
+		if (accessibilityAnnouncement !== undefined) {
+			setAttributeIfChanged(
+				accessibilityAnnouncement,
+				'aria-live',
+				this.#historyPhase === ProjectedHistoryPhase.followingBottom &&
+					this.#tailPresentationStore === undefined
+					? 'polite'
+					: 'off',
+			);
+		}
 		const store = this.#visibleStore();
 		const visibleStart = this.#historyVisibleStart(metadata);
+		let structureChanged = false;
 		while (this.#accessibilityRows.length < metadata.rows) {
 			const row = root.ownerDocument.createElement('div');
 			row.setAttribute('role', 'listitem');
 			root.appendChild(row);
 			this.#accessibilityRows.push(row);
+			structureChanged = true;
 		}
 		while (this.#accessibilityRows.length > metadata.rows) {
 			this.#accessibilityRows.pop()?.remove();
 			this.#accessibilityModelRows.pop();
+			structureChanged = true;
 		}
+		const positionAttributesChanged =
+			structureChanged ||
+			this.#accessibilityPositionedVisibleStart !== visibleStart ||
+			this.#accessibilityPositionedRetainedRows !== this.#historyTotalRows;
+		let modelChanged = structureChanged;
 		for (let rowIndex = 0; rowIndex < metadata.rows; rowIndex++) {
 			const row = store.rows[rowIndex];
 			const element = this.#accessibilityRows[rowIndex];
 			if (!row || !element) continue;
+			let rowTextChanged = false;
 			if (row.dirty || store.needsFullRedraw || !this.#accessibilityModelRows[rowIndex]) {
 				const cells = Array.from({ length: metadata.columns }, (_, column) => {
 					const width = projectedCellDisplayWidth(row.widths[column] ?? 0);
 					return { text: width > 0 ? row.grapheme(column) : '', width };
 				});
 				const accessibleRow = buildAccessibleRow(cells, metadata.columns);
-				element.textContent = accessibleRow.text;
+				rowTextChanged = this.#accessibilityModelRows[rowIndex]?.text !== accessibleRow.text;
+				if (rowTextChanged) element.textContent = accessibleRow.text;
 				this.#accessibilityModelRows[rowIndex] = accessibleRow;
+				modelChanged = true;
 			}
 			const absoluteRow = visibleStart + BigInt(rowIndex);
 			const rowLabel = this.#options.labels.row;
-			if (rowLabel !== undefined) {
+			if (rowLabel !== undefined && (positionAttributesChanged || rowTextChanged)) {
 				element.setAttribute(
 					'aria-label',
 					rowLabel(absoluteRow + 1n, this.#accessibilityModelRows[rowIndex]?.text ?? ' '),
 				);
 			}
-			element.setAttribute('aria-posinset', (absoluteRow + 1n).toString());
-			element.setAttribute('aria-setsize', this.#historyTotalRows.toString());
-			element.setAttribute('data-terminal-absolute-row', absoluteRow.toString());
+			if (positionAttributesChanged) {
+				element.setAttribute('aria-posinset', (absoluteRow + 1n).toString());
+				element.setAttribute('aria-setsize', this.#historyTotalRows.toString());
+				element.setAttribute('data-terminal-absolute-row', absoluteRow.toString());
+			}
 		}
-		this.#accessibilityModel.update(this.#accessibilityModelRows);
+		if (modelChanged) this.#accessibilityModel.update(this.#accessibilityModelRows);
+		this.#accessibilityPositionedRetainedRows = this.#historyTotalRows;
+		this.#accessibilityPositionedVisibleStart = visibleStart;
 		this.#accessibilityVisibleStart = visibleStart;
 		const visibleEnd =
 			this.#historyTotalRows === 0n
 				? 0n
 				: minBigInt(this.#historyTotalRows, visibleStart + BigInt(metadata.rows));
 		const screenCursor = this.#options.labels.screenCursor;
-		root.setAttribute(
+		setAttributeIfChanged(
+			root,
 			'aria-label',
 			this.#historyPhase === ProjectedHistoryPhase.followingBottom && screenCursor !== undefined
 				? screenCursor(visibleStart + BigInt(metadata.cursor.row) + 1n, metadata.cursor.column + 1)
 				: this.#options.labels.screen,
 		);
 		this.#updateAccessibilityDescription(metadata, visibleStart, visibleEnd);
-		root.setAttribute('data-terminal-visible-row-start', visibleStart.toString());
-		root.setAttribute('data-terminal-retained-rows', this.#historyTotalRows.toString());
+		if (positionAttributesChanged) {
+			root.setAttribute('data-terminal-visible-row-start', visibleStart.toString());
+			root.setAttribute('data-terminal-retained-rows', this.#historyTotalRows.toString());
+		}
 		this.#updateAccessibilityAnnouncement(metadata);
 		this.#syncAccessibilitySelection();
 	}
@@ -8118,7 +8182,7 @@ export class ProjectedTerminal {
 			const selectedText = this.#options.labels.selectedText;
 			if (selectedText !== undefined) descriptions.push(selectedText(this.#selection.preview));
 		}
-		root.setAttribute('aria-description', descriptions.join(' '));
+		setAttributeIfChanged(root, 'aria-description', descriptions.join(' '));
 	}
 
 	#updateAccessibilityAnnouncement(metadata: ProjectedTerminalMetadata): void {

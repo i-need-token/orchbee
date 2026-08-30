@@ -42,15 +42,28 @@ describe('TerminalFindSurface', () => {
 
 		input.setSelectionRange(input.value.length, input.value.length);
 		await act(async () => {
-			controller.open();
+			controller.open('replacement terminal text');
 			await Promise.resolve();
 		});
+		expect(input.value).toBe('replacement terminal text');
+		expect(document.activeElement).toBe(input);
 		expect(input.selectionStart).toBe(0);
 		expect(input.selectionEnd).toBe(input.value.length);
+
 		const matchCase = mounted.container.querySelector('[aria-label="Match case"]');
 		if (!(matchCase instanceof HTMLButtonElement)) {
 			throw new Error('Match-case control did not render.');
 		}
+		input.setSelectionRange(input.value.length, input.value.length);
+		matchCase.focus();
+		await act(async () => {
+			controller.open();
+			await Promise.resolve();
+		});
+		expect(input.value).toBe('replacement terminal text');
+		expect(document.activeElement).toBe(input);
+		expect(input.selectionStart).toBe(0);
+		expect(input.selectionEnd).toBe(input.value.length);
 		matchCase.focus();
 		await act(async () => {
 			matchCase.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));

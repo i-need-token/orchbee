@@ -37,7 +37,7 @@
 		"Opening the surface does not create a search Worker until a non-empty query survives the debounce.",
 		"Search status never exposes raw terminal content or engine error text as product-facing copy.",
 		"Ordinary progress stays in the compact toolbar while actionable errors and retained-history notices remain fully visible.",
-		"Opening from an active selection seeds and selects its bounded preview; repeated open selects the current query again.",
+		"Every open or repeated open replaces any query with the current active selection's bounded preview; without one, it preserves the query, then focuses and selects the complete query.",
 		"Left and Right Arrow move among embedded option toggles, while pointer option changes restore query focus.",
 		"Closing the surface restores terminal focus and discards no more than twenty in-memory query-history entries."
 	],

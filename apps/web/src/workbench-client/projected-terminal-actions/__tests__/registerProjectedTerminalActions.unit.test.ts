@@ -461,7 +461,7 @@ describe('registerProjectedTerminalActions', () => {
 		runtime.dispose();
 	});
 
-	it('seeds find from the bounded active selection preview', async () => {
+	it('seeds every Find invocation from the latest bounded active selection preview', async () => {
 		const runtime = new ActionRuntime();
 		const scope = runtime.createScope('terminal.projected');
 		const updateSearch = vi.fn<(query: string, options: TerminalSearchOptions) => void>();
@@ -469,14 +469,16 @@ describe('registerProjectedTerminalActions', () => {
 			clearSearch: vi.fn<() => void>(),
 			updateSearch,
 		});
-		const terminal = terminalTarget({
+		let selection: ProjectedTerminalActionTarget['selection'] = {
 			attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
 			end: { column: 7, row: CanonicalUint64TextSchema.parse('4') },
 			preview: 'selected',
 			rectangle: false,
 			start: { column: 0, row: CanonicalUint64TextSchema.parse('4') },
 			state: 'active',
-		});
+		};
+		const terminal = terminalTarget();
+		Object.defineProperty(terminal, 'selection', { get: () => selection });
 		const registrations = registerProjectedTerminalActions({
 			findController: controller,
 			scope,
@@ -491,6 +493,26 @@ describe('registerProjectedTerminalActions', () => {
 
 		expect(controller.getSnapshot().query).toBe('selected');
 		expect(updateSearch).toHaveBeenCalledWith('selected', {
+			caseSensitive: false,
+			regex: false,
+			wholeWord: false,
+		});
+
+		selection = {
+			attachmentId: AttachmentIdSchema.parse('11'.repeat(16)),
+			end: { column: 11, row: CanonicalUint64TextSchema.parse('6') },
+			preview: 'replacement',
+			rectangle: false,
+			start: { column: 0, row: CanonicalUint64TextSchema.parse('6') },
+			state: 'active',
+		};
+		await runtime.execute(PROJECTED_TERMINAL_ACTION_IDS.findOpen, undefined, {
+			scope,
+			source: 'keyboard',
+		}).completion;
+
+		expect(controller.getSnapshot().query).toBe('replacement');
+		expect(updateSearch).toHaveBeenLastCalledWith('replacement', {
 			caseSensitive: false,
 			regex: false,
 			wholeWord: false,

@@ -50,7 +50,16 @@ const theme = TerminalThemeStateSchema.parse({
 
 describe('startProjectedTerminalRenderer', () => {
 	it('localizes the projected surface and commits frame events from only its scoped port', async () => {
-		const dataset: DOMStringMap = {};
+		const datasetWrites: string[] = [];
+		const dataset = new Proxy<DOMStringMap>(
+			{},
+			{
+				set: (target, property, value) => {
+					datasetWrites.push(String(property));
+					return Reflect.set(target, property, value);
+				},
+			},
+		);
 		const status = {
 			dataset: {},
 			hidden: false,
@@ -834,6 +843,19 @@ describe('startProjectedTerminalRenderer', () => {
 			emitMetadata(baseMetadata);
 			expect(progress.hidden).toBe(true);
 			expect(progress.removeAttribute).toHaveBeenCalledWith('aria-valuenow');
+			datasetWrites.length = 0;
+			progress.removeAttribute.mockClear();
+			progress.setAttribute.mockClear();
+			progress.style.removeProperty.mockClear();
+			progress.style.setProperty.mockClear();
+
+			emitMetadata(baseMetadata);
+
+			expect(datasetWrites).toEqual([]);
+			expect(progress.removeAttribute).not.toHaveBeenCalled();
+			expect(progress.setAttribute).not.toHaveBeenCalled();
+			expect(progress.style.removeProperty).not.toHaveBeenCalled();
+			expect(progress.style.setProperty).not.toHaveBeenCalled();
 			emitMetadata({
 				...baseMetadata,
 				commandCompletion: {

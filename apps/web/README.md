@@ -136,11 +136,12 @@ transition.
 Each attachment publishes only its own focus claim and projection demand. Terminal Host combines
 eligible claims for a shared terminal, so one attachment losing focus or visibility cannot emit a
 terminal-wide `FocusOut` while another eligible claim remains; reactivation requires a fresh claim.
-Opening that compact find surface seeds an empty or retained query from the bounded preview of an
-active Host selection when one is available; search-owned active ranges remain authoritative Host
-selections rather than a second application selection model. Opening or explicitly reopening Find
-focuses and selects the complete query, while Escape from any find control closes the surface and
-restores terminal focus. Match options live inside the query field, ordinary search progress uses an
+Every opening or explicit reopening of that compact find surface replaces an empty or retained
+query with the bounded preview of the current active Host selection when one is available; without
+one, it preserves the current query. Search-owned active ranges remain authoritative Host selections
+rather than a second application selection model. Each such invocation focuses and selects the
+complete query, while Escape from any find control closes the surface and restores terminal focus.
+Match options live inside the query field, ordinary search progress uses an
 inline localized count, Left and Right Arrow move between option toggles, and pointer option changes
 return focus to the query. Only actionable failures, timeouts, or retained-history notices expand the
 toolbar with complete localized feedback.

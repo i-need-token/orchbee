@@ -76,7 +76,6 @@ export class TerminalFindController {
 			focusRequest: this.#snapshot.focusRequest + 1,
 			isOpen: true,
 		});
-		if (wasOpen) return;
 		if (selectionPreview) {
 			this.#historyCursor = null;
 			this.#historyDraft = selectionPreview;
@@ -85,6 +84,7 @@ export class TerminalFindController {
 				return;
 			}
 		}
+		if (wasOpen) return;
 		if (this.#snapshot.query) this.#search();
 	}
 

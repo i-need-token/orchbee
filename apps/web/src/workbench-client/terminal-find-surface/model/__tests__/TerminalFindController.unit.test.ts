@@ -89,6 +89,42 @@ describe('TerminalFindController', () => {
 		});
 	});
 
+	it.each([
+		{ currentQuery: '', isOpen: false },
+		{ currentQuery: 'retained query', isOpen: false },
+		{ currentQuery: '', isOpen: true },
+		{ currentQuery: 'retained query', isOpen: true },
+	])(
+		'replaces query "$currentQuery" from the current Host selection when isOpen=$isOpen',
+		({ currentQuery, isOpen }) => {
+			const updateSearch = vi.fn<TerminalSearchDriver['updateSearch']>();
+			const controller = new TerminalFindController({
+				clearSearch: vi.fn<TerminalSearchDriver['clearSearch']>(),
+				updateSearch,
+			});
+			controller.open();
+			if (currentQuery) controller.setQuery(currentQuery);
+			if (!isOpen) controller.close();
+			updateSearch.mockClear();
+			const focusRequest = controller.getSnapshot().focusRequest;
+
+			controller.open('current selection');
+
+			expect(controller.getSnapshot()).toMatchObject({
+				focusRequest: focusRequest + 1,
+				isOpen: true,
+				query: 'current selection',
+				searchState: 'searching',
+			});
+			expect(updateSearch).toHaveBeenCalledOnce();
+			expect(updateSearch).toHaveBeenCalledWith('current selection', {
+				caseSensitive: false,
+				regex: false,
+				wholeWord: false,
+			});
+		},
+	);
+
 	it('reports history and selection eviction without retaining content', () => {
 		const controller = new TerminalFindController({
 			clearSearch: vi.fn<TerminalSearchDriver['clearSearch']>(),
