@@ -27,13 +27,11 @@ import {
 	tabGroupIdInput,
 	tabGroupMoveInput,
 	tabGroupShiftInput,
-	tabGroupWindowMoveInput,
 	tabGroupUpdateInput,
 	tabIdsInput,
 	tabMoveInput,
 	tabPinnedInput,
 	tabSelectionInput,
-	tabWindowMoveInput,
 } from '../actions/tab-strip-action-contracts';
 import type { TabCloseSource } from '../layout/tab-closing-mode';
 import type { TabModel } from '../model/tab-model';
@@ -43,7 +41,6 @@ import type {
 	TabStripCloseCallback,
 	TabStripCloseConfirmation,
 	TabStripNewTabRequest,
-	TabStripOptions,
 	TabStripSelectCallback,
 	TabStripTabCreationIntent,
 } from '../types/tab-strip-options';
@@ -57,8 +54,6 @@ interface UseTabStripActionsOptions {
 	readonly comboButtonController: TabStripComboButtonController;
 	readonly onMoveGroupToNewWindow: ((groupId: string) => void) | undefined;
 	readonly onMoveTabsToNewWindow: ((tabIds: readonly string[]) => void) | undefined;
-	readonly onMoveGroupToWindow?: TabStripOptions['onMoveGroupToWindow'];
-	readonly onMoveTabsToWindow?: TabStripOptions['onMoveTabsToWindow'];
 	readonly onNewTab: ((request: TabStripNewTabRequest) => ActionExecution) | undefined;
 	readonly getTabCreationAvailability?:
 		| ((
@@ -84,8 +79,6 @@ export function useTabStripActions({
 	model,
 	onMoveGroupToNewWindow,
 	onMoveTabsToNewWindow,
-	onMoveGroupToWindow,
-	onMoveTabsToWindow,
 	onNewTab,
 	getTabCreationAvailability,
 	onCloseTabs,
@@ -156,14 +149,6 @@ export function useTabStripActions({
 			concurrency: 'parallel' as const,
 			concurrencyKey: (input: { readonly tabIds: readonly string[] }) =>
 				input.tabIds.join('\u0000'),
-			mode: 'foreground' as const,
-		};
-		const parallelByTabsAndWindow = {
-			concurrency: 'parallel' as const,
-			concurrencyKey: (input: {
-				readonly destinationWindowId?: string | undefined;
-				readonly tabIds: readonly string[];
-			}) => `${input.destinationWindowId ?? 'new'}:${input.tabIds.join('\u0000')}`,
 			mode: 'foreground' as const,
 		};
 		const existingTabIds = (tabIds: readonly string[]) => {
@@ -372,13 +357,9 @@ export function useTabStripActions({
 				scope,
 				defineAction({
 					category,
-					execution: parallelByTabsAndWindow,
+					execution: parallelByTabs,
 					getAvailability: (_context, input) =>
-						(
-							input.destinationWindowId === undefined
-								? onMoveTabsToWindow === undefined && onMoveTabsToNewWindow === undefined
-								: onMoveTabsToWindow === undefined
-						)
+						onMoveTabsToNewWindow === undefined
 							? {
 									kind: 'disabled',
 									reason: workbenchMessages.actionUnavailable,
@@ -386,20 +367,16 @@ export function useTabStripActions({
 							: tabAvailability(input.tabIds),
 					handler: {
 						execute: (context, input) => {
-							const tabIds = existingTabIds(input.tabIds);
-							if (onMoveTabsToWindow !== undefined) {
-								return onMoveTabsToWindow(context, { ...input, tabIds });
-							}
-							if (input.destinationWindowId !== undefined || onMoveTabsToNewWindow === undefined) {
+							if (onMoveTabsToNewWindow === undefined) {
 								return { kind: 'blocked', code: 'host-capability-unavailable' };
 							}
 							context.markCommitted();
-							onMoveTabsToNewWindow(tabIds);
+							onMoveTabsToNewWindow(existingTabIds(input.tabIds));
 							return { kind: 'completed' };
 						},
 					},
 					id: TAB_STRIP_ACTION_IDS.moveTabsToWindow,
-					input: tabWindowMoveInput,
+					input: tabIdsInput,
 					title: workbenchTabMessages.moveTabsToNewWindow,
 				}),
 			),
@@ -588,14 +565,11 @@ export function useTabStripActions({
 					category,
 					execution: {
 						concurrency: 'parallel',
-						concurrencyKey: (input) => `${input.destinationWindowId ?? 'new'}:${input.groupId}`,
+						concurrencyKey: (input) => input.groupId,
 						mode: 'foreground',
 					},
 					getAvailability: (_context, input) =>
-						model.getGroup(input.groupId) === null ||
-						(input.destinationWindowId === undefined
-							? onMoveGroupToWindow === undefined && onMoveGroupToNewWindow === undefined
-							: onMoveGroupToWindow === undefined)
+						onMoveGroupToNewWindow === undefined || model.getGroup(input.groupId) === null
 							? {
 									kind: 'disabled',
 									reason: workbenchMessages.actionUnavailable,
@@ -603,10 +577,7 @@ export function useTabStripActions({
 							: { kind: 'enabled' },
 					handler: {
 						execute: (context, input) => {
-							if (onMoveGroupToWindow !== undefined) {
-								return onMoveGroupToWindow(context, input);
-							}
-							if (input.destinationWindowId !== undefined || onMoveGroupToNewWindow === undefined) {
+							if (onMoveGroupToNewWindow === undefined) {
 								return { kind: 'blocked', code: 'host-capability-unavailable' };
 							}
 							context.markCommitted();
@@ -615,7 +586,7 @@ export function useTabStripActions({
 						},
 					},
 					id: TAB_STRIP_ACTION_IDS.moveGroupToWindow,
-					input: tabGroupWindowMoveInput,
+					input: tabGroupIdInput,
 					title: workbenchTabMessages.moveGroupToNewWindow,
 				}),
 			),
@@ -757,8 +728,6 @@ export function useTabStripActions({
 		getTabCreationAvailability,
 		onMoveGroupToNewWindow,
 		onMoveTabsToNewWindow,
-		onMoveGroupToWindow,
-		onMoveTabsToWindow,
 		onNewTab,
 		onCloseTabs,
 		onSelectTab,

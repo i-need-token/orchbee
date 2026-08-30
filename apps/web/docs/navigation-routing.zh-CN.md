@@ -57,7 +57,7 @@ LAN 服务、令牌交换、Cookie 身份验证、设置屏幕、登录屏幕以
 - **问题和范围：** 在一次应用 composition 中，每个不同的独立或 Workspace 终端上下文首次
   ready 访问时都可能没有 Tab。路由协调器会按权威终端上下文 identity 分别做一次创建决策，
   因此也覆盖已经显示过其他上下文后才首次打开的 Workspace。空状态渲染、普通新建 Tab 命令、
-  持久化重启意图和原生窗口 Tab 分配继续由现有 owner 负责。
+  持久化重启意图继续由现有 owner 负责。
 - **状态和转换：** `TerminalContextInitializationState` 是已完成首次 ready 访问判定的上下文
   identity 可序列化集合。重定向和不可用路由不增加 identity。已在集合中的 ready 终端路由
   刻意无操作。首次 ready 路由会加入其 identity，并且只在完整权威上下文没有 Tab 时发出
@@ -66,8 +66,8 @@ LAN 服务、令牌交换、Cookie 身份验证、设置屏幕、登录屏幕以
   通过现有 runtime 创建路径，以当前本地化终端标题和 `programmatic` source 执行。创建成功后
   重新解析同一请求，使新 Tab 在渲染前成为规范路由。创建被拒绝时保留该空白规范路由，且同一
   协调器生命周期内不为该上下文重试；其他上下文仍可独立触发首次判定。
-- **并发和边界：** 决策读取完整的活动终端上下文，绝不读取 Desktop `tabScope` 投影，因此
-  window-local 空分配不能触发创建。每个独立组合页面拥有自己的已判定 identity 状态，可能与
+- **并发和边界：** 决策读取完整的活动终端上下文，而不是页面本地渲染状态，因此 presentation
+  state 不能触发创建。每个独立组合页面拥有自己的已判定 identity 状态，可能与
   其他页面竞争；现有 revisioned shared-document coordinator 仍是唯一提交权威，并在不增加
   startup flag、schema field、storage key 或 protocol message 的前提下收敛竞争 proposal。
 - **验证：** 纯转换测试覆盖重定向、不可用与 ready 路由、多个上下文 identity、空与非空上下文、

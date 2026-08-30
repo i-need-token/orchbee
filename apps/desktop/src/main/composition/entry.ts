@@ -234,19 +234,16 @@ if (!singleInstanceLockOwned) {
 			const secureKeyboardEntryActions = desktopSecureKeyboardEntryActions;
 			desktopApplicationMenu = installDesktopApplicationMenu(
 				{
-					getCreateWindowAvailability: () => windowActions.getCreateWindowAvailability(),
 					getSecureKeyboardEntryAvailability: () =>
 						secureKeyboardEntryActions.getToggleAvailability(),
 					getToggleFullScreenAvailability: () => windowActions.getToggleFullScreenAvailability(),
 					getToggleMaximizedAvailability: () => windowActions.getToggleMaximizedAvailability(),
-					invokeCreateWindow: (source) => windowActions.invokeCreateWindow(source),
 					invokeToggleFullScreen: (source) => windowActions.invokeToggleFullScreen(source),
 					invokeToggleMaximized: (source) => windowActions.invokeToggleMaximized(source),
 					invokeToggleSecureKeyboardEntry: (source) =>
 						secureKeyboardEntryActions.invokeToggle(source),
 				},
 				{
-					createWindow: intl.formatMessage(desktopWindowMessages.create),
 					secureKeyboardEntry: intl.formatMessage(desktopSecureKeyboardEntryMessages.toggle),
 					securityCategory: intl.formatMessage(desktopSecureKeyboardEntryMessages.category),
 					toggleFullScreen: intl.formatMessage(desktopWindowMessages.toggleFullScreen),

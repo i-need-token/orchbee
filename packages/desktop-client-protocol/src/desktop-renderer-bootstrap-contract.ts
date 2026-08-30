@@ -16,7 +16,6 @@ export const DESKTOP_RENDERER_PORT_ROLES = [
 	'terminal-launch-profiles',
 	'terminal-default-settings',
 	'clipboard-read',
-	'window-layout',
 	'remote-terminal-creation',
 	'ssh-project-enrollment',
 ] as const;

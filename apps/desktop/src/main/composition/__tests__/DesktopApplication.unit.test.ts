@@ -52,7 +52,6 @@ import {
 import { DesktopEnvironmentRegistry, EnvironmentRecordSchema } from '../../environment';
 import { SshEnvironmentTargetReferenceSchema } from '../../ssh-environment';
 import type { WorkbenchDocumentStore } from '../../workbench-document';
-import type { DesktopWindowLayoutStore } from '../../window-layout';
 import type { DesktopWindowStateStore } from '../../window-state';
 import {
 	TerminalExitSpillStore,
@@ -737,119 +736,6 @@ describe('DesktopApplication', () => {
 		await application.shutdown();
 	});
 
-	it('creates a default-CWD terminal and bootstraps its new native window while hidden', async () => {
-		const harness = createHarness();
-		const application = createApplication(harness.dependencies);
-		await application.start();
-		harness.workbenchDocumentStore.commit.mockImplementation((_expectedRevision, document) =>
-			Promise.resolve({ kind: 'committed', revision: document.revision }),
-		);
-		harness.persistedWindowLayouts.splice(0);
-		const second = createTestNativeWindow({
-			height: 720,
-			width: 1_024,
-			x: 132,
-			y: 132,
-		});
-		harness.createWindow.mockImplementationOnce(() => second.browserWindow);
-
-		expect(await application.createWindow()).toBe(true);
-		await vi.waitFor(() => expect(second.webContents.postMessage).toHaveBeenCalledOnce());
-
-		const committedDocument = harness.workbenchDocumentStore.commit.mock.calls.at(-1)?.[1];
-		const createdTab = committedDocument?.terminalContexts
-			.flatMap((context) => context.tabCollection.tabs)
-			.find((tab) => tab.id.endsWith('-tab-2'));
-		const createdPanelTab = committedDocument?.terminalContexts
-			.flatMap((context) => context.panelWorkspace.tabs)
-			.find((tab) => tab.tabId === createdTab?.id);
-		expect(createdPanelTab?.root).toMatchObject({
-			kind: 'panel',
-			primaryPresentation: { launchCwd: '/users/orchbee' },
-		});
-		expect(harness.terminalRuntime.execute).toHaveBeenCalledWith(
-			expect.objectContaining({ launchCwd: '/users/orchbee' }),
-		);
-		expect(harness.createWindow).toHaveBeenCalledTimes(2);
-		expect(second.browserWindow.loadURL).toHaveBeenCalledWith('http://127.0.0.1:3000/');
-		expect(second.webContents.postMessage).toHaveBeenCalledWith(
-			'orchbee.desktop.renderer-bootstrap',
-			expect.anything(),
-			expect.any(Array),
-		);
-		expect(second.webContents.postMessage.mock.calls[0]?.[2]).toHaveLength(14);
-		const finalLayout = harness.persistedWindowLayouts.at(-1);
-		expect(finalLayout?.windows).toHaveLength(2);
-		expect(
-			finalLayout?.windows.find((window) => window.windowId === 'desktop-window-2')?.assignments[0]
-				?.tabIds,
-		).toEqual([createdTab?.id]);
-		const bootstrapOrder = second.webContents.postMessage.mock.invocationCallOrder[0];
-		const showOrder = vi.mocked(second.browserWindow.show).mock.invocationCallOrder[0];
-		expect(bootstrapOrder).toBeLessThan(showOrder ?? -1);
-		await application.shutdown();
-	});
-
-	it('retains the new terminal in the source window when native window creation fails', async () => {
-		const harness = createHarness();
-		const application = createApplication(harness.dependencies);
-		await application.start();
-		harness.workbenchDocumentStore.commit.mockImplementation((_expectedRevision, document) =>
-			Promise.resolve({ kind: 'committed', revision: document.revision }),
-		);
-		harness.persistedWindowLayouts.splice(0);
-		harness.createWindow.mockImplementationOnce(() => {
-			throw new Error('native window unavailable');
-		});
-
-		expect(await application.createWindow()).toBe(false);
-
-		const committedDocument = harness.workbenchDocumentStore.commit.mock.calls.at(-1)?.[1];
-		const committedTabIds = committedDocument?.terminalContexts.flatMap((context) =>
-			context.tabCollection.tabs.map((tab) => tab.id),
-		);
-		expect(committedTabIds).toHaveLength(2);
-		expect(harness.createWindow).toHaveBeenCalledTimes(2);
-		const finalLayout = harness.persistedWindowLayouts.at(-1);
-		expect(finalLayout?.windows).toHaveLength(1);
-		expect(finalLayout?.windows[0]?.assignments[0]?.tabIds).toEqual(committedTabIds);
-		await application.shutdown();
-	});
-
-	it('discards a hidden shell and retains its terminal when renderer loading fails', async () => {
-		const harness = createHarness();
-		const application = createApplication(harness.dependencies);
-		await application.start();
-		harness.workbenchDocumentStore.commit.mockImplementation((_expectedRevision, document) =>
-			Promise.resolve({ kind: 'committed', revision: document.revision }),
-		);
-		harness.persistedWindowLayouts.splice(0);
-		const second = createTestNativeWindow({
-			height: 720,
-			width: 1_024,
-			x: 132,
-			y: 132,
-		});
-		vi.mocked(second.browserWindow.loadURL).mockRejectedValueOnce(
-			new Error('renderer unavailable'),
-		);
-		harness.createWindow.mockImplementationOnce(() => second.browserWindow);
-
-		expect(await application.createWindow()).toBe(false);
-
-		const committedDocument = harness.workbenchDocumentStore.commit.mock.calls.at(-1)?.[1];
-		const committedTabIds = committedDocument?.terminalContexts.flatMap((context) =>
-			context.tabCollection.tabs.map((tab) => tab.id),
-		);
-		expect(committedTabIds).toHaveLength(2);
-		expect(second.browserWindow.destroy).toHaveBeenCalledOnce();
-		expect(second.webContents.postMessage).not.toHaveBeenCalled();
-		const finalLayout = harness.persistedWindowLayouts.at(-1);
-		expect(finalLayout?.windows).toHaveLength(1);
-		expect(finalLayout?.windows[0]?.assignments[0]?.tabIds).toEqual(committedTabIds);
-		await application.shutdown();
-	});
-
 	it('exposes safe maximized and full-screen transitions for semantic actions', async () => {
 		const harness = createHarness();
 		const application = createApplication(harness.dependencies);
@@ -993,7 +879,7 @@ describe('DesktopApplication', () => {
 		await application.shutdown();
 	});
 
-	it('starts without creating an attachment and atomically transfers fourteen scoped controls', async () => {
+	it('starts without creating an attachment and atomically transfers thirteen scoped controls', async () => {
 		const harness = createHarness();
 		const application = createApplication(harness.dependencies);
 
@@ -1021,7 +907,6 @@ describe('DesktopApplication', () => {
 				type: 'orchbee.desktop.renderer-bootstrap',
 			}),
 			[
-				expect.anything(),
 				expect.anything(),
 				expect.anything(),
 				expect.anything(),
@@ -1151,7 +1036,7 @@ describe('DesktopApplication', () => {
 		const application = createApplication(harness.dependencies);
 
 		await expect(application.start()).rejects.toThrow('renderer projection broker factory failed');
-		expect(harness.messageChannels).toHaveLength(14);
+		expect(harness.messageChannels).toHaveLength(13);
 		for (const channel of harness.messageChannels) {
 			expect(channel.port1.close).toHaveBeenCalledOnce();
 			expect(channel.port2.close).toHaveBeenCalledOnce();
@@ -1278,8 +1163,8 @@ describe('DesktopApplication', () => {
 			throw new Error('gateway projection factory failed');
 		});
 		await expect(factoryOpenClient()).rejects.toThrow('gateway projection factory failed');
-		expect(factoryHarness.messageChannels).toHaveLength(16);
-		for (const channel of factoryHarness.messageChannels.slice(14)) {
+		expect(factoryHarness.messageChannels).toHaveLength(15);
+		for (const channel of factoryHarness.messageChannels.slice(13)) {
 			expect(channel.port1.close).toHaveBeenCalledOnce();
 			expect(channel.port2.close).toHaveBeenCalledOnce();
 		}
@@ -1307,7 +1192,7 @@ describe('DesktopApplication', () => {
 		});
 		await expect(startOpenClient()).rejects.toThrow('gateway projection start failed');
 		expect(startHarness.projectionBrokers[1]?.dispose).toHaveBeenCalledOnce();
-		for (const channel of startHarness.messageChannels.slice(14)) {
+		for (const channel of startHarness.messageChannels.slice(13)) {
 			expect(channel.port1.close).toHaveBeenCalledOnce();
 			expect(channel.port2.close).toHaveBeenCalled();
 		}
@@ -1360,7 +1245,7 @@ describe('DesktopApplication', () => {
 
 		expect(harness.clientSessionPorts[0]?.close).not.toHaveBeenCalled();
 		expect(harness.projectionBrokers[0]?.dispose).not.toHaveBeenCalled();
-		expect(harness.messageChannels).toHaveLength(14);
+		expect(harness.messageChannels).toHaveLength(13);
 		expect(harness.webContents.postMessage).toHaveBeenCalledOnce();
 		await application.shutdown();
 	});
@@ -1379,12 +1264,12 @@ describe('DesktopApplication', () => {
 		await vi.waitFor(() => expect(projectionDispose).toHaveBeenCalledTimes(2));
 		await Promise.resolve();
 		expect(harness.webContents.postMessage).toHaveBeenCalledOnce();
-		expect(harness.messageChannels).toHaveLength(14);
+		expect(harness.messageChannels).toHaveLength(13);
 		expect(harness.projectionBrokers).toHaveLength(1);
 
 		emitRendererDocumentLoad(harness.webContents);
 		await vi.waitFor(() => expect(harness.webContents.postMessage).toHaveBeenCalledTimes(2));
-		expect(harness.messageChannels).toHaveLength(28);
+		expect(harness.messageChannels).toHaveLength(26);
 		expect(harness.projectionBrokers).toHaveLength(2);
 		await application.shutdown();
 	});
@@ -2676,15 +2561,6 @@ function createHarness(
 		load: vi.fn<DesktopWindowStateStore['load']>().mockResolvedValue({ kind: 'missing' }),
 		save: vi.fn<DesktopWindowStateStore['save']>().mockResolvedValue(true),
 	} satisfies DesktopWindowStateStore;
-	const persistedWindowLayouts: Parameters<DesktopWindowLayoutStore['save']>[0][] = [];
-	const windowLayoutStore = {
-		flush: vi.fn<DesktopWindowLayoutStore['flush']>().mockResolvedValue(undefined),
-		load: vi.fn<DesktopWindowLayoutStore['load']>().mockResolvedValue({ kind: 'missing' }),
-		save: vi.fn<DesktopWindowLayoutStore['save']>().mockImplementation((layout) => {
-			persistedWindowLayouts.push(layout);
-			return Promise.resolve(true);
-		}),
-	} satisfies DesktopWindowLayoutStore;
 	type BrowserAccessRuntime = ReturnType<
 		DesktopApplicationDependencies['createBrowserAccessRuntime']
 	>;
@@ -3079,9 +2955,6 @@ function createHarness(
 			.fn<DesktopApplicationDependencies['createWorkbenchDocumentStore']>()
 			.mockReturnValue(workbenchDocumentStore),
 		createWindow,
-		createWindowLayoutStore: vi
-			.fn<NonNullable<DesktopApplicationDependencies['createWindowLayoutStore']>>()
-			.mockReturnValue(windowLayoutStore),
 		createWindowStateStore: vi
 			.fn<DesktopApplicationDependencies['createWindowStateStore']>()
 			.mockReturnValue(windowStateStore),
@@ -3143,11 +3016,9 @@ function createHarness(
 		terminalExitSpillStore,
 		terminalExitPublicationLedger,
 		publishedExitLedgerEvents,
-		persistedWindowLayouts,
 		webContents,
 		workbenchDocumentStore,
 		windowStateStore,
-		windowLayoutStore,
 		get windowOptions() {
 			return windowOptions;
 		},

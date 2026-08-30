@@ -10,11 +10,7 @@ import type {
 } from '@orchbee/actions';
 import type { ReactNode } from 'react';
 
-import type {
-	TabGroupWindowMoveInput,
-	TabSelectionInput,
-	TabWindowMoveInput,
-} from '../actions/tab-strip-action-contracts';
+import type { TabSelectionInput } from '../actions/tab-strip-action-contracts';
 import type { TabHoverCardController } from '../components/tab-strip-view/components/hover-card/model/tab-hover-card-controller';
 import type { HoverCardThumbnailSource } from '../components/tab-strip-view/components/hover-card/model/tab-hover-card-thumbnail-observer';
 import type { TabData, TabGroupData, TabModel } from '../model/tab-model';
@@ -77,21 +73,6 @@ export type TabStripSelectCallback = (
 	context: ActionExecutionContext,
 	input: TabSelectionInput,
 ) => ActionResult<void> | Promise<ActionResult<void>>;
-
-export type TabStripMoveTabsToWindowCallback = (
-	context: ActionExecutionContext,
-	input: TabWindowMoveInput,
-) => ActionResult<void> | Promise<ActionResult<void>>;
-
-export type TabStripMoveGroupToWindowCallback = (
-	context: ActionExecutionContext,
-	input: TabGroupWindowMoveInput,
-) => ActionResult<void> | Promise<ActionResult<void>>;
-
-export interface TabStripWindowTarget {
-	readonly label: string;
-	readonly windowId: string;
-}
 
 export interface TabStripShortcutLabels {
 	readonly closeTab?: string | undefined;
@@ -160,11 +141,6 @@ export interface TabStripOptions {
 	/** Host-backed TabStripModel context commands. */
 	onMoveTabsToNewWindow?: (tabIds: readonly string[]) => void;
 	onMoveGroupToNewWindow?: (groupId: string) => void;
-	/** Host-backed move command supporting both existing and newly created windows. */
-	onMoveTabsToWindow?: TabStripMoveTabsToWindowCallback | undefined;
-	onMoveGroupToWindow?: TabStripMoveGroupToWindowCallback | undefined;
-	/** Existing native windows, excluding the window that owns this tab strip. */
-	windowTargets?: readonly TabStripWindowTarget[] | undefined;
 	ariaLabel?: string;
 	onNewTab?: ((request: TabStripNewTabRequest) => ActionExecution) | undefined;
 	getTabCreationAvailability?:

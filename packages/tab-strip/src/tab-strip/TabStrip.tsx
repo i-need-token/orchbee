@@ -13,13 +13,10 @@ import type {
 	TabStripNewTabRequest,
 	TabStripTabCreationIntent,
 	TabStripOptions,
-	TabStripMoveGroupToWindowCallback,
-	TabStripMoveTabsToWindowCallback,
 	TabStripSelectCallback,
 	TabStripShortcutLabels,
 	TabStatusAdornment,
 	TabStatusAdornmentKind,
-	TabStripWindowTarget,
 } from './types/tab-strip-options';
 
 export interface TabStripProps extends TabStripOptions {
@@ -34,14 +31,11 @@ export type {
 	TabStripCloseConfirmation,
 	TabStripCloseRequest,
 	TabStripNewTabRequest,
-	TabStripMoveGroupToWindowCallback,
-	TabStripMoveTabsToWindowCallback,
 	TabStripTabCreationIntent,
 	TabStripSelectCallback,
 	TabStripShortcutLabels,
 	TabStatusAdornment,
 	TabStatusAdornmentKind,
-	TabStripWindowTarget,
 	TabStripMessages,
 };
 

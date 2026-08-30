@@ -12,7 +12,7 @@ import {
 	type TypedActionRuntime,
 } from '@orchbee/actions';
 import { workbenchMessages, workbenchTabMessages } from '@orchbee/i18n';
-import { TAB_STRIP_ACTION_IDS, type TabModel } from '@orchbee/tab-strip';
+import { TAB_STRIP_ACTION_IDS } from '@orchbee/tab-strip';
 
 import type { WorkbenchProjectWorkspaceRuntime } from '../model/WorkbenchProjectWorkspaceRuntime';
 import { executePreparedDescendantAction } from './executePreparedDescendantAction';
@@ -24,7 +24,6 @@ interface RegisterWorkbenchActiveTabMovementActionsOptions {
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
 	readonly runtime: ActionRuntime;
 	readonly scope: ActionScope;
-	readonly tabModel?: TabModel | undefined;
 	readonly typedRuntime: TypedActionRuntime<WorkbenchActionCatalog>;
 }
 
@@ -32,7 +31,6 @@ export function registerWorkbenchActiveTabMovementActions({
 	projectWorkspaceRuntime,
 	runtime,
 	scope,
-	tabModel,
 	typedRuntime,
 }: RegisterWorkbenchActiveTabMovementActionsOptions): readonly ActionDisposable[] {
 	return [
@@ -44,7 +42,6 @@ export function registerWorkbenchActiveTabMovementActions({
 				projectWorkspaceRuntime,
 				runtime,
 				scope,
-				tabModel,
 				title: workbenchTabMessages.moveActiveTabBackward,
 			}),
 		),
@@ -56,7 +53,6 @@ export function registerWorkbenchActiveTabMovementActions({
 				projectWorkspaceRuntime,
 				runtime,
 				scope,
-				tabModel,
 				title: workbenchTabMessages.moveActiveTabForward,
 			}),
 		),
@@ -73,7 +69,6 @@ function activeTabMovementActionDefinition<
 	projectWorkspaceRuntime,
 	runtime,
 	scope,
-	tabModel,
 	title,
 }: Omit<RegisterWorkbenchActiveTabMovementActionsOptions, 'typedRuntime'> & {
 	readonly direction: ActiveTabMovementInput['direction'];
@@ -97,7 +92,6 @@ function activeTabMovementActionDefinition<
 				projectWorkspaceRuntime,
 				runtime,
 				scope,
-				tabModel,
 			}) === null
 				? { kind: 'disabled', reason: workbenchMessages.actionUnavailable }
 				: { kind: 'enabled' },
@@ -109,7 +103,6 @@ function activeTabMovementActionDefinition<
 					projectWorkspaceRuntime,
 					runtime,
 					scope,
-					tabModel,
 				});
 				return prepared === null
 					? { code: 'active-tab-movement-unavailable', kind: 'blocked' }
@@ -128,18 +121,14 @@ function prepareActiveTabMovement({
 	projectWorkspaceRuntime,
 	runtime,
 	scope,
-	tabModel,
 }: {
 	readonly context: ActionAvailabilityContext | ActionExecutionContext;
 	readonly direction: ActiveTabMovementInput['direction'];
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
 	readonly runtime: ActionRuntime;
 	readonly scope: ActionScope;
-	readonly tabModel: TabModel | undefined;
 }): PreparedActionInvocation | null {
-	const snapshot = (
-		tabModel ?? projectWorkspaceRuntime.getActiveTerminalContext().tabModel
-	).getSnapshot();
+	const snapshot = projectWorkspaceRuntime.getActiveTerminalContext().tabModel.getSnapshot();
 	const moveInput = resolveActiveTabMovement({
 		activeTabId: snapshot.activeTabId,
 		direction,

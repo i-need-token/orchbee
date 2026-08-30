@@ -655,7 +655,7 @@ not claims about Ghostty's byte limits.
   literal custom executable arguments, the future-terminal boundary, create and default selection,
   delete constraints, reset confirmation, platform capabilities, and localized failures.
 - Terminal-default-settings protocol, Main controller, store, broker, renderer client, composition,
-  and component tests cover strict bounds, fourteen-port bootstrap ordering, Host-first commit, Host
+  and component tests cover strict bounds, thirteen-port bootstrap ordering, Host-first commit, Host
   rejection, session-visible write failure, retry, future-terminal-only capture, capability gating,
   localized validation, and visible failures. The TLA+ model checks no live eviction.
 - Terminal-feedback model tests cover default-off behavior, strict persistence recovery, duration

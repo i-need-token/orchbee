@@ -4,7 +4,6 @@ import { enUSDesktopWindowMessages } from '../locales';
 
 export const desktopWindowMessages = defineMessages({
 	category: message('desktop.window.category'),
-	create: message('desktop.window.action.create'),
 	maximizedUnavailableInFullScreen: message('desktop.window.maximizedUnavailableInFullScreen'),
 	toggleFullScreen: message('desktop.window.action.toggleFullScreen'),
 	toggleMaximized: message('desktop.window.action.toggleMaximized'),

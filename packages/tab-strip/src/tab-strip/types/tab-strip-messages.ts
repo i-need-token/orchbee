@@ -47,7 +47,6 @@ export interface TabStripMessages {
 		direction: TabMoveDirection,
 		orientation: 'horizontal' | 'vertical',
 	) => string;
-	readonly formatWindowLabel: (ordinal: number) => string;
 	readonly groupColor: string;
 	readonly groupColorNames: Readonly<Record<TabGroupColor, string>>;
 	readonly groupMoveCanceled: string;
@@ -55,11 +54,8 @@ export interface TabStripMessages {
 	readonly groupNamePlaceholder: string;
 	readonly groupOptions: string;
 	readonly moveGroupToNewWindow: string;
-	readonly moveGroupToWindow: string;
 	readonly moveTabToNewWindow: string;
-	readonly moveTabToWindow: string;
 	readonly moveTabsToNewWindow: string;
-	readonly moveTabsToWindow: string;
 	readonly newGroup: string;
 	readonly moreOptions: string;
 	readonly newTab: string;

@@ -4,7 +4,6 @@ import path from 'node:path';
 
 import type { AgentChangeSource, AgentObservationEvent, AgentTransition } from '@orchbee/agent';
 import { createOrchbeeIntl, resolveOrchbeeLocale, workbenchTabMessages } from '@orchbee/i18n';
-import { WorkbenchProjectWorkspaceRuntime } from '@orchbee/workbench';
 import {
 	DESKTOP_RENDERER_BOOTSTRAP_IPC_CHANNEL,
 	DesktopApplicationExitRequestIdSchema,
@@ -53,7 +52,6 @@ import {
 	type TerminalPresentationEvent,
 } from '@orchbee/workbench/terminal-presentation';
 import {
-	workbenchSharedDocumentRevision,
 	type WorkbenchSharedDocument,
 	type WorkbenchSharedPanelNode,
 	type WorkbenchSharedDocumentRevision,
@@ -218,22 +216,10 @@ import type { DesktopTerminalExitRecordResult } from '../terminal-document-contr
 import {
 	DesktopWindowStateOwner,
 	FileDesktopWindowStateStore,
-	resolveDesktopWindowLaunchState,
-	type DesktopWindowBounds,
 	type DesktopWindowDisplayTopology,
 	type DesktopWindowStateAttachment,
 	type DesktopWindowStateStore,
 } from '../window-state';
-import {
-	DesktopWindowLayoutBroker,
-	DesktopWindowLayoutCoordinator,
-	FileDesktopWindowLayoutStore,
-	loadDesktopWindowLayoutOwner,
-	type DesktopWindowLayoutHost,
-	type DesktopWindowLayoutProductDocument,
-	type DesktopWindowLayoutStore,
-	type DesktopWindowLayoutWindow,
-} from '../window-layout';
 import { FileWorkbenchDocumentStore, type WorkbenchDocumentStore } from '../workbench-document';
 import {
 	composeDesktopTerminalRuntime,
@@ -399,16 +385,6 @@ interface GatewayClientResourceOwner {
 interface DesktopRendererDocumentHandle {
 	readonly cleanup: () => Promise<void>;
 	readonly lifetimeBroker: DesktopApplicationLifetimeBrokerHandle;
-}
-
-interface DesktopNativeWindowRecord {
-	geometryCaptureScheduled: boolean;
-	layoutCommitted: boolean;
-	loading: Promise<void> | undefined;
-	pendingRendererGeneration: number | undefined;
-	retiring: boolean;
-	readonly window: BrowserWindow;
-	readonly windowId: string;
 }
 
 type TerminalExitPublicationResult = 'already-committed' | 'committed' | 'pending';
@@ -596,7 +572,6 @@ export interface DesktopApplicationDependencies {
 		legacyFilePath: string,
 	) => WorkbenchDocumentStore;
 	readonly createWindow: (options: BrowserWindowConstructorOptions) => BrowserWindow;
-	readonly createWindowLayoutStore?: (filePath: string) => DesktopWindowLayoutStore;
 	readonly createWindowStateStore: (filePath: string) => DesktopWindowStateStore;
 	readonly getWindowDisplayTopology: () => DesktopWindowDisplayTopology;
 	readonly getPreferredLocales: () => readonly string[];
@@ -770,7 +745,6 @@ const defaultDependencies: DesktopApplicationDependencies = {
 	createWorkbenchDocumentStore: (filePath, legacyFilePath) =>
 		new FileWorkbenchDocumentStore(filePath, { legacyFilePath }),
 	createWindow: (options) => new BrowserWindow(options),
-	createWindowLayoutStore: (filePath) => new FileDesktopWindowLayoutStore(filePath),
 	createWindowStateStore: (filePath) => new FileDesktopWindowStateStore(filePath),
 	getPreferredLocales: () => app.getPreferredSystemLanguages(),
 	getWindowDisplayTopology: () => ({
@@ -876,12 +850,7 @@ export class DesktopApplication {
 	readonly #rendererDocuments = new Map<BrowserWindow, DesktopRendererDocumentHandle>();
 	readonly #rendererDocumentRetirements = new Map<BrowserWindow, DesktopRendererDocumentHandle>();
 	#window: BrowserWindow | undefined;
-	readonly #windows = new Map<string, DesktopNativeWindowRecord>();
-	readonly #windowIds = new Map<BrowserWindow, string>();
-	#windowLayoutCoordinator: DesktopWindowLayoutCoordinator | undefined;
-	#windowLayoutOwner: Awaited<ReturnType<typeof loadDesktopWindowLayoutOwner>> | undefined;
 	#windowStateAttachment: DesktopWindowStateAttachment | undefined;
-	#windowStateAttachmentWindow: BrowserWindow | undefined;
 	readonly #windowStateOwner: DesktopWindowStateOwner;
 	readonly #workbenchDocumentStore: WorkbenchDocumentStore;
 
@@ -977,100 +946,11 @@ export class DesktopApplication {
 	}
 
 	get hasWindow(): boolean {
-		return [...this.#windows.values()].some((record) => !record.window.isDestroyed());
+		return this.#window !== undefined && !this.#window.isDestroyed();
 	}
 
 	get quitPrepared(): boolean {
 		return this.#quitPrepared;
-	}
-
-	canCreateWindow(): boolean {
-		return (
-			!this.#quitPrepared &&
-			!this.#shuttingDown &&
-			this.#connection !== undefined &&
-			this.#clientSessionCoordinator !== undefined &&
-			this.#windowLayoutCoordinator !== undefined &&
-			this.#options.runtime.terminalLaunch.currentDirectory !== null
-		);
-	}
-
-	async createWindow(): Promise<boolean> {
-		const clientSessionCoordinator = this.#clientSessionCoordinator;
-		const windowLayoutCoordinator = this.#windowLayoutCoordinator;
-		const defaultCwd = this.#options.runtime.terminalLaunch.currentDirectory;
-		if (
-			!this.canCreateWindow() ||
-			clientSessionCoordinator === undefined ||
-			windowLayoutCoordinator === undefined ||
-			defaultCwd === null
-		) {
-			return false;
-		}
-		const terminalTitle = createOrchbeeIntl(
-			resolveOrchbeeLocale(this.#dependencies.getPreferredLocales()),
-		).formatMessage(workbenchTabMessages.terminalTitle);
-		let created: { readonly tabId: string; readonly terminalContextId: string } | undefined;
-		const mutation = await clientSessionCoordinator
-			.mutateCanonicalDocument((canonical) => {
-				const runtime = new WorkbenchProjectWorkspaceRuntime({
-					initialDocument: canonical,
-					standaloneCwd: defaultCwd,
-					standaloneTerminalTitle: terminalTitle,
-					terminalPresentation: {
-						createOperationId: () =>
-							terminalPresentationOperationId(
-								`desktop:new-window:operation:${this.#dependencies.randomIdentifier()}`,
-							),
-						createPresentationId: () =>
-							terminalPresentationId(
-								`desktop:new-window:presentation:${this.#dependencies.randomIdentifier()}`,
-							),
-						createRemovalId: () =>
-							terminalPresentationRemovalId(
-								`desktop:new-window:removal:${this.#dependencies.randomIdentifier()}`,
-							),
-						dispatchCommands: () => undefined,
-						initialPresentationId: terminalPresentationId(
-							`desktop:new-window:initial:${this.#dependencies.randomIdentifier()}`,
-						),
-						kind: 'managed',
-					},
-				});
-				const creation = runtime.createTerminalAtCwd({
-					cwd: defaultCwd,
-					groupId: null,
-					source: 'programmatic',
-					title: terminalTitle,
-				});
-				if (creation.kind !== 'created') {
-					return { kind: 'rejected', reason: creation.reason };
-				}
-				const document = runtime.getSharedDocument(
-					workbenchSharedDocumentRevision((BigInt(canonical.revision) + 1n).toString()),
-				);
-				const terminalContext = document.terminalContexts.find((candidate) =>
-					candidate.tabCollection.tabs.some((tab) => tab.id === creation.tabId),
-				);
-				if (terminalContext === undefined) {
-					return { kind: 'rejected', reason: 'terminal-context-unavailable' };
-				}
-				created = {
-					tabId: creation.tabId,
-					terminalContextId: terminalContext.terminalContextId,
-				};
-				return { document, kind: 'commit' };
-			})
-			.catch(() => ({ kind: 'rejected' as const, reason: 'document-mutation-failed' }));
-		if (mutation.kind !== 'committed' || created === undefined) return false;
-		const sourceWindowId = windowLayoutCoordinator.layout.activationOrder.at(-1);
-		if (sourceWindowId === undefined) return false;
-		const result = await windowLayoutCoordinator.moveTabsToNewWindow(
-			sourceWindowId,
-			created.terminalContextId,
-			[created.tabId],
-		);
-		return result.kind === 'completed';
 	}
 
 	async createEnvironment(
@@ -1306,10 +1186,7 @@ export class DesktopApplication {
 	}
 
 	focusWindow(): void {
-		const window =
-			this.#window === undefined || this.#window.isDestroyed()
-				? this.#mostRecentNativeWindow()
-				: this.#window;
+		const window = this.#window;
 		if (window === undefined || window.isDestroyed()) return;
 		if (window.isMinimized()) window.restore();
 		window.show();
@@ -1585,14 +1462,6 @@ export class DesktopApplication {
 				getTerminalEvents: () => terminalIntentReconciler.getTerminalEvents(),
 				initialPresentationId,
 				initializationDocument,
-				onCanonicalDocumentChanged: async (document) => {
-					const coordinator = this.#windowLayoutCoordinator;
-					if (coordinator === undefined) return;
-					await coordinator.reconcileDocument(
-						toDesktopWindowLayoutDocument(document),
-						this.#fallbackWindowBounds(),
-					);
-				},
 				reconcileDocument: async (document, publish) => {
 					await terminalIntentReconciler.reconcileDocument(document, (event) => {
 						if (event.type === 'terminal-exited') {
@@ -1642,33 +1511,6 @@ export class DesktopApplication {
 					`Desktop client session coordinator stopped with ${coordinatorStart.reason}.`,
 				);
 			}
-			const displayTopology = this.#dependencies.getWindowDisplayTopology();
-			const legacyLaunchState = await this.#windowStateOwner.loadLaunchState(displayTopology);
-			const canonicalDocument =
-				clientSessionCoordinator.canonicalDocument ?? initializationDocument;
-			const windowLayoutStore =
-				this.#dependencies.createWindowLayoutStore?.(this.#options.runtime.windowLayoutStorePath) ??
-				new FileDesktopWindowLayoutStore(this.#options.runtime.windowLayoutStorePath);
-			const windowLayoutOwner = await loadDesktopWindowLayoutOwner(
-				windowLayoutStore,
-				toDesktopWindowLayoutDocument(canonicalDocument),
-				completeDesktopWindowBounds(legacyLaunchState.bounds, displayTopology),
-				legacyLaunchState.maximized,
-			);
-			this.#windowLayoutOwner = windowLayoutOwner;
-			const windowLayoutHost: DesktopWindowLayoutHost = {
-				activateWindow: this.#activateNativeWindow,
-				discardPreparedWindow: this.#discardPreparedNativeWindow,
-				getNewWindowBounds: this.#getNewWindowBounds,
-				getWindowIdAtPoint: this.#getWindowIdAtPoint,
-				prepareWindow: this.#prepareNativeWindow,
-				retireWindow: this.#retireNativeWindow,
-			};
-			this.#windowLayoutCoordinator = new DesktopWindowLayoutCoordinator(
-				windowLayoutOwner,
-				toDesktopWindowLayoutDocument(canonicalDocument),
-				windowLayoutHost,
-			);
 			this.#sshProjectEnrollmentRuntime = new DesktopSshProjectEnrollmentRuntime({
 				admitProject: (environmentId, requestedPath, signal) =>
 					this.admitSshEnvironmentRemoteProject(environmentId, requestedPath, signal),
@@ -1830,15 +1672,6 @@ export class DesktopApplication {
 			this.#sshProjectEnrollmentRuntime?.dispose();
 			this.#sshProjectEnrollmentRuntime = undefined;
 			try {
-				this.#windowLayoutCoordinator?.dispose();
-				this.#windowLayoutCoordinator = undefined;
-				await this.#windowLayoutOwner?.flush();
-				this.#windowLayoutOwner?.dispose();
-				this.#windowLayoutOwner = undefined;
-			} catch (cleanupError: unknown) {
-				cleanupFailure ??= cleanupError;
-			}
-			try {
 				const coordinator = this.#clientSessionCoordinator;
 				await coordinator?.dispose();
 				if (this.#clientSessionCoordinator === coordinator) {
@@ -1884,99 +1717,40 @@ export class DesktopApplication {
 			this.focusWindow();
 			return;
 		}
-		const coordinator = this.#windowLayoutCoordinator;
-		if (
-			this.#connection === undefined ||
-			this.#terminalRuntime === undefined ||
-			coordinator === undefined
-		) {
+		if (this.#connection === undefined || this.#terminalRuntime === undefined) {
 			throw new Error('Desktop application must start before opening a window.');
 		}
-		this.#documentFailure = undefined;
-		for (const layoutWindow of coordinator.layout.windows) {
-			if (!(await this.#createNativeWindow(layoutWindow, true))) {
-				throw new Error(`Desktop native window ${layoutWindow.windowId} could not be created.`);
-			}
-		}
-		const loading = [...this.#windows.values()].flatMap((record) => {
-			const operation = this.#loadNativeWindow(record);
-			return operation === undefined ? [] : [operation];
-		});
-		await Promise.all(loading);
-		const activeWindowId = coordinator.layout.activationOrder.at(-1);
-		if (activeWindowId !== undefined) this.#activateNativeWindow(activeWindowId);
-		await this.#documentTransition;
-		if (this.#documentFailure !== undefined) throw this.#documentFailure;
-	}
-
-	readonly #prepareNativeWindow = async (
-		layoutWindow: DesktopWindowLayoutWindow,
-	): Promise<boolean> => {
-		if (!(await this.#createNativeWindow(layoutWindow, false))) return false;
-		const record = this.#windows.get(layoutWindow.windowId);
-		if (record === undefined) return false;
-		try {
-			await this.#loadNativeWindow(record);
-			return true;
-		} catch {
-			this.#retireNativeWindow(layoutWindow.windowId);
-			await this.#documentTransition;
-			return false;
-		}
-	};
-
-	readonly #createNativeWindow = async (
-		layoutWindow: DesktopWindowLayoutWindow,
-		layoutCommitted: boolean,
-	): Promise<boolean> => {
-		if (this.#windows.has(layoutWindow.windowId) || this.#shuttingDown) return false;
 		const rendererUrl = new URL(this.#options.rendererUrl);
-		if (!isPermittedDesktopRendererUrl(rendererUrl)) return false;
-		const launchState = resolveDesktopWindowLaunchState(
-			{ bounds: layoutWindow.bounds, maximized: layoutWindow.maximized, version: 1 },
+		if (!isPermittedDesktopRendererUrl(rendererUrl)) {
+			throw new Error('Desktop renderer URL must use loopback HTTP or the packaged origin.');
+		}
+		this.#documentFailure = undefined;
+		const launchState = await this.#windowStateOwner.loadLaunchState(
 			this.#dependencies.getWindowDisplayTopology(),
 		);
-		let window: BrowserWindow;
-		try {
-			window = this.#dependencies.createWindow({
-				backgroundColor: terminalRgbCss(
-					this.#options.runtime.terminalLaunch.terminalProfile.defaultBackgroundRgb,
-				),
-				...launchState.bounds,
-				show: false,
-				...(this.#options.platform === 'darwin'
-					? { trafficLightPosition: MACOS_TRAFFIC_LIGHT_POSITION }
-					: { titleBarOverlay: true }),
-				titleBarStyle: 'hidden',
-				webPreferences: {
-					allowRunningInsecureContent: false,
-					contextIsolation: true,
-					nodeIntegration: false,
-					preload: this.#options.preloadPath,
-					sandbox: true,
-					spellcheck: false,
-					webSecurity: true,
-				},
-			});
-		} catch {
-			return false;
-		}
-		const record: DesktopNativeWindowRecord = {
-			geometryCaptureScheduled: false,
-			layoutCommitted,
-			loading: undefined,
-			pendingRendererGeneration: undefined,
-			retiring: false,
-			window,
-			windowId: layoutWindow.windowId,
-		};
-		this.#windows.set(record.windowId, record);
-		this.#windowIds.set(window, record.windowId);
-		this.#window ??= window;
-		if (this.#windowStateAttachment === undefined) {
-			this.#windowStateAttachment = this.#windowStateOwner.attach(window);
-			this.#windowStateAttachmentWindow = window;
-		}
+		const window = this.#dependencies.createWindow({
+			backgroundColor: terminalRgbCss(
+				this.#options.runtime.terminalLaunch.terminalProfile.defaultBackgroundRgb,
+			),
+			...launchState.bounds,
+			show: false,
+			...(this.#options.platform === 'darwin'
+				? { trafficLightPosition: MACOS_TRAFFIC_LIGHT_POSITION }
+				: { titleBarOverlay: true }),
+			titleBarStyle: 'hidden',
+			webPreferences: {
+				allowRunningInsecureContent: false,
+				contextIsolation: true,
+				nodeIntegration: false,
+				preload: this.#options.preloadPath,
+				sandbox: true,
+				spellcheck: false,
+				webSecurity: true,
+			},
+		});
+		this.#window = window;
+		const windowStateAttachment = this.#windowStateOwner.attach(window);
+		this.#windowStateAttachment = windowStateAttachment;
 		if (launchState.maximized) window.maximize();
 		let loadingGeneration = 0;
 		window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
@@ -1991,184 +1765,36 @@ export class DesktopApplication {
 			const generation =
 				loadingGeneration === 0 ? this.#beginRendererDocument(window) : loadingGeneration;
 			loadingGeneration = 0;
-			if (record.layoutCommitted) this.#queueRendererDocument(window, generation);
-			else record.pendingRendererGeneration = generation;
+			this.#queueRendererDocument(window, generation);
 		});
 		window.webContents.on('render-process-gone', () => {
 			this.#beginRendererDocument(window);
 			void this.#documentTransition.then(() => {
-				if (this.#windowIds.has(window) && !window.isDestroyed() && !this.#shuttingDown) {
+				if (this.#window === window && !window.isDestroyed() && !this.#shuttingDown) {
 					window.reload();
 				}
 			});
 		});
 		window.on('close', (event) => {
-			if (record.retiring || this.#quitPrepared || this.#shuttingDown) return;
-			event.preventDefault();
-			void this.#requestNativeWindowClose(record.windowId);
+			if (this.#options.platform !== 'darwin' && !this.#quitPrepared && !this.#shuttingDown) {
+				event.preventDefault();
+				void this.requestExitAndQuit('user-quit');
+			}
 		});
-		window.on('focus', () => {
-			this.#window = window;
-			this.#selectApplicationLifetimeBroker(window);
-			void this.#windowLayoutCoordinator?.focusWindow(record.windowId);
-		});
-		const scheduleGeometryCapture = () => this.#scheduleWindowGeometryCapture(record);
-		window.on('maximize', scheduleGeometryCapture);
-		window.on('move', scheduleGeometryCapture);
-		window.on('resize', scheduleGeometryCapture);
-		window.on('unmaximize', scheduleGeometryCapture);
 		window.once('ready-to-show', () => window.show());
 		window.once('closed', () => {
-			if (
-				this.#windowStateAttachmentWindow === window &&
-				this.#windowStateAttachment !== undefined
-			) {
-				this.#windowStateAttachment.dispose();
+			windowStateAttachment.dispose();
+			if (this.#windowStateAttachment === windowStateAttachment) {
 				this.#windowStateAttachment = undefined;
-				this.#windowStateAttachmentWindow = undefined;
 			}
 			this.#writeCopyPathTrace('window-closed');
 			this.#beginRendererDocument(window);
-			this.#windows.delete(record.windowId);
-			this.#windowIds.delete(window);
-			if (this.#window === window) {
-				this.#window = this.#mostRecentNativeWindow();
-				this.#selectApplicationLifetimeBroker(this.#window);
-			}
+			if (this.#window === window) this.#window = undefined;
 		});
-		return true;
-	};
 
-	#loadNativeWindow(record: DesktopNativeWindowRecord): Promise<void> | undefined {
-		if (record.window.isDestroyed()) return undefined;
-		if (record.loading !== undefined) return record.loading;
-		const operation = record.window.loadURL(this.#options.rendererUrl).then(async () => {
-			await this.#documentTransition;
-			if (this.#documentFailure !== undefined) throw this.#documentFailure;
-		});
-		record.loading = operation.catch((error: unknown) => {
-			record.loading = undefined;
-			throw error;
-		});
-		return record.loading;
-	}
-
-	readonly #activateNativeWindow = (windowId: string): void => {
-		const record = this.#windows.get(windowId);
-		if (record === undefined || record.window.isDestroyed()) return;
-		record.layoutCommitted = true;
-		const pendingRendererGeneration = record.pendingRendererGeneration;
-		record.pendingRendererGeneration = undefined;
-		if (pendingRendererGeneration !== undefined) {
-			this.#queueRendererDocument(record.window, pendingRendererGeneration);
-		}
-		this.#window = record.window;
-		this.#selectApplicationLifetimeBroker(record.window);
-		const loading = this.#loadNativeWindow(record);
-		void loading
-			?.then(async () => {
-				await this.#documentTransition;
-				if (this.#documentFailure !== undefined) throw this.#documentFailure;
-				if (record.window.isDestroyed()) return;
-				if (record.window.isMinimized()) record.window.restore();
-				record.window.show();
-				record.window.focus();
-			})
-			.catch(() => undefined);
-	};
-
-	readonly #discardPreparedNativeWindow = async (windowId: string): Promise<void> => {
-		this.#retireNativeWindow(windowId);
+		await window.loadURL(rendererUrl.href);
 		await this.#documentTransition;
-	};
-
-	readonly #retireNativeWindow = (windowId: string): void => {
-		const record = this.#windows.get(windowId);
-		if (record === undefined || record.window.isDestroyed()) return;
-		record.retiring = true;
-		record.window.destroy();
-	};
-
-	async #requestNativeWindowClose(windowId: string): Promise<void> {
-		const coordinator = this.#windowLayoutCoordinator;
-		if (coordinator === undefined) return;
-		if (coordinator.layout.windows.length === 1) {
-			await this.requestExitAndQuit('user-quit');
-			return;
-		}
-		const result = await coordinator.requestWindowClose(windowId);
-		if (result.kind === 'last-window') await this.requestExitAndQuit('user-quit');
-	}
-
-	#scheduleWindowGeometryCapture(record: DesktopNativeWindowRecord): void {
-		if (record.geometryCaptureScheduled || record.retiring || record.window.isDestroyed()) return;
-		record.geometryCaptureScheduled = true;
-		queueMicrotask(() => {
-			record.geometryCaptureScheduled = false;
-			if (record.retiring || record.window.isDestroyed()) return;
-			void this.#windowLayoutCoordinator?.captureGeometry(
-				record.windowId,
-				record.window.getNormalBounds(),
-				record.window.isMaximized(),
-			);
-		});
-	}
-
-	readonly #getWindowIdAtPoint = (point: Readonly<{ x: number; y: number }>): string | null => {
-		for (const [windowId, record] of [...this.#windows].reverse()) {
-			if (record.retiring || record.window.isDestroyed()) continue;
-			const bounds = record.window.getNormalBounds();
-			if (
-				point.x >= bounds.x &&
-				point.x < bounds.x + bounds.width &&
-				point.y >= bounds.y &&
-				point.y < bounds.y + bounds.height
-			) {
-				return windowId;
-			}
-		}
-		return null;
-	};
-
-	readonly #getNewWindowBounds = (
-		sourceWindowId: string,
-		point: Readonly<{ x: number; y: number }> | undefined,
-	): ReturnType<DesktopNativeWindowRecord['window']['getNormalBounds']> => {
-		const source =
-			this.#windows.get(sourceWindowId)?.window.getNormalBounds() ?? this.#fallbackWindowBounds();
-		const candidate = {
-			height: source.height,
-			width: source.width,
-			x: point === undefined ? source.x + 32 : Math.round(point.x - source.width / 2),
-			y: point === undefined ? source.y + 32 : Math.round(point.y - 24),
-		};
-		const launch = resolveDesktopWindowLaunchState(
-			{ bounds: candidate, maximized: false, version: 1 },
-			this.#dependencies.getWindowDisplayTopology(),
-		);
-		return completeDesktopWindowBounds(
-			launch.bounds,
-			this.#dependencies.getWindowDisplayTopology(),
-		);
-	};
-
-	#fallbackWindowBounds(): ReturnType<BrowserWindow['getNormalBounds']> {
-		const topology = this.#dependencies.getWindowDisplayTopology();
-		return completeDesktopWindowBounds({ height: 720, width: 1_024 }, topology);
-	}
-
-	#mostRecentNativeWindow(): BrowserWindow | undefined {
-		const activationOrder = this.#windowLayoutCoordinator?.layout.activationOrder ?? [];
-		for (const windowId of [...activationOrder].reverse()) {
-			const window = this.#windows.get(windowId)?.window;
-			if (window !== undefined && !window.isDestroyed()) return window;
-		}
-		return undefined;
-	}
-
-	#selectApplicationLifetimeBroker(window: BrowserWindow | undefined): void {
-		this.#applicationLifetimeBroker =
-			window === undefined ? undefined : this.#rendererDocuments.get(window)?.lifetimeBroker;
+		if (this.#documentFailure !== undefined) throw this.#documentFailure;
 	}
 
 	async shutdown(): Promise<void> {
@@ -2183,18 +1809,6 @@ export class DesktopApplication {
 	}
 
 	async #shutdownInternal(): Promise<void> {
-		for (const record of this.#windows.values()) {
-			if (!record.window.isDestroyed()) {
-				await this.#windowLayoutCoordinator?.captureGeometry(
-					record.windowId,
-					record.window.getNormalBounds(),
-					record.window.isMaximized(),
-				);
-			}
-		}
-		await this.#windowLayoutOwner?.flush().catch(() => {
-			this.#writeCopyPathTrace('window-layout-flush-failed-during-shutdown');
-		});
 		this.#windowStateAttachment?.capture();
 		await this.#windowStateOwner.flush().catch(() => {
 			this.#writeCopyPathTrace('window-state-flush-failed-during-shutdown');
@@ -2228,9 +1842,7 @@ export class DesktopApplication {
 		}
 		try {
 			this.#writeCopyPathTrace('main-shutdown');
-			for (const record of this.#windows.values()) {
-				this.#beginRendererDocument(record.window);
-			}
+			if (this.#window !== undefined) this.#beginRendererDocument(this.#window);
 			await this.#documentTransition;
 		} catch (error: unknown) {
 			firstFailure ??= error;
@@ -2274,10 +1886,6 @@ export class DesktopApplication {
 		} catch (error: unknown) {
 			firstFailure ??= error;
 		}
-		this.#windowLayoutCoordinator?.dispose();
-		this.#windowLayoutCoordinator = undefined;
-		this.#windowLayoutOwner?.dispose();
-		this.#windowLayoutOwner = undefined;
 		try {
 			const terminalRuntime = this.#terminalRuntime;
 			await terminalRuntime?.dispose();
@@ -2432,18 +2040,13 @@ export class DesktopApplication {
 		const clientSessionCoordinator = this.#clientSessionCoordinator;
 		const agentIntegrationManagementController = this.#agentIntegrationManagementController;
 		const terminalDefaultSettingsController = this.#terminalDefaultSettingsController;
-		const windowLayoutCoordinator = this.#windowLayoutCoordinator;
-		const windowId = this.#windowIds.get(window);
-		const windowRecord = windowId === undefined ? undefined : this.#windows.get(windowId);
 		if (
 			terminalRuntime === undefined ||
 			sshEnvironmentTerminalRuntimeOwner === undefined ||
 			sshProjectEnrollmentRuntime === undefined ||
 			clientSessionCoordinator === undefined ||
 			terminalDefaultSettingsController === undefined ||
-			windowLayoutCoordinator === undefined ||
-			windowId === undefined ||
-			windowRecord?.layoutCommitted !== true ||
+			this.#window !== window ||
 			this.#rendererDocumentRetirements.has(window) ||
 			window.isDestroyed() ||
 			generation !== this.#documentGenerations.get(window) ||
@@ -2490,9 +2093,6 @@ export class DesktopApplication {
 		let terminalDefaultSettingsChannel:
 			| { readonly port1: MessagePortMain; readonly port2: MessagePortMain }
 			| undefined;
-		let windowLayoutChannel:
-			| { readonly port1: MessagePortMain; readonly port2: MessagePortMain }
-			| undefined;
 		let projectionBroker: DesktopProjectionControlBrokerHandle | undefined;
 		let agentObservationBroker: DesktopAgentObservationBrokerHandle | undefined;
 		let agentIntegrationManagementBroker: DesktopAgentIntegrationManagementBrokerHandle | undefined;
@@ -2506,7 +2106,6 @@ export class DesktopApplication {
 		let sshProjectEnrollmentBroker: DesktopSshProjectEnrollmentBrokerHandle | undefined;
 		let terminalLaunchProfileBroker: DesktopTerminalLaunchProfileBrokerHandle | undefined;
 		let terminalDefaultSettingsBroker: DesktopTerminalDefaultSettingsBrokerHandle | undefined;
-		let windowLayoutBroker: DesktopWindowLayoutBroker | undefined;
 		let cleanupComplete = false;
 		let cleanupPromise: Promise<void> | undefined;
 		const cleanup = async (): Promise<void> => {
@@ -2526,7 +2125,6 @@ export class DesktopApplication {
 					() => sshProjectEnrollmentBroker?.dispose(),
 					() => terminalDefaultSettingsBroker?.dispose(),
 					() => terminalLaunchProfileBroker?.dispose(),
-					() => windowLayoutBroker?.dispose(),
 				]) {
 					try {
 						dispose();
@@ -2561,7 +2159,6 @@ export class DesktopApplication {
 				closeRendererChannel(sshProjectEnrollmentChannel);
 				closeRendererChannel(terminalLaunchProfileChannel);
 				closeRendererChannel(terminalDefaultSettingsChannel);
-				closeRendererChannel(windowLayoutChannel);
 				if (firstFailure !== undefined) throw firstFailure;
 				cleanupComplete = true;
 			})();
@@ -2590,7 +2187,6 @@ export class DesktopApplication {
 			terminalLaunchProfileChannel = this.#dependencies.createMessageChannel();
 			terminalDefaultSettingsChannel = this.#dependencies.createMessageChannel();
 			clipboardChannel = this.#dependencies.createMessageChannel();
-			windowLayoutChannel = this.#dependencies.createMessageChannel();
 			projectionBroker = this.#dependencies.createProjectionControlBroker(
 				projectionChannel.port2,
 				terminalProjectionRouter,
@@ -2681,10 +2277,6 @@ export class DesktopApplication {
 				terminalDefaultSettingsChannel.port2,
 				terminalDefaultSettingsController,
 			);
-			windowLayoutBroker = new DesktopWindowLayoutBroker(
-				windowLayoutChannel.port2,
-				windowLayoutCoordinator.createBrokerController(windowId),
-			);
 			clientSessionBroker.start();
 			agentObservationBroker.start();
 			agentIntegrationManagementBroker.start();
@@ -2698,7 +2290,6 @@ export class DesktopApplication {
 			sshProjectEnrollmentBroker.start();
 			terminalLaunchProfileBroker.start();
 			terminalDefaultSettingsBroker.start();
-			windowLayoutBroker.start();
 			window.webContents.postMessage(
 				DESKTOP_RENDERER_BOOTSTRAP_IPC_CHANNEL,
 				DesktopRendererBootstrapSchema.parse({
@@ -2719,13 +2310,12 @@ export class DesktopApplication {
 					terminalLaunchProfileChannel.port1,
 					terminalDefaultSettingsChannel.port1,
 					clipboardChannel.port1,
-					windowLayoutChannel.port1,
 					remoteTerminalCreationChannel.port1,
 					sshProjectEnrollmentChannel.port1,
 				],
 			);
 			this.#rendererDocuments.set(window, { cleanup, lifetimeBroker });
-			if (this.#window === window) this.#applicationLifetimeBroker = lifetimeBroker;
+			this.#applicationLifetimeBroker = lifetimeBroker;
 		} catch (error: unknown) {
 			await cleanup();
 			throw error;
@@ -3438,32 +3028,6 @@ function isPermittedDesktopRendererUrl(url: URL): boolean {
 		(url.protocol === 'http:' && url.hostname === '127.0.0.1') ||
 		(url.protocol === 'orchbee:' && url.hostname === 'app' && url.port === '')
 	);
-}
-
-function toDesktopWindowLayoutDocument(
-	document: WorkbenchSharedDocument,
-): DesktopWindowLayoutProductDocument {
-	return {
-		terminalContexts: document.terminalContexts.map((context) => ({
-			tabIds: context.tabCollection.tabs.map((tab) => tab.id),
-			tabs: context.tabCollection.tabs.map((tab) => ({ group: tab.group, id: tab.id })),
-			terminalContextId: context.terminalContextId,
-		})),
-	};
-}
-
-function completeDesktopWindowBounds(
-	bounds: DesktopWindowBounds | Readonly<{ height: number; width: number }>,
-	topology: DesktopWindowDisplayTopology,
-): DesktopWindowBounds {
-	if ('x' in bounds && 'y' in bounds) return bounds;
-	const workArea = topology.primaryWorkArea;
-	return {
-		height: bounds.height,
-		width: bounds.width,
-		x: Math.round(workArea.x + (workArea.width - bounds.width) / 2),
-		y: Math.round(workArea.y + (workArea.height - bounds.height) / 2),
-	};
 }
 
 function isSameDesktopRendererOrigin(value: string, rendererUrl: URL): boolean {

@@ -1240,39 +1240,6 @@
 			]
 		},
 		{
-			"id": "desktop-window-layout",
-			"owner": "@orchbee/desktop",
-			"workspace": "apps/desktop",
-			"module": "apps/desktop/formal/tla/DesktopWindowLayout.tla",
-			"config": "apps/desktop/formal/tla/DesktopWindowLayout.cfg",
-			"claims": ["apps/desktop/docs/window-lifecycle.md"],
-			"triggers": [
-				"apps/desktop/src/main/window-layout/**",
-				"apps/desktop/src/main/composition/**",
-				"packages/desktop-client-protocol/src/desktop-window-layout-contract.ts",
-				"packages/tab-strip/src/**",
-				"packages/workbench/src/**"
-			],
-			"requiredCoverage": [
-				"FocusWindow",
-				"ReconcileAdd",
-				"ReconcileRemove",
-				"RequestMove",
-				"RequestMoveNewWindow",
-				"RequestNewWindow",
-				"TerminalProvisioned",
-				"TerminalProvisioningFailed",
-				"NativeWindowPrepared",
-				"NativeWindowPreparationFailed",
-				"PersistSucceeded",
-				"PersistFailed",
-				"RequestClose",
-				"RetireRenderer",
-				"AttachRenderer",
-				"IgnoreStaleCompletion"
-			]
-		},
-		{
 			"id": "desktop-workbench-document-placement-migration",
 			"owner": "@orchbee/desktop",
 			"workspace": "apps/desktop",

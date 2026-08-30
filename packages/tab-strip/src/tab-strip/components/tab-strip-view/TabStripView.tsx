@@ -48,9 +48,6 @@ export function TabStripView({
 		rovingFocusKey,
 		onMoveTabsToNewWindow,
 		onMoveGroupToNewWindow,
-		onMoveTabsToWindow,
-		onMoveGroupToWindow,
-		windowTargets,
 		onSetTabTitle,
 		shortcutLabels,
 		ariaLabel,
@@ -348,15 +345,8 @@ export function TabStripView({
 					verticalExpandOnHover={verticalExpandOnHover}
 					tabSearchPinned={comboButtonSnapshot.tabSearchPinned}
 					onVerticalExpandOnHoverChange={onVerticalExpandOnHoverChange}
-					moveTabsToNewWindowAvailable={
-						onMoveTabsToNewWindow !== undefined || onMoveTabsToWindow !== undefined
-					}
-					moveGroupToNewWindowAvailable={
-						onMoveGroupToNewWindow !== undefined || onMoveGroupToWindow !== undefined
-					}
-					moveTabsToWindowAvailable={onMoveTabsToWindow !== undefined}
-					moveGroupToWindowAvailable={onMoveGroupToWindow !== undefined}
-					windowTargets={windowTargets}
+					moveTabsToNewWindowAvailable={onMoveTabsToNewWindow !== undefined}
+					moveGroupToNewWindowAvailable={onMoveGroupToNewWindow !== undefined}
 					onSetTabTitle={onSetTabTitle}
 					shortcutLabels={shortcutLabels}
 					onClose={closeMenu}

@@ -1,17 +1,5 @@
 export { Workbench } from './Workbench';
 export type { WorkbenchProps } from './Workbench';
-export type {
-	WorkbenchTabScopeSnapshot,
-	WorkbenchTabScopeSource,
-	WorkbenchTabScopeTerminalContext,
-} from './types/workbench-tab-scope';
-export type {
-	WorkbenchTabWindowControl,
-	WorkbenchTabWindowDestination,
-	WorkbenchTabWindowMoveResult,
-	WorkbenchTabWindowSnapshot,
-	WorkbenchTabWindowSummary,
-} from './types/workbench-tab-window-control';
 export { WorkbenchProjectWorkspaceRuntime } from './model/WorkbenchProjectWorkspaceRuntime';
 export type { CurrentDirectoryTerminalTarget } from './model/resolve-current-directory-terminal-target';
 export { createWorkbenchPreviewTerminalPresentationComposition } from './model/createWorkbenchPreviewTerminalPresentationComposition';
@@ -55,7 +43,6 @@ export type {
 	WorkbenchPublishedTerminalIdentity,
 	WorkbenchProjectWorkspaceRuntimeOptions,
 	WorkbenchRuntimeTerminalCreateInput,
-	WorkbenchRuntimeTerminalCreateAtCwdInput,
 	WorkbenchRuntimeTerminalCreateResult,
 	WorkbenchSharedDocumentApplyResult,
 	WorkbenchStandaloneTerminalPresentation,

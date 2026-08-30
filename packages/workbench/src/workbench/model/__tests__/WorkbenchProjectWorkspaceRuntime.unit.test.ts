@@ -1175,33 +1175,6 @@ describe('WorkbenchProjectWorkspaceRuntime', () => {
 		});
 	});
 
-	it('creates a terminal from an authoritative CWD without consulting client-local focus', () => {
-		const runtime = createManagedRuntime();
-
-		const creation = runtime.createTerminalAtCwd({
-			cwd: '/projects/new-window',
-			groupId: null,
-			source: 'programmatic',
-			title: 'New window',
-		});
-
-		expect(creation.kind).toBe('created');
-		if (creation.kind !== 'created') return;
-		const terminalContext = runtime.getActiveTerminalContext();
-		expect(
-			terminalContext.panelWorkspaceStore
-				.getSnapshot()
-				.tabs.find((tab) => tab.tabId === creation.tabId)?.root,
-		).toMatchObject({
-			kind: 'panel',
-			primaryPresentation: {
-				currentCwd: '/projects/new-window',
-				launchCwd: '/projects/new-window',
-				title: 'New window',
-			},
-		});
-	});
-
 	it('resolves explicit Directory membership and refreshed availability before creating a Tab', () => {
 		const runtime = createRuntime();
 		runtime.transition({

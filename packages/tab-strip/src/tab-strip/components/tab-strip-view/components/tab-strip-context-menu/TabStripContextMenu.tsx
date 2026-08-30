@@ -22,10 +22,7 @@ import { GroupEditorMenuIcon } from './components/group-editor-menu-icon/GroupEd
 import { useTabStripMessages } from '../../../../hooks/useTabStripMessages';
 import type { TabStripActions } from '../../../../types/tab-strip-actions';
 import { TAB_STRIP_ACTION_IDS } from '../../../../actions/tab-strip-action-contracts';
-import type {
-	TabStripShortcutLabels,
-	TabStripWindowTarget,
-} from '../../../../types/tab-strip-options';
+import type { TabStripShortcutLabels } from '../../../../types/tab-strip-options';
 
 interface TabStripContextMenuProps {
 	actions: TabStripActions;
@@ -39,9 +36,6 @@ interface TabStripContextMenuProps {
 	tabSearchPinned: boolean;
 	moveGroupToNewWindowAvailable: boolean;
 	moveTabsToNewWindowAvailable: boolean;
-	moveGroupToWindowAvailable: boolean;
-	moveTabsToWindowAvailable: boolean;
-	windowTargets: readonly TabStripWindowTarget[];
 	onSetTabTitle: ((tabId: string) => void) | undefined;
 	shortcutLabels: TabStripShortcutLabels | undefined;
 	onClose: () => void;
@@ -59,9 +53,6 @@ export function TabStripContextMenu({
 	tabSearchPinned,
 	moveGroupToNewWindowAvailable,
 	moveTabsToNewWindowAvailable,
-	moveGroupToWindowAvailable,
-	moveTabsToWindowAvailable,
-	windowTargets,
 	onSetTabTitle,
 	shortcutLabels,
 	onClose,
@@ -195,68 +186,6 @@ export function TabStripContextMenu({
 		const group = snapshot.groups.find((candidate) => candidate.id === state.id);
 		if (!group) return null;
 		const groupTabs = snapshot.tabs.filter((tab) => tab.group === group.id);
-		const canMoveGroupToNewWindow =
-			moveGroupToNewWindowAvailable && snapshot.tabs.some((tab) => tab.group !== group.id);
-		const canMoveGroupToExistingWindow = moveGroupToWindowAvailable && windowTargets.length > 0;
-		let moveGroupToWindowMenu: ReactNode = null;
-		if (canMoveGroupToExistingWindow) {
-			moveGroupToWindowMenu = (
-				<ContextMenuSub>
-					<ContextMenuSubTrigger>
-						<GroupEditorMenuIcon kind='move-window' />
-						<span>{messages.moveGroupToWindow}</span>
-					</ContextMenuSubTrigger>
-					<ContextMenuSubContent aria-label={messages.moveGroupToWindow}>
-						{windowTargets.map((target) => (
-							<ContextMenuItem
-								key={target.windowId}
-								onClick={run(() =>
-									actions.execute(
-										TAB_STRIP_ACTION_IDS.moveGroupToWindow,
-										{
-											destinationWindowId: target.windowId,
-											groupId: group.id,
-										},
-										'context-menu',
-									),
-								)}
-							>
-								{target.label}
-							</ContextMenuItem>
-						))}
-						{canMoveGroupToNewWindow ? <ContextMenuSeparator /> : null}
-						{canMoveGroupToNewWindow ? (
-							<ContextMenuItem
-								onClick={run(() =>
-									actions.execute(
-										TAB_STRIP_ACTION_IDS.moveGroupToWindow,
-										{ groupId: group.id },
-										'context-menu',
-									),
-								)}
-							>
-								{messages.moveGroupToNewWindow}
-							</ContextMenuItem>
-						) : null}
-					</ContextMenuSubContent>
-				</ContextMenuSub>
-			);
-		} else if (canMoveGroupToNewWindow) {
-			moveGroupToWindowMenu = (
-				<ContextMenuItem
-					onClick={run(() =>
-						actions.execute(
-							TAB_STRIP_ACTION_IDS.moveGroupToWindow,
-							{ groupId: group.id },
-							'context-menu',
-						),
-					)}
-				>
-					<GroupEditorMenuIcon kind='move-window' />
-					<span>{messages.moveGroupToNewWindow}</span>
-				</ContextMenuItem>
-			);
-		}
 		const commitGroupAction = (action: 'close' | 'ungroup') => {
 			if (action === 'close') {
 				actions.execute(
@@ -365,7 +294,20 @@ export function TabStripContextMenu({
 						<ContextMenuShortcut>{shortcutLabels.newTab}</ContextMenuShortcut>
 					)}
 				</ContextMenuItem>
-				{moveGroupToWindowMenu}
+				{moveGroupToNewWindowAvailable && snapshot.tabs.some((tab) => tab.group !== group.id) ? (
+					<ContextMenuItem
+						onClick={run(() =>
+							actions.execute(
+								TAB_STRIP_ACTION_IDS.moveGroupToWindow,
+								{ groupId: group.id },
+								'context-menu',
+							),
+						)}
+					>
+						<GroupEditorMenuIcon kind='move-window' />
+						<span>{messages.moveGroupToNewWindow}</span>
+					</ContextMenuItem>
+				) : null}
 				<ContextMenuSeparator />
 				<ContextMenuItem onClick={() => commitGroupAction('ungroup')}>
 					<GroupEditorMenuIcon kind='ungroup' />
@@ -404,7 +346,6 @@ export function TabStripContextMenu({
 	const closeOtherTabIds = getRelativeCloseTabIds(-1);
 	const closeTrailingTabIds = getRelativeCloseTabIds(lastUnclosedForTrailing);
 	const canMoveToNewWindow = snapshot.tabs.length > commandTabs.length;
-	const canMoveToExistingWindow = moveTabsToWindowAvailable && windowTargets.length > 0;
 	const vertical = orientation === TabStripOrientation.Vertical;
 
 	return (
@@ -488,65 +429,18 @@ export function TabStripContextMenu({
 					{messages.removeFromGroup}
 				</ContextMenuItem>
 			) : null}
-			{canMoveToExistingWindow ? (
-				<ContextMenuSub>
-					<ContextMenuSubTrigger>
-						{menuDisplayTabCount === 1 ? messages.moveTabToWindow : messages.moveTabsToWindow}
-					</ContextMenuSubTrigger>
-					<ContextMenuSubContent
-						aria-label={
-							menuDisplayTabCount === 1 ? messages.moveTabToWindow : messages.moveTabsToWindow
-						}
-					>
-						{windowTargets.map((target) => (
-							<ContextMenuItem
-								key={target.windowId}
-								onClick={run(() =>
-									actions.execute(
-										TAB_STRIP_ACTION_IDS.moveTabsToWindow,
-										{
-											destinationWindowId: target.windowId,
-											tabIds: commandTabIds,
-										},
-										'context-menu',
-									),
-								)}
-							>
-								{target.label}
-							</ContextMenuItem>
-						))}
-						{canMoveToNewWindow && moveTabsToNewWindowAvailable ? <ContextMenuSeparator /> : null}
-						{canMoveToNewWindow && moveTabsToNewWindowAvailable ? (
-							<ContextMenuItem
-								onClick={run(() =>
-									actions.execute(
-										TAB_STRIP_ACTION_IDS.moveTabsToWindow,
-										{ tabIds: commandTabIds },
-										'context-menu',
-									),
-								)}
-							>
-								{menuDisplayTabCount === 1
-									? messages.moveTabToNewWindow
-									: messages.moveTabsToNewWindow}
-							</ContextMenuItem>
-						) : null}
-					</ContextMenuSubContent>
-				</ContextMenuSub>
-			) : (
-				<ContextMenuItem
-					disabled={!canMoveToNewWindow || !moveTabsToNewWindowAvailable}
-					onClick={run(() =>
-						actions.execute(
-							TAB_STRIP_ACTION_IDS.moveTabsToWindow,
-							{ tabIds: commandTabIds },
-							'context-menu',
-						),
-					)}
-				>
-					{menuDisplayTabCount === 1 ? messages.moveTabToNewWindow : messages.moveTabsToNewWindow}
-				</ContextMenuItem>
-			)}
+			<ContextMenuItem
+				disabled={!canMoveToNewWindow || !moveTabsToNewWindowAvailable}
+				onClick={run(() =>
+					actions.execute(
+						TAB_STRIP_ACTION_IDS.moveTabsToWindow,
+						{ tabIds: commandTabIds },
+						'context-menu',
+					),
+				)}
+			>
+				{menuDisplayTabCount === 1 ? messages.moveTabToNewWindow : messages.moveTabsToNewWindow}
+			</ContextMenuItem>
 			<ContextMenuSeparator />
 			<ContextMenuItem
 				disabled={

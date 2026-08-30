@@ -58,11 +58,6 @@ export interface TabGroupIdInput {
 	readonly groupId: string;
 }
 
-export interface TabGroupWindowMoveInput extends TabGroupIdInput {
-	/** Omitted for a newly created window. */
-	readonly destinationWindowId?: string | undefined;
-}
-
 export type TabGroupCreateInput = TabIdsInput;
 
 export interface TabGroupCollapsedInput extends TabGroupIdInput {
@@ -75,11 +70,6 @@ export interface TabGroupShiftInput extends TabGroupIdInput {
 
 export interface TabGroupMoveInput extends TabIdsInput {
 	readonly groupId: string | null;
-}
-
-export interface TabWindowMoveInput extends TabIdsInput {
-	/** Omitted for a newly created window. */
-	readonly destinationWindowId?: string | undefined;
 }
 
 export interface TabPinnedInput extends TabIdsInput {
@@ -107,10 +97,10 @@ export interface TabStripActionCatalog {
 	readonly [TAB_STRIP_ACTION_IDS.createTab]: ActionSignature<TabCreateInput>;
 	readonly [TAB_STRIP_ACTION_IDS.duplicateTabs]: ActionSignature<TabIdsInput>;
 	readonly [TAB_STRIP_ACTION_IDS.moveGroup]: ActionSignature<TabGroupShiftInput>;
-	readonly [TAB_STRIP_ACTION_IDS.moveGroupToWindow]: ActionSignature<TabGroupWindowMoveInput>;
+	readonly [TAB_STRIP_ACTION_IDS.moveGroupToWindow]: ActionSignature<TabGroupIdInput>;
 	readonly [TAB_STRIP_ACTION_IDS.moveTab]: ActionSignature<TabMoveInput>;
 	readonly [TAB_STRIP_ACTION_IDS.moveTabsToGroup]: ActionSignature<TabGroupMoveInput>;
-	readonly [TAB_STRIP_ACTION_IDS.moveTabsToWindow]: ActionSignature<TabWindowMoveInput>;
+	readonly [TAB_STRIP_ACTION_IDS.moveTabsToWindow]: ActionSignature<TabIdsInput>;
 	readonly [TAB_STRIP_ACTION_IDS.openTabSearch]: ActionSignature<void>;
 	readonly [TAB_STRIP_ACTION_IDS.selectTab]: ActionSignature<TabSelectionInput>;
 	readonly [TAB_STRIP_ACTION_IDS.setGroupCollapsed]: ActionSignature<TabGroupCollapsedInput>;
@@ -266,24 +256,6 @@ export const tabGroupIdInput: ActionInputValidation<TabGroupIdInput> = {
 			: { success: false, code: 'expected-tab-group-id' },
 };
 
-export const tabGroupWindowMoveInput: ActionInputValidation<TabGroupWindowMoveInput> = {
-	name: 'TabGroupWindowMoveInput',
-	parse: (input) =>
-		isRecord(input) &&
-		typeof input['groupId'] === 'string' &&
-		(input['destinationWindowId'] === undefined || typeof input['destinationWindowId'] === 'string')
-			? {
-					success: true,
-					data: {
-						groupId: input['groupId'],
-						...(typeof input['destinationWindowId'] === 'string'
-							? { destinationWindowId: input['destinationWindowId'] }
-							: {}),
-					},
-				}
-			: { success: false, code: 'expected-tab-group-window-move-input' },
-};
-
 export const tabGroupCreateInput: ActionInputValidation<TabGroupCreateInput> = tabIdsInput;
 
 export const tabGroupCollapsedInput: ActionInputValidation<TabGroupCollapsedInput> = {
@@ -321,27 +293,6 @@ export const tabGroupMoveInput: ActionInputValidation<TabGroupMoveInput> = {
 			(input['groupId'] === null || typeof input['groupId'] === 'string')
 			? { success: true, data: { groupId: input['groupId'], tabIds } }
 			: { success: false, code: 'expected-tab-group-move' };
-	},
-};
-
-export const tabWindowMoveInput: ActionInputValidation<TabWindowMoveInput> = {
-	name: 'TabWindowMoveInput',
-	parse: (input) => {
-		const tabIds = parseTabIds(input);
-		return tabIds !== null &&
-			isRecord(input) &&
-			(input['destinationWindowId'] === undefined ||
-				typeof input['destinationWindowId'] === 'string')
-			? {
-					success: true,
-					data: {
-						tabIds,
-						...(typeof input['destinationWindowId'] === 'string'
-							? { destinationWindowId: input['destinationWindowId'] }
-							: {}),
-					},
-				}
-			: { success: false, code: 'expected-tab-window-move-input' };
 	},
 };
 

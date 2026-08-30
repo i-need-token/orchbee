@@ -32,8 +32,6 @@ export function WorkbenchRoute(): ReactNode {
 			terminalLaunchProfileClient={application.terminalLaunchProfileClient}
 			terminalDefaultSettingsControl={application.terminalDefaultSettingsControl}
 			terminalSurface={application.terminalSurface}
-			tabScope={application.tabScope}
-			tabWindowControl={application.tabWindowControl}
 		/>
 	);
 }

@@ -301,12 +301,8 @@ export const enUSWorkbenchMessages = {
 	'workbench.tabs.actions.newInUnnamedGroup':
 		'New tab in {tabCount, plural, one {# tab} other {# tabs}}',
 	'workbench.tabs.actions.moveGroupToWindow': 'Move group to new window',
-	'workbench.tabs.actions.moveGroupToExistingWindow': 'Move group to window',
 	'workbench.tabs.actions.moveTabToWindow': 'Move tab to new window',
-	'workbench.tabs.actions.moveTabToExistingWindow': 'Move tab to window',
 	'workbench.tabs.actions.moveTabsToWindow': 'Move tabs to new window',
-	'workbench.tabs.actions.moveTabsToExistingWindow': 'Move tabs to window',
-	'workbench.tabs.windowLabel': 'Window {ordinal, number}',
 	'workbench.tabs.actions.ungroup': 'Ungroup',
 	'workbench.tabs.actions.more': 'More options',
 	'workbench.tabs.actions.expand': 'Expand tab strip',

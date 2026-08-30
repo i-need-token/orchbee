@@ -93,8 +93,8 @@ replaces, rather than pushes, the canonical fallback.
   request so the new Tab becomes the canonical route before rendering. Rejected creation leaves that
   canonical empty route blank and is not retried for the same context during the coordinator
   lifetime; another context remains independently eligible.
-- **Concurrency and boundaries:** The decision reads the complete active terminal context, never a
-  Desktop `tabScope` projection, so a window-local empty assignment cannot trigger creation. Each
+- **Concurrency and boundaries:** The decision reads the complete active terminal context rather than
+  page-local render state, so presentation state cannot trigger creation. Each
   independently composed page owns its own decided-identity state and may race another page; the
   existing revisioned shared-document coordinator remains the only commit authority and converges
   competing proposals without adding a startup flag, schema field, storage key, or protocol message.

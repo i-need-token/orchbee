@@ -15,7 +15,7 @@ import {
 import { useMemoizedFn } from '@orchbee/foundation/react';
 import type { AgentSnapshotSource } from '@orchbee/agent';
 import { workbenchMessages, workbenchTabMessages } from '@orchbee/i18n';
-import type { TabModel, TabStripOrientation } from '@orchbee/tab-strip';
+import type { TabStripOrientation } from '@orchbee/tab-strip';
 import * as React from 'react';
 
 import type { ProjectWorkspaceState } from '../../project-workspace';
@@ -68,7 +68,6 @@ interface UseWorkbenchActionsOptions {
 	readonly runtime: ActionRuntime;
 	readonly setTabStripOrientation: (orientation: TabStripOrientation) => void;
 	readonly tabStripOrientation: TabStripOrientation;
-	readonly tabModel?: TabModel | undefined;
 	readonly toggleSidebar: () => void;
 	readonly workspaceCopySuffix: string;
 	readonly workspaceTerminalTitle: string;
@@ -105,7 +104,6 @@ export function useWorkbenchActions({
 	runtime,
 	setTabStripOrientation,
 	tabStripOrientation,
-	tabModel,
 	toggleSidebar,
 	workspaceCopySuffix,
 	workspaceTerminalTitle,
@@ -187,7 +185,6 @@ export function useWorkbenchActions({
 				projectWorkspaceRuntime,
 				runtime,
 				scope,
-				tabModel,
 				typedRuntime,
 			}),
 			...registerWorkbenchActiveTerminalActions({
@@ -209,7 +206,6 @@ export function useWorkbenchActions({
 				projectWorkspaceRuntime,
 				runtime,
 				scope,
-				tabModel,
 				typedRuntime,
 			}),
 			typedRuntime.register(
@@ -411,7 +407,6 @@ export function useWorkbenchActions({
 		setTabStripOrientation,
 		scope,
 		tabStripOrientation,
-		tabModel,
 		toggleSidebar,
 		typedRuntime,
 		workspaceCopySuffix,

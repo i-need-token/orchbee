@@ -19,7 +19,7 @@ describe('Desktop renderer bootstrap contract', () => {
 		expect(DESKTOP_FILE_PATH_BRIDGE_KEY).toBe('orchbeeDesktopFilePath');
 	});
 
-	it('parses one atomic client bootstrap with a fixed fourteen-capability port order', () => {
+	it('parses one atomic client bootstrap with a fixed thirteen-capability port order', () => {
 		const initialPresentationId = terminalPresentationId('presentation-initial');
 		const initializationDocument = createWorkbenchSharedDocument({
 			projectWorkspace: {
@@ -74,7 +74,6 @@ describe('Desktop renderer bootstrap contract', () => {
 			'terminal-launch-profiles',
 			'terminal-default-settings',
 			'clipboard-read',
-			'window-layout',
 			'remote-terminal-creation',
 			'ssh-project-enrollment',
 		]);

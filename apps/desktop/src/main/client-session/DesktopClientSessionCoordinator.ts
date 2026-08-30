@@ -126,9 +126,6 @@ export interface DesktopClientSessionCoordinatorDependencies {
 	readonly getTerminalEvents: () => readonly TerminalPresentationEvent[];
 	readonly initialPresentationId: TerminalPresentationId;
 	readonly initializationDocument: WorkbenchSharedDocument;
-	readonly onCanonicalDocumentChanged?:
-		| ((document: WorkbenchSharedDocument) => Promise<void>)
-		| undefined;
 	readonly reconcileDocument: (
 		document: WorkbenchSharedDocument,
 		publish: (event: TerminalPresentationEvent) => void,
@@ -228,9 +225,6 @@ export class DesktopClientSessionCoordinator {
 				this.#canonicalDocument = initializationDocument;
 				canonical = initializationDocument;
 				await this.#dependencies
-					.onCanonicalDocumentChanged?.(initializationDocument)
-					.catch(() => undefined);
-				await this.#dependencies
 					.reconcileTerminalArchives?.(initializationDocument)
 					.catch(() => undefined);
 				this.#broadcast({
@@ -269,7 +263,6 @@ export class DesktopClientSessionCoordinator {
 			}
 			this.#canonicalDocument = document;
 			afterCommit?.(document);
-			await this.#dependencies.onCanonicalDocumentChanged?.(document).catch(() => undefined);
 			await this.#dependencies.reconcileTerminalArchives?.(document).catch(() => undefined);
 			this.#broadcast({
 				document,
@@ -565,7 +558,6 @@ export class DesktopClientSessionCoordinator {
 		}
 		if (committed.revision !== document.revision) return this.#becomeUnavailable('write-failed');
 		this.#canonicalDocument = document;
-		await this.#dependencies.onCanonicalDocumentChanged?.(document).catch(() => undefined);
 		await this.#dependencies.reconcileTerminalArchives?.(document).catch(() => undefined);
 		this.#broadcast({
 			document,

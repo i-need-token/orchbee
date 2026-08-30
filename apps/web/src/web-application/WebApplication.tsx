@@ -10,8 +10,6 @@ import {
 	type WorkbenchProjectWorktreeCapability,
 	type WorkbenchRemoteTerminalCreationCapability,
 	type WorkbenchShortcutPlatform,
-	type WorkbenchTabScopeSource,
-	type WorkbenchTabWindowControl,
 	type WorkbenchTerminalActionShortcutLabels,
 	type WorkbenchTerminalSurface,
 } from '@orchbee/workbench';
@@ -72,8 +70,6 @@ export interface WebApplicationProps {
 	readonly terminalLaunchProfileClient?: DesktopTerminalLaunchProfileControl | undefined;
 	readonly terminalDefaultSettingsControl?: DesktopTerminalDefaultSettingsControl | undefined;
 	readonly terminalSurface?: WorkbenchTerminalSurface | undefined;
-	readonly tabScope?: WorkbenchTabScopeSource | undefined;
-	readonly tabWindowControl?: WorkbenchTabWindowControl | undefined;
 }
 
 export function WebApplication({
@@ -102,8 +98,6 @@ export function WebApplication({
 	terminalLaunchProfileClient,
 	terminalDefaultSettingsControl,
 	terminalSurface,
-	tabScope,
-	tabWindowControl,
 }: WebApplicationProps): ReactNode {
 	const view = useWebApplication({ terminalSettingsController });
 	const keyboardShortcuts = useKeyboardShortcutSettings(keyboardShortcutSettingsController);
@@ -161,8 +155,6 @@ export function WebApplication({
 					shortcutPlatform={shortcutPlatform}
 					terminalActionShortcutLabels={terminalActionShortcutLabels}
 					terminalSurface={terminalSurface}
-					tabScope={tabScope}
-					tabWindowControl={tabWindowControl}
 				/>
 			</div>
 			{agentIntegrationManagementControl === undefined ||

@@ -22,7 +22,6 @@ function renderWorkbench(
 	getItem: (key: string) => string | null = () => null,
 	locale: OrchbeeLocale = 'en-US',
 	withProject = false,
-	visibleTabIds?: readonly string[],
 	collapseProject = false,
 	activateStandalone = false,
 ): string {
@@ -77,19 +76,6 @@ function renderWorkbench(
 					layoutStorage: { getItem, setItem: () => undefined },
 					projectWorkspaceRuntime,
 					shortcutPlatform: 'apple',
-					...(visibleTabIds === undefined
-						? {}
-						: {
-								tabScope: {
-									getSnapshot: () => ({
-										revision: '1',
-										terminalContexts: [
-											{ terminalContextId: 'terminal-context-1', tabIds: visibleTabIds },
-										],
-									}),
-									subscribe: () => () => undefined,
-								},
-							}),
 				}),
 			),
 		),
@@ -171,24 +157,6 @@ describe('Workbench', () => {
 		expect(markup).not.toContain('data-slot="workbench-child-terminal-strip"');
 	});
 
-	it('projects only the tabs assigned to this host view', () => {
-		const markup = renderWorkbench(() => null, 'en-US', false, ['terminal-context-1-tab-2']);
-
-		expect(markup).not.toContain('data-tab-id="terminal-context-1-tab-1"');
-		expect(markup).toContain('data-tab-id="terminal-context-1-tab-2"');
-		expect(markup).toContain('data-slot="workbench-panel-workspace"');
-	});
-
-	it('renders a blank empty view without mounting a hidden terminal', () => {
-		const markup = renderWorkbench(() => null, 'en-US', false, []);
-
-		expect(markup).toContain('data-slot="workbench-empty-window"');
-		expect(markup).toMatch(/data-slot="workbench-empty-window"><\/div>/);
-		expect(markup).not.toContain('New Terminal');
-		expect(markup).not.toContain('data-slot="workbench-panel-workspace"');
-		expect(markup).not.toContain('data-slot="workbench-terminal-viewport"');
-	});
-
 	it('renders the sidebar chrome in Simplified Chinese', () => {
 		const markup = renderWorkbench(() => null, 'zh-CN');
 
@@ -221,8 +189,8 @@ describe('Workbench', () => {
 	});
 
 	it('projects active Workspace selection onto only its collapsed Project row', () => {
-		const activeMarkup = renderWorkbench(() => null, 'en-US', true, undefined, true);
-		const standaloneMarkup = renderWorkbench(() => null, 'en-US', true, undefined, true, true);
+		const activeMarkup = renderWorkbench(() => null, 'en-US', true, true);
+		const standaloneMarkup = renderWorkbench(() => null, 'en-US', true, true, true);
 
 		expect(activeMarkup).toContain('aria-label="Expand project: orchbee"');
 		expect(activeMarkup).toMatch(

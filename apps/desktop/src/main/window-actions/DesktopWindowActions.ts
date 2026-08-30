@@ -11,20 +11,16 @@ import {
 import { desktopWindowMessages } from '@orchbee/i18n';
 
 const DESKTOP_WINDOW_ACTION_IDS = {
-	create: 'desktop.window.create',
 	toggleFullScreen: 'desktop.window.toggle-full-screen',
 	toggleMaximized: 'desktop.window.toggle-maximized',
 } as const;
 
 interface DesktopWindowActionCatalog {
-	readonly [DESKTOP_WINDOW_ACTION_IDS.create]: ActionSignature<void>;
 	readonly [DESKTOP_WINDOW_ACTION_IDS.toggleFullScreen]: ActionSignature<void>;
 	readonly [DESKTOP_WINDOW_ACTION_IDS.toggleMaximized]: ActionSignature<void>;
 }
 
 export interface DesktopWindowActionTarget {
-	canCreateWindow(): boolean;
-	createWindow(): Promise<boolean>;
 	getWindowState(): 'full-screen' | 'maximized' | 'normal' | 'unavailable';
 	toggleWindowFullScreen(): boolean;
 	toggleWindowMaximized(): boolean;
@@ -48,28 +44,6 @@ export class DesktopWindowActions {
 			mode: 'foreground' as const,
 		};
 		this.#registrations = [
-			this.#typedRuntime.register(
-				this.#scope,
-				defineAction({
-					category,
-					execution: {
-						concurrency: 'serialize',
-						concurrencyKey: () => 'desktop-window-create',
-						mode: 'foreground',
-					},
-					getAvailability: () => this.#createAvailability(),
-					handler: {
-						execute: async (context) => {
-							if (!(await this.#target.createWindow())) return { kind: 'unchanged' };
-							context.markCommitted();
-							return { kind: 'completed' };
-						},
-					},
-					id: DESKTOP_WINDOW_ACTION_IDS.create,
-					input: noActionInput,
-					title: desktopWindowMessages.create,
-				}),
-			),
 			this.#typedRuntime.register(
 				this.#scope,
 				defineAction({
@@ -114,10 +88,6 @@ export class DesktopWindowActions {
 		this.#runtime.dispose();
 	}
 
-	getCreateWindowAvailability(): ActionAvailability {
-		return this.#createAvailability();
-	}
-
 	getToggleFullScreenAvailability(): ActionAvailability {
 		return this.#fullScreenAvailability();
 	}
@@ -126,22 +96,12 @@ export class DesktopWindowActions {
 		return this.#maximizedAvailability();
 	}
 
-	invokeCreateWindow(source: DesktopWindowActionSource): boolean {
-		return this.#invoke(DESKTOP_WINDOW_ACTION_IDS.create, source);
-	}
-
 	invokeToggleFullScreen(source: DesktopWindowActionSource): boolean {
 		return this.#invoke(DESKTOP_WINDOW_ACTION_IDS.toggleFullScreen, source);
 	}
 
 	invokeToggleMaximized(source: DesktopWindowActionSource): boolean {
 		return this.#invoke(DESKTOP_WINDOW_ACTION_IDS.toggleMaximized, source);
-	}
-
-	#createAvailability(): ActionAvailability {
-		return this.#target.canCreateWindow()
-			? { kind: 'enabled' }
-			: { kind: 'disabled', reason: desktopWindowMessages.unavailable };
 	}
 
 	#fullScreenAvailability(): ActionAvailability {

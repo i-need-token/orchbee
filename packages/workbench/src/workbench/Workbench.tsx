@@ -34,7 +34,6 @@ import { useWorkbench } from './hooks/useWorkbench';
 import { useWorkbenchAgentPresentation } from './hooks/useWorkbenchAgentPresentation';
 import { useWorkbenchActionShortcutLabel } from './hooks/useWorkbenchActionShortcutLabel';
 import { useWorkbenchTabStripMessages } from './hooks/useWorkbenchTabStripMessages';
-import { useWorkbenchTabWindowControl } from './hooks/useWorkbenchTabWindowControl';
 import type { WorkbenchTerminalActionShortcutLabels } from './types/workbench-terminal-action-shortcut-labels';
 import type {
 	WorkbenchHostActionCallback,
@@ -48,8 +47,6 @@ import type { WorkbenchAgentNotificationObserver } from './types/workbench-agent
 import type { WorkbenchProjectFolderAcquisition } from './types/workbench-project-folder-acquisition';
 import type { WorkbenchEnvironmentProjectConnectionCapability } from './types/workbench-environment-project-connection';
 import type { WorkbenchProjectWorktreeCapability } from './types/workbench-project-worktree';
-import type { WorkbenchTabScopeSource } from './types/workbench-tab-scope';
-import type { WorkbenchTabWindowControl } from './types/workbench-tab-window-control';
 import type { WorkbenchRemoteTerminalCreationCapability } from './types/workbench-remote-terminal-creation';
 import type { WorkbenchProjectWorkspaceRuntime } from './model/WorkbenchProjectWorkspaceRuntime';
 import {
@@ -82,8 +79,6 @@ export interface WorkbenchProps {
 	readonly shortcutPlatform: WorkbenchShortcutPlatform;
 	readonly terminalActionShortcutLabels?: WorkbenchTerminalActionShortcutLabels | undefined;
 	readonly terminalSurface?: WorkbenchTerminalSurface | undefined;
-	readonly tabScope?: WorkbenchTabScopeSource | undefined;
-	readonly tabWindowControl?: WorkbenchTabWindowControl | undefined;
 }
 
 export function Workbench({
@@ -108,8 +103,6 @@ export function Workbench({
 	shortcutPlatform,
 	terminalActionShortcutLabels,
 	terminalSurface,
-	tabScope,
-	tabWindowControl,
 }: WorkbenchProps): React.ReactNode {
 	const tabStripMessages = useWorkbenchTabStripMessages();
 	const effectiveShortcutBindings =
@@ -131,17 +124,8 @@ export function Workbench({
 		shortcutBindings: effectiveShortcutBindings,
 		shortcutPlatform,
 		storage: layoutStorage,
-		tabScope,
 		terminalSurfaceAvailable: terminalSurface !== undefined,
 	});
-	const windowIntegration = useWorkbenchTabWindowControl({
-		control: tabWindowControl,
-		formatWindowLabel: tabStripMessages.formatWindowLabel,
-		model: view.tabModel,
-		terminalContextId: view.terminalContext.terminalContextId,
-	});
-	const effectiveCrossWindowDragRuntime =
-		createCrossWindowDragRuntime ?? windowIntegration.createCrossWindowDragRuntime;
 	const agentPresentation = useWorkbenchAgentPresentation({
 		notificationObserver: agentNotificationObserver,
 		panelWorkspaceStore: view.terminalContext.panelWorkspaceStore,
@@ -301,9 +285,7 @@ export function Workbench({
 						>
 							<WorkbenchTabBar
 								actionRuntime={actionRuntime}
-								createCrossWindowDragRuntime={effectiveCrossWindowDragRuntime}
-								onMoveGroupToWindow={windowIntegration.moveGroupToWindow}
-								onMoveTabsToWindow={windowIntegration.moveTabsToWindow}
+								createCrossWindowDragRuntime={createCrossWindowDragRuntime}
 								onNewTerminal={view.newTab}
 								onOrientationChange={view.onTabStripOrientationChange}
 								onVerticalCollapsedChange={view.onVerticalTabStripCollapsedChange}
@@ -326,7 +308,6 @@ export function Workbench({
 								tabIdentityIcons={agentPresentation.tabIdentityIcons}
 								tabStripMessages={tabStripMessages}
 								verticalCollapsed={view.verticalTabStripCollapsed}
-								windowTargets={windowIntegration.windowTargets}
 							/>
 							<div
 								className={styles['tabContent']}

@@ -6,7 +6,6 @@ import type { DesktopWindowActionSource } from '../window-actions';
 
 const DESKTOP_APPLICATION_MENU_ITEM_IDS = {
 	closeWindow: 'desktop-window-close',
-	createWindow: 'desktop-window-new',
 	forceReload: 'desktop-view-force-reload',
 	reload: 'desktop-view-reload',
 	secureKeyboardEntry: 'desktop-secure-keyboard-entry',
@@ -15,7 +14,6 @@ const DESKTOP_APPLICATION_MENU_ITEM_IDS = {
 } as const;
 
 export interface DesktopApplicationMenuLabels {
-	readonly createWindow: string;
 	readonly secureKeyboardEntry: string;
 	readonly securityCategory: string;
 	readonly windowCategory: string;
@@ -24,11 +22,9 @@ export interface DesktopApplicationMenuLabels {
 }
 
 export interface DesktopApplicationMenuTarget {
-	getCreateWindowAvailability(): ActionAvailability;
 	getSecureKeyboardEntryAvailability(): ActionAvailability;
 	getToggleFullScreenAvailability(): ActionAvailability;
 	getToggleMaximizedAvailability(): ActionAvailability;
-	invokeCreateWindow(source: DesktopWindowActionSource): boolean;
 	invokeToggleFullScreen(source: DesktopWindowActionSource): boolean;
 	invokeToggleMaximized(source: DesktopWindowActionSource): boolean;
 	invokeToggleSecureKeyboardEntry(source: DesktopSecureKeyboardEntryActionSource): boolean;
@@ -58,14 +54,6 @@ export function installDesktopApplicationMenu(
 	const fileRoot = findRole(baseMenu, 'fileMenu');
 	const viewRoot = findRole(baseMenu, 'viewMenu');
 	const windowRoot = findRole(baseMenu, 'windowMenu');
-	const createWindowItem: MenuItemConstructorOptions & { readonly id: string } = {
-		accelerator: 'CommandOrControl+N',
-		click: (_menuItem, _window, event) => {
-			actions.invokeCreateWindow(invocationSource(event));
-		},
-		id: DESKTOP_APPLICATION_MENU_ITEM_IDS.createWindow,
-		label: labels.createWindow,
-	};
 	const fullScreenItem: MenuItemConstructorOptions & { readonly id: string } = {
 		accelerator: platform === 'darwin' ? 'Control+Command+F' : 'F11',
 		click: (_menuItem, _window, event) => {
@@ -86,8 +74,6 @@ export function installDesktopApplicationMenu(
 	};
 	const rootPlans = new Map<MenuItem, RootPlan>();
 	const appendedRoots: MenuItemConstructorOptions[] = [];
-	const createWindowRoot = fileRoot ?? windowRoot ?? viewRoot;
-	if (createWindowRoot !== undefined) planRoot(rootPlans, createWindowRoot, createWindowItem);
 	const viewMenu = viewRoot?.submenu;
 	if (viewRoot !== undefined && viewMenu !== null && viewMenu !== undefined) {
 		for (const [role, id] of [
@@ -145,11 +131,7 @@ export function installDesktopApplicationMenu(
 		appendedRoots.push({
 			id: 'desktop-window-menu',
 			label: labels.windowCategory,
-			submenu: [
-				...(createWindowRoot === undefined ? [createWindowItem] : []),
-				fullScreenItem,
-				maximizedItem,
-			],
+			submenu: [fullScreenItem, maximizedItem],
 		});
 	} else {
 		const fullScreenRoot = viewRoot ?? windowRoot;
@@ -216,10 +198,6 @@ export function installDesktopApplicationMenu(
 	});
 
 	const sync = (): void => {
-		projectAvailability(
-			menu.getMenuItemById(DESKTOP_APPLICATION_MENU_ITEM_IDS.createWindow),
-			actions.getCreateWindowAvailability(),
-		);
 		projectAvailability(
 			menu.getMenuItemById(DESKTOP_APPLICATION_MENU_ITEM_IDS.toggleFullScreen),
 			actions.getToggleFullScreenAvailability(),

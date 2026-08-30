@@ -9,7 +9,6 @@ import type {
 import type { AgentSnapshotSource } from '@orchbee/agent';
 import { useMemoizedFn } from '@orchbee/foundation/react';
 import {
-	ScopedTabModel,
 	type TabModel,
 	type TabStripCloseCallback,
 	type TabStripCloseConfirmation,
@@ -37,7 +36,6 @@ import type {
 	WorkbenchTerminalFontSizeChangeCallback,
 } from '../types/workbench-host-actions';
 import type { WorkbenchSearchFilter } from '../types/workbench-search';
-import type { WorkbenchTabScopeSource } from '../types/workbench-tab-scope';
 import type { WorkbenchProjectNavigationMessages } from '../components/workbench-sidebar/types/workbench-sidebar-types';
 import type { WorkbenchRemoteTerminalCreationCapability } from '../types/workbench-remote-terminal-creation';
 import {
@@ -207,7 +205,6 @@ interface UseWorkbenchOptions {
 	readonly shortcutBindings: WorkbenchShortcutBindings;
 	readonly shortcutPlatform: WorkbenchShortcutPlatform;
 	readonly storage: WorkbenchLayoutStorage | undefined;
-	readonly tabScope?: WorkbenchTabScopeSource | undefined;
 	readonly terminalSurfaceAvailable: boolean;
 }
 
@@ -223,7 +220,6 @@ export function useWorkbench({
 	shortcutBindings,
 	shortcutPlatform,
 	storage,
-	tabScope,
 	terminalSurfaceAvailable,
 }: UseWorkbenchOptions): WorkbenchView {
 	const intl = useOrchbeeIntl();
@@ -245,36 +241,7 @@ export function useWorkbench({
 		projectWorkspaceRuntime.getSnapshot,
 	);
 	const terminalContext = projectWorkspaceRuntime.getActiveTerminalContext();
-	const scopedTabModel = React.useMemo(
-		() =>
-			tabScope === undefined
-				? null
-				: new ScopedTabModel(terminalContext.tabModel, {
-						visibleTabIds:
-							tabScope
-								.getSnapshot()
-								.terminalContexts.find(
-									(context) => context.terminalContextId === terminalContext.terminalContextId,
-								)?.tabIds ?? [],
-					}),
-		[tabScope, terminalContext.tabModel, terminalContext.terminalContextId],
-	);
-	React.useEffect(() => {
-		if (tabScope === undefined || scopedTabModel === null) return undefined;
-		const synchronize = () => {
-			scopedTabModel.setVisibleTabIds(
-				tabScope
-					.getSnapshot()
-					.terminalContexts.find(
-						(context) => context.terminalContextId === terminalContext.terminalContextId,
-					)?.tabIds ?? [],
-			);
-		};
-		synchronize();
-		return tabScope.subscribe(synchronize);
-	}, [scopedTabModel, tabScope, terminalContext.terminalContextId]);
-	React.useEffect(() => () => scopedTabModel?.dispose(), [scopedTabModel]);
-	const tabModel = scopedTabModel ?? terminalContext.tabModel;
+	const tabModel = terminalContext.tabModel;
 	const tabModelSnapshot = React.useSyncExternalStore(
 		tabModel.subscribe,
 		tabModel.getSnapshot,
@@ -380,8 +347,7 @@ export function useWorkbench({
 	>((context, input) =>
 		executeWorkbenchTerminalCreationAction(context, input, {
 			fallbackTitle: intl.formatMessage(workbenchTabMessages.terminalTitle),
-			onLocalTerminalCreated: (creation) => {
-				scopedTabModel?.includeTabOptimistically(creation.tabId, true);
+			onLocalTerminalCreated: () => {
 				focusRouting.requestTerminalFocus();
 			},
 			remoteTerminalCreation,
@@ -438,7 +404,6 @@ export function useWorkbench({
 		runtime: actionRuntime,
 		setTabStripOrientation,
 		tabStripOrientation,
-		tabModel,
 		toggleSidebar,
 		workspaceCopySuffix: intl.formatMessage(workbenchMessages.workspaceCopySuffix),
 		workspaceTerminalTitle: intl.formatMessage(workbenchTabMessages.terminalTitle),

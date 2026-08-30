@@ -121,11 +121,6 @@ export type WorkbenchRuntimeTerminalCreateInput = TabStripNewTabRequest & {
 		  }
 	);
 
-export type WorkbenchRuntimeTerminalCreateAtCwdInput = TabStripNewTabRequest & {
-	readonly cwd: string;
-	readonly title: string;
-};
-
 export type WorkbenchRuntimeTerminalCreateResult =
 	| WorkbenchTerminalCreateOperationResult
 	| Extract<ResolveTerminalCwdResult, { kind: 'rejected' }>
@@ -1032,37 +1027,6 @@ export class WorkbenchProjectWorkspaceRuntime {
 		const cwdResult = this.resolveTerminalCwdForTarget(target, input.directoryId);
 		if (cwdResult.kind === 'rejected') return cwdResult;
 		return this.createTerminalInTarget(target, cwdResult.cwd, input, beforeCommit);
-	}
-
-	public createTerminalAtCwd(
-		input: WorkbenchRuntimeTerminalCreateAtCwdInput,
-	): WorkbenchRuntimeTerminalCreateResult {
-		if (this.terminalCreationSealed) {
-			return { kind: 'rejected', reason: 'terminal-creation-sealed' };
-		}
-		if (input.cwd.length === 0) return { kind: 'rejected', reason: 'panel-unavailable' };
-		const activeLocation = this.state.activeLocation;
-		const target = this.resolveTerminalTarget(
-			activeLocation.kind === 'standalone'
-				? { kind: 'standalone' }
-				: {
-						kind: 'workspace',
-						projectId: activeLocation.projectId,
-						workspaceId: activeLocation.workspaceId,
-					},
-		);
-		if (target.kind === 'rejected') return target;
-		const result = this.createTerminalInTarget(target, input.cwd, {
-			fallbackTitle: input.title,
-			placement: {
-				groupId: input.groupId,
-				...(input.index === undefined ? {} : { index: input.index }),
-			},
-		});
-		if (result.kind === 'created') {
-			this.requireContext(result.terminalContextId).tabModel.selectTab(result.tabId);
-		}
-		return result;
 	}
 
 	public createEnvironmentTerminalAtLocation(

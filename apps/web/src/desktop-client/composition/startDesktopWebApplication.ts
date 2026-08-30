@@ -70,9 +70,8 @@ export function startDesktopWebApplication(
 		const terminalLaunchProfilePort = event.ports[8];
 		const terminalDefaultSettingsPort = event.ports[9];
 		const clipboardReadPort = event.ports[10];
-		const windowLayoutPort = event.ports[11];
-		const remoteTerminalCreationPort = event.ports[12];
-		const sshProjectEnrollmentPort = event.ports[13];
+		const remoteTerminalCreationPort = event.ports[11];
+		const sshProjectEnrollmentPort = event.ports[12];
 		if (
 			!message.success ||
 			!message.data.security.contextIsolated ||
@@ -88,7 +87,6 @@ export function startDesktopWebApplication(
 			terminalLaunchProfilePort === undefined ||
 			terminalDefaultSettingsPort === undefined ||
 			clipboardReadPort === undefined ||
-			windowLayoutPort === undefined ||
 			remoteTerminalCreationPort === undefined ||
 			sshProjectEnrollmentPort === undefined
 		) {
@@ -117,7 +115,6 @@ export function startDesktopWebApplication(
 				terminalLaunchProfilePort,
 				terminalDefaultSettingsPort,
 				clipboardReadPort,
-				windowLayoutPort,
 				remoteTerminalCreationPort,
 				sshProjectEnrollmentPort,
 				terminalFileDropCapability,
