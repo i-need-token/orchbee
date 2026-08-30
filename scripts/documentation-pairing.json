@@ -26,8 +26,8 @@
 			"zhCnSha256": "26d5cd462fe3e5127aea6ee408eaeb8dfc7df659ca009e609489271d8c803f9c"
 		},
 		"apps/desktop/README.md": {
-			"englishSha256": "d1ce4d40d5768f34918d639b4128a6d2165cb6c0c48acff391a8e9b231558287",
-			"zhCnSha256": "bd0f1adf884d2e706678dc5226399505d55da9cb225dca210f2a2d0ea2bdc1c1"
+			"englishSha256": "c0731d56a8b529380c2e3b4169089659399755953bbdc83910397152e87ed430",
+			"zhCnSha256": "b4ac6c504643616f46c660997462ad81cb3c318a682ef2e4bdba19462b41a0c2"
 		},
 		"apps/desktop/docs/agent-integrations.md": {
 			"englishSha256": "9941103e0cfb900b65dc6636cda98622ef45a96a8dda8bd24462e70193a1f33b",
@@ -94,8 +94,8 @@
 			"zhCnSha256": "e8d3782bbda1861ff5d92c7317eb1a9a52f88528bb6098149aff78b0256c4715"
 		},
 		"apps/desktop/resources/agent-observation-adapters/README.md": {
-			"englishSha256": "bf92f8d0a980a2d32223672e9af10c3b6d025079c478aede572ca261a513fcd9",
-			"zhCnSha256": "906a0c35159b5d4ccc56f461e933cd88d1987bb3669782d547fed72832248ff6"
+			"englishSha256": "4a66a0f8c7494356f427575970f3c05ff79e28632aa2f0b4340425c2db1a5fdc",
+			"zhCnSha256": "7ef34da8de459156a4cf7e26bf228fc66f884ea8630987e0c42eabe9d370dafa"
 		},
 		"apps/gateway/README.md": {
 			"englishSha256": "03c01bf9cda96e934cd355329ce8d83a8b1acf9ec3351e229e8c5587b5fdd0e7",

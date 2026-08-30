@@ -67,6 +67,13 @@ export async function forwardSanitizedObservation(adapterId, value, options = {}
 	const writeHint = options.writeHint ?? writeCorrelationHint;
 	const discoverSockets = options.discoverSockets ?? discoverObservationSockets;
 	const sendEnvelope = options.sendEnvelope ?? sendObservationEnvelope;
+	let sockets;
+	try {
+		sockets = await discoverSockets(environment);
+	} catch {
+		return;
+	}
+	if (sockets.length === 0) return;
 	let targets;
 	try {
 		targets = deduplicateTargets(await resolveTargets(environment)).slice(0, MAX_CORRELATIONS);
@@ -91,14 +98,6 @@ export async function forwardSanitizedObservation(adapterId, value, options = {}
 			}),
 		),
 	);
-
-	let sockets;
-	try {
-		sockets = await discoverSockets(environment);
-	} catch {
-		return;
-	}
-	if (sockets.length === 0) return;
 	const envelope = {
 		adapterId,
 		correlationIds: correlations.map(({ correlationId }) => correlationId),

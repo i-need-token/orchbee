@@ -93,6 +93,36 @@ describe('Agent observation adapter resources', () => {
 		expect(serialized).not.toContain('id_ed25519');
 	});
 
+	it('writes no terminal hint when no Orchbee observation endpoint is available', async () => {
+		const transport = await import(transportUrl);
+		const resolveTargets = vi.fn<
+			() => Promise<Array<{ readonly tty: string; readonly visibility: string }>>
+		>(async () => [{ tty: '/dev/ttys001', visibility: 'visible' }]);
+		const writeHint = vi.fn<() => void>();
+
+		await transport.forwardSanitizedObservation(
+			'codex',
+			{
+				activity: 'tool',
+				agentKey: null,
+				event: 'tool-started',
+				operationKey: 'codex-tool-1',
+				sessionKey: 'codex-session-1',
+				turnKey: 'codex-turn-1',
+				version: 1,
+			},
+			{
+				discoverSockets: async () => [],
+				environment: { TERM_PROGRAM: 'WarpTerminal' },
+				resolveTargets,
+				writeHint,
+			},
+		);
+
+		expect(resolveTargets).not.toHaveBeenCalled();
+		expect(writeHint).not.toHaveBeenCalled();
+	});
+
 	it('maps Codex and Grok through separate content-free wire contracts', async () => {
 		const sanitizers = await import(sanitizersUrl);
 		const codex = sanitizers.sanitizeAgentHookInput('codex', {

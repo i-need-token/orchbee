@@ -160,8 +160,10 @@ Desktop 只通过非持久化 terminal environment overlay 注入
 tool-operation 与 subagent identifier，并丢弃 prompt、question、tool input/output、transcript path、
 working directory、error text、notification text 与未知字段。Rich half 发往同用户 private Unix-domain
 socket；另一个不含内容的 OSC 777 correlation half 会直接写入每个解析出的 outer TTY。Desktop
-要求对 live terminal generation 完成精确 event/correlation join，因此任一 half 都不能单独关联并
-授权 rich state。
+只会在 adapter 发现至少一个已准入的 local 或 reverse-forwarded socket candidate 后写入该
+correlation half；没有 candidate 时，adapter 不会写入 terminal control sequence。Desktop 要求对
+live terminal generation 完成精确 event/correlation join，因此任一 half 都不能单独关联并授权 rich
+state。
 
 Shared resolver 支持 direct terminal、每个 attached tmux client、保守的 Zellij client visibility 与
 nested mux environment。显式 source 的 Orchbee shell integration 可以增加随机 mode-`0600` remote

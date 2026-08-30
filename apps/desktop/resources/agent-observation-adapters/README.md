@@ -170,8 +170,10 @@ environment overlay. Before transport, each entry selects only bounded event, se
 tool-operation, and subagent identifiers and discards prompts, questions, tool input/output,
 transcript paths, working directories, error text, notification text, and unknown fields. The rich
 half goes to same-user private Unix-domain sockets; a separate content-free OSC 777 correlation
-half goes directly to every resolved outer TTY. Desktop requires an exact event/correlation join
-for a live terminal generation, so neither half can associate and authorize rich state alone.
+half goes directly to every resolved outer TTY only after the adapter discovers at least one
+admitted local or reverse-forwarded socket candidate. With no candidate, the adapter writes no
+terminal control sequence. Desktop requires an exact event/correlation join for a live terminal
+generation, so neither half can associate and authorize rich state alone.
 
 The shared resolver supports direct terminals, every attached tmux client, conservative Zellij
 client visibility, and nested mux environments. An explicitly sourced Orchbee shell integration
