@@ -1,5 +1,10 @@
 import { forwardSanitizedObservation } from '../scripts/observation-transport.mjs';
 
+export const CLINE_COMPLETION_RETENTION = Object.freeze({
+	completedRunsPerConversation: 64,
+	conversations: 128,
+});
+
 export function sanitizeClineRuntimeEvent(value) {
 	if (!isRecord(value) || !isRecord(value.snapshot)) return null;
 	const sessionKey = identity(value.snapshot.conversationId);
@@ -54,10 +59,25 @@ export function sanitizeClineRuntimeEvent(value) {
 	}
 }
 
-export function deliverClineRuntimeEvent(value, deliver = deliverObservation) {
-	const normalized = sanitizeClineRuntimeEvent(value);
-	if (normalized !== null) deliver(normalized);
+export function createClineRuntimeEventDelivery() {
+	const completedRunsByConversation = new Map();
+	return (value, deliver = deliverObservation) => {
+		const normalized = sanitizeClineRuntimeEvent(value);
+		if (normalized === null) return;
+		if (
+			completedRunIsRetained(completedRunsByConversation, normalized.sessionKey, normalized.turnKey)
+		) {
+			return;
+		}
+		if (isClineCompletionEvent(normalized.event)) {
+			// A synchronous delivery sink may reenter with an older event for this run.
+			rememberCompletedRun(completedRunsByConversation, normalized.sessionKey, normalized.turnKey);
+		}
+		deliver(normalized);
+	};
 }
+
+export const deliverClineRuntimeEvent = createClineRuntimeEventDelivery();
 
 export const plugin = {
 	hooks: {
@@ -71,6 +91,36 @@ export const plugin = {
 
 function deliverObservation(value) {
 	void forwardSanitizedObservation('cline', value).catch(() => undefined);
+}
+
+function completedRunIsRetained(completedRunsByConversation, conversationId, runId) {
+	const completedRuns = completedRunsByConversation.get(conversationId);
+	return completedRuns?.has(runId) === true;
+}
+
+function isClineCompletionEvent(event) {
+	return event === 'turn-stopped' || event === 'turn-failed' || event === 'turn-interrupted';
+}
+
+function rememberCompletedRun(completedRunsByConversation, conversationId, runId) {
+	let completedRuns = completedRunsByConversation.get(conversationId);
+	if (completedRuns === undefined) {
+		if (completedRunsByConversation.size >= CLINE_COMPLETION_RETENTION.conversations) {
+			const oldestConversationId = completedRunsByConversation.keys().next().value;
+			if (oldestConversationId !== undefined) {
+				completedRunsByConversation.delete(oldestConversationId);
+			}
+		}
+		completedRuns = new Set();
+	} else {
+		completedRunsByConversation.delete(conversationId);
+	}
+	if (completedRuns.size >= CLINE_COMPLETION_RETENTION.completedRunsPerConversation) {
+		const oldestRunId = completedRuns.values().next().value;
+		if (oldestRunId !== undefined) completedRuns.delete(oldestRunId);
+	}
+	completedRuns.add(runId);
+	completedRunsByConversation.set(conversationId, completedRuns);
 }
 
 function toolResultFailed(value, operationKey) {

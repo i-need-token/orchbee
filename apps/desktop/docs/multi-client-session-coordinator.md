@@ -137,6 +137,11 @@ operations, and only then retires session attachment capabilities. Disposal wait
 tail before it settles. Retrying a failed session retirement never reopens proposal admission or
 repeats an already settled operation.
 
+After storage confirms a canonical mutation, its immediate callback, archive reconciliation, client
+publication, and document-effect reconciliation are independent post-commit observers. Failure in
+one cannot undo the durable document, suppress later observers, or change the mutation's `committed`
+result. The callback remains process-local notification rather than durable evidence.
+
 ## Durable intent reconciliation
 
 Clients create presentation and operation identities through Workbench but never invoke process

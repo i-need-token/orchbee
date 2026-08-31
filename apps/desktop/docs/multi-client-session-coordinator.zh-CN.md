@@ -92,6 +92,11 @@ Coordinator disposal 会同步封闭新的队列准入，让边界建立时已�
 reconciliation，拒绝已排队但尚未准入的操作，然后才退役 session attachment capability。Disposal 会等待这条
 已捕获的 tail 后再结算。失败的 session retirement 重试绝不会重新开放提案准入，也不会重复已结算的操作。
 
+Storage 确认 canonical mutation 后，它的即时 callback、archive reconciliation、client publication 与
+document-effect reconciliation 是相互独立的 post-commit observer。任一 observer 失败都不能撤销 durable
+document、抑制后续 observer，或改变 mutation 的 `committed` result。Callback 仍只是进程内通知，不是 durable
+evidence。
+
 ## 持久的意图协调
 
 客户端通过 Workbench 创建 Presentation 和操作标识，但绝不直接调用进程效果。Main 会先发布已提交文档，再派生并执行对应的终端命令：

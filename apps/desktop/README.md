@@ -277,6 +277,8 @@ One operation tail serializes lifecycle work per presentation while unrelated te
 
 ## Application lifetime
 
+A fatal failure while constructing the Desktop application sets process exit status `1` before Electron quits. Ordinary single-instance rejection and normal window or managed-lifecycle exits retain a successful process status.
+
 A normal macOS window close releases only the renderer page. Command+Q, a menu quit, or closing the last window on Windows and Linux enters one coalesced user-quit workflow while the renderer is still available. When one or more presentations require protection under Workbench's Panel-close predicate, the application-wide dialog offers Keep Sessions and Quit as the default, Stop Sessions and Quit as the destructive choice, or Cancel before any stop effect. When every running presentation is observed idle, or no presentation remains, Desktop preserves the sessions, flushes the shared document, and quits without prompting. The future updater enters the same preserve preparation as `update-restart` without prompting; updater installation, signing, and release distribution remain outside this package.
 
 Before preserve or stop preparation, Main acknowledges that the application-wide coordinator has entered quiescing. This acknowledgement orders the lifetime and client-session ports: other pages cannot race a new shared change into the preparation window. A replacement renderer may resume only the same quiescing mode after the former exit owner disconnects.

@@ -26,8 +26,8 @@
 			"zhCnSha256": "26d5cd462fe3e5127aea6ee408eaeb8dfc7df659ca009e609489271d8c803f9c"
 		},
 		"apps/desktop/README.md": {
-			"englishSha256": "136aee3958031d225c5624d51a767f758b77343bc24a192c7de32da40073441a",
-			"zhCnSha256": "a8da8e0f8519277cfa4f717b86cc9ff82a6696cfed0e2097859d16e6f9200f88"
+			"englishSha256": "047c0c7ffb1a411f0f2dacbf75fef0eed8e8b85d6250477d12331907accac901",
+			"zhCnSha256": "fa42283f0c8a9e37a296197f9e5f66c313b0977b958f2dce9ade5b9165d40a6f"
 		},
 		"apps/desktop/docs/agent-integrations.md": {
 			"englishSha256": "e0ad0d6215f7d1fe091da4fb6887af7ed50ee0ba2aded6ab2e67a9ccea522d45",
@@ -50,8 +50,8 @@
 			"zhCnSha256": "a3066c919411806d887c660bd6636812218394e65aac05c50a51b877f06ad37f"
 		},
 		"apps/desktop/docs/multi-client-session-coordinator.md": {
-			"englishSha256": "ef550528bab448efb832e97a5d3cfa37fec95ef00884fab21eac8d97c2f0ab08",
-			"zhCnSha256": "2c682e96398c5921fdbde3644ef589bb34c86327a5bdf29458ae9c7f3648c27b"
+			"englishSha256": "1e08fc123801b10fb9b211a2bc043cccb54550262a02a8d98caab8432cd8cb34",
+			"zhCnSha256": "a306b5a0232f9e43398f372685ec780756d9442cfd1ee046f5dbc45be6d8545f"
 		},
 		"apps/desktop/docs/posix-host-endpoint.md": {
 			"englishSha256": "15b0f07557b1373bc23d72ff51893b9fdcb52cafe6b89ec8787f69f5f9082ad1",
@@ -70,8 +70,8 @@
 			"zhCnSha256": "90da626a0829a69e8c9229402596ccfaf9114ef28b64c31ab32256b1e6caea69"
 		},
 		"apps/desktop/docs/semantic-command-execution.md": {
-			"englishSha256": "54c9a344e88b1585081c5c1fdb1630638f710116bd71d3885cf7dad6f0635f86",
-			"zhCnSha256": "df4395a2e890412b285728920a1656d526292bd12adc8705f5ef6eb839edf2f0"
+			"englishSha256": "2c3d87d8a93b6bac153469bef3e2235bb51fabc0e14187e3eec66ce01b4b6ef8",
+			"zhCnSha256": "f8130364bd93c4e4f3b28f6b25d350cf4c51280175a33c0b594cb42b0c212a3a"
 		},
 		"apps/desktop/docs/ssh-environment-connection.md": {
 			"englishSha256": "aed5a56c10472471894a468c2ab94f96dcbdf25ae0e46db49a6f9fc487053589",
@@ -98,8 +98,8 @@
 			"zhCnSha256": "e8d3782bbda1861ff5d92c7317eb1a9a52f88528bb6098149aff78b0256c4715"
 		},
 		"apps/desktop/resources/agent-observation-adapters/README.md": {
-			"englishSha256": "4a66a0f8c7494356f427575970f3c05ff79e28632aa2f0b4340425c2db1a5fdc",
-			"zhCnSha256": "7ef34da8de459156a4cf7e26bf228fc66f884ea8630987e0c42eabe9d370dafa"
+			"englishSha256": "bdd6974c8fc29020decfdccaff2666714fdc43311f467af7215056fae2bf9f58",
+			"zhCnSha256": "4a65f6b4e588248bf7dfa0464973a2ce4bba29c6a570a284e3fa20081d47e702"
 		},
 		"apps/gateway/README.md": {
 			"englishSha256": "c935bf3f71a8a2e3e604ade8b036f1461e5806051cb9a83a1dbd161ae08138f8",

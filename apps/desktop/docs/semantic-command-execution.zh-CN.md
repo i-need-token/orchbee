@@ -128,8 +128,9 @@ network、filesystem、clock、Workbench、Electron 或 process。`createDesktop
 operation、target、generation 与 revision。`createDesktopWorkbenchTerminalCreateOperation` 验证
 Workbench 所属的严格 input，把 owner operation 应用到隔离且 hydrated 的 runtime，只通过
 `DesktopClientSessionCoordinator` 提交 projected next revision，并在 coordinator 的 storage 后即时 callback
-中把 execution 标记为 committed。隔离 runtime 绝不 dispatch provision command；正常 canonical
-reconciliation 只会在持久化成功后启动 PTY。
+中把 execution 标记为 committed。Coordinator 会隔离 callback failure，使其无法抑制 canonical publication
+或 reconciliation；service 会在 validation 前根据 handler 的 committed settlement 再次确认 marker。隔离
+runtime 绝不 dispatch provision command；正常 canonical reconciliation 只会在持久化成功后启动 PTY。
 
 `createDesktopTerminalOutputReadOperation` 委托给 `DesktopTerminalOutputReader`，后者通过
 `DesktopTerminalProjectionRouter` 打开精确 presentation。Local live 与 archived target 来自 Desktop

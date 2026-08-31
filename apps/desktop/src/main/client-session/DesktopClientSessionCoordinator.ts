@@ -265,7 +265,11 @@ export class DesktopClientSessionCoordinator {
 				return { kind: 'unavailable', reason: 'write-failed' };
 			}
 			this.#canonicalDocument = document;
-			afterCommit?.(document);
+			try {
+				afterCommit?.(document);
+			} catch {
+				// Durable storage is authoritative; one observer cannot suppress later convergence.
+			}
 			await this.#dependencies.reconcileTerminalArchives?.(document).catch(() => undefined);
 			this.#broadcast({
 				document,

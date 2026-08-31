@@ -140,7 +140,9 @@ owner's deterministic projections and binds page cursors to operation, target, g
 revision. `createDesktopWorkbenchTerminalCreateOperation` validates the Workbench-owned strict
 input, applies the owner operation to an isolated hydrated runtime, commits its projected next
 revision only through `DesktopClientSessionCoordinator`, and marks the execution committed in the
-coordinator's immediate post-storage callback. The isolated runtime never dispatches a provision
+coordinator's immediate post-storage callback. The coordinator contains callback failure so it
+cannot suppress canonical publication or reconciliation; the service reasserts the marker from the
+handler's committed settlement before validation. The isolated runtime never dispatches a provision
 command; normal canonical reconciliation starts the PTY only after persistence succeeds.
 
 `createDesktopTerminalOutputReadOperation` delegates to `DesktopTerminalOutputReader`, which opens

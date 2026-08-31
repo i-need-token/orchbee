@@ -261,6 +261,89 @@ describe('Agent observation adapter resources', () => {
 		expect(JSON.stringify({ failed, question })).not.toContain('PRIVATE');
 	});
 
+	it('does not reopen a Cline run when completion arrives before delayed activity', async () => {
+		const cline = await import(clineUrl);
+		const observations: unknown[] = [];
+		const deliver = captureObservations(observations);
+		const deliverRuntimeEvent = cline.createClineRuntimeEventDelivery();
+		const conversationId = 'cline-out-of-order-session';
+		const runId = 'cline-out-of-order-run';
+		const snapshot = { conversationId, runId };
+
+		deliverRuntimeEvent(clineCompletion(conversationId, runId), deliver);
+		deliverRuntimeEvent(clineStart(conversationId, runId), deliver);
+		deliverRuntimeEvent(
+			{
+				snapshot,
+				toolCall: { toolCallId: 'cline-late-tool', toolName: 'bash' },
+				type: 'tool-started',
+			},
+			deliver,
+		);
+		deliverRuntimeEvent(clineCompletion(conversationId, runId), deliver);
+		deliverRuntimeEvent(clineStart('cline-other-session', runId), deliver);
+
+		expect(observations).toEqual([
+			expect.objectContaining({
+				event: 'turn-stopped',
+				sessionKey: conversationId,
+				turnKey: runId,
+			}),
+			expect.objectContaining({
+				event: 'turn-started',
+				sessionKey: 'cline-other-session',
+				turnKey: runId,
+			}),
+		]);
+	});
+
+	it('bounds Cline completion tombstones per conversation and across conversations', async () => {
+		const cline = await import(clineUrl);
+		const completedRunCount = cline.CLINE_COMPLETION_RETENTION.completedRunsPerConversation;
+		const conversationCount = cline.CLINE_COMPLETION_RETENTION.conversations;
+		const perConversationObservations: unknown[] = [];
+		const capturePerConversation = captureObservations(perConversationObservations);
+		const deliverPerConversation = cline.createClineRuntimeEventDelivery();
+		for (let index = 0; index <= completedRunCount; index += 1) {
+			deliverPerConversation(
+				clineCompletion('cline-bounded-session', `run-${index}`),
+				capturePerConversation,
+			);
+		}
+		const perConversationBaseline = perConversationObservations.length;
+		deliverPerConversation(clineStart('cline-bounded-session', 'run-0'), capturePerConversation);
+		deliverPerConversation(
+			clineStart('cline-bounded-session', `run-${completedRunCount}`),
+			capturePerConversation,
+		);
+		expect(perConversationObservations).toHaveLength(perConversationBaseline + 1);
+		expect(perConversationObservations.at(-1)).toMatchObject({
+			event: 'turn-started',
+			turnKey: 'run-0',
+		});
+
+		const crossConversationObservations: unknown[] = [];
+		const captureAcrossConversations = captureObservations(crossConversationObservations);
+		const deliverAcrossConversations = cline.createClineRuntimeEventDelivery();
+		for (let index = 0; index <= conversationCount; index += 1) {
+			deliverAcrossConversations(
+				clineCompletion(`session-${index}`, 'run'),
+				captureAcrossConversations,
+			);
+		}
+		const crossConversationBaseline = crossConversationObservations.length;
+		deliverAcrossConversations(clineStart('session-0', 'run'), captureAcrossConversations);
+		deliverAcrossConversations(
+			clineStart(`session-${conversationCount}`, 'run'),
+			captureAcrossConversations,
+		);
+		expect(crossConversationObservations).toHaveLength(crossConversationBaseline + 1);
+		expect(crossConversationObservations.at(-1)).toMatchObject({
+			event: 'turn-started',
+			sessionKey: 'session-0',
+		});
+	});
+
 	it('maps OpenCode event objects without retaining questions, permissions, or tool data', async () => {
 		const openCode = await import(openCodeUrl);
 		expect(
@@ -524,4 +607,20 @@ function invoke(
 
 function resourceUrl(relativePath: string): string {
 	return pathToFileURL(path.join(resourceRoot, relativePath)).href;
+}
+
+function captureObservations(target: unknown[]): (observation: unknown) => void {
+	return (observation) => target.push(observation);
+}
+
+function clineCompletion(conversationId: string, runId: string) {
+	return {
+		result: { status: 'completed' },
+		snapshot: { conversationId, runId },
+		type: 'run-finished',
+	};
+}
+
+function clineStart(conversationId: string, runId: string) {
+	return { snapshot: { conversationId, runId }, type: 'run-started' };
 }

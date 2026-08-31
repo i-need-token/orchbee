@@ -256,6 +256,7 @@ if (!singleInstanceLockOwned) {
 		})
 		.catch((error: unknown) => {
 			console.error('Orchbee Desktop startup failed.', error);
+			process.exitCode = 1;
 			bypassQuitGate = true;
 			app.quit();
 		});

@@ -149,9 +149,16 @@ Adapter 只发出其 upstream surface 实际提供的 evidence。OpenCode、Pi �
 收到实际 `permission_prompt` 或 `elicitation_dialog` notification 时进入 attention。Qwen 只有在
 `submitted_prompt` 证明 user provenance 时才启动 user Turn，其 continuation callback 会被忽略。Cline
 plugin runtime 无法证明 session、approval 或 subagent fact，因此有意不声明这些 capability。有精确
-error 时仍会保留 failure。Grok cancellation 用 `promptId` 限定 scope，避免延迟到达的 cancellation
-report 结束更新的 Turn。Event 缺失、hook 被禁用、版本不受支持、transport failure 与 SSH 完全断开
-都会降级为 stale 或 unknown，而不是猜测 completion。
+error 时仍会保留 failure。Cline 会先记录 completion 再交付，并在对应 tombstone 仍被保留时，抑制该
+准确 conversation 与 run 的后续 event。有界 cache 为最多 128 个 tracked conversation 各自保留最新
+64 个 completed run。Run tombstone 按 completion 顺序进行 FIFO eviction；新的 completion 会先刷新其
+conversation，然后淘汰最久没有 completion 的 conversation。两种 eviction 都允许较旧 identity 被再次
+观察，而不会保留无界 plugin state。
+`ClineObservationOrdering` 使用两个 conversation 与两个 run 的 retention bound 检查
+completion-before-start、重复 completion、activity、session isolation 与有界 eviction。Grok
+cancellation 用 `promptId` 限定 scope，避免延迟到达的 cancellation report 结束更新的 Turn。Event
+缺失、hook 被禁用、版本不受支持、transport failure 与 SSH 完全断开都会降级为 stale 或 unknown，
+而不是猜测 completion。
 
 ## 安全与失败边界
 

@@ -150,6 +150,27 @@
 			]
 		},
 		{
+			"id": "desktop-cline-observation-ordering",
+			"owner": "@orchbee/desktop",
+			"workspace": "apps/desktop",
+			"module": "apps/desktop/formal/tla/ClineObservationOrdering.tla",
+			"config": "apps/desktop/formal/tla/ClineObservationOrdering.cfg",
+			"claims": ["apps/desktop/resources/agent-observation-adapters/README.md"],
+			"triggers": [
+				"apps/desktop/resources/agent-observation-adapters/bundle/cline/orchbee-agent-observation.js",
+				"apps/desktop/src/main/agent-observation/__tests__/AgentObservationAdapters.unit.test.ts"
+			],
+			"requiredCoverage": [
+				"DeliverStart",
+				"SuppressStart",
+				"DeliverActivity",
+				"SuppressActivity",
+				"DeliverCompletion",
+				"DeliverCompletionWithEviction",
+				"SuppressCompletion"
+			]
+		},
+		{
 			"id": "desktop-environment-registry-commit",
 			"owner": "@orchbee/desktop",
 			"workspace": "apps/desktop",

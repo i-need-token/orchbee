@@ -158,10 +158,17 @@ success notification. Copilot enters attention only for its actual `permission_p
 `elicitation_dialog` notifications. Qwen starts a user Turn only when `submitted_prompt` proves user
 provenance; its continuation callbacks are ignored. Cline intentionally claims no session,
 approval, or subagent capability because its plugin runtime does not prove those facts. Exact
-errors remain failures where available. Grok cancellation is scoped by `promptId`, preventing a
-delayed cancellation report from ending a newer Turn. Missing events, disabled hooks, unsupported
-versions, transport failure, and a fully disconnected SSH path degrade to stale or unknown rather
-than guessed completion.
+errors remain failures where available. Cline records a completion before delivery and suppresses
+later events for that exact conversation and run while its tombstone remains retained. The bounded
+cache keeps the 64 newest completed runs for each of at most 128 tracked conversations. Run
+tombstones use completion-order FIFO eviction, and a new completion refreshes its conversation
+before the least recently completed conversation is evicted. Either eviction permits an older
+identity to be observed again rather than retaining unbounded plugin state.
+`ClineObservationOrdering` checks completion-before-start, duplicate completion, activity, session
+isolation, and bounded eviction with two conversations and a two-run retention bound. Grok
+cancellation is scoped by `promptId`, preventing a delayed cancellation report from ending a newer
+Turn. Missing events, disabled hooks, unsupported versions, transport failure, and a fully
+disconnected SSH path degrade to stale or unknown rather than guessed completion.
 
 ## Security and failure boundary
 

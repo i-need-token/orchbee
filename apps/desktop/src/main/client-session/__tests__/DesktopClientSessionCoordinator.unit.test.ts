@@ -141,6 +141,44 @@ describe('DesktopClientSessionCoordinator', () => {
 		expect(trace).toEqual(['store-committed', 'commit-observed', 'published', 'reconciled']);
 	});
 
+	it('contains a post-commit observer failure without suppressing publication or reconciliation', async () => {
+		const current = document('4', 'Canonical');
+		const candidate = document('5', 'Owned mutation');
+		const trace: string[] = [];
+		const store = storeWith({ document: current, kind: 'available' });
+		store.commit.mockImplementation(async () => {
+			trace.push('store-committed');
+			return { kind: 'committed', revision: candidate.revision };
+		});
+		const coordinator = coordinatorWith(store, {
+			reconcileDocument: async () => {
+				trace.push('reconciled');
+			},
+		});
+		await coordinator.start();
+		trace.length = 0;
+		register(
+			coordinator,
+			publisher([], false, () => {
+				trace.push('published');
+				return false;
+			}),
+		);
+
+		await expect(
+			coordinator.mutateCanonicalDocument(
+				() => ({ document: candidate, kind: 'commit' }),
+				() => {
+					trace.push('observer-failed');
+					throw new Error('post-commit observer failed');
+				},
+			),
+		).resolves.toEqual({ document: candidate, kind: 'committed' });
+
+		expect(coordinator.canonicalDocument).toBe(candidate);
+		expect(trace).toEqual(['store-committed', 'observer-failed', 'published', 'reconciled']);
+	});
+
 	it('keeps canonical state unchanged when an owned mutation is rejected', async () => {
 		const current = document('4', 'Canonical');
 		const store = storeWith({ document: current, kind: 'available' });
