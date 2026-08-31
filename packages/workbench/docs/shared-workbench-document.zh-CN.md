@@ -118,18 +118,18 @@ ordering 与 broadcast。
 
 ## 正确性证据
 
-| 声明                                                    | 证据                                                                            | 限制                                                              |
-| ------------------------------------------------------- | ------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| 严格的共享文档保留每个二叉关系                          | 有效/格式错误示例、JSON 往返及生成的同轴层次结构                                | 生成的边界：八个选项卡，每个选项卡四个面板                        |
-| 历史 v1 placement migration 精确且单向                  | 严格 parser、字段保持与 Desktop file-authority test                             | 仅精确历史 version 1                                              |
-| Client View 是隔离的，协调是幂等的                      | 双视图示例、陈旧参考回归和固定种子属性                                          | 仅内存中查看合约                                                  |
-| 水合会保留持久的终端意图                                | provision/retain/close/stop/stopped 运行时往返                                  | Host 绑定是否存在仍由应用负责                                     |
-| 自定义标题会持久保留，自然元数据保持瞬态                | 标题覆盖/reset 与共享文档水合场景                                               | 重命名 Presentation 由适配器负责                                  |
-| 应用共享文档不会产生最终效果                            | 具有结构去除和保留运行观察的运行时跟踪                                          | 一个渲染器运行时                                                  |
-| Empty remote Workspace placement 不携带 Presentation    | Empty-context schema/runtime 与 Desktop admission/forgery test                  | 仅 Slice 3.2A admission                                           |
-| Remote provision 保持 target-exact 且 commit-first      | Workbench context test 加 Desktop routing、replay 与 forgery test                | Default top-level terminal；projection 与 input 不属于本 contract          |
-| 仅查看更改从不需要共享写入                              | 投影特定观察员和 Desktop coordinator 指纹测试                                   | Shared ordering 由 Desktop session 负责                           |
-| 预览状态无法声明共享持久性                              | 确定性拒绝测试                                                                  | 预览仍然是内存中的合成                                            |
+| 声明                                                 | 证据                                                              | 限制                                                              |
+| ---------------------------------------------------- | ----------------------------------------------------------------- | ----------------------------------------------------------------- |
+| 严格的共享文档保留每个二叉关系                       | 有效/格式错误示例、JSON 往返及生成的同轴层次结构                  | 生成的边界：八个选项卡，每个选项卡四个面板                        |
+| 历史 v1 placement migration 精确且单向               | 严格 parser、字段保持与 Desktop file-authority test               | 仅精确历史 version 1                                              |
+| Client View 是隔离的，协调是幂等的                   | 双视图示例、陈旧参考回归和固定种子属性                            | 仅内存中查看合约                                                  |
+| 水合会保留持久的终端意图                             | provision/retain/close/stop/stopped 运行时往返                    | Host 绑定是否存在仍由应用负责                                     |
+| 自定义标题会持久保留，自然元数据保持瞬态             | 标题覆盖/reset 与共享文档水合场景                                 | 重命名 Presentation 由适配器负责                                  |
+| 应用共享文档不会产生最终效果                         | 具有结构去除和保留运行观察的运行时跟踪                            | 一个渲染器运行时                                                  |
+| Empty remote Workspace placement 不携带 Presentation | Empty-context schema/runtime 与 Desktop admission/forgery test    | 仅 Slice 3.2A admission                                           |
+| Remote provision 保持 target-exact 且 commit-first   | Workbench context test 加 Desktop routing、replay 与 forgery test | Default top-level terminal；projection 与 input 不属于本 contract |
+| 仅查看更改从不需要共享写入                           | 投影特定观察员和 Desktop coordinator 指纹测试                     | Shared ordering 由 Desktop session 负责                           |
+| 预览状态无法声明共享持久性                           | 确定性拒绝测试                                                    | 预览仍然是内存中的合成                                            |
 
 一般的纯 document/view projection 不选择 TLA+，因为它不包含异步 completion、cancellation 或独立排序
 event。单向 v1-to-v2 placement migration 由 `WorkbenchDocumentPlacementMigration` 单独覆盖；Desktop 的

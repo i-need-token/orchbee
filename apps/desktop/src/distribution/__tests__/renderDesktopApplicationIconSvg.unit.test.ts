@@ -15,17 +15,16 @@ describe('renderDesktopApplicationIconSvg', () => {
 		).toThrow('does not configure an application icon');
 	});
 
-	it('adds the checkout-scoped dev badge without changing the base artwork', () => {
-		const profile = resolveDesktopDistributionProfile(
-			'dev',
-			createDesktopDevelopmentScope('/source/orchbee', 'darwin'),
-		);
-		const result = renderDesktopApplicationIconSvg(baseIcon, profile);
-
-		expect(result).toContain('<path d="M0 0h1v1z"/>');
-		expect(result).toContain('data-orchbee-distribution="dev"');
-		expect(result).toContain('fill="#625bf6"');
-		expect(result.endsWith('</svg>')).toBe(true);
+	it('rejects a dev distribution without a configured application icon', () => {
+		expect(() =>
+			renderDesktopApplicationIconSvg(
+				baseIcon,
+				resolveDesktopDistributionProfile(
+					'dev',
+					createDesktopDevelopmentScope('/source/orchbee', 'darwin'),
+				),
+			),
+		).toThrow('does not configure an application icon');
 	});
 
 	it('adds a structurally distinct local badge', () => {

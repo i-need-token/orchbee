@@ -97,7 +97,7 @@ export function TerminalLaunchProfileSettings({
 							disabled={view.nameEditor.disabled}
 							id='terminal-profile-name'
 							placeholder={view.nameEditor.placeholder}
-							required
+							required={view.nameEditor.required}
 							value={view.nameEditor.value}
 							onChange={view.nameEditor.onChange}
 						/>

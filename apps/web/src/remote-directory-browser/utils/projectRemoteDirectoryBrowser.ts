@@ -67,11 +67,9 @@ export function projectRemoteDirectoryBrowser({
 		directory.name.toLowerCase().startsWith(normalizedFragment),
 	);
 	const exactMatch = visibleDirectories.some((directory) => directory.path === trimmedDraft);
-	const pathFilterState = exactMatch
-		? 'exact'
-		: visibleDirectories.length === 0
-			? 'no-match'
-			: 'partial';
+	let pathFilterState: RemoteDirectoryBrowserProjection['pathFilterState'] = 'partial';
+	if (exactMatch) pathFilterState = 'exact';
+	else if (visibleDirectories.length === 0) pathFilterState = 'no-match';
 	return {
 		canSubmitPath: canNavigate && pathFilterState !== 'partial',
 		emptyState: emptyState({

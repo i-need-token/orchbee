@@ -3,6 +3,8 @@ import { access, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { resolveDesktopDevelopmentApplicationName } from '../src/distribution/desktop-distribution-profile.ts';
+
 const applicationRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const repositoryRoot = path.resolve(applicationRoot, '..', '..');
 
@@ -49,7 +51,7 @@ function isSupportedPlatform() {
 }
 
 function resolvePackagedApplication() {
-	const applicationName = 'Orchbee Dev';
+	const applicationName = resolveDesktopDevelopmentApplicationName(process.env);
 	const outputDirectory = path.join(
 		applicationRoot,
 		'out',

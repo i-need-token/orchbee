@@ -5,14 +5,13 @@ import {
 	DESKTOP_DISTRIBUTION_DESCRIPTOR_FILE_NAME,
 	createDesktopDevelopmentScope,
 	parseDesktopDistributionDescriptor,
+	resolveDesktopDevelopmentApplicationName,
 	resolveDesktopDistributionDescriptor,
 	resolveDesktopDistributionProfile,
 	type DesktopDistributionProfile,
 } from '../../distribution';
 
-type DesktopApplicationDistributionEnvironment = {
-	readonly ORCHBEE_DESKTOP_DEVELOPMENT_SOURCE_ROOT?: string;
-};
+type DesktopApplicationDistributionEnvironment = Readonly<Record<string, string | undefined>>;
 
 interface DesktopApplicationDistributionInput {
 	readonly applicationPath: string;
@@ -36,7 +35,7 @@ export function resolveDesktopApplicationDistribution(
 	dependencies: DesktopApplicationDistributionDependencies = defaultDependencies,
 ): DesktopDistributionProfile {
 	if (!input.packaged) {
-		const configuredSourceRoot = input.environment.ORCHBEE_DESKTOP_DEVELOPMENT_SOURCE_ROOT;
+		const configuredSourceRoot = input.environment['ORCHBEE_DESKTOP_DEVELOPMENT_SOURCE_ROOT'];
 		if (configuredSourceRoot === undefined || configuredSourceRoot.length === 0) {
 			throw new Error('Development Desktop requires its canonical source checkout root.');
 		}
@@ -44,6 +43,7 @@ export function resolveDesktopApplicationDistribution(
 		return resolveDesktopDistributionProfile(
 			'dev',
 			createDesktopDevelopmentScope(sourceRoot, input.platform),
+			{ applicationName: resolveDesktopDevelopmentApplicationName(input.environment) },
 		);
 	}
 
@@ -72,5 +72,7 @@ export function resolveDesktopApplicationDistribution(
 			'The packaged Desktop dev distribution does not match its current source checkout.',
 		);
 	}
-	return resolveDesktopDistributionProfile('dev', currentScope);
+	return resolveDesktopDistributionProfile('dev', currentScope, {
+		applicationName: descriptor.applicationName,
+	});
 }

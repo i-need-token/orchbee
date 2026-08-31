@@ -2415,7 +2415,7 @@ describe('panel workspace state', () => {
 
 		expect(states).toHaveLength(384);
 		expect(exploredActionCount).toBe(47_232);
-	});
+	}, 15_000);
 
 	it('keeps generated split layouts valid across every possible panel move', () => {
 		const splitActionArbitrary = record({

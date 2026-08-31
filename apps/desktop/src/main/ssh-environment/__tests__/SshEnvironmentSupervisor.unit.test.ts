@@ -10,6 +10,7 @@ import {
 	SSH_ENVIRONMENT_REQUIRED_CAPABILITIES,
 	SshEnvironmentBuildDigestSchema,
 	SshEnvironmentFrameDecoder,
+	SshEnvironmentLoginShellSchema,
 	SshEnvironmentReleaseManifestSchema,
 	SshEnvironmentReleaseTrustDescriptorSchema,
 	SshEnvironmentReleaseUnsignedManifestSchema,
@@ -25,6 +26,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { OpenSshTargetResolver } from '../OpenSshTargetResolver';
 import type { OpenSshTransportAdapter } from '../OpenSshTransportAdapter';
+import { SshEnvironmentTargetReferenceSchema } from '../ssh-environment-contract';
 import type { SshEnvironmentReleaseSource } from '../ssh-environment-release-source';
 import {
 	SshEnvironmentSupervisor,
@@ -45,6 +47,11 @@ const buildDigest = SshEnvironmentBuildDigestSchema.parse(
 const terminalHostBuildDigest = SshEnvironmentBuildDigestSchema.parse(
 	createHash('sha256').update(terminalHostArtifactBytes).digest('hex'),
 );
+const loginShell = SshEnvironmentLoginShellSchema.parse('/bin/zsh');
+const target = SshEnvironmentTargetReferenceSchema.parse({
+	configurationFilePath: null,
+	destination: 'build-host',
+});
 type ResolverDependencies = NonNullable<ConstructorParameters<typeof OpenSshTargetResolver>[1]>;
 
 describe('SSH Environment supervisor', () => {
@@ -87,7 +94,7 @@ describe('SSH Environment supervisor', () => {
 				askPassRuntimeExecutablePath: '/usr/bin/node',
 				connectionId: 'environment-1',
 				runtimeInstanceId,
-				target: { configurationFilePath: null, destination: 'build-host' },
+				target,
 			},
 			{
 				askPassBridgeFactory: (options) => ({
@@ -156,7 +163,7 @@ describe('SSH Environment supervisor', () => {
 					runtimeVersion,
 					runtimeBuildDigest: buildDigest,
 					releaseCohortDigest: releaseSource.releaseCohortDigest,
-					loginShell: '/bin/zsh',
+					loginShell,
 					terminalHostVersion,
 					terminalHostBuildDigest,
 					platform: 'darwin-arm64',
@@ -219,7 +226,7 @@ describe('SSH Environment supervisor', () => {
 				askPassRuntimeExecutablePath: '/usr/bin/node',
 				connectionId: 'environment-compatibility',
 				runtimeInstanceId,
-				target: { configurationFilePath: null, destination: 'build-host' },
+				target,
 			},
 			{
 				askPassBridgeFactory: () => ({
@@ -264,7 +271,7 @@ describe('SSH Environment supervisor', () => {
 				askPassRuntimeExecutablePath: '/usr/bin/node',
 				connectionId: 'environment-release-unavailable',
 				runtimeInstanceId,
-				target: { configurationFilePath: null, destination: 'build-host' },
+				target,
 			},
 			{
 				interaction: vi.fn<SshEnvironmentSupervisorDependencies['interaction']>(),

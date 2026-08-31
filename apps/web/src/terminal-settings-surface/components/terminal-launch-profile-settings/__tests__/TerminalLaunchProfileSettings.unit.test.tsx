@@ -8,6 +8,7 @@ import {
 	type DesktopTerminalLaunchProfileId,
 } from '@orchbee/desktop-client-protocol';
 import { OrchbeeI18nProvider } from '@orchbee/i18n';
+import { getByLabelText } from '@testing-library/react';
 import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
@@ -46,6 +47,10 @@ describe('TerminalLaunchProfileSettings', () => {
 			).getAttribute('aria-pressed'),
 		).toBe('true');
 		expect(harness.container.querySelector('[role="listbox"]')).toBeNull();
+		expect(
+			requiredElement<HTMLInputElement>(harness.container.querySelector('#terminal-profile-name'))
+				.required,
+		).toBe(false);
 		const command = requiredElement<HTMLSelectElement>(
 			harness.container.querySelector('#terminal-profile-command'),
 		);
@@ -65,12 +70,14 @@ describe('TerminalLaunchProfileSettings', () => {
 			addArgument.click();
 			addArgument.click();
 		});
-		const firstArgument = requiredElement<HTMLInputElement>(
-			harness.container.querySelector("input[aria-label='Argument 1']"),
-		);
-		const secondArgument = requiredElement<HTMLInputElement>(
-			harness.container.querySelector("input[aria-label='Argument 2']"),
-		);
+		const firstArgument = getByLabelText(harness.container, 'Argument 1');
+		const secondArgument = getByLabelText(harness.container, 'Argument 2');
+		if (
+			!(firstArgument instanceof HTMLInputElement) ||
+			!(secondArgument instanceof HTMLInputElement)
+		) {
+			throw new Error('Expected terminal argument inputs.');
+		}
 		await act(async () => {
 			setInputValue(firstArgument, '--name');
 			firstArgument.dispatchEvent(new Event('input', { bubbles: true }));

@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import type { SshEnvironmentResolvedTarget } from '../ssh-environment-contract';
+import {
+	SshEnvironmentTargetReferenceSchema,
+	type SshEnvironmentResolvedTarget,
+} from '../ssh-environment-contract';
 import {
 	createSshEnvironmentConnectionState,
 	observeSshEnvironmentConnection,
@@ -9,10 +12,10 @@ import {
 } from '../ssh-environment-connection-state';
 
 const connectionId = 'connection-1';
-const target = createSshEnvironmentConnectionState({
-	connectionId,
-	target: { configurationFilePath: null, destination: 'build-host' },
-}).target;
+const target = SshEnvironmentTargetReferenceSchema.parse({
+	configurationFilePath: null,
+	destination: 'build-host',
+});
 const resolvedTarget: SshEnvironmentResolvedTarget = {
 	destination: target.destination,
 	hostKeyLookupName: 'build.internal.example',
@@ -74,10 +77,10 @@ describe('SSH Environment connection state', () => {
 		const started = transitionSshEnvironmentConnection(stopped, { type: 'start-requested' });
 		const mismatchedTarget: SshEnvironmentResolvedTarget = {
 			...resolvedTarget,
-			destination: createSshEnvironmentConnectionState({
-				connectionId,
-				target: { configurationFilePath: null, destination: 'other-host' },
-			}).target.destination,
+			destination: SshEnvironmentTargetReferenceSchema.parse({
+				configurationFilePath: null,
+				destination: 'other-host',
+			}).destination,
 		};
 
 		expect(

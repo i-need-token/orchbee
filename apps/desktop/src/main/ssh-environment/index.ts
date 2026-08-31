@@ -2,9 +2,7 @@ export { OpenSshTargetResolver } from './OpenSshTargetResolver';
 export type { OpenSshTargetResolutionResult } from './OpenSshTargetResolver';
 export { OpenSshTransportAdapter } from './OpenSshTransportAdapter';
 export {
-	createOpenSshTargetOptionArguments,
 	formatOpenSshConnectionCommand,
-	OpenSshConnectionCommandParseError,
 	parseOpenSshConnectionCommand,
 } from './open-ssh-connection-command';
 export {
@@ -32,11 +30,5 @@ export type {
 	SshEnvironmentConnectionState,
 	SshEnvironmentConnectionTransition,
 } from './ssh-environment-connection-state';
-export {
-	SshEnvironmentTargetOptionSchema,
-	SshEnvironmentTargetReferenceSchema,
-} from './ssh-environment-contract';
-export type {
-	SshEnvironmentTargetOption,
-	SshEnvironmentTargetReference,
-} from './ssh-environment-contract';
+export { SshEnvironmentTargetReferenceSchema } from './ssh-environment-contract';
+export type { SshEnvironmentTargetReference } from './ssh-environment-contract';

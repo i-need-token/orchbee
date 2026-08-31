@@ -309,10 +309,10 @@ payload 的 `output-capacity-exceeded` failure。Cancellation 是协作式的，
 
 ## SSH Environment 连接基础
 
-Desktop Main 是严格 append-only `environment-registry-v1.json` 的当前共址 Hub owner。它在本地 Terminal
-Host 之前加载 registry，让 provider-neutral Environment identity 与 SSH Runtime identity 保持独立，只准入
-一次相同精确 target，并且只在 Main 内暴露 create/list/get/reload。Registry record 不会启动连接，也不会
-授予远程 effect。参见
+Desktop Main 是严格 append-only `environment-registry-v2.json` 的当前共址 Hub owner。它可以迁移有界的旧版
+`environment-registry-v1.json`，在本地 Terminal Host 之前加载当前 registry，让 provider-neutral
+Environment identity 与 SSH Runtime identity 保持独立，只准入一次相同精确 target，并且只在 Main 内暴露
+create/list/get/reload。Registry record 不会启动连接，也不会授予远程 effect。参见
 [`docs/environment-registry.md`](docs/environment-registry.zh-CN.md)。
 
 仅用于 release 的 package path 会在 Electron Packager 运行前，独立验证一份 externally signed、canonical
@@ -520,7 +520,7 @@ pnpm desktop
 
 在 macOS 上，该命令会在 `apps/desktop/out/development-runtime/` 下物化并临时签名一份
 content-addressed `Orchbee Dev.app`，再启动其精确可执行文件。它的应用名称、checkout 专属 bundle
-identifier、紫色开发图标和 checkout 专属数据根目录均与已安装的正式应用隔离。开发诊断必须定位
+identifier、Electron 默认图标和 checkout 专属数据根目录均与已安装的正式应用隔离。开发诊断必须定位
 该精确 bundle path 或 identifier，绝不能回退到 `/Applications/Orchbee.app`。
 
 ### 分发 Profile
@@ -529,9 +529,20 @@ Desktop 只拥有以下三种显式 distribution profile：
 
 | 命令                           | 应用                | Bundle identifier                          | 数据根目录                      | 图标              | 输出 / release payload                      |
 | ------------------------------ | ------------------- | ------------------------------------------ | ------------------------------- | ----------------- | ------------------------------------------- |
-| `pnpm desktop:package:dev`     | `Orchbee Dev.app`   | `com.electron.orchbee.dev.d<scope-digest>` | `~/.orchbee-dev-<scope-digest>` | 紫色 Dev 标记     | `apps/desktop/out/dev/`；development-signed |
+| `pnpm desktop:package:dev`     | `Orchbee Dev.app`   | `com.electron.orchbee.dev.d<scope-digest>` | `~/.orchbee-dev-<scope-digest>` | Electron 默认图标 | `apps/desktop/out/dev/`；development-signed |
 | `pnpm desktop:package:local`   | `Orchbee Local.app` | `com.electron.orchbee.local`               | `~/.orchbee-local`              | 绿色 Local 标记   | `apps/desktop/out/local/`；不包含           |
 | `pnpm desktop:package:release` | `Orchbee.app`       | `com.electron.orchbee`                     | `~/.orchbee`                    | Electron 默认图标 | `apps/desktop/out/release/`；必须包含       |
+
+对于 `dev` profile，可选使用 `ORCHBEE_DESKTOP_DEVELOPMENT_APPLICATION_NAME` 为 `pnpm desktop` 和
+`pnpm desktop:package:dev` 覆盖默认的 `Orchbee Dev` 名称。该值必须为 1–64 个字符，不能有首尾空白，且
+不能包含路径分隔符、控制字符或平台无效的文件名字符。它只作为本地构建输入，并会持久化到 Dev
+distribution descriptor，使打包应用在没有该 shell 变量时仍保留所选名称。它不会改变 checkout 专属
+bundle identifier 或数据根目录；`local` 与 `release` 会忽略该变量。
+
+```sh
+ORCHBEE_DESKTOP_DEVELOPMENT_APPLICATION_NAME="Orchbee Dev Canary" \
+pnpm desktop:package:dev
+```
 
 `pnpm desktop` 始终使用 `dev` 身份，但不会创建打包应用。仓库刻意不提供通用的
 `desktop:package` 命令：创建包时必须显式选择一个 profile，避免把 local 或 development build 误当成

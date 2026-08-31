@@ -9,9 +9,9 @@
 	"visibility": "private",
 	"intents": ["confirm-form", "edit-resource", "manage-resource"],
 	"implementation": [
-		"packages/workbench/src/workbench/components/resource-dialog-form/ResourceDialogFooter.tsx",
+		"packages/workbench/src/workbench/components/resource-dialog-footer/ResourceDialogFooter.tsx",
 		"packages/workbench/src/workbench/components/resource-dialog-form/ResourceDialogForm.tsx",
-		"packages/workbench/src/workbench/components/resource-dialog-form/ResourceDialogHeader.tsx"
+		"packages/workbench/src/workbench/components/resource-dialog-header/ResourceDialogHeader.tsx"
 	],
 	"stories": [
 		{

@@ -102,6 +102,6 @@ describe('OpenSSH connection command', () => {
 		'ssh -o ProxyCommand=helper host',
 		'ssh -F relative/config host',
 	])('rejects unsupported or ambiguous command input %s', (input) => {
-		expect(() => parseOpenSshConnectionCommand(input)).toThrow();
+		expect(() => parseOpenSshConnectionCommand(input)).toThrow(Error);
 	});
 });

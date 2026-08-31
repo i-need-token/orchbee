@@ -8,6 +8,9 @@ import {
 } from '../../../distribution';
 import { resolveDesktopApplicationDistribution } from '../resolveDesktopApplicationDistribution';
 
+const DESKTOP_DEVELOPMENT_APPLICATION_NAME_ENVIRONMENT_KEY =
+	'ORCHBEE_DESKTOP_DEVELOPMENT_APPLICATION_NAME';
+
 type ResolverDependencies = NonNullable<
 	Parameters<typeof resolveDesktopApplicationDistribution>[1]
 >;
@@ -30,6 +33,26 @@ describe('resolveDesktopApplicationDistribution', () => {
 		expect(profile.profileId).toBe('dev');
 		expect(profile.dataScope).toMatchObject({ kind: 'development', sourceRoot: '/source/orchbee' });
 		expect(dependencies.readFile).not.toHaveBeenCalled();
+	});
+
+	it('applies the local development application name override only to live development', () => {
+		const dependencies = createDependencies();
+		dependencies.realpath.mockReturnValue('/source/orchbee');
+
+		const profile = resolveDesktopApplicationDistribution(
+			{
+				applicationPath: '/source/orchbee/apps/desktop',
+				environment: {
+					ORCHBEE_DESKTOP_DEVELOPMENT_SOURCE_ROOT: '/source/link',
+					[DESKTOP_DEVELOPMENT_APPLICATION_NAME_ENVIRONMENT_KEY]: 'Orchbee Dev Canary',
+				},
+				packaged: false,
+				platform: 'darwin',
+			},
+			dependencies,
+		);
+
+		expect(profile.applicationName).toBe('Orchbee Dev Canary');
 	});
 
 	it('requires an explicit checkout for live development', () => {
@@ -115,6 +138,43 @@ describe('resolveDesktopApplicationDistribution', () => {
 				dependencies,
 			),
 		).toThrow('does not match its current source checkout');
+	});
+
+	it('uses the packaged development name instead of the process environment', () => {
+		const dependencies = createDependencies();
+		const profile = resolveDesktopDistributionProfile(
+			'dev',
+			createDesktopDevelopmentScope('/source/orchbee', 'darwin'),
+			{ applicationName: 'Orchbee Dev Packaged' },
+		);
+		if (profile.profileId !== 'dev') throw new Error('Expected a dev distribution profile.');
+		dependencies.readFile.mockReturnValue(
+			`${JSON.stringify({
+				applicationName: profile.applicationName,
+				developmentScope: {
+					digest: profile.dataScope.digest,
+					digestVersion: profile.dataScope.digestVersion,
+					sourceRoot: profile.dataScope.sourceRoot,
+				},
+				profileId: 'dev',
+				schemaVersion: 1,
+			})}\n`,
+		);
+		dependencies.realpath.mockReturnValue('/source/orchbee');
+
+		expect(
+			resolveDesktopApplicationDistribution(
+				{
+					applicationPath: '/Applications/Orchbee Dev Packaged.app/Contents/Resources/app.asar',
+					environment: {
+						[DESKTOP_DEVELOPMENT_APPLICATION_NAME_ENVIRONMENT_KEY]: 'Untrusted Override',
+					},
+					packaged: true,
+					platform: 'darwin',
+				},
+				dependencies,
+			),
+		).toEqual(profile);
 	});
 
 	it('rejects malformed and unsupported packaged descriptors', () => {

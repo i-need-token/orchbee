@@ -15,7 +15,7 @@ interface OpenSshConnectionCommandParseOptions {
 	readonly homeDirectory?: string | undefined;
 }
 
-export class OpenSshConnectionCommandParseError extends Error {}
+class OpenSshConnectionCommandParseError extends Error {}
 
 export function parseOpenSshConnectionCommand(
 	input: string,
@@ -286,12 +286,11 @@ function parseYesNo(value: string, name: string): boolean {
 }
 
 function resolveConfigurationFilePath(value: string, homeDirectory: string | undefined): string {
-	const expanded =
-		homeDirectory !== undefined && (value === '~' || value.startsWith('~/'))
-			? value === '~'
-				? homeDirectory
-				: join(homeDirectory, value.slice(2))
-			: value;
+	let expanded = value;
+	if (homeDirectory !== undefined) {
+		if (value === '~') expanded = homeDirectory;
+		else if (value.startsWith('~/')) expanded = join(homeDirectory, value.slice(2));
+	}
 	if (!isAbsolute(expanded)) {
 		throw new OpenSshConnectionCommandParseError('SSH configuration file path must be absolute.');
 	}

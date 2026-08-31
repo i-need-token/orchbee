@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 import { EnvironmentIdSchema } from '../../environment';
 import { resolveDesktopRuntimeConfiguration } from '../../composition';
-import { resolveDesktopSshEnvironmentTerminalRuntimeResources } from '../resolveDesktopSshEnvironmentTerminalRuntimeResources';
+import { resolveDesktopSshEnvironmentTerminalRuntimeResources } from '../desktop-ssh-environment-terminal-runtime-resources';
 
 describe('resolveDesktopSshEnvironmentTerminalRuntimeResources', () => {
 	it('isolates recovery state and launches the validated remote login Shell', () => {

@@ -3,8 +3,8 @@ import * as React from 'react';
 
 import type { WorkbenchProject } from '../../../../../project-workspace';
 import { ResourceDialogForm } from '../../../resource-dialog-form/ResourceDialogForm';
-import { ResourceDialogFooter } from '../../../resource-dialog-form/ResourceDialogFooter';
-import { ResourceDialogHeader } from '../../../resource-dialog-form/ResourceDialogHeader';
+import { ResourceDialogFooter } from '../../../resource-dialog-footer/ResourceDialogFooter';
+import { ResourceDialogHeader } from '../../../resource-dialog-header/ResourceDialogHeader';
 import type { WorkbenchProjectNavigationMessages } from '../../types/workbench-sidebar-types';
 import { ProjectDirectoryList } from './components/project-directory-list/ProjectDirectoryList';
 import { useProjectManagerDialog } from './hooks/useProjectManagerDialog';

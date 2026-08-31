@@ -9,6 +9,7 @@ import {
 	SshEnvironmentBuildDigestSchema,
 	SshEnvironmentChannelIdSchema,
 	SshEnvironmentClientNonceSchema,
+	SshEnvironmentLoginShellSchema,
 	SshEnvironmentReleaseCohortDigestSchema,
 	SshEnvironmentRuntimeEpochSchema,
 	SshEnvironmentRuntimeInstanceIdSchema,
@@ -30,6 +31,7 @@ const terminalHostBuildDigest = SshEnvironmentBuildDigestSchema.parse('5'.repeat
 const releaseCohortDigest = SshEnvironmentReleaseCohortDigestSchema.parse('6'.repeat(64));
 const runtimeVersion = SshEnvironmentRuntimeVersionSchema.parse('0.2.0');
 const terminalHostVersion = SshEnvironmentTerminalHostVersionSchema.parse('0.2.0');
+const loginShell = SshEnvironmentLoginShellSchema.parse('/bin/zsh');
 const channelId = SshEnvironmentChannelIdSchema.parse(7);
 const binaryChannelId = SshEnvironmentChannelIdSchema.parse(9);
 const serviceId = SshEnvironmentServiceIdSchema.parse(SSH_PROJECT_ROOT_SERVICE_ID);
@@ -60,7 +62,7 @@ describe('SSH Environment protocol framing', () => {
 					runtimeVersion,
 					runtimeBuildDigest: buildDigest,
 					releaseCohortDigest,
-					loginShell: '/bin/zsh',
+					loginShell,
 					terminalHostVersion,
 					terminalHostBuildDigest,
 					platform: 'darwin-arm64',

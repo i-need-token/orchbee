@@ -1,6 +1,7 @@
 import {
 	type FormEvent,
 	type RefObject,
+	useEffect,
 	useMemo,
 	useRef,
 	useState,
@@ -20,6 +21,7 @@ interface DesktopSshProjectEnrollmentDialogView {
 	readonly destinationOptions: readonly string[];
 	readonly destinationInputReference: RefObject<HTMLInputElement | null>;
 	readonly destinationInvalid: boolean;
+	readonly retryButtonReference: RefObject<HTMLButtonElement | null>;
 	readonly state: DesktopSshProjectEnrollmentDialogState;
 	readonly submitDestination: (event: FormEvent<HTMLFormElement>) => void;
 }
@@ -45,9 +47,14 @@ export function useDesktopSshProjectEnrollmentDialog(
 		[destinationCatalog, destinationQuery],
 	);
 	const destinationInputReference = useRef<HTMLInputElement>(null);
+	const retryButtonReference = useRef<HTMLButtonElement>(null);
 	const [destinationSubmissionAttempted, setDestinationSubmissionAttempted] = useState(false);
 	const destinationInvalid =
 		editingDestination && destinationSubmissionAttempted && !state.canSubmit;
+	const retryVisible = state.kind !== 'closed' && state.phase === 'failed';
+	useEffect(() => {
+		if (retryVisible) retryButtonReference.current?.focus();
+	}, [retryVisible]);
 
 	return {
 		cancel: () => {
@@ -67,6 +74,7 @@ export function useDesktopSshProjectEnrollmentDialog(
 		destinationOptions,
 		destinationInputReference,
 		destinationInvalid,
+		retryButtonReference,
 		state,
 		submitDestination: (event) => {
 			event.preventDefault();

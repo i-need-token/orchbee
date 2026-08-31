@@ -9,8 +9,8 @@ import {
 import type { ReactNode } from 'react';
 
 import { ResourceDialogForm } from '../resource-dialog-form/ResourceDialogForm';
-import { ResourceDialogFooter } from '../resource-dialog-form/ResourceDialogFooter';
-import { ResourceDialogHeader } from '../resource-dialog-form/ResourceDialogHeader';
+import { ResourceDialogFooter } from '../resource-dialog-footer/ResourceDialogFooter';
+import { ResourceDialogHeader } from '../resource-dialog-header/ResourceDialogHeader';
 
 interface WorkbenchTabTitleDialogMessages {
 	readonly cancel: string;

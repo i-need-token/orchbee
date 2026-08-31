@@ -6,10 +6,25 @@ import { z } from 'zod';
 const DEVELOPMENT_SCOPE_DIGEST_LENGTH = 16;
 const DEVELOPMENT_SCOPE_DIGEST_VERSION = 1;
 const DESKTOP_DISTRIBUTION_DESCRIPTOR_SCHEMA_VERSION = 1;
+const DEFAULT_DESKTOP_DEVELOPMENT_APPLICATION_NAME = 'Orchbee Dev';
+const DESKTOP_APPLICATION_NAME_MAX_LENGTH = 64;
+const DESKTOP_APPLICATION_NAME_PATTERN = /^[^"*/:<>?\\|\p{Cc}]+$/u;
+const WINDOWS_RESERVED_APPLICATION_NAME_PATTERN =
+	/^(?:aux|con|nul|prn|com[1-9]|lpt[1-9])(?:\.|$)/iu;
 
 export const DESKTOP_DISTRIBUTION_DESCRIPTOR_FILE_NAME = 'desktop-distribution-v1.json';
+const DESKTOP_DEVELOPMENT_APPLICATION_NAME_ENVIRONMENT_KEY =
+	'ORCHBEE_DESKTOP_DEVELOPMENT_APPLICATION_NAME';
 const DESKTOP_DISTRIBUTION_PROFILE_IDS = ['dev', 'local', 'release'] as const;
 
+const desktopApplicationNameSchema = z
+	.string()
+	.min(1)
+	.max(DESKTOP_APPLICATION_NAME_MAX_LENGTH)
+	.regex(DESKTOP_APPLICATION_NAME_PATTERN)
+	.refine((value) => value === value.trim())
+	.refine((value) => !value.endsWith('.'))
+	.refine((value) => !WINDOWS_RESERVED_APPLICATION_NAME_PATTERN.test(value));
 const desktopDistributionProfileIdSchema = z.enum(DESKTOP_DISTRIBUTION_PROFILE_IDS);
 const developmentScopeSchema = z.strictObject({
 	digest: z.string().regex(/^[0-9a-f]{16}$/u),
@@ -18,6 +33,9 @@ const developmentScopeSchema = z.strictObject({
 });
 const desktopDistributionDescriptorSchema = z.discriminatedUnion('profileId', [
 	z.strictObject({
+		applicationName: desktopApplicationNameSchema.default(
+			DEFAULT_DESKTOP_DEVELOPMENT_APPLICATION_NAME,
+		),
 		developmentScope: developmentScopeSchema,
 		profileId: z.literal('dev'),
 		schemaVersion: z.literal(DESKTOP_DISTRIBUTION_DESCRIPTOR_SCHEMA_VERSION),
@@ -55,10 +73,10 @@ interface DesktopDistributionProfileDefinition {
 
 const DESKTOP_DISTRIBUTION_PROFILE_DEFINITIONS = {
 	dev: {
-		applicationName: 'Orchbee Dev',
+		applicationName: DEFAULT_DESKTOP_DEVELOPMENT_APPLICATION_NAME,
 		baseBundleIdentifier: 'com.electron.orchbee.dev',
 		dataRootDirectoryName: null,
-		icon: { accentColor: '#625bf6', variant: 'dev' },
+		icon: null,
 		outputDirectoryName: 'dev',
 		packageName: 'orchbee-dev',
 		releasePayload: 'development',
@@ -86,6 +104,10 @@ const DESKTOP_DISTRIBUTION_PROFILE_DEFINITIONS = {
 interface DesktopDistributionProfileBase extends DesktopDistributionProfileDefinition {
 	readonly bundleIdentifier: string;
 	readonly profileId: DesktopDistributionProfileId;
+}
+
+interface DesktopDistributionProfileOptions {
+	readonly applicationName?: string;
 }
 
 export type DesktopDistributionProfile =
@@ -139,6 +161,7 @@ export function createDesktopDevelopmentScope(
 export function resolveDesktopDistributionProfile(
 	profileId: DesktopDistributionProfileId,
 	developmentScope?: DesktopDevelopmentScope,
+	options: DesktopDistributionProfileOptions = {},
 ): DesktopDistributionProfile {
 	const definition = DESKTOP_DISTRIBUTION_PROFILE_DEFINITIONS[profileId];
 	if (profileId === 'dev') {
@@ -147,6 +170,10 @@ export function resolveDesktopDistributionProfile(
 		}
 		return {
 			...definition,
+			applicationName:
+				options.applicationName === undefined
+					? definition.applicationName
+					: parseDesktopApplicationName(options.applicationName, 'Desktop application name'),
 			bundleIdentifier: `${definition.baseBundleIdentifier}.d${developmentScope.digest}`,
 			dataScope: { ...developmentScope, kind: 'development' },
 			profileId,
@@ -171,11 +198,23 @@ export function resolveDesktopDistributionProfile(
 	};
 }
 
+export function resolveDesktopDevelopmentApplicationName(
+	environment: Readonly<Record<string, string | undefined>>,
+): string {
+	const configuredName = environment[DESKTOP_DEVELOPMENT_APPLICATION_NAME_ENVIRONMENT_KEY];
+	if (configuredName === undefined) return DEFAULT_DESKTOP_DEVELOPMENT_APPLICATION_NAME;
+	return parseDesktopApplicationName(
+		configuredName,
+		DESKTOP_DEVELOPMENT_APPLICATION_NAME_ENVIRONMENT_KEY,
+	);
+}
+
 function createDesktopDistributionDescriptor(
 	profile: DesktopDistributionProfile,
 ): DesktopDistributionDescriptor {
 	if (profile.profileId === 'dev') {
 		return {
+			applicationName: profile.applicationName,
 			developmentScope: {
 				digest: profile.dataScope.digest,
 				digestVersion: profile.dataScope.digestVersion,
@@ -213,7 +252,17 @@ export function resolveDesktopDistributionDescriptor(
 	) {
 		throw new Error('The Desktop development distribution descriptor has an invalid scope digest.');
 	}
-	return resolveDesktopDistributionProfile('dev', scope);
+	return resolveDesktopDistributionProfile('dev', scope, {
+		applicationName: descriptor.applicationName,
+	});
+}
+
+function parseDesktopApplicationName(value: string, source: string): string {
+	const result = desktopApplicationNameSchema.safeParse(value.normalize('NFD'));
+	if (result.success) return result.data;
+	throw new Error(
+		`${source} must be 1-${DESKTOP_APPLICATION_NAME_MAX_LENGTH} characters, have no leading or trailing whitespace, and contain no path separators, control characters, or platform-invalid filename characters.`,
+	);
 }
 
 function normalizePath(value: string, platform: NodeJS.Platform): string {

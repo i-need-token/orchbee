@@ -47,7 +47,7 @@ export interface GhosttyMigrationSettingsView {
 	readonly canAnalyze: boolean;
 	readonly canClear: boolean;
 	readonly messages: GhosttyMigrationSettingsMessages;
-	readonly onAnalyze: React.MouseEventHandler<HTMLButtonElement>;
+	readonly onAnalyze: () => void;
 	readonly onClear: React.MouseEventHandler<HTMLButtonElement>;
 	readonly onSourceChange: React.ChangeEventHandler<HTMLTextAreaElement>;
 	readonly report: GhosttyMigrationReportView | null;

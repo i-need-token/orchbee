@@ -126,7 +126,7 @@ function registry(): Pick<DesktopEnvironmentRegistry, 'get'> {
 function connectedObservation() {
 	const stopped = createSshEnvironmentConnectionState({
 		connectionId: environmentId,
-		target: { configurationFilePath: null, destination: 'builder.example' },
+		target: environment.provider.target,
 	});
 	const started = transitionSshEnvironmentConnection(stopped, { type: 'start-requested' });
 	const connecting = transitionSshEnvironmentConnection(started.state, {

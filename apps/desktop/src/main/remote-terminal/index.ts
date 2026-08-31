@@ -3,7 +3,7 @@ export { DesktopSshEnvironmentTerminalObservationOwner } from './DesktopSshEnvir
 export {
 	resolveDesktopSshEnvironmentTerminalRuntimeConfiguration,
 	resolveDesktopSshEnvironmentTerminalRuntimeResources,
-} from './resolveDesktopSshEnvironmentTerminalRuntimeResources';
+} from './desktop-ssh-environment-terminal-runtime-resources';
 export { createDesktopSshEnvironmentRemoteTerminal } from './createDesktopSshEnvironmentRemoteTerminal';
 export type { DesktopSshEnvironmentRemoteTerminalResult } from './createDesktopSshEnvironmentRemoteTerminal';
 export { resolveDesktopSshEnvironmentRemoteTerminalCreationTarget } from './resolveDesktopSshEnvironmentRemoteTerminalCreationTarget';

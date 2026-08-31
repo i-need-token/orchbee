@@ -223,7 +223,7 @@ function createSupervisorPort(connectionId: string): DesktopSshEnvironmentSuperv
 	const observation = observeSshEnvironmentConnection(
 		createSshEnvironmentConnectionState({
 			connectionId,
-			target: { configurationFilePath: null, destination: 'build-host' },
+			target: environment.provider.target,
 		}),
 	);
 	return {

@@ -5,9 +5,13 @@ import {
 	encodeDesktopDistributionDescriptor,
 	parseDesktopDistributionDescriptor,
 	parseDesktopDistributionProfileArguments,
+	resolveDesktopDevelopmentApplicationName,
 	resolveDesktopDistributionDescriptor,
 	resolveDesktopDistributionProfile,
 } from '../desktop-distribution-profile';
+
+const DESKTOP_DEVELOPMENT_APPLICATION_NAME_ENVIRONMENT_KEY =
+	'ORCHBEE_DESKTOP_DEVELOPMENT_APPLICATION_NAME';
 
 describe('Desktop distribution profiles', () => {
 	it('resolves the three explicit application identities and release policies', () => {
@@ -35,7 +39,7 @@ describe('Desktop distribution profiles', () => {
 				applicationName: 'Orchbee Dev',
 				bundleIdentifier: 'com.electron.orchbee.dev.d4a884c37300b9d45',
 				dataScope: 'development',
-				icon: { accentColor: '#625bf6', variant: 'dev' },
+				icon: null,
 				outputDirectoryName: 'dev',
 				releasePayload: 'development',
 			},
@@ -64,6 +68,59 @@ describe('Desktop distribution profiles', () => {
 			digestVersion: 1,
 			sourceRoot: '/source/orchbee-worktrees/feature',
 		});
+	});
+
+	it('overrides only the development application name from the local environment', () => {
+		const developmentScope = createDesktopDevelopmentScope('/source/orchbee', 'darwin');
+		const applicationName = 'Orchbee Dev Canary';
+		const profile = resolveDesktopDistributionProfile('dev', developmentScope, { applicationName });
+		const descriptor = parseDesktopDistributionDescriptor(
+			JSON.parse(encodeDesktopDistributionDescriptor(profile)),
+		);
+
+		expect(
+			resolveDesktopDevelopmentApplicationName({
+				[DESKTOP_DEVELOPMENT_APPLICATION_NAME_ENVIRONMENT_KEY]: applicationName,
+			}),
+		).toBe(applicationName);
+		expect(resolveDesktopDistributionDescriptor(descriptor, 'darwin')).toEqual(profile);
+		expect(profile.bundleIdentifier).toBe(
+			resolveDesktopDistributionProfile('dev', developmentScope).bundleIdentifier,
+		);
+	});
+
+	it('uses the default development name and rejects unsafe local overrides', () => {
+		expect(resolveDesktopDevelopmentApplicationName({})).toBe('Orchbee Dev');
+		const invalidNames = [
+			'',
+			' Orchbee Dev',
+			'Orchbee Dev ',
+			'Orchbee/Dev',
+			'Orchbee"Dev',
+			'Orchbee Dev.',
+			'.',
+			'CON',
+			'con.txt',
+			`Orchbee${String.fromCodePoint(0x85)}Dev`,
+		];
+
+		for (const applicationName of invalidNames) {
+			expect(() =>
+				resolveDesktopDevelopmentApplicationName({
+					[DESKTOP_DEVELOPMENT_APPLICATION_NAME_ENVIRONMENT_KEY]: applicationName,
+				}),
+			).toThrow(DESKTOP_DEVELOPMENT_APPLICATION_NAME_ENVIRONMENT_KEY);
+		}
+	});
+
+	it('normalizes an accepted development name to the packaged filename representation', () => {
+		const applicationName = 'Orchbée Dev';
+
+		expect(
+			resolveDesktopDevelopmentApplicationName({
+				[DESKTOP_DEVELOPMENT_APPLICATION_NAME_ENVIRONMENT_KEY]: applicationName,
+			}),
+		).toBe(applicationName.normalize('NFD'));
 	});
 
 	it('normalizes Windows checkout identity before hashing', () => {

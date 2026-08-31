@@ -13,14 +13,14 @@
 }
 
 .description[data-compact-typography='true'],
-.failureDescription,
-.authenticationDescription,
+.description[data-authentication='true'],
+.description[data-failure='true'],
 .supportingText,
 .plainInput {
 	font: var(--ob-sys-typography-body-sm);
 }
 
-.authenticationDescription {
+.description[data-authentication='true'] {
 	display: grid;
 	gap: var(--ob-ref-space-1);
 }
@@ -100,7 +100,7 @@
 	font: var(--ob-sys-typography-code-sm);
 }
 
-.failureDescription {
+.description[data-failure='true'] {
 	overflow-wrap: anywhere;
 	color: var(--ob-sys-color-status-danger-text);
 }

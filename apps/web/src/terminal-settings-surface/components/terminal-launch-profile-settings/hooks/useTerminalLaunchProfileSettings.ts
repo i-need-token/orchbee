@@ -42,6 +42,7 @@ interface NameEditorView {
 	readonly label: string;
 	readonly onChange: React.ChangeEventHandler<HTMLInputElement>;
 	readonly placeholder: string;
+	readonly required: boolean;
 	readonly value: string;
 }
 
@@ -468,6 +469,7 @@ export function useTerminalLaunchProfileSettings(
 				setDraft((current) => ({ ...current, name }));
 			},
 			placeholder: profileLabel(selectedProfile),
+			required: selectedProfile.id !== DESKTOP_BUILT_IN_TERMINAL_LAUNCH_PROFILE_ID,
 			value: draft.name,
 		},
 		notice: messages.futureTerminalsNotice,

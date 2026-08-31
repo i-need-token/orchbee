@@ -175,18 +175,18 @@ broadcasts.
 
 ## Correctness evidence
 
-| Claim                                                        | Evidence                                                                              | Limits                                                                          |
-| ------------------------------------------------------------ | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| Strict shared documents preserve every binary relationship   | Valid/malformed examples, JSON round trips, and generated same-axis hierarchies       | Generated bounds: eight Tabs, four Panels each                                  |
-| Historical v1 placement migration is exact and one-way       | Strict parser, field-preservation, and Desktop file-authority tests                   | Exact historical version 1 only                                                 |
-| Client Views are isolated and reconciliation is idempotent   | Two-view examples, stale-reference regression, and fixed-seed properties              | In-memory view contract only                                                    |
-| Hydration preserves durable terminal intent                  | Provision/retain/close/stop/stopped runtime round trips                               | Host binding existence remains application work                                 |
-| Custom title survives while natural metadata stays transient | Title override/reset and shared-document hydration scenarios                          | Rename presentation is adapter-owned                                            |
-| Applying a shared document emits no terminal effect          | Runtime trace with structural removal and retained running observation                | One renderer runtime                                                            |
-| Empty remote Workspace placement carries no presentation     | Empty-context schema/runtime and Desktop admission/forgery tests                      | Slice 3.2A admission only                                                       |
-| Remote provision remains target-exact and commit-first       | Workbench context tests plus Desktop routing, replay, and forgery tests                 | Default top-level terminals; projection and input are outside this contract     |
-| View-only changes never require a shared write               | Projection-specific observers and Desktop coordinator fingerprint tests               | Shared ordering is Desktop session authority                                    |
-| Preview state cannot claim shared durability                 | Deterministic rejection test                                                          | Preview remains an in-memory composition                                        |
+| Claim                                                        | Evidence                                                                        | Limits                                                                      |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| Strict shared documents preserve every binary relationship   | Valid/malformed examples, JSON round trips, and generated same-axis hierarchies | Generated bounds: eight Tabs, four Panels each                              |
+| Historical v1 placement migration is exact and one-way       | Strict parser, field-preservation, and Desktop file-authority tests             | Exact historical version 1 only                                             |
+| Client Views are isolated and reconciliation is idempotent   | Two-view examples, stale-reference regression, and fixed-seed properties        | In-memory view contract only                                                |
+| Hydration preserves durable terminal intent                  | Provision/retain/close/stop/stopped runtime round trips                         | Host binding existence remains application work                             |
+| Custom title survives while natural metadata stays transient | Title override/reset and shared-document hydration scenarios                    | Rename presentation is adapter-owned                                        |
+| Applying a shared document emits no terminal effect          | Runtime trace with structural removal and retained running observation          | One renderer runtime                                                        |
+| Empty remote Workspace placement carries no presentation     | Empty-context schema/runtime and Desktop admission/forgery tests                | Slice 3.2A admission only                                                   |
+| Remote provision remains target-exact and commit-first       | Workbench context tests plus Desktop routing, replay, and forgery tests         | Default top-level terminals; projection and input are outside this contract |
+| View-only changes never require a shared write               | Projection-specific observers and Desktop coordinator fingerprint tests         | Shared ordering is Desktop session authority                                |
+| Preview state cannot claim shared durability                 | Deterministic rejection test                                                    | Preview remains an in-memory composition                                    |
 
 TLA+ is not selected for the general pure document/view projection because it contains no
 asynchronous completion, cancellation, or independently ordered event. The one-way v1-to-v2

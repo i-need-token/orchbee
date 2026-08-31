@@ -90,6 +90,9 @@ test('ssh-project-enrollment/SU-01-signed-loopback-lifecycle', async () => {
 
 		await expect(enrollment.locator('pre')).toContainText(/authenticity|真实性/u);
 		await enrollment.getByRole('button', { name: /^(?:Cancel|取消)$/u }).click();
+		await expect(enrollment.locator('#ssh-project-destination')).toBeVisible();
+		await expect(enrollment.locator('#ssh-project-destination')).toHaveValue(fixture.destination);
+		await enrollment.getByRole('button', { name: /^(?:Cancel|取消)$/u }).click();
 		await expect(enrollment).not.toBeVisible();
 		await page.locator('[data-slot="workbench-sidebar-project-create"] button').click();
 		await page.getByRole('menuitem', { name: /^(?:Connect via SSH|通过 SSH 连接)…$/u }).click();
@@ -100,7 +103,7 @@ test('ssh-project-enrollment/SU-01-signed-loopback-lifecycle', async () => {
 		const promptResponse = enrollment.locator('input[type="password"]');
 		if ((await promptResponse.count()) > 0) await promptResponse.fill('yes');
 		await enrollment.getByRole('button', { name: /^(?:Trust and Continue|信任并继续)$/u }).click();
-		await expect(enrollment.locator('pre')).toContainText(/passphrase|密码短语/u);
+		await expect(enrollment.locator('code')).toContainText(/passphrase|密码短语/u);
 		const secretResponse = enrollment.locator('input[type="password"]');
 		await expect(secretResponse).toBeVisible();
 		await secretResponse.fill(clientKeyPassphrase);
@@ -138,7 +141,7 @@ test('ssh-project-enrollment/SU-01-signed-loopback-lifecycle', async () => {
 			'workbench-shared-document-v2.json',
 		);
 		const durableState = await Promise.all([
-			readFile(path.join(userDataPath, 'environment-registry-v1.json'), 'utf8'),
+			readFile(path.join(userDataPath, 'environment-registry-v2.json'), 'utf8'),
 			readFile(workbenchDocumentPath, 'utf8'),
 		]);
 		expect(durableState.join('\n')).toContain(fixture.destination);
@@ -195,7 +198,7 @@ test('ssh-project-enrollment/SU-01-signed-loopback-lifecycle', async () => {
 		await projectRow.hover();
 		await projectOptions.click();
 		await page.getByRole('menuitem', { name: /^(?:Retry Connection|重试连接)$/u }).click();
-		await expect(enrollment.locator('pre')).toContainText(/passphrase|密码短语/u);
+		await expect(enrollment.locator('code')).toContainText(/passphrase|密码短语/u);
 		await expect(secretResponse).toBeVisible();
 		await secretResponse.fill(clientKeyPassphrase);
 		await enrollment.getByRole('button', { name: /^(?:Authenticate|认证)$/u }).click();

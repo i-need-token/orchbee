@@ -1,13 +1,6 @@
 import { remoteDirectoryBrowserMessages, useOrchbeeIntl } from '@orchbee/i18n';
 import { Button, Checkbox, Input, Kbd, ProductIcon, Spinner } from '@orchbee/ui/components';
-import {
-	useEffect,
-	useRef,
-	type FocusEvent,
-	type FormEvent,
-	type KeyboardEvent,
-	type ReactNode,
-} from 'react';
+import { type FocusEvent, type FormEvent, type KeyboardEvent, type ReactNode } from 'react';
 
 import {
 	REMOTE_DIRECTORY_EMPTY_MESSAGES,
@@ -29,7 +22,6 @@ export function RemoteDirectoryBrowser({
 	sourceLabel,
 }: RemoteDirectoryBrowserProps): ReactNode {
 	const intl = useOrchbeeIntl();
-	const rootReference = useRef<HTMLElement>(null);
 	const viewController = useRemoteDirectoryBrowser({
 		busy,
 		canNavigate,
@@ -40,16 +32,6 @@ export function RemoteDirectoryBrowser({
 		onPathDraftChange,
 		pathDraft,
 	});
-	useEffect(() => {
-		if (busy || viewController.showPathEditor || typeof document === 'undefined') return;
-		if (
-			document.activeElement === document.body ||
-			document.activeElement === document.documentElement
-		) {
-			rootReference.current?.focus();
-		}
-	}, [busy, location.canonicalPath, viewController.showPathEditor]);
-
 	return (
 		<section
 			aria-busy={busy}
@@ -75,7 +57,7 @@ export function RemoteDirectoryBrowser({
 				event.preventDefault();
 				onSelect();
 			}}
-			ref={rootReference}
+			ref={viewController.rootReference}
 			tabIndex={-1}
 		>
 			{viewController.showPathEditor ? (

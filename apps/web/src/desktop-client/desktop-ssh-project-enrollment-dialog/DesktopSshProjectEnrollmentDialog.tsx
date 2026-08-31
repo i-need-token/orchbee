@@ -15,7 +15,7 @@ import {
 	Kbd,
 	Spinner,
 } from '@orchbee/ui/components';
-import { useEffect, useRef, type FormEvent, type KeyboardEvent, type ReactNode } from 'react';
+import { type FormEvent, type KeyboardEvent, type ReactNode } from 'react';
 
 import { RemoteDirectoryBrowser } from '../../remote-directory-browser';
 import { useDesktopSshProjectEnrollmentDialog } from './hooks/useDesktopSshProjectEnrollmentDialog';
@@ -45,14 +45,10 @@ export function DesktopSshProjectEnrollmentDialog({
 		destinationInputReference,
 		destinationInvalid,
 		destinationOptions,
+		retryButtonReference,
 		state,
 		submitDestination,
 	} = useDesktopSshProjectEnrollmentDialog(controller);
-	const retryButtonReference = useRef<HTMLButtonElement>(null);
-	const retryVisible = state.kind !== 'closed' && state.phase === 'failed';
-	useEffect(() => {
-		if (retryVisible) retryButtonReference.current?.focus();
-	}, [retryVisible]);
 	if (state.kind === 'closed') return null;
 	const directoryOperation = state.kind === 'attachment' || state.kind === 'enrollment';
 	const choosingDirectory =
@@ -114,14 +110,10 @@ export function DesktopSshProjectEnrollmentDialog({
 					<DialogTitle className={styles['title']}>{title}</DialogTitle>
 					{choosingDirectory ? null : (
 						<DialogDescription
-							className={
-								state.phase === 'failed'
-									? styles['failureDescription']
-									: authenticationPrompt === null
-										? styles['description']
-										: styles['authenticationDescription']
-							}
+							className={styles['description']}
+							data-authentication={authenticationPrompt === null ? undefined : true}
 							data-compact-typography={choosingDirectory ? undefined : true}
+							data-failure={state.phase === 'failed' ? true : undefined}
 							role={state.phase === 'failed' ? 'alert' : undefined}
 						>
 							{authenticationPrompt === null ? (

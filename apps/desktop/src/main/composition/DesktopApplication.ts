@@ -1389,18 +1389,18 @@ export class DesktopApplication {
 					});
 				},
 				createRuntime: (environmentId, remoteHost) => {
-					const connection = this.#sshEnvironmentConnections.observation(environmentId);
+					const connectionObservation = this.#sshEnvironmentConnections.observation(environmentId);
 					if (
-						connection.kind !== 'ready' ||
-						!connection.observation.connected ||
-						connection.observation.loginShell === null
+						connectionObservation.kind !== 'ready' ||
+						!connectionObservation.observation.connected ||
+						connectionObservation.observation.loginShell === null
 					) {
 						throw new Error('SSH Environment login Shell is unavailable.');
 					}
 					const resources = resolveDesktopSshEnvironmentTerminalRuntimeResources(
 						this.#options.runtime,
 						environmentId,
-						connection.observation.loginShell,
+						connectionObservation.observation.loginShell,
 					);
 					return this.#dependencies.createTerminalRuntime(
 						remoteHost,

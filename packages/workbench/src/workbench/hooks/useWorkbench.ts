@@ -350,8 +350,7 @@ export function useWorkbench({
 			onLocalTerminalCreated: () => {
 				focusRouting.requestTerminalFocus();
 			},
-			onRemoteTerminalCreated: (creation) => {
-				scopedTabModel?.includeTabOptimistically(creation.tabId, true);
+			onRemoteTerminalCreated: () => {
 				focusRouting.requestTerminalFocus();
 			},
 			remoteTerminalCreation,

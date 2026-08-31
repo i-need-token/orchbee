@@ -873,7 +873,7 @@ function remoteProjectDocument() {
 function resolvingObservation(candidate: EnvironmentId): SshEnvironmentConnectionObservation {
 	const state = createSshEnvironmentConnectionState({
 		connectionId: candidate,
-		target: { configurationFilePath: null, destination: 'build-host' },
+		target: environment.provider.target,
 	});
 	return observeSshEnvironmentConnection(
 		transitionSshEnvironmentConnection(state, { type: 'start-requested' }).state,
@@ -883,7 +883,7 @@ function resolvingObservation(candidate: EnvironmentId): SshEnvironmentConnectio
 function connectedObservation(candidate: EnvironmentId): SshEnvironmentConnectionObservation {
 	const state = createSshEnvironmentConnectionState({
 		connectionId: candidate,
-		target: { configurationFilePath: null, destination: 'build-host' },
+		target: environment.provider.target,
 	});
 	const resolving = transitionSshEnvironmentConnection(state, { type: 'start-requested' });
 	const connecting = transitionSshEnvironmentConnection(resolving.state, {

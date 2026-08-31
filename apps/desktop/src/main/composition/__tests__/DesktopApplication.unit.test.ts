@@ -172,7 +172,10 @@ describe('DesktopApplication', () => {
 		harness.sshEnvironmentConnectionOwner.connect.mockImplementation(async (environmentId) => {
 			const stopped = application.createSshEnvironmentConnectionState({
 				connectionId: environmentId,
-				target: { configurationFilePath: null, destination: 'build-host' },
+				target: SshEnvironmentTargetReferenceSchema.parse({
+					configurationFilePath: null,
+					destination: 'build-host',
+				}),
 			});
 			const started = application.transitionSshEnvironmentConnection(stopped, {
 				type: 'start-requested',
@@ -492,7 +495,7 @@ describe('DesktopApplication', () => {
 		);
 		expect(remoteRuntimeComposition?.[5]()).toMatchObject({
 			currentDirectory: null,
-			executable: '/bin/sh',
+			executable: '/bin/zsh',
 		});
 		expect(canonical.projectWorkspace.projects[0]?.directories[0]?.available).toBe(false);
 
@@ -581,7 +584,10 @@ describe('DesktopApplication', () => {
 
 		const stopped = application.createSshEnvironmentConnectionState({
 			connectionId: 'connection-1',
-			target: { configurationFilePath: null, destination: 'build-host' },
+			target: SshEnvironmentTargetReferenceSchema.parse({
+				configurationFilePath: null,
+				destination: 'build-host',
+			}),
 		});
 		const target = stopped.target;
 		const started = application.transitionSshEnvironmentConnection(stopped, {

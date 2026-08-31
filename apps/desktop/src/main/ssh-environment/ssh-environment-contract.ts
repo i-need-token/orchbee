@@ -35,7 +35,7 @@ const SshEnvironmentOptionValueSchema = z
 	.max(32_768)
 	.refine(hasNoControlCharacters);
 
-export const SshEnvironmentTargetOptionSchema = z.discriminatedUnion('kind', [
+const SshEnvironmentTargetOptionSchema = z.discriminatedUnion('kind', [
 	z.strictObject({ kind: z.literal('address-family'), value: z.enum(['inet', 'inet6']) }),
 	z.strictObject({ enabled: z.boolean(), kind: z.literal('compression') }),
 	z.strictObject({ enabled: z.boolean(), kind: z.literal('forward-agent') }),
@@ -47,6 +47,14 @@ export const SshEnvironmentTargetOptionSchema = z.discriminatedUnion('kind', [
 	z.strictObject({ kind: z.literal('user'), value: SshNameSchema }),
 	z.strictObject({ kind: z.literal('port'), value: z.number().int().min(1).max(65_535) }),
 ]);
+
+export type SshEnvironmentTargetOption = z.infer<typeof SshEnvironmentTargetOptionSchema>;
+
+interface CanonicalSshEnvironmentTargetReference {
+	readonly configurationFilePath: null | z.infer<typeof SshEnvironmentConfigurationFilePathSchema>;
+	readonly destination: z.infer<typeof SshEnvironmentDestinationSchema>;
+	readonly options?: SshEnvironmentTargetOption[] | undefined;
+}
 
 export const SshEnvironmentTargetReferenceSchema = z
 	.strictObject({
@@ -68,10 +76,10 @@ export const SshEnvironmentTargetReferenceSchema = z
 			singletonKinds.add(option.kind);
 		}
 	})
-	.transform((target) => {
-		const options = target.options?.toSorted(
-			(left, right) => sshTargetOptionOrder(left.kind) - sshTargetOptionOrder(right.kind),
-		);
+	.transform((target): CanonicalSshEnvironmentTargetReference => {
+		const options = target.options
+			?.slice()
+			.sort((left, right) => sshTargetOptionOrder(left.kind) - sshTargetOptionOrder(right.kind));
 		return options === undefined || options.length === 0
 			? {
 					configurationFilePath: target.configurationFilePath,
@@ -95,7 +103,6 @@ export type SshEnvironmentConnectionId = z.infer<typeof SshEnvironmentConnection
 export type SshEnvironmentHostKeyPolicy = z.infer<typeof SshEnvironmentHostKeyPolicySchema>;
 export type SshEnvironmentInteractionHandle = z.infer<typeof SshEnvironmentInteractionHandleSchema>;
 export type SshEnvironmentResolvedTarget = z.infer<typeof SshEnvironmentResolvedTargetSchema>;
-export type SshEnvironmentTargetOption = z.infer<typeof SshEnvironmentTargetOptionSchema>;
 export type SshEnvironmentTargetReference = z.infer<typeof SshEnvironmentTargetReferenceSchema>;
 
 function hasNoControlCharacters(value: string): boolean {

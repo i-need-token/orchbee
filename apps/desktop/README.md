@@ -484,10 +484,11 @@ boundary, transition table, evidence, and explicit limits live in
 ## SSH Environment connection foundation
 
 Desktop Main is the current colocated Hub owner of the strict append-only
-`environment-registry-v1.json`. It loads that registry before the local Terminal Host, keeps the
-provider-neutral Environment identity independent from its SSH Runtime identity, admits one exact
-target only once, and exposes create/list/get/reload only inside Main. A registry record starts no
-connection and grants no remote effect. See
+`environment-registry-v2.json`. It can migrate the bounded legacy `environment-registry-v1.json`,
+loads the current registry before the local Terminal Host, keeps the provider-neutral Environment
+identity independent from its SSH Runtime identity, admits one exact target only once, and exposes
+create/list/get/reload only inside Main. A registry record starts no connection and grants no remote
+effect. See
 [`docs/environment-registry.md`](docs/environment-registry.md).
 
 The release-only package path independently verifies one externally signed, canonical two-component
@@ -804,7 +805,7 @@ pnpm desktop
 
 On macOS, the command materializes and ad-hoc signs a content-addressed `Orchbee Dev.app` beneath
 `apps/desktop/out/development-runtime/`, then launches its exact executable. Its application name,
-checkout-scoped bundle identifier, purple development icon, and checkout-scoped data root are
+checkout-scoped bundle identifier, Electron default icon, and checkout-scoped data root are
 separate from the installed release application. Development diagnostics must target that exact
 bundle path or identifier and never fall back to `/Applications/Orchbee.app`.
 
@@ -814,9 +815,22 @@ Desktop owns exactly three explicit distribution profiles:
 
 | Command                        | Application         | Bundle identifier                          | Data root                       | Icon              | Output / release payload                    |
 | ------------------------------ | ------------------- | ------------------------------------------ | ------------------------------- | ----------------- | ------------------------------------------- |
-| `pnpm desktop:package:dev`     | `Orchbee Dev.app`   | `com.electron.orchbee.dev.d<scope-digest>` | `~/.orchbee-dev-<scope-digest>` | Purple Dev badge  | `apps/desktop/out/dev/`; development-signed |
+| `pnpm desktop:package:dev`     | `Orchbee Dev.app`   | `com.electron.orchbee.dev.d<scope-digest>` | `~/.orchbee-dev-<scope-digest>` | Electron default  | `apps/desktop/out/dev/`; development-signed |
 | `pnpm desktop:package:local`   | `Orchbee Local.app` | `com.electron.orchbee.local`               | `~/.orchbee-local`              | Green Local badge | `apps/desktop/out/local/`; excluded         |
 | `pnpm desktop:package:release` | `Orchbee.app`       | `com.electron.orchbee`                     | `~/.orchbee`                    | Electron default  | `apps/desktop/out/release/`; required       |
+
+For the `dev` profile, `ORCHBEE_DESKTOP_DEVELOPMENT_APPLICATION_NAME` optionally overrides the
+default `Orchbee Dev` name for `pnpm desktop` and `pnpm desktop:package:dev`. The value must be
+1–64 characters, have no leading or trailing whitespace, and contain no path separators, control
+characters, or platform-invalid filename characters. It is a local build input and is persisted in
+the Dev distribution descriptor so the packaged application keeps the selected name without the
+shell variable. It does not change the checkout-scoped bundle identifier or data root; `local` and
+`release` ignore it.
+
+```sh
+ORCHBEE_DESKTOP_DEVELOPMENT_APPLICATION_NAME="Orchbee Dev Canary" \
+pnpm desktop:package:dev
+```
 
 `pnpm desktop` always uses the `dev` identity but does not create a packaged application. There is
 no generic `desktop:package` command: package creation requires one explicit profile so a local or

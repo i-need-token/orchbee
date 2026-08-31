@@ -1,4 +1,4 @@
-import { useId, useState } from 'react';
+import { useEffect, useId, useRef, useState, type RefObject } from 'react';
 
 import type {
 	RemoteDirectoryBrowserLocation,
@@ -19,6 +19,7 @@ interface UseRemoteDirectoryBrowserOptions {
 
 interface RemoteDirectoryBrowserViewController {
 	readonly canSubmitPath: boolean;
+	readonly emptyState: 'empty' | 'hidden' | 'no-match' | null;
 	readonly hasHiddenDirectories: boolean;
 	readonly hiddenDirectoriesVisible: boolean;
 	readonly hiddenDirectoriesVisibilityId: string;
@@ -30,6 +31,7 @@ interface RemoteDirectoryBrowserViewController {
 	readonly pathInputId: string;
 	readonly pathSubmitId: string;
 	readonly resetPathEditor: () => void;
+	readonly rootReference: RefObject<HTMLElement | null>;
 	readonly setHiddenDirectoriesVisible: (visible: boolean) => void;
 	readonly showPathEditor: boolean;
 	readonly submitPath: () => void;
@@ -49,9 +51,19 @@ export function useRemoteDirectoryBrowser({
 	const [pathEditorOpen, setPathEditorOpen] = useState(false);
 	const [failedPathEditorDismissed, setFailedPathEditorDismissed] = useState(false);
 	const [hiddenDirectoriesVisible, setHiddenDirectoriesVisible] = useState(false);
+	const rootReference = useRef<HTMLElement>(null);
 	const componentId = useId();
 	const showPathEditor =
 		pathEditorOpen || (navigationFailure !== null && !failedPathEditorDismissed);
+	useEffect(() => {
+		if (busy || showPathEditor || typeof document === 'undefined') return;
+		if (
+			document.activeElement === document.body ||
+			document.activeElement === document.documentElement
+		) {
+			rootReference.current?.focus();
+		}
+	}, [busy, canonicalPath, showPathEditor]);
 	const projection = projectRemoteDirectoryBrowser({
 		canNavigate,
 		canonicalPath,
@@ -79,6 +91,7 @@ export function useRemoteDirectoryBrowser({
 			setFailedPathEditorDismissed(true);
 			setPathEditorOpen(false);
 		},
+		rootReference,
 		setHiddenDirectoriesVisible,
 		showPathEditor,
 		submitPath: () => {

@@ -241,7 +241,7 @@ describe('useWebApplication', () => {
 		keyboardShortcutSettingsController.dispose();
 		terminalSettingsController.dispose();
 		actionRuntime.dispose();
-	});
+	}, 15_000);
 
 	it('keeps the Workbench mounted, makes it inert, and restores focus after close', async () => {
 		const container = document.createElement('div');

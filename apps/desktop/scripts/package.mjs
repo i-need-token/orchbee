@@ -33,6 +33,7 @@ import {
 	createDesktopDevelopmentScope,
 	encodeDesktopDistributionDescriptor,
 	parseDesktopDistributionProfileArguments,
+	resolveDesktopDevelopmentApplicationName,
 	resolveDesktopDistributionProfile,
 } from '../src/distribution/desktop-distribution-profile.ts';
 
@@ -48,7 +49,12 @@ const developmentScope =
 	profileId === 'dev'
 		? createDesktopDevelopmentScope(await realpath(repositoryRoot), process.platform)
 		: undefined;
-const distributionProfile = resolveDesktopDistributionProfile(profileId, developmentScope);
+const distributionProfile =
+	profileId === 'dev'
+		? resolveDesktopDistributionProfile(profileId, developmentScope, {
+				applicationName: resolveDesktopDevelopmentApplicationName(process.env),
+			})
+		: resolveDesktopDistributionProfile(profileId, developmentScope);
 const usesDarwinApplicationIcon =
 	process.platform === 'darwin' && distributionProfile.icon !== null;
 const environmentReleaseConfiguration = await resolveEnvironmentReleaseConfiguration();

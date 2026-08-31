@@ -6,6 +6,7 @@ import {
 	SSH_ENVIRONMENT_REQUIRED_CAPABILITIES,
 	SshEnvironmentBuildDigestSchema,
 	SshEnvironmentFrameDecoder,
+	SshEnvironmentLoginShellSchema,
 	SshEnvironmentReleaseCohortDigestSchema,
 	SshEnvironmentRuntimeEpochSchema,
 	SshEnvironmentRuntimeInstanceIdSchema,
@@ -30,6 +31,7 @@ const terminalHostBuildDigest = SshEnvironmentBuildDigestSchema.parse('4'.repeat
 const linuxRuntimeBuildDigest = SshEnvironmentBuildDigestSchema.parse('5'.repeat(64));
 const linuxTerminalHostBuildDigest = SshEnvironmentBuildDigestSchema.parse('6'.repeat(64));
 const releaseCohortDigest = SshEnvironmentReleaseCohortDigestSchema.parse('7'.repeat(64));
+const loginShell = SshEnvironmentLoginShellSchema.parse('/bin/zsh');
 const runtimeArtifactBytes = Uint8Array.of(9, 8, 7, 6);
 const terminalHostArtifactBytes = Uint8Array.of(5, 4, 3);
 const catalog: VerifiedSshEnvironmentReleaseCatalog = {
@@ -104,7 +106,7 @@ describe('SSH Environment Runtime session', () => {
 
 		harness.readable.write(helloAccepted());
 		expect(harness.onReady).toHaveBeenCalledWith({
-			loginShell: '/bin/zsh',
+			loginShell,
 			runtimeEpoch,
 			runtimeInstanceId,
 		});
@@ -300,7 +302,7 @@ function helloAccepted(
 			runtimeVersion,
 			runtimeBuildDigest: overrides.runtimeBuildDigest ?? runtimeBuildDigest,
 			releaseCohortDigest,
-			loginShell: '/bin/zsh',
+			loginShell,
 			terminalHostVersion,
 			terminalHostBuildDigest,
 			platform: 'darwin-arm64',

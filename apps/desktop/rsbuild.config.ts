@@ -55,6 +55,7 @@ export default defineConfig(({ command }) => {
 				const electronExecutable = await prepareDesktopDevelopmentExecutable({
 					baseIconPath: path.join(sourceRoot, 'resources', 'icon.svg'),
 					electronExecutable: sourceElectronExecutable,
+					environment: process.env,
 					outputRoot: path.join(desktopRoot, 'out', 'development-runtime'),
 					sourceRoot,
 				});

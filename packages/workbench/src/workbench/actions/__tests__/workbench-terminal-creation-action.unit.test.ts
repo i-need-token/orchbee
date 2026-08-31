@@ -148,7 +148,8 @@ describe('executeWorkbenchTerminalCreationAction', () => {
 		const mainResult = createMainResult(mainRuntime);
 		const capability = capabilityReturning(mainResult);
 		const { context, markCommitted } = createContext();
-		const onRemoteTerminalCreated = vi.fn();
+		const onRemoteTerminalCreated =
+			vi.fn<(creation: { readonly tabId: string; readonly terminalContextId: string }) => void>();
 		let settled = false;
 		const completion = Promise.resolve(
 			executeWorkbenchTerminalCreationAction(
