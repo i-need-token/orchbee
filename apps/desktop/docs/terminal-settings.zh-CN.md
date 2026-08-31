@@ -41,7 +41,7 @@ Host 拒绝或无法确认选定值时，启动会失败关闭。在 Host 与内
 
 ## 渲染器能力
 
-Desktop bootstrap 的第八个端口是 `terminal-default-settings`。它支持一个快照请求和一个
+Desktop bootstrap 的第十个端口是 `terminal-default-settings`。它支持一个快照请求和一个
 完整更新请求，两者都通过有界请求标识关联。格式错误的数据或转移端口会让能力退役。替换
 渲染器文档会处置旧 broker，而 Main 拥有的控制器与 Host 默认值会跨页面替换继续存在。
 

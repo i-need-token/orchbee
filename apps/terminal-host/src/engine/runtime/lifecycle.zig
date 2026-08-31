@@ -77,6 +77,13 @@ pub fn shutdown(self: *state.State) contracts.ShutdownError!void {
         return error.ProcessIdentityReleaseFailed;
 }
 
+pub fn pendingShutdownCleanup(self: *const state.State) ?contracts.ShutdownCleanupPhase {
+    if (!self.containment_confirmed.load(.acquire)) return .contain_process;
+    if (!self.threads_joined) return .release_output;
+    if (!self.process.identityReleased()) return .release_process_identity;
+    return null;
+}
+
 pub fn destroy(self: *state.State) void {
     shutdown(self) catch |err| {
         // A failed shutdown must retain the runtime and all worker-owned

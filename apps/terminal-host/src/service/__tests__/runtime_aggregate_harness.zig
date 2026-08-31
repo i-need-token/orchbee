@@ -277,6 +277,8 @@ pub const SkippedTargetObservingContainment = struct {
 pub const RetainedCleanupProbe = struct {
     failures_remaining: usize,
     contains: usize = 0,
+    output_failures_remaining: usize = 0,
+    output_releases: usize = 0,
     runtime: ?*terminal_runtime.TerminalRuntime = null,
 
     pub fn fromContext(context: *anyopaque) *RetainedCleanupProbe {
@@ -295,10 +297,20 @@ pub const RetainedCleanupProbe = struct {
         try self.runtime.?.forceTerminate();
     }
 
+    pub fn finishPtyAfterChildExit(context: *anyopaque) anyerror!void {
+        const self = fromContext(context);
+        self.output_releases += 1;
+        if (self.output_failures_remaining > 0) {
+            self.output_failures_remaining -= 1;
+            return error.InjectedOutputReleaseFailure;
+        }
+    }
+
     pub fn hooks(self: *RetainedCleanupProbe) terminal_runtime.testing.RuntimeTestingHooksType {
         return .{
             .contain_process_tree = contain,
             .context = self,
+            .finish_pty_after_child_exit = finishPtyAfterChildExit,
         };
     }
 };

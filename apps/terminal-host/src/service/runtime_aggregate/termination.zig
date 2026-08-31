@@ -134,7 +134,13 @@ pub fn disposeTerminal(
     // RetainedTerminal still binds it to this session; a failed shutdown
     // leaves the complete retained record intact for a safe retry.
     runtime.?.shutdown() catch |err| {
-        return .{ .cleanup_blocked = host_runtime_maintenance.cleanupFailure(err) };
+        const cleanup_failure = host_runtime_maintenance.cleanupFailure(err);
+        _ = self.core_state.retainedCleanupBlocked(
+            terminal_id,
+            cleanup_failure,
+            self.maintenance.nextCleanupRetryAt(),
+        ) catch unreachable;
+        return .{ .cleanup_blocked = cleanup_failure };
     };
     const session = self.core_state.commitTerminalRemoval(terminal_id);
     const retained = RetainedTerminal.fromMutableSession(session);

@@ -24,7 +24,7 @@
 
 当前 terminal progress、close activity 与命令完成都是有界的呈现事实，而不是 Agent lifecycle
 权威。它们只能继续作为低保真 fallback 证据使用。当前全 Tab 监控限制由
-[shell-integration 契约](../../apps/web/docs/terminal-settings.zh-CN.md#shell-integration-与完成提醒)维护。
+[shell-integration 契约](../../apps/web/docs/terminal-settings.zh-CN.md#shell-集成与完成提醒)维护。
 
 ## 已接受架构
 

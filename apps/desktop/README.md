@@ -484,9 +484,10 @@ boundary, transition table, evidence, and explicit limits live in
 ## SSH Environment connection foundation
 
 Desktop Main is the current colocated Hub owner of the strict append-only
-`environment-registry-v2.json`. It can migrate the bounded legacy `environment-registry-v1.json`,
-loads the current registry before the local Terminal Host, keeps the provider-neutral Environment
-identity independent from its SSH Runtime identity, admits one exact target only once, and exposes
+`environment-registry-v2.json`. It performs a bounded read-only migration from the untouched legacy
+`environment-registry-v1.json`, loads the current registry before the local Terminal Host, keeps the
+provider-neutral Environment identity independent from its SSH Runtime identity, admits one exact
+target only once, and exposes
 create/list/get/reload only inside Main. A registry record starts no connection and grants no remote
 effect. See
 [`docs/environment-registry.md`](docs/environment-registry.md).
@@ -517,7 +518,7 @@ state machine fences generations, admits `connected` only after exact Runtime id
 verification, and retries a lost attachment only after one proven connection. Stopping the local
 attachment does not stop the remote daemon or imply Project deletion.
 
-The exact `0.3.0` protocol advertises `project-root-v2` and `terminal-host-v1`. Through the connected
+The exact `0.4.0` protocol advertises `project-root-v2` and `terminal-host-v1`. Through the connected
 Environment owner, Desktop Main can inspect one explicit absolute POSIX Project-root candidate or
 request a bounded read-only directory snapshot starting at the Runtime's home. Each snapshot contains
 only a canonical path, optional parent, at most 256 sorted accessible child-directory names, and a

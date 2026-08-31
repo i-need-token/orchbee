@@ -252,6 +252,113 @@ test "TH-009 retained cleanup preserves an already-settled normal outcome" {
     try aggregate.finishRetainedCleanup();
     finished = true;
 }
+test "TH-009 disposal shutdown failure schedules broker-independent retained cleanup" {
+    if (builtin.os.tag == .windows) return error.SkipZigTest;
+    var probe: RetainedCleanupProbe = .{ .failures_remaining = 1 };
+    var logical_clock: LogicalCleanupClock = .{};
+    var aggregate = subject.HostRuntimeAggregate.init(std.testing.allocator);
+    var finished = false;
+    defer if (!finished) aggregate.finishRetainedCleanup() catch {};
+    const connection_id: core_module.ConnectionId = 1;
+    _ = try aggregate.core().connect(
+        connection_id,
+        testId(core_module.ClientId, 0x4d),
+    );
+    const terminal_id = testId(core_module.TerminalId, 0x4e);
+    const runtime = try commitHookedRuntimeWithLaunch(
+        &aggregate,
+        connection_id,
+        terminal_id,
+        &probe,
+        normalExitWithRetainedDescendantProcessLaunch(),
+    );
+    subject.testing.setCleanupClockForTesting(&aggregate, readLogicalCleanupNs, &logical_clock);
+
+    _ = try runtime.waitForCompletion();
+    aggregate.synchronizeRuntimes();
+    try publishPendingOutcome(&aggregate, terminal_id);
+
+    switch (try aggregate.disposeTerminal(connection_id, terminal_id)) {
+        .cleanup_blocked => |failure| try std.testing.expectEqual(
+            core_module.RuntimeCleanupFailure.contain_process,
+            failure,
+        ),
+        .transition => return error.ExpectedCleanupBlockedDisposal,
+    }
+    const retry_at_ns = switch (aggregate.core().findTerminal(terminal_id).?.retainedCleanup()) {
+        .blocked => |blocked| deadline: {
+            try std.testing.expectEqual(
+                core_module.RuntimeCleanupFailure.contain_process,
+                blocked.failure,
+            );
+            break :deadline blocked.retry_at_ns;
+        },
+        else => return error.ExpectedRetainedCleanupBlock,
+    };
+
+    _ = aggregate.disconnect(connection_id);
+    logical_clock.now_ns = retry_at_ns;
+    try std.testing.expect(aggregate.runRetainedCleanupPass());
+    try std.testing.expectEqual(
+        core_module.RetainedCleanup.complete,
+        aggregate.core().findTerminal(terminal_id).?.retainedCleanup(),
+    );
+
+    try aggregate.finishRetainedCleanup();
+    finished = true;
+}
+test "THDD-001 retained cleanup completes only after every shutdown phase succeeds" {
+    if (builtin.os.tag == .windows) return error.SkipZigTest;
+    var probe: RetainedCleanupProbe = .{ .failures_remaining = 0 };
+    var logical_clock: LogicalCleanupClock = .{};
+    var aggregate = subject.HostRuntimeAggregate.init(std.testing.allocator);
+    var finished = false;
+    defer if (!finished) aggregate.finishRetainedCleanup() catch {};
+    const connection_id: core_module.ConnectionId = 1;
+    _ = try aggregate.core().connect(
+        connection_id,
+        testId(core_module.ClientId, 0x4f),
+    );
+    const terminal_id = testId(core_module.TerminalId, 0x50);
+    const runtime = try commitHookedRuntimeWithLaunch(
+        &aggregate,
+        connection_id,
+        terminal_id,
+        &probe,
+        normalExitWithRetainedDescendantProcessLaunch(),
+    );
+    subject.testing.setCleanupClockForTesting(&aggregate, readLogicalCleanupNs, &logical_clock);
+
+    _ = try runtime.waitForCompletion();
+    aggregate.synchronizeRuntimes();
+    try publishPendingOutcome(&aggregate, terminal_id);
+    const output_releases_before_cleanup = probe.output_releases;
+    probe.output_failures_remaining = 1;
+
+    try std.testing.expectError(error.OutputReleaseFailed, aggregate.deinitChecked(false));
+    try std.testing.expectEqual(output_releases_before_cleanup + 1, probe.output_releases);
+    const retry_at_ns = switch (aggregate.core().findTerminal(terminal_id).?.retainedCleanup()) {
+        .blocked => |blocked| deadline: {
+            try std.testing.expectEqual(
+                core_module.RuntimeCleanupFailure.release_output,
+                blocked.failure,
+            );
+            break :deadline blocked.retry_at_ns;
+        },
+        else => return error.ExpectedRetainedCleanupBlock,
+    };
+
+    logical_clock.now_ns = retry_at_ns;
+    try std.testing.expect(aggregate.runRetainedCleanupPass());
+    try std.testing.expectEqual(output_releases_before_cleanup + 2, probe.output_releases);
+    try std.testing.expectEqual(
+        core_module.RetainedCleanup.complete,
+        aggregate.core().findTerminal(terminal_id).?.retainedCleanup(),
+    );
+
+    try aggregate.finishRetainedCleanup();
+    finished = true;
+}
 test "THDD-001 fatal teardown retries containment on the bounded backoff schedule and releases only after containment" {
     var probe: RetainedCleanupProbe = .{ .failures_remaining = 2 };
     var logical_clock: LogicalCleanupClock = .{};

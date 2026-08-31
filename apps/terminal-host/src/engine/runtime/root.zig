@@ -52,6 +52,7 @@ pub const HostFailureFenceResult = contracts.HostFailureFenceResult;
 pub const CompletionState = contracts.CompletionState;
 pub const Completion = contracts.Completion;
 pub const ShutdownError = contracts.ShutdownError;
+pub const ShutdownCleanupPhase = contracts.ShutdownCleanupPhase;
 pub const ScrollbackCompressionOutcome = contracts.ScrollbackCompressionOutcome;
 
 pub const PreparedInput = handle.PreparedInput;

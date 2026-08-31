@@ -1,3 +1,4 @@
+import { access, readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -20,7 +21,8 @@ const expectedRuntimeExports = [
 ];
 
 const packageRoot = resolve(import.meta.dirname, '..');
-const esmApi = await import(pathToFileURL(resolve(packageRoot, 'dist/index.js')).href);
+const esmEntryPath = resolve(packageRoot, 'dist/index.js');
+const esmApi = await import(pathToFileURL(esmEntryPath).href);
 const cjsApi = createRequire(import.meta.url)(resolve(packageRoot, 'dist/index.cjs'));
 
 for (const [format, api] of [
@@ -34,5 +36,12 @@ for (const [format, api] of [
 		);
 	}
 }
+
+const esmEntrySource = await readFile(esmEntryPath, 'utf8');
+const projectedSearchWorkerUrl = './projected-search-worker.js';
+if (!esmEntrySource.includes(`new URL('${projectedSearchWorkerUrl}', import.meta.url)`)) {
+	throw new Error(`@orchbee/terminal ESM entry does not reference ${projectedSearchWorkerUrl}`);
+}
+await access(resolve(packageRoot, 'dist', projectedSearchWorkerUrl.slice(2)));
 
 process.stdout.write('@orchbee/terminal: public API verified\n');

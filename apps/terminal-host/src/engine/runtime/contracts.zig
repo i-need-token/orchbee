@@ -293,3 +293,9 @@ pub const ShutdownError = error{
     ProcessContainmentFailed,
     ProcessIdentityReleaseFailed,
 };
+
+pub const ShutdownCleanupPhase = enum {
+    contain_process,
+    release_output,
+    release_process_identity,
+};

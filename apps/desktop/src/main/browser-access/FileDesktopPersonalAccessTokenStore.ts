@@ -17,16 +17,32 @@ const PersonalAccessTokenStoreSchema = z.strictObject({
 });
 
 interface FileDesktopPersonalAccessTokenStoreOptions {
+	readonly openTemporaryFile?:
+		| ((temporaryPath: string) => Promise<PersonalAccessTokenTemporaryFile>)
+		| undefined;
 	readonly randomToken?: (() => string) | undefined;
+	readonly replaceFile?: ((temporaryPath: string, filePath: string) => Promise<void>) | undefined;
+}
+
+interface PersonalAccessTokenTemporaryFile {
+	chmod(mode: number): Promise<void>;
+	close(): Promise<void>;
+	sync(): Promise<void>;
+	writeFile(data: string, encoding: 'utf8'): Promise<void>;
 }
 
 export class FileDesktopPersonalAccessTokenStore implements DesktopPersonalAccessTokenStore {
 	readonly #filePath: string;
+	readonly #openTemporaryFile: (temporaryPath: string) => Promise<PersonalAccessTokenTemporaryFile>;
 	readonly #randomToken: () => string;
+	readonly #replaceFile: (temporaryPath: string, filePath: string) => Promise<void>;
 
 	constructor(filePath: string, options: FileDesktopPersonalAccessTokenStoreOptions = {}) {
 		this.#filePath = filePath;
+		this.#openTemporaryFile =
+			options.openTemporaryFile ?? (async (temporaryPath) => open(temporaryPath, 'wx', 0o600));
 		this.#randomToken = options.randomToken ?? (() => randomBytes(16).toString('hex'));
+		this.#replaceFile = options.replaceFile ?? rename;
 	}
 
 	async load(): Promise<PersonalAccessTokenVerifier | null> {
@@ -59,21 +75,23 @@ export class FileDesktopPersonalAccessTokenStore implements DesktopPersonalAcces
 		await mkdir(directory, { mode: 0o700, recursive: true });
 		if (process.platform !== 'win32') await chmod(directory, 0o700);
 		const temporaryPath = `${this.#filePath}.${this.#randomToken()}.tmp`;
-		let temporary;
+		let temporary: PersonalAccessTokenTemporaryFile | undefined;
+		let temporaryCreated = false;
 		try {
-			temporary = await open(temporaryPath, 'wx', 0o600);
+			temporary = await this.#openTemporaryFile(temporaryPath);
+			temporaryCreated = true;
+			if (process.platform !== 'win32') await temporary.chmod(0o600);
 			await temporary.writeFile(encoded, 'utf8');
 			await temporary.sync();
-		} finally {
-			await temporary?.close();
-		}
-		try {
-			await rename(temporaryPath, this.#filePath);
+			await temporary.close();
+			temporary = undefined;
+			await this.#replaceFile(temporaryPath, this.#filePath);
+			temporaryCreated = false;
 		} catch (error: unknown) {
-			await unlink(temporaryPath).catch(() => undefined);
+			await temporary?.close().catch(() => undefined);
+			if (temporaryCreated) await unlink(temporaryPath).catch(() => undefined);
 			throw error;
 		}
-		if (process.platform !== 'win32') await chmod(this.#filePath, 0o600);
 	}
 }
 

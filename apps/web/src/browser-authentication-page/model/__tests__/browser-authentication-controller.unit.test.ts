@@ -67,4 +67,13 @@ describe('resolveBrowserAuthenticationReturnTarget', () => {
 		expect(resolveBrowserAuthenticationReturnTarget('?returnTo=%2Flogin')).toBe('/');
 		expect(resolveBrowserAuthenticationReturnTarget('?returnTo=%2Fa&returnTo=%2Fb')).toBe('/');
 	});
+
+	it('rejects a relative target that normalizes to a network-path reference', () => {
+		expect(
+			resolveBrowserAuthenticationReturnTarget('?returnTo=%2Fsafe%2F..%2F%2Fevil.example'),
+		).toBe('/');
+		expect(
+			resolveBrowserAuthenticationReturnTarget('?returnTo=%2Fsafe%2F..%5C%2F%2Fevil.example'),
+		).toBe('/');
+	});
 });

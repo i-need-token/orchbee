@@ -33,7 +33,7 @@ pub const Maintenance = struct {
     retained_cleanup: RetainedCleanupStatus = .{},
     runtime_sync_index: usize = 0,
 
-    /// Whether any retained process tree still lacks confirmed containment.
+    /// Whether any retained runtime still has an incomplete shutdown phase.
     pub fn retainedCleanupPending(
         self: *const Maintenance,
         owner: anytype,
@@ -42,7 +42,7 @@ pub const Maintenance = struct {
         const core = owner.coreRead();
         for (core.terminalValues()) |session| {
             const runtime = owner.runtimeFor(session.terminal_id) orelse continue;
-            if (!runtime.containmentConfirmed()) return true;
+            if (runtime.pendingShutdownCleanup() != null) return true;
         }
         return false;
     }
@@ -81,8 +81,8 @@ pub const Maintenance = struct {
         return .retained_failed;
     }
 
-    /// Converts every still-unconfirmed runtime into scheduled retained
-    /// containment work while keeping the aggregate and Core ownership alive.
+    /// Converts every incomplete runtime shutdown into scheduled retained
+    /// cleanup work while keeping the aggregate and Core ownership alive.
     pub fn retainUnconfirmedCleanup(
         self: *Maintenance,
         owner: anytype,
@@ -92,7 +92,9 @@ pub const Maintenance = struct {
         for (core.terminalValues()) |session| {
             const terminal_id = session.terminal_id;
             const runtime = owner.runtimeFor(terminal_id) orelse continue;
-            if (runtime.containmentConfirmed()) continue;
+            const cleanup_failure = runtime_observation.cleanupFailureFromPhase(
+                runtime.pendingShutdownCleanup() orelse continue,
+            );
             retained = true;
 
             // A normal outcome may already be settled while POSIX descendants
@@ -116,7 +118,7 @@ pub const Maintenance = struct {
             if (core.findTerminal(terminal_id).?.settledFinalRevision() != null) {
                 _ = core.retainedCleanupBlocked(
                     terminal_id,
-                    .contain_process,
+                    cleanup_failure,
                     self.nextCleanupRetryAt(),
                 ) catch unreachable;
                 continue;
@@ -129,7 +131,7 @@ pub const Maintenance = struct {
             _ = core.runtimeFailed(terminal_id, primary_failure) catch unreachable;
             _ = core.failureContainmentBlocked(
                 terminal_id,
-                .contain_process,
+                cleanup_failure,
                 self.nextCleanupRetryAt(),
             ) catch unreachable;
         }
@@ -146,7 +148,7 @@ pub const Maintenance = struct {
         for (core.terminalValues()) |session| {
             const terminal_id = session.terminal_id;
             const runtime = owner.runtimeFor(terminal_id) orelse continue;
-            if (runtime.containmentConfirmed()) continue;
+            if (runtime.pendingShutdownCleanup() == null) continue;
             if (session.retainedCleanupPending()) {
                 _ = core.retainedCleanupExhausted(terminal_id) catch unreachable;
                 continue;
@@ -413,7 +415,7 @@ pub const Maintenance = struct {
         switch (retained_terminal.retainedCleanup()) {
             .inactive => {},
             .blocked => {
-                if (runtime.containmentConfirmed()) {
+                if (runtime.pendingShutdownCleanup() == null) {
                     _ = core.retainedCleanupCompleted(terminal_id) catch unreachable;
                 }
                 return;

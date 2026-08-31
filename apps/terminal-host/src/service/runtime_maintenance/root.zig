@@ -15,6 +15,7 @@ pub const scrollback_compression_opportunity_interval_ns =
 pub const Maintenance = maintenance.Maintenance;
 pub const synchronizeRuntimeObservation = observation.synchronizeRuntimeObservation;
 pub const cleanupFailure = observation.cleanupFailure;
+pub const cleanupFailureFromPhase = observation.cleanupFailureFromPhase;
 pub const runtimeFailureFromObservation = observation.runtimeFailureFromObservation;
 pub const runtimeFailureFromEngineKind = observation.runtimeFailureFromEngineKind;
 pub const synchronizeRuntimeCompletion = observation.synchronizeRuntimeCompletion;

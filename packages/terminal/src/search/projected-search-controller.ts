@@ -675,7 +675,7 @@ function comparePosition(left: TerminalSearchPosition, right: TerminalSearchPosi
 
 export function createProjectedSearchWorker(): ProjectedSearchWorkerLike {
 	const worker: ProjectedSearchWorkerLike = new Worker(
-		new URL('./projected-search-worker', import.meta.url),
+		new URL('./projected-search-worker.js', import.meta.url),
 		{
 			type: 'module',
 		},

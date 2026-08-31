@@ -1115,7 +1115,7 @@ function wheelEvent(
 }
 
 describe('ProjectedTerminal', () => {
-	it('emits each scoped bell sequence once and accepts a baselined sequence gap', () => {
+	it('emits each scoped bell sequence once and stops after freeze', () => {
 		const terminal = new ProjectedTerminal({
 			attachmentId,
 			creationId,
@@ -1137,12 +1137,15 @@ describe('ProjectedTerminal', () => {
 
 		expect(bells.mock.calls.map(([event]) => event.sequence)).toEqual(['7', '9']);
 		expect(errors).toHaveBeenCalledWith(expect.objectContaining({ operation: 'bell' }));
-		terminal.dispose();
+		terminal.freeze();
 		terminal.notifyBell({ attachmentId, sequence: canonicalText('10') });
+		expect(bells).toHaveBeenCalledTimes(2);
+		terminal.dispose();
+		terminal.notifyBell({ attachmentId, sequence: canonicalText('11') });
 		expect(bells).toHaveBeenCalledTimes(2);
 	});
 
-	it('emits each scoped terminal clipboard write once and stops after disposal', () => {
+	it('emits each scoped terminal clipboard write once and stops after freeze', () => {
 		const terminal = new ProjectedTerminal({
 			attachmentId,
 			creationId,
@@ -1179,14 +1182,94 @@ describe('ProjectedTerminal', () => {
 
 		expect(requests.mock.calls.map(([event]) => event.text)).toEqual(['one', 'two']);
 		expect(errors).toHaveBeenCalledWith(expect.objectContaining({ operation: 'clipboard' }));
-		terminal.dispose();
+		terminal.freeze();
 		terminal.notifyClipboardWriteRequest({
 			attachmentId,
 			sequence: canonicalText('5'),
-			text: 'late',
+			text: 'late after freeze',
+		});
+		expect(requests).toHaveBeenCalledTimes(2);
+		terminal.dispose();
+		terminal.notifyClipboardWriteRequest({
+			attachmentId,
+			sequence: canonicalText('6'),
+			text: 'late after disposal',
 		});
 		expect(requests).toHaveBeenCalledTimes(2);
 	});
+
+	it.each(['dispose', 'freeze'] as const)(
+		'retires terminal side effects before %s cleanup can synchronously reenter',
+		async (retirement) => {
+			const browser = createFakeBrowser();
+			vi.stubGlobal('document', browser.document);
+			vi.stubGlobal('window', browser.document.defaultView);
+			vi.stubGlobal('navigator', {});
+			const bells = vi.fn<Parameters<ProjectedTerminal['onBell']>[0]>();
+			const clipboardRequests =
+				vi.fn<Parameters<ProjectedTerminal['onClipboardWriteRequest']>[0]>();
+			let reenterDuringCleanup = false;
+			let cleanupReentries = 0;
+			let terminal: ProjectedTerminal | undefined;
+			terminal = new ProjectedTerminal({
+				attachmentId,
+				creationId,
+				hostEpoch,
+				labels: { input: 'input', screen: 'screen' },
+				port: {
+					send: (command) => {
+						if (
+							!reenterDuringCleanup ||
+							command.kind !== 'set-history-demand' ||
+							command.payload.demand !== 'following-bottom'
+						) {
+							return;
+						}
+						cleanupReentries++;
+						if (terminal === undefined) throw new Error('Projected terminal is unavailable.');
+						terminal.notifyBell({ attachmentId, sequence: canonicalText('1') });
+						terminal.notifyClipboardWriteRequest({
+							attachmentId,
+							sequence: canonicalText('1'),
+							text: 'late cleanup request',
+						});
+					},
+				},
+				terminalId,
+				trimTrailingBlankRows: true,
+			});
+			terminal.onBell(bells);
+			terminal.onClipboardWriteRequest(clipboardRequests);
+			await terminal.open(browser.root);
+			terminal.applyFrame(
+				terminalFrame(
+					'snapshot',
+					1n,
+					1n,
+					['output', 'prompt', '', ''],
+					null,
+					[0, 1, 2, 3],
+					4n,
+					interaction,
+					{ column: 0, row: 1 },
+					1n,
+					2,
+					ActiveScreen.primary,
+					'active',
+					0n,
+					{ rows: 4 },
+				),
+			);
+
+			reenterDuringCleanup = true;
+			terminal[retirement]();
+
+			expect(cleanupReentries).toBe(1);
+			expect(bells).not.toHaveBeenCalled();
+			expect(clipboardRequests).not.toHaveBeenCalled();
+			terminal.dispose();
+		},
+	);
 
 	it('injects one attachment-local broadcast input at a time and revokes it with capability changes', async () => {
 		const browser = createFakeBrowser();

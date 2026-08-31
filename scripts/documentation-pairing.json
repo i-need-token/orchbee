@@ -26,8 +26,8 @@
 			"zhCnSha256": "26d5cd462fe3e5127aea6ee408eaeb8dfc7df659ca009e609489271d8c803f9c"
 		},
 		"apps/desktop/README.md": {
-			"englishSha256": "6a43f65898628ab58025cb99ba59ffb2d565ce201b1df44523d005ad80f24856",
-			"zhCnSha256": "00081e237452c978dad57b068a0b323c70c2f52b539a6de441d08a393d7f391a"
+			"englishSha256": "136aee3958031d225c5624d51a767f758b77343bc24a192c7de32da40073441a",
+			"zhCnSha256": "a8da8e0f8519277cfa4f717b86cc9ff82a6696cfed0e2097859d16e6f9200f88"
 		},
 		"apps/desktop/docs/agent-integrations.md": {
 			"englishSha256": "e0ad0d6215f7d1fe091da4fb6887af7ed50ee0ba2aded6ab2e67a9ccea522d45",
@@ -86,8 +86,8 @@
 			"zhCnSha256": "6cbf732e906e809107dba665b0dc063868fdad840df444fb129b719b7ebe4df4"
 		},
 		"apps/desktop/docs/terminal-settings.md": {
-			"englishSha256": "e415da9a4f14be693cdc620be9fd1d036b59735e9d691b6a1402f485ee85bff7",
-			"zhCnSha256": "9a3856ec81e12af28c6ad1aa740bfa80dac9394c580dc5be05424936f5649f23"
+			"englishSha256": "f6f9daacf17c6e8a786c5dc2d5944e6fe98190785d0c04f914f113ac804152fb",
+			"zhCnSha256": "7d342c4e1b5c6f98c1616c24c807d73e2bb05769761e4989e85ae3f8e21042ba"
 		},
 		"apps/desktop/docs/window-lifecycle.md": {
 			"englishSha256": "fe179b487f81332b935db57defa2466ec14a7006e2cde91bcfc16ea2a6bececd",
@@ -331,11 +331,11 @@
 		},
 		"packages/terminal-protocol/references/protocol.md": {
 			"englishSha256": "ecdf550bc0d78cac8550dfdd11fe15ae848a7a1b554044c9d1bcb86d7bc8b86c",
-			"zhCnSha256": "5bd27bbf14f2a78b40fe094367953bc6561c9d06570d409500892ea63ec4933a"
+			"zhCnSha256": "2e366b3801392e2746c498073943d882672d38907b88288431a2e17f5da7456b"
 		},
 		"packages/terminal/README.md": {
-			"englishSha256": "bbb2ba0fa674c1452dee1f9945b2f3562a8532a7e7921f6a749a1d1dd58af611",
-			"zhCnSha256": "d8bd33dafd15887c0754877b5e7a5e4ef6554d0548eb9c50585c7ec55ba9fb35"
+			"englishSha256": "2f149a150af7db7c6983b97be1755166390d9dd9e4f227ed8a07c37924a781a0",
+			"zhCnSha256": "d4c66048a080b50bc140ce76a3e33710aeb9e25a15907351dc1b01f5e56b6786"
 		},
 		"packages/terminal/docs/ghostty-surface-test-provenance.md": {
 			"englishSha256": "afda7b3196e6d1e72b50037bc0af2d2e05552a9259f8ac4c0e29c34c9b8e8559",
@@ -403,7 +403,7 @@
 		},
 		"proposals/agent/agent-runtime-observation.md": {
 			"englishSha256": "a268c5be91b7f183a029cf58fe80d7c016e27b6498a8e0528c771332c0dd3544",
-			"zhCnSha256": "b80f3d41405ec503a79b7c62cd55917d37b35a4acd13cf95f7aba117c299fe29"
+			"zhCnSha256": "4e931539555cb692170a9160bff6b917477fb92fa52c5724aaf82650943c0cde"
 		},
 		"proposals/cli/agent-control-surface.md": {
 			"englishSha256": "b104811ca58a28eda0d35e25b623e81aaf5967668ceeb894110c8ae522473413",

@@ -26,7 +26,7 @@ pub fn deinitChecked(
     }
     shutdownAndReleaseTerminalEngines(self) catch |err| {
         // THDD-001: a failed fatal-teardown pass must never abandon an
-        // unconfirmed process tree after one failed pass. Retain the
+        // incomplete shutdown after one failed pass. Retain the
         // cleanup ownership with a bounded retry deadline. A settled
         // terminal records that work independently so its outcome remains
         // immutable; an unsettled failure keeps using lifecycle

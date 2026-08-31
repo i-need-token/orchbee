@@ -8,6 +8,7 @@ import { startDesktopWebApplication } from '../desktop-client';
 import { startGatewayWebApplication } from '../gateway-client';
 import { registerTerminalProductFonts } from '../workbench-client';
 import { projectMobileVisualViewport } from './projectMobileVisualViewport';
+import { resolveBrowserPreferenceStorage } from './resolveBrowserPreferenceStorage';
 import { resolveShortcutPlatform } from './resolveShortcutPlatform';
 import { startBrowserAuthenticationApplication } from './startBrowserAuthenticationApplication';
 import { startWebApplication } from './startWebApplication';
@@ -28,7 +29,7 @@ if (window.location.pathname === BROWSER_AUTHENTICATION_LOGIN_PATH) {
 		rootElement,
 		document.documentElement,
 		navigator.languages,
-		window.localStorage,
+		resolveBrowserPreferenceStorage(() => window.localStorage),
 	);
 	window.addEventListener('unload', () => session.dispose(), { once: true });
 } else if (runtimeMode === 'browser') {
@@ -41,7 +42,7 @@ if (window.location.pathname === BROWSER_AUTHENTICATION_LOGIN_PATH) {
 		document.documentElement,
 		navigator.languages,
 		shortcutPlatform,
-		window.localStorage,
+		resolveBrowserPreferenceStorage(() => window.localStorage),
 	);
 	window.addEventListener(
 		'unload',
@@ -66,7 +67,7 @@ if (window.location.pathname === BROWSER_AUTHENTICATION_LOGIN_PATH) {
 		shortcutPlatform,
 		{
 			...(focusRecoveryStorage === undefined ? {} : { focusRecovery: focusRecoveryStorage }),
-			preferences: window.localStorage,
+			preferences: resolveBrowserPreferenceStorage(() => window.localStorage),
 		},
 	);
 } else if (runtimeMode === 'gateway') {
@@ -82,7 +83,7 @@ if (window.location.pathname === BROWSER_AUTHENTICATION_LOGIN_PATH) {
 			document.documentElement,
 			navigator.languages,
 			shortcutPlatform,
-			window.localStorage,
+			resolveBrowserPreferenceStorage(() => window.localStorage),
 			connection,
 		);
 		window.addEventListener(

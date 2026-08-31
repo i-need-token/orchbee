@@ -3281,7 +3281,12 @@ export class ProjectedTerminal {
 	}
 
 	notifyBell(event: TerminalBell): void {
-		if (this.#phase === ProjectedTerminalPhase.disposed) return;
+		if (
+			this.#inputAdmission === ProjectedInputAdmission.disposed ||
+			this.#phase === ProjectedTerminalPhase.frozen ||
+			this.#phase === ProjectedTerminalPhase.disposed
+		)
+			return;
 		if (event.attachmentId !== this.#attachmentId) {
 			this.#errorEmitter.fire({
 				error: new Error('Terminal bell identity does not match the projected terminal'),
@@ -3296,7 +3301,12 @@ export class ProjectedTerminal {
 	}
 
 	notifyClipboardWriteRequest(event: TerminalClipboardWriteRequest): void {
-		if (this.#phase === ProjectedTerminalPhase.disposed) return;
+		if (
+			this.#inputAdmission === ProjectedInputAdmission.disposed ||
+			this.#phase === ProjectedTerminalPhase.frozen ||
+			this.#phase === ProjectedTerminalPhase.disposed
+		)
+			return;
 		if (event.attachmentId !== this.#attachmentId) {
 			this.#errorEmitter.fire({
 				error: new Error(

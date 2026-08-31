@@ -23,6 +23,9 @@ EXTENDS TLC
 \* transition remains immutable throughout containment and after settlement.
 \* settledVersion captures the exact tuple published by the terminal outcome
 \* and remains immutable until explicit disposal.
+\* RetainSettledCleanup covers both fatal aggregate teardown and a Dispose whose
+\* runtime shutdown fails after the terminal outcome has settled. Cleanup then
+\* retries independently without changing the settled outcome.
 
 CONSTANTS Versions, InitialVersion
 

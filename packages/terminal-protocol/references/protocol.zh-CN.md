@@ -151,7 +151,7 @@ TypeScript 生产者使用 `encodeInputRequest`；消息类型选择原始或语
 
 `TerminalApplicationSignal` 是仅事件控制记录，包含一个精确 terminal identity、一个由 terminal 拥有的正数 `sequence`，以及最多 4 KiB UTF-8 `payload`。它传输从保留 OSC 777 notification title `orchbee.agent.v1` 准入的有界 application-emitted hint；它既不认证发出信号的进程，也不授予 Agent、lifecycle、attention、outcome、notification 或 provider 权威。Terminal Host 会按 terminal sequence 的 FIFO 顺序保留最多 64 个已准入 hint，并且只有在 queue head 对应的 outgoing record 精确提交后才移除它。产品 adapter 在解释哪怕 limited activity 之前，也必须校验更窄的 schema。
 
-请求和响应使用响应标志和`CorrelationId`； [运行时绑定](#runtime-binding) 中的命名对使用其注册的响应类型，其他响应重用请求类型。事件使用事件标志。除非存在可选消息标志，否则未知类型将被拒绝，在这种情况下，可以跳过有界有效负载而不改变状态。
+请求和响应使用响应标志和`CorrelationId`； [运行时绑定](#运行时绑定) 中的命名对使用其注册的响应类型，其他响应重用请求类型。事件使用事件标志。除非存在可选消息标志，否则未知类型将被拒绝，在这种情况下，可以跳过有界有效负载而不改变状态。
 
 ## 当前传输信封
 

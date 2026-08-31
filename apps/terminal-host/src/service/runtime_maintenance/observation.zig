@@ -34,6 +34,16 @@ pub fn cleanupFailure(
     };
 }
 
+pub fn cleanupFailureFromPhase(
+    phase: terminal_runtime.ShutdownCleanupPhase,
+) core_module.RuntimeCleanupFailure {
+    return switch (phase) {
+        .contain_process => .contain_process,
+        .release_output => .release_output,
+        .release_process_identity => .release_process_identity,
+    };
+}
+
 pub fn exitResult(result: pty_process.ExitResult) core_module.ExitResult {
     return switch (result) {
         .exit_code => |code| .{ .exit_code = code },

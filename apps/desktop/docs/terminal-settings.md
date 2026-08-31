@@ -46,7 +46,7 @@ running terminal. Restored terminals keep the configuration owned by their exist
 
 ## Renderer capability
 
-The eighth Desktop bootstrap port is `terminal-default-settings`. It supports one snapshot request
+The tenth Desktop bootstrap port is `terminal-default-settings`. It supports one snapshot request
 and one complete update request, both correlated by bounded request identity. Malformed data or
 transferred ports retire the capability. Renderer-document replacement disposes the previous
 broker, while the Main-owned controller and Host default survive the page replacement.

@@ -249,7 +249,7 @@ export const zhCNWorkbenchMessages = {
 	'workbench.tabs.actions.openVertical': '打开垂直标签页',
 	'workbench.tabs.actions.close': '关闭',
 	'workbench.tabs.closeRunning.description':
-		'{count, plural, one {这个终端仍在运行。关闭所选选项卡后将终止正在运行的进程。} other {# 个终端仍在运行。关闭所选选项卡后将终止其中正在运行的进程。}}',
+		'{count, plural, one {这个终端仍在运行。关闭所选标签页后将终止正在运行的进程。} other {# 个终端仍在运行。关闭所选标签页后将终止其中正在运行的进程。}}',
 	'workbench.tabs.actions.closeGroup': '关闭组',
 	'workbench.tabs.actions.closeOthers': '关闭其他标签页',
 	'workbench.tabs.actions.closeBelow': '关闭下方标签页',

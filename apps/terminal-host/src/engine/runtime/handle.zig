@@ -50,6 +50,10 @@ pub const TerminalRuntime = opaque {
         return lifecycle_ops.shutdown(stateFrom(self));
     }
 
+    pub fn pendingShutdownCleanup(self: *const TerminalRuntime) ?contracts.ShutdownCleanupPhase {
+        return lifecycle_ops.pendingShutdownCleanup(stateFromConst(self));
+    }
+
     pub fn destroy(self: *TerminalRuntime) void {
         return lifecycle_ops.destroy(stateFrom(self));
     }

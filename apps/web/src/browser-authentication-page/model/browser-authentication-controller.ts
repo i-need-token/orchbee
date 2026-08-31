@@ -116,7 +116,12 @@ export function resolveBrowserAuthenticationReturnTarget(search: string): string
 		return '/';
 	try {
 		const resolved = new URL(candidate, 'http://orchbee.invalid');
-		if (resolved.origin !== 'http://orchbee.invalid' || resolved.pathname === '/login') return '/';
+		if (
+			resolved.origin !== 'http://orchbee.invalid' ||
+			resolved.pathname.startsWith('//') ||
+			resolved.pathname === '/login'
+		)
+			return '/';
 		return `${resolved.pathname}${resolved.search}`;
 	} catch {
 		return '/';

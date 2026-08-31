@@ -309,9 +309,9 @@ payload 的 `output-capacity-exceeded` failure。Cancellation 是协作式的，
 
 ## SSH Environment 连接基础
 
-Desktop Main 是严格 append-only `environment-registry-v2.json` 的当前共址 Hub owner。它可以迁移有界的旧版
-`environment-registry-v1.json`，在本地 Terminal Host 之前加载当前 registry，让 provider-neutral
-Environment identity 与 SSH Runtime identity 保持独立，只准入一次相同精确 target，并且只在 Main 内暴露
+Desktop Main 是严格 append-only `environment-registry-v2.json` 的当前共址 Hub owner。它会从保持不变的旧版
+`environment-registry-v1.json` 执行有界的只读 migration，在本地 Terminal Host 之前加载当前 registry，让
+provider-neutral Environment identity 与 SSH Runtime identity 保持独立，只准入一次相同精确 target，并且只在 Main 内暴露
 create/list/get/reload。Registry record 不会启动连接，也不会授予远程 effect。参见
 [`docs/environment-registry.md`](docs/environment-registry.zh-CN.md)。
 
@@ -336,7 +336,7 @@ Environment 一个的 detached Runtime daemon，并通过 SSH stdio 直接承载
 Runtime identity 与 epoch 后准入 `connected`，并且只在一次已证明的连接后 retry 丢失的 attachment。停止
 本地 attachment 不会停止远端 daemon，也不表示删除 Project。
 
-精确 `0.3.0` protocol 公布 `project-root-v2` 与 `terminal-host-v1`。Desktop Main 可以通过已连接的
+精确 `0.4.0` protocol 公布 `project-root-v2` 与 `terminal-host-v1`。Desktop Main 可以通过已连接的
 Environment owner 检查一个显式 absolute POSIX Project-root candidate，或请求从 Runtime home 开始的有界
 read-only directory snapshot。每份 snapshot 只包含 canonical path、可选 parent、最多 256 个已排序且可访问
 的 child-directory name，以及 truncation flag。调用永不 connect 或等待 reconnect；每个 Environment 最多
