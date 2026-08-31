@@ -48,6 +48,7 @@ interface OperationChannel {
 	readonly kind: 'inspection' | 'listing';
 	phase: ChannelPhase;
 	readonly requestBytes: Uint8Array;
+	requestWasSent: boolean;
 	resolve: (outcome: SshProjectRootOperationOutcome) => void;
 	resultCreditBytes: number;
 	settled: boolean;
@@ -89,6 +90,7 @@ export class SshProjectRootChannelClient {
 				kind: 'inspection',
 				phase: 'opening',
 				requestBytes: encodeSshProjectRootInspectionRequest(request.data),
+				requestWasSent: false,
 				resolve: (outcome) => {
 					if (outcome.kind === 'listed') {
 						resolve(failed('unavailable'));
@@ -140,6 +142,7 @@ export class SshProjectRootChannelClient {
 				kind: 'listing',
 				phase: 'opening',
 				requestBytes: encodeSshProjectRootDirectoryListingRequest(request.data),
+				requestWasSent: false,
 				resolve: (outcome) => {
 					if (outcome.kind === 'resolved') {
 						resolve(failed('unavailable'));
@@ -210,6 +213,7 @@ export class SshProjectRootChannelClient {
 		}
 		if (channel.phase === 'closing') return 'handled';
 		channel.phase = 'request-sent';
+		channel.requestWasSent = true;
 		this.#send({ type: 'channel-data', channelId: payload.channelId, data: channel.requestBytes });
 		return 'handled';
 	}
@@ -219,7 +223,19 @@ export class SshProjectRootChannelClient {
 		data: Uint8Array,
 	): 'attachment-invalid' | 'handled' {
 		const channel = this.#channels.get(channelId);
-		if (channel === undefined || channel.phase !== 'request-sent') return 'attachment-invalid';
+		if (channel === undefined) return 'attachment-invalid';
+		if (channel.phase === 'closing' && channel.closeReason === 'cancelled') {
+			if (
+				!channel.requestWasSent ||
+				channel.resultCreditBytes === 0 ||
+				data.byteLength > channel.resultCreditBytes
+			) {
+				return 'attachment-invalid';
+			}
+			channel.resultCreditBytes = 0;
+			return 'handled';
+		}
+		if (channel.phase !== 'request-sent') return 'attachment-invalid';
 		if (data.byteLength > channel.resultCreditBytes) return 'attachment-invalid';
 		channel.resultCreditBytes -= data.byteLength;
 		const decoded =

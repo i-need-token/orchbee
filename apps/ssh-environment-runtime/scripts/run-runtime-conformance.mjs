@@ -121,8 +121,12 @@ try {
 		kind: 'failed',
 		reason: 'invalid-path',
 	});
-	await cancelProjectRootChannel(firstAttachment, firstAccepted, 6);
-	await negotiateTerminalHost(firstAttachment, firstAccepted, 7);
+	assert.deepEqual(
+		await cancelProjectRootChannelAfterResult(firstAttachment, firstAccepted, 6, projectRootLink),
+		{ kind: 'resolved', canonicalPath: canonicalProjectRoot },
+	);
+	await cancelProjectRootChannel(firstAttachment, firstAccepted, 7);
+	await negotiateTerminalHost(firstAttachment, firstAccepted, 8);
 
 	const competingAttachment = startAttachment('competing');
 	competingAttachment.write(helloFrame('2'.repeat(32)));
@@ -377,6 +381,30 @@ async function cancelProjectRootChannel(attachment, accepted, channelIdValue) {
 	const channelId = SshEnvironmentChannelIdSchema.parse(channelIdValue);
 	await openProjectRootChannel(attachment, accepted, channelId);
 	await closeProjectRootChannel(attachment, accepted, channelId, 'cancelled');
+}
+
+async function cancelProjectRootChannelAfterResult(
+	attachment,
+	accepted,
+	channelIdValue,
+	requestedPath,
+) {
+	const channelId = SshEnvironmentChannelIdSchema.parse(channelIdValue);
+	await openProjectRootChannel(attachment, accepted, channelId);
+	const request = SshProjectRootInspectionRequestSchema.parse({
+		type: 'inspect-project-root',
+		path: requestedPath,
+	});
+	attachment.write(
+		encodeSshEnvironmentMessage({
+			type: 'channel-data',
+			channelId,
+			data: encodeSshProjectRootInspectionRequest(request),
+		}),
+	);
+	const result = await nextProjectRootResult(attachment, channelId);
+	await closeProjectRootChannel(attachment, accepted, channelId, 'cancelled');
+	return result;
 }
 
 async function negotiateTerminalHost(attachment, accepted, channelIdValue) {

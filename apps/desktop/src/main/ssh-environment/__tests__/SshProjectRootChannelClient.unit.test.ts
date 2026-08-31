@@ -139,6 +139,40 @@ describe('SSH project-root channel client', () => {
 		harness.client.retire();
 	});
 
+	it('discards one result that crosses a settled cancellation without invalidating the attachment', async () => {
+		const harness = createHarness();
+		const controller = new AbortController();
+		const inspection = harness.client.inspect('/srv/cancelled-project', controller.signal);
+		const channelId = requireOpenedChannelId(harness.messages[0]);
+		expect(harness.client.handle(opened(channelId))).toBe('handled');
+
+		controller.abort();
+		await expect(inspection).resolves.toEqual({ kind: 'cancelled' });
+		expect(harness.messages.at(-1)).toEqual({
+			type: 'channel-close',
+			payload: { runtimeEpoch, channelId, reason: 'cancelled' },
+		});
+
+		const crossedResult = SshProjectRootInspectionResultSchema.parse({
+			kind: 'resolved',
+			canonicalPath: '/srv/cancelled-project',
+		});
+		expect(
+			harness.client.handle({
+				type: 'channel-data',
+				channelId,
+				data: encodeSshProjectRootInspectionResult(crossedResult),
+			}),
+		).toBe('handled');
+		expect(harness.client.handle(closed(channelId, 'cancelled'))).toBe('handled');
+
+		const fresh = harness.client.inspect('/srv/fresh-project');
+		expect(requireOpenedChannelId(harness.messages.at(-1))).not.toBe(channelId);
+		harness.client.retire();
+		await expect(fresh).resolves.toEqual({ kind: 'failed', reason: 'unavailable' });
+		expect(harness.onAttachmentInvalid).not.toHaveBeenCalled();
+	});
+
 	it('contains invalid service payloads to their channel and retires on channel corruption', async () => {
 		const harness = createHarness();
 		const inspection = harness.client.inspect('/srv/project');

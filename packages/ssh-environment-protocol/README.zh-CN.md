@@ -54,6 +54,11 @@ result 包含 canonical path、可选 canonical parent、最多 256 个已排序
 最多 255 字节的 UTF-8 directory name，并带有 `truncated` flag。它不暴露 file entry 或 file byte；symlink
 只有在其 target 可作为 directory 打开时才会出现。
 
+在 Desktop 观察到 result 前，cancellation 以本地结算为准。如果 Desktop 结算 cancellation 时 Runtime 已经
+发出唯一一条占用 credit 的 result，Runtime 会接受 cancelled close，Desktop 则在匹配的 close
+acknowledgement 前消费并丢弃这一条 in-flight frame。交叉的 result 绝不会改变 caller settlement 或使
+attachment 失效；额外或超出 credit 的 data 仍属于 transport corruption。
+
 ## Terminal Host relay contract
 
 一个 `terminal-host-v1` channel 承载 opaque Terminal Host protocol byte。每个方向起始时精确获得

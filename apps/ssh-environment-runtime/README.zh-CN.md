@@ -55,7 +55,8 @@ operating-system error 不会跨越 channel，也不会进入 log。
 的受限 child 中执行；path 只通过 stdin 到达 child，stderr 被丢弃，stdout 只承载一条私有有界 result。Daemon
 把这些 child 与 attachment 一起 poll，因此 filesystem latency 无法阻塞 heartbeat。Cancellation 或
 attachment loss 会 kill 匹配 child，30 秒 deadline 会在发布 `timed-out` 前强制终止它。Reconnect 永不继承
-或 replay 旧 channel。
+或 replay 旧 channel。如果唯一 result 已发出时与 Desktop cancellation 交叉，Runtime 会接受 cancelled
+close；有序交付使 Desktop 在 close acknowledgement 前丢弃该 result。
 
 Listing 在 128 KiB 内返回最多 256 个按字典序排列、可访问的 UTF-8 child-directory name，以及 canonical
 path、可选 parent 和 truncation metadata。它会省略 file、非法或不可访问 entry，以及 target 无法作为
@@ -132,8 +133,8 @@ test lifecycle 只构建自身 native artifact；recursive repository test gate 
 output 时，它绝不会重建或临时删除该 output。Root `pnpm verify` gate 已强制这一 build-before-test order。
 
 真实进程 conformance test 在 private temporary directory 中启动 Runtime 与实际 Terminal Host，执行两个
-跨语言 Hello 与 heartbeat，检查 relay credit，验证 canonical symlink resolution 及有界 failure/cancel path，
-拒绝竞争 attachment，重新连接到同一 Runtime epoch，强制制造带 stale endpoint 的 daemon crash，证明一个
-已经等待的 attachment 能到达替代 Runtime 的新 epoch，并证明 Runtime 重启会改变 epoch。Release test
-只使用临时 key，并覆盖固定 build argument、signing round trip、mutation 与精确 layout。没有测试会连接
+跨语言 Hello 与 heartbeat，检查 relay credit，验证 canonical symlink resolution、有界 failure/cancel path
+及 result-cancellation crossover，拒绝竞争 attachment，重新连接到同一 Runtime epoch，强制制造带 stale
+endpoint 的 daemon crash，证明一个已经等待的 attachment 能到达替代 Runtime 的新 epoch，并证明 Runtime
+重启会改变 epoch。Release test 只使用临时 key，并覆盖固定 build argument、signing round trip、mutation 与精确 layout。没有测试会连接
 SSH server 或读取 production signing key。

@@ -505,10 +505,11 @@ heartbeat。Worker 会跟随 symlink，将 canonical target 作为 directory 打
 
 `AbortSignal` 会在本地以 `cancelled` settle，并发送 channel cancellation。即使仍在等待 close
 acknowledgement，caller deadline 也会在 30 秒内以 `timed-out` settle。Attachment loss 会把 outstanding
-call 以 `unavailable` settle；supervisor 可以 reconnect，但绝不 replay 这些 channel。Malformed service
-result 只会以 `protocol-failure` 关闭对应的有效 channel；epoch、unknown-channel、order、framing 或 credit
-violation 会 retire attachment。Path 永远不会复制到 connection observation、registry record、diagnostic、
-telemetry 或 log。
+call 以 `unavailable` settle；supervisor 可以 reconnect，但绝不 replay 这些 channel。Cancellation 结算时
+已经在途的单个有效 result 会在匹配的 cancelled close 前被消费并丢弃；它既不改变 caller settlement，也不
+使 attachment 失效。Malformed service result 只会以 `protocol-failure` 关闭对应的有效 channel；epoch、
+unknown-channel、order、framing 或 credit violation 会 retire attachment。Path 永远不会复制到 connection
+observation、registry record、diagnostic、telemetry 或 log。
 
 ## Terminal Host relay service
 
@@ -674,7 +675,7 @@ SSH，Environment 路径还会禁用 local binding 与 terminal-archive fallback
 - `SshEnvironmentTerminalHostRelay` 检查单 relay、全局 channel identity、有界双向 credit、隔离 Host setup/I/O、
   channel-local failure、attachment loss、retained Host epoch、reconnect reconciliation 与 no replay。
 - `SshEnvironmentProjectRootService` 检查精确 capability admission、channel order 与 credit、有界 capacity、
-  timeout、cancellation、attachment loss、no replay、stale-result fencing 与 worker progress。
+  timeout、cancellation/result crossover、attachment loss、no replay、stale-result fencing 与 worker progress。
 - `SshEnvironmentRemoteProjectAdmission` 检查 registry/connectivity/inspection/mutation ordering、
   cancellation boundary、全局 canonical-key idempotency、commit order 与 indeterminate-write reconcile。
 - `SshEnvironmentProjectEnrollment` 检查 registry-before-effect 与独立 durable Workbench ordering、pending

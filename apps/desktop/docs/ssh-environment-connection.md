@@ -538,9 +538,11 @@ expansion, retained handle, or mutation is involved.
 An `AbortSignal` settles locally as `cancelled` and sends a channel cancellation. The caller deadline
 settles as `timed-out` within 30 seconds even while close acknowledgement is pending. Attachment loss
 settles outstanding calls as `unavailable`; the supervisor may reconnect, but it never replays those
-channels. A malformed service result closes only that valid channel with `protocol-failure`, while an
-epoch, unknown-channel, order, framing, or credit violation retires the attachment. Paths are never
-copied into connection observations, registry records, diagnostics, telemetry, or logs.
+channels. A single valid result already in flight when cancellation settles is consumed and discarded
+before the matching cancelled close; it neither changes caller settlement nor invalidates the
+attachment. A malformed service result closes only that valid channel with `protocol-failure`, while
+an epoch, unknown-channel, order, framing, or credit violation retires the attachment. Paths are
+never copied into connection observations, registry records, diagnostics, telemetry, or logs.
 
 ## Terminal Host relay service
 
@@ -722,8 +724,8 @@ Twelve registered TLA+ models split responsibility:
   credit, isolated Host setup/I/O, channel-local failures, attachment loss, retained Host epoch,
   reconnect reconciliation, and no replay.
 - `SshEnvironmentProjectRootService` checks exact capability admission, channel order and credit,
-  bounded capacity, timeout, cancellation, attachment loss, no replay, stale-result fencing, and
-  worker progress.
+  bounded capacity, timeout, cancellation/result crossover, attachment loss, no replay,
+  stale-result fencing, and worker progress.
 - `SshEnvironmentRemoteProjectAdmission` checks registry/connectivity/inspection/mutation order,
   cancellation boundaries, global canonical-key idempotency, commit order, and indeterminate-write
   reconciliation.

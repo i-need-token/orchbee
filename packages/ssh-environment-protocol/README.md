@@ -57,6 +57,12 @@ most 256 sorted child entries containing only a UTF-8 directory name of at most 
 `truncated` flag. It exposes no file entry or file byte, and a symlink appears only when its target
 can be opened as a directory.
 
+Cancellation is locally authoritative until Desktop observes the result. If Runtime has already
+emitted its one credited result when Desktop settles cancellation, Runtime accepts the cancelled
+close and Desktop consumes and discards that one in-flight frame before the matching close
+acknowledgement. The crossed result never changes caller settlement or invalidates the attachment;
+additional or over-credit data remains transport corruption.
+
 ## Terminal Host relay contract
 
 One `terminal-host-v1` channel carries opaque Terminal Host protocol bytes. Each direction begins

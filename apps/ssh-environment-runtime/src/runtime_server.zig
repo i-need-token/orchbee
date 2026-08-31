@@ -652,8 +652,7 @@ fn dispatchChannelClose(
     const cancelled = std.mem.eql(u8, closed.value.reason, "cancelled");
     const completed = std.mem.eql(u8, closed.value.reason, "completed");
     const protocol_failure = std.mem.eql(u8, closed.value.reason, "protocol-failure");
-    if (protocol_failure or
-        (cancelled and channel.phase != .result_published) or
+    if (protocol_failure or cancelled or
         (completed and channel.phase == .result_published))
     {
         if (cancelled or protocol_failure) {

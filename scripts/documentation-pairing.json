@@ -74,8 +74,8 @@
 			"zhCnSha256": "df4395a2e890412b285728920a1656d526292bd12adc8705f5ef6eb839edf2f0"
 		},
 		"apps/desktop/docs/ssh-environment-connection.md": {
-			"englishSha256": "26d365063c00300dcca0b38b866dc633c7d7aa3f4321c36e171b69a20696c6d1",
-			"zhCnSha256": "3b85199e798689e6beba90468b7d88f76b6f69db9f5d3549bbcb7be98a4eeb18"
+			"englishSha256": "aed5a56c10472471894a468c2ab94f96dcbdf25ae0e46db49a6f9fc487053589",
+			"zhCnSha256": "42ba3524483ca206ff5669c31e9dd5ebaecf0e17b6e2c35b7f7a7165ae8f7a6c"
 		},
 		"apps/desktop/docs/ssh-runtime-release.md": {
 			"englishSha256": "cb126645340ff5d57b5870b1cf3717f2ac83a92036d5666a68a69ae3d9dfb442",
@@ -110,8 +110,8 @@
 			"zhCnSha256": "c9290becb6796baeb94ce0533b7e6b0bd2a8d44aa47d3fde4f6815b61fedb3f7"
 		},
 		"apps/ssh-environment-runtime/README.md": {
-			"englishSha256": "4d406c59012bfa5e4c47df24e5a03878c7e427632f88edb04836ef809abf22cb",
-			"zhCnSha256": "527caf9010372b1a1a2fee513cda178721a8284ebf7dbe9bbcd7ba363ec50d44"
+			"englishSha256": "f8b307658e4b4476e12fea1601c6c68132d11d50e22b0a7287be95910b796703",
+			"zhCnSha256": "df2c06ecb76fe0dba5a9fe02d6a67b6a0ee24ae9406124ccdd322e805dbe801d"
 		},
 		"apps/terminal-host/README.md": {
 			"englishSha256": "ad05850d9b4c3b87eba0b1461ea4b314e5f3f22d40dc1e13c81894f4a3a6c947",
@@ -306,8 +306,8 @@
 			"zhCnSha256": "91fb416eb874f0bbec83d8af2e7e8bc258c5290c4026c85a078fd2e7e29ae6f1"
 		},
 		"packages/ssh-environment-protocol/README.md": {
-			"englishSha256": "fd1aa0d6df3c327c627537990268001041e7ff323fb8c38d0cdc11348b4f0858",
-			"zhCnSha256": "f15b75e41a0eed9a659ae7e6075ba221569e2077611ed0541f05be19a0263383"
+			"englishSha256": "225fdce1783b8b68fd55aa4838ed1be1a89b5fbb5a01baff67f4074e99ba57c3",
+			"zhCnSha256": "d89e07064205a6ceda0de25d6939d4d602c3de717be0e31e5ef657e1f49d22f3"
 		},
 		"packages/tab-strip/README.md": {
 			"englishSha256": "137099fb2b1cd523502abbedbf08567b04e3456893d711caecc9341f62ca0a8f",

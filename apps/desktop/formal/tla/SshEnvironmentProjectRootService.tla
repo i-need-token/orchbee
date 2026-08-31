@@ -16,8 +16,8 @@ ExpectedServices == {ExpectedService}
 
 ChannelPhases == {
   "unused", "opening", "open", "request-sent", "inspecting",
-  "result-ready", "result-published", "closing", "closed",
-  "attachment-lost"
+  "result-ready", "result-published", "cancelled-result-in-flight",
+  "closing", "closed", "attachment-lost"
 }
 
 WorkerOutcomes == {
@@ -31,9 +31,10 @@ Actions == {
   "init", "connect", "reconnect", "open-channel", "accept-channel",
   "send-request", "start-inspection", "reject-busy", "reject-invalid-payload",
   "complete-inspection", "timeout-inspection", "publish-result",
-  "cancel-channel", "begin-completed-close", "acknowledge-close",
-  "lose-attachment", "retire-lost-channel", "retire-late-worker",
-  "reject-replay", "heartbeat", "transport-violation", "stale-result"
+  "cancel-channel", "cancel-result-crossover", "discard-crossed-result",
+  "begin-completed-close", "acknowledge-close", "lose-attachment",
+  "retire-lost-channel", "retire-late-worker", "reject-replay",
+  "heartbeat", "transport-violation", "stale-result"
 }
 
 VARIABLES
@@ -59,7 +60,7 @@ ActiveWorkers == {channel \in Channels : workerRunning[channel]}
 
 OpenChannelPhases == {
   "opening", "open", "request-sent", "inspecting", "result-ready",
-  "result-published", "closing"
+  "result-published", "cancelled-result-in-flight", "closing"
 }
 
 Init ==
@@ -218,6 +219,28 @@ CancelChannel(channel) ==
        channelEpoch, workerRunning, workerOutcome, replayedChannels>>
   /\ lastAction' = "cancel-channel"
 
+CancelResultCrossover(channel) ==
+  /\ channelPhase[channel] = "result-ready"
+  /\ settlement[channel] = NoOutcome
+  /\ workerOutcome[channel] \in WorkerOutcomes
+  /\ channelPhase' = [channelPhase EXCEPT
+       ![channel] = "cancelled-result-in-flight"]
+  /\ requestCredit' = [requestCredit EXCEPT ![channel] = 0]
+  /\ resultCredit' = [resultCredit EXCEPT ![channel] = 0]
+  /\ settlement' = [settlement EXCEPT ![channel] = "cancelled"]
+  /\ UNCHANGED <<connected, runtimeEpoch, advertisedServices, usedChannels,
+       channelEpoch, workerRunning, workerOutcome, replayedChannels>>
+  /\ lastAction' = "cancel-result-crossover"
+
+DiscardCrossedResult(channel) ==
+  /\ channelPhase[channel] = "cancelled-result-in-flight"
+  /\ settlement[channel] = "cancelled"
+  /\ channelPhase' = [channelPhase EXCEPT ![channel] = "closing"]
+  /\ UNCHANGED <<connected, runtimeEpoch, advertisedServices, usedChannels,
+       channelEpoch, requestCredit, resultCredit, workerRunning,
+       workerOutcome, settlement, replayedChannels>>
+  /\ lastAction' = "discard-crossed-result"
+
 BeginCompletedClose(channel) ==
   /\ channelPhase[channel] = "result-published"
   /\ channelPhase' = [channelPhase EXCEPT ![channel] = "closing"]
@@ -345,6 +368,8 @@ Next ==
   \/ \E channel \in Channels : TimeoutInspection(channel)
   \/ \E channel \in Channels : PublishResult(channel)
   \/ \E channel \in Channels : CancelChannel(channel)
+  \/ \E channel \in Channels : CancelResultCrossover(channel)
+  \/ \E channel \in Channels : DiscardCrossedResult(channel)
   \/ \E channel \in Channels : BeginCompletedClose(channel)
   \/ \E channel \in Channels : AcknowledgeClose(channel)
   \/ LoseAttachment
@@ -362,7 +387,9 @@ WorkerStops(channel) ==
 Spec ==
   /\ Init
   /\ [][Next]_vars
-  /\ \A channel \in Channels : WF_vars(WorkerStops(channel))
+  /\ \A channel \in Channels:
+       /\ WF_vars(WorkerStops(channel))
+       /\ WF_vars(DiscardCrossedResult(channel))
 
 TypeOK ==
   /\ connected \in BOOLEAN
@@ -394,12 +421,14 @@ RequestConsumesCredit ==
   \A channel \in Channels :
     channelPhase[channel] \in {
       "request-sent", "inspecting", "result-ready", "result-published",
-      "closing", "closed", "attachment-lost"
+      "cancelled-result-in-flight", "closing", "closed", "attachment-lost"
     } => requestCredit[channel] = 0
 
 ResultConsumesCredit ==
   \A channel \in Channels :
-    channelPhase[channel] = "result-published" => resultCredit[channel] = 0
+    channelPhase[channel] \in {
+      "result-published", "cancelled-result-in-flight"
+    } => resultCredit[channel] = 0
 
 PublishedResultUsesCurrentEpoch ==
   \A channel \in Channels :
@@ -412,6 +441,12 @@ CancelledNeverPublishes ==
   \A channel \in Channels :
     settlement[channel] = "cancelled" =>
       channelPhase[channel] \notin {"result-ready", "result-published"}
+
+CrossedResultIsFenced ==
+  \A channel \in Channels :
+    channelPhase[channel] = "cancelled-result-in-flight" =>
+      /\ settlement[channel] = "cancelled"
+      /\ resultCredit[channel] = 0
 
 AttachmentLossNeverPublishes ==
   \A channel \in Channels :
@@ -428,5 +463,10 @@ NoAutomaticReplay == replayedChannels = {}
 
 WorkerEventuallyStops ==
   \A channel \in Channels : [](workerRunning[channel] ~> ~workerRunning[channel])
+
+CrossedResultEventuallyDiscards ==
+  \A channel \in Channels :
+    channelPhase[channel] = "cancelled-result-in-flight" ~>
+      channelPhase[channel] # "cancelled-result-in-flight"
 
 =============================================================================

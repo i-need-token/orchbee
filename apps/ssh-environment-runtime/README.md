@@ -61,7 +61,9 @@ child of the same immutable Runtime binary; the path reaches that child only ove
 discarded, and stdout carries one private bounded result. The daemon polls those children alongside
 the attachment, so filesystem latency cannot block heartbeat. Cancellation or attachment loss
 kills the matching child, and the 30-second deadline forcibly terminates it before publishing
-`timed-out`. A reconnect never inherits or replays an old channel.
+`timed-out`. If the sole result was already emitted when Desktop cancellation crosses it, Runtime
+accepts the cancelled close; ordered delivery lets Desktop discard that result before the close
+acknowledgement. A reconnect never inherits or replays an old channel.
 
 A listing returns at most 256 lexically sorted, accessible UTF-8 child-directory names plus canonical
 path, optional parent, and truncation metadata within 128 KiB. It omits files, invalid or inaccessible
@@ -148,9 +150,10 @@ consuming that output. The root `pnpm verify` gate already enforces this build-b
 
 The real-process conformance test starts the Runtime and actual Terminal Host in private temporary
 directories, performs both cross-language Hellos and heartbeat, checks relay credit, exercises
-canonical symlink resolution and bounded failure/cancel paths, rejects a competing attachment,
-reconnects to the same Runtime epoch, forces a daemon crash with a stale endpoint, proves an already
-waiting attachment reaches the replacement Runtime's new epoch, and proves that Runtime restart
-changes the epoch. The release tests use only ephemeral keys and also cover fixed build arguments,
+canonical symlink resolution, bounded failure/cancel paths, and result-cancellation crossover,
+rejects a competing attachment, reconnects to the same Runtime epoch, forces a daemon crash with a
+stale endpoint, proves an already waiting attachment reaches the replacement Runtime's new epoch,
+and proves that Runtime restart changes the epoch. The release tests use only ephemeral keys and
+also cover fixed build arguments,
 signing round trips, mutations, and exact layouts. No test contacts an SSH server or reads a
 production signing key.

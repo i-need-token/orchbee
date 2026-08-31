@@ -570,6 +570,8 @@
 				"TimeoutInspection",
 				"PublishResult",
 				"CancelChannel",
+				"CancelResultCrossover",
+				"DiscardCrossedResult",
 				"BeginCompletedClose",
 				"AcknowledgeClose",
 				"LoseAttachment",
