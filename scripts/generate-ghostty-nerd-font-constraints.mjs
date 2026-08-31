@@ -5,8 +5,11 @@ import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
 
+import { assertPinnedGhosttyCheckout } from './ghostty-source.mjs';
+
 const repositoryRoot = process.cwd();
 const ghosttyRoot = path.resolve(process.env.GHOSTTY_SOURCE ?? '../ghostty');
+assertPinnedGhosttyCheckout({ ghosttyRoot, repositoryRoot });
 const sourcePath = path.join(ghosttyRoot, 'src/font/nerd_font_attributes.zig');
 const outputPath = path.join(
 	repositoryRoot,

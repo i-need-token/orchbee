@@ -451,8 +451,9 @@ unmapped native behavior is not evidence about Terminal Host behavior.
 ## Upgrade verification
 
 1. Compare the target Ghostty commit with the Terminal Host pin.
-2. Run `pnpm audit:ghostty-panel` with Ghostty checked out at `../ghostty`, or set
-   `GHOSTTY_SOURCE`.
+2. Run `pnpm audit:ghostty-panel` with a clean Ghostty checkout at the exact Terminal Host pin in
+   `../ghostty`, or set `GHOSTTY_SOURCE` to that checkout root; the command rejects another HEAD or
+   any staged, unstaged, or untracked source change.
 3. Run `pnpm generate:ghostty-panel-data` when the upstream Nerd Font table, sprite ranges, or
    sprite reference rasters change.
 4. Review every changed upstream declaration and update exactly one manifest disposition.

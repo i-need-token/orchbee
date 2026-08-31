@@ -18,6 +18,7 @@
 | `pnpm typecheck`                               | 运行语法感知 lint 无法替代的 TypeScript 诊断         |
 | `pnpm test:lint-rules`                         | 测试 `orchbee/*` 规则和中英文规范契约                |
 | `pnpm test:documentation-pairing`              | 运行文档配对检查与确认流程的负向测试                 |
+| `pnpm test:ghostty-source`                     | 测试 Ghostty 来源工具的精确 pin 与干净工作树准入     |
 | `pnpm test:style-contract`                     | 运行前端样式契约检查器的回归测试                     |
 | `pnpm test:storage-contract`                   | 运行浏览器存储契约检查器的回归测试                   |
 | `pnpm test:experience-contract`                | 运行体验目录与查找契约的回归测试                     |

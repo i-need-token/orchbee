@@ -6,8 +6,11 @@ import path from 'node:path';
 import process from 'node:process';
 import zlib from 'node:zlib';
 
+import { assertPinnedGhosttyCheckout } from './ghostty-source.mjs';
+
 const repositoryRoot = process.cwd();
 const ghosttyRoot = path.resolve(process.env.GHOSTTY_SOURCE ?? '../ghostty');
+assertPinnedGhosttyCheckout({ ghosttyRoot, repositoryRoot });
 const spriteRoot = path.join(ghosttyRoot, 'src/font/sprite');
 const spriteFacePath = path.join(spriteRoot, 'Face.zig');
 const outputPath = path.join(

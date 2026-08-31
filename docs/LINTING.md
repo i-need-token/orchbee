@@ -18,6 +18,7 @@
 | `pnpm typecheck`                               | Run TypeScript diagnostics that syntax-aware lint does not replace                       |
 | `pnpm test:lint-rules`                         | Test the `orchbee/*` rules and English/Chinese standards contract                        |
 | `pnpm test:documentation-pairing`              | Run negative tests for documentation pairing checks and confirmation                     |
+| `pnpm test:ghostty-source`                     | Test exact-pin and clean-worktree admission for Ghostty provenance tools                 |
 | `pnpm test:style-contract`                     | Run regression tests for the frontend style-contract checker                             |
 | `pnpm test:storage-contract`                   | Run regression tests for the browser-storage contract checker                            |
 | `pnpm test:experience-contract`                | Run regression tests for the experience catalog and lookup contract                      |

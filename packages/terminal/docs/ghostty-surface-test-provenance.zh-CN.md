@@ -255,7 +255,7 @@ Kitty 协议解析、VT 行为与终端查询响应不在此 renderer 审核范�
 ## 升级验证
 
 1. 将目标 Ghostty 提交与 Terminal Host 引脚进行比较。
-2. 运行 `pnpm audit:ghostty-panel`，并在 `../ghostty` 处检出 Ghostty，或设置 `GHOSTTY_SOURCE`。
+2. 在 `../ghostty` 中准备一个位于 Terminal Host 精确 pin 且工作树干净的 Ghostty checkout，然后运行 `pnpm audit:ghostty-panel`；也可将 `GHOSTTY_SOURCE` 指向该 checkout 根目录。该命令会拒绝其他 HEAD，以及任何已暂存、未暂存或未跟踪的源码变更。
 3. 当上游 Nerd 字体表、精灵范围或精灵参考栅格更改时运行 `pnpm generate:ghostty-panel-data`。
 4. 检查每一项更改的上游声明并准确更新一个清单配置。
 5. 在标记适用的声明涵盖之前添加或修改投影渲染器证据。

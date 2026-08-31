@@ -3,8 +3,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 
+import { assertPinnedGhosttyCheckout } from './ghostty-source.mjs';
+
 const REPOSITORY_ROOT = process.cwd();
 const GHOSTTY_ROOT = path.resolve(process.env.GHOSTTY_SOURCE ?? '../ghostty');
+assertPinnedGhosttyCheckout({ ghosttyRoot: GHOSTTY_ROOT, repositoryRoot: REPOSITORY_ROOT });
 const MANIFEST_PATH = path.join(
 	REPOSITORY_ROOT,
 	'packages/terminal/docs/ghostty-surface-test-provenance.md',
