@@ -59,6 +59,7 @@ DesktopClientSessionCoordinator
 ├── canonical document: missing | WorkbenchSharedDocument
 ├── event sequence: process-local canonical unsigned decimal
 ├── proposal queue and at most one active store operation
+├── disposal gate: open | draining captured proposal tail | complete
 ├── terminal operations keyed by durable operation identity
 ├── transient TerminalPresentation observations
 └── ClientSession[ClientSessionId]
@@ -129,6 +130,12 @@ One accepted proposal advances through its matching durable-effect publication b
 accepts another commit that could supersede that intent. Stale, malformed, and rejected proposals
 may settle without waiting because they cannot change canonical state. This ordering prevents a
 later document-only revision from eclipsing an unpublished terminal effect.
+
+Coordinator disposal synchronously seals new queue admission, lets the operation already active at
+that boundary finish its commit, publication, and reconciliation, rejects queued but not-yet-admitted
+operations, and only then retires session attachment capabilities. Disposal waits for that captured
+tail before it settles. Retrying a failed session retirement never reopens proposal admission or
+repeats an already settled operation.
 
 ## Durable intent reconciliation
 
@@ -314,6 +321,7 @@ application. An ordinary page close is never application quit.
 | Equivalent races converge and divergent stale writes preserve canonical state          | Two-client and stateful property tests                                         | TLA+ stale/converged actions                                                  | No semantic merge                                         |
 | Every connected fair session can catch up in publication order                         | Session bootstrap/broadcast tests                                              | TLA+ publication progress                                                     | No progress through suspended/broken transport            |
 | Page disconnect releases only its attachments                                          | Session disposal and concurrent projection tests                               | TLA+ attachment/session invariant                                             | OS/process crash cleanup delegated to existing boundaries |
+| Coordinator disposal drains accepted work before retiring sessions                     | Deferred commit/publication/reconciliation and attachment-retirement trace     | `DesktopMultiClientSessionDisposal` seal and progress                         | In-process captured FIFO tail only                        |
 | Canonical remote placement reaches only its prepared Environment runtime               | Target resolver, router, runtime-owner, and Electron/Gateway composition tests | `SshEnvironmentRemoteTerminalProjection` authority and stale-lease invariants | No automatic SSH activation or local fallback             |
 | Remote terminal outcomes publish only after Environment-scoped durable predecessors    | Observation owner, journal/ledger, routing, coordinator, and composition tests | `SshEnvironmentRemoteTerminalOutcome` ordering and isolation invariants       | One existing remote terminal; no lifecycle command        |
 | Quiescing rejects non-owner mutation before application drain                          | Exit-owner transition tests                                                    | TLA+ quiescing invariant                                                      | Existing irreversible stop recovery policy                |
@@ -340,6 +348,12 @@ Electron-plus-two-Browser trace covers Gateway authentication, independent page 
 canonical state, attachment disconnect/reconnect, Browser effects, and exact attachment
 backpressure recovery. Explicit resize-control transfer remains outside this contract. No
 throughput acceptance gate is added; the terminal frame hot path is unchanged.
+
+`DesktopMultiClientSessionDisposal` isolates one accepted operation, one operation queued behind it,
+a request made after the synchronous seal, and one representative session retirement. It checks the
+commit-publication-reconciliation drain, queued and post-seal rejection, and retry after retirement
+failure. The model covers only the in-process FIFO tail captured by `dispose()`; startup, process
+crash, and transport teardown remain outside it.
 
 `SshEnvironmentRemoteTerminalProjection` separately checks canonical local-versus-Environment target
 resolution, prepared-runtime admission, optional retained-terminal start, deletion and retarget races,

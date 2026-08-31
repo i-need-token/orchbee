@@ -199,8 +199,8 @@ interface PendingProjection {
 		ReturnType<typeof TerminalProjectionControlCommandSchema.parse>,
 		{ readonly type: 'terminal-projection-open-requested' }
 	>['geometry'];
+	phase: 'opened' | 'opening' | 'releasing-after-open' | 'releasing-before-open';
 	readonly presentationId: TerminalPresentationId;
-	releaseRequested: boolean;
 	readonly requestId: TerminalProjectionRequestId;
 }
 
@@ -610,8 +610,8 @@ class GatewayPageConnection {
 			}
 			this.#pendingProjections.set(command.requestId, {
 				geometry: command.geometry,
+				phase: 'opening',
 				presentationId: command.presentationId,
-				releaseRequested: false,
 				requestId: command.requestId,
 			});
 			try {
@@ -625,7 +625,9 @@ class GatewayPageConnection {
 			this.#rejectProtocol();
 			return;
 		}
-		existing.releaseRequested = true;
+		if (projectionIsReleasing(existing)) return;
+		existing.phase =
+			existing.phase === 'opening' ? 'releasing-before-open' : 'releasing-after-open';
 		try {
 			this.#projectionPort?.postMessage(command);
 		} catch {
@@ -684,14 +686,18 @@ class GatewayPageConnection {
 				this.#transition({ type: 'protocol-rejected' });
 				return;
 			}
-			if (!pending.releaseRequested) this.#pendingProjections.delete(event.requestId);
+			if (pending.phase === 'opened') {
+				this.#transition({ type: 'protocol-rejected' });
+				return;
+			}
+			if (pending.phase === 'opening') this.#pendingProjections.delete(event.requestId);
 			if (!this.#postControl({ event, type: 'terminal-projection-control-event' })) {
 				this.#transition({ type: 'protocol-rejected' });
 			}
 			return;
 		}
 		if (event.type === 'terminal-projection-released') {
-			if (message.ports.length !== 0 || !pending.releaseRequested) {
+			if (message.ports.length !== 0 || !projectionIsReleasing(pending)) {
 				closePorts(message.ports);
 				this.#transition({ type: 'protocol-rejected' });
 				return;
@@ -702,17 +708,23 @@ class GatewayPageConnection {
 			}
 			return;
 		}
-		if (pending.releaseRequested) {
-			closePorts(message.ports);
-			this.#transition({ type: 'protocol-rejected' });
-			return;
-		}
 		const attachmentPort = message.ports[0];
 		if (attachmentPort === undefined || message.ports.length !== 1) {
 			closePorts(message.ports);
 			this.#transition({ type: 'protocol-rejected' });
 			return;
 		}
+		if (pending.phase === 'releasing-before-open') {
+			pending.phase = 'releasing-after-open';
+			attachmentPort.close();
+			return;
+		}
+		if (pending.phase !== 'opening') {
+			closePorts(message.ports);
+			this.#transition({ type: 'protocol-rejected' });
+			return;
+		}
+		pending.phase = 'opened';
 		const socketId = this.#dependencies.createAttachmentSocketId();
 		const attachmentCapability = this.#dependencies.deriveAttachmentCapability(socketId);
 		const attachment = new GatewayAttachment({
@@ -752,8 +764,9 @@ class GatewayPageConnection {
 
 	#releaseProjection(projection: PendingProjection): void {
 		if (this.#pendingProjections.get(projection.requestId) !== projection) return;
-		if (projection.releaseRequested) return;
-		projection.releaseRequested = true;
+		if (projectionIsReleasing(projection)) return;
+		projection.phase =
+			projection.phase === 'opening' ? 'releasing-before-open' : 'releasing-after-open';
 		if (this.#state.phase !== 'active') return;
 		try {
 			this.#projectionPort?.postMessage({
@@ -1149,6 +1162,12 @@ function isServerNotRunning(error: Error): boolean {
 
 function closePorts(ports: readonly GatewayMessagePort[]): void {
 	for (const port of ports) port.close();
+}
+
+function projectionIsReleasing(projection: PendingProjection): boolean {
+	return (
+		projection.phase === 'releasing-before-open' || projection.phase === 'releasing-after-open'
+	);
 }
 
 function geometriesEqual(

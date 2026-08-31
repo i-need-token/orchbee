@@ -1,10 +1,12 @@
 import {
+	decodeGatewayControlServerMessage,
 	encodeGatewayControlClientMessage,
 	GATEWAY_PROTOCOL_VERSION,
 	GATEWAY_LIMITS,
 	GatewayControlClientMessageSchema,
 	GatewayDesktopCommandSchema,
 	GatewayUtilityEventSchema,
+	type GatewayControlServerMessage,
 	type GatewayUtilityEvent,
 } from '@orchbee/gateway-protocol';
 import {
@@ -17,6 +19,15 @@ import { createHmac } from 'node:crypto';
 import { createServer, type Server } from 'node:http';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { WebSocket } from 'ws';
+
+import {
+	WORKBENCH_CLIENT_SESSION_BOOTSTRAP,
+	WorkbenchClientSessionBootstrapSchema,
+} from '@orchbee/workbench-client-protocol';
+import {
+	createWorkbenchSharedDocument,
+	workbenchSharedDocumentRevision,
+} from '@orchbee/workbench/document';
 
 import {
 	LocalDevelopmentBrowserGateway,
@@ -35,6 +46,64 @@ const browserSessionCredential = createBrowserSessionCredential(
 			.digest('base64url'),
 );
 const browserSessionCookie = `${BROWSER_SESSION_COOKIE_NAME}=${browserSessionCredential}`;
+const workbenchDocument = createWorkbenchSharedDocument({
+	projectWorkspace: {
+		nextProjectSequence: 1,
+		nextTerminalContextSequence: 2,
+		nextWorkspaceSequence: 1,
+		projects: [],
+		standaloneTerminalContextId: 'terminal-context-1',
+	},
+	revision: workbenchSharedDocumentRevision('0'),
+	terminalContexts: [
+		{
+			nextTabSequence: 1,
+			panelWorkspace: {
+				nextPanelSequence: 1,
+				nextPanelSlotSequence: 1,
+				nextSplitSequence: 1,
+				nextTerminalSequence: 1,
+				pendingRemovals: [],
+				tabs: [],
+			},
+			tabCollection: { groups: [], tabs: [] },
+			terminalContextId: 'terminal-context-1',
+		},
+	],
+});
+const workbenchBootstrap = WorkbenchClientSessionBootstrapSchema.parse({
+	clientSessionId: 'client-session-1',
+	defaultCwd: '/workspace',
+	documentState: { document: workbenchDocument, kind: 'available' },
+	initialPresentationId: 'presentation-initial',
+	initializationDocument: workbenchDocument,
+	sequence: '0',
+	terminalHostName: 'orchbee-host',
+	terminalEvents: [],
+	type: WORKBENCH_CLIENT_SESSION_BOOTSTRAP,
+});
+const projectionBootstrap = {
+	attachmentId: '11'.repeat(16),
+	canInput: true,
+	canResize: true,
+	capabilityRevision: '1',
+	creationId: '22'.repeat(16),
+	hostEpoch: '33'.repeat(16),
+	terminalId: '44'.repeat(16),
+	terminalOutcome: null,
+	theme: {
+		operationId: null,
+		revision: '0',
+		terminal: {
+			colorScheme: 'dark',
+			defaultBackgroundRgb: 0x1e_1e_1e,
+			defaultCursorRgb: null,
+			defaultForegroundRgb: 0xd4_d4_d4,
+			palette: Array.from({ length: 256 }, (_, index) => index),
+		},
+	},
+} as const;
+const mountedGeometry = { cellPixelHeight: 18, cellPixelWidth: 9, columns: 96, rows: 32 } as const;
 
 let gateway: LocalDevelopmentBrowserGateway | undefined;
 
@@ -270,6 +339,185 @@ describe('LocalDevelopmentBrowserGateway', () => {
 
 		expect(socket.readyState).toBe(WebSocket.CLOSED);
 	});
+
+	it('discards one opened attachment that arrives after release without retiring unrelated projections', async () => {
+		const parent = new FakeParentPort();
+		gateway = new LocalDevelopmentBrowserGateway(parent);
+		gateway.start();
+		parent.emit(
+			GatewayDesktopCommandSchema.parse({
+				allowedOrigins: [allowedOrigin],
+				bindHost: '127.0.0.1',
+				sessionSigningKey,
+				type: 'gateway-start',
+			}),
+		);
+		const listening = await parent.waitFor((event) => event.type === 'gateway-listening');
+		if (listening.type !== 'gateway-listening') throw new Error('Gateway did not listen.');
+		const socket = await openWebSocket(
+			`ws://127.0.0.1:${listening.port}/v1/control`,
+			allowedOrigin,
+			browserSessionCookie,
+		);
+		const controlMessages: GatewayControlServerMessage[] = [];
+		socket.on('message', (data, isBinary) => {
+			if (isBinary) return;
+			const decoded = decodeGatewayControlServerMessage(data.toString());
+			if (decoded.ok) controlMessages.push(decoded.value);
+		});
+		socket.send(
+			encodeGatewayControlClientMessage(
+				GatewayControlClientMessageSchema.parse({
+					protocolVersion: GATEWAY_PROTOCOL_VERSION,
+					type: 'gateway-control-authenticate',
+				}),
+			),
+		);
+		const opened = await parent.waitFor((event) => event.type === 'gateway-client-open-requested');
+		if (opened.type !== 'gateway-client-open-requested') {
+			throw new Error('Gateway did not request a client session.');
+		}
+		const clientSessionPort = createTestPort();
+		const projectionPort = createTestPort();
+		parent.emit(
+			GatewayDesktopCommandSchema.parse({
+				bootstrap: workbenchBootstrap,
+				connectionId: opened.connectionId,
+				type: 'gateway-client-opened',
+			}),
+			[clientSessionPort.port, projectionPort.port],
+		);
+		await vi.waitFor(() =>
+			expect(controlMessages.some((message) => message.type === 'gateway-control-ready')).toBe(
+				true,
+			),
+		);
+
+		const sendProjectionCommand = (command: unknown): void => {
+			socket.send(
+				encodeGatewayControlClientMessage(
+					GatewayControlClientMessageSchema.parse({
+						command,
+						type: 'terminal-projection-control-command',
+					}),
+				),
+			);
+		};
+		sendProjectionCommand({
+			geometry: mountedGeometry,
+			presentationId: 'presentation-1',
+			requestId: 'projection-1',
+			type: 'terminal-projection-open-requested',
+		});
+		await vi.waitFor(() => expect(projectionPort.posted).toHaveLength(1));
+		sendProjectionCommand({
+			presentationId: 'presentation-1',
+			requestId: 'projection-1',
+			type: 'terminal-projection-release-requested',
+		});
+		await vi.waitFor(() => expect(projectionPort.posted).toHaveLength(2));
+		sendProjectionCommand({
+			presentationId: 'presentation-1',
+			requestId: 'projection-1',
+			type: 'terminal-projection-release-requested',
+		});
+
+		const lateAttachmentPort = createTestPort();
+		projectionPort.emitMessage(
+			{
+				bootstrap: projectionBootstrap,
+				presentationId: 'presentation-1',
+				requestId: 'projection-1',
+				type: 'terminal-projection-opened',
+			},
+			[lateAttachmentPort.port],
+		);
+		expect(lateAttachmentPort.close).toHaveBeenCalledOnce();
+
+		sendProjectionCommand({
+			geometry: mountedGeometry,
+			presentationId: 'presentation-2',
+			requestId: 'projection-2',
+			type: 'terminal-projection-open-requested',
+		});
+		await vi.waitFor(() => expect(projectionPort.posted).toHaveLength(3));
+		const secondAttachmentPort = createTestPort();
+		projectionPort.emitMessage(
+			{
+				bootstrap: {
+					...projectionBootstrap,
+					attachmentId: '55'.repeat(16),
+					creationId: '66'.repeat(16),
+					terminalId: '77'.repeat(16),
+				},
+				presentationId: 'presentation-2',
+				requestId: 'projection-2',
+				type: 'terminal-projection-opened',
+			},
+			[secondAttachmentPort.port],
+		);
+		await vi.waitFor(() =>
+			expect(
+				controlMessages.some(
+					(message) =>
+						message.type === 'terminal-projection-opened' &&
+						message.projection.requestId === 'projection-2',
+				),
+			).toBe(true),
+		);
+		await vi.waitFor(() =>
+			expect(projectionPort.posted).toContainEqual({
+				geometry: mountedGeometry,
+				presentationId: 'presentation-2',
+				requestId: 'projection-2',
+				type: 'terminal-projection-open-requested',
+			}),
+		);
+		expect(projectionPort.posted).toHaveLength(3);
+		projectionPort.emitMessage({
+			presentationId: 'presentation-1',
+			requestId: 'projection-1',
+			type: 'terminal-projection-released',
+		});
+		await vi.waitFor(() =>
+			expect(controlMessages).toContainEqual({
+				event: {
+					presentationId: 'presentation-1',
+					requestId: 'projection-1',
+					type: 'terminal-projection-released',
+				},
+				type: 'terminal-projection-control-event',
+			}),
+		);
+
+		expect(socket.readyState).toBe(WebSocket.OPEN);
+		expect(secondAttachmentPort.close).not.toHaveBeenCalled();
+		expect(
+			controlMessages.some(
+				(message) =>
+					message.type === 'gateway-control-failed' && message.code === 'protocol-rejected',
+			),
+		).toBe(false);
+
+		const duplicateAttachmentPort = createTestPort();
+		const closed = waitForClose(socket);
+		projectionPort.emitMessage(
+			{
+				bootstrap: {
+					...projectionBootstrap,
+					attachmentId: '88'.repeat(16),
+					creationId: '99'.repeat(16),
+					terminalId: 'aa'.repeat(16),
+				},
+				presentationId: 'presentation-2',
+				requestId: 'projection-2',
+				type: 'terminal-projection-opened',
+			},
+			[duplicateAttachmentPort.port],
+		);
+		await closed;
+		expect(duplicateAttachmentPort.close).toHaveBeenCalledOnce();
+	});
 });
 
 class FakeParentPort implements GatewayParentPort {
@@ -307,6 +555,41 @@ class FakeParentPort implements GatewayParentPort {
 		if (existing !== undefined) return Promise.resolve(existing);
 		return new Promise((resolve) => this.#waiters.add({ predicate, resolve }));
 	}
+}
+
+function createTestPort() {
+	type CloseListener = () => void;
+	type MessageListener = (event: {
+		readonly data: unknown;
+		readonly ports: readonly GatewayMessagePort[];
+	}) => void;
+	const closeListeners = new Set<CloseListener>();
+	const messageListeners = new Set<MessageListener>();
+	const close = vi.fn<() => void>();
+	const posted: unknown[] = [];
+	const port = {
+		close,
+		off: (event: 'close' | 'message', listener: CloseListener | MessageListener): void => {
+			if (event === 'close') closeListeners.delete(listener as CloseListener);
+			else messageListeners.delete(listener as MessageListener);
+		},
+		on: (event: 'close' | 'message', listener: CloseListener | MessageListener): void => {
+			if (event === 'close') closeListeners.add(listener as CloseListener);
+			else messageListeners.add(listener as MessageListener);
+		},
+		postMessage: (message: unknown): void => {
+			posted.push(message);
+		},
+		start: vi.fn<() => void>(),
+	} as unknown as GatewayMessagePort;
+	return {
+		close,
+		emitMessage: (data: unknown, ports: readonly GatewayMessagePort[] = []): void => {
+			for (const listener of messageListeners) listener({ data, ports });
+		},
+		port,
+		posted,
+	};
 }
 
 function openWebSocket(url: string, origin: string, cookie?: string): Promise<WebSocket> {

@@ -31,6 +31,7 @@ The Utility Process never imports or connects to Terminal Host. It has no shared
 | Attachment handshake arrives            | Require one page-derived, one-time attachment capability within 10 seconds and transfer only the matching attachment stream.                       |
 | Authenticated socket remains connected  | Ping every 30 seconds; terminate the exact socket when the preceding ping received no pong.                                                        |
 | Projection opens                        | Register one derived attachment capability and transfer only the matching attachment stream.                                                       |
+| Release overtakes projection open       | Forward one release, close exactly one correlated late-open port, retain the request until cleanup settles, and keep unrelated projections active. |
 | Attachment queue exceeds its byte bound | Retire the exact attachment and release its projection; retain correlation until Main acknowledges cleanup, then reopen from a full snapshot.      |
 | Page control closes                     | Release every page attachment and the page session; preserve shared Workbench state and Host terminals.                                            |
 | Utility stops                           | Terminate sockets still awaiting a handshake, then close listeners, pages, attachments, and transferred ports before reporting stopped.            |
@@ -45,18 +46,19 @@ Loopback is the default. Trusted-LAN preview binds both the renderer Server and 
 
 ## Correctness evidence
 
-| Claim                                                 | Evidence                                                                                                              |
-| ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| Cookie admission precedes Desktop page allocation     | Pure lifecycle transition tests and real loopback WebSocket tests.                                                    |
-| Wrong Origin or Cookie creates no page authority      | Real loopback and trusted-LAN-style exact-Origin WebSocket rejection tests and the Desktop-plus-Browser system trace. |
-| Disconnect affects only one page                      | Lifecycle tests, scoped-port tests, and multi-client system reconnection.                                             |
-| Utility stop cannot wait on an unauthenticated socket | Real loopback attachment shutdown regression.                                                                         |
-| Listener cancellation always settles                  | Deterministic listen/dispose ordering tests plus the bounded Gateway transport model.                                 |
-| Authentication and heartbeat timers cannot leak       | Fake-timer WebSocket tests plus `GatewayTransportLifecycle.tla`.                                                      |
-| Attachment failure cannot corrupt another attachment  | Attachment identity validation, binary codec tests, bounded queue retirement, and projection reopen tests.            |
-| Gateway cannot bypass Main or Host ownership          | Workspace dependency boundaries, project contracts, and absence of a Host dependency.                                 |
+| Claim                                                 | Evidence                                                                                                                           |
+| ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Cookie admission precedes Desktop page allocation     | Pure lifecycle transition tests and real loopback WebSocket tests.                                                                 |
+| Wrong Origin or Cookie creates no page authority      | Real loopback and trusted-LAN-style exact-Origin WebSocket rejection tests and the Desktop-plus-Browser system trace.              |
+| Disconnect affects only one page                      | Lifecycle tests, scoped-port tests, and multi-client system reconnection.                                                          |
+| Utility stop cannot wait on an unauthenticated socket | Real loopback attachment shutdown regression.                                                                                      |
+| Listener cancellation always settles                  | Deterministic listen/dispose ordering tests plus the bounded Gateway transport model.                                              |
+| Authentication and heartbeat timers cannot leak       | Fake-timer WebSocket tests plus `GatewayTransportLifecycle.tla`.                                                                   |
+| Release/open reordering remains request-local         | Loopback WebSocket and transferred-port regression plus the `release-race` configuration of `ProjectedTerminalIpcReliability.tla`. |
+| Attachment failure cannot corrupt another attachment  | Attachment identity validation, binary codec tests, bounded queue retirement, and projection reopen tests.                         |
+| Gateway cannot bypass Main or Host ownership          | Workspace dependency boundaries, project contracts, and absence of a Host dependency.                                              |
 
-The lifecycle is a transport refinement of the existing Desktop multi-client model; it does not add a new canonical Workbench or terminal-lifetime state machine. `formal/tla/GatewayTransportLifecycle.tla` owns the bounded listener-cancellation, authentication-deadline, and heartbeat refinement.
+The lifecycle is a transport refinement of the existing Desktop multi-client model; it does not add a new canonical Workbench or terminal-lifetime state machine. `formal/tla/GatewayTransportLifecycle.tla` owns the bounded listener-cancellation, authentication-deadline, and heartbeat refinement. Desktop's `ProjectedTerminalIpcReliability.tla` owns the shared bounded release/open ordering model; the Gateway regression maps its late-port closure and unrelated-request isolation claims onto the network adapter.
 
 ## Verification
 

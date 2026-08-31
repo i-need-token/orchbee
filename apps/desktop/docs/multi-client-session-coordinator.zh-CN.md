@@ -32,6 +32,7 @@ DesktopClientSessionCoordinator
 ├── canonical document: missing | WorkbenchSharedDocument
 ├── event sequence: process-local canonical unsigned decimal
 ├── proposal queue and at most one active store operation
+├── disposal gate: open | draining captured proposal tail | complete
 ├── terminal operations keyed by durable operation identity
 ├── transient TerminalPresentation observations
 └── ClientSession[ClientSessionId]
@@ -86,6 +87,10 @@ decideDesktopClientDocumentProposal(canonical, proposal, phase, clientAuthority)
 引入语义合并、Action 重放或先写者胜出冲突处理的例外。
 
 队列只有在与已接受提案匹配的持久效果发布完成后，才会接纳另一个可能取代该意图的提交。陈旧、格式错误或被拒绝的提案可以立即返回，因为它们无法改变规范状态。这一顺序可防止后续仅修改文档的修订遮蔽尚未发布的终端效果。
+
+Coordinator disposal 会同步封闭新的队列准入，让边界建立时已经 active 的操作完成 commit、publication 与
+reconciliation，拒绝已排队但尚未准入的操作，然后才退役 session attachment capability。Disposal 会等待这条
+已捕获的 tail 后再结算。失败的 session retirement 重试绝不会重新开放提案准入，也不会重复已结算的操作。
 
 ## 持久的意图协调
 
@@ -205,6 +210,7 @@ surface 随即提交其测量 geometry。Owner detach 会晋升 successful claim
 | 等价竞态收敛，分歧的陈旧写入保留规范状态                                   | 双客户端和有状态属性测试                                                    | TLA+ 陈旧/收敛 Action                                                       | 无语义合并                                       |
 | 每个已连接会话都按发布顺序追赶                                             | 会话 bootstrap/广播测试                                                     | TLA+ 发布进度                                                               | 传输暂停/中断时不保证推进                        |
 | 页面断开连接仅释放其附件                                                   | 会话处理和并发投影测试                                                      | TLA+ 附件/会话不变                                                          | OS/进程崩溃清理委托给现有边界                    |
+| Coordinator disposal 在退役 session 前排空已接受工作                       | 延迟 commit/publication/reconciliation 与 attachment-retirement trace       | `DesktopMultiClientSessionDisposal` seal 与进度                             | 仅限进程内已捕获的 FIFO tail                     |
 | Canonical remote placement 只到达其 prepared Environment runtime           | Target resolver、router、runtime-owner 与 Electron/Gateway composition test | `SshEnvironmentRemoteTerminalProjection` authority 与 stale-lease invariant | 不 automatic SSH activation 或 local fallback    |
 | Remote terminal outcome 只在 Environment-scoped durable predecessor 后发布 | Observation owner、journal/ledger、routing、coordinator 与 composition test | `SshEnvironmentRemoteTerminalOutcome` ordering 与 isolation invariant       | 仅一个既有 remote terminal；无 lifecycle command |
 | Quiescing 在应用排空前拒绝非所有者变更                                     | 退出所有者转换测试                                                          | TLA+ quiescing 不变式                                                       | 现有不可逆 stop 恢复策略                         |
@@ -215,6 +221,11 @@ surface 随即提交其测量 geometry。Owner detach 会晋升 successful claim
 | 恢复只以已绘制的新附件替换可信冻结帧                                       | 投影表面恢复测试                                                            | TLA+ 恢复与操作标识不变式                                                   | 两次尝试；不假定传输推进                         |
 
 多客户端 TLA+ 配置检查两个客户端、两个文档值、一个附件、缺失与空的可用初始化、等价与分歧的提案、重新排序的断开/提交/效果完成、quiescing 与断开连接所有者的移交、发布，以及两个有界修订（`0` 和 `1`）。`provision` 表示使终端保持活动的效果，`stop` 表示包括 close 在内的终端终结效果，`none` 表示只改变文档。每个抽象客户端身份最多连接和提案一次；依照生产契约，重新连接使用新身份。`WorkbenchDocumentProposalAcknowledgement` 另行检查精确发布前后的本地编辑、无发布时的精确结果确认、分歧发布、陈旧结果，以及跨修订 `0`、`1`、`2` 重新提议保留下来的意图。`DesktopTerminalIntentReconciliation` 另行检查一个双 Presentation 批次、任何结果之前的原子派发、任一完成/发布顺序，以及跨相同三个修订的后续提交屏障。有状态属性测试使用固定 seed 与生成的客户端 Action。真实的 Electron 加两个 Browser 跟踪覆盖 Gateway 认证、独立页面会话、共享规范状态、附件断开/重连、Browser 效果和限定到确切附件的背压恢复。显式 resize 控制传输不在本契约范围内。不增加吞吐量验收门槛；终端帧热路径保持不变。
+
+`DesktopMultiClientSessionDisposal` 单独检查一个已接受操作、一个排在其后的操作、一个在同步
+封闭后发起的请求，以及一个代表性的 session retirement。它检查 commit-publication-reconciliation
+排空、队列与封闭后拒绝，以及 retirement 失败后的重试。该模型仅覆盖 `dispose()` 捕获的进程内
+FIFO tail；startup、进程崩溃与 transport teardown 不在其范围内。
 
 `SshEnvironmentRemoteTerminalProjection` 单独检查 canonical local-versus-Environment target resolution、
 prepared-runtime admission、可选 retained-terminal start、deletion 与 retarget race、发布前 stale-lease

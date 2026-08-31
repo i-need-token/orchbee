@@ -466,6 +466,91 @@ describe('DesktopClientSessionCoordinator', () => {
 		expect(store.commit).toHaveBeenCalledOnce();
 	});
 
+	it('drains its captured proposal tail before retiring session attachments', async () => {
+		let finishCommit:
+			| ((result: Awaited<ReturnType<WorkbenchDocumentStore['commit']>>) => void)
+			| undefined;
+		const trace: string[] = [];
+		const store = storeWith({ kind: 'missing' });
+		store.commit.mockImplementation(
+			() =>
+				new Promise((resolve) => {
+					finishCommit = resolve;
+				}),
+		);
+		const coordinator = coordinatorWith(store, {
+			reconcileDocument: async () => {
+				trace.push('reconciled');
+			},
+		});
+		await coordinator.start();
+		const firstPublisher = publisher([], false, () => {
+			trace.push('published:first');
+			return false;
+		});
+		firstPublisher.disposeAttachments.mockImplementation(async () => {
+			trace.push('retired:first');
+		});
+		const secondPublisher = publisher([], false, () => {
+			trace.push('published:second');
+			return false;
+		});
+		secondPublisher.disposeAttachments.mockImplementation(async () => {
+			trace.push('retired:second');
+		});
+		const first = register(coordinator, firstPublisher);
+		const second = register(coordinator, secondPublisher);
+		const accepted = first.propose('request-accepted', null, document('0', 'Accepted'));
+		await vi.waitFor(() => expect(store.commit).toHaveBeenCalledOnce());
+		const queued = second.propose('request-queued', null, document('0', 'Queued'));
+
+		let disposalSettled = false;
+		const disposal = coordinator.dispose().then(() => {
+			disposalSettled = true;
+		});
+		const postSealMutation = vi.fn<() => { readonly kind: 'unchanged' }>(() => ({
+			kind: 'unchanged',
+		}));
+		const rejectedAfterSeal = [
+			first.propose('request-after-seal', null, document('0', 'After seal')),
+			coordinator.mutateCanonicalDocument(postSealMutation),
+			coordinator.reconcileCanonicalDocument(),
+		];
+		let rejectedAfterSealCount = 0;
+		for (const result of rejectedAfterSeal) {
+			void result.then(() => {
+				rejectedAfterSealCount += 1;
+			});
+		}
+		await Promise.resolve();
+		await Promise.resolve();
+
+		expect(disposalSettled).toBe(false);
+		expect(firstPublisher.disposeAttachments).not.toHaveBeenCalled();
+		expect(secondPublisher.disposeAttachments).not.toHaveBeenCalled();
+		expect(rejectedAfterSealCount).toBe(3);
+		expect(postSealMutation).not.toHaveBeenCalled();
+
+		finishCommit?.({ kind: 'committed', revision: workbenchSharedDocumentRevision('0') });
+
+		expect(await accepted).toMatchObject({ kind: 'committed' });
+		expect(await queued).toMatchObject({ kind: 'rejected', reason: 'control-unavailable' });
+		await expect(Promise.all(rejectedAfterSeal)).resolves.toEqual([
+			{ document: null, kind: 'rejected', reason: 'control-unavailable' },
+			{ kind: 'rejected', reason: 'control-unavailable' },
+			{ kind: 'rejected', reason: 'control-unavailable' },
+		]);
+		await disposal;
+		expect(trace).toEqual([
+			'published:first',
+			'published:second',
+			'reconciled',
+			'retired:first',
+			'retired:second',
+		]);
+		expect(store.commit).toHaveBeenCalledOnce();
+	});
+
 	it('does not let a later commit eclipse an unpublished terminal effect', async () => {
 		const finishReconciliations: Array<() => void> = [];
 		const store = storeWith({ kind: 'missing' });

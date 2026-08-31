@@ -345,6 +345,27 @@
 			]
 		},
 		{
+			"id": "desktop-multi-client-session-disposal",
+			"owner": "@orchbee/desktop",
+			"workspace": "apps/desktop",
+			"module": "apps/desktop/formal/tla/DesktopMultiClientSessionDisposal.tla",
+			"config": "apps/desktop/formal/tla/DesktopMultiClientSessionDisposal.cfg",
+			"claims": ["apps/desktop/docs/multi-client-session-coordinator.md"],
+			"triggers": ["apps/desktop/src/main/client-session/**"],
+			"requiredCoverage": [
+				"AdmitActiveOperation",
+				"QueueOperationBehindActive",
+				"BeginDispose",
+				"FinishAcceptedCommit",
+				"PublishAcceptedCommit",
+				"ReconcileAcceptedCommit",
+				"RejectCapturedQueue",
+				"RejectPostSeal",
+				"AttemptSessionRetirement",
+				"RetrySessionRetirement"
+			]
+		},
+		{
 			"id": "desktop-project-worktree-creation",
 			"owner": "@orchbee/desktop",
 			"workspace": "apps/desktop",

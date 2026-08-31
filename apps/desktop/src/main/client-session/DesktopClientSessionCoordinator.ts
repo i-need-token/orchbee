@@ -199,6 +199,9 @@ export class DesktopClientSessionCoordinator {
 		mutation: (document: WorkbenchSharedDocument) => DesktopCanonicalDocumentMutationDecision,
 		afterCommit?: ((document: WorkbenchSharedDocument) => void) | undefined,
 	): Promise<DesktopCanonicalDocumentMutationResult> {
+		if (this.#phase.kind === 'disposed') {
+			return Promise.resolve({ kind: 'rejected', reason: 'control-unavailable' });
+		}
 		return this.#enqueueOperation(async () => {
 			if (this.#startResult?.kind !== 'ready' || this.#phase.kind !== 'accepting') {
 				return { kind: 'rejected', reason: 'control-unavailable' };
@@ -277,6 +280,9 @@ export class DesktopClientSessionCoordinator {
 	}
 
 	reconcileCanonicalDocument(): Promise<DesktopCanonicalDocumentReconciliationResult> {
+		if (this.#phase.kind === 'disposed') {
+			return Promise.resolve({ kind: 'rejected', reason: 'control-unavailable' });
+		}
 		return this.#enqueueOperation(async () => {
 			if (this.#startResult?.kind !== 'ready' || this.#phase.kind !== 'accepting') {
 				return { kind: 'rejected', reason: 'control-unavailable' };
@@ -410,6 +416,8 @@ export class DesktopClientSessionCoordinator {
 
 	async dispose(): Promise<void> {
 		if (this.#phase.kind !== 'disposed') this.#phase = { kind: 'disposed' };
+		const capturedProposalTail = this.#proposalTail;
+		await capturedProposalTail;
 		const sessionIds = new Set([...this.#sessions.keys(), ...this.#retiringSessions.keys()]);
 		if (sessionIds.size === 0) return;
 		const results = await Promise.allSettled(
@@ -495,7 +503,16 @@ export class DesktopClientSessionCoordinator {
 		const existing = session.requests.get(requestId);
 		if (existing !== undefined) {
 			if (existing.fingerprint === fingerprint) return existing.result;
-			void this.#retireSession(clientSessionId).catch(() => undefined);
+			if (this.#phase.kind !== 'disposed') {
+				void this.#retireSession(clientSessionId).catch(() => undefined);
+			}
+			return Promise.resolve({
+				document: this.#canonicalDocument,
+				kind: 'rejected',
+				reason: 'control-unavailable',
+			});
+		}
+		if (this.#phase.kind === 'disposed') {
 			return Promise.resolve({
 				document: this.#canonicalDocument,
 				kind: 'rejected',
