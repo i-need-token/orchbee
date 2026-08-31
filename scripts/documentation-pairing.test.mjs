@@ -1,6 +1,14 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import {
+	mkdirSync,
+	mkdtempSync,
+	readFileSync,
+	renameSync,
+	rmSync,
+	symlinkSync,
+	writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import test from 'node:test';
@@ -219,6 +227,24 @@ test('confirmation refuses structural drift without rewriting the manifest', () 
 	});
 });
 
+test('confirmation refuses table column drift with the same row count', () => {
+	withFixture((repositoryRoot) => {
+		addPair(
+			repositoryRoot,
+			'docs/STANDARD.md',
+			'# Standard\n\n| Requirement | Owner |\n| --- | --- |\n| Stable | Team |\n',
+			'# 规范\n\n| 要求 | 负责人 | 状态 |\n| --- | --- | --- |\n| 稳定 | 团队 | 已完成 |\n',
+		);
+		const before = readFileSync(manifestPath(repositoryRoot), 'utf8');
+
+		assert.throws(
+			() => confirm(repositoryRoot, ['docs/STANDARD.md']),
+			/English and Simplified Chinese structures differ/u,
+		);
+		assert.equal(readFileSync(manifestPath(repositoryRoot), 'utf8'), before);
+	});
+});
+
 test('confirmation removes a receipt for an explicitly named paired deletion', () => {
 	withFixture((repositoryRoot) => {
 		addPair(repositoryRoot, 'docs/STANDARD.md');
@@ -234,6 +260,35 @@ test('confirmation removes a receipt for an explicitly named paired deletion', (
 		]);
 		assert.deepEqual(readManifest(repositoryRoot).pairs, {});
 		assert.deepEqual(diagnostics(repositoryRoot), []);
+	});
+});
+
+test('confirmation treats a case-only rename as deletion plus addition', () => {
+	withFixture((repositoryRoot) => {
+		addPair(repositoryRoot, 'docs/STANDARD.md');
+		confirm(repositoryRoot, ['docs/STANDARD.md']);
+		renameSync(
+			join(repositoryRoot, 'docs', 'STANDARD.md'),
+			join(repositoryRoot, 'docs', 'STANDARD.tmp'),
+		);
+		renameSync(
+			join(repositoryRoot, 'docs', 'STANDARD.tmp'),
+			join(repositoryRoot, 'docs', 'Standard.md'),
+		);
+		renameSync(
+			join(repositoryRoot, 'docs', 'zh-CN', 'STANDARD.md'),
+			join(repositoryRoot, 'docs', 'zh-CN', 'STANDARD.tmp'),
+		);
+		renameSync(
+			join(repositoryRoot, 'docs', 'zh-CN', 'STANDARD.tmp'),
+			join(repositoryRoot, 'docs', 'zh-CN', 'Standard.md'),
+		);
+
+		assert.deepEqual(confirm(repositoryRoot, ['docs/STANDARD.md', 'docs/Standard.md']), [
+			{ sourcePath: 'docs/STANDARD.md', status: 'removed' },
+			{ sourcePath: 'docs/Standard.md', status: 'confirmed' },
+		]);
+		assert.deepEqual(Object.keys(readManifest(repositoryRoot).pairs), ['docs/Standard.md']);
 	});
 });
 

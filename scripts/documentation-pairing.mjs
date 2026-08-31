@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { existsSync, lstatSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
@@ -34,20 +34,26 @@ function displayPath(repositoryRoot, absolutePath) {
 	return candidate === '..' || candidate.startsWith('../') ? absolutePath : candidate;
 }
 
-function pathEntryExists(path) {
-	try {
-		lstatSync(path);
-		return true;
-	} catch (error) {
-		if (
-			error instanceof Error &&
-			'code' in error &&
-			(error.code === 'ENOENT' || error.code === 'ENOTDIR')
-		) {
-			return false;
+function repositoryPathEntryExists(repositoryRoot, repositoryRelativePath) {
+	let parentPath = repositoryRoot;
+	for (const segment of repositoryRelativePath.split('/')) {
+		let entries;
+		try {
+			entries = readdirSync(parentPath);
+		} catch (error) {
+			if (
+				error instanceof Error &&
+				'code' in error &&
+				(error.code === 'ENOENT' || error.code === 'ENOTDIR')
+			) {
+				return false;
+			}
+			throw error;
 		}
-		throw error;
+		if (!entries.includes(segment)) return false;
+		parentPath = join(parentPath, segment);
 	}
+	return true;
 }
 
 function discoverRepositoryMarkdownPaths(repositoryRoot) {
@@ -61,7 +67,7 @@ function discoverRepositoryMarkdownPaths(repositoryRoot) {
 		},
 	);
 	return [...new Set(output.split('\0').filter((path) => path.length > 0))]
-		.filter((path) => pathEntryExists(join(repositoryRoot, path)))
+		.filter((path) => repositoryPathEntryExists(repositoryRoot, path))
 		.toSorted();
 }
 
@@ -154,6 +160,28 @@ export function contentSha256(content) {
 	return createHash('sha256').update(normalizeNewlines(content)).digest('hex');
 }
 
+function isEscaped(text, index) {
+	let precedingBackslashes = 0;
+	for (let candidate = index - 1; candidate >= 0 && text[candidate] === '\\'; candidate -= 1) {
+		precedingBackslashes += 1;
+	}
+	return precedingBackslashes % 2 === 1;
+}
+
+function tableColumnCount(row) {
+	const lastContentIndex = row.trimEnd().length - 1;
+	let delimiterCount = 0;
+	for (let index = 0; index < row.length; index += 1) {
+		if (row[index] === '|' && !isEscaped(row, index)) delimiterCount += 1;
+	}
+	return (
+		delimiterCount -
+		(lastContentIndex >= 0 && row[lastContentIndex] === '|' && !isEscaped(row, lastContentIndex)
+			? 1
+			: 0)
+	);
+}
+
 export function documentationStructure(markdown) {
 	const normalizedMarkdown = normalizeNewlines(markdown);
 	const matches = (pattern) =>
@@ -171,6 +199,7 @@ export function documentationStructure(markdown) {
 		).toSorted(),
 		links: matches(/\]\([^)]+\)/gu).map(() => 'link'),
 		orderedItems: matches(/^\d+\.\s+/gmu),
+		tableColumns: matches(/^\|[^\n]*$/gmu).map(tableColumnCount),
 		tableRows: matches(/^\|/gmu),
 		unorderedItems: matches(/^-\s+/gmu),
 	};
@@ -368,8 +397,8 @@ export function confirmDocumentationPairs({
 		const localizedPath = localizedPathForSource(sourcePath);
 		const englishFile = join(repositoryRoot, sourcePath);
 		const chineseFile = join(repositoryRoot, localizedPath);
-		const englishExists = pathEntryExists(englishFile);
-		const chineseExists = pathEntryExists(chineseFile);
+		const englishExists = repositoryPathEntryExists(repositoryRoot, sourcePath);
+		const chineseExists = repositoryPathEntryExists(repositoryRoot, localizedPath);
 		if (englishExists !== chineseExists) {
 			const missingPath = englishExists ? localizedPath : sourcePath;
 			throw new Error(`${sourcePath}: cannot confirm while ${missingPath} is missing`);
