@@ -1,6 +1,9 @@
 import { defineMessages } from 'react-intl';
 
 import { enUSBrowserAuthenticationMessages } from '../locales';
+import { createMessageDescriptorFactory } from './createMessageDescriptorFactory';
+
+const message = createMessageDescriptorFactory(enUSBrowserAuthenticationMessages);
 
 export const browserAuthenticationMessages = defineMessages({
 	description: message('browser.authentication.description'),
@@ -18,7 +21,3 @@ export const browserAuthenticationMessages = defineMessages({
 	title: message('browser.authentication.title'),
 	unavailable: message('browser.authentication.error.unavailable'),
 });
-
-function message(id: keyof typeof enUSBrowserAuthenticationMessages) {
-	return { defaultMessage: enUSBrowserAuthenticationMessages[id], id };
-}

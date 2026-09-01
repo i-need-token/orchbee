@@ -1,15 +1,9 @@
 import { defineMessages } from 'react-intl';
 
 import { enUSAgentIntegrationMessages } from '../locales';
+import { createMessageDescriptorFactory } from './createMessageDescriptorFactory';
 
-const message = <Id extends keyof typeof enUSAgentIntegrationMessages>(
-	id: Id,
-	description?: string,
-) => ({
-	defaultMessage: enUSAgentIntegrationMessages[id],
-	...(description === undefined ? {} : { description }),
-	id,
-});
+const message = createMessageDescriptorFactory(enUSAgentIntegrationMessages);
 
 export const agentIntegrationMessages = defineMessages({
 	actionRefresh: message('agent.integrations.actions.refresh'),

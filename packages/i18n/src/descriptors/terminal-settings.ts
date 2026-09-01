@@ -1,6 +1,9 @@
 import { defineMessages } from 'react-intl';
 
 import { enUSTerminalSettingsMessages } from '../locales';
+import { createMessageDescriptorFactory } from './createMessageDescriptorFactory';
+
+const message = createMessageDescriptorFactory(enUSTerminalSettingsMessages);
 
 export const terminalSettingsMessages = defineMessages({
 	applicationAppearanceSection: message('terminal.settings.sections.applicationAppearance'),
@@ -347,16 +350,3 @@ export const terminalSettingsMessages = defineMessages({
 	terminalTypographySection: message('terminal.settings.sections.terminalTypography'),
 	title: message('terminal.settings.title'),
 });
-
-function message(
-	id: keyof typeof enUSTerminalSettingsMessages,
-	description?: string,
-): {
-	readonly defaultMessage: string;
-	readonly description?: string;
-	readonly id: string;
-} {
-	return description === undefined
-		? { defaultMessage: enUSTerminalSettingsMessages[id], id }
-		: { defaultMessage: enUSTerminalSettingsMessages[id], description, id };
-}

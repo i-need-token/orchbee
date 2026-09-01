@@ -1,6 +1,9 @@
 import { defineMessages } from 'react-intl';
 
 import { enUSRemoteDirectoryBrowserMessages } from '../locales';
+import { createMessageDescriptorFactory } from './createMessageDescriptorFactory';
+
+const message = createMessageDescriptorFactory(enUSRemoteDirectoryBrowserMessages);
 
 export const remoteDirectoryBrowserMessages = defineMessages({
 	cancel: message('remoteDirectoryBrowser.actions.cancel'),
@@ -25,7 +28,3 @@ export const remoteDirectoryBrowserMessages = defineMessages({
 	truncated: message('remoteDirectoryBrowser.truncated'),
 	useFolder: message('remoteDirectoryBrowser.actions.useFolder'),
 });
-
-function message(id: keyof typeof enUSRemoteDirectoryBrowserMessages) {
-	return { defaultMessage: enUSRemoteDirectoryBrowserMessages[id], id };
-}

@@ -141,4 +141,16 @@ describe('SSH project-root service contract', () => {
 			decodeSshProjectRootInspectionRequest(new Uint8Array(SSH_PROJECT_ROOT_MAX_MESSAGE_BYTES + 1)),
 		).toEqual({ ok: false, error: { code: 'message-too-large' } });
 	});
+
+	it('rejects exact and escaped-equivalent duplicate JSON members', () => {
+		for (const text of [
+			'{"type":"inspect-project-root","path":"/one","path":"/two"}',
+			'{"type":"inspect-project-root","path":"/one","\\u0070ath":"/two"}',
+		]) {
+			expect(decodeSshProjectRootInspectionRequest(new TextEncoder().encode(text))).toEqual({
+				ok: false,
+				error: { code: 'message-invalid' },
+			});
+		}
+	});
 });

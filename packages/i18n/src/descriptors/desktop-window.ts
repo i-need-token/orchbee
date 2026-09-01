@@ -1,6 +1,9 @@
 import { defineMessages } from 'react-intl';
 
 import { enUSDesktopWindowMessages } from '../locales';
+import { createMessageDescriptorFactory } from './createMessageDescriptorFactory';
+
+const message = createMessageDescriptorFactory(enUSDesktopWindowMessages);
 
 export const desktopWindowMessages = defineMessages({
 	category: message('desktop.window.category'),
@@ -9,10 +12,3 @@ export const desktopWindowMessages = defineMessages({
 	toggleMaximized: message('desktop.window.action.toggleMaximized'),
 	unavailable: message('desktop.window.actionUnavailable'),
 });
-
-function message(id: keyof typeof enUSDesktopWindowMessages): {
-	readonly defaultMessage: string;
-	readonly id: string;
-} {
-	return { defaultMessage: enUSDesktopWindowMessages[id], id };
-}

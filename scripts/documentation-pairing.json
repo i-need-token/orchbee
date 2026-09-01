@@ -74,8 +74,8 @@
 			"zhCnSha256": "f8130364bd93c4e4f3b28f6b25d350cf4c51280175a33c0b594cb42b0c212a3a"
 		},
 		"apps/desktop/docs/ssh-environment-connection.md": {
-			"englishSha256": "aed5a56c10472471894a468c2ab94f96dcbdf25ae0e46db49a6f9fc487053589",
-			"zhCnSha256": "42ba3524483ca206ff5669c31e9dd5ebaecf0e17b6e2c35b7f7a7165ae8f7a6c"
+			"englishSha256": "7c0a77ad01d90d697c19e431591f6895470ddecc22f66956735bedc14b6580e0",
+			"zhCnSha256": "5b36b69a8e5b94707af0121e926a5e58ddbb6e81a5adc9f3270f9792a4ee18c6"
 		},
 		"apps/desktop/docs/ssh-runtime-release.md": {
 			"englishSha256": "cb126645340ff5d57b5870b1cf3717f2ac83a92036d5666a68a69ae3d9dfb442",
@@ -206,8 +206,8 @@
 			"zhCnSha256": "1e2e1cf1ae0efa3f3d7b0fb5cd50000f38ce508f2d99127bef1b71a210093aa1"
 		},
 		"docs/frontend/browser-storage.md": {
-			"englishSha256": "cac6e8250d4304cbd11b1ca9ff4979b0cb00d0a74f57612348488fb84ed9fefd",
-			"zhCnSha256": "1cc593cdf78f1bfdd1c51e56f9218e509a8d66699c800bedf7bc5cdeb3cd8552"
+			"englishSha256": "5ec5cc30bddb20a629273a67db390e2d77c04e5255fc63b27d4742f01e53ade3",
+			"zhCnSha256": "92b1fa5efe2d023c6054f2b68552b69ac6c0c176f672752741ef18da1cb46a83"
 		},
 		"docs/frontend/design-tokens.md": {
 			"englishSha256": "474b87fbab23a5265f5447275e89a01a11f54137b161b9ad08963238a8415ee6",

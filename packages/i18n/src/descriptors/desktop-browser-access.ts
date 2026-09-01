@@ -1,6 +1,9 @@
 import { defineMessages } from 'react-intl';
 
 import { enUSDesktopBrowserAccessMessages } from '../locales';
+import { createMessageDescriptorFactory } from './createMessageDescriptorFactory';
+
+const message = createMessageDescriptorFactory(enUSDesktopBrowserAccessMessages);
 
 export const desktopBrowserAccessMessages = defineMessages({
 	addresses: message('desktop.browserAccess.addresses'),
@@ -64,10 +67,3 @@ export const desktopBrowserAccessMessages = defineMessages({
 	warningDescription: message('desktop.browserAccess.warning.description'),
 	warningTitle: message('desktop.browserAccess.warning.title'),
 });
-
-function message(id: keyof typeof enUSDesktopBrowserAccessMessages) {
-	return {
-		defaultMessage: enUSDesktopBrowserAccessMessages[id],
-		id,
-	};
-}

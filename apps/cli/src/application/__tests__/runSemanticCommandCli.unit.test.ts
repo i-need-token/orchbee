@@ -656,6 +656,73 @@ describe('runSemanticCommandCli', () => {
 		expect(invoke).toHaveBeenCalledOnce();
 	});
 
+	it('reports an accepted mutation as unknown when a wait observes a second restart', async () => {
+		const invoke = vi.fn<SemanticCommandClientPort['invoke']>(async (request) => ({
+			execution: activeExecution(request.requestIdentity),
+			kind: 'accepted',
+			replayed: false,
+		}));
+		const first = clientWith({
+			getExecution: async () => {
+				throw new Error('transport lost');
+			},
+			invoke,
+		});
+		const second = clientWith({
+			getExecution: async (reference) => ({
+				coordinatorGeneration: generationTwo,
+				kind: 'execution-receipt-unavailable',
+				protocolVersion: 1,
+				reference,
+			}),
+		});
+		const connections = [connected(first.client), connected(second.client)];
+		const result = await runSemanticCommandCli(
+			['operation', 'invoke', descriptor.id, '--input-file', '-'],
+			dependenciesWith(connected(first.client), {
+				connect: async () =>
+					connections.shift() ?? { code: 'coordinator-unavailable', kind: 'error' },
+			}),
+		);
+
+		expect(result.exitCode).toBe(6);
+		expect(output(result)).toMatchObject({
+			code: 'outcome-unknown-after-restart',
+			requestIdentity: 'cli:request:1',
+		});
+		expect(invoke).toHaveBeenCalledOnce();
+	});
+
+	it('reports a lost invocation as unknown when receipt recovery observes a second restart', async () => {
+		const invoke = vi.fn<SemanticCommandClientPort['invoke']>(async () => {
+			throw new Error('response lost');
+		});
+		const first = clientWith({ invoke });
+		const second = clientWith({
+			getExecution: async (reference) => ({
+				coordinatorGeneration: generationTwo,
+				kind: 'execution-receipt-unavailable',
+				protocolVersion: 1,
+				reference,
+			}),
+		});
+		const connections = [connected(first.client), connected(second.client)];
+		const result = await runSemanticCommandCli(
+			['operation', 'invoke', descriptor.id, '--input-file', '-', '--detach'],
+			dependenciesWith(connected(first.client), {
+				connect: async () =>
+					connections.shift() ?? { code: 'coordinator-unavailable', kind: 'error' },
+			}),
+		);
+
+		expect(result.exitCode).toBe(6);
+		expect(output(result)).toMatchObject({
+			code: 'outcome-unknown-after-restart',
+			requestIdentity: 'cli:request:1',
+		});
+		expect(invoke).toHaveBeenCalledOnce();
+	});
+
 	it('recovers a lost invocation response by receipt lookup without replaying the mutation', async () => {
 		const invoke = vi.fn<SemanticCommandClientPort['invoke']>(async () => {
 			throw new Error('response lost');

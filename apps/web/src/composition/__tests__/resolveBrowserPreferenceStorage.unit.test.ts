@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import { TerminalInteractionSettingsController } from '../../terminal-interaction-settings';
 import { resolveBrowserPreferenceStorage } from '../resolveBrowserPreferenceStorage';
 
 describe('resolveBrowserPreferenceStorage', () => {
@@ -12,13 +13,16 @@ describe('resolveBrowserPreferenceStorage', () => {
 		expect(resolveBrowserPreferenceStorage(() => storage)).toBe(storage);
 	});
 
-	it('falls back to ephemeral storage when the browser getter throws', () => {
+	it('preserves storage unavailability for feature-owned recovery', () => {
 		const storage = resolveBrowserPreferenceStorage(() => {
 			throw new Error('Browser storage is unavailable.');
 		});
+		const controller = new TerminalInteractionSettingsController(storage);
 
-		expect(storage.getItem('orchbee:test:preference:v1')).toBeNull();
-		storage.setItem('orchbee:test:preference:v1', '{"enabled":true}');
-		expect(storage.getItem('orchbee:test:preference:v1')).toBe('{"enabled":true}');
+		expect(controller.getSnapshot().persistenceIssue).toBe('read-failed');
+		expect(controller.update({ copyOnSelect: false })).toEqual({
+			kind: 'applied-session-only',
+		});
+		expect(controller.getSnapshot().persistenceIssue).toBe('write-failed');
 	});
 });

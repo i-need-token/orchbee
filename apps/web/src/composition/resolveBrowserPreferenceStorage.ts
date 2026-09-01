@@ -6,16 +6,17 @@ export function resolveBrowserPreferenceStorage(
 	try {
 		return readStorage();
 	} catch {
-		return createEphemeralPreferenceStorage();
+		return createUnavailablePreferenceStorage();
 	}
 }
 
-function createEphemeralPreferenceStorage(): BrowserPreferenceStorage {
-	const records = new Map<string, string>();
+function createUnavailablePreferenceStorage(): BrowserPreferenceStorage {
 	return {
-		getItem: (key) => records.get(key) ?? null,
-		setItem: (key, value) => {
-			records.set(key, value);
+		getItem: () => {
+			throw new Error('Browser preference storage is unavailable.');
+		},
+		setItem: () => {
+			throw new Error('Browser preference storage is unavailable.');
 		},
 	};
 }

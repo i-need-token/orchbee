@@ -1,11 +1,9 @@
 import { defineMessages } from 'react-intl';
 
 import { enUSSshConnectionManagementMessages } from '../locales';
+import { createMessageDescriptorFactory } from './createMessageDescriptorFactory';
 
-const message = <Id extends keyof typeof enUSSshConnectionManagementMessages>(id: Id) => ({
-	defaultMessage: enUSSshConnectionManagementMessages[id],
-	id,
-});
+const message = createMessageDescriptorFactory(enUSSshConnectionManagementMessages);
 
 export const sshConnectionManagementMessages = defineMessages({
 	actionAdd: message('ssh.connections.actions.add'),

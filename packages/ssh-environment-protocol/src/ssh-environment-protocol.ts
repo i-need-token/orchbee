@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { parseJsonWithoutDuplicateMembers } from './parseJsonWithoutDuplicateMembers';
 import { SshProjectRootPathSchema } from './ssh-project-root-service-contract';
 
 export const SSH_ENVIRONMENT_FRAME_MAGIC = 'OBSE';
@@ -348,7 +349,7 @@ function decodeJsonPayload<Payload>(
 	payloadBytes: Uint8Array,
 ): JsonPayloadDecodeResult<Payload> {
 	try {
-		const candidate: unknown = JSON.parse(textDecoder.decode(payloadBytes));
+		const candidate = parseJsonWithoutDuplicateMembers(textDecoder.decode(payloadBytes));
 		const parsed = schema.safeParse(candidate);
 		if (!parsed.success) {
 			return decodeError('payload-invalid', `invalid ${type} payload`);

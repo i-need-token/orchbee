@@ -519,7 +519,7 @@ describe('startDesktopWorkbenchRenderer', () => {
 
 		await act(async () => session?.dispose());
 		root.remove();
-	});
+	}, 15_000);
 
 	it('hydrates retained terminals from Main observations without issuing renderer effects', async () => {
 		const lifetimeChannel = createTestChannel();

@@ -1,6 +1,9 @@
 import { defineMessages } from 'react-intl';
 
 import { enUSKeyboardShortcutMessages } from '../locales';
+import { createMessageDescriptorFactory } from './createMessageDescriptorFactory';
+
+const message = createMessageDescriptorFactory(enUSKeyboardShortcutMessages);
 
 export const keyboardShortcutMessages = defineMessages({
 	actionsSearch: message('keyboard.shortcuts.actions.actionsSearch'),
@@ -110,16 +113,3 @@ export const keyboardShortcutMessages = defineMessages({
 	sourceDefault: message('keyboard.shortcuts.source.default'),
 	title: message('keyboard.shortcuts.title'),
 });
-
-function message(
-	id: keyof typeof enUSKeyboardShortcutMessages,
-	description?: string,
-): {
-	readonly defaultMessage: string;
-	readonly description?: string;
-	readonly id: string;
-} {
-	return description === undefined
-		? { defaultMessage: enUSKeyboardShortcutMessages[id], id }
-		: { defaultMessage: enUSKeyboardShortcutMessages[id], description, id };
-}

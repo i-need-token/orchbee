@@ -71,6 +71,7 @@ Treat a version change as a data migration decision. Either read and migrate the
 ## Failure and privacy
 
 - Treat missing, malformed, obsolete, unavailable, and quota-rejected storage as expected boundary failures. Fall back safely without blocking application startup.
+- A composition fallback never converts unavailable durable storage into a successful durable write. Owners that distinguish saved from session-only behavior must observe the read or write failure through their injected capability.
 - A failed device-local preference write may be ignored when the current in-memory behavior remains correct. Product-critical persistence requires a different capability with visible diagnostics.
 - Never store passwords, access tokens, API keys, authentication artifacts, private terminal output, agent transcripts, or authoritative session state in browser key-value storage.
 - Assume same-origin script and browser tooling can read every stored value. Obfuscation is not encryption.

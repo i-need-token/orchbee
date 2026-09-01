@@ -343,7 +343,18 @@ async function recoverInvocationObservation(
 				reference,
 				dependencies.signal === undefined ? {} : { signal: dependencies.signal },
 			);
-	if (observed.kind === 'error') return clientFailure(command, observed.code, requestIdentity);
+	if (observed.kind === 'error') {
+		if (observed.code === 'coordinator-generation-mismatch') {
+			return cliFailureResult(
+				commandName(command),
+				'outcome-unknown-after-restart',
+				6,
+				command.output,
+				requestIdentity,
+			);
+		}
+		return clientFailure(command, observed.code, requestIdentity);
+	}
 	return executionLookupResult(command, observed.value, requestIdentity);
 }
 
@@ -520,7 +531,10 @@ async function waitAcrossGeneration(
 	if (reconnected.coordinatorGeneration !== connection.coordinatorGeneration) {
 		return { code: 'outcome-unknown-after-restart', kind: 'unknown' };
 	}
-	return reconnected.client.waitForExecution(reference, waitOptions);
+	const second = await reconnected.client.waitForExecution(reference, waitOptions);
+	return second.kind === 'error' && second.code === 'coordinator-generation-mismatch'
+		? { code: 'outcome-unknown-after-restart', kind: 'unknown' }
+		: second;
 }
 
 function executionLookupResult(

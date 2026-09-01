@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { parseJsonWithoutDuplicateMembers } from './parseJsonWithoutDuplicateMembers';
+
 export const SSH_PROJECT_ROOT_INITIAL_CREDIT_BYTES = 128 * 1024;
 export const SSH_PROJECT_ROOT_MAX_MESSAGE_BYTES = 128 * 1024;
 export const SSH_PROJECT_ROOT_MAX_PATH_BYTES = 4_096;
@@ -172,7 +174,7 @@ function decodeMessage<Message>(
 		return { ok: false, error: { code: 'message-too-large' } };
 	}
 	try {
-		const candidate: unknown = JSON.parse(textDecoder.decode(bytes));
+		const candidate = parseJsonWithoutDuplicateMembers(textDecoder.decode(bytes));
 		const parsed = schema.safeParse(candidate);
 		return parsed.success
 			? { ok: true, message: parsed.data }

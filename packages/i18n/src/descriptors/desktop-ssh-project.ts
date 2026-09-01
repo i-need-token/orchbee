@@ -1,6 +1,9 @@
 import { defineMessages } from 'react-intl';
 
 import { enUSDesktopSshProjectMessages } from '../locales';
+import { createMessageDescriptorFactory } from './createMessageDescriptorFactory';
+
+const message = createMessageDescriptorFactory(enUSDesktopSshProjectMessages);
 
 export const desktopSshProjectMessages = defineMessages({
 	attachmentDescription: message('desktop.sshProject.attachment.description'),
@@ -54,7 +57,3 @@ export const desktopSshProjectMessages = defineMessages({
 	title: message('desktop.sshProject.title'),
 	trustHost: message('desktop.sshProject.actions.trustHost'),
 });
-
-function message(id: keyof typeof enUSDesktopSshProjectMessages) {
-	return { defaultMessage: enUSDesktopSshProjectMessages[id], id };
-}

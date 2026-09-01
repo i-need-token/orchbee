@@ -159,6 +159,25 @@ describe('SSH Environment protocol framing', () => {
 		expectDecodeFailure(decodeSshEnvironmentFrame(malformed), 'payload-invalid');
 	});
 
+	it('rejects exact and escaped-equivalent duplicate JSON members', () => {
+		expect.hasAssertions();
+		const canonicalFrame = encodeSshEnvironmentMessage(hello);
+		const canonicalPayload = JSON.stringify(helloPayload);
+		for (const duplicateMember of [
+			'"initialChannelCreditBytes":1',
+			'"initialChannelCredit\\u0042ytes":1',
+		]) {
+			const text = `${canonicalPayload.slice(0, -1)},${duplicateMember}}`;
+			const payload = new TextEncoder().encode(text);
+			const frame = new Uint8Array(SSH_ENVIRONMENT_FRAME_HEADER_BYTES + payload.byteLength);
+			frame.set(canonicalFrame.slice(0, SSH_ENVIRONMENT_FRAME_HEADER_BYTES));
+			new DataView(frame.buffer).setUint32(8, payload.byteLength, false);
+			frame.set(payload, SSH_ENVIRONMENT_FRAME_HEADER_BYTES);
+
+			expectDecodeFailure(decodeSshEnvironmentFrame(frame), 'payload-invalid');
+		}
+	});
+
 	it('enforces the one MiB frame bound before allocation or parsing', () => {
 		expect.hasAssertions();
 		const header = encodeSshEnvironmentMessage(hello).slice(0, SSH_ENVIRONMENT_FRAME_HEADER_BYTES);
