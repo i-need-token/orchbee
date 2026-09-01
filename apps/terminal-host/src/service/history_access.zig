@@ -55,6 +55,28 @@ pub const HistoryAccess = struct {
         });
     }
 
+    pub fn readRowsOwned(
+        self: HistoryAccess,
+        allocator: std.mem.Allocator,
+        output_prefix_bytes: usize,
+        request: ReadRowsRequest,
+    ) !terminal_runtime.OwnedHistoryRows {
+        return self.runtime.readHistoryRowsOwned(allocator, output_prefix_bytes, .{
+            .attachment_id = self.attachment_id,
+            .detail = request.detail,
+            .generation = request.generation,
+            .host_epoch = request.host_epoch,
+            .maximum_bytes = request.maximum_bytes,
+            .origin = request.origin,
+            .purpose = request.purpose,
+            .request_sequence = request.request_sequence,
+            .revision = request.revision,
+            .revision_policy = request.revision_policy,
+            .row_count = request.row_count,
+            .theme_revision = self.theme_revision,
+        });
+    }
+
     pub fn readRowsInto(
         self: HistoryAccess,
         scratch_allocator: std.mem.Allocator,

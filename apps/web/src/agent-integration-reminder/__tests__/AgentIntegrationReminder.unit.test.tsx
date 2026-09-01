@@ -66,7 +66,7 @@ describe('AgentIntegrationReminder', () => {
 			),
 		);
 		expect(reminder.dataset['agentIntegration']).toBe('grok');
-		expect(reminder.textContent).toContain('You started Grok');
+		expect(reminder.textContent).toContain('Orchbee detected Grok');
 		expect(control.enableCalls).toEqual([]);
 		expect(control.disableCalls).toEqual([]);
 

@@ -2805,6 +2805,41 @@ describe('projected terminal renderer', () => {
 		renderer.dispose();
 	});
 
+	it('retries the current packed frame after glyph-atlas packing capacity is exhausted', async () => {
+		vi.stubGlobal('window', { devicePixelRatio: 1 });
+		vi.stubGlobal('document', { createElement: () => createCanvas() });
+		vi.stubGlobal('GPUTextureUsage', { TEXTURE_BINDING: 1, COPY_DST: 2, RENDER_ATTACHMENT: 4 });
+		vi.stubGlobal('GPUBufferUsage', { UNIFORM: 1, COPY_DST: 2, VERTEX: 4 });
+		const rendering = createSubmittingDevice({ maxTextureDimension2D: 1_024 });
+		vi.stubGlobal('navigator', {
+			gpu: {
+				requestAdapter: async () =>
+					({ requestDevice: async () => rendering.device }) as unknown as GPUAdapter,
+				getPreferredCanvasFormat: () => 'bgra8unorm',
+			},
+		});
+		const context = {
+			configure: () => {},
+			getCurrentTexture: () => ({ createView: () => ({}) }),
+		} as unknown as GPUCanvasContext;
+		const renderer = new WebGPURenderer(createWebGPUCanvas(context));
+		await renderer.initGPU();
+		renderer.renderPacked(createPackedSource(['cachedrun']));
+		const resetAtlas = vi.spyOn(renderer as unknown as { resetAtlas(): void }, 'resetAtlas');
+		const atlas = Reflect.get(renderer, 'atlasCanvas') as HTMLCanvasElement;
+		Reflect.set(renderer, 'atlasY', atlas.height);
+		Reflect.set(renderer, 'atlasRowHeight', 0);
+
+		renderer.renderPacked(createPackedSource(['newhistoryrun']));
+
+		expect(resetAtlas).toHaveBeenCalledOnce();
+		const telemetry = renderer.getLastFrameTelemetry();
+		expect(telemetry?.atlasGlyphCount ?? 0).toBeGreaterThan(0);
+		expect(telemetry?.glyphInstances ?? 0).toBeGreaterThan(0);
+		expect(telemetry?.shapingRuns ?? 0).toBeGreaterThan(0);
+		renderer.dispose();
+	});
+
 	it('grows only the glyph-atlas axis required by the next raster reservation', () => {
 		vi.stubGlobal('window', { devicePixelRatio: 1 });
 		vi.stubGlobal('document', { createElement: () => createCanvas() });
@@ -3250,7 +3285,10 @@ function createControllableDevice(): {
 }
 
 function createSubmittingDevice(
-	options: { readonly popErrorScope?: GPUDevice['popErrorScope'] } = {},
+	options: {
+		readonly maxTextureDimension2D?: number;
+		readonly popErrorScope?: GPUDevice['popErrorScope'];
+	} = {},
 ): {
 	readonly beginRenderPass: ReturnType<
 		typeof vi.fn<(descriptor: GPURenderPassDescriptor) => GPURenderPassEncoder>
@@ -3310,7 +3348,7 @@ function createSubmittingDevice(
 		createShaderModule: () => ({}),
 		createTexture: () => ({ createView: () => ({}), destroy: () => {} }),
 		destroy,
-		limits: { maxTextureDimension2D: 8_192 },
+		limits: { maxTextureDimension2D: options.maxTextureDimension2D ?? 8_192 },
 		lost: new Promise<GPUDeviceLostInfo>(() => undefined),
 		popErrorScope,
 		pushErrorScope: () => {},

@@ -38,15 +38,42 @@ pub const Error = error{
     ProjectionTooLarge,
 };
 
+pub const OwnedEncoding = struct {
+    allocation: []u8,
+    bytes: []u8,
+};
+
 pub fn encode(
     allocator: std.mem.Allocator,
     terminal: *ghostty_vt.Terminal,
     parameters: Parameters,
 ) (Error || std.mem.Allocator.Error)![]u8 {
-    var writer = render_encoding.LimitedWriter.init(allocator, parameters.hard_limit);
+    const owned = try encodeOwned(allocator, 0, terminal, parameters);
+    std.debug.assert(owned.allocation.ptr == owned.bytes.ptr);
+    std.debug.assert(owned.allocation.len == owned.bytes.len);
+    return owned.bytes;
+}
+
+pub fn encodeOwned(
+    allocator: std.mem.Allocator,
+    output_prefix_bytes: usize,
+    terminal: *ghostty_vt.Terminal,
+    parameters: Parameters,
+) (Error || std.mem.Allocator.Error)!OwnedEncoding {
+    const allocation_limit = std.math.add(
+        usize,
+        output_prefix_bytes,
+        parameters.hard_limit,
+    ) catch return error.ProjectionTooLarge;
+    var writer = render_encoding.LimitedWriter.init(allocator, allocation_limit);
     errdefer writer.deinit();
+    try writer.appendZeros(output_prefix_bytes);
     try encodeToWriter(allocator, terminal, parameters, &writer);
-    return writer.toOwnedSlice();
+    const allocation = try writer.toOwnedSlice();
+    return .{
+        .allocation = allocation,
+        .bytes = allocation[output_prefix_bytes..],
+    };
 }
 
 pub fn encodeInto(
@@ -72,6 +99,7 @@ fn encodeToWriter(
     {
         return error.InvalidRequest;
     }
+    const row_window_offset = writer.written().len;
     const pins = try scratch_allocator.alloc(ghostty_vt.Pin, parameters.row_count);
     defer scratch_allocator.free(pins);
     var iterator = parameters.start_pin.rowIterator(.right_down, null);
@@ -125,7 +153,7 @@ fn encodeToWriter(
     };
     const body_length = writer.written().len - body_offset;
     var header = render_encoding.FixedLimitedWriter.init(
-        writer.written()[0..header_bytes],
+        writer.written()[row_window_offset..][0..header_bytes],
         header_bytes,
     );
     try header.appendSlice(protocol.terminal_row_window_magic);

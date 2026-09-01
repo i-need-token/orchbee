@@ -68,7 +68,7 @@ describe('useAgentIntegrationReminder', () => {
 		);
 
 		await waitFor(() => expect(rendered.result.current?.integrationId).toBe('grok'));
-		expect(rendered.result.current?.body).toContain('You started Grok');
+		expect(rendered.result.current?.body).toContain('Orchbee detected Grok');
 		expect(enable).not.toHaveBeenCalled();
 		act(() => rendered.result.current?.onAction());
 		expect(onOpenSettings).toHaveBeenCalledWith('grok');

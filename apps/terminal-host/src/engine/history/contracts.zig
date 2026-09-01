@@ -42,6 +42,11 @@ pub const EncodedRows = struct {
     total_rows: u64,
 };
 
+pub const OwnedEncodedRows = struct {
+    allocation: []u8,
+    encoded: EncodedRows,
+};
+
 pub const HistoryDemand = terminal_interaction.HistoryDemand;
 
 pub const AnchorStatus = enum {

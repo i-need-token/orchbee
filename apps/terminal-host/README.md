@@ -121,7 +121,7 @@ The accepted contract requires these externally visible properties:
   monotonic duration, wall-clock completion timestamp, and normalized exit code. The Host never
   retains or projects command text, arguments, directory, environment, or output for reminders;
   freshness, focus, permission, rate limiting, and notification effects remain client policy.
-- A successful grid reflow preserves a tracked selection and committed history anchor when Ghostty's pins remain valid, while cancelling stale row flights and already encoded export bytes. Screen replacement and retained-row eviction remain explicit selection eviction boundaries.
+- A successful grid reflow preserves a tracked selection and committed history anchor when Ghostty's pins remain valid, while cancelling stale row flights and already encoded export bytes. A committed viewport read preserves that anchor when the requested window fits and otherwise moves its start upward just enough to return a full window. Screen replacement and retained-row eviction remain explicit selection eviction boundaries.
 - The public selection-export request and response admit only the literal `plain` format. Ghostty's
   internal formatter support for HTML and raw VT is not a Host protocol capability and cannot be
   selected by a client.

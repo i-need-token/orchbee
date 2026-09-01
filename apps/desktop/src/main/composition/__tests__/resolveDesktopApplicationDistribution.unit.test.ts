@@ -10,6 +10,7 @@ import { resolveDesktopApplicationDistribution } from '../resolveDesktopApplicat
 
 const DESKTOP_DEVELOPMENT_APPLICATION_NAME_ENVIRONMENT_KEY =
 	'ORCHBEE_DESKTOP_DEVELOPMENT_APPLICATION_NAME';
+const DESKTOP_LOCAL_APPLICATION_NAME_ENVIRONMENT_KEY = 'ORCHBEE_DESKTOP_LOCAL_APPLICATION_NAME';
 
 type ResolverDependencies = NonNullable<
 	Parameters<typeof resolveDesktopApplicationDistribution>[1]
@@ -71,22 +72,29 @@ describe('resolveDesktopApplicationDistribution', () => {
 
 	it('loads a packaged local profile only from the bundle descriptor', () => {
 		const dependencies = createDependencies();
-		dependencies.readFile.mockReturnValue('{"profileId":"local","schemaVersion":1}\n');
+		dependencies.readFile.mockReturnValue(
+			'{"applicationName":"Terminal","profileId":"local","schemaVersion":1}\n',
+		);
 
 		const profile = resolveDesktopApplicationDistribution(
 			{
-				applicationPath: '/Applications/Orchbee Local.app/Contents/Resources/app.asar',
-				environment: { ORCHBEE_DESKTOP_DEVELOPMENT_SOURCE_ROOT: '/untrusted/override' },
+				applicationPath: '/Applications/Terminal.app/Contents/Resources/app.asar',
+				environment: {
+					ORCHBEE_DESKTOP_DEVELOPMENT_SOURCE_ROOT: '/untrusted/override',
+					[DESKTOP_LOCAL_APPLICATION_NAME_ENVIRONMENT_KEY]: 'Untrusted Override',
+				},
 				packaged: true,
 				platform: 'darwin',
 			},
 			dependencies,
 		);
 
-		expect(profile).toEqual(resolveDesktopDistributionProfile('local'));
+		expect(profile).toEqual(
+			resolveDesktopDistributionProfile('local', undefined, { applicationName: 'Terminal' }),
+		);
 		expect(dependencies.readFile).toHaveBeenCalledWith(
 			path.join(
-				'/Applications/Orchbee Local.app/Contents/Resources/app.asar',
+				'/Applications/Terminal.app/Contents/Resources/app.asar',
 				'desktop-distribution-v1.json',
 			),
 			'utf8',

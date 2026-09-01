@@ -5809,6 +5809,111 @@ describe('ProjectedTerminal', () => {
 		terminal.dispose();
 	});
 
+	it('adopts a committed resize row count while retained history is visible', async () => {
+		const browser = createFakeBrowser();
+		const root = browser.root as unknown as FakeElement;
+		vi.stubGlobal('document', browser.document);
+		vi.stubGlobal('window', browser.document.defaultView);
+		vi.stubGlobal('navigator', {});
+		const commands: ProjectedTerminalCommand[] = [];
+		const terminal = new ProjectedTerminal({
+			attachmentId,
+			canResize: true,
+			creationId,
+			hostEpoch,
+			labels: { input: 'input', screen: 'screen' },
+			port: {
+				send: (command) => {
+					commands.push(command);
+				},
+			},
+			terminalId,
+		});
+		await terminal.open(browser.root);
+		const openedResize = commands.find((command) => command.kind === 'resize-terminal');
+		if (openedResize?.kind !== 'resize-terminal') throw new Error('open resize is missing');
+		root.clientWidth = openedResize.payload.cellPixelWidth * 2;
+		root.clientHeight = openedResize.payload.cellPixelHeight * 2;
+		browser.dispatchWindow('resize');
+		const compactResize = commands.filter((command) => command.kind === 'resize-terminal').at(-1);
+		if (compactResize?.kind !== 'resize-terminal') throw new Error('compact resize is missing');
+		expect(compactResize.payload).toMatchObject({ columns: 2, rows: 2 });
+
+		terminal.applyFrame(
+			terminalFrame(
+				'snapshot',
+				1n,
+				1n,
+				['live-a', 'live-b'],
+				null,
+				[0, 1],
+				198n,
+				interaction,
+				{ column: 0, row: 0 },
+				1n,
+				2,
+				ActiveScreen.primary,
+				'unknown',
+				0n,
+				compactResize.payload,
+			),
+		);
+		terminal.scrollLines(-1);
+		const initialRead = commands.filter((command) => command.kind === 'read-rows').at(-1);
+		if (initialRead?.kind !== 'read-rows') throw new Error('initial history read is missing');
+		const initialStart = resolvedRowRequestStart(initialRead, 200n);
+		expect(initialStart).toBe(197n);
+		expect(
+			terminal.applyRows(
+				renderRowWindow(
+					BigInt(initialRead.payload.requestSequence),
+					1n,
+					initialStart,
+					200n,
+					Array.from({ length: initialRead.payload.rowCount }, (_, index) => `before-${index}`),
+				),
+			),
+		).toBe('committed');
+
+		root.clientHeight += compactResize.payload.cellPixelHeight * 3;
+		browser.dispatchWindow('resize');
+		const grownResize = commands.filter((command) => command.kind === 'resize-terminal').at(-1);
+		if (grownResize?.kind !== 'resize-terminal') throw new Error('grown resize is missing');
+		expect(grownResize.payload.rows).toBe(5);
+		terminal.notifyHistoryChanged({
+			anchorStatus: 'valid',
+			attachmentId,
+			generation: canonicalText('2'),
+			revision: canonicalText('2'),
+			sequence: canonicalText('1'),
+			totalRows: canonicalText('200'),
+		});
+		const refreshRead = commands.filter((command) => command.kind === 'read-rows').at(-1);
+		if (refreshRead?.kind !== 'read-rows') throw new Error('resize refresh is missing');
+		expect(refreshRead.payload.origin).toEqual({ delta: 0, kind: 'committed' });
+		expect(refreshRead.payload.rowCount).toBe(grownResize.payload.rows);
+		const grownStart = 200n - BigInt(grownResize.payload.rows);
+
+		expect(
+			terminal.applyRows(
+				renderRowWindow(
+					BigInt(refreshRead.payload.requestSequence),
+					2n,
+					grownStart,
+					200n,
+					Array.from({ length: refreshRead.payload.rowCount }, (_, index) => `after-${index}`),
+					{ generation: 2n },
+				),
+			),
+		).toBe('committed');
+		expect(terminal.metadata?.rows).toBe(5);
+		const accessibilityRoot = root.children[2];
+		expect(accessibilityRoot?.children[0]?.attributes.get('data-terminal-absolute-row')).toBe(
+			grownStart.toString(),
+		);
+		terminal.dispose();
+	});
+
 	it('prioritizes queued wheel motion over a valid-anchor maintenance refresh', async () => {
 		const browser = createFakeBrowser();
 		vi.stubGlobal('document', browser.document);

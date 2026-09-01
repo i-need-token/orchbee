@@ -532,18 +532,23 @@ Desktop 只拥有以下三种显式 distribution profile：
 | 命令                           | 应用                | Bundle identifier                          | 数据根目录                      | 图标              | 输出 / release payload                      |
 | ------------------------------ | ------------------- | ------------------------------------------ | ------------------------------- | ----------------- | ------------------------------------------- |
 | `pnpm desktop:package:dev`     | `Orchbee Dev.app`   | `com.electron.orchbee.dev.d<scope-digest>` | `~/.orchbee-dev-<scope-digest>` | Electron 默认图标 | `apps/desktop/out/dev/`；development-signed |
-| `pnpm desktop:package:local`   | `Orchbee Local.app` | `com.electron.orchbee.local`               | `~/.orchbee-local`              | 绿色 Local 标记   | `apps/desktop/out/local/`；不包含           |
+| `pnpm desktop:package:local`   | `Orchbee Local.app` | `com.electron.orchbee.local`               | `~/.orchbee-local`              | Electron 默认图标 | `apps/desktop/out/local/`；不包含           |
 | `pnpm desktop:package:release` | `Orchbee.app`       | `com.electron.orchbee`                     | `~/.orchbee`                    | Electron 默认图标 | `apps/desktop/out/release/`；必须包含       |
 
-对于 `dev` profile，可选使用 `ORCHBEE_DESKTOP_DEVELOPMENT_APPLICATION_NAME` 为 `pnpm desktop` 和
-`pnpm desktop:package:dev` 覆盖默认的 `Orchbee Dev` 名称。该值必须为 1–64 个字符，不能有首尾空白，且
-不能包含路径分隔符、控制字符或平台无效的文件名字符。它只作为本地构建输入，并会持久化到 Dev
-distribution descriptor，使打包应用在没有该 shell 变量时仍保留所选名称。它不会改变 checkout 专属
-bundle identifier 或数据根目录；`local` 与 `release` 会忽略该变量。
+`ORCHBEE_DESKTOP_DEVELOPMENT_APPLICATION_NAME` 可以为 `pnpm desktop` 和
+`pnpm desktop:package:dev` 覆盖默认的 `Orchbee Dev` 名称。
+`ORCHBEE_DESKTOP_LOCAL_APPLICATION_NAME` 可以独立为 `pnpm desktop:package:local` 覆盖默认的
+`Orchbee Local` 名称。每个值都必须为 1–64 个字符，不能有首尾空白，且不能包含路径分隔符、控制字符或
+平台无效的文件名字符。所选名称会持久化到对应的 distribution descriptor，使打包应用在没有该 shell
+变量时仍保留该名称。两种覆盖均不会改变所属 profile 的 bundle identifier 或数据根目录；`release`
+profile 会忽略这两个变量。
 
 ```sh
 ORCHBEE_DESKTOP_DEVELOPMENT_APPLICATION_NAME="Orchbee Dev Canary" \
 pnpm desktop:package:dev
+
+ORCHBEE_DESKTOP_LOCAL_APPLICATION_NAME="Terminal" \
+pnpm desktop:package:local
 ```
 
 `pnpm desktop` 始终使用 `dev` 身份，但不会创建打包应用。仓库刻意不提供通用的

@@ -7,6 +7,7 @@ const DEVELOPMENT_SCOPE_DIGEST_LENGTH = 16;
 const DEVELOPMENT_SCOPE_DIGEST_VERSION = 1;
 const DESKTOP_DISTRIBUTION_DESCRIPTOR_SCHEMA_VERSION = 1;
 const DEFAULT_DESKTOP_DEVELOPMENT_APPLICATION_NAME = 'Orchbee Dev';
+const DEFAULT_DESKTOP_LOCAL_APPLICATION_NAME = 'Orchbee Local';
 const DESKTOP_APPLICATION_NAME_MAX_LENGTH = 64;
 const DESKTOP_APPLICATION_NAME_PATTERN = /^[^"*/:<>?\\|\p{Cc}]+$/u;
 const WINDOWS_RESERVED_APPLICATION_NAME_PATTERN =
@@ -15,6 +16,7 @@ const WINDOWS_RESERVED_APPLICATION_NAME_PATTERN =
 export const DESKTOP_DISTRIBUTION_DESCRIPTOR_FILE_NAME = 'desktop-distribution-v1.json';
 const DESKTOP_DEVELOPMENT_APPLICATION_NAME_ENVIRONMENT_KEY =
 	'ORCHBEE_DESKTOP_DEVELOPMENT_APPLICATION_NAME';
+const DESKTOP_LOCAL_APPLICATION_NAME_ENVIRONMENT_KEY = 'ORCHBEE_DESKTOP_LOCAL_APPLICATION_NAME';
 const DESKTOP_DISTRIBUTION_PROFILE_IDS = ['dev', 'local', 'release'] as const;
 
 const desktopApplicationNameSchema = z
@@ -41,6 +43,7 @@ const desktopDistributionDescriptorSchema = z.discriminatedUnion('profileId', [
 		schemaVersion: z.literal(DESKTOP_DISTRIBUTION_DESCRIPTOR_SCHEMA_VERSION),
 	}),
 	z.strictObject({
+		applicationName: desktopApplicationNameSchema.default(DEFAULT_DESKTOP_LOCAL_APPLICATION_NAME),
 		profileId: z.literal('local'),
 		schemaVersion: z.literal(DESKTOP_DISTRIBUTION_DESCRIPTOR_SCHEMA_VERSION),
 	}),
@@ -82,10 +85,10 @@ const DESKTOP_DISTRIBUTION_PROFILE_DEFINITIONS = {
 		releasePayload: 'development',
 	},
 	local: {
-		applicationName: 'Orchbee Local',
+		applicationName: DEFAULT_DESKTOP_LOCAL_APPLICATION_NAME,
 		baseBundleIdentifier: 'com.electron.orchbee.local',
 		dataRootDirectoryName: '.orchbee-local',
-		icon: { accentColor: '#168f5b', variant: 'local' },
+		icon: null,
 		outputDirectoryName: 'local',
 		packageName: 'orchbee-local',
 		releasePayload: 'excluded',
@@ -185,6 +188,10 @@ export function resolveDesktopDistributionProfile(
 	if (profileId === 'local') {
 		return {
 			...definition,
+			applicationName:
+				options.applicationName === undefined
+					? definition.applicationName
+					: parseDesktopApplicationName(options.applicationName, 'Desktop application name'),
 			bundleIdentifier: definition.baseBundleIdentifier,
 			dataScope: { kind: 'local' },
 			profileId,
@@ -201,11 +208,20 @@ export function resolveDesktopDistributionProfile(
 export function resolveDesktopDevelopmentApplicationName(
 	environment: Readonly<Record<string, string | undefined>>,
 ): string {
-	const configuredName = environment[DESKTOP_DEVELOPMENT_APPLICATION_NAME_ENVIRONMENT_KEY];
-	if (configuredName === undefined) return DEFAULT_DESKTOP_DEVELOPMENT_APPLICATION_NAME;
-	return parseDesktopApplicationName(
-		configuredName,
+	return resolveDesktopApplicationNameFromEnvironment(
+		environment,
 		DESKTOP_DEVELOPMENT_APPLICATION_NAME_ENVIRONMENT_KEY,
+		DEFAULT_DESKTOP_DEVELOPMENT_APPLICATION_NAME,
+	);
+}
+
+export function resolveDesktopLocalApplicationName(
+	environment: Readonly<Record<string, string | undefined>>,
+): string {
+	return resolveDesktopApplicationNameFromEnvironment(
+		environment,
+		DESKTOP_LOCAL_APPLICATION_NAME_ENVIRONMENT_KEY,
+		DEFAULT_DESKTOP_LOCAL_APPLICATION_NAME,
 	);
 }
 
@@ -221,6 +237,13 @@ function createDesktopDistributionDescriptor(
 				sourceRoot: profile.dataScope.sourceRoot,
 			},
 			profileId: 'dev',
+			schemaVersion: DESKTOP_DISTRIBUTION_DESCRIPTOR_SCHEMA_VERSION,
+		};
+	}
+	if (profile.profileId === 'local') {
+		return {
+			applicationName: profile.applicationName,
+			profileId: 'local',
 			schemaVersion: DESKTOP_DISTRIBUTION_DESCRIPTOR_SCHEMA_VERSION,
 		};
 	}
@@ -242,8 +265,13 @@ export function resolveDesktopDistributionDescriptor(
 	descriptor: DesktopDistributionDescriptor,
 	platform: NodeJS.Platform,
 ): DesktopDistributionProfile {
-	if (descriptor.profileId !== 'dev') {
-		return resolveDesktopDistributionProfile(descriptor.profileId);
+	if (descriptor.profileId === 'release') {
+		return resolveDesktopDistributionProfile('release');
+	}
+	if (descriptor.profileId === 'local') {
+		return resolveDesktopDistributionProfile('local', undefined, {
+			applicationName: descriptor.applicationName,
+		});
 	}
 	const scope = createDesktopDevelopmentScope(descriptor.developmentScope.sourceRoot, platform);
 	if (
@@ -255,6 +283,16 @@ export function resolveDesktopDistributionDescriptor(
 	return resolveDesktopDistributionProfile('dev', scope, {
 		applicationName: descriptor.applicationName,
 	});
+}
+
+function resolveDesktopApplicationNameFromEnvironment(
+	environment: Readonly<Record<string, string | undefined>>,
+	environmentKey: string,
+	defaultName: string,
+): string {
+	const configuredName = environment[environmentKey];
+	if (configuredName === undefined) return defaultName;
+	return parseDesktopApplicationName(configuredName, environmentKey);
 }
 
 function parseDesktopApplicationName(value: string, source: string): string {

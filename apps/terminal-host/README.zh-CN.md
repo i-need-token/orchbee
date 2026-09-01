@@ -64,7 +64,7 @@ Terminal Host 拥有：
 - 以准确 private prefix `orchbee.agent.v3;` 开始的 unknown APC 可以发布一个经 base64url decode 的有界 application signal。Reader-batch admission 是事务性的，最多 64 个已准入 signal 会保持 FIFO 顺序，outgoing backpressure 会保留精确 queue head 直至 commit。Host 不认证 emitter，不解释 Agent 或 provider state，也不请求产品或平台 notification。Protocol record 中的 literal channel `orchbee.agent.v1` 只是历史 Host-to-Desktop discriminator，不是 child wire sequence。OSC 9 与 OSC 777 等公开 notification channel 会被该 transport 忽略。
 - Ghostty进度报告项目仅是终端当前限定的本地样本；他们不断言流程完成或请求系统通知。
 - OSC 133 `C` 和 `D` 操作在事务上仅保留一个终端本地完成序列、单调持续时间、挂钟完成时间戳和标准化退出代码。主机从不保留或投影命令文本、参数、目录、环境或提醒输出；新鲜度、焦点、许可、速率限制和通知效果仍然是客户政策。
-- Ghostty pin 仍有效时，成功的网格 reflow 会保留跟随选择与已提交历史锚点，同时取消过时的行在途交付与已编码导出字节。屏幕替换和保留行淘汰仍是明确的选择淘汰边界。
+- Ghostty pin 仍有效时，成功的网格 reflow 会保留跟随选择与已提交历史锚点，同时取消过时的行在途交付与已编码导出字节。已提交视口读取会在请求窗口可容纳时保留该锚点；否则仅把起始位置向上移动到足以返回完整窗口。屏幕替换和保留行淘汰仍是明确的选择淘汰边界。
 - 公共选择导出请求和响应仅接受文字 `plain` 格式。 Ghostty 对 HTML 和原始 VT 的内部格式化程序支持不是主机协议功能，客户端无法选择。
 
 完整的状态模型、重试类、提交边界、不变量和证据矩阵位于[运行时合约](docs/runtime-model.md)中。

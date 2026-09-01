@@ -31,6 +31,7 @@ export const EnglishNotInstalled: Story = {
 	args: {
 		control: englishControl,
 		controller: englishController,
+		onOpenSettings: () => undefined,
 	},
 	decorators: [
 		(Story) => (
@@ -47,6 +48,7 @@ export const ChineseDisabled: Story = {
 	args: {
 		control: chineseControl,
 		controller: chineseController,
+		onOpenSettings: () => undefined,
 	},
 	decorators: [
 		(Story) => (

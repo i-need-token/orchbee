@@ -816,23 +816,27 @@ bundle path or identifier and never fall back to `/Applications/Orchbee.app`.
 
 Desktop owns exactly three explicit distribution profiles:
 
-| Command                        | Application         | Bundle identifier                          | Data root                       | Icon              | Output / release payload                    |
-| ------------------------------ | ------------------- | ------------------------------------------ | ------------------------------- | ----------------- | ------------------------------------------- |
-| `pnpm desktop:package:dev`     | `Orchbee Dev.app`   | `com.electron.orchbee.dev.d<scope-digest>` | `~/.orchbee-dev-<scope-digest>` | Electron default  | `apps/desktop/out/dev/`; development-signed |
-| `pnpm desktop:package:local`   | `Orchbee Local.app` | `com.electron.orchbee.local`               | `~/.orchbee-local`              | Green Local badge | `apps/desktop/out/local/`; excluded         |
-| `pnpm desktop:package:release` | `Orchbee.app`       | `com.electron.orchbee`                     | `~/.orchbee`                    | Electron default  | `apps/desktop/out/release/`; required       |
+| Command                        | Application         | Bundle identifier                          | Data root                       | Icon             | Output / release payload                    |
+| ------------------------------ | ------------------- | ------------------------------------------ | ------------------------------- | ---------------- | ------------------------------------------- |
+| `pnpm desktop:package:dev`     | `Orchbee Dev.app`   | `com.electron.orchbee.dev.d<scope-digest>` | `~/.orchbee-dev-<scope-digest>` | Electron default | `apps/desktop/out/dev/`; development-signed |
+| `pnpm desktop:package:local`   | `Orchbee Local.app` | `com.electron.orchbee.local`               | `~/.orchbee-local`              | Electron default | `apps/desktop/out/local/`; excluded         |
+| `pnpm desktop:package:release` | `Orchbee.app`       | `com.electron.orchbee`                     | `~/.orchbee`                    | Electron default | `apps/desktop/out/release/`; required       |
 
-For the `dev` profile, `ORCHBEE_DESKTOP_DEVELOPMENT_APPLICATION_NAME` optionally overrides the
-default `Orchbee Dev` name for `pnpm desktop` and `pnpm desktop:package:dev`. The value must be
-1–64 characters, have no leading or trailing whitespace, and contain no path separators, control
-characters, or platform-invalid filename characters. It is a local build input and is persisted in
-the Dev distribution descriptor so the packaged application keeps the selected name without the
-shell variable. It does not change the checkout-scoped bundle identifier or data root; `local` and
-`release` ignore it.
+`ORCHBEE_DESKTOP_DEVELOPMENT_APPLICATION_NAME` optionally overrides the default `Orchbee Dev` name
+for `pnpm desktop` and `pnpm desktop:package:dev`.
+`ORCHBEE_DESKTOP_LOCAL_APPLICATION_NAME` independently overrides the default `Orchbee Local` name
+for `pnpm desktop:package:local`. Each value must be 1–64 characters, have no leading or trailing
+whitespace, and contain no path separators, control characters, or platform-invalid filename
+characters. The selected name is persisted in the corresponding distribution descriptor so the
+packaged application keeps it without the shell variable. Neither override changes its profile's
+bundle identifier or data root, and the `release` profile ignores both variables.
 
 ```sh
 ORCHBEE_DESKTOP_DEVELOPMENT_APPLICATION_NAME="Orchbee Dev Canary" \
 pnpm desktop:package:dev
+
+ORCHBEE_DESKTOP_LOCAL_APPLICATION_NAME="Terminal" \
+pnpm desktop:package:local
 ```
 
 `pnpm desktop` always uses the `dev` identity but does not create a packaged application. There is

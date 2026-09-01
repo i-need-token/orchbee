@@ -2437,16 +2437,18 @@ export class WebGPURenderer {
 		const atlasGenerationBeforePreparation = this.atlasGeneration;
 		if (this.shouldResetShapingCache(buffer, shapings, columns)) this.resetAtlas();
 		const ensureEveryRow = this.atlasGeneration !== atlasGenerationBeforePreparation;
-		for (let y = 0; y < rows; y++) {
-			const row = buffer.rows[y];
-			const shaping = shapings[y];
-			if (!row || !shaping || (!ensureEveryRow && shapingChanged[y] === 0)) continue;
-			this.ensurePackedRowGlyphs(row, shaping, columns);
-		}
-		if (preeditLayout) {
-			for (const preeditRow of preeditLayout.rows) {
-				for (const cell of preeditRow.cells) this.ensureGlyph(cell.text, 0, cell.width);
-			}
+		if (
+			!this.ensurePackedFrameGlyphs(
+				buffer,
+				shapings,
+				columns,
+				preeditLayout,
+				shapingChanged,
+				ensureEveryRow,
+			)
+		) {
+			this.resetAtlas();
+			this.ensurePackedFrameGlyphs(buffer, shapings, columns, preeditLayout, shapingChanged, true);
 		}
 
 		const presentation = resolvePackedPresentationColors(
@@ -2570,11 +2572,34 @@ export class WebGPURenderer {
 		buffer.markRendered();
 	}
 
+	private ensurePackedFrameGlyphs(
+		buffer: PackedRendererSource,
+		shapings: readonly (PreparedPackedRowTextShaping | null)[],
+		columns: number,
+		preeditLayout: PreeditLayout | null,
+		shapingChanged: Uint8Array,
+		forceAll: boolean,
+	): boolean {
+		for (const [rowIndex, row] of buffer.rows.entries()) {
+			const shaping = shapings[rowIndex];
+			if (!shaping || (!forceAll && shapingChanged[rowIndex] === 0)) continue;
+			if (!this.ensurePackedRowGlyphs(row, shaping, columns)) return false;
+		}
+		if (preeditLayout) {
+			for (const preeditRow of preeditLayout.rows) {
+				for (const cell of preeditRow.cells) {
+					if (this.ensureGlyph(cell.text, 0, cell.width) === null) return false;
+				}
+			}
+		}
+		return true;
+	}
+
 	private ensurePackedRowGlyphs(
 		row: PackedRendererRow,
 		shaping: PreparedPackedRowTextShaping,
 		columns: number,
-	): void {
+	): boolean {
 		for (let x = 0; x < columns; x++) {
 			const width = packedCellWidth(row.widths[x] ?? TerminalCellWidthCode.spacerTail);
 			const flags = row.styleFlags[x] ?? 0;
@@ -2588,14 +2613,19 @@ export class WebGPURenderer {
 			if (span && span.start !== x) continue;
 			const text = span?.text ?? shaping.texts[x] ?? '';
 			if (text.length === 0) continue;
-			this.ensureGlyph(
-				text,
-				flags,
-				span?.columns ?? width,
-				span ? 0 : (shaping.codepoints[x] ?? 0),
-				this.packedConstraintWidth(row, shaping, x, columns),
-			);
+			if (
+				this.ensureGlyph(
+					text,
+					flags,
+					span?.columns ?? width,
+					span ? 0 : (shaping.codepoints[x] ?? 0),
+					this.packedConstraintWidth(row, shaping, x, columns),
+				) === null
+			) {
+				return false;
+			}
 		}
+		return true;
 	}
 
 	private preparePackedWebGPURow(

@@ -13,6 +13,7 @@ pub const Origin = contracts.Origin;
 pub const RevisionPolicy = contracts.RevisionPolicy;
 pub const ReadRequest = contracts.ReadRequest;
 pub const EncodedRows = contracts.EncodedRows;
+pub const OwnedEncodedRows = contracts.OwnedEncodedRows;
 pub const HistoryDemand = contracts.HistoryDemand;
 pub const AnchorStatus = contracts.AnchorStatus;
 pub const HistoryEvent = contracts.HistoryEvent;

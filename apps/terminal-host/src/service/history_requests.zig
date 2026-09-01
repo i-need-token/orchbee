@@ -14,7 +14,7 @@ const Outgoing = host_outgoing.Outgoing;
 const WireIdentifier = identifiers.IdentifierBytes;
 const interactionFailure = host_failure.fromInteraction;
 const prepareControlResponse = host_response.prepareControl;
-const prepareResponse = host_response.prepare;
+const prepareOwnedResponse = host_response.prepareOwned;
 const responseDelivery = host_response.responseDelivery;
 
 pub fn dispatch(
@@ -91,15 +91,15 @@ const Handler = struct {
             try self.context.addFailure(outgoing, correlation_id, "limit-exceeded", "ReadRows exceeds negotiated rowWindowBytes", false);
             return;
         }
-        var response = try prepareResponse(
+        var response = try prepareOwnedResponse(
             outgoing,
-            @max(request.maximum_bytes, protocol.Limits.control_json_bytes),
+            request.maximum_bytes,
             responseDelivery(correlation_id, self.context.hostEpoch()),
         );
         defer response.deinit();
-        const rows = interaction.readRowsInto(
-            self.context.allocator,
-            response.payloadBuffer(),
+        var rows = interaction.readRowsOwned(
+            outgoing.ownedPayloadAllocator(),
+            host_outgoing.owned_payload_prefix_bytes,
             .{
                 .detail = request.detail,
                 .generation = request.generation,
@@ -117,7 +117,16 @@ const Handler = struct {
             response.commitFailure(interactionFailure(err, "ReadRows failed"));
             return;
         };
-        _ = response.commitRowWindowSuccess(success, rows.bytes.len);
+        defer if (rows.allocation.len != 0) {
+            outgoing.ownedPayloadAllocator().free(rows.allocation);
+        };
+        _ = response.commitRowWindowSuccess(
+            success,
+            rows.allocation,
+            rows.encoded.bytes,
+        );
+        rows.allocation = &.{};
+        rows.encoded.bytes = &.{};
     }
 
     fn handleRowsApplied(

@@ -16,6 +16,7 @@ const Purpose = contracts.Purpose;
 const Origin = contracts.Origin;
 const ReadRequest = contracts.ReadRequest;
 const EncodedRows = contracts.EncodedRows;
+const OwnedEncodedRows = contracts.OwnedEncodedRows;
 const HistoryDemand = contracts.HistoryDemand;
 const AnchorStatus = contracts.AnchorStatus;
 const HistoryEvent = contracts.HistoryEvent;
@@ -90,6 +91,20 @@ pub const Manager = struct {
         request: ReadRequest,
     ) (HistoryError || std.mem.Allocator.Error)!EncodedRows {
         return rows_ops.readRows(self, output_allocator, terminal, current_revision, current_generation, cell_pixel_width, cell_pixel_height, request);
+    }
+
+    pub fn readRowsOwned(
+        self: *Manager,
+        output_allocator: std.mem.Allocator,
+        output_prefix_bytes: usize,
+        terminal: *ghostty_vt.Terminal,
+        current_revision: u64,
+        current_generation: u64,
+        cell_pixel_width: u16,
+        cell_pixel_height: u16,
+        request: ReadRequest,
+    ) (HistoryError || std.mem.Allocator.Error)!OwnedEncodedRows {
+        return rows_ops.readRowsOwned(self, output_allocator, output_prefix_bytes, terminal, current_revision, current_generation, cell_pixel_width, cell_pixel_height, request);
     }
 
     pub fn readRowsInto(

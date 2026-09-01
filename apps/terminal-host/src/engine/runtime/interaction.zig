@@ -37,6 +37,28 @@ pub fn readHistoryRows(
     );
 }
 
+pub fn readHistoryRowsOwned(
+    self: *state.State,
+    output_allocator: std.mem.Allocator,
+    output_prefix_bytes: usize,
+    request: contracts.HistoryReadRequest,
+) !contracts.OwnedHistoryRows {
+    self.terminal_mutex.lock();
+    defer self.terminal_mutex.unlock();
+    try failure_ops.ensureReadableStateAvailableLocked(self);
+    self.history.animation_tick = self.animation_tick;
+    return self.history.readRowsOwned(
+        output_allocator,
+        output_prefix_bytes,
+        &self.terminal,
+        self.revision.load(.monotonic),
+        self.generation,
+        self.cell_pixel_width,
+        self.cell_pixel_height,
+        request,
+    );
+}
+
 pub fn readHistoryRowsInto(
     self: *state.State,
     scratch_allocator: std.mem.Allocator,

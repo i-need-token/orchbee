@@ -13,6 +13,7 @@ const Purpose = contracts.Purpose;
 const Origin = contracts.Origin;
 const ReadRequest = contracts.ReadRequest;
 const EncodedRows = contracts.EncodedRows;
+const OwnedEncodedRows = contracts.OwnedEncodedRows;
 const HistoryDemand = contracts.HistoryDemand;
 const AnchorStatus = contracts.AnchorStatus;
 const HistoryEvent = contracts.HistoryEvent;
@@ -36,11 +37,22 @@ const ExportInvalidationSnapshot = contracts.ExportInvalidationSnapshot;
 const HistoryError = contracts.HistoryError;
 const AttachmentState = storage.AttachmentState;
 const RowEncodingTarget = union(enum) {
-    allocated: std.mem.Allocator,
+    allocated: struct {
+        allocator: std.mem.Allocator,
+        output_prefix_bytes: usize,
+    },
     fixed: struct {
         destination: []u8,
         scratch_allocator: std.mem.Allocator,
     },
+};
+const RowEncodingOutput = struct {
+    allocation: ?[]u8,
+    bytes: []u8,
+};
+const ReadRowsOutput = struct {
+    allocation: ?[]u8,
+    encoded: EncodedRows,
 };
 const max_row_window_bytes = row_encoding.max_bytes;
 const row_window_header_bytes = row_encoding.header_bytes;
@@ -56,9 +68,10 @@ pub fn readRows(
     cell_pixel_height: u16,
     request: ReadRequest,
 ) (HistoryError || std.mem.Allocator.Error)!EncodedRows {
-    return readRowsTo(
+    const owned = try readRowsOwned(
         self,
-        .{ .allocated = output_allocator },
+        output_allocator,
+        0,
         terminal,
         current_revision,
         current_generation,
@@ -66,6 +79,39 @@ pub fn readRows(
         cell_pixel_height,
         request,
     );
+    std.debug.assert(owned.allocation.ptr == owned.encoded.bytes.ptr);
+    std.debug.assert(owned.allocation.len == owned.encoded.bytes.len);
+    return owned.encoded;
+}
+
+pub fn readRowsOwned(
+    self: anytype,
+    output_allocator: std.mem.Allocator,
+    output_prefix_bytes: usize,
+    terminal: *ghostty_vt.Terminal,
+    current_revision: u64,
+    current_generation: u64,
+    cell_pixel_width: u16,
+    cell_pixel_height: u16,
+    request: ReadRequest,
+) (HistoryError || std.mem.Allocator.Error)!OwnedEncodedRows {
+    const output = try readRowsTo(
+        self,
+        .{ .allocated = .{
+            .allocator = output_allocator,
+            .output_prefix_bytes = output_prefix_bytes,
+        } },
+        terminal,
+        current_revision,
+        current_generation,
+        cell_pixel_width,
+        cell_pixel_height,
+        request,
+    );
+    return .{
+        .allocation = output.allocation.?,
+        .encoded = output.encoded,
+    };
 }
 
 pub fn readRowsInto(
@@ -79,7 +125,7 @@ pub fn readRowsInto(
     cell_pixel_height: u16,
     request: ReadRequest,
 ) (HistoryError || std.mem.Allocator.Error)!EncodedRows {
-    return readRowsTo(
+    const output = try readRowsTo(
         self,
         .{ .fixed = .{
             .destination = destination,
@@ -92,9 +138,11 @@ pub fn readRowsInto(
         cell_pixel_height,
         request,
     );
+    std.debug.assert(output.allocation == null);
+    return output.encoded;
 }
 
-pub fn readRowsTo(
+fn readRowsTo(
     self: anytype,
     target: RowEncodingTarget,
     terminal: *ghostty_vt.Terminal,
@@ -103,7 +151,7 @@ pub fn readRowsTo(
     cell_pixel_width: u16,
     cell_pixel_height: u16,
     request: ReadRequest,
-) (HistoryError || std.mem.Allocator.Error)!EncodedRows {
+) (HistoryError || std.mem.Allocator.Error)!ReadRowsOutput {
     switch (request.revision_policy) {
         .exact => if (request.revision != current_revision) return error.StaleRevision,
         .current_view => if (request.purpose != .viewport or switch (request.origin) {
@@ -168,18 +216,32 @@ pub fn readRowsTo(
         .start_row = start_row,
         .total_rows = total_rows,
     };
-    const encoded = switch (target) {
-        .allocated => |allocator| try row_encoding.encode(allocator, terminal, parameters),
-        .fixed => |fixed| try row_encoding.encodeInto(
-            fixed.scratch_allocator,
-            terminal,
-            parameters,
-            fixed.destination,
-        ),
+    const encoded: RowEncodingOutput = switch (target) {
+        .allocated => |output| blk: {
+            const owned = try row_encoding.encodeOwned(
+                output.allocator,
+                output.output_prefix_bytes,
+                terminal,
+                parameters,
+            );
+            break :blk .{
+                .allocation = owned.allocation,
+                .bytes = owned.bytes,
+            };
+        },
+        .fixed => |fixed| .{
+            .allocation = null,
+            .bytes = try row_encoding.encodeInto(
+                fixed.scratch_allocator,
+                terminal,
+                parameters,
+                fixed.destination,
+            ),
+        },
     };
-    errdefer switch (target) {
-        .allocated => |allocator| allocator.free(encoded),
-        .fixed => {},
+    errdefer if (encoded.allocation) |allocation| switch (target) {
+        .allocated => |output| output.allocator.free(allocation),
+        .fixed => unreachable,
     };
 
     if (request.purpose == .viewport) {
@@ -195,13 +257,16 @@ pub fn readRowsTo(
     }
     state.last_row_request_sequence = request.request_sequence;
     return .{
-        .bytes = encoded,
-        .generation = current_generation,
-        .revision = current_revision,
-        .row_count = row_count,
-        .sequence = request.request_sequence,
-        .start_row = start_row,
-        .total_rows = total_rows,
+        .allocation = encoded.allocation,
+        .encoded = .{
+            .bytes = encoded.bytes,
+            .generation = current_generation,
+            .revision = current_revision,
+            .row_count = row_count,
+            .sequence = request.request_sequence,
+            .start_row = start_row,
+            .total_rows = total_rows,
+        },
     };
 }
 
@@ -281,7 +346,8 @@ pub fn resolveStart(
             const base: i64 = point.screen.y;
             const candidate = std.math.add(i64, base, delta) catch
                 if (delta < 0) @as(i64, 0) else std.math.maxInt(i64);
-            break :blk @intCast(@min(@max(candidate, 0), @as(i64, @intCast(total - 1))));
+            const maximum_start = total - @min(total, @as(u64, row_count));
+            break :blk @intCast(@min(@max(candidate, 0), @as(i64, @intCast(maximum_start))));
         },
     };
 }

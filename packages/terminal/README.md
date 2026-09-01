@@ -486,6 +486,28 @@ before any queued history intent can run.
 Clear, screen replacement, eviction, or any other invalid anchor resumes bottom projection while a
 fresh snapshot replaces the last readable history window.
 
+### Retained-history resize model
+
+The resize owner may propose a newly measured grid while retained history is visible, but that
+proposal does not become history-presentation authority until a newer Host generation reports the
+committed anchor as valid. The client then refreshes from that anchor using the proposed visible
+row count; after the row window commits, its metadata owns subsequent history navigation. The Host
+preserves the committed logical top when a full window fits and otherwise moves the start upward
+just enough to return a full window. Thus growing a surface never leaves an unmodeled blank band
+below a valid retained-history viewport.
+
+| Input and state                                                                            | Result                                                                                                               |
+| ------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------- |
+| Following bottom                                                                           | Live-frame geometry remains authoritative; no history refresh is introduced.                                         |
+| Valid retained-history anchor and a newer Host generation matching a local resize proposal | Refresh with the proposal's visible row count, then commit the Host-returned start and row-window metadata.          |
+| Committed anchor is too close to the retained tail for the enlarged row count              | Keep the anchor when possible, otherwise clamp the start to `totalRows - rowCount` so the returned viewport is full. |
+| Resize is rejected, the attachment is not the resize owner, or the anchor is invalid       | Do not adopt the proposal; retain the last readable window or enter the existing bottom-recovery path.               |
+
+This changes neither PTY resize ownership nor the row-flight state machine, protocol, overscan
+bound, or invalid-anchor recovery. Deterministic projected-terminal and Terminal Host tests cover
+the resize-event/row-window trace and the near-tail clamp; the existing row-flight TLA+ model
+continues to own ordering and settlement because this rule adds no state or transition to it.
+
 Once a viewport read, exact buffer read, or asynchronous link effect installs its local
 correlation, command publication is part of that operation's settlement boundary. A synchronous
 refusal or throw, or a later send-Promise rejection, retires only the captured request sequence:

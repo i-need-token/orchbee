@@ -140,6 +140,58 @@ test "current-view viewport rows survive revision churn while exact reads remain
     );
 }
 
+test "committed viewport grows upward near the retained tail" {
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
+        .cols = 8,
+        .max_scrollback_bytes = 1_000_000,
+        .rows = 2,
+    });
+    defer terminal.deinit(std.testing.allocator);
+    while (terminal.screens.active.pages.total_rows < 10) {
+        try terminal.printString("\r\nrow");
+    }
+    const total_rows: u64 = @intCast(terminal.screens.active.pages.total_rows);
+
+    var manager = Manager.init(std.testing.allocator);
+    defer manager.deinit(&terminal);
+    const attachment = attachmentId(0x33);
+    try manager.attach(attachment);
+
+    const initial = try manager.readRows(std.testing.allocator, &terminal, 1, 1, 8, 16, .{
+        .attachment_id = attachment,
+        .detail = .text,
+        .generation = 1,
+        .host_epoch = hostEpoch(1),
+        .maximum_bytes = max_row_window_bytes,
+        .origin = .{ .tail = 1 },
+        .purpose = .viewport,
+        .request_sequence = 1,
+        .revision = 1,
+        .revision_policy = .current_view,
+        .row_count = 2,
+    });
+    defer std.testing.allocator.free(initial.bytes);
+    try std.testing.expectEqual(total_rows - 3, initial.start_row);
+    try manager.rowsApplied(&terminal, attachment, 1, 1, 1);
+
+    const grown = try manager.readRows(std.testing.allocator, &terminal, 1, 1, 8, 16, .{
+        .attachment_id = attachment,
+        .detail = .text,
+        .generation = 1,
+        .host_epoch = hostEpoch(1),
+        .maximum_bytes = max_row_window_bytes,
+        .origin = .{ .committed = 0 },
+        .purpose = .viewport,
+        .request_sequence = 2,
+        .revision = 1,
+        .revision_policy = .current_view,
+        .row_count = 5,
+    });
+    defer std.testing.allocator.free(grown.bytes);
+    try std.testing.expectEqual(total_rows - 5, grown.start_row);
+    try std.testing.expectEqual(@as(u16, 5), grown.row_count);
+}
+
 test "current-view row policy rejects non-viewport and absolute origins" {
     var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = 8,

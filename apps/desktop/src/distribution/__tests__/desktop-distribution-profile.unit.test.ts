@@ -8,10 +8,12 @@ import {
 	resolveDesktopDevelopmentApplicationName,
 	resolveDesktopDistributionDescriptor,
 	resolveDesktopDistributionProfile,
+	resolveDesktopLocalApplicationName,
 } from '../desktop-distribution-profile';
 
 const DESKTOP_DEVELOPMENT_APPLICATION_NAME_ENVIRONMENT_KEY =
 	'ORCHBEE_DESKTOP_DEVELOPMENT_APPLICATION_NAME';
+const DESKTOP_LOCAL_APPLICATION_NAME_ENVIRONMENT_KEY = 'ORCHBEE_DESKTOP_LOCAL_APPLICATION_NAME';
 
 describe('Desktop distribution profiles', () => {
 	it('resolves the three explicit application identities and release policies', () => {
@@ -47,7 +49,7 @@ describe('Desktop distribution profiles', () => {
 				applicationName: 'Orchbee Local',
 				bundleIdentifier: 'com.electron.orchbee.local',
 				dataScope: 'local',
-				icon: { accentColor: '#168f5b', variant: 'local' },
+				icon: null,
 				outputDirectoryName: 'local',
 				releasePayload: 'excluded',
 			},
@@ -70,27 +72,52 @@ describe('Desktop distribution profiles', () => {
 		});
 	});
 
-	it('overrides only the development application name from the local environment', () => {
+	it('overrides development and local application names from their own environment keys', () => {
 		const developmentScope = createDesktopDevelopmentScope('/source/orchbee', 'darwin');
-		const applicationName = 'Orchbee Dev Canary';
-		const profile = resolveDesktopDistributionProfile('dev', developmentScope, { applicationName });
-		const descriptor = parseDesktopDistributionDescriptor(
-			JSON.parse(encodeDesktopDistributionDescriptor(profile)),
+		const developmentApplicationName = 'Orchbee Dev Canary';
+		const developmentProfile = resolveDesktopDistributionProfile('dev', developmentScope, {
+			applicationName: developmentApplicationName,
+		});
+		const localApplicationName = 'Terminal';
+		const localProfile = resolveDesktopDistributionProfile('local', undefined, {
+			applicationName: localApplicationName,
+		});
+		const localDescriptor = parseDesktopDistributionDescriptor(
+			JSON.parse(encodeDesktopDistributionDescriptor(localProfile)),
 		);
 
 		expect(
 			resolveDesktopDevelopmentApplicationName({
-				[DESKTOP_DEVELOPMENT_APPLICATION_NAME_ENVIRONMENT_KEY]: applicationName,
+				[DESKTOP_DEVELOPMENT_APPLICATION_NAME_ENVIRONMENT_KEY]: developmentApplicationName,
 			}),
-		).toBe(applicationName);
-		expect(resolveDesktopDistributionDescriptor(descriptor, 'darwin')).toEqual(profile);
-		expect(profile.bundleIdentifier).toBe(
+		).toBe(developmentApplicationName);
+		expect(
+			resolveDesktopLocalApplicationName({
+				[DESKTOP_LOCAL_APPLICATION_NAME_ENVIRONMENT_KEY]: localApplicationName,
+			}),
+		).toBe(localApplicationName);
+		expect(resolveDesktopDistributionDescriptor(localDescriptor, 'darwin')).toEqual(localProfile);
+		expect(developmentProfile.bundleIdentifier).toBe(
 			resolveDesktopDistributionProfile('dev', developmentScope).bundleIdentifier,
+		);
+		expect(localProfile.bundleIdentifier).toBe(
+			resolveDesktopDistributionProfile('local').bundleIdentifier,
 		);
 	});
 
-	it('uses the default development name and rejects unsafe local overrides', () => {
+	it('uses profile defaults and rejects unsafe local overrides', () => {
 		expect(resolveDesktopDevelopmentApplicationName({})).toBe('Orchbee Dev');
+		expect(resolveDesktopLocalApplicationName({})).toBe('Orchbee Local');
+		expect(
+			resolveDesktopDevelopmentApplicationName({
+				[DESKTOP_LOCAL_APPLICATION_NAME_ENVIRONMENT_KEY]: 'Wrong Profile',
+			}),
+		).toBe('Orchbee Dev');
+		expect(
+			resolveDesktopLocalApplicationName({
+				[DESKTOP_DEVELOPMENT_APPLICATION_NAME_ENVIRONMENT_KEY]: 'Wrong Profile',
+			}),
+		).toBe('Orchbee Local');
 		const invalidNames = [
 			'',
 			' Orchbee Dev',
@@ -110,6 +137,11 @@ describe('Desktop distribution profiles', () => {
 					[DESKTOP_DEVELOPMENT_APPLICATION_NAME_ENVIRONMENT_KEY]: applicationName,
 				}),
 			).toThrow(DESKTOP_DEVELOPMENT_APPLICATION_NAME_ENVIRONMENT_KEY);
+			expect(() =>
+				resolveDesktopLocalApplicationName({
+					[DESKTOP_LOCAL_APPLICATION_NAME_ENVIRONMENT_KEY]: applicationName,
+				}),
+			).toThrow(DESKTOP_LOCAL_APPLICATION_NAME_ENVIRONMENT_KEY);
 		}
 	});
 
@@ -177,6 +209,23 @@ describe('Desktop distribution profiles', () => {
 				'darwin',
 			),
 		).toThrow('invalid scope digest');
+	});
+
+	it('round-trips a named local descriptor and defaults an older local descriptor', () => {
+		const profile = resolveDesktopDistributionProfile('local', undefined, {
+			applicationName: 'Terminal',
+		});
+		const descriptor = parseDesktopDistributionDescriptor(
+			JSON.parse(encodeDesktopDistributionDescriptor(profile)),
+		);
+
+		expect(resolveDesktopDistributionDescriptor(descriptor, 'darwin')).toEqual(profile);
+		expect(
+			resolveDesktopDistributionDescriptor(
+				parseDesktopDistributionDescriptor({ profileId: 'local', schemaVersion: 1 }),
+				'darwin',
+			),
+		).toEqual(resolveDesktopDistributionProfile('local'));
 	});
 
 	it('rejects missing and unknown descriptor fields', () => {

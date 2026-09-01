@@ -28,6 +28,7 @@ pub const ApplicationSignalEvent = contracts.ApplicationSignalEvent;
 pub const HistoryEvent = contracts.HistoryEvent;
 pub const HistoryReadRequest = contracts.HistoryReadRequest;
 pub const HistoryRows = contracts.HistoryRows;
+pub const OwnedHistoryRows = contracts.OwnedHistoryRows;
 pub const SelectionCommandRequest = contracts.SelectionCommandRequest;
 pub const SelectionExportCancellation = contracts.SelectionExportCancellation;
 pub const PreparedSelectionExportCancellation = contracts.PreparedSelectionExportCancellation;

@@ -35,6 +35,7 @@ import {
 	parseDesktopDistributionProfileArguments,
 	resolveDesktopDevelopmentApplicationName,
 	resolveDesktopDistributionProfile,
+	resolveDesktopLocalApplicationName,
 } from '../src/distribution/desktop-distribution-profile.ts';
 
 const electronPackage = createRequire(import.meta.url)('electron/package.json');
@@ -49,12 +50,19 @@ const developmentScope =
 	profileId === 'dev'
 		? createDesktopDevelopmentScope(await realpath(repositoryRoot), process.platform)
 		: undefined;
-const distributionProfile =
-	profileId === 'dev'
-		? resolveDesktopDistributionProfile(profileId, developmentScope, {
-				applicationName: resolveDesktopDevelopmentApplicationName(process.env),
-			})
-		: resolveDesktopDistributionProfile(profileId, developmentScope);
+const distributionProfile = (() => {
+	if (profileId === 'dev') {
+		return resolveDesktopDistributionProfile(profileId, developmentScope, {
+			applicationName: resolveDesktopDevelopmentApplicationName(process.env),
+		});
+	}
+	if (profileId === 'local') {
+		return resolveDesktopDistributionProfile(profileId, undefined, {
+			applicationName: resolveDesktopLocalApplicationName(process.env),
+		});
+	}
+	return resolveDesktopDistributionProfile(profileId);
+})();
 const usesDarwinApplicationIcon =
 	process.platform === 'darwin' && distributionProfile.icon !== null;
 const environmentReleaseConfiguration = await resolveEnvironmentReleaseConfiguration();

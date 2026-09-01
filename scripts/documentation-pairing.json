@@ -26,8 +26,8 @@
 			"zhCnSha256": "26d5cd462fe3e5127aea6ee408eaeb8dfc7df659ca009e609489271d8c803f9c"
 		},
 		"apps/desktop/README.md": {
-			"englishSha256": "8af5f5f0db3c44db4c3a3bf86578c04c7545a37a4e12f884b73b6e61f49cf3bd",
-			"zhCnSha256": "0e7f3771e0140d0fea27c5b8310d20c2a7156dee05f002ca305b4346bac5f246"
+			"englishSha256": "d753c139423107f55c99643ab941b5a3b8e605e2ae56e0524c51e861971e4228",
+			"zhCnSha256": "37650f083c37e9ccffe7f73edafedd64b1c7d11fe770da4a78e481e205557671"
 		},
 		"apps/desktop/docs/agent-integrations.md": {
 			"englishSha256": "cb336e7dbd2168072c2631f73dce296c971c73491e93a43201ab1b2bf90252a6",
@@ -114,8 +114,8 @@
 			"zhCnSha256": "df2c06ecb76fe0dba5a9fe02d6a67b6a0ee24ae9406124ccdd322e805dbe801d"
 		},
 		"apps/terminal-host/README.md": {
-			"englishSha256": "fba8a463365c9ff4c9d5719184c1b2b4d8d6f11da7a3d94da5d58ec1ccb31d4e",
-			"zhCnSha256": "82107e273d6433dbfbea198d6680b57f881692583a094ddd782a928df32258fc"
+			"englishSha256": "7c2afa8f80a9102f8121f9ce76a2897cbe93b9cf87f2bd3cf86791c084ab5a33",
+			"zhCnSha256": "4409f83a6576bc0b5ea9e5ad1b9644934826fe22df846d71dd44090e04024fb0"
 		},
 		"apps/terminal-host/docs/module-boundaries.md": {
 			"englishSha256": "bc7127a66ff3b985a16fcf182e29e6aec1831c002cbfde3c32006489e39dbb5f",
@@ -334,8 +334,8 @@
 			"zhCnSha256": "dfb5c4900e7cd2667be34b24d3667d56bcfbe8fe818f8773fa8f6eaa466233c6"
 		},
 		"packages/terminal/README.md": {
-			"englishSha256": "fc2e1b5001deb8cb44fb964a71d1ec879057e5afd9c049822e2ebc774f0791e2",
-			"zhCnSha256": "fe2f869fa1dba0fcc9608ab80e694a01f2c0b679ae704f2494b7e2b187ffe04d"
+			"englishSha256": "7f67b699acd8400225c50c46efcd09008eeae6b4169e221d6bcad1e789ea9c2f",
+			"zhCnSha256": "3ce36d6d28cb225b31fd42a83561b2c65f31396ba321492161c7a56e890143a8"
 		},
 		"packages/terminal/docs/ghostty-surface-test-provenance.md": {
 			"englishSha256": "8598488d8854fd01091f61f3d80870362284aba3003d7b9b41426be1c08e3405",

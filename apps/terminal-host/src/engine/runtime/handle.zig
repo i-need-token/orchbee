@@ -312,6 +312,20 @@ pub const TerminalRuntime = opaque {
         return interaction_ops.readHistoryRows(stateFrom(self), output_allocator, request);
     }
 
+    pub fn readHistoryRowsOwned(
+        self: *TerminalRuntime,
+        output_allocator: std.mem.Allocator,
+        output_prefix_bytes: usize,
+        request: contracts.HistoryReadRequest,
+    ) !contracts.OwnedHistoryRows {
+        return interaction_ops.readHistoryRowsOwned(
+            stateFrom(self),
+            output_allocator,
+            output_prefix_bytes,
+            request,
+        );
+    }
+
     pub fn readHistoryRowsInto(
         self: *TerminalRuntime,
         scratch_allocator: std.mem.Allocator,

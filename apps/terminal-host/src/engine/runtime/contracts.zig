@@ -221,6 +221,7 @@ pub const HistoryDemand = terminal_history.HistoryDemand;
 pub const HistoryEvent = terminal_history.HistoryEvent;
 pub const HistoryReadRequest = terminal_history.ReadRequest;
 pub const HistoryRows = terminal_history.EncodedRows;
+pub const OwnedHistoryRows = terminal_history.OwnedEncodedRows;
 pub const SelectionCommandRequest = terminal_history.SelectionCommandRequest;
 pub const SelectionExportCancellation = terminal_history.ExportCancellation;
 pub const PreparedSelectionExportCancellation = terminal_history.PreparedExportCancellation;

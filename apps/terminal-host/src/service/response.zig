@@ -134,6 +134,63 @@ pub const PreparedResponse = struct {
     }
 };
 
+/// Reserves the maximum response capacity while retaining only a small failure
+/// buffer. A successful producer transfers its exact envelope-ready allocation
+/// into the reserved slot without another allocation or payload copy.
+pub const PreparedOwnedResponse = struct {
+    allocator: std.mem.Allocator,
+    failure_allocation: ?[]u8,
+    record: host_outgoing.RecordCapacityReservation,
+
+    pub fn deinit(self: *PreparedOwnedResponse) void {
+        if (self.failure_allocation) |allocation| self.allocator.free(allocation);
+        self.record.deinit();
+        self.* = undefined;
+    }
+
+    pub fn commitRowWindowSuccess(
+        self: *PreparedOwnedResponse,
+        success: RowWindowSuccess,
+        allocation: []u8,
+        payload: []const u8,
+    ) host_outgoing.AppendToken {
+        std.debug.assert(
+            allocation.len == host_outgoing.owned_payload_prefix_bytes + payload.len,
+        );
+        const failure_allocation = self.failure_allocation.?;
+        self.allocator.free(failure_allocation);
+        self.failure_allocation = null;
+        return self.record.commitOwnedPayload(
+            success.kind,
+            .row_window,
+            allocation,
+            payload,
+        );
+    }
+
+    pub fn commitFailure(
+        self: *PreparedOwnedResponse,
+        failure: FailureDetails,
+    ) void {
+        const allocation = self.failure_allocation.?;
+        const payload_buffer = allocation[host_outgoing.owned_payload_prefix_bytes..];
+        var output: std.Io.Writer = .fixed(payload_buffer);
+        control_encode.writeTypedFailure(
+            &output,
+            failure.code,
+            failure.message,
+            failure.retryable,
+        ) catch unreachable;
+        _ = self.record.commitOwnedPayload(
+            MessageKind.typed_failure,
+            .control_json,
+            allocation,
+            output.buffered(),
+        );
+        self.failure_allocation = null;
+    }
+};
+
 pub fn requireAppended(
     outcome: host_outgoing.AppendOutcome,
 ) !host_outgoing.AppendToken {
@@ -196,6 +253,35 @@ pub fn prepare(
         .full => return error.OutgoingCapacityInvariant,
         .reserved => |reservation| reservation,
     } };
+}
+
+pub fn prepareOwned(
+    outgoing: *host_outgoing.Outgoing,
+    maximum_payload_length: usize,
+    delivery: host_outgoing.Delivery,
+) !PreparedOwnedResponse {
+    const reserved_payload_length = @max(
+        maximum_payload_length,
+        protocol.Limits.control_json_bytes,
+    );
+    var record = switch (try outgoing.reserveCapacity(
+        reserved_payload_length,
+        delivery,
+    )) {
+        .full => return error.OutgoingCapacityInvariant,
+        .reserved => |reservation| reservation,
+    };
+    errdefer record.deinit();
+    const allocator = outgoing.ownedPayloadAllocator();
+    const failure_allocation = try allocator.alloc(
+        u8,
+        host_outgoing.owned_payload_prefix_bytes + protocol.Limits.control_json_bytes,
+    );
+    return .{
+        .allocator = allocator,
+        .failure_allocation = failure_allocation,
+        .record = record,
+    };
 }
 
 pub fn prepareControl(

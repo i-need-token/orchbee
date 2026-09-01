@@ -994,6 +994,7 @@ export class ProjectedTerminal {
 	#frameHandle: ScheduledFrame | undefined;
 	#scheduledRenderForceAll = false;
 	#historyGeneration = 1n;
+	#historyViewportGeometry: ResizeGeometry | undefined;
 	#historyIntentEpoch = 0n;
 	#historyPhase: ProjectedHistoryPhase = ProjectedHistoryPhase.followingBottom;
 	#historyRevision = 0n;
@@ -2447,10 +2448,10 @@ export class ProjectedTerminal {
 
 	notifyHistoryChanged(event: HistoryChanged): void {
 		if (event.attachmentId !== this.#attachmentId) return;
-		const changed =
-			BigInt(event.generation) !== this.#historyGeneration ||
-			BigInt(event.revision) !== this.#historyRevision;
-		this.#historyGeneration = BigInt(event.generation);
+		const nextGeneration = BigInt(event.generation);
+		const generationChanged = nextGeneration !== this.#historyGeneration;
+		const changed = generationChanged || BigInt(event.revision) !== this.#historyRevision;
+		this.#historyGeneration = nextGeneration;
 		this.#historyRevision = BigInt(event.revision);
 		this.#historyTotalRows = BigInt(event.totalRows);
 		this.#send({
@@ -2475,6 +2476,11 @@ export class ProjectedTerminal {
 				this.#clearTailPresentation(true);
 			}
 			return;
+		}
+		if (event.anchorStatus !== 'valid') {
+			this.#historyViewportGeometry = undefined;
+		} else if (generationChanged && this.#ownsResizeLease && this.#lastGeometry !== undefined) {
+			this.#historyViewportGeometry = this.#lastGeometry;
 		}
 		if (this.#rowFlights.has('viewport') && !changed) return;
 		this.#pendingHistoryTransition = event.anchorStatus === 'valid' ? 'refresh' : 'recover';
@@ -2537,7 +2543,10 @@ export class ProjectedTerminal {
 	}
 
 	notifyBrokerFailure(failure: ProjectedBrokerFailure): void {
-		if (failure.operation === 'resize') this.#lastGeometry = undefined;
+		if (failure.operation === 'resize') {
+			this.#lastGeometry = undefined;
+			this.#historyViewportGeometry = undefined;
+		}
 		let handledHistoryFailure = false;
 		const staleSelectionGestureFailure =
 			failure.operation === 'selection' &&
@@ -2668,6 +2677,7 @@ export class ProjectedTerminal {
 		this.#ownsResizeLease = ownsResizeLease;
 		this.#forceResizeSubmission = ownsResizeLease;
 		this.#lastGeometry = undefined;
+		if (!ownsResizeLease) this.#historyViewportGeometry = undefined;
 		this.#lastGeometryAttemptedAt = Number.NEGATIVE_INFINITY;
 		if (ownsResizeLease && this.#phase === ProjectedTerminalPhase.open) {
 			this.#handleSurfaceResize();
@@ -4193,6 +4203,7 @@ export class ProjectedTerminal {
 
 	#requestHistoryRows(origin: ReadRows['origin'], overscanRows = HISTORY_OVERSCAN_ROWS): void {
 		const metadata = this.#store.metadata ?? this.#historyStore?.metadata;
+		const historyMetadata = this.#historyStore?.metadata;
 		if (
 			this.#historyPhase === ProjectedHistoryPhase.followingBottom &&
 			(this.#tailPresentationStore !== undefined ||
@@ -4209,7 +4220,10 @@ export class ProjectedTerminal {
 		) {
 			return;
 		}
-		const visibleRowCount = metadata.rows;
+		const visibleRowCount =
+			this.#historyViewportGeometry?.rows ?? historyMetadata?.rows ?? metadata.rows;
+		const visibleColumnCount =
+			this.#historyViewportGeometry?.columns ?? historyMetadata?.columns ?? metadata.columns;
 		const visibleStartRow = this.#resolveHistoryVisibleStart(origin, visibleRowCount);
 		const revisionPolicy: RowRevisionPolicy =
 			origin.kind === 'committed' || origin.kind === 'tail' ? 'current-view' : 'exact';
@@ -4217,7 +4231,7 @@ export class ProjectedTerminal {
 			1,
 			Math.min(
 				PROTOCOL_LIMITS.maxRowWindowRows,
-				Math.floor(PROTOCOL_LIMITS.maxFrameCells / metadata.columns),
+				Math.floor(PROTOCOL_LIMITS.maxFrameCells / visibleColumnCount),
 			),
 		);
 		const cacheRowCount = Math.min(
@@ -4411,6 +4425,7 @@ export class ProjectedTerminal {
 		}
 		const flight = this.#rowFlights.get('viewport');
 		if (flight !== undefined) this.#retireRowFlight(flight);
+		this.#historyViewportGeometry = undefined;
 		if (pendingIntentPolicy === 'discard') this.#pendingHistoryDelta = 0;
 		this.#pendingHistoryTransition = undefined;
 		if (pendingIntentPolicy === 'discard') {
@@ -4432,6 +4447,7 @@ export class ProjectedTerminal {
 		const metadata = this.#store.metadata;
 		this.#historyStore?.dispose();
 		this.#historyStore = undefined;
+		this.#historyViewportGeometry = undefined;
 		this.#historyRowsBefore = 0;
 		this.#historyStartRow = 0n;
 		this.#historyPhase = ProjectedHistoryPhase.followingBottom;
@@ -5342,7 +5358,10 @@ export class ProjectedTerminal {
 
 	#reportCommandFailure(command: ProjectedTerminalCommand, error: unknown): void {
 		const operation = command.kind === 'resize-terminal' ? 'resize' : 'command';
-		if (operation === 'resize') this.#lastGeometry = undefined;
+		if (operation === 'resize') {
+			this.#lastGeometry = undefined;
+			this.#historyViewportGeometry = undefined;
+		}
 		this.#errorEmitter.fire({ error, operation });
 	}
 

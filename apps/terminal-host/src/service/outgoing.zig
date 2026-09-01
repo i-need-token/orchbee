@@ -2,9 +2,7 @@ const std = @import("std");
 
 const identifiers = @import("terminal-host-model").identifiers;
 const protocol = @import("terminal-protocol");
-
-const max_records = 256;
-const max_bytes = protocol.Limits.transport_record_bytes;
+const reservation_accounting = @import("outgoing/reservation_accounting.zig");
 
 pub const owned_payload_prefix_bytes = protocol.transport_envelope_header_bytes;
 
@@ -23,14 +21,7 @@ pub const Delivery = union(enum) {
     },
 };
 
-pub const AppendToken = struct {
-    // Append identity is never reused across rollback or cancelled reservation,
-    // so an old checkpoint cannot match a later record with the same counts.
-    append_id: u64,
-    byte_count_before: usize,
-    previous_append_id: u64,
-    record_count_before: usize,
-};
+pub const AppendToken = reservation_accounting.AppendToken;
 
 pub const AppendOutcome = union(enum) {
     appended: AppendToken,
@@ -40,6 +31,11 @@ pub const AppendOutcome = union(enum) {
 pub const ReserveOutcome = union(enum) {
     full,
     reserved: RecordReservation,
+};
+
+pub const CapacityReserveOutcome = union(enum) {
+    full,
+    reserved: RecordCapacityReservation,
 };
 
 pub const AdoptionOutcome = union(enum) {
@@ -117,7 +113,8 @@ pub const RecordReservation = struct {
             self.delivery.response,
             self.delivery.event,
         ) catch unreachable;
-        const token = self.outgoing.commitReservation(
+        const token = reservation_accounting.commit(
+            self.outgoing,
             self.append_id,
             self.maximum_record_length,
             allocation,
@@ -130,9 +127,64 @@ pub const RecordReservation = struct {
 
     pub fn deinit(self: *RecordReservation) void {
         if (self.state == .pending) {
-            self.outgoing.cancelReservation(
+            reservation_accounting.cancelOwned(
+                self.outgoing,
                 self.maximum_record_length,
                 self.allocation.?,
+            );
+        }
+        self.* = undefined;
+    }
+};
+
+/// Promises one bounded record slot before a domain effect without allocating
+/// the maximum payload buffer. The caller can later transfer an already-encoded
+/// allocation at an allocation-free commit point.
+pub const RecordCapacityReservation = struct {
+    append_id: u64,
+    delivery: DeliveryMetadata,
+    maximum_record_length: usize,
+    outgoing: *Outgoing,
+    state: ReservationState = .pending,
+
+    pub fn commitOwnedPayload(
+        self: *RecordCapacityReservation,
+        kind: u16,
+        encoding: protocol.PayloadEncoding,
+        allocation: []u8,
+        payload: []const u8,
+    ) AppendToken {
+        std.debug.assert(self.state == .pending);
+        std.debug.assert(allocation.len <= self.maximum_record_length);
+        std.debug.assert(allocation.len >= owned_payload_prefix_bytes);
+        std.debug.assert(payload.ptr == allocation.ptr + owned_payload_prefix_bytes);
+        std.debug.assert(payload.len <= allocation.len - owned_payload_prefix_bytes);
+        const record = protocol.finalizeTransportEnvelope(
+            allocation,
+            kind,
+            encoding,
+            payload.len,
+            self.delivery.correlation_id,
+            if (self.delivery.host_epoch) |epoch| epoch.bytes else null,
+            self.delivery.response,
+            self.delivery.event,
+        ) catch unreachable;
+        const token = reservation_accounting.commit(
+            self.outgoing,
+            self.append_id,
+            self.maximum_record_length,
+            allocation,
+            record,
+        );
+        self.state = .consumed;
+        return token;
+    }
+
+    pub fn deinit(self: *RecordCapacityReservation) void {
+        if (self.state == .pending) {
+            reservation_accounting.cancelCapacity(
+                self.outgoing,
+                self.maximum_record_length,
             );
         }
         self.* = undefined;
@@ -168,7 +220,8 @@ pub const PayloadAdoption = struct {
             self.delivery.response,
             self.delivery.event,
         ) catch unreachable;
-        const token = self.outgoing.commitReservation(
+        const token = reservation_accounting.commit(
+            self.outgoing,
             self.append_id,
             allocation.len,
             allocation,
@@ -182,7 +235,7 @@ pub const PayloadAdoption = struct {
     pub fn deinit(self: *PayloadAdoption) void {
         if (self.state == .pending) {
             const allocation = self.allocation.?;
-            self.outgoing.cancelReservation(allocation.len, allocation);
+            reservation_accounting.cancelOwned(self.outgoing, allocation.len, allocation);
         }
         self.* = undefined;
     }
@@ -223,49 +276,45 @@ pub const Outgoing = struct {
         return self.allocator;
     }
 
-    fn hasCapacityForPayload(self: *const Outgoing, payload_length: usize) bool {
-        if (self.record_storage.items.len + self.reserved_records >= max_records) return false;
-        // Prepared records retain their maximum-sized allocation after commit;
-        // account for allocation size, not only the shorter wire prefix, so a
-        // sequence of prepared replies cannot exceed the bounded batch memory.
-        const occupied_bytes = self.allocation_byte_count + self.reserved_bytes;
-        const remaining_bytes = max_bytes -| occupied_bytes;
-        return remaining_bytes >= protocol.transport_envelope_header_bytes and
-            payload_length <= remaining_bytes - protocol.transport_envelope_header_bytes;
-    }
-
     pub fn reserve(
         self: *Outgoing,
         maximum_payload_length: usize,
         delivery: Delivery,
     ) !ReserveOutcome {
-        if (maximum_payload_length > max_bytes - protocol.transport_envelope_header_bytes) {
-            return error.OutgoingRecordTooLarge;
-        }
-        if (!self.hasCapacityForPayload(maximum_payload_length)) return .full;
-
-        const metadata = deliveryMetadata(delivery);
-        const maximum_record_length = protocol.transportEnvelopeAllocationLength(
+        const plan = try reservation_accounting.plan(
+            self,
             maximum_payload_length,
-            metadata.correlation_id,
-            if (metadata.host_epoch) |epoch| epoch.bytes else null,
-        ) catch |err| return err;
-        const append_id = self.next_append_id;
-        const next_append_id = std.math.add(u64, append_id, 1) catch
-            return error.OutgoingAppendIdentityExhausted;
-        const required_capacity = self.record_storage.items.len + self.reserved_records + 1;
-        try self.record_storage.ensureTotalCapacity(self.allocator, required_capacity);
-        try self.record_views.ensureTotalCapacity(self.allocator, required_capacity);
-        const allocation = try self.allocator.alloc(u8, maximum_record_length);
-
-        self.next_append_id = next_append_id;
-        self.reserved_bytes += maximum_record_length;
-        self.reserved_records += 1;
+            deliveryMetadata(delivery),
+        ) orelse return .full;
+        const allocation = try self.allocator.alloc(u8, plan.maximum_record_length);
+        reservation_accounting.activate(self, plan);
         return .{ .reserved = .{
             .allocation = allocation,
-            .append_id = append_id,
-            .delivery = metadata,
-            .maximum_record_length = maximum_record_length,
+            .append_id = plan.append_id,
+            .delivery = plan.delivery,
+            .maximum_record_length = plan.maximum_record_length,
+            .outgoing = self,
+        } };
+    }
+
+    /// Reserves bounded batch and record-list capacity without allocating the
+    /// caller's maximum payload. Commit can later adopt a smaller exact output
+    /// allocation without any further list growth.
+    pub fn reserveCapacity(
+        self: *Outgoing,
+        maximum_payload_length: usize,
+        delivery: Delivery,
+    ) !CapacityReserveOutcome {
+        const plan = try reservation_accounting.plan(
+            self,
+            maximum_payload_length,
+            deliveryMetadata(delivery),
+        ) orelse return .full;
+        reservation_accounting.activate(self, plan);
+        return .{ .reserved = .{
+            .append_id = plan.append_id,
+            .delivery = plan.delivery,
+            .maximum_record_length = plan.maximum_record_length,
             .outgoing = self,
         } };
     }
@@ -322,21 +371,17 @@ pub const Outgoing = struct {
             metadata.response,
             metadata.event,
         );
-        if (!self.hasCapacityForPayload(payload.len)) return .full;
-
-        const append_id = self.next_append_id;
-        const next_append_id = std.math.add(u64, append_id, 1) catch
-            return error.OutgoingAppendIdentityExhausted;
-        const required_capacity = self.record_storage.items.len + self.reserved_records + 1;
-        try self.record_storage.ensureTotalCapacity(self.allocator, required_capacity);
-        try self.record_views.ensureTotalCapacity(self.allocator, required_capacity);
-        self.next_append_id = next_append_id;
-        self.reserved_bytes += allocation.len;
-        self.reserved_records += 1;
+        const plan = try reservation_accounting.plan(
+            self,
+            payload.len,
+            deliveryMetadata(delivery),
+        ) orelse return .full;
+        std.debug.assert(plan.maximum_record_length == allocation.len);
+        reservation_accounting.activate(self, plan);
         return .{ .prepared = .{
             .allocation = allocation,
-            .append_id = append_id,
-            .delivery = metadata,
+            .append_id = plan.append_id,
+            .delivery = plan.delivery,
             .encoding = encoding,
             .kind = kind,
             .outgoing = self,
@@ -391,49 +436,6 @@ pub const Outgoing = struct {
         self.last_append_id = token.previous_append_id;
         self.allocator.free(record.allocation);
     }
-
-    fn commitReservation(
-        self: *Outgoing,
-        append_id: u64,
-        maximum_record_length: usize,
-        allocation: []u8,
-        record: []const u8,
-    ) AppendToken {
-        std.debug.assert(self.reserved_records > 0);
-        std.debug.assert(self.reserved_bytes >= maximum_record_length);
-        std.debug.assert(allocation.len == maximum_record_length);
-        std.debug.assert(record.ptr == allocation.ptr and record.len <= allocation.len);
-        const token: AppendToken = .{
-            .append_id = append_id,
-            .byte_count_before = self.byte_count,
-            .previous_append_id = self.last_append_id,
-            .record_count_before = self.record_storage.items.len,
-        };
-        self.reserved_records -= 1;
-        self.reserved_bytes -= maximum_record_length;
-        self.record_storage.appendAssumeCapacity(.{
-            .allocation = allocation,
-            .bytes = record,
-        });
-        self.record_views.appendAssumeCapacity(record);
-        self.allocation_byte_count += maximum_record_length;
-        self.byte_count += record.len;
-        self.last_append_id = append_id;
-        return token;
-    }
-
-    fn cancelReservation(
-        self: *Outgoing,
-        maximum_record_length: usize,
-        allocation: []u8,
-    ) void {
-        std.debug.assert(self.reserved_records > 0);
-        std.debug.assert(self.reserved_bytes >= maximum_record_length);
-        std.debug.assert(allocation.len == maximum_record_length);
-        self.reserved_records -= 1;
-        self.reserved_bytes -= maximum_record_length;
-        self.allocator.free(allocation);
-    }
 };
 
 fn deliveryMetadata(delivery: Delivery) DeliveryMetadata {
@@ -460,8 +462,8 @@ fn deliveryMetadata(delivery: Delivery) DeliveryMetadata {
 }
 
 pub const testing = if (@import("builtin").is_test) struct {
-    pub const byte_limit = max_bytes;
-    pub const record_limit = max_records;
+    pub const byte_limit = reservation_accounting.max_bytes;
+    pub const record_limit = reservation_accounting.max_records;
 
     pub fn byteCount(outgoing: *const Outgoing) usize {
         return outgoing.byte_count;

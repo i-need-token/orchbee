@@ -27,16 +27,10 @@ describe('renderDesktopApplicationIconSvg', () => {
 		).toThrow('does not configure an application icon');
 	});
 
-	it('adds a structurally distinct local badge', () => {
-		const result = renderDesktopApplicationIconSvg(
-			baseIcon,
-			resolveDesktopDistributionProfile('local'),
-		);
-
-		expect(result).toContain('data-orchbee-distribution="local"');
-		expect(result).toContain('fill="#168f5b"');
-		expect(result).toContain('<rect x="431"');
-		expect(result).not.toContain('data-orchbee-distribution="dev"');
+	it('rejects a local distribution without a configured application icon', () => {
+		expect(() =>
+			renderDesktopApplicationIconSvg(baseIcon, resolveDesktopDistributionProfile('local')),
+		).toThrow('does not configure an application icon');
 	});
 
 	it('rejects incomplete source artwork', () => {
